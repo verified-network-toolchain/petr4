@@ -708,75 +708,6 @@ Ltac smtize :=
   end
 .
 
-Lemma follow_buffer
-  {a: p4automaton}
-  (s: states a)
-  (st: store a)
-  (buf buf': list bool)
-:
-  Datatypes.length buf + Datatypes.length buf' + 1 < size a s ->
-  follow (inl s, st, buf) buf' =
-  (inl s, st, buf ++ buf')
-.
-Proof.
-  induction buf' using rev_ind; intros.
-  - now rewrite follow_nil, app_nil_r.
-  - unfold follow.
-    rewrite fold_left_app.
-    fold (follow (inl s, st, buf) buf').
-    simpl fold_left.
-    rewrite IHbuf'.
-    + rewrite step_with_space.
-      * now rewrite app_assoc.
-      * rewrite app_length in *.
-        simpl in *.
-        lia.
-    + rewrite app_length in *.
-      simpl Datatypes.length in *.
-      lia.
-Qed.
-
-Lemma follow_exact
-  {a: p4automaton}
-  (s: states a)
-  (st: store a)
-  (buf buf': list bool)
-:
-  Datatypes.length buf' > 0 ->
-  Datatypes.length buf + Datatypes.length buf' = size a s ->
-  follow (inl s, st, buf) buf' =
-    let st' := update a s (buf ++ buf') st in
-    (transitions a s st', st', nil)
-.
-Proof.
-  intros.
-  destruct buf'.
-  - simpl Datatypes.length in H.
-    lia.
-  - revert s st buf b H H0.
-    induction buf'; intros.
-    + rewrite follow_cons, follow_nil.
-      unfold step.
-      rewrite app_length.
-      simpl Datatypes.length in *.
-      destruct (equiv_dec _ _); smtize.
-    + rewrite follow_cons.
-      rewrite step_with_space.
-      rewrite IHbuf'.
-      * repeat f_equal;
-        rewrite <- app_assoc;
-        rewrite <- app_comm_cons;
-        rewrite app_nil_l;
-        easy.
-      * simpl Datatypes.length in *.
-        lia.
-      * rewrite app_length in *.
-        simpl Datatypes.length in *.
-        lia.
-      * simpl Datatypes.length in *.
-        lia.
-Qed.
-
 Lemma done_stuck:
   forall buf h st1 st2 buf1 buf2,
     candidate (follow (inr h, st1, buf1) buf) (follow (inr h, st2, buf2) buf)
@@ -798,7 +729,7 @@ Proof.
   Opaque Z.of_nat.
   unfold bisimulation_with_leaps; intros.
   induction H; (split; [try easy|]); intros.
-  2: { split; intros; inversion H; easy. }
+  2: { split; intros; inversion H;  easy. }
   - simpl min in H.
     rewrite (@follow_buffer BabyIPv2.v2_parser); [|smtize].
     rewrite (@follow_exact BabyIPv1.v1_parser); [|smtize|smtize].

@@ -194,7 +194,7 @@ Inductive fixed_vector :
       )
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
-      (fun buf buf' => length buf < 32 /\ buf = buf')
+      (fun buf buf' => buf = nil /\ buf = buf')
       fixed_vector
   | SeenOne :
     build_bisimulation
@@ -205,10 +205,8 @@ Inductive fixed_vector :
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
       (fun buf buf' =>
-        length buf < 32 /\
-        exists pref,
-          buf' = pref ++ buf /\
-          length pref = 32
+        buf = nil /\
+        length buf' = 32
       )
       fixed_vector
   | SeenTwo :
@@ -220,10 +218,8 @@ Inductive fixed_vector :
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
       (fun buf buf' =>
-        length buf < 32 /\
-        exists pref,
-          buf' = pref ++ buf /\
-          length pref = 32*2
+        buf = nil /\
+        length buf' = 32 * 2
       )
       fixed_vector
   | SeenThree :
@@ -235,10 +231,8 @@ Inductive fixed_vector :
       (inl MPLSFixedWidth.parse_entry)
       (inl MPLSVectorized.parse_entries)
       (fun buf buf' =>
-        length buf < 32 /\
-        exists pref,
-          buf' = pref ++ buf /\
-          length pref = 32*3
+        buf = nil /\
+        length buf' = 32 * 3
       )
       fixed_vector
   | EndStates :
@@ -331,104 +325,113 @@ Ltac seen_solver' :=
   (eapply EndStates; now seen_solver) || 
   (eapply Start; now seen_solver).
 
-
-Example fixed_vector_bis : bisimulation fixed_vector.
-  unfold bisimulation.
+Lemma min_same : 
+  forall n, min n n = n.
+Proof.
   intros.
-  inversion H; clear H; split; intros.
-  - state_contra.
-  - unfold step.
-    destruct H2.
-    rewrite <- H2.
-    simpl size. unfold MPLSVectorized.size'.
-    repeat break_matches.
-    + length_contra.
-    + simpl transitions.
-      destruct H0 as [HL0 [HL1 HL2]].
-      rewrite HL1, HL2.
-      simpl.
-      rewrite HL0.
-      simpl.
-      rewrite HL1, HL2.
+  induction n; auto.
+  unfold min.
+  fold min.
+  rewrite IHn.
+  trivial.
+Qed.
 
-      seen_solver'.
-    + length_contra.
-    + eapply Start; mysimp.
-  - state_contra.
-  - unfold step.
-    destruct H2 as [H2 [pref [HP HPL]]].
-    rewrite HP in *.
-    repeat break_matches.
-    + length_contra.
-    + simpl in e, c. unfold MPLSVectorized.size' in c.
-      simpl transitions.
-      mysimp.
-      repeat break_matches; (
-        exfalso;
+
+Example fixed_vector_bis : bisimulation_with_leaps fixed_vector.
+  unfold bisimulation_with_leaps.
+  intros.
+  inversion H; clear H; split; intros; try state_contra.
+  - destruct H2.
+    rewrite <- H5 in *.
+    rewrite H2 in *.
+    simpl in H.
+    rewrite (@follow_exact MPLSFixedWidth.parser); [|mysimp|mysimp].
+    rewrite (@follow_buffer MPLSVectorized.parser); [|mysimp].
+    do 32 (destruct buf; [exfalso; inversion H|]).
+    destruct buf; [| exfalso; simpl in H; inversion H].
+    clear H.
+    simpl.
+    destruct H0.
+    destruct H0.
+    repeat break_matches; (
+      (exfalso;
+      simpl in *;
+        (rewrite H in *) || (rewrite H0 in *); 
         simpl in *;
-        rewrite H0 in *; simpl in *;
-        (now inversion Heqb0) || (now inversion Heqb1)
-      ) || seen_solver'.
+      now inversion Heqb32 || now inversion Heqb31
+      ) ||
+      seen_solver'
+    ).
+  - destruct H2.
+    rewrite H2 in *.
+    simpl in H.
+    rewrite H5 in H.
+    simpl in H.
+    rewrite (@follow_exact MPLSFixedWidth.parser); [|mysimp|mysimp].
+    rewrite (@follow_buffer MPLSVectorized.parser); [|mysimp].
+    do 32 (destruct buf; [exfalso; inversion H|]).
+    destruct buf; [| exfalso; simpl in H; inversion H].
+    clear H.
+    simpl.
+    repeat break_matches; (
+      (exfalso;
+      simpl in *;
+        (rewrite H in *) || (rewrite H0 in *); 
+        simpl in *;
+      now inversion Heqb32 || now inversion Heqb31
+      ) ||
+      seen_solver'
+    ).
+  - destruct H2.
+    rewrite H2 in *.
+    simpl in H.
+    rewrite H5 in H.
+    simpl in H.
+    rewrite (@follow_exact MPLSFixedWidth.parser); [|mysimp|mysimp].
+    rewrite (@follow_buffer MPLSVectorized.parser); [|mysimp].
+    do 32 (destruct buf; [exfalso; inversion H|]).
+    destruct buf; [| exfalso; simpl in H; inversion H].
+    clear H.
+    simpl.
+    repeat break_matches; (
+      (exfalso;
+      simpl in *;
+        (rewrite H in *) || (rewrite H0 in *); 
+        simpl in *;
+      now inversion Heqb32 || now inversion Heqb31
+      ) ||
+      seen_solver'
+    ).
+  - destruct H2.
+    rewrite H2 in *.
+    simpl in H.
+    rewrite H5 in H.
+    simpl in H.
+    rewrite (@follow_exact MPLSFixedWidth.parser); [|mysimp|mysimp].
+    rewrite (@follow_exact MPLSVectorized.parser); [|mysimp|mysimp].
+    do 32 (destruct buf; [exfalso; inversion H|]).
+    destruct buf; [| exfalso; simpl in H; inversion H].
+    clear H.
+    simpl.
+    destruct sig1.
+    simpl in *.
+    rewrite H0 in *.
+    simpl in *.
+    do 96 (destruct buf2; [exfalso; inversion H5|]).
+    destruct buf2; [|exfalso; inversion H5].
+    clear H5.
+    repeat (
+      seen_solver' || 
+      unfold MPLSAutomaton.slice; simpl; break_matches
+    ); (
+      now (exfalso; inversion Heqb128 || inversion Heqb127)
+    ).
+    
 
-    + length_contra.
-    + simpl in c, c0.
-      unfold MPLSVectorized.size' in c0.
-      seen_solver'.
-  - state_contra.
-  - simpl step.
-    destruct (equiv_dec _ _).
-    + destruct (nth_error _ _).
-      * destruct v0;
-        try (rewrite H0; simpl);
-        destruct (equiv_dec _ _); 
-        try (length_contra || seen_solver').
-        break_matches;
-        break_matches;
-        do 3 (
-          (rewrite H0 in *; try destruct validity; length_contra) || 
-          seen_solver' ||
-          (try break_matches)
-        );
-        (try (simpl in *; rewrite H0 in *; (compute in Heqb1 || compute in Heqb0); congruence)).
-        
-      * simpl; rewrite H0; simpl.
-        repeat (
-          length_contra || 
-          seen_solver' || 
-          break_matches
-        ).
-    + repeat (
-        length_contra || 
-        seen_solver' || 
-        break_matches
-      ). 
-
-  - state_contra.
-  - simpl step.
-    destruct H2 as [HB1 [pref [HB2 HBPL]]].
-    destruct (equiv_dec _ _).
-    + destruct (nth_error _ _); [
-        destruct v0 | simpl
-      ]; 
-      try rewrite H0; 
-      simpl;
-      destruct (equiv_dec _ _);
-      try (length_contra || (length_contra'; eapply c; lia));
-      break_matches; 
-      (length_contra || (length_contra'; eapply c; lia)) || 
-      (try seen_solver');
-      destruct validity;
-      repeat (
-        try rewrite H0; simpl;
-        seen_solver' || break_matches
-      ).
-
-    + destruct (equiv_dec _ _); [
-        length_contra';
-        eapply c;
-        lia | 
-        seen_solver'
-      ].
-  - state_contra.
-  - rewrite H2. seen_solver'.
+  - simpl in H.
+    destruct buf; [exfalso; inversion H|].
+    destruct buf; [|exfalso; inversion H].
+    clear H.
+    rewrite H2 in *.
+    seen_solver'.
 Qed.

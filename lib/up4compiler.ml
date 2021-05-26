@@ -90,6 +90,11 @@ let get_parser_states (p:P4.Declaration.t) : P4.Parser.state list =
   | Parser { annotations; name; type_params; params; constructor_params; locals; states} -> states
   | _ -> raise (IncorrectType "Expected parser in get_parser_states")
 
+let get_parser_parameters (p:P4.Declaration.t) : P4.Parameter.t list = 
+  match snd p with 
+  | Parser { annotations; name; type_params; params; constructor_params; locals; states} -> params
+  | _ -> raise (IncorrectType "Expected parser in get_parser_parameters")
+
 let get_error (d:P4.Declaration.t): P4.Declaration.t option = match (snd d) with 
   | P4.Declaration.Error{members} -> Some d
   | _ -> None
@@ -246,7 +251,6 @@ let get_cases_next (c:P4.Parser.case) : string =
   let open P4.Parser in 
   match (snd c) with 
   | {matches; next} -> snd next
-
 
 (**Can declarations have same name? (across all of controls, externs, parser, etc) *)
 let find_declaration_by_name (prog:P4.Declaration.t list) (name:string) : P4.Declaration.t = 
@@ -636,13 +640,13 @@ let rec equivalence_expr (e1:P4.Expression.t) (e2:P4.Expression.t):bool =
   | ArrayAccess {array=a1;index=i1}, ArrayAccess {array=a2;index=i2} -> (equivalence_expr a1 a2) && (equivalence_expr i1 i2)
   | BitStringAccess {bits=b1;lo=lo1;hi=hi1}, BitStringAccess {bits=b2;lo=lo2;hi=hi2} -> 
     (equivalence_expr b1 b2) && (equivalence_expr lo1 lo2) && (equivalence_expr hi1 hi2) 
-  (* Other equivalence unimplemented for now *)
-  (* | List {values}, List {values=v2}
-              | Record {entries}, Record {entries=e2}
-              | UnaryOp {op=op1;arg=a1}, UnaryOp {op=op2;arg=a2}
-              | BinaryOp{op=op1;args=a1}, BinaryOp {op=op2;args=a2}
-              | Cast {typ=t1;expr=e1}, Cast{typ=t2;expr=e2}
-              | TypeMember {typ=t1;name=n1}, TypeMember {typ=t2;name=n2} *)
+  | List {values=v1}, List {values=v2} -> List.fold_left2 (fun x y z -> (equivalence_expr y z) && x) true v1 v2
+  (* Other equivalence unimplemented for now {entries=e2}
+     | Record {entries}, Record {entries} -> false
+     | UnaryOp {op=op1;arg=a1}, UnaryOp {op=op2;arg=a2}
+     | BinaryOp{op=op1;args=a1}, BinaryOp {op=op2;args=a2}
+     | Cast {typ=t1;expr=e1}, Cast{typ=t2;expr=e2}
+     | TypeMember {typ=t1;name=n1}, TypeMember {typ=t2;name=n2} *)
   | _,_ -> false
 
 let rec equivalence_type (t1:P4.Type.t) (t2:P4.Type.t):bool = 
@@ -781,12 +785,39 @@ let match_selects (parsers:P4.Declaration.t * P4.Declaration.t) (c1:P4.Parser.ca
 (* Header env - association list of header names? *)
 let merge_parsers (p1:parser) (p2:parser):( parser * ((string * string) list))= p1, []
 
+(*This should take in a [p] parser (P4.Declaration.t), [h] all the header declarations
+  [arg_name] from an extract call and return an environment of (argname, Header) *)
+let create_argName_header_env (p:P4.Declaration.t) (h:P4.Declaration.t list) (arg_name:string):(string * P4.Declaration.t) = 
+  let open P4.Direction in 
+  let is_out_dir (param:P4.Parameter.t):bool = 
+    (match snd param with
+    | {annotations; direction=Some (_, Out);typ;variable;opt_value} -> true
+    | _ -> false) in 
+  let arg_type = List.hd (List.map get_parameter_typename (List.filter is_out_dir (get_parser_parameters p))) in 
+  (arg_name, (find_declaration_by_name h arg_type))
+
+
 (* parsers contains (p1,p2) which are the parsers from the two programs before merge. 
-   headers is the header env. p is the parser we are generating (Everything before is just for env)
+   The header env is Argument_Name -> Header type. 
+   p is the parser we are generating (Everything before is just for env)
    s1 and s2 are states you are trying to merge. t1 and t2 are transitions you are trying to merge*)
-let match_state  (parsers:P4.Declaration.t * P4.Declaration.t) (headers:P4.Declaration.t list) (p:parser) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = p
-and match_transition (parsers:P4.Declaration.t * P4.Declaration.t) (p:parser)  (t1:P4.Parser.transition)
-    (t2:P4.Parser.transition):(string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition =
+let match_state  (parsers:P4.Declaration.t * P4.Declaration.t) (header_env: (string * P4.Declaration.t) list) (p:parser) (s1:P4.Parser.state) (s2:P4.Parser.state): parser = 
+  let statements1, transition1 = match snd s1 with
+    | {annotations;name;statements;transition} -> statements, transition in 
+  let statements2, transition2 = match snd s2 with
+    | {annotations;name;statements;transition} -> statements, transition in 
+  let is_extract (s:P4.Statement.t) = 
+    match snd s with
+    | MethodCall {func; type_args; args} -> String.compare (get_expression_name func) "extract" == 0
+    | _ -> false in 
+  let get_statements_arg_types statements = List.map get_statement_method_name (List.filter is_extract statements) in
+  let types1 = List.map (fun x -> List.assoc x header_env) (get_statements_arg_types statements1) in 
+  let types2 = List.map (fun x -> List.assoc x header_env) (get_statements_arg_types statements2) in 
+  if (List.fold_left2 (fun x y z -> (equivalence_headers y z) && x) true types1 types2 ) then p
+  else raise StateMergeFail
+
+let match_transition (parsers:P4.Declaration.t * P4.Declaration.t) (p:parser)  (t1:P4.Parser.transition)
+    (t2:P4.Parser.transition):(string*P4.Parser.state*P4.Parser.state) list * P4.Parser.transition = 
   let open P4.Parser in 
   match (snd t1), (snd t2) with 
   | Direct {next=n1}, Direct{next=n2} -> 

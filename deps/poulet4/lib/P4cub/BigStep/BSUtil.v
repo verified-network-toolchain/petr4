@@ -465,7 +465,6 @@ Module EnvUtil.
     | PInst (closure : epsilon) (fs : fenv) (ins : ienv)
             (strt : PR.state_block tags_t)
             (states : F.fs string (PR.state_block tags_t))
-    | EInst (* TODO: extern object instance *)
     with ienv : Type :=
     | IEnv (ins : Env.t string inst).
     (**[]*)
@@ -522,3 +521,13 @@ Module EnvUtil.
     (**[]*)
   End InstEnv.
 End EnvUtil.
+
+(** call extern [e], method [f], arguments [args = a1,...,an].
+    [e.f(a1,...,an)]
+    call_extern_method : forall ϵ pkt e f args argsv,
+    args ⇓ argsv ->
+    (ϵ',pkt') = e.dispatch_method f argsv ϵ pkt ->
+    ⟪ pkt, ϵ, e.f(args) ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
+    
+    Lookup extern with name e.
+ *)

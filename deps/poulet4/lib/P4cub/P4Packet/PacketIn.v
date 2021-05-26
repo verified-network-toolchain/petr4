@@ -18,8 +18,5 @@ Definition length : PKT.t -> Z := Z.of_nat ∘ PKT.in_length.
 Module Type P4PacketIn.
   Include PKT.P4Packet.
 
-  (** L-value data-type. *)
-  Parameter LV : Type.
-
   Parameter p4extract : T -> LV -> Env.t string E -> PKT.paquet_monad (Env.t string E).
 End P4PacketIn.

@@ -45,6 +45,9 @@ Module Type P4Packet.
   (** P4 expression/value data type. *)
   Parameter E : Type.
 
+  (** L-value data-type. *)
+  Parameter LV : Type.
+
   (** Read from the packet. *)
   Parameter read : T -> paquet_monad E.
 

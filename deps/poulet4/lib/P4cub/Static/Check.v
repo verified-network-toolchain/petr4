@@ -1,9 +1,5 @@
-(*Require Export Coq.PArith.BinPosDef.*)
 Require Import Coq.PArith.BinPos.
 Require Import Coq.ZArith.BinInt.
-(*Require Import Coq.ZArith.BinIntDef.*)
-(*Export Pos.*)
-
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Envn.
@@ -12,24 +8,30 @@ Require Export Poulet4.P4cub.Envn.
 Declare Custom Entry p4signal.
 Declare Custom Entry p4context.
 
+(** Expression typing. *)
 Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
          (at level 40, e custom p4expr, t custom p4type at level 0).
 
+(** Statement typing. *)
 Reserved Notation "⦃ fns , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
          (at level 40, s custom p4stmt, ctx custom p4context,
           g2 custom p4env, sg custom p4signal).
 
+(** Parser-expression typing. *)
 Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrexpr).
 
+(** Parser-state-block typing. *)
 Reserved Notation "'⟅⟅' fns , pis , eis , sts , errs , Γ '⟆⟆' ⊢ s"
          (at level 40, s custom p4prsrstateblock).
 
+(** Control-declaration typing. *)
 Reserved Notation
          "⦅ ts1 , as1 , cs , fs , ci , ei , errs , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
          (at level 60, d custom p4ctrldecl,
           ts1 custom p4env, as1 custom p4env,
           ts2 custom p4env, as2 custom p4env).
 
+(** Toplevel-declaration typing. *)
 Reserved Notation
          "⦗ cs1 , fs1 , ci1 , pi1 , ei1 , ers , g1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , fs2 , cs2 ⦘"
          (at level 70, d custom p4topdecl, ei2 custom p4env, pi2 custom p4env,

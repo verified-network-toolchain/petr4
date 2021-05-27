@@ -444,55 +444,6 @@ Module EnvUtil.
   Section InstEnv.
     Context {tags_t : Type}.
 
-    (** Table environment. *)
-    Definition tenv : Type := Env.t string (CD.table tags_t).
-
-    (** Function declarations and closures. *)
-    Inductive fdecl : Type :=
-    | FDecl (closure : epsilon) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
-    with fenv : Type :=
-    | FEnv (fs : Env.t string fdecl)
-    (** Action declarations and closures *)
-    with adecl : Type :=
-    | ADecl (closure : epsilon) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
-    with aenv : Type :=
-    | AEnv (aa : Env.t string adecl)
-    (** Instances and Environment. *)
-    with inst : Type :=
-    | CInst (closure : epsilon) (fs : fenv) (ins : ienv)
-            (tbls : tenv) (aa : aenv)
-            (apply_blk : ST.s tags_t)  (* control instance *)
-    | PInst (closure : epsilon) (fs : fenv) (ins : ienv)
-            (strt : PR.state_block tags_t)
-            (states : F.fs string (PR.state_block tags_t))
-    with ienv : Type :=
-    | IEnv (ins : Env.t string inst).
-    (**[]*)
-
-    (** Function lookup. *)
-    Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fs.
-
-    (** Bind a function declaration to an environment. *)
-    Definition update '(FEnv fs : fenv) (x : string) (d : fdecl) : fenv :=
-      FEnv !{ x ↦ d ;; fs }!.
-    (**[]*)
-
-    (** Instance lookup. *)
-    Definition ilookup '(IEnv fs : ienv) : string -> option inst := fs.
-
-    (** Bind an instance to an environment. *)
-    Definition iupdate '(IEnv fs : ienv) (x : string) (d : inst) : ienv :=
-      IEnv !{ x ↦ d ;; fs }!.
-    (**[]*)
-
-    (** Action lookup. *)
-    Definition alookup '(AEnv aa : aenv) : string -> option adecl := aa.
-
-    (** Bind a function declaration to an environment. *)
-    Definition aupdate '(AEnv aa : aenv) (x : string) (d : adecl) : aenv :=
-      AEnv !{ x ↦ d ;; aa }!.
-    (**[]*)
-
     (** Control plane table entries,
         essentially mapping tables to an action call. *)
     Definition entries : Type :=
@@ -503,31 +454,65 @@ Module EnvUtil.
 
     (** Control plane tables. *)
     Definition ctrl : Type := Env.t string entries.
+    
+    (** Table environment. *)
+    Definition tenv : Type := Env.t string (CD.table tags_t).
+
+    (** Function declarations and closures. *)
+    Inductive fdecl : Type :=
+    | FDecl (closure : epsilon) (* value closure *)
+            (fs : Env.t string fdecl) (* function closure *)
+            (body : ST.s tags_t) (* function body *).
+    (**[]*)
+    
+    Definition fenv : Type := Env.t string fdecl.
+
+    (** Action declarations and closures. *)
+    Inductive adecl : Type :=
+    | ADecl (closure : epsilon) (* value closure *)
+            (fs : fenv) (* function closure *)
+            (aa : Env.t string adecl) (* action closure *)
+            (* TODO: extern instance closure *)
+            (body : ST.s tags_t) (* action body *).
+    (**[]*)
+    
+    Definition aenv : Type := Env.t string adecl.
+    
+    (** Control instances and environment. *)
+    Inductive cinst : Type :=
+    | CInst (closure : epsilon) (* value closure *)
+            (fs : fenv) (* function closure *)
+            (cis : Env.t string cinst) (* control instance closure *)
+            (tbls : tenv) (* table closure *)
+            (aa : aenv) (* action closure *)
+            (* TODO: extern instance closure *)
+            (apply_blk : ST.s tags_t)  (* control instance apply block *).
+    (**[]*)
+    
+    Definition cienv : Type := Env.t string cinst.
+
+    Inductive pinst : Type :=
+    | PInst (closure : epsilon) (* value closure *)
+            (fs : fenv) (* function closure *)
+            (pis : Env.t string pinst) (* parser instance closure *)
+            (strt : PR.state_block tags_t) (* start state *)
+            (* TODO: extern instance closure *)
+            (states : F.fs string (PR.state_block tags_t)) (* other states *).
+    (**[]*)
+    
+    Definition pienv : Type := Env.t string pinst.
 
     (** Control declarations and closures. *)
     Inductive cdecl : Type :=
-    | CDecl (cs : cenv) (closure : epsilon) (fs : fenv) (ins : ienv)
-            (body : CD.d tags_t) (apply_block : ST.s tags_t)
-    with cenv : Type :=
-    | CEnv (cs : Env.t string cdecl).
+    | CDecl (cs : Env.t string cdecl) (* control declaration closure *)
+            (closure : epsilon) (* value closure *)
+            (fs : fenv) (* function closure *)
+            (cis : cienv) (* control instance closure *)
+            (* TODO: extern instance closure *)
+            (body : CD.d tags_t) (* declarations inside control *)
+            (apply_block : ST.s tags_t) (* apply block *).
     (**[]*)
-
-    (** Control lookup. *)
-    Definition clookup '(CEnv cs : cenv) : string -> option cdecl := cs.
-
-    (** Bind an instance to an environment. *)
-    Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
-      CEnv !{ x ↦ d ;; cs }!.
-    (**[]*)
+    
+    Definition cenv : Type := Env.t string cdecl.
   End InstEnv.
 End EnvUtil.
-
-(** call extern [e], method [f], arguments [args = a1,...,an].
-    [e.f(a1,...,an)]
-    call_extern_method : forall ϵ pkt e f args argsv,
-    args ⇓ argsv ->
-    (ϵ',pkt') = e.dispatch_method f argsv ϵ pkt ->
-    ⟪ pkt, ϵ, e.f(args) ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
-    
-    Lookup extern with name e.
- *)

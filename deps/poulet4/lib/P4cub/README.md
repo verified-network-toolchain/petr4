@@ -2,35 +2,27 @@
 
 ### Contents:
 
-"W/ batteries" implies the inclusion of useful definitions, lemmas, and/or tactics.
+- `P4cub/Syntax`: abstract-syntax & auxilary definitions.
 
-- `AST.v`: the `p4cub` abstract syntax tree w/ batteries.
+- `P4cub/Static`: static semantics, including typechecking.
 
-- `BigStep.v`: `p4cub` big-step semantics w/ batteries.
+- `P4cub/P4Packet`: the representation of packets.
 
-- `Check.v`: `p4cub` static semantics.
+- `P4cub/BigStep`: big-step evaluation semantics.
 
-- `Field.v`: `p4cub`'s syntactic "fields" w/ batteries.
-
-- `Metamorphosis.v`: Translation from `p4light` to `p4cub`.
-
-- `SmallStep.v`: `p4cub` small-step values/lvalues, & semantics w/ batteries.
-
-- `Utilizer.v`: Useful notations, definitions, lemmas, & tactics.
+- `P4cub/SmallStep`: small-step evaluation semantics.
 
 ### Updates:
 
-- Work on translation from `p4light` to `p4cub` has begun.
+- The entire `P4cub` directory is being restructured as its codebase expands.
 
-- All uses of `N` have been usurped by `Z`.
+- An experimental representation of target architectures, `P4cub/Architecture.v` is now used in the big-step semantics. It is primarily used to dispatch `extern` method calls.
 
-- `p4cub` now uses `lib/P4Arith.v` for unary/binary operations on fixed-width integers.
-
-- `p4cub` supports casts from tuples to records and headers.
-
-- `p4cub` supports bit-slicing.
+- Packets now exist in `p4cub`, & are threaded through the big-step semantics.
 
 ### Goals:
+
+- A verified semantics-preserving translation from `p4cub` to `p4automaton`.
 
 - A fully specified static and dynamic semantics, both big-step and small-step.
 
@@ -42,8 +34,18 @@
 
 ### TODOs:
 
-- Explore better ways to enfore constructions of types with proper nesting.
+- `record` should be renamed `struct`.
 
-- Disallow non-constant global variable declarations in `AST.v`.
+- The file names are verbose, need to resolve an issue with the build so files in different directories may have the same name.
 
-- Use `p4light` architecture model/type-class in dynamic semantics.
+- Many utility definitions & theorems should be moved into separate files, including but not limited to those of `Syntax/AST.v`, `Static/Check.v`, `SmallStep/SSSemantics.v`.
+
+- The core codebase for `p4cub` packets/target/architecture representaion should exist within one directory.
+
+- `BigStep/BSSemantics.v` requires corrections with proper threading of closure environments.
+
+- There need to be closure envrionments for extern instances. There is a potential circular-dependency issue that must be resolved between `BigStep/BSUtil.v` & `BigStep/BSPacket.v`
+
+- The small-step semantics have yet to undergo the comprehensive restructurings that the big-step semantics have.
+
+- Explore common ground between `p4light` & `p4cub` architecture/target/packet models.

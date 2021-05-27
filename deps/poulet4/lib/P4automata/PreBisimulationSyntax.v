@@ -5,6 +5,8 @@ From Equations Require Import Equations.
 
 Require Import Poulet4.P4automata.P4automaton.
 Require Poulet4.P4automata.PreBisimulation.
+Require Poulet4.P4automata.Syntax.
+Module P4A := Poulet4.P4automata.Syntax.
 
 Open Scope list_scope.
 
@@ -136,4 +138,3 @@ Section PathRel.
     List.map interp_path_rel rel.
 
 End PathRel.
-  

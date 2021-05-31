@@ -33,6 +33,7 @@ parser MyParser2(packet_in packet,
         packet.extract(hdrs[0]);
         transition select(packet.lookahead< bit<8> >()) {
             42 : next;
+            11: accept;
             _ : reject;
         }
     }
@@ -41,8 +42,8 @@ parser MyParser2(packet_in packet,
         hdrs.push_front(1);
         packet.extract(hdrs[0]);
         transition select(packet.lookahead< bit<8> >()) {
-            42 : next;
             33 : final;
+            12: accept;
             _ : reject;
         }
     }

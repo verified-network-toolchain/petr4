@@ -10,6 +10,9 @@ Require Export Poulet4.Syntax.
 Require Export Poulet4.P4cub.Syntax.AST.
 Import P4cub.P4cubNotations.
 
+Require Import Coq.Strings.String.
+Require Import Coq.Classes.EquivDec.
+
 (** * P4light -> P4cub *)
 
 (* General Unresolved Challenges:
@@ -218,6 +221,12 @@ Section Metamorphosis.
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
       => Some $ E.EError (Some $ P4String.str err) i
+    | MkExpression i (ExpExpressionMember e f) t _ 
+      => 
+        let f := P4String.str f in 
+        t <- type_morph t ;;
+        e <<| expr_morph e ;; 
+        <{ Mem e:t dot f @ i }>
     | _ => None
     end.
   (**[]*)
@@ -229,6 +238,7 @@ Section Metamorphosis.
     end.
   (**[]*)
 
+  Open Scope string_scope.
   (** Statement Metamorphosis.
       Questions:
       1. How should p4cub deal with constants?
@@ -286,12 +296,38 @@ Section Metamorphosis.
         -{ if e:t then s1 else s2 @ i }-
     | MkStatement
         i (StatMethodCall
-             (MkExpression
-                _ (ExpName (BareName x) _) _ _) _ args) _
-      => let x := P4String.str x in None (* TODO *)
+             (MkExpression _ 
+                (ExpExpressionMember 
+                  (MkExpression _ 
+                    (ExpName (BareName x) _) 
+                    (TypTypeName (BareName xty)) 
+                  _)
+                  fname)
+                (TypFunction (MkFunctionType _ _ FunExtern retty))
+                _)
+              _
+              args)
+        _
+      =>
+        let x := P4String.str x in 
+        let xty := P4String.str xty in 
+        let fname := P4String.str fname in 
+        if xty == "packet_in" 
+        then
+          args' <- 
+            match args with 
+            | Some e :: nil => 
+              let* '(t, e') := type_expr_morph e in
+              Some (("arg", P4cub.PAOut (t, e')) :: nil)
+            | _ => Some nil
+            end ;;
+          ty' <- Some None ;;
+          Some -{ extern x calls fname with args' gives ty' @ i }-
+        else None
     | MkStatement i (StatSwitch e cases) _
       => e <- expr_morph e ;; None (* TODO *)
-    | _ => None
+    | MkStatement i _ _ => Some -{ exit @ i }-
+    (* | _ => None *)
     end.
   (**[]*)
 End Metamorphosis.

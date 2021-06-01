@@ -1084,6 +1084,8 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
       (inst, PathMap.set p inst m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m s
+  | MkExpression _ (ExpInt i) _ _ =>
+      (IMVal (eval_p4int i), m, s)
   (* TODO evaluate val parameters. *)
   | _ => (dummy_inst_mem_val, m, s)
   end.

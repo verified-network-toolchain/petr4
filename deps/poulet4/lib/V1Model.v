@@ -88,9 +88,6 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
             fun _ _ _ _ _ _ => False
   end.
 
-Definition Znth {A} : Z -> list A -> A.
-Admitted.
-
 Definition REG_INDEX_WIDTH := 32%nat.
 
 Inductive register_read_sem : extern_func_sem :=
@@ -107,15 +104,12 @@ Definition register_read : extern_func := {|
   ef_sem := register_read_sem
 |}.
 
-Definition upd_Znth {A} : Z -> A -> list A -> list A.
-Admitted.
-
 Inductive register_write_sem : extern_func_sem :=
   | exec_register_write : forall s p reg w content' index value,
       PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
       0 <= index < reg_size reg ->
-      upd_Znth index value (reg_content reg) = content' ->
+      upd_Znth index (reg_content reg) value = content' ->
       register_write_sem s p nil [ValBaseBit REG_INDEX_WIDTH index]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
           [] SReturnNull.

@@ -597,62 +597,14 @@ Definition MPLSNormalParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 0;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 0;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo
                {| stags := NoInfo; str := "parse_mpls_entry" |}));
      (MkParserState NoInfo {| stags := NoInfo; str := "parse_mpls_entry" |}
           [(MkStatement NoInfo
-                (StatMethodCall
-                     (MkExpression NoInfo
-                          (ExpName
-                           (BareName {| stags := NoInfo; str := "verify" |})
-                           NoLocator)
-                          (TypFunction
-                           (MkFunctionType nil
-                                [(MkParameter false In TypBool None
-                                      {| stags := NoInfo; str := "check" |});
-                                 (MkParameter false In TypError None
-                                      {| stags := NoInfo;
-                                         str := "toSignal" |})] FunExtern
-                                TypVoid)) Directionless) nil
-                     [(Some
-                       (MkExpression NoInfo
-                            (ExpBinaryOp Lt
-                                 ( (MkExpression NoInfo
-                                        (ExpExpressionMember
-                                             (MkExpression NoInfo
-                                                  (ExpName
-                                                   (BareName
-                                                    {| stags := NoInfo;
-                                                       str := "hdr" |})
-                                                   NoLocator)
-                                                  (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
-                                                       str := "mpls_h" |}))
-                                                  Out)
-                                             {| stags := NoInfo;
-                                                str := "bos" |}) (TypBit 3)
-                                        Directionless),
-                                   (MkExpression NoInfo
-                                        (ExpName
-                                         (BareName
-                                          {| stags := NoInfo;
-                                             str := "MAX_MPLS_ENTRIES" |})
-                                         NoLocator) (TypBit 3) Directionless) ))
-                            TypBool Directionless));
-                      (Some
-                       (MkExpression NoInfo
-                            (ExpErrorMember
-                             {| stags := NoInfo; str := "StackOutOfBounds" |})
-                            TypError Directionless))]) StmUnit);
-           (MkStatement NoInfo
                 (StatAssignment
                      (MkExpression NoInfo
                           (ExpExpressionMember
@@ -685,13 +637,9 @@ Definition MPLSNormalParser := DeclParser NoInfo
                                               str := "bos" |}) (TypBit 3)
                                       Directionless),
                                  (MkExpression NoInfo
-                                      (ExpCast (TypBit 3)
-                                           (MkExpression NoInfo
-                                                (ExpInt
-                                                 {| itags := NoInfo;
-                                                    value := 1;
-                                                    width_signed := None |})
-                                                TypInteger Directionless))
+                                      (ExpInt
+                                       {| itags := NoInfo; value := 1;
+                                          width_signed := (Some ( 3, false )) |})
                                       (TypBit 3) Directionless) )) (TypBit 3)
                           Directionless)) StmUnit);
            (MkStatement NoInfo
@@ -728,7 +676,7 @@ Definition MPLSNormalParser := DeclParser NoInfo
                         ( {| stags := NoInfo; str := "ttl" |}, (TypBit 8) )])]
                      [(Some
                        (MkExpression NoInfo
-                            (ExpArrayAccess
+                            (ExpExpressionMember
                                  (MkExpression NoInfo
                                       (ExpExpressionMember
                                            (MkExpression NoInfo
@@ -759,22 +707,7 @@ Definition MPLSNormalParser := DeclParser NoInfo
                                                   str := "ttl" |},
                                                (TypBit 8) )]) 4)
                                       Directionless)
-                                 (MkExpression NoInfo
-                                      (ExpExpressionMember
-                                           (MkExpression NoInfo
-                                                (ExpName
-                                                 (BareName
-                                                  {| stags := NoInfo;
-                                                     str := "hdr" |})
-                                                 NoLocator)
-                                                (TypTypeName
-                                                 (BareName
-                                                  {| stags := NoInfo;
-                                                     str := "mpls_h" |}))
-                                                Out)
-                                           {| stags := NoInfo;
-                                              str := "bos" |}) (TypBit 3)
-                                      Directionless))
+                                 {| stags := NoInfo; str := "next" |})
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -788,7 +721,7 @@ Definition MPLSNormalParser := DeclParser NoInfo
                [(MkExpression NoInfo
                      (ExpExpressionMember
                           (MkExpression NoInfo
-                               (ExpArrayAccess
+                               (ExpExpressionMember
                                     (MkExpression NoInfo
                                          (ExpExpressionMember
                                               (MkExpression NoInfo
@@ -819,40 +752,7 @@ Definition MPLSNormalParser := DeclParser NoInfo
                                                      str := "ttl" |},
                                                   (TypBit 8) )]) 4)
                                          Directionless)
-                                    (MkExpression NoInfo
-                                         (ExpBinaryOp Minus
-                                              ( (MkExpression NoInfo
-                                                     (ExpExpressionMember
-                                                          (MkExpression
-                                                               NoInfo
-                                                               (ExpName
-                                                                (BareName
-                                                                 {| stags := NoInfo;
-                                                                    str := "hdr" |})
-                                                                NoLocator)
-                                                               (TypTypeName
-                                                                (BareName
-                                                                 {| stags := NoInfo;
-                                                                    str := "mpls_h" |}))
-                                                               Out)
-                                                          {| stags := NoInfo;
-                                                             str := "bos" |})
-                                                     (TypBit 3)
-                                                     Directionless),
-                                                (MkExpression NoInfo
-                                                     (ExpCast (TypBit 3)
-                                                          (MkExpression
-                                                               NoInfo
-                                                               (ExpInt
-                                                                {| itags := NoInfo;
-                                                                   value := 1;
-                                                                   width_signed := 
-                                                                   None |})
-                                                               TypInteger
-                                                               Directionless))
-                                                     (TypBit 3)
-                                                     Directionless) ))
-                                         (TypBit 3) Directionless))
+                                    {| stags := NoInfo; str := "last" |})
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -899,7 +799,10 @@ Definition MPLSNormalParser := DeclParser NoInfo
                                            (TypBit 1) Directionless))
                                  (TypSet (TypBit 1)) Directionless))
                            (TypSet (TypSet (TypBit 1))))]
-                     {| stags := NoInfo; str := "accept" |})]))].
+                     {| stags := NoInfo; str := "accept" |});
+                (MkParserCase NoInfo
+                     [(MkMatch NoInfo MatchDontCare (TypSet (TypBit 1)))]
+                     {| stags := NoInfo; str := "reject" |})]))].
 
 Definition MPLSFixedWidthParser := DeclParser NoInfo
     {| stags := NoInfo; str := "MPLSFixedWidthParser" |} nil
@@ -932,62 +835,14 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 0;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 0;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo
                {| stags := NoInfo; str := "parse_mpls_entry" |}));
      (MkParserState NoInfo {| stags := NoInfo; str := "parse_mpls_entry" |}
           [(MkStatement NoInfo
-                (StatMethodCall
-                     (MkExpression NoInfo
-                          (ExpName
-                           (BareName {| stags := NoInfo; str := "verify" |})
-                           NoLocator)
-                          (TypFunction
-                           (MkFunctionType nil
-                                [(MkParameter false In TypBool None
-                                      {| stags := NoInfo; str := "check" |});
-                                 (MkParameter false In TypError None
-                                      {| stags := NoInfo;
-                                         str := "toSignal" |})] FunExtern
-                                TypVoid)) Directionless) nil
-                     [(Some
-                       (MkExpression NoInfo
-                            (ExpBinaryOp Lt
-                                 ( (MkExpression NoInfo
-                                        (ExpExpressionMember
-                                             (MkExpression NoInfo
-                                                  (ExpName
-                                                   (BareName
-                                                    {| stags := NoInfo;
-                                                       str := "hdr" |})
-                                                   NoLocator)
-                                                  (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
-                                                       str := "mpls_h" |}))
-                                                  Out)
-                                             {| stags := NoInfo;
-                                                str := "bos" |}) (TypBit 3)
-                                        Directionless),
-                                   (MkExpression NoInfo
-                                        (ExpName
-                                         (BareName
-                                          {| stags := NoInfo;
-                                             str := "MAX_MPLS_ENTRIES" |})
-                                         NoLocator) (TypBit 3) Directionless) ))
-                            TypBool Directionless));
-                      (Some
-                       (MkExpression NoInfo
-                            (ExpErrorMember
-                             {| stags := NoInfo; str := "StackOutOfBounds" |})
-                            TypError Directionless))]) StmUnit);
-           (MkStatement NoInfo
                 (StatAssignment
                      (MkExpression NoInfo
                           (ExpExpressionMember
@@ -1020,13 +875,9 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                               str := "bos" |}) (TypBit 3)
                                       Directionless),
                                  (MkExpression NoInfo
-                                      (ExpCast (TypBit 3)
-                                           (MkExpression NoInfo
-                                                (ExpInt
-                                                 {| itags := NoInfo;
-                                                    value := 1;
-                                                    width_signed := None |})
-                                                TypInteger Directionless))
+                                      (ExpInt
+                                       {| itags := NoInfo; value := 1;
+                                          width_signed := (Some ( 3, false )) |})
                                       (TypBit 3) Directionless) )) (TypBit 3)
                           Directionless)) StmUnit);
            (MkStatement NoInfo
@@ -1063,7 +914,7 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                         ( {| stags := NoInfo; str := "ttl" |}, (TypBit 8) )])]
                      [(Some
                        (MkExpression NoInfo
-                            (ExpArrayAccess
+                            (ExpExpressionMember
                                  (MkExpression NoInfo
                                       (ExpExpressionMember
                                            (MkExpression NoInfo
@@ -1094,22 +945,7 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                                   str := "ttl" |},
                                                (TypBit 8) )]) 4)
                                       Directionless)
-                                 (MkExpression NoInfo
-                                      (ExpExpressionMember
-                                           (MkExpression NoInfo
-                                                (ExpName
-                                                 (BareName
-                                                  {| stags := NoInfo;
-                                                     str := "hdr" |})
-                                                 NoLocator)
-                                                (TypTypeName
-                                                 (BareName
-                                                  {| stags := NoInfo;
-                                                     str := "mpls_h" |}))
-                                                Out)
-                                           {| stags := NoInfo;
-                                              str := "bos" |}) (TypBit 3)
-                                      Directionless))
+                                 {| stags := NoInfo; str := "next" |})
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -1123,7 +959,7 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                [(MkExpression NoInfo
                      (ExpExpressionMember
                           (MkExpression NoInfo
-                               (ExpArrayAccess
+                               (ExpExpressionMember
                                     (MkExpression NoInfo
                                          (ExpExpressionMember
                                               (MkExpression NoInfo
@@ -1154,40 +990,7 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                                      str := "ttl" |},
                                                   (TypBit 8) )]) 4)
                                          Directionless)
-                                    (MkExpression NoInfo
-                                         (ExpBinaryOp Minus
-                                              ( (MkExpression NoInfo
-                                                     (ExpExpressionMember
-                                                          (MkExpression
-                                                               NoInfo
-                                                               (ExpName
-                                                                (BareName
-                                                                 {| stags := NoInfo;
-                                                                    str := "hdr" |})
-                                                                NoLocator)
-                                                               (TypTypeName
-                                                                (BareName
-                                                                 {| stags := NoInfo;
-                                                                    str := "mpls_h" |}))
-                                                               Out)
-                                                          {| stags := NoInfo;
-                                                             str := "bos" |})
-                                                     (TypBit 3)
-                                                     Directionless),
-                                                (MkExpression NoInfo
-                                                     (ExpCast (TypBit 3)
-                                                          (MkExpression
-                                                               NoInfo
-                                                               (ExpInt
-                                                                {| itags := NoInfo;
-                                                                   value := 1;
-                                                                   width_signed := 
-                                                                   None |})
-                                                               TypInteger
-                                                               Directionless))
-                                                     (TypBit 3)
-                                                     Directionless) ))
-                                         (TypBit 3) Directionless))
+                                    {| stags := NoInfo; str := "last" |})
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -1234,7 +1037,10 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                            (TypBit 1) Directionless))
                                  (TypSet (TypBit 1)) Directionless))
                            (TypSet (TypSet (TypBit 1))))]
-                     {| stags := NoInfo; str := "skip_remaining" |})]));
+                     {| stags := NoInfo; str := "skip_remaining" |});
+                (MkParserCase NoInfo
+                     [(MkMatch NoInfo MatchDontCare (TypSet (TypBit 1)))]
+                     {| stags := NoInfo; str := "reject" |})]));
      (MkParserState NoInfo {| stags := NoInfo; str := "skip_remaining" |}
           [(MkStatement NoInfo
                 (StatMethodCall
@@ -1296,16 +1102,12 @@ Definition MPLSFixedWidthParser := DeclParser NoInfo
                                                   (TypBit 3) Directionless))
                                         (TypBit 32) Directionless),
                                    (MkExpression NoInfo
-                                        (ExpCast (TypBit 32)
-                                             (MkExpression NoInfo
-                                                  (ExpInt
-                                                   {| itags := NoInfo;
-                                                      value := 32;
-                                                      width_signed := 
-                                                      None |}) TypInteger
-                                                  Directionless)) (TypBit 32)
-                                        Directionless) )) (TypBit 32)
-                            Directionless))]) StmUnit)]
+                                        (ExpInt
+                                         {| itags := NoInfo; value := 32;
+                                            width_signed := (Some
+                                                             ( 32, false )) |})
+                                        (TypBit 32) Directionless) ))
+                            (TypBit 32) Directionless))]) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}))].
 
 Definition MPLSVectorizedParser := DeclParser NoInfo
@@ -1392,8 +1194,8 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                  (MkExpression NoInfo
                                       (ExpInt
                                        {| itags := NoInfo; value := 3;
-                                          width_signed := None |}) TypInteger
-                                      Directionless))
+                                          width_signed := (Some ( 3, false )) |})
+                                      (TypBit 3) Directionless))
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -1471,8 +1273,8 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                  (MkExpression NoInfo
                                       (ExpInt
                                        {| itags := NoInfo; value := 2;
-                                          width_signed := None |}) TypInteger
-                                      Directionless))
+                                          width_signed := (Some ( 3, false )) |})
+                                      (TypBit 3) Directionless))
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -1550,8 +1352,8 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                  (MkExpression NoInfo
                                       (ExpInt
                                        {| itags := NoInfo; value := 1;
-                                          width_signed := None |}) TypInteger
-                                      Directionless))
+                                          width_signed := (Some ( 3, false )) |})
+                                      (TypBit 3) Directionless))
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -1629,8 +1431,8 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                  (MkExpression NoInfo
                                       (ExpInt
                                        {| itags := NoInfo; value := 0;
-                                          width_signed := None |}) TypInteger
-                                      Directionless))
+                                          width_signed := (Some ( 3, false )) |})
+                                      (TypBit 3) Directionless))
                             (TypHeader
                              [( {| stags := NoInfo; str := "label" |},
                                 (TypBit 20) );
@@ -1678,8 +1480,9 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     (MkExpression NoInfo
                                          (ExpInt
                                           {| itags := NoInfo; value := 0;
-                                             width_signed := None |})
-                                         TypInteger Directionless))
+                                             width_signed := (Some
+                                                              ( 3, false )) |})
+                                         (TypBit 3) Directionless))
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -1728,8 +1531,9 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     (MkExpression NoInfo
                                          (ExpInt
                                           {| itags := NoInfo; value := 1;
-                                             width_signed := None |})
-                                         TypInteger Directionless))
+                                             width_signed := (Some
+                                                              ( 3, false )) |})
+                                         (TypBit 3) Directionless))
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -1778,8 +1582,9 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     (MkExpression NoInfo
                                          (ExpInt
                                           {| itags := NoInfo; value := 2;
-                                             width_signed := None |})
-                                         TypInteger Directionless))
+                                             width_signed := (Some
+                                                              ( 3, false )) |})
+                                         (TypBit 3) Directionless))
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -1828,8 +1633,9 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     (MkExpression NoInfo
                                          (ExpInt
                                           {| itags := NoInfo; value := 3;
-                                             width_signed := None |})
-                                         TypInteger Directionless))
+                                             width_signed := (Some
+                                                              ( 3, false )) |})
+                                         (TypBit 3) Directionless))
                                (TypHeader
                                 [( {| stags := NoInfo; str := "label" |},
                                    (TypBit 20) );
@@ -2037,13 +1843,10 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 0;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 0;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}));
      (MkParserState NoInfo {| stags := NoInfo; str := "set_1" |}
           [(MkStatement NoInfo
@@ -2061,13 +1864,10 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 1;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 1;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}));
      (MkParserState NoInfo {| stags := NoInfo; str := "set_2" |}
           [(MkStatement NoInfo
@@ -2085,13 +1885,10 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 2;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 2;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}));
      (MkParserState NoInfo {| stags := NoInfo; str := "set_3" |}
           [(MkStatement NoInfo
@@ -2109,13 +1906,10 @@ Definition MPLSVectorizedParser := DeclParser NoInfo
                                     Out) {| stags := NoInfo; str := "bos" |})
                           (TypBit 3) Directionless)
                      (MkExpression NoInfo
-                          (ExpCast (TypBit 3)
-                               (MkExpression NoInfo
-                                    (ExpInt
-                                     {| itags := NoInfo; value := 3;
-                                        width_signed := None |}) TypInteger
-                                    Directionless)) (TypBit 3) Directionless))
-                StmUnit)]
+                          (ExpInt
+                           {| itags := NoInfo; value := 3;
+                              width_signed := (Some ( 3, false )) |})
+                          (TypBit 3) Directionless)) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}))].
 
 Definition MyChecksum := DeclControl NoInfo
@@ -2502,3 +2296,5 @@ Definition prog := Program
      ComputeChecksum; Deparser; V1Switch; mpls_entry; MAX_MPLS_ENTRIES;
      mpls_h; metadata; MPLSNormalParser; MPLSFixedWidthParser;
      MPLSVectorizedParser; MyChecksum; MyIngress; MyEgress; MyDeparser; main].
+
+

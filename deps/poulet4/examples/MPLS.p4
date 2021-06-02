@@ -8,7 +8,7 @@ header mpls_entry {
   bit<8> ttl;
 }
 
-const bit<3> MAX_MPLS_ENTRIES = 4;
+const bit<3> MAX_MPLS_ENTRIES = 3w4;
 
 struct mpls_h {
   mpls_entry[MAX_MPLS_ENTRIES] mpls_stack;
@@ -24,17 +24,17 @@ parser MPLSNormalParser(
   inout standard_metadata_t standard_metadata) {
     
   state start {
-    hdr.bos = 0; 
+    hdr.bos = 3w0; 
     transition parse_mpls_entry;
   }
 
   state parse_mpls_entry {
-    packet.extract(hdr.mpls_stack[hdr.bos]);
-    hdr.bos = hdr.bos + 1;
-    verify(hdr.bos < MAX_MPLS_ENTRIES, error.StackOutOfBounds);
-    transition select(hdr.mpls_stack[hdr.bos-1].bos_marker) {
+    packet.extract(hdr.mpls_stack.next);
+    hdr.bos = hdr.bos + 3w1;
+    transition select(hdr.mpls_stack.last.bos_marker) {
       0 : parse_mpls_entry;
       1 : accept;
+      default: reject;
     }
   }
 }
@@ -46,22 +46,22 @@ parser MPLSFixedWidthParser(
   inout standard_metadata_t standard_metadata) {
     
   state start {
-    hdr.bos = 0; 
+    hdr.bos = 3w0; 
     transition parse_mpls_entry;
   }
 
   state parse_mpls_entry {
-    packet.extract(hdr.mpls_stack[hdr.bos]);
-    hdr.bos = hdr.bos + 1;
-    verify(hdr.bos < MAX_MPLS_ENTRIES, error.StackOutOfBounds);
-    transition select(hdr.mpls_stack[hdr.bos-1].bos_marker) {
+    packet.extract(hdr.mpls_stack.next);
+    hdr.bos = hdr.bos + 3w1;
+    transition select(hdr.mpls_stack.last.bos_marker) {
       0 : parse_mpls_entry;
       1 : skip_remaining;
+      default: reject;
     }
   }
 
   state skip_remaining { 
-    packet.advance((bit<32>)(MAX_MPLS_ENTRIES - hdr.bos) * 32);
+    packet.advance((bit<32>)(MAX_MPLS_ENTRIES - hdr.bos) * 32w32);
     transition accept;
   }
 }
@@ -72,11 +72,11 @@ parser MPLSVectorizedParser(packet_in packet,
                             inout standard_metadata_t standard_metadata) {
     
   state start {
-    packet.extract(hdr.mpls_stack[0]);
-    packet.extract(hdr.mpls_stack[1]);
-    packet.extract(hdr.mpls_stack[2]);
-    packet.extract(hdr.mpls_stack[3]);
-    transition select(hdr.mpls_stack[0].bos_marker, hdr.mpls_stack[1].bos_marker, hdr.mpls_stack[2].bos_marker, hdr.mpls_stack[3].bos_marker) {
+    packet.extract(hdr.mpls_stack[3w0]);
+    packet.extract(hdr.mpls_stack[3w1]);
+    packet.extract(hdr.mpls_stack[3w2]);
+    packet.extract(hdr.mpls_stack[3w3]);
+    transition select(hdr.mpls_stack[3w0].bos_marker, hdr.mpls_stack[3w1].bos_marker, hdr.mpls_stack[3w2].bos_marker, hdr.mpls_stack[3w3].bos_marker) {
       (1, _, _, _) : set_0;
       (0, 1, _, _) : set_1;
       (0, 0, 1, _) : set_2;
@@ -86,22 +86,22 @@ parser MPLSVectorizedParser(packet_in packet,
   }
 
   state set_0 {
-    hdr.bos = 0;
+    hdr.bos = 3w0;
     transition accept;
   }
 
   state set_1 {
-    hdr.bos = 1;
+    hdr.bos = 3w1;
     transition accept;
   }
 
   state set_2 {
-    hdr.bos = 2;
+    hdr.bos = 3w2;
     transition accept;
   }
 
   state set_3 {
-    hdr.bos = 3;
+    hdr.bos = 3w3;
     transition accept;
   }
 }
@@ -174,7 +174,6 @@ control MyDeparser(packet_out packet, in mpls_h hdr) {
   }
 }
 
-//this is declaration
 V1Switch(
   MPLSFixedWidthParser(),
   MyChecksum(),

@@ -319,11 +319,7 @@ Ltac seen_solver :=
   mysimp; (lia || auto).
 
 Ltac seen_solver' :=
-  (eapply SeenOne; now seen_solver) || 
-  (eapply SeenTwo; now seen_solver) || 
-  (eapply SeenThree; now seen_solver) ||
-  (eapply EndStates; now seen_solver) || 
-  (eapply Start; now seen_solver).
+  constructor; now seen_solver.
 
 Lemma min_same : 
   forall n, min n n = n.

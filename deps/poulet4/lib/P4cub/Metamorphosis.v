@@ -35,7 +35,7 @@ Section Metamorphosis.
 
   (* Error type for fine-grained translation errors *)
   Inductive MorphError :=
-    | Inconceivable
+    | Inconceivable (msg: string)
     | UnsupportedTy (ty: @P4Type tags_t)
     | UnsupportedExpr (e: @Expression tags_t)
     | UnsupportedStmt (s: @Statement tags_t)
@@ -88,7 +88,7 @@ Section Metamorphosis.
     | TypList  ts => ts <<| lrec ts ;; {{ tuple ts }}
     | TypRecord fs
     | TypStruct fs => fs <<| frec fs ;; {{ rec { fs } }}
-    | TypSet _ => err (UnsupportedTy t) (* TODO *)
+    | TypSet t' => type_morph t' (* TODO this is a hack that works for well-behaved parsers, but not in general *)
     | TypError => mret {{ error }}
     | TypMatchKind => mret {{ matchkind }}
     | TypVoid => err (UnsupportedTy t) (* TODO *)
@@ -348,7 +348,7 @@ Section Metamorphosis.
       match p with 
       | pat :: nil => mret pat
       | _ :: _ => mret [{ PTUP p }]
-      | nil => err Inconceivable
+      | nil => err $ Inconceivable "missing pattern base case"
       end in
     let match_worker (m: Match) := 
       let 'MkMatch tag m' ty := m in 
@@ -359,7 +359,7 @@ Section Metamorphosis.
         match e' with 
         | <{ w W n @ _ }> => mret [{ w PW n }]
         | <{ w S n @ _ }> => mret [{ w PS n }]
-        | _ => err Inconceivable
+        | _ => err $ UnsupportedExpr me
         end
       end in 
     pats <- sequence (map match_worker matches) ;;
@@ -382,7 +382,7 @@ Section Metamorphosis.
     (cases: list (P.Parser.pat * string)) 
     : @error_monad MorphError (P.Parser.e tags_t) :=
     match cases with 
-    | nil => err Inconceivable
+    | nil => err $ Inconceivable "missing default case in parser select"
     | ([{ ?? }], s) :: _ => 
       let st := morph_str s in 
       mret p{ goto st @ tag }p
@@ -423,10 +423,10 @@ Section Metamorphosis.
 
   Definition parser_state_morph 
     (ps: @ParserState tags_t) 
-    : @error_monad MorphError (P.Parser.state_block tags_t) :=
+    : @error_monad MorphError (string * P.Parser.state_block tags_t) :=
     let 'MkParserState tag name ss trans := ps in 
     ss' <- sequence (map stmt_morph ss) ;; 
     trans' <- parser_trans_morph trans ;; 
-    mret (P.Parser.State (combine_ss tag ss') trans').
+    mret (P4String.str name, P.Parser.State (combine_ss tag ss') trans').
 
 End Metamorphosis.

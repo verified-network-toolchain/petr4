@@ -277,6 +277,53 @@ Inductive exec_exprs : path -> state -> list (@Expression tags_t) -> list Val ->
                       exec_exprs this st es vs ->
                       exec_exprs this st (expr :: es) (v :: vs).
 
+(* A generic function for evaluating pure expressions. *)
+Fixpoint eval_expr_gen (get_val : Typed.name -> Locator -> option Val) (expr : @Expression tags_t) : option Val :=
+  match expr with
+  | MkExpression _ expr _ _ =>
+      match expr with
+      | ExpInt i => Some (eval_p4int i)
+      | ExpName name loc => get_val name loc
+      | ExpUnaryOp op arg =>
+          match eval_expr_gen get_val arg with
+          | Some argv => Ops.eval_unary_op op argv
+          | None => None
+          end
+      | ExpBinaryOp op (larg, rarg) =>
+          match eval_expr_gen get_val larg, eval_expr_gen get_val rarg with
+          | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
+          | _, _ => None
+          end
+      | _ => None
+      end
+  end.
+
+Definition eval_expr_gen_sound_statement st this expr v :=
+  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
+  exec_expr this st expr v.
+
+Lemma eval_expr_gen_sound : forall st this expr v,
+  eval_expr_gen_sound_statement st this expr v
+with eval_expr_gen_sound_preT : forall st this tags expr typ dir v,
+  eval_expr_gen_sound_statement st this (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_preT.
+  - unfold eval_expr_gen_sound_statement; intros. destruct expr; inversion H0.
+    + repeat constructor.
+    + constructor; assumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      econstructor; only 1 : apply eval_expr_gen_sound; eassumption.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 2-3 : inversion H2.
+      econstructor; only 1-2 : apply eval_expr_gen_sound; eassumption.
+Qed.
+
+(* We might want to prove this lemma in future. *)
+(* Lemma eval_expr_gen_complete : forall st this expr v,
+  exec_expr this st expr v ->
+  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v. *)
 
 Definition is_in (dir : direction) : bool :=
   match dir with
@@ -1071,9 +1118,18 @@ Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (ty
 
 End instantiate_expr'.
 
-(* Only allowing instances as constructor parameters is assumed in this implementation.
-  To support value expressions, we need a Gallina function to evaluate expressions.
-  And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
+Definition get_val_ienv (e : ienv) (name : Typed.name) (loc : @Locator tags_t) : option Val :=
+  match name with
+  | BareName name =>
+      match IdentMap.get name e with
+      | Some (IMVal v) => Some v
+      | _ => None
+      end
+  | _ => None
+  end.
+
+(* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
+(* And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
 
 Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path)
       (m : inst_mem) (s : extern_state) {struct expr} : inst_mem_val * inst_mem * extern_state :=
@@ -1084,10 +1140,11 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
       (inst, PathMap.set p inst m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m s
-  | MkExpression _ (ExpInt i) _ _ =>
-      (IMVal (eval_p4int i), m, s)
-  (* TODO evaluate val parameters. *)
-  | _ => (dummy_inst_mem_val, m, s)
+  | _ =>
+      match eval_expr_gen (get_val_ienv e) expr with
+      | Some v => (IMVal v, m, s)
+      | None => (dummy_inst_mem_val, m, s)
+      end
   end.
 
 Definition instantiate' :=

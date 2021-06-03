@@ -66,9 +66,14 @@ Inductive fundef :=
 
 Axiom dummy_fundef : fundef.
 
-Definition genv := @PathMap.t tags_t fundef.
+Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
 Definition genv_senum := @IdentMap.t tags_t Val.
+Record genv := MkGenv {
+  ge_func :> genv_func;
+  ge_typ :> genv_typ;
+  ge_senum :> genv_senum
+}.
 
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   option (@P4Type tags_t) :=
@@ -78,12 +83,10 @@ Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   end.
 
 Variable ge : genv.
-Variable ge_typ : genv_typ.
-Variable ge_senum : genv_senum.
 
 Definition get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   match typ with
-  | TypTypeName name => name_to_type ge_typ name
+  | TypTypeName name => name_to_type ge name
   | _ => Some typ
   end.
 
@@ -222,15 +225,15 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv
   | exec_expr_type_member_enum : forall tname member ename members this st tag typ dir,
-                                 name_to_type ge_typ tname = Some (TypEnum ename None members) ->
+                                 name_to_type ge tname = Some (TypEnum ename None members) ->
                                  List.In member members ->
                                  exec_expr this st
                                  (MkExpression tag (ExpTypeMember tname member) typ dir)
                                  (ValBaseEnumField ename member)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_type_member_senum : forall tname member ename etyp members fields v this st tag typ dir,
-                                  name_to_type ge_typ tname = Some (TypEnum ename (Some etyp) members) ->
-                                  IdentMap.get ename ge_senum = Some (ValBaseSenum fields) ->
+                                  name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
+                                  IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
                                   AList.get fields member = Some v ->
                                   exec_expr this st
                                   (MkExpression tag (ExpTypeMember tname member) typ dir)
@@ -444,6 +447,7 @@ Inductive inst_mem_val :=
 Definition inst_mem := @PathMap.t tags_t inst_mem_val.
 
 Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
+  let ge := ge_func ge in
   (* We should think about using option monad in this function. *)
   match func with
   (* function/action *)
@@ -1312,7 +1316,7 @@ Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) 
 Definition block_of_list_statement (stmts : list (@Statement tags_t)) : @Block tags_t :=
   list_statement_to_block dummy_tags stmts.
 
-Definition load_parser_state (p : path) (ge : genv) (state : @ParserState tags_t) : genv :=
+Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState tags_t) : genv_func :=
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
@@ -1331,7 +1335,7 @@ Definition is_directional (dir : direction) : bool :=
   | _ => true
   end.
 
-Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
+Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
@@ -1361,7 +1365,7 @@ Fixpoint load_decl (p : path) (ge : genv) (decl : @Declaration tags_t) : genv :=
   | _ => ge
   end.
 
-Definition load_prog (prog : @program tags_t) : genv :=
+Definition load_prog (prog : @program tags_t) : genv_func :=
   match prog with
   | Program decls => fold_left (load_decl nil) decls PathMap.empty
   end.
@@ -1387,36 +1391,36 @@ Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
   end.
 
 (* TODO: Do we need to consider duplicated type names? *)
-Fixpoint add_to_genv_typ (ge_type: genv_typ)
+Fixpoint add_to_genv_typ (ge_typ: genv_typ)
          (decl: @Declaration tags_t): option genv_typ :=
   match decl with
   | DeclHeader tags name fields =>
-    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_type)
+    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_typ)
   | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_type)
+    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
   | DeclStruct tags name fields =>
-    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_type)
+    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_typ)
   | DeclControlType tags name type_params params =>
-    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_type)
+    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_typ)
   | DeclParserType tags name type_params params =>
-    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_type)
+    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_typ)
   (* TODO: DeclPackageType and TypPackage are inconsistency *)
   | DeclPackageType tags name type_params params =>
-    Some (IdentMap.set name (TypPackage type_params nil params) ge_type)
+    Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
   (* TODO: Do we need to consider the difference between DeclTypeDef
      and DeclNewType?*)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with
-    | TypTypeName name2 => match name_to_type ge_type name2 with
-                           | Some typ2 => Some (IdentMap.set name typ2 ge_type)
+    | TypTypeName name2 => match name_to_type ge_typ name2 with
+                           | Some typ2 => Some (IdentMap.set name typ2 ge_typ)
                            | None => None
                            end
-    | _ => Some (IdentMap.set name typ ge_type)
+    | _ => Some (IdentMap.set name typ ge_typ)
     end
   | DeclTypeDef tags name (inr decl2)
   | DeclNewType tags name (inr decl2) =>
-    match add_to_genv_typ ge_type decl2 with
+    match add_to_genv_typ ge_typ decl2 with
     | Some ge_typ2 => match get_decl_typ_name decl2 with
                       | Some name2 =>
                         match IdentMap.get name2 ge_typ2 with
@@ -1436,7 +1440,7 @@ Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)
   | nil => oge_typ
   | decl :: rest =>
     match oge_typ with
-    | Some ge_type => add_decls_to_ge_typ (add_to_genv_typ ge_type decl) rest
+    | Some ge_typ => add_decls_to_ge_typ (add_to_genv_typ ge_typ decl) rest
     | None => None
     end
   end.
@@ -1453,5 +1457,10 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   | Program l => IdentMap.empty
   end.
 
+Definition gen_ge (prog : @program tags_t) : genv :=
+  let ge_func := load_prog prog in
+  let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
+  let ge_senum := gen_ge_senum prog in
+  MkGenv ge_func ge_typ ge_senum.
 
 End Semantics.

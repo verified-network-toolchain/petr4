@@ -1358,6 +1358,8 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
   | DeclFunction _ _ name type_params params body =>
       let params := map get_param_name_dir params in
       PathMap.set (p ++ [name]) (FInternal params BlockNil body) ge
+  | DeclExternFunction _ _ name _ _ =>
+      PathMap.set (p ++ [name]) (FExternal !"" name) ge
   | DeclAction _ name params ctrl_params body =>
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in

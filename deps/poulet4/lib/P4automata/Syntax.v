@@ -29,7 +29,7 @@ Record sel_case: Type :=
 
 Inductive transition: Type :=
 | TGoto (state: state_ref)
-| TSel (cond: hdr_ref) (cases: list sel_case) (default: string).
+| TSel (cond: hdr_ref) (cases: list sel_case) (default: state_ref).
 
 Inductive op :=
 | OpNil
@@ -74,7 +74,6 @@ Section Interp.
     apply has_extract.
   Qed.
   
-
   Definition interp (a: t) : P4A.p4automaton :=
     {| P4A.store := store;
        P4A.states := state_type;

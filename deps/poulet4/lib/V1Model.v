@@ -94,7 +94,7 @@ Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall s p reg w index result,
       PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
-      0 <= index < reg_size reg ->
+      -1 < index < reg_size reg ->
       Znth index (reg_content reg) = result ->
       register_read_sem s p nil [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
 
@@ -108,9 +108,9 @@ Inductive register_write_sem : extern_func_sem :=
   | exec_register_write : forall s p reg w content' index value,
       PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
-      0 <= index < reg_size reg ->
+      -1 < index < reg_size reg ->
       upd_Znth index (reg_content reg) value = content' ->
-      register_write_sem s p nil [ValBaseBit REG_INDEX_WIDTH index]
+      register_write_sem s p nil [ValBaseBit REG_INDEX_WIDTH index; ValBaseBit w value]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
           [] SReturnNull.
 
@@ -454,7 +454,7 @@ Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
   | ValSetLpm v1 _ v2 => values_match_mask vs v1 v2
   end.
 
-Definition isSomeTrue (b: option bool): bool :=
+Definition is_some_true (b: option bool): bool :=
   match b with
   | Some true => true
   | _ => false
@@ -474,7 +474,7 @@ Definition filter_lpm_prod (ids: list ident) (vals: list Val)
                              end
         | _ => None
         end in
-    match allSome (map f (filter (fun s => isSomeTrue (values_match_set vals (fst s))) entries)) with
+    match allSome (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
     | None => ([], [])
     | Some entries' => match nth_error vals index with
                        | None => ([], [])
@@ -497,7 +497,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry): o
           else if sort_mks
                then filter_lpm_prod mks ks entries'
                else (entries', ks) in
-      let l := List.filter (fun s => isSomeTrue (values_match_set ks' (fst s)))
+      let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
                            entries'' in
       match l with
       | nil => None

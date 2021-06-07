@@ -109,11 +109,13 @@ Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
   | _ => None
   end.
 
-Definition array_access_idx_to_z (v : Val) : (option Z) :=
+Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
   | ValBaseInt _ value
   | ValBaseBit _ value
   | ValBaseInteger value => Some value
+  (* added in 1.2.2 *)
+  | ValBaseSenumField _ _ value => array_access_idx_to_z value
   | _ => None
   end.
 
@@ -129,6 +131,17 @@ Definition Z_to_nat (i : Z) : option nat :=
 
 Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
   | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
+
+
+(* TODO: reading uninitialized values of a header after it is made valid. *)
+Inductive read_header_field: bool -> P4String.AList tags_t Val -> P4String -> P4Type -> Val -> Prop :=
+  | read_header_field_intro : forall fields name typ v,
+                              AList.get fields name = Some v ->
+                              read_header_field true fields name typ v
+  | read_header_field_undef : forall fields name typ v,
+                              is_uninitialized_value v typ ->
+                              read_header_field false fields name typ v.
+
 
 (* Ref:When accessing the bits of negative numbers, all functions below will
    use the two's complement representation.
@@ -229,25 +242,66 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                      exec_expr this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
                      newv
-  | exec_expr_type_member_enum : forall tname member ename members this st tag typ dir,
-                                 name_to_type ge tname = Some (TypEnum ename None members) ->
-                                 List.In member members ->
-                                 exec_expr this st
-                                 (MkExpression tag (ExpTypeMember tname member) typ dir)
-                                 (ValBaseEnumField ename member)
+  | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
+                            name_to_type ge tname = Some (TypEnum ename None members) ->
+                            List.In member members ->
+                            exec_expr this st
+                            (MkExpression tag (ExpTypeMember tname member) typ dir)
+                            (ValBaseEnumField ename member)
   (* We need rethink about how to handle senum lookup. *)
-  | exec_expr_type_member_senum : forall tname member ename etyp members fields v this st tag typ dir,
-                                  name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-                                  IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
-                                  AList.get fields member = Some v ->
-                                  exec_expr this st
-                                  (MkExpression tag (ExpTypeMember tname member) typ dir)
-                                  (ValBaseSenumField ename member v)
+  | exec_expr_senum_member : forall tname member ename etyp members fields v this st tag typ dir,
+                             name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
+                             IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
+                             AList.get fields member = Some v ->
+                             exec_expr this st
+                             (MkExpression tag (ExpTypeMember tname member) typ dir)
+                             (ValBaseSenumField ename member v)
   | exec_expr_error_member : forall err this st tag typ dir,
                              exec_expr this st
                              (MkExpression tag (ExpErrorMember err) typ dir)
                              (ValBaseError err)
-  (* | exec_expr_expression_member omitted for now *)
+  | exec_expr_struct_member : forall expr member fields v this st tag typ dir,
+                              exec_expr this st expr (ValBaseStruct fields) ->
+                              AList.get fields member = Some v ->
+                              exec_expr this st
+                              (MkExpression tag (ExpExpressionMember expr member) typ dir) v
+  | exec_expr_record_member : forall expr member fields v this st tag typ dir,
+                              exec_expr this st expr (ValBaseRecord fields) ->
+                              AList.get fields member = Some v ->
+                              exec_expr this st
+                              (MkExpression tag (ExpExpressionMember expr member) typ dir) v
+  (* setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
+  | exec_expr_header_member : forall expr member fields b v this st tag typ dir,
+                              exec_expr this st expr (ValBaseHeader fields b) ->
+                              read_header_field b fields member typ v ->
+                              exec_expr this st
+                              (MkExpression tag (ExpExpressionMember expr member) typ dir)
+                              v
+  (* isValid is supposed to be handled in exec_builtin *)
+  | exec_expr_union_member : forall expr member fields v this st tag typ dir,
+                             exec_expr this st expr (ValBaseUnion fields) ->
+                             AList.get fields member = Some v ->
+                             exec_expr this st
+                             (MkExpression tag (ExpExpressionMember expr member) typ dir)
+                             v
+  (* next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
+  | exec_expr_stack_member_size : forall expr headers size next this st tag typ dir,
+                                  exec_expr this st expr (ValBaseStack headers size next) ->
+                                  exec_expr this st
+                                  (MkExpression tag (ExpExpressionMember expr !"size") typ dir)
+                                  (ValBaseBit 32 (Z.of_nat size))
+  | exec_expr_stack_member_last_index : forall expr headers size next this st tag typ dir,
+                                        exec_expr this st expr (ValBaseStack headers size next)->
+                                        (next <> 0)%nat ->
+                                        exec_expr this st
+                                        (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
+                                        (ValBaseBit 32 (Z.of_nat (next - 1)))
+  | exec_expr_stack_member_last_index_undef : forall expr headers size v this st tag typ dir,
+                                              exec_expr this st expr (ValBaseStack headers size 0)->
+                                              is_uninitialized_value v (TypBit 32) ->
+                                              exec_expr this st
+                                              (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
+                                              v
   | exec_expr_ternary_tru : forall cond tru truv fls this st tag typ dir,
                             exec_expr this st cond (ValBaseBool true) ->
                             exec_expr this st tru truv ->
@@ -417,17 +471,17 @@ Definition add_ctrl_args (oaction : option (@Expression tags_t)) (ctrl_args : li
   | None => None
   end.
 
-Definition TableKeyKey (key : @TableKey tags_t) : (@Expression tags_t) :=
+Definition table_key_key (key : @TableKey tags_t) : (@Expression tags_t) :=
   match key with
   | MkTableKey _ e _ => e
   end.
 
-Definition TableKeyMatchKind (key : @TableKey tags_t) : ident :=
+Definition table_key_matchkind (key : @TableKey tags_t) : ident :=
   match key with
   | MkTableKey _ _ match_kind => match_kind
   end.
 
-Definition getEntries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
+Definition get_entries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
   match const_entries with
   | Some entries => entries
   | None => extern_get_entries (get_external_state s) table
@@ -435,9 +489,9 @@ Definition getEntries (s : state) (table : path) (const_entries : option (list t
 
 Inductive exec_table_match : path -> state -> ident -> option (list table_entry) -> option action_ref -> Prop :=
   | exec_table_match_intro : forall this_path name keys keyvals const_entries s matched_action,
-      let entries := getEntries s (this_path ++ [name]) const_entries in
-      let match_kinds := map TableKeyMatchKind keys in
-      exec_exprs this_path s (map TableKeyKey keys) keyvals ->
+      let entries := get_entries s (this_path ++ [name]) const_entries in
+      let match_kinds := map table_key_matchkind keys in
+      exec_exprs this_path s (map table_key_key keys) keyvals ->
       extern_match (combine keyvals match_kinds) entries = matched_action ->
       exec_table_match this_path s name const_entries matched_action.
 
@@ -559,15 +613,6 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): state :=
   let p := loc_to_path this loc in
   update_memory (PathMap.set p v) s.
-
-(* TODO: reading uninitialized values a header after it is made valid. *)
-Inductive read_header_field: bool -> P4String.AList tags_t Val -> P4String -> P4Type -> Val -> Prop :=
-  | read_header_field_intro : forall fields name typ v,
-                              AList.get fields name = Some v ->
-                              read_header_field true fields name typ v
-  | read_header_field_undef : forall fields name typ v,
-                              is_uninitialized_value v typ ->
-                              read_header_field false fields name typ v.
 
 Inductive exec_read: path -> state -> Lval -> Val -> Prop :=
   | exec_read_name : forall name loc this st v typ,
@@ -1360,6 +1405,14 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [name]) (FInternal params BlockNil body) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [name]) (FExternal !"" name) ge
+  | DeclExternObject _ name _ methods =>
+      let add_method_prototype ge' method :=
+        match method with
+        | ProtoMethod _ _ mname _ _ =>
+            PathMap.set (p ++ [name; mname]) (FExternal name mname) ge'
+        | _ => ge
+        end
+      in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in

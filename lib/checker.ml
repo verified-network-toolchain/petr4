@@ -3239,6 +3239,9 @@ and type_action env info annotations name params body =
   let action_typed, action_type =
     match snd fn_typed with
     | Function { return; name; type_params; params; body } ->
+    (* data_params are the directioned params at the front.
+      and ctrl_params are all the params after (including) the first directionless param
+      But why? *)
        let data_params, ctrl_params =
          List.split_while params
            ~f:(fun p -> p.direction <> Directionless)
@@ -3250,6 +3253,7 @@ and type_action env info annotations name params body =
                           ~data_param:(p: Typed.Parameter.t)
                           ~action_info:(info: Info.t)]
        in
+       (* So all the ctrl_params are supposed to be directionless. That seems weird *)
        List.iter ~f:check_ctrl ctrl_params;
        let action_type : Typed.Type.t =
          Action { data_params = data_params;

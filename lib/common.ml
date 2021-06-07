@@ -165,10 +165,12 @@ module Make_parse (Conf: Parse_config) = struct
   let ccomp_file verbose include_dirs p4_file =
     match check_file' include_dirs p4_file verbose with
     | `Ok (parsed_prog, (checker_env, checked_prog)) ->
+      print_endline("type check passed");
       checked_prog
       |> Ccomp.compile
       |> Cprinter.format_cprog
     | `Error (info, err) ->
+      print_endline("type check failed");
       let exn_msg = Exn.to_string err in
       let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg |> Pp.text

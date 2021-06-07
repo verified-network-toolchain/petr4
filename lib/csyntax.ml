@@ -64,4 +64,8 @@ and cexpr =
   | CArrayAccess of cexpr * cexpr
   | CBitStringAccess of cexpr * Bigint.t * Bigint.t
 
+let arg_of_param (param : cparam) = 
+  match param with
+  |CParam (_,name)  -> CVar (name)
+
 type cprog = cdecl list

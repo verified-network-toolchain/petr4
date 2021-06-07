@@ -153,7 +153,7 @@ and build_action_map actions =
   in
   List.fold ~f ~init:StrMap.empty actions
 
-and translate_table_apply map tbl_name =
+and translate_table_apply map tbl_name default_args =
   let {key; actions; entries; default_action; size; custom_properties} =
     StrMap.find_exn map tbl_name
   in
@@ -167,17 +167,17 @@ and translate_table_apply map tbl_name =
     match entries with
     | [] ->
       begin match default_action with
-        | Some act -> translate_action_ref action_map act
+        | Some act -> translate_action_ref action_map act default_args
         | None -> C.CBlock []
       end
     | entry::rest ->
       C.CIf (translate_matches (snd entry).matches key,
-             translate_action_ref action_map (snd entry).action,
+             translate_action_ref action_map (snd entry).action default_args,
              translate_entries rest)
   in
   translate_entries entries
 
-and translate_apply_call (map: table_map) (obj: Prog.Expression.t) : C.cstmt =
+and translate_apply_call (map: table_map) (obj: Prog.Expression.t) default_args : C.cstmt =
   let func = translate_expr obj in
   let func_name =
     match func with
@@ -186,7 +186,7 @@ and translate_apply_call (map: table_map) (obj: Prog.Expression.t) : C.cstmt =
   in
   match (snd obj).typ with
   | Table _ ->
-    translate_table_apply map func_name
+    translate_table_apply map func_name default_args
   | _ -> 
     CMethodCall (func, [])
 
@@ -211,7 +211,7 @@ and translate_stmt (map: table_map) (stmt: Prog.Statement.t) : C.cstmt =
   | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
                 type_args = [];
                 args = []} ->
-    translate_apply_call map obj
+    translate_apply_call map obj []
   | MethodCall { func; type_args; args } -> 
     let args = translate_args args in
     C.CMethodCall (translate_expr func, args)
@@ -223,9 +223,34 @@ and translate_stmts map (stmts: Prog.Statement.t list) : C.cstmt list =
   stmts
   |> List.map ~f:(translate_stmt map)
 
+(* just like the translate_decl change. I'm adding two new methods for statements
+  inside a control block. *)
+and translate_control_local_stmt (map: table_map) (default_args: C.cexpr list) (stmt: Prog.Statement.t) : C.cstmt =
+  match (snd stmt).stmt with
+  | MethodCall {func = _, {expr = ExpressionMember {expr = obj; name = (_, "apply")}; _};
+                type_args = [];
+                args = []} ->
+    translate_apply_call map obj default_args
+  | _ -> translate_stmt map stmt
+
+
+and translate_control_local_stmts map default_args (stmts: Prog.Statement.t list) : C.cstmt list =
+  stmts
+  |> List.map ~f:(translate_control_local_stmt map default_args)
+
 and translate_block map (block: Prog.Block.t) : C.cstmt list =
   (snd block).statements
   |> translate_stmts map
+
+and translate_control_local_block map (block: Prog.Block.t) default_args: C.cstmt list = 
+  (snd block).statements
+  |> translate_control_local_stmts map default_args
+
+(* The signature matters here. We want to ensure that the params and args have
+same order. And the safest way to do it is just to do it after the translation
+to C.cparam *)
+and args_of_params (params: C.cparam list) : C.cexpr list = 
+  List.map ~f:C.arg_of_param params
 
 and get_type (typ: Typed.Type.t) : C.ctyp  =
   match typ with
@@ -238,11 +263,13 @@ and get_type (typ: Typed.Type.t) : C.ctyp  =
 
 and translate_key (key : Prog.Table.key) = 
   get_expr_mem_lst (snd key).key
-
+(* I think the intention of this function is similar to what I write below, but
+I don't see how you can carry over the parameters without it as an argument.
+thus I will write a new one below *)
 and translate_local_decls (d: Prog.Declaration.t list) : C.cdecl list * C.cstmt list =
   [], []
 
-and translate_decl map (d: Prog.Declaration.t) : table_map * C.cdecl list =
+and translate_decl map (d: Prog.Declaration.t): table_map * C.cdecl list =
   match snd d with
   | Struct {name; fields; _} ->
     let cfields = translate_fields fields in
@@ -270,10 +297,10 @@ and translate_decl map (d: Prog.Declaration.t) : table_map * C.cdecl list =
                   translate_block map body)]
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let params = translate_params (params @ constructor_params) in
-    let map', locals = translate_decls map locals in 
+    let map', locals = translate_control_local_decls map locals params in 
     let func_decl = 
       C.CFun (CVoid, snd name, params, 
-              translate_block map' apply) in 
+              translate_control_local_block map' apply (args_of_params params)) in 
     map, locals @ [func_decl]
   | Constant _ ->
     map, [C.CComment "todo: Constant"]
@@ -301,6 +328,30 @@ and translate_decls map (decls: Prog.Declaration.t list) : table_map * C.cdecl l
     (map, decls @ decls')
   in
   List.fold ~init:(map, []) ~f decls
+
+(* the thing that confuses me a lot is the naming of Action's params. 
+I thought that the ctrl_params are exactly the parameters from the control block
+containing it. However, the ctrl_params were more like the constructor params
+where they just don't have any direction. I was tempted to change the generation
+of the ctrl_params, but I eventually decided to modify it in this pass. *)
+and translate_control_local_decl map (d: Prog.Declaration.t) (control_params: C.cparam list): table_map * C.cdecl list =
+  match snd d with
+  (* Action is the only one I changed for now. But we might need to do
+  something different with other local declarations as well. *)
+  | Action { name; data_params; ctrl_params; body; _ } ->
+    let params = control_params @ (translate_params (data_params @ ctrl_params)) in
+    map, [C.CFun (CVoid, snd name, 
+                  params, 
+                  translate_block map body)]
+  | _ -> translate_decl map d
+
+and translate_control_local_decls map (decls: Prog.Declaration.t list) (control_params: C.cparam list): table_map * C.cdecl list =
+  let f (map, decls) decl =
+    let map, decls' = translate_control_local_decl map decl control_params in
+    (map, decls @ decls')
+  in
+  List.fold ~init:(map, []) ~f decls
+
 
 and find_table_name (locals : Prog.Declaration.t list) : string =
   let f decl = 
@@ -342,13 +393,18 @@ and translate_matches (match_exprs: Prog.Match.t list) (keys: Prog.Table.key lis
   |> List.map ~f:translate_match
   |> List.fold ~init:(C.CBoolExp true) ~f:(fun e1 e2 -> C.CBinOp ((Info.dummy, Types.Op.Eq), e1, e2))
 
-and translate_action_ref action_map (aref : Prog.Table.action_ref) = 
+  (* Including a list of default arguments into this. However, I'm really not sure what is the action map's
+  fixed_args for. Hopefully this is not duplicate work *)
+and translate_action_ref action_map (aref : Prog.Table.action_ref) (default : C.cexpr list)= 
   let aref = (snd aref).action in
+  (* this is the confusing part *)
   let fixed_args = StrMap.find_exn action_map (aref.name |> get_name |> snd) in
   let entry_args = aref.args in
-  let args = translate_args (fixed_args @ entry_args) in
+  (* Note the order here: control arguments go first *)
+  let args = default @ (translate_args (fixed_args @ entry_args)) in
   C.CMethodCall (C.CVar (snd (get_name aref.name)), args)
-and get_default_action (action : Prog.Table.action_ref option) = 
+
+  and get_default_action (action : Prog.Table.action_ref option) = 
   match action with
   | None -> failwith "unimplemented"
   | Some h -> ((snd h).action).name

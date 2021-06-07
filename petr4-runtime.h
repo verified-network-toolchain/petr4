@@ -12,6 +12,7 @@ typedef char bit8;
 
 typedef void *packet_in;
 typedef void *packet_out;
+typedef void *bit_vec;
 
 void extract(packet_in pkt, void *data, int len);
 void emit(packet_out pkt, void *data, int len);

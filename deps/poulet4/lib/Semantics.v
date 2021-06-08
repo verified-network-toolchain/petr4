@@ -1380,6 +1380,65 @@ Definition is_directional (dir : direction) : bool :=
   | _ => true
   end.
 
+Definition action_param_to_p4param (param : ident * direction) : P4Parameter :=
+  let (name, dir) := param in
+  let dir :=
+    match dir with
+    | Directionless => In
+    | _ => dir
+    end in
+  MkParameter false dir dummy_type None name.
+
+Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) : Expression :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let loc :=
+            match name with
+            | BareName id =>
+                match PathMap.get (p ++ [id]) ge with
+                | Some _ => LInstance [id]
+                | None => LGlobal [id]
+                end
+            | QualifiedName p id => LGlobal (p ++ [id])
+            end in
+          let typ :=
+            let ofd :=
+              match loc with
+              | LInstance p' => PathMap.get (p ++ p') ge
+              | LGlobal p' => PathMap.get p' ge
+              end in
+            match ofd with
+            | Some (FInternal params _ _) =>
+                TypFunction (MkFunctionType nil (map action_param_to_p4param params) FunAction TypVoid)
+            | _ => dummy_type (* impossible *)
+            end in
+          let func := MkExpression dummy_tags (ExpName name loc) typ Directionless in
+          MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless
+      end
+  end.
+
+Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref tags_t Expression) :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let id :=
+            match name with
+            | BareName id => id
+            | QualifiedName _ id => id
+            end in
+          mk_action_ref id args
+      end
+  end.
+
+Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
+  match entry with
+  | MkTableEntry _ matches action =>
+      mk_table_entry matches (unwrap_action_ref2 action)
+  end.
+
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
@@ -1417,6 +1476,11 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       PathMap.set (p ++ [name]) (FInternal (params ++ ctrl_params) BlockNil body) ge
+  | DeclTable _ name keys actions entries default_action _ _ =>
+      let table :=
+        FTable name keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
+            (option_map (map unwrap_table_entry) entries) in
+      PathMap.set (p ++ [name]) table ge
   | _ => ge
   end.
 

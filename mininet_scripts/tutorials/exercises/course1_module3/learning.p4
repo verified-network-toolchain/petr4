@@ -80,7 +80,9 @@ control MyIngress(inout headers hdr,
 	default_action = broadcast();
     }
     
-    apply {  }
+    apply {
+	ethernet_learning.apply();
+    }
 }
 
 /*************************************************************************

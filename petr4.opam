@@ -36,4 +36,5 @@ depends: [
   "odoc"
   "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}
+  "zarith" {= "1.11"}
 ]

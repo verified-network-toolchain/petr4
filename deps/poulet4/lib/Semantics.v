@@ -302,18 +302,12 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                                               exec_expr this st
                                               (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
                                               v
-  | exec_expr_ternary_tru : forall cond tru truv fls this st tag typ dir,
-                            exec_expr this st cond (ValBaseBool true) ->
-                            exec_expr this st tru truv ->
-                            exec_expr this st
-                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
-                            truv
-  | exec_expr_ternary_fls : forall cond tru fls flsv this st tag typ dir,
-                            exec_expr this st cond (ValBaseBool false) ->
-                            exec_expr this st fls flsv ->
-                            exec_expr this st
-                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
-                            flsv
+  | exec_expr_ternary : forall cond tru fls b v this st tag typ dir,
+                        exec_expr this st cond (ValBaseBool b) ->
+                        exec_expr this st (if b then tru else fls) v ->
+                        exec_expr this st
+                        (MkExpression tag (ExpTernary cond tru fls) typ dir)
+                        v
   | exec_expr_dont_care : forall this st tag typ dir,
                           exec_expr this st
                           (MkExpression tag ExpDontCare typ dir)
@@ -886,6 +880,11 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Val -> state -> 
   (* this_path s lv fname args s' sig *) (* TODO *)
   .
 
+Axiom dummy_stmt_type : StmType.
+
+Definition dummy_statement := (MkStatement dummy_tags StatEmpty dummy_stmt_type).
+
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v this_path inst_m st tags typ st',
                                 exec_lexpr this_path st lhs lv SContinue->
@@ -925,18 +924,14 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                    force_continue_signal sig = sig' ->
                                    exec_stmt this_path inst_m st
                                    (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
-  | exec_stmt_conditional_tru : forall cond tru fls_opt this_path inst_m st tags typ st' sig,
-                                exec_expr this_path st cond (ValBaseBool true) ->
-                                exec_stmt this_path inst_m st tru st' sig ->
-                                exec_stmt this_path inst_m st
-                                (MkStatement tags (StatConditional cond tru fls_opt) typ) st' sig
-  | exec_stmt_conditional_fls : forall cond tru fls this_path inst_m st tags typ st' sig, 
-                                exec_expr this_path st cond (ValBaseBool false) ->
-                                exec_stmt this_path inst_m st fls st' sig ->
-                                exec_stmt this_path inst_m st
-                                (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-  | exec_stmt_conditional_fls_none : forall cond tru this_path inst_m st tags typ, 
-                                     exec_expr this_path st cond (ValBaseBool false) ->
+  | exec_stmt_conditional_some_fls : forall cond tru fls b this_path inst_m st tags typ st' sig,
+                                     exec_expr this_path st cond (ValBaseBool b) ->
+                                     exec_stmt this_path inst_m st (if b then tru else fls) st' sig ->
+                                     exec_stmt this_path inst_m st
+                                     (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
+  | exec_stmt_conditional_none_fls : forall cond tru b this_path inst_m st tags typ st' sig, 
+                                     exec_expr this_path st cond (ValBaseBool b) ->
+                                     exec_stmt this_path inst_m st (if b then tru else dummy_statement) st' sig ->
                                      exec_stmt this_path inst_m st
                                      (MkStatement tags (StatConditional cond tru None) typ) st SContinue
   | exec_stmt_block : forall block this_path inst_m st tags typ st' sig, 

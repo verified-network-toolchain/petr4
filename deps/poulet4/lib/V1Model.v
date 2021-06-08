@@ -160,18 +160,18 @@ Definition packet_out_emit : extern_func := {|
 |}.
 
 Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
-  | exec_extern_register_read : forall s class method p targs args s' args' vret,
-      apply_extern_func_sem register_read s class method p targs args s' args' vret ->
-      exec_extern s class method p targs args s' args' vret
-  | exec_extern_register_write : forall s class method p targs args s' args' vret,
-      apply_extern_func_sem register_write s class method p targs args s' args' vret ->
-      exec_extern s class method p targs args s' args' vret
-  | exec_extern_packet_in_extract : forall s class method p targs args s' args' vret,
-      apply_extern_func_sem packet_in_extract s class method p targs args s' args' vret ->
-      exec_extern s class method p targs args s' args' vret
-  | exec_extern_packet_out_emit : forall s class method p targs args s' args' vret,
-      apply_extern_func_sem packet_out_emit s class method p targs args s' args' vret ->
-      exec_extern s class method p targs args s' args' vret.
+  | exec_extern_register_read : forall s p targs args s' args' vret,
+      apply_extern_func_sem register_read s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->
+      exec_extern s (ef_class register_read) (ef_func register_read) p targs args s' args' vret
+  | exec_extern_register_write : forall s p targs args s' args' vret,
+      apply_extern_func_sem register_write s (ef_class register_write) (ef_func register_write) p targs args s' args' vret ->
+      exec_extern s (ef_class register_write) (ef_func register_write) p targs args s' args' vret
+  | exec_extern_packet_in_extract : forall s p targs args s' args' vret,
+      apply_extern_func_sem packet_in_extract s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
+      exec_extern s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
+  | exec_extern_packet_out_emit : forall s p targs args s' args' vret,
+      apply_extern_func_sem packet_out_emit s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
+      exec_extern s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
 
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
   match PathMap.get p es with

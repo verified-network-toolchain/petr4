@@ -48,4 +48,12 @@ Section AList.
       end
     end.
 
+  Fixpoint filter (l : AList K V R) (f : K -> bool) : (AList K V R) :=
+    match l with
+    | [] => []
+    | (k, v) :: tl =>
+      if f k then (k, v) :: (filter tl f)
+      else filter tl f
+    end.
+
 End AList.

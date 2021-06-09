@@ -159,6 +159,8 @@ Definition packet_out_emit : extern_func := {|
   ef_sem := packet_out_emit_sem
 |}.
 
+(* This only works when tags_t is a unit type. *)
+
 Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_extern_register_read : forall s p targs args s' args' vret,
       apply_extern_func_sem register_read s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->

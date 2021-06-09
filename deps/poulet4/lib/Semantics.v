@@ -880,10 +880,7 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Val -> state -> 
   (* this_path s lv fname args s' sig *) (* TODO *)
   .
 
-Axiom dummy_stmt_type : StmType.
-
-Definition dummy_statement := (MkStatement dummy_tags StatEmpty dummy_stmt_type).
-
+Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
 
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v this_path inst_m st tags typ st',
@@ -929,9 +926,9 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                      exec_stmt this_path inst_m st (if b then tru else fls) st' sig ->
                                      exec_stmt this_path inst_m st
                                      (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-  | exec_stmt_conditional_none_fls : forall cond tru b this_path inst_m st tags typ st' sig, 
+  | exec_stmt_conditional_none_fls : forall cond tru b this_path inst_m st tags typ st' sig,
                                      exec_expr this_path st cond (ValBaseBool b) ->
-                                     exec_stmt this_path inst_m st (if b then tru else dummy_statement) st' sig ->
+                                     exec_stmt this_path inst_m st (if b then tru else empty_statement) st' sig ->
                                      exec_stmt this_path inst_m st
                                      (MkStatement tags (StatConditional cond tru None) typ) st SContinue
   | exec_stmt_block : forall block this_path inst_m st tags typ st' sig, 

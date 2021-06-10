@@ -16,6 +16,11 @@ type table_summary =
 
 type table_map = table_summary StrMap.t
 
+
+type decl_map = Prog.Declaration.t StrMap.t
+
+type expr_list_map = (Prog.Expression.t list) StrMap.t
+
 let next_state_name = "__next_state"
 
 let next_state_var = C.CVar next_state_name
@@ -269,47 +274,55 @@ thus I will write a new one below *)
 and translate_local_decls (d: Prog.Declaration.t list) : C.cdecl list * C.cstmt list =
   [], []
 
-and translate_decl map (d: Prog.Declaration.t): table_map * C.cdecl list =
+and translate_decl map control_declarations (d: Prog.Declaration.t): table_map* decl_map * C.cdecl list =
+(* control_declaration only contain parsers and controls *)
   match snd d with
   | Struct {name; fields; _} ->
     let cfields = translate_fields fields in
-    map, [C.CStruct (snd name, cfields)]
+    let declarations' = StrMap.add_exn control_declarations ~key:(snd name) ~data:d in
+    map, declarations', [C.CStruct (snd name, cfields)]
   | Header {name; fields; _} ->
     let cfields = translate_fields fields in
     let valid = C.CField (CBool, "__header_valid") in
-    map, [C.CStruct (snd name, valid :: cfields)]
+    map, control_declarations, [C.CStruct (snd name, valid :: cfields)]
   | HeaderUnion {name; fields; _} ->
-    map, [C.CComment "todo: Header union"]
+    map, control_declarations, [C.CComment "todo: Header union"]
   | Enum _
   | SerializableEnum _ ->
-    map, [C.CComment "todo: Enum/SerializableEnum"]
+    map, control_declarations, [C.CComment "todo: Enum/SerializableEnum"]
   | Parser { name; type_params; params; constructor_params; locals; states; _} -> 
     let locals_decls, locals_stmts = translate_local_decls locals in
     let state_stmts = translate_parser_states map states in
     let func_decl = C.CFun (CVoid, snd name, translate_params params, locals_stmts @ state_stmts) in
-    map, locals_decls @ [func_decl]
+    let declarations' = StrMap.add_exn control_declarations ~key:(snd name) ~data:d in
+    map, declarations', locals_decls @ [func_decl]
   | Function { return; name; type_params; params; body } ->
-    map, [C.CComment "todo: Function"]
+    map, control_declarations, [C.CComment "todo: Function"]
   | Action { name; data_params; ctrl_params; body; _ } ->
     let params = translate_params (data_params @ ctrl_params) in
-    map, [C.CFun (CVoid, snd name, 
+    map, control_declarations, [C.CFun (CVoid, snd name, 
                   params, 
                   translate_block map body)]
   | Control { name; type_params; params; constructor_params; locals; apply; _ } ->
     let params = translate_params (params @ constructor_params) in
-    let map', locals = translate_control_local_decls map locals params in 
-    let func_decl = 
+    let map', declarations', locals = translate_control_local_decls map control_declarations locals params in 
+    let func_decl =  
       C.CFun (CVoid, snd name, params, 
               translate_control_local_block map' apply (args_of_params params)) in 
-    map, locals @ [func_decl]
+    let declarations'' = StrMap.add_exn declarations' ~key:(snd name) ~data:d in
+
+    map, declarations'', locals @ [func_decl]
   | Constant _ ->
-    map, [C.CComment "todo: Constant"]
-  | Instantiation _ ->
-    map, [C.CComment "todo: Instantiation"]
+    map, control_declarations, [C.CComment "todo: Constant"]
+  | Instantiation { annotations; typ; args; name;init;} -> 
+    if String.equal "main" (snd name) then map, control_declarations, translate_main_instantiation annotations typ args name init control_declarations
+    else map, control_declarations, [C.CComment "todo: Instantiation"]
   | Variable _ ->
-    map, [C.CComment "todo: Variable"]
+    map, control_declarations, [C.CComment "todo: Variable"]
   | Table { name; key; actions; entries; default_action; size; custom_properties; _ } ->
-    translate_table map (snd name, key, actions, entries, default_action, size, custom_properties)
+    let (table_map', decl_list) = 
+    (translate_table map (snd name, key, actions, entries, default_action, size, custom_properties)) in
+    table_map', control_declarations, decl_list
   | ValueSet _
   | ControlType _
   | ParserType _
@@ -320,37 +333,39 @@ and translate_decl map (d: Prog.Declaration.t): table_map * C.cdecl list =
   | MatchKind _
   | NewType _
   | TypeDef _ ->
-    map, []
+    map, control_declarations, []
 
 and translate_decls map (decls: Prog.Declaration.t list) : table_map * C.cdecl list =
-  let f (map, decls) decl =
-    let map, decls' = translate_decl map decl in
-    (map, decls @ decls')
+  let f (map, control_declarations ,decls) decl =
+    let map, control_declarations', decls' = translate_decl map control_declarations decl in
+    (map, control_declarations' ,decls @ decls')
   in
-  List.fold ~init:(map, []) ~f decls
+  let (map', _, decls') = 
+  List.fold ~init:(map, StrMap.empty ,[]) ~f decls in 
+  (map',decls')
 
 (* the thing that confuses me a lot is the naming of Action's params. 
 I thought that the ctrl_params are exactly the parameters from the control block
 containing it. However, the ctrl_params were more like the constructor params
 where they just don't have any direction. I was tempted to change the generation
 of the ctrl_params, but I eventually decided to modify it in this pass. *)
-and translate_control_local_decl map (d: Prog.Declaration.t) (control_params: C.cparam list): table_map * C.cdecl list =
+and translate_control_local_decl map (control_declarations: decl_map) (d: Prog.Declaration.t) (control_params: C.cparam list): table_map * decl_map * C.cdecl list =
   match snd d with
   (* Action is the only one I changed for now. But we might need to do
   something different with other local declarations as well. *)
   | Action { name; data_params; ctrl_params; body; _ } ->
     let params = control_params @ (translate_params (data_params @ ctrl_params)) in
-    map, [C.CFun (CVoid, snd name, 
+    map, control_declarations, [C.CFun (CVoid, snd name, 
                   params, 
                   translate_block map body)]
-  | _ -> translate_decl map d
+  | _ -> translate_decl map control_declarations d
 
-and translate_control_local_decls map (decls: Prog.Declaration.t list) (control_params: C.cparam list): table_map * C.cdecl list =
-  let f (map, decls) decl =
-    let map, decls' = translate_control_local_decl map decl control_params in
-    (map, decls @ decls')
+and translate_control_local_decls map (control_declarations:decl_map) (decls: Prog.Declaration.t list) (control_params: C.cparam list): table_map * decl_map * C.cdecl list =
+  let f (map, control_declarations, decls) decl =
+    let map, control_declarations', decls' = translate_control_local_decl map control_declarations decl control_params in
+    (map, control_declarations', decls @ decls')
   in
-  List.fold ~init:(map, []) ~f decls
+  List.fold ~init:(map, control_declarations, []) ~f decls
 
 
 and find_table_name (locals : Prog.Declaration.t list) : string =
@@ -537,6 +552,122 @@ and translate_field (field: Prog.Declaration.field) : C.cfield =
 and translate_fields (fields: Prog.Declaration.field list) =
   fields
   |> List.map ~f:translate_field
+
+
+
+
+(*=================== begin ==========================*)
+(* this is a hard-coded prototype of a compiler target.
+The target would need to specify a main function provided the instantiation
+Assumptions: 
+the order of arguments for all the controls and parsers are not changed
+there are no new/deleted arguments for all controls and parsers.
+ *)
+
+  (*
+    given S(MyP(),MyC(),MyD()) main 
+    void main() {
+      packet_in pkt = "Hi";
+      packet_out pkt_out;
+      initialize hdrs
+      P(pkt, hdrs);
+      bool forward
+      C(hdrs, forward)
+      if (forward) {
+        D(pkt_out, hdrs)
+      }
+    }
+  *)
+  (* we need a map(string, Declaration.t) to navigate to the corresponding declaration
+  to find the types.
+  we also need a map(string, (expression.t list)) for all the constructor arguments *)
+ 
+  
+   (* TODO: This should work for the main instantiation with at most one recursion
+    such as S(MyC()) main. But what about S(MyP(MyD())), is that even legal? *)
+  
+and translate_main_instantiation 
+    (annotations: Typed.Annotation.t list) (*ignoring annotations for now *)
+    (typ: Typed.Type.t) (*shouldn't matter since this is only for main *)
+    (args: Prog.Expression.t list) (*assert the args are all instantiations, I'm not sure if S(bool,MyP,MyC) is a legal decl*)
+    (name: Types.P4String.t) (*must be main*)
+    (init: Prog.Block.t option) (*TODO:implement init *)
+    (map: decl_map) : C.cdecl list =
+    (* helper functions *)
+    let rec get_type_name (typ:Typed.Type.t) = 
+      match typ with
+      | Typed.Type.TypeName(Types.BareName(name)) -> snd name
+      | Typed.Type.SpecializedType s -> get_type_name s.base
+      |  _ -> print_endline (Typed.Type.show typ);
+        failwith (Typed.Type.show typ)
+    in
+    let get_parser_hdr_name (d: Prog.Declaration.t) = 
+      match (snd d) with 
+        | Parser parser-> 
+          begin
+            match (List.nth (parser.params) 1) with 
+            | Some(header)->
+              get_type_name ( header.typ)
+            | _ -> failwith "the parser doesn't have the right parameters"
+          end
+        | _ -> failwith "not a parser"
+    in
+    let cexpression_list_of args = 
+      (List.map args ~f:(fun x -> Some(x))) |> translate_args
+    in
+    (* first find all the constructor args, they will be parsed in as argument *)
+    (* also record the name of all the methods to call *)
+    let rec find_ctor_args (arg_list: Prog.Expression.t list) : expr_list_map * (C.cname list) = 
+      let helper (h:Prog.Expression.t) t = 
+        match (snd h).expr with
+        | NamelessInstantiation{typ;args} -> 
+            let name = get_type_name typ in 
+            let (map', funclist) = find_ctor_args t in
+            ((map' |> StrMap.add_exn ~key:name ~data:args) , name :: funclist)
+        | _ -> failwith "unmatched"
+      in 
+      match arg_list with
+      | [] -> (StrMap.empty,[])
+      | h::t -> helper h t
+    in
+    let (ctor_args_map,func_list) = find_ctor_args args in
+    
+    (*Then find the type of header*)
+    (*For this architecture, we only need to go to myP and find the type of header*)
+    let hdr_typ =
+      let p_arg = match args with 
+      | h::t -> h
+      | [] -> failwith "main instantiation without parser"
+      in 
+      match (snd p_arg).expr with
+      | NamelessInstantiation{typ;_} ->
+        let p = get_type_name typ in
+        let p = StrMap.find_exn map p in
+        get_parser_hdr_name p
+      | _ -> failwith "the first arg is not nameless instantiation"
+    in
+    
+    (* Once we found the type of header, and we found all the constructors, we can create the main function *)
+    let stmt_list = C.CVarInit(C.CTypeName("packet_in"),"pkt",C.CString("Hi"))::
+    C.CVarUnInit(C.CTypeName("packet_out"), "pkt_out")::
+    C.CVarUnInit(C.CTypeName(hdr_typ), "hdrs")::
+    C.CVarUnInit(C.CBool, "forward")::
+    C.CMethodCall(C.CVar(List.nth_exn func_list 0),[C.CAddrOf(CVar("pkt")); C.CAddrOf(CVar("hdrs"))] @ cexpression_list_of (Map.find_exn ctor_args_map (List.nth_exn func_list 0)))::
+    C.CMethodCall(C.CVar(List.nth_exn func_list 1),[C.CAddrOf(CVar("hdrs")); C.CAddrOf(CVar("forward"))] @ cexpression_list_of (Map.find_exn ctor_args_map (List.nth_exn func_list 1)))::
+    C.CIf(
+      C.CVar("forward"), 
+      C.CBlock(
+        [C.CMethodCall(
+          C.CVar(List.nth_exn func_list 2),
+          [C.CAddrOf(CVar("pkt_out")); C.CAddrOf(CVar("hdrs"))] @ cexpression_list_of (Map.find_exn ctor_args_map (List.nth_exn func_list 2))
+          )
+          ]
+        ),
+      C.CBlock([]))
+    ::[] in 
+    [C.CFun(CVoid, "main",[],stmt_list)]
+  (*============================ end ================================= *)
+
 
 let translate_prog map ((Program prog): Prog.program) : C.cprog =
   prog

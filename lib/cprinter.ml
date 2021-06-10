@@ -77,6 +77,10 @@ and format_cstmt (stmt: cstmt) =
           ++ format_cname var
           ++ text " = "
           ++ format_cexpr rval)
+  | CVarUnInit (typ, var) -> 
+    hbox (format_ctyp typ
+          ++ space
+          ++ format_cname var)
   | CMethodCall (name, params) ->
     box (format_cexpr name
          ++ format_cparams_method params) 

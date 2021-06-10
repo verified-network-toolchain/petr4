@@ -37,6 +37,7 @@ and cstmt =
   | CIf of cexpr * cstmt * cstmt
   | CAssign of cexpr * cexpr
   | CVarInit of ctyp * cname * cexpr
+  | CVarUnInit of ctyp * cname
   | CMethodCall of cexpr * cexpr list  
   | CSwitch of cexpr * ccase list
   | CBlock of cstmt list

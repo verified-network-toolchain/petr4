@@ -668,9 +668,9 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4Strin
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so last_string does not exist. *)
 Inductive update_member : Val -> P4String -> Val -> Val -> Prop :=
-  | update_member_header : forall is_valid fields fname fv v,
-                           write_header_field (ValBaseHeader is_valid fields) fname fv v ->
-                           update_member (ValBaseHeader is_valid fields) fname fv v
+  | update_member_header : forall fields is_valid fname fv v,
+                           write_header_field (ValBaseHeader fields is_valid) fname fv v ->
+                           update_member (ValBaseHeader fields is_valid) fname fv v
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
                            update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')

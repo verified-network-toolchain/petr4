@@ -39,17 +39,27 @@ class LearningApp(App):
         self.topo = topo
 
     def switch_up(self,switch,ports):
-        # TODO
+        spanning_tree_map = {
+            "s1" : [],
+            "s2" : [ 4 ],
+            "s3" : [ 2, 3 ],
+            "s4" : [],
+            "s5" : [ 2 ],
+            "s6" : [ 1 ],
+            "s7" : [ 2 ] }
         print(f"{switch} is up!")
-        super().switch_up(switch, ports)
+        for p in spanning_tree_map[switch]:
+            entry = Entry("spanning_tree_filter", [("standard_metadata.egress_port", p)], "drop", [])
+            self.insert(switch, entry)
+        return
                 
     def packet_in(self,switch,in_port,packet):
         # TODO
         super().packet_in(switch, in_port, packet)
         
     def __init__(self, port=9000):
-        self.init_topo()
         super().__init__(port)
+        self.init_topo()
 
 app = LearningApp()
 app.start()

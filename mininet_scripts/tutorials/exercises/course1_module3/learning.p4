@@ -2,6 +2,8 @@
 #include <core.p4>
 #include <v1model.p4>
 
+const bit<16> TYPE_IPV4 = 0x800;
+
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -16,12 +18,28 @@ header ethernet_t {
     bit<16>   etherType;
 }
 
+header ipv4_t {
+    bit<4>    version;
+    bit<4>    ihl;
+    bit<8>    diffserv;
+    bit<16>   totalLen;
+    bit<16>   identification;
+    bit<3>    flags;
+    bit<13>   fragOffset;
+    bit<8>    ttl;
+    bit<8>    protocol;
+    bit<16>   hdrChecksum;
+    ip4Addr_t srcAddr;
+    ip4Addr_t dstAddr;
+}
+
 struct metadata {
     /* empty */
 }
 
 struct headers {
     ethernet_t   ethernet;
+    ipv4_t       ipv4;
 }
 
 /*************************************************************************
@@ -39,7 +57,15 @@ parser MyParser(packet_in packet,
 
     state parse_ethernet {
         packet.extract(hdr.ethernet);
-        transition accept;
+        transition select(hdr.ethernet.etherType) {
+	    TYPE_IPV4: parse_ipv4;
+	    default: accept;
+	}
+    }
+
+    state parse_ipv4 {
+	packet.extract(hdr.ipv4);
+	transition accept;
     }
 
 }
@@ -66,11 +92,12 @@ control MyIngress(inout headers hdr,
 
     action broadcast() {
         standard_metadata.mcast_grp = 1;
+	hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
     table ethernet_learning {
         key = {
-	    hdr.ethernet.dstAddr:exact;
+	    hdr.ipv4.dstAddr:exact;
 	}
 	actions = {
 	    broadcast;
@@ -91,8 +118,28 @@ control MyIngress(inout headers hdr,
 
 control MyEgress(inout headers hdr,
                  inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-    apply {  }
+    inout standard_metadata_t standard_metadata) {
+
+    action drop() {
+	mark_to_drop(standard_metadata);
+    }
+
+    table spanning_tree_filter {
+	key = {
+	    standard_metadata.egress_port: exact;
+	}
+
+	actions = {
+	    drop;
+	    NoAction;
+	}
+	
+	default_action = NoAction();
+    }
+    
+    apply {
+	spanning_tree_filter.apply();
+    }
 }
 
 /*************************************************************************
@@ -110,6 +157,7 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+	packet.emit(hdr.ipv4);
     }
 }
 

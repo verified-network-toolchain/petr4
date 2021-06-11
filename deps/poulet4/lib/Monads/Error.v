@@ -29,4 +29,16 @@ Definition error_map {E A B : Type} (c: @error_monad E A) (f: A -> B) : @error_m
   | inr b => inr b
   end.
 
+Definition lift_opt_error {Error Result: Type} (e: Error) (x: option Result) : @error_monad Error Result :=
+  match x with 
+  | Some x' => mret x'
+  | None => err e
+  end.
+
+Definition strip_error {Error Result: Type} (x: @error_monad Error Result) : option Result := 
+  match x with 
+  | inl x' => Some x'
+  | inr _ => None
+  end.
+
 Hint Unfold error_ret error_bind : core.

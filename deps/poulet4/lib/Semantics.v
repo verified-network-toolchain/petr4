@@ -350,13 +350,44 @@ Fixpoint eval_expr_gen (get_val : Typed.name -> Locator -> option Val) (expr : @
           | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
           | _, _ => None
           end
+      | ExpCast newtyp arg =>
+          match eval_expr_gen get_val arg, get_real_type newtyp with
+          | Some argv, Some real_typ => Ops.eval_cast real_typ argv
+          | _, _ => None
+          end
       | _ => None
       end
   end.
 
-Definition eval_expr_gen_sound_statement st this expr v :=
+Definition eval_expr_gen_sound_1_statement st this expr v :=
   eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
   exec_expr this st expr v.
+
+Lemma eval_expr_gen_sound_1 : forall st this expr v,
+  eval_expr_gen_sound_1_statement st this expr v
+with eval_expr_gen_sound_1_preT : forall st this tags expr typ dir v,
+  eval_expr_gen_sound_1_statement st this (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
+  - unfold eval_expr_gen_sound_1_statement; intros. destruct expr; inversion H0.
+    + repeat constructor.
+    + constructor; assumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      econstructor; only 1 : apply eval_expr_gen_sound_1; eassumption.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 2-3 : inversion H2.
+      econstructor; only 1-2 : apply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
+      econstructor; only 1 : apply eval_expr_gen_sound_1; eassumption.
+Qed.
+
+Definition eval_expr_gen_sound_statement st this expr v :=
+  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
+  forall v', exec_expr this st expr v' ->
+    v' = v.
 
 Lemma eval_expr_gen_sound : forall st this expr v,
   eval_expr_gen_sound_statement st this expr v
@@ -365,15 +396,25 @@ with eval_expr_gen_sound_preT : forall st this tags expr typ dir v,
 Proof.
   - intros. destruct expr; apply eval_expr_gen_sound_preT.
   - unfold eval_expr_gen_sound_statement; intros. destruct expr; inversion H0.
-    + repeat constructor.
-    + constructor; assumption.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : apply eval_expr_gen_sound; eassumption.
+    + inversion H1; subst. reflexivity.
+    + inversion H1; subst. congruence.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
     + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 2-3 : inversion H2.
-      econstructor; only 1-2 : apply eval_expr_gen_sound; eassumption.
+      destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 2-3 : inversion H3.
+      inversion H1; subst.
+      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      destruct (get_real_type typ0) eqn:?; only 2 : inversion H3.
+      congruence.
 Qed.
 
 (* We might want to prove this lemma in future. *)

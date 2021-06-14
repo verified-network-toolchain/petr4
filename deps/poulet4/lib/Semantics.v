@@ -357,6 +357,14 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
               | Some argv, Some real_typ => Ops.eval_cast real_typ argv
               | _, _ => None
               end
+          | ExpExpressionMember expr name =>
+              match eval_expr_gen hook expr with
+              | Some (ValBaseStruct fields) =>
+                  AList.get fields name
+              | Some (ValBaseHeader fields true) =>
+                  AList.get fields name
+              | _ => None
+              end
           | _ => None
           end
       end
@@ -389,6 +397,10 @@ Proof.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
       destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
       econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
+      * econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+      * destruct is_valid; only 2 : discriminate.
+        econstructor; only 2 : constructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
 Qed.
 
 Definition eval_expr_gen_sound_statement st this hook expr v :=
@@ -426,6 +438,25 @@ Proof.
       assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
       destruct (get_real_type typ0) eqn:?; only 2 : inversion H3.
       congruence.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end.
+        congruence.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end.
+        destruct is_valid; only 2 : inversion H3.
+        inversion H12; subst.
+        congruence.
 Qed.
 
 (* We might want to prove this lemma in future. *)

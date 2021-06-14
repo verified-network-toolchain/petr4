@@ -777,23 +777,23 @@ Definition update_bitstring (i : Z) (lsb : nat) (msb : nat) (n : Z) : Z :=
   Z.lxor (Z.land i mask) new_n.
 
 
-Inductive exec_write : path -> state -> Lval -> Val -> state -> Prop :=
-  | exec_write_name : forall name loc this st rhs typ st',
+Inductive exec_write (this : path) : state -> Lval -> Val -> state -> Prop :=
+  | exec_write_name : forall name loc st rhs typ st',
                          update_val_by_loc this st loc rhs = st' ->
                          exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
-  | exec_write_member : forall lv fname v v' this st rhs typ st',
+  | exec_write_member : forall lv fname v v' st rhs typ st',
                            exec_read this st lv v ->
                            update_member v fname rhs v' ->
                            exec_write this st lv v' st' ->
                            exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
-  | exec_write_bit_access_bit : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+  | exec_write_bit_access_bit : forall lv bitsv w bitsz bitsz' lsb msb w' n st typ st',
                                    exec_read this st lv (ValBaseBit w bitsz) ->
                                    (lsb <= msb < w)%nat ->
                                    update_bitstring bitsv lsb msb n = bitsz' ->
                                    exec_write this st lv (ValBaseBit w (BitArith.mod_bound w bitsz')) st' ->
                                    exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
                                    (ValBaseBit w' n) st'
-   | exec_write_bit_access_int : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+   | exec_write_bit_access_int : forall lv bitsv w bitsz bitsz' lsb msb w' n st typ st',
                                    exec_read this st lv (ValBaseInt w bitsz) ->
                                    (lsb <= msb < w)%nat ->
                                    update_bitstring bitsv lsb msb n = bitsz' ->
@@ -801,7 +801,7 @@ Inductive exec_write : path -> state -> Lval -> Val -> state -> Prop :=
                                    exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
                                    (ValBaseBit w' n) st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
-  | exec_write_array_access : forall lv headers size next (idx: nat) headers' idx this st rhs typ st',
+  | exec_write_array_access : forall lv headers size next (idx: nat) headers' idx st rhs typ st',
                                  exec_read this st lv (ValBaseStack headers size next) ->
                                  update_stack_header headers idx rhs = headers' ->
                                  exec_write this st lv (ValBaseStack headers' size next) st' ->

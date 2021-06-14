@@ -334,70 +334,81 @@ Inductive exec_exprs : path -> state -> list (@Expression tags_t) -> list Val ->
                       exec_exprs this st (expr :: es) (v :: vs).
 
 (* A generic function for evaluating pure expressions. *)
-Fixpoint eval_expr_gen (get_val : Typed.name -> Locator -> option Val) (expr : @Expression tags_t) : option Val :=
-  match expr with
-  | MkExpression _ expr _ _ =>
+Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
+  match hook expr with
+  | Some val => Some val
+  | None =>
       match expr with
-      | ExpInt i => Some (eval_p4int i)
-      | ExpName name loc => get_val name loc
-      | ExpUnaryOp op arg =>
-          match eval_expr_gen get_val arg with
-          | Some argv => Ops.eval_unary_op op argv
-          | None => None
+      | MkExpression _ expr _ _ =>
+          match expr with
+          | ExpInt i => Some (eval_p4int i)
+          | ExpUnaryOp op arg =>
+              match eval_expr_gen hook arg with
+              | Some argv => Ops.eval_unary_op op argv
+              | None => None
+              end
+          | ExpBinaryOp op (larg, rarg) =>
+              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
+              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
+              | _, _ => None
+              end
+          | ExpCast newtyp arg =>
+              match eval_expr_gen hook arg, get_real_type newtyp with
+              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
+              | _, _ => None
+              end
+          | _ => None
           end
-      | ExpBinaryOp op (larg, rarg) =>
-          match eval_expr_gen get_val larg, eval_expr_gen get_val rarg with
-          | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
-          | _, _ => None
-          end
-      | ExpCast newtyp arg =>
-          match eval_expr_gen get_val arg, get_real_type newtyp with
-          | Some argv, Some real_typ => Ops.eval_cast real_typ argv
-          | _, _ => None
-          end
-      | _ => None
       end
   end.
 
-Definition eval_expr_gen_sound_1_statement st this expr v :=
-  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
+Definition eval_expr_gen_sound_1_statement st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v -> exec_expr this st expr v),
+  eval_expr_gen hook expr = Some v ->
   exec_expr this st expr v.
 
-Lemma eval_expr_gen_sound_1 : forall st this expr v,
-  eval_expr_gen_sound_1_statement st this expr v
-with eval_expr_gen_sound_1_preT : forall st this tags expr typ dir v,
-  eval_expr_gen_sound_1_statement st this (MkExpression tags expr typ dir) v.
+Lemma eval_expr_gen_sound_1 : forall st this hook expr v,
+  eval_expr_gen_sound_1_statement st this hook expr v
+with eval_expr_gen_sound_1_preT : forall st this hook tags expr typ dir v,
+  eval_expr_gen_sound_1_statement st this hook (MkExpression tags expr typ dir) v.
 Proof.
   - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
-  - unfold eval_expr_gen_sound_1_statement; intros. destruct expr; inversion H0.
+  - unfold eval_expr_gen_sound_1_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
+    1 : apply H_hook. congruence.
+    destruct expr; inversion H0.
     + repeat constructor.
-    + constructor; assumption.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : apply eval_expr_gen_sound_1; eassumption.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct args as [larg rarg].
       destruct (eval_expr_gen _ _) eqn:? in H2;
         only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
         only 2-3 : inversion H2.
-      econstructor; only 1-2 : apply eval_expr_gen_sound_1; eassumption.
+      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
       destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
-      econstructor; only 1 : apply eval_expr_gen_sound_1; eassumption.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
 Qed.
 
-Definition eval_expr_gen_sound_statement st this expr v :=
-  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
+Definition eval_expr_gen_sound_statement st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v -> forall v', exec_expr this st expr v' -> v' = v),
+  eval_expr_gen hook expr = Some v ->
   forall v', exec_expr this st expr v' ->
     v' = v.
 
-Lemma eval_expr_gen_sound : forall st this expr v,
-  eval_expr_gen_sound_statement st this expr v
-with eval_expr_gen_sound_preT : forall st this tags expr typ dir v,
-  eval_expr_gen_sound_statement st this (MkExpression tags expr typ dir) v.
+Lemma eval_expr_gen_sound : forall st this hook expr v,
+  eval_expr_gen_sound_statement st this hook expr v
+with eval_expr_gen_sound_preT : forall st this hook tags expr typ dir v,
+  eval_expr_gen_sound_statement st this hook (MkExpression tags expr typ dir) v.
 Proof.
   - intros. destruct expr; apply eval_expr_gen_sound_preT.
-  - unfold eval_expr_gen_sound_statement; intros. destruct expr; inversion H0.
+  - unfold eval_expr_gen_sound_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
+    1 : eapply H_hook; only 2 : eassumption; congruence.
+    destruct expr; inversion H0.
     + inversion H1; subst. reflexivity.
-    + inversion H1; subst. congruence.
     + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
       inversion H1; subst.
       assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
@@ -1200,13 +1211,19 @@ Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (ty
 
 End instantiate_expr'.
 
-Definition get_val_ienv (e : ienv) (name : Typed.name) (loc : @Locator tags_t) : option Val :=
+Definition get_val_ienv (e : ienv) (name : Typed.name) : option Val :=
   match name with
   | BareName name =>
       match IdentMap.get name e with
       | Some (IMVal v) => Some v
       | _ => None
       end
+  | _ => None
+  end.
+
+Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option Val :=
+  match expr with
+  | MkExpression _ (ExpName name _) _ _ => get_val_ienv e name
   | _ => None
   end.
 
@@ -1223,7 +1240,7 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m s
   | _ =>
-      match eval_expr_gen (get_val_ienv e) expr with
+      match eval_expr_gen (eval_expr_ienv_hook e) expr with
       | Some v => (IMVal v, m, s)
       | None => (dummy_inst_mem_val, m, s)
       end

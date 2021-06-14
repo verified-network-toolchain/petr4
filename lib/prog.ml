@@ -1438,9 +1438,9 @@ and Env : sig
     val find_extern_opt : Types.name -> t -> Typed.ExternMethods.t option
     val find_extern : Types.name -> t -> Typed.ExternMethods.t
 
-    val insert_type : Types.name -> Typed.Type.t -> t -> t
+    val insert_type : ?shadowing:bool -> Types.name -> Typed.Type.t -> t -> t
     val insert_types : (string * Typed.Type.t) list -> t -> t
-    val insert_type_of : Types.name -> Typed.Type.t -> t -> t
+    val insert_type_of : ?shadowing:bool -> Types.name -> Typed.Type.t -> t -> t
     val insert_dir_type_of : Types.name -> Typed.Type.t -> Typed.direction -> t -> t
     val insert_type_var : Types.name -> t -> t
     val insert_type_vars : string list -> t -> t
@@ -1835,11 +1835,14 @@ end = struct
     let find_extern name env =
       opt_to_exn name (find_extern_opt name env)
 
-    let insert_type name typ env =
-      match resolve_type_name_opt name env with
-      | Some _ -> raise_s [%message "type already defined!"
-                              ~name:(name:Types.name)]
-      | None -> { env with typ = insert name typ env.typ }
+    let insert_type ?(shadowing = false) name typ env =
+      let env' = { env with typ = insert name typ env.typ } in
+      if shadowing
+      then env'
+      else match resolve_type_name_opt name env with
+           | Some _ -> raise_s [%message "type already defined!"
+                                   ~name:(name:Types.name)]
+           | None -> env'
 
     let insert_types names_types env =
       let go env (name, typ) =
@@ -1856,8 +1859,14 @@ end = struct
       in
       List.fold ~f:go ~init:env vars
 
-    let insert_type_of var typ env =
-      { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of }
+    let insert_type_of ?(shadowing = false) var typ env =
+      let env' = { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of } in
+      if shadowing
+      then env'
+      else match find_type_of_opt var env with
+           | Some _ -> raise_s [%message "type already defined!"
+                              ~var:(var:Types.name)]
+           | None -> env'
 
     let insert_dir_type_of var typ dir env =
       { env with typ_of = insert var (typ, dir) env.typ_of }

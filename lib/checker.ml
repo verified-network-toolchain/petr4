@@ -1704,6 +1704,7 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | Array { typ; _ }
   | Set typ ->
      type_has_equality_tests env typ
+  | List { types }
   | Tuple { types } ->
      List.for_all ~f:(type_has_equality_tests env) types
   | Header { fields; _ }
@@ -1792,7 +1793,9 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
        if type_equality env [] l_typ r_typ
        then if type_has_equality_tests env l_typ
             then Type.Bool
-            else failwith "bad error message: type doesn't have equality tests (== and !=)"
+            else raise_s [%message "bad error message: type doesn't have equality tests (== and !=)"
+                             ~l_typ:(l_typ:Typed.Type.t)
+                             ~r_typ:(r_typ:Typed.Type.t)]
        else raise_type_error op_info (Type_Difference (l_typ, r_typ))
     (* Saturating operators are only defined on finite-width signed or unsigned integers *)
     | PlusSat | MinusSat ->
@@ -1848,8 +1851,11 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
     | Shl | Shr ->
        begin match l_typ, is_nonnegative_numeric env typed_r with
        | Bit _, true
-       | Int _, true
-       | Integer, true -> l_typ
+       | Int _, true -> l_typ
+       | Integer, true ->
+          if compile_time_known_expr env typed_r
+          then l_typ
+          else raise_s [%message "bad right hand argument to shift" ~typed_r:(typed_r: Prog.Expression.t)]
        | _, true -> raise_s [%message "bad left hand argument to shift" ~l_typ:(l_typ: Typed.Type.t)]
        | _ -> raise_s [%message "bad right hand argument to shift" ~typed_r:(typed_r: Prog.Expression.t)]
        end
@@ -1898,10 +1904,14 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | List types1, Header rec2
   | List types1, Struct rec2 ->
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
-     not explicit && casts_ok ~explicit env types1.types types2
+     casts_ok ~explicit env types1.types types2 ||
+       type_equality env [] (Tuple types1) (Tuple {types = types2})
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
-     type_equality env [] (Record rec1) (Record rec2)
+     let types1 = List.map ~f:(fun f -> f.typ) rec1.fields in
+     let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
+     casts_ok ~explicit env types1 types2 ||
+       type_equality env [] (Record rec1) (Record rec2)
   | _ -> not explicit && original_type = new_type
 
 and casts_ok ?(explicit = false) env original_types new_types =
@@ -3174,7 +3184,7 @@ and type_extern_function env info annotations return name type_params params =
                      params = params_typed;
                      name = name }
   in
-  (info, fn_typed), CheckerEnv.insert_type_of (BareName name) (Function typ) env
+  (info, fn_typed), CheckerEnv.insert_type_of ~shadowing:true (BareName name) (Function typ) env
 
 and is_variable_type env (typ: Typed.Type.t) =
   let typ = saturate_type env typ in
@@ -3884,10 +3894,10 @@ and type_extern_object env info annotations obj_name t_params methods =
                                           args = generic_args } }
         | _ -> failwith "bug: expected constructor")
   in
-  let env = CheckerEnv.insert_type (BareName obj_name) extern_type env in
+  let env = CheckerEnv.insert_type ~shadowing:true (BareName obj_name) extern_type env in
   let env = CheckerEnv.insert_extern (BareName obj_name) extern_methods env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> CheckerEnv.insert_type_of (BareName obj_name) t env)
+              ~f:(fun env t -> CheckerEnv.insert_type_of ~shadowing:true (BareName obj_name) t env)
   in
   (info, extern_decl), env
 

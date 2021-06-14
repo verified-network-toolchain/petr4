@@ -1836,7 +1836,10 @@ end = struct
       opt_to_exn name (find_extern_opt name env)
 
     let insert_type name typ env =
-      { env with typ = insert name typ env.typ }
+      match resolve_type_name_opt name env with
+      | Some _ -> raise_s [%message "type already defined!"
+                              ~name:(name:Types.name)]
+      | None -> { env with typ = insert name typ env.typ }
 
     let insert_types names_types env =
       let go env (name, typ) =

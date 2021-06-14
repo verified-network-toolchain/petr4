@@ -46,6 +46,14 @@ let assert_numeric = make_assert "integer"
   | _ -> None
   end
 
+let assert_runtime_numeric = make_assert "bit<> or int<>"
+  begin function
+  | Int typ
+  | Bit typ -> Some typ
+  | _ -> None
+  end
+
+
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
 let rec is_some_type
   env
@@ -426,6 +434,12 @@ and reduce_to_underlying_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Ty
   match typ with
   | NewType {typ; _} -> reduce_to_underlying_type env typ
   | Enum {typ = Some typ; _} -> reduce_to_underlying_type env typ
+  | _ -> typ
+
+and reduce_enums_in_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
+  let typ = reduce_type env typ in
+  match typ with
+  | Enum {typ = Some typ; _} -> reduce_enums_in_type env typ
   | _ -> typ
 
 type var_constraint = string * Typed.Type.t option [@@deriving sexp]
@@ -1120,6 +1134,9 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
   | KeyValue { value; _ }
   | Expression { value } -> Some value
 
+and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
+  String.compare f1.name f2.name
+
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
   match saturate_type env typ with
@@ -1155,13 +1172,15 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
       is_well_formed_type env field.typ &&
         is_valid_nested_type env typ field.typ
     in
-    List.for_all ~f:field_ok fields
+    List.for_all ~f:field_ok fields &&
+      not (List.contains_dup ~compare:field_cmp fields)
   | Header {fields; _} ->
     let field_ok (field: RecordType.field) =
       is_well_formed_type env field.typ &&
         is_valid_nested_type ~in_header:true env typ field.typ
     in
-    List.for_all ~f:field_ok fields
+    List.for_all ~f:field_ok fields &&
+      not (List.contains_dup ~compare:field_cmp fields)
   | Action {data_params; ctrl_params} ->
     let res1 : bool = (are_param_types_well_formed env data_params) in
     let res2 : bool = (are_construct_params_types_well_formed env ctrl_params) in
@@ -1535,7 +1554,7 @@ and type_unary_op env ctx op arg =
   let arg_typ = (snd arg_typed).typ in
   begin match snd op with
   | Not    -> assert_bool (info arg) arg_typ |> ignore
-  | BitNot -> assert_bit (info arg) arg_typ |> ignore
+  | BitNot -> assert_runtime_numeric (info arg) arg_typ |> ignore
   | UMinus -> assert_numeric (info arg) arg_typ |> ignore
   end;
   { expr = UnaryOp { op = op;
@@ -1664,7 +1683,7 @@ and coerce_binary_op_args env ctx op l r =
     | None -> fun e -> e
   in
   let cast_type_l, cast_type_r = implicit_cast env l_typed r_typed in
-  if op <> Op.Shl && op <> Op.Shr
+  if op <> Op.Shl && op <> Op.Shr && op <> Op.PlusPlus
   then cast_opt cast_type_l l_typed, cast_opt cast_type_r r_typed
   else l_typed, r_typed
 
@@ -1685,13 +1704,11 @@ and type_has_equality_tests env (typ: Typed.Type.t) =
   | Array { typ; _ }
   | Set typ ->
      type_has_equality_tests env typ
-  | Tuple { types }
-  | List { types } ->
+  | Tuple { types } ->
      List.for_all ~f:(type_has_equality_tests env) types
   | Header { fields; _ }
   | HeaderUnion { fields; _ }
-  | Struct { fields; _ }
-  | Record { fields; _ } ->
+  | Struct { fields; _ } ->
      List.for_all ~f:(fun field -> type_has_equality_tests env field.typ) fields
   | NewType { typ; _ } ->
      type_has_equality_tests env typ
@@ -1746,8 +1763,8 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
   let open Op in
   let open Prog.Expression in
   let open Typed.Type in
-  let l_typ = saturate_type env (snd typed_l).typ in
-  let r_typ = saturate_type env (snd typed_r).typ in
+  let l_typ = reduce_enums_in_type env (snd typed_l).typ in
+  let r_typ = reduce_enums_in_type env (snd typed_r).typ in
   let dir =
     match (snd typed_l).dir, (snd typed_r).dir with
     | In, In -> In
@@ -1793,6 +1810,7 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
     | BitAnd | BitXor | BitOr ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
+       | Int { width = l }, Int { width = r } when l = r -> Int { width = l }
        | Bit { width = _ }, _ -> raise_mismatch (info typed_r) "unsigned int" r_typ
        | _, _ -> raise_mismatch (info typed_l) "unsigned int" l_typ
        end
@@ -1800,9 +1818,9 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
     | PlusPlus ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r }
+       | Bit { width = l }, Int { width = r } -> Bit { width = l + r }
        | Int { width = l }, Bit { width = r }
-       | Bit { width = l }, Int { width = r }
-       | Int { width = l }, Int { width = r } -> Bit { width = l + r }
+       | Int { width = l }, Int { width = r } -> Int { width = l + r }
        | Int { width = _ }, _
        | Bit { width = _ }, _ -> raise_mismatch (info typed_r) "bit<> or int<>" r_typ
        | _, _ -> raise_mismatch (info typed_l) "bit<> or int<>" l_typ
@@ -1830,7 +1848,8 @@ and check_binary_op env (op_info, op) typed_l typed_r : Prog.Expression.typed_t 
     | Shl | Shr ->
        begin match l_typ, is_nonnegative_numeric env typed_r with
        | Bit _, true
-       | Int _, true -> l_typ
+       | Int _, true
+       | Integer, true -> l_typ
        | _, true -> raise_s [%message "bad left hand argument to shift" ~l_typ:(l_typ: Typed.Type.t)]
        | _ -> raise_s [%message "bad right hand argument to shift" ~typed_r:(typed_r: Prog.Expression.t)]
        end
@@ -1851,10 +1870,11 @@ and cast_ok ?(explicit = false) env original_type new_type =
      not explicit &&
      type_equality env [] t1 t2
   | Bit { width = 1 }, Bool
-  | Bool, Bit { width = 1 }
-  | Int _, Bit _
-  | Bit _, Int _ ->
+  | Bool, Bit { width = 1 } ->
      explicit
+  | Int {width = width1}, Bit {width = width2}
+  | Bit {width = width1}, Int {width = width2} ->
+     explicit && width1 = width2
   | Bit { width = width1 }, Bit { width = width2 }
   | Int { width = width1 }, Int { width = width2 } ->
      width1 = width2 || explicit
@@ -1878,11 +1898,19 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | List types1, Header rec2
   | List types1, Struct rec2 ->
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
-     not explicit && type_equality env [] (List {types = types2}) original_type
+     not explicit && casts_ok ~explicit env types1.types types2
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
      type_equality env [] (Record rec1) (Record rec2)
   | _ -> not explicit && original_type = new_type
+
+and casts_ok ?(explicit = false) env original_types new_types =
+  match List.zip original_types new_types with
+  | Ok pairs ->
+     List.for_all pairs ~f:(fun (orig_typ, new_typ) ->
+         cast_ok ~explicit env orig_typ new_typ)
+  | Unequal_lengths ->
+     false
 
 (* Section 8.9 *)
 and type_cast env ctx typ expr : Prog.Expression.typed_t =

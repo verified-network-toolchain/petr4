@@ -901,14 +901,10 @@ enumDeclaration:
     L_BRACE members = identifierList info2 = R_BRACE
     { (Info.merge info1 info2,
       Declaration.Enum { annotations; name; members }) }
-| annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER r_angle
+| annotations = optAnnotations info1 = ENUM typ = baseType
     name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
-   { let value_int = fst value in 
-     let value_info = fst value_int in 
-     let width = (value_info, Expression.Int value_int) in
-     let typ = (Info.merge info2 info4, Type.BitType width) in
-     (Info.merge info1 info4,
-      Declaration.SerializableEnum { annotations; typ; name; members }) }
+   { (Info.merge info1 (fst typ),
+     Declaration.SerializableEnum { annotations; typ; name; members }) }
 ;
 
 errorDeclaration:

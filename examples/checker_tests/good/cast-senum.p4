@@ -2,8 +2,8 @@
 #include <v1model.p4>
 
 enum bit<8> flag_t {
-    ok = 0;
-    not_ok = 1;
+    ok = 0,
+    not_ok = 1
 }
 
 header hdr_t {

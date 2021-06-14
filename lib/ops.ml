@@ -137,6 +137,8 @@ let interp_bshr (l : V.value) (r : V.value) : V.value =
     let exp = Bitstring.power_of_two Bigint.(w-one) in
     let arith = Bigint.(v1 > exp) in
     VInt{w;v=to_twos_complement (shift_bitstring_right v1 v2 arith exp) w}
+  | VInteger v1,  VBit{v=v2; _}
+  | VInteger v1,  VInt{v=v2; _}
   | VInteger v1,  VInteger v2 ->
     VInteger(shift_bitstring_right v1 v2 false Bigint.zero)
   | VBit {w;v=v1}, VInt{v=v2;_} ->

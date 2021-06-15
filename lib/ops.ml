@@ -1,7 +1,9 @@
+module I = Info
 open Core_kernel
 module V = Prog.Value
 module Op = Typed.Op
 open Bitstring
+module Info = I
 
 (*----------------------------------------------------------------------------*)
 (* Unary Operator Evaluation *)
@@ -283,10 +285,14 @@ let rec interp_bitwise_or (l : V.value) (r : V.value) : V.value =
 
 let rec interp_concat (l : V.value) (r : V.value) : V.value =
   match (l,r) with
-  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} ->
+  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2}
+  | VBit{w=w1;v=v1}, VInt{w=w2;v=v2} ->
      VBit{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
   | VBit{w;v},  VInteger n -> interp_concat l (bit_of_rawint n w)
   | VInteger n, VBit{w;v}  -> interp_concat (bit_of_rawint n w) r
+  | VInt{w=w1;v=v1}, VBit{w=w2;v=v2}
+  | VInt{w=w1;v=v1}, VInt{w=w2;v=v2} ->
+     VInt{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
   | _ -> failwith "concat operator only defined on unsigned ints"
 
 let interp_band (l : V.value) (r : V.value) : V.value =
@@ -365,26 +371,40 @@ let rec int_of_val (width : int) (v : V.value) : V.value =
   | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
+let rec interp_cast_field ~type_lookup ~val_lookup ((field, value): Typed.RecordType.field * V.value) =
+     (field.name, interp_cast ~type_lookup ~val_lookup field.typ value)
+
+and interp_cast_fields ~type_lookup ~val_lookup (fields: Typed.RecordType.field list) (value: V.value) =
   match value with
   | VTuple vals ->
      let fields_vals = List.zip_exn fields vals in
-     List.map ~f:(fun (f, v) -> f.name, v) fields_vals
-  | VRecord fields -> fields
+     List.map ~f:(interp_cast_field ~type_lookup ~val_lookup) fields_vals
+  | VHeader {fields = vfields; _}
+  | VStruct {fields = vfields; _}
+  | VRecord vfields ->
+     let vals = List.map ~f:snd vfields in
+     let fields_vals = List.zip_exn fields vals in
+     List.map ~f:(interp_cast_field ~type_lookup ~val_lookup) fields_vals
   | _ -> raise_s [%message "cannot cast" ~value:(value:V.value)]
 
-
-let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
-      (new_type: Typed.Type.t) (value: V.value) : V.value =
+and interp_cast
+    ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
+    ~val_lookup:(val_lookup: Types.name -> V.value)
+    (new_type: Typed.Type.t)
+    (value: V.value)
+    : V.value =
   match new_type with
   | Bool -> bool_of_val value
   | Bit{width} -> bit_of_val width value
   | Int{width} -> int_of_val width value
-  | NewType nt -> interp_cast ~type_lookup nt.typ value
-  | TypeName n -> interp_cast ~type_lookup (type_lookup n) value
-  | Header {fields} -> VHeader {is_valid = true;
-                                fields = fields_for_cast fields value}
-  | Struct {fields} -> VStruct {fields = fields_for_cast fields value}
+  | NewType nt -> interp_cast ~type_lookup ~val_lookup nt.typ value
+  | TypeName n -> interp_cast ~type_lookup ~val_lookup (type_lookup n) value
+  | Header {fields} ->
+     let fields = interp_cast_fields ~type_lookup ~val_lookup fields value in
+     VHeader {is_valid = true; fields}
+  | Struct {fields} ->
+     let fields = interp_cast_fields ~type_lookup ~val_lookup fields value in
+     VStruct {fields}
   | Tuple types -> begin match value with
                    | VTuple v -> VTuple v
                    | _ -> failwith "cannot cast"
@@ -397,5 +417,17 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
      | VInt {w; v}
      | VBit {w; v} -> VSet (SSingleton {w; v})
      |_ -> raise_s [%message "cannot cast" ~value:(value:V.value) ~t:(t:Typed.Type.t)]
+     end
+  | Enum {name; _} ->
+     begin match val_lookup (BareName (Info.dummy, name)) with
+     | VSenum fs ->
+        let f (_, fval) =
+          match interp_beq fval value with
+          | VBool true -> true
+          | _ -> false
+        in
+        let (fname, _) = List.find_exn fs ~f in
+        VSenumField {typ_name = name; enum_name = fname; v = value}
+     | _ -> failwith "cannot cast"
      end
   | _ -> raise_s [%message "cast unimplemented" ~value:(value:V.value) ~t:(new_type:Typed.Type.t)]

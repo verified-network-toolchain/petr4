@@ -190,7 +190,8 @@ and compile_time_eval_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : Prog.
   | Cast { typ; expr } ->
      let expr_val = compile_time_eval_expr env expr in
      let type_lookup name = CheckerEnv.resolve_type_name name env in
-     option_map (Ops.interp_cast ~type_lookup typ) expr_val
+     let val_lookup name = CheckerEnv.find_const name env in
+     option_map (Ops.interp_cast ~type_lookup ~val_lookup typ) expr_val
   | List { values } ->
      begin match compile_time_eval_exprs env values with
      | Some vals -> Some (VTuple vals)
@@ -1908,6 +1909,12 @@ and cast_ok ?(explicit = false) env original_type new_type =
        type_equality env [] (Tuple types1) (Tuple {types = types2})
   | Record rec1, Header rec2
   | Record rec1, Struct rec2 ->
+     let types1 = List.map ~f:(fun f -> f.typ) rec1.fields in
+     let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
+     casts_ok ~explicit env types1 types2 ||
+       type_equality env [] (Record rec1) (Record rec2)
+  | Header rec1, Header rec2
+  | Struct rec1, Struct rec2 ->
      let types1 = List.map ~f:(fun f -> f.typ) rec1.fields in
      let types2 = List.map ~f:(fun f -> f.typ) rec2.fields in
      casts_ok ~explicit env types1 types2 ||

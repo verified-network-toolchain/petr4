@@ -787,7 +787,9 @@ module MakeInterpreter (T : Target) = struct
       (expr : Expression.t) : state * signal * value =
     let (st', s, v) = eval_expr env st SContinue expr in
     let v' = Ops.interp_cast typ v
-      ~type_lookup:(fun name -> EvalEnv.find_typ name env) in
+      ~type_lookup:(fun name -> EvalEnv.find_typ name env)
+      ~val_lookup:(fun name -> EvalEnv.find_val name env |> extract_from_state st)
+    in
     match s with
     | SContinue -> (st',s,v')
     | _ -> (st',s,VNull)

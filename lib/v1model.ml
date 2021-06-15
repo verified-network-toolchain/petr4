@@ -142,7 +142,10 @@ module PreV1Switch : Target = struct
       let read_val =
         Bigint.to_int_exn v
         |> List.nth_exn states
-        |> Ops.interp_cast ~type_lookup:(fun name -> EvalEnv.find_typ name env) t in
+        |> Ops.interp_cast t
+             ~type_lookup:(fun name -> EvalEnv.find_typ name env)
+             ~val_lookup:(fun name -> State.find_heap (EvalEnv.find_val name env) st)
+      in
       (* let read_val = State.find_heap read_loc st in *)
       let l = State.fresh_loc () in
       let st = State.insert_heap l read_val st in

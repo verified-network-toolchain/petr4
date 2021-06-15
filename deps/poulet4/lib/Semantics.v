@@ -645,12 +645,13 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
                               (MkExpression tag (ExpExpressionMember expr name) typ dir)
                               (MkValueLvalue (ValLeftMember lv name) typ) sig
   (* next < 0 is impossible by semantics. *)
-  | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig,
+  | exec_lexpr_member_next : forall expr name lv headers size next this st tag typ dir sig,
                                    exec_lexpr this st expr lv sig ->
+                                   P4String.equivb !"next" name = true ->
                                    exec_expr this st expr (ValBaseStack headers size next) ->
                                    (next < size)%nat ->
                                    exec_lexpr this st
-                                   (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
+                                   (MkExpression tag (ExpExpressionMember expr name) typ dir)
                                    (MkValueLvalue (ValLeftArrayAccess lv next) typ) sig
   | exec_lexpr_member_next_reject : forall expr name lv headers size next this st tag typ dir sig,
                                           exec_lexpr this st expr lv sig->
@@ -691,11 +692,11 @@ Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val)
   let p := loc_to_path this loc in
   update_memory (PathMap.set p v) s.
 
-Inductive exec_read: path -> state -> Lval -> Val -> Prop :=
-  | exec_read_name : forall name loc this st v typ,
+Inductive exec_read (this : path) : state -> Lval -> Val -> Prop :=
+  | exec_read_name : forall name loc st v typ,
                        loc_to_val this loc st = Some v ->
                        exec_read this st (MkValueLvalue (ValLeftName name loc) typ) v
-  | exec_read_by_member : forall lv name this st v typ,
+  | exec_read_by_member : forall lv name st v typ,
                          exec_read_member this st lv name typ v ->
                          exec_read this st (MkValueLvalue (ValLeftMember lv name) typ) v
   (* | exec_read_bit_access
@@ -703,16 +704,16 @@ Inductive exec_read: path -> state -> Lval -> Val -> Prop :=
 
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). *)
-with exec_read_member: path -> state -> Lval -> P4String -> P4Type -> Val -> Prop :=
-  | exec_read_member_header : forall is_valid fields this st lv name typ v,
+with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Val -> Prop :=
+  | exec_read_member_header : forall is_valid fields st lv name typ v,
                           exec_read this st lv (ValBaseHeader fields is_valid) ->
                           read_header_field is_valid fields name typ v ->
                           exec_read_member this st lv name typ v
-  | exec_read_member_struct : forall fields this st lv name typ v,
+  | exec_read_member_struct : forall fields st lv name typ v,
                           exec_read this st lv (ValBaseStruct fields) ->
                           AList.get fields name = Some v ->
                           exec_read_member this st lv name typ v
-  | exec_read_member_union: forall fields this st lv name typ v,
+  | exec_read_member_union: forall fields st lv name typ v,
                         exec_read this st lv (ValBaseUnion fields) ->
                         AList.get fields name = Some v ->
                         exec_read_member this st lv name typ v.

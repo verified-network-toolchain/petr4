@@ -687,6 +687,25 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
                                    (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                    (MkValueLvalue (ValLeftArrayAccess lv size) typ) sig.
 
+Definition locator_equivb (loc1 loc2 : @Locator tags_t) : bool :=
+  match loc1, loc2 with
+  | LInstance p1, LInstance p2 => path_equivb p1 p2
+  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
+  | _, _ => false
+  end.
+
+Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
+  match lv1, lv2 with
+  | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
+      locator_equivb loc1 loc2
+  | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
+      lval_equivb lv1 lv2 && P4String.equivb member1 member2
+  | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
+      lval_equivb lv1 lv2 && Nat.eqb msb1 msb2 && Nat.eqb lsb1 lsb2
+  | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
+      lval_equivb lv1 lv2 && Nat.eqb idx1 idx2
+  | _, _ => false
+  end.
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): state :=
   let p := loc_to_path this loc in

@@ -4039,8 +4039,8 @@ and type_package_type env info annotations name t_params params =
   in
   let env' =
     env
-    |> CheckerEnv.insert_type_of (BareName name) ctor_typ
-    |> CheckerEnv.insert_type (BareName name) (Type.Package pkg_typ)
+    |> CheckerEnv.insert_type_of ~shadowing:true (BareName name) ctor_typ
+    |> CheckerEnv.insert_type ~shadowing:true (BareName name) (Type.Package pkg_typ)
   in
   (info, pkg_decl), env'
 

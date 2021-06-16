@@ -9,7 +9,6 @@ struct metadata { }
 struct in_param_t { }
 struct out_param_t { }
 
-typedef bit<9> PortId_t;
 const PortId_t TEMP_PORT = 244;
 const PortId_t OUT_PORT = 255;
 

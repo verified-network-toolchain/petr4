@@ -44,7 +44,8 @@ control MyEgress(inout headers hdr,
 
 control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
-        my_struct s = { 42, true };
+        my_struct s = { 8w42, true };
+
         bit<8> num = s.n; //42
         bool boo = s.b; //true
 

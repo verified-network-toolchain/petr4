@@ -54,7 +54,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
         bit<8> u = 8w117 - 8w75 - 8w128 - 8w128; //42, should wrap around
         bit<8> v = 8w7 |+| 8w3 |+| 8w32 |+| 8w128 |+| 8w128; //255, should saturate
         bit<8> w = 8w117 |-| 8w75 |-| 8w128 |-| 8w128; //0, should saturate
-        bit<8> x = 2 ++ 4w10; //42
+        bit<8> x = 4w2 ++ 4w10; //42
         bit<6> y = 12w3927[4w8:2w3]; //42
         bit z = 4w7[1w1:1w1]; //1
         packet.emit((bit<8>) ((bit) a));

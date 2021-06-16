@@ -1798,6 +1798,9 @@ end = struct
     let find_type_of_opt name env =
       find_opt name env.typ_of
 
+    let find_type_of_opt name env =
+      find_opt name env.typ_of
+
     let find_type_of name env =
       opt_to_exn name (find_type_of_opt name env)
 
@@ -1840,7 +1843,7 @@ end = struct
       in
       List.fold ~f:go ~init:env vars
 
-    let insert_type_of ?(shadowing = false) var typ env =
+    let insert_type_of ?(shadowing = true) var typ env =
       let env' = { env with typ_of = insert var (typ, Typed.Directionless) env.typ_of } in
       if shadowing
       then env'

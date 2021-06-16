@@ -348,6 +348,7 @@ let interp_unary_op (op: Op.uni) (v: V.value) =
 let bool_of_val (v : V.value) : V.value =
   match v with
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
+  | VBool b -> VBool b
   | _ -> failwith "cast to bool undefined"
 
 let bit_of_val (width : int) (v : V.value) : V.value =

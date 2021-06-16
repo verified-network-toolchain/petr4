@@ -832,10 +832,6 @@ and Value : sig
     | VEnumField of
         { typ_name : string;
           enum_name : string; }
-    | VSenumField of
-        { typ_name : string;
-          enum_name : string;
-          v : value; }
     | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
@@ -966,8 +962,6 @@ and Value : sig
 
   val assert_enum_field : value -> string * string
 
-  val assert_senum_field : value -> string * string * value
-
   val assert_senum : value -> (string * value) list
 
   val assert_runtime : value -> loc
@@ -1073,10 +1067,6 @@ end = struct
     | VEnumField of
         { typ_name : string;
           enum_name : string; }
-    | VSenumField of
-        { typ_name : string;
-          enum_name : string;
-          v : value; }
     | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
@@ -1180,10 +1170,9 @@ end = struct
     | VInteger n -> n
     | _ -> failwith "not an variable-size integer"
 
-  let rec assert_bit v =
+  let assert_bit v =
     match v with
     | VBit{w;v} -> (w,v)
-    | VSenumField{v;_} -> assert_bit v
     | _ -> raise_s [%message "not a bitstring" ~v:(v:value)]
 
   let assert_int v =
@@ -1191,13 +1180,12 @@ end = struct
     | VInt {w;v} -> (w,v)
     | _ -> failwith "not an int"
 
-  let rec bigint_of_val v =
+  let bigint_of_val v =
     match v with
     | VInt{v=n;_}
     | VBit{v=n;_}
     | VInteger n
     | VVarbit{v=n;_} -> n
-    | VSenumField{v;_} -> bigint_of_val v
     | VBool b -> if b then Bigint.one else Bigint.zero
     | _ -> failwith "value not representable as bigint"
 
@@ -1216,13 +1204,12 @@ end = struct
     | VTuple l -> l
     | _ -> failwith "not a tuple"
 
-  let rec assert_set v w =
+  let assert_set v w =
     match v with
     | VSet s -> s
     | VInteger i -> SSingleton{w;v=i}
     | VInt {v=i;_} -> SSingleton{w;v=i}
     | VBit{v=i;_} -> SSingleton{w;v=i}
-    | VSenumField{v;_} -> assert_set v w
     | VEnumField _ -> failwith "enum field not a set"
     | _ -> failwith "not a set"
 
@@ -1270,11 +1257,6 @@ end = struct
     match v with
     | VEnumField {typ_name;enum_name} -> (typ_name, enum_name)
     | _ -> failwith "not an enum field"
-
-  let assert_senum_field v =
-    match v with
-    | VSenumField {typ_name;enum_name;v} -> (typ_name, enum_name, v)
-    | _ -> failwith "not an senum field"
 
   let assert_senum v =
     match v with
@@ -1727,7 +1709,6 @@ end = struct
             (* List.iter fields ~f:(fun a -> print_string "    "; f a); "" *)
           | VStack _ -> "<stack>"
           | VEnumField{typ_name;enum_name} -> typ_name ^ "." ^ enum_name
-          | VSenumField{typ_name;enum_name;_} -> typ_name ^ "." ^ enum_name ^ " <value>"
           | VRuntime r -> "<location>"
           | VParser _ -> "<parser>"
           | VControl _ -> "<control>"

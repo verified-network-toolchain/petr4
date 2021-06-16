@@ -58,8 +58,6 @@ module Corize (T : Target) : Target = struct
            let (n, s), field_vals = extract_struct nvarbits (n, s) fields in
            let fields = List.zip_exn field_names field_vals in
            (n, s), VStruct{fields}
-        | VSenumField {typ_name; enum_name; v} ->
-          extract_senum typ_name enum_name v nvarbits (n, s)
         | _ -> raise_s [%message "invalid header field type"
                       ~v:(v:value)]
       end
@@ -107,8 +105,7 @@ module Corize (T : Target) : Target = struct
 
   and extract_senum (typ_name : string) (enum_name : string) (v : value)
       (nvarbits : Bigint.t) (n, s) : ((Bigint.t * Bigint.t) * signal) * value =
-    let (x, v) = extract_hdr_field nvarbits (n, s) v in
-    x, VSenumField{typ_name; enum_name; v}
+    extract_hdr_field nvarbits (n, s) v
 
   let rec reset_fields (env : env) (fs : (string * value) list)
       (t : Type.t) : (string * value) list =
@@ -298,12 +295,6 @@ module Corize (T : Target) : Target = struct
 
   and packet_of_hdr (env : env) (t : Type.t)
       (fields : (string * value) list) (is_valid : bool) : buf =
-    let rec underlying_typ_of_enum env t =
-      match t with
-      | Typed.Type.Enum et -> Option.value_exn et.typ
-      | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
-      | NewType nt -> nt.typ |> underlying_typ_of_enum env
-      | _ -> failwith "no such underlying type" in
     let f = fun (accw, accv) (w,v) ->
       Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
     let rec wv_of_val (v, t) = match v with
@@ -312,7 +303,6 @@ module Corize (T : Target) : Target = struct
       | VVarbit{max;w;v} -> w, v
       | VBool true -> Bigint.one, Bigint.one
       | VBool false -> Bigint.one, Bigint.zero
-      | VSenumField{v;_} -> wv_of_val (v, underlying_typ_of_enum env t)
       | VStruct {fields;} ->
         let fs = reset_fields env fields t in
         let fs' = List.map ~f:snd fs in

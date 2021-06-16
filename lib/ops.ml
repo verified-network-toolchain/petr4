@@ -196,8 +196,6 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VError s1, VError s2
   | VEnumField{enum_name=s1;_},
     VEnumField{enum_name=s2;_}                -> VBool Poly.(s1 = s2)
-  | VSenumField{v=v1;_},
-    VSenumField{v=v2;_}                       -> interp_beq v1 v2
   | VBool b1, VBool b2                        -> VBool Poly.(b1 = b2)
   | VBit{v=n1;_}, VBit{v=n2;_}
   | VInteger n1, VInteger n2
@@ -352,23 +350,21 @@ let bool_of_val (v : V.value) : V.value =
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
   | _ -> failwith "cast to bool undefined"
 
-let rec bit_of_val (width : int) (v : V.value) : V.value =
+let bit_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VInt{v=n;_}
   | VBit{v=n;_}
   | VInteger n -> bit_of_rawint n w
   | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
-  | VSenumField{v;_} -> bit_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let rec int_of_val (width : int) (v : V.value) : V.value =
+let int_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VBit{v=n;_}
   | VInt{v=n;_}
   | VInteger n -> int_of_rawint n w
-  | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
 let rec interp_cast_field ~type_lookup ~val_lookup ((field, value): Typed.RecordType.field * V.value) =
@@ -412,22 +408,10 @@ and interp_cast
   | Set t ->
      begin match value with
      | VSet v -> VSet v
-     | VSenumField {v = VBit {w; v}; _}
-     | VSenumField {v = VInt {w; v}; _}
      | VInt {w; v}
      | VBit {w; v} -> VSet (SSingleton {w; v})
      |_ -> raise_s [%message "cannot cast" ~value:(value:V.value) ~t:(t:Typed.Type.t)]
      end
-  | Enum {name; _} ->
-     begin match val_lookup (BareName (Info.dummy, name)) with
-     | VSenum fs ->
-        let f (_, fval) =
-          match interp_beq fval value with
-          | VBool true -> true
-          | _ -> false
-        in
-        let (fname, _) = List.find_exn fs ~f in
-        VSenumField {typ_name = name; enum_name = fname; v = value}
-     | _ -> failwith "cannot cast"
-     end
+  | Enum {name; typ = Some new_type'; _} ->
+     interp_cast ~type_lookup ~val_lookup new_type' value
   | _ -> raise_s [%message "cast unimplemented" ~value:(value:V.value) ~t:(new_type:Typed.Type.t)]

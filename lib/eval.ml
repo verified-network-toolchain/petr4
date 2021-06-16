@@ -803,10 +803,9 @@ module MakeInterpreter (T : Target) = struct
       else raise (UnboundName name)
     | Enum {name; typ = Some _; members} ->
       begin match EvalEnv.find_val typ env |> extract_from_state st with
-        | VSenum fs ->
-          let v = find_exn fs enum_name in
-          st, SContinue, VSenumField{typ_name=name;enum_name;v}
-        | _ -> failwith "typ mem undefined"
+      | VSenum fs ->
+         st, SContinue, find_exn fs enum_name
+      | _ -> failwith "typ mem undefined"
       end
     | _ -> failwith "type mem undefined"
 

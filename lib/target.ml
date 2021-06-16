@@ -173,12 +173,7 @@ and init_val_of_enum (env : env) (et : EnumType.t) : value =
       enum_name = List.hd_exn et.members
     }
   | Some t ->
-    let v = init_val_of_typ env t in
-    VSenumField {
-      typ_name = et.name;
-      enum_name = List.hd_exn et.members;
-      v;
-    }
+    init_val_of_typ env t
 
 and init_val_of_specialized (st : SpecializedType.t) : value =
   failwith "init vals unimplemented for specialized types"
@@ -225,8 +220,6 @@ let rec width_of_val v =
       fields
       |> List.map ~f:field_width
       |> List.fold ~init:Bigint.zero ~f:Bigint.(+)
-  | VSenumField {v; _} ->
-      width_of_val v
   | VInteger _ -> failwith "width of VInteger"
   | VUnion _ -> failwith "width of header union unimplemented"
   | _ -> raise_s [%message "width of type unimplemented" ~v:(v: Value.value)]

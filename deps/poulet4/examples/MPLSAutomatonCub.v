@@ -17,9 +17,13 @@ Module MPLSCub.
     map (fun '(k, v) => (k, decl_to_type _ v)) decls.
   
   Definition fixed_cub_parser := decl_to_cub _ decl_env MPLSFixedWidthParser.
+
   Definition fixed_autos := decl_to_autos _ decl_env MPLSFixedWidthParser.
+  
   Definition vect_cub_parser := decl_to_cub _ decl_env MPLSVectorizedParser.
   Definition vect_autos := decl_to_autos _ decl_env MPLSVectorizedParser.
+  
+  (* TODO: the automata compiler doesn't handle fixed_cub_parser, and also vect_autos is extremely slow *)
   (* Compute fixed_autos. *)
   (* Compute vect_autos. *)
   

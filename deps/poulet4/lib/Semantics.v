@@ -302,18 +302,12 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                                               exec_expr this st
                                               (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
                                               v
-  | exec_expr_ternary_tru : forall cond tru truv fls this st tag typ dir,
-                            exec_expr this st cond (ValBaseBool true) ->
-                            exec_expr this st tru truv ->
-                            exec_expr this st
-                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
-                            truv
-  | exec_expr_ternary_fls : forall cond tru fls flsv this st tag typ dir,
-                            exec_expr this st cond (ValBaseBool false) ->
-                            exec_expr this st fls flsv ->
-                            exec_expr this st
-                            (MkExpression tag (ExpTernary cond tru fls) typ dir)
-                            flsv
+  | exec_expr_ternary : forall cond tru fls b v this st tag typ dir,
+                        exec_expr this st cond (ValBaseBool b) ->
+                        exec_expr this st (if b then tru else fls) v ->
+                        exec_expr this st
+                        (MkExpression tag (ExpTernary cond tru fls) typ dir)
+                        v
   | exec_expr_dont_care : forall this st tag typ dir,
                           exec_expr this st
                           (MkExpression tag ExpDontCare typ dir)
@@ -340,46 +334,129 @@ Inductive exec_exprs : path -> state -> list (@Expression tags_t) -> list Val ->
                       exec_exprs this st (expr :: es) (v :: vs).
 
 (* A generic function for evaluating pure expressions. *)
-Fixpoint eval_expr_gen (get_val : Typed.name -> Locator -> option Val) (expr : @Expression tags_t) : option Val :=
-  match expr with
-  | MkExpression _ expr _ _ =>
+Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
+  match hook expr with
+  | Some val => Some val
+  | None =>
       match expr with
-      | ExpInt i => Some (eval_p4int i)
-      | ExpName name loc => get_val name loc
-      | ExpUnaryOp op arg =>
-          match eval_expr_gen get_val arg with
-          | Some argv => Ops.eval_unary_op op argv
-          | None => None
+      | MkExpression _ expr _ _ =>
+          match expr with
+          | ExpInt i => Some (eval_p4int i)
+          | ExpUnaryOp op arg =>
+              match eval_expr_gen hook arg with
+              | Some argv => Ops.eval_unary_op op argv
+              | None => None
+              end
+          | ExpBinaryOp op (larg, rarg) =>
+              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
+              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
+              | _, _ => None
+              end
+          | ExpCast newtyp arg =>
+              match eval_expr_gen hook arg, get_real_type newtyp with
+              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
+              | _, _ => None
+              end
+          | ExpExpressionMember expr name =>
+              match eval_expr_gen hook expr with
+              | Some (ValBaseStruct fields) =>
+                  AList.get fields name
+              | Some (ValBaseHeader fields true) =>
+                  AList.get fields name
+              | _ => None
+              end
+          | _ => None
           end
-      | ExpBinaryOp op (larg, rarg) =>
-          match eval_expr_gen get_val larg, eval_expr_gen get_val rarg with
-          | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
-          | _, _ => None
-          end
-      | _ => None
       end
   end.
 
-Definition eval_expr_gen_sound_statement st this expr v :=
-  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v ->
+Definition eval_expr_gen_sound_1_statement st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v -> exec_expr this st expr v),
+  eval_expr_gen hook expr = Some v ->
   exec_expr this st expr v.
 
-Lemma eval_expr_gen_sound : forall st this expr v,
-  eval_expr_gen_sound_statement st this expr v
-with eval_expr_gen_sound_preT : forall st this tags expr typ dir v,
-  eval_expr_gen_sound_statement st this (MkExpression tags expr typ dir) v.
+Lemma eval_expr_gen_sound_1 : forall st this hook expr v,
+  eval_expr_gen_sound_1_statement st this hook expr v
+with eval_expr_gen_sound_1_preT : forall st this hook tags expr typ dir v,
+  eval_expr_gen_sound_1_statement st this hook (MkExpression tags expr typ dir) v.
 Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_preT.
-  - unfold eval_expr_gen_sound_statement; intros. destruct expr; inversion H0.
+  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
+  - unfold eval_expr_gen_sound_1_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
+    1 : apply H_hook. congruence.
+    destruct expr; inversion H0.
     + repeat constructor.
-    + constructor; assumption.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : apply eval_expr_gen_sound; eassumption.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct args as [larg rarg].
       destruct (eval_expr_gen _ _) eqn:? in H2;
         only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
         only 2-3 : inversion H2.
-      econstructor; only 1-2 : apply eval_expr_gen_sound; eassumption.
+      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
+      * econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+      * destruct is_valid; only 2 : discriminate.
+        econstructor; only 2 : constructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+Qed.
+
+Definition eval_expr_gen_sound_statement st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v -> forall v', exec_expr this st expr v' -> v' = v),
+  eval_expr_gen hook expr = Some v ->
+  forall v', exec_expr this st expr v' ->
+    v' = v.
+
+Lemma eval_expr_gen_sound : forall st this hook expr v,
+  eval_expr_gen_sound_statement st this hook expr v
+with eval_expr_gen_sound_preT : forall st this hook tags expr typ dir v,
+  eval_expr_gen_sound_statement st this hook (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_preT.
+  - unfold eval_expr_gen_sound_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
+    1 : eapply H_hook; only 2 : eassumption; congruence.
+    destruct expr; inversion H0.
+    + inversion H1; subst. reflexivity.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 2-3 : inversion H3.
+      inversion H1; subst.
+      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      destruct (get_real_type typ0) eqn:?; only 2 : inversion H3.
+      congruence.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end.
+        congruence.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end.
+        destruct is_valid; only 2 : inversion H3.
+        inversion H12; subst.
+        congruence.
 Qed.
 
 (* We might want to prove this lemma in future. *)
@@ -568,12 +645,13 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
                               (MkExpression tag (ExpExpressionMember expr name) typ dir)
                               (MkValueLvalue (ValLeftMember lv name) typ) sig
   (* next < 0 is impossible by semantics. *)
-  | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig,
+  | exec_lexpr_member_next : forall expr name lv headers size next this st tag typ dir sig,
                                    exec_lexpr this st expr lv sig ->
+                                   P4String.equivb !"next" name = true ->
                                    exec_expr this st expr (ValBaseStack headers size next) ->
                                    (next < size)%nat ->
                                    exec_lexpr this st
-                                   (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
+                                   (MkExpression tag (ExpExpressionMember expr name) typ dir)
                                    (MkValueLvalue (ValLeftArrayAccess lv next) typ) sig
   | exec_lexpr_member_next_reject : forall expr name lv headers size next this st tag typ dir sig,
                                           exec_lexpr this st expr lv sig->
@@ -609,16 +687,35 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
                                    (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                    (MkValueLvalue (ValLeftArrayAccess lv size) typ) sig.
 
+Definition locator_equivb (loc1 loc2 : @Locator tags_t) : bool :=
+  match loc1, loc2 with
+  | LInstance p1, LInstance p2 => path_equivb p1 p2
+  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
+  | _, _ => false
+  end.
+
+Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
+  match lv1, lv2 with
+  | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
+      locator_equivb loc1 loc2
+  | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
+      lval_equivb lv1 lv2 && P4String.equivb member1 member2
+  | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
+      lval_equivb lv1 lv2 && Nat.eqb msb1 msb2 && Nat.eqb lsb1 lsb2
+  | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
+      lval_equivb lv1 lv2 && Nat.eqb idx1 idx2
+  | _, _ => false
+  end.
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val): state :=
   let p := loc_to_path this loc in
   update_memory (PathMap.set p v) s.
 
-Inductive exec_read: path -> state -> Lval -> Val -> Prop :=
-  | exec_read_name : forall name loc this st v typ,
+Inductive exec_read (this : path) : state -> Lval -> Val -> Prop :=
+  | exec_read_name : forall name loc st v typ,
                        loc_to_val this loc st = Some v ->
                        exec_read this st (MkValueLvalue (ValLeftName name loc) typ) v
-  | exec_read_by_member : forall lv name this st v typ,
+  | exec_read_by_member : forall lv name st v typ,
                          exec_read_member this st lv name typ v ->
                          exec_read this st (MkValueLvalue (ValLeftMember lv name) typ) v
   (* | exec_read_bit_access
@@ -626,16 +723,16 @@ Inductive exec_read: path -> state -> Lval -> Val -> Prop :=
 
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). *)
-with exec_read_member: path -> state -> Lval -> P4String -> P4Type -> Val -> Prop :=
-  | exec_read_member_header : forall is_valid fields this st lv name typ v,
+with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Val -> Prop :=
+  | exec_read_member_header : forall is_valid fields st lv name typ v,
                           exec_read this st lv (ValBaseHeader fields is_valid) ->
                           read_header_field is_valid fields name typ v ->
                           exec_read_member this st lv name typ v
-  | exec_read_member_struct : forall fields this st lv name typ v,
+  | exec_read_member_struct : forall fields st lv name typ v,
                           exec_read this st lv (ValBaseStruct fields) ->
                           AList.get fields name = Some v ->
                           exec_read_member this st lv name typ v
-  | exec_read_member_union: forall fields this st lv name typ v,
+  | exec_read_member_union: forall fields st lv name typ v,
                         exec_read this st lv (ValBaseUnion fields) ->
                         AList.get fields name = Some v ->
                         exec_read_member this st lv name typ v.
@@ -674,9 +771,9 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4Strin
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so last_string does not exist. *)
 Inductive update_member : Val -> P4String -> Val -> Val -> Prop :=
-  | update_member_header : forall is_valid fields fname fv v,
-                           write_header_field (ValBaseHeader is_valid fields) fname fv v ->
-                           update_member (ValBaseHeader is_valid fields) fname fv v
+  | update_member_header : forall fields is_valid fname fv v,
+                           write_header_field (ValBaseHeader fields is_valid) fname fv v ->
+                           update_member (ValBaseHeader fields is_valid) fname fv v
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
                            update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')
@@ -700,23 +797,23 @@ Definition update_bitstring (i : Z) (lsb : nat) (msb : nat) (n : Z) : Z :=
   Z.lxor (Z.land i mask) new_n.
 
 
-Inductive exec_write : path -> state -> Lval -> Val -> state -> Prop :=
-  | exec_write_name : forall name loc this st rhs typ st',
+Inductive exec_write (this : path) : state -> Lval -> Val -> state -> Prop :=
+  | exec_write_name : forall name loc st rhs typ st',
                          update_val_by_loc this st loc rhs = st' ->
                          exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
-  | exec_write_member : forall lv fname v v' this st rhs typ st',
+  | exec_write_member : forall lv fname v v' st rhs typ st',
                            exec_read this st lv v ->
                            update_member v fname rhs v' ->
                            exec_write this st lv v' st' ->
                            exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
-  | exec_write_bit_access_bit : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+  | exec_write_bit_access_bit : forall lv bitsv w bitsz bitsz' lsb msb w' n st typ st',
                                    exec_read this st lv (ValBaseBit w bitsz) ->
                                    (lsb <= msb < w)%nat ->
                                    update_bitstring bitsv lsb msb n = bitsz' ->
                                    exec_write this st lv (ValBaseBit w (BitArith.mod_bound w bitsz')) st' ->
                                    exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
                                    (ValBaseBit w' n) st'
-   | exec_write_bit_access_int : forall lv bitsv w bitsz bitsz' lsb msb w' n  this st typ st',
+   | exec_write_bit_access_int : forall lv bitsv w bitsz bitsz' lsb msb w' n st typ st',
                                    exec_read this st lv (ValBaseInt w bitsz) ->
                                    (lsb <= msb < w)%nat ->
                                    update_bitstring bitsv lsb msb n = bitsz' ->
@@ -724,7 +821,7 @@ Inductive exec_write : path -> state -> Lval -> Val -> state -> Prop :=
                                    exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
                                    (ValBaseBit w' n) st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
-  | exec_write_array_access : forall lv headers size next (idx: nat) headers' idx this st rhs typ st',
+  | exec_write_array_access : forall lv headers size next (idx: nat) headers' idx st rhs typ st',
                                  exec_read this st lv (ValBaseStack headers size next) ->
                                  update_stack_header headers idx rhs = headers' ->
                                  exec_write this st lv (ValBaseStack headers' size next) st' ->
@@ -886,6 +983,8 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Val -> state -> 
   (* this_path s lv fname args s' sig *) (* TODO *)
   .
 
+Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
+
 Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v this_path inst_m st tags typ st',
                                 exec_lexpr this_path st lhs lv SContinue->
@@ -925,18 +1024,14 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                    force_continue_signal sig = sig' ->
                                    exec_stmt this_path inst_m st
                                    (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
-  | exec_stmt_conditional_tru : forall cond tru fls_opt this_path inst_m st tags typ st' sig,
-                                exec_expr this_path st cond (ValBaseBool true) ->
-                                exec_stmt this_path inst_m st tru st' sig ->
-                                exec_stmt this_path inst_m st
-                                (MkStatement tags (StatConditional cond tru fls_opt) typ) st' sig
-  | exec_stmt_conditional_fls : forall cond tru fls this_path inst_m st tags typ st' sig, 
-                                exec_expr this_path st cond (ValBaseBool false) ->
-                                exec_stmt this_path inst_m st fls st' sig ->
-                                exec_stmt this_path inst_m st
-                                (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-  | exec_stmt_conditional_fls_none : forall cond tru this_path inst_m st tags typ, 
-                                     exec_expr this_path st cond (ValBaseBool false) ->
+  | exec_stmt_conditional_some_fls : forall cond tru fls b this_path inst_m st tags typ st' sig,
+                                     exec_expr this_path st cond (ValBaseBool b) ->
+                                     exec_stmt this_path inst_m st (if b then tru else fls) st' sig ->
+                                     exec_stmt this_path inst_m st
+                                     (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
+  | exec_stmt_conditional_none_fls : forall cond tru b this_path inst_m st tags typ st' sig,
+                                     exec_expr this_path st cond (ValBaseBool b) ->
+                                     exec_stmt this_path inst_m st (if b then tru else empty_statement) st' sig ->
                                      exec_stmt this_path inst_m st
                                      (MkStatement tags (StatConditional cond tru None) typ) st SContinue
   | exec_stmt_block : forall block this_path inst_m st tags typ st' sig, 
@@ -1167,13 +1262,19 @@ Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (ty
 
 End instantiate_expr'.
 
-Definition get_val_ienv (e : ienv) (name : Typed.name) (loc : @Locator tags_t) : option Val :=
+Definition get_val_ienv (e : ienv) (name : Typed.name) : option Val :=
   match name with
   | BareName name =>
       match IdentMap.get name e with
       | Some (IMVal v) => Some v
       | _ => None
       end
+  | _ => None
+  end.
+
+Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option Val :=
+  match expr with
+  | MkExpression _ (ExpName name _) _ _ => get_val_ienv e name
   | _ => None
   end.
 
@@ -1190,7 +1291,7 @@ Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m s
   | _ =>
-      match eval_expr_gen (get_val_ienv e) expr with
+      match eval_expr_gen (eval_expr_ienv_hook e) expr with
       | Some v => (IMVal v, m, s)
       | None => (dummy_inst_mem_val, m, s)
       end
@@ -1380,6 +1481,65 @@ Definition is_directional (dir : direction) : bool :=
   | _ => true
   end.
 
+Definition action_param_to_p4param (param : ident * direction) : P4Parameter :=
+  let (name, dir) := param in
+  let dir :=
+    match dir with
+    | Directionless => In
+    | _ => dir
+    end in
+  MkParameter false dir dummy_type None name.
+
+Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) : Expression :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let loc :=
+            match name with
+            | BareName id =>
+                match PathMap.get (p ++ [id]) ge with
+                | Some _ => LInstance [id]
+                | None => LGlobal [id]
+                end
+            | QualifiedName p id => LGlobal (p ++ [id])
+            end in
+          let typ :=
+            let ofd :=
+              match loc with
+              | LInstance p' => PathMap.get (p ++ p') ge
+              | LGlobal p' => PathMap.get p' ge
+              end in
+            match ofd with
+            | Some (FInternal params _ _) =>
+                TypFunction (MkFunctionType nil (map action_param_to_p4param params) FunAction TypVoid)
+            | _ => dummy_type (* impossible *)
+            end in
+          let func := MkExpression dummy_tags (ExpName name loc) typ Directionless in
+          MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless
+      end
+  end.
+
+Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref tags_t Expression) :=
+  match ref with
+  | MkTableActionRef _ ref _ =>
+      match ref with
+      | MkTablePreActionRef name args =>
+          let id :=
+            match name with
+            | BareName id => id
+            | QualifiedName _ id => id
+            end in
+          mk_action_ref id args
+      end
+  end.
+
+Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
+  match entry with
+  | MkTableEntry _ matches action =>
+      mk_table_entry matches (unwrap_action_ref2 action)
+  end.
+
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
@@ -1417,6 +1577,11 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       PathMap.set (p ++ [name]) (FInternal (params ++ ctrl_params) BlockNil body) ge
+  | DeclTable _ name keys actions entries default_action _ _ =>
+      let table :=
+        FTable name keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
+            (option_map (map unwrap_table_entry) entries) in
+      PathMap.set (p ++ [name]) table ge
   | _ => ge
   end.
 

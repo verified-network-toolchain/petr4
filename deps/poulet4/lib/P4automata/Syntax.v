@@ -172,3 +172,29 @@ Section Interp.
        P4A.transitions := transitions;
        P4A.cap := cap |}.
 End Interp.
+
+Section Inline.
+
+  Scheme Equality for state_name.
+
+  Definition inline (pref: state_name) (suff: state_name) (auto: t) : t := 
+    match auto pref with 
+    | Some (Build_state op (TGoto (inl nxt))) => 
+      if state_name_eq_dec nxt suff 
+      then 
+      let pref' := 
+        match auto suff with 
+        | Some suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
+        | None => {| st_op := op ; st_trans := TGoto (inl nxt) |}
+        end in 
+      @Env.bind _ _ _ _ state_name_eq_dec pref pref' auto
+      else auto
+    | _ => auto
+    end.
+
+  (* Lemma inline_corr : 
+    forall pref suff auto (s: store), 
+      let start_config : P4A.configuration (interp _ _ auto) := (SNStart, s, nil) in 
+      True. *)
+
+End Inline.

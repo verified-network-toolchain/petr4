@@ -270,11 +270,14 @@ Section ParserTranslation.
   Definition decl_to_autos 
     (decl_env : P4String.AList tags_t (@P4Type tags_t))
     (p: @Declaration tags_t) := 
-    td <- decl_to_cub decl_env p ;; 
-    let out := sequence (topdecl_to_p4automata _ td) in 
-    match out with 
-    | None => err $ Inconceivable "automata compiler error"
-    | Some xs => mret xs
+    let td := decl_to_cub decl_env p in 
+    match td with 
+    | inl td' => 
+      match sequence (topdecl_to_p4automata _ td') with 
+      | inl autos => inl autos
+      | inr ce => inr (inr ce)
+      end
+    | inr d2ce => inr (inl d2ce)
     end.
   
     

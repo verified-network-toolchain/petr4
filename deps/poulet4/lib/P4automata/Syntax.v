@@ -89,12 +89,19 @@ Section Interp.
 
   Variable (has_extract: forall s H, 0 < size (exist _ s H)).
 
-  Definition assign (h: hdr_ref) (v: v) (s: store) : store :=
+  Definition assign (h: hdr_ref) (v: v) (st: store) : store :=
     match h with
-    | HRVar x => Env.bind x v s
+    | HRVar x => Env.bind x v st
     end.
 
-  Search (nat -> list ?A -> list ?A).
+  Definition find (h: hdr_ref) (st: store) : v :=
+    match h with
+    | HRVar x =>
+      match st x with
+      | Some v => v
+      | None => VBits nil
+      end
+    end.
 
   Definition eval_expr (st: store) (e: expr) : v :=
    match e with
@@ -164,7 +171,7 @@ Section Interp.
     apply has_extract.
   Qed.
   
-  Definition interp (a: t) : P4A.p4automaton :=
+  Definition interp : P4A.p4automaton :=
     {| P4A.store := store;
        P4A.states := state_type;
        P4A.size := size;

@@ -10,10 +10,9 @@ Module P4A := Poulet4.P4automata.Syntax.
 
 Open Scope list_scope.
 
-Section PathCond.
-  Variable (a: p4automaton).
-  Variable (a_key: Type).
-  Variable (a_lookup: store a -> a_key -> list bool).
+Section StateCond.
+  Variable (a: P4A.t).
+  Variable (has_extract: forall s H, 0 < P4A.size a (exist _ s H)).
 
   Inductive bit_context :=
   | BCEmp
@@ -56,20 +55,26 @@ Section PathCond.
     end.
 
   Inductive store_constraint bc :=
-  | SCEq (k: a_key) (v: bit_expr bc)
-  | SCNeq (k: a_key) (v: list bool).
+  | SCEq (k: P4A.hdr_ref) (v: bit_expr bc)
+  | SCNeq (k: P4A.hdr_ref) (v: list bool).
 
-  Definition interp_store_constraint {bc} (bv: bit_valuation bc) (sc: store_constraint bc) (st: store a) : Prop :=
+  Definition interp_store_constraint {bc} (bv: bit_valuation bc) (sc: store_constraint bc) (st: P4A.store) : Prop :=
     match sc with
-    | SCEq _ k v => interp_bit_expr bv v (a_lookup st k)
-    | SCNeq _ k v => v <> a_lookup st k
+    | SCEq _ k v =>
+      match P4A.find k st with
+      | P4A.VBits bits => interp_bit_expr bv v bits
+      end
+    | SCNeq _ k v =>
+      match P4A.find k st with
+      | P4A.VBits bits => v <> bits
+      end
     end.
 
-  Definition interp_store_constraints {bc} (bv: bit_valuation bc) (scs: list (store_constraint bc)) (st: store a) : Prop :=
+  Definition interp_store_constraints {bc} (bv: bit_valuation bc) (scs: list (store_constraint bc)) (st: P4A.store) : Prop :=
     List.Forall (fun sc => interp_store_constraint bv sc st) scs.
 
   Record path_cond bc :=
-    { pc_state: states a + bool;
+    { pc_state: P4A.state_type a + bool;
       pc_buf: bit_expr bc;
       pc_buf_len: nat;
       pc_store: list (store_constraint bc); }.
@@ -78,7 +83,9 @@ Section PathCond.
   Arguments pc_buf_len {_} _.
   Arguments pc_store {_} _.
 
-  Definition interp_path_cond (bc: bit_context) (bv: bit_valuation bc) (p: (path_cond bc)) : configuration a -> Prop :=
+  Definition config := configuration (P4A.interp a has_extract).
+
+  Definition interp_path_cond (bc: bit_context) (bv: bit_valuation bc) (p: (path_cond bc)) : config -> Prop :=
     fun '(state, store, buf) =>
       state = p.(pc_state) /\
       interp_bit_expr bv p.(pc_buf) buf /\
@@ -108,33 +115,51 @@ Section PathCond.
       cond
     end
    *)
-End PathCond.
+End StateCond.
+Section StateTemplate.
+  Variable (a: P4A.t).
+  Variable (has_extract: forall s H, 0 < P4A.size a (exist _ s H)).
+  Notation conf := (config a has_extract).
 
-Section PathRel.
+  Record state_template :=
+    { st_state: P4A.state_type a + bool;
+      st_buf_len: nat }.
 
-  Variable (a1: p4automaton).
-  Variable (a1_key: Type).
-  Variable (a1_lookup: store a1 -> a1_key -> list bool).
-  Variable (a2: p4automaton).
-  Variable (a2_key: Type).
-  Variable (a2_lookup: store a2 -> a2_key -> list bool).
+  Definition interp_state_template (st: state_template) (c: conf) :=
+    st.(st_state) = fst (fst c) /\
+    List.length (snd c) = st.(st_buf_len).
 
-  Record path_rel :=
-    { pr_ctx: bit_context;
-      pr_pc1: path_cond a1 a1_key pr_ctx;
-      pr_pc2: path_cond a2 a2_key pr_ctx; }.
+End StateTemplate.
+
+Section ConfRel.
+
+  Variable (a1 a2: P4A.t).
+  Variable (has_extract1: forall s H, 0 < P4A.size a1 (exist _ s H)).
+  Variable (has_extract2: forall s H, 0 < P4A.size a2 (exist _ s H)).
+
+  Notation conf1 := (config a1 has_extract1).
+  Notation conf2 := (config a2 has_extract2).
+
+  Definition store_rel: Type.
+  Admitted.
   
-  Definition interp_path_rel (p: path_rel) (conf1: configuration a1) (conf2: configuration a2) :=
-    exists bv, 
-      interp_path_cond a1 a1_key a1_lookup p.(pr_ctx) bv p.(pr_pc1) conf1 /\
-      interp_path_cond a2 a2_key a2_lookup p.(pr_ctx) bv p.(pr_pc2) conf2
-  .
- 
-  Definition chunked_relation :=
-    list path_rel
-  .
+  Definition interp_store_rel (r: store_rel) (c1: conf1) (c2: conf2) : Prop.
+  Admitted.
 
-  Definition interp_chunked_relation (rel: chunked_relation): PreBisimulation.chunked_relation a1 a2 :=
+  Record conf_rel :=
+    { cr_st1: state_template a1;
+      cr_st2: state_template a2;
+      cr_rel: store_rel; }.
+
+  Definition interp_path_rel (c: conf_rel) (c1: conf1) (c2: conf2) :=
+    interp_state_template _ has_extract1 c.(cr_st1) c1 /\
+    interp_state_template _ has_extract2 c.(cr_st2) c2 /\
+    interp_store_rel c.(cr_rel) c1 c2.
+
+  Definition chunked_relation :=
+    list conf_rel.
+
+  Definition interp_chunked_relation (rel: chunked_relation) :=
     List.map interp_path_rel rel.
 
-End PathRel.
+End ConfRel.

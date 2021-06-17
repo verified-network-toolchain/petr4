@@ -85,7 +85,7 @@ Section ConfRel.
   Definition chunked_relation :=
     list conf_rel.
 
-  Definition interp_chunked_relation (rel: chunked_relation) :=
-    List.map interp_conf_rel rel.
+  Definition interp_chunked_relation (rel: chunked_relation) (c1: conf1) (c2: conf2) : Prop :=
+    List.Forall (fun r => interp_conf_rel r c1 c2) rel.
 
 End ConfRel.

@@ -31,12 +31,29 @@ Section AList.
       if KEqDec k k'
       then Some ((k, v) :: l')
       else match set l' k v with
-           | Some l'' => Some ((k, v) :: l')
+           | Some l'' => Some ((k', v') :: l'')
            | None => None
            end
     | nil =>
       None
     end.
+
+  Fixpoint set_some (l: AList K V R) (k: K) (v: V) : (AList K V R) :=
+    match l with
+    | (k', v') :: l' =>
+      if KEqDec k k'
+      then ((k, v) :: l')
+      else ((k', v') :: (set_some l' k v))
+    | nil => nil
+    end.
+
+  Axiom get_some_set: forall l k v1 v2,
+                      get l k = Some v1 ->
+                      set l k v2 = Some (set_some l k v2).
+
+  Axiom set_some_get: forall l k v,
+                      get (set_some l k v) k = Some v.
+
 
   Fixpoint key_unique (l : AList K V R) : bool :=
     match l with

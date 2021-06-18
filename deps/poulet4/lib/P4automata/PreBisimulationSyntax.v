@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Import ListNotations.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
@@ -107,7 +108,33 @@ Section ConfRel.
     | r :: rel' => union _ (interp_conf_rel r) (interp_chunked_relation rel')
     end.
 
-  Definition wp_conf_rel (r: conf_rel) : list conf_rel.
-  Admitted.
+  Definition trans_states (t: P4A.transition) : list P4A.state_ref :=
+    match t with
+    | P4A.TGoto r => [r]
+    | P4A.TSel _ cases default => default :: List.map P4A.sc_st cases
+    end.
+
+  Definition succs (a: P4A.t) (s: P4A.state_name) : list P4A.state_ref :=
+    match Envn.Env.find s a with
+    | Some s_init => trans_states s_init.(P4A.st_trans)
+    | None => []
+    end.
+
+  Definition state_ref_eqb (x y: P4A.state_ref) : bool :=
+    match x, y with
+    | inr b, inr b' => Bool.eqb b b'
+    | inl P4A.SNStart, inl P4A.SNStart => true
+    | inl (P4A.SNName s), inl (P4A.SNName s') => String.eqb s s'
+    | _, _ => false
+    end.
+
+  Definition may_succede (a: P4A.t) (s: P4A.state_name) (s': P4A.state_ref) :=
+    List.existsb (fun s0 => state_ref_eqb s0 s') (succs a s).
+
+  Definition list_states (a: P4A.t) : list P4A.state_name :=
+    List.nodup Syntax.state_name_eq_dec (List.map fst a).
+
+  Definition preds (a: P4A.t) (s': P4A.state_ref) :=
+    List.filter (fun s => may_succede a s s') (list_states a).
 
 End ConfRel.

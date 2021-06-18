@@ -136,7 +136,7 @@ Module Step.
   | ebs_int (w : positive) (z : Z) (i : tags_t) :
       ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
   | ebs_var (x : string) (τ : E.t) (i : tags_t) (v : V.v) :
-      ϵ x = Some v ->
+      Env.find x ϵ = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
   | ebs_slice (e : E.e tags_t) (τ : E.t) (hi lo : positive)
               (i : tags_t) (v' v : V.v) :
@@ -223,7 +223,7 @@ Module Step.
     Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> ~{ w VS z }~.
 
     Hypothesis HVar : forall ϵ x τ i v,
-        ϵ x = Some v ->
+        Env.find x ϵ = Some v ->
         P ϵ <{ Var x:τ @ i }> v.
     (**[]*)
 
@@ -589,7 +589,7 @@ Module Step.
       | _ => None
       end = Some aa ->
       (* Looking up action. *)
-      aa a = Some (ADecl closure fclosure aclosure body) ->
+      Env.find a aa = Some (ADecl closure fclosure aclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -609,7 +609,7 @@ Module Step.
                   (body : ST.s tags_t) (fclosure : fenv)
                   (closure ϵ' ϵ'' ϵ''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      fs f = Some (FDecl closure fclosure body) ->
+      Env.find f fs = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -631,7 +631,7 @@ Module Step.
                    (body : ST.s tags_t) (fclosure : fenv)
                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      fs f = Some (FDecl closure fclosure body) ->
+      Env.find f fs = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -658,7 +658,7 @@ Module Step.
                    (cpes : ctrl) (exts : ARCH.extern_env)
                    (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup. *)
-      cis x = Some (CInst closure fclosure cis' tblclosure aclosure body) ->
+      Env.find x cis = Some (CInst closure fclosure cis' tblclosure aclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -681,7 +681,7 @@ Module Step.
                           (fclosure : fenv) (pis pis' : pienv) (exts : ARCH.extern_env)
                           (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup *)
-      pis x = Some (PInst closure fclosure pis' strt states) ->
+      Env.find x pis = Some (PInst closure fclosure pis' strt states) ->
       (* Argument evaluation *)
       F.relfs
         (P.rel_paramarg
@@ -704,7 +704,7 @@ Module Step.
                           (closure ϵ' ϵ'' ϵ''' : epsilon)
                           (pkt' : Paquet.t) (exts : ARCH.extern_env) :
       (* Instance lookup *)
-      pis x = Some (PInst closure fclosure pis' strt states) ->
+      Env.find x pis = Some (PInst closure fclosure pis' strt states) ->
       (* Argument evaluation *)
       F.relfs
         (P.rel_paramarg
@@ -728,9 +728,9 @@ Module Step.
                (cp : ctrl) (ts : tenv) (aa : aenv)
                (cis : cienv) (eis : ARCH.extern_env) :
       (* Get control-plane entries. *)
-      cp x = Some es ->
+      Env.find x cp = Some es ->
       (* Get appropriate table. *)
-      ts x = Some (CD.Table ky acts) ->
+      Env.find x ts = Some (CD.Table ky acts) ->
       (* Evaluate key. *)
       Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
       (* Get action and arguments.
@@ -755,7 +755,7 @@ Module Step.
       | _ => None
       end = Some exts ->
       (* Get extern instance. *)
-      exts x = Some einst ->
+      Env.find x exts = Some einst ->
       (* Evaluate arguments. *)
       F.relfs
         (P.rel_paramarg
@@ -869,12 +869,12 @@ Module Step.
                     (ciclosure cis' : cienv)
                     (body : CD.d tags_t) (applyblk : ST.s tags_t)
                     (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
-      cs c = Some (CDecl ctrlclosure closure fclosure ciclosure body applyblk) ->
+      Env.find c cs = Some (CDecl ctrlclosure closure fclosure ciclosure body applyblk) ->
       F.relfs
         (fun carg v =>
            match carg,v with
            | E.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
-           | E.CAName c, Right cinst => cis c = Some cinst
+           | E.CAName c, Right cinst => Env.find c cis = Some cinst
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>

@@ -144,7 +144,7 @@ Section parser_to_p4automaton.
     | <{ w W n @ _ }> => mret ~{ w VW n }~
     | <{ w S n @ _ }> => mret ~{ w VS n }~
     | <{ Var x : _ @ _ }> => 
-      lift_opt_error (CEInconceivable (String.append "missing variable " x)) (ϵ x)
+      lift_opt_error (CEInconceivable (String.append "missing variable " x)) (Env.find x ϵ)
     | <{ Slice e : _ [ h : l ] @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad slice") $ ExprUtil.eval_slice h l v

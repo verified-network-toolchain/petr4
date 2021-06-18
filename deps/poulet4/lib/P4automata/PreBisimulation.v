@@ -6,15 +6,8 @@ Require Import Poulet4.P4automata.P4automaton.
 
 Open Scope list_scope.
 
-Definition chunked_relation
-  (a1 a2: p4automaton)
-:=
-  list (
-    configuration a1 ->
-    configuration a2 ->
-    Prop
-  )
-.
+Definition chunked_relation (a1 a2: p4automaton) :=
+  list (configuration a1 -> configuration a2 -> Prop).
 
 Inductive chunked_related_and
   {a1 a2: p4automaton}
@@ -202,7 +195,7 @@ Ltac solve_incl :=
   end
 .
 
-Definition rel_wp
+Definition rel_wp_one_bit
   {a1 a2: p4automaton}
   (R: configuration a1 -> configuration a2 -> Prop)
   (c1: configuration a1)
@@ -212,6 +205,42 @@ Definition rel_wp
     step c1 b = c1' ->
     step c2 b = c2' ->
     R c1' c2'.
+
+Definition leaps
+  {a1 a2: p4automaton}
+  (n: nat)
+  (R: rel a1 a2)
+  (c1: configuration a1)
+  (c2: configuration a2)
+  : Prop :=
+  forall c1' c2' buf,
+    length buf = n ->
+    follow c1 buf = c1' ->
+    follow c2 buf = c2' ->
+    R c1' c2'.
+
+Definition conf_steps_left {a: p4automaton} (c: configuration a)
+  : nat :=
+  match fst (fst c) with
+  | inl s =>
+    a.(size) s - List.length (snd c)
+  | inr _ => 0
+  end.
+
+Definition rel_steps_left
+  {a1 a2: p4automaton}
+  (c1: configuration a1)
+  (c2: configuration a2)
+  : nat :=
+  Nat.min (conf_steps_left c1) (conf_steps_left c2).
+
+Definition rel_wp
+  {a1 a2: p4automaton}
+  (R: rel a1 a2)
+  (c1: configuration a1)
+  (c2: configuration a2)
+  : Prop :=
+  leaps (rel_steps_left c1 c2) R c1 c2.
 
 Lemma pre_bisimulation_grow
   {a1 a2: p4automaton}
@@ -234,16 +263,27 @@ Proof.
     }
     split.
     + repeat constructor.
-      unfold rel_wp; intros; subst.
-      assert (bisimilar (step c1 b) (step c2 b)).
+      unfold rel_wp, leaps; intros; subst.
+      assert (bisimilar (follow c1 buf) (follow c2 buf)).
       {
         unfold bisimilar in *.
         destruct H0 as [RR [? ?]].
         exists RR; intuition.
-        now eapply H0.
+        clear H1.
+        generalize dependent c2.
+        generalize dependent c1.
+        induction buf.
+        - simpl.
+          auto.
+        - simpl.
+          intros.
+          eapply IHbuf.
+          eapply H0.
+          auto.
       }
-      eapply H in H1.
-      cut (chunked_related_and (phi :: nil) (step c1 b) (step c2 b)).
+      inversion H.
+      apply H3 in H2.
+      cut (chunked_related_and (phi :: nil) (follow c1 buf) (follow c2 buf)).
       { intros Hc. inversion Hc. eauto. }
       eapply chunked_related_and_subset; eauto.
       repeat solve_incl.
@@ -253,8 +293,5 @@ Proof.
     intros.
     repeat break_chunked.
     repeat split_chunked.
-    + eapply H4; eauto.
-    + destruct H.
-      eapply H0.
-      repeat split_chunked; eauto.
-Qed.
+    + unfold rel_wp in *.
+Abort.

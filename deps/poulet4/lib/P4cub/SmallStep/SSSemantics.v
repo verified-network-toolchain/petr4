@@ -740,7 +740,7 @@ Module Step.
     (** Lookup an lvalue. *)
     Fixpoint lv_lookup (ϵ : eenv) (lv : E.e tags_t) : option (E.e tags_t) :=
       match lv with
-      | <{ Var x:_ @ _ }> => ϵ x
+      | <{ Var x:_ @ _ }> => Env.find x ϵ
       | <{ Mem lv:_ dot x @ _ }> =>
         (* TODO: use monadic bind. *)
         match lv_lookup ϵ lv with
@@ -814,7 +814,7 @@ Module Step.
                 | P.PAIn _ => ϵ
                 | P.PAOut (_,lv)
                 | P.PAInOut (_,lv) =>
-                  match ϵf x with
+                  match Env.find x ϵf with
                   | None   => ϵ
                   | Some v => lv_update lv v ϵ
                   end
@@ -846,7 +846,7 @@ Module Step.
     (**[]*)
 
     (** Function lookup. *)
-    Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fs.
+    Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fun s => Env.find s fs.
 
     (** Bind a function declaration to an environment. *)
     Definition update '(FEnv fs : fenv) (x : string) (d : fdecl) : fenv :=
@@ -854,7 +854,7 @@ Module Step.
     (**[]*)
 
     (** Instance lookup. *)
-    Definition ilookup '(IEnv fs : ienv) : string -> option inst := fs.
+    Definition ilookup '(IEnv fs : ienv) : string -> option inst := fun i => Env.find i fs.
 
     (** Bind an instance to an environment. *)
     Definition iupdate '(IEnv fs : ienv) (x : string) (d : inst) : ienv :=
@@ -862,7 +862,7 @@ Module Step.
     (**[]*)
 
     (** Action lookup. *)
-    Definition alookup '(AEnv aa : aenv) : string -> option adecl := aa.
+    Definition alookup '(AEnv aa : aenv) : string -> option adecl := (fun x => Env.find x aa).
 
     (** Bind a function declaration to an environment. *)
     Definition aupdate '(AEnv aa : aenv) (x : string) (d : adecl) : aenv :=
@@ -889,7 +889,7 @@ Module Step.
     (**[]*)
 
     (** Control lookup. *)
-    Definition clookup '(CEnv cs : cenv) : string -> option cdecl := cs.
+    Definition clookup '(CEnv cs : cenv) : string -> option cdecl := (fun x => Env.find x cs).
 
     (** Bind an instance to an environment. *)
     Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
@@ -951,7 +951,7 @@ Module Step.
     : E.e tags_t -> E.e tags_t -> Prop :=
   | step_var (x : string) (τ : E.t)
              (i : tags_t) (e : E.e tags_t) :
-      ϵ x = Some e ->
+      Env.find x ϵ = Some e ->
       ℵ ϵ, Var x:τ @ i -->  e
   | step_slice (e e' : E.e tags_t) (τ : E.t)
                (hi lo : positive) (i : tags_t) :

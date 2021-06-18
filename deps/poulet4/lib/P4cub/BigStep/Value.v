@@ -449,7 +449,7 @@ Module ValueTyping.
   | typ_error (err : option string) :
       match err with
       | None => True
-      | Some err => errs err = Some tt
+      | Some err => Envn.Env.find err errs = Some tt
       end ->
       ∇ errs ⊢ ERROR err ∈ error
   | typ_matchkind (mk : E.matchkind) :
@@ -489,7 +489,7 @@ Module ValueTyping.
     Hypothesis HError : forall errs err,
         match err with
         | None => True
-        | Some err => errs err = Some tt
+        | Some err => Envn.Env.find err errs = Some tt
         end ->
         P errs ~{ ERROR err }~ {{ error }}.
 
@@ -592,7 +592,7 @@ Module ValueTyping.
 
   Inductive type_lvalue (Γ : gamma) : lv -> E.t -> Prop :=
   | typ_var (x : string) (τ : E.t) :
-      Γ x = Some τ ->
+      Envn.Env.find x Γ = Some τ ->
       LL Γ ⊢ VAR x ∈ τ
   | typ_member (lval : lv) (x : string) (τ τ' : E.t) (ts : F.fs string E.t) :
       F.get x ts = Some τ' ->

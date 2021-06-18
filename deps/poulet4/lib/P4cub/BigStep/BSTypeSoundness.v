@@ -22,13 +22,13 @@ Section BigStepTheorems.
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type (errs : errors) (Γ : gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : E.t) (v : V.v),
-      Γ x = Some τ -> ϵ x = Some v -> ∇ errs ⊢ v ∈ τ.
+      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ∇ errs ⊢ v ∈ τ.
   (**[]*)
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset (Γ : gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : E.t),
-      Γ x = Some τ -> exists v, ϵ x = Some v.
+      Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
   Definition envs_sound Γ ϵ errs : Prop :=

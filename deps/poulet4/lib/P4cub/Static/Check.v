@@ -165,7 +165,7 @@ Module Typecheck.
     Inductive error_ok (errs : errors) : option string -> Prop :=
     | NoErrorOk : error_ok errs None
     | ErrorOk (x : string) :
-        errs x = Some tt ->
+        Env.find x errs = Some tt ->
         error_ok errs (Some x).
     (**[]*)
 
@@ -296,7 +296,7 @@ Module Typecheck.
     | reject_valid :
         valid_state us ={ reject }=
     | name_valid (st : string) :
-        us st = Some tt ->
+        Env.find st us = Some tt ->
         valid_state us ={ δ st }=.
     (**[]*)
   End TypeCheckDefs.
@@ -342,7 +342,7 @@ Module Typecheck.
       IntArith.bound w n ->
       ⟦ errs , Γ ⟧ ⊢ w S n @ i ∈ int<w>
   | chk_var (x : string) (τ : E.t) (i : tags_t) :
-      Γ x = Some τ ->
+      Env.find x Γ = Some τ ->
       PT.proper_nesting τ ->
       ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
   | chk_slice (e : E.e tags_t) (τ : E.t)
@@ -446,7 +446,7 @@ Module Typecheck.
     (**[]*)
 
     Hypothesis HVar : forall errs Γ x τ i,
-        Γ x = Some τ ->
+        Env.find x Γ = Some τ ->
         PT.proper_nesting τ ->
         P errs Γ <{ Var x:τ @ i }> τ.
     (**[]*)
@@ -821,7 +821,7 @@ Module Typecheck.
   | chk_void_call (params : E.params)
                   (args : E.args tags_t)
                   (f : string) (i : tags_t) (con : ctx) :
-      fns f = Some (P.Arrow params None) ->
+      Env.find f fns = Some (P.Arrow params None) ->
       F.relfs
         (P.rel_paramarg_same
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
@@ -832,7 +832,7 @@ Module Typecheck.
                  (a : string) (i : tags_t)
                  (aa : aenv) (con : ctx) :
       action_call_ok aa con ->
-      aa a = Some params ->
+      Env.find a aa = Some params ->
       F.relfs
         (P.rel_paramarg
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
@@ -843,7 +843,7 @@ Module Typecheck.
                  (params : E.params)
                  (args : E.args tags_t)
                  (f : string) (i : tags_t) (con : ctx) :
-      fns f = Some (P.Arrow params (Some τ)) ->
+      Env.find f fns = Some (P.Arrow params (Some τ)) ->
       F.relfs
         (P.rel_paramarg
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
@@ -855,7 +855,7 @@ Module Typecheck.
   | chk_apply (args : E.args tags_t) (x : string)
               (i : tags_t) (params : E.params)
               (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
-      cis x = Some params ->
+      Env.find x cis = Some params ->
       F.relfs
         (P.rel_paramarg
            (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
@@ -864,13 +864,13 @@ Module Typecheck.
       ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
   | chk_invoke (tbl : string) (i : tags_t) (tbls : tblenv)
                (aa : aenv) (cis : cienv) (eis : eienv) :
-      tbls tbl = Some tt ->
+      Env.find tbl tbls = Some tt ->
       ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
   | chk_extern_call_void (e : string) (f : string)
                          (args : E.args tags_t) (i : tags_t) (con : ctx)
                          (eis : eienv) (params : E.params)
                          (mhds : F.fs string E.arrowT) :
-      eis e = Some mhds ->
+      Env.find e eis = Some mhds ->
       F.get f mhds = Some (P.Arrow params None) ->
       extern_call_ok eis con ->
       F.relfs
@@ -885,7 +885,7 @@ Module Typecheck.
                           (i : tags_t) (con : ctx) (eis : eienv)
                           (params: E.params) (τ : E.t)
                           (mhds : F.fs string E.arrowT) :
-      eis extrn = Some mhds ->
+      Env.find extrn eis = Some mhds ->
       F.get f mhds = Some (P.Arrow params (Some τ)) ->
       extern_call_ok eis con ->
       F.relfs
@@ -934,7 +934,7 @@ Module Typecheck.
       (* Keys type. *)
       Forall (fun '(τ,e,_) => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) kys ->
       (* Actions available *)
-      Forall (fun a => exists pms, acts a = Some pms) actns ->
+      Forall (fun a => exists pms, Env.find a acts = Some pms) actns ->
       ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
         ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ acts, t ↦ tt;; tbls ⦆
   | chk_ctrldecl_seq (d1 d2 : CD.d tags_t) (i : tags_t)
@@ -960,16 +960,16 @@ Module Typecheck.
                             (cparams : E.constructor_params)
                             (cargs : E.constructor_args tags_t)
                             (i : tags_t) (params : E.params) :
-      cs c = Some {{{ ControlType cparams params }}} ->
+      Env.find c cs = Some {{{ ControlType cparams params }}} ->
       F.relfs
         (fun carg cparam =>
            match carg, cparam with
            | E.CAExpr e, E.CTType τ
              => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
            | E.CAName ctrl, {{{ ControlType cps ps }}}
-             => cs ctrl = Some {{{ ControlType cps ps }}}
+             => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
            | E.CAName extrn, {{{ Extern cps { mthds } }}}
-             => cs extrn = Some {{{ Extern cps { mthds } }}}
+             => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
            | _, _ => False
            end) cargs cparams ->
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
@@ -978,16 +978,16 @@ Module Typecheck.
                            (cparams : E.constructor_params)
                            (cargs : E.constructor_args tags_t)
                            (i : tags_t) (params : E.params) :
-      cs p = Some {{{ ParserType cparams params }}} ->
+      Env.find p cs = Some {{{ ParserType cparams params }}} ->
       F.relfs
         (fun carg cparam =>
            match carg, cparam with
            | E.CAExpr e, E.CTType τ
              => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
            | E.CAName prsr, {{{ ParserType cps ps }}}
-             => cs prsr = Some {{{ ParserType cps ps }}}
+             => Env.find prsr cs = Some {{{ ParserType cps ps }}}
            | E.CAName extrn, {{{ Extern cps { mthds } }}}
-             => cs extrn = Some {{{ Extern cps { mthds } }}}
+             => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
            | _, _ => False
            end) cargs cparams ->
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
@@ -996,14 +996,14 @@ Module Typecheck.
                            (cparams : E.constructor_params)
                            (cargs : E.constructor_args tags_t) (i : tags_t)
                            (mthds : F.fs string E.arrowT) :
-      cs e = Some {{{ Extern cparams { mthds } }}} ->
+      Env.find e cs = Some {{{ Extern cparams { mthds } }}} ->
       F.relfs
         (fun carg cparam =>
            match carg, cparam with
            | E.CAExpr e, E.CTType τ
              => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
            | E.CAName extrn, {{{ Extern cps { mthds } }}}
-             => cs extrn = Some {{{ Extern cps { mthds } }}}
+             => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
            | _, _ => False
            end) cargs cparams ->
       ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘

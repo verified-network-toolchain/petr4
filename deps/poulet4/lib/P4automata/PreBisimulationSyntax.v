@@ -36,6 +36,7 @@ Section ConfRel.
 
   Inductive side := Left | Right.
   Inductive bit_expr :=
+  | BELit (l: list bool)
   | BEBuf (a: side)
   | BEHdr (a: side) (h: P4A.hdr_ref)
   | BESlice (e: bit_expr) (hi lo: nat)
@@ -46,6 +47,7 @@ Section ConfRel.
 
   Fixpoint interp_bit_expr (e: bit_expr) (c1 c2: conf) : list bool :=
     match e with
+    | BELit l => l
     | BEBuf Left => snd c1
     | BEBuf Right => snd c2
     | BEHdr a h =>
@@ -64,18 +66,25 @@ Section ConfRel.
     end.
 
   Inductive store_rel :=
+  | BRTrue
+  | BRFalse
   | BREq (e1 e2: bit_expr)
   | BRNotEq (e1 e2: bit_expr)
-  | BRAnd (r1 r2: store_rel).
+  | BRAnd (r1 r2: store_rel)
+  | BROr (r1 r2: store_rel).
 
   Fixpoint interp_store_rel (r: store_rel) (c1 c2: conf) : Prop :=
     match r with
+    | BRTrue => True
+    | BRFalse => False
     | BREq e1 e2 =>
       interp_bit_expr e1 c1 c2 = interp_bit_expr e2 c1 c2
     | BRNotEq e1 e2 =>
       interp_bit_expr e1 c1 c2 <> interp_bit_expr e2 c1 c2
     | BRAnd r1 r2 =>
       interp_store_rel r1 c1 c2 /\ interp_store_rel r2 c1 c2
+    | BROr r1 r2 =>
+      interp_store_rel r1 c1 c2 \/ interp_store_rel r2 c1 c2
     end.
 
   Record conf_state :=
@@ -108,18 +117,7 @@ Section ConfRel.
     | r :: rel' => union _ (interp_conf_rel r) (interp_chunked_relation rel')
     end.
 
-  Definition trans_states (t: P4A.transition) : list P4A.state_ref :=
-    match t with
-    | P4A.TGoto r => [r]
-    | P4A.TSel _ cases default => default :: List.map P4A.sc_st cases
-    end.
-
-  Definition succs (a: P4A.t) (s: P4A.state_name) : list P4A.state_ref :=
-    match Envn.Env.find s a with
-    | Some s_init => trans_states s_init.(P4A.st_trans)
-    | None => []
-    end.
-
+  (* Weakest preconditions *)
   Definition state_ref_eqb (x y: P4A.state_ref) : bool :=
     match x, y with
     | inr b, inr b' => Bool.eqb b b'
@@ -128,13 +126,46 @@ Section ConfRel.
     | _, _ => false
     end.
 
-  Definition may_succede (a: P4A.t) (s: P4A.state_name) (s': P4A.state_ref) :=
-    List.existsb (fun s0 => state_ref_eqb s0 s') (succs a s).
+  Definition expr_to_bit_expr (e: P4A.expr) (s: side) : bit_expr :=
+    match e with
+    | P4A.EHdr h => BEHdr s h
+    | P4A.ELit bs => BELit bs
+    end.
 
-  Definition list_states (a: P4A.t) : list P4A.state_name :=
-    List.nodup Syntax.state_name_eq_dec (List.map fst a).
+  Definition val_to_bit_expr (value: P4A.v) : bit_expr :=
+    match value with
+    | P4A.VBits bs => BELit bs
+    end.
 
-  Definition preds (a: P4A.t) (s': P4A.state_ref) :=
-    List.filter (fun s => may_succede a s s') (list_states a).
+  Definition case_cond (cond: bit_expr) (st': P4A.state_ref) (s: P4A.sel_case) :=
+    if state_ref_eqb st' (P4A.sc_st s)
+    then BREq cond (val_to_bit_expr (P4A.sc_val s))
+    else BRFalse.
+
+  Definition cases_cond (cond: bit_expr) (st': P4A.state_ref) (s: list P4A.sel_case) :=
+    List.fold_right BROr BRFalse (List.map (case_cond cond st') s).
+
+  Fixpoint case_negated_conds (cond: bit_expr) (s: list P4A.sel_case) :=
+    match s with
+    | nil => BRTrue
+    | s :: rest =>
+      BRAnd
+        (BRNotEq cond (val_to_bit_expr (P4A.sc_val s)))
+        (case_negated_conds cond rest)
+    end.
+
+  Definition trans_cond (t: P4A.transition) (s: side) (st': P4A.state_ref) :=
+    match t with
+    | P4A.TGoto r =>
+      if state_ref_eqb r st'
+      then BRTrue
+      else BRFalse
+    | P4A.TSel cond cases default =>
+      let be_cond := expr_to_bit_expr cond s in
+      BROr (cases_cond be_cond st' cases)
+           (if state_ref_eqb default st'
+            then case_negated_conds be_cond cases
+            else BRFalse)
+    end.
 
 End ConfRel.

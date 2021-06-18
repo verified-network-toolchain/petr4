@@ -9,10 +9,10 @@ Declare Custom Entry p4env.
 Module Env.
 
 (** Definition of environments. *)
-Definition t (D T : Type) : Type := D -> option T.
+Definition t (D T : Type) : Type := list (D * T).
 
 (** The empty environment. *)
-Definition empty (D T : Type) : t D T := fun _ => None.
+Definition empty (D T : Type) : t D T := nil.
 
 Section EnvDefs.
   Context {D T : Type}.
@@ -23,14 +23,25 @@ Section EnvDefs.
 
   Context {HE : EqDec D equiv_rel}.
 
+  (** Looking up values in the environment. *)
+  Fixpoint find (x: D) (e: t D T) : option T :=
+    match e with
+    | nil => None
+    | (y, v) :: e' =>
+      if HE x y
+      then Some v
+      else find x e'
+    end.
+  (**[]*)
+
   (** Updating the environment. *)
   Definition bind (x : D) (v : T) (e : t D T) : t D T :=
-    fun y => if x == y then Some v else e y.
+    (x, v) :: e.
   (**[]*)
 
   (** Scope Shadowing, [e1] shadows [e2]. *)
   Definition scope_shadow (e1 e2 : t D T) : t D T :=
-    fun x => e1 x ;; e2 x.
+    e1 ++ e2.
   (**[]*)
 
   (* TODO: whatever lemmas needed. *)

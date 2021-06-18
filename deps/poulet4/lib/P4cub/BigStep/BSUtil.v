@@ -362,7 +362,7 @@ Module EnvUtil.
   (** Lookup an lvalue. *)
   Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
     match lv with
-    | l{ VAR x }l => ϵ x
+    | l{ VAR x }l => Env.find x ϵ
     | l{ lv DOT x }l =>
       (* TODO: use monadic bind. *)
       match lv_lookup ϵ lv with
@@ -434,7 +434,7 @@ Module EnvUtil.
               | P.PAIn _ => ϵ
               | P.PAOut lv
               | P.PAInOut lv =>
-                match ϵf x with
+                match Env.find x ϵf with
                 | None   => ϵ
                 | Some v => lv_update lv v ϵ
                 end

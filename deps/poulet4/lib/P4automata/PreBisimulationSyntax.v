@@ -1,7 +1,9 @@
 Require Import Coq.Lists.List.
+Import ListNotations.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
+Require Import Coq.Relations.Relations.
 
 Require Import Poulet4.P4automata.P4automaton.
 Require Poulet4.P4automata.PreBisimulation.
@@ -27,28 +29,32 @@ End StateTemplate.
 
 Section ConfRel.
 
-  Variable (a1 a2: P4A.t).
-  Variable (has_extract1: forall s H, 0 < P4A.size a1 (exist _ s H)).
-  Variable (has_extract2: forall s H, 0 < P4A.size a2 (exist _ s H)).
+  Variable (a: P4A.t).
+  Variable (has_extract: forall s H, 0 < P4A.size a (exist _ s H)).
 
-  Notation conf1 := (configuration (P4A.interp a1 has_extract1)).
-  Notation conf2 := (configuration (P4A.interp a2 has_extract2)).
+  Notation conf := (configuration (P4A.interp a has_extract)).
 
+  Inductive side := Left | Right.
   Inductive bit_expr :=
-  | BEBuf (automaton: bool)
-  | BEHdr (automaton: bool) (h: P4A.hdr_ref)
+  | BEBuf (a: side)
+  | BEHdr (a: side) (h: P4A.hdr_ref)
   | BESlice (e: bit_expr) (hi lo: nat)
   | BEConcat (e1 e2: bit_expr).
 
   Definition slice {A} (l: list A) (hi lo: nat) :=
     skipn lo (firstn (1 + hi) l).
 
-  Fixpoint interp_bit_expr (e: bit_expr) (c1: conf1) (c2: conf2) : list bool :=
+  Fixpoint interp_bit_expr (e: bit_expr) (c1 c2: conf) : list bool :=
     match e with
-    | BEBuf automaton => if automaton then snd c1 else snd c2
-    | BEHdr automaton h =>
-      let store := if automaton then snd (fst c1) else snd (fst c2) in
-      match P4A.find h store with
+    | BEBuf Left => snd c1
+    | BEBuf Right => snd c2
+    | BEHdr a h =>
+      let c := match a with
+               | Left => c1
+               | Right => c2
+               end
+      in
+      match P4A.find h (snd (fst c)) with
       | P4A.VBits v => v
       end
     | BESlice e hi lo =>
@@ -62,7 +68,7 @@ Section ConfRel.
   | BRNotEq (e1 e2: bit_expr)
   | BRAnd (r1 r2: store_rel).
 
-  Fixpoint interp_store_rel (r: store_rel) (c1: conf1) (c2: conf2) : Prop :=
+  Fixpoint interp_store_rel (r: store_rel) (c1 c2: conf) : Prop :=
     match r with
     | BREq e1 e2 =>
       interp_bit_expr e1 c1 c2 = interp_bit_expr e2 c1 c2
@@ -72,20 +78,63 @@ Section ConfRel.
       interp_store_rel r1 c1 c2 /\ interp_store_rel r2 c1 c2
     end.
 
+  Record conf_state :=
+    { cs_st1: state_template a;
+      cs_st2: state_template a; }.
+
   Record conf_rel :=
-    { cr_st1: state_template a1;
-      cr_st2: state_template a2;
+    { cr_st: conf_state;
       cr_rel: store_rel; }.
 
-  Definition interp_conf_rel (c: conf_rel) (c1: conf1) (c2: conf2) :=
-    interp_state_template _ has_extract1 c.(cr_st1) c1 /\
-    interp_state_template _ has_extract2 c.(cr_st2) c2 /\
-    interp_store_rel c.(cr_rel) c1 c2.
+  Definition interp_conf_state (c: conf_state) : relation conf :=
+    fun c1 c2 =>
+      interp_state_template _ has_extract c.(cs_st1) c1 /\
+      interp_state_template _ has_extract c.(cs_st2) c2.
+  
+  Definition interp_conf_rel (c: conf_rel) : relation conf :=
+    union _
+      (interp_conf_state c.(cr_st))
+      (interp_store_rel c.(cr_rel)).
 
   Definition chunked_relation :=
     list conf_rel.
 
-  Definition interp_chunked_relation (rel: chunked_relation) (c1: conf1) (c2: conf2) : Prop :=
-    List.Forall (fun r => interp_conf_rel r c1 c2) rel.
+  Definition rel_true: forall A, relation A :=
+    fun _ x y => True.
+
+  Fixpoint interp_chunked_relation (rel: chunked_relation) : relation conf :=
+    match rel with
+    | nil => rel_true _
+    | r :: rel' => union _ (interp_conf_rel r) (interp_chunked_relation rel')
+    end.
+
+  Definition trans_states (t: P4A.transition) : list P4A.state_ref :=
+    match t with
+    | P4A.TGoto r => [r]
+    | P4A.TSel _ cases default => default :: List.map P4A.sc_st cases
+    end.
+
+  Definition succs (a: P4A.t) (s: P4A.state_name) : list P4A.state_ref :=
+    match Envn.Env.find s a with
+    | Some s_init => trans_states s_init.(P4A.st_trans)
+    | None => []
+    end.
+
+  Definition state_ref_eqb (x y: P4A.state_ref) : bool :=
+    match x, y with
+    | inr b, inr b' => Bool.eqb b b'
+    | inl P4A.SNStart, inl P4A.SNStart => true
+    | inl (P4A.SNName s), inl (P4A.SNName s') => String.eqb s s'
+    | _, _ => false
+    end.
+
+  Definition may_succede (a: P4A.t) (s: P4A.state_name) (s': P4A.state_ref) :=
+    List.existsb (fun s0 => state_ref_eqb s0 s') (succs a s).
+
+  Definition list_states (a: P4A.t) : list P4A.state_name :=
+    List.nodup Syntax.state_name_eq_dec (List.map fst a).
+
+  Definition preds (a: P4A.t) (s': P4A.state_ref) :=
+    List.filter (fun s => may_succede a s s') (list_states a).
 
 End ConfRel.

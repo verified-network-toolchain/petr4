@@ -22,6 +22,9 @@ Inductive expr :=
 Inductive state_name: Type := 
 | SNName (s: string)
 | SNStart.
+Scheme Equality for state_name.
+
+Instance state_name_EQ : EquivDec.EqDec state_name eq := state_name_eq_dec.
 
 Definition state_ref: Type := state_name + bool.
     
@@ -61,7 +64,7 @@ Section Interp.
   Variable (a: t).
 
   Definition state_type :=
-    { s: state_name | a s <> None }.
+    { s: state_name | Env.find s a <> None }.
   
   Definition store := Env.t string v.
   
@@ -76,7 +79,7 @@ Section Interp.
 
   Definition find_state (st: state_type) : state.
   Proof.
-    destruct (a (proj1_sig st)) eqn:?.
+    destruct (Env.find (proj1_sig st) a) eqn:?.
     - exact s.
     - exfalso.
       apply (proj2_sig st).
@@ -97,7 +100,7 @@ Section Interp.
   Definition find (h: hdr_ref) (st: store) : v :=
     match h with
     | HRVar x =>
-      match st x with
+      match Env.find x st with
       | Some v => v
       | None => VBits nil
       end
@@ -106,7 +109,7 @@ Section Interp.
   Definition eval_expr (st: store) (e: expr) : v :=
    match e with
    | EHdr (HRVar x) =>
-     match st x with
+     match Env.find x st with
      | Some v => v
      | None => VBits nil
      end
@@ -138,7 +141,7 @@ Section Interp.
 
   Definition clamp_state_name (s: state_name) : state_type + bool.
   Proof.
-    destruct (a s) eqn:?.
+    destruct (Env.find s a) eqn:?.
     - left.
       exists s.
       congruence.
@@ -182,19 +185,17 @@ End Interp.
 
 Section Inline.
 
-  Scheme Equality for state_name.
-
   Definition inline (pref: state_name) (suff: state_name) (auto: t) : t := 
-    match auto pref with 
+    match Env.find pref auto with 
     | Some (Build_state op (TGoto (inl nxt))) => 
       if state_name_eq_dec nxt suff 
       then 
       let pref' := 
-        match auto suff with 
+        match Env.find suff auto with 
         | Some suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
         | None => {| st_op := op ; st_trans := TGoto (inl nxt) |}
         end in 
-      @Env.bind _ _ _ _ state_name_eq_dec pref pref' auto
+      Env.bind pref pref' auto
       else auto
     | _ => auto
     end.

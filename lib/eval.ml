@@ -446,7 +446,7 @@ module MakeInterpreter (T : Target) = struct
       else (entries', ks') in
     let l = List.filter entries'' ~f:(fun (s,a) -> values_match_set st ks'' s) in
     let action = match l with
-                | [] -> default
+                | [] -> Printf.printf "Falling back to default action\n"; default
                 | _ -> List.hd_exn l |> snd in
     let action_name = Table.((snd action).action.name) in
     let action_value = EvalEnv.find_val action_name env |> extract_from_state st'' in

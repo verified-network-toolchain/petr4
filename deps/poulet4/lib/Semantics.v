@@ -393,12 +393,11 @@ Proof.
       destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
       econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
-Admitted.
-      (* * econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
       * destruct is_valid; only 2 : discriminate.
-        econstructor; only 2 : constructor; only 1 : eapply eval_expr_gen_sound_1; eassumption. 
-Qed. *)
-
+        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
+        constructor; constructor; assumption.
+Qed.
 
 Definition eval_expr_gen_sound_statement st this hook expr v :=
   forall (H_hook : forall expr v, hook expr = Some v -> forall v', exec_expr this st expr v' -> v' = v),
@@ -442,20 +441,27 @@ Proof.
           | H : exec_expr _ _ expr _ |- _ =>
               apply H_eval_expr_gen in H;
               inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
           end.
-Admitted.
-        (* congruence.
+        congruence.
       * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
         inversion H1; subst;
           lazymatch goal with
           | H : exec_expr _ _ expr _ |- _ =>
               apply H_eval_expr_gen in H;
               inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
           end.
         destruct is_valid; only 2 : inversion H3.
-        inversion H12; subst.
+        inversion H9; subst.
         congruence.
-Qed. *)
+Qed.
 
 (* We might want to prove this lemma in future. *)
 (* Lemma eval_expr_gen_complete : forall st this expr v,

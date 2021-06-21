@@ -101,9 +101,9 @@ Section ConfRel.
       interp_state_template _ has_extract c.(cs_st2) c2.
   
   Definition interp_conf_rel (c: conf_rel) : relation conf :=
-    union _
-      (interp_conf_state c.(cr_st))
-      (interp_store_rel c.(cr_rel)).
+    fun x y => 
+      interp_conf_state c.(cr_st) x y ->
+      interp_store_rel c.(cr_rel) x y.
 
   Definition chunked_relation :=
     list conf_rel.
@@ -114,7 +114,7 @@ Section ConfRel.
   Fixpoint interp_chunked_relation (rel: chunked_relation) : relation conf :=
     match rel with
     | nil => rel_true _
-    | r :: rel' => union _ (interp_conf_rel r) (interp_chunked_relation rel')
+    | r :: rel' => relation_conjunction (interp_conf_rel r) (interp_chunked_relation rel')
     end.
 
   (* Weakest preconditions *)

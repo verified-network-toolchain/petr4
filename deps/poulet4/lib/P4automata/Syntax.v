@@ -1,4 +1,5 @@
 Require Coq.Lists.List.
+Require Coq.Logic.Eqdep_dec.
 Require Import String.
 Require Import HAList.
 Require Poulet4.P4cub.Envn.
@@ -60,12 +61,57 @@ Record state: Type :=
 Definition t: Type :=
   Env.t state_name state.
 
+Definition state_type (a: t) : Type :=
+  { s: state_name | Env.find s a <> None }.
+
+Lemma eq_dec_refl (A: Type) (eq_dec: forall x y : A, {x = y} + {x <> y}) :
+  forall x,
+    eq_dec x x = left eq_refl.
+Proof.
+  intros.
+  pose proof (@Eqdep_dec.UIP_dec A eq_dec x x eq_refl).
+  destruct (eq_dec x x).
+  - erewrite H; eauto.
+  - congruence.
+Qed.
+Hint Rewrite eq_dec_refl : core.
+
+Definition state_type_cons (a: t) (a': state_name * state)
+  : state_type a -> state_type (a' :: a).
+Proof.
+  unfold state_type.
+  intros.
+  destruct H.
+  exists x.
+  simpl.
+  destruct a'.
+  destruct (_ x s); congruence.
+Defined.
+
+Definition list_states (a: t) : list (state_type a).
+Proof.
+  revert a.
+  induction a.
+  - exact nil.
+  - assert (Env.find (fst a) (a :: a0) <> None).
+    {
+      destruct a.
+      simpl.
+      autorewrite with core.
+      congruence.
+    }
+    apply cons.
+    + exists (fst a); auto.
+    + apply (List.map (state_type_cons a0 a)).
+      apply IHa.
+Defined.
+
 Section Interp.
   Variable (a: t).
 
-  Definition state_type :=
-    { s: state_name | Env.find s a <> None }.
-  
+  Definition list_states' : list state_name :=
+    List.map fst a.
+
   Definition store := Env.t string v.
   
   Fixpoint op_size (o: op) : nat :=
@@ -77,7 +123,7 @@ Section Interp.
     | OpAsgn _ _ => 0
     end.
 
-  Definition find_state (st: state_type) : state.
+  Definition find_state (st: state_type a) : state.
   Proof.
     destruct (Env.find (proj1_sig st) a) eqn:?.
     - exact s.
@@ -86,7 +132,7 @@ Section Interp.
       apply Heqo.
   Defined.
 
-  Definition size (state: state_type) : nat :=
+  Definition size (state: state_type a) : nat :=
     op_size (find_state state).(st_op).
 
 
@@ -127,7 +173,7 @@ Section Interp.
       assign hdr (eval_expr st expr) st
     end.
 
-  Definition update (state: state_type) (bits: list bool) (st: store) : store :=
+  Definition update (state: state_type a) (bits: list bool) (st: store) : store :=
     eval_op st bits (find_state state).(st_op).
   
   Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list sel_case) (default: state_ref) : state_ref :=
@@ -139,7 +185,7 @@ Section Interp.
     | nil => default
     end.
 
-  Definition clamp_state_name (s: state_name) : state_type + bool.
+  Definition clamp_state_name (s: state_name) : state_type a + bool.
   Proof.
     destruct (Env.find s a) eqn:?.
     - left.
@@ -148,23 +194,23 @@ Section Interp.
     - exact (inr false).
   Defined.
 
-  Definition clamp_state_ref (s: state_ref) : state_type + bool :=
+  Definition clamp_state_ref (s: state_ref) : state_type a + bool :=
     match s with
     | inl s => clamp_state_name s
     | inr b => inr b
     end.
   
-  Definition eval_sel (st: store) (cond: v) (cases: list sel_case) (default: state_ref) : state_type + bool :=
+  Definition eval_sel (st: store) (cond: v) (cases: list sel_case) (default: state_ref) : state_type a + bool :=
     clamp_state_ref (pre_eval_sel st cond cases default).
 
-  Definition eval_trans (st: store) (t: transition) : state_type + bool :=
+  Definition eval_trans (st: store) (t: transition) : state_type a + bool :=
     match t with
     | TGoto state => clamp_state_ref state
     | TSel cond cases default =>
       eval_sel st (eval_expr st cond) cases default
     end.
 
-  Definition transitions (s: state_type) (st: store) : state_type + bool :=
+  Definition transitions (s: state_type a) (st: store) : state_type a + bool :=
     eval_trans st (find_state s).(st_trans).
 
   Lemma cap: forall s, 0 < size s.
@@ -176,7 +222,7 @@ Section Interp.
   
   Definition interp : P4A.p4automaton :=
     {| P4A.store := store;
-       P4A.states := state_type;
+       P4A.states := state_type a;
        P4A.size := size;
        P4A.update := update;
        P4A.transitions := transitions;

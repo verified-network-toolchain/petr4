@@ -14,6 +14,7 @@ Open Scope list_scope.
 Inductive hdr_ref: Type :=
 | HRVar (var: string).
 (*| HRField (hdr: hdr_ref) (field: string).*)
+Scheme Equality for hdr_ref.
 
 Inductive expr :=
 | EHdr (h: hdr_ref)

@@ -35,6 +35,8 @@ Section ConfRel.
   Notation conf := (configuration (P4A.interp a has_extract)).
 
   Inductive side := Left | Right.
+  Scheme Equality for side.
+
   Inductive bit_expr :=
   | BELit (l: list bool)
   | BEBuf (a: side)
@@ -174,11 +176,39 @@ Section ConfRel.
             else BRFalse)
     end.
 
-  Definition bit_expr_subst (s: side) (h: P4A.hdr_ref) (exp: bit_expr) (phi: bit_expr) : bit_expr.
-  Admitted.
+  Fixpoint bit_expr_subst (s: side) (h: P4A.hdr_ref) (exp: bit_expr) (phi: bit_expr) : bit_expr :=
+    match phi with
+    | BELit _
+    | BEBuf _ => phi
+    | BEHdr s' h' =>
+      if andb (side_beq s s') (Syntax.hdr_ref_beq h h')
+      then exp
+      else phi
+    | BESlice e hi lo =>
+      BESlice (bit_expr_subst s h exp e) hi lo
+    | BEConcat e1 e2 =>
+      BEConcat (bit_expr_subst s h exp e1)
+               (bit_expr_subst s h exp e2)
+    end.
 
-  Definition store_rel_subst (s: side) (h: P4A.hdr_ref) (exp: bit_expr) (phi: store_rel) : store_rel.
-  Admitted.
+  Fixpoint store_rel_subst (s: side) (h: P4A.hdr_ref) (exp: bit_expr) (phi: store_rel) : store_rel :=
+    match phi with
+    | BRTrue
+    | BRFalse =>
+      phi
+    | BREq e1 e2 =>
+      BREq (bit_expr_subst s h exp e1)
+           (bit_expr_subst s h exp e2)
+    | BRNotEq e1 e2 =>
+      BRNotEq (bit_expr_subst s h exp e1)
+              (bit_expr_subst s h exp e2)
+    | BRAnd r1 r2 =>
+      BRAnd (store_rel_subst s h exp r1)
+            (store_rel_subst s h exp r2)
+    | BROr r1 r2 =>
+      BROr (store_rel_subst s h exp r1)
+           (store_rel_subst s h exp r2)
+    end.
 
   Fixpoint wp_op' (s: side) (o: P4A.op) : nat * store_rel -> nat * store_rel :=
     fun '(buf_idx, phi) =>

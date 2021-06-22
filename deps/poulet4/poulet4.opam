@@ -14,6 +14,7 @@ install: [
 ]
 depends: [
   "bignum"
+  "coq-compcert"
   "coq" {build}
   "coq-equations" {build}
 ]

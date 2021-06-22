@@ -2,16 +2,16 @@ From compcert Require Import Clight Ctypes.
 Require Import Poulet4.P4cub.Syntax.AST.
 
 Require Import Integers Floats.
+Parameter print_Clight: Clight.program -> unit.
 Check program.
 (** P4Cub -> Clight **)
-Section Ccomp.
+Section CComp.
   Context (tags_t: Type).
   Notation tpdecl := (P4cub.TopDecl.d tags_t).
-  Definition x : AST.ident := xH .
   (* currently just an empty program *)
 
   
-  Definition Compile (prog: tpdecl) : Errors.res (Ctypes.program Clight.function) := 
+  Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 
     let main_decl : AST.globdef (fundef function) type :=
       AST.Gfun (Ctypes.Internal (Clight.mkfunction 
         Ctypes.Tvoid 
@@ -26,6 +26,13 @@ Section Ccomp.
       [] [(xH, main_decl)] [] xH
     in
     res_prog.
-End Ccomp.
+
+  Definition Compile_print (prog: tpdecl): unit := 
+    match Compile prog with
+    | Errors.Error e => tt
+    | Errors.OK prog => print_Clight prog
+    end.
+  
+End CComp.
 
 

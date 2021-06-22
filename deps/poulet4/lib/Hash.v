@@ -3,16 +3,26 @@ Require Import Coq.Init.Nat.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Init.Hexadecimal.
 Require Import Coq.Lists.List.
+
 Import ListNotations.
 
-Require Import Poulet4.P4Arith.
 Require Import Poulet4.Bitwise.
 
+(* CRC Steps:
+    1. BMV2-specific: the [input] is appended with zeros to the end 
+      to expand its length to a multiple of 8 bits.
+    2. If [refin], the bits in each byte of the input are reversed.
+    3. The input is appended with [out_width] number of zeros to the end.
+    4. The first [out_width] bits of the input is XOR'ed with [init].
+    5. The regular CRC algorithm is run on the input with the polynomail [poly].
+    6. If [refout], all bits in the remainder are reversed.
+    7. The remainder is XOR'ed with [xor_out].
+*)
 
 Section CRC.
-  (* CRC algorithm parameters *)
+  (* CRC algorithm configurations *)
   Variable (out_width : nat).
-  Variable (poly : uint).
+  Variable (poly : uint). 
   Variable (init : uint).
   Variable (xor_out : uint).
   Variable (refin : bool).
@@ -45,10 +55,6 @@ Section CRC.
       end
     in fst (fold_right group_list' ([], (n-1, O)) l).
 
-
-  (* Mimic the BMV2 model in appending 0 bits to the lsb to
-     make length a multiple of 8 bits; 
-     reflect bits in every byte if refin = true (little-endian within a byte). *)
   Definition input_bits : Bits := 
     let input_round :=
       Bitwise.zero (in_width_round - in_width)
@@ -87,8 +93,11 @@ End CRC.
 (* Example: 
     last 15 bits of 0x0501 is 1281, rounded into 0x0A02 => output 24967 = 0x6187
     first 12 bits of 0xF470 is 3911, rounded into 0xF470 => output 9287 = 0x2447 *)
-
 (* Compute (compute_crc 32 (D0 (D4 (Dc (D1 (D1 (Dd (Db (D7 Nil)))))))) 
          (Df (Df (Df (Df (Df (Df (Df (Df Nil)))))))) 
          (Df (Df (Df (Df (Df (Df (Df (Df Nil))))))))
          true	true 12 3911). *)
+(* Ref:
+    http://ross.net/crc/download/crc_v3.txt
+    https://stackoverflow.com/questions/5047494/python-crc-32-woes
+    https://crccalc.com/ *)

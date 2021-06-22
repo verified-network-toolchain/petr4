@@ -15,6 +15,7 @@ build: [
 ]
 depends: [
   "poulet4"
+  "coq-compcert"
   "alcotest"
   "bignum"
   "ocaml" {>= "4.09.1"}

@@ -1,5 +1,9 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Arith.PeanoNat.
+Require Import Coq.ZArith.BinInt.
+Require Import Coq.NArith.BinNatDef.
+
+Require Import Poulet4.P4Arith.
 
 Import ListNotations.
 
@@ -24,6 +28,21 @@ Section Bitwise.
 
   Definition zero (w: nat) : Bits := repeat false w.
 
+  (* Much faster conversion *)
+  Definition of_N (n : N) (w: nat)  :=
+    let fix of_N' (n : N) (w : nat) :=
+      match w with
+      | O => []
+      | S w' => (N.odd n) :: (of_N' (N.div2 n) w')
+      end in
+    of_N' (Z.to_N (BitArith.mod_bound (Pos.of_nat w) (Z.of_N n))) w.
+
+  Fixpoint to_N (bits : Bits) : N := 
+    match bits with 
+    | [] => 0
+    | h :: t => N.add (if h then 1 else 0) (N.mul 2 (to_N t))
+    end.
+  
   Definition of_nat (n: nat) (w: nat) := Nat.iter n incr (zero w).
 
   Fixpoint pow_two (w: nat) : nat :=
@@ -39,8 +58,7 @@ Section Bitwise.
     | true =>  (part + pow_two w, w + 1)
     end.
 
-  Definition to_nat (bits: Bits) : nat :=
-    fst (fold_left add_bit_carry bits (0,0)).
+  Definition to_nat (bits: Bits) : nat := fst (fold_left add_bit_carry bits (0,0)).
 
   Lemma add_carry_zero : forall w k, 
     fst (fold_left add_bit_carry (zero w) (0, k)) = 0.
@@ -50,8 +68,6 @@ Section Bitwise.
     - apply IHw.
     - apply IHw.
   Qed.
-    
-
 
   Lemma to_nat_zero: forall w, to_nat (zero w) = 0.
   Proof.
@@ -80,7 +96,21 @@ Section Bitwise.
     Some (pref ++ rhs ++ suff) else
     None.
 
-  (* Compute slice 4 [false; true; true; false] 1 2. *)
-  (* Compute splice 5 [false; false; false; false; false] 2 3 2 [true; true]. *)
+  (* Conversion with big-endian bit vectors *)
+  Definition little_to_big (bits: Bits) : Bits := rev bits.
+
+  Definition big_to_little (bits: Bits) : Bits := rev bits.
+
+  Fixpoint map2 {A : Type} (f : A -> A -> A) (l1 : list A) (l2 : list A) : (list A) :=
+    match l1, l2 with
+    | [], _ => l2
+    | _, []  => l1
+    | h1 :: t1, h2 :: t2 => (f h1 h2) :: (map2 f t1 t2)
+    end.
+
+  Definition xor := map2 xorb.
+
 End Bitwise.
 
+(* Compute slice 4 [false; true; true; false] 1 2. *)
+(* Compute splice 5 [false; false; false; false; false] 2 3 2 [true; true]. *)

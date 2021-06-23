@@ -42,7 +42,7 @@ class LearningApp(App):
     def packet_in(self,switch,in_port,packet):
         port = packet[:33]
         dst = packet[33:]
-        entry = Entry("ethernet_learning", [("hdr.ipv4.dstAddr", dst), "forward", [port])
+        entry = Entry("ethernet_learning", [("hdr.ipv4.dstAddr", dst)], "forward", [port])
         self.insert(switch, entry)
         
     def __init__(self, port=9000):

@@ -741,7 +741,6 @@ module PreV1Switch : Target = struct
     then st, env, [] (* TODO: implement support for resubmission *)
     else if Bigint.(bigint_of_val mcast_grp_val <> zero)
     then
-      let () = Printf.eprintf "[Multicast]\n%!" in
       (* Current multicast implementation simply duplicates the packet for each
          port on the switch except for the one on which the packet arrived. *)
       let num_ports =
@@ -753,7 +752,8 @@ module PreV1Switch : Target = struct
         |> assert_bit
         |> snd
         |> Bigint.to_int_exn in
-      let instances = List.init num_ports ~f:Fn.id in
+      let () = Printf.eprintf "[Multicast num_ports=%d ingress_port=%d]\n%!" num_ports ingress_port in
+      let instances = List.init (num_ports + 1) ~f:Fn.id |> List.tl |> Option.value ~default:[] in
       let instances = List.filter instances ~f:((<>) ingress_port) in
       let f acc_st inst : obj State.t * (pkt * Bigint.t) list =
         let egress_spec_val =
@@ -795,7 +795,12 @@ module PreV1Switch : Target = struct
     then st, env, [] (* TODO: implement support for egress cloning *)
     else if Bigint.(egress_spec = drop_spec)
     then
-      let () = Printf.eprintf "[Egress Drop]\n%!" in
+      let egress_port =
+        State.find_heap pkg.std_meta_loc st
+        |> assert_struct
+        |> fun x -> List.Assoc.find_exn x "egress_port" ~equal:String.equal
+                    |> bigint_of_val |> Bigint.to_int_exn in
+      let () = Printf.eprintf "[Egress Drop from %d]\n%!" egress_port in
       st, env, []
     else if State.find_heap "__RECIRC_PRIM__" st |> assert_bool
     then st, env, [] (* TODO: implement support for recirculation *)
@@ -807,8 +812,8 @@ module PreV1Switch : Target = struct
                     |> bigint_of_val in
       let () = Printf.eprintf "[Emit on %d]\n%!" (Bigint.to_int_exn egress_port) in
       st, env, [State.get_packet st, egress_port]
-    
-     
+
+
 end
 
 module V1Switch : Target = P4core.Corize(PreV1Switch)

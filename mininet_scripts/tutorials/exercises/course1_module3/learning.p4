@@ -92,7 +92,6 @@ control MyIngress(inout headers hdr,
 
     action broadcast() {
         standard_metadata.mcast_grp = 1;
-	hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
 
     table ethernet_learning {
@@ -124,21 +123,25 @@ control MyEgress(inout headers hdr,
 	mark_to_drop(standard_metadata);
     }
 
-    table spanning_tree_filter {
+    action pass() {
+        
+    }   
+
+    table spanning_tree {
 	key = {
 	    standard_metadata.egress_port: exact;
 	}
 
 	actions = {
 	    drop;
-	    NoAction;
+	    pass;
 	}
 	
-	default_action = NoAction();
+	default_action = drop();
     }
     
     apply {
-	spanning_tree_filter.apply();
+	spanning_tree.apply();
     }
 }
 

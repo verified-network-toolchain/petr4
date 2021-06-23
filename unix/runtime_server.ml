@@ -17,9 +17,9 @@ let rec loop switch handlers =
       | Ok msg -> 
          handlers msg
       | Error err -> 
-         Printf.eprintf "Unexpected error: %s\n%!" err in
+         Printf.eprintf "Unexpected parsing error: %s\n%s\n%!" err str in
     loop switch handlers
-  with exn -> 
+  with exn ->
     Printf.eprintf "Unexpected error: %s\n%!" (Exn.to_string exn);
     loop switch handlers
     

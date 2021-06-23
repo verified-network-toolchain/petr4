@@ -82,9 +82,14 @@ class Petr4Switch(Switch):
     def check_switch_started(self, pid):
         return os.path.exists(os.path.join("/proc", str(pid)))
 
-    def start(self, controllers):
+    def start(self, controllers):        
         "Start up a new Petr4 switch"
         info("Starting Petr4 switch {}.\n".format(self.name))
+
+        self.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
+        self.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        self.cmd("sysctl -w net.ipv6.conf.lo.disable_ipv6=1")
+
         args = [self.sw_path + " switch "]
 
         args.extend(['-switch', self.name])

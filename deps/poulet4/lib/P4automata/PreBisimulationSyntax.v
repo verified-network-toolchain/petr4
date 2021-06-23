@@ -1,6 +1,7 @@
 Require Import Coq.Lists.List.
 Import ListNotations.
 Require Import Coq.Classes.EquivDec.
+Require Import Coq.Program.Program.
 Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
 Require Import Coq.Relations.Relations.
@@ -13,9 +14,18 @@ Module P4A := Poulet4.P4automata.Syntax.
 Open Scope list_scope.
 
 Section ConfRel.
+  Set Implicit Arguments.
 
-  Variable (a: P4A.t).
-  Variable (has_extract: forall s H, 0 < P4A.size a (exist _ s H)).
+  (* State identifiers. *)
+  Variable (S: Type).
+  Context `{S_eq_dec: EquivDec.EqDec S eq}.
+
+  (* Header identifiers. *)
+  Variable (H: Type).
+  Context `{H_eq_dec: EquivDec.EqDec H eq}.
+
+  Variable (a: P4A.t S H).
+  Variable (has_extract: forall s H, 0 < P4A.size (a:=a) (exist _ s H)).
 
   Notation conf := (configuration (P4A.interp a has_extract)).
 
@@ -28,12 +38,20 @@ Section ConfRel.
     List.length (snd c) = st.(st_buf_len).
 
   Inductive side := Left | Right.
-  Scheme Equality for side.
+  Global Program Instance side_eq_dec : EquivDec.EqDec side eq :=
+    { equiv_dec x y :=
+        match x, y with
+        | Left, Left => in_left
+        | Right, Right => in_left
+        | Left, Right => in_right
+        | Right, Left => in_right
+        end }.
+  Solve Obligations with unfold equiv, complement in *; congruence.
 
   Inductive bit_expr :=
   | BELit (l: list bool)
   | BEBuf (a: side)
-  | BEHdr (a: side) (h: P4A.hdr_ref)
+  | BEHdr (a: side) (h: P4A.hdr_ref H)
   | BESlice (e: bit_expr) (hi lo: nat)
   | BEConcat (e1 e2: bit_expr).
 
@@ -108,15 +126,8 @@ Section ConfRel.
 
   Fixpoint interp_chunked_relation (rel: chunked_relation) : relation conf :=
     match rel with
-    | nil => rel_true _
+    | nil => @rel_true conf
     | r :: rel' => relation_conjunction (interp_conf_rel r) (interp_chunked_relation rel')
     end.
 
 End ConfRel.
-
-Arguments st_state {a} _.
-Arguments st_buf_len {a} _.
-Arguments cs_st1 {a} _.
-Arguments cs_st2 {a} _.
-Arguments cr_st {a} _.
-Arguments cr_rel {a} _.

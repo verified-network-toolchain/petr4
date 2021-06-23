@@ -1,7 +1,9 @@
 Require Coq.Lists.List.
+Import List.ListNotations.
 Require Coq.Logic.Eqdep_dec.
-Require Import String.
-Require Import HAList.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Program.Program.
+Require Import Poulet4.HAList.
 Require Poulet4.P4cub.Envn.
 Require Poulet4.P4cub.BigStep.BSUtil.
 Require Poulet4.P4automata.P4automaton.
@@ -11,120 +13,144 @@ Module Env := Poulet4.P4cub.Envn.Env.
 
 Open Scope list_scope.
 
-Inductive hdr_ref: Type :=
-| HRVar (var: string).
-(*| HRField (hdr: hdr_ref) (field: string).*)
-Scheme Equality for hdr_ref.
+Section Syntax.
+  Set Implicit Arguments.
 
-Inductive expr :=
-| EHdr (h: hdr_ref)
-| ELit (bs: list bool).
-(* todo: binops, ...? *)
+  (* State identifiers. *)
+  Variable (S: Type).
+  Context `{S_eq_dec: EquivDec.EqDec S eq}.
 
-Inductive state_name: Type := 
-| SNName (s: string)
-| SNStart.
-Scheme Equality for state_name.
+  (* Header identifiers. *)
+  Variable (H: Type).
+  Context `{H_eq_dec: EquivDec.EqDec H eq}.
 
-Instance state_name_EQ : EquivDec.EqDec state_name eq := state_name_eq_dec.
+  Inductive hdr_ref: Type :=
+  | HRVar (var: H).
+  (*| HRField (hdr: hdr_ref) (field: string).*)
 
-Definition state_ref: Type := state_name + bool.
-    
-Inductive v :=
-| VBits : list bool -> v.
+  Global Program Instance hdr_ref_eq_dec : EquivDec.EqDec hdr_ref eq :=
+    { equiv_dec x y :=
+        match x, y with
+        | HRVar x, HRVar y => if x == y then in_left else in_right
+        end }.
+  Solve Obligations with unfold equiv, complement in *;
+    program_simpl; congruence.
+  
+  Inductive expr :=
+  | EHdr (h: hdr_ref)
+  | ELit (bs: list bool).
+  (* todo: binops, ...? *)
+  
+  Definition state_ref: Type := S + bool.
+  
+  Inductive v :=
+  | VBits : list bool -> v.
 
-Definition v_eq_dec (v1 v2: v) : {v1 = v2} + {v1 <> v2}.
-Proof.
-  destruct v1, v2.
-  destruct (List.list_eq_dec Bool.bool_dec l l0).
-  - left; congruence.
-  - right; congruence.
-Defined.
+  Global Program Instance v_eq_dec : EquivDec.EqDec v eq :=
+    { equiv_dec :=
+        fun x y =>
+          match x, y with
+          | VBits xs, VBits ys =>
+            if xs == ys
+            then in_left
+            else in_right
+          end }.
+  Solve Obligations with unfold equiv, complement in *;
+    program_simpl; congruence.
 
-Record sel_case: Type :=
-  { sc_val: v;
-    sc_st: state_ref }.
+  Record sel_case: Type :=
+    { sc_val: v;
+      sc_st: state_ref }.
 
-Inductive transition: Type :=
-| TGoto (state: state_ref)
-| TSel (cond: expr) (cases: list sel_case) (default: state_ref).
+  Inductive transition: Type :=
+  | TGoto (state: state_ref)
+  | TSel (cond: expr) (cases: list sel_case) (default: state_ref).
 
-Inductive op :=
-| OpNil
-| OpSeq (o1 o2: op)
-| OpExtract (width: nat) (hdr: hdr_ref)
-| OpAsgn (lhs: hdr_ref) (rhs: expr).
+  Inductive op :=
+  | OpNil
+  | OpSeq (o1 o2: op)
+  | OpExtract (width: nat) (hdr: hdr_ref)
+  | OpAsgn (lhs: hdr_ref) (rhs: expr).
 
-Record state: Type :=
-  { st_op: op;
-    st_trans: transition }.
+  Record state: Type :=
+    { st_op: op;
+      st_trans: transition }.
 
-Definition t: Type :=
-  Env.t state_name state.
+  Definition t: Type :=
+    Env.t S state.
 
-Definition state_type (a: t) : Type :=
-  { s: state_name | Env.find s a <> None }.
+  Definition state_type (a: t) : Type :=
+    { s: S | Env.find s a <> None :> option state }.
 
-Lemma eq_dec_refl (A: Type) (eq_dec: forall x y : A, {x = y} + {x <> y}) :
-  forall x,
-    eq_dec x x = left eq_refl.
-Proof.
-  intros.
-  pose proof (@Eqdep_dec.UIP_dec A eq_dec x x eq_refl).
-  destruct (eq_dec x x).
-  - erewrite H; eauto.
-  - congruence.
-Qed.
-Hint Rewrite eq_dec_refl : core.
+  Lemma eq_dec_refl (A: Type) (eq_dec: forall x y : A, {x = y} + {x <> y}) :
+    forall x,
+      eq_dec x x = left eq_refl.
+  Proof using.
+    intros.
+    pose proof (@Eqdep_dec.UIP_dec A eq_dec x x eq_refl).
+    destruct (eq_dec x x).
+    - erewrite H0; eauto.
+    - congruence.
+  Qed.
+  Hint Rewrite eq_dec_refl : core.
 
-Definition state_type_cons (a: t) (a': state_name * state)
-  : state_type a -> state_type (a' :: a).
-Proof.
-  unfold state_type.
-  intros.
-  destruct H.
-  exists x.
-  simpl.
-  destruct a'.
-  destruct (_ x s); congruence.
-Defined.
+  Definition state_type_cons (a: t) (a': S * state)
+    : state_type a -> state_type (a' :: a).
+  Proof.
+    unfold state_type.
+    intros.
+    destruct X.
+    exists x.
+    simpl.
+    destruct a'.
+    destruct (_ x s); congruence.
+  Defined.
 
-Definition list_states (a: t) : list (state_type a).
-Proof.
-  revert a.
-  induction a.
-  - exact nil.
-  - assert (Env.find (fst a) (a :: a0) <> None).
-    {
-      destruct a.
-      simpl.
-      autorewrite with core.
-      congruence.
-    }
-    apply cons.
-    + exists (fst a); auto.
-    + apply (List.map (state_type_cons a0 a)).
-      apply IHa.
-Defined.
+  Definition list_states (a: t) : list (state_type a).
+  Proof.
+    revert a.
+    induction a.
+    - exact nil.
+    - assert (Env.find (fst a) (a :: a0) <> None).
+      {
+        destruct a.
+        simpl.
+        autorewrite with core.
+        congruence.
+      }
+      apply cons.
+      + exists (fst a); auto.
+      + apply (List.map (state_type_cons a)).
+        apply IHa.
+  Defined.
+End Syntax.
 
 Section Interp.
-  Variable (a: t).
+  (* State identifiers. *)
+  Variable (S: Type).
+  Context `{S_eqdec: EquivDec.EqDec S eq}.
 
-  Definition list_states' : list state_name :=
+  (* Header identifiers. *)
+  Variable (H: Type).
+  Context `{H_eqdec: EquivDec.EqDec H eq}.
+
+  Variable (a: t S H).
+
+  Definition list_states' : list S :=
     List.map fst a.
 
-  Definition store := Env.t string v.
+  Definition store := Env.t H v.
   
-  Fixpoint op_size (o: op) : nat :=
+  Fixpoint op_size (o: op H) : nat :=
     match o with
-    | OpNil => 0
+    | OpNil _ => 0
     | OpSeq o1 o2 =>
       op_size o1 + op_size o2
     | OpExtract width _ => width
     | OpAsgn _ _ => 0
     end.
 
-  Definition find_state (st: state_type a) : state.
+  Definition find_state (st: state_type a) : state S H.
   Proof.
     destruct (Env.find (proj1_sig st) a) eqn:?.
     - exact s.
@@ -136,15 +162,14 @@ Section Interp.
   Definition size (state: state_type a) : nat :=
     op_size (find_state state).(st_op).
 
+  Variable (has_extract: forall s h, 0 < size (exist _ s h)).
 
-  Variable (has_extract: forall s H, 0 < size (exist _ s H)).
-
-  Definition assign (h: hdr_ref) (v: v) (st: store) : store :=
+  Definition assign (h: hdr_ref H) (v: v) (st: store) : store :=
     match h with
     | HRVar x => Env.bind x v st
     end.
 
-  Definition find (h: hdr_ref) (st: store) : v :=
+  Definition find (h: hdr_ref H) (st: store) : v :=
     match h with
     | HRVar x =>
       match Env.find x st with
@@ -153,19 +178,19 @@ Section Interp.
       end
     end.
 
-  Definition eval_expr (st: store) (e: expr) : v :=
+  Definition eval_expr (st: store) (e: expr H) : v :=
    match e with
    | EHdr (HRVar x) =>
      match Env.find x st with
      | Some v => v
      | None => VBits nil
      end
-   | ELit bs => VBits bs
+   | ELit _ bs => VBits bs
    end.
 
-  Fixpoint eval_op (st: store) (bits: list bool) (o: op) : store :=
+  Fixpoint eval_op (st: store) (bits: list bool) (o: op H) : store :=
     match o with
-    | OpNil => st
+    | OpNil _ => st
     | OpSeq o1 o2 =>
       eval_op (eval_op st bits o1) bits o2
     | OpExtract width hdr =>
@@ -177,16 +202,16 @@ Section Interp.
   Definition update (state: state_type a) (bits: list bool) (st: store) : store :=
     eval_op st bits (find_state state).(st_op).
   
-  Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list sel_case) (default: state_ref) : state_ref :=
+  Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
     match cases with
     | c::cases =>
-      if v_eq_dec cond c.(sc_val)
+      if cond == c.(sc_val)
       then c.(sc_st)
       else pre_eval_sel st cond cases default
     | nil => default
     end.
 
-  Definition clamp_state_name (s: state_name) : state_type a + bool.
+  Definition clamp_state_name (s: S) : state_type a + bool.
   Proof.
     destruct (Env.find s a) eqn:?.
     - left.
@@ -195,18 +220,18 @@ Section Interp.
     - exact (inr false).
   Defined.
 
-  Definition clamp_state_ref (s: state_ref) : state_type a + bool :=
+  Definition clamp_state_ref (s: state_ref S) : state_type a + bool :=
     match s with
     | inl s => clamp_state_name s
     | inr b => inr b
     end.
   
-  Definition eval_sel (st: store) (cond: v) (cases: list sel_case) (default: state_ref) : state_type a + bool :=
+  Definition eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_type a + bool :=
     clamp_state_ref (pre_eval_sel st cond cases default).
 
-  Definition eval_trans (st: store) (t: transition) : state_type a + bool :=
+  Definition eval_trans (st: store) (t: transition S H) : state_type a + bool :=
     match t with
-    | TGoto state => clamp_state_ref state
+    | TGoto _ state => clamp_state_ref state
     | TSel cond cases default =>
       eval_sel st (eval_expr st cond) cases default
     end.
@@ -231,16 +256,24 @@ Section Interp.
 End Interp.
 
 Section Inline.
+  (* State identifiers. *)
+  Variable (S: Type).
+  Context `{S_eq_dec: EquivDec.EqDec S eq}.
 
-  Definition inline (pref: state_name) (suff: state_name) (auto: t) : t := 
+  (* Header identifiers. *)
+  Variable (H: Type).
+  Context `{H_eq_dec: EquivDec.EqDec H eq}.
+
+
+  Definition inline (pref: S) (suff: S) (auto: t S H) : t S H := 
     match Env.find pref auto with 
-    | Some (Build_state op (TGoto (inl nxt))) => 
-      if state_name_eq_dec nxt suff 
+    | Some (Build_state op (TGoto _ (inl nxt))) => 
+      if nxt == suff 
       then 
       let pref' := 
         match Env.find suff auto with 
         | Some suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
-        | None => {| st_op := op ; st_trans := TGoto (inl nxt) |}
+        | None => {| st_op := op ; st_trans := TGoto _ (inl nxt) |}
         end in 
       Env.bind pref pref' auto
       else auto

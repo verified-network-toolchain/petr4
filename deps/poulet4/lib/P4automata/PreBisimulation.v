@@ -6,12 +6,12 @@ Require Import Poulet4.P4automata.P4automaton.
 
 Open Scope list_scope.
 
-Definition chunked_relation (a1 a2: p4automaton) :=
+Definition crel (a1 a2: p4automaton) :=
   list (configuration a1 -> configuration a2 -> Prop).
 
 Inductive chunked_related_and
   {a1 a2: p4automaton}
-  : chunked_relation a1 a2 ->
+  : crel a1 a2 ->
     configuration a1 ->
     configuration a2 ->
     Prop
@@ -28,7 +28,7 @@ Inductive chunked_related_and
 
 Lemma chunked_related_and_correct
   {a1 a2: p4automaton}
-  (R: chunked_relation a1 a2)
+  (R: crel a1 a2)
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -60,7 +60,7 @@ Qed.
 
 Lemma chunked_related_and_subset
   {a1 a2: p4automaton}
-  (R1 R2: chunked_relation a1 a2)
+  (R1 R2: crel a1 a2)
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -77,7 +77,7 @@ Qed.
 
 Lemma chunked_related_and_app
   {a1 a2: p4automaton}
-  (R1 R2: chunked_relation a1 a2)
+  (R1 R2: crel a1 a2)
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -98,7 +98,7 @@ Qed.
 
 Lemma chunked_related_and_app'
   {a1 a2: p4automaton}
-  (R1 R2: chunked_relation a1 a2)
+  (R1 R2: crel a1 a2)
   (c1: configuration a1)
   (c2: configuration a2)
 :
@@ -129,8 +129,8 @@ Ltac break_chunked :=
 
 Definition precedes
   {a1 a2: p4automaton}
-  (r: chunked_relation a1 a2)
-  (t: chunked_relation a1 a2)
+  (r: crel a1 a2)
+  (t: crel a1 a2)
 :=
   forall c1 c2,
     chunked_related_and (r ++ t) c1 c2 ->
@@ -138,7 +138,7 @@ Definition precedes
 
 Definition acceptance_ok
   {a1 a2: p4automaton}
-  (R: chunked_relation a1 a2)
+  (R: crel a1 a2)
 :=
   forall c1 c2,
     chunked_related_and R c1 c2 ->
@@ -147,8 +147,8 @@ Definition acceptance_ok
 
 Definition pre_bisimulation
   {a1 a2: p4automaton}
-  (r: chunked_relation a1 a2)
-  (t: chunked_relation a1 a2) :=
+  (r: crel a1 a2)
+  (t: crel a1 a2) :=
   (forall c1 c2,
      bisimilar c1 c2 ->
      chunked_related_and (r ++ t) c1 c2) /\
@@ -244,8 +244,8 @@ Definition rel_wp
 
 Lemma pre_bisimulation_grow
   {a1 a2: p4automaton}
-  (checked: chunked_relation a1 a2)
-  (front: chunked_relation a1 a2)
+  (checked: crel a1 a2)
+  (front: crel a1 a2)
   (phi: configuration a1 -> configuration a2 -> Prop)
 :
   pre_bisimulation checked (phi :: front) ->

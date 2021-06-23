@@ -30,22 +30,15 @@ Section Sum.
 
   Definition S : Type := S1 + S2.
 
-  Global Program Instance S_eq_dec: EquivDec.EqDec S eq.
-  Next Obligation.
-    eapply sum_eqdec; typeclasses eauto.
-  Defined.
+  Global Instance S_eq_dec: EquivDec.EqDec S eq :=
+    ltac:(typeclasses eauto).
 
   Definition H : Type := H1 + H2.
 
-  Global Program Instance H_eq_dec: EquivDec.EqDec H eq.
-  Next Obligation.
-    eapply sum_eqdec; typeclasses eauto.
-  Defined.
+  Global Instance H_eq_dec: EquivDec.EqDec H eq :=
+    ltac:(typeclasses eauto).
 
   Definition sum : Syntax.t S H :=
     Envn.Env.scope_shadow (Syntax.t_fmapSH inl inl a1)
                           (Syntax.t_fmapSH inr inr a2).
 End Sum.
-
-
-

@@ -35,6 +35,7 @@ class LearningApp(App):
         print(f"{switch} is up!")
         for p in spanning_tree_map[switch]:
             entry = Entry("spanning_tree", [("standard_metadata.egress_port", str(p))], "pass", [])
+            
             self.insert(switch, entry)
         return
                 
@@ -42,8 +43,7 @@ class LearningApp(App):
         port = packet[:33]
         dst = packet[33:]
         entry = Entry("ethernet_learning", [("hdr.ipv4.dstAddr", dst), "forward", [port])
-        # TODO
-        super().packet_in(switch, in_port, packet)
+        self.insert(switch, entry)
         
     def __init__(self, port=9000):
         super().__init__(port)

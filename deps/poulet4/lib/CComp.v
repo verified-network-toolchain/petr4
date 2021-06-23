@@ -26,22 +26,38 @@ Section CComp.
   Notation int_unsigned := (Tint I32 Unsigned noattr).
   Notation int_signed := (Tint I32 Signed noattr).
   Definition identMap : Type := Env.t string AST.ident.
-  
   Definition CTranslateType (p4t : E.t) : Ctypes.type.
     Admitted.
-
+  Definition CTranslateTypeRev (ct : Ctypes.type) : E.t.
+    Admitted.
+  Definition CubTypeOf (ce : Clight.expr) : E.t := 
+    CTranslateTypeRev (Clight.typeof ce).
   Definition CTranslateSlice (x: Clight.expr) (hi lo: positive) (type: E.t) : option Clight.expr := 
     (* x[hi : lo] = [x >> lo] & (1<<(hi-lo+1) - 1)*)
-    (* assuming only translate to long*)
     let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
     let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
     let one' := Econst_long (Integers.Int64.one) (long_unsigned) in
-    Some (Ebinop Oand 
-          (Ebinop Oshr x lo' long_unsigned) 
-          (Ebinop Osub 
-            (Ebinop Oshl one' (Ebinop Oadd one' (Ebinop Osub hi' lo' long_unsigned) long_unsigned) long_unsigned) 
-            (one') long_unsigned) long_unsigned)
-    .
+    Some (Ebinop Oand (Ebinop Oshr x lo' long_unsigned) 
+          (Ebinop Osub (Ebinop Oshl one' (Ebinop Oadd one' 
+          (Ebinop Osub hi' lo' long_unsigned) long_unsigned) long_unsigned) 
+            (one') long_unsigned) long_unsigned).
+  Definition CTranslateCast (e: Clight.expr) (typefrom typeto: E.t) : option Clight.expr.
+  Admitted.
+
+  Definition CTranslateUop (op: E.uop) : option Cop.unary_operation := 
+    match op with
+    | _{!}_ => Some Onotbool
+    | _{~}_ => Some Onotint
+    | _{-}_ => Some Oneg
+    | _ => None
+    end.
+
+  Definition CTranslateBop (op: E.bop) : Cop.binary_operation
+    match op with 
+    | _ => None
+    end. 
+  (* TODO: figure out what cast rules does clight support and then implement this*)
+  (* See https://opennetworking.org/wp-content/uploads/2020/10/P416-Language-Specification-wd.html#sec-casts *)
   Fixpoint CTranslateExpr (e: E.e tags_t) (idents: identMap): option Clight.expr :=
     match e with
     | <{TRUE @ i}> =>   Some (Econst_int (Integers.Int.one) (type_bool))
@@ -63,10 +79,13 @@ Section CComp.
                         | Some n' => CTranslateSlice n' hi lo τ
                         | _ => None
                         end
-
-
-    (* | Cast e : τ @ i => *)
-    (* | UOP op x : ty @ i =>  *)
+    | <{Cast e : τ @ i}> => 
+                        match CTranslateExpr e idents with
+                        | Some e' => let typefrom = CubTypeOf e' in 
+                                      CTranslateCast e typefrom τ.
+                        | _ => None
+                        end
+    (* | <{UOP op x : ty @ i}> =>  *)
     (* | BOP x : tx op y : ty @ i => *)
     (* | tup es @ i => *)
     (* | rec { fields } @ i =>  *)

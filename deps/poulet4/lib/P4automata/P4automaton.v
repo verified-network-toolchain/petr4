@@ -16,6 +16,12 @@ Definition configuration (a: p4automaton) : Type :=
   (states a + bool) * store a * list bool
 .
 
+Definition size' {a: p4automaton} (s: a.(states) + bool) : nat :=
+  match s with
+  | inl s => a.(size) s
+  | inr _ => 1
+  end.
+
 Definition step
   {a: p4automaton}
   (c: configuration a)
@@ -23,18 +29,18 @@ Definition step
   : configuration a
 :=
   let '(state, st, buf) := c in
-  match state with
-  | inl state =>
-    let buf' := buf ++ b :: nil in
-    if length buf' == size a state
-    then
+  let buf' := buf ++ b :: nil in
+  if length buf' == size' state
+  then
+    match state with
+    | inl state =>
       let st' := update a state buf' st in
       let state' := transitions a state st' in
       (state', st', nil)
-    else (inl state, st, buf')
-  | inr halt =>
-    (inr halt, st, buf ++ b :: nil)
-  end
+    | inr b =>
+      (inr false, st, nil)
+    end
+  else (state, st, buf')
 .
 
 Lemma step_with_space

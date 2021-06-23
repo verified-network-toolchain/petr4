@@ -429,5 +429,13 @@ Example fixed_vector_bis : bisimulation_with_leaps fixed_vector.
     destruct buf; [|exfalso; inversion H].
     clear H.
     rewrite H2 in *.
-    seen_solver'.
+    destruct buf2.
+    cbv.
+    + simpl.
+      seen_solver'.
+    + simpl.
+      rewrite app_length.
+      rewrite plus_comm.
+      simpl.
+      seen_solver'.
 Qed.

@@ -123,7 +123,64 @@ Section Syntax.
       + apply (List.map (state_type_cons a)).
         apply IHa.
   Defined.
+
 End Syntax.
+
+Section Fmap.
+  Set Implicit Arguments.
+  Variables (S H S' H': Type).
+  Variable (f: S -> S').
+  Variable (g: H -> H').
+
+  Definition hdr_ref_fmapH (h: hdr_ref H) : hdr_ref H' :=
+    match h with
+    | HRVar h => HRVar (g h)
+    end.
+    
+  Definition expr_fmapH (e: expr H) : expr H' :=
+    match e with
+    | EHdr h => EHdr (hdr_ref_fmapH h)
+    | ELit _ bs => ELit _ bs
+    end.
+  
+  Definition state_ref_fmapS (s: state_ref S) : state_ref S' :=
+    match s with
+    | inl s' => inl (f s')
+    | inr r => inr r
+    end.
+
+  Definition sel_case_fmapS (c: sel_case S) : sel_case S' :=
+    {| sc_val := c.(sc_val);
+       sc_st := state_ref_fmapS c.(sc_st) |}.
+
+  Definition transition_fmapSH (t: transition S H) : transition S' H' :=
+    match t with
+    | TGoto _ s => TGoto _ (state_ref_fmapS s)
+    | TSel expr cases default =>
+      TSel (expr_fmapH expr) (List.map sel_case_fmapS cases) (state_ref_fmapS default)
+    end.
+
+  Fixpoint op_fmapH (o: op H) : op H' :=
+    match o with
+    | OpNil _ => OpNil _
+    | OpSeq o1 o2 => OpSeq (op_fmapH o1) (op_fmapH o2)
+    | OpExtract width hdr => OpExtract width (hdr_ref_fmapH hdr)
+    | OpAsgn lhs rhs => OpAsgn (hdr_ref_fmapH lhs) (expr_fmapH rhs)
+    end.
+
+  Definition state_fmapSH (s: state S H) : state S' H' :=
+    {| st_op := op_fmapH s.(st_op);
+       st_trans := transition_fmapSH s.(st_trans) |}.
+
+  Definition t_fmapSH (a: t S H) : t S' H' :=
+    Env.map_keys f (Env.map_vals state_fmapSH a).
+End Fmap.
+
+Definition t_fmapH {S H H'} (f: H -> H') (a: t S H) : t S H' :=
+  t_fmapSH id f a.
+
+Definition t_fmapS {S H S'} (f: S -> S') (a: t S H) : t S' H :=
+  t_fmapSH f id a.
 
 Section Interp.
   (* State identifiers. *)

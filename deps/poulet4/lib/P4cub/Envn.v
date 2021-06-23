@@ -47,6 +47,12 @@ Section EnvDefs.
   (* TODO: whatever lemmas needed. *)
 End EnvDefs.
 
+Definition map_keys {D T D'} (f: D -> D') : t D T -> t D' T :=
+  List.map (fun '(k, v) => (f k, v)).
+
+Definition map_vals {D T T'} (f: T -> T') : t D T -> t D T' :=
+  List.map (fun '(k, v) => (k, f v)).
+
 Module EnvNotations.
   Notation "'!{' env '}!'" := env (env custom p4env at level 99).
   Notation "x" := x (in custom p4env at level 0, x constr at level 0).

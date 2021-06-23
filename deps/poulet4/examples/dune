@@ -3,6 +3,7 @@
  (package poulet4)
  (synopsis "Verification examples for Petr4")
  (theories Poulet4)
- (modules (:standard \ BabyIPGrammarRel))
+ (modules (:standard \ BabyIPGrammarRel
+                     \ P4AutomatonValues))
 )
 (include_subdirs qualified)

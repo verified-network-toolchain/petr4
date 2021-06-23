@@ -42,6 +42,12 @@ struct headers {
     ipv4_t       ipv4;
 }
 
+struct learning_message_t {
+    bit<32> port;
+    ip4Addr_t src;
+}
+    
+
 /*************************************************************************
 *********************** P A R S E R  ***********************************
 *************************************************************************/
@@ -94,6 +100,10 @@ control MyIngress(inout headers hdr,
         standard_metadata.mcast_grp = 1;
     }
 
+    action forward(bit<32> port) {
+	standard_metadata.egress_spec = (egressSpec_t) port;
+    }
+
     table ethernet_learning {
         key = {
 	    hdr.ipv4.dstAddr:exact;
@@ -101,12 +111,26 @@ control MyIngress(inout headers hdr,
 	actions = {
 	    broadcast;
 	    drop;
-	    NoAction;
+	    forward;
 	}
 	default_action = broadcast();
     }
     
     apply {
+	learning_message_t msg;
+	msg.port = (bit<32>) standard_metadata.ingress_port;
+	msg.src = hdr.ipv4.srcAddr;
+	hdr.ipv4.srcAddr = hdr.ipv4.dstAddr;
+	hdr.ipv4.dstAddr = msg.src;
+	switch(ethernet_learning.apply().action_run) {
+	    broadcast: {
+		digest(0, msg);
+	    }
+	    default: { }
+	}
+	hdr.ipv4.dstAddr = hdr.ipv4.srcAddr;
+	hdr.ipv4.srcAddr = msg.src;
+	standard_metadata.mcast_grp = 0;   
 	ethernet_learning.apply();
     }
 }

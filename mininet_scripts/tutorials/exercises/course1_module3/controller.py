@@ -39,6 +39,9 @@ class LearningApp(App):
         return
                 
     def packet_in(self,switch,in_port,packet):
+        port = packet[:33]
+        dst = packet[33:]
+        entry = Entry("ethernet_learning", [("hdr.ipv4.dstAddr", dst), "forward", [port])
         # TODO
         super().packet_in(switch, in_port, packet)
         

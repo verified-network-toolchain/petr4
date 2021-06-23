@@ -480,12 +480,12 @@ Definition is_out (dir : direction) : bool :=
   | _ => false
   end.
 
-Definition filter_in (params : list (path * direction)) : list path :=
+Definition filter_in {A} (params : list (A * direction)) : list A :=
   let f param :=
     if is_in (snd param) then [fst param] else [] in
   flat_map f params.
 
-Definition filter_out (params : list (path * direction)) : list path :=
+Definition filter_out {A} (params : list (A * direction)) : list A :=
   let f param :=
     if is_out (snd param) then [fst param] else [] in
   flat_map f params.
@@ -500,9 +500,9 @@ Definition bind_parameters (params : list (path * direction)) (args : list Val) 
 
 
 Fixpoint extract_parameters (paths : list path) (s : state) : option (list Val) :=
-  let st := get_memory s in 
+  let st := get_memory s in
   match paths with
-  | hd :: tl => 
+  | hd :: tl =>
     match extract_parameters tl s with
     | None => None
     | Some tl' =>
@@ -526,12 +526,6 @@ Definition is_continue (s : signal) : bool :=
   | _ => false
   end.
 
-Inductive signal_return_value : signal -> Val -> Prop :=
-| signal_return_return : forall v,
-    signal_return_value (SReturn v) v
-| signal_return_continue :
-    signal_return_value SContinue ValBaseNull.
-
 Definition force_return_signal (sig : signal) : signal :=
   match sig with
   | SContinue => SReturnNull
@@ -543,7 +537,7 @@ Definition force_continue_signal (sig : signal) : signal :=
   | SReturn _ => SContinue
   | _ => sig
   end.
-  
+
 Definition not_return (sig : signal) : bool :=
   match sig with
   | SReturn _ => false
@@ -697,7 +691,7 @@ Inductive exec_lexpr : path -> state -> (@Expression tags_t) -> Lval -> signal -
                              (next < size)%nat ->
                              exec_lexpr this st
                              (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
-                             (MkValueLvalue (ValLeftArrayAccess lv next) typ) 
+                             (MkValueLvalue (ValLeftArrayAccess lv next) typ)
                              (if (next <? size)%nat then sig else (SReject StackOutOfBounds_str))
   (* ATTN: lo and hi interchanged here; lo & hi checked in the typechecker *)
   | exec_lexpr_bitstring_access : forall bits lv lo hi this st tag typ dir sig,
@@ -782,11 +776,11 @@ Inductive write_header_field: Val -> P4String -> Val -> Val -> Prop :=
      Besides, the reading afterwards still produces undefined behavior. *)
   | write_header_field_intro : forall fields fname bool fv fields',
                                AList.set fields fname fv = Some fields' ->
-                               write_header_field (ValBaseHeader fields bool) fname fv 
+                               write_header_field (ValBaseHeader fields bool) fname fv
                                (ValBaseHeader fields' bool).
 
-Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4String) 
-                             (hfields: P4String.AList tags_t Val) (is_valid: bool) : 
+Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4String)
+                             (hfields: P4String.AList tags_t Val) (is_valid: bool) :
                              option (P4String.AList tags_t Val) :=
   match fields with
   | [] => Some []
@@ -806,7 +800,7 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Val) (fname: P4Strin
   end.
 
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
+   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
    Also, value here if derived from lvalue in the caller, so last_string does not exist. *)
 Inductive update_member : Val -> P4String -> Val -> Val -> Prop :=
   | update_member_header : forall fields is_valid fname fv v,
@@ -882,34 +876,34 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
 (* inout -> (Some _, Some _) *)
 Inductive exec_arg : path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
   | exec_arg_in : forall this st expr val,
-                  exec_expr this st expr val -> 
+                  exec_expr this st expr val ->
                   exec_arg this st (Some expr) In (Some val, None) SContinue
-  | exec_arg_out_dontcare : forall this st, 
+  | exec_arg_out_dontcare : forall this st,
                             exec_arg this st None Out (None, None) SContinue
   | exec_arg_out : forall this st expr lval sig,
-                   exec_lexpr this st expr lval sig -> 
+                   exec_lexpr this st expr lval sig ->
                    exec_arg this st (Some expr) Out (None, Some lval) sig
   | exec_arg_inout : forall this st expr lval val sig,
-                     exec_lexpr this st expr lval sig -> 
+                     exec_lexpr this st expr lval sig ->
                      exec_read this st lval val ->
                      exec_arg this st (Some expr) InOut (Some val, Some lval) sig.
 
 (* exec_arg on a list *)
 Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> list direction -> list argument -> signal -> Prop :=
-| exec_args_nil: forall p s, 
+| exec_args_nil: forall p s,
                  exec_args p s nil nil nil SContinue
 | exec_args_cons : forall p s exp exps dir dirs arg args sig sig',
                    exec_arg p s exp dir arg sig ->
                    exec_args p s exps dirs args sig' ->
-                   exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) 
+                   exec_args p s (exp :: exps) (dir :: dirs) (arg :: args)
                    (if is_continue sig then sig' else sig).
-(* After SimplExpr, sig here in fact can only be SReject. 
+(* After SimplExpr, sig here in fact can only be SReject.
    Todo: the current behavior is after getting a non-continue signal, all args are still evaluated.
-         SimplExpr makes execution stops at the non-continue signal. Even though exec_args won't 
+         SimplExpr makes execution stops at the non-continue signal. Even though exec_args won't
          affect state, it is still good to make the two behavior consistent. *)
 (* | exec_args_cons_other : forall p s exp exps dir dirs arg args sig sig',
                          exec_arg p s exp dir arg sig ->
-                         not_continue sig = true -> 
+                         not_continue sig = true ->
                          exec_args p s exps dirs args sig' ->
                          exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) sig. *)
 
@@ -922,7 +916,7 @@ Inductive exec_copy_out_one: path -> state -> option Lval -> Val -> state -> Pro
 
 Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
 (* This depends on assigning to lvalues. *)
-| exec_copy_out_nil : forall p s, 
+| exec_copy_out_nil : forall p s,
                       exec_copy_out p s nil nil s
 | exec_copy_out_cons : forall p s1 s2 s3 lv lvs val vals,
                        exec_copy_out_one p s1 lv val s2 ->
@@ -961,7 +955,7 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   match cases with
   | [] => None
   | StatSwCaseAction _ (StatSwLabName _ label) code :: tl =>
-    if P4String.equivb label member then Some code 
+    if P4String.equivb label member then Some code
     else match_switch_case member tl
   | StatSwCaseFallThrough _ (StatSwLabName _ label) :: tl =>
     if P4String.equivb label member then find_next_action tl
@@ -1010,7 +1004,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                         exec_lexpr this_path st lhs lv sig ->
                         (if is_continue sig then exec_write this_path st lv v st' else True) ->
                         exec_stmt this_path inst_m st
-                        (MkStatement tags (StatAssignment lhs rhs) typ) 
+                        (MkStatement tags (StatAssignment lhs rhs) typ)
                         (if is_continue sig then st' else st)
                         (if is_continue sig then SContinue else sig)
   | exec_stmt_assign_func_call : forall lhs lv rhs v this_path inst_m st tags typ st' st'' sig sig',
@@ -1019,7 +1013,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                  (if is_return sig' then get_return_val sig' = Some v else True) ->
                                  (if is_return sig' then exec_write this_path st' lv v st'' else True)->
                                  exec_stmt this_path inst_m st
-                                 (MkStatement tags (StatAssignment lhs rhs) typ) 
+                                 (MkStatement tags (StatAssignment lhs rhs) typ)
                                  (if not_continue sig then st else if not_return sig' then st' else st'')
                                  (if not_continue sig then sig else if not_return sig' then sig' else SContinue)
   | exec_stmt_method_call : forall this_path inst_m st tags func args typ st' sig sig',
@@ -1047,11 +1041,11 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                                      exec_stmt this_path inst_m st (if b then tru else empty_statement) st' sig ->
                                      exec_stmt this_path inst_m st
                                      (MkStatement tags (StatConditional cond tru None) typ) st SContinue
-  | exec_stmt_block : forall block this_path inst_m st tags typ st' sig, 
+  | exec_stmt_block : forall block this_path inst_m st tags typ st' sig,
                       exec_block this_path inst_m st block st' sig ->
                       exec_stmt this_path inst_m st
                       (MkStatement tags (StatBlock block) typ) st' sig
-  | exec_stmt_exit : forall this_path inst_m (st: state) tags typ st, 
+  | exec_stmt_exit : forall this_path inst_m (st: state) tags typ st,
                      exec_stmt this_path inst_m st
                      (MkStatement tags StatExit typ) st SExit
   | exec_stmt_return_none : forall this_path inst_m (st: state) tags typ st,
@@ -1104,10 +1098,10 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
                      exec_block this_path inst_m st (BlockEmpty tags) st SContinue
-  | exec_block_cons : forall stmt rest this_path inst_m st st' st'' sig sig', 
+  | exec_block_cons : forall stmt rest this_path inst_m st st' st'' sig sig',
                       exec_stmt this_path inst_m st stmt st' sig ->
                       exec_block this_path inst_m st' (if is_continue sig then rest else empty_block) st'' sig' ->
-                      exec_block this_path inst_m st (BlockCons stmt rest) 
+                      exec_block this_path inst_m st (BlockCons stmt rest)
                       st'' (if is_continue sig then sig' else sig)
 
 with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
@@ -1118,7 +1112,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
       exec_builtin this_path s lv fname (extract_invals argvals) s' sig'' ->
       exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall
           (MkExpression tag' (ExpExpressionMember lhs fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
-          nil args) typ dir) 
+          nil args) typ dir)
           (if not_continue sig then s else if not_continue sig' then s else s')
           (if not_continue sig then sig else if not_continue sig' then sig' else sig'')
 
@@ -1134,7 +1128,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
       exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig' ->
       exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
-      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir) 
+      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       (if is_continue sig then s'' else s)
       (if is_continue sig then sig' else sig)
   (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next). *)

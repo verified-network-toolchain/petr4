@@ -33,6 +33,17 @@ Module Simple.
 
   Definition aut: Syntax.t state header :=
     Env.bind Start st_start (Env.empty _ _).
+
+  Lemma has_extract:
+    forall s H,
+      0 < P4A.size (a:=aut) (exist _ s H).
+  Proof.
+    unfold aut.
+    destruct s.
+    cbv.
+    Lia.lia.
+  Qed.
+  
 End Simple. 
 
 Module Split.
@@ -70,6 +81,15 @@ Module Split.
 
   Definition aut: Syntax.t state header :=
     Env.bind StSplit1 st_split1 (Env.bind StSplit2 st_split2 (Env.empty _ _)).
+
+  Lemma has_extract:
+    forall s H,
+      0 < P4A.size (a:=aut) (exist _ s H).
+  Proof.
+    unfold aut.
+    destruct s; cbv; Lia.lia.
+  Qed.
+  
 End Split.
 
 Module SimpleSplit.
@@ -82,5 +102,13 @@ Module SimpleSplit.
     ltac:(typeclasses eauto).
 
   Definition aut := Eval cbv in sum Simple.aut Split.aut.
-End SimpleSplit.
 
+  Lemma has_extract:
+    forall s H,
+      0 < P4A.size (a:=aut) (exist _ s H).
+  Proof.
+    unfold aut, Simple.aut, Split.aut.
+    destruct s as [s|s]; destruct s; cbv; Lia.lia.
+  Qed.
+  
+End SimpleSplit.

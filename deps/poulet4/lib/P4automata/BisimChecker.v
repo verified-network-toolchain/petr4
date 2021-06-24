@@ -10,6 +10,7 @@ Section BisimChecker.
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.
+  Variable (S_elems_replace_w_typeclass: list S).
 
   (* Header identifiers. *)
   Variable (H: Type).
@@ -42,6 +43,29 @@ Section BisimChecker.
         (C :: R) ⇝ (T ++ WP.wp C) q1 q2 ->
         R ⇝ (C :: T) q1 q2
   where "R ⇝ S" := (pre_bisimulation R S).
+
+  Definition not_accept1 (s: P4A.state_type a) : conf_rel a := 
+    {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
+                   cs_st2 := {| st_state := inl s;    st_buf_len := 0 |} |};
+       cr_rel := BRFalse _ |}.
+
+  Definition not_accept2 (s: P4A.state_type a) : conf_rel a := 
+    {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
+                   cs_st2 := {| st_state := inl s;    st_buf_len := 0 |} |};
+       cr_rel := BRFalse _ |}.
+
+  Definition init_rel : crel a := 
+    List.map not_accept1 (P4A.list_states a) ++
+    List.map not_accept2 (P4A.list_states a).
+  
 End BisimChecker.
 
 Require Import Poulet4.P4automata.Examples.
+Definition R0 := init_rel SimpleSplit.aut.
+
+Lemma prebisim:
+  forall q1 q2,
+    pre_bisimulation (has_extract:=SimpleSplit.has_extract) R0 nil q1 q2.
+Proof.
+Abort.
+       

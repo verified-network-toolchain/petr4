@@ -9,8 +9,110 @@ module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
-module Corize (T : Target) : Target = struct
+let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
+  match t with
+  | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
+  | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
+  | NewType nt -> field_types_of_typ env nt.typ
+  | _ -> failwith "type does not have fields"
+       
+let value_of_field (init_fs : (string * value) list)
+      (f : RecordType.field) : string * value =
+  f.name,
+  List.Assoc.find_exn init_fs f.name ~equal:String.equal
+  
+let rec reset_fields (env : env) (fs : (string * value) list)
+          (t : Type.t) : (string * value) list =
+  match t with
+  | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
+  | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
+  | NewType nt -> reset_fields env fs nt.typ
+  | _ -> raise_s [%message "not resettable"
+                     ~t:(t:Type.t)]
 
+let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : buf =
+  let eight = Bigint.((one + one) * (one + one) * (one + one)) in
+  let seven = Bigint.(eight - one) in
+  if Bigint.(w % eight <> zero) then failwith "packet_of_bytes: len must be byte-aligned";
+  let rec h acc n w =
+    if Bigint.(w = zero) then acc else
+      let lsbyte = bitstring_slice n seven Bigint.zero in
+      let n' = bitstring_slice n Bigint.(w-one) eight in
+      h (lsbyte :: acc) n' Bigint.(w-eight) in
+  let bytes = h [] n w in
+  let ints = List.map bytes ~f:Bigint.to_int_exn in
+  let chars = List.map ints ~f:Char.of_int_exn in
+  let s = String.of_char_list chars in
+  Cstruct.of_string s
+  
+let rec packet_of_value (env : env) (t : Type.t) (v : value) : buf =
+  match v with
+  | VBit {w; v} -> packet_of_bit w v
+  | VInt {w; v} -> packet_of_int w v
+  | VVarbit {max; w; v} -> packet_of_bit w v
+  | VStruct {fields} -> packet_of_struct env t fields
+  | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
+  | VUnion {fields} -> packet_of_struct env t fields
+  | VStack {headers; _} -> packet_of_stack env t headers
+  | VInteger _ -> failwith "it was integer"
+  | _ -> failwith "emit undefined on type"
+       
+and packet_of_bit (w : Bigint.t) (v : Bigint.t) : buf =
+  packet_of_bytes v w
+  
+and packet_of_int (w : Bigint.t) (v : Bigint.t) : buf =
+  packet_of_bytes (of_twos_complement v w) w
+  
+and packet_of_struct (env : env) (t : Type.t)
+(fields : (string * value) list) : buf =
+  let fs = reset_fields env fields t in
+  let fs' = List.map ~f:snd fs in
+  let fts = field_types_of_typ env t in
+  let pkts = List.map2_exn ~f:(fun v t -> packet_of_value env t v) fs' fts in
+  List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
+  
+and packet_of_hdr (env : env) (t : Type.t)
+(fields : (string * value) list) (is_valid : bool) : buf =
+  let rec underlying_typ_of_enum env t =
+    match t with
+    | Typed.Type.Enum et -> Option.value_exn et.typ
+    | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
+    | NewType nt -> nt.typ |> underlying_typ_of_enum env
+    | _ -> failwith "no such underlying type" in
+  let f = fun (accw, accv) (w,v) ->
+      Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
+  let rec wv_of_val (v, t) = match v with
+    | VBit{w;v} -> w, v
+    | VInt{w;v} -> w, of_twos_complement v w
+    | VVarbit{max;w;v} -> w, v
+    | VBool true -> Bigint.one, Bigint.one
+    | VBool false -> Bigint.one, Bigint.zero
+    | VSenumField{v;_} -> wv_of_val (v, underlying_typ_of_enum env t)
+    | VStruct {fields;} ->
+       let fs = reset_fields env fields t in
+       let fs' = List.map ~f:snd fs in
+       let fts = field_types_of_typ env t in
+        List.zip_exn fs' fts |> List.map ~f:wv_of_val
+        |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f
+    | _ -> failwith "invalid type for header field" in
+  if not is_valid then Cstruct.empty else
+    let fts = field_types_of_typ env t in
+    let w, v = reset_fields env fields t
+      |> List.map ~f:snd
+               |> (fun a -> List.zip_exn a fts)
+               |> List.map ~f:wv_of_val
+               |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f in
+    packet_of_bit w v
+    
+and packet_of_stack (env : env) (t : Type.t) (hdrs : value list) : buf =
+  let t' = match t with
+    | Array at -> at.typ
+    | _ -> failwith "expected array type" in
+  let pkts = List.map ~f:(packet_of_value env t') hdrs in
+  List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
+  
+module Corize (T : Target) : Target = struct
+  
   type obj = T.obj
 
   type state = T.state
@@ -109,15 +211,6 @@ module Corize (T : Target) : Target = struct
       (nvarbits : Bigint.t) (n, s) : ((Bigint.t * Bigint.t) * signal) * value =
     let (x, v) = extract_hdr_field nvarbits (n, s) v in
     x, VSenumField{typ_name; enum_name; v}
-
-  let rec reset_fields (env : env) (fs : (string * value) list)
-      (t : Type.t) : (string * value) list =
-    match t with
-    | Struct rt | Header rt | HeaderUnion rt -> List.map rt.fields ~f:(value_of_field fs)
-    | TypeName n  -> reset_fields env fs (EvalEnv.find_typ n env)
-    | NewType nt -> reset_fields env fs nt.typ
-    | _ -> raise_s [%message "not resettable"
-                  ~t:(t:Type.t)]
 
   let eval_extract' (env : env) (st : state)
       (t : Type.t) (pkt : value) (_ : value) (w : Bigint.t)
@@ -247,94 +340,6 @@ module Corize (T : Target) : Target = struct
       let len = obj.in_size in
       env, st, SContinue, VBit {w= Bigint.of_int 32; v = Bigint.of_int len }
     | _ -> failwith "unexpected args for length"
-
-  let packet_of_bytes (n : Bigint.t) (w : Bigint.t) : buf =
-    let eight = Bigint.((one + one) * (one + one) * (one + one)) in
-    let seven = Bigint.(eight - one) in
-    if Bigint.(w % eight <> zero) then failwith "packet_of_bytes: len must be byte-aligned";
-    let rec h acc n w =
-      if Bigint.(w = zero) then acc else
-        let lsbyte = bitstring_slice n seven Bigint.zero in
-        let n' = bitstring_slice n Bigint.(w-one) eight in
-        h (lsbyte :: acc) n' Bigint.(w-eight) in
-    let bytes = h [] n w in
-    let ints = List.map bytes ~f:Bigint.to_int_exn in
-    let chars = List.map ints ~f:Char.of_int_exn in
-    let s = String.of_char_list chars in
-    Cstruct.of_string s
-
-  let rec field_types_of_typ (env : env) (t : Type.t) : Type.t list =
-    match t with
-    | Header rt | Record rt | Struct rt | HeaderUnion rt -> List.map rt.fields ~f:(fun x -> x.typ)
-    | TypeName n -> field_types_of_typ env (EvalEnv.find_typ n env)
-    | NewType nt -> field_types_of_typ env nt.typ
-    | _ -> failwith "type does not have fields"
-
-  let rec packet_of_value (env : env) (t : Type.t) (v : value) : buf =
-    match v with
-    | VBit {w; v} -> packet_of_bit w v
-    | VInt {w; v} -> packet_of_int w v
-    | VVarbit {max; w; v} -> packet_of_bit w v
-    | VStruct {fields} -> packet_of_struct env t fields
-    | VHeader {fields; is_valid} -> packet_of_hdr env t fields is_valid
-    | VUnion {fields} -> packet_of_struct env t fields
-    | VStack {headers; _} -> packet_of_stack env t headers
-    | VInteger _ -> failwith "it was integer"
-    | _ -> failwith "emit undefined on type"
-
-  and packet_of_bit (w : Bigint.t) (v : Bigint.t) : buf =
-    packet_of_bytes v w
-
-  and packet_of_int (w : Bigint.t) (v : Bigint.t) : buf =
-    packet_of_bytes (of_twos_complement v w) w
-
-  and packet_of_struct (env : env) (t : Type.t)
-      (fields : (string * value) list) : buf =
-    let fs = reset_fields env fields t in
-    let fs' = List.map ~f:snd fs in
-    let fts = field_types_of_typ env t in
-    let pkts = List.map2_exn ~f:(fun v t -> packet_of_value env t v) fs' fts in
-    List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
-
-  and packet_of_hdr (env : env) (t : Type.t)
-      (fields : (string * value) list) (is_valid : bool) : buf =
-    let rec underlying_typ_of_enum env t =
-      match t with
-      | Typed.Type.Enum et -> Option.value_exn et.typ
-      | TypeName n -> EvalEnv.find_typ n env |> underlying_typ_of_enum env
-      | NewType nt -> nt.typ |> underlying_typ_of_enum env
-      | _ -> failwith "no such underlying type" in
-    let f = fun (accw, accv) (w,v) ->
-      Bigint.(accw + w), Bigint.(shift_bitstring_left accv w + v) in
-    let rec wv_of_val (v, t) = match v with
-      | VBit{w;v} -> w, v
-      | VInt{w;v} -> w, of_twos_complement v w
-      | VVarbit{max;w;v} -> w, v
-      | VBool true -> Bigint.one, Bigint.one
-      | VBool false -> Bigint.one, Bigint.zero
-      | VSenumField{v;_} -> wv_of_val (v, underlying_typ_of_enum env t)
-      | VStruct {fields;} ->
-        let fs = reset_fields env fields t in
-        let fs' = List.map ~f:snd fs in
-        let fts = field_types_of_typ env t in
-        List.zip_exn fs' fts |> List.map ~f:wv_of_val
-        |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f
-      | _ -> failwith "invalid type for header field" in
-    if not is_valid then Cstruct.empty else
-    let fts = field_types_of_typ env t in
-    let w, v = reset_fields env fields t
-      |> List.map ~f:snd
-      |> (fun a -> List.zip_exn a fts)
-      |> List.map ~f:wv_of_val
-      |> List.fold ~init:(Bigint.zero, Bigint.zero) ~f:f in
-    packet_of_bit w v
-
-  and packet_of_stack (env : env) (t : Type.t) (hdrs : value list) : buf =
-    let t' = match t with
-      | Array at -> at.typ
-      | _ -> failwith "expected array type" in
-    let pkts = List.map ~f:(packet_of_value env t') hdrs in
-    List.fold ~init:Cstruct.empty ~f:Cstruct.append pkts
 
   let eval_emit : extern = fun env st _ args ->
     let (pkt_loc, v, t) = match args with

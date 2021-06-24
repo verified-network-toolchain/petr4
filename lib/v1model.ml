@@ -13,6 +13,7 @@ module Hash = H
 module PreV1Switch : Target = struct
 
   let drop_spec = Bigint.of_int 511
+  let ctrl_spec = Bigint.of_int 510
 
   type obj =
     | Counter of {
@@ -21,7 +22,7 @@ module PreV1Switch : Target = struct
       }
     | DirectCounter of {
       typ : counter_type;
-    }
+      }
     | Meter of unit (* TODO *)
     | DirectMeter of unit (* TODO *)
     | Register of {
@@ -31,6 +32,7 @@ module PreV1Switch : Target = struct
     | ActionProfile of unit (* TODO *)
     | ActionSelector of unit (* TODO *)
     | Checksum16 of unit (* TODO *)
+    | DigestQueue of buf list
 
   and counter_type =
     | Packets of Bigint.t list
@@ -40,6 +42,11 @@ module PreV1Switch : Target = struct
 
   type state = obj State.t
   type extern = state pre_extern
+
+  let assert_digest_queue obj =
+    match obj with
+    | DigestQueue l -> l
+    | _ -> failwith "not a digest queue"
 
   let read_header_field : obj reader = fun is_valid fields fname ->
     List.Assoc.find_exn fields fname ~equal:String.equal
@@ -149,8 +156,6 @@ module PreV1Switch : Target = struct
       let env = EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) l env in 
       env, st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
-
-  
   
   let eval_meter_read : extern = fun env st ts args ->
     env, st, SContinue, VNull (* TODO: actually implement *)
@@ -216,7 +221,16 @@ module PreV1Switch : Target = struct
     env', st, SContinue, VNull
         
   let eval_digest : extern = fun env st ts args ->
-    env, st, SContinue, VNull (* TODO: actually implement *)
+    let (msg, msg_t) =
+      match args with
+      | [ _ ; (msg, msg_t) ] -> msg, msg_t
+      | _ -> failwith "unexpected args for digest" in
+    let queue = State.find_extern "__DIGEST_QUEUE__" st
+                |> assert_digest_queue in
+    let pkt = P4core.packet_of_value env msg_t msg in
+    let queue = pkt :: queue in
+    let st = State.insert_extern "__DIGEST_QUEUE__" (DigestQueue queue) st in
+    env, st, SContinue, VNull
 
   let eval_mark_to_drop : extern = fun env st ts args ->
     let _ = match args with
@@ -671,7 +685,7 @@ module PreV1Switch : Target = struct
     let in_port = State.find_heap "__INGRESS_PORT__" st |> assert_bit |> snd in
     let st = State.insert_heap "__CLONE_PRIM__" (VBool false) st in
     let st = State.insert_heap "__RECIRC_PRIM__" (VBool false) st in
-    let st = State.insert_heap "__DIGEST_PRIM__" (VBool false) st in
+    let st = State.insert_extern "__DIGEST_QUEUE__" (DigestQueue []) st in
     let st = State.insert_heap "__RESUB_PRIM__" (VBool false) st in
     let ingress_port_lv =
       std_meta_field_lv pkg.std_meta_t port_typ "ingress_port" in
@@ -729,52 +743,57 @@ module PreV1Switch : Target = struct
       State.find_heap pkg.std_meta_loc st
       |> assert_struct
       |> fun x -> List.Assoc.find_exn x "mcast_grp" ~equal:String.equal in
+    let digest_pkts =
+      State.find_extern "__DIGEST_QUEUE__" st
+      |> assert_digest_queue
+      |> List.map ~f:(fun pkt -> { emitted = Cstruct.empty; main = pkt; in_size = 0 })
+      |> List.map ~f:(fun pkt -> pkt, ctrl_spec) in
     let egress_port_lv =
       std_meta_field_lv pkg.std_meta_t port_typ "egress_port" in
     let egress_rid_lv =
       std_meta_field_lv pkg.std_meta_t rid_typ "egress_rid" in
-    if State.find_heap "__CLONE_PRIM__" st |> assert_bool
-    then st, env, [] (* TODO: implement support for ingress cloning *)
-    else if State.find_heap "__DIGEST_PRIM__" st |> assert_bool
-    then st, env, [] (* TODO: implement support for digest *)
-    else if State.find_heap "__RESUB_PRIM__" st |> assert_bool
-    then st, env, [] (* TODO: implement support for resubmission *)
-    else if Bigint.(bigint_of_val mcast_grp_val <> zero)
-    then
-      (* Current multicast implementation simply duplicates the packet for each
-         port on the switch except for the one on which the packet arrived. *)
-      let num_ports =
-        State.find_heap "__NUM_PORTS__" st
-        |> assert_rawint
-        |> Bigint.to_int_exn in
-      let ingress_port =
-        State.find_heap "__INGRESS_PORT__" st
-        |> assert_bit
-        |> snd
-        |> Bigint.to_int_exn in
-      let () = Printf.eprintf "[Multicast num_ports=%d ingress_port=%d]\n%!" num_ports ingress_port in
-      let instances = List.init (num_ports + 1) ~f:Fn.id |> List.tl |> Option.value ~default:[] in
-      let instances = List.filter instances ~f:((<>) ingress_port) in
-      let f acc_st inst : obj State.t * (pkt * Bigint.t) list =
-        let egress_spec_val =
-          VBit { w = Bigint.of_int 9; v = Bigint.of_int inst } in
-        let egress_rid_val =
-          VBit { w = Bigint.of_int 16; v = Bigint.of_int inst } in
-        let acc_st, _ = assign_lvalue acc_st env egress_port_lv egress_spec_val in
-        let acc_st, _ = assign_lvalue acc_st env egress_rid_lv egress_rid_val in
-        let acc_st, _, pkts = egress_processing ctrl env acc_st app pkg in
-        State.merge st acc_st, pkts in
-      let st, output_pkts = List.fold_map instances ~init:st ~f in
-      st, env, List.concat output_pkts
-    else if Bigint.(bigint_of_val egress_spec_val = drop_spec)
-    then
-      let () = Printf.eprintf "[Drop]\n%!" in
-      st, env, []
-    else
-      let () = Printf.eprintf "[Forward %d -> %d]\n%!" ingress_port (bigint_of_val egress_spec_val |> Bigint.to_int_exn) in
-      let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
-      egress_processing ctrl env st app pkg
-
+    let st, env, pkts = 
+      if State.find_heap "__CLONE_PRIM__" st |> assert_bool
+      then st, env, [] (* TODO: implement support for ingress cloning *)
+      else if State.find_heap "__RESUB_PRIM__" st |> assert_bool
+      then st, env, [] (* TODO: implement support for resubmission *)
+      else if Bigint.(bigint_of_val mcast_grp_val <> zero)
+      then
+        (* Current multicast implementation simply duplicates the packet for each
+           port on the switch except for the one on which the packet arrived. *)
+        let num_ports =
+          State.find_heap "__NUM_PORTS__" st
+          |> assert_rawint
+          |> Bigint.to_int_exn in
+        let ingress_port =
+          State.find_heap "__INGRESS_PORT__" st
+          |> assert_bit
+          |> snd
+          |> Bigint.to_int_exn in
+        let () = Printf.eprintf "[Multicast num_ports=%d ingress_port=%d]\n%!" num_ports ingress_port in
+        let instances = List.init (num_ports + 1) ~f:Fn.id |> List.tl |> Option.value ~default:[] in
+        let instances = List.filter instances ~f:((<>) ingress_port) in
+        let f acc_st inst : obj State.t * (pkt * Bigint.t) list =
+          let egress_spec_val =
+            VBit { w = Bigint.of_int 9; v = Bigint.of_int inst } in
+          let egress_rid_val =
+            VBit { w = Bigint.of_int 16; v = Bigint.of_int inst } in
+          let acc_st, _ = assign_lvalue acc_st env egress_port_lv egress_spec_val in
+          let acc_st, _ = assign_lvalue acc_st env egress_rid_lv egress_rid_val in
+          let acc_st, _, pkts = egress_processing ctrl env acc_st app pkg in
+          State.merge st acc_st, pkts in
+        let st, output_pkts = List.fold_map instances ~init:st ~f in
+        st, env, List.concat output_pkts
+      else if Bigint.(bigint_of_val egress_spec_val = drop_spec)
+      then
+        let () = Printf.eprintf "[Drop]\n%!" in
+        st, env, []
+      else
+        let () = Printf.eprintf "[Forward %d -> %d]\n%!" ingress_port (bigint_of_val egress_spec_val |> Bigint.to_int_exn) in
+        let st, _ = assign_lvalue st env egress_port_lv egress_spec_val in
+        egress_processing ctrl env st app pkg in
+    st, env, digest_pkts @ pkts
+        
   and egress_processing
       (ctrl : ctrl)
       (env : env)

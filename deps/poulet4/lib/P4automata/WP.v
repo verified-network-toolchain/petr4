@@ -5,6 +5,8 @@ Module P4A := Poulet4.P4automata.Syntax.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
 
 Section WeakestPre.
+  Set Implicit Arguments.
+  
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.

@@ -118,16 +118,19 @@ Section ConfRel.
       interp_conf_state c.(cr_st) x y ->
       interp_store_rel c.(cr_rel) x y.
 
-  Definition chunked_relation :=
+  Definition crel :=
     list conf_rel.
 
-  Definition rel_true: forall A, relation A :=
+  Definition rel_true: forall {A}, relation A :=
     fun _ x y => True.
 
-  Fixpoint interp_chunked_relation (rel: chunked_relation) : relation conf :=
+  Notation "⊤" := rel_true.
+  Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
+  Notation "⟦ x ⟧" := (interp_conf_rel x).
+  Fixpoint interp_crel (rel: crel) : relation conf :=
     match rel with
-    | nil => @rel_true conf
-    | r :: rel' => relation_conjunction (interp_conf_rel r) (interp_chunked_relation rel')
+    | [] => ⊤
+    | r :: rel' => ⟦r⟧ ⊓ interp_crel rel'
     end.
 
 End ConfRel.

@@ -18,7 +18,7 @@ Extract Inductive N => "Bigint.t" [ "(Bigint.of_zarith_bigint Z.zero)" "" ]
 
 Require Poulet4.SimplExpr.
 Require Poulet4.GenLoc.
-Require Poulet4.CComp.
+Require Poulet4.Ccompiler.CComp.
 
 Extract Constant SyntaxUtil.dummy_ident => "(fun () -> failwith ""unrealized dummy_ident reached"")".
 Extract Constant SimplExpr.to_digit => "(fun x -> Char.chr 20)".

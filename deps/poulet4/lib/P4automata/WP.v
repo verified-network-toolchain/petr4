@@ -93,6 +93,9 @@ Section WeakestPre.
     | BROr r1 r2 =>
       BROr (store_rel_subst s h exp r1)
            (store_rel_subst s h exp r2)
+    | BRImpl r1 r2 =>
+      BRImpl (store_rel_subst s h exp r1)
+             (store_rel_subst s h exp r2)
     end.
 
   Fixpoint wp_op' (s: side) (o: P4A.op H) : nat * store_rel H -> nat * store_rel H :=
@@ -124,7 +127,7 @@ Section WeakestPre.
   Definition wp_edge (c: conf_rel S H) (s: side) (st: P4A.state S H) : store_rel H :=
     let st' := pick_template s c.(cr_st) in
     let tcond := trans_cond Left (P4A.st_trans st) st'.(st_state) in
-    let wp_trans := BRAnd c.(cr_rel) tcond in
+    let wp_trans := BRImpl tcond c.(cr_rel) in
     wp_op s (P4A.st_op st) wp_trans.
 
   Definition wp_edges (c: conf_rel S H) (s_left: S) (s_right: S) : store_rel H :=

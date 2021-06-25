@@ -43,19 +43,23 @@ Section BisimChecker.
         R ⇝ (C :: T) q1 q2
   where "R ⇝ S" := (pre_bisimulation R S).
 
-  Definition not_accept1 (s: S) : conf_rel S H := 
-    {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
-                   cs_st2 := {| st_state := inl s;    st_buf_len := 0 |} |};
-       cr_rel := BRFalse _ |}.
+  Definition not_accept1 (s: S) : crel S H := 
+    List.map (fun n =>
+                {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
+                               cs_st2 := {| st_state := inl s;    st_buf_len := n |} |};
+                   cr_rel := BRFalse _ |})
+             [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15].
 
-  Definition not_accept2 (s: S) : conf_rel S H := 
-    {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
-                   cs_st2 := {| st_state := inl s;    st_buf_len := 0 |} |};
-       cr_rel := BRFalse _ |}.
-
+  Definition not_accept2 (s: S) : crel S H :=
+    List.map (fun n =>
+                {| cr_st := {| cs_st1 := {| st_state := inl s;    st_buf_len := n |};
+                               cs_st2 := {| st_state := inr true; st_buf_len := 0 |} |};
+                   cr_rel := BRFalse _ |})
+             [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15].
+              
   Definition init_rel : crel S H := 
-    List.map not_accept1 (enum S) ++
-    List.map not_accept2 (enum S).
+    List.concat (List.map not_accept1 (enum S) ++
+                 List.map not_accept2 (enum S)).
   
 End BisimChecker.
 Arguments pre_bisimulation {_ _ _ _ _} {_ _} _ _ _.
@@ -65,6 +69,31 @@ Require Import Poulet4.P4automata.Examples.
 Notation S := (Sum.S Simple.state Split.state).
 Notation H := (Sum.H Simple.header Split.header).
 Notation init_conf := (inl Simple.Start, [], []).
+Notation "⟨ s1 , n1 ⟩ ⟨ s2 , n2 ⟩ ⊢ b" :=
+  ({| cr_st :=
+        {| cs_st1 := {| st_state := s1; st_buf_len := n1 |};
+           cs_st2 := {| st_state := s2; st_buf_len := n2 |}; |};
+      cr_rel := b|}) (at level 10).
+
+Ltac pbskip :=
+  apply PreBisimulationSkip;
+  [intros;
+   cbn in *;
+   unfold interp_conf_rel, interp_store_rel, interp_conf_state in *;
+   simpl in *;
+   tauto|].
+
+
+Ltac solve_bisim :=
+  match goal with
+  | |- pre_bisimulation _ _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ _ (_::_) _ _ => pbskip
+  | |- pre_bisimulation _ _ (_::_) _ _ =>
+    apply PreBisimulationExtend;
+    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
+    simpl
+  end.
+
 Lemma prebisim:
   pre_bisimulation Simple.aut nil (init_rel _ _) init_conf init_conf.
 Proof.
@@ -72,21 +101,37 @@ Proof.
   simpl.
   unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op.
   simpl.
+  repeat solve_bisim.
+  cbv in *.
+  intuition discriminate.
+Qed.
+
+From Hammer Require Import Tactics.
+From Hammer Require Import Reflect.
+From Hammer Require Import Hammer.
+
+Ltac pbskip' := apply PreBisimulationSkip; [hammer|].
+
+Ltac solve_bisim' :=
+  match goal with
+  | |- context[WP.wp] => 
+    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
+    simpl
+  | |- pre_bisimulation _ _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ _ (_::_) _ _ => pbskip
+  | |- pre_bisimulation _ _ (_::_) _ _ =>
+    apply PreBisimulationExtend;
+    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
+    simpl
+  | |- _ => simpl
+  end.
+
+
+Lemma prebisim':
+  pre_bisimulation Simple.aut nil (init_rel _ _) init_conf init_conf.
+Proof.
   apply PreBisimulationExtend.
-  unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op.
-  simpl.
-  apply PreBisimulationExtend.
-  unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op.
-  simpl.
-  apply PreBisimulationSkip; [now intuition|].
-  apply PreBisimulationSkip.
-  {
-    intros.
-    cbn in *.
-    intuition.
-    unfold interp_conf_rel in *; simpl in *.
-    tauto.
-  }
-  apply PreBisimulationClose.
-  cbv.
-Abort.
+  repeat solve_bisim'.
+  cbv in *.
+  hammer.
+Qed.

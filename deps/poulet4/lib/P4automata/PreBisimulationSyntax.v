@@ -86,7 +86,8 @@ Section ConfRel.
   | BREq (e1 e2: bit_expr)
   | BRNotEq (e1 e2: bit_expr)
   | BRAnd (r1 r2: store_rel)
-  | BROr (r1 r2: store_rel).
+  | BROr (r1 r2: store_rel)
+  | BRImpl (r1 r2: store_rel).
 
   Fixpoint interp_store_rel (r: store_rel) (c1 c2: conf) : Prop :=
     match r with
@@ -100,6 +101,8 @@ Section ConfRel.
       interp_store_rel r1 c1 c2 /\ interp_store_rel r2 c1 c2
     | BROr r1 r2 =>
       interp_store_rel r1 c1 c2 \/ interp_store_rel r2 c1 c2
+    | BRImpl r1 r2 =>
+      interp_store_rel r1 c1 c2 -> interp_store_rel r2 c1 c2
     end.
 
   Record conf_state :=

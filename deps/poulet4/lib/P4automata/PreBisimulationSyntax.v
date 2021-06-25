@@ -6,6 +6,7 @@ Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
 Require Import Coq.Relations.Relations.
 
+Require Import Poulet4.FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Poulet4.P4automata.PreBisimulation.
 Require Poulet4.P4automata.Syntax.
@@ -19,18 +20,19 @@ Section ConfRel.
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.
+  Context `{S_finite: @Finite S _ S_eq_dec}.
 
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Variable (a: P4A.t S H).
-  Variable (has_extract: forall s H, 0 < P4A.size (a:=a) (exist _ s H)).
 
-  Notation conf := (configuration (P4A.interp a has_extract)).
+  Notation conf := (configuration (P4A.interp a)).
 
   Record state_template :=
-    { st_state: P4A.state_type a + bool;
+    { st_state: P4A.state_ref S;
       st_buf_len: nat }.
 
   Definition interp_state_template (st: state_template) (c: conf) :=
@@ -134,3 +136,5 @@ Section ConfRel.
     end.
 
 End ConfRel.
+Arguments interp_conf_rel {_} {_} {_} {_} _.
+Arguments interp_crel {_} {_} {_} {_} _.

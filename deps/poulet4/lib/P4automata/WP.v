@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
+Require Import Poulet4.FinType.
 Require Poulet4.P4automata.Syntax.
 Module P4A := Poulet4.P4automata.Syntax.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
@@ -10,19 +11,13 @@ Section WeakestPre.
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.
+  Context `{S_finite: @Finite S _ S_eq_dec}.
 
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
 
   Variable (a: P4A.t S H).
-  Variable (has_extract: forall s H, 0 < P4A.size (a:=a) (exist _ s H)).
-
-  Definition proj_state_type_ref (x: P4A.state_type a + bool) : P4A.state_ref S :=
-    match x with
-    | inr b => inr b
-    | inl s => inl (proj1_sig s)
-    end.
 
   Definition expr_to_bit_expr (s: side) (e: P4A.expr H) : bit_expr H :=
     match e with
@@ -118,28 +113,28 @@ Section WeakestPre.
     snd (wp_op' s o (0, phi)).
 
   Definition preds (s: P4A.state_ref S) :=
-    P4A.list_states a.
+    enum S.
 
-  Definition pick_template (s: side) (c: conf_state a) : state_template a :=
+  Definition pick_template (s: side) (c: conf_state S) : state_template S :=
     match s with
     | Left => c.(cs_st1)
     | Right => c.(cs_st2)
     end.
   
-  Definition wp_edge (c: conf_rel a) (s: side) (st: P4A.state S H) : store_rel H :=
+  Definition wp_edge (c: conf_rel S H) (s: side) (st: P4A.state S H) : store_rel H :=
     let st' := pick_template s c.(cr_st) in
-    let tcond := trans_cond Left (P4A.st_trans st) (proj_state_type_ref st'.(st_state)) in
+    let tcond := trans_cond Left (P4A.st_trans st) st'.(st_state) in
     let wp_trans := BRAnd c.(cr_rel) tcond in
     wp_op s (P4A.st_op st) wp_trans.
 
-  Definition wp_edges (c: conf_rel a) (s_left: P4A.state_type a) (s_right: P4A.state_type a) : store_rel H :=
-    let state_left := P4A.find_state s_left in
-    let state_right := P4A.find_state s_right in
+  Definition wp_edges (c: conf_rel S H) (s_left: S) (s_right: S) : store_rel H :=
+    let state_left := a.(P4A.t_states) s_left in
+    let state_right := a.(P4A.t_states) s_right in
     let c' := {| cr_st := c.(cr_st);
                  cr_rel := wp_edge c Left state_left |} in
     wp_edge c' Right state_right.
 
-  Definition wp_pred_pair (c: conf_rel a) (preds: P4A.state_type a * P4A.state_type a) : conf_rel a :=
+  Definition wp_pred_pair (c: conf_rel S H) (preds: S * S) : conf_rel S H :=
     let '(sl, sr) := preds in
     {| cr_st := {| cs_st1 := {| st_state := inl sl;
                                 st_buf_len := 0 |};
@@ -147,9 +142,9 @@ Section WeakestPre.
                                 st_buf_len := 0 |} |};
        cr_rel := wp_edges c (fst preds) (snd preds) |}.
 
-  Definition wp (c: conf_rel a) : list (conf_rel a) :=
-    let cur_st_left  := proj_state_type_ref c.(cr_st).(cs_st1).(st_state) in
-    let cur_st_right := proj_state_type_ref c.(cr_st).(cs_st2).(st_state) in
+  Definition wp (c: conf_rel S H) : list (conf_rel S H) :=
+    let cur_st_left  := c.(cr_st).(cs_st1).(st_state) in
+    let cur_st_right := c.(cr_st).(cs_st2).(st_state) in
     let pred_pairs := list_prod (preds cur_st_left)
                                 (preds cur_st_right) in
     List.map (wp_pred_pair c) pred_pairs.

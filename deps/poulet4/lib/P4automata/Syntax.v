@@ -4,6 +4,7 @@ Require Coq.Logic.Eqdep_dec.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Program.Program.
 Require Import Poulet4.HAList.
+Require Import Poulet4.FinType.
 Require Poulet4.P4cub.Envn.
 Require Poulet4.P4cub.BigStep.BSUtil.
 Require Poulet4.P4automata.P4automaton.
@@ -19,10 +20,12 @@ Section Syntax.
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.
+  Context `{S_finite: @Finite S _ S_eq_dec}.
 
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Inductive hdr_ref: Type :=
   | HRVar (var: H).
@@ -71,16 +74,38 @@ Section Syntax.
   | OpSeq (o1 o2: op)
   | OpExtract (width: nat) (hdr: hdr_ref)
   | OpAsgn (lhs: hdr_ref) (rhs: expr).
+  
+  Fixpoint op_size (o: op) : nat :=
+    match o with
+    | OpNil => 0
+    | OpSeq o1 o2 =>
+      op_size o1 + op_size o2
+    | OpExtract width _ => width
+    | OpAsgn _ _ => 0
+    end.
 
   Record state: Type :=
     { st_op: op;
       st_trans: transition }.
 
-  Definition t: Type :=
-    Env.t S state.
+  Definition state_size (st: state) : nat :=
+    op_size st.(st_op).
 
-  Definition state_type (a: t) : Type :=
-    { s: S | Env.find s a <> None :> option state }.
+  Record t: Type :=
+    { t_states: S -> state;
+      t_has_extract: forall s, 0 < state_size (t_states s) }.
+
+  Program Definition bind (s: S) (st: state) (ok: 0 < state_size st) (a: t) :=
+    {| t_states := fun s' => if s == s' then st else a.(t_states) s';
+       t_has_extract := _ |}.
+  Next Obligation.
+    destruct (s == s0).
+    - congruence.
+    - eapply a.(t_has_extract).
+  Qed.
+
+  Definition size (a: t) (s: S) :=
+    state_size (a.(t_states) s).
 
   Lemma eq_dec_refl (A: Type) (eq_dec: forall x y : A, {x = y} + {x <> y}) :
     forall x,
@@ -93,36 +118,6 @@ Section Syntax.
     - congruence.
   Qed.
   Hint Rewrite eq_dec_refl : core.
-
-  Definition state_type_cons (a: t) (a': S * state)
-    : state_type a -> state_type (a' :: a).
-  Proof.
-    unfold state_type.
-    intros.
-    destruct X.
-    exists x.
-    simpl.
-    destruct a'.
-    destruct (_ x s); congruence.
-  Defined.
-
-  Definition list_states (a: t) : list (state_type a).
-  Proof.
-    revert a.
-    induction a.
-    - exact nil.
-    - assert (Env.find (fst a) (a :: a0) <> None).
-      {
-        destruct a.
-        simpl.
-        autorewrite with core.
-        congruence.
-      }
-      apply cons.
-      + exists (fst a); auto.
-      + apply (List.map (state_type_cons a)).
-        apply IHa.
-  Defined.
 
 End Syntax.
 
@@ -172,15 +167,22 @@ Section Fmap.
     {| st_op := op_fmapH s.(st_op);
        st_trans := transition_fmapSH s.(st_trans) |}.
 
-  Definition t_fmapSH (a: t S H) : t S' H' :=
-    Env.map_keys f (Env.map_vals state_fmapSH a).
+  Lemma op_fmapH_size :
+    forall o,
+      op_size (op_fmapH o) = op_size o.
+  Proof.
+    induction o; simpl; eauto.
+  Qed.
+    
+  Lemma state_fmapSH_size :
+    forall s,
+      state_size (state_fmapSH s) = state_size s.
+  Proof.
+    unfold state_size.
+    simpl; eauto using op_fmapH_size.
+  Qed.
+
 End Fmap.
-
-Definition t_fmapH {S H H'} (f: H -> H') (a: t S H) : t S H' :=
-  t_fmapSH id f a.
-
-Definition t_fmapS {S H S'} (f: S -> S') (a: t S H) : t S' H :=
-  t_fmapSH f id a.
 
 Section Interp.
   (* State identifiers. *)
@@ -193,34 +195,8 @@ Section Interp.
 
   Variable (a: t S H).
 
-  Definition list_states' : list S :=
-    List.map fst a.
-
   Definition store := Env.t H v.
   
-  Fixpoint op_size (o: op H) : nat :=
-    match o with
-    | OpNil _ => 0
-    | OpSeq o1 o2 =>
-      op_size o1 + op_size o2
-    | OpExtract width _ => width
-    | OpAsgn _ _ => 0
-    end.
-
-  Definition find_state (st: state_type a) : state S H.
-  Proof.
-    destruct (Env.find (proj1_sig st) a) eqn:?.
-    - exact s.
-    - exfalso.
-      apply (proj2_sig st).
-      apply Heqo.
-  Defined.
-
-  Definition size (state: state_type a) : nat :=
-    op_size (find_state state).(st_op).
-
-  Variable (has_extract: forall s h, 0 < size (exist _ s h)).
-
   Definition assign (h: hdr_ref H) (v: v) (st: store) : store :=
     match h with
     | HRVar x => Env.bind x v st
@@ -256,8 +232,8 @@ Section Interp.
       assign hdr (eval_expr st expr) st
     end.
 
-  Definition update (state: state_type a) (bits: list bool) (st: store) : store :=
-    eval_op st bits (find_state state).(st_op).
+  Definition update (state: S) (bits: list bool) (st: store) : store :=
+    eval_op st bits (a.(t_states) state).(st_op).
   
   Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
     match cases with
@@ -268,48 +244,26 @@ Section Interp.
     | nil => default
     end.
 
-  Definition clamp_state_name (s: S) : state_type a + bool.
-  Proof.
-    destruct (Env.find s a) eqn:?.
-    - left.
-      exists s.
-      congruence.
-    - exact (inr false).
-  Defined.
+  Definition eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
+    pre_eval_sel st cond cases default.
 
-  Definition clamp_state_ref (s: state_ref S) : state_type a + bool :=
-    match s with
-    | inl s => clamp_state_name s
-    | inr b => inr b
-    end.
-  
-  Definition eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_type a + bool :=
-    clamp_state_ref (pre_eval_sel st cond cases default).
-
-  Definition eval_trans (st: store) (t: transition S H) : state_type a + bool :=
+  Definition eval_trans (st: store) (t: transition S H) : state_ref S :=
     match t with
-    | TGoto _ state => clamp_state_ref state
+    | TGoto _ state => state
     | TSel cond cases default =>
       eval_sel st (eval_expr st cond) cases default
     end.
 
-  Definition transitions (s: state_type a) (st: store) : state_type a + bool :=
-    eval_trans st (find_state s).(st_trans).
+  Definition transitions (s: S) (st: store) : state_ref S :=
+    eval_trans st (a.(t_states) s).(st_trans).
 
-  Lemma cap: forall s, 0 < size s.
-  Proof.
-    intros.
-    destruct s.
-    apply has_extract.
-  Qed.
-  
   Definition interp : P4A.p4automaton :=
     {| P4A.store := store;
-       P4A.states := state_type a;
-       P4A.size := size;
+       P4A.states := S;
+       P4A.size := size a;
        P4A.update := update;
        P4A.transitions := transitions;
-       P4A.cap := cap |}.
+       P4A.cap := a.(t_has_extract) |}.
 End Interp.
 
 Section Inline.
@@ -322,20 +276,25 @@ Section Inline.
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
 
 
-  Definition inline (pref: S) (suff: S) (auto: t S H) : t S H := 
-    match Env.find pref auto with 
-    | Some (Build_state op (TGoto _ (inl nxt))) => 
+  Program Definition inline (pref: S) (suff: S) (auto: t S H) : t S H := 
+    match auto.(t_states) pref with 
+    | Build_state op (TGoto _ (inl nxt)) => 
       if nxt == suff 
       then 
       let pref' := 
-        match Env.find suff auto with 
-        | Some suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
-        | None => {| st_op := op ; st_trans := TGoto _ (inl nxt) |}
+        match auto.(t_states) suff with 
+        | suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
         end in 
-      Env.bind pref pref' auto
+      bind pref pref' _ auto
       else auto
     | _ => auto
     end.
+  Next Obligation.
+    pose proof auto.(t_has_extract) suff.
+    unfold state_size in *.
+    simpl in *.
+    Lia.lia.
+  Qed.
 
   (* Lemma inline_corr : 
     forall pref suff auto (s: store), 

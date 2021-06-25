@@ -6,6 +6,7 @@ Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
 Require Import Coq.Relations.Relations.
 
+Require Import Poulet4.FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Poulet4.P4automata.PreBisimulation.
 Require Poulet4.P4automata.Syntax.
@@ -19,18 +20,19 @@ Section ConfRel.
   (* State identifiers. *)
   Variable (S: Type).
   Context `{S_eq_dec: EquivDec.EqDec S eq}.
+  Context `{S_finite: @Finite S _ S_eq_dec}.
 
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Variable (a: P4A.t S H).
-  Variable (has_extract: forall s H, 0 < P4A.size (a:=a) (exist _ s H)).
 
-  Notation conf := (configuration (P4A.interp a has_extract)).
+  Notation conf := (configuration (P4A.interp a)).
 
   Record state_template :=
-    { st_state: P4A.state_type a + bool;
+    { st_state: P4A.state_ref S;
       st_buf_len: nat }.
 
   Definition interp_state_template (st: state_template) (c: conf) :=
@@ -84,7 +86,8 @@ Section ConfRel.
   | BREq (e1 e2: bit_expr)
   | BRNotEq (e1 e2: bit_expr)
   | BRAnd (r1 r2: store_rel)
-  | BROr (r1 r2: store_rel).
+  | BROr (r1 r2: store_rel)
+  | BRImpl (r1 r2: store_rel).
 
   Fixpoint interp_store_rel (r: store_rel) (c1 c2: conf) : Prop :=
     match r with
@@ -98,6 +101,8 @@ Section ConfRel.
       interp_store_rel r1 c1 c2 /\ interp_store_rel r2 c1 c2
     | BROr r1 r2 =>
       interp_store_rel r1 c1 c2 \/ interp_store_rel r2 c1 c2
+    | BRImpl r1 r2 =>
+      interp_store_rel r1 c1 c2 -> interp_store_rel r2 c1 c2
     end.
 
   Record conf_state :=
@@ -118,16 +123,21 @@ Section ConfRel.
       interp_conf_state c.(cr_st) x y ->
       interp_store_rel c.(cr_rel) x y.
 
-  Definition chunked_relation :=
+  Definition crel :=
     list conf_rel.
 
-  Definition rel_true: forall A, relation A :=
+  Definition rel_true: forall {A}, relation A :=
     fun _ x y => True.
 
-  Fixpoint interp_chunked_relation (rel: chunked_relation) : relation conf :=
+  Notation "⊤" := rel_true.
+  Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
+  Notation "⟦ x ⟧" := (interp_conf_rel x).
+  Fixpoint interp_crel (rel: crel) : relation conf :=
     match rel with
-    | nil => @rel_true conf
-    | r :: rel' => relation_conjunction (interp_conf_rel r) (interp_chunked_relation rel')
+    | [] => ⊤
+    | r :: rel' => ⟦r⟧ ⊓ interp_crel rel'
     end.
 
 End ConfRel.
+Arguments interp_conf_rel {_} {_} {_} {_} _.
+Arguments interp_crel {_} {_} {_} {_} _.

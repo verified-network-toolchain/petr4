@@ -102,6 +102,14 @@ Module Field.
         end.
       (**[]*)
 
+      Fixpoint get_index_rec (k: K) (fds : fs K U) (current : nat) : option nat :=
+        match fds with 
+        | [] => None
+        | (k',u') :: fds => if equiv_dec k k' then Some (current)
+                            else get_index_rec k fds (S current)
+        end. 
+      Definition get_index (k: K) (fds : fs K U) : option nat := 
+        get_index_rec k fds 0.
       (** Member update. *)
       Fixpoint update (k : K) (u : U) (fds : fs K U) : fs K U :=
         match fds with

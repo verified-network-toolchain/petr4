@@ -907,21 +907,20 @@ Inductive exec_args : path -> state -> list (option (@Expression tags_t)) -> lis
                          exec_args p s exps dirs args sig' ->
                          exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) sig. *)
 
-Inductive exec_copy_out_one: path -> state -> option Lval -> Val -> state -> Prop :=
-| exec_copy_out_one_some : forall p s lval val s',
+Inductive exec_write_option : path -> state -> option Lval -> Val -> state -> Prop :=
+| exec_write_option_some : forall p s lval val s',
                            exec_write p s lval val s' ->
-                           exec_copy_out_one p s (Some lval) val s'
-| exec_copy_out_one_none : forall p s val,
-                           exec_copy_out_one p s None val s.
+                           exec_write_option p s (Some lval) val s'
+| exec_write_option_none : forall p s val,
+                           exec_write_option p s None val s.
 
-Inductive exec_copy_out : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
-(* This depends on assigning to lvalues. *)
-| exec_copy_out_nil : forall p s,
-                      exec_copy_out p s nil nil s
-| exec_copy_out_cons : forall p s1 s2 s3 lv lvs val vals,
-                       exec_copy_out_one p s1 lv val s2 ->
-                       exec_copy_out p s2 lvs vals s3 ->
-                       exec_copy_out p s1 (lv :: lvs) (val :: vals) s3.
+Inductive exec_write_options : path -> state -> list (option Lval) -> list Val -> state -> Prop :=
+| exec_write_options_nil : forall p s,
+                           exec_write_options p s nil nil s
+| exec_write_options_cons : forall p s1 s2 s3 lv lvs val vals,
+                            exec_write_option p s1 lv val s2 ->
+                            exec_write_options p s2 lvs vals s3 ->
+                            exec_write_options p s1 (lv :: lvs) (val :: vals) s3.
 
 Definition extract_invals (args : list argument) : list Val :=
   let f arg :=
@@ -1127,7 +1126,7 @@ with exec_call : path -> inst_mem -> state -> (@Expression tags_t) -> state -> s
       exec_args this_path s args dirs argvals sig ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
       exec_func obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig' ->
-      exec_copy_out this_path s' (extract_outlvals dirs argvals) outvals s'' ->
+      exec_write_options this_path s' (extract_outlvals dirs argvals) outvals s'' ->
       exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       (if is_continue sig then s'' else s)
       (if is_continue sig then sig' else sig)

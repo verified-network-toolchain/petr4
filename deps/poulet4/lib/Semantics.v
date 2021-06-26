@@ -103,11 +103,7 @@ Definition eval_p4int (n: P4Int) : Val :=
   end.
 
 Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
-  let p := loc_to_path this loc in
-  match PathMap.get p (get_memory s) with
-  | Some v => Some v
-  | _ => None
-  end.
+  PathMap.get (loc_to_path this loc) (get_memory s).
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with

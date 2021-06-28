@@ -128,6 +128,16 @@ Section AList.
         constructor. now symmetry.
   Qed.
 
+  Lemma filter_set_some_false: forall l k v f,
+      Proper (R ==> eq) f -> f k = false -> filter (set_some l k v) f = filter l f.
+  Proof.
+    intros. induction l; intros; simpl.
+    - now rewrite H1.
+    - destruct a as [k' v']. destruct (KEqDec k k'); simpl.
+      + rewrite H1. rewrite <- e. now rewrite H1.
+      + destruct (f k'); auto. now rewrite IHl.
+  Qed.
+
   Instance get_proper: Proper (eq ==> R ==> eq) get.
   Proof.
     repeat intro. subst y. induction x.
@@ -157,12 +167,12 @@ Section AList.
 
   Lemma key_unique_unrelated: forall l f key val,
       Proper (R ==> eq) f ->
-      key_unique (filter l f) = key_unique (filter (set_some l key val) f).
+      key_unique (filter (set_some l key val) f) = key_unique (filter l f).
   Proof.
     intros. induction l; simpl.
     - destruct (f key); now simpl.
     - destruct a as [k v]. destruct (KEqDec key k).
-      + simpl. rewrite e. destruct (f k); auto. simpl. rewrite get_proper; eauto. easy.
+      + simpl. rewrite e. destruct (f k); auto. simpl. rewrite get_proper; eauto.
       + simpl. destruct (f k); auto. simpl. rewrite get_filter_set_some_neq; auto.
         destruct (get (filter l f) k); auto.
   Qed.

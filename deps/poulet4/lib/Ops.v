@@ -2,6 +2,7 @@ Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
+Require Import Coq.Classes.Morphisms.
 
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.Syntax.
@@ -224,6 +225,7 @@ Module Ops.
     | ValBaseVarbit m1 w1 n1, ValBaseVarbit m2 w2 n2 =>
         if (m1 =? m2)%nat then Some ((w1 =? w2)%nat && (n1 =? n2))
         else None
+    | ValBaseString s1, ValBaseString s2 => Some (equivb s1 s2)
     | ValBaseStruct l1, ValBaseStruct l2 =>
         eval_binary_op_eq_struct l1 l2
     | ValBaseRecord l1, ValBaseRecord l2 => None
@@ -242,6 +244,29 @@ Module Ops.
         eval_binary_op_eq_tuple vs1 vs2
     | _, _ => None
     end.
+
+  Lemma eval_binary_op_eq_refl: forall v, eval_binary_op_eq v v = Some true.
+  Proof.
+    induction v.
+    9: { simpl.
+  Abort.
+
+  Lemma eval_binary_op_eq_struct_flter_same: forall meta_fields key val,
+      key_unique meta_fields = true ->
+      eval_binary_op_eq
+        (ValBaseStruct (filter meta_fields (nequivb key)))
+        (ValBaseStruct (filter (set_some meta_fields key val) (nequivb key))) =
+      Some true.
+  Proof.
+    intros.
+    assert (Proper (equiv (tags_t:=tags_t) ==> eq) (nequivb key)). {
+      repeat intro. unfold nequivb. now rewrite H0. }
+    rewrite filter_set_some_false; auto.
+    - simpl. rewrite andb_diag. rewrite key_unique_true_filter; auto. simpl.
+      remember (filter meta_fields (nequivb key)) as l. clear.
+      admit.
+    - unfold nequivb. rewrite String.eqb_refl. now simpl.
+  Abort.
 
   (* Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2). *)

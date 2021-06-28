@@ -1,7 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Bool.Bool.
-Require Import Coq.Classes.EquivDec.
 
 Require AList.
 

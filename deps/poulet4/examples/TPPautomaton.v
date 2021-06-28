@@ -181,13 +181,15 @@ Module TPP.
   Inductive instr_state := init.
 
   Record tpp_instr_store := mkInstrStore {
-    prog : tpp_program;
+    prog : option tpp_program;
   }.
+
+  Instance eta_tis : Settable _ := settable! mkInstrStore <prog >.
 
   Definition prog_len (p: tpp_program) := 1 + length (snd p).
 
   Program Definition tpp_instr_twopass_parser 
-    (parse_instr : bytes 4 -> option tpp_instr)
+    (decoder : bytes 4 -> option tpp_instr)
     (policy: operand -> tpp_sec_label)
     (amount: nat)
     : p4automaton := {|
@@ -197,19 +199,24 @@ Module TPP.
         let o1 := bits_8_to_byte (slice 8 16 bs) _ in 
         let o2 := bits_8_to_byte (slice 16 24 bs) _ in 
         let o3 := bits_8_to_byte (slice 24 32 bs) _ in 
-        let instr := parse_instr (opcode, (o1, (o2, (o3, tt)))) in 
-        match instr with 
-        | None => st
-        | Some i => 
-          let '(oldi, oldis) := prog st in 
-          {| prog := (i, snoc oldi oldis); |}
+        let instr := decoder (opcode, (o1, (o2, (o3, tt)))) in 
+        match instr, st.(prog) with 
+        | None, _ => st <| prog := None |>
+        | Some i, None => st <| prog := Some (i, nil) |>
+        | Some i, Some prog' => 
+          let '(oldi, oldis) := prog' in 
+          st <| prog := Some (i, snoc oldi oldis) |>
         end;
       transitions := fun _ st =>
-        if prog_len (prog st) == amount then
-          if tpp_check_prog policy None (prog st) 
-          then inr true
-          else inr false
-        else inl init;
+        match st.(prog) with 
+        | Some prog' => 
+          if prog_len prog' == amount then
+            if tpp_check_prog policy None prog' 
+            then inr true
+            else inr false
+          else inl init
+        | None => inr false
+        end;
     |}.
     Next Obligation.
     eapply slice_n_n'.
@@ -226,6 +233,253 @@ Module TPP.
     Next Obligation.
     lia.
     Qed.
+
+    Record tpp_combined_store := mkCombinedStore {
+      combined_prog : option tpp_program;
+      constraint : option tpp_sec_label;
+    }.
+
+    Instance eta_tcs : Settable _ := settable! mkCombinedStore <combined_prog; constraint >.
+
+  Program Definition tpp_instr_combined_parser 
+    (decoder : bytes 4 -> option tpp_instr)
+    (policy: operand -> tpp_sec_label)
+    (amount: nat)
+    : p4automaton := {|
+      size := fun _ => 4 * 8;
+      update := fun _ bs (st : tpp_combined_store) => 
+        let opcode := bits_8_to_byte (slice 0 8 bs) _ in 
+        let o1 := bits_8_to_byte (slice 8 16 bs) _ in 
+        let o2 := bits_8_to_byte (slice 16 24 bs) _ in 
+        let o3 := bits_8_to_byte (slice 24 32 bs) _ in 
+        let instr := decoder (opcode, (o1, (o2, (o3, tt)))) in 
+        match instr with 
+        | None => st <| combined_prog := None |>
+        | Some i => 
+          match st.(combined_prog), tpp_check_instr policy i with 
+          | _, None => st <| combined_prog := None |>
+          | None, Some l =>
+            match i with 
+            | TPPcexec _ _
+            | TPPcondstore _ _ _ =>
+              st <| constraint := Some l |> <| combined_prog := Some (i, nil) |>
+            | _ => st <| combined_prog := Some (i, nil) |>
+            end
+          | Some prog', Some l =>
+            match st.(constraint) with 
+            | Some l' => 
+              if tsed l' l 
+              then 
+                let '(oldi, oldis) := prog' in 
+                match i with 
+                | TPPcexec _ _
+                | TPPcondstore _ _ _ =>
+                  st <| constraint := Some l |> <| combined_prog := Some (i, snoc oldi oldis) |>
+                | _ => st <| combined_prog := Some (i, snoc oldi oldis) |>
+                end
+              else st <| combined_prog := None |>
+            | None => st <| combined_prog := None |>
+            end
+          end
+        end;
+      transitions := fun _ st =>
+        match st.(combined_prog) with 
+        | Some prog' => 
+          if prog_len prog' == amount 
+          then inr true
+          else inl init
+        | None => inr false
+        end;
+    |}.
+    Next Obligation.
+    eapply slice_n_n'.
+    Qed.
+    Next Obligation.
+    eapply slice_n_n'.
+    Qed.
+    Next Obligation.
+    eapply slice_n_n'.
+    Qed.
+    Next Obligation.
+    eapply slice_n_n'.
+    Qed.
+    Next Obligation.
+    split; vm_compute; intros; congruence.
+    Qed.
+    Next Obligation.
+    split; vm_compute; intros; congruence.
+    Qed.
+    Next Obligation.
+    split; vm_compute; intros; congruence.
+    Qed.
+    Next Obligation.
+    split; vm_compute; intros; congruence.
+    Qed.
+    Next Obligation.
+    lia.
+    Qed.
+
+  Require Import Poulet4.Examples.P4AutomatonValues.
+
+    
+  Inductive combined_twopass
+    (decoder : bytes 4 -> option tpp_instr)
+    (policy: operand -> tpp_sec_label) 
+    (amount: nat)
+    : 
+    configuration (tpp_instr_twopass_parser decoder policy amount) ->
+    configuration (tpp_instr_combined_parser decoder policy amount) ->
+    Prop :=
+    | Start :
+      build_bisimulation
+        (a1 := tpp_instr_twopass_parser decoder policy amount)
+        (a2 := tpp_instr_combined_parser decoder policy amount)
+        (fun s => 
+          s.(prog) = None
+        )
+        (fun s => 
+          s.(combined_prog) = None /\
+          s.(constraint) = None
+        )
+        (inl init)
+        (inl init)
+        (fun buf buf' => buf = nil /\ buf = buf')
+        (combined_twopass _ _ _)
+      | TypeSuccess :
+        forall prog',
+        build_bisimulation
+          (a1 := tpp_instr_twopass_parser decoder policy amount)
+          (a2 := tpp_instr_combined_parser decoder policy amount)
+          (fun s => 
+            s.(prog) = Some prog'
+          )
+          (fun s => 
+            s.(combined_prog) = Some prog'
+          )
+          (inl init)
+          (inl init)
+          (fun buf buf' => buf = nil /\ buf = buf')
+          (combined_twopass _ _ _)
+        | TypeFail :
+          forall prog',
+          build_bisimulation
+            (a1 := tpp_instr_twopass_parser decoder policy amount)
+            (a2 := tpp_instr_combined_parser decoder policy amount)
+            (fun s => 
+              s.(prog) = Some prog'
+            )
+            (fun s => 
+              s.(combined_prog) = None
+            )
+            (inl init)
+            (inr false)
+            (fun buf buf' => True)
+            (combined_twopass _ _ _)
+      | End :
+        forall b,
+        build_bisimulation
+          (a1 := tpp_instr_twopass_parser decoder policy amount)
+          (a2 := tpp_instr_combined_parser decoder policy amount)
+          store_top
+          store_top
+          (inr b)
+          (inr b)
+          (fun buf buf' => buf = buf')
+          (combined_twopass _ _ _).
   
+  Lemma combined_twopass_bis : 
+    forall decoder policy amount, 
+      bisimulation_with_leaps (combined_twopass decoder policy amount).
+  Proof.
+    unfold bisimulation_with_leaps.
+    intros.
+    inversion H;
+    split; (split; intros; auto || exfalso; inversion H5) || intros; simpl in *.
+    - destruct H2.
+      rewrite H6 in *.
+      rewrite H2 in *.
+      simpl in *.
+      destruct H1.
+      unfold follow.
+      unfold fold_left, step.
+      destruct buf; [exfalso; inversion H5|].
+      
+      do 31 (destruct buf; [exfalso; simpl in H5; inversion H5|]).
+      destruct buf; [|exfalso; simpl in H5; inversion H5].
+      simpl length.
+      simpl P4automaton.size'.
+      do 31 (destruct (equiv_dec _ _); [inversion e|clear c]).
+      simpl length.
+      simpl P4automaton.size'.
+      destruct (equiv_dec _ _); [clear e | exfalso; eapply c; auto].
+      simpl "++".
+      clear H5.
+
+      set (bs' := [b; b0; b1; b2; b3; b4; b5; b6; b7; b8; b9; b10; b11; b12;
+      b13; b14; b15; b16; b17; b18; b19; b20; b21; b22; b23; b24;
+      b25; b26; b27; b28; b29; b30]).
+
+      simpl (update (_ _ _ _)).
+      simpl (_ init [b; _]).
+      simpl (transitions (_ _ _ _)).
+      cbn delta.
+      simpl ((fun _ => _) init) at 2.
+      simpl ((fun _ => _) _) at 2.
+      simpl ((fun _ => _) init) at 1.
+      simpl ((fun _ => _) init).
+      simpl ((fun _ => _) _) at 3.
+      simpl ((fun _ => _) _) at 5.
+      simpl ((fun _ => _) _) at 6.
+
+      set (bs'0 := TPPautomaton.slice 0 8 bs').
+      set (bs'1 := TPPautomaton.slice 8 16 bs').
+      set (bs'2 := TPPautomaton.slice 16 24 bs').
+      set (bs'3 := TPPautomaton.slice 24 32 bs').
+
+      assert (forall l pf pf', bits_8_to_byte l pf = bits_8_to_byte l pf').
+      admit.
+
+
+      pose proof (H5 bs'0 (tpp_instr_twopass_parser_obligation_1 bs') (tpp_instr_combined_parser_obligation_1 bs')).
+      pose proof (H5 bs'1 (tpp_instr_twopass_parser_obligation_2 bs') (tpp_instr_combined_parser_obligation_2 bs')).
+      pose proof (H5 bs'2 (tpp_instr_twopass_parser_obligation_3 bs') (tpp_instr_combined_parser_obligation_3 bs')).
+      pose proof (H5 bs'3 (tpp_instr_twopass_parser_obligation_4 bs') (tpp_instr_combined_parser_obligation_4 bs')).
+
+      rewrite H8.
+      rewrite H9.
+      rewrite H10.
+      rewrite H11.
+
+      destruct (decoder _).
+      * rewrite H0.
+        unfold set.
+        simpl prog.
+        rewrite H1.
+        simpl (prog _).
+        cbn - [equiv_dec].
+
+        destruct (tpp_check_instr policy t).
+
+        + destruct t;
+          simpl;
+          destruct (equiv_dec _ _);
+            now (eapply End; compute; auto) || 
+            now (eapply TypeSuccess; compute; trivial; split; trivial).
+        + destruct (equiv_dec _ _);
+            now (eapply End; compute; auto) || 
+            now (compute; eapply TypeFail; simpl; trivial).
+      * compute.
+        eapply End; compute; auto.
+    - admit.
+    - admit.
+    - destruct buf; [exfalso; simpl in *; congruence|].
+      destruct buf; [|exfalso; simpl in *; congruence].
+      clear H5.
+      simpl.
+      subst buf1.
+      destruct (equiv_dec _ _);
+      eapply End; compute; auto.
+  Admitted.
+    
 
 End TPP.

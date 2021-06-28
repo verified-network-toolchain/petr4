@@ -21,6 +21,7 @@ Section BisimChecker.
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Variable (a: P4A.t S H).
 
@@ -148,19 +149,18 @@ Ltac solve_bisim' :=
   match goal with
   | |- context[WP.wp _ _] =>
     progress (unfold WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op; simpl)
-  | |- pre_bisimulation _ _ _ _ _ _ [] _ _ => apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ _ _ _ (_::_) _ _ => pbskip
-  | |- pre_bisimulation _ _ _ _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
+  | |- pre_bisimulation _ _ _ _ _ _ _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ _ _ _ _ _ _ (_::_) _ _ => pbskip
+  | |- pre_bisimulation _ _ _ _ _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
   | |- _ => progress simpl
   end.
 
-Print BRFalse.
 Notation btrue := (BRTrue _).
 Notation bfalse := (BRFalse _).
 Notation "a ⇒ b" := (BRImpl a b) (at level 40).
 
 Lemma prebisim_simple_split:
-  pre_bisimulation _ _ _ _
+  pre_bisimulation _ _ _ _ _
                    SimpleSplit.aut
                    nil
                    (sum_init_rel SimpleSplit.aut)

@@ -57,6 +57,88 @@ Section ConfRel.
   | BESlice (e: bit_expr) (hi lo: nat)
   | BEConcat (e1 e2: bit_expr).
 
+  Fixpoint size (be: bit_expr) : nat :=
+    match be with
+    | BELit l => 1
+    | BEBuf a => 1
+    | BEHdr a h => 1
+    | BESlice e hi lo => 1 + size e
+    | BEConcat e1 e2 => 1 + size e1 + size e2
+    end.
+
+  Ltac solve_bit_expr_dec :=
+    unfold not in *;
+    intros;
+    subst;
+    try (firstorder congruence);
+    (try match goal with
+        | H: bit_expr |- _ =>
+          destruct H
+         end);
+    (firstorder eauto);
+    (firstorder congruence).
+
+  Obligation Tactic := intros.
+  Unset Transparent Obligations.
+  Program Fixpoint bit_expr_eqdec (x y: bit_expr) {measure (size x)} : {x = y} + {x <> y} :=
+    match x with
+    | BELit l =>
+      match y with
+      | BELit l' => if l == l' then in_left else in_right
+      | _ => in_right
+      end
+    | BEBuf a =>
+      match y with
+      | BEBuf a' => if a == a' then in_left else in_right
+      | _ => in_right
+      end
+    | BEHdr a h =>
+      match y with
+      | BEHdr a' h' =>
+        if Sumbool.sumbool_and _ _ _ _ (a == a') (h == h')
+        then in_left
+        else in_right
+      | _ => in_right
+      end
+    | BESlice e hi lo =>
+      match y with
+      | BESlice e' hi' lo' =>
+        if Sumbool.sumbool_and _ _ _ _ (hi == hi') (lo == lo')
+        then if bit_expr_eqdec e e'
+             then in_left
+             else in_right
+        else in_right
+      | _ => in_right
+      end
+    | BEConcat e1 e2 =>
+      match y with
+      | BEConcat e1' e2' =>
+        if bit_expr_eqdec e1 e1'
+        then if bit_expr_eqdec e2 e2'
+             then in_left
+             else in_right
+        else in_right
+      | _ => in_right
+      end
+    end.
+  Solve All Obligations with solve_bit_expr_dec.
+  Next Obligation. subst; simpl; Lia.lia. Qed.
+  Next Obligation. subst; simpl; Lia.lia. Qed.
+  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
+  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
+  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
+  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
+  Next Obligation.
+    set (f := fun recarg : {_ : bit_expr & bit_expr} =>
+                let x := projT1 recarg in let y := projT2 recarg in size x).
+    eapply (Wf_nat.well_founded_lt_compat _ f).
+    intros [x x'] [y y'] Hmr.
+    inversion Hmr; cbn in *; Lia.lia.
+  Qed.
+
+  Global Program Instance bit_expr_eq_dec : EquivDec.EqDec bit_expr eq :=
+    { equiv_dec := bit_expr_eqdec }.
+
   Definition slice {A} (l: list A) (hi lo: nat) :=
     skipn lo (firstn (1 + hi) l).
 

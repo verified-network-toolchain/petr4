@@ -16,7 +16,7 @@ Module ST := P.Stmt.
 Parameter print_Clight: Clight.program -> unit.
 (** P4Cub -> Clight **)
 Section CComp.
-  Import P4cub.P4cubNotations.
+  
   Context (tags_t: Type).
   Notation tpdecl := (P4cub.TopDecl.d tags_t).
   (*map between string and ident*)
@@ -71,7 +71,7 @@ Section CComp.
   (* See https://opennetworking.org/wp-content/uploads/2020/10/P416-Language-Specification-wd.html#sec-casts *)
   
 
-
+  Import P4cub.P4cubNotations.
   (* input is an expression with tags_t and an idents map,
      output would be statement list , expression, needed variables/temps (in ident) and their corresponding types*)
   Fixpoint CTranslateExpr (e: E.e tags_t) (env: ClightEnv)
@@ -182,8 +182,81 @@ Section CComp.
     (* | Access e1 [ e2 ] @ i =>  *)
     | _ =>  None
     end.
-    
 
+  Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv): option ((list Clight.expr) * ClightEnv) :=
+    let Cumulator: Type := option ((list Clight.expr * ClightEnv)) in 
+    let transformation (A: Cumulator) (B: E.e tags_t) : Cumulator := 
+      match A with
+      |None => None
+      |Some (el', env') => 
+      match CTranslateExpr B env' with
+      |None => None
+      |Some (B', env'') => Some(el' ++ [B'], env'')
+      end end in
+    List.fold_left  (transformation) el (Some ([],env)).
+  Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv) : option (Clight.statement * ClightEnv) :=
+    match s with
+    | -{skip @ i}- => Some (Sskip, env)
+    | -{s1;s2 @ i}- => match CTranslateStatement s1 env with
+                       |None => None
+                       |Some(s1', env1) => 
+                       match CTranslateStatement s2 env1 with
+                       |None => None
+                       |Some(s2', env2) =>
+                       Some (Ssequence s1' s2', env2)
+                       end end
+    | -{b{s}b}- => CTranslateStatement s env
+    | -{var x : t @ i}- => Some (Sskip, CCompEnv.add_var env x (CTranslateType t))
+    | -{asgn e1 := e2 : t @ i}- => match CTranslateExpr e1 env with
+                                   |None => None
+                                   |Some(e1', env1) => 
+                                   match CTranslateExpr e2 env1 with
+                                   |None => None
+                                   |Some(e2', env2) =>
+                                   Some (Sassign e1' e2', env2)
+                                   end end
+    | -{if e : t then s1 else s2 @ i}- => match CTranslateExpr e env with
+                                          |None => None
+                                          |Some(e', env1) =>
+                                          match CTranslateStatement s1 env1 with
+                                          |None => None
+                                          |Some(s1', env2) =>
+                                          match CTranslateStatement s2 env2 with
+                                          |None => None
+                                          |Some(s2', env3) =>
+                                          Some(Sifthenelse e' s1' s2', env3)
+                                          end end end
+    | -{call f with args @ i}- => match CCompEnv.lookup_function env f with
+                                  |None => None
+                                  |Some(f', id) =>
+                                    let args' : list (E.e tags_t) := 
+                                      let map_f (f:string * (P.paramarg (E.t*(E.e tags_t)) (E.t*(E.e tags_t)))) : (E.e tags_t):=
+                                      match f with
+                                      | (_, P.PAIn (t,e))
+                                      | (_, P.PAOut (t,e))
+                                      | (_, P.PAInOut (t,e)) => e
+                                      end in
+                                      List.map (map_f) args in
+                                    match CTranslateExprList args' env with
+                                    | None => None
+                                    | Some (elist, env') => 
+                                    Some(Scall None (Evar id (Clight.type_of_function f')) elist, env')
+                                    end 
+                                  end 
+    (* | -{let e : t := call f with args @ i}- *)
+    (* | -{funcall f with args into o @ i}- *)
+    (* | -{calling a with args @ i}- *)
+    (* | -{extern e calls f with args gives x @ i}- *)
+    | -{return e : t @ i}- => match CTranslateExpr e env with
+                              | None => None
+                              | Some (e', env') => Some ((Sreturn (Some e')), env')
+                              end
+    | -{returns @ i}- => Some (Sreturn None, env)
+    (* | -{exit @ i}- *)
+    (* | -{apply x with args @ i}- *)
+    (* | -{invoke tbl @ i}- => None *)
+    | _ => None
+    end.
   
   (* currently just an empty program *)
   Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 

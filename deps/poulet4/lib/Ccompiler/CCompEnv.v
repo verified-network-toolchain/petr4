@@ -10,6 +10,7 @@ Record ClightEnv : Type := {
   vars : (list (AST.ident * Ctypes.type));
   composites : (list Ctypes.composite_definition);
   identGenerator : IdentGen.generator;
+  fenv: Env.t string Clight.function;
 }.
 
 Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
@@ -20,7 +21,8 @@ Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
   temps := (new_ident, t)::(env.(temps));
   vars := env.(vars);
   composites := env.(composites);
-  identGenerator := gen'
+  identGenerator := gen';
+  fenv := env.(fenv);
   |}.
 
 Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
@@ -31,7 +33,8 @@ Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
   temps := env.(vars);
   vars := (new_ident, t)::(env.(temps));
   composites := env.(composites);
-  identGenerator := gen'
+  identGenerator := gen';
+  fenv := env.(fenv);
   |}.
 
 Definition add_composite_typ 
@@ -46,7 +49,8 @@ Definition add_composite_typ
   temps := env.(vars);
   vars := env.(temps);
   composites := (Composite new_ident su m a)::env.(composites);
-  identGenerator := gen'
+  identGenerator := gen';
+  fenv := env.(fenv);
   |}.
 
 
@@ -110,3 +114,12 @@ Definition composite_of_ident
   (env: ClightEnv)
   : option Ctypes.composite_definition := 
   composite_of_ident_from_list id env.(composites).
+
+Definition lookup_function (env: ClightEnv) (name: string) : option (Clight.function*ident) := 
+  match Env.find name env.(fenv), Env.find name env.(identMap) with
+  | Some (f), Some (id)=> Some (f,id)
+  | _ , _ => None
+  end.
+
+  
+

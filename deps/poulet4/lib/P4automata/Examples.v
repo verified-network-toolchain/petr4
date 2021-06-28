@@ -39,6 +39,15 @@ Module Simple.
             | HdrSimple, HdrSimple => in_left
             end.
 
+  Global Program Instance header_finite: @Finite header _ header_eq_dec :=
+    {| enum := [HdrSimple] |}.
+  Next Obligation.
+    repeat constructor; eauto with datatypes.
+  Qed.
+  Next Obligation.
+    destruct x; intuition congruence.
+  Qed.
+
   Definition st_start: Syntax.state state header :=
     {| st_op := OpExtract 2 (HRVar HdrSimple);
        st_trans := TGoto _ (inr true) |}.
@@ -88,6 +97,16 @@ Module Split.
             end.
   Solve Obligations with prep_equiv; try destruct x; destruct y; intuition congruence.
 
+  Global Program Instance header_finite: @Finite header _ header_eq_dec :=
+    {| enum := [HdrSplit1; HdrSplit2] |}.
+  Next Obligation.
+    repeat constructor; eauto with datatypes.
+    intro H; inversion H; discriminate || assumption.
+  Qed.
+  Next Obligation.
+    destruct x; intuition congruence.
+  Qed.
+
   Definition st_split1: Syntax.state state header :=
     {| st_op := OpExtract 1 (HRVar HdrSplit1);
        st_trans := TGoto _ (inl StSplit2) |}.
@@ -114,10 +133,11 @@ Module SimpleSplit.
     ltac:(typeclasses eauto).
 
   Definition header := Sum.H Simple.header Split.header.
-  Global Instance header_eq_dec: EquivDec.EqDec state eq :=
+  Global Instance header_eq_dec: EquivDec.EqDec header eq :=
+    ltac:(typeclasses eauto).
+  Global Instance header_finite: @Finite header _ header_eq_dec :=
     ltac:(typeclasses eauto).
 
   Definition aut := sum Simple.aut Split.aut.
-Print aut.
   
 End SimpleSplit.

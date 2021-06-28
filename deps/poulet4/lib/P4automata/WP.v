@@ -23,6 +23,7 @@ Section WeakestPre.
   (* Header identifiers. *)
   Variable (H: Type).
   Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Variable (a: P4A.t S H).
 
@@ -140,11 +141,28 @@ Section WeakestPre.
                      PredJump (trans_cond si (P4A.st_trans st) s.(st_state)) candidate)
                   candidates.
 
-  Definition sr_subst (sr: store_rel H) (e: bit_expr H) (x: bit_expr H) : store_rel H.
-  Admitted.
+  Set Printing All.
 
-  Definition be_subst (be: bit_expr H) (e: bit_expr H) (x: bit_expr H) : bit_expr H.
-  Admitted.
+  Fixpoint be_subst (be: bit_expr H) (e: bit_expr H) (x: bit_expr H) : bit_expr H :=
+    match be with
+    | BELit _ l => BELit _ l
+    | BEBuf _ _
+    | BEHdr _ _ =>
+      if bit_expr_eq_dec a be x then e else be
+    | BESlice be hi lo => BESlice (be_subst be e x) hi lo
+    | BEConcat e1 e2 => BEConcat (be_subst e1 e x) (be_subst e2 e x)
+    end.
+
+  Fixpoint sr_subst (sr: store_rel H) (e: bit_expr H) (x: bit_expr H) : store_rel H :=
+  match sr with
+  | BRTrue _ => BRTrue _
+  | BRFalse _ => BRFalse _
+  | BREq e1 e2 => BREq (be_subst e1 e x) (be_subst e2 e x)
+  | BRNotEq e1 e2 => BRNotEq (be_subst e1 e x) (be_subst e2 e x)
+  | BRAnd r1 r2 => BRAnd (sr_subst r1 e x) (sr_subst r2 e x)
+  | BROr r1 r2 => BROr (sr_subst r1 e x) (sr_subst r2 e x)
+  | BRImpl r1 r2 => BRImpl (sr_subst r1 e x) (sr_subst r2 e x)
+  end.
 
   Definition wp_pred (si: side) (b: bool) (p: pred) (c: store_rel H) : store_rel H :=
     let phi := sr_subst c (BEConcat (BEBuf _ si) (BELit _ [b])) (BEBuf _ si) in

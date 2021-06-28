@@ -40,7 +40,7 @@ Module Simple.
             end.
 
   Definition st_start: Syntax.state state header :=
-    {| st_op := OpExtract 16 (HRVar HdrSimple);
+    {| st_op := OpExtract 2 (HRVar HdrSimple);
        st_trans := TGoto _ (inr true) |}.
 
   Program Definition aut: Syntax.t state header :=
@@ -89,11 +89,11 @@ Module Split.
   Solve Obligations with prep_equiv; try destruct x; destruct y; intuition congruence.
 
   Definition st_split1: Syntax.state state header :=
-    {| st_op := OpExtract 8 (HRVar HdrSplit1);
+    {| st_op := OpExtract 1 (HRVar HdrSplit1);
        st_trans := TGoto _ (inl StSplit2) |}.
 
   Definition st_split2: Syntax.state state header :=
-    {| st_op := OpExtract 8 (HRVar HdrSplit2);
+    {| st_op := OpExtract 1 (HRVar HdrSplit2);
        st_trans := TGoto _ (inr true) |}.
 
   Program Definition aut: Syntax.t state header :=

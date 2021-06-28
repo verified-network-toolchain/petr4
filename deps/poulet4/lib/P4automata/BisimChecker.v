@@ -8,9 +8,15 @@ Import List.ListNotations.
 Section BisimChecker.
 
   (* State identifiers. *)
-  Variable (S: Type).
-  Context `{S_eq_dec: EquivDec.EqDec S eq}.
-  Context `{S_finite: @Finite S _ S_eq_dec}.
+  Variable (S1: Type).
+  Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+  Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+  Variable (S2: Type).
+  Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+  Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+  Definition S: Type := S1 + S2.
 
   (* Header identifiers. *)
   Variable (H: Type).
@@ -43,37 +49,67 @@ Section BisimChecker.
         R ⇝ (C :: T) q1 q2
   where "R ⇝ S" := (pre_bisimulation R S).
 
-  Definition not_accept1 (s: S) : crel S H := 
+  Fixpoint range (n: nat) :=
+    match n with
+    | 0 => []
+    | Datatypes.S n => range n ++ [n]
+    end.
+
+  Definition not_accept1 (a: P4A.t S H) (s: S) : crel S H := 
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
                                cs_st2 := {| st_state := inl s;    st_buf_len := n |} |};
                    cr_rel := BRFalse _ |})
-             [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15].
+             (range (P4A.size a s)).
 
-  Definition not_accept2 (s: S) : crel S H :=
+  Definition not_accept2 (a: P4A.t S H) (s: S) : crel S H := 
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inl s;    st_buf_len := n |};
                                cs_st2 := {| st_state := inr true; st_buf_len := 0 |} |};
                    cr_rel := BRFalse _ |})
-             [0;1;2;3;4;5;6;7;8;9;10;11;12;13;14;15].
-              
-  Definition init_rel : crel S H := 
-    List.concat (List.map not_accept1 (enum S) ++
-                 List.map not_accept2 (enum S)).
+             (range (P4A.size a s)).
+
+  Definition init_rel (a: P4A.t S H) : crel S H := 
+    List.concat (List.map (not_accept1 a) (enum S) ++
+                 List.map (not_accept2 a) (enum S)).
   
 End BisimChecker.
 Arguments pre_bisimulation {_ _ _ _ _} {_ _} _ _ _.
 
 Require Import Poulet4.P4automata.Examples.
 
-Notation S := (Sum.S Simple.state Split.state).
-Notation H := (Sum.H Simple.header Split.header).
 Notation init_conf := (inl Simple.Start, [], []).
 Notation "⟨ s1 , n1 ⟩ ⟨ s2 , n2 ⟩ ⊢ b" :=
   ({| cr_st :=
         {| cs_st1 := {| st_state := s1; st_buf_len := n1 |};
            cs_st2 := {| st_state := s2; st_buf_len := n2 |}; |};
       cr_rel := b|}) (at level 10).
+
+
+Section SumInitRel.
+  Set Implicit Arguments.
+  Variables (S1 S2 H: Type).
+  Context `{S1_fin: Finite S1}.
+  Context `{S2_fin: Finite S2}.
+
+  Definition sum_not_accept1 (a: P4A.t (S1 + S2) H) (s: S1) : crel (S1 + S2) H := 
+    List.map (fun n =>
+                {| cr_st := {| cs_st1 := {| st_state := inl (inl s); st_buf_len := n |};
+                               cs_st2 := {| st_state := inr true;    st_buf_len := 0 |} |};
+                   cr_rel := BRFalse _ |})
+             (range (P4A.size a (inl s))).
+
+  Definition sum_not_accept2 (a: P4A.t (S1 + S2) H) (s: S2) : crel (S1 + S2) H := 
+    List.map (fun n =>
+                {| cr_st := {| cs_st1 := {| st_state := inr true;    st_buf_len := 0 |};
+                               cs_st2 := {| st_state := inl (inr s); st_buf_len := n |} |};
+                   cr_rel := BRFalse _ |})
+             (range (P4A.size a (inr s))).
+
+  Definition sum_init_rel (a: P4A.t (S1 + S2) H) : crel (S1 + S2) H := 
+    List.concat (List.map (sum_not_accept1 a) (enum S1) ++
+                          List.map (sum_not_accept2 a) (enum S2)).
+End SumInitRel.
 
 Ltac pbskip :=
   apply PreBisimulationSkip;
@@ -90,48 +126,53 @@ Ltac solve_bisim :=
   | |- pre_bisimulation _ _ (_::_) _ _ => pbskip
   | |- pre_bisimulation _ _ (_::_) _ _ =>
     apply PreBisimulationExtend;
-    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
+    unfold WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op;
     simpl
   end.
-
-Lemma prebisim:
-  pre_bisimulation Simple.aut nil (init_rel _ _) init_conf init_conf.
-Proof.
-  apply PreBisimulationExtend.
-  simpl.
-  unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op.
-  simpl.
-  repeat solve_bisim.
-  cbv in *.
-  intuition discriminate.
-Qed.
 
 From Hammer Require Import Tactics.
 From Hammer Require Import Reflect.
 From Hammer Require Import Hammer.
 
-Ltac pbskip' := apply PreBisimulationSkip; [hammer|].
+Ltac pbskip' :=
+  apply PreBisimulationSkip;
+    [cbn in *;
+     unfold interp_conf_rel,
+            interp_store_rel,
+            interp_conf_state,
+            interp_state_template in *;
+     sfirstorder;
+     solve [hammer]|].
 
 Ltac solve_bisim' :=
   match goal with
-  | |- context[WP.wp] => 
-    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
-    simpl
-  | |- pre_bisimulation _ _ [] _ _ => apply PreBisimulationClose
-  | |- pre_bisimulation _ _ (_::_) _ _ => pbskip
-  | |- pre_bisimulation _ _ (_::_) _ _ =>
-    apply PreBisimulationExtend;
-    unfold WP.wp, WP.wp_pred_pair, WP.wp_edges, WP.wp_edge, WP.wp_op;
-    simpl
-  | |- _ => simpl
+  | |- context[WP.wp _ _] =>
+    progress (unfold WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op; simpl)
+  | |- pre_bisimulation _ _ _ _ _ _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ _ _ _ _ _ (_::_) _ _ => pbskip
+  | |- pre_bisimulation _ _ _ _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
+  | |- _ => progress simpl
   end.
 
+Print BRFalse.
+Notation btrue := (BRTrue _).
+Notation bfalse := (BRFalse _).
+Notation "a ⇒ b" := (BRImpl a b) (at level 40).
 
-Lemma prebisim':
-  pre_bisimulation Simple.aut nil (init_rel _ _) init_conf init_conf.
+Lemma prebisim_simple_split:
+  pre_bisimulation _ _ _ _
+                   SimpleSplit.aut
+                   nil
+                   (sum_init_rel SimpleSplit.aut)
+                   (inl (inl Simple.Start), [], [])
+                   (inl (inr Split.StSplit1), [], []).
 Proof.
+  unfold sum_init_rel.
+  simpl.
   apply PreBisimulationExtend.
-  repeat solve_bisim'.
+  simpl.
+  time (repeat solve_bisim').
   cbv in *.
-  hammer.
+  intuition (try congruence).
 Qed.
+

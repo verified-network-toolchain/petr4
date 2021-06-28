@@ -4,14 +4,21 @@ Require Import Poulet4.FinType.
 Require Poulet4.P4automata.Syntax.
 Module P4A := Poulet4.P4automata.Syntax.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
+Import ListNotations.
 
 Section WeakestPre.
   Set Implicit Arguments.
   
   (* State identifiers. *)
-  Variable (S: Type).
-  Context `{S_eq_dec: EquivDec.EqDec S eq}.
-  Context `{S_finite: @Finite S _ S_eq_dec}.
+  Variable (S1: Type).
+  Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+  Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+  Variable (S2: Type).
+  Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+  Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+  Definition S: Type := S1 + S2.
 
   (* Header identifiers. *)
   Variable (H: Type).
@@ -115,41 +122,60 @@ Section WeakestPre.
   Definition wp_op (s: side) (o: P4A.op H) (phi: store_rel H) : store_rel H :=
     snd (wp_op' s o (0, phi)).
 
-  Definition preds (s: P4A.state_ref S) :=
-    enum S.
+  Inductive pred :=
+  | PredRead (s: state_template S)
+  | PredJump (cond: store_rel H) (s: S).
 
   Definition pick_template (s: side) (c: conf_state S) : state_template S :=
     match s with
     | Left => c.(cs_st1)
     | Right => c.(cs_st2)
     end.
-  
-  Definition wp_edge (c: conf_rel S H) (s: side) (st: P4A.state S H) : store_rel H :=
-    let st' := pick_template s c.(cr_st) in
-    let tcond := trans_cond Left (P4A.st_trans st) st'.(st_state) in
-    let wp_trans := BRImpl tcond c.(cr_rel) in
-    wp_op s (P4A.st_op st) wp_trans.
 
-  Definition wp_edges (c: conf_rel S H) (s_left: S) (s_right: S) : store_rel H :=
-    let state_left := a.(P4A.t_states) s_left in
-    let state_right := a.(P4A.t_states) s_right in
-    let c' := {| cr_st := c.(cr_st);
-                 cr_rel := wp_edge c Left state_left |} in
-    wp_edge c' Right state_right.
+  Definition preds (si: side) (candidates: list S) (s: state_template S) : list pred :=
+    if s.(st_buf_len) == 0
+    then [PredRead {| st_state := s.(st_state); st_buf_len := s.(st_buf_len) - 1 |}]
+    else List.map (fun candidate =>
+                     let st := a.(P4A.t_states) candidate in
+                     PredJump (trans_cond si (P4A.st_trans st) s.(st_state)) candidate)
+                  candidates.
 
-  Definition wp_pred_pair (c: conf_rel S H) (preds: S * S) : conf_rel S H :=
+  Definition sr_subst (sr: store_rel H) (e: bit_expr H) (x: bit_expr H) : store_rel H.
+  Admitted.
+
+  Definition be_subst (be: bit_expr H) (e: bit_expr H) (x: bit_expr H) : bit_expr H.
+  Admitted.
+
+  Definition wp_pred (si: side) (b: bool) (p: pred) (c: store_rel H) : store_rel H :=
+    let phi := sr_subst c (BEConcat (BEBuf _ si) (BELit _ [b])) (BEBuf _ si) in
+    match p with
+    | PredRead s =>
+      phi
+    | PredJump cond s =>
+      BRImpl cond
+             (wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi)
+    end.
+
+  Definition st_pred (p: pred) :=
+    match p with
+    | PredRead s => s
+    | PredJump _ s => {| st_state := inl s; st_buf_len := 0 |}
+    end.
+
+  Definition wp_pred_pair (c: conf_rel S H) (preds: pred * pred) : list (conf_rel S H) :=
     let '(sl, sr) := preds in
-    {| cr_st := {| cs_st1 := {| st_state := inl sl;
-                                st_buf_len := 0 |};
-                   cs_st2 := {| st_state := inl sr;
-                                st_buf_len := 0 |} |};
-       cr_rel := wp_edges c (fst preds) (snd preds) |}.
-
+    [{| cr_st := {| cs_st1 := st_pred sl;
+                    cs_st2 := st_pred sr |};
+        cr_rel := wp_pred Left false sl (wp_pred Right false sr c.(cr_rel)) |};
+     {| cr_st := {| cs_st1 := st_pred sl;
+                    cs_st2 := st_pred sr |};
+        cr_rel := wp_pred Left false sl (wp_pred Right false sr c.(cr_rel)) |}].
+     
   Definition wp (c: conf_rel S H) : list (conf_rel S H) :=
-    let cur_st_left  := c.(cr_st).(cs_st1).(st_state) in
-    let cur_st_right := c.(cr_st).(cs_st2).(st_state) in
-    let pred_pairs := list_prod (preds cur_st_left)
-                                (preds cur_st_right) in
-    List.map (wp_pred_pair c) pred_pairs.
+    let cur_st_left  := c.(cr_st).(cs_st1) in
+    let cur_st_right := c.(cr_st).(cs_st2) in
+    let pred_pairs := list_prod (preds Left (List.map inl (enum S1)) cur_st_left)
+                                (preds Right (List.map inr (enum S2)) cur_st_right) in
+    List.concat (List.map (wp_pred_pair c) pred_pairs).
 
 End WeakestPre.

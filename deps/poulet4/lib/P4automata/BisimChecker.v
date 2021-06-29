@@ -3,6 +3,7 @@ Require Import Poulet4.FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
 Require Poulet4.P4automata.WP.
+Require Poulet4.P4automata.WPSymBit.
 Import List.ListNotations.
 
 Section BisimChecker.
@@ -25,10 +26,15 @@ Section BisimChecker.
 
   Variable (a: P4A.t S H).
 
+  Check WP.wp.
+  Variable (wp: P4A.t S H ->
+                conf_rel S H ->
+                list (conf_rel S H)).
+
   Notation conf := (configuration (P4A.interp a)).
 
-  Notation "⟦ x ⟧" := (interp_crel a x).
-  Notation "⦇ x ⦈" := (interp_conf_rel a x).
+  Notation "⟦ x ⟧" := (interp_crel x).
+  Notation "⦇ x ⦈" := (interp_conf_rel (a:=a) x).
   Notation "R ⊨ q1 q2" := (interp_crel R q1 q2) (at level 40).
   Notation "R ⊨ S" := (forall q1 q2, ⟦R⟧ q1 q2 -> ⦇S⦈ q1 q2) (at level 40).
   Notation δ := step.
@@ -46,7 +52,7 @@ Section BisimChecker.
         R ⇝ (C :: T) q1 q2
   | PreBisimulationExtend:
       forall (R T: crel S H) (C: conf_rel S H) q1 q2,
-        (C :: R) ⇝ (T ++ WP.wp a C) q1 q2 ->
+        (C :: R) ⇝ (T ++ wp a C) q1 q2 ->
         R ⇝ (C :: T) q1 q2
   where "R ⇝ S" := (pre_bisimulation R S).
 
@@ -60,14 +66,14 @@ Section BisimChecker.
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
                                cs_st2 := {| st_state := inl s;    st_buf_len := n |} |};
-                   cr_rel := BRFalse _ |})
+                   cr_rel := BRFalse _ BCEmp |})
              (range (P4A.size a s)).
 
   Definition not_accept2 (a: P4A.t S H) (s: S) : crel S H := 
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inl s;    st_buf_len := n |};
                                cs_st2 := {| st_state := inr true; st_buf_len := 0 |} |};
-                   cr_rel := BRFalse _ |})
+                   cr_rel := BRFalse _ BCEmp |})
              (range (P4A.size a s)).
 
   Definition init_rel (a: P4A.t S H) : crel S H := 
@@ -75,7 +81,7 @@ Section BisimChecker.
                  List.map (not_accept2 a) (enum S)).
   
 End BisimChecker.
-Arguments pre_bisimulation {_ _ _ _ _} {_ _} _ _ _.
+Arguments pre_bisimulation {S1 S2 H equiv2 H_eq_dec} a wp.
 
 Require Import Poulet4.P4automata.Examples.
 
@@ -97,19 +103,19 @@ Section SumInitRel.
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inl (inl s); st_buf_len := n |};
                                cs_st2 := {| st_state := inr true;    st_buf_len := 0 |} |};
-                   cr_rel := BRFalse _ |})
+                   cr_rel := BRFalse _ BCEmp |})
              (range (P4A.size a (inl s))).
 
   Definition sum_not_accept2 (a: P4A.t (S1 + S2) H) (s: S2) : crel (S1 + S2) H := 
     List.map (fun n =>
                 {| cr_st := {| cs_st1 := {| st_state := inr true;    st_buf_len := 0 |};
                                cs_st2 := {| st_state := inl (inr s); st_buf_len := n |} |};
-                   cr_rel := BRFalse _ |})
+                   cr_rel := BRFalse _ BCEmp |})
              (range (P4A.size a (inr s))).
 
   Definition sum_init_rel (a: P4A.t (S1 + S2) H) : crel (S1 + S2) H := 
-    List.concat (List.map (sum_not_accept1 a) (enum S1) ++
-                          List.map (sum_not_accept2 a) (enum S2)).
+    List.concat (List.map (sum_not_accept1 a) (enum S1)
+                 ++ List.map (sum_not_accept2 a) (enum S2)).
 End SumInitRel.
 
 Ltac pbskip :=
@@ -123,9 +129,9 @@ Ltac pbskip :=
 
 Ltac solve_bisim :=
   match goal with
-  | |- pre_bisimulation _ _ [] _ _ => apply PreBisimulationClose
-  | |- pre_bisimulation _ _ (_::_) _ _ => pbskip
-  | |- pre_bisimulation _ _ (_::_) _ _ =>
+  | |- pre_bisimulation _ WP.wp _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ WP.wp _ (_::_) _ _ => pbskip
+  | |- pre_bisimulation _ WP.wp _ (_::_) _ _ =>
     apply PreBisimulationExtend;
     unfold WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op;
     simpl
@@ -138,30 +144,59 @@ From Hammer Require Import Hammer.
 Ltac pbskip' :=
   apply PreBisimulationSkip;
     [cbn in *;
+     intros;
      unfold interp_conf_rel,
             interp_store_rel,
             interp_conf_state,
             interp_state_template in *;
+     simpl in *;
      sfirstorder;
      solve [hammer]|].
 
 Ltac solve_bisim' :=
   match goal with
+  | |- context[WPSymBit.wp _ _] =>
+    progress (
+        unfold WPSymBit.wp at -1;
+        unfold
+                WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op,
+                WPSymBit.wp_pred_pair 
+              ; simpl)
   | |- context[WP.wp _ _] =>
-    progress (unfold WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op; simpl)
-  | |- pre_bisimulation _ _ _ _ _ _ _ [] _ _ => apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ _ _ _ _ (_::_) _ _ => pbskip
-  | |- pre_bisimulation _ _ _ _ _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
+    progress (unfold
+                WP.wp, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op,
+                WPSymBit.wp, WPSymBit.wp_pred_pair 
+              ; simpl)
+  | |- pre_bisimulation _ _ _ [] _ _ => apply PreBisimulationClose
+  | |- pre_bisimulation _ _ _ (_::_) _ _ => pbskip'
+  | |- pre_bisimulation _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
   | |- _ => progress simpl
   end.
 
-Notation btrue := (BRTrue _).
-Notation bfalse := (BRFalse _).
+Notation btrue := (BRTrue _ _).
+Notation bfalse := (BRFalse _ _).
 Notation "a ⇒ b" := (BRImpl a b) (at level 40).
 
 Lemma prebisim_simple_split:
-  pre_bisimulation _ _ _ _ _
-                   SimpleSplit.aut
+  pre_bisimulation SimpleSplit.aut
+                   (WP.wp (H:=SimpleSplit.header))
+                   nil
+                   (sum_init_rel SimpleSplit.aut)
+                   (inl (inl Simple.Start), [], [])
+                   (inl (inr Split.StSplit1), [], []).
+Proof.
+  unfold sum_init_rel.
+  simpl.
+  apply PreBisimulationExtend.
+  simpl.
+  time (repeat solve_bisim').
+  cbv in *.
+  intuition (try congruence).
+Qed.
+
+Lemma prebisim_simple_split_sym:
+  pre_bisimulation SimpleSplit.aut
+                   (WPSymBit.wp (H:=SimpleSplit.header))
                    nil
                    (sum_init_rel SimpleSplit.aut)
                    (inl (inl Simple.Start), [], [])

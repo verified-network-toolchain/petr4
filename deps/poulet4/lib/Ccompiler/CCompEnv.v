@@ -13,6 +13,16 @@ Record ClightEnv : Type := {
   fenv: Env.t string Clight.function;
 }.
 
+Definition newClightEnv : ClightEnv :=
+  {|
+  identMap := Env.empty string AST.ident;
+  temps := [];
+  vars := [];
+  composites := [];
+  identGenerator := IdentGen.gen_init;
+  fenv := Env.empty string Clight.function;
+  |}.
+
 Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
 : ClightEnv := 
   let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
@@ -24,6 +34,18 @@ Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
   identGenerator := gen';
   fenv := env.(fenv);
   |}.
+
+Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type)
+: ClightEnv * ident := 
+  let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+  ({|
+  identMap := env.(identMap);
+  temps := (new_ident, t)::(env.(temps));
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := gen';
+  fenv := env.(fenv);
+  |}, new_ident).
 
 Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
 : ClightEnv := 
@@ -53,7 +75,32 @@ Definition add_composite_typ
   fenv := env.(fenv);
   |}.
 
+Definition add_function 
+(env: ClightEnv) 
+(name: string) 
+(f: Clight.function): ClightEnv
+:= 
+let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+{|
+identMap := Env.bind name new_ident env.(identMap);
+temps := env.(vars);
+vars := env.(temps);
+composites := env.(composites);
+identGenerator := gen';
+fenv := Env.bind name f env.(fenv);
+|}.
 
+Definition new_ident
+(env: ClightEnv) : ClightEnv * ident := 
+let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+({|
+identMap := env.(identMap);
+temps := env.(vars);
+vars := env.(temps);
+composites := env.(composites);
+identGenerator := gen';
+fenv := env.(fenv);
+|}, new_ident ).
 
 Definition find_ident (env: ClightEnv) (name: string)
 : option AST.ident :=

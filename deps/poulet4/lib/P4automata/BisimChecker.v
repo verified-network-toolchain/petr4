@@ -144,10 +144,12 @@ From Hammer Require Import Hammer.
 Ltac pbskip' :=
   apply PreBisimulationSkip;
     [cbn in *;
+     intros;
      unfold interp_conf_rel,
             interp_store_rel,
             interp_conf_state,
             interp_state_template in *;
+     simpl in *;
      sfirstorder;
      solve [hammer]|].
 

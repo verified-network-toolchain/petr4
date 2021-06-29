@@ -21,16 +21,11 @@ Inductive bctx :=
 Derive NoConfusion for bctx.
 
 (* Bitstring variable valuation. *)
-Inductive bval : bctx -> Type :=
-| BVEmp:
-    bval BCEmp
-| BVSnoc:
-    forall c size,
-      bval c ->
-      forall bs: list bool,
-        List.length bs = size ->
-        bval (BCSnoc c size).
-Arguments BVSnoc {_ _} _ _ _.
+Fixpoint bval (c: bctx) : Type :=
+  match c with
+  | BCEmp => unit
+  | BCSnoc c' size => bval c' * {b: list bool | List.length b = size}
+  end.
 
 Inductive bvar : bctx -> Type :=
 | BVarTop:
@@ -42,7 +37,9 @@ Inductive bvar : bctx -> Type :=
       bvar (BCSnoc c size).
 Arguments BVarRest {_ _} _.
 
-Locate "==".
+Definition weaken_bvar {c} (size: nat) : bvar c -> bvar (BCSnoc c size) :=
+  @BVarRest c size.
+
 Equations bvar_eqdec {c} (x y: bvar c) : {x = y} + {x <> y} :=
   { bvar_eqdec (BVarTop _ _) (BVarTop _ _) := in_left;
     bvar_eqdec (BVarRest x') (BVarRest y') := if bvar_eqdec x' y'
@@ -60,8 +57,8 @@ Fixpoint check_bvar {c} (x: bvar c) : nat :=
   end.
 
 Equations interp_bvar {c} (valu: bval c) (x: bvar c) : list bool :=
-  { interp_bvar (BVSnoc _ bs _)    (BVarTop _ _)  := bs;
-    interp_bvar (BVSnoc valu' _ _) (BVarRest x')  := interp_bvar valu' x' }.
+  { interp_bvar (_, bs)    (BVarTop _ _)  := proj1_sig bs;
+    interp_bvar (valu', bs) (BVarRest x')  := interp_bvar valu' x' }.
 
 Section ConfRel.
   Set Implicit Arguments.
@@ -109,6 +106,16 @@ Section ConfRel.
   Arguments BELit {c} _.
   Arguments BEBuf {c} _.
   Arguments BEHdr {c} _ _.
+
+  Fixpoint weaken_bit_expr {c} (size: nat) (b: bit_expr c) : bit_expr (BCSnoc c size) :=
+    match b with
+    | BELit l => BELit l
+    | BEBuf a => BEBuf a
+    | BEHdr a h => BEHdr a h
+    | BEVar b => BEVar (weaken_bvar size b)
+    | BESlice e hi lo => BESlice (weaken_bit_expr size e) hi lo
+    | BEConcat e1 e2 => BEConcat (weaken_bit_expr size e1) (weaken_bit_expr size e2)
+    end.
 
   Fixpoint size {c} (be: bit_expr c) : nat :=
     match be with
@@ -237,6 +244,17 @@ Section ConfRel.
   | BRImpl (r1 r2: store_rel c).
   Arguments store_rel : default implicits.
 
+  Fixpoint weaken_store_rel {c} (size: nat) (r: store_rel c) : store_rel (BCSnoc c size) :=
+    match r with
+    | BRTrue _ => BRTrue _
+    | BRFalse _ => BRFalse _
+    | BREq e1 e2 => BREq (weaken_bit_expr size e1) (weaken_bit_expr size e2)
+    | BRNotEq e1 e2 => BRNotEq (weaken_bit_expr size e1) (weaken_bit_expr size e2)
+    | BRAnd r1 r2 => BRAnd (weaken_store_rel size r1) (weaken_store_rel size r2)
+    | BROr r1 r2 => BROr (weaken_store_rel size r1) (weaken_store_rel size r2)
+    | BRImpl r1 r2 => BRImpl (weaken_store_rel size r1) (weaken_store_rel size r2)
+    end.
+
   Fixpoint interp_store_rel {c} (r: store_rel c) (valu: bval c) (c1 c2: conf) : Prop :=
     match r with
     | BRTrue _ => True
@@ -257,23 +275,24 @@ Section ConfRel.
     { cs_st1: state_template;
       cs_st2: state_template; }.
 
-  Record conf_rel c :=
+  Record conf_rel :=
     { cr_st: conf_state;
-      cr_rel: store_rel c }.
+      cr_ctx: bctx;
+      cr_rel: store_rel cr_ctx }.
 
   Definition interp_conf_state (c: conf_state) : relation conf :=
     fun c1 c2 =>
       interp_state_template c.(cs_st1) c1 /\
       interp_state_template c.(cs_st2) c2.
   
-  Definition interp_conf_rel {c} (phi: conf_rel c) : relation conf :=
+  Definition interp_conf_rel (phi: conf_rel) : relation conf :=
     fun x y => 
       interp_conf_state phi.(cr_st) x y ->
       forall valu,
         interp_store_rel phi.(cr_rel) valu x y.
 
-  Definition crel c :=
-    list (conf_rel c).
+  Definition crel :=
+    list (conf_rel).
 
   Definition rel_true: forall {A}, relation A :=
     fun _ x y => True.
@@ -281,7 +300,7 @@ Section ConfRel.
   Notation "⊤" := rel_true.
   Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
   Notation "⟦ x ⟧" := (interp_conf_rel x).
-  Fixpoint interp_crel {c} (rel: crel c) : relation conf :=
+  Fixpoint interp_crel (rel: crel) : relation conf :=
     match rel with
     | [] => ⊤
     | r :: rel' => ⟦r⟧ ⊓ interp_crel rel'

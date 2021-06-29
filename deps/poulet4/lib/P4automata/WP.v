@@ -117,6 +117,12 @@ Section WeakestPre.
   | PredRead (s: state_template S)
   | PredJump (cond: store_rel H c) (s: S).
 
+  Definition weaken_pred {c} (size: nat) (p: pred c) : pred (BCSnoc c size) :=
+    match p with
+    | PredRead _ s => PredRead _ s
+    | PredJump cond s => PredJump (weaken_store_rel size cond) s
+    end.
+
   Definition pick_template (s: side) (c: conf_state S) : state_template S :=
     match s with
     | Left => c.(cs_st1)
@@ -131,8 +137,8 @@ Section WeakestPre.
                      PredJump (trans_cond si (P4A.st_trans st) s.(st_state)) candidate)
                   candidates.
 
-  Definition wp_pred {c: bctx} (si: side) (b: bool) (p: pred c) (phi: store_rel H c) : store_rel H c :=
-    let phi' := sr_subst phi (BEConcat (BEBuf _ _ si) (BELit _ _ [b])) (BEBuf _ _ si) in
+  Definition wp_pred {c: bctx} (si: side) (b: bit_expr H c) (p: pred c) (phi: store_rel H c) : store_rel H c :=
+    let phi' := sr_subst phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
     match p with
     | PredRead _ s =>
       phi'
@@ -147,16 +153,18 @@ Section WeakestPre.
     | PredJump _ s => {| st_state := inl s; st_buf_len := 0 |}
     end.
 
-  Definition wp_pred_pair {c} (phi: conf_rel S H c) (preds: pred c * pred c) : list (conf_rel S H c) :=
+  Definition wp_pred_pair (phi: conf_rel S H) (preds: pred phi.(cr_ctx) * pred phi.(cr_ctx)) : list (conf_rel S H) :=
     let '(sl, sr) := preds in
     [{| cr_st := {| cs_st1 := st_pred sl;
                     cs_st2 := st_pred sr |};
-        cr_rel := wp_pred Left false sl (wp_pred Right false sr phi.(cr_rel)) |};
+        cr_rel := wp_pred Left (BELit _ _ [false]) sl
+                          (wp_pred Right (BELit _ _ [false]) sr phi.(cr_rel)) |};
      {| cr_st := {| cs_st1 := st_pred sl;
                     cs_st2 := st_pred sr |};
-        cr_rel := wp_pred Left true sl (wp_pred Right true sr phi.(cr_rel)) |}].
+        cr_rel := wp_pred Left (BELit _ _ [true]) sl
+                          (wp_pred Right (BELit _ _ [true]) sr phi.(cr_rel)) |}].
      
-  Definition wp {c} (phi: conf_rel S H c) : list (conf_rel S H c) :=
+  Definition wp (phi: conf_rel S H) : list (conf_rel S H) :=
     let cur_st_left  := phi.(cr_st).(cs_st1) in
     let cur_st_right := phi.(cr_st).(cs_st2) in
     let pred_pairs := list_prod (preds Left (List.map inl (enum S1)) cur_st_left)

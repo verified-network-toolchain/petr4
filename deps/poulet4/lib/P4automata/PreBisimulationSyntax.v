@@ -14,6 +14,55 @@ Module P4A := Poulet4.P4automata.Syntax.
 
 Open Scope list_scope.
 
+(* Bitstring variable context. *)
+Inductive bctx :=
+| BCEmp: bctx
+| BCSnoc: bctx -> nat -> bctx.
+Derive NoConfusion for bctx.
+
+(* Bitstring variable valuation. *)
+Inductive bval : bctx -> Type :=
+| BVEmp:
+    bval BCEmp
+| BVSnoc:
+    forall c size,
+      bval c ->
+      forall bs: list bool,
+        List.length bs = size ->
+        bval (BCSnoc c size).
+Arguments BVSnoc {_ _} _ _ _.
+
+Inductive bvar : bctx -> Type :=
+| BVarTop:
+    forall c size,
+      bvar (BCSnoc c size)
+| BVarRest:
+    forall c size,
+      bvar c ->
+      bvar (BCSnoc c size).
+Arguments BVarRest {_ _} _.
+
+Locate "==".
+Equations bvar_eqdec {c} (x y: bvar c) : {x = y} + {x <> y} :=
+  { bvar_eqdec (BVarTop _ _) (BVarTop _ _) := in_left;
+    bvar_eqdec (BVarRest x') (BVarRest y') := if bvar_eqdec x' y'
+                                              then in_left
+                                              else in_right;
+    bvar_eqdec _ _ := in_right }.
+Next Obligation. dependent destruction H. tauto. Qed.
+
+Instance bvar_eq_dec {c}: EquivDec.EqDec (bvar c) eq := bvar_eqdec.
+
+Fixpoint check_bvar {c} (x: bvar c) : nat :=
+  match x with
+  | BVarTop c size => size
+  | BVarRest x' => check_bvar x'
+  end.
+
+Equations interp_bvar {c} (valu: bval c) (x: bvar c) : list bool :=
+  { interp_bvar (BVSnoc _ bs _)    (BVarTop _ _)  := bs;
+    interp_bvar (BVSnoc valu' _ _) (BVarRest x')  := interp_bvar valu' x' }.
+
 Section ConfRel.
   Set Implicit Arguments.
 
@@ -50,19 +99,24 @@ Section ConfRel.
         end }.
   Solve Obligations with unfold equiv, complement in *; congruence.
 
-  Inductive bit_expr :=
+  Inductive bit_expr (c: bctx) :=
   | BELit (l: list bool)
   | BEBuf (a: side)
   | BEHdr (a: side) (h: P4A.hdr_ref H)
-  | BESlice (e: bit_expr) (hi lo: nat)
-  | BEConcat (e1 e2: bit_expr).
+  | BEVar (b: bvar c)
+  | BESlice (e: bit_expr c) (hi lo: nat)
+  | BEConcat (e1 e2: bit_expr c).
+  Arguments BELit {c} _.
+  Arguments BEBuf {c} _.
+  Arguments BEHdr {c} _ _.
 
-  Fixpoint size (be: bit_expr) : nat :=
+  Fixpoint size {c} (be: bit_expr c) : nat :=
     match be with
-    | BELit l => 1
-    | BEBuf a => 1
-    | BEHdr a h => 1
-    | BESlice e hi lo => 1 + size e
+    | BELit _
+    | BEBuf _
+    | BEHdr _ _
+    | BEVar _ => 1
+    | BESlice e _ _ => 1 + size e
     | BEConcat e1 e2 => 1 + size e1 + size e2
     end.
 
@@ -80,7 +134,7 @@ Section ConfRel.
 
   Obligation Tactic := intros.
   Unset Transparent Obligations.
-  Program Fixpoint bit_expr_eqdec (x y: bit_expr) {measure (size x)} : {x = y} + {x <> y} :=
+  Program Fixpoint bit_expr_eqdec {c} (x y: bit_expr c) {measure (size x)} : {x = y} + {x <> y} :=
     match x with
     | BELit l =>
       match y with
@@ -96,6 +150,14 @@ Section ConfRel.
       match y with
       | BEHdr a' h' =>
         if Sumbool.sumbool_and _ _ _ _ (a == a') (h == h')
+        then in_left
+        else in_right
+      | _ => in_right
+      end
+    | BEVar x =>
+      match y with
+      | BEVar x' =>
+        if bvar_eq_dec x x'
         then in_left
         else in_right
       | _ => in_right
@@ -128,21 +190,23 @@ Section ConfRel.
   Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
   Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
   Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
+  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
   Next Obligation.
-    set (f := fun recarg : {_ : bit_expr & bit_expr} =>
-                let x := projT1 recarg in let y := projT2 recarg in size x).
+    set (f := (fun recarg : {c : bctx & {_ : bit_expr c & bit_expr c}} =>
+                 let c := projT1 recarg in
+                 let x := projT1 (projT2 recarg) in let y := projT2 (projT2 recarg) in size x)).
     eapply (Wf_nat.well_founded_lt_compat _ f).
     intros [x x'] [y y'] Hmr.
     inversion Hmr; cbn in *; Lia.lia.
   Qed.
 
-  Global Program Instance bit_expr_eq_dec : EquivDec.EqDec bit_expr eq :=
+  Global Program Instance bit_expr_eq_dec {c} : EquivDec.EqDec (bit_expr c) eq :=
     { equiv_dec := bit_expr_eqdec }.
 
   Definition slice {A} (l: list A) (hi lo: nat) :=
     skipn lo (firstn (1 + hi) l).
 
-  Fixpoint interp_bit_expr (e: bit_expr) (c1 c2: conf) : list bool :=
+  Fixpoint interp_bit_expr {c} (e: bit_expr c) (valu: bval c) (c1 c2: conf) : list bool :=
     match e with
     | BELit l => l
     | BEBuf Left => snd c1
@@ -156,57 +220,60 @@ Section ConfRel.
       match P4A.find h (snd (fst c)) with
       | P4A.VBits v => v
       end
+    | BEVar x => interp_bvar valu x
     | BESlice e hi lo =>
-      slice (interp_bit_expr e c1 c2) hi lo
+      slice (interp_bit_expr e valu c1 c2) hi lo
     | BEConcat e1 e2 =>
-      interp_bit_expr e1 c1 c2 ++ interp_bit_expr e2 c1 c2
+      interp_bit_expr e1 valu c1 c2 ++ interp_bit_expr e2 valu c1 c2
     end.
 
-  Inductive store_rel :=
+  Inductive store_rel c :=
   | BRTrue
   | BRFalse
-  | BREq (e1 e2: bit_expr)
-  | BRNotEq (e1 e2: bit_expr)
-  | BRAnd (r1 r2: store_rel)
-  | BROr (r1 r2: store_rel)
-  | BRImpl (r1 r2: store_rel).
+  | BREq (e1 e2: bit_expr c)
+  | BRNotEq (e1 e2: bit_expr c)
+  | BRAnd (r1 r2: store_rel c)
+  | BROr (r1 r2: store_rel c)
+  | BRImpl (r1 r2: store_rel c).
+  Arguments store_rel : default implicits.
 
-  Fixpoint interp_store_rel (r: store_rel) (c1 c2: conf) : Prop :=
+  Fixpoint interp_store_rel {c} (r: store_rel c) (valu: bval c) (c1 c2: conf) : Prop :=
     match r with
-    | BRTrue => True
-    | BRFalse => False
+    | BRTrue _ => True
+    | BRFalse _ => False
     | BREq e1 e2 =>
-      interp_bit_expr e1 c1 c2 = interp_bit_expr e2 c1 c2
+      interp_bit_expr e1 valu c1 c2 = interp_bit_expr e2 valu c1 c2
     | BRNotEq e1 e2 =>
-      interp_bit_expr e1 c1 c2 <> interp_bit_expr e2 c1 c2
+      interp_bit_expr e1 valu c1 c2 <> interp_bit_expr e2 valu c1 c2
     | BRAnd r1 r2 =>
-      interp_store_rel r1 c1 c2 /\ interp_store_rel r2 c1 c2
+      interp_store_rel r1 valu c1 c2 /\ interp_store_rel r2 valu c1 c2
     | BROr r1 r2 =>
-      interp_store_rel r1 c1 c2 \/ interp_store_rel r2 c1 c2
+      interp_store_rel r1 valu c1 c2 \/ interp_store_rel r2 valu c1 c2
     | BRImpl r1 r2 =>
-      interp_store_rel r1 c1 c2 -> interp_store_rel r2 c1 c2
+      interp_store_rel r1 valu c1 c2 -> interp_store_rel r2 valu c1 c2
     end.
 
   Record conf_state :=
     { cs_st1: state_template;
       cs_st2: state_template; }.
 
-  Record conf_rel :=
+  Record conf_rel c :=
     { cr_st: conf_state;
-      cr_rel: store_rel; }.
+      cr_rel: store_rel c }.
 
   Definition interp_conf_state (c: conf_state) : relation conf :=
     fun c1 c2 =>
       interp_state_template c.(cs_st1) c1 /\
       interp_state_template c.(cs_st2) c2.
   
-  Definition interp_conf_rel (c: conf_rel) : relation conf :=
+  Definition interp_conf_rel {c} (phi: conf_rel c) : relation conf :=
     fun x y => 
-      interp_conf_state c.(cr_st) x y ->
-      interp_store_rel c.(cr_rel) x y.
+      interp_conf_state phi.(cr_st) x y ->
+      forall valu,
+        interp_store_rel phi.(cr_rel) valu x y.
 
-  Definition crel :=
-    list conf_rel.
+  Definition crel c :=
+    list (conf_rel c).
 
   Definition rel_true: forall {A}, relation A :=
     fun _ x y => True.
@@ -214,12 +281,12 @@ Section ConfRel.
   Notation "⊤" := rel_true.
   Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
   Notation "⟦ x ⟧" := (interp_conf_rel x).
-  Fixpoint interp_crel (rel: crel) : relation conf :=
+  Fixpoint interp_crel {c} (rel: crel c) : relation conf :=
     match rel with
     | [] => ⊤
     | r :: rel' => ⟦r⟧ ⊓ interp_crel rel'
     end.
 
 End ConfRel.
-Arguments interp_conf_rel {_} {_} {_} {_} _.
-Arguments interp_crel {_} {_} {_} {_} _.
+Arguments interp_conf_rel {_} {_} {_} {_} {_} _.
+Arguments interp_crel {_} {_} {_} {_} {_} _.

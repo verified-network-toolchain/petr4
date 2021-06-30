@@ -2,7 +2,8 @@
 #include <core.p4>
 #include <v1model.p4>
 
-const bit<16> TYPE_IPV4 = 0x800;
+const bit<9> CTRL_PT = 9w510;
+const bit<16> TYPE_BCAST = 0x8888;
 
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
@@ -33,20 +34,18 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header bcast_t {
+    bit<16> etherType;
+}
+
 struct metadata {
     /* empty */
 }
 
 struct headers {
     ethernet_t   ethernet;
-    ipv4_t       ipv4;
+    bcast_t      bcast;
 }
-
-struct learning_message_t {
-    bit<32> port;
-    ip4Addr_t src;
-}
-    
 
 /*************************************************************************
 *********************** P A R S E R  ***********************************
@@ -58,22 +57,17 @@ parser MyParser(packet_in packet,
                 inout standard_metadata_t standard_metadata) {
 
     state start {
-        transition parse_ethernet;
-    }
-
-    state parse_ethernet {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-	    TYPE_IPV4: parse_ipv4;
+	    TYPE_BCAST: parse_bcast;
 	    default: accept;
 	}
     }
 
-    state parse_ipv4 {
-	packet.extract(hdr.ipv4);
+    state parse_bcast {
+    	packet.extract(hdr.bcast);
 	transition accept;
     }
-
 }
 
 /*************************************************************************
@@ -96,42 +90,32 @@ control MyIngress(inout headers hdr,
         mark_to_drop(standard_metadata);
     }
 
-    action broadcast() {
-        standard_metadata.mcast_grp = 1;
+    action forward(bit<9> port) {
+	standard_metadata.egress_spec = (bit<9>) port;
     }
 
-    action forward(bit<32> port) {
-	standard_metadata.egress_spec = (egressSpec_t) port;
+    action punt() {
+        forward(CTRL_PT);
     }
 
     table ethernet_learning {
         key = {
-	    hdr.ipv4.dstAddr:exact;
+	    hdr.ethernet.dstAddr:exact;
+	    hdr.ethernet.srcAddr:exact;
 	}
 	actions = {
-	    broadcast;
-	    drop;
 	    forward;
+	    punt;
 	}
-	default_action = broadcast();
+	default_action = punt();
     }
     
     apply {
-	learning_message_t msg;
-	msg.port = (bit<32>) standard_metadata.ingress_port;
-	msg.src = hdr.ipv4.srcAddr;
-	hdr.ipv4.srcAddr = hdr.ipv4.dstAddr;
-	hdr.ipv4.dstAddr = msg.src;
-	switch(ethernet_learning.apply().action_run) {
-	    broadcast: {
-		digest(0, msg);
-	    }
-	    default: { }
-	}
-	hdr.ipv4.dstAddr = hdr.ipv4.srcAddr;
-	hdr.ipv4.srcAddr = msg.src;
-	standard_metadata.mcast_grp = 0;   
-	ethernet_learning.apply();
+       if (hdr.ethernet.dstAddr == 0xffffffffffff || hdr.ethernet.etherType == TYPE_BCAST) {
+         standard_metadata.mcast_grp = 1;
+       } else {
+         ethernet_learning.apply();
+       }       
     }
 }
 
@@ -147,13 +131,11 @@ control MyEgress(inout headers hdr,
 	mark_to_drop(standard_metadata);
     }
 
-    action pass() {
-        
-    }   
+    action pass() { }   
 
     table spanning_tree {
 	key = {
-	    standard_metadata.egress_port: exact;
+          standard_metadata.egress_port: exact;
 	}
 
 	actions = {
@@ -165,7 +147,13 @@ control MyEgress(inout headers hdr,
     }
     
     apply {
-	spanning_tree.apply();
+      if(hdr.ethernet.dstAddr == 0xffffffffffff || hdr.ethernet.etherType == TYPE_BCAST) {
+        spanning_tree.apply();
+      }
+      if(hdr.ethernet.etherType == TYPE_BCAST) {
+        hdr.ethernet.etherType = hdr.bcast.etherType;
+	hdr.bcast.setInvalid();
+      }
     }
 }
 
@@ -184,7 +172,7 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-	packet.emit(hdr.ipv4);
+	packet.emit(hdr.bcast);
     }
 }
 

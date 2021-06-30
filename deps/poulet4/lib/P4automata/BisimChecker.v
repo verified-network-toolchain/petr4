@@ -87,8 +87,6 @@ Arguments pre_bisimulation {S1 S2 H equiv2 H_eq_dec} a wp.
 
 Require Import Poulet4.P4automata.Examples.
 
-Notation init_conf := (inl Simple.Start, [], []).
-
 Notation "ctx , ⟨ s1 , n1 ⟩ ⟨ s2 , n2 ⟩ ⊢ b" :=
   ({| cr_st :=
         {| cs_st1 := {| st_state := s1; st_buf_len := n1 |};

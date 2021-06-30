@@ -141,3 +141,82 @@ Module SimpleSplit.
   Definition aut := sum Simple.aut Split.aut.
   
 End SimpleSplit.
+
+Module BabyIP1.
+  Inductive state :=
+  | Start
+  | ParseUDP
+  | ParseTCP.
+  Scheme Equality for state.
+  Global Instance state_eqdec: EquivDec.EqDec state eq := state_eq_dec.
+  Global Program Instance state_finite: @Finite state _ state_eq_dec :=
+    {| enum := [Start; ParseUDP; ParseTCP] |}.
+  Next Obligation.
+    repeat constructor;
+      repeat match goal with
+             | H: List.In _ [] |- _ => apply List.in_nil in H; exfalso; exact H
+             | |- ~ List.In _ [] => apply List.in_nil
+             | |- ~ List.In _ (_ :: _) => unfold not; intros
+             | H: List.In _ (_::_) |- _ => inversion H; clear H
+             | _ => discriminate
+             end.
+  Qed.
+  Next Obligation.
+    destruct x; intuition congruence.
+  Qed.
+
+  Inductive header :=
+  | HdrIP
+  | HdrUDPTCP.
+  Scheme Equality for header.
+  Global Instance header_eqdec: EquivDec.EqDec header eq := header_eq_dec.
+  Global Program Instance header_finite: @Finite header _ header_eq_dec :=
+    {| enum := [HdrIP; HdrUDPTCP] |}.
+  Next Obligation.
+    repeat constructor;
+      repeat match goal with
+             | H: List.In _ [] |- _ => apply List.in_nil in H; exfalso; exact H
+             | |- ~ List.In _ [] => apply List.in_nil
+             | |- ~ List.In _ (_ :: _) => unfold not; intros
+             | H: List.In _ (_::_) |- _ => inversion H; clear H
+             | _ => discriminate
+             end.
+  Qed.
+  Next Obligation.
+    destruct x; intuition congruence.
+  Qed.
+
+  Definition states (s: state) :=
+    match s with
+    | Start =>
+      {| st_op := OpExtract 20 (HRVar HdrIP);
+         st_trans := P4A.TSel (ESlice (EHdr (HRVar HdrIP)) 20 16)
+                              [{| sc_val := VBits [false; false; false; true];
+                                 sc_st := inl ParseUDP |};
+                              {| sc_val := VBits [false; false; false; false];
+                                 sc_st := inl ParseTCP |}]
+                              (inr false) |}
+    | ParseUDP =>
+      {| st_op := OpExtract 20 (HRVar HdrUDPTCP);
+         st_trans := P4A.TGoto _ (inr true) |}
+    | ParseTCP =>
+      {| st_op := OpExtract 28 (HRVar HdrUDPTCP);
+         st_trans := P4A.TGoto _ (inr true) |}
+    end.
+
+End BabyIP1.
+
+Module BabyIP2.
+End BabyIP2.
+
+Module MPLS1.
+End MPLS1.
+
+Module MPLS2.
+End MPLS2.
+
+Module TPP1.
+End TPP1.
+
+Module TPP2.
+End TPP2.

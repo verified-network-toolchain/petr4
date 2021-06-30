@@ -41,7 +41,8 @@ Section Syntax.
   
   Inductive expr :=
   | EHdr (h: hdr_ref)
-  | ELit (bs: list bool).
+  | ELit (bs: list bool)
+  | ESlice (e: expr) (hi lo: nat).
   (* todo: binops, ...? *)
   
   Definition state_ref: Type := S + bool.
@@ -132,10 +133,11 @@ Section Fmap.
     | HRVar h => HRVar (g h)
     end.
     
-  Definition expr_fmapH (e: expr H) : expr H' :=
+  Fixpoint expr_fmapH (e: expr H) : expr H' :=
     match e with
     | EHdr h => EHdr (hdr_ref_fmapH h)
     | ELit _ bs => ELit _ bs
+    | ESlice e hi lo => ESlice (expr_fmapH e) hi lo
     end.
   
   Definition state_ref_fmapS (s: state_ref S) : state_ref S' :=
@@ -211,14 +213,21 @@ Section Interp.
       end
     end.
 
-  Definition eval_expr (st: store) (e: expr H) : v :=
+  Definition slice {A} (l: list A) (hi lo: nat) :=
+    List.skipn lo (List.firstn (1 + hi) l).
+
+  Fixpoint eval_expr (st: store) (e: expr H) : v :=
    match e with
    | EHdr (HRVar x) =>
      match Env.find x st with
      | Some v => v
      | None => VBits nil
      end
-   | ELit _ bs => VBits bs
+   | ELit _ bs =>
+     VBits bs
+   | ESlice e hi lo =>
+     let '(VBits bs) := eval_expr st e in
+     VBits (slice bs hi lo)
    end.
 
   Fixpoint eval_op (st: store) (bits: list bool) (o: op H) : store :=

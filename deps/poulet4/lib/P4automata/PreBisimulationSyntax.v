@@ -222,9 +222,6 @@ Section ConfRel.
   Global Program Instance bit_expr_eq_dec {c} : EquivDec.EqDec (bit_expr c) eq :=
     { equiv_dec := bit_expr_eqdec }.
 
-  Definition slice {A} (l: list A) (hi lo: nat) :=
-    skipn lo (firstn (1 + hi) l).
-
   Fixpoint interp_bit_expr {c} (e: bit_expr c) (valu: bval c) (c1 c2: conf) : list bool :=
     match e with
     | BELit l => l
@@ -241,7 +238,7 @@ Section ConfRel.
       end
     | BEVar x => interp_bvar valu x
     | BESlice e hi lo =>
-      slice (interp_bit_expr e valu c1 c2) hi lo
+      P4A.slice (interp_bit_expr e valu c1 c2) hi lo
     | BEConcat e1 e2 =>
       interp_bit_expr e1 valu c1 c2 ++ interp_bit_expr e2 valu c1 c2
     end.

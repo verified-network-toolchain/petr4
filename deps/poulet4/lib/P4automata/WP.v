@@ -27,10 +27,11 @@ Section WeakestPre.
 
   Variable (a: P4A.t S H).
 
-  Definition expr_to_bit_expr {c} (s: side) (e: P4A.expr H) : bit_expr H c :=
+  Fixpoint expr_to_bit_expr {c} (s: side) (e: P4A.expr H) : bit_expr H c :=
     match e with
     | P4A.EHdr h => BEHdr c s h
     | P4A.ELit _ bs => BELit _ c bs
+    | P4A.ESlice e hi lo => BESlice (expr_to_bit_expr s e) hi lo
     end.
 
   Definition val_to_bit_expr {c} (value: P4A.v) : bit_expr H c :=

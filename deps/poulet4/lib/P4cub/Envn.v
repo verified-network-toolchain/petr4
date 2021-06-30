@@ -44,6 +44,16 @@ Section EnvDefs.
     e1 ++ e2.
   (**[]*)
 
+  Fixpoint keys (e: t D T) : list D := 
+    match e with 
+    | nil => nil
+    | (y, v) :: e' =>
+      let keys' := keys e' in 
+      match find y e' with
+      | None => y::keys'
+      | _ => keys'
+      end
+    end.
   (* TODO: whatever lemmas needed. *)
 End EnvDefs.
 

@@ -186,3 +186,13 @@ Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
   := env.(vars).
 Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type)
   := env.(temps).
+
+Definition get_functions (env: ClightEnv) : option (list (AST.ident * Clight.function))
+ := 
+ let keys := Env.keys env.(fenv) in 
+ List.fold_right 
+ (fun (key : string) (accumulator: option (list (AST.ident * Clight.function))) 
+  => match accumulator, lookup_function env key with
+    | Some l, Some (f, id) => Some ((id,f)::l) 
+    | _ , _ => None
+    end) (Some []) keys.

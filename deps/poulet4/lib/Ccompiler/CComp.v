@@ -528,6 +528,25 @@ Section CComp.
     end 
   | _ => None
   end.
+
+  Fixpoint CTranslateTopDeclaration (d: tpdecl) (env: ClightEnv) : option ClightEnv
+  := 
+  match d with
+  | %{d1 ;%; d2 @ i}% => 
+    match CTranslateTopDeclaration d1 env with
+    | None => None
+    | Some env1 => 
+      match CTranslateTopDeclaration d2 env1 with
+      | None => None
+      | Some env2 => Some env2
+      end end
+  | %{Instance x of c (args) @i }% => None (*TODO: implement*) 
+  | %{void f (params) {body} @i }% => CTranslateFunction d env
+  | %{fn f (params) -> t {body} @i }% => CTranslateFunction d env
+  | %{extern e (cparams) {methods} @i }% => None (*TODO: implement*)
+  | %{control c (cparams) (params) apply {blk} where {body} @ i}% => CTranslateTopControl d env
+  | %{parser p (cparams) (params) start := st {states} @ i}% => CTranslateTopParser d env
+  end.
   (* currently just an empty program *)
   Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 
     let main_decl : AST.globdef (fundef function) type :=
@@ -540,10 +559,24 @@ Section CComp.
         Sskip
       ))
     in
-    let res_prog : Errors.res (program function) := make_program 
-      [] [(xH, main_decl)] [] xH
-    in
-    res_prog.
+    let init_env := CCompEnv.newClightEnv in
+    let (init_env, main_id) := CCompEnv.new_ident init_env in 
+    match CTranslateTopDeclaration prog init_env with
+    | None => Errors.Error (Errors.msg "something went wrong")
+    | Some env_all_declared => 
+      match CCompEnv.get_functions env_all_declared with
+      | None => Errors.Error (Errors.msg "can't find all the declared functions")
+      | Some f_decls => 
+      let f_decls := List.map 
+        (fun (x: AST.ident * Clight.function) 
+        => let (id, f) := x in 
+        (id, AST.Gfun(Ctypes.Internal f))) f_decls in
+      let res_prog : Errors.res (program function) := make_program 
+        [] ((main_id, main_decl):: f_decls) [] main_id
+      in
+      res_prog
+      end
+    end.
 
   Definition Compile_print (prog: tpdecl): unit := 
     match Compile prog with

@@ -90,6 +90,20 @@ identGenerator := gen';
 fenv := Env.bind name f env.(fenv);
 |}.
 
+Definition update_function
+(env: ClightEnv)
+(name: string)
+(f: Clight.function) : ClightEnv
+:= 
+{|
+identMap := env.(identMap);
+temps := env.(vars);
+vars := env.(temps);
+composites := env.(composites);
+identGenerator := env.(identGenerator);
+fenv := Env.bind name f env.(fenv);
+|}.
+
 Definition new_ident
 (env: ClightEnv) : ClightEnv * ident := 
 let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
@@ -168,5 +182,7 @@ Definition lookup_function (env: ClightEnv) (name: string) : option (Clight.func
   | _ , _ => None
   end.
 
-  
-
+Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
+  := env.(vars).
+Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type)
+  := env.(temps).

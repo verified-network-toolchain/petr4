@@ -10,6 +10,9 @@ Require Import Poulet4.Ccompiler.CCompEnv.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
+
+Open Scope string_scope.
+Open Scope list_scope.
 Module P := P4cub.
 Module F := P.F.
 Module E := P.Expr.
@@ -288,96 +291,119 @@ Section CComp.
     (* | -{invoke tbl @ i}- => None *)
     | _ => None
     end.
-  Open Scope string_scope.
 
-  Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv): option (Clight.function * ClightEnv) :=
+  Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv) :=
   match st with
   | &{state {stmt} transition pe}& => 
   match CTranslateStatement stmt env with
-  | None => None
-  | Some(stmt', env') =>
-  match pe with 
-  | p{goto st @ i}p => 
-    match st with
-    | ={start}= =>
-      match (lookup_function env' "start") with
-      | None => None
-      | Some (start_f, start_id) =>
-      Some (Clight.mkfunction
-        Ctypes.Tvoid
-        (AST.mkcallconv None true true)
-        []
-        []
-        []
-        (Ssequence stmt'
-        (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
-        , env')
-      end
-    | ={accept}= =>
-      Some (Clight.mkfunction
-        Ctypes.Tvoid
-        (AST.mkcallconv None true true)
-        []
-        []
-        []
-        (Ssequence stmt' (Sreturn None))
-        , env') 
-    | ={reject}= => None (*TODO: implement*)
-    | ={δ x}= => 
-    match lookup_function env' x with
     | None => None
-    | Some (x_f, x_id) =>
-    Some (Clight.mkfunction
-        Ctypes.Tvoid
-        (AST.mkcallconv None true true)
-        []
-        []
-        []
-        (Ssequence stmt'
-        (Scall None (Evar x_id (Clight.type_of_function x_f)) []))
-        , env')
-    end
-    end
-  | p{select exp { cases } default := def @ i}p => None (*unimplemented*)
+    | Some(stmt', env') =>
+    match pe with 
+    | p{goto st @ i}p => 
+      match st with
+      | ={start}= =>
+        match (lookup_function env' "start") with
+        | None => None
+        | Some (start_f, start_id) =>
+        Some (Clight.mkfunction
+          Ctypes.Tvoid
+          (AST.mkcallconv None true true)
+          params
+          (CCompEnv.get_vars env')
+          (CCompEnv.get_temps env')
+          (Ssequence stmt'
+          (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
+          , env')
+        end
+      | ={accept}= =>
+        Some (Clight.mkfunction
+          Ctypes.Tvoid
+          (AST.mkcallconv None true true)
+          params
+          (CCompEnv.get_vars env')
+          (CCompEnv.get_temps env')
+          (Ssequence stmt' (Sreturn None))
+          , env') 
+      | ={reject}= => None (*TODO: implement*)
+      | ={δ x}= => 
+      match lookup_function env' x with
+      | None => None
+      | Some (x_f, x_id) =>
+      Some (Clight.mkfunction
+          Ctypes.Tvoid
+          (AST.mkcallconv None true true)
+          params
+          (CCompEnv.get_vars env')
+          (CCompEnv.get_temps env')
+          (Ssequence stmt'
+          (Scall None (Evar x_id (Clight.type_of_function x_f)) []))
+          , env')
+      end
+      end
+    | p{select exp { cases } default := def @ i}p => None (*unimplemented*)
   end
   end
   end.
 
-  Definition CTranslateParser (parsr: TD.d tags_t) (env: ClightEnv): option (Clight.function * ClightEnv)
-  :=
-  match parsr with
-  | %{parser p (cparams) (params) start := st {states} @ i}% =>
-    (*ignore constructor params for now*)
-    let paramarg_types : list E.t :=
+  Definition CTranslateParams (params : E.params) (env : ClightEnv) 
+  : list (AST.ident * Ctypes.type) * ClightEnv :=
+  let paramarg_types : list E.t :=
     List.map 
     (fun (p: P.paramarg E.t E.t) => match p with
                                     | P.PAIn x
                                     | P.PAOut x
                                     | P.PAInOut x => x end) 
     (F.values params) in
-    let (fn_params, env''):= 
-      List.fold_left 
-      (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: E.t)
-      => let (l, env') := cumulator in
-        let (env', new_id) := new_ident env' in 
-        ((new_id, CTranslateType p) :: l, env')
-      ) paramarg_types ([],env) in
+  List.fold_left 
+    (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: E.t)
+    => let (l, env') := cumulator in
+      let (env', new_id) := new_ident env' in 
+      ((new_id, CTranslateType p) :: l, env')) 
+  paramarg_types ([],env)
+  . 
+
+  Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
+  :=
+  match parsr with
+  | %{parser p (cparams) (params) start := st {states} @ i}% =>
+    (*ignore constructor params for now*)
+    
+    let (fn_params, env):= CTranslateParams params env in
     let state_names := F.keys states in 
-    let env''' := 
+    let env_fn_sig_declared := 
+      (*all functions inside one top parser declaration should have the same parameter*)
+      let fn_sig := 
+      (Clight.mkfunction 
+      Ctypes.Tvoid 
+      (AST.mkcallconv None true true) 
+      fn_params
+      []
+      []
+      Sskip ) in
+      let env_start_fn_sig_declared := 
+        CCompEnv.add_function env "start" fn_sig
+      in
+      List.fold_left 
+        (fun (cumulator : ClightEnv) (state_name: string) =>
+          CCompEnv.add_function cumulator state_name fn_sig
+        ) state_names  env_start_fn_sig_declared in
+    
+    let env_fn_declared := 
       List.fold_left
       (fun (cumulator: option ClightEnv) (state_name: string)
-      => match cumulator with | None => None | Some env =>
+      => match cumulator with | None => None | Some env' =>
         match Env.find state_name states with | None => None |Some sb =>
-        match CTranslateParserState sb env with | None => None | Some (f , env') =>
-        Some (CCompEnv.add_function env' state_name f)
+        match CTranslateParserState sb env' fn_params with | None => None | Some (f , _) =>
+        Some (CCompEnv.update_function env' state_name f)
         end end end
-      ) state_names (Some (env'')) in
-    match env''' with |None => None |Some env =>
-    match CTranslateParserState st env with 
+      ) state_names (Some env_fn_sig_declared) in
+    (*finished declaring all the state blocks except start state*)
+    match env_fn_declared with |None => None |Some env_fn_declared =>
+    match CTranslateParserState st env_fn_declared fn_params with 
     | None => None 
-    | Some (f_start, env)=>
-      let topenv := CCompEnv.add_function env "start" f_start in
-      match (lookup_function topenv "start") with
+    | Some (f_start, _)=>
+      let env_start_declared := CCompEnv.add_function env_fn_declared "start" f_start in
+      match (lookup_function env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
       let top_function := 
@@ -389,16 +415,119 @@ Section CComp.
         []
         (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
       in
-      Some(top_function, topenv)
+      let env_topfn_added := CCompEnv.add_function env_start_declared p top_function in
+      Some(env_topfn_added)
         
       end end end 
 
   | _ => None
   end.
-(* 
-  Definition CTranslateControl (control : ):= . *)
-  
 
+
+  Definition CTranslateAction 
+  (signature: E.params) (body: ST.s tags_t) 
+  (env: ClightEnv) (top_fn_params: list (AST.ident * Ctypes.type))
+  : option Clight.function:= 
+  let (fn_params, env_params_created) := CTranslateParams signature env in
+  let fn_params := top_fn_params ++ fn_params in 
+  match CTranslateStatement body env_params_created with
+  | None => None 
+  | Some (c_body, env_body_translated) =>
+    Some(
+      (Clight.mkfunction 
+        Ctypes.Tvoid
+        (AST.mkcallconv None true true)
+        fn_params 
+        (get_vars env_body_translated)
+        (get_temps env_body_translated)
+        c_body))
+  end.
+  Fixpoint CTranslateControlLocalDeclaration 
+  (ct : CT.ControlDecl.d tags_t) (env: ClightEnv) 
+  (top_fn_params: list (AST.ident * Ctypes.type))
+  : option (ClightEnv)
+  := match ct with
+  | c{d1 ;c; d2 @i}c => 
+    match (CTranslateControlLocalDeclaration d1 env top_fn_params) with
+    | None => None
+    | Some (env1) =>
+      match (CTranslateControlLocalDeclaration d2 env1 top_fn_params) with 
+      | None => None
+      | Some (env2) => Some (env2)
+      end
+    end
+  | c{action a (params) {body} @ i}c => 
+    match CTranslateAction params body env top_fn_params with
+    | None => None
+    | Some f => Some (CCompEnv.add_function env a f)
+    end
+  | c{table t key := ems actions := acts @ i}c => None (*TODO: implement table*)
+  end.
+  
+  Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
+  := 
+  match ctrl with
+  | %{control c (cparams) (params) apply {blk} where {body} @ i}%
+    => (*ignoring constructor params for now*)
+       let (fn_params, env_top_fn_param) := CTranslateParams params env in
+       match CTranslateControlLocalDeclaration body env_top_fn_param fn_params with 
+       | None => None
+       | Some env_local_decled => 
+        match CTranslateStatement blk env_local_decled with
+        | None => None
+        | Some (apply_blk, env_apply_block_translated)=>
+          let top_fn := Clight.mkfunction 
+          Ctypes.Tvoid 
+          (AST.mkcallconv None true true)
+          fn_params 
+          (get_vars env_apply_block_translated)
+          (get_temps env_apply_block_translated)
+          apply_blk in
+          let env_top_fn_declared := 
+          CCompEnv.add_function env_local_decled c top_fn in
+          Some (env_top_fn_declared) 
+        end
+       end
+  | _ => None
+  end.
+
+
+  Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv)
+  : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv 
+  := 
+  match signature with 
+  | P.Arrow pas ret =>
+   let (fn_params, env_params_created) := CTranslateParams pas env in 
+   match ret with 
+   | None => (fn_params, Ctypes.Tvoid, env_params_created)
+   | Some return_t => (fn_params, CTranslateType return_t, env_params_created)
+   end
+  end.
+    
+  Definition CTranslateFunction 
+  (funcdecl : TD.d tags_t)
+  (env: ClightEnv)
+  : option ClightEnv:= 
+  match funcdecl with
+  | TD.TPFunction name signature body _ => 
+    match CTranslateArrow signature env with 
+    |(fn_params, fn_return, env_params_created) =>
+      match CTranslateStatement body env_params_created with
+      | None => None 
+      | Some (c_body, env_body_translated) =>
+        let top_function := 
+          (Clight.mkfunction 
+            fn_return
+            (AST.mkcallconv None true true)
+            fn_params 
+            (get_vars env_body_translated)
+            (get_temps env_body_translated)
+            c_body) in
+        Some (CCompEnv.add_function env_params_created name top_function)
+      end
+    end 
+  | _ => None
+  end.
   (* currently just an empty program *)
   Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 
     let main_decl : AST.globdef (fundef function) type :=

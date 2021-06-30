@@ -38,8 +38,8 @@ Section WeakestPreSymbolicBit.
     let sr := WP.weaken_pred size sr in
     let phi_rel := weaken_store_rel size phi.(cr_rel) in
     let b := (BEVar H (BVarTop phi.(cr_ctx) size)) in
-    [{| cr_st := {| cs_st1 := WP.st_pred sl;
-                    cs_st2 := WP.st_pred sr |};
+    [{| cr_st := {| cs_st1 := WP.st_pred a sl;
+                    cs_st2 := WP.st_pred a sr |};
         cr_rel := WP.wp_pred a Left b sl (WP.wp_pred a Right b sr phi_rel) |}].
      
   Definition wp (phi: conf_rel S H) : list (conf_rel S H) :=

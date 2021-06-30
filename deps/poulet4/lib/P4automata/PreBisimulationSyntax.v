@@ -81,6 +81,18 @@ Section ConfRel.
     { st_state: P4A.state_ref S;
       st_buf_len: nat }.
 
+  Global Program Instance state_template_eq_dec : EquivDec.EqDec state_template eq :=
+    { equiv_dec x y :=
+        if x.(st_state) == y.(st_state)
+        then if x.(st_buf_len) == y.(st_buf_len)
+             then in_left
+             else in_right
+        else in_right }.
+  Solve Obligations with (destruct x, y;
+                           unfold equiv, complement in *;
+                           simpl in *;
+                           congruence).
+
   Definition interp_state_template (st: state_template) (c: conf) :=
     st.(st_state) = fst (fst c) /\
     List.length (snd c) = st.(st_buf_len).

@@ -131,11 +131,11 @@ Section WeakestPre.
 
   Definition preds {c} (si: side) (candidates: list S) (s: state_template S) : list (pred c) :=
     if s.(st_buf_len) == 0
-    then [PredRead _ {| st_state := s.(st_state); st_buf_len := s.(st_buf_len) - 1 |}]
-    else List.map (fun candidate =>
+    then List.map (fun candidate =>
                      let st := a.(P4A.t_states) candidate in
                      PredJump (trans_cond si (P4A.st_trans st) s.(st_state)) candidate)
-                  candidates.
+                  candidates
+    else [PredRead _ {| st_state := s.(st_state); st_buf_len := s.(st_buf_len) - 1 |}].
 
   Definition wp_pred {c: bctx} (si: side) (b: bit_expr H c) (p: pred c) (phi: store_rel H c) : store_rel H c :=
     let phi' := sr_subst phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
@@ -143,14 +143,14 @@ Section WeakestPre.
     | PredRead _ s =>
       phi'
     | PredJump cond s =>
-      BRImpl cond
-             (wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
+      BRImpl cond 
+      (wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
     end.
 
   Definition st_pred {c} (p: pred c) :=
     match p with
     | PredRead _ s => s
-    | PredJump _ s => {| st_state := inl s; st_buf_len := 0 |}
+    | PredJump _ s => {| st_state := inl s; st_buf_len := P4A.size a s - 1 |}
     end.
 
   Definition wp_pred_pair (phi: conf_rel S H) (preds: pred phi.(cr_ctx) * pred phi.(cr_ctx)) : list (conf_rel S H) :=

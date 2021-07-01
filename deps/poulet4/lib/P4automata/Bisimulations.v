@@ -13,202 +13,6 @@ Require Poulet4.P4automata.WPSymBit.
 Require Poulet4.P4automata.WPSymLeap.
 Require Poulet4.P4automata.Reachability.
 
-Module SynPreSynWP.
-  Section SynPreSynWP.
-
-    (* State identifiers. *)
-    Variable (S1: Type).
-    Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
-    Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
-
-    Variable (S2: Type).
-    Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
-    Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
-
-    Definition S: Type := S1 + S2.
-
-    (* Header identifiers. *)
-    Variable (H: Type).
-    Context `{H_eq_dec: EquivDec.EqDec H eq}.
-    Context `{H_finite: @Finite H _ H_eq_dec}.
-
-    Variable (a: P4A.t S H).
-
-    Variable (wp: P4A.t S H ->
-                  conf_rel S H ->
-                  list (conf_rel S H)).
-
-    Notation conf := (configuration (P4A.interp a)).
-
-    Notation "⟦ x ⟧" := (interp_crel x).
-    Notation "⦇ x ⦈" := (interp_conf_rel (a:=a) x).
-    Notation "R ⊨ q1 q2" := (interp_crel R q1 q2) (at level 40).
-    Notation "R ⊨ S" := (forall q1 q2, ⟦R⟧ q1 q2 -> ⦇S⦈ q1 q2) (at level 40).
-    Notation δ := step.
-
-    Reserved Notation "R ⇝ S" (at level 10).
-    Inductive pre_bisimulation : crel S H -> crel S H -> relation conf :=
-    | PreBisimulationClose:
-        forall R q1 q2,
-          ⟦R⟧ q1 q2 ->
-          R ⇝ [] q1 q2
-    | PreBisimulationSkip:
-        forall (R T: crel S H) (C: conf_rel S H) q1 q2,
-          R ⊨ C ->
-          R ⇝ T q1 q2 ->
-          R ⇝ (C :: T) q1 q2
-    | PreBisimulationExtend:
-        forall (R T: crel S H) (C: conf_rel S H) q1 q2,
-          (C :: R) ⇝ (T ++ wp a C) q1 q2 ->
-          R ⇝ (C :: T) q1 q2
-    where "R ⇝ S" := (pre_bisimulation R S).
-
-    Fixpoint range (n: nat) :=
-      match n with
-      | 0 => []
-      | Datatypes.S n => range n ++ [n]
-      end.
-
-    Definition not_accept1 (a: P4A.t S H) (s: S) : crel S H := 
-      List.map (fun n =>
-                  {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
-                                 cs_st2 := {| st_state := inl s;    st_buf_len := n |} |};
-                     cr_rel := BRFalse _ BCEmp |})
-               (range (P4A.size a s)).
-
-    Definition not_accept2 (a: P4A.t S H) (s: S) : crel S H := 
-      List.map (fun n =>
-                  {| cr_st := {| cs_st1 := {| st_state := inl s;    st_buf_len := n |};
-                                 cs_st2 := {| st_state := inr true; st_buf_len := 0 |} |};
-                     cr_rel := BRFalse _ BCEmp |})
-               (range (P4A.size a s)).
-
-    Definition init_rel (a: P4A.t S H) : crel S H := 
-      List.concat (List.map (not_accept1 a) (enum S) ++
-                            List.map (not_accept2 a) (enum S)).
-    
-
-    Definition sum_not_accept1 (a: P4A.t (S1 + S2) H) (s: S1) : crel (S1 + S2) H := 
-      List.map (fun n =>
-                  {| cr_st := {| cs_st1 := {| st_state := inl (inl s); st_buf_len := n |};
-                                 cs_st2 := {| st_state := inr true;    st_buf_len := 0 |} |};
-                     cr_rel := BRFalse _ BCEmp |})
-               (range (P4A.size a (inl s))).
-
-    Definition sum_not_accept2 (a: P4A.t (S1 + S2) H) (s: S2) : crel (S1 + S2) H := 
-      List.map (fun n =>
-                  {| cr_st := {| cs_st1 := {| st_state := inr true;    st_buf_len := 0 |};
-                                 cs_st2 := {| st_state := inl (inr s); st_buf_len := n |} |};
-                     cr_rel := BRFalse _ BCEmp |})
-               (range (P4A.size a (inr s))).
-
-    Definition sum_init_rel (a: P4A.t (S1 + S2) H) : crel (S1 + S2) H := 
-      List.concat (List.map (sum_not_accept1 a) (enum S1)
-                            ++ List.map (sum_not_accept2 a) (enum S2)).
-    Notation "ctx , ⟨ s1 , n1 ⟩ ⟨ s2 , n2 ⟩ ⊢ b" :=
-      ({| cr_st :=
-            {| cs_st1 := {| st_state := s1; st_buf_len := n1 |};
-               cs_st2 := {| st_state := s2; st_buf_len := n2 |}; |};
-          cr_ctx := ctx;
-          cr_rel := b|}) (at level 10).
-    Notation btrue := (BRTrue _ _).
-    Notation bfalse := (BRFalse _ _).
-    Notation "a ⇒ b" := (BRImpl a b) (at level 40).
-
-    Definition reachable_pair_to_partition '((s1, s2): Reachability.state_pair _ _)
-      : crel (S1 + S2) H :=
-      match s1.(st_state) with
-      | inl st =>
-        [BCEmp, ⟨inl st, s1.(st_buf_len)⟩ ⟨inr true, 0⟩ ⊢ bfalse]
-      | inr st =>
-        []
-      end
-        ++
-        match s2.(st_state) with
-        | inl st =>
-          [BCEmp, ⟨inr true, 0⟩ ⟨inl st, s2.(st_buf_len)⟩ ⊢ bfalse]
-        | inr st =>
-          []
-        end.
-
-    Definition reachable_pairs_to_partition (r: Reachability.state_pairs _ _)
-      : crel (S1 + S2) H :=
-      List.concat (List.map reachable_pair_to_partition r).
-
-    Definition mk_init (n: nat) (a: P4A.t (S1 + S2) H) s1 s2 :=
-      let s := ({| st_state := inl (inl s1); st_buf_len := 0 |}, 
-                {| st_state := inl (inr s2); st_buf_len := 0 |}) in
-      List.nodup (@conf_rel_eq_dec _ _ _ _ _ _)
-                 (reachable_pairs_to_partition
-                    (Reachability.reachable_states a n [s])).
-  End SynPreSynWP.
-  Arguments pre_bisimulation {S1 S2 H equiv2 H_eq_dec} a wp.
-End SynPreSynWP.
-
-Module SemPre.
-  Section SemPre.
-    Variable (a: p4automaton).
-    Notation conf := (configuration a).
-
-    Notation "⟦ x ⟧" := (interp_rels x).
-    Notation "R ⊨ S" := (forall q1 q2,
-                            ⟦R⟧ q1 q2 ->
-                            S q1 q2)
-                          (at level 40).
-
-    Reserved Notation "R ⇝ S" (at level 10).
-    Inductive pre_bisimulation : rels conf -> rels conf -> rel conf :=
-    | PreBisimulationClose:
-        forall R q1 q2,
-          ⟦R⟧ q1 q2 ->
-          R ⇝ [] q1 q2
-    | PreBisimulationSkip:
-        forall R T (C: relation conf) q1 q2,
-          R ⊨ C ->
-          R ⇝ T q1 q2 ->
-          R ⇝ (C :: T) q1 q2
-    | PreBisimulationExtend:
-        forall R T C W q1 q2,
-          (C :: R) ⇝ (T ++ W) q1 q2 ->
-          (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
-          R ⇝ (C :: T) q1 q2
-    where "R ⇝ S" := (pre_bisimulation R S).
-
-  End SemPre.
-End SemPre.
-
-Module SemPreLeaps.
-  Section SemPreLeaps.
-    Variable (a: p4automaton).
-    Notation conf := (configuration a).
-
-    Notation "⟦ x ⟧" := (interp_rels x).
-    Notation "R ⊨ S" := (forall q1 q2,
-                            ⟦R⟧ q1 q2 ->
-                            S q1 q2)
-                          (at level 40).
-
-    Reserved Notation "R ⇝ S" (at level 10).
-    Inductive pre_bisimulation : rels conf -> rels conf -> rel conf :=
-    | PreBisimulationClose:
-        forall R q1 q2,
-          ⟦R⟧ q1 q2 ->
-          R ⇝ [] q1 q2
-    | PreBisimulationSkip:
-        forall R T (C: relation conf) q1 q2,
-          R ⊨ C ->
-          R ⇝ T q1 q2 ->
-          R ⇝ (C :: T) q1 q2
-    | PreBisimulationExtend:
-        forall R T C W q1 q2,
-          (C :: R) ⇝ (T ++ W) q1 q2 ->
-          (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
-          R ⇝ (C :: T) q1 q2
-    where "R ⇝ S" := (pre_bisimulation R S).
-
-  End SemPreLeaps.
-End SemPreLeaps.
-
 Module SemBisim.
   Section SemBisim.
     Variable (a: p4automaton).
@@ -287,6 +91,51 @@ Module SemBisim.
 
   End SemBisim.
 End SemBisim.
+
+Module SemBisimCoalg.
+  Section SemBisimCoalg.
+    Variable (a: p4automaton).
+    Notation conf := (configuration a).
+    CoInductive bisimilar : rel conf :=
+    | Bisimilar:
+        forall q1 q2,
+          (accepting q1 <-> accepting q2) ->
+          (forall b, bisimilar (step q1 b) (step q2 b)) ->
+          bisimilar q1 q2
+    .
+
+    Lemma bisimilar_coalg_implies_sem_bisim:
+      forall q1 q2,
+        bisimilar q1 q2 ->
+        SemBisim.bisimilar a q1 q2.
+    Proof.
+      intros.
+      exists bisimilar.
+      split.
+      - unfold SemBisim.bisimulation.
+        intros.
+        inversion H0; firstorder.
+      - tauto.
+    Qed.
+
+    Lemma sem_bisim_implies_bisimilar_coalg:
+      forall q1 q2,
+        SemBisim.bisimilar a q1 q2 ->
+        bisimilar q1 q2.
+    Proof.
+      cofix C.
+      intros.
+      constructor.
+      - unfold SemBisim.bisimulation in *.
+        firstorder.
+      - intros.
+        eapply C.
+        unfold SemBisim.bisimilar, SemBisim.bisimulation in *.
+        firstorder.
+    Qed.
+
+  End SemBisimCoalg.
+End SemBisimCoalg.
 
 Module SemBisimUpto.
   Section SemBisimUpto.
@@ -569,3 +418,285 @@ Module SemBisimLeaps.
 
   End SemBisimLeaps.
 End SemBisimLeaps.
+
+Module SemPre.
+  Section SemPre.
+    Variable (a: p4automaton).
+    Notation conf := (configuration a).
+
+    Notation "⟦ x ⟧" := (interp_rels x).
+    Notation "R ⊨ S" := (forall q1 q2,
+                            ⟦R⟧ q1 q2 ->
+                            S q1 q2)
+                          (at level 40).
+
+    Reserved Notation "R ⇝ S" (at level 10).
+    Inductive pre_bisimulation : rels conf -> rels conf -> rel conf :=
+    | PreBisimulationClose:
+        forall R q1 q2,
+          ⟦R⟧ q1 q2 ->
+          R ⇝ [] q1 q2
+    | PreBisimulationSkip:
+        forall R T (C: relation conf) q1 q2,
+          R ⊨ C ->
+          R ⇝ T q1 q2 ->
+          R ⇝ (C :: T) q1 q2
+    | PreBisimulationExtend:
+        forall R T C W q1 q2,
+          (C :: R) ⇝ (T ++ W) q1 q2 ->
+          (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
+          R ⇝ (C :: T) q1 q2
+    where "R ⇝ S" := (pre_bisimulation R S).
+
+    Lemma sem_pre_implies_sem_bisim :
+      forall R T,
+        (forall q1 q2, ⟦R ++ T⟧ q1 q2 -> accepting q1 <-> accepting q2) ->
+        (forall q1 q2, ⟦R ++ T⟧ q1 q2 -> forall b, ⟦R⟧ (step q1 b) (step q2 b)) ->
+        forall q1 q2,
+          pre_bisimulation R T q1 q2 ->
+          SemBisimCoalg.bisimilar a q1 q2
+    .
+    Proof.
+      intros.
+      induction H1.
+      - revert q1 q2 H1.
+        cofix CH; intros.
+        apply SemBisimCoalg.Bisimilar.
+        + apply H.
+          rewrite app_nil_r.
+          apply H1.
+        + intros.
+          apply CH.
+          apply H0.
+          rewrite app_nil_r.
+          apply H1.
+      - apply IHpre_bisimulation.
+        + intros.
+          apply H.
+          eapply in_interp_rels.
+          intros.
+          apply in_app_or in H4.
+          destruct H4.
+          * eapply interp_rels_in in H3; eauto with datatypes.
+          * destruct H4; subst.
+            -- eauto using interp_rels_mono with datatypes.
+            -- eapply interp_rels_in in H3; eauto with datatypes.
+        + intros.
+          apply H0.
+          eapply in_interp_rels.
+          intros.
+          apply in_app_or in H4.
+          destruct H4.
+          * eapply interp_rels_in in H3; eauto with datatypes.
+          * destruct H4; subst.
+            -- eauto using interp_rels_mono with datatypes.
+            -- eapply interp_rels_in in H3; eauto with datatypes.
+      - apply IHpre_bisimulation.
+        + intros.
+          apply H.
+          apply in_interp_rels.
+          intros ? ?.
+          eapply interp_rels_in in H3; eauto with datatypes.
+          rewrite in_app_iff in H4.
+          destruct H4.
+          * apply in_app_iff.
+            left.
+            right.
+            apply H4.
+          * destruct H4.
+            -- subst.
+               apply in_app_iff.
+               left.
+               left.
+               reflexivity.
+            -- apply in_app_iff.
+               right.
+               apply in_app_iff.
+               left.
+               apply H4.
+        + intros.
+          eapply in_interp_rels.
+          intros ? ?.
+          destruct H4.
+          * subst.
+            apply H2.
+            eapply in_interp_rels.
+            intros ? ?.
+            eapply interp_rels_in in H3; eauto with datatypes.
+          * eapply interp_rels_in; try eassumption.
+            eapply H0; auto.
+            apply in_interp_rels.
+            intros ? ?.
+            eapply interp_rels_in in H3; eauto.
+            apply in_app_iff in H5.
+            destruct H5; eauto with datatypes.
+            destruct H5; subst; eauto with datatypes.
+    Qed.
+
+  End SemPre.
+End SemPre.
+
+Module SemPreLeaps.
+  Section SemPreLeaps.
+    Variable (a: p4automaton).
+    Notation conf := (configuration a).
+
+    Notation "⟦ x ⟧" := (interp_rels x).
+    Notation "R ⊨ S" := (forall q1 q2,
+                            ⟦R⟧ q1 q2 ->
+                            S q1 q2)
+                          (at level 40).
+
+    Reserved Notation "R ⇝ S" (at level 10).
+    Inductive pre_bisimulation : rels conf -> rels conf -> rel conf :=
+    | PreBisimulationClose:
+        forall R q1 q2,
+          ⟦R⟧ q1 q2 ->
+          R ⇝ [] q1 q2
+    | PreBisimulationSkip:
+        forall R T (C: relation conf) q1 q2,
+          R ⊨ C ->
+          R ⇝ T q1 q2 ->
+          R ⇝ (C :: T) q1 q2
+    | PreBisimulationExtend:
+        forall R T C W q1 q2,
+          (C :: R) ⇝ (T ++ W) q1 q2 ->
+          (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
+          R ⇝ (C :: T) q1 q2
+    where "R ⇝ S" := (pre_bisimulation R S).
+
+  End SemPreLeaps.
+End SemPreLeaps.
+
+
+Module SynPreSynWP.
+  Section SynPreSynWP.
+
+    (* State identifiers. *)
+    Variable (S1: Type).
+    Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+    Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+    Variable (S2: Type).
+    Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+    Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+    Definition S: Type := S1 + S2.
+
+    (* Header identifiers. *)
+    Variable (H: Type).
+    Context `{H_eq_dec: EquivDec.EqDec H eq}.
+    Context `{H_finite: @Finite H _ H_eq_dec}.
+
+    Variable (a: P4A.t S H).
+
+    Variable (wp: P4A.t S H ->
+                  conf_rel S H ->
+                  list (conf_rel S H)).
+
+    Notation conf := (configuration (P4A.interp a)).
+
+    Notation "⟦ x ⟧" := (interp_crel x).
+    Notation "⦇ x ⦈" := (interp_conf_rel (a:=a) x).
+    Notation "R ⊨ q1 q2" := (interp_crel R q1 q2) (at level 40).
+    Notation "R ⊨ S" := (forall q1 q2, ⟦R⟧ q1 q2 -> ⦇S⦈ q1 q2) (at level 40).
+    Notation δ := step.
+
+    Reserved Notation "R ⇝ S" (at level 10).
+    Inductive pre_bisimulation : crel S H -> crel S H -> relation conf :=
+    | PreBisimulationClose:
+        forall R q1 q2,
+          ⟦R⟧ q1 q2 ->
+          R ⇝ [] q1 q2
+    | PreBisimulationSkip:
+        forall (R T: crel S H) (C: conf_rel S H) q1 q2,
+          R ⊨ C ->
+          R ⇝ T q1 q2 ->
+          R ⇝ (C :: T) q1 q2
+    | PreBisimulationExtend:
+        forall (R T: crel S H) (C: conf_rel S H) q1 q2,
+          (C :: R) ⇝ (T ++ wp a C) q1 q2 ->
+          R ⇝ (C :: T) q1 q2
+    where "R ⇝ S" := (pre_bisimulation R S).
+
+    Fixpoint range (n: nat) :=
+      match n with
+      | 0 => []
+      | Datatypes.S n => range n ++ [n]
+      end.
+
+    Definition not_accept1 (a: P4A.t S H) (s: S) : crel S H := 
+      List.map (fun n =>
+                  {| cr_st := {| cs_st1 := {| st_state := inr true; st_buf_len := 0 |};
+                                 cs_st2 := {| st_state := inl s;    st_buf_len := n |} |};
+                     cr_rel := BRFalse _ BCEmp |})
+               (range (P4A.size a s)).
+
+    Definition not_accept2 (a: P4A.t S H) (s: S) : crel S H := 
+      List.map (fun n =>
+                  {| cr_st := {| cs_st1 := {| st_state := inl s;    st_buf_len := n |};
+                                 cs_st2 := {| st_state := inr true; st_buf_len := 0 |} |};
+                     cr_rel := BRFalse _ BCEmp |})
+               (range (P4A.size a s)).
+
+    Definition init_rel (a: P4A.t S H) : crel S H := 
+      List.concat (List.map (not_accept1 a) (enum S) ++
+                            List.map (not_accept2 a) (enum S)).
+    
+
+    Definition sum_not_accept1 (a: P4A.t (S1 + S2) H) (s: S1) : crel (S1 + S2) H := 
+      List.map (fun n =>
+                  {| cr_st := {| cs_st1 := {| st_state := inl (inl s); st_buf_len := n |};
+                                 cs_st2 := {| st_state := inr true;    st_buf_len := 0 |} |};
+                     cr_rel := BRFalse _ BCEmp |})
+               (range (P4A.size a (inl s))).
+
+    Definition sum_not_accept2 (a: P4A.t (S1 + S2) H) (s: S2) : crel (S1 + S2) H := 
+      List.map (fun n =>
+                  {| cr_st := {| cs_st1 := {| st_state := inr true;    st_buf_len := 0 |};
+                                 cs_st2 := {| st_state := inl (inr s); st_buf_len := n |} |};
+                     cr_rel := BRFalse _ BCEmp |})
+               (range (P4A.size a (inr s))).
+
+    Definition sum_init_rel (a: P4A.t (S1 + S2) H) : crel (S1 + S2) H := 
+      List.concat (List.map (sum_not_accept1 a) (enum S1)
+                            ++ List.map (sum_not_accept2 a) (enum S2)).
+    Notation "ctx , ⟨ s1 , n1 ⟩ ⟨ s2 , n2 ⟩ ⊢ b" :=
+      ({| cr_st :=
+            {| cs_st1 := {| st_state := s1; st_buf_len := n1 |};
+               cs_st2 := {| st_state := s2; st_buf_len := n2 |}; |};
+          cr_ctx := ctx;
+          cr_rel := b|}) (at level 10).
+    Notation btrue := (BRTrue _ _).
+    Notation bfalse := (BRFalse _ _).
+    Notation "a ⇒ b" := (BRImpl a b) (at level 40).
+
+    Definition reachable_pair_to_partition '((s1, s2): Reachability.state_pair _ _)
+      : crel (S1 + S2) H :=
+      match s1.(st_state) with
+      | inl st =>
+        [BCEmp, ⟨inl st, s1.(st_buf_len)⟩ ⟨inr true, 0⟩ ⊢ bfalse]
+      | inr st =>
+        []
+      end
+        ++
+        match s2.(st_state) with
+        | inl st =>
+          [BCEmp, ⟨inr true, 0⟩ ⟨inl st, s2.(st_buf_len)⟩ ⊢ bfalse]
+        | inr st =>
+          []
+        end.
+
+    Definition reachable_pairs_to_partition (r: Reachability.state_pairs _ _)
+      : crel (S1 + S2) H :=
+      List.concat (List.map reachable_pair_to_partition r).
+
+    Definition mk_init (n: nat) (a: P4A.t (S1 + S2) H) s1 s2 :=
+      let s := ({| st_state := inl (inl s1); st_buf_len := 0 |}, 
+                {| st_state := inl (inr s2); st_buf_len := 0 |}) in
+      List.nodup (@conf_rel_eq_dec _ _ _ _ _ _)
+                 (reachable_pairs_to_partition
+                    (Reachability.reachable_states a n [s])).
+  End SynPreSynWP.
+  Arguments pre_bisimulation {S1 S2 H equiv2 H_eq_dec} a wp.
+End SynPreSynWP.

@@ -33,6 +33,8 @@ module type Interpreter = sig
   val switch_packet : ctrl -> env -> state ->  buf -> Bigint.t -> Bigint.t ->
     state * (buf * Bigint.t) list
 
+  val read_counter : state -> string -> int -> int
+    
 end
 
 module MakeInterpreter (T : Target) = struct
@@ -1460,6 +1462,8 @@ module MakeInterpreter (T : Target) = struct
     let (st, pkts) = eval_main ctrl env st pkt pt num_ports in
     st, List.map pkts ~f:(fun (pkt, pt) -> (Cstruct.append pkt.emitted pkt.main, pt))
 
+  let read_counter : state -> string -> int -> int =
+    T.read_counter    
 end
 
 (*----------------------------------------------------------------------------*)

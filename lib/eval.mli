@@ -48,6 +48,7 @@ module type Interpreter = sig
   val switch_packet : ctrl -> env -> state -> buf -> Bigint.t -> Bigint.t ->
     state * (buf * Bigint.t) list
 
+  val read_counter : state -> string -> int -> int
 end
 
 (** [MakeInterpreter(T)] is a P4 interpreter instantiated on the target [T]. *)

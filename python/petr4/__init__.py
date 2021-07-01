@@ -17,6 +17,15 @@ class App(object):
     def packet_in(self,switch,in_port,packet):
         print(f"Petr4: packet_in({switch}, {in_port}, {packet})")
 
+    def counter_response(self,switch, name, index, count):
+        print(f"Petr4: counter_response({switch}, {name}, {index}, {count})")
+
+    def counter_request(self,switch,name, index):
+        print(f"Petr4: counter_request({switch}, {name}, {index})")
+        msg = json.dumps(["CounterRequest", { "name" : name, "index" : index }])
+        self.msg_queues[switch].put(msg)
+        return
+        
     def insert(self,switch,entry):
         print(f"Petr4: insert({switch}, {entry})")
         msg = json.dumps(["Insert", entry.to_json()])
@@ -54,11 +63,21 @@ class App(object):
             self.app = app
         async def post(self):
             packet_in = tornado.escape.json_decode(self.request.body)[1]
-            print(packet_in)
             switch = packet_in["switch"]
             in_port = packet_in["in_port"]
             packet = packet_in["packet"]            
             self.app.packet_in(switch,in_port,packet)
+
+    class CounterResponse(RequestHandler):
+        def initialize(self, app):
+            self.app = app
+        async def post(self):
+            counter_response = tornado.escape.json_decode(self.request.body)[1]
+            switch = counter_response["switch"]
+            name = counter_response["name"]
+            index = counter_response["index"]            
+            count = counter_response["count"]            
+            self.app.counter_response(switch,name,index,count)
             
     def __init__(self, port=9000):
         self.port = port
@@ -66,7 +85,8 @@ class App(object):
         application = Application([
             ('/hello', self.Hello, { "app" : self } ),
             ('/event', self.Event, { "app" : self } ),
-            ('/packet_in', self.PacketIn, { "app" : self })])
+            ('/packet_in', self.PacketIn, { "app" : self }),
+            ('/counter_response', self.CounterResponse, { "app" : self })])
         self.http_server = HTTPServer(application)
 
     def start(self):

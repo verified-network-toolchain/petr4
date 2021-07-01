@@ -56,7 +56,7 @@ module State = struct
   let find_extern loc st =
     let x = List.Assoc.find_exn st.externs loc ~equal:String.equal in
     x
-
+    
   let insert_heap loc v st = { st with heap = (loc,v) :: st.heap }
 
   let find_heap loc st =
@@ -413,6 +413,8 @@ module type Target = sig
     string -> env -> state -> Type.t list -> (value * Type.t) list ->
     env * state * signal * value
 
+  val read_counter : state -> string -> int -> int
+    
   val initialize_metadata : Bigint.t -> Bigint.t -> state -> state
 
   val check_pipeline : env -> unit

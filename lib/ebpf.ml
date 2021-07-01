@@ -172,6 +172,8 @@ module PreEbpfFilter : Target = struct
       if State.find_heap (EvalEnv.find_val accept_name env) st |> assert_bool
       then [pkt, State.find_heap "__INGRESS_PORT__" st |> bigint_of_val] else []
 
+  let read_counter st n i = 0
+      
 end
 
 module EbpfFilter : Target = P4core.Corize(PreEbpfFilter)

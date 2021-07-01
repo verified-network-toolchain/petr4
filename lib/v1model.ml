@@ -494,6 +494,8 @@ module PreV1Switch : Target = struct
     | "log_msg" -> eval_log_msg
     | _ -> failwith "unknown v1 extern"
 
+  let read_extern _ = assert false
+
   let initialize_metadata meta num_ports st =
     let st = State.insert_heap "__NUM_PORTS__" (VInteger num_ports) st in
     let nine = Bigint.of_int 9 in
@@ -832,7 +834,15 @@ module PreV1Switch : Target = struct
       let () = Printf.eprintf "[Emit on %d]\n%!" (Bigint.to_int_exn egress_port) in
       st, env, [State.get_packet st, egress_port]
 
-
+  let read_counter st c i =
+    try 
+      match State.find_extern c st with
+      | Counter {size; typ = Packets l } ->
+         List.nth_exn l i |> Bigint.to_int_exn
+      | _ ->
+         failwith "read_counter: unexpected object"
+    with Not_found_s _ ->
+      0
 end
 
 module V1Switch : Target = P4core.Corize(PreV1Switch)

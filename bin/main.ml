@@ -130,25 +130,33 @@ let from_hex h =
   
 (***** Switch *****)
 let entries : Prog.Value.entries ref = ref ([],[])
+
+let do_insert (table:string) (matches:(string * string) list) (action:string) (action_data:(string * string) list) : unit = 
+  let mk_num x : Ast.number_or_lpm = Ast.Num x in
+  let mk_table : Ast.qualified_name = table in 
+  let mk_priority : int option = None in
+  let mk_matches : Ast.match_ list = List.map matches ~f:(fun (key,pat) -> (key, mk_num pat)) in 
+  let mk_action : Ast.action = (action, action_data) in
+  let mk_id : Ast.id option = None in
+  let entry = (mk_priority, mk_matches, mk_action, mk_id) in
+  let l1,l2 = !entries in 
+  let old_entries = match List.Assoc.find l1 mk_table ~equal:String.(=) with None -> [] | Some l -> l in
+  let l1' = List.Assoc.add l1 mk_table ~equal:String.(=) (entry::old_entries) in 
+  entries := (l1',l2)
+                                     
 let ctrl_port : int = 510
-let ctrl_stream, ctrl_push = Lwt_stream.create ()
-let input_stream, input_push = Lwt_stream.create ()
 
 type input =
-  | Sock 
-  | Ctrl 
+  | Packet of int * Cstruct.t
+  | Control of Runtime.ctrl_msg                    
 
+let (input_stream, input_push) : input Lwt_stream.t * (input option -> unit) = Lwt_stream.create ()
 
 let rec sock_loop (in_port,sock) : unit Lwt.t =
   let%bind packet = Lwt_rawlink.read_packet sock in
-  let () = input_push (Some (in_port, packet)) in
+  let () = input_push (Some (Packet (in_port, packet))) in
   sock_loop (in_port,sock)
   
-let rec ctrl_loop () : unit Lwt.t =
-  let%bind in_port,packet = Lwt_stream.next ctrl_stream in
-  let () = input_push (Some (in_port, packet)) in
-  ctrl_loop () 
-
 let send_packet sockets switch in_port (pkt,port) =
   let out_port = Bigint.to_int_exn port in
   if out_port = ctrl_port then
@@ -161,23 +169,43 @@ let send_packet sockets switch in_port (pkt,port) =
     |> Option.value_map ~default:(Lwt.return ())
          ~f:(fun sock -> Lwt_rawlink.send_packet sock pkt)
 
+let do_process_packet switch num_ports sockets env st pkt in_port = 
+  let open Eval.V1Interpreter in 
+  let ctrl = (!entries,[]) in
+  let st',pkts = switch_packet ctrl env st pkt (Bigint.of_int in_port) (Bigint.of_int num_ports) in
+  let%bind () = Lwt_list.iter_p (send_packet sockets switch in_port) pkts in
+  Lwt.return st'
+
+let do_counter_request switch st name index =
+  let open Eval.V1Interpreter in
+  Printf.eprintf "[Petr4] CounterRequest(%s,%d)\n%!" name index;
+  let count = read_counter st name index in
+  Petr4_unix.Runtime_server.post_counter_response switch name index count
+  
 let start_v1switch switch env prog sockets =
   let open Eval.V1Interpreter in 
   let (env, st) = init_switch env prog in
 
   (**** Asynchronously fetch inputs ****)
   let () = List.iter sockets ~f:(fun (in_port, sock) -> Lwt.ignore_result (sock_loop (in_port, sock))) in
-  let () = Lwt.ignore_result (ctrl_loop ()) in
 
   (**** Main loop ****)
   let rec loop st num_ports : unit Lwt.t =
-    let%bind in_port, pkt = Lwt_stream.next input_stream in
-    let ctrl = (!entries,[]) in
-    let st',pkts = switch_packet ctrl env st pkt (Bigint.of_int in_port) (Bigint.of_int num_ports) in
-    let%bind () = Lwt_list.iter_p (send_packet sockets switch in_port) pkts in
+    let%bind input = Lwt_stream.next input_stream in
+    let%bind st' =
+      match input with
+      | Packet (in_port, packet) ->
+         do_process_packet switch num_ports sockets env st packet in_port 
+      | Control (Runtime.Insert { table; matches; action; action_data }) -> 
+         do_insert table matches action action_data;
+         Lwt.return st
+      | Control (Runtime.PacketOut pkt_out) ->
+         do_process_packet switch num_ports sockets env st (from_hex pkt_out.packet) (pkt_out.in_port)
+      | Control (Runtime.CounterRequest req) ->
+         let%bind () = do_counter_request switch st req.name req.index in
+         Lwt.return st in
     loop st' num_ports in
   loop st (List.length sockets)
-
     
 let start_switch verbose include_dir target pts switch p4_file =
   let f str =
@@ -199,33 +227,9 @@ let start_switch verbose include_dir target pts switch p4_file =
     let info_string = Info.to_string info in
     Format.sprintf "%s\n%s" info_string exn_msg |> print_string |> Lwt.return
 
-let do_insert (table:string) (matches:(string * string) list) (action:string) (action_data:(string * string) list) : unit = 
-  let mk_num x : Ast.number_or_lpm = Ast.Num x in
-  let mk_table : Ast.qualified_name = table in 
-  let mk_priority : int option = None in
-  let mk_matches : Ast.match_ list = List.map matches ~f:(fun (key,pat) -> (key, mk_num pat)) in 
-  let mk_action : Ast.action = (action, action_data) in
-  let mk_id : Ast.id option = None in
-  let entry = (mk_priority, mk_matches, mk_action, mk_id) in
-  let l1,l2 = !entries in 
-  let old_entries = match List.Assoc.find l1 mk_table ~equal:String.(=) with None -> [] | Some l -> l in
-  let l1' = List.Assoc.add l1 mk_table ~equal:String.(=) (entry::old_entries) in 
-  entries := (l1',l2)
-
 let handle_message (msg : Runtime.ctrl_msg) : unit =
-  match msg with
-  | Runtime.Insert { table; matches; action; action_data } -> 
-     let matches_str =
-       List.map matches ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v)
-       |> String.concat ~sep:"," in
-     let action_data_str =
-       List.map action_data ~f:(fun (x,v) -> Printf.sprintf "(%s : %s)" x v)
-       |> String.concat ~sep:"," in
-     Printf.eprintf "Insert: %s [%s] %s [%s]\n%!" table matches_str action action_data_str;
-     do_insert table matches action action_data
-  | Runtime.PacketOut pkt_out ->
-     ctrl_push (Some (pkt_out.in_port, from_hex pkt_out.packet))
-
+  input_push (Some (Control msg))
+    
 let switch_command =
   let open Command.Spec in
   Command.basic_spec

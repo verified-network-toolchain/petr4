@@ -231,7 +231,9 @@ module PreUp4Filter : Target = struct
           match signal with
           | SReject _ -> st, env, []
           | SContinue | SExit | SReturn _ ->
-            st, env, [State.get_packet st, get_outport st env]
+             st, env, [State.get_packet st, get_outport st env]
+
+  let read_counter st n i = 0
 end 
 
 module Up4Filter : Target = P4core.Corize(PreUp4Filter)

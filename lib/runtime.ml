@@ -12,6 +12,7 @@ type ctrl_msg =
                 action : string; 
                 action_data : (string * string) list }
   | PacketOut of ctrl_packet
+  | CounterRequest of { name : string; index: int }
 [@@deriving yojson]
 
 (* again, "message FROM the switch" *)
@@ -20,4 +21,5 @@ type switch_msg =
                ports : int; }
   | Event of { switch : string; }
   | PacketIn of ctrl_packet
+  | CounterResponse of { switch: string; name : string; index: int; count : int }
 [@@deriving yojson]

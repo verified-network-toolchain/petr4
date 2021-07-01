@@ -40,3 +40,14 @@ let post_packet switch in_port packet =
   let%bind response, body = Client.post ~body (petr4_uri "packet_in") in
   let%bind () = Cohttp_lwt.Body.drain_body body in
   Lwt.return ()
+
+let post_counter_response switch name index count =
+  let pkt = Petr4.Runtime.CounterResponse { switch; name; index; count } in
+  let body =
+    pkt
+    |> Petr4.Runtime.switch_msg_to_yojson
+    |> Yojson.Safe.to_string
+    |> Body.of_string in
+  let%bind response, body = Client.post ~body (petr4_uri "counter_response") in
+  let%bind () = Cohttp_lwt.Body.drain_body body in
+  Lwt.return ()

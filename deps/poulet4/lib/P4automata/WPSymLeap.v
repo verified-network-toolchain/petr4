@@ -64,12 +64,12 @@ Section WeakestPreSymbolicLeap.
      end).
 
   Definition wp_lpred {c: bctx} (si: side) (b: bit_expr H c) (p: lpred c) (phi: store_rel H c) : store_rel H c :=
-    let phi' := WP.sr_subst a phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
+    let phi' := WP.sr_subst phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
     match snd p with
     | WP.PredRead _ _ s =>
       phi'
     | WP.PredJump cond s =>
-      BRImpl cond (WP.wp_op a si (a.(P4A.t_states) s).(P4A.st_op) phi')
+      BRImpl cond (WP.wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
     end.
 
   Definition st_lpred {c} (p: lpred c) :=
@@ -101,10 +101,10 @@ Section WeakestPreSymbolicLeap.
 
 End WeakestPreSymbolicLeap.
 
-Hint Unfold jump_pred: wp.
-Hint Unfold weaken_lpred: wp.
-Hint Unfold max_preds: wp.
-Hint Unfold modify_pred: wp.
-Hint Unfold wp_lpred: wp.
-Hint Unfold st_lpred: wp.
-Hint Unfold wp_pred_pair: wp.
+Global Hint Unfold jump_pred: wp.
+Global Hint Unfold weaken_lpred: wp.
+Global Hint Unfold max_preds: wp.
+Global Hint Unfold modify_pred: wp.
+Global Hint Unfold wp_lpred: wp.
+Global Hint Unfold st_lpred: wp.
+Global Hint Unfold wp_pred_pair: wp.

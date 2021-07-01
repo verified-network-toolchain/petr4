@@ -30,7 +30,7 @@ Section Syntax.
   Inductive hdr_ref: Type :=
   | HRVar (var: H).
   (*| HRField (hdr: hdr_ref) (field: string).*)
-
+  Derive NoConfusion for hdr_ref.
   Global Program Instance hdr_ref_eq_dec : EquivDec.EqDec hdr_ref eq :=
     { equiv_dec x y :=
         match x, y with

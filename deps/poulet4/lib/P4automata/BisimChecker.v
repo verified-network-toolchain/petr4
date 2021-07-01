@@ -99,9 +99,17 @@ Notation "a ⇒ b" := (BRImpl a b) (at level 40).
 
 Section InitRels.
   Set Implicit Arguments.
-  Variables (S1 S2 H: Type).
-  Context `{S1_fin: Finite S1}.
-  Context `{S2_fin: Finite S2}.
+  Variable (S1: Type).
+  Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+  Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+  Variable (S2: Type).
+  Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+  Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+  Variable (H: Type).
+  Context `{H_eq_dec: EquivDec.EqDec H eq}.
+  Context `{H_finite: @Finite H _ H_eq_dec}.
 
   Definition sum_not_accept1 (a: P4A.t (S1 + S2) H) (s: S1) : crel (S1 + S2) H := 
     List.map (fun n =>
@@ -144,8 +152,9 @@ Section InitRels.
   Definition mk_init (n: nat) (a: P4A.t (S1 + S2) H) s1 s2 :=
     let s := ({| st_state := inl (inl s1); st_buf_len := 0 |}, 
               {| st_state := inl (inr s2); st_buf_len := 0 |}) in
-    reachable_pairs_to_partition
-      (Reachability.reachable_states a 1000 [s]).
+    List.nodup (@conf_rel_eq_dec _ _ _ _ _ _)
+               (reachable_pairs_to_partition
+                  (Reachability.reachable_states a n [s])).
 End InitRels.
 
 Ltac pbskip :=
@@ -155,7 +164,6 @@ Ltac pbskip :=
    unfold interp_conf_rel, interp_store_rel, interp_conf_state in *;
    simpl in *;
    tauto|].
-
 
 Ltac solve_bisim :=
   match goal with
@@ -296,11 +304,10 @@ Definition possibly_unsound_init_rel
     BCEmp, ⟨inr true, 0⟩ ⟨inl (inr Split.StSplit1), 0⟩ ⊢ bfalse;
     BCEmp, ⟨inr true, 0⟩ ⟨inl (inr Split.StSplit2), 0⟩ ⊢ bfalse].
 
-
 Definition possibly_unsound_init_rel'
   : crel (Simple.state + Split.state) (Sum.H Simple.header Split.header)
   :=
-    Eval compute in (mk_init 10 SimpleSplit.aut Simple.Start Split.StSplit1). 
+    Eval cbv in (mk_init 100 SimpleSplit.aut Simple.Start Split.StSplit1). 
 
 (*
 Lemma prebisim_simple_split_small_init:
@@ -345,3 +352,21 @@ Proof.
   cbv in *.
   intuition (try congruence).
 Qed.
+
+Eval cbv in (mk_init 6 BabyIP.aut BabyIP1.Start BabyIP2.Start).
+
+Lemma prebisim_babyip:
+  pre_bisimulation BabyIP.aut
+                   (WPSymLeap.wp (H:=_))
+                   nil
+                   (mk_init 10 BabyIP.aut BabyIP1.Start BabyIP2.Start)
+                   (inl (inl BabyIP1.Start), [], [])
+                   (inl (inr BabyIP2.Start), [], []).
+Proof.
+  set (rel0 := mk_init 10 BabyIP.aut BabyIP1.Start BabyIP2.Start).
+  cbv in rel0.
+  subst rel0.
+  time (repeat (time solve_bisim')).
+  cbv in *.
+  intuition (try congruence).
+Time Qed.

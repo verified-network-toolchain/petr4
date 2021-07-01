@@ -19,6 +19,8 @@ Inductive bctx :=
 | BCEmp: bctx
 | BCSnoc: bctx -> nat -> bctx.
 Derive NoConfusion for bctx.
+Derive EqDec for bctx.
+Global Instance bctx_eq_dec : EquivDec.EqDec bctx eq := bctx_eqdec.
 
 (* Bitstring variable valuation. *)
 Fixpoint bval (c: bctx) : Type :=
@@ -36,6 +38,7 @@ Inductive bvar : bctx -> Type :=
       bvar c ->
       bvar (BCSnoc c size).
 Arguments BVarRest {_ _} _.
+Derive NoConfusion for bvar.
 
 Definition weaken_bvar {c} (size: nat) : bvar c -> bvar (BCSnoc c size) :=
   @BVarRest c size.
@@ -46,9 +49,13 @@ Equations bvar_eqdec {c} (x y: bvar c) : {x = y} + {x <> y} :=
                                               then in_left
                                               else in_right;
     bvar_eqdec _ _ := in_right }.
-Next Obligation. dependent destruction H. tauto. Qed.
+Next Obligation.
+  dependent destruction H.
+  eauto.
+Qed.
+#[global] Transparent bvar_eqdec.
 
-Instance bvar_eq_dec {c}: EquivDec.EqDec (bvar c) eq := bvar_eqdec.
+Global Instance bvar_eq_dec {c}: EquivDec.EqDec (bvar c) eq := bvar_eqdec.
 
 Fixpoint check_bvar {c} (x: bvar c) : nat :=
   match x with
@@ -98,15 +105,8 @@ Section ConfRel.
     List.length (snd c) = st.(st_buf_len).
 
   Inductive side := Left | Right.
-  Global Program Instance side_eq_dec : EquivDec.EqDec side eq :=
-    { equiv_dec x y :=
-        match x, y with
-        | Left, Left => in_left
-        | Right, Right => in_left
-        | Left, Right => in_right
-        | Right, Left => in_right
-        end }.
-  Solve Obligations with unfold equiv, complement in *; congruence.
+  Derive NoConfusion for side.
+  Derive EqDec for side.
 
   Inductive bit_expr (c: bctx) :=
   | BELit (l: list bool)
@@ -118,6 +118,7 @@ Section ConfRel.
   Arguments BELit {c} _.
   Arguments BEBuf {c} _.
   Arguments BEHdr {c} _ _.
+  Derive NoConfusion for bit_expr.
 
   Fixpoint weaken_bit_expr {c} (size: nat) (b: bit_expr c) : bit_expr (BCSnoc c size) :=
     match b with
@@ -139,88 +140,46 @@ Section ConfRel.
     | BEConcat e1 e2 => 1 + size e1 + size e2
     end.
 
-  Ltac solve_bit_expr_dec :=
-    unfold not in *;
-    intros;
-    subst;
-    try (firstorder congruence);
-    (try match goal with
-        | H: bit_expr |- _ =>
-          destruct H
-         end);
-    (firstorder eauto);
-    (firstorder congruence).
-
   Obligation Tactic := intros.
   Unset Transparent Obligations.
-  Program Fixpoint bit_expr_eqdec {c} (x y: bit_expr c) {measure (size x)} : {x = y} + {x <> y} :=
-    match x with
-    | BELit l =>
-      match y with
-      | BELit l' => if l == l' then in_left else in_right
-      | _ => in_right
-      end
-    | BEBuf a =>
-      match y with
-      | BEBuf a' => if a == a' then in_left else in_right
-      | _ => in_right
-      end
-    | BEHdr a h =>
-      match y with
-      | BEHdr a' h' =>
-        if Sumbool.sumbool_and _ _ _ _ (a == a') (h == h')
+  Equations bit_expr_eq_dec {c: bctx} : forall x y: bit_expr c, {x = y} + {x <> y} :=
+    { bit_expr_eq_dec (BELit l) (BELit l') :=
+        if l == l' then in_left else in_right;
+      bit_expr_eq_dec (BEBuf a) (BEBuf a') :=
+        if side_eqdec a a' then in_left else in_right;
+      bit_expr_eq_dec (BEHdr a h) (BEHdr a' h') :=
+        if Sumbool.sumbool_and _ _ _ _ (side_eqdec a a') (h == h')
         then in_left
-        else in_right
-      | _ => in_right
-      end
-    | BEVar x =>
-      match y with
-      | BEVar x' =>
+        else in_right;
+      bit_expr_eq_dec (BEVar x) (BEVar x') :=
         if bvar_eq_dec x x'
         then in_left
-        else in_right
-      | _ => in_right
-      end
-    | BESlice e hi lo =>
-      match y with
-      | BESlice e' hi' lo' =>
+        else in_right;
+      bit_expr_eq_dec (BESlice e hi lo) (BESlice e' hi' lo') :=
         if Sumbool.sumbool_and _ _ _ _ (hi == hi') (lo == lo')
-        then if bit_expr_eqdec e e'
+        then if bit_expr_eq_dec e e'
              then in_left
              else in_right
-        else in_right
-      | _ => in_right
-      end
-    | BEConcat e1 e2 =>
-      match y with
-      | BEConcat e1' e2' =>
-        if bit_expr_eqdec e1 e1'
-        then if bit_expr_eqdec e2 e2'
+        else in_right;
+      bit_expr_eq_dec (BEConcat e1 e2) (BEConcat e1' e2') :=
+        if bit_expr_eq_dec e1 e1'
+        then if bit_expr_eq_dec e2 e2'
              then in_left
              else in_right
-        else in_right
-      | _ => in_right
-      end
-    end.
-  Solve All Obligations with solve_bit_expr_dec.
-  Next Obligation. subst; simpl; Lia.lia. Qed.
-  Next Obligation. subst; simpl; Lia.lia. Qed.
-  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
-  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
-  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
-  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
-  Next Obligation. unfold wildcard' in *; solve_bit_expr_dec. Qed.
-  Next Obligation.
-    set (f := (fun recarg : {c : bctx & {_ : bit_expr c & bit_expr c}} =>
-                 let c := projT1 recarg in
-                 let x := projT1 (projT2 recarg) in let y := projT2 (projT2 recarg) in size x)).
-    eapply (Wf_nat.well_founded_lt_compat _ f).
-    intros [x x'] [y y'] Hmr.
-    inversion Hmr; cbn in *; Lia.lia.
-  Qed.
+        else in_right;
+             bit_expr_eq_dec _ _ := in_right }.
 
-  Global Program Instance bit_expr_eq_dec {c} : EquivDec.EqDec (bit_expr c) eq :=
-    { equiv_dec := bit_expr_eqdec }.
+  Solve All Obligations with
+      (intros;
+      repeat match goal with
+             | H: _ /\ _|- _ => destruct H
+             | H: _ \/ _ |- _ => destruct H
+             | |- ?g => congruence
+             end).
+  #[global] Transparent bit_expr_eq_dec.
+
+  Global Program Instance bit_expr_eqdec {c} : EquivDec.EqDec (bit_expr c) eq :=
+    { equiv_dec := bit_expr_eq_dec }.
 
   Fixpoint interp_bit_expr {c} (e: bit_expr c) (valu: bval c) (c1 c2: conf) : list bool :=
     match e with
@@ -243,6 +202,13 @@ Section ConfRel.
       interp_bit_expr e1 valu c1 c2 ++ interp_bit_expr e2 valu c1 c2
     end.
 
+  Lemma true_eq:
+    forall x y : True,
+      x = y.
+  Proof using.
+    destruct x, y; reflexivity.
+  Qed.
+
   Inductive store_rel c :=
   | BRTrue
   | BRFalse
@@ -252,6 +218,49 @@ Section ConfRel.
   | BROr (r1 r2: store_rel c)
   | BRImpl (r1 r2: store_rel c).
   Arguments store_rel : default implicits.
+
+  Equations store_rel_eq_dec {c: bctx} : forall x y: store_rel c, {x = y} + {x <> y} :=
+    { store_rel_eq_dec (BRTrue _) (BRTrue _) := in_left;
+      store_rel_eq_dec (BRFalse _) (BRFalse _) := in_left;
+      store_rel_eq_dec (BREq e11 e12) (BREq e21 e22) := 
+        if Sumbool.sumbool_and _ _ _ _ (e11 == e21) (e12 == e22)
+        then in_left
+        else in_right;
+      store_rel_eq_dec (BRNotEq e11 e12) (BRNotEq e21 e22) := 
+        if Sumbool.sumbool_and _ _ _ _ (e11 == e21) (e12 == e22)
+        then in_left
+        else in_right;
+      store_rel_eq_dec (BRAnd r11 r12) (BRAnd r21 r22) := 
+        if (store_rel_eq_dec r11 r21)
+        then if (store_rel_eq_dec r12 r22)
+             then in_left
+             else in_right
+        else in_right;
+      store_rel_eq_dec (BROr r11 r12) (BROr r21 r22) := 
+        if (store_rel_eq_dec r11 r21)
+        then if (store_rel_eq_dec r12 r22)
+             then in_left
+             else in_right
+        else in_right;
+      store_rel_eq_dec (BRImpl r11 r12) (BRImpl r21 r22) := 
+        if (store_rel_eq_dec r11 r21)
+        then if (store_rel_eq_dec r12 r22)
+             then in_left
+             else in_right
+        else in_right;
+    store_rel_eq_dec _ _ := in_right }.
+
+  Solve All Obligations with
+      (intros;
+      repeat match goal with
+             | H: _ /\ _|- _ => destruct H
+             | H: _ \/ _ |- _ => destruct H
+             | |- ?g => congruence
+             end).
+  #[global] Transparent store_rel_eq_dec.
+
+  Global Program Instance store_rel_eqdec {c: bctx}: EquivDec.EqDec (store_rel c) eq :=
+    store_rel_eq_dec.
 
   Fixpoint weaken_store_rel {c} (size: nat) (r: store_rel c) : store_rel (BCSnoc c size) :=
     match r with
@@ -283,11 +292,45 @@ Section ConfRel.
   Record conf_state :=
     { cs_st1: state_template;
       cs_st2: state_template; }.
+  Global Program Instance conf_state_eq_dec: EquivDec.EqDec conf_state eq :=
+    { equiv_dec x y :=
+        if x.(cs_st1) == y.(cs_st1)
+        then if x.(cs_st2) == y.(cs_st2) 
+             then in_left
+             else in_right
+        else in_right }.
+  Solve All Obligations with (destruct x, y; simpl in *; congruence).
 
   Record conf_rel :=
     { cr_st: conf_state;
       cr_ctx: bctx;
       cr_rel: store_rel cr_ctx }.
+  Equations conf_rel_eq_dec: EquivDec.EqDec conf_rel eq :=
+    { conf_rel_eq_dec x y with (bctx_eq_dec x.(cr_ctx) y.(cr_ctx)) :=
+        { conf_rel_eq_dec ({| cr_st := st1;
+                              cr_ctx := c;
+                              cr_rel := rel1 |})
+                          ({| cr_st := st2;
+                              cr_ctx := c;
+                              cr_rel := rel2 |})
+                          (left eq_refl) :=
+            if conf_state_eq_dec st1 st2
+            then if store_rel_eq_dec rel1 rel2
+                 then in_left
+                 else in_right
+            else in_right;
+        conf_rel_eq_dec _ _ _ := in_right } }.
+  Solve All Obligations with (try congruence).
+  Next Obligation.
+    intro Hs.
+    inversion Hs.
+    dependent destruction H2.
+    eauto.
+  Qed.
+  #[global] Transparent conf_rel_eq_dec.
+
+  Global Program Instance conf_rel_eqdec: EquivDec.EqDec conf_rel eq :=
+    conf_rel_eq_dec.
 
   Definition interp_conf_state (c: conf_state) : relation conf :=
     fun c1 c2 =>

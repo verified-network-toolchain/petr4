@@ -45,7 +45,7 @@ Section WeakestPre.
     | BEBuf _ _ _
     | BEHdr _ _ _
     | BEVar _ _ =>
-      if bit_expr_eq_dec a be x then e else be
+      if bit_expr_eq_dec be x then e else be
     | BESlice be hi lo => BESlice (be_subst be e x) hi lo
     | BEConcat e1 e2 => BEConcat (be_subst e1 e x) (be_subst e2 e x)
     end.

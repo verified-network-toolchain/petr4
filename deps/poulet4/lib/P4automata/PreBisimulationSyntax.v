@@ -4,11 +4,10 @@ Require Import Coq.Classes.EquivDec.
 Require Import Coq.Program.Program.
 Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
-Require Import Coq.Relations.Relations.
 
+Require Import Poulet4.Relations.
 Require Import Poulet4.FinType.
 Require Import Poulet4.P4automata.P4automaton.
-Require Poulet4.P4automata.PreBisimulation.
 Require Poulet4.P4automata.Syntax.
 Module P4A := Poulet4.P4automata.Syntax.
 
@@ -128,16 +127,6 @@ Section ConfRel.
     | BEVar b => BEVar (weaken_bvar size b)
     | BESlice e hi lo => BESlice (weaken_bit_expr size e) hi lo
     | BEConcat e1 e2 => BEConcat (weaken_bit_expr size e1) (weaken_bit_expr size e2)
-    end.
-
-  Fixpoint size {c} (be: bit_expr c) : nat :=
-    match be with
-    | BELit _
-    | BEBuf _
-    | BEHdr _ _
-    | BEVar _ => 1
-    | BESlice e _ _ => 1 + size e
-    | BEConcat e1 e2 => 1 + size e1 + size e2
     end.
 
   Obligation Tactic := intros.
@@ -346,17 +335,12 @@ Section ConfRel.
   Definition crel :=
     list (conf_rel).
 
-  Definition rel_true: forall {A}, relation A :=
-    fun _ x y => True.
 
   Notation "⊤" := rel_true.
   Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
   Notation "⟦ x ⟧" := (interp_conf_rel x).
-  Fixpoint interp_crel (rel: crel) : relation conf :=
-    match rel with
-    | [] => ⊤
-    | r :: rel' => ⟦r⟧ ⊓ interp_crel rel'
-    end.
+  Definition interp_crel (rel: crel) : relation conf :=
+    interp_rels (List.map interp_conf_rel rel).
 
 End ConfRel.
 Arguments interp_conf_rel {_} {_} {_} {_} {_} _.

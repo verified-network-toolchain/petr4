@@ -173,12 +173,12 @@ Module Step.
               (vs : list (V.v)) :
       Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
       ⟨ ϵ, tup es @ i ⟩ ⇓ TUPLE vs
-  | ebs_rec_lit (efs : F.fs string (E.t * E.e tags_t))
+  | ebs_struct_lit (efs : F.fs string (E.t * E.e tags_t))
                 (i : tags_t) (vfs : F.fs string V.v) :
       F.relfs
         (fun te v =>
            let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
-      ⟨ ϵ, rec { efs } @ i ⟩ ⇓ REC { vfs }
+      ⟨ ϵ, struct { efs } @ i ⟩ ⇓ STRUCT { vfs }
   | ebs_hdr_lit (efs : F.fs string (E.t * E.e tags_t))
                 (e : E.e tags_t) (i : tags_t) (b : bool)
                 (vfs : F.fs string V.v) :
@@ -275,12 +275,12 @@ Module Step.
         P ϵ <{ tup es @ i }> ~{ TUPLE vs }~.
     (**[]*)
 
-    Hypothesis HRecLit : forall ϵ efs i vfs,
+    Hypothesis HStructLit : forall ϵ efs i vfs,
         F.relfs
           (fun te v =>
              let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
         F.relfs (fun te v => let e := snd te in P ϵ e v) efs vfs ->
-        P ϵ <{ rec { efs } @ i }> ~{ REC { vfs } }~.
+        P ϵ <{ struct { efs } @ i }> ~{ STRUCT { vfs } }~.
     (**[]*)
 
     Hypothesis HHdrLit : forall ϵ efs e i b vfs,
@@ -386,7 +386,7 @@ Module Step.
         | ebs_mem _ _ _ _ i _ _ Heval He
           => HMem _ _ _ _ i _ _ Heval He (ebsind _ _ _ He)
         | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
-        | ebs_rec_lit _ _ i _ HR => HRecLit _ _ i _ HR (fsind HR)
+        | ebs_struct_lit _ _ i _ HR => HStructLit _ _ i _ HR (fsind HR)
         | ebs_hdr_lit _ _ _ i _ _ HR He
           => HHdrLit _ _ _ i _ _ HR (fsind HR) He (ebsind _ _ _ He)
         | ebs_hdr_stack _ _ _ n ni i _ HR

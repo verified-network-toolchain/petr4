@@ -174,15 +174,15 @@ Section ExprTheorems.
         + destruct H4 as [? ?]. inv H2.
           subst fs; subst fs'.
           repeat rewrite app_comm_cons in *. right.
-          exists (E.ERecord (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
+          exists (E.EStruct (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.ERecord ([] ++ (s, (t', x)) :: l) i).
+          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.ERecord ([] ++ (s, (t', x)) :: l) i).
+          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
       - clear H. rename H0 into H; rename H1 into H0.
         induction H; repeat invert_cons_cons_relate;

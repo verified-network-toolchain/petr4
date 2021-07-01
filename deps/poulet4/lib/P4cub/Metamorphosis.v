@@ -87,7 +87,7 @@ Section Metamorphosis.
     | TypTuple ts
     | TypList  ts => ts <<| lrec ts ;; {{ tuple ts }}
     | TypRecord fs
-    | TypStruct fs => fs <<| frec fs ;; {{ rec { fs } }}
+    | TypStruct fs => fs <<| frec fs ;; {{ struct { fs } }}
     | TypSet t' => type_morph t' (* TODO this is a hack that works for well-behaved parsers, but not in general *)
     | TypError => mret {{ error }}
     | TypMatchKind => mret {{ matchkind }}
@@ -171,11 +171,11 @@ Section Metamorphosis.
          Didn't we decide it was undesirable to
          use both [N] and [Z]? *)
   Fixpoint expr_morph (e : Expression) : @error_monad MorphError (E.e tags_t) :=
-    let fix lrec (es : list Expression) : @error_monad MorphError (list (E.e tags_t)) :=
+    let fix lstruct (es : list Expression) : @error_monad MorphError (list (E.e tags_t)) :=
         match es with
         | []     => mret []
         | e :: es => e <- expr_morph e ;;
-                   es <<| lrec es ;; e :: es
+                   es <<| lstruct es ;; e :: es
         end in
     let fix frec (fs : list KeyValue) : @error_monad MorphError (F.fs string (E.t * E.e tags_t)) :=
         match fs with
@@ -211,9 +211,9 @@ Section Metamorphosis.
         t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Slice e:t [hi:lo] @ i }>
     | MkExpression i (ExpList es) _ _
-      => es <<| lrec es ;; <{ tup es @ i }>
+      => es <<| lstruct es ;; <{ tup es @ i }>
     | MkExpression i (ExpRecord fs) _ _
-      => fs <<| frec fs ;; <{ rec { fs } @ i }>
+      => fs <<| frec fs ;; <{ struct { fs } @ i }>
     | MkExpression i (ExpUnaryOp op e) t _
       => t <- type_morph t ;;
         e <<| expr_morph e ;;

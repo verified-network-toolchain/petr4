@@ -165,7 +165,7 @@ Section CComp.
                           end
                         end
     | <{tup es @ i}> => None (*first create a temp of this tuple. then assign all the values to it. then return this temp *) 
-    | <{rec { fields } @ i}> => None (*first create a temp of this record. then assign all the values to it. then return this temp *)
+    | <{struct { fields } @ i}> => None (*first create a temp of this struct. then assign all the values to it. then return this temp *)
                         
     | <{hdr { fields } valid := b @ i}> => None (*first create a temp of this header. then assign all the values to it. then return this temp*)
     | <{Mem x : ty dot y @ i}> => 
@@ -173,7 +173,7 @@ Section CComp.
                         | None => None
                         | Some (x', env') =>
                           match ty with
-                          | E.TRecord(f)
+                          | E.TStruct(f)
                           | E.THeader(f) => 
                             match F.get_index y f with
                             | Some n => Some ((Clight.Efield x' (Pos.of_nat n) (CTranslateType ty)), env')
@@ -585,5 +585,3 @@ Section CComp.
     end.
   
 End CComp.
-
-

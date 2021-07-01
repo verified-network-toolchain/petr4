@@ -37,9 +37,9 @@ Module ValuePacket <: P4Packet.
       let width := Pos.to_nat w in
       vec <<| read_first_bits width ;;
       V.VInt w $ convert_bits width vec
-    | {{ rec { ts } }}
+    | {{ struct { ts } }}
       => vs <<| sequence $ List.map read_field ts ;;
-        ~{ REC { vs } }~
+        ~{ STRUCT { vs } }~
     | {{ hdr { ts } }}
       => vs <<| sequence $ List.map read_field ts ;;
         ~{ HDR { vs } VALID:=true }~

@@ -26,10 +26,10 @@ Module IsValue.
   | value_tuple (es : list (E.e tags_t)) (i : tags_t) :
       Forall value es ->
       value <{ tup es @ i }>
-  | value_record (fs : F.fs string (E.t * E.e tags_t))
+  | value_struct (fs : F.fs string (E.t * E.e tags_t))
                  (i : tags_t) :
       F.predfs_data (value ∘ snd) fs ->
-      value <{ rec { fs } @ i }>
+      value <{ struct { fs } @ i }>
   | value_header (fs : F.fs string (E.t * E.e tags_t))
                  (b : E.e tags_t) (i : tags_t) :
       value b ->
@@ -62,10 +62,10 @@ Module IsValue.
       Forall P es ->
       P <{ tup es @ i }>.
 
-    Hypothesis HRecord : forall fs i,
+    Hypothesis HStruct : forall fs i,
         F.predfs_data (value ∘ snd) fs ->
         F.predfs_data (P ∘ snd) fs ->
-        P <{ rec { fs } @ i }>.
+        P <{ struct { fs } @ i }>.
 
     Hypothesis HHeader : forall fs b i,
         value b ->
@@ -104,7 +104,7 @@ Module IsValue.
         | value_bit w n i => HBit w n i
         | value_int w z i => HInt w z i
         | value_tuple _ i Hes => HTuple _ i Hes (lind Hes)
-        | value_record _ i Hfs => HRecord _ i Hfs (find Hfs)
+        | value_struct _ i Hfs => HStruct _ i Hfs (find Hfs)
         | value_header _ _ i Hb Hfs
           => HHeader _ _ i Hb (vind _ Hb) Hfs (find Hfs)
         | value_error err i => HError err i
@@ -197,8 +197,8 @@ Module IsValue.
           ⟦ errs, Γ ⟧ ⊢ v ∈ tuple ts -> exists es i, v = <{ tup es @ i }>.
       Proof. crush_canonical. Qed.
 
-      Lemma canonical_forms_record : forall ts,
-          ⟦ errs, Γ ⟧ ⊢ v ∈ rec { ts } -> exists fs i, v = <{ rec { fs } @ i }>.
+      Lemma canonical_forms_struct : forall ts,
+          ⟦ errs, Γ ⟧ ⊢ v ∈ struct { ts } -> exists fs i, v = <{ struct { fs } @ i }>.
       Proof. crush_canonical. Qed.
 
       Lemma canonical_forms_header : forall ts,
@@ -225,7 +225,7 @@ Module IsValue.
       | H: <{ _ W _ @ _ }> = <{ _ W _ @ _ }> |- _ => inv H
       | H: <{ _ S _ @ _ }> = <{ _ S _ @ _ }> |- _ => inv H
       | H: <{ tup _ @ _ }> = <{ tup _ @ _ }> |- _ => inv H
-      | H: <{ rec { _ } @ _ }> = <{ rec { _ } @ _ }> |- _ => inv H
+      | H: <{ struct { _ } @ _ }> = <{ struct { _ } @ _ }> |- _ => inv H
       | H: <{ hdr { _ } valid:=_ @ _ }> = <{ hdr { _ } valid:=_ @ _ }>
         |- _ => inv H
       | H: <{ Stack _:_[_] nextIndex:=_ @ _ }> = <{ Stack _:_[_] nextIndex:=_ @ _ }>
@@ -247,8 +247,8 @@ Module IsValue.
       | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ tuple _ |- _
         => pose proof canonical_forms_tuple _ _ _ Hv _ Ht as [? [? Hcanon]];
           inv Hcanon; inv Hv; inv Ht
-      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ rec { _ } |- _
-        => pose proof canonical_forms_record _ _ _ Hv _ Ht as [? [? Hcanon]];
+      | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ struct { _ } |- _
+        => pose proof canonical_forms_struct _ _ _ Hv _ Ht as [? [? Hcanon]];
           inv Hcanon; inv Hv; inv Ht
       | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ hdr { _ } |- _
         => pose proof canonical_forms_header _ _ _ Hv _ Ht as [? [? [? Hcanon]]];
@@ -322,8 +322,8 @@ Module Step.
       | {{ int<w> }}, <{ _ S z @ i}>
         => let z := IntArith.mod_bound w z in
           Some <{ w S z @ i }>
-      | {{ rec { fs } }}, <{ tup vs @ i }>
-        => Some $ E.ERecord (combine (F.keys fs) $ combine (F.values fs) vs) i
+      | {{ struct { fs } }}, <{ tup vs @ i }>
+        => Some $ E.EStruct (combine (F.keys fs) $ combine (F.values fs) vs) i
       | {{ hdr { fs } }}, <{ tup vs @ i }>
         => Some
             $ E.EHeader
@@ -334,16 +334,16 @@ Module Step.
 
     (** Default (value) Expression. *)
     Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
-      let fix lrec (ts : list (E.t)) : list (E.e tags_t) :=
+      let fix lstruct (ts : list (E.t)) : list (E.e tags_t) :=
           match ts with
           | []     => []
-          | τ :: ts => edefault i τ :: lrec ts
+          | τ :: ts => edefault i τ :: lstruct ts
           end in
-      let fix frec (fs : F.fs string (E.t))
+      let fix fstruct (fs : F.fs string (E.t))
           : F.fs string (E.t * E.e tags_t) :=
           match fs with
           | [] => []
-          | (x, τ) :: fs => (x, (τ, edefault i τ)) :: frec fs
+          | (x, τ) :: fs => (x, (τ, edefault i τ)) :: fstruct fs
           end in
       match τ with
       | {{ Bool }} => <{ BOOL false @ i }>
@@ -351,11 +351,11 @@ Module Step.
       | {{ int<w> }} => E.EInt w 0%Z i
       | {{ error }} => <{ Error None @ i }>
       | {{ matchkind }} => <{ Matchkind exact @ i }>
-      | {{ tuple ts }} => E.ETuple (lrec ts) i
-      | {{ rec { fs } }} => E.ERecord (frec fs) i
-      | {{ hdr { fs } }} => E.EHeader (frec fs) <{ BOOL false @ i }> i
+      | {{ tuple ts }} => E.ETuple (lstruct ts) i
+      | {{ struct { fs } }} => E.EStruct (fstruct fs) i
+      | {{ hdr { fs } }} => E.EHeader (fstruct fs) <{ BOOL false @ i }> i
       | {{ stack tfs[n] }}
-          => let tefs := frec tfs in
+          => let tefs := fstruct tfs in
             let hs :=
                 repeat
                 <{ hdr { tefs } valid:= BOOL false @ i @ i }>
@@ -500,7 +500,7 @@ Module Step.
 
     Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
       match v with
-      | <{ rec { vs } @ _ }>
+      | <{ struct { vs } @ _ }>
       | <{ hdr { vs } valid:=_ @ _ }> => vs ▷ F.get x >>| snd
       | _                             => None
       end.
@@ -744,7 +744,7 @@ Module Step.
       | <{ Mem lv:_ dot x @ _ }> =>
         (* TODO: use monadic bind. *)
         match lv_lookup ϵ lv with
-        | Some <{ rec { fs } @ _ }>
+        | Some <{ struct { fs } @ _ }>
         | Some <{ hdr { fs } valid:=_  @ _ }> => fs ▷ F.get x >>| snd
         | _ => None
         end
@@ -763,10 +763,10 @@ Module Step.
       | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
       | <{ Mem lv:_ dot x @ _ }> =>
         match lv_lookup ϵ lv with
-        | Some <{ rec { vs } @ i }>
+        | Some <{ struct { vs } @ i }>
           => match F.get x vs with
             | None => ϵ
-            | Some (τ,_) => lv_update lv (E.ERecord (F.update x (τ,v) vs) i) ϵ
+            | Some (τ,_) => lv_update lv (E.EStruct (F.update x (τ,v) vs) i) ϵ
             end
         | Some <{ hdr { vs } valid:=b @ i }>
           => match F.get x vs with
@@ -1016,14 +1016,14 @@ Module Step.
       let es := prefix ++ e :: suffix in
       let es' := prefix ++ e' :: suffix in
       ℵ ϵ, tup es @ i -->  tup es' @ i
-  | step_record (prefix suffix : F.fs string (E.t * E.e tags_t))
+  | step_struct (prefix suffix : F.fs string (E.t * E.e tags_t))
                 (x : string) (τ : E.t)
                 (e e' : E.e tags_t) (i : tags_t) :
       F.predfs_data (V.value ∘ snd) prefix ->
       ℵ ϵ, e -->  e' ->
       let fs := prefix ++ (x,(τ,e)) :: suffix in
       let fs' := prefix ++ (x,(τ,e')) :: suffix in
-      ℵ ϵ, rec { fs } @ i -->  rec { fs' } @ i
+      ℵ ϵ, struct { fs } @ i -->  struct { fs' } @ i
   | step_header (prefix suffix : F.fs string (E.t * E.e tags_t))
                 (x : string) (τ : E.t)
                 (b e e' : E.e tags_t) (i : tags_t) :

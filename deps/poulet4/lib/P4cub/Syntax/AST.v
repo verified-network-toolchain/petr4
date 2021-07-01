@@ -89,7 +89,7 @@ Module P4cub.
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
       | TTuple (types : list t)          (* tuple type *)
-      | TRecord (fields : F.fs string t) (* the record and struct type *)
+      | TStruct (fields : F.fs string t) (* the struct and struct type *)
       | THeader (fields : F.fs string t) (* the header type *)
       | THeaderStack (fields : F.fs string t)
                      (size : positive)   (* header stack type *).
@@ -104,7 +104,7 @@ Module P4cub.
         | TMatchKind => 0
         | TTuple ts =>
           (List.fold_left (fun (acc : nat) t => acc + width_of_typ t) ts 0)%nat
-        | TRecord fs =>
+        | TStruct fs =>
           (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
         | THeader fs =>
           (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
@@ -150,8 +150,8 @@ Module P4cub.
         := TMatchKind (in custom p4type at level 0, no associativity).
       Notation "'tuple' ts"
                := (TTuple ts) (in custom p4type at level 0, no associativity).
-      Notation "'rec' { fields }"
-        := (TRecord fields)
+      Notation "'struct' { fields }"
+        := (TStruct fields)
             (in custom p4type at level 6, no associativity).
       Notation "'hdr' { fields }"
         := (THeader fields)
@@ -197,8 +197,8 @@ Module P4cub.
       Hypothesis HTTuple : forall ts,
           Forall P ts -> P {{ tuple ts }}.
 
-      Hypothesis HTRecord : forall fields,
-          F.predfs_data P fields -> P {{ rec { fields } }}.
+      Hypothesis HTStruct : forall fields,
+          F.predfs_data P fields -> P {{ struct { fields } }}.
 
       Hypothesis HTHeader : forall fields,
           F.predfs_data P fields -> P {{ hdr { fields } }}.
@@ -230,7 +230,7 @@ Module P4cub.
           | {{ error }} => HTError
           | {{ matchkind }} => HTMatchKind
           | {{ tuple ts }}  => HTTuple ts (list_ind ts)
-          | {{ rec { fields } }} => HTRecord fields (fields_ind fields)
+          | {{ struct { fields } }} => HTStruct fields (fields_ind fields)
           | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
           | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
           end.
@@ -244,17 +244,17 @@ Module P4cub.
       Section TypeEquivalence.
         (** Decidable equality. *)
         Fixpoint eqbt (τ1 τ2 : t) : bool :=
-          let fix lrec (ts1 ts2 : list t) : bool :=
+          let fix lstruct (ts1 ts2 : list t) : bool :=
               match ts1, ts2 with
               | [], [] => true
-              | t1::ts1, t2::ts2 => eqbt t1 t2 && lrec ts1 ts2
+              | t1::ts1, t2::ts2 => eqbt t1 t2 && lstruct ts1 ts2
               | [], _::_ | _::_, [] => false
               end in
-          let fix frec (ts1 ts2 : F.fs string t) : bool :=
+          let fix fstruct (ts1 ts2 : F.fs string t) : bool :=
               match ts1, ts2 with
               | [], [] => true
               | (x1,t1)::ts1, (x2,t2)::ts2
-                => equiv_dec x1 x2 &&&& eqbt t1 t2 && frec ts1 ts2
+                => equiv_dec x1 x2 &&&& eqbt t1 t2 && fstruct ts1 ts2
               | [], _::_ | _::_, [] => false
               end in
           match τ1, τ2 with
@@ -263,11 +263,11 @@ Module P4cub.
           | {{ matchkind }}, {{ matchkind }} => true
           | {{ bit<w1> }}, {{ bit<w2> }}
           | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
-          | {{ tuple ts1 }}, {{ tuple ts2 }} => lrec ts1 ts2
+          | {{ tuple ts1 }}, {{ tuple ts2 }} => lstruct ts1 ts2
           | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
-          | {{ rec { ts1 } }}, {{ rec { ts2 } }} => frec ts1 ts2
+          | {{ struct { ts1 } }}, {{ struct { ts2 } }} => fstruct ts1 ts2
           | {{ stack ts1[n1] }}, {{ stack ts2[n2] }}
-            => (n1 =? n2)%positive && frec ts1 ts2
+            => (n1 =? n2)%positive && fstruct ts1 ts2
           | _, _ => false
           end.
         (**[]*)
@@ -369,9 +369,9 @@ Module P4cub.
         | pih_bool (τ : t) :
             base_type τ ->
             proper_inside_header τ
-        | pih_record (ts : F.fs string t) :
+        | pih_struct (ts : F.fs string t) :
             F.predfs_data base_type ts ->
-            proper_inside_header {{ rec { ts } }}.
+            proper_inside_header {{ struct { ts } }}.
 
         (** Properly nested type. *)
         Inductive proper_nesting : t -> Prop :=
@@ -379,10 +379,10 @@ Module P4cub.
             base_type τ -> proper_nesting τ
         | pn_error : proper_nesting {{ error }}
         | pn_matchkind : proper_nesting {{ matchkind }}
-        | pn_record (ts : F.fs string t) :
+        | pn_struct (ts : F.fs string t) :
             F.predfs_data
               (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
-            proper_nesting {{ rec { ts } }}
+            proper_nesting {{ struct { ts } }}
         | pn_tuple (ts : list t) :
             Forall
               (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
@@ -404,7 +404,7 @@ Module P4cub.
         Proof.
           intros τ H. induction H.
           - inv H; repeat econstructor.
-          - apply pn_record.
+          - apply pn_struct.
             ind_predfs_data; constructor; auto; cbv.
             inv H; split; try (repeat constructor; assumption);
             try (intros H'; inv H'; contradiction).
@@ -414,7 +414,7 @@ Module P4cub.
       Ltac invert_base_ludicrous :=
         match goal with
         | H: base_type {{ tuple _ }} |- _ => inv H
-        | H: base_type {{ rec { _ } }} |- _ => inv H
+        | H: base_type {{ struct { _ } }} |- _ => inv H
         | H: base_type {{ hdr { _ } }} |- _ => inv H
         | H: base_type {{ stack _[_] }} |- _ => inv H
         end.
@@ -550,8 +550,8 @@ Module P4cub.
       | EBop (op : bop) (lhs_type rhs_type : t)
              (lhs rhs : e) (i : tags_t)                (* binary operations *)
       | ETuple (es : list e) (i : tags_t)              (* tuples *)
-      | ERecord (fields : F.fs string (t * e))
-                (i : tags_t)                           (* records and structs *)
+      | EStruct (fields : F.fs string (t * e))
+                (i : tags_t)                           (* structs and structs *)
       | EHeader (fields : F.fs string (t * e))
                 (valid : e) (i : tags_t)               (* header literals *)
       | EExprMember (mem : string)
@@ -596,7 +596,7 @@ Module P4cub.
     Arguments EUop {tags_t}.
     Arguments EBop {tags_t}.
     Arguments ETuple {_}.
-    Arguments ERecord {tags_t}.
+    Arguments EStruct {tags_t}.
     Arguments EHeader {_}.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
@@ -639,8 +639,8 @@ Module P4cub.
       Notation "'tup' es @ i"
                := (ETuple es i)
                     (in custom p4expr at level 0).
-      Notation "'rec' { fields } @ i "
-        := (ERecord fields i)
+      Notation "'struct' { fields } @ i "
+        := (EStruct fields i)
             (in custom p4expr at level 6, no associativity).
       Notation "'hdr' { fields } 'valid' ':=' b @ i "
         := (EHeader fields b i)
@@ -700,8 +700,8 @@ Module P4cub.
       Hypothesis HETuple : forall es i,
           Forall P es -> P <{ tup es @ i }>.
 
-      Hypothesis HERecord : forall fields i,
-          F.predfs_data (P ∘ snd) fields -> P <{ rec {fields} @ i }>.
+      Hypothesis HEStruct : forall fields i,
+          F.predfs_data (P ∘ snd) fields -> P <{ struct {fields} @ i }>.
 
       Hypothesis HEHeader : forall fields b i,
           P b -> F.predfs_data (P ∘ snd) fields ->
@@ -749,7 +749,7 @@ Module P4cub.
             => HEBop op lt rt lhs rhs i
                     (eind lhs) (eind rhs)
           | <{ tup es @ i }>         => HETuple es i (list_ind es)
-          | <{ rec { fields } @ i }> => HERecord fields i (fields_ind fields)
+          | <{ struct { fields } @ i }> => HEStruct fields i (fields_ind fields)
           | <{ hdr { fields } valid:=b @ i }>
             => HEHeader fields b i (eind b) (fields_ind fields)
           | <{ Mem exp:ty dot x @ i }> => HEExprMember x ty exp i (eind exp)
@@ -815,7 +815,7 @@ Module P4cub.
       | equive_tuple es1 es2 i1 i2 :
           Forall2 equive es1 es2 ->
           ∮ tup es1 @ i1 ≡ tup es2 @ i2
-      | equive_record fs1 fs2 i1 i2 :
+      | equive_struct fs1 fs2 i1 i2 :
           F.relfs
             (fun et1 et2 =>
                let τ1 := fst et1 in
@@ -823,7 +823,7 @@ Module P4cub.
                let e1 := snd et1 in
                let e2 := snd et2 in
                τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
-          ∮ rec { fs1 } @ i1 ≡ rec { fs2 } @ i2
+          ∮ struct { fs1 } @ i1 ≡ struct { fs2 } @ i2
       | equive_header fs1 fs2 e1 e2 i1 i2 :
           F.relfs
             (fun et1 et2 =>
@@ -891,7 +891,7 @@ Module P4cub.
             Forall2 P es1 es2 ->
             P <{ tup es1 @ i1 }> <{ tup es2 @ i2 }>.
 
-        Hypothesis HRecord : forall  fs1 fs2 i1 i2,
+        Hypothesis HStruct : forall  fs1 fs2 i1 i2,
             F.relfs
               (fun et1 et2 =>
                  let τ1 := fst et1 in
@@ -904,7 +904,7 @@ Module P4cub.
                  let e1 := snd et1 in
                  let e2 := snd et2 in
                  P e1 e2) fs1 fs2 ->
-            P <{ rec { fs1 } @ i1 }> <{ rec { fs2 } @ i2 }>.
+            P <{ struct { fs1 } @ i1 }> <{ struct { fs2 } @ i2 }>.
 
         Hypothesis HHeader : forall  fs1 fs2 e1 e2 i1 i2,
             F.relfs
@@ -993,8 +993,8 @@ Module P4cub.
                   Her (eeind _ _ Her)
             | equive_tuple _ _ i1 i2 Hes
               => HTup _ _ i1 i2 Hes (lind Hes)
-            | equive_record _ _ i1 i2 Hfs
-              => HRecord _ _ i1 i2 Hfs (fsind Hfs)
+            | equive_struct _ _ i1 i2 Hfs
+              => HStruct _ _ i1 i2 Hfs (fsind Hfs)
             | equive_header _ _ _ _ i1 i2 Hfs He
               => HHeader _ _ _ _ i1 i2 Hfs (fsind Hfs) He (eeind _ _ He)
             | equive_member x τ _ _ i1 i2 He
@@ -1094,20 +1094,20 @@ Module P4cub.
 
         (** Decidable Expression Equivalence. *)
         Fixpoint eqbe (e1 e2 : e tags_t) : bool :=
-          let fix lrec (es1 es2 : list (e tags_t)) : bool :=
+          let fix lstruct (es1 es2 : list (e tags_t)) : bool :=
               match es1, es2 with
               | [], _::_ | _::_, [] => false
               | [], [] => true
-              | e1::es1, e2::es2 => eqbe e1 e2 && lrec es1 es2
+              | e1::es1, e2::es2 => eqbe e1 e2 && lstruct es1 es2
               end in
-          let fix efsrec {A : Type} (feq : A -> A -> bool)
+          let fix efsstruct {A : Type} (feq : A -> A -> bool)
                   (fs1 fs2 : F.fs string (A * e tags_t)) : bool :=
               match fs1, fs2 with
               | [], _::_ | _::_, [] => false
               | [], [] => true
               | (x1, (a1, e1))::fs1, (x2, (a2, e2))::fs2
                 => equiv_dec x1 x2 &&&& feq a1 a2 &&
-                  eqbe e1 e2 && efsrec feq fs1 fs2
+                  eqbe e1 e2 && efsstruct feq fs1 fs2
               end in
           match e1, e2 with
           | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => eqb b1 b2
@@ -1128,12 +1128,12 @@ Module P4cub.
             <{ BOP el2:τl2 o2 er2:τr2 @ _ }>
             => equiv_dec o1 o2 &&&& eqbt τl1 τl2 && eqbt τr1 τr2
               && eqbe el1 el2 && eqbe er1 er2
-          | <{ tup es1 @ _ }>, <{ tup es2 @ _ }> => lrec es1 es2
-          | <{ rec { fs1 } @ _ }>, <{ rec { fs2 } @ _ }>
-            => efsrec eqbt fs1 fs2
+          | <{ tup es1 @ _ }>, <{ tup es2 @ _ }> => lstruct es1 es2
+          | <{ struct { fs1 } @ _ }>, <{ struct { fs2 } @ _ }>
+            => efsstruct eqbt fs1 fs2
           | <{ hdr { fs1 } valid:=e1 @ _ }>,
             <{ hdr { fs2 } valid:=e2 @ _ }>
-            => eqbe e1 e2 && efsrec eqbt fs1 fs2
+            => eqbe e1 e2 && efsstruct eqbt fs1 fs2
           | <{ Mem e1:τ1 dot x1 @ _ }>, <{ Mem e2:τ2 dot x2 @ _ }>
             => equiv_dec x1 x2 &&&& eqbt τ1 τ2 && eqbe e1 e2
           | <{ Error err1 @ _ }>, <{ Error err2 @ _ }>
@@ -1143,7 +1143,7 @@ Module P4cub.
           | <{ Stack hs1:ts1[n1] nextIndex:=ni1 @ _ }>,
             <{ Stack hs2:ts2[n2] nextIndex:=ni2 @ _ }>
             => (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
-              F.eqb_fs eqbt ts1 ts2 && lrec hs1 hs2
+              F.eqb_fs eqbt ts1 ts2 && lstruct hs1 hs2
           | <{ Access hs1[n1] @ _ }>,
             <{ Access hs2[n2] @ _ }> => (n1 =? n2)%Z && eqbe hs1 hs2
           | _, _ => false

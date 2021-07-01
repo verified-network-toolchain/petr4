@@ -159,8 +159,8 @@ Module ExprUtil.
                                    Some ~{ w VW n }~
     | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.mod_bound w z in
                                    Some ~{ w VS z }~
-    | {{ rec { fs } }}, ~{ TUPLE vs }~
-      => Some $ V.VRecord $ combine (F.keys fs) vs
+    | {{ struct { fs } }}, ~{ TUPLE vs }~
+      => Some $ V.VStruct $ combine (F.keys fs) vs
     | {{ hdr { fs } }}, ~{ TUPLE vs }~
       => Some $ V.VHeader (combine (F.keys fs) vs) true
     | _, _ => None
@@ -169,7 +169,7 @@ Module ExprUtil.
   
   Definition eval_member (x : string) (v : V.v) : option V.v :=
     match v with
-    | ~{ REC { vs } }~
+    | ~{ STRUCT { vs } }~
     | ~{ HDR { vs } VALID:=_ }~ => F.get x vs
     | _ => None
     end.
@@ -367,7 +367,7 @@ Module EnvUtil.
       (* TODO: use monadic bind. *)
       match lv_lookup ϵ lv with
       | None => None
-      | Some ~{ REC { fs } }~
+      | Some ~{ STRUCT { fs } }~
       | Some ~{ HDR { fs } VALID:=_ }~ => F.get x fs
       | Some _ => None
       end
@@ -390,7 +390,7 @@ Module EnvUtil.
     | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
     | l{ lv DOT x }l =>
       match lv_lookup ϵ lv with
-      | Some ~{ REC { vs } }~ => lv_update lv (V.VRecord (F.update x v vs)) ϵ
+      | Some ~{ STRUCT { vs } }~ => lv_update lv (V.VStruct (F.update x v vs)) ϵ
       | Some ~{ HDR { vs } VALID:=b }~ =>
         lv_update lv (V.VHeader (F.update x v vs) b) ϵ
       | Some _ | None => ϵ

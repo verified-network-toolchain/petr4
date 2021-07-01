@@ -161,9 +161,9 @@ Section parser_to_p4automaton.
     | <{ tup es @ _ }> =>
       vs <<| sequence (List.map (interp_expr ϵ) es) ;;
       ~{ TUPLE vs }~
-    | <{ rec { fs } @ i }> =>
+    | <{ struct { fs } @ i }> =>
       vs <<| sequence (List.map (fun '(f, (_,e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
-      ~{ REC { vs } }~
+      ~{ STRUCT { vs } }~
     | <{ hdr { fs } valid := b @ i }> =>
       b <- interp_expr ϵ b ;;
       vs <- sequence (List.map (fun '(f, (_, e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
@@ -231,9 +231,9 @@ Section parser_to_p4automaton.
     | {{ error }} => None
     | {{ matchkind }} => None
     | {{ tuple _ }} => None
-    | {{ rec { fs } }} =>
+    | {{ struct { fs } }} =>
       fs <<| sequence (snd (List.fold_left f fs (pkt, []))) ;;
-      ~{ REC { fs } }~
+      ~{ STRUCT { fs } }~
     | {{ hdr { fs }  }} =>
       fs <<| sequence (snd (List.fold_left f fs (pkt, []))) ;;
       ~{ HDR { fs } VALID := true }~

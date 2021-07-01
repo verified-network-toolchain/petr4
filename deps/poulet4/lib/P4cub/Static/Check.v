@@ -177,9 +177,9 @@ Module Typecheck.
     | pc_int_bit (w : positive) : proper_cast {{ int<w> }} {{ bit<w> }}
     | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
     | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}
-    | pc_tuple_rec (ts : list E.t) (fs : F.fs string E.t) :
+    | pc_tuple_struct (ts : list E.t) (fs : F.fs string E.t) :
         ts = F.values fs ->
-        proper_cast {{ tuple ts }} {{ rec { fs } }}
+        proper_cast {{ tuple ts }} {{ struct { fs } }}
     | pc_tuple_hdr (ts : list E.t) (fs : F.fs string E.t) :
         ts = F.values fs ->
         Forall PT.proper_inside_header ts ->
@@ -188,7 +188,7 @@ Module Typecheck.
 
     (** Evidence member operations are valid on a type. *)
     Inductive member_type : F.fs string E.t -> E.t -> Prop :=
-    | mt_rec ts : member_type ts {{ rec { ts } }}
+    | mt_struct ts : member_type ts {{ struct { ts } }}
     | mt_hdr ts : member_type ts {{ hdr { ts } }}.
     (**[]*)
 
@@ -380,14 +380,14 @@ Module Typecheck.
               (ts : list E.t) :
       Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts ->
       ⟦ errs, Γ ⟧ ⊢ tup es @ i ∈ tuple ts
-  | chk_rec_lit (efs : F.fs string (E.t * E.e tags_t))
+  | chk_struct_lit (efs : F.fs string (E.t * E.e tags_t))
                 (tfs : F.fs string E.t) (i : tags_t) :
       F.relfs
         (fun te τ =>
            (fst te) = τ /\
            let e := snd te in
            ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-      ⟦ errs , Γ ⟧ ⊢ rec { efs } @ i ∈ rec { tfs }
+      ⟦ errs , Γ ⟧ ⊢ struct { efs } @ i ∈ struct { tfs }
   | chk_hdr_lit (efs : F.fs string (E.t * E.e tags_t))
                 (tfs : F.fs string E.t)
                 (i : tags_t) (b : E.e tags_t) :
@@ -495,7 +495,7 @@ Module Typecheck.
         P errs Γ <{ tup es @ i }> {{ tuple ts }}.
     (**[]*)
 
-    Hypothesis HRecLit : forall errs Γ efs tfs i,
+    Hypothesis HStructLit : forall errs Γ efs tfs i,
         F.relfs
           (fun te τ =>
              (fst te) = τ /\
@@ -504,7 +504,7 @@ Module Typecheck.
         F.relfs
           (fun te τ => let e := snd te in P errs Γ e τ)
           efs tfs ->
-        P errs Γ <{ rec { efs } @ i }> {{ rec { tfs } }}.
+        P errs Γ <{ struct { efs } @ i }> {{ struct { tfs } }}.
     (**[]*)
 
     Hypothesis HHdrLit : forall errs Γ efs tfs i b,
@@ -611,8 +611,8 @@ Module Typecheck.
             | chk_error _ _ _ i HOK => HError errs Γ _ i HOK
             | chk_matchkind _ _ mk i  => HMatchKind errs Γ mk i
             | chk_tuple _ _ _ i _ HR => HTuple _ _ _ i _ HR (lind HR)
-            | chk_rec_lit _ _ _ _ i HRs
-              => HRecLit _ _ _ _ i HRs (fields_ind HRs)
+            | chk_struct_lit _ _ _ _ i HRs
+              => HStructLit _ _ _ _ i HRs (fields_ind HRs)
             | chk_hdr_lit _ _ _ _ i _ HP HRs Hb
               => HHdrLit _ _ _ _ i _ HP
                         HRs (fields_ind HRs)

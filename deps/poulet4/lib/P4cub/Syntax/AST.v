@@ -1,4 +1,4 @@
-Set Warnings "custom-entry-overridden,parsing".
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Syntax.P4Field.

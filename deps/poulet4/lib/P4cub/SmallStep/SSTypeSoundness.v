@@ -1,8 +1,11 @@
-Require Import Coq.micromega.Lia SSSemantics
+Set Warnings "-custom-entry-overridden".
+Require Import Coq.micromega.Lia
+        Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.SynAuxilary
         Poulet4.P4cub.Syntax.SynEquiv
-        Poulet4.P4cub.Static.StaticIndPrincip.
-Import IsValue CanonicalForms Step.
+        Poulet4.P4cub.Static.StaticIndPrincip SSUtil
+        Poulet4.P4cub.SmallStep.SSValue SSSemantics.
+Import CanonicalForms Step.
 Module P := P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Import P.P4cubNotations TypeEquivalence

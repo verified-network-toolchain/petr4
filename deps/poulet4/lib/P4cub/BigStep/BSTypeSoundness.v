@@ -5,7 +5,8 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.Static.Check
         Poulet4.P4cub.Static.StaticIndPrincip
         Value ValueTyping
-        Poulet4.P4cub.BigStep.BSSemantics.
+        Poulet4.P4cub.BigStep.BSSemantics
+        BSIndPrincip.
 
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.

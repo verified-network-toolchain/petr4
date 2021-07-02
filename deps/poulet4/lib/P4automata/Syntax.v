@@ -51,14 +51,13 @@ Section Syntax.
   | VBits : list bool -> v.
 
   Global Program Instance v_eq_dec : EquivDec.EqDec v eq :=
-    { equiv_dec :=
-        fun x y =>
-          match x, y with
-          | VBits xs, VBits ys =>
-            if xs == ys
-            then in_left
-            else in_right
-          end }.
+    { equiv_dec x y :=
+        match x, y with
+        | VBits xs, VBits ys =>
+          if xs == ys
+          then in_left
+          else in_right
+        end }.
   Solve Obligations with unfold equiv, complement in *;
     program_simpl; congruence.
 

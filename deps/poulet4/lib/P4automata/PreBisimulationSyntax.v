@@ -202,7 +202,6 @@ Section ConfRel.
   | BRTrue
   | BRFalse
   | BREq (e1 e2: bit_expr c)
-  | BRNotEq (e1 e2: bit_expr c)
   | BRAnd (r1 r2: store_rel c)
   | BROr (r1 r2: store_rel c)
   | BRImpl (r1 r2: store_rel c).
@@ -212,10 +211,6 @@ Section ConfRel.
     { store_rel_eq_dec (BRTrue _) (BRTrue _) := in_left;
       store_rel_eq_dec (BRFalse _) (BRFalse _) := in_left;
       store_rel_eq_dec (BREq e11 e12) (BREq e21 e22) := 
-        if Sumbool.sumbool_and _ _ _ _ (e11 == e21) (e12 == e22)
-        then in_left
-        else in_right;
-      store_rel_eq_dec (BRNotEq e11 e12) (BRNotEq e21 e22) := 
         if Sumbool.sumbool_and _ _ _ _ (e11 == e21) (e12 == e22)
         then in_left
         else in_right;
@@ -256,7 +251,6 @@ Section ConfRel.
     | BRTrue _ => BRTrue _
     | BRFalse _ => BRFalse _
     | BREq e1 e2 => BREq (weaken_bit_expr size e1) (weaken_bit_expr size e2)
-    | BRNotEq e1 e2 => BRNotEq (weaken_bit_expr size e1) (weaken_bit_expr size e2)
     | BRAnd r1 r2 => BRAnd (weaken_store_rel size r1) (weaken_store_rel size r2)
     | BROr r1 r2 => BROr (weaken_store_rel size r1) (weaken_store_rel size r2)
     | BRImpl r1 r2 => BRImpl (weaken_store_rel size r1) (weaken_store_rel size r2)
@@ -268,8 +262,6 @@ Section ConfRel.
     | BRFalse _ => False
     | BREq e1 e2 =>
       interp_bit_expr e1 valu c1 c2 = interp_bit_expr e2 valu c1 c2
-    | BRNotEq e1 e2 =>
-      interp_bit_expr e1 valu c1 c2 <> interp_bit_expr e2 valu c1 c2
     | BRAnd r1 r2 =>
       interp_store_rel r1 valu c1 c2 /\ interp_store_rel r2 valu c1 c2
     | BROr r1 r2 =>

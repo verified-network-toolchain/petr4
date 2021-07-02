@@ -931,7 +931,6 @@ Module SynPreSynWP1bit.
         + admit.
         + admit.
         + admit.
-        + admit.
       - admit.
     Admitted.
 

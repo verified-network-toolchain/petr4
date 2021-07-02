@@ -7,6 +7,7 @@ Require Import Poulet4.P4cub.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Ccompiler.CCompEnv.
+Require Import Poulet4.P4cub.Syntax.SynAuxilary.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
@@ -159,7 +160,7 @@ Section CComp.
                             | +{||}+
                             | +{|}+ =>  Some (Ebinop Oor x' y' (CTranslateType tx), env'')
                             | +{++}+ => (*x ++ y = x<< widthof(y) + y*)
-                                        let shift_amount := Econst_long (Integers.Int64.repr (Z.of_nat (E.width_of_typ ty))) long_unsigned in 
+                                        let shift_amount := Econst_long (Integers.Int64.repr (Z.of_nat (SynDefs.width_of_typ ty))) long_unsigned in 
                                         Some (Ebinop Oadd (Ebinop Oshl x' shift_amount (CTranslateType tx)) y' (CTranslateType tx), env'')
                             end
                           end
@@ -582,6 +583,5 @@ Section CComp.
     match Compile prog with
     | Errors.Error e => tt
     | Errors.OK prog => print_Clight prog
-    end.
-  
+    end.  
 End CComp.

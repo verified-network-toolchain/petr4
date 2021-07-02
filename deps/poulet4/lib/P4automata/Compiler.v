@@ -1,15 +1,14 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.Strings.String.
-Require Import Coq.Lists.List.
-Require Import Coq.PArith.BinPos.
-
-Require Import Poulet4.P4cub.BigStep.Value.
+Require Import Coq.Strings.String
+        Coq.Lists.List Coq.PArith.BinPos.
+Require Import Poulet4.P4cub.BigStep.Value
+        Poulet4.P4cub.BigStep.BSUtil
+        Poulet4.P4cub.BigStep.ValueEquiv
+        Poulet4.P4cub.Syntax.SynAuxilary
+        Poulet4.P4cub.Envn
+        Poulet4.P4cub.BigStep.ValueAux.
 Require Import Poulet4.P4automata.P4automaton.
-Require Import Poulet4.P4cub.BigStep.BSUtil.
-(* Require Import Poulet4.Monads.Option. *)
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Error.
-(* Require Import Poulet4.Monads.Transformers. *)
+Require Import Poulet4.Monads.Monad Poulet4.Monads.Error.
 Require Poulet4.Bitwise.
 
 Open Scope monad_scope.
@@ -24,7 +23,6 @@ Import P.P4cubNotations.
 Module V := Val.
 Import V.ValueNotations.
 Import V.LValueNotations.
-Import V.ValueEquality.
 Module PR := P4cub.Parser.
 
 Section parser_to_p4automaton.
@@ -118,7 +116,7 @@ Section parser_to_p4automaton.
     match op with
     | SONil => 0
     | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
-    | SOExtract τ _ => E.width_of_typ τ
+    | SOExtract τ _ => SynDefs.width_of_typ τ
     | SOVarDecl _ _ => 0
     | SOAsgn _ _ => 0
     | SOBlock op => operation_size op end.
@@ -200,7 +198,7 @@ Section parser_to_p4automaton.
     let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * E.t) :=
         let '(pkt, fs) := acc in
         let '(n, τ) := x in
-        let w := E.width_of_typ τ in
+        let w := SynDefs.width_of_typ τ in
         let pkt1 := List.firstn w pkt in
         let pkt2 := List.skipn w pkt in
         let pair :=
@@ -252,7 +250,7 @@ Section parser_to_p4automaton.
       v <<| interp_extract τ pkt ;;
       EnvUtil.lv_update lv v e
     | SOVarDecl x τ =>
-      let v := V.vdefault τ in
+      let v := vdefault τ in
       let lv := Val.LVVar x in
       Some (EnvUtil.lv_update lv v e)
     | SOAsgn lhs rhs =>
@@ -293,7 +291,7 @@ Section parser_to_p4automaton.
       | inr _ => inr false
       | inl v =>
         match F.find_value
-                (fun p => V.ValueUtil.match_pattern p v)
+                (fun p => match_pattern p v)
                 (frec cs) with
         | None => interp_transition ϵ def
         | Some r => r

@@ -1,16 +1,12 @@
-Require Import Coq.micromega.Lia.
-Require Import SSSemantics.
-Import IsValue.
-Import CanonicalForms.
-Import Step.
-Import Typecheck.
+Require Import Coq.micromega.Lia SSSemantics
+        Poulet4.P4cub.Syntax.SynAuxilary
+        Poulet4.P4cub.Syntax.SynEquiv
+        Poulet4.P4cub.Static.StaticIndPrincip.
+Import IsValue CanonicalForms Step.
 Module P := P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
-
-Import P.P4cubNotations.
-Import E.TypeEquivalence.
-Import E.ProperType.
-Import F.FieldTactics.
+Import P.P4cubNotations TypeEquivalence
+       ProperType F.FieldTactics.
 
 Section LValueTheorems.
   Variable errs : errors.

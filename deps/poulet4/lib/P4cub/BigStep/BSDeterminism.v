@@ -1,16 +1,12 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Syntax.AST.
-Require Import Poulet4.P4cub.Envn.
-Require Import Poulet4.P4cub.BigStep.BSSemantics.
+Require Import Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Envn
+        Value Poulet4.P4cub.BigStep.BSSemantics.
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module PR := P.Parser.
 Module V := Val.
-Import P.P4cubNotations.
-Import V.ValueNotations.
-Import V.LValueNotations.
-Import F.FieldTactics.
-Import Step.
+Import P.P4cubNotations V.ValueNotations
+       V.LValueNotations F.FieldTactics Step.
 
 Section Determinism.
   Context {tags_t : Type}.

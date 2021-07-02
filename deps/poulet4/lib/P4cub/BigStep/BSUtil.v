@@ -1,24 +1,23 @@
 Set Warnings "-custom-entry-overridden".
-Require Export Poulet4.P4cub.Static.Check.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.P4cub.BigStep.Value.
-Require Import Coq.Bool.Bool.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.Arith.Compare_dec.
-Require Import Coq.micromega.Lia.
-
+Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value
+        Coq.Bool.Bool Coq.ZArith.BinInt
+        Coq.Arith.Compare_dec Coq.micromega.Lia
+        ValueAux Poulet4.P4cub.Syntax.SynAuxilary
+        Poulet4.P4cub.Envn.
+Require Poulet4.P4cub.BigStep.ValueEquiv
+        Poulet4.P4cub.BigStep.ValueTyping
+        Poulet4.P4cub.Static.StaticUtil.
 Module P := P4cub.
 Module E := P.Expr.
 Module F := P.F.
 Module ST := P.Stmt.
 Module CD := P.Control.ControlDecl.
 Module V := Val.
-Import V.ValueNotations.
-Import V.LValueNotations.
+Import V.ValueNotations V.LValueNotations.
 
 Module ExprUtil.
-  Import P.P4cubNotations.
-  Import V.ValueEquality.
+  Import P.P4cubNotations
+         Poulet4.P4cub.BigStep.ValueEquiv.
   
   (** Bit-slicing. *)
   Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
@@ -56,24 +55,24 @@ Module ExprUtil.
       => let nnat := Pos.to_nat n in
         let sizenat := Pos.to_nat size in
         if lt_dec nnat sizenat then
-          let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+          let new_hdrs := repeat (false, F.map vdefault ts) nnat in
           let remains := firstn (sizenat - nnat) hs in
           let new_nextIndex := Z.min (ni + Z.pos n) (Z.pos size - 1)%Z in
           Some $ V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
         else
-          let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+          let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
           Some $ V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
     | _{ Pop n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
       => let nnat := Pos.to_nat n in
         let sizenat := Pos.to_nat size in
         if lt_dec nnat sizenat then
-          let new_hdrs := repeat (false, F.map V.vdefault ts) nnat in
+          let new_hdrs := repeat (false, F.map vdefault ts) nnat in
           let remains := skipn nnat hs in
           Some $
                V.VHeaderStack ts (remains ++ new_hdrs) size $
                Z.max 0%Z (ni - Zpos n)%Z
         else
-          let new_hdrs := repeat (false, F.map V.vdefault ts) sizenat in
+          let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
           Some $ V.VHeaderStack ts new_hdrs size 0%Z
     | _, _ => None
     end.
@@ -176,10 +175,8 @@ Module ExprUtil.
   (**[]*)
   
   Section Lemmas.
-    Import Typecheck.
-    Import V.ValueTyping.
-    Import P4ArithTactics.
-    Import E.ProperType.
+    Import ValueTyping P4ArithTactics
+           ProperType StaticUtil.
     
     Section HelpersType.
       Local Hint Constructors type_value : core.

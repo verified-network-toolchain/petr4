@@ -1,9 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.ZArith.BinInt.
-Require Export BSUtil.
-Require Export Value.
-Require Export Poulet4.P4cub.Envn.
-Require Import BSPacket.
+Require Import Coq.ZArith.BinInt BSUtil
+        Value Poulet4.P4cub.Envn BSPacket
+        ValueAux.
 
 (** * Big-Step Evaluation *)
 
@@ -432,7 +430,7 @@ Module Step.
            p = p' /\ ⦑ ϵ, e ⦒ ⇓ s)
         cases vcases ->
       ⦑ ϵ, def ⦒ ⇓ st_def ->
-      let st := match F.find_value (fun p => V.ValueUtil.match_pattern p v) vcases with
+      let st := match F.find_value (fun p => match_pattern p v) vcases with
                 | None => st_def
                 | Some st => st
                 end in
@@ -465,7 +463,7 @@ Module Step.
                  P ϵ e s) cases vcases ->
       ⦑ ϵ, def ⦒ ⇓ st_def ->
       P ϵ def st_def ->
-      let st := match F.find_value (fun p => V.ValueUtil.match_pattern p v) vcases with
+      let st := match F.find_value (fun p => match_pattern p v) vcases with
                 | None => st_def
                 | Some st => st
                 end in
@@ -546,7 +544,7 @@ Module Step.
       ⟪ pkt, fs, ϵ, c, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
   | sbs_vardecl (τ : E.t) (x : string)
                 (i : tags_t) (v : V.v) (c : ctx) :
-      V.vdefault τ = v ->
+      vdefault τ = v ->
       ⟪ pkt, fs, ϵ, c, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :

@@ -1,9 +1,10 @@
 Require Export Poulet4.P4cub.Static.Check.
-Require Import Coq.Bool.Bool.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.Arith.Compare_dec.
-Require Import Coq.micromega.Lia.
+Require Import Coq.Bool.Bool Coq.ZArith.BinIntDef
+        Coq.ZArith.BinInt Coq.Arith.Compare_dec Coq.micromega.Lia
+        Poulet4.P4cub.Syntax.SynEquiv
+        Poulet4.P4cub.Syntax.SynAuxilary
+        Poulet4.P4cub.Syntax.SynIndPrincip.
+        (*Poulet4.P4cub.Static.StaticIndPrincip.*)
 
 (** Notation entries. *)
 Declare Custom Entry p4kstmt.
@@ -121,7 +122,7 @@ Module IsValue.
 
     Lemma value_exm : forall {tags_t : Type} (e : E.e tags_t), value e \/ ~ value e.
     Proof.
-      induction e using E.custom_e_ind; auto 2;
+      induction e using custom_e_ind; auto 2;
       try (right; intros H'; inv H'; contradiction).
       - assert (Forall value es \/ ~ Forall value es).
         { ind_list_Forall; intuition. }
@@ -157,8 +158,6 @@ Module IsValue.
       | H: value _ |- _ => inv H
       end.
     (**[]*)
-
-    Import Typecheck.
 
     Ltac invert_expr_check :=
       match goal with
@@ -272,18 +271,14 @@ Module Step.
   Module E := P.Expr.
   Module ST := P.Stmt.
   Module F := P.F.
-  Module PT := E.ProperType.
+  Module PT := ProperType.
   Module PR := P.Parser.
-  Import P.P4cubNotations.
-  Import Env.EnvNotations.
+  Import P.P4cubNotations Env.EnvNotations.
   Module V := IsValue.
 
   Section StepDefs.
-    Import Typecheck.
-    Import E.TypeEquivalence.
-    Import E.ProperType.
-    Import F.FieldTactics.
-    Import P4ArithTactics.
+    Import TypeEquivalence ProperType
+           F.FieldTactics P4ArithTactics.
 
     Context {tags_t : Type}.
 
@@ -475,8 +470,8 @@ Module Step.
       | +{ > }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <? z1)%Z i
       | +{ && }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 && b2) i
       | +{ || }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 || b2) i
-      | +{ == }+, _, _ => Some $ E.EBool (E.ExprEquivalence.eqbe v1 v2) i
-      | +{ != }+, _, _ => Some $ E.EBool (negb $ E.ExprEquivalence.eqbe v1 v2) i
+      | +{ == }+, _, _ => Some $ E.EBool (ExprEquivalence.eqbe v1 v2) i
+      | +{ != }+, _, _ => Some $ E.EBool (negb $ ExprEquivalence.eqbe v1 v2) i
       | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
       | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
         => Some $ E.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
@@ -511,7 +506,7 @@ Module Step.
 
       Lemma value_edefault : forall i τ, V.value (edefault i τ).
       Proof.
-        induction τ using E.custom_t_ind; unravel; auto 1;
+        induction τ using custom_t_ind; unravel; auto 1;
         try (constructor; apply repeat_Forall); constructor; auto 1;
         try (ind_list_predfs; unfold F.predfs_data in * );
         try ind_list_Forall; unravel in *; auto 4.
@@ -617,7 +612,7 @@ Module Step.
           let e := edefault i τ in
           ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
       Proof.
-        intros; subst e; induction τ using E.custom_t_ind; unravel;
+        intros; subst e; induction τ using custom_t_ind; unravel;
         invert_proper_nesting; auto 2;
         constructor; autorewrite with core; auto 2;
         try (apply repeat_Forall; constructor; auto 2);

@@ -1,22 +1,20 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.micromega.Lia.
-Require Import Poulet4.P4cub.Static.Check.
-Require Import Poulet4.P4cub.BigStep.BSSemantics.
+Require Import Coq.micromega.Lia
+        Poulet4.P4cub.Syntax.AST
+        Poulet4.P4cub.Syntax.SynAuxilary
+        Poulet4.P4cub.Static.Check
+        Poulet4.P4cub.Static.StaticIndPrincip
+        Value ValueTyping
+        Poulet4.P4cub.BigStep.BSSemantics.
 
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module ST := P.Stmt.
 Module PR := P.Parser.
 Module V := Val.
-Import P.P4cubNotations.
-
-Import Step.
-Import Typecheck.
-Import V.ValueNotations.
-Import V.LValueNotations.
-Import V.ValueTyping.
-Import F.FieldTactics.
-Import E.ProperType.
+Import P.P4cubNotations Step
+       V.ValueNotations V.LValueNotations
+       F.FieldTactics ProperType.
 
 Section BigStepTheorems.
   (** Epsilon's values type's agree with Gamma. *)

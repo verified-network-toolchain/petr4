@@ -2,6 +2,9 @@ Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Syntax.P4Field.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Program.Program.
+Require Coq.Logic.Eqdep_dec.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.
@@ -86,6 +89,7 @@ Module P4cub.
       | THeaderStack (fields : F.fs string t)
                      (size : positive)   (* header stack type *).
       (**[]*)
+     
 
       (** Function parameters. *)
       Definition params : Type := F.fs string (paramarg t t).

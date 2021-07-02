@@ -56,9 +56,36 @@ Section CComp.
       | None => None
       end
     . *)
-  
-  Definition CTranslateType (p4t : E.t) : Ctypes.type.
-    Admitted.
+  Import P4cub.P4cubNotations.
+  Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv) : Ctypes.type * ClightEnv:=
+    match p4t with
+    | {{Bool}} => (Ctypes.type_bool, env)
+    | {{bit < w >}} => (long_unsigned,env)
+    | {{int < w >}} => (long_signed, env)
+    | {{error}} => (Ctypes.Tvoid, env) (*what exactly is an error type?*)
+    | {{matchkind}} => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | {{tuple ts}} => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | {{struct { fields } }}
+    | {{hdr { fields } }} => 
+        match lookup_composite env p4t with
+        | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
+        | None => 
+        let (env_top_id, top_id) := CCompEnv.new_ident env in
+        let (members ,env_fields_declared):= 
+        F.fold 
+        (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv) 
+        => let (members_prev, env_prev) := cumulator in 
+           let (new_t, new_env):= CTranslateType field env_prev in
+           let (new_env, new_id):= CCompEnv.new_ident new_env in
+           ((new_id, new_t) :: members_prev, new_env))
+        fields ([],env_top_id) in
+        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
+        let env_comp_added := CCompEnv.add_composite_typ env_fields_declared p4t comp_def in
+        (Ctypes.Tstruct top_id noattr, env_comp_added)
+        end
+
+    | {{stack fields [n]}}=> (Ctypes.Tvoid, env) (*TODO: implement*)
+    end.
   Definition CubTypeOf (e : E.e tags_t) : E.t.
     Admitted.
   
@@ -78,8 +105,6 @@ Section CComp.
   (* TODO: figure out what cast rules does clight support and then implement this*)
   (* See https://opennetworking.org/wp-content/uploads/2020/10/P416-Language-Specification-wd.html#sec-casts *)
   
-
-  Import P4cub.P4cubNotations.
   (* input is an expression with tags_t and an idents map,
      output would be statement list , expression, needed variables/temps (in ident) and their corresponding types*)
   Fixpoint CTranslateExpr (e: E.e tags_t) (env: ClightEnv)
@@ -96,10 +121,10 @@ Section CComp.
                         then Some(Econst_long (Integers.Int64.repr n) (long_signed), env)
                         else None
     | <{Var x : ty @ i}> => (*first find if x has been declared. If not, declare it by putting it into vars*)
-                        let cty := CTranslateType ty in
-                        match find_ident env x with
-                        | Some id => Some (Evar id cty, env)
-                        | None => let env' := add_var env x cty in
+                        let (cty, env_ty) := CTranslateType ty env in
+                        match find_ident env_ty x with
+                        | Some id => Some (Evar id cty, env_ty)
+                        | None => let env' := add_var env_ty x cty in
                                   match find_ident env' x with
                                   | Some id' => Some (Evar id' cty, env')
                                   | None => None
@@ -117,13 +142,14 @@ Section CComp.
                         | _ => None
                         end
     | <{UOP op x : ty @ i}> => 
-                        match CTranslateExpr x env with
+                        let (cty, env_ty) := CTranslateType ty env in
+                        match CTranslateExpr x env_ty with
                         | None => None
                         | Some (x', env') => 
                           match op with
-                          | _{!}_ => Some (Eunop Onotbool x' (CTranslateType ty), env')
-                          | _{~}_ => Some (Eunop Onotint x' (CTranslateType ty), env')
-                          | _{-}_ => Some (Eunop Oneg x' (CTranslateType ty), env')
+                          | _{!}_ => Some (Eunop Onotbool x' cty, env')
+                          | _{~}_ => Some (Eunop Onotint x' cty, env')
+                          | _{-}_ => Some (Eunop Oneg x' cty, env')
                           | _{isValid}_ => None (*TODO: *)
                           | _{setValid}_ => None (*TODO: *)
                           | _{setInValid}_ => None (*TODO: *)
@@ -134,20 +160,22 @@ Section CComp.
                           end
                         end
     | <{BOP x : tx op y : ty @ i}> =>
-                        match CTranslateExpr x env with
+                        let (ctx, env_tx) := CTranslateType tx env in
+                        let (cty, env_ty) := CTranslateType ty env_tx in 
+                        match CTranslateExpr x env_ty with
                         | None => None
                         | Some (x', env') =>  
                           match CTranslateExpr y env' with
                           | None => None
                           | Some (y', env'') => 
                             match op with
-                            | +{+}+ =>  Some (Ebinop Oadd x' y' (CTranslateType tx), env'')
-                            | +{-}+ =>  Some (Ebinop Osub x' y' (CTranslateType tx), env'')
+                            | +{+}+ =>  Some (Ebinop Oadd x' y' ctx, env'')
+                            | +{-}+ =>  Some (Ebinop Osub x' y' ctx, env'')
                             | +{|+|}+ =>None
                             | +{|-|}+ =>None
-                            | E.Times =>  Some (Ebinop Omul x' y' (CTranslateType tx), env'')
-                            | +{<<}+ => Some (Ebinop Oshl x' y' (CTranslateType tx), env'')
-                            | +{>>}+ => Some (Ebinop Oshr x' y' (CTranslateType tx), env'')
+                            | E.Times =>  Some (Ebinop Omul x' y' ctx, env'')
+                            | +{<<}+ => Some (Ebinop Oshl x' y'  ctx, env'')
+                            | +{>>}+ => Some (Ebinop Oshr x' y' ctx, env'')
                             | +{<=}+ => Some (Ebinop Ole x' y' type_bool, env'')                         
                             | +{>=}+ => Some (Ebinop Oge x' y' type_bool, env'')
                             | +{<}+ =>  Some (Ebinop Olt x' y' type_bool, env'')
@@ -155,13 +183,13 @@ Section CComp.
                             | +{==}+ => Some (Ebinop Oeq x' y' type_bool, env'')
                             | +{!=}+ => Some (Ebinop One x' y' type_bool, env'')
                             | +{&&}+
-                            | +{&}+ =>  Some (Ebinop Oand x' y' (CTranslateType tx), env'')
-                            | +{^}+ =>  Some (Ebinop Oxor x' y' (CTranslateType tx), env'')
+                            | +{&}+ =>  Some (Ebinop Oand x' y' ctx, env'')
+                            | +{^}+ =>  Some (Ebinop Oxor x' y' ctx, env'')
                             | +{||}+
-                            | +{|}+ =>  Some (Ebinop Oor x' y' (CTranslateType tx), env'')
+                            | +{|}+ =>  Some (Ebinop Oor x' y' ctx, env'')
                             | +{++}+ => (*x ++ y = x<< widthof(y) + y*)
                                         let shift_amount := Econst_long (Integers.Int64.repr (Z.of_nat (SynDefs.width_of_typ ty))) long_unsigned in 
-                                        Some (Ebinop Oadd (Ebinop Oshl x' shift_amount (CTranslateType tx)) y' (CTranslateType tx), env'')
+                                        Some (Ebinop Oadd (Ebinop Oshl x' shift_amount ctx) y' ctx, env'')
                             end
                           end
                         end
@@ -170,14 +198,15 @@ Section CComp.
                         
     | <{hdr { fields } valid := b @ i}> => None (*first create a temp of this header. then assign all the values to it. then return this temp*)
     | <{Mem x : ty dot y @ i}> => 
-                        match CTranslateExpr x env with
+                        let(cty, env_ty):= CTranslateType ty env in
+                        match CTranslateExpr x env_ty with
                         | None => None
                         | Some (x', env') =>
                           match ty with
                           | E.TStruct(f)
                           | E.THeader(f) => 
                             match F.get_index y f with
-                            | Some n => Some ((Clight.Efield x' (Pos.of_nat n) (CTranslateType ty)), env')
+                            | Some n => Some ((Clight.Efield x' (Pos.of_nat n) cty), env')
                             | None => None
                             end
                           | _ => None
@@ -214,7 +243,9 @@ Section CComp.
                        Some (Ssequence s1' s2', env2)
                        end end
     | -{b{s}b}- => CTranslateStatement s env
-    | -{var x : t @ i}- => Some (Sskip, CCompEnv.add_var env x (CTranslateType t))
+    | -{var x : t @ i}- => 
+                      let (cty, env_cty):= CTranslateType t env in
+                      Some (Sskip, CCompEnv.add_var env_cty x cty)
     | -{asgn e1 := e2 : t @ i}- => match CTranslateExpr e1 env with
                                    |None => None
                                    |Some(e1', env1) => 
@@ -252,7 +283,8 @@ Section CComp.
                                     end 
                                   end 
     | -{let e : t := call f with args @ i}- =>
-                                  match CCompEnv.lookup_function env f with
+                                  let (ct, env_ct) := CTranslateType t env in
+                                  match CCompEnv.lookup_function env_ct f with
                                   |None => None
                                   |Some(f', id) =>
                                     let args' : list (E.e tags_t) := 
@@ -263,23 +295,22 @@ Section CComp.
                                       | (_, P.PAInOut (t,e)) => e
                                       end in
                                       List.map (map_f) args in
-                                    match CTranslateExprList args' env with
+                                    match CTranslateExprList args' env_ct with
                                     | None => None
                                     | Some (elist, env') => 
-                                    let (env', tempid) := CCompEnv.add_temp_nameless env' (CTranslateType t) in
+                                    let (env', tempid) := CCompEnv.add_temp_nameless env' ct in
                                     match CTranslateExpr e env' with 
                                     | None => None
                                     | Some (lvalue, env') =>
                                     Some(
                                       (Ssequence 
                                       (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
-                                      (Sassign lvalue (Etempvar tempid (CTranslateType t)) ))
+                                      (Sassign lvalue (Etempvar tempid ct) ))
                                       , 
                                       env')
                                     end
                                     end 
                                   end 
-    (* | -{funcall f with args into o @ i}- *)
     (* | -{calling a with args @ i}- *)
     (* | -{extern e calls f with args gives x @ i}- *)
     | -{return e : t @ i}- => match CTranslateExpr e env with
@@ -358,8 +389,9 @@ Section CComp.
   List.fold_left 
     (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: E.t)
     => let (l, env') := cumulator in
-      let (env', new_id) := new_ident env' in 
-      ((new_id, CTranslateType p) :: l, env')) 
+      let (env', new_id) := new_ident env' in
+      let (ct, env_ct) := CTranslateType p env' in 
+      ((new_id, ct) :: l, env_ct)) 
   paramarg_types ([],env)
   . 
 
@@ -501,7 +533,8 @@ Section CComp.
    let (fn_params, env_params_created) := CTranslateParams pas env in 
    match ret with 
    | None => (fn_params, Ctypes.Tvoid, env_params_created)
-   | Some return_t => (fn_params, CTranslateType return_t, env_params_created)
+   | Some return_t => let (ct, env_ct):= CTranslateType return_t env_params_created in 
+                      (fn_params, ct , env_ct)
    end
   end.
     
@@ -572,8 +605,9 @@ Section CComp.
         (fun (x: AST.ident * Clight.function) 
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
+      let typ_decls := CCompEnv.get_composites env_all_declared in 
       let res_prog : Errors.res (program function) := make_program 
-        [] ((main_id, main_decl):: f_decls) [] main_id
+        typ_decls ((main_id, main_decl):: f_decls) [] main_id
       in
       res_prog
       end

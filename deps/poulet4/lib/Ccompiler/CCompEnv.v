@@ -1,14 +1,19 @@
 From compcert Require Import Clight Ctypes Integers Cop AST.
+Require Import Poulet4.P4cub.Syntax.AST.
 Require Import Poulet4.Ccompiler.IdentGen.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Utiliser.
+Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.P4cub.Syntax.SynEquiv.
+Module P := P4cub.
+Module E := P.Expr.
 (*map between string and ident*)
 Record ClightEnv : Type := {
   identMap : Env.t string AST.ident;
   temps : (list (AST.ident * Ctypes.type));
   vars : (list (AST.ident * Ctypes.type));
-  composites : (list Ctypes.composite_definition);
+  composites : (list (E.t * Ctypes.composite_definition));
   identGenerator : IdentGen.generator;
   fenv: Env.t string Clight.function;
 }.
@@ -52,8 +57,8 @@ Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
   let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
   {|
   identMap := Env.bind var new_ident env.(identMap);
-  temps := env.(vars);
-  vars := (new_ident, t)::(env.(temps));
+  temps := env.(temps);
+  vars := (new_ident, t)::(env.(vars));
   composites := env.(composites);
   identGenerator := gen';
   fenv := env.(fenv);
@@ -61,19 +66,17 @@ Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
 
 Definition add_composite_typ 
   (env: ClightEnv)
-  (su: struct_or_union)
-  (m: members)
-  (a: attr)
-  : ClightEnv :=
-  let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+  (p4t : E.t)
+  (composite_def : Ctypes.composite_definition): ClightEnv := 
   {|
   identMap := env.(identMap);
-  temps := env.(vars);
-  vars := env.(temps);
-  composites := (Composite new_ident su m a)::env.(composites);
-  identGenerator := gen';
+  temps := env.(temps);
+  vars := env.(vars);
+  composites := (p4t, composite_def) :: env.(composites);
+  identGenerator := env.(identGenerator);
   fenv := env.(fenv);
-  |}.
+  |}
+  .
 
 Definition add_function 
 (env: ClightEnv) 
@@ -83,8 +86,8 @@ Definition add_function
 let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
 {|
 identMap := Env.bind name new_ident env.(identMap);
-temps := env.(vars);
-vars := env.(temps);
+temps := env.(temps);
+vars := env.(vars);
 composites := env.(composites);
 identGenerator := gen';
 fenv := Env.bind name f env.(fenv);
@@ -97,8 +100,8 @@ Definition update_function
 := 
 {|
 identMap := env.(identMap);
-temps := env.(vars);
-vars := env.(temps);
+temps := env.(temps);
+vars := env.(vars);
 composites := env.(composites);
 identGenerator := env.(identGenerator);
 fenv := Env.bind name f env.(fenv);
@@ -109,8 +112,8 @@ Definition new_ident
 let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
 ({|
 identMap := env.(identMap);
-temps := env.(vars);
-vars := env.(temps);
+temps := env.(temps);
+vars := env.(vars);
 composites := env.(composites);
 identGenerator := gen';
 fenv := env.(fenv);
@@ -138,12 +141,22 @@ Fixpoint eq_mem (m1 m2: members) : bool :=
 Definition eq_id (id1 id2: ident)
 : bool.
   Admitted.
-Definition eq_composite (comp1 comp2: Ctypes.composite_definition)
+(* Definition eq_composite (comp1 comp2: Ctypes.composite_definition)
 : bool.
   Admitted.
-  
-  
-Fixpoint find_composite_from_list 
+   *)
+Fixpoint  lookup_composite_rec (composites : list (E.t * composite_definition)) (p4t: E.t): option composite_definition :=
+  match composites with
+  | nil => None
+  | (head, comp) :: tl => if (head == p4t) 
+                          then Some comp 
+                          else lookup_composite_rec tl p4t
+  end.
+
+Definition lookup_composite (env: ClightEnv) (p4t: E.t) : option composite_definition :=
+  lookup_composite_rec env.(composites) p4t.
+
+(* Fixpoint find_composite_from_list 
   (comp: Ctypes.composite_definition)
   (composites: list Ctypes.composite_definition)
   : option ident := 
@@ -174,7 +187,7 @@ Definition composite_of_ident
   (id: ident)
   (env: ClightEnv)
   : option Ctypes.composite_definition := 
-  composite_of_ident_from_list id env.(composites).
+  composite_of_ident_from_list id env.(composites). *)
 
 Definition lookup_function (env: ClightEnv) (name: string) : option (Clight.function*ident) := 
   match Env.find name env.(fenv), Env.find name env.(identMap) with
@@ -196,3 +209,6 @@ Definition get_functions (env: ClightEnv) : option (list (AST.ident * Clight.fun
     | Some l, Some (f, id) => Some ((id,f)::l) 
     | _ , _ => None
     end) (Some []) keys.
+
+Definition get_composites (env: ClightEnv) : list (Ctypes.composite_definition):= 
+  List.map snd env.(composites).

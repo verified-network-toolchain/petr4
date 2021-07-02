@@ -1,5 +1,7 @@
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
-        Poulet4.P4cub.Static.Check.
+        Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.Static.Util
+        Poulet4.P4cub.Static.Typing.
 
 Import P.P4cubNotations.
 

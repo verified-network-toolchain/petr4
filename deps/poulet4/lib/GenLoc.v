@@ -1,4 +1,4 @@
-Require Import Syntax.
+Require Import Poulet4.Syntax.
 Require Import Typed.
 Require Import SyntaxUtil.
 Require Import SimplExpr.

@@ -1,12 +1,10 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.P4Packet.Paquet.
-Require Export Poulet4.P4cub.P4Packet.PacketIn.
-Require Import Coq.PArith.BinPos.
-Require Import Coq.Strings.String.
-Require Import Poulet4.P4cub.Envn.
-Require Import Poulet4.P4cub.Architecture.
-Require Import BSUtil.
-Require Import Value.
+Require Import Poulet4.P4cub.P4Packet.Paquet
+        Poulet4.P4cub.P4Packet.PacketIn
+        Coq.PArith.BinPos Coq.Strings.String
+        Poulet4.P4cub.Envn Poulet4.P4cub.Architecture
+        Poulet4.P4cub.BigStep.Util
+        Poulet4.P4cub.BigStep.Value.Syntax.
 Module V := Val.
 Import V.ValueNotations.
 Import P4cub.P4cubNotations.

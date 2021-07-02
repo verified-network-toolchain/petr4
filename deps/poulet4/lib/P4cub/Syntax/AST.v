@@ -1,9 +1,8 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith.
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
+        Coq.Classes.EquivDec Coq.Program.Program.
 Require Export Poulet4.P4cub.Syntax.P4Field.
-Require Import Coq.Classes.EquivDec.
-Require Import Coq.Program.Program.
 Require Coq.Logic.Eqdep_dec.
 
 (** Notation entries. *)

@@ -1,12 +1,9 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.micromega.Lia
-        Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.Static.Check
-        Poulet4.P4cub.Static.StaticIndPrincip
-        Value ValueTyping
-        Poulet4.P4cub.BigStep.BSSemantics
-        BSIndPrincip.
+        Poulet4.P4cub.BigStep.Value.Value
+        Poulet4.P4cub.BigStep.Semantics
+        Poulet4.P4cub.BigStep.IndPrincip.
+Require Import Poulet4.P4cub.Static.Static.
 
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.

@@ -1,4 +1,5 @@
-Require Import SSSemantics SSValue.
+Require Import Poulet4.P4cub.Envn Poulet4.P4cub.SmallStep.Value
+        Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.SmallStep.Semantics.
 
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.

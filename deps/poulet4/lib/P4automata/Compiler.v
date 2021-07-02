@@ -1,12 +1,10 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Strings.String
         Coq.Lists.List Coq.PArith.BinPos.
-Require Import Poulet4.P4cub.BigStep.Value
-        Poulet4.P4cub.BigStep.BSUtil
-        Poulet4.P4cub.BigStep.ValueEquiv
-        Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.Envn
-        Poulet4.P4cub.BigStep.ValueAux.
+Require Import Poulet4.P4cub.BigStep.Value.Value
+        Poulet4.P4cub.BigStep.Util
+        Poulet4.P4cub.Syntax.Auxilary
+        Poulet4.P4cub.Envn.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.Monads.Monad Poulet4.Monads.Error.
 Require Poulet4.Bitwise.

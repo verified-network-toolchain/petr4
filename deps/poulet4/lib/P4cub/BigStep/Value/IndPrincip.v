@@ -1,4 +1,4 @@
-Require Import Poulet4.P4cub.BigStep.Value.
+Require Import Poulet4.P4cub.BigStep.Value.Syntax.
 Import Val.
 
 (** A custom induction principle for value. *)

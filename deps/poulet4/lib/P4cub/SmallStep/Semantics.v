@@ -1,8 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Export Poulet4.P4cub.Static.Check.
-Require Import Poulet4.P4cub.SmallStep.SSValue
-        Poulet4.P4cub.SmallStep.SSUtil
-        Coq.ZArith.BinInt.
+Require Import Poulet4.P4cub.SmallStep.Value
+        Poulet4.P4cub.SmallStep.Util Coq.ZArith.BinInt
+        Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Envn.
 
 (** Notation entries. *)
 Declare Custom Entry p4kstmt.

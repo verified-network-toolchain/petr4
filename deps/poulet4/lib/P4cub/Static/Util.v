@@ -1,7 +1,6 @@
-Set Warnings "custom-entry-overridden,parsing".
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt.
-Require Export Poulet4.P4cub.Syntax.AST Poulet4.P4Arith
-        Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.SynAuxilary.
+Require Export Poulet4.P4Arith Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.Syntax.
 
 (** Notation entries. *)
 Declare Custom Entry p4signal.

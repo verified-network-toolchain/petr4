@@ -1,6 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Export Poulet4.P4cub.Static.Check.
-Require Import Poulet4.P4cub.Syntax.SynIndPrincip.
+Require Import Poulet4.P4cub.Static.Static.
 
 (** * Small-Step Values *)
 

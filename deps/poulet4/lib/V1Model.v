@@ -5,7 +5,7 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Typed.
-Require Import Syntax.
+Require Import Poulet4.Syntax.
 Require Import P4Int.
 Require Import Target.
 Require Import Poulet4.SyntaxUtil.

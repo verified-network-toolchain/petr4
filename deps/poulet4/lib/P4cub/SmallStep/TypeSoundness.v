@@ -1,10 +1,10 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.micromega.Lia
-        Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.Syntax.SynEquiv
-        Poulet4.P4cub.Static.StaticIndPrincip SSUtil
-        Poulet4.P4cub.SmallStep.SSValue SSSemantics.
+        Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.Static.Static
+        Poulet4.P4cub.SmallStep.Value
+        Poulet4.P4cub.SmallStep.Util
+        Poulet4.P4cub.SmallStep.Semantics.
 Import CanonicalForms Step.
 Module P := P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.

@@ -1,12 +1,10 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.Syntax.SynEquiv
-        Poulet4.P4cub.Syntax.SynIndPrincip
-        Poulet4.P4cub.SmallStep.SSValue
-        Poulet4.P4cub.Envn
+Require Import Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.SmallStep.Value
+        Poulet4.P4cub.Envn Poulet4.P4Arith
         Coq.PArith.BinPos Coq.ZArith.BinInt
-        Coq.Arith.Compare_dec Coq.micromega.Lia.
+        Coq.Arith.Compare_dec Coq.micromega.Lia
+        Poulet4.P4cub.Static.Static.
 
 Section StepDefs.
   Import TypeEquivalence ProperType

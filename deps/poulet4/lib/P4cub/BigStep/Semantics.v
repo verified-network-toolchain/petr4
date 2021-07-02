@@ -1,7 +1,8 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.ZArith.BinInt BSUtil
-        Value Poulet4.P4cub.Envn BSPacket
-        ValueAux.
+Require Import Coq.ZArith.BinInt
+        Poulet4.P4cub.BigStep.Util
+        Poulet4.P4cub.BigStep.Value.Value
+        Poulet4.P4cub.Envn BSPacket.
 
 (** * Big-Step Evaluation *)
 

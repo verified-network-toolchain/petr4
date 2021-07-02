@@ -3,7 +3,7 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
 
 Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.SynEquiv.
+        Poulet4.P4cub.Syntax.Equality.
 
 Module P := P4cub.
 Module E := P.Expr.

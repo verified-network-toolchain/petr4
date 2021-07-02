@@ -1,6 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Typed.
-Require Import Syntax.
+Require Import Poulet4.Syntax.
 Require Export Maps.
 Require Import String.
 Import ListNotations.

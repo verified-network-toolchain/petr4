@@ -1,6 +1,8 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Envn
-        Value Poulet4.P4cub.BigStep.BSSemantics BSIndPrincip.
+        Poulet4.P4cub.BigStep.Value.Syntax
+        Poulet4.P4cub.BigStep.Semantics
+        Poulet4.P4cub.BigStep.IndPrincip.
 Module P := Poulet4.P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Module PR := P.Parser.

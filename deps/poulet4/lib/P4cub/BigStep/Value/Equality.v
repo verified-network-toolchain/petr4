@@ -1,7 +1,7 @@
-Require Import Poulet4.P4cub.BigStep.Value
-        Poulet4.P4cub.BigStep.ValueIndPrincip
+Require Import Poulet4.P4cub.BigStep.Value.Syntax
+        Poulet4.P4cub.BigStep.Value.IndPrincip
         Coq.PArith.BinPos Coq.ZArith.BinInt
-        Poulet4.P4cub.Syntax.SynEquiv.
+        Poulet4.P4cub.Syntax.Syntax.
 Import Field.FieldTactics Val
        ValueNotations P.P4cubNotations.
 Module TE := TypeEquivalence.

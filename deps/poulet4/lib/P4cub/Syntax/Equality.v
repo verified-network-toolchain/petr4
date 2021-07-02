@@ -1,11 +1,7 @@
-Set Warnings "custom-entry-overridden,parsing".
-Require Import Coq.PArith.BinPosDef.
-Require Import Coq.PArith.BinPos.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.ZArith.BinInt.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.P4cub.Syntax.AST.
-Require Import Poulet4.P4cub.Syntax.SynIndPrincip.
+Set Warnings "-custom-entry-overridden".
+Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
+        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip.
 
 Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).

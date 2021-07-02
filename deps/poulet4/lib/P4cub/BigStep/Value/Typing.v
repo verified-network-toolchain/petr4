@@ -1,10 +1,9 @@
-Require Import Poulet4.P4cub.BigStep.Value
-        Poulet4.P4cub.Static.StaticUtil
-        Poulet4.P4cub.BigStep.ValueIndPrincip
-        Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.BigStep.ValueAux
+Require Import Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.BigStep.Value.Syntax
+        Poulet4.P4cub.Static.Util
+        Poulet4.P4cub.BigStep.Value.IndPrincip
+        Poulet4.P4cub.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt
-        Poulet4.P4cub.Syntax.SynIndPrincip
         Coq.micromega.Lia.
 Import ProperType Val ValueNotations
        LValueNotations P.P4cubNotations.

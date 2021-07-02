@@ -1,12 +1,9 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value
+Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value.Value
         Coq.Bool.Bool Coq.ZArith.BinInt
         Coq.Arith.Compare_dec Coq.micromega.Lia
-        ValueAux Poulet4.P4cub.Syntax.SynAuxilary
-        Poulet4.P4cub.Envn.
-Require Poulet4.P4cub.BigStep.ValueEquiv
-        Poulet4.P4cub.BigStep.ValueTyping
-        Poulet4.P4cub.Static.StaticUtil.
+        Poulet4.P4cub.Syntax.Auxilary Poulet4.P4cub.Envn.
+Require Poulet4.P4cub.Static.Util.
 Module P := P4cub.
 Module E := P.Expr.
 Module F := P.F.
@@ -16,8 +13,7 @@ Module V := Val.
 Import V.ValueNotations V.LValueNotations.
 
 Module ExprUtil.
-  Import P.P4cubNotations
-         Poulet4.P4cub.BigStep.ValueEquiv.
+  Import P.P4cubNotations.
   
   (** Bit-slicing. *)
   Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
@@ -175,8 +171,7 @@ Module ExprUtil.
   (**[]*)
   
   Section Lemmas.
-    Import ValueTyping P4ArithTactics
-           ProperType StaticUtil.
+    Import P4ArithTactics ProperType Poulet4.P4cub.Static.Util.
     
     Section HelpersType.
       Local Hint Constructors type_value : core.

@@ -1,4 +1,4 @@
-Require Import Poulet4.P4cub.BigStep.Value
+Require Import Poulet4.P4cub.BigStep.Value.Syntax
         Coq.PArith.BinPos Coq.ZArith.BinInt.
 Import Val ValueNotations P.P4cubNotations.
 

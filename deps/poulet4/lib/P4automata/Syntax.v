@@ -230,19 +230,21 @@ Section Interp.
      VBits (slice bs hi lo)
    end.
 
-  Fixpoint eval_op (st: store) (bits: list bool) (o: op H) : store :=
+  Fixpoint eval_op (st: store) (bits: list bool) (o: op H) : store * list bool :=
     match o with
-    | OpNil _ => st
+    | OpNil _ => (st, bits)
     | OpSeq o1 o2 =>
-      eval_op (eval_op st bits o1) bits o2
+      let '(st, bits) := eval_op st bits o1 in
+      eval_op st bits o2
     | OpExtract width hdr =>
-      assign hdr (VBits (List.firstn width bits)) st
+      let bits := List.skipn width bits in
+      (assign hdr (VBits (List.firstn width bits)) st, bits)
     | OpAsgn hdr expr =>
-      assign hdr (eval_expr st expr) st
+      (assign hdr (eval_expr st expr) st, bits)
     end.
 
   Definition update (state: S) (bits: list bool) (st: store) : store :=
-    eval_op st bits (a.(t_states) state).(st_op).
+    fst (eval_op st bits (a.(t_states) state).(st_op)).
   
   Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
     match cases with

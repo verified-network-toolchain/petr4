@@ -90,3 +90,13 @@ Proof.
       intros.
       eauto with datatypes.
 Qed.
+
+Lemma interp_rels_map:
+  forall A B (f: A -> rel B) l x y,
+    interp_rels (map f l) x y ->
+    forall a,
+      In a l -> f a x y.
+Proof.
+  intros.
+  eapply interp_rels_in; eauto using in_map.
+Qed.

@@ -448,7 +448,7 @@ Module SemPre.
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
 
-    Lemma sem_pre_implies_sem_bisim :
+    Lemma sem_pre_implies_sem_bisim' :
       forall R T,
         (forall q1 q2, ⟦R ++ T⟧ q1 q2 -> accepting q1 <-> accepting q2) ->
         (forall q1 q2, ⟦R ++ T⟧ q1 q2 -> forall b, ⟦R⟧ (step q1 b) (step q2 b)) ->
@@ -533,6 +533,19 @@ Module SemPre.
             destruct H5; subst; eauto with datatypes.
     Qed.
 
+    Lemma sem_pre_implies_sem_bisim :
+      forall T,
+        (forall q1 q2, ⟦T⟧ q1 q2 -> accepting q1 <-> accepting q2) ->
+        forall q1 q2,
+          pre_bisimulation [] T q1 q2 ->
+          SemBisimCoalg.bisimilar a q1 q2.
+    Proof.
+      intros.
+      eapply sem_pre_implies_sem_bisim' with (R:=[]) (T:=T); eauto.
+      intros.
+      exact I.
+    Qed.
+
   End SemPre.
 End SemPre.
 
@@ -581,7 +594,7 @@ Module SynPreSynWP.
     Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
     Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
 
-    Definition S: Type := S1 + S2.
+    Notation S := ((S1 + S2)%type).
 
     (* Header identifiers. *)
     Variable (H: Type).
@@ -697,6 +710,386 @@ Module SynPreSynWP.
       List.nodup (@conf_rel_eq_dec _ _ _ _ _ _)
                  (reachable_pairs_to_partition
                     (Reachability.reachable_states a n [s])).
+
+    Definition safe_wp_1bit :=
+      forall C q1 q2,
+        ⟦wp a C⟧ q1 q2 ->
+        forall bit, ⦇C⦈ (δ q1 bit) (δ q2 bit).
+    
+    Lemma syn_pre_implies_sem_pre:
+      forall R S q1 q2,
+        safe_wp_1bit ->
+        R ⇝ S q1 q2 ->
+        SemPre.pre_bisimulation (P4A.interp a)
+                                (map interp_conf_rel R)
+                                (map interp_conf_rel S)
+                                q1 q2.
+    Proof.
+      intros.
+      induction H1.
+      - simpl.
+        constructor.
+        eauto.
+      - simpl.
+        constructor 2; eauto.
+      - rewrite map_app in IHpre_bisimulation.
+        econstructor 3; eauto.
+    Qed.
+
   End SynPreSynWP.
   Arguments pre_bisimulation {S1 S2 H equiv2 H_eq_dec} a wp.
 End SynPreSynWP.
+
+Module SynPreSynWP1bit.
+  Section SynPreSynWP1bit.
+    (* State identifiers. *)
+    Variable (S1: Type).
+    Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+    Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+    Variable (S2: Type).
+    Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+    Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+    (* Header identifiers. *)
+    Variable (H: Type).
+    Context `{H_eq_dec: EquivDec.EqDec H eq}.
+    Context `{H_finite: @Finite H _ H_eq_dec}.
+
+    Variable (a: P4A.t (S1 + S2) H).
+
+    Lemma be_subst_hdr_left:
+      forall c (valu: bval c) hdr exp phi s1 st1 buf1 c2 v,
+          interp_bit_expr exp valu (s1, st1, buf1) c2 = v ->
+          interp_bit_expr (a:=a) phi valu
+                          (s1, P4A.assign hdr (P4A.VBits v) st1, buf1)
+                          c2 =
+          interp_bit_expr (WP.be_subst phi exp (BEHdr c Left hdr))
+                          valu
+                          (s1, st1, buf1)
+                          c2.
+    Proof.
+      induction phi; intros.
+      - tauto.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _); simpl; congruence.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _).
+        + inversion e; clear e; subst.
+          simpl.
+          destruct hdr.
+          unfold P4A.assign, P4A.find; simpl.
+          change H_eq_dec with equiv_dec.
+          rewrite Utiliser.equiv_dec_refl.
+          reflexivity.
+        + simpl.
+          unfold P4A.find, P4A.Env.find, P4A.assign.
+          repeat match goal with
+                 | H: context[ match ?e with _ => _ end ] |- _ => destruct e eqn:?
+                 | |- context[ match ?e with _ => _ end ] => destruct e eqn:?
+                 | |- _ => progress simpl in *
+                 end;
+            congruence.
+      - reflexivity.
+      - simpl.
+        rewrite IHphi; eauto.
+      - simpl.
+        rewrite IHphi1, IHphi2; auto.
+    Qed.
+
+    Lemma be_subst_hdr_right:
+      forall c (valu: bval c) hdr exp phi s2 st2 buf2 c1 v,
+          interp_bit_expr exp valu c1 (s2, st2, buf2) = v ->
+          interp_bit_expr (a:=a) phi valu
+                          c1
+                          (s2, P4A.assign hdr (P4A.VBits v) st2, buf2) =
+          interp_bit_expr (WP.be_subst phi exp (BEHdr c Right hdr))
+                          valu
+                          c1
+                          (s2, st2, buf2).
+    Proof.
+      induction phi; intros.
+      - tauto.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _); simpl; congruence.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _).
+        + inversion e; clear e; subst.
+          simpl.
+          destruct hdr.
+          unfold P4A.assign, P4A.find; simpl.
+          change H_eq_dec with equiv_dec.
+          rewrite Utiliser.equiv_dec_refl.
+          reflexivity.
+        + simpl.
+          unfold P4A.find, P4A.Env.find, P4A.assign.
+          repeat match goal with
+                 | H: context[ match ?e with _ => _ end ] |- _ => destruct e eqn:?
+                 | |- context[ match ?e with _ => _ end ] => destruct e eqn:?
+                 | |- _ => progress simpl in *
+                 end;
+            congruence.
+      - reflexivity.
+      - simpl.
+        rewrite IHphi; eauto.
+      - simpl.
+        rewrite IHphi1, IHphi2; auto.
+    Qed.
+
+    Lemma sr_subst_hdr_left:
+      forall c (valu: bval c) hdr exp phi s1 st1 buf1 c2,
+        interp_store_rel
+          (a:=a)
+          (WP.sr_subst phi exp (BEHdr c Left hdr))
+          valu
+          (s1, st1, buf1)
+          c2 <->
+        interp_store_rel
+          (a:=a)
+          phi
+          valu
+          (s1,
+           P4A.assign hdr
+                      (P4A.VBits (interp_bit_expr exp valu (s1, st1, buf1) c2))
+                      st1,
+           buf1)
+          c2.
+    Proof.
+      induction phi; simpl in *;
+        repeat match goal with
+        | |- forall _, _ => intro
+        | |- _ /\ _ => split
+        | |- _ <-> _ => split
+        | H: _ /\ _ |- _ => destruct H
+        | H: _ <-> _ |- _ => destruct H
+        end;
+          auto with *;
+          try solve [erewrite !be_subst_hdr_left in *; eauto
+                    |tauto
+                    |intuition].
+    Qed.
+
+    Lemma sr_subst_hdr_right:
+      forall c (valu: bval c) hdr exp phi s2 st2 buf2 c1,
+        interp_store_rel
+          (a:=a)
+          (WP.sr_subst phi exp (BEHdr c Right hdr))
+          valu
+          c1
+          (s2, st2, buf2)
+          <->
+        interp_store_rel
+          (a:=a)
+          phi
+          valu
+          c1
+          (s2,
+           P4A.assign hdr
+                      (P4A.VBits (interp_bit_expr exp valu c1 (s2, st2, buf2)))
+                      st2,
+           buf2).
+    Proof.
+      induction phi; simpl in *;
+        repeat match goal with
+        | |- forall _, _ => intro
+        | |- _ /\ _ => split
+        | |- _ <-> _ => split
+        | H: _ /\ _ |- _ => destruct H
+        | H: _ <-> _ |- _ => destruct H
+        end;
+          auto with *;
+          try solve [erewrite !be_subst_hdr_right in *; eauto
+                    |tauto
+                    |intuition].
+    Qed.
+
+    Lemma wp_op:
+      forall c (valu: bval c) o phi s1 st1 buf1 c2,
+        interp_store_rel (a:=a)
+                         (WP.wp_op Left o phi)
+                         valu
+                         (s1, st1, buf1)
+                         c2 ->
+        interp_store_rel (a:=a)
+                         phi
+                         valu
+                         (s1,
+                          fst (P4A.eval_op st1 buf1 o),
+                          snd (P4A.eval_op st1 buf1 o))
+                         c2.
+    Proof.
+      induction o.
+      - cbn; tauto.
+      - admit.
+      - unfold WP.wp_op, WP.wp_op'.
+        simpl.
+        intros.
+        induction phi; simpl; intros.
+        + tauto.
+        + tauto.
+        + admit.
+        + admit.
+        + admit.
+        + admit.
+        + admit.
+      - admit.
+    Admitted.
+
+    Lemma wp_pred_pair_step :
+      forall C u v,
+        (forall sl sr,
+            interp_crel (a:=a) (WP.wp_pred_pair a C (sl, sr)) u v) ->
+        (forall b, interp_conf_rel C (step u b) (step v b)).
+    Proof.
+      intros.
+      unfold WP.wp_pred_pair in *.
+      destruct u as [[us ust] ubuf].
+      destruct v as [[vs vst] vbuf].
+      unfold interp_crel, interp_conf_rel, interp_conf_state, interp_state_template in * |-.
+      destruct C as [[[Cst1 Clen1] [Cst2 Cbuf2]] Cctx Crel].
+      unfold interp_conf_rel, interp_conf_state, interp_state_template.
+      intros.
+      simpl (st_state _) in *.
+      simpl (st_buf_len _) in *.
+      simpl (PreBisimulationSyntax.cr_st _) in *.
+      simpl (PreBisimulationSyntax.cr_ctx _) in *.
+      simpl (PreBisimulationSyntax.cr_rel _) in *.
+      destruct H1 as [[? ?] [? ?]].
+      subst.
+      unfold step; cbn.
+      repeat match goal with
+      | |- context [length (?x ++ [_])] =>
+        replace (length (x ++ [_])) with (S (length x))
+          by (rewrite app_length; simpl; rewrite PeanoNat.Nat.add_comm; reflexivity)
+      end.
+      destruct vs as [vs | vs], us as [us | us]; simpl.
+      - destruct (equiv_dec (S (length ubuf)) (P4A.size a us)),
+                 (equiv_dec (S (length vbuf)) (P4A.size a vs)).
+        + simpl (states _) in *.
+          set (sl := WP.PredJump (c:=Cctx)
+                                 (WP.trans_cond Left
+                                                (P4A.st_trans (P4A.t_states a us))
+                                                (inl us))
+                                 us).
+          set (sr := WP.PredJump (c:=Cctx)
+                                 (WP.trans_cond Right
+                                                (P4A.st_trans (P4A.t_states a vs))
+                                                (inl vs))
+                                 vs).
+          specialize (H0 sl sr).
+          destruct H0 as [? [? ?]].
+          cbn in * |-.
+          unfold "===" in *.
+          unfold WP.S in *.
+          pose proof (P4A.t_has_extract a us).
+          pose proof (P4A.t_has_extract a vs).
+          repeat match goal with
+          | H: context[P4A.state_size (P4A.t_states ?a ?s)] |- _ =>
+            change (P4A.state_size (P4A.t_states a s)) with (P4A.size a s) in H
+          end.
+          repeat match goal with
+          | H: ?pre -> forall _: bval _, _ |- _ =>
+            let H' := fresh "H" in
+            assert (H': pre) by (intuition eauto; Lia.lia);
+              pose proof (H H' valu);
+              clear H'; clear H
+          end.
+          unfold WP.wp_op in *; cbn in *.
+          clear sl.
+          clear sr.
+          admit.
+        + admit.
+        + admit.
+        + admit.
+      - admit.
+      - admit.
+      - admit.
+    Admitted.
+
+    Lemma wp_concrete_safe :
+      SynPreSynWP.safe_wp_1bit _ _ _ a (WP.wp (H:=H)).
+    Proof.
+      unfold SynPreSynWP.safe_wp_1bit.
+      intros.
+      destruct q1 as [[st1 s1] buf1].
+      destruct q2 as [[st2 s2] buf2].
+      unfold WP.wp in * |-.
+      destruct C.
+      destruct a; simpl in * |-.
+      destruct cr_st.
+      unfold WP.wp in * |-.
+      set (p1 := WP.preds _ _ _ _) in H0.
+      set (p2 := WP.preds _ _ _ _) in H0.
+      remember (list_prod p1 p2) as p.
+      symmetry in Heqp.
+      revert Heqp.
+      induction p; intros.
+      - unfold WP.wp_pred_pair in *.
+        simpl in * |-.
+        cbv in H0.
+        assert (p1 = [] \/ p2 = []).
+        {
+          unfold list_prod in *.
+          destruct p1, p2; try tauto.
+          simpl in Heqp.
+          congruence.
+        }
+        unfold WP.preds in *.
+    Admitted.
+      
+    Lemma syn_pre_1bit_concrete_implies_sem_pre:
+    forall R S q1 q2,
+      SynPreSynWP.pre_bisimulation a (WP.wp (H:=H)) R S q1 q2 ->
+      SemPre.pre_bisimulation (P4A.interp a)
+                              (map interp_conf_rel R)
+                              (map interp_conf_rel S)
+                              q1 q2.
+    Proof.
+      eauto using wp_concrete_safe, SynPreSynWP.syn_pre_implies_sem_pre.
+    Qed.
+  
+  End SynPreSynWP1bit.
+End SynPreSynWP1bit.
+
+Module SynPreSynWPSym.
+  Section SynPreSynWPSym.
+    (* State identifiers. *)
+    Variable (S1: Type).
+    Context `{S1_eq_dec: EquivDec.EqDec S1 eq}.
+    Context `{S1_finite: @Finite S1 _ S1_eq_dec}.
+
+    Variable (S2: Type).
+    Context `{S2_eq_dec: EquivDec.EqDec S2 eq}.
+    Context `{S2_finite: @Finite S2 _ S2_eq_dec}.
+
+    (* Header identifiers. *)
+    Variable (H: Type).
+    Context `{H_eq_dec: EquivDec.EqDec H eq}.
+    Context `{H_finite: @Finite H _ H_eq_dec}.
+
+    Variable (a: P4A.t (S1 + S2) H).
+
+    Check WP.wp.
+    Check (WP.wp a).
+    Lemma wp_sym_safe :
+      SynPreSynWP.safe_wp_1bit _ _ _ a (WPSymBit.wp (H:=H)).
+    Proof.
+      unfold SynPreSynWP.safe_wp_1bit.
+      intros.
+    Admitted.
+      
+    Lemma syn_pre_1bit_sym_implies_sem_pre:
+    forall R S q1 q2,
+      SynPreSynWP.pre_bisimulation a (WPSymBit.wp (H:=H)) R S q1 q2 ->
+      SemPre.pre_bisimulation (P4A.interp a)
+                              (map interp_conf_rel R)
+                              (map interp_conf_rel S)
+                              q1 q2.
+    Proof.
+      eauto using wp_sym_safe, SynPreSynWP.syn_pre_implies_sem_pre.
+    Qed.
+  End SynPreSynWPSym.
+End SynPreSynWPSym.
+
+Module SynPreSynWPLeap.
+End SynPreSynWPLeap.

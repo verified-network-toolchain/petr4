@@ -205,9 +205,11 @@ Section CComp.
                           match ty with
                           | E.TStruct(f)
                           | E.THeader(f) => 
-                            match F.get_index y f with
-                            | Some n => Some ((Clight.Efield x' (Pos.of_nat n) cty), env')
-                            | None => None
+                            match F.get_index y f, F.get y f with
+                            | Some n , Some t_member => 
+                              let (ctm, env_ctm) := CTranslateType t_member env' in
+                              Some ((Clight.Efield x' (Pos.of_nat n) ctm), env_ctm)
+                            | _, _ => None
                             end
                           | _ => None
                           end

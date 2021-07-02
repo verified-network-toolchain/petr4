@@ -62,10 +62,10 @@ Module BabyIP1.
     match s with
     | Start =>
       {| st_op := OpExtract 20 (HRVar HdrIP);
-         st_trans := P4A.TSel (ESlice (EHdr (HRVar HdrIP)) 19 16)
-                              [{| sc_val := VBits [false; false; false; true];
+         st_trans := P4A.TSel (CExpr (ESlice (EHdr (HRVar HdrIP)) 19 16))
+                              [{| sc_pat := PExact (VBits [false; false; false; true]);
                                   sc_st := inl ParseUDP |};
-                              {| sc_val := VBits [false; false; false; false];
+                              {| sc_pat := PExact (VBits [false; false; false; false]);
                                  sc_st := inl ParseTCP |}]
                               (inr false) |}
     | ParseUDP =>
@@ -132,10 +132,10 @@ Module BabyIP2.
     match s with
     | Start =>
       {| st_op := OpExtract 40 (HRVar HdrCombi);
-         st_trans := P4A.TSel (ESlice (EHdr (HRVar HdrCombi)) 19 16)
-                              [{| sc_val := VBits [false; false; false; true];
+         st_trans := P4A.TSel (CExpr (ESlice (EHdr (HRVar HdrCombi)) 19 16))
+                              [{| sc_pat := PExact (VBits [false; false; false; true]);
                                   sc_st := inr true |};
-                              {| sc_val := VBits [false; false; false; false];
+                              {| sc_pat := PExact (VBits [false; false; false; false]);
                                  sc_st := inl ParseSeq |}]
                               (inr false) |}
     | ParseSeq =>

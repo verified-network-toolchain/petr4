@@ -51,24 +51,32 @@ Section Syntax.
   | VBits : list bool -> v.
 
   Global Program Instance v_eq_dec : EquivDec.EqDec v eq :=
-    { equiv_dec :=
-        fun x y =>
-          match x, y with
-          | VBits xs, VBits ys =>
-            if xs == ys
-            then in_left
-            else in_right
-          end }.
+    { equiv_dec x y :=
+        match x, y with
+        | VBits xs, VBits ys =>
+          if xs == ys
+          then in_left
+          else in_right
+        end }.
   Solve Obligations with unfold equiv, complement in *;
     program_simpl; congruence.
 
+  Inductive pat :=
+  | PExact (val: v)
+  | PAny
+  | PPair (p1: pat) (p2: pat).
+
+  Inductive cond :=
+  | CExpr (e: expr)
+  | CPair (c1: cond) (c2: cond).
+
   Record sel_case: Type :=
-    { sc_val: v;
+    { sc_pat: pat;
       sc_st: state_ref }.
 
   Inductive transition: Type :=
   | TGoto (state: state_ref)
-  | TSel (cond: expr) (cases: list sel_case) (default: state_ref).
+  | TSel (c: cond) (cases: list sel_case) (default: state_ref).
 
   Inductive op :=
   | OpNil
@@ -147,14 +155,20 @@ Section Fmap.
     end.
 
   Definition sel_case_fmapS (c: sel_case S) : sel_case S' :=
-    {| sc_val := c.(sc_val);
+    {| sc_pat := c.(sc_pat);
        sc_st := state_ref_fmapS c.(sc_st) |}.
+
+  Fixpoint cond_fmapH (c: cond H) : cond H' :=
+    match c with
+    | CExpr e => CExpr (expr_fmapH e)
+    | CPair c1 c2 => CPair (cond_fmapH c1) (cond_fmapH c2)
+    end.
 
   Definition transition_fmapSH (t: transition S H) : transition S' H' :=
     match t with
     | TGoto _ s => TGoto _ (state_ref_fmapS s)
-    | TSel expr cases default =>
-      TSel (expr_fmapH expr) (List.map sel_case_fmapS cases) (state_ref_fmapS default)
+    | TSel cond cases default =>
+      TSel (cond_fmapH cond) (List.map sel_case_fmapS cases) (state_ref_fmapS default)
     end.
 
   Fixpoint op_fmapH (o: op H) : op H' :=
@@ -245,24 +259,32 @@ Section Interp.
 
   Definition update (state: S) (bits: list bool) (st: store) : store :=
     fst (eval_op st bits (a.(t_states) state).(st_op)).
-  
-  Fixpoint pre_eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
-    match cases with
-    | c::cases =>
-      if cond == c.(sc_val)
-      then c.(sc_st)
-      else pre_eval_sel st cond cases default
-    | nil => default
+
+  Fixpoint match_pat (st: store) (c: cond H) (p: pat) :=
+    match c, p with
+    | CExpr e, PAny =>
+      true
+    | CExpr e, PExact v =>
+      if eval_expr st e == v then true else false
+    | CPair c1 c2, PPair p1 p2 =>
+      andb (match_pat st c1 p1) (match_pat st c2 p2)
+    | _, _ => false
     end.
 
-  Definition eval_sel (st: store) (cond: v) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
-    pre_eval_sel st cond cases default.
+  Fixpoint eval_sel (st: store) (c: cond H) (cases: list (sel_case S)) (default: state_ref S) : state_ref S :=
+    match cases with
+    | sc::cases =>
+      if match_pat st c sc.(sc_pat)
+      then sc.(sc_st)
+      else eval_sel st c cases default
+    | nil => default
+    end.
 
   Definition eval_trans (st: store) (t: transition S H) : state_ref S :=
     match t with
     | TGoto _ state => state
     | TSel cond cases default =>
-      eval_sel st (eval_expr st cond) cases default
+      eval_sel st cond cases default
     end.
 
   Definition transitions (s: S) (st: store) : state_ref S :=

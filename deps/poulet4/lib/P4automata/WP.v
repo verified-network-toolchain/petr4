@@ -55,28 +55,28 @@ Section WeakestPre.
   | BRTrue _ _
   | BRFalse _ _ => sr
   | BREq e1 e2 => BREq (be_subst e1 e x) (be_subst e2 e x)
-  | BRNotEq e1 e2 => BRNotEq (be_subst e1 e x) (be_subst e2 e x)
   | BRAnd r1 r2 => BRAnd (sr_subst r1 e x) (sr_subst r2 e x)
   | BROr r1 r2 => BROr (sr_subst r1 e x) (sr_subst r2 e x)
   | BRImpl r1 r2 => BRImpl (sr_subst r1 e x) (sr_subst r2 e x)
   end.
 
-  Definition case_cond {c} (cond: bit_expr H c) (st': P4A.state_ref S) (s: P4A.sel_case S) :=
+  Fixpoint pat_cond {ctx: bctx} (si: side) (p: P4A.pat) (c: P4A.cond H) : store_rel H ctx :=
+    match p, c with
+    | P4A.PExact val, P4A.CExpr e =>
+      BREq (expr_to_bit_expr si e) (val_to_bit_expr val)
+    | P4A.PAny, _ => BRTrue _ _
+    | P4A.PPair p1 p2, P4A.CPair e1 e2 =>
+      BRAnd (pat_cond si p1 e1) (pat_cond si p2 e2)
+    | _, _ => BRFalse _ _
+    end.
+  
+  Definition case_cond {ctx: bctx} (si: side) (cn: Syntax.cond H) (st': P4A.state_ref S) (s: P4A.sel_case S) : store_rel H ctx :=
     if st' == P4A.sc_st s
-    then BREq cond (val_to_bit_expr (P4A.sc_val s))
+    then pat_cond si s.(P4A.sc_pat) cn
     else BRFalse _ _.
 
-  Definition cases_cond {c} (cond: bit_expr H c) (st': P4A.state_ref S) (s: list (P4A.sel_case S)) :=
-    List.fold_right (@BROr _ _) (BRFalse _ _) (List.map (case_cond cond st') s).
-
-  Fixpoint case_negated_conds {c} (cond: bit_expr H c) (s: list (P4A.sel_case S)) : store_rel H c :=
-    match s with
-    | nil => BRTrue _ _
-    | s :: rest =>
-      BRAnd
-        (BRNotEq cond (val_to_bit_expr (P4A.sc_val s)))
-        (case_negated_conds cond rest)
-    end.
+  Definition cases_cond {ctx: bctx} (si: side) (cond: Syntax.cond H) (st': P4A.state_ref S) (s: list (P4A.sel_case S)) : store_rel H ctx :=
+    List.fold_right (@BROr _ _) (BRFalse _ _) (List.map (case_cond si cond st') s).
 
   Definition trans_cond
              {c: bctx}
@@ -90,10 +90,10 @@ Section WeakestPre.
       then BRTrue _ _
       else BRFalse _ _
     | P4A.TSel cond cases default =>
-      let be_cond := expr_to_bit_expr s cond in
-      BROr (cases_cond be_cond st' cases)
+      let any_case := cases_cond s cond st' cases in
+      BROr any_case
            (if default == st'
-            then case_negated_conds be_cond cases
+            then (BRImpl any_case (BRFalse _ _))
             else BRFalse _ _)
     end.
 

@@ -98,21 +98,25 @@ Section WeakestPre.
     end.
 
   Fixpoint wp_op' {c} (s: side) (o: P4A.op H) : nat * store_rel H c -> nat * store_rel H c :=
-    fun '(buf_idx, phi) =>
+    fun '(buf_hi_idx, phi) =>
       match o with
-      | P4A.OpNil _ => (buf_idx, phi)
+      | P4A.OpNil _ => (buf_hi_idx, phi)
       | P4A.OpSeq o1 o2 =>
-        wp_op' s o1 (wp_op' s o2 (buf_idx, phi))
+        wp_op' s o1 (wp_op' s o2 (buf_hi_idx, phi))
       | P4A.OpExtract width hdr =>
-        let new_idx := buf_idx + width - 1 in
-        let slice := BESlice (BEBuf _ _ s) new_idx buf_idx in
-        (new_idx, sr_subst phi (BEHdr _ s hdr) slice)
+        let new_idx := buf_hi_idx - width in
+        let slice := BESlice (BEBuf _ _ s) (buf_hi_idx - 1) new_idx in
+        (new_idx, sr_subst phi slice (BEHdr _ s hdr))
       | P4A.OpAsgn lhs rhs =>
-        (buf_idx, sr_subst phi (BEHdr _ s lhs) (expr_to_bit_expr s rhs))
+        (buf_hi_idx, sr_subst phi (expr_to_bit_expr s rhs) (BEHdr _ s lhs))
       end.
 
+  Axiom h: H.
+  Eval cbn in (wp_op' Left (P4A.OpExtract 2 (P4A.HRVar h))
+                      (2, BREq (BEHdr BCEmp Left (P4A.HRVar h)) (BELit _ _ [false;false]))).
+  
   Definition wp_op {c} (s: side) (o: P4A.op H) (phi: store_rel H c) : store_rel H c :=
-    snd (wp_op' s o (0, phi)).
+    snd (wp_op' s o (P4A.op_size o, phi)).
 
   Inductive pred (c: bctx) :=
   | PredRead (s: state_template S)

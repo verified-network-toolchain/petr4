@@ -251,8 +251,8 @@ Section Interp.
       let '(st, bits) := eval_op st bits o1 in
       eval_op st bits o2
     | OpExtract width hdr =>
-      let bits := List.skipn width bits in
-      (assign hdr (VBits (List.firstn width bits)) st, bits)
+      let bits' := List.skipn width bits in
+      (assign hdr (VBits (List.firstn width bits)) st, bits')
     | OpAsgn hdr expr =>
       (assign hdr (eval_expr st expr) st, bits)
     end.

@@ -111,10 +111,6 @@ Section WeakestPre.
         (buf_hi_idx, sr_subst phi (expr_to_bit_expr s rhs) (BEHdr _ s lhs))
       end.
 
-  Axiom h: H.
-  Eval cbn in (wp_op' Left (P4A.OpExtract 2 (P4A.HRVar h))
-                      (2, BREq (BEHdr BCEmp Left (P4A.HRVar h)) (BELit _ _ [false;false]))).
-  
   Definition wp_op {c} (s: side) (o: P4A.op H) (phi: store_rel H c) : store_rel H c :=
     snd (wp_op' s o (P4A.op_size o, phi)).
 

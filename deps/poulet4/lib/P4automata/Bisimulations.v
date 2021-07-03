@@ -802,7 +802,8 @@ Module SynPreSynWP1bit.
           interp_bit_expr exp valu c1 (s2, st2, buf2) = v ->
           interp_bit_expr (a:=a) phi valu
                           c1
-                          (s2, P4A.assign hdr (P4A.VBits v) st2, buf2) =
+                          (s2, P4A.assign hdr (P4A.VBits v) st2, buf2)
+          =
           interp_bit_expr (WP.be_subst phi exp (BEHdr c Right hdr))
                           valu
                           c1
@@ -870,14 +871,14 @@ Module SynPreSynWP1bit.
     Qed.
 
     Lemma sr_subst_hdr_right:
-      forall c (valu: bval c) hdr exp phi s2 st2 buf2 c1,
+      forall c (valu: bval c) hdr exp phi c1 s2 st2 buf2,
         interp_store_rel
           (a:=a)
           (WP.sr_subst phi exp (BEHdr c Right hdr))
           valu
           c1
           (s2, st2, buf2)
-          <->
+        <->
         interp_store_rel
           (a:=a)
           phi
@@ -966,39 +967,6 @@ Module SynPreSynWP1bit.
           eauto.
     Qed.
 
-    Lemma eval_op_buf_skip:
-      forall st buf o st' buf',
-        P4A.eval_op st buf o = (st', buf') ->
-        exists m,
-          buf' = skipn m buf.
-    Proof.
-      intros.
-      replace buf' with (snd (P4A.eval_op st buf o))
-        by (rewrite H0; reflexivity).
-      replace st' with (fst (P4A.eval_op st buf o))
-        by (rewrite H0; reflexivity).
-      clear H0.
-      clear buf'.
-      clear st'.
-      revert st.
-      revert buf.
-      induction o; cbn in *; intros.
-      - exists 0.
-        reflexivity.
-      - destruct (IHo1 buf st) as [m1 IHo1'].
-        break_match; simpl in *; subst.
-        destruct (IHo2 (skipn m1 buf) s) as [m2 IHo2'].
-        exists (m1 + m2).
-        rewrite IHo2'.
-        rewrite skipn_skipn.
-        rewrite Plus.plus_comm.
-        reflexivity.
-      - exists width.
-        reflexivity.
-      - exists 0.
-        reflexivity.
-    Qed.
-
     Lemma wp_op'_mono:
       forall (c: bctx) si o n phi,
         fst (WP.wp_op' (c:=c) si o (n, phi)) <= n.
@@ -1016,78 +984,68 @@ Module SynPreSynWP1bit.
       - Lia.lia.
     Qed.
 
-    Lemma eval_op_list:
-      forall o st buf st' buf',
-        P4A.eval_op st buf o = (st', buf') ->
-        List.length buf >= P4A.op_size o ->
-        exists chunk,
-          length chunk = P4A.op_size o /\
-          chunk ++ buf' = buf.
-    Proof.
-      induction o; intros; simpl in *.
-      - exists nil.
-        simpl.
-        split; congruence.
-      - destruct (P4A.eval_op st buf o1) as [st1 buf1] eqn:?.
-        destruct (P4A.eval_op st1 buf1 o2) as [st2 buf2] eqn:?.
-        inversion H0; subst; clear H0.
-        destruct (IHo1 st buf st1 buf1 ltac:(auto) ltac:(Lia.lia)) as [chunk1 [Hlen1 Hc1]].
-        destruct (IHo2 st1 buf1 st' buf' ltac:(auto)) as [chunk2 [Hlen2 Hc2]].
-        {
-          pose proof (f_equal (@List.length bool) Hc1).
-          rewrite app_length in *.
-          Lia.lia.
-        }
-        subst.
-        exists (chunk1 ++ chunk2).
-        split.
-        + rewrite app_length.
-          congruence.
-        + rewrite <- app_assoc.
-          congruence.
-      - exists (firstn width buf).
-        split.
-        + apply firstn_length_le.
-          Lia.lia.
-        + inversion H0.
-          apply firstn_skipn.
-      - exists nil.
-        inversion H0.
-        auto.
-    Qed.
-
-    Lemma eval_op_size:
-      forall o st buf,
-        length (snd (P4A.eval_op st buf o)) = length buf - P4A.op_size o.
-    Proof.
-      induction o; intros; simpl.
-      - simpl.
-        Lia.lia.
-      - destruct (P4A.eval_op st buf o1) as [st' buf'] eqn:?.
-        destruct (P4A.eval_op st' buf' o2) as [st'' buf''] eqn:?.
-        specialize (IHo1 st buf).
-        rewrite Heqp in IHo1.
-        specialize (IHo2 st' buf').
-        rewrite Heqp0 in IHo2.
-        simpl in *.
-        Lia.lia.
-      - exact (skipn_length width buf).
-      - Lia.lia.
-    Qed.
-
     Lemma expr_to_bit_expr_sound:
       forall (c: bctx) si (valu: bval c) expr c1 c2,
-        P4A.eval_expr (snd (fst match si with Left => c1 | Right => c2 end)) expr = P4A.VBits (interp_bit_expr (a:=a) (WP.expr_to_bit_expr si expr) valu c1 c2).
+        P4A.eval_expr (snd (fst match si with Left => c1 | Right => c2 end)) expr =
+        P4A.VBits (interp_bit_expr (a:=a) (WP.expr_to_bit_expr si expr) valu c1 c2).
     Proof.
-    Admitted.
+      assert (Hv: forall v, P4A.VBits match v with P4A.VBits v' => v' end = v).
+      {
+        intros.
+        destruct v; reflexivity.
+      }
+      induction expr; intros; cbn; auto.
+      - destruct (P4A.eval_expr (snd (fst _))) eqn:?.
+        unfold P4A.slice.
+        specialize (IHexpr c1 c2).
+        simpl in IHexpr.
+        rewrite -> IHexpr in Heqv.
+        congruence.
+    Qed.
 
     Notation "⟨ R , v ⟩ ⊨ c1 c2" := (interp_store_rel R v c1 c2) (at level 50).
-    Lemma wp_op'_spec:
+
+    Lemma eval_op_size:
+      forall op st n buf st' n',
+        P4A.eval_op st n buf op = (st', n') ->
+        n + P4A.op_size op = n'.
+    Proof.
+      induction op.
+      - simpl.
+        intros.
+        inversion H0.
+        Lia.lia.
+      - intros.
+        simpl in *.
+        destruct (P4A.eval_op _ _ _ op1) eqn:?.
+        destruct (P4A.eval_op _ _ _ op2) eqn:?.
+        rewrite Plus.plus_assoc.
+        inversion H0.
+        erewrite IHop1; eauto.
+        erewrite IHop2; eauto.
+      - intros.
+        simpl in *.
+        inversion H0.
+        exact eq_refl.
+      - simpl.
+        intros.
+        inversion H0.
+        Lia.lia.
+    Qed.
+
+    Fixpoint nonempty (o: P4A.op H) : Prop :=
+      match o with
+      | P4A.OpAsgn _ _
+      | P4A.OpNil _ => True
+      | P4A.OpSeq o1 o2 => nonempty o1 /\ nonempty o2
+      | P4A.OpExtract width hdr => width > 0
+      end.
+
+    Lemma wp_op'_spec_l:
       forall c (valu: bval c) o n phi s1 st1 buf1 c2,
-        length buf1 = n + P4A.op_size o ->
-        (forall width h, o = P4A.OpExtract width h -> width > 0) ->
+        nonempty o ->
         interp_store_rel (a:=a)
-                         (snd (WP.wp_op' Left o (P4A.op_size o, phi)))
+                         (snd (WP.wp_op' Left o (n + P4A.op_size o, phi)))
                          valu
                          (s1, st1, buf1)
                          c2 <->
@@ -1095,8 +1053,8 @@ Module SynPreSynWP1bit.
                          phi
                          valu
                          (s1,
-                          fst (P4A.eval_op st1 buf1 o),
-                          snd (P4A.eval_op st1 buf1 o))
+                          fst (P4A.eval_op st1 n buf1 o),
+                          buf1)
                          c2.
     Proof.
       induction o.
@@ -1104,84 +1062,49 @@ Module SynPreSynWP1bit.
         simpl.
         reflexivity.
       - intros.
-        simpl (P4A.eval_op _ _ _).
-        destruct (P4A.eval_op st1 (skipn (P4A.op_size o1 + P4A.op_size o2) buf1) o1) as [st1' buf1'] eqn:?.
-        destruct (P4A.eval_op st1' buf1' o2) as [st2' buf2'] eqn:?.
-        (*
-        assert (length buf1' = length buf1 - P4A.op_size o1).
+        destruct H0.
+        simpl (P4A.eval_op _ _ _ _).
+        destruct (P4A.eval_op st1 n buf1 o1) as [st1' n'] eqn:?.
+        destruct (P4A.eval_op st1' n' buf1 o2) as [st2' n''] eqn:?.
+        pose proof (eval_op_size o1 _ _ _ _ _ Heqp).
+        pose proof (eval_op_size o2 _ _ _ _ _ Heqp0).
+        simpl (WP.wp_op' _ _ _).
+        destruct (WP.wp_op' Left o2 (n + (P4A.op_size o1 + P4A.op_size o2), phi)) as [wn' phi'] eqn:?.
+        assert (wn' = P4A.op_size o1 + n).
         {
-          replace buf1'
-            with (snd (P4A.eval_op st1 buf1 o1))
-            by (rewrite Heqp; reflexivity).
-          eapply eval_op_size.
-        }
-        assert (length buf2' = length buf1' - P4A.op_size o2).
-        {
-          replace buf2'
-            with (snd (P4A.eval_op st1' buf1' o2))
-            by (rewrite Heqp0; reflexivity).
-          eapply eval_op_size.
-        }
-        simpl in H0.
-        destruct (eval_op_list _ _ _ _ _ Heqp ltac:(Lia.lia)) as [chunk1 [Hlen1 Hc1]].
-        destruct (eval_op_list _ _ _ _ _ Heqp0 ltac:(Lia.lia)) as [chunk2 [Hlen2 Hc2]].
-        subst.
-        rewrite !app_length, Plus.plus_assoc in *.
-        cbn in *.
-        destruct (WP.wp_op' Left o2 (P4A.op_size o1 + P4A.op_size o2 + n, phi)) as [n' phi'] eqn:?.
-        assert (n' = P4A.op_size o1 + n).
-        {
-          replace (P4A.op_size o1 + P4A.op_size o2 + n)
+          replace (n + (P4A.op_size o1 + P4A.op_size o2))
             with (P4A.op_size o2 + (P4A.op_size o1 + n))
             in Heqp1
             by Lia.lia.
           eapply wp_op'_size.
           eauto.
         }
-        destruct (WP.wp_op' Left o1 (n', phi')) as [n'' phi''] eqn:?.
-        assert (n'' = n).
-        {
-          subst n'.
-          eapply wp_op'_size.
-          eauto.
-        }
-        subst n''.
-        assert (length buf2' >= n) by Lia.lia.
-        replace (n + (P4A.op_size o1 + P4A.op_size o2))
-          with (P4A.op_size o1 + P4A.op_size o2 + n)
+        subst wn'.
+        replace (P4A.op_size o1 + n)
+          with (n + P4A.op_size o1)
           by Lia.lia.
-        rewrite Heqp1.
-        subst n'.
-        rewrite (Plus.plus_comm _ n).
-        erewrite IHo1 by (rewrite !app_length in *; Lia.lia).
-        replace (s1, st2', buf2')
-          with (s1,
-                fst (P4A.eval_op st1' (chunk2 ++ buf2') o2),
-                snd (P4A.eval_op st1' (chunk2 ++ buf2') o2))
+        erewrite IHo1 by eauto.
+        rewrite Heqp; simpl.
+        replace st2' with (fst (P4A.eval_op st1' n' buf1 o2))
           by (rewrite Heqp0; reflexivity).
-        erewrite <- (IHo2 n)
-          by (rewrite !app_length in *; Lia.lia).
-        rewrite !Heqp; simpl.
-        Morphisms.f_equiv.
-        replace phi' with (snd (WP.wp_op' Left o2 (P4A.op_size o1 + P4A.op_size o2 + n, phi)))
+        replace phi' with (snd (WP.wp_op' Left o2 (n + (P4A.op_size o1 + P4A.op_size o2), phi)))
           by (rewrite Heqp1; reflexivity).
-         *)
-        admit.
+        rewrite Plus.plus_assoc.
+        erewrite IHo2 by eauto.
+        subst n'.
+        rewrite Heqp0.
+        reflexivity.
       - simpl.
-        unfold WP.wp_op, WP.wp_op'.
-        simpl.
         intros.
         rewrite sr_subst_hdr_left.
         simpl.
-        replace (width - width) with 0 by Lia.lia.
+        replace (n + width - width) with n by Lia.lia.
         simpl.
         unfold P4A.slice.
-        specialize (H1 _ _ ltac:(eauto)).
-        replace (1 + (width - 1)) with width by Lia.lia.
-        rewrite skipn_O.
-        Morphisms.f_equiv.
-        f_equal.
-        admit.
+        replace (1 + (n + width - 1)) with (n + width)
+          by Lia.lia.
+        erewrite <- firstn_skipn_comm.
+        reflexivity.
       - simpl.
         unfold WP.wp_op, WP.wp_op'.
         simpl.
@@ -1191,7 +1114,85 @@ Module SynPreSynWP1bit.
         simpl.
         rewrite <- expr_to_bit_expr_sound.
         reflexivity.
-    Admitted.
+    Qed.
+
+    (* This is basically a copy-pasted version of wp_op'_spec_l with
+        some things flipped around. *)
+    Lemma wp_op'_spec_r:
+      forall c (valu: bval c) o n phi s2 st2 buf2 c1,
+        nonempty o ->
+        interp_store_rel (a:=a)
+                         (snd (WP.wp_op' Right o (n + P4A.op_size o, phi)))
+                         valu
+                         c1
+                         (s2, st2, buf2)
+        <->
+        interp_store_rel (a:=a)
+                         phi
+                         valu
+                         c1
+                         (s2,
+                          fst (P4A.eval_op st2 n buf2 o),
+                          buf2).
+    Proof.
+      induction o.
+      - intros.
+        simpl.
+        reflexivity.
+      - intros.
+        destruct H0.
+        simpl (P4A.eval_op _ _ _ _).
+        destruct (P4A.eval_op st2 n buf2 o1) as [st2' n'] eqn:?.
+        destruct (P4A.eval_op st2' n' buf2 o2) as [st2'' n''] eqn:?.
+        pose proof (eval_op_size o1 _ _ _ _ _ Heqp).
+        pose proof (eval_op_size o2 _ _ _ _ _ Heqp0).
+        simpl (WP.wp_op' _ _ _).
+        destruct (WP.wp_op' Right o2 (n + (P4A.op_size o1 + P4A.op_size o2), phi)) as [wn' phi'] eqn:?.
+        assert (wn' = P4A.op_size o1 + n).
+        {
+          replace (n + (P4A.op_size o1 + P4A.op_size o2))
+            with (P4A.op_size o2 + (P4A.op_size o1 + n))
+            in Heqp1
+            by Lia.lia.
+          eapply wp_op'_size.
+          eauto.
+        }
+        subst wn'.
+        replace (P4A.op_size o1 + n)
+          with (n + P4A.op_size o1)
+          by Lia.lia.
+        erewrite IHo1 by eauto.
+        rewrite Heqp; simpl.
+        replace st2'' with (fst (P4A.eval_op st2' n' buf2 o2))
+          by (rewrite Heqp0; reflexivity).
+        replace phi' with (snd (WP.wp_op' Right o2 (n + (P4A.op_size o1 + P4A.op_size o2), phi)))
+          by (rewrite Heqp1; reflexivity).
+        rewrite Plus.plus_assoc.
+        erewrite IHo2 by eauto.
+        subst n'.
+        rewrite Heqp0.
+        reflexivity.
+      - simpl.
+        intros.
+        rewrite sr_subst_hdr_right.
+        simpl.
+        replace (n + width - width) with n by Lia.lia.
+        simpl.
+        unfold P4A.slice.
+        replace (1 + (n + width - 1)) with (n + width)
+          by Lia.lia.
+        erewrite <- firstn_skipn_comm.
+        reflexivity.
+      - simpl.
+        unfold WP.wp_op, WP.wp_op'.
+        simpl.
+        intros.
+        destruct lhs.
+        rewrite sr_subst_hdr_right.
+        simpl.
+        rewrite <- expr_to_bit_expr_sound.
+        reflexivity.
+    Qed.
 
     Lemma wp_pred_pair_step :
       forall C u v,

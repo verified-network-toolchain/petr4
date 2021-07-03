@@ -74,9 +74,7 @@ Module MPLSPlain.
 
   Program Definition aut: Syntax.t state header :=
     {| t_states := states |}.
-  Next Obligation.
-    destruct s; cbv; Lia.lia.
-  Qed.
+  Solve Obligations with (destruct s; cbv; Lia.lia).
 
 End MPLSPlain.
 
@@ -151,9 +149,7 @@ Module MPLSUnroll.
 
   Program Definition aut: Syntax.t state header :=
     {| t_states := states |}.
-  Next Obligation.
-    destruct s; cbv; Lia.lia.
-  Qed.
+  Solve Obligations with (destruct s; cbv; Lia.lia).
 
 End MPLSUnroll.
 
@@ -228,9 +224,7 @@ Module MPLSInline.
 
   Program Definition aut: Syntax.t state header :=
     {| t_states := states |}.
-  Next Obligation.
-    destruct s; cbv; Lia.lia.
-  Qed.
+  Solve Obligations with (destruct s; cbv; Lia.lia).
 
 End MPLSInline.
 

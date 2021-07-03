@@ -1033,17 +1033,9 @@ Module SynPreSynWP1bit.
         Lia.lia.
     Qed.
 
-    Fixpoint nonempty (o: P4A.op H) : Prop :=
-      match o with
-      | P4A.OpAsgn _ _
-      | P4A.OpNil _ => True
-      | P4A.OpSeq o1 o2 => nonempty o1 /\ nonempty o2
-      | P4A.OpExtract width hdr => width > 0
-      end.
-
     Lemma wp_op'_spec_l:
       forall c (valu: bval c) o n phi s1 st1 buf1 c2,
-        nonempty o ->
+        P4A.nonempty o ->
         interp_store_rel (a:=a)
                          (snd (WP.wp_op' Left o (n + P4A.op_size o, phi)))
                          valu
@@ -1120,7 +1112,7 @@ Module SynPreSynWP1bit.
         some things flipped around. *)
     Lemma wp_op'_spec_r:
       forall c (valu: bval c) o n phi s2 st2 buf2 c1,
-        nonempty o ->
+        P4A.nonempty o ->
         interp_store_rel (a:=a)
                          (snd (WP.wp_op' Right o (n + P4A.op_size o, phi)))
                          valu

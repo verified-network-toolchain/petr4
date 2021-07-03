@@ -54,11 +54,7 @@ Module Simple.
 
   Program Definition aut: Syntax.t state header :=
     {| t_states x := st_start |}.
-  Next Obligation.
-    unfold st_start.
-    cbv.
-    Lia.lia.
-  Qed.
+  Solve Obligations with (unfold st_start; cbv; Lia.lia).
   
 End Simple. 
 
@@ -121,9 +117,7 @@ Module Split.
          | StSplit1 => st_split1
          | StSplit2 => st_split2
          end |}.
-  Next Obligation.
-    destruct s; cbv; Lia.lia.
-  Qed.
+  Solve Obligations with (destruct s; cbv; Lia.lia).
   
 End Split.
 

@@ -93,6 +93,14 @@ Section Syntax.
     | OpAsgn _ _ => 0
     end.
 
+  Fixpoint nonempty (o: op) : Prop :=
+    match o with
+    | OpAsgn _ _
+    | OpNil => True
+    | OpSeq o1 o2 => nonempty o1 /\ nonempty o2
+    | OpExtract width hdr => width > 0
+    end.
+
   Record state: Type :=
     { st_op: op;
       st_trans: transition }.
@@ -102,14 +110,19 @@ Section Syntax.
 
   Record t: Type :=
     { t_states: S -> state;
-      t_has_extract: forall s, 0 < state_size (t_states s) }.
+      t_nonempty: forall s, nonempty (t_states s).(st_op);
+      t_has_extract: forall s, state_size (t_states s) > 0 }.
 
-  Program Definition bind (s: S) (st: state) (ok: 0 < state_size st) (a: t) :=
-    {| t_states := fun s' => if s == s' then st else a.(t_states) s';
-       t_has_extract := _ |}.
+  Program Definition bind (s: S) (st: state) (ex: state_size st > 0) (ok: nonempty st.(st_op)) (a: t) :=
+    {| t_states := fun s' => if s == s' then st else a.(t_states) s' |}.
   Next Obligation.
     destruct (s == s0).
-    - congruence.
+    - auto.
+    - eapply a.(t_nonempty).
+  Qed.
+  Next Obligation.
+    destruct (s == s0).
+    - auto.
     - eapply a.(t_has_extract).
   Qed.
 
@@ -189,13 +202,20 @@ Section Fmap.
   Proof.
     induction o; simpl; eauto.
   Qed.
-    
+
   Lemma state_fmapSH_size :
     forall s,
       state_size (state_fmapSH s) = state_size s.
   Proof.
     unfold state_size.
     simpl; eauto using op_fmapH_size.
+  Qed.
+
+  Lemma op_fmapH_nonempty :
+    forall o,
+      nonempty (op_fmapH o) <-> nonempty o.
+  Proof.
+    induction o; simpl; intuition.
   Qed.
 
 End Fmap.
@@ -317,7 +337,7 @@ Section Inline.
         match auto.(t_states) suff with 
         | suff_st => {| st_op := OpSeq op (st_op suff_st); st_trans := st_trans suff_st |}
         end in 
-      bind pref pref' _ auto
+      bind pref pref' _ _ auto
       else auto
     | _ => auto
     end.
@@ -326,6 +346,13 @@ Section Inline.
     unfold state_size in *.
     simpl in *.
     Lia.lia.
+  Qed.
+  Next Obligation.
+    pose proof auto.(t_nonempty) suff.
+    pose proof auto.(t_nonempty) pref.
+    rewrite <- Heq_anonymous in * |-.
+    simpl in *.
+    intuition.
   Qed.
 
   (* Lemma inline_corr : 

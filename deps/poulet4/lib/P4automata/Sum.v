@@ -53,6 +53,11 @@ Section Sum.
          end |}.
   Next Obligation.
     destruct a1, a2, s;
+      simpl;
+      erewrite Syntax.op_fmapH_nonempty; eauto.
+  Qed.
+  Next Obligation.
+    destruct a1, a2, s;
       erewrite Syntax.state_fmapSH_size; eauto.
   Qed.
 End Sum.

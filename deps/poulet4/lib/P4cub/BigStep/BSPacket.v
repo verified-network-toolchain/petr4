@@ -84,5 +84,35 @@ Module BSPacketIn <: P4PacketIn.
     end.
 End BSPacketIn.
 
+(** TODO: needs closure environment. *)
 Definition PacketIn : ARCH.P4Extern :=
   {| ARCH.dispatch_method := BSPacketIn.dispatch_method |}.
+
+(** Issues:
+    - The extern instance needs a closure environment for values.
+    - Control & Parser instances, as well as action closures
+      need an environment of available extern instances.
+    - [BSPacket.v] depends on [Util.v] for notion of value environment,
+      and operations on value environment such as
+      lvalue lookup & update.
+    - Extern instances are defined in [BSPacket.v] and needs
+      a notion of a value environment.
+    - Control/parser instances & action closures are
+      defined in [Util.v], and require an extern instance environment.
+
+    Solution:
+    In [Architecture.v], the schematic data-type
+    for extern instances will have a value environment.
+
+    Breakup [Util.v] into 3 files:
+    1. Expression utility file, with operations
+       & their type-soundness proofs [ExprUtil.v].
+    2. Value environment utility file, with lvalue lookup & update
+       as well as copy-in & copy-out [ValEnvUtil.v].
+    3. Definitions of closures & instances, excepting
+       extern instances [InstUtil.v].
+
+    Now, [BSPacket.v] only depends upon [ValEnvUtil.v],
+    & InstUtil depends upon [ValEnvUtil.v] & [BSPacket.v].
+    [InstUtil.v] will use the notion of extern instances
+    in [BSPacket.v] to define the other instances. *)

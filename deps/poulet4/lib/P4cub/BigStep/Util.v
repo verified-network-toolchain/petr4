@@ -483,6 +483,7 @@ Module EnvUtil.
     
     Definition cienv : Type := Env.t string cinst.
 
+    (** Parser instances. *)
     Inductive pinst : Type :=
     | PInst (closure : epsilon) (* value closure *)
             (fs : fenv) (* function closure *)

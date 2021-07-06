@@ -35,6 +35,8 @@ Extract Constant CComp.print_Clight => "PrintClight.print_if".
 Require Poulet4.Syntax.
 Require Poulet4.Typed.
 
+Cd "deps/poulet4/extraction".
+
 Separate Extraction Poulet4.Syntax
          Poulet4.Typed Poulet4.SimplExpr
          Poulet4.GenLoc Poulet4.Ccompiler.CComp.

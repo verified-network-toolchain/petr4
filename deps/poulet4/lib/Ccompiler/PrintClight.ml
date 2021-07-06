@@ -309,7 +309,7 @@ let print_program ver p prog =
   List.iter (print_globdef ver p) prog.prog_defs;
   fprintf p "@]@."
 
-let destination : string option ref = ref None
+let destination : string option ref = ref Some "ccompiled.c"
 
 let print_if_gen ver prog =
   match !destination with

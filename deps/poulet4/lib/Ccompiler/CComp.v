@@ -10,7 +10,7 @@ Require Import Poulet4.Ccompiler.CCompEnv.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
-
+Require Import Poulet4.Ccompiler.Helloworld.
 Open Scope string_scope.
 Open Scope list_scope.
 Module P := P4cub.
@@ -85,8 +85,11 @@ Section CComp.
 
     | {{stack fields [n]}}=> (Ctypes.Tvoid, env) (*TODO: implement*)
     end.
-  Definition CubTypeOf (e : E.e tags_t) : E.t.
+  (* Definition CubTypeOf (e : E.e tags_t) : E.t.
     Admitted.
+  Definition CTranslateCast (e: Clight.expr) (typefrom typeto: E.t) (env: ClightEnv) 
+  : option (Clight.expr * ClightEnv).
+      Admitted. *)
   
   Definition CTranslateSlice (x: Clight.expr) (hi lo: positive) (type: E.t) (env: ClightEnv)
   : option (Clight.expr * ClightEnv) := 
@@ -98,9 +101,7 @@ Section CComp.
           (Ebinop Osub (Ebinop Oshl one' (Ebinop Oadd one' 
           (Ebinop Osub hi' lo' long_unsigned) long_unsigned) long_unsigned) 
             (one') long_unsigned) long_unsigned, env).
-  Definition CTranslateCast (e: Clight.expr) (typefrom typeto: E.t) (env: ClightEnv) 
-  : option (Clight.expr * ClightEnv).
-    Admitted.
+  
   (* TODO: figure out what cast rules does clight support and then implement this*)
   (* See https://opennetworking.org/wp-content/uploads/2020/10/P416-Language-Specification-wd.html#sec-casts *)
   
@@ -134,12 +135,12 @@ Section CComp.
                         | Some (n', env') => (CTranslateSlice n' hi lo τ env')
                         | _ => None
                         end
-    | <{Cast e : τ @ i}> => 
-                        match CTranslateExpr e env with
+    | <{Cast e : τ @ i}> => None
+                        (* match CTranslateExpr e env with
                         | Some (e', env') => let typefrom := (CubTypeOf e) in 
                                       (CTranslateCast e' typefrom τ env')
                         | _ => None
-                        end
+                        end *)
     | <{UOP op x : ty @ i}> => 
                         let (cty, env_ty) := CTranslateType ty env in
                         match CTranslateExpr x env_ty with
@@ -266,6 +267,7 @@ Section CComp.
                                           |Some(s2', env3) =>
                                           Some(Sifthenelse e' s1' s2', env3)
                                           end end end
+    | -{calling f with args @ i}- 
     | -{call f with args @ i}- => match CCompEnv.lookup_function env f with
                                   |None => None
                                   |Some(f', id) =>
@@ -312,7 +314,7 @@ Section CComp.
                                     end
                                     end 
                                   end 
-    (* | -{calling a with args @ i}- *)
+    
     (* | -{extern e calls f with args gives x @ i}- *)
     | -{return e : t @ i}- => match CTranslateExpr e env with
                               | None => None
@@ -495,7 +497,7 @@ Section CComp.
     | None => None
     | Some f => Some (CCompEnv.add_function env a f)
     end
-  | c{table t key := ems actions := acts @ i}c => None (*TODO: implement table*)
+  | c{table t key := ems actions := acts @ i}c => Some env (*TODO: implement table*)
   end.
   
   Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
@@ -575,7 +577,7 @@ Section CComp.
       | None => None
       | Some env2 => Some env2
       end end
-  | %{Instance x of c (args) @i }% => None (*TODO: implement*) 
+  | %{Instance x of c (args) @i }% => Some env (*TODO: implement*) 
   | %{void f (params) {body} @i }% => CTranslateFunction d env
   | %{fn f (params) -> t {body} @i }% => CTranslateFunction d env
   | %{extern e (cparams) {methods} @i }% => None (*TODO: implement*)
@@ -620,3 +622,5 @@ Section CComp.
     | Errors.OK prog => print_Clight prog
     end.  
 End CComp.
+
+Definition test := CComp.Compile_print string helloworld_program.

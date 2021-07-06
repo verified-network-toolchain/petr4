@@ -138,9 +138,9 @@ Fixpoint eq_mem (m1 m2: members) : bool :=
   | h1::t1 , h2::t2 => 
     match h1, h2 with
     | (id1, t) *)
-Definition eq_id (id1 id2: ident)
+(* Definition eq_id (id1 id2: ident)
 : bool.
-  Admitted.
+  Admitted. *)
 (* Definition eq_composite (comp1 comp2: Ctypes.composite_definition)
 : bool.
   Admitted.

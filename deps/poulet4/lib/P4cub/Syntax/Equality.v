@@ -109,8 +109,10 @@ Module TypeEquivalence.
       intros; reflect_split; auto.
       apply eqbt_eq_iff in H;
         rewrite H in Heqb; discriminate.
-    Qed.
+    Defined.
     
+    Transparent eqbt_reflect.
+
     Lemma eq_dec : forall t1 t2 : t,
         t1 = t2 \/ t1 <> t2.
     Proof.

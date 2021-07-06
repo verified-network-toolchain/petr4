@@ -125,11 +125,14 @@ control MyIngress(inout headers hdr,
         }
         default_action = drop();
     }
+
+    counter (6, CounterType.packets) port_cntr;
     
     apply {
         if (hdr.ipv4.isValid()) {
 	        ipv4.apply();
-        } 
+            port_cntr.count((bit<32>)standard_metadata.egress_spec); 
+        }
     }
 }
 

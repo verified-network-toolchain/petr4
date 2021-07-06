@@ -13,6 +13,7 @@ Module Arch (Pkt : P4Packet).
 
   (** p4 [extern] instance signature. *)
   Record P4Extern := {
+    closure : Env.t string E;
     dispatch_method :
       string ->                                 (* method name *)
       P.arrow string (T * E) (T * LV) (T * LV) -> (* arguments *)

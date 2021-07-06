@@ -2,7 +2,6 @@ Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Envn
         Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.BigStep.Value.Value
-        Poulet4.P4cub.BigStep.Util
         Poulet4.P4cub.BigStep.Semantics
         Coq.ZArith.BinInt.
 Import Step P.P4cubNotations Val.ValueNotations.

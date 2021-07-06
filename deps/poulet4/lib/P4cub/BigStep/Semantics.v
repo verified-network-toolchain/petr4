@@ -1,8 +1,10 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.ZArith.BinInt
-        Poulet4.P4cub.BigStep.Util
+Require Import Coq.ZArith.BinInt Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.Value.Value
-        Poulet4.P4cub.Envn BSPacket.
+        Poulet4.P4cub.BigStep.BSPacket.
+Require Export Poulet4.P4cub.BigStep.ExprUtil
+        Poulet4.P4cub.BigStep.ValEnvUtil
+        Poulet4.P4cub.BigStep.InstUtil.
 
 (** * Big-Step Evaluation *)
 
@@ -87,8 +89,6 @@ Module Step.
   | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo)
   | interrupt_rjct : interrupt SIG_Rjct.
   (**[]*)
-
-  Export ExprUtil EnvUtil.
 
   (** Context for statement evaluation. *)
   Inductive ctx {tags_t : Type} : Type :=
@@ -333,7 +333,7 @@ Module Step.
       | _ => None
       end = Some aa ->
       (* Looking up action. *)
-      Env.find a aa = Some (ADecl closure fclosure aclosure body) ->
+      Env.find a aa = Some (ADecl closure fclosure aclosure exts body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -402,7 +402,8 @@ Module Step.
                    (cpes : ctrl) (exts : ARCH.extern_env)
                    (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup. *)
-      Env.find x cis = Some (CInst closure fclosure cis' tblclosure aclosure body) ->
+      Env.find x cis =
+      Some (CInst closure fclosure cis' tblclosure aclosure exts body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -425,7 +426,7 @@ Module Step.
                           (fclosure : fenv) (pis pis' : pienv) (exts : ARCH.extern_env)
                           (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* Instance lookup *)
-      Env.find x pis = Some (PInst closure fclosure pis' strt states) ->
+      Env.find x pis = Some (PInst closure fclosure pis' strt exts states) ->
       (* Argument evaluation *)
       F.relfs
         (P.rel_paramarg
@@ -448,7 +449,7 @@ Module Step.
                           (closure ϵ' ϵ'' ϵ''' : epsilon)
                           (pkt' : Paquet.t) (exts : ARCH.extern_env) :
       (* Instance lookup *)
-      Env.find x pis = Some (PInst closure fclosure pis' strt states) ->
+      Env.find x pis = Some (PInst closure fclosure pis' strt exts states) ->
       (* Argument evaluation *)
       F.relfs
         (P.rel_paramarg
@@ -577,7 +578,7 @@ Module Step.
     : CD.d tags_t -> aenv -> tenv -> Prop :=
   | cdbs_action (a : string) (params : E.params)
                 (body : ST.s tags_t) (i : tags_t) :
-      let aa' := Env.bind a (ADecl ϵ fns aa body) aa in
+      let aa' := Env.bind a (ADecl ϵ fns aa eis body) aa in
       ⦉ tbls, aa, fns, cis, eis, ϵ, action a (params) {body} @ i ⦊
         ⟱  ⦉ aa', tbls ⦊
   | cdbs_table (t : string)
@@ -606,14 +607,15 @@ Module Step.
             (pis : @pienv tags_t) (cis : @cienv tags_t)
             (eis : ARCH.extern_env) (ϵ : epsilon)
     : TP.d tags_t -> ARCH.extern_env -> cienv -> pienv -> fenv -> cenv -> Prop :=
-  | dbs_instantiate (c : string) (x : string)
+  | dbs_instantiate (c x : string)
                     (cargs : E.constructor_args tags_t)
                     (vargs : F.fs string (either (V.v) cinst)) (i : tags_t)
                     (ctrlclosure : cenv) (fclosure : fenv)
-                    (ciclosure cis' : cienv)
+                    (ciclosure cis' : cienv) (eis' : ARCH.extern_env)
                     (body : CD.d tags_t) (applyblk : ST.s tags_t)
                     (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
-      Env.find c cs = Some (CDecl ctrlclosure closure fclosure ciclosure body applyblk) ->
+      Env.find c cs =
+      Some (CDecl ctrlclosure closure fclosure ciclosure eis body applyblk) ->
       F.relfs
         (fun carg v =>
            match carg,v with
@@ -627,12 +629,12 @@ Module Step.
                 | Right cinst => (ϵ, Env.bind x cinst ins)
                 end) vargs (closure,ciclosure) = (ϵ',cis') ->
       ⦉ ∅, ∅, fclosure, cis, eis, ϵ', body ⦊ ⟱  ⦉ aa, tbls ⦊ ->
-      let cis'' := Env.bind x (CInst ϵ'' fclosure cis tbls aa applyblk) cis' in
+      let cis'' := Env.bind x (CInst ϵ'' fclosure cis tbls aa eis applyblk) cis' in
       ⦇ cs, fns, pis, cis, eis, ϵ, Instance x of c(cargs) @ i ⦈ ⟱  ⦇ eis, cis'', pis, fns, cs ⦈
   | tpbs_control (c : string) (cparams : E.constructor_params)
                  (params : E.params) (body : CD.d tags_t)
                  (apply_blk : ST.s tags_t) (i : tags_t) (cs' : @cenv tags_t) :
-      let cs' := Env.bind c (CDecl cs ϵ fns cis body apply_blk) cs in
+      let cs' := Env.bind c (CDecl cs ϵ fns cis eis body apply_blk) cs in
       ⦇ cs, fns, pis, cis, eis, ϵ,
         control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, cs' ⦈

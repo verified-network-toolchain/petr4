@@ -12,6 +12,7 @@ Require Poulet4.P4automata.WP.
 Require Poulet4.P4automata.WPSymBit.
 Require Poulet4.P4automata.WPSymLeap.
 Require Poulet4.P4automata.Reachability.
+Require Poulet4.P4cub.Utiliser.
 
 Module SemBisim.
   Section SemBisim.

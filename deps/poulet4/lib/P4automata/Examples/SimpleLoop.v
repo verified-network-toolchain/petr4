@@ -83,7 +83,7 @@ Module Loop.
 
 End Loop.
 
-(* Lemma prebisim_loop:
+ (* Lemma prebisim_loop:
   pre_bisimulation (Sum.sum Loop.aut Loop.aut)
                    (WPSymLeap.wp (H:=_))
                    nil
@@ -94,48 +94,10 @@ Proof.
   set (rel0 := mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start).
   cbv in rel0.
   subst rel0.
-  solve_bisim'.
-  solve_bisim'.
-  Notation "x == y" := (BREq x y) (at level 40).
-  Notation "side . x" := (BEHdr _ side x) (at level 40).
-  Notation "⟪ x ⟫" := (HRVar x) (at level 40).
-  Notation "⦃ x ⦄" := (BELit _ _ x) (at level 30).
-  Notation "x ∨ y" := (BROr x y) (at level 30).
-  simpl.
-  solve_bisim'.
-  solve_bisim'.
-  solve_bisim'.
-  solve_bisim'.
-  solve_bisim'.
-  solve_bisim'.
-  apply PreBisimulationSkip;
-   [ intros; cbn in *; unfold interp_conf_rel, interp_store_rel, interp_conf_state, interp_state_template in *;
-      simpl in * |].
-  {
-    simpl.
-    subst.
-    intros.
-    destruct valu as [[_ [b1 ?]] [b2 ?]].
-    intuition.
-    destruct q1 as [[? ?] ?], q2 as [[? ?] ?]; simpl in *.
-    destruct l, l0; simpl in *; try solve [simpl in *; congruence].
-  }
-  apply PreBisimulationSkip;
-   [ intros; cbn in *; unfold interp_conf_rel, interp_store_rel, interp_conf_state, interp_state_template in *;
-      simpl in * |].
-  {
-    simpl.
-    subst.
-    intros.
-    destruct valu as [[_ [b1 ?]] [b2 ?]].
-    intuition.
-    destruct q1 as [[? ?] ?], q2 as [[? ?] ?]; simpl in *.
-    destruct l, l0; simpl in *; try solve [simpl in *; congruence].
-  }
-  solve_bisim'.
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)
 
 Module LoopUnroll.
   Inductive state :=
@@ -212,7 +174,7 @@ End LoopUnroll.
 
 Definition comb_aut := Sum.sum Loop.aut LoopUnroll.aut.
 
-Lemma prebisim_loop:
+(* Lemma prebisim_loop_unroll:
   pre_bisimulation (Sum.sum Loop.aut Loop.aut)
                    (WPSymLeap.wp (H:=_))
                    nil
@@ -223,51 +185,7 @@ Proof.
   set (rel0 := mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start).
   cbv in rel0.
   subst rel0.
-  time (repeat (time solve_bisim')).
-  cbv in *.
-  intuition (try congruence).
-Time Qed.
-
-(* Ltac solve_bisim' :=
-  match goal with
-  | |- pre_bisimulation _ _ _ [] _ _ =>
-    idtac "close";
-    time apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ (_ :: _) _ _ =>
-    idtac "skip";
-    time pbskip'
-  | |- pre_bisimulation ?a ?wp ?R (?C :: ?T) ?a1 ?a2 =>
-    idtac "extend";
-    let t := fresh "tmp" in
-    let Heqwp := fresh "Heqwp" in
-    let Hext := fresh "Hext" in
-    time pose (t := wp a C);
-      time assert (Heqwp: t = wp a C) by reflexivity;
-      time cbv in t;
-      time pose proof (Hext := fun R' T' pf => PreBisimulationExtend _ _ _ comb_aut (WPSymLeap.wp (H:=Sum.H Loop.header LoopUnroll.header)) R' T' C t a1 a2 Heqwp pf);
-      time unfold t in Hext;
-      time apply (Hext R T);
-      time clear Hext t Heqwp;
-      time simpl (_ ++ _) 
-  end. *)
-(* 
-Lemma prebisim_loop_unroll:
-  pre_bisimulation comb_aut
-                   (WPSymLeap.wp (H:=_))
-                   nil
-                   (mk_init 10 comb_aut Loop.Start LoopUnroll.Start)
-                   (inl (inl Loop.Start), [], [])
-                   (inl (inr LoopUnroll.Start), [], []).
-Proof.
-  set (rel0 := mk_init 10 comb_aut Loop.Start LoopUnroll.Start).
-  cbv in rel0.
-  subst rel0.
-  do 10 solve_bisim'.
-  do 10 solve_bisim'.
-  do 10 solve_bisim'.
-  do 10 solve_bisim'.
-  do 10 solve_bisim'.
-  time (repeat (time solve_bisim')).
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
 Time Qed.  *)

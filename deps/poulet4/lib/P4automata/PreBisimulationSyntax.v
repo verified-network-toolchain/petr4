@@ -120,17 +120,19 @@ Section ConfRel.
   Derive NoConfusion for bit_expr.
 
   Definition beslice {c} (be: bit_expr c) (hi lo: nat) := 
-    match be with 
+    BESlice be hi lo.
+    (* match be with 
     | BELit l => BELit (P4A.slice l hi lo)
     | BESlice x hi' lo' => BESlice x (hi' - hi) (lo' + lo)
     | _ => BESlice be hi lo
-    end.
+    end. *)
 
   Definition beconcat {c} (l: bit_expr c) (r: bit_expr c) := 
-    match l, r with 
+    BEConcat l r.
+    (* match l, r with 
     | BELit l, BELit r => BELit (l ++ r)
     | _, _ => BEConcat l r
-    end.
+    end. *)
   
 
   Fixpoint weaken_bit_expr {c} (size: nat) (b: bit_expr c) : bit_expr (BCSnoc c size) :=
@@ -223,7 +225,8 @@ Section ConfRel.
 
   (* smart constructors *)
 
-  Definition brand {c} (l: store_rel c) (r: store_rel c) := 
+  Definition brand {c} (l: store_rel c) (r: store_rel c) :=  
+    (* BRAnd l r. *)
     match l with 
     | BRTrue _ => r
     | BRFalse _ => BRFalse c
@@ -236,6 +239,7 @@ Section ConfRel.
     end.
 
   Definition bror {c} (l: store_rel c) (r: store_rel c) := 
+    (* BROr l r. *)
     match l with 
     | BRTrue _ => BRTrue c
     | BRFalse _ => r
@@ -248,6 +252,7 @@ Section ConfRel.
     end.
 
   Definition brimpl {c} (l: store_rel c) (r: store_rel c) := 
+    (* BRImpl l r. *)
       match l with 
       | BRTrue _ => r
       | BRFalse _ => BRTrue c

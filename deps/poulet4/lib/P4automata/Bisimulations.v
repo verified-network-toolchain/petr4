@@ -794,8 +794,9 @@ Module SynPreSynWP1bit.
             congruence.
       - reflexivity.
       - simpl.
-        rewrite IHphi; eauto.
         admit.
+        (* rewrite IHphi; eauto. *)
+        (* admit. *)
       - simpl.
         rewrite IHphi1, IHphi2; auto.
     Admitted.
@@ -835,8 +836,9 @@ Module SynPreSynWP1bit.
             congruence.
       - reflexivity.
       - simpl.
-        rewrite IHphi; eauto.
         admit.
+        (* rewrite IHphi; eauto. *)
+        (* admit. *)
       - simpl.
         rewrite IHphi1, IHphi2; auto.
     Admitted.

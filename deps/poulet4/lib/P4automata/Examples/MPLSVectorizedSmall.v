@@ -37,12 +37,13 @@ Module MPLSPlain.
 
   Inductive header :=
   | HdrMPLS
+  | HdrMPLS1
   | HdrUDP.
 
   Scheme Equality for header.
   Global Instance header_eqdec: EquivDec.EqDec header eq := header_eq_dec.
   Global Program Instance header_finite: @Finite header _ header_eq_dec :=
-    {| enum := [HdrMPLS; HdrUDP] |}.
+    {| enum := [HdrMPLS; HdrMPLS1; HdrUDP] |}.
   Next Obligation.
     repeat constructor;
       repeat match goal with
@@ -60,8 +61,11 @@ Module MPLSPlain.
   Definition states (s: state) :=
     match s with
     | ParseMPLS =>
-      {| st_op := OpExtract 1 (HRVar HdrMPLS);
-         st_trans := P4A.TSel (CExpr (ESlice (EHdr (HRVar HdrMPLS)) 1 0))
+      {| st_op := 
+        OpSeq 
+          (OpAsgn (HRVar HdrMPLS1) (EHdr (HRVar HdrMPLS)))
+          (OpExtract 1 (HRVar HdrMPLS));
+         st_trans := P4A.TSel (CExpr (EHdr (HRVar HdrMPLS)))
                               [{| sc_pat := PExact (VBits [true]);
                                   sc_st := inl ParseUDP |};
                               {| sc_pat := PExact (VBits [false]);
@@ -103,7 +107,7 @@ Module MPLSUnroll.
 
   Inductive header :=
   | HdrMPLS
-  (* | HdrMPLS1 *)
+  | HdrMPLS1
   | HdrUDP.
 
   Scheme Equality for header.
@@ -127,16 +131,20 @@ Module MPLSUnroll.
   Definition states (s: state) :=
     match s with
     | ParseMPLS0 =>
-      {| st_op := OpExtract 1 (HRVar HdrMPLS);
-         st_trans := P4A.TSel (CExpr (ESlice (EHdr (HRVar HdrMPLS)) 1 0))
+      {| st_op := OpSeq 
+        (OpAsgn (HRVar HdrMPLS1) (EHdr (HRVar HdrMPLS)))
+        (OpExtract 1 (HRVar HdrMPLS));
+         st_trans := P4A.TSel (CExpr (EHdr (HRVar HdrMPLS)))
                               [{| sc_pat := PExact (VBits [true]);
                                   sc_st := inl ParseUDP |};
                               {| sc_pat := PExact (VBits [false]);
                                  sc_st := inl ParseMPLS1 |}]
                               (inr false) |}
     | ParseMPLS1 =>
-      {| st_op := OpExtract 1 (HRVar HdrMPLS);
-          st_trans := P4A.TSel (CExpr (ESlice (EHdr (HRVar HdrMPLS)) 1 0))
+      {| st_op := OpSeq 
+        (OpAsgn (HRVar HdrMPLS1) (EHdr (HRVar HdrMPLS)))
+        (OpExtract 1 (HRVar HdrMPLS));
+          st_trans := P4A.TSel (CExpr (EHdr (HRVar HdrMPLS)))
                               [{| sc_pat := PExact (VBits [true]);
                                   sc_st := inl ParseUDP |};
                               {| sc_pat := PExact (VBits [false]);
@@ -208,8 +216,8 @@ Module MPLSInline.
             (OpAsgn (HRVar HdrUDP) (EHdr (HRVar HdrMPLS1)))
           );
          st_trans := P4A.TSel (CPair 
-            (CExpr (ESlice (EHdr (HRVar HdrMPLS0)) 1 0))
-            (CExpr (ESlice (EHdr (HRVar HdrMPLS1)) 1 0)))
+            (CExpr (EHdr (HRVar HdrMPLS0)))
+            (CExpr (EHdr (HRVar HdrMPLS1))))
             [{| sc_pat := PPair (PExact (VBits [true])) PAny;
                 sc_st := inr true |};
              {| sc_pat := PPair (PExact (VBits [false])) (PExact (VBits [true]));

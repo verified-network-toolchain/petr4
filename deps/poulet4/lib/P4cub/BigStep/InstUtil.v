@@ -6,6 +6,7 @@ Require Import Poulet4.P4cub.BigStep.Value.Value
 Module P := P4cub.
 Module ST := P.Stmt.
 Module CD := P.Control.ControlDecl.
+Module PRSR := P.Parser.
 Module V := Val.
 Import V.ValueNotations V.LValueNotations.
 
@@ -64,8 +65,8 @@ Section InstEnv.
   | PInst (closure : epsilon) (* value closure *)
           (fs : fenv) (* function closure *)
           (pis : Env.t string pinst) (* parser instance closure *)
-          (strt : PR.state_block tags_t) (* start state *)
           (eis : ARCH.extern_env) (* extern instance closure *)
+          (strt : PR.state_block tags_t) (* start state *)
           (states : F.fs string (PR.state_block tags_t)) (* other states *).
   (**[]*)
   
@@ -81,6 +82,28 @@ Section InstEnv.
           (body : CD.d tags_t) (* declarations inside control *)
           (apply_block : ST.s tags_t) (* apply block *).
   (**[]*)
-  
+
   Definition cenv : Type := Env.t string cdecl.
+  
+  (** Parser declarations and closures. *)
+  Inductive pdecl : Type :=
+  | PDecl (ps : Env.t string pdecl) (* parser declaration closure *)
+          (closure : epsilon) (* value closure *)
+          (fs : fenv) (* function closure *)
+          (pis : pienv) (* parser instance closure *)
+          (eis : ARCH.extern_env) (* extern instance closure *)
+          (strt : PRSR.state_block tags_t) (* start state *)
+          (states : F.fs string (PRSR.state_block tags_t)) (* parser states *).
+  (**[]*)
+
+  Definition penv : Type := Env.t string pdecl.
+
+  (** Extern declarations and closures. *)
+  Inductive edecl : Type :=
+  | EDecl (es : Env.t string edecl)
+          (closure : epsilon) (* value closure *)
+          (fs : fenv) (* function closure *)
+          (eis : ARCH.extern_env) (* extern instance closure *).
+
+  Definition eenv : Type := Env.t string edecl.
 End InstEnv.

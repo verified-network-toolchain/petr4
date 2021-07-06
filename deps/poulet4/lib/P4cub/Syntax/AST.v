@@ -34,6 +34,16 @@ Module P4cub.
   Arguments PAOut {_} {_}.
   Arguments PAInOut {_} {_}.
 
+  Definition paramarg_map {A B C D : Type}
+             (f : A -> C) (g : B -> D)
+             (pa : paramarg A B) : paramarg C D :=
+    match pa with
+    | PAIn a => PAIn (f a)
+    | PAOut b => PAOut (g b)
+    | PAInOut b => PAInOut (g b)
+    end.
+  (**[]*)
+
   (** A predicate on a [paramarg]. *)
   Definition pred_paramarg {A B : Type}
              (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=

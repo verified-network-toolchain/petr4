@@ -138,8 +138,15 @@ Ltac solve_bisim' :=
         unfold
                 WP.preds, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op
               ; simpl)
-  | |- pre_bisimulation _ _ _ [] _ _ => apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ (_::_) _ _ => pbskip'
-  | |- pre_bisimulation _ _ _ (_::_) _ _ => apply PreBisimulationExtend; simpl
+  | |- pre_bisimulation _ _ _ [] _ _ =>
+    apply PreBisimulationClose
+  | |- pre_bisimulation _ _ _ (_::_) _ _ =>
+    pbskip'
+  | |- pre_bisimulation ?a ?wp _ (?C::_) _ _ =>
+    let t := fresh "tmp" in
+    pose (t := wp a C);
+    apply PreBisimulationExtend with (W:=t); [reflexivity|];
+    cbv in t;
+    subst t
   | |- _ => progress simpl
   end.

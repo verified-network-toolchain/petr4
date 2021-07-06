@@ -627,8 +627,9 @@ Module SynPreSynWP.
           R ⇝ T q1 q2 ->
           R ⇝ (C :: T) q1 q2
     | PreBisimulationExtend:
-        forall (R T: crel S H) (C: conf_rel S H) q1 q2,
-          (C :: R) ⇝ (T ++ wp a C) q1 q2 ->
+        forall (R T: crel S H) (C: conf_rel S H) (W: crel S H) q1 q2,
+          W = wp a C ->
+          (C :: R) ⇝ (T ++ W) q1 q2 ->
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
 
@@ -733,6 +734,7 @@ Module SynPreSynWP.
       - simpl.
         constructor 2; eauto.
       - rewrite map_app in IHpre_bisimulation.
+        subst.
         econstructor 3; eauto.
     Qed.
 

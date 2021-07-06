@@ -38,11 +38,15 @@ Proof.
   set (rel0 := mk_init 10 MPLSVect.aut MPLSPlain.ParseMPLS MPLSUnroll.ParseMPLS0).
   cbv in rel0.
   subst rel0.
-  solve_bisim'.
+  do 5 solve_bisim'.
+  do 5 solve_bisim'.
+  do 5 solve_bisim'.
+  do 10 solve_bisim'.
+  
   time (repeat solve_bisim').
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)
 
 
 (* John: I haven't timed this one yet *)

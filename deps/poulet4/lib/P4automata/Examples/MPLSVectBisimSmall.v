@@ -1,6 +1,30 @@
 Require Import Poulet4.P4automata.Examples.ProofHeader.
 Require Import Poulet4.P4automata.Examples.MPLSVectorizedSmall.
 
+Ltac solve_bisim' :=
+  match goal with
+  | |- pre_bisimulation _ _ _ [] _ _ =>
+    idtac "close";
+    time apply PreBisimulationClose
+  | |- pre_bisimulation _ _ _ (_ :: _) _ _ =>
+    idtac "skip";
+    time pbskip'
+  | |- pre_bisimulation ?a ?wp ?R (?C :: ?T) ?a1 ?a2 =>
+    idtac "extend";
+    let t := fresh "tmp" in
+    let Heqwp := fresh "Heqwp" in
+    let Hext := fresh "Hext" in
+    time pose (t := wp a C);
+      time assert (Heqwp: t = wp a C) by reflexivity;
+      time cbv in t;
+      time pose proof (Hext := fun R' T' pf => PreBisimulationExtend _ _ _ MPLSVect.aut (WPSymLeap.wp (H:=Sum.H MPLSPlain.header MPLSUnroll.header)) R' T' C t a1 a2 Heqwp pf);
+      time unfold t in Hext;
+      time apply (Hext R T);
+      time clear Hext t Heqwp;
+      time simpl (_ ++ _)
+  end.
+
+
 (* Lemma prebisim_mpls_unroll:
   pre_bisimulation MPLSVect.aut
                    (WPSymLeap.wp (H:=_))

@@ -212,6 +212,22 @@ End LoopUnroll.
 
 Definition comb_aut := Sum.sum Loop.aut LoopUnroll.aut.
 
+Lemma prebisim_loop:
+  pre_bisimulation (Sum.sum Loop.aut Loop.aut)
+                   (WPSymLeap.wp (H:=_))
+                   nil
+                   (mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start)
+                   (inl (inl Loop.Start), [], [])
+                   (inl (inr Loop.Start), [], []).
+Proof.
+  set (rel0 := mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start).
+  cbv in rel0.
+  subst rel0.
+  time (repeat (time solve_bisim')).
+  cbv in *.
+  intuition (try congruence).
+Time Qed.
+
 (* Ltac solve_bisim' :=
   match goal with
   | |- pre_bisimulation _ _ _ [] _ _ =>
@@ -234,8 +250,8 @@ Definition comb_aut := Sum.sum Loop.aut LoopUnroll.aut.
       time clear Hext t Heqwp;
       time simpl (_ ++ _) 
   end. *)
-
-(* Lemma prebisim_loop_unroll:
+(* 
+Lemma prebisim_loop_unroll:
   pre_bisimulation comb_aut
                    (WPSymLeap.wp (H:=_))
                    nil
@@ -246,7 +262,12 @@ Proof.
   set (rel0 := mk_init 10 comb_aut Loop.Start LoopUnroll.Start).
   cbv in rel0.
   subst rel0.
+  do 10 solve_bisim'.
+  do 10 solve_bisim'.
+  do 10 solve_bisim'.
+  do 10 solve_bisim'.
+  do 10 solve_bisim'.
   time (repeat (time solve_bisim')).
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)

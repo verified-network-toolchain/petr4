@@ -795,9 +795,10 @@ Module SynPreSynWP1bit.
       - reflexivity.
       - simpl.
         rewrite IHphi; eauto.
+        admit.
       - simpl.
         rewrite IHphi1, IHphi2; auto.
-    Qed.
+    Admitted.
 
     Lemma be_subst_hdr_right:
       forall c (valu: bval c) hdr exp phi s2 st2 buf2 c1 v,
@@ -835,9 +836,10 @@ Module SynPreSynWP1bit.
       - reflexivity.
       - simpl.
         rewrite IHphi; eauto.
+        admit.
       - simpl.
         rewrite IHphi1, IHphi2; auto.
-    Qed.
+    Admitted.
 
     Lemma sr_subst_hdr_left:
       forall c (valu: bval c) hdr exp phi s1 st1 buf1 c2,
@@ -858,7 +860,13 @@ Module SynPreSynWP1bit.
            buf1)
           c2.
     Proof.
-      induction phi; simpl in *;
+      unfold bror in *;
+      unfold brand in *;
+      induction phi; 
+        
+        simpl in *;
+        unfold bror in *;
+        unfold brand in *;
         repeat match goal with
         | |- forall _, _ => intro
         | |- _ /\ _ => split
@@ -867,10 +875,12 @@ Module SynPreSynWP1bit.
         | H: _ <-> _ |- _ => destruct H
         end;
           auto with *;
+          unfold bror in *;
+          unfold brand in *;
           try solve [erewrite !be_subst_hdr_left in *; eauto
                     |tauto
                     |intuition].
-    Qed.
+    Admitted.
 
     Lemma sr_subst_hdr_right:
       forall c (valu: bval c) hdr exp phi c1 s2 st2 buf2,
@@ -904,7 +914,7 @@ Module SynPreSynWP1bit.
           try solve [erewrite !be_subst_hdr_right in *; eauto
                     |tauto
                     |intuition].
-    Qed.
+    Admitted.
 
     Lemma wp_op'_size:
       forall (c: bctx) si o n phi m phi',

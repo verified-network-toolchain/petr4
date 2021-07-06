@@ -113,7 +113,7 @@ Module MPLSUnroll.
   Scheme Equality for header.
   Global Instance header_eqdec: EquivDec.EqDec header eq := header_eq_dec.
   Global Program Instance header_finite: @Finite header _ header_eq_dec :=
-    {| enum := [HdrMPLS; HdrUDP] |}.
+    {| enum := [HdrMPLS; HdrMPLS1; HdrUDP] |}.
   Next Obligation.
     repeat constructor;
       repeat match goal with

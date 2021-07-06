@@ -25,9 +25,9 @@ Ltac solve_bisim' :=
       time simpl (_ ++ _)
   end.
 
-(*
+
 (* John: this takes ~30 minutes on my laptop to solve *)
-Lemma prebisim_mpls_unroll:
+(* Lemma prebisim_mpls_unroll:
   pre_bisimulation MPLSVect.aut
                    (WPSymLeap.wp (H:=_))
                    nil
@@ -38,11 +38,12 @@ Proof.
   set (rel0 := mk_init 10 MPLSVect.aut MPLSPlain.ParseMPLS MPLSUnroll.ParseMPLS0).
   cbv in rel0.
   subst rel0.
+  solve_bisim'.
   time (repeat solve_bisim').
   cbv in *.
   intuition (try congruence).
-Time Qed.
-*)
+Time Qed. *)
+
 
 (* John: I haven't timed this one yet *)
 

@@ -877,8 +877,12 @@ Module SynPreSynWP1bit.
     Variable (a: P4A.t (S1 + S2) H).
 
     Notation conf := (configuration (P4A.interp a)).
-    Variable (i: rel conf).
-    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
+
+    Notation i := (SynPreSynWP.separated _ _ _ a).
+    Lemma wp_concrete_bdd:
+      SynPreSynWP.wp_bdd S1 S2 H a (WP.wp (H:=H)) i.
+    Proof.
+    Admitted.
 
     Lemma be_subst_hdr_left:
       forall c (valu: bval c) hdr exp phi s1 st1 buf1 c2 v,
@@ -1308,11 +1312,27 @@ Module SynPreSynWP1bit.
         reflexivity.
     Qed.
 
+    Definition pred_i {c} (p1 p2: WP.pred S1 S2 H c) : Prop :=
+      forall q1 q2,
+        match p1 with
+        | WP.PredRead _ _ st =>
+          interp_state_template st q1
+        | WP.PredJump phi s =>
+          fst (fst q1) = inl s
+        end ->
+        match p2 with
+        | WP.PredRead _ _ st =>
+          interp_state_template st q2
+        | WP.PredJump phi s =>
+          fst (fst q2) = inl s
+        end ->
+        i q1 q2.
+
     Lemma wp_pred_pair_step :
-      forall C u v s t,
+      forall C u v,
+        SynPreSynWP.ibdd _ _ _ a i (interp_conf_rel C) ->
         (forall sl sr,
-            In sl (WP.preds a Left (map inl (enum S1)) s) ->
-            In sr (WP.preds a Right (map inl (enum S1)) t) ->
+            pred_i sl sr ->
             interp_crel (a:=a) i (WP.wp_pred_pair a C (sl, sr)) u v) ->
         (forall b, interp_conf_rel C (step u b) (step v b)).
     Proof.
@@ -1329,53 +1349,20 @@ Module SynPreSynWP1bit.
       simpl (PreBisimulationSyntax.cr_st _) in *.
       simpl (PreBisimulationSyntax.cr_ctx _) in *.
       simpl (PreBisimulationSyntax.cr_rel _) in *.
-      destruct H1 as [[? ?] [? ?]].
+      destruct H2 as [[? ?] [? ?]].
       subst.
       unfold step; cbn.
+      simpl in *.
       repeat match goal with
       | |- context [length (?x ++ [_])] =>
-        replace (length (x ++ [_])) with (S (length x))
+        replace (length (x ++ [_])) with (S (length x)) in *
           by (rewrite app_length; simpl; rewrite PeanoNat.Nat.add_comm; reflexivity)
       end.
       destruct vs as [vs | vs], us as [us | us]; simpl.
-      - destruct (equiv_dec (S (length ubuf)) (P4A.size a us)),
-                 (equiv_dec (S (length vbuf)) (P4A.size a vs)).
-        + simpl (states _) in *.
-          set (sl := WP.PredJump (c:=Cctx)
-                                 (WP.trans_cond Left
-                                                (P4A.st_trans (P4A.t_states a us))
-                                                (inl us))
-                                 us).
-          set (sr := WP.PredJump (c:=Cctx)
-                                 (WP.trans_cond Right
-                                                (P4A.st_trans (P4A.t_states a vs))
-                                                (inl vs))
-                                 vs).
-          specialize (H0 sl sr).
-          destruct H0 as [? [? ?]].
-          cbn in * |-.
-          unfold "===" in *.
-          unfold WP.S in *.
-          pose proof (P4A.t_has_extract a us).
-          pose proof (P4A.t_has_extract a vs).
-          repeat match goal with
-          | H: context[P4A.state_size (P4A.t_states ?a ?s)] |- _ =>
-            change (P4A.state_size (P4A.t_states a s)) with (P4A.size a s) in H
-          end.
-          repeat match goal with
-          | H: ?pre -> forall _: bval _, _ |- _ =>
-            let H' := fresh "H" in
-            assert (H': pre) by (intuition eauto; Lia.lia);
-              pose proof (H H' valu);
-              clear H'; clear H
-          end.
-          unfold WP.wp_op in *; cbn in *.
-          admit.
-          admit.
-          admit.
-        + admit.
-        + admit.
-        + admit.
+      simpl in * |-.
+      destruct (equiv_dec (S (length ubuf)) (P4A.size a us)),
+               (equiv_dec (S (length vbuf)) (P4A.size a vs)).
+      - admit.
       - admit.
       - admit.
       - admit.
@@ -1393,13 +1380,112 @@ Module SynPreSynWP1bit.
       destruct a; simpl in * |-.
       destruct cr_st.
       unfold WP.wp in * |-.
+      (*
+either the step is a jump or a read on the left and on the right
+so that's a total of 4 cases.
+But in each case you need to massage the WP to line up with it,
+because you're not branching on the same thing.
+*)
+      unfold step.
+      unfold interp_conf_rel, interp_conf_state, interp_state_template; intros.
+      simpl in *.
+      intuition.
+      simpl in *.
+      repeat match goal with
+      | |- context [length (?x ++ [_])] =>
+        replace (length (x ++ [_])) with (S (length x)) in *
+          by (rewrite app_length; simpl; rewrite PeanoNat.Nat.add_comm; reflexivity)
+      end.
+      destruct (equiv_dec (S (length buf1)) _), (equiv_dec (S (length buf2)) _);
+        unfold "===" in *;
+        simpl in *.
+      - cbv in H0.
+        (* this is a real transition*)
+        destruct st1 as [[st1 | ?] | st1], st2 as [[st2 | ?] | st2];
+          try solve [cbv in H0; tauto].
+        + admit.
+        + admit.
+        + admit.
+        + admit.
+      - admit.
+      - admit.
+      - (* this is a read*)
+        cbn in *.
+        unfold complement in *.
+        rewrite app_length in *.
+        simpl in *.
+        replace (length buf2 + 1) with (S (length buf2)) in * by Lia.lia.
+        replace (length buf1 + 1) with (S (length buf1)) in * by Lia.lia.
+        destruct cs_st1 as [cst1 bl1] eqn:?, cs_st2 as [cst2 bl2] eqn:?; simpl in *.
+        assert (Hsize: bl1 <> 0 /\ bl2 <> 0) by Lia.lia.
+        destruct Hsize.
+        pose (pred_l :=
+                WP.PredRead H cr_ctx {| st_state := cst1; st_buf_len := bl1 - 1 |}).
+        pose (pred_r :=
+                WP.PredRead H cr_ctx {| st_state := cst2; st_buf_len := bl2 - 1 |}).
+        pose (wp_lr :=
+                (WP.wp_pred_pair
+                   {|
+                     WPSymLeap.P4A.t_states := t_states;
+                     WPSymLeap.P4A.t_nonempty := t_nonempty;
+                     WPSymLeap.P4A.t_has_extract := t_has_extract
+                   |}
+                   {|
+                     cr_st := {| cs_st1 := cs_st1; cs_st2 := cs_st2 |};
+                     cr_ctx := cr_ctx;
+                     cr_rel := cr_rel
+                   |} (pred_l, pred_r))).
+        assert (forall r, In r wp_lr ->
+                       interp_conf_rel (a:=a) r (st1, s1, buf1) (st2, s2, buf2)).
+        {
+          intros.
+          eapply interp_rels_in; eauto.
+          rewrite in_map_iff.
+          eexists; intuition eauto.
+          rewrite in_concat.
+          eexists wp_lr.
+          split; auto.
+          rewrite in_map_iff.
+          exists (pred_l, pred_r).
+          split; [reflexivity|].
+          rewrite in_prod_iff.
+          unfold WP.preds.
+          destruct (equiv_dec _ _), (equiv_dec _ _);
+            try solve [exfalso; tauto].
+          unfold pred_l, pred_r.
+          split; eauto with datatypes.
+        }
+        simpl in wp_lr.
+        match goal with
+        | wp_lr := ?a :: ?b :: nil : _ |- _ => pose (wp_lr' := (a, b))
+        end.
+        assert (Hfst:In (fst wp_lr') wp_lr /\
+                     In (snd wp_lr') wp_lr)
+          by (unfold wp_lr', wp_lr; simpl; tauto).
+        destruct Hfst as [Hfst Hsnd].
+        destruct bit;
+            [specialize (H8 (fst wp_lr') Hfst)
+            |specialize (H8 (snd wp_lr') Hsnd)];
+            simpl in H8.
+        + unfold interp_conf_rel, interp_conf_state, interp_state_template in H8.
+          subst.
+          simpl in H8.
+          specialize (H8 ltac:(intuition Lia.lia) valu).
+          subst wp_lr wp_lr'.
+          clear Hfst Hsnd.
+          (* need lemma about sr_subst on buffers. *)
+          admit.
+        + unfold interp_conf_rel, interp_conf_state, interp_state_template in H8.
+          subst.
+          simpl in H8.
+          specialize (H8 ltac:(intuition Lia.lia) valu).
+          subst wp_lr wp_lr'.
+          clear Hfst Hsnd.
+          (* need lemma about sr_subst on buffers. *)
+          admit.
+                    
     Admitted.
 
-    Lemma wp_concrete_bdd:
-      SynPreSynWP.wp_bdd S1 S2 H a (WP.wp (H:=H)) i.
-    Proof.
-    Admitted.
-      
     Lemma syn_pre_1bit_concrete_implies_sem_pre:
     forall R S q1 q2,
       SynPreSynWP.cibdd _ _ _ a i R ->

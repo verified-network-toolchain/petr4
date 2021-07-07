@@ -34,7 +34,7 @@ Proof.
   set (rel0 := mk_init 10 MPLSVectUnroll.aut MPLSPlain.ParseMPLS MPLSInline.ParseMPLS).
   cbv in rel0.
   subst rel0.
-  time (repeat (time solve_bisim')).
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
 Time Qed. *)

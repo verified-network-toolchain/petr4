@@ -51,6 +51,10 @@ Defined.
 Definition bits_8_to_byte (x: list bool) (pf: length x <= 8) : byte.
 Admitted.
 
+Lemma bits_8_pf_irrel :
+  forall l pf pf', bits_8_to_byte l pf = bits_8_to_byte l pf'.
+Admitted.
+
 Fixpoint bytes (n : nat) : Type := 
   match n with 
   | 0 => unit
@@ -386,6 +390,7 @@ Module TPP.
           (inr b)
           (fun buf buf' => buf = buf')
           (combined_twopass _ _ _).
+
   
   Lemma combined_twopass_bis : 
     forall decoder policy amount, 
@@ -436,19 +441,11 @@ Module TPP.
       set (bs'2 := TPPautomaton.slice 16 24 bs').
       set (bs'3 := TPPautomaton.slice 24 32 bs').
 
-      assert (forall l pf pf', bits_8_to_byte l pf = bits_8_to_byte l pf').
-      admit.
 
-
-      pose proof (H5 bs'0 (tpp_instr_twopass_parser_obligation_1 bs') (tpp_instr_combined_parser_obligation_1 bs')).
-      pose proof (H5 bs'1 (tpp_instr_twopass_parser_obligation_2 bs') (tpp_instr_combined_parser_obligation_2 bs')).
-      pose proof (H5 bs'2 (tpp_instr_twopass_parser_obligation_3 bs') (tpp_instr_combined_parser_obligation_3 bs')).
-      pose proof (H5 bs'3 (tpp_instr_twopass_parser_obligation_4 bs') (tpp_instr_combined_parser_obligation_4 bs')).
-
-      rewrite H8.
-      rewrite H9.
-      rewrite H10.
-      rewrite H11.
+      rewrite (bits_8_pf_irrel bs'0 (tpp_instr_twopass_parser_obligation_1 bs') (tpp_instr_combined_parser_obligation_1 bs')).
+      rewrite (bits_8_pf_irrel bs'1 (tpp_instr_twopass_parser_obligation_2 bs') (tpp_instr_combined_parser_obligation_2 bs')).
+      rewrite (bits_8_pf_irrel bs'2 (tpp_instr_twopass_parser_obligation_3 bs') (tpp_instr_combined_parser_obligation_3 bs')).
+      rewrite (bits_8_pf_irrel bs'3 (tpp_instr_twopass_parser_obligation_4 bs') (tpp_instr_combined_parser_obligation_4 bs')).
 
       destruct (decoder _).
       * rewrite H0.
@@ -470,7 +467,58 @@ Module TPP.
             now (compute; eapply TypeFail; simpl; trivial).
       * compute.
         eapply End; compute; auto.
-    - admit.
+    -   destruct H2.
+        subst buf1.
+        subst buf2.
+        simpl in H5.
+
+        unfold follow.
+        unfold fold_left, step.
+        destruct buf; [exfalso; inversion H5|].
+        
+        do 31 (destruct buf; [exfalso; simpl in H5; inversion H5|]).
+        destruct buf; [|exfalso; simpl in H5; inversion H5].
+
+        simpl length.
+        simpl P4automaton.size'.
+        do 31 (destruct (equiv_dec _ _); [inversion e|clear c]).
+        simpl length.
+        simpl P4automaton.size'.
+        destruct (equiv_dec _ _); [clear e | exfalso; eapply c; auto].
+        simpl "++".
+        clear H5.
+
+        set (bs' := [b; b0; b1; b2; b3; b4; b5; b6; b7; b8; b9; b10; b11; b12;
+          b13; b14; b15; b16; b17; b18; b19; b20; b21; b22; b23; b24;
+          b25; b26; b27; b28; b29; b30]).
+        simpl (update (_ _ _ _)).
+        simpl (_ init bs').
+        simpl (transitions (_ _ _ _)).
+        cbn delta.
+
+        set (bs'0 := TPPautomaton.slice 0 8 bs').
+        set (bs'1 := TPPautomaton.slice 8 16 bs').
+        set (bs'2 := TPPautomaton.slice 16 24 bs').
+        set (bs'3 := TPPautomaton.slice 24 32 bs').
+
+
+        rewrite (bits_8_pf_irrel bs'0 (tpp_instr_twopass_parser_obligation_1 bs') (tpp_instr_combined_parser_obligation_1 bs')).
+        rewrite (bits_8_pf_irrel bs'1 (tpp_instr_twopass_parser_obligation_2 bs') (tpp_instr_combined_parser_obligation_2 bs')).
+        rewrite (bits_8_pf_irrel bs'2 (tpp_instr_twopass_parser_obligation_3 bs') (tpp_instr_combined_parser_obligation_3 bs')).
+        rewrite (bits_8_pf_irrel bs'3 (tpp_instr_twopass_parser_obligation_4 bs') (tpp_instr_combined_parser_obligation_4 bs')).
+
+        destruct (decoder _).
+        * rewrite H0.
+          destruct prog'.
+          simpl.
+
+
+          admit.
+
+        * admit.
+
+
+
     - admit.
     - destruct buf; [exfalso; simpl in *; congruence|].
       destruct buf; [|exfalso; simpl in *; congruence].

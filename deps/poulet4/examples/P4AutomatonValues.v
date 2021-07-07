@@ -31,37 +31,6 @@ Instance StrEqDec : EqDec string eq := {
   equiv_dec := string_dec;
 }.
 
-(* first we parse a simple language: 11000 *)
-Module SimpleParser.
-  Inductive states :=
-  | one
-  | zero.
-
-  Definition size' (s: states) :=
-    match s with
-    | one => 2
-    | zero => 3
-    end.
-
-
-  Program Definition simple_auto : p4automaton := {|
-    size := size';
-    update := fun s bs (v: unit) => v ;
-    transitions := fun s v =>
-      match s with
-      | one => inl zero
-      | zero => inr true
-      end
-  |}.
-  Next Obligation.
-    destruct s; simpl; lia.
-  Qed.
-
-  Definition simple_config : configuration simple_auto :=
-    (inl one, tt, nil).
-End SimpleParser.
-
-
 Module BabyIPv1.
   Inductive states :=
   | start

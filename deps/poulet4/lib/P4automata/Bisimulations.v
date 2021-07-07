@@ -446,7 +446,7 @@ Module SemPre.
           R ⇝ (C :: T) q1 q2
     | PreBisimulationExtend:
         forall R T C W q1 q2,
-          (C :: R) ⇝ (T ++ W) q1 q2 ->
+          (C :: R) ⇝ (W ++ T) q1 q2 ->
           (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
@@ -529,7 +529,7 @@ Module SemPre.
             -- apply in_app_iff.
                right.
                apply in_app_iff.
-               left.
+               right.
                apply H4.
         + intros.
           eapply in_interp_rels;
@@ -596,7 +596,7 @@ Module SemPreLeaps.
           R ⇝ (C :: T) q1 q2
     | PreBisimulationExtend:
         forall R T C W q1 q2,
-          (C :: R) ⇝ (T ++ W) q1 q2 ->
+          (C :: R) ⇝ (W ++ T) q1 q2 ->
           (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
@@ -655,7 +655,7 @@ Module SynPreSynWP.
     | PreBisimulationExtend:
         forall (R T: crel S H) (C: conf_rel S H) (W: crel S H) q1 q2,
           W = wp a C ->
-          (C :: R) ⇝ (T ++ W) q1 q2 ->
+          (C :: R) ⇝ (W ++ T) q1 q2 ->
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
 
@@ -845,10 +845,10 @@ Module SynPreSynWP.
           simpl (In _ _) in *.
           intuition.
         + eapply cibdd_app.
-          * unfold cibdd in *; simpl (In _ _ ) in *; eauto.
           * eapply H3.
             eapply H1.
             eauto with datatypes.
+          * unfold cibdd in *; simpl (In _ _ ) in *; eauto.
         + intros.
           eapply H2; eauto.
           eapply SemPre.interp_rels_i; eauto.

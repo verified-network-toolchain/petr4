@@ -1368,6 +1368,132 @@ Module SynPreSynWP1bit.
       - admit.
     Admitted.
 
+    Lemma be_subst_buf_left:
+      forall c (valu: bval c) exp phi c2 s1 st1 buf1 v,
+        interp_bit_expr exp valu (s1, st1, buf1) c2 = v ->
+        interp_bit_expr (a:=a) phi valu
+                        (s1, st1, v)
+                        c2
+        =
+        interp_bit_expr (WP.be_subst phi exp (BEBuf _ c Left))
+                        valu
+                        (s1, st1, buf1)
+                        c2.
+    Proof.
+      induction phi; intros.
+      - tauto.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _).
+        + inversion e; clear e; subst.
+          reflexivity.
+        + simpl.
+          unfold P4A.find, P4A.Env.find, P4A.assign.
+          repeat match goal with
+                 | H: context[ match ?e with _ => _ end ] |- _ => destruct e eqn:?
+                 | |- context[ match ?e with _ => _ end ] => destruct e eqn:?
+                 | |- _ => progress simpl in *
+                 end;
+            congruence.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _); try congruence.
+        simpl.
+        destruct a0; simpl;
+          destruct (P4A.find _ _);
+          reflexivity.
+      - simpl.
+        eauto.
+      - simpl.
+        erewrite IHphi; eauto.
+      - simpl.
+        erewrite IHphi1, IHphi2; auto.
+    Qed.
+
+    Lemma be_subst_buf_right:
+      forall c (valu: bval c) exp phi c1 s2 st2 buf2 v,
+        interp_bit_expr exp valu c1 (s2, st2, buf2) = v ->
+        interp_bit_expr (a:=a) phi valu
+                        c1
+                        (s2, st2, v)
+        =
+        interp_bit_expr (WP.be_subst phi exp (BEBuf _ c Right))
+                        valu
+                        c1
+                        (s2, st2, buf2).
+    Proof.
+      induction phi; intros.
+      - tauto.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _).
+        + inversion e; clear e; subst.
+          reflexivity.
+        + simpl.
+          unfold P4A.find, P4A.Env.find, P4A.assign.
+          repeat match goal with
+                 | H: context[ match ?e with _ => _ end ] |- _ => destruct e eqn:?
+                 | |- context[ match ?e with _ => _ end ] => destruct e eqn:?
+                 | |- _ => progress simpl in *
+                 end;
+            congruence.
+      - unfold WP.be_subst.
+        destruct (bit_expr_eq_dec _ _); try congruence.
+        simpl.
+        destruct a0; simpl;
+          destruct (P4A.find _ _);
+          reflexivity.
+      - simpl.
+        eauto.
+      - simpl.
+        erewrite IHphi; eauto.
+      - simpl.
+        erewrite IHphi1, IHphi2; auto.
+    Qed.
+
+    Lemma sr_subst_buf_left:
+      forall c (valu: bval c) exp phi s1 st1 buf1 c2,
+        interp_store_rel
+          (a:=a)
+          (WP.sr_subst phi exp (BEBuf _ c Left))
+          valu
+          (s1, st1, buf1)
+          c2 <->
+        interp_store_rel
+          (a:=a)
+          phi
+          valu
+          (s1,
+           st1,
+           interp_bit_expr exp valu (s1, st1, buf1) c2)
+          c2.
+    Proof.
+      induction phi; simpl in *; try tauto; intuition eauto;
+        try solve [erewrite <- !be_subst_buf_left in *;
+                   eauto
+                  |intuition].
+    Qed.
+
+    Lemma sr_subst_buf_right:
+      forall c (valu: bval c) exp phi c1 s2 st2 buf2,
+        interp_store_rel
+          (a:=a)
+          (WP.sr_subst phi exp (BEBuf _ c Right))
+          valu
+          c1
+          (s2, st2, buf2) <->
+        interp_store_rel
+          (a:=a)
+          phi
+          valu
+          c1
+          (s2,
+           st2,
+           interp_bit_expr exp valu c1 (s2, st2, buf2)).
+    Proof.
+      induction phi; simpl in *; try tauto; intuition eauto;
+        try solve [erewrite <- !be_subst_buf_right in *;
+                   eauto
+                  |intuition].
+    Qed.
+
     Lemma wp_concrete_safe :
       SynPreSynWP.safe_wp_1bit _ _ _ a (WP.wp (H:=H)) i.
     Proof.
@@ -1464,8 +1590,8 @@ because you're not branching on the same thing.
           by (unfold wp_lr', wp_lr; simpl; tauto).
         destruct Hfst as [Hfst Hsnd].
         destruct bit;
-            [specialize (H8 (fst wp_lr') Hfst)
-            |specialize (H8 (snd wp_lr') Hsnd)];
+            [specialize (H8 (snd wp_lr') Hsnd)
+            |specialize (H8 (fst wp_lr') Hfst)];
             simpl in H8.
         + unfold interp_conf_rel, interp_conf_state, interp_state_template in H8.
           subst.
@@ -1473,17 +1599,20 @@ because you're not branching on the same thing.
           specialize (H8 ltac:(intuition Lia.lia) valu).
           subst wp_lr wp_lr'.
           clear Hfst Hsnd.
-          (* need lemma about sr_subst on buffers. *)
-          admit.
+          rewrite sr_subst_buf_left in H8.
+          rewrite sr_subst_buf_right in H8.
+          simpl in H8.
+          eauto.
         + unfold interp_conf_rel, interp_conf_state, interp_state_template in H8.
           subst.
           simpl in H8.
           specialize (H8 ltac:(intuition Lia.lia) valu).
           subst wp_lr wp_lr'.
           clear Hfst Hsnd.
-          (* need lemma about sr_subst on buffers. *)
-          admit.
-                    
+          rewrite sr_subst_buf_left in H8.
+          rewrite sr_subst_buf_right in H8.
+          simpl in H8.
+          eauto.
     Admitted.
 
     Lemma syn_pre_1bit_concrete_implies_sem_pre:
@@ -1524,7 +1653,6 @@ Module SynPreSynWPSym.
     Notation conf := (configuration (P4A.interp a)).
     Variable (i: rel conf).
     Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
-
 
     Lemma wp_sym_safe :
       SynPreSynWP.safe_wp_1bit _ _ _ a (WPSymBit.wp (H:=H)) i.

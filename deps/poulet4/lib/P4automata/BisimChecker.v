@@ -118,8 +118,7 @@ Ltac pbskip' :=
              RelationClasses.relation_conjunction,
              Relations.interp_rels
              || cbn);
-     solve [hfcrush unfold:length inv:list|
-            sfirstorder]|].
+     solve [sauto]|].
 
 Ltac solve_bisim' :=
   match goal with
@@ -132,7 +131,8 @@ Ltac solve_bisim' :=
     pose (t := wp a C);
     apply PreBisimulationExtend with (W:=t); [reflexivity|];
     cbv in t;
-    subst t;
+    unfold t;
+    clear t;
     simpl (_ ++ _)
   | |- _ => progress simpl
   end.

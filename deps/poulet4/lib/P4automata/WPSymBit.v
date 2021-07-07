@@ -45,8 +45,8 @@ Section WeakestPreSymbolicBit.
   Definition wp (phi: conf_rel S H) : list (conf_rel S H) :=
     let cur_st_left  := phi.(cr_st).(cs_st1) in
     let cur_st_right := phi.(cr_st).(cs_st2) in
-    let pred_pairs := list_prod (WP.preds a Left (List.map inl (enum S1)) cur_st_left)
-                                (WP.preds a Right (List.map inr (enum S2)) cur_st_right) in
+    let pred_pairs := list_prod (WP.preds a Left ([inr false; inr true] ++ List.map (fun s => inl (inl s)) (enum S1)) cur_st_left)
+                                (WP.preds a Right ([inr false; inr true] ++ List.map (fun s => inl (inr s)) (enum S2)) cur_st_right) in
     List.concat (List.map (wp_pred_pair phi) pred_pairs).
 
 End WeakestPreSymbolicBit.

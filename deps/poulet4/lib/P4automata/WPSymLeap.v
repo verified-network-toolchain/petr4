@@ -35,11 +35,20 @@ Section WeakestPreSymbolicLeap.
              {c}
              (si: side)
              (s: state_template S)
-             (candidate: S)
+             (candidate: P4A.state_ref S)
     : lpred c :=
-    let st := a.(P4A.t_states) candidate in
-    (P4A.size a candidate,
-     WP.PredJump (WP.trans_cond si (P4A.st_trans st) s.(st_state)) candidate).
+    match candidate with
+    | inl cand => 
+      let st := a.(P4A.t_states) cand in
+      (P4A.size a cand,
+       WP.PredJump (WP.trans_cond si (P4A.st_trans st) s.(st_state)) candidate)
+    | inr cand =>
+      (1, WP.PredJump (match s.(st_state) with
+                       | inr false => BRTrue _ _
+                       | _ => BRFalse _ _
+                       end)
+                      candidate)
+    end.
 
   Definition weaken_lpred {c} (size: nat) (p: lpred c) : lpred (BCSnoc c size) :=
     (fst p, WP.weaken_pred size (snd p)).
@@ -47,7 +56,7 @@ Section WeakestPreSymbolicLeap.
   Definition max_preds
              {c}
              (si: side)
-             (candidates: list S)
+             (candidates: list (P4A.state_ref S))
              (s: state_template S)
     : list (lpred c) :=
     if s.(st_buf_len) == 0
@@ -69,14 +78,18 @@ Section WeakestPreSymbolicLeap.
     | WP.PredRead _ _ s =>
       phi'
     | WP.PredJump cond s =>
-      BRImpl cond (WP.wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
+      WP.sr_subst match s with
+                  | inl s =>
+                    BRImpl cond (WP.wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
+                  | inr s =>
+                    phi'
+                  end
+                  (BELit _ _ [])
+                  (BEBuf _ _ si)
     end.
 
   Definition st_lpred {c} (p: lpred c) :=
-    match snd p with
-    | WP.PredRead _ _ s => s
-    | WP.PredJump _ s => {| st_state := inl s; st_buf_len := P4A.size a s - fst p |}
-    end.
+    WP.st_pred a (snd p).
 
   Definition wp_pred_pair
              (phi: conf_rel S H)
@@ -95,8 +108,8 @@ Section WeakestPreSymbolicLeap.
   Definition wp (phi: conf_rel S H) : list (conf_rel S H) :=
     let cur_st_left  := phi.(cr_st).(cs_st1) in
     let cur_st_right := phi.(cr_st).(cs_st2) in
-    let pred_pairs := list_prod (max_preds Left (List.map inl (enum S1)) cur_st_left)
-                                (max_preds Right (List.map inr (enum S2)) cur_st_right) in
+    let pred_pairs := list_prod (max_preds Left ([inr false; inr true] ++ List.map (fun s => inl (inl s)) (enum S1)) cur_st_left)
+                                (max_preds Right ([inr false; inr true] ++ List.map (fun s => inl (inr s)) (enum S2)) cur_st_right) in
     List.concat (List.map (wp_pred_pair phi) pred_pairs).
 
 End WeakestPreSymbolicLeap.

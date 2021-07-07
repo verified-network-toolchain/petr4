@@ -1318,13 +1318,13 @@ Module SynPreSynWP1bit.
         | WP.PredRead _ _ st =>
           interp_state_template st q1
         | WP.PredJump phi s =>
-          fst (fst q1) = inl s
+          fst (fst q1) = s
         end ->
         match p2 with
         | WP.PredRead _ _ st =>
           interp_state_template st q2
         | WP.PredJump phi s =>
-          fst (fst q2) = inl s
+          fst (fst q2) = s
         end ->
         i q1 q2.
 
@@ -1494,6 +1494,34 @@ Module SynPreSynWP1bit.
                   |intuition].
     Qed.
 
+    Lemma interp_bit_expr_ignores_state:
+      forall {c} (e: bit_expr H c) valu s1 st1 buf1 s2 st2 buf2 s1' s2',
+        interp_bit_expr (a:=a) e valu (s1, st1, buf1) (s2, st2, buf2) =
+        interp_bit_expr (a:=a) e valu (s1', st1, buf1) (s2', st2, buf2).
+    Proof.
+      induction e; intros.
+      - reflexivity.
+      - reflexivity.
+      - simpl.
+        destruct a0; simpl; reflexivity.
+      - reflexivity.
+      - simpl.
+        erewrite IHe; eauto.
+      - simpl.
+        erewrite IHe1, IHe2; eauto.
+    Qed.
+
+    Lemma interp_store_rel_ignores_state:
+      forall {c} (r: store_rel H c) valu s1 st1 buf1 s2 st2 buf2 s1' s2',
+        interp_store_rel (a:=a) r valu (s1, st1, buf1) (s2, st2, buf2) ->
+        interp_store_rel (a:=a) r valu (s1', st1, buf1) (s2', st2, buf2).
+    Proof.
+      induction r; intros; simpl in *; try solve [intuition eauto].
+      erewrite (interp_bit_expr_ignores_state e1).
+      erewrite (interp_bit_expr_ignores_state e2).
+      eauto.
+    Qed.
+
     Lemma wp_concrete_safe :
       SynPreSynWP.safe_wp_1bit _ _ _ a (WP.wp (H:=H)) i.
     Proof.
@@ -1526,13 +1554,75 @@ because you're not branching on the same thing.
         unfold "===" in *;
         simpl in *.
       - cbv in H0.
+        destruct cs_st1 as [cst1 bl1] eqn:?, cs_st2 as [cst2 bl2] eqn:?.
+        simpl in *.
         (* this is a real transition*)
         destruct st1 as [[st1 | ?] | st1], st2 as [[st2 | ?] | st2];
           try solve [cbv in H0; tauto].
+        + simpl in *.
+          subst bl2.
+          subst bl1.
+          simpl in *.
+          admit.
         + admit.
         + admit.
-        + admit.
-        + admit.
+        + simpl in *.
+          subst cst1 cst2.
+          cbn in *.
+          pose (pred_l := WP.PredJump (S1:=S1) (S2:=S2) (BRTrue H cr_ctx) (inr st1)).
+          pose (pred_r := WP.PredJump (S1:=S1) (S2:=S2) (BRTrue H cr_ctx) (inr st2)).
+          pose (wp_lr :=
+                  (WP.wp_pred_pair
+                     {|
+                       WPSymLeap.P4A.t_states := t_states;
+                       WPSymLeap.P4A.t_nonempty := t_nonempty;
+                       WPSymLeap.P4A.t_has_extract := t_has_extract
+                     |}
+                     {|
+                       cr_st := {| cs_st1 := cs_st1; cs_st2 := cs_st2 |};
+                       cr_ctx := cr_ctx;
+                       cr_rel := cr_rel
+                     |} (pred_l, pred_r))).
+          assert (forall r, In r wp_lr ->
+                       interp_conf_rel (a:=a) r (inr st1, s1, buf1) (inr st2, s2, buf2)).
+          {
+            intros.
+            eapply interp_rels_in; eauto.
+            rewrite in_map_iff.
+            eexists; intuition eauto.
+            rewrite in_concat.
+            eexists wp_lr.
+            split; auto.
+            rewrite in_map_iff.
+            exists (pred_l, pred_r).
+            split; [reflexivity|].
+            rewrite in_prod_iff.
+            unfold WP.preds.
+            simpl.
+            subst bl1 bl2.
+            simpl.
+            destruct st1, st2;
+              unfold pred_l, pred_r;
+              simpl;
+              tauto.
+          }
+          cbn in wp_lr.
+          match goal with
+          | wp_lr := ?a :: ?b :: nil : _ |- _ => pose (wp_lr' := (a, b))
+          end.
+          assert (Hfst:In (fst wp_lr') wp_lr /\
+                       In (snd wp_lr') wp_lr)
+            by (unfold wp_lr', wp_lr; simpl; tauto).
+          destruct Hfst as [Hfst Hsnd].
+          pose proof (H2 (fst wp_lr') Hfst) as Hf.
+          cbn in Hf.
+          unfold interp_conf_rel, interp_conf_state, interp_state_template in Hf.
+          subst.
+          cbn in Hf.
+          specialize (Hf ltac:(intuition Lia.lia) valu I I).
+          rewrite !sr_subst_buf_left, !sr_subst_buf_right in Hf.
+          simpl in Hf.
+          eapply interp_store_rel_ignores_state; eauto.
       - admit.
       - admit.
       - (* this is a read*)
@@ -1562,7 +1652,7 @@ because you're not branching on the same thing.
                      cr_rel := cr_rel
                    |} (pred_l, pred_r))).
         assert (forall r, In r wp_lr ->
-                       interp_conf_rel (a:=a) r (st1, s1, buf1) (st2, s2, buf2)).
+                     interp_conf_rel (a:=a) r (st1, s1, buf1) (st2, s2, buf2)).
         {
           intros.
           eapply interp_rels_in; eauto.
@@ -1590,9 +1680,9 @@ because you're not branching on the same thing.
           by (unfold wp_lr', wp_lr; simpl; tauto).
         destruct Hfst as [Hfst Hsnd].
         destruct bit;
-            [specialize (H8 (snd wp_lr') Hsnd)
-            |specialize (H8 (fst wp_lr') Hfst)];
-            simpl in H8.
+          [specialize (H8 (snd wp_lr') Hsnd)
+          |specialize (H8 (fst wp_lr') Hfst)];
+          simpl in H8.
         + unfold interp_conf_rel, interp_conf_state, interp_state_template in H8.
           subst.
           simpl in H8.

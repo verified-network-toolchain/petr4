@@ -6,9 +6,11 @@ Definition possibly_unsound_init_rel
   :=
     (mk_init 100 SimpleSplit.aut Simple.Start Split.StSplit1). 
 
+(*
 Lemma prebisim_simple_split_sym_small_init:
   pre_bisimulation SimpleSplit.aut
                    (WPSymBit.wp (H:=SimpleSplit.header))
+                   (separated _ _ _ SimpleSplit.aut)
                    nil
                    possibly_unsound_init_rel
                    (inl (inl Simple.Start), [], [])
@@ -21,3 +23,5 @@ Proof.
   cbv in *.
   intuition (try congruence).
 Qed.
+
+*)

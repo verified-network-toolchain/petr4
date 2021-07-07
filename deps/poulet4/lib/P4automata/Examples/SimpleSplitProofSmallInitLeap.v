@@ -9,6 +9,7 @@ Definition possibly_unsound_init_rel
 Lemma prebisim_simple_split_sym_small_init_leap:
   pre_bisimulation SimpleSplit.aut
                    (WPSymLeap.wp (H:=SimpleSplit.header))
+                   (separated _ _ _ SimpleSplit.aut)
                    nil
                    possibly_unsound_init_rel
                    (inl (inl Simple.Start), [], [])

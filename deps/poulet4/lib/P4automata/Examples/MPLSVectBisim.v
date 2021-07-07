@@ -1,7 +1,6 @@
 Require Import Poulet4.P4automata.Examples.ProofHeader.
 Require Import Poulet4.P4automata.Examples.MPLSVectorized.
 
-
 Ltac solve_bisim' :=
   match goal with
   | |- pre_bisimulation _ _ _ [] _ _ =>
@@ -30,6 +29,7 @@ Ltac solve_bisim' :=
 (* Lemma prebisim_mpls_unroll:
   pre_bisimulation MPLSVect.aut
                    (WPSymLeap.wp (H:=_))
+                   (separated _ _ _ MPLSVect.aut)
                    nil
                    (mk_init 10 MPLSVect.aut MPLSPlain.ParseMPLS MPLSUnroll.ParseMPLS0)
                    (inl (inl MPLSPlain.ParseMPLS), [], [])
@@ -62,4 +62,3 @@ Proof.
   cbv in *.
   intuition (try congruence).
 Time Qed. *)
-

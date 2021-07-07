@@ -107,46 +107,32 @@ From Hammer Require Import Hammer.
 
 Ltac pbskip' :=
   apply PreBisimulationSkip;
-    [cbn in *;
-     intros;
-     unfold interp_conf_rel,
-            interp_store_rel,
-            interp_conf_state,
-            interp_state_template in *;
-     simpl in *;
-     sfirstorder;
-     solve [hammer]|].
+    [intros [[s1 st1] buf1] [[s2 st2] buf2];
+     repeat (unfold interp_crel,
+             interp_conf_rel,
+             interp_conf_state,
+             interp_store_rel,
+             interp_bit_expr,
+             interp_store_rel,
+             interp_state_template,
+             RelationClasses.relation_conjunction,
+             Relations.interp_rels
+             || cbn);
+     solve [hfcrush unfold:length inv:list|
+            sfirstorder]|].
 
 Ltac solve_bisim' :=
   match goal with
-  | |- context[WPSymLeap.wp _ _] =>
-    progress (
-        unfold WPSymLeap.wp at -1;
-        autounfold with wp;
-        unfold WP.wp_op;
-        simpl)
-  | |- context[WPSymBit.wp _ _] =>
-    progress (
-        unfold WPSymBit.wp at -1;
-        unfold
-                WP.preds, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op,
-                WPSymBit.wp_pred_pair 
-              ; simpl)
-  | |- context[WP.wp _ _] =>
-    progress (
-        unfold WP.wp at -1;
-        unfold
-                WP.preds, WP.wp_pred_pair, WP.st_pred, WP.wp_pred, WP.wp_op
-              ; simpl)
-  | |- pre_bisimulation _ _ _ [] _ _ =>
+  | |- pre_bisimulation _ _ _ _ [] _ _ =>
     apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ (_::_) _ _ =>
+  | |- pre_bisimulation _ _ _ _ (_::_) _ _ =>
     pbskip'
-  | |- pre_bisimulation ?a ?wp _ (?C::_) _ _ =>
+  | |- pre_bisimulation ?a ?wp _ _ (?C::_) _ _ =>
     let t := fresh "tmp" in
     pose (t := wp a C);
     apply PreBisimulationExtend with (W:=t); [reflexivity|];
     cbv in t;
-    subst t
+    subst t;
+    simpl (_ ++ _)
   | |- _ => progress simpl
   end.

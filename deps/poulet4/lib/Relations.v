@@ -13,10 +13,8 @@ Definition rel_true: forall {A}, relation A :=
 Notation "⊤" := rel_true.
 Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
 
-Definition interp_rels {A} (R: rels A) : relation A :=
-  List.fold_right relation_conjunction ⊤ R.
-
-Notation "⟦ R ⟧" := (interp_rels R).
+Definition interp_rels {A} (i: rel A) (R: rels A) : relation A :=
+  List.fold_right relation_conjunction i R.
 
 Local Program Instance f_Equivalence {A B} {equiv: rel B} `{Equivalence B equiv} (f: A -> B): Equivalence (fun x y => equiv (f x) (f y)).
 Next Obligation.
@@ -32,16 +30,16 @@ Next Obligation.
   eapply Equivalence_Transitive; eauto.
 Qed.
 
-Definition rels_equiv {A} (R S: rels A) : Prop :=
-  relation_equivalence ⟦R⟧ ⟦S⟧.
+Definition rels_equiv {A} i (R S: rels A) : Prop :=
+  relation_equivalence (interp_rels i R) (interp_rels i S).
 
-Global Program Instance rels_Equivalence {A}: Equivalence (@rels_equiv A) :=
+Global Program Instance rels_Equivalence {A i}: Equivalence (@rels_equiv A i) :=
   ltac:(typeclasses eauto).
 
 Lemma interp_rels_in:
-  forall A (R: rels A),
+  forall A (R: rels A) i,
     forall x y,
-      interp_rels R x y ->
+      interp_rels i R x y ->
       forall r, In r R -> r x y.
 Proof.
   induction R; intros.
@@ -49,51 +47,50 @@ Proof.
   - inversion H0; subst; clear H0.
     + simpl in *.
       apply H.
-    + destruct H; eapply IHR; auto.
+    + destruct H; eapply IHR; eauto.
 Qed.
 
 Lemma in_interp_rels:
-  forall A (R: rels A),
+  forall A (i: rel A) (R: rels A),
     forall x y,
-    (forall r, In r R -> r x y) ->
-    interp_rels R x y.
+      i x y ->
+      (forall r, In r R -> r x y) ->
+      interp_rels i R x y.
 Proof.
   induction R; intros.
-  - exact I.
-  - simpl; split.
-    + apply H.
-      eauto with datatypes. 
-    + apply IHR; intros.
-      eapply H.
-      right.
-      apply H0.
+  - eauto.
+  - simpl in *.
+    split.
+    + eapply H0; eauto.
+    + eapply IHR; eauto.
+      firstorder.
 Qed.
 
 Lemma interp_rels_mono:
-  forall A (R S: rels A),
+  forall A (i: rel A) (R S: rels A),
     forall x y,
-      interp_rels S x y ->
+      i x y ->
+      interp_rels i S x y ->
       (forall r, In r R -> In r S) ->
-      interp_rels R x y.
+      interp_rels i R x y.
 Proof.
   induction R.
-  - intros.
-    exact I.
+  - eauto.
   - unfold interp_rels in *.
     intros.
     simpl.
     split.
     + assert (In a (a :: R))
         by (eauto with datatypes).
-      eapply interp_rels_in in H; eauto.
+      eapply interp_rels_in in H0; eauto.
     + eapply (IHR S); eauto.
       intros.
       eauto with datatypes.
 Qed.
 
 Lemma interp_rels_map:
-  forall A B (f: A -> rel B) l x y,
-    interp_rels (map f l) x y ->
+  forall A B i (f: A -> rel B) l x y,
+    interp_rels i (map f l) x y ->
     forall a,
       In a l -> f a x y.
 Proof.

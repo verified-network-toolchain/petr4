@@ -424,8 +424,10 @@ Module SemPre.
   Section SemPre.
     Variable (a: p4automaton).
     Notation conf := (configuration a).
+    Variable (i: rel conf).
+    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
 
-    Notation "⟦ x ⟧" := (interp_rels x).
+    Notation "⟦ x ⟧" := (interp_rels i x).
     Notation "R ⊨ S" := (forall q1 q2,
                             ⟦R⟧ q1 q2 ->
                             S q1 q2)
@@ -448,6 +450,18 @@ Module SemPre.
           (forall q1 q2, ⟦W⟧ q1 q2 -> (forall bit, C (step q1 bit) (step q2 bit))) ->
           R ⇝ (C :: T) q1 q2
     where "R ⇝ S" := (pre_bisimulation R S).
+
+    Lemma interp_rels_i:
+      forall R x y,
+        ⟦R⟧ x y ->
+        i x y.
+    Proof.
+      induction R.
+      - simpl in *.
+        eauto.
+      - simpl in *.
+        firstorder.
+    Qed.
 
     Lemma sem_pre_implies_sem_bisim' :
       forall R T,
@@ -474,28 +488,30 @@ Module SemPre.
       - apply IHpre_bisimulation.
         + intros.
           apply H.
-          eapply in_interp_rels.
+          eapply in_interp_rels; eauto using interp_rels_i.
           intros.
           apply in_app_or in H4.
           destruct H4.
           * eapply interp_rels_in in H3; eauto with datatypes.
           * destruct H4; subst.
-            -- eauto using interp_rels_mono with datatypes.
+            -- eapply H1.
+               eauto using interp_rels_mono, interp_rels_i with datatypes.
             -- eapply interp_rels_in in H3; eauto with datatypes.
         + intros.
           apply H0.
-          eapply in_interp_rels.
+          eapply in_interp_rels; eauto using interp_rels_i.
           intros.
           apply in_app_or in H4.
           destruct H4.
           * eapply interp_rels_in in H3; eauto with datatypes.
           * destruct H4; subst.
-            -- eauto using interp_rels_mono with datatypes.
+            -- eapply H1.
+               eauto using interp_rels_mono, interp_rels_i with datatypes.
             -- eapply interp_rels_in in H3; eauto with datatypes.
       - apply IHpre_bisimulation.
         + intros.
           apply H.
-          apply in_interp_rels.
+          apply in_interp_rels; eauto using interp_rels_i.
           intros ? ?.
           eapply interp_rels_in in H3; eauto with datatypes.
           rewrite in_app_iff in H4.
@@ -516,17 +532,20 @@ Module SemPre.
                left.
                apply H4.
         + intros.
-          eapply in_interp_rels.
+          eapply in_interp_rels;
+            eauto using i_closed, interp_rels_i.
           intros ? ?.
           destruct H4.
           * subst.
             apply H2.
-            eapply in_interp_rels.
+            eapply in_interp_rels;
+              eauto using i_closed, interp_rels_i.
             intros ? ?.
             eapply interp_rels_in in H3; eauto with datatypes.
           * eapply interp_rels_in; try eassumption.
             eapply H0; auto.
-            apply in_interp_rels.
+            eapply in_interp_rels;
+              eauto using i_closed, interp_rels_i.
             intros ? ?.
             eapply interp_rels_in in H3; eauto.
             apply in_app_iff in H5.
@@ -544,7 +563,8 @@ Module SemPre.
       intros.
       eapply sem_pre_implies_sem_bisim' with (R:=[]) (T:=T); eauto.
       intros.
-      exact I.
+      apply i_closed.
+      eauto using interp_rels_i.
     Qed.
 
   End SemPre.
@@ -554,8 +574,10 @@ Module SemPreLeaps.
   Section SemPreLeaps.
     Variable (a: p4automaton).
     Notation conf := (configuration a).
+    Variable (i: rel conf).
+    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
 
-    Notation "⟦ x ⟧" := (interp_rels x).
+    Notation "⟦ x ⟧" := (interp_rels i x).
     Notation "R ⊨ S" := (forall q1 q2,
                             ⟦R⟧ q1 q2 ->
                             S q1 q2)
@@ -610,9 +632,12 @@ Module SynPreSynWP.
 
     Notation conf := (configuration (P4A.interp a)).
 
-    Notation "⟦ x ⟧" := (interp_crel x).
+    Variable (i: rel conf).
+    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
+
+    Notation "⟦ x ⟧" := (interp_crel i x).
     Notation "⦇ x ⦈" := (interp_conf_rel (a:=a) x).
-    Notation "R ⊨ q1 q2" := (interp_crel R q1 q2) (at level 40).
+    Notation "R ⊨ q1 q2" := (⟦R⟧ q1 q2) (at level 40).
     Notation "R ⊨ S" := (forall q1 q2, ⟦R⟧ q1 q2 -> ⦇S⦈ q1 q2) (at level 40).
     Notation δ := step.
 
@@ -713,30 +738,120 @@ Module SynPreSynWP.
                  (reachable_pairs_to_partition
                     (Reachability.reachable_states a n [s])).
 
-    Definition safe_wp_1bit :=
-      forall C q1 q2,
+    Definition lift_l {X Y A} (f: X -> A) (x: X + Y) : A + Y :=
+      match x with
+      | inl x => inl (f x)
+      | inr y => inr y
+      end.
+
+    Definition separated (q1 q2: conf) : Prop :=
+      match q1 with
+      | (inl (inl _), _, _) => True
+      | (inl (inr _), _, _) => False
+      | (inr _, _, _) => True
+      end /\
+      match q2 with
+      | (inl (inr _), _, _) => True
+      | (inl (inl _), _, _) => False
+      | (inr _, _, _) => True
+      end.
+
+    Definition ibdd (C: rel conf) : Prop :=
+      forall q1 q2,
+        C q1 q2 ->
+        i q1 q2.
+
+    Definition cibdd (C: crel S H) : Prop :=
+      forall r,
+        In r C ->
+        ibdd ⦇r⦈.
+
+    Lemma cibbd_ibdd:
+      forall R,
+        cibdd R ->
+        ibdd ⟦R⟧.
+    Proof.
+      unfold cibdd, ibdd.
+      induction R; simpl; intros.
+      - assumption.
+      - inversion H1.
+        eauto.
+    Qed.
+
+    Lemma cibdd_app:
+      forall C T,
+        cibdd C ->
+        cibdd T ->
+        cibdd (C ++ T).
+    Proof.
+      unfold cibdd.
+      intros.
+      rewrite in_app_iff in *.
+      intuition.
+    Qed.
+
+    Lemma ibdd_mono:
+      forall (R S: rel conf),
+        (forall x y, R x y -> S x y) ->
+        ibdd S ->
+        ibdd R.
+    Proof.
+      unfold ibdd.
+      firstorder.
+    Qed.
+
+    Definition safe_wp_1bit : Prop :=
+      forall C (q1 q2: conf),
+        i q1 q2 ->
         ⟦wp a C⟧ q1 q2 ->
-        forall bit, ⦇C⦈ (δ q1 bit) (δ q2 bit).
-    
+        forall bit,
+          ⦇C⦈ (δ q1 bit) (δ q2 bit).
+
+    Definition wp_bdd :=
+      forall a C,
+        ibdd ⦇C⦈ ->
+        cibdd (wp a C).
+
     Lemma syn_pre_implies_sem_pre:
       forall R S q1 q2,
-        safe_wp_1bit ->
         R ⇝ S q1 q2 ->
+        cibdd R ->
+        cibdd S ->
+        safe_wp_1bit ->
+        wp_bdd ->
         SemPre.pre_bisimulation (P4A.interp a)
+                                i
                                 (map interp_conf_rel R)
                                 (map interp_conf_rel S)
                                 q1 q2.
     Proof.
-      intros.
-      induction H1.
+      intros R S q1 q2 Hstep.
+      induction Hstep.
       - simpl.
         constructor.
         eauto.
       - simpl.
         constructor 2; eauto.
-      - rewrite map_app in IHpre_bisimulation.
+        eapply IHHstep; eauto.
+        unfold cibdd; intros.
+        eauto with datatypes.
+      - rewrite map_app in IHHstep.
         subst.
-        econstructor 3; eauto.
+        intros.
+        econstructor 3.
+        eapply IHHstep; eauto.
+        + unfold cibdd in *.
+          intros.
+          simpl (In _ _) in *.
+          intuition.
+        + eapply cibdd_app.
+          * unfold cibdd in *; simpl (In _ _ ) in *; eauto.
+          * eapply H3.
+            eapply H1.
+            eauto with datatypes.
+        + intros.
+          eapply H2; eauto.
+          eapply SemPre.interp_rels_i; eauto.
     Qed.
 
   End SynPreSynWP.
@@ -760,6 +875,10 @@ Module SynPreSynWP1bit.
     Context `{H_finite: @Finite H _ H_eq_dec}.
 
     Variable (a: P4A.t (S1 + S2) H).
+
+    Notation conf := (configuration (P4A.interp a)).
+    Variable (i: rel conf).
+    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
 
     Lemma be_subst_hdr_left:
       forall c (valu: bval c) hdr exp phi s1 st1 buf1 c2 v,
@@ -1190,9 +1309,11 @@ Module SynPreSynWP1bit.
     Qed.
 
     Lemma wp_pred_pair_step :
-      forall C u v,
+      forall C u v s t,
         (forall sl sr,
-            interp_crel (a:=a) (WP.wp_pred_pair a C (sl, sr)) u v) ->
+            In sl (WP.preds a Left (map inl (enum S1)) s) ->
+            In sr (WP.preds a Right (map inl (enum S1)) t) ->
+            interp_crel (a:=a) i (WP.wp_pred_pair a C (sl, sr)) u v) ->
         (forall b, interp_conf_rel C (step u b) (step v b)).
     Proof.
       intros.
@@ -1249,8 +1370,8 @@ Module SynPreSynWP1bit.
               clear H'; clear H
           end.
           unfold WP.wp_op in *; cbn in *.
-          clear sl.
-          clear sr.
+          admit.
+          admit.
           admit.
         + admit.
         + admit.
@@ -1261,7 +1382,7 @@ Module SynPreSynWP1bit.
     Admitted.
 
     Lemma wp_concrete_safe :
-      SynPreSynWP.safe_wp_1bit _ _ _ a (WP.wp (H:=H)).
+      SynPreSynWP.safe_wp_1bit _ _ _ a (WP.wp (H:=H)) i.
     Proof.
       unfold SynPreSynWP.safe_wp_1bit.
       intros.
@@ -1272,34 +1393,25 @@ Module SynPreSynWP1bit.
       destruct a; simpl in * |-.
       destruct cr_st.
       unfold WP.wp in * |-.
-      set (p1 := WP.preds _ _ _ _) in H0.
-      set (p2 := WP.preds _ _ _ _) in H0.
-      remember (list_prod p1 p2) as p.
-      symmetry in Heqp.
-      revert Heqp.
-      induction p; intros.
-      - unfold WP.wp_pred_pair in *.
-        simpl in * |-.
-        cbv in H0.
-        assert (p1 = [] \/ p2 = []).
-        {
-          unfold list_prod in *.
-          destruct p1, p2; try tauto.
-          simpl in Heqp.
-          congruence.
-        }
-        unfold WP.preds in *.
+    Admitted.
+
+    Lemma wp_concrete_bdd:
+      SynPreSynWP.wp_bdd S1 S2 H a (WP.wp (H:=H)) i.
+    Proof.
     Admitted.
       
     Lemma syn_pre_1bit_concrete_implies_sem_pre:
     forall R S q1 q2,
-      SynPreSynWP.pre_bisimulation a (WP.wp (H:=H)) R S q1 q2 ->
+      SynPreSynWP.cibdd _ _ _ a i R ->
+      SynPreSynWP.cibdd _ _ _ a i S ->
+      SynPreSynWP.pre_bisimulation a (WP.wp (H:=H)) i R S q1 q2 ->
       SemPre.pre_bisimulation (P4A.interp a)
+                              i
                               (map interp_conf_rel R)
                               (map interp_conf_rel S)
                               q1 q2.
     Proof.
-      eauto using wp_concrete_safe, SynPreSynWP.syn_pre_implies_sem_pre.
+      eauto using wp_concrete_safe, wp_concrete_bdd, SynPreSynWP.syn_pre_implies_sem_pre.
     Qed.
   
   End SynPreSynWP1bit.
@@ -1323,24 +1435,35 @@ Module SynPreSynWPSym.
 
     Variable (a: P4A.t (S1 + S2) H).
 
-    Check WP.wp.
-    Check (WP.wp a).
+    Notation conf := (configuration (P4A.interp a)).
+    Variable (i: rel conf).
+    Variable (i_closed: forall x y b, i x y -> i (step x b) (step y b)). 
+
+
     Lemma wp_sym_safe :
-      SynPreSynWP.safe_wp_1bit _ _ _ a (WPSymBit.wp (H:=H)).
+      SynPreSynWP.safe_wp_1bit _ _ _ a (WPSymBit.wp (H:=H)) i.
     Proof.
       unfold SynPreSynWP.safe_wp_1bit.
       intros.
     Admitted.
-      
+
+    Lemma wp_sym_bdd :
+      SynPreSynWP.wp_bdd S1 S2 H a (WPSymBit.wp (H:=H)) i.
+    Proof.
+    Admitted.
+
     Lemma syn_pre_1bit_sym_implies_sem_pre:
     forall R S q1 q2,
-      SynPreSynWP.pre_bisimulation a (WPSymBit.wp (H:=H)) R S q1 q2 ->
+      SynPreSynWP.cibdd _ _ _ a i R ->
+      SynPreSynWP.cibdd _ _ _ a i S ->
+      SynPreSynWP.pre_bisimulation a (WPSymBit.wp (H:=H)) i R S q1 q2 ->
       SemPre.pre_bisimulation (P4A.interp a)
+                              i
                               (map interp_conf_rel R)
                               (map interp_conf_rel S)
                               q1 q2.
     Proof.
-      eauto using wp_sym_safe, SynPreSynWP.syn_pre_implies_sem_pre.
+      eauto using wp_sym_safe, wp_sym_bdd, SynPreSynWP.syn_pre_implies_sem_pre.
     Qed.
   End SynPreSynWPSym.
 End SynPreSynWPSym.

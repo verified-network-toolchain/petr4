@@ -331,8 +331,8 @@ Section ConfRel.
   Notation "⊤" := rel_true.
   Notation "x ⊓ y" := (relation_conjunction x y) (at level 40).
   Notation "⟦ x ⟧" := (interp_conf_rel x).
-  Definition interp_crel (rel: crel) : relation conf :=
-    interp_rels (List.map interp_conf_rel rel).
+  Definition interp_crel i (rel: crel) : relation conf :=
+    interp_rels i (List.map interp_conf_rel rel).
 
 End ConfRel.
 Arguments interp_conf_rel {_} {_} {_} {_} {_} _.

@@ -122,6 +122,9 @@ Section CComp.
                         else None
     | <{Var x : ty @ i}> => (*first find if x has been declared. If not, declare it by putting it into vars*)
                         let (cty, env_ty) := CTranslateType ty env in
+                        match find_ident_temp_arg env_ty x with (*first look for if this is an argument and has its own temp for copy in/out *)
+                        | Some (_,tempid) => Some (Etempvar tempid cty, env_ty)
+                        | None =>
                         match find_ident env_ty x with
                         | Some id => Some (Evar id cty, env_ty)
                         | None => let env' := add_var env_ty x cty in
@@ -129,6 +132,7 @@ Section CComp.
                                   | Some id' => Some (Evar id' cty, env')
                                   | None => None
                                   end
+                        end
                         end 
     | <{Slice n : τ [ hi : lo ] @ i}> => 
                         match CTranslateExpr n env with
@@ -223,7 +227,7 @@ Section CComp.
     end.
 
   Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv): option ((list Clight.expr) * ClightEnv) :=
-    let Cumulator: Type := option ((list Clight.expr * ClightEnv)) in 
+    let Cumulator: Type := option (list Clight.expr * ClightEnv) in 
     let transformation (A: Cumulator) (B: E.e tags_t) : Cumulator := 
       match A with
       |None => None
@@ -233,6 +237,33 @@ Section CComp.
       |Some (B', env'') => Some(el' ++ [B'], env'')
       end end in
     List.fold_left  (transformation) el (Some ([],env)).
+  
+  Definition CTranslateDirExprList (el: E.args tags_t) (env: ClightEnv) : option ((list Clight.expr) * ClightEnv) := 
+    let Cumulator : Type := option (list Clight.expr * ClightEnv) in 
+    let transformation (A: Cumulator) (B: string * (P.paramarg (E.t*(E.e tags_t)) (E.t*(E.e tags_t)))) : Cumulator := 
+      match A with
+      |None => None
+      |Some (el', env') =>
+      match B with 
+      | (_, P.PAIn(t, e)) => 
+        match CTranslateExpr e env' with 
+        | None => None
+        | Some (e', env'') => Some (el' ++ [e'], env'')
+        end
+      | (_, P.PAOut(t, e)) 
+      | (_, P.PAInOut(t, e)) =>
+        let (ct, env_ct):= CTranslateType t env' in 
+        match CTranslateExpr e env_ct with 
+        | None => None
+        | Some (e', env'') => 
+        let e' := Eaddrof e' (Tpointer ct noattr) in 
+        Some (el' ++ [e'], env'')
+        end
+      end
+      end
+    in 
+    List.fold_left  (transformation) el (Some ([],env)).
+  
   Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv) : option (Clight.statement * ClightEnv) :=
     match s with
     | -{skip @ i}- => Some (Sskip, env)
@@ -271,15 +302,7 @@ Section CComp.
     | -{call f with args @ i}- => match CCompEnv.lookup_function env f with
                                   |None => None
                                   |Some(f', id) =>
-                                    let args' : list (E.e tags_t) := 
-                                      let map_f (f:string * (P.paramarg (E.t*(E.e tags_t)) (E.t*(E.e tags_t)))) : (E.e tags_t):=
-                                      match f with
-                                      | (_, P.PAIn (t,e))
-                                      | (_, P.PAOut (t,e))
-                                      | (_, P.PAInOut (t,e)) => e
-                                      end in
-                                      List.map (map_f) args in
-                                    match CTranslateExprList args' env with
+                                    match CTranslateDirExprList args env with
                                     | None => None
                                     | Some (elist, env') => 
                                     Some(Scall None (Evar id (Clight.type_of_function f')) elist, env')
@@ -290,15 +313,7 @@ Section CComp.
                                   match CCompEnv.lookup_function env_ct f with
                                   |None => None
                                   |Some(f', id) =>
-                                    let args' : list (E.e tags_t) := 
-                                      let map_f (f:string * (P.paramarg (E.t*(E.e tags_t)) (E.t*(E.e tags_t)))) : (E.e tags_t):=
-                                      match f with
-                                      | (_, P.PAIn (t,e))
-                                      | (_, P.PAOut (t,e))
-                                      | (_, P.PAInOut (t,e)) => e
-                                      end in
-                                      List.map (map_f) args in
-                                    match CTranslateExprList args' env_ct with
+                                    match CTranslateDirExprList args env_ct with
                                     | None => None
                                     | Some (elist, env') => 
                                     let (env', tempid) := CCompEnv.add_temp_nameless env' ct in
@@ -382,20 +397,20 @@ Section CComp.
 
   Definition CTranslateParams (params : E.params) (env : ClightEnv) 
   : list (AST.ident * Ctypes.type) * ClightEnv :=
-  let paramarg_types : list E.t :=
-    List.map 
-    (fun (p: P.paramarg E.t E.t) => match p with
-                                    | P.PAIn x
-                                    | P.PAOut x
-                                    | P.PAInOut x => x end) 
-    (F.values params) in
   List.fold_left 
-    (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: E.t)
-    => let (l, env') := cumulator in
+    (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: string * P.paramarg E.t E.t)
+    =>let (l, env') := cumulator in
       let (env', new_id) := new_ident env' in
-      let (ct, env_ct) := CTranslateType p env' in 
-      ((new_id, ct) :: l, env_ct)) 
-  paramarg_types ([],env)
+      let (ct,env_ct) := match p with 
+        | (_, P.PAIn x) => (CTranslateType x env')
+        | (_, P.PAOut x)
+        | (_, P.PAInOut x) => let (ct', env_ct') := CTranslateType x env' in
+                         (Ctypes.Tpointer ct' noattr, env_ct')
+      end in
+      let s := fst p in
+      let env_temp_added := add_temp_arg env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
+      ((new_id, ct) :: l, env_temp_added)) 
+  (params) ([],env)
   . 
 
   Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
@@ -458,7 +473,16 @@ Section CComp.
 
   | _ => None
   end.
-
+(*try to do copy in copy out*)
+  (* Definition CCopyIn (fn_params: E.params) (env: ClightEnv)
+  : Clight.statement := 
+  List.fold_left 
+    (fun (cumulator: Clight.statement) (fn_param: string * (paramarg E.t E.t))
+    =>let (name, t) := fn_param in 
+      match find_ident_temp_arg env name with
+      | None => cumulator
+      | Some (oldid, tempid) => cumulator 
+    ) *)
 
   Definition CTranslateAction 
   (signature: E.params) (body: ST.s tags_t) 
@@ -623,4 +647,7 @@ Section CComp.
     end.  
 End CComp.
 
-Definition test := CComp.Compile_print string helloworld_program.
+Definition test := CComp.Compile string helloworld_program.
+
+Check test.
+Compute test.

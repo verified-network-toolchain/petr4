@@ -10,12 +10,13 @@ Module P := P4cub.
 Module E := P.Expr.
 (*map between string and ident*)
 Record ClightEnv : Type := {
-  identMap : Env.t string AST.ident;
+  identMap : Env.t string AST.ident; (*contains name and their original references*)
   temps : (list (AST.ident * Ctypes.type));
   vars : (list (AST.ident * Ctypes.type));
   composites : (list (E.t * Ctypes.composite_definition));
   identGenerator : IdentGen.generator;
   fenv: Env.t string Clight.function;
+  tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
 }.
 
 Definition newClightEnv : ClightEnv :=
@@ -26,6 +27,7 @@ Definition newClightEnv : ClightEnv :=
   composites := [];
   identGenerator := IdentGen.gen_init;
   fenv := Env.empty string Clight.function;
+  tempOfArg := Env.empty string (AST.ident* AST.ident);
   |}.
 
 Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
@@ -38,7 +40,23 @@ Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
   composites := env.(composites);
   identGenerator := gen';
   fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
   |}.
+
+Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
+: ClightEnv := 
+  let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+  {|
+  identMap := env.(identMap);
+  temps := (new_ident, t)::(env.(temps));
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := gen';
+  fenv := env.(fenv);
+  tempOfArg := Env.bind temp (oldid,new_ident) env.(tempOfArg);
+  |}.
+
+
 
 Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type)
 : ClightEnv * ident := 
@@ -50,7 +68,10 @@ Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type)
   composites := env.(composites);
   identGenerator := gen';
   fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
   |}, new_ident).
+
+
 
 Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
 : ClightEnv := 
@@ -62,6 +83,7 @@ Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
   composites := env.(composites);
   identGenerator := gen';
   fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
   |}.
 
 Definition add_composite_typ 
@@ -75,6 +97,7 @@ Definition add_composite_typ
   composites := (p4t, composite_def) :: env.(composites);
   identGenerator := env.(identGenerator);
   fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
   |}
   .
 
@@ -91,6 +114,7 @@ vars := env.(vars);
 composites := env.(composites);
 identGenerator := gen';
 fenv := Env.bind name f env.(fenv);
+tempOfArg := env.(tempOfArg);
 |}.
 
 Definition update_function
@@ -105,6 +129,7 @@ vars := env.(vars);
 composites := env.(composites);
 identGenerator := env.(identGenerator);
 fenv := Env.bind name f env.(fenv);
+tempOfArg := env.(tempOfArg);
 |}.
 
 Definition new_ident
@@ -117,12 +142,15 @@ vars := env.(vars);
 composites := env.(composites);
 identGenerator := gen';
 fenv := env.(fenv);
+tempOfArg := env.(tempOfArg);
 |}, new_ident ).
 
 Definition find_ident (env: ClightEnv) (name: string)
 : option AST.ident :=
   Env.find name env.(identMap). 
-
+Definition find_ident_temp_arg (env: ClightEnv) (name: string)
+  : option (AST.ident*AST.ident) :=
+    Env.find name env.(tempOfArg). 
 (* 
 Definition eq_su (su1 su2: struct_or_union) : bool :=
   match su1, su2 with

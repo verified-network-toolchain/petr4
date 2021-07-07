@@ -46,8 +46,8 @@ Section WeakestPre.
     | BEHdr _ _ _
     | BEVar _ _ =>
       if bit_expr_eq_dec be x then e else be
-    | BESlice be hi lo => BESlice (be_subst be e x) hi lo
-    | BEConcat e1 e2 => BEConcat (be_subst e1 e x) (be_subst e2 e x)
+    | BESlice be hi lo => beslice (be_subst be e x) hi lo
+    | BEConcat e1 e2 => beconcat (be_subst e1 e x) (be_subst e2 e x)
     end.
 
   Fixpoint sr_subst {c} (sr: store_rel H c) (e: bit_expr H c) (x: bit_expr H c) : store_rel H c :=
@@ -55,9 +55,9 @@ Section WeakestPre.
   | BRTrue _ _
   | BRFalse _ _ => sr
   | BREq e1 e2 => BREq (be_subst e1 e x) (be_subst e2 e x)
-  | BRAnd r1 r2 => BRAnd (sr_subst r1 e x) (sr_subst r2 e x)
-  | BROr r1 r2 => BROr (sr_subst r1 e x) (sr_subst r2 e x)
-  | BRImpl r1 r2 => BRImpl (sr_subst r1 e x) (sr_subst r2 e x)
+  | BRAnd r1 r2 => brand (sr_subst r1 e x) (sr_subst r2 e x)
+  | BROr r1 r2 => bror (sr_subst r1 e x) (sr_subst r2 e x)
+  | BRImpl r1 r2 => brimpl (sr_subst r1 e x) (sr_subst r2 e x)
   end.
 
   Fixpoint pat_cond {ctx: bctx} (si: side) (p: P4A.pat) (c: P4A.cond H) : store_rel H ctx :=
@@ -76,7 +76,7 @@ Section WeakestPre.
     else BRFalse _ _.
 
   Definition cases_cond {ctx: bctx} (si: side) (cond: Syntax.cond H) (st': P4A.state_ref S) (s: list (P4A.sel_case S)) : store_rel H ctx :=
-    List.fold_right (@BROr _ _) (BRFalse _ _) (List.map (case_cond si cond st') s).
+    List.fold_right (@bror _ _) (BRFalse _ _) (List.map (case_cond si cond st') s).
 
   Definition trans_cond
              {c: bctx}
@@ -91,9 +91,9 @@ Section WeakestPre.
       else BRFalse _ _
     | P4A.TSel cond cases default =>
       let any_case := cases_cond s cond st' cases in
-      BROr any_case
+      bror any_case
            (if default == st'
-            then (BRImpl any_case (BRFalse _ _))
+            then (brimpl any_case (BRFalse _ _))
             else BRFalse _ _)
     end.
 
@@ -105,7 +105,7 @@ Section WeakestPre.
         wp_op' s o1 (wp_op' s o2 (buf_hi_idx, phi))
       | P4A.OpExtract width hdr =>
         let new_idx := buf_hi_idx - width in
-        let slice := BESlice (BEBuf _ _ s) (buf_hi_idx - 1) new_idx in
+        let slice := beslice (BEBuf _ _ s) (buf_hi_idx - 1) new_idx in
         (new_idx, sr_subst phi slice (BEHdr _ s hdr))
       | P4A.OpAsgn lhs rhs =>
         (buf_hi_idx, sr_subst phi (expr_to_bit_expr s rhs) (BEHdr _ s lhs))
@@ -151,14 +151,14 @@ Section WeakestPre.
   Definition wp_pred {c: bctx} (si: side) (b: bit_expr H c) (p: pred c) (phi: store_rel H c) : store_rel H c :=
     match p with
     | PredRead _ s =>
-      sr_subst phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si)
+      sr_subst phi (beconcat (BEBuf _ _ si) b) (BEBuf _ _ si)
     | PredJump cond (inl s) =>
       (sr_subst (wp_op si (a.(P4A.t_states) s).(P4A.st_op)
-                                                 (BRImpl cond phi))
-                (BEConcat (BEBuf _ _ si) b)
+                                                 (brimpl cond phi))
+                (beconcat (BEBuf _ _ si) b)
                 (BEBuf _ _ si))
     | PredJump cond (inr s) =>
-      BRImpl cond (sr_subst phi
+      brimpl cond (sr_subst phi
                             (BELit _ _ [])
                             (BEBuf _ _ si))
     end.

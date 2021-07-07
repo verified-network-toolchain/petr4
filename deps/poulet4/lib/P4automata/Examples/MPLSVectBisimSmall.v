@@ -12,10 +12,10 @@ Proof.
   set (rel0 := mk_init 10 MPLSVect.aut MPLSPlain.ParseMPLS MPLSUnroll.ParseMPLS0).
   cbv in rel0.
   subst rel0.
-  time (repeat (time solve_bisim')).
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)
 
 
 (* Lemma prebisim_mpls_vect_unroll:

@@ -83,7 +83,7 @@ Module Loop.
 
 End Loop.
 
-(* Lemma prebisim_loop:
+ (* Lemma prebisim_loop:
   pre_bisimulation (Sum.sum Loop.aut Loop.aut)
                    (WPSymLeap.wp (H:=_))
                    (separated _ _ _ (Sum.sum Loop.aut Loop.aut))
@@ -95,10 +95,10 @@ Proof.
   set (rel0 := mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start).
   cbv in rel0.
   subst rel0.
-  repeat solve_bisim'.
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)
 
 Module LoopUnroll.
   Inductive state :=
@@ -175,41 +175,18 @@ End LoopUnroll.
 
 Definition comb_aut := Sum.sum Loop.aut LoopUnroll.aut.
 
-(* Ltac solve_bisim' :=
-  match goal with
-  | |- pre_bisimulation _ _ _ [] _ _ =>
-    idtac "close";
-    time apply PreBisimulationClose
-  | |- pre_bisimulation _ _ _ (_ :: _) _ _ =>
-    idtac "skip";
-    time pbskip'
-  | |- pre_bisimulation ?a ?wp ?R (?C :: ?T) ?a1 ?a2 =>
-    idtac "extend";
-    let t := fresh "tmp" in
-    let Heqwp := fresh "Heqwp" in
-    let Hext := fresh "Hext" in
-    time pose (t := wp a C);
-      time assert (Heqwp: t = wp a C) by reflexivity;
-      time cbv in t;
-      time pose proof (Hext := fun R' T' pf => PreBisimulationExtend _ _ _ comb_aut (WPSymLeap.wp (H:=Sum.H Loop.header LoopUnroll.header)) R' T' C t a1 a2 Heqwp pf);
-      time unfold t in Hext;
-      time apply (Hext R T);
-      time clear Hext t Heqwp;
-      time simpl (_ ++ _) 
-  end. *)
-
 (* Lemma prebisim_loop_unroll:
-  pre_bisimulation comb_aut
+  pre_bisimulation (Sum.sum Loop.aut Loop.aut)
                    (WPSymLeap.wp (H:=_))
                    nil
-                   (mk_init 10 comb_aut Loop.Start LoopUnroll.Start)
+                   (mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start)
                    (inl (inl Loop.Start), [], [])
-                   (inl (inr LoopUnroll.Start), [], []).
+                   (inl (inr Loop.Start), [], []).
 Proof.
-  set (rel0 := mk_init 10 comb_aut Loop.Start LoopUnroll.Start).
+  set (rel0 := mk_init 10 (Sum.sum Loop.aut Loop.aut) Loop.Start Loop.Start).
   cbv in rel0.
   subst rel0.
-  time (repeat (time solve_bisim')).
+  time (repeat (time solve_bisim_plain)).
   cbv in *.
   intuition (try congruence).
-Time Qed. *)
+Time Qed.  *)

@@ -73,14 +73,14 @@ Section WeakestPreSymbolicLeap.
      end).
 
   Definition wp_lpred {c: bctx} (si: side) (b: bit_expr H c) (p: lpred c) (phi: store_rel H c) : store_rel H c :=
-    let phi' := WP.sr_subst phi (BEConcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
+    let phi' := WP.sr_subst phi (beconcat (BEBuf _ _ si) b) (BEBuf _ _ si) in
     match snd p with
     | WP.PredRead _ _ s =>
       phi'
     | WP.PredJump cond s =>
       WP.sr_subst match s with
                   | inl s =>
-                    BRImpl cond (WP.wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
+                    brimpl cond (WP.wp_op si (a.(P4A.t_states) s).(P4A.st_op) phi')
                   | inr s =>
                     phi'
                   end

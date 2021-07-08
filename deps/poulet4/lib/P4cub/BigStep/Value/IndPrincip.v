@@ -1,31 +1,32 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax.
-Import Val.
+Import Val ValueNotations P.P4cubNotations.
 
 (** A custom induction principle for value. *)
 Section ValueInduction.
   Variable P : v -> Prop.
   
-  Hypothesis HVBool : forall b, P (VBool b).
+  Hypothesis HVBool : forall b, P ~{ VBOOL b }~.
   
-  Hypothesis HVBit : forall w n, P (VBit w n).
+  Hypothesis HVBit : forall w n, P ~{ w VW n }~.
   
-  Hypothesis HVInt : forall w n, P (VInt w n).
+  Hypothesis HVInt : forall w n, P ~{ w VS n }~.
   
   Hypothesis HVTuple : forall vs,
-      Forall P vs -> P (VTuple vs).
+      Forall P vs -> P ~{ TUPLE vs }~.
   
   Hypothesis HVStruct : forall fs,
-      Field.predfs_data P fs -> P (VStruct fs).
+      Field.predfs_data P fs -> P ~{ STRUCT { fs } }~.
   
   Hypothesis HVHeader : forall fs b,
-      Field.predfs_data P fs -> P (VHeader fs b).
+      Field.predfs_data P fs -> P ~{ HDR { fs } VALID:=b }~.
   
-  Hypothesis HVError : forall err, P (VError err).
+  Hypothesis HVError : forall err, P ~{ ERROR err }~.
   
-  Hypothesis HVMatchKind : forall mk, P (VMatchKind mk).
+  Hypothesis HVMatchKind : forall mk, P ~{ MATCHKIND mk }~.
   
   Hypothesis HVHeaderStack : forall ts hs size ni,
-      Forall (Field.predfs_data P ∘ snd) hs -> P (VHeaderStack ts hs size ni).
+      Forall (Field.predfs_data P ∘ snd) hs ->
+      P ~{ STACK hs:ts[size] NEXT:=ni }~.
   
   Definition custom_value_ind : forall v' : v, P v' :=
     fix custom_value_ind (val : v) : P val :=
@@ -49,15 +50,16 @@ Section ValueInduction.
           | [] => Forall_nil (Field.predfs_data P ∘ snd)
           | (_, vs) as bv :: ffs => Forall_cons bv (fields_ind vs) (ffind ffs)
           end in
-      match val as v' return P v' with
-      | VBool b  => HVBool b
-      | VInt w n => HVInt w n
-      | VBit w n => HVBit w n
-      | VTuple vs      => HVTuple vs (lind vs)
-      | VStruct vs     => HVStruct vs (fields_ind vs)
-      | VHeader vs b   => HVHeader vs b (fields_ind vs)
-      | VError err     => HVError err
-      | VMatchKind mk  => HVMatchKind mk
-      | VHeaderStack ts hs size ni => HVHeaderStack ts hs size ni (ffind hs)
+      match val with
+      | ~{ VBOOL b }~             => HVBool b
+      | ~{ w VS n }~              => HVInt w n
+      | ~{ w VW n }~              => HVBit w n
+      | ~{ TUPLE vs }~            => HVTuple vs (lind vs)
+      | ~{ STRUCT { vs } }~       => HVStruct vs (fields_ind vs)
+      | ~{ HDR { vs } VALID:=b }~ => HVHeader vs b (fields_ind vs)
+      | ~{ ERROR err }~    => HVError err
+      | ~{ MATCHKIND mk }~ => HVMatchKind mk
+      | ~{ STACK hs:ts[size] NEXT:=ni }~
+        => HVHeaderStack ts hs size ni (ffind hs)
       end.
 End ValueInduction.

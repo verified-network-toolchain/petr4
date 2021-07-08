@@ -9,22 +9,21 @@ Module P := P4cub.
 Module E := P.Expr.
 
 Module SynDefs.
-  Import E.
+  Import E TypeNotations.
 
   Fixpoint width_of_typ (τ : t) : nat :=
     match τ with
-    | TBool => 1
-    | TBit w => Pos.to_nat w
-    | TInt w => Pos.to_nat w
-    | TError => 0
-    | TMatchKind => 0
-    | TTuple ts =>
+    | {{ Bool }} => 1
+    | {{ bit<w> }}
+    | {{ int<w> }} => Pos.to_nat w
+    | {{ error }}
+    | {{ matchkind }} => 0
+    | {{ tuple ts }} =>
       (List.fold_left (fun (acc : nat) t => acc + width_of_typ t) ts 0)%nat
-    | TStruct fs =>
+    | {{ struct { fs } }}
+    | {{ hdr { fs } }} =>
       (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
-    | THeader fs =>
-      (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
-    | THeaderStack fs s =>
+    | {{ stack fs[s] }} =>
       ((F.fold (fun _ t acc => acc + width_of_typ t) fs 0) * (Pos.to_nat s))%nat
     end.
 End SynDefs.

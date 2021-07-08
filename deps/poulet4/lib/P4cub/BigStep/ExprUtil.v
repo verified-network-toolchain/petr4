@@ -8,7 +8,7 @@ Module P := P4cub.
 Module E := P.Expr.
 Module F := P.F.
 Module V := Val.
-Import V.ValueNotations P.P4cubNotations.
+Import V.ValueNotations P.P4cubNotations Env.EnvNotations.
   
 (** Bit-slicing. *)
 Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=

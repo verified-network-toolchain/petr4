@@ -1,5 +1,6 @@
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.micromega.Lia.
+Require Import Coq.ZArith.ZArith
+        Coq.micromega.Lia
+        Coq.Bool.Bool.
 
 Open Scope Z_scope.
 
@@ -23,6 +24,41 @@ Module BitArith.
 
     (** Precondition for operations. *)
     Definition bound (n : Z) : Prop := -1 < n < upper_bound.
+
+    Definition boundb (n : Z) : bool :=
+      (-1 <? n) && (n <? upper_bound).
+
+    Lemma bound_boundb : forall n,
+        bound n -> boundb n = true.
+    Proof.
+      unfold bound, boundb; lia.
+    Qed.
+
+    Lemma boundb_bound : forall n,
+        boundb n = true -> bound n.
+    Proof.
+      unfold bound,boundb; lia.
+    Qed.
+
+    Lemma bound_iff : forall n,
+        bound n <-> boundb n = true.
+    Proof.
+      Local Hint Resolve boundb_bound : core.
+      Local Hint Resolve bound_boundb : core.
+      intuition.
+    Qed.
+
+    Lemma bound_reflect : forall n,
+        reflect (bound n) (boundb n).
+    Proof.
+      intro n.
+      Local Hint Constructors reflect : core.
+      Local Hint Resolve bound_iff : core.
+      destruct (boundb n) eqn:Heq; auto.
+      constructor. intros H.
+      apply bound_boundb in H.
+      rewrite H in Heq. discriminate.
+    Qed.
 
     Lemma bound0 : bound 0.
     Proof.

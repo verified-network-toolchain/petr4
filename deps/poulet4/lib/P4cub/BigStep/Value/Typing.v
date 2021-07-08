@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.BigStep.Value.Syntax
         Poulet4.P4cub.Static.Util
@@ -6,13 +7,16 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Coq.PArith.BinPos Coq.ZArith.BinInt
         Coq.micromega.Lia.
 Import ProperType Val ValueNotations
-       LValueNotations P.P4cubNotations.
+       LValueNotations P.P4cubNotations
+       Env.EnvNotations.
 
 Reserved Notation "∇ errs ⊢ v ∈ τ"
-         (at level 40, v custom p4value, τ custom p4type).
+         (at level 40, errs custom p4env,
+          v custom p4value, τ custom p4type).
 
 Reserved Notation "'LL' Γ ⊢ lval ∈ τ"
-         (at level 40, lval custom p4lvalue, τ custom p4type).
+         (at level 40, Γ custom p4env,
+          lval custom p4lvalue, τ custom p4type).
 
 Inductive type_value (errs : errors) : v -> E.t -> Prop :=
 | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
@@ -195,29 +199,92 @@ Inductive type_lvalue (Γ : gamma) : lv -> E.t -> Prop :=
     LL Γ ⊢ lval[idx] ∈ hdr { ts }
 where "'LL' Γ ⊢ lval ∈ τ" := (type_lvalue Γ lval τ).
 
-Import F.FieldTactics.
+Require Import Poulet4.P4cub.Static.Static.
 
-Local Hint Resolve BitArith.bound0 : core.
-Local Hint Resolve IntArith.bound0 : core.
-Local Hint Resolve proper_inside_header_nesting : core.
-Local Hint Constructors type_value : core.
-Local Hint Constructors proper_nesting : core.
-Hint Rewrite repeat_length.
+Section Lemmas.
+  Import F.FieldTactics.
+  
+  Local Hint Resolve BitArith.bound0 : core.
+  Local Hint Resolve IntArith.bound0 : core.
+  Local Hint Resolve proper_inside_header_nesting : core.
+  Local Hint Constructors type_value : core.
+  Local Hint Constructors proper_nesting : core.
+  Hint Rewrite repeat_length.
+  
+  Lemma vdefault_types :
+    forall (errs : errors) (τ : E.t),
+      proper_nesting τ ->
+      let val := vdefault τ in
+      ∇ errs ⊢ val ∈ τ.
+  Proof.
+    intros errs τ HPN; simpl.
+    induction τ using custom_t_ind; simpl; constructor;
+      try invert_proper_nesting;
+      autorewrite with core; auto; try lia;
+        try (ind_list_Forall; repeat inv_Forall_cons;
+             constructor; intuition; assumption);
+        try (apply repeat_Forall; unravel; constructor);
+        try (ind_list_predfs; repeat invert_cons_predfs;
+             constructor; try split; unravel;
+             intuition; assumption); auto.
+  Qed.
 
-Lemma vdefault_types :
-  forall (errs : errors) (τ : E.t),
-    proper_nesting τ ->
-    let val := vdefault τ in
-    ∇ errs ⊢ val ∈ τ.
-Proof.
-  intros errs τ HPN; simpl.
-  induction τ using custom_t_ind; simpl; constructor;
-    try invert_proper_nesting;
-    autorewrite with core; auto; try lia;
-      try (ind_list_Forall; repeat inv_Forall_cons;
-           constructor; intuition; assumption);
-      try (apply repeat_Forall; unravel; constructor);
-      try (ind_list_predfs; repeat invert_cons_predfs;
-           constructor; try split; unravel;
-           intuition; assumption); auto.
-Qed.
+  Lemma approx_type_typing : forall errs V T,
+      ∇ errs ⊢ V ∈ T -> approx_type V = T.
+  Proof.
+    intros errs V T H;
+      induction H using custom_type_value_ind;
+      unravel; auto.
+    - f_equal; induction H; inv H0;
+        unravel; subst; f_equal; auto.
+    - f_equal; induction H; inv H0;
+        repeat relf_destruct;
+        unravel; subst; f_equal; auto.
+    - clear H; f_equal;
+        induction H0; inv H1;
+          repeat relf_destruct;
+          unravel; subst; f_equal; auto.
+  Qed.
+  
+  Local Hint Constructors check_expr : core.
+  Local Hint Constructors error_ok : core.
+  Local Hint Resolve approx_type_typing : core.
+  Local Hint Constructors proper_nesting : core.
+  Hint Rewrite map_length : core. 
+  
+  Lemma expr_of_value_types {tags_t : Type} :
+    forall errs V T,
+      ∇ errs ⊢ V ∈ T ->
+      forall i : tags_t,
+        let e := expr_of_value i V in
+        ⟦ errs, ∅ ⟧ ⊢ e ∈ T.
+  Proof.
+    intros errs V T Hvt;
+      induction Hvt using custom_type_value_ind;
+      intros i e; subst e; unravel in *; eauto.
+    - destruct err; auto.
+    - constructor; induction H;
+        inv H0; unravel in *; auto.
+    - constructor.
+      unfold F.relfs in *.
+      induction H; inv H0;
+        repeat relf_destruct; subst;
+          unravel in *; intuition.
+      constructor;
+        unfold F.relf; unravel; eauto.
+    - constructor; auto; clear H.
+      unfold F.relfs in *.
+      induction H0; inv H1;
+        try predf_destruct;
+        repeat relf_destruct; subst;
+          unravel in *; intuition.
+      constructor;
+        unfold F.relf; unravel; eauto.
+    - constructor;
+        autorewrite with core; auto.
+      clear n ni H H0 H1 H2.
+      ind_list_Forall; unravel;
+        repeat inv_Forall_cons; auto.
+      destruct a; constructor; auto.
+  Qed.
+End Lemmas.

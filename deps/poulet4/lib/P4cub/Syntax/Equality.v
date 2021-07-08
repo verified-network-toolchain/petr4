@@ -194,19 +194,19 @@ Module ExprEquivalence.
            τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
       ∮ e1 ≡ e2 ->
       ∮ hdr { fs1 } valid:=e1 @ i1 ≡ hdr { fs2 } valid:=e2 @ i2
-                                                      | equive_member x τ e1 e2 i1 i2 :
-                                                          ∮ e1 ≡ e2 ->
-                                                          ∮ Mem e1:τ dot x @ i1 ≡ Mem e2:τ dot x @ i2
-                                                      | equive_error err i1 i2 :
-                                                          ∮ Error err @ i1 ≡ Error err @ i2
-                                                      | equive_matchkind mk i1 i2 :
-                                                          ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
-                                                      | equive_header_stack ts hs1 hs2 n ni i1 i2 :
-                                                          Forall2 equive hs1 hs2 ->
-                                                          ∮ Stack hs1:ts[n] nextIndex:=ni @ i1 ≡ Stack hs2:ts[n] nextIndex:=ni @ i2
-                                                                                                                          | equive_stack_access e1 e2 n i1 i2 :
-                                                                                                                              ∮ e1 ≡ e2 ->
-                                                                                                                              ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
+  | equive_member x τ e1 e2 i1 i2 :
+      ∮ e1 ≡ e2 ->
+      ∮ Mem e1:τ dot x @ i1 ≡ Mem e2:τ dot x @ i2
+  | equive_error err i1 i2 :
+      ∮ Error err @ i1 ≡ Error err @ i2
+  | equive_matchkind mk i1 i2 :
+      ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
+  | equive_header_stack ts hs1 hs2 n ni i1 i2 :
+      Forall2 equive hs1 hs2 ->
+      ∮ Stack hs1:ts[n] nextIndex:=ni @ i1 ≡ Stack hs2:ts[n] nextIndex:=ni @ i2
+  | equive_stack_access e1 e2 n i1 i2 :
+      ∮ e1 ≡ e2 ->
+      ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
   where "∮ e1 ≡ e2" := (equive e1 e2).
   
   (** Induction principle. *)

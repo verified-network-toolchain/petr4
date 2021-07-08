@@ -7,7 +7,7 @@ Module P := P4cub.
 Module E := P.Expr.
 Module F := P.F.
 
-Import P.P4cubNotations.
+Import P.P4cubNotations Env.EnvNotations.
 
 Inductive value {tags_t : Type} : E.e tags_t -> Prop :=
 | value_bool (b : bool) (i : tags_t) :

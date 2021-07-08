@@ -113,6 +113,7 @@ Module P4cub.
                   (parameters : params)     (* control types *)
       | CTParser (cparams : F.fs string ct)
                  (parameters : params)      (* parser types *)
+      | CTPackage (cparams : F.fs string ct) (* package types *)
       | CTExtern (cparams : F.fs string ct)
                  (methods : F.fs string arrowT) (* extern types *).
       (**[]*)
@@ -150,19 +151,22 @@ Module P4cub.
       Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
       Notation "( x )" := x (in custom p4constructortype, x at level 99).
       Notation "x" := x (in custom p4constructortype at level 0, x constr at level 0).
-      Notation "'Type' τ"
+      Notation "'VType' τ"
         := (CTType τ)
              (in custom p4constructortype at level 0,
                  τ custom p4type).
       Notation "'ControlType' cps ps"
-               := (CTControl cps ps)
-                    (in custom p4constructortype at level 0).
+        := (CTControl cps ps)
+             (in custom p4constructortype at level 0).
       Notation "'ParserType' cps ps"
-               := (CTControl cps ps)
-                    (in custom p4constructortype at level 0).
+        := (CTParser cps ps)
+             (in custom p4constructortype at level 0).
+      Notation "'PackageType' cps"
+        := (CTPackage cps)
+             (in custom p4constructortype at level 0).
       Notation "'Extern' cps { mthds }"
-               := (CTExtern cps mthds)
-                    (in custom p4constructortype at level 0).
+        := (CTExtern cps mthds)
+             (in custom p4constructortype at level 0).
     End TypeNotations.
 
     Inductive uop : Set :=
@@ -318,7 +322,7 @@ Module P4cub.
       (** Constructor arguments. *)
       Inductive constructor_arg : Type :=
       | CAExpr (expr : e) (* plain expression *)
-      | CAName (x : string) (* name of parser, control, etc *).
+      | CAName (x : string) (* name of parser, control, package, or extern *).
       (**[]*)
 
       Definition constructor_args : Type := F.fs string constructor_arg.
@@ -669,7 +673,6 @@ Module P4cub.
       Variable (tags_t : Type).
 
       (** Top-level declarations. *)
-      (* TODO, this is a stub. *)
       Inductive d : Type :=
       | TPInstantiate (C : string) (x : string)
                      (cargs : E.constructor_args tags_t)
@@ -690,9 +693,11 @@ Module P4cub.
                  (start : P.state_block tags_t) (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)
                  (i : tags_t) (* parser declaration *)
-      | TPFunction (f : string) (signature : E.arrowT)
-                   (body : S.s tags_t) (i : tags_t)
-                   (* function/method declaration *)
+      | TPFunction (f : string) (signature : E.arrowT) (body : S.s tags_t)
+                   (i : tags_t) (* function/method declaration *)
+      | TPPackage (p : string)
+                  (cparams : E.constructor_params) (* constructor params *)
+                  (i : tags_t) (* package type declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
       (**[]*)
     End TopDeclarations.
@@ -702,6 +707,7 @@ Module P4cub.
     Arguments TPControl {_}.
     Arguments TPParser {_}.
     Arguments TPFunction {_}.
+    Arguments TPPackage {_}.
     Arguments TPSeq {_}.
 
     Module TopDeclNotations.
@@ -710,29 +716,32 @@ Module P4cub.
       Notation "x"
         := x (in custom p4topdecl at level 0, x constr at level 0).
       Notation "d1 ';%;' d2 @ i"
-               := (TPSeq d1 d2 i)
-                    (in custom p4topdecl at level 10,
-                        d1 custom p4topdecl, d2 custom p4topdecl,
-                        right associativity).
+        := (TPSeq d1 d2 i)
+             (in custom p4topdecl at level 10,
+                 d1 custom p4topdecl, d2 custom p4topdecl,
+                 right associativity).
       Notation "'Instance' x 'of' c ( args ) @ i"
-               := (TPInstantiate c x args i) (in custom p4topdecl at level 0).
+        := (TPInstantiate c x args i) (in custom p4topdecl at level 0).
       Notation "'void' f ( params ) { body } @ i"
-               := (TPFunction f (Arrow params None) body i)
-                    (in custom p4topdecl at level 0, body custom p4stmt).
+        := (TPFunction f (Arrow params None) body i)
+             (in custom p4topdecl at level 0, body custom p4stmt).
       Notation "'fn' f ( params ) '->' t { body } @ i"
-               := (TPFunction f (Arrow params (Some t)) body i)
-                    (in custom p4topdecl at level 0,
-                        t custom p4type, body custom p4stmt).
+        := (TPFunction f (Arrow params (Some t)) body i)
+             (in custom p4topdecl at level 0,
+                 t custom p4type, body custom p4stmt).
       Notation "'extern' e ( cparams ) { methods } @ i"
-               := (TPExtern e cparams methods i)
-                    (in custom p4topdecl at level 0).
+        := (TPExtern e cparams methods i)
+             (in custom p4topdecl at level 0).
       Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
-               := (TPControl c cparams params body blk i)
-                    (in custom p4topdecl at level 0,
-                        blk custom p4stmt, body custom p4ctrldecl).
+        := (TPControl c cparams params body blk i)
+             (in custom p4topdecl at level 0,
+                 blk custom p4stmt, body custom p4ctrldecl).
       Notation "'parser' p ( cparams ) ( params ) 'start' ':=' st { states } @ i"
-               := (TPParser p cparams params st states i)
-                    (in custom p4topdecl at level 0, st custom p4prsrstateblock).
+        := (TPParser p cparams params st states i)
+             (in custom p4topdecl at level 0, st custom p4prsrstateblock).
+      Notation "'package' p ( cparams ) @ i"
+        := (TPPackage p cparams i)
+             (in custom p4topdecl at level 0).
     End TopDeclNotations.
   End TopDecl.
 

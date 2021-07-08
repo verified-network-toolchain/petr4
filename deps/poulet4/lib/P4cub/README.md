@@ -6,13 +6,11 @@
 
 - `P4cub/Static`: Static semantics, including typechecking.
 
-- `P4cub/P4Packet`: The representation of packets.
+- `P4cub/Architecture`: The representation of packets, targets, externs, & pipeline.
 
 - `P4cub/BigStep`: Big-step evaluation semantics.
 
 - `P4cub/SmallStep`: Small-step evaluation semantics.
-
-- `Architecture.v`: Notion of architecture & externs for `p4cub`.
 
 - `Envn.v`: Generic notion of environments for `p4cub` semantics.
 

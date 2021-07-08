@@ -9,7 +9,7 @@ Import CanonicalForms Step.
 Module P := P4cub.Syntax.AST.P4cub.
 Module E := P.Expr.
 Import P.P4cubNotations TypeEquivalence
-       ProperType F.FieldTactics.
+       ProperType F.FieldTactics Env.EnvNotations.
 
 Section LValueTheorems.
   Variable errs : errors.

@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Syntax.AST.
-Require Import Poulet4.P4cub.P4Packet.Paquet.
-Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.P4cub.Syntax.AST
+        Poulet4.P4cub.Architecture.Paquet
+        Poulet4.P4cub.Envn.
 Module P := P4cub.
 
 (** P4cub's analogue to p4light's [Target.v].

@@ -1,9 +1,10 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing.
 
-Import P.P4cubNotations.
+Import P.P4cubNotations Env.EnvNotations.
 
 (** Custom induction principle for expression typing. *)
 Section CheckExprInduction.

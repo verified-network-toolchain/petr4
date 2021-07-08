@@ -1,8 +1,9 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.P4Packet.Paquet
-        Poulet4.P4cub.P4Packet.PacketIn
+Require Import Poulet4.P4cub.Architecture.Paquet
+        Poulet4.P4cub.Architecture.PacketIn
         Coq.PArith.BinPos Coq.Strings.String
-        Poulet4.P4cub.Envn Poulet4.P4cub.Architecture
+        Poulet4.P4cub.Envn
+        Poulet4.P4cub.Architecture.Architecture
         Poulet4.P4cub.BigStep.ValEnvUtil
         Poulet4.P4cub.BigStep.Value.Syntax.
 Module V := Val.
@@ -87,3 +88,4 @@ End BSPacketIn.
 Definition PacketIn (ϵ : epsilon) : ARCH.P4Extern :=
   {| ARCH.closure := ϵ;
      ARCH.dispatch_method := BSPacketIn.dispatch_method |}.
+(**[]*)

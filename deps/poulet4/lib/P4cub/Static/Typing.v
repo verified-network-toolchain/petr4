@@ -5,32 +5,47 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
 
 (** Expression typing. *)
 Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
-         (at level 40, e custom p4expr, t custom p4type at level 0).
+         (at level 40, e custom p4expr, t custom p4type,
+          gm custom p4env, ers custom p4env).
 
 (** Statement typing. *)
 Reserved Notation "⦃ fns , errs , g1 ⦄ ctx ⊢ s ⊣ ⦃ g2 , sg ⦄"
          (at level 40, s custom p4stmt, ctx custom p4context,
-          g2 custom p4env, sg custom p4signal).
+          g2 custom p4env, sg custom p4signal,
+          g1 custom p4env, fns custom p4env, errs custom p4env).
 
 (** Parser-expression typing. *)
-Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e" (at level 40, e custom p4prsrexpr).
+Reserved Notation "⟅ sts , ers , gm ⟆ ⊢ e"
+         (at level 40, e custom p4prsrexpr,
+          sts custom p4env, ers custom p4env, gm custom p4env).
 
 (** Parser-state-block typing. *)
 Reserved Notation "'⟅⟅' fns , pis , eis , sts , errs , Γ '⟆⟆' ⊢ s"
-         (at level 40, s custom p4prsrstateblock).
+         (at level 40, s custom p4prsrstateblock,
+          fns custom p4env, pis custom p4env,
+          eis custom p4env, sts custom p4env,
+          errs custom p4env, Γ custom p4env).
 
 (** Control-declaration typing. *)
 Reserved Notation
-         "⦅ ts1 , as1 , cs , fs , ci , ei , errs , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
+         "⦅ ts1 , as1 , fs , ci , ei , errs , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
          (at level 60, d custom p4ctrldecl,
           ts1 custom p4env, as1 custom p4env,
-          ts2 custom p4env, as2 custom p4env).
+          ts2 custom p4env, as2 custom p4env,
+          fs custom p4env, ci custom p4env,
+          ei custom p4env, errs custom p4env,
+          g custom p4env).
 
 (** Toplevel-declaration typing. *)
 Reserved Notation
-         "⦗ cs1 , fs1 , ci1 , pi1 , ei1 , ers , g1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , fs2 , cs2 ⦘"
-         (at level 70, d custom p4topdecl, ei2 custom p4env, pi2 custom p4env,
-          ci2 custom p4env, fs2 custom p4env, cs2 custom p4env).
+         "⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 , ers ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
+         (at level 70, d custom p4topdecl, ers custom p4env,
+          ei1 custom p4env, pi1 custom p4env,
+          ei2 custom p4env, pi2 custom p4env,
+          ci1 custom p4env, fs1 custom p4env,
+          ci2 custom p4env, fs2 custom p4env,
+          cs1 custom p4env, pgi1 custom p4env,
+          cs2 custom p4env, pgi2 custom p4env).
 
 Module P := P4cub.
 Module E := P.Expr.
@@ -318,7 +333,7 @@ where "'⟅⟅' fns , pis , eis , sts , errs , Γ '⟆⟆' ⊢ s"
 
 (** Control declaration typing. *)
 Inductive check_ctrldecl {tags_t : Type}
-          (tbls : tblenv) (acts : aenv) (cs : cenv) (fns : fenv)
+          (tbls : tblenv) (acts : aenv) (fns : fenv)
           (cis : cienv) (eis : eienv)
           (errs : errors) (Γ : gamma)
   : CD.d tags_t -> aenv -> tblenv -> Prop :=
@@ -328,7 +343,7 @@ Inductive check_ctrldecl {tags_t : Type}
              (Γ' Γ'' : gamma) (sg : signal) :
     bind_all signature Γ = Γ' ->
     ⦃ fns, errs, Γ' ⦄ Action acts eis ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+    ⦅ tbls, acts, fns, cis, eis, errs, Γ ⦆
       ⊢ action a ( signature ) { body } @ i
       ⊣ ⦅ a ↦ signature ;; acts, tbls ⦆
 | chk_table (t : string)
@@ -338,28 +353,28 @@ Inductive check_ctrldecl {tags_t : Type}
     Forall (fun '(τ,e,_) => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) kys ->
     (* Actions available *)
     Forall (fun a => exists pms, Env.find a acts = Some pms) actns ->
-    ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+    ⦅ tbls, acts, fns, cis, eis, errs, Γ ⦆
       ⊢ table t key:=kys actions:=actns @ i ⊣ ⦅ acts, t ↦ tt;; tbls ⦆
 | chk_ctrldecl_seq (d1 d2 : CD.d tags_t) (i : tags_t)
                    (acts' acts'' : aenv) (tbls' tbls'' : tblenv) :
-    ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ ⦆
+    ⦅ tbls, acts, fns, cis, eis, errs, Γ ⦆
       ⊢ d1 ⊣ ⦅ acts', tbls'  ⦆ ->
-    ⦅ tbls', acts', cs, fns, cis, eis, errs, Γ ⦆
+    ⦅ tbls', acts', fns, cis, eis, errs, Γ ⦆
       ⊢ d2 ⊣ ⦅ acts'', tbls'' ⦆ ->
-    ⦅ tbls, acts, cs, fns, cis, eis, errs, Γ  ⦆
+    ⦅ tbls, acts, fns, cis, eis, errs, Γ  ⦆
       ⊢ d1 ;c; d2 @ i ⊣ ⦅ acts'', tbls'' ⦆
 where
-"⦅ ts1 , as1 , cs , fs , ci1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
-  := (check_ctrldecl ts1 as1 cs fs ci1 ei1 errs g1 d as2 ts2).
+"⦅ ts1 , as1 , fs , ci1 , ei1 , errs , g1 ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
+  := (check_ctrldecl ts1 as1 fs ci1 ei1 errs g1 d as2 ts2).
 (**[]*)
 
 (** Top-level declaration typing. *)
 Inductive check_topdecl
           {tags_t : Type} (cs : cenv) (fns : fenv)
-          (cis : cienv) (pis : pienv) (eis : eienv)
-          (errs : errors) (Γ : gamma)
-  : TD.d tags_t -> eienv -> pienv -> cienv -> fenv -> cenv -> Prop :=
-| chk_instantiate_control (c : string) (x : string)
+          (pgis : pkgienv) (cis : cienv) (pis : pienv) (eis : eienv)
+          (errs : errors)
+  : TD.d tags_t -> eienv -> pienv -> cienv -> pkgienv -> fenv -> cenv -> Prop :=
+| chk_instantiate_control (c x : string)
                           (cparams : E.constructor_params)
                           (cargs : E.constructor_args tags_t)
                           (i : tags_t) (params : E.params) :
@@ -367,17 +382,18 @@ Inductive check_topdecl
     F.relfs
       (fun carg cparam =>
          match carg, cparam with
-         | E.CAExpr e, E.CTType τ
-           => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+         | E.CAExpr e, {{{ VType τ }}}
+           => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
          | E.CAName ctrl, {{{ ControlType cps ps }}}
            => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
          | E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
          | _, _ => False
          end) cargs cparams ->
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-      ⊢ Instance x of c(cargs) @ i ⊣ ⦗ eis, pis, x ↦ params ;; cis, fns, cs ⦘
-| chk_instantiate_parser (p : string) (x : string)
+    ⦗ cs, fns, pgis, cis, pis, eis, errs⦘
+      ⊢ Instance x of c(cargs) @ i
+      ⊣ ⦗ eis, pis, x ↦ params ;; cis, pgis, fns, cs ⦘
+| chk_instantiate_parser (p x : string)
                          (cparams : E.constructor_params)
                          (cargs : E.constructor_args tags_t)
                          (i : tags_t) (params : E.params) :
@@ -385,17 +401,18 @@ Inductive check_topdecl
     F.relfs
       (fun carg cparam =>
          match carg, cparam with
-         | E.CAExpr e, E.CTType τ
-           => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+         | E.CAExpr e, {{{ VType τ }}}
+           => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
          | E.CAName prsr, {{{ ParserType cps ps }}}
            => Env.find prsr cs = Some {{{ ParserType cps ps }}}
          | E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
          | _, _ => False
          end) cargs cparams ->
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-      ⊢ Instance x of p(cargs) @ i ⊣ ⦗ eis, x ↦ params ;; pis, cis, fns, cs ⦘
-| chk_instantiate_extern (e : string) (x : string)
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ Instance x of p(cargs) @ i
+      ⊣ ⦗ eis, x ↦ params ;; pis, cis, pgis, fns, cs ⦘
+| chk_instantiate_extern (e x : string)
                          (cparams : E.constructor_params)
                          (cargs : E.constructor_args tags_t) (i : tags_t)
                          (mthds : F.fs string E.arrowT) :
@@ -403,32 +420,53 @@ Inductive check_topdecl
     F.relfs
       (fun carg cparam =>
          match carg, cparam with
-         | E.CAExpr e, E.CTType τ
-           => ⟦ errs , Γ ⟧ ⊢ e ∈ τ
+         | E.CAExpr e, {{{ VType τ }}}
+           => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
          | E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
          | _, _ => False
          end) cargs cparams ->
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-      ⊢ Instance x of e(cargs) @ i ⊣ ⦗ x ↦ mthds ;; eis, pis, cis, fns, cs ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ Instance x of e(cargs) @ i ⊣ ⦗ x ↦ mthds ;; eis, pis, cis, pgis, fns, cs ⦘
+| chk_instantiate_package (pkg x : string)
+                          (cparams : E.constructor_params)
+                          (cargs : E.constructor_args tags_t)
+                          (i : tags_t) :
+    Env.find pkg cs = Some {{{ PackageType cparams }}} ->
+    F.relfs
+      (fun carg cparam =>
+         match carg, cparam with
+         | E.CAExpr e, {{{ VType τ }}}
+           => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
+         | E.CAName ctrl, {{{ ControlType cps ps }}}
+           => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
+         | E.CAName prsr, {{{ ParserType cps ps }}}
+           => Env.find prsr cs = Some {{{ ParserType cps ps }}}
+         | E.CAName extrn, {{{ Extern cps { mthds } }}}
+           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
+         | _, _ => False
+         end)
+      cargs cparams ->
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ Instance x of pkg(cargs) @ i ⊣ ⦗ eis, pis, cis, x ↦ tt ;; pgis, fns, cs ⦘
 | chk_control (c : string) (cparams : E.constructor_params)
               (params : E.params) (body : CD.d tags_t)
               (apply_blk : ST.s tags_t) (i : tags_t)
               (Γ' Γ'' Γ''' : gamma) (sg : signal)
               (cis' : cienv) (eis' : eienv)
               (tbls : tblenv) (acts : aenv) :
-    cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis',pis,eis') ->
+    cbind_all cparams (!{∅}!,pgis,cis,pis,eis) = (Γ',pgis,cis',pis,eis') ->
     (* Control declarations. *)
-    ⦅ ∅, ∅, cs, fns, cis', eis', errs, Γ' ⦆
+    ⦅ ∅, ∅, fns, cis', eis', errs, Γ' ⦆
       ⊢ body ⊣ ⦅ acts, tbls ⦆ ->
     bind_all params Γ' = Γ'' ->
     (* Apply block. *)
     ⦃ fns, errs, Γ'' ⦄
       ApplyBlock tbls acts cis eis ⊢ apply_blk ⊣ ⦃ Γ''', sg ⦄ ->
     let ctor := E.CTControl cparams params in
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
-        ⊣ ⦗ eis, pis, cis, fns, c ↦ ctor;; cs ⦘
+        ⊣ ⦗ eis, pis, cis, pgis, fns, c ↦ ctor;; cs ⦘
 | chk_parser (p : string)
              (cparams : E.constructor_params)
              (params : E.params) (start_state : PR.state_block tags_t)
@@ -437,49 +475,56 @@ Inductive check_topdecl
              (Γ' Γ'' : gamma) :
     let sts := F.fold
                  (fun st _ acc => !{ st ↦ tt;; acc }!) states !{ ∅ }! in
-    cbind_all cparams (Γ,cis,pis,eis) = (Γ',cis,pis',eis') ->
+    cbind_all cparams (!{∅}!,pgis,cis,pis,eis) = (Γ',pgis,cis,pis',eis') ->
     bind_all params Γ' = Γ'' ->
     ⟅⟅ fns, pis', eis', sts, errs, Γ'' ⟆⟆ ⊢ start_state ->
     F.predfs_data
       (fun pst => ⟅⟅ fns, pis', eis', sts, errs, Γ'' ⟆⟆ ⊢ pst) states ->
     let prsr := E.CTParser cparams params in
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ parser p (cparams)(params) start:= start_state { states } @ i
-      ⊣ ⦗ eis, pis, cis, fns, p ↦ prsr;; cs ⦘
+      ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr;; cs ⦘
 | chk_extern (e : string)
              (cparams : E.constructor_params)
              (mthds : F.fs string E.arrowT) (i : tags_t) :
     let extrn := {{{ Extern cparams { mthds } }}} in
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ extern e (cparams) { mthds } @ i
-      ⊣ ⦗ eis, pis, cis, fns, e ↦ extrn;; cs ⦘
+      ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn;; cs ⦘
+| chk_package (pkg : string) (cparams : E.constructor_params) (i : tags_t) :
+    let pkge := {{{ PackageType cparams }}} in
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ package pkg (cparams) @ i
+      ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge;; cs ⦘
 | chk_fruit_function (f : string) (params : E.params)
                      (τ : E.t) (body : ST.s tags_t) (i : tags_t)
                      (Γ' Γ'' : gamma) (sg : signal) :
-    bind_all params Γ = Γ' ->
+    bind_all params !{∅}! = Γ' ->
     ⦃ fns, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
     let func := P.Arrow params (Some τ) in
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-      ⊢ fn f (params) -> τ { body } @ i ⊣ ⦗ eis, pis, cis, f ↦ func;;  fns, cs ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ fn f (params) -> τ { body } @ i
+      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘
 | chk_void_function (f : string) (params : E.params)
                     (body : ST.s tags_t) (i : tags_t)
                     (Γ' Γ'' : gamma) (sg : signal) :
-    bind_all params Γ = Γ' ->
+    bind_all params !{∅}! = Γ' ->
     ⦃ fns, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
     let func := P.Arrow params None in
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘
-      ⊢ void f (params) { body } @ i ⊣ ⦗ eis, pis, cis, f ↦ func;;  fns, cs ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
+      ⊢ void f (params) { body } @ i
+      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘
 | chk_topdecl_seq (d1 d2 : TD.d tags_t) (i : tags_t)
-                  (eis' eis'' : eienv)
+                  (eis' eis'' : eienv) (pgis' pgis'' : pkgienv)
                   (pis' pis'' : pienv) (cis' cis'' : cienv)
                   (fns' fns'' : fenv) (cs' cs'' : cenv) :
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘ ⊢ d1
-    ⊣ ⦗ eis', pis', cis', fns', cs' ⦘ ->
-    ⦗ cs', fns', cis', pis', eis', errs, Γ⦘ ⊢ d2
-    ⊣ ⦗ eis'', pis'', cis'', fns'', cs'' ⦘ ->
-    ⦗ cs, fns, cis, pis, eis, errs, Γ ⦘ ⊢ d1 ;%; d2 @ i
-    ⊣ ⦗ eis'', pis'', cis'', fns'', cs'' ⦘
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘ ⊢ d1
+    ⊣ ⦗ eis', pis', cis', pgis', fns', cs' ⦘ ->
+    ⦗ cs', fns', pgis', cis', pis', eis', errs ⦘ ⊢ d2
+    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘ ->
+    ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘ ⊢ d1 ;%; d2 @ i
+    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘
 where
-"⦗ cs1 , fs1 , ci1 , pi1 , ei1 , ers , g1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , fs2 , cs2 ⦘"
-  := (check_topdecl cs1 fs1 ci1 pi1 ei1 ers g1 d ei2 pi2 ci2 fs2 cs2).
+"⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 , ers ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
+  := (check_topdecl cs1 fs1 pgi1 ci1 pi1 ei1 ers d ei2 pi2 ci2 pgi2 fs2 cs2).
 (**[]*)

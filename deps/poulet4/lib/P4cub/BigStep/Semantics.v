@@ -748,4 +748,8 @@ Module Step.
           := (topdecl_big_step
                 p1 c1 e1 f1 pi1 ci1 ei1 ϵ d ei2 ci2 pi2 f2 e2 c2 p2).
   (**[]*)
+
+  (** Pipeline:
+      Given an input program,
+      available extern-method dispatchers, ... *)
 End Step.

@@ -226,8 +226,16 @@ Inductive return_void_ok : ctx -> Prop :=
     return_void_ok (CApplyBlock tbls aa cis eis).
 (**[]*)
 
-(** Available Constructors and their signatures. *)
+(** Available constructor signatures. *)
 Definition cenv : Type := Env.t string E.ct.
+
+(** Available Package Instances. *)
+Definition pkgienv : Type := strs.
+
+(** Available Extern Constructors. *)
+Definition extenv : Type :=
+  Env.t string (E.constructor_params * F.fs string E.arrowT).
+(**[]*)
 
 (** Put parameters into environment. *)
 Definition bind_all : E.params -> gamma -> gamma :=
@@ -237,13 +245,20 @@ Definition bind_all : E.params -> gamma -> gamma :=
 (** Put (constructor) parameters into environments. *)
 Definition cbind_all :
   E.constructor_params  ->
-  gamma * cienv * pienv * eienv -> gamma * cienv * pienv * eienv :=
-  F.fold (fun x c '(Γ, cins, pins, eins) =>
+  gamma * pkgienv * cienv * pienv * eienv ->
+  gamma * pkgienv * cienv * pienv * eienv :=
+  F.fold (fun x c '(Γ, pkgis, cis, pis, eis) =>
             match c with
-            | E.CTType τ => (!{ x ↦ τ;; Γ }!, cins, pins, eins)
-            | E.CTControl _ pars => (Γ, !{ x ↦ pars;; cins }!, pins, eins)
-            | E.CTParser _  pars => (Γ, cins, !{ x ↦ pars;; pins }!, eins)
-            | E.CTExtern _  mhds => (Γ, cins, pins, !{ x ↦ mhds;; eins }!)
+            | {{{ VType τ }}}
+              => (!{ x ↦ τ;; Γ }!, pkgis, cis, pis, eis)
+            | {{{ ControlType _ pars }}}
+              => (Γ, pkgis, !{ x ↦ pars;; cis }!, pis, eis)
+            | {{{ ParserType _  pars }}}
+              => (Γ, pkgis, cis, !{ x ↦ pars;; pis }!, eis)
+            | {{{ Extern _  { mhds } }}}
+              => (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!)
+            | {{{ PackageType _ }}}
+              => (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis)
             end).
 (**[]*)
 

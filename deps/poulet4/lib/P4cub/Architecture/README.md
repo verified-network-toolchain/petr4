@@ -1,6 +1,8 @@
-# `P4cub` Packets
+# `P4cub` Architecture/Externs/Packets/Targets
 
 ### Modules:
+
+- `Architecture.v`: Notion of externs & pipelines for `p4cub`.
 
 - `PacketIn.v`: Signature for the `packet_in` extern in `p4cub`.
 

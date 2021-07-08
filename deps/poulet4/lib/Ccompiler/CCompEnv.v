@@ -48,8 +48,8 @@ Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid 
   let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
   {|
   identMap := env.(identMap);
-  temps := (new_ident, t)::(env.(temps));
-  vars := env.(vars);
+  temps := (env.(temps));
+  vars := (new_ident, t)::env.(vars);
   composites := env.(composites);
   identGenerator := gen';
   fenv := env.(fenv);

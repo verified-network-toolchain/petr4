@@ -413,13 +413,76 @@ Section CComp.
   (params) ([],env)
   . 
 
-  Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
+  (*try to do copy in copy out*)
+  Definition CCopyIn (fn_params: E.params) (env: ClightEnv)
+  : Clight.statement * ClightEnv:= 
+  List.fold_left 
+    (fun (cumulator: Clight.statement * ClightEnv) (fn_param: string * (P.paramarg E.t E.t))
+    =>let (name, t) := fn_param in 
+      let (prev_stmt, prev_env) := cumulator in
+      match find_ident_temp_arg env name with
+      | None => cumulator
+      | Some (oldid, tempid) => 
+        match t with
+        | P.PAIn t
+        | P.PAOut t
+        | P.PAInOut t => 
+        let (ct, env_ct) := CTranslateType t prev_env in
+        let new_stmt := Sassign (Evar tempid ct) (Evar oldid ct) in
+        (Ssequence prev_stmt new_stmt, env_ct)
+        end
+      end
+    ) fn_params (Sskip, env).
+
+Definition CCopyOut (fn_params: E.params) (env: ClightEnv)
+  : Clight.statement * ClightEnv:= 
+  List.fold_left 
+    (fun (cumulator: Clight.statement * ClightEnv) (fn_param: string * (P.paramarg E.t E.t))
+    =>let (name, t) := fn_param in 
+      let (prev_stmt, prev_env) := cumulator in
+      match find_ident_temp_arg env name with
+      | None => cumulator
+      | Some (oldid, tempid) => 
+        match t with
+        | P.PAIn t
+        | P.PAOut t
+        | P.PAInOut t => 
+        let (ct, env_ct) := CTranslateType t prev_env in
+        let new_stmt := Sassign (Evar oldid ct) (Evar tempid ct) in
+        (Ssequence prev_stmt new_stmt, env_ct)
+        end
+      end
+    ) fn_params (Sskip, env).
+
+
+Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv)
+  : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv 
+  := 
+  match signature with 
+  | P.Arrow pas ret =>
+   let (fn_params, env_params_created) := CTranslateParams pas env in 
+   match ret with 
+   | None => (fn_params, Ctypes.Tvoid, env_params_created)
+   | Some return_t => let (ct, env_ct):= CTranslateType return_t env_params_created in 
+                      (fn_params, ct , env_ct)
+   end
+  end.
+    
+Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
+  match arrow with
+  | P.Arrow pas ret => 
+  pas
+  end.
+
+Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
   :=
   match parsr with
   | %{parser p (cparams) (params) start := st {states} @ i}% =>
     (*ignore constructor params for now*)
     
     let (fn_params, env):= CTranslateParams params env in
+    let (copyin, env) := CCopyIn params env in 
+    let (copyout, env) := CCopyOut params env in
     let state_names := F.keys states in 
     let env_fn_sig_declared := 
       (*all functions inside one top parser declaration should have the same parameter*)
@@ -457,6 +520,11 @@ Section CComp.
       match (lookup_function env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
+      let fn_body := 
+      Ssequence copyin 
+      (Ssequence 
+      (Scall None (Evar start_id (Clight.type_of_function start_f)) [])
+       copyout) in 
       let top_function := 
         (Clight.mkfunction
         Ctypes.Tvoid
@@ -464,7 +532,7 @@ Section CComp.
         fn_params
         []
         []
-        (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
+        fn_body)
       in
       let env_topfn_added := CCompEnv.add_function env_start_declared p top_function in
       Some(env_topfn_added)
@@ -473,26 +541,22 @@ Section CComp.
 
   | _ => None
   end.
-(*try to do copy in copy out*)
-  (* Definition CCopyIn (fn_params: E.params) (env: ClightEnv)
-  : Clight.statement := 
-  List.fold_left 
-    (fun (cumulator: Clight.statement) (fn_param: string * (paramarg E.t E.t))
-    =>let (name, t) := fn_param in 
-      match find_ident_temp_arg env name with
-      | None => cumulator
-      | Some (oldid, tempid) => cumulator 
-    ) *)
+
 
   Definition CTranslateAction 
   (signature: E.params) (body: ST.s tags_t) 
   (env: ClightEnv) (top_fn_params: list (AST.ident * Ctypes.type))
+  (top_signature: E.params)
   : option Clight.function:= 
   let (fn_params, env_params_created) := CTranslateParams signature env in
   let fn_params := top_fn_params ++ fn_params in 
-  match CTranslateStatement body env_params_created with
+  let full_signature := top_signature ++ signature in
+  let (copyin, env_copyin) := CCopyIn full_signature env_params_created in
+  let (copyout, env_copyout) := CCopyOut full_signature env_copyin in
+  match CTranslateStatement body env_copyout with
   | None => None 
   | Some (c_body, env_body_translated) =>
+    let body:= Ssequence copyin (Ssequence c_body copyout) in
     Some(
       (Clight.mkfunction 
         Ctypes.Tvoid
@@ -500,24 +564,25 @@ Section CComp.
         fn_params 
         (get_vars env_body_translated)
         (get_temps env_body_translated)
-        c_body))
+        body))
   end.
   Fixpoint CTranslateControlLocalDeclaration 
   (ct : CT.ControlDecl.d tags_t) (env: ClightEnv) 
   (top_fn_params: list (AST.ident * Ctypes.type))
+  (top_signature: E.params)
   : option (ClightEnv)
   := match ct with
   | c{d1 ;c; d2 @i}c => 
-    match (CTranslateControlLocalDeclaration d1 env top_fn_params) with
+    match (CTranslateControlLocalDeclaration d1 env top_fn_params top_signature) with
     | None => None
     | Some (env1) =>
-      match (CTranslateControlLocalDeclaration d2 env1 top_fn_params) with 
+      match (CTranslateControlLocalDeclaration d2 env1 top_fn_params top_signature) with 
       | None => None
       | Some (env2) => Some (env2)
       end
     end
   | c{action a (params) {body} @ i}c => 
-    match CTranslateAction params body env top_fn_params with
+    match CTranslateAction params body env top_fn_params top_signature with
     | None => None
     | Some f => Some (CCompEnv.add_function env a f)
     end
@@ -530,19 +595,22 @@ Section CComp.
   | %{control c (cparams) (params) apply {blk} where {body} @ i}%
     => (*ignoring constructor params for now*)
        let (fn_params, env_top_fn_param) := CTranslateParams params env in
-       match CTranslateControlLocalDeclaration body env_top_fn_param fn_params with 
+       let (copyin, env_copyin) := CCopyIn params env_top_fn_param in 
+       let (copyout, env_copyout) := CCopyOut params env_copyin in 
+       match CTranslateControlLocalDeclaration body env_copyout fn_params params with 
        | None => None
        | Some env_local_decled => 
         match CTranslateStatement blk env_local_decled with
         | None => None
         | Some (apply_blk, env_apply_block_translated)=>
+          let body:= Ssequence copyin (Ssequence apply_blk copyout) in
           let top_fn := Clight.mkfunction 
           Ctypes.Tvoid 
           (AST.mkcallconv None true true)
           fn_params 
           (get_vars env_apply_block_translated)
           (get_temps env_apply_block_translated)
-          apply_blk in
+          body in
           let env_top_fn_declared := 
           CCompEnv.add_function env_local_decled c top_fn in
           Some (env_top_fn_declared) 
@@ -552,19 +620,7 @@ Section CComp.
   end.
 
 
-  Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv)
-  : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv 
-  := 
-  match signature with 
-  | P.Arrow pas ret =>
-   let (fn_params, env_params_created) := CTranslateParams pas env in 
-   match ret with 
-   | None => (fn_params, Ctypes.Tvoid, env_params_created)
-   | Some return_t => let (ct, env_ct):= CTranslateType return_t env_params_created in 
-                      (fn_params, ct , env_ct)
-   end
-  end.
-    
+  
   Definition CTranslateFunction 
   (funcdecl : TD.d tags_t)
   (env: ClightEnv)
@@ -573,9 +629,13 @@ Section CComp.
   | TD.TPFunction name signature body _ => 
     match CTranslateArrow signature env with 
     |(fn_params, fn_return, env_params_created) =>
-      match CTranslateStatement body env_params_created with
+      let paramargs := PaFromArrow signature in
+      let (copyin, env_copyin) := CCopyIn paramargs env_params_created in
+      let (copyout, env_copyout) := CCopyOut paramargs env_copyin in
+      match CTranslateStatement body env_copyout with
       | None => None 
       | Some (c_body, env_body_translated) =>
+        let body:= Ssequence copyin (Ssequence c_body copyout) in
         let top_function := 
           (Clight.mkfunction 
             fn_return
@@ -583,7 +643,7 @@ Section CComp.
             fn_params 
             (get_vars env_body_translated)
             (get_temps env_body_translated)
-            c_body) in
+            body) in
         Some (CCompEnv.add_function env_params_created name top_function)
       end
     end 

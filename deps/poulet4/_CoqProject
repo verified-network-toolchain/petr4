@@ -5,5 +5,5 @@
 -Q _build/default/lib/P4Automata Poulet4.P4automata
 -Q _build/default/lib/Platform Poulet4.Platform
 -Q _build/default/lib/Ccompiler Poulet4.Ccompiler
-
+-Q _build/default/lib/P4sel Poulet4.P4sel
 -Q _build/default/examples Poulet4.Examples

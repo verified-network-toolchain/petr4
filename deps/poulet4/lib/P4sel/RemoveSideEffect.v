@@ -131,8 +131,22 @@ Fixpoint TranslateExpr (e : CubE.e tags_t) (env: VarNameGen.t)
     let assign := SelS.SHeader fs' var_name valid' i in 
     let stmt := SelS.SSeq fs_stmt (SelS.SSeq valid_stmt (SelS.SSeq declaration assign i) i) i in
     ( (stmt, SelE.EVar type var_name i), env')
-  | CubE.EHeaderStack fields headers size next_index i => ((SelS.SSkip i, SelE.EError None i), env)
-  | CubE.EHeaderStackAccess stack index i => ((SelS.SSkip i, SelE.EError None i), env)
+  | CubE.EHeaderStack fields headers size next_index i => 
+    let type := CubE.TBool in 
+    let '((hdrs_stmt, hdrs'), env_hdrs) := TranslateExprList headers env i in 
+    let (var_name, env') := VarNameGen.new_var env_hdrs in
+    let declaration := SelS.SVardecl type var_name i in
+    let assign := SelS.SHeaderStack fields hdrs' size next_index var_name i in 
+    let stmt := SelS.SSeq hdrs_stmt (SelS.SSeq declaration assign i) i in
+    ( (stmt, SelE.EVar type var_name i), env')
+  | CubE.EHeaderStackAccess stack index i => 
+    let type := CubE.TBool in 
+    let '((stack_stmt, stack'), env_stack) := TranslateExpr stack env in
+    let (var_name, env') := VarNameGen.new_var env_stack in
+    let declaration := SelS.SVardecl type var_name i in
+    let assign := SelS.SHeaderStackAccess stack' index var_name i in 
+    let stmt := SelS.SSeq stack_stmt (SelS.SSeq declaration assign i) i in
+    ( (stmt, SelE.EVar type var_name i), env')
   end.
 Definition TranslateProgram (program: CubTD.d tags_t) : SelTD.d tags_t.
  Admitted.

@@ -227,7 +227,8 @@ Module P4sel.
         (** Table. *)
         Inductive table : Type :=
         | Table (key : list (P4cub.Expr.t * E.e tags_t * P4cub.Expr.matchkind))
-                (actions : list string).
+                (actions : list string)
+                (initialization : S.s tags_t).
         (**[]*)
 
         (** Declarations that may occur within Controls. *)
@@ -265,8 +266,11 @@ Module P4sel.
       Inductive d : Type :=
       | TPInstantiate (C : string) (x : string)
                      (cargs : E.constructor_args tags_t)
-                     (i : tags_t) (* constructor [C]
-                                     with constructor [args]
+                     (arg_init: S.s tags_t)
+                     (i : tags_t) (* constructor [C] that 
+                                     runs [arg_init] first
+                                     and then use
+                                     constructor [args]
                                      makes instance [x]. *)
       | TPExtern (e : string)
                  (cparams : P4cub.Expr.constructor_params)

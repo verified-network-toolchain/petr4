@@ -5,9 +5,8 @@ Require Import Coq.extraction.ExtrOcamlNatInt.
 
 Require Import Coq.Numbers.BinNums.
 (* Standard lib *)
+Require Import Coq.extraction.ExtrOcamlString.
 Require Import ExtrOcamlBasic.
-Require Import ExtrOcamlString.
-
 
 (* Datatypes *)
 Extract Inlined Constant Datatypes.fst => "fst".

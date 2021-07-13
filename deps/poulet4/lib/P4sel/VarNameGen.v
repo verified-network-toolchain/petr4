@@ -7,4 +7,3 @@ Definition new_env : t :=
   0.
 Definition new_var (env: t) : string * t :=
   (NilZero.string_of_uint (Nat.to_uint env),  env+1).
-

@@ -6,11 +6,11 @@ Require Import Coq.PArith.BinPos.
 Require Import Poulet4.P4cub.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
-Require Import Poulet4.Ccompiler.CCompEnv.
+Require Import Poulet4_Ccomp.CCompEnv.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
-Require Import Poulet4.Ccompiler.Helloworld.
+Require Import Poulet4_Ccomp.Helloworld.
 Open Scope string_scope.
 Open Scope list_scope.
 Module P := P4cub.
@@ -34,27 +34,6 @@ Section CComp.
   Notation long_signed := (Tlong Signed noattr).
   Notation int_unsigned := (Tint I32 Unsigned noattr).
   Notation int_signed := (Tint I32 Signed noattr).
-
-
-  (*helper functions that are not translations*)
-  (* Definition prepend_stmts 
-      (addon: list Clight.statement) 
-      (source: option ( (list Clight.statement) * Clight.expr * ClightEnv))
-      : option ( (list Clight.statement) * Clight.expr * ClightEnv) := 
-      match source with
-      | Some (src_stmts, e, env) => Some (addon++src_stmts, e, env)
-      | None => None
-      end
-    .
-  Definition postpend_stmts 
-      (addon: list Clight.statement) 
-      (source: option ( (list Clight.statement) * Clight.expr * ClightEnv))
-      : option ( (list Clight.statement) * Clight.expr * ClightEnv) := 
-      match source with
-      | Some (src_stmts, e, env) => Some (src_stmts++addon, e, env)
-      | None => None
-      end
-    . *)
   Import P4cub.P4cubNotations.
   Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv) : Ctypes.type * ClightEnv:=
     match p4t with
@@ -707,8 +686,6 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
     | Errors.OK prog => print_Clight prog
     end.  
 End CComp.
-
 Definition test := CComp.Compile string helloworld_program.
 
-Check test.
-Compute test.
+

@@ -1,0 +1,22 @@
+opam-version: "2.0"
+version: "0.1.0"
+synopsis: "Poulet4-Ccompiler: P4 to C Compiler in Coq"
+maintainer: "jnfoster@cs.cornell.edu"
+authors: ["Nate Foster <jnfoster@cs.cornell.edu>"]
+homepage: "https://github.com/cornell-netlab/petr4"
+dev-repo: "git+https://github.com/cornell-netlab/petr4/"
+bug-reports: "https://github.com/cornell-netlab/petr4/issues"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+install: [
+  ["dune" "install"]
+]
+depends: [
+  "bignum"
+  "poulet4"
+  "zarith"
+  "coq-compcert"
+  "coq" {build}
+  "coq-equations" {build}
+]

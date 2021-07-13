@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 From compcert Require Import Clight Ctypes Integers Cop AST.
 Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.Ccompiler.IdentGen.
+Require Import Poulet4_Ccomp.IdentGen.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Utiliser.

@@ -686,6 +686,6 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
     | Errors.OK prog => print_Clight prog
     end.  
 End CComp.
-Definition test := CComp.Compile string helloworld_program.
+Definition test := CComp.Compile nat helloworld_program.
 
 

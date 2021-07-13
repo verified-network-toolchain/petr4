@@ -27,7 +27,7 @@ open! Floats (*standard coq lib *)
 
 module Nat = struct
 
-  type t = nat = O | S of t
+  type t = O | S of t
 
   let rec to_int = function
   | O -> 0

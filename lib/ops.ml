@@ -123,8 +123,6 @@ let interp_bshl (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VBit{v=v2;_}
   | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w}
   | VInteger v1, VInteger v2  -> VInteger(shift_bitstring_left v1 v2)
-  | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
-  | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
   | _ -> failwith "shift left operator not defined for these types"
 
 let interp_bshr (l : V.value) (r : V.value) : V.value =

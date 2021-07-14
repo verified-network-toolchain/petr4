@@ -1,7 +1,6 @@
 Require Export Coq.Classes.EquivDec.
 Require Export Coq.Numbers.BinNums. (** Integers. *)
 Require Coq.Strings.String.
-Module Strings := Coq.Strings.String.
 Require Export Coq.Bool.Bool.
 Require Export Coq.Lists.List.
 Export ListNotations.
@@ -503,4 +502,4 @@ Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 (** Tag-less strings. *)
 Definition string := String.string.
 
-Instance StringEqDec : EqDec string eq := { equiv_dec := Strings.string_dec }.
+Instance StringEqDec : EqDec string eq := { equiv_dec := Coq.Strings.String.string_dec }.

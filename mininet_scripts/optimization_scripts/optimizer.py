@@ -1,4 +1,4 @@
-from pulp import LpMinimize, LpMaximize, LpProblem, LpStatus, lpSum, LpVariable, LpAffineExpression
+from pulp import LpMinimize, LpMaximize, LpProblem, LpStatus, lpSum, LpVariable, LpAffineExpression, constants
 from enum import Enum
 import operator
 
@@ -11,8 +11,8 @@ class Optimizer:
     def __init__(self, obj_type):
         self.model = LpProblem(name="routing", 
                                sense=(LpMinimize if obj_type == ObjectiveType.MIN 
-                                                 else LpMaximize)
-        self.valid_ops = ['<', '<=', '>', '>=', '==']; 
+                                                 else LpMaximize))
+        self.valid_ops = ['<', '<=', '>', '>=', '=='] 
         self.vars = {}
         self.constrs = {}
         self.obj = None
@@ -73,7 +73,8 @@ class Optimizer:
         self.model += constr
 
     def add_objective_function(self, expr):
-        if not isinstance(expr, LpAffineExpression):
+        if (not isinstance(expr, LpAffineExpression) and
+           not isinstance(expr, LpVariable)):
             print(f"{expr} is not a valid expression")
             return
 
@@ -82,19 +83,20 @@ class Optimizer:
             return
 
         self.obj = expr
-        model += expr
+        self.model += expr
 
     def solve(self):
-        model.solve()
-        if model.status != LpStatus["Optimal"]:
+        self.model.solve()
+        print(self.model.status)
+        if self.model.status != constants.LpStatusOptimal:
             print("Could not solve LP")
             return None
 
         print("Solved!")
 
         var_assignments = {}
-        for var in model.variables():
-            var_assignments[var.name()] = var.value()
+        for var in self.model.variables():
+            var_assignments[var.name] = var.value()
 
         return var_assignments
 

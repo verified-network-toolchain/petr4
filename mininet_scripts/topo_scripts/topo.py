@@ -38,6 +38,9 @@ class Topology:
     def links(self):
         return self.G.edges
 
+    def neighbors(self, n):
+        return self.G.neighbors(n)
+    
     def port(self,n1,n2):
         if self.G.has_edge(n1,n2):
             return self.G.edges[n1,n2]["ports"][n1]

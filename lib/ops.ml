@@ -213,9 +213,6 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VUnion{fields=l1},
     VUnion{fields=l2}                         -> unions_equal l1 l2
   | VTuple l1, VTuple l2                      -> tuples_equal l1 l2
-  | VNull, VNull -> VBool true
-  | VNull, _
-  | _, VNull -> VBool false
   | _ -> raise_s [%message "equality comparison undefined for given types"
                      ~l:(l:V.value) ~r:(r:V.value)]
 

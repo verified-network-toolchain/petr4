@@ -15,6 +15,11 @@ typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 typedef bit<32> ip4Addr_t;
 
+typedef bit<1> bool_t;
+typedef bit<8> port_ind_t;
+typedef bit<8> weight_t;
+typedef bit<4> demand_id_t;
+
 header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
@@ -42,8 +47,13 @@ header discovery_hdr_t {
     bit<8> end_pt;
 }
 
+header port_info_t{
+  egressSpec_t port;
+  weight_t weight;
+}
+
 struct metadata {
-    /* empty */
+  port_info_t[5] port_info;
 }
 
 struct headers {
@@ -102,15 +112,62 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+    counter (6, CounterType.packets) port_cntr;
+    // register keeps val, cur_port_ind, cur_weight_counter
+    register<bit<17>>(16) cur_path;
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
     
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
-        standard_metadata.egress_spec = port;
+    action ipv4_forward(demand_id_t demand_id, macAddr_t dstAddr, 
+                        port_ind_t valid_ports,
+                        egressSpec_t port1, weight_t weight1,
+                        egressSpec_t port2, weight_t weight2,
+                        egressSpec_t port3, weight_t weight3,
+                        egressSpec_t port4, weight_t weight4,
+                        egressSpec_t port5, weight_t weight5) {
+
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+
+        meta.port_info[0] = {port = port1, weight = weight1};
+        meta.port_info[1] = {port = port2, weight = weight2};
+        meta.port_info[2] = {port = port3, weight = weight3};
+        meta.port_info[3] = {port = port4, weight = weight4};
+        meta.port_info[4] = {port = port5, weight = weight5};
+
+        bit<17> reg_val;
+        cur_path.read(reg_val, (bit<32>)demand_id);
+        bool_t val = reg_val[16:16];
+        port_ind_t port_ind = reg_val[15:8];
+        weight_t weight_cntr = reg_val[7:0]; 
+
+        if (val == 1){
+          weight_t max_weight = meta.port_info[(bit<8>)port_ind].weight;
+          if (weight_cntr >= max_weight){
+            weight_cntr = 1;
+            port_ind = port_ind + 1;
+            if (port_ind == valid_ports){
+              port_ind = 0;
+            }
+          }
+          else {
+            weight_cntr = weight_cntr + 1;
+          } 
+        }
+        else {
+          val = 1;
+          port_ind = 0;
+          weight_cntr = 1; 
+        }
+       
+        reg_val[16:16] = val;
+        reg_val[15:8] = port_ind;
+        reg_val[7:0] = weight_cntr;
+
+        standard_metadata.egress_spec = meta.port_info[(bit<8>)port_ind].port; 
     }
     
     table ipv4 {
@@ -126,12 +183,11 @@ control MyIngress(inout headers hdr,
         default_action = drop();
     }
 
-    counter (6, CounterType.packets) port_cntr;
-    
+        
     apply {
         if (hdr.ipv4.isValid()) {
 	        ipv4.apply();
-            port_cntr.count((bit<32>)standard_metadata.egress_spec); 
+          port_cntr.count((bit<32>)standard_metadata.egress_spec); 
         }
     }
 }

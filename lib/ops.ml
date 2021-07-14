@@ -195,15 +195,12 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VEnumField{enum_name=s1;_},
     VEnumField{enum_name=s2;_}                -> VBool Poly.(s1 = s2)
   | VBool b1, VBool b2                        -> VBool Poly.(b1 = b2)
-  | VBit{v=n1;_}, VBit{v=n2;_}
-  | VInteger n1, VInteger n2
-  | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
+  | VBit{v=n1;w=w1}, VBit{v=n2;w=w2}
+  | VInt{v=n1;w=w1}, VInt{v=n2;w=w2}
+    when Bigint.equal w1 w2                   -> VBool Bigint.(n1 = n2)
+  | VInteger n1, VInteger n2                  -> VBool Bigint.(n1 = n2)
   | VVarbit{w=w1;v=n1;_},
     VVarbit{w=w2;v=n2;_}                      -> VBool(Bigint.(n1 = n2 && w1 = w2))
-  | VBit{w;v=n1}, VInteger n2                 -> interp_beq l (bit_of_rawint n2 w)
-  | VInteger n1, VBit{w;v=n2}                 -> interp_beq (bit_of_rawint n1 w) r
-  | VInt{w;v=n1}, VInteger n2                 -> interp_beq l (int_of_rawint n2 w)
-  | VInteger n1, VInt{w;v=n2}                 -> interp_beq (int_of_rawint n1 w) r
   | VStruct{fields=l1;_},
     VStruct{fields=l2;_}                      -> structs_equal l1 l2
   | VHeader{fields=l1;is_valid=b1;_},

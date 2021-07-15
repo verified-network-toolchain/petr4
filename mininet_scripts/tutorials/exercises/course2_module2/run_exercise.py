@@ -169,8 +169,8 @@ class ExerciseRunner:
         # wait for that to finish. Not sure how to do this better
         sleep(1)
 
-        #self.do_net_cli()
-        self.do_experiment()
+        self.do_net_cli()
+        #self.do_experiment()
        
         # stop right after the CLI is exited
         self.net.stop()

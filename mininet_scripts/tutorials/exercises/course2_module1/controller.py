@@ -27,6 +27,7 @@ class MyApp(App):
     topo.add_link("h4", "s7", 0, 3, 1)
 
     # switch-switch links
+    topo.add_link("s1", "s2", 4, 3, 1)
     topo.add_link("s1", "s3", 3, 1, 1)
     topo.add_link("s1", "s4", 2, 1, 1)
 
@@ -46,13 +47,13 @@ class MyApp(App):
 
     paths["h2", "h3"] = ["h2", "s2", "s4", "s6", "h3"]
 
-    paths["h4", "h3"] = ["h4", "s7", "s4", "s3", "s6", "h3"]
-    #paths["h4", "h3"] = ["h4", "s7", "s4", "s6", "h3"]
+    #paths["h4", "h3"] = ["h4", "s7", "s4", "s3", "s6", "h3"]
+    paths["h4", "h3"] = ["h4", "s7", "s4", "s6", "h3"]
 
     paths["h1", "h4"] = ["h1", "s1", "s4", "s7", "h4"]
 
-    paths["h2", "h4"] = ["h2", "s2", "s4", "s5", "s7", "h4"]
-    #paths["h2", "h4"] = ["h2", "s2", "s4", "s7", "h4"]
+    #paths["h2", "h4"] = ["h2", "s2", "s1", "s3", "s4", "s5", "s7", "h4"]
+    paths["h2", "h4"] = ["h2", "s2", "s4", "s7", "h4"]
 
     self.topo = topo
     self.paths = paths

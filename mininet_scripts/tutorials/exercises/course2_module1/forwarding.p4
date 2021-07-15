@@ -131,7 +131,7 @@ control MyIngress(inout headers hdr,
     apply {
         if (hdr.ipv4.isValid()) {
 	        ipv4.apply();
-            port_cntr.count((bit<32>)standard_metadata.egress_spec); 
+            port_cntr.count((bit<32>)standard_metadata.egress_spec - 1); 
         }
     }
 }

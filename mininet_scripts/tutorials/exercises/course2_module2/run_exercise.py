@@ -169,8 +169,8 @@ class ExerciseRunner:
         # wait for that to finish. Not sure how to do this better
         sleep(1)
 
-        self.do_net_cli()
-        #self.do_experiment()
+        #self.do_net_cli()
+        self.do_experiment()
        
         # stop right after the CLI is exited
         self.net.stop()
@@ -180,18 +180,20 @@ class ExerciseRunner:
         hosts = []
         for i in range(4):
             hosts.append(self.net.get("h%d" % (i + 1)))
-           
+        
         unit = 15
+        h3_demands = {0: 5, 1: 3, 3: 1}   
+        h4_demands = {0: 1, 1: 5}
 
         hosts[2].cmd("python tg_scripts/receive.py &") 
         hosts[3].cmd("python tg_scripts/receive.py &")
  
-        hosts[0].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (2 * unit))
-        hosts[1].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (2 * unit))
-        
-        hosts[1].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (unit))
-        hosts[0].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (unit))
-        hosts[3].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (unit))
+        hosts[0].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (h3_demands[0] * unit))
+        hosts[1].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (h3_demands[1] * unit))
+        hosts[3].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (h3_demands[3] * unit))
+
+        hosts[0].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (h4_demands[0] * unit))
+        hosts[1].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (h4_demands[1] * unit))
 
         sleep(40)
 
@@ -201,13 +203,12 @@ class ExerciseRunner:
         for line in f.readlines():
             parts = line.split()
             srcip = parts[0]
+            host_id = int(srcip[-1]) - 1
             last_pkt_time = float(parts[2])
             pkt_cnt = int(parts[3])
-            
-            if srcip == "10.0.2.2" and pkt_cnt < 2 * unit:
-                print "pkt drops from 10.0.2.2 to 10.0.3.3"
-            elif (srcip == "10.0.1.1" or srcip == "10.0.4.4") and pkt_cnt < unit:
-                print 'pkt drops from %s to 10.0.3.3' % scrip
+           
+            if pkt_cnt < h3_demands[host_id]:
+              print "pkt drops from %s to 10.0.3.3" % scrip 
 
             h3_flows[srcip] = last_pkt_time 
             
@@ -218,14 +219,13 @@ class ExerciseRunner:
         for line in f.readlines():
             parts = line.split()
             srcip = parts[0]
+            host_id = int(srcip[-1]) - 1
             last_pkt_time = float(parts[2])
             pkt_cnt = int(parts[3])
-            
-            if srcip == "10.0.1.1" and pkt_cnt < 2 * unit:
-                print "pkt drops from 10.0.1.1 to 10.0.4.4"
-            elif srcip == "10.0.2.2" and pkt_cnt < unit:
-                print 'pkt drops from 10.0.2.2 to 10.0.4.4'
-
+           
+            if pkt_cnt < h4_demands[host_id]:
+              print "pkt drops from %s to 10.0.4.4" % scrip 
+ 
             h4_flows[srcip] = last_pkt_time 
             
         f.close()

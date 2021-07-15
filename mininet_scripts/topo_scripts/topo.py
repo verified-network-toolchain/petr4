@@ -47,6 +47,13 @@ class Topology:
         else:
             print(f"There is no edge between {n1} and {n2}")
             return
+   
+    def neighbor_on_port(self, n, p):
+        nei = self.neighbors(n)
+        for x in nei:
+            if self.port(n, x) == p:
+                return x
+        return None
 
     def modify_link_weight(self, n1, n2, weight):
         if not (n1, n2) in self.G.edges:

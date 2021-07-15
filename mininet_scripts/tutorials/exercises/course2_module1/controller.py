@@ -43,21 +43,16 @@ class MyApp(App):
     
     paths = {}
     paths["h1", "h3"] = ["h1", "s1", "s3", "s6", "h3"]
-    paths["h3", "h1"] = list(reversed(paths["h1", "h3"]))
 
     paths["h2", "h3"] = ["h2", "s2", "s4", "s6", "h3"]
-    paths["h3", "h2"] = list(reversed(paths["h2", "h3"]))
 
     paths["h4", "h3"] = ["h4", "s7", "s4", "s3", "s6", "h3"]
     #paths["h4", "h3"] = ["h4", "s7", "s4", "s6", "h3"]
-    paths["h3", "h4"] = list(reversed(paths["h4", "h3"]))
 
     paths["h1", "h4"] = ["h1", "s1", "s4", "s7", "h4"]
-    paths["h4", "h1"] = list(reversed(paths["h1", "h4"]))
 
     paths["h2", "h4"] = ["h2", "s2", "s4", "s5", "s7", "h4"]
     #paths["h2", "h4"] = ["h2", "s2", "s4", "s7", "h4"]
-    paths["h4", "h2"] = list(reversed(paths["h2", "h4"]))
 
     self.topo = topo
     self.paths = paths
@@ -123,8 +118,10 @@ class MyApp(App):
                 print(f"{sw} counters:")
                 for port in self.cntrs[sw]:
                     cnt = self.cntrs[sw][port]
-                    cnts.append(cnt)
-                    print(f"port {port}: {cnt}")
+                    nei_node = self.topo.neighbor_on_port(sw, port)
+                    if nei_node in self.topo.switches():
+                      cnts.append(cnt)
+                      print(f"port {port}: {cnt}")
             max_cnt = max(cnts)
             print(f"Max Count: {max_cnt}")
             sys.exit(0)

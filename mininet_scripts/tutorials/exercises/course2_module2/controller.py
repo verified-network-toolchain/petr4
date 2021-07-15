@@ -60,11 +60,10 @@ class MyApp(App):
     topo.add_link("s9", "s11", 5, 3, 1)
     topo.add_link("s9", "s12", 4, 1, 1)
 
-    
+    topo.add_link("s10", "s12", 2, 3, 1) 
     self.topo = topo 
 
   def init_demands(self):
-    #TODO: read from file
     demands = {}
     
     demands["h1", "h3"] = 5 
@@ -80,8 +79,8 @@ class MyApp(App):
     demand_ids["h1", "h3"] = 0 
     demand_ids["h2", "h3"] = 2
     demand_ids["h4", "h3"] = 4 
-    demand_ids["h1", "h4"] = 5 
-    demand_ids["h2", "h4"] = 6
+    demand_ids["h1", "h4"] = 6 
+    demand_ids["h2", "h4"] = 8
 
     self.demand_ids = demand_ids; 
 
@@ -223,28 +222,20 @@ class MyApp(App):
     
   def track_counters(self):
     self.port_cnt = {}
-    for i in [1, 3, 6, 7]:
-      sw = f"s{i}"
-      self.port_cnt[sw] = 3
-
-    for i in [2, 5]:
-      sw = f"s{i}"
-      self.port_cnt[sw] = 2
-
-    self.port_cnt["s4"] = 6
-
+    for sw in self.topo.switches():
+      nei = list(self.topo.neighbors(sw))
+      print(f"{sw}: {nei}")
+      self.port_cnt[sw] = len(nei)
      
     self.cntrs = {}
-    for i in range(1, 8):
-      sw = f"s{i}"
+    for sw in self.topo.switches():
       self.cntrs[sw] = {}
       for j in range(1, self.port_cnt[sw] + 1):
         self.cntrs[sw][j] = 0
 
     
     self.reports = {}
-    for i in range(1, 8):
-      sw = f"s{i}"
+    for sw in self.topo.switches():
       self.reports[sw] = 0
 
     self.check_reports()
@@ -270,8 +261,10 @@ class MyApp(App):
                 print(f"{sw} counters:")
                 for port in self.cntrs[sw]:
                     cnt = self.cntrs[sw][port]
-                    cnts.append(cnt)
-                    print(f"port {port}: {cnt}")
+                    nei_node = self.topo.neighbor_on_port(sw, port)
+                    if nei_node in self.topo.switches():
+                      cnts.append(cnt)
+                      print(f"port {port}: {cnt}")
             max_cnt = max(cnts)
             print(f"Max Count: {max_cnt}")
             sys.exit(0)
@@ -303,13 +296,13 @@ class MyApp(App):
       for n in nei:
         var_name = f"{d}_on_({n}, {switch})"
         if var_name in self.path_assignments:
-          val = self.path_assignments[var_name]
+          val = int(self.path_assignments[var_name])
           if val > 0:
             incoming.append((n, val))
 
         var_name = f"{d}_on_({switch}, {n})"
         if var_name in self.path_assignments:
-          val = self.path_assignments[var_name]
+          val = int(self.path_assignments[var_name])
           if val > 0:
             outgoing.append((n, val))
 
@@ -334,17 +327,18 @@ class MyApp(App):
 
         for i in range(len(outgoing), 5):
           port_name = "port%d" % (i + 1)
-          port_params.append((port_name, "0"))
+          port_params.append((port_name, "20"))
 
           weight_name = "weight%d" % (i + 1)
           port_params.append((weight_name, "0"))
  
        
         entry = Entry("ipv4", [("hdr.ipv4.srcAddr", src_ip), ("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", 
-                              [("demands_id", demand_id), ("dstAddr", dst_mac), ("valid_ports", valid_ports)] + port_params)
+                              [("demand_id", demand_id), ("dstAddr", dst_mac), ("valid_ports", valid_ports)] + port_params)
 
         self.insert(switch, entry)
 
+      '''
       if len(incoming) > 0:
         src_ip = self.host_map[dst]["ip"]
 
@@ -366,36 +360,17 @@ class MyApp(App):
 
         for i in range(len(incoming), 5):
           port_name = "port%d" % (i + 1)
-          port_params.append((port_name, "0"))
+          port_params.append((port_name, "20"))
 
           weight_name = "weight%d" % (i + 1)
           port_params.append((weight_name, "0"))
  
        
         entry = Entry("ipv4", [("hdr.ipv4.srcAddr", src_ip), ("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", 
-                              [("demands_id", demand_id), ("dstAddr", dst_mac), ("valid_ports", valid_ports)] + port_params)
+                              [("demand_id", demand_id), ("dstAddr", dst_mac), ("valid_ports", valid_ports)] + port_params)
 
         self.insert(switch, entry)
-
-      #TODO: opposite direction
     '''
-    for src, dst in self.paths:
-        p = self.paths[src, dst]
-        if switch in p:
-            ind = p.index(switch)
-            # we are sure there is a next hope
-            # because the hosts are in the path too
-            next_hop = p[ind + 1]
-            port = str(self.topo.port(switch, next_hop))
-            
-            src_ip = self.host_map[src]["ip"]
-
-            dst_ip = self.host_map[dst]["ip"]
-            dst_mac = self.host_map[dst]["mac"]
-      
-            entry = Entry("ipv4", [("hdr.ipv4.srcAddr", src_ip), ("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("dstAddr", dst_mac), ("port", port)])
-            self.insert(switch, entry)
-      '''
     self.poll_counter(switch)
     return
 

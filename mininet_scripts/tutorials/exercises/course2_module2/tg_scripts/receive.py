@@ -30,6 +30,9 @@ def handle_pkt(pkt):
     now = get_time()
     if TCP in pkt and pkt[TCP].dport == 1234:
         srcip = pkt[IP].src
+        host_ip = get_if_addr(get_if()) 
+        if srcip == host_ip:
+          return
         if not srcip in rcvd_flows:
             rcvd_flows[srcip] = [now, 0, 1]
         rcvd_flows[srcip][1] = now

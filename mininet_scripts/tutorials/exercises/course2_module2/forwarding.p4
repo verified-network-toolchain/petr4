@@ -167,6 +167,7 @@ control MyIngress(inout headers hdr,
         reg_val[15:8] = port_ind;
         reg_val[7:0] = weight_cntr;
 
+        cur_path.write((bit<32>)demand_id, reg_val);
         standard_metadata.egress_spec = meta.port_info[(bit<8>)port_ind].port; 
     }
     

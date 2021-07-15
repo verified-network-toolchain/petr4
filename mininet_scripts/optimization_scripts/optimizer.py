@@ -95,8 +95,8 @@ class Optimizer:
         print("Solved!")
 
         var_assignments = {}
-        for var in self.model.variables():
-            var_assignments[var.name] = var.value()
+        for var in self.vars:
+            var_assignments[var] = self.vars[var].value()
 
         return var_assignments
 

@@ -125,6 +125,30 @@ Ltac reflect_split :=
           end
   end.
 
+Ltac simpl_equiv_dec :=
+  match goal with
+    H: EqDec _ ?R
+    |- context [?H ?v ?v]
+    => assert (R v v) by reflexivity;
+      destruct (H v v) as [? | ?];
+      unravel in *;
+      try contradiction
+  end.
+
+Ltac simpl_equiv_dec_hyp :=
+  match goal with
+    H: EqDec _ ?R, E: context [?R ?x ?y]
+    |- context [?H ?x ?y]
+    => destruct (H x y) as [? | ?];
+      unravel in *; try contradiction; unravel
+  end.
+
+Ltac destruct_if :=
+  match goal with
+    |- context [if ?trm then _ else _]
+    => destruct trm as [? | ?] eqn:?; unravel in *
+  end.
+
 (** * Useful Data Types *)
 
 Inductive either (A B : Type) : Type :=

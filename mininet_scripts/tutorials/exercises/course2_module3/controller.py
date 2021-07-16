@@ -87,134 +87,84 @@ class MyApp(App):
 
   def optimize_paths(self): 
     solver = Optimizer(ObjectiveType.MIN)
-    vs = {}
 
+    all_paths = {}
+
+    # path variables
     for d in self.demands:
       src, dst = d
-      for a, b in self.topo.links():
-        if ((a in self.topo.hosts() and a != src and a != dst) or
-           (b in self.topo.hosts() and b != src and b != dst)):
-          continue
-        solver.add_integer_var(f"{d}_on_({a}, {b})",
+      simple_paths = self.topo.all_simple_paths(src, dst)
+      simple_paths = [x for (x, _) in simple_paths]
+      
+      all_paths[d] = dict(enumerate(simple_paths))
+      
+      for ind in all_paths[d]:
+        solver.add_integer_var(f"{d}_on_{ind}",
                                lower_bound = 0,
                                upper_bound = self.demands[d])
-        solver.add_integer_var(f"{d}_on_({b}, {a})",
-                               lower_bound = 0,
-                               upper_bound = self.demands[d])
+          
+    # edge variables
+    for l in self.topo.links():
+      solver.add_integer_var(f"{l}_traffic", lower_bound = 0)
 
-    # flow conservation on each switch
+    # Pick paths for all traffic
     for d in self.demands:
-      for s in self.topo.switches():
-        nei = self.topo.neighbors(s)
-        incoming = []
-        outgoing = []
-        for n in nei:
-            incoming_var_name = f"{d}_on_({n}, {s})"
-            if (incoming_var_name in solver.vars):
-              incoming.append(solver.vars[incoming_var_name])
+      d_vars = [solver.vars[f"{d}_on_{ind}"] for ind in all_paths[d]]
+      solver.add_constraint(f"{d}_traffic", d_vars, "==", self.demands[d])
 
-            outgoing_var_name = f"{d}_on_({s}, {n})"
-            if (outgoing_var_name in solver.vars):
-              outgoing.append(solver.vars[outgoing_var_name])
+    # Edge-path constraints
+    for l in self.topo.links():
+      a, b = l
+      edge_paths = []
+      for d in self.demands:
+        for ind in all_paths[d]:
+          path = all_paths[d][ind]
+          if a in path and b in path:
+            a_ind = path.index(a)
+            b_ind = path.index(b)
+            if b_ind == a_ind + 1:
+              var_name = f"{d}_on_{ind}"
+              edge_paths.append(solver.vars[var_name])
+      
+      link_var = solver.vars[f"{l}_traffic"] 
+      solver.add_constraint(f"{l}_traffic_constraint",
+                            [link_var], "==", edge_paths)
 
-        solver.add_constraint(f"conserve_{d}_on_{s}", 
-                              incoming, "==", outgoing)
-    
-    # flow conservation at the src
-    for d in self.demands:
-      src = d[0]
-      nei = self.topo.neighbors(src)
-      incoming = []
-      outgoing = []
-      for n in nei:
-        incoming_var_name = f"{d}_on_({n}, {src})"
-        incoming.append(solver.vars[incoming_var_name])
-
-        outgoing_var_name = f"{d}_on_({src}, {n})"
-        outgoing.append(solver.vars[outgoing_var_name])
-
-      solver.add_constraint(f"conserve_{d}_at_{src}", 
-                            outgoing, "==", incoming + [self.demands[d]])
-
-    # flow conservation at the dst
-    for d in self.demands:
-      dst = d[1]
-      nei = self.topo.neighbors(dst)
-      incoming = []
-      outgoing = []
-      for n in nei:
-        incoming_var_name = f"{d}_on_({n}, {dst})"
-        incoming.append(solver.vars[incoming_var_name])
-
-        outgoing_var_name = f"{d}_on_({dst}, {n})"
-        outgoing.append(solver.vars[outgoing_var_name])
-
-      solver.add_constraint(f"conserve_{d}_at_{dst}",
-                            incoming, "==", outgoing + [self.demands[d]])
-
+      
     solver.add_integer_var(f"max_util", lower_bound = 0)
     
-    for a, b in self.topo.links():
+    for l in self.topo.links():
+      a, b = l
       if (not a in self.topo.switches() or 
           not b in self.topo.switches()):
         continue
 
-      rhs_1 = []
-      rhs_2 = []
-      for d in self.demands:
-        var_name = f"{d}_on_({a}, {b})"
-        rhs_1.append(solver.vars[var_name])
+      link_var = solver.vars[f"{l}_traffic"]
+      solver.add_constraint(f"util_for_{l}",
+                            [link_var], "<=", [solver.vars["max_util"]])
 
-        var_name = f"{d}_on_({b}, {a})"
-        rhs_2.append(solver.vars[var_name])
-
-      solver.add_constraint(f"util_for_({a}, {b})",
-                            rhs_1, "<=", [solver.vars["max_util"]])
-
-      solver.add_constraint(f"util_for_({b}, {a})",
-                            rhs_2, "<=", [solver.vars["max_util"]])
-    
     solver.add_objective_function(solver.vars["max_util"]) 
-    
+   
+    print(solver.model) 
     self.path_assignments = solver.solve()
     for v in self.path_assignments:
       print(f"{v}: {self.path_assignments[v]}")
+
 
     self.paths = {}
     for d in self.demands:
       print(d)
       src, dst = d
-      cur_path = [src]
-      rem_paths = []
-      all_paths = []
-      n = src
-      done = False
-      while not done:
-        nei = self.topo.neighbors(n)
-        non_zero = []
-        for x in nei:
-          var_name = f"{d}_on_({n}, {x})"
-          if var_name in self.path_assignments:
-            val = self.path_assignments[var_name]
-            if val > 0:
-              non_zero.append(x)
-        next_node = non_zero[0]
-        if next_node == dst:
-          cur_path += [dst]
-          all_paths.append(cur_path)
-          print(cur_path)
-          if len(rem_paths) > 0:
-            cur_path = rem_paths[0]
-            rem_paths = rem_paths[1:]
-            n = cur_path[-1]
-          else:
-            done = True
-        else:
-          for x in non_zero[1:]:
-            rem_paths.append(cur_path + [x])
-          cur_path.append(next_node)
-          n = next_node
 
+      d_paths = []
+      for ind in all_paths[d]:
+        var_name = f"{d}_on_{ind}"
+        val = self.path_assignments[var_name]
+        if val > 0:
+          p = all_paths[d][ind]
+          d_paths.append(p)
+          print(p)
+      
       self.paths[d] = all_paths
       
       print("\n")    

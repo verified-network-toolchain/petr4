@@ -17,7 +17,7 @@ class Optimizer:
         self.constrs = {}
         self.obj = None
 
-    def add_boolean_var(self, name):
+    def add_binary_var(self, name):
         if name in self.vars:
             print(f"{name} is already defined")
             return

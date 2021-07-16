@@ -85,7 +85,9 @@ class MyApp(App):
     self.demand_ids = demand_ids; 
 
 
-  def optimize_paths(self): 
+  def optimize_paths(self):
+    MAX_PATHS = 2
+ 
     solver = Optimizer(ObjectiveType.MIN)
 
     all_paths = {}
@@ -101,16 +103,17 @@ class MyApp(App):
       for ind in all_paths[d]:
         solver.add_integer_var(f"{d}_on_{ind}",
                                lower_bound = 0,
-                               upper_bound = self.demands[d])
-          
-    # edge variables
-    for l in self.topo.links():
-      solver.add_integer_var(f"{l}_traffic", lower_bound = 0)
+                               upper_bound = self.demands[d])          
+    
 
     # Pick paths for all traffic
     for d in self.demands:
       d_vars = [solver.vars[f"{d}_on_{ind}"] for ind in all_paths[d]]
       solver.add_constraint(f"{d}_traffic", d_vars, "==", self.demands[d])
+
+    # edge variables
+    for l in self.topo.links():
+      solver.add_integer_var(f"{l}_traffic", lower_bound = 0)
 
     # Edge-path constraints
     for l in self.topo.links():
@@ -130,7 +133,26 @@ class MyApp(App):
       solver.add_constraint(f"{l}_traffic_constraint",
                             [link_var], "==", edge_paths)
 
-      
+   
+    # path count variables and constraints
+    for d in self.demands:
+      for ind in all_paths[d]:
+        var_name = f"{d}[{ind}]_has_traffic"
+        solver.add_binary_var(var_name)   
+    
+        path_var_name = f"{d}_on_{ind}"
+        solver.add_constraint(f"{d}[{ind}]_is_chosen",
+                              [self.demands[d] * solver.vars[var_name]], 
+                              ">=",
+                              [solver.vars[path_var_name]])
+
+
+    for d in self.demands:
+      cnt_vars = [solver.vars[f"{d}[{ind}]_has_traffic"] for ind in all_paths[d]]
+      solver.add_constraint(f"{d}_max_path_constraint", 
+                             cnt_vars, "<=", [MAX_PATHS])
+
+    # setting up the objective
     solver.add_integer_var(f"max_util", lower_bound = 0)
     
     for l in self.topo.links():
@@ -143,6 +165,7 @@ class MyApp(App):
       solver.add_constraint(f"util_for_{l}",
                             [link_var], "<=", [solver.vars["max_util"]])
 
+    # objective
     solver.add_objective_function(solver.vars["max_util"]) 
    
     print(solver.model) 

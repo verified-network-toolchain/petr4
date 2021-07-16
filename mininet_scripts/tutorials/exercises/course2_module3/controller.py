@@ -86,7 +86,8 @@ class MyApp(App):
 
 
   def optimize_paths(self):
-    MAX_PATHS = 2
+    MAX_PATHS = 3
+    MAX_PATH_LEN = 6
  
     solver = Optimizer(ObjectiveType.MIN)
 
@@ -96,7 +97,7 @@ class MyApp(App):
     for d in self.demands:
       src, dst = d
       simple_paths = self.topo.all_simple_paths(src, dst)
-      simple_paths = [x for (x, _) in simple_paths]
+      simple_paths = [p for (p, _) in simple_paths if len(p) <= MAX_PATH_LEN + 1]
       
       all_paths[d] = dict(enumerate(simple_paths))
       
@@ -185,11 +186,10 @@ class MyApp(App):
         val = self.path_assignments[var_name]
         if val > 0:
           p = all_paths[d][ind]
-          d_paths.append(p)
-          print(p)
+          d_paths.append((p, int(val)))
+          print(f"{val}: {p}")
       
-      self.paths[d] = all_paths
-      
+      self.paths[d] = d_paths
       print("\n")    
 
     
@@ -262,22 +262,13 @@ class MyApp(App):
     for d in self.demands:
       src, dst = d
 
-      nei = self.topo.neighbors(switch)
-      incoming = []
       outgoing = [] 
-      for n in nei:
-        var_name = f"{d}_on_({n}, {switch})"
-        if var_name in self.path_assignments:
-          val = int(self.path_assignments[var_name])
-          if val > 0:
-            incoming.append((n, val))
-
-        var_name = f"{d}_on_({switch}, {n})"
-        if var_name in self.path_assignments:
-          val = int(self.path_assignments[var_name])
-          if val > 0:
-            outgoing.append((n, val))
-
+      
+      for (p, val) in self.paths[d]:
+        if switch in p:
+          s_ind = p.index(switch)
+          outgoing.append((p[s_ind + 1], val))  
+      
       if len(outgoing) > 0:
         src_ip = self.host_map[src]["ip"]
 
@@ -310,39 +301,7 @@ class MyApp(App):
 
         self.insert(switch, entry)
 
-      '''
-      if len(incoming) > 0:
-        src_ip = self.host_map[dst]["ip"]
-
-        dst_ip = self.host_map[src]["ip"]
-        dst_mac = self.host_map[src]["mac"]
       
-        demand_id = str(self.demand_ids[d] + 1)
-        valid_ports = str(len(incoming))
-        
-        port_params = []
-        for i, p in enumerate(incoming):
-          port_name = "port%d" % (i + 1)
-          port_val = str(self.topo.port(switch, p[0]))
-          port_params.append((port_name, port_val))
-
-          weight_name = "weight%d" % (i + 1)
-          weight_val = str(p[1])
-          port_params.append((weight_name, weight_val))
-
-        for i in range(len(incoming), 5):
-          port_name = "port%d" % (i + 1)
-          port_params.append((port_name, "20"))
-
-          weight_name = "weight%d" % (i + 1)
-          port_params.append((weight_name, "0"))
- 
-       
-        entry = Entry("ipv4", [("hdr.ipv4.srcAddr", src_ip), ("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", 
-                              [("demand_id", demand_id), ("dstAddr", dst_mac), ("valid_ports", valid_ports)] + port_params)
-
-        self.insert(switch, entry)
-    '''
     self.poll_counter(switch)
     return
 

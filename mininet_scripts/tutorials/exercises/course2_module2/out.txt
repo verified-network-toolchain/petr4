@@ -1,0 +1,250 @@
+Welcome to the CBC MILP Solver 
+Version: 2.9.0 
+Build Date: Feb 12 2015 
+
+command line - /home/p4/.local/lib/python3.9/site-packages/pulp/apis/../solverdir/cbc/linux/64/cbc /tmp/ed6255d1f1d24f088901e0addc0d95d1-pulp.mps branch printingOptions all solution /tmp/ed6255d1f1d24f088901e0addc0d95d1-pulp.sol (default strategy 1)
+At line 2 NAME          MODEL
+At line 3 ROWS
+At line 111 COLUMNS
+At line 1131 RHS
+At line 1238 BOUNDS
+At line 1440 ENDATA
+Problem MODEL has 106 rows, 201 columns and 616 elements
+Coin0008I MODEL read with 0 errors
+Continuous objective value is 3 - 0.00 seconds
+Cgl0003I 0 fixed, 1 tightened bounds, 0 strengthened rows, 0 substitutions
+Cgl0004I processed model has 82 rows, 161 columns (161 integer (96 of which binary)) and 512 elements
+Cutoff increment increased from 1e-05 to 0.9999
+Cbc0038I Initial state - 0 integers unsatisfied sum - 0
+Cbc0038I Solution found of 3
+Cbc0038I Cleaned solution of 3
+Cbc0038I Before mini branch and bound, 161 integers at bound fixed and 0 continuous
+Cbc0038I Mini branch and bound did not improve solution (0.00 seconds)
+Cbc0038I After 0.00 seconds - Feasibility pump exiting with objective of 3 - took 0.00 seconds
+Cbc0012I Integer solution of 3 found by feasibility pump after 0 iterations and 0 nodes (0.00 seconds)
+Cbc0001I Search completed - best objective 3, took 0 iterations and 0 nodes (0.00 seconds)
+Cbc0035I Maximum depth 0, 0 variables fixed on reduced cost
+Cuts at root node changed objective from 3 to 3
+Probing was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Gomory was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Knapsack was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+Clique was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+MixedIntegerRounding2 was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+FlowCover was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+TwoMirCuts was tried 0 times and created 0 cuts of which 0 were active after adding rounds of cuts (0.000 seconds)
+
+Result - Optimal solution found
+
+Objective value:                3.00000000
+Enumerated nodes:               0
+Total iterations:               0
+Time (CPU seconds):             0.01
+Time (Wallclock seconds):       0.01
+
+Option for printingOptions changed from normal to all
+Total time (CPU seconds):       0.01   (Wallclock seconds):       0.01
+
+1
+Solved!
+('h1',_'h3')_on_(h1,_s1): 1.0
+('h1',_'h3')_on_(h3,_s11): 0.0
+('h1',_'h3')_on_(s1,_h1): 0.0
+('h1',_'h3')_on_(s1,_s3): 0.0
+('h1',_'h3')_on_(s1,_s4): 1.0
+('h1',_'h3')_on_(s10,_s9): 0.0
+('h1',_'h3')_on_(s11,_h3): 1.0
+('h1',_'h3')_on_(s11,_s8): 0.0
+('h1',_'h3')_on_(s11,_s9): 0.0
+('h1',_'h3')_on_(s12,_s9): 0.0
+('h1',_'h3')_on_(s2,_s4): 0.0
+('h1',_'h3')_on_(s2,_s5): 0.0
+('h1',_'h3')_on_(s3,_s1): 0.0
+('h1',_'h3')_on_(s3,_s4): 0.0
+('h1',_'h3')_on_(s3,_s6): 0.0
+('h1',_'h3')_on_(s4,_s1): 0.0
+('h1',_'h3')_on_(s4,_s2): 0.0
+('h1',_'h3')_on_(s4,_s3): 0.0
+('h1',_'h3')_on_(s4,_s5): 0.0
+('h1',_'h3')_on_(s4,_s6): 1.0
+('h1',_'h3')_on_(s4,_s7): 0.0
+('h1',_'h3')_on_(s5,_s2): 0.0
+('h1',_'h3')_on_(s5,_s4): 0.0
+('h1',_'h3')_on_(s5,_s7): 0.0
+('h1',_'h3')_on_(s6,_s3): 0.0
+('h1',_'h3')_on_(s6,_s4): 0.0
+('h1',_'h3')_on_(s6,_s8): 1.0
+('h1',_'h3')_on_(s6,_s9): 0.0
+('h1',_'h3')_on_(s7,_s4): 0.0
+('h1',_'h3')_on_(s7,_s5): 0.0
+('h1',_'h3')_on_(s7,_s9): 0.0
+('h1',_'h3')_on_(s8,_s11): 1.0
+('h1',_'h3')_on_(s8,_s6): 0.0
+('h1',_'h3')_on_(s8,_s9): 0.0
+('h1',_'h3')_on_(s9,_s10): 0.0
+('h1',_'h3')_on_(s9,_s11): 0.0
+('h1',_'h3')_on_(s9,_s12): 0.0
+('h1',_'h3')_on_(s9,_s6): 0.0
+('h1',_'h3')_on_(s9,_s7): 0.0
+('h1',_'h3')_on_(s9,_s8): 0.0
+('h1',_'h4')_on_(h1,_s1): 2.0
+('h1',_'h4')_on_(h4,_s12): 0.0
+('h1',_'h4')_on_(s1,_h1): 0.0
+('h1',_'h4')_on_(s1,_s3): 0.0
+('h1',_'h4')_on_(s1,_s4): 2.0
+('h1',_'h4')_on_(s10,_s9): 0.0
+('h1',_'h4')_on_(s11,_s8): 0.0
+('h1',_'h4')_on_(s11,_s9): 0.0
+('h1',_'h4')_on_(s12,_h4): 2.0
+('h1',_'h4')_on_(s12,_s9): 0.0
+('h1',_'h4')_on_(s2,_s4): 0.0
+('h1',_'h4')_on_(s2,_s5): 0.0
+('h1',_'h4')_on_(s3,_s1): 0.0
+('h1',_'h4')_on_(s3,_s4): 0.0
+('h1',_'h4')_on_(s3,_s6): 0.0
+('h1',_'h4')_on_(s4,_s1): 0.0
+('h1',_'h4')_on_(s4,_s2): 0.0
+('h1',_'h4')_on_(s4,_s3): 0.0
+('h1',_'h4')_on_(s4,_s5): 0.0
+('h1',_'h4')_on_(s4,_s6): 0.0
+('h1',_'h4')_on_(s4,_s7): 2.0
+('h1',_'h4')_on_(s5,_s2): 0.0
+('h1',_'h4')_on_(s5,_s4): 0.0
+('h1',_'h4')_on_(s5,_s7): 0.0
+('h1',_'h4')_on_(s6,_s3): 0.0
+('h1',_'h4')_on_(s6,_s4): 0.0
+('h1',_'h4')_on_(s6,_s8): 0.0
+('h1',_'h4')_on_(s6,_s9): 0.0
+('h1',_'h4')_on_(s7,_s4): 0.0
+('h1',_'h4')_on_(s7,_s5): 0.0
+('h1',_'h4')_on_(s7,_s9): 2.0
+('h1',_'h4')_on_(s8,_s11): 0.0
+('h1',_'h4')_on_(s8,_s6): 0.0
+('h1',_'h4')_on_(s8,_s9): 0.0
+('h1',_'h4')_on_(s9,_s10): 0.0
+('h1',_'h4')_on_(s9,_s11): 0.0
+('h1',_'h4')_on_(s9,_s12): 2.0
+('h1',_'h4')_on_(s9,_s6): 0.0
+('h1',_'h4')_on_(s9,_s7): 0.0
+('h1',_'h4')_on_(s9,_s8): 0.0
+('h2',_'h3')_on_(h2,_s2): 2.0
+('h2',_'h3')_on_(h3,_s11): 0.0
+('h2',_'h3')_on_(s1,_s3): 0.0
+('h2',_'h3')_on_(s1,_s4): 0.0
+('h2',_'h3')_on_(s10,_s9): 0.0
+('h2',_'h3')_on_(s11,_h3): 2.0
+('h2',_'h3')_on_(s11,_s8): 0.0
+('h2',_'h3')_on_(s11,_s9): 0.0
+('h2',_'h3')_on_(s12,_s9): 0.0
+('h2',_'h3')_on_(s2,_h2): 0.0
+('h2',_'h3')_on_(s2,_s4): 2.0
+('h2',_'h3')_on_(s2,_s5): 0.0
+('h2',_'h3')_on_(s3,_s1): 0.0
+('h2',_'h3')_on_(s3,_s4): 0.0
+('h2',_'h3')_on_(s3,_s6): 0.0
+('h2',_'h3')_on_(s4,_s1): 0.0
+('h2',_'h3')_on_(s4,_s2): 0.0
+('h2',_'h3')_on_(s4,_s3): 0.0
+('h2',_'h3')_on_(s4,_s5): 0.0
+('h2',_'h3')_on_(s4,_s6): 2.0
+('h2',_'h3')_on_(s4,_s7): 0.0
+('h2',_'h3')_on_(s5,_s2): 0.0
+('h2',_'h3')_on_(s5,_s4): 0.0
+('h2',_'h3')_on_(s5,_s7): 0.0
+('h2',_'h3')_on_(s6,_s3): 0.0
+('h2',_'h3')_on_(s6,_s4): 0.0
+('h2',_'h3')_on_(s6,_s8): 2.0
+('h2',_'h3')_on_(s6,_s9): 0.0
+('h2',_'h3')_on_(s7,_s4): 0.0
+('h2',_'h3')_on_(s7,_s5): 0.0
+('h2',_'h3')_on_(s7,_s9): 0.0
+('h2',_'h3')_on_(s8,_s11): 2.0
+('h2',_'h3')_on_(s8,_s6): 0.0
+('h2',_'h3')_on_(s8,_s9): 0.0
+('h2',_'h3')_on_(s9,_s10): 0.0
+('h2',_'h3')_on_(s9,_s11): 0.0
+('h2',_'h3')_on_(s9,_s12): 0.0
+('h2',_'h3')_on_(s9,_s6): 0.0
+('h2',_'h3')_on_(s9,_s7): 0.0
+('h2',_'h3')_on_(s9,_s8): 0.0
+('h2',_'h4')_on_(h2,_s2): 1.0
+('h2',_'h4')_on_(h4,_s12): 0.0
+('h2',_'h4')_on_(s1,_s3): 0.0
+('h2',_'h4')_on_(s1,_s4): 0.0
+('h2',_'h4')_on_(s10,_s9): 0.0
+('h2',_'h4')_on_(s11,_s8): 0.0
+('h2',_'h4')_on_(s11,_s9): 0.0
+('h2',_'h4')_on_(s12,_h4): 1.0
+('h2',_'h4')_on_(s12,_s9): 0.0
+('h2',_'h4')_on_(s2,_h2): 0.0
+('h2',_'h4')_on_(s2,_s4): 1.0
+('h2',_'h4')_on_(s2,_s5): 0.0
+('h2',_'h4')_on_(s3,_s1): 0.0
+('h2',_'h4')_on_(s3,_s4): 0.0
+('h2',_'h4')_on_(s3,_s6): 0.0
+('h2',_'h4')_on_(s4,_s1): 0.0
+('h2',_'h4')_on_(s4,_s2): 0.0
+('h2',_'h4')_on_(s4,_s3): 0.0
+('h2',_'h4')_on_(s4,_s5): 0.0
+('h2',_'h4')_on_(s4,_s6): 0.0
+('h2',_'h4')_on_(s4,_s7): 1.0
+('h2',_'h4')_on_(s5,_s2): 0.0
+('h2',_'h4')_on_(s5,_s4): 0.0
+('h2',_'h4')_on_(s5,_s7): 0.0
+('h2',_'h4')_on_(s6,_s3): 0.0
+('h2',_'h4')_on_(s6,_s4): 0.0
+('h2',_'h4')_on_(s6,_s8): 0.0
+('h2',_'h4')_on_(s6,_s9): 0.0
+('h2',_'h4')_on_(s7,_s4): 0.0
+('h2',_'h4')_on_(s7,_s5): 0.0
+('h2',_'h4')_on_(s7,_s9): 1.0
+('h2',_'h4')_on_(s8,_s11): 0.0
+('h2',_'h4')_on_(s8,_s6): 0.0
+('h2',_'h4')_on_(s8,_s9): 0.0
+('h2',_'h4')_on_(s9,_s10): 0.0
+('h2',_'h4')_on_(s9,_s11): 0.0
+('h2',_'h4')_on_(s9,_s12): 1.0
+('h2',_'h4')_on_(s9,_s6): 0.0
+('h2',_'h4')_on_(s9,_s7): 0.0
+('h2',_'h4')_on_(s9,_s8): 0.0
+('h4',_'h3')_on_(h3,_s11): 0.0
+('h4',_'h3')_on_(h4,_s12): 1.0
+('h4',_'h3')_on_(s1,_s3): 0.0
+('h4',_'h3')_on_(s1,_s4): 0.0
+('h4',_'h3')_on_(s10,_s9): 0.0
+('h4',_'h3')_on_(s11,_h3): 1.0
+('h4',_'h3')_on_(s11,_s8): 0.0
+('h4',_'h3')_on_(s11,_s9): 0.0
+('h4',_'h3')_on_(s12,_h4): 0.0
+('h4',_'h3')_on_(s12,_s9): 1.0
+('h4',_'h3')_on_(s2,_s4): 0.0
+('h4',_'h3')_on_(s2,_s5): 0.0
+('h4',_'h3')_on_(s3,_s1): 0.0
+('h4',_'h3')_on_(s3,_s4): 0.0
+('h4',_'h3')_on_(s3,_s6): 0.0
+('h4',_'h3')_on_(s4,_s1): 0.0
+('h4',_'h3')_on_(s4,_s2): 0.0
+('h4',_'h3')_on_(s4,_s3): 0.0
+('h4',_'h3')_on_(s4,_s5): 0.0
+('h4',_'h3')_on_(s4,_s6): 0.0
+('h4',_'h3')_on_(s4,_s7): 0.0
+('h4',_'h3')_on_(s5,_s2): 0.0
+('h4',_'h3')_on_(s5,_s4): 0.0
+('h4',_'h3')_on_(s5,_s7): 0.0
+('h4',_'h3')_on_(s6,_s3): 0.0
+('h4',_'h3')_on_(s6,_s4): 0.0
+('h4',_'h3')_on_(s6,_s8): 0.0
+('h4',_'h3')_on_(s6,_s9): 0.0
+('h4',_'h3')_on_(s7,_s4): 0.0
+('h4',_'h3')_on_(s7,_s5): 0.0
+('h4',_'h3')_on_(s7,_s9): 0.0
+('h4',_'h3')_on_(s8,_s11): 0.0
+('h4',_'h3')_on_(s8,_s6): 0.0
+('h4',_'h3')_on_(s8,_s9): 0.0
+('h4',_'h3')_on_(s9,_s10): 0.0
+('h4',_'h3')_on_(s9,_s11): 1.0
+('h4',_'h3')_on_(s9,_s12): 0.0
+('h4',_'h3')_on_(s9,_s6): 0.0
+('h4',_'h3')_on_(s9,_s7): 0.0
+('h4',_'h3')_on_(s9,_s8): 0.0
+max_util: 3.0
+Petr4: starting controller on 9000.

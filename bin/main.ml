@@ -217,12 +217,7 @@ let start_switch verbose include_dir target pts switch p4_file =
   match parse_file include_dir p4_file verbose with
   | `Ok prog ->
     let elab_prog, renamer = Elaborate.elab prog in
-    let (cenv, typed_prog) =
-      begin try Checker.check_program renamer elab_prog with
-            | exn ->
-               let exn_message = Exn.to_string exn in
-               let () = Format.sprintf "%s\n" exn_message |> print_string in
-               exit 1 end in
+    let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
     let env = Env.CheckerEnv.eval_env_of_t cenv in
     begin match target with
       | "v1" -> start_v1switch switch env typed_prog sockets
@@ -230,8 +225,7 @@ let start_switch verbose include_dir target pts switch p4_file =
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
     let info_string = Info.to_string info in
-    let () = Format.sprintf "%s\n%s" info_string exn_msg |> print_string in
-    exit 1 |> Lwt.return
+    Format.sprintf "%s\n%s\n" info_string exn_msg |> print_string |> Lwt.return
 
 let handle_message (msg : Runtime.ctrl_msg) : unit =
   input_push (Some (Control msg))

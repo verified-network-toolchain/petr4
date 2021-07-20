@@ -219,7 +219,10 @@ let start_switch verbose include_dir target pts switch p4_file =
     let elab_prog, renamer = Elaborate.elab prog in
     let (cenv, typed_prog) =
       begin try Checker.check_program renamer elab_prog with
-      | _ -> exit 1 end in
+            | exn ->
+               let exn_message = Exn.to_string exn in
+               let () = Format.sprintf "%s\n" exn_message |> print_string in
+               exit 1 end in
     let env = Env.CheckerEnv.eval_env_of_t cenv in
     begin match target with
       | "v1" -> start_v1switch switch env typed_prog sockets

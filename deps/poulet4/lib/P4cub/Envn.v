@@ -43,7 +43,16 @@ Section EnvDefs.
   Definition scope_shadow (e1 e2 : t D T) : t D T :=
     e1 ++ e2.
   (**[]*)
-
+  
+  (** Gather values given a list of keys. *)
+  Definition gather (e: t D T) : list D -> list T :=
+    List.fold_right
+      (fun k acc =>
+         match find k e with
+         | Some v => v :: acc
+         | None => acc
+         end) [].
+  
   Fixpoint keys (e: t D T) : list D := 
     match e with 
     | nil => nil

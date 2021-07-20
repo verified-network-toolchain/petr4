@@ -751,5 +751,81 @@ Module Step.
 
   (** Pipeline:
       Given an input program,
-      available extern-method dispatchers, ... *)
+      available extern-method dispatchers, execute program. 
+
+      Stage 1: Evaluate (top-level) declarations.
+      Stage 2: Collect parsers, controls, & packages to evaluate.
+            - Requires knowing the names of these instances.
+      Stage 3: Evaluate pipeline.
+   *)
+
+  (** Description of pipelines. *)
+  Record pipeline :=
+    { prsrs : list string;
+      ctrls : list string }.
+
+  (** Evaluating a parser instance. *)
+  (* TODO: reject state? *)
+  Inductive parser_instance_big_step
+            {tags_t: Type} : pinst -> Paquet.t -> Paquet.t -> Prop :=
+  | pibs (ϵ ϵ': epsilon) (fs: fenv) (pis: pienv) (eis: ARCH.extern_env)
+         (pkt pkt': Paquet.t) (strt: PR.state_block tags_t)
+         (states : F.fs string (PR.state_block tags_t)) :
+      Δ` (pkt, fs, ϵ, pis, eis, strt, states, start) ⇝ ⟨ϵ', accept, pkt'⟩ ->
+      parser_instance_big_step
+        (PInst ϵ fs pis eis strt states) pkt pkt'.
+  (**[]*)
+
+  Inductive multi_parser_instance_big_step {tags_t: Type}
+    : list pinst -> Paquet.t -> Paquet.t -> Prop :=
+  | mpi_bs_nil (pkt: Paquet.t) :
+      multi_parser_instance_big_step [] pkt pkt
+  | mpi_bs_cons (pi: @pinst tags_t) (l: list pinst)
+                (pkt pkt' pkt'': Paquet.t) :
+      parser_instance_big_step pi pkt pkt' ->
+      multi_parser_instance_big_step l pkt' pkt'' ->
+      multi_parser_instance_big_step (pi :: l) pkt pkt''.
+  
+  (** Evaluating a control instance. *)
+  Inductive control_instance_big_step
+            {tags_t: Type} (cp: ctrl)
+    : cinst -> Paquet.t -> Paquet.t -> Prop :=
+  | cibs (ϵ ϵ' : epsilon) (fs : fenv)
+         (cis : Env.t string cinst) (tbls : tenv)
+         (aa : aenv) (eis : ARCH.extern_env)
+         (apply_blk : ST.s tags_t) (pkt pkt' : Paquet.t) :
+      ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫ ->
+      control_instance_big_step
+        cp (CInst ϵ fs cis tbls aa eis apply_blk) pkt pkt'.
+  (**[]*)
+  
+  Inductive multi_control_instance_big_step
+            {tags_t: Type} (cp: ctrl)
+    : list cinst -> Paquet.t -> Paquet.t -> Prop :=
+  | mci_bs_nil (pkt: Paquet.t) :
+      multi_control_instance_big_step cp [] pkt pkt
+  | mci_bs_cons (ci: @cinst tags_t) (l : list cinst)
+                (pkt pkt' pkt'': Paquet.t) :
+      control_instance_big_step cp ci pkt pkt' ->
+      multi_control_instance_big_step cp l pkt' pkt'' ->
+      multi_control_instance_big_step cp (ci :: l) pkt pkt''.
+  (**[]*)
+  
+  (** Entire program pipeline. *)
+  Inductive pipeline_big_step
+            {tags_t: Type} (cp: ctrl) (pl: pipeline)
+    : TP.d tags_t -> Paquet.t -> Paquet.t -> Prop :=
+  | pipebs (prog: TP.d tags_t)
+           (pkt pkt' pkt'': Paquet.t)
+           (ps: penv) (cs: cenv) (es: eenv) (fs: fenv)
+           (pis: pienv) (cis: cienv) (eis: ARCH.extern_env) :
+      (* Evaluate declarations to obtain instances. *)
+      ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ ->
+      (** Gather parser instances for pipeline. *)
+      let pl_prsrs := Env.gather pis $ prsrs pl in
+      let pl_ctrls := Env.gather cis $ ctrls pl in
+      (** Parser Pipeline. *)
+      multi_parser_instance_big_step pl_prsrs pkt pkt' ->
+      multi_control_instance_big_step cp pl_ctrls pkt' pkt'' ->
+      pipeline_big_step cp pl prog pkt pkt''.
 End Step.

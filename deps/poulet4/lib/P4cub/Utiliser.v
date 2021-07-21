@@ -413,6 +413,20 @@ Proof.
     + exists h; exists []; exists (prf ++ a :: suf); intuition.
 Qed.
 
+Section FoldLeftProp.
+  Context {A B : Type}.
+  Variable (R : A -> B -> B -> Prop).
+
+  Inductive FoldLeft : list A -> B -> B -> Prop :=
+  | FoldLeft_nil (b: B) :
+      FoldLeft [] b b
+  | FoldLeft_cons (a: A) (l: list A) (b b' b'': B) :
+      R a b b' ->
+      FoldLeft l b' b'' ->
+      FoldLeft (a :: l) b b''.
+  (**[]*)
+End FoldLeftProp.
+
 (** Option Predicate *)
 Inductive predop {A : Type} (P : A -> Prop) : option A -> Prop :=
 | predop_none : predop P None

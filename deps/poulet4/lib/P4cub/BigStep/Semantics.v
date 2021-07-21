@@ -776,16 +776,6 @@ Module Step.
         (PInst ϵ fs pis eis strt states) pkt pkt'.
   (**[]*)
 
-  Inductive multi_parser_instance_big_step {tags_t: Type}
-    : list pinst -> Paquet.t -> Paquet.t -> Prop :=
-  | mpi_bs_nil (pkt: Paquet.t) :
-      multi_parser_instance_big_step [] pkt pkt
-  | mpi_bs_cons (pi: @pinst tags_t) (l: list pinst)
-                (pkt pkt' pkt'': Paquet.t) :
-      parser_instance_big_step pi pkt pkt' ->
-      multi_parser_instance_big_step l pkt' pkt'' ->
-      multi_parser_instance_big_step (pi :: l) pkt pkt''.
-  
   (** Evaluating a control instance. *)
   Inductive control_instance_big_step
             {tags_t: Type} (cp: ctrl)
@@ -797,18 +787,6 @@ Module Step.
       ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫ ->
       control_instance_big_step
         cp (CInst ϵ fs cis tbls aa eis apply_blk) pkt pkt'.
-  (**[]*)
-  
-  Inductive multi_control_instance_big_step
-            {tags_t: Type} (cp: ctrl)
-    : list cinst -> Paquet.t -> Paquet.t -> Prop :=
-  | mci_bs_nil (pkt: Paquet.t) :
-      multi_control_instance_big_step cp [] pkt pkt
-  | mci_bs_cons (ci: @cinst tags_t) (l : list cinst)
-                (pkt pkt' pkt'': Paquet.t) :
-      control_instance_big_step cp ci pkt pkt' ->
-      multi_control_instance_big_step cp l pkt' pkt'' ->
-      multi_control_instance_big_step cp (ci :: l) pkt pkt''.
   (**[]*)
   
   (** Entire program pipeline. *)
@@ -825,7 +803,7 @@ Module Step.
       let pl_prsrs := Env.gather pis $ prsrs pl in
       let pl_ctrls := Env.gather cis $ ctrls pl in
       (** Parser Pipeline. *)
-      multi_parser_instance_big_step pl_prsrs pkt pkt' ->
-      multi_control_instance_big_step cp pl_ctrls pkt' pkt'' ->
+      FoldLeft parser_instance_big_step pl_prsrs pkt pkt' ->
+      FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt'' ->
       pipeline_big_step cp pl prog pkt pkt''.
 End Step.

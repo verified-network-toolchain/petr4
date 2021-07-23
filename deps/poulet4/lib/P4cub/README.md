@@ -12,13 +12,13 @@
 
 - `P4cub/SmallStep`: Small-step evaluation semantics.
 
+- `P4cub/Util`: Utility operations, notations, lemmas, & tactics.
+
 - `Envn.v`: Generic notion of environments for `p4cub` semantics.
 
 - `Metamorphosis.v`: Translation from "simplified" `p4light` syntax to `p4cub`.
 
 - `README.md`: This file :).
-
-- `Utiliser.v`: Utility operations, notations, lemmas, & tactics.
 
 ### Updates:
 

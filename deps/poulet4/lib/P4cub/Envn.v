@@ -1,7 +1,4 @@
-Require Export Coq.Classes.EquivDec.
-Require Import Poulet4.P4cub.Utiliser.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
+Require Import Poulet4.P4cub.Util.Utiliser.
 
 Declare Custom Entry p4env.
 

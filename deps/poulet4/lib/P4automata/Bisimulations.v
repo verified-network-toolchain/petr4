@@ -12,7 +12,7 @@ Require Poulet4.P4automata.WP.
 Require Poulet4.P4automata.WPSymBit.
 Require Poulet4.P4automata.WPSymLeap.
 Require Poulet4.P4automata.Reachability.
-Require Poulet4.P4cub.Utiliser.
+Require Poulet4.P4cub.Util.Utiliser.
 
 Module SemBisim.
   Section SemBisim.
@@ -906,7 +906,7 @@ Module SynPreSynWP1bit.
           destruct hdr.
           unfold P4A.assign, P4A.find; simpl.
           change H_eq_dec with equiv_dec.
-          rewrite Utiliser.equiv_dec_refl.
+          rewrite EquivUtil.equiv_dec_refl.
           reflexivity.
         + simpl.
           unfold P4A.find, P4A.Env.find, P4A.assign.
@@ -948,7 +948,7 @@ Module SynPreSynWP1bit.
           destruct hdr.
           unfold P4A.assign, P4A.find; simpl.
           change H_eq_dec with equiv_dec.
-          rewrite Utiliser.equiv_dec_refl.
+          rewrite EquivUtil.equiv_dec_refl.
           reflexivity.
         + simpl.
           unfold P4A.find, P4A.Env.find, P4A.assign.

@@ -1,11 +1,10 @@
-Require Export Poulet4.P4cub.Utiliser.
-Require Export Poulet4.Platform.Packet.
-Require Export Poulet4.Monads.State.
+Require Export Poulet4.P4cub.Util.Utiliser
+        Poulet4.Platform.Packet
+        Poulet4.Monads.State.
 Require Poulet4.Environment.Environment.
 Module EXN := Poulet4.Environment.Environment.
 (* TODO: why is [exception] defined in [EXN]? *)
-Require Import Coq.PArith.BinPosDef.
-Require Import Coq.Strings.String.
+Require Import Coq.PArith.BinPosDef Coq.Strings.String.
 
 (** * Blackbox Module For P4 Packet API *)
 

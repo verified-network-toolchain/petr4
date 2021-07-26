@@ -3,5 +3,5 @@
   (public_name poulet4_Ccomp)
   (libraries bignum zarith)
   (ocamlc_flags (:standard -w -33))
-  (modules_without_implementation c)
+  (modules_without_implementation c Responsefile)
   )

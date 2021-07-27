@@ -31,6 +31,20 @@ Section EnvDefs.
     end.
   (**[]*)
 
+  (** Consuming values in the environment *)
+  Fixpoint consume (x: D) (e: t D T) : (option T * t D T) :=
+    match e with
+    | nil => (None, nil)
+    | (y,v) :: e' =>
+      if HE x y
+      then (Some v, e')
+      else
+        match consume x e' with
+        | (Some v, e'') => (Some v, (y,v) :: e'')
+        | (None, e'') => (None, (y,v) :: e'')
+        end
+    end.
+
   (** Updating the environment. *)
   Definition bind (x : D) (v : T) (e : t D T) : t D T :=
     (x, v) :: e.

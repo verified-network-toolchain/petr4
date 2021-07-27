@@ -274,6 +274,7 @@ Module P4cub.
 
     Section Expressions.
       Variable (tags_t : Type).
+      Variable (default_tag : tags_t).
 
       (** Expressions annotated with types,
           unless the type is obvious. *)

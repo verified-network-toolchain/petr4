@@ -23,9 +23,9 @@ Module GCL.
   | IRAssign (type : E.t) (lhs rhs : E.e tags_t) (i : tags_t)
   | IRConditional (guard : E.e tags_t) (tru_blk fls_blk : ir) (i : tags_t)
   | IRSeq (c1 c2 : ir)
-  | IRAssume (phi : E.e tags_t)
-  | IRAssert (phi : E.e tags_t)
-  | IRFunCall (f : string) (args : ST.E.arrowE tags_t) (body : ir) (i : tags_t).
+  (* | IRAssume (phi : E.e tags_t) *)
+  (* | IRAssert (phi : E.e tags_t) *)
+  | IRFunCall (f : string) (args : ST.E.arrowE tags_t) (fenv : @fenv tags_t) (body : ST.s tags_t) (i : tags_t).
 
   Inductive t : Type :=
   | GSkip (i : tags_t)
@@ -82,8 +82,9 @@ Module GCL.
       ir_ify_inline s
     | _ => None
     end.
-
-  Fixpoint ir_ify (fenv : inln_fenv) (s : ST.s tags_t) {struct s}: option ir :=
+  Print aenv.
+  Print adecl.
+  Fixpoint ir_ify (fenv : fenv) (s : ST.s tags_t) {struct s}: option ir :=
     match s with
     | ST.SSkip i => Some (IRSkip i)
     | ST.SVardecl _ _ i => Some (IRSkip i)
@@ -100,14 +101,13 @@ Module GCL.
     | ST.SBlock s =>
       ir_ify fenv s
     | ST.SFunCall f args i =>
-      let (fopt, fenv') := (Env.consume f fenv) in
+      let (fopt, _) := (Env.consume f fenv) in
       fopt >>= fun fdecl =>
       match fdecl with
-      | (FDeclInln body) =>
-        let ir_bod := ir_ify_inline body in
-        (fun b => IRFunCall f args b i) <$> ir_bod
+      | (FDecl _ fenv body) =>
+        Some (IRFunCall f args fenv body i)
       end
-    | ST.SActCall f args i =>
+    | ST.SActCall a args i =>
       Some (IRSkip i)
     | ST.SApply x args i =>
       Some (IRSkip i)
@@ -124,3 +124,82 @@ Module GCL.
     | ST.SExternMethodCall _ _ _ i =>
       Some (IRSkip i)
     end.
+
+  Fixpoint size (ir : ir) : nat * nat :=
+    match ir with
+    | IRSkip i => (0, 0)
+    | IRAssign type lhs rhs i => (0, 1)
+    | IRConditional guard tru_blk fls_blk i =>
+      let (fenv_sz_tru, ast_sz_tru) := size tru_blk in
+      let (fenv_sz_fls, ast_sz_fls) := size fls_blk in
+      (fenv_sz_tru + fenv_sz_fls, ast_sz_tru + 1 + ast_sz_fls)
+    | IRSeq ir1 ir2 =>
+      let (fenv_sz1, ast_sz1) := size ir1 in
+      let (fenv_sz2, ast_sz2) := size ir2 in
+      (max fenv_sz1 fenv_sz2, ast_sz1 + ast_sz2)
+    | IRFunCall _ _ fenv _ _ =>
+      (length fenv, 1)
+    end.
+
+  Definition p_lt (m1 : (nat * nat)) (m2 : (nat * nat)) : Prop :=
+    let (x1, y1) := m1 in
+    let (x2, y2) := m2 in
+    x1 < x2 \/ (x1 = x2 /\ y1 < y2).
+
+  Set Printing All.
+  Program Fixpoint ir_to_gcl (ir : ir) {measure (size ir) p_lt } : option t :=
+    match ir with
+    | IRSkip i => Some (GSkip i)
+    | IRAssign type lhs rhs i =>
+      Some (GAssign type lhs rhs i)
+    | IRConditional guard tru_blk fls_blk i =>
+      let tru_blk' := ir_to_gcl tru_blk in
+      let fls_blk' := ir_to_gcl fls_blk in
+      liftO2 (fun t f => GConditional guard t f i) tru_blk' fls_blk'
+    | IRSeq s1 s2 =>
+      let ir1 := ir_to_gcl s1 in
+      let ir2 := ir_to_gcl s2 in
+      liftO2 GSeq ir1 ir2
+    | IRFunCall f args fenv body i =>
+      let (_, fenv') := Env.consume f fenv in
+      ir_ify fenv' body >>= ir_to_gcl
+    (* | IRActCall a args i => *)
+    (*   Some (GSkip i) *)
+    (* | IRApply x args i => *)
+    (*   Some (GSkip i) *)
+
+    (* | IRReturnVoid i => *)
+    (*   Some (GSkip i) *)
+    (* | IRReturnFruit typ expr i => *)
+    (*   Some (GSkip i) *)
+    (* | IRExit i => *)
+    (*   Some (GSkip i) *)
+    (* | IRInvoke x i => *)
+    (*   Some (GSkip i) *)
+
+    (* | IRExternMethodCall _ _ _ i => *)
+    (*   Some (GSkip i) *)
+    end.
+
+  Next Obligation.
+    unfold p_lt.
+    simpl.
+    destruct (size tru_blk).
+    destruct (size fls_blk).
+    destruct n1.
+    - right.
+      * split.
+        + auto.
+        + intuition.
+    - left. intuition.
+  Qed.
+
+  Next Obligation.
+    unfold p_lt.
+    simpl.
+    destruct (size tru_blk).
+    destruct (size fls_blk).
+    destruct n.
+    - right. intuition.
+    - left. intuition.
+  Qed.

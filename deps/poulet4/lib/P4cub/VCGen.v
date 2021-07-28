@@ -10,7 +10,7 @@ Require Export Poulet4.P4cub.BigStep.Value.Value.
 Import Env.EnvNotations.
 
 (** * VCS *)
-Module VCGen.
+Module GCL.
   Module P := P4cub.
   Module ST := P.Stmt.
   Module E := P.Expr.
@@ -18,130 +18,109 @@ Module VCGen.
 
   Variable tags_t : Type.
 
-  Definition and (i : tags_t) (ϕ ψ : E.e tags_t) : E.e tags_t :=
-    E.EBop E.And E.TBool E.TBool ϕ ψ i.
+  Inductive ir : Type :=
+  | IRSkip (i : tags_t)
+  | IRAssign (type : E.t) (lhs rhs : E.e tags_t) (i : tags_t)
+  | IRConditional (guard : E.e tags_t) (tru_blk fls_blk : ir) (i : tags_t)
+  | IRSeq (c1 c2 : ir)
+  | IRAssume (phi : E.e tags_t)
+  | IRAssert (phi : E.e tags_t)
+  | IRFunCall (f : string) (args : ST.E.arrowE tags_t) (body : ir) (i : tags_t).
 
-  Definition or (i : tags_t) (ϕ ψ : E.e tags_t) : E.e tags_t :=
-    E.EBop E.Or E.TBool E.TBool ϕ ψ i.
+  Inductive t : Type :=
+  | GSkip (i : tags_t)
+  | GAssign (type : E.t) (lhs rhs : E.e tags_t) (i : tags_t)
+  | GConditional (guard : E.e tags_t) (tru_blk fls_blk : t) (i : tags_t)
+  | GSeq (c1 c2 : t)
+  | GAssume (phi : E.e tags_t)
+  | GAssert (phi : E.e tags_t).
 
-  Definition not (i : tags_t) (ϕ : E.e tags_t) : E.e tags_t :=
-    E.EUop E.Not E.TBool ϕ i.
+  Print option.
+  Definition obind {A B : Type} (o : option A) (f : A -> option B) : option B :=
+    match o with
+    | None => None
+    | Some x => f x
+    end.
+  Definition omap {A B : Type} (f : A ->  B)  (o : option A) : option B :=
+    match o with
+    | None => None
+    | Some x => Some (f x)
+    end.
+  Definition liftO2 {A B C : Type} (f : A -> B -> C) (o1 : option A) (o2 : option B) : option C :=
+    obind o1 (fun x1 => obind o2 (fun x2 => Some (f x1 x2))).
 
-  Definition implies (i : tags_t) (ϕ ψ : E.e tags_t) : E.e tags_t :=
-    or i (not i ϕ) ψ.
+  Infix "<$>" := omap (at level 80, right associativity).
 
-  (* TODO Write substitution functions*)
-  Fixpoint subst_env (ε : @eenv tags_t) (e : E.e tags_t) : E.e tags_t := e.
-  Fixpoint subst_expr (ϕ : E.e tags_t) (lhs rhs : E.e tags_t) : E.e tags_t := ϕ.
+  Print fdecl.
+  Print ST.SFunCall.
+  Print Env.consume.
 
-  Definition omap {A B : Type} (o : option A) (f : A -> B) := o >>= fun x => Some (f x).
-
-  Infix ">>|" := omap (left associativity, at level 50).
-  Infix "<$>" := option_map (right associativity, at level 60).
+  Print fenv.
+  Print fold_right.
 
 
-  (** Expression environment *)
-  Definition expenv : Type := Env.t string (E.e tags_t).
+  Print fdecl.
+  Inductive inln_fdecl :=
+  | FDeclInln (s : ST.s tags_t).
 
-  Variable (df_tag : tags_t).
-  Print List.
-  Fixpoint expify (v : Val.v) : (E.t * E.e tags_t) :=
-    match v with
-    | Val.VBool b =>
-      (E.TBool, E.EBool b df_tag)
-    | Val.VBit w n =>
-      (E.TBit w, E.EBit w n df_tag)
-    | Val.VInt w n =>
-      (E.TInt w, E.EInt w n df_tag)
-    | Val.VTuple vs =>
-      let tes := List.map expify vs in
-      let ts := List.map fst tes in
-      let es := List.map snd tes in
-      (E.TTuple ts, E.ETuple es df_tag)
-    | Val.VStruct fs =>
-      (** TODO what goes here? *)
-      (E.TStruct [], E.EStruct (F.map expify fs) df_tag)
-    | Val.VHeader fs b =>
-      (** TODO what goes here? *)
-
-      (E.THeader [], E.EHeader (F.map expify fs) (E.EBool b df_tag) df_tag)
-    | Val.VError err =>
-      (E.TError, E.EError err df_tag)
-    | Val.VMatchKind mk =>
-      (E.TMatchKind, E.EMatchKind mk df_tag)
-    | Val.VHeaderStack fs hs n ni =>
-      (* let hfs := List.map snd hs in *)
-      (* let exp_inner := flip (F.fold (fun _ h l => (snd (expify h)) :: l)) [] in *)
-      (* let ehs := List.fold_right (fun h => List.app (exp_inner h)) [] hfs in *)
-      (* let typ_inner : F.fs string Val.v -> F.fs string E.t := *)
-      (*     F.map (fun x => fst (expify x)) in *)
-      (* let ths : P.F.fs string E.t  := concat (map typ_inner hfs) in *)
-      (E.THeaderStack [] n, E.EHeaderStack fs [] n ni df_tag)
+  Definition inln_fenv := Env.t string inln_fdecl.
+  Fixpoint ir_ify_inline (s : ST.s tags_t) : option ir :=
+    match s with
+    | ST.SSkip i => Some (IRSkip i)
+    | ST.SVardecl _ _ i => Some (IRSkip i)
+    | ST.SAssign type lhs rhs i =>
+      Some (IRAssign type lhs rhs i)
+    | ST.SConditional guard_type guard tru_blk fls_blk i =>
+      let tru_blk' := ir_ify_inline tru_blk in
+      let fls_blk' := ir_ify_inline fls_blk in
+      liftO2 (fun t f => IRConditional guard t f i) tru_blk' fls_blk'
+    | ST.SSeq s1 s2 i =>
+      let ir1 := ir_ify_inline s1 in
+      let ir2 := ir_ify_inline s2 in
+      liftO2 IRSeq ir1 ir2
+    | ST.SBlock s =>
+      ir_ify_inline s
+    | _ => None
     end.
 
-  
-  Fixpoint expify_closure : (ε : epsilon) -> expenv :=
-    List.fold (fun k ε' ->
-                   match Env.find k ε with
-                   | None -> ε'
-                   | Some v -> !{ k -> expify v :: ε' }
-              ) Env.empty (Env.keys ε)
-              
-  (** Create a new environment
-    from a closure environment where
-    values of [In] args are substituted
-    into the function parameters. *)
-  Definition copy_in
-             (params : expenv)
-             (ϵcall : epsilon) -> expenv :=
-    F.fold (fun x arg ϵ =>
-              match arg with
-              | P.PAIn v     => !{ x ↦ v ;; ϵ }!
-              | P.PAInOut lv => match lv_lookup ϵcall lv with
-                                | None   => ϵ
-                                | Some v => !{ x ↦ v ;; ϵ }!
-                                end
-              | P.PAOut _    => ϵ
-              end) (expify argsv) (Env.empty).
-  (**[]*)
-
-
-  Fixpoint stmt_wp
-           (σ : @tenv tags_t) (α : @aenv tags_t) (f : @fenv tags_t) (c : @cienv tags_t)
-           (s : ST.s tags_t) (ϕ : E.e tags_t) : option (E.e tags_t) :=
+  Fixpoint ir_ify (fenv : inln_fenv) (s : ST.s tags_t) {struct s}: option ir :=
     match s with
-    | ST.SSkip _ => Some ϕ
-    | ST.SVardecl _ _ _ =>
-    (* TODO do we need to do anything here? *)
-      None
-    | ST.SAssign _ lhs rhs _ =>
-      Some (subst_expr ϕ lhs rhs)
-    | ST.SConditional _ b ct cf i =>
-      stmt_wp σ α f c ct ϕ >>= fun ϕt =>
-      stmt_wp σ α f c cf ϕ >>| fun ϕf =>
-      and i
-        (implies i b ϕt)
-        (implies i (not i b) ϕf)
+    | ST.SSkip i => Some (IRSkip i)
+    | ST.SVardecl _ _ i => Some (IRSkip i)
+    | ST.SAssign type lhs rhs i =>
+      Some (IRAssign type lhs rhs i)
+    | ST.SConditional guard_type guard tru_blk fls_blk i =>
+      let tru_blk' := ir_ify fenv tru_blk in
+      let fls_blk' := ir_ify fenv fls_blk in
+      liftO2 (fun t f => IRConditional guard t f i) tru_blk' fls_blk'
     | ST.SSeq s1 s2 i =>
-      stmt_wp σ α f c s1 ϕ >>= stmt_wp σ α f c s2
-    | ST.SBlock body =>
-      stmt_wp σ α f c body ϕ
-    | ST.SExternMethodCall _ _ _ _ =>
-      None (* TODO implement *)
-    | ST.SFunCall fname (P.Arrow pas None) i =>
-      match Env.consume fname f with
-      | (Some (FDecl ε fenv body), f') =>
-        let ε' : expenv := copy_in pas e in
-        subst_env fε' <$> stmt_wp σ α f' c body ϕ
-      (* TODO The copy in-out semantics here need some thought.  *)
-      | (None,_) =>
-        None
+      let ir1 := ir_ify fenv s1 in
+      let ir2 := ir_ify fenv s2 in
+      liftO2 IRSeq ir1 ir2
+    | ST.SBlock s =>
+      ir_ify fenv s
+    | ST.SFunCall f args i =>
+      let (fopt, fenv') := (Env.consume f fenv) in
+      fopt >>= fun fdecl =>
+      match fdecl with
+      | (FDeclInln body) =>
+        let ir_bod := ir_ify_inline body in
+        (fun b => IRFunCall f args b i) <$> ir_bod
       end
-    | ST.SFunCall _ _ _ => None (* TODO yes? *)
-    | ST.SActCall _ _ _ => None
-    | ST.SReturnVoid _ => None (* TODO implement *)
-    | ST.SReturnFruit _ _ _ => None (* TODO implement *)
-    | ST.SExit _ => None (* TODO Implement *)
-    | ST.SInvoke _ _ => None (* TODO implement *)
-    | ST.SApply _ _ _ => None (* TODO implement *)
+    | ST.SActCall f args i =>
+      Some (IRSkip i)
+    | ST.SApply x args i =>
+      Some (IRSkip i)
+
+    | ST.SReturnVoid i =>
+      Some (IRSkip i)
+    | ST.SReturnFruit typ expr i =>
+      Some (IRSkip i)
+    | ST.SExit i =>
+      Some (IRSkip i)
+    | ST.SInvoke x i =>
+      Some (IRSkip i)
+
+    | ST.SExternMethodCall _ _ _ i =>
+      Some (IRSkip i)
     end.

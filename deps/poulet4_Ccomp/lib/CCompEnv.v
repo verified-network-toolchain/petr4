@@ -4,7 +4,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4_Ccomp.IdentGen.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
-Require Import Poulet4.P4cub.Utiliser.
+Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Poulet4.P4cub.Envn.
 Module P := P4cub.
 Module E := P.Expr.

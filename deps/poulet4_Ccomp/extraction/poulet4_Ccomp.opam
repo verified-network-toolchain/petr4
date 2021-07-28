@@ -16,7 +16,6 @@ depends: [
   "bignum"
   "poulet4"
   "zarith"
-  "coq-compcert"
   "coq" {build}
   "coq-equations" {build}
 ]

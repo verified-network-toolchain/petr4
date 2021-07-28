@@ -4,3 +4,4 @@
   (libraries bignum zarith)
   (ocamlc_flags (:standard -w -33))
   )
+(include_subdirs no)

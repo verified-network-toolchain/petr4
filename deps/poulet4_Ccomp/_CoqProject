@@ -3,8 +3,6 @@ lib/CComp.v
 lib/CCompEnv.v
 lib/Helloworld.v
 lib/IdentGen.v
-
--Q extraction/ Poulet4_Ccomp
-extraction/Extract.v
+lib/Extract.v
 
 -R CompCert/ compcert

@@ -158,95 +158,97 @@ Module GCL.
     | None :: _ => None
     end.
 
-  Fixpoint to_gcl (n : nat)
-           (instr : string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (EquivUtil.string * t) -> t)
-           (ctx : block_ctx)
-           (cienv : @cienv tags_t)
-           (aenv : @aenv tags_t)
-           (tenv : @tenv tags_t)
-           (fenv : fenv)
-           (s : ST.s tags_t)
-           {struct n} : option (t * block_ctx) :=
-    match n with
-    | 0 => None
-    | S n0 =>
-      match s with
-      | ST.SSkip i =>
-        Some (GSkip i, ctx)
+  Module Translate.
+    Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (EquivUtil.string * t) -> t).
 
-      | ST.SVardecl _ _ i =>
-        (** TODO: Handle scoping, using var decls as a signal *)
-        Some (GSkip i, ctx)
+    Fixpoint to_gcl (n : nat)
+             (ctx : block_ctx)
+             (cienv : @cienv tags_t)
+             (aenv : @aenv tags_t)
+             (tenv : @tenv tags_t)
+             (fenv : fenv)
+             (s : ST.s tags_t)
+             {struct n} : option (t * block_ctx) :=
+      match n with
+      | 0 => None
+      | S n0 =>
+        match s with
+        | ST.SSkip i =>
+          Some (GSkip i, ctx)
 
-      | ST.SAssign type lhs rhs i =>
-        Some (GAssign type lhs rhs i, ctx)
+        | ST.SVardecl _ _ i =>
+          (** TODO: Handle scoping, using var decls as a signal *)
+          Some (GSkip i, ctx)
 
-      | ST.SConditional _ guard tru_blk fls_blk i =>
-        let tru_blk' := to_gcl n0 instr ctx cienv aenv tenv fenv tru_blk in
-        let fls_blk' := to_gcl n0 instr ctx cienv aenv tenv fenv fls_blk in
-        bindO2 (cond guard i) tru_blk' fls_blk'
+        | ST.SAssign type lhs rhs i =>
+          Some (GAssign type lhs rhs i, ctx)
 
-      | ST.SSeq s1 s2 i =>
-        let g1_opt := to_gcl n0 instr ctx cienv aenv tenv fenv s1 in
-        let g2_opt := to_gcl n0 instr ctx cienv aenv tenv fenv s2 in
-        liftO2 (seq i) g1_opt g2_opt
+        | ST.SConditional _ guard tru_blk fls_blk i =>
+          let tru_blk' := to_gcl n0 ctx cienv aenv tenv fenv tru_blk in
+          let fls_blk' := to_gcl n0 ctx cienv aenv tenv fenv fls_blk in
+          bindO2 (cond guard i) tru_blk' fls_blk'
 
-      | ST.SBlock s =>
-        (* TODO handle variable scope *)
-        to_gcl n0 instr ctx cienv aenv tenv fenv s
+        | ST.SSeq s1 s2 i =>
+          let g1_opt := to_gcl n0 ctx cienv aenv tenv fenv s1 in
+          let g2_opt := to_gcl n0 ctx cienv aenv tenv fenv s2 in
+          liftO2 (seq i) g1_opt g2_opt
 
-      | ST.SFunCall f args i =>
-        let* fdecl := Env.find f fenv in
-        match fdecl with
-        | FDecl ε fenv' body =>
-          (** TODO copy-in/copy-out *)
-          (** TODO handle scope *)
-          let* rslt := to_gcl n0 instr (incr ctx f) cienv aenv tenv fenv' body in
-          decr_ctx f ctx rslt
+        | ST.SBlock s =>
+          (* TODO handle variable scope *)
+          to_gcl n0 ctx cienv aenv tenv fenv s
+
+        | ST.SFunCall f args i =>
+          let* fdecl := Env.find f fenv in
+          match fdecl with
+          | FDecl ε fenv' body =>
+            (** TODO copy-in/copy-out *)
+            (** TODO handle scope *)
+            let* rslt := to_gcl n0 (incr ctx f) cienv aenv tenv fenv' body in
+            decr_ctx f ctx rslt
+          end
+        | ST.SActCall a args i =>
+          let* adecl := Env.find a aenv in
+          match adecl with
+          | ADecl ε fenv' aenv' externs body =>
+            (** TODO handle copy-in/copy-out *)
+            (** TODO handle scope *)
+            let* rslt := to_gcl n0 (incr ctx a) cienv aenv' tenv fenv' body in
+            decr_ctx a ctx rslt
+          end
+        | ST.SApply ci args i =>
+          let* cinst := Env.find ci cienv in
+          match cinst with
+          | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
+            let* rslt := to_gcl n0 (incr ctx ci) cienv' aenv' tenv' fenv' apply_blk in
+            decr_ctx ci ctx rslt
+          end
+        | ST.SReturnVoid i =>
+          Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
+
+        | ST.SReturnFruit typ expr i =>
+          Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
+
+        | ST.SExit i =>
+          Some (GAssign E.TBool (exit i) (etrue i) i, update_exit ctx true)
+
+        | ST.SInvoke t i =>
+          let* tdecl := Env.find t tenv in
+          match tdecl with
+          | CD.Table keys actions =>
+            let act_to_gcl := fun a =>
+              let* adecl := Env.find a aenv in
+              match adecl with
+              | ADecl _ fenv' aenv' externs body =>
+                (** TODO handle copy-in/copy-out *)
+                let** (g, _) := to_gcl n0 (incr ctx a) cienv aenv tenv fenv body in
+                g
+              end
+            in
+            let* acts := ored (map act_to_gcl actions) in
+            let** named_acts := zip actions acts in
+            pair (instr t i keys named_acts) ctx
+          end
+        | ST.SExternMethodCall _ _ _ i =>
+          None
         end
-      | ST.SActCall a args i =>
-        let* adecl := Env.find a aenv in
-        match adecl with
-        | ADecl ε fenv' aenv' externs body =>
-          (** TODO handle copy-in/copy-out *)
-          (** TODO handle scope *)
-          let* rslt := to_gcl n0 instr (incr ctx a) cienv aenv' tenv fenv' body in
-          decr_ctx a ctx rslt
-        end
-      | ST.SApply ci args i =>
-        let* cinst := Env.find ci cienv in
-        match cinst with
-        | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-          let* rslt := to_gcl n0 instr (incr ctx ci) cienv' aenv' tenv' fenv' apply_blk in
-          decr_ctx ci ctx rslt
-        end
-      | ST.SReturnVoid i =>
-        Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
-
-      | ST.SReturnFruit typ expr i =>
-        Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
-
-      | ST.SExit i =>
-        Some (GAssign E.TBool (exit i) (etrue i) i, update_exit ctx true)
-
-      | ST.SInvoke t i =>
-        let* tdecl := Env.find t tenv in
-        match tdecl with
-        | CD.Table keys actions =>
-          let act_to_gcl := fun a =>
-            let* adecl := Env.find a aenv in
-            match adecl with
-            | ADecl _ fenv' aenv' externs body =>
-              (** TODO handle copy-in/copy-out *)
-              let** (g, _) := to_gcl n0 instr (incr ctx a) cienv aenv tenv fenv body in
-              g
-            end
-          in
-          let* acts := ored (map act_to_gcl actions) in
-          let** named_acts := zip actions acts in
-          pair (instr t i keys named_acts) ctx
-        end
-      | ST.SExternMethodCall _ _ _ i =>
-        None
-      end
-    end.
+      end.

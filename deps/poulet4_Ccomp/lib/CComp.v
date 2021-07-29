@@ -646,7 +646,6 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   | %{extern e (cparams) {methods} @i }% => None (*TODO: implement*)
   | %{control c (cparams) (params) apply {blk} where {body} @ i}% => CTranslateTopControl d env
   | %{parser p (cparams) (params) start := st {states} @ i}% => CTranslateTopParser d env
-  | %{package _ (_) @ _}% => None (*TODO: implement*)
   end.
   (* currently just an empty program *)
   Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 

@@ -158,15 +158,25 @@ Module GCL.
     | None :: _ => None
     end.
 
+  Module Arch.
+    Definition extern : Type := Env.t string t.
+    Definition model : Type := Env.t string extern.
+    Definition find (m : model) (e f : string) : option t :=
+      let* ext := Env.find e m in
+      let** fn := Env.find f ext in
+      fn.
+  End Arch.
+
   Module Translate.
     Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (EquivUtil.string * t) -> t).
-
+    Print ST.s.
     Fixpoint to_gcl (n : nat)
              (ctx : block_ctx)
              (cienv : @cienv tags_t)
              (aenv : @aenv tags_t)
              (tenv : @tenv tags_t)
              (fenv : fenv)
+             (arch : Arch.model)
              (s : ST.s tags_t)
              {struct n} : option (t * block_ctx) :=
       match n with
@@ -184,18 +194,18 @@ Module GCL.
           Some (GAssign type lhs rhs i, ctx)
 
         | ST.SConditional _ guard tru_blk fls_blk i =>
-          let tru_blk' := to_gcl n0 ctx cienv aenv tenv fenv tru_blk in
-          let fls_blk' := to_gcl n0 ctx cienv aenv tenv fenv fls_blk in
+          let tru_blk' := to_gcl n0 ctx cienv aenv tenv fenv arch tru_blk in
+          let fls_blk' := to_gcl n0 ctx cienv aenv tenv fenv arch fls_blk in
           bindO2 (cond guard i) tru_blk' fls_blk'
 
         | ST.SSeq s1 s2 i =>
-          let g1_opt := to_gcl n0 ctx cienv aenv tenv fenv s1 in
-          let g2_opt := to_gcl n0 ctx cienv aenv tenv fenv s2 in
+          let g1_opt := to_gcl n0 ctx cienv aenv tenv fenv arch s1 in
+          let g2_opt := to_gcl n0 ctx cienv aenv tenv fenv arch s2 in
           liftO2 (seq i) g1_opt g2_opt
 
         | ST.SBlock s =>
           (* TODO handle variable scope *)
-          to_gcl n0 ctx cienv aenv tenv fenv s
+          to_gcl n0 ctx cienv aenv tenv fenv arch s
 
         | ST.SFunCall f args i =>
           let* fdecl := Env.find f fenv in
@@ -203,7 +213,7 @@ Module GCL.
           | FDecl ε fenv' body =>
             (** TODO copy-in/copy-out *)
             (** TODO handle scope *)
-            let* rslt := to_gcl n0 (incr ctx f) cienv aenv tenv fenv' body in
+            let* rslt := to_gcl n0 (incr ctx f) cienv aenv tenv fenv' arch body in
             decr_ctx f ctx rslt
           end
         | ST.SActCall a args i =>
@@ -212,14 +222,14 @@ Module GCL.
           | ADecl ε fenv' aenv' externs body =>
             (** TODO handle copy-in/copy-out *)
             (** TODO handle scope *)
-            let* rslt := to_gcl n0 (incr ctx a) cienv aenv' tenv fenv' body in
+            let* rslt := to_gcl n0 (incr ctx a) cienv aenv' tenv fenv' arch body in
             decr_ctx a ctx rslt
           end
         | ST.SApply ci args i =>
           let* cinst := Env.find ci cienv in
           match cinst with
           | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-            let* rslt := to_gcl n0 (incr ctx ci) cienv' aenv' tenv' fenv' apply_blk in
+            let* rslt := to_gcl n0 (incr ctx ci) cienv' aenv' tenv' fenv' arch apply_blk in
             decr_ctx ci ctx rslt
           end
         | ST.SReturnVoid i =>
@@ -240,7 +250,7 @@ Module GCL.
               match adecl with
               | ADecl _ fenv' aenv' externs body =>
                 (** TODO handle copy-in/copy-out *)
-                let** (g, _) := to_gcl n0 (incr ctx a) cienv aenv tenv fenv body in
+                let** (g, _) := to_gcl n0 (incr ctx a) cienv aenv tenv fenv arch body in
                 g
               end
             in
@@ -248,7 +258,9 @@ Module GCL.
             let** named_acts := zip actions acts in
             pair (instr t i keys named_acts) ctx
           end
-        | ST.SExternMethodCall _ _ _ i =>
-          None
+        | ST.SExternMethodCall ext method args i =>
+          (** TODO handle copy-in/copy-out) *)
+          let** g := Arch.find arch ext method in
+          (g, ctx)
         end
       end.

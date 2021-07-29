@@ -8,6 +8,7 @@ Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.P4Arith.
+Require Import Poulet4.AList.
 Require Import Poulet4.Ops.
 Require Import Poulet4.Maps.
 Require Export Poulet4.Target.
@@ -19,7 +20,8 @@ Import ListNotations.
 Section Semantics.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
-Notation Val := (@ValueBase tags_t).
+Notation Val := (@ValueBase tags_t bool).
+Notation Sval := (@ValueBase tags_t (option bool)).
 Notation Lval := (@ValueLvalue tags_t).
 
 Notation ident := (P4String.t tags_t).
@@ -30,7 +32,7 @@ Notation signal := (@signal tags_t).
 
 Context `{@Target tags_t (@Expression tags_t)}.
 
-Definition mem := @PathMap.t tags_t Val.
+Definition mem := @PathMap.t tags_t Sval.
 
 Definition state : Type := mem * extern_state.
 
@@ -94,6 +96,92 @@ Definition get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   | TypTypeName name => name_to_type ge name
   | _ => Some typ
   end.
+
+Inductive read_detbit : option bool -> bool -> Prop :=
+  | read_none : forall b, read_detbit None b
+  | read_some : forall b, read_detbit (Some b) b.
+
+Inductive strict_read_detbit : option bool -> bool -> Prop :=
+  | strict_read_some : forall b, strict_read_detbit (Some b) b.
+
+Definition read_ndetbit (b : bool) (b': option bool) :=
+  b' = Some b.
+
+Inductive read_bits {A B} (read_one_bit : A -> B -> Prop) : 
+                    list A -> list B -> Prop :=
+  | read_nil : read_bits read_one_bit nil nil
+  | read_cons : forall b b' tl tl',
+                read_one_bit b b' ->
+                read_bits read_one_bit tl tl' ->
+                read_bits read_one_bit (b :: tl) (b' :: tl').
+
+Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
+                   @ValueBase tags_t A -> @ValueBase tags_t B -> Prop :=
+  | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
+  | exec_val_bool : forall b b',
+                    read_one_bit b b' ->
+                    exec_val read_one_bit (ValBaseBool b) (ValBaseBool b')
+  | exec_val_integer : forall n, 
+                       exec_val read_one_bit (ValBaseInteger n) (ValBaseInteger n)
+  | exec_val_bit : forall lb lb',
+                   read_bits read_one_bit lb lb' ->
+                   exec_val read_one_bit (ValBaseBit lb) (ValBaseBit lb')
+  | exec_val_int : forall lb lb',
+                   read_bits read_one_bit lb lb' ->
+                   exec_val read_one_bit (ValBaseInt lb) (ValBaseInt lb')
+  | exec_val_varbit : forall max lb lb',
+                      read_bits read_one_bit lb lb' ->
+                      exec_val read_one_bit (ValBaseVarbit max lb) (ValBaseVarbit max lb')
+  | exec_val_string : forall s,
+                      exec_val read_one_bit (ValBaseString s) (ValBaseString s)
+  | exec_val_tuple : forall lv lv',
+                     exec_vals read_one_bit lv lv' ->
+                     exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
+  | exec_val_record : forall kvs kvs',
+                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
+                      exec_val read_one_bit (ValBaseRecord kvs) (ValBaseRecord kvs')
+  | exec_val_set : forall vset vset',
+                   exec_vset read_one_bit vset vset' ->
+                   exec_val read_one_bit (ValBaseSet vset) (ValBaseSet vset')
+with exec_vset {A B} (read_one_bit : A -> B -> Prop) : 
+               @ValueSet tags_t A -> @ValueSet tags_t B -> Prop :=
+  | exec_vset_singleton : forall v v',
+                          exec_val read_one_bit v v' ->
+                          exec_vset read_one_bit (ValSetSingleton v) (ValSetSingleton v')
+  | exec_vset_universal : exec_vset read_one_bit ValSetUniversal ValSetUniversal
+  | exec_vset_mask : forall v v' m m',
+                     exec_val read_one_bit v v' ->
+                     exec_val read_one_bit m m' ->
+                     exec_vset read_one_bit (ValSetMask v m) (ValSetMask v' m')
+  | exec_vset_range : forall lo lo' hi hi',
+                      exec_val read_one_bit lo lo' ->
+                      exec_val read_one_bit hi hi' ->
+                      exec_vset read_one_bit (ValSetRange lo hi) (ValSetRange lo' hi')
+  | exec_vset_prod : forall vsets vsets',
+                     exec_vsets read_one_bit vsets vsets' ->
+                     exec_vset read_one_bit (ValSetProd vsets) (ValSetProd vsets')
+with exec_vsets {A B} (read_one_bit : A -> B -> Prop) : 
+               list (@ValueSet tags_t A) -> list (@ValueSet tags_t B) -> Prop :=
+  | exec_vsets_nil : exec_vsets read_one_bit nil nil
+  | exec_vsets_cons : forall hd tl hd' tl',
+                     exec_vset read_one_bit hd hd' ->
+                     exec_vsets read_one_bit tl tl' ->
+                     exec_vsets read_one_bit (hd :: tl) (hd' :: tl')
+with exec_vals {A B} (read_one_bit : A -> B -> Prop) : 
+               list (@ValueBase tags_t A) -> list (@ValueBase tags_t B) -> Prop :=
+  | exec_vals_nil : exec_vals read_one_bit nil nil
+  | exec_vals_cons : forall hd tl hd' tl',
+                     exec_val read_one_bit hd hd' ->
+                     exec_vals read_one_bit tl tl' ->
+                     exec_vals read_one_bit (hd :: tl) (hd' :: tl').
+
+  
+
+Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
+  exec_val read_one_bit.
+
+Definition val_to_sval := 
+  exec_val read_detbit.
 
 Definition eval_p4int (n: P4Int) : Val :=
   match P4Int.width_signed n with
@@ -219,6 +307,7 @@ Inductive exec_expr : path -> (* temp_env -> *) state ->
                           (MkExpression tag (ExpList (expr :: es)) typ dir)
                           (ValBaseTuple (v :: vs))
   | exec_expr_record_nil : forall this st tag typ dir,
+  (* AList.all_values (exec_val read_one_bit) kvs kvs' *)
                            exec_expr this st
                            (MkExpression tag (ExpRecord nil) typ dir)
                            (ValBaseRecord nil)

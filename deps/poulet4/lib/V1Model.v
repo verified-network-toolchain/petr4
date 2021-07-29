@@ -4,15 +4,17 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Typed.
+
+Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
-Require Import P4Int.
-Require Import Target.
+Require Import Poulet4.P4Int.
+Require Import Poulet4.P4Arith.
+Require Import Poulet4.Target.
 Require Import Poulet4.SyntaxUtil.
-Require Import Sublist.
-Require Import Maps.
-Require Import CoqLib.
-Require Import P4Notations.
+Require Import Poulet4.Sublist.
+Require Import Poulet4.Maps.
+Require Import Poulet4.CoqLib.
+Require Import Poulet4.P4Notations.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -23,11 +25,11 @@ Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
-Notation Val := (@ValueBase tags_t).
+Notation Val := (@ValueBase tags_t bool).
 Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
-Notation ValSet := (@ValueSet tags_t).
+Notation ValSet := (@ValueSet tags_t bool).
 
 Inductive register := mk_register {
   reg_width : nat;
@@ -58,10 +60,11 @@ Definition alloc_extern (s : extern_state) (class : ident) (targs : list P4Type)
   if P4String.equivb class !"register" then
     match args with
     (* | [ValBaseInteger size] *)
-    | [ValBaseBit _ size]
+    | [ValBaseBit bits]
     (* | [ValBaseInt _ size] *) =>
         match targs with
         | [TypBit w] =>
+            let (_, size) := BitArith.from_lbool bits in
             PathMap.set p (ObjRegister (new_register size w)) s
         | _ => s (* fail *)
         end
@@ -96,7 +99,8 @@ Inductive register_read_sem : extern_func_sem :=
       reg_width reg = w ->
       -1 < index < reg_size reg ->
       Znth index (reg_content reg) = result ->
-      register_read_sem s p nil [ValBaseBit REG_INDEX_WIDTH index] s [ValBaseBit w result] SReturnNull.
+      register_read_sem s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
+        s [ValBaseBit (to_lbool w result)] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := !"register";
@@ -110,9 +114,10 @@ Inductive register_write_sem : extern_func_sem :=
       reg_width reg = w ->
       -1 < index < reg_size reg ->
       upd_Znth index (reg_content reg) value = content' ->
-      register_write_sem s p nil [ValBaseBit REG_INDEX_WIDTH index; ValBaseBit w value]
+      register_write_sem s p nil 
+            [ValBaseBit (to_lbool REG_INDEX_WIDTH index); ValBaseBit (to_lbool w value)]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
-          [] SReturnNull.
+            [] SReturnNull.
 
 Definition register_write : extern_func := {|
   ef_class := !"register";
@@ -133,7 +138,7 @@ Inductive packet_in_extract_sem : extern_func_sem :=
   | exec_packet_in_extract2 : forall s p pin typ len v pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem s p [typ] [ValBaseBit 32%nat len]
+      packet_in_extract_sem s p [typ] [ValBaseBit (to_lbool 32%nat len)]
             (PathMap.set p (ObjPin pin') s)
           [v] SReturnNull.
 
@@ -191,8 +196,8 @@ Fixpoint assert_set (v: Val): option ValSet :=
   match v with
   | ValBaseSet s => Some s
   | ValBaseInteger _
-  | ValBaseInt _ _
-  | ValBaseBit _ _ => Some (ValSetSingleton v)
+  | ValBaseInt _
+  | ValBaseBit _ => Some (ValSetSingleton v)
   | ValBaseSenumField _ _ v => assert_set v
   | _ => None
   end.
@@ -200,8 +205,8 @@ Fixpoint assert_set (v: Val): option ValSet :=
 Definition eval_p4int (n: @P4Int.t tags_t) : Val :=
   match P4Int.width_signed n with
   | None => ValBaseInteger (P4Int.value n)
-  | Some (w, true) => ValBaseInt w (P4Int.value n)
-  | Some (w, false) => ValBaseBit w (P4Int.value n)
+  | Some (w, true) => ValBaseInt (to_lbool w (P4Int.value n))
+  | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
 Fixpoint simple_eval_expr (expr: @Syntax.Expression tags_t): Val :=
@@ -242,11 +247,11 @@ Definition set_of_matches (entry: table_entry): option (ValSet * action_ref) :=
     end
   end.
 
-Fixpoint allSome {A: Type} (l: list (option A)): option (list A) :=
+Fixpoint all_some {A: Type} (l: list (option A)): option (list A) :=
   match l with
   | nil => Some nil
   | None :: _ => None
-  | Some a :: rest => match allSome rest with
+  | Some a :: rest => match all_some rest with
                       | None => None
                       | Some r => Some (a :: r)
                       end
@@ -277,9 +282,15 @@ Fixpoint bitwise_neg_of_val (v1: Z) (v2: Val): option Val :=
   match v2 with
   | ValBaseBool _ => None
   | ValBaseInteger z => Some (ValBaseInteger (bitwise_neg_of_Z v1 z))
-  | ValBaseBit w z => Some (ValBaseBit w (bitwise_neg_of_Z v1 z))
-  | ValBaseInt w z => Some (ValBaseInt w (bitwise_neg_of_Z v1 z))
-  | ValBaseVarbit max w z => Some (ValBaseVarbit max w (bitwise_neg_of_Z v1 z))
+  | ValBaseBit bits => 
+      let (w, z) := BitArith.from_lbool bits
+      in Some (ValBaseBit (to_lbool w (bitwise_neg_of_Z v1 z)))
+  | ValBaseInt bits => 
+      let (w, z) := IntArith.from_lbool bits
+      in Some (ValBaseInt (to_lbool w (bitwise_neg_of_Z v1 z)))
+  | ValBaseVarbit max bits => 
+      let (w, z) := BitArith.from_lbool bits
+      in Some (ValBaseVarbit max (to_lbool w (bitwise_neg_of_Z v1 z)))
   | ValBaseSenumField a b v =>
     match bitwise_neg_of_val v1 v with
     | Some vv => Some (ValBaseSenumField a b vv)
@@ -291,10 +302,10 @@ Fixpoint bitwise_neg_of_val (v1: Z) (v2: Val): option Val :=
 Fixpoint Z_of_val (v: Val): option Z :=
   match v with
   | ValBaseBool b => if b then Some 1 else Some 0
-  | ValBaseInteger z
-  | ValBaseBit _ z
-  | ValBaseInt _ z
-  | ValBaseVarbit _ _ z => Some z
+  | ValBaseInteger z => Some z
+  | ValBaseBit bits => let (w, z) := BitArith.from_lbool bits in Some z
+  | ValBaseInt bits => let (w, z) := IntArith.from_lbool bits in Some z
+  | ValBaseVarbit _ bits => let (w, z) := BitArith.from_lbool bits in Some z
   | ValBaseSenumField _ _ v' => Z_of_val v'
   | _ => None
   end.
@@ -363,7 +374,7 @@ Definition lpm_compare (va1 va2: (ValSet * action_ref)): bool :=
 
 Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) :=
   let (vl, actL) := List.split l in
-  match allSome (List.map lpm_set_of_set vl) with
+  match all_some (List.map lpm_set_of_set vl) with
   | None => nil
   | Some entries =>
     let entries' := List.combine entries actL in
@@ -386,7 +397,8 @@ Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
 
 Fixpoint assert_bit (v: Val): option (nat * Z) :=
   match v with
-  | ValBaseBit w val => Some (w, val)
+  | ValBaseBit bits => 
+      Some (BitArith.from_lbool bits)
   | ValBaseSenumField _ _ val => assert_bit val
   | _ => None
   end.
@@ -476,7 +488,7 @@ Definition filter_lpm_prod (ids: list ident) (vals: list Val)
                              end
         | _ => None
         end in
-    match allSome (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
+    match all_some (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
     | None => ([], [])
     | Some entries' => match nth_error vals index with
                        | None => ([], [])
@@ -491,7 +503,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry): o
   match check_lpm_count mks with
   | None => None
   | Some sort_mks =>
-    match allSome (List.map set_of_matches entries) with
+    match all_some (List.map set_of_matches entries) with
     | Some entries' =>
       let (entries'', ks') :=
           if list_eqb (@P4String.equivb tags_t) mks !["lpm"]

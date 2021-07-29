@@ -15,7 +15,7 @@ Section Target.
 Context {tags_t: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
-Notation Val := (@ValueBase tags_t).
+Notation Val := (@ValueBase tags_t bool).
 Notation signal := (@signal tags_t).
 
 Fixpoint width_of_val (v: Val): nat :=
@@ -27,9 +27,9 @@ Fixpoint width_of_val (v: Val): nat :=
   match v with
   | ValBaseNull => O
   | ValBaseBool _ => 1
-  | ValBaseBit w _
-  | ValBaseInt w _
-  | ValBaseVarbit _ w _ => w
+  | ValBaseBit bits
+  | ValBaseInt bits
+  | ValBaseVarbit _ bits => List.length bits
   | ValBaseStruct fields
   | ValBaseHeader fields _ => fields_width fields
   | ValBaseSenumField _ _ v => width_of_val v

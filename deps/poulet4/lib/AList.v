@@ -264,4 +264,12 @@ Section AList.
       key_unique l = true -> key_unique (filter l f) = true.
   Proof. intros. apply key_unique_sublist_true with l; auto. apply filter_sublist. Qed.
 
+  Inductive all_values {A B} (hold_one_value : A -> B -> Prop) :
+                       AList K A R -> AList K B R -> Prop :=
+  | all_values_nil : all_values hold_one_value nil nil
+  | all_values_cons : forall k v v' kvs kvs',
+                      hold_one_value v v' ->
+                      all_values hold_one_value kvs kvs' ->
+                      all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
+
 End AList.

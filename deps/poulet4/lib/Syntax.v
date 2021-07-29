@@ -111,36 +111,37 @@ Section Syntax.
   | MkTableProperty (tags: tags_t)  (const: bool)
                     (name: P4String) (value: Expression).
 
-  Inductive ValueBase :=
+  (* little-endian *)
+  Inductive ValueBase {bit : Type} :=
   | ValBaseNull
-  | ValBaseBool (_: bool)
+  | ValBaseBool (_: bit)
   | ValBaseInteger (_: Z)
-  | ValBaseBit (width: nat) (value: Z)
-  | ValBaseInt (width: nat) (value: Z)
-  | ValBaseVarbit (max: nat) (width: nat) (value: Z)
+  | ValBaseBit (value: list bit)
+  | ValBaseInt (value: list bit)
+  | ValBaseVarbit (max: nat) (value: list bit)
   | ValBaseString (_: P4String)
-  | ValBaseTuple (_: list ValueBase)
-  | ValBaseRecord (_: P4String.AList tags_t ValueBase)
-  | ValBaseSet (_: ValueSet)
+  | ValBaseTuple (_: list (@ValueBase bit))
+  | ValBaseRecord (_: P4String.AList tags_t (@ValueBase bit))
+  | ValBaseSet (_: @ValueSet bit)
   | ValBaseError (_: P4String)
   | ValBaseMatchKind (_: P4String)
-  | ValBaseStruct (fields: P4String.AList tags_t ValueBase)
-  | ValBaseHeader (fields: P4String.AList tags_t ValueBase) (is_valid: bool)
-  | ValBaseUnion (fields: P4String.AList tags_t ValueBase)
-  | ValBaseStack (headers: list ValueBase) (size: nat) (next: nat)
+  | ValBaseStruct (fields: P4String.AList tags_t (@ValueBase bit))
+  | ValBaseHeader (fields: P4String.AList tags_t (@ValueBase bit)) (is_valid: bool)
+  | ValBaseUnion (fields: P4String.AList tags_t (@ValueBase bit))
+  | ValBaseStack (headers: list (@ValueBase bit)) (size: nat) (next: nat)
   | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)
-  | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: ValueBase)
-  | ValBaseSenum (_: P4String.AList tags_t ValueBase)
-  with ValueSet :=
-  | ValSetSingleton (value: ValueBase)
+  | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: (@ValueBase bit))
+  | ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit))
+  with ValueSet {bit : Type} :=
+  | ValSetSingleton (value: (@ValueBase bit))
   | ValSetUniversal
-  | ValSetMask (value: ValueBase) (mask: ValueBase)
-  | ValSetRange (lo: ValueBase) (hi: ValueBase)
-  | ValSetProd (_: list ValueSet)
-  | ValSetLpm (width: ValueBase) (nbits: nat) (value: ValueBase)
-  | ValSetValueSet (size: ValueBase) (members: list (list Match))
-                   (sets: list ValueSet).
-
+  | ValSetMask (value: (@ValueBase bit)) (mask: (@ValueBase bit))
+  | ValSetRange (lo: (@ValueBase bit)) (hi: (@ValueBase bit))
+  | ValSetProd (_: list (@ValueSet bit))
+  | ValSetLpm (width: (@ValueBase bit)) (nbits: nat) (value: (@ValueBase bit))
+  | ValSetValueSet (size: (@ValueBase bit)) (members: list (list Match))
+                   (sets: list (@ValueSet bit)).
+  
   Inductive StatementSwitchLabel :=
   | StatSwLabDefault (tags: tags_t)
   | StatSwLabName (tags: tags_t) (_: P4String).
@@ -169,7 +170,7 @@ Section Syntax.
   | StatSwitch (expr: Expression)
                (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
-                  (name: P4String) (value: ValueBase)
+                  (name: P4String) (value: @ValueBase bool)
                   (loc: Locator)
   | StatVariable  (typ: @P4Type tags_t)
                   (name: P4String) (init: option Expression)
@@ -343,7 +344,7 @@ Section Syntax.
 
   Inductive Declaration :=
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
-                 (name: P4String) (value: ValueBase)
+                 (name: P4String) (value: @ValueBase bool)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   | DeclParser (tags: tags_t)  (name: P4String)
@@ -456,8 +457,8 @@ Section Syntax.
   | ValConsPackage (params: list (@P4Parameter tags_t)) (args: P4String.AList tags_t ValueLoc)
   | ValConsExternObj (_: P4String.AList tags_t (list (@P4Parameter tags_t))).
 
-  Inductive Value :=
-  | ValBase (_: ValueBase)
+  Inductive Value (bit : Type) :=
+  | ValBase (_: @ValueBase bit)
   | ValObj (_: ValueObject)
   | ValCons (_: ValueConstructor).
 

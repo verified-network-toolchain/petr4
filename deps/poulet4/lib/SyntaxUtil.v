@@ -1,7 +1,7 @@
 Require Import Coq.Lists.List.
-Require Import Typed.
+Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
-Require Export Maps.
+Require Export Poulet4.Maps.
 Require Import String.
 Import ListNotations.
 
@@ -9,7 +9,7 @@ Section SyntaxUtil.
 
 Context {tags_t: Type}.
 Variable default_tag: tags_t.
-Notation Val := (@ValueBase tags_t).
+Notation Val := (@ValueBase tags_t bool).
 
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).

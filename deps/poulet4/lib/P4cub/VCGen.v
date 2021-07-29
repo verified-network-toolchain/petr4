@@ -7,25 +7,21 @@ Require Export Poulet4.P4cub.BigStep.BigStep.
 Require Export Poulet4.P4cub.BigStep.Semantics.
 Require Export Poulet4.P4cub.BigStep.Value.Value.
 
+Require Import Coq.Arith.EqNat.
+Require Import String.
+Open Scope string_scope.
+
 Import Env.EnvNotations.
 
-(** * VCS *)
+(** Compile to GCL *)
 Module GCL.
   Module P := P4cub.
   Module ST := P.Stmt.
+  Module CD := P.Control.ControlDecl.
   Module E := P.Expr.
   Module F := P.F.
 
   Variable tags_t : Type.
-
-  Inductive ir : Type :=
-  | IRSkip (i : tags_t)
-  | IRAssign (type : E.t) (lhs rhs : E.e tags_t) (i : tags_t)
-  | IRConditional (guard : E.e tags_t) (tru_blk fls_blk : ir) (i : tags_t)
-  | IRSeq (c1 c2 : ir)
-  (* | IRAssume (phi : E.e tags_t) *)
-  (* | IRAssert (phi : E.e tags_t) *)
-  | IRFunCall (f : string) (args : ST.E.arrowE tags_t) (fenv : @fenv tags_t) (body : ST.s tags_t) (i : tags_t).
 
   Inductive t : Type :=
   | GSkip (i : tags_t)
@@ -49,157 +45,208 @@ Module GCL.
   Definition liftO2 {A B C : Type} (f : A -> B -> C) (o1 : option A) (o2 : option B) : option C :=
     obind o1 (fun x1 => obind o2 (fun x2 => Some (f x1 x2))).
 
-  Infix "<$>" := omap (at level 80, right associativity).
-
-  Print fdecl.
-  Print ST.SFunCall.
-  Print Env.consume.
-
-  Print fenv.
-  Print fold_right.
-
-
-  Print fdecl.
-  Inductive inln_fdecl :=
-  | FDeclInln (s : ST.s tags_t).
-
-  Definition inln_fenv := Env.t string inln_fdecl.
-  Fixpoint ir_ify_inline (s : ST.s tags_t) : option ir :=
-    match s with
-    | ST.SSkip i => Some (IRSkip i)
-    | ST.SVardecl _ _ i => Some (IRSkip i)
-    | ST.SAssign type lhs rhs i =>
-      Some (IRAssign type lhs rhs i)
-    | ST.SConditional guard_type guard tru_blk fls_blk i =>
-      let tru_blk' := ir_ify_inline tru_blk in
-      let fls_blk' := ir_ify_inline fls_blk in
-      liftO2 (fun t f => IRConditional guard t f i) tru_blk' fls_blk'
-    | ST.SSeq s1 s2 i =>
-      let ir1 := ir_ify_inline s1 in
-      let ir2 := ir_ify_inline s2 in
-      liftO2 IRSeq ir1 ir2
-    | ST.SBlock s =>
-      ir_ify_inline s
+  Definition union {A : Type} (oo : option (option A)) : option A :=
+    match oo with
+    | Some (Some x) => Some x
     | _ => None
     end.
-  Print aenv.
-  Print adecl.
-  Fixpoint ir_ify (fenv : fenv) (s : ST.s tags_t) {struct s}: option ir :=
-    match s with
-    | ST.SSkip i => Some (IRSkip i)
-    | ST.SVardecl _ _ i => Some (IRSkip i)
-    | ST.SAssign type lhs rhs i =>
-      Some (IRAssign type lhs rhs i)
-    | ST.SConditional guard_type guard tru_blk fls_blk i =>
-      let tru_blk' := ir_ify fenv tru_blk in
-      let fls_blk' := ir_ify fenv fls_blk in
-      liftO2 (fun t f => IRConditional guard t f i) tru_blk' fls_blk'
-    | ST.SSeq s1 s2 i =>
-      let ir1 := ir_ify fenv s1 in
-      let ir2 := ir_ify fenv s2 in
-      liftO2 IRSeq ir1 ir2
-    | ST.SBlock s =>
-      ir_ify fenv s
-    | ST.SFunCall f args i =>
-      let (fopt, _) := (Env.consume f fenv) in
-      fopt >>= fun fdecl =>
-      match fdecl with
-      | (FDecl _ fenv body) =>
-        Some (IRFunCall f args fenv body i)
+
+  Definition bindO2 {A B C : Type} (f : A -> B -> option C) (o1 : option A) (o2 : option B) : option C :=
+    union (liftO2 f o1 o2).
+
+  Infix "<$>" := omap (at level 80, right associativity).
+  Notation "'let**' p ':=' c1 'in' c2" := (omap (fun p => c2) c1)
+                 (at level 61, p as pattern, c1 at next level, right associativity).
+
+  (** NOTE: the arument n is an unrolling hack for now. If you need to the n such  *)
+  (** that ir_to_gcl terminates, just assum exists n. ir_to_gcl n != None. *)
+  Print List.
+  Record block_ctx : Type :=
+    mkCtx { stack : list string; (* The current block stack *)
+            may_have_exited: bool;
+            may_have_returned: bool;
+          }.
+
+  Definition incr (ctx : block_ctx) (name : string) : block_ctx :=
+    {| stack := name :: ctx.(stack);
+       may_have_exited := ctx.(may_have_exited);
+       may_have_returned := false;
+    |}
+  .
+  Definition current (ctx : block_ctx) : option string :=
+    match ctx.(stack) with
+    | [] => None
+    | name :: _ => Some name
+    end.
+
+  Definition decr_ctx (f : string) (old_ctx : block_ctx) (ret : t * block_ctx)  : option (t * block_ctx) :=
+    match ret with
+    | (g, ctx) =>
+      match ctx.(stack) with
+      | [] => None
+      | idx :: idxs =>
+        if String.eqb idx f
+        then let ctx' := {| stack := idxs;
+                            may_have_exited := old_ctx.(may_have_exited) || ctx.(may_have_exited);
+                            may_have_returned := old_ctx.(may_have_returned);
+                         |} in
+             Some (g, ctx')
+        else None
       end
-    | ST.SActCall a args i =>
-      Some (IRSkip i)
-    | ST.SApply x args i =>
-      Some (IRSkip i)
-
-    | ST.SReturnVoid i =>
-      Some (IRSkip i)
-    | ST.SReturnFruit typ expr i =>
-      Some (IRSkip i)
-    | ST.SExit i =>
-      Some (IRSkip i)
-    | ST.SInvoke x i =>
-      Some (IRSkip i)
-
-    | ST.SExternMethodCall _ _ _ i =>
-      Some (IRSkip i)
     end.
 
-  Fixpoint size (ir : ir) : nat * nat :=
-    match ir with
-    | IRSkip i => (0, 0)
-    | IRAssign type lhs rhs i => (0, 1)
-    | IRConditional guard tru_blk fls_blk i =>
-      let (fenv_sz_tru, ast_sz_tru) := size tru_blk in
-      let (fenv_sz_fls, ast_sz_fls) := size fls_blk in
-      (fenv_sz_tru + fenv_sz_fls, ast_sz_tru + 1 + ast_sz_fls)
-    | IRSeq ir1 ir2 =>
-      let (fenv_sz1, ast_sz1) := size ir1 in
-      let (fenv_sz2, ast_sz2) := size ir2 in
-      (max fenv_sz1 fenv_sz2, ast_sz1 + ast_sz2)
-    | IRFunCall _ _ fenv _ _ =>
-      (length fenv, 1)
+  Definition exit (i : tags_t) : E.e tags_t := E.EVar E.TBool "exit" i.
+  Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
+  Definition efalse (i : tags_t) : E.e tags_t := E.EBool false i.
+
+  Definition update_exit (ctx : block_ctx) (b : bool) :=
+    {| stack := ctx.(stack);
+       may_have_exited := b;
+       may_have_returned := ctx.(may_have_returned)
+    |}.
+
+  Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
+    match s1,s2 with
+    | [], [] => true
+    | _, [] => false
+    | [], _ => false
+    | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
     end.
 
-  Definition p_lt (m1 : (nat * nat)) (m2 : (nat * nat)) : Prop :=
-    let (x1, y1) := m1 in
-    let (x2, y2) := m2 in
-    x1 < x2 \/ (x1 = x2 /\ y1 < y2).
+  Definition ctx_cond (tctx fctx : block_ctx) : option block_ctx :=
+    if list_eq String.eqb tctx.(stack) fctx.(stack)
+    then Some {| stack := tctx.(stack);
+                 may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
+                 may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
+              |}
+    else None.
 
-  Set Printing All.
-  Program Fixpoint ir_to_gcl (ir : ir) {measure (size ir) p_lt } : option t :=
-    match ir with
-    | IRSkip i => Some (GSkip i)
-    | IRAssign type lhs rhs i =>
-      Some (GAssign type lhs rhs i)
-    | IRConditional guard tru_blk fls_blk i =>
-      let tru_blk' := ir_to_gcl tru_blk in
-      let fls_blk' := ir_to_gcl fls_blk in
-      liftO2 (fun t f => GConditional guard t f i) tru_blk' fls_blk'
-    | IRSeq s1 s2 =>
-      let ir1 := ir_to_gcl s1 in
-      let ir2 := ir_to_gcl s2 in
-      liftO2 GSeq ir1 ir2
-    | IRFunCall f args fenv body i =>
-      let (_, fenv') := Env.consume f fenv in
-      ir_ify fenv' body >>= ir_to_gcl
-    (* | IRActCall a args i => *)
-    (*   Some (GSkip i) *)
-    (* | IRApply x args i => *)
-    (*   Some (GSkip i) *)
+  Definition cond (guard : E.e tags_t) (i : tags_t) (tres fres : (t * block_ctx)) : option (t * block_ctx) :=
+    let (tg, tctx) := tres in
+    let (fg, fctx) := fres in
+    let* ctx := ctx_cond tctx fctx in
+    Some (GConditional guard tg fg i, ctx).
 
-    (* | IRReturnVoid i => *)
-    (*   Some (GSkip i) *)
-    (* | IRReturnFruit typ expr i => *)
-    (*   Some (GSkip i) *)
-    (* | IRExit i => *)
-    (*   Some (GSkip i) *)
-    (* | IRInvoke x i => *)
-    (*   Some (GSkip i) *)
+  Definition retvar_name (ctx : block_ctx) : string :=
+    fold_right (String.append) "" ctx.(stack).
 
-    (* | IRExternMethodCall _ _ _ i => *)
-    (*   Some (GSkip i) *)
+  Definition retvar (ctx : block_ctx) (i : tags_t) : E.e tags_t :=
+    E.EVar E.TBool (retvar_name ctx) i.
+
+  Definition seq (i : tags_t) (res1 res2 : (t * block_ctx)) : t * block_ctx :=
+    let (g1, ctx1) := res1 in
+    let (g2, ctx2) := res2 in
+    let g :=
+        if ctx1.(may_have_returned)
+        then GSeq g1 (GConditional (retvar ctx1 i) (GSkip i) g2 i)
+        else GSeq g1 g2 in
+    (g, ctx2).
+
+  Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : option (list (A * B)) :=
+    match xs, ys with
+    | [],[] => Some []
+    | [], _ => None
+    | _, [] => None
+    | x::xs, y::ys =>
+      cons (x,y) <$> zip xs ys
     end.
 
-  Next Obligation.
-    unfold p_lt.
-    simpl.
-    destruct (size tru_blk).
-    destruct (size fls_blk).
-    destruct n1.
-    - right.
-      * split.
-        + auto.
-        + intuition.
-    - left. intuition.
-  Qed.
+  Fixpoint ored {A : Type} (xs : list (option A)) : option (list A) :=
+    match xs with
+    | [] => Some []
+    | (Some x) :: xs => cons x <$> ored xs
+    | None :: _ => None
+    end.
 
-  Next Obligation.
-    unfold p_lt.
-    simpl.
-    destruct (size tru_blk).
-    destruct (size fls_blk).
-    destruct n.
-    - right. intuition.
-    - left. intuition.
-  Qed.
+  Fixpoint to_gcl (n : nat)
+           (instr : string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (EquivUtil.string * t) -> t)
+           (ctx : block_ctx)
+           (cienv : @cienv tags_t)
+           (aenv : @aenv tags_t)
+           (tenv : @tenv tags_t)
+           (fenv : fenv)
+           (s : ST.s tags_t)
+           {struct n} : option (t * block_ctx) :=
+    match n with
+    | 0 => None
+    | S n0 =>
+      match s with
+      | ST.SSkip i =>
+        Some (GSkip i, ctx)
+
+      | ST.SVardecl _ _ i =>
+        (** TODO: Handle scoping, using var decls as a signal *)
+        Some (GSkip i, ctx)
+
+      | ST.SAssign type lhs rhs i =>
+        Some (GAssign type lhs rhs i, ctx)
+
+      | ST.SConditional _ guard tru_blk fls_blk i =>
+        let tru_blk' := to_gcl n0 instr ctx cienv aenv tenv fenv tru_blk in
+        let fls_blk' := to_gcl n0 instr ctx cienv aenv tenv fenv fls_blk in
+        bindO2 (cond guard i) tru_blk' fls_blk'
+
+      | ST.SSeq s1 s2 i =>
+        let g1_opt := to_gcl n0 instr ctx cienv aenv tenv fenv s1 in
+        let g2_opt := to_gcl n0 instr ctx cienv aenv tenv fenv s2 in
+        liftO2 (seq i) g1_opt g2_opt
+
+      | ST.SBlock s =>
+        (* TODO handle variable scope *)
+        to_gcl n0 instr ctx cienv aenv tenv fenv s
+
+      | ST.SFunCall f args i =>
+        let* fdecl := Env.find f fenv in
+        match fdecl with
+        | FDecl ε fenv' body =>
+          (** TODO copy-in/copy-out *)
+          (** TODO handle scope *)
+          let* rslt := to_gcl n0 instr (incr ctx f) cienv aenv tenv fenv' body in
+          decr_ctx f ctx rslt
+        end
+      | ST.SActCall a args i =>
+        let* adecl := Env.find a aenv in
+        match adecl with
+        | ADecl ε fenv' aenv' externs body =>
+          (** TODO handle copy-in/copy-out *)
+          (** TODO handle scope *)
+          let* rslt := to_gcl n0 instr (incr ctx a) cienv aenv' tenv fenv' body in
+          decr_ctx a ctx rslt
+        end
+      | ST.SApply ci args i =>
+        let* cinst := Env.find ci cienv in
+        match cinst with
+        | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
+          let* rslt := to_gcl n0 instr (incr ctx ci) cienv' aenv' tenv' fenv' apply_blk in
+          decr_ctx ci ctx rslt
+        end
+      | ST.SReturnVoid i =>
+        Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
+
+      | ST.SReturnFruit typ expr i =>
+        Some (GAssign E.TBool (retvar ctx i) (etrue i) i, ctx)
+
+      | ST.SExit i =>
+        Some (GAssign E.TBool (exit i) (etrue i) i, update_exit ctx true)
+
+      | ST.SInvoke t i =>
+        let* tdecl := Env.find t tenv in
+        match tdecl with
+        | CD.Table keys actions =>
+          let act_to_gcl := fun a =>
+            let* adecl := Env.find a aenv in
+            match adecl with
+            | ADecl _ fenv' aenv' externs body =>
+              (** TODO handle copy-in/copy-out *)
+              let** (g, _) := to_gcl n0 instr (incr ctx a) cienv aenv tenv fenv body in
+              g
+            end
+          in
+          let* acts := ored (map act_to_gcl actions) in
+          let** named_acts := zip actions acts in
+          pair (instr t i keys named_acts) ctx
+        end
+      | ST.SExternMethodCall _ _ _ i =>
+        None
+      end
+    end.

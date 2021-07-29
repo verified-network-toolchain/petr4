@@ -1,7 +1,7 @@
 (library 
   (name poulet4_Ccomp)
   (public_name poulet4_Ccomp)
-  (libraries bignum zarith)
+  (libraries bignum zarith poulet4)
   (ocamlc_flags (:standard -w -33))
   )
 (include_subdirs no)

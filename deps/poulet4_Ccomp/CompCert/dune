@@ -1,0 +1,5 @@
+(library 
+  (name compcert_extracted)
+  (public_name compcert_extracted)
+  (ocamlc_flags (:standard -w -33)))
+  (include_subdirs unqualified)

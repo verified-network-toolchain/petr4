@@ -21,8 +21,12 @@ Notation ct_d := (CT.ControlDecl.d nat).
 Notation tpdecl := (TD.d nat).
 
 Import P4cub.P4cubNotations.
-Definition metadata : t := {{struct {[]} }}.
-Definition hdrs : t := {{struct {[]} }}.
+
+Require Import Coq.PArith.BinPosDef.
+Definition metadata : t := {{struct {[("bool", {{Bool}})]} }}.
+Definition hdrs : t := 
+  let width := Pos.of_nat 32 in 
+  {{struct {[("int", {{int <width>}})]} }}.
 Definition parser_start_state : par_st_blk :=
    &{state { -{skip @ 0}- } transition p{ goto ={ accept }= @ 0 }p}&.
 Definition parsr_cparams : E.constructor_params := [].

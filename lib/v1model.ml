@@ -839,6 +839,8 @@ module PreV1Switch : Target = struct
       match State.find_extern c st with
       | Counter {size; typ = Packets l } ->
          List.nth_exn l i |> Bigint.to_int_exn
+      | Counter {size; typ = Bytes l } ->
+         List.nth_exn l i |> Bigint.to_int_exn
       | _ ->
          failwith "read_counter: unexpected object"
     with Not_found_s _ ->

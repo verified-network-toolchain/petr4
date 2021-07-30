@@ -419,13 +419,11 @@ module MakeInterpreter (T : Target) = struct
       (entries : Table.entry list option)
       (name : string) (actions : Table.action_ref list)
       (default : Table.action_ref) : state * signal * value =
-    Printf.printf "Looking up entries for %s\n" name;
+    let () = Format.eprintf "[petr4] executing table %s\n" name in
     let ctrl_entries = match List.Assoc.find (fst (fst ctrl)) name ~equal:String.(=) with
       | None ->
-         Printf.printf "Not found\n%!";
          []
       | Some entries ->
-         Printf.printf "Found!!\n%!";
          create_pre_entries env st actions key entries in
     let entries' = match entries with
                         | None -> ctrl_entries
@@ -448,9 +446,10 @@ module MakeInterpreter (T : Target) = struct
       else (entries', ks') in
     let l = List.filter entries'' ~f:(fun (s,a) -> values_match_set st ks'' s) in
     let action = match l with
-                | [] -> Printf.printf "Falling back to default action\n"; default
+                | [] -> Format.eprintf "[petr4] executing default action\n%!"; default
                 | _ -> List.hd_exn l |> snd in
     let action_name = Table.((snd action).action.name) in
+    let () = Format.eprintf "[petr4] executing action %a\n%!" Pp.to_fmt (Pretty.name_format_t action_name) in
     let action_value = EvalEnv.find_val action_name env |> extract_from_state st'' in
     let args = Table.((snd action).action.args) in
     match action_value with

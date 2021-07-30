@@ -178,8 +178,8 @@ let do_process_packet switch num_ports sockets env st pkt in_port =
 
 let do_counter_request switch st name index =
   let open Eval.V1Interpreter in
-  Printf.eprintf "[Petr4] CounterRequest(%s,%d)\n%!" name index;
   let count = read_counter st name index in
+  Printf.eprintf "[Petr4] CounterRequest(%s,%s[%d]) = %d\n%!" switch name index count;
   Petr4_unix.Runtime_server.post_counter_response switch name index count
   
 let start_v1switch switch env prog sockets =

@@ -169,9 +169,7 @@ Module Ops.
       | _, _ => (fun num_bits => None)
       end in
     match v2 with
-    | ValBaseBit bits =>  
-        let (_, n2) := BitArith.from_lbool bits
-        in arith_op n2
+    | ValBaseBit bits => arith_op (snd (BitArith.from_lbool bits))
         (* match v1 with
         | ValBaseInteger _ => None
         | _ => arith_op n2

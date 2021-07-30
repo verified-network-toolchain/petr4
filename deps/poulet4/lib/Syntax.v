@@ -57,9 +57,9 @@ Section Syntax.
 
   Definition NoLocator := LGlobal nil.
 
-  Inductive KeyValue :=
-  | MkKeyValue (tags: tags_t) (key: P4String) (value: Expression)
-  with ExpressionPreT :=
+  (* Inductive KeyValue :=
+  | MkKeyValue (tags: tags_t) (key: P4String) (value: Expression) *)
+  Inductive ExpressionPreT :=
   | ExpBool (b: bool)
   | ExpInt (_: P4Int)
   | ExpString (_: P4String)
@@ -67,7 +67,7 @@ Section Syntax.
   | ExpArrayAccess (array: Expression) (index: Expression)
   | ExpBitStringAccess (bits: Expression) (lo: N) (hi: N)
   | ExpList (value: list Expression)
-  | ExpRecord (entries: list KeyValue)
+  | ExpRecord (entries: P4String.AList tags_t Expression)
   | ExpUnaryOp (op: OpUni) (arg: Expression)
   | ExpBinaryOp (op: OpBin) (args: (Expression * Expression))
   | ExpCast (typ: @P4Type tags_t) (expr: Expression)
@@ -126,7 +126,7 @@ Section Syntax.
   | ValBaseError (_: P4String)
   | ValBaseMatchKind (_: P4String)
   | ValBaseStruct (fields: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseHeader (fields: P4String.AList tags_t (@ValueBase bit)) (is_valid: bool)
+  | ValBaseHeader (fields: P4String.AList tags_t (@ValueBase bit)) (is_valid: bit)
   | ValBaseUnion (fields: P4String.AList tags_t (@ValueBase bit))
   | ValBaseStack (headers: list (@ValueBase bit)) (size: nat) (next: nat)
   | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)

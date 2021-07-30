@@ -460,6 +460,12 @@ Fixpoint to_lbool (width: nat) (value: Z) : list bool :=
   | O => []
   end.
 
+Fixpoint to_loptbool (width: nat) (value: Z) : list (option bool) :=
+  match width with
+  | S n => Some (Z.eqb (value mod 2) 1) :: (to_loptbool n (value / 2))
+  | O => []
+  end.
+
 (*
 Compute (to_lbool (4)%nat (-7)).
 Compute (to_lbool (8)%nat (-7)).

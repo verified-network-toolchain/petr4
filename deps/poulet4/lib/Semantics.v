@@ -74,7 +74,7 @@ Axiom dummy_fundef : fundef.
 
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t Val.
+Definition genv_senum := @IdentMap.t tags_t Sval.
 
 Record genv := MkGenv {
   ge_func :> genv_func;
@@ -97,14 +97,14 @@ Definition get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   | _ => Some typ
   end.
 
-Inductive read_detbit : option bool -> bool -> Prop :=
-  | read_none : forall b, read_detbit None b
-  | read_some : forall b, read_detbit (Some b) b.
+Inductive read_ndetbit : option bool -> bool -> Prop :=
+  | read_none : forall b, read_ndetbit None b
+  | read_some : forall b, read_ndetbit (Some b) b.
 
-Inductive strict_read_detbit : option bool -> bool -> Prop :=
-  | strict_read_some : forall b, strict_read_detbit (Some b) b.
+Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
+  | strict_read_some : forall b, strict_read_ndetbit (Some b) b.
 
-Definition read_ndetbit (b : bool) (b': option bool) :=
+Definition read_detbit (b : bool) (b': option bool) :=
   b' = Some b.
 
 Inductive read_bits {A B} (read_one_bit : A -> B -> Prop) : 
@@ -143,6 +143,31 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
   | exec_val_set : forall vset vset',
                    exec_vset read_one_bit vset vset' ->
                    exec_val read_one_bit (ValBaseSet vset) (ValBaseSet vset')
+  | exec_val_error: forall s,
+                    exec_val read_one_bit (ValBaseError s) (ValBaseError s)
+  | exec_val_matchkind: forall s,
+                        exec_val read_one_bit (ValBaseMatchKind s) (ValBaseMatchKind s)
+  | exec_val_struct : forall kvs kvs',
+                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
+                      exec_val read_one_bit (ValBaseStruct kvs) (ValBaseStruct kvs')
+  | exec_val_header : forall kvs kvs' b b',
+                      read_one_bit b b' ->
+                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
+                      exec_val read_one_bit (ValBaseHeader kvs b) (ValBaseHeader kvs' b')
+  | exec_val_union : forall kvs kvs',
+                     AList.all_values (exec_val read_one_bit) kvs kvs' ->
+                     exec_val read_one_bit (ValBaseStruct kvs) (ValBaseStruct kvs')
+  | exec_val_stack : forall lv lv' size next,
+                     exec_vals read_one_bit lv lv' ->
+                     exec_val read_one_bit (ValBaseStack lv size next) (ValBaseStack lv' size next)
+  | exec_val_enum_field : forall typ_name enum_name,
+                          exec_val read_one_bit (ValBaseEnumField typ_name enum_name) (ValBaseEnumField typ_name enum_name)
+  | exec_val_senum_field : forall typ_name enum_name v v',
+                           exec_val read_one_bit v v' ->
+                           exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) (ValBaseSenumField typ_name enum_name v')
+  | exec_val_senum : forall kvs kvs',
+                     AList.all_values (exec_val read_one_bit) kvs kvs' ->
+                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')
 with exec_vset {A B} (read_one_bit : A -> B -> Prop) : 
                @ValueSet tags_t A -> @ValueSet tags_t B -> Prop :=
   | exec_vset_singleton : forall v v',
@@ -160,6 +185,13 @@ with exec_vset {A B} (read_one_bit : A -> B -> Prop) :
   | exec_vset_prod : forall vsets vsets',
                      exec_vsets read_one_bit vsets vsets' ->
                      exec_vset read_one_bit (ValSetProd vsets) (ValSetProd vsets')
+  (* problems in syntax and v1model of exec_vset_lpm, omitted for now *)
+  
+  (* should size be nondeterministic? *)
+  | exec_vset_set : forall size size' mem vsets vsets',
+                    exec_val read_one_bit size size' ->
+                    exec_vsets read_one_bit vsets vsets' ->
+                    exec_vset read_one_bit (ValSetValueSet size mem vsets) (ValSetValueSet size' mem vsets')
 with exec_vsets {A B} (read_one_bit : A -> B -> Prop) : 
                list (@ValueSet tags_t A) -> list (@ValueSet tags_t B) -> Prop :=
   | exec_vsets_nil : exec_vsets read_one_bit nil nil
@@ -175,28 +207,32 @@ with exec_vals {A B} (read_one_bit : A -> B -> Prop) :
                      exec_vals read_one_bit tl tl' ->
                      exec_vals read_one_bit (hd :: tl) (hd' :: tl').
 
-  
-
 Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
   exec_val read_one_bit.
+
+Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
+  exec_vals read_one_bit.
 
 Definition val_to_sval := 
   exec_val read_detbit.
 
-Definition eval_p4int (n: P4Int) : Val :=
+Definition vals_to_svals := 
+  exec_vals read_detbit.
+
+Definition eval_p4int (n: P4Int) : Sval :=
   match P4Int.width_signed n with
   | None => ValBaseInteger (P4Int.value n)
-  | Some (w, true) => ValBaseInt w (P4Int.value n)
-  | Some (w, false) => ValBaseBit w (P4Int.value n)
+  | Some (w, true) => ValBaseInt (to_loptbool w (P4Int.value n))
+  | Some (w, false) => ValBaseBit (to_loptbool w (P4Int.value n))
   end.
 
-Definition loc_to_val (this : path) (loc : Locator) (s : state) : option Val :=
+Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :=
   PathMap.get (loc_to_path this loc) (get_memory s).
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
-  | ValBaseInt _ value
-  | ValBaseBit _ value
+  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
+  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
   | ValBaseInteger value => Some value
   (* added in 1.2.2 *)
   | ValBaseSenumField _ _ value => array_access_idx_to_z value
@@ -205,8 +241,8 @@ Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
 
 Definition bitstring_slice_bits_to_z (v : Val) : option (nat * Z) :=
   match v with
-  | ValBaseInt width value
-  | ValBaseBit width value => Some (width, value)
+  | ValBaseInt bits => Some (IntArith.from_lbool bits)
+  | ValBaseBit bits => Some (BitArith.from_lbool bits)
   | _ => None
   end.
 
@@ -214,26 +250,68 @@ Definition bitstring_slice_bits_to_z (v : Val) : option (nat * Z) :=
    use the two's complement representation.
    For instance, -1 will correspond to an infinite stream of true bits.
    https://coq.inria.fr/library/Coq.ZArith.BinIntDef.html *)
-  Definition bitstring_slice (i : Z) (lo : N) (hi : N) : Z :=
-    let mask := (Z.pow 2 (Z.of_N (hi - lo + 1)) - 1)%Z in
-    Z.land (Z.shiftr i (Z.of_N lo)) mask.
+Definition bitstring_slice (i : Z) (lo : N) (hi : N) : Z :=
+  let mask := (Z.pow 2 (Z.of_N (hi - lo + 1)) - 1)%Z in
+  Z.land (Z.shiftr i (Z.of_N lo)) mask.
 
 Definition Z_to_nat (i : Z) : option nat :=
   if (i >=? 0)%Z then Some (Z.to_nat i) else None.
 
-Inductive is_uninitialized_value : Val -> (@P4Type tags_t) -> Prop :=
-  | is_uninitialized_value_intro : forall v t, is_uninitialized_value v t.
+Definition lift_option {A} (l : list (option A)) : option (list A) :=
+  let lift_one_option (x : option A) (acc : option (list A)) :=
+    match x, acc with
+    | Some x', Some acc' => Some (x' :: acc')
+    | _, _ => None
+    end
+  in List.fold_right lift_one_option (Some []) l.
+
+Fixpoint default_sval (typ : @P4Type tags_t) : option Sval := 
+  match typ with
+  | TypBool => Some (ValBaseBool None)
+  (* | TypString => *)
+  | TypInt w => Some (ValBaseInt (List.repeat None w))
+  | TypBit w => Some (ValBaseBit (List.repeat None w))
+  (* | TypVarBit w => *)
+  | TypArray typ size =>
+      match default_sval typ with
+      | Some sv => Some (ValBaseStack (List.repeat sv size) size 0)
+      | None => None
+      end
+  | TypTuple typs
+  | TypList typs => 
+      match lift_option (List.map default_sval typs) with
+      | Some svs => Some (ValBaseTuple svs)
+      | None => None
+      end
+  (*
+  | TypRecord
+  | TypSet
+  | TypError
+  | TypVoid
+  | TypHeader
+  | TypHeaderUnion
+  | TypStruct
+  | TypEnum *)
+  | _ => None
+  end.
+(* Type without default svals:
+    TypInteger, TypMatchKind, TypTypeName, TypNewType
+    TypControl, TypParser, TypExtern, TypFunction, TypAction, 
+    TypTable, TypPackage, TypSpecializedType, TypConstructor
+   ValueBase without default svals:
+    ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind
+*)
 
 (* TODO: reading uninitialized values of a header after it is made valid. *)
-Inductive read_header_field: bool -> P4String.AList tags_t Val -> P4String -> P4Type -> Val -> Prop :=
-  | read_header_field_intro : forall fields name typ v,
+(* Inductive read_header_field: bool -> P4String.AList tags_t Sval -> P4String -> P4Type -> Sval -> Prop :=
+  | read_header_field_intro : forall fields name typ v b,
                               AList.get fields name = Some v ->
                               read_header_field true fields name typ v
   | read_header_field_undef : forall fields name typ v,
                               is_uninitialized_value v typ ->
-                              read_header_field false fields name typ v.
+                              read_header_field false fields name typ v. *)
 
-Inductive get_member : Val -> P4String -> P4Type -> Val -> Prop :=
+Inductive get_member : Sval -> P4String -> (@P4Type tags_t) -> Sval -> Prop :=
   | get_member_struct : forall fields member v typ,
                         AList.get fields member = Some v ->
                         get_member (ValBaseStruct fields) member typ v
@@ -244,174 +322,190 @@ Inductive get_member : Val -> P4String -> P4Type -> Val -> Prop :=
                        AList.get fields member = Some v ->
                        get_member (ValBaseUnion fields) member typ v
   | get_member_header : forall fields b member v typ,
-                        read_header_field b fields member typ v ->
+                        AList.get fields member = Some v ->
                         get_member (ValBaseHeader fields b) member typ v.
 
 (* Note that expressions don't need decl_path. *)
-Inductive exec_expr : path -> (* temp_env -> *) state ->
-                      (@Expression tags_t) -> Val ->
+Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
+                    : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
                       (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_expr_bool : forall b this st tag typ dir,
-                     exec_expr this st
+                     exec_expr read_one_bit this st
                      (MkExpression tag (ExpBool b) typ dir)
-                     (ValBaseBool b)
-  | exec_expr_int : forall i iv this st tag typ dir,
-                    iv = eval_p4int i ->
-                    exec_expr this st
+                     (ValBaseBool (Some b))
+  | exec_expr_int : forall i isv this st tag typ dir,
+                    isv = eval_p4int i ->
+                    exec_expr read_one_bit this st
                     (MkExpression tag (ExpInt i) typ dir)
-                    iv
+                    isv
   | exec_expr_string : forall s this st tag typ dir,
-                       exec_expr this st
+                       exec_expr read_one_bit this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString s)
-  | exec_expr_name: forall name loc v this st tag typ dir,
-                    loc_to_val this loc st = Some v ->
-                    exec_expr this st
+  | exec_expr_name: forall name loc sv this st tag typ dir,
+                    loc_to_sval this loc st = Some sv ->
+                    exec_expr read_one_bit this st
                     (MkExpression tag (ExpName name loc) typ dir)
-                    v
+                    sv
   (* Note: same constructor for the two relations below. Need tactics to auto-run. *)
-  | exec_expr_array_access: forall array headers size next idx idxv idxz idxn header this st tag typ dir,
-                            exec_expr this st array (ValBaseStack headers size next) ->
-                            exec_expr this st idx idxv ->
+  | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz idxn header this st tag typ dir,
+                            exec_expr read_one_bit this st idx idxsv ->
+                            sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
                             (0 <= idxz < (Z.of_nat size))%Z ->
+                            exec_expr read_one_bit this st array (ValBaseStack headers size next) ->
                             Z_to_nat idxz = Some idxn ->
                             List.nth_error headers idxn = Some header ->
-                            exec_expr this st
+                            exec_expr read_one_bit this st
                             (MkExpression tag (ExpArrayAccess array idx) typ dir)
                             header
-  | exec_expr_array_access_undef: forall array headers size next idx idxv idxz v this st tag typ dir,
-                                  exec_expr this st array (ValBaseStack headers size next) ->
-                                  exec_expr this st idx idxv ->
+  | exec_expr_array_access_undef: forall array headers size next idx idxsv idxv idxz sv this st tag typ dir,
+                                  exec_expr read_one_bit this st idx idxsv ->
+                                  sval_to_val read_one_bit idxsv idxv ->
                                   array_access_idx_to_z idxv = Some idxz ->
                                   (idxz < 0)%Z \/ (idxz >= (Z.of_nat size))%Z ->
-                                  is_uninitialized_value v typ ->
-                                  exec_expr this st
+                                  exec_expr read_one_bit this st array (ValBaseStack headers size next) ->
+                                  default_sval typ = Some sv ->
+                                  exec_expr read_one_bit this st
                                   (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                                  v
-  | exec_expr_bitstring_access : forall bits bitsv bitsz w lo hi this st tag typ dir,
-                                 exec_expr this st bits bitsv ->
+                                  sv
+  | exec_expr_bitstring_access : forall bits bitssv bitsv bitsz w lo hi this st tag typ dir,
+                                 exec_expr read_one_bit this st bits bitssv ->
+                                 sval_to_val read_one_bit bitssv bitsv ->
                                  bitstring_slice_bits_to_z bitsv = Some (w, bitsz) ->
                                  (lo <= hi < (N.of_nat w))%N ->
-                                 exec_expr this st
+                                 exec_expr read_one_bit this st
                                  (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
-                                 (ValBaseBit (N.to_nat (hi - lo + 1)%N) (bitstring_slice bitsz lo hi))
-  | exec_expr_list_nil : forall this st tag typ dir,
-                         exec_expr this st
-                         (MkExpression tag (ExpList nil) typ dir)
-                         (ValBaseTuple nil)
-  | exec_expr_list_cons : forall expr v es vs this st tag typ dir,
-                          exec_expr this st expr v ->
-                          exec_expr this st (MkExpression tag (ExpList es) typ dir) (ValBaseTuple vs) ->
-                          exec_expr this st
-                          (MkExpression tag (ExpList (expr :: es)) typ dir)
-                          (ValBaseTuple (v :: vs))
-  | exec_expr_record_nil : forall this st tag typ dir,
-  (* AList.all_values (exec_val read_one_bit) kvs kvs' *)
-                           exec_expr this st
-                           (MkExpression tag (ExpRecord nil) typ dir)
-                           (ValBaseRecord nil)
-  | exec_expr_record_cons : forall exprk exprv v es kvs this st tag_expr tag_kv typ dir,
-                            exec_expr this st exprv v ->
-                            exec_expr this st (MkExpression tag_expr (ExpRecord es) typ dir) (ValBaseRecord kvs) ->
-                            exec_expr this st
-                            (MkExpression tag_expr (ExpRecord ((MkKeyValue tag_kv exprk exprv) :: es)) typ dir)
-                            (ValBaseRecord ((exprk, v) :: kvs))
-  | exec_expr_unary_op : forall op arg argv v this st tag typ dir,
-                         exec_expr this st arg argv ->
+                                 (ValBaseBit (to_loptbool (N.to_nat (hi - lo + 1)%N) (bitstring_slice bitsz lo hi)))
+  | exec_expr_list : forall es vs this st tag typ dir,
+                     exec_exprs read_one_bit this st es vs ->
+                     exec_expr read_one_bit this st
+                     (MkExpression tag (ExpList es) typ dir)
+                     (ValBaseTuple vs)
+  | exec_expr_record : forall kvs kvs' this st tag typ dir,
+                       AList.all_values (exec_expr read_one_bit this st) kvs kvs' ->
+                       exec_expr read_one_bit this st
+                       (MkExpression tag (ExpRecord kvs) typ dir)
+                       (ValBaseRecord kvs')
+  | exec_expr_unary_op : forall op arg argsv argv v sv this st tag typ dir,
+                         exec_expr read_one_bit this st arg argsv ->
+                         sval_to_val read_one_bit argsv argv ->
                          Ops.eval_unary_op op argv = Some v ->
-                         exec_expr this st
+                         val_to_sval v sv ->
+                         exec_expr read_one_bit this st
                          (MkExpression tag (ExpUnaryOp op arg) typ dir)
-                         v
-  | exec_expr_binary_op : forall op larg largv rarg rargv v this st tag typ dir,
-                          exec_expr this st larg largv ->
-                          exec_expr this st rarg rargv ->
+                         sv
+  | exec_expr_binary_op : forall op larg largsv largv rarg rargsv rargv v sv this st tag typ dir,
+                          exec_expr read_one_bit this st larg largsv ->
+                          exec_expr read_one_bit this st rarg rargsv ->
+                          sval_to_val read_one_bit largsv largv ->
+                          sval_to_val read_one_bit rargsv rargv ->
                           Ops.eval_binary_op op largv rargv = Some v ->
-                          exec_expr this st
+                          val_to_sval v sv ->
+                          exec_expr read_one_bit this st
                           (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
-                          v
-  | exec_expr_cast : forall newtyp expr oldv newv this st tag typ dir real_typ,
+                          sv
+  | exec_expr_cast : forall newtyp expr oldsv oldv newv newsv this st tag typ dir real_typ,
   (* We assume that ge_typ contains the real type corresponding to a
   type name so that we can use get the real type from it. *)
-                     exec_expr this st expr oldv ->
+                     exec_expr read_one_bit this st expr oldsv ->
+                     sval_to_val read_one_bit oldsv oldv ->
                      get_real_type newtyp = Some real_typ ->
                      Ops.eval_cast real_typ oldv = Some newv ->
-                     exec_expr this st
+                     val_to_sval newv newsv ->
+                     exec_expr read_one_bit this st
                      (MkExpression tag (ExpCast newtyp expr) typ dir)
-                     newv
+                     newsv
+  (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
                             name_to_type ge tname = Some (TypEnum ename None members) ->
                             List.In member members ->
-                            exec_expr this st
+                            exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField ename member)
   (* We need rethink about how to handle senum lookup. *)
-  | exec_expr_senum_member : forall tname member ename etyp members fields v this st tag typ dir,
+  | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
                              IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
-                             AList.get fields member = Some v ->
-                             exec_expr this st
+                             AList.get fields member = Some sv ->
+                             exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
-                             (ValBaseSenumField ename member v)
+                             (ValBaseSenumField ename member sv)
   | exec_expr_error_member : forall err this st tag typ dir,
-                             exec_expr this st
+                             exec_expr read_one_bit this st
                              (MkExpression tag (ExpErrorMember err) typ dir)
                              (ValBaseError err)
-  | exec_expr_other_member : forall expr member v v' this st tag typ dir,
-                             exec_expr this st expr v ->
-                             get_member v member typ v' ->
-                             exec_expr this st
-                              (MkExpression tag (ExpExpressionMember expr member) typ dir) v'
+  | exec_expr_other_member : forall expr member sv sv' this st tag typ dir,
+                             exec_expr read_one_bit this st expr sv ->
+                             get_member sv member typ sv' ->
+                             exec_expr read_one_bit this st
+                             (MkExpression tag (ExpExpressionMember expr member) typ dir) sv'
   (* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
   (* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
   (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
   | exec_expr_stack_member_size : forall expr headers size next this st tag typ dir,
-                                  exec_expr this st expr (ValBaseStack headers size next) ->
-                                  exec_expr this st
+                                  exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
+                                  exec_expr read_one_bit this st
                                   (MkExpression tag (ExpExpressionMember expr !"size") typ dir)
-                                  (ValBaseBit 32 (Z.of_nat size))
+                                  (ValBaseBit (to_loptbool 32 (Z.of_nat size)))
   | exec_expr_stack_member_last_index : forall expr headers size next this st tag typ dir,
-                                        exec_expr this st expr (ValBaseStack headers size next)->
+                                        exec_expr read_one_bit this st expr (ValBaseStack headers size next)->
                                         (next <> 0)%nat ->
-                                        exec_expr this st
+                                        exec_expr read_one_bit this st
                                         (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
-                                        (ValBaseBit 32 (Z.of_nat (next - 1)))
-  | exec_expr_stack_member_last_index_undef : forall expr headers size v this st tag typ dir,
-                                              exec_expr this st expr (ValBaseStack headers size 0)->
-                                              is_uninitialized_value v (TypBit 32) ->
-                                              exec_expr this st
+                                        (ValBaseBit (to_loptbool 32 (Z.of_nat (next - 1))))
+  | exec_expr_stack_member_last_index_undef : forall expr headers size sv this st tag typ dir,
+                                              exec_expr read_one_bit this st expr (ValBaseStack headers size 0)->
+                                              default_sval (TypBit 32) = Some sv->
+                                              exec_expr read_one_bit this st
                                               (MkExpression tag (ExpExpressionMember expr !"lastIndex") typ dir)
-                                              v
-  | exec_expr_ternary : forall cond tru fls b v this st tag typ dir,
-                        exec_expr this st cond (ValBaseBool b) ->
-                        exec_expr this st (if b then tru else fls) v ->
-                        exec_expr this st
+                                              sv
+  | exec_expr_ternary : forall cond tru fls b sv this st tag typ dir,
+                        exec_expr read_one_bit this st cond (ValBaseBool b) ->
+                        exec_expr read_one_bit this st (if b then tru else fls) sv ->
+                        exec_expr read_one_bit this st
                         (MkExpression tag (ExpTernary cond tru fls) typ dir)
-                        v
+                        sv
   | exec_expr_dont_care : forall this st tag typ dir,
-                          exec_expr this st
+                          exec_expr read_one_bit this st
                           (MkExpression tag ExpDontCare typ dir)
                           ValBaseNull
-  | exec_expr_mask : forall expr exprv mask maskv this st tag typ dir,
-                     exec_expr this st expr exprv ->
-                     exec_expr this st mask maskv ->
-                     exec_expr this st
+  | exec_expr_mask : forall expr exprsv mask masksv this st tag typ dir,
+                     exec_expr read_one_bit this st expr exprsv ->
+                     exec_expr read_one_bit this st mask masksv ->
+                     exec_expr read_one_bit this st
                      (MkExpression tag (ExpMask expr mask) typ dir)
-                     (ValBaseSet (ValSetMask exprv maskv))
-  | exec_expr_range : forall lo lov hi hiv this st tag typ dir,
-                      exec_expr this st lo lov ->
-                      exec_expr this st hi hiv ->
-                      exec_expr this st
+                     (ValBaseSet (ValSetMask exprsv masksv))
+  | exec_expr_range : forall lo losv hi hisv this st tag typ dir,
+                      exec_expr read_one_bit this st lo losv ->
+                      exec_expr read_one_bit this st hi hisv ->
+                      exec_expr read_one_bit this st
                       (MkExpression tag (ExpRange lo hi) typ dir)
-                      (ValBaseSet (ValSetRange lov hiv)).
-
-Inductive exec_exprs : path -> state -> list (@Expression tags_t) -> list Val -> Prop :=
+                      (ValBaseSet (ValSetRange losv hisv))
+with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
+                path -> state -> list (@Expression tags_t) -> list Sval -> Prop :=
   | exec_exprs_nil : forall this st,
-                     exec_exprs this st nil nil
-  | exec_exprs_cons : forall this st expr es v vs,
-                      exec_expr this st expr v ->
-                      exec_exprs this st es vs ->
-                      exec_exprs this st (expr :: es) (v :: vs).
+                     exec_exprs read_one_bit this st nil nil
+  | exec_exprs_cons : forall this st expr es sv svs,
+                      exec_expr read_one_bit this st expr sv ->
+                      exec_exprs read_one_bit this st es svs ->
+                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).
+
+Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
+                        path -> (* temp_env -> *) state -> (@Expression tags_t) -> Val ->
+                        (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
+  | exec_expr_det_intro : forall this st expr sv v,
+                          exec_expr read_one_bit this st expr sv ->
+                          sval_to_val read_one_bit sv v ->
+                          exec_expr_det read_one_bit this st expr v.
+
+Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) : 
+                         path -> (* temp_env -> *) state -> list (@Expression tags_t) -> list Val ->
+                        (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
+  | exec_exprs_det_intro : forall this st exprs svs vs,
+                           exec_exprs read_one_bit this st exprs svs ->
+                           svals_to_vals read_one_bit svs vs ->
+                           exec_exprs_det read_one_bit this st exprs vs.
 
 (* A generic function for evaluating pure expressions. *)
 Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
@@ -551,7 +645,7 @@ Qed.
 (* We might want to prove this lemma in future. *)
 (* Lemma eval_expr_gen_complete : forall st this expr v,
   exec_expr this st expr v ->
-  eval_expr_gen (fun _ loc => loc_to_val this loc st) expr = Some v. *)
+  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
 
 Definition is_in (dir : direction) : bool :=
   match dir with
@@ -830,7 +924,7 @@ Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (v : Val)
 
 Inductive exec_read (this : path) : state -> Lval -> Val -> Prop :=
   | exec_read_name : forall name loc st v typ,
-                       loc_to_val this loc st = Some v ->
+                       loc_to_sval this loc st = Some v ->
                        exec_read this st (MkValueLvalue (ValLeftName name loc) typ) v
   | exec_read_by_member : forall lv name st v typ,
                          exec_read_member this st lv name typ v ->

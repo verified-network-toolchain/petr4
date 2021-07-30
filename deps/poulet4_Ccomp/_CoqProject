@@ -4,3 +4,5 @@ lib/CCompEnv.v
 lib/Helloworld.v
 lib/IdentGen.v
 lib/Extract.v
+
+-R CompCert/ compcert

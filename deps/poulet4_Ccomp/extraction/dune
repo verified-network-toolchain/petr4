@@ -1,6 +1,5 @@
-(include_subdirs unqualified)
 (library 
   (name poulet4_Ccomp)
   (public_name poulet4_Ccomp)
-  (libraries bignum zarith poulet4 coq-compcert)
+  (libraries bignum zarith poulet4)
   (ocamlc_flags (:standard -w -33)))

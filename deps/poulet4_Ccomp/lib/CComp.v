@@ -495,7 +495,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
     match CTranslateParserState st env_fn_declared fn_params with 
     | None => None 
     | Some (f_start, _)=>
-      let env_start_declared := CCompEnv.add_function env_fn_declared "start" f_start in
+      let env_start_declared := CCompEnv.update_function env_fn_declared "start" f_start in
       match (lookup_function env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
@@ -509,8 +509,8 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
         Ctypes.Tvoid
         (AST.mkcallconv None true true)
         fn_params
-        []
-        []
+        (get_vars env_start_declared)
+        (get_temps env_start_declared)
         fn_body)
       in
       let env_topfn_added := CCompEnv.add_function env_start_declared p top_function in

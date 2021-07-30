@@ -1,0 +1,16 @@
+#!/bin/sh
+# Start Proof General with the right Coq version
+# Use the Makefile to rebuild dependencies if needed
+# Recompile the modified file after editing
+
+make -q ${1}o || {
+  make -n ${1}o | grep -v "\\b${1}\\b" | \
+  (while read cmd; do
+    sh -c "$cmd" || exit 2
+   done)
+}
+
+COQPROGNAME="${COQBIN}coqtop"
+
+emacs --eval "(setq coq-prog-name \"$COQPROGNAME\")" $1 \
+&& make ${1}o

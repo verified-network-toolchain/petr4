@@ -6,7 +6,7 @@ all: Makefile.coq
 	@+$(MAKE) -f Makefile.coq all
 
 install:
-	@+$(MAKE) -f Makefile.coq install
+	opam install .
 
 clean: Makefile.coq
 	@+$(MAKE) -f Makefile.coq cleanall

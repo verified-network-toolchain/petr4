@@ -12,12 +12,18 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-.PHONY: all poulet4
+.PHONY: all poulet4 poulet4_Ccomp
 
-all: poulet4
+all: poulet4 poulet4_Ccomp
 
 poulet4:
 	opam install ./poulet4 --working-dir
 
+poulet4_Ccomp:
+	$(MAKE) -C poulet4_Ccomp
+	opam install ./poulet4_Ccomp/extraction
+	$(MAKE) -C poulet4_Ccomp clean
+
 clean:
 	make -C poulet4 clean
+	make -C poulet4_Ccomp clean

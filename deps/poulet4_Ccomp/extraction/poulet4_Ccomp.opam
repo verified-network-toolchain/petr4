@@ -10,11 +10,12 @@ build: [
   [make]
 ]
 install: [
-  [make "install"]
+  [dune "install"]
 ]
 depends: [
   "bignum"
   "poulet4"
+  "coq-compcert"
   "zarith"
   "coq" {build}
   "coq-equations" {build}

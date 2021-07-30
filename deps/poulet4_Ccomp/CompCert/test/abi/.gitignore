@@ -1,8 +1,0 @@
-*.exe
-*.c
-*.h
-*.compcert
-*.cc2compcert
-*.compcert2cc
-*.light.c
-*.s

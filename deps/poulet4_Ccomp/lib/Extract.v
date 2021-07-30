@@ -39,6 +39,7 @@ From compcert Require Initializers.
 Require Coq.extraction.Extraction.
 Require Import ExtrOcamlBasic.
 Require BinPosDef.
+Require Import ExtrOcamlString.
 Require Poulet4.SimplExpr.
 Require Poulet4.GenLoc.
 Require Poulet4_Ccomp.CComp.

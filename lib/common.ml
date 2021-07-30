@@ -111,11 +111,14 @@ module Make_parse (Conf: Parse_config) = struct
       then parsed_prog |> Types.program_to_yojson |> print_json pretty_json
       else parsed_prog |> Pretty.format_program |> print
     | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
+      let msg = Format.sprintf "%s: %s@\n%!" (Info.to_string info) s in
+      raise_s [%message msg]
     | `Error (info, Parser.Error) ->
-      Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
+      let msg = Format.sprintf "%s: syntax error@\n%!" (Info.to_string info) in
+      raise_s [%message msg]
     | `Error (info, err) ->
-      Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+      let msg = Format.sprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err) in
+      raise_s [%message msg]
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port num_ports target =
     let port = Bigint.of_int port in

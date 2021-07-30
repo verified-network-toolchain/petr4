@@ -225,7 +225,7 @@ let start_switch verbose include_dir target pts switch p4_file =
   | `Error (info, exn) ->
     let exn_msg = Exn.to_string exn in
     let info_string = Info.to_string info in
-    Format.sprintf "%s\n%s" info_string exn_msg |> print_string |> Lwt.return
+    Format.sprintf "%s\n%s\n" info_string exn_msg |> print_string |> Lwt.return
 
 let handle_message (msg : Runtime.ctrl_msg) : unit =
   input_push (Some (Control msg))

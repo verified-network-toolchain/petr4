@@ -366,7 +366,7 @@ Section CComp.
           (CCompEnv.get_temps env')
           (Ssequence stmt'
           (Scall None (Evar x_id (Clight.type_of_function x_f)) []))
-          , env')
+          , (set_temp_vars env env'))
       end
       end
     | p{select exp { cases } default := def @ i}p => None (*unimplemented*)
@@ -477,9 +477,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   | %{parser p (cparams) (params) start := st {states} @ i}% =>
     (*ignore constructor params for now*)
     
-    let (fn_params, env):= CTranslateParams params env in
-    let (copyin, env) := CCopyIn params env in 
-    let (copyout, env) := CCopyOut params env in
+    let (fn_params, env_params):= CTranslateParams params env in
+    let (copyin, env_copyin) := CCopyIn params env_params in 
+    let (copyout, env_copyout) := CCopyOut params env_copyin in
     let state_names := F.keys states in 
     let env_fn_sig_declared := 
       (*all functions inside one top parser declaration should have the same parameter*)
@@ -492,7 +492,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       []
       Sskip ) in
       let env_start_fn_sig_declared := 
-        CCompEnv.add_function env "start" fn_sig
+        CCompEnv.add_function env_copyout "start" fn_sig
       in
       List.fold_left 
         (fun (cumulator : ClightEnv) (state_name: string) =>
@@ -504,16 +504,17 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       (fun (cumulator: option ClightEnv) (state_name: string)
       => match cumulator with | None => None | Some env' =>
         match Env.find state_name states with | None => None |Some sb =>
-        match CTranslateParserState sb env' fn_params with | None => None | Some (f , _) =>
-        Some (CCompEnv.update_function env' state_name f)
+        match CTranslateParserState sb env' fn_params with | None => None | Some (f , env_f_translated) =>
+        Some(CCompEnv.update_function env_f_translated state_name f)
         end end end
-      ) state_names (Some env_fn_sig_declared) in
+      ) state_names (Some (set_temp_vars env env_fn_sig_declared)) in
     (*finished declaring all the state blocks except start state*)
     match env_fn_declared with |None => None |Some env_fn_declared =>
-    match CTranslateParserState st env_fn_declared fn_params with 
+    match CTranslateParserState st (set_temp_vars env env_fn_declared) fn_params with 
     | None => None 
-    | Some (f_start, _)=>
-      let env_start_declared := CCompEnv.update_function env_fn_declared "start" f_start in
+    | Some (f_start, env_start_translated)=>
+      let env_start_declared := CCompEnv.update_function env_start_translated "start" f_start in
+      let env_start_declared := set_temp_vars env_copyout env_start_declared in
       match (lookup_function env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
@@ -533,7 +534,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
         fn_body)
       in
       let env_topfn_added := CCompEnv.add_function env_start_declared p top_function in
-      Some(env_topfn_added)
+      Some( set_temp_vars env env_topfn_added)
         
       end end end 
 
@@ -545,7 +546,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   (signature: E.params) (body: ST.s tags_t) 
   (env: ClightEnv) (top_fn_params: list (AST.ident * Ctypes.type))
   (top_signature: E.params)
-  : option Clight.function:= 
+  : option (Clight.function* ClightEnv):= 
   let (fn_params, env_params_created) := CTranslateParams signature env in
   let fn_params := top_fn_params ++ fn_params in 
   let full_signature := top_signature ++ signature in
@@ -562,8 +563,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
         fn_params 
         (get_vars env_body_translated)
         (get_temps env_body_translated)
-        body))
+        body), (set_temp_vars env env_body_translated))
   end.
+
   Fixpoint CTranslateControlLocalDeclaration 
   (ct : CT.ControlDecl.d tags_t) (env: ClightEnv) 
   (top_fn_params: list (AST.ident * Ctypes.type))
@@ -582,7 +584,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   | c{action a (params) {body} @ i}c => 
     match CTranslateAction params body env top_fn_params top_signature with
     | None => None
-    | Some f => Some (CCompEnv.add_function env a f)
+    | Some (f, env_action_translated) => Some (CCompEnv.add_function env_action_translated a f)
     end
   | c{table t key := ems actions := acts @ i}c => Some env (*TODO: implement table*)
   end.
@@ -611,7 +613,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
           body in
           let env_top_fn_declared := 
           CCompEnv.add_function env_local_decled c top_fn in
-          Some (env_top_fn_declared) 
+          Some (set_temp_vars env env_top_fn_declared) 
         end
        end
   | _ => None
@@ -642,7 +644,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
             (get_vars env_body_translated)
             (get_temps env_body_translated)
             body) in
-        Some (CCompEnv.add_function env_params_created name top_function)
+        Some (set_temp_vars env (CCompEnv.add_function env_params_created name top_function))
       end
     end 
   | _ => None

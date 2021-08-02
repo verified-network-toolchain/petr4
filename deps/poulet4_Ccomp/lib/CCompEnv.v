@@ -145,6 +145,28 @@ fenv := env.(fenv);
 tempOfArg := env.(tempOfArg);
 |}, new_ident ).
 
+Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
+{|
+  identMap := env.(identMap);
+  temps := [];
+  vars := [];
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := [];
+|}.
+
+Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
+{|
+  identMap := to.(identMap);
+  temps := from.(temps);
+  vars := from.(vars);
+  composites := to.(composites);
+  identGenerator := to.(identGenerator);
+  fenv := to.(fenv);
+  tempOfArg := from.(tempOfArg);
+|}.  
+
 Definition find_ident (env: ClightEnv) (name: string)
 : option AST.ident :=
   Env.find name env.(identMap). 

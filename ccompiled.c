@@ -9,10 +9,10 @@ struct $3 {
 };
 
 void $1();
-void $28();
-void $27();
-void $20();
-void $19();
+void $40();
+void $39();
+void $26();
+void $25();
 void $12();
 void $11();
 void $1(void)
@@ -20,58 +20,46 @@ void $1(void)
   /*skip*/;
 }
 
-void $28(_Bool $25, struct $7 $23, struct $3 $21)
-{
-  _Bool $26;
-  struct $7 $24;
-  struct $3 $22;
-  _Bool *$18;
-  struct $7 *$16;
-  struct $3 *$14;
-  struct $7 *$9;
-  struct $3 *$5;
-  $22 = $21;
-  $24 = $23;
-  $26 = $25;
-  $21 = $22;
-  $23 = $24;
-  $25 = $26;
-}
-
-void $27(_Bool $25, struct $7 $23, struct $3 $21, _Bool $31, struct $7 $29, struct $3 $27)
+void $40(_Bool $31, struct $7 $29, struct $3 $27)
 {
   _Bool $32;
   struct $7 $30;
   struct $3 $28;
-  _Bool $26;
-  struct $7 $24;
-  struct $3 $22;
-  _Bool *$18;
-  struct $7 *$16;
-  struct $3 *$14;
-  struct $7 *$9;
-  struct $3 *$5;
   $28 = $27;
   $30 = $29;
   $32 = $31;
-  $28 = $27;
-  $30 = $29;
-  $32 = $31;
-  $27 = $28;
-  $29 = $30;
-  $31 = $32;
   $27 = $28;
   $29 = $30;
   $31 = $32;
 }
 
-void $20(_Bool *$17, struct $7 *$15, struct $3 *$13)
+void $39(_Bool $31, struct $7 $29, struct $3 $27, _Bool $37, struct $7 $35, struct $3 $33)
+{
+  _Bool $38;
+  struct $7 $36;
+  struct $3 $34;
+  _Bool $32;
+  struct $7 $30;
+  struct $3 $28;
+  $34 = $33;
+  $36 = $35;
+  $38 = $37;
+  $34 = $33;
+  $36 = $35;
+  $38 = $37;
+  $33 = $34;
+  $35 = $36;
+  $37 = $38;
+  $33 = $34;
+  $35 = $36;
+  $37 = $38;
+}
+
+void $26(_Bool *$17, struct $7 *$15, struct $3 *$13)
 {
   _Bool *$18;
   struct $7 *$16;
   struct $3 *$14;
-  struct $7 *$9;
-  struct $3 *$5;
   $14 = $13;
   $16 = $15;
   $18 = $17;
@@ -80,7 +68,7 @@ void $20(_Bool *$17, struct $7 *$15, struct $3 *$13)
   $17 = $18;
 }
 
-void $19(_Bool *$17, struct $7 *$15, struct $3 *$13, _Bool *$23, struct $7 *$21, struct $3 *$19)
+void $25(_Bool *$17, struct $7 *$15, struct $3 *$13, _Bool *$23, struct $7 *$21, struct $3 *$19)
 {
   _Bool *$24;
   struct $7 *$22;
@@ -88,8 +76,6 @@ void $19(_Bool *$17, struct $7 *$15, struct $3 *$13, _Bool *$23, struct $7 *$21,
   _Bool *$18;
   struct $7 *$16;
   struct $3 *$14;
-  struct $7 *$9;
-  struct $3 *$5;
   $20 = $19;
   $22 = $21;
   $24 = $23;
@@ -117,8 +103,6 @@ void $12(struct $7 *$6, struct $3 *$2)
 
 void $11(struct $7 *$6, struct $3 *$2)
 {
-  struct $7 *$9;
-  struct $3 *$5;
   return;
 }
 

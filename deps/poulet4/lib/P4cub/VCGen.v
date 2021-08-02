@@ -610,7 +610,68 @@ Module GCL.
       end.
 
     (** TODO: Compiler pass to convert int<> -> bit<> *)
-    (** TODO: Compiler pass to elaborate tuples, headers & structs *)
+    Print List.
+    Print fold_right.
+    Fixpoint fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
+      snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+    Definition seq_tuple_elem_assign
+               (tuple_name : string)
+               (i : tags_t)
+               (n : nat)
+               (p : E.t * E.e tags_t)
+               (acc : Inline.t) : Inline.t :=
+      let (t, e) := p in
+      let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
+      let lhs := E.EVar t tuple_elem_name i in
+      Inline.ISeq (Inline.IAssign t lhs e i) acc i.
+
+    Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
+      match lhs, rhs with
+      | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
+        let** te := zip types es in
+        fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
+      | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
+      end.
+
+    Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
+      match p with
+      | (_, None) => None
+      | (a, Some b) => Some (a,b)
+      end.
+
+    Fixpoint elim_tuple (c : Inline.t) : option Inline.t :=
+      match c with
+      | Inline.ISkip _ => Some c
+      | Inline.IVardecl _ _ _ => Some c
+      | Inline.IAssign type lhs rhs i =>
+        elim_tuple_assign type lhs rhs i
+      | Inline.IConditional typ g tru fls i =>
+        let* tru' := elim_tuple tru in
+        let** fls' := elim_tuple fls in
+        Inline.IConditional typ g tru' fls' i
+      | Inline.ISeq c1 c2 i =>
+        let* c1' := elim_tuple c1 in
+        let** c2' := elim_tuple c2 in
+        Inline.ISeq c1' c2' i
+      | Inline.IBlock blk =>
+        let** blk' := elim_tuple blk in
+        Inline.IBlock blk'
+      | Inline.IReturnVoid _ => Some c
+      | Inline.IReturnFruit _ _ _ => Some c
+      | Inline.IExit _ => Some c
+      | Inline.IInvoke x keys actions i =>
+        (** TODO do we need to eliminate tuples in keys??*)
+        let opt_actions := map_snd elim_tuple actions in
+        let** actions' := ored (map opt_snd opt_actions) in
+        Inline.IInvoke x keys actions' i
+      | Inline.IExternMethodCall _ _ _ _ =>
+        (** TODO do we need to eliminate tuples in extern arguments? *)
+        Some c
+      end.
+
+    (** TODO: Compiler pass to elaborate headers *)
+    (** TODO: Compiler pass to elaborate structs *)
     (** TODO: Compiler pass to elaborate header stacks *)
     Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t :=
       match e with
@@ -685,10 +746,10 @@ Module GCL.
         | E.Or => None
         end
       | E.ETuple _ _ =>
-        (** TODO: Compiler Pass to factor out Tuples *)
+        (** Should be impossible *)
         None
       | E.EStruct _ _ =>
-        (** TODO: COmpiler Pass to factor out Tuples *)
+        (** TODO: COmpiler Pass to factor out structs *)
         None
       | E.EHeader _ _ _ =>
         (** TODO: Compiler Pass to Factor out Headers *)
@@ -712,7 +773,9 @@ Module GCL.
     Definition isone (v : BitVec.t) (i :tags_t) : form :=
       LComp LEq v (BitVec.BitVec (pos 1) (pos 1) i) i.
 
-    Search (bool -> bool).
+
+
+
     Fixpoint to_form (e : (E.e tags_t)) : option form :=
       match e with
       | E.EBool b i => Some (LBool b i)
@@ -797,7 +860,7 @@ Module GCL.
         | E.Or => lbin LOr
         end
       | E.ETuple _ _ =>
-        (** TODO: Compiler Pass to factor out Tuples *)
+        (** Should never happen *)
         None
       | E.EStruct _ _ =>
         (** TODO: COmpiler Pass to factor out Tuples *)

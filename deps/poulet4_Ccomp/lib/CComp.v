@@ -433,6 +433,24 @@ Definition CCopyOut (fn_params: E.params) (env: ClightEnv)
       end
     ) fn_params (Sskip, env).
 
+Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv)
+ : list Clight.expr := 
+ List.fold_left 
+  (fun (cumulator: list Clight.expr) (fn_param: string * (P.paramarg E.t E.t))
+  =>let (name, t) := fn_param in
+    match find_ident_temp_arg env name with
+    | None => cumulator
+    | Some (oldid, tempid) =>
+      match t with 
+      | P.PAIn t
+      | P.PAOut t
+      | P.PAInOut t =>
+      let (ct, _) := CTranslateType t env in
+      cumulator ++ [Evar tempid ct]
+      end
+    end
+  ) fn_params [].
+
 
 Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv)
   : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv 
@@ -499,10 +517,11 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       match (lookup_function env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
+      let call_args := CFindTempArgs params env_start_declared in
       let fn_body := 
       Ssequence copyin 
       (Ssequence 
-      (Scall None (Evar start_id (Clight.type_of_function start_f)) [])
+      (Scall None (Evar start_id (Clight.type_of_function start_f)) call_args)
        copyout) in 
       let top_function := 
         (Clight.mkfunction

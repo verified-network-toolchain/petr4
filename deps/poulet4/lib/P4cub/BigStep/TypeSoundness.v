@@ -161,7 +161,8 @@ Section BigStepTheorems.
         ⧠ e ⇓ lv -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> LL Γ ⊢ lv ∈ τ.
     Proof.
       intros errs Γ e lv τ Hlv; generalize dependent τ;
-      induction Hlv; intros t Ht; inv Ht; eauto 3.
+        induction Hlv; intros t Ht; inv Ht; eauto 3.
+      econstructor; eauto.
     Qed.
   End LVPreservation.
 

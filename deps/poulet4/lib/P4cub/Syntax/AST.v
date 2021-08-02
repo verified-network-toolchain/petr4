@@ -281,25 +281,22 @@ Module P4cub.
       | EBool (b : bool) (i : tags_t)                     (* booleans *)
       | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
-      | EVar (type : t) (x : string)
-             (i : tags_t)                              (* variables *)
-      | ESlice (n : e) (τ : t)
-               (hi lo : positive) (i : tags_t) (* bit-slicing *)
-      | ECast (type : t) (arg : e) (i : tags_t) (* explicit casts *)
+      | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
+      | ESlice (arg : e) (τ : t)
+               (hi lo : positive) (i : tags_t)         (* bit-slicing *)
+      | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
       | EUop (op : uop) (type : t)
              (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t)
              (lhs rhs : e) (i : tags_t)                (* binary operations *)
       | ETuple (es : list e) (i : tags_t)              (* tuples *)
       | EStruct (fields : F.fs string (t * e))
-                (i : tags_t)                           (* structs and structs *)
+                (i : tags_t)                           (* struct literals *)
       | EHeader (fields : F.fs string (t * e))
                 (valid : e) (i : tags_t)               (* header literals *)
-      | EExprMember (mem : string)
-                    (expr_type : t)
+      | EExprMember (mem : string) (expr_type : t)
                     (arg : e) (i : tags_t)             (* member-expressions *)
-      | EError (err : option string)
-               (i : tags_t)                            (* error literals *)
+      | EError (err : option string) (i : tags_t)      (* error literals *)
       | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
       | EHeaderStack (fields : F.fs string t)
                      (headers : list e) (size : positive)
@@ -308,8 +305,6 @@ Module P4cub.
       | EHeaderStackAccess (stack : e) (index : Z)
                            (i : tags_t)                (* header stack indexing *).
       (**[]*)
-
-
       
       (** Function call arguments. *)
       Definition args : Type :=
@@ -323,11 +318,9 @@ Module P4cub.
 
       (** Constructor arguments. *)
       Inductive constructor_arg : Type :=
-      | CAExpr (expr : e) (* plain expression *)
+      | CAExpr (expr : e)   (* plain expression *)
       | CAName (x : string) (* name of parser, control, package, or extern *).
       (**[]*)
-
-      
 
       Definition constructor_args : Type := F.fs string constructor_arg.
     End Expressions.
@@ -417,33 +410,28 @@ Module P4cub.
       Variable (tags_t : Type).
 
       Inductive s : Type :=
-      | SSkip (i : tags_t)                              (* skip, useful for
-                                                           small-step semantics *)
-      | SVardecl (type : E.t)
-                 (x : string) (i : tags_t)       (* Variable declaration. *)
+      | SSkip (i : tags_t) (* skip/no-op *)
+      | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
       | SAssign (type : E.t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                            (* assignment *)
-      | SConditional (guard_type : E.t)
-                     (guard : E.e tags_t)
+      | SConditional (guard_type : E.t) (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
       | SBlock (blk : s)                                (* blocks *)
-      | SExternMethodCall (e : string) (f : string)
+      | SExternMethodCall (extern_name method_name : string)
                           (args : E.arrowE tags_t)
                           (i : tags_t)                  (* extern method calls *)
       | SFunCall (f : string)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
-      | SActCall (f : string)
+      | SActCall (action_name : string)
                  (args : E.args tags_t) (i : tags_t)    (* action call *)
       | SReturnVoid (i : tags_t)                        (* void return statement *)
-      | SReturnFruit (t : E.t)
-                     (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
+      | SReturnFruit (return_type : E.t)
+                     (e : E.e tags_t) (i : tags_t)      (* fruitful return statement *)
       | SExit (i : tags_t)                              (* exit statement *)
-      | SInvoke (x : string) (i : tags_t)          (* table invocation *)
-      | SApply (x : string)
-               (args : E.args tags_t) (i : tags_t)      (* control apply statements,
-                                                           where [x] is the
-                                                           name of an instance *).
+      | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
+      | SApply (control_instance_name : string)
+               (args : E.args tags_t) (i : tags_t)      (* control apply statements *).
     (**[]*)
     End Statements.
 
@@ -526,19 +514,23 @@ Module P4cub.
     Module E := Expr.
     Module S := Stmt.
 
+    (** Labels for parser-states. *)
     Inductive state : Set :=
-    | STStart | STAccept | STReject | STName (st : string).
+    | STStart              (* start state *)
+    | STAccept             (* accept state *)
+    | STReject             (* reject state *)
+    | STName (st : string) (* user-defined state *).
     (**[]*)
 
     (** Select expression pattern.
         Corresponds to keySet expressions in p4. *)
     Inductive pat : Type :=
-    | PATWild
-    | PATMask (p1 p2 : pat)
-    | PATRange (p1 p2 : pat)
-    | PATBit (w : positive) (n : Z)
-    | PATInt (w : positive) (n : Z)
-    | PATTuple (ps : list pat).
+    | PATWild                             (* wild-card/anything pattern *)
+    | PATMask  (p1 p2 : pat)              (* mask pattern *)
+    | PATRange (p1 p2 : pat)              (* range pattern *)
+    | PATBit (width : positive) (val : Z) (* unsigned-int pattern *)
+    | PATInt (width : positive) (val : Z) (* signed-int pattern *)
+    | PATTuple (ps : list pat)            (* tuple pattern *).
     (**[]*)
 
     Section Parsers.
@@ -547,11 +539,11 @@ Module P4cub.
       (** Parser expressions, which evaluate to state names *)
       Inductive e : Type :=
       | PGoto (st : state) (i : tags_t) (* goto state [st] *)
-      | PSelect (exp : E.e tags_t) (default : e)
-                (cases : F.fs pat e)
-                (i : tags_t)        (* select expressions,
-                                       where "default" is
-                                       the wild card case *).
+      | PSelect (discriminee : E.e tags_t)
+                (default : e) (cases : F.fs pat e)
+                (i : tags_t)           (* select expressions,
+                                          where "default" is
+                                          the catch-all case *).
       (**[]*)
 
       (** Parser State Blocks. *)
@@ -630,14 +622,13 @@ Module P4cub.
         (**[]*)
 
         (** Declarations that may occur within Controls. *)
-        (* TODO, this is a stub. *)
         Inductive d : Type :=
-        | CDAction (a : string)
-                   (signature : E.params)
-                   (body : S.s tags_t) (i : tags_t) (* action declaration *)
-        | CDTable (t : string) (bdy : table)
-                  (i : tags_t)                      (* table declaration *)
-        | CDSeq (d1 d2 : d) (i : tags_t).
+        | CDAction (action_name : string)
+                   (signature : E.params) (body : S.s tags_t)
+                   (i : tags_t)               (* action declaration *)
+        | CDTable (table_name : string)
+                  (body : table) (i : tags_t) (* table declaration *)
+        | CDSeq (d1 d2 : d) (i : tags_t)      (* sequence of declarations *).
         (**[]*)
       End ControlDecls.
 
@@ -678,28 +669,28 @@ Module P4cub.
 
       (** Top-level declarations. *)
       Inductive d : Type :=
-      | TPInstantiate (C : string) (x : string)
+      | TPInstantiate (constructor_name instance_name : string)
                      (cargs : E.constructor_args tags_t)
-                     (i : tags_t) (* constructor [C]
-                                     with constructor [args]
-                                     makes instance [x]. *)
-      | TPExtern (e : string)
+                     (i : tags_t) (* instantiations *)
+      | TPExtern (extern_name : string)
                  (cparams : E.constructor_params)
                  (methods : F.fs string E.arrowT)
                  (i : tags_t) (* extern declarations *)
-      | TPControl (c : string)
+      | TPControl (control_name : string)
                   (cparams : E.constructor_params) (* constructor params *)
-                  (params : E.params) (* apply block params *)
-                  (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
-      | TPParser (p : string)
+                  (params : E.params)              (* apply block params *)
+                  (body : C.d tags_t) (apply_blk : S.s tags_t)
+                  (i : tags_t) (* control declarations *)
+      | TPParser (parser_name : string)
                  (cparams : E.constructor_params) (* constructor params *)
-                 (params : E.params)           (* invocation params *)
-                 (start : P.state_block tags_t) (* start state *)
+                 (params : E.params)              (* invocation params *)
+                 (start : P.state_block tags_t)   (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)
                  (i : tags_t) (* parser declaration *)
-      | TPFunction (f : string) (signature : E.arrowT) (body : S.s tags_t)
-                   (i : tags_t) (* function/method declaration *)
-      | TPPackage (p : string)
+      | TPFunction (function_name : string)
+                   (signature : E.arrowT) (body : S.s tags_t)
+                   (i : tags_t)(* function/method declaration *)
+      | TPPackage (package_name : string)
                   (cparams : E.constructor_params) (* constructor params *)
                   (i : tags_t) (* package type declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).

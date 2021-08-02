@@ -19,9 +19,9 @@ Module Step.
   Inductive kstmt {tags_t : Type} : Type :=
   | KStop                              (* end of continuation *)
   | KSeq (s : ST.s tags_t) (k : kstmt) (* sequencing/composition *)
-  | KBlock (ϵ : @eenv tags_t) (k : kstmt)      (* block: enclosing environment & continuation *)
+  | KBlock (ϵ : @eenv tags_t) (k : kstmt) (* block: enclosing environment & continuation *)
   | KCall (args : E.arrowE tags_t)
-          (ϵ : @eenv tags_t) (k : kstmt)       (* function/procedure
+          (ϵ : @eenv tags_t) (k : kstmt) (* function/procedure
                                           call-site with arguments,
                                           enclosing environment, & continuation *)
   | KExit (k : kstmt)                  (* exit statement control-flow *)
@@ -172,6 +172,10 @@ Module Step.
            (at level 40, e1 custom p4expr, e2 custom p4expr).
   
   Inductive lvalue_step {tags_t : Type} : E.e tags_t -> E.e tags_t -> Prop :=
+  | lstep_slice (e e' : E.e tags_t) (τ : E.t)
+                (hi lo : positive) (i : tags_t) :
+      ℶ e -->  e' ->
+      ℶ Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
   | lstep_member (e e' : E.e tags_t) (τ : E.t) (x : string) (i : tags_t) :
       ℶ e -->  e' ->
       ℶ Mem e:τ dot x @ i -->   Mem e':τ dot x @ i

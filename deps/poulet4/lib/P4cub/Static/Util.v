@@ -306,7 +306,11 @@ Notation "'Parser' pis eis"
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lvalue_ok {tags_t : Type} : E.e tags_t -> Prop :=
-| lvalue_var x τ i : lvalue_ok <{ Var x:τ @ i }>
+| lvalue_var x τ i :
+    lvalue_ok <{ Var x:τ @ i }>
+| lvalue_bit_slice e τ h l i :
+    lvalue_ok e ->
+    lvalue_ok <{ Slice e:τ [h:l] @ i }>
 | lvalue_member e τ x i :
     lvalue_ok e ->
     lvalue_ok <{ Mem e:τ dot x @ i }>

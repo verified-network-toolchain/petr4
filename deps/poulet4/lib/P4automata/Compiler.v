@@ -55,10 +55,12 @@ Section parser_to_p4automaton.
     Fixpoint eval_lvalue (e : E.e tags_t) : @error_monad compile_error V.lv :=
       match e with
       | <{ Var x:_ @ _ }> => mret l{ VAR x }l
+      | <{ Slice e:_ [hi:lo] @ _ }>
+        => lv <<| eval_lvalue e ;; l{ SLICE lv [hi:lo] }l
       | <{ Mem e:_ dot x @ _ }>
         => lv <<| eval_lvalue e ;; l{ lv DOT x }l
       | <{ Access e[n] @ _ }>
-        => lv <<| eval_lvalue e ;; l{ lv[n] }l
+        => lv <<| eval_lvalue e ;; l{ ACCESS lv[n] }l
       | _ => err (CEBadLValue e)
       end.
 

@@ -29,9 +29,11 @@ Inductive v : Type :=
 
 (** Lvalues. *)
 Inductive lv : Type :=
-| LVVar (x : string)                 (* Local variables. *)
+| LVVar (x : string)               (* Local variables. *)
+| LVSlice (arg : lv)
+          (hi lo : positive)       (* Slice. *)
 | LVMember (arg : lv) (x : string) (* Member access. *)
-| LVAccess (stk : lv) (index : Z)       (* Header stack indexing. *).
+| LVAccess (stk : lv) (index : Z)  (* Header stack indexing. *).
 (**[]*)
 
 (** Evaluated arguments. *)
@@ -67,10 +69,14 @@ Module LValueNotations.
   Notation "( x )" := x (in custom p4lvalue, x at level 99).
   Notation "x" := x (in custom p4lvalue at level 0, x constr at level 0).
   Notation "'VAR' x" := (LVVar x) (in custom p4lvalue at level 0).
+  Notation "'SLICE' lval [ hi : lo ]"
+    := (LVSlice lval hi lo)
+         (in custom p4lvalue at level 2,
+             lval custom p4lvalue, left associativity).
   Notation "lval 'DOT' x"
     := (LVMember lval x) (in custom p4lvalue at level 1,
                              lval custom p4lvalue).
-  Notation "lval [ n ]"
+  Notation "'ACCESS' lval [ n ]"
            := (LVAccess lval n) (in custom p4lvalue at level 1,
                                    lval custom p4lvalue).
 End LValueNotations.

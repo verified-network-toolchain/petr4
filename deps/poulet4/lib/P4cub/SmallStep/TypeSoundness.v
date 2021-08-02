@@ -24,7 +24,8 @@ Section LValueTheorems.
       ℶ e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
-      induction He; intros t Ht; inv Ht; eauto 3.
+        induction He; intros t Ht; inv Ht; eauto 3.
+      econstructor; eauto.
     Qed.
   End LValuePreservation.
 

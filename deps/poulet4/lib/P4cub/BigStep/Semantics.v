@@ -213,6 +213,10 @@ Module Step.
   Inductive lvalue_big_step {tags_t : Type} : E.e tags_t -> V.lv -> Prop :=
   | lvbs_var (x : string) (τ : E.t) (i : tags_t) :
       ⧠ Var x:τ @ i ⇓ VAR x
+  | lvbs_slice (e : E.e tags_t) (τ : E.t)
+               (hi lo : positive) (i : tags_t) (lv : V.lv) :
+      ⧠ e ⇓ lv ->
+      ⧠ Slice e:τ [hi:lo] @ i ⇓ SLICE lv [hi:lo]
   | lvbs_member (e : E.e tags_t) (x : string)
                 (τ : E.t) (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
@@ -221,7 +225,7 @@ Module Step.
                       (lv : V.lv) (n : Z) :
       let w := 32%positive in
       ⧠ e ⇓ lv ->
-      ⧠ Access e[n] @ i ⇓ lv[n]
+      ⧠ Access e[n] @ i ⇓ ACCESS lv[n]
   where "⧠ e ⇓ lv" := (lvalue_big_step e lv).
   (**[]*)
 

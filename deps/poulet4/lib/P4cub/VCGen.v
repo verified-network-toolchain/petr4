@@ -427,16 +427,21 @@ Module GCL.
   | GAssert (phi : form).
 
   Module BitVec.
-    Inductive bop := | BVPlus | BVMinus | BVTimes | BVConcat.
+    Inductive bop :=
+    | BVPlus
+    | BVMinus
+    | BVTimes
+    | BVConcat
+    | BVShl
+    | BVShr
+    | BVAnd
+    | BVOr
+    | BVXor.
 
     Inductive uop :=
     | BVNeg
-    | BVAnd
-    | BVXor
-    | BVtOr
-    | BVShl (i : positive)
-    | BVShr (i : positive)
-    | BVCast (i : positive).
+    | BVCast (i : positive)
+    | BVSlice (hi lo : positive).
 
     Inductive t :=
     | BitVec (n : positive) (w : positive) (i : tags_t)
@@ -447,17 +452,18 @@ Module GCL.
   End BitVec.
 
   Inductive lbop := | LOr | LAnd | LImp | LIff.
+  Inductive lcomp := | LEq | LLe | LLt | LGe | LGt | LNeq.
   Inductive form :=
   | LBool (b : bool) (i : tags_t)
   | LBop (op : lbop) (ϕ ψ : form) (i : tags_t)
   | LNot (ϕ : form) (i : tags_t)
   | LVar (x : string) (i : tags_t)
-  | LEq (bv1 bv2 : BitVec.t) (i : tags_t)
+  | LComp (comp : lcomp) (bv1 bv2 : BitVec.t) (i : tags_t)
   .
   Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
   Definition is_true (x : string) (i : tags_t) : form :=
-    LEq (BitVec.BVVar x (pos 1) i) (BitVec.BitVec (pos 1) (pos 1) i) i.
+    LComp (LEq) (BitVec.BVVar x (pos 1) i) (BitVec.BitVec (pos 1) (pos 1) i) i.
 
   Definition exit (i : tags_t) : form := is_true "exit" i.
   Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
@@ -546,17 +552,278 @@ Module GCL.
           else g2' in
       (GSeq g1 g2'', ctx2).
 
-    Fixpoint to_lvalue (e : E.e tags_t) : option string := None.
+    Search (Z -> bool).
+    Print Z.
+    Definition string_of_z (x : Z) :=
+      if BinInt.Z.ltb x (Z0)
+      then "-" ++ string_of_nat (BinInt.Z.abs_nat x)
+      else string_of_nat (BinInt.Z.abs_nat x).
 
-    Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t := None.
+    Fixpoint to_lvalue (e : E.e tags_t) : option string :=
+      match e with
+      | E.EBool _ _ => None
+      | E.EBit _ _ _ => None
+      | E.EInt _ _ _ => None
+      | E.EVar t x i => Some x
+      | E.ESlice e τ hi lo pos =>
+        (* TODO :: Allow assignment to slices *)
+        None
+      | E.ECast _ _ _ => None
+      | E.EUop _ _ _ _ => None
+      | E.EBop _ _ _ _ _ _ => None
+      | E.ETuple _ _ => None
+      | E.EStruct _ _ => None
+      | E.EHeader _ _ _ => None
+      | E.EExprMember mem expr_type arg i =>
+        let** lv := to_lvalue arg in
+        lv ++ "." ++ mem
+      | E.EError _ _ => None
+      | E.EMatchKind _ _ => None
+      | E.EHeaderStack _ _ _ _ _ => None
+      | E.EHeaderStackAccess stack index i =>
+        let** lv := to_lvalue stack in
+        (** TODO How to handle negative indices? **)
+        lv ++ "["++ (string_of_z index) ++ "]"
+      end.
 
-    Fixpoint to_form (typ : E.t) (e : (E.e tags_t)) : option form := None.
+    Definition width_of_type (t : E.t) : option positive :=
+      match t with
+      | E.TBool => Some (pos 1)
+      | E.TBit w => Some w
+      | E.TInt w =>
+        (** TODO handle ints *)
+        None
+      | E.TError => None
+      | E.TMatchKind => None
+      | E.TTuple types =>
+        (** TODO enumerate Tuple*)
+        None
+      | E.TStruct fields =>
+        (** TODO enumerate fields *)
+        None
+      | E.THeader fields =>
+        (** TODO enumerate header *)
+        None
+      | E.THeaderStack fields size =>
+        (** TODO enumerate headerstack *)
+        None
+      end.
+
+    (** TODO: Compiler pass to convert int<> -> bit<> *)
+    (** TODO: Compiler pass to elaborate tuples, headers & structs *)
+    (** TODO: Compiler pass to elaborate header stacks *)
+    Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t :=
+      match e with
+      | E.EBool b i =>
+        if b
+        then Some (BitVec.BitVec (pos 1) (pos 1) i)
+        else Some (BitVec.BitVec (pos 0) (pos 1) i)
+      | E.EBit w v i =>
+        Some (BitVec.BitVec (BinInt.Z.to_pos v) w i)
+      | E.EInt _ _ _ =>
+        (** TODO Figure out how to handle ints *)
+        None
+      | E.EVar t x i =>
+        let** w := width_of_type t in
+        BitVec.BVVar x w i
+
+      | E.ESlice e τ hi lo i =>
+        let** rv_e := to_rvalue e in
+        BitVec.UnOp (BitVec.BVSlice hi lo) rv_e i
+
+      | E.ECast type arg i =>
+        let* rvalue_arg := to_rvalue arg in
+        let cast := fun w => Some (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) in
+        match type with
+        | E.TBool => cast (pos 1)
+        | E.TBit w => cast w
+        | E.TInt w => None (** TODO handle ints *)
+        | _ =>
+          (* All other casts are illegal *)
+          None
+        end
+      | E.EUop op type arg i =>
+        let* rv_arg := to_rvalue arg in
+        match op with
+        | E.Not => Some (BitVec.UnOp BitVec.BVNeg rv_arg i)
+        | E.BitNot => Some (BitVec.UnOp BitVec.BVNeg rv_arg i)
+        | E.UMinus => (* TODO handle integers *) None
+        | E.IsValid =>
+          let** header := to_lvalue arg in
+          let hvld := header ++ ".is_valid" in
+          BitVec.BVVar hvld (pos 1) i
+        | E.SetValid => (* TODO @Rudy isn't this a command? *) None
+        | E.SetInValid => (* TODO @Rudy -- ditto *) None
+        | E.NextIndex => (* TODO Stacks *) None
+        | E.Size =>  (* TODO stacks *) None
+        | E.Push n => (* TODO stacks *) None
+        | E.Pop n => (* TODO stacks *) None
+        end
+      | E.EBop op ltyp rtyp lhs rhs i =>
+        let* l := to_rvalue lhs in
+        let* r := to_rvalue rhs in
+        let bin := fun o => Some (BitVec.BinOp o l r i) in
+        match op with
+        | E.Plus => bin BitVec.BVPlus
+        | E.PlusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.Minus => bin BitVec.BVMinus
+        | E.MinusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.Times => bin BitVec.BVTimes
+        | E.Shl => bin BitVec.BVShl
+        | E.Shr => bin BitVec.BVShr
+        | E.Le => None
+        | E.Ge => None
+        | E.Lt => None
+        | E.Gt => None
+        | E.Eq => None
+        | E.NotEq => None
+        | E.BitAnd => bin BitVec.BVAnd
+        | E.BitXor => bin BitVec.BVXor
+        | E.BitOr => bin BitVec.BVOr
+        | E.PlusPlus => bin BitVec.BVConcat
+        | E.And => None
+        | E.Or => None
+        end
+      | E.ETuple _ _ =>
+        (** TODO: Compiler Pass to factor out Tuples *)
+        None
+      | E.EStruct _ _ =>
+        (** TODO: COmpiler Pass to factor out Tuples *)
+        None
+      | E.EHeader _ _ _ =>
+        (** TODO: Compiler Pass to Factor out Headers *)
+        None
+      | E.EExprMember mem expr_type arg i =>
+        let* lv := to_lvalue arg in
+        let** w := width_of_type expr_type in
+        BitVec.BVVar lv w i
+      | E.EError _ _ => None
+      | E.EMatchKind _ _ => None
+      | E.EHeaderStack _ _ _ _ _ =>
+        (** TODO: Compiler pass to Factor Out Header Stacks*)
+        None
+      | E.EHeaderStackAccess stack index i =>
+        (** TODO Compiler pass to factor out headers **)
+        None
+      end.
+
+    Search (positive -> positive -> positive).
+
+    Definition isone (v : BitVec.t) (i :tags_t) : form :=
+      LComp LEq v (BitVec.BitVec (pos 1) (pos 1) i) i.
+
+    Search (bool -> bool).
+    Fixpoint to_form (e : (E.e tags_t)) : option form :=
+      match e with
+      | E.EBool b i => Some (LBool b i)
+      | E.EBit w v i => None
+      | E.EInt _ _ _ => None
+      | E.EVar t x i =>
+        let* w := width_of_type t in
+        if BinPos.Pos.eqb w (pos 1)
+        then Some (isone (BitVec.BVVar x w i) i)
+        else None
+
+      | E.ESlice e τ hi lo i =>
+        let* rv_e := to_rvalue e in
+        if BinPos.Pos.eqb (BinPos.Pos.sub hi lo) (pos 1)
+        then Some (isone (BitVec.UnOp (BitVec.BVSlice hi lo) rv_e i) i)
+        else None
+
+      | E.ECast type arg i =>
+        let* rvalue_arg := to_rvalue arg in
+        let cast := fun w => Some (isone (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) i) in
+        match type with
+        | E.TBool => cast (pos 1)
+        | E.TBit w => cast w
+        | E.TInt w => None (** TODO handle ints *)
+        | _ =>
+          (* All other casts are illegal *)
+          None
+        end
+      | E.EUop op type arg i =>
+        let* rv_arg := to_rvalue arg in
+        let* w := width_of_type type in
+        if negb (BinPos.Pos.eqb w (pos 1))
+        then None
+        else match op with
+             | E.Not => Some (isone (BitVec.UnOp BitVec.BVNeg rv_arg i) i)
+             | E.BitNot => Some (isone (BitVec.UnOp BitVec.BVNeg rv_arg i) i)
+             | E.UMinus => (* TODO handle integers *) None
+             | E.IsValid =>
+               let** header := to_lvalue arg in
+               let hvld := header ++ ".is_valid" in
+               isone (BitVec.BVVar hvld (pos 1) i) i
+             | E.SetValid => (* TODO @Rudy isn't this a command? *) None
+             | E.SetInValid => (* TODO @Rudy -- ditto *) None
+             | E.NextIndex => (* TODO Stacks *) None
+             | E.Size =>  (* TODO stacks *) None
+             | E.Push n => (* TODO stacks *) None
+             | E.Pop n => (* TODO stacks *) None
+             end
+      | E.EBop op ltyp rtyp lhs rhs i =>
+        let bbin := fun o => let* l := to_rvalue lhs in
+                             let* r := to_rvalue rhs in
+                             let* lw := width_of_type ltyp in
+                             let* rw := width_of_type rtyp in
+                             if BinPos.Pos.eqb lw (pos 1) && BinPos.Pos.eqb rw (pos 1)
+                             then Some (isone (BitVec.BinOp o l r i) i)
+                             else None in
+        let lbin := fun o => let* l := to_form lhs in
+                             let** r := to_form rhs in
+                             LBop o l r i in
+        let cbin := fun c => let* l := to_rvalue lhs in
+                             let** r := to_rvalue rhs in
+                             LComp c l r i in
+        match op with
+        | E.Plus => bbin BitVec.BVPlus
+        | E.PlusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.Minus => bbin BitVec.BVMinus
+        | E.MinusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.Times => bbin BitVec.BVTimes
+        | E.Shl => bbin BitVec.BVShl
+        | E.Shr => bbin BitVec.BVShr
+        | E.Le => cbin LLe
+        | E.Ge => cbin LGe
+        | E.Lt => cbin LLt
+        | E.Gt => cbin LGt
+        | E.Eq => cbin LEq
+        | E.NotEq => cbin LNeq
+        | E.BitAnd => bbin BitVec.BVAnd
+        | E.BitXor => bbin BitVec.BVXor
+        | E.BitOr => bbin BitVec.BVOr
+        | E.PlusPlus => None
+        | E.And => lbin LAnd
+        | E.Or => lbin LOr
+        end
+      | E.ETuple _ _ =>
+        (** TODO: Compiler Pass to factor out Tuples *)
+        None
+      | E.EStruct _ _ =>
+        (** TODO: COmpiler Pass to factor out Tuples *)
+        None
+      | E.EHeader _ _ _ =>
+        (** TODO: Compiler Pass to Factor out Headers *)
+        None
+      | E.EExprMember mem expr_type arg i =>
+        let* lv := to_lvalue arg in
+        let** w := width_of_type expr_type in
+        isone (BitVec.BVVar lv w i) i
+      | E.EError _ _ => None
+      | E.EMatchKind _ _ => None
+      | E.EHeaderStack _ _ _ _ _ =>
+        (** TODO: Compiler pass to Factor Out Header Stacks*)
+        None
+      | E.EHeaderStackAccess stack index i =>
+        (** TODO Compiler pass to factor out headers **)
+        None
+      end.
 
     Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * Ctx.t)) : option (target * Ctx.t) :=
       let (tg, tctx) := tres in
       let (fg, fctx) := fres in
       let* ctx := Ctx.join tctx fctx in
-      let* phi := to_form guard_type guard in
+      let* phi := to_form guard in
       Some (iteb phi tg fg i, ctx).
 
     Fixpoint to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : I.t) : option (target * Ctx.t) :=

@@ -388,7 +388,7 @@ Section CComp.
       end in
       let s := fst p in
       let env_temp_added := add_temp_arg env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
-      ((new_id, ct) :: l, env_temp_added)) 
+      (l ++ [(new_id, ct)], env_temp_added)) 
   (params) ([],env)
   . 
 

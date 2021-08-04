@@ -36,6 +36,21 @@ Definition get_param_dir (param : @P4Parameter tags_t) : direction :=
   | MkParameter _ dir _ _ _ => dir
   end.
 
+Definition get_param_dir_typ (param : @P4Parameter tags_t) : direction * P4Type :=
+  match param with
+  | MkParameter _ dir typ _ _ => (dir, typ)
+  end.
+
+Definition get_param_typ (param : @P4Parameter tags_t) : P4Type :=
+  match param with
+  | MkParameter _ _ typ _ _ => typ
+  end.
+
+Definition get_param_name_typ (param : @P4Parameter tags_t) : ident * P4Type :=
+  match param with
+  | MkParameter _ _ typ _ name => (name, typ)
+  end.
+
 Definition get_param_name_dir (param : @P4Parameter tags_t) : ident * direction :=
   match param with
   | MkParameter _ dir _ _ name => (name, dir)

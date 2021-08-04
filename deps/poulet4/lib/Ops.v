@@ -451,10 +451,15 @@ Module Ops.
         | Some fields' => Some (ValBaseStruct fields')
         | _ => None
         end
+    (* header -> header cast is not clearly allowed in the manual *)
+    (* Similar to a struct, a header object can be initialized with a list expression 8.11
+        — the list fields are assigned to the header fields in the order they appear — 
+        or with a structure initializer expression 8.14. When initialized the header 
+        automatically becomes valid: *)
     | TypHeader fields => 
-        match fields_of_val fields oldv, oldv with
-        | Some fields', ValBaseHeader _ b => Some (ValBaseHeader fields' b)
-        | _, _ => None
+        match fields_of_val fields oldv with
+        | Some fields' => Some (ValBaseHeader fields' true)
+        | _ => None
         end
     | TypTuple types => 
         match values_of_val types oldv with

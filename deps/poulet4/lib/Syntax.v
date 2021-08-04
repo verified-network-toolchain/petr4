@@ -141,7 +141,7 @@ Section Syntax.
   | ValSetLpm (width: (@ValueBase bit)) (nbits: nat) (value: (@ValueBase bit))
   | ValSetValueSet (size: (@ValueBase bit)) (members: list (list Match))
                    (sets: list (@ValueSet bit)).
-  
+
   Inductive StatementSwitchLabel :=
   | StatSwLabDefault (tags: tags_t)
   | StatSwLabName (tags: tags_t) (_: P4String).

@@ -272,4 +272,9 @@ Section AList.
                       all_values hold_one_value kvs kvs' ->
                       all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
 
+  Fixpoint map_values {A B} (f : A -> B) (l : AList K A R): AList K B R :=
+    match l with
+    | [] => []
+    | (k, v) :: tl => (k, f v) :: (map_values f tl)
+    end.
 End AList.

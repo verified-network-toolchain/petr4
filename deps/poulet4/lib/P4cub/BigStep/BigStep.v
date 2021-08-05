@@ -7,4 +7,5 @@ Require Export Poulet4.P4cub.Envn Poulet4.P4cub.BigStep.Value.Value
         Poulet4.P4cub.BigStep.Semantics
         Poulet4.P4cub.BigStep.IndPrincip
         Poulet4.P4cub.BigStep.Determinism
-        Poulet4.P4cub.BigStep.TypeSoundness.
+        Poulet4.P4cub.BigStep.TypeSoundness
+        Poulet4.P4cub.BigStep.SemanticTyping.

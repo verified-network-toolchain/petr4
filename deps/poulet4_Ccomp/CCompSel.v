@@ -194,6 +194,27 @@ Section CCompSel.
     Ctypes.Tcons Tpointer 
     (Ctypes.Tcons Tpointer Ctypes.Tnil).
 
+  Definition bop_function (op: string) := 
+    AST.EF_runtime op (AST.mksignature
+    [AST.Tptr; AST.Tptr; AST.Tptr]
+    (AST.Tvoid)
+    AST.cc_default
+    ).
+
+  Definition typelist_bop_bitvec := 
+    let Tpointer := Ctypes.Tpointer bit_vec noattr in 
+    Ctypes.Tcons Tpointer 
+    (Ctypes.Tcons Tpointer 
+    (Ctypes.Tcons Tpointer
+    Ctypes.Tnil)).
+
+  Definition typelist_bop_bool := 
+    let Tpointer := Ctypes.Tpointer bit_vec noattr in
+    let TpointerBool := Ctypes.Tpointer type_bool noattr in  
+    Ctypes.Tcons Tpointer 
+    (Ctypes.Tcons Tpointer 
+    (Ctypes.Tcons TpointerBool
+    Ctypes.Tnil)).
 
   Definition ValidBitIndex (arg: E.e tags_t) (env: ClightEnv) : option AST.ident
   :=
@@ -252,14 +273,111 @@ Section CCompSel.
     let member :=  Efield arg' index type_bool in
     Some (Sassign member (Econst_int (Integers.Int.zero) (type_bool)), env_arg)
     end
-  | P4cub.Expr.NextIndex
-  | P4cub.Expr.Size => None
-  | P4cub.Expr.Push n
-  | P4cub.Expr.Pop n => None
+  | P4cub.Expr.NextIndex (*TODO:*)
+  | P4cub.Expr.Size => None(*TODO:*)
+  | P4cub.Expr.Push n(*TODO:*)
+  | P4cub.Expr.Pop n => None(*TODO:*)
   end
   end
   end.
 
+  Definition CTranslateBop 
+  (dst_t: P4cub.Expr.t)
+  (op: P4cub.Expr.bop)
+  (le: E.e tags_t)
+  (re: E.e tags_t)
+  (dst: string)
+  (env: ClightEnv) : option (Clight.statement * ClightEnv)
+  := 
+  match find_ident env dst with
+  | None => None
+  | Some dst' => 
+  let (dst_t', env') := CTranslateType dst_t env in 
+  let dst' := Evar dst' dst_t' in
+  match CTranslateExpr le env' with
+  | None => None
+  | Some (le', env_le) =>
+  match CTranslateExpr re env_le with
+  | None => None
+  | Some (re', env_re) => 
+  let le_ref := Eaddrof le' (Tpointer (Clight.typeof le') noattr) in
+  let re_ref := Eaddrof re' (Tpointer (Clight.typeof re') noattr) in
+  let dst_ref := Eaddrof dst' (Tpointer dst_t' noattr) in  
+  let signed := 
+  match dst_t with
+  | P4cub.Expr.TInt _ => true
+  | _ => false
+  end in
+  match op with
+  | P4cub.Expr.Plus => 
+  let fn_name := if signed then "eval_add_signed" else "eval_add_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.PlusSat =>
+  let fn_name := if signed then "eval_addsat_signed" else "eval_addsat_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Minus =>
+  let fn_name := if signed then "eval_sub_signed" else "eval_sub_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.MinusSat =>
+  let fn_name := if signed then "eval_subsat_signed" else "eval_subsat_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Times =>
+  let fn_name := if signed then "eval_mul_signed" else "eval_mul_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Shl =>
+  Some (Sbuiltin None (bop_function "eval_shl") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Shr =>
+  Some (Sbuiltin None (bop_function "eval_shr") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Le => 
+  let fn_name := if signed then "eval_le_signed" else "eval_le_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Ge => 
+  let fn_name := if signed then "eval_ge_signed" else "eval_ge_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Lt => 
+  let fn_name := if signed then "eval_lt_signed" else "eval_lt_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Gt => 
+  let fn_name := if signed then "eval_gt_signed" else "eval_gt_unsigned" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.Eq => 
+  match Clight.typeof le' with
+  | Tint IBool Signed noattr =>
+  let eq_expr :=  Ebinop Oeq le' re' type_bool in
+  Some (Sassign dst' eq_expr, env_re)
+  | _ =>
+  let fn_name := "eval_eq" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  end
+  | P4cub.Expr.NotEq => 
+  match Clight.typeof le' with
+  | Tint IBool Signed noattr =>
+  let eq_expr :=  Ebinop Oeq le' re' type_bool in
+  Some (Sassign dst' eq_expr, env_re)
+  | _ =>
+  let fn_name := "eval_neq" in
+  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  end
+  | P4cub.Expr.BitAnd => 
+  Some (Sbuiltin None (bop_function "eval_bitand") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.BitXor => 
+  Some (Sbuiltin None (bop_function "eval_bitxor") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.BitOr => 
+  Some (Sbuiltin None (bop_function "eval_bitor") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.PlusPlus => 
+  Some (Sbuiltin None (bop_function "eval_plusplus") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  | P4cub.Expr.And => 
+  let and_expr :=  Ebinop Oand le' re' type_bool in
+  Some (Sassign dst' and_expr, env_re)
+  | P4cub.Expr.Or => 
+  let or_expr :=  Ebinop Oor le' re' type_bool in
+  Some (Sassign dst' or_expr, env_re)
+  end
+  end
+  end
+  end
+  .
+  
 
 
   Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv) : option (Clight.statement * ClightEnv) :=
@@ -357,8 +475,8 @@ Section CCompSel.
 
     | ST.SCast τ e dst i => None (*TODO:*)
                         
-    | ST.SUop dst_t op x dst i => None
-    | ST.SBop dst_t op x y dst i => None
+    | ST.SUop dst_t op x dst i => CTranslateUop dst_t op x dst env
+    | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
                         
     | ST.STuple es dst i => None (*first create a temp of this tuple. then assign all the values to it. then return this temp *) 
     | ST.SStruct fields dst i => None (*first create a temp of this struct. then assign all the values to it. then return this temp *)

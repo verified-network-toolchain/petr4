@@ -34,6 +34,16 @@ Module P4sel.
       .
       (**[]*)
 
+      Definition SelTypeOf (expr: e) :P4cub.Expr.t := 
+      match expr with
+      | EBool _ _ => P4cub.Expr.TBool
+      | EVar t _ _ => t
+      | EExprMember _ t _ _ => t
+      | EError _ _ => P4cub.Expr.TError
+      | EMatchKind _ _ => P4cub.Expr.TMatchKind  
+      end
+      .
+      
       (** Function call arguments. *)
       Definition args : Type :=
         F.fs string (P4cub.paramarg (P4cub.Expr.t * e) (P4cub.Expr.t * e)).

@@ -1,12 +1,13 @@
 From compcert Require Import Clight Ctypes Integers Cop.
 From compcert Require AST.
 Require Import Poulet4.P4cub.Syntax.Syntax.
+Require Import Poulet4.P4cub.Envn.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
-Require Import Poulet4.Ccomp.CCompEnv.
+Require Import Poulet4_Ccomp.CCompEnv.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
@@ -25,7 +26,6 @@ Parameter print_Clight: Clight.program -> unit.
 Section CCompSel.
   
   Context (tags_t: Type).
-  Definition tpdecl := (P4cub.TopDecl.d tags_t).
   (*map between string and ident*)
     (*TODO: implement integers with width larger than 64
       and optimize integers with width smaller than 32 *)
@@ -493,14 +493,14 @@ Section CCompSel.
 
   Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv) :=
   match st with
-  | &{state {stmt} transition pe}& => 
+  | PA.State stmt pe => 
   match CTranslateStatement stmt env with
     | None => None
     | Some(stmt', env') =>
     match pe with 
-    | p{goto st @ i}p => 
+    | PA.PGoto st i => 
       match st with
-      | ={start}= =>
+      | P4cub.Parser.STStart =>
         match (lookup_function env' "start") with
         | None => None
         | Some (start_f, start_id) =>
@@ -514,7 +514,7 @@ Section CCompSel.
           (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
           , env')
         end
-      | ={accept}= =>
+      | P4cub.Parser.STAccept =>
         Some (Clight.mkfunction
           Ctypes.Tvoid
           (AST.mkcallconv None true true)
@@ -523,8 +523,8 @@ Section CCompSel.
           (CCompEnv.get_temps env')
           (Ssequence stmt' (Sreturn None))
           , env') 
-      | ={reject}= => None (*TODO: implement*)
-      | ={δ x}= => 
+      | P4cub.Parser.STReject => None (*TODO: implement*)
+      | P4cub.Parser.STName x => 
       match lookup_function env' x with
       | None => None
       | Some (x_f, x_id) =>
@@ -539,7 +539,7 @@ Section CCompSel.
           , (set_temp_vars env env'))
       end
       end
-    | p{select exp { cases } default := def @ i}p => None (*unimplemented*)
+    | PA.PSelect exp def cases i => None (*unimplemented*)
   end
   end
   end.
@@ -644,7 +644,7 @@ Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
 Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
   :=
   match parsr with
-  | %{parser p (cparams) (params) start := st {states} @ i}% =>
+  | TD.TPParser p cparams params st states i =>
     (*ignore constructor params for now*)
     
     let (fn_params, env_params):= CTranslateParams params env in
@@ -737,12 +737,12 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   end.
 
   Fixpoint CTranslateControlLocalDeclaration 
-  (ct : CT.ControlDecl.d tags_t) (env: ClightEnv) 
+  (ct : CT.d tags_t) (env: ClightEnv) 
   (top_fn_params: list (AST.ident * Ctypes.type))
   (top_signature: E.params)
   : option (ClightEnv)
   := match ct with
-  | c{d1 ;c; d2 @i}c => 
+  | CT.CDSeq d1 d2 i=> 
     match (CTranslateControlLocalDeclaration d1 env top_fn_params top_signature) with
     | None => None
     | Some (env1) =>
@@ -751,18 +751,18 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       | Some (env2) => Some (env2)
       end
     end
-  | c{action a (params) {body} @ i}c => 
+  | CT.CDAction a params body i => 
     match CTranslateAction params body env top_fn_params top_signature with
     | None => None
     | Some (f, env_action_translated) => Some (CCompEnv.add_function env_action_translated a f)
     end
-  | c{table t key := ems actions := acts @ i}c => Some env (*TODO: implement table*)
+  | CT.CDTable t (CT.Table ems actc init) i => Some env (*TODO: implement table*)
   end.
   
   Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
   := 
   match ctrl with
-  | %{control c (cparams) (params) apply {blk} where {body} @ i}%
+  | TD.TPControl c cparams params body blk i
     => (*ignoring constructor params for now*)
        let (fn_params, env_top_fn_param) := CTranslateParams params env in
        let (copyin, env_copyin) := CCopyIn params env_top_fn_param in 
@@ -820,10 +820,10 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   | _ => None
   end.
 
-  Fixpoint CTranslateTopDeclaration (d: tpdecl) (env: ClightEnv) : option ClightEnv
+  Fixpoint CTranslateTopDeclaration (d: TD.d tags_t) (env: ClightEnv) : option ClightEnv
   := 
   match d with
-  | %{d1 ;%; d2 @ i}% => 
+  | TD.TPSeq d1 d2 i => 
     match CTranslateTopDeclaration d1 env with
     | None => None
     | Some env1 => 
@@ -831,16 +831,15 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       | None => None
       | Some env2 => Some env2
       end end
-  | %{Instance x of c (args) @i }% => Some env (*TODO: implement*) 
-  | %{void f (params) {body} @i }% => CTranslateFunction d env
-  | %{fn f (params) -> t {body} @i }% => CTranslateFunction d env
-  | %{extern e (cparams) {methods} @i }% => None (*TODO: implement*)
-  | %{control c (cparams) (params) apply {blk} where {body} @ i}% => CTranslateTopControl d env
-  | %{parser p (cparams) (params) start := st {states} @ i}% => CTranslateTopParser d env
-  | %{package _ (_) @ _}% => None (*TODO: implement*)
+  | TD.TPInstantiate c x args args_init i => Some env (*TODO: implement*) 
+  | TD.TPFunction _ _ _ _ => CTranslateFunction d env
+  | TD.TPExtern e cparams methods i => None (*TODO: implement*)
+  | TD.TPControl _ _ _ _ _ _ => CTranslateTopControl d env
+  | TD.TPParser _ _ _ _ _ _ => CTranslateTopParser d env
+  | TD.TPPackage _ _ _ => None (*TODO: implement*)
   end.
   (* currently just an empty program *)
-  Definition Compile (prog: tpdecl) : Errors.res (Clight.program) := 
+  Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 
     let main_decl : AST.globdef (fundef function) type :=
       AST.Gfun (Ctypes.Internal (Clight.mkfunction 
         Ctypes.Tvoid 
@@ -871,7 +870,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       end
     end.
 
-  Definition Compile_print (prog: tpdecl): unit := 
+  Definition Compile_print (prog: TD.d tags_t): unit := 
     match Compile prog with
     | Errors.Error e => tt
     | Errors.OK prog => print_Clight prog

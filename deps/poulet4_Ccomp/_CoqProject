@@ -1,6 +1,7 @@
 -R lib/ Poulet4_Ccomp
 lib/CComp.v
 lib/CCompEnv.v
+lib/CCompSel.v
 lib/Helloworld.v
 lib/IdentGen.v
 lib/Extract.v

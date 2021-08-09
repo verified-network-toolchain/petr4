@@ -43,6 +43,7 @@ Require Import ExtrOcamlString.
 Require Poulet4.SimplExpr.
 Require Poulet4.GenLoc.
 Require Poulet4_Ccomp.CComp.
+Require Poulet4_Ccomp.CCompSel.
 
 Extract Inlined Constant Coqlib.proj_sumbool => "(fun x -> x)".
 
@@ -120,6 +121,7 @@ Extract Constant Compopts.debug =>
 
 Extract Constant CComp.print_Clight => "PrintClight.print_if".
 
+Extract Constant CCompSel.print_Clight => "PrintClight.print_if".
 (* Extract Inductive positive => "Bigint.t"
   [ "(fun p -> Bigint.of_zarith_bigint (Big_int_Z.succ_big_int (Big_int_Z.mult_big_int (Big_int_Z.big_int_of_int 2) (Bigint.to_zarith_bigint p))))"
       "(fun p -> Bigint.of_zarith_bigint (Big_int_Z.mult_big_int (Big_int_Z.big_int_of_int 2) (Bigint.to_zarith_bigint p)))" "(Bigint.of_zarith_bigint Big_int_Z.unit_big_int)" ]
@@ -145,5 +147,5 @@ Extract Inlined Constant Nat.add => "(+)". *)
 Extraction Blacklist List String Int.
 
 Cd "extraction/".
-Separate Extraction Poulet4_Ccomp.CComp BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST .
+Separate Extraction Poulet4_Ccomp.CComp Poulet4_Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST .
 Cd "../".

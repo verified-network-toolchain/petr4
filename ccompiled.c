@@ -20,7 +20,7 @@ void $1(void)
   /*skip*/;
 }
 
-void $40(_Bool $31, struct $7 $29, struct $3 $27)
+void $40(struct $3 $27, struct $7 $29, _Bool $31)
 {
   _Bool $32;
   struct $7 $30;
@@ -33,7 +33,7 @@ void $40(_Bool $31, struct $7 $29, struct $3 $27)
   $31 = $32;
 }
 
-void $39(_Bool $31, struct $7 $29, struct $3 $27, _Bool $37, struct $7 $35, struct $3 $33)
+void $39(struct $3 $27, struct $7 $29, _Bool $31, struct $3 $33, struct $7 $35, _Bool $37)
 {
   _Bool $38;
   struct $7 $36;
@@ -55,7 +55,7 @@ void $39(_Bool $31, struct $7 $29, struct $3 $27, _Bool $37, struct $7 $35, stru
   $37 = $38;
 }
 
-void $26(_Bool *$17, struct $7 *$15, struct $3 *$13)
+void $26(struct $3 *$13, struct $7 *$15, _Bool *$17)
 {
   _Bool *$18;
   struct $7 *$16;
@@ -68,7 +68,7 @@ void $26(_Bool *$17, struct $7 *$15, struct $3 *$13)
   $17 = $18;
 }
 
-void $25(_Bool *$17, struct $7 *$15, struct $3 *$13, _Bool *$23, struct $7 *$21, struct $3 *$19)
+void $25(struct $3 *$13, struct $7 *$15, _Bool *$17, struct $3 *$19, struct $7 *$21, _Bool *$23)
 {
   _Bool *$24;
   struct $7 *$22;
@@ -90,7 +90,7 @@ void $25(_Bool *$17, struct $7 *$15, struct $3 *$13, _Bool *$23, struct $7 *$21,
   $23 = $24;
 }
 
-void $12(struct $7 *$6, struct $3 *$2)
+void $12(struct $3 *$2, struct $7 *$6)
 {
   struct $7 *$9;
   struct $3 *$5;
@@ -101,7 +101,7 @@ void $12(struct $7 *$6, struct $3 *$2)
   $6 = $9;
 }
 
-void $11(struct $7 *$6, struct $3 *$2)
+void $11(struct $3 *$2, struct $7 *$6)
 {
   return;
 }

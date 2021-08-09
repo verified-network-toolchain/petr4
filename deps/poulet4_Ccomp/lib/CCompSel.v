@@ -7,7 +7,9 @@ Require Import Coq.PArith.BinPos.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
+Require Poulet4.P4sel.RemoveSideEffect.
 Require Import Poulet4_Ccomp.CCompEnv.
+Require Import Poulet4_Ccomp.Helloworld.
 Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
@@ -876,5 +878,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
     | Errors.OK prog => print_Clight prog
     end.  
 End CCompSel.
-
+Definition helloworld_program_sel := RemoveSideEffect.TranslateProgram nat helloworld_program.
+Definition test_compile_only := CCompSel.Compile nat helloworld_program_sel.
+Definition test := CCompSel.Compile_print nat helloworld_program_sel.
 

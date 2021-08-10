@@ -33,7 +33,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply { 
         bit<8> a = (bit<8>) ~4w5; // 10
         bit<8> b = (bit<8>) -4w5; // 11
-        bit<8> c = (bit<8>) -4s5; // -5
+        bit<8> c = (bit<8>) -8s5; // -5
         bit<8> d = (bit<8>) -4 + 5; //1
         packet.emit(a);
         packet.emit(b);

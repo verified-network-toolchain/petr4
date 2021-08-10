@@ -787,7 +787,9 @@ module MakeInterpreter (T : Target) = struct
       (expr : Expression.t) : state * signal * value =
     let (st', s, v) = eval_expr env st SContinue expr in
     let v' = Ops.interp_cast typ v
-      ~type_lookup:(fun name -> EvalEnv.find_typ name env) in
+      ~type_lookup:(fun name -> EvalEnv.find_typ name env)
+      ~val_lookup:(fun name -> EvalEnv.find_val name env |> extract_from_state st)
+    in
     match s with
     | SContinue -> (st',s,v')
     | _ -> (st',s,VNull)
@@ -801,10 +803,9 @@ module MakeInterpreter (T : Target) = struct
       else raise (UnboundName name)
     | Enum {name; typ = Some _; members} ->
       begin match EvalEnv.find_val typ env |> extract_from_state st with
-        | VSenum fs ->
-          let v = find_exn fs enum_name in
-          st, SContinue, VSenumField{typ_name=name;enum_name;v}
-        | _ -> failwith "typ mem undefined"
+      | VSenum fs ->
+         st, SContinue, find_exn fs enum_name
+      | _ -> failwith "typ mem undefined"
       end
     | _ -> failwith "type mem undefined"
 

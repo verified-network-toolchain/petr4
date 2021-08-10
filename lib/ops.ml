@@ -1,7 +1,9 @@
+module I = Info
 open Core_kernel
 module V = Prog.Value
 module Op = Typed.Op
 open Bitstring
+module Info = I
 
 (*----------------------------------------------------------------------------*)
 (* Unary Operator Evaluation *)
@@ -121,8 +123,6 @@ let interp_bshl (l : V.value) (r : V.value) : V.value =
   | VInt{w;v=v1}, VBit{v=v2;_}
   | VInt{w;v=v1}, VInteger v2 -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w}
   | VInteger v1, VInteger v2  -> VInteger(shift_bitstring_left v1 v2)
-  | VBit {w;v=v1}, VInt{v=v2;_} -> VBit{w;v=of_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
-  | VInt {w;v=v1}, VInt{v=v2;_} -> VInt{w;v=to_twos_complement (shift_bitstring_left v1 v2) w} (* TODO *)
   | _ -> failwith "shift left operator not defined for these types"
 
 let interp_bshr (l : V.value) (r : V.value) : V.value =
@@ -137,6 +137,8 @@ let interp_bshr (l : V.value) (r : V.value) : V.value =
     let exp = Bitstring.power_of_two Bigint.(w-one) in
     let arith = Bigint.(v1 > exp) in
     VInt{w;v=to_twos_complement (shift_bitstring_right v1 v2 arith exp) w}
+  | VInteger v1,  VBit{v=v2; _}
+  | VInteger v1,  VInt{v=v2; _}
   | VInteger v1,  VInteger v2 ->
     VInteger(shift_bitstring_right v1 v2 false Bigint.zero)
   | VBit {w;v=v1}, VInt{v=v2;_} ->
@@ -192,18 +194,13 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VError s1, VError s2
   | VEnumField{enum_name=s1;_},
     VEnumField{enum_name=s2;_}                -> VBool Poly.(s1 = s2)
-  | VSenumField{v=v1;_},
-    VSenumField{v=v2;_}                       -> interp_beq v1 v2
   | VBool b1, VBool b2                        -> VBool Poly.(b1 = b2)
-  | VBit{v=n1;_}, VBit{v=n2;_}
-  | VInteger n1, VInteger n2
-  | VInt{v=n1;_}, VInt{v=n2;_}                -> VBool Bigint.(n1 = n2)
+  | VBit{v=n1;w=w1}, VBit{v=n2;w=w2}
+  | VInt{v=n1;w=w1}, VInt{v=n2;w=w2}
+    when Bigint.equal w1 w2                   -> VBool Bigint.(n1 = n2)
+  | VInteger n1, VInteger n2                  -> VBool Bigint.(n1 = n2)
   | VVarbit{w=w1;v=n1;_},
     VVarbit{w=w2;v=n2;_}                      -> VBool(Bigint.(n1 = n2 && w1 = w2))
-  | VBit{w;v=n1}, VInteger n2                 -> interp_beq l (bit_of_rawint n2 w)
-  | VInteger n1, VBit{w;v=n2}                 -> interp_beq (bit_of_rawint n1 w) r
-  | VInt{w;v=n1}, VInteger n2                 -> interp_beq l (int_of_rawint n2 w)
-  | VInteger n1, VInt{w;v=n2}                 -> interp_beq (int_of_rawint n1 w) r
   | VStruct{fields=l1;_},
     VStruct{fields=l2;_}                      -> structs_equal l1 l2
   | VHeader{fields=l1;is_valid=b1;_},
@@ -213,9 +210,6 @@ let rec interp_beq (l : V.value) (r : V.value) : V.value =
   | VUnion{fields=l1},
     VUnion{fields=l2}                         -> unions_equal l1 l2
   | VTuple l1, VTuple l2                      -> tuples_equal l1 l2
-  | VNull, VNull -> VBool true
-  | VNull, _
-  | _, VNull -> VBool false
   | _ -> raise_s [%message "equality comparison undefined for given types"
                      ~l:(l:V.value) ~r:(r:V.value)]
 
@@ -281,10 +275,14 @@ let rec interp_bitwise_or (l : V.value) (r : V.value) : V.value =
 
 let rec interp_concat (l : V.value) (r : V.value) : V.value =
   match (l,r) with
-  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2} ->
+  | VBit{w=w1;v=v1}, VBit{w=w2;v=v2}
+  | VBit{w=w1;v=v1}, VInt{w=w2;v=v2} ->
      VBit{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
   | VBit{w;v},  VInteger n -> interp_concat l (bit_of_rawint n w)
   | VInteger n, VBit{w;v}  -> interp_concat (bit_of_rawint n w) r
+  | VInt{w=w1;v=v1}, VBit{w=w2;v=v2}
+  | VInt{w=w1;v=v1}, VInt{w=w2;v=v2} ->
+     VInt{w=Bigint.(w1+w2);v=Bigint.(shift_bitstring_left v1 w2 + v2)}
   | _ -> failwith "concat operator only defined on unsigned ints"
 
 let interp_band (l : V.value) (r : V.value) : V.value =
@@ -342,47 +340,60 @@ let interp_unary_op (op: Op.uni) (v: V.value) =
 let bool_of_val (v : V.value) : V.value =
   match v with
   | VBit{w;v=n} when Bigint.(w = one) -> VBool Bigint.(n = one)
+  | VBool b -> VBool b
   | _ -> failwith "cast to bool undefined"
 
-let rec bit_of_val (width : int) (v : V.value) : V.value =
+let bit_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VInt{v=n;_}
   | VBit{v=n;_}
   | VInteger n -> bit_of_rawint n w
   | VBool b -> VBit{v=if b then Bigint.one else Bigint.zero; w=w;}
-  | VSenumField{v;_} -> bit_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let rec int_of_val (width : int) (v : V.value) : V.value =
+let int_of_val (width : int) (v : V.value) : V.value =
   let w = Bigint.of_int width in
   match v with
   | VBit{v=n;_}
   | VInt{v=n;_}
   | VInteger n -> int_of_rawint n w
-  | VSenumField{v;_} -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let fields_for_cast (fields: Typed.RecordType.field list) (value: V.value) =
+let rec interp_cast_field ~type_lookup ~val_lookup ((field, value): Typed.RecordType.field * V.value) =
+     (field.name, interp_cast ~type_lookup ~val_lookup field.typ value)
+
+and interp_cast_fields ~type_lookup ~val_lookup (fields: Typed.RecordType.field list) (value: V.value) =
   match value with
   | VTuple vals ->
      let fields_vals = List.zip_exn fields vals in
-     List.map ~f:(fun (f, v) -> f.name, v) fields_vals
-  | VRecord fields -> fields
+     List.map ~f:(interp_cast_field ~type_lookup ~val_lookup) fields_vals
+  | VHeader {fields = vfields; _}
+  | VStruct {fields = vfields; _}
+  | VRecord vfields ->
+     let vals = List.map ~f:snd vfields in
+     let fields_vals = List.zip_exn fields vals in
+     List.map ~f:(interp_cast_field ~type_lookup ~val_lookup) fields_vals
   | _ -> raise_s [%message "cannot cast" ~value:(value:V.value)]
 
-
-let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
-      (new_type: Typed.Type.t) (value: V.value) : V.value =
+and interp_cast
+    ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
+    ~val_lookup:(val_lookup: Types.name -> V.value)
+    (new_type: Typed.Type.t)
+    (value: V.value)
+    : V.value =
   match new_type with
   | Bool -> bool_of_val value
   | Bit{width} -> bit_of_val width value
   | Int{width} -> int_of_val width value
-  | NewType nt -> interp_cast ~type_lookup nt.typ value
-  | TypeName n -> interp_cast ~type_lookup (type_lookup n) value
-  | Header {fields} -> VHeader {is_valid = true;
-                                fields = fields_for_cast fields value}
-  | Struct {fields} -> VStruct {fields = fields_for_cast fields value}
+  | NewType nt -> interp_cast ~type_lookup ~val_lookup nt.typ value
+  | TypeName n -> interp_cast ~type_lookup ~val_lookup (type_lookup n) value
+  | Header {fields} ->
+     let fields = interp_cast_fields ~type_lookup ~val_lookup fields value in
+     VHeader {is_valid = true; fields}
+  | Struct {fields} ->
+     let fields = interp_cast_fields ~type_lookup ~val_lookup fields value in
+     VStruct {fields}
   | Tuple types -> begin match value with
                    | VTuple v -> VTuple v
                    | _ -> failwith "cannot cast"
@@ -390,10 +401,10 @@ let rec interp_cast ~type_lookup:(type_lookup: Types.name -> Typed.Type.t)
   | Set t ->
      begin match value with
      | VSet v -> VSet v
-     | VSenumField {v = VBit {w; v}; _}
-     | VSenumField {v = VInt {w; v}; _}
      | VInt {w; v}
      | VBit {w; v} -> VSet (SSingleton {w; v})
      |_ -> raise_s [%message "cannot cast" ~value:(value:V.value) ~t:(t:Typed.Type.t)]
      end
+  | Enum {name; typ = Some new_type'; _} ->
+     interp_cast ~type_lookup ~val_lookup new_type' value
   | _ -> raise_s [%message "cast unimplemented" ~value:(value:V.value) ~t:(new_type:Typed.Type.t)]

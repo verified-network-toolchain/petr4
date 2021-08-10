@@ -152,7 +152,7 @@ let subst_vars_params env params =
 
 let freshen_param env param =
   let param' = Renamer.freshen_name (CheckerEnv.renamer env) param in
-  CheckerEnv.insert_type (BareName (Info.dummy, param)) (TypeName (BareName (Info.dummy, param'))) env, param'
+  CheckerEnv.insert_type ~shadowing:true (BareName (Info.dummy, param)) (TypeName (BareName (Info.dummy, param'))) env, param'
 
 let check_shadowing params =
   let param_compare (_, p1) (_, p2) = String.compare p1 p2 in

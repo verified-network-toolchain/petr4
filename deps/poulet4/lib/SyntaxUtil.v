@@ -1,7 +1,7 @@
 Require Import Coq.Lists.List.
-Require Import Typed.
+Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
-Require Export Maps.
+Require Export Poulet4.Maps.
 Require Import String.
 Import ListNotations.
 
@@ -44,6 +44,15 @@ Definition get_param_name_dir (param : @P4Parameter tags_t) : ident * direction 
 Definition get_parser_state_statements (parser_state : @ParserState tags_t) : list (@Statement tags_t) :=
   match parser_state with
   | MkParserState _ _ statements _ => statements
+  end.
+
+Definition get_decl_class_name (decl : @Declaration tags_t) : option P4String :=
+  match decl with
+  | DeclParser _ name _ _ _ _ _
+  | DeclControl _ name _ _ _ _ _ =>
+      Some name
+  | _ =>
+      None
   end.
 
 Fixpoint list_statement_to_block (stmts : list (@Statement tags_t)) : @Block tags_t :=

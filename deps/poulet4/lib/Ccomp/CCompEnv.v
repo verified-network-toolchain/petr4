@@ -30,6 +30,20 @@ Definition newClightEnv : ClightEnv :=
   tempOfArg := Env.empty string (AST.ident* AST.ident);
   |}.
 
+Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
+:= 
+  {|
+  identMap := Env.bind name id env.(identMap);
+  temps := (env.(temps));
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
+  |}.
+
+
+
 Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
 : ClightEnv := 
   let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
@@ -205,6 +219,17 @@ Fixpoint  lookup_composite_rec (composites : list (E.t * composite_definition)) 
 
 Definition lookup_composite (env: ClightEnv) (p4t: E.t) : option composite_definition :=
   lookup_composite_rec env.(composites) p4t.
+
+Fixpoint  lookup_composite_id_rec (composites : list (E.t * composite_definition)) (id: ident): option composite_definition :=
+  match composites with
+  | nil => None
+  | (head, comp) :: tl => if (name_composite_def comp == id)
+                          then Some comp 
+                          else lookup_composite_id_rec tl id
+  end.
+
+Definition lookup_composite_id (env: ClightEnv) (id: ident) : option composite_definition :=
+  lookup_composite_id_rec env.(composites) id.
 
 (* Fixpoint find_composite_from_list 
   (comp: Ctypes.composite_definition)

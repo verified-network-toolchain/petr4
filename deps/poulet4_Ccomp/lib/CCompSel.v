@@ -541,7 +541,7 @@ Section CCompSel.
           , (set_temp_vars env env'))
       end
       end
-    | PA.PSelect exp def cases i => None (*unimplemented*)
+    | PA.PSelect exp def cases i => None (*TODO: implement*)
   end
   end
   end.
@@ -853,6 +853,10 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       ))
     in
     let init_env := CCompEnv.newClightEnv in
+    let (init_env, _) := new_ident CCompEnv.newClightEnv in
+    let (init_env, _) := new_ident CCompEnv.newClightEnv in
+    let (init_env, _) := new_ident CCompEnv.newClightEnv in
+    (*reserve the name for runtime lib types*)
     let (init_env, main_id) := CCompEnv.new_ident init_env in 
     match CTranslateTopDeclaration prog init_env with
     | None => Errors.Error (Errors.msg "something went wrong")

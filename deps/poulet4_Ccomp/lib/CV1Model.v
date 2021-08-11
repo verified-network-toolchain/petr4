@@ -8,10 +8,14 @@ Require Import String.
 Section v1model.
 Open Scope string_scope.
 Context (tags_t: Type).
+Context (bit_vec: type).
+Definition packet_in := (Tstruct (Pos.of_nat 1) noattr).
+Definition packet_out := (Tstruct (Pos.of_nat 2) noattr).
 Definition empty_main := 
   Clight.mkfunction Ctypes.Tvoid 
   (AST.mkcallconv None true true)
   [] [] [] Sskip.
+
 (* The order is 
 Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
 Definition main_fn (env: ClightEnv) (cargs: P4cub.Expr.constructor_args tags_t): Clight.function
@@ -33,14 +37,18 @@ match p, vr, ig, eg, ck , dep with
   Some (P4cub.Expr.CAName dep) => 
 
   match lookup_function env p, lookup_function env vr, lookup_function env ig, lookup_function env eg, lookup_function env ck, lookup_function env dep with
-  | Some(pf,pid), Some(vrf,vrid), Some(igf,igid), Some(egf,egid), Some(ckf,ckid), Some(depf,depid) =>
-  match pf.(fn_params) with
-  | (_,_)::(_, Ht)::(_, Mt)::_ => empty_main
-  | _ => empty_main
-  end
+    | Some(pf,pid), Some(vrf,vrid), Some(igf,igid), Some(egf,egid), Some(ckf,ckid), Some(depf,depid) =>
+      match pf.(fn_params) with
+      | (_,_)::(_, Ht)::(_, Mt)::(_, STDt) => 
+        let (envH, Hid) := new_ident env in 
+        let (envM, Mid) := new_ident envH in
+        let (envSTD, STDid) := new_ident envM in
+        empty_main
+      | _ => empty_main
+      end
 
-  | _,_,_,_,_,_ => empty_main
-  end
+    | _,_,_,_,_,_ => empty_main
+    end
 | _, _, _, _, _, _ => empty_main
 end .
 

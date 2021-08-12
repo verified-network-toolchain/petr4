@@ -35,7 +35,7 @@ Section CComp.
   Notation int_unsigned := (Tint I32 Unsigned noattr).
   Notation int_signed := (Tint I32 Signed noattr).
   Import P4cub.P4cubNotations.
-  Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv) : Ctypes.type * ClightEnv:=
+  Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv tags_t ) : Ctypes.type * (ClightEnv tags_t):=
     match p4t with
     | {{Bool}} => (Ctypes.type_bool, env)
     | {{bit < w >}} => (long_unsigned,env)
@@ -45,20 +45,20 @@ Section CComp.
     | {{tuple ts}} => (Ctypes.Tvoid, env) (*TODO: implement*)
     | {{struct { fields } }}
     | {{hdr { fields } }} => 
-        match lookup_composite env p4t with
+        match lookup_composite tags_t env p4t with
         | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
         | None => 
-        let (env_top_id, top_id) := CCompEnv.new_ident env in
+        let (env_top_id, top_id) := new_ident tags_t env in
         let (members ,env_fields_declared):= 
         F.fold 
-        (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv) 
+        (fun (k: string) (field: E.t) (cumulator: Ctypes.members* ClightEnv tags_t ) 
         => let (members_prev, env_prev) := cumulator in 
            let (new_t, new_env):= CTranslateType field env_prev in
-           let (new_env, new_id):= CCompEnv.new_ident new_env in
+           let (new_env, new_id):= new_ident tags_t new_env in
            ((new_id, new_t) :: members_prev, new_env))
         fields ([],env_top_id) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-        let env_comp_added := CCompEnv.add_composite_typ env_fields_declared p4t comp_def in
+        let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
         (Ctypes.Tstruct top_id noattr, env_comp_added)
         end
 
@@ -70,8 +70,8 @@ Section CComp.
   : option (Clight.expr * ClightEnv).
       Admitted. *)
   
-  Definition CTranslateSlice (x: Clight.expr) (hi lo: positive) (type: E.t) (env: ClightEnv)
-  : option (Clight.expr * ClightEnv) := 
+  Definition CTranslateSlice (x: Clight.expr) (hi lo: positive) (type: E.t) (env: ClightEnv tags_t)
+  : option (Clight.expr * ClightEnv tags_t) := 
     (* x[hi : lo] = [x >> lo] & (1<<(hi-lo+1) - 1)*)
     let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
     let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
@@ -86,8 +86,8 @@ Section CComp.
   
   (* input is an expression with tags_t and an idents map,
      output would be statement list , expression, needed variables/temps (in ident) and their corresponding types*)
-  Fixpoint CTranslateExpr (e: E.e tags_t) (env: ClightEnv)
-    : option (Clight.expr * ClightEnv) :=
+  Fixpoint CTranslateExpr (e: E.e tags_t) (env: ClightEnv tags_t)
+    : option (Clight.expr * ClightEnv tags_t ) :=
     
     match e with
     | <{TRUE @ i}> =>   Some (Econst_int (Integers.Int.one) (type_bool), env)
@@ -101,13 +101,13 @@ Section CComp.
                         else None
     | <{Var x : ty @ i}> => (*first find if x has been declared. If not, declare it by putting it into vars*)
                         let (cty, env_ty) := CTranslateType ty env in
-                        match find_ident_temp_arg env_ty x with (*first look for if this is an argument and has its own temp for copy in/out *)
+                        match find_ident_temp_arg tags_t env_ty x with (*first look for if this is an argument and has its own temp for copy in/out *)
                         | Some (_,tempid) => Some (Etempvar tempid cty, env_ty)
                         | None =>
-                        match find_ident env_ty x with
+                        match find_ident tags_t env_ty x with
                         | Some id => Some (Evar id cty, env_ty)
-                        | None => let env' := add_var env_ty x cty in
-                                  match find_ident env' x with
+                        | None => let env' := add_var tags_t env_ty x cty in
+                                  match find_ident tags_t env' x with
                                   | Some id' => Some (Evar id' cty, env')
                                   | None => None
                                   end
@@ -205,8 +205,8 @@ Section CComp.
     | _ =>  None
     end.
 
-  Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv): option ((list Clight.expr) * ClightEnv) :=
-    let Cumulator: Type := option (list Clight.expr * ClightEnv) in 
+  Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv tags_t): option ((list Clight.expr) * ClightEnv tags_t) :=
+    let Cumulator: Type := option (list Clight.expr * ClightEnv tags_t) in 
     let transformation (A: Cumulator) (B: E.e tags_t) : Cumulator := 
       match A with
       |None => None
@@ -217,8 +217,8 @@ Section CComp.
       end end in
     List.fold_left  (transformation) el (Some ([],env)).
   
-  Definition CTranslateDirExprList (el: E.args tags_t) (env: ClightEnv) : option ((list Clight.expr) * ClightEnv) := 
-    let Cumulator : Type := option (list Clight.expr * ClightEnv) in 
+  Definition CTranslateDirExprList (el: E.args tags_t) (env: ClightEnv tags_t) : option ((list Clight.expr) * ClightEnv tags_t) := 
+    let Cumulator : Type := option (list Clight.expr * ClightEnv tags_t) in 
     let transformation (A: Cumulator) (B: string * (P.paramarg (E.t*(E.e tags_t)) (E.t*(E.e tags_t)))) : Cumulator := 
       match A with
       |None => None
@@ -243,7 +243,7 @@ Section CComp.
     in 
     List.fold_left  (transformation) el (Some ([],env)).
   
-  Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv) : option (Clight.statement * ClightEnv) :=
+  Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv tags_t) : option (Clight.statement * ClightEnv tags_t) :=
     match s with
     | -{skip @ i}- => Some (Sskip, env)
     | -{s1;s2 @ i}- => match CTranslateStatement s1 env with
@@ -257,7 +257,7 @@ Section CComp.
     | -{b{s}b}- => CTranslateStatement s env
     | -{var x : t @ i}- => 
                       let (cty, env_cty):= CTranslateType t env in
-                      Some (Sskip, CCompEnv.add_var env_cty x cty)
+                      Some (Sskip, CCompEnv.add_var tags_t env_cty x cty)
     | -{asgn e1 := e2 : t @ i}- => match CTranslateExpr e1 env with
                                    |None => None
                                    |Some(e1', env1) => 
@@ -278,7 +278,7 @@ Section CComp.
                                           Some(Sifthenelse e' s1' s2', env3)
                                           end end end
     | -{calling f with args @ i}- 
-    | -{call f with args @ i}- => match CCompEnv.lookup_function env f with
+    | -{call f with args @ i}- => match lookup_function tags_t env f with
                                   |None => None
                                   |Some(f', id) =>
                                     match CTranslateDirExprList args env with
@@ -289,13 +289,13 @@ Section CComp.
                                   end 
     | -{let e : t := call f with args @ i}- =>
                                   let (ct, env_ct) := CTranslateType t env in
-                                  match CCompEnv.lookup_function env_ct f with
+                                  match lookup_function tags_t env_ct f with
                                   |None => None
                                   |Some(f', id) =>
                                     match CTranslateDirExprList args env_ct with
                                     | None => None
                                     | Some (elist, env') => 
-                                    let (env', tempid) := CCompEnv.add_temp_nameless env' ct in
+                                    let (env', tempid) := add_temp_nameless tags_t env' ct in
                                     match CTranslateExpr e env' with 
                                     | None => None
                                     | Some (lvalue, env') =>
@@ -321,7 +321,7 @@ Section CComp.
     | _ => None
     end.
 
-  Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv) :=
+  Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv tags_t) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv tags_t) :=
   match st with
   | &{state {stmt} transition pe}& => 
   match CTranslateStatement stmt env with
@@ -331,15 +331,15 @@ Section CComp.
     | p{goto st @ i}p => 
       match st with
       | ={start}= =>
-        match (lookup_function env' "start") with
+        match (lookup_function tags_t env' "start") with
         | None => None
         | Some (start_f, start_id) =>
         Some (Clight.mkfunction
           Ctypes.Tvoid
           (AST.mkcallconv None true true)
           params
-          (CCompEnv.get_vars env')
-          (CCompEnv.get_temps env')
+          (get_vars tags_t env')
+          (get_temps tags_t env')
           (Ssequence stmt'
           (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
           , env')
@@ -349,24 +349,24 @@ Section CComp.
           Ctypes.Tvoid
           (AST.mkcallconv None true true)
           params
-          (CCompEnv.get_vars env')
-          (CCompEnv.get_temps env')
+          (get_vars tags_t env')
+          (get_temps tags_t env')
           (Ssequence stmt' (Sreturn None))
           , env') 
       | ={reject}= => None (*TODO: implement*)
       | ={δ x}= => 
-      match lookup_function env' x with
+      match lookup_function tags_t env' x with
       | None => None
       | Some (x_f, x_id) =>
       Some (Clight.mkfunction
           Ctypes.Tvoid
           (AST.mkcallconv None true true)
           params
-          (CCompEnv.get_vars env')
-          (CCompEnv.get_temps env')
+          (get_vars tags_t env')
+          (get_temps tags_t env')
           (Ssequence stmt'
           (Scall None (Evar x_id (Clight.type_of_function x_f)) []))
-          , (set_temp_vars env env'))
+          , (set_temp_vars tags_t env env'))
       end
       end
     | p{select exp { cases } default := def @ i}p => None (*unimplemented*)
@@ -374,12 +374,12 @@ Section CComp.
   end
   end.
 
-  Definition CTranslateParams (params : E.params) (env : ClightEnv) 
-  : list (AST.ident * Ctypes.type) * ClightEnv :=
+  Definition CTranslateParams (params : E.params) (env : ClightEnv tags_t) 
+  : list (AST.ident * Ctypes.type) * ClightEnv tags_t :=
   List.fold_left 
-    (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv) (p: string * P.paramarg E.t E.t)
+    (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv tags_t) (p: string * P.paramarg E.t E.t)
     =>let (l, env') := cumulator in
-      let (env', new_id) := new_ident env' in
+      let (env', new_id) := new_ident tags_t env' in
       let (ct,env_ct) := match p with 
         | (_, P.PAIn x) => (CTranslateType x env')
         | (_, P.PAOut x)
@@ -387,19 +387,19 @@ Section CComp.
                          (Ctypes.Tpointer ct' noattr, env_ct')
       end in
       let s := fst p in
-      let env_temp_added := add_temp_arg env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
+      let env_temp_added := add_temp_arg tags_t env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
       (l ++ [(new_id, ct)], env_temp_added)) 
   (params) ([],env)
   . 
 
   (*try to do copy in copy out*)
-  Definition CCopyIn (fn_params: E.params) (env: ClightEnv)
-  : Clight.statement * ClightEnv:= 
+  Definition CCopyIn (fn_params: E.params) (env: ClightEnv tags_t)
+  : Clight.statement * ClightEnv tags_t:= 
   List.fold_left 
-    (fun (cumulator: Clight.statement * ClightEnv) (fn_param: string * (P.paramarg E.t E.t))
+    (fun (cumulator: Clight.statement * ClightEnv tags_t) (fn_param: string * (P.paramarg E.t E.t))
     =>let (name, t) := fn_param in 
       let (prev_stmt, prev_env) := cumulator in
-      match find_ident_temp_arg env name with
+      match find_ident_temp_arg tags_t env name with
       | None => cumulator
       | Some (oldid, tempid) => 
         match t with
@@ -413,13 +413,13 @@ Section CComp.
       end
     ) fn_params (Sskip, env).
 
-Definition CCopyOut (fn_params: E.params) (env: ClightEnv)
-  : Clight.statement * ClightEnv:= 
+Definition CCopyOut (fn_params: E.params) (env: ClightEnv tags_t)
+  : Clight.statement * ClightEnv tags_t:= 
   List.fold_left 
-    (fun (cumulator: Clight.statement * ClightEnv) (fn_param: string * (P.paramarg E.t E.t))
+    (fun (cumulator: Clight.statement * ClightEnv tags_t) (fn_param: string * (P.paramarg E.t E.t))
     =>let (name, t) := fn_param in 
       let (prev_stmt, prev_env) := cumulator in
-      match find_ident_temp_arg env name with
+      match find_ident_temp_arg tags_t env name with
       | None => cumulator
       | Some (oldid, tempid) => 
         match t with
@@ -433,12 +433,12 @@ Definition CCopyOut (fn_params: E.params) (env: ClightEnv)
       end
     ) fn_params (Sskip, env).
 
-Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv)
+Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv tags_t)
  : list Clight.expr := 
  List.fold_left 
   (fun (cumulator: list Clight.expr) (fn_param: string * (P.paramarg E.t E.t))
   =>let (name, t) := fn_param in
-    match find_ident_temp_arg env name with
+    match find_ident_temp_arg tags_t env name with
     | None => cumulator
     | Some (oldid, tempid) =>
       match t with 
@@ -452,8 +452,8 @@ Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv)
   ) fn_params [].
 
 
-Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv)
-  : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv 
+Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv tags_t)
+  : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv tags_t 
   := 
   match signature with 
   | P.Arrow pas ret =>
@@ -471,7 +471,7 @@ Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
   pas
   end.
 
-Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
+Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t): option (ClightEnv tags_t)
   :=
   match parsr with
   | %{parser p (cparams) (params) start := st {states} @ i}% =>
@@ -492,30 +492,30 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       []
       Sskip ) in
       let env_start_fn_sig_declared := 
-        CCompEnv.add_function env_copyout "start" fn_sig
+        CCompEnv.add_function tags_t env_copyout "start" fn_sig
       in
       List.fold_left 
-        (fun (cumulator : ClightEnv) (state_name: string) =>
-          CCompEnv.add_function cumulator state_name fn_sig
+        (fun (cumulator : ClightEnv tags_t) (state_name: string) =>
+          CCompEnv.add_function tags_t cumulator state_name fn_sig
         ) state_names  env_start_fn_sig_declared in
     
     let env_fn_declared := 
       List.fold_left
-      (fun (cumulator: option ClightEnv) (state_name: string)
+      (fun (cumulator: option (ClightEnv tags_t)) (state_name: string)
       => match cumulator with | None => None | Some env' =>
         match Env.find state_name states with | None => None |Some sb =>
         match CTranslateParserState sb env' fn_params with | None => None | Some (f , env_f_translated) =>
-        Some(CCompEnv.update_function env_f_translated state_name f)
+        Some(CCompEnv.update_function tags_t env_f_translated state_name f)
         end end end
-      ) state_names (Some (set_temp_vars env env_fn_sig_declared)) in
+      ) state_names (Some (set_temp_vars tags_t env env_fn_sig_declared)) in
     (*finished declaring all the state blocks except start state*)
     match env_fn_declared with |None => None |Some env_fn_declared =>
-    match CTranslateParserState st (set_temp_vars env env_fn_declared) fn_params with 
+    match CTranslateParserState st (set_temp_vars tags_t env env_fn_declared) fn_params with 
     | None => None 
     | Some (f_start, env_start_translated)=>
-      let env_start_declared := CCompEnv.update_function env_start_translated "start" f_start in
-      let env_start_declared := set_temp_vars env_copyout env_start_declared in
-      match (lookup_function env_start_declared "start") with
+      let env_start_declared := CCompEnv.update_function tags_t env_start_translated "start" f_start in
+      let env_start_declared := set_temp_vars tags_t env_copyout env_start_declared in
+      match (lookup_function tags_t env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
       let call_args := CFindTempArgs params env_start_declared in
@@ -529,12 +529,12 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
         Ctypes.Tvoid
         (AST.mkcallconv None true true)
         fn_params
-        (get_vars env_start_declared)
-        (get_temps env_start_declared)
+        (get_vars tags_t env_start_declared)
+        (get_temps tags_t env_start_declared)
         fn_body)
       in
-      let env_topfn_added := CCompEnv.add_function env_start_declared p top_function in
-      Some( set_temp_vars env env_topfn_added)
+      let env_topfn_added := CCompEnv.add_function tags_t env_start_declared p top_function in
+      Some( set_temp_vars tags_t env env_topfn_added)
         
       end end end 
 
@@ -544,9 +544,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
 
   Definition CTranslateAction 
   (signature: E.params) (body: ST.s tags_t) 
-  (env: ClightEnv) (top_fn_params: list (AST.ident * Ctypes.type))
+  (env: ClightEnv tags_t) (top_fn_params: list (AST.ident * Ctypes.type))
   (top_signature: E.params)
-  : option (Clight.function* ClightEnv):= 
+  : option (Clight.function* ClightEnv tags_t):= 
   let (fn_params, env_params_created) := CTranslateParams signature env in
   let fn_params := top_fn_params ++ fn_params in 
   let full_signature := top_signature ++ signature in
@@ -561,16 +561,16 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
         Ctypes.Tvoid
         (AST.mkcallconv None true true)
         fn_params 
-        (get_vars env_body_translated)
-        (get_temps env_body_translated)
-        body), (set_temp_vars env env_body_translated))
+        (get_vars tags_t env_body_translated)
+        (get_temps tags_t env_body_translated)
+        body), (set_temp_vars tags_t env env_body_translated))
   end.
 
   Fixpoint CTranslateControlLocalDeclaration 
-  (ct : CT.ControlDecl.d tags_t) (env: ClightEnv) 
+  (ct : CT.ControlDecl.d tags_t) (env: ClightEnv tags_t) 
   (top_fn_params: list (AST.ident * Ctypes.type))
   (top_signature: E.params)
-  : option (ClightEnv)
+  : option (ClightEnv tags_t)
   := match ct with
   | c{d1 ;c; d2 @i}c => 
     match (CTranslateControlLocalDeclaration d1 env top_fn_params top_signature) with
@@ -584,12 +584,12 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   | c{action a (params) {body} @ i}c => 
     match CTranslateAction params body env top_fn_params top_signature with
     | None => None
-    | Some (f, env_action_translated) => Some (CCompEnv.add_function env_action_translated a f)
+    | Some (f, env_action_translated) => Some (CCompEnv.add_function tags_t env_action_translated a f)
     end
   | c{table t key := ems actions := acts @ i}c => Some env (*TODO: implement table*)
   end.
   
-  Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv): option (ClightEnv)
+  Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t): option (ClightEnv tags_t)
   := 
   match ctrl with
   | %{control c (cparams) (params) apply {blk} where {body} @ i}%
@@ -608,12 +608,12 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
           Ctypes.Tvoid 
           (AST.mkcallconv None true true)
           fn_params 
-          (get_vars env_apply_block_translated)
-          (get_temps env_apply_block_translated)
+          (get_vars tags_t env_apply_block_translated)
+          (get_temps tags_t env_apply_block_translated)
           body in
           let env_top_fn_declared := 
-          CCompEnv.add_function env_local_decled c top_fn in
-          Some (set_temp_vars env env_top_fn_declared) 
+          CCompEnv.add_function tags_t env_local_decled c top_fn in
+          Some (set_temp_vars tags_t env env_top_fn_declared) 
         end
        end
   | _ => None
@@ -623,8 +623,8 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
   
   Definition CTranslateFunction 
   (funcdecl : TD.d tags_t)
-  (env: ClightEnv)
-  : option ClightEnv:= 
+  (env: ClightEnv tags_t)
+  : option (ClightEnv tags_t):= 
   match funcdecl with
   | TD.TPFunction name signature body _ => 
     match CTranslateArrow signature env with 
@@ -641,16 +641,16 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
             fn_return
             (AST.mkcallconv None true true)
             fn_params 
-            (get_vars env_body_translated)
-            (get_temps env_body_translated)
+            (get_vars tags_t env_body_translated)
+            (get_temps tags_t env_body_translated)
             body) in
-        Some (set_temp_vars env (CCompEnv.add_function env_params_created name top_function))
+        Some (set_temp_vars tags_t env (CCompEnv.add_function tags_t env_params_created name top_function))
       end
     end 
   | _ => None
   end.
 
-  Fixpoint CTranslateTopDeclaration (d: tpdecl) (env: ClightEnv) : option ClightEnv
+  Fixpoint CTranslateTopDeclaration (d: tpdecl) (env: ClightEnv tags_t) : option (ClightEnv tags_t)
   := 
   match d with
   | %{d1 ;%; d2 @ i}% => 
@@ -682,18 +682,18 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv): option (Cl
       ))
     in
     let init_env := CCompEnv.newClightEnv in
-    let (init_env, main_id) := CCompEnv.new_ident init_env in 
+    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env tags_t) in 
     match CTranslateTopDeclaration prog init_env with
     | None => Errors.Error (Errors.msg "something went wrong")
     | Some env_all_declared => 
-      match CCompEnv.get_functions env_all_declared with
+      match CCompEnv.get_functions tags_t env_all_declared with
       | None => Errors.Error (Errors.msg "can't find all the declared functions")
       | Some f_decls => 
       let f_decls := List.map 
         (fun (x: AST.ident * Clight.function) 
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
-      let typ_decls := CCompEnv.get_composites env_all_declared in 
+      let typ_decls := CCompEnv.get_composites tags_t env_all_declared in 
       let res_prog : Errors.res (program function) := make_program 
         typ_decls ((main_id, main_decl):: f_decls) [] main_id
       in

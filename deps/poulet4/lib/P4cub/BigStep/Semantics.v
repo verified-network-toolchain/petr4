@@ -623,7 +623,7 @@ Module Step.
             (fns : fenv) (pis : pienv) (cis : cienv)
             (eis : ARCH.extern_env) (ϵ : epsilon)
     : TP.d tags_t -> ARCH.extern_env -> cienv -> pienv ->
-      fenv -> eenv -> cenv -> penv -> Prop :=
+      fenv -> @eenv tags_t -> cenv -> penv -> Prop :=
   | dbs_instantiate_ctrl (c x : string) (i : tags_t)
                          (cargs : E.constructor_args tags_t)
                          (vargs : F.fs string (either V.v cinst))
@@ -721,13 +721,13 @@ Module Step.
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
         parser p (cparams)(params) start := strt { states } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es, cs, ps' ⦈
-  | tpbs_extern_decl (e : string) (i : tags_t)
+(*  | tpbs_extern_decl (e : string) (i : tags_t)
                      (cparams : E.constructor_params)
                      (methods : F.fs string E.arrowT) :
       let es' := Env.bind e (EDecl es ϵ fns eis) es in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
         extern e (cparams) { methods } @ i ⦈
-        ⟱  ⦇ eis, cis, pis, fns, es', cs , ps ⦈
+        ⟱  ⦇ eis, cis, pis, fns, es', cs , ps ⦈ *)
   | tpbs_fruit_function (f : string) (params : E.params)
                         (τ : E.t) (body : ST.s tags_t) (i : tags_t) :
       let fns' := Env.bind f (FDecl ϵ fns body) fns in

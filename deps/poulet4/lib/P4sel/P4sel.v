@@ -284,7 +284,7 @@ Module P4sel.
                                      makes instance [x]. *)
       | TPExtern (e : string)
                  (cparams : P4cub.Expr.constructor_params)
-                 (methods : F.fs string P4cub.Expr.arrowT)
+                 (methods : F.fs string (list P4cub.Expr.t -> P4cub.Expr.arrowT))
                  (i : tags_t) (* extern declarations *)
       | TPControl (c : string)
                   (cparams : P4cub.Expr.constructor_params) (* constructor params *)

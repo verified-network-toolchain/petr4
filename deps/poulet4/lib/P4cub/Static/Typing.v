@@ -484,13 +484,13 @@ Inductive check_topdecl
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ parser p (cparams)(params) start:= start_state { states } @ i
       ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr;; cs ⦘
-| chk_extern (e : string)
+(*| chk_extern (e : string)
              (cparams : E.constructor_params)
              (mthds : F.fs string E.arrowT) (i : tags_t) :
     let extrn := {{{ Extern cparams { mthds } }}} in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ extern e (cparams) { mthds } @ i
-      ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn;; cs ⦘
+      ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn;; cs ⦘ *)
 | chk_package (pkg : string) (cparams : E.constructor_params) (i : tags_t) :
     let pkge := {{{ PackageType cparams }}} in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘

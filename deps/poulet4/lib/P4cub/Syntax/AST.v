@@ -667,6 +667,10 @@ Module P4cub.
     Section TopDeclarations.
       Variable (tags_t : Type).
 
+      Definition ext_method :=
+        list E.t -> (* type-arguments *)
+        E.arrowT.  (* resulting signature. *)
+      
       (** Top-level declarations. *)
       Inductive d : Type :=
       | TPInstantiate (constructor_name instance_name : string)
@@ -674,7 +678,7 @@ Module P4cub.
                      (i : tags_t) (* instantiations *)
       | TPExtern (extern_name : string)
                  (cparams : E.constructor_params)
-                 (methods : F.fs string E.arrowT)
+                 (methods : F.fs string ext_method)
                  (i : tags_t) (* extern declarations *)
       | TPControl (control_name : string)
                   (cparams : E.constructor_params) (* constructor params *)

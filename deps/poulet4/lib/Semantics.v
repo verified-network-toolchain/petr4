@@ -1222,6 +1222,9 @@ Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
   | _ => nil
   end.
 
+(* cenv is a class environment, mapping names to closures. Each closure contains
+  a class (parser/control) definition and an environment to interpret its free names.
+  It's designed in this way to ensure termination. *)
 Inductive cenv := mk_cenv : @IdentMap.t tags_t (cenv * @Declaration tags_t) -> cenv.
 Definition ienv := @IdentMap.t tags_t inst_mem_val.
 

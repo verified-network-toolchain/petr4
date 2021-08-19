@@ -247,7 +247,7 @@ Definition cbind_all :
   E.constructor_params  ->
   gamma * pkgienv * cienv * pienv * eienv ->
   gamma * pkgienv * cienv * pienv * eienv :=
-  F.fold (fun x c '(Γ, pkgis, cis, pis, eis) =>
+  F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
             match c with
             | {{{ VType τ }}}
               => (!{ x ↦ τ;; Γ }!, pkgis, cis, pis, eis)
@@ -255,8 +255,8 @@ Definition cbind_all :
               => (Γ, pkgis, !{ x ↦ pars;; cis }!, pis, eis)
             | {{{ ParserType _  pars }}}
               => (Γ, pkgis, cis, !{ x ↦ pars;; pis }!, eis)
-            | {{{ Extern _  { mhds } }}}
-              => (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!)
+            | E.CTExtern _
+              => p (* (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}
               => (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis)
             end).

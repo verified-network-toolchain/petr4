@@ -114,8 +114,9 @@ Module P4cub.
       | CTParser (cparams : F.fs string ct)
                  (parameters : params)      (* parser types *)
       | CTPackage (cparams : F.fs string ct) (* package types *)
-      | CTExtern (cparams : F.fs string ct)
-                 (methods : F.fs string arrowT) (* extern types *).
+      | CTExtern (extern_name : string)
+      (*(cparams : F.fs string ct)
+                 (methods : F.fs string arrowT)*) (* extern types *).
       (**[]*)
 
       Definition constructor_params : Type := F.fs string ct.
@@ -164,9 +165,9 @@ Module P4cub.
       Notation "'PackageType' cps"
         := (CTPackage cps)
              (in custom p4constructortype at level 0).
-      Notation "'Extern' cps { mthds }"
+      (*Notation "'Extern' cps { mthds }"
         := (CTExtern cps mthds)
-             (in custom p4constructortype at level 0).
+             (in custom p4constructortype at level 0).*)
     End TypeNotations.
 
     Inductive uop : Set :=
@@ -666,10 +667,6 @@ Module P4cub.
 
     Section TopDeclarations.
       Variable (tags_t : Type).
-
-      Definition ext_method :=
-        list E.t -> (* type-arguments *)
-        E.arrowT.  (* resulting signature. *)
       
       (** Top-level declarations. *)
       Inductive d : Type :=
@@ -678,7 +675,7 @@ Module P4cub.
                      (i : tags_t) (* instantiations *)
       | TPExtern (extern_name : string)
                  (cparams : E.constructor_params)
-                 (methods : F.fs string ext_method)
+                 (methods : F.fs string E.arrowT)
                  (i : tags_t) (* extern declarations *)
       | TPControl (control_name : string)
                   (cparams : E.constructor_params) (* constructor params *)

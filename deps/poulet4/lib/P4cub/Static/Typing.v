@@ -386,8 +386,8 @@ Inductive check_topdecl
            => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
          | E.CAName ctrl, {{{ ControlType cps ps }}}
            => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
-         | E.CAName extrn, {{{ Extern cps { mthds } }}}
-           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
+         (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
+           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs⦘
@@ -405,14 +405,14 @@ Inductive check_topdecl
            => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
          | E.CAName prsr, {{{ ParserType cps ps }}}
            => Env.find prsr cs = Some {{{ ParserType cps ps }}}
-         | E.CAName extrn, {{{ Extern cps { mthds } }}}
-           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
+         (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
+           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ Instance x of p(cargs) @ i
       ⊣ ⦗ eis, x ↦ params ;; pis, cis, pgis, fns, cs ⦘
-| chk_instantiate_extern (e x : string)
+(*| chk_instantiate_extern (e x : string)
                          (cparams : E.constructor_params)
                          (cargs : E.constructor_args tags_t) (i : tags_t)
                          (mthds : F.fs string E.arrowT) :
@@ -427,7 +427,7 @@ Inductive check_topdecl
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ Instance x of e(cargs) @ i ⊣ ⦗ x ↦ mthds ;; eis, pis, cis, pgis, fns, cs ⦘
+      ⊢ Instance x of e(cargs) @ i ⊣ ⦗ x ↦ mthds ;; eis, pis, cis, pgis, fns, cs ⦘ *)
 | chk_instantiate_package (pkg x : string)
                           (cparams : E.constructor_params)
                           (cargs : E.constructor_args tags_t)
@@ -442,8 +442,8 @@ Inductive check_topdecl
            => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
          | E.CAName prsr, {{{ ParserType cps ps }}}
            => Env.find prsr cs = Some {{{ ParserType cps ps }}}
-         | E.CAName extrn, {{{ Extern cps { mthds } }}}
-           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}
+         (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
+           => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
          end)
       cargs cparams ->

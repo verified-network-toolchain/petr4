@@ -69,8 +69,6 @@ Section Rules.
   Proof.
     intros b; unfold_sem_typ_expr; eauto.
   Qed.
-
-  Local Hint Resolve eval_uop_types : core.
   
   Lemma sem_typ_uop : forall (op : E.uop) (τ τ' : E.t) (e : E.e tags_t),
       uop_type op τ τ' ->
@@ -102,4 +100,3 @@ Section Rules.
       (* hmmmm... *)
   Abort.
 End Rules.
-

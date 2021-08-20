@@ -217,12 +217,12 @@ Section Lemmas.
   Local Hint Constructors proper_nesting : core.
   Hint Rewrite repeat_length.
   
-  Lemma vdefault_types :
+  Fail Lemma vdefault_types :
     forall (errs : errors) (τ : E.t),
       proper_nesting τ ->
       let val := vdefault τ in
       ∇ errs ⊢ val ∈ τ.
-  Proof.
+  (*Proof.
     intros errs τ HPN; simpl.
     induction τ using custom_t_ind; simpl; constructor;
       try invert_proper_nesting;
@@ -233,7 +233,7 @@ Section Lemmas.
         try (ind_list_predfs; repeat invert_cons_predfs;
              constructor; try split; unravel;
              intuition; assumption); auto.
-  Qed.
+  Qed. *)
 
   Lemma approx_type_typing : forall errs V T,
       ∇ errs ⊢ V ∈ T -> approx_type V = T.

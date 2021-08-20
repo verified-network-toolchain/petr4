@@ -39,6 +39,7 @@ Section CCompSel.
   Definition bit_vec := (Tstruct (Pos.of_nat 3) noattr).
   Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
+    | P4cub.Expr.TVar X => (Ctypes.Tvoid, env) (* how to translate type vars? *)
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
@@ -881,4 +882,3 @@ End CCompSel.
 Definition helloworld_program_sel := RemoveSideEffect.TranslateProgram nat helloworld_program.
 Definition test_compile_only := CCompSel.Compile nat helloworld_program_sel.
 Definition test := CCompSel.Compile_print nat helloworld_program_sel.
-

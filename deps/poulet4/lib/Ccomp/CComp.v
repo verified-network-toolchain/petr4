@@ -37,6 +37,7 @@ Section CComp.
   Import P4cub.P4cubNotations.
   Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv tags_t ) : Ctypes.type * (ClightEnv tags_t):=
     match p4t with
+    | E.TVar _ => (Ctypes.Tvoid, env) (* how to translate type vars? *)
     | {{Bool}} => (Ctypes.type_bool, env)
     | {{bit < w >}} => (long_unsigned,env)
     | {{int < w >}} => (long_signed, env)
@@ -143,39 +144,43 @@ Section CComp.
                           end
                         end
     | <{BOP x : tx op y : ty @ i}> =>
-                        let (ctx, env_tx) := CTranslateType tx env in
-                        let (cty, env_ty) := CTranslateType ty env_tx in 
-                        match CTranslateExpr x env_ty with
-                        | None => None
-                        | Some (x', env') =>  
-                          match CTranslateExpr y env' with
-                          | None => None
-                          | Some (y', env'') => 
-                            match op with
-                            | +{+}+ =>  Some (Ebinop Oadd x' y' ctx, env'')
-                            | +{-}+ =>  Some (Ebinop Osub x' y' ctx, env'')
-                            | +{|+|}+ =>None
-                            | +{|-|}+ =>None
-                            | E.Times =>  Some (Ebinop Omul x' y' ctx, env'')
-                            | +{<<}+ => Some (Ebinop Oshl x' y'  ctx, env'')
-                            | +{>>}+ => Some (Ebinop Oshr x' y' ctx, env'')
-                            | +{<=}+ => Some (Ebinop Ole x' y' type_bool, env'')                         
-                            | +{>=}+ => Some (Ebinop Oge x' y' type_bool, env'')
-                            | +{<}+ =>  Some (Ebinop Olt x' y' type_bool, env'')
-                            | +{>}+ =>  Some (Ebinop Ogt x' y' type_bool, env'')
-                            | +{==}+ => Some (Ebinop Oeq x' y' type_bool, env'')
-                            | +{!=}+ => Some (Ebinop One x' y' type_bool, env'')
-                            | +{&&}+
-                            | +{&}+ =>  Some (Ebinop Oand x' y' ctx, env'')
-                            | +{^}+ =>  Some (Ebinop Oxor x' y' ctx, env'')
-                            | +{||}+
-                            | +{|}+ =>  Some (Ebinop Oor x' y' ctx, env'')
-                            | +{++}+ => (*x ++ y = x<< widthof(y) + y*)
-                                        let shift_amount := Econst_long (Integers.Int64.repr (Z.of_nat (SynDefs.width_of_typ ty))) long_unsigned in 
-                                        Some (Ebinop Oadd (Ebinop Oshl x' shift_amount ctx) y' ctx, env'')
-                            end
-                          end
-                        end
+      let (ctx, env_tx) := CTranslateType tx env in
+      let (cty, env_ty) := CTranslateType ty env_tx in 
+      match CTranslateExpr x env_ty with
+      | None => None
+      | Some (x', env') =>  
+        match CTranslateExpr y env' with
+        | None => None
+        | Some (y', env'') => 
+          match op with
+          | +{+}+ =>  Some (Ebinop Oadd x' y' ctx, env'')
+          | +{-}+ =>  Some (Ebinop Osub x' y' ctx, env'')
+          | +{|+|}+ =>None
+          | +{|-|}+ =>None
+          | E.Times =>  Some (Ebinop Omul x' y' ctx, env'')
+          | +{<<}+ => Some (Ebinop Oshl x' y'  ctx, env'')
+          | +{>>}+ => Some (Ebinop Oshr x' y' ctx, env'')
+          | +{<=}+ => Some (Ebinop Ole x' y' type_bool, env'')                         
+          | +{>=}+ => Some (Ebinop Oge x' y' type_bool, env'')
+          | +{<}+ =>  Some (Ebinop Olt x' y' type_bool, env'')
+          | +{>}+ =>  Some (Ebinop Ogt x' y' type_bool, env'')
+          | +{==}+ => Some (Ebinop Oeq x' y' type_bool, env'')
+          | +{!=}+ => Some (Ebinop One x' y' type_bool, env'')
+          | +{&&}+
+          | +{&}+ =>  Some (Ebinop Oand x' y' ctx, env'')
+          | +{^}+ =>  Some (Ebinop Oxor x' y' ctx, env'')
+          | +{||}+
+          | +{|}+ =>  Some (Ebinop Oor x' y' ctx, env'')
+          | +{++}+ => (*x ++ y = x<< widthof(y) + y*)
+            n <<| SynDefs.width_of_typ ty ;;
+            let shift_amount :=
+                Econst_long
+                  (Integers.Int64.repr (Z.of_nat n))
+                  long_unsigned in 
+            (Ebinop Oadd (Ebinop Oshl x' shift_amount ctx) y' ctx, env'')
+          end
+        end
+      end
     | <{tup es @ i}> => None (*first create a temp of this tuple. then assign all the values to it. then return this temp *) 
     | <{struct { fields } @ i}> => None (*first create a temp of this struct. then assign all the values to it. then return this temp *)
                         
@@ -709,5 +714,3 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t): opt
 End CComp.
 Definition test_compile_only := CComp.Compile nat helloworld_program.
 Definition test := CComp.Compile_print nat helloworld_program.
-
-

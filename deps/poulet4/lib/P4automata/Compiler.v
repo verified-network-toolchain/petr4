@@ -116,7 +116,10 @@ Section parser_to_p4automaton.
     match op with
     | SONil => 0
     | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
-    | SOExtract τ _ => SynDefs.width_of_typ τ
+    | SOExtract τ _ => match SynDefs.width_of_typ τ with
+                      | Some n => n
+                      | None => 0
+                      end
     | SOVarDecl _ _ => 0
     | SOAsgn _ _ => 0
     | SOBlock op => operation_size op end.
@@ -150,8 +153,10 @@ Section parser_to_p4automaton.
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad cast") $ ExprUtil.eval_cast τ v
     | <{ UOP op e : _ @ _ }> =>
+      (*
       v <- interp_expr ϵ e ;;
-      lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v
+      lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v *)
+      err (CEUnsupportedExpr e) (* TODO: fix *)
     | <{ BOP e1 : _ op e2 : _ @ _ }> =>
       v1 <- interp_expr ϵ e1 ;;
       v2 <- interp_expr ϵ e2 ;;
@@ -194,7 +199,7 @@ Section parser_to_p4automaton.
       | _ => err (CEUnsupportedExpr expr) end    
     end.
 
-  Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
+  Fail Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
     let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * E.t) :=
         let '(pkt, fs) := acc in
         let '(n, τ) := x in
@@ -247,12 +252,11 @@ Section parser_to_p4automaton.
       e <- interp_operation pkt e op1 ;;
       interp_operation pkt e op2
     | SOExtract τ lv =>
-      v <<| interp_extract τ pkt ;;
-      lv_update lv v e
+      (*v <<| interp_extract τ pkt ;;
+      lv_update lv v e*) None
     | SOVarDecl x τ =>
-      let v := vdefault τ in
-      let lv := Val.LVVar x in
-      Some (lv_update lv v e)
+      v <<| vdefault τ ;;
+      let lv := Val.LVVar x in lv_update lv v e
     | SOAsgn lhs rhs =>
       v <- strip_error (interp_expr e rhs) ;;
       lv <<| strip_error (eval_lvalue lhs) ;;

@@ -153,7 +153,7 @@ Module Step.
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
   | ebs_uop (op : E.uop) (τ : E.t) (e : E.e tags_t) (i : tags_t) (v v' : V.v) :
-      eval_uop op v = Some v' ->
+      (*eval_uop op v = Some v' ->*)
       ⟨ ϵ, e ⟩ ⇓ v ->
       ⟨ ϵ, UOP op e:τ @ i ⟩ ⇓ v'
   (* Binary Operations. *)
@@ -296,7 +296,7 @@ Module Step.
       ⟪ pkt, fs, ϵ, c, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
   | sbs_vardecl (τ : E.t) (x : string)
                 (i : tags_t) (v : V.v) (c : ctx) :
-      vdefault τ = v ->
+      (*vdefault τ = v ->*)
       ⟪ pkt, fs, ϵ, c, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (τ : E.t) (e1 e2 : E.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :

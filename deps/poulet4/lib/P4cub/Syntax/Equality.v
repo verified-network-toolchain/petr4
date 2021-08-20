@@ -30,6 +30,7 @@ Module TypeEquivalence.
           | [], _::_ | _::_, [] => false
           end in
       match τ1, τ2 with
+      | TVar X1, TVar X2 => String.eqb X1 X2
       | {{ Bool }}, {{ Bool }}
       | {{ error }}, {{ error }}
       | {{ matchkind }}, {{ matchkind }} => true
@@ -46,6 +47,7 @@ Module TypeEquivalence.
     
     Lemma eqbt_refl : forall τ, eqbt τ τ = true.
     Proof.
+      Hint Rewrite String.eqb_refl.
       Hint Rewrite Pos.eqb_refl.
       Hint Rewrite equiv_dec_refl.
       Hint Extern 0 => equiv_dec_refl_tactic : core.
@@ -65,9 +67,10 @@ Module TypeEquivalence.
     
     Lemma eqbt_eq : forall t1 t2, eqbt t1 t2 = true -> t1 = t2.
     Proof.
-      Hint Resolve Peqb_true_eq : core.
       Hint Extern 5 =>
       match goal with
+      | H: String.eqb _ _ = true
+        |- _ => rewrite String.eqb_eq in H; subst; auto
       | H: (_ =? _)%positive = true
         |- _ => apply Peqb_true_eq in H; subst; auto
       end : core.

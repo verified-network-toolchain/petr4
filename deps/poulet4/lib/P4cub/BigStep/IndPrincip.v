@@ -45,7 +45,7 @@ Section ExprEvalInduction.
   (**[]*)
   
   Hypothesis HUop : forall ϵ op τ e i v v',
-      eval_uop op v = Some v' ->
+      (*eval_uop op v = Some v' ->*)
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
       P ϵ <{ UOP op e:τ @ i }> v'.
@@ -176,8 +176,8 @@ Section ExprEvalInduction.
         => HCast _ _ _ i _ _ Hv He (ebsind _ _ _ He)
       | ebs_error _ err i => HError _ err i
       | ebs_matchkind _ mk i => HMatchkind _ mk i
-      | ebs_uop _ _ _ _ i _ _ Hv He
-        => HUop _ _ _ _ i _ _ Hv He (ebsind _ _ _ He)
+      | ebs_uop _ _ _ i _ _ Hv He
+        => HUop _ _ _ i _ _ Hv He (ebsind _ _ _ He)
       | ebs_bop _ _ _ _ _ _ i _ _ _ Hv He1 He2
         => HBop _ _ _ _ _ _ i _ _ _ Hv He1 (ebsind _ _ _ He1) He2 (ebsind _ _ _ He2)
       | ebs_mem _ _ _ _ i _ _ Heval He

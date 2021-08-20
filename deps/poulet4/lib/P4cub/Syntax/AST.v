@@ -96,10 +96,10 @@ Module P4cub.
       | TStruct (fields : F.fs string t) (* the struct and struct type *)
       | THeader (fields : F.fs string t) (* the header type *)
       | THeaderStack (fields : F.fs string t)
-                     (size : positive)   (* header stack type *).
+                     (size : positive)   (* header stack type *)
+      | TVar (type_name : string)        (* type variables *).
       (**[]*)
-     
-
+      
       (** Function parameters. *)
       Definition params : Type := F.fs string (paramarg t t).
 
@@ -125,6 +125,7 @@ Module P4cub.
     Module TypeNotations.
       Notation "'{{' ty '}}'" := ty (ty custom p4type at level 99).
       Notation "( x )" := x (in custom p4type, x at level 99).
+      Coercion TVar : string >-> t.
       Notation "x" := x (in custom p4type at level 0, x constr at level 0).
       Notation "'Bool'" := TBool (in custom p4type at level 0).
       Notation "'bit' < w >"

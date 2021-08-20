@@ -93,7 +93,7 @@ Module Step.
            ℵ ϵ, UOP op e:τ @ i -->  UOP op e':τ @ i
   | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
-      eval_uop op v = Some v' ->
+      (* TODO: eval_uop op v = Some v' -> *)
       value v ->
       ℵ ϵ, UOP op v:τ @ i -->  v'
   | step_bop_l (op : E.bop) (τl τr : E.t)
@@ -253,10 +253,10 @@ Module Step.
       κ b{ s }b ⋅ k -->  κ s ⋅ ∫ ϵ ⊗ k, ϵ
   | step_kblock (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, ϵk ≪ ϵ
-  | step_vardecl (τ : E.t) (x : string) (i : tags_t) (k : kstmt) :
+  (*| step_vardecl (τ : E.t) (x : string) (i : tags_t) (k : kstmt) :
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ
+      κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ *)
   | step_asgn_r (e1 e2 e2' : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e2 -->  e2' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,

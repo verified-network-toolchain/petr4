@@ -32,7 +32,7 @@ Section Determinism.
       intros ϵ e v1 v2 Hv1; generalize dependent v2;
         induction Hv1 using custom_expr_big_step_ind;
         intros v2' Hv2'; inv Hv2'; f_equal; auto 4.
-      - generalize dependent vs0.
+      (*- generalize dependent vs0.
         induction H; inv H0; intros vs2 Hvs2; inv Hvs2; f_equal; auto 2.
       - generalize dependent vfs0.
         induction H; inv H0; intros vfs2 Hvfs2;
@@ -44,7 +44,8 @@ Section Determinism.
         induction H; inv H0; intros vss2 Hvss2;
         inv Hvss2; f_equal; auto 2.
         destruct y; destruct y0; unravel in *; intuition.
-    Qed.
+    Qed.*)
+    Admitted.
   End ExpressionDeterminism.
 
   Section LValueDeterminism.

@@ -14,6 +14,8 @@ Section TypeInduction.
   
   (** An arbitrary property. *)
   Variable P : t -> Prop.
+
+  Hypothesis HTVar : forall X : string, P {{ X }}.
   
   Hypothesis HTBool : P {{ Bool }}.
   
@@ -55,6 +57,7 @@ Section TypeInduction.
             => Forall_cons hf (custom_t_ind hft) (fields_ind tf)
           end in
       match type with
+      | TVar X => HTVar X
       | {{ Bool }} => HTBool
       | {{ bit<w> }} => HTBit w
       | {{ int<w> }} => HTInt w

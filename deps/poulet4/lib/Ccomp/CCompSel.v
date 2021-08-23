@@ -39,11 +39,11 @@ Section CCompSel.
   Definition bit_vec := (Tstruct (Pos.of_nat 3) noattr).
   Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
-    | P4cub.Expr.TVar X => (Ctypes.Tvoid, env) (* how to translate type vars? *)
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
-    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*what exactly is an error type?*)
+    | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
     | P4cub.Expr.TMatchKind => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TTuple (ts) => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TStruct (fields) => 
@@ -850,8 +850,11 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   (* currently just an empty program *)
   Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 
     
-    let init_env := CCompEnv.newClightEnv in
-    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env tags_t) in 
+    let init_env := CCompEnv.newClightEnv tags_t in
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env ) in 
+    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env) in 
     match CTranslateTopDeclaration prog init_env with
     | None => Errors.Error (Errors.msg "something went wrong")
     | Some env_all_declared => 

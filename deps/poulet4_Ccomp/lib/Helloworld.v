@@ -26,7 +26,7 @@ Require Import Coq.PArith.BinPosDef.
 Definition metadata : t := {{struct {[("bool", {{Bool}})]} }}.
 Definition hdrs : t := 
   let width := Pos.of_nat 32 in 
-  {{struct {[("int", {{int <width>}})]} }}.
+  {{struct {[("int2", {{Bool}})]} }}.
 Definition parser_start_state : par_st_blk :=
    &{state { -{skip @ 0}- } transition p{ goto ={ accept }= @ 0 }p}&.
 Definition parsr_cparams : E.constructor_params := [].

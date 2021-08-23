@@ -650,7 +650,6 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   match parsr with
   | TD.TPParser p cparams params st states i =>
     (*ignore constructor params for now*)
-    
     let (fn_params, env_params):= CTranslateParams params env in
     let (copyin, env_copyin) := CCopyIn params env_params in 
     let (copyout, env_copyout) := CCopyOut params env_copyin in
@@ -709,9 +708,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       in
       let env_topfn_added := CCompEnv.add_function tags_t env_start_declared p top_function in
       Some( set_temp_vars tags_t env env_topfn_added)
-        
       end end end 
-
   | _ => None
   end.
 

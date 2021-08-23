@@ -36,13 +36,15 @@ Section CCompSel.
   Definition long_signed := (Tlong Signed noattr).
   Definition int_unsigned := (Tint I32 Unsigned noattr).
   Definition int_signed := (Tint I32 Signed noattr).
-  Definition bit_vec := (Tstruct (Pos.of_nat 3) noattr).
+  Definition bit_vec := 
+    (Tstruct (Pos.of_nat 3) noattr).
   Fixpoint CTranslateType (p4t : E.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
-    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*what exactly is an error type?*)
+    | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
     | P4cub.Expr.TMatchKind => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TTuple (ts) => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TStruct (fields) => 
@@ -649,7 +651,6 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   match parsr with
   | TD.TPParser p cparams params st states i =>
     (*ignore constructor params for now*)
-    
     let (fn_params, env_params):= CTranslateParams params env in
     let (copyin, env_copyin) := CCopyIn params env_params in 
     let (copyout, env_copyout) := CCopyOut params env_copyin in
@@ -708,9 +709,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       in
       let env_topfn_added := CCompEnv.add_function tags_t env_start_declared p top_function in
       Some( set_temp_vars tags_t env env_topfn_added)
-        
       end end end 
-
   | _ => None
   end.
 
@@ -848,12 +847,11 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   end.
   (* currently just an empty program *)
   Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 
-    
     let init_env := CCompEnv.newClightEnv tags_t in
-    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
-    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
-    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env ) in 
-    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env1, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env2, _) :=  CCompEnv.new_ident tags_t (init_env1) in 
+    let (init_env3, _) :=  CCompEnv.new_ident tags_t (init_env2) in 
+    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env3) in 
     match CTranslateTopDeclaration prog init_env with
     | None => Errors.Error (Errors.msg "something went wrong")
     | Some env_all_declared => 
@@ -875,6 +873,18 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       end
     end.
 
+  Definition TypeDecls (prog: TD.d tags_t)  : Errors.res (list composite_definition) := 
+    let init_env := CCompEnv.newClightEnv tags_t in
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env, _) :=  CCompEnv.new_ident tags_t (init_env) in 
+    let (init_env, main_id) := CCompEnv.new_ident tags_t (init_env) in 
+    match CTranslateTopDeclaration prog init_env with
+    | None => Errors.Error (Errors.msg "something went wrong")
+    | Some env_all_declared => 
+      let typ_decls := CCompEnv.get_composites tags_t env_all_declared in
+      Errors.OK typ_decls
+    end.
   Definition Compile_print (prog: TD.d tags_t): unit := 
     match Compile prog with
     | Errors.Error e => tt
@@ -883,5 +893,5 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
 End CCompSel.
 Definition helloworld_program_sel := RemoveSideEffect.TranslateProgram nat helloworld_program.
 Definition test_compile_only := CCompSel.Compile nat helloworld_program_sel.
+Definition test_type_decls := CCompSel.TypeDecls nat helloworld_program_sel.
 Definition test := CCompSel.Compile_print nat helloworld_program_sel.
-

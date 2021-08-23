@@ -82,6 +82,14 @@ Fixpoint ored {A : Type} (os : list (option A)) : option (list A) :=
     x :: xs
   end.
 
+Fixpoint fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
+  snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
+  match p with
+  | (_, None) => None
+  | (a, Some b) => Some (a,b)
+  end.
 
 Definition snd_opt_map {A B C : Type} (f : B -> option C) (p : A * B) : option (A * C) :=
   let (x,y) := p in
@@ -415,6 +423,206 @@ Module Inline.
         end
       end.
 
+    Definition seq_tuple_elem_assign
+               (tuple_name : string)
+               (i : tags_t)
+               (n : nat)
+               (p : E.t * E.e tags_t)
+               (acc : Inline.t) : Inline.t :=
+      let (t, e) := p in
+      let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
+      let lhs := E.EVar t tuple_elem_name i in
+      Inline.ISeq (Inline.IAssign t lhs e i) acc i.
+
+    Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
+      match lhs, rhs with
+      | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
+        let** te := zip types es in
+        fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
+      | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
+      end.
+
+    Fixpoint elim_tuple (c : Inline.t) : option t :=
+      match c with
+      | ISkip _ => Some c
+      | IVardecl _ _ _ => Some c
+      | IAssign type lhs rhs i =>
+        elim_tuple_assign type lhs rhs i
+      | IConditional typ g tru fls i =>
+        let* tru' := elim_tuple tru in
+        let** fls' := elim_tuple fls in
+        IConditional typ g tru' fls' i
+      | ISeq c1 c2 i =>
+        let* c1' := elim_tuple c1 in
+        let** c2' := elim_tuple c2 in
+        ISeq c1' c2' i
+      | IBlock blk =>
+        let** blk' := elim_tuple blk in
+        IBlock blk'
+      | IReturnVoid _ => Some c
+      | IReturnFruit _ _ _ => Some c
+      | IExit _ => Some c
+      | IInvoke x keys actions i =>
+        (** TODO do we need to eliminate tuples in keys??*)
+        let opt_actions := map_snd elim_tuple actions in
+        let** actions' := ored (map opt_snd opt_actions) in
+        IInvoke x keys actions' i
+      | IExternMethodCall _ _ _ _ =>
+        (** TODO do we need to eliminate tuples in extern arguments? *)
+        Some c
+      end.
+
+    (** TODO: Compiler pass to convert int<> -> bit<> *)
+    Fixpoint encode_ints_as_bvs (c : Inline.t) : option Inline.t :=
+      None.
+
+    Print fold_right.
+
+
+
+    Fixpoint header_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+      F.fold (fun f typ acc => (s ++ "__f__" ++ f, typ) :: acc ) fields [(s ++ ".is_valid", E.TBool)].
+
+    Print zip.
+    (** TODO: Compiler pass to elaborate headers *)
+    Search (string -> string -> bool).
+    Fixpoint elaborate_headers (c : Inline.t) : option Inline.t :=
+      match c with
+      | ISkip _ => Some c
+      | IVardecl type s i =>
+        (** TODO elaborate header if type = THeader *)
+        match type with
+        | E.THeader fields =>
+          let vars := header_fields s fields in
+          let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
+          Some elabd_hdr_decls
+        | _ => Some c
+        end
+      | IAssign type lhs rhs i =>
+        match type with
+        | E.THeader fields =>
+          (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
+          match lhs, rhs with
+          | E.EVar _ l il, E.EVar _ r ir =>
+            let lvars := header_fields l fields in
+            let rvars := header_fields r fields in
+            let** lrvars := zip lvars rvars in
+            fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
+          | E.EVar _ l il, E.EHeader explicit_fields valid i =>
+            let lvars := header_fields l fields in
+            let assign_fields := fun '(lvar, ltyp) acc_opt =>
+                let* acc := acc_opt in
+                let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
+                ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+            in
+            fold_right assign_fields
+                       (Some (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
+                       lvars
+
+          | _, _ => None
+          end
+        | _ => Some c
+        end
+
+      | IConditional guard_type guard tru fls i =>
+        (** TODO: elaborate headers in guard? *)
+        let* tru' := elaborate_headers tru in
+        let** fls' := elaborate_headers fls in
+        IConditional guard_type guard tru' fls' i
+      | ISeq s1 s2 i =>
+        let* s1' := elaborate_headers s1 in
+        let** s2' := elaborate_headers s2 in
+        ISeq s1' s2' i
+
+      | IBlock b =>
+        let** b' := elaborate_headers b in
+        IBlock b'
+      | IReturnVoid _ => Some c
+      | IReturnFruit _ _ _ => Some c
+      | IExit _ => Some c
+      | IInvoke x keys actions i =>
+        let opt_actions := map_snd elaborate_headers actions in
+        let** actions' := ored (map opt_snd opt_actions) in
+        IInvoke x keys actions' i
+      | IExternMethodCall _ _ _ _ =>
+        (* TODO Do we need to eliminate tuples in arguments? *)
+        Some c
+      end.
+
+
+    Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
+      match n with
+      | O => init
+      | S n' => f n (ifold n' f init)
+      end.
+
+    Search (nat -> string).
+    (** TODO: Compiler pass to elaborate header stacks *)
+    Fixpoint elaborate_header_stacks (c : Inline.t) : option Inline.t :=
+      match c with
+      | ISkip _ => Some c
+      | IVardecl type x i =>
+        match type with
+        | E.THeaderStack fields size =>
+          Some (ifold (BinPos.Pos.to_nat size)
+                (fun n acc => ISeq (IVardecl (E.THeader fields) (x ++ "[" ++ string_of_nat n ++ "]") i) acc i) (ISkip i))
+        | _ => Some c
+        end
+      | IAssign type lhs rhs i =>
+        match type with
+        | E.THeaderStack fields size =>
+          match lhs, rhs with
+          | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
+            let iter := ifold (BinPos.Pos.to_nat size) in
+            let lvars := iter (fun n => cons (lvar ++ "[" ++ string_of_nat n ++ "]")) [] in
+            let rvars := iter (fun n => cons (rvar ++ "[" ++ string_of_nat n ++ "]")) [] in
+            let** lrvars := zip lvars rvars in
+            let htype := E.THeader fields in
+            let mk := E.EVar htype in
+            fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
+          | _, _ =>
+            (* Don't know how to translate anything but method calls *)
+            None
+          end
+        | _ => Some c
+        end
+      | IConditional gtyp guard tru fls i =>
+        (* TODO Eliminate header stack literals from expressions *)
+        let* tru' := elaborate_header_stacks tru in
+        let** fls' := elaborate_header_stacks fls in
+        IConditional gtyp guard tru' fls' i
+
+      | ISeq c1 c2 i =>
+        let* c1' := elaborate_header_stacks c1 in
+        let** c2' := elaborate_header_stacks c2 in
+        ISeq c1' c2' i
+
+      | IBlock c =>
+        let** c' := elaborate_header_stacks c in
+        IBlock c'
+
+      | IReturnVoid _ => Some c
+      | IReturnFruit _ _ _ => Some c
+      | IExit _ => Some c
+      | IInvoke x keys actions i =>
+        (* TODO: Do something with keys? *)
+        let rec_act_call := fun '(nm, act) acc_opt =>
+            let* acc := acc_opt in
+            let** act' := elaborate_header_stacks act in
+            (nm, act') :: acc
+        in
+        let** actions' := fold_right rec_act_call (Some []) actions in
+        IInvoke x keys actions' i
+      | IExternMethodCall _ _ _ _ =>
+        (* TODO: Do something with arguments? *)
+        Some c
+      end.
+
+
+    (** TODO: Compiler pass to elaborate structs *)
+    Fixpoint elaborate_structs (c : Inline.t) : option Inline.t :=
+      None.
+
 End Inline.
 
 Module GCL.
@@ -609,70 +817,6 @@ Module GCL.
         None
       end.
 
-    (** TODO: Compiler pass to convert int<> -> bit<> *)
-    Print List.
-    Print fold_right.
-    Fixpoint fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
-      snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
-
-    Definition seq_tuple_elem_assign
-               (tuple_name : string)
-               (i : tags_t)
-               (n : nat)
-               (p : E.t * E.e tags_t)
-               (acc : Inline.t) : Inline.t :=
-      let (t, e) := p in
-      let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
-      let lhs := E.EVar t tuple_elem_name i in
-      Inline.ISeq (Inline.IAssign t lhs e i) acc i.
-
-    Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
-      match lhs, rhs with
-      | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
-        let** te := zip types es in
-        fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
-      | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
-      end.
-
-    Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
-      match p with
-      | (_, None) => None
-      | (a, Some b) => Some (a,b)
-      end.
-
-    Fixpoint elim_tuple (c : Inline.t) : option Inline.t :=
-      match c with
-      | Inline.ISkip _ => Some c
-      | Inline.IVardecl _ _ _ => Some c
-      | Inline.IAssign type lhs rhs i =>
-        elim_tuple_assign type lhs rhs i
-      | Inline.IConditional typ g tru fls i =>
-        let* tru' := elim_tuple tru in
-        let** fls' := elim_tuple fls in
-        Inline.IConditional typ g tru' fls' i
-      | Inline.ISeq c1 c2 i =>
-        let* c1' := elim_tuple c1 in
-        let** c2' := elim_tuple c2 in
-        Inline.ISeq c1' c2' i
-      | Inline.IBlock blk =>
-        let** blk' := elim_tuple blk in
-        Inline.IBlock blk'
-      | Inline.IReturnVoid _ => Some c
-      | Inline.IReturnFruit _ _ _ => Some c
-      | Inline.IExit _ => Some c
-      | Inline.IInvoke x keys actions i =>
-        (** TODO do we need to eliminate tuples in keys??*)
-        let opt_actions := map_snd elim_tuple actions in
-        let** actions' := ored (map opt_snd opt_actions) in
-        Inline.IInvoke x keys actions' i
-      | Inline.IExternMethodCall _ _ _ _ =>
-        (** TODO do we need to eliminate tuples in extern arguments? *)
-        Some c
-      end.
-
-    (** TODO: Compiler pass to elaborate headers *)
-    (** TODO: Compiler pass to elaborate structs *)
-    (** TODO: Compiler pass to elaborate header stacks *)
     Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t :=
       match e with
       | E.EBool b i =>
@@ -752,7 +896,7 @@ Module GCL.
         (** TODO: COmpiler Pass to factor out structs *)
         None
       | E.EHeader _ _ _ =>
-        (** TODO: Compiler Pass to Factor out Headers *)
+        (* Should never have a header at this stage *)
         None
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
@@ -764,17 +908,11 @@ Module GCL.
         (** TODO: Compiler pass to Factor Out Header Stacks*)
         None
       | E.EHeaderStackAccess stack index i =>
-        (** TODO Compiler pass to factor out headers **)
-        None
+        to_lvalue stack e
       end.
-
-    Search (positive -> positive -> positive).
 
     Definition isone (v : BitVec.t) (i :tags_t) : form :=
       LComp LEq v (BitVec.BitVec (pos 1) (pos 1) i) i.
-
-
-
 
     Fixpoint to_form (e : (E.e tags_t)) : option form :=
       match e with
@@ -866,7 +1004,7 @@ Module GCL.
         (** TODO: COmpiler Pass to factor out Tuples *)
         None
       | E.EHeader _ _ _ =>
-        (** TODO: Compiler Pass to Factor out Headers *)
+        (** Headers Shouldn't exist here *)
         None
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in

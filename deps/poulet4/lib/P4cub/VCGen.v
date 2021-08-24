@@ -148,6 +148,14 @@ Module Ctx.
             may_have_returned: bool;
           }.
 
+  Definition initial :=
+    {| stack := [0];
+       used := [];
+       locals := [];
+       may_have_exited  := false;
+       may_have_returned := false;
+    |}.
+
   Definition incr (ctx : t) : t :=
     let new_idx := S(list_max (ctx.(stack) ++ ctx.(used))) in
     {| stack := new_idx :: ctx.(stack);
@@ -330,7 +338,7 @@ Module Inline.
                                end)
            args (Env.empty EquivUtil.string (E.e tags_t)).
 
-  Fixpoint inline (n : nat)
+  Fixpoint inline_inner (n : nat)
              (cienv : @cienv tags_t)
              (aenv : @aenv tags_t)
              (tenv : @tenv tags_t)
@@ -351,17 +359,17 @@ Module Inline.
           Some (IAssign type lhs rhs i)
 
         | ST.SConditional gtyp guard tru_blk fls_blk i =>
-          let* tru_blk' := inline n0 cienv aenv tenv fenv tru_blk in
-          let** fls_blk' := inline n0 cienv aenv tenv fenv fls_blk in
+          let* tru_blk' := inline_inner n0 cienv aenv tenv fenv tru_blk in
+          let** fls_blk' := inline_inner n0 cienv aenv tenv fenv fls_blk in
           IConditional gtyp guard tru_blk' fls_blk' i
 
         | ST.SSeq s1 s2 i =>
-          let* i1 := inline n0 cienv aenv tenv fenv s1 in
-          let** i2 := inline n0 cienv aenv tenv fenv s2 in
+          let* i1 := inline_inner n0 cienv aenv tenv fenv s1 in
+          let** i2 := inline_inner n0 cienv aenv tenv fenv s2 in
           ISeq i1 i2 i
 
         | ST.SBlock s =>
-          let** blk := inline n0 cienv aenv tenv fenv s in
+          let** blk := inline_inner n0 cienv aenv tenv fenv s in
           IBlock blk
 
         | ST.SFunCall f (P.Arrow args ret) i =>
@@ -369,7 +377,7 @@ Module Inline.
           match fdecl with
           | FDecl ε fenv' body =>
             (** TODO check copy-in/copy-out *)
-            let** rslt := inline n0 cienv aenv tenv fenv' body in
+            let** rslt := inline_inner n0 cienv aenv tenv fenv' body in
             let η := copy args in
             IBlock rslt
           end
@@ -378,7 +386,7 @@ Module Inline.
           match adecl with
           | ADecl ε fenv' aenv' externs body =>
             (** TODO handle copy-in/copy-out *)
-            let** rslt := inline n0 cienv aenv' tenv fenv' body in
+            let** rslt := inline_inner n0 cienv aenv' tenv fenv' body in
             let η := copy args in
             IBlock (fst (subst_t η rslt))
           end
@@ -386,7 +394,7 @@ Module Inline.
           let* cinst := Env.find ci cienv in
           match cinst with
           | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-            let** rslt := inline n0 cienv' aenv' tenv' fenv' apply_blk in
+            let** rslt := inline_inner n0 cienv' aenv' tenv' fenv' apply_blk in
             (** TODO check copy-in/copy-out *)
             let η := copy args in
             IBlock (fst (subst_t η rslt))
@@ -410,7 +418,7 @@ Module Inline.
               match adecl with
               | ADecl _ fenv' aenv' externs body =>
                 (** TODO handle copy-in/copy-out *)
-                inline n0 cienv aenv tenv fenv body
+                inline_inner n0 cienv aenv tenv fenv body
               end
             in
             let* acts := ored (map act_to_gcl actions) in
@@ -423,7 +431,16 @@ Module Inline.
         end
       end.
 
-    Definition seq_tuple_elem_assign
+  Definition inline (gas : nat) (s : ST.s tags_t) : option t :=
+    inline_inner gas
+                 (Env.empty EquivUtil.string cinst)
+                 (Env.empty EquivUtil.string adecl)
+                 (Env.empty EquivUtil.string (CD.table tags_t))
+                 (Env.empty EquivUtil.string fdecl)
+                 s
+  .
+
+  Definition seq_tuple_elem_assign
                (tuple_name : string)
                (i : tags_t)
                (n : nat)
@@ -574,6 +591,7 @@ Module Inline.
           match lhs, rhs with
           | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
             let iter := ifold (BinPos.Pos.to_nat size) in
+            (* Should these be `HeaderStackAccess`es? *)
             let lvars := iter (fun n => cons (lvar ++ "[" ++ string_of_nat n ++ "]")) [] in
             let rvars := iter (fun n => cons (rvar ++ "[" ++ string_of_nat n ++ "]")) [] in
             let** lrvars := zip lvars rvars in
@@ -581,7 +599,7 @@ Module Inline.
             let mk := E.EVar htype in
             fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
           | _, _ =>
-            (* Don't know how to translate anything but method calls *)
+            (* Don't know how to translate anything but variables *)
             None
           end
         | _ => Some c
@@ -618,11 +636,71 @@ Module Inline.
         Some c
       end.
 
+    Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+      F.fold (fun f typ acc => (s ++ "__s__" ++ f, typ) :: acc ) fields [].
 
     (** TODO: Compiler pass to elaborate structs *)
     Fixpoint elaborate_structs (c : Inline.t) : option Inline.t :=
-      None.
+      match c with
+      | ISkip _ => Some c
+      | IVardecl type s i =>
+        match type with
+        | E.TStruct fields =>
+          let vars := struct_fields s fields in
+          let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
+          Some elabd_hdr_decls
+        | _ => Some c
+        end
+      | IAssign type lhs rhs i =>
+        match type with
+        | E.TStruct fields =>
+          (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
+          match lhs, rhs with
+          | E.EVar _ l il, E.EVar _ r ir =>
+            let lvars := struct_fields l fields in
+            let rvars := struct_fields r fields in
+            let** lrvars := zip lvars rvars in
+            fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
+          | E.EVar _ l il, E.EStruct explicit_fields i =>
+            let lvars := struct_fields l fields in
+            let assign_fields := fun '(lvar, ltyp) acc_opt =>
+                let* acc := acc_opt in
+                let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
+                ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+            in
+            fold_right assign_fields
+                       (Some (ISkip i))
+                       lvars
 
+          | _, _ => None
+          end
+        | _ => Some c
+        end
+
+      | IConditional guard_type guard tru fls i =>
+        (** TODO: elaborate headers in guard? *)
+        let* tru' := elaborate_headers tru in
+        let** fls' := elaborate_headers fls in
+        IConditional guard_type guard tru' fls' i
+      | ISeq s1 s2 i =>
+        let* s1' := elaborate_headers s1 in
+        let** s2' := elaborate_headers s2 in
+        ISeq s1' s2' i
+
+      | IBlock b =>
+        let** b' := elaborate_headers b in
+        IBlock b'
+      | IReturnVoid _ => Some c
+      | IReturnFruit _ _ _ => Some c
+      | IExit _ => Some c
+      | IInvoke x keys actions i =>
+        let opt_actions := map_snd elaborate_structs actions in
+        let** actions' := ored (map opt_snd opt_actions) in
+        IInvoke x keys actions' i
+      | IExternMethodCall _ _ _ _ =>
+        (* TODO Do we need to eliminate tuples in arguments? *)
+        Some c
+      end.
 End Inline.
 
 Module GCL.
@@ -810,11 +888,16 @@ Module GCL.
         (** TODO enumerate fields *)
         None
       | E.THeader fields =>
-        (** TODO enumerate header *)
         None
       | E.THeaderStack fields size =>
-        (** TODO enumerate headerstack *)
         None
+      end.
+
+    Definition get_header_of_stack (stack : E.e tags_t) : option E.t :=
+      match stack with
+      | E.EHeaderStack fields headers size next_index i =>
+        Some (E.THeader fields)
+      | _ => None
       end.
 
     Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t :=
@@ -908,7 +991,8 @@ Module GCL.
         (** TODO: Compiler pass to Factor Out Header Stacks*)
         None
       | E.EHeaderStackAccess stack index i =>
-        to_lvalue stack e
+        (** Should be gone here *)
+        None
       end.
 
     Definition isone (v : BitVec.t) (i :tags_t) : form :=
@@ -1013,10 +1097,8 @@ Module GCL.
       | E.EError _ _ => None
       | E.EMatchKind _ _ => None
       | E.EHeaderStack _ _ _ _ _ =>
-        (** TODO: Compiler pass to Factor Out Header Stacks*)
         None
       | E.EHeaderStackAccess stack index i =>
-        (** TODO Compiler pass to factor out headers **)
         None
       end.
 
@@ -1027,7 +1109,7 @@ Module GCL.
       let* phi := to_form guard in
       Some (iteb phi tg fg i, ctx).
 
-    Fixpoint to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : I.t) : option (target * Ctx.t) :=
+    Fixpoint inline_to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : I.t) : option (target * Ctx.t) :=
       match s with
       | I.ISkip i => Some (GSkip i, ctx)
 
@@ -1041,17 +1123,17 @@ Module GCL.
         (e, ctx)
 
       | I.IConditional guard_type guard tru_blk fls_blk i =>
-        let* tru_blk' := to_gcl ctx arch tru_blk in
-        let* fls_blk' := to_gcl ctx arch fls_blk in
+        let* tru_blk' := inline_to_gcl ctx arch tru_blk in
+        let* fls_blk' := inline_to_gcl ctx arch fls_blk in
         cond guard_type (scopify ctx guard) i tru_blk' fls_blk'
 
       | I.ISeq s1 s2 i =>
-        let* g1 := to_gcl ctx arch s1 in
-        let* g2 := to_gcl ctx arch s2 in
+        let* g1 := inline_to_gcl ctx arch s1 in
+        let* g2 := inline_to_gcl ctx arch s2 in
         Some (seq i g1 g2)
 
       | I.IBlock s =>
-        let* (gcl, ctx') := to_gcl (Ctx.incr ctx) arch s in
+        let* (gcl, ctx') := inline_to_gcl (Ctx.incr ctx) arch s in
         let** ctx'' := Ctx.decr ctx ctx' in
         (gcl, ctx'')
 
@@ -1067,7 +1149,7 @@ Module GCL.
         Some (GAssign (E.TBit (pos 1)) "exit" (BitVec.BitVec (pos 1) (pos 1) i) i, Ctx.update_exit ctx true)
 
       | I.IInvoke tbl keys actions i =>
-        let** actions' := union_map_snd (fst >>=> to_gcl ctx arch) actions in
+        let** actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
         let g := (instr tbl i keys actions') in
         (g, ctx)
 
@@ -1076,3 +1158,16 @@ Module GCL.
         let** g := Arch.find arch ext method in
         (g, ctx)
       end.
+
+    Print cienv.
+    Print Inline.elaborate_headers.
+    Definition p4cub_statement_to_gcl (gas : nat) (arch : Arch.model) (s : ST.s tags_t) : option target :=
+      let* inline_stmt := Inline.inline gas s in
+      let* no_tup := Inline.elim_tuple inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks no_tup in
+      let* no_hdr := Inline.elaborate_headers no_stk in
+      let* no_structs := Inline.elaborate_structs no_hdr in
+      let** (gcl,_) := inline_to_gcl Ctx.initial arch no_structs in
+      gcl.
+
+End Translate.

@@ -30,55 +30,77 @@ Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
   | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
   end.
 
-Definition omap {A B : Type} (f : A ->  B)  (o : option A) : option B :=
-  match o with
-  | None => None
-  | Some x => Some (f x)
+Print Instances Monad.
+
+
+
+Inductive result {A : Type} : Type :=
+  | Ok : A -> result
+  | Error : string -> result.
+
+Definition rret (A : Type) (x : A) : @result A := Ok x.
+Definition rbind (A B : Type) (r : @result A)  (f : A -> @result B) : @result B :=
+  match r with
+  | Error s => Error s
+  | Ok x => f x
   end.
 
-Notation "'let**' p ':=' c1 'in' c2" := (omap (fun p => c2) c1)
+Print Monad.
+Instance result_monad_inst : Monad (@result) :=
+  {
+    mret := rret;
+    mbind := rbind
+  }.
+
+
+Definition orbind {A B : Type} (r : option A) (str : string) (f : A -> @result B) : @result B :=
+  match r with
+  | None => Error str
+  | Some x => f x
+  end.
+
+Notation "'let*~' p ':=' c1 'else' str 'in' c2 " := (orbind c1 str (fun p => c2))
+                                   (at level 61, p as pattern, c1 at next level, right associativity).
+
+
+Definition rmap {A B : Type} (f : A ->  B)  (r : @result A) : @result B :=
+  match r with
+  | Error s => Error s
+  | Ok x => Ok (f x)
+  end.
+
+Notation "'let**' p ':=' c1 'in' c2" := (rmap (fun p => c2) c1)
                         (at level 61, p as pattern, c1 at next level, right associativity).
 
-Definition liftO2 {A B C : Type} (f : A -> B -> C) (o1 : option A) (o2 : option B) : option C :=
-  let* x1 := o1 in
-  let** x2 := o2 in
-  f x1 x2.
 
-Definition union {A : Type} (oo : option (option A)) : option A :=
-  let* o := oo in
-  o.
-
-Definition bindO2 {A B C : Type} (f : A -> B -> option C) (o1 : option A) (o2 : option B) : option C :=
-  union (liftO2 f o1 o2).
-
-Definition obindcomp {A B C : Type} (f : B -> C) (g : A -> option B) (a : A) : option C :=
+Definition rbindcomp {A B C : Type} (f : B -> C) (g : A -> @result B) (a : A) : @result C :=
   let** b := g a in
   f b.
 
-Infix ">>=>" := obindcomp (at level 80, right associativity).
+Infix ">>=>" := rbindcomp (at level 80, right associativity).
 
-Definition ocomp {A B C : Type} (f : B -> option C) (g : A -> option B) (a : A) : option C :=
+Definition rcomp {A B C : Type} (f : B -> @result C) (g : A -> @result B) (a : A) : @result C :=
   let* b := g a in
   f b.
 
-Infix ">=>" := ocomp (at level 80, right associativity).
+Infix ">=>" := rcomp (at level 80, right associativity).
 
-Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : option (list (A * B)) :=
+Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : @result (list (A * B)) :=
   match xs, ys with
-  | [],[] => Some []
-  | [], _ => None
-  | _, [] => None
+  | [],[] => Ok []
+  | [], _ => Error "First zipped list was shorter than the second"
+  | _, [] => Error "First zipped list was longer than the second"
   | x::xs, y::ys =>
     let** xys := zip xs ys in
     cons (x,y) xys
   end.
 
-Fixpoint ored {A : Type} (os : list (option A)) : option (list A) :=
+Fixpoint rred {A : Type} (os : list (@result A)) : @result (list A) :=
   match os with
-  | [] => Some []
-  | None :: _ => None
-  | (Some x) :: os =>
-    let** xs := ored os in
+  | [] => Ok []
+  | Error s :: _ => Error s
+  | (Ok x) :: os =>
+    let** xs := rred os in
     x :: xs
   end.
 
@@ -91,13 +113,19 @@ Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
   | (a, Some b) => Some (a,b)
   end.
 
-Definition snd_opt_map {A B C : Type} (f : B -> option C) (p : A * B) : option (A * C) :=
+Definition res_snd { A B : Type } (p : A * @result B ) : @result (A * B) :=
+  match p with
+  | (_, Error s) => Error s
+  | (a, Ok b) => Ok (a, b)
+  end.
+
+Definition snd_res_map {A B C : Type} (f : B -> @result C) (p : A * B) : @result (A * C) :=
   let (x,y) := p in
   let** z := f y in
   (x, z).
 
-Definition union_map_snd {A B C : Type} (f : B -> option C) (xs : list (A * B)) : option (list (A * C)) :=
-  ored (map (snd_opt_map f) xs).
+Definition union_map_snd {A B C : Type} (f : B -> @result C) (xs : list (A * B)) : @result (list (A * C)) :=
+  rred (map (snd_res_map f) xs).
 
 Definition map_snd {A B C : Type} (f : B -> C) (ps : list (A * B)) : list (A * C) :=
   map (fun '(a, b) => (a, f b)) ps.
@@ -165,15 +193,15 @@ Module Ctx.
        may_have_returned := false;
     |}.
 
-  Definition current (ctx : t) : option nat :=
+  Definition current (ctx : t) : @result nat :=
     match ctx.(stack) with
-    | [] => None
-    | idx :: _ => Some idx
+    | [] => Error "Tried to get context counter from empty context"
+    | idx :: _ => Ok idx
     end.
 
-  Definition decr (old_ctx : t) (ctx : t)  : option (t) :=
+  Definition decr (old_ctx : t) (ctx : t)  : @result (t) :=
     match ctx.(stack) with
-    | [] => None
+    | [] => Error "Tried decrement empty counter"
     | idx :: idxs =>
       let ctx' := {| stack := idxs;
                      used := idx :: ctx.(stack);
@@ -181,7 +209,7 @@ Module Ctx.
                      may_have_exited := old_ctx.(may_have_exited) || ctx.(may_have_exited);
                      may_have_returned := old_ctx.(may_have_returned);
                   |} in
-      Some ctx'
+      Ok ctx'
     end.
 
   Definition update_exit (ctx : t) (b : bool) :=
@@ -192,15 +220,15 @@ Module Ctx.
        may_have_returned := ctx.(may_have_returned)
     |}.
 
-  Definition join (tctx fctx : t) : option t :=
+  Definition join (tctx fctx : t) : @result t :=
     if list_eq Nat.eqb tctx.(stack) fctx.(stack)
-    then Some {| stack := tctx.(stack);
+    then Ok {| stack := tctx.(stack);
                  used := tctx.(used) ++ fctx.(used);
                  locals := intersect_string_list tctx.(locals) fctx.(locals);
                  may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
                  may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
               |}
-    else None.
+    else Error "Tried to join two contexts with different context counters".
 
   Definition retvar_name (ctx : t) : string :=
     fold_right (fun idx acc => acc ++ (string_of_nat idx)) "return" ctx.(stack).
@@ -226,8 +254,8 @@ Module Ctx.
   Definition relabel_for_scope (ctx : t) (v : string) : string :=
     if is_local ctx v
     then match current ctx with
-         | None => v
-         | Some idx => scope_name v idx
+         | Error _ => v
+         | Ok idx => scope_name v idx
          end
     else v.
 
@@ -326,10 +354,6 @@ Module Inline.
       (IExternMethodCall extn method (P.Arrow pas' returns) i, η)
     end.
 
-  Print ST.SActCall.
-  Print ST.E.args.
-  Print F.fold.
-  Locate In.
   Definition copy (args : ST.E.args tags_t) : expenv :=
     F.fold (fun param arg η => match arg with
                                | P.PAIn (_,e) => Env.bind param e η
@@ -344,19 +368,19 @@ Module Inline.
            (tenv : @tenv tags_t)
            (fenv : fenv)
            (s : ST.s tags_t)
-           {struct n} : option t :=
+           {struct n} : @result t :=
     match n with
-    | 0 => None
+    | 0 => Error "Inliner ran out of gas"
     | S n0 =>
       match s with
       | ST.SSkip i =>
-        Some (ISkip i)
+        Ok (ISkip i)
 
       | ST.SVardecl typ x i =>
-        Some (IVardecl typ x i)
+        Ok (IVardecl typ x i)
 
       | ST.SAssign type lhs rhs i =>
-        Some (IAssign type lhs rhs i)
+        Ok (IAssign type lhs rhs i)
 
       | ST.SConditional gtyp guard tru_blk fls_blk i =>
         let* tru_blk' := inline_inner n0 cienv aenv tenv fenv tru_blk in
@@ -373,7 +397,7 @@ Module Inline.
         IBlock blk
 
       | ST.SFunCall f (P.Arrow args ret) i =>
-        let* fdecl := Env.find f fenv in
+        let*~ fdecl := Env.find f fenv else "could not find function in environment" in
         match fdecl with
         | FDecl ε fenv' body =>
           (** TODO check copy-in/copy-out *)
@@ -382,7 +406,7 @@ Module Inline.
           IBlock rslt
         end
       | ST.SActCall a args i =>
-        let* adecl := Env.find a aenv in
+        let*~ adecl := Env.find a aenv else "could not find action in environment" in
         match adecl with
         | ADecl ε fenv' aenv' externs body =>
           (** TODO handle copy-in/copy-out *)
@@ -391,7 +415,7 @@ Module Inline.
           IBlock (fst (subst_t η rslt))
         end
       | ST.SApply ci args i =>
-        let* cinst := Env.find ci cienv in
+        let*~ cinst := Env.find ci cienv else "could not find controller instance in environment" in
         match cinst with
         | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
           let** rslt := inline_inner n0 cienv' aenv' tenv' fenv' apply_blk in
@@ -401,37 +425,37 @@ Module Inline.
         end
 
       | ST.SReturnVoid i =>
-        Some (IReturnVoid i)
+        Ok (IReturnVoid i)
 
       | ST.SReturnFruit typ expr i =>
-        Some (IReturnFruit typ expr i)
+        Ok (IReturnFruit typ expr i)
 
       | ST.SExit i =>
-        Some (IExit i)
+        Ok (IExit i)
 
       | ST.SInvoke t i =>
-        let* tdecl := Env.find t tenv in
+        let*~ tdecl := Env.find t tenv else "could not find table in environment" in
         match tdecl with
         | CD.Table keys actions =>
           let act_to_gcl := fun a =>
-            let* adecl := Env.find a aenv in
+            let*~ adecl := Env.find a aenv else "could not find action in environment" in
             match adecl with
             | ADecl _ fenv' aenv' externs body =>
               (** TODO handle copy-in/copy-out *)
               inline_inner n0 cienv aenv tenv fenv body
             end
           in
-          let* acts := ored (map act_to_gcl actions) in
+          let* acts := rred (map act_to_gcl actions) in
           let** named_acts := zip actions acts in
           IInvoke t keys named_acts i
         end
 
       | ST.SExternMethodCall ext method args i =>
-        Some(IExternMethodCall ext method args i)
+        Ok (IExternMethodCall ext method args i)
       end
     end.
 
-  Definition inline (gas : nat) (s : ST.s tags_t) : option t :=
+  Definition inline (gas : nat) (s : ST.s tags_t) : @result t :=
     inline_inner gas
                  (Env.empty EquivUtil.string cinst)
                  (Env.empty EquivUtil.string adecl)
@@ -451,18 +475,18 @@ Module Inline.
     let lhs := E.EVar t tuple_elem_name i in
     Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-  Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
+  Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : @result Inline.t :=
     match lhs, rhs with
     | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
       let** te := zip types es in
       fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
-    | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
+    | _,_ => Ok (Inline.IAssign ltyp lhs rhs i)
     end.
 
-  Fixpoint elim_tuple (c : Inline.t) : option t :=
+  Fixpoint elim_tuple (c : Inline.t) : @result t :=
     match c with
-    | ISkip _ => Some c
-    | IVardecl _ _ _ => Some c
+    | ISkip _ => Ok c
+    | IVardecl _ _ _ => Ok c
     | IAssign type lhs rhs i =>
       elim_tuple_assign type lhs rhs i
     | IConditional typ g tru fls i =>
@@ -476,17 +500,17 @@ Module Inline.
     | IBlock blk =>
       let** blk' := elim_tuple blk in
       IBlock blk'
-    | IReturnVoid _ => Some c
-    | IReturnFruit _ _ _ => Some c
-    | IExit _ => Some c
+    | IReturnVoid _ => Ok c
+    | IReturnFruit _ _ _ => Ok c
+    | IExit _ => Ok c
     | IInvoke x keys actions i =>
       (** TODO do we need to eliminate tuples in keys??*)
       let opt_actions := map_snd elim_tuple actions in
-      let** actions' := ored (map opt_snd opt_actions) in
+      let** actions' := rred (map res_snd opt_actions) in
       IInvoke x keys actions' i
     | IExternMethodCall _ _ _ _ =>
       (** TODO do we need to eliminate tuples in extern arguments? *)
-      Some c
+      Ok c
     end.
 
   (** TODO: Compiler pass to convert int<> -> bit<> *)
@@ -503,17 +527,17 @@ Module Inline.
   Print zip.
   (** TODO: Compiler pass to elaborate headers *)
   Search (string -> string -> bool).
-  Fixpoint elaborate_headers (c : Inline.t) : option Inline.t :=
+  Fixpoint elaborate_headers (c : Inline.t) : @result Inline.t :=
     match c with
-    | ISkip _ => Some c
+    | ISkip _ => Ok c
     | IVardecl type s i =>
       (** TODO elaborate header if type = THeader *)
       match type with
       | E.THeader fields =>
         let vars := header_fields s fields in
         let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
-        Some elabd_hdr_decls
-      | _ => Some c
+        Ok elabd_hdr_decls
+      | _ => Ok c
       end
     | IAssign type lhs rhs i =>
       match type with
@@ -527,18 +551,19 @@ Module Inline.
           fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
         | E.EVar _ l il, E.EHeader explicit_fields valid i =>
           let lvars := header_fields l fields in
-          let assign_fields := fun '(lvar, ltyp) acc_opt =>
-               let* acc := acc_opt in
-               let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
-               ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+          let assign_fields := fun '(lvar, ltyp) acc_res =>
+               let* acc := acc_res in
+               let*~ (_, rval) := F.find_value (eqb lvar) explicit_fields else "couldn't find field in field list" in
+               Ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i)
           in
           fold_right assign_fields
-                     (Some (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
+                     (Ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
                      lvars
 
-        | _, _ => None
+        | _, _ =>
+          Error "Can only copy variables or header literals type header"
         end
-      | _ => Some c
+      | _ => Ok c
       end
 
     | IConditional guard_type guard tru fls i =>
@@ -554,16 +579,16 @@ Module Inline.
     | IBlock b =>
       let** b' := elaborate_headers b in
       IBlock b'
-    | IReturnVoid _ => Some c
-    | IReturnFruit _ _ _ => Some c
-    | IExit _ => Some c
+    | IReturnVoid _ => Ok c
+    | IReturnFruit _ _ _ => Ok c
+    | IExit _ => Ok c
     | IInvoke x keys actions i =>
       let opt_actions := map_snd elaborate_headers actions in
-      let** actions' := ored (map opt_snd opt_actions) in
+      let** actions' := rred (map res_snd opt_actions) in
       IInvoke x keys actions' i
     | IExternMethodCall _ _ _ _ =>
       (* TODO Do we need to eliminate tuples in arguments? *)
-      Some c
+      Ok c
     end.
 
 
@@ -575,15 +600,15 @@ Module Inline.
 
   Search (nat -> string).
   (** TODO: Compiler pass to elaborate header stacks *)
-  Fixpoint elaborate_header_stacks (c : Inline.t) : option Inline.t :=
+  Fixpoint elaborate_header_stacks (c : Inline.t) : @result Inline.t :=
     match c with
-    | ISkip _ => Some c
+    | ISkip _ => Ok c
     | IVardecl type x i =>
       match type with
       | E.THeaderStack fields size =>
-        Some (ifold (BinPos.Pos.to_nat size)
+        Ok (ifold (BinPos.Pos.to_nat size)
                     (fun n acc => ISeq (IVardecl (E.THeader fields) (x ++ "[" ++ string_of_nat n ++ "]") i) acc i) (ISkip i))
-      | _ => Some c
+      | _ => Ok c
       end
     | IAssign type lhs rhs i =>
       match type with
@@ -600,9 +625,9 @@ Module Inline.
           fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
         | _, _ =>
           (* Don't know how to translate anything but variables *)
-          None
+          Error "Tried to elaborate a header stack assignment that wasn't variables"
         end
-      | _ => Some c
+      | _ => Ok c
       end
     | IConditional gtyp guard tru fls i =>
       (* TODO Eliminate header stack literals from expressions *)
@@ -619,9 +644,9 @@ Module Inline.
       let** c' := elaborate_header_stacks c in
       IBlock c'
 
-    | IReturnVoid _ => Some c
-    | IReturnFruit _ _ _ => Some c
-    | IExit _ => Some c
+    | IReturnVoid _ => Ok c
+    | IReturnFruit _ _ _ => Ok c
+    | IExit _ => Ok c
     | IInvoke x keys actions i =>
       (* TODO: Do something with keys? *)
       let rec_act_call := fun '(nm, act) acc_opt =>
@@ -629,27 +654,27 @@ Module Inline.
           let** act' := elaborate_header_stacks act in
           (nm, act') :: acc
       in
-      let** actions' := fold_right rec_act_call (Some []) actions in
+      let** actions' := fold_right rec_act_call (Ok []) actions in
       IInvoke x keys actions' i
     | IExternMethodCall _ _ _ _ =>
       (* TODO: Do something with arguments? *)
-      Some c
+      Ok c
     end.
 
   Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
     F.fold (fun f typ acc => (s ++ "__s__" ++ f, typ) :: acc ) fields [].
 
   (** TODO: Compiler pass to elaborate structs *)
-  Fixpoint elaborate_structs (c : Inline.t) : option Inline.t :=
+  Fixpoint elaborate_structs (c : Inline.t) : @result Inline.t :=
     match c with
-    | ISkip _ => Some c
+    | ISkip _ => Ok c
     | IVardecl type s i =>
       match type with
       | E.TStruct fields =>
         let vars := struct_fields s fields in
         let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
-        Some elabd_hdr_decls
-      | _ => Some c
+        Ok elabd_hdr_decls
+      | _ => Ok c
       end
     | IAssign type lhs rhs i =>
       match type with
@@ -665,16 +690,17 @@ Module Inline.
           let lvars := struct_fields l fields in
           let assign_fields := fun '(lvar, ltyp) acc_opt =>
                let* acc := acc_opt in
-               let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
-               ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+               let*~ (_, rval) := F.find_value (eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
+               Ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i)
           in
           fold_right assign_fields
-                     (Some (ISkip i))
+                     (Ok (ISkip i))
                      lvars
 
-        | _, _ => None
+        | _, _ =>
+          Error "Can only elaborate struct assignments of the form var := {var | struct literal}"
         end
-      | _ => Some c
+      | _ => Ok c
       end
 
     | IConditional guard_type guard tru fls i =>
@@ -690,16 +716,16 @@ Module Inline.
     | IBlock b =>
       let** b' := elaborate_headers b in
       IBlock b'
-    | IReturnVoid _ => Some c
-    | IReturnFruit _ _ _ => Some c
-    | IExit _ => Some c
+    | IReturnVoid _ => Ok c
+    | IReturnFruit _ _ _ => Ok c
+    | IExit _ => Ok c
     | IInvoke x keys actions i =>
       let opt_actions := map_snd elaborate_structs actions in
-      let** actions' := ored (map opt_snd opt_actions) in
+      let** actions' := rred (map res_snd opt_actions) in
       IInvoke x keys actions' i
     | IExternMethodCall _ _ _ _ =>
       (* TODO Do we need to eliminate tuples in arguments? *)
-      Some c
+      Ok c
     end.
 End Inline.
 
@@ -760,26 +786,13 @@ Module GCL.
     GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.Not E.TBool guard i)) fls).
 
 
-  (* Definition seq {lvalue rvalue : Type} (i : tags_t) (res1 res2 : (target * Ctx.t)) : target * Ctx.t := *)
-  (*   let (g1, ctx1) := res1 in *)
-  (*   let (g2, ctx2) := res2 in *)
-  (*   let g2' := *)
-  (*       if Ctx.may_have_returned ctx1 *)
-  (*       then (iteb (Ctx.retvar ctx1 i) (GSkip i) g2 i) *)
-  (*       else g2 in *)
-  (*   let g2'' := *)
-  (*       if Ctx.may_have_exited ctx1 *)
-  (*       then (iteb (exit i) (GSkip i) g2 i) *)
-  (*       else g2' in *)
-  (*   (GSeq g1 g2'', ctx2). *)
-
   Module Arch.
     Definition extern : Type := Env.t string (@t string BitVec.t form).
     Definition model : Type := Env.t string extern.
-    Definition find (m : model) (e f : string) : option t :=
-      let* ext := Env.find e m in
-      let** fn := Env.find f ext in
-      fn.
+    Definition find (m : model) (e f : string) : @result t :=
+      let*~ ext := Env.find e m else "couldn't find extern in model" in
+      let*~ fn := Env.find f ext else "couldn't find field in extern" in
+      Ok fn.
     Definition empty : model := Env.empty string extern.
   End Arch.
 
@@ -847,72 +860,64 @@ Module GCL.
       then "-" ++ string_of_nat (BinInt.Z.abs_nat x)
       else string_of_nat (BinInt.Z.abs_nat x).
 
-    Fixpoint to_lvalue (e : E.e tags_t) : option string :=
+    Fixpoint to_lvalue (e : E.e tags_t) : @result string :=
       match e with
-      | E.EBool _ _ => None
-      | E.EBit _ _ _ => None
-      | E.EInt _ _ _ => None
-      | E.EVar t x i => Some x
+      | E.EBool _ _ => Error "Boolean Literals are not lvalues"
+      | E.EBit _ _ _ => Error "BitVector Literals are not lvalues"
+      | E.EInt _ _ _ => Error "Integer literals are not lvalues"
+      | E.EVar t x i => Ok x
       | E.ESlice e τ hi lo pos =>
         (* TODO :: Allow assignment to slices *)
-        None
-      | E.ECast _ _ _ => None
-      | E.EUop _ _ _ _ => None
-      | E.EBop _ _ _ _ _ _ => None
-      | E.ETuple _ _ => None
-      | E.EStruct _ _ => None
-      | E.EHeader _ _ _ => None
+        Error "[FIXME] Slices are not l-values "
+      | E.ECast _ _ _ => Error "Casts are not l-values"
+      | E.EUop _ _ _ _ => Error "Unary Operations are not l-values"
+      | E.EBop _ _ _ _ _ _ => Error "Binary Operations are not l-values"
+      | E.ETuple _ _ => Error "Explicit Tuples are not l-values"
+      | E.EStruct _ _ => Error "Explicit Structs are not l-values"
+      | E.EHeader _ _ _ => Error "Explicit Headers are not l-values"
       | E.EExprMember mem expr_type arg i =>
         let** lv := to_lvalue arg in
         lv ++ "." ++ mem
-      | E.EError _ _ => None
-      | E.EMatchKind _ _ => None
-      | E.EHeaderStack _ _ _ _ _ => None
+      | E.EError _ _ => Error "Errors are not l-values"
+      | E.EMatchKind _ _ => Error "Match Kinds are not l-values"
+      | E.EHeaderStack _ _ _ _ _ => Error "Header Stacks are not l-values"
       | E.EHeaderStackAccess stack index i =>
         let** lv := to_lvalue stack in
         (** TODO How to handle negative indices? **)
         lv ++ "["++ (string_of_z index) ++ "]"
       end.
 
-    Definition width_of_type (t : E.t) : option positive :=
+    Definition width_of_type (t : E.t) : @result positive :=
       match t with
-      | E.TBool => Some (pos 1)
-      | E.TBit w => Some w
-      | E.TInt w =>
-        (** TODO handle ints *)
-        None
-      | E.TError => None
-      | E.TMatchKind => None
-      | E.TTuple types =>
-        (** TODO enumerate Tuple*)
-        None
-      | E.TStruct fields =>
-        (** TODO enumerate fields *)
-        None
-      | E.THeader fields =>
-        None
-      | E.THeaderStack fields size =>
-        None
+      | E.TBool => Ok (pos 1)
+      | E.TBit w => Ok w
+      | E.TInt w => Ok w
+      | E.TError => Error "Cannot get the width of an Error Type"
+      | E.TMatchKind => Error "Cannot get the width of a Match Kind Type"
+      | E.TTuple types => Error "Cannot get the width of a Tuple Type"
+      | E.TStruct fields => Error "Cannot get the width of a Struct Type"
+      | E.THeader fields => Error "Cannot get the width of a Header Type"
+      | E.THeaderStack fields size => Error "Cannot get the width of a header stack type"
       end.
 
-    Definition get_header_of_stack (stack : E.e tags_t) : option E.t :=
+    Definition get_header_of_stack (stack : E.e tags_t) : @result E.t :=
       match stack with
       | E.EHeaderStack fields headers size next_index i =>
-        Some (E.THeader fields)
-      | _ => None
+        Ok (E.THeader fields)
+      | _ => Error "Tried to get the base header of something other than a header stack."
       end.
 
-    Fixpoint to_rvalue (e : (E.e tags_t)) : option BitVec.t :=
+    Fixpoint to_rvalue (e : (E.e tags_t)) : @result BitVec.t :=
       match e with
       | E.EBool b i =>
         if b
-        then Some (BitVec.BitVec (pos 1) (pos 1) i)
-        else Some (BitVec.BitVec (pos 0) (pos 1) i)
+        then Ok (BitVec.BitVec (pos 1) (pos 1) i)
+        else Ok (BitVec.BitVec (pos 0) (pos 1) i)
       | E.EBit w v i =>
-        Some (BitVec.BitVec (BinInt.Z.to_pos v) w i)
+        Ok (BitVec.BitVec (BinInt.Z.to_pos v) w i)
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
-        None
+        Error "[FIXME] Cannot translate signed ints to rvalues"
       | E.EVar t x i =>
         let** w := width_of_type t in
         BitVec.BVVar x w i
@@ -923,139 +928,136 @@ Module GCL.
 
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => Some (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) in
+        let cast := fun w => Ok (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) in
         match type with
         | E.TBool => cast (pos 1)
         | E.TBit w => cast w
-        | E.TInt w => None (** TODO handle ints *)
+        | E.TInt w => Error "[FIXME] Signed Integers are unimplemented "
         | _ =>
-          (* All other casts are illegal *)
-          None
+          Error "Illegal cast, should've been caught by the type-checker"
         end
       | E.EUop op type arg i =>
         let* rv_arg := to_rvalue arg in
         match op with
-        | E.Not => Some (BitVec.UnOp BitVec.BVNeg rv_arg i)
-        | E.BitNot => Some (BitVec.UnOp BitVec.BVNeg rv_arg i)
-        | E.UMinus => (* TODO handle integers *) None
+        | E.Not => Ok (BitVec.UnOp BitVec.BVNeg rv_arg i)
+        | E.BitNot => Ok (BitVec.UnOp BitVec.BVNeg rv_arg i)
+        | E.UMinus => Error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
           let** header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
           BitVec.BVVar hvld (pos 1) i
-        | E.SetValid => (* TODO @Rudy isn't this a command? *) None
-        | E.SetInValid => (* TODO @Rudy -- ditto *) None
-        | E.NextIndex => (* TODO Stacks *) None
-        | E.Size =>  (* TODO stacks *) None
-        | E.Push n => (* TODO stacks *) None
-        | E.Pop n => (* TODO stacks *) None
+        | E.SetValid => (* TODO @Rudy isn't this a command? *)
+          Error "SetValid as an expression is deprecated"
+        | E.SetInValid =>
+          Error "SetInValid as an expression is deprecated"
+        | E.NextIndex =>
+          Error "[FIXME] NextIndex for Header Stacks is unimplemented"
+        | E.Size =>
+          Error "[FIXME] Size for Header Stacks is unimplmented"
+        | E.Push n =>
+          Error "Push as an expression is deprecated"
+        | E.Pop n =>
+          Error "Pop as an expression is deprecated"
         end
       | E.EBop op ltyp rtyp lhs rhs i =>
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
-        let bin := fun o => Some (BitVec.BinOp o l r i) in
+        let bin := fun o => Ok (BitVec.BinOp o l r i) in
         match op with
         | E.Plus => bin BitVec.BVPlus
-        | E.PlusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.PlusSat => Error "[FIXME] Saturating Arithmetic is unimplemented"
         | E.Minus => bin BitVec.BVMinus
-        | E.MinusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.MinusSat => Error "[FIXME] Saturating Arithmetic is unimplemented"
         | E.Times => bin BitVec.BVTimes
         | E.Shl => bin BitVec.BVShl
         | E.Shr => bin BitVec.BVShr
-        | E.Le => None
-        | E.Ge => None
-        | E.Lt => None
-        | E.Gt => None
-        | E.Eq => None
-        | E.NotEq => None
+        | E.Le => Error "TypeError: (<=) is a boolean, expected BV expression"
+        | E.Ge => Error "TypeError: (>=) is a boolean, expected BV expression"
+        | E.Lt => Error "TypeError: (<) is a boolean, expected BV expression"
+        | E.Gt => Error "TypeError: (>) is a boolean, expected BV expression"
+        | E.Eq => Error "TypeError: (=) is a boolean, expected BV expression"
+        | E.NotEq => Error "TypeError: (!=) is a boolean, expected BV expression"
         | E.BitAnd => bin BitVec.BVAnd
         | E.BitXor => bin BitVec.BVXor
         | E.BitOr => bin BitVec.BVOr
         | E.PlusPlus => bin BitVec.BVConcat
-        | E.And => None
-        | E.Or => None
+        | E.And => Error "TypeError: (&&) is a boolean, expected BV expression"
+        | E.Or => Error "TypeError: (||) is a boolean, expected BV expression"
         end
       | E.ETuple _ _ =>
-        (** Should be impossible *)
-        None
+        Error "Tuples in the rvalue position should have been factored out by previous passes"
       | E.EStruct _ _ =>
-        (** TODO: COmpiler Pass to factor out structs *)
-        None
+        Error "Structs in the rvalue position should have been factored out by previous passes"
       | E.EHeader _ _ _ =>
-        (* Should never have a header at this stage *)
-        None
+        Error "Header in the rvalue positon should have been factored out by previous passes"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let** w := width_of_type expr_type in
         BitVec.BVVar lv w i
-      | E.EError _ _ => None
-      | E.EMatchKind _ _ => None
+      | E.EError _ _ => Error "Errors are not rvalues."
+      | E.EMatchKind _ _ => Error "MatchKinds are not rvalues"
       | E.EHeaderStack _ _ _ _ _ =>
-        (** TODO: Compiler pass to Factor Out Header Stacks*)
-        None
+        Error "Header stacks in the rvalue position should have been factored out by previous passes"
       | E.EHeaderStackAccess stack index i =>
-        (** Should be gone here *)
-        None
+        Error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
     Definition isone (v : BitVec.t) (i :tags_t) : form :=
       LComp LEq v (BitVec.BitVec (pos 1) (pos 1) i) i.
 
-    Fixpoint to_form (e : (E.e tags_t)) : option form :=
+    Print form.
+    Fixpoint to_form (e : (E.e tags_t)) : @result form :=
       match e with
-      | E.EBool b i => Some (LBool b i)
-      | E.EBit w v i => None
-      | E.EInt _ _ _ => None
+      | E.EBool b i => Ok (LBool b i)
+      | E.EBit _ _ _ =>
+        Error "TypeError: Bitvector literals are not booleans (perhaps you want to insert a cast?)"
+      | E.EInt _ _ _ =>
+        Error "TypeError: Signed Ints are not booleans (perhaps you want to insert a cast?)"
       | E.EVar t x i =>
-        let* w := width_of_type t in
-        if BinPos.Pos.eqb w (pos 1)
-        then Some (isone (BitVec.BVVar x w i) i)
-        else None
+        match t with
+        | E.TBool => Ok (LVar x i)
+        | _ =>
+          Error "TypeError: Expected a Boolean form, got something else (perhaps you want to insert a cast?)"
+        end
 
       | E.ESlice e τ hi lo i =>
-        let* rv_e := to_rvalue e in
-        if BinPos.Pos.eqb (BinPos.Pos.sub hi lo) (pos 1)
-        then Some (isone (BitVec.UnOp (BitVec.BVSlice hi lo) rv_e i) i)
-        else None
+        Error "TypeError: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => Some (isone (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) i) in
+        let cast := fun w => Ok (isone (BitVec.UnOp (BitVec.BVCast w) rvalue_arg i) i) in
         match type with
         | E.TBool => cast (pos 1)
         | E.TBit w => cast w
-        | E.TInt w => None (** TODO handle ints *)
+        | E.TInt w => Error "[FIXME] Handle Signed Integers"
         | _ =>
-          (* All other casts are illegal *)
-          None
+          Error "Invalid Cast"
         end
       | E.EUop op type arg i =>
         let* rv_arg := to_rvalue arg in
-        let* w := width_of_type type in
-        if negb (BinPos.Pos.eqb w (pos 1))
-        then None
-        else match op with
-             | E.Not => Some (isone (BitVec.UnOp BitVec.BVNeg rv_arg i) i)
-             | E.BitNot => Some (isone (BitVec.UnOp BitVec.BVNeg rv_arg i) i)
-             | E.UMinus => (* TODO handle integers *) None
-             | E.IsValid =>
-               let** header := to_lvalue arg in
-               let hvld := header ++ ".is_valid" in
-               isone (BitVec.BVVar hvld (pos 1) i) i
-             | E.SetValid => (* TODO @Rudy isn't this a command? *) None
-             | E.SetInValid => (* TODO @Rudy -- ditto *) None
-             | E.NextIndex => (* TODO Stacks *) None
-             | E.Size =>  (* TODO stacks *) None
-             | E.Push n => (* TODO stacks *) None
-             | E.Pop n => (* TODO stacks *) None
-             end
+        match op with
+        | E.Not => Ok (isone (BitVec.UnOp BitVec.BVNeg rv_arg i) i)
+        | E.BitNot => Error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
+        | E.UMinus => Error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
+        | E.IsValid =>
+          let** header := to_lvalue arg in
+          let hvld := header ++ ".is_valid" in
+          isone (BitVec.BVVar hvld (pos 1) i) i
+        | E.SetValid =>
+          Error "SetValid is deprecated as an expression"
+        | E.SetInValid =>
+          Error "SetInValid is deprecated as an expression"
+        | E.NextIndex =>
+          Error "[FIXME] Next Index for stacks is unimplemented"
+        | E.Size =>
+          Error "[FIXME] Size for stacks is unimplemented"
+        | E.Push n =>
+          Error "Push is deprecated as an expression"
+        | E.Pop n =>
+          Error "Pop is deprecated as an expression"
+        end
       | E.EBop op ltyp rtyp lhs rhs i =>
-        let bbin := fun o => let* l := to_rvalue lhs in
-                             let* r := to_rvalue rhs in
-                             let* lw := width_of_type ltyp in
-                             let* rw := width_of_type rtyp in
-                             if BinPos.Pos.eqb lw (pos 1) && BinPos.Pos.eqb rw (pos 1)
-                             then Some (isone (BitVec.BinOp o l r i) i)
-                             else None in
+        let bbin := fun _ => Error "BitVector operators are not booleans (perhaps you want to insert a cast?)" in
         let lbin := fun o => let* l := to_form lhs in
                              let** r := to_form rhs in
                              LBop o l r i in
@@ -1064,9 +1066,9 @@ Module GCL.
                              LComp c l r i in
         match op with
         | E.Plus => bbin BitVec.BVPlus
-        | E.PlusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.PlusSat => Error "[FIXME] Saturating Arithmetic is unimplemented"
         | E.Minus => bbin BitVec.BVMinus
-        | E.MinusSat => None (** TODO : Compiler pass to implement SatArith *)
+        | E.MinusSat => Error "[FIXME] Saturating Arithmetic is unimplemented"
         | E.Times => bbin BitVec.BVTimes
         | E.Shl => bbin BitVec.BVShl
         | E.Shr => bbin BitVec.BVShr
@@ -1079,44 +1081,44 @@ Module GCL.
         | E.BitAnd => bbin BitVec.BVAnd
         | E.BitXor => bbin BitVec.BVXor
         | E.BitOr => bbin BitVec.BVOr
-        | E.PlusPlus => None
+        | E.PlusPlus => Error "BitVector operators are not booleans (perhaps you want to insert a cast?)"
         | E.And => lbin LAnd
         | E.Or => lbin LOr
         end
       | E.ETuple _ _ =>
-        (** Should never happen *)
-        None
+        Error "Tuples are not formulae"
       | E.EStruct _ _ =>
-        (** TODO: COmpiler Pass to factor out Tuples *)
-        None
+        Error "Structs are not formulae"
       | E.EHeader _ _ _ =>
-        (** Headers Shouldn't exist here *)
-        None
+        Error "Headers are not formulae"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let** w := width_of_type expr_type in
         isone (BitVec.BVVar lv w i) i
-      | E.EError _ _ => None
-      | E.EMatchKind _ _ => None
+      | E.EError _ _ =>
+        Error "Errors are not formulae"
+      | E.EMatchKind _ _ =>
+        Error "Matchkinds are not formulae"
       | E.EHeaderStack _ _ _ _ _ =>
-        None
+        Error "HeaderStacks are not formulae"
       | E.EHeaderStackAccess stack index i =>
-        None
+        Error "Headers (from header stack accesses) are not formulae"
       end.
 
-    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * Ctx.t)) : option (target * Ctx.t) :=
+    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * Ctx.t)) : @result (target * Ctx.t) :=
       let (tg, tctx) := tres in
       let (fg, fctx) := fres in
       let* ctx := Ctx.join tctx fctx in
       let* phi := to_form guard in
-      Some (iteb phi tg fg i, ctx).
+      Ok (iteb phi tg fg i, ctx).
 
-    Fixpoint inline_to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : I.t) : option (target * Ctx.t) :=
+    Fixpoint inline_to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : I.t) : @result (target * Ctx.t) :=
       match s with
-      | I.ISkip i => Some (GSkip i, ctx)
+      | I.ISkip i =>
+        Ok (GSkip i, ctx)
 
       | I.IVardecl typ x i =>
-        Some (GSkip i, Ctx.add_to_scope ctx x)
+        Ok (GSkip i, Ctx.add_to_scope ctx x)
 
       | I.IAssign type lhs rhs i =>
         let* lhs' := to_lvalue (scopify ctx lhs) in
@@ -1131,8 +1133,8 @@ Module GCL.
 
       | I.ISeq s1 s2 i =>
         let* g1 := inline_to_gcl ctx arch s1 in
-        let* g2 := inline_to_gcl ctx arch s2 in
-        Some (seq i g1 g2)
+        let** g2 := inline_to_gcl ctx arch s2 in
+        seq i g1 g2
 
       | I.IBlock s =>
         let* (gcl, ctx') := inline_to_gcl (Ctx.incr ctx) arch s in
@@ -1141,14 +1143,14 @@ Module GCL.
 
       | I.IReturnVoid i =>
         let gasn := @GAssign string BitVec.t form in
-        Some (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BitVec.BitVec (pos 1) (pos 1) i) i, ctx)
+        Ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BitVec.BitVec (pos 1) (pos 1) i) i, ctx)
 
       | I.IReturnFruit typ expr i =>
         (** TODO create var for return type & save it *)
-        Some (GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BitVec.BitVec (pos 1) (pos 1) i) i, ctx)
+        Ok (GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BitVec.BitVec (pos 1) (pos 1) i) i, ctx)
 
       | I.IExit i =>
-        Some (GAssign (E.TBit (pos 1)) "exit" (BitVec.BitVec (pos 1) (pos 1) i) i, Ctx.update_exit ctx true)
+        Ok (GAssign (E.TBit (pos 1)) "exit" (BitVec.BitVec (pos 1) (pos 1) i) i, Ctx.update_exit ctx true)
 
       | I.IInvoke tbl keys actions i =>
         let** actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
@@ -1161,10 +1163,7 @@ Module GCL.
         (g, ctx)
       end.
 
-    Print cienv.
-    Print Inline.elaborate_headers.
-
-    Definition p4cub_statement_to_gcl (gas : nat) (arch : Arch.model) (s : ST.s tags_t) : option target :=
+    Definition p4cub_statement_to_gcl (gas : nat) (arch : Arch.model) (s : ST.s tags_t) : @result target :=
       let* inline_stmt := Inline.inline gas s in
       let* no_tup := Inline.elim_tuple inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks no_tup in

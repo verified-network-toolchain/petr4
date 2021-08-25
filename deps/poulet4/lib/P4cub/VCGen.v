@@ -362,7 +362,7 @@ Module Inline.
                                end)
            args (Env.empty EquivUtil.string (E.e tags_t)).
 
-  Fixpoint inline_inner (n : nat)
+  Fixpoint inline (n : nat)
            (cienv : @cienv tags_t)
            (aenv : @aenv tags_t)
            (tenv : @tenv tags_t)
@@ -383,17 +383,17 @@ Module Inline.
         Ok (IAssign type lhs rhs i)
 
       | ST.SConditional gtyp guard tru_blk fls_blk i =>
-        let* tru_blk' := inline_inner n0 cienv aenv tenv fenv tru_blk in
-        let** fls_blk' := inline_inner n0 cienv aenv tenv fenv fls_blk in
+        let* tru_blk' := inline n0 cienv aenv tenv fenv tru_blk in
+        let** fls_blk' := inline n0 cienv aenv tenv fenv fls_blk in
         IConditional gtyp guard tru_blk' fls_blk' i
 
       | ST.SSeq s1 s2 i =>
-        let* i1 := inline_inner n0 cienv aenv tenv fenv s1 in
-        let** i2 := inline_inner n0 cienv aenv tenv fenv s2 in
+        let* i1 := inline n0 cienv aenv tenv fenv s1 in
+        let** i2 := inline n0 cienv aenv tenv fenv s2 in
         ISeq i1 i2 i
 
       | ST.SBlock s =>
-        let** blk := inline_inner n0 cienv aenv tenv fenv s in
+        let** blk := inline n0 cienv aenv tenv fenv s in
         IBlock blk
 
       | ST.SFunCall f (P.Arrow args ret) i =>
@@ -401,16 +401,16 @@ Module Inline.
         match fdecl with
         | FDecl ε fenv' body =>
           (** TODO check copy-in/copy-out *)
-          let** rslt := inline_inner n0 cienv aenv tenv fenv' body in
+          let** rslt := inline n0 cienv aenv tenv fenv' body in
           let η := copy args in
           IBlock rslt
         end
       | ST.SActCall a args i =>
-        let*~ adecl := Env.find a aenv else "could not find action in environment" in
+        let*~ adecl := Env.find a aenv else ("could not find action " ++ a ++ " in environment") in
         match adecl with
         | ADecl ε fenv' aenv' externs body =>
           (** TODO handle copy-in/copy-out *)
-          let** rslt := inline_inner n0 cienv aenv' tenv fenv' body in
+          let** rslt := inline n0 cienv aenv' tenv fenv' body in
           let η := copy args in
           IBlock (fst (subst_t η rslt))
         end
@@ -418,7 +418,7 @@ Module Inline.
         let*~ cinst := Env.find ci cienv else "could not find controller instance in environment" in
         match cinst with
         | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-          let** rslt := inline_inner n0 cienv' aenv' tenv' fenv' apply_blk in
+          let** rslt := inline n0 cienv' aenv' tenv' fenv' apply_blk in
           (** TODO check copy-in/copy-out *)
           let η := copy args in
           IBlock (fst (subst_t η rslt))
@@ -438,11 +438,11 @@ Module Inline.
         match tdecl with
         | CD.Table keys actions =>
           let act_to_gcl := fun a =>
-            let*~ adecl := Env.find a aenv else "could not find action in environment" in
+            let*~ adecl := Env.find a aenv else "could not find action " ++ a ++ " in environment" in
             match adecl with
             | ADecl _ fenv' aenv' externs body =>
               (** TODO handle copy-in/copy-out *)
-              inline_inner n0 cienv aenv tenv fenv body
+              inline n0 cienv aenv tenv fenv body
             end
           in
           let* acts := rred (map act_to_gcl actions) in
@@ -454,15 +454,6 @@ Module Inline.
         Ok (IExternMethodCall ext method args i)
       end
     end.
-
-  Definition inline (gas : nat) (s : ST.s tags_t) : @result t :=
-    inline_inner gas
-                 (Env.empty EquivUtil.string cinst)
-                 (Env.empty EquivUtil.string adecl)
-                 (Env.empty EquivUtil.string (CD.table tags_t))
-                 (Env.empty EquivUtil.string fdecl)
-                 s
-  .
 
   Definition seq_tuple_elem_assign
              (tuple_name : string)
@@ -790,8 +781,8 @@ Module GCL.
     Definition extern : Type := Env.t string (@t string BitVec.t form).
     Definition model : Type := Env.t string extern.
     Definition find (m : model) (e f : string) : @result t :=
-      let*~ ext := Env.find e m else "couldn't find extern in model" in
-      let*~ fn := Env.find f ext else "couldn't find field in extern" in
+      let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
+      let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
       Ok fn.
     Definition empty : model := Env.empty string extern.
   End Arch.
@@ -1163,8 +1154,13 @@ Module GCL.
         (g, ctx)
       end.
 
-    Definition p4cub_statement_to_gcl (gas : nat) (arch : Arch.model) (s : ST.s tags_t) : @result target :=
-      let* inline_stmt := Inline.inline gas s in
+    Definition p4cub_statement_to_gcl (gas : nat)
+               (cienv : @cienv tags_t)
+               (aenv : @aenv tags_t)
+               (tenv : @tenv tags_t)
+               (fenv : fenv)
+               (arch : Arch.model) (s : ST.s tags_t) : @result target :=
+      let* inline_stmt := Inline.inline gas cienv aenv tenv fenv s in
       let* no_tup := Inline.elim_tuple inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks no_tup in
       let* no_hdr := Inline.elaborate_headers no_stk in
@@ -1180,6 +1176,15 @@ Module GCL.
     Variable d : tags_t.
 
     Definition bit (n : nat) : E.t := E.TBit (pos 4).
+    Print fold_right.
+    Definition s_sequence (ss : list (ST.s tags_t)) : ST.s tags_t :=
+      fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
+
+    Definition ethernet_type :=
+      E.THeader ([("dstAddr", bit 48);
+                 ("srcAddr", bit 48);
+                 ("etherType", bit 16)
+                ]).
 
     Definition ipv4_type :=
       E.THeader ([("version", bit 4);
@@ -1209,9 +1214,36 @@ Module GCL.
                 ("if_index", bit 8)
                 ].
 
-    Print Z.
+    Definition tcp_type :=
+      E.THeader [("srcPort", bit 16);
+                ("dstPort", bit 16);
+                ("seqNo", bit 32);
+                ("ackNo", bit 32);
+                ("dataOffset", bit 4);
+                ("res", bit 4);
+                ("flags", bit 8);
+                ("window", bit 16);
+                ("checksum", bit 16);
+                ("urgentPtr", bit 16)].
 
-    Print Translate.p4cub_statement_to_gcl.
+    Definition std_meta_type :=
+      E.THeader [("ingress_port", bit 9);
+                ("egress_spec", bit 9);
+                ("egress_port", bit 9);
+                ("instance_type", bit 32);
+                ("packet_length", bit 32);
+                ("enq_timestamp", bit 32);
+                ("enq_qdepth", bit 19);
+                ("deq_timedelta", bit 32);
+                ("deq_qdepth", bit 32);
+                ("ingress_global_timestamp", bit 48);
+                ("egress_global_timestamp", bit 48);
+                ("mcast_grp", bit 16);
+                ("egress_rid", bit 16);
+                ("checksum_error", bit 1);
+                ("parser_error", E.TError);
+                ("priority", bit 3)].
+
     Definition simple_nat_ingress : (ST.s tags_t) :=
       let fwd :=
           E.EBop (E.Eq) (bit 1) (bit 1)
@@ -1233,11 +1265,128 @@ Module GCL.
                        d)
               d.
 
+    Locate P4cub.Control.
+
+    Definition meta (s : string) :=
+      E.EExprMember s meta_type (E.EVar meta_type "meta" d) d.
+
+    Definition std_meta (s : string) :=
+      E.EExprMember s std_meta_type (E.EVar std_meta_type "standard_metadata" d) d.
+
+    Definition ethernet (s : string) :=
+      E.EExprMember s ethernet_type (E.EVar ethernet_type "ethernet" d) d.
+
+    Definition ipv4 (s : string) :=
+      E.EExprMember s ipv4_type (E.EVar ipv4_type "ipv4" d) d.
+
+    Definition tcp (s : string) :=
+      E.EExprMember s tcp_type (E.EVar tcp_type "tcp" d) d.
+
+
+    Definition valid (s : string) (t : E.t) :=
+      E.EUop E.IsValid E.TBool (E.EVar t s d) d.
+
+    Definition ingress_table_env :=
+      [("if_info",
+        CD.Table ([(bit 8, meta "if_index", E.MKExact)])
+                 (["_drop"; "set_if_info"])
+       );
+      ("nat",
+       CD.Table ([(bit 1, meta "is_ext_if", E.MKExact);
+                 (bit 1, valid "ipv4" ipv4_type, E.MKExact);
+                 (bit 1, valid "tcp" tcp_type, E.MKExact);
+                 (bit 32, ipv4 "srcAddr", E.MKTernary);
+                 (bit 32, ipv4 "dstAddr", E.MKTernary);
+                 (bit 32, tcp "srcPort", E.MKTernary);
+                 (bit 32, tcp "dstPort", E.MKTernary)
+                ])
+                (["_drop";
+                 "nat_miss_ext_to_int";
+                 (* "nat_miss_int_to_ext"; requires generics *)
+                 "nat_hit_int_to_ext";
+                 "nat_hit_ext_to_int"
+                 (* "nat_no_nat" *)
+      ]));
+      ("ipv4_lpm",
+       CD.Table ([(bit 32, meta "ipv4_da", E.MKLpm)])
+                (["set_nhop"; "_drop"])
+      );
+      ("forward",
+       CD.Table ([(bit 32, meta "nhop_ipv4", E.MKExact)])
+                (["set_dmac"; "_drop"])
+      )
+      ].
+
+    Definition empty_adecl : ST.s tags_t -> adecl :=
+      ADecl (Env.empty string ValEnvUtil.V.v)
+            (Env.empty string fdecl)
+            (Env.empty string adecl)
+            (Env.empty string ARCH.P4Extern).
+
+    Locate PAInOut.
+    Definition mark_to_drop_args : E.arrowE tags_t :=
+      P.Arrow [("standard_metadata", P.PAInOut (std_meta_type, E.EVar std_meta_type "standard_metadata" d))] None.
+
+    Definition set_if_info :=
+      s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr") (E.EVar (bit 32) "ipv4_addr" d) d;
+                 ST.SAssign (bit 48) (meta "if_mac_addr") (E.EVar (bit 48) "mac_addr" d) d;
+                 ST.SAssign (bit 1) (meta "is_ext_if") (E.EVar (bit 48) "is_ext" d) d].
+
+    Definition nat_miss_ext_to_int :=
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) Z0 d) d;
+                 ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d].
+
+    Definition nat_hit_int_to_ext :=
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+                 ST.SAssign (bit 32) (meta "ipv4_sa") (E.EVar (bit 32) "srcAddr" d) d;
+                 ST.SAssign (bit 32) (meta "tcp_sp") (E.EVar (bit 32) "srcPort" d) d
+                 ]
+    .
+    Definition nat_hit_ext_to_int :=
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+                 ST.SAssign (bit 32) (meta "ipv4_da") (E.EVar (bit 32) "dstAddr" d) d;
+                 ST.SAssign (bit 32) (meta "tcp_dp") (E.EVar (bit 32) "dstPort" d) d
+                 ]
+    .
+    Definition set_dmac :=
+      ST.SAssign (bit 48) (ethernet "dstAddr") (E.EVar (bit 48) "dmac" d) d.
+
+    Definition set_nhop :=
+      s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4") (E.EVar (bit 32) "nhop_ipv4" d) d;
+                 ST.SAssign (bit 9) (std_meta "egress_spec") (E.EVar (bit 9) "port" d) d;
+                 ST.SAssign (bit 8) (ipv4 "ttl") (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl") (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
+                 ].
+
+    Definition ingress_action_env :=
+      [("_drop",
+        empty_adecl (ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d));
+      ("set_if_info", empty_adecl set_if_info);
+      ("nat_miss_ext_to_int", empty_adecl nat_miss_ext_to_int);
+      (* ("nat_miss_int_to_ext", empty_adecl nat_miss_int_to_ext); requires "generics" *)
+      ("nat_hit_int_to_ext", empty_adecl nat_hit_int_to_ext);
+      ("nat_hit_ext_to_int", empty_adecl nat_hit_ext_to_int);
+      ("set_dmac", empty_adecl set_dmac);
+      ("set_nhop", empty_adecl set_nhop)
+      ].
+
     Print GCL.GAssign.
     Print BitVec.BitVec.
     Definition instr (name : string) (i : tags_t) (_: list (E.t * E.e tags_t * E.matchkind)) ( _ : list (string * Translate.target)) : Translate.target :=
       GCL.GAssign (bit 1) name (BitVec.BitVec (pos 1) (pos 1) i) i.
 
-    Compute Translate.p4cub_statement_to_gcl instr 10 Arch.empty simple_nat_ingress.
+    Definition v1model : Arch.extern :=
+      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BitVec.BitVec (pos 1) (pos 1) d) d)].
+
+    Definition arch : Arch.model :=
+      [("v1model", v1model)].
+
+    Compute (Translate.p4cub_statement_to_gcl instr
+                                              10
+                                              (Env.empty string cinst)
+                                              ingress_action_env
+                                              ingress_table_env
+                                              (Env.empty string fdecl)
+                                              arch
+                                              simple_nat_ingress).
 
   End Tests.

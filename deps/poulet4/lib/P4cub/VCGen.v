@@ -302,10 +302,10 @@ Module Inline.
       (IAssign t (subst_e η lhs) (subst_e η lhs) i , η)
     | IConditional guard_type guard tru_blk fls_blk i =>
       (IConditional guard_type
-                   (subst_e η guard)
-                   (fst (subst_t η tru_blk))
-                   (fst (subst_t η fls_blk))
-                   i, η)
+                    (subst_e η guard)
+                    (fst (subst_t η tru_blk))
+                    (fst (subst_t η fls_blk))
+                    i, η)
     | ISeq s1 s2 i =>
       let (s1', η1) := subst_t η s1 in
       let (s2', η2) := subst_t η1 s2 in
@@ -339,97 +339,97 @@ Module Inline.
            args (Env.empty EquivUtil.string (E.e tags_t)).
 
   Fixpoint inline_inner (n : nat)
-             (cienv : @cienv tags_t)
-             (aenv : @aenv tags_t)
-             (tenv : @tenv tags_t)
-             (fenv : fenv)
-             (s : ST.s tags_t)
-             {struct n} : option t :=
-      match n with
-      | 0 => None
-      | S n0 =>
-        match s with
-        | ST.SSkip i =>
-          Some (ISkip i)
+           (cienv : @cienv tags_t)
+           (aenv : @aenv tags_t)
+           (tenv : @tenv tags_t)
+           (fenv : fenv)
+           (s : ST.s tags_t)
+           {struct n} : option t :=
+    match n with
+    | 0 => None
+    | S n0 =>
+      match s with
+      | ST.SSkip i =>
+        Some (ISkip i)
 
-        | ST.SVardecl typ x i =>
-          Some (IVardecl typ x i)
+      | ST.SVardecl typ x i =>
+        Some (IVardecl typ x i)
 
-        | ST.SAssign type lhs rhs i =>
-          Some (IAssign type lhs rhs i)
+      | ST.SAssign type lhs rhs i =>
+        Some (IAssign type lhs rhs i)
 
-        | ST.SConditional gtyp guard tru_blk fls_blk i =>
-          let* tru_blk' := inline_inner n0 cienv aenv tenv fenv tru_blk in
-          let** fls_blk' := inline_inner n0 cienv aenv tenv fenv fls_blk in
-          IConditional gtyp guard tru_blk' fls_blk' i
+      | ST.SConditional gtyp guard tru_blk fls_blk i =>
+        let* tru_blk' := inline_inner n0 cienv aenv tenv fenv tru_blk in
+        let** fls_blk' := inline_inner n0 cienv aenv tenv fenv fls_blk in
+        IConditional gtyp guard tru_blk' fls_blk' i
 
-        | ST.SSeq s1 s2 i =>
-          let* i1 := inline_inner n0 cienv aenv tenv fenv s1 in
-          let** i2 := inline_inner n0 cienv aenv tenv fenv s2 in
-          ISeq i1 i2 i
+      | ST.SSeq s1 s2 i =>
+        let* i1 := inline_inner n0 cienv aenv tenv fenv s1 in
+        let** i2 := inline_inner n0 cienv aenv tenv fenv s2 in
+        ISeq i1 i2 i
 
-        | ST.SBlock s =>
-          let** blk := inline_inner n0 cienv aenv tenv fenv s in
-          IBlock blk
+      | ST.SBlock s =>
+        let** blk := inline_inner n0 cienv aenv tenv fenv s in
+        IBlock blk
 
-        | ST.SFunCall f (P.Arrow args ret) i =>
-          let* fdecl := Env.find f fenv in
-          match fdecl with
-          | FDecl ε fenv' body =>
-            (** TODO check copy-in/copy-out *)
-            let** rslt := inline_inner n0 cienv aenv tenv fenv' body in
-            let η := copy args in
-            IBlock rslt
-          end
-        | ST.SActCall a args i =>
-          let* adecl := Env.find a aenv in
-          match adecl with
-          | ADecl ε fenv' aenv' externs body =>
-            (** TODO handle copy-in/copy-out *)
-            let** rslt := inline_inner n0 cienv aenv' tenv fenv' body in
-            let η := copy args in
-            IBlock (fst (subst_t η rslt))
-          end
-        | ST.SApply ci args i =>
-          let* cinst := Env.find ci cienv in
-          match cinst with
-          | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-            let** rslt := inline_inner n0 cienv' aenv' tenv' fenv' apply_blk in
-            (** TODO check copy-in/copy-out *)
-            let η := copy args in
-            IBlock (fst (subst_t η rslt))
-          end
-
-        | ST.SReturnVoid i =>
-          Some (IReturnVoid i)
-
-        | ST.SReturnFruit typ expr i =>
-          Some (IReturnFruit typ expr i)
-
-        | ST.SExit i =>
-          Some (IExit i)
-
-        | ST.SInvoke t i =>
-          let* tdecl := Env.find t tenv in
-          match tdecl with
-          | CD.Table keys actions =>
-            let act_to_gcl := fun a =>
-              let* adecl := Env.find a aenv in
-              match adecl with
-              | ADecl _ fenv' aenv' externs body =>
-                (** TODO handle copy-in/copy-out *)
-                inline_inner n0 cienv aenv tenv fenv body
-              end
-            in
-            let* acts := ored (map act_to_gcl actions) in
-            let** named_acts := zip actions acts in
-            IInvoke t keys named_acts i
-          end
-
-        | ST.SExternMethodCall ext method args i =>
-          Some(IExternMethodCall ext method args i)
+      | ST.SFunCall f (P.Arrow args ret) i =>
+        let* fdecl := Env.find f fenv in
+        match fdecl with
+        | FDecl ε fenv' body =>
+          (** TODO check copy-in/copy-out *)
+          let** rslt := inline_inner n0 cienv aenv tenv fenv' body in
+          let η := copy args in
+          IBlock rslt
         end
-      end.
+      | ST.SActCall a args i =>
+        let* adecl := Env.find a aenv in
+        match adecl with
+        | ADecl ε fenv' aenv' externs body =>
+          (** TODO handle copy-in/copy-out *)
+          let** rslt := inline_inner n0 cienv aenv' tenv fenv' body in
+          let η := copy args in
+          IBlock (fst (subst_t η rslt))
+        end
+      | ST.SApply ci args i =>
+        let* cinst := Env.find ci cienv in
+        match cinst with
+        | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
+          let** rslt := inline_inner n0 cienv' aenv' tenv' fenv' apply_blk in
+          (** TODO check copy-in/copy-out *)
+          let η := copy args in
+          IBlock (fst (subst_t η rslt))
+        end
+
+      | ST.SReturnVoid i =>
+        Some (IReturnVoid i)
+
+      | ST.SReturnFruit typ expr i =>
+        Some (IReturnFruit typ expr i)
+
+      | ST.SExit i =>
+        Some (IExit i)
+
+      | ST.SInvoke t i =>
+        let* tdecl := Env.find t tenv in
+        match tdecl with
+        | CD.Table keys actions =>
+          let act_to_gcl := fun a =>
+            let* adecl := Env.find a aenv in
+            match adecl with
+            | ADecl _ fenv' aenv' externs body =>
+              (** TODO handle copy-in/copy-out *)
+              inline_inner n0 cienv aenv tenv fenv body
+            end
+          in
+          let* acts := ored (map act_to_gcl actions) in
+          let** named_acts := zip actions acts in
+          IInvoke t keys named_acts i
+        end
+
+      | ST.SExternMethodCall ext method args i =>
+        Some(IExternMethodCall ext method args i)
+      end
+    end.
 
   Definition inline (gas : nat) (s : ST.s tags_t) : option t :=
     inline_inner gas
@@ -441,266 +441,266 @@ Module Inline.
   .
 
   Definition seq_tuple_elem_assign
-               (tuple_name : string)
-               (i : tags_t)
-               (n : nat)
-               (p : E.t * E.e tags_t)
-               (acc : Inline.t) : Inline.t :=
-      let (t, e) := p in
-      let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
-      let lhs := E.EVar t tuple_elem_name i in
-      Inline.ISeq (Inline.IAssign t lhs e i) acc i.
+             (tuple_name : string)
+             (i : tags_t)
+             (n : nat)
+             (p : E.t * E.e tags_t)
+             (acc : Inline.t) : Inline.t :=
+    let (t, e) := p in
+    let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
+    let lhs := E.EVar t tuple_elem_name i in
+    Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-    Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
-      match lhs, rhs with
-      | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
-        let** te := zip types es in
-        fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
-      | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
-      end.
+  Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : option Inline.t :=
+    match lhs, rhs with
+    | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
+      let** te := zip types es in
+      fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
+    | _,_ => Some (Inline.IAssign ltyp lhs rhs i)
+    end.
 
-    Fixpoint elim_tuple (c : Inline.t) : option t :=
-      match c with
-      | ISkip _ => Some c
-      | IVardecl _ _ _ => Some c
-      | IAssign type lhs rhs i =>
-        elim_tuple_assign type lhs rhs i
-      | IConditional typ g tru fls i =>
-        let* tru' := elim_tuple tru in
-        let** fls' := elim_tuple fls in
-        IConditional typ g tru' fls' i
-      | ISeq c1 c2 i =>
-        let* c1' := elim_tuple c1 in
-        let** c2' := elim_tuple c2 in
-        ISeq c1' c2' i
-      | IBlock blk =>
-        let** blk' := elim_tuple blk in
-        IBlock blk'
-      | IReturnVoid _ => Some c
-      | IReturnFruit _ _ _ => Some c
-      | IExit _ => Some c
-      | IInvoke x keys actions i =>
-        (** TODO do we need to eliminate tuples in keys??*)
-        let opt_actions := map_snd elim_tuple actions in
-        let** actions' := ored (map opt_snd opt_actions) in
-        IInvoke x keys actions' i
-      | IExternMethodCall _ _ _ _ =>
-        (** TODO do we need to eliminate tuples in extern arguments? *)
-        Some c
-      end.
+  Fixpoint elim_tuple (c : Inline.t) : option t :=
+    match c with
+    | ISkip _ => Some c
+    | IVardecl _ _ _ => Some c
+    | IAssign type lhs rhs i =>
+      elim_tuple_assign type lhs rhs i
+    | IConditional typ g tru fls i =>
+      let* tru' := elim_tuple tru in
+      let** fls' := elim_tuple fls in
+      IConditional typ g tru' fls' i
+    | ISeq c1 c2 i =>
+      let* c1' := elim_tuple c1 in
+      let** c2' := elim_tuple c2 in
+      ISeq c1' c2' i
+    | IBlock blk =>
+      let** blk' := elim_tuple blk in
+      IBlock blk'
+    | IReturnVoid _ => Some c
+    | IReturnFruit _ _ _ => Some c
+    | IExit _ => Some c
+    | IInvoke x keys actions i =>
+      (** TODO do we need to eliminate tuples in keys??*)
+      let opt_actions := map_snd elim_tuple actions in
+      let** actions' := ored (map opt_snd opt_actions) in
+      IInvoke x keys actions' i
+    | IExternMethodCall _ _ _ _ =>
+      (** TODO do we need to eliminate tuples in extern arguments? *)
+      Some c
+    end.
 
-    (** TODO: Compiler pass to convert int<> -> bit<> *)
-    Fixpoint encode_ints_as_bvs (c : Inline.t) : option Inline.t :=
-      None.
+  (** TODO: Compiler pass to convert int<> -> bit<> *)
+  Fixpoint encode_ints_as_bvs (c : Inline.t) : option Inline.t :=
+    None.
 
-    Print fold_right.
+  Print fold_right.
 
 
 
-    Fixpoint header_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
-      F.fold (fun f typ acc => (s ++ "__f__" ++ f, typ) :: acc ) fields [(s ++ ".is_valid", E.TBool)].
+  Fixpoint header_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+    F.fold (fun f typ acc => (s ++ "__f__" ++ f, typ) :: acc ) fields [(s ++ ".is_valid", E.TBool)].
 
-    Print zip.
-    (** TODO: Compiler pass to elaborate headers *)
-    Search (string -> string -> bool).
-    Fixpoint elaborate_headers (c : Inline.t) : option Inline.t :=
-      match c with
-      | ISkip _ => Some c
-      | IVardecl type s i =>
-        (** TODO elaborate header if type = THeader *)
-        match type with
-        | E.THeader fields =>
-          let vars := header_fields s fields in
-          let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
-          Some elabd_hdr_decls
-        | _ => Some c
+  Print zip.
+  (** TODO: Compiler pass to elaborate headers *)
+  Search (string -> string -> bool).
+  Fixpoint elaborate_headers (c : Inline.t) : option Inline.t :=
+    match c with
+    | ISkip _ => Some c
+    | IVardecl type s i =>
+      (** TODO elaborate header if type = THeader *)
+      match type with
+      | E.THeader fields =>
+        let vars := header_fields s fields in
+        let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
+        Some elabd_hdr_decls
+      | _ => Some c
+      end
+    | IAssign type lhs rhs i =>
+      match type with
+      | E.THeader fields =>
+        (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
+        match lhs, rhs with
+        | E.EVar _ l il, E.EVar _ r ir =>
+          let lvars := header_fields l fields in
+          let rvars := header_fields r fields in
+          let** lrvars := zip lvars rvars in
+          fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
+        | E.EVar _ l il, E.EHeader explicit_fields valid i =>
+          let lvars := header_fields l fields in
+          let assign_fields := fun '(lvar, ltyp) acc_opt =>
+               let* acc := acc_opt in
+               let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
+               ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+          in
+          fold_right assign_fields
+                     (Some (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
+                     lvars
+
+        | _, _ => None
         end
-      | IAssign type lhs rhs i =>
-        match type with
-        | E.THeader fields =>
-          (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
-          match lhs, rhs with
-          | E.EVar _ l il, E.EVar _ r ir =>
-            let lvars := header_fields l fields in
-            let rvars := header_fields r fields in
-            let** lrvars := zip lvars rvars in
-            fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
-          | E.EVar _ l il, E.EHeader explicit_fields valid i =>
-            let lvars := header_fields l fields in
-            let assign_fields := fun '(lvar, ltyp) acc_opt =>
-                let* acc := acc_opt in
-                let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
-                ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
-            in
-            fold_right assign_fields
-                       (Some (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
-                       lvars
+      | _ => Some c
+      end
 
-          | _, _ => None
-          end
-        | _ => Some c
+    | IConditional guard_type guard tru fls i =>
+      (** TODO: elaborate headers in guard? *)
+      let* tru' := elaborate_headers tru in
+      let** fls' := elaborate_headers fls in
+      IConditional guard_type guard tru' fls' i
+    | ISeq s1 s2 i =>
+      let* s1' := elaborate_headers s1 in
+      let** s2' := elaborate_headers s2 in
+      ISeq s1' s2' i
+
+    | IBlock b =>
+      let** b' := elaborate_headers b in
+      IBlock b'
+    | IReturnVoid _ => Some c
+    | IReturnFruit _ _ _ => Some c
+    | IExit _ => Some c
+    | IInvoke x keys actions i =>
+      let opt_actions := map_snd elaborate_headers actions in
+      let** actions' := ored (map opt_snd opt_actions) in
+      IInvoke x keys actions' i
+    | IExternMethodCall _ _ _ _ =>
+      (* TODO Do we need to eliminate tuples in arguments? *)
+      Some c
+    end.
+
+
+  Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
+    match n with
+    | O => init
+    | S n' => f n (ifold n' f init)
+    end.
+
+  Search (nat -> string).
+  (** TODO: Compiler pass to elaborate header stacks *)
+  Fixpoint elaborate_header_stacks (c : Inline.t) : option Inline.t :=
+    match c with
+    | ISkip _ => Some c
+    | IVardecl type x i =>
+      match type with
+      | E.THeaderStack fields size =>
+        Some (ifold (BinPos.Pos.to_nat size)
+                    (fun n acc => ISeq (IVardecl (E.THeader fields) (x ++ "[" ++ string_of_nat n ++ "]") i) acc i) (ISkip i))
+      | _ => Some c
+      end
+    | IAssign type lhs rhs i =>
+      match type with
+      | E.THeaderStack fields size =>
+        match lhs, rhs with
+        | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
+          let iter := ifold (BinPos.Pos.to_nat size) in
+          (* Should these be `HeaderStackAccess`es? *)
+          let lvars := iter (fun n => cons (lvar ++ "[" ++ string_of_nat n ++ "]")) [] in
+          let rvars := iter (fun n => cons (rvar ++ "[" ++ string_of_nat n ++ "]")) [] in
+          let** lrvars := zip lvars rvars in
+          let htype := E.THeader fields in
+          let mk := E.EVar htype in
+          fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
+        | _, _ =>
+          (* Don't know how to translate anything but variables *)
+          None
         end
+      | _ => Some c
+      end
+    | IConditional gtyp guard tru fls i =>
+      (* TODO Eliminate header stack literals from expressions *)
+      let* tru' := elaborate_header_stacks tru in
+      let** fls' := elaborate_header_stacks fls in
+      IConditional gtyp guard tru' fls' i
 
-      | IConditional guard_type guard tru fls i =>
-        (** TODO: elaborate headers in guard? *)
-        let* tru' := elaborate_headers tru in
-        let** fls' := elaborate_headers fls in
-        IConditional guard_type guard tru' fls' i
-      | ISeq s1 s2 i =>
-        let* s1' := elaborate_headers s1 in
-        let** s2' := elaborate_headers s2 in
-        ISeq s1' s2' i
+    | ISeq c1 c2 i =>
+      let* c1' := elaborate_header_stacks c1 in
+      let** c2' := elaborate_header_stacks c2 in
+      ISeq c1' c2' i
 
-      | IBlock b =>
-        let** b' := elaborate_headers b in
-        IBlock b'
-      | IReturnVoid _ => Some c
-      | IReturnFruit _ _ _ => Some c
-      | IExit _ => Some c
-      | IInvoke x keys actions i =>
-        let opt_actions := map_snd elaborate_headers actions in
-        let** actions' := ored (map opt_snd opt_actions) in
-        IInvoke x keys actions' i
-      | IExternMethodCall _ _ _ _ =>
-        (* TODO Do we need to eliminate tuples in arguments? *)
-        Some c
-      end.
+    | IBlock c =>
+      let** c' := elaborate_header_stacks c in
+      IBlock c'
 
+    | IReturnVoid _ => Some c
+    | IReturnFruit _ _ _ => Some c
+    | IExit _ => Some c
+    | IInvoke x keys actions i =>
+      (* TODO: Do something with keys? *)
+      let rec_act_call := fun '(nm, act) acc_opt =>
+          let* acc := acc_opt in
+          let** act' := elaborate_header_stacks act in
+          (nm, act') :: acc
+      in
+      let** actions' := fold_right rec_act_call (Some []) actions in
+      IInvoke x keys actions' i
+    | IExternMethodCall _ _ _ _ =>
+      (* TODO: Do something with arguments? *)
+      Some c
+    end.
 
-    Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
-      match n with
-      | O => init
-      | S n' => f n (ifold n' f init)
-      end.
+  Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+    F.fold (fun f typ acc => (s ++ "__s__" ++ f, typ) :: acc ) fields [].
 
-    Search (nat -> string).
-    (** TODO: Compiler pass to elaborate header stacks *)
-    Fixpoint elaborate_header_stacks (c : Inline.t) : option Inline.t :=
-      match c with
-      | ISkip _ => Some c
-      | IVardecl type x i =>
-        match type with
-        | E.THeaderStack fields size =>
-          Some (ifold (BinPos.Pos.to_nat size)
-                (fun n acc => ISeq (IVardecl (E.THeader fields) (x ++ "[" ++ string_of_nat n ++ "]") i) acc i) (ISkip i))
-        | _ => Some c
+  (** TODO: Compiler pass to elaborate structs *)
+  Fixpoint elaborate_structs (c : Inline.t) : option Inline.t :=
+    match c with
+    | ISkip _ => Some c
+    | IVardecl type s i =>
+      match type with
+      | E.TStruct fields =>
+        let vars := struct_fields s fields in
+        let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
+        Some elabd_hdr_decls
+      | _ => Some c
+      end
+    | IAssign type lhs rhs i =>
+      match type with
+      | E.TStruct fields =>
+        (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
+        match lhs, rhs with
+        | E.EVar _ l il, E.EVar _ r ir =>
+          let lvars := struct_fields l fields in
+          let rvars := struct_fields r fields in
+          let** lrvars := zip lvars rvars in
+          fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
+        | E.EVar _ l il, E.EStruct explicit_fields i =>
+          let lvars := struct_fields l fields in
+          let assign_fields := fun '(lvar, ltyp) acc_opt =>
+               let* acc := acc_opt in
+               let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
+               ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
+          in
+          fold_right assign_fields
+                     (Some (ISkip i))
+                     lvars
+
+        | _, _ => None
         end
-      | IAssign type lhs rhs i =>
-        match type with
-        | E.THeaderStack fields size =>
-          match lhs, rhs with
-          | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
-            let iter := ifold (BinPos.Pos.to_nat size) in
-            (* Should these be `HeaderStackAccess`es? *)
-            let lvars := iter (fun n => cons (lvar ++ "[" ++ string_of_nat n ++ "]")) [] in
-            let rvars := iter (fun n => cons (rvar ++ "[" ++ string_of_nat n ++ "]")) [] in
-            let** lrvars := zip lvars rvars in
-            let htype := E.THeader fields in
-            let mk := E.EVar htype in
-            fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
-          | _, _ =>
-            (* Don't know how to translate anything but variables *)
-            None
-          end
-        | _ => Some c
-        end
-      | IConditional gtyp guard tru fls i =>
-        (* TODO Eliminate header stack literals from expressions *)
-        let* tru' := elaborate_header_stacks tru in
-        let** fls' := elaborate_header_stacks fls in
-        IConditional gtyp guard tru' fls' i
+      | _ => Some c
+      end
 
-      | ISeq c1 c2 i =>
-        let* c1' := elaborate_header_stacks c1 in
-        let** c2' := elaborate_header_stacks c2 in
-        ISeq c1' c2' i
+    | IConditional guard_type guard tru fls i =>
+      (** TODO: elaborate headers in guard? *)
+      let* tru' := elaborate_headers tru in
+      let** fls' := elaborate_headers fls in
+      IConditional guard_type guard tru' fls' i
+    | ISeq s1 s2 i =>
+      let* s1' := elaborate_headers s1 in
+      let** s2' := elaborate_headers s2 in
+      ISeq s1' s2' i
 
-      | IBlock c =>
-        let** c' := elaborate_header_stacks c in
-        IBlock c'
-
-      | IReturnVoid _ => Some c
-      | IReturnFruit _ _ _ => Some c
-      | IExit _ => Some c
-      | IInvoke x keys actions i =>
-        (* TODO: Do something with keys? *)
-        let rec_act_call := fun '(nm, act) acc_opt =>
-            let* acc := acc_opt in
-            let** act' := elaborate_header_stacks act in
-            (nm, act') :: acc
-        in
-        let** actions' := fold_right rec_act_call (Some []) actions in
-        IInvoke x keys actions' i
-      | IExternMethodCall _ _ _ _ =>
-        (* TODO: Do something with arguments? *)
-        Some c
-      end.
-
-    Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
-      F.fold (fun f typ acc => (s ++ "__s__" ++ f, typ) :: acc ) fields [].
-
-    (** TODO: Compiler pass to elaborate structs *)
-    Fixpoint elaborate_structs (c : Inline.t) : option Inline.t :=
-      match c with
-      | ISkip _ => Some c
-      | IVardecl type s i =>
-        match type with
-        | E.TStruct fields =>
-          let vars := struct_fields s fields in
-          let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
-          Some elabd_hdr_decls
-        | _ => Some c
-        end
-      | IAssign type lhs rhs i =>
-        match type with
-        | E.TStruct fields =>
-          (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
-          match lhs, rhs with
-          | E.EVar _ l il, E.EVar _ r ir =>
-            let lvars := struct_fields l fields in
-            let rvars := struct_fields r fields in
-            let** lrvars := zip lvars rvars in
-            fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
-          | E.EVar _ l il, E.EStruct explicit_fields i =>
-            let lvars := struct_fields l fields in
-            let assign_fields := fun '(lvar, ltyp) acc_opt =>
-                let* acc := acc_opt in
-                let** (_, rval) := F.find_value (eqb lvar) explicit_fields in
-                ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i
-            in
-            fold_right assign_fields
-                       (Some (ISkip i))
-                       lvars
-
-          | _, _ => None
-          end
-        | _ => Some c
-        end
-
-      | IConditional guard_type guard tru fls i =>
-        (** TODO: elaborate headers in guard? *)
-        let* tru' := elaborate_headers tru in
-        let** fls' := elaborate_headers fls in
-        IConditional guard_type guard tru' fls' i
-      | ISeq s1 s2 i =>
-        let* s1' := elaborate_headers s1 in
-        let** s2' := elaborate_headers s2 in
-        ISeq s1' s2' i
-
-      | IBlock b =>
-        let** b' := elaborate_headers b in
-        IBlock b'
-      | IReturnVoid _ => Some c
-      | IReturnFruit _ _ _ => Some c
-      | IExit _ => Some c
-      | IInvoke x keys actions i =>
-        let opt_actions := map_snd elaborate_structs actions in
-        let** actions' := ored (map opt_snd opt_actions) in
-        IInvoke x keys actions' i
-      | IExternMethodCall _ _ _ _ =>
-        (* TODO Do we need to eliminate tuples in arguments? *)
-        Some c
-      end.
+    | IBlock b =>
+      let** b' := elaborate_headers b in
+      IBlock b'
+    | IReturnVoid _ => Some c
+    | IReturnFruit _ _ _ => Some c
+    | IExit _ => Some c
+    | IInvoke x keys actions i =>
+      let opt_actions := map_snd elaborate_structs actions in
+      let** actions' := ored (map opt_snd opt_actions) in
+      IInvoke x keys actions' i
+    | IExternMethodCall _ _ _ _ =>
+      (* TODO Do we need to eliminate tuples in arguments? *)
+      Some c
+    end.
 End Inline.
 
 Module GCL.
@@ -780,10 +780,12 @@ Module GCL.
       let* ext := Env.find e m in
       let** fn := Env.find f ext in
       fn.
+    Definition empty : model := Env.empty string extern.
   End Arch.
 
+  Module I := Inline.
   Module Translate.
-    Module I := Inline.
+  Section Instr.
     Definition target := @t string BitVec.t form.
     Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> target).
 
@@ -819,7 +821,7 @@ Module GCL.
       | E.EHeaderStackAccess stack index i =>
         E.EHeaderStackAccess (scopify ctx stack) index i
       end.
-      (**[]*)
+    (**[]*)
 
 
     Definition iteb (guard : form) (tru fls : target) (i : tags_t) : target :=
@@ -1161,6 +1163,7 @@ Module GCL.
 
     Print cienv.
     Print Inline.elaborate_headers.
+
     Definition p4cub_statement_to_gcl (gas : nat) (arch : Arch.model) (s : ST.s tags_t) : option target :=
       let* inline_stmt := Inline.inline gas s in
       let* no_tup := Inline.elim_tuple inline_stmt in
@@ -1170,4 +1173,72 @@ Module GCL.
       let** (gcl,_) := inline_to_gcl Ctx.initial arch no_structs in
       gcl.
 
-End Translate.
+  End Instr.
+  End Translate.
+
+  Module Tests.
+
+    Variable d : tags_t.
+
+    Definition bit (n : nat) : E.t := E.TBit (pos 4).
+
+    Definition ipv4_type :=
+      E.THeader ([("version", bit 4);
+                 ("ihl", bit 4);
+                 ("diffserv", bit 8);
+                 ("totalLen", bit 16);
+                 ("identification", bit 16);
+                 ("flags", bit 3);
+                 ("fragOffset", bit 13);
+                 ("ttl", bit 8);
+                 ("protocol", bit 8);
+                 ("hdrChecksum", bit 16);
+                 ("srcAddr", bit 32);
+                 ("dstAddr", bit 32)]).
+
+    Definition meta_type :=
+      E.THeader [("do_forward", bit 1);
+                ("ipv4_sa", bit 32);
+                ("ipv4_da", bit 32);
+                ("ipv4_sp", bit 16);
+                ("ipv4_dp", bit 16);
+                ("nhop_ipv4", bit 32);
+                ("if_ipv4_addr", bit 32);
+                ("if_mac_addr", bit 32);
+                ("is_ext_if", bit 1);
+                ("tcpLength", bit 16);
+                ("if_index", bit 8)
+                ].
+
+    Print Z.
+
+    Print Translate.p4cub_statement_to_gcl.
+    Definition simple_nat_ingress : (ST.s tags_t) :=
+      let fwd :=
+          E.EBop (E.Eq) (bit 1) (bit 1)
+                 (E.EExprMember "do_forward" meta_type (E.EVar meta_type "meta" d) d)
+                 (E.EBit (pos 1) (Zpos (pos 1)) d)
+                 d
+      in
+      let ttl :=
+          E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" ipv4_type (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
+      in
+      let cond := E.EBop E.And E.TBool E.TBool fwd ttl d in
+      ST.SSeq (ST.SInvoke "if_info" d)
+              (ST.SSeq (ST.SInvoke "nat" d)
+                       (ST.SConditional E.TBool
+                                        cond
+                                        (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d)
+                                        (ST.SSkip d)
+                                        d)
+                       d)
+              d.
+
+    Print GCL.GAssign.
+    Print BitVec.BitVec.
+    Definition instr (name : string) (i : tags_t) (_: list (E.t * E.e tags_t * E.matchkind)) ( _ : list (string * Translate.target)) : Translate.target :=
+      GCL.GAssign (bit 1) name (BitVec.BitVec (pos 1) (pos 1) i) i.
+
+    Compute Translate.p4cub_statement_to_gcl instr 10 Arch.empty simple_nat_ingress.
+
+  End Tests.

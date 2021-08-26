@@ -214,8 +214,9 @@ Definition TranslateArrowE (arguments : CubE.arrowE tags_t) (env : VarNameGen.t)
   end.
 
 Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s tags_t) * VarNameGen.t := 
-  match stmt with 
-  | CubS.SSkip i => (SelS.SSkip i, env) 
+  match stmt with
+  | CubS.SHeaderStackOp _ _ _ i => (SelS.SSkip i, env) (* TODO! *)
+  | CubS.SSkip i => (SelS.SSkip i, env)
   | CubS.SVardecl type x i => (SelS.SVardecl type x i, env)
   | CubS.SAssign type lhs rhs i => 
     let '((lhs_stmt, lhs'), env_lhs) := TranslateExpr lhs env in 

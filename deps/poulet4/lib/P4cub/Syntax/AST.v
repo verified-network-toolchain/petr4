@@ -12,6 +12,7 @@ Declare Custom Entry p4uop.
 Declare Custom Entry p4bop.
 Declare Custom Entry p4matchkind.
 Declare Custom Entry p4expr.
+Declare Custom Entry p4hsop.
 Declare Custom Entry p4stmt.
 Declare Custom Entry p4prsrstate.
 Declare Custom Entry p4selectpattern.
@@ -411,6 +412,9 @@ Module P4cub.
     Section Statements.
       Variable (tags_t : Type).
 
+      (** Header Stack Operations. *)
+      Inductive hsop : Set := HSPush | HSPop.
+      
       Inductive s : Type :=
       | SSkip (i : tags_t) (* skip/no-op *)
       | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
@@ -433,7 +437,9 @@ Module P4cub.
       | SExit (i : tags_t)                              (* exit statement *)
       | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
       | SApply (control_instance_name : string)
-               (args : E.args tags_t) (i : tags_t)      (* control apply statements *).
+               (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
+      | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
+                       (n : positive) (i : tags_t)       (* push or pop statements *).
     (**[]*)
     End Statements.
 
@@ -451,8 +457,15 @@ Module P4cub.
     Arguments SExit {_}.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
+    Arguments SHeaderStackOp {_}.
 
     Module StmtNotations.
+      Notation "'<<{' sop '}>>'" := sop (sop custom p4hsop at level 99).
+      Notation "( x )" := x (in custom p4hsop, x at level 99).
+      Notation "x"
+        := x (in custom p4hsop at level 0, x constr at level 0).
+      Notation "'PUSH'" := HSPush (in custom p4hsop at level 0).
+      Notation "'POP'" := HSPop (in custom p4hsop at level 0).
       Notation "'-{' stmt '}-'" := stmt (stmt custom p4stmt at level 99).
       Notation "( x )" := x (in custom p4stmt, x at level 99).
       Notation "x"

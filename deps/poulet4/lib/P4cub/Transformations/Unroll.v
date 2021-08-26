@@ -142,9 +142,9 @@ Section Unroll.
      are separate from the list of states. *)
   Fixpoint unroll_program (unrolls : nat) (d : tpdecl) : tpdecl :=
     match d with
-    | %{ parser p (cparams) (params) start:=start_state { sts } @ i }% =>
+    | %{ parser p (cparams) (eparams) (params) start:=start_state { sts } @ i }% =>
       let sts := unroll_parser unrolls sts in
-      %{ parser p (cparams) (params) start:=start_state { sts  } @ i }%
+      %{ parser p (cparams) (eparams) (params) start:=start_state { sts  } @ i }%
     | %{ d1 ;%; d2 @ i }% =>
       let d1 := unroll_program unrolls d1 in
       let d2 := unroll_program unrolls d2 in

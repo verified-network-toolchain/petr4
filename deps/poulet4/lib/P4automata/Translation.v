@@ -263,7 +263,7 @@ Section ParserTranslation.
     | DeclParser tag name _ _ _ _ states => 
       cub_states <- states_to_cub decl_env states ;; 
       start <- get_start cub_states ;;
-      mret (TD.TPParser (P4String.str name) nil nil start cub_states tag)
+      mret (TD.TPParser (P4String.str name) nil nil nil start cub_states tag)
     | _ => err $ Inconceivable "translating a non-parser decl"
     end. 
 

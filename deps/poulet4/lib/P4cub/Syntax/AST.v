@@ -111,13 +111,13 @@ Module P4cub.
       Inductive ct : Type :=
       | CTType (type : t)                   (* expression types *)
       | CTControl (cparams : F.fs string ct)
+                  (runtime_extern_params : F.fs string string)
                   (parameters : params)     (* control types *)
       | CTParser (cparams : F.fs string ct)
+                 (runtime_extern_params : F.fs string string)
                  (parameters : params)      (* parser types *)
       | CTPackage (cparams : F.fs string ct) (* package types *)
-      | CTExtern (extern_name : string)
-      (*(cparams : F.fs string ct)
-                 (methods : F.fs string arrowT)*) (* extern types *).
+      | CTExtern (extern_name : string).
       (**[]*)
 
       Definition constructor_params : Type := F.fs string ct.
@@ -158,11 +158,11 @@ Module P4cub.
         := (CTType τ)
              (in custom p4constructortype at level 0,
                  τ custom p4type).
-      Notation "'ControlType' cps ps"
-        := (CTControl cps ps)
+      Notation "'ControlType' cps res ps"
+        := (CTControl cps res ps)
              (in custom p4constructortype at level 0).
-      Notation "'ParserType' cps ps"
-        := (CTParser cps ps)
+      Notation "'ParserType' cps res ps"
+        := (CTParser cps res ps)
              (in custom p4constructortype at level 0).
       Notation "'PackageType' cps"
         := (CTPackage cps)
@@ -437,6 +437,7 @@ Module P4cub.
       | SExit (i : tags_t)                              (* exit statement *)
       | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
       | SApply (control_instance_name : string)
+               (ext_args : F.fs string string)
                (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
       | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
                        (n : positive) (i : tags_t)       (* push or pop statements *).
@@ -517,8 +518,8 @@ Module P4cub.
                     (in custom p4stmt at level 0, no associativity).
       Notation "'exit' @ i"
                := (SExit i) (in custom p4stmt at level 0, no associativity).
-      Notation "'apply' x 'with' args @ i"
-               := (SApply x args i) (in custom p4stmt at level 0, no associativity).
+      Notation "'apply' x 'with' extargs '&' args @ i"
+        := (SApply x extargs args i) (in custom p4stmt at level 0, no associativity).
       Notation "'invoke' tbl @ i"
                := (SInvoke tbl i) (in custom p4stmt at level 0).
     End StmtNotations.
@@ -693,11 +694,13 @@ Module P4cub.
                  (i : tags_t) (* extern declarations *)
       | TPControl (control_name : string)
                   (cparams : E.constructor_params) (* constructor params *)
+                  (eparams : F.fs string string)   (* runtime extern params *)
                   (params : E.params)              (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t)
                   (i : tags_t) (* control declarations *)
       | TPParser (parser_name : string)
                  (cparams : E.constructor_params) (* constructor params *)
+                 (eparams : F.fs string string)   (* runtime extern params *)
                  (params : E.params)              (* invocation params *)
                  (start : P.state_block tags_t)   (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)
@@ -742,12 +745,12 @@ Module P4cub.
       Notation "'extern' e ( cparams ) { methods } @ i"
         := (TPExtern e cparams methods i)
              (in custom p4topdecl at level 0).
-      Notation "'control' c ( cparams ) ( params ) 'apply' { blk } 'where' { body } @ i"
-        := (TPControl c cparams params body blk i)
+      Notation "'control' c ( cparams ) ( eps ) ( params ) 'apply' { blk } 'where' { body } @ i"
+        := (TPControl c cparams eps params body blk i)
              (in custom p4topdecl at level 0,
                  blk custom p4stmt, body custom p4ctrldecl).
-      Notation "'parser' p ( cparams ) ( params ) 'start' ':=' st { states } @ i"
-        := (TPParser p cparams params st states i)
+      Notation "'parser' p ( cparams ) ( eps ) ( params ) 'start' ':=' st { states } @ i"
+        := (TPParser p cparams eps params st states i)
              (in custom p4topdecl at level 0, st custom p4prsrstateblock).
       Notation "'package' p ( cparams ) @ i"
         := (TPPackage p cparams i)

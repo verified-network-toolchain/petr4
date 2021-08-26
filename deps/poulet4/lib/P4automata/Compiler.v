@@ -345,7 +345,8 @@ Section parser_to_p4automaton.
 
   Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list (@error_monad compile_error p4automaton) :=
     match d with
-    | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
+    | %{ parser p ( cparams ) ( _ ) ( params ) start := strt { states } @ i }% =>
+      (* TODO: extern runtime params *)
       [parser_to_p4automaton strt states]
     | %{ d1 ;%; d2 @ i }%  => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
     | _ => [err (CEInconceivable "cannot convert nonparser to automata")] end.

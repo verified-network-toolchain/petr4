@@ -162,10 +162,10 @@ Definition fenv : Type := Env.t string E.arrowT.
 Definition aenv : Type := Env.t string E.params.
 
 (** Control Instance environment. *)
-Definition cienv : Type := Env.t string E.params.
+Definition cienv : Type := Env.t string (F.fs string string * E.params).
 
 (** Parser Instance environment. *)
-Definition pienv : Type := Env.t string E.params.
+Definition pienv : Type := Env.t string (F.fs string string * E.params).
 
 (** Available extern instances. *)
 Definition eienv : Type := Env.t string (F.fs string E.arrowT).
@@ -251,10 +251,10 @@ Definition cbind_all :
             match c with
             | {{{ VType τ }}}
               => (!{ x ↦ τ;; Γ }!, pkgis, cis, pis, eis)
-            | {{{ ControlType _ pars }}}
-              => (Γ, pkgis, !{ x ↦ pars;; cis }!, pis, eis)
-            | {{{ ParserType _  pars }}}
-              => (Γ, pkgis, cis, !{ x ↦ pars;; pis }!, eis)
+            | {{{ ControlType _ res pars }}}
+              => (Γ, pkgis, !{ x ↦ (res,pars);; cis }!, pis, eis)
+            | {{{ ParserType _ res pars }}}
+              => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
             | E.CTExtern _
               => p (* (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}

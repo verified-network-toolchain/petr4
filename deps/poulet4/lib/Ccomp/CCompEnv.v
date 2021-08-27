@@ -204,8 +204,8 @@ Section CEnv.
     identGenerator := to.(identGenerator);
     fenv := to.(fenv);
     tempOfArg := from.(tempOfArg);
-    instantiationCarg := from.(instantiationCarg);
-    maininit := from.(maininit);
+    instantiationCarg := to.(instantiationCarg);
+    maininit := to.(maininit);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4sel.Expr.constructor_args tags_t) : ClightEnv :=

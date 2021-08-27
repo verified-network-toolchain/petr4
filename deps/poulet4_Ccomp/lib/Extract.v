@@ -42,7 +42,7 @@ Require BinPosDef.
 Require Import ExtrOcamlString.
 Require Poulet4.SimplExpr.
 Require Poulet4.GenLoc.
-Require Poulet4_Ccomp.CCompSel.
+Require Poulet4.Ccomp.CCompSel.
 
 Extract Inlined Constant Coqlib.proj_sumbool => "(fun x -> x)".
 
@@ -144,5 +144,5 @@ Extract Inlined Constant Nat.add => "(+)". *)
 Extraction Blacklist List String Int.
 
 Cd "extraction/".
-Separate Extraction Poulet4_Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST .
+Separate Extraction Poulet4.Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST .
 Cd "../".

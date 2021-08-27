@@ -534,7 +534,7 @@ Section CCompSel.
           (CCompEnv.get_vars tags_t env')
           (CCompEnv.get_temps tags_t env')
           (Ssequence stmt'
-          (Scall None (Evar start_id (Clight.type_of_function start_f)) []))
+          (Scall None (Evar start_id (Clight.type_of_function start_f)) [])) (*TODO: add args*)
           , env')
         end
       | P4cub.Parser.STAccept =>
@@ -558,7 +558,7 @@ Section CCompSel.
           (CCompEnv.get_vars tags_t env')
           (CCompEnv.get_temps tags_t env')
           (Ssequence stmt'
-          (Scall None (Evar x_id (Clight.type_of_function x_f)) []))
+          (Scall None (Evar x_id (Clight.type_of_function x_f)) [])) (*TODO: add args*)
           , (set_temp_vars tags_t env env'))
       end
       end
@@ -574,14 +574,18 @@ Section CCompSel.
     =>let (l, env') := cumulator in
       let (env', new_id) := new_ident tags_t env' in
       let (ct,env_ct) := match p with 
-        | (_, P.PAIn x) => (CTranslateType x env')
+        | (_, P.PAIn x) 
         | (_, P.PAOut x)
-        | (_, P.PAInOut x) => let (ct', env_ct') := CTranslateType x env' in
-                         (Ctypes.Tpointer ct' noattr, env_ct')
+        | (_, P.PAInOut x) => (CTranslateType x env')
+      end in
+      let ct_param := match p with 
+      | (_, P.PAIn _) => ct
+      | (_, P.PAOut x)
+      | (_, P.PAInOut x) => Ctypes.Tpointer ct noattr
       end in
       let s := fst p in
       let env_temp_added := add_temp_arg tags_t env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
-      (l ++ [(new_id, ct)], env_temp_added)) 
+      (l ++ [(new_id, ct_param)], env_temp_added)) 
   (params) ([],env)
   . 
 
@@ -594,9 +598,8 @@ Section CCompSel.
       let (env', new_id) := new_ident tags_t env' in
       let (pname, typ) := p in
       let (ct,env_ct) :=  (CTranslateConstructorType typ env') in
-      let s := fst p in
-      let env_temp_added := add_temp_arg tags_t env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
-      (l ++ [(new_id, ct)], env_temp_added)) 
+      (*currently don't do copy in copy out*)
+      (l ++ [(new_id, ct)], env_ct)) 
   (cparams) ([],env) 
   .
   
@@ -612,11 +615,14 @@ Section CCompSel.
       | None => cumulator
       | Some (oldid, tempid) => 
         match t with
-        | P.PAIn t
+        | P.PAIn t => 
+        let (ct, env_ct) := CTranslateType t prev_env in
+        let new_stmt := Sassign (Evar tempid ct) (Evar oldid ct) in
+        (Ssequence prev_stmt new_stmt, env_ct)
         | P.PAOut t
         | P.PAInOut t => 
         let (ct, env_ct) := CTranslateType t prev_env in
-        let new_stmt := Sassign (Evar tempid ct) (Evar oldid ct) in
+        let new_stmt := Sassign (Evar tempid ct) (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct) in
         (Ssequence prev_stmt new_stmt, env_ct)
         end
       end
@@ -632,16 +638,20 @@ Definition CCopyOut (fn_params: E.params) (env: ClightEnv tags_t )
       | None => cumulator
       | Some (oldid, tempid) => 
         match t with
-        | P.PAIn t
+        | P.PAIn t => 
+        let (ct, env_ct) := CTranslateType t prev_env in
+        let new_stmt := Sassign (Evar oldid ct) (Evar tempid ct) in
+        (Ssequence prev_stmt new_stmt, env_ct)
         | P.PAOut t
         | P.PAInOut t => 
         let (ct, env_ct) := CTranslateType t prev_env in
-        let new_stmt := Sassign (Evar oldid ct) (Evar tempid ct) in
+        let new_stmt := Sassign (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct) (Evar tempid ct) in
         (Ssequence prev_stmt new_stmt, env_ct)
         end
       end
     ) fn_params (Sskip, env).
 
+(*return the list of args for the params*)
 Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv tags_t )
  : list Clight.expr := 
  List.fold_left 
@@ -659,6 +669,35 @@ Definition CFindTempArgs (fn_params: E.params) (env: ClightEnv tags_t )
       end
     end
   ) fn_params [].
+
+ (*return the list of args for the params but adding directions.
+ change the temp to ref temp if it is a out parameter.
+ *)
+Definition CFindTempArgsForCallingSubFunctions (fn_params: E.params) (env: ClightEnv tags_t )
+: list Clight.expr := 
+List.fold_left 
+ (fun (cumulator: list Clight.expr) (fn_param: string * (P.paramarg E.t E.t))
+ =>let (name, t) := fn_param in
+   match find_ident_temp_arg tags_t env name with
+   | None => cumulator
+   | Some (oldid, tempid) =>
+    let (ct, _) := 
+    match t with 
+     | P.PAIn t
+     | P.PAOut t
+     | P.PAInOut t => CTranslateType t env 
+    end in 
+    let var := 
+    match t with
+     | P.PAIn t => Evar tempid ct
+     | P.PAOut t
+     | P.PAInOut t => Eaddrof (Evar tempid ct) (Tpointer ct noattr)
+    end in
+     cumulator ++ [var]
+
+  end
+   
+ ) fn_params [].
 
 
 Definition CTranslateArrow (signature : E.arrowT) (env : ClightEnv tags_t )
@@ -727,7 +766,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       match (lookup_function tags_t env_start_declared "start") with
       | None => None
       | Some (start_f, start_id) =>
-      let call_args := CFindTempArgs params env_start_declared in
+      let call_args := CFindTempArgsForCallingSubFunctions params env_start_declared in
       let fn_body := 
       Ssequence copyin 
       (Ssequence 

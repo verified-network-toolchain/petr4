@@ -268,17 +268,17 @@ Inductive check_stmt
     ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
     ⦃ fns, errs, Γ ⦄
       con ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
-| chk_apply (args : E.args tags_t) (x : string)
-            (i : tags_t) (params : E.params)
+| chk_apply (eargs : F.fs string string) (args : E.args tags_t) (x : string)
+            (i : tags_t) (eps : F.fs string string) (params : E.params)
             (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
-    Env.find x cis = Some params ->
+    Env.find x cis = Some (eps,params) ->
     F.relfs
       (P.rel_paramarg
          (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ)
          (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, errs, Γ ⦄ ApplyBlock tbls aa cis eis
-                     ⊢ apply x with args @ i ⊣ ⦃ Γ, C ⦄
+                     ⊢ apply x with eargs & args @ i ⊣ ⦃ Γ, C ⦄
 | chk_invoke (tbl : string) (i : tags_t) (tbls : tblenv)
              (aa : aenv) (cis : cienv) (eis : eienv) :
     Env.find tbl tbls = Some tt ->
@@ -376,42 +376,43 @@ Inductive check_topdecl
   : TD.d tags_t -> eienv -> pienv -> cienv -> pkgienv -> fenv -> cenv -> Prop :=
 | chk_instantiate_control (c x : string)
                           (cparams : E.constructor_params)
-                          (cargs : E.constructor_args tags_t)
-                          (i : tags_t) (params : E.params) :
-    Env.find c cs = Some {{{ ControlType cparams params }}} ->
+                          (cargs : E.constructor_args tags_t) (i : tags_t)
+                          (extparams : F.fs string string) (params : E.params) :
+    Env.find c cs = Some {{{ ControlType cparams extparams params }}} ->
     F.relfs
       (fun carg cparam =>
          match carg, cparam with
          | E.CAExpr e, {{{ VType τ }}}
            => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
-         | E.CAName ctrl, {{{ ControlType cps ps }}}
-           => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
+         | E.CAName ctrl, {{{ ControlType cps eps ps }}}
+           => Env.find ctrl cs = Some {{{ ControlType cps eps ps }}}
          (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs⦘
       ⊢ Instance x of c(cargs) @ i
-      ⊣ ⦗ eis, pis, x ↦ params ;; cis, pgis, fns, cs ⦘
+      ⊣ ⦗ eis, pis, x ↦ (extparams,params) ;; cis, pgis, fns, cs ⦘
 | chk_instantiate_parser (p x : string)
                          (cparams : E.constructor_params)
-                         (cargs : E.constructor_args tags_t)
-                         (i : tags_t) (params : E.params) :
-    Env.find p cs = Some {{{ ParserType cparams params }}} ->
+                         (cargs : E.constructor_args tags_t) (i : tags_t)
+                         (extparams : F.fs string string)
+                         (params : E.params) :
+    Env.find p cs = Some {{{ ParserType cparams extparams params }}} ->
     F.relfs
       (fun carg cparam =>
          match carg, cparam with
          | E.CAExpr e, {{{ VType τ }}}
            => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
-         | E.CAName prsr, {{{ ParserType cps ps }}}
-           => Env.find prsr cs = Some {{{ ParserType cps ps }}}
+         | E.CAName prsr, {{{ ParserType cps eps ps }}}
+           => Env.find prsr cs = Some {{{ ParserType cps eps ps }}}
          (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ Instance x of p(cargs) @ i
-      ⊣ ⦗ eis, x ↦ params ;; pis, cis, pgis, fns, cs ⦘
+      ⊣ ⦗ eis, x ↦ (extparams,params) ;; pis, cis, pgis, fns, cs ⦘
 (*| chk_instantiate_extern (e x : string)
                          (cparams : E.constructor_params)
                          (cargs : E.constructor_args tags_t) (i : tags_t)
@@ -438,10 +439,10 @@ Inductive check_topdecl
          match carg, cparam with
          | E.CAExpr e, {{{ VType τ }}}
            => ⟦ errs , ∅ ⟧ ⊢ e ∈ τ
-         | E.CAName ctrl, {{{ ControlType cps ps }}}
-           => Env.find ctrl cs = Some {{{ ControlType cps ps }}}
-         | E.CAName prsr, {{{ ParserType cps ps }}}
-           => Env.find prsr cs = Some {{{ ParserType cps ps }}}
+         | E.CAName ctrl, {{{ ControlType cps eps ps }}}
+           => Env.find ctrl cs = Some {{{ ControlType cps eps ps }}}
+         | E.CAName prsr, {{{ ParserType cps eps ps }}}
+           => Env.find prsr cs = Some {{{ ParserType cps eps ps }}}
          (*| E.CAName extrn, {{{ Extern cps { mthds } }}}
            => Env.find extrn cs = Some {{{ Extern cps { mthds } }}}*)
          | _, _ => False
@@ -450,6 +451,7 @@ Inductive check_topdecl
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
       ⊢ Instance x of pkg(cargs) @ i ⊣ ⦗ eis, pis, cis, x ↦ tt ;; pgis, fns, cs ⦘
 | chk_control (c : string) (cparams : E.constructor_params)
+              (extparams : F.fs string string)
               (params : E.params) (body : CD.d tags_t)
               (apply_blk : ST.s tags_t) (i : tags_t)
               (Γ' Γ'' Γ''' : gamma) (sg : signal)
@@ -463,12 +465,13 @@ Inductive check_topdecl
     (* Apply block. *)
     ⦃ fns, errs, Γ'' ⦄
       ApplyBlock tbls acts cis eis ⊢ apply_blk ⊣ ⦃ Γ''', sg ⦄ ->
-    let ctor := E.CTControl cparams params in
+    let ctor := E.CTControl cparams extparams params in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ control c (cparams)(params) apply { apply_blk } where { body } @ i
+      ⊢ control c (cparams)(extparams)(params) apply { apply_blk } where { body } @ i
         ⊣ ⦗ eis, pis, cis, pgis, fns, c ↦ ctor;; cs ⦘
 | chk_parser (p : string)
              (cparams : E.constructor_params)
+             (extparams : F.fs string string)
              (params : E.params) (start_state : PR.state_block tags_t)
              (states : F.fs string (PR.state_block tags_t)) (i : tags_t)
              (pis' : pienv) (eis' : eienv)
@@ -480,9 +483,9 @@ Inductive check_topdecl
     ⟅⟅ fns, pis', eis', sts, errs, Γ'' ⟆⟆ ⊢ start_state ->
     F.predfs_data
       (fun pst => ⟅⟅ fns, pis', eis', sts, errs, Γ'' ⟆⟆ ⊢ pst) states ->
-    let prsr := E.CTParser cparams params in
+    let prsr := E.CTParser cparams extparams params in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ parser p (cparams)(params) start:= start_state { states } @ i
+      ⊢ parser p (cparams)(extparams)(params) start:= start_state { states } @ i
       ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr;; cs ⦘
 (*| chk_extern (e : string)
              (cparams : E.constructor_params)

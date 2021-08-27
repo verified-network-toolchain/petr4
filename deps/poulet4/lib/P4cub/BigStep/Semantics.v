@@ -400,13 +400,13 @@ Module Step.
       lv_update lv v ϵ''' = ϵ'''' ->
       ⟪ pkt, fs, ϵ, c,
         let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
-  | sbs_ctrl_apply (args : E.args tags_t)
-                   (argsv : V.argsv)
-                   (x : string) (i : tags_t)
+  | sbs_ctrl_apply (args : E.args tags_t) (eargs : F.fs string string)
+                   (argsv : V.argsv) (x : string) (i : tags_t)
                    (body : ST.s tags_t) (fclosure : fenv) (cis cis' : cienv)
                    (tbl tblclosure : tenv) (aa aclosure : aenv)
                    (cpes : ctrl) (exts eis : ARCH.extern_env)
                    (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
+      (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup. *)
       Env.find x cis =
       Some (CInst closure fclosure cis' tblclosure aclosure exts body) ->
@@ -423,16 +423,16 @@ Module Step.
         ⤋ ⟪ ϵ'', Void, pkt' ⟫ ->
       (* Copy-out. *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ pkt, fs, ϵ, ApplyBlock cpes tbl aa cis eis, apply x with args @ i ⟫
+      ⟪ pkt, fs, ϵ, ApplyBlock cpes tbl aa cis eis, apply x with eargs & args @ i ⟫
         ⤋ ⟪ ϵ''', C, pkt' ⟫
-  | sbs_prsr_accept_apply (args : E.args tags_t)
-                          (argsv : V.argsv)
-                          (x : string) (i : tags_t)
+  | sbs_prsr_accept_apply (args : E.args tags_t) (eargs : F.fs string string)
+                          (argsv : V.argsv) (x : string) (i : tags_t)
                           (strt : PR.state_block tags_t)
                           (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (pis pis' : pienv)
                           (exts eis : ARCH.extern_env)
                           (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
+      (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup *)
       Env.find x pis = Some (PInst closure fclosure pis' exts strt states) ->
       (* Argument evaluation *)
@@ -448,15 +448,15 @@ Module Step.
        ⇝ ⟨ϵ'', ={accept}=, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ pkt, fs, ϵ, Parser pis eis, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt' ⟫
-  | sbs_prsr_reject_apply (args : E.args tags_t)
-                          (argsv : V.argsv)
-                          (x : string) (i : tags_t)
+      ⟪ pkt, fs, ϵ, Parser pis eis, apply x with eargs & args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt' ⟫
+  | sbs_prsr_reject_apply (args : E.args tags_t) (eargs : F.fs string string)
+                          (argsv : V.argsv) (x : string) (i : tags_t)
                           (strt : PR.state_block tags_t)
                           (states : F.fs string (PR.state_block tags_t))
                           (fclosure : fenv) (pis pis' : pienv)
                           (closure ϵ' ϵ'' ϵ''' : epsilon)
                           (pkt' : Paquet.t) (exts eis : ARCH.extern_env) :
+      (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup *)
       Env.find x pis = Some (PInst closure fclosure pis' exts strt states) ->
       (* Argument evaluation *)
@@ -471,7 +471,7 @@ Module Step.
       Δ` (pkt, fclosure, ϵ', pis', exts, strt, states, ={start}=) ⇝ ⟨ϵ'', reject, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ pkt, fs, ϵ, Parser pis eis, apply x with args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct, pkt' ⟫
+      ⟪ pkt, fs, ϵ, Parser pis eis, apply x with eargs & args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct, pkt' ⟫
   | sbs_invoke (x : string) (i : tags_t)
                (es : entries)
                (ky : list (E.t * E.e tags_t * E.matchkind))
@@ -705,13 +705,15 @@ Module Step.
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of e(cargs) @ i ⦈
         ⟱  ⦇ eis'', cis, pis, fns, es, cs, ps ⦈
   | tpbs_control_decl (c : string) (cparams : E.constructor_params)
+                      (eparams : F.fs string string)
                       (params : E.params) (body : CD.d tags_t)
                       (apply_blk : ST.s tags_t) (i : tags_t) :
       let cs' := Env.bind c (CDecl cs ϵ fns cis eis body apply_blk) cs in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
-        control c (cparams)(params) apply { apply_blk } where { body } @ i ⦈
+        control c (cparams)(eparams)(params) apply { apply_blk } where { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es, cs', ps ⦈
   | tpbs_parser_decl (p : string) (cparams : E.constructor_params)
+                     (eparams : F.fs string string)
                      (params : E.params) (strt : PRSR.state_block tags_t)
                      (states : F.fs string (PRSR.state_block tags_t))
                      (i : tags_t) :
@@ -719,7 +721,7 @@ Module Step.
          as well as instantiation cases for parsers & externs *)
       let ps' := Env.bind p (PDecl ps ϵ fns pis eis strt states) ps in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
-        parser p (cparams)(params) start := strt { states } @ i ⦈
+        parser p (cparams)(eparams)(params) start := strt { states } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es, cs, ps' ⦈
 (*  | tpbs_extern_decl (e : string) (i : tags_t)
                      (cparams : E.constructor_params)

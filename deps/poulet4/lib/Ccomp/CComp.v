@@ -479,9 +479,9 @@ Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
 Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t): option (ClightEnv tags_t)
   :=
   match parsr with
-  | %{parser p (cparams) (params) start := st {states} @ i}% =>
+  | %{parser p (cparams) (_) (params) start := st {states} @ i}% =>
     (*ignore constructor params for now*)
-    
+    (* also ignoring extern runtime params for now*)
     let (fn_params, env_params):= CTranslateParams params env in
     let (copyin, env_copyin) := CCopyIn params env_params in 
     let (copyout, env_copyout) := CCopyOut params env_copyin in
@@ -597,8 +597,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t): opt
   Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t): option (ClightEnv tags_t)
   := 
   match ctrl with
-  | %{control c (cparams) (params) apply {blk} where {body} @ i}%
+  | %{control c (cparams) (_) (params) apply {blk} where {body} @ i}%
     => (*ignoring constructor params for now*)
+      (*also ignoring extern runtime params*)
        let (fn_params, env_top_fn_param) := CTranslateParams params env in
        let (copyin, env_copyin) := CCopyIn params env_top_fn_param in 
        let (copyout, env_copyout) := CCopyOut params env_copyin in 
@@ -670,8 +671,8 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t): opt
   | %{void f (params) {body} @i }% => CTranslateFunction d env
   | %{fn f (params) -> t {body} @i }% => CTranslateFunction d env
   | %{extern e (cparams) {methods} @i }% => None (*TODO: implement*)
-  | %{control c (cparams) (params) apply {blk} where {body} @ i}% => CTranslateTopControl d env
-  | %{parser p (cparams) (params) start := st {states} @ i}% => CTranslateTopParser d env
+  | %{control c (cparams) (_) (params) apply {blk} where {body} @ i}% => CTranslateTopControl d env
+  | %{parser p (cparams) (_) (params) start := st {states} @ i}% => CTranslateTopParser d env
   | %{package _ (_) @ _}% => None (*TODO: implement*)
   end.
   (* currently just an empty program *)

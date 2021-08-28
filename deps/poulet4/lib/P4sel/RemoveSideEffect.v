@@ -369,14 +369,14 @@ match td with
   (SelTD.TPInstantiate C x cargs' cargs_stmt i, env_cargs)
 | CubTD.TPExtern e cparams methods i => 
   (SelTD.TPExtern e cparams methods i, env)
-| CubTD.TPControl c cparams _ params body apply_blk i => (* TODO: extern runtime params *)
+| CubTD.TPControl c cparams eps params body apply_blk i =>
   let (body', env_body) := TranslateControlDecl body env in
   let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
-  (SelTD.TPControl c cparams params body' apply_blk' i, env_apply_blk)
-| CubTD.TPParser p cparams _ params start states i => (* TODO: extern runtime params *)
+  (SelTD.TPControl c cparams eps params body' apply_blk' i, env_apply_blk)
+| CubTD.TPParser p cparams eps params start states i =>
   let (start', env_start) := TranslateParserState start env in
   let (states', env_states) := TranslateParserStates states env_start in
-  (SelTD.TPParser p cparams params start' states' i, env_states)
+  (SelTD.TPParser p cparams eps params start' states' i, env_states)
 | CubTD.TPFunction f signature body i =>
   let (body', env_body) := TranslateStatement body env in 
   (SelTD.TPFunction f signature body' i, env_body)

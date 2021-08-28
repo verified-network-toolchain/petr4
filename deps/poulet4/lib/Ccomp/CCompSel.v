@@ -722,7 +722,7 @@ Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
 Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
   :=
   match parsr with
-  | TD.TPParser p cparams params st states i =>
+  | TD.TPParser p cparams eps params st states i =>
     let (fn_cparams, env_cparams) := CTranslateConstructorParams cparams env in
     let (fn_params, env_params):= CTranslateParams params env_cparams in
     let (copyin, env_copyin) := CCopyIn params env_params in 
@@ -838,7 +838,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
   := 
   match ctrl with
-  | TD.TPControl c cparams params body blk i
+  | TD.TPControl c cparams eps params body blk i
     => 
        let (fn_cparams, env_top_fn_cparam) := CTranslateConstructorParams cparams env in
        let (fn_params, env_top_fn_param) := CTranslateParams params env_top_fn_cparam in
@@ -917,8 +917,8 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
     end 
   | TD.TPFunction _ _ _ _ => CTranslateFunction d env
   | TD.TPExtern e cparams methods i => None (*TODO: implement*)
-  | TD.TPControl _ _ _ _ _ _ => CTranslateTopControl d env
-  | TD.TPParser _ _ _ _ _ _ => CTranslateTopParser d env
+  | TD.TPControl _ _ _ _ _ _ _ => CTranslateTopControl d env
+  | TD.TPParser _ _ _ _ _ _ _ => CTranslateTopParser d env
   | TD.TPPackage _ _ _ => None (*TODO: implement*)
   end.
   (* currently just an empty program *)

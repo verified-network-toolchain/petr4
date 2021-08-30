@@ -14,8 +14,7 @@ Require Import Poulet4.CoqLib.
 
 Import ListNotations.
 
-
-Coercion Pos.of_nat: nat >-> positive.
+Coercion pos_of_N: N >-> positive.
 
 Module Ops.
   Section Operations.
@@ -24,6 +23,7 @@ Module Ops.
   Definition empty_str := P4String.empty_str dummy_tags.
 
   Notation Val := (@ValueBase tags_t bool).
+  Notation ValSet := (@ValueSet tags_t bool).
   Definition Fields (A : Type):= P4String.AList tags_t A.
 
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
@@ -46,7 +46,7 @@ Module Ops.
     end.
 
 
-  Definition eval_binary_op_bit (op: OpBin) (w: nat) (n1 n2 : Z) : option Val :=
+  Definition eval_binary_op_bit (op: OpBin) (w: N) (n1 n2 : Z) : option Val :=
     match op with
     | Plus      => Some (ValBaseBit (to_lbool w (BitArith.plus_mod w n1 n2)))
     | PlusSat   => Some (ValBaseBit (to_lbool w (BitArith.plus_sat w n1 n2)))
@@ -72,7 +72,7 @@ Module Ops.
     end.
 
 
-  Definition eval_binary_op_int (op: OpBin) (w: nat) (n1 n2 : Z) : option Val :=
+  Definition eval_binary_op_int (op: OpBin) (w: N) (n1 n2 : Z) : option Val :=
     match op with
     | Plus      => Some (ValBaseInt (to_lbool w (IntArith.plus_mod w n1 n2)))
     | PlusSat   => Some (ValBaseInt (to_lbool w (IntArith.plus_sat w n1 n2)))
@@ -236,19 +236,19 @@ Module Ops.
     | ValBaseBit bits1, ValBaseBit bits2 =>
         let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := BitArith.from_lbool bits2 in
-        if (w1 =? w2)%nat then Some (n1 =? n2)
+        if (w1 =? w2)%N then Some (n1 =? n2)
         else None
     | ValBaseInt bits1, ValBaseInt bits2 =>
         let (w1, n1) := IntArith.from_lbool bits1 in
         let (w2, n2) := IntArith.from_lbool bits2 in
-        if (w1 =? w2)%nat then Some (n1 =? n2)
+        if (w1 =? w2)%N then Some (n1 =? n2)
         else None
     | ValBaseInteger n1, ValBaseInteger n2 => 
         Some (n1 =? n2)
     | ValBaseVarbit m1 bits1, ValBaseVarbit m2 bits2 =>
         let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := BitArith.from_lbool bits2 in
-        if (m1 =? m2)%nat then Some ((w1 =? w2)%nat && (n1 =? n2))
+        if (m1 =? m2)%N then Some ((w1 =? w2)%N && (n1 =? n2))
         else None
     | ValBaseStruct l1, ValBaseStruct l2 =>
         eval_binary_op_eq_struct l1 l2
@@ -262,7 +262,7 @@ Module Ops.
         | Some b3 => Some ((b1 && b2 && b3) || ((negb b1) && (negb b1)))
         end
     | ValBaseStack vs1 s1 n1, ValBaseStack vs2 s2 n2 =>
-        if negb (s1 =? s2)%nat then None
+        if negb (s1 =? s2)%N then None
         else eval_binary_op_eq_tuple vs1 vs2
     | ValBaseTuple vs1, ValBaseTuple vs2 =>
         eval_binary_op_eq_tuple vs1 vs2
@@ -294,12 +294,12 @@ Module Ops.
     | _, ValBaseBit bits1, ValBaseBit bits2 => 
         let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := BitArith.from_lbool bits2 in
-        if (w1 =? w2)%nat then eval_binary_op_bit op w1 n1 n2
+        if (w1 =? w2)%N then eval_binary_op_bit op w1 n1 n2
         else None
     | _, ValBaseInt bits1, ValBaseInt bits2 => 
         let (w1, n1) := IntArith.from_lbool bits1 in
         let (w2, n2) := IntArith.from_lbool bits2 in
-        if (w1 =? w2)%nat then eval_binary_op_int op w1 n1 n2
+        if (w1 =? w2)%N then eval_binary_op_int op w1 n1 n2
         else None
     | _, ValBaseInteger n1, ValBaseInteger n2 => 
         eval_binary_op_integer op n1 n2
@@ -315,14 +315,14 @@ Module Ops.
     | _ => None
     end.
 
-  Definition bit_of_val (w : nat) (oldv : Val) : option Val :=
+  Definition bit_of_val (w : N) (oldv : Val) : option Val :=
   match oldv with
   | ValBaseBool b => 
-    if (w =? 1)%nat then Some (ValBaseBit [b])
+    if (w =? 1)%N then Some (ValBaseBit [b])
     else None
   | ValBaseInt bits => 
       let (w', n) := IntArith.from_lbool bits in
-      if (w =? w')%nat then Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
+      if (w =? w')%N then Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
       else None
   | ValBaseBit bits => 
       let (w', n) := BitArith.from_lbool bits
@@ -332,17 +332,17 @@ Module Ops.
   | ValBaseSenumField _ _ v => 
       match v with
       | ValBaseBit bits => 
-          if (List.length bits =? w)%nat then Some v else None
+          if (Z.to_N (Zlength bits) =? w)%N then Some v else None
       | _ => None
       end
   | _ => None
   end.
 
-  Definition int_of_val (w : nat) (oldv : Val) : option Val :=
+  Definition int_of_val (w : N) (oldv : Val) : option Val :=
   match oldv with
   | ValBaseBit bits =>
       let (w', n) := BitArith.from_lbool bits in
-      if (w' =? w)%nat then Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
+      if (w' =? w)%N then Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
       else None
   | ValBaseInt bits => 
       let (w', n) := IntArith.from_lbool bits 
@@ -352,7 +352,7 @@ Module Ops.
   | ValBaseSenumField _ _ v => 
       match v with
       | ValBaseInt bits => 
-          if (List.length bits =? w)%nat then Some v else None
+          if (Z.to_N (Zlength bits) =? w)%N then Some v else None
       | _ => None
       end
   | _ => None
@@ -373,12 +373,12 @@ Module Ops.
   | None, _ => None
   | Some (TypBit w), ValBaseBit bits
   | Some (TypBit w), ValBaseSenumField _ _ (ValBaseBit bits) => 
-      if (w =? List.length bits)%nat 
+      if (w =? Z.to_N (Zlength bits))%N 
       then Some (ValBaseSenumField name empty_str (ValBaseBit bits))
       else None
   | Some (TypInt w), ValBaseInt bits
   | Some (TypInt w), ValBaseSenumField _ _ (ValBaseInt bits) =>
-      if (List.length bits =? w)%nat 
+      if (Z.to_N (Zlength bits) =? w)%N 
       then Some (ValBaseSenumField name empty_str (ValBaseInt bits))
       else None
   | _, _ => None
@@ -466,16 +466,27 @@ Module Ops.
         | Some values => Some (ValBaseTuple values)
         | _ => None
         end
-    | TypSet eletyp =>
+    (* | TypSet eletyp =>
         match oldv with
         | ValBaseSet v => Some (ValBaseSet v)
         | _ => match eval_cast eletyp oldv with
                | Some newv => Some (ValBaseSet (ValSetSingleton newv))
                | _ => None
                end
+        end *)
+    | _ => None
+    end.
+
+  Definition eval_cast_set (newtyp : @P4Type tags_t) (oldv : Val) : option ValSet :=
+    match newtyp with
+    | TypSet eletyp =>
+        match eval_cast eletyp oldv with
+        | Some newv => Some (ValSetSingleton newv)
+        | _ => None
         end
     | _ => None
     end.
+  
   (* Admitted. *)
 
   (* Fixpoint sort_by_key_typ (t: P4Type) : P4Type :=

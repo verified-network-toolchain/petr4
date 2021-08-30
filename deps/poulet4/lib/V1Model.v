@@ -32,13 +32,13 @@ Notation action_ref := (@action_ref tags_t Expression).
 Notation ValSet := (@ValueSet tags_t bool).
 
 Inductive register := mk_register {
-  reg_width : nat;
+  reg_width : N;
   reg_size : Z;
   reg_content : list Z
 }.
 
-Definition new_register (size : Z) (w : nat) :=
-  mk_register w size (repeat 0 (Z.to_nat size)).
+Definition new_register (size : Z) (w : N) :=
+  mk_register w size (Zrepeat 0 size).
 
 Definition packet_in := list bool.
 
@@ -91,7 +91,7 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
             fun _ _ _ _ _ _ => False
   end.
 
-Definition REG_INDEX_WIDTH := 32%nat.
+Definition REG_INDEX_WIDTH := 32%N.
 
 Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall s p reg w index result,
@@ -138,7 +138,7 @@ Inductive packet_in_extract_sem : extern_func_sem :=
   | exec_packet_in_extract2 : forall s p pin typ len v pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem s p [typ] [ValBaseBit (to_lbool 32%nat len)]
+      packet_in_extract_sem s p [typ] [ValBaseBit (to_lbool 32%N len)]
             (PathMap.set p (ObjPin pin') s)
           [v] SReturnNull.
 

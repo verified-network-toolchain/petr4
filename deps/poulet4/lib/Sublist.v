@@ -496,7 +496,10 @@ Ltac pose_Zlength_nonneg :=
 
 Ltac old_list_solve := autorewrite with sublist; pose_Zlength_nonneg; lia.
 
-Definition Znth {X}{d: Inhabitant X} n (xs: list X) :=
+Definition Znth_def {A} n (l: list A) (default_elet : A) :=
+  if (Z_lt_dec n 0) then default_elet else nth (Z.to_nat n) l default_elet.
+
+Definition Znth {X} {d: Inhabitant X} n (xs: list X) :=
   if (Z_lt_dec n 0) then default else nth (Z.to_nat n) xs d.
 
 Lemma Znth_map:

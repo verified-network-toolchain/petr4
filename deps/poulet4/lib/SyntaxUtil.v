@@ -5,6 +5,9 @@ Require Export Poulet4.Maps.
 Require Import String.
 Import ListNotations.
 
+Require Import Coq.PArith.BinPosDef.
+Require Import Coq.NArith.BinNatDef.
+
 Section SyntaxUtil.
 
 Context {tags_t: Type}.
@@ -111,5 +114,12 @@ Definition StackOutOfBounds_str := "StackOutOfBounds".
 Definition HeaderTooShort_str := "HeaderTooShort".
 Definition ParserTimeout_str := "ParserTimeout".
 Definition ParserInvalidArgument_str := "ParserInvalidArgument".
+
+(* Conversion *)
+Definition pos_of_N (n : N) : positive :=
+  match n with
+  | N0 => 1
+  | Npos p => p
+  end.
 
 End SyntaxUtil.

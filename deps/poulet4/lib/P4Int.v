@@ -1,11 +1,12 @@
 Require Import Coq.Numbers.BinNums.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.ZArith.BinInt.
+Require Import Coq.NArith.BinNat.
 
 Record t (tags_t: Type) :=
   { tags: tags_t;
     value: Z;
-    width_signed: option (nat * bool); }.
+    width_signed: option (N * bool); }.
 
 Arguments tags [tags_t] _.
 Arguments value [tags_t] _.
@@ -37,11 +38,14 @@ Proof.
   - unfold equiv; auto.
 Defined.
 
-Instance NatBoolEqDec : EqDec (nat * bool) eq.
-Proof. apply (ProdEqDec nat bool). Defined.
+Instance NEqDec : EqDec N eq :=
+  { equiv_dec := N.eq_dec }.
 
-Instance OptionNatBoolDec : EqDec (option (nat * bool)) eq.
-Proof. apply (OptionEqDec (nat * bool)). Defined.
+Instance NatBoolEqDec : EqDec (N * bool) eq.
+Proof. apply (ProdEqDec N bool). Defined.
+
+Instance OptionNatBoolDec : EqDec (option (N * bool)) eq.
+Proof. apply (OptionEqDec (N * bool)). Defined.
 
 Section IntEquiv.
   Context {tags_t : Type}.

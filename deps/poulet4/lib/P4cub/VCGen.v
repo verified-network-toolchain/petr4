@@ -72,6 +72,15 @@ Definition rmap {A B : Type} (f : A ->  B)  (r : @result A) : @result B :=
 Notation "'let**' p ':=' c1 'in' c2" := (rmap (fun p => c2) c1)
                         (at level 61, p as pattern, c1 at next level, right associativity).
 
+Definition overwritebind {A B : Type} (r : @result A) (str : string) (f : A -> @result B) : @result B :=
+  match r with
+  | Error _ => Error str
+  | Ok x  => f x
+  end.
+
+Notation "'let~' p ':=' c1 'over' str 'in' c2" := (overwritebind c1 str (fun p => c2))
+                                   (at level 61, p as pattern, c1 at next level, right associativity).
+
 
 Definition rbindcomp {A B C : Type} (f : B -> C) (g : A -> @result B) (a : A) : @result C :=
   let** b := g a in
@@ -729,6 +738,9 @@ Module GCL.
   | GAssume (phi : form)
   | GAssert (phi : form).
 
+  Definition g_sequence {L R F : Type} (i : tags_t) : list (@t L R F) -> @t L R F :=
+    fold_right GSeq (GSkip i).
+
   Module BitVec.
     Inductive bop :=
     | BVPlus
@@ -752,6 +764,16 @@ Module GCL.
     | BinOp (op : bop) (u v : t) (i : tags_t)
     | UnOp (op : uop) (v : t) (i : tags_t).
 
+    Definition add := BinOp BVPlus.
+    Definition sub := BinOp BVMinus.
+    Definition mul := BinOp BVTimes.
+    Definition app := BinOp BVConcat.
+    Definition shl := BinOp BVShl.
+    Definition shr := BinOp BVShr.
+    Definition band := BinOp BVAnd.
+    Definition bor := BinOp BVOr.
+    Definition bxor := BinOp BVXor.
+
   End BitVec.
 
   Inductive lbop := | LOr | LAnd | LImp | LIff.
@@ -763,6 +785,19 @@ Module GCL.
   | LVar (x : string) (i : tags_t)
   | LComp (comp : lcomp) (bv1 bv2 : BitVec.t) (i : tags_t)
   .
+
+  Definition leq := LComp LEq.
+  Definition lle := LComp LLe.
+  Definition llt := LComp LLt.
+  Definition lge := LComp LGe.
+  Definition lgt := LComp LGt.
+  Definition lne := LComp LNeq.
+
+  Definition lor := LBop LOr.
+  Definition land := LBop LAnd.
+  Definition limp := LBop LImp.
+  Definition liff := LBop LIff.
+
   Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
   Definition is_true (x : string) (i : tags_t) : form :=
@@ -791,7 +826,7 @@ Module GCL.
   Module Translate.
   Section Instr.
     Definition target := @t string BitVec.t form.
-    Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> target).
+    Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> @result target).
 
     Fixpoint scopify (ctx : Ctx.t) (e : E.e tags_t) : E.e tags_t :=
       match e with
@@ -898,6 +933,36 @@ Module GCL.
       | _ => Error "Tried to get the base header of something other than a header stack."
       end.
 
+    Fixpoint to_header_string (e : (E.e tags_t)) : @result string :=
+      match e with
+      | E.EBool _ _ => Error "A Boolean is not a header"
+      | E.EBit _ _ _ => Error "A bitvector literal is not a header"
+      | E.EInt _ _ _ => Error "An integer literal is not a header"
+      | E.EVar t x i =>
+        match t with
+        | E.THeader _ => Ok x
+        | _ => Error "Got variable, but the header itself was no good"
+        end
+      | E.ESlice _ _ _ _ _ => Error "A Slice is not a header"
+      | E.ECast _ _ _ => Error "A Cast is not a header"
+      | E.EUop _ _ _ _ => Error "No unary operation is a header"
+      | E.EBop _ _ _ _ _ _ => Error "No binary operation is a header"
+      | E.ETuple _ _ => Error "A Tuple is not a header"
+      | E.EStruct _ _ =>
+        Error "Structs are not headers"
+      | E.EHeader _ _ _ =>
+        Error "Header literals should not be keys"
+      | E.EExprMember mem expr_type arg i =>
+        let** str := to_header_string arg in
+        str ++ "." ++ mem
+      | E.EError _ _ => Error "Errors are not header strings"
+      | E.EMatchKind _ _ => Error "MatchKinds are not header strings"
+      | E.EHeaderStack _ _ _ _ _ =>
+        Error "[FIXME] Header stacks are not supported as table keys"
+      | E.EHeaderStackAccess stack index i =>
+        Error "Header stack accesses as table keys should have been factored out in an earlier stage."
+      end.
+
     Fixpoint to_rvalue (e : (E.e tags_t)) : @result BitVec.t :=
       match e with
       | E.EBool b i =>
@@ -928,13 +993,16 @@ Module GCL.
           Error "Illegal cast, should've been caught by the type-checker"
         end
       | E.EUop op type arg i =>
-        let* rv_arg := to_rvalue arg in
         match op with
-        | E.Not => Ok (BitVec.UnOp BitVec.BVNeg rv_arg i)
-        | E.BitNot => Ok (BitVec.UnOp BitVec.BVNeg rv_arg i)
+        | E.Not =>
+          let** rv_arg := to_rvalue arg in
+          BitVec.UnOp BitVec.BVNeg rv_arg i
+        | E.BitNot =>
+          let** rv_arg := to_rvalue arg in
+          BitVec.UnOp BitVec.BVNeg rv_arg i
         | E.UMinus => Error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
-          let** header := to_lvalue arg in
+          let** header := to_header_string arg in
           let hvld := header ++ ".is_valid" in
           BitVec.BVVar hvld (pos 1) i
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
@@ -1084,8 +1152,8 @@ Module GCL.
         Error "Headers are not formulae"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
-        let** w := width_of_type expr_type in
-        isone (BitVec.BVVar lv w i) i
+        let~ w := (width_of_type expr_type) over ("failed getting type of " ++ mem) in
+        Ok (isone (BitVec.BVVar lv w i) i)
       | E.EError _ _ =>
         Error "Errors are not formulae"
       | E.EMatchKind _ _ =>
@@ -1144,8 +1212,8 @@ Module GCL.
         Ok (GAssign (E.TBit (pos 1)) "exit" (BitVec.BitVec (pos 1) (pos 1) i) i, Ctx.update_exit ctx true)
 
       | I.IInvoke tbl keys actions i =>
-        let** actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
-        let g := (instr tbl i keys actions') in
+        let* actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
+        let** g := instr tbl i keys actions' in
         (g, ctx)
 
       | I.IExternMethodCall ext method args i =>
@@ -1176,6 +1244,8 @@ Module GCL.
     Variable d : tags_t.
 
     Definition bit (n : nat) : E.t := E.TBit (pos 4).
+    Definition asm_eq (s : string) (w : nat) (r : BitVec.t) (i : tags_t) : Translate.target :=
+      GCL.GAssume (leq (BitVec.BVVar s (pos w) i) r i).
     Print fold_right.
     Definition s_sequence (ss : list (ST.s tags_t)) : ST.s tags_t :=
       fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
@@ -1247,40 +1317,41 @@ Module GCL.
     Definition simple_nat_ingress : (ST.s tags_t) :=
       let fwd :=
           E.EBop (E.Eq) (bit 1) (bit 1)
-                 (E.EExprMember "do_forward" meta_type (E.EVar meta_type "meta" d) d)
+                 (E.EExprMember "do_forward" (bit 1) (E.EVar meta_type "meta" d) d)
                  (E.EBit (pos 1) (Zpos (pos 1)) d)
                  d
       in
       let ttl :=
-          E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" ipv4_type (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
+          E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" (bit 8) (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
       in
       let cond := E.EBop E.And E.TBool E.TBool fwd ttl d in
-      ST.SSeq (ST.SInvoke "if_info" d)
-              (ST.SSeq (ST.SInvoke "nat" d)
-                       (ST.SConditional E.TBool
-                                        cond
-                                        (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d)
-                                        (ST.SSkip d)
-                                        d)
-                       d)
-              d.
+      ST.SInvoke "nat" d.
+      (* ST.SSeq (ST.SInvoke "if_info" d) *)
+      (*         (ST.SSeq (ST.SInvoke "nat" d) *)
+      (*                  (ST.SConditional E.TBool *)
+      (*                                   cond *)
+      (*                                   (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d) *)
+      (*                                   (ST.SSkip d) *)
+      (*                                   d) *)
+      (*                  d) *)
+      (*         d. *)
 
     Locate P4cub.Control.
 
-    Definition meta (s : string) :=
-      E.EExprMember s meta_type (E.EVar meta_type "meta" d) d.
+    Definition meta (s : string) (w : nat) :=
+      E.EExprMember s (bit w) (E.EVar meta_type "meta" d) d.
 
-    Definition std_meta (s : string) :=
-      E.EExprMember s std_meta_type (E.EVar std_meta_type "standard_metadata" d) d.
+    Definition std_meta (s : string) (w : nat):=
+      E.EExprMember s (bit w)  (E.EVar std_meta_type "standard_metadata" d) d.
 
-    Definition ethernet (s : string) :=
-      E.EExprMember s ethernet_type (E.EVar ethernet_type "ethernet" d) d.
+    Definition ethernet (s : string) (w : nat):=
+      E.EExprMember s (bit w) (E.EVar ethernet_type "ethernet" d) d.
 
-    Definition ipv4 (s : string) :=
-      E.EExprMember s ipv4_type (E.EVar ipv4_type "ipv4" d) d.
+    Definition ipv4 (s : string) (w : nat) :=
+      E.EExprMember s (bit w) (E.EVar ipv4_type "ipv4" d) d.
 
-    Definition tcp (s : string) :=
-      E.EExprMember s tcp_type (E.EVar tcp_type "tcp" d) d.
+    Definition tcp (s : string) (w : nat) :=
+      E.EExprMember s (bit w) (E.EVar tcp_type "tcp" d) d.
 
 
     Definition valid (s : string) (t : E.t) :=
@@ -1288,17 +1359,17 @@ Module GCL.
 
     Definition ingress_table_env :=
       [("if_info",
-        CD.Table ([(bit 8, meta "if_index", E.MKExact)])
+        CD.Table ([(bit 8, meta "if_index" 8, E.MKExact)])
                  (["_drop"; "set_if_info"])
        );
       ("nat",
-       CD.Table ([(bit 1, meta "is_ext_if", E.MKExact);
+       CD.Table ([(bit 1, meta "is_ext_if" 1, E.MKExact);
                  (bit 1, valid "ipv4" ipv4_type, E.MKExact);
                  (bit 1, valid "tcp" tcp_type, E.MKExact);
-                 (bit 32, ipv4 "srcAddr", E.MKTernary);
-                 (bit 32, ipv4 "dstAddr", E.MKTernary);
-                 (bit 32, tcp "srcPort", E.MKTernary);
-                 (bit 32, tcp "dstPort", E.MKTernary)
+                 (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
+                 (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
+                 (bit 32, tcp "srcPort" 32, E.MKTernary);
+                 (bit 32, tcp "dstPort" 32, E.MKTernary)
                 ])
                 (["_drop";
                  "nat_miss_ext_to_int";
@@ -1308,11 +1379,11 @@ Module GCL.
                  (* "nat_no_nat" *)
       ]));
       ("ipv4_lpm",
-       CD.Table ([(bit 32, meta "ipv4_da", E.MKLpm)])
+       CD.Table ([(bit 32, meta "ipv4_da" 32, E.MKLpm)])
                 (["set_nhop"; "_drop"])
       );
       ("forward",
-       CD.Table ([(bit 32, meta "nhop_ipv4", E.MKExact)])
+       CD.Table ([(bit 32, meta "nhop_ipv4" 32, E.MKExact)])
                 (["set_dmac"; "_drop"])
       )
       ].
@@ -1328,33 +1399,33 @@ Module GCL.
       P.Arrow [("standard_metadata", P.PAInOut (std_meta_type, E.EVar std_meta_type "standard_metadata" d))] None.
 
     Definition set_if_info :=
-      s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr") (E.EVar (bit 32) "ipv4_addr" d) d;
-                 ST.SAssign (bit 48) (meta "if_mac_addr") (E.EVar (bit 48) "mac_addr" d) d;
-                 ST.SAssign (bit 1) (meta "is_ext_if") (E.EVar (bit 48) "is_ext" d) d].
+      s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
+                 ST.SAssign (bit 48) (meta "if_mac_addr" 48) (E.EVar (bit 48) "mac_addr" d) d;
+                 ST.SAssign (bit 1) (meta "is_ext_if" 1) (E.EVar (bit 48) "is_ext" d) d].
 
     Definition nat_miss_ext_to_int :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) Z0 d) d;
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) Z0 d) d;
                  ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d].
 
     Definition nat_hit_int_to_ext :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-                 ST.SAssign (bit 32) (meta "ipv4_sa") (E.EVar (bit 32) "srcAddr" d) d;
-                 ST.SAssign (bit 32) (meta "tcp_sp") (E.EVar (bit 32) "srcPort" d) d
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+                 ST.SAssign (bit 32) (meta "ipv4_sa" 32) (E.EVar (bit 32) "srcAddr" d) d;
+                 ST.SAssign (bit 32) (meta "tcp_sp" 32) (E.EVar (bit 32) "srcPort" d) d
                  ]
     .
     Definition nat_hit_ext_to_int :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward") (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-                 ST.SAssign (bit 32) (meta "ipv4_da") (E.EVar (bit 32) "dstAddr" d) d;
-                 ST.SAssign (bit 32) (meta "tcp_dp") (E.EVar (bit 32) "dstPort" d) d
+      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+                 ST.SAssign (bit 32) (meta "ipv4_da" 32) (E.EVar (bit 32) "dstAddr" d) d;
+                 ST.SAssign (bit 32) (meta "tcp_dp" 32) (E.EVar (bit 32) "dstPort" d) d
                  ]
     .
     Definition set_dmac :=
-      ST.SAssign (bit 48) (ethernet "dstAddr") (E.EVar (bit 48) "dmac" d) d.
+      ST.SAssign (bit 48) (ethernet "dstAddr" 48) (E.EVar (bit 48) "dmac" d) d.
 
     Definition set_nhop :=
-      s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4") (E.EVar (bit 32) "nhop_ipv4" d) d;
-                 ST.SAssign (bit 9) (std_meta "egress_spec") (E.EVar (bit 9) "port" d) d;
-                 ST.SAssign (bit 8) (ipv4 "ttl") (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl") (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
+      s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4" 32) (E.EVar (bit 32) "nhop_ipv4" d) d;
+                 ST.SAssign (bit 9) (std_meta "egress_spec" 9) (E.EVar (bit 9) "port" d) d;
+                 ST.SAssign (bit 8) (ipv4 "ttl" 8) (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl" 8) (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
                  ].
 
     Definition ingress_action_env :=
@@ -1362,23 +1433,75 @@ Module GCL.
         empty_adecl (ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d));
       ("set_if_info", empty_adecl set_if_info);
       ("nat_miss_ext_to_int", empty_adecl nat_miss_ext_to_int);
-      (* ("nat_miss_int_to_ext", empty_adecl nat_miss_int_to_ext); requires "generics" *)
       ("nat_hit_int_to_ext", empty_adecl nat_hit_int_to_ext);
       ("nat_hit_ext_to_int", empty_adecl nat_hit_ext_to_int);
       ("set_dmac", empty_adecl set_dmac);
       ("set_nhop", empty_adecl set_nhop)
       ].
 
-    Print GCL.GAssign.
-    Print BitVec.BitVec.
-    Definition instr (name : string) (i : tags_t) (_: list (E.t * E.e tags_t * E.matchkind)) ( _ : list (string * Translate.target)) : Translate.target :=
-      GCL.GAssign (bit 1) name (BitVec.BitVec (pos 1) (pos 1) i) i.
+    Print Translate.to_rvalue.
+
+    Definition matchrow_inner (table : string) (i : tags_t) (n : nat) (elt : E.t * E.e tags_t * E.matchkind) (acc_res : @result form) : @result form :=
+      let (te, mk) := elt in
+      let (typ, exp) := te in
+      let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
+      let* acc := acc_res in
+      let* w : positive := Translate.width_of_type typ in
+      let* k : BitVec.t := Translate.to_rvalue exp in
+      match mk with
+      | E.MKExact =>
+        Ok (land (leq (BitVec.BVVar symbmatch w i) k i) acc i : form)
+      | E.MKTernary =>
+        let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
+        Ok (land (leq (BitVec.band (BitVec.BVVar symbmask w i) (BitVec.BVVar symbmatch w i) i)
+                      (BitVec.band (BitVec.BVVar symbmask w i) k i) i)
+                 acc i)
+      | E.MKLpm =>
+        Error "[FIXME] lpm is not implemented"
+      end.
+
+    Definition matchrow (table : string) (keys : list (E.t * E.e tags_t * E.matchkind)) (i : tags_t) : @result form :=
+      fold_lefti (matchrow_inner table i) (Ok (LBool true i)) keys.
+
+    Definition bits_to_encode_list_index {A : Type} (l : list A) : nat :=
+      let n := List.length l in
+      Nat.max (PeanoNat.Nat.log2_up n) 1.
+
+    Definition action_inner (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (w : nat) (n : nat) (named_action : string * Translate.target) (res_acc : @result Translate.target) : @result Translate.target :=
+      let (name, act) := named_action in
+      let* matchcond := matchrow name keys i in
+      let** acc := res_acc in
+      g_sequence i
+                 [GCL.GAssume matchcond;
+                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BitVec.BitVec (pos 1) (pos 1) i) i;
+                 asm_eq ("__symb_" ++ name ++ "_action") w  (BitVec.BitVec (pos w) (pos n) i) i;
+                 act (* TODO something with action data *)].
+
+    Definition actions_encoding (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (actions : list (string * Translate.target)) : @result Translate.target :=
+      let w := bits_to_encode_list_index actions in
+      fold_lefti (action_inner table i keys w) (Ok (GCL.GSkip i)) actions.
+
+    Definition instr (name : string) (i : tags_t) (keys: list (E.t * E.e tags_t * E.matchkind)) (actions: list (string * Translate.target)) : @result Translate.target :=
+      let** hit := actions_encoding name i keys actions in
+      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BitVec.BitVec (pos 1) (pos 1) i) i in
+      GCL.GChoice hit miss.
 
     Definition v1model : Arch.extern :=
       [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BitVec.BitVec (pos 1) (pos 1) d) d)].
 
     Definition arch : Arch.model :=
       [("v1model", v1model)].
+
+    Compute (Translate.to_rvalue (valid "ipv4" ipv4_type)).
+
+    Compute (instr "nat" d [(bit 1, meta "is_ext_if" 1, E.MKExact);
+                 (bit 1, valid "ipv4" ipv4_type, E.MKExact);
+                 (* (bit 1, valid "tcp" tcp_type, E.MKExact); *)
+                 (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
+                 (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
+                 (bit 32, tcp "srcPort" 32, E.MKTernary);
+                 (bit 32, tcp "dstPort" 32, E.MKTernary)
+                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BitVec.BitVec (pos 1) (pos 1) d) d)]).
 
     Compute (Translate.p4cub_statement_to_gcl instr
                                               10

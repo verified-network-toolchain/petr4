@@ -181,3 +181,72 @@ Section FoldLeftProp.
       FoldLeft (a :: l) b b''.
   (**[]*)
 End FoldLeftProp.
+
+
+
+Require Import Poulet4.P4cub.Util.Result.
+Import Result.
+Import ResultNotations.
+Import String.
+
+Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
+  match p with
+  | (_, None) => None
+  | (a, Some b) => Some (a,b)
+  end.
+
+Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
+  match p with
+  | (_, Error _ s) => error s
+  | (a, Ok _ b) => ok (a, b)
+  end.
+
+Definition snd_res_map {A B C : Type} (f : B -> result C) (p : A * B) : result (A * C) :=
+  let (x,y) := p in
+  let** z := f y in
+  (x, z).
+
+Fixpoint string_member (x : string) (l1 : list string) : bool :=
+  match l1 with
+  | [] => false
+  | y::ys =>
+    if String.eqb x y
+    then true
+    else string_member x ys
+  end.
+
+Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
+  match s1,s2 with
+  | [], [] => true
+  | _, [] => false
+  | [], _ => false
+  | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
+  end.
+
+Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
+  match xs, ys with
+  | [],[] => ok []
+  | [], _ => error "First zipped list was shorter than the second"
+  | _, [] => error "First zipped list was longer than the second"
+  | x::xs, y::ys =>
+    let** xys := zip xs ys in
+    cons (x,y) xys
+  end.
+
+Fixpoint fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
+  snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
+
+Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) : result (list (A * C)) :=
+  rred (List.map (snd_res_map f) xs).
+
+Definition map_snd {A B C : Type} (f : B -> C) (ps : list (A * B)) : list (A * C) :=
+  List.map (fun '(a, b) => (a, f b)) ps.
+
+Fixpoint intersect_string_list (xs ys : list string) : list string :=
+  match xs with
+  | [] => []
+  | x::xs =>
+    if string_member x ys
+    then x::(intersect_string_list xs ys)
+    else intersect_string_list xs ys
+  end.

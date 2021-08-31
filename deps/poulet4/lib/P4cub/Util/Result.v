@@ -55,7 +55,6 @@ Module Result.
     | _ => ok nil
     end.
 
-
   Module ResultNotations.
     Notation "'let**' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
                                               (at level 61, p as pattern, c1 at next level, right associativity).

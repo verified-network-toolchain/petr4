@@ -50,7 +50,23 @@ Section CCompSel.
     | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
     | P4cub.Expr.TMatchKind => (Ctypes.Tvoid, env) (*TODO: implement*)
-    | P4cub.Expr.TTuple (ts) => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | P4cub.Expr.TTuple (ts) => 
+        match lookup_composite tags_t env p4t with
+        | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
+        | None => 
+        let (env_top_id, top_id) := CCompEnv.new_ident tags_t env in
+        let (members ,env_fields_declared):= 
+        List.fold_left 
+        (fun (cumulator: Ctypes.members*ClightEnv tags_t)  (field: E.t) 
+        => let (members_prev, env_prev) := cumulator in 
+           let (new_t, new_env):= CTranslateType field env_prev in
+           let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
+           (members_prev ++ [(new_id, new_t)], new_env))
+        ts ([],env_top_id) in
+        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
+        let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
+        (Ctypes.Tstruct top_id noattr, env_comp_added)
+        end
     | P4cub.Expr.TStruct (fields) => 
         match lookup_composite tags_t env p4t with
         | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
@@ -406,6 +422,8 @@ Section CCompSel.
   := 
     F.map (fst) fields
   .
+  Definition CTranslateListType (exps : list (E.e tags_t)):=
+    List.map (E.SelTypeOf tags_t).
 
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
@@ -422,6 +440,27 @@ Section CCompSel.
     | [],[] => Some (Sskip,env)
     | _ , _ => None
     end.
+  
+  Fixpoint CTranslateListAssgn (m : members) (exps : list (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
+    match m, exps with 
+    |(id, typ) :: mtl, exp :: etl => 
+      match CTranslateExpr exp env with 
+      | None => None
+      | Some (exp, env') => 
+      match CTranslateListAssgn mtl etl dst env' with 
+      | None => None
+      | Some (nextAssgn, env') =>
+      Some (Ssequence (Sassign (Efield dst id typ) exp) nextAssgn , env')
+      end
+      end
+    | [],[] => Some (Sskip,env)
+    | _ , _ => None
+    end.
+  Definition CTranslateTupleAssgn (exps: list (E.e tags_t)) (composite: composite_definition) (dst : Clight.expr) (env: ClightEnv tags_t):=
+  match composite with 
+    | Composite id su m a =>
+      CTranslateListAssgn m exps dst env
+  end.  
   Definition CTranslateStructAssgn (fields: F.fs string (P4cub.Expr.t * (E.e tags_t))) (composite: composite_definition) (dst : Clight.expr) (env: ClightEnv tags_t):=
   let exps := F.map (snd) fields in  
   match composite with 
@@ -443,6 +482,7 @@ Section CCompSel.
         |_ => None 
         end
     end.
+    
 
   
 
@@ -544,7 +584,19 @@ Section CCompSel.
     | ST.SUop dst_t op x dst i => CTranslateUop dst_t op x dst env
     | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
                         
-    | ST.STuple es dst i => None (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
+    | ST.STuple es dst i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
+      match CTranslateExprList es env with
+      | None => None
+      | Some es =>
+      let tuple =TTup
+
+      let (typ, env) := CTranslateType struct env in
+      let env_destination_declared := add_var tags_t env dst typ in
+      match lookup_composite tags_t env struct, find_ident tags_t env_destination_declared dst with
+      | Some composite , Some dst =>
+      CTranslateStructAssgn fields composite (Evar dst typ) env_destination_declared
+      | _, _ => None
+      end
     | ST.SStruct fields dst i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
       let struct := P4cub.Expr.TStruct (CTranslateFieldType fields) in
       let (typ, env) := CTranslateType struct env in

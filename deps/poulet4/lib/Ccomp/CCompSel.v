@@ -402,6 +402,49 @@ Section CCompSel.
   .
   
 
+  Definition CTranslateFieldType (fields: F.fs string (P4cub.Expr.t* (E.e tags_t))) 
+  := 
+    F.map (fst) fields
+  .
+
+  Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
+    match m, exps with 
+    |(id, typ) :: mtl, (fname, exp) :: etl => 
+      match CTranslateExpr exp env with 
+      | None => None
+      | Some (exp, env') => 
+      match CTranslateFieldAssgn mtl etl dst env' with 
+      | None => None
+      | Some (nextAssgn, env') =>
+      Some (Ssequence (Sassign (Efield dst id typ) exp) nextAssgn , env')
+      end
+      end
+    | [],[] => Some (Sskip,env)
+    | _ , _ => None
+    end.
+  Definition CTranslateStructAssgn (fields: F.fs string (P4cub.Expr.t * (E.e tags_t))) (composite: composite_definition) (dst : Clight.expr) (env: ClightEnv tags_t):=
+  let exps := F.map (snd) fields in  
+  match composite with 
+    | Composite id su m a =>
+      CTranslateFieldAssgn m exps dst env
+  end.
+  Definition CTranslateHeaderAssgn (fields: F.fs string (P4cub.Expr.t * (E.e tags_t))) (composite: composite_definition) (dst : Clight.expr) (env: ClightEnv tags_t) (valid: Clight.expr):=
+    let exps := F.map (snd) fields in  
+    match composite with 
+      | Composite id su m a =>
+        match m with 
+        |(id, typ) :: mtl =>
+        let assignValid := Sassign (Efield dst id typ) valid in
+        match CTranslateFieldAssgn mtl exps dst env with 
+        | None => None
+        | Some(assigns, env') => 
+        Some (Ssequence assignValid assigns , env')
+        end
+        |_ => None 
+        end
+    end.
+
+  
 
   Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv tags_t ) : option (Clight.statement * ClightEnv tags_t ) :=
     match s with
@@ -502,10 +545,29 @@ Section CCompSel.
     | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
                         
     | ST.STuple es dst i => None (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
-    | ST.SStruct fields dst i => None (*first create a temp of this struct. then assign all the values to it. then return this temp *)
+    | ST.SStruct fields dst i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
+      let struct := P4cub.Expr.TStruct (CTranslateFieldType fields) in
+      let (typ, env) := CTranslateType struct env in
+      let env_destination_declared := add_var tags_t env dst typ in
+      match lookup_composite tags_t env struct, find_ident tags_t env_destination_declared dst with
+      | Some composite , Some dst =>
+      CTranslateStructAssgn fields composite (Evar dst typ) env_destination_declared
+      | _, _ => None
+      end
                         
-    | ST.SHeader fields dst b i => None (*first create a temp of this header. then assign all the values to it. then return this temp*)
-    
+    | ST.SHeader fields dst b i => (*first create a temp of this header. then assign all the values to it. then return this temp*)
+      let hdr := P4cub.Expr.THeader (CTranslateFieldType fields) in
+      let (typ, env) := CTranslateType hdr env in
+      match CTranslateExpr b env with 
+      | None => None
+      | Some(valid, env) =>
+        let env_destination_declared := add_var tags_t env dst typ in
+        match lookup_composite tags_t env hdr, find_ident tags_t env_destination_declared dst with
+        | Some composite , Some dst =>
+        CTranslateHeaderAssgn fields composite (Evar dst typ) env_destination_declared valid
+        | _, _ => None
+      end
+      end
 
     
     

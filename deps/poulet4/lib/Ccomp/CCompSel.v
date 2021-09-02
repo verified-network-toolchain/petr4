@@ -210,7 +210,7 @@ Section CCompSel.
   
 
   Definition slice_function := 
-    AST.EF_runtime "slice" (AST.mksignature
+    AST.EF_external "slice" (AST.mksignature
     [AST.Tptr; AST.Tptr; AST.Tptr; AST.Tptr]
     (AST.Tvoid)
     AST.cc_default
@@ -223,7 +223,7 @@ Section CCompSel.
     (Ctypes.Tcons Tpointer Ctypes.Tnil))).
 
   Definition uop_function (op: string) := 
-    AST.EF_runtime op (AST.mksignature
+    AST.EF_external op (AST.mksignature
     [AST.Tptr; AST.Tptr]
     (AST.Tvoid)
     AST.cc_default
@@ -234,7 +234,7 @@ Section CCompSel.
     (Ctypes.Tcons Tpointer Ctypes.Tnil).
 
   Definition bop_function (op: string) := 
-    AST.EF_runtime op (AST.mksignature
+    AST.EF_external op (AST.mksignature
     [AST.Tptr; AST.Tptr; AST.Tptr]
     (AST.Tvoid)
     AST.cc_default

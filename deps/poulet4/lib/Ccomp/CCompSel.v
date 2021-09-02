@@ -423,7 +423,7 @@ Section CCompSel.
     F.map (fst) fields
   .
   Definition CTranslateListType (exps : list (E.e tags_t)):=
-    List.map (E.SelTypeOf tags_t).
+    List.map (E.SelTypeOf tags_t) exps.
 
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
@@ -585,16 +585,12 @@ Section CCompSel.
     | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
                         
     | ST.STuple es dst i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
-      match CTranslateExprList es env with
-      | None => None
-      | Some es =>
-      let tuple =TTup
-
-      let (typ, env) := CTranslateType struct env in
+      let tuple := P4cub.Expr.TTuple (CTranslateListType es) in
+      let (typ, env) := CTranslateType tuple env in
       let env_destination_declared := add_var tags_t env dst typ in
-      match lookup_composite tags_t env struct, find_ident tags_t env_destination_declared dst with
+      match lookup_composite tags_t env tuple, find_ident tags_t env_destination_declared dst with
       | Some composite , Some dst =>
-      CTranslateStructAssgn fields composite (Evar dst typ) env_destination_declared
+      CTranslateTupleAssgn es composite (Evar dst typ) env_destination_declared
       | _, _ => None
       end
     | ST.SStruct fields dst i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)

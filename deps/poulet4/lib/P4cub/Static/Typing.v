@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.AST Poulet4.P4Arith
         Poulet4.P4cub.Envn Poulet4.P4cub.Static.Util.
 
@@ -65,7 +65,7 @@ Inductive check_expr
 (* Literals. *)
 | chk_bool (b : bool) (i : tags_t) :
     ⟦ errs , Γ ⟧ ⊢ BOOL b @ i ∈ Bool
-| chk_bit (w : positive) (n : Z) (i : tags_t) :
+| chk_bit (w : N) (n : Z) (i : tags_t) :
     BitArith.bound w n ->
     ⟦ errs , Γ ⟧ ⊢ w W n @ i ∈ bit<w>
 | chk_int (w : positive) (n : Z) (i : tags_t) :

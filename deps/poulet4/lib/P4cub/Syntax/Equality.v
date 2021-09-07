@@ -1,6 +1,8 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
+        Coq.NArith.BinNatDef Coq.NArith.BinNat
+        Poulet4.P4Arith
         Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip.
 
 Reserved Notation "∮ e1 ≡ e2"
@@ -33,7 +35,7 @@ Module TypeEquivalence.
       | {{ Bool }}, {{ Bool }}
       | {{ error }}, {{ error }}
       | {{ matchkind }}, {{ matchkind }} => true
-      | {{ bit<w1> }}, {{ bit<w2> }}
+      | {{ bit<w1> }}, {{ bit<w2> }} => (w1 =? w2)%N
       | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
       | {{ tuple ts1 }}, {{ tuple ts2 }} => lstruct ts1 ts2
       | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
@@ -47,6 +49,7 @@ Module TypeEquivalence.
     Lemma eqbt_refl : forall τ, eqbt τ τ = true.
     Proof.
       Hint Rewrite Pos.eqb_refl.
+      Hint Rewrite N.eqb_refl.
       Hint Rewrite equiv_dec_refl.
       Hint Extern 0 => equiv_dec_refl_tactic : core.
       induction τ using custom_t_ind; unravel;
@@ -65,7 +68,6 @@ Module TypeEquivalence.
     
     Lemma eqbt_eq : forall t1 t2, eqbt t1 t2 = true -> t1 = t2.
     Proof.
-      Hint Resolve Peqb_true_eq : core.
       Hint Extern 5 =>
       match goal with
       | H: (_ =? _)%positive = true
@@ -93,6 +95,7 @@ Module TypeEquivalence.
                               unfold equiv in *; subst;
                                 repeat eauto_too_dumb; subst; auto
               end.
+      auto using Ndec.Neqb_complete.
     Qed.
     
     Lemma eqbt_eq_iff : forall t1 t2 : t,
@@ -472,7 +475,7 @@ Module ExprEquivalence.
       match e1, e2 with
       | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => eqb b1 b2
       | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-        => (w1 =? w2)%positive && (n1 =? n2)%Z
+        => (w1 =? w2)%N && (n1 =? n2)%Z
       | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
         => (w1 =? w2)%positive && (z1 =? z2)%Z
       | <{ Var x1:τ1 @ _ }>, <{ Var x2:τ2 @ _ }>
@@ -561,12 +564,15 @@ Module ExprEquivalence.
                 end;
             try (equiv_dec_refl_tactic; auto 1;
                  autorewrite with core in *; contradiction).
+      rewrite N.eqb_refl; tauto.
     Qed.
     
     Ltac eq_true_terms :=
       match goal with
       | H: eqb _ _ = true |- _
         => apply eqb_prop in H; subst
+      | H: (_ =? _)%N = true |- _
+        => apply Ndec.Neqb_complete in H; subst
       | H: (_ =? _)%positive = true |- _
         => apply Peqb_true_eq in H; subst
       | H: (_ =? _)%Z = true |- _

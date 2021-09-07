@@ -435,7 +435,7 @@ Module IntArith.
     Definition bit_xor (a b : Z) : Z := mod_bound (lxor a b).
 
   End Operations.
-  Search of_N.
+
   (** Bitwise concatination of int with int/bit *)
   Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
     mod_bound (pos_of_N (w1 + w2)) (shiftl z1 (Z.of_N w2) + (BitArith.mod_bound w2 z2)).

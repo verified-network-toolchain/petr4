@@ -1,6 +1,7 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
+        Coq.NArith.BinNatDef Coq.NArith.BinNat.
 
 Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.Equality.
@@ -47,7 +48,7 @@ Module ProperType.
     | pih_struct (ts : F.fs string t) :
         F.predfs_data base_type ts ->
         proper_inside_header {{ struct { ts } }}.
-    
+
     (** Properly nested type. *)
     Inductive proper_nesting : t -> Prop :=
     | pn_base (τ : t) :
@@ -67,7 +68,7 @@ Module ProperType.
         proper_nesting {{ hdr { ts } }}
     | pn_header_stack (ts : F.fs string t)
                       (n : positive) :
-        BitArith.bound 32%positive (Zpos n) ->
+        BitArith.bound 32 (Zpos n) ->
         F.predfs_data proper_inside_header ts ->
         proper_nesting {{ stack ts[n] }}.
     

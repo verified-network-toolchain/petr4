@@ -88,7 +88,7 @@ Module P4cub.
       (** Expression types. *)
       Inductive t : Type :=
       | TBool                            (* bool *)
-      | TBit (width : positive)          (* unsigned integers *)
+      | TBit (width : N)                 (* unsigned integers *)
       | TInt (width : positive)          (* signed integers *)
       | TError                           (* the error type *)
       | TMatchKind                       (* the matchkind type *)
@@ -279,13 +279,13 @@ Module P4cub.
           unless the type is obvious. *)
       Inductive e : Type :=
       | EBool (b : bool) (i : tags_t)                     (* booleans *)
-      | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
+      | EBit (width : N) (val : Z) (i : tags_t)        (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t) (x : string)
              (i : tags_t)                              (* variables *)
       | ESlice (n : e) (τ : t)
-               (hi lo : positive) (i : tags_t) (* bit-slicing *)
-      | ECast (type : t) (arg : e) (i : tags_t) (* explicit casts *)
+               (hi lo : positive) (i : tags_t)         (* bit-slicing *)
+      | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
       | EUop (op : uop) (type : t)
              (arg : e) (i : tags_t)                    (* unary operations *)
       | EBop (op : bop) (lhs_type rhs_type : t)
@@ -536,7 +536,7 @@ Module P4cub.
     | PATWild
     | PATMask (p1 p2 : pat)
     | PATRange (p1 p2 : pat)
-    | PATBit (w : positive) (n : Z)
+    | PATBit (w : N) (n : Z)
     | PATInt (w : positive) (n : Z)
     | PATTuple (ps : list pat).
     (**[]*)

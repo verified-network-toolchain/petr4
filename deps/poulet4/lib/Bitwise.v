@@ -35,7 +35,7 @@ Section Bitwise.
       | O => []
       | S w' => (N.odd n) :: (of_N' (N.div2 n) w')
       end in
-    of_N' (Z.to_N (BitArith.mod_bound (Pos.of_nat w) (Z.of_N n))) w.
+    of_N' (Z.to_N (BitArith.mod_bound (N.of_nat w) (Z.of_N n))) w.
 
   Fixpoint to_N (bits : Bits) : N := 
     match bits with 

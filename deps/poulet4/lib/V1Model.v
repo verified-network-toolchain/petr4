@@ -7,6 +7,7 @@ Require Import Coq.Program.Program.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
+Require Import Poulet4.Ops.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.Target.
@@ -26,10 +27,10 @@ Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase tags_t bool).
+Notation ValSet := ValueSet.
 Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
-Notation ValSet := (@ValueSet tags_t bool).
 
 Inductive register := mk_register {
   reg_width : N;
@@ -180,6 +181,26 @@ Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) 
       apply_extern_func_sem packet_out_emit s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
       exec_extern s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
 
+Inductive ValSetT :=
+| VSTSingleton (value: Val)
+| VSTUniversal
+| VSTMask (value: Val) (mask: Val)
+| VSTRange (lo: Val) (hi: Val)
+| VSTProd (_: list ValSetT)
+| VSTLpm (nbits: N) (value: Val)
+| VSTValueSet (size: N) (members: list (list (@Match tags_t))) (sets: list ValSetT).
+
+Fixpoint valset_to_valsett (vs : ValSet) :=
+  match vs with
+  | ValSetSingleton n => VSTSingleton n
+  | ValSetUniversal => VSTUniversal
+  | ValSetMask value mask => VSTMask value mask
+  | ValSetRange lo hi => VSTMask lo hi
+  | ValSetProd sets => VSTProd (List.map valset_to_valsett sets)
+  | ValSetLpm nbits value => VSTLpm nbits value
+  | ValSetValueSet size members sets => VSTValueSet size members (List.map valset_to_valsett sets)
+  end.
+
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
   match PathMap.get p es with
   | Some (ObjTable entries) => entries
@@ -192,189 +213,59 @@ Definition check_lpm_count (mks: list ident): option bool :=
   then None
   else Some (num_lpm =? 1)%nat.
 
-Fixpoint assert_set (v: Val): option ValSet :=
+Fixpoint assert_bit (v: Val): option (list bool) :=
   match v with
-  | ValBaseSet s => Some s
-  | ValBaseInteger _
-  | ValBaseInt _
-  | ValBaseBit _ => Some (ValSetSingleton v)
-  | ValBaseSenumField _ _ v => assert_set v
+  | ValBaseBit bits => Some bits
+  | ValBaseSenumField _ _ val => assert_bit val
   | _ => None
   end.
 
-Definition eval_p4int (n: @P4Int.t tags_t) : Val :=
-  match P4Int.width_signed n with
-  | None => ValBaseInteger (P4Int.value n)
-  | Some (w, true) => ValBaseInt (to_lbool w (P4Int.value n))
-  | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
-  end.
-
-Fixpoint simple_eval_expr (expr: @Syntax.Expression tags_t): Val :=
-  match expr with
-  | MkExpression _ (ExpInt v) _ _ => eval_p4int v
-  | MkExpression _ (ExpMask exp1 exp2) _ _ =>
-    ValBaseSet (ValSetMask (simple_eval_expr exp1) (simple_eval_expr exp2))
-  | MkExpression _ (ExpRange exp1 exp2) _ _ =>
-    ValBaseSet (ValSetRange (simple_eval_expr exp1) (simple_eval_expr exp2))
-  | _ => ValBaseNull
-  end.
-
-Definition set_of_match (ma: @Match tags_t): option ValSet :=
-  match ma with
-  | MkMatch _ MatchDontCare _ => Some ValSetUniversal
-  | MkMatch _ (MatchExpression expr) _ => assert_set (simple_eval_expr expr)
-  end.
-
-Fixpoint list_of_matches (matches: list (@Match tags_t)): option (list ValSet) :=
-  match matches with
-  | nil => Some nil
-  | a :: rest => match set_of_match a with
-                 | None => None
-                 | Some vs => match (list_of_matches rest) with
-                              | None => None
-                              | Some l => Some (vs :: l)
-                              end
-                 end
-  end.
-
-Definition set_of_matches (entry: table_entry): option (ValSet * action_ref) :=
-  match entry with
-  | mk_table_entry matches action =>
-    match list_of_matches matches with
-    | None => None
-    | Some [a] => Some (a, action)
-    | Some l => Some (ValSetProd l, action)
-    end
-  end.
-
-Fixpoint all_some {A: Type} (l: list (option A)): option (list A) :=
-  match l with
-  | nil => Some nil
-  | None :: _ => None
-  | Some a :: rest => match all_some rest with
-                      | None => None
-                      | Some r => Some (a :: r)
-                      end
-  end.
-
-Definition bitstring_slice (n m l: Z): Z :=
-  let slice_width := m + 1 - l in
-  let shifted := Z.shiftr n l in
-  let mask := two_p (slice_width - 1) in
-  Z.land shifted mask.
-
-Fixpoint bitwise_neg_of_nat (n: Z) (w: nat): Z :=
-  match w with
-  | O => n
-  | S w1 => let w' := two_power_nat w1 in
-            let g := bitstring_slice n (Z.of_nat w1) (Z.of_nat w1) in
-            if (g =? 0)
-            then bitwise_neg_of_nat (n + w') w1
-            else bitwise_neg_of_nat (n - w') w1
-  end.
-
-Definition bitwise_neg_of_Z (n w: Z): Z :=
-  if (w >? 0)
-  then bitwise_neg_of_nat n (Z.to_nat w)
-  else n.
-
-Fixpoint bitwise_neg_of_val (v1: Z) (v2: Val): option Val :=
-  match v2 with
-  | ValBaseBool _ => None
-  | ValBaseInteger z => Some (ValBaseInteger (bitwise_neg_of_Z v1 z))
-  | ValBaseBit bits => 
-      let (w, z) := BitArith.from_lbool bits
-      in Some (ValBaseBit (to_lbool w (bitwise_neg_of_Z v1 z)))
-  | ValBaseInt bits => 
-      let (w, z) := IntArith.from_lbool bits
-      in Some (ValBaseInt (to_lbool w (bitwise_neg_of_Z v1 z)))
-  | ValBaseVarbit max bits => 
-      let (w, z) := BitArith.from_lbool bits
-      in Some (ValBaseVarbit max (to_lbool w (bitwise_neg_of_Z v1 z)))
-  | ValBaseSenumField a b v =>
-    match bitwise_neg_of_val v1 v with
-    | Some vv => Some (ValBaseSenumField a b vv)
-    | None => None
-    end
-  | _ => None
-  end.
-
-Fixpoint Z_of_val (v: Val): option Z :=
+Fixpoint bits_to_lpm_nbits (acc: N) (b: bool) (v: list bool): option N :=
   match v with
-  | ValBaseBool b => if b then Some 1 else Some 0
-  | ValBaseInteger z => Some z
-  | ValBaseBit bits => let (w, z) := BitArith.from_lbool bits in Some z
-  | ValBaseInt bits => let (w, z) := IntArith.from_lbool bits in Some z
-  | ValBaseVarbit _ bits => let (w, z) := BitArith.from_lbool bits in Some z
-  | ValBaseSenumField _ _ v' => Z_of_val v'
-  | _ => None
+  | [] => Some acc
+  | true :: tl => bits_to_lpm_nbits (acc + 1) true tl
+  | false :: tl => if b then None else bits_to_lpm_nbits acc b tl
   end.
 
-Fixpoint bits_of_lpmmask_pos (acc: Z) (b: bool) (v: positive): option Z :=
-  match v with
-  | xH => Some (acc + 1)
-  | xI rest => bits_of_lpmmask_pos (acc + 1) true rest
-  | xO rest => if b then None else bits_of_lpmmask_pos acc b rest
-  end.
+(* Compute (bits_to_lpm_nbits 0 false (to_lbool 5 (-2))). *)
 
-Definition bits_of_lpmmask (acc: Z) (b: bool) (v: Z): option Z :=
-  match v with
-  | Z0 => Some acc
-  | Zpos p
-  | Zneg p => bits_of_lpmmask_pos acc b p
-  end.
-
-Fixpoint lpm_set_of_set (vs: ValSet): option ValSet :=
-  let fix lsos (l: list ValSet): option (list ValSet) :=
-      match l with
-      | nil => Some nil
-      | a :: rest => match lpm_set_of_set a with
-                     | None => None
-                     | Some v => match lsos rest with
-                                 | Some vl => Some (v :: vl)
-                                 | None => None
-                                 end
-                     end
-      end in
+Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
   match vs with
-  | ValSetUniversal
-  | ValSetLpm _ _ _ => Some vs
-  | ValSetProd l => match lsos l with
-                    | Some l' => Some (ValSetProd l')
-                    | None => None
-                    end
-  | ValSetSingleton v => match bitwise_neg_of_val 0 v with
-                         | None => None
-                         | Some val => Some (ValSetLpm v (width_of_val v) val)
-                         end
-  | ValSetMask v1 v2 =>
-    match Z_of_val v2 with
-    | None => None
-    | Some v2' => match bits_of_lpmmask 0 false v2' with
+  | VSTUniversal
+  | VSTLpm _ _ => Some vs
+  | VSTProd l => match lift_option (List.map lpm_set_of_set l) with
+                  | Some l' => Some (VSTProd l')
                   | None => None
-                  | Some n => Some (ValSetLpm v1 (Z.to_nat n) v2)
+                  end 
+  | VSTSingleton v => Some (VSTLpm (width_of_val v) v)
+  | VSTMask v1 v2 =>
+    match assert_bit v2 with
+    | None => None
+    | Some v2' => match bits_to_lpm_nbits 0 false v2' with
+                  | None => None
+                  | Some n => Some (VSTLpm n v2)
                   end
     end
   | _ => None
   end.
 
-Fixpoint get_before_uni (l: list (ValSet * action_ref)):
-  (list (ValSet * action_ref)) * option (ValSet * action_ref) :=
+Fixpoint get_before_uni (l: list (ValSetT * action_ref)):
+  (list (ValSetT * action_ref)) * option (ValSetT * action_ref) :=
   match l with
   | nil => (nil, None)
-  | (ValSetUniversal, act) as x :: rest => (nil, Some x)
+  | (VSTUniversal, act) as x :: rest => (nil, Some x)
   | y :: rest => let (l', o) := get_before_uni rest in (y :: l', o)
   end.
 
-Definition lpm_compare (va1 va2: (ValSet * action_ref)): bool :=
+Definition lpm_compare (va1 va2: (ValSetT * action_ref)): bool :=
   match (fst va1), (fst va2) with
-  | ValSetLpm _ n1 _, ValSetLpm _ n2 _ => Nat.leb n2 n1
+  | VSTLpm n1 _, VSTLpm n2 _ => N.leb n2 n1
   | _, _ => false
   end.
 
-Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) :=
+Definition sort_lpm (l: list (ValSetT * action_ref)): list (ValSetT * action_ref) :=
   let (vl, actL) := List.split l in
-  match all_some (List.map lpm_set_of_set vl) with
+  match lift_option (List.map lpm_set_of_set vl) with
   | None => nil
   | Some entries =>
     let entries' := List.combine entries actL in
@@ -389,51 +280,71 @@ Definition sort_lpm (l: list (ValSet * action_ref)): list (ValSet * action_ref) 
 Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
   match vs with
   | [] => None
-  | h :: _ => match (Z_of_val h), (Z_of_val v) with
-              | Some z1, Some z2 => Some (Z.eqb z1 z2)
-              | _, _ => None
-              end
+  | h :: _ => Ops.eval_binary_op_eq h v
   end.
 
-Fixpoint assert_bit (v: Val): option (nat * Z) :=
-  match v with
-  | ValBaseBit bits => 
-      Some (BitArith.from_lbool bits)
-  | ValBaseSenumField _ _ val => assert_bit val
-  | _ => None
+Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
+  match bits0, bits1, bits2 with
+  | [], [], [] => true
+  | _::tl0, _::tl1, false::tl2 => vmm_help tl0 tl1 tl2
+  | hd0::tl0, hd1::tl1, true::tl2 => if (implb hd0 hd1) then (vmm_help tl0 tl1 tl2) else false
+  (* should never hit *)
+  | _, _, _ => false
   end.
-
-Fixpoint vmm_help (w0 w1 w2: nat) (b0 b1 b2: Z): bool :=
-  if negb ((w0 =? w1)%nat && (w1 =? w2)%nat)
-  then false
-  else match w0 with
-       | O => true
-       | S n => if (b2 mod 2 =? 0) || (b1 mod 2 =? b0 mod 2)
-                then vmm_help n (w1 - 1) (w2 -1) (b0 / 2) (b1 / 2) (b2 / 2)
-                else false
-       end.
 
 Definition values_match_mask (vs: list Val) (v1 v2: Val): option bool :=
   match vs with
   | [] => None
   | v :: _ => match assert_bit v, assert_bit v1, assert_bit v2 with
-              | Some (w0, b0), Some (w1, b1), Some (w2, b2) =>
-                Some (vmm_help w0 w1 w2 b0 b1 b2)
+              | Some bits0, Some bits1, Some bits2 =>
+                let w0 := List.length bits0 in
+                let w1 := List.length bits1 in
+                let w2 := List.length bits2 in
+                if negb ((w0 =? w1)%nat && (w1 =? w2)%nat) then None
+                else Some (vmm_help bits0 bits1 bits2)
               | _, _, _ => None
               end
+  end.
+
+Definition lpm_nbits_to_mask (w1 w2 : N) : list bool :=
+  (Zrepeat false (Z.of_N (w1 - w2))) ++ (Zrepeat true (Z.of_N w2)).
+
+Definition values_match_lpm (vs: list Val) (v1: Val) (w2: N): option bool :=
+  match vs with
+  | [] => None
+  | v :: _ => match assert_bit v, assert_bit v1 with
+              | Some bits0, Some bits1 =>
+                let w0 := List.length bits0 in
+                let w1 := List.length bits1 in
+                let w1n := N.of_nat w1 in
+                if negb ((w0 =? w1)%nat && (w2 <=? w1n)%N) then None
+                else let bits2 := lpm_nbits_to_mask w1n w2 in
+                  Some (vmm_help bits0 bits1 bits2)
+              | _, _ => None
+              end
+  end.
+
+Fixpoint assert_int (v: Val): option (N * Z) :=
+  match v with
+  | ValBaseBit bits => Some (BitArith.from_lbool bits)
+  | ValBaseInt bits => Some (IntArith.from_lbool bits)
+  | ValBaseSenumField _ _ val => assert_int val
+  | _ => None
   end.
 
 Definition values_match_range (vs: list Val) (v1 v2: Val): option bool :=
   match vs with
   | [] => None
-  | v :: _ => match Z_of_val v, Z_of_val v1, Z_of_val v2 with
-              | Some z, Some z1, Some z2 => Some ((z1 <=? z) && (z <=? z2))
+  | v :: _ => match assert_int v, assert_int v1, assert_int v2 with
+              | Some (w0, z0), Some (w1, z1), Some (w2, z2) => 
+                  if negb ((w0 =? w1)%N && (w1 =? w2)%N) then None
+                  else Some ((z1 <=? z0) && (z0 <=? z2))
               | _, _, _ => None
               end
   end.
 
-Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
-  let fix values_match_prod (vlist: list Val) (sl: list ValSet): option bool :=
+Fixpoint values_match_set (vs: list Val) (s: ValSetT): option bool :=
+  let fix values_match_prod (vlist: list Val) (sl: list ValSetT): option bool :=
       match sl with
       | [] => match vlist with
               | [] => Some true
@@ -449,7 +360,7 @@ Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
                         end
                       end
       end in
-  let fix values_match_value_set (vlist: list Val) (sl: list ValSet): option bool :=
+  let fix values_match_value_set (vlist: list Val) (sl: list ValSetT): option bool :=
       match sl with
       | [] => Some false
       | h :: srest => match values_match_set vlist h with
@@ -459,13 +370,13 @@ Fixpoint values_match_set (vs: list Val) (s: ValSet): option bool :=
                       end
       end in
   match s with
-  | ValSetSingleton v => values_match_singleton vs v
-  | ValSetUniversal => Some true
-  | ValSetMask v1 v2 => values_match_mask vs v1 v2
-  | ValSetProd l => values_match_prod vs l
-  | ValSetRange lo hi => values_match_range vs lo hi
-  | ValSetValueSet _ _ sets => values_match_value_set vs sets
-  | ValSetLpm v1 _ v2 => values_match_mask vs v1 v2
+  | VSTSingleton v => values_match_singleton vs v
+  | VSTUniversal => Some true
+  | VSTMask v1 v2 => values_match_mask vs v1 v2
+  | VSTProd l => values_match_prod vs l
+  | VSTRange lo hi => values_match_range vs lo hi
+  | VSTValueSet _ _ sets => values_match_value_set vs sets
+  | VSTLpm w2 v1 => values_match_lpm vs v1 w2
   end.
 
 Definition is_some_true (b: option bool): bool :=
@@ -475,20 +386,19 @@ Definition is_some_true (b: option bool): bool :=
   end.
 
 Definition filter_lpm_prod (ids: list ident) (vals: list Val)
-           (entries: list (ValSet * action_ref)):
-  list (ValSet * action_ref) * list Val :=
+           (entries: list (ValSetT * action_ref)): list (ValSetT * action_ref) * list Val :=
   match findi (P4String.equivb !"lpm") ids with
   | None => ([], [])
   | Some (index, _) =>
-    let f (es: ValSet * action_ref): option (ValSet * action_ref) :=
+    let f (es: ValSetT * action_ref): option (ValSetT * action_ref) :=
         match es with
-        | (ValSetProd l, a) => match nth_error l index with
+        | (VSTProd l, a) => match nth_error l index with
                              | None => None
                              | Some vs => Some (vs, a)
                              end
         | _ => None
         end in
-    match all_some (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
+    match lift_option (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
     | None => ([], [])
     | Some entries' => match nth_error vals index with
                        | None => ([], [])
@@ -497,27 +407,24 @@ Definition filter_lpm_prod (ids: list ident) (vals: list Val)
     end
   end.
 
-Definition extern_match (key: list (Val * ident)) (entries: list table_entry): option action_ref :=
+Definition extern_match (key: list (Val * ident)) (entries: list table_entry_valset): option action_ref :=
   let ks := List.map fst key in
   let mks := List.map snd key in
   match check_lpm_count mks with
   | None => None
   | Some sort_mks =>
-    match all_some (List.map set_of_matches entries) with
-    | Some entries' =>
-      let (entries'', ks') :=
-          if list_eqb (@P4String.equivb tags_t) mks !["lpm"]
-          then (sort_lpm entries', ks)
-          else if sort_mks
-               then filter_lpm_prod mks ks entries'
-               else (entries', ks) in
-      let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
-                           entries'' in
-      match l with
-      | nil => None
-      | sa :: _ => Some (snd sa)
-      end
-    | None => None
+    let entries' := List.map (fun p => (valset_to_valsett (fst p), snd p)) entries in
+        let (entries'', ks') :=
+            if list_eqb (@P4String.equivb tags_t) mks !["lpm"]
+            then (sort_lpm entries', ks)
+            else if sort_mks
+                 then filter_lpm_prod mks ks entries'
+                 else (entries', ks) in
+    let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
+                          entries'' in
+    match l with
+    | nil => None
+    | sa :: _ => Some (snd sa)
     end
   end.
 

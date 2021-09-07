@@ -122,4 +122,12 @@ Definition pos_of_N (n : N) : positive :=
   | Npos p => p
   end.
 
+Definition lift_option {A} (l : list (option A)) : option (list A) :=
+  let lift_one_option (x : option A) (acc : option (list A)) :=
+    match x, acc with
+    | Some x', Some acc' => Some (x' :: acc')
+    | _, _ => None
+    end
+  in List.fold_right lift_one_option (Some []) l.
+  
 End SyntaxUtil.

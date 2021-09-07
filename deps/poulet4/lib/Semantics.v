@@ -22,8 +22,7 @@ Section Semantics.
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Notation Val := (@ValueBase tags_t bool).
 Notation Sval := (@ValueBase tags_t (option bool)).
-Notation ValSet := (@ValueSet tags_t bool).
-Notation SvalSet := (@ValueSet tags_t (option bool)).
+Notation ValSet := (@ValueSet tags_t).
 Notation Lval := (@ValueLvalue tags_t).
 
 Notation ident := (P4String.t tags_t).
@@ -261,14 +260,6 @@ Definition bitstring_slice_bits_to_z (v : Val) : option (N * Z) :=
 Definition bitstring_slice (i : Z) (lo : Z) (hi : Z) : Z :=
   let mask := (Z.pow 2 (hi - lo + 1) - 1)%Z in
   Z.land (Z.shiftr i lo) mask.
-
-Definition lift_option {A} (l : list (option A)) : option (list A) :=
-  let lift_one_option (x : option A) (acc : option (list A)) :=
-    match x, acc with
-    | Some x', Some acc' => Some (x' :: acc')
-    | _, _ => None
-    end
-  in List.fold_right lift_one_option (Some []) l.
 
 Fixpoint uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t) : option Sval := 
   match typ with
@@ -822,13 +813,51 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | None => extern_get_entries (get_external_state s) table
   end.
 
+Inductive exec_match (read_one_bit : option bool -> bool -> Prop) : 
+                     path -> state -> @Match tags_t -> ValSet -> Prop :=
+  | exec_match_dont_care : forall this st tag typ,
+                           exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
+  | exec_match_expr : forall this st expr vs tag typ,
+                      exec_expr_set read_one_bit this st expr vs ->
+                      exec_match read_one_bit this st (MkMatch tag (MatchExpression expr) typ) vs.
+  
+Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
+                       path -> state -> list (@Match tags_t) -> list ValSet -> Prop :=
+  | exec_matches_nil : forall this st,
+                       exec_matches read_one_bit this st nil nil
+  | exec_matches_cons : forall this st m ms sv svs,
+                       exec_match read_one_bit this st m sv ->
+                       exec_matches read_one_bit this st ms svs ->
+                       exec_matches read_one_bit this st (m :: ms) (sv :: svs).
+
+Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
+                           path -> state -> table_entry -> 
+                           (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
+  | exec_table_entry_intro : forall this st ms svs action entryvs,
+                             exec_matches read_one_bit this st ms svs ->
+                             (if (List.length svs =? 1)%nat
+                              then entryvs = (List.hd ValSetUniversal svs, action) 
+                              else entryvs = (ValSetProd svs, action)) ->
+                             exec_table_entry read_one_bit this st (mk_table_entry ms action) entryvs.
+  
+Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
+                             path -> state -> list table_entry -> 
+                             list (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
+  | exec_table_entries_nil : forall this st,
+                       exec_table_entries read_one_bit this st nil nil
+  | exec_table_entries_cons : forall this st te tes tev tevs,
+                       exec_table_entry read_one_bit this st te tev ->
+                       exec_table_entries read_one_bit this st tes tevs ->
+                       exec_table_entries read_one_bit this st (te :: tes) (tev :: tevs).
+
 Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
                            path -> state -> ident -> option (list table_entry) -> option action_ref -> Prop :=
-  | exec_table_match_intro : forall this_path name keys keyvals const_entries s matched_action,
+  | exec_table_match_intro : forall this_path name keys keyvals const_entries entryvs s matched_action,
       let entries := get_entries s (this_path ++ [name]) const_entries in
       let match_kinds := map table_key_matchkind keys in
       exec_exprs_det read_one_bit this_path s (map table_key_key keys) keyvals ->
-      extern_match (combine keyvals match_kinds) entries = matched_action ->
+      exec_table_entries read_one_bit this_path s entries entryvs ->
+      extern_match (combine keyvals match_kinds) entryvs = matched_action ->
       exec_table_match read_one_bit this_path s name const_entries matched_action.
 
 
@@ -1398,6 +1427,7 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
   | exec_block_nil : forall this_path inst_m st tags,
                      exec_block read_one_bit this_path inst_m st (BlockEmpty tags) st SContinue
   | exec_block_cons : forall stmt rest this_path inst_m st st' st'' sig sig',
+                      (* This style is for avoiding backtracking *)
                       exec_stmt read_one_bit this_path inst_m st stmt st' sig ->
                       exec_block read_one_bit this_path inst_m st' 
                           (if is_continue sig then rest else empty_block) st'' sig' ->

@@ -23,7 +23,7 @@ Module Ops.
   Definition empty_str := P4String.empty_str dummy_tags.
 
   Notation Val := (@ValueBase tags_t bool).
-  Notation ValSet := (@ValueSet tags_t bool).
+  Notation ValSet := (@ValueSet tags_t).
   Definition Fields (A : Type):= P4String.AList tags_t A.
 
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
@@ -466,20 +466,13 @@ Module Ops.
         | Some values => Some (ValBaseTuple values)
         | _ => None
         end
-    (* | TypSet eletyp =>
-        match oldv with
-        | ValBaseSet v => Some (ValBaseSet v)
-        | _ => match eval_cast eletyp oldv with
-               | Some newv => Some (ValBaseSet (ValSetSingleton newv))
-               | _ => None
-               end
-        end *)
     | _ => None
     end.
 
   Definition eval_cast_set (newtyp : @P4Type tags_t) (oldv : Val) : option ValSet :=
     match newtyp with
     | TypSet eletyp =>
+        (* Not necessary since the internal cast should be added into the oldv by the typechecker *)
         match eval_cast eletyp oldv with
         | Some newv => Some (ValSetSingleton newv)
         | _ => None

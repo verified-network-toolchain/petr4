@@ -132,15 +132,14 @@ Section Syntax.
   | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: (@ValueBase bit))
   | ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit)).
 
-  Inductive ValueSet {bit : Type} :=
-  | ValSetSingleton (value: (@ValueBase bit))
+  Inductive ValueSet:=
+  | ValSetSingleton (value: (@ValueBase bool))
   | ValSetUniversal
-  | ValSetMask (value: (@ValueBase bit)) (mask: (@ValueBase bit))
-  | ValSetRange (lo: (@ValueBase bit)) (hi: (@ValueBase bit))
-  | ValSetProd (_: list (@ValueSet bit))
-  | ValSetLpm (nbits: N) (value: (@ValueBase bit))
-  | ValSetValueSet (size: N) (members: list (list Match))
-                   (sets: list (@ValueSet bit)).
+  | ValSetMask (value: (@ValueBase bool)) (mask: (@ValueBase bool))
+  | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
+  | ValSetProd (_: list ValueSet)
+  | ValSetLpm (nbits: N) (value: (@ValueBase bool))
+  | ValSetValueSet (size: N) (members: list (list Match)) (sets: list ValueSet).
 
   Inductive StatementSwitchLabel :=
   | StatSwLabDefault (tags: tags_t)

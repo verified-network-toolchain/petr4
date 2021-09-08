@@ -86,16 +86,17 @@ Section Transformer.
       let (l1, e1) := l1e1 in (l1, MkExpression tag (ExpList e1) typ dir, n1)
     | ExpRecord entries =>
       let (l1e1, n1) :=
-          ((fix transform_lkv (idx: N) (l: list (@KeyValue tags_t)):
+          
+          ((fix transform_alist (idx: N) (l: P4String.AList tags_t (@Expression tags_t)):
               (list (P4String * (@Expression tags_t)) *
-               (list (@KeyValue tags_t)) * N) :=
+               (P4String.AList tags_t (@Expression tags_t)) * N) :=
               match l with
               | nil => (nil, nil, idx)
-              | kv :: rest =>
-                let (l2e2, n2) := transform_keyvalue idx kv in
+              | (key, value) :: rest =>
+                let (l2e2, n2) := transform_exp idx value in
                 let (l2, e2) := l2e2 in
-                let (l3e3, n3) := transform_lkv n2 rest in
-                let (l3, el3) := l3e3 in (l2 ++ l3, e2 :: el3, n3)
+                let (l3e3, n3) := transform_alist n2 rest in
+                let (l3, el3) := l3e3 in (l2 ++ l3, (key, e2) :: el3, n3)
               end) nameIdx entries) in
       let (l1, e1) := l1e1 in (l1, MkExpression tag (ExpRecord e1) typ dir, n1)
     | ExpUnaryOp op arg =>
@@ -171,14 +172,7 @@ Section Transformer.
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
     | MkExpression tag expr typ dir => transform_ept nameIdx expr tag typ dir
-    end
-  with transform_keyvalue (nameIdx: N) (kv: @KeyValue tags_t):
-         (list (P4String * (@Expression tags_t)) * (@KeyValue tags_t) * N) :=
-         match kv with
-         | MkKeyValue tags key value =>
-           let (l1e1, n1) := transform_exp nameIdx value in
-           let (l1, e1) := l1e1 in (l1, MkKeyValue tags key e1, n1)
-         end.
+    end.
 
   Definition transform_Expr (nameIdx: N) (exp: @Expression tags_t):
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
@@ -507,10 +501,7 @@ Section Transformer.
       let (l1e1, n1) := transform_Expr nameIdx expr in
       let (l1, e1) := l1e1 in
       (map expr_to_decl l1 ++ [DeclVariable tags typ name (Some e1)], n1)
-    | DeclValueSet tags typ size name =>
-      let (l1e1, n1) := transform_Expr nameIdx size in
-      let (l1, e1) := l1e1 in
-      (map expr_to_decl l1 ++ [DeclValueSet tags typ e1 name], n1)
+    | DeclValueSet tags typ size name => ([decl], nameIdx)
     | DeclAction tags name data_params ctrl_params body =>
       let (blk, n1) := transform_blk nameIdx body in
       ([DeclAction tags name data_params ctrl_params blk], n1)

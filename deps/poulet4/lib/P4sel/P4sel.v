@@ -31,6 +31,8 @@ Module P4sel.
       | EError (err : option string)
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : P4cub.Expr.matchkind) (i : tags_t)       (* matchkind literals *)
+      | EString (s : string) (i : tags_t)
+      | EEnum (x m : string) (i : tags_t)
       .
       (**[]*)
 
@@ -40,7 +42,9 @@ Module P4sel.
       | EVar t _ _ => t
       | EExprMember _ t _ _ => t
       | EError _ _ => P4cub.Expr.TError
-      | EMatchKind _ _ => P4cub.Expr.TMatchKind  
+      | EMatchKind _ _ => P4cub.Expr.TMatchKind
+      | EString _ _ => P4cub.Expr.TString
+      | EEnum x m _ => P4cub.Expr.TEnum x [m]
       end
       .
       

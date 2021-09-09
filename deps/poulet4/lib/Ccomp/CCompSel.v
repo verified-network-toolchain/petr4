@@ -42,11 +42,14 @@ Section CCompSel.
     (Tstruct (Pos.of_nat 1) noattr).
   Definition packet_out :=
     (Tstruct (Pos.of_nat 2) noattr).
+  
   Fixpoint CTranslateType (p4t : P4cub.Expr.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
+    | P4cub.Expr.TString => (Ctypes.Tvoid, env) (* TODO: how to translate string type? *)
+    | P4cub.Expr.TEnum x xs => (Ctypes.Tvoid, env) (* TODO: how to translate enum? *)
     | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
     | P4cub.Expr.TMatchKind => (Ctypes.Tvoid, env) (*TODO: implement*)
@@ -126,6 +129,8 @@ Section CCompSel.
     match e with
     | E.EBool true i =>   Some (Econst_int (Integers.Int.one) (type_bool), env)
     | E.EBool false i =>  Some (Econst_int (Integers.Int.zero) (type_bool), env)
+    | E.EString x i => None (* TODO *)
+    | E.EEnum x m i => None (* TODO *)
     | E.EVar ty x i => (*first find if x has been declared. If not, declare it *)
                         let (cty, env_ty) := CTranslateType ty env in
                         match find_ident_temp_arg tags_t env_ty x with 

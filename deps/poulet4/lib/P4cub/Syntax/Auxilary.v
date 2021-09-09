@@ -29,6 +29,8 @@ Module SynDefs.
       ns <<| sequence $ List.map (fun '(_,t) => width_of_typ t) fs ;;
       (Pos.to_nat s * List.fold_left Nat.add ns 0%nat)%nat
     | TVar _ => None
+    | {{ Str }} => Some 1%nat (* TODO: how wide is a string? *)
+    | {{ enum _ { xs } }} => Some (length xs) (* TODO: how wide is an enum? *)
     end.
 End SynDefs.
 

@@ -144,6 +144,8 @@ Section parser_to_p4automaton.
     | <{ BOOL b @ _ }> => mret ~{ VBOOL b }~
     | <{ w W n @ _ }> => mret ~{ w VW n }~
     | <{ w S n @ _ }> => mret ~{ w VS n }~
+    | <{ Stri s @ _ }> => mret ~{ STR s }~
+    | <{ Enum x dot m @ _ }> => mret ~{ ENUM x DOT m }~
     | <{ Var x : _ @ _ }> => 
       lift_opt_error (CEInconceivable (String.append "missing variable " x)) (Env.find x ϵ)
     | <{ Slice e : _ [ h : l ] @ _ }> =>

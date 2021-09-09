@@ -147,6 +147,8 @@ Fixpoint TranslateExpr (e : CubE.e tags_t) (env: VarNameGen.t)
     let assign := SelS.SHeaderStackAccess stack' index var_name i in 
     let stmt := SelS.SSeq stack_stmt (SelS.SSeq declaration assign i) i in
     ( (stmt, SelE.EVar type var_name i), env')
+  | CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
+  | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)
   end.
 Definition TranslateCArg 
 (carg: CubE.constructor_arg tags_t) (env: VarNameGen.t) (i : tags_t)

@@ -98,7 +98,10 @@ Module P4cub.
       | THeader (fields : F.fs string t) (* the header type *)
       | THeaderStack (fields : F.fs string t)
                      (size : positive)   (* header stack type *)
-      | TVar (type_name : string)        (* type variables *).
+      | TVar (type_name : string)        (* type variables *)
+      | TString                          (* strings *)
+      | TEnum (name : string)
+              (members : list string)    (* enum types *).
       (**[]*)
       
       (** Function parameters. *)
@@ -150,10 +153,16 @@ Module P4cub.
             (in custom p4type at level 6, no associativity).
       Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
-
+      Notation "'Str'"
+        := TString (in custom p4type at level 0, no associativity).
+      Notation "'enum' x { xs }"
+        := (TEnum x xs)
+             (in custom p4type at level 0, no associativity).
+      
       Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
       Notation "( x )" := x (in custom p4constructortype, x at level 99).
-      Notation "x" := x (in custom p4constructortype at level 0, x constr at level 0).
+      Notation "x"
+        := x (in custom p4constructortype at level 0, x constr at level 0).
       Notation "'VType' τ"
         := (CTType τ)
              (in custom p4constructortype at level 0,
@@ -306,7 +315,9 @@ Module P4cub.
                      (next_index : Z) (i : tags_t)     (* header stack literals,
                                                           unique to p4light *)
       | EHeaderStackAccess (stack : e) (index : Z)
-                           (i : tags_t)                (* header stack indexing *).
+                           (i : tags_t)                (* header stack indexing *)
+      | EString (str : string) (i : tags_t)            (* string expression *)
+      | EEnum (name member : string) (i : tags_t)      (* enum member *).
       (**[]*)
       
       (** Function call arguments. *)
@@ -344,6 +355,8 @@ Module P4cub.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
+    Arguments EString {_}.
+    Arguments EEnum {_}.
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -402,6 +415,10 @@ Module P4cub.
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
+      Notation "'Stri' s @ i"
+        := (EString s i) (in custom p4expr at level 0).
+      Notation "'Enum' x 'dot' m @ i"
+        := (EEnum x m i) (in custom p4expr at level 0).
     End ExprNotations.
   End Expr.
 

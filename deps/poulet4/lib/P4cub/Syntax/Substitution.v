@@ -16,6 +16,8 @@ Section TypeSubstitution.
     | {{ bit<_> }}
     | {{ int<_> }}
     | {{ error }}
+    | {{ Str }}
+    | {{ enum _ { _ } }}
     | {{ matchkind }}     => t
     | {{ tuple ts }}      => E.TTuple $ List.map tsub_t ts
     | {{ struct { ts } }} => E.TStruct $ F.map tsub_t ts
@@ -37,6 +39,8 @@ Section TypeSubstitution.
     | <{ _ S _ @ _ }>
     | <{ Var _ : _ @ _ }>
     | <{ Error _ @ _ }>
+    | <{ Stri _ @ _ }>
+    | <{ Enum _ dot _ @ _ }>
     | <{ Matchkind _ @ _ }> => e
     | <{ Slice e:t [hi:lo] @ i }> => E.ESlice (tsub_e e) (tsub_t t) hi lo i
     | <{ Cast e:t @ i }> => E.ECast (tsub_t t) (tsub_e e) i

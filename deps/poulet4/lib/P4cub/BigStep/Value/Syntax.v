@@ -24,7 +24,9 @@ Inductive v : Type :=
 | VMatchKind (mk : P4cub.Expr.matchkind)
 | VHeaderStack (ts : F.fs string E.t)
                (headers : list (bool * F.fs string v))
-               (size : positive) (nextIndex : Z).
+               (size : positive) (nextIndex : Z)
+| VString (s : string)
+| VEnum (x m : string).
 (**[]*)
 
 (** Lvalues. *)
@@ -62,6 +64,10 @@ Module ValueNotations.
   Notation "'STACK' vs : ts [ n ] 'NEXT' ':=' ni"
            := (VHeaderStack ts vs n ni)
                 (in custom p4value at level 0, no associativity).
+  Notation "'STR' s"
+    := (VString s) (in custom p4value at level 0).
+  Notation "'ENUM' x 'DOT' m"
+    := (VEnum x m) (in custom p4value at level 0).
 End ValueNotations.
 
 Module LValueNotations.

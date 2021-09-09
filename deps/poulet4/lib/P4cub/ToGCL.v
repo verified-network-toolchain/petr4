@@ -227,11 +227,12 @@ Module Translate.
         lv ++ "["++ (string_of_z index) ++ "]"
       end.
 
-    Definition width_of_type (t : E.t) : result positive :=
+    Search (positive -> nat).
+    Definition width_of_type (t : E.t) : result nat :=
       match t with
-      | E.TBool => ok (pos 1)
-      | E.TBit w => ok w
-      | E.TInt w => ok w
+      | E.TBool => ok 1
+      | E.TBit w => ok (BinPos.Pos.to_nat w)
+      | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TError => error "Cannot get the width of an error Type"
       | E.TMatchKind => error "Cannot get the width of a Match Kind Type"
       | E.TTuple types => error "Cannot get the width of a Tuple Type"
@@ -277,14 +278,15 @@ Module Translate.
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
+    Search (Z -> nat).
     Fixpoint to_rvalue (e : (E.e tags_t)) : result BV.t :=
       match e with
       | E.EBool b i =>
         if b
-        then ok (BV.BitVec (pos 1) (pos 1) i)
-        else ok (BV.BitVec (pos 0) (pos 1) i)
+        then ok (BV.BitVec 1 1 i)
+        else ok (BV.BitVec 0 1 i)
       | E.EBit w v i =>
-        ok (BV.BitVec (BinInt.Z.to_pos v) w i)
+        ok (BV.BitVec (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to rvalues"
@@ -294,14 +296,14 @@ Module Translate.
 
       | E.ESlice e τ hi lo i =>
         let** rv_e := to_rvalue e in
-        BV.UnOp (BV.BVSlice hi lo) rv_e i
+        BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
 
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
         let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg i) in
         match type with
-        | E.TBool => cast (pos 1)
-        | E.TBit w => cast w
+        | E.TBool => cast 1
+        | E.TBit w => cast (BinPos.Pos.to_nat w)
         | E.TInt w => error "[FIXME] Signed Integers are unimplemented "
         | _ =>
           error "Illegal cast, should've been caught by the type-checker"
@@ -318,7 +320,7 @@ Module Translate.
         | E.IsValid =>
           let** header := to_header_string arg in
           let hvld := header ++ ".is_valid" in
-          BV.BVVar hvld (pos 1) i
+          BV.BVVar hvld 1 i
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
           error "SetValid as an expression is deprecated"
         | E.SetInValid =>
@@ -396,8 +398,8 @@ Module Translate.
         let* rvalue_arg := to_rvalue arg in
         let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg i) i) in
         match type with
-        | E.TBool => cast (pos 1)
-        | E.TBit w => cast w
+        | E.TBool => cast 1
+        | E.TBit w => cast (BinPos.Pos.to_nat w)
         | E.TInt w => error "[FIXME] Handle Signed Integers"
         | _ =>
           error "Invalid Cast"
@@ -411,7 +413,7 @@ Module Translate.
         | E.IsValid =>
           let** header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
-          GCL.isone (BV.BVVar hvld (pos 1) i) i
+          GCL.isone (BV.BVVar hvld 1 i) i
         | E.SetValid =>
           error "SetValid is deprecated as an expression"
         | E.SetInValid =>
@@ -512,14 +514,14 @@ Module Translate.
 
       | Inline.IReturnVoid i =>
         let gasn := @GCL.GAssign string BV.t GCL.form in
-        ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec (pos 1) (pos 1) i) i, ctx)
+        ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec 1 1 i) i, ctx)
 
       | Inline.IReturnFruit typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec (pos 1) (pos 1) i) i, ctx)
+        ok (GCL.GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec 1 1 i) i, ctx)
 
       | Inline.IExit i =>
-        ok (GCL.GAssign (E.TBit (pos 1)) "exit" (BV.BitVec (pos 1) (pos 1) i) i, Ctx.update_exit ctx true)
+        ok (GCL.GAssign (E.TBit (pos 1)) "exit" (BV.BitVec 1 1 i) i, Ctx.update_exit ctx true)
 
       | Inline.IInvoke tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
@@ -556,7 +558,7 @@ Module Translate.
     Definition pos := GCL.pos.
     Definition bit (n : nat) : E.t := E.TBit (pos 4).
     Definition asm_eq (s : string) (w : nat) (r : BV.t) (i : tags_t) : Translate.target :=
-      GCL.GAssume (GCL.leq (BV.BVVar s (pos w) i) r i).
+      GCL.GAssume (GCL.leq (BV.BVVar s w i) r i).
 
     Definition s_sequence (ss : list (ST.s tags_t)) : ST.s tags_t :=
       fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
@@ -756,7 +758,7 @@ Module Translate.
       let (typ, exp) := te in
       let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
       let* acc := acc_res in
-      let* w : positive := Translate.width_of_type typ in
+      let* w : nat := Translate.width_of_type typ in
       let* k : BV.t := Translate.to_rvalue exp in
       match mk with
       | E.MKExact =>
@@ -786,8 +788,8 @@ Module Translate.
       let** acc := res_acc in
       GCL.g_sequence i
                  [GCL.GAssume matchcond;
-                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec (pos 1) (pos 1) i) i;
-                 asm_eq ("__symb_" ++ name ++ "_action") w  (BV.BitVec (pos w) (pos n) i) i;
+                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec 1 1 i) i;
+                 asm_eq ("__symb_" ++ name ++ "_action") w  (BV.BitVec w n i) i;
                  act (* TODO something with action data *)].
 
     Definition actions_encoding (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (actions : list (string * Translate.target)) : result Translate.target :=
@@ -796,11 +798,11 @@ Module Translate.
 
     Definition instr (name : string) (i : tags_t) (keys: list (E.t * E.e tags_t * E.matchkind)) (actions: list (string * Translate.target)) : result Translate.target :=
       let** hit := actions_encoding name i keys actions in
-      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec (pos 1) (pos 1) i) i in
+      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec 1 1 i) i in
       GCL.GChoice hit miss.
 
     Definition v1model : Arch.extern :=
-      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec (pos 1) (pos 1) d) d)].
+      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec 1 1 d) d)].
 
     Definition arch : Arch.model :=
       [("v1model", v1model)].
@@ -814,9 +816,8 @@ Module Translate.
                  (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
                  (bit 32, tcp "srcPort" 32, E.MKTernary);
                  (bit 32, tcp "dstPort" 32, E.MKTernary)
-                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec (pos 1) (pos 1) d) d)]).
+                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec 1 1 d) d)]).
 
-    Locate positive.
     Compute (Translate.p4cub_statement_to_gcl instr
                                               10
                                               (Env.empty string cinst)

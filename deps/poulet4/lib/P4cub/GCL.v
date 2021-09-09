@@ -54,12 +54,12 @@ Module GCL.
 
     Inductive uop :=
     | BVNeg
-    | BVCast (i : positive)
-    | BVSlice (hi lo : positive).
+    | BVCast (i : nat)
+    | BVSlice (hi lo : nat).
 
     Inductive t :=
-    | BitVec (n : positive) (w : positive) (i : tags_t)
-    | BVVar (x : string) (w : positive) (i : tags_t)
+    | BitVec (n : nat) (w : nat) (i : tags_t)
+    | BVVar (x : string) (w : nat) (i : tags_t)
     | BinOp (op : bop) (u v : t) (i : tags_t)
     | UnOp (op : uop) (v : t) (i : tags_t).
 
@@ -100,7 +100,7 @@ Module GCL.
   Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
   Definition is_true (x : string) (i : tags_t) : form :=
-    LComp (LEq) (BitVec.BVVar x (pos 1) i) (BitVec.BitVec (pos 1) (pos 1) i) i.
+    LComp (LEq) (BitVec.BVVar x 1 i) (BitVec.BitVec 1 1 i) i.
 
   Definition exit (i : tags_t) : form := is_true "exit" i.
   Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
@@ -111,7 +111,6 @@ Module GCL.
     GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.Not E.TBool guard i)) fls).
 
   Definition isone (v : BitVec.t) (i :tags_t) : GCL.form :=
-    leq v (BitVec.BitVec (pos 1) (pos 1) i) i.
-
+    leq v (BitVec.BitVec 1 1 i) i.
 
 End GCL.

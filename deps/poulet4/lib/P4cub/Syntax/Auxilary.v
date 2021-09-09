@@ -11,20 +11,26 @@ Module E := P.Expr.
 Module SynDefs.
   Import E TypeNotations.
 
-  Fixpoint width_of_typ (τ : t) : nat :=
+  Fixpoint width_of_typ (τ : t) : option nat :=
     match τ with
-    | {{ Bool }} => 1
+    | {{ Bool }} => Some 1%nat
     | {{ bit<w> }}
-    | {{ int<w> }} => Pos.to_nat w
+    | {{ int<w> }} => Some $ Pos.to_nat w
     | {{ error }}
-    | {{ matchkind }} => 0
+    | {{ matchkind }} => Some 0%nat
     | {{ tuple ts }} =>
-      (List.fold_left (fun (acc : nat) t => acc + width_of_typ t) ts 0)%nat
+      ns <<| sequence $ List.map width_of_typ ts ;;
+      List.fold_left Nat.add ns 0%nat
     | {{ struct { fs } }}
     | {{ hdr { fs } }} =>
-      (F.fold (fun _ t acc => acc + width_of_typ t) fs 0)%nat
+      ns <<| sequence $ List.map (fun '(_,t) => width_of_typ t) fs ;;
+      List.fold_left Nat.add ns 0%nat
     | {{ stack fs[s] }} =>
-      ((F.fold (fun _ t acc => acc + width_of_typ t) fs 0) * (Pos.to_nat s))%nat
+      ns <<| sequence $ List.map (fun '(_,t) => width_of_typ t) fs ;;
+      (Pos.to_nat s * List.fold_left Nat.add ns 0%nat)%nat
+    | TVar _ => None
+    | {{ Str }} => Some 1%nat (* TODO: how wide is a string? *)
+    | {{ enum _ { xs } }} => Some (length xs) (* TODO: how wide is an enum? *)
     end.
 End SynDefs.
 

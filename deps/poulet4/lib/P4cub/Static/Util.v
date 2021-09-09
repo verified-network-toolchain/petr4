@@ -162,10 +162,10 @@ Definition fenv : Type := Env.t string E.arrowT.
 Definition aenv : Type := Env.t string E.params.
 
 (** Control Instance environment. *)
-Definition cienv : Type := Env.t string E.params.
+Definition cienv : Type := Env.t string (F.fs string string * E.params).
 
 (** Parser Instance environment. *)
-Definition pienv : Type := Env.t string E.params.
+Definition pienv : Type := Env.t string (F.fs string string * E.params).
 
 (** Available extern instances. *)
 Definition eienv : Type := Env.t string (F.fs string E.arrowT).
@@ -247,16 +247,16 @@ Definition cbind_all :
   E.constructor_params  ->
   gamma * pkgienv * cienv * pienv * eienv ->
   gamma * pkgienv * cienv * pienv * eienv :=
-  F.fold (fun x c '(Γ, pkgis, cis, pis, eis) =>
+  F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
             match c with
             | {{{ VType τ }}}
               => (!{ x ↦ τ;; Γ }!, pkgis, cis, pis, eis)
-            | {{{ ControlType _ pars }}}
-              => (Γ, pkgis, !{ x ↦ pars;; cis }!, pis, eis)
-            | {{{ ParserType _  pars }}}
-              => (Γ, pkgis, cis, !{ x ↦ pars;; pis }!, eis)
-            | {{{ Extern _  { mhds } }}}
-              => (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!)
+            | {{{ ControlType _ res pars }}}
+              => (Γ, pkgis, !{ x ↦ (res,pars);; cis }!, pis, eis)
+            | {{{ ParserType _ res pars }}}
+              => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
+            | E.CTExtern _
+              => p (* (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}
               => (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis)
             end).
@@ -306,7 +306,11 @@ Notation "'Parser' pis eis"
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lvalue_ok {tags_t : Type} : E.e tags_t -> Prop :=
-| lvalue_var x τ i : lvalue_ok <{ Var x:τ @ i }>
+| lvalue_var x τ i :
+    lvalue_ok <{ Var x:τ @ i }>
+| lvalue_bit_slice e τ h l i :
+    lvalue_ok e ->
+    lvalue_ok <{ Slice e:τ [h:l] @ i }>
 | lvalue_member e τ x i :
     lvalue_ok e ->
     lvalue_ok <{ Mem e:τ dot x @ i }>

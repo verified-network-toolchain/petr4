@@ -31,6 +31,7 @@ Section InstEnv.
   Inductive fdecl : Type :=
   | FDecl (closure : epsilon) (* value closure *)
           (fs : Env.t string fdecl) (* function closure *)
+          (params : list string) (* function parameters*)
           (body : ST.s tags_t) (* function body *).
   (**[]*)
   
@@ -42,6 +43,7 @@ Section InstEnv.
           (fs : fenv) (* function closure *)
           (aa : Env.t string adecl) (* action closure *)
           (eis : ARCH.extern_env) (* extern instance closure *)
+          (params : list string) (*action parameters *)
           (body : ST.s tags_t) (* action body *).
   (**[]*)
   

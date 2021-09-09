@@ -136,6 +136,9 @@ End Lemmas.
 Inductive lvalue {tags_t : Type} : E.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue <{ Var x:τ @ i }>
+| lvalue_slice lv τ hi lo i :
+    lvalue lv ->
+    lvalue <{ Slice lv:τ [hi:lo] @ i }>
 | lvalue_member lv τ x i :
     lvalue lv ->
     lvalue <{ Mem lv:τ dot x @ i }>

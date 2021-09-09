@@ -3,19 +3,28 @@ Require Import Poulet4.P4cub.BigStep.Value.Syntax
 Import Val ValueNotations P.P4cubNotations.
 
 (** Intial/Default value from a type. *)
-Fixpoint vdefault (τ : E.t) : v :=
+Fixpoint vdefault (τ : E.t) : option v :=
   match τ with
-  | {{ error }}      => ~{ ERROR None }~
-  | {{ matchkind }}  => ~{ MATCHKIND exact }~
-  | {{ Bool }}       => ~{ FALSE }~
-  | {{ bit<w> }}     => VBit w 0%Z
-  | {{ int<w> }}     => VInt w 0%Z
-  | {{ tuple ts }}   => VTuple $ List.map vdefault ts
-  | {{ struct { ts } }} => VStruct $ F.map vdefault ts
-  | {{ hdr { ts } }} => VHeader (F.map vdefault ts) false
-  | {{ stack fs[n] }} => VHeaderStack
-                          fs (repeat (false, F.map vdefault fs)
-                                     (Pos.to_nat n)) n 0
+  | {{ error }}      => Some ~{ ERROR None }~
+  | {{ matchkind }}  => Some ~{ MATCHKIND exact }~
+  | {{ Bool }}       => Some ~{ FALSE }~
+  | {{ bit<w> }}     => Some $ VBit w 0%Z
+  | {{ int<w> }}     => Some $ VInt w 0%Z
+  | {{ tuple ts }}
+    => vs <<| sequence $ List.map vdefault ts ;; VTuple vs
+  | {{ struct { ts } }}
+    => vs <<| sequence $ List.map (fun '(x,t) => v <<| vdefault t ;; (x, v)) ts ;;
+      ~{ STRUCT { vs } }~
+  | {{ hdr { ts } }}
+    => vs <<| sequence $ List.map (fun '(x,t) => v <<| vdefault t ;; (x, v)) ts ;;
+      ~{ HDR { vs } VALID:=false }~
+  | {{ stack ts[n] }}
+    => vs <<| sequence $ List.map (fun '(x,t) => v <<| vdefault t ;; (x, v)) ts ;;
+      VHeaderStack ts (repeat (false, vs) (Pos.to_nat n)) n 0
+  | E.TVar _ => None
+  | {{ Str }} => Some ~{ STR String.EmptyString }~
+  | {{ enum x { xs } }} =>
+    m <<| hd_error xs ;; ~{ ENUM x DOT m }~
   end.
 (**[]*)
 
@@ -54,6 +63,8 @@ Fixpoint approx_type (V : v) : E.t :=
   | ~{ HDR { vs } VALID:=_ }~
     => E.THeader $ F.map approx_type vs
   | ~{ STACK _:ts[n] NEXT:=_ }~ => {{ stack ts[n] }}
+  | ~{ STR _ }~ => {{ Str }}
+  | ~{ ENUM x DOT m }~ => {{ enum x { [m] } }}
   end.
 (**[]*)
                       
@@ -88,5 +99,7 @@ Section Util.
                   (F.map
                      (fun v => (approx_type v, expr_of_value i v))
                      vs) <{ BOOL b @ i }> i) hs) n ni i
+    | ~{ STR s }~ => <{ Stri s @ i }>
+    | ~{ ENUM x DOT m }~ => <{ Enum x dot m @ i }>
     end.
 End Util.

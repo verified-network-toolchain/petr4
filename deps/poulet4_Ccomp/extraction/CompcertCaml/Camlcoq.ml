@@ -289,7 +289,6 @@ let use_canonical_atoms = ref false
    in the order in which they are encountered.  This produces small
    numbers, and is therefore efficient, but the number for a given
    string may differ between the compilation of different units.
-
    If [use_canonical_atoms] is true, strings are Huffman-encoded as bit
    sequences, which are then encoded as positive numbers.  The same
    string is always represented by the same number in all compilation
@@ -353,18 +352,15 @@ let extern_atom a =
    (for letters, numbers, and underscore) and 14-bit fragments (for other
    characters).  Hence, not all positive numbers are canonical encodings:
    only those whose log2 is of the form [6n + 14m].
-
    Here are the first intervals of positive numbers corresponding to strings:
    - [1, 1] for the empty string
    - [2^6, 2^7-1] for one "compact" character
    - [2^12, 2^13-1] for two "compact" characters
    - [2^14, 2^14-1] for one "escaped" character
-
    Hence, between 2^7 and 2^12 - 1, we have 3968 consecutive positive
    numbers that cannot be the encoding of a string.  These are the positive
    numbers we'll use as temporaries in the SimplExpr pass if canonical
    atoms are in use.
-
    If short atoms are used, we just number the temporaries consecutively
    starting one above the last generated atom.
 *)

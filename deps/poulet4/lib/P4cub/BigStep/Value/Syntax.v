@@ -24,14 +24,18 @@ Inductive v : Type :=
 | VMatchKind (mk : P4cub.Expr.matchkind)
 | VHeaderStack (ts : F.fs string E.t)
                (headers : list (bool * F.fs string v))
-               (size : positive) (nextIndex : Z).
+               (size : positive) (nextIndex : Z)
+| VString (s : string)
+| VEnum (x m : string).
 (**[]*)
 
 (** Lvalues. *)
 Inductive lv : Type :=
-| LVVar (x : string)                 (* Local variables. *)
+| LVVar (x : string)               (* Local variables. *)
+| LVSlice (arg : lv)
+          (hi lo : positive)       (* Slice. *)
 | LVMember (arg : lv) (x : string) (* Member access. *)
-| LVAccess (stk : lv) (index : Z)       (* Header stack indexing. *).
+| LVAccess (stk : lv) (index : Z)  (* Header stack indexing. *).
 (**[]*)
 
 (** Evaluated arguments. *)
@@ -60,6 +64,10 @@ Module ValueNotations.
   Notation "'STACK' vs : ts [ n ] 'NEXT' ':=' ni"
            := (VHeaderStack ts vs n ni)
                 (in custom p4value at level 0, no associativity).
+  Notation "'STR' s"
+    := (VString s) (in custom p4value at level 0).
+  Notation "'ENUM' x 'DOT' m"
+    := (VEnum x m) (in custom p4value at level 0).
 End ValueNotations.
 
 Module LValueNotations.
@@ -67,10 +75,14 @@ Module LValueNotations.
   Notation "( x )" := x (in custom p4lvalue, x at level 99).
   Notation "x" := x (in custom p4lvalue at level 0, x constr at level 0).
   Notation "'VAR' x" := (LVVar x) (in custom p4lvalue at level 0).
+  Notation "'SLICE' lval [ hi : lo ]"
+    := (LVSlice lval hi lo)
+         (in custom p4lvalue at level 2,
+             lval custom p4lvalue, left associativity).
   Notation "lval 'DOT' x"
     := (LVMember lval x) (in custom p4lvalue at level 1,
                              lval custom p4lvalue).
-  Notation "lval [ n ]"
+  Notation "'ACCESS' lval [ n ]"
            := (LVAccess lval n) (in custom p4lvalue at level 1,
                                    lval custom p4lvalue).
 End LValueNotations.

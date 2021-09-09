@@ -59,7 +59,7 @@ Section StepDefs.
   (**[]*)
   
   (** Default (value) Expression. *)
-  Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
+  Fail Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
     let fix lstruct (ts : list (E.t)) : list (E.e tags_t) :=
         match ts with
         | []     => []
@@ -91,7 +91,7 @@ Section StepDefs.
   (**[]*)
   
   (** Unary Operations. *)
-  Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
+  Fail Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
     match op, e with
     | _{ ! }_, <{ BOOL b @ i }>
       => let b' := negb b in Some <{ BOOL b' @ i }>
@@ -235,13 +235,13 @@ Section StepDefs.
   Section Edefault.
     Local Hint Constructors value : core.
     
-    Lemma value_edefault : forall i τ, value (edefault i τ).
-    Proof.
+    Fail Lemma value_edefault : forall i τ, value (edefault i τ).
+    (*Proof.
       induction τ using custom_t_ind; unravel; auto 1;
         try (constructor; apply repeat_Forall); constructor; auto 1;
           try (ind_list_predfs; unfold F.predfs_data in * );
           try ind_list_Forall; unravel in *; auto 4.
-    Qed.
+    Qed. *)   
   End Edefault.
   
   Section HelpersType.
@@ -338,11 +338,11 @@ Section StepDefs.
     Local Hint Resolve IntArith.bound0 : core.
     Local Hint Constructors error_ok : core.
     
-    Lemma edefault_types : forall errs Γ i τ,
+    Fail Lemma edefault_types : forall errs Γ i τ,
         PT.proper_nesting τ ->
         let e := edefault i τ in
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
-    Proof.
+    (*Proof.
       intros; subst e; induction τ using custom_t_ind; unravel;
         invert_proper_nesting; auto 2;
           constructor; autorewrite with core; auto 2;
@@ -350,13 +350,13 @@ Section StepDefs.
             try (ind_list_Forall; repeat inv_Forall_cons; constructor; intuition);
             try (ind_list_predfs; repeat invert_cons_predfs; constructor;
                  try split; unravel; intuition).
-    Qed.
+                 Qed.*)
     
     Local Hint Resolve Forall_impl : core.
     Local Hint Resolve Forall_firstn : core.
     Local Hint Resolve Forall_skipn : core.
     Local Hint Resolve proper_inside_header_nesting : core.
-    Local Hint Resolve edefault_types : core.
+    Fail Local Hint Resolve edefault_types : core.
     Hint Rewrite app_length.
     Hint Rewrite Forall_app.
     Hint Rewrite firstn_length_le.
@@ -371,10 +371,10 @@ Section StepDefs.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_snd.
     
-    Lemma eval_uop_types : forall errs Γ op e v τ τ',
+    Fail Lemma eval_uop_types : forall errs Γ op e v τ τ',
         uop_type op τ τ' -> value e -> eval_uop op e = Some v ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ'.
-    Proof.
+    (*Proof.
       intros errs Γ op e v τ τ' Huop Hev Heval Het;
         inv Huop; try inv_numeric;
           assert_canonical_forms; unravel in *;
@@ -390,7 +390,7 @@ Section StepDefs.
                       try (apply repeat_Forall; constructor; auto 2;
                            autorewrite with core in *; split; [intuition | unravel; eauto 5]).
       - eapply Forall_nth_error in H9; eauto 1; simpl in *; auto 1.
-    Qed.
+    Qed.*)                      
   End HelpersType.
   
   Section HelpersExist.
@@ -433,10 +433,10 @@ Section StepDefs.
           repeat assert_canonical_forms; unravel; eauto 2.
     Qed.
     
-    Lemma eval_uop_exists : forall op errs Γ e τ τ',
+    Fail Lemma eval_uop_exists : forall op errs Γ e τ τ',
         uop_type op τ τ' -> value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
-    Proof.
+    (* Proof.
       intros op errs Γ e τ τ' Hu Hv Het; inv Hu;
         try inv_numeric; assert_canonical_forms;
           unravel; eauto 2.
@@ -445,7 +445,7 @@ Section StepDefs.
         rewrite Hnth; eauto 2.
       - destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2.
       - destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2.
-    Qed.
+    Qed. *)
     
     Lemma eval_member_exists : forall errs Γ x v ts τ τ',
         value v ->

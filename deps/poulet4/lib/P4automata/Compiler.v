@@ -55,10 +55,12 @@ Section parser_to_p4automaton.
     Fixpoint eval_lvalue (e : E.e tags_t) : @error_monad compile_error V.lv :=
       match e with
       | <{ Var x:_ @ _ }> => mret l{ VAR x }l
+      | <{ Slice e:_ [hi:lo] @ _ }>
+        => lv <<| eval_lvalue e ;; l{ SLICE lv [hi:lo] }l
       | <{ Mem e:_ dot x @ _ }>
         => lv <<| eval_lvalue e ;; l{ lv DOT x }l
       | <{ Access e[n] @ _ }>
-        => lv <<| eval_lvalue e ;; l{ lv[n] }l
+        => lv <<| eval_lvalue e ;; l{ ACCESS lv[n] }l
       | _ => err (CEBadLValue e)
       end.
 
@@ -114,7 +116,10 @@ Section parser_to_p4automaton.
     match op with
     | SONil => 0
     | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
-    | SOExtract τ _ => SynDefs.width_of_typ τ
+    | SOExtract τ _ => match SynDefs.width_of_typ τ with
+                      | Some n => n
+                      | None => 0
+                      end
     | SOVarDecl _ _ => 0
     | SOAsgn _ _ => 0
     | SOBlock op => operation_size op end.
@@ -139,6 +144,8 @@ Section parser_to_p4automaton.
     | <{ BOOL b @ _ }> => mret ~{ VBOOL b }~
     | <{ w W n @ _ }> => mret ~{ w VW n }~
     | <{ w S n @ _ }> => mret ~{ w VS n }~
+    | <{ Stri s @ _ }> => mret ~{ STR s }~
+    | <{ Enum x dot m @ _ }> => mret ~{ ENUM x DOT m }~
     | <{ Var x : _ @ _ }> => 
       lift_opt_error (CEInconceivable (String.append "missing variable " x)) (Env.find x ϵ)
     | <{ Slice e : _ [ h : l ] @ _ }> =>
@@ -148,8 +155,10 @@ Section parser_to_p4automaton.
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad cast") $ ExprUtil.eval_cast τ v
     | <{ UOP op e : _ @ _ }> =>
+      (*
       v <- interp_expr ϵ e ;;
-      lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v
+      lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v *)
+      err (CEUnsupportedExpr e) (* TODO: fix *)
     | <{ BOP e1 : _ op e2 : _ @ _ }> =>
       v1 <- interp_expr ϵ e1 ;;
       v2 <- interp_expr ϵ e2 ;;
@@ -192,7 +201,7 @@ Section parser_to_p4automaton.
       | _ => err (CEUnsupportedExpr expr) end    
     end.
 
-  Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
+  Fail Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
     let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * E.t) :=
         let '(pkt, fs) := acc in
         let '(n, τ) := x in
@@ -245,12 +254,11 @@ Section parser_to_p4automaton.
       e <- interp_operation pkt e op1 ;;
       interp_operation pkt e op2
     | SOExtract τ lv =>
-      v <<| interp_extract τ pkt ;;
-      lv_update lv v e
+      (*v <<| interp_extract τ pkt ;;
+      lv_update lv v e*) None
     | SOVarDecl x τ =>
-      let v := vdefault τ in
-      let lv := Val.LVVar x in
-      Some (lv_update lv v e)
+      v <<| vdefault τ ;;
+      let lv := Val.LVVar x in lv_update lv v e
     | SOAsgn lhs rhs =>
       v <- strip_error (interp_expr e rhs) ;;
       lv <<| strip_error (eval_lvalue lhs) ;;
@@ -339,7 +347,8 @@ Section parser_to_p4automaton.
 
   Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list (@error_monad compile_error p4automaton) :=
     match d with
-    | %{ parser p ( cparams ) ( params ) start := strt { states } @ i }% =>
+    | %{ parser p ( cparams ) ( _ ) ( params ) start := strt { states } @ i }% =>
+      (* TODO: extern runtime params *)
       [parser_to_p4automaton strt states]
     | %{ d1 ;%; d2 @ i }%  => (topdecl_to_p4automata d1) ++ (topdecl_to_p4automata d2)
     | _ => [err (CEInconceivable "cannot convert nonparser to automata")] end.

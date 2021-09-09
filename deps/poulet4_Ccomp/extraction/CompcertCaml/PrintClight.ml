@@ -309,7 +309,7 @@ let print_program ver p prog =
   List.iter (print_globdef ver p) prog.prog_defs;
   fprintf p "@]@."
 
-let destination : string option ref = ref Some "ccompiled.c"
+let destination : string option ref = ref (Some "ccompiled.c")
 
 let print_if_gen ver prog =
   match !destination with
@@ -326,4 +326,3 @@ let print_if prog = print_if_gen Clight1 prog
 (* print_if_2 is called from clightgen/Clightgen.ml, after the
    SimplLocals pass.  It receives Clight2 syntax. *)
 let print_if_2 prog = print_if_gen Clight2 prog
-

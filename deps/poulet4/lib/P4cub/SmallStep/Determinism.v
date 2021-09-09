@@ -56,25 +56,26 @@ Section Determinism.
       intros ϵ e e1 e2 He1; generalize dependent e2;
       induction He1; intros e2' He2'; inv He2';
       f_equal; auto 2; subst; repeat subst_term.
-      - assert (~ value e) by auto 1.
+      - (*assert (~ value e) by auto 1.
         assert (~ value e0) by auto 1.
         eapply Forall_until_eq in H0 as [? [? ?]]; eauto 1; subst.
-        repeat f_equal; auto 2.
+        repeat f_equal; auto 2. *) admit.
       - unfold F.predfs_data, F.predf_data in *.
-        assert (~ (value ∘ snd ∘ snd) (x, (τ, e))) by (unravel; auto 1).
+        (*assert (~ (value ∘ snd ∘ snd) (x, (τ, e))) by (unravel; auto 1).
         assert (~ (value ∘ snd ∘ snd) (x0, (τ0, e0))) by (unravel; auto 1).
         eapply Forall_until_eq in H0 as [? [? ?]]; eauto 1; subst.
-        repeat f_equal; inv_eq; auto 2.
+        repeat f_equal; inv_eq; auto 2. *) admit.
       - unfold F.predfs_data, F.predf_data in *.
         assert (~ (value ∘ snd ∘ snd) (x, (τ, e))) by (unravel; auto 1).
         assert (~ (value ∘ snd ∘ snd) (x0, (τ0, e0))) by (unravel; auto 1).
         eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.
         repeat f_equal; inv_eq; auto 2.
+        admit. admit. admit. admit. admit. admit. admit. admit.
       - assert (~ value e) by auto 1.
         assert (~ value e0) by auto 1.
         eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.
         repeat f_equal; auto 2.
-    Qed.
+    Admitted.
   End ExprDeterminism.
 
   Lemma lvalue_deterministic : forall (e e1 e2 : E.e tags_t),

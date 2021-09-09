@@ -438,14 +438,6 @@ let print_fundef p id fd =
   | Ctypes.Internal f ->
       print_function p id f
 
-let print_fundecl p id fd =
-  match fd with
-  | Ctypes.Internal f ->
-      let linkage = if C2C.atom_is_static id then "static" else "extern" in
-      fprintf p "%s %s;@ @ " linkage
-                (name_cdecl (extern_atom id) (Csyntax.type_of_function f))
-  | _ -> ()
-
 let string_of_init id =
   let b = Buffer.create (List.length id) in
   let add_init = function
@@ -513,16 +505,6 @@ let print_globvar p id v =
       end;
       fprintf p ";@]@ @ "
 
-let print_globvardecl p  id v =
-  let name = extern_atom id in
-  let name = if v.gvar_readonly then "const "^name else name in
-  let linkage = if C2C.atom_is_static id then "static" else "extern" in
-  fprintf p "%s %s;@ @ " linkage (name_cdecl name v.gvar_info)
-
-let print_globdecl p (id,gd) =
-  match gd with
-  | Gfun f -> print_fundecl p id f
-  | Gvar v -> print_globvardecl p id v
 
 let print_globdef p (id, gd) =
   match gd with
@@ -547,7 +529,6 @@ let print_program p prog =
   fprintf p "@[<v 0>";
   List.iter (declare_composite p) prog.prog_types;
   List.iter (define_composite p) prog.prog_types;
-  List.iter (print_globdecl p) prog.Ctypes.prog_defs;
   List.iter (print_globdef p) prog.Ctypes.prog_defs;
   fprintf p "@]@."
 

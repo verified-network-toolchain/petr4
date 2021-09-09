@@ -9,7 +9,7 @@ Module E := P.Expr.
 Module F := P.F.
 Module V := Val.
 Import V.ValueNotations P.P4cubNotations Env.EnvNotations.
-  
+
 (** Bit-slicing. *)
 Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
   match v with
@@ -24,7 +24,7 @@ Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
 (**[]*)
 
 (** Unary Operations. *)
-Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
+Fail Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
   match op, v with
   | _{ ! }_, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
   | _{ ~ }_, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
@@ -256,14 +256,14 @@ Section Lemmas.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_fst.
     Local Hint Resolve Forall_impl : core.
-    Local Hint Resolve vdefault_types : core.
+    Fail Local Hint Resolve vdefault_types : core.
     Local Hint Resolve Forall_firstn : core.
     Local Hint Resolve Forall_skipn : core.
     
-    Lemma eval_uop_types : forall errs op τ τ' v v',
+    Fail Lemma eval_uop_types : forall errs op τ τ' v v',
         uop_type op τ τ' -> eval_uop op v = Some v' ->
         ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
-    Proof.
+    (*Proof.
       intros errs op τ τ' v v' Huop Heval Ht;
         inv Huop; inv Ht; unravel in *; inv Heval; auto 2;
           invert_proper_nesting;
@@ -277,7 +277,7 @@ Section Lemmas.
       - destruct (nth_error hs (Z.to_nat ni))
           as [[b vs] |] eqn:equack; inv H0; constructor; auto 2;
           apply (Forall_nth_error _ hs (Z.to_nat ni) (b, vs)) in H6; inv H6; auto 1.
-    Qed.
+    Qed. *)
   End HelpersType.
   
   Section HelpersExist.
@@ -312,16 +312,16 @@ Section Lemmas.
       - destruct w2; eauto 2.
     Qed.
     
-    Lemma eval_uop_exist : forall errs op τ τ' v,
+    Fail Lemma eval_uop_exist : forall errs op τ τ' v,
         uop_type op τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
-    Proof.
+    (*Proof.
       intros errs op τ τ' v Huop Ht; inv Huop; inv Ht;
         unravel; repeat inv_numeric; eauto 2;
           try (destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2).
       - assert (Hnith : (Z.to_nat ni < length hs)%nat) by lia;
           pose proof nth_error_exists _ _ Hnith as [[b vs] Hexists];
           rewrite Hexists; eauto 2.
-    Qed.
+    Qed. *)
     
     Lemma eval_member_exists : forall errs x v ts τ τ',
         member_type ts τ ->

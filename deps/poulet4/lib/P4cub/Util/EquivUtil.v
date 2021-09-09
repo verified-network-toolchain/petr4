@@ -131,6 +131,49 @@ Proof.
   unravel in *; try discriminate; intuition.
 Qed.
 
+Section ListStuff.
+  Context {A : Type} {HED : EqDec A eq}.
+
+  Fixpoint eqb_list (l1 l2 : list A) : bool :=
+    match l1, l2 with
+    | []     , []      => true
+    | a1 :: l1, a2 :: l2 => equiv_dec a1 a2 &&&& eqb_list l1 l2
+    | _      , _       => false
+    end.
+  
+  Lemma eqb_list_refl : forall l, eqb_list l l = true.
+  Proof using Type.
+    intro l; induction l as [| h t IHt]; unravel; auto.
+    rewrite IHt; equiv_dec_refl_tactic. reflexivity.
+  Qed.
+
+  Lemma eqb_list_eq : forall xs ys,
+      eqb_list xs ys = true -> xs = ys.
+  Proof using Type.
+    intro xs; induction xs as [| x xs IHxs];
+      intros [| y ys] Hel; unravel in *; try discriminate; auto.
+    apply lifted_andb_true in Hel as [Hxy Hxys].
+    unravel in *; subst. f_equal; auto.
+  Qed.
+
+  Hint Rewrite eqb_list_refl : core.
+  Local Hint Resolve eqb_list_eq : core.
+
+  Lemma eqb_list_iff : forall xs ys,
+      eqb_list xs ys = true <-> xs = ys.
+  Proof using Type.
+    intros xs ys; split; intro H; subst;
+      autorewrite with core; auto.
+  Qed.
+
+  Lemma eqb_list_reflect : forall xs ys,
+      reflect (xs = ys) (eqb_list xs ys).
+  Proof using Type.
+    intros xs ys; reflect_split; subst;
+      autorewrite with core in *; auto; try discriminate.
+  Qed.
+End ListStuff.
+
 Ltac destruct_lifted_andb :=
   match goal with
   | H: _ &&&& _ = true |- _ => apply lifted_andb_true in H as [? ?]

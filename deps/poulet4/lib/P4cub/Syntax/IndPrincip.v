@@ -14,6 +14,8 @@ Section TypeInduction.
   
   (** An arbitrary property. *)
   Variable P : t -> Prop.
+
+  Hypothesis HTVar : forall X : string, P {{ X }}.
   
   Hypothesis HTBool : P {{ Bool }}.
   
@@ -36,6 +38,10 @@ Section TypeInduction.
   
   Hypothesis HTHeaderStack : forall fields size,
       F.predfs_data P fields -> P {{ stack fields[size] }}.
+
+  Hypothesis HTString : P {{ Str }}.
+
+  Hypothesis HTEnum : forall x xs, P {{ enum x { xs } }}.
   
   (** A custom induction principle.
       Do [induction ?t using custom_t_ind]. *)
@@ -55,6 +61,7 @@ Section TypeInduction.
             => Forall_cons hf (custom_t_ind hft) (fields_ind tf)
           end in
       match type with
+      | TVar X => HTVar X
       | {{ Bool }} => HTBool
       | {{ bit<w> }} => HTBit w
       | {{ int<w> }} => HTInt w
@@ -64,6 +71,8 @@ Section TypeInduction.
       | {{ struct { fields } }} => HTStruct fields (fields_ind fields)
       | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
       | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
+      | {{ Str }} => HTString
+      | {{ enum x { xs } }} => HTEnum x xs
       end.
   (**[]*)
 End TypeInduction.
@@ -126,6 +135,10 @@ Section ExprInduction.
   
   Hypothesis HAccess : forall e1 e2 i,
       P e1 -> P <{ Access e1[e2] @ i }>.
+
+  Hypothesis HString : forall s i, P <{ Stri s @ i }>.
+
+  Hypothesis HEnum : forall x m i, P <{ Enum x dot m @ i }>.
   
   (** A custom induction principle.
       Do [induction ?e using custom_e_ind]. *)
@@ -164,6 +177,8 @@ Section ExprInduction.
       | <{ Stack hs:ts [n] nextIndex:=ni @ i }>
         => HEStack ts hs n ni i (list_ind hs)
       | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
+      | <{ Stri s @ i }> => HString s i
+      | <{ Enum x dot m @ i }> => HEnum x m i
       end.
   (**[]*)
 End ExprInduction.

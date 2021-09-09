@@ -19,9 +19,9 @@ Module Step.
   Inductive kstmt {tags_t : Type} : Type :=
   | KStop                              (* end of continuation *)
   | KSeq (s : ST.s tags_t) (k : kstmt) (* sequencing/composition *)
-  | KBlock (ϵ : @eenv tags_t) (k : kstmt)      (* block: enclosing environment & continuation *)
+  | KBlock (ϵ : @eenv tags_t) (k : kstmt) (* block: enclosing environment & continuation *)
   | KCall (args : E.arrowE tags_t)
-          (ϵ : @eenv tags_t) (k : kstmt)       (* function/procedure
+          (ϵ : @eenv tags_t) (k : kstmt) (* function/procedure
                                           call-site with arguments,
                                           enclosing environment, & continuation *)
   | KExit (k : kstmt)                  (* exit statement control-flow *)
@@ -93,7 +93,7 @@ Module Step.
            ℵ ϵ, UOP op e:τ @ i -->  UOP op e':τ @ i
   | step_uop_eval (op : E.uop) (τ : E.t)
                   (v v' : E.e tags_t) (i : tags_t) :
-      eval_uop op v = Some v' ->
+      (* TODO: eval_uop op v = Some v' -> *)
       value v ->
       ℵ ϵ, UOP op v:τ @ i -->  v'
   | step_bop_l (op : E.bop) (τl τr : E.t)
@@ -172,6 +172,10 @@ Module Step.
            (at level 40, e1 custom p4expr, e2 custom p4expr).
   
   Inductive lvalue_step {tags_t : Type} : E.e tags_t -> E.e tags_t -> Prop :=
+  | lstep_slice (e e' : E.e tags_t) (τ : E.t)
+                (hi lo : positive) (i : tags_t) :
+      ℶ e -->  e' ->
+      ℶ Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
   | lstep_member (e e' : E.e tags_t) (τ : E.t) (x : string) (i : tags_t) :
       ℶ e -->  e' ->
       ℶ Mem e:τ dot x @ i -->   Mem e':τ dot x @ i
@@ -249,10 +253,10 @@ Module Step.
       κ b{ s }b ⋅ k -->  κ s ⋅ ∫ ϵ ⊗ k, ϵ
   | step_kblock (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, ϵk ≪ ϵ
-  | step_vardecl (τ : E.t) (x : string) (i : tags_t) (k : kstmt) :
+  (*| step_vardecl (τ : E.t) (x : string) (i : tags_t) (k : kstmt) :
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ
+      κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ *)
   | step_asgn_r (e1 e2 e2' : E.e tags_t) (τ : E.t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e2 -->  e2' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,

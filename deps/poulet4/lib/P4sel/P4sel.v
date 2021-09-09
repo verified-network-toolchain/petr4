@@ -31,9 +31,23 @@ Module P4sel.
       | EError (err : option string)
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : P4cub.Expr.matchkind) (i : tags_t)       (* matchkind literals *)
+      | EString (s : string) (i : tags_t)
+      | EEnum (x m : string) (i : tags_t)
       .
       (**[]*)
 
+      Definition SelTypeOf (expr: e) :P4cub.Expr.t := 
+      match expr with
+      | EBool _ _ => P4cub.Expr.TBool
+      | EVar t _ _ => t
+      | EExprMember _ t _ _ => t
+      | EError _ _ => P4cub.Expr.TError
+      | EMatchKind _ _ => P4cub.Expr.TMatchKind
+      | EString _ _ => P4cub.Expr.TString
+      | EEnum x m _ => P4cub.Expr.TEnum x [m]
+      end
+      .
+      
       (** Function call arguments. *)
       Definition args : Type :=
         F.fs string (P4cub.paramarg (P4cub.Expr.t * e) (P4cub.Expr.t * e)).
@@ -278,10 +292,12 @@ Module P4sel.
                  (i : tags_t) (* extern declarations *)
       | TPControl (c : string)
                   (cparams : P4cub.Expr.constructor_params) (* constructor params *)
+                  (eparams : F.fs string string)   (* runtime extern params *)
                   (params : P4cub.Expr.params) (* apply block params *)
                   (body : C.d tags_t) (apply_blk : S.s tags_t) (i : tags_t)
       | TPParser (p : string)
                  (cparams : P4cub.Expr.constructor_params) (* constructor params *)
+                 (eparams : F.fs string string)   (* runtime extern params *)
                  (params : P4cub.Expr.params)           (* invocation params *)
                  (start : P.state_block tags_t) (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)

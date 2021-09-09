@@ -1,6 +1,8 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.BigStep.Value.Value
-        Coq.ZArith.BinInt Poulet4.P4cub.Envn.
+        Coq.ZArith.BinInt Poulet4.P4cub.Envn
+        Poulet4.P4cub.BigStep.ExprUtil
+        Poulet4.P4Arith.
 Module V := Val.
 Import V.ValueNotations V.LValueNotations Env.EnvNotations.
 
@@ -11,15 +13,16 @@ Definition epsilon : Type := Env.t string V.v.
 Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   match lv with
   | l{ VAR x }l => Env.find x ϵ
+  | l{ SLICE lv [hi:lo] }l=>
+    lv_lookup ϵ lv >>= eval_slice hi lo
   | l{ lv DOT x }l =>
-    (* TODO: use monadic bind. *)
     match lv_lookup ϵ lv with
     | None => None
     | Some ~{ STRUCT { fs } }~
     | Some ~{ HDR { fs } VALID:=_ }~ => F.get x fs
     | Some _ => None
     end
-  | l{ lv[n] }l =>
+  | l{ ACCESS lv[n] }l =>
     match lv_lookup ϵ lv with
     | None => None
     | Some ~{ STACK vss:_[_] NEXT:=_ }~ =>
@@ -36,6 +39,18 @@ Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
 Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   match lv with
   | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
+  | l{ SLICE lv [hi:lo] }l =>
+    match v, lv_lookup ϵ lv with
+    | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
+      let rhs := Z.shiftl n (Zpos w) in
+      let mask :=
+          (-1 - (Z.lxor
+                   (2 ^ (Zpos hi + 1) - 1)
+                   (2 ^ (Zpos lo - 1))))%Z in
+      let new := Z.lxor (Z.land n mask) rhs in
+      lv_update lv ~{ w VW new }~ ϵ
+    | _, Some _ | _, None => ϵ
+    end
   | l{ lv DOT x }l =>
     match lv_lookup ϵ lv with
     | Some ~{ STRUCT { vs } }~ => lv_update lv (V.VStruct (F.update x v vs)) ϵ
@@ -43,7 +58,7 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
       lv_update lv (V.VHeader (F.update x v vs) b) ϵ
     | Some _ | None => ϵ
     end
-  | l{ lv[n] }l =>
+  | l{ ACCESS lv[n] }l =>
     match v, lv_lookup ϵ lv with
     | ~{ HDR { vs } VALID:=b }~ ,
       Some ~{ STACK vss:ts[size] NEXT:=ni }~ =>

@@ -30,8 +30,10 @@ Module TypeEquivalence.
           | [], _::_ | _::_, [] => false
           end in
       match τ1, τ2 with
+      | TVar X1, TVar X2 => String.eqb X1 X2
       | {{ Bool }}, {{ Bool }}
       | {{ error }}, {{ error }}
+      | {{ Str }}, {{ Str }}
       | {{ matchkind }}, {{ matchkind }} => true
       | {{ bit<w1> }}, {{ bit<w2> }}
       | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
@@ -40,15 +42,20 @@ Module TypeEquivalence.
       | {{ struct { ts1 } }}, {{ struct { ts2 } }} => fstruct ts1 ts2
       | {{ stack ts1[n1] }}, {{ stack ts2[n2] }}
         => (n1 =? n2)%positive && fstruct ts1 ts2
+      | {{ enum x { xs } }}, {{ enum y { ys } }}
+        => equiv_dec x y &&&& eqb_list xs ys
       | _, _ => false
       end.
     (**[]*)
+
+    Hint Rewrite String.eqb_refl : core.
+    Hint Rewrite Pos.eqb_refl : core.
+    Hint Rewrite @eqb_list_refl : core.
+    Hint Rewrite @equiv_dec_refl : core.
+    Hint Extern 4 => equiv_dec_refl_tactic : core.
     
     Lemma eqbt_refl : forall τ, eqbt τ τ = true.
     Proof.
-      Hint Rewrite Pos.eqb_refl.
-      Hint Rewrite equiv_dec_refl.
-      Hint Extern 0 => equiv_dec_refl_tactic : core.
       induction τ using custom_t_ind; unravel;
         autorewrite with core; auto;
           try ind_list_Forall; try ind_list_predfs;
@@ -62,17 +69,24 @@ Module TypeEquivalence.
            IH: (forall y, ?f ?x y = ?z -> _)
         |- _ => apply IH in H; clear IH
       end.
+
+    Ltac helper :=
+      match goal with
+      | H: String.eqb _ _ = true
+        |- _ => rewrite String.eqb_eq in H; subst; auto
+      | H: (_ =? _)%positive = true
+        |- _ => apply Peqb_true_eq in H; subst; auto
+      | H: eqb_list _ _ = true
+        |- _ => apply eqb_list_eq in H
+      end.
+
+    Hint Extern 5 => helper : core.
     
     Lemma eqbt_eq : forall t1 t2, eqbt t1 t2 = true -> t1 = t2.
     Proof.
-      Hint Resolve Peqb_true_eq : core.
-      Hint Extern 5 =>
-      match goal with
-      | H: (_ =? _)%positive = true
-        |- _ => apply Peqb_true_eq in H; subst; auto
-      end : core.
       induction t1 using custom_t_ind; intros []; intros; unravel in *;
         try discriminate; repeat destruct_andb; auto; f_equal;
+          repeat destruct_lifted_andb; unravel in *; subst; auto;
           try match goal with
               | IH: Forall _ ?ts1,
                     H: _ ?ts1 ?ts2 = true
@@ -207,6 +221,10 @@ Module ExprEquivalence.
   | equive_stack_access e1 e2 n i1 i2 :
       ∮ e1 ≡ e2 ->
       ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
+  | equive_string s i1 i2 :
+      ∮ Stri s @ i1 ≡ Stri s @ i2
+  | equive_enum x m i1 i2 :
+      ∮ Enum x dot m @ i1 ≡ Enum x dot m @ i2
   where "∮ e1 ≡ e2" := (equive e1 e2).
   
   (** Induction principle. *)
@@ -304,6 +322,12 @@ Module ExprEquivalence.
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
         P <{ Access e1[n] @ i1 }> <{ Access e2[n] @ i2 }>.
+
+    Hypothesis HString : forall s i1 i2,
+        P <{ Stri s @ i1 }> <{ Stri s @ i2 }>.
+
+    Hypothesis HEnum : forall x m i1 i2,
+        P <{ Enum x dot m @ i1 }> <{ Enum x dot m @ i2 }>.
     
     (** Custom induction principle. *)
     Definition custom_equive_ind :
@@ -365,6 +389,8 @@ Module ExprEquivalence.
           => HHeaderStack ts _ _ n ni i1 i2 Hhs (lind Hhs)
         | equive_stack_access _ _ n i1 i2 He
           => HAccess _ _ n i1 i2 He (eeind _ _ He)
+        | equive_string s i1 i2 => HString s i1 i2
+        | equive_enum x m i1 i2 => HEnum x m i1 i2
         end.
     (**[]*)
   End ExprEquivalenceInduction.
@@ -506,6 +532,10 @@ Module ExprEquivalence.
           F.eqb_fs eqbt ts1 ts2 && lstruct hs1 hs2
       | <{ Access hs1[n1] @ _ }>,
         <{ Access hs2[n2] @ _ }> => (n1 =? n2)%Z && eqbe hs1 hs2
+      | <{ Stri s1 @ _ }>, <{ Stri s2 @ _ }>
+        => if equiv_dec s1 s2 then true else false
+      | <{ Enum x1 dot m1 @ _ }>, <{ Enum x2 dot m2 @ _ }>
+        => equiv_dec x1 x2 &&&& equiv_dec m1 m2
       | _, _ => false
       end.
     (**[]*)
@@ -561,6 +591,7 @@ Module ExprEquivalence.
                 end;
             try (equiv_dec_refl_tactic; auto 1;
                  autorewrite with core in *; contradiction).
+      repeat equiv_dec_refl_tactic; auto.
     Qed.
     
     Ltac eq_true_terms :=

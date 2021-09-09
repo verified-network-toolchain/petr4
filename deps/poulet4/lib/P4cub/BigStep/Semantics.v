@@ -339,7 +339,7 @@ Module Step.
       | _ => None
       end = Some aa ->
       (* Looking up action. *)
-      Env.find a aa = Some (ADecl closure fclosure aclosure exts body) ->
+      Env.find a aa = Some (ADecl closure fclosure aclosure exts [(* TODO : Correctly use parameter lists  *)] body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -359,7 +359,7 @@ Module Step.
                   (body : ST.s tags_t) (fclosure : fenv)
                   (closure ϵ' ϵ'' ϵ''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure body) ->
+      Env.find f fs = Some (FDecl closure fclosure [(* TODO : Correctly use parameter lists  *)] body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -381,7 +381,7 @@ Module Step.
                    (body : ST.s tags_t) (fclosure : fenv)
                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure body) ->
+      Env.find f fs = Some (FDecl closure fclosure [(* TODO : Correctly use parameter lists  *)] body) ->
       (* Argument evaluation. *)
       F.relfs
         (P.rel_paramarg
@@ -594,7 +594,7 @@ Module Step.
     : CD.d tags_t -> aenv -> tenv -> Prop :=
   | cdbs_action (a : string) (params : E.params)
                 (body : ST.s tags_t) (i : tags_t) :
-      let aa' := Env.bind a (ADecl ϵ fns aa eis body) aa in
+      let aa' := Env.bind a (ADecl ϵ fns aa eis [(* TODO : Correctly use parameter lists  *)] body) aa in
       ⦉ tbls, aa, fns, cis, eis, ϵ, action a (params) {body} @ i ⦊
         ⟱  ⦉ aa', tbls ⦊
   | cdbs_table (t : string)
@@ -732,12 +732,12 @@ Module Step.
         ⟱  ⦇ eis, cis, pis, fns, es', cs , ps ⦈ *)
   | tpbs_fruit_function (f : string) (params : E.params)
                         (τ : E.t) (body : ST.s tags_t) (i : tags_t) :
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Env.bind f (FDecl ϵ fns [(* TODO : Correctly use parameter lists  *)] body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, fn f (params) -> τ { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_void_function (f : string) (params : E.params)
                        (body : ST.s tags_t) (i : tags_t) :
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Env.bind f (FDecl ϵ fns [(* TODO : Correctly use parameter lists  *)] body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, void f (params) { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t) (pis' pis'' : pienv)

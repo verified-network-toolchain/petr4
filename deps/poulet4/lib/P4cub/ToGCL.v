@@ -153,6 +153,8 @@ Module Translate.
       | E.EVar typ x i =>
         let x' := Ctx.relabel_for_scope ctx x in
         E.EVar typ x' i
+      | E.EString _ _ => e
+      | E.EEnum _ _ _ => e
       | E.ESlice n τ hi lo i =>
         E.ESlice (scopify ctx n) τ hi lo i
       | E.ECast type arg i =>
@@ -206,6 +208,8 @@ Module Translate.
       | E.EBit _ _ _ => error "BitVector Literals are not lvalues"
       | E.EInt _ _ _ => error "Integer literals are not lvalues"
       | E.EVar t x i => ok x
+      | E.EString _ _ => error "Strings are not lvalues"
+      | E.EEnum _ _ _ => error "Enums are not lvalues"
       | E.ESlice e τ hi lo pos =>
         (* TODO :: Allow assignment to slices *)
         error "[FIXME] Slices are not l-values "
@@ -227,16 +231,18 @@ Module Translate.
         lv ++ "["++ (string_of_z index) ++ "]"
       end.
 
-    Search (positive -> nat).
     Definition width_of_type (t : E.t) : result nat :=
       match t with
       | E.TBool => ok 1
       | E.TBit w => ok (BinPos.Pos.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
+      | E.TString => error "Cannot get the width of a string type"
+      | E.TVar _ => error "Cannot get the width of a type variable"
       | E.TError => error "Cannot get the width of an error Type"
       | E.TMatchKind => error "Cannot get the width of a Match Kind Type"
       | E.TTuple types => error "Cannot get the width of a Tuple Type"
       | E.TStruct fields => error "Cannot get the width of a Struct Type"
+      | E.TEnum _ _ => error "Cannot Get the width of an Enum Type"
       | E.THeader fields => error "Cannot get the width of a Header Type"
       | E.THeaderStack fields size => error "Cannot get the width of a header stack type"
       end.
@@ -253,6 +259,7 @@ Module Translate.
       | E.EBool _ _ => error "A Boolean is not a header"
       | E.EBit _ _ _ => error "A bitvector literal is not a header"
       | E.EInt _ _ _ => error "An integer literal is not a header"
+      | E.EString _ _ => error "A string is not a header"
       | E.EVar t x i =>
         match t with
         | E.THeader _ => ok x
@@ -263,8 +270,8 @@ Module Translate.
       | E.EUop _ _ _ _ => error "No unary operation is a header"
       | E.EBop _ _ _ _ _ _ => error "No binary operation is a header"
       | E.ETuple _ _ => error "A Tuple is not a header"
-      | E.EStruct _ _ =>
-        error "Structs are not headers"
+      | E.EStruct _ _ => error "Structs are not headers"
+      | E.EEnum _ _ _ => error "Enums are not headers"
       | E.EHeader _ _ _ =>
         error "Header literals should not be keys"
       | E.EExprMember mem expr_type arg i =>
@@ -273,12 +280,11 @@ Module Translate.
       | E.EError _ _ => error "errors are not header strings"
       | E.EMatchKind _ _ => error "MatchKinds are not header strings"
       | E.EHeaderStack _ _ _ _ _ =>
-        error "[FIXME] Header stacks are not supported as table keys"
+        error "Header stacks are not headers"
       | E.EHeaderStackAccess stack index i =>
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
-    Search (Z -> nat).
     Fixpoint to_rvalue (e : (E.e tags_t)) : result BV.t :=
       match e with
       | E.EBool b i =>
@@ -287,9 +293,11 @@ Module Translate.
         else ok (BV.BitVec 0 1 i)
       | E.EBit w v i =>
         ok (BV.BitVec (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
+      | E.EString _ _ =>
+        error "Cannot translate strings to bitvectors"
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
-        error "[FIXME] Cannot translate signed ints to rvalues"
+        error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
         let** w := width_of_type t in
         BV.BVVar x w i
@@ -297,7 +305,6 @@ Module Translate.
       | E.ESlice e τ hi lo i =>
         let** rv_e := to_rvalue e in
         BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
-
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
         let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg i) in
@@ -365,6 +372,8 @@ Module Translate.
         error "Structs in the rvalue position should have been factored out by previous passes"
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
+      | E.EEnum _ _ _ =>
+        error "Enums in the rvalue position should have been factored out by previous passes"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let** w := width_of_type expr_type in
@@ -384,6 +393,8 @@ Module Translate.
         error "Typeerror: Bitvector literals are not booleans (perhaps you want to insert a cast?)"
       | E.EInt _ _ _ =>
         error "Typeerror: Signed Ints are not booleans (perhaps you want to insert a cast?)"
+      | E.EString _ _ =>
+        error "Typeerror: Strings are not booleans"
       | E.EVar t x i =>
         match t with
         | E.TBool => ok (GCL.LVar x i)
@@ -462,6 +473,8 @@ Module Translate.
         error "Structs are not formulae"
       | E.EHeader _ _ _ =>
         error "Headers are not formulae"
+      | E.EEnum _ _ _ =>
+        error "Enums are not formulae"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let~ w := (width_of_type expr_type) over ("failed getting type of " ++ mem) in
@@ -700,7 +713,7 @@ Module Translate.
       )
       ].
 
-    Definition empty_adecl : ST.s tags_t -> adecl :=
+    Definition empty_adecl : list string -> ST.s tags_t -> adecl :=
       ADecl (Env.empty string ValEnvUtil.V.v)
             (Env.empty string fdecl)
             (Env.empty string adecl)
@@ -742,16 +755,14 @@ Module Translate.
 
     Definition ingress_action_env :=
       [("_drop",
-        empty_adecl (ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d));
-      ("set_if_info", empty_adecl set_if_info);
-      ("nat_miss_ext_to_int", empty_adecl nat_miss_ext_to_int);
-      ("nat_hit_int_to_ext", empty_adecl nat_hit_int_to_ext);
-      ("nat_hit_ext_to_int", empty_adecl nat_hit_ext_to_int);
-      ("set_dmac", empty_adecl set_dmac);
-      ("set_nhop", empty_adecl set_nhop)
+        empty_adecl [] (ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d));
+      ("set_if_info", empty_adecl [] set_if_info);
+      ("nat_miss_ext_to_int", empty_adecl [] nat_miss_ext_to_int);
+      ("nat_hit_int_to_ext", empty_adecl ["srcAddr"; "srcPort"] nat_hit_int_to_ext);
+      ("nat_hit_ext_to_int", empty_adecl ["dstAddr"; "dstPort"] nat_hit_ext_to_int);
+      ("set_dmac", empty_adecl ["dmac"] set_dmac);
+      ("set_nhop", empty_adecl ["nhop_ipv4"; "port"] set_nhop)
       ].
-
-    Print Translate.to_rvalue.
 
     Definition matchrow_inner (table : string) (i : tags_t) (n : nat) (elt : E.t * E.e tags_t * E.matchkind) (acc_res : result GCL.form) : result GCL.form :=
       let (te, mk) := elt in
@@ -832,34 +843,45 @@ Module Translate.
     (* the program itself is *)
     (*  vardecl x; x := 5; f() *)
     (* where f() := vardecl x := ipv4.src; ipv4.src := ipv4.dst; ipv4.dst := x *)
+
+    Print P.F.f.
+    Print P.Arrow.
+    Print ST.SFunCall.
+    Print ST.E.arrowE.
     Definition scope_occlusion_function :=
       s_sequence [
-      ST.SVardecl (bit 32) "x" d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-      ST.SFunCall "swap" (P.Arrow [] None) d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+      ST.SVardecl (bit 32) "y" d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "y" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+      ST.SFunCall "swap" (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "y" d) (E.EVar (bit 32) "y" d) d
       ]
     .
 
     Definition swap_body :=
+      let var := fun s => E.EVar (bit 32) s d in
+      let x := var "x" in
+      let y := var "y" in
+      let z := var "z" in
+      let assn := fun lhs rhs => ST.SAssign (bit 32) lhs rhs d in
       s_sequence [
       ST.SVardecl (bit 32) "x" d;
       ST.SBlock (s_sequence [
                  ST.SVardecl (bit 32) "x" d;
-                 ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (ipv4 "srcAddr" 32) d;
-                 ST.SAssign (bit 32) (ipv4 "srcAddr" 32) (ipv4 "dstAddr" 32) d;
-                 ST.SAssign (bit 32) (ipv4 "dstAddr" 32) (E.EVar (bit 32) "x" d) d
+                 assn x y;
+                 assn y z;
+                 assn z x
                  ])
       ].
 
     Definition swap_fdecl :=
       FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl)
+            ["y"; "z"]
             swap_body.
 
     Definition swap_fenv := [("swap",swap_fdecl)].
 
     Compute (Translate.p4cub_statement_to_gcl instr
-                                              10
+                                              100
                                               (Env.empty string cinst)
                                               (Env.empty string adecl)
                                               (Env.empty string (CD.table tags_t))
@@ -867,7 +889,6 @@ Module Translate.
                                               arch
                                               scope_occlusion_function).
 
-    Print ST.SBlock.
     Definition scope_occlusion_block :=
       s_sequence [
       ST.SVardecl (bit 32) "x" d;
@@ -890,8 +911,8 @@ Module Translate.
       s_sequence [
       ST.SVardecl (bit 32) "x" d;
       ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-      ST.SActCall "swap" [] d;
-      ST.SActCall "swap" [] d;
+      ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
+      ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
       ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
       ]
     .
@@ -901,6 +922,7 @@ Module Translate.
     Definition swap_act :=
       ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl)
             (Env.empty string ARCH.P4Extern)
+            ["x"; "y"]
             swap_body.
 
     Definition swap_aenv := [("swap", swap_act)].
@@ -913,5 +935,7 @@ Module Translate.
                                               (Env.empty string fdecl)
                                               arch
                                               scope_occlusion_action).
+
+
 
   End Tests.

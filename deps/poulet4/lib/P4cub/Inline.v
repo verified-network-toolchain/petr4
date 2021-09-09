@@ -30,39 +30,50 @@ Variable tags_t : Type.
 Module Inline.
   Definition expenv : Type := Env.t string (E.e tags_t).
 
-Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
-  match e with
-  | E.EBool _ _ => e
-  | E.EBit _ _ _ => e
-  | E.EInt _ _ _ => e
-  | E.EVar type x i =>
-    match Env.find x η with
-    | None => e
-    | Some e' => e'
-    end
-  | E.ESlice e τ hi lo i =>
-    E.ESlice (subst_e η e) τ hi lo i
-  | E.ECast type arg i =>
-    E.ECast type (subst_e η arg) i
-  | E.EUop op type arg i =>
-    E.EUop op type (subst_e η arg) i
-  | E.EBop op ltype rtype l r i =>
-    E.EBop op ltype rtype (subst_e η l) (subst_e η r) i
-  | E.ETuple es i =>
-    E.ETuple (List.map (subst_e η) es) i
-  | E.EStruct fields i =>
-    E.EStruct (F.map (fun '(t,e) => (t, subst_e η e)) fields) i
-  | E.EHeader fields valid i =>
-    E.EHeader (F.map (fun '(t,e) => (t, subst_e η e)) fields) (subst_e η valid) i
-  | E.EExprMember mem expr_type arg i =>
-    E.EExprMember mem expr_type (subst_e η arg) i
-  | E.EError _ _ => e
-  | E.EMatchKind _ _ => e
-  | E.EHeaderStack fields headers size ni i =>
-    E.EHeaderStack fields (List.map (subst_e η) headers) size ni i
-  | E.EHeaderStackAccess stack idx i =>
-    E.EHeaderStackAccess (subst_e η stack) idx i
-  end.
+  Definition get_exp (pa : P.paramarg (ST.E.t * ST.E.e tags_t) (ST.E.t * ST.E.e tags_t)) :=
+    match pa with
+    | P.PAInOut (_,e) => e
+    | P.PAIn (_,e) => e
+    | P.PAOut (_,e) => e
+    end.
+  Definition args_to_expenv (args : P.F.fs string (P.paramarg (ST.E.t * ST.E.e tags_t) (ST.E.t * ST.E.e tags_t))) : expenv :=
+    F.fold (fun param arg env => Env.bind param (get_exp arg) env) args [].
+
+  Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
+    match e with
+    | E.EBool _ _ => e
+    | E.EBit _ _ _ => e
+    | E.EInt _ _ _ => e
+    | E.EString _ _ => e
+    | E.EEnum _ _ _ => e
+    | E.EVar type x i =>
+      match Env.find x η with
+      | None => e
+      | Some e' => e'
+      end
+    | E.ESlice e τ hi lo i =>
+      E.ESlice (subst_e η e) τ hi lo i
+    | E.ECast type arg i =>
+      E.ECast type (subst_e η arg) i
+    | E.EUop op type arg i =>
+      E.EUop op type (subst_e η arg) i
+    | E.EBop op ltype rtype l r i =>
+      E.EBop op ltype rtype (subst_e η l) (subst_e η r) i
+    | E.ETuple es i =>
+      E.ETuple (List.map (subst_e η) es) i
+    | E.EStruct fields i =>
+      E.EStruct (F.map (fun '(t,e) => (t, subst_e η e)) fields) i
+    | E.EHeader fields valid i =>
+      E.EHeader (F.map (fun '(t,e) => (t, subst_e η e)) fields) (subst_e η valid) i
+    | E.EExprMember mem expr_type arg i =>
+      E.EExprMember mem expr_type (subst_e η arg) i
+    | E.EError _ _ => e
+    | E.EMatchKind _ _ => e
+    | E.EHeaderStack fields headers size ni i =>
+      E.EHeaderStack fields (List.map (subst_e η) headers) size ni i
+    | E.EHeaderStackAccess stack idx i =>
+      E.EHeaderStackAccess (subst_e η stack) idx i
+    end.
 
   Inductive t : Type :=
   | ISkip (i : tags_t)                       (* skip, useful for
@@ -164,22 +175,22 @@ Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
       | ST.SFunCall f (P.Arrow args ret) i =>
         let*~ fdecl := Env.find f fenv else "could not find function in environment" in
         match fdecl with
-        | FDecl ε fenv' body =>
+        | FDecl ε fenv' params body =>
           (** TODO check copy-in/copy-out *)
           let** rslt := inline n0 cienv aenv tenv fenv' body in
-          let η := copy args in
-          IBlock rslt
+          let (s,_) := subst_t (args_to_expenv args) rslt in
+          IBlock s
         end
       | ST.SActCall a args i =>
         let*~ adecl := Env.find a aenv else ("could not find action " ++ a ++ " in environment") in
         match adecl with
-        | ADecl ε fenv' aenv' externs body =>
+        | ADecl ε fenv' aenv' externs params body =>
           (** TODO handle copy-in/copy-out *)
           let** rslt := inline n0 cienv aenv' tenv fenv' body in
-          let η := copy args in
+          let η := args_to_expenv args in
           IBlock (fst (subst_t η rslt))
         end
-      | ST.SApply ci args i =>
+      | ST.SApply ci ext_args args i =>
         let*~ cinst := Env.find ci cienv else "could not find controller instance in environment" in
         match cinst with
         | CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
@@ -205,7 +216,7 @@ Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
           let act_to_gcl := fun a =>
             let*~ adecl := Env.find a aenv else "could not find action " ++ a ++ " in environment" in
             match adecl with
-            | ADecl _ fenv' aenv' externs body =>
+            | ADecl _ fenv' aenv' externs params body =>
               (** TODO handle copy-in/copy-out *)
               inline n0 cienv aenv tenv fenv body
             end
@@ -217,6 +228,9 @@ Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
 
       | ST.SExternMethodCall ext method args i =>
         ok (IExternMethodCall ext method args i)
+
+      | ST.SHeaderStackOp _ _ _ _ =>
+        error "[FIXME] Translate Header Stack operations"
       end
     end.
 

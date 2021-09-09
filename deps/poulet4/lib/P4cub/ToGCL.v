@@ -130,6 +130,7 @@ End Ctx.
 
 Module Arch.
   Definition extern : Type := Env.t string (@GCL.t string BV.t GCL.form).
+  (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
   Definition find (m : model) (e f : string) : result GCL.t :=
     let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
@@ -501,7 +502,7 @@ Module Translate.
 
       | Inline.ISeq s1 s2 i =>
         let* g1 := inline_to_gcl ctx arch s1 in
-        let** g2 := inline_to_gcl ctx arch s2 in
+        let** g2 := inline_to_gcl (snd g1) arch s2 in
         seq i g1 g2
 
       | Inline.IBlock s =>
@@ -815,6 +816,7 @@ Module Translate.
                  (bit 32, tcp "dstPort" 32, E.MKTernary)
                 ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec (pos 1) (pos 1) d) d)]).
 
+    Locate positive.
     Compute (Translate.p4cub_statement_to_gcl instr
                                               10
                                               (Env.empty string cinst)
@@ -825,5 +827,90 @@ Module Translate.
                                               simple_nat_ingress).
 
 
+    (* This example is to test the correct implementation of scoping. *)
+    (* the program itself is *)
+    (*  vardecl x; x := 5; f() *)
+    (* where f() := vardecl x := ipv4.src; ipv4.src := ipv4.dst; ipv4.dst := x *)
+    Definition scope_occlusion_function :=
+      s_sequence [
+      ST.SVardecl (bit 32) "x" d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+      ST.SFunCall "swap" (P.Arrow [] None) d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+      ]
+    .
+
+    Definition swap_body :=
+      s_sequence [
+      ST.SVardecl (bit 32) "x" d;
+      ST.SBlock (s_sequence [
+                 ST.SVardecl (bit 32) "x" d;
+                 ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (ipv4 "srcAddr" 32) d;
+                 ST.SAssign (bit 32) (ipv4 "srcAddr" 32) (ipv4 "dstAddr" 32) d;
+                 ST.SAssign (bit 32) (ipv4 "dstAddr" 32) (E.EVar (bit 32) "x" d) d
+                 ])
+      ].
+
+    Definition swap_fdecl :=
+      FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl)
+            swap_body.
+
+    Definition swap_fenv := [("swap",swap_fdecl)].
+
+    Compute (Translate.p4cub_statement_to_gcl instr
+                                              10
+                                              (Env.empty string cinst)
+                                              (Env.empty string adecl)
+                                              (Env.empty string (CD.table tags_t))
+                                              (swap_fenv)
+                                              arch
+                                              scope_occlusion_function).
+
+    Print ST.SBlock.
+    Definition scope_occlusion_block :=
+      s_sequence [
+      ST.SVardecl (bit 32) "x" d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+      ST.SBlock swap_body;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+      ]
+    .
+
+    Compute (Translate.p4cub_statement_to_gcl instr
+                                              15
+                                              (Env.empty string cinst)
+                                              (Env.empty string adecl)
+                                              (Env.empty string (CD.table tags_t))
+                                              (Env.empty string fdecl)
+                                              arch
+                                              scope_occlusion_block).
+
+    Definition scope_occlusion_action :=
+      s_sequence [
+      ST.SVardecl (bit 32) "x" d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+      ST.SActCall "swap" [] d;
+      ST.SActCall "swap" [] d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+      ]
+    .
+
+    Print ADecl.
+    Print ARCH.extern_env.
+    Definition swap_act :=
+      ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl)
+            (Env.empty string ARCH.P4Extern)
+            swap_body.
+
+    Definition swap_aenv := [("swap", swap_act)].
+
+    Compute (Translate.p4cub_statement_to_gcl instr
+                                              15
+                                              (Env.empty string cinst)
+                                              swap_aenv
+                                              (Env.empty string (CD.table tags_t))
+                                              (Env.empty string fdecl)
+                                              arch
+                                              scope_occlusion_action).
 
   End Tests.

@@ -30,8 +30,6 @@ Section CCompSel.
   
   Context (tags_t: Type).
   (*map between string and ident*)
-    (*TODO: implement integers with width larger than 64
-      and optimize integers with width smaller than 32 *)
   Definition long_unsigned := (Tlong Unsigned noattr).
   Definition long_signed := (Tlong Signed noattr).
   Definition int_unsigned := (Tint I32 Unsigned noattr).
@@ -107,8 +105,38 @@ Section CCompSel.
         (Ctypes.Tstruct top_id noattr, env_comp_added)
         end
 
-    | P4cub.Expr.THeaderStack fields n=> (Ctypes.Tvoid, env) (*TODO: implement*)
-    end.
+    | P4cub.Expr.THeaderStack fields n=> 
+    match lookup_composite tags_t env p4t with
+    | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
+    | None =>
+      let header := P4cub.Expr.THeader fields in
+      let (hdarray, env_hdarray) := 
+      match lookup_composite tags_t env header with
+      | Some comp => (Ctypes.Tarray (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr) (Zpos n) noattr, env)
+      | None => 
+      let (env_top_id, top_id) := CCompEnv.new_ident tags_t env in
+      let (env_valid, valid_id) := new_ident tags_t env_top_id in 
+      let (members ,env_fields_declared):= 
+      F.fold 
+      (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t ) 
+      => let (members_prev, env_prev) := cumulator in 
+         let (new_t, new_env):= CTranslateType field env_prev in
+         let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
+         (members_prev++[(new_id, new_t)], new_env))
+      fields ([(valid_id, type_bool)],env_valid) in
+      let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
+      let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
+      (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
+      end in
+      let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray in
+      let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_ptr_id in
+      let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
+      let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(arr_id, hdarray)] noattr in
+      let env_comp_added := CCompEnv.add_composite_typ tags_t env_top_id p4t comp_def in
+      ((Ctypes.Tstruct top_id noattr), env_comp_added)      
+    end
+
+  end.
 
   Definition CTranslateConstructorType (ct: P4cub.Expr.ct) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t :=
   match ct with 

@@ -129,9 +129,10 @@ Section CCompSel.
       (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
       end in
       let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray in
-      let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_ptr_id in
+      let (env_size_id, size_id) := CCompEnv.new_ident tags_t env_ptr_id in
+      let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_size_id in
       let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
-      let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(arr_id, hdarray)] noattr in
+      let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(size_id, int_signed);(arr_id, hdarray)] noattr in
       let env_comp_added := CCompEnv.add_composite_typ tags_t env_top_id p4t comp_def in
       ((Ctypes.Tstruct top_id noattr), env_comp_added)      
     end
@@ -297,8 +298,20 @@ Section CCompSel.
   | (id,t) :: _ => Some id
   end
   | _ => None
-  end.     
-
+  end.
+  
+  Definition HeaderStackIndex := ValidBitIndex.
+  
+  Definition HeaderStackSize (arg: E.e tags_t) (env: ClightEnv tags_t ) : option AST.ident
+  :=
+  match lookup_composite tags_t env (E.SelTypeOf tags_t arg) with
+  | Some (Ctypes.Composite _ Ctypes.Struct m _)=>
+  match m with
+  | (_,_) :: (id,t) :: _ => Some id
+  | _ => None
+  end
+  | _ => None
+  end.
 
   Definition CTranslateUop 
   (dst_t: P4cub.Expr.t)
@@ -336,17 +349,37 @@ Section CCompSel.
     | None => None
     | Some index =>
     let member :=  Efield arg' index type_bool in
-    Some (Sassign member (Econst_int (Integers.Int.one) (type_bool)), env_arg)
+    let assign := Sassign member (Econst_int (Integers.Int.one) (type_bool)) in
+    let to_dst := Sassign dst' arg' in
+    Some (Ssequence assign to_dst, env_arg)  
     end
   | P4cub.Expr.SetInValid =>
     match ValidBitIndex arg env_arg with
     | None => None
     | Some index =>
     let member :=  Efield arg' index type_bool in
-    Some (Sassign member (Econst_int (Integers.Int.zero) (type_bool)), env_arg)
+    let assign := Sassign member (Econst_int (Integers.Int.zero) (type_bool)) in
+    let to_dst := Sassign dst' arg' in
+    Some (Ssequence assign to_dst, env_arg)  
     end
-  | P4cub.Expr.NextIndex (*TODO:*)
-  | P4cub.Expr.Size => None(*TODO:*)
+  | P4cub.Expr.NextIndex =>
+    match HeaderStackIndex arg env_arg with
+    | None => None
+    | Some index =>
+    let member := Efield arg' index int_signed in
+    let increment := Ebinop Oadd member (Econst_int Integers.Int.one int_signed) int_signed in
+    let assign := Sassign member increment in 
+    let to_dst := Sassign dst' arg' in
+    Some (Ssequence assign to_dst, env_arg) 
+    end
+  | P4cub.Expr.Size => 
+  match HeaderStackSize arg env_arg with
+    | None => None
+    | Some index =>
+    let member := Efield arg' index int_signed in
+    let to_dst := Sassign dst' member in
+    Some (to_dst, env_arg) 
+    end
   | P4cub.Expr.Push n(*TODO:*)
   | P4cub.Expr.Pop n => None(*TODO:*)
   end

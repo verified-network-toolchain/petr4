@@ -11,6 +11,8 @@ Require Import Coq.Arith.EqNat.
 Require Import String.
 Open Scope string_scope.
 
+Require Import List.
+
 Require Import Poulet4.P4cub.Util.StringUtil.
 
 Import Env.EnvNotations.
@@ -96,6 +98,80 @@ Module Inline.
             (actions : list (string * t))
             (i : tags_t)
   | IExternMethodCall (extn : string) (method : string) (args : ST.E.arrowE tags_t) (i : tags_t).
+
+
+  Search (bool -> bool).
+
+  Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e tags_t :=
+    match e with
+    | E.EBool _ _ => e
+    | E.EBit _ _ _ => e
+    | E.EInt _ _ _ => e
+    | E.EString _ _ => e
+    | E.EEnum _ _ _ => e
+    | E.EVar type x i =>
+      if fold_right (fun y => orb (String.eqb x y)) false params
+      then E.EVar type ("?" ++ x) i
+      else E.EVar type x i
+    | E.ESlice e t hi lo i =>
+      E.ESlice (action_param_renamer_expr params e) t hi lo i
+    | E.ECast typ arg i =>
+      E.ECast typ (action_param_renamer_expr params arg) i
+    | E.EUop op typ arg i =>
+      E.EUop op typ (action_param_renamer_expr params arg) i
+    | E.EBop op ltyp rtyp le re i =>
+      let le' := action_param_renamer_expr params le in
+      let re' := action_param_renamer_expr params re in
+      E.EBop op ltyp rtyp le re i
+    | E.ETuple es i =>
+      E.ETuple (List.map (action_param_renamer_expr params) es) i
+    | E.EStruct fields i =>
+      E.EStruct (F.map (fun '(t,e) => (t, action_param_renamer_expr params e)) fields) i
+    | E.EHeader fields valid i =>
+      E.EHeader (F.map (fun '(t,e) => (t, action_param_renamer_expr params e)) fields) (action_param_renamer_expr params valid) i
+    | E.EExprMember mem expr_type arg i =>
+      E.EExprMember mem expr_type (action_param_renamer_expr params arg) i
+    | E.EError _ _ => e
+    | E.EMatchKind _ _ => e
+    | E.EHeaderStack fields headers size ni i =>
+      E.EHeaderStack fields (List.map (action_param_renamer_expr params) headers) size ni i
+    | E.EHeaderStackAccess stack idx i =>
+      E.EHeaderStackAccess (action_param_renamer_expr params stack) idx i
+    end.
+
+  Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list string) :=
+    match c with
+    | ISkip _ => ok (c, params)
+    | IVardecl type x i => ok (c, filter (negb ∘ (eqb x)) params)
+    | IAssign t lhs rhs i =>
+      let rhs' := action_param_renamer_expr params rhs in
+      ok (IAssign t lhs rhs' i, params)
+    | IConditional typ cond tru fls i =>
+      let cond' := action_param_renamer_expr params cond in
+      let* (tru', _) := action_param_renamer params tru in
+      let** (fls', _) := action_param_renamer params fls in
+      (IConditional typ cond' tru' fls' i, params)
+    | ISeq c1 c2 i =>
+      let* (c1', params1) := action_param_renamer params c1 in
+      let** (c2', params2) := action_param_renamer params1 c2 in
+      (ISeq c1' c2' i, params2)
+    | IBlock blck =>
+      let** (blck', _) := action_param_renamer params blck in
+      (blck', params)
+    | IReturnVoid _ => ok (c, params)
+    | IReturnFruit t e i =>
+      let e' := action_param_renamer_expr params e in
+      ok (IReturnFruit t e' i, params)
+    | IExit _ => ok (c, params)
+    | IInvoke _ _ _ _ =>
+      error "Invocations should not occur within actions"
+    | IExternMethodCall extn method (P.Arrow pargs ret) i =>
+      let pargs' := F.fold (fun p a rst =>
+            let f := fun '(t,e) => (t, action_param_renamer_expr params e) in
+            let a' := P.paramarg_map f f a in
+            (p, a') :: rst) [] pargs in
+      ok (IExternMethodCall extn method (P.Arrow pargs' ret) i, params)
+    end.
 
   Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     match c with
@@ -214,12 +290,10 @@ Module Inline.
         match tdecl with
         | CD.Table keys actions =>
           let act_to_gcl := fun a =>
-            let*~ adecl := Env.find a aenv else "could not find action " ++ a ++ " in environment" in
-            match adecl with
-            | ADecl _ fenv' aenv' externs params body =>
-              (** TODO handle copy-in/copy-out *)
-              inline n0 cienv aenv tenv fenv body
-            end
+            let*~ (ADecl _ _ _ _ params body) := Env.find a aenv else "could not find action " ++ a ++ " in environment" in
+            let* s := inline n0 cienv aenv tenv fenv body in
+            let** (s', _) := action_param_renamer params s in
+            s'
           in
           let* acts := rred (List.map act_to_gcl actions) in
           let** named_acts := zip actions acts in

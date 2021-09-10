@@ -42,6 +42,7 @@ Module Ctx.
             may_have_exited: bool;
             may_have_returned: bool;
           }.
+  (* TODO make sure that you check the variables are unique. fresh name generator based on variables that are in scope *)
 
   Definition initial :=
     {| stack := [0];
@@ -289,10 +290,10 @@ Module Translate.
       match e with
       | E.EBool b i =>
         if b
-        then ok (BV.BitVec 1 1 i)
-        else ok (BV.BitVec 0 1 i)
+        then ok (BV.bit 1 1 i)
+        else ok (BV.bit 0 1 i)
       | E.EBit w v i =>
-        ok (BV.BitVec (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
+        ok (BV.bit (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
       | E.EString _ _ =>
         error "Cannot translate strings to bitvectors"
       | E.EInt _ _ _ =>
@@ -345,14 +346,21 @@ Module Translate.
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
         let bin := fun o => ok (BV.BinOp o l r i) in
+        let* signed :=
+           match ltyp with
+           | E.TBit _ => ok false
+           | E.TInt _ => ok true
+           | _ => error "Typeerror: exected (un)singed bitvec for binar expression"
+           end
+        in
         match op with
-        | E.Plus => bin BV.BVPlus
-        | E.PlusSat => error "[FIXME] Saturating Arithmetic is unimplemented"
-        | E.Minus => bin BV.BVMinus
-        | E.MinusSat => error "[FIXME] Saturating Arithmetic is unimplemented"
-        | E.Times => bin BV.BVTimes
-        | E.Shl => bin BV.BVShl
-        | E.Shr => bin BV.BVShr
+        | E.Plus => bin (BV.BVPlus false signed)
+        | E.PlusSat => bin (BV.BVPlus true signed)
+        | E.Minus => bin (BV.BVMinus false signed)
+        | E.MinusSat => bin (BV.BVMinus true signed)
+        | E.Times => bin (BV.BVTimes signed)
+        | E.Shl => bin (BV.BVShl signed)
+        | E.Shr => bin (BV.BVShr signed)
         | E.Le => error "Typeerror: (<=) is a boolean, expected BV expression"
         | E.Ge => error "Typeerror: (>=) is a boolean, expected BV expression"
         | E.Lt => error "Typeerror: (<) is a boolean, expected BV expression"
@@ -439,33 +447,39 @@ Module Translate.
           error "Pop is deprecated as an expression"
         end
       | E.EBop op ltyp rtyp lhs rhs i =>
-        let bbin := fun _ => error "BitVector operators are not booleans (perhaps you want to insert a cast?)" in
-        let lbin := fun o => let* l := to_form lhs in
-                             let** r := to_form rhs in
-                             GCL.LBop o l r i in
-        let cbin := fun c => let* l := to_rvalue lhs in
-                             let** r := to_rvalue rhs in
-                             GCL.LComp c l r i in
+        let signed := match ltyp with
+                       | E.TBit _ => ok false
+                       | E.TInt _ => ok true
+                       | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
+                       end in
+        let lbin := fun o_res => let* l := to_form lhs in
+                                 let* r := to_form rhs in
+                                 let** o := o_res in
+                                 GCL.LBop o l r i in
+        let cbin := fun o_res => let* l := to_rvalue lhs in
+                                 let* r := to_rvalue rhs in
+                                 let** o := o_res in
+                                 GCL.LComp o l r i in
         match op with
-        | E.Plus => bbin BV.BVPlus
-        | E.PlusSat => error "[FIXME] Saturating Arithmetic is unimplemented"
-        | E.Minus => bbin BV.BVMinus
-        | E.MinusSat => error "[FIXME] Saturating Arithmetic is unimplemented"
-        | E.Times => bbin BV.BVTimes
-        | E.Shl => bbin BV.BVShl
-        | E.Shr => bbin BV.BVShr
-        | E.Le => cbin GCL.LLe
-        | E.Ge => cbin GCL.LGe
-        | E.Lt => cbin GCL.LLt
-        | E.Gt => cbin GCL.LGt
-        | E.Eq => cbin GCL.LEq
-        | E.NotEq => cbin GCL.LNeq
-        | E.BitAnd => bbin BV.BVAnd
-        | E.BitXor => bbin BV.BVXor
-        | E.BitOr => bbin BV.BVOr
-        | E.PlusPlus => error "BitVector operators are not booleans (perhaps you want to insert a cast?)"
-        | E.And => lbin GCL.LAnd
-        | E.Or => lbin GCL.LOr
+        | E.Plus => error "Typeerror: (+) is not a boolean operator"
+        | E.PlusSat => error "Typeerror: (|+|) is not a boolean operator"
+        | E.Minus => error "Typeerror: (-) is not a boolean operator"
+        | E.MinusSat => error "Typeerror: (|-|) is not a boolean operator"
+        | E.Times => error "Typerror: (*) is not a boolean operator"
+        | E.Shl => error "Typerror: (<<) is not a boolean operator"
+        | E.Shr => error "TYperror: (>>) is not a boolean operator"
+        | E.Le => cbin (GCL.LLe |=> signed)
+        | E.Ge => cbin (GCL.LGe |=> signed)
+        | E.Lt => cbin (GCL.LLt |=> signed)
+        | E.Gt => cbin (GCL.LGt |=> signed)
+        | E.Eq => cbin (ok GCL.LEq)
+        | E.NotEq => cbin (ok GCL.LNeq)
+        | E.BitAnd => error "Typeerror: (&) is not a boolean operator"
+        | E.BitXor => error "Typeerror: (^) is not a boolean operator"
+        | E.BitOr => error "Typeerror: (|) is not a boolean operator"
+        | E.PlusPlus => error "Typeerror: (++) is not a boolean operator"
+        | E.And => lbin (ok GCL.LAnd)
+        | E.Or => lbin (ok GCL.LOr)
         end
       | E.ETuple _ _ =>
         error "Tuples are not formulae"
@@ -527,14 +541,14 @@ Module Translate.
 
       | Inline.IReturnVoid i =>
         let gasn := @GCL.GAssign string BV.t GCL.form in
-        ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec 1 1 i) i, ctx)
+        ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.bit 1 1 i) i, ctx)
 
       | Inline.IReturnFruit typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.BitVec 1 1 i) i, ctx)
+        ok (GCL.GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.bit 1 1 i) i, ctx)
 
       | Inline.IExit i =>
-        ok (GCL.GAssign (E.TBit (pos 1)) "exit" (BV.BitVec 1 1 i) i, Ctx.update_exit ctx true)
+        ok (GCL.GAssign (E.TBit (pos 1)) "exit" (BV.bit 1 1 i) i, Ctx.update_exit ctx true)
 
       | Inline.IInvoke tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
@@ -571,7 +585,7 @@ Module Translate.
     Definition pos := GCL.pos.
     Definition bit (n : nat) : E.t := E.TBit (pos 4).
     Definition asm_eq (s : string) (w : nat) (r : BV.t) (i : tags_t) : Translate.target :=
-      GCL.GAssume (GCL.leq (BV.BVVar s w i) r i).
+      GCL.GAssume (GCL.bvule (BV.BVVar s w i) r i).
 
     Definition s_sequence (ss : list (ST.s tags_t)) : ST.s tags_t :=
       fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
@@ -773,15 +787,15 @@ Module Translate.
       let* k : BV.t := Translate.to_rvalue exp in
       match mk with
       | E.MKExact =>
-        ok (GCL.land (GCL.leq (BV.BVVar symbmatch w i) k i) acc i : GCL.form)
+        ok (GCL.land (GCL.bvule (BV.BVVar symbmatch w i) k i) acc i : GCL.form)
       | E.MKTernary =>
         let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
-        ok (GCL.land (GCL.leq (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
+        ok (GCL.land (GCL.bvule (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
                       (BV.band (BV.BVVar symbmask w i) k i) i)
                  acc i)
       | E.MKLpm =>
         let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
-        ok (GCL.land (GCL.leq (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
+        ok (GCL.land (GCL.bvule (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
                       (BV.band (BV.BVVar symbmask w i) k i) i)
                  acc i)
       end.
@@ -799,8 +813,8 @@ Module Translate.
       let** acc := res_acc in
       GCL.g_sequence i
                  [GCL.GAssume matchcond;
-                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec 1 1 i) i;
-                 asm_eq ("__symb_" ++ name ++ "_action") w  (BV.BitVec w n i) i;
+                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i;
+                 asm_eq ("__symb_" ++ name ++ "_action") w  (BV.bit w n i) i;
                  act (* TODO something with action data *)].
 
     Definition actions_encoding (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (actions : list (string * Translate.target)) : result Translate.target :=
@@ -809,11 +823,11 @@ Module Translate.
 
     Definition instr (name : string) (i : tags_t) (keys: list (E.t * E.e tags_t * E.matchkind)) (actions: list (string * Translate.target)) : result Translate.target :=
       let** hit := actions_encoding name i keys actions in
-      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.BitVec 1 1 i) i in
+      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i in
       GCL.GChoice hit miss.
 
     Definition v1model : Arch.extern :=
-      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec 1 1 d) d)].
+      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit 1 1 d) d)].
 
     Definition arch : Arch.model :=
       [("v1model", v1model)].
@@ -827,7 +841,7 @@ Module Translate.
                  (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
                  (bit 32, tcp "srcPort" 32, E.MKTernary);
                  (bit 32, tcp "dstPort" 32, E.MKTernary)
-                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.BitVec 1 1 d) d)]).
+                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit 1 1 d) d)]).
 
     Compute (Translate.p4cub_statement_to_gcl instr
                                               10
@@ -850,10 +864,10 @@ Module Translate.
     Print ST.E.arrowE.
     Definition scope_occlusion_function :=
       s_sequence [
-      ST.SVardecl (bit 32) "y" d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "y" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+      ST.SVardecl (bit 32) "x" d;
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
       ST.SFunCall "swap" (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "y" d) (E.EVar (bit 32) "y" d) d
+      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
       ]
     .
 

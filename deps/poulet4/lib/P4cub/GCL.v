@@ -42,12 +42,12 @@ Module GCL.
 
   Module BitVec.
     Inductive bop :=
-    | BVPlus
-    | BVMinus
-    | BVTimes
+    | BVPlus (sat : bool) (signed : bool)
+    | BVMinus (sat : bool) (signed : bool)
+    | BVTimes (signed : bool)
     | BVConcat
-    | BVShl
-    | BVShr
+    | BVShl (signed : bool)
+    | BVShr (signed : bool)
     | BVAnd
     | BVOr
     | BVXor.
@@ -58,25 +58,56 @@ Module GCL.
     | BVSlice (hi lo : nat).
 
     Inductive t :=
-    | BitVec (n : nat) (w : nat) (i : tags_t)
+    | BitVec (n : nat) (w : option nat) (i : tags_t)
+    | Int (z : Z) (w : option nat) (i : tags_t)
     | BVVar (x : string) (w : nat) (i : tags_t)
     | BinOp (op : bop) (u v : t) (i : tags_t)
     | UnOp (op : uop) (v : t) (i : tags_t).
 
-    Definition add := BinOp BVPlus.
-    Definition sub := BinOp BVMinus.
-    Definition mul := BinOp BVTimes.
+    Definition bit (w : nat) (n : nat) := BitVec n (Some w).
+    Definition varbit (n : nat) := BitVec n None.
+    Definition int (w : nat) (n : Z) := Int n (Some w).
+    Definition integer (n : Z) := Int n None.
+
+    Definition uadd := BinOp (BVPlus false false).
+    Definition sadd := BinOp (BVPlus false true).
+    Definition uadd_sat := BinOp (BVPlus true false).
+    Definition sadd_sat := BinOp (BVPlus true true).
+
+    Definition usub := BinOp (BVMinus false false).
+    Definition ssub := BinOp (BVMinus false true).
+    Definition usub_sat := BinOp (BVMinus true false).
+    Definition ssub_sat := BinOp (BVMinus true true).
+
+    Definition umul := BinOp (BVTimes false).
+    Definition smul := BinOp (BVTimes true).
+
     Definition app := BinOp BVConcat.
-    Definition shl := BinOp BVShl.
-    Definition shr := BinOp BVShr.
+
+    Definition ushl := BinOp (BVShl false).
+    Definition sshl := BinOp (BVShl true).
+
+    Definition ushr := BinOp (BVShr false).
+    Definition sshr := BinOp (BVShr true).
+
     Definition band := BinOp BVAnd.
     Definition bor := BinOp BVOr.
     Definition bxor := BinOp BVXor.
 
   End BitVec.
 
-  Inductive lbop := | LOr | LAnd | LImp | LIff.
-  Inductive lcomp := | LEq | LLe | LLt | LGe | LGt | LNeq.
+  Inductive lbop := LOr
+                  | LAnd
+                  | LImp
+                  | LIff.
+
+  Inductive lcomp := LEq
+                   | LLe (signed : bool)
+                   | LLt (signed : bool)
+                   | LGe (signed : bool)
+                   | LGt (signed : bool)
+                   | LNeq.
+
   Inductive form :=
   | LBool (b : bool) (i : tags_t)
   | LBop (op : lbop) (ϕ ψ : form) (i : tags_t)
@@ -85,12 +116,20 @@ Module GCL.
   | LComp (comp : lcomp) (bv1 bv2 : BitVec.t) (i : tags_t)
   .
 
-  Definition leq := LComp LEq.
-  Definition lle := LComp LLe.
-  Definition llt := LComp LLt.
-  Definition lge := LComp LGe.
-  Definition lgt := LComp LGt.
-  Definition lne := LComp LNeq.
+  Definition bveq := LComp LEq.
+  Definition bvule := LComp (LLe false).
+  Definition bvsle := LComp (LLe true).
+
+  Definition bvult := LComp (LLt false).
+  Definition bvslt := LComp (LLt true).
+
+  Definition bvuge := LComp (LGe false).
+  Definition bvsge := LComp (LGe true).
+
+  Definition bvugt := LComp (LGt false).
+  Definition bvsgt := LComp (LGt true).
+
+  Definition bvne := LComp LNeq.
 
   Definition lor := LBop LOr.
   Definition land := LBop LAnd.
@@ -100,7 +139,7 @@ Module GCL.
   Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
   Definition is_true (x : string) (i : tags_t) : form :=
-    LComp (LEq) (BitVec.BVVar x 1 i) (BitVec.BitVec 1 1 i) i.
+    bveq (BitVec.BVVar x 1 i) (BitVec.bit 1 1 i) i.
 
   Definition exit (i : tags_t) : form := is_true "exit" i.
   Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
@@ -111,6 +150,6 @@ Module GCL.
     GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.Not E.TBool guard i)) fls).
 
   Definition isone (v : BitVec.t) (i :tags_t) : GCL.form :=
-    leq v (BitVec.BitVec 1 1 i) i.
+    bvule v (BitVec.bit 1 1 i) i.
 
 End GCL.

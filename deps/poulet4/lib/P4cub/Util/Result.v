@@ -69,6 +69,10 @@ Module Result.
 
     Infix ">=>" := rcomp (at level 80, right associativity).
 
+    Infix "|=>" := map (at level 80, right associativity).
+
+
+
   End ResultNotations.
 
 End Result.

@@ -113,8 +113,7 @@ Module GCL.
   | LBop (op : lbop) (ϕ ψ : form) (i : tags_t)
   | LNot (ϕ : form) (i : tags_t)
   | LVar (x : string) (i : tags_t)
-  | LComp (comp : lcomp) (bv1 bv2 : BitVec.t) (i : tags_t)
-  .
+  | LComp (comp : lcomp) (bv1 bv2 : BitVec.t) (i : tags_t).
 
   Definition bveq := LComp LEq.
   Definition bvule := LComp (LLe false).

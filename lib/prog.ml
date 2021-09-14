@@ -22,17 +22,12 @@ type 'a pre_Locator =
 type coq_Locator = Info.t pre_Locator
   [@@deriving sexp,show,yojson]
 let noLocator = LGlobal []
-type 'a pre_KeyValue =
-  [%import:'a Poulet4.Syntax.coq_KeyValue
-    [@with Bigint.t := Util.bigint;
-           Poulet4.P4String.t := P4string.pre_t;
-           coq_Expression := pre_Expression]]
-  [@@deriving sexp,show,yojson]
-and 'a pre_ExpressionPreT =
+type 'a pre_ExpressionPreT =
   [%import:'a Poulet4.Syntax.coq_ExpressionPreT
     [@with coq_Expression := pre_Expression;
       Bigint.t := Util.bigint;
       Poulet4.P4String.t := P4string.pre_t;
+      Poulet4.P4String.coq_AList := T.pre_AListString;
       Poulet4.P4Int.t := P4int.pre_t;
       Poulet4.Typed.name := P4name.pre_t;
       Poulet4.Typed.coq_P4Type := T.pre_P4Type;
@@ -45,8 +40,6 @@ and 'a pre_Expression =
     [@with coq_ExpressionPreT := pre_ExpressionPreT;
       Poulet4.Typed.direction := T.direction;
       Poulet4.Typed.coq_P4Type := T.pre_P4Type]]
-  [@@deriving sexp,show,yojson]
-type coq_KeyValue = Info.t pre_KeyValue
   [@@deriving sexp,show,yojson]
 type coq_ExpressionPreT = Info.t pre_ExpressionPreT
   [@@deriving sexp,show,yojson]
@@ -86,8 +79,8 @@ type 'a pre_TableProperty =
     [@with Poulet4.P4String.t := P4string.pre_t;
            coq_Expression := pre_Expression]]
   [@@deriving sexp,show,yojson]
-type 'a pre_ValueBase =
-  [%import:'a Poulet4.Syntax.coq_ValueBase
+type ('a, 'bit) pre_ValueBase =
+  [%import:('a, 'bit) Poulet4.Syntax.coq_ValueBase
     [@with Bigint.t := Util.bigint;
            Poulet4.P4String.t := P4string.pre_t;
            Poulet4.P4String.coq_AList := T.pre_AListString;
@@ -164,6 +157,7 @@ type 'a pre_Declaration =
            Poulet4.Datatypes.sum := sum;
            Poulet4.P4Int.t := P4int.pre_t;
            Poulet4.P4String.coq_AList := T.pre_AListString;
+           Bigint.t := Util.bigint;
            coq_ValueBase := pre_ValueBase;
            coq_Expression := pre_Expression;
            coq_Block := pre_Block;
@@ -214,11 +208,13 @@ type 'a pre_ValuePreLvalue =
            Poulet4.Typed.name := P4name.pre_t;
            Poulet4.Typed.coq_P4Type := T.pre_P4Type;
            coq_Locator := pre_Locator;
+           Bigint.t := Util.bigint;
            coq_ValueLvalue := pre_ValueLvalue]]
   [@@deriving sexp,show,yojson]
 and 'a pre_ValueLvalue =
   [%import:'a Poulet4.Syntax.coq_ValueLvalue
     [@with Poulet4.Typed.coq_P4Type := T.pre_P4Type;
+           Bigint.t := Util.bigint;
            coq_ValuePreLvalue := pre_ValuePreLvalue]]
   [@@deriving sexp,show,yojson]
 type 'a pre_ValueFunctionImplementation =
@@ -233,6 +229,7 @@ type 'a pre_ValueObject =
     [@with Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
            Poulet4.P4String.t := P4string.pre_t;
            Poulet4.P4String.coq_AList := T.pre_AListString;
+           Bigint.t := Util.bigint;
            coq_Env_EvalEnv := pre_Env_EvalEnv;
            coq_Declaration := pre_Declaration;
            coq_ParserState := pre_ParserState;
@@ -252,8 +249,8 @@ type 'a pre_ValueConstructor =
            coq_ValueTable := pre_ValueTable;
            coq_Block := pre_Block]]
   [@@deriving sexp,show,yojson]
-type 'a pre_Value =
-  [%import:'a Poulet4.Syntax.coq_Value
+type ('a, 'bit) pre_Value =
+  [%import:('a, 'bit) Poulet4.Syntax.coq_Value
     [@with coq_ValueBase := pre_ValueBase;
            coq_ValueLvalue := pre_ValueLvalue;
            coq_ValueObject := pre_ValueObject;
@@ -278,7 +275,7 @@ type coq_TableEntry = Info.t pre_TableEntry
 type coq_TableProperty = Info.t pre_TableProperty
   [@@deriving sexp,show,yojson]
 
-type coq_ValueBase = Info.t pre_ValueBase
+type coq_ValueBase = (Info.t, bool) pre_ValueBase
   [@@deriving sexp,show,yojson]
 type coq_ValueSet = Info.t pre_ValueSet
   [@@deriving sexp,show,yojson]
@@ -320,7 +317,7 @@ type coq_ValueObject = Info.t pre_ValueObject
   [@@deriving sexp,show,yojson]
 type coq_ValueConstructor = Info.t pre_ValueConstructor
   [@@deriving sexp,show,yojson]
-type coq_Value = Info.t pre_Value
+type coq_Value = (Info.t, bool) pre_Value
   [@@deriving sexp,show,yojson]
 type program = Info.t pre_program
   [@@deriving sexp,show,yojson]

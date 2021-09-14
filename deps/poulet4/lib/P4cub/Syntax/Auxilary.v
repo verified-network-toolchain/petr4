@@ -15,7 +15,7 @@ Module SynDefs.
   Fixpoint width_of_typ (τ : t) : nat :=
     match τ with
     | {{ Bool }} => 1
-    | {{ bit<w> }}
+    | {{ bit<w> }} => N.to_nat w
     | {{ int<w> }} => Pos.to_nat w
     | {{ error }}
     | {{ matchkind }} => 0
@@ -37,7 +37,7 @@ Module ProperType.
     (** Evidence a type is a base type. *)
     Inductive base_type : t -> Prop :=
     | base_bool : base_type {{ Bool }}
-    | base_bit (w : positive) : base_type {{ bit<w> }}
+    | base_bit (w : N) : base_type {{ bit<w> }}
     | base_int (w : positive) : base_type {{ int<w> }}.
     
     (** Allowed types within headers. *)

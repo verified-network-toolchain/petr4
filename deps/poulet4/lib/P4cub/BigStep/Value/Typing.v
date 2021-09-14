@@ -4,7 +4,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.BigStep.Value.IndPrincip
         Poulet4.P4cub.BigStep.Value.Auxilary
-        Coq.PArith.BinPos Coq.ZArith.BinInt
+        Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.micromega.Lia.
 Import ProperType Val ValueNotations
        LValueNotations P.P4cubNotations
@@ -20,7 +20,7 @@ Reserved Notation "'LL' Γ ⊢ lval ∈ τ"
 
 Inductive type_value (errs : errors) : v -> E.t -> Prop :=
 | typ_bool (b : bool) : ∇ errs ⊢ VBOOL b ∈ Bool
-| typ_bit (w : positive) (n : Z) :
+| typ_bit (w : N) (n : Z) :
     BitArith.bound w n ->
     ∇ errs ⊢ w VW n ∈ bit<w>
 | typ_int (w : positive) (z : Z) :
@@ -50,7 +50,7 @@ Inductive type_value (errs : errors) : v -> E.t -> Prop :=
 | typ_headerstack (ts : Field.fs string E.t)
                   (hs : list (bool * Field.fs string v))
                   (n : positive) (ni : Z) :
-    BitArith.bound 32%positive (Zpos n) ->
+    BitArith.bound 32%N (Zpos n) ->
     (0 <= ni < (Zpos n))%Z ->
     Pos.to_nat n = length hs ->
     proper_nesting {{ stack ts[n] }} ->
@@ -103,7 +103,7 @@ Section ValueTypingInduction.
       P errs ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
   
   Hypothesis HStack : forall errs ts hs n ni,
-      BitArith.bound 32%positive (Zpos n) ->
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
       proper_nesting {{ stack ts[n] }} ->

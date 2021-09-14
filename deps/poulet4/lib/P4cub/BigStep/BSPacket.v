@@ -1,7 +1,9 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Architecture.Paquet
         Poulet4.P4cub.Architecture.PacketIn
-        Coq.PArith.BinPos Coq.Strings.String
+        Coq.PArith.BinPos
+        Coq.NArith.BinNat
+        Coq.Strings.String
         Poulet4.P4cub.Envn
         Poulet4.P4cub.Architecture.Architecture
         Poulet4.P4cub.BigStep.ValEnvUtil
@@ -29,7 +31,7 @@ Module ValuePacket <: P4Packet.
       vec <<| read_first_bits 1 ;;
       V.VBool $ Vector.hd vec
     | {{ bit<w> }} =>
-      let width := Pos.to_nat w in
+      let width := N.to_nat w in
       vec <<| read_first_bits width ;;
       V.VBit w $ convert_bits width vec
     | {{ int<w> }} =>
@@ -77,7 +79,7 @@ Module BSPacketIn <: P4PacketIn.
     | "length", [], Some (_,lv)
       => fun pkt => state_return
                   (lv_update
-                     lv (V.VBit 32%positive $ PacketIn.length pkt) ϵ) pkt
+                     lv (V.VBit 32%N $ PacketIn.length pkt) ϵ) pkt
     | "advance", [("sizeInBits", P.PAIn (_, ~{ _ VW n }~))], None
       => fun pkt => state_return ϵ (PacketIn.advance n pkt)
     | "extract", [("hdr", P.PAOut (τ, lv))], None => p4extract τ lv ϵ

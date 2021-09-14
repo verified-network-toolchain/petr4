@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt.
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat.
 Require Export Poulet4.P4Arith Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.Syntax.
 
 (** Notation entries. *)
@@ -46,9 +46,9 @@ Definition errors : Type := strs.
 Definition gamma : Type := Env.t string E.t.
 
 (** Evidence for a type being a numeric of a given width. *)
-Inductive numeric_width (w : positive) : E.t -> Prop :=
-| numeric_width_bit : numeric_width w {{ bit<w> }}
-| numeric_width_int : numeric_width w {{ int<w> }}.
+Inductive numeric_width : N -> E.t -> Prop :=
+| numeric_width_bit : forall w, numeric_width w {{ bit<w> }}
+| numeric_width_int : forall w, numeric_width (Npos w) {{ int<w> }}.
 
 Ltac inv_numeric_width :=
   match goal with
@@ -58,8 +58,10 @@ Ltac inv_numeric_width :=
 
 (** Evidence for a type being numeric. *)
 Inductive numeric : E.t -> Prop :=
-  Numeric (w : positive) (τ : E.t) :
-    numeric_width w τ -> numeric τ.
+| NumericBit (τ : E.t) :
+    forall w, numeric {{ bit<w> }}
+| NumericInt (τ : E.t) :
+    forall w, numeric {{ int<w> }}.
 (**[]*)
 
 Ltac inv_numeric :=
@@ -85,7 +87,7 @@ Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
 | UTNext ts n :
     uop_type _{ Next }_ {{ stack ts[n] }} {{ hdr { ts } }}
 | UTSize ts n :
-    let w := 32%positive in
+    let w := 32%N in
     uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}
 | UTPush ts n p :
     uop_type _{ Push p }_ {{ stack ts[n] }} {{ stack ts[n] }}
@@ -115,13 +117,16 @@ Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
 | BTEq τ : bop_type +{ == }+ τ τ {{ Bool }}
 | BTNotEq τ : bop_type +{ != }+ τ τ {{ Bool }}
 | BTPlusPlusBit w1 w2 w τ2 :
-    (w1 + w2)%positive = w ->
+    (w1 + w2)%N = w ->
     numeric_width w2 τ2 ->
     bop_type +{ ++ }+ {{ bit<w1> }} τ2 {{ bit<w> }}
 | BTPlusPlusInt w1 w2 w τ2 :
     (w1 + w2)%positive = w ->
-    numeric_width w2 τ2 ->
-    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w> }}.
+    numeric_width (Npos w2) τ2 ->
+    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w> }}
+| BTPlusPlusIntZero w1 τ2 :
+    numeric_width N0 τ2 ->
+    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w1> }}.
 (**[]*)
 
 (** Evidence an error is ok. *)
@@ -134,11 +139,11 @@ Inductive error_ok (errs : errors) : option string -> Prop :=
 
 (** Evidence a cast is proper. *)
 Inductive proper_cast : E.t -> E.t -> Prop :=
-| pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
-| pc_bit_bool : proper_cast {{ bit<xH> }} {{ Bool }}
-| pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
-| pc_int_bit (w : positive) : proper_cast {{ int<w> }} {{ bit<w> }}
-| pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
+| pc_bool_bit : proper_cast {{ Bool }} (E.TBit 1)
+| pc_bit_bool : proper_cast (E.TBit 1) {{ Bool }}
+| pc_bit_int (w : positive) : proper_cast (E.TBit (Npos w)) {{ int<w> }}
+| pc_int_bit (w : positive) : proper_cast {{ int<w> }} (E.TBit (Npos w))
+| pc_bit_bit (w1 w2 : N) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
 | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}
 | pc_tuple_struct (ts : list E.t) (fs : F.fs string E.t) :
     ts = F.values fs ->

@@ -1,5 +1,6 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax
-        Coq.PArith.BinPos Coq.ZArith.BinInt.
+        Coq.PArith.BinPos Coq.ZArith.BinInt
+        Coq.NArith.BinNat.
 Import Val ValueNotations P.P4cubNotations.
 
 (** Intial/Default value from a type. *)
@@ -27,7 +28,7 @@ Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
   | [{ (w PW a) .. (_ PW b) }], ~{ _ VW c }~
     => (a <=? c)%Z && (c <=? b)%Z
   | [{ w1 PW n1 }], ~{ w2 VW n2 }~ =>
-    (w1 =? w2)%positive && (n1 =? n2)%Z
+    (w1 =? w2)%N && (n1 =? n2)%Z
   | [{ w1 PS n1 }], ~{ w2 VS n2 }~ =>
     (w1 =? w2)%positive && (n1 =? n2)%Z
   | [{ PTUP ps }], ~{ TUPLE vs }~ =>

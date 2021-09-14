@@ -76,11 +76,11 @@ Inductive check_expr
     PT.proper_nesting τ ->
     ⟦ errs , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
 | chk_slice (e : E.e tags_t) (τ : E.t)
-            (hi lo w : positive) (i : tags_t) :
-    (lo <= hi < w)%positive ->
+            (hi lo : positive) (w : N) (i : tags_t) :
+    (Npos lo <= Npos hi < w)%N ->
     numeric_width w τ ->
     ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-    let w' := (hi - lo + 1)%positive in
+    let w' := (Npos hi - Npos lo + 1)%N in
     ⟦ errs, Γ ⟧ ⊢ Slice e:τ [hi:lo] @ i ∈ bit<w'>
 | chk_cast (τ τ' : E.t) (e : E.e tags_t) (i : tags_t) :
     proper_cast τ' τ ->
@@ -139,7 +139,7 @@ Inductive check_expr
   | chk_stack (ts : F.fs string E.t)
               (hs : list (E.e tags_t))
               (n : positive) (ni : Z) (i : tags_t) :
-      BitArith.bound 32%positive (Zpos n) ->
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
       PT.proper_nesting {{ stack ts[n] }} ->

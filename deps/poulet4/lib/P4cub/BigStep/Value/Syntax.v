@@ -16,7 +16,7 @@ Module Val.
 Inductive v : Type :=
 | VBool (b : bool)
 | VInt (w : positive) (n : Z)
-| VBit (w : positive) (n : Z)
+| VBit (w : N) (n : Z)
 | VTuple (vs : list v)
 | VStruct (fs : F.fs string v)
 | VHeader (fs : F.fs string v) (validity : bool)

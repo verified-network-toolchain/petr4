@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing.
@@ -34,11 +34,11 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HSlice : forall errs Γ e τ hi lo w i,
-      (lo <= hi < w)%positive ->
+      (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
       ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
       P errs Γ e τ ->
-      let w' := (hi - lo + 1)%positive in
+      let w' := (Npos hi - Npos lo + 1)%N in
       P errs Γ <{ Slice e:τ [hi:lo] @ i }> {{ bit<w'> }}.
   (**[]*)
   
@@ -114,7 +114,7 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HStack : forall errs Γ ts hs n ni i,
-      BitArith.bound 32%positive (Zpos n) ->
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
       PT.proper_nesting {{ stack ts[n] }} ->

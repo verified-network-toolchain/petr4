@@ -1,6 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value.Value
-        Coq.Bool.Bool Coq.ZArith.BinInt
+        Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxilary.
 Require Poulet4.P4cub.Static.Util.
@@ -15,7 +15,7 @@ Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
   match v with
   | ~{ _ VW z }~
   | ~{ _ VS z }~
-    => let w' := (hi - lo + 1)%positive in
+    => let w' := (Npos hi - Npos lo + 1)%N in
       Some $ V.VBit w' $
            BitArith.mod_bound w' $
            BitArith.bitstring_slice z hi lo
@@ -36,7 +36,7 @@ Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
     => Some ~{ HDR { vs } VALID:=true }~
   | _{ setInValid }_, ~{ HDR { vs } VALID:=_ }~
     => Some ~{ HDR { vs } VALID:=false }~
-  | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ V.VBit 32%positive $ Zpos n
+  | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ V.VBit 32%N $ Zpos n
   | _{ Next }_, ~{ STACK hs:_[_] NEXT:=ni }~
     => bvs <<| nth_error hs $ Z.to_nat ni ;;
       match bvs with
@@ -125,11 +125,17 @@ Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
   | +{ == }+, _, _ => Some $ V.VBool $ eqbv v1 v2
   | +{ != }+, _, _ => Some $ V.VBool $ negb $ eqbv v1 v2
   | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
+    => Some $ V.VBit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
   | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
-    => Some $ V.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
+    => Some $ V.VBit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
   | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
+    => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
   | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
-    => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
+    =>
+    match w2 with
+    | Npos w2 => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
+    | N0 => Some $ V.VInt w1 n1
+    end
   | _, _, _ => None
   end.
 (**[]*)
@@ -137,10 +143,10 @@ Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
 Definition eval_cast
            (target : E.t) (v : V.v) : option V.v :=
   match target, v with
-  | {{ bit<xH> }}, ~{ TRUE }~         => Some (V.VBit 1%positive 1%N)
-  | {{ bit<xH> }}, ~{ FALSE }~        => Some (V.VBit 1%positive 0%N)
-  | {{ Bool }}, V.VBit 1%positive 1%N => Some ~{ TRUE }~
-  | {{ Bool }}, V.VBit 1%positive 0%N => Some ~{ FALSE }~
+  | (E.TBit (Npos xH)), ~{ TRUE }~         => Some (V.VBit 1%N 1%Z)
+  | (E.TBit (Npos xH)), ~{ FALSE }~        => Some (V.VBit 1%N 0%Z)
+  | {{ Bool }}, V.VBit 1%N 1%Z => Some ~{ TRUE }~
+  | {{ Bool }}, V.VBit 1%N 0%Z => Some ~{ FALSE }~
   | {{ bit<w> }}, ~{ _ VS z }~ => let n := BitArith.mod_bound w z in
                                  Some ~{ w VW n }~
   | {{ int<w> }}, ~{ _ VW n }~ => let z := IntArith.mod_bound w n in
@@ -191,10 +197,10 @@ Section Lemmas.
     
     Lemma eval_slice_types : forall errs v v' τ hi lo w,
         eval_slice hi lo v = Some v' ->
-        (lo <= hi < w)%positive ->
+        (Npos lo <= Npos hi < w)%N ->
         numeric_width w τ ->
         ∇ errs ⊢ v ∈ τ ->
-        let w' := (hi - lo + 1)%positive in
+        let w' := (Npos hi - Npos lo + 1)%N in
         ∇ errs ⊢ v' ∈ bit<w'>.
     Proof.
       intros errs v v' τ hi lo w Heval Hw Hnum Hv w'; subst w'.
@@ -229,7 +235,7 @@ Section Lemmas.
       - destruct b; inv Heval; constructor; cbv; auto 2.
       - destruct n; inv Heval; auto 1; destruct p; inv H0; auto 1.
       - destruct w; inv Heval; auto 2.
-      - destruct w2; inv Heval; auto 2.
+      - destruct w2; [|destruct p]; inv Heval; auto 2.
       - constructor. generalize dependent fs.
         induction vs as [| v vs IHvs]; intros [| [x τ] fs] H;
           inv H; unravel; constructor; unfold F.relf in *;
@@ -282,7 +288,7 @@ Section Lemmas.
   
   Section HelpersExist.
     Lemma eval_slice_exists : forall errs v τ hi lo w,
-      (lo <= hi < w)%positive ->
+      (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
       ∇ errs ⊢ v ∈ τ ->
       exists v', eval_slice hi lo v = Some v'.
@@ -299,7 +305,7 @@ Section Lemmas.
       intros errs op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
         repeat inv_numeric; inv Ht1; inv Ht2; unravel; eauto 2;
           try inv_numeric_width.
-    Qed.
+    Admitted.
     
     Lemma eval_cast_exists : forall errs τ τ' v,
         proper_cast τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_cast τ' v = Some v'.
@@ -310,7 +316,7 @@ Section Lemmas.
           try (cbv in *; destruct H1; try destruct p; discriminate).
       - destruct w; eauto 2.
       - destruct w2; eauto 2.
-    Qed.
+    Admitted.
     
     Lemma eval_uop_exist : forall errs op τ τ' v,
         uop_type op τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.

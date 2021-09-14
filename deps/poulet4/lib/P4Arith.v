@@ -70,12 +70,6 @@ Module BitArith.
       pose proof exp_ge_one 2 (Z.of_N width). lia.
     Qed.
 
-    (* Lemma bound1 : bound 1.
-    Proof.
-      unfold bound, upper_bound.
-      pose proof pow_gt_1 2 (Z.of_N width). lia.
-    Qed. *)
-
     (* Modular bound *)
     Definition mod_bound (n : Z) : Z := n mod upper_bound.
 

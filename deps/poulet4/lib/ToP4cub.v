@@ -1,16 +1,22 @@
 Require Export Poulet4.Syntax.
 
-Require Export Poulet4.P4cub.Syntax.Syntax
-               Poulet4.P4cub.Util.Result.
+Require Export
+        Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.Util.Result
+        Poulet4.P4cub.BigStep.InstUtil.
 Import AST Result P4cub.
 Import ResultNotations.
+
 
 Require Import String.
 Open Scope string_scope.
 
 
+
 Module ST := Stmt.
 Module E := Expr.
+
+
 
 Variable tags_t : Type.
 
@@ -304,18 +310,90 @@ with translate_block (i : tags_t) (b : @Block tags_t) : result (ST.s tags_t) :=
     ST.SSeq s1 s2 i
   end.
 
-Definition translate_decl (d : @Declaration tags_t) : result (tags_t * P4cub.TopDecl.d tags_t) :=
+
+Definition translate_state_name (state_name : P4String.t tags_t) :=
+  match P4String.str state_name with
+  | "accept" => Parser.STAccept
+  | "reject" => Parser.STReject
+  | "start" => Parser.STStart
+  | st => Parser.STName st
+  end.
+
+Definition translate_cases (cases : list (@ParserCase tags_t)) : result (Parser.e tags_t * F.fs Parser.pat (Parser.e tags_t)) := error "".
+
+Fixpoint translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
+  match transition with
+  | ParserDirect tags next =>
+    let next_state := translate_state_name next in
+    ok (Parser.PGoto next_state tags)
+  | ParserSelect tags exprs cases =>
+    let* type_expr_list := rred (List.map translate_expression exprs) in
+    let expr_list := List.map snd type_expr_list in
+    let** (default, cub_cases) := translate_cases cases in
+    Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
+  end.
+
+Print fold_right.
+
+Definition translate_statements (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
+  fold_right (fun s res_acc => let* cub_s := translate_statement s in
+                               let** acc := res_acc in
+                               ST.SSeq cub_s acc tags)
+             (ok (ST.SSkip tags))
+             statements.
+
+Fixpoint translate_parser_state (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
+  let '(MkParserState tags name statements transition) := pstate in
+  let* ss := translate_statements tags statements in
+  let** trans := translate_transition transition in
+  (P4String.str name, Parser.State ss trans).
+
+Print fold_right.
+
+Print F.fs.
+Print F.f.
+
+Definition translate_parser_states_inner (p : ParserState) (res_acc : result ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
+  let* (nm, state) := translate_parser_state p in
+  let** (start_opt, states) := res_acc in
+  if String.eqb nm "start"
+  then (Some state, (nm, state)::states)
+  else (start_opt, (nm, state)::states).
+
+Fixpoint translate_parser_states (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
+  fold_right translate_parser_states_inner (ok (None, [])) pstates.
+
+Fixpoint translate_decl (d : @Declaration tags_t) : result (tags_t * @aenv tags_t * @tenv tags_t * P4cub.TopDecl.d tags_t) :=
   match d with
   | DeclConstant tags typ name value =>
     error "[FIXME] Constant declarations unimplemented"
   | DeclInstantiation tags typ args name init =>
-    error "[FIXME] Instantiations unimplemented"
+    let cub_name := P4String.str name in
+    let* ctor_name := error "[FIXME] get constructor name from types" in
+    let** cub_args := error "[FIXME] translate args" in
+    (* TODO What is [init]? *)
+    (tags, empty_aenv, empty_tenv, TopDecl.TPInstantiate ctor_name cub_name cub_args tags)
   | DeclParser tags name type_params params constructor_params locals states =>
-    error "[FIXME] Parser declarations unimplemented"
+    let cub_name := P4String.str name in
+    let* cub_cparams := error "[FIXME] Translate constructor parameters" in
+    let* cub_eparams := error "[FIXME] Translate Runtime Extern parameters" in
+    let* cub_params := error "[FIXME] Translate Apply block parameters" in
+    let* (start_opt, cub_states) := translate_parser_states states in
+    let*~ cub_start := start_opt else "could not find a starting state for the parser" in
+    ok (tags, empty_aenv, empty_tenv, TopDecl.TPParser cub_name cub_cparams cub_eparams cub_params cub_start cub_states tags)
   | DeclControl tags name type_params params constructor_params locals apply_blk =>
-    error "[FIXME] Control declarations unimplemented"
+    let cub_name := P4String.str name in
+    let* cub_cparams := error "[FIXME] Translate constructor params" in
+    let* cub_eparams := error "[FIXME] Translate extern parameters" in
+    let* cub_params := error "[FIXME] Translate apply block parameters" in
+    let* cub_body := error "[FIXME] Translate local declarations" in
+    let** cub_block := error "[FIXME] Translate controller apply block" in
+    (tags, empty_aenv, empty_tenv, TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags)
   | DeclFunction tags ret name type_params params body =>
-    error "[FIXME] Function declarations unimplemented"
+    let cub_name := P4String.str name in
+    let* cub_signature := error "[FIXME] Translate function signature" in
+    let** cub_body := error "[FIXME] Translate function bodies" in
+    (tags, empty_aenv, empty_tenv, TopDecl.TPFunction cub_name cub_signature cub_body tags)
   | DeclExternFunction tags ret name type_params params =>
     error "[FIXME] Extern function declarations unimplemented"
   | DeclVariable tags typ name init =>
@@ -355,12 +433,12 @@ Definition translate_decl (d : @Declaration tags_t) : result (tags_t * P4cub.Top
   end.
 
 Definition translate_declaration_loop (decl : Declaration) (rst : result( option (TopDecl.d tags_t))) : result (option (TopDecl.d tags_t))  :=
-let* (i,cub_decl):= translate_decl decl in
-let* rst_opt := rst in
-match rst_opt with
-| None => ok (Some cub_decl)
-| Some decls => ok (Some (TopDecl.TPSeq cub_decl decls i))
-end.
+  let* (i,cub_decl):= translate_decl decl in
+  let* rst_opt := rst in
+  match rst_opt with
+  | None => ok (Some cub_decl)
+  | Some decls => ok (Some (TopDecl.TPSeq cub_decl decls i))
+  end.
 
 
 Definition translate_program (p : program) : result (TopDecl.d tags_t) :=

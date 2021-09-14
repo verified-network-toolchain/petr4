@@ -303,3 +303,68 @@ with translate_block (i : tags_t) (b : @Block tags_t) : result (ST.s tags_t) :=
     let** s2 := translate_block i rest in
     ST.SSeq s1 s2 i
   end.
+
+Definition translate_decl (d : @Declaration tags_t) : result (tags_t * P4cub.TopDecl.d tags_t) :=
+  match d with
+  | DeclConstant tags typ name value =>
+    error "[FIXME] Constant declarations unimplemented"
+  | DeclInstantiation tags typ args name init =>
+    error "[FIXME] Instantiations unimplemented"
+  | DeclParser tags name type_params params constructor_params locals states =>
+    error "[FIXME] Parser declarations unimplemented"
+  | DeclControl tags name type_params params constructor_params locals apply_blk =>
+    error "[FIXME] Control declarations unimplemented"
+  | DeclFunction tags ret name type_params params body =>
+    error "[FIXME] Function declarations unimplemented"
+  | DeclExternFunction tags ret name type_params params =>
+    error "[FIXME] Extern function declarations unimplemented"
+  | DeclVariable tags typ name init =>
+    error "[FIXME] Variable Declarations unimplemented"
+  | DeclValueSet tags typ size name =>
+    error "[FIXME] Value Set declarations unimplemented"
+  | DeclAction tags name data_params ctrl_params body =>
+    error "[FIXME] Action Declarations unimplemented"
+  | DeclTable tags name key actions entires default_action size custom_properties =>
+    error "[FIXME] Table Declarations unimplemented"
+  | DeclHeader tags name fields =>
+    error "[FIXME] Header Declarations unimplemented"
+  | DeclHeaderUnion tags name fields =>
+    error "[FIXME] Header Union Declarations unimplemented"
+  | DeclStruct tags name fields =>
+    error "[FIXME] Struct Declarations unimplemented"
+  | DeclError tags members =>
+    error "[FIXME] Error Declarations unimplemented"
+  | DeclMatchKind tags members =>
+    error "[FIXME] Match Kind declarations unimplemented"
+  | DeclEnum tags name members =>
+    error "[FIXME] Enum Declarations unimplemented"
+  | DeclSerializableEnum tags typ name members =>
+    error "[FIXME] Serializable Enum declarations unimplemented"
+  | DeclExternObject tags name type_params methods =>
+    error "[FIXME] Extern Object declarations unimplemented"
+  | DeclTypeDef tags name typ_or_decl =>
+    error "[FIXME] Type Definitions unimplemented"
+  | DeclNewType tags name typ_or_decl =>
+    error "[FIXME] Newtypes unimplemented"
+  | DeclControlType tags name type_params params =>
+    error "[FIXME] ControlType declarations unimplemented"
+  | DeclParserType tags name type_params params =>
+    error "[FIXME] ParserType declarations unimplemented"
+  | DeclPackageType tags name type_params params =>
+    error "[FIXME] PackageType declaration unimplemented"
+  end.
+
+Definition translate_declaration_loop (decl : Declaration) (rst : result( option (TopDecl.d tags_t))) : result (option (TopDecl.d tags_t))  :=
+let* (i,cub_decl):= translate_decl decl in
+let* rst_opt := rst in
+match rst_opt with
+| None => ok (Some cub_decl)
+| Some decls => ok (Some (TopDecl.TPSeq cub_decl decls i))
+end.
+
+
+Definition translate_program (p : program) : result (TopDecl.d tags_t) :=
+  let '(Program decls) := p in
+  let* cub_decls_opt : option (TopDecl.d tags_t) := fold_right translate_declaration_loop (ok None) decls in
+  let*~ cub_decls := cub_decls_opt else "No declarations found" in
+  ok cub_decls.

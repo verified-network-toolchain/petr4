@@ -93,7 +93,7 @@ Module P4sel.
               (i : tags_t)                                (* apply bop *)
       | SBitAssign (dst_type : P4cub.Expr.t)
                     (dst : string)
-                    (width : positive)
+                    (width : N)
                     (val : Z)
                     (i : tags_t)                        (* assign a bit string value to a variable *)
       | SIntAssign (dst_type : P4cub.Expr.t)

@@ -1,9 +1,9 @@
 Require Import Poulet4.Syntax.
-Require Import Typed.
-Require Import SyntaxUtil.
-Require Import SimplExpr.
-Require Import Monads.Monad.
-Require Import Monads.State.
+Require Import Poulet4.Typed.
+Require Import Poulet4.SyntaxUtil.
+Require Import Poulet4.SimplExpr.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
@@ -125,7 +125,7 @@ Section Transformer.
       let value' := map (transform_expr e) value in
       MkExpression tags (ExpList value') typ dir
     | ExpRecord entries =>
-      let entries' := map (transform_keyvalue e) entries in
+      let entries' := map (fun '(k, v) => (k, transform_expr e v)) entries in
       MkExpression tags (ExpRecord entries') typ dir
     | ExpUnaryOp op arg =>
       let arg' := transform_expr e arg in
@@ -169,13 +169,8 @@ Section Transformer.
   with transform_expr (e: env) (expr: @Expression tags_t): @Expression tags_t :=
     match expr with
     | MkExpression tags expr typ dir => transform_ept e tags expr typ dir
-    end
-  with transform_keyvalue (e: env) (kv: @KeyValue tags_t): @KeyValue tags_t :=
-    match kv with
-    | MkKeyValue tags key value =>
-        MkKeyValue tags key (transform_expr e value)
     end.
-
+  
   Definition transform_exprs (e: env) (exprs: list (@Expression tags_t)): list (@Expression tags_t) :=
     map (transform_expr e) exprs.
 
@@ -394,11 +389,10 @@ Section Transformer.
       let e' := IdentMap.set name loc e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
-      let size' := transform_expr e size in
       let* _ := use name in
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
-      mret (DeclValueSet tags typ size' name, e')
+      mret (DeclValueSet tags typ size name, e')
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] data_params in

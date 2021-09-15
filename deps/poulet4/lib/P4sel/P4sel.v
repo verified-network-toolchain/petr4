@@ -162,9 +162,14 @@ Module P4sel.
       | SExit (i : tags_t)                              (* exit statement *)
       | SInvoke (x : string) (i : tags_t)          (* table invocation *)
       | SApply (x : string)
+                (ext_args : F.fs string string)
                (args : E.args tags_t) (i : tags_t)      (* control apply statements,
                                                            where [x] is the
-                                                           name of an instance *).
+                                                           name of an instance *)
+                                                           
+      | SHeaderStackOp (name : string) (op : P4cub.Stmt.hsop) (n : positive) (i : tags_t) (*push or pop statements*)
+      
+      .
     (**[]*)
     End Statements.
 
@@ -193,6 +198,7 @@ Module P4sel.
     Arguments SExit {_}.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
+    Arguments SHeaderStackOp {tags_t}.
     
     
   End Stmt.

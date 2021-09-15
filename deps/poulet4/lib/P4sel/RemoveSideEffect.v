@@ -217,7 +217,7 @@ Definition TranslateArrowE (arguments : CubE.arrowE tags_t) (env : VarNameGen.t)
 
 Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s tags_t) * VarNameGen.t := 
   match stmt with
-  | CubS.SHeaderStackOp _ _ _ i => (SelS.SSkip i, env) (* TODO! *)
+  | CubS.SHeaderStackOp name op n i => (SelS.SHeaderStackOp name op n i, env)
   | CubS.SSkip i => (SelS.SSkip i, env)
   | CubS.SVardecl type x i => (SelS.SVardecl type x i, env)
   | CubS.SAssign type lhs rhs i => 
@@ -253,9 +253,9 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
     (SelS.SSeq e_stmt (SelS.SReturnFruit t e' i) i, env_e)
   | CubS.SExit i => (SelS.SExit i, env)
   | CubS.SInvoke x i => (SelS.SInvoke x i, env)
-  | CubS.SApply x _ args i => (* TODO: extern runtime params *)
+  | CubS.SApply x ext args i => (* TODO: extern runtime params *)
     let '((stmt_args, args'), env_args) := TranslateArgs args env i in 
-    (SelS.SSeq stmt_args (SelS.SApply x args' i) i, env_args)
+    (SelS.SSeq stmt_args (SelS.SApply x ext args' i) i, env_args)
   end.
 
 

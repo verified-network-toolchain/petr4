@@ -373,15 +373,15 @@ Section CCompSel.
     Some (Ssequence assign to_dst, env_arg) 
     end
   | P4cub.Expr.Size => 
-  match HeaderStackSize arg env_arg with
+    match HeaderStackSize arg env_arg with
     | None => None
     | Some index =>
     let member := Efield arg' index int_signed in
     let to_dst := Sassign dst' member in
     Some (to_dst, env_arg) 
     end
-  | P4cub.Expr.Push n(*TODO:*)
-  | P4cub.Expr.Pop n => None(*TODO:*)
+  | P4cub.Expr.Push n
+  | P4cub.Expr.Pop n => None(*TODO: Push and pop should be removed from ops*)
   end
   end
   end.
@@ -550,8 +550,84 @@ Section CCompSel.
     end.
     
 
-  
+  Definition ArrayAccess (arr : Clight.expr) (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr
+  := 
+  Ederef 
+  (Ebinop Oadd arr index (Tpointer result_t noattr))
+  result_t.
 
+  Definition PushLoop 
+  (stackid: AST.ident) (n : positive) (env: ClightEnv tags_t) 
+  (stack_var : Clight.expr) (arrid : AST.ident) (arr_var : Clight.expr)
+   (size : Clight.expr) (next_var : Clight.expr)
+  (i : AST.ident) (val_typ : Ctypes.type) (val_typ_valid_index : AST.ident)
+  := 
+  let ivar := Etempvar i int_signed in
+  let int_one := Econst_int Integers.Int.one int_signed in
+  let int_n := Econst_int (Integers.Int.repr (Zpos n)) int_signed in
+  let false := Econst_int Integers.Int.zero type_bool in
+  let for_loop := 
+  Sfor 
+  (Sset i (Ebinop Osub size int_one int_signed)) 
+  (Ebinop Oge ivar int_one type_bool) 
+  (Sset i (Ebinop Osub ivar int_one int_signed)) 
+  (
+    Sifthenelse 
+    (Ebinop Oge ivar int_n type_bool)
+    (Sassign (ArrayAccess arr_var ivar val_typ) (ArrayAccess arr_var (Ebinop Osub ivar int_n int_signed) val_typ))
+    (Sassign (Efield (ArrayAccess arr_var ivar val_typ) val_typ_valid_index type_bool) false)
+  )
+  in 
+  let increment := 
+  (Ssequence
+  (Sassign next_var (Ebinop Oadd next_var int_n int_signed))
+  (
+    Sifthenelse 
+    (Ebinop Ogt next_var size type_bool)
+    (Sassign next_var size)
+    (Sskip)))
+   in
+  Ssequence for_loop increment
+  .
+  Definition CTranslatePush (stack : AST.ident) (n : positive) (env: ClightEnv tags_t) : option (Clight.statement * ClightEnv tags_t):= 
+      let env := add_temp tags_t env "i" int_signed in
+      
+      match find_ident tags_t env "i" with
+      | None => None
+      | Some i => 
+      match lookup_temp_type tags_t env stack with
+      | Some (Ctypes.Tstruct compid noattr) =>
+      match lookup_composite_id tags_t env compid with 
+      | Some (Ctypes.Composite _ _ m _) => 
+      match m with
+      | (next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[] =>
+        let stack_var := Evar stack (Tstruct compid noattr) in
+        let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
+        match ta with
+        | Tarray val_typ _ _ =>
+          match val_typ with
+          | Ctypes.Tstruct val_t_id noattr => 
+            match lookup_composite_id tags_t env val_t_id with
+            | Some (Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _) =>
+              Some ((PushLoop (compid) (n) (env) 
+              (stack_var) (arr_id) (arr_var)
+               (size_var) (next_var)
+              (i) (val_typ) (val_typ_valid_index)), env) 
+            | _ => None 
+            end
+          | _ => None
+          end
+        | _ => None
+        end
+      | _ => None
+      end
+      | _ => None
+      end
+      | _ => None
+      end
+      end.
+
+  
   Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv tags_t ) : option (Clight.statement * ClightEnv tags_t ) :=
     match s with
     | ST.SSkip i => Some (Sskip, env)
@@ -625,7 +701,7 @@ Section CCompSel.
                               end
     | ST.SReturnVoid i => Some (Sreturn None, env)
     | ST.SExit i => Some (Sskip, env) (*TODO: implement*)
-    | ST.SApply x args i => Some (Sskip, env) (*TODO: implement*)
+    | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement*)
     | ST.SInvoke tbl i => Some (Sskip, env) (*TODO: implement*)
 
     | ST.SBitAssign dst_t dst width val i => Some (Sskip, env) (*TODO: implement*)
@@ -683,7 +759,24 @@ Section CCompSel.
       end
       end
 
-    
+    | ST.SHeaderStackOp stack P4cub.Stmt.HSPush n i =>
+      
+      let stack_id := match find_ident_temp_arg tags_t env stack with
+      | Some (_, x) => Some x
+      | None => 
+        match find_ident tags_t env stack with
+        | Some x => Some x
+        | None => None
+        end
+      end
+      in
+      match stack_id with
+      | None => None
+      | Some x => None
+      end
+      
+
+    | ST.SHeaderStackOp stack P4cub.Stmt.HSPop n i => None
     
     (* | Stack hdrs : ts [ n ] nextIndex := ni @ i => *)
     (* | Access e1 [ e2 ] @ i =>  *)

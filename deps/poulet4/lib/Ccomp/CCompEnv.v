@@ -328,6 +328,18 @@ Section CEnv.
     | _ , _ => None
     end.
 
+
+  Fixpoint lookup_temp_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident): option Ctypes.type :=
+    match temps with
+    | [] => None
+    | (i, t) :: tl => if (i == id)
+                            then Some t 
+                            else lookup_temp_type_rec tl id
+    end.
+
+  Definition lookup_temp_type (env: ClightEnv) (id : AST.ident) : option (Ctypes.type) :=
+    lookup_temp_type_rec env.(temps) id.
+
   Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
     := env.(vars).
   Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type)

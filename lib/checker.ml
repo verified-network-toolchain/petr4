@@ -77,7 +77,7 @@ let has_default_arg p =
 
 let find_default_arg env (MkParameter (_, _, _, arg_id, _): Typed.coq_P4Parameter) =
   match arg_id with
-  | Some arg_id -> Checker_env.find_default_arg arg_id env |> Some
+  | Some arg_id -> Checker_env.find_default_arg (Bigint.to_int_exn arg_id) env |> Some
   | None -> None
 
 let is_optional (param: Types.Parameter.t) =
@@ -152,7 +152,7 @@ let real_name_for_type_member env (typ_name: P4name.t) (name: P4string.t) : P4na
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
   match saturate_type env hdr_type with
   | TypBit width | TypInt width ->
-    width
+    Bigint.to_int_exn width
   | TypVarBit _ ->
     0
   | TypNewType (_, typ)
@@ -181,6 +181,12 @@ and min_size_in_bytes env info hdr_type =
   let bits = min_size_in_bits' env info hdr_type in
   Bigint.of_int ((bits + 7) asr 3)
 
+and bigint_to_bool_list (b: Bigint.t) : bool list =
+  failwith "bigint_to_bool_list unimplemented"
+
+and bool_list_to_bigint (b: bool list) :  Bigint.t =
+  failwith "bool_list_to_bigint unimplemented"
+
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
 and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_ValueBase option =
@@ -199,8 +205,8 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
         Some (ValBaseInteger i.value)
       | Some (width, signed) ->
         if signed
-        then Some (ValBaseInt (width, i.value))
-        else Some (ValBaseBit (width, i.value))
+        then Some (ValBaseInt (bigint_to_bool_list i.value))
+        else Some (ValBaseBit (bigint_to_bool_list i.value))
     end
   | ExpUnaryOp (op, arg) ->
     begin match compile_time_eval_expr env arg with
@@ -234,7 +240,7 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
     Some (ValBaseError t)
   | ExpRecord entries ->
     let opt_entries =
-      List.map ~f:(fun (MkKeyValue (_, key, value)) ->
+      List.map ~f:(fun (key, value) ->
           match compile_time_eval_expr env value with
           | Some v -> Some (key, v)
           | None -> None)
@@ -246,17 +252,16 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
     end
   | ExpBitStringAccess (bits, hi, lo) ->
     begin match compile_time_eval_expr env bits with
-      | Some (ValBaseInt (w, v))
-      | Some (ValBaseBit (w, v)) ->
-        let slice_width = Bigint.(to_int_exn (hi - lo + one)) in
-        let slice_val = Bitstring.bitstring_slice v hi lo in
-        Some (ValBaseBit (slice_width, slice_val))
+      | Some (ValBaseInt v)
+      | Some (ValBaseBit v) ->
+        let slice_val = Bitstring.bitstring_slice v (Bigint.to_int_exn hi) (Bigint.to_int_exn lo) in
+        Some (ValBaseBit slice_val)
       | _ -> None
     end
-  | ExpDontCare -> Some (ValBaseSet (ValSetUniversal))
+  | ExpDontCare -> failwith "set expression in non-set context"
   | ExpExpressionMember (expr, {str="size";_}) ->
     begin match saturate_type env (type_of_expr expr) with
-      | TypArray (_, size) -> Some (ValBaseInteger (Bigint.of_int size))
+      | TypArray (_, size) -> Some (ValBaseInteger size)
       | _ -> None
     end
   | ExpExpressionMember (expr, name) ->
@@ -293,10 +298,11 @@ and compile_time_eval_exprs env exprs : Prog.coq_ValueBase list option =
 
 and bigint_of_value (v: Prog.coq_ValueBase) =
   match v with
-  | ValBaseInt (_, v)
-  | ValBaseBit (_, v)
+  | ValBaseInt v
+  | ValBaseBit v ->
+    Some (bool_list_to_bigint v)
   | ValBaseInteger v ->
-    Some v
+     Some v
   | _ -> None
 
 and compile_time_eval_bigint env expr: Bigint.t =
@@ -918,14 +924,14 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
         sort_fields fields
       | _ -> failwith "can't cast record"
     in
-    let cast_entry (field, entry: coq_FieldType * KeyValue.t) : Prog.coq_KeyValue =
+    let cast_entry (field, entry: coq_FieldType * KeyValue.t) =
       let (field_name, field_type) = field in
       if P4string.neq field_name (snd entry).key
       then failwith "bad names";
       let value_typed: Prog.coq_Expression =
         cast_expression env ctx field_type (snd entry).value
       in
-      MkKeyValue (fst entry, (snd entry).key, value_typed)
+      ((snd entry).key, value_typed)
     in
     let entries_casted =
       List.zip_exn fields entries
@@ -1012,9 +1018,8 @@ and eval_to_positive_int env info expr =
     expr
     |> type_expression env ExprCxConstant
     |> compile_time_eval_bigint env
-    |> Bigint.to_int_exn
   in
-  if value > 0
+  if Bigint.(value > zero)
   then value
   else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
 
@@ -1049,7 +1054,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Types.Type
       |> type_expression env ExprCxConstant
       |> compile_time_eval_bigint env
       |> Bigint.to_int_exn in
-    ret @@ TypArray (hdt, len)
+    ret @@ TypArray (hdt, Bigint.of_int len)
   | Tuple tlist ->
     ret @@ TypTuple (List.map ~f:(translate_type env) tlist)
   | Void -> ret TypVoid
@@ -1077,7 +1082,7 @@ and translate_parameters env params =
     MkParameter (is_optional (info, param),
                  translate_direction param.direction,
                  translate_type env param.typ,
-                 default_arg_id,
+                 option_map Bigint.of_int default_arg_id,
                  param.variable)
   in
   List.map ~f:translate_parameter params
@@ -1328,7 +1333,7 @@ and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_
   MkParameter (is_optional (param_info, param),
                translate_direction param.direction,
                typ,
-               opt_arg_id,
+               option_map Bigint.of_int opt_arg_id,
                param.variable),
   wildcards
 
@@ -1424,15 +1429,14 @@ and type_bit_string_access env ctx bits lo hi
     assert (is_numeric typ_hi);
     let val_lo = compile_time_eval_bigint env lo_typed in
     let val_hi = compile_time_eval_bigint env hi_typed in
-    let big_width = Bigint.of_int width in
     (* Bounds checking *)
     assert (Bigint.(<=) Bigint.zero val_lo);
-    assert (Bigint.(<) val_lo big_width);
+    assert (Bigint.(<) val_lo width);
     assert (Bigint.(<=) val_lo val_hi);
-    assert (Bigint.(<) val_hi big_width);
+    assert (Bigint.(<) val_hi width);
     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn |> (+) 1 in
     ExpBitStringAccess (bits_typed, val_lo, val_hi),
-    TypBit diff,
+    TypBit (Bigint.of_int diff),
     bits_dir
   | typ ->
     failwith "Cannot bitslice this type."
@@ -1450,16 +1454,16 @@ and type_list env ctx values : Prog.coq_ExpressionPreT * coq_P4Type * direction 
   let types = List.map ~f:type_of_expr typed_exprs in
   ExpList typed_exprs, TypList types, Directionless
 
-and type_key_val env ctx ((info, entry): Types.KeyValue.t) : Prog.coq_KeyValue =
-  MkKeyValue (info, entry.key, type_expression env ctx entry.value)
+and type_key_val env ctx ((info, entry): Types.KeyValue.t) =
+  (entry.key, type_expression env ctx entry.value)
 
 and type_record env ctx entries =
   let entries_typed = List.map ~f:(type_key_val env ctx) entries in
   let rec_typed : Prog.coq_ExpressionPreT =
     ExpRecord entries_typed
   in
-  let kv_to_field (kv: Prog.coq_KeyValue) =
-    let MkKeyValue (tags, key, value) = kv in
+  let kv_to_field kv =
+    let (key, value) = kv in
     (key, type_of_expr value)
   in
   let fields = List.map ~f:kv_to_field entries_typed in
@@ -1753,7 +1757,7 @@ and check_binary_op env info (op_info, op) typed_l typed_r: Prog.coq_ExpressionP
         | TypBit l, TypBit r
         | TypInt l, TypBit r
         | TypBit l, TypInt r
-        | TypInt l, TypInt r -> TypBit (l + r)
+        | TypInt l, TypInt r -> TypBit Bigint.(l + r)
         | TypInt _, _
         | TypBit _, _ ->
           raise_mismatch (info_of_expr typed_r) "bit<> or int<>" r_typ
@@ -1802,8 +1806,9 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | t1, TypSet t2 ->
     not explicit &&
     type_equality env [] t1 t2
-  | TypBit 1, TypBool
-  | TypBool, TypBit 1
+  | TypBit b, TypBool
+  | TypBool, TypBit b ->
+     Bigint.(b = one) && explicit
   | TypInt _, TypBit _
   | TypBit _, TypInt _ ->
     explicit
@@ -1874,7 +1879,7 @@ and type_expression_member_builtin env (ctx: Typed.coq_ExprContext) info typ (na
     raise_unfound_member info name.str in
   match typ with
   | TypArray (typ, _) ->
-    let idx_typ = TypBit 32 in
+    let idx_typ = TypBit (Bigint.of_int 32) in
     begin match name.str with
       | "size"
       | "lastIndex" ->
@@ -2211,7 +2216,7 @@ and type_function_call env ctx call_info func type_args args =
   let subst_param_arg ((MkParameter (opt, dir, typ, opt_value, var):coq_P4Parameter), arg) =
     let typ = saturate_type env typ in
     let param = MkParameter (opt, dir, typ, opt_value, var) in
-    validate_param env (ctx_of_kind kind) typ dir call_info opt_value;
+    validate_param env (ctx_of_kind kind) typ dir call_info (option_map Bigint.to_int_exn opt_value);
     param, arg
   in
   let params_args' = List.map params_args ~f:subst_param_arg in
@@ -2467,9 +2472,9 @@ and type_range env ctx lo hi =
     | TypInteger, TypInteger -> TypInteger
     (* TODO: add pretty-printer and [to_string] for Typed module *)
     | TypBit width, hi_typ ->
-      raise_mismatch (info hi) ("bit<" ^ (string_of_int width) ^ ">") hi_typ
+      raise_mismatch (info hi) ("bit<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | TypInt width, hi_typ ->
-      raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
+      raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
   ExpRange (lo_typed, hi_typed), TypSet typ, Directionless
@@ -3064,6 +3069,7 @@ and type_variable env ctx info annotations typ name init =
 and type_value_set env ctx info annotations typ size name =
   let element_type = translate_type env typ in
   let size_typed = type_expression env ExprCxConstant size in
+  let size_typed = compile_time_eval_bigint env size_typed in
   let env = Checker_env.insert_type_of (BareName name) (TypSet element_type) env in
   let value_set : Prog.coq_Declaration =
     DeclValueSet (info, element_type, size_typed, name)
@@ -3180,8 +3186,7 @@ and type_table_entries env ctx entries key_typs action_map =
 
 (* syntactic equality of expressions *)
 and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool =
-  let key_val_eq ((MkKeyValue (_, k1, v1)): Prog.coq_KeyValue)
-                 ((MkKeyValue (_, k2, v2)): Prog.coq_KeyValue) =
+  let key_val_eq ((k1, v1)) ((k2, v2)) =
     P4string.eq k1 k2 && expr_eq env v1 v2
   in
   let e1 = preexpr_of_expr expr1 in
@@ -3380,7 +3385,6 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
     let size = compile_time_eval_expr env value_typed in
     begin match size with
       | Some (ValBaseInteger size) ->
-        let size: P4int.t = {tags=fst value; value=size; width_signed=None} in
         type_table' env ctx info annotations
           name
           key_types

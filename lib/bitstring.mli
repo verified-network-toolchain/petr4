@@ -1,4 +1,4 @@
-type t = Bigint.t
+type t = bool list
 
 (** [shift_bitstring_left v o] is [v] shifted left by [o]. *)
 val shift_bitstring_left : t -> t -> t
@@ -10,7 +10,7 @@ val shift_bitstring_right : t -> t -> bool -> t -> t
 val power_of_two : t -> t
 
 (** [bitstring_slice n m l] is the bitstring slice [n[m:l]]. *)
-val bitstring_slice : t -> t -> t -> t
+val bitstring_slice : t -> int -> int -> t
 
 (** [of_twos_complement n w] is [n] coerced with modular arithmetic to be in the
     range [0 .. 2^w-1]. *)

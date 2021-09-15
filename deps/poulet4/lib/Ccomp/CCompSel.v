@@ -609,10 +609,10 @@ Section CCompSel.
           | Ctypes.Tstruct val_t_id noattr => 
             match lookup_composite_id tags_t env val_t_id with
             | Some (Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _) =>
-              Some ((PushLoop (compid) (n) (env) 
-              (stack_var) (arr_id) (arr_var)
-               (size_var) (next_var)
-              (i) (val_typ) (val_typ_valid_index)), env) 
+              Some (
+                (PushLoop compid n env stack_var arr_id arr_var size_var 
+                next_var i val_typ val_typ_valid_index), 
+                env) 
             | _ => None 
             end
           | _ => None
@@ -772,7 +772,8 @@ Section CCompSel.
       in
       match stack_id with
       | None => None
-      | Some x => None
+      | Some x => 
+      CTranslatePush x n env
       end
       
 

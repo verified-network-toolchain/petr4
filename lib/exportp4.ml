@@ -56,7 +56,7 @@ let p4int p (n : P4int.t) =
   fprintf p "{| @[<hov 0>itags := %a;@ value := %a;@ width_signed := %a |}@]" 
       print_info n.tags 
       print_bigint n.value
-      (print_option (print_pair print_nat print_bool)) n.width_signed
+      (print_option (print_pair print_bigint print_bool)) n.width_signed
 
 let print_direction p (dir: direction) =
   let s = 
@@ -98,17 +98,17 @@ let rec print_type p (typ : coq_P4Type) =
       fprintf p "@[<hov 0>TypInteger@]"
   | TypInt width ->
       fprintf p "(@[<hov 0>TypInt@ %a)@]"
-          print_nat width
+          print_bigint width
   | TypBit width ->
       fprintf p "(@[<hov 0>TypBit@ %a)@]"
-          print_nat width
+          print_bigint width
   | TypVarBit width ->
       fprintf p "(@[<hov 0>TypVarBit@ %a)@]"
-          print_nat width
+          print_bigint width
   | TypArray (typ, size) ->
       fprintf p "(@[<hov 4>TypArray@ %a@ %a)@]"
           print_type typ
-          print_nat size
+          print_bigint size
   | TypTuple typs ->
       fprintf p "(@[<hov 0>TypTuple@ %a)@]"
           (print_list print_type) typs
@@ -205,7 +205,7 @@ and print_param p (param: coq_P4Parameter) =
           print_bool opt
           print_direction direction
           print_type typ
-          (print_option print_nat) default_arg_id
+          (print_option print_bigint) default_arg_id
           p4string variable
 
 let print_types =
@@ -379,9 +379,8 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_expr hi
 and print_keyvalue p kv =
   match kv with
-  | MkKeyValue (info, key, value) ->
-      fprintf p "(@[<hov 4>MkKeyValue@ %a@ %a@ %a)@]"
-          print_info info
+  | (key, value) ->
+      fprintf p "(@[<hov 4>(%a@, %a)@]"
           p4string key
           print_expr value
 
@@ -466,19 +465,16 @@ let rec print_value_base p (value : coq_ValueBase)=
   | ValBaseInteger n ->
       fprintf p "(@[<hov 0>ValBaseInteger@ %a)@]" 
           print_bigint n
-  | ValBaseBit (width, value) ->
-      fprintf p "(@[<hov 4>ValBaseBit@ %a@ %a)@]" 
-          print_nat width
-          print_bigint value
-  | ValBaseInt (width, value) ->
-      fprintf p "(@[<hov 4>ValBaseInt@ %a@ %a)@]" 
-          print_nat width
-          print_bigint value
-  | ValBaseVarbit (max, width, value) ->
-      fprintf p "(@[<hov 4>ValBaseVarbit@ %a@ %a@ %a)@]" 
-          print_nat max
-          print_nat width
-          print_bigint value
+  | ValBaseBit value ->
+      fprintf p "(@[<hov 4>ValBaseBit@ %a)@]" 
+        print_bigint (Checker.bool_list_to_bigint value)
+  | ValBaseInt value ->
+      fprintf p "(@[<hov 4>ValBaseInt@ %a)@]" 
+        print_bigint (Checker.bool_list_to_bigint value)
+  | ValBaseVarbit (max, value) ->
+      fprintf p "(@[<hov 4>ValBaseVarbit@ %a@ %a)@]" 
+          print_bigint max
+          print_bigint (Checker.bool_list_to_bigint value)
   | ValBaseString s ->
       fprintf p "(@[<hov 0>ValBaseString@ %a)@]" 
           p4string s
@@ -488,9 +484,6 @@ let rec print_value_base p (value : coq_ValueBase)=
   | ValBaseRecord fields ->
       fprintf p "(@[<hov 0>ValBaseRecord@ %a)@]"
           (print_list (print_pair p4string print_value_base)) fields
-  | ValBaseSet value_set ->
-      fprintf p "(@[<hov 0>ValBaseSet@ %a)@]"
-          print_value_set value_set
   | ValBaseError s ->
       fprintf p "(@[<hov 0>ValBaseError@ %a)@]"
           p4string s
@@ -510,8 +503,8 @@ let rec print_value_base p (value : coq_ValueBase)=
   | ValBaseStack (headers, size, next) ->
       fprintf p "(@[<hov 4>ValBaseStack@ %a@ %a@ %a)@]"
           (print_list print_value_base) headers
-          print_nat size
-          print_nat next
+          print_bigint size
+          print_bigint next
   | ValBaseEnumField (typ_name, enum_name) ->
       fprintf p "(@[<hov 4>ValBaseEnumField@ %a@ %a)@]"
           p4string typ_name
@@ -542,14 +535,13 @@ and print_value_set p (val_set: coq_ValueSet) =
   | ValSetProd val_sets ->
       fprintf p "(@[<hov 0>ValSetProd@ %a)@]"
           (print_list print_value_set) val_sets
-  | ValSetLpm (width, num_bits, value) ->
-      fprintf p "(@[<hov 4>ValSetLpm@ %a@ %a@ %a)@]" 
-          print_value_base width
-          print_nat num_bits
+  | ValSetLpm (num_bits, value) ->
+      fprintf p "(@[<hov 4>ValSetLpm@ %a@ %a)@]" 
+          print_bigint num_bits
           print_value_base value
   | ValSetValueSet (size, members, val_sets) ->
       fprintf p "(@[<hov 4>ValSetValueSet@ %a@ %a@ %a)@]" 
-          print_value_base size
+          print_bigint size
           (print_list print_matches) members
           (print_list print_value_set) val_sets
 
@@ -791,7 +783,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           decl_name
           print_info info
           print_type typ
-          print_expr size
+          print_bigint size
           p4string name
   | DeclAction (info, name, data_params, ctrl_params, body) ->
       let (f_str, decl_name) = 
@@ -817,7 +809,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_table_actions actions
           (print_option print_table_entries) entries
           (print_option print_table_action_ref) default_action
-          (print_option p4int) size
+          (print_option print_bigint) size
           (print_list print_table_property) custom_properties
   | DeclHeader (info, name, fields) ->
       let (f_str, decl_name) = 
@@ -1058,12 +1050,12 @@ let rec print_value_pre_lvalue p (lvalue : coq_ValuePreLvalue) =
   | ValLeftBitAccess (expr, msb, lsb) ->
       fprintf p "(@[<hov 4>ValLeftBitAccess@ %a@ %a@ %a)@]"
           print_lvalue expr
-          print_nat msb
-          print_nat lsb
+          print_bigint msb
+          print_bigint lsb
   | ValLeftArrayAccess (expr, idx) ->
       fprintf p "(@[<hov 4>ValLeftArrayAccess@ %a@ %a)@]"
           print_lvalue expr
-          print_nat idx
+          print_bigint idx
 and print_lvalue p (lvalue: coq_ValueLvalue) =
   match lvalue with
   | MkValueLvalue  (lvalue, typ) ->

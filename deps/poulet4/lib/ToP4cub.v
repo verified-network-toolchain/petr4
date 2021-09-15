@@ -7,7 +7,6 @@ Require Export
 Import AST Result P4cub.
 Import ResultNotations.
 
-
 Require Import String.
 Open Scope string_scope.
 
@@ -63,6 +62,7 @@ Definition cons_res {A : Type} (hd_res : result A) (rlist : result (list A)) : r
   let* l := rlist in
   let** hd := hd_res in
   hd :: l.
+
 
 Print Typed.name.
 Program Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
@@ -159,6 +159,207 @@ Definition realize_array_index (e : @Expression tags_t) : result Z :=
   | _ =>
     error "Array Indices must be literals"
   end.
+
+
+Section HoistEffects.
+
+  Definition get_type_of_expr (e : Expression) : @P4Type tags_t :=
+    let '(MkExpression _ _ typ _) := e in
+    typ.
+
+
+  Fixpoint voidify_fun_stmt  (ret : P4String.t tags_t) (s : Statement) : Statement :=
+    let '(MkStatement tags stmt typ) := s in
+    let stmt' := voidify_fun_stmt_pre ret tags stmt typ in
+    MkStatement tags stmt' typ
+
+  with voidify_fun_stmt_pre (ret : P4String.t tags_t) (tags : tags_t) (stmt : StatementPreT) (typ : StmType) : StatementPreT :=
+    match stmt with
+    | StatMethodCall _ _ _ => stmt
+    | StatAssignment _ _ => stmt
+    | StatDirectApplication _ _ => stmt
+    | StatConditional cond tru fls_opt =>
+      let tru' := voidify_fun_stmt ret tru in
+      let fls' := let* fls := fls_opt in Some (voidify_fun_stmt ret fls) in
+      StatConditional cond tru fls'
+    | StatBlock block =>
+      StatBlock (voidify_fun_block ret block)
+    | StatExit => stmt
+    | StatEmpty => stmt
+    | StatReturn opt_e =>
+      match opt_e with
+      | None => StatReturn None
+      | Some e =>
+        let typ := get_type_of_expr e in
+        let ret_exp := MkExpression tags (ExpName (BareName ret) NoLocator) typ InOut in
+        let assn := MkStatement tags (StatAssignment ret_exp e) StmUnit in
+        let ret_void := MkStatement tags (StatReturn None) StmUnit in
+        let blck := BlockCons assn (BlockCons ret_void (BlockEmpty tags)) in
+        StatBlock blck
+      end
+    | StatSwitch expr cases =>
+      let case' := List.map (fun c =>
+                               match c with
+                               | StatSwCaseAction tags label code =>
+                                 let code' := voidify_fun_block ret code in
+                                 StatSwCaseAction tags label code'
+                               | StatSwCaseFallThrough _ _  =>
+                                 c
+                               end) cases in
+      StatSwitch expr cases
+    | StatConstant _ _ _ _ => stmt
+    | StatVariable _ _ _ _ => stmt
+    | StatInstantiation _ _ _ _ => stmt
+    end
+
+  with voidify_fun_block (ret : P4String.t tags_t) (b : Block) :=
+    match b with
+    | BlockEmpty t => BlockEmpty t
+    | BlockCons stmt rst =>
+      let s := voidify_fun_stmt ret stmt in
+      let b := voidify_fun_block ret rst in
+      BlockCons s b
+    end.
+
+
+  Definition compute_return_var (name : P4String.t tags_t) :=
+    {| P4String.tags := name.(P4String.tags);
+       P4String.str  := name.(P4String.str) ++ "_ret$" |}.
+
+  Definition compute_void_name (name : P4String.t tags_t) :=
+    {| P4String.tags := name.(P4String.tags);
+       P4String.str := name.(P4String.str) ++ "_void$"|}.
+
+  Definition voidify_fun_decl (tags : tags_t) (ret: @P4Type tags_t) (name : P4String.t tags_t) (body : @Block tags_t) : result (tags_t * P4String.t tags_t * @Block tags_t) :=
+    match ret with
+    | TypVoid => error "TypeError:: void functions are invalid as expressions"
+    | _ =>
+      let return_var := compute_return_var name in
+      let name' := compute_void_name name in
+      let body' : Block := voidify_fun_block return_var body in
+      ok (tags, name', body')
+    end.
+
+  Definition voidify_fun_call_exp (func_e : @Expression tags_t)  (typ_args : list (@P4Type tags_t)) (args : list (option (@Expression tags_t)))  : result (@Statement tags_t * @Expression tags_t) :=
+    let '(MkExpression tags func typ dir) := func_e in
+    match func with
+    | ExpExpressionMember expr name =>
+      let name':= compute_void_name name in
+      let return_var := compute_return_var name in
+      let pre_exp := ExpExpressionMember expr name' in
+      let exp : Expression := MkExpression tags pre_exp typ dir in
+      let pre_stmt := StatMethodCall exp typ_args args in
+      let stmt := MkStatement tags pre_stmt StmUnit in
+      let replacement := MkExpression tags (ExpName (BareName return_var) NoLocator) typ dir in
+      ok (stmt, replacement)
+
+    | ExpName name loc =>
+      match name with
+      | BareName n =>
+        let name' := compute_void_name n in
+        let return_var := compute_return_var n in
+        let exp := (MkExpression tags (ExpName (BareName name') loc) typ dir) in
+        let stmt : Statement := MkStatement tags (StatMethodCall exp typ_args args) StmUnit in
+        let replacement : Expression := MkExpression tags (ExpName (BareName return_var) loc) typ dir in
+        ok (stmt, replacement)
+      | _ =>
+        error "Qualified Names deprecated"
+      end
+    | _ => error "Typerror :: unrecognized function application"
+    end.
+
+    Fixpoint extract_funs_from_exp (e : Expression) : result (list Statement * Expression) :=
+    let '(MkExpression tags expr typ dir) := e in
+    let** (hoist, e) := extract_funs_from_exp_pre_t expr in
+    (hoist, MkExpression tags e typ dir)
+  with extract_funs_from_exp_pre_t (e : ExpressionPreT) : result (list Statement * ExpressionPreT) :=
+    match e with
+    | ExpBool _ => ok ([], e)
+    | ExpInt _ => ok ([], e)
+    | ExpString _ => ok ([], e)
+    | ExpName _ _ => ok ([], e)
+    | ExpArrayAccess array index =>
+      let* (array_hoist, array') := extract_funs_from_exp array in
+      let** (index_hoist, index') := extract_funs_from_exp index in
+      (List.app array_hoist index_hoist, ExpArrayAccess array index)
+    | ExpBitStringAccess bits lo hi =>
+      let** (bits_hoist, bits') := extract_funs_from_exp bits in
+      (bits_hoist, ExpBitStringAccess bits' lo hi)
+    | ExpList values =>
+      let** (hoist, values') := fold_right (fun v acc =>
+                                                    let* (v_hs, v') := extract_funs_from_exp v in
+                                                    let** (hs, vs) := acc in
+                                                    (List.app v_hs hs, v'::vs)) (ok ([],[])) values in
+      (hoist, ExpList values')
+    | ExpRecord entries =>
+      let** (hoist, entries) := fold_right (fun kv acc =>
+                                             let '(MkKeyValue tags key value) := kv in
+                                             let* (h, value') := extract_funs_from_exp value in
+                                             let** (hs, vs) := acc in
+                                             (List.app h hs, (MkKeyValue tags key value')::vs)
+                                          ) (ok ([],[])) entries in
+      (hoist, ExpRecord entries)
+    | ExpUnaryOp op arg =>
+      let** (hoist, arg') := extract_funs_from_exp arg in
+      (hoist, ExpUnaryOp op arg')
+    | ExpBinaryOp op (lhs,rhs) =>
+      let* (hoist_left, lhs') := extract_funs_from_exp lhs in
+      let** (hoist_right, rhs') := extract_funs_from_exp rhs in
+      (List.app hoist_left hoist_right, ExpBinaryOp op (lhs', rhs'))
+    | ExpCast typ e =>
+      let** (hoist, e') := extract_funs_from_exp e in
+      (hoist, ExpCast typ e')
+    | ExpTypeMember _ _ => ok ([], e)
+    | ExpErrorMember _ => ok ([], e)
+    | ExpExpressionMember expr name =>
+      let** (hoist, expr') := extract_funs_from_exp expr in
+      (hoist, ExpExpressionMember expr' name)
+    | ExpTernary cond tru fls =>
+      let*  (hoist_cond, cond') := extract_funs_from_exp cond in
+      let*  (hoist_tru, tru') := extract_funs_from_exp tru in
+      let** (hoist_fls, fls') := extract_funs_from_exp fls in
+      (List.app (List.app hoist_cond hoist_tru) hoist_fls,
+       ExpTernary cond' tru' fls')
+    | ExpFunctionCall func type_args args =>
+      let* (hoist_args, args') := fold_right (fun a_opt acc =>
+                                                let* (hs, args) := acc in
+                                                match a_opt with
+                                                | None =>
+                                                  ok (hs, None :: args)
+                                                | Some arg =>
+                                                  let** (h, arg') := extract_funs_from_exp arg in
+                                                  (List.app h hs, (Some arg') :: args)
+                                                end)
+                                             (ok ([],[]))
+                                             args
+      in
+      let** (hoist_f, func') := voidify_fun_call_exp func type_args args' in
+      (hoist_f :: hoist_args, ExpFunctionCall func' type_args args')
+
+    | ExpNamelessInstantiation typ args =>
+      let* (hoist_args, args') := fold_right (fun arg acc =>
+                                                let* (h, arg') := extract_funs_from_exp arg in
+                                                let** (hs, args) := acc in
+                                                (List.app h hs, arg' :: args))
+                                             (ok ([],[]))
+                                             args in
+      let** (hoist_ni, ni_var) := error "[FIXME] hoist Nameless Instantiation" in
+      (List.app hoist_args hoist_ni, ni_var)
+    | ExpDontCare => ok([], e)
+    | ExpMask e m =>
+      let*  (hoist_e, e') := extract_funs_from_exp e in
+      let** (hoist_m, m') := extract_funs_from_exp m in
+      (List.app hoist_e hoist_m, ExpMask e' m')
+
+    | ExpRange lo hi =>
+      let*  (hoist_lo, lo') := extract_funs_from_exp lo in
+      let** (hoist_hi, hi') := extract_funs_from_exp hi in
+      (List.app hoist_lo hoist_hi, ExpRange lo' hi')
+    end.
+
+End HoistEffects.
+
+
 
 Fixpoint translate_expression_pre_t (i : tags_t) (typ : P4Type) (e_pre : @ExpressionPreT tags_t) : result (E.e tags_t) :=
   match e_pre with
@@ -348,11 +549,6 @@ Fixpoint translate_parser_state (pstate : ParserState) : result (string * Parser
   let** trans := translate_transition transition in
   (P4String.str name, Parser.State ss trans).
 
-Print fold_right.
-
-Print F.fs.
-Print F.f.
-
 Definition translate_parser_states_inner (p : ParserState) (res_acc : result ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
   let* (nm, state) := translate_parser_state p in
   let** (start_opt, states) := res_acc in
@@ -363,14 +559,23 @@ Definition translate_parser_states_inner (p : ParserState) (res_acc : result ((o
 Fixpoint translate_parser_states (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
   fold_right translate_parser_states_inner (ok (None, [])) pstates.
 
+
+Definition get_ctor_string_from_type (t : P4Type) : result string :=
+  match t with
+  | TypTypeName (BareName str) => ok (@P4String.str tags_t str)
+  | _ => error "Don't know how to get constructor from non BareName TypeName"
+  end.
+
 Fixpoint translate_decl (d : @Declaration tags_t) : result (tags_t * @aenv tags_t * @tenv tags_t * P4cub.TopDecl.d tags_t) :=
   match d with
   | DeclConstant tags typ name value =>
     error "[FIXME] Constant declarations unimplemented"
   | DeclInstantiation tags typ args name init =>
     let cub_name := P4String.str name in
-    let* ctor_name := error "[FIXME] get constructor name from types" in
-    let** cub_args := error "[FIXME] translate args" in
+    let* ctor_name := get_ctor_string_from_type typ in
+    (* FIXME What the hell? Where do I look up the thing I'm instantiating? *)
+    let** cub_typed_args := rred (List.map translate_expression args) in
+    let cub_args := List.map snd cub_typed_args in
     (* TODO What is [init]? *)
     (tags, empty_aenv, empty_tenv, TopDecl.TPInstantiate ctor_name cub_name cub_args tags)
   | DeclParser tags name type_params params constructor_params locals states =>

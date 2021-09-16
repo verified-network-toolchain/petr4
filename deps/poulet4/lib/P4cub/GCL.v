@@ -35,7 +35,9 @@ Module GCL.
   | GSeq (g1 g2 : t)
   | GChoice (g1 g2 : t)
   | GAssume (phi : form)
-  | GAssert (phi : form).
+  | GAssert (phi : form)
+  | GExternVoid (e : string) (args : list rvalue)
+  | GExternAssn (x : string) (e : string) (args : list rvalue).
 
   Definition g_sequence {L R F : Type} (i : tags_t) : list (@t L R F) -> @t L R F :=
     fold_right GSeq (GSkip i).
@@ -151,4 +153,312 @@ Module GCL.
   Definition isone (v : BitVec.t) (i :tags_t) : GCL.form :=
     bvule v (BitVec.bit 1 1 i) i.
 
+
+  Module Semantics.
+    Import Coq.Bool.Bvector.
+    Open Scope list_scope.
+
+    Record bv := { signed : bool; val : Z; width : option nat }.
+
+    Definition normalize_width (signed : bool) (z : Z) (w_u w_v : option nat) : result (bv) :=
+      match w_u, w_v with
+      | None, None =>
+        ok {| signed := signed; val := z; width := None |}
+      | Some w, Some w' =>
+        if Nat.eqb w w'
+        then
+          let z_mod := BinInt.Z.modulo z (BinInt.Z.of_nat w) in
+          ok {| signed := signed; val := z_mod; width := Some w |}
+        else error "widths are different for binary op"
+      | _, _ =>
+        error "cannot compare signed and unsigned bvs"
+      end.
+
+    Definition apply_binop (s_op u_op : option (Z -> Z -> Z)) (u v : bv) : result bv :=
+      if andb u.(signed) v.(signed)
+      then
+        let*~ op := s_op else "got signed bvs but no signed operation" in
+        let z := op u.(val) v.(val) in
+        normalize_width true z u.(width) v.(width)
+      else if andb (negb u.(signed)) (negb v.(signed))
+           then
+             let*~ op := u_op else "got unsigned bvs but no unsigned operation" in
+             let z := BinInt.Z.abs (op u.(val) v.(val)) in
+             normalize_width false z u.(width) v.(width)
+           else
+             error "got a mixed of signed and unsigned bvs".
+
+    Definition store := list (string * bv).
+
+    Fixpoint lookup (s : store) (x : string) : result bv :=
+      match s with
+      | [] => error ("Could not find " ++ x ++ " in store")
+      | ((y, bv)::s') =>
+        if String.eqb x y
+        then ok bv
+        else lookup s' x
+      end.
+
+    Fixpoint remove (x : string) (s : store) : store :=
+      match s with
+      | [] => s
+      | ((y, bv)::s') =>
+        if String.eqb x y
+        then s'
+        else (x,bv) :: remove x s'
+      end.
+
+    Definition update (s:store) (x : string) (u : bv) : store :=
+      (x, u) :: remove x s.
+
+    Module Arch.
+      Definition impl : Type := store -> list BitVec.t -> (store * option{w : nat & Bvector w}).
+      Definition t := list (string * impl).
+      Fixpoint run (a : t) (s : store) (f : string) (args : list BitVec.t) :=
+        match a with
+        | [] => error ("Could not find implementation for extern " ++ f)
+        | (g,impl)::a' =>
+          if String.eqb g f
+          then ok (impl s args)
+          else run a' s f args
+        end.
+
+    End Arch.
+    Search (nat -> Z).
+    Print BinInt.Z.ones.
+
+
+    Definition get_width (u v : bv) : result nat :=
+      match u.(width), v.(width) with
+      | Some w, Some w' =>
+        if Nat.eqb w w'
+        then ok w
+        else error "mismatched widths"
+      | None, None => error "no widths"
+      |  _, _ => error "one had width the other didnt'"
+      end.
+
+    Fixpoint eval (s : store) (b : BitVec.t) : result bv :=
+      match b with
+      | BitVec.BitVec n w _ =>
+        ok ({|signed := false;
+              val := BinInt.Z.of_nat n;
+              width := w |})
+
+      | BitVec.Int z w _ =>
+        ok ({|signed := true;
+              val := z;
+              width := w |})
+
+      | BitVec.BVVar x _ _ =>
+        lookup s x
+
+      | BitVec.BinOp op bv1 bv2 i =>
+        let* u := eval s bv1 in
+        let* v := eval s bv2 in
+        match op with
+        | BitVec.BVPlus true _ =>
+          let* w := get_width u v in
+          (* |+| : int<w> -> int<w> -> int<w>*)
+          let int_op := Some (IntArith.plus_sat (pos w)) in
+          (* |+| : bit<w> -> bit<w> -> bit<w>*)
+          let bit_op := Some (BitArith.plus_sat (pos w)) in
+          apply_binop int_op bit_op u v
+        | BitVec.BVPlus false _ =>
+          (* + : bit<> -> bit<> -> bit<> *)
+          (* + : int<> -> int<> -> int<> *)
+          let f := Some (BinInt.Z.add) in
+          apply_binop f f u v
+        | BitVec.BVMinus true _ =>
+          let* w := get_width u v in
+          (* |-| : int<w> -> int<w> -> int<w>*)
+          let int_op := Some (IntArith.minus_sat (pos w)) in
+          (* |-| : bit<w> -> bit<w> -> bit<w>*)
+          let bit_op := Some (BitArith.minus_sat (pos w)) in
+          apply_binop int_op bit_op u v
+        | BitVec.BVMinus false _ =>
+          (* - : bit<> -> bit<> -> bit<> *)
+          (* - : int<> -> int<> -> int<> *)
+          let f := Some (BinInt.Z.add) in
+          apply_binop f f u v
+        | BitVec.BVTimes _ =>
+          (* * : bit<> -> bit<> -> bit<> *)
+          (* * : int<> -> int<> -> int<> *)
+          let f := Some (BinInt.Z.mul) in
+          apply_binop f f u v
+        | BitVec.BVConcat =>
+          match u.(width), v.(width) with
+          | Some w, Some w' =>
+            let** f :=
+               if andb u.(signed) v.(signed)
+               then ok (IntArith.concat (pos w) (pos w'))
+               else if andb (negb u.(signed)) (negb v.(signed))
+                    then ok (BitArith.concat (pos w) (pos w'))
+                    else error "Sign Error"
+            in
+            let z := f u.(val) v.(val) in
+            {|signed:=true; val:=z; width:= Some (w + w')|}
+          | _, _ =>
+            error "Cannot concatenate width-less bitvectors"
+          end
+        | BitVec.BVShl sg =>
+          if andb (eqb sg (u.(signed))) (v.(signed)) then
+            match u.(width) with
+            | Some w =>
+              let f := if sg
+                       then IntArith.shift_left (pos w)
+                       else BitArith.shift_left (pos w) in
+              ok {| signed := sg;
+                    val := f u.(val) v.(val);
+                    width := Some w |}
+            | None =>
+              ok {| signed := sg;
+                    val := BinInt.Z.shiftl u.(val) v.(val);
+                    width := None
+                 |}
+            end
+          else
+            error "Type error. Signedness doesn't match"
+        | BitVec.BVShr sg =>
+          if andb (eqb sg u.(signed)) v.(signed) then
+            match u.(width) with
+            | Some w =>
+              let f := if sg
+                       then IntArith.shift_right (pos w)
+                       else BitArith.shift_right (pos w) in
+              ok {| signed := sg;
+                    val := f u.(val) v.(val);
+                    width := Some w |}
+            | None =>
+              ok {| signed := sg;
+                    val := BinInt.Z.shiftr u.(val) v.(val);
+                    width := None
+                 |}
+            end
+          else
+            error "Type error. Signedness doesn't match"
+        | BitVec.BVAnd =>
+          let f := Some (BinInt.Z.land) in
+          apply_binop f f u v
+        | BitVec.BVOr =>
+          let f := Some BinInt.Z.lor in
+          apply_binop f f u v
+        | BitVec.BVXor =>
+          let f := Some BinInt.Z.lxor in
+          apply_binop f f u v
+        end
+
+      | BitVec.UnOp op bv0 i =>
+        let** u := eval s bv0 in
+        match op with
+        | BitVec.BVNeg =>
+          if u.(signed) then
+            match u.(width) with
+            | Some w =>
+              {| signed := true;
+                 val := IntArith.bit_not (pos w) u.(val);
+                 width := Some w |}
+            | None =>
+              {| signed := true;
+                 val := BinInt.Z.lnot u.(val);
+                 width := None |}
+            end
+          else
+            match u.(width) with
+            | Some w =>
+              {| signed := false;
+                 val := BitArith.bit_not (pos w) u.(val);
+                 width := Some w |}
+            | None =>
+              {| signed := false;
+                 val := BinInt.Z.lnot u.(val);
+                 width := None|}
+            end
+        | BitVec.BVCast i =>
+          {| signed:= u.(signed);
+             val := BinInt.Z.modulo u.(val) (Zpower.two_p (BinInt.Z.of_nat i));
+             width := Some i |}
+        | BitVec.BVSlice hi lo =>
+          let shifted := BinInt.Z.shiftr u.(val) (BinInt.Z.of_nat lo) in
+          let ones := BinInt.Z.ones (BinInt.Z.of_nat (hi - lo)) in
+          let masked := BinInt.Z.land shifted ones in
+           {| signed:= u.(signed);
+             val := masked;
+             width := Some (hi - lo) |}
+        end
+      end.
+
+    Definition interp_comp (c : lcomp) (x y : Z) : bool :=
+      match c with
+      | LEq => BinInt.Z.eqb x y
+      | LLe _ => BinInt.Z.leb x y
+      | LLt _ => BinInt.Z.ltb x y
+      | LGe _ => BinInt.Z.geb x y
+      | LGt _ => BinInt.Z.gtb x y
+      | LNeq => negb (BinInt.Z.eqb x y)
+      end.
+
+    Fixpoint models (s : store) (phi : form) : result bool :=
+      match phi with
+      | LBool b _ =>
+        ok b
+      | LBop op ϕ ψ _ =>
+        let* a := models s ϕ in
+        let** b := models s ψ in
+        match op with
+        | LOr => orb a b
+        | LAnd => andb a b
+        | LImp => implb a b
+        | LIff => eqb a b
+        end
+      | LNot ϕ _ =>
+        let** a := models s ϕ in
+        negb a
+      | LVar _ _ =>
+        error "boolean variables unimplemented"
+      | LComp comp bv1 bv2 i =>
+        let* u := eval s bv1 in
+        let* v:= eval s bv2 in
+        let* _ := get_width u v in
+        if (eqb u.(signed) v.(signed))
+        then ok (interp_comp comp u.(val) v.(val))
+        else error "cannot compare signed and unsigned"
+      end.
+
+
+
+
+    Fixpoint denote (a : Arch.t) (s : store) (g : @t string BitVec.t form) : result (list store) :=
+      match g with
+      | GSkip _ => ok [s]
+      | GAssign _ lhs rhs _ =>
+        let** bv := eval s rhs in
+        [update s lhs bv]
+      | GSeq g1 g2 =>
+        let* ss1 := denote a s g1 in
+        fold_right (fun s1 acc => let* s := denote a s1 g2 in
+                                  let** ss := acc in
+                                  List.app s ss) (ok []) ss1
+      | GChoice g1 g2 =>
+        let* ss1 := denote a s g1 in
+        let** ss2 := denote a s g2 in
+        List.app ss1 ss2
+      | GAssume phi =>
+        let** b : bool := models s phi in
+        if b then [s] else []
+      | GAssert phi =>
+        let* b : bool := models s phi in
+        if b
+        then error "Assertion Failure"
+        else ok [s]
+      | GExternVoid f args =>
+        let** (s', _ ) := Arch.run a s f args in
+        [s']
+      | GExternAssn x f args =>
+        let* (s', ret_opt) := Arch.run a s f args in
+        let*~ ret := ret_opt else "expected return value from fruitful extern" in
+        ok [update s' x ret]
+      end.
+
+  End Semantics.
 End GCL.

@@ -545,7 +545,7 @@ Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : r
   | StatSwCaseAction tags label code =>
     error "[FIXME] switch case action unimplemented"
   | StatSwCaseFallThrough tags label =>
-    error "[FIXME] switch case fall trhough unimplemented"
+    error "[FIXME] switch case fall through unimplemented"
   end
 with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : result (ST.s tags_t) :=
   match pre_s with
@@ -559,13 +559,10 @@ with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : re
       if String.eqb f_name "apply"
       then
         match get_type_of_expr e with
-        | TypAction data_params control_params =>
-          let** act_args := error "[FIXME] translate arguments -- actions have only one set of params?" in
-          ST.SActCall name act_args tags
         | TypControl (MkControlType type_params parameters) =>
-          (* TODO WHAT HAPPENS TO TYPE PARAMETERS?? *)
-          let* ext_args := error "[FIXME] extern args" in
-          let** ctrl_args := error "[FIXME] translate control arguments" in
+          (* TODO what happens to type parameters?? *)
+          let* ext_args := error "[FIXME] (directionless) args" in
+          let** ctrl_args := error "[FIXME] ((In)?(Out)?) control arguments" in
           ST.SApply name ext_args ctrl_args tags
         | TypTable result_typ_name =>
           ok (ST.SInvoke name tags)
@@ -579,10 +576,11 @@ with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : re
         | TypExtern e =>
           let** args := error "HOW DO ARGUMENTS WORK?" in
           SExternMethodCall e_str f_str args tags
+        | TypAction data_params control_params =>
+          let** act_args := error "[FIXME] translate arguments -- actions have only one set of params?" in
+          ST.SActCall name act_args tags
         | _ =>
           error "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s."
-
-
         end
         
     | ExpName (BareName n) loc =>

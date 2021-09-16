@@ -552,12 +552,12 @@ with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : re
   | StatMethodCall func type_args args =>
     let '(MkExpression tags func_pre typ dir) := func in
     match func_pre with
-    | ExpExpressionMember e name =>
-      let name_str := P4String.str name in
-      if String.eqb name_str "apply"
+    | ExpExpressionMember e f =>
+      let f_str := P4String.str f in
+      let* e_name := get_name e in
+      let e_str := P4String.str e_name in
+      if String.eqb f_name "apply"
       then
-        let* e_name := get_name e in
-        let name := P4String.str e_name in
         match get_type_of_expr e with
         | TypAction data_params control_params =>
           let** act_args := error "[FIXME] translate arguments -- actions have only one set of params?" in
@@ -575,14 +575,22 @@ with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : re
           error "[FIXME] got a type that cannot be applied."
         end
       else
-        error "[FIXME] Not sure how to translate member functions that aren't `apply`s. I guess this must be an extern?"
+        match get_type_of_expr e with
+        | TypExtern e =>
+          let** args := error "HOW DO ARGUMENTS WORK?" in
+          SExternMethodCall e_str f_str args tags
+        | _ =>
+          error "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s."
 
+
+        end
+        
     | ExpName (BareName n) loc =>
       match typ with
       | TypFunction (MkFunctionType type_params parameters kind ret) =>
         let** args := error "[FIXME] compute function args for function call" in
         ST.SFunCall (P4String.str n) args tags
-      | _ => error "A name, applied like a method call, must be a function type; I got something else"
+      | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
       end
     | _ => error "ERROR :: Cannot handle this kind of expression"
     end

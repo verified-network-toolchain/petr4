@@ -161,6 +161,28 @@ Definition realize_array_index (e : @Expression tags_t) : result Z :=
   end.
 
 
+Module NameGen.
+  Definition t := list (string * nat).
+  Fixpoint rep s n :=
+    match n with
+    | O => ""
+    | S n' => s ++ rep s n'
+    end.
+
+  Fixpoint fresh (g : t) (x : string) : (t * string) :=
+    match g with
+    | [] => ([(x, 1)], x)
+    | (y,n)::g' =>
+      if String.eqb y x
+      then
+        ((y,n+1)::g', x ++ rep "$" n)
+      else
+        let (g'', x') := fresh g' x in
+        ((y,n)::g'', x')
+    end.
+
+End NameGen.
+
 Section HoistEffects.
 
   Definition get_type_of_expr (e : Expression) : @P4Type tags_t :=
@@ -268,7 +290,7 @@ Section HoistEffects.
     | _ => error "Typerror :: unrecognized function application"
     end.
 
-    Fixpoint extract_funs_from_exp (e : Expression) : result (list Statement * Expression) :=
+  Fixpoint extract_funs_from_exp (e : Expression) : result (list Statement * Expression) :=
     let '(MkExpression tags expr typ dir) := e in
     let** (hoist, e) := extract_funs_from_exp_pre_t expr in
     (hoist, MkExpression tags e typ dir)
@@ -359,6 +381,68 @@ Section HoistEffects.
 
 End HoistEffects.
 
+Section ElimDA.
+
+  Definition get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
+    match t with
+    | TypTypeName (BareName str) => ok str
+    | TypControl c => error "[FIXME] get name from control type"
+    | TypParser c => error "[FIXME] get name from parser type"
+    | _ => error "Don't know how to get constructor from arbitrary type"
+    end.
+
+  Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
+    let** type_name := get_string_from_type t in
+    let (g, name) := NameGen.fresh g (P4String.str type_name) in
+    let p4str_name := {| P4String.tags := P4String.tags type_name;
+                         P4String.str := name
+                      |} in
+    (g, p4str_name).
+
+
+  (** Eliminate direct application statements by minpting a new name and then applying that named thing *)
+  Fixpoint elim_da_statement (namegen : NameGen.t) (s : Statement) :=
+    let '(MkStatement tags stmt typ) := s in
+    let** (g, stmt') := elim_da_pre_statement namegen tags stmt typ in
+    (g, MkStatement tags stmt typ)
+  with elim_da_pre_statement (namegen : NameGen.t) (tags : tags_t) (stmt : StatementPreT) (type : StmType) : result (NameGen.t * StatementPreT) :=
+    match stmt with
+    | StatDirectApplication typ args =>
+      let** (namegen', inst_name) := inst_name_from_type namegen typ in
+      let inst := StatInstantiation typ args inst_name None in
+      let inst_stmt := MkStatement tags inst type in
+      let inst_pre := ExpName (BareName inst_name) NoLocator in
+      let inst_exp := MkExpression tags inst_pre typ InOut in
+      let apply_name := {|P4String.tags := tags; P4String.str := "apply" |} in
+      let inst_apply := ExpExpressionMember inst_exp apply_name in
+      let inst_apply_exp := MkExpression tags inst_apply typ InOut in
+      let aply := StatMethodCall inst_apply_exp [] [] in
+      let aply_stmt := MkStatement tags aply type in
+      let blck := BlockCons inst_stmt (BlockCons aply_stmt (BlockEmpty tags)) in
+      (namegen', StatBlock blck)
+    | StatConditional cond tru fls_opt =>
+      let* (g', tru') := elim_da_statement namegen tru in
+      match fls_opt with
+      | None => ok (g', StatConditional cond tru' None)
+      | Some fls =>
+        let** (g'', fls') := elim_da_statement namegen fls in
+        (g'', StatConditional cond tru' (Some fls'))
+      end
+    | StatBlock blck =>
+      let** (g', blck') := elim_da_block namegen blck in
+      (g', StatBlock blck')
+    | _ => ok (namegen, stmt)
+    end
+  with elim_da_block (g : NameGen.t) (block : @Block tags_t) :=
+    match block with
+    | BlockEmpty _ => ok (g, block)
+    | BlockCons st rst =>
+      let* (g', st') := elim_da_statement g st in
+      let** (g'', rst') := elim_da_block g' rst in
+      (g'', BlockCons st' rst')
+    end.
+
+End ElimDA.
 
 
 Fixpoint translate_expression_pre_t (i : tags_t) (typ : P4Type) (e_pre : @ExpressionPreT tags_t) : result (E.e tags_t) :=
@@ -447,6 +531,15 @@ with translate_expression (e : @Expression tags_t) : result (E.t * E.e tags_t) :
     (cub_type, cub_expr)
   end.
 
+Definition get_name (e : Expression) : result (P4String.t tags_t) :=
+  let '(MkExpression _ pre_e _ _ ) := e in
+  match pre_e with
+  | ExpName (BareName n ) _ => ok n
+  | ExpName _ _ => error "Qualified Names are Deprecated"
+  | _ => error "Tried to get the name of an expression that wasn't an ExpName"
+  end.
+
+
 Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
   match ssw with
   | StatSwCaseAction tags label code =>
@@ -457,7 +550,42 @@ Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : r
 with translate_statement_pre_t (i : tags_t) (pre_s : @StatementPreT tags_t) : result (ST.s tags_t) :=
   match pre_s with
   | StatMethodCall func type_args args =>
-    error "[FIXME] (StatMethodCall) Needs to be disambiguated into Invoke, FUNCTION CALLS, and Extern Method Calls"
+    let '(MkExpression tags func_pre typ dir) := func in
+    match func_pre with
+    | ExpExpressionMember e name =>
+      let name_str := P4String.str name in
+      if String.eqb name_str "apply"
+      then
+        let* e_name := get_name e in
+        let name := P4String.str e_name in
+        match get_type_of_expr e with
+        | TypAction data_params control_params =>
+          let** act_args := error "[FIXME] translate arguments -- actions have only one set of params?" in
+          ST.SActCall name act_args tags
+        | TypControl (MkControlType type_params parameters) =>
+          (* TODO WHAT HAPPENS TO TYPE PARAMETERS?? *)
+          let* ext_args := error "[FIXME] extern args" in
+          let** ctrl_args := error "[FIXME] translate control arguments" in
+          ST.SApply name ext_args ctrl_args tags
+        | TypTable result_typ_name =>
+          ok (ST.SInvoke name tags)
+        | TypParser _ =>
+          error "[FIXME] dont have the facilities to translate arbitrary parser invocations"
+        | _ =>
+          error "[FIXME] got a type that cannot be applied."
+        end
+      else
+        error "[FIXME] Not sure how to translate member functions that aren't `apply`s. I guess this must be an extern?"
+
+    | ExpName (BareName n) loc =>
+      match typ with
+      | TypFunction (MkFunctionType type_params parameters kind ret) =>
+        let** args := error "[FIXME] compute function args for function call" in
+        ST.SFunCall (P4String.str n) args tags
+      | _ => error "A name, applied like a method call, must be a function type; I got something else"
+      end
+    | _ => error "ERROR :: Cannot handle this kind of expression"
+    end
   | StatAssignment lhs rhs =>
     let* (cub_ltyp, cub_lhs) := translate_expression lhs in
     let** (_, cub_rhs) := translate_expression rhs in
@@ -534,8 +662,6 @@ Fixpoint translate_transition (transition : ParserTransition) : result (Parser.e
     Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
   end.
 
-Print fold_right.
-
 Definition translate_statements (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
   fold_right (fun s res_acc => let* cub_s := translate_statement s in
                                let** acc := res_acc in
@@ -560,11 +686,6 @@ Fixpoint translate_parser_states (pstates : list ParserState) : result (option (
   fold_right translate_parser_states_inner (ok (None, [])) pstates.
 
 
-Definition get_ctor_string_from_type (t : P4Type) : result string :=
-  match t with
-  | TypTypeName (BareName str) => ok (@P4String.str tags_t str)
-  | _ => error "Don't know how to get constructor from non BareName TypeName"
-  end.
 
 Fixpoint translate_decl (d : @Declaration tags_t) : result (tags_t * @aenv tags_t * @tenv tags_t * P4cub.TopDecl.d tags_t) :=
   match d with

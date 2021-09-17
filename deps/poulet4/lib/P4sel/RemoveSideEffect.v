@@ -256,6 +256,9 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
   | CubS.SApply x ext args i => (* TODO: extern runtime params *)
     let '((stmt_args, args'), env_args) := TranslateArgs args env i in 
     (SelS.SSeq stmt_args (SelS.SApply x ext args' i) i, env_args)
+  | CubS.SSetValidity hdr val i  => 
+    let '((hdr_stmt, hdr'), env_hdr) := TranslateExpr hdr env in 
+    (SelS.SSeq hdr_stmt (SelS.SSetValidity hdr' val i) i, env_hdr)
   end.
 
 

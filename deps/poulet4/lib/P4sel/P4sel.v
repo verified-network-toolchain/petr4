@@ -168,6 +168,7 @@ Module P4sel.
                                                            name of an instance *)
                                                            
       | SHeaderStackOp (name : string) (op : P4cub.Stmt.hsop) (n : positive) (i : tags_t) (*push or pop statements*)
+      | SSetValidity (hdr: E.e tags_t) (val : P4cub.Stmt.validity) (i : tags_t)
       
       .
     (**[]*)
@@ -198,8 +199,8 @@ Module P4sel.
     Arguments SExit {_}.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
-    Arguments SHeaderStackOp {tags_t}.
-    
+    Arguments SHeaderStackOp {_}.
+    Arguments SSetValidity {_}.
     
   End Stmt.
 

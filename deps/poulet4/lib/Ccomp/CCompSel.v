@@ -344,24 +344,6 @@ Section CCompSel.
     let member :=  Efield arg' index type_bool in
     Some (Sassign dst' member, env_arg)
     end
-  | P4cub.Expr.SetValid =>
-    match ValidBitIndex arg env_arg with
-    | None => None
-    | Some index =>
-    let member :=  Efield arg' index type_bool in
-    let assign := Sassign member (Econst_int (Integers.Int.one) (type_bool)) in
-    let to_dst := Sassign dst' arg' in
-    Some (Ssequence assign to_dst, env_arg)  
-    end
-  | P4cub.Expr.SetInValid =>
-    match ValidBitIndex arg env_arg with
-    | None => None
-    | Some index =>
-    let member :=  Efield arg' index type_bool in
-    let assign := Sassign member (Econst_int (Integers.Int.zero) (type_bool)) in
-    let to_dst := Sassign dst' arg' in
-    Some (Ssequence assign to_dst, env_arg)  
-    end
   | P4cub.Expr.NextIndex =>
     match HeaderStackIndex arg env_arg with
     | None => None
@@ -382,6 +364,7 @@ Section CCompSel.
     end
   | P4cub.Expr.Push n
   | P4cub.Expr.Pop n => None(*TODO: Push and pop should be removed from ops*)
+  | _ => None  
   end
   end
   end.
@@ -909,7 +892,22 @@ Section CCompSel.
         end
       end
       end
-
+    | ST.SSetValidity arg val i =>
+      match CTranslateExpr arg env with
+      | None => None
+      | Some (arg', env) => 
+        match ValidBitIndex arg env with
+        | None => None
+        | Some index =>
+        let member :=  Efield arg' index type_bool in
+        let val := match val with
+          | P4cub.Stmt.Valid => Econst_int Integers.Int.one type_bool
+          | P4cub.Stmt.Invalid => Econst_int Integers.Int.zero type_bool
+          end in
+        let assign := Sassign member val in
+        Some(assign , env)  
+        end
+      end
     (* | Access e1 [ e2 ] @ i =>  *)
     | _ =>  None
     end.

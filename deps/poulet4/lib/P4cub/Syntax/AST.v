@@ -314,7 +314,7 @@ Module P4cub.
                      (headers : list e) (size : positive)
                      (next_index : Z) (i : tags_t)     (* header stack literals,
                                                           unique to p4light *)
-      | EHeaderStackAccess (stack : e) (index : Z)
+     (*lvalue*) | EHeaderStackAccess (stack : e) (index : Z)
                            (i : tags_t)                (* header stack indexing *)
       | EString (str : string) (i : tags_t)            (* string expression *)
       | EEnum (name member : string) (i : tags_t)      (* enum member *).

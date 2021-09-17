@@ -548,7 +548,7 @@ Section CCompSel.
         |_ => None 
         end
     end.
-    
+  
 
   Definition ArrayAccess (arr : Clight.expr) (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr
   := 
@@ -557,19 +557,21 @@ Section CCompSel.
   result_t.
 
   Definition PushLoop 
-  (stackid: AST.ident) (n : positive) (env: ClightEnv tags_t) 
-  (stack_var : Clight.expr) (arrid : AST.ident) (arr_var : Clight.expr)
-   (size : Clight.expr) (next_var : Clight.expr)
+  (n : positive) (env: ClightEnv tags_t) 
+  (arr_var : Clight.expr)
+  (size : Clight.expr) 
+  (next_var : Clight.expr)
   (i : AST.ident) (val_typ : Ctypes.type) (val_typ_valid_index : AST.ident)
   := 
   let ivar := Etempvar i int_signed in
   let int_one := Econst_int Integers.Int.one int_signed in
+  let int_zero := Econst_int Integers.Int.zero int_signed in
   let int_n := Econst_int (Integers.Int.repr (Zpos n)) int_signed in
   let false := Econst_int Integers.Int.zero type_bool in
   let for_loop := 
   Sfor 
   (Sset i (Ebinop Osub size int_one int_signed)) 
-  (Ebinop Oge ivar int_one type_bool) 
+  (Ebinop Oge ivar int_zero type_bool) 
   (Sset i (Ebinop Osub ivar int_one int_signed)) 
   (
     Sifthenelse 
@@ -589,19 +591,13 @@ Section CCompSel.
    in
   Ssequence for_loop increment
   .
-  Definition CTranslatePush (stack : AST.ident) (n : positive) (env: ClightEnv tags_t) : option (Clight.statement * ClightEnv tags_t):= 
-      let env := add_temp tags_t env "i" int_signed in
-      
-      match find_ident tags_t env "i" with
-      | None => None
-      | Some i => 
-      match lookup_temp_type tags_t env stack with
-      | Some (Ctypes.Tstruct compid noattr) =>
+  
+  Definition findStackAttributes (stack_var: Clight.expr) (stack_t : Ctypes.type) (env: ClightEnv tags_t)
+  :=
+    match stack_t with
+    | Ctypes.Tstruct compid noattr =>
       match lookup_composite_id tags_t env compid with 
-      | Some (Ctypes.Composite _ _ m _) => 
-      match m with
-      | (next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[] =>
-        let stack_var := Evar stack (Tstruct compid noattr) in
+      | Some (Ctypes.Composite _ _ ((next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[]) _) => 
         let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
         match ta with
         | Tarray val_typ _ _ =>
@@ -609,25 +605,121 @@ Section CCompSel.
           | Ctypes.Tstruct val_t_id noattr => 
             match lookup_composite_id tags_t env val_t_id with
             | Some (Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _) =>
-              Some (
-                (PushLoop compid n env stack_var arr_id arr_var size_var 
-                next_var i val_typ val_typ_valid_index), 
-                env) 
-            | _ => None 
+            Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index)
+            |_ => None
             end
           | _ => None
           end
         | _ => None
+        end  
+      |_ => None
+      end
+    | _ => None
+    end.
+    
+
+    
+
+  Definition CTranslatePush (stack : AST.ident) (n : positive) (env: ClightEnv tags_t) : option (Clight.statement * ClightEnv tags_t):= 
+      let env := add_temp tags_t env "i" int_signed in
+      match find_ident tags_t env "i" with
+      | None => None
+      | Some i => 
+      match lookup_temp_type tags_t env stack with
+      | Some stack_t =>
+        let stack_var := Evar stack (stack_t) in
+        match findStackAttributes stack_var stack_t env with
+        | None => None
+        | Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) => 
+          Some (
+            (PushLoop n env arr_var size_var 
+            next_var i val_typ val_typ_valid_index), 
+            env) 
         end
-      | _ => None
-      end
-      | _ => None
-      end
       | _ => None
       end
       end.
 
-  
+  Definition PopLoop 
+  (n : positive) (env: ClightEnv tags_t) 
+  (arr_var : Clight.expr)
+  (size : Clight.expr) 
+  (next_var : Clight.expr)
+  (i : AST.ident) (val_typ : Ctypes.type) (val_typ_valid_index : AST.ident)
+  := 
+  let ivar := Etempvar i int_signed in
+  let int_one := Econst_int Integers.Int.one int_signed in
+  let int_zero := Econst_int Integers.Int.zero int_signed in
+  let int_n := Econst_int (Integers.Int.repr (Zpos n)) int_signed in
+  let false := Econst_int Integers.Int.zero type_bool in
+  let for_loop := 
+  Sfor 
+  (Sset i int_zero) 
+  (Ebinop Olt ivar size type_bool) 
+  (Sset i (Ebinop Oadd ivar int_one int_signed)) 
+  (
+    Sifthenelse 
+    (Ebinop Olt (Ebinop Oadd ivar int_n int_signed) size type_bool)
+    (Sassign (ArrayAccess arr_var ivar val_typ) (ArrayAccess arr_var (Ebinop Oadd ivar int_n int_signed) val_typ))
+    (Sassign (Efield (ArrayAccess arr_var ivar val_typ) val_typ_valid_index type_bool) false)
+  )
+  in 
+  let decrement := 
+  Sifthenelse 
+  (Ebinop Oge next_var int_n type_bool)
+  (Sassign next_var (Ebinop Osub size int_n int_signed))
+  (Sassign next_var int_zero)
+   in
+  Ssequence for_loop decrement
+  .
+
+  Definition CTranslatePop (stack : AST.ident) (n : positive) (env: ClightEnv tags_t) : option (Clight.statement * ClightEnv tags_t):= 
+    let env := add_temp tags_t env "i" int_signed in
+      match find_ident tags_t env "i" with
+      | None => None
+      | Some i => 
+      match lookup_temp_type tags_t env stack with
+      | Some stack_t =>
+        let stack_var := Evar stack (stack_t) in
+        match findStackAttributes stack_var stack_t env with
+        | None => None
+        | Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) => 
+          Some (
+            (PopLoop n env arr_var size_var 
+            next_var i val_typ val_typ_valid_index), 
+            env) 
+        end
+      | _ => None
+      end
+      end.
+
+  Fixpoint HeaderStackAssignLoop 
+  (env: ClightEnv tags_t) 
+  (arr_var: Clight.expr) 
+  (i_var : Clight.expr) 
+  (fields : F.fs string P4cub.Expr.t) 
+  (headers: list (E.e tags_t))
+  (header_typ : Ctypes.type)
+  : option (Clight.statement * ClightEnv tags_t)
+  := 
+  let true := Econst_int Integers.Int.one type_bool in
+  let int_one := Econst_int Integers.Int.one int_signed in
+  match headers with
+  | [] => Some (Sskip, env)
+  | header :: tl => 
+    match CTranslateExpr header env with
+    | None => None 
+    | Some (header,env) =>
+    let assignHeader := Sassign (ArrayAccess arr_var i_var header_typ) header in
+    let increment := Sassign (i_var) (Ebinop Oadd i_var int_one int_signed) in
+    match HeaderStackAssignLoop env arr_var i_var fields tl header_typ with
+    | None => None
+    | Some (assigntail, env') => 
+      Some ((Ssequence assignHeader (Ssequence increment assigntail)), env')
+    end
+    end
+  end.
+
   Fixpoint CTranslateStatement (s: ST.s tags_t) (env: ClightEnv tags_t ) : option (Clight.statement * ClightEnv tags_t ) :=
     match s with
     | ST.SSkip i => Some (Sskip, env)
@@ -777,9 +869,47 @@ Section CCompSel.
       end
       
 
-    | ST.SHeaderStackOp stack P4cub.Stmt.HSPop n i => None
+    | ST.SHeaderStackOp stack P4cub.Stmt.HSPop n i => 
+      let stack_id := match find_ident_temp_arg tags_t env stack with
+      | Some (_, x) => Some x
+      | None => 
+        match find_ident tags_t env stack with
+        | Some x => Some x
+        | None => None
+        end
+      end
+      in
+      match stack_id with
+      | None => None
+      | Some x => 
+      CTranslatePop x n env
+      end
     
-    (* | Stack hdrs : ts [ n ] nextIndex := ni @ i => *)
+    | ST.SHeaderStack fields headers size next_index dst i =>
+      let top_typ := P4cub.Expr.THeaderStack fields size in
+      let (top_typ, env) := CTranslateType top_typ env in
+      let env_destination_declared := add_var tags_t env dst top_typ in
+      match find_ident tags_t env dst with
+      | None => None
+      | Some stack => 
+      let stack_var := Evar stack top_typ in
+      match findStackAttributes stack_var top_typ env with
+        | None => None
+        | Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) => 
+        let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
+        let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
+        let assignSize := Sassign size_var int_size in
+        let assignNext := Sassign next_var int_next in
+        let env := add_temp tags_t env "i" int_signed in
+        match find_ident tags_t env "i" with
+        | None => None
+        | Some i => 
+        let i_var := Etempvar i int_signed in
+         HeaderStackAssignLoop env arr_var i_var fields headers val_typ 
+        end
+      end
+      end
+
     (* | Access e1 [ e2 ] @ i =>  *)
     | _ =>  None
     end.

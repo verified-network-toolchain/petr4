@@ -7,12 +7,10 @@
 
 typedef void *$pkt_in;
 typedef void *$pkt_out;
-typedef void *$BitVec;
 
-struct BitVec
-{
-  //True = signed, False = unsigned 
-  bool signed;
+typedef struct BitVec {
+  //1 = signed, 0 = unsigned 
+  int is_signed;
 
   //representation of the binary width of the number representation of the bit_vec
   int width;
@@ -28,7 +26,8 @@ void reset_bitvec (mpz_t x) {
 
 enum operation{
   Plus,
-  PlusSat 
+  PlusSat,
+  Sub, 
   Mul
 };
 
@@ -41,42 +40,47 @@ void extract($pkt_in pkt, void *data, int len);
 void emit($pkt_out pkt, void *data, int len);
 
 //unary operators
-void eval_uminus($BitVec v, $BitVec dst) {
-  init_bitvec(v.input, n);
-  mpz_neg(n, v_bitvec);
-  dst = bit_vec(mpz_get_str(NULL, 10, n));
-  reset_bitvec(n); 
-}
-
-//binary operators
-void eval_sat_add(mpz_t dst_value, const mpz_t l_value, const mpz_t r_value) {
-  switch (l.signed, r.signed):
-    case (True, True):
-      mpz_add(dst_value, l_value, r_value);
-      mpz_mod(dst.value, dst.value, dst.width);
-    default:
-      dst.signed = True; 
-      mpz_add(dst_value, l_value, r_value);
-      mpz_mod(dst.value, dst.value, pow(2, dst.width)-1);
-}
-
-void interp_binary_op(operation op, $BitVec l, $BitVec r) {
+void eval_uminus(mpz_t v) {
   mpz_t dst_value;
   mpz_init(dst_value);
   mpz_set_ui(dst_value, 0);
-  struct BitVec dst = { .signed = False,
-                        .width = l.width, //assumption: width of l and r are =
-                        .value = dst_value }
+  mpz_neg(dst_value, v);
+}
 
-  switch (op):
+//binary operators
+void eval_sat_add(struct BitVec *dst, struct BitVec l, struct BitVec r) {
+  if (l.is_signed == 1 && r.is_signed == 1) {
+    mpz_add(dst->value, l.value, r.value);
+    mpz_mod_ui(dst->value, dst->value, dst->width);
+  }
+  else {
+    dst->is_signed = 1; 
+    mpz_add(dst->value, l.value, r.value);
+    mpz_mod_ui(dst->value, dst->value, pow(2, dst->width)-1);
+  }
+}
+
+void interp_binary_op(enum operation op, struct BitVec l, struct BitVec r) {
+  mpz_t dst_value;
+  mpz_init(dst_value);
+  mpz_set_ui(dst_value, 0);
+  struct BitVec dst = { 0,
+                        l.width, //assumption: width of l and r are =
+                        dst_value };
+
+  switch (op) {
     case Plus:
       mpz_add(dst.value, l.value, r.value);
-      mpz_mod(dst.value, dst.value, dst.width);
+      mpz_mod_ui(dst.value, dst.value, dst.width);
     case PlusSat:
-      eval_sat_add(dst.value, l.value, r.value);
+      eval_sat_add(&dst, l, r);
+    case Sub:
+      mpz_sub(dst.value, l.value, r.value);
+      mpz_mod_ui(dst.value, dst.value, dst.width);
     case Mul:
       mpz_mul(dst.value, l.value, r.value);
-      mpz_mod(dst.value, dst.value, dst.width);
+      mpz_mod_ui(dst.value, dst.value, dst.width);
     default:
-      failwith("unimplemented")
+      ;
+  };
 }

@@ -27,8 +27,16 @@ void reset_bitvec (mpz_t x) {
 enum operation{
   Plus,
   PlusSat,
-  Sub, 
-  Mul
+  Minus,
+  MinusSat, 
+  Mul,
+  Div,
+  Mod,
+  Shl,
+  Shr,
+  BitAnd,
+  BitXor,
+  BitOr
 };
 
 /**
@@ -48,12 +56,15 @@ void eval_uminus(mpz_t v) {
 }
 
 //binary operators
-void eval_sat_add(struct BitVec *dst, struct BitVec l, struct BitVec r) {
+//is_add = 1 --> add, is_add = -1 --> subtract 
+void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int is_add) {
   if (l.is_signed == 1 && r.is_signed == 1) {
+    mpz_mul(r.value, r.value, is_add);
     mpz_add(dst->value, l.value, r.value);
     mpz_mod_ui(dst->value, dst->value, dst->width);
   }
   else {
+    mpz_mul(r.value, r.value, is_add);
     dst->is_signed = 1; 
     mpz_add(dst->value, l.value, r.value);
     mpz_mod_ui(dst->value, dst->value, pow(2, dst->width)-1);
@@ -73,13 +84,36 @@ void interp_binary_op(enum operation op, struct BitVec l, struct BitVec r) {
       mpz_add(dst.value, l.value, r.value);
       mpz_mod_ui(dst.value, dst.value, dst.width);
     case PlusSat:
-      eval_sat_add(&dst, l, r);
-    case Sub:
+      eval_sat_add_sub(&dst, l, r, 1);
+    case Minus:
       mpz_sub(dst.value, l.value, r.value);
       mpz_mod_ui(dst.value, dst.value, dst.width);
+    case MinusSat:
+      eval_sat_add_sub(&dst, l, r, -1);
     case Mul:
       mpz_mul(dst.value, l.value, r.value);
       mpz_mod_ui(dst.value, dst.value, dst.width);
+    case Div: 
+      mpz_cdiv_q(dst.value, l.value, r.value);
+      mpz_mod_ui(dst.value, dst.value, dst.width);
+    case Mod:
+      mpz_mod(dst.value, l.value, r.value);
+    case Shl:
+      mpz_mul_2exp(dst.value, l.value, r.value);
+    case Shr:
+      //For positive n both mpz_fdiv_q_2exp and mpz_tdiv_q_2exp are simple bitwise right shifts. For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift treating n as twos complement the same as the bitwise logical functions do, whereas mpz_tdiv_q_2exp effectively treats n as sign and magnitude.
+      if(dst.is_signed) { //might want to fix this condition 
+        mpz_fdiv_q_2exp(dst.value, l.value, r.value); 
+      } 
+      else {
+        mpz_tdiv_q_2exp(dst.value, l.value, r.value);
+      }
+    case BitAnd:
+      mpz_and(dst.value, l.value, r.value);
+    case BitXor:
+      mpz_xor(dst.value, l.value, r.value); 
+    case BitOr:
+      mpz_ior(dst.value, l.value, r.value); 
     default:
       ;
   };

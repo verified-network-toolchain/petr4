@@ -426,8 +426,8 @@ Module GCL.
       end.
 
 
-
-
+    (* translate_pipeline :: list t -> result t *)
+    (* Model inter-stage behavior using GCL code (inluding externs) *)
     Fixpoint denote (a : Arch.t) (s : store) (g : @t string BitVec.t form) : result (list store) :=
       match g with
       | GSkip _ => ok [s]
@@ -452,7 +452,7 @@ Module GCL.
         then error "Assertion Failure"
         else ok [s]
       | GExternVoid f args =>
-        let** (s', _ ) := Arch.run a s f args in
+        let** (s', _) := Arch.run a s f args in
         [s']
       | GExternAssn x f args =>
         let* (s', ret_opt) := Arch.run a s f args in

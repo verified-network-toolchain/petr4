@@ -511,11 +511,11 @@ Fixpoint translate_expression_pre_t (i : tags_t) (typ : P4Type) (e_pre : @Expres
     let** (cub_typ,cub_expr) := translate_expression expr in
     E.EExprMember (P4String.str name) cub_typ cub_expr i
   | ExpTernary cond tru fls =>
-    error "[FIXME] ternary expressions unimplemented"
+    error "Ternary expressions should have been hoisted by a previous pass"
   | ExpFunctionCall func type_args args =>
-    error "[FIXME] function calls unimplemented"
+    error "Function Calls shoul dhave been hoisted by a previous pass"
   | ExpNamelessInstantiation typ args =>
-    error "[FIXME] nameless insts unimplemented"
+    error "Nameless Intantiations should have been hoisted by a previous pass"
   | ExpDontCare =>
     error "[FIXME] These are actually patterns (unimplemented)"
   | ExpMask expr mask =>

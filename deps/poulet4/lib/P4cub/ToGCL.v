@@ -116,7 +116,7 @@ Module Ctx.
     string_member v (ctx.(locals)).
 
   Definition scope_name (v : string) (idx : nat) : string :=
-    v ++ "_____" ++ string_of_nat idx.
+    v ++ "__$__" ++ string_of_nat idx.
 
 
   Definition relabel_for_scope (ctx : t) (v : string) : string :=

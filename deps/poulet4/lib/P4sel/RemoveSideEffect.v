@@ -142,11 +142,9 @@ Fixpoint TranslateExpr (e : CubE.e tags_t) (env: VarNameGen.t)
   | CubE.EHeaderStackAccess stack index i => 
     let type := CubE.TBool in 
     let '((stack_stmt, stack'), env_stack) := TranslateExpr stack env in
-    let (var_name, env') := VarNameGen.new_var env_stack in
-    let declaration := SelS.SVardecl type var_name i in
-    let assign := SelS.SHeaderStackAccess stack' index var_name i in 
-    let stmt := SelS.SSeq stack_stmt (SelS.SSeq declaration assign i) i in
-    ( (stmt, SelE.EVar type var_name i), env')
+    let val := SelE.EHeaderStackAccess stack' index i in 
+    let stmt := stack_stmt in
+    ( (stmt, val), env_stack)
   | CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
   | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)
   end.

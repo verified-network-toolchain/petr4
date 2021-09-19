@@ -31,12 +31,13 @@ Module P4sel.
       | EError (err : option string)
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : P4cub.Expr.matchkind) (i : tags_t)       (* matchkind literals *)
+      | EHeaderStackAccess (stack : e) (index : Z) (i : tags_t) (*header-stack access*)
       | EString (s : string) (i : tags_t)
       | EEnum (x m : string) (i : tags_t)
       .
       (**[]*)
 
-      Definition SelTypeOf (expr: e) :P4cub.Expr.t := 
+      Fixpoint SelTypeOf (expr: e) :P4cub.Expr.t := 
       match expr with
       | EBool _ _ => P4cub.Expr.TBool
       | EVar t _ _ => t
@@ -45,6 +46,12 @@ Module P4sel.
       | EMatchKind _ _ => P4cub.Expr.TMatchKind
       | EString _ _ => P4cub.Expr.TString
       | EEnum x m _ => P4cub.Expr.TEnum x [m]
+      | EHeaderStackAccess stack _ _ => 
+        match SelTypeOf stack with
+        | P4cub.Expr.THeaderStack fields _ => 
+          P4cub.Expr.THeader fields
+        | _ => P4cub.Expr.TBool
+        end
       end
       .
       
@@ -72,6 +79,7 @@ Module P4sel.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
+    Arguments EHeaderStackAccess{tags_t}.
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -140,10 +148,6 @@ Module P4sel.
                       (next_index : Z)
                       (dst : string)
                       (i : tags_t)
-      | SHeaderStackAccess (stack : E.e tags_t)
-                           (index : Z)
-                           (dst : string)
-                           (i : tags_t)
       | SConditional (guard_type : P4cub.Expr.t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
@@ -186,7 +190,6 @@ Module P4sel.
     Arguments SStruct {tags_t}.
     Arguments SHeader {tags_t}.
     Arguments SHeaderStack {tags_t}.
-    Arguments SHeaderStackAccess {tags_t}.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.

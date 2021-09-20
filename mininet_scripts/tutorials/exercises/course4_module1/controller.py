@@ -47,16 +47,6 @@ class MyApp(App):
     topo.add_link("s2", "s3", 5, 2, 1)
 
     self.topo = topo
-    paths = topo.e2e_shortest_paths()
-    self.paths = {}
-    for n1, n2 in paths:
-      self.paths[n1, n2] = [n1] + paths[n1, n2] + [n2]
-
-    print ("e2e paths:")
-    for n1, n2 in self.paths:
-        if n1 < n2:
-            print("%s %s: %s" % (n1, n2, str(self.paths[n1, n2]))) 
-    print("")
   
          
   def __init__(self, port=9000):
@@ -64,24 +54,57 @@ class MyApp(App):
     self.init_topo()
 
   def switch_up(self,switch,ports):
-                     
+    fw_port = "4"
+    lb_port = "3"
+    out_port = "5"
+
     print(f"{switch} is up!")
-    for src, dst in self.paths:
-        p = self.paths[src, dst]
-        if switch in p:
-            ind = p.index(switch)
-            # we are sure there is a next hope
-            # because the hosts are in the path too
-            next_hop = p[ind + 1]
+    
+    if switch == "s1":
+        # tag == 1
+        tag = "1"
+        new_tag = "2"
+        entry = Entry("tag_forwarding", [("hdr.nf_tag.tag", tag)], "tag_forward", [("port", fw_port), ("new_tag", new_tag)])
+        self.insert(switch, entry)
+
+        # tag == 2
+        tag = "3"
+        new_tag = "4"
+        entry = Entry("tag_forwarding", [("hdr.nf_tag.tag", tag)], "tag_forward", [("port", lb_port), ("new_tag", new_tag)])
+        self.insert(switch, entry)
+
+        # tag == 3
+        tag = "5"
+        new_tag = "15"
+        entry = Entry("tag_forwarding", [("hdr.nf_tag.tag", tag)], "tag_forward", [("port", out_port), ("new_tag", new_tag)])
+        self.insert(switch, entry)
+
+        for h in self.topo.hosts():
+            dst_ip = self.host_map[h]["ip"]
+            dst_mac = self.host_map[h]["mac"]
+
+            p = self.topo.shortest_path(switch, h)
+            next_hop = p[1]
             port = str(self.topo.port(switch, next_hop))
             
-            src_ip = self.host_map[src]["ip"]
-
-            dst_ip = self.host_map[dst]["ip"]
-            dst_mac = self.host_map[dst]["mac"]
-      
-            entry = Entry("ipv4", [("hdr.ipv4.srcAddr", src_ip), ("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("dstAddr", dst_mac), ("port", port)])
+            entry = Entry("ipv4", [("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("port", port)])
             self.insert(switch, entry)
+
+            entry = Entry("dst_mac", [("hdr.ipv4.dstAddr", dst_ip)], "set_dst_mac", [("dstAddr", dst_mac)])
+            self.insert(switch, entry)
+
+    else:
+        for h in self.topo.hosts():
+            p = self.topo.shortest_path(switch, h)
+            next_hop = p[1]
+            port = str(self.topo.port(switch, next_hop))
+            
+            dst_ip = self.host_map[h]["ip"]
+            dst_mac = self.host_map[h]["mac"]
+      
+            entry = Entry("ipv4", [("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("dstAddr", dst_mac), ("port", port)])
+            self.insert(switch, entry)
+
     
     return
 

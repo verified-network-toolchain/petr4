@@ -67,6 +67,7 @@ class ExerciseTopo(Topo):
         for sw, params in switches.iteritems():
             # TODO: do we need this? we should test it out
             if "program" in params:
+                print sw, params["program"]
                 switchClass = configureP4Switch(
                                 sw_path= petr4_exe,
                                 p4_prog_path= params["program"],
@@ -391,7 +392,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--topo', help='Path to topology json',
                         type=str, required=False, default='./topology.json')
-    parser.add_argument('-f', '--p4_prog', type=str, required=False)
+    parser.add_argument('-f', '--p4_prog', type=str, nargs="+", required=False)
     parser.add_argument('-I', '--include_path', type=str, required=False)
     parser.add_argument('-b', '--behavioral-exe', help='Path to petr4 executable',
                                 type=str, required=False, default='petr4')

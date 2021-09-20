@@ -4,9 +4,12 @@
 
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<16> TYPE_DISCOVERY = 0x2A2A;
+const bit<8>  PROTO_NF_CHAIN = 145;
 const bit<9> CTRL_PT = 9w510;
 const bit<8> UNINIT = 0xFF;
-
+const bit<9> OUT = 5;
+const bit<8> TAG_INIT = 1;
+const bit<8> TAG_END = 15;
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -36,6 +39,11 @@ header ipv4_t {
     ip4Addr_t dstAddr;
 }
 
+header nf_tag_t {
+    bit<8>  tag;
+    bit<8>  protocol;
+}
+
 header discovery_hdr_t {
     bit<8> start_id;
     bit<8> start_pt;
@@ -49,6 +57,7 @@ struct metadata {
 struct headers {
     ethernet_t      ethernet;
     ipv4_t          ipv4;
+    nf_tag_t        nf_tag;
     discovery_hdr_t discovery;
 }
 
@@ -76,12 +85,20 @@ parser MyParser(packet_in packet,
 
     state parse_ipv4 {
         packet.extract(hdr.ipv4);
+        transition select(hdr.ipv4.protocol){
+          PROTO_NF_CHAIN: parse_nf_tag;
+          default: accept;
+        }
+    }
+
+    state parse_nf_tag {
+        packet.extract(hdr.nf_tag);
         transition accept;
     }
 
     state parse_discovery {
-	packet.extract(hdr.discovery);
-	transition accept;
+      packet.extract(hdr.discovery);
+      transition accept;
     }
 
 }
@@ -106,10 +123,9 @@ control MyIngress(inout headers hdr,
         mark_to_drop(standard_metadata);
     }
     
-    action ipv4_forward(macAddr_t dstAddr, egressSpec_t port) {
+    action ipv4_forward(egressSpec_t port) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
-        hdr.ethernet.dstAddr = dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
     }
     
@@ -125,12 +141,64 @@ control MyIngress(inout headers hdr,
         default_action = drop();
     }
 
-    counter (6, CounterType.packets) port_cntr;
-    
+    action tag_forward(egressSpec_t port, bit<8> new_tag){
+        standard_metadata.egress_spec = port;
+        hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
+        hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        hdr.nf_tag.tag = new_tag;
+        
+        if (new_tag == TAG_END){
+          hdr.ipv4.protocol = hdr.nf_tag.protocol;
+          hdr.ipv4.totalLen = hdr.ipv4.totalLen - 2;
+          hdr.nf_tag.setInvalid();
+        }
+    } 
+
+    table tag_forwarding {
+        key = {
+            hdr.nf_tag.tag: exact;
+        }
+
+        actions = {
+            tag_forward;
+            drop;
+            NoAction;
+        }
+        default_action = drop();
+    }
+
+    action set_dst_mac(macAddr_t dstAddr){
+        hdr.ethernet.dstAddr = dstAddr;
+    }
+
+    table dst_mac {
+        key = {
+            hdr.ipv4.dstAddr: exact;
+        }
+        actions = {
+            set_dst_mac;
+            drop;
+            NoAction;
+        }
+        default_action = drop();
+    }
+
     apply {
         if (hdr.ipv4.isValid()) {
-	        ipv4.apply();
-            port_cntr.count((bit<32>)standard_metadata.egress_spec - 1); 
+          if (standard_metadata.ingress_port == OUT){
+            ipv4.apply();
+          }
+          else {
+            if (!hdr.nf_tag.isValid()){
+                hdr.nf_tag.setValid();
+                hdr.nf_tag.tag = TAG_INIT;
+                hdr.nf_tag.protocol = hdr.ipv4.protocol;
+                hdr.ipv4.protocol = PROTO_NF_CHAIN;
+                hdr.ipv4.totalLen = hdr.ipv4.totalLen + 2;
+            }
+            tag_forwarding.apply();
+          }
+          dst_mac.apply();
         }
     }
 }
@@ -158,7 +226,7 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
 	update_checksum(
 	    hdr.ipv4.isValid(),
             { hdr.ipv4.version,
-	      hdr.ipv4.ihl,
+              hdr.ipv4.ihl,
               hdr.ipv4.diffserv,
               hdr.ipv4.totalLen,
               hdr.ipv4.identification,
@@ -181,7 +249,8 @@ control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
-	packet.emit(hdr.discovery);
+        packet.emit(hdr.nf_tag);
+        packet.emit(hdr.discovery);
     }
 }
 

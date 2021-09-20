@@ -8,10 +8,12 @@
                           "arp -i eth0 -s 10.0.2.20 08:00:00:00:02:00"]},
         "fw": {"ip": "10.0.3.3/24", "mac": "08:00:00:00:03:33",
               "commands":["route add default gw 10.0.3.30 dev eth0",
-                          "arp -i eth0 -s 10.0.3.30 08:00:00:00:03:00"]},
+                          "arp -i eth0 -s 10.0.3.30 08:00:00:00:03:00",
+                          "python3.9 webserver/fw.py > /tmp/p4s-fw.log 2>&1 &"]},
         "lb": {"ip": "10.0.4.4/24", "mac": "08:00:00:00:04:44",
               "commands":["route add default gw 10.0.4.40 dev eth0",
-                          "arp -i eth0 -s 10.0.4.40 08:00:00:00:04:00"]},
+                          "arp -i eth0 -s 10.0.4.40 08:00:00:00:04:00",
+                          "python3.9 webserver/lb.py > /tmp/p4s-lb.log 2>&1 &"]},
         "w1": {"ip": "10.0.5.5/24", "mac": "08:00:00:00:05:55",
               "commands":["route add default gw 10.0.5.50 dev eth0",
                           "arp -i eth0 -s 10.0.5.50 08:00:00:00:05:00",
@@ -30,9 +32,9 @@
                           "python3.9 webserver/server.py &"]}
     },
     "switches": {
-        "s1": {},
-        "s2": {},
-        "s3": {}
+        "s1": {"program": "s1.p4"},
+        "s2": {"program": "forwarding.p4"},
+        "s3": {"program": "forwarding.p4"}
     },
     "links": [
         ["s1-p1", "h1"], ["s1-p2", "h2"], ["s1-p3", "lb"], ["s1-p4", "fw"], ["s1-p5", "s3-p1"],

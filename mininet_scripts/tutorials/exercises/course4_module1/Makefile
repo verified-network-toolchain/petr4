@@ -30,8 +30,14 @@ run: build
 stop:
 	sudo mn -c
 
-build:
-	$(P4C) $(P4C_ARGS) $(source)
+.PHONY: $(source)
+
+$(source):
+	echo $@
+	$(P4C) $(P4C_ARGS) $@
+
+
+build: $(source)
 
 clean: stop
 	rm -f *.pcap

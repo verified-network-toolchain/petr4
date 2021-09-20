@@ -1,4 +1,5 @@
 module I = Info
+module E = Error
 open Core_kernel
 open Prog
 open Env
@@ -7,6 +8,7 @@ open Value
 open Target
 open Bitstring
 open Util
+module Error = E
 module Info = I (* JNF: ugly hack *)
 
 let (>>|) v f = Option.map ~f:f v
@@ -60,7 +62,7 @@ module MakeInterpreter (T : Target) = struct
     | Instantiation { typ; args; name; init = None; _ } -> 
       eval_instantiation ctrl env st typ args (snd name)
     | Instantiation { init = Some _; _ } ->
-      failwith "abstract externs unsupported"
+      Error.raise_eval_err "abstract externs unsupported" (fst d)
     | Parser { name; params; constructor_params; locals; states; _ } ->
       eval_parser_decl env st (snd name) constructor_params params locals states
     | Control { name; params; constructor_params; locals; apply; _ } ->
@@ -168,7 +170,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       let ms = snd ctrl in
       if Bigint.(Bigint.of_int (List.length ms) > size'')
-      then failwith "too many elements inserted to value set"
+      then Error.raise_eval_err "value set size error" (fst size)
       else
         let vset = VSet (SValueSet{size=size';members=ms;sets=[]}) in
         let l = State.fresh_loc () in
@@ -176,7 +178,7 @@ module MakeInterpreter (T : Target) = struct
         let env = EvalEnv.insert_val_bare name l env in
         (env, st, s)
     | SReject _ -> (env, st, s)
-    | _ -> failwith "value set declaration should not return or exit"
+    | signal -> env, st, signal
 
   and eval_action_decl (env : env) (st : state) (name : string)
       (data_params : Parameter.t list) (ctrl_params : Parameter.t list)
@@ -263,7 +265,11 @@ module MakeInterpreter (T : Target) = struct
     | [] ->
       match args with
       | [] -> []
-      | a :: rest -> failwith "too many arguments supplied"
+      | a :: rest -> failwith "TODO"
+         (* Error.raise_eval_err
+           "too many arguments error"
+           (fst (snd a))
+          args are getting stripped of infos much higher up in the stack trace... :( *)
   
   and convert_expression (env : env) (s : (Ast.number * Typed.Type.t) option) : Expression.t option =
     let replace_wildcard s =
@@ -279,7 +285,7 @@ module MakeInterpreter (T : Target) = struct
         | Bit {width} -> Expression.Int (Info.dummy, {value = num; width_signed = Some (width,false)})
         | Bool -> Expression.Int (Info.dummy, {value = num; width_signed = None})
         | TypeName n -> pre_expr_of_typ env (EvalEnv.find_typ n env)
-        | _ -> failwith "unsupported type" in
+        | _ -> Error.raise_eval_err "cannot generate table match from given type" Info.dummy  in
       let pre_exp = pre_expr_of_typ env t in
       let typed_exp : Expression.typed_t = {expr = pre_exp; typ = t; dir = Directionless} in
       let exp = (Info.dummy, typed_exp) in
@@ -295,7 +301,7 @@ module MakeInterpreter (T : Target) = struct
       let action_type = EvalEnv.find_val action_name' env in
       let type_params = match action_type |> extract_from_state st with
         | VAction {params;_} -> params
-        | _ -> failwith "not an action type" in
+        | _ -> Error.raise_eval_err "unknown action" Info.dummy (* TODO *) in
       let existing_args = List.fold_left actions
                           ~f:(fun acc a -> if Types.name_eq (snd a).action.name action_name'
                                            then (snd a).action.args
@@ -306,7 +312,7 @@ module MakeInterpreter (T : Target) = struct
         { annotations = [];
           name = action_name';
           args = existing_args @ ctrl_args } in
-      let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (*type is a hack*)
+      let action : Table.typed_action_ref = { action = pre_action_ref; typ = Void } in (* TODO: type is a hack*)
       (Info.dummy, action)
 
   and create_pre_entries env st actions (key: Table.key list) add =
@@ -315,17 +321,26 @@ module MakeInterpreter (T : Target) = struct
       | Num s ->
         let e = match convert_expression env (Some (s, t)) with
                 | Some e -> e
-                | None -> failwith "unreachable" in
+                | None ->
+                   Error.raise_eval_err
+                     "unable to generate table match from expression"
+                     (Info.dummy) in
         let pre_match = Match.Expression {expr = e} in
         let typed_match : Match.typed_t = {expr = pre_match; typ = Integer} in
         (Info.dummy, typed_match)
       | Slash (s, mask) ->
         let expr = match convert_expression env (Some (s, t)) with
                 | Some e -> e
-                | None -> failwith "unreachable" in
+                | None ->
+                   Error.raise_eval_err
+                     "unable to generate table match from expression"
+                     (Info.dummy) in
         let mask = match convert_expression env (Some (mask, t)) with
                 | Some e -> e
-                | None -> failwith "unreachable" in
+                | None ->
+                   Error.raise_eval_err
+                     "unable to generate table match from expression"
+                     (Info.dummy) in
         let typed_mask : Expression.typed_t =
             { expr = Expression.Mask {expr; mask};
               typ = Typed.Type.Set Typed.Type.Integer;
@@ -354,7 +369,8 @@ module MakeInterpreter (T : Target) = struct
         let n1 = s1 |> snd |> int_of_string in
         let n2 = s2 |> snd |> int_of_string in
         if n1 = n2 then 0 else if n1 < n2 then -1 else 1
-      | _ -> failwith "wrong bodies for @priority" in
+      | Unparsed [s1], _ -> Error.raise_eval_err "wrong body for @priority annotation" (fst ann2)
+      | _ -> Error.raise_eval_err "wrong body for @priority annotation" (fst ann1) in
     let (priority, no_priority) = List.partition_tf entries ~f:(fun e -> List.exists ~f:(fun a -> String.((snd a).name |> snd = "priority")) e.annotations) in
     let sorted_priority = List.stable_sort priority ~compare:priority_cmp in
     sorted_priority @ no_priority
@@ -412,7 +428,7 @@ module MakeInterpreter (T : Target) = struct
           (st,s,VNull)
         | VTable {keys;const_entries;name;actions;default_action} ->
           eval_table ctrl env st keys const_entries name actions default_action
-        | _ -> failwith "apply not implemented on type" end
+        | _ -> Error.raise_eval_err "undefined apply expression" (Info.dummy) (*TODO*) end
     | SReject _ | SReturn _ | SExit -> (st, s, VNull)
 
   and eval_table (ctrl : ctrl) (env : env) (st : state) (key : Table.key list)
@@ -464,17 +480,17 @@ module MakeInterpreter (T : Target) = struct
                             ("action_run", run_enum)
                           ]} in
       (st''',s,v)
-    | _ -> failwith "table expects an action"
+    | _ -> Error.raise_eval_err "table expects an action" (fst action)
 
   and filter_lpm_prod (st : state) (env : env) (mks : string list) (ks : value list)
       (entries : (set * Table.action_ref) list)
       : (set * Table.action_ref) list * (value list) =
     let index = match List.findi mks ~f:(fun _ s -> String.equal s "lpm") with
-      | None -> failwith "unreachable, should have lpm"
+      | None -> Error.raise_eval_err "lpm expected" (Info.dummy) (* TODO *)
       | Some (i,_) -> i in
     let f = function
       | SProd l, a -> (List.nth_exn l index, a)
-      | _ -> failwith "not lpm prod" in
+      | _ -> Error.raise_eval_err  "lpm product expected" (Info.dummy) (* TODO *) in
     let entries =
       entries
       |> List.filter ~f:(fun (s,a) -> values_match_set st ks s)
@@ -488,7 +504,7 @@ module MakeInterpreter (T : Target) = struct
       |> List.filter ~f:(fun s -> String.equal s "lpm")
       |> List.length in
     if num_lpm > 1
-    then failwith "more than one lpm"
+    then Error.raise_eval_err "only one lpm matchkind permitted" (Info.dummy) (*TODO*)
     else num_lpm = 1
 
   and sort_lpm (entries : (set * Table.action_ref) list)
@@ -521,14 +537,14 @@ module MakeInterpreter (T : Target) = struct
       SLpm{w=v1;nbits=v2 |> bigint_of_val |> bits_of_lpmmask Bigint.zero false;v=v2}
     | SProd l -> List.map l ~f:lpm_set_of_set |> SProd
     | SUniversal | SLpm _ -> s
-    | SRange _ | SValueSet _ -> failwith "unreachable"
+    | SRange _ | SValueSet _ -> Error.raise_eval_err "unexpected set type" (Info.dummy) (* TODO *)
 
   and bits_of_lpmmask (acc : Bigint.t) (b : bool) (v : Bigint.t) : Bigint.t =
     let two = Bigint.(one + one) in
     if Bigint.(v = zero)
     then acc
     else if Bigint.(v % two = zero)
-    then if b then failwith "bad lpm mask"
+    then if b then Error.raise_eval_err "bad lpm mask" (Info.dummy) (*TODO*)
           else bits_of_lpmmask acc b Bigint.(v / two)
     else bits_of_lpmmask Bigint.(acc + one) true Bigint.(v/two)
 
@@ -561,8 +577,8 @@ module MakeInterpreter (T : Target) = struct
                 |> eval_stmt ctrl (EvalEnv.push_scope env) st' SContinue
                 |> Tuple.T3.map_fst ~f:(fun _ -> env)
             end
-          | _ -> failwith "conditional guard must be a bool" end
-      | _ -> failwith "unreachable" in
+          | _ -> Error.raise_eval_err "conditional guard expected bool" (fst cond) end
+      | _ -> (env, st', s') in
     match sign with
     | SContinue -> eval_cond' env cond tru fls
     | SReject _ | SReturn _ | SExit -> (env, st, sign)
@@ -583,7 +599,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue -> (env, st, SExit)
     | SReturn v -> (env, st, SReturn v)
     | SExit -> (env, st, SExit)
-    | SReject _ -> failwith "reject and exit in the same block"
+    | SReject _ -> Error.raise_eval_err Error.std_eval_err (Info.dummy) (*TODO*)
 
   and eval_return (ctrl : ctrl) (env : env) (st : state) (sign : signal)
       (expr : Expression.t option) : env * state * signal =
@@ -596,7 +612,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue -> begin match s' with
       | SContinue -> (env, st', SReturn v)
       | SReject _ -> (env, st', s')
-      | SReturn _ | SExit -> failwith "unreachable" end
+      | SReturn _ | SExit -> Error.raise_eval_err Error.std_eval_err Info.dummy (* TODO *) end
 
   and eval_switch (ctrl : ctrl) (env : env) (st : state) (sign : signal) (expr : Expression.t)
       (cases : Statement.switch_case list) : env * state * signal =
@@ -605,7 +621,6 @@ module MakeInterpreter (T : Target) = struct
     match sign with
     | SReject _ | SReturn _ | SExit -> (env, st, sign)
     | SContinue -> match s' with
-      | SReject _ -> (env, st', s')
       | SContinue ->
         let s = assert_enum_field v |> snd in
         let matches = cases
@@ -617,10 +632,10 @@ module MakeInterpreter (T : Target) = struct
           | hd::tl -> hd
             |> List.filter ~f:(function Action _ -> true | _ -> false)
             |> List.hd_exn
-            |> (function Action{label;code} -> code | _ -> failwith "unreachable")
+            |> (function Action{label;code} -> code | _ -> Error.raise_eval_err Error.std_eval_err Info.dummy)
             |> eval_block ctrl env st' SContinue
         end
-      | _ -> failwith "unreachable"
+      | _ -> (env, st', s')
 
   and eval_declaration_stm (ctrl : ctrl) (env : env) (st : state) (sign : signal)
       (decl : Declaration.t) : env * state * signal =
@@ -702,9 +717,7 @@ module MakeInterpreter (T : Target) = struct
         | Mask{expr;mask}                   -> eval_mask ctrl env st expr mask
         | Range{lo;hi}                      -> eval_range ctrl env st lo hi
         | DontCare                          -> st, s, VNull end
-    | SReject _ -> (st, s, VNull)
-    | SReturn _ -> failwith "expression should not return"
-    | SExit -> failwith "expresion should not exit"
+    | _ -> (st, s, VNull)
 
   and eval_name (env : env) (st : state) (name : Types.name)
       (exp : Expression.t) : state * signal * value =
@@ -729,7 +742,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue, SContinue -> (st'', SContinue, v)
     | SReject _,_ -> (st',s, VNull)
     | _,SReject _ -> (st'',s',VNull)
-    | _ -> failwith "unreachable"
+    | _ -> Error.raise_eval_err Error.std_eval_err (fst a)
 
   and eval_bitstring_access (ctrl : ctrl) (env : env) (st : state) (b : Expression.t)
       (m : Bigint.t) (l : Bigint.t) : state * signal * value =
@@ -768,8 +781,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
        let v = Ops.interp_unary_op op v in
       (st', s,v)
-    | SReject _ -> (st',s,VNull)
-    | _ -> failwith "unreachable"
+    | _ -> (st',s,VNull)
 
   and eval_binop (ctrl : ctrl) (env : env) (st : state) (op : Op.bin) (l : Expression.t)
       (r : Expression.t) : state * signal * value =
@@ -791,7 +803,7 @@ module MakeInterpreter (T : Target) = struct
         | SContinue, SContinue -> (st'', SContinue, v)
         | SReject _,_ -> (st',s,VNull)
         | _,SReject _ -> (st'',s',VNull)
-        | _ -> failwith "unreachable"
+        | _ -> Error.raise_eval_err Error.std_eval_err (fst op)
       end
 
   and eval_cast (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
@@ -815,9 +827,9 @@ module MakeInterpreter (T : Target) = struct
         | VSenum fs ->
           let v = find_exn fs enum_name in
           st, SContinue, VSenumField{typ_name=name;enum_name;v}
-        | _ -> failwith "typ mem undefined"
+        | _ -> Error.raise_eval_err "type member undefined" Info.dummy
       end
-    | _ -> failwith "type mem undefined"
+    | _ -> Error.raise_eval_err "type member undefined" Info.dummy
 
   and eval_expr_mem (ctrl : ctrl) (env : env) (st : state) (expr : Expression.t)
       (name : P4String.t) : state * signal * value =
@@ -844,10 +856,9 @@ module MakeInterpreter (T : Target) = struct
             |> third3
             |> Option.value_exn in
           st', s, VBuiltinFun { name; caller; }
-        | _ -> failwith "type member does not exists"
+        | _ -> Error.raise_eval_err "type member undefined" (fst name)
       end
-    | SReject _ -> (st',s,VNull)
-    | _ -> failwith "unreachable"
+    | _ -> (st',s,VNull)
 
   and eval_ternary (ctrl : ctrl) (env : env) (st : state) (c : Expression.t)
       (te : Expression.t) (fe : Expression.t) : state * signal * value =
@@ -855,7 +866,7 @@ module MakeInterpreter (T : Target) = struct
     match c' with
     | VBool(true)  -> (eval_expr ctrl env st' s te)
     | VBool(false) -> (eval_expr ctrl env st' s fe)
-    | _ -> failwith "ternary guard must be a bool"
+    | _ -> Error.raise_eval_err Error.std_eval_err (fst c)
 
   and eval_funcall (ctrl : ctrl) (env : env) (st : state) (func : Expression.t)
       (targs : Type.t list)
@@ -869,9 +880,8 @@ module MakeInterpreter (T : Target) = struct
         eval_builtin ctrl env st' n lv args
       | VExternFun{name=n;caller=v;params} ->
         eval_extern_call ctrl env st' n v params targs args
-      | _ -> failwith "unreachable" end
-    | SReject _ -> (st',s,VNull)
-    | _ -> failwith "unreachable"
+      | _ -> Error.raise_eval_err "expression is not callable" (fst func) end
+    | _ -> (st',s,VNull)
 
   and eval_nameless (ctrl : ctrl) (env : env) (st : state) (typ : Type.t)
       (args : Expression.t list) : state * signal * value =
@@ -897,7 +907,7 @@ module MakeInterpreter (T : Target) = struct
       else 
         let params = List.Assoc.find_exn ps (name_only name) ~equal:String.equal in
         eval_extern_call ctrl env st (name_only name) (Some (loc, name_only name)) params [] args'
-    | _ -> failwith "instantiation unimplemented"
+    | _ -> Error.raise_eval_err "type cannot be instantiated" (Info.dummy) (* TODO *)
 
   and eval_mask (ctrl : ctrl) (env : env) (st : state) (e : Expression.t)
       (m : Expression.t) : state * signal * value =
@@ -908,7 +918,7 @@ module MakeInterpreter (T : Target) = struct
       (st'', s, VSet(SMask{v=v1;mask=v2}))
     | SReject _,_ -> (st',s,VNull)
     | _,SReject _ -> (st'',s',VNull)
-    | _ -> failwith "unreachable"
+    | _ -> Error.raise_eval_err Error.std_eval_err (fst e)
 
   and eval_range (ctrl : ctrl) (env : env) (st : state) (lo : Expression.t)
       (hi : Expression.t) : state * signal * value =
@@ -918,7 +928,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue, SContinue -> (st'', s, VSet(SRange{lo=v1;hi=v2}))
     | SReject _,_ -> (st',s,VNull)
     | _,SReject _ -> (st'',s',VNull)
-    | _ -> failwith "unreachable"
+    | _ -> Error.raise_eval_err Error.std_eval_err (fst lo)
 
   (*----------------------------------------------------------------------------*)
   (* Membership Evaluation *)
@@ -938,7 +948,10 @@ module MakeInterpreter (T : Target) = struct
     | "isValid" -> begin try
       let (_, _, lv) = lvalue_of_expr ctrl env st SContinue e in
       st, SContinue, VBuiltinFun{name=fname; caller=Option.value_exn lv}
-      with _ -> failwith "TODO: edge case with header isValid()" end
+                     with _ ->
+                       Error.raise_eval_err
+                         Error.std_eval_err
+                         Info.dummy (* TODO: edge case with header isValid() *) end
     | _ -> (st, SContinue, T.read_header_field valid fs fname)
 
   and eval_union_mem (ctrl : ctrl) (env : env) (st : state)
@@ -961,7 +974,7 @@ module MakeInterpreter (T : Target) = struct
     | "lastIndex" -> eval_stack_lastindex env st next
     | "pop_front" | "push_front" ->
       eval_stack_builtin ctrl env st fname e
-    | _ -> failwith "stack member unimplemented"
+    | _ -> Error.raise_eval_err "unknown stack member" (Info.dummy) (* TODO *)
 
   and eval_runtime_mem (env : env) (st : state) (mname : string) (expr : Expression.t)
       (loc : loc) (obj_name : string) : state * signal * value =
@@ -1094,7 +1107,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue, SContinue -> (lv :: lvs, st', s), (n, v)
     | SReject _, _ -> (lv :: lvs, st, sign), (n, VNull)
     | _, SReject _ -> (lv :: lvs, st', s), (n, VNull)
-    | _ -> failwith "unreachable"
+    | _ -> Error.raise_eval_err Error.std_eval_err (Info.dummy) (* TODO *)
 
   and insert_arg (e, st : EvalEnv.t * state) (p : Parameter.t)
       (name, v : string * value) : env * state =
@@ -1132,10 +1145,10 @@ module MakeInterpreter (T : Target) = struct
     | "apply" ->
       let lvname = match lv.lvalue with
         | LName {name} -> name
-        | _ -> failwith "bad apply" in
+        | _ -> Error.raise_eval_err "unknown built-in function name" Info.dummy (* TODO *) in
       let (s,v) = value_of_lvalue env st lv in
       eval_app ctrl (EvalEnv.set_namespace (name_only lvname) env) st s v args
-    | _ -> failwith "builtin unimplemented"
+    | _ -> Error.raise_eval_err "unknown built-in function name" Info.dummy (* TODO *)
 
   and eval_isvalid (env : env) (st : state)
       (lv : lvalue) : state * signal * value =
@@ -1148,8 +1161,7 @@ module MakeInterpreter (T : Target) = struct
       let field_valid (_, l) = snd (assert_header l) in
       let valid = List.exists ~f:field_valid fields in
       (st, s, VBool valid)
-    | SContinue, _ ->
-      failwith "isvalid call is not a header"
+    | SContinue, _ -> Error.raise_eval_err "isValid expects header" Info.dummy (* TODO *)
 
   and eval_setbool (env : env) (st : state) (lv : lvalue)
       (b : bool) : state * signal * value =
@@ -1159,8 +1171,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue, VHeader hdr ->
        let st, signal = assign_lvalue st env lv (VHeader {hdr with is_valid = b}) in
        (st, signal, VBool b)
-    | SContinue, _ ->
-       failwith "isvalid call is not a header"
+    | SContinue, _ -> Error.raise_eval_err "isValid expects header" Info.dummy (* TODO *)
 
   and eval_push_pop (ctrl : ctrl) (env : env) (st : state) (lv : lvalue)
       (args : Expression.t option list) (b : bool) : state * signal * value =
@@ -1169,12 +1180,12 @@ module MakeInterpreter (T : Target) = struct
     let (hdrs, size, next) =
       match v with
       | VStack{headers=hdrs;size;next} -> (hdrs,size,next)
-      | _ -> failwith "push call not a header stack" in
+      | _ -> Error.raise_eval_err "push/pop expects header stack" Info.dummy (* TODO *) in
     let x = if b then Bigint.(size - a) else a in
     let (hdrs1, hdrs2) = List.split_n hdrs Bigint.(to_int_exn x) in
     let t = match lv.typ with
       | Array{typ;_} -> typ
-      | _ -> failwith "not a header stack" in
+      | _ -> Error.raise_eval_err "push/pop expects header stack" Info.dummy (* TODO *) in
     let hdrs0 = List.init (Bigint.to_int_exn a) ~f:(fun x -> x) in
     let hdrs0 =
       List.map hdrs0 ~f:(fun _ -> init_val_of_typ env t) in
@@ -1186,7 +1197,7 @@ module MakeInterpreter (T : Target) = struct
       let (st', _) = assign_lvalue st' env lv v in (st', s, VNull)
     | SReject _, _ -> (st',s,VNull)
     | _, SReject _ -> (st',s',VNull)
-    | _ -> failwith "unreachble"
+    | _ -> Error.raise_eval_err Error.std_eval_err Info.dummy
 
   and eval_push_pop_args (ctrl : ctrl) (env : env) (st : state)
       (args : Expression.t option list) : state * signal * Bigint.t =
@@ -1195,9 +1206,9 @@ module MakeInterpreter (T : Target) = struct
       let (st', s, v) = eval_expr ctrl env st SContinue value in
       begin match s with
         | SContinue -> (st', s, bigint_of_val v)
-        | SReject _ -> (st', s, Bigint.zero)
-        | _ -> failwith "unreachable" end
-    | _ -> failwith "invalid push or pop args"
+        | _ -> (st', s, Bigint.zero) end
+    | Some e :: _ -> Error.raise_eval_err "invalid arguments for push or pop call" (fst e)
+    | _ -> Error.raise_eval_err "invalid arguments for push or pop call" Info.dummy (* TODO *)
 
   (*----------------------------------------------------------------------------*)
   (* Parser Evaluation *)
@@ -1215,8 +1226,7 @@ module MakeInterpreter (T : Target) = struct
       let (penv, st, final_state) = eval_state_machine ctrl penv st states' start in
       let st = (env <-- penv) st params lvs in
       (st, final_state)
-    | SReject _ -> (st, s)
-    | _ -> failwith "unreachable"
+    | _ -> (st, s)
 
   and eval_state_machine (ctrl : ctrl) (env : env) (st : state)
       (states : (string * Parser.state) list)
@@ -1234,9 +1244,7 @@ module MakeInterpreter (T : Target) = struct
     | SContinue ->
       eval_transition ctrl env' st' states transition
       |> Tuple.T3.map_fst ~f:EvalEnv.pop_scope
-    | SReject _ -> (env', st', sign)
-    | SReturn _ -> failwith "return statements not permitted in parsers"
-    | SExit -> failwith "exit statements not permitted in parsers"
+    |  _ -> (env', st', sign)
 
   and eval_transition (ctrl : ctrl) (env : env) (st : state)
       (states : (string * Parser.state) list)
@@ -1285,8 +1293,7 @@ module MakeInterpreter (T : Target) = struct
         | Some (fenv,st,next) ->
           let next' = snd (snd next).next in
           eval_direct ctrl fenv st states next' end
-    | SReject _ -> (env,st', s)
-    | _ -> failwith "unreachable"
+    | _ -> (env,st', s)
 
   (* -------------------------------------------------------------------------- *)
   (* Control Evaluation *)
@@ -1313,13 +1320,12 @@ module MakeInterpreter (T : Target) = struct
       (case : Parser.case) (ws : Bigint.t list) : env * state * signal * set =
     match s with
     | SContinue -> set_of_matches ctrl env st s (snd case).matches ws
-    | SReject _ -> (env,st,s,SUniversal)
-    | _ -> failwith "unreachable"
+    | _ -> (env,st,s,SUniversal)
 
   and set_of_matches (ctrl : ctrl) (env : env) (st : state) (s : signal)
       (ms : Match.t list) (ws : Bigint.t list) : env * state * signal * set =
     match ms,ws with
-    | [],_ -> failwith "invalid set"
+    | [],_ -> Error.raise_eval_err  "invalid set" Info.dummy (* TODO *)
     | [m],[w] -> set_of_match ctrl env st s m w
     | l,ws ->
       let f i (a,b,c) d =
@@ -1337,8 +1343,7 @@ module MakeInterpreter (T : Target) = struct
         | Expression{expr} ->
           let (st', s, v) = eval_expr ctrl env st SContinue expr in
           (env, st', s, assert_set v w) end
-    | SReject _ -> (env, st, s, SUniversal)
-    | _ -> failwith "unreachable"
+    | _ -> (env, st, s, SUniversal)
 
   and values_match_set (st : state) (vs : value list) (s : set) : bool =
     match s with
@@ -1406,7 +1411,7 @@ module MakeInterpreter (T : Target) = struct
     | Enum et -> BareName (Info.dummy, et.name)
     | SpecializedType { base; args = _ } ->
         name_of_type_ref base
-    | _ -> failwith "can't find name for this type"
+    | _ -> Error.raise_eval_err "expected named type" Info.dummy (* TODO *)
 
   and eval_statement ctrl env st s =
     let (a,b,_) = eval_stmt ctrl env st SContinue s in (a,b)

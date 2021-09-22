@@ -71,50 +71,168 @@ void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int 
   }
 }
 
-void interp_binary_op(enum operation op, struct BitVec l, struct BitVec r) {
+struct BitVec init_interp_binary_op(struct BitVec l) {
   mpz_t dst_value;
   mpz_init(dst_value);
   mpz_set_ui(dst_value, 0);
   struct BitVec dst = { 0,
                         l.width, //assumption: width of l and r are =
                         dst_value };
+  return dst; 
+}
 
-  switch (op) {
-    case Plus:
-      mpz_add(dst.value, l.value, r.value);
-      mpz_mod_ui(dst.value, dst.value, dst.width);
-    case PlusSat:
-      eval_sat_add_sub(&dst, l, r, 1);
-    case Minus:
-      mpz_sub(dst.value, l.value, r.value);
-      mpz_mod_ui(dst.value, dst.value, dst.width);
-    case MinusSat:
-      eval_sat_add_sub(&dst, l, r, -1);
-    case Mul:
-      mpz_mul(dst.value, l.value, r.value);
-      mpz_mod_ui(dst.value, dst.value, dst.width);
-    case Div: 
-      mpz_cdiv_q(dst.value, l.value, r.value);
-      mpz_mod_ui(dst.value, dst.value, dst.width);
-    case Mod:
-      mpz_mod(dst.value, l.value, r.value);
-    case Shl:
-      mpz_mul_2exp(dst.value, l.value, r.value);
-    case Shr:
-      //For positive n both mpz_fdiv_q_2exp and mpz_tdiv_q_2exp are simple bitwise right shifts. For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift treating n as twos complement the same as the bitwise logical functions do, whereas mpz_tdiv_q_2exp effectively treats n as sign and magnitude.
-      if(dst.is_signed) { //might want to fix this condition 
-        mpz_fdiv_q_2exp(dst.value, l.value, r.value); 
-      } 
-      else {
-        mpz_tdiv_q_2exp(dst.value, l.value, r.value);
-      }
-    case BitAnd:
-      mpz_and(dst.value, l.value, r.value);
-    case BitXor:
-      mpz_xor(dst.value, l.value, r.value); 
-    case BitOr:
-      mpz_ior(dst.value, l.value, r.value); 
-    default:
-      ;
-  };
+struct BitVec eval_plus(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_add(dst.value, l.value, r.value);
+  mpz_mod_ui(dst.value, dst.value, dst.width);
+  return dst; 
+}
+
+struct BitVec eval_plus_sat(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  eval_sat_add_sub(&dst, l, r, 1);
+  return dst; 
+}
+
+struct BitVec eval_minus(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_sub(dst.value, l.value, r.value);
+  mpz_mod_ui(dst.value, dst.value, dst.width);
+  return dst; 
+}
+
+struct BitVec eval_minus_sat(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  eval_sat_add_sub(&dst, l, r, -1);
+  return dst; 
+}
+
+struct BitVec eval_mul(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_mul(dst.value, l.value, r.value);
+  mpz_mod_ui(dst.value, dst.value, dst.width);
+  return dst; 
+}
+
+struct BitVec eval_div(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_cdiv_q(dst.value, l.value, r.value);
+  mpz_mod_ui(dst.value, dst.value, dst.width);
+  return dst; 
+}
+
+struct BitVec eval_mod(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_mod(dst.value, l.value, r.value);
+  return dst; 
+}
+
+struct BitVec eval_shl(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_mul_2exp(dst.value, l.value, r.value);
+  return dst; 
+}
+
+struct BitVec eval_shr(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  //For positive n both mpz_fdiv_q_2exp and mpz_tdiv_q_2exp are simple bitwise right shifts. 
+  //For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift 
+  //treating n as twos complement the same as the bitwise logical functions 
+  //do, whereas mpz_tdiv_q_2exp effectively treats n as sign and magnitude.
+  if(dst.is_signed) { //might want to fix this condition 
+    mpz_fdiv_q_2exp(dst.value, l.value, r.value); 
+  } 
+  else {
+    mpz_tdiv_q_2exp(dst.value, l.value, r.value);
+  }
+}
+
+//1 = true, 0 = false
+int eval_le(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) <= 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_ge(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) >= 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_lt(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) < 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_gt(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) > 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_eq(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) == 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_not_eq(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp(l.value, r.value) != 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+struct BitVec eval_bitand(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_and(dst.value, l.value, r.value);
+  return dst; 
+}
+
+struct BitVec eval_bitxor(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_xor(dst.value, l.value, r.value); 
+  return dst; 
+}
+
+struct BitVec eval_bitor(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  mpz_ior(dst.value, l.value, r.value); 
+  return dst; 
+}
+
+//1 = true, 0 = false
+int eval_and(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp_d(l.value, 0.0) != 0 ||  mpz_cmp_d(r.value, 0.0) != 0) {
+    return 1;
+  } 
+  return 0; 
+}
+
+//1 = true, 0 = false
+int eval_or(enum operation op, struct BitVec l, struct BitVec r) {
+  struct BitVec dst = init_interp_binary_op(l); 
+  if (mpz_cmp_d(l.value, 0.0) != 0 &&  mpz_cmp_d(r.value, 0.0) != 0) {
+    return 1;
+  } 
+  return 0; 
 }

@@ -29,11 +29,13 @@ Parameter print_Clight: Clight.program -> unit.
 Section CCompSel.
   
   Context (tags_t: Type).
-  (*map between string and ident*)
-  Definition long_unsigned := (Tlong Unsigned noattr).
-  Definition long_signed := (Tlong Signed noattr).
-  Definition int_unsigned := (Tint I32 Unsigned noattr).
-  Definition int_signed := (Tint I32 Signed noattr).
+  (*common values*)
+  Definition long_unsigned := Tlong Unsigned noattr.
+  Definition long_signed := Tlong Signed noattr.
+  Definition int_unsigned := Tint I32 Unsigned noattr.
+  Definition int_signed := Tint I32 Signed noattr.
+  Definition char := Tint I8 Unsigned noattr.
+  Definition Cstring := Tpointer char noattr.
   Definition bit_vec := 
     (Tstruct (Pos.of_nat 3) noattr).
   Definition packet_in := 
@@ -86,7 +88,7 @@ Section CCompSel.
         (Ctypes.Tstruct top_id noattr, env_comp_added)
         end
     | P4cub.Expr.THeader (fields) => 
-    (* need a validity boolean value *)
+    (* struct plus a validity boolean value *)
         match lookup_composite tags_t env p4t with
         | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
         | None => 
@@ -106,36 +108,36 @@ Section CCompSel.
         end
 
     | P4cub.Expr.THeaderStack fields n=> 
-    match lookup_composite tags_t env p4t with
-    | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
-    | None =>
-      let header := P4cub.Expr.THeader fields in
-      let (hdarray, env_hdarray) := 
-      match lookup_composite tags_t env header with
-      | Some comp => (Ctypes.Tarray (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr) (Zpos n) noattr, env)
-      | None => 
-      let (env_top_id, top_id) := CCompEnv.new_ident tags_t env in
-      let (env_valid, valid_id) := new_ident tags_t env_top_id in 
-      let (members ,env_fields_declared):= 
-      F.fold 
-      (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t ) 
-      => let (members_prev, env_prev) := cumulator in 
-         let (new_t, new_env):= CTranslateType field env_prev in
-         let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-         (members_prev++[(new_id, new_t)], new_env))
-      fields ([(valid_id, type_bool)],env_valid) in
-      let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-      let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
-      (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
-      end in
-      let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray in
-      let (env_size_id, size_id) := CCompEnv.new_ident tags_t env_ptr_id in
-      let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_size_id in
-      let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
-      let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(size_id, int_signed);(arr_id, hdarray)] noattr in
-      let env_comp_added := CCompEnv.add_composite_typ tags_t env_top_id p4t comp_def in
-      ((Ctypes.Tstruct top_id noattr), env_comp_added)      
-    end
+      match lookup_composite tags_t env p4t with
+      | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
+      | None =>
+        let header := P4cub.Expr.THeader fields in
+        let (hdarray, env_hdarray) := 
+        match lookup_composite tags_t env header with
+        | Some comp => (Ctypes.Tarray (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr) (Zpos n) noattr, env)
+        | None => 
+        let (env_top_id, top_id) := CCompEnv.new_ident tags_t env in
+        let (env_valid, valid_id) := new_ident tags_t env_top_id in 
+        let (members ,env_fields_declared):= 
+        F.fold 
+        (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t ) 
+        => let (members_prev, env_prev) := cumulator in 
+          let (new_t, new_env):= CTranslateType field env_prev in
+          let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
+          (members_prev++[(new_id, new_t)], new_env))
+        fields ([(valid_id, type_bool)],env_valid) in
+        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
+        let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
+        (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
+        end in
+        let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray in
+        let (env_size_id, size_id) := CCompEnv.new_ident tags_t env_ptr_id in
+        let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_size_id in
+        let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
+        let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(size_id, int_signed);(arr_id, hdarray)] noattr in
+        let env_comp_added := CCompEnv.add_composite_typ tags_t env_top_id p4t comp_def in
+        ((Ctypes.Tstruct top_id noattr), env_comp_added)      
+      end
 
   end.
 
@@ -153,6 +155,37 @@ Section CCompSel.
     end
   end.
   
+  Definition findStackAttributes (stack_var: Clight.expr) (stack_t : Ctypes.type) (env: ClightEnv tags_t)
+  :=
+    match stack_t with
+    | Ctypes.Tstruct compid noattr =>
+      match lookup_composite_id tags_t env compid with 
+      | Some (Ctypes.Composite _ _ ((next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[]) _) => 
+        let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
+        match ta with
+        | Tarray val_typ _ _ =>
+          match val_typ with
+          | Ctypes.Tstruct val_t_id noattr => 
+            match lookup_composite_id tags_t env val_t_id with
+            | Some (Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _) =>
+            Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index)
+            |_ => None
+            end
+          | _ => None
+          end
+        | _ => None
+        end  
+      |_ => None
+      end
+    | _ => None
+    end.
+  
+  Definition ArrayAccess (arr : Clight.expr) (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr
+  := 
+    Ederef 
+    (Ebinop Oadd arr index (Tpointer result_t noattr))
+    result_t.
+
   Fixpoint CTranslateExpr (e: E.e tags_t) (env: ClightEnv tags_t )
     : option (Clight.expr * ClightEnv tags_t ) :=
     match e with
@@ -199,9 +232,20 @@ Section CCompSel.
                           | _ => None
                           end
                         end 
+    | E.EHeaderStackAccess stack index i => 
+      let (stack_t,env) := CTranslateType (E.SelTypeOf tags_t stack) env in 
+      match CTranslateExpr stack env with
+      | None => None
+      | Some (stack, env) =>
+      match findStackAttributes stack stack_t env with
+        | None => None
+        | Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) => 
+         Some (ArrayAccess arr_var (Econst_int (Integers.Int.repr index) int_signed ) val_typ, env)
+      end
+      end
+
     | E.EError x i => None (*TODO: implement*)
-    | E.EMatchKind mk i => None (*TODO : implement*)
-    
+    | E.EMatchKind mk i => None (*TODO : implement*)    
     end.
 
   Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv tags_t ): option ((list Clight.expr) * ClightEnv tags_t ) :=
@@ -344,24 +388,6 @@ Section CCompSel.
     let member :=  Efield arg' index type_bool in
     Some (Sassign dst' member, env_arg)
     end
-  | P4cub.Expr.SetValid =>
-    match ValidBitIndex arg env_arg with
-    | None => None
-    | Some index =>
-    let member :=  Efield arg' index type_bool in
-    let assign := Sassign member (Econst_int (Integers.Int.one) (type_bool)) in
-    let to_dst := Sassign dst' arg' in
-    Some (Ssequence assign to_dst, env_arg)  
-    end
-  | P4cub.Expr.SetInValid =>
-    match ValidBitIndex arg env_arg with
-    | None => None
-    | Some index =>
-    let member :=  Efield arg' index type_bool in
-    let assign := Sassign member (Econst_int (Integers.Int.zero) (type_bool)) in
-    let to_dst := Sassign dst' arg' in
-    Some (Ssequence assign to_dst, env_arg)  
-    end
   | P4cub.Expr.NextIndex =>
     match HeaderStackIndex arg env_arg with
     | None => None
@@ -382,6 +408,7 @@ Section CCompSel.
     end
   | P4cub.Expr.Push n
   | P4cub.Expr.Pop n => None(*TODO: Push and pop should be removed from ops*)
+  | _ => None  
   end
   end
   end.
@@ -550,11 +577,7 @@ Section CCompSel.
     end.
   
 
-  Definition ArrayAccess (arr : Clight.expr) (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr
-  := 
-  Ederef 
-  (Ebinop Oadd arr index (Tpointer result_t noattr))
-  result_t.
+
 
   Definition PushLoop 
   (n : positive) (env: ClightEnv tags_t) 
@@ -592,31 +615,7 @@ Section CCompSel.
   Ssequence for_loop increment
   .
   
-  Definition findStackAttributes (stack_var: Clight.expr) (stack_t : Ctypes.type) (env: ClightEnv tags_t)
-  :=
-    match stack_t with
-    | Ctypes.Tstruct compid noattr =>
-      match lookup_composite_id tags_t env compid with 
-      | Some (Ctypes.Composite _ _ ((next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[]) _) => 
-        let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
-        match ta with
-        | Tarray val_typ _ _ =>
-          match val_typ with
-          | Ctypes.Tstruct val_t_id noattr => 
-            match lookup_composite_id tags_t env val_t_id with
-            | Some (Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _) =>
-            Some (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index)
-            |_ => None
-            end
-          | _ => None
-          end
-        | _ => None
-        end  
-      |_ => None
-      end
-    | _ => None
-    end.
-    
+ 
 
     
 
@@ -909,9 +908,22 @@ Section CCompSel.
         end
       end
       end
-
-    (* | Access e1 [ e2 ] @ i =>  *)
-    | _ =>  None
+    | ST.SSetValidity arg val i =>
+      match CTranslateExpr arg env with
+      | None => None
+      | Some (arg', env) => 
+        match ValidBitIndex arg env with
+        | None => None
+        | Some index =>
+        let member :=  Efield arg' index type_bool in
+        let val := match val with
+          | P4cub.Stmt.Valid => Econst_int Integers.Int.one type_bool
+          | P4cub.Stmt.Invalid => Econst_int Integers.Int.zero type_bool
+          end in
+        let assign := Sassign member val in
+        Some(assign , env)  
+        end
+      end
     end.
 
   Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv tags_t ) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv tags_t ) :=

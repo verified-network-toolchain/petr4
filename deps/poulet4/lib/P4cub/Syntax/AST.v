@@ -294,7 +294,7 @@ Module P4cub.
       | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
-      | ESlice (arg : e) (τ : t)
+      (*lvalue*)| ESlice (arg : e) (τ : t)
                (hi lo : positive) (i : tags_t)         (* bit-slicing *)
       | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
       | EUop (op : uop) (type : t)
@@ -431,7 +431,7 @@ Module P4cub.
 
       (** Header Stack Operations. *)
       Inductive hsop : Set := HSPush | HSPop.
-      
+      Inductive validity : Set := Valid | Invalid.
       Inductive s : Type :=
       | SSkip (i : tags_t) (* skip/no-op *)
       | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
@@ -457,7 +457,10 @@ Module P4cub.
                (ext_args : F.fs string string)
                (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
       | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
-                       (n : positive) (i : tags_t)       (* push or pop statements *).
+                       (n : positive) (i : tags_t)       (* push or pop statements *)
+                       
+      | SSetValidity (hdr : E.e tags_t) (val : validity) (i : tags_t)    (* set valid or set invalid *)
+      .
     (**[]*)
     End Statements.
 
@@ -476,7 +479,7 @@ Module P4cub.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
     Arguments SHeaderStackOp {_}.
-
+    Arguments SSetValidity {_}.
     Module StmtNotations.
       Notation "'<<{' sop '}>>'" := sop (sop custom p4hsop at level 99).
       Notation "( x )" := x (in custom p4hsop, x at level 99).

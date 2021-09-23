@@ -82,7 +82,11 @@ Axiom dummy_fundef : fundef.
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
 Definition genv_senum := @IdentMap.t tags_t Sval.
-Definition genv_inst := @PathMap.t tags_t path.
+
+Inductive inst_ref :=
+  | mk_inst_ref (class : P4String) (p : path).
+
+Definition genv_inst := @PathMap.t tags_t inst_ref.
 Definition genv_const := @PathMap.t tags_t Val.
 
 Record genv := MkGenv {
@@ -891,9 +895,9 @@ Inductive inst_mem_val :=
   (* Instances, including parsers, controls, and external objects. *)
   | IMInst (class : ident) (p : path).
 
-Definition inst_mem := @PathMap.t tags_t inst_mem_val.
+Definition old_inst_mem := @PathMap.t tags_t inst_mem_val.
 
-Definition lookup_func (this_path : path) (inst_m : inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
+Definition lookup_func (this_path : path) (inst_m : old_inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
   let ge := ge_func ge in
   (* We should think about using option monad in this function. *)
   match func with
@@ -1351,7 +1355,7 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state ->
   .
 
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
-                    path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
+                    path -> old_inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v sv this_path inst_m st tags typ st' sig,
                         exec_expr_det read_one_bit this_path st rhs v ->
                         exec_lexpr read_one_bit this_path st lhs lv sig ->
@@ -1441,7 +1445,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   (* StatInstantiation not considered yet *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :
-                path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
+                path -> old_inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
                      exec_block read_one_bit this_path inst_m st (BlockEmpty tags) st SContinue
   | exec_block_cons : forall stmt rest this_path inst_m st st' st'' sig sig',
@@ -1453,7 +1457,7 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
                           (if is_continue sig then sig' else sig)
 
 with exec_call (read_one_bit : option bool -> bool -> Prop) :
-               path -> inst_mem -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
+               path -> old_inst_mem -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
   | exec_call_builtin : forall this_path inst_m s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
       exec_lexpr read_one_bit this_path s lhs lv sig ->
@@ -1491,7 +1495,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 with exec_func (read_one_bit : option bool -> bool -> Prop) :
-               path -> inst_mem -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
+               path -> old_inst_mem -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
   | exec_func_internal : forall obj_path inst_m s params init body args s''' args' s' s'' sig sig' sig'',
       bind_parameters (map (map_fst (fun param => get_loc_path param)) params) args s s' ->
       exec_block read_one_bit obj_path inst_m s' init  s'' sig ->
@@ -1567,7 +1571,6 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
 
 Axiom dummy_ident : ident.
 Axiom dummy_val : Val.
-Axiom dummy_inst_mem_val : inst_mem_val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
@@ -1582,7 +1585,19 @@ Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
   | _ => nil
   end.
 
-Definition ienv := @IdentMap.t tags_t inst_mem_val.
+Definition ienv_val : Type := inst_ref + Val.
+Definition ienv := @IdentMap.t tags_t ienv_val.
+Axiom dummy_ienv_val : ienv_val.
+
+(* inst_mem is a legacy concept. Now it is actually the pair of genv_inst and genv_const.
+  It is the result of instantiation. *)
+Definition inst_mem : Type := genv_inst * genv_const.
+
+Definition set_inst_mem (p : path) (v : ienv_val) (m : inst_mem) : inst_mem :=
+  match v with
+  | inl inst => map_fst (PathMap.set p inst) m
+  | inr v => map_snd (PathMap.set p v) m
+  end.
 
 (* A trick to define mutually recursive functions. *)
 Section instantiate_class_body.
@@ -1593,35 +1608,35 @@ Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : iden
 Section instantiate_expr'.
 
 Variable instantiate_expr' : forall (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t)
-      (p : path) (m : inst_mem) (s : extern_state), inst_mem_val * inst_mem * extern_state.
+      (p : path) (m : inst_mem) (s : extern_state), ienv_val * inst_mem * extern_state.
 
-Definition extract_val (val : inst_mem_val) :=
+Definition extract_val (val : ienv_val) :=
   match val with
-  | IMVal val => val
-  | IMInst _ _ => dummy_val
+  | inr val => val
+  | _ => dummy_val
   end.
 
 Definition instantiate'' (rev_decls : list (@Declaration tags_t)) (e : ienv) (typ : @P4Type tags_t)
-      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : inst_mem_val * inst_mem * extern_state :=
+      (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : ienv_val * inst_mem * extern_state :=
   let class_name := get_type_name typ in
   let decl := get_decl rev_decls class_name in
   (* params := nil if decl is an external object, but params is only used to name the instances. *)
   let params := get_constructor_param_names decl in
-  let instantiate_arg (acc : list inst_mem_val * inst_mem * extern_state * list ident) arg :=
+  let instantiate_arg (acc : list ienv_val * inst_mem * extern_state * list ident) arg :=
     let '(args, m, s, params) := acc in
     let '(arg, m, s) := instantiate_expr' rev_decls e arg (p ++ [hd dummy_ident params]) m s in
     (* O(n^2) time complexity here. *)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := PathMap.set p (IMInst class_name p) m in
+    let m := map_fst (PathMap.set p (mk_inst_ref class_name p)) m in
     let type_params := get_type_params typ in
     let s := alloc_extern s class_name type_params p (map extract_val args) in
-    (IMInst class_name p, m, s)
+    (inl (mk_inst_ref class_name p), m, s)
   else
     let e := IdentMap.sets params args e in
     let '(_, m, s) := instantiate_class_body_rev_decls e class_name p m s in
-    (IMInst class_name p, m, s).
+    (inl (mk_inst_ref class_name p), m, s).
 
 End instantiate_expr'.
 
@@ -1629,7 +1644,7 @@ Definition get_val_ienv (e : ienv) (name : Typed.name) : option Val :=
   match name with
   | BareName name =>
       match IdentMap.get name e with
-      | Some (IMVal v) => Some v
+      | Some (inr v) => Some v
       | _ => None
       end
   | _ => None
@@ -1642,21 +1657,21 @@ Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option V
   end.
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
-(* And we convert the inst_mem into a mem (for efficiency, maybe need lazy evaluation in this conversion). *)
 
 Fixpoint instantiate_expr' (rev_decls : list (@Declaration tags_t)) (e : ienv) (expr : @Expression tags_t) (p : path)
-      (m : inst_mem) (s : extern_state) {struct expr} : inst_mem_val * inst_mem * extern_state :=
+      (m : inst_mem) (s : extern_state) {struct expr} : ienv_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
   match expr with
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
-      let inst := force dummy_inst_mem_val (IdentMap.get name e) in
-      (inst, PathMap.set p inst m, s)
+      (* Can inst be a Val, or just an inst_ref? *)
+      let inst := force dummy_ienv_val (IdentMap.get name e) in
+      (inst, set_inst_mem p inst m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' rev_decls e typ args p m s
   | _ =>
       match eval_expr_gen (eval_expr_ienv_hook e) expr with
-      | Some v => (IMVal v, m, s)
-      | None => (dummy_inst_mem_val, m, s)
+      | Some v => (inr v, m, s)
+      | None => (dummy_ienv_val, m, s)
       end
   end.
 
@@ -1700,7 +1715,7 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
-Definition packet_in_instance : inst_mem_val := (IMInst !"packet_in" !["packet_in"]).
+Definition packet_in_instance : ienv_val := (inl (mk_inst_ref !"packet_in" !["packet_in"])).
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1712,7 +1727,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
       end
   end.
 
-Definition packet_out_instance : inst_mem_val := (IMInst !"packet_out" !["packet_out"]).
+Definition packet_out_instance : ienv_val := (inl (mk_inst_ref !"packet_out" !["packet_out"])).
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1724,11 +1739,11 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
       end
   end.
 
-Definition inline_packet_in_packet_out (p : path) (m : inst_mem) (param : @P4Parameter tags_t) : inst_mem :=
+Definition inline_packet_in_and_packet_out (p : path) (m : inst_mem) (param : @P4Parameter tags_t) : inst_mem :=
   if is_packet_in param then
-    PathMap.set (p ++ [get_param_name param]) packet_in_instance m
+    set_inst_mem (p ++ [get_param_name param]) packet_in_instance m
   else if is_packet_out param then
-    PathMap.set (p ++ [get_param_name param]) packet_out_instance m
+    set_inst_mem (p ++ [get_param_name param]) packet_out_instance m
   else
     m.
 
@@ -1740,19 +1755,19 @@ Fixpoint instantiate_class_body (rev_decls : list (@Declaration tags_t)) (e : ie
       match decl with
       | DeclParser _ class_name' _ params _ locals states =>
           if P4String.equivb class_name class_name' then
-            let m := fold_left (inline_packet_in_packet_out p) params m in
+            let m := fold_left (inline_packet_in_and_packet_out p) params m in
             let locals := concat (map get_direct_applications_ps states) in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
-            let m := PathMap.set p (IMInst class_name p) m in
+            let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
             (p, m, s)
           else
             instantiate_class_body rev_decls' e class_name p m s
       | DeclControl _ class_name' _ params _ locals apply =>
           if P4String.equivb class_name class_name' then
-            let m := fold_left (inline_packet_in_packet_out p) params m in
+            let m := fold_left (inline_packet_in_and_packet_out p) params m in
             let locals := locals ++ get_direct_applications_blk apply in
             let (m, s) := instantiate_decls rev_decls' e locals p m s in
-            let m := PathMap.set p (IMInst class_name p) m in
+            let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
             (p, m, s)
           else
             instantiate_class_body rev_decls' e class_name p m s
@@ -1789,7 +1804,7 @@ Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
 Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls PathMap.empty extern_empty
+      instantiate_global_decls decls (PathMap.empty, PathMap.empty) extern_empty
   end.
 
 Definition BlockNil := BlockEmpty dummy_tags.
@@ -2079,8 +2094,9 @@ Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let ge_inst := PathMap.empty in (* TODO *)
-  let ge_const := PathMap.empty in (* TODO *)
+  let inst_m := fst (instantiate_prog prog) in
+  let ge_inst := fst inst_m in
+  let ge_const := snd inst_m in
   MkGenv ge_func ge_typ ge_senum ge_inst ge_const.
 
 End Semantics.

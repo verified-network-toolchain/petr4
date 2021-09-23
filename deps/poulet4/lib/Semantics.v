@@ -55,6 +55,12 @@ Definition loc_to_path (this : path) (loc : Locator) : path :=
   | LInstance p => this ++ p
   end.
 
+Definition get_loc_path (loc : Locator) : path :=
+  match loc with
+  | LGlobal p => p
+  | LInstance p => p
+  end.
+
 Inductive fundef :=
   | FInternal
       (params : list (@Locator tags_t * direction))
@@ -76,11 +82,15 @@ Axiom dummy_fundef : fundef.
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
 Definition genv_senum := @IdentMap.t tags_t Sval.
+Definition genv_inst := @PathMap.t tags_t path.
+Definition genv_const := @PathMap.t tags_t Val.
 
 Record genv := MkGenv {
   ge_func :> genv_func;
   ge_typ :> genv_typ;
-  ge_senum :> genv_senum
+  ge_senum :> genv_senum;
+  ge_inst :> genv_inst;
+  ge_const :> genv_const
 }.
 
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
@@ -219,6 +229,9 @@ Definition val_to_sval :=
 Definition vals_to_svals := 
   exec_vals read_detbit.
 
+Definition eval_val_to_sval : Val -> Sval.
+Admitted.
+
 Definition eval_p4int_sval (n: P4Int) : Sval :=
   match P4Int.width_signed n with
   | None => ValBaseInteger (P4Int.value n)
@@ -234,7 +247,13 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   end.
 
 Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :=
-  PathMap.get (loc_to_path this loc) (get_memory s).
+  match loc with
+  | LInstance p =>
+      PathMap.get p (get_memory s)
+  (* TODO deal with local constant *)
+  | LGlobal p =>
+      option_map eval_val_to_sval (PathMap.get p (ge_const ge))
+  end.
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
@@ -820,7 +839,7 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
   | exec_match_expr : forall this st expr vs tag typ,
                       exec_expr_set read_one_bit this st expr vs ->
                       exec_match read_one_bit this st (MkMatch tag (MatchExpression expr) typ) vs.
-  
+
 Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
                        path -> state -> list (@Match tags_t) -> list ValSet -> Prop :=
   | exec_matches_nil : forall this st,
@@ -991,7 +1010,7 @@ Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
   end.
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sval): state :=
-  let p := loc_to_path this loc in
+  let p := get_loc_path loc in
   update_memory (PathMap.set p sv) s.
 
 Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
@@ -1331,7 +1350,6 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state ->
   (* this_path s lv fname args s' sig *) (* TODO *)
   .
 
-
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                     path -> inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v sv this_path inst_m st tags typ st' sig,
@@ -1453,14 +1471,16 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_func : forall this_path inst_m s tags func targs args typ dir argvals obj_path fd outvals s' s'' sig sig' ret_s ret_sig,
+  | exec_call_func : forall this_path inst_m s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
       let dirs := get_arg_directions func in
-      exec_args read_one_bit this_path s args dirs argvals sig ->
+      exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path inst_m func = Some (obj_path, fd) ->
-      exec_func read_one_bit obj_path inst_m s fd targs (extract_invals argvals) s' outvals sig' ->
-      exec_writes_option this_path s' (extract_outlvals dirs argvals) outvals s'' ->
-      (if is_continue sig then ret_s = s'' /\ ret_sig = sig' else ret_s = s /\ ret_sig = sig) ->
-      exec_call read_one_bit this_path inst_m s (MkExpression tags (ExpFunctionCall func targs args) typ dir)
+      (if path_equivb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
+      exec_func read_one_bit obj_path inst_m s2 fd targs (extract_invals argvals) s3 outvals sig' ->
+      (if path_equivb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
+      exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
+      (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
+      exec_call read_one_bit this_path inst_m s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       ret_s ret_sig
   (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next). *)
   (* | exec_call_other : forall this_path inst_m s tags func args typ dir argvals sig,
@@ -1473,12 +1493,12 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
 with exec_func (read_one_bit : option bool -> bool -> Prop) :
                path -> inst_mem -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
   | exec_func_internal : forall obj_path inst_m s params init body args s''' args' s' s'' sig sig' sig'',
-      bind_parameters (map (map_fst (fun param => loc_to_path obj_path param)) params) args s s' ->
+      bind_parameters (map (map_fst (fun param => get_loc_path param)) params) args s s' ->
       exec_block read_one_bit obj_path inst_m s' init  s'' sig ->
       is_continue sig = true ->
       exec_block read_one_bit obj_path inst_m s'' body s''' sig' ->
       force_return_signal sig' = sig'' ->
-      extract_parameters (filter_out (map (map_fst (fun param => loc_to_path obj_path param)) params)) s''' = Some args'->
+      extract_parameters (filter_out (map (map_fst (fun param => get_loc_path param)) params)) s''' = Some args'->
       exec_func read_one_bit obj_path inst_m s (FInternal params init body) nil args s''' args' sig''
 
   | exec_func_table_match : forall obj_path name inst_m keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
@@ -2059,6 +2079,8 @@ Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  MkGenv ge_func ge_typ ge_senum.
+  let ge_inst := PathMap.empty in (* TODO *)
+  let ge_const := PathMap.empty in (* TODO *)
+  MkGenv ge_func ge_typ ge_senum ge_inst ge_const.
 
 End Semantics.

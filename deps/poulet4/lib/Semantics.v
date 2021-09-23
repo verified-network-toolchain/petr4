@@ -77,8 +77,6 @@ Inductive fundef :=
       (name : ident)
       (* (params : list (ident * direction)) *).
 
-Axiom dummy_fundef : fundef.
-
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
 Definition genv_senum := @IdentMap.t tags_t Sval.
@@ -890,25 +888,19 @@ Definition is_some {A} (input: option A) : bool :=
   | _ => true
   end.
 
-Inductive inst_mem_val :=
-  | IMVal (v : Val)
-  (* Instances, including parsers, controls, and external objects. *)
-  | IMInst (class : ident) (p : path).
-
-Definition old_inst_mem := @PathMap.t tags_t inst_mem_val.
-
-Definition lookup_func (this_path : path) (inst_m : old_inst_mem) (func : @Expression tags_t) : option (path * fundef) :=
-  let ge := ge_func ge in
+Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (path * fundef) :=
+  let ge_func := ge_func ge in
+  let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
   match func with
   (* function/action *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
-      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge)
+      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
-          match PathMap.get this_path inst_m with
-          | Some (IMInst class_name _) =>
-              option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge)
+          match PathMap.get this_path ge_inst with
+          | Some (mk_inst_ref class_name _) =>
+              option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
@@ -916,14 +908,13 @@ Definition lookup_func (this_path : path) (inst_m : old_inst_mem) (func : @Expre
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
       if P4String.equivb name !"apply" then
         match expr with
-        (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p) inst_m with
-                | Some (IMInst class_name inst_path) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge)
+                match PathMap.get (this_path ++ p) ge_inst with
+                | Some (mk_inst_ref class_name inst_path) =>
+                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge_func)
                 | _ => None
                 end
             end
@@ -932,14 +923,13 @@ Definition lookup_func (this_path : path) (inst_m : old_inst_mem) (func : @Expre
       (* If the method name is not apply, it is an external method. *)
       else
         match expr with
-        (* Instances should only be referred with bare names. *)
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p) inst_m with
-                | Some (IMInst class_name inst_path) =>
-                    match PathMap.get [class_name; name] ge with
+                match PathMap.get (this_path ++ p) ge_inst with
+                | Some (mk_inst_ref class_name inst_path) =>
+                    match PathMap.get [class_name; name] ge_func with
                     | Some fd => Some (inst_path, fd)
                     | None => None
                     end
@@ -1355,117 +1345,117 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state ->
   .
 
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
-                    path -> old_inst_mem -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
-  | exec_stmt_assign : forall lhs lv rhs v sv this_path inst_m st tags typ st' sig,
+                    path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
+  | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
                         exec_expr_det read_one_bit this_path st rhs v ->
                         exec_lexpr read_one_bit this_path st lhs lv sig ->
                         val_to_sval v sv -> 
                         (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
-                        exec_stmt read_one_bit this_path inst_m st
+                        exec_stmt read_one_bit this_path st
                         (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
-  | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path inst_m st tags typ st' st'' sig sig' ret_sig,
-                                 exec_call read_one_bit this_path inst_m st rhs st' sig' ->
+  | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path st tags typ st' st'' sig sig' ret_sig,
+                                 exec_call read_one_bit this_path st rhs st' sig' ->
                                  exec_lexpr read_one_bit this_path st lhs lv sig ->
                                  (if not_continue sig then st'' = st /\ ret_sig = sig
                                   else if not_return sig' then st'' = st' /\ ret_sig = sig'
                                   else get_return_sval sig' sv /\ exec_write this_path st' lv sv st'' /\ ret_sig = SContinue) ->
-                                 exec_stmt read_one_bit this_path inst_m st
+                                 exec_stmt read_one_bit this_path st
                                  (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
-  | exec_stmt_method_call : forall this_path inst_m st tags func args typ st' sig sig',
-                            exec_call read_one_bit this_path inst_m st
+  | exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
+                            exec_call read_one_bit this_path st
                               (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
                               st' sig ->
                             force_continue_signal sig = sig' ->
-                            exec_stmt read_one_bit this_path inst_m st
+                            exec_stmt read_one_bit this_path st
                             (MkStatement tags (StatMethodCall func nil args) typ) st' sig'
-  | exec_stmt_direct_application : forall this_path inst_m st tags typ' args typ st' sig sig',
-                                   exec_call read_one_bit this_path inst_m st
+  | exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
+                                   exec_call read_one_bit this_path st
                                       (MkExpression dummy_tags
                                         (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) TypVoid Directionless)
                                       st' sig ->
                                    force_continue_signal sig = sig' ->
-                                   exec_stmt read_one_bit this_path inst_m st
+                                   exec_stmt read_one_bit this_path st
                                    (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
-  | exec_stmt_conditional_some_fls : forall cond tru fls b this_path inst_m st tags typ st' sig,
+  | exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
                                      exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
-                                     exec_stmt read_one_bit this_path inst_m st (if b then tru else fls) st' sig ->
-                                     exec_stmt read_one_bit this_path inst_m st
+                                     exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
+                                     exec_stmt read_one_bit this_path st
                                      (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-  | exec_stmt_conditional_none_fls : forall cond tru b this_path inst_m st tags typ st' sig,
+  | exec_stmt_conditional_none_fls : forall cond tru b this_path st tags typ st' sig,
                                      exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
-                                     exec_stmt read_one_bit this_path inst_m st (if b then tru else empty_statement) st' sig ->
-                                     exec_stmt read_one_bit this_path inst_m st
+                                     exec_stmt read_one_bit this_path st (if b then tru else empty_statement) st' sig ->
+                                     exec_stmt read_one_bit this_path st
                                      (MkStatement tags (StatConditional cond tru None) typ) st SContinue
-  | exec_stmt_block : forall block this_path inst_m st tags typ st' sig,
-                      exec_block read_one_bit this_path inst_m st block st' sig ->
-                      exec_stmt read_one_bit this_path inst_m st
+  | exec_stmt_block : forall block this_path st tags typ st' sig,
+                      exec_block read_one_bit this_path st block st' sig ->
+                      exec_stmt read_one_bit this_path st
                       (MkStatement tags (StatBlock block) typ) st' sig
-  | exec_stmt_exit : forall this_path inst_m (st: state) tags typ st,
-                     exec_stmt read_one_bit this_path inst_m st
+  | exec_stmt_exit : forall this_path (st: state) tags typ st,
+                     exec_stmt read_one_bit this_path st
                      (MkStatement tags StatExit typ) st SExit
-  | exec_stmt_return_none : forall this_path inst_m (st: state) tags typ st,
-                            exec_stmt read_one_bit this_path inst_m st
+  | exec_stmt_return_none : forall this_path (st: state) tags typ st,
+                            exec_stmt read_one_bit this_path st
                             (MkStatement tags (StatReturn None) typ) st SReturnNull
-  | exec_stmt_return_some : forall e v this_path inst_m (st: state) tags typ st,
+  | exec_stmt_return_some : forall e v this_path (st: state) tags typ st,
                             exec_expr_det read_one_bit this_path st e v ->
-                            exec_stmt read_one_bit this_path inst_m st
+                            exec_stmt read_one_bit this_path st
                             (MkStatement tags (StatReturn (Some e)) typ) st (SReturn v)
-  | exec_stmt_empty : forall this_path inst_m (st: state) tags typ st,
-                      exec_stmt read_one_bit this_path inst_m st
+  | exec_stmt_empty : forall this_path (st: state) tags typ st,
+                      exec_stmt read_one_bit this_path st
                       (MkStatement tags StatEmpty typ) st SContinue
-  | exec_stmt_switch: forall e b ename member cases block typ dir this_path inst_m (st st': state) st'' tags tags' typ' st st' sig,
-                      exec_call read_one_bit this_path inst_m st e st' (SReturn (table_retv b ename member)) ->
+  | exec_stmt_switch: forall e b ename member cases block typ dir this_path (st st': state) st'' tags tags' typ' st st' sig,
+                      exec_call read_one_bit this_path st e st' (SReturn (table_retv b ename member)) ->
                       match_switch_case member cases = block ->
-                      exec_block read_one_bit this_path inst_m st' block st'' sig ->
-                      exec_stmt read_one_bit this_path inst_m st
+                      exec_block read_one_bit this_path st' block st'' sig ->
+                      exec_stmt read_one_bit this_path st
                       (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e !"action_run") typ dir) cases) typ') st'' sig
-  | exec_stmt_variable : forall typ' name e v sv loc this_path inst_m st tags typ st',
+  | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
                          exec_expr_det read_one_bit this_path st e v ->
                          val_to_sval v sv ->
                          exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                         exec_stmt read_one_bit this_path inst_m st
+                         exec_stmt read_one_bit this_path st
                          (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' SContinue
-  | exec_stmt_variable_func_call : forall typ' name e sv loc this_path inst_m st tags typ st' st'' sig,
-                                   exec_call read_one_bit this_path inst_m st e st' sig ->
+  | exec_stmt_variable_func_call : forall typ' name e sv loc this_path st tags typ st' st'' sig,
+                                   exec_call read_one_bit this_path st e st' sig ->
                                    (if not_return sig then st'' = st'
                                    else get_return_sval sig sv 
                                         /\ exec_write this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->
-                                   exec_stmt read_one_bit this_path inst_m st
+                                   exec_stmt read_one_bit this_path st
                                    (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' (force_continue_signal sig)
-  | exec_stmt_variable_undef : forall typ' name loc sv this_path inst_m st tags typ st',
+  | exec_stmt_variable_undef : forall typ' name loc sv this_path st tags typ st',
                                uninit_sval_of_typ (Some false) typ' = Some sv ->
                                exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                               exec_stmt read_one_bit this_path inst_m st
+                               exec_stmt read_one_bit this_path st
                                (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
-  | exec_stmt_constant: forall typ' name v sv loc this_path inst_m st tags typ st',
+  | exec_stmt_constant: forall typ' name v sv loc this_path st tags typ st',
                         val_to_sval v sv ->
                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                        exec_stmt read_one_bit this_path inst_m st
+                        exec_stmt read_one_bit this_path st
                         (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
   (* StatInstantiation not considered yet *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :
-                path -> old_inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
-  | exec_block_nil : forall this_path inst_m st tags,
-                     exec_block read_one_bit this_path inst_m st (BlockEmpty tags) st SContinue
-  | exec_block_cons : forall stmt rest this_path inst_m st st' st'' sig sig',
+                path -> state -> (@Block tags_t) -> state -> signal -> Prop :=
+  | exec_block_nil : forall this_path st tags,
+                     exec_block read_one_bit this_path st (BlockEmpty tags) st SContinue
+  | exec_block_cons : forall stmt rest this_path st st' st'' sig sig',
                       (* This style is for avoiding backtracking *)
-                      exec_stmt read_one_bit this_path inst_m st stmt st' sig ->
-                      exec_block read_one_bit this_path inst_m st' 
+                      exec_stmt read_one_bit this_path st stmt st' sig ->
+                      exec_block read_one_bit this_path st' 
                           (if is_continue sig then rest else empty_block) st'' sig' ->
-                      exec_block read_one_bit this_path inst_m st (BlockCons stmt rest) st'' 
+                      exec_block read_one_bit this_path st (BlockCons stmt rest) st'' 
                           (if is_continue sig then sig' else sig)
 
 with exec_call (read_one_bit : option bool -> bool -> Prop) :
-               path -> old_inst_mem -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
-  | exec_call_builtin : forall this_path inst_m s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
+               path -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
+  | exec_call_builtin : forall this_path s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
       exec_lexpr read_one_bit this_path s lhs lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
       (if not_continue sig then s' = s /\ sig'' = sig 
        else if not_continue sig' then s' = s /\ sig'' = sig'
        else exec_builtin this_path s lv fname (extract_invals argvals) s' sig'') ->
-      exec_call read_one_bit this_path inst_m s (MkExpression tags (ExpFunctionCall
+      exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
           (MkExpression tag' (ExpExpressionMember lhs fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
           nil args) typ dir) s' sig''
 
@@ -1475,37 +1465,37 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        3. call the function by exec_funcall;
        4. write back out parameters.
   *)
-  | exec_call_func : forall this_path inst_m s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
+  | exec_call_func : forall this_path s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
-      lookup_func this_path inst_m func = Some (obj_path, fd) ->
+      lookup_func this_path func = Some (obj_path, fd) ->
       (if path_equivb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
-      exec_func read_one_bit obj_path inst_m s2 fd targs (extract_invals argvals) s3 outvals sig' ->
+      exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
       (if path_equivb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
       exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
-      exec_call read_one_bit this_path inst_m s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
+      exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       ret_s ret_sig
   (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next). *)
-  (* | exec_call_other : forall this_path inst_m s tags func args typ dir argvals sig,
+  (* | exec_call_other : forall this_path s tags func args typ dir argvals sig,
       let dirs := get_arg_directions func in
       exec_args this_path s args dirs argvals sig ->
       not_continue sig = true ->
-      exec_call this_path inst_m s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s sig *)
+      exec_call this_path s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s sig *)
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 with exec_func (read_one_bit : option bool -> bool -> Prop) :
-               path -> old_inst_mem -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
-  | exec_func_internal : forall obj_path inst_m s params init body args s''' args' s' s'' sig sig' sig'',
+               path -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
+  | exec_func_internal : forall obj_path s params init body args s''' args' s' s'' sig sig' sig'',
       bind_parameters (map (map_fst (fun param => get_loc_path param)) params) args s s' ->
-      exec_block read_one_bit obj_path inst_m s' init  s'' sig ->
+      exec_block read_one_bit obj_path s' init  s'' sig ->
       is_continue sig = true ->
-      exec_block read_one_bit obj_path inst_m s'' body s''' sig' ->
+      exec_block read_one_bit obj_path s'' body s''' sig' ->
       force_return_signal sig' = sig'' ->
       extract_parameters (filter_out (map (map_fst (fun param => get_loc_path param)) params)) s''' = Some args'->
-      exec_func read_one_bit obj_path inst_m s (FInternal params init body) nil args s''' args' sig''
+      exec_func read_one_bit obj_path s (FInternal params init body) nil args s''' args' sig''
 
-  | exec_func_table_match : forall obj_path name inst_m keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
+  | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name const_entries actionref ->
       (if is_some actionref
        then actionref = (Some (mk_action_ref action_name ctrl_args)) 
@@ -1513,21 +1503,21 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
             /\ retv = (SReturn (table_retv true !"" (get_expr_func_name action)))
        else action = default_action
             /\ retv = (SReturn (table_retv false !"" (get_expr_func_name default_action)))) ->
-      exec_call read_one_bit obj_path inst_m s action s' SReturnNull ->
-      exec_func read_one_bit obj_path inst_m s (FTable name keys actions (Some default_action) const_entries)
+      exec_call read_one_bit obj_path s action s' SReturnNull ->
+      exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
         nil nil s' nil retv
 
   (* This will not happen in the latest spec. *)
-  (* | exec_func_table_noaction : forall obj_path name inst_m keys actions const_entries s,
+  (* | exec_func_table_noaction : forall obj_path name keys actions const_entries s,
       exec_table_match obj_path s name const_entries SReturnNull ->
-      exec_func obj_path inst_m s (FTable name keys actions None const_entries) nil s nil None *)
+      exec_func obj_path s (FTable name keys actions None const_entries) nil s nil None *)
 
   (* Todo: check in/inout/out & uninitialized args *)
-  | exec_func_external : forall obj_path inst_m class_name name (* params *) m es es' targs args argvs argvs' args' sig,
+  | exec_func_external : forall obj_path class_name name (* params *) m es es' targs args argvs argvs' args' sig,
       svals_to_vals read_one_bit args argvs ->
       exec_extern es class_name name obj_path targs argvs es' argvs' sig ->
       vals_to_svals argvs' args' ->
-      exec_func read_one_bit obj_path inst_m (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
+      exec_func read_one_bit obj_path (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=

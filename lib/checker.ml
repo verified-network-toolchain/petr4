@@ -2,6 +2,7 @@ open Types
 open Typed
 open Util
 open Checker_env
+open P4string
 
 (* hack *)
 module Petr4Error = Error
@@ -528,7 +529,8 @@ and gen_all_constraints (env: Checker_env.t) ctx unknowns (params_args: (coq_P4P
         let constraints = merge_constraints env constraints arg_constraints in
         gen_all_constraints env ctx unknowns more constraints
       | None -> raise_s [%message "Could not solve type equality."
-                         ~param:(reduce_type env param_type: coq_P4Type) ~arg_typ:(reduce_type env expr_typ: coq_P4Type)]
+                         ~param:(reduce_type env param_type: coq_P4Type) ~arg_typ:(reduce_type env expr_typ: coq_P4Type)
+                         ~a:(arg: Expression.t)]
     end
   | (param_type, None) :: more ->
     gen_all_constraints env ctx unknowns more constraints
@@ -841,7 +843,7 @@ and add_cast env (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
   let MkExpression (info, pre_expr, orig_typ, dir) = expr in
   if cast_ok env orig_typ new_typ
   then MkExpression (info, ExpCast (new_typ, expr), new_typ, dir)
-  else failwith "Cannot cast."
+  else raise_s [%message"Cannot cast." ~info:(info: Info.t) ~ot:(orig_typ: coq_P4Type) ~nt:(new_typ: coq_P4Type) ]
 
 and cast_if_needed env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =
   let MkExpression (info, pre_expr, expr_typ, dir) = expr in
@@ -1228,6 +1230,7 @@ and is_valid_param_type env (ctx: Typed.coq_ParamContext) (typ: coq_P4Type) =
       | TypExtern _, ParamCxDeclParser
       | TypExtern _, ParamCxDeclControl
       | TypExtern _, ParamCxDeclMethod -> true
+      | TypExtern _, ParamCxDeclFunction -> true
       | TypExtern _, _ -> false
       | TypTable _, _ -> false
       | TypSet _, _ -> false
@@ -1315,7 +1318,7 @@ and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
   if not @@ is_well_formed_type env typ
   then raise_s [%message "Parameter type is not well-formed." ~typ:(typ:coq_P4Type)];
   if not @@ is_valid_param_type env ctx typ
-  then failwith "Type cannot be passed as a parameter.";
+  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:Info.t)];
   if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
   then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:Info.t)]
 
@@ -2391,6 +2394,15 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.coq
   let type_args = List.map ~f:(translate_type_opt env) type_args in
   let t_params, w_params, params, ret = resolve_constructor_overload env decl_name args in
   let params_args = match_params_to_args env info params args in
+
+  (let _ = Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string (P4name.to_yojson decl_name)) in
+  let printsth = fun p -> Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string (P4string.to_yojson p)) in
+  let printsth2 = fun p -> Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string (Typed.coq_P4Parameter_to_yojson p))
+  in let _ = (Format.printf "HAHAEND1"; List.map ~f:printsth t_params)
+  in let _ = (Format.printf "HAHAEND2"; List.map ~f:printsth w_params)
+  in let _ = (Format.printf "HAHAEND3"; List.map ~f:printsth2 params)
+  in Format.printf "HAHAEND4");
+
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
   let env' = Checker_env.insert_types type_params_args env in
   let cast_arg (param, arg: coq_P4Parameter * Types.Expression.t option) =
@@ -3757,7 +3769,7 @@ and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.De
     type_constant env ctx (fst decl) annotations typ name value
   | Instantiation { annotations; typ; args; name; init } ->
     begin match init with
-      | Some init -> failwith "initializer block in instantiation unsupported"
+      | Some init -> raise_s [%message"initializer block in instantiation unsupported" ~d:(init:Block.t)]
       | None -> type_instantiation env ctx (fst decl) annotations typ args name
     end
   | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->

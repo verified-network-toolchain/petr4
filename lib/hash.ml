@@ -82,8 +82,7 @@ let ones_comp_add (v1 : Bigint.t) (v2 : Bigint.t) : Bigint.t =
   else Bigint.((tmp % rmax))
 
 let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  if Bigint.(length % (of_int 16) = zero) then ()
-  else failwith "call to csum16 does not have 16-bit aligned input";
+  let v = Bigint.(v * ((of_int 2) ** (length % (of_int 16)))) in
   let rec h acc length v =
     if Bigint.(length = zero) then acc else
     let msb = Bigint.(length - one) in

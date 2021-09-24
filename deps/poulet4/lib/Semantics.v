@@ -31,7 +31,7 @@ Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 Notation signal := (@signal tags_t).
 
-Context `{@Target tags_t (@Expression tags_t)}.
+Context `{@Target tags_t (@Expression tags_t)}. 
 
 Definition mem := @PathMap.t tags_t Sval.
 
@@ -181,36 +181,6 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
   | exec_val_senum : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
                      exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')
-(* 
-with exec_vset {A B} (read_one_bit : A -> B -> Prop) : 
-               @ValueSet tags_t A -> @ValueSet tags_t B -> Prop :=
-  | exec_vset_singleton : forall v v',
-                          exec_val read_one_bit v v' ->
-                          exec_vset read_one_bit (ValSetSingleton v) (ValSetSingleton v')
-  | exec_vset_universal : exec_vset read_one_bit ValSetUniversal ValSetUniversal
-  | exec_vset_mask : forall v v' m m',
-                     exec_val read_one_bit v v' ->
-                     exec_val read_one_bit m m' ->
-                     exec_vset read_one_bit (ValSetMask v m) (ValSetMask v' m')
-  | exec_vset_range : forall lo lo' hi hi',
-                      exec_val read_one_bit lo lo' ->
-                      exec_val read_one_bit hi hi' ->
-                      exec_vset read_one_bit (ValSetRange lo hi) (ValSetRange lo' hi')
-  | exec_vset_prod : forall vsets vsets',
-                     exec_vsets read_one_bit vsets vsets' ->
-                     exec_vset read_one_bit (ValSetProd vsets) (ValSetProd vsets')
-  (* problems in syntax and v1model of exec_vset_lpm, omitted for now *)
-  | exec_vset_set : forall size size' mem vsets vsets',
-                    exec_val read_one_bit size size' ->
-                    exec_vsets read_one_bit vsets vsets' ->
-                    exec_vset read_one_bit (ValSetValueSet size mem vsets) (ValSetValueSet size' mem vsets')
-with exec_vsets {A B} (read_one_bit : A -> B -> Prop) : 
-               list (@ValueSet tags_t A) -> list (@ValueSet tags_t B) -> Prop :=
-  | exec_vsets_nil : exec_vsets read_one_bit nil nil
-  | exec_vsets_cons : forall hd tl hd' tl',
-                     exec_vset read_one_bit hd hd' ->
-                     exec_vsets read_one_bit tl tl' ->
-                     exec_vsets read_one_bit (hd :: tl) (hd' :: tl') *)
 with exec_vals {A B} (read_one_bit : A -> B -> Prop) : 
                list (@ValueBase tags_t A) -> list (@ValueBase tags_t B) -> Prop :=
   | exec_vals_nil : exec_vals read_one_bit nil nil
@@ -262,68 +232,113 @@ Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
   | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
   | ValBaseInteger value => Some value
-  (* added in 1.2.2 *)
+  (* added in v1.2.2 *)
   | ValBaseSenumField _ _ value => array_access_idx_to_z value
   | _ => None
   end.
 
-Definition bitstring_slice_bits_to_z (v : Val) : option (N * Z) :=
+Definition sval_to_bits_width {A} (v : @ValueBase tags_t A) : option (list A * nat) :=
   match v with
-  | ValBaseInt bits => Some (IntArith.from_lbool bits)
-  | ValBaseBit bits => Some (BitArith.from_lbool bits)
+  | ValBaseInt bits
+  | ValBaseBit bits => Some (bits, List.length bits)
   | _ => None
   end.
 
-(* Ref:When accessing the bits of negative numbers, all functions below will
-   use the two's complement representation.
-   For instance, -1 will correspond to an infinite stream of true bits.
-   https://coq.inria.fr/library/Coq.ZArith.BinIntDef.html *)
-Definition bitstring_slice (i : Z) (lo : Z) (hi : Z) : Z :=
-  let mask := (Z.pow 2 (hi - lo + 1) - 1)%Z in
-  Z.land (Z.shiftr i lo) mask.
+Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
+  let fix bitstring_slice' (bits: list A) (lo : nat) (hi : nat) (slice: list A) :=
+    match bits, lo, hi with
+    | _ ::tl, S lo', S hi' => bitstring_slice' tl lo' hi' slice
+    | hd::tl, O, S hi' => bitstring_slice' tl O hi' (hd::slice)
+    | hd::tl, O, O => hd::slice
+    | _, _, _ => slice
+    end
+  in List.rev (bitstring_slice' bits lo hi []).
 
-Fixpoint uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t) : option Sval := 
-  match typ with
-  | TypBool => Some (ValBaseBool None)
-  (* | TypString => *)
-  | TypInt w => Some (ValBaseInt (Zrepeat None (Z.of_N w)))
-  | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
-  (* | TypVarBit w => *)
-  | TypArray typ size =>
-      match uninit_sval_of_typ hvalid typ with
-      | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) size 0)
-      | None => None
-      end
-  | TypTuple typs
-  | TypList typs => 
-      match lift_option (List.map (uninit_sval_of_typ hvalid) typs) with
-      | Some svs => Some (ValBaseTuple svs)
-      | None => None
-      end
-  (*
-  | TypRecord
-  | TypSet
-  | TypError
-  | TypVoid
-  | TypHeader hvalid hvalid (if uninit_hvalid then None else some false)
-  | TypHeaderUnion
-  | TypStruct
-  | TypEnum *)
-  | _ => None
-  end.
-(* Type without uninitialized svals:
-    TypInteger, TypMatchKind, TypTypeName, TypNewType
-    TypControl, TypParser, TypExtern, TypFunction, TypAction, 
-    TypTable, TypPackage, TypSpecializedType, TypConstructor
-   ValueBase without uninitialized svals:
-    ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind
-*)
 Definition kv_map_func {A B} (f: A -> B) (kv : P4String * A): P4String * B :=
   let (k, v) := kv in (k, f v).
 
 Definition kv_map {A B} (f: A -> B) (kvs : P4String.AList tags_t A): P4String.AList tags_t B :=
   List.map (kv_map_func f) kvs.
 
+Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
+  let fix uninit_sval_of_typ' hvalid typ : option Sval :=
+    match typ with
+    | TypBool => Some (ValBaseBool None)
+    | TypInt w => Some (ValBaseInt (Zrepeat None (Z.of_N w)))
+    | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
+    | TypArray typ size =>
+        match uninit_sval_of_typ' hvalid typ with
+        | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) size 0)
+        | None => None
+        end
+    | TypTuple typs
+    | TypList typs => 
+        match lift_option (List.map (uninit_sval_of_typ' hvalid) typs) with
+        | Some svs => Some (ValBaseTuple svs)
+        | None => None
+        end
+    | TypRecord fields =>
+        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
+        | Some kvs => Some (ValBaseRecord kvs)
+        | None => None
+        end
+    | TypHeader fields =>
+        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
+        | Some kvs => Some (ValBaseHeader kvs hvalid)
+        | None => None
+        end
+    | TypHeaderUnion fields =>
+        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
+        | Some kvs => Some (ValBaseUnion kvs)
+        | None => None
+        end
+    | TypStruct fields =>
+        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
+        | Some kvs => Some (ValBaseStruct kvs)
+        | None => None
+        end
+    | TypNewType _ typ' => uninit_sval_of_typ' hvalid typ'
+    (* TypTypeName should have been already resolved *)
+    | TypTypeName _ => None
+    (* Two possibilities for senum:
+       1. Use the default values (similar to the enum type):
+          For enum values with an underlying type the default value is 0. (7.3.)
+       2. Use the underlying types's uninitialized values:
+          Since an senum's underlying type is either bit or int, it can also be uninitialized
+          by the underlying types.
+       The current implementation follows the option 2. *)
+    | TypEnum tname (Some typ') members => uninit_sval_of_typ' hvalid typ'
+    (* The P4Spec does not specify the unintialized values for the following types,
+       so we use the default values for now. (7.3.) 
+       Note that this design choice makes the svals output from uninit_sval_of_typ different
+       from uninit_sval_of_sval and val_to_sval. *)
+    | TypVarBit w => Some (ValBaseVarbit w [])
+    | TypInteger => Some (ValBaseInteger 0)
+    | TypError => Some (ValBaseError NoError)
+    | TypEnum tname None members => 
+        (* Empty members is a syntax error *)
+        if (Nat.eqb (List.length members) 0) then None
+        else Some (ValBaseEnumField tname (List.hd !"" members))
+    | _ => None
+    end
+  in match get_real_type typ with
+     | Some typ' => uninit_sval_of_typ' hvalid typ'
+     | None => None
+     end.
+(* Type without uninitialized svals:
+     TypeString: can be used only for compile-time constant string values (7.1.),
+                 one cannot declare variables with a string type (7.1.5.),
+                 so it cannot be uninitialized.
+     TypVoid: It contains no values (7.1.1.).
+     TypSet, TypMatchKind: They do not have default values (7.3.).
+     TypControl, TypParser, TypExtern, TypFunction, TypAction, 
+     TypTable, TypPackage, TypSpecializedType, TypConstructor
+*)
+
+(* The definition of uninit_sval_of_sval follows val_to_sval instead of uninit_sval_of_typ.
+   The discrepancies between uninit_sval_of_sval and uninit_sval_of_typ:
+   1. ValBaseInteger, ValBaseVarbit, ValBaseError, ValBaseEnumField - different output sval
+   2. ValBaseString, ValBaseMatchKind, ValBaseNull - not exist in uninit_sval_of_typ *)
 Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval := 
   match v with
   | ValBaseBool _ => ValBaseBool None
@@ -339,22 +354,9 @@ Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval :=
   | ValBaseStack vs size next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) size next
   | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
   | ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)
-  (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField *)
+  (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
   | _ => v
   end.
-(* with uninit_sval_of_svset (uninit_hvalid : bool) (vset: @ValueSet tags_t (option bool)) : 
-                          @ValueSet tags_t (option bool) :=
-  match vset with
-  | ValSetSingleton v => ValSetSingleton (uninit_sval_of_sval uninit_hvalid v)
-  | ValSetUniversal => vset
-  | ValSetMask v mask => ValSetMask (uninit_sval_of_sval uninit_hvalid v) (uninit_sval_of_sval uninit_hvalid mask)
-  | ValSetRange lo hi => ValSetMask (uninit_sval_of_sval uninit_hvalid lo) (uninit_sval_of_sval uninit_hvalid hi)
-  | ValSetProd vsets => ValSetProd (List.map (uninit_sval_of_svset uninit_hvalid) vsets)
-  | ValSetLpm width nbits v => ValSetLpm (uninit_sval_of_sval uninit_hvalid width) nbits (uninit_sval_of_sval uninit_hvalid v)
-  | ValSetValueSet size members vsets => ValSetValueSet (uninit_sval_of_sval uninit_hvalid size) members 
-                                                        (List.map (uninit_sval_of_svset uninit_hvalid) vsets)
-  end. *)
-
 
 (* The following reads give unspecified values: 
     1. reading a field from a header that is currently invalid.
@@ -416,17 +418,15 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpArrayAccess array idx) typ dir)
                             header
-  | exec_expr_bitstring_access : forall bits bitssv bitsv bitsz wn lo loz hi hiz this st tag typ dir,
+  | exec_expr_bitstring_access : forall bits bitssv bitsbl wn lo lonat hi hinat this st tag typ dir,
                                  exec_expr read_one_bit this st bits bitssv ->
-                                 sval_to_val read_one_bit bitssv bitsv ->
-                                 bitstring_slice_bits_to_z bitsv = Some (wn, bitsz) ->
-                                 Z.of_N lo = loz ->
-                                 Z.of_N hi = hiz ->
-                                 loz <= hiz < (Z.of_N wn) ->
+                                 sval_to_bits_width bitssv = Some (bitsbl, wn) ->
+                                 N.to_nat lo = lonat ->
+                                 N.to_nat hi = hinat ->
+                                 (lonat <= hinat < wn)%nat ->
                                  exec_expr read_one_bit this st
                                  (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
-                                 (ValBaseBit (to_loptbool (hi - lo + 1)%N 
-                                              (bitstring_slice bitsz loz hiz)))
+                                 (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_expr_list : forall es vs this st tag typ dir,
                      exec_exprs read_one_bit this st es vs ->
                      exec_expr read_one_bit this st
@@ -957,16 +957,16 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
   | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig ret_sig,
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
-                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject StackOutOfBounds_str)) ->
+                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject StackOutOfBounds)) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
   (* ATTN: lo and hi interchanged here *)
-  | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsz this st tag typ dir sig,
+  | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsbl this st tag typ dir sig,
                                    exec_lexpr read_one_bit this st bits lv sig ->
                                    exec_expr_det read_one_bit this st bits bitsv ->
-                                   bitstring_slice_bits_to_z bitsv = Some (wn, bitsz) ->
-                                   (lo <= hi < wn)%N ->
+                                   sval_to_bits_width bitsv = Some (bitsbl, wn) ->
+                                   (lo <= hi < N.of_nat wn)%N ->
                                    exec_lexpr read_one_bit this st
                                    (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
                                    (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) sig
@@ -1008,34 +1008,50 @@ Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sva
   update_memory (PathMap.set p sv) s.
 
 Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
-  | exec_read_name : forall name loc st sv typ,
-                       loc_to_sval this loc st = Some sv ->
-                       exec_read this st (MkValueLvalue (ValLeftName name loc) typ) sv
+  | exec_read_name : forall name loc sv st typ,
+                     loc_to_sval this loc st = Some sv ->
+                     exec_read this st (MkValueLvalue (ValLeftName name loc) typ) sv
   | exec_read_by_member : forall lv name st sv typ,
-                         exec_read_member this st lv name typ sv ->
-                         exec_read this st (MkValueLvalue (ValLeftMember lv name) typ) sv
-  (* | exec_read_bit_access
-     | exec_read_array_access *)
-
+                          exec_read_member this st lv name typ sv ->
+                          exec_read this st (MkValueLvalue (ValLeftMember lv name) typ) sv
+  (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
+  | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
+                           exec_read this st lv bitssv ->
+                           sval_to_bits_width bitssv = Some (bitsbl, wn) ->
+                           N.to_nat lo = lonat ->
+                           N.to_nat hi = hinat ->
+                           (lonat <= hinat < wn)%nat ->
+                           exec_read this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) 
+                             (ValBaseBit (bitstring_slice bitsbl lonat hinat))
+  | exec_read_array_access: forall lv headers size next default_header header idx st typ,
+                            exec_read this st lv (ValBaseStack headers size next) ->
+                            uninit_sval_of_typ None typ = Some default_header ->
+                            Znth_def (Z.of_N idx) headers default_header = header ->
+                            exec_read this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
 with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Sval -> Prop :=
   | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                          exec_read this st lv (ValBaseHeader fields is_valid) ->
-                          AList.get fields name = Some sv ->
-                          exec_read_member this st lv name typ sv
+                              exec_read this st lv (ValBaseHeader fields is_valid) ->
+                              AList.get fields name = Some sv ->
+                              exec_read_member this st lv name typ sv
   | exec_read_member_struct : forall fields st lv name typ sv,
-                          exec_read this st lv (ValBaseStruct fields) ->
-                          AList.get fields name = Some sv ->
-                          exec_read_member this st lv name typ sv
+                              exec_read this st lv (ValBaseStruct fields) ->
+                              AList.get fields name = Some sv ->
+                              exec_read_member this st lv name typ sv
   | exec_read_member_union: forall fields st lv name typ sv,
-                        exec_read this st lv (ValBaseUnion fields) ->
-                        AList.get fields name = Some sv ->
-                        exec_read_member this st lv name typ sv.
+                            exec_read this st lv (ValBaseUnion fields) ->
+                            AList.get fields name = Some sv ->
+                            exec_read_member this st lv name typ sv.
 
-(* TODO: write to the field of an invalid header in a union makes the possibly existing valid header
-    take undefined value. It should be guaranteed there is at most one valid header in a union. *)
+(*  Write to the field of an invalid header in a union makes the possibly existing valid header
+    take undefined value. It should be guaranteed there is at most one valid header in a union. 
+    Guaranteed by:
+    1. Writing to the field of an invalid header in a union will first execute write_header_field,
+       which does not change such a header.
+    2. Writing an invalid header into a union happens in update_union_member, which converts
+       all headers to invalid. *)
 (* If any of these kinds of writes are performed:
     1. a write to a field in a currently invalid header, either a regular header or an element of 
        a header stack with an index that is in range, and that header is not part of a header_union
@@ -1124,15 +1140,14 @@ Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sv
     end
   in update_stack_header' headers (N.to_nat idx) v.
 
-Definition update_bitstring (bits : list (option bool)) (lsb : N) (msb : N) 
-                          (nbits : list (option bool)) : list (option bool) :=
-  let fix update_bitstring' (bits : list (option bool)) (lsb : nat) (msb : nat) 
-                            (nbits : list (option bool)) :=
-    match bits, lsb, msb, nbits with
-    | hd :: tl, S lsb', S msb', _ => hd :: (update_bitstring' tl lsb' msb' nbits)
-    | _ :: tl, O, S msb', nhd :: ntl => nhd :: (update_bitstring' tl lsb msb' ntl)
+Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat) 
+                              (nbits : list A) : list A :=
+    match bits, lo, hi, nbits with
+    | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
+    | _::tl, O, S hi', nhd::ntl => nhd :: (update_bitstring tl lo hi' ntl)
+    | _::tl, O, O, [nhd] => nhd :: tl
     | _, _, _, _ => bits
-  end in update_bitstring' bits (N.to_nat lsb) (N.to_nat (msb + 1)) nbits.
+    end.
 
 (* Writing and updating happens all be in sval, so it requires converting the rhs val to sval beforehand *)
 (* If any of these kinds of writes are performed:
@@ -1141,33 +1156,37 @@ Definition update_bitstring (bits : list (option bool)) (lsb : N) (msb : N)
    Guaranteed by update_stack_header, if idx >= size, state is unchanged. *)
 Inductive exec_write (this : path) : state -> Lval -> Sval -> state -> Prop :=
   | exec_write_name : forall name loc st rhs typ st',
-                         update_val_by_loc this st loc rhs = st' ->
-                         exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
+                      update_val_by_loc this st loc rhs = st' ->
+                      exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
   | exec_write_member : forall lv fname sv sv' st rhs typ st',
-                           exec_read this st lv sv ->
-                           update_member sv fname rhs sv' ->
-                           exec_write this st lv sv' st' ->
-                           exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
-  | exec_write_bit_access_bit : forall lv bits nbits bits' lsb msb st typ st',
-                                   exec_read this st lv (ValBaseBit bits) ->
-                                   (lsb <= msb < Z.to_N (Zlength bits))%N ->
-                                   update_bitstring bits lsb msb nbits = bits' ->
-                                   exec_write this st lv (ValBaseBit bits') st' ->
-                                   exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
-                                   (ValBaseBit nbits) st'
-   | exec_write_bit_access_int : forall lv bits bits' lsb msb nbits st typ st',
-                                   exec_read this st lv (ValBaseInt bits) ->
-                                   (lsb <= msb < Z.to_N (Zlength bits))%N ->
-                                   update_bitstring bits lsb msb nbits = bits' ->
-                                   exec_write this st lv (ValBaseInt bits') st' ->
-                                   exec_write this st (MkValueLvalue (ValLeftBitAccess lv msb lsb) typ)
-                                   (ValBaseBit nbits) st'
+                        exec_read this st lv sv ->
+                        update_member sv fname rhs sv' ->
+                        exec_write this st lv sv' st' ->
+                        exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
+  | exec_write_bit_access_bit : forall lv bits bits' lo lonat hi hinat st typ st',
+                                exec_read this st lv (ValBaseBit bits) ->
+                                N.to_nat lo = lonat ->
+                                N.to_nat hi = hinat ->
+                                (lonat <= hinat < List.length bits)%nat ->
+                                update_bitstring bits lonat hinat bits = bits' ->
+                                exec_write this st lv (ValBaseBit bits') st' ->
+                                exec_write this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                  (ValBaseBit bits') st'
+   | exec_write_bit_access_int : forall lv bits bits' lo lonat hi hinat st typ st',
+                                  exec_read this st lv (ValBaseInt bits) ->
+                                  N.to_nat lo = lonat ->
+                                  N.to_nat hi = hinat ->
+                                  (lonat <= hinat < List.length bits)%nat ->
+                                  update_bitstring bits lonat hinat bits = bits' ->
+                                  exec_write this st lv (ValBaseInt bits') st' ->
+                                  exec_write this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                    (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
   | exec_write_array_access : forall lv headers size next (idx: N) headers' st rhs typ st',
-                                 exec_read this st lv (ValBaseStack headers size next) ->
-                                 update_stack_header headers idx rhs = headers' ->
-                                 exec_write this st lv (ValBaseStack headers' size next) st' ->
-                                 exec_write this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
+                              exec_read this st lv (ValBaseStack headers size next) ->
+                              update_stack_header headers idx rhs = headers' ->
+                              exec_write this st lv (ValBaseStack headers' size next) st' ->
+                              exec_write this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Sval) * (option Lval).
 
@@ -1332,6 +1351,7 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
    equal to (h.minSizeInBits() + 7) >> 3. *)
 (* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
 (* u.isValid() returns true if any member of the header union u is valid, otherwise it returns false. *)
+(* It should be guaranteed there is at most one valid header in a union. *)
 (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
 (* Calling the isValid() method on an element of a header stack, where the index is out of range, 
    returns an undefined boolean value, i.e., it is either true or false, but the specification 
@@ -1458,7 +1478,6 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
           (MkExpression tag' (ExpExpressionMember lhs fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
           nil args) typ dir) s' sig''
-
   (* eval the call expression:
        1. eval arguments;
        2. lookup the function to call;
@@ -2030,8 +2049,10 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
   (* TODO: DeclPackageType and TypPackage are inconsistency *)
   | DeclPackageType tags name type_params params =>
     Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
+  | DeclEnum tags name members =>
+    IdentMap.set name (TypEnum name None members) ge_typ
   (* TODO: Do we need to consider the difference between DeclTypeDef
-     and DeclNewType?*)
+     and DeclNewType? *)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with

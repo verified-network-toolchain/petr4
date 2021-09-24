@@ -1,16 +1,19 @@
 Require Import Coq.Lists.List.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
-Require Export Poulet4.Maps.
-Require Import String.
-Import ListNotations.
-
+Require Import Coq.Program.Program.
+Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.NArith.BinNatDef.
 
+Require Import Poulet4.Typed.
+Require Import Poulet4.Syntax.
+Require Export Poulet4.Maps.
+Require Export Poulet4.Sublist.
+Require Import Poulet4.P4Notations.
+Import ListNotations.
+
 Section SyntaxUtil.
 
-Context {tags_t: Type}.
+Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Variable default_tag: tags_t.
 Notation Val := (@ValueBase tags_t bool).
 
@@ -18,7 +21,7 @@ Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
-
+Check !"next".
 Axiom dummy_ident : unit -> ident. (* make it lazy for extracted OCaml. *)
 Axiom dummy_val : Val.
 
@@ -101,19 +104,18 @@ Inductive signal : Type :=
  | SReturn : Val -> signal
  | SExit
  (* parser's states include accept and reject *)
- | SReject : string -> signal.
+ | SReject : P4String -> signal.
 
 Definition SReturnNull := SReturn ValBaseNull.
 
 (* Errors *)
-Open Scope string_scope.
-Definition NoError_str := "NoError".
-Definition PacketTooShort_str:= "PacketTooShort".
-Definition NoMatch_str := "NoMatch".
-Definition StackOutOfBounds_str := "StackOutOfBounds".
-Definition HeaderTooShort_str := "HeaderTooShort".
-Definition ParserTimeout_str := "ParserTimeout".
-Definition ParserInvalidArgument_str := "ParserInvalidArgument".
+Definition NoError := !"NoError".
+Definition PacketTooShort := !"PacketTooShort".
+Definition NoMatch := !"NoMatch".
+Definition StackOutOfBounds := !"StackOutOfBounds".
+Definition HeaderTooShort := !"HeaderTooShort".
+Definition ParserTimeout := !"ParserTimeout".
+Definition ParserInvalidArgument := !"ParserInvalidArgument".
 
 (* Conversion *)
 Definition pos_of_N (n : N) : positive :=
@@ -126,6 +128,14 @@ Definition lift_option {A} (l : list (option A)) : option (list A) :=
   let lift_one_option (x : option A) (acc : option (list A)) :=
     match x, acc with
     | Some x', Some acc' => Some (x' :: acc')
+    | _, _ => None
+    end
+  in List.fold_right lift_one_option (Some []) l.
+
+Definition lift_option_kv {A B} (l : list (A * option B)) : option (list (A * B)) :=
+  let lift_one_option (kv : A * option B) (acc : option (list (A * B))) :=
+    match kv, acc with
+    | (k, Some v), Some acc' => Some ((k, v) :: acc')
     | _, _ => None
     end
   in List.fold_right lift_one_option (Some []) l.

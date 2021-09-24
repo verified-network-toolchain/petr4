@@ -449,7 +449,7 @@ Module IntArith.
 
 End IntArith.
 
-(* Convert from (width:nat) and (value:Z) to little-endian (list bool)*)
+(* Convert from (width:nat) and (value:Z) to little-endian (list bool) *)
 Definition to_lbool (width: N) (value: Z) : list bool :=
   let fix to_lbool' lbool value :=
     match lbool with

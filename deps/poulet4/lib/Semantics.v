@@ -530,29 +530,6 @@ Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                            svals_to_vals read_one_bit svs vs ->
                            exec_exprs_det read_one_bit this st exprs vs.
 
-Inductive exec_expr_set (read_one_bit : option bool -> bool -> Prop)
-                        : path -> (* temp_env -> *) state -> (@Expression tags_t) -> ValSet ->
-                          (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
-  | exec_expr_set_mask : forall expr exprv mask maskv this st tag typ dir,
-                         exec_expr_det read_one_bit this st expr exprv ->
-                         exec_expr_det read_one_bit this st mask maskv ->
-                         exec_expr_set read_one_bit this st
-                         (MkExpression tag (ExpMask expr mask) typ dir)
-                         (ValSetMask exprv maskv)
-  | exec_expr_set_range : forall lo lov hi hiv this st tag typ dir,
-                          exec_expr_det read_one_bit this st lo lov ->
-                          exec_expr_det read_one_bit this st hi hiv ->
-                          exec_expr_set read_one_bit this st
-                          (MkExpression tag (ExpRange lo hi) typ dir)
-                          (ValSetRange lov hiv)
-  | exec_expr_set_cast : forall newtyp expr oldv newv this st tag typ dir real_typ,
-                         exec_expr_det read_one_bit this st expr oldv ->
-                         get_real_type newtyp = Some real_typ ->
-                         Ops.eval_cast_set real_typ oldv = Some newv ->
-                         exec_expr_set read_one_bit this st
-                         (MkExpression tag (ExpCast newtyp expr) typ dir)
-                         newv.
-
 (* A generic function for evaluating pure expressions. *)
 Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
   match hook expr with
@@ -838,9 +815,25 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                      path -> state -> @Match tags_t -> ValSet -> Prop :=
   | exec_match_dont_care : forall this st tag typ,
                            exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_expr : forall this st expr vs tag typ,
-                      exec_expr_set read_one_bit this st expr vs ->
-                      exec_match read_one_bit this st (MkMatch tag (MatchExpression expr) typ) vs.
+  | exec_match_mask : forall expr exprv mask maskv this st tag typ,
+                      exec_expr_det read_one_bit this st expr exprv ->
+                      exec_expr_det read_one_bit this st mask maskv ->
+                      exec_match read_one_bit this st
+                      (MkMatch tag (MatchMask expr mask) typ)
+                      (ValSetMask exprv maskv)
+  | exec_match_range : forall lo lov hi hiv this st tag typ,
+                        exec_expr_det read_one_bit this st lo lov ->
+                        exec_expr_det read_one_bit this st hi hiv ->
+                        exec_match read_one_bit this st
+                        (MkMatch tag (MatchRange lo hi) typ)
+                        (ValSetRange lov hiv)
+  |exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
+                      exec_expr_det read_one_bit this st expr oldv ->
+                      get_real_type newtyp = Some real_typ ->
+                      Ops.eval_cast_set real_typ oldv = Some newv ->
+                      exec_match read_one_bit this st
+                      (MkMatch tag (MatchCast newtyp expr) typ)
+                      newv.
 
 Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
                        path -> state -> list (@Match tags_t) -> list ValSet -> Prop :=

@@ -157,14 +157,6 @@ Section Transformer.
       let args := map (transform_expr e) args in
       MkExpression tags (ExpNamelessInstantiation typ' args) typ dir
     | ExpDontCare => MkExpression tags ExpDontCare typ dir
-    | ExpMask expr mask =>
-      let expr' := transform_expr e expr in
-      let mask' := transform_expr e mask in
-      MkExpression tags (ExpMask expr' mask') typ dir
-    | ExpRange lo hi =>
-      let lo' := transform_expr e lo in
-      let hi' := transform_expr e hi in
-      MkExpression tags (ExpRange lo' hi') typ dir
     end
   with transform_expr (e: env) (expr: @Expression tags_t): @Expression tags_t :=
     match expr with
@@ -307,9 +299,17 @@ Section Transformer.
     | MkMatch tags expr typ =>
       match expr with
       | MatchDontCare => mt
-      | MatchExpression expr =>
+      | MatchMask expr mask =>
         let expr' := transform_expr e expr in
-        MkMatch tags (MatchExpression expr') typ
+        let mask' := transform_expr e mask in
+        MkMatch tags (MatchMask expr' mask') typ
+      | MatchRange lo hi =>
+        let lo' := transform_expr e lo in
+        let hi' := transform_expr e hi in
+        MkMatch tags (MatchRange lo' hi') typ
+      | MatchCast typ' expr =>
+        let expr' := transform_expr e expr in
+        MkMatch tags (MatchCast typ' expr') typ
       end
     end.
 

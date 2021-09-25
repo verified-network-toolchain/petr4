@@ -154,18 +154,6 @@ Section Transformer.
     | ExpNamelessInstantiation typ' args =>
       (nil, MkExpression tag (ExpNamelessInstantiation typ' args) typ dir, nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
-    | ExpMask expr mask =>
-      let (l1e1, n1) := transform_exp nameIdx expr in
-      let (l2e2, n2) := transform_exp n1 mask in
-      let (l1, e1) := l1e1 in
-      let (l2, e2) := l2e2 in
-      (l1 ++ l2, MkExpression tag (ExpMask e1 e2) typ dir, n2)
-    | ExpRange lo hi =>
-      let (l1e1, n1) := transform_exp nameIdx lo in
-      let (l2e2, n2) := transform_exp n1 hi in
-      let (l1, e1) := l1e1 in
-      let (l2, e2) := l2e2 in
-      (l1 ++ l2, MkExpression tag (ExpRange e1 e2) typ dir, n2)
     end
   with
   transform_exp (nameIdx: N) (exp: @Expression tags_t):
@@ -361,10 +349,22 @@ Section Transformer.
     | MkMatch tags expr typ =>
       match expr with
       | MatchDontCare => (nil, mt, nameIdx)
-      | MatchExpression exp =>
-        let (l1e1, n1) := transform_exp nameIdx exp in
+      | MatchMask expr mask =>
+        let (l1e1, n1) := transform_exp nameIdx expr in
+        let (l2e2, n2) := transform_exp n1 mask in
         let (l1, e1) := l1e1 in
-        (map expr_to_decl l1, MkMatch tags (MatchExpression e1) typ, n1)
+        let (l2, e2) := l2e2 in
+        (map expr_to_decl (l1 ++ l2), MkMatch tags (MatchMask e1 e2) typ, n2)
+      | MatchRange lo hi =>
+        let (l1e1, n1) := transform_exp nameIdx lo in
+        let (l2e2, n2) := transform_exp n1 hi in
+        let (l1, e1) := l1e1 in
+        let (l2, e2) := l2e2 in
+        (map expr_to_decl (l1 ++ l2), MkMatch tags (MatchRange e1 e2) typ, n2)
+      | MatchCast typ' expr =>
+        let (l1e1, n1) := transform_exp nameIdx expr in
+        let (l1, e1) := l1e1 in 
+        (map expr_to_decl l1, MkMatch tags (MatchCast typ' e1) typ, n1)
       end
     end.
 

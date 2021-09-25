@@ -79,14 +79,14 @@ Section Syntax.
                     (args: list (option Expression))
   | ExpNamelessInstantiation (typ: @P4Type tags_t) (args: list Expression)
   | ExpDontCare
-  | ExpMask (expr: Expression) (mask: Expression)
-  | ExpRange (lo: Expression) (hi: Expression)
   with Expression :=
   | MkExpression (tags: tags_t) (expr: ExpressionPreT) (typ: @P4Type tags_t) (dir: direction).
 
   Inductive MatchPreT :=
   | MatchDontCare
-  | MatchExpression (expr: Expression).
+  | MatchMask (expr: Expression) (mask: Expression)
+  | MatchRange (lo: Expression) (hi: Expression)
+  | MatchCast (typ: @P4Type tags_t) (expr: Expression).
 
   Inductive Match :=
   | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: @P4Type tags_t).

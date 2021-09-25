@@ -2050,7 +2050,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
   | DeclPackageType tags name type_params params =>
     Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
   | DeclEnum tags name members =>
-    IdentMap.set name (TypEnum name None members) ge_typ
+    Some (IdentMap.set name (TypEnum name None members) ge_typ)
   (* TODO: Do we need to consider the difference between DeclTypeDef
      and DeclNewType? *)
   | DeclTypeDef tags name (inl typ)

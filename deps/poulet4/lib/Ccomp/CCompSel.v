@@ -1,5 +1,4 @@
-From compcert Require Import Clight Ctypes Integers Cop.
-From compcert Require AST.
+From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.PArith.BinPosDef.
@@ -15,8 +14,12 @@ Require Import List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import String.
 Require Coq.PArith.BinPosDef.
-Open Scope string_scope.
-Open Scope list_scope.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+Local Open Scope Z_scope.
+Local Open Scope clight_scope.
+Import Clightdefs.ClightNotations.
+Require Import Poulet4.Ccomp.Petr4Runtime.
 Module P := P4sel.
 Module F := P.F.
 Module E := P.Expr.
@@ -24,6 +27,7 @@ Module ST := P.Stmt.
 Module PA := P.Parser.
 Module CT := P.Control.ControlDecl.
 Module TD := P.TopDecl.
+Module RunTime := Petr4Runtime.
 Parameter print_Clight: Clight.program -> unit.
 (** P4Sel -> Clight **)
 Section CCompSel.
@@ -37,18 +41,20 @@ Section CCompSel.
   Definition char := Tint I8 Unsigned noattr.
   Definition Cstring := Tpointer char noattr.
   Definition bit_vec := 
-    (Tstruct (Pos.of_nat 3) noattr).
+    (Tstruct (RunTime._BitVec) noattr).
   Definition packet_in := 
-    (Tstruct (Pos.of_nat 1) noattr).
+    (Tpointer Tvoid noattr).
   Definition packet_out :=
-    (Tstruct (Pos.of_nat 2) noattr).
+    (Tpointer Tvoid noattr).
+  Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
+  Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
   
   Fixpoint CTranslateType (p4t : P4cub.Expr.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
-    | P4cub.Expr.TString => (Ctypes.Tvoid, env) (* TODO: how to translate string type? *)
+    | P4cub.Expr.TString => (Cstring, env)
     | P4cub.Expr.TEnum x xs => (Ctypes.Tvoid, env) (* TODO: how to translate enum? *)
     | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
     | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
@@ -286,52 +292,51 @@ Section CCompSel.
     in 
     List.fold_left  (transformation) el (Some ([],env)).
   
+  Definition typelist_slice := 
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons TpointerBitVec
+    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil))).
 
   Definition slice_function := 
-    AST.EF_external "slice" (AST.mksignature
-    [AST.Tptr; AST.Tptr; AST.Tptr; AST.Tptr]
-    (AST.Tvoid)
-    AST.cc_default
-    ).
-  Definition typelist_slice := 
-    let Tpointer := Ctypes.Tpointer bit_vec noattr in 
-    Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer Ctypes.Tnil))).
-
-  Definition uop_function (op: string) := 
-    AST.EF_external op (AST.mksignature
-    [AST.Tptr; AST.Tptr]
-    (AST.Tvoid)
-    AST.cc_default
-    ).
+    Evar $"eval_slice" (Tfunction typelist_slice tvoid cc_default).
+  
   Definition typelist_uop := 
-    let Tpointer := Ctypes.Tpointer bit_vec noattr in 
-    Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer Ctypes.Tnil).
-
-  Definition bop_function (op: string) := 
-    AST.EF_external op (AST.mksignature
-    [AST.Tptr; AST.Tptr; AST.Tptr]
-    (AST.Tvoid)
-    AST.cc_default
-    ).
-
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil).
+  
+  Definition uop_function (op: ident) := 
+    Evar op (Tfunction typelist_uop tvoid cc_default).
+    
   Definition typelist_bop_bitvec := 
-    let Tpointer := Ctypes.Tpointer bit_vec noattr in 
-    Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer
+    let TpointerBitVec := Ctypes.Tpointer bit_vec noattr in 
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons TpointerBitVec
+    (Ctypes.Tcons TpointerBitVec
     Ctypes.Tnil)).
 
   Definition typelist_bop_bool := 
-    let Tpointer := Ctypes.Tpointer bit_vec noattr in
-    let TpointerBool := Ctypes.Tpointer type_bool noattr in  
-    Ctypes.Tcons Tpointer 
-    (Ctypes.Tcons Tpointer 
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons TpointerBitVec
     (Ctypes.Tcons TpointerBool
     Ctypes.Tnil)).
+
+  Definition bop_function (op: ident) := 
+    if(op == _eval_eq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _eval_not_eq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _eval_ge) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _eval_gt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _eval_le) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _eval_lt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else
+      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
+    .
 
   Definition ValidBitIndex (arg: E.e tags_t) (env: ClightEnv tags_t ) : option AST.ident
   :=
@@ -378,9 +383,10 @@ Section CCompSel.
     let not_expr := Eunop Onotbool arg' Ctypes.type_bool in 
     Some (Sassign dst' not_expr, env_arg)
   | P4cub.Expr.BitNot => 
-    Some (Sbuiltin None (uop_function "eval_bitnot") typelist_uop [arg_ref; dst_ref], env_arg)
+    (*need implementation in runtime*)
+    Some (Scall None (uop_function _eval_bitand) [arg_ref; dst_ref], env_arg)
   | P4cub.Expr.UMinus => 
-    Some (Sbuiltin None (uop_function "eval_uminus") typelist_uop [arg_ref; dst_ref], env_arg)
+    Some (Scall None (uop_function _eval_uminus)  [arg_ref; dst_ref], env_arg)
   | P4cub.Expr.IsValid =>
     match ValidBitIndex arg env_arg with
     | None => None
@@ -442,44 +448,44 @@ Section CCompSel.
   end in
   match op with
   | P4cub.Expr.Plus => 
-  let fn_name := if signed then "eval_add_signed" else "eval_add_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  let fn_name :=  _eval_plus in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.PlusSat =>
-  let fn_name := if signed then "eval_addsat_signed" else "eval_addsat_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_plus_sat in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Minus =>
-  let fn_name := if signed then "eval_sub_signed" else "eval_sub_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_minus in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.MinusSat =>
-  let fn_name := if signed then "eval_subsat_signed" else "eval_subsat_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_minus_sat in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Times =>
-  let fn_name := if signed then "eval_mul_signed" else "eval_mul_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_mul in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Shl =>
-  Some (Sbuiltin None (bop_function "eval_shl") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _eval_shl) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Shr =>
-  Some (Sbuiltin None (bop_function "eval_shr") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _eval_shr) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Le => 
-  let fn_name := if signed then "eval_le_signed" else "eval_le_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_le in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Ge => 
-  let fn_name := if signed then "eval_ge_signed" else "eval_ge_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_ge in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Lt => 
-  let fn_name := if signed then "eval_lt_signed" else "eval_lt_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_lt in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Gt => 
-  let fn_name := if signed then "eval_gt_signed" else "eval_gt_unsigned" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_gt in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Eq => 
   match Clight.typeof le' with
   | Tint IBool Signed noattr =>
   let eq_expr :=  Ebinop Oeq le' re' type_bool in
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
-  let fn_name := "eval_eq" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_eq in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   end
   | P4cub.Expr.NotEq => 
   match Clight.typeof le' with
@@ -487,17 +493,18 @@ Section CCompSel.
   let eq_expr :=  Ebinop Oeq le' re' type_bool in
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
-  let fn_name := "eval_neq" in
-  Some (Sbuiltin None (bop_function fn_name) typelist_bop_bool [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _eval_not_eq in
+  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   end
   | P4cub.Expr.BitAnd => 
-  Some (Sbuiltin None (bop_function "eval_bitand") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _eval_bitand) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.BitXor => 
-  Some (Sbuiltin None (bop_function "eval_bitxor") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _eval_bitxor) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.BitOr => 
-  Some (Sbuiltin None (bop_function "eval_bitor") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _eval_bitor) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.PlusPlus => 
-  Some (Sbuiltin None (bop_function "eval_plusplus") typelist_bop_bitvec [le_ref; re_ref; dst_ref], env_re)
+  (*Need implementation in runtime*)
+  Some (Scall None (bop_function _eval_plus) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.And => 
   let and_expr :=  Ebinop Oand le' re' type_bool in
   Some (Sassign dst' and_expr, env_re)
@@ -808,7 +815,7 @@ Section CCompSel.
                         | Some dst' =>
                         let (tau', env') := CTranslateType τ env' in 
                         let dst' := Evar dst' tau' in
-                        Some (Sbuiltin None slice_function typelist_slice [n'; hi'; lo'; dst'], env')
+                        Some (Scall None slice_function [n'; hi'; lo'; dst'], env')
                         end
                         end
 
@@ -1333,7 +1340,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   | TD.TPParser _ _ _ _ _ _ _ => CTranslateTopParser d env
   | TD.TPPackage _ _ _ => None (*TODO: implement*)
   end.
-  (* currently just an empty program *)
+
   Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 
     let init_env := CCompEnv.newClightEnv tags_t in
     let (init_env1, _) :=  CCompEnv.new_ident tags_t (init_env) in 

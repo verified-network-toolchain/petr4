@@ -31,6 +31,8 @@ class MyApp(App):
                       "w4" : { "ip" : "167774216", "mac" : "8796093024392" } 
                     }
 
+    self.public_web_server_ip = "167774730";
+
     # host access links
     topo.add_link("h1", "s1", 0, 1, 1)
     topo.add_link("h2", "s1", 0, 2, 1)
@@ -87,7 +89,7 @@ class MyApp(App):
             next_hop = p[1]
             port = str(self.topo.port(switch, next_hop))
             
-            entry = Entry("ipv4", [("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("port", port)])
+            entry = Entry("ipv4", [("hdr.ipv4.dstAddr", dst_ip)], "ipv4_forward", [("port", port), ("srcAddr", self.public_web_server_ip)])
             self.insert(switch, entry)
 
             entry = Entry("dst_mac", [("hdr.ipv4.dstAddr", dst_ip)], "set_dst_mac", [("dstAddr", dst_mac)])

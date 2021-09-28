@@ -1,4 +1,8 @@
-Require Import Poulet4.Semantics Poulet4.Typed Poulet4.Syntax.
+Require Import Poulet4.Semantics Poulet4.Typed
+        Poulet4.Syntax Coq.NArith.BinNat
+        Coq.Lists.List.
+Import ListNotations.
+Require Poulet4.P4String.
 
 Section Typing.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
@@ -13,17 +17,79 @@ Section Typing.
 
   Context `{T : @Target tags_t (@Expression tags_t)}.
 
-  (* TODO.
-     Try to just use [genv_senum]. *)
+  (* TODO:
+     What constraints do we need on:
+     - fixed-width numeric types?
+     - headers (unions & stacks)?
+     - senum values: see comments below.
+   *)
   Inductive val_typ (gsenum : genv_senum) : Sval -> typ -> Prop :=
   | typ_null : forall t, val_typ gsenum ValBaseNull t
   | typ_bool : forall b, val_typ gsenum (ValBaseBool b) TypBool
   | typ_integer : forall v, val_typ gsenum (ValBaseInteger v) TypInteger
+  | typ_bit : forall v,
+      val_typ gsenum (ValBaseBit v) (TypBit (N.of_nat (length v)))
+  | typ_int : forall v,
+      val_typ gsenum (ValBaseInt v) (TypInt (N.of_nat (length v)))
+  | typ_varbit : forall n v,
+      N.to_nat n < length v ->
+      val_typ gsenum (ValBaseVarbit n v) (TypVarBit n)
+  | typ_string : forall s,
+      val_typ gsenum (ValBaseString s) TypString
+  | typ_tuple : forall vs ts,
+      Forall2 (val_typ gsenum) vs ts ->
+      val_typ gsenum (ValBaseTuple vs) (TypTuple ts)
+  | typ_record : forall vs ts,
+      Forall2
+        (fun xv xt =>
+           P4String.equiv (fst xv) (fst xt) /\ val_typ gsenum (snd xv) (snd xt))
+        vs ts ->
+      val_typ gsenum (ValBaseRecord vs) (TypRecord ts)
+  | typ_error : forall err,
+      val_typ gsenum (ValBaseError err) TypError
+  | typ_matchkind : forall mk,
+      val_typ gsenum (ValBaseMatchKind mk) TypMatchKind
+  | typ_struct : forall vs ts,
+      Forall2
+        (fun xv xt =>
+           P4String.equiv (fst xv) (fst xt) /\ val_typ gsenum (snd xv) (snd xt))
+        vs ts ->
+      val_typ gsenum (ValBaseStruct vs) (TypStruct ts)
+  | typ_header : forall b vs ts,
+      Forall2
+        (fun xv xt =>
+           P4String.equiv (fst xv) (fst xt) /\ val_typ gsenum (snd xv) (snd xt))
+        vs ts ->
+      val_typ gsenum (ValBaseHeader vs b) (TypHeader ts)
+  | typ_union : forall vs ts,
+      Forall2
+        (fun xv xt =>
+           P4String.equiv (fst xv) (fst xt) /\ val_typ gsenum (snd xv) (snd xt))
+        vs ts ->
+      val_typ gsenum (ValBaseUnion vs) (TypHeaderUnion ts)
+  | typ_stack : forall s n vs ts,
+      length vs = N.to_nat s ->
+      Forall (fun v => val_typ gsenum v (TypHeader ts)) vs ->
+      val_typ gsenum (ValBaseStack vs s n) (TypArray (TypHeader ts) n)
+  | typ_enumfield : forall ename member members,
+      In member members ->
+      val_typ gsenum
+              (ValBaseEnumField ename member)
+              (TypEnum ename None members)
   | typ_senumfield : forall ename member v t fields,
       IdentMap.get ename gsenum = Some (ValBaseSenum fields) ->
       AList.get fields member = Some v ->
       val_typ gsenum v t ->
-      val_typ gsenum (ValBaseSenumField ename member v) (TypEnum ename (Some t) (List.map fst fields)).
+      val_typ gsenum
+              (ValBaseSenumField ename member v)
+              (TypEnum ename (Some t) (List.map fst fields))
+  (* TODO: what is a [ValBaseSenum _], and what is its type?
+     It seems to be something in [gsenum],
+     but should it be a value? *)
+  | typ_senum : forall fields ename t,
+      IdentMap.get ename gsenum = Some (ValBaseSenum fields) ->
+      Forall (fun xv => val_typ gsenum (snd xv) t) fields ->
+      val_typ gsenum (ValBaseSenum fields) (TypEnum ename (Some t) (List.map fst fields)).
 
   Definition envs_same (g : gamma) (st : state) : Prop :=
     forall p : path, PathMap.get p g = None <-> PathMap.get p (fst st) = None.

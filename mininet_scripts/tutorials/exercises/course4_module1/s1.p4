@@ -5,6 +5,7 @@
 const bit<16> TYPE_IPV4 = 0x800;
 const bit<16> TYPE_DISCOVERY = 0x2A2A;
 const bit<8>  PROTO_NF_CHAIN = 145;
+const bit<8>  PROTO_TCP = 6;
 const bit<9> CTRL_PT = 9w510;
 const bit<8> UNINIT = 0xFF;
 const bit<9> OUT = 5;
@@ -44,6 +45,20 @@ header nf_tag_t {
     bit<8>  protocol;
 }
 
+header tcp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<32> seqNo;
+    bit<32> ackNo;
+    bit<4>  dataOffset;
+    bit<3>  res;
+    bit<3>  ecn;
+    bit<6>  ctrl;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgentPtr;
+}
+
 header discovery_hdr_t {
     bit<8> start_id;
     bit<8> start_pt;
@@ -51,13 +66,14 @@ header discovery_hdr_t {
 }
 
 struct metadata {
-    /* empty */
+    bit<16> tcp_len;
 }
 
 struct headers {
     ethernet_t      ethernet;
     ipv4_t          ipv4;
     nf_tag_t        nf_tag;
+    tcp_t           tcp;
     discovery_hdr_t discovery;
 }
 
@@ -87,12 +103,21 @@ parser MyParser(packet_in packet,
         packet.extract(hdr.ipv4);
         transition select(hdr.ipv4.protocol){
           PROTO_NF_CHAIN: parse_nf_tag;
+          PROTO_TCP: parse_tcp;
           default: accept;
         }
     }
 
     state parse_nf_tag {
         packet.extract(hdr.nf_tag);
+        transition select(hdr.nf_tag.protocol){
+          PROTO_TCP: parse_tcp;
+          default: accept;
+        }
+    }
+
+    state parse_tcp{
+        packet.extract(hdr.tcp);
         transition accept;
     }
 
@@ -123,10 +148,11 @@ control MyIngress(inout headers hdr,
         mark_to_drop(standard_metadata);
     }
     
-    action ipv4_forward(egressSpec_t port) {
+    action ipv4_forward(egressSpec_t port, ip4Addr_t srcAddr) {
         standard_metadata.egress_spec = port;
         hdr.ethernet.srcAddr = hdr.ethernet.dstAddr;
         hdr.ipv4.ttl = hdr.ipv4.ttl - 1;
+        hdr.ipv4.srcAddr = srcAddr;
     }
     
     table ipv4 {
@@ -198,7 +224,13 @@ control MyIngress(inout headers hdr,
             }
             tag_forwarding.apply();
           }
-          dst_mac.apply();
+          if (!hdr.nf_tag.isValid()){
+            dst_mac.apply();
+          }
+
+          if (hdr.tcp.isValid()){
+            meta.tcp_len = hdr.ipv4.totalLen - 20;
+          }
         }
     }
 }
@@ -223,7 +255,7 @@ control MyEgress(inout headers hdr,
 
 control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
      apply {
-	update_checksum(
+	    update_checksum(
 	    hdr.ipv4.isValid(),
             { hdr.ipv4.version,
               hdr.ipv4.ihl,
@@ -238,6 +270,26 @@ control MyComputeChecksum(inout headers  hdr, inout metadata meta) {
               hdr.ipv4.dstAddr },
             hdr.ipv4.hdrChecksum,
             HashAlgorithm.csum16);
+
+      update_checksum_with_payload(hdr.tcp.isValid(),
+                                   {hdr.ipv4.srcAddr,
+                                    hdr.ipv4.dstAddr,
+                                    8w0,
+                                    hdr.ipv4.protocol,
+                                    meta.tcp_len,
+                                    hdr.tcp.srcPort,
+                                    hdr.tcp.dstPort,
+                                    hdr.tcp.seqNo,
+                                    hdr.tcp.ackNo,
+                                    hdr.tcp.dataOffset,
+                                    hdr.tcp.res,
+                                    hdr.tcp.ecn,
+                                    hdr.tcp.ctrl,
+                                    hdr.tcp.window,
+                                    16w0, 
+                                    hdr.tcp.urgentPtr},
+                                    hdr.tcp.checksum,
+                                    HashAlgorithm.csum16);
     }
 }
 
@@ -250,6 +302,7 @@ control MyDeparser(packet_out packet, in headers hdr) {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.ipv4);
         packet.emit(hdr.nf_tag);
+        packet.emit(hdr.tcp);
         packet.emit(hdr.discovery);
     }
 }

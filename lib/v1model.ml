@@ -342,7 +342,7 @@ module PreV1Switch : Target = struct
     let env' = EvalEnv.insert_val_bare "checksum" l env in
     env', st, SContinue, VNull
 
-  let value_of_payload (st : state) : value = 
+  let value_of_payload (is_csum16 : bool) (st : state) : value = 
       st
       |> State.get_packet
       |> (fun x -> x.main)
@@ -352,8 +352,15 @@ module PreV1Switch : Target = struct
       |> List.map ~f:Bigint.of_int
       |> List.map ~f:(fun x -> Bigint.of_int 8, x)
       |> List.fold ~init:Bigint.(zero,zero) ~f:(fun (accw, accv) (nw, nv) ->
-          Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
-      |> (fun (w,v) -> VBit { w; v })
+             Bigint.(accw + nw, Bitstring.shift_bitstring_left accv nw + nv))
+      |> (fun (w,v) -> if not is_csum16
+                       then VBit { w; v }
+                       else
+                         let open Bigint in
+                         let missing_padding = (of_int 16) - (w % (of_int 16)) in
+                         let v = v * ((of_int 2) ** missing_padding) in
+                         let w = w + missing_padding in
+                         VBit { w; v })
 
   let eval_verify_checksum_with_payload : extern = fun env st ts args ->
     let width = match ts with
@@ -365,7 +372,7 @@ module PreV1Switch : Target = struct
         condition, data, v, enum_name
       | _ -> failwith "unexpected args for verify checksum" in
     if not condition then env, st, SContinue, VNull else
-    let payload_value = value_of_payload st in (* TODO *)
+    let payload_value = value_of_payload (String.equal algo "csum16") st in (* TODO *)
     let data = payload_value :: data in
     let result = 
       data
@@ -385,7 +392,7 @@ module PreV1Switch : Target = struct
         condition, data, v, enum_name
       | _ -> failwith "unexpected args for verify checksum" in
     if not condition then env, st, SContinue, VNull else
-    let payload_value = value_of_payload st in (* TODO *)
+    let payload_value = value_of_payload (String.equal algo "csum16") st in (* TODO *)
     let data = payload_value :: data in
     let result = 
       data

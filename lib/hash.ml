@@ -81,15 +81,14 @@ let ones_comp_add (v1 : Bigint.t) (v2 : Bigint.t) : Bigint.t =
   then Bigint.((tmp % rmax) + one)
   else Bigint.((tmp % rmax))
 
-let hash_csum16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
-  let v = Bigint.(v * ((of_int 2) ** (length % (of_int 16)))) in
-  let rec h acc length v =
-    if Bigint.(length = zero) then acc else
-    let msb = Bigint.(length - one) in
-    let lsb = Bigint.(length - of_int 16) in
+let hash_csum16 (w, v : Bigint.t * Bigint.t) : Bigint.t =
+  let rec h acc w v =
+    if Bigint.(w = zero) then acc else
+    let msb = Bigint.(w - one) in
+    let lsb = Bigint.(w - of_int 16) in
     let acc' = ones_comp_add acc (bitstring_slice v msb lsb) in
     h acc' lsb Bigint.(bitstring_slice v (msb-one) zero) in
-  Bitstring.bitwise_neg_of_bigint (h Bigint.zero length v) (Bigint.of_int 16)
+  Bitstring.bitwise_neg_of_bigint (h Bigint.zero w v) (Bigint.of_int 16)
 
 let hash_xor16 (length, v : Bigint.t * Bigint.t) : Bigint.t =
   failwith "TODO: implement xor16 hash algorithm"

@@ -24,7 +24,9 @@ Import P4cub.P4cubNotations.
 
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.ZArith.BinIntDef.
-Definition metadata : t := {{struct {[("meta", {{Bool}})]} }}.
+Definition metadata : t := 
+  let width := Pos.of_nat 32 in    
+  {{struct {[("meta", {{int <width>}})]} }}.
 Definition hdrs : t := 
   {{struct {[("hd", {{Bool}})]} }}.
 Definition pkt_in := E.CTExtern "packet_in".

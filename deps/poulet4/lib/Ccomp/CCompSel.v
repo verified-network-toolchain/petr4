@@ -1363,7 +1363,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       AST.Gfun (Ctypes.Internal (main_fn tags_t env_all_declared (get_instantiate_cargs tags_t env_all_declared)))
       in 
       let res_prog : Errors.res (program function) := make_program 
-        typ_decls ((main_id, main_decl):: f_decls) [] main_id
+        (RunTime.composites++typ_decls)
+        (RunTime.global_definitions++((main_id, main_decl):: f_decls))
+        [] main_id
       in
       res_prog
       end

@@ -1,5 +1,8 @@
 struct $18121086;
 struct $81854321829;
+struct $1351352871454089150;
+struct $1351352871454089150;
+struct $1351352871454089150;
 struct $18121086 {
   int $21499117187995070;
   int $345472623023550;
@@ -12,488 +15,645 @@ struct $81854321829 {
   struct $18121086 $1316573855[1];
 };
 
-extern unsigned int $-1775763203563663426(void *);
-extern unsigned long long $-1775763203563663426(void *);
-extern double $-1775763203563663426(void *);
-extern void *$-1775763203563663426(void *, unsigned long long);
-extern long long $-1775763203563663426(double);
-extern unsigned long long $-1775763203563663426(double);
-extern double $-1775763203563663426(long long);
-extern double $-1775763203563663426(unsigned long long);
-extern float $-1775763203563663426(long long);
-extern float $-1775763203563663426(unsigned long long);
-extern long long $-1775763203563663426(long long, long long);
-extern unsigned long long $-1775763203563663426(unsigned long long, unsigned long long);
-extern long long $-1775763203563663426(long long, long long);
-extern unsigned long long $-1775763203563663426(unsigned long long, unsigned long long);
-extern long long $-1775763203563663426(long long, int);
-extern unsigned long long $-1775763203563663426(unsigned long long, int);
-extern long long $-1775763203563663426(long long, int);
-extern long long $-1775763203563663426(long long, long long);
-extern unsigned long long $-1775763203563663426(unsigned long long, unsigned long long);
-extern void $-2335316701207806018(int, ...);
-extern void $1390816139006250942(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $1393630888773357502(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $-824946081567010882(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $2564012638029287358(struct $18121086 *);
-extern int $1609530992003452862(struct $18121086 *, struct $18121086 *);
-extern int $-1849233521817088066(struct $18121086 *, double);
-extern void $-824932887427477570(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern unsigned long long $-824932887427477570(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void $-3127947952734531650(struct $18121086 *);
-extern void $1646149127254904766(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $1393965140308201406(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $1539769178244321214(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $-1918995335576219714(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void $1445197984116051902(struct $18121086 *, struct $18121086 *);
-extern void $-1779357358848667714(struct $18121086 *, unsigned long long);
-extern void $1359651581428567998(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void $-824871314776322114(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void $1646215097952571326(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern double $394777(double, double);
-void $-1739153893281381477(struct $18121086 *);
-void $-4064699428754905138(struct $18121086 *);
-void $-3261040818515564594(struct $81854321829 *, struct $81854321829, struct $81854321829, int);
-void $1643380058308814290(struct $81854321829 *, struct $81854321829);
-void $26029110251005902(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $-3486778599097980978(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $1665871328862054350(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $-1792893184958486578(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $375920205801422(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $419066373515214(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $340323516852174(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $375033295054798(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $401421574121422(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-int $5383713499086(int, struct $81854321829, struct $81854321829);
-int $5378344789966(int, struct $81854321829, struct $81854321829);
-int $6414505650126(int, struct $81854321829, struct $81854321829);
-int $6409136941006(int, struct $81854321829, struct $81854321829);
-int $6200831027150(int, struct $81854321829, struct $81854321829);
-int $2575625255260563406(int, struct $81854321829, struct $81854321829);
-void $-3041489805179050034(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $3900527545435858894(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void $1646194456960214990(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-int $340241912473550(int, struct $81854321829, struct $81854321829);
-int $6280287922126(int, struct $81854321829, struct $81854321829);
-void $-1739153893281381477(struct $18121086 *$97)
+struct $1351352871454089150 {
+  _Bool $1351352871454089150;
+};
+
+struct $1351352871454089150 {
+  struct $81854321829 $1351352871454089150;
+};
+
+struct $1351352871454089150 {
+  _Bool $1351352871454089150;
+};
+
+extern unsigned int __compcert_va_int32(void *);
+extern unsigned long long __compcert_va_int64(void *);
+extern double __compcert_va_float64(void *);
+extern void *__compcert_va_composite(void *, unsigned long long);
+extern long long __compcert_i64_dtos(double);
+extern unsigned long long __compcert_i64_dtou(double);
+extern double __compcert_i64_stod(long long);
+extern double __compcert_i64_utod(unsigned long long);
+extern float __compcert_i64_stof(long long);
+extern float __compcert_i64_utof(unsigned long long);
+extern long long __compcert_i64_sdiv(long long, long long);
+extern unsigned long long __compcert_i64_udiv(unsigned long long, unsigned long long);
+extern long long __compcert_i64_smod(long long, long long);
+extern unsigned long long __compcert_i64_umod(unsigned long long, unsigned long long);
+extern long long __compcert_i64_shl(long long, int);
+extern unsigned long long __compcert_i64_shr(unsigned long long, int);
+extern long long __compcert_i64_sar(long long, int);
+extern long long __compcert_i64_smulh(long long, long long);
+extern unsigned long long __compcert_i64_umulh(unsigned long long, unsigned long long);
+extern void __builtin_debug(int, ...);
+extern void __gmpz_add(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_and(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_cdiv_q(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_clear(struct $18121086 *);
+extern int __gmpz_cmp(struct $18121086 *, struct $18121086 *);
+extern int __gmpz_cmp_d(struct $18121086 *, double);
+extern void __gmpz_fdiv_q_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
+extern unsigned long long __gmpz_fdiv_r_ui(struct $18121086 *, struct $18121086 *, unsigned long long);
+extern void __gmpz_init(struct $18121086 *);
+extern void __gmpz_ior(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_mod(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_mul(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_mul_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
+extern void __gmpz_neg(struct $18121086 *, struct $18121086 *);
+extern void __gmpz_set_ui(struct $18121086 *, unsigned long long);
+extern void __gmpz_sub(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_tdiv_q_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
+extern void __gmpz_xor(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern double pow(double, double);
+void reset_bitvec(struct $18121086 *);
+void eval_uminus(struct $18121086 *);
+void eval_sat_add_sub(struct $81854321829 *, struct $81854321829, struct $81854321829, int);
+void init_interp_binary_op(struct $81854321829 *, struct $81854321829);
+void eval_plus(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_plus_sat(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_minus(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_minus_sat(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_mul(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_div(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_mod(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_shl(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_shr(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+int eval_le(int, struct $81854321829, struct $81854321829);
+int eval_ge(int, struct $81854321829, struct $81854321829);
+int eval_lt(int, struct $81854321829, struct $81854321829);
+int eval_gt(int, struct $81854321829, struct $81854321829);
+int eval_eq(int, struct $81854321829, struct $81854321829);
+int eval_not_eq(int, struct $81854321829, struct $81854321829);
+void eval_bitand(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_bitxor(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+void eval_bitor(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
+int eval_and(int, struct $81854321829, struct $81854321829);
+int eval_or(int, struct $81854321829, struct $81854321829);
+void __petr4_0b101();
+void __petr4_0b111010();
+void __petr4_0b111001();
+void __petr4_0b110001();
+void __petr4_0b110000();
+void __petr4_0b101011();
+void __petr4_0b101010();
+void __petr4_0b100011();
+void __petr4_0b100010();
+void __petr4_0b11011();
+void __petr4_0b11010();
+void __petr4_0b10101();
+void __petr4_0b10100();
+void reset_bitvec(struct $18121086 *x)
 {
-  $2564012638029287358($97);
+  __gmpz_clear(x);
 }
 
-void $-4064699428754905138(struct $18121086 *$95)
+void eval_uminus(struct $18121086 *v)
 {
-  struct $18121086 $22088443961661197[1];
-  $-3127947952734531650($22088443961661197);
-  $-1779357358848667714($22088443961661197, 0);
-  $1445197984116051902($22088443961661197, $95);
+  struct $18121086 dst_value[1];
+  __gmpz_init(dst_value);
+  __gmpz_set_ui(dst_value, 0);
+  __gmpz_neg(dst_value, v);
 }
 
-void $-3261040818515564594(struct $81854321829 *$382733, struct $81854321829 $85, struct $81854321829 $91, int $82899101458)
+void eval_sat_add_sub(struct $81854321829 *dst, struct $81854321829 l, struct $81854321829 r, int is_add)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  register int $129;
-  register double $128;
-  $85 = $85;
-  $91 = $91;
-  if ($85.$21736743895295762 == 1) {
-    $129 = (_Bool) ($91.$21736743895295762 == 1);
+  struct $81854321829 l;
+  struct $81854321829 r;
+  register int 1;
+  register double 0;
+  l = l;
+  r = r;
+  if (l.is_signed == 1) {
+    1 = (_Bool) (r.is_signed == 1);
   } else {
-    $129 = 0;
+    1 = 0;
   }
-  if ($129) {
-    $1539769178244321214($91.$1316573855, $91.$1316573855, $82899101458);
-    $1390816139006250942
-      ((*$382733).$1316573855, $85.$1316573855, $91.$1316573855);
-    $-824932887427477570
-      ((*$382733).$1316573855, (*$382733).$1316573855, (*$382733).$1366611104);
+  if (1) {
+    __gmpz_mul(r.value, r.value, is_add);
+    __gmpz_add((*dst).value, l.value, r.value);
+    __gmpz_fdiv_r_ui((*dst).value, (*dst).value, (*dst).width);
   } else {
-    $1539769178244321214($91.$1316573855, $91.$1316573855, $82899101458);
-    (*$382733).$21736743895295762 = 1;
-    $1390816139006250942
-      ((*$382733).$1316573855, $85.$1316573855, $91.$1316573855);
-    $128 = $394777(2, (*$382733).$1366611104);
-    $-824932887427477570
-      ((*$382733).$1316573855, (*$382733).$1316573855, $128 - 1);
+    __gmpz_mul(r.value, r.value, is_add);
+    (*dst).is_signed = 1;
+    __gmpz_add((*dst).value, l.value, r.value);
+    0 = pow(2, (*dst).width);
+    __gmpz_fdiv_r_ui((*dst).value, (*dst).value, 0 - 1);
   }
 }
 
-void $1643380058308814290(struct $81854321829 *$24176382, struct $81854321829 $85)
+void init_interp_binary_op(struct $81854321829 *_res, struct $81854321829 l)
 {
-  struct $81854321829 $85;
-  struct $18121086 $22088443961661197[1];
-  struct $81854321829 $382733;
-  $85 = $85;
-  $-3127947952734531650($22088443961661197);
-  $-1779357358848667714($22088443961661197, 0);
-  $382733.$21736743895295762 = 0;
-  $382733.$1366611104 = $85.$1366611104;
-  (*($382733.$1316573855 + 0)).$21499117187995070 = $22088443961661197;
-  (*($382733.$1316573855 + 0)).$345472623023550 = 0;
-  (*($382733.$1316573855 + 0)).$1308202430 = (void *) 0;
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $18121086 dst_value[1];
+  struct $81854321829 dst;
+  l = l;
+  __gmpz_init(dst_value);
+  __gmpz_set_ui(dst_value, 0);
+  dst.is_signed = 0;
+  dst.width = l.width;
+  (*(dst.value + 0))._mp_alloc = dst_value;
+  (*(dst.value + 0))._mp_size = 0;
+  (*(dst.value + 0))._mp_d = (void *) 0;
+  *_res = dst;
   return;
 }
 
-void $26029110251005902(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_plus(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1390816139006250942
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  $-824932887427477570
-    ($382733.$1316573855, $382733.$1316573855, $382733.$1366611104);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_add(dst.value, l.value, r.value);
+  __gmpz_fdiv_r_ui(dst.value, dst.value, dst.width);
+  *_res = dst;
   return;
 }
 
-void $-3486778599097980978(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_plus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $-3261040818515564594(&$382733, $85, $91, 1);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  eval_sat_add_sub(&dst, l, r, 1);
+  *_res = dst;
   return;
 }
 
-void $1665871328862054350(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_minus(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1359651581428567998
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  $-824932887427477570
-    ($382733.$1316573855, $382733.$1316573855, $382733.$1366611104);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_sub(dst.value, l.value, r.value);
+  __gmpz_fdiv_r_ui(dst.value, dst.value, dst.width);
+  *_res = dst;
   return;
 }
 
-void $-1792893184958486578(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_minus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $-3261040818515564594(&$382733, $85, $91, -1);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  eval_sat_add_sub(&dst, l, r, -1);
+  *_res = dst;
   return;
 }
 
-void $375920205801422(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_mul(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1539769178244321214
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  $-824932887427477570
-    ($382733.$1316573855, $382733.$1316573855, $382733.$1366611104);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_mul(dst.value, l.value, r.value);
+  __gmpz_fdiv_r_ui(dst.value, dst.value, dst.width);
+  *_res = dst;
   return;
 }
 
-void $419066373515214(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_div(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $-824946081567010882
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  $-824932887427477570
-    ($382733.$1316573855, $382733.$1316573855, $382733.$1366611104);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_cdiv_q(dst.value, l.value, r.value);
+  __gmpz_fdiv_r_ui(dst.value, dst.value, dst.width);
+  *_res = dst;
   return;
 }
 
-void $340323516852174(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_mod(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1393965140308201406
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_mod(dst.value, l.value, r.value);
+  *_res = dst;
   return;
 }
 
-void $375033295054798(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_shl(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $-1918995335576219714
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_mul_2exp(dst.value, l.value, r.value);
+  *_res = dst;
   return;
 }
 
-void $401421574121422(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_shr(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  if ($382733.$21736743895295762) {
-    $-824932887427477570
-      ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  if (dst.is_signed) {
+    __gmpz_fdiv_q_2exp(dst.value, l.value, r.value);
   } else {
-    $-824871314776322114
-      ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
+    __gmpz_tdiv_q_2exp(dst.value, l.value, r.value);
   }
 }
 
-int $5383713499086(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_le(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 <= 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 <= 0) {
     return 1;
   }
   return 0;
 }
 
-int $5378344789966(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_ge(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 >= 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 >= 0) {
     return 1;
   }
   return 0;
 }
 
-int $6414505650126(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_lt(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 < 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 < 0) {
     return 1;
   }
   return 0;
 }
 
-int $6409136941006(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_gt(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 > 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 > 0) {
     return 1;
   }
   return 0;
 }
 
-int $6200831027150(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_eq(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 == 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 == 0) {
     return 1;
   }
   return 0;
 }
 
-int $2575625255260563406(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_not_eq(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $1609530992003452862($85.$1316573855, $91.$1316573855);
-  if ($128 != 0) {
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp(l.value, r.value);
+  if (0 != 0) {
     return 1;
   }
   return 0;
 }
 
-void $-3041489805179050034(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_bitand(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1393630888773357502
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_and(dst.value, l.value, r.value);
+  *_res = dst;
   return;
 }
 
-void $3900527545435858894(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_bitxor(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1646215097952571326
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_xor(dst.value, l.value, r.value);
+  *_res = dst;
   return;
 }
 
-void $1646194456960214990(struct $81854321829 *$24176382, int $5720, struct $81854321829 $85, struct $81854321829 $91)
+void eval_bitor(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $4534385567486;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$4534385567486, $85);
-  $382733 = $4534385567486;
-  $1646149127254904766
-    ($382733.$1316573855, $85.$1316573855, $91.$1316573855);
-  *$24176382 = $382733;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res__1;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res__1, l);
+  dst = _res__1;
+  __gmpz_ior(dst.value, l.value, r.value);
+  *_res = dst;
   return;
 }
 
-int $340241912473550(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_and(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $130;
-  register int $129;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $-1849233521817088066($85.$1316573855, 0);
-  if ($128 != 0) {
-    $129 = 1;
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 2;
+  register int 1;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp_d(l.value, 0);
+  if (0 != 0) {
+    1 = 1;
   } else {
-    $130 = $-1849233521817088066($91.$1316573855, 0);
-    $129 = (_Bool) ($130 != 0);
+    2 = __gmpz_cmp_d(r.value, 0);
+    1 = (_Bool) (2 != 0);
   }
-  if ($129) {
+  if (1) {
     return 1;
   }
   return 0;
 }
 
-int $6280287922126(int $5720, struct $81854321829 $85, struct $81854321829 $91)
+int eval_or(int op, struct $81854321829 l, struct $81854321829 r)
 {
-  struct $81854321829 $85;
-  struct $81854321829 $91;
-  struct $81854321829 $382733;
-  struct $81854321829 $24176382;
-  register int $130;
-  register int $129;
-  register int $128;
-  $85 = $85;
-  $91 = $91;
-  $1643380058308814290(&$24176382, $85);
-  $382733 = $24176382;
-  $128 = $-1849233521817088066($85.$1316573855, 0);
-  if ($128 != 0) {
-    $130 = $-1849233521817088066($91.$1316573855, 0);
-    $129 = (_Bool) ($130 != 0);
+  struct $81854321829 l;
+  struct $81854321829 r;
+  struct $81854321829 dst;
+  struct $81854321829 _res;
+  register int 2;
+  register int 1;
+  register int 0;
+  l = l;
+  r = r;
+  init_interp_binary_op(&_res, l);
+  dst = _res;
+  0 = __gmpz_cmp_d(l.value, 0);
+  if (0 != 0) {
+    2 = __gmpz_cmp_d(r.value, 0);
+    1 = (_Bool) (2 != 0);
   } else {
-    $129 = 0;
+    1 = 0;
   }
-  if ($129) {
+  if (1) {
     return 1;
   }
   return 0;
+}
+
+void __petr4_0b101(void)
+{
+  struct $2 __petr4_0b111111;
+  struct $1 __petr4_0b111110;
+  struct $1351352871454089150 *__petr4_0b111101;
+  struct $1351352871454089150 *__petr4_0b111100;
+  struct $1351352871454089150 *__petr4_0b111011;
+  __petr4_0b10101
+    (__petr4_0b111110, &__petr4_0b111011, &__petr4_0b111100,
+     &__petr4_0b111101);
+  __petr4_0b11011(&__petr4_0b111011, &__petr4_0b111100);
+  __petr4_0b100011(&__petr4_0b111011, &__petr4_0b111100, &__petr4_0b111101);
+  __petr4_0b101011(&__petr4_0b111011, &__petr4_0b111100, &__petr4_0b111101);
+  __petr4_0b110001(&__petr4_0b111011, &__petr4_0b111100);
+  __petr4_0b111010(&__petr4_0b111111, __petr4_0b111011);
+}
+
+void __petr4_0b111010(void *__petr4_0b110010, struct $1351352871454089150 __petr4_0b110011)
+{
+  struct $1351352871454089150 __petr4_0b110100;
+  __petr4_0b110100 = __petr4_0b110011;
+  __petr4_0b110011 = __petr4_0b110100;
+}
+
+void __petr4_0b111001(void *__petr4_0b110010, struct $1351352871454089150 __petr4_0b110011)
+{
+  struct $81854321829 __petr4_0b111000;
+  struct $81854321829 __petr4_0b110111;
+  struct $81854321829 __petr4_0b110110;
+  struct $81854321829 __petr4_0b110101;
+  struct $1351352871454089150 __petr4_0b110100;
+  __petr4_0b110100 = __petr4_0b110011;
+  /*skip*/;
+  /*skip*/;
+  eval_plus(&__petr4_0b110110, &__petr4_0b110111, &__petr4_0b111000);
+  __petr4_0b110101 = __petr4_0b111000;
+  __petr4_0b110011 = __petr4_0b110100;
+}
+
+void __petr4_0b110001(struct $1351352871454089150 *__petr4_0b101100, struct $1351352871454089150 *__petr4_0b101110)
+{
+  struct $1351352871454089150 __petr4_0b101111;
+  struct $1351352871454089150 __petr4_0b101101;
+  __petr4_0b101101 = *__petr4_0b101100;
+  __petr4_0b101111 = *__petr4_0b101110;
+  *__petr4_0b101100 = __petr4_0b101101;
+  *__petr4_0b101110 = __petr4_0b101111;
+}
+
+void __petr4_0b110000(struct $1351352871454089150 *__petr4_0b101100, struct $1351352871454089150 *__petr4_0b101110)
+{
+  struct $1351352871454089150 __petr4_0b101111;
+  struct $1351352871454089150 __petr4_0b101101;
+  __petr4_0b101101 = *__petr4_0b101100;
+  __petr4_0b101111 = *__petr4_0b101110;
+  *__petr4_0b101100 = __petr4_0b101101;
+  *__petr4_0b101110 = __petr4_0b101111;
+}
+
+void __petr4_0b101011(struct $1351352871454089150 *__petr4_0b100100, struct $1351352871454089150 *__petr4_0b100110, struct $1351352871454089150 *__petr4_0b101000)
+{
+  struct $1351352871454089150 __petr4_0b101001;
+  struct $1351352871454089150 __petr4_0b100111;
+  struct $1351352871454089150 __petr4_0b100101;
+  __petr4_0b100101 = *__petr4_0b100100;
+  __petr4_0b100111 = *__petr4_0b100110;
+  __petr4_0b101001 = *__petr4_0b101000;
+  *__petr4_0b100100 = __petr4_0b100101;
+  *__petr4_0b100110 = __petr4_0b100111;
+  *__petr4_0b101000 = __petr4_0b101001;
+}
+
+void __petr4_0b101010(struct $1351352871454089150 *__petr4_0b100100, struct $1351352871454089150 *__petr4_0b100110, struct $1351352871454089150 *__petr4_0b101000)
+{
+  struct $1351352871454089150 __petr4_0b101001;
+  struct $1351352871454089150 __petr4_0b100111;
+  struct $1351352871454089150 __petr4_0b100101;
+  __petr4_0b100101 = *__petr4_0b100100;
+  __petr4_0b100111 = *__petr4_0b100110;
+  __petr4_0b101001 = *__petr4_0b101000;
+  *__petr4_0b100100 = __petr4_0b100101;
+  *__petr4_0b100110 = __petr4_0b100111;
+  *__petr4_0b101000 = __petr4_0b101001;
+}
+
+void __petr4_0b100011(struct $1351352871454089150 *__petr4_0b11100, struct $1351352871454089150 *__petr4_0b11110, struct $1351352871454089150 *__petr4_0b100000)
+{
+  struct $1351352871454089150 __petr4_0b100001;
+  struct $1351352871454089150 __petr4_0b11111;
+  struct $1351352871454089150 __petr4_0b11101;
+  __petr4_0b11101 = *__petr4_0b11100;
+  __petr4_0b11111 = *__petr4_0b11110;
+  __petr4_0b100001 = *__petr4_0b100000;
+  *__petr4_0b11100 = __petr4_0b11101;
+  *__petr4_0b11110 = __petr4_0b11111;
+  *__petr4_0b100000 = __petr4_0b100001;
+}
+
+void __petr4_0b100010(struct $1351352871454089150 *__petr4_0b11100, struct $1351352871454089150 *__petr4_0b11110, struct $1351352871454089150 *__petr4_0b100000)
+{
+  struct $1351352871454089150 __petr4_0b100001;
+  struct $1351352871454089150 __petr4_0b11111;
+  struct $1351352871454089150 __petr4_0b11101;
+  __petr4_0b11101 = *__petr4_0b11100;
+  __petr4_0b11111 = *__petr4_0b11110;
+  __petr4_0b100001 = *__petr4_0b100000;
+  *__petr4_0b11100 = __petr4_0b11101;
+  *__petr4_0b11110 = __petr4_0b11111;
+  *__petr4_0b100000 = __petr4_0b100001;
+}
+
+void __petr4_0b11011(struct $1351352871454089150 *__petr4_0b10110, struct $1351352871454089150 *__petr4_0b11000)
+{
+  struct $1351352871454089150 __petr4_0b11001;
+  struct $1351352871454089150 __petr4_0b10111;
+  __petr4_0b10111 = *__petr4_0b10110;
+  __petr4_0b11001 = *__petr4_0b11000;
+  *__petr4_0b10110 = __petr4_0b10111;
+  *__petr4_0b11000 = __petr4_0b11001;
+}
+
+void __petr4_0b11010(struct $1351352871454089150 *__petr4_0b10110, struct $1351352871454089150 *__petr4_0b11000)
+{
+  struct $1351352871454089150 __petr4_0b11001;
+  struct $1351352871454089150 __petr4_0b10111;
+  __petr4_0b10111 = *__petr4_0b10110;
+  __petr4_0b11001 = *__petr4_0b11000;
+  *__petr4_0b10110 = __petr4_0b10111;
+  *__petr4_0b11000 = __petr4_0b11001;
+}
+
+void __petr4_0b10101(void *__petr4_0b110, struct $1351352871454089150 *__petr4_0b111, struct $1351352871454089150 *__petr4_0b1011, struct $1351352871454089150 *__petr4_0b1111)
+{
+  struct $1351352871454089150 __petr4_0b10010;
+  struct $1351352871454089150 __petr4_0b1110;
+  struct $1351352871454089150 __petr4_0b1010;
+  __petr4_0b1010 = *__petr4_0b111;
+  __petr4_0b1110 = *__petr4_0b1011;
+  __petr4_0b10010 = *__petr4_0b1111;
+  __petr4_0b10100(&__petr4_0b1010, &__petr4_0b1110, &__petr4_0b10010);
+  *__petr4_0b111 = __petr4_0b1010;
+  *__petr4_0b1011 = __petr4_0b1110;
+  *__petr4_0b1111 = __petr4_0b10010;
+}
+
+void __petr4_0b10100(void *__petr4_0b110, struct $1351352871454089150 *__petr4_0b111, struct $1351352871454089150 *__petr4_0b1011, struct $1351352871454089150 *__petr4_0b1111)
+{
+  /*skip*/;
+  return;
 }
 
 

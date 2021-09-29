@@ -23,6 +23,7 @@ open Ctypes (* extract *)
 open Cop (* extract *)
 open PrintCsyntax (* compcert ocaml file *)
 open Clight (* extract *)
+open Clightdefs
 
 (* Naming temporaries.
    Some temporaries are obtained by lifting variables in SimplLocals.
@@ -32,10 +33,7 @@ open Clight (* extract *)
    integer). *)
 
 let temp_name (id: AST.ident) =
-  try
-    "$" ^ Hashtbl.find string_of_atom id
-  with Not_found ->
-    Printf.sprintf "$%d" (P.to_int id)
+  id |> string_of_ident |> List.to_seq |> String.of_seq
 
 (* Declarator (identifier + type) -- reuse from PrintCsyntax *)
 
@@ -77,13 +75,13 @@ let rec expr p (prec, e) =
   else fprintf p "@[<hov 2>";
   begin match e with
   | Evar(id, _) ->
-      fprintf p "%s" (extern_atom id)
+      fprintf p "%s" (temp_name id)
   | Etempvar(id, _) ->
       fprintf p "%s" (temp_name id)
   | Ederef(a1, _) ->
       fprintf p "*%a" expr (prec', a1)
   | Efield(a1, f, _) ->
-      fprintf p "%a.%s" expr (prec', a1) (extern_atom f)
+      fprintf p "%a.%s" expr (prec', a1) (temp_name f)
   | Econst_int(n, Tint(I32, Unsigned, _)) ->
       fprintf p "%luU" (camlint_of_coqint n)
   | Econst_int(n, _) ->
@@ -254,17 +252,17 @@ and print_stmt_for p s =
 
 type clight_version = Clight1 | Clight2
 
-let name_param = function Clight1 -> extern_atom | Clight2 -> temp_name
+let name_param = function Clight1 -> temp_name | Clight2 -> temp_name
 
 let print_function ver p id f =
   fprintf p "%s@ "
             (name_cdecl (name_function_parameters (name_param ver)
-                                 (extern_atom id) f.fn_params f.fn_callconv)
+                                 (temp_name id) f.fn_params f.fn_callconv)
                         f.fn_return);
   fprintf p "@[<v 2>{@ ";
   List.iter
     (fun (id, ty) ->
-      fprintf p "%s;@ " (name_cdecl (extern_atom id) ty))
+      fprintf p "%s;@ " (name_cdecl (temp_name id) ty))
     f.fn_vars;
   List.iter
     (fun (id, ty) ->
@@ -284,12 +282,12 @@ let print_fundecl p id fd =
   match fd with
   | Ctypes.External((AST.EF_external _ | AST.EF_runtime _ | AST.EF_malloc | AST.EF_free), args, res, cconv) ->
       fprintf p "extern %s;@ "
-                (name_cdecl (extern_atom id) (Tfunction(args, res, cconv)))
+                (name_cdecl (temp_name id) (Tfunction(args, res, cconv)))
   | Ctypes.External(_, _, _, _) ->
       ()
   | Internal f ->
       fprintf p "%s;@ "
-                (name_cdecl (extern_atom id) (Clight.type_of_function f))
+                (name_cdecl (temp_name id) (Clight.type_of_function f))
 
 let print_globdef var p (id, gd) =
   match gd with

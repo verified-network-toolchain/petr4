@@ -1,11 +1,15 @@
 Set Warnings "-custom-entry-overridden".
-From compcert Require Import Clight Ctypes Integers Cop AST.
+From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require  Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Poulet4.P4sel.P4sel.
+Import Clightdefs.ClightNotations.
+
+Local Open Scope clight_scope.
+Local Open Scope string_scope.
 Module P := AST.P4cub.
 Module E := P.Expr.
 Section CEnv.
@@ -137,13 +141,13 @@ Section CEnv.
   (name: string) 
   (f: Clight.function): ClightEnv
   := 
-  let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+  let new_ident := $name in
   {|
   identMap := Env.bind name new_ident env.(identMap);
   temps := env.(temps);
   vars := env.(vars);
   composites := env.(composites);
-  identGenerator := gen';
+  identGenerator := env.(identGenerator);
   fenv := Env.bind name f env.(fenv);
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);

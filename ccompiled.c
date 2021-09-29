@@ -1,30 +1,30 @@
-struct $18121086;
-struct $81854321829;
-struct $1351352871454089150;
-struct $1351352871454089150;
-struct $1351352871454089150;
-struct $18121086 {
-  int $21499117187995070;
-  int $345472623023550;
-  unsigned long long *$1308202430;
+struct _585;
+struct BitVec;
+struct __petr4_0b10000;
+struct __petr4_0b1100;
+struct __petr4_0b1000;
+struct _585 {
+  int _mp_alloc;
+  int _mp_size;
+  unsigned long long *_mp_d;
 };
 
-struct $81854321829 {
-  int $21736743895295762;
-  int $1366611104;
-  struct $18121086 $1316573855[1];
+struct BitVec {
+  int is_signed;
+  int width;
+  struct _585 value[1];
 };
 
-struct $1351352871454089150 {
-  _Bool $1351352871454089150;
+struct __petr4_0b10000 {
+  _Bool __petr4_0b10001;
 };
 
-struct $1351352871454089150 {
-  struct $81854321829 $1351352871454089150;
+struct __petr4_0b1100 {
+  struct BitVec __petr4_0b1101;
 };
 
-struct $1351352871454089150 {
-  _Bool $1351352871454089150;
+struct __petr4_0b1000 {
+  _Bool __petr4_0b1001;
 };
 
 extern unsigned int __compcert_va_int32(void *);
@@ -47,49 +47,49 @@ extern long long __compcert_i64_sar(long long, int);
 extern long long __compcert_i64_smulh(long long, long long);
 extern unsigned long long __compcert_i64_umulh(unsigned long long, unsigned long long);
 extern void __builtin_debug(int, ...);
-extern void __gmpz_add(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_and(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_cdiv_q(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_clear(struct $18121086 *);
-extern int __gmpz_cmp(struct $18121086 *, struct $18121086 *);
-extern int __gmpz_cmp_d(struct $18121086 *, double);
-extern void __gmpz_fdiv_q_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern unsigned long long __gmpz_fdiv_r_ui(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void __gmpz_init(struct $18121086 *);
-extern void __gmpz_ior(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_mod(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_mul(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_mul_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void __gmpz_neg(struct $18121086 *, struct $18121086 *);
-extern void __gmpz_set_ui(struct $18121086 *, unsigned long long);
-extern void __gmpz_sub(struct $18121086 *, struct $18121086 *, struct $18121086 *);
-extern void __gmpz_tdiv_q_2exp(struct $18121086 *, struct $18121086 *, unsigned long long);
-extern void __gmpz_xor(struct $18121086 *, struct $18121086 *, struct $18121086 *);
+extern void __gmpz_add(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_and(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_cdiv_q(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_clear(struct _585 *);
+extern int __gmpz_cmp(struct _585 *, struct _585 *);
+extern int __gmpz_cmp_d(struct _585 *, double);
+extern void __gmpz_fdiv_q_2exp(struct _585 *, struct _585 *, unsigned long long);
+extern unsigned long long __gmpz_fdiv_r_ui(struct _585 *, struct _585 *, unsigned long long);
+extern void __gmpz_init(struct _585 *);
+extern void __gmpz_ior(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_mod(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_mul(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_mul_2exp(struct _585 *, struct _585 *, unsigned long long);
+extern void __gmpz_neg(struct _585 *, struct _585 *);
+extern void __gmpz_set_ui(struct _585 *, unsigned long long);
+extern void __gmpz_sub(struct _585 *, struct _585 *, struct _585 *);
+extern void __gmpz_tdiv_q_2exp(struct _585 *, struct _585 *, unsigned long long);
+extern void __gmpz_xor(struct _585 *, struct _585 *, struct _585 *);
 extern double pow(double, double);
-void reset_bitvec(struct $18121086 *);
-void eval_uminus(struct $18121086 *);
-void eval_sat_add_sub(struct $81854321829 *, struct $81854321829, struct $81854321829, int);
-void init_interp_binary_op(struct $81854321829 *, struct $81854321829);
-void eval_plus(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_plus_sat(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_minus(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_minus_sat(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_mul(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_div(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_mod(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_shl(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_shr(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-int eval_le(int, struct $81854321829, struct $81854321829);
-int eval_ge(int, struct $81854321829, struct $81854321829);
-int eval_lt(int, struct $81854321829, struct $81854321829);
-int eval_gt(int, struct $81854321829, struct $81854321829);
-int eval_eq(int, struct $81854321829, struct $81854321829);
-int eval_not_eq(int, struct $81854321829, struct $81854321829);
-void eval_bitand(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_bitxor(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-void eval_bitor(struct $81854321829 *, int, struct $81854321829, struct $81854321829);
-int eval_and(int, struct $81854321829, struct $81854321829);
-int eval_or(int, struct $81854321829, struct $81854321829);
+void reset_bitvec(struct _585 *);
+void eval_uminus(struct _585 *);
+void eval_sat_add_sub(struct BitVec *, struct BitVec, struct BitVec, int);
+void init_interp_binary_op(struct BitVec *, struct BitVec);
+void eval_plus(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_plus_sat(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_minus(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_minus_sat(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_mul(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_div(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_mod(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_shl(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_shr(struct BitVec *, int, struct BitVec, struct BitVec);
+int eval_le(int, struct BitVec, struct BitVec);
+int eval_ge(int, struct BitVec, struct BitVec);
+int eval_lt(int, struct BitVec, struct BitVec);
+int eval_gt(int, struct BitVec, struct BitVec);
+int eval_eq(int, struct BitVec, struct BitVec);
+int eval_not_eq(int, struct BitVec, struct BitVec);
+void eval_bitand(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_bitxor(struct BitVec *, int, struct BitVec, struct BitVec);
+void eval_bitor(struct BitVec *, int, struct BitVec, struct BitVec);
+int eval_and(int, struct BitVec, struct BitVec);
+int eval_or(int, struct BitVec, struct BitVec);
 void __petr4_0b101();
 void __petr4_0b111010();
 void __petr4_0b111001();
@@ -103,23 +103,23 @@ void __petr4_0b11011();
 void __petr4_0b11010();
 void __petr4_0b10101();
 void __petr4_0b10100();
-void reset_bitvec(struct $18121086 *x)
+void reset_bitvec(struct _585 *x)
 {
   __gmpz_clear(x);
 }
 
-void eval_uminus(struct $18121086 *v)
+void eval_uminus(struct _585 *v)
 {
-  struct $18121086 dst_value[1];
+  struct _585 dst_value[1];
   __gmpz_init(dst_value);
   __gmpz_set_ui(dst_value, 0);
   __gmpz_neg(dst_value, v);
 }
 
-void eval_sat_add_sub(struct $81854321829 *dst, struct $81854321829 l, struct $81854321829 r, int is_add)
+void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int is_add)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
+  struct BitVec l;
+  struct BitVec r;
   register int 1;
   register double 0;
   l = l;
@@ -142,11 +142,11 @@ void eval_sat_add_sub(struct $81854321829 *dst, struct $81854321829 l, struct $8
   }
 }
 
-void init_interp_binary_op(struct $81854321829 *_res, struct $81854321829 l)
+void init_interp_binary_op(struct BitVec *_res, struct BitVec l)
 {
-  struct $81854321829 l;
-  struct $18121086 dst_value[1];
-  struct $81854321829 dst;
+  struct BitVec l;
+  struct _585 dst_value[1];
+  struct BitVec dst;
   l = l;
   __gmpz_init(dst_value);
   __gmpz_set_ui(dst_value, 0);
@@ -159,12 +159,12 @@ void init_interp_binary_op(struct $81854321829 *_res, struct $81854321829 l)
   return;
 }
 
-void eval_plus(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_plus(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -175,12 +175,12 @@ void eval_plus(struct $81854321829 *_res, int op, struct $81854321829 l, struct 
   return;
 }
 
-void eval_plus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_plus_sat(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -190,12 +190,12 @@ void eval_plus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, str
   return;
 }
 
-void eval_minus(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_minus(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -206,12 +206,12 @@ void eval_minus(struct $81854321829 *_res, int op, struct $81854321829 l, struct
   return;
 }
 
-void eval_minus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_minus_sat(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -221,12 +221,12 @@ void eval_minus_sat(struct $81854321829 *_res, int op, struct $81854321829 l, st
   return;
 }
 
-void eval_mul(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_mul(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -237,12 +237,12 @@ void eval_mul(struct $81854321829 *_res, int op, struct $81854321829 l, struct $
   return;
 }
 
-void eval_div(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_div(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -253,12 +253,12 @@ void eval_div(struct $81854321829 *_res, int op, struct $81854321829 l, struct $
   return;
 }
 
-void eval_mod(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_mod(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -268,12 +268,12 @@ void eval_mod(struct $81854321829 *_res, int op, struct $81854321829 l, struct $
   return;
 }
 
-void eval_shl(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_shl(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -283,12 +283,12 @@ void eval_shl(struct $81854321829 *_res, int op, struct $81854321829 l, struct $
   return;
 }
 
-void eval_shr(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_shr(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -300,12 +300,12 @@ void eval_shr(struct $81854321829 *_res, int op, struct $81854321829 l, struct $
   }
 }
 
-int eval_le(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_le(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -318,12 +318,12 @@ int eval_le(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_ge(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_ge(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -336,12 +336,12 @@ int eval_ge(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_lt(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_lt(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -354,12 +354,12 @@ int eval_lt(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_gt(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_gt(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -372,12 +372,12 @@ int eval_gt(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_eq(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_eq(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -390,12 +390,12 @@ int eval_eq(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_not_eq(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_not_eq(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 0;
   l = l;
   r = r;
@@ -408,12 +408,12 @@ int eval_not_eq(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-void eval_bitand(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_bitand(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -423,12 +423,12 @@ void eval_bitand(struct $81854321829 *_res, int op, struct $81854321829 l, struc
   return;
 }
 
-void eval_bitxor(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_bitxor(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -438,12 +438,12 @@ void eval_bitxor(struct $81854321829 *_res, int op, struct $81854321829 l, struc
   return;
 }
 
-void eval_bitor(struct $81854321829 *_res, int op, struct $81854321829 l, struct $81854321829 r)
+void eval_bitor(struct BitVec *_res, int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res__1;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res__1;
   l = l;
   r = r;
   init_interp_binary_op(&_res__1, l);
@@ -453,12 +453,12 @@ void eval_bitor(struct $81854321829 *_res, int op, struct $81854321829 l, struct
   return;
 }
 
-int eval_and(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_and(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 2;
   register int 1;
   register int 0;
@@ -479,12 +479,12 @@ int eval_and(int op, struct $81854321829 l, struct $81854321829 r)
   return 0;
 }
 
-int eval_or(int op, struct $81854321829 l, struct $81854321829 r)
+int eval_or(int op, struct BitVec l, struct BitVec r)
 {
-  struct $81854321829 l;
-  struct $81854321829 r;
-  struct $81854321829 dst;
-  struct $81854321829 _res;
+  struct BitVec l;
+  struct BitVec r;
+  struct BitVec dst;
+  struct BitVec _res;
   register int 2;
   register int 1;
   register int 0;
@@ -507,11 +507,11 @@ int eval_or(int op, struct $81854321829 l, struct $81854321829 r)
 
 void __petr4_0b101(void)
 {
-  struct $2 __petr4_0b111111;
-  struct $1 __petr4_0b111110;
-  struct $1351352871454089150 *__petr4_0b111101;
-  struct $1351352871454089150 *__petr4_0b111100;
-  struct $1351352871454089150 *__petr4_0b111011;
+  struct  __petr4_0b111111;
+  struct  __petr4_0b111110;
+  struct __petr4_0b10000 *__petr4_0b111101;
+  struct __petr4_0b1100 *__petr4_0b111100;
+  struct __petr4_0b1000 *__petr4_0b111011;
   __petr4_0b10101
     (__petr4_0b111110, &__petr4_0b111011, &__petr4_0b111100,
      &__petr4_0b111101);
@@ -522,20 +522,20 @@ void __petr4_0b101(void)
   __petr4_0b111010(&__petr4_0b111111, __petr4_0b111011);
 }
 
-void __petr4_0b111010(void *__petr4_0b110010, struct $1351352871454089150 __petr4_0b110011)
+void __petr4_0b111010(void *__petr4_0b110010, struct __petr4_0b1000 __petr4_0b110011)
 {
-  struct $1351352871454089150 __petr4_0b110100;
+  struct __petr4_0b1000 __petr4_0b110100;
   __petr4_0b110100 = __petr4_0b110011;
   __petr4_0b110011 = __petr4_0b110100;
 }
 
-void __petr4_0b111001(void *__petr4_0b110010, struct $1351352871454089150 __petr4_0b110011)
+void __petr4_0b111001(void *__petr4_0b110010, struct __petr4_0b1000 __petr4_0b110011)
 {
-  struct $81854321829 __petr4_0b111000;
-  struct $81854321829 __petr4_0b110111;
-  struct $81854321829 __petr4_0b110110;
-  struct $81854321829 __petr4_0b110101;
-  struct $1351352871454089150 __petr4_0b110100;
+  struct BitVec __petr4_0b111000;
+  struct BitVec __petr4_0b110111;
+  struct BitVec __petr4_0b110110;
+  struct BitVec __petr4_0b110101;
+  struct __petr4_0b1000 __petr4_0b110100;
   __petr4_0b110100 = __petr4_0b110011;
   /*skip*/;
   /*skip*/;
@@ -544,31 +544,31 @@ void __petr4_0b111001(void *__petr4_0b110010, struct $1351352871454089150 __petr
   __petr4_0b110011 = __petr4_0b110100;
 }
 
-void __petr4_0b110001(struct $1351352871454089150 *__petr4_0b101100, struct $1351352871454089150 *__petr4_0b101110)
+void __petr4_0b110001(struct __petr4_0b1000 *__petr4_0b101100, struct __petr4_0b1100 *__petr4_0b101110)
 {
-  struct $1351352871454089150 __petr4_0b101111;
-  struct $1351352871454089150 __petr4_0b101101;
+  struct __petr4_0b1100 __petr4_0b101111;
+  struct __petr4_0b1000 __petr4_0b101101;
   __petr4_0b101101 = *__petr4_0b101100;
   __petr4_0b101111 = *__petr4_0b101110;
   *__petr4_0b101100 = __petr4_0b101101;
   *__petr4_0b101110 = __petr4_0b101111;
 }
 
-void __petr4_0b110000(struct $1351352871454089150 *__petr4_0b101100, struct $1351352871454089150 *__petr4_0b101110)
+void __petr4_0b110000(struct __petr4_0b1000 *__petr4_0b101100, struct __petr4_0b1100 *__petr4_0b101110)
 {
-  struct $1351352871454089150 __petr4_0b101111;
-  struct $1351352871454089150 __petr4_0b101101;
+  struct __petr4_0b1100 __petr4_0b101111;
+  struct __petr4_0b1000 __petr4_0b101101;
   __petr4_0b101101 = *__petr4_0b101100;
   __petr4_0b101111 = *__petr4_0b101110;
   *__petr4_0b101100 = __petr4_0b101101;
   *__petr4_0b101110 = __petr4_0b101111;
 }
 
-void __petr4_0b101011(struct $1351352871454089150 *__petr4_0b100100, struct $1351352871454089150 *__petr4_0b100110, struct $1351352871454089150 *__petr4_0b101000)
+void __petr4_0b101011(struct __petr4_0b1000 *__petr4_0b100100, struct __petr4_0b1100 *__petr4_0b100110, struct __petr4_0b10000 *__petr4_0b101000)
 {
-  struct $1351352871454089150 __petr4_0b101001;
-  struct $1351352871454089150 __petr4_0b100111;
-  struct $1351352871454089150 __petr4_0b100101;
+  struct __petr4_0b10000 __petr4_0b101001;
+  struct __petr4_0b1100 __petr4_0b100111;
+  struct __petr4_0b1000 __petr4_0b100101;
   __petr4_0b100101 = *__petr4_0b100100;
   __petr4_0b100111 = *__petr4_0b100110;
   __petr4_0b101001 = *__petr4_0b101000;
@@ -577,11 +577,11 @@ void __petr4_0b101011(struct $1351352871454089150 *__petr4_0b100100, struct $135
   *__petr4_0b101000 = __petr4_0b101001;
 }
 
-void __petr4_0b101010(struct $1351352871454089150 *__petr4_0b100100, struct $1351352871454089150 *__petr4_0b100110, struct $1351352871454089150 *__petr4_0b101000)
+void __petr4_0b101010(struct __petr4_0b1000 *__petr4_0b100100, struct __petr4_0b1100 *__petr4_0b100110, struct __petr4_0b10000 *__petr4_0b101000)
 {
-  struct $1351352871454089150 __petr4_0b101001;
-  struct $1351352871454089150 __petr4_0b100111;
-  struct $1351352871454089150 __petr4_0b100101;
+  struct __petr4_0b10000 __petr4_0b101001;
+  struct __petr4_0b1100 __petr4_0b100111;
+  struct __petr4_0b1000 __petr4_0b100101;
   __petr4_0b100101 = *__petr4_0b100100;
   __petr4_0b100111 = *__petr4_0b100110;
   __petr4_0b101001 = *__petr4_0b101000;
@@ -590,11 +590,11 @@ void __petr4_0b101010(struct $1351352871454089150 *__petr4_0b100100, struct $135
   *__petr4_0b101000 = __petr4_0b101001;
 }
 
-void __petr4_0b100011(struct $1351352871454089150 *__petr4_0b11100, struct $1351352871454089150 *__petr4_0b11110, struct $1351352871454089150 *__petr4_0b100000)
+void __petr4_0b100011(struct __petr4_0b1000 *__petr4_0b11100, struct __petr4_0b1100 *__petr4_0b11110, struct __petr4_0b10000 *__petr4_0b100000)
 {
-  struct $1351352871454089150 __petr4_0b100001;
-  struct $1351352871454089150 __petr4_0b11111;
-  struct $1351352871454089150 __petr4_0b11101;
+  struct __petr4_0b10000 __petr4_0b100001;
+  struct __petr4_0b1100 __petr4_0b11111;
+  struct __petr4_0b1000 __petr4_0b11101;
   __petr4_0b11101 = *__petr4_0b11100;
   __petr4_0b11111 = *__petr4_0b11110;
   __petr4_0b100001 = *__petr4_0b100000;
@@ -603,11 +603,11 @@ void __petr4_0b100011(struct $1351352871454089150 *__petr4_0b11100, struct $1351
   *__petr4_0b100000 = __petr4_0b100001;
 }
 
-void __petr4_0b100010(struct $1351352871454089150 *__petr4_0b11100, struct $1351352871454089150 *__petr4_0b11110, struct $1351352871454089150 *__petr4_0b100000)
+void __petr4_0b100010(struct __petr4_0b1000 *__petr4_0b11100, struct __petr4_0b1100 *__petr4_0b11110, struct __petr4_0b10000 *__petr4_0b100000)
 {
-  struct $1351352871454089150 __petr4_0b100001;
-  struct $1351352871454089150 __petr4_0b11111;
-  struct $1351352871454089150 __petr4_0b11101;
+  struct __petr4_0b10000 __petr4_0b100001;
+  struct __petr4_0b1100 __petr4_0b11111;
+  struct __petr4_0b1000 __petr4_0b11101;
   __petr4_0b11101 = *__petr4_0b11100;
   __petr4_0b11111 = *__petr4_0b11110;
   __petr4_0b100001 = *__petr4_0b100000;
@@ -616,31 +616,31 @@ void __petr4_0b100010(struct $1351352871454089150 *__petr4_0b11100, struct $1351
   *__petr4_0b100000 = __petr4_0b100001;
 }
 
-void __petr4_0b11011(struct $1351352871454089150 *__petr4_0b10110, struct $1351352871454089150 *__petr4_0b11000)
+void __petr4_0b11011(struct __petr4_0b1000 *__petr4_0b10110, struct __petr4_0b1100 *__petr4_0b11000)
 {
-  struct $1351352871454089150 __petr4_0b11001;
-  struct $1351352871454089150 __petr4_0b10111;
+  struct __petr4_0b1100 __petr4_0b11001;
+  struct __petr4_0b1000 __petr4_0b10111;
   __petr4_0b10111 = *__petr4_0b10110;
   __petr4_0b11001 = *__petr4_0b11000;
   *__petr4_0b10110 = __petr4_0b10111;
   *__petr4_0b11000 = __petr4_0b11001;
 }
 
-void __petr4_0b11010(struct $1351352871454089150 *__petr4_0b10110, struct $1351352871454089150 *__petr4_0b11000)
+void __petr4_0b11010(struct __petr4_0b1000 *__petr4_0b10110, struct __petr4_0b1100 *__petr4_0b11000)
 {
-  struct $1351352871454089150 __petr4_0b11001;
-  struct $1351352871454089150 __petr4_0b10111;
+  struct __petr4_0b1100 __petr4_0b11001;
+  struct __petr4_0b1000 __petr4_0b10111;
   __petr4_0b10111 = *__petr4_0b10110;
   __petr4_0b11001 = *__petr4_0b11000;
   *__petr4_0b10110 = __petr4_0b10111;
   *__petr4_0b11000 = __petr4_0b11001;
 }
 
-void __petr4_0b10101(void *__petr4_0b110, struct $1351352871454089150 *__petr4_0b111, struct $1351352871454089150 *__petr4_0b1011, struct $1351352871454089150 *__petr4_0b1111)
+void __petr4_0b10101(void *__petr4_0b110, struct __petr4_0b1000 *__petr4_0b111, struct __petr4_0b1100 *__petr4_0b1011, struct __petr4_0b10000 *__petr4_0b1111)
 {
-  struct $1351352871454089150 __petr4_0b10010;
-  struct $1351352871454089150 __petr4_0b1110;
-  struct $1351352871454089150 __petr4_0b1010;
+  struct __petr4_0b10000 __petr4_0b10010;
+  struct __petr4_0b1100 __petr4_0b1110;
+  struct __petr4_0b1000 __petr4_0b1010;
   __petr4_0b1010 = *__petr4_0b111;
   __petr4_0b1110 = *__petr4_0b1011;
   __petr4_0b10010 = *__petr4_0b1111;
@@ -650,7 +650,7 @@ void __petr4_0b10101(void *__petr4_0b110, struct $1351352871454089150 *__petr4_0
   *__petr4_0b1111 = __petr4_0b10010;
 }
 
-void __petr4_0b10100(void *__petr4_0b110, struct $1351352871454089150 *__petr4_0b111, struct $1351352871454089150 *__petr4_0b1011, struct $1351352871454089150 *__petr4_0b1111)
+void __petr4_0b10100(void *__petr4_0b110, struct __petr4_0b1000 *__petr4_0b111, struct __petr4_0b1100 *__petr4_0b1011, struct __petr4_0b10000 *__petr4_0b1111)
 {
   /*skip*/;
   return;

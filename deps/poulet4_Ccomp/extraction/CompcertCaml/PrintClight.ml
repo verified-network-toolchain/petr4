@@ -33,7 +33,11 @@ open Clightdefs
    integer). *)
 
 let temp_name (id: AST.ident) =
-  id |> string_of_ident |> List.to_seq |> String.of_seq
+  try
+    "$" ^ Hashtbl.find string_of_atom id
+  with Not_found ->
+    Printf.sprintf "$%d" (P.to_int id)
+
 
 (* Declarator (identifier + type) -- reuse from PrintCsyntax *)
 
@@ -75,13 +79,16 @@ let rec expr p (prec, e) =
   else fprintf p "@[<hov 2>";
   begin match e with
   | Evar(id, _) ->
-      fprintf p "%s" (temp_name id)
+      fprintf p "%s" (name_of_ident
+     id)
   | Etempvar(id, _) ->
-      fprintf p "%s" (temp_name id)
+      fprintf p "%s" (name_of_ident
+     id)
   | Ederef(a1, _) ->
       fprintf p "*%a" expr (prec', a1)
   | Efield(a1, f, _) ->
-      fprintf p "%a.%s" expr (prec', a1) (temp_name f)
+      fprintf p "%a.%s" expr (prec', a1) (name_of_ident
+     f)
   | Econst_int(n, Tint(I32, Unsigned, _)) ->
       fprintf p "%luU" (camlint_of_coqint n)
   | Econst_int(n, _) ->
@@ -131,14 +138,16 @@ let rec print_stmt p s =
   | Sassign(e1, e2) ->
       fprintf p "@[<hv 2>%a =@ %a;@]" print_expr e1 print_expr e2
   | Sset(id, e2) ->
-      fprintf p "@[<hv 2>%s =@ %a;@]" (temp_name id) print_expr e2
+      fprintf p "@[<hv 2>%s =@ %a;@]" (name_of_ident
+     id) print_expr e2
   | Scall(None, e1, el) ->
       fprintf p "@[<hv 2>%a@,(@[<hov 0>%a@]);@]"
                 expr (15, e1)
                 print_expr_list (true, el)
   | Scall(Some id, e1, el) ->
       fprintf p "@[<hv 2>%s =@ %a@,(@[<hov 0>%a@]);@]"
-                (temp_name id)
+                (name_of_ident
+             id)
                 expr (15, e1)
                 print_expr_list (true, el)
   | Sbuiltin(None, ef, tyargs, el) ->
@@ -147,7 +156,8 @@ let rec print_stmt p s =
                 print_expr_list (true, el)
   | Sbuiltin(Some id, ef, tyargs, el) ->
       fprintf p "@[<hv 2>%s =@ builtin %s@,(@[<hov 0>%a@]);@]"
-                (temp_name id)
+                (name_of_ident
+             id)
                 (name_of_external ef)
                 print_expr_list (true, el)
   | Ssequence(Sskip, s2) ->
@@ -218,7 +228,8 @@ and print_stmt_for p s =
   | Sassign(e1, e2) ->
       fprintf p "%a = %a" print_expr e1 print_expr e2
   | Sset(id, e2) ->
-      fprintf p "%s = %a" (temp_name id) print_expr e2
+      fprintf p "%s = %a" (name_of_ident
+     id) print_expr e2
   | Ssequence(Sskip, s2) ->
       print_stmt_for p s2
   | Ssequence(s1, s2) ->
@@ -229,7 +240,8 @@ and print_stmt_for p s =
                 print_expr_list (true, el)
   | Scall(Some id, e1, el) ->
       fprintf p "@[<hv 2>%s =@ %a@,(@[<hov 0>%a@])@]"
-                (temp_name id)
+                (name_of_ident
+             id)
                 expr (15, e1)
                 print_expr_list (true, el)
   | Sbuiltin(None, ef, tyargs, el) ->
@@ -238,7 +250,8 @@ and print_stmt_for p s =
                 print_expr_list (true, el)
   | Sbuiltin(Some id, ef, tyargs, el) ->
       fprintf p "@[<hv 2>%s =@ builtin %s@,(@[<hov 0>%a@]);@]"
-                (temp_name id)
+                (name_of_ident
+             id)
                 (name_of_external ef)
                 print_expr_list (true, el)
   | _ ->
@@ -252,21 +265,24 @@ and print_stmt_for p s =
 
 type clight_version = Clight1 | Clight2
 
-let name_param = function Clight1 -> temp_name | Clight2 -> temp_name
+let name_param = function Clight1 -> name_of_ident | Clight2 -> name_of_ident
 
 let print_function ver p id f =
   fprintf p "%s@ "
             (name_cdecl (name_function_parameters (name_param ver)
-                                 (temp_name id) f.fn_params f.fn_callconv)
+                                 (name_of_ident
+                                 id) f.fn_params f.fn_callconv)
                         f.fn_return);
   fprintf p "@[<v 2>{@ ";
   List.iter
     (fun (id, ty) ->
-      fprintf p "%s;@ " (name_cdecl (temp_name id) ty))
+      fprintf p "%s;@ " (name_cdecl (name_of_ident
+     id) ty))
     f.fn_vars;
   List.iter
     (fun (id, ty) ->
-      fprintf p "register %s;@ " (name_cdecl (temp_name id) ty))
+      fprintf p "register %s;@ " (name_cdecl (name_of_ident
+     id) ty))
     f.fn_temps;
   print_stmt p f.fn_body;
   fprintf p "@;<0 -2>}@]@ @ "
@@ -282,12 +298,14 @@ let print_fundecl p id fd =
   match fd with
   | Ctypes.External((AST.EF_external _ | AST.EF_runtime _ | AST.EF_malloc | AST.EF_free), args, res, cconv) ->
       fprintf p "extern %s;@ "
-                (name_cdecl (temp_name id) (Tfunction(args, res, cconv)))
+                (name_cdecl (name_of_ident
+             id) (Tfunction(args, res, cconv)))
   | Ctypes.External(_, _, _, _) ->
       ()
   | Internal f ->
       fprintf p "%s;@ "
-                (name_cdecl (temp_name id) (Clight.type_of_function f))
+                (name_cdecl (name_of_ident
+             id) (Clight.type_of_function f))
 
 let print_globdef var p (id, gd) =
   match gd with

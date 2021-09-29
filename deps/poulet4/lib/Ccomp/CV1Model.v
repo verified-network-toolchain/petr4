@@ -12,8 +12,10 @@ Section v1model.
 Open Scope string_scope.
 Context (tags_t: Type).
 Context (bit_vec: type).
-Definition packet_in := (Tstruct (Pos.of_nat 1) noattr).
-Definition packet_out := (Tstruct (Pos.of_nat 2) noattr).
+Definition packet_in := 
+    (Tpointer Tvoid noattr).
+Definition packet_out :=
+    (Tpointer Tvoid noattr).
 Definition empty_main := 
   Clight.mkfunction Ctypes.Tvoid 
   (AST.mkcallconv None true true)
@@ -42,7 +44,7 @@ match p, vr, ig, eg, ck , dep with
   match lookup_function tags_t env p, lookup_function tags_t env vr, lookup_function tags_t env ig, lookup_function tags_t env eg, lookup_function tags_t env ck, lookup_function tags_t env dep with
     | Some(pf,pid), Some(vrf,vrid), Some(igf,igid), Some(egf,egid), Some(ckf,ckid), Some(depf,depid) =>
       match pf.(fn_params) with
-      | (_,_)::(_, Ht)::(_, Mt)::(_,STDt)::_ => 
+      | (_,_)::(_, (Tpointer Ht _))::(_, Tpointer Mt _)::(_, Tpointer STDt _)::_ => 
         let '(Hname, Mname, STDname, PKT_INname, PKT_OUTname) := ("_V1Header", "_V1Metadata", "_V1StandardMeta", "_V1PacketIn", "_V1PacketOut") in
         let envH := add_var tags_t env Hname Ht in 
         let envM := add_var tags_t envH Mname Mt in

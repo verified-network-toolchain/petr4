@@ -42,10 +42,6 @@ Section CCompSel.
   Definition Cstring := Tpointer char noattr.
   Definition bit_vec := 
     (Tstruct (RunTime._BitVec) noattr).
-  Definition packet_in := 
-    (Tpointer Tvoid noattr).
-  Definition packet_out :=
-    (Tpointer Tvoid noattr).
   Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
   Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
   
@@ -1364,7 +1360,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       in 
       let res_prog : Errors.res (program function) := make_program 
         (RunTime.composites++typ_decls)
-        (RunTime.global_definitions++((main_id, main_decl):: f_decls))
+        (((main_id, main_decl):: f_decls))
         [] main_id
       in
       res_prog

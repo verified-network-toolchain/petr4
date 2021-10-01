@@ -1,3 +1,4 @@
+#include "petr4-runtime.h"
 struct __petr4_0b1011;
 struct __petr4_0b111;
 struct __petr4_0b11;
@@ -28,19 +29,19 @@ void MyParser();
 void start();
 int main(void)
 {
-  struct packet_in __petr4_0b101001;
-  struct packet_in __petr4_0b101000;
-  struct __petr4_0b1011 __petr4_0b100111;
-  struct __petr4_0b111 __petr4_0b100110;
-  struct __petr4_0b11 __petr4_0b100101;
+  struct packet_in __petr4_0b101101;
+  struct packet_in __petr4_0b101100;
+  struct __petr4_0b1011 __petr4_0b101011;
+  struct __petr4_0b111 __petr4_0b101010;
+  struct __petr4_0b11 __petr4_0b101001;
   MyParser
-    (__petr4_0b101000, &__petr4_0b100101, &__petr4_0b100110,
-     &__petr4_0b100111);
-  MyVerifyChecksum(&__petr4_0b100101, &__petr4_0b100110);
-  MyIngress(&__petr4_0b100101, &__petr4_0b100110, &__petr4_0b100111);
-  MyEgress(&__petr4_0b100101, &__petr4_0b100110, &__petr4_0b100111);
-  MyComputeChecksum(&__petr4_0b100101, &__petr4_0b100110);
-  MyDeparser(__petr4_0b101001, __petr4_0b100101);
+    (__petr4_0b101100, &__petr4_0b101001, &__petr4_0b101010,
+     &__petr4_0b101011);
+  MyVerifyChecksum(&__petr4_0b101001, &__petr4_0b101010);
+  MyIngress(&__petr4_0b101001, &__petr4_0b101010, &__petr4_0b101011);
+  MyEgress(&__petr4_0b101001, &__petr4_0b101010, &__petr4_0b101011);
+  MyComputeChecksum(&__petr4_0b101001, &__petr4_0b101010);
+  MyDeparser(__petr4_0b101101, __petr4_0b101001);
 }
 
 void MyDeparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_0b100011)
@@ -52,8 +53,16 @@ void MyDeparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_
 
 void test_deparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_0b100011)
 {
+  struct BitVec __petr4_0b101000;
+  struct BitVec __petr4_0b100111;
+  struct BitVec __petr4_0b100110;
+  struct BitVec __petr4_0b100101;
   struct __petr4_0b11 __petr4_0b100100;
   __petr4_0b100100 = __petr4_0b100011;
+  /*skip*/;
+  /*skip*/;
+  eval_plus(&__petr4_0b100110, __petr4_0b100111, __petr4_0b101000);
+  __petr4_0b100101 = __petr4_0b101000;
   __petr4_0b100011 = __petr4_0b100100;
 }
 

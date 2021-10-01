@@ -32,10 +32,10 @@ Definition hdrs : t :=
 Definition pkt_in := E.CTExtern "packet_in".
 Definition pkt_out := E.CTExtern "packet_out".
 Definition std_meta := {{struct {[("stdmeta", {{Bool}})]} }}.
-(* Definition oneplusone := 
+Definition oneplusone := 
   let width := Pos.of_nat 32 in  
   let one := Z.of_nat 1 in 
--{ -{var "x" : {{int <width>}} @ 0}- ; -{asgn <{Var "x" : {{int <width>}} @ 0}> := <{BOP <{width S one @ 0}> : {{int <width>}} +{+}+ <{width S one @ 0}> : {{int <width>}} @ 0}> : {{int <width>}} @ 0}- @0}-. *)
+-{ -{var "x" : {{int <width>}} @ 0}- ; -{asgn <{Var "x" : {{int <width>}} @ 0}> := <{BOP <{width S one @ 0}> : {{int <width>}} +{+}+ <{width S one @ 0}> : {{int <width>}} @ 0}> : {{int <width>}} @ 0}- @0}-.
 Definition parser_start_state : par_st_blk :=
    &{state { -{skip @ 0}- } transition p{ goto ={ accept }= @ 0 }p}&.
 Definition parsr_cparams : E.constructor_params := [].
@@ -58,7 +58,7 @@ Definition egress : tpdecl :=
 Definition deparser_cparams : E.constructor_params := [].
 Definition deparser_params : E.params := [ ("hdr", P.PAIn hdrs)].
 Definition mydeparser_decl : ct_d :=
-  c{action "test_deparser" ( [] ) {  -{skip @ 0}- } @ 0}c.
+  c{action "test_deparser" ( [] ) {  oneplusone } @ 0}c.
 
 Definition mydeparser : tpdecl := 
   %{control "MyDeparser" ( deparser_cparams ) ([("b", "packet_out")]) ( deparser_params ) apply { -{skip @ 0}- } where { mydeparser_decl } @ 0}%.

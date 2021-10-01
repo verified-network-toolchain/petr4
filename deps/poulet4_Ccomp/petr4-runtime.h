@@ -5,8 +5,12 @@
 #include <assert.h>
 #include <math.h> 
 
-typedef void *packet_in;
-typedef void *packet_out;
+typedef struct packet_in{
+  void *in;
+};
+typedef struct packet_out{
+  void *out;
+};
 
 typedef struct BitVec {
   //1 = signed, 0 = unsigned 
@@ -44,8 +48,8 @@ Functions: includes package processing, unary operations, and binary operations
 **/
 
 //package processing
-void extract($pkt_in pkt, void *data, int len);
-void emit($pkt_out pkt, void *data, int len);
+void extract(struct packet_in pkt, void *data, int len);
+void emit(struct packet_out pkt, void *data, int len);
 
 //unary operators
 void eval_uminus(mpz_t v) {

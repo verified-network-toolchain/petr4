@@ -13,14 +13,6 @@ struct __petr4_0b11 {
   _Bool __petr4_0b100;
 };
 
-struct packet_in{
-  char x;
-};
-
-struct packet_out{
-  char y;
-};
-
 int main();
 void MyDeparser();
 void test_deparser();
@@ -36,8 +28,8 @@ void MyParser();
 void start();
 int main(void)
 {
-  void *__petr4_0b101001;
-  void *__petr4_0b101000;
+  struct packet_in __petr4_0b101001;
+  struct packet_in __petr4_0b101000;
   struct __petr4_0b1011 __petr4_0b100111;
   struct __petr4_0b111 __petr4_0b100110;
   struct __petr4_0b11 __petr4_0b100101;

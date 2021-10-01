@@ -5,8 +5,8 @@
 #include <assert.h>
 #include <math.h> 
 
-typedef void *$packet_in;
-typedef void *$packet_out;
+typedef void *packet_in;
+typedef void *packet_out;
 
 typedef struct BitVec {
   //1 = signed, 0 = unsigned 

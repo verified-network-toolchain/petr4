@@ -1,21 +1,24 @@
 (* This file should provide the main function of a v1model
 The current implementation is only a subset of v1model
 Meaning it doesn't provide features such as register or hashing. *)
-From compcert Require Import Clight Ctypes Integers Cop.
+From compcert Require Import Clight Ctypes Integers Cop Clightdefs.
 Require Import Poulet4.Ccomp.CCompEnv.
+Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.P4sel.P4sel.
 Require Import String.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
+Import Clightdefs.ClightNotations.
+Local Open Scope clight_scope.
 Section v1model.
 Open Scope string_scope.
 Context (tags_t: Type).
 Context (bit_vec: type).
 Definition packet_in := 
-    (Tpointer Tvoid noattr).
+    (Tstruct $"packet_in" noattr).
 Definition packet_out :=
-    (Tpointer Tvoid noattr).
+    (Tstruct $"packet_in" noattr).
 Definition empty_main := 
   Clight.mkfunction Ctypes.Tvoid 
   (AST.mkcallconv None true true)

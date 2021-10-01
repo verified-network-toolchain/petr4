@@ -84,6 +84,7 @@ Definition copy_in
                              | Some v => !{ x ↦ v ;; ϵ }!
                              end
             | P.PAOut _    => ϵ
+            | P.PADirLess _ => ϵ (*what to do with directionless param*)
             end) argsv.
 (**[]*)
 
@@ -95,6 +96,7 @@ Definition copy_out
   F.fold (fun x arg ϵ =>
             match arg with
             | P.PAIn _ => ϵ
+            | P.PADirLess _ => ϵ (*what to do with directionless param*)
             | P.PAOut lv
             | P.PAInOut lv =>
               match Env.find x ϵf with

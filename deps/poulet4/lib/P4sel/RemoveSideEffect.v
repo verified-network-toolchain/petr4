@@ -183,6 +183,7 @@ Definition TranslateArgs (arguments : CubE.args tags_t) (env : VarNameGen.t) (i:
       =>  
       let '((prev_stmt, prev_args), prev_env) := cumulator in 
       let (type, expr) := match arg with
+        | Cub.PADirLess (t, e)
         | Cub.PAIn (t, e)
         | Cub.PAOut (t, e)
         | Cub.PAInOut (t, e) => (t, e)
@@ -190,6 +191,7 @@ Definition TranslateArgs (arguments : CubE.args tags_t) (env : VarNameGen.t) (i:
       let '((new_stmt, new_expr), new_env):= TranslateExpr expr prev_env in
       let new_stmt := SelS.SSeq prev_stmt new_stmt i in
       let new_arg := match arg with 
+        | Cub.PADirLess _ => Cub.PAIn (type, new_expr)
         | Cub.PAIn _ => Cub.PAIn (type, new_expr)
         | Cub.PAOut _ => Cub.PAOut (type, new_expr)
         | Cub.PAInOut _ => Cub.PAInOut (type, new_expr) 

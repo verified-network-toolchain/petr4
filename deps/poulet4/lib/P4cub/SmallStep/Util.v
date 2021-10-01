@@ -527,6 +527,7 @@ Section StepDefs.
                                    | Some v => !{ x ↦ v ;; ϵ }!
                                    end
               | P.PAOut _    => ϵ
+              | P.PADirLess _ => ϵ (*what to do with directionless param*)
               end) argsv.
   (**[]*)
   
@@ -537,6 +538,7 @@ Section StepDefs.
              (ϵf : eenv) : eenv -> eenv :=
     F.fold (fun x arg ϵ =>
               match arg with
+              | P.PADirLess _ => ϵ (*what to do with directionless param*)
               | P.PAIn _ => ϵ
               | P.PAOut (_,lv)
               | P.PAInOut (_,lv) =>

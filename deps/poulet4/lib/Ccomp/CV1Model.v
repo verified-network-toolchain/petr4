@@ -61,9 +61,9 @@ match p, vr, ig, eg, ck , dep with
           let IngressCall := Scall None (Evar igid (Clight.type_of_function igf)) [Href;Mref;STDref] in
           let EgressCall := Scall None (Evar egid (Clight.type_of_function egf)) [Href;Mref;STDref] in
           let ComputeChecksumCall := Scall None (Evar ckid (Clight.type_of_function ckf)) [Href;Mref] in
-          let DeparserCall := Scall None (Evar depid (Clight.type_of_function depf)) [PKT_OUTref; H] in
+          let DeparserCall := Scall None (Evar depid (Clight.type_of_function depf)) [PKT_OUT; H] in
           let body:= Ssequence ParserCall (Ssequence VerifyChecksumCall (Ssequence IngressCall (Ssequence EgressCall (Ssequence ComputeChecksumCall DeparserCall)))) in
-          Clight.mkfunction Ctypes.Tvoid 
+          Clight.mkfunction Ctypes.type_int32s 
           (AST.mkcallconv None true true)
           [] (get_vars tags_t envPKTOut) (get_temps tags_t envPKTOut) body
 

@@ -29,11 +29,13 @@ Module P4cub.
   Inductive paramarg (A B : Type) : Type :=
   | PAIn (a : A)
   | PAOut (b : B)
-  | PAInOut (b : B).
+  | PAInOut (b : B)
+  | PADirLess (a : A).
 
   Arguments PAIn {_} {_}.
   Arguments PAOut {_} {_}.
   Arguments PAInOut {_} {_}.
+  Arguments PADirLess {_} {_}.
 
   Definition paramarg_map {A B C D : Type}
              (f : A -> C) (g : B -> D)
@@ -42,6 +44,7 @@ Module P4cub.
     | PAIn a => PAIn (f a)
     | PAOut b => PAOut (g b)
     | PAInOut b => PAInOut (g b)
+    | PADirLess a => PADirLess (f a)
     end.
   (**[]*)
 
@@ -49,7 +52,7 @@ Module P4cub.
   Definition pred_paramarg {A B : Type}
              (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=
     match pa with
-    | PAIn a => PA a
+    | PAIn a | PADirLess a => PA a
     | PAOut b | PAInOut b => PB b
     end.
   (**[]*)
@@ -64,6 +67,7 @@ Module P4cub.
              (pa1 : paramarg A1 B1)
              (pa2 : paramarg A2 B2) : Prop :=
     match pa1, pa2 with
+    | PADirLess a1, PADirLess a2 
     | PAIn a1, PAIn a2       => RA a1 a2
     | PAOut b1, PAOut b2
     | PAInOut b1, PAInOut b2 => RB b1 b2

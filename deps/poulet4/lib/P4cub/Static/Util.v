@@ -239,7 +239,7 @@ Definition extenv : Type :=
 
 (** Put parameters into environment. *)
 Definition bind_all : E.params -> gamma -> gamma :=
-  F.fold (fun x '(P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
+  F.fold (fun x '(P.PADirLess τ | P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
 (**[]*)
 
 (** Put (constructor) parameters into environments. *)

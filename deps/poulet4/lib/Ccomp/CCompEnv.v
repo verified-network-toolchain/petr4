@@ -6,6 +6,7 @@ Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Poulet4.P4sel.P4sel.
+Require Import Coq.ZArith.BinIntDef.
 Import Clightdefs.ClightNotations.
 
 Local Open Scope clight_scope.
@@ -24,6 +25,7 @@ Section CEnv.
     tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
     instantiationCarg : P4sel.Expr.constructor_args tags_t;
     maininit: Clight.statement;
+    globvars: (list (AST.ident * globvar Ctypes.type))
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -37,6 +39,7 @@ Section CEnv.
     tempOfArg := Env.empty string (AST.ident* AST.ident);
     instantiationCarg := [];
     maininit := Clight.Sskip;
+    globvars := [];
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -51,6 +54,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}.
 
 
@@ -68,6 +72,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -83,6 +88,7 @@ Section CEnv.
     tempOfArg := Env.bind temp (oldid,new_ident) env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}.
 
 
@@ -100,6 +106,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}, new_ident).
 
 
@@ -117,6 +124,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}.
 
   Definition add_composite_typ 
@@ -133,6 +141,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
     |}
     .
 
@@ -152,6 +161,7 @@ Section CEnv.
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
+  globvars := env.(globvars);
   |}.
 
   Definition update_function
@@ -169,6 +179,7 @@ Section CEnv.
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
+  globvars := env.(globvars);
   |}.
 
   Definition new_ident
@@ -184,6 +195,7 @@ Section CEnv.
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
+  globvars := env.(globvars);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -197,6 +209,7 @@ Section CEnv.
     tempOfArg := [];
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
+    globvars := env.(globvars);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -210,7 +223,31 @@ Section CEnv.
     tempOfArg := from.(tempOfArg);
     instantiationCarg := to.(instantiationCarg);
     maininit := to.(maininit);
+    globvars := to.(globvars);
   |}.  
+
+  Definition add_bitvec_string (env: ClightEnv) (val : list init_data) : ClightEnv * ident := 
+    let globvar := {|
+      gvar_info := (tarray tschar (Z.of_nat (List.length val)));
+      gvar_init := val;
+      gvar_readonly := true;
+      gvar_volatile := false
+    |} in 
+    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    ({|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites := env.(composites);
+    identGenerator := gen';
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := (new_ident, globvar)::env.(globvars);
+    |}, new_ident )
+    .
+  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4sel.Expr.constructor_args tags_t) : ClightEnv :=
   {|
@@ -223,6 +260,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := cargs;
     maininit := env.(maininit);
+    globvars := env.(globvars);
   |}.  
 
   Definition get_instantiate_cargs (env: ClightEnv) : P4sel.Expr.constructor_args tags_t := 
@@ -238,6 +276,7 @@ Section CEnv.
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := init;
+    globvars := env.(globvars);
   |}.  
 
   Definition get_main_init (env: ClightEnv) : Clight.statement := 

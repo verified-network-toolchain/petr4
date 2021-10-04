@@ -26,7 +26,7 @@ Require Import Coq.PArith.BinPosDef.
 Require Import Coq.ZArith.BinIntDef.
 Definition metadata : t := 
   let width := Pos.of_nat 32 in    
-  {{struct {[("meta", {{Bool}})]} }}.
+  {{struct {[("meta", {{int <width>}})]} }}.
 Definition hdrs : t := 
   {{struct {[("hd", {{Bool}})]} }}.
 Definition pkt_in := E.CTExtern "packet_in".

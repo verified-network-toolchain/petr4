@@ -82,6 +82,10 @@ Section CCompSel.
         (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t) 
         => let (members_prev, env_prev) := cumulator in 
            let (new_t, new_env):= CTranslateType field env_prev in
+           let new_t := 
+           match new_t with 
+           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
            (members_prev ++ [(new_id, new_t)], new_env))
         fields ([],env_top_id) in
@@ -101,6 +105,10 @@ Section CCompSel.
         (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t ) 
         => let (members_prev, env_prev) := cumulator in 
            let (new_t, new_env):= CTranslateType field env_prev in
+           let new_t := 
+           match new_t with 
+           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
            (members_prev++[(new_id, new_t)], new_env))
         fields ([(valid_id, type_bool)],env_valid) in
@@ -125,6 +133,10 @@ Section CCompSel.
         (fun (k: string) (field: E.t) (cumulator: Ctypes.members*ClightEnv tags_t ) 
         => let (members_prev, env_prev) := cumulator in 
           let (new_t, new_env):= CTranslateType field env_prev in
+          let new_t := 
+           match new_t with 
+           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | _ => new_t end in 
           let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
           (members_prev++[(new_id, new_t)], new_env))
         fields ([(valid_id, type_bool)],env_valid) in
@@ -220,7 +232,13 @@ Section CCompSel.
                             match F.get_index y f, F.get y f with
                             | Some n , Some t_member => 
                               let (ctm, env_ctm) := CTranslateType t_member env' in
-                              Some ((Clight.Efield x' (Pos.of_nat n) ctm), env_ctm)
+                              let em :=
+                              match ctm with 
+                              | (Tstruct st _) => if(st == RunTime._BitVec) 
+                                                      then Ederef (Clight.Efield x' (Pos.of_nat n) (Tpointer ctm noattr)) (ctm)
+                                                      else (Clight.Efield x' (Pos.of_nat n) ctm)
+                              | _ => (Clight.Efield x' (Pos.of_nat n) ctm) end in 
+                              Some (em, env_ctm)
                             | _, _ => None
                             end
                           | E.THeader(f) => 
@@ -228,7 +246,13 @@ Section CCompSel.
                             match F.get_index y f, F.get y f with
                             | Some n , Some t_member => 
                               let (ctm, env_ctm) := CTranslateType t_member env' in
-                              Some ((Clight.Efield x' (Pos.of_nat (n+1)) ctm), env_ctm)
+                              let em :=
+                              match ctm with 
+                              | (Tstruct st _) => if(st == RunTime._BitVec) 
+                                                      then Ederef (Clight.Efield x' (Pos.of_nat (n+1)) (Tpointer ctm noattr)) (ctm)
+                                                      else (Clight.Efield x' (Pos.of_nat (n+1)) ctm)
+                              | _ => (Clight.Efield x' (Pos.of_nat (n+1)) ctm) end in 
+                              Some (em, env_ctm)
                             | _, _ => None
                             end
                           | _ => None
@@ -522,6 +546,7 @@ Section CCompSel.
   Definition CTranslateListType (exps : list (E.e tags_t)):=
     List.map (E.SelTypeOf tags_t) exps.
 
+    (*TODO: fix the tpointer change with bit vec*)
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
     |(id, typ) :: mtl, (fname, exp) :: etl => 
@@ -1380,7 +1405,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       in 
       let res_prog : Errors.res (program function) := make_program 
         (
-          (* RunTime.composites++ *)
+          (* RunTime.composites++  *)
           typ_decls)
         (((main_id, main_decl):: f_decls))
         [] main_id

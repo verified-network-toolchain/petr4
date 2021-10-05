@@ -7,6 +7,7 @@ Require Import Coq.Program.Program.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
+Require Import Poulet4.Value.
 Require Import Poulet4.Ops.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.P4Arith.

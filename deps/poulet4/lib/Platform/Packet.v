@@ -9,7 +9,7 @@ Require Import Poulet4.Monads.State.
 
 Require Import Poulet4.Environment.Environment.
 Require Import Poulet4.Utils.
-Require Import Poulet4.Syntax.
+Require Import Poulet4.Value.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Bitwise.
 Require Import Poulet4.AList.

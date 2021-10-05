@@ -12,7 +12,7 @@ Require Import Poulet4.Monads.Transformers.
 
 Require Import Poulet4.Bitwise.
 Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
+Require Import Poulet4.Value.
 Require Import Poulet4.P4String.
 Require Poulet4.StringConstants.
 

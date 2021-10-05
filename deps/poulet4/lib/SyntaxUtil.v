@@ -6,6 +6,7 @@ Require Import Coq.NArith.BinNatDef.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
+Require Import Poulet4.Value.
 Require Export Poulet4.Maps.
 Require Export Poulet4.Sublist.
 Require Import Poulet4.P4Notations.

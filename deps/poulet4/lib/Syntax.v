@@ -111,36 +111,6 @@ Section Syntax.
   | MkTableProperty (tags: tags_t)  (const: bool)
                     (name: P4String) (value: Expression).
 
-  (* little-endian *)
-  Inductive ValueBase {bit : Type} :=
-  | ValBaseNull
-  | ValBaseBool (_: bit)
-  | ValBaseInteger (_: Z)
-  | ValBaseBit (value: list bit)
-  | ValBaseInt (value: list bit)
-  | ValBaseVarbit (max: N) (value: list bit)
-  | ValBaseString (_: P4String)
-  | ValBaseTuple (_: list (@ValueBase bit))
-  | ValBaseRecord (_: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseError (_: P4String)
-  | ValBaseMatchKind (_: P4String)
-  | ValBaseStruct (fields: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseHeader (fields: P4String.AList tags_t (@ValueBase bit)) (is_valid: bit)
-  | ValBaseUnion (fields: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseStack (headers: list (@ValueBase bit)) (size: N) (next: N)
-  | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)
-  | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: (@ValueBase bit))
-  | ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit)).
-
-  Inductive ValueSet:=
-  | ValSetSingleton (value: (@ValueBase bool))
-  | ValSetUniversal
-  | ValSetMask (value: (@ValueBase bool)) (mask: (@ValueBase bool))
-  | ValSetRange (lo: (@ValueBase bool)) (hi: (@ValueBase bool))
-  | ValSetProd (_: list ValueSet)
-  | ValSetLpm (nbits: N) (value: (@ValueBase bool))
-  | ValSetValueSet (size: N) (members: list (list Match)) (sets: list ValueSet).
-
   Inductive StatementSwitchLabel :=
   | StatSwLabDefault (tags: tags_t)
   | StatSwLabName (tags: tags_t) (_: P4String).
@@ -169,7 +139,7 @@ Section Syntax.
   | StatSwitch (expr: Expression)
                (cases: list StatementSwitchCase)
   | StatConstant  (typ: @P4Type tags_t)
-                  (name: P4String) (value: @ValueBase bool)
+                  (name: P4String) (value: Expression)
                   (loc: Locator)
   | StatVariable  (typ: @P4Type tags_t)
                   (name: P4String) (init: option Expression)
@@ -343,7 +313,7 @@ Section Syntax.
 
   Inductive Declaration :=
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
-                 (name: P4String) (value: @ValueBase bool)
+                 (name: P4String) (value: Expression)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
                       (args: list Expression) (name: P4String) (init: option Block)
   | DeclParser (tags: tags_t)  (name: P4String)
@@ -396,18 +366,6 @@ Section Syntax.
   | DeclPackageType (tags: tags_t)  (name: P4String)
                     (type_params: list P4String) (params: list (@P4Parameter tags_t)).
 
-  Definition ValueLoc := P4String.
-
-  Inductive ValueTable :=
-  | MkValTable (name: P4String) (keys: list TableKey)
-               (actions: list TableActionRef) (default_action: TableActionRef)
-               (const_entries: list TableEntry).
-
-  Definition Env_env binding := list (P4String.AList tags_t binding).
-
-  Inductive Env_EvalEnv :=
-  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@P4Type tags_t)) (namespace: P4String).
-
   Record ExternMethod :=
     { name: P4String;
       typ: @FunctionType tags_t }.
@@ -415,51 +373,6 @@ Section Syntax.
   Record ExternMethods :=
     { type_params: list P4String;
       methods: list ExternMethod }.
-
-  Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t) (loc: Locator)
-  | ValLeftMember (expr: ValueLvalue) (name: P4String)
-  | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: N)
-  with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: @P4Type tags_t).
-
-  Inductive ValueFunctionImplementation :=
-  | ValFuncImplUser (scope: Env_EvalEnv) (body: Block)
-  | ValFuncImplExtern (name: P4String) (caller: option (ValueLoc * P4String))
-  | ValFuncImplBuiltin (name: P4String) (caller: ValueLvalue).
-
-  Inductive ValueObject :=
-  | ValObjParser (scope: Env_EvalEnv)
-                 (constructor_params: list (@P4Parameter tags_t))
-                 (params: list (@P4Parameter tags_t)) (locals: list Declaration)
-                 (states: list ParserState)
-  | ValObjTable (_: ValueTable)
-  | ValObjControl (scope: Env_EvalEnv)
-                  (constructor_params: list (@P4Parameter tags_t))
-                  (params: list (@P4Parameter tags_t)) (locals: list Declaration)
-                  (apply: Block)
-  | ValObjPackage (args: P4String.AList tags_t ValueLoc)
-  | ValObjRuntime (loc: ValueLoc) (obj_name: P4String)
-  | ValObjFun (params: list (@P4Parameter tags_t)) (impl: ValueFunctionImplementation)
-  | ValObjAction (scope: Env_EvalEnv) (params: list (@P4Parameter tags_t)) (body: Block)
-  | ValObjPacket (bits: list bool).
-
-  Inductive ValueConstructor :=
-  | ValConsParser (scope: Env_EvalEnv) (constructor_params: list (@P4Parameter tags_t))
-                  (params: list (@P4Parameter tags_t)) (locals: list Declaration)
-                  (states: list ParserState)
-  | ValConsTable (_: ValueTable)
-  | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (@P4Parameter tags_t))
-                   (params: list (@P4Parameter tags_t)) (locals: list Declaration)
-                   (apply: Block)
-  | ValConsPackage (params: list (@P4Parameter tags_t)) (args: P4String.AList tags_t ValueLoc)
-  | ValConsExternObj (_: P4String.AList tags_t (list (@P4Parameter tags_t))).
-
-  Inductive Value (bit : Type) :=
-  | ValBase (_: @ValueBase bit)
-  | ValObj (_: ValueObject)
-  | ValCons (_: ValueConstructor).
 
   Inductive program := Program (_: list Declaration).
 

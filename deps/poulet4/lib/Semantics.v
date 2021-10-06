@@ -121,6 +121,48 @@ Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
 Definition read_detbit (b : bool) (b': option bool) :=
   b' = Some b.
 
+Search (list (option _)).
+
+Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t bool) :=
+  let '(MkExpression _ expr _ _) := expr in
+  match expr with
+  | ExpBool b => Some (ValBaseBool b)
+  | ExpInt i =>
+    Some (match i.(width_signed) with
+          | None => ValBaseInteger i.(value)
+          | Some (w, false) => ValBaseBit (to_lbool w i.(value))
+          | Some (w, true) => ValBaseInt (to_lbool w i.(value))
+          end)
+  | ExpString s => Some (ValBaseString s)
+  | ExpErrorMember t => Some (ValBaseError t)
+  | ExpList es =>
+    let fix eval_literals  (exprs: list (@Expression tags_t)) : option (list (@ValueBase tags_t bool)) :=
+        match exprs with
+        | expr :: exprs' =>
+          match eval_literal expr, eval_literals exprs' with
+          | Some v, Some vs => Some (v :: vs)
+          | _, _ => None
+          end
+        | [] => Some []
+        end
+    in
+    option_map ValBaseTuple (eval_literals es)
+  | ExpRecord fs =>
+    let fix eval_literals  (kvs: @P4String.AList tags_t Expression)
+        : option (@P4String.AList tags_t (@ValueBase tags_t bool)) :=
+        match kvs with
+        | (k, e) :: kvs' =>
+          match eval_literal e, eval_literals kvs' with
+          | Some v, Some vs => Some ((k, v) :: vs)
+          | _, _ => None
+          end
+        | [] => Some []
+        end
+    in
+    option_map ValBaseStruct (eval_literals fs)
+  | _ => None
+  end.
+
 Inductive read_bits {A B} (read_one_bit : A -> B -> Prop) : 
                     list A -> list B -> Prop :=
   | read_nil : read_bits read_one_bit nil nil
@@ -1441,11 +1483,12 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                                exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
                                exec_stmt read_one_bit this_path st
                                (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
-  | exec_stmt_constant: forall typ' name v sv loc this_path st tags typ st',
+  | exec_stmt_constant: forall typ' name e v sv loc this_path st tags typ st',
+                        eval_literal e = Some v ->
                         val_to_sval v sv ->
                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
                         exec_stmt read_one_bit this_path st
-                        (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
+                        (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
   (* StatInstantiation not considered yet *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :

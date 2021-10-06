@@ -1,5 +1,8 @@
 Require Import Poulet4.Semantics Poulet4.Typed
-        Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List.
+        Poulet4.Syntax
+        Poulet4.Syntax Poulet4.Value
+        Coq.NArith.BinNat
+        Coq.Lists.List.
 Import ListNotations.
 Require Poulet4.P4String.
 

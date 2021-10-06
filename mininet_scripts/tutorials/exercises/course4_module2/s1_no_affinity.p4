@@ -14,7 +14,7 @@ const bit<8> UNINIT = 0xFF;
 const bit<9> OUT = 5;
 const ip4Addr_t VIP = 167774730;
 const int SERVER_CNT = 4;
-
+const int LSB = 6;
 /*************************************************************************
 *********************** H E A D E R S  ***********************************
 *************************************************************************/
@@ -144,23 +144,23 @@ control MyIngress(inout headers hdr,
         
         bit<32> comp;
         server_load.read(comp, 32w1);
-        if (comp < min_load){
+        if (comp[31:LSB] < min_load[31:LSB]){
           min_load = comp;
           meta.server_id = 32w1;
         }
-
+        
+        
         server_load.read(comp, 32w2);
-        if (comp < min_load){
+        if (comp[31:LSB] < min_load[31:LSB]){
           min_load = comp;
           meta.server_id = 32w2;
         }
 
         server_load.read(comp, 32w3);
-        if (comp < min_load){
+        if (comp[31:LSB] < min_load[31:LSB]){
           min_load = comp;
           meta.server_id = 32w3;
         }
-        
 
         min_load = min_load + 1;
         server_load.write(meta.server_id, min_load);

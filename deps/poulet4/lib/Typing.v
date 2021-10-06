@@ -1,11 +1,44 @@
 Require Import Poulet4.Semantics Poulet4.Typed
-        Poulet4.Syntax
-        Poulet4.Syntax Poulet4.Value
-        Coq.NArith.BinNat
-        Coq.Lists.List.
+        Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List
+        Coq.micromega.Lia.
 Import ListNotations.
 Require Poulet4.P4String.
 
+(** Move to utility module. *)
+Lemma reduce_inner_impl : forall (A : Type) (Q : Prop) (P R : A -> Prop),
+    (forall a, P a -> Q -> R a) -> Q -> forall a, P a -> R a.
+Proof.
+  intuition.
+Qed.
+
+Lemma split_impl_conj : forall (A : Type) (P Q R : A -> Prop),
+    (forall a, P a -> Q a /\ R a) <->
+    (forall a, P a -> Q a) /\ forall a, P a -> R a.
+Proof.
+  firstorder.
+Qed.
+
+Lemma Forall_exists_factor : forall (A B : Type) (R : A -> B -> Prop) (l : list A),
+    Forall (fun a => exists b, R a b) l <-> exists bs, Forall2 R l bs.
+Proof.
+  intros A B R l; split.
+  - intro H; induction H; eauto.
+    destruct H as [b HRb];
+      destruct IHForall as [bs HRbs]; eauto.
+  - intros [bs HRlbs].
+    induction HRlbs; eauto.
+Qed.
+
+Lemma forall_Forall2 : forall (A B : Type) (R : A -> B -> Prop) (l : list A),
+    (forall a, In a l -> forall b, R a b) ->
+    forall bs, length l = length bs -> Forall2 R l bs.
+Proof.
+  intros A B R l;
+    induction l as [| a l IHl];
+    intros H [| b bs] Hbs; simpl in *; try discriminate; auto.
+Qed.
+
+(*
 Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
 
@@ -39,7 +72,7 @@ Section TypingDefs.
      - senum values: see comments below.
    *)
   Inductive val_typ (gsenum : genv_senum) : Sval -> typ -> Prop :=
-  | typ_null : forall t, val_typ gsenum ValBaseNull t
+  | typ_null : val_typ gsenum ValBaseNull TypVoid
   | typ_bool : forall b, val_typ gsenum (ValBaseBool b) TypBool
   | typ_integer : forall v, val_typ gsenum (ValBaseInteger v) TypInteger
   | typ_bit : forall v,
@@ -195,23 +228,23 @@ Section Soundness.
     try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
   
   Lemma bool_sound : forall tag b dir,
-      Γ ⊢e (MkExpression tag (ExpBool b) TypBool dir).
+      Γ ⊢e MkExpression tag (ExpBool b) TypBool dir.
   Proof.
     intros; soundtac.
   Qed.
   
   Lemma arbitrary_int_sound : forall tag i z dir,
       Γ ⊢e
-        (MkExpression
-           tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir).
+        MkExpression
+        tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir.
   Proof.
     intros; soundtac.
   Qed.
 
   Lemma unsigned_int_sound : forall tag i z w dir,
       Γ ⊢e
-        (MkExpression
-           tag (ExpInt (P4Int.Build_t _ i z (Some (w,false)))) (TypBit w) dir).
+        MkExpression
+        tag (ExpInt (P4Int.Build_t _ i z (Some (w,false)))) (TypBit w) dir.
   Proof.
     intros tag i z dir; soundtac.
     (* TODO: need some result about [P4Arith.to_loptbool]. *)
@@ -219,22 +252,22 @@ Section Soundness.
 
   Lemma signed_int_sound : forall tag i z w dir,
       Γ ⊢e
-        (MkExpression
-           tag (ExpInt (P4Int.Build_t _ i z (Some (w,true)))) (TypInt w) dir).
+        MkExpression
+        tag (ExpInt (P4Int.Build_t _ i z (Some (w,true)))) (TypInt w) dir.
   Proof.
     intros tag i z dir; soundtac.
     (* TODO: need some result about [P4Arith.to_loptbool]. *)
   Admitted.
 
   Lemma string_sound : forall tag s dir,
-      Γ ⊢e (MkExpression tag (ExpString s) TypString dir).
+      Γ ⊢e MkExpression tag (ExpString s) TypString dir.
   Proof.
     intros; soundtac.
   Qed.
 
   Lemma name_sound : forall tag x loc t dir,
       typ_of_loc loc Γ = Some t ->
-      Γ ⊢e (MkExpression tag (ExpName x loc) t dir).
+      Γ ⊢e MkExpression tag (ExpName x loc) t dir.
   Proof.
     intros i x l t d Hgt; soundtac.
     - destruct l as [lp | lp]; simpl in Hgt;
@@ -246,7 +279,112 @@ Section Soundness.
       admit.
     - destruct l as [lp | lp]; simpl in Hgt;
         simpl in *; eauto.
+  Abort.
+
+  (*
+  Lemma eval_p4int_sval_not_null : forall i,
+      @eval_p4int_sval tags_t i <> ValBaseNull.
+  Proof.
+    destruct i as [tg z [[? [|]] |]]; cbn; discriminate.
+  Qed.
+  
+  Lemma exec_expr_null : forall ge rob p st e,
+      run_expr rob ge p st e ValBaseNull ->
+      exists tag t dir, e = MkExpression tag ExpDontCare t dir.
+  Proof.
+    intros rob ge p st e Hrun.
+    inversion Hrun; subst; eauto.
+    - exfalso. pose proof eval_p4int_sval_not_null i as Hnn.
+      rewrite <- H in Hnn; contradiction.
+    - (* [exec_expr_name] problematic:
+         need restructions on [st] and [ge]. *)
+      admit.
+    - Print array_access_idx_to_z.
+  Abort. *)
+  
+  Lemma array_access_sound : forall tag arry idx ts dir n,
+      typ_of_expr arry = TypArray (TypHeader ts) n ->
+      typ_of_expr idx  = TypBit n ->
+      Γ ⊢e arry ->
+      Γ ⊢e idx ->
+      Γ ⊢e MkExpression tag (ExpArrayAccess arry idx) (TypHeader ts) dir.
+  Proof.
+    intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
+      autounfold with * in *.
+    intros rob ge p st Henvs Henvt.
+    pose proof He1 rob ge p st Henvs Henvt as [[v1 Hev1] He1']; clear He1.
+    pose proof He2 rob ge p st Henvs Henvt as [[v2 Hev2] He2']; clear He2.
+    split.
+    - pose proof He1' v1 Hev1 as Hv1.
+      pose proof He2' v2 Hev2 as Hv2.
+      rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
+      inversion Hv1; inversion Hv2; subst.
+      (* Need to know [N_of_value idx < n]. *) admit.
+    - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
+      rename H4 into He2; rename H10 into He1;
+        rename H7 into Hsval; rename H9 into Haa;
+          rename H11 into Huninit.
+      pose proof He1' _ He1 as Hv1.
+      pose proof He2' _ He2 as Hv2.
+      rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
+      inversion Hv1; inversion Hv2; subst.
+      (* Need result about [Znth_def]. *)
+  Abort.
+
+  Lemma bigstring_access_sound : forall tag bits lo hi dir w,
+      (lo <= hi < w)%N ->
+      typ_of_expr bits = TypBit w ->
+      Γ ⊢e bits ->
+      Γ ⊢e MkExpression
+        tag (ExpBitStringAccess bits lo hi)
+        (TypBit (hi - lo + 1)%N) dir.
+  Proof.
+    intros i e lo hi d w Hlwh Ht He.
+    autounfold with * in *.
+    intros rob ge p st Henvs Henvt.
+    pose proof He rob ge p st Henvs Henvt as [[v Hev] He']; clear He.
+    split.
+    - apply He' in Hev as Hv; rewrite Ht in Hv;
+        inversion Hv; subst; rename v0 into bits.
+      exists (ValBaseBit (bitstring_slice bits (N.to_nat lo) (N.to_nat hi))).
+      eapply exec_expr_bitstring_access with (wn := length bits); eauto; lia.
+    - clear v Hev. intros v Hrn; inversion Hrn; subst; simpl.
+      rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
+      (* Need result about [bitstring_slice]. *) admit.
   Admitted.
 
-  (*Lemma array_access_sound : forall*)
-End Soundness.
+  Local Hint Constructors exec_exprs : core.
+  
+  Lemma exec_exprs_iff : forall ge rob p st es vs,
+      exec_exprs ge rob p st es vs <-> Forall2 (run_expr ge rob p st) es vs.
+  Proof.
+    intros ge rob p st es vs; split;
+      intros H; induction H; auto.
+  Qed.
+  
+  Lemma list_sound : forall tag es ts dir,
+      Forall (fun e => Γ ⊢e e) es ->
+      Forall2 (fun e t => typ_of_expr e = t) es ts ->
+      Γ ⊢e MkExpression tag (ExpList es) (TypTuple ts) dir.
+  Proof.
+    intros i es ts d Hes Hts. autounfold with * in *.
+    intros rob ge p st Henvs Henvt.
+    rewrite Forall_forall in Hes.
+      specialize Hes with
+          (read_one_bit:=rob) (ge:=ge) (p:=p) (st:=st).
+      pose proof reduce_inner_impl _ _ _ _ Hes Henvs as Hes';
+        simpl in Hes'; clear Hes.
+      pose proof reduce_inner_impl _ _ _ _ Hes' Henvt as Hes;
+        simpl in Hes; clear Hes'.
+      rewrite split_impl_conj in Hes.
+      destruct Hes as [Hrnes Htyps]. split.
+    - clear Htyps; rewrite <- Forall_forall in Hrnes.
+      rewrite Forall_exists_factor in Hrnes.
+      destruct Hrnes as [vs Hvs].
+      rewrite <- exec_exprs_iff in Hvs; eauto.
+    - clear Hrnes; intros v Hrn.
+      inversion Hrn; subst; clear Hrn.
+      rename H6 into Hesvs.
+      rewrite exec_exprs_iff in Hesvs.
+      Admitted.
+End Soundness. *)

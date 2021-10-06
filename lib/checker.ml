@@ -122,6 +122,9 @@ let field_cmp ((name1, _): coq_FieldType) ((name2, _): coq_FieldType) =
 
 let sort_fields = List.sort ~compare:field_cmp
 
+let val_to_literal (v: Prog.coq_Value) : Prog.coq_Expression =
+  failwith "val_to_literal unimplemented"
+
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
 let rec is_extern (env: Checker_env.t) (typ: Typed.coq_P4Type) =
   match typ with
@@ -189,24 +192,21 @@ and bool_list_to_bigint (b: bool list) :  Bigint.t =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_ValueBase option =
+and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_Value option =
   let MkExpression (tags, expr, typ, dir) = expr in
   match expr with
   | ExpName (name, _) ->
-    begin match Checker_env.find_const_opt name env with
-      | Some (ValBase b) -> Some b
-      | _ -> None
-    end
-  | ExpBool b -> Some (ValBaseBool b)
-  | ExpString str -> Some (ValBaseString str)
+    Checker_env.find_const_opt name env
+  | ExpBool b -> Some (ValBool b)
+  | ExpString str -> Some (ValString str)
   | ExpInt i ->
     begin match i.width_signed with
       | None ->
-        Some (ValBaseInteger i.value)
+        Some (ValInteger i.value)
       | Some (width, signed) ->
         if signed
-        then Some (ValBaseInt (bigint_to_bool_list i.value))
-        else Some (ValBaseBit (bigint_to_bool_list i.value))
+        then Some (Bitstring.int_of_rawint i.value (Bigint.to_int_exn width))
+        else Some (Bitstring.bit_of_rawint i.value (Bigint.to_int_exn width))
     end
   | ExpUnaryOp (op, arg) ->
     begin match compile_time_eval_expr env arg with
@@ -227,17 +227,14 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
     option_map (Ops.interp_cast ~type_lookup typ) expr_val
   | ExpList values ->
     begin match compile_time_eval_exprs env values with
-      | Some vals -> Some (ValBaseTuple vals)
+      | Some vals -> Some (ValTuple vals)
       | None -> None
     end
   | ExpTypeMember (typ, name) ->
     let real_name = real_name_for_type_member env typ name in
-    begin match Checker_env.find_const_opt real_name env with
-      | Some (ValBase b) -> Some b
-      | _ -> None
-    end
+    Checker_env.find_const_opt real_name env
   | ExpErrorMember t ->
-    Some (ValBaseError t)
+    Some (ValError t)
   | ExpRecord entries ->
     let opt_entries =
       List.map ~f:(fun (key, value) ->
@@ -247,28 +244,26 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
         entries
     in
     begin match Util.list_option_flip opt_entries with
-      | Some es -> Some (ValBaseRecord es)
+      | Some es -> Some (ValRecord es)
       | None -> None
     end
   | ExpBitStringAccess (bits, hi, lo) ->
     begin match compile_time_eval_expr env bits with
-      | Some (ValBaseInt v)
-      | Some (ValBaseBit v) ->
-        let slice_val = Bitstring.bitstring_slice v (Bigint.to_int_exn hi) (Bigint.to_int_exn lo) in
-        Some (ValBaseBit slice_val)
+      | Some (ValInt (w, v))
+      | Some (ValBit (w, v)) ->
+        let slice_val = Bitstring.bitstring_slice v hi lo in
+        Some (ValBit (Bigint.(to_int_exn (max (hi - lo) zero)), slice_val))
       | _ -> None
     end
   | ExpDontCare -> failwith "set expression in non-set context"
   | ExpExpressionMember (expr, {str="size";_}) ->
     begin match saturate_type env (type_of_expr expr) with
-      | TypArray (_, size) -> Some (ValBaseInteger size)
+      | TypArray (_, size) -> Some (ValInteger size)
       | _ -> None
     end
   | ExpExpressionMember (expr, name) ->
     begin match compile_time_eval_expr env expr with
-      | Some (ValBaseStruct fields)
-      | Some (ValBaseHeader (fields, _))
-      | Some (ValBaseUnion fields) ->
+      | Some (ValStruct fields) ->
         fields
         |> List.find ~f:(fun (n, _) -> P4string.eq n name)
         |> option_map snd
@@ -281,27 +276,26 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
         let MkExpression (i, expr, typ, _) = expr in
         let typ = saturate_type env typ in
         let size = min_size_in_bits env i typ in
-        Some (ValBaseInteger size)
+        Some (ValInteger size)
       | ExpExpressionMember (expr, {str="minSizeInBytes"; _}) ->
         let MkExpression (i, expr, typ, _) = expr in
         let typ = saturate_type env typ in
         let size = min_size_in_bytes env i typ in
-        Some (ValBaseInteger size)
+        Some (ValInteger size)
       | _ -> None
     end
   | _ ->
     None
 
-and compile_time_eval_exprs env exprs : Prog.coq_ValueBase list option =
+and compile_time_eval_exprs env exprs : Prog.coq_Value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
-and bigint_of_value (v: Prog.coq_ValueBase) =
+and bigint_of_value (v: Prog.coq_Value) =
   match v with
-  | ValBaseInt v
-  | ValBaseBit v ->
-    Some (bool_list_to_bigint v)
-  | ValBaseInteger v ->
+  | ValInt (_, v)
+  | ValBit (_, v)
+  | ValInteger v ->
      Some v
   | _ -> None
 
@@ -319,8 +313,12 @@ and compile_time_eval_bigint env expr: Bigint.t =
  * [decl] before trying to evaluate it! *)
 and compile_time_eval_decl (env: Checker_env.t) (decl: Prog.coq_Declaration) : Checker_env.t =
   match decl with
-  | DeclConstant (_, _, name, value) ->
-    Checker_env.insert_const (BareName name) (ValBase value) env
+  | DeclConstant (_, _, name, exp) ->
+     begin match compile_time_eval_expr env exp with
+     | Some value ->
+        Checker_env.insert_const (BareName name) value env
+     | None -> env
+     end
   | _ -> env
 
 and get_type_params (t: coq_P4Type) : P4string.t list =
@@ -837,9 +835,9 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
     | NamelessInstantiation { typ; args } ->
       type_nameless_instantiation env ctx exp_info typ args
     | Mask { expr; mask } ->
-      type_mask env ctx expr mask
+      failwith "fix typing of masks"
     | Range { lo; hi } ->
-      type_range env ctx lo hi
+      failwith "fix typing of ranges"
   in
   MkExpression (exp_info, pre_expr, typ, dir)
 
@@ -981,30 +979,9 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
                   typ,
                   Directionless)
   | Mask { expr; mask } ->
-    let elt_width =
-      match reduce_type env typ with
-      | TypSet (TypBit width)
-      | TypSet (TypNewType (_, TypBit width))
-      | TypSet (TypEnum (_, Some (TypBit width), _)) ->
-        width
-      | _ -> failwith "must be a set of bit<w>"
-    in
-    let elt_type = TypBit elt_width in
-    let expr_typed = cast_expression env ctx elt_type expr in
-    let mask_typed = cast_expression env ctx elt_type mask in
-    MkExpression (exp_info,
-                  ExpMask (expr_typed, mask_typed),
-                  TypSet (elt_type),
-                  Directionless)
+     failwith "mask casts unimplemented due to removal of ExpMask from expressions"
   | Range { lo; hi } ->
-    let elt_typ =
-      match reduce_type env typ with
-      | TypSet typ -> typ
-      | _ -> failwith "must be a set"
-    in
-    let lo_typed = cast_expression env ctx elt_typ lo in
-    let hi_typed = cast_expression env ctx elt_typ hi in
-    MkExpression (exp_info, ExpRange (lo_typed, hi_typed), typ, Directionless)
+     failwith "range casts unimplemented due to removal of ExpRange from expressions"
 
 and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   match dir with
@@ -2455,7 +2432,7 @@ and type_mask env ctx expr mask =
       TypInteger
     | l_typ, r_typ -> failwith "bad type for mask operation &&&"
   in
-  ExpMask (expr_typed, mask_typed),
+  Prog.MatchMask (expr_typed, mask_typed),
   TypSet res_typ,
   Directionless
 
@@ -2477,7 +2454,7 @@ and type_range env ctx lo hi =
       raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
-  ExpRange (lo_typed, hi_typed), TypSet typ, Directionless
+  Prog.MatchRange (lo_typed, hi_typed), TypSet typ, Directionless
 
 and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Types.Statement.t) : unit =
   match ctx, snd stmt with
@@ -2750,10 +2727,11 @@ and type_constant env ctx decl_info annotations typ name expr : Prog.coq_Declara
   let typed_expr = cast_expression env expr_ctx expected_typ expr in
   match compile_time_eval_expr env typed_expr with
   | Some value ->
-    DeclConstant (decl_info, translate_type env typ, name, value),
+    let exp = val_to_literal value in
+    DeclConstant (decl_info, translate_type env typ, name, exp),
     env
     |> Checker_env.insert_dir_type_of (BareName name) expected_typ Directionless
-    |> Checker_env.insert_const (BareName name) (ValBase value)
+    |> Checker_env.insert_const (BareName name) value
   | None ->
     failwith "expression not compile-time-known"
 
@@ -2819,7 +2797,7 @@ and check_match env ctx (info, m: Types.Match.t) (expected_type: coq_P4Type) : P
     let expr_typed = cast_expression env ctx (TypSet expected_type) expr in
     let typ = type_of_expr expr_typed in
     check_match_type_eq env info typ expected_type;
-    MkMatch (info, MatchExpression expr_typed, TypSet typ)
+    failwith "check_match unimplemented"
 
 and check_match_product env ctx (ms: Types.Match.t list) (expected_types: coq_P4Type list) =
   match ms, expected_types with
@@ -3240,10 +3218,6 @@ and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool
   | ExpNamelessInstantiation (t1, e1),
     ExpNamelessInstantiation (t2, e2)
     -> List.equal (expr_eq env) e1 e2
-  | ExpMask (e1, m1), ExpMask (e2, m2)
-    -> expr_eq env e1 e2 && expr_eq env m1 m2
-  | ExpRange (l1, h1), ExpRange (l2, h2) 
-    -> expr_eq env l1 l2 && expr_eq env h1 h2
   | _ -> false
 
 and type_default_action
@@ -3384,7 +3358,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
     let _ = assert_numeric (fst value) (type_of_expr value_typed) in
     let size = compile_time_eval_expr env value_typed in
     begin match size with
-      | Some (ValBaseInteger size) ->
+      | Some (ValInteger size) ->
         type_table' env ctx info annotations
           name
           key_types
@@ -3529,7 +3503,7 @@ and type_error env info members : Prog.coq_Declaration * Checker_env.t =
     in
     env
     |> Checker_env.insert_type_of name TypError
-    |> Checker_env.insert_const name (ValBase (ValBaseError e))
+    |> Checker_env.insert_const name (ValError e)
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   DeclError (info, members), env
@@ -3540,7 +3514,7 @@ and type_match_kind env info members : Prog.coq_Declaration * Checker_env.t =
     let name: P4name.t = QualifiedName ([], e) in
     env
     |> Checker_env.insert_type_of name TypMatchKind
-    |> Checker_env.insert_const name (ValBase (ValBaseMatchKind e))
+    |> Checker_env.insert_const name (ValMatchKind e)
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
   DeclMatchKind (info, members), env
@@ -3554,8 +3528,7 @@ and type_enum env info annotations (name: P4string.t) members : Prog.coq_Declara
     let member_name: P4name.t =
       QualifiedName ([], {tags = member.tags;
                           str = name.str ^ "." ^ member.str}) in
-    let enum_val: Prog.coq_Value =
-      ValBase (ValBaseEnumField (name, member)) in
+    let enum_val: Prog.coq_Value = ValEnumField (name, member) in
     env
     |> Checker_env.insert_type_of member_name enum_typ
     |> Checker_env.insert_const member_name enum_val
@@ -3590,8 +3563,7 @@ and type_serializable_enum env ctx info annotations underlying_type
     let expr_typed = cast_expression env expr_ctx underlying_type expr in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
-      let enum_val: Prog.coq_Value =
-        ValBase (ValBaseEnumField (name, member)) in
+      let enum_val: Prog.coq_Value = ValEnumField (name, member) in
       env
       |> Checker_env.insert_type_of member_name enum_type
       |> Checker_env.insert_const member_name

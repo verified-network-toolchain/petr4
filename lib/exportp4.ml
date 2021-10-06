@@ -369,14 +369,6 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           (print_list print_expr) args
   | ExpDontCare ->
     fprintf p "@[<hov 0>ExpDontCare@]"
-  | ExpMask (expr, mask) ->
-      fprintf p "(@[<hov 4>ExpMask@ %a@ %a)@]"
-          print_expr expr
-          print_expr mask
-  | ExpRange (lo, hi) -> 
-      fprintf p "(@[<hov 4>ExpRange@ %a@ %a)@]"
-          print_expr lo
-          print_expr hi
 and print_keyvalue p kv =
   match kv with
   | (key, value) ->
@@ -391,9 +383,18 @@ let print_pre_match p (m: coq_MatchPreT) =
   match m with
   | MatchDontCare -> 
       fprintf p "@[<hov 0>MatchDontCare@]"
-  | MatchExpression expr -> 
-      fprintf p "(@[<hov 0>MatchExpression@ %a)@]"
-          print_expr expr
+  | MatchMask (expr, mask) ->
+     fprintf p "(@[<hov 0>MatchMask@ %a %a)@]"
+       print_expr expr
+       print_expr mask
+  | MatchRange (lo, hi) ->
+     fprintf p "(@[<hov 0>MatchRange@ %a %a)@]"
+       print_expr lo
+       print_expr hi
+  | MatchCast (typ, expr) ->
+     fprintf p "(@[<hov 0>MatchCast@ %a %a)@]"
+       print_type typ
+       print_expr expr
 
 let print_match p (m: coq_Match) =
   match m with
@@ -455,96 +456,6 @@ let print_table_property p (property: coq_TableProperty) =
           p4string s
           print_expr expr
 
-let rec print_value_base p (value : coq_ValueBase)=
-  match value with
-  | ValBaseNull ->
-      fprintf p "@[<hov 0>ValBaseNull@]"
-  | ValBaseBool b ->
-      fprintf p "(@[<hov 0>ValBaseBool@ %a)@]"
-          print_bool b
-  | ValBaseInteger n ->
-      fprintf p "(@[<hov 0>ValBaseInteger@ %a)@]" 
-          print_bigint n
-  | ValBaseBit value ->
-      fprintf p "(@[<hov 4>ValBaseBit@ %a)@]" 
-        print_bigint (Checker.bool_list_to_bigint value)
-  | ValBaseInt value ->
-      fprintf p "(@[<hov 4>ValBaseInt@ %a)@]" 
-        print_bigint (Checker.bool_list_to_bigint value)
-  | ValBaseVarbit (max, value) ->
-      fprintf p "(@[<hov 4>ValBaseVarbit@ %a@ %a)@]" 
-          print_bigint max
-          print_bigint (Checker.bool_list_to_bigint value)
-  | ValBaseString s ->
-      fprintf p "(@[<hov 0>ValBaseString@ %a)@]" 
-          p4string s
-  | ValBaseTuple values ->
-      fprintf p "(@[<hov 0>ValBaseTuple@ %a)@]"
-          (print_list print_value_base) values
-  | ValBaseRecord fields ->
-      fprintf p "(@[<hov 0>ValBaseRecord@ %a)@]"
-          (print_list (print_pair p4string print_value_base)) fields
-  | ValBaseError s ->
-      fprintf p "(@[<hov 0>ValBaseError@ %a)@]"
-          p4string s
-  | ValBaseMatchKind s ->
-      fprintf p "(@[<hov 0>ValBaseMatchKind@ %a)@]"
-          p4string s
-  | ValBaseStruct fields ->
-      fprintf p "(@[<hov 0>ValBaseStruct@ %a)@]"
-          (print_list (print_pair p4string print_value_base)) fields
-  | ValBaseHeader (fields, is_valid )->
-      fprintf p "(@[<hov 4>ValBaseHeader@ %a@ %a)@]"
-          (print_list (print_pair p4string print_value_base)) fields
-          print_bool is_valid
-  | ValBaseUnion fields ->
-      fprintf p "(@[<hov 0>ValBaseUnion@ %a)@]"
-          (print_list (print_pair p4string print_value_base)) fields
-  | ValBaseStack (headers, size, next) ->
-      fprintf p "(@[<hov 4>ValBaseStack@ %a@ %a@ %a)@]"
-          (print_list print_value_base) headers
-          print_bigint size
-          print_bigint next
-  | ValBaseEnumField (typ_name, enum_name) ->
-      fprintf p "(@[<hov 4>ValBaseEnumField@ %a@ %a)@]"
-          p4string typ_name
-          p4string enum_name
-  | ValBaseSenumField (typ_name, enum_name, value) ->
-      fprintf p "(@[<hov 4>ValBaseSenumField@ %a@ %a@ %a)@]"
-          p4string typ_name
-          p4string enum_name
-          print_value_base value
-  | ValBaseSenum fields -> 
-      fprintf p "(@[<hov 0>ValBaseSenum@ %a)@]"
-          (print_list (print_pair p4string print_value_base)) fields
-and print_value_set p (val_set: coq_ValueSet) =
-  match val_set with
-  | ValSetSingleton value ->
-      fprintf p "(@[<hov 4>ValSetSingleton@ %a)@]"
-          print_value_base value
-  | ValSetUniversal ->
-      fprintf p "@[<hov 4>ValSetUniversal@]"
-  | ValSetMask (value, mask) ->
-      fprintf p "(@[<hov 4>ValSetMask@ %a@ %a)@]" 
-          print_value_base value
-          print_value_base mask
-  | ValSetRange (lo, hi) ->
-      fprintf p "(@[<hov 4>ValSetRange@ %a@ %a)@]" 
-          print_value_base lo
-          print_value_base hi
-  | ValSetProd val_sets ->
-      fprintf p "(@[<hov 0>ValSetProd@ %a)@]"
-          (print_list print_value_set) val_sets
-  | ValSetLpm (num_bits, value) ->
-      fprintf p "(@[<hov 4>ValSetLpm@ %a@ %a)@]" 
-          print_bigint num_bits
-          print_value_base value
-  | ValSetValueSet (size, members, val_sets) ->
-      fprintf p "(@[<hov 4>ValSetValueSet@ %a@ %a@ %a)@]" 
-          print_bigint size
-          (print_list print_matches) members
-          (print_list print_value_set) val_sets
-
 let print_stmt_switch_label p (label: coq_StatementSwitchLabel) =
   match label with
   | StatSwLabDefault info -> 
@@ -604,7 +515,7 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
       fprintf p "(@[<hov 4>StatConstant@ %a@ %a@ %a@ %a)@]"
           print_type typ
           p4string s
-          print_value_base value
+          print_expr value
           print_locator loc
   | StatVariable (typ, s, init, loc) ->
       fprintf p "(@[<hov 4>StatVariable@ %a@ %a@ %a@ %a)@]"
@@ -706,7 +617,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_info info
           print_type typ
           p4string name
-          print_value_base value
+          print_expr value
   | DeclInstantiation (info, typ, args, name, init) ->
       let (f_str, decl_name) = 
         (gen_format_string decl_name "DeclInstantiation@ %a@ %a@ %a@ %a@ %a")
@@ -1016,151 +927,13 @@ let print_top_decl p (existing: string list) (decl : coq_Declaration): string =
 let print_value_loc =
   p4string
 
-let print_value_table p (value_table: coq_ValueTable) =
-  match value_table with
-  | MkValTable (name, keys, actions, default_action, const_entries) ->
-      fprintf p "(@[<hov 4>MkValTable@ %a@ %a@ %a@ %a@ %a)@]"
-          p4string name
-          print_table_keys keys
-          print_table_actions actions
-          print_table_action_ref default_action
-          print_table_entries const_entries
-
 let print_env_env print_binding =
   print_list (print_list (print_pair p4string print_binding))
-
-let print_env_eval_env p (env: coq_Env_EvalEnv) =
-  match env with
-  | MkEnv_EvalEnv (vs, typ, namespaces) ->
-      fprintf p "(@[<hov 4>MkEnv_EvalEnv@ %a@ %a@ %a)@]"
-          (print_env_env p4string) vs
-          (print_env_env print_type) typ
-          p4string namespaces
-  
-let rec print_value_pre_lvalue p (lvalue : coq_ValuePreLvalue) = 
-  match lvalue with
-  | ValLeftName (name, loc) ->
-      fprintf p "(@[<hov 0>ValLeftName@ %a@ %a)@]"
-          print_name name
-          print_locator loc
-  | ValLeftMember (expr, name) ->
-      fprintf p "(@[<hov 4>ValLeftMember@ %a@ %a)@]"
-          print_lvalue expr
-          p4string name
-  | ValLeftBitAccess (expr, msb, lsb) ->
-      fprintf p "(@[<hov 4>ValLeftBitAccess@ %a@ %a@ %a)@]"
-          print_lvalue expr
-          print_bigint msb
-          print_bigint lsb
-  | ValLeftArrayAccess (expr, idx) ->
-      fprintf p "(@[<hov 4>ValLeftArrayAccess@ %a@ %a)@]"
-          print_lvalue expr
-          print_bigint idx
-and print_lvalue p (lvalue: coq_ValueLvalue) =
-  match lvalue with
-  | MkValueLvalue  (lvalue, typ) ->
-      fprintf p "(@[<hov 4>MkValueLvalue@ %a@ %a)@]"
-          print_value_pre_lvalue lvalue
-          print_type typ
-  
-let print_value_fun_imp p (val_fun_impl: coq_ValueFunctionImplementation) =
-  match val_fun_impl with
-  | ValFuncImplUser (scope, body) ->
-      fprintf p "(@[<hov 4>ValFuncImplUser@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_block body
-  | ValFuncImplExtern (name, caller) ->
-      fprintf p "(@[<hov 4>ValFuncImplExtern@ %a@ %a)@]"
-          p4string name
-          (print_option (print_pair print_value_loc p4string)) caller
-  | ValFuncImplBuiltin (name, caller) ->
-      fprintf p "(@[<hov 4>ValFuncImplExtern@ %a@ %a)@]"
-          p4string name
-          print_lvalue caller
-
-let print_value_object p (value: coq_ValueObject) =
-  match value with
-  | ValObjParser (scope, constructor_params, params, locals, states) ->
-      fprintf p "(@[<hov 4>ValObjParser@ %a@ %a@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params constructor_params
-          print_params params
-          print_decls locals
-          print_parser_states states
-  | ValObjTable (value_table) ->
-      fprintf p "(@[<hov 0>ValObjTable@ %a)@]"
-          print_value_table value_table
-  | ValObjControl (scope, constructor_params, params, locals, apply) ->
-      fprintf p "(@[<hov 4>ValObjControl@ %a@ %a@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params constructor_params
-          print_params params
-          print_decls locals
-          print_block apply
-  | ValObjPackage args ->
-      fprintf p "(@[<hov 0>ValObjPackage@ %a)@]"
-          (print_list (print_pair p4string print_value_loc)) args
-  | ValObjRuntime (loc, obj_name) ->
-      fprintf p "(@[<hov 4>ValObjRuntime@ %a@ %a)@]"
-          print_value_loc loc
-          p4string obj_name
-  | ValObjFun (params, imp) ->
-      fprintf p "(@[<hov 4>ValObjFun@ %a@ %a)@]"
-          print_params params
-          print_value_fun_imp  imp
-  | ValObjAction (scope, params, body) ->
-      fprintf p "(@[<hov 4>ValObjAction@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params params
-          print_block body
-  | ValObjPacket bits ->
-      fprintf p "(@[<hov 0>ValObjPacket@ %a)@]"
-          (print_list print_bool) bits
-
-let print_value_constructor p (value: coq_ValueConstructor) =
-  match value with
-  | ValConsParser (scope, constructor_params, params, locals, states) ->
-      fprintf p "(@[<hov 4>ValConsParser@ %a@ %a@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params constructor_params
-          print_params params
-          print_decls locals
-          print_parser_states states
-  | ValConsTable (value_table) ->
-      fprintf p "(@[<hov 0>ValConsTable@ %a)@]"
-          print_value_table value_table
-  | ValConsControl (scope, constructor_params, params, locals, apply) ->
-      fprintf p "(@[<hov 4>ValConsControl@ %a@ %a@ %a@ %a@ %a)@]"
-          print_env_eval_env scope
-          print_params constructor_params
-          print_params params
-          print_decls locals
-          print_block apply
-  | ValConsPackage (params, args) ->
-      fprintf p "(@[<hov 4>ValConsPackage@ %a@ %a)@]"
-          print_params params
-          (print_list (print_pair p4string print_value_loc)) args
-  | ValConsExternObj fields ->
-      fprintf p "(@[<hov 0>ValConsExternObj@ %a)@]"
-          (print_list (print_pair p4string (print_params))) fields
-
-let print_value p (value: coq_Value) =
-  match value with
-  | ValBase value ->
-      fprintf p "(@[<hov 0>ValBase@ %a)@]"
-          print_value_base value
-  | ValObj value ->
-      fprintf p "(@[<hov 0>ValBase@ %a)@]"
-          print_value_object value
-  | ValCons value ->
-      fprintf p "(@[<hov 0>ValCons@ %a)@]"
-          print_value_constructor value
 
 let print_header p =
   fprintf p "Require Import Poulet4.P4defs.@ ";
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ "
-
 
 let print_program p (program : Prog.program) =
   fprintf p "@[<v 0>";

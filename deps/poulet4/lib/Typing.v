@@ -15,7 +15,14 @@ Section TypingDefs.
   Notation Sval := (@ValueBase tags_t (option bool)).
 
   (** Typing context. *)
-  Definition gamma : Type := @PathMap.t tags_t typ.  
+  Definition gamma : Type := @PathMap.t tags_t typ.
+
+  (** TODO: is this correct? *)
+  Definition typ_of_loc (l : Locator) (g : gamma) : option typ :=
+    match l with
+    | LInstance p => PathMap.get p g
+    | LGlobal   p => PathMap.get p g
+    end.
 
   Context `{T : @Target tags_t expr}.
 
@@ -94,10 +101,30 @@ Section TypingDefs.
   | typ_senum : forall fields ename t,
       IdentMap.get ename gsenum = Some (ValBaseSenum fields) ->
       Forall (fun xv => val_typ gsenum (snd xv) t) fields ->
-      val_typ gsenum (ValBaseSenum fields) (TypEnum ename (Some t) (List.map fst fields)).
+      val_typ
+        gsenum (ValBaseSenum fields)
+        (TypEnum ename (Some t) (List.map fst fields)).
 
   Definition envs_same (g : gamma) (st : state) : Prop :=
     forall p : path, PathMap.get p g = None <-> PathMap.get p (fst st) = None.
+
+  Lemma envs_same_some_l : forall g st p t,
+      envs_same g st -> PathMap.get p g = Some t ->
+      exists v, PathMap.get p (fst st) = Some v.
+  Proof.
+    intros g st p t H Hgt; unfold envs_same in H.
+    destruct (PathMap.get p (fst st)) as [v |] eqn:Heq; eauto.
+    rewrite <- H, Hgt in Heq; discriminate.
+  Qed.
+
+  Lemma envs_same_some_r : forall g st p v,
+      envs_same g st -> PathMap.get p (fst st) = Some v ->
+      exists t, PathMap.get p g = Some t.
+  Proof.
+    intros g st p v H Hgt; unfold envs_same in H.
+    destruct (PathMap.get p g) as [? |] eqn:Heq; eauto.
+    rewrite H,Hgt in Heq; discriminate.
+  Qed.
   
   Definition envs_type (gsenum : genv_senum) (g : gamma) (st : state) : Prop :=
     forall (p : path) (t : typ) (v : Sval),
@@ -167,7 +194,7 @@ Section Soundness.
   Lemma bool_sound : forall tag b dir,
       Γ ⊢e (MkExpression tag (ExpBool b) TypBool dir).
   Proof.
-    intros; autounfold with *; soundtac.
+    intros; soundtac.
   Qed.
   
   Lemma arbitrary_int_sound : forall tag i z dir,
@@ -175,7 +202,7 @@ Section Soundness.
         (MkExpression
            tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir).
   Proof.
-    intros; autounfold with *; soundtac.
+    intros; soundtac.
   Qed.
 
   Lemma unsigned_int_sound : forall tag i z w dir,
@@ -183,6 +210,40 @@ Section Soundness.
         (MkExpression
            tag (ExpInt (P4Int.Build_t _ i z (Some (w,false)))) (TypBit w) dir).
   Proof.
-    intros tag i z dir; autounfold with *; soundtac.
+    intros tag i z dir; soundtac.
+    (* TODO: need some result about [P4Arith.to_loptbool]. *)
   Admitted.
+
+  Lemma signed_int_sound : forall tag i z w dir,
+      Γ ⊢e
+        (MkExpression
+           tag (ExpInt (P4Int.Build_t _ i z (Some (w,true)))) (TypInt w) dir).
+  Proof.
+    intros tag i z dir; soundtac.
+    (* TODO: need some result about [P4Arith.to_loptbool]. *)
+  Admitted.
+
+  Lemma string_sound : forall tag s dir,
+      Γ ⊢e (MkExpression tag (ExpString s) TypString dir).
+  Proof.
+    intros; soundtac.
+  Qed.
+
+  Lemma name_sound : forall tag x loc t dir,
+      typ_of_loc loc Γ = Some t ->
+      Γ ⊢e (MkExpression tag (ExpName x loc) t dir).
+  Proof.
+    intros i x l t d Hgt; soundtac.
+    - destruct l as [lp | lp]; simpl in Hgt;
+        eapply envs_same_some_l in Hgt as [v Hv]; eauto.
+      exists v. constructor; simpl.
+      (** TODO:
+          1. Need type preservation to [eval_val_to_sval].
+          2. Perhaps [envs_same] needs to include [genv]. *)
+      admit.
+    - destruct l as [lp | lp]; simpl in Hgt;
+        simpl in *; eauto.
+  Admitted.
+
+  (*Lemma array_access_sound : forall*)
 End Soundness.

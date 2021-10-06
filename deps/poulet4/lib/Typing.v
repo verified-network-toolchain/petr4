@@ -1,21 +1,26 @@
 Require Import Poulet4.Semantics Poulet4.Typed
-        Poulet4.Syntax Coq.NArith.BinNat
-        Coq.Lists.List.
+        Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List.
 Import ListNotations.
 Require Poulet4.P4String.
 
-Section Typing.
+Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
 
   Notation typ := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
+  Notation stmt := (@Statement tags_t).
+  Notation signal := (@signal tags_t).
   Notation ident := (P4String.t tags_t).
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
-  
-  Definition gamma : Type := @PathMap.t tags_t typ.
 
-  Context `{T : @Target tags_t (@Expression tags_t)}.
+  (** Typing context. *)
+  Definition gamma : Type := @PathMap.t tags_t typ.  
+
+  Context `{T : @Target tags_t expr}.
+
+  Notation run_expr := (@exec_expr tags_t dummy T).
+  Notation run_stmt := (@exec_stmt tags_t dummy T).
 
   (* TODO:
      What constraints do we need on:
@@ -99,20 +104,85 @@ Section Typing.
       PathMap.get p g = Some t ->
       PathMap.get p (fst st) = Some v -> val_typ gsenum v t.
 
-  Notation run_expr := (@exec_expr tags_t dummy T).
-
   Definition typ_of_expr (e : expr) : typ :=
     match e with
     | MkExpression _ _ t _ => t
     end.
   (**[]*)
-
+  
   (** Expression typing. *)
-  Definition types (read_one_bit : option bool -> bool -> Prop)
-             (p : path) (e : @Expression tags_t) : Prop :=
-    forall (ge : genv) (g : gamma) (st : state),
+  Definition expr_types (g : gamma) (e : expr) : Prop :=
+    forall (read_one_bit : option bool -> bool -> Prop)
+      (ge : genv) (p : path) (st : state),
       envs_same g st -> envs_type ge g st ->
-      (exists v : Sval, run_expr ge read_one_bit p st e v) /\
-      forall v : Sval, run_expr ge read_one_bit p st e v -> val_typ (ge_senum ge) v (typ_of_expr e).
+      (exists v, run_expr ge read_one_bit p st e v) /\
+      forall v, run_expr ge read_one_bit p st e v ->
+           val_typ (ge_senum ge) v (typ_of_expr e).
   (**[]*)
-End Typing.
+
+  (** Statement typing. *)
+  Definition stmt_types (g g' : gamma) (s : stmt) : Prop :=
+    forall (read_one_bit : option bool -> bool -> Prop)
+      (ge : genv) (p : path) (st : state),
+      envs_same g st -> envs_type ge g st ->
+      (exists st' sig, run_stmt ge read_one_bit p st s st' sig) /\
+      forall st' sig, run_stmt ge read_one_bit p st s st' sig ->
+                 envs_same g' st' /\ envs_type ge g' st'.
+End TypingDefs.
+
+Notation "Γ '⊢e' e"
+  := (expr_types Γ e) (at level 80, no associativity) : type_scope.
+Notation "Γ1 '⊢s' s ⊣ Γ2"
+  := (stmt_types Γ1 Γ2 s) (at level 80, no associativity) : type_scope.
+
+(* TODO. *)
+Section Soundness.
+  Context {tags_t : Type} {dummy : Inhabitant tags_t}.
+
+  Notation typ := (@P4Type tags_t).
+  Notation expr := (@Expression tags_t).
+  Notation stmt := (@Statement tags_t).
+  Notation signal := (@signal tags_t).
+  Notation ident := (P4String.t tags_t).
+  Notation path := (list ident).
+  Notation Sval := (@ValueBase tags_t (option bool)).
+
+  Context `{T : @Target tags_t expr}.
+
+  Notation run_expr := (@exec_expr tags_t dummy T).
+  Notation run_stmt := (@exec_stmt tags_t dummy T).
+
+  Variable (Γ : @gamma tags_t).
+
+  Local Hint Unfold expr_types : core.
+  Local Hint Constructors exec_expr : core.
+  Local Hint Constructors val_typ : core.
+
+  Ltac soundtac :=
+    autounfold with *;
+    intros rob ge p st Henvs Henvt;
+    split; eauto;
+    try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
+  
+  Lemma bool_sound : forall tag b dir,
+      Γ ⊢e (MkExpression tag (ExpBool b) TypBool dir).
+  Proof.
+    intros; autounfold with *; soundtac.
+  Qed.
+  
+  Lemma arbitrary_int_sound : forall tag i z dir,
+      Γ ⊢e
+        (MkExpression
+           tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir).
+  Proof.
+    intros; autounfold with *; soundtac.
+  Qed.
+
+  Lemma unsigned_int_sound : forall tag i z w dir,
+      Γ ⊢e
+        (MkExpression
+           tag (ExpInt (P4Int.Build_t _ i z (Some (w,false)))) (TypBit w) dir).
+  Proof.
+    intros tag i z dir; autounfold with *; soundtac.
+  Admitted.
+End Soundness.

@@ -1,5 +1,4 @@
 #include "petr4-runtime.h"
-
 struct __petr4_0b1011;
 struct __petr4_0b111;
 struct __petr4_0b11;
@@ -28,21 +27,23 @@ void MyVerifyChecksum();
 void test_verifyChecksum();
 void MyParser();
 void start();
+signed char __petr4_0b100111[2] = { 49, 0, };
+
 int main(void)
 {
+  struct packet_out __petr4_0b101110;
   struct packet_in __petr4_0b101101;
-  struct packet_in __petr4_0b101100;
-  struct __petr4_0b1011 __petr4_0b101011;
-  struct __petr4_0b111 __petr4_0b101010;
-  struct __petr4_0b11 __petr4_0b101001;
+  struct __petr4_0b1011 __petr4_0b101100;
+  struct __petr4_0b111 __petr4_0b101011;
+  struct __petr4_0b11 __petr4_0b101010;
   MyParser
-    (__petr4_0b101100, &__petr4_0b101001, &__petr4_0b101010,
-     &__petr4_0b101011);
-  MyVerifyChecksum(&__petr4_0b101001, &__petr4_0b101010);
-  MyIngress(&__petr4_0b101001, &__petr4_0b101010, &__petr4_0b101011);
-  MyEgress(&__petr4_0b101001, &__petr4_0b101010, &__petr4_0b101011);
-  MyComputeChecksum(&__petr4_0b101001, &__petr4_0b101010);
-  MyDeparser(__petr4_0b101101, __petr4_0b101001);
+    (__petr4_0b101101, &__petr4_0b101010, &__petr4_0b101011,
+     &__petr4_0b101100);
+  MyVerifyChecksum(&__petr4_0b101010, &__petr4_0b101011);
+  MyIngress(&__petr4_0b101010, &__petr4_0b101011, &__petr4_0b101100);
+  MyEgress(&__petr4_0b101010, &__petr4_0b101011, &__petr4_0b101100);
+  MyComputeChecksum(&__petr4_0b101010, &__petr4_0b101011);
+  MyDeparser(__petr4_0b101110, __petr4_0b101010);
 }
 
 void MyDeparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_0b100011)
@@ -54,8 +55,8 @@ void MyDeparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_
 
 void test_deparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __petr4_0b100011)
 {
+  struct BitVec __petr4_0b101001;
   struct BitVec __petr4_0b101000;
-  struct BitVec __petr4_0b100111;
   struct BitVec __petr4_0b100110;
   struct BitVec __petr4_0b100101;
   struct __petr4_0b11 __petr4_0b100100;

@@ -51,6 +51,16 @@ Functions: includes package processing, unary operations, and binary operations
 void extract(struct packet_in pkt, void *data, int len);
 void emit(struct packet_out pkt, void *data, int len);
 
+/**
+ * sign = 0 means unsigned, = 1 means signed
+ * w is the width
+ * val is the decimal string of the value.
+ * 
+ * */
+void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
+  //TODO: Implement
+}
+
 //unary operators
 void eval_uminus(mpz_t v) {
   mpz_t dst_value;
@@ -73,7 +83,9 @@ void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int 
     mpz_mul(r.value, r.value, is_add);
     dst->is_signed = 1; 
     mpz_add(dst->value, l.value, r.value);
-    mpz_mod_ui(dst->value, dst->value, pow(2, dst->width)-1);
+    //pow(2, dst->width)-1 , this used to be the third argument in the line below
+    //but pow does not seem to be defined.
+    mpz_mod_ui(dst->value, dst->value, 1);
   }
 }
 

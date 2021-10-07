@@ -102,29 +102,30 @@ Definition __res : ident := $"_res".
 Definition __res__1 : ident := $"_res__1".
 Definition _dst : ident := $"dst".
 Definition _dst_value : ident := $"dst_value".
-Definition _eval_and : ident := $"eval_and".
-Definition _eval_bitand : ident := $"eval_bitand".
-Definition _eval_bitor : ident := $"eval_bitor".
-Definition _eval_bitxor : ident := $"eval_bitxor".
-Definition _eval_div : ident := $"eval_div".
-Definition _eval_eq : ident := $"eval_eq".
-Definition _eval_ge : ident := $"eval_ge".
-Definition _eval_gt : ident := $"eval_gt".
-Definition _eval_le : ident := $"eval_le".
-Definition _eval_lt : ident := $"eval_lt".
-Definition _eval_minus : ident := $"eval_minus".
-Definition _eval_minus_sat : ident := $"eval_minus_sat".
-Definition _eval_mod : ident := $"eval_mod".
-Definition _eval_mul : ident := $"eval_mul".
-Definition _eval_not_eq : ident := $"eval_not_eq".
-Definition _eval_or : ident := $"eval_or".
-Definition _eval_plus : ident := $"eval_plus".
-Definition _eval_plus_sat : ident := $"eval_plus_sat".
 Definition _eval_sat_add_sub : ident := $"eval_sat_add_sub".
-Definition _eval_shl : ident := $"eval_shl".
-Definition _eval_shr : ident := $"eval_shr".
 Definition _eval_uminus : ident := $"eval_uminus".
+Definition _init_bitvec : ident := $"init_bitvec".
 Definition _init_interp_binary_op : ident := $"init_interp_binary_op".
+Definition _interp_band : ident := $"interp_band".
+Definition _interp_bdiv : ident := $"interp_bdiv".
+Definition _interp_beq : ident := $"interp_beq".
+Definition _interp_bge : ident := $"interp_bge".
+Definition _interp_bgt : ident := $"interp_bgt".
+Definition _interp_bitwise_and : ident := $"interp_bitwise_and".
+Definition _interp_bitwise_or : ident := $"interp_bitwise_or".
+Definition _interp_bitwise_xor : ident := $"interp_bitwise_xor".
+Definition _interp_ble : ident := $"interp_ble".
+Definition _interp_blt : ident := $"interp_blt".
+Definition _interp_bminus : ident := $"interp_bminus".
+Definition _interp_bminus_sat : ident := $"interp_bminus_sat".
+Definition _interp_bmod : ident := $"interp_bmod".
+Definition _interp_bmult : ident := $"interp_bmult".
+Definition _interp_bne : ident := $"interp_bne".
+Definition _interp_bor : ident := $"interp_bor".
+Definition _interp_bplus : ident := $"interp_bplus".
+Definition _interp_bplus_sat : ident := $"interp_bplus_sat".
+Definition _interp_bshl : ident := $"interp_bshl".
+Definition _interp_bshr : ident := $"interp_bshr".
 Definition _is_add : ident := $"is_add".
 Definition _is_signed : ident := $"is_signed".
 Definition _l : ident := $"l".
@@ -133,8 +134,11 @@ Definition _op : ident := $"op".
 Definition _pow : ident := $"pow".
 Definition _r : ident := $"r".
 Definition _reset_bitvec : ident := $"reset_bitvec".
+Definition _sign : ident := $"sign".
 Definition _v : ident := $"v".
+Definition _val : ident := $"val".
 Definition _value : ident := $"value".
+Definition _w : ident := $"w".
 Definition _width : ident := $"width".
 Definition _x : ident := $"x".
 Definition _t'1 : ident := 128%positive.
@@ -152,6 +156,17 @@ Definition f_reset_bitvec := {|
   (Evar ___gmpz_clear (Tfunction (Tcons (tptr (Tstruct __585 noattr)) Tnil)
                         tvoid cc_default))
   ((Etempvar _x (tptr (Tstruct __585 noattr))) :: nil))
+|}.
+
+Definition f_init_bitvec := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) :: (_sign, tint) ::
+                (_w, tint) :: (_val, (tptr tschar)) :: nil);
+  fn_vars := nil;
+  fn_temps := nil;
+  fn_body :=
+Sskip
 |}.
 
 Definition f_eval_uminus := {|
@@ -388,7 +403,7 @@ Definition f_init_interp_binary_op := {|
                   (Sreturn None))))))))))
 |}.
 
-Definition f_eval_plus := {|
+Definition f_interp_bplus := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -454,7 +469,7 @@ Definition f_eval_plus := {|
             (Sreturn None)))))))
 |}.
 
-Definition f_eval_plus_sat := {|
+Definition f_interp_bplus_sat := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -506,7 +521,7 @@ Definition f_eval_plus_sat := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_minus := {|
+Definition f_interp_bminus := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -572,7 +587,7 @@ Definition f_eval_minus := {|
             (Sreturn None)))))))
 |}.
 
-Definition f_eval_minus_sat := {|
+Definition f_interp_bminus_sat := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -624,7 +639,7 @@ Definition f_eval_minus_sat := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_mul := {|
+Definition f_interp_bmult := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -690,7 +705,7 @@ Definition f_eval_mul := {|
             (Sreturn None)))))))
 |}.
 
-Definition f_eval_div := {|
+Definition f_interp_bdiv := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -756,7 +771,7 @@ Definition f_eval_div := {|
             (Sreturn None)))))))
 |}.
 
-Definition f_eval_mod := {|
+Definition f_interp_bmod := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -808,7 +823,7 @@ Definition f_eval_mod := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_shl := {|
+Definition f_interp_bshl := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -860,7 +875,7 @@ Definition f_eval_shl := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_shr := {|
+Definition f_interp_bshr := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -920,7 +935,7 @@ Definition f_eval_shr := {|
              (tarray (Tstruct __585 noattr) 1)) :: nil))))))
 |}.
 
-Definition f_eval_le := {|
+Definition f_interp_ble := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -969,7 +984,7 @@ Definition f_eval_le := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_ge := {|
+Definition f_interp_bge := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1018,7 +1033,7 @@ Definition f_eval_ge := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_lt := {|
+Definition f_interp_blt := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1067,7 +1082,7 @@ Definition f_eval_lt := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_gt := {|
+Definition f_interp_bgt := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1116,7 +1131,7 @@ Definition f_eval_gt := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_eq := {|
+Definition f_interp_beq := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1165,7 +1180,7 @@ Definition f_eval_eq := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_not_eq := {|
+Definition f_interp_bne := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1214,7 +1229,7 @@ Definition f_eval_not_eq := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_bitand := {|
+Definition f_interp_bitwise_and := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -1266,7 +1281,7 @@ Definition f_eval_bitand := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_bitxor := {|
+Definition f_interp_bitwise_xor := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -1318,7 +1333,7 @@ Definition f_eval_bitxor := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_bitor := {|
+Definition f_interp_bitwise_or := {|
   fn_return := tvoid;
   fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
   fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
@@ -1370,7 +1385,7 @@ Definition f_eval_bitor := {|
           (Sreturn None))))))
 |}.
 
-Definition f_eval_and := {|
+Definition f_interp_band := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1434,7 +1449,7 @@ Definition f_eval_and := {|
         (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
 |}.
 
-Definition f_eval_or := {|
+Definition f_interp_bor := {|
   fn_return := tint;
   fn_callconv := cc_default;
   fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
@@ -1898,42 +1913,44 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      cc_default)) (Tcons tdouble (Tcons tdouble Tnil))
      tdouble cc_default)) ::
  (_reset_bitvec, Gfun(Internal f_reset_bitvec)) ::
+ (_init_bitvec, Gfun(Internal f_init_bitvec)) ::
  (_eval_uminus, Gfun(Internal f_eval_uminus)) ::
  (_eval_sat_add_sub, Gfun(Internal f_eval_sat_add_sub)) ::
  (_init_interp_binary_op, Gfun(Internal f_init_interp_binary_op)) ::
- (_eval_plus, Gfun(Internal f_eval_plus)) ::
- (_eval_plus_sat, Gfun(Internal f_eval_plus_sat)) ::
- (_eval_minus, Gfun(Internal f_eval_minus)) ::
- (_eval_minus_sat, Gfun(Internal f_eval_minus_sat)) ::
- (_eval_mul, Gfun(Internal f_eval_mul)) ::
- (_eval_div, Gfun(Internal f_eval_div)) ::
- (_eval_mod, Gfun(Internal f_eval_mod)) ::
- (_eval_shl, Gfun(Internal f_eval_shl)) ::
- (_eval_shr, Gfun(Internal f_eval_shr)) ::
- (_eval_le, Gfun(Internal f_eval_le)) ::
- (_eval_ge, Gfun(Internal f_eval_ge)) ::
- (_eval_lt, Gfun(Internal f_eval_lt)) ::
- (_eval_gt, Gfun(Internal f_eval_gt)) ::
- (_eval_eq, Gfun(Internal f_eval_eq)) ::
- (_eval_not_eq, Gfun(Internal f_eval_not_eq)) ::
- (_eval_bitand, Gfun(Internal f_eval_bitand)) ::
- (_eval_bitxor, Gfun(Internal f_eval_bitxor)) ::
- (_eval_bitor, Gfun(Internal f_eval_bitor)) ::
- (_eval_and, Gfun(Internal f_eval_and)) ::
- (_eval_or, Gfun(Internal f_eval_or)) :: nil).
+ (_interp_bplus, Gfun(Internal f_interp_bplus)) ::
+ (_interp_bplus_sat, Gfun(Internal f_interp_bplus_sat)) ::
+ (_interp_bminus, Gfun(Internal f_interp_bminus)) ::
+ (_interp_bminus_sat, Gfun(Internal f_interp_bminus_sat)) ::
+ (_interp_bmult, Gfun(Internal f_interp_bmult)) ::
+ (_interp_bdiv, Gfun(Internal f_interp_bdiv)) ::
+ (_interp_bmod, Gfun(Internal f_interp_bmod)) ::
+ (_interp_bshl, Gfun(Internal f_interp_bshl)) ::
+ (_interp_bshr, Gfun(Internal f_interp_bshr)) ::
+ (_interp_ble, Gfun(Internal f_interp_ble)) ::
+ (_interp_bge, Gfun(Internal f_interp_bge)) ::
+ (_interp_blt, Gfun(Internal f_interp_blt)) ::
+ (_interp_bgt, Gfun(Internal f_interp_bgt)) ::
+ (_interp_beq, Gfun(Internal f_interp_beq)) ::
+ (_interp_bne, Gfun(Internal f_interp_bne)) ::
+ (_interp_bitwise_and, Gfun(Internal f_interp_bitwise_and)) ::
+ (_interp_bitwise_xor, Gfun(Internal f_interp_bitwise_xor)) ::
+ (_interp_bitwise_or, Gfun(Internal f_interp_bitwise_or)) ::
+ (_interp_band, Gfun(Internal f_interp_band)) ::
+ (_interp_bor, Gfun(Internal f_interp_bor)) :: nil).
 
 Definition public_idents : list ident :=
-(_eval_or :: _eval_and :: _eval_bitor :: _eval_bitxor :: _eval_bitand ::
- _eval_not_eq :: _eval_eq :: _eval_gt :: _eval_lt :: _eval_ge :: _eval_le ::
- _eval_shr :: _eval_shl :: _eval_mod :: _eval_div :: _eval_mul ::
- _eval_minus_sat :: _eval_minus :: _eval_plus_sat :: _eval_plus ::
+(_interp_bor :: _interp_band :: _interp_bitwise_or :: _interp_bitwise_xor ::
+ _interp_bitwise_and :: _interp_bne :: _interp_beq :: _interp_bgt ::
+ _interp_blt :: _interp_bge :: _interp_ble :: _interp_bshr :: _interp_bshl ::
+ _interp_bmod :: _interp_bdiv :: _interp_bmult :: _interp_bminus_sat ::
+ _interp_bminus :: _interp_bplus_sat :: _interp_bplus ::
  _init_interp_binary_op :: _eval_sat_add_sub :: _eval_uminus ::
- _reset_bitvec :: _pow :: ___gmpz_xor :: ___gmpz_tdiv_q_2exp ::
- ___gmpz_sub :: ___gmpz_set_ui :: ___gmpz_neg :: ___gmpz_mul_2exp ::
- ___gmpz_mul :: ___gmpz_mod :: ___gmpz_ior :: ___gmpz_init ::
- ___gmpz_fdiv_r_ui :: ___gmpz_fdiv_q_2exp :: ___gmpz_cmp_d :: ___gmpz_cmp ::
- ___gmpz_clear :: ___gmpz_cdiv_q :: ___gmpz_and :: ___gmpz_add ::
- ___builtin_debug :: ___builtin_write32_reversed ::
+ _init_bitvec :: _reset_bitvec :: _pow :: ___gmpz_xor ::
+ ___gmpz_tdiv_q_2exp :: ___gmpz_sub :: ___gmpz_set_ui :: ___gmpz_neg ::
+ ___gmpz_mul_2exp :: ___gmpz_mul :: ___gmpz_mod :: ___gmpz_ior ::
+ ___gmpz_init :: ___gmpz_fdiv_r_ui :: ___gmpz_fdiv_q_2exp :: ___gmpz_cmp_d ::
+ ___gmpz_cmp :: ___gmpz_clear :: ___gmpz_cdiv_q :: ___gmpz_and ::
+ ___gmpz_add :: ___builtin_debug :: ___builtin_write32_reversed ::
  ___builtin_write16_reversed :: ___builtin_read32_reversed ::
  ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::
  ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_fmin ::

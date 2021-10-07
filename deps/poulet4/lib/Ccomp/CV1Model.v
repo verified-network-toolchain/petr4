@@ -18,7 +18,7 @@ Context (bit_vec: type).
 Definition packet_in := 
     (Tstruct $"packet_in" noattr).
 Definition packet_out :=
-    (Tstruct $"packet_in" noattr).
+    (Tstruct $"packet_out" noattr).
 Definition empty_main := 
   Clight.mkfunction Ctypes.Tvoid 
   (AST.mkcallconv None true true)

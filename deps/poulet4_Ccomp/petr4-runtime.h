@@ -111,48 +111,40 @@ struct BitVec init_interp_binary_op(struct BitVec l) {
 
 //main functions
 
-struct BitVec interp_bplus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bplus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_add(dst->value, l.value, r.value);
   mpz_mod_ui(dst->value, dst->value, dst->width);
-  return *dst; 
 }
 
-struct BitVec interp_bplus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  eval_sat_add_sub(&dst, l, r, 1);
-  return *dst; 
+void interp_bplus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  eval_sat_add_sub(&dst, l, r, 1); 
 }
 
-struct BitVec interp_bminus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bminus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_sub(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width);
-  return *dst; 
+  mpz_mod_ui(dst->value, dst->value, dst->width); 
 }
 
-struct BitVec interp_bminus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  eval_sat_add_sub(&dst, l, r, -1);
-  return *dst; 
+void interp_bminus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  eval_sat_add_sub(&dst, l, r, -1); 
 }
 
-struct BitVec interp_bmult(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bmult(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_mul(dst->value, l.value, r.value);
   mpz_mod_ui(dst->value, dst->value, dst->width);
-  return *dst; 
 }
 
-struct BitVec interp_bdiv(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bdiv(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_cdiv_q(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width);
-  return *dst; 
+  mpz_mod_ui(dst->value, dst->value, dst->width); 
 }
 
-struct BitVec interp_bmod(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bmod(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_mod(dst->value, l.value, r.value);
-  return *dst; 
 }
 
-struct BitVec interp_bshl(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bshl(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_mul_2exp(dst->value, l.value, r.value);
-  return *dst; 
 }
 
 struct BitVec interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) {
@@ -170,66 +162,63 @@ struct BitVec interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) 
 }
 
 //1 = true, 0 = false
-int interp_ble(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_ble(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) <= 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
 //1 = true, 0 = false
-int interp_bge(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bge(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) >= 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
 //1 = true, 0 = false
-int interp_blt(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_blt(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) < 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
 //1 = true, 0 = false
-int interp_bgt(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bgt(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) > 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
 //1 = true, 0 = false
-int interp_beq(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_beq(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) == 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
 //1 = true, 0 = false
-int interp_bne(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bne(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) != 0) {
-    return 1;
+    *dst = 1;
   } 
-  return 0; 
+  *dst = 0; 
 }
 
-struct BitVec interp_bitwise_and(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  mpz_and(dst->value, l.value, r.value);
-  return *dst; 
+void interp_bitwise_and(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_and(dst->value, l.value, r.value); 
 }
 
-struct BitVec interp_bitwise_xor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  mpz_xor(dst->value, l.value, r.value); 
-  return *dst; 
+void interp_bitwise_xor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_xor(dst->value, l.value, r.value);  
 }
 
-struct BitVec interp_bitwise_or(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bitwise_or(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_ior(dst->value, l.value, r.value); 
-  return *dst; 
 }
 
 //1 = true, 0 = false

@@ -1,6 +1,6 @@
 Require Import Poulet4.Semantics Poulet4.Typed
         Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List
-        Coq.micromega.Lia.
+        Poulet4.Value Coq.micromega.Lia.
 Import ListNotations.
 Require Poulet4.P4String.
 
@@ -38,7 +38,6 @@ Proof.
     intros H [| b bs] Hbs; simpl in *; try discriminate; auto.
 Qed.
 
-(*
 Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
 
@@ -387,4 +386,4 @@ Section Soundness.
       rename H6 into Hesvs.
       rewrite exec_exprs_iff in Hesvs.
       Admitted.
-End Soundness. *)
+End Soundness.

@@ -38,6 +38,41 @@ Proof.
     intros H [| b bs] Hbs; simpl in *; try discriminate; auto.
 Qed.
 
+Lemma Forall2_length : forall (A B : Type) (R : A -> B -> Prop) la lb,
+    Forall2 R la lb -> length la = length lb.
+Proof.
+  intros A B R la lb H; induction H;
+    simpl; f_equal; auto.
+Qed.
+
+Lemma Forall2_impl : forall (A B : Type) (R Q : A -> B -> Prop) la lb,
+    Forall2 (fun a b => R a b -> Q a b) la lb ->
+    Forall2 R la lb -> Forall2 Q la lb.
+Proof.
+  intros A B R Q la lb HRQ HR;
+    induction HRQ; inversion HR; subst; auto.
+Qed.
+
+Lemma Forall2_flip : forall (A B : Type) (R : A -> B -> Prop) la lb,
+    Forall2 (fun b a => R a b) lb la <-> Forall2 R la lb.
+Proof.
+  intros A B R la lb; split; intros H;
+    induction H; auto.
+Qed.
+
+Lemma Forall2_map_r : forall (A B C : Type) (R : A -> B -> Prop) (f : C -> B) la lc,
+    Forall2 (fun a c => R a (f c)) la lc <-> Forall2 R la (map f lc).
+Proof.
+  intros A B C R f la lc; split; intros H.
+  - induction H; simpl in *; auto.
+  - remember (map f lc) as mflc eqn:Hmflc.
+    generalize dependent lc.
+    induction H; intros lc Hmflc.
+    + symmetry in Hmflc; apply map_eq_nil in Hmflc; subst; auto.
+    + destruct lc as [| c lc]; simpl in *;
+        inversion Hmflc; subst; auto.
+Qed.
+
 Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
 
@@ -361,12 +396,11 @@ Section Soundness.
       intros H; induction H; auto.
   Qed.
   
-  Lemma list_sound : forall tag es ts dir,
+  Lemma list_sound : forall tag es dir,
       Forall (fun e => Γ ⊢e e) es ->
-      Forall2 (fun e t => typ_of_expr e = t) es ts ->
-      Γ ⊢e MkExpression tag (ExpList es) (TypTuple ts) dir.
+      Γ ⊢e MkExpression tag (ExpList es) (TypTuple (map typ_of_expr es)) dir.
   Proof.
-    intros i es ts d Hes Hts. autounfold with * in *.
+    intros i es d Hes. autounfold with * in *.
     intros rob ge p st Henvs Henvt.
     rewrite Forall_forall in Hes.
       specialize Hes with
@@ -381,9 +415,15 @@ Section Soundness.
       rewrite Forall_exists_factor in Hrnes.
       destruct Hrnes as [vs Hvs].
       rewrite <- exec_exprs_iff in Hvs; eauto.
-    - clear Hrnes; intros v Hrn.
+    - clear Hrnes; intros v Hrn; simpl.
       inversion Hrn; subst; clear Hrn.
       rename H6 into Hesvs.
       rewrite exec_exprs_iff in Hesvs.
-      Admitted.
+      apply forall_Forall2 with (bs := vs) in Htyps;
+        eauto using Forall2_length.
+      apply Forall2_impl with
+          (R := run_expr ge rob p st)
+          (Q := fun e v => val_typ ge v (typ_of_expr e)) in Htyps; auto.
+      rewrite Forall2_flip, Forall2_map_r in Htyps; auto.
+  Qed.
 End Soundness.

@@ -4,7 +4,7 @@ Require Import Poulet4.Semantics Poulet4.Typed
 Import ListNotations.
 Require Poulet4.P4String.
 
-(** Move to utility module. *)
+(* TODO: move to utility module. *)
 Lemma reduce_inner_impl : forall (A : Type) (Q : Prop) (P R : A -> Prop),
     (forall a, P a -> Q -> R a) -> Q -> forall a, P a -> R a.
 Proof.
@@ -58,6 +58,17 @@ Lemma Forall2_flip : forall (A B : Type) (R : A -> B -> Prop) la lb,
 Proof.
   intros A B R la lb; split; intros H;
     induction H; auto.
+Qed.
+
+Lemma Forall2_map_l : forall (A B C : Type) (R : A -> B -> Prop) (f : C -> A) lc lb,
+    Forall2 (fun c b => R (f c) b) lc lb <-> Forall2 R (map f lc) lb.
+Proof.
+  intros A B C R f lc lb; split; intros H.
+  - induction H; simpl in *; auto.
+  - remember (map f lc) as la eqn:Heqla;
+      generalize dependent lc.
+    induction H; intros [| ? ?] Heqla;
+      simpl in *; inversion Heqla; subst; auto.
 Qed.
 
 Lemma Forall2_map_r : forall (A B C : Type) (R : A -> B -> Prop) (f : C -> B) la lc,
@@ -398,7 +409,8 @@ Section Soundness.
   
   Lemma list_sound : forall tag es dir,
       Forall (fun e => Γ ⊢e e) es ->
-      Γ ⊢e MkExpression tag (ExpList es) (TypTuple (map typ_of_expr es)) dir.
+      Γ ⊢e MkExpression tag (ExpList es)
+        (TypTuple (map typ_of_expr es)) dir.
   Proof.
     intros i es d Hes. autounfold with * in *.
     intros rob ge p st Henvs Henvt.
@@ -426,4 +438,30 @@ Section Soundness.
           (Q := fun e v => val_typ ge v (typ_of_expr e)) in Htyps; auto.
       rewrite Forall2_flip, Forall2_map_r in Htyps; auto.
   Qed.
+  
+  Lemma record_sound : forall tag es dir,
+      Forall (fun e => Γ ⊢e e) (map snd es) ->
+      Γ ⊢e
+        MkExpression
+        tag (ExpRecord es)
+        (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir.
+  Proof.
+    intros i es d Hes.
+    autounfold with * in *.
+    intros rob ge p st Henvs Henvt.
+    rewrite Forall_forall in Hes.
+    specialize Hes with
+        (read_one_bit:=rob) (ge:=ge) (p:=p) (st:=st).
+    pose proof reduce_inner_impl _ _ _ _ Hes Henvs as Hes';
+      simpl in Hes'; clear Hes.
+    pose proof reduce_inner_impl _ _ _ _ Hes' Henvt as Hes;
+      simpl in Hes; clear Hes'.
+    rewrite split_impl_conj in Hes.
+    destruct Hes as [Hrns Htyps]. split.
+    - clear Htyps. rewrite <- Forall_forall in Hrns.
+      rewrite Forall_exists_factor in Hrns.
+      destruct Hrns as [vs Hvs].
+      rewrite <- Forall2_map_l in Hvs.
+      (* Need results on [AList.all_values]. *)
+  Admitted.
 End Soundness.

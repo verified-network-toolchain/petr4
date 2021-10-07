@@ -5,14 +5,14 @@
 #include <assert.h>
 #include <math.h> 
 
-typedef struct packet_in{
+struct packet_in {
   void *in;
 };
-typedef struct packet_out{
+struct packet_out{
   void *out;
 };
 
-typedef struct BitVec {
+struct BitVec{
   //1 = signed, 0 = unsigned 
   int is_signed;
 

@@ -1,3 +1,5 @@
+#include "petr4-runtime.h"
+
 struct __petr4_0b1011;
 struct __petr4_0b111;
 struct __petr4_0b11;
@@ -6,7 +8,7 @@ struct __petr4_0b1011 {
 };
 
 struct __petr4_0b111 {
-  struct BitVec *__petr4_0b1000;
+  struct BitVec *__petr4_0b1000; 
 };
 
 struct __petr4_0b11 {
@@ -60,7 +62,7 @@ void test_deparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __pet
   __petr4_0b100100 = __petr4_0b100011;
   /*skip*/;
   /*skip*/;
-  eval_plus(&__petr4_0b100110, &__petr4_0b100111, &__petr4_0b101000);
+  // eval_plus(&__petr4_0b100110, &__petr4_0b100111, &__petr4_0b101000);
   __petr4_0b100101 = __petr4_0b101000;
   __petr4_0b100011 = __petr4_0b100100;
 }

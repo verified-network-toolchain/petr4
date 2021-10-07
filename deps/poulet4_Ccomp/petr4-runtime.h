@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <math.h> 
 
+
 struct packet_in {
   void *in;
 };
@@ -58,7 +59,16 @@ void emit(struct packet_out pkt, void *data, int len);
  * 
  * */
 void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
-  //TODO: Implement
+  mpz_t i;
+  int check;
+
+  mpz_init(i);
+  mpz_set_ui(i,0);
+
+  check = mpz_set_str(i,val, 10);
+  assert (check == 0); 
+
+  mpz_set(dst->value, i); 
 }
 
 //unary operators
@@ -85,7 +95,7 @@ void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int 
     mpz_add(dst->value, l.value, r.value);
     //pow(2, dst->width)-1 , this used to be the third argument in the line below
     //but pow does not seem to be defined.
-    mpz_mod_ui(dst->value, dst->value, 1);
+    mpz_mod_ui(dst->value, dst->value, (int) pow(2.0, (double)dst->width)-1);
   }
 }
 
@@ -101,75 +111,66 @@ struct BitVec init_interp_binary_op(struct BitVec l) {
 
 //main functions
 
-struct BitVec interp_bplus(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_add(dst.value, l.value, r.value);
-  mpz_mod_ui(dst.value, dst.value, dst.width);
-  return dst; 
+struct BitVec interp_bplus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_add(dst->value, l.value, r.value);
+  mpz_mod_ui(dst->value, dst->value, dst->width);
+  return *dst; 
 }
 
-struct BitVec interp_bplus_sat(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+struct BitVec interp_bplus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   eval_sat_add_sub(&dst, l, r, 1);
-  return dst; 
+  return *dst; 
 }
 
-struct BitVec interp_bminus(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_sub(dst.value, l.value, r.value);
-  mpz_mod_ui(dst.value, dst.value, dst.width);
-  return dst; 
+struct BitVec interp_bminus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_sub(dst->value, l.value, r.value);
+  mpz_mod_ui(dst->value, dst->value, dst->width);
+  return *dst; 
 }
 
-struct BitVec interp_bminus_sat(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+struct BitVec interp_bminus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   eval_sat_add_sub(&dst, l, r, -1);
-  return dst; 
+  return *dst; 
 }
 
-struct BitVec interp_bmult(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_mul(dst.value, l.value, r.value);
-  mpz_mod_ui(dst.value, dst.value, dst.width);
-  return dst; 
+struct BitVec interp_bmult(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_mul(dst->value, l.value, r.value);
+  mpz_mod_ui(dst->value, dst->value, dst->width);
+  return *dst; 
 }
 
-struct BitVec interp_bdiv(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_cdiv_q(dst.value, l.value, r.value);
-  mpz_mod_ui(dst.value, dst.value, dst.width);
-  return dst; 
+struct BitVec interp_bdiv(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_cdiv_q(dst->value, l.value, r.value);
+  mpz_mod_ui(dst->value, dst->value, dst->width);
+  return *dst; 
 }
 
-struct BitVec interp_bmod(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_mod(dst.value, l.value, r.value);
-  return dst; 
+struct BitVec interp_bmod(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_mod(dst->value, l.value, r.value);
+  return *dst; 
 }
 
-struct BitVec interp_bshl(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_mul_2exp(dst.value, l.value, r.value);
-  return dst; 
+struct BitVec interp_bshl(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_mul_2exp(dst->value, l.value, r.value);
+  return *dst; 
 }
 
-struct BitVec interp_bshr(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+struct BitVec interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   //For positive n both mpz_fdiv_q_2exp and mpz_tdiv_q_2exp are simple bitwise right shifts. 
   //For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift 
   //treating n as twos complement the same as the bitwise logical functions 
   //do, whereas mpz_tdiv_q_2exp effectively treats n as sign and magnitude.
-  if(dst.is_signed) { //might want to fix this condition 
-    mpz_fdiv_q_2exp(dst.value, l.value, r.value); 
+  if(dst->is_signed) { //might want to fix this condition 
+    mpz_fdiv_q_2exp(dst->value, l.value, r.value); 
   } 
   else {
-    mpz_tdiv_q_2exp(dst.value, l.value, r.value);
+    mpz_tdiv_q_2exp(dst->value, l.value, r.value);
   }
+  return *dst;
 }
 
 //1 = true, 0 = false
-int interp_ble(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_ble(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) <= 0) {
     return 1;
   } 
@@ -177,8 +178,7 @@ int interp_ble(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_bge(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_bge(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) >= 0) {
     return 1;
   } 
@@ -186,8 +186,7 @@ int interp_bge(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_blt(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_blt(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) < 0) {
     return 1;
   } 
@@ -195,8 +194,7 @@ int interp_blt(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_bgt(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_bgt(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) > 0) {
     return 1;
   } 
@@ -204,8 +202,7 @@ int interp_bgt(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_beq(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_beq(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) == 0) {
     return 1;
   } 
@@ -213,35 +210,30 @@ int interp_beq(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_bne(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_bne(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) != 0) {
     return 1;
   } 
   return 0; 
 }
 
-struct BitVec interp_bitwise_and(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_and(dst.value, l.value, r.value);
-  return dst; 
+struct BitVec interp_bitwise_and(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_and(dst->value, l.value, r.value);
+  return *dst; 
 }
 
-struct BitVec interp_bitwise_xor(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_xor(dst.value, l.value, r.value); 
-  return dst; 
+struct BitVec interp_bitwise_xor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_xor(dst->value, l.value, r.value); 
+  return *dst; 
 }
 
-struct BitVec interp_bitwise_or(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
-  mpz_ior(dst.value, l.value, r.value); 
-  return dst; 
+struct BitVec interp_bitwise_or(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_ior(dst->value, l.value, r.value); 
+  return *dst; 
 }
 
 //1 = true, 0 = false
-int interp_band(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_band(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp_d(l.value, 0.0) != 0 ||  mpz_cmp_d(r.value, 0.0) != 0) {
     return 1;
   } 
@@ -249,8 +241,7 @@ int interp_band(enum operation op, struct BitVec l, struct BitVec r) {
 }
 
 //1 = true, 0 = false
-int interp_bor(enum operation op, struct BitVec l, struct BitVec r) {
-  struct BitVec dst = init_interp_binary_op(l); 
+int interp_bor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp_d(l.value, 0.0) != 0 &&  mpz_cmp_d(r.value, 0.0) != 0) {
     return 1;
   } 

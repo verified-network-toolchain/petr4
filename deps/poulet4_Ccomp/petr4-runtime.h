@@ -51,6 +51,12 @@ Functions: includes package processing, unary operations, and binary operations
 void extract(struct packet_in pkt, void *data, int len);
 void emit(struct packet_out pkt, void *data, int len);
 
+/**
+ * sign = 0 means unsigned, = 1 means signed
+ * w is the width
+ * val is the decimal string of the value.
+ * 
+ * */
 void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   //TODO: Implement
 }

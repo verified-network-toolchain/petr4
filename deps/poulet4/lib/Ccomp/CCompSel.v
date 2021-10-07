@@ -343,21 +343,31 @@ Section CCompSel.
     Ctypes.Tnil)).
 
   Definition bop_function (op: ident) := 
-    if(op == _eval_eq) then
+    if(op == _interp_beq) then
       Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _eval_not_eq) then
+    (* else if(op == _interp_not_eq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default)  *)
+    else if(op == _interp_bge) then
       Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _eval_ge) then
+    else if(op == _interp_bgt) then
       Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _eval_gt) then
+    else if(op == _interp_ble) then
       Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _eval_le) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _eval_lt) then
+    else if(op == _interp_blt) then
       Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
     else
       Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
     .
+
+  Definition typelist_bitvec_init :=
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons type_bool
+    (Ctypes.Tcons int_signed
+    (Ctypes.Tcons Cstring
+    Ctypes.Tnil))).
+
+  Definition bitvec_init_function := 
+    Evar _init_bitvec (Tfunction typelist_bitvec_init tvoid cc_default). 
 
   Definition ValidBitIndex (arg: E.e tags_t) (env: ClightEnv tags_t ) : option AST.ident
   :=
@@ -405,7 +415,7 @@ Section CCompSel.
     Some (Sassign dst' not_expr, env_arg)
   | P4cub.Expr.BitNot => 
     (*need implementation in runtime*)
-    Some (Scall None (uop_function _eval_bitand) [arg_ref; dst_ref], env_arg)
+    Some (Scall None (uop_function _interp_bitwise_and) [arg_ref; dst_ref], env_arg)
   | P4cub.Expr.UMinus => 
     Some (Scall None (uop_function _eval_uminus)  [arg_ref; dst_ref], env_arg)
   | P4cub.Expr.IsValid =>
@@ -469,35 +479,35 @@ Section CCompSel.
   end in
   match op with
   | P4cub.Expr.Plus => 
-  let fn_name :=  _eval_plus in
+  let fn_name :=  _interp_bplus in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.PlusSat =>
-  let fn_name := _eval_plus_sat in
+  let fn_name := _interp_bplus_sat in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Minus =>
-  let fn_name := _eval_minus in
+  let fn_name := _interp_bminus in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.MinusSat =>
-  let fn_name := _eval_minus_sat in
+  let fn_name := _interp_bminus_sat in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Times =>
-  let fn_name := _eval_mul in
+  let fn_name := _interp_bmult in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Shl =>
-  Some (Scall None (bop_function _eval_shl) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bshl) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Shr =>
-  Some (Scall None (bop_function _eval_shr) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bshr) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Le => 
-  let fn_name := _eval_le in
+  let fn_name := _interp_ble in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Ge => 
-  let fn_name := _eval_ge in
+  let fn_name := _interp_bge in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Lt => 
-  let fn_name := _eval_lt in
+  let fn_name := _interp_blt in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Gt => 
-  let fn_name := _eval_gt in
+  let fn_name := _interp_bgt in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.Eq => 
   match Clight.typeof le' with
@@ -505,7 +515,7 @@ Section CCompSel.
   let eq_expr :=  Ebinop Oeq le' re' type_bool in
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
-  let fn_name := _eval_eq in
+  let fn_name := _interp_beq in
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   end
   | P4cub.Expr.NotEq => 
@@ -514,18 +524,18 @@ Section CCompSel.
   let eq_expr :=  Ebinop Oeq le' re' type_bool in
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
-  let fn_name := _eval_not_eq in
+  let fn_name := _interp_beq in (*want a not eq here*)
   Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
   end
   | P4cub.Expr.BitAnd => 
-  Some (Scall None (bop_function _eval_bitand) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_and) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.BitXor => 
-  Some (Scall None (bop_function _eval_bitxor) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_xor) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.BitOr => 
-  Some (Scall None (bop_function _eval_bitor) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_or) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.PlusPlus => 
   (*Need implementation in runtime*)
-  Some (Scall None (bop_function _eval_plus) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bplus) [le_ref; re_ref; dst_ref], env_re)
   | P4cub.Expr.And => 
   let and_expr :=  Ebinop Oand le' re' type_bool in
   Some (Sassign dst' and_expr, env_re)
@@ -556,7 +566,13 @@ Section CCompSel.
       match CTranslateFieldAssgn mtl etl dst env' with 
       | None => None
       | Some (nextAssgn, env') =>
-      Some (Ssequence (Sassign (Efield dst id typ) exp) nextAssgn , env')
+        let curAssgn := 
+            match typ with 
+            | Tpointer t _  => Sassign (Ederef (Efield dst id typ) (t)) exp 
+            | _ => Sassign (Efield dst id typ) exp
+            end in 
+        Some (Ssequence curAssgn nextAssgn , env')
+      
       end
       end
     | [],[] => Some (Sskip,env)
@@ -824,8 +840,28 @@ Section CCompSel.
     | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement*)
     | ST.SInvoke tbl i => Some (Sskip, env) (*TODO: implement*)
 
-    | ST.SBitAssign dst_t dst width val i => Some (Sskip, env) (*TODO: implement*)
-    | ST.SIntAssign dst_t dst width val z => Some (Sskip, env) (*TODO: implement*)
+    | ST.SBitAssign dst_t dst width val i => 
+      match find_ident tags_t env dst with 
+      | None => None
+      | Some dst' =>
+        let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+        Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+      end
+    | ST.SIntAssign dst_t dst width val i =>
+      match find_ident tags_t env dst with 
+        | None => None
+        | Some dst' =>
+          let (env', val_id) := find_BitVec_String tags_t env val in 
+          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+          let signed := Econst_int (Integers.Int.one) (type_bool) in 
+          let val' := Evar val_id Cstring in
+          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+          Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+      end
     | ST.SSlice n τ hi lo dst i => 
                         match CTranslateExpr n env with
                         | None => None
@@ -1403,11 +1439,16 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       let main_decl :=
       AST.Gfun (Ctypes.Internal (main_fn tags_t env_all_declared (get_instantiate_cargs tags_t env_all_declared)))
       in 
+      let gvars := get_globvars tags_t env_all_declared in 
+      let gvars := List.map 
+        (fun (x: AST.ident * globvar Ctypes.type)
+        => let (id, v) := x in 
+        (id, AST.Gvar(v))) gvars in
       let res_prog : Errors.res (program function) := make_program 
         (
           (* RunTime.composites++  *)
           typ_decls)
-        (((main_id, main_decl):: f_decls))
+        (gvars ++ ((main_id, main_decl):: f_decls))
         [] main_id
       in
       res_prog

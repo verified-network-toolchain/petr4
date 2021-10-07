@@ -7,10 +7,11 @@ Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Coq.ZArith.BinIntDef.
+Require Import Coq.Init.Decimal.
 Import Clightdefs.ClightNotations.
-
 Local Open Scope clight_scope.
 Local Open Scope string_scope.
+Local Open Scope Z_scope.
 Module P := AST.P4cub.
 Module E := P.Expr.
 Section CEnv.
@@ -25,7 +26,8 @@ Section CEnv.
     tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
     instantiationCarg : P4sel.Expr.constructor_args tags_t;
     maininit: Clight.statement;
-    globvars: (list (AST.ident * globvar Ctypes.type))
+    globvars: (list (AST.ident * globvar Ctypes.type));
+    numStrMap : Env.t Z AST.ident
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -40,6 +42,7 @@ Section CEnv.
     instantiationCarg := [];
     maininit := Clight.Sskip;
     globvars := [];
+    numStrMap :=  Env.empty Z AST.ident;
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -55,6 +58,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}.
 
 
@@ -73,6 +77,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -89,6 +94,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}.
 
 
@@ -107,6 +113,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}, new_ident).
 
 
@@ -125,6 +132,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}.
 
   Definition add_composite_typ 
@@ -142,6 +150,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
     |}
     .
 
@@ -162,6 +171,7 @@ Section CEnv.
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
   globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
   |}.
 
   Definition update_function
@@ -180,7 +190,96 @@ Section CEnv.
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
   globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
   |}.
+
+  Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
+    match dec with
+    | Nil => (Init_int8(Int.repr 0)::[], 1)
+    | D0 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 48) in
+        (digit::l, Z.succ count)
+    | D1 d =>
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 49) in
+        (digit::l, Z.succ count)
+    | D2 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 50) in
+        (digit::l, Z.succ count)
+    | D3 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 51) in
+        (digit::l, Z.succ count)
+    | D4 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 52) in
+        (digit::l, Z.succ count)
+    | D5 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 53) in
+        (digit::l, Z.succ count)
+    | D6 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 54) in
+        (digit::l, Z.succ count)
+    | D7 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 55) in
+        (digit::l, Z.succ count)
+    | D8 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 56) in
+        (digit::l, Z.succ count)
+    | D9 d => 
+        let (l,count) := to_C_dec_str_unsigned d in
+        let digit := Init_int8 (Int.repr 57) in
+        (digit::l, Z.succ count)
+    end.
+
+  Definition to_C_dec_str (dec: int): list init_data * Z :=
+    match dec with 
+    | Pos d => to_C_dec_str_unsigned d 
+    | Neg d => let (l, count) := to_C_dec_str_unsigned d in
+              let digit := Init_int8 (Int.repr 45) in
+              (digit::l, Z.succ count)
+    end.
+
+  Definition find_BitVec_String 
+  (env: ClightEnv)
+  (val: Z)
+  : ClightEnv * ident :=
+  match Env.find val env.(numStrMap) with 
+  | Some id => (env, id)
+  | None =>
+  let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
+  let dec := Z.to_int val in
+  let (inits, length) := to_C_dec_str dec in
+  let gvar :=  {|
+    gvar_info := (tarray tschar length);
+    gvar_init := inits;
+    gvar_readonly := false;
+    gvar_volatile := false
+  |} in
+  let env' :=
+    {|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites := env.(composites);
+    identGenerator := gen';
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := (new_id, gvar) :: env.(globvars);
+    numStrMap := Env.bind val new_id env.(numStrMap);
+    |} in 
+    (env', new_id)
+  end.
+
+
 
   Definition new_ident
   (env: ClightEnv) : ClightEnv * ident := 
@@ -196,6 +295,7 @@ Section CEnv.
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
   globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -210,6 +310,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -224,6 +325,7 @@ Section CEnv.
     instantiationCarg := to.(instantiationCarg);
     maininit := to.(maininit);
     globvars := to.(globvars);
+    numStrMap := to.(numStrMap);
   |}.  
 
   Definition add_bitvec_string (env: ClightEnv) (val : list init_data) : ClightEnv * ident := 
@@ -245,6 +347,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := (new_ident, globvar)::env.(globvars);
+    numStrMap := env.(numStrMap);
     |}, new_ident )
     .
   
@@ -261,6 +364,7 @@ Section CEnv.
     instantiationCarg := cargs;
     maininit := env.(maininit);
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
   |}.  
 
   Definition get_instantiate_cargs (env: ClightEnv) : P4sel.Expr.constructor_args tags_t := 
@@ -277,6 +381,7 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := init;
     globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
   |}.  
 
   Definition get_main_init (env: ClightEnv) : Clight.statement := 
@@ -404,4 +509,6 @@ Section CEnv.
   Definition get_composites (env: ClightEnv) : list (Ctypes.composite_definition):= 
     List.map snd env.(composites).
 
+  Definition get_globvars (env: ClightEnv) : list (AST.ident * globvar Ctypes.type)
+  := env.(globvars).
 End CEnv.

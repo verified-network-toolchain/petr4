@@ -328,30 +328,6 @@ Section CEnv.
     numStrMap := to.(numStrMap);
   |}.  
 
-  Definition add_bitvec_string (env: ClightEnv) (val : list init_data) : ClightEnv * ident := 
-    let globvar := {|
-      gvar_info := (tarray tschar (Z.of_nat (List.length val)));
-      gvar_init := val;
-      gvar_readonly := true;
-      gvar_volatile := false
-    |} in 
-    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    ({|
-    identMap := env.(identMap);
-    temps := env.(temps);
-    vars := env.(vars);
-    composites := env.(composites);
-    identGenerator := gen';
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := (new_ident, globvar)::env.(globvars);
-    numStrMap := env.(numStrMap);
-    |}, new_ident )
-    .
-  
-
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4sel.Expr.constructor_args tags_t) : ClightEnv :=
   {|
     identMap := env.(identMap);

@@ -147,7 +147,7 @@ void interp_bshl(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   mpz_mul_2exp(dst->value, l.value, r.value);
 }
 
-struct BitVec interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+void interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   //For positive n both mpz_fdiv_q_2exp and mpz_tdiv_q_2exp are simple bitwise right shifts. 
   //For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift 
   //treating n as twos complement the same as the bitwise logical functions 
@@ -158,7 +158,6 @@ struct BitVec interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) 
   else {
     mpz_tdiv_q_2exp(dst->value, l.value, r.value);
   }
-  return *dst;
 }
 
 //1 = true, 0 = false

@@ -51,10 +51,10 @@ Section CCompSel.
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
     | P4cub.Expr.TString => (Cstring, env)
-    | P4cub.Expr.TEnum x xs => (Ctypes.Tvoid, env) (* TODO: how to translate enum? *)
-    | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement*)
-    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type?*)
-    | P4cub.Expr.TMatchKind => (Ctypes.Tvoid, env) (*TODO: implement*)
+    | P4cub.Expr.TEnum x xs => (int_unsigned, env) (*Clight does not have enum type, so let's use int*)
+    | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
+    | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type? Should it be depending on the target?*)
+    | P4cub.Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
     | P4cub.Expr.TTuple (ts) => 
         match lookup_composite tags_t env p4t with
         | Some comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
@@ -157,7 +157,7 @@ Section CCompSel.
 
   Definition CTranslateConstructorType (ct: P4cub.Expr.ct) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t :=
   match ct with 
-  | P4cub.Expr.CTType type => (Ctypes.Tvoid, env) (*TODO: implement*) 
+  | P4cub.Expr.CTType type => CTranslateType type env
   | P4cub.Expr.CTControl cparams _ parameters => (Ctypes.Tvoid, env) (*TODO: implement*)
   | P4cub.Expr.CTParser cparams  _ parameters => (Ctypes.Tvoid, env) (*TODO: implement*)
   | P4cub.Expr.CTPackage cparams => (Ctypes.Tvoid, env) (*TODO: implement*)
@@ -480,35 +480,35 @@ Section CCompSel.
   match op with
   | P4cub.Expr.Plus => 
   let fn_name :=  _interp_bplus in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.PlusSat =>
   let fn_name := _interp_bplus_sat in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Minus =>
   let fn_name := _interp_bminus in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.MinusSat =>
   let fn_name := _interp_bminus_sat in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Times =>
   let fn_name := _interp_bmult in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Shl =>
-  Some (Scall None (bop_function _interp_bshl) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bshl) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Shr =>
-  Some (Scall None (bop_function _interp_bshr) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bshr) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Le => 
   let fn_name := _interp_ble in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Ge => 
   let fn_name := _interp_bge in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Lt => 
   let fn_name := _interp_blt in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Gt => 
   let fn_name := _interp_bgt in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.Eq => 
   match Clight.typeof le' with
   | Tint IBool Signed noattr =>
@@ -516,7 +516,7 @@ Section CCompSel.
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
   let fn_name := _interp_beq in
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   end
   | P4cub.Expr.NotEq => 
   match Clight.typeof le' with
@@ -524,18 +524,18 @@ Section CCompSel.
   let eq_expr :=  Ebinop Oeq le' re' type_bool in
   Some (Sassign dst' eq_expr, env_re)
   | _ =>
-  let fn_name := _interp_beq in (*want a not eq here*)
-  Some (Scall None (bop_function fn_name) [le_ref; re_ref; dst_ref], env_re)
+  let fn_name := _interp_beq in (*TODO: want a not eq here*)
+  Some (Scall None (bop_function fn_name) [dst_ref; le'; re'], env_re)
   end
   | P4cub.Expr.BitAnd => 
-  Some (Scall None (bop_function _interp_bitwise_and) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_and) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.BitXor => 
-  Some (Scall None (bop_function _interp_bitwise_xor) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_xor) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.BitOr => 
-  Some (Scall None (bop_function _interp_bitwise_or) [le_ref; re_ref; dst_ref], env_re)
+  Some (Scall None (bop_function _interp_bitwise_or) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.PlusPlus => 
-  (*Need implementation in runtime*)
-  Some (Scall None (bop_function _interp_bplus) [le_ref; re_ref; dst_ref], env_re)
+  (*TODO: Need implementation in runtime*)
+  Some (Scall None (bop_function _interp_bplus) [dst_ref; le'; re'], env_re)
   | P4cub.Expr.And => 
   let and_expr :=  Ebinop Oand le' re' type_bool in
   Some (Sassign dst' and_expr, env_re)

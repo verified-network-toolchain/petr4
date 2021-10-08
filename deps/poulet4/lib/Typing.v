@@ -5,6 +5,22 @@ Import ListNotations.
 Require Poulet4.P4String.
 
 (* TODO: move to utility module. *)
+Lemma combine_map_fst_snd : forall (U V : Type) (l : list (U * V)),
+    combine (map fst l) (map snd l) = l.
+Proof.
+  intros U V l; induction l as [| [u v] l IHl];
+    simpl; f_equal; auto.
+Qed.
+
+Lemma map_snd_combine : forall (U V : Type) (us : list U) (vs : list V),
+    length us = length vs ->
+    map snd (combine us vs) = vs.
+Proof.
+  intros U V us; induction us as [| u us IHus];
+    intros [| v vs] Hl; simpl in *;
+      inversion Hl; subst; f_equal; auto.
+Qed.
+
 Lemma reduce_inner_impl : forall (A : Type) (Q : Prop) (P R : A -> Prop),
     (forall a, P a -> Q -> R a) -> Q -> forall a, P a -> R a.
 Proof.
@@ -461,7 +477,12 @@ Section Soundness.
     - clear Htyps. rewrite <- Forall_forall in Hrns.
       rewrite Forall_exists_factor in Hrns.
       destruct Hrns as [vs Hvs].
-      rewrite <- Forall2_map_l in Hvs.
-      (* Need results on [AList.all_values]. *)
+      rewrite AList.Forall2_all_values
+        with (ks := map fst es) in Hvs.
+      + rewrite combine_map_fst_snd in Hvs; eauto.
+      + repeat rewrite map_length; reflexivity.
+      + rewrite map_length, <- map_length with (f := snd).
+        eauto using Forall2_length.
+    - admit.
   Admitted.
 End Soundness.

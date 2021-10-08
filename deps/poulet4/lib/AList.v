@@ -272,6 +272,31 @@ Section AList.
                       all_values hold_one_value kvs kvs' ->
                       all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
 
+  Local Hint Constructors all_values : core.
+  
+  Lemma Forall2_all_values :
+    forall (U W : Type) (P : U -> W -> Prop) us ws ks,
+      length ks = length us -> length ks = length ws ->
+      Forall2 P us ws <->
+      all_values P (combine ks us) (combine ks ws).
+  Proof.
+    intros U W P us ws ks Hlku Hlkw; split.
+    - intro Hfa2; clear Hlku Hlkw.
+      generalize dependent ks.
+      induction Hfa2; intros [| k ks]; simpl in *; auto.
+    - intro Hav.
+      remember (combine ks us) as kus eqn:Heqkus;
+        remember (combine ks ws) as kws eqn:Heqkws;
+        generalize dependent ws;
+        generalize dependent us;
+        generalize dependent ks.
+      induction Hav;
+        intros [| ky ks] [| u us]
+               Hlkus Hus [| w ws] Hlkws Hws; simpl in *;
+          inversion Hus; inversion Hws;
+            inversion Hlkus; inversion Hlkws; subst; eauto.
+  Qed.
+  
   Fixpoint map_values {A B} (f : A -> B) (l : AList K A R): AList K B R :=
     match l with
     | [] => []

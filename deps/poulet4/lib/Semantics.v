@@ -121,8 +121,6 @@ Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
 Definition read_detbit (b : bool) (b': option bool) :=
   b' = Some b.
 
-Search (list (option _)).
-
 Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t bool) :=
   let '(MkExpression _ expr _ _) := expr in
   match expr with

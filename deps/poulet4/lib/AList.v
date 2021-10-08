@@ -296,6 +296,13 @@ Section AList.
           inversion Hus; inversion Hws;
             inversion Hlkus; inversion Hlkws; subst; eauto.
   Qed.
+
+  Lemma all_values_keys_eq : forall {U W} (P : U -> W -> Prop) us ws,
+      all_values P us ws -> map fst us = map fst ws.
+  Proof.
+    intros U W P us ws HPuws.
+    induction HPuws; simpl in *; f_equal; auto.
+  Qed.
   
   Fixpoint map_values {A B} (f : A -> B) (l : AList K A R): AList K B R :=
     match l with

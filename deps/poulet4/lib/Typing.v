@@ -12,6 +12,15 @@ Proof.
     simpl; f_equal; auto.
 Qed.
 
+Lemma map_fst_combine : forall (U V : Type) (us : list U) (vs : list V),
+    length us = length vs ->
+    map fst (combine us vs) = us.
+Proof.
+  intros U V us; induction us as [| u us IHus];
+    intros [| v vs] Hl; simpl in *;
+      inversion Hl; subst; f_equal; auto.
+Qed.
+
 Lemma map_snd_combine : forall (U V : Type) (us : list U) (vs : list V),
     length us = length vs ->
     map snd (combine us vs) = vs.
@@ -76,6 +85,16 @@ Proof.
     induction H; auto.
 Qed.
 
+Lemma Forall2_conj : forall (U V : Type) (R Q : U -> V -> Prop) us vs,
+    Forall2 (fun u v => R u v /\ Q u v) us vs <->
+    Forall2 R us vs /\ Forall2 Q us vs.
+Proof.
+  intros U V R Q us vs; split.
+  - intros H; induction H; simpl in *; intuition.
+  - intros [HR HQ]; induction HR; inversion HQ;
+      simpl in *; auto.
+Qed.
+
 Lemma Forall2_map_l : forall (A B C : Type) (R : A -> B -> Prop) (f : C -> A) lc lb,
     Forall2 (fun c b => R (f c) b) lc lb <-> Forall2 R (map f lc) lb.
 Proof.
@@ -98,6 +117,13 @@ Proof.
     + symmetry in Hmflc; apply map_eq_nil in Hmflc; subst; auto.
     + destruct lc as [| c lc]; simpl in *;
         inversion Hmflc; subst; auto.
+Qed.
+
+Lemma Forall2_map_both :
+  forall (T U V W : Type) (R : V -> W -> Prop) (f : T -> V) (g : U -> W) ts us,
+    Forall2 (fun t u => R (f t) (g u)) ts us <-> Forall2 R (map f ts) (map g us).
+Proof.
+  intros; rewrite <- Forall2_map_l, <- Forall2_map_r; reflexivity.
 Qed.
 
 Section TypingDefs.
@@ -483,6 +509,20 @@ Section Soundness.
       + repeat rewrite map_length; reflexivity.
       + rewrite map_length, <- map_length with (f := snd).
         eauto using Forall2_length.
-    - admit.
+    - clear Hrns; intros v Hrns.
+      inversion Hrns; subst.
+      rename H6 into Heskvs.
+      rewrite <- combine_map_fst_snd with (l := es)   in Heskvs.
+      rewrite <- combine_map_fst_snd with (l := kvs') in Heskvs.
+      apply AList.all_values_keys_eq in Heskvs as Hmf.
+      repeat rewrite combine_map_fst_snd in Hmf.
+      constructor; rewrite Forall2_conj; split.
+      + pose proof Forall2_map_l
+             ident (ident * Sval) (ident * typ)
+             (fun u v => @P4String.equiv tags_t u (fst v)) fst
+             (map (fun '(x, e) => (x, typ_of_expr e)) es) as Hmfl.
+        simpl in Hmfl.
+        (*rewrite Hmfl.*)
+        (*rewrite exec_exprs_iff in Heskvs.*)
   Admitted.
 End Soundness.

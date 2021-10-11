@@ -7,7 +7,7 @@ struct __petr4_0b1011 {
 };
 
 struct __petr4_0b111 {
-  struct BitVec *__petr4_0b1000; 
+  struct BitVec *__petr4_0b1000;
 };
 
 struct __petr4_0b11 {
@@ -61,10 +61,10 @@ void test_deparser(struct packet_out __petr4_0b100010, struct __petr4_0b11 __pet
   struct BitVec __petr4_0b100101;
   struct __petr4_0b11 __petr4_0b100100;
   __petr4_0b100100 = __petr4_0b100011;
-  /*skip*/;
-  /*skip*/;
-  // eval_plus(&__petr4_0b100110, &__petr4_0b100111, &__petr4_0b101000);
-  __petr4_0b100101 = __petr4_0b101000;
+  init_bitvec(&__petr4_0b100110, 1, 32, __petr4_0b100111);
+  init_bitvec(&__petr4_0b101000, 1, 32, __petr4_0b100111);
+  interp_bplus(&__petr4_0b101001, __petr4_0b100110, __petr4_0b101000);
+  __petr4_0b100101 = __petr4_0b101001;
   __petr4_0b100011 = __petr4_0b100100;
 }
 

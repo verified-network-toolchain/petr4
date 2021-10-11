@@ -12,7 +12,6 @@
  * License for the specific language governing permissions and limitations
  * under the License.
 *)
-
 module P4Info = Info
 open Core_kernel
 module Info = P4Info

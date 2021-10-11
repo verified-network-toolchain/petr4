@@ -332,6 +332,8 @@ let print_if_gen ver prog =
   | None -> ()
   | Some f ->
       let oc = open_out f in
+      let include_message = "#include \"petr4-runtime.h\"" in
+      Printf.fprintf oc "%s\n" include_message;
       print_program ver (formatter_of_out_channel oc) prog;
       close_out oc
 

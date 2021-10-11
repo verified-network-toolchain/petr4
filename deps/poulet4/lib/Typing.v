@@ -126,6 +126,30 @@ Proof.
   intros; rewrite <- Forall2_map_l, <- Forall2_map_r; reflexivity.
 Qed.
 
+Lemma Forall2_Forall : forall (U : Type) (R : U -> U -> Prop) us,
+    Forall2 R us us <-> Forall (fun u => R u u) us.
+Proof.
+  intros U R us; split;
+    induction us as [| u us IHus];
+    intros H; inversion H; subst; simpl in *; auto.
+Qed.
+
+Lemma map_fst_map : forall (U V W : Type) (f : U -> W) (uvs : list (U * V)),
+    map fst (map (fun '(u,v) => (f u,v)) uvs) = map f (map fst uvs).
+Proof.
+  intros U V W f uvs;
+    induction uvs as [| [u v] uvs IHuvs];
+    simpl in *; f_equal; auto.
+Qed.
+
+Lemma map_snd_map : forall (U V W : Type) (f : V -> W) (uvs : list (U * V)),
+    map snd (map (fun '(u,v) => (u, f v)) uvs) = map f (map snd uvs).
+Proof.
+  intros U V W f uvs;
+    induction uvs as [| [u v] uvs IHuvs];
+    simpl in *; f_equal; auto.
+Qed.
+
 Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
 
@@ -308,6 +332,18 @@ Section Soundness.
   Local Hint Constructors exec_expr : core.
   Local Hint Constructors val_typ : core.
 
+  (*Section CanonicalForms.
+    Variables (rob : option bool -> bool -> Prop) (ge : @genv tags_t)
+              (p : path) (st : state) (e : expr) (v : Sval).
+
+    Hypothesis Hrn : run_expr ge rob p st e v.
+
+    Lemma canonical_forms_bool :
+      typ_of_expr e = TypBool -> exists bit, v = ValBaseBool bit.
+    Proof.
+    Abort.
+  End CanonicalForms.*)
+  
   Ltac soundtac :=
     autounfold with *;
     intros rob ge p st Henvs Henvt;
@@ -516,13 +552,120 @@ Section Soundness.
       rewrite <- combine_map_fst_snd with (l := kvs') in Heskvs.
       apply AList.all_values_keys_eq in Heskvs as Hmf.
       repeat rewrite combine_map_fst_snd in Hmf.
-      constructor; rewrite Forall2_conj; split.
-      + pose proof Forall2_map_l
-             ident (ident * Sval) (ident * typ)
-             (fun u v => @P4String.equiv tags_t u (fst v)) fst
-             (map (fun '(x, e) => (x, typ_of_expr e)) es) as Hmfl.
-        simpl in Hmfl.
-        (*rewrite Hmfl.*)
-        (*rewrite exec_exprs_iff in Heskvs.*)
+      rewrite <- Hmf in Heskvs.
+      rewrite <- AList.Forall2_all_values in Heskvs.
+      + constructor; rewrite Forall2_conj; split.
+        *  rewrite Forall2_map_both, <- Hmf,
+           map_map, <- Forall2_map_both, Forall2_Forall.
+           rewrite Forall_forall.
+           intros [x e] Hxes; simpl.
+           reflexivity.
+        * rewrite Forall2_map_both.
+          assert (Hl : length es = length kvs').
+          { rewrite <- map_length with (f := fst) (l := es).
+            rewrite <- map_length with (f := fst) (l := kvs'), Hmf.
+            reflexivity. }
+          rewrite <- map_length with (f := snd) (l := es) in Hl.
+          rewrite <- map_length with (f := snd) (l := kvs') in Hl.
+          pose proof forall_Forall2 _ _ _ _ Htyps (map snd kvs') Hl as Hff2.
+          apply Forall2_impl with
+              (R := run_expr ge rob p st)
+              (Q := fun e v => val_typ ge v (typ_of_expr e)) in Hff2; auto.
+          rewrite Forall2_flip,Forall2_map_r in Hff2.
+          rewrite map_snd_map; assumption.
+      + repeat rewrite map_length; reflexivity.
+      + rewrite Hmf; repeat rewrite map_length; reflexivity.
+  Qed.
+
+  (** Evidence for a type being a numeric of a given width. *)
+  Inductive numeric_width (w : N) : typ -> Prop :=
+  | numeric_width_bit : numeric_width w (TypBit w)
+  | numeric_width_int : numeric_width w (TypInt w).
+
+  Ltac inv_numeric_width :=
+    match goal with
+    | H: numeric_width _ _ |- _ => inversion H; subst
+    end.
+  
+  (** Evidence for a type being numeric. *)
+  Inductive numeric : typ -> Prop :=
+  | NumericFixed (w : N) τ :
+      numeric_width w τ -> numeric τ
+  | NumericArbitrary :
+      numeric TypInteger.
+
+  Ltac inv_numeric :=
+    match goal with
+    | H: numeric _ |- _ => inversion H; subst; try inv_numeric_width
+    end.
+
+  (** Evidence a unary operation is valid for a type. *)
+  Inductive unary_type : OpUni -> typ -> typ -> Prop :=
+  | UTBool :
+      unary_type Not TypBool TypBool
+  | UTBitNot τ :
+      numeric τ -> unary_type BitNot τ τ
+  | UTUMinus τ :
+      numeric τ -> unary_type UMinus τ τ.
+
+  Local Hint Constructors exec_val : core.
+  Local Hint Unfold read_detbit : core.
+  Local Hint Unfold sval_to_val : core.
+  Local Hint Unfold val_to_sval : core.
+  Local Hint Constructors read_bits : core.
+
+  Lemma val_to_sval_ex : forall v,
+      exists v', @val_to_sval tags_t v v'.
+  Proof.
+    autounfold with *.
+    induction v; eauto.
+    - exists (ValBaseBit (map Some value)).
+      constructor.
+      induction value; simpl in *; auto.
+    - exists (ValBaseInt (map Some value)).
+      constructor.
+      induction value; simpl in *; auto.
+    - exists (ValBaseVarbit max (map Some value)).
+      constructor.
+      induction value; simpl in *; auto.
+    - (* need induction principle for ValueBase. *)
   Admitted.
+  
+  Lemma unary_op_sound : forall tag o e t dir,
+      unary_type o (typ_of_expr e) t ->
+      Γ ⊢e e ->
+      Γ ⊢e MkExpression tag (ExpUnaryOp o e) t dir.
+  Proof.
+    intros i o e t d Hut He.
+    autounfold with * in *;
+      intros rob ge p st Henvs Henvt.
+    specialize He with rob ge p st.
+    pose proof He Henvs Henvt as [[v Hev] Hvt]; clear He; split.
+    - apply Hvt in Hev as Hv; clear Hvt.
+      assert (exists v', sval_to_val rob v v').
+      { inversion Hut; subst; try inv_numeric;
+          match goal with
+          | H: _ = typ_of_expr ?e
+            |-  _ => rewrite <- H in Hv
+          end; inversion Hv; subst.
+        - admit.
+        - admit.
+        - admit.
+        - admit.
+        - admit.
+        - admit.
+        - admit. }
+      (* Need predicate that [rob v v'] holds in [expr_types]... *)
+      destruct H as [v' Hv'].
+      destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop.
+      + inversion Hut; subst; try inv_numeric;
+          match goal with
+          | H: _ = typ_of_expr ?e
+            |-  _ => rewrite <- H in Hv
+          end; inversion Hv; inversion Hv';
+            subst; simpl in *; try discriminate; eauto. admit.
+      (*+ rewrite <- H1 in Hv; inversion Hv; subst.
+        assert (exists v', sval_to_val rob (ValBaseBool b) v').
+        destruct (Ops.Ops.eval_unary_op o (sval_to_val )). *)
+  Abort.
 End Soundness.

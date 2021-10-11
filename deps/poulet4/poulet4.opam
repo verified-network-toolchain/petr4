@@ -17,5 +17,4 @@ depends: [
   "coq" {build}
   "coq-equations" {build}
   "coq-record-update" {build}
-  "coq-hammer" {build}
 ]

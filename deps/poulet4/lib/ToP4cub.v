@@ -130,7 +130,7 @@ Section ToP4cub.
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
     List.fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
-                    (TopDecl.TPFunction "$DUMMY" (Arrow [] None) (ST.SSkip tags) tags)
+                    (TopDecl.TPFunction "$DUMMY" [] (Arrow [] None) (ST.SSkip tags) tags)
                     decls.
 
   Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
@@ -156,12 +156,12 @@ Section ToP4cub.
   Definition decl_has_name (name : string) (d : TopDecl.d tags_t) :=
     let matches := String.eqb name in
     match d with
-    | TopDecl.TPInstantiate _ instance_name _ _ => matches instance_name
-    | TopDecl.TPExtern extern_name _ _ _ => matches extern_name
+    | TopDecl.TPInstantiate _ instance_name _ _ _ => matches instance_name
+    | TopDecl.TPExtern extern_name _ _ _ _ => matches extern_name
     | TopDecl.TPControl control_name _ _ _ _ _ _ => matches control_name
     | TopDecl.TPParser parser_name _ _ _ _ _ _ => matches parser_name
-    | TopDecl.TPFunction function_name _ _ _ => matches function_name
-    | TopDecl.TPPackage package_name _ _ => matches package_name
+    | TopDecl.TPFunction function_name _ _ _ _ => matches function_name
+    | TopDecl.TPPackage package_name _ _ _ => matches package_name
     | TopDecl.TPSeq _ _ _ =>
       (* Should Not Occur *)
       false
@@ -221,7 +221,7 @@ Section ToP4cub.
     | TypBool => ok E.TBool
     | TypString =>
       (* TODO Strings should only occur as arguments to externs.  We should add these to P4cub *)
-      ok E.TString
+      error "String is not a valid p4cub type"
     | TypInteger =>
       (* TODO This should be added to P4cub, but can only be a value; enforced by the type system *)
       error "[FIXME] P4cub doesnt support Integers"
@@ -261,11 +261,11 @@ Section ToP4cub.
       let** fields' := translate_fields fields in
       E.TStruct fields'
     | TypEnum name typ members =>
-      (* TODO We're throwing away the type here. Should we be? *)
-      let cub_name := P4String.str name in
-      (* For some reason Coq needs this to ebe explicitly applied in order to guess the tags argument *)
-      let cub_members := List.map (fun s => P4String.str s) members in
-      ok (E.TEnum cub_name cub_members)
+      (* (* TODO We're throwing away the type here. Should we be? *) *)
+      (* let cub_name := P4String.str name in *)
+      (* (* For some reason Coq needs this to ebe explicitly applied in order to guess the tags argument *) *)
+      (* let cub_members := List.map (fun s => P4String.str s) members in *)
+      error "[FIXME] ENUMS need to be compiled away"
     | TypTypeName name =>
       match name with
       | BareName nm =>
@@ -584,7 +584,7 @@ Section ToP4cub.
       | None => error "[FIXME] integer didnt have a width."
       end
     | ExpString s =>
-      ok (E.EString (P4String.str s) i)
+      error "[FIXME] strings need to be compiled away"
     | ExpName name loc =>
       match name with
       | BareName str =>
@@ -685,6 +685,7 @@ Section ToP4cub.
     | PAIn t => (name, PAIn (t, exp)) :: fs
     | PAOut t => (name, PAOut (t, exp)) :: fs
     | PAInOut t => (name, PAInOut (t,exp)) :: fs
+    | PADirLess t => (name, PADirLess (t,exp))::fs
     end.
 
 
@@ -714,15 +715,17 @@ Section ToP4cub.
         error "Error got a type that cannot be applied."
       end
     | "setInvalid" =>
-      error "[FIXME] encorporate `main` which has setInvalid as a command"
+      let** (_,hdr) := translate_expression callee in
+      ST.SSetValidity hdr ST.Invalid tags
     | "setValid" =>
-      error "[FIXME] encorporate `main` which has set Valid as a command"
+      let** (_,hdr) := translate_expression callee in
+      ST.SSetValidity hdr ST.Valid tags
     | _ =>
       match typ with
       | TypExtern e =>
         let* args := error "[FIXME] add action args" in
         let** callee_name := get_name callee in
-        ST.SExternMethodCall (P4String.str callee_name) f_str args tags
+        ST.SExternMethodCall (P4String.str callee_name) f_str [] args tags
       | TypAction data_params control_params =>
         let* act_args := error "[FIXME] add action args" in
         let** callee_name := get_name callee in
@@ -732,17 +735,17 @@ Section ToP4cub.
         let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
         match extern_decl with
         | None => error (String.append "ERROR expected an extern, but got " extern_str)
-        | Some (TopDecl.TPExtern extn_name cparams methods i) =>
+        | Some (TopDecl.TPExtern extn_name tparams cparams methods i) =>
           let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
           match called_method with
           | None =>
             error (append "Couldn't find " (append (append extern_str ".") f_str))
-          | Some (_, Arrow params _) =>
+          | Some (_, (targs, Arrow params _)) =>
             let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
             let* paramargs := apply_args_to_params params cub_args in
             (* TODO Currently assuming method calls return None*)
             let typ : E.arrowE tags_t := Arrow paramargs None in
-            ok (ST.SExternMethodCall (P4String.str extern_obj) f_str typ tags)
+            ok (ST.SExternMethodCall (P4String.str extern_obj) f_str [] typ tags)
           end
         | Some _ =>
           error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
@@ -769,8 +772,8 @@ Section ToP4cub.
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          let** args := error "[FIXME] compute function args for function call" in
-          ST.SFunCall (P4String.str n) args tags
+          let** args := error "[FIXME] compute function args"
+          ST.SFunCall (P4String.str n) [] args tags
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
         end
       | _ => error "ERROR :: Cannot handle this kind of expression"
@@ -835,8 +838,6 @@ Section ToP4cub.
     | "start" => Parser.STStart
     | st => Parser.STName st
     end.
-
-  Print P4Int.
 
   Fixpoint translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
     let '(MkExpression tags pre_expr typ dir) := e in
@@ -953,7 +954,7 @@ Section ToP4cub.
   Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result (E.constructor_params) :=
     let lookup := find (decl_has_name name) in
     match lookup ctx.(controls) with
-    | Some (TopDecl.TPPackage _ cparams _) =>
+    | Some (TopDecl.TPPackage _ [] cparams _) =>
       ok cparams
     | Some (TopDecl.TPControl name cparams _ _ _ _ _) =>
       error (String.append (String.append "[FIXME] instantiated a control" name) ", not sure what actions to use.")
@@ -1021,9 +1022,7 @@ Section ToP4cub.
                   | In => ok (PAIn t)
                   | Out => ok (PAOut t)
                   | InOut => ok (PAInOut t)
-                  | Directionless =>
-                    (* [FIXME] DIRECTIONLESS CANNOT BE WRITTEN, SO CASTING TO IN FOR THE MOMENT*)
-                    ok (PAIn t)
+                  | Directionless => ok (PADirLess t)
                   end
     in
     (v_str, parg).
@@ -1036,24 +1035,23 @@ Section ToP4cub.
   Print E.arrowT.
   Print arrow.
   Print E.params.
-  Definition translate_method (ext_name : P4String.t tags_t) (m : MethodPrototype) : result (string * E.arrowT) :=
+  Definition translate_method (ext_name : P4String.t tags_t) (m : MethodPrototype) : result (string * (list string * E.arrowT)) :=
     match m with
     | ProtoMethod tags ret name type_args parameters =>
       let* cub_ret := translate_return_type tags ret in
       let* params := parameters_to_params tags parameters in
       let arrowtype := Arrow params cub_ret in
-      ok (P4String.str name, arrowtype)
+      ok (P4String.str name, ([], arrowtype))
     | ProtoConstructor tags type_args parameters  =>
       let* params := parameters_to_params tags parameters in
       let arrowtype := Arrow params (Some (E.TVar (P4String.str ext_name))) in
-      ok (P4String.str ext_name, arrowtype)
+      ok (P4String.str ext_name, ([], arrowtype))
     | ProtoAbstractMethod _ _ _ _ _ =>
       error "[FIXME] Dont know how to translate abstract methods"
     end.
 
-  Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result (F.fs string E.arrowT) :=
+  Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result (F.fs string (list string * E.arrowT)) :=
     rred (List.map (translate_method ext_name) ms).
-  Print DeclAction.
 
   Definition translate_action_params tags data_params ctrl_params :=
     let* cub_data_params := parameters_to_params tags data_params in
@@ -1071,7 +1069,7 @@ Section ToP4cub.
       let* ctor_p4string := get_string_from_type typ in
       let ctor_name := P4String.str ctor_p4string in
       let* cub_paramargs := constructor_paramargs ctor_name args ctx in
-      let d := TopDecl.TPInstantiate ctor_name cub_name cub_paramargs tags in
+      let d := TopDecl.TPInstantiate ctor_name cub_name [] cub_paramargs tags in
       match typ with
       | TypPackage _ _ _ => ok (add_package ctx d)
       | _ =>  error "unimplemented declaration type"
@@ -1149,7 +1147,7 @@ Section ToP4cub.
       (* error "[FIXME] Extern Object declarations unimplemented" *)
       let str_name := P4String.str name in
       let* cub_methods := translate_methods name methods in
-      let d := TopDecl.TPExtern str_name [] cub_methods tags in
+      let d := TopDecl.TPExtern str_name [] [] cub_methods tags in
       ok (add_extern ctx d)
     | DeclTypeDef tags name typ_or_decl =>
     (* error "[FIXME] Type Definitions unimplemented" *)
@@ -1193,4 +1191,5 @@ Require Import Poulet4.P4defs.
 Require Import Poulet4.SimpleNat.
 
 Compute (translate_program Info NoInfo (SimpleNat.test)).
+
 Compute (translate_program Info NoInfo (SimpleNat.prog)).

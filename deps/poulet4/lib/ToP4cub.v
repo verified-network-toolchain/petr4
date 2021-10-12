@@ -1075,7 +1075,7 @@ Section ToP4cub.
          fold_left loop locals (ok (empty_declaration_context))
       in
       let cub_body := to_ctrl_decl tags local_ctx in
-      let* cub_block := translate_block local_ctx tags apply_blk in
+      let* cub_block := translate_block (extend local_ctx ctx) tags apply_blk in
       let d := TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags in
       ok (add_control ctx d)
     | DeclFunction tags ret name type_params params body =>
@@ -1169,6 +1169,5 @@ End ToP4cub.
 Require Import Poulet4.P4defs.
 Require Import Poulet4.SimpleNat.
 
-Print Info.
-
+Compute (translate_program Info NoInfo (SimpleNat.test)).
 Compute (translate_program Info NoInfo (SimpleNat.prog)).

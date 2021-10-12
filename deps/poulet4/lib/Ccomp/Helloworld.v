@@ -78,11 +78,7 @@ Definition compute : tpdecl :=
 
 Definition instance_args : E.constructor_args nat := [("p",E.CAName "MyParser");("vr",E.CAName "MyVerifyChecksum");("ig",E.CAName "MyIngress");("eg",E.CAName "MyEgress");("ck",E.CAName "MyComputeChecksum");("dep",E.CAName "MyDeparser")].
 Definition instance : tpdecl :=
-  %{Instance "main" of "V1Switch" ( instance_args ) @ 0}%.
+  %{Instance "main" of "V1Switch" < [] > ( instance_args ) @ 0}%.
 
 Definition helloworld_program : tpdecl := 
   %{ myparser ;%; (%{ verify ;%; (%{ ingress ;%; (%{ egress ;%; (%{ compute ;%; (%{mydeparser ;%; instance @ 0}%) @ 0}%) @ 0}%) @ 0}%) @ 0}%) @ 0}%.
-
-
-
-

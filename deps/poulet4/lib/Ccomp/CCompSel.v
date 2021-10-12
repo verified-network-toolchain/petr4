@@ -50,8 +50,6 @@ Section CCompSel.
     | P4cub.Expr.TBool => (Ctypes.type_bool, env)
     | P4cub.Expr.TBit (w) => (bit_vec,env)
     | P4cub.Expr.TInt (w) => (bit_vec, env)
-    | P4cub.Expr.TString => (Cstring, env)
-    | P4cub.Expr.TEnum x xs => (int_unsigned, env) (*Clight does not have enum type, so let's use int*)
     | P4cub.Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
     | P4cub.Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement what exactly is an error type? Should it be depending on the target?*)
     | P4cub.Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
@@ -205,8 +203,6 @@ Section CCompSel.
     match e with
     | E.EBool true i =>   Some (Econst_int (Integers.Int.one) (type_bool), env)
     | E.EBool false i =>  Some (Econst_int (Integers.Int.zero) (type_bool), env)
-    | E.EString x i => None (* TODO *)
-    | E.EEnum x m i => None (* TODO *)
     | E.EVar ty x i => (*first find if x has been declared. If not, declare it *)
                         let (cty, env_ty) := CTranslateType ty env in
                         match find_ident_temp_arg tags_t env_ty x with 
@@ -443,8 +439,6 @@ Section CCompSel.
     let to_dst := Sassign dst' member in
     Some (to_dst, env_arg) 
     end
-  | P4cub.Expr.Push n
-  | P4cub.Expr.Pop n => None(*TODO: Push and pop should be removed from ops*)
   | _ => None  
   end
   end
@@ -798,7 +792,7 @@ Section CCompSel.
                                           |Some(s2', env3) =>
                                           Some(Sifthenelse e' s1' s2', env3)
                                           end end end
-    | ST.SFunCall f (P4cub.Arrow args None) i 
+    | ST.SFunCall f _ (P4cub.Arrow args None) i
     | ST.SActCall f args i => match CCompEnv.lookup_function tags_t env f with
                                   |None => None
                                   |Some(f', id) =>
@@ -808,7 +802,7 @@ Section CCompSel.
                                     Some(Scall None (Evar id (Clight.type_of_function f')) elist, env')
                                     end 
                                   end 
-    | ST.SFunCall f (P4cub.Arrow args (Some (t,e))) i =>
+    | ST.SFunCall f _ (P4cub.Arrow args (Some (t,e))) i =>
                                   let (ct, env_ct) := CTranslateType t env in
                                   match CCompEnv.lookup_function tags_t env_ct f with
                                   |None => None
@@ -830,7 +824,7 @@ Section CCompSel.
                                     end 
                                   end 
     
-    | ST.SExternMethodCall e f (P4cub.Arrow args x) i => Some (Sskip, env) (*TODO: implement*)
+    | ST.SExternMethodCall e f _ (P4cub.Arrow args x) i => Some (Sskip, env) (*TODO: implement*)
     | ST.SReturnFruit t e i => match CTranslateExpr e env with
                               | None => None
                               | Some (e', env') => Some ((Sreturn (Some e')), env')
@@ -1374,7 +1368,7 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   (env: ClightEnv tags_t )
   : option (ClightEnv tags_t ):= 
   match funcdecl with
-  | TD.TPFunction name signature body _ => 
+  | TD.TPFunction name _ signature body _ => 
     match CTranslateArrow signature env with 
     |(fn_params, fn_return, env_params_created) =>
       let paramargs := PaFromArrow signature in
@@ -1409,17 +1403,17 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       | None => None
       | Some env2 => Some env2
       end end
-  | TD.TPInstantiate c x args args_init i => 
+  | TD.TPInstantiate c x _ args args_init i => 
     match CTranslateStatement args_init env with
     | None => None
     | Some (init', env') =>
     Some (set_main_init tags_t (set_instantiate_cargs tags_t env' args) init')
     end 
-  | TD.TPFunction _ _ _ _ => CTranslateFunction d env
-  | TD.TPExtern e cparams methods i => None (*TODO: implement*)
+  | TD.TPFunction _ _ _ _ _ => CTranslateFunction d env
+  | TD.TPExtern e _ cparams methods i => None (*TODO: implement*)
   | TD.TPControl _ _ _ _ _ _ _ => CTranslateTopControl d env
   | TD.TPParser _ _ _ _ _ _ _ => CTranslateTopParser d env
-  | TD.TPPackage _ _ _ => None (*TODO: implement*)
+  | TD.TPPackage _ _ _ _ => None (*TODO: implement*)
   end.
 
   Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 

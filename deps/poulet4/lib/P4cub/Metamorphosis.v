@@ -332,7 +332,7 @@ Section Metamorphosis.
             | _ => mret nil
             end ;;
           ty' <- mret None ;;
-          mret -{ extern x calls fname with args' gives ty' @ i }-
+          mret -{ extern x calls fname <[]> (args') gives ty' @ i }-
         else err (UnsupportedStmt s)
     | MkStatement i (StatSwitch e cases) _
       => e <- expr_morph e ;; err (UnsupportedStmt s) (* TODO *)

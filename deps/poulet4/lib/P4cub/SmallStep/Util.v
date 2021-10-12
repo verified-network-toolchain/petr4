@@ -91,7 +91,7 @@ Section StepDefs.
   (**[]*)
   
   (** Unary Operations. *)
-  Fail Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
+  Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
     match op, e with
     | _{ ! }_, <{ BOOL b @ i }>
       => let b' := negb b in Some <{ BOOL b' @ i }>
@@ -113,7 +113,7 @@ Section StepDefs.
         let s := Zpos size in Some <{ w W s @ i }>
     | _{ Next }_, <{ Stack hs:_[_] nextIndex:=ni @ _ }>
       => nth_error hs $ Z.to_nat ni
-    | _{ Push p }_, <{ Stack hs:ts[n] nextIndex:=ni @ i }>
+    (*| _{ Push p }_, <{ Stack hs:ts[n] nextIndex:=ni @ i }>
       => let pnat := Pos.to_nat p in
         let sizenat := Pos.to_nat n in
         let hdefault :=
@@ -142,7 +142,7 @@ Section StepDefs.
                (Z.max 0 (ni - Zpos p)%Z) i
         else
           let new_hdrs := repeat hdefault sizenat in
-          Some $ E.EHeaderStack ts new_hdrs n 0%N i
+          Some $ E.EHeaderStack ts new_hdrs n 0%N i*)
     | _, _ => None
     end.
   (**[]*)
@@ -371,7 +371,7 @@ Section StepDefs.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_snd.
     
-    Fail Lemma eval_uop_types : forall errs Γ op e v τ τ',
+    Lemma eval_uop_types : forall errs Γ op e v τ τ',
         uop_type op τ τ' -> value e -> eval_uop op e = Some v ->
         ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ'.
     (*Proof.
@@ -390,7 +390,8 @@ Section StepDefs.
                       try (apply repeat_Forall; constructor; auto 2;
                            autorewrite with core in *; split; [intuition | unravel; eauto 5]).
       - eapply Forall_nth_error in H9; eauto 1; simpl in *; auto 1.
-    Qed.*)                      
+    Qed.*)
+    Admitted.
   End HelpersType.
   
   Section HelpersExist.
@@ -433,7 +434,7 @@ Section StepDefs.
           repeat assert_canonical_forms; unravel; eauto 2.
     Qed.
     
-    Fail Lemma eval_uop_exists : forall op errs Γ e τ τ',
+    Lemma eval_uop_exists : forall op errs Γ e τ τ',
         uop_type op τ τ' -> value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
     (* Proof.
@@ -446,7 +447,8 @@ Section StepDefs.
       - destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2.
       - destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2.
     Qed. *)
-    
+    Admitted.
+      
     Lemma eval_member_exists : forall errs Γ x v ts τ τ',
         value v ->
         member_type ts τ ->

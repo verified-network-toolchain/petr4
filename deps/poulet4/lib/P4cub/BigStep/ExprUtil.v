@@ -24,7 +24,7 @@ Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
 (**[]*)
 
 (** Unary Operations. *)
-Fail Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
+Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
   match op, v with
   | _{ ! }_, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
   | _{ ~ }_, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
@@ -42,7 +42,7 @@ Fail Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
       match bvs with
       | (b,vs) => ~{ HDR { vs } VALID:=b }~
       end
-  | _{ Push n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
+  (*| _{ Push n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
     => let nnat := Pos.to_nat n in
       let sizenat := Pos.to_nat size in
       if lt_dec nnat sizenat then
@@ -64,7 +64,7 @@ Fail Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
              Z.max 0%Z (ni - Zpos n)%Z
       else
         let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
-        Some $ V.VHeaderStack ts new_hdrs size 0%Z
+        Some $ V.VHeaderStack ts new_hdrs size 0%Z*)
   | _, _ => None
   end.
 (**[]*)
@@ -260,7 +260,7 @@ Section Lemmas.
     Local Hint Resolve Forall_firstn : core.
     Local Hint Resolve Forall_skipn : core.
     
-    Fail Lemma eval_uop_types : forall errs op τ τ' v v',
+    Lemma eval_uop_types : forall errs op τ τ' v v',
         uop_type op τ τ' -> eval_uop op v = Some v' ->
         ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
     (*Proof.
@@ -278,6 +278,7 @@ Section Lemmas.
           as [[b vs] |] eqn:equack; inv H0; constructor; auto 2;
           apply (Forall_nth_error _ hs (Z.to_nat ni) (b, vs)) in H6; inv H6; auto 1.
     Qed. *)
+    Admitted.
   End HelpersType.
   
   Section HelpersExist.
@@ -312,7 +313,7 @@ Section Lemmas.
       - destruct w2; eauto 2.
     Qed.
     
-    Fail Lemma eval_uop_exist : forall errs op τ τ' v,
+    Lemma eval_uop_exist : forall errs op τ τ' v,
         uop_type op τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
     (*Proof.
       intros errs op τ τ' v Huop Ht; inv Huop; inv Ht;
@@ -322,7 +323,8 @@ Section Lemmas.
           pose proof nth_error_exists _ _ Hnith as [[b vs] Hexists];
           rewrite Hexists; eauto 2.
     Qed. *)
-    
+    Admitted.
+      
     Lemma eval_member_exists : forall errs x v ts τ τ',
         member_type ts τ ->
         F.get x ts = Some τ' ->

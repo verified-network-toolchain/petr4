@@ -87,10 +87,10 @@ Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
 | UTSize ts n :
     let w := 32%positive in
     uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}
-| UTPush ts n p :
+(*| UTPush ts n p :
     uop_type _{ Push p }_ {{ stack ts[n] }} {{ stack ts[n] }}
 | UTPop ts n p :
-    uop_type _{ Pop  p }_ {{ stack ts[n] }} {{ stack ts[n] }}.
+    uop_type _{ Pop  p }_ {{ stack ts[n] }} {{ stack ts[n] }}*).
 (**[]*)
 
 (** Evidence a binary operation is valid

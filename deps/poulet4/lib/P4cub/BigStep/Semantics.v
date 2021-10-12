@@ -6,6 +6,8 @@ Require Export Poulet4.P4cub.BigStep.ExprUtil
         Poulet4.P4cub.BigStep.ValEnvUtil
         Poulet4.P4cub.BigStep.InstUtil.
 
+(* TODO : correctly handle type parameters & arguments. *)
+
 (** * Big-Step Evaluation *)
 
 (** Notation entries. *)
@@ -372,7 +374,7 @@ Module Step.
       ⟪ pkt, fclosure, ϵ', Void, body ⟫ ⤋ ⟪ ϵ'', Void, pkt ⟫ ->
       (* Copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
-      ⟪ pkt, fs, ϵ, c, call f with args @ i ⟫ ⤋ ⟪ ϵ''', C, pkt ⟫
+      ⟪ pkt, fs, ϵ, c, call f <[]> (args) @ i ⟫ ⤋ ⟪ ϵ''', C, pkt ⟫
   | sbs_fruit_call (args : E.args tags_t)
                    (argsv : V.argsv)
                    (f : string) (τ : E.t)
@@ -399,7 +401,7 @@ Module Step.
       (* Assignment to lvalue. *)
       lv_update lv v ϵ''' = ϵ'''' ->
       ⟪ pkt, fs, ϵ, c,
-        let e:τ := call f with args @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
+        let e:τ := call f <[]> (args) @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
   | sbs_ctrl_apply (args : E.args tags_t) (eargs : F.fs string string)
                    (argsv : V.argsv) (x : string) (i : tags_t)
                    (body : ST.s tags_t) (fclosure : fenv) (cis cis' : cienv)
@@ -529,7 +531,7 @@ Module Step.
       (* Copy-out. *)
       let ϵ' := copy_out argsv' cls'' ϵ in
       ⟪ pkt, fs, ϵ, c,
-        extern x calls mthd with args gives eo @ i ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
+        extern x calls mthd <[]> (args) gives eo @ i ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
   where "⟪ pkt1 , fs , ϵ1 , ctx , s ⟫ ⤋ ⟪ ϵ2 , sig , pkt2 ⟫"
           := (stmt_big_step pkt1 fs ϵ1 ctx s ϵ2 sig pkt2)
 
@@ -648,7 +650,7 @@ Module Step.
       ⦉ ∅, ∅, fclosure, cis, eis, ϵ', body ⦊ ⟱  ⦉ aa, tbls ⦊ ->
       let cis'' :=
           Env.bind x (CInst ϵ'' fclosure cis tbls aa eis applyblk) cis' in
-      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of c(cargs) @ i ⦈
+      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of c <[]> (cargs) @ i ⦈
         ⟱  ⦇ eis, cis'', pis, fns, es, cs, ps ⦈
   | dbs_instantiate_prsr (p x : string) (i : tags_t)
                          (cargs : E.constructor_args tags_t)
@@ -674,7 +676,7 @@ Module Step.
                 end) vargs (closure,piclosure) = (ϵ',pis') ->
       let pis'' :=
           Env.bind x (PInst ϵ'' fclosure pis eis strt states) pis' in
-      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of p(cargs) @ i ⦈
+      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of p <[]>(cargs) @ i ⦈
         ⟱  ⦇ eis, cis, pis'', fns, es, cs, ps ⦈
   | dbs_instantiate_extn (e x : string) (i : tags_t)
                          (cargs : E.constructor_args tags_t)
@@ -702,7 +704,7 @@ Module Step.
       let eis'' :=
           Env.bind x {| ARCH.closure := ϵ';
                         ARCH.dispatch_method := disp |} eis' in
-      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of e(cargs) @ i ⦈
+      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of e<[]>(cargs) @ i ⦈
         ⟱  ⦇ eis'', cis, pis, fns, es, cs, ps ⦈
   | tpbs_control_decl (c : string) (cparams : E.constructor_params)
                       (eparams : F.fs string string)
@@ -733,12 +735,12 @@ Module Step.
   | tpbs_fruit_function (f : string) (params : E.params)
                         (τ : E.t) (body : ST.s tags_t) (i : tags_t) :
       let fns' := Env.bind f (FDecl ϵ fns body) fns in
-      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, fn f (params) -> τ { body } @ i ⦈
+      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, fn f <[]> (params) -> τ { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_void_function (f : string) (params : E.params)
                        (body : ST.s tags_t) (i : tags_t) :
       let fns' := Env.bind f (FDecl ϵ fns body) fns in
-      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, void f (params) { body } @ i ⦈
+      ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, void f <[]> (params) { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t) (pis' pis'' : pienv)
              (cis' cis'' : cienv) (eis' eis'' : ARCH.extern_env)

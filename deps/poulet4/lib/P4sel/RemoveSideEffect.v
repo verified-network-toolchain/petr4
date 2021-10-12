@@ -145,8 +145,8 @@ Fixpoint TranslateExpr (e : CubE.e tags_t) (env: VarNameGen.t)
     let val := SelE.EHeaderStackAccess stack' index i in 
     let stmt := stack_stmt in
     ( (stmt, val), env_stack)
-  | CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
-  | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)
+  (*| CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
+  | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)*)
   end.
 Definition TranslateCArg 
 (carg: CubE.constructor_arg tags_t) (env: VarNameGen.t) (i : tags_t)
@@ -238,12 +238,12 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
   | CubS.SBlock block => 
     let (block', env_block) := TranslateStatement block env in
     (SelS.SBlock block' , env_block)
-  | CubS.SExternMethodCall e f args i =>
+  | CubS.SExternMethodCall e f targs args i =>
     let '((stmt_args, args'), env_args) := TranslateArrowE args env i in 
-    (SelS.SSeq stmt_args (SelS.SExternMethodCall e f args' i) i, env_args)
-  | CubS.SFunCall f args i => 
+    (SelS.SSeq stmt_args (SelS.SExternMethodCall e f targs args' i) i, env_args)
+  | CubS.SFunCall f targs args i => 
     let '((stmt_args, args'), env_args) := TranslateArrowE args env i in
-    (SelS.SSeq stmt_args (SelS.SFunCall f args' i) i, env_args)
+    (SelS.SSeq stmt_args (SelS.SFunCall f targs args' i) i, env_args)
   | CubS.SActCall f args i => 
     let '((stmt_args, args'), env_args) := TranslateArgs args env i in
     (SelS.SSeq stmt_args (SelS.SActCall f args' i) i, env_args)
@@ -369,11 +369,11 @@ Fixpoint TranslateTopDecl
 (td : CubTD.d tags_t) (env : VarNameGen.t)
 : (SelTD.d tags_t) * VarNameGen.t :=
 match td with 
-| CubTD.TPInstantiate C x cargs i => 
+| CubTD.TPInstantiate C x targs cargs i => 
   let '(cargs_stmt, cargs', env_cargs) := TranslateCArgs cargs env i in
-  (SelTD.TPInstantiate C x cargs' cargs_stmt i, env_cargs)
-| CubTD.TPExtern e cparams methods i => 
-  (SelTD.TPExtern e cparams methods i, env)
+  (SelTD.TPInstantiate C x targs cargs' cargs_stmt i, env_cargs)
+| CubTD.TPExtern e tparams cparams methods i => 
+  (SelTD.TPExtern e tparams cparams methods i, env)
 | CubTD.TPControl c cparams eps params body apply_blk i =>
   let (body', env_body) := TranslateControlDecl body env in
   let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
@@ -382,11 +382,11 @@ match td with
   let (start', env_start) := TranslateParserState start env in
   let (states', env_states) := TranslateParserStates states env_start in
   (SelTD.TPParser p cparams eps params start' states' i, env_states)
-| CubTD.TPFunction f signature body i =>
+| CubTD.TPFunction f tparams signature body i =>
   let (body', env_body) := TranslateStatement body env in 
-  (SelTD.TPFunction f signature body' i, env_body)
-| CubTD.TPPackage p cparams i => 
-  (SelTD.TPPackage p cparams i, env)
+  (SelTD.TPFunction f tparams signature body' i, env_body)
+| CubTD.TPPackage p tparams cparams i => 
+  (SelTD.TPPackage p tparams cparams i, env)
 | CubTD.TPSeq d1 d2 i => 
   let (d1', env_d1) := TranslateTopDecl d1 env in
   let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 

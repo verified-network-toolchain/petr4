@@ -50,8 +50,8 @@ Section VE.
       VHeaderStack ts2 vss2 n2 ni2   => F.eqb_fs TE.eqbt ts1 ts2 &&
                                        (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
                                        ffstruct vss1 vss2
-    | VString s1,    VString s2      => if equiv_dec s1 s2 then true else false
-    | VEnum x1 m1,   VEnum x2 m2     => equiv_dec x1 x2 &&&& equiv_dec m1 m2
+    (*| VString s1,    VString s2      => if equiv_dec s1 s2 then true else false
+    | VEnum x1 m1,   VEnum x2 m2     => equiv_dec x1 x2 &&&& equiv_dec m1 m2*)
     | _,              _              => false
     end.
   (**[]*)

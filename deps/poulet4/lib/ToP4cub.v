@@ -107,6 +107,43 @@ Section ToP4cub.
        externs := e::decl.(externs);
     |}.
 
+  Print List.fold_right.
+
+  Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
+    (** FIXME ACTIONS & TABLES??? *)
+    let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
+    List.fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
+                    (TopDecl.TPFunction "$DUMMY" (Arrow [] None) (ST.SSkip tags) tags)
+                    decls.
+
+  Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
+    let combine f := List.app (f hi_prio) (f lo_prio) in
+    {| controls := combine controls;
+       parsers := combine parsers;
+       tables := List.app hi_prio.(tables) lo_prio.(tables);
+       actions := List.app hi_prio.(actions) lo_prio.(actions);
+       functions := combine functions;
+       packages := combine packages;
+       externs := combine externs;
+    |}.
+
+  Print adecl.
+
+  Definition to_action_ctrl_decl tags '(act_name, adecl) : TopDecl.C.d tags_t :=
+    let '(ADecl cl fs aa eis params body) := adecl in
+    (** FIXME ADD PARAMETERS *)
+    TopDecl.C.CDAction act_name [] body tags.
+
+  Definition to_table_ctrl_decl tags '(tbl_name, tdecl) : TopDecl.C.d tags_t :=
+    TopDecl.C.CDTable tbl_name tdecl tags.
+
+  Definition to_ctrl_decl tags (c: DeclCtx) : TopDecl.C.d tags_t :=
+    let actions := List.map (to_action_ctrl_decl tags) c.(actions) in
+    let tables := List.map (to_table_ctrl_decl tags) c.(tables) in
+    List.fold_right (fun d1 d2 => TopDecl.C.CDSeq d1 d2 tags)
+                    (TopDecl.C.CDAction "$DUMMY_ACTION" [] (ST.SSkip tags) (tags))
+                    (List.app actions tables).
+
   Definition find {A : Type} (f : A -> bool) : list A -> option A :=
     List.fold_right (fun x found => match found with | None => if f x then Some x else None | Some _ => found end) None.
 
@@ -1004,7 +1041,7 @@ Section ToP4cub.
   Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result (F.fs string E.arrowT) :=
     rred (List.map (translate_method ext_name) ms).
 
-  Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) : result (DeclCtx) :=
+  Program Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
       error "[FIXME] Constant declarations unimplemented"
@@ -1030,11 +1067,15 @@ Section ToP4cub.
     | DeclParser _ _ _ _ _ _ _ => error "got type params or local declarations. these should be gone"
     | DeclControl tags name type_params params constructor_params locals apply_blk =>
       let cub_name := P4String.str name in
-      let* cub_cparams := error "[FIXME] Translate constructor params" in
-      let* cub_eparams := error "[FIXME] Translate extern parameters" in
-      let* cub_params := error "[FIXME] Translate apply block parameters" in
-      let* cub_body := error "[FIXME] Translate local declarations" in
-      let* cub_block := error "[FIXME] Translate controller apply block" in
+      let* (cub_eparams, cub_cparams) := partition_constructor_params tags constructor_params in
+      let* cub_params := parameters_to_params tags params in
+      let* local_ctx :=
+         let loop := fun acc decl => let* ctx := acc in
+                                     translate_decl ctx decl in
+         fold_left loop locals (ok (empty_declaration_context))
+      in
+      let cub_body := to_ctrl_decl tags local_ctx in
+      let* cub_block := translate_block local_ctx tags apply_blk in
       let d := TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags in
       ok (add_control ctx d)
     | DeclFunction tags ret name type_params params body =>
@@ -1105,21 +1146,22 @@ Section ToP4cub.
       ok ctx
   end.
 
+  (* This is redunant with the locals resolution in the previous code, but I
+   * can't get it to compile using mutual fixpoints *)
+  Definition translate_decls (decls : list (@Declaration tags_t)) : result DeclCtx :=
+    let loop := fun acc decl => let* ctx := acc in
+                                translate_decl ctx decl in
+    fold_left loop decls (ok (empty_declaration_context)).
+
   Definition seq_opt (i : tags_t) (d : TopDecl.d tags_t) (r : option (TopDecl.d tags_t)) : option (TopDecl.d tags_t) :=
     match r with
     | None => Some d
     | Some rst => Some (TopDecl.TPSeq d rst i)
     end.
 
-  Definition translate_declaration_loop (acc : result DeclCtx) (decl : @Declaration tags_t) : result DeclCtx  :=
-    let* ctx := acc in
-    translate_decl ctx decl.
-
-  Print SimplExpr.transform_prog.
-
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
     let '(Program decls) := SimplExpr.transform_prog tags p in
-    fold_left translate_declaration_loop decls (ok (empty_declaration_context)).
+    translate_decls decls.
 
 End ToP4cub.
 

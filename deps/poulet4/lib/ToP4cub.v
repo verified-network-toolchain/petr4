@@ -693,6 +693,22 @@ Section ToP4cub.
     let* params_args := zip params args in
     fold_right apply_arg_to_param (ok []) params_args.
 
+  Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
+    let '(MkParameter b dir typ default_arg_id var) := parameter in
+    let v_str := P4String.str var in
+    let* t := translate_exp_type tags typ in
+    let** parg := match dir with
+                  | In => ok (PAIn t)
+                  | Out => ok (PAOut t)
+                  | InOut => ok (PAInOut t)
+                  | Directionless => ok (PADirLess t)
+                  end
+    in
+    (v_str, parg).
+
+  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result E.params :=
+    rred (List.map (parameter_to_paramarg tags) parameters).
+
   Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (tags : tags_t)
@@ -755,6 +771,8 @@ Section ToP4cub.
       end
     end.
 
+  Print option_map.
+
   Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
     match ssw with
     | StatSwCaseAction tags label code =>
@@ -772,8 +790,12 @@ Section ToP4cub.
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          let** args := error "[FIXME] compute function args" in
-          ST.SFunCall (P4String.str n) [] args tags
+          let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
+          let* params := parameters_to_params tags parameters in
+          let* paramargs := apply_args_to_params params cub_args in
+          let** ret_typ := translate_return_type tags ret in
+          let cub_ret := option_map (fun t => (t, E.EVar t ("$RETVAR_" ++ (P4String.str n)) tags)) ret_typ in
+          ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
         end
       | _ => error "ERROR :: Cannot handle this kind of expression"
@@ -1011,30 +1033,6 @@ Section ToP4cub.
                   end
                ) (ok ([],[])) params.
 
-  Print E.params.
-  Print direction.
-
-  Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
-    let '(MkParameter b dir typ default_arg_id var) := parameter in
-    let v_str := P4String.str var in
-    let* t := translate_exp_type tags typ in
-    let** parg := match dir with
-                  | In => ok (PAIn t)
-                  | Out => ok (PAOut t)
-                  | InOut => ok (PAInOut t)
-                  | Directionless => ok (PADirLess t)
-                  end
-    in
-    (v_str, parg).
-
-  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result E.params :=
-    rred (List.map (parameter_to_paramarg tags) parameters).
-
-  Print MethodPrototype.
-
-  Print E.arrowT.
-  Print arrow.
-  Print E.params.
   Definition translate_method (ext_name : P4String.t tags_t) (m : MethodPrototype) : result (string * (list string * E.arrowT)) :=
     match m with
     | ProtoMethod tags ret name type_args parameters =>

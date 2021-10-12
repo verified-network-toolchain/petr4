@@ -49,8 +49,8 @@ Section ToP4cub.
   Record DeclCtx :=
     { controls :  list (TopDecl.d tags_t);
       parsers : list (TopDecl.d tags_t);
-      tables : @tenv tags_t;
-      actions : @aenv tags_t;
+      tables : list (TopDecl.C.d tags_t);
+      actions : list (TopDecl.C.d tags_t);
       functions : list (TopDecl.d tags_t);
       packages : list (TopDecl.d tags_t);
       externs : list (TopDecl.d tags_t);
@@ -59,8 +59,8 @@ Section ToP4cub.
   Definition empty_declaration_context :=
     {| controls := [];
        parsers := [];
-       tables := Env.empty string (CD.table tags_t);
-       actions := Env.empty string adecl;
+       tables := [];
+       actions := [];
        functions := [];
        packages := [];
        externs := []
@@ -107,10 +107,27 @@ Section ToP4cub.
        externs := e::decl.(externs);
     |}.
 
-  Print List.fold_right.
+  Definition add_table (decl : DeclCtx) (t : TopDecl.C.d tags_t) :=
+    {| controls := decl.(controls);
+       parsers := decl.(parsers);
+       tables := t::decl.(tables);
+       actions := decl.(actions);
+       functions := decl.(functions);
+       packages := decl.(packages);
+       externs := decl.(externs);
+    |}.
 
+  Definition add_action (decl : DeclCtx) (a : TopDecl.C.d tags_t) :=
+    {| controls := decl.(controls);
+       parsers := decl.(parsers);
+       tables := decl.(tables);
+       actions := a::decl.(actions);
+       functions := decl.(functions);
+       packages := decl.(packages);
+       externs := decl.(externs);
+    |}.
+  
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
-    (** FIXME ACTIONS & TABLES??? *)
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
     List.fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
                     (TopDecl.TPFunction "$DUMMY" (Arrow [] None) (ST.SSkip tags) tags)
@@ -127,22 +144,11 @@ Section ToP4cub.
        externs := combine externs;
     |}.
 
-  Print adecl.
-
-  Definition to_action_ctrl_decl tags '(act_name, adecl) : TopDecl.C.d tags_t :=
-    let '(ADecl cl fs aa eis params body) := adecl in
-    (** FIXME ADD PARAMETERS *)
-    TopDecl.C.CDAction act_name [] body tags.
-
-  Definition to_table_ctrl_decl tags '(tbl_name, tdecl) : TopDecl.C.d tags_t :=
-    TopDecl.C.CDTable tbl_name tdecl tags.
 
   Definition to_ctrl_decl tags (c: DeclCtx) : TopDecl.C.d tags_t :=
-    let actions := List.map (to_action_ctrl_decl tags) c.(actions) in
-    let tables := List.map (to_table_ctrl_decl tags) c.(tables) in
     List.fold_right (fun d1 d2 => TopDecl.C.CDSeq d1 d2 tags)
                     (TopDecl.C.CDAction "$DUMMY_ACTION" [] (ST.SSkip tags) (tags))
-                    (List.app actions tables).
+                    (List.app c.(actions) c.(tables)).
 
   Definition find {A : Type} (f : A -> bool) : list A -> option A :=
     List.fold_right (fun x found => match found with | None => if f x then Some x else None | Some _ => found end) None.
@@ -693,28 +699,34 @@ Section ToP4cub.
              (callee : Expression)
              (f : P4String.t tags_t) : result (ST.s tags_t) :=
     let f_str := P4String.str f in
-    let* callee_name := get_name callee in
     let typ := get_type_of_expr callee in
-    if f_str =? "apply"
-    then
+    match f_str with
+    | "apply" =>
       match typ with
       | TypControl (MkControlType type_params parameters) =>
         error "[FIXME] translate control apply calls"
       | TypTable _ =>
+        let* callee_name := get_name callee in
         ok (ST.SInvoke (P4String.str callee_name) tags)
       | TypParser _ =>
         error "[FIXME] translate parser apply calls"
       | _ =>
         error "Error got a type that cannot be applied."
       end
-    else
+    | "setInvalid" =>
+      error "[FIXME] encorporate `main` which has setInvalid as a command"
+    | "setValid" =>
+      error "[FIXME] encorporate `main` which has set Valid as a command"
+    | _ =>
       match typ with
       | TypExtern e =>
         let* args := error "[FIXME] add action args" in
-        ok (ST.SExternMethodCall (P4String.str callee_name) f_str args tags)
+        let** callee_name := get_name callee in
+        ST.SExternMethodCall (P4String.str callee_name) f_str args tags
       | TypAction data_params control_params =>
         let* act_args := error "[FIXME] add action args" in
-        ok (ST.SActCall (P4String.str callee_name) act_args tags)
+        let** callee_name := get_name callee in
+        ST.SActCall (P4String.str callee_name) act_args tags
       | TypTypeName (BareName extern_obj) =>
         let extern_str := (P4String.str extern_obj : string) in
         let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
@@ -724,7 +736,7 @@ Section ToP4cub.
           let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
           match called_method with
           | None =>
-          error (append "Couldn't find " (append (append extern_str ".") f_str))
+            error (append "Couldn't find " (append (append extern_str ".") f_str))
           | Some (_, Arrow params _) =>
             let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
             let* paramargs := apply_args_to_params params cub_args in
@@ -737,7 +749,8 @@ Section ToP4cub.
         end
       | _ =>
         error (String.append "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s: " f_str)
-      end.
+      end
+    end.
 
   Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
     match ssw with
@@ -1040,6 +1053,13 @@ Section ToP4cub.
 
   Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result (F.fs string E.arrowT) :=
     rred (List.map (translate_method ext_name) ms).
+  Print DeclAction.
+
+  Definition translate_action_params tags data_params ctrl_params :=
+    let* cub_data_params := parameters_to_params tags data_params in
+    let** cub_ctrl_params := parameters_to_params tags ctrl_params in
+    (* TODO ensure ctrl params are directionless? *)
+    List.app cub_data_params cub_ctrl_params.
 
   Program Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
@@ -1095,12 +1115,15 @@ Section ToP4cub.
       ok ctx
     | DeclAction tags name data_params ctrl_params body =>
       (* TODO High prio *)
-    (* error "[FIXME] Action Declarations unimplemented" *)
-      ok ctx
+      let cub_name := P4String.str name in
+      let* cub_signature := translate_action_params tags data_params ctrl_params in
+      let* cub_body := translate_block ctx tags body in
+      let a := TopDecl.C.CDAction cub_name cub_signature cub_body tags in
+      ok (add_action ctx a)
     | DeclTable tags name key actions entires default_action size custom_properties =>
       (* TODO High prio *)
-    (* error "[FIXME] Table Declarations unimplemented" *)
-      ok ctx
+      error "[FIXME] Table Declarations unimplemented"
+      (* ok ctx *)
     | DeclHeader tags name fields =>
     (* error "[FIXME] Header Declarations unimplemented" *)
       ok ctx

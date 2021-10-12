@@ -144,5 +144,5 @@ Extract Inlined Constant Nat.add => "(+)". *)
 Extraction Blacklist List String Int.
 
 Cd "extraction/".
-Separate Extraction Poulet4.Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST .
+Separate Extraction Poulet4.Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST compcert.exportclight.Clightdefs .
 Cd "../".

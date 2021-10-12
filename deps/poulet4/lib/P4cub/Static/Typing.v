@@ -3,6 +3,8 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.AST Poulet4.P4Arith
         Poulet4.P4cub.Envn Poulet4.P4cub.Static.Util.
 
+(* TODO: type parameters, arguments, ok types. *)
+
 (** Expression typing. *)
 Reserved Notation "⟦ ers , gm ⟧ ⊢ e ∈ t"
          (at level 40, e custom p4expr, t custom p4type,
@@ -242,7 +244,7 @@ Inductive check_stmt
       (P.rel_paramarg_same
          (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ))
       args params ->
-    ⦃ fns, errs, Γ ⦄ con ⊢ call f with args @ i ⊣ ⦃ Γ, C ⦄
+    ⦃ fns, errs, Γ ⦄ con ⊢ call f <[]> (args) @ i ⊣ ⦃ Γ, C ⦄
 | chk_act_call (params : E.params)
                (args : E.args tags_t)
                (a : string) (i : tags_t)
@@ -267,7 +269,7 @@ Inductive check_stmt
       args params ->
     ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
     ⦃ fns, errs, Γ ⦄
-      con ⊢ let e : τ := call f with args @ i ⊣ ⦃ Γ, C ⦄
+      con ⊢ let e : τ := call f <[]> (args) @ i ⊣ ⦃ Γ, C ⦄
 | chk_apply (eargs : F.fs string string) (args : E.args tags_t) (x : string)
             (i : tags_t) (eps : F.fs string string) (params : E.params)
             (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
@@ -296,7 +298,7 @@ Inductive check_stmt
          (fun '(t,e) τ => τ = t /\ ⟦ errs, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, errs, Γ ⦄
-      con ⊢ extern e calls f with args gives None @ i ⊣ ⦃ Γ, C ⦄
+      con ⊢ extern e calls f <[]> (args) gives None @ i ⊣ ⦃ Γ, C ⦄
 | chk_extern_call_fruit (extrn : string) (f : string)
                         (args : E.args tags_t) (e : E.e tags_t)
                         (i : tags_t) (con : ctx) (eis : eienv)
@@ -312,7 +314,7 @@ Inductive check_stmt
        args params ->
      let result := Some (τ,e) in
      (⦃ fns, errs, Γ ⦄
-       con ⊢ extern extrn calls f with args gives result @ i ⊣ ⦃ Γ, C ⦄))
+       con ⊢ extern extrn calls f <[]> (args) gives result @ i ⊣ ⦃ Γ, C ⦄))
 where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
         := (check_stmt fe ers g1 con s g2 sg).
 (**[]*)
@@ -369,6 +371,7 @@ where
 (**[]*)
 
 (** Top-level declaration typing. *)
+(* TODO: type parameters and arguments! *)
 Inductive check_topdecl
           {tags_t : Type} (cs : cenv) (fns : fenv)
           (pgis : pkgienv) (cis : cienv) (pis : pienv) (eis : eienv)
@@ -391,7 +394,7 @@ Inductive check_topdecl
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs⦘
-      ⊢ Instance x of c(cargs) @ i
+      ⊢ Instance x of c < [] > (cargs) @ i
       ⊣ ⦗ eis, pis, x ↦ (extparams,params) ;; cis, pgis, fns, cs ⦘
 | chk_instantiate_parser (p x : string)
                          (cparams : E.constructor_params)
@@ -411,7 +414,7 @@ Inductive check_topdecl
          | _, _ => False
          end) cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ Instance x of p(cargs) @ i
+      ⊢ Instance x of p <[]> (cargs) @ i
       ⊣ ⦗ eis, x ↦ (extparams,params) ;; pis, cis, pgis, fns, cs ⦘
 (*| chk_instantiate_extern (e x : string)
                          (cparams : E.constructor_params)
@@ -449,7 +452,7 @@ Inductive check_topdecl
          end)
       cargs cparams ->
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ Instance x of pkg(cargs) @ i ⊣ ⦗ eis, pis, cis, x ↦ tt ;; pgis, fns, cs ⦘
+      ⊢ Instance x of pkg <[]> (cargs) @ i ⊣ ⦗ eis, pis, cis, x ↦ tt ;; pgis, fns, cs ⦘
 | chk_control (c : string) (cparams : E.constructor_params)
               (extparams : F.fs string string)
               (params : E.params) (body : CD.d tags_t)
@@ -497,7 +500,7 @@ Inductive check_topdecl
 | chk_package (pkg : string) (cparams : E.constructor_params) (i : tags_t) :
     let pkge := {{{ PackageType cparams }}} in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ package pkg (cparams) @ i
+      ⊢ package pkg <[]> (cparams) @ i
       ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge;; cs ⦘
 | chk_fruit_function (f : string) (params : E.params)
                      (τ : E.t) (body : ST.s tags_t) (i : tags_t)
@@ -506,7 +509,7 @@ Inductive check_topdecl
     ⦃ fns, errs, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
     let func := P.Arrow params (Some τ) in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ fn f (params) -> τ { body } @ i
+      ⊢ fn f <[]> (params) -> τ { body } @ i
       ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘
 | chk_void_function (f : string) (params : E.params)
                     (body : ST.s tags_t) (i : tags_t)
@@ -515,7 +518,7 @@ Inductive check_topdecl
     ⦃ fns, errs, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
     let func := P.Arrow params None in
     ⦗ cs, fns, pgis, cis, pis, eis, errs ⦘
-      ⊢ void f (params) { body } @ i
+      ⊢ void f <[]> (params) { body } @ i
       ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘
 | chk_topdecl_seq (d1 d2 : TD.d tags_t) (i : tags_t)
                   (eis' eis'' : eienv) (pgis' pgis'' : pkgienv)

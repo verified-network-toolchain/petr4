@@ -142,13 +142,11 @@ Fixpoint TranslateExpr (e : CubE.e tags_t) (env: VarNameGen.t)
   | CubE.EHeaderStackAccess stack index i => 
     let type := CubE.TBool in 
     let '((stack_stmt, stack'), env_stack) := TranslateExpr stack env in
-    let (var_name, env') := VarNameGen.new_var env_stack in
-    let declaration := SelS.SVardecl type var_name i in
-    let assign := SelS.SHeaderStackAccess stack' index var_name i in 
-    let stmt := SelS.SSeq stack_stmt (SelS.SSeq declaration assign i) i in
-    ( (stmt, SelE.EVar type var_name i), env')
-  | CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
-  | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)
+    let val := SelE.EHeaderStackAccess stack' index i in 
+    let stmt := stack_stmt in
+    ( (stmt, val), env_stack)
+  (*| CubE.EString s i => ((SelS.SSkip i,SelE.EString _ s i), env)
+  | CubE.EEnum x m i => ((SelS.SSkip i, SelE.EEnum _ x m i), env)*)
   end.
 Definition TranslateCArg 
 (carg: CubE.constructor_arg tags_t) (env: VarNameGen.t) (i : tags_t)
@@ -185,6 +183,7 @@ Definition TranslateArgs (arguments : CubE.args tags_t) (env : VarNameGen.t) (i:
       =>  
       let '((prev_stmt, prev_args), prev_env) := cumulator in 
       let (type, expr) := match arg with
+        | Cub.PADirLess (t, e)
         | Cub.PAIn (t, e)
         | Cub.PAOut (t, e)
         | Cub.PAInOut (t, e) => (t, e)
@@ -192,6 +191,7 @@ Definition TranslateArgs (arguments : CubE.args tags_t) (env : VarNameGen.t) (i:
       let '((new_stmt, new_expr), new_env):= TranslateExpr expr prev_env in
       let new_stmt := SelS.SSeq prev_stmt new_stmt i in
       let new_arg := match arg with 
+        | Cub.PADirLess _ => Cub.PAIn (type, new_expr)
         | Cub.PAIn _ => Cub.PAIn (type, new_expr)
         | Cub.PAOut _ => Cub.PAOut (type, new_expr)
         | Cub.PAInOut _ => Cub.PAInOut (type, new_expr) 
@@ -217,7 +217,7 @@ Definition TranslateArrowE (arguments : CubE.arrowE tags_t) (env : VarNameGen.t)
 
 Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s tags_t) * VarNameGen.t := 
   match stmt with
-  | CubS.SHeaderStackOp _ _ _ i => (SelS.SSkip i, env) (* TODO! *)
+  | CubS.SHeaderStackOp name op n i => (SelS.SHeaderStackOp name op n i, env)
   | CubS.SSkip i => (SelS.SSkip i, env)
   | CubS.SVardecl type x i => (SelS.SVardecl type x i, env)
   | CubS.SAssign type lhs rhs i => 
@@ -238,12 +238,12 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
   | CubS.SBlock block => 
     let (block', env_block) := TranslateStatement block env in
     (SelS.SBlock block' , env_block)
-  | CubS.SExternMethodCall e f args i =>
+  | CubS.SExternMethodCall e f targs args i =>
     let '((stmt_args, args'), env_args) := TranslateArrowE args env i in 
-    (SelS.SSeq stmt_args (SelS.SExternMethodCall e f args' i) i, env_args)
-  | CubS.SFunCall f args i => 
+    (SelS.SSeq stmt_args (SelS.SExternMethodCall e f targs args' i) i, env_args)
+  | CubS.SFunCall f targs args i => 
     let '((stmt_args, args'), env_args) := TranslateArrowE args env i in
-    (SelS.SSeq stmt_args (SelS.SFunCall f args' i) i, env_args)
+    (SelS.SSeq stmt_args (SelS.SFunCall f targs args' i) i, env_args)
   | CubS.SActCall f args i => 
     let '((stmt_args, args'), env_args) := TranslateArgs args env i in
     (SelS.SSeq stmt_args (SelS.SActCall f args' i) i, env_args)
@@ -253,9 +253,12 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
     (SelS.SSeq e_stmt (SelS.SReturnFruit t e' i) i, env_e)
   | CubS.SExit i => (SelS.SExit i, env)
   | CubS.SInvoke x i => (SelS.SInvoke x i, env)
-  | CubS.SApply x _ args i => (* TODO: extern runtime params *)
+  | CubS.SApply x ext args i => (* TODO: extern runtime params *)
     let '((stmt_args, args'), env_args) := TranslateArgs args env i in 
-    (SelS.SSeq stmt_args (SelS.SApply x args' i) i, env_args)
+    (SelS.SSeq stmt_args (SelS.SApply x ext args' i) i, env_args)
+  | CubS.SSetValidity hdr val i  => 
+    let '((hdr_stmt, hdr'), env_hdr) := TranslateExpr hdr env in 
+    (SelS.SSeq hdr_stmt (SelS.SSetValidity hdr' val i) i, env_hdr)
   end.
 
 
@@ -366,11 +369,11 @@ Fixpoint TranslateTopDecl
 (td : CubTD.d tags_t) (env : VarNameGen.t)
 : (SelTD.d tags_t) * VarNameGen.t :=
 match td with 
-| CubTD.TPInstantiate C x cargs i => 
+| CubTD.TPInstantiate C x targs cargs i => 
   let '(cargs_stmt, cargs', env_cargs) := TranslateCArgs cargs env i in
-  (SelTD.TPInstantiate C x cargs' cargs_stmt i, env_cargs)
-| CubTD.TPExtern e cparams methods i => 
-  (SelTD.TPExtern e cparams methods i, env)
+  (SelTD.TPInstantiate C x targs cargs' cargs_stmt i, env_cargs)
+| CubTD.TPExtern e tparams cparams methods i => 
+  (SelTD.TPExtern e tparams cparams methods i, env)
 | CubTD.TPControl c cparams eps params body apply_blk i =>
   let (body', env_body) := TranslateControlDecl body env in
   let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
@@ -379,11 +382,11 @@ match td with
   let (start', env_start) := TranslateParserState start env in
   let (states', env_states) := TranslateParserStates states env_start in
   (SelTD.TPParser p cparams eps params start' states' i, env_states)
-| CubTD.TPFunction f signature body i =>
+| CubTD.TPFunction f tparams signature body i =>
   let (body', env_body) := TranslateStatement body env in 
-  (SelTD.TPFunction f signature body' i, env_body)
-| CubTD.TPPackage p cparams i => 
-  (SelTD.TPPackage p cparams i, env)
+  (SelTD.TPFunction f tparams signature body' i, env_body)
+| CubTD.TPPackage p tparams cparams i => 
+  (SelTD.TPPackage p tparams cparams i, env)
 | CubTD.TPSeq d1 d2 i => 
   let (d1', env_d1) := TranslateTopDecl d1 env in
   let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 

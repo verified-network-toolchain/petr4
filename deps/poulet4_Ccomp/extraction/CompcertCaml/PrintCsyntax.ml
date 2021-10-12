@@ -23,6 +23,11 @@ open AST (*extract *)
 open! Ctypes (*extract *)
 open Cop (*extract *)
 open Csyntax (*extract *)
+open Clightdefs
+
+(*pretty printer that converts id directly to string*)
+let name_of_ident (id: AST.ident) =
+  id |> string_of_ident |> List.to_seq |> String.of_seq
 
 let name_unop = function
   | Onotbool -> "!"
@@ -125,9 +130,9 @@ let rec name_cdecl id ty =
       Buffer.add_char b ')';
       name_cdecl (Buffer.contents b) res
   | Tstruct(name, a) ->
-      "struct " ^ extern_atom name ^ attributes a ^ name_optid id
+      "struct " ^ name_of_ident name ^ attributes a ^ name_optid id
   | Tunion(name, a) ->
-      "union " ^ extern_atom name ^ attributes a ^ name_optid id
+      "union " ^ name_of_ident name ^ attributes a ^ name_optid id
 
 (* Type *)
 
@@ -207,11 +212,11 @@ let rec expr p (prec, e) =
   | Eloc(b, ofs, _) ->
       fprintf p "<loc%a>" !print_pointer_hook (b, ofs)
   | Evar(id, _) ->
-      fprintf p "%s" (extern_atom id)
+      fprintf p "%s" (name_of_ident id)
   | Ederef(a1, _) ->
       fprintf p "*%a" expr (prec', a1)
   | Efield(a1, f, _) ->
-      fprintf p "%a.%s" expr (prec', a1) (extern_atom f)
+      fprintf p "%a.%s" expr (prec', a1) (name_of_ident f)
   | Evalof(l, _) ->
       expr p (prec, l)
   | Eval(v, ty) ->
@@ -268,7 +273,7 @@ let rec expr p (prec, e) =
       extended_asm p txt None args clob
   | Ebuiltin(EF_debug(kind,txt,_),_,args,_) ->
       fprintf p "__builtin_debug@[<hov 1>(%d,%S%a)@]"
-        (P.to_int kind) (extern_atom txt) exprlist (false,args)
+        (P.to_int kind) (name_of_ident txt) exprlist (false,args)
   | Ebuiltin(EF_builtin(name, _), _, args, _) ->
       fprintf p "%s@[<hov 1>(%a)@]"
                 (camlstring_of_coqstring name) exprlist (true, args)
@@ -362,9 +367,9 @@ let rec print_stmt p s =
   | Sreturn (Some e) ->
       fprintf p "return %a;" print_expr e
   | Slabel(lbl, s1) ->
-      fprintf p "%s:@ %a" (extern_atom lbl) print_stmt s1
+      fprintf p "%s:@ %a" (name_of_ident lbl) print_stmt s1
   | Sgoto lbl ->
-      fprintf p "goto %s;" (extern_atom lbl)
+      fprintf p "goto %s;" (name_of_ident lbl)
 
 and print_cases p cases =
   match cases with
@@ -417,13 +422,13 @@ let name_function_parameters name_param fun_name params cconv =
 
 let print_function p id f =
   fprintf p "%s@ "
-            (name_cdecl (name_function_parameters extern_atom
-                             (extern_atom id) f.fn_params f.fn_callconv)
+            (name_cdecl (name_function_parameters name_of_ident
+                             (name_of_ident id) f.fn_params f.fn_callconv)
                         f.fn_return);
   fprintf p "@[<v 2>{@ ";
   List.iter
     (fun (id, ty) ->
-      fprintf p "%s;@ " (name_cdecl (extern_atom id) ty))
+      fprintf p "%s;@ " (name_cdecl (name_of_ident id) ty))
     f.fn_vars;
   print_stmt p f.fn_body;
   fprintf p "@;<0 -2>}@]@ @ "
@@ -432,7 +437,7 @@ let print_fundef p id fd =
   match fd with
   | Ctypes.External((EF_external _ | EF_runtime _| EF_malloc | EF_free), args, res, cconv) ->
       fprintf p "extern %s;@ @ "
-                (name_cdecl (extern_atom id) (Tfunction(args, res, cconv)))
+                (name_cdecl (name_of_ident id) (Tfunction(args, res, cconv)))
   | Ctypes.External(_, _, _, _) ->
       ()
   | Ctypes.Internal f ->
@@ -466,8 +471,8 @@ let print_init p = function
   | Init_addrof(symb, ofs) ->
       let ofs = camlint_of_coqint ofs in
       if ofs = 0l
-      then fprintf p "&%s" (extern_atom symb)
-      else fprintf p "(void *)((char *)&%s + %ld)" (extern_atom symb) ofs
+      then fprintf p "&%s" (name_of_ident symb)
+      else fprintf p "(void *)((char *)&%s + %ld)" (name_of_ident symb) ofs
 
 let print_composite_init p il =
   fprintf p "{@ ";
@@ -481,7 +486,7 @@ let print_composite_init p il =
 let re_string_literal = Str.regexp "__stringlit_[0-9]+"
 
 let print_globvar p id v =
-  let name1 = extern_atom id in
+  let name1 = name_of_ident id in
   let name2 = if v.gvar_readonly then "const " ^ name1 else name1 in
   match v.gvar_init with
   | [] ->
@@ -498,7 +503,7 @@ let print_globvar p id v =
         [i1] ->
           print_init p i1
       | _, il ->
-          if Str.string_match re_string_literal (extern_atom id) 0
+          if Str.string_match re_string_literal (name_of_ident id) 0
           && List.for_all (function Init_int8 _ -> true | _ -> false) il
           then fprintf p "\"%s\"" (string_of_init (chop_last_nul il))
           else print_composite_init p il
@@ -514,14 +519,14 @@ let print_globdef p (id, gd) =
 let struct_or_union = function Struct -> "struct" | Union -> "union"
 
 let declare_composite p (Composite(id, su, m, a)) =
-  fprintf p "%s %s;@ " (struct_or_union su) (extern_atom id)
+  fprintf p "%s %s;@ " (struct_or_union su) (name_of_ident id)
 
 let define_composite p (Composite(id, su, m, a)) =
   fprintf p "@[<v 2>%s %s%s {"
-          (struct_or_union su) (extern_atom id) (attributes a);
+          (struct_or_union su) (name_of_ident id) (attributes a);
   List.iter
     (fun (fid, fty) ->
-      fprintf p "@ %s;" (name_cdecl (extern_atom fid) fty))
+      fprintf p "@ %s;" (name_cdecl (name_of_ident fid) fty))
     m;
   fprintf p "@;<0 -2>};@]@ @ "
 

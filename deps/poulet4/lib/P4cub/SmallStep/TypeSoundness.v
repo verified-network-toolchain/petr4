@@ -76,7 +76,7 @@ Section ExprTheorems.
 
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_slice_types : core.
-    Fail Local Hint Resolve eval_uop_types : core.
+    Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_types : core.
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_member_types : core.

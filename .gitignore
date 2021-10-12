@@ -32,5 +32,3 @@ testruns/
 *.coq.conf
 *.coq.d
 *.glob
-
-ccompiled.c

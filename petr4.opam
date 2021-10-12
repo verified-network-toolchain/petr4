@@ -15,6 +15,8 @@ build: [
 ]
 depends: [
   "poulet4"
+  "poulet4_Ccomp"
+  "str"
   "coq-compcert"
   "alcotest"
   "bignum"

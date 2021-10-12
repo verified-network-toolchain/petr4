@@ -3,6 +3,8 @@ Require Import Poulet4.P4cub.SmallStep.Value
         Poulet4.P4cub.SmallStep.Util Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Envn.
 
+(* TODO: correctly handle type parameters/arguments. *)
+
 (** Notation entries. *)
 Declare Custom Entry p4kstmt.
 
@@ -313,8 +315,8 @@ Module Step.
       let args  := prefix ++ (x, P.PAIn (τ,e))  :: suffix in
       let args' := prefix ++ (x, P.PAIn (τ,e')) :: suffix in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ funcall f with args  into o @ i ⋅ k -->
-      κ funcall f with args' into o @ i ⋅ k, ϵ
+      κ funcall f <[]> (args)  into o @ i ⋅ k -->
+      κ funcall f <[]> (args') into o @ i ⋅ k, ϵ
    | step_funcall_lvalue (args : E.args tags_t) (f : string) (τ : E.t)
                          (e e' : E.e tags_t) (i : tags_t) (k : kstmt) :
        F.predfs_data
@@ -322,8 +324,8 @@ Module Step.
             (value ∘ snd) (lvalue ∘ snd)) args ->
        ℶ e -->  e' ->
        ℸ cfg, tbls, aa, fns, ins, ϵ,
-       κ let e:τ  := call f with args @ i ⋅ k -->
-       κ let e':τ := call f with args @ i ⋅ k, ϵ
+       κ let e:τ  := call f <[]> (args) @ i ⋅ k -->
+       κ let e':τ := call f <[]> (args) @ i ⋅ k, ϵ
    | step_funcall (args : E.args tags_t) (f : string)
                   (o : option (E.t * E.e tags_t))
                   (i : tags_t) (k : kstmt)
@@ -337,7 +339,7 @@ Module Step.
        let fϵ' := copy_in args ϵ fϵ in
        let arrow := P.Arrow args o in
        ℸ cfg, tbls, aa, fns, ins, ϵ,
-       κ funcall f with args into o @ i ⋅ k -->
+       κ funcall f <[]> (args) into o @ i ⋅ k -->
        κ body ⋅ Λ (arrow, ϵ) k, fϵ'
    | step_kexit_kcall (ϵk : eenv) (args : E.args tags_t) (k : kstmt) :
        let ϵ' := copy_out args ϵ ϵk in

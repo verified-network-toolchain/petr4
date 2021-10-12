@@ -31,20 +31,27 @@ Module P4sel.
       | EError (err : option string)
                (i : tags_t)                            (* error literals *)
       | EMatchKind (mk : P4cub.Expr.matchkind) (i : tags_t)       (* matchkind literals *)
-      | EString (s : string) (i : tags_t)
-      | EEnum (x m : string) (i : tags_t)
+      | EHeaderStackAccess (stack : e) (index : Z) (i : tags_t) (*header-stack access*)
+      (*| EString (s : string) (i : tags_t)
+      | EEnum (x m : string) (i : tags_t)*)
       .
       (**[]*)
 
-      Definition SelTypeOf (expr: e) :P4cub.Expr.t := 
+      Fixpoint SelTypeOf (expr: e) :P4cub.Expr.t := 
       match expr with
       | EBool _ _ => P4cub.Expr.TBool
       | EVar t _ _ => t
       | EExprMember _ t _ _ => t
       | EError _ _ => P4cub.Expr.TError
       | EMatchKind _ _ => P4cub.Expr.TMatchKind
-      | EString _ _ => P4cub.Expr.TString
-      | EEnum x m _ => P4cub.Expr.TEnum x [m]
+      (*| EString _ _ => P4cub.Expr.TString
+      | EEnum x m _ => P4cub.Expr.TEnum x [m]*)
+      | EHeaderStackAccess stack _ _ => 
+        match SelTypeOf stack with
+        | P4cub.Expr.THeaderStack fields _ => 
+          P4cub.Expr.THeader fields
+        | _ => P4cub.Expr.TBool
+        end
       end
       .
       
@@ -72,6 +79,7 @@ Module P4sel.
     Arguments EExprMember {tags_t}.
     Arguments EError {tags_t}.
     Arguments EMatchKind {tags_t}.
+    Arguments EHeaderStackAccess{tags_t}.
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -140,19 +148,16 @@ Module P4sel.
                       (next_index : Z)
                       (dst : string)
                       (i : tags_t)
-      | SHeaderStackAccess (stack : E.e tags_t)
-                           (index : Z)
-                           (dst : string)
-                           (i : tags_t)
       | SConditional (guard_type : P4cub.Expr.t)
                      (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
       | SBlock (blk : s)                                (* blocks *)
       | SExternMethodCall (e : string) (f : string)
+                          (typ_args : list P4cub.Expr.t)
                           (args : E.arrowE tags_t)
                           (i : tags_t)                  (* extern method calls *)
-      | SFunCall (f : string)
+      | SFunCall (f : string) (typ_args : list P4cub.Expr.t)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
       | SActCall (f : string)
                  (args : E.args tags_t) (i : tags_t)    (* action call *)
@@ -162,9 +167,15 @@ Module P4sel.
       | SExit (i : tags_t)                              (* exit statement *)
       | SInvoke (x : string) (i : tags_t)          (* table invocation *)
       | SApply (x : string)
+                (ext_args : F.fs string string)
                (args : E.args tags_t) (i : tags_t)      (* control apply statements,
                                                            where [x] is the
-                                                           name of an instance *).
+                                                           name of an instance *)
+                                                           
+      | SHeaderStackOp (name : string) (op : P4cub.Stmt.hsop) (n : positive) (i : tags_t) (*push or pop statements*)
+      | SSetValidity (hdr: E.e tags_t) (val : P4cub.Stmt.validity) (i : tags_t)
+      
+      .
     (**[]*)
     End Statements.
 
@@ -180,7 +191,6 @@ Module P4sel.
     Arguments SStruct {tags_t}.
     Arguments SHeader {tags_t}.
     Arguments SHeaderStack {tags_t}.
-    Arguments SHeaderStackAccess {tags_t}.
     Arguments SAssign {tags_t}.
     Arguments SConditional {tags_t}.
     Arguments SSeq {tags_t}.
@@ -193,7 +203,8 @@ Module P4sel.
     Arguments SExit {_}.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
-    
+    Arguments SHeaderStackOp {_}.
+    Arguments SSetValidity {_}.
     
   End Stmt.
 
@@ -279,6 +290,7 @@ Module P4sel.
       (** Top-level declarations. *)
       Inductive d : Type :=
       | TPInstantiate (C : string) (x : string)
+                      (type_args : list P4cub.Expr.t)
                      (cargs : E.constructor_args tags_t)
                      (arg_init: S.s tags_t)
                      (i : tags_t) (* constructor [C] that 
@@ -287,8 +299,9 @@ Module P4sel.
                                      constructor [args]
                                      makes instance [x]. *)
       | TPExtern (e : string)
+                 (typ_params : list string)
                  (cparams : P4cub.Expr.constructor_params)
-                 (methods : F.fs string P4cub.Expr.arrowT)
+                 (methods : F.fs string (list string * P4cub.Expr.arrowT))
                  (i : tags_t) (* extern declarations *)
       | TPControl (c : string)
                   (cparams : P4cub.Expr.constructor_params) (* constructor params *)
@@ -302,9 +315,10 @@ Module P4sel.
                  (start : P.state_block tags_t) (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)
                  (i : tags_t) (* parser declaration *)
-      | TPFunction (f : string) (signature : P4cub.Expr.arrowT) (body : S.s tags_t)
+      | TPFunction (f : string) (typ_params : list string)
+                   (signature : P4cub.Expr.arrowT) (body : S.s tags_t)
                    (i : tags_t) (* function/method declaration *)
-      | TPPackage (p : string)
+      | TPPackage (p : string) (typ_params : list string)
                   (cparams : P4cub.Expr.constructor_params) (* constructor params *)
                   (i : tags_t) (* package type declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).

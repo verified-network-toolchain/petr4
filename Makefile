@@ -37,6 +37,9 @@ run:
 install:
 	dune install
 
+ctest: build install
+	cd deps/poulet4_Ccomp && petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
+
 claims:
 	@test/claims.py
 

@@ -29,11 +29,13 @@ Module P4cub.
   Inductive paramarg (A B : Type) : Type :=
   | PAIn (a : A)
   | PAOut (b : B)
-  | PAInOut (b : B).
+  | PAInOut (b : B)
+  | PADirLess (a : A).
 
   Arguments PAIn {_} {_}.
   Arguments PAOut {_} {_}.
   Arguments PAInOut {_} {_}.
+  Arguments PADirLess {_} {_}.
 
   Definition paramarg_map {A B C D : Type}
              (f : A -> C) (g : B -> D)
@@ -42,6 +44,7 @@ Module P4cub.
     | PAIn a => PAIn (f a)
     | PAOut b => PAOut (g b)
     | PAInOut b => PAInOut (g b)
+    | PADirLess a => PADirLess (f a)
     end.
   (**[]*)
 
@@ -49,7 +52,7 @@ Module P4cub.
   Definition pred_paramarg {A B : Type}
              (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=
     match pa with
-    | PAIn a => PA a
+    | PAIn a | PADirLess a => PA a
     | PAOut b | PAInOut b => PB b
     end.
   (**[]*)
@@ -64,6 +67,7 @@ Module P4cub.
              (pa1 : paramarg A1 B1)
              (pa2 : paramarg A2 B2) : Prop :=
     match pa1, pa2 with
+    | PADirLess a1, PADirLess a2 
     | PAIn a1, PAIn a2       => RA a1 a2
     | PAOut b1, PAOut b2
     | PAInOut b1, PAInOut b2 => RB b1 b2
@@ -99,9 +103,9 @@ Module P4cub.
       | THeaderStack (fields : F.fs string t)
                      (size : positive)   (* header stack type *)
       | TVar (type_name : string)        (* type variables *)
-      | TString                          (* strings *)
+      (*| TString                          (* strings *)
       | TEnum (name : string)
-              (members : list string)    (* enum types *).
+              (members : list string)    (* enum types *)*).
       (**[]*)
       
       (** Function parameters. *)
@@ -153,11 +157,11 @@ Module P4cub.
             (in custom p4type at level 6, no associativity).
       Notation "'stack' fields [ n ]"
                := (THeaderStack fields n) (in custom p4type at level 7).
-      Notation "'Str'"
+      (*Notation "'Str'"
         := TString (in custom p4type at level 0, no associativity).
       Notation "'enum' x { xs }"
         := (TEnum x xs)
-             (in custom p4type at level 0, no associativity).
+             (in custom p4type at level 0, no associativity).*)
       
       Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
       Notation "( x )" := x (in custom p4constructortype, x at level 99).
@@ -190,8 +194,8 @@ Module P4cub.
     | SetInValid (* set a header invalid *)
     | NextIndex  (* get element at [nextIndex] from a header stack *)
     | Size       (* get a header stack's size *)
-    | Push (n : positive) (* "push_front," shift stack right by [n] *)
-    | Pop  (n : positive) (* "push_front," shift stack left by [n] *).
+    (*| Push (n : positive) (* "push_front," shift stack right by [n] *)
+    | Pop  (n : positive) (* "push_front," shift stack left by [n] *)*).
     (**[]*)
 
     Module UopNotations.
@@ -206,8 +210,8 @@ Module P4cub.
       Notation "'setInValid'" := SetInValid (in custom p4uop at level 0).
       Notation "'Next'" := NextIndex (in custom p4uop at level 0).
       Notation "'Size'" := Size (in custom p4uop at level 0).
-      Notation "'Push' n" := (Push n) (in custom p4uop at level 0).
-      Notation "'Pop' n" := (Pop n) (in custom p4uop at level 0).
+      (*Notation "'Push' n" := (Push n) (in custom p4uop at level 0).
+      Notation "'Pop' n" := (Pop n) (in custom p4uop at level 0).*)
     End UopNotations.
 
     (** Binary operations.
@@ -295,7 +299,7 @@ Module P4cub.
       | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
       | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
       | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
-      | ESlice (arg : e) (τ : t)
+      (*lvalue*)| ESlice (arg : e) (τ : t)
                (hi lo : positive) (i : tags_t)         (* bit-slicing *)
       | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
       | EUop (op : uop) (type : t)
@@ -315,10 +319,11 @@ Module P4cub.
                      (headers : list e) (size : positive)
                      (next_index : Z) (i : tags_t)     (* header stack literals,
                                                           unique to p4light *)
+      (*lvalue*)
       | EHeaderStackAccess (stack : e) (index : Z)
                            (i : tags_t)                (* header stack indexing *)
-      | EString (str : string) (i : tags_t)            (* string expression *)
-      | EEnum (name member : string) (i : tags_t)      (* enum member *).
+      (*| EString (str : string) (i : tags_t)            (* string expression *)
+      | EEnum (name member : string) (i : tags_t)      (* enum member *)*).
       (**[]*)
       
       (** Function call arguments. *)
@@ -356,8 +361,8 @@ Module P4cub.
     Arguments EMatchKind {tags_t}.
     Arguments EHeaderStack {_}.
     Arguments EHeaderStackAccess {_}.
-    Arguments EString {_}.
-    Arguments EEnum {_}.
+    (*Arguments EString {_}.
+    Arguments EEnum {_}.*)
     Arguments CAExpr {_}.
     Arguments CAName {_}.
 
@@ -416,10 +421,10 @@ Module P4cub.
       Notation "'Access' e1 [ e2 ] @ i"
                := (EHeaderStackAccess e1 e2 i)
                     (in custom p4expr at level 10, e1 custom p4expr).
-      Notation "'Stri' s @ i"
+      (*Notation "'Stri' s @ i"
         := (EString s i) (in custom p4expr at level 0).
       Notation "'Enum' x 'dot' m @ i"
-        := (EEnum x m i) (in custom p4expr at level 0).
+        := (EEnum x m i) (in custom p4expr at level 0).*)
     End ExprNotations.
   End Expr.
 
@@ -432,7 +437,7 @@ Module P4cub.
 
       (** Header Stack Operations. *)
       Inductive hsop : Set := HSPush | HSPop.
-      
+      Inductive validity : Set := Valid | Invalid.
       Inductive s : Type :=
       | SSkip (i : tags_t) (* skip/no-op *)
       | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
@@ -443,7 +448,7 @@ Module P4cub.
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
       | SBlock (blk : s)                                (* blocks *)
       | SExternMethodCall (extern_name method_name : string)
-                          (*(type_args : list E.t)*)
+                          (typ_args : list E.t)
                           (args : E.arrowE tags_t)
                           (i : tags_t)                  (* extern method calls *)
       (* | SExternFunCall (fun_name : string) *)
@@ -451,6 +456,7 @@ Module P4cub.
       (*                  (args : E.arrowE tags_t) *)
       (*                  (i : tags_t) (* extern function calls *) *)
       | SFunCall (f : string)
+                 (typ_args : list E.t)
                  (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
       | SActCall (action_name : string)
                  (args : E.args tags_t) (i : tags_t)    (* action call *)
@@ -466,7 +472,10 @@ Module P4cub.
                (ext_args : F.fs string string)
                (args : E.args tags_t) (i : tags_t)      (* Parser apply statements *)
       | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
-                       (n : positive) (i : tags_t)       (* push or pop statements *).
+                       (n : positive) (i : tags_t)      (* push or pop statements *)
+                       
+      | SSetValidity (hdr : E.e tags_t) (val : validity)
+                     (i : tags_t)                       (* set valid or set invalid *).
     (**[]*)
     End Statements.
 
@@ -485,7 +494,7 @@ Module P4cub.
     Arguments SApply {_}.
     Arguments SInvoke {_}.
     Arguments SHeaderStackOp {_}.
-
+    Arguments SSetValidity {_}.
     Module StmtNotations.
       Notation "'<<{' sop '}>>'" := sop (sop custom p4hsop at level 99).
       Notation "( x )" := x (in custom p4hsop, x at level 99).
@@ -520,20 +529,20 @@ Module P4cub.
                         t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
                         no associativity).
-      Notation "'call' f 'with' args @ i"
-        := (SFunCall f (Arrow args None) i)
+      Notation "'call' f < targs > ( args ) @ i"
+        := (SFunCall f targs (Arrow args None) i)
              (in custom p4stmt at level 0, no associativity).
-      Notation "'let' e : t ':=' 'call' f 'with' args @ i"
-               := (SFunCall f (Arrow args (Some (t,e))) i)
+      Notation "'let' e : t ':=' 'call' f < targs > ( args ) @ i"
+               := (SFunCall f targs (Arrow args (Some (t,e))) i)
                     (in custom p4stmt at level 0,
                         e custom p4expr, t custom p4stmt, no associativity).
-      Notation "'funcall' f 'with' args 'into' o @ i"
-               := (SFunCall f (Arrow args o) i)
+      Notation "'funcall' f < targs > ( args ) 'into' o @ i"
+               := (SFunCall f targs (Arrow args o) i)
                     (in custom p4stmt at level 0, no associativity).
       Notation "'calling' a 'with' args @ i"
                := (SActCall a args i) (in custom p4stmt at level 0).
-      Notation "'extern' e 'calls' f 'with' args 'gives' x @ i"
-               := (SExternMethodCall e f (Arrow args x) i)
+      Notation "'extern' e 'calls' f < targs > ( args ) 'gives' x @ i"
+               := (SExternMethodCall e f targs (Arrow args x) i)
                     (in custom p4stmt at level 0, no associativity).
       Notation "'return' e : t @ i"
                := (SReturnFruit t e i)
@@ -711,13 +720,14 @@ Module P4cub.
       
       (** Top-level declarations. *)
       Inductive d : Type :=
-      | TPInstantiate (constructor_name : string)
-                      (instance_name : string)
+      | TPInstantiate (constructor_name instance_name : string)
+                      (type_args : list E.t)
                       (cargs : E.constructor_args tags_t)
                       (i : tags_t) (* instantiations *)
       | TPExtern (extern_name : string)
+                 (type_params : list string)
                  (cparams : E.constructor_params)
-                 (methods : F.fs string E.arrowT)
+                 (methods : F.fs string (list string * E.arrowT))
                  (i : tags_t) (* extern declarations *)
       | TPControl (control_name : string)
                   (cparams : E.constructor_params) (* constructor params *)
@@ -731,11 +741,13 @@ Module P4cub.
                  (params : E.params)              (* invocation params *)
                  (start : P.state_block tags_t)   (* start state *)
                  (states : F.fs string (P.state_block tags_t)) (* parser states *)
-                 (i : tags_t) (* parser declaration *)
+                 (i : tags_t)  (* parser declaration *)
       | TPFunction (function_name : string)
+                   (type_params : list string)
                    (signature : E.arrowT) (body : S.s tags_t)
                    (i : tags_t)(* function/method declaration *)
       | TPPackage (package_name : string)
+                  (type_params : list string)
                   (cparams : E.constructor_params) (* constructor params *)
                   (i : tags_t) (* package type declaration *)
       | TPSeq (d1 d2 : d) (i : tags_t).
@@ -760,17 +772,17 @@ Module P4cub.
              (in custom p4topdecl at level 10,
                  d1 custom p4topdecl, d2 custom p4topdecl,
                  right associativity).
-      Notation "'Instance' x 'of' c ( args ) @ i"
-        := (TPInstantiate c x args i) (in custom p4topdecl at level 0).
-      Notation "'void' f ( params ) { body } @ i"
-        := (TPFunction f (Arrow params None) body i)
+      Notation "'Instance' x 'of' c < targs > ( args ) @ i"
+        := (TPInstantiate c x targs args i) (in custom p4topdecl at level 0).
+      Notation "'void' f < tparams > ( params ) { body } @ i"
+        := (TPFunction f tparams (Arrow params None) body i)
              (in custom p4topdecl at level 0, body custom p4stmt).
-      Notation "'fn' f ( params ) '->' t { body } @ i"
-        := (TPFunction f (Arrow params (Some t)) body i)
+      Notation "'fn' f < tparams > ( params ) '->' t { body } @ i"
+        := (TPFunction f tparams (Arrow params (Some t)) body i)
              (in custom p4topdecl at level 0,
                  t custom p4type, body custom p4stmt).
-      Notation "'extern' e ( cparams ) { methods } @ i"
-        := (TPExtern e cparams methods i)
+      Notation "'extern' e < tparams > ( cparams ) { methods } @ i"
+        := (TPExtern e tparams cparams methods i)
              (in custom p4topdecl at level 0).
       Notation "'control' c ( cparams ) ( eps ) ( params ) 'apply' { blk } 'where' { body } @ i"
         := (TPControl c cparams eps params body blk i)
@@ -779,8 +791,8 @@ Module P4cub.
       Notation "'parser' p ( cparams ) ( eps ) ( params ) 'start' ':=' st { states } @ i"
         := (TPParser p cparams eps params st states i)
              (in custom p4topdecl at level 0, st custom p4prsrstateblock).
-      Notation "'package' p ( cparams ) @ i"
-        := (TPPackage p cparams i)
+      Notation "'package' p < tparams > ( cparams ) @ i"
+        := (TPPackage p tparams cparams i)
              (in custom p4topdecl at level 0).
     End TopDeclNotations.
   End TopDecl.

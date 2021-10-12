@@ -28,9 +28,9 @@ Section ValueInduction.
       Forall (Field.predfs_data P ∘ snd) hs ->
       P ~{ STACK hs:ts[size] NEXT:=ni }~.
 
-  Hypothesis HVString : forall s, P ~{ STR s }~.
+  (*Hypothesis HVString : forall s, P ~{ STR s }~.
 
-  Hypothesis HVEnum : forall x m, P ~{ ENUM x DOT m }~.
+  Hypothesis HVEnum : forall x m, P ~{ ENUM x DOT m }~.*)
   
   Definition custom_value_ind : forall v' : v, P v' :=
     fix custom_value_ind (val : v) : P val :=
@@ -65,7 +65,7 @@ Section ValueInduction.
       | ~{ MATCHKIND mk }~ => HVMatchKind mk
       | ~{ STACK hs:ts[size] NEXT:=ni }~
         => HVHeaderStack ts hs size ni (ffind hs)
-      | ~{ STR s }~ => HVString s
-      | ~{ ENUM x DOT m }~ => HVEnum x m
+      (*| ~{ STR s }~ => HVString s
+      | ~{ ENUM x DOT m }~ => HVEnum x m*)
       end.
 End ValueInduction.

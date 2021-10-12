@@ -79,15 +79,15 @@ Section parser_to_p4automaton.
         SOSeq f1 f2
       | -{ var x:τ @ _ }- => mret $ SOVarDecl x τ
       | -{ asgn e1 := e2:_ @ _ }- => mret $ SOAsgn e1 e2
-      | -{ extern extern_lit calls func with args gives x @ _ }- =>
-        if func == "extract" then
+      | -{ extern extern_lit calls f <[]> (args) gives x @ _ }- =>
+        if f == "extract" then
           match args with
           | ((_, P4cub.PAOut (t, e)) :: nil) =>
             into_lv <<| eval_lvalue e ;; SOExtract t into_lv
           | _=> err $ CEBadExternArgs (P4cub.Arrow args x)
           end
         else
-          err $ CEUnsupportedExtern func
+          err $ CEUnsupportedExtern f
       | _ => err $ CEUnsupportedStmt stmt end.
     
     Definition compile_state_block
@@ -144,8 +144,8 @@ Section parser_to_p4automaton.
     | <{ BOOL b @ _ }> => mret ~{ VBOOL b }~
     | <{ w W n @ _ }> => mret ~{ w VW n }~
     | <{ w S n @ _ }> => mret ~{ w VS n }~
-    | <{ Stri s @ _ }> => mret ~{ STR s }~
-    | <{ Enum x dot m @ _ }> => mret ~{ ENUM x DOT m }~
+    (*| <{ Stri s @ _ }> => mret ~{ STR s }~
+    | <{ Enum x dot m @ _ }> => mret ~{ ENUM x DOT m }~*)
     | <{ Var x : _ @ _ }> => 
       lift_opt_error (CEInconceivable (String.append "missing variable " x)) (Env.find x ϵ)
     | <{ Slice e : _ [ h : l ] @ _ }> =>

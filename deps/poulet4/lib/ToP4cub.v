@@ -1,5 +1,5 @@
 Require Export Poulet4.Syntax.
-
+Require Import Poulet4.SimplExpr.
 Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Util.Result
@@ -457,6 +457,8 @@ Section ToP4cub.
         let** (hoist_hi, hi') := extract_funs_from_exp hi in
         (List.app hoist_lo hoist_hi, ExpRange lo' hi')
       end.
+
+    Function hoist_functions (statement : @Statement tags_t) : result (@Statement tags_t) := error "Implement.".
 
   End HoistEffects.
 
@@ -1113,14 +1115,18 @@ Section ToP4cub.
     let* ctx := acc in
     translate_decl ctx decl.
 
+  Print SimplExpr.transform_prog.
 
-  Definition translate_program (p : program) : result (DeclCtx) :=
-    let '(Program decls) := p in
+  Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
+    let '(Program decls) := SimplExpr.transform_prog tags p in
     fold_left translate_declaration_loop decls (ok (empty_declaration_context)).
+
 End ToP4cub.
 
 
 Require Import Poulet4.P4defs.
 Require Import Poulet4.SimpleNat.
 
-Compute (translate_program Info  (SimpleNat.prog)).
+Print Info.
+
+Compute (translate_program Info NoInfo (SimpleNat.prog)).

@@ -772,7 +772,7 @@ Section ToP4cub.
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          let** args := error "[FIXME] compute function args"
+          let** args := error "[FIXME] compute function args" in
           ST.SFunCall (P4String.str n) [] args tags
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
         end

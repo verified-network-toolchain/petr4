@@ -56,7 +56,7 @@ Module Result.
     end.
 
   Module ResultNotations.
-    Notation "'let**' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
+    Notation "'let+' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
                                               (at level 61, p as pattern, c1 at next level, right associativity).
 
     Notation "'let*~' p ':=' c1 'else' str 'in' c2 " := (opt_bind c1 str (fun p => c2))

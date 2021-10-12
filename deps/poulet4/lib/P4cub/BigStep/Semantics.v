@@ -735,12 +735,12 @@ Module Step.
   | tpbs_fruit_function (f : string) (params : E.params)
                         (τ : E.t) (body : ST.s tags_t) (i : tags_t) :
 
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Env.bind f (FDecl ϵ fns [] body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, fn f <[]> (params) -> τ { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_void_function (f : string) (params : E.params)
                        (body : ST.s tags_t) (i : tags_t) :
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Env.bind f (FDecl ϵ fns [] body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, void f <[]> (params) { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_seq (d1 d2 : TP.d tags_t) (i : tags_t) (pis' pis'' : pienv)

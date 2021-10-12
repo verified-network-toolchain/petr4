@@ -37,6 +37,7 @@ Module Inline.
     | P.PAInOut (_,e) => e
     | P.PAIn (_,e) => e
     | P.PAOut (_,e) => e
+    | P.PADirLess (_,e) => e
     end.
   Definition args_to_expenv (args : P.F.fs string (P.paramarg (ST.E.t * ST.E.e tags_t) (ST.E.t * ST.E.e tags_t))) : expenv :=
     F.fold (fun param arg env => Env.bind param (get_exp arg) env) args [].

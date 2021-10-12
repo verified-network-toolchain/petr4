@@ -203,7 +203,7 @@ Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
 
 Definition snd_res_map {A B C : Type} (f : B -> result C) (p : A * B) : result (A * C) :=
   let (x,y) := p in
-  let** z := f y in
+  let+ z := f y in
   (x, z).
 
 Fixpoint string_member (x : string) (l1 : list string) : bool :=
@@ -229,7 +229,7 @@ Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
   | [], _ => error "First zipped list was shorter than the second"
   | _, [] => error "First zipped list was longer than the second"
   | x::xs, y::ys =>
-    let** xys := zip xs ys in
+    let+ xys := zip xs ys in
     cons (x,y) xys
   end.
 

@@ -205,7 +205,7 @@ Section ToP4cub.
   (* TODO move to Result.v *)
   Definition cons_res {A : Type} (hd_res : result A) (rlist : result (list A)) : result (list A) :=
     let* l := rlist in
-    let** hd := hd_res in
+    let+ hd := hd_res in
     hd :: l.
 
 
@@ -214,7 +214,7 @@ Section ToP4cub.
     let translate_fields :=
         fold_right (fun '(name,typ) res_rst =>
                       let* cub_typ := translate_exp_type i typ in
-                      let** rst := res_rst in
+                      let+ rst := res_rst in
                       (P4String.str name, cub_typ) :: rst ) (ok [])
     in
     match typ with
@@ -232,19 +232,19 @@ Section ToP4cub.
     | TypArray typ size =>
       match typ with
       | TypHeader fields =>
-        let** cub_fields := translate_fields fields in
+        let+ cub_fields := translate_fields fields in
         E.THeaderStack cub_fields (pos size)
       | _ => error "Typeerror:: Arrays must contain Headers"
       end
     | TypTuple types =>
       (* TODO ensure are cast-able *)
-      let** cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
+      let+ cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
       E.TTuple cub_types
     | TypList types =>
-      let** cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
+      let+ cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
       E.TTuple cub_types
     | TypRecord fields =>
-      let** cub_fields := translate_fields fields in
+      let+ cub_fields := translate_fields fields in
       E.TStruct cub_fields
     | TypSet elt_type =>
       (* Shows up in typechecking a select *)
@@ -253,12 +253,12 @@ Section ToP4cub.
     | TypMatchKind => ok E.TMatchKind
     | TypVoid => error "[FIXME] void is not the type of any expression literal"
     | TypHeader fields =>
-      let** fields' := translate_fields fields in
+      let+ fields' := translate_fields fields in
       E.THeader fields'
     | TypHeaderUnion _ =>
       error "[FIXME] Header Unions need to be compiled away or added to p4cub"
     | TypStruct fields =>
-      let** fields' := translate_fields fields in
+      let+ fields' := translate_fields fields in
       E.TStruct fields'
     | TypEnum name typ members =>
       (* (* TODO We're throwing away the type here. Should we be? *) *)
@@ -274,7 +274,7 @@ Section ToP4cub.
         error "Unsure how to handle qualified names"
       end
     | TypNewType name typ =>
-      let** typ' := translate_exp_type i typ in
+      let+ typ' := translate_exp_type i typ in
       typ'
     | TypControl c =>
       error "A control is not an expression type"
@@ -414,7 +414,7 @@ Section ToP4cub.
 
     Fixpoint extract_funs_from_exp (e : Expression) : result (list Statement * Expression) :=
       let '(MkExpression tags expr typ dir) := e in
-      let** (hoist, e) := extract_funs_from_exp_pre_t expr in
+      let+ (hoist, e) := extract_funs_from_exp_pre_t expr in
       (hoist, MkExpression tags e typ dir)
     with extract_funs_from_exp_pre_t (e : ExpressionPreT) : result (list Statement * ExpressionPreT) :=
       match e with
@@ -424,44 +424,44 @@ Section ToP4cub.
       | ExpName _ _ => ok ([], e)
       | ExpArrayAccess array index =>
         let* (array_hoist, array') := extract_funs_from_exp array in
-        let** (index_hoist, index') := extract_funs_from_exp index in
+        let+ (index_hoist, index') := extract_funs_from_exp index in
         (List.app array_hoist index_hoist, ExpArrayAccess array index)
       | ExpBitStringAccess bits lo hi =>
-        let** (bits_hoist, bits') := extract_funs_from_exp bits in
+        let+ (bits_hoist, bits') := extract_funs_from_exp bits in
         (bits_hoist, ExpBitStringAccess bits' lo hi)
       | ExpList values =>
-        let** (hoist, values') := fold_right (fun v acc =>
+        let+ (hoist, values') := fold_right (fun v acc =>
                                                 let* (v_hs, v') := extract_funs_from_exp v in
-                                                let** (hs, vs) := acc in
+                                                let+ (hs, vs) := acc in
                                                 (List.app v_hs hs, v'::vs)) (ok ([],[])) values in
         (hoist, ExpList values')
       | ExpRecord entries =>
-        let** (hoist, entries) := fold_right (fun kv acc =>
+        let+ (hoist, entries) := fold_right (fun kv acc =>
                                                 let '(MkKeyValue tags key value) := kv in
                                                 let* (h, value') := extract_funs_from_exp value in
-                                                let** (hs, vs) := acc in
+                                                let+ (hs, vs) := acc in
                                                 (List.app h hs, (MkKeyValue tags key value')::vs)
                                              ) (ok ([],[])) entries in
         (hoist, ExpRecord entries)
       | ExpUnaryOp op arg =>
-        let** (hoist, arg') := extract_funs_from_exp arg in
+        let+ (hoist, arg') := extract_funs_from_exp arg in
         (hoist, ExpUnaryOp op arg')
       | ExpBinaryOp op (lhs,rhs) =>
         let* (hoist_left, lhs') := extract_funs_from_exp lhs in
-        let** (hoist_right, rhs') := extract_funs_from_exp rhs in
+        let+ (hoist_right, rhs') := extract_funs_from_exp rhs in
         (List.app hoist_left hoist_right, ExpBinaryOp op (lhs', rhs'))
       | ExpCast typ e =>
-        let** (hoist, e') := extract_funs_from_exp e in
+        let+ (hoist, e') := extract_funs_from_exp e in
         (hoist, ExpCast typ e')
       | ExpTypeMember _ _ => ok ([], e)
       | ExpErrorMember _ => ok ([], e)
       | ExpExpressionMember expr name =>
-        let** (hoist, expr') := extract_funs_from_exp expr in
+        let+ (hoist, expr') := extract_funs_from_exp expr in
         (hoist, ExpExpressionMember expr' name)
       | ExpTernary cond tru fls =>
         let*  (hoist_cond, cond') := extract_funs_from_exp cond in
         let*  (hoist_tru, tru') := extract_funs_from_exp tru in
-        let** (hoist_fls, fls') := extract_funs_from_exp fls in
+        let+ (hoist_fls, fls') := extract_funs_from_exp fls in
         (List.app (List.app hoist_cond hoist_tru) hoist_fls,
          ExpTernary cond' tru' fls')
       | ExpFunctionCall func type_args args =>
@@ -471,33 +471,33 @@ Section ToP4cub.
                                                   | None =>
                                                     ok (hs, None :: args)
                                                   | Some arg =>
-                                                    let** (h, arg') := extract_funs_from_exp arg in
+                                                    let+ (h, arg') := extract_funs_from_exp arg in
                                                     (List.app h hs, (Some arg') :: args)
                                                   end)
                                                (ok ([],[]))
                                                args
         in
-        let** (hoist_f, func') := voidify_fun_call_exp func type_args args' in
+        let+ (hoist_f, func') := voidify_fun_call_exp func type_args args' in
         (hoist_f :: hoist_args, ExpFunctionCall func' type_args args')
 
       | ExpNamelessInstantiation typ args =>
         let* (hoist_args, args') := fold_right (fun arg acc =>
                                                   let* (h, arg') := extract_funs_from_exp arg in
-                                                  let** (hs, args) := acc in
+                                                  let+ (hs, args) := acc in
                                                   (List.app h hs, arg' :: args))
                                                (ok ([],[]))
                                                args in
-        let** (hoist_ni, ni_var) := error "[FIXME] hoist Nameless Instantiation" in
+        let+ (hoist_ni, ni_var) := error "[FIXME] hoist Nameless Instantiation" in
         (List.app hoist_args hoist_ni, ni_var)
       | ExpDontCare => ok([], e)
       | ExpMask e m =>
         let*  (hoist_e, e') := extract_funs_from_exp e in
-        let** (hoist_m, m') := extract_funs_from_exp m in
+        let+ (hoist_m, m') := extract_funs_from_exp m in
         (List.app hoist_e hoist_m, ExpMask e' m')
 
       | ExpRange lo hi =>
         let*  (hoist_lo, lo') := extract_funs_from_exp lo in
-        let** (hoist_hi, hi') := extract_funs_from_exp hi in
+        let+ (hoist_hi, hi') := extract_funs_from_exp hi in
         (List.app hoist_lo hoist_hi, ExpRange lo' hi')
       end.
 
@@ -517,7 +517,7 @@ Section ToP4cub.
       end.
 
     Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
-      let** type_name := get_string_from_type t in
+      let+ type_name := get_string_from_type t in
       let (g, name) := NameGen.fresh g (P4String.str type_name) in
       let p4str_name := {| P4String.tags := P4String.tags type_name;
                            P4String.str := name
@@ -528,12 +528,12 @@ Section ToP4cub.
     (** Eliminate direct application statements by minpting a new name and then applying that named thing *)
     Fixpoint elim_da_statement (namegen : NameGen.t) (s : Statement) :=
       let '(MkStatement tags stmt typ) := s in
-      let** (g, stmt') := elim_da_pre_statement namegen tags stmt typ in
+      let+ (g, stmt') := elim_da_pre_statement namegen tags stmt typ in
       (g, MkStatement tags stmt typ)
     with elim_da_pre_statement (namegen : NameGen.t) (tags : tags_t) (stmt : StatementPreT) (type : StmType) : result (NameGen.t * StatementPreT) :=
       match stmt with
       | StatDirectApplication typ args =>
-        let** (namegen', inst_name) := inst_name_from_type namegen typ in
+        let+ (namegen', inst_name) := inst_name_from_type namegen typ in
         let inst := StatInstantiation typ args inst_name None in
         let inst_stmt := MkStatement tags inst type in
         let inst_pre := ExpName (BareName inst_name) NoLocator in
@@ -550,11 +550,11 @@ Section ToP4cub.
         match fls_opt with
         | None => ok (g', StatConditional cond tru' None)
         | Some fls =>
-          let** (g'', fls') := elim_da_statement namegen fls in
+          let+ (g'', fls') := elim_da_statement namegen fls in
           (g'', StatConditional cond tru' (Some fls'))
         end
       | StatBlock blck =>
-        let** (g', blck') := elim_da_block namegen blck in
+        let+ (g', blck') := elim_da_block namegen blck in
         (g', StatBlock blck')
       | _ => ok (namegen, stmt)
       end
@@ -563,7 +563,7 @@ Section ToP4cub.
       | BlockEmpty _ => ok (g, block)
       | BlockCons st rst =>
         let* (g', st') := elim_da_statement g st in
-        let** (g'', rst') := elim_da_block g' rst in
+        let+ (g'', rst') := elim_da_block g' rst in
         (g'', BlockCons st' rst')
       end.
 
@@ -588,52 +588,52 @@ Section ToP4cub.
     | ExpName name loc =>
       match name with
       | BareName str =>
-        let** cub_type := translate_exp_type i typ in
+        let+ cub_type := translate_exp_type i typ in
         E.EVar cub_type (P4String.str str) i
       | QualifiedName namespaces name =>
         error "Qualified names should be eliminated"
       end
     | ExpArrayAccess array index =>
       let* (_,stck) := translate_expression array in
-      let** index := realize_array_index index in
+      let+ index := realize_array_index index in
       E.EHeaderStackAccess stck index i
     | ExpBitStringAccess bits lo hi =>
-      let** (typ,e) := translate_expression bits in
+      let+ (typ,e) := translate_expression bits in
       E.ESlice e typ (posN hi) (posN lo) i
     | ExpList values =>
       let f := fun v res_rst =>
                  let* (_,cub_v) := translate_expression v in
-                 let** rst := res_rst in
+                 let+ rst := res_rst in
                  cub_v :: rst in
-      let** cub_values := fold_right f (ok []) values in
+      let+ cub_values := fold_right f (ok []) values in
       E.ETuple cub_values i
     | ExpRecord entries =>
       let f := fun kv res_rst =>
                  let '(MkKeyValue i nm expr) := kv in
                  let* type_expr := translate_expression expr in
-                 let** rst := res_rst in
+                 let+ rst := res_rst in
                  (P4String.str nm, type_expr) :: rst in
-      let** cub_entries := fold_right f (ok []) entries  in
+      let+ cub_entries := fold_right f (ok []) entries  in
       E.EStruct cub_entries i
     | ExpUnaryOp op arg =>
       let eop := translate_op_uni op in
-      let** (type, earg) := translate_expression arg in
+      let+ (type, earg) := translate_expression arg in
       E.EUop eop type earg i
     | ExpBinaryOp op (e1,e2) =>
       let* (t1,e1') := translate_expression e1 in
       let* (t2,e2') := translate_expression e2 in
-      let** eop := translate_op_bin op in
+      let+ eop := translate_op_bin op in
       E.EBop eop t1 t2 e1' e2' i
     | ExpCast typ expr =>
       let* (_,expr') := translate_expression expr in
-      let** typ' := translate_exp_type i typ in
+      let+ typ' := translate_exp_type i typ in
       E.ECast typ' expr' i
     | ExpTypeMember typ name =>
       error "[FIXME] type members unimplemented"
     | ExpErrorMember str =>
       ok (E.EError (Some (P4String.str str)) i)
     | ExpExpressionMember expr name =>
-      let** (cub_typ,cub_expr) := translate_expression expr in
+      let+ (cub_typ,cub_expr) := translate_expression expr in
       E.EExprMember (P4String.str name) cub_typ cub_expr i
     | ExpTernary cond tru fls =>
       error "Ternary expressions should have been hoisted by a previous pass"
@@ -652,7 +652,7 @@ Section ToP4cub.
     match e with
     | MkExpression tags expr typ dir =>
       let* cub_type := translate_exp_type tags typ in
-      let** cub_expr := translate_expression_pre_t tags typ expr in
+      let+ cub_expr := translate_expression_pre_t tags typ expr in
       (cub_type, cub_expr)
     end.
 
@@ -674,13 +674,13 @@ Section ToP4cub.
     match ret with
     | TypVoid => ok None
     | _ =>
-      let** x := translate_exp_type tags ret in
+      let+ x := translate_exp_type tags ret in
       Some x
     end.
 
   Definition apply_arg_to_param (x : string * paramarg E.t E.t * (E.t * E.e tags_t)) (acc : result (F.fs string (paramarg (E.t * E.e tags_t) (E.t * E.e tags_t)))) : result (F.fs string (paramarg (E.t * E.e tags_t) (E.t * E.e tags_t))) :=
     let '(name, typ, (_, exp)) := x in
-    let** fs := acc in
+    let+ fs := acc in
     match typ with
     | PAIn t => (name, PAIn (t, exp)) :: fs
     | PAOut t => (name, PAOut (t, exp)) :: fs
@@ -697,7 +697,7 @@ Section ToP4cub.
     let '(MkParameter b dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     let* t := translate_exp_type tags typ in
-    let** parg := match dir with
+    let+ parg := match dir with
                   | In => ok (PAIn t)
                   | Out => ok (PAOut t)
                   | InOut => ok (PAInOut t)
@@ -731,20 +731,20 @@ Section ToP4cub.
         error "Error got a type that cannot be applied."
       end
     | "setInvalid" =>
-      let** (_,hdr) := translate_expression callee in
+      let+ (_,hdr) := translate_expression callee in
       ST.SSetValidity hdr ST.Invalid tags
     | "setValid" =>
-      let** (_,hdr) := translate_expression callee in
+      let+ (_,hdr) := translate_expression callee in
       ST.SSetValidity hdr ST.Valid tags
     | _ =>
       match typ with
       | TypExtern e =>
         let* args := error "[FIXME] add action args" in
-        let** callee_name := get_name callee in
+        let+ callee_name := get_name callee in
         ST.SExternMethodCall (P4String.str callee_name) f_str [] args tags
       | TypAction data_params control_params =>
         let* act_args := error "[FIXME] add action args" in
-        let** callee_name := get_name callee in
+        let+ callee_name := get_name callee in
         ST.SActCall (P4String.str callee_name) act_args tags
       | TypTypeName (BareName extern_obj) =>
         let extern_str := (P4String.str extern_obj : string) in
@@ -793,7 +793,7 @@ Section ToP4cub.
           let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
           let* params := parameters_to_params tags parameters in
           let* paramargs := apply_args_to_params params cub_args in
-          let** ret_typ := translate_return_type tags ret in
+          let+ ret_typ := translate_return_type tags ret in
           let cub_ret := option_map (fun t => (t, E.EVar t ("$RETVAR_" ++ (P4String.str n)) tags)) ret_typ in
           ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
@@ -802,20 +802,20 @@ Section ToP4cub.
       end
     | StatAssignment lhs rhs =>
       let* (cub_ltyp, cub_lhs) := translate_expression lhs in
-      let** (_, cub_rhs) := translate_expression rhs in
+      let+ (_, cub_rhs) := translate_expression rhs in
       ST.SAssign cub_ltyp cub_lhs cub_rhs i
     | StatDirectApplication typ args =>
       error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
     | StatConditional cond tru fls_opt =>
       let* (cub_type, cub_cond) := translate_expression cond in
       let* cub_tru := translate_statement ctx tru in
-      let** cub_fls := match fls_opt with
+      let+ cub_fls := match fls_opt with
                        | None => ok (ST.SSkip i)
                        | Some fls => translate_statement ctx fls
                        end in
       ST.SConditional cub_type cub_cond cub_tru cub_fls i
     | StatBlock block =>
-      let** sblck := translate_block ctx i block in
+      let+ sblck := translate_block ctx i block in
       ST.SBlock sblck
     | StatExit =>
       ok (ST.SExit i)
@@ -824,7 +824,7 @@ Section ToP4cub.
     | StatReturn expr_opt =>
       match expr_opt with
       | Some e =>
-        let** (cub_typ, cub_expr) := translate_expression e in
+        let+ (cub_typ, cub_expr) := translate_expression e in
         ST.SReturnFruit cub_typ cub_expr i
       | None =>
         ok (ST.SReturnVoid i)
@@ -849,7 +849,7 @@ Section ToP4cub.
       ok (ST.SSkip i)
     | BlockCons statement rest =>
       let* s1 := translate_statement ctx statement in
-      let** s2 := translate_block ctx i rest in
+      let+ s2 := translate_block ctx i rest in
       ST.SSeq s1 s2 i
     end.
 
@@ -869,11 +869,11 @@ Section ToP4cub.
     | ExpDontCare => ok Parser.PATWild
     | ExpRange lo hi =>
       let* lopat := translate_expression_to_pattern lo in
-      let** hipat := translate_expression_to_pattern hi in
+      let+ hipat := translate_expression_to_pattern hi in
       Parser.PATRange lopat hipat
     | ExpMask expr mask =>
       let* expr_pat := translate_expression_to_pattern expr in
-      let** mask_pat := translate_expression_to_pattern mask in
+      let+ mask_pat := translate_expression_to_pattern mask in
       Parser.PATMask expr_pat mask_pat
     | ExpInt z =>
       match z.(width_signed) with
@@ -914,14 +914,14 @@ Section ToP4cub.
   Definition translate_parser_case (pcase : @ParserCase tags_t) : result (either (Parser.e tags_t) (Parser.pat * Parser.e tags_t)) :=
     let '(MkParserCase tags matches next) := pcase in
     let transition := Parser.PGoto (translate_state_name next) tags in
-    let** patterns := translate_matches matches in
+    let+ patterns := translate_matches matches in
     if total_wildcard patterns
     then Left transition
     else Right (Parser.PATTuple patterns, transition).
 
   Definition translate_parser_case_loop pcase acc :=
     let* (def_opt, cases) := acc in
-    let** cub_case := translate_parser_case pcase in
+    let+ cub_case := translate_parser_case pcase in
     match cub_case with
     | Left x => (Some x, cases)
     | Right y => (def_opt, y::cases)
@@ -941,13 +941,13 @@ Section ToP4cub.
     | ParserSelect tags exprs cases =>
       let* type_expr_list := rred (List.map translate_expression exprs) in
       let expr_list := List.map snd type_expr_list in
-      let** (default, cub_cases) := translate_cases cases in
+      let+ (default, cub_cases) := translate_cases cases in
       Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
     end.
 
   Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
     fold_right (fun s res_acc => let* cub_s := translate_statement ctx s in
-                                 let** acc := res_acc in
+                                 let+ acc := res_acc in
                                  ST.SSeq cub_s acc tags)
                (ok (ST.SSkip tags))
                statements.
@@ -955,12 +955,12 @@ Section ToP4cub.
   Fixpoint translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
     let '(MkParserState tags name statements transition) := pstate in
     let* ss := translate_statements ctx tags statements in
-    let** trans := translate_transition transition in
+    let+ trans := translate_transition transition in
     (P4String.str name, Parser.State ss trans).
 
   Definition translate_parser_states_inner (ctx : DeclCtx) (p : ParserState) (res_acc : result ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
     let* (nm, state) := translate_parser_state ctx p in
-    let** (start_opt, states) := res_acc in
+    let+ (start_opt, states) := res_acc in
     if String.eqb nm "start"
     then (Some state, (nm, state)::states)
     else (start_opt, (nm, state)::states).
@@ -1019,14 +1019,14 @@ Section ToP4cub.
     | TypPackage _ _ _  =>
       error "[FIXME] translate package as constructor param"
     | _ =>
-      let** cub_type := translate_exp_type tags typ in
+      let+ cub_type := translate_exp_type tags typ in
       Right (v_str, E.CTType cub_type)
     end.
 
   Definition partition_constructor_params (tags : tags_t) (params : list (@P4Parameter tags_t)) :=
     fold_right (fun p acc =>
                   let* (extn, ctrlr) := acc in
-                  let** param := translate_constructor_param tags p in
+                  let+ param := translate_constructor_param tags p in
                   match param with
                   | Left e => (e :: extn, ctrlr)
                   | Right c => (extn, c::ctrlr)
@@ -1053,7 +1053,7 @@ Section ToP4cub.
 
   Definition translate_action_params tags data_params ctrl_params :=
     let* cub_data_params := parameters_to_params tags data_params in
-    let** cub_ctrl_params := parameters_to_params tags ctrl_params in
+    let+ cub_ctrl_params := parameters_to_params tags ctrl_params in
     (* TODO ensure ctrl params are directionless? *)
     List.app cub_data_params cub_ctrl_params.
 

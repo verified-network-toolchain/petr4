@@ -221,13 +221,13 @@ Module Translate.
       | E.EStruct _ _ => error "Explicit Structs are not l-values"
       | E.EHeader _ _ _ => error "Explicit Headers are not l-values"
       | E.EExprMember mem expr_type arg i =>
-        let** lv := to_lvalue arg in
+        let+ lv := to_lvalue arg in
         lv ++ "." ++ mem
       | E.EError _ _ => error "errors are not l-values"
       | E.EMatchKind _ _ => error "Match Kinds are not l-values"
       | E.EHeaderStack _ _ _ _ _ => error "Header Stacks are not l-values"
       | E.EHeaderStackAccess stack index i =>
-        let** lv := to_lvalue stack in
+        let+ lv := to_lvalue stack in
         (** TODO How to handle negative indices? **)
         lv ++ "["++ (string_of_z index) ++ "]"
       end.
@@ -276,7 +276,7 @@ Module Translate.
       | E.EHeader _ _ _ =>
         error "Header literals should not be keys"
       | E.EExprMember mem expr_type arg i =>
-        let** str := to_header_string arg in
+        let+ str := to_header_string arg in
         str ++ "." ++ mem
       | E.EError _ _ => error "errors are not header strings"
       | E.EMatchKind _ _ => error "MatchKinds are not header strings"
@@ -300,11 +300,11 @@ Module Translate.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let** w := width_of_type t in
+        let+ w := width_of_type t in
         BV.BVVar x w i
 
       | E.ESlice e τ hi lo i =>
-        let** rv_e := to_rvalue e in
+        let+ rv_e := to_rvalue e in
         BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
@@ -319,14 +319,14 @@ Module Translate.
       | E.EUop op type arg i =>
         match op with
         | E.Not =>
-          let** rv_arg := to_rvalue arg in
+          let+ rv_arg := to_rvalue arg in
           BV.UnOp BV.BVNeg rv_arg i
         | E.BitNot =>
-          let** rv_arg := to_rvalue arg in
+          let+ rv_arg := to_rvalue arg in
           BV.UnOp BV.BVNeg rv_arg i
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
-          let** header := to_header_string arg in
+          let+ header := to_header_string arg in
           let hvld := header ++ ".is_valid" in
           BV.BVVar hvld 1 i
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
@@ -384,7 +384,7 @@ Module Translate.
         error "Enums in the rvalue position should have been factored out by previous passes"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
-        let** w := width_of_type expr_type in
+        let+ w := width_of_type expr_type in
         BV.BVVar (lv ++ "." ++ mem) w i
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
@@ -430,7 +430,7 @@ Module Translate.
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
-          let** header := to_lvalue arg in
+          let+ header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1 i) i
         | E.SetValid =>
@@ -454,11 +454,11 @@ Module Translate.
                        end in
         let lbin := fun o_res => let* l := to_form lhs in
                                  let* r := to_form rhs in
-                                 let** o := o_res in
+                                 let+ o := o_res in
                                  GCL.LBop o l r i in
         let cbin := fun o_res => let* l := to_rvalue lhs in
                                  let* r := to_rvalue rhs in
-                                 let** o := o_res in
+                                 let+ o := o_res in
                                  GCL.LComp o l r i in
         match op with
         | E.Plus => error "Typeerror: (+) is not a boolean operator"
@@ -520,7 +520,7 @@ Module Translate.
 
       | Inline.IAssign type lhs rhs i =>
         let* lhs' := to_lvalue (scopify ctx lhs) in
-        let** rhs' := to_rvalue (scopify ctx rhs) in
+        let+ rhs' := to_rvalue (scopify ctx rhs) in
         let e := GCL.GAssign type lhs' rhs' i in
         (e, ctx)
 
@@ -531,12 +531,12 @@ Module Translate.
 
       | Inline.ISeq s1 s2 i =>
         let* g1 := inline_to_gcl ctx arch s1 in
-        let** g2 := inline_to_gcl (snd g1) arch s2 in
+        let+ g2 := inline_to_gcl (snd g1) arch s2 in
         seq i g1 g2
 
       | Inline.IBlock s =>
         let* (gcl, ctx') := inline_to_gcl (Ctx.incr ctx) arch s in
-        let** ctx'' := Ctx.decr ctx ctx' in
+        let+ ctx'' := Ctx.decr ctx ctx' in
         (gcl, ctx'')
 
       | Inline.IReturnVoid i =>
@@ -552,12 +552,12 @@ Module Translate.
 
       | Inline.IInvoke tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
-        let** g := instr tbl i keys actions' in
+        let+ g := instr tbl i keys actions' in
         (g, ctx)
 
       | Inline.IExternMethodCall ext method args i =>
         (** TODO handle copy-in/copy-out) *)
-        let** g := Arch.find arch ext method in
+        let+ g := Arch.find arch ext method in
         (g, ctx)
       end.
 
@@ -572,7 +572,7 @@ Module Translate.
       let* no_stk := Inline.elaborate_header_stacks no_tup in
       let* no_hdr := Inline.elaborate_headers no_stk in
       let* no_structs := Inline.elaborate_structs no_hdr in
-      let** (gcl,_) := inline_to_gcl Ctx.initial arch no_structs in
+      let+ (gcl,_) := inline_to_gcl Ctx.initial arch no_structs in
       gcl.
 
   End Instr.
@@ -810,7 +810,7 @@ Module Translate.
     Definition action_inner (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (w : nat) (n : nat) (named_action : string * Translate.target) (res_acc : result Translate.target) : result Translate.target :=
       let (name, act) := named_action in
       let* matchcond := matchrow name keys i in
-      let** acc := res_acc in
+      let+ acc := res_acc in
       GCL.g_sequence i
                  [GCL.GAssume matchcond;
                  asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i;
@@ -822,7 +822,7 @@ Module Translate.
       fold_lefti (action_inner table i keys w) (ok (GCL.GSkip i)) actions.
 
     Definition instr (name : string) (i : tags_t) (keys: list (E.t * E.e tags_t * E.matchkind)) (actions: list (string * Translate.target)) : result Translate.target :=
-      let** hit := actions_encoding name i keys actions in
+      let+ hit := actions_encoding name i keys actions in
       let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i in
       GCL.GChoice hit miss.
 

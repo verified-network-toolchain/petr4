@@ -733,6 +733,7 @@ Section ToP4cub.
              (tags : tags_t)
              (ctx : DeclCtx)
              (callee : Expression)
+             (ret_var : option string)
              (f : P4String.t tags_t) : result (ST.s tags_t) :=
     let f_str := P4String.str f in
     let typ := get_type_of_expr callee in
@@ -755,6 +756,16 @@ Section ToP4cub.
     | "setValid" =>
       let+ (_,hdr) := translate_expression callee in
       ST.SSetValidity hdr ST.Valid tags
+    | "isValid" =>
+      let* (_,hdr) := translate_expression callee in
+      match ret_var with
+      | None => error "IsValid has no return value"
+      | Some rv =>
+        ok (ST.SAssign E.TBool
+                       (E.EVar E.TBool rv tags)
+                       (E.EUop E.IsValid E.TBool hdr tags)
+                       tags)
+      end
     | _ =>
       match typ with
       | TypExtern e =>
@@ -790,6 +801,30 @@ Section ToP4cub.
       end
     end.
 
+  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) : option (result (ST.s tags_t)) :=
+    let '(MkExpression tags expr typ dir) := e in
+    match expr with
+    | ExpFunctionCall func type_args args =>
+      let '(MkExpression tags func_pre typ dir) := func in
+      match func_pre with
+      | ExpExpressionMember callee f =>
+        Some (translate_expression_member_call args tags ctx callee (Some ret_var) f)
+      | ExpName (BareName n) loc =>
+        match typ with
+        | TypFunction (MkFunctionType type_params parameters kind ret) =>
+          Some (let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
+                let* params := parameters_to_params tags parameters in
+                let* paramargs := apply_args_to_params params cub_args in
+                let+ ret_typ := translate_return_type tags ret in
+                let cub_ret := option_map (fun t => (t, E.EVar t ret_var tags)) ret_typ in
+                ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags)
+        | _ => Some (error "A name, applied like a method call, must be a function or extern type; I got something else")
+        end
+      | _ => Some (error "ERROR :: Cannot handle this kind of expression")
+      end
+    | _ =>
+      None
+    end.
 
   Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
     match ssw with
@@ -804,7 +839,7 @@ Section ToP4cub.
       let '(MkExpression tags func_pre typ dir) := func in
       match func_pre with
       | ExpExpressionMember callee f =>
-        translate_expression_member_call args tags ctx callee f
+        translate_expression_member_call args tags ctx callee None f
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
@@ -850,11 +885,28 @@ Section ToP4cub.
     | StatSwitch expr cases =>
       error "[FIXME] switch statement not implemented"
     | StatConstant typ name value loc =>
-      error "Should not occur"
+      error "Constant Statement should not occur"
     | StatVariable typ name init loc =>
-      error "Should not occur"
+      let* t := translate_exp_type i typ in
+      let vname := P4String.str name in
+      let decl := ST.SVardecl t vname i in
+      match init with
+      | None =>
+        ok decl
+      | Some e =>
+        match function_call_init ctx e vname with
+        | None =>  (** check whether e is a function call *)
+          let+ (_, cub_e) := translate_expression e in
+          let var := E.EVar t vname i in
+          let assign := ST.SAssign t var cub_e i in
+          ST.SSeq decl assign i
+        | Some s =>
+          let+ s := s in
+          ST.SSeq decl s i
+        end
+      end
     | StatInstantiation typ args name init =>
-      error "Should not occur"
+      error "Instantiation statement should not occur"
     end
   with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result (ST.s tags_t) :=
     match s with
@@ -1158,7 +1210,7 @@ Section ToP4cub.
       (* let cub_name := P4String.str name in *)
       (* let* cub_signature := error "[FIXME] Translate function signature" in *)
       (* let* cub_body := error "[FIXME] Translate function bodies" in *)
-    (* error "[FIXME] implement function declarations" *)
+      (* error "[FIXME] implement function declarations" *)
       ok ctx
     | DeclExternFunction tags ret name type_params params =>
     (* error "[FIXME] Extern function declarations unimplemented" *)
@@ -1256,66 +1308,68 @@ Require Import Poulet4.SimpleNat.
 Import SimpleNat.
 
 Definition test := Program
-                     [decl'1;
-                     packet_in;
-                     packet_out;
-                     verify'check'toSignal;
-                     NoAction;
-                     decl'2;
-                     decl'3;
-                     standard_metadata_t;
-                     CounterType;
-                     MeterType;
-                     counter;
-                     direct_counter;
-                     meter;
-                     direct_meter;
-                     register;
-                     action_profile;
-                     random'result'lo'hi;
-                     digest'receiver'data;
-                     HashAlgorithm;
-                     mark_to_drop;
-                     mark_to_drop'standard_metadata;
-                     hash'result'algo'base'data'max;
-                     action_selector;
-                     CloneType;
-                     Checksum16;
-                     verify_checksum'condition'data'checksum'algo;
-                     update_checksum'condition'data'checksum'algo;
-                     verify_checksum_with_payload'condition'data'checksum'algo;
-                     update_checksum_with_payload'condition'data'checksum'algo;
-                     resubmit'data; recirculate'data; clone'type'session;
-                     clone3'type'session'data;
-                     truncate'length;
-                     assert'check;
-                     assume'check;
-                     log_msg'msg;
-                     log_msg'msg'data;
-                     Parser;
-                     VerifyChecksum;
-                     Ingress;
-                     Egress;
-                     ComputeChecksum;
-                     Deparser;
-                     V1Switch;
-                     intrinsic_metadata_t;
-                     meta_t;
-                     cpu_header_t;
-                     ethernet_t;
-                     ipv4_t;
-                     tcp_t;
-                     metadata;
-                     headers;
-                     ParserImpl;
-                     egress;
-                     ingress;
-                     DeparserImpl;
-                     verifyChecksum;
-                     computeChecksum;
-                     main
+                     [decl'1
+                      ; packet_in
+                      ; packet_out
+                      ; verify'check'toSignal
+                      ; NoAction
+                      ; decl'2
+                      ; decl'3
+                      ; standard_metadata_t
+                      ; CounterType
+                      ; MeterType
+                      ; counter
+                      ; direct_counter
+                      ; meter
+                      ; direct_meter
+                      ; register
+                      ; action_profile
+                      ; random'result'lo'hi
+                      ; digest'receiver'data
+                      ; HashAlgorithm
+                      ; mark_to_drop
+                      ; mark_to_drop'standard_metadata
+                      ; hash'result'algo'base'data'max
+                      ; action_selector
+                      ; CloneType
+                      ; Checksum16
+                      ; verify_checksum'condition'data'checksum'algo
+                      ; update_checksum'condition'data'checksum'algo
+                      ; verify_checksum_with_payload'condition'data'checksum'algo
+                      ; update_checksum_with_payload'condition'data'checksum'algo
+                      ; resubmit'data
+                      ; recirculate'data
+                      ; clone'type'session
+                      ; clone3'type'session'data
+                      ; truncate'length
+                      ; assert'check
+                      ; assume'check
+                      ; log_msg'msg
+                      ; log_msg'msg'data
+                      ; Parser
+                      ; VerifyChecksum
+                      ; Ingress
+                      ; Egress
+                      ; ComputeChecksum
+                      ; Deparser
+                      ; V1Switch
+                      ; intrinsic_metadata_t
+                      ; meta_t
+                      ; cpu_header_t
+                      ; ethernet_t
+                      ; ipv4_t
+                      ; tcp_t
+                      ; metadata
+                      ; headers
+                      ; ParserImpl
+                      ; egress
+                      ; ingress
+                      ; DeparserImpl
+                      ; verifyChecksum
+                      ; computeChecksum
+                      (* ; main *)
                      ].
 
-Compute (translate_program Info NoInfo (SimpleNat.test)).
+Compute (translate_program Info NoInfo test).
 
 Compute (translate_program Info NoInfo (SimpleNat.prog)).

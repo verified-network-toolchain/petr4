@@ -1425,7 +1425,7 @@ module MakeInterpreter (T : Target) = struct
         ~init:(env, st)
         ~f:(fun (e,s) -> eval_declaration ctrl e s)
     in
-    let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.len pkt} in
+    let pkt = {emitted = Cstruct.empty; main = pkt; in_size = Cstruct.length pkt} in
     let st', pkt', port = eval_main ctrl env st pkt in_port in
     st', pkt' >>| fun pkt' -> (Cstruct.append pkt'.emitted pkt'.main, port)
 

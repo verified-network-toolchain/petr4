@@ -1057,6 +1057,48 @@ Section ToP4cub.
     (* TODO ensure ctrl params are directionless? *)
     List.app cub_data_params cub_ctrl_params.
 
+  Print TableKey.
+
+  Definition translate_matchkind (matchkind : P4String.t tags_t) : result E.matchkind :=
+    let mk_str := P4String.str matchkind in
+    match mk_str with
+    | "lpm" => ok E.MKLpm
+    | "ternary" => ok E.MKTernary
+    | "exact" => ok E.MKExact
+    | _ => error ("Matchkind not supported by P4cub: " ++ mk_str)
+    end.
+
+  Definition translate_key (key : TableKey) : result (E.t * E.e tags_t * E.matchkind) :=
+    let '(MkTableKey tags key_exp matchkind) := key in
+    let* (t, e) := translate_expression key_exp in
+    let+ mk := translate_matchkind matchkind in
+    (t, e, mk).
+
+  Definition translate_keys_loop (key : TableKey) (acc : result (list (E.t * E.e tags_t * E.matchkind))) : result (list (E.t * E.e tags_t * E.matchkind)) :=
+    let* cub_key := translate_key key in
+    let+ cub_keys := acc in
+    cub_key :: cub_keys.
+
+  Definition translate_keys (keys : list TableKey) : result (list (E.t * E.e tags_t * E.matchkind)) :=
+    List.fold_right translate_keys_loop (ok []) keys.
+
+  Definition translate_action (action : TableActionRef) : result string :=
+    let '(MkTableActionRef tags pre_action typ) := action in
+    let '(MkTablePreActionRef name args) := pre_action in
+    match name with
+    | BareName act_name => ok (@P4String.str tags_t act_name)
+    | QualifiedName _ _ =>
+      error "don't know how to deal with quantified names"
+    end.
+
+  Definition translate_actions_loop (action : TableActionRef) (acc : result (list string)) : result (list string) :=
+    let* cub_act := translate_action action in
+    let+ cub_acts := acc in
+    cub_act :: cub_acts.
+
+  Definition translate_actions (actions : list TableActionRef) : result (list string) :=
+    List.fold_right translate_actions_loop (ok []) actions.
+
   Program Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
@@ -1091,9 +1133,9 @@ Section ToP4cub.
          fold_left loop locals (ok (empty_declaration_context))
       in
       let cub_body := to_ctrl_decl tags local_ctx in
-      let* cub_block := translate_block (extend local_ctx ctx) tags apply_blk in
+      let+ cub_block := translate_block (extend local_ctx ctx) tags apply_blk in
       let d := TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags in
-      ok (add_control ctx d)
+      add_control ctx d
     | DeclFunction tags ret name type_params params body =>
       (* let cub_name := P4String.str name in *)
       (* let* cub_signature := error "[FIXME] Translate function signature" in *)
@@ -1113,13 +1155,18 @@ Section ToP4cub.
       (* TODO High prio *)
       let cub_name := P4String.str name in
       let* cub_signature := translate_action_params tags data_params ctrl_params in
-      let* cub_body := translate_block ctx tags body in
+      let+ cub_body := translate_block ctx tags body in
       let a := TopDecl.C.CDAction cub_name cub_signature cub_body tags in
-      ok (add_action ctx a)
-    | DeclTable tags name key actions entires default_action size custom_properties =>
+      add_action ctx a
+    | DeclTable tags name keys actions entries default_action size custom_properties =>
       (* TODO High prio *)
-      error "[FIXME] Table Declarations unimplemented"
-      (* ok ctx *)
+
+      let name := P4String.str name in
+      let* cub_keys := translate_keys keys in
+      let+ cub_actions := translate_actions actions in
+      let table := TopDecl.C.Table cub_keys cub_actions in
+      let t := TopDecl.C.CDTable name table tags in
+      add_action ctx t
     | DeclHeader tags name fields =>
     (* error "[FIXME] Header Declarations unimplemented" *)
       ok ctx
@@ -1144,9 +1191,9 @@ Section ToP4cub.
     | DeclExternObject tags name type_params methods =>
       (* error "[FIXME] Extern Object declarations unimplemented" *)
       let str_name := P4String.str name in
-      let* cub_methods := translate_methods name methods in
+      let+ cub_methods := translate_methods name methods in
       let d := TopDecl.TPExtern str_name [] [] cub_methods tags in
-      ok (add_extern ctx d)
+      add_extern ctx d
     | DeclTypeDef tags name typ_or_decl =>
     (* error "[FIXME] Type Definitions unimplemented" *)
       ok ctx

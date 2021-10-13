@@ -1,4 +1,5 @@
-Require Import Coq.ZArith.BinInt.
+Require Import Coq.ZArith.BinInt Coq.Lists.List.
+Import ListNotations.
 Require Poulet4.P4String.
 Require Poulet4.P4Int.
 Require Poulet4.Syntax.
@@ -99,4 +100,70 @@ Section Value.
   | ValObj (_: ValueObject)
   | ValCons (_: ValueConstructor).
 
+  Section ValBaseInd.
+    Variable bit : Type.    
+    Notation V := (@ValueBase bit).
+    Variable P : V -> Prop.
+
+    Hypothesis HNull : P ValBaseNull.
+    Hypothesis HBool : forall b, P (ValBaseBool b).
+    Hypothesis HInteger : forall z, P (ValBaseInteger z).
+    Hypothesis HBit : forall n, P (ValBaseBit n).
+    Hypothesis HInt : forall z, P (ValBaseInt z).
+    Hypothesis HVarbit : forall w n, P (ValBaseVarbit w n).
+    Hypothesis HString : forall s, P (ValBaseString s).
+    Hypothesis HTuple : forall vs,
+        Forall P vs -> P (ValBaseTuple vs).
+    Hypothesis HRecord : forall vs,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseRecord vs).
+    Hypothesis HError : forall err, P (ValBaseError err).
+    Hypothesis HMatchKind : forall mk, P (ValBaseMatchKind mk).
+    Hypothesis HStruct : forall vs,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseStruct vs).
+    Hypothesis HHeader : forall vs b,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseHeader vs b).
+    Hypothesis HUnion : forall vs,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseUnion vs).
+    Hypothesis HStack : forall vs n i,
+        Forall P vs -> P (ValBaseStack vs n i).
+    Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
+    Hypothesis HSenumField : forall t x v,
+        P v -> P (ValBaseSenumField t x v).
+    Hypothesis HSenum : forall vs,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseSenum vs).
+    
+    Definition custom_ValueBase_ind :
+      forall v : V, P v :=
+      fix vind (v : V) : P v :=
+        let fix lind (vs : list V) : Forall P vs :=
+            match vs with
+            | []     => Forall_nil _
+            | v :: vs => Forall_cons _ (vind v) (lind vs)
+            end in
+        let fix alind (vs : AList.AList _ V _) : Forall (fun '(_,v) => P v) vs :=
+            match vs with
+            | []          => Forall_nil _
+            | (_,v) as xv :: vs => Forall_cons xv (vind v) (alind vs)
+            end in
+        match v with
+        | ValBaseNull             => HNull
+        | ValBaseBool b           => HBool b
+        | ValBaseInteger z        => HInteger z
+        | ValBaseBit n            => HBit n
+        | ValBaseInt z            => HInt z
+        | ValBaseVarbit w n       => HVarbit w n
+        | ValBaseString s         => HString s
+        | ValBaseTuple vs         => HTuple _ (lind vs)
+        | ValBaseRecord vs        => HRecord _ (alind vs)
+        | ValBaseError err        => HError err
+        | ValBaseMatchKind mk     => HMatchKind mk
+        | ValBaseStruct vs        => HStruct _ (alind vs)
+        | ValBaseHeader vs b      => HHeader _ b (alind vs)
+        | ValBaseUnion vs         => HUnion _ (alind vs)
+        | ValBaseStack vs n i     => HStack _ n i (lind vs)
+        | ValBaseEnumField t x    => HEnumField t x
+        | ValBaseSenumField t x v => HSenumField t x _ (vind v)
+        | ValBaseSenum vs         => HSenum _ (alind vs)
+        end.
+  End ValBaseInd.
 End Value.

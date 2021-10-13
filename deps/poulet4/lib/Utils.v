@@ -203,3 +203,162 @@ Section option_rec.
     end
   .
 End option_rec.
+
+Section MapCombine.
+  Variables U V : Type.
+  
+  Lemma combine_map_fst_snd : forall (l : list (U * V)),
+      combine (map fst l) (map snd l) = l.
+  Proof.
+    intro l; induction l as [| [u v] l IHl];
+      simpl; f_equal; auto.
+  Qed.
+  
+  Lemma map_fst_combine : forall (us : list U) (vs : list V),
+      List.length us = List.length vs ->
+      map fst (combine us vs) = us.
+  Proof.
+    intro us; induction us as [| u us IHus];
+      intros [| v vs] Hl; simpl in *;
+        inversion Hl; subst; f_equal; auto.
+  Qed.
+  
+  Lemma map_snd_combine : forall (us : list U) (vs : list V),
+      List.length us = List.length vs ->
+      map snd (combine us vs) = vs.
+  Proof.
+    intro us; induction us as [| u us IHus];
+      intros [| v vs] Hl; simpl in *;
+        inversion Hl; subst; f_equal; auto.
+  Qed.
+End MapCombine.
+
+Section Forall.
+  Variables (A B : Type) (R : A -> B -> Prop).
+  
+  Lemma Forall_exists_factor : forall l : list A,
+      Forall (fun a => exists b, R a b) l <-> exists bs, Forall2 R l bs.
+  Proof.
+    intro l; split.
+    - intro H; induction H; eauto.
+      destruct H as [b HRb];
+      destruct IHForall as [bs HRbs]; eauto.
+    - intros [bs HRlbs].
+      induction HRlbs; eauto.
+  Qed.
+
+  Lemma forall_Forall2 : forall (l : list A),
+      (forall a, In a l -> forall b, R a b) ->
+      forall bs, List.length l = List.length bs -> Forall2 R l bs.
+  Proof.
+    intro l;
+      induction l as [| a l IHl];
+      intros H [| b bs] Hbs; simpl in *; try discriminate; auto.
+  Qed.
+
+  Lemma Forall2_length : forall la lb,
+      Forall2 R la lb -> List.length la = List.length lb.
+  Proof.
+    intros la lb H; induction H;
+      simpl; f_equal; auto.
+  Qed.
+
+  Lemma Forall2_flip : forall la lb,
+      Forall2 (fun b a => R a b) lb la <-> Forall2 R la lb.
+  Proof.
+    intros la lb; split; intros H;
+      induction H; auto.
+  Qed.
+  
+  Variable Q : A -> B -> Prop.
+  
+  Lemma Forall2_impl : forall la lb,
+      Forall2 (fun a b => R a b -> Q a b) la lb ->
+      Forall2 R la lb -> Forall2 Q la lb.
+  Proof.
+    intros la lb HRQ HR;
+      induction HRQ; inversion HR; subst; auto.
+  Qed.
+
+  Lemma Forall2_conj : forall us vs,
+      Forall2 (fun u v => R u v /\ Q u v) us vs <->
+      Forall2 R us vs /\ Forall2 Q us vs.
+  Proof.
+    intros us vs; split.
+    - intros H; induction H; simpl in *; intuition.
+    - intros [HR HQ]; induction HR; inversion HQ;
+        simpl in *; auto.
+  Qed.
+End Forall.
+
+Section ForallMap.
+  Variables (A B C : Type) (R : A -> B -> Prop).
+  
+  Lemma Forall2_map_l : forall (f : C -> A) lc lb,
+      Forall2 (fun c b => R (f c) b) lc lb <-> Forall2 R (map f lc) lb.
+  Proof.
+    intros f lc lb; split; intros H.
+    - induction H; simpl in *; auto.
+    - remember (map f lc) as la eqn:Heqla;
+        generalize dependent lc.
+      induction H; intros [| ? ?] Heqla;
+      simpl in *; inversion Heqla; subst; auto.
+  Qed.
+  
+  Lemma Forall2_map_r : forall (f : C -> B) la lc,
+      Forall2 (fun a c => R a (f c)) la lc <-> Forall2 R la (map f lc).
+  Proof.
+    intros f la lc; split; intros H.
+    - induction H; simpl in *; auto.
+    - remember (map f lc) as mflc eqn:Hmflc.
+      generalize dependent lc.
+      induction H; intros lc Hmflc.
+      + symmetry in Hmflc; apply map_eq_nil in Hmflc; subst; auto.
+      + destruct lc as [| c lc]; simpl in *;
+          inversion Hmflc; subst; auto.
+  Qed.
+End ForallMap.
+
+Lemma Forall2_map_both :
+  forall (T U V W : Type) (R : V -> W -> Prop) (f : T -> V) (g : U -> W) ts us,
+    Forall2 (fun t u => R (f t) (g u)) ts us <-> Forall2 R (map f ts) (map g us).
+Proof.
+  intros; rewrite <- Forall2_map_l, <- Forall2_map_r; reflexivity.
+Qed.
+
+Lemma reduce_inner_impl : forall (A : Type) (Q : Prop) (P R : A -> Prop),
+    (forall a, P a -> Q -> R a) -> Q -> forall a, P a -> R a.
+Proof.
+  intuition.
+Qed.
+
+Lemma split_impl_conj : forall (A : Type) (P Q R : A -> Prop),
+    (forall a, P a -> Q a /\ R a) <->
+    (forall a, P a -> Q a) /\ forall a, P a -> R a.
+Proof.
+  firstorder.
+Qed.
+
+Lemma Forall2_Forall : forall (U : Type) (R : U -> U -> Prop) us,
+    Forall2 R us us <-> Forall (fun u => R u u) us.
+Proof.
+  intros U R us; split;
+    induction us as [| u us IHus];
+    intros H; inversion H; subst; simpl in *; auto.
+Qed.
+
+Lemma map_fst_map : forall (U V W : Type) (f : U -> W) (uvs : list (U * V)),
+    map fst (map (fun '(u,v) => (f u,v)) uvs) = map f (map fst uvs).
+Proof.
+  intros U V W f uvs;
+    induction uvs as [| [u v] uvs IHuvs];
+    simpl in *; f_equal; auto.
+Qed.
+
+Lemma map_snd_map : forall (U V W : Type) (f : V -> W) (uvs : list (U * V)),
+    map snd (map (fun '(u,v) => (u, f v)) uvs) = map f (map snd uvs).
+Proof.
+  intros U V W f uvs;
+    induction uvs as [| [u v] uvs IHuvs];
+    simpl in *; f_equal; auto.
+Qed.

@@ -233,12 +233,12 @@ Section Transformer.
         mret (MkStatement tags (StatVariable typ' name init' loc) typ, e')
       | StatInstantiation typ' args name init =>
         let args' := transform_exprs e args in
-        let* init' :=
+        (* let* init' := []
           match init with
           | Some init => let* init' := transform_blk e ns init in mret (Some init')
           | None => mret None
-          end in
-        mret (MkStatement tags (StatInstantiation typ' args' name init') typ, e)
+          end in *)
+        mret (MkStatement tags (StatInstantiation typ' args' name []) typ, e)
       end
     with transform_stmt (e: env) (ns: list P4String) (stmt: @Statement tags_t):
            monad (@Statement tags_t * env) :=

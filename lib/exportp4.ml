@@ -625,7 +625,7 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
           print_type typ
           print_exprs args
           p4string s
-          (print_option print_block) init
+          (print_list print_init) init
 and print_stmt p (stmt : coq_Statement) =
   match stmt with
   | MkStatement (info, pre_stmt, typ) ->
@@ -642,6 +642,24 @@ and print_block p (block : coq_Block) =
       fprintf p "(@[<hov 4>BlockCons@ %a@ %a)@]"
           print_stmt stmt
           print_block block
+and print_init p (init : coq_Initializer) =
+    match init with
+    | InitFunction (info, ret, name, t_params, params, body) ->
+        fprintf p "(@[<hov 4>InitFunction@ %a@ %a@ %a@ %a@ %a@ %a)@]"
+            print_info info
+            print_type ret
+            p4string name
+            (print_list p4string) t_params
+            print_params params
+            print_block body
+    | InitInstantiation (info, typ, args, name, init) ->
+        fprintf p "(@[<hov 4>InitInstantiation@ %a@ %a@ %a@ %a@ %a)@]"
+            print_info info
+            print_type typ
+            print_exprs args
+            p4string name
+            (print_list print_init) init
+
 
 let print_stmts = 
   print_list print_stmt
@@ -725,7 +743,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_type typ
           print_exprs args
           p4string name
-          (print_option print_block) init
+          (print_list print_init) init
   | DeclParser (info, name, type_params, params, constructor_params, locals, states) ->
       let (f_str, decl_name) = 
         (gen_format_string decl_name "DeclParser@ %a@ %a@ %a@ %a@ %a@ %a@ %a")

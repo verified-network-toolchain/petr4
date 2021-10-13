@@ -1345,7 +1345,7 @@ End instantiate_class_body.
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
   | MkStatement _ (StatDirectApplication typ _) _  =>
-      [DeclInstantiation dummy_tags typ nil (get_type_name typ) None]
+      [DeclInstantiation dummy_tags typ nil (get_type_name typ) []]
   | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
   | _ => []
   end

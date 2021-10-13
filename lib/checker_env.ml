@@ -27,6 +27,14 @@ let empty_with_renamer r : t =
     externs = Env.empty_env;
     renamer = r }
 
+let top_scope env : t =
+  { typ = [List.last_exn env.typ];
+    typ_of = [List.last_exn env.typ_of];
+    const = [List.last_exn env.const];
+    default_args = env.default_args;
+    externs = [List.last_exn env.externs];
+    renamer = env.renamer }
+
 let empty_t () : t =
   empty_with_renamer @@ Renamer.create ()
 

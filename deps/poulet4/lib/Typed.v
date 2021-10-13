@@ -82,6 +82,7 @@ Section Typed.
   | StmVoid.
 
   Inductive StmtContext :=
+  | StmtCxMethod (ret: P4Type)
   | StmtCxFunction (ret: P4Type)
   | StmtCxAction
   | StmtCxParserState
@@ -110,6 +111,7 @@ Section Typed.
   | ExprCxDeclLocals
   | ExprCxTableAction
   | ExprCxAction
+  | ExprCxMethod
   | ExprCxFunction
   | ExprCxConstant.
 

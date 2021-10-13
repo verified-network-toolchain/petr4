@@ -2169,7 +2169,8 @@ and call_ok (ctx: coq_ExprContext) (fn_kind: coq_FunctionKind) : bool =
     | ExprCxApplyBlock, FunControl -> true
     | _, FunControl -> false
     (* ATTN: Temporary change to allow extern used in the initializers *)
-    | ExprCxFunction, FunExtern -> true
+    | ExprCxMethod, FunExtern -> true
+    | ExprCxFunction, FunExtern -> false
     | _, FunExtern -> true
     | ExprCxApplyBlock, FunTable -> true
     | _, FunTable -> false
@@ -2649,7 +2650,8 @@ and type_return env ctx stmt_info expr =
     match ctx with
     | StmtCxApplyBlock
     | StmtCxAction -> TypVoid
-    | StmtCxFunction t -> t
+    | StmtCxFunction t
+    | StmtCxMethod t  -> t
     | StmtCxParserState -> failwith "return in parser state not allowed"
   in
   let (stmt, typ) : Prog.coq_StatementPreT * coq_P4Type =
@@ -2774,10 +2776,10 @@ and type_initializer env ctx instance_type (init: Types.Statement.t) : Prog.coq_
     | Function {return; name; type_params; params; body} ->
       check_param_shadowing params [];
       let ret_type = translate_type env return in
-      let ctx: coq_StmtContext = StmtCxFunction ret_type in
+      let ctx: coq_StmtContext = StmtCxMethod ret_type in
       let top_env = Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (top_scope env) in
       begin match type_function top_env ctx (fst decl) return name type_params params body with
-      (* @synchronous allows access to other instantiations but not function declarations z*)
+      (* @synchronous allows access to other instantiations but not function declarations *)
       | DeclFunction (info, return_type, name, t_params, params_typed, body_typed), _ ->
         InitFunction (info, return_type, name, t_params, params_typed, body_typed), env
       | _ -> failwith "BUG: expected DeclFunction."
@@ -2794,45 +2796,33 @@ and type_initializer env ctx instance_type (init: Types.Statement.t) : Prog.coq_
   | _ -> failwith "Unexpected statement as the initializer."
   end
 
-and type_initializers env ctx instance_type (inits: Types.Statement.t list): 
-                      Prog.coq_Initializer list * (P4string.t * Typed.coq_P4Type) list =
-  match instance_type with
-  | TypExtern _
-  | TypSpecializedType (TypExtern _, _) -> 
-      let f (inits_typed, inits_abst, env) decl =
-        let init_typed, env' = type_initializer env ctx instance_type decl in
-        let inits_abst' = 
-          begin match init_typed with
-          | InitFunction (info, return_type, name, t_params, params_typed, body_typed) ->
-            if (t_params <> []) then failwith "Function initializer should not have any type parameters."
-            else let init_abst_typ = reduce_type env' (TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)))
-              in inits_abst @ [(name, init_abst_typ)]
-          | _ -> inits_abst
-          end in
-        inits_typed @ [init_typed], inits_abst' , env'
-      in let inits_typed, inits_abst, _ = List.fold_left ~f ~init:([], [], env) inits in
-        inits_typed, inits_abst
-  | _ -> failwith "Initializers are allowed only in the instantiation of an extern object."
-
-and check_abstract_methods env extern_name args (inits_abst: (P4string.t * Typed.coq_P4Type) list) =
-  let ext = Checker_env.find_extern (BareName extern_name) env in 
+and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Initializer list * int =
+  let extern_name, args =
+    match instance_type with
+    | TypExtern extern_name -> extern_name, []
+    | TypSpecializedType (TypExtern extern_name, args) -> extern_name, args
+    | _ -> raise_s [%message"Initializers are allowed only in the instantiation of an extern object."
+                    ~typ:(instance_type : Typed.coq_P4Type) ]
+  in let ext = Checker_env.find_extern (BareName extern_name) env in 
   let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
-  let is_initialized (m: Prog.coq_ExternMethod) =
-    begin match List.find ~f:(fun init -> P4string.eq m.name (fst init)) inits_abst with
-    | Some (name, init) ->
-      let typ = 
-        begin match reduce_type env_with_args (TypFunction m.typ)  with
-        | TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) ->
-          TypFunction (MkFunctionType ([], params_typed, FunExtern, return_type))
-        | _ -> failwith "BUG: expected TypFunction"
-        end
-      in assert_type_equality env name.tags typ init
-    | None -> failwith "Abstract methods are not fully initialized during instantiation."
-    end in 
-  let _ = List.map ~f:is_initialized ext.abst_methods in
-  if List.length inits_abst <> List.length ext.abst_methods
-  then failwith "Duplicate or excessive function initializers."
-
+  let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
+  let check_initializer (inits_typed, num_absts, env) decl =
+    let init_typed, env' = type_initializer env ctx instance_type decl in
+    let num_absts' = 
+    begin match init_typed with
+    | InitFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+      begin match List.find ~f:(fun decl -> P4string.eq name (fst decl)) decls_abst with
+      | Some (name, decl_type) ->
+        let init_type = TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) in
+          assert_type_equality env' name.tags decl_type init_type
+      | None -> ()
+      end;
+      num_absts + 1
+    | _ -> num_absts
+    end
+    in inits_typed @ [init_typed], num_absts', env'
+  in let inits_typed, num_absts, _ = List.fold_left ~f:check_initializer ~init:([], 0, env) inits in
+    inits_typed, num_absts
 (* Section 10.3 *)
 and type_instantiation env ctx info annotations typ args name init_block : Prog.coq_Declaration * Checker_env.t =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
@@ -2845,14 +2835,17 @@ and type_instantiation env ctx info annotations typ args name init_block : Prog.
       failwith "parsers cannot be instantiated in the top level scope"
     | _ -> ()
   end;
-  let inits_typed, inits_abst=
+  let inits_typed, num_absts =
     begin match init_block with
       | Some init_block -> type_initializers env ctx instance_type (snd init_block).statements
-      | None -> [], []
+      | None -> [], 0
     end in
   begin match instance_type with
-  | TypExtern obj_name -> check_abstract_methods env obj_name [] inits_abst
-  | TypSpecializedType (TypExtern obj_name, args) -> check_abstract_methods env obj_name args inits_abst
+  | TypExtern extern_name
+  | TypSpecializedType (TypExtern extern_name, _) ->
+    let ext = Checker_env.find_extern (BareName extern_name) env in 
+    if List.length ext.abst_methods <> num_absts
+    then failwith "Abstract methods are not fully initialized during instantiation."
   | _ -> ()
   end;
   match instance_expr with
@@ -3033,6 +3026,7 @@ and type_control env info name annotations type_params params constructor_params
 and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * Checker_env.t =
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
+    | StmtCxMethod _ -> ParamCxDeclMethod, FunExtern
     | StmtCxFunction _ -> ParamCxDeclFunction, FunFunction
     | StmtCxAction -> ParamCxDeclAction, FunAction
     | _ -> failwith "bad context for function"
@@ -3069,7 +3063,7 @@ and type_extern_function env info annotations return name t_params params =
   let return = return |> translate_type env in
   let env' = Checker_env.insert_type_vars t_params env in
   let params_typed, wildcards =
-    type_params ~gen_wildcards:true env' (ParamCxRuntime ParamCxDeclFunction) params in
+    type_params ~gen_wildcards:true env' (ParamCxRuntime ParamCxDeclMethod) params in
   let typ: coq_FunctionType =
     MkFunctionType (t_params @ wildcards, params_typed, FunExtern, return)
   in

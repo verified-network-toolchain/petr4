@@ -208,8 +208,13 @@ Section ToP4cub.
     let+ hd := hd_res in
     hd :: l.
 
+  Definition width_of_enum (members : list (P4String.t tags_t)) :=
+    let num_members := List.length members in
+    PeanoNat.Nat.max 1 (PeanoNat.Nat.log2_up num_members).
 
-  Print Typed.name.
+  Definition cub_type_of_enum (members : list (P4String.t tags_t)) :=
+    E.TBit (pos (width_of_enum members)).
+
   Program Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
     let translate_fields :=
         fold_right (fun '(name,typ) res_rst =>
@@ -261,11 +266,7 @@ Section ToP4cub.
       let+ fields' := translate_fields fields in
       E.TStruct fields'
     | TypEnum name typ members =>
-      (* (* TODO We're throwing away the type here. Should we be? *) *)
-      (* let cub_name := P4String.str name in *)
-      (* (* For some reason Coq needs this to ebe explicitly applied in order to guess the tags argument *) *)
-      (* let cub_members := List.map (fun s => P4String.str s) members in *)
-      error "[FIXME] ENUMS need to be compiled away"
+      ok (cub_type_of_enum members)
     | TypTypeName name =>
       match name with
       | BareName nm =>
@@ -569,6 +570,16 @@ Section ToP4cub.
 
   End ElimDA.
 
+  Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result nat :=
+    match member_list with
+    | [] => error  ("Could not find member" ++ P4String.str member ++ "in member list")
+    | m::ms =>
+      if P4String.str member =? P4String.str m
+      then ok idx
+      else get_enum_id_aux (idx + 1) ms member
+    end.
+
+  Definition get_enum_id := get_enum_id_aux 0.
 
   Fixpoint translate_expression_pre_t (i : tags_t) (typ : P4Type) (e_pre : @ExpressionPreT tags_t) : result (E.e tags_t) :=
     match e_pre with
@@ -628,8 +639,16 @@ Section ToP4cub.
       let* (_,expr') := translate_expression expr in
       let+ typ' := translate_exp_type i typ in
       E.ECast typ' expr' i
-    | ExpTypeMember typ name =>
-      error "[FIXME] type members unimplemented"
+    | ExpTypeMember _ name =>
+      match typ with
+      | TypEnum _ _ members =>
+        let w := width_of_enum members in
+        let+ n := get_enum_id members name in
+        E.EBit (pos w) (BinIntDef.Z.of_nat n) i
+      | _ =>
+        error "Type Error. Type Member had non-enum type"
+      end
+
     | ExpErrorMember str =>
       ok (E.EError (Some (P4String.str str)) i)
     | ExpExpressionMember expr name =>
@@ -771,7 +790,6 @@ Section ToP4cub.
       end
     end.
 
-  Print option_map.
 
   Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
     match ssw with
@@ -1183,7 +1201,7 @@ Section ToP4cub.
     (* error "[FIXME] Match Kind declarations unimplemented" *)
       ok ctx
     | DeclEnum tags name members =>
-    (* error "[FIXME] Enum Declarations unimplemented" *)
+      (* error "[FIXME] Enum Declarations unimplemented" *)
       ok ctx
     | DeclSerializableEnum tags typ name members =>
     (* error "[FIXME] Serializable Enum declarations unimplemented" *)
@@ -1234,6 +1252,69 @@ End ToP4cub.
 
 Require Import Poulet4.P4defs.
 Require Import Poulet4.SimpleNat.
+
+Import SimpleNat.
+
+Definition test := Program
+                     [decl'1;
+                     packet_in;
+                     packet_out;
+                     verify'check'toSignal;
+                     NoAction;
+                     decl'2;
+                     decl'3;
+                     standard_metadata_t;
+                     CounterType;
+                     MeterType;
+                     counter;
+                     direct_counter;
+                     meter;
+                     direct_meter;
+                     register;
+                     action_profile;
+                     random'result'lo'hi;
+                     digest'receiver'data;
+                     HashAlgorithm;
+                     mark_to_drop;
+                     mark_to_drop'standard_metadata;
+                     hash'result'algo'base'data'max;
+                     action_selector;
+                     CloneType;
+                     Checksum16;
+                     verify_checksum'condition'data'checksum'algo;
+                     update_checksum'condition'data'checksum'algo;
+                     verify_checksum_with_payload'condition'data'checksum'algo;
+                     update_checksum_with_payload'condition'data'checksum'algo;
+                     resubmit'data; recirculate'data; clone'type'session;
+                     clone3'type'session'data;
+                     truncate'length;
+                     assert'check;
+                     assume'check;
+                     log_msg'msg;
+                     log_msg'msg'data;
+                     Parser;
+                     VerifyChecksum;
+                     Ingress;
+                     Egress;
+                     ComputeChecksum;
+                     Deparser;
+                     V1Switch;
+                     intrinsic_metadata_t;
+                     meta_t;
+                     cpu_header_t;
+                     ethernet_t;
+                     ipv4_t;
+                     tcp_t;
+                     metadata;
+                     headers;
+                     ParserImpl;
+                     egress;
+                     ingress;
+                     DeparserImpl;
+                     verifyChecksum;
+                     computeChecksum;
+                     main
+                     ].
 
 Compute (translate_program Info NoInfo (SimpleNat.test)).
 

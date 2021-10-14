@@ -277,7 +277,7 @@ void init_table(struct Table* table, int num_key, int size, int* matchkinds){
 
 //add a new entry to the table, find the first invalid entry to replace
 //if all entries are valid, the new entry won't be added.
-//TODO: support actions with arguments.
+//TODO: support actions arguments.
 void add_entry(struct Table* table, struct TableKey* newkeys, int new_action){
   for(int i = 0; i < table->num_entries; i++){
     if(!table->valid[i]){
@@ -293,6 +293,10 @@ void add_entry(struct Table* table, struct TableKey* newkeys, int new_action){
 
 //given an array of values, return the action the table should take.
 //0 if it is default action
+//in the compiler, when it finds out the expression has type bool, it should
+//translate it into a bitvec and then put it in the vals. 
+//TODO: support action arguments
+//QUESTION: what if the keys have different order?
 void table_match(int* dst,struct Table* table, struct BitVec* vals){
   for(int entry = 0; entry < table->num_entries; entry++){
     if(!table->valid[entry]){

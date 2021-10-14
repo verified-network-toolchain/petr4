@@ -10,6 +10,8 @@ Import ResultNotations.
 Require Import String.
 Open Scope string_scope.
 
+Require Import Poulet4.HoistNameless.
+Import HoistNameless.
 
 Module ST := Stmt.
 Module E := Expr.
@@ -292,7 +294,8 @@ Section ToP4cub.
     | TypPackage _ _ _ =>
       error "A package is not an expression"
     | TypSpecializedType base args =>
-      error "Specialized types are not expression types"
+      (* FIXME handle specialized types in a monomorphising pass *)
+      translate_exp_type i base
     | TypConstructor _ _ _ _ =>
       error "A type constructor is not an expression"
     end.
@@ -306,269 +309,26 @@ Section ToP4cub.
       error "Array Indices must be literals"
     end.
 
-  Section HoistEffects.
+  Definition get_type_of_expr (e : Expression) : @P4Type tags_t :=
+    let '(MkExpression _ _ typ _) := e in
+    typ.
+  Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
+    match t with
+    | TypTypeName (BareName str) => ok str
+    | TypSpecializedType t [] => get_string_from_type t
+    | TypControl c => error "[FIXME] get name from control type"
+    | TypParser c => error "[FIXME] get name from parser type"
+    | _ => error "Don't know how to get constructor from arbitrary type"
+    end.
 
-    Definition get_type_of_expr (e : Expression) : @P4Type tags_t :=
-      let '(MkExpression _ _ typ _) := e in
-      typ.
+  Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
+    let+ type_name := get_string_from_type t in
+    let (g, name) := NameGen.fresh g (P4String.str type_name) in
+    let p4str_name := {| P4String.tags := P4String.tags type_name;
+                         P4String.str := name
+                      |} in
+    (g, p4str_name).
 
-
-    Fixpoint voidify_fun_stmt  (ret : P4String.t tags_t) (s : Statement) : Statement :=
-      let '(MkStatement tags stmt typ) := s in
-      let stmt' := voidify_fun_stmt_pre ret tags stmt typ in
-      MkStatement tags stmt' typ
-
-    with voidify_fun_stmt_pre (ret : P4String.t tags_t) (tags : tags_t) (stmt : StatementPreT) (typ : StmType) : StatementPreT :=
-      match stmt with
-      | StatMethodCall _ _ _ => stmt
-      | StatAssignment _ _ => stmt
-      | StatDirectApplication _ _ => stmt
-      | StatConditional cond tru fls_opt =>
-        let tru' := voidify_fun_stmt ret tru in
-        let fls' := let* fls := fls_opt in Some (voidify_fun_stmt ret fls) in
-        StatConditional cond tru fls'
-      | StatBlock block =>
-        StatBlock (voidify_fun_block ret block)
-      | StatExit => stmt
-      | StatEmpty => stmt
-      | StatReturn opt_e =>
-        match opt_e with
-        | None => StatReturn None
-        | Some e =>
-          let typ := get_type_of_expr e in
-          let ret_exp := MkExpression tags (ExpName (BareName ret) NoLocator) typ InOut in
-          let assn := MkStatement tags (StatAssignment ret_exp e) StmUnit in
-          let ret_void := MkStatement tags (StatReturn None) StmUnit in
-          let blck := BlockCons assn (BlockCons ret_void (BlockEmpty tags)) in
-          StatBlock blck
-        end
-      | StatSwitch expr cases =>
-        let case' := List.map (fun c =>
-                                 match c with
-                                 | StatSwCaseAction tags label code =>
-                                   let code' := voidify_fun_block ret code in
-                                   StatSwCaseAction tags label code'
-                                 | StatSwCaseFallThrough _ _  =>
-                                   c
-                                 end) cases in
-        StatSwitch expr cases
-      | StatConstant _ _ _ _ => stmt
-      | StatVariable _ _ _ _ => stmt
-      | StatInstantiation _ _ _ _ => stmt
-      end
-
-    with voidify_fun_block (ret : P4String.t tags_t) (b : Block) :=
-      match b with
-      | BlockEmpty t => BlockEmpty t
-      | BlockCons stmt rst =>
-        let s := voidify_fun_stmt ret stmt in
-        let b := voidify_fun_block ret rst in
-        BlockCons s b
-      end.
-
-
-    Definition compute_return_var (name : P4String.t tags_t) :=
-      {| P4String.tags := name.(P4String.tags);
-         P4String.str  := name.(P4String.str) ++ "_ret$" |}.
-
-    Definition compute_void_name (name : P4String.t tags_t) :=
-      {| P4String.tags := name.(P4String.tags);
-         P4String.str := name.(P4String.str) ++ "_void$"|}.
-
-    Definition voidify_fun_decl (tags : tags_t) (ret: @P4Type tags_t) (name : P4String.t tags_t) (body : @Block tags_t) : result (tags_t * P4String.t tags_t * @Block tags_t) :=
-      match ret with
-      | TypVoid => error "TypeError:: void functions are invalid as expressions"
-      | _ =>
-        let return_var := compute_return_var name in
-        let name' := compute_void_name name in
-        let body' : Block := voidify_fun_block return_var body in
-        ok (tags, name', body')
-      end.
-
-    Definition voidify_fun_call_exp (func_e : @Expression tags_t)  (typ_args : list (@P4Type tags_t)) (args : list (option (@Expression tags_t)))  : result (@Statement tags_t * @Expression tags_t) :=
-      let '(MkExpression tags func typ dir) := func_e in
-      match func with
-      | ExpExpressionMember expr name =>
-        let name':= compute_void_name name in
-        let return_var := compute_return_var name in
-        let pre_exp := ExpExpressionMember expr name' in
-        let exp : Expression := MkExpression tags pre_exp typ dir in
-        let pre_stmt := StatMethodCall exp typ_args args in
-        let stmt := MkStatement tags pre_stmt StmUnit in
-        let replacement := MkExpression tags (ExpName (BareName return_var) NoLocator) typ dir in
-        ok (stmt, replacement)
-
-      | ExpName name loc =>
-        match name with
-        | BareName n =>
-          let name' := compute_void_name n in
-          let return_var := compute_return_var n in
-          let exp := (MkExpression tags (ExpName (BareName name') loc) typ dir) in
-          let stmt : Statement := MkStatement tags (StatMethodCall exp typ_args args) StmUnit in
-          let replacement : Expression := MkExpression tags (ExpName (BareName return_var) loc) typ dir in
-          ok (stmt, replacement)
-        | _ =>
-          error "Qualified Names deprecated"
-        end
-      | _ => error "Typerror :: unrecognized function application"
-      end.
-
-    Fixpoint extract_funs_from_exp (e : Expression) : result (list Statement * Expression) :=
-      let '(MkExpression tags expr typ dir) := e in
-      let+ (hoist, e) := extract_funs_from_exp_pre_t expr in
-      (hoist, MkExpression tags e typ dir)
-    with extract_funs_from_exp_pre_t (e : ExpressionPreT) : result (list Statement * ExpressionPreT) :=
-      match e with
-      | ExpBool _ => ok ([], e)
-      | ExpInt _ => ok ([], e)
-      | ExpString _ => ok ([], e)
-      | ExpName _ _ => ok ([], e)
-      | ExpArrayAccess array index =>
-        let* (array_hoist, array') := extract_funs_from_exp array in
-        let+ (index_hoist, index') := extract_funs_from_exp index in
-        (List.app array_hoist index_hoist, ExpArrayAccess array index)
-      | ExpBitStringAccess bits lo hi =>
-        let+ (bits_hoist, bits') := extract_funs_from_exp bits in
-        (bits_hoist, ExpBitStringAccess bits' lo hi)
-      | ExpList values =>
-        let+ (hoist, values') := fold_right (fun v acc =>
-                                                let* (v_hs, v') := extract_funs_from_exp v in
-                                                let+ (hs, vs) := acc in
-                                                (List.app v_hs hs, v'::vs)) (ok ([],[])) values in
-        (hoist, ExpList values')
-      | ExpRecord entries =>
-        let+ (hoist, entries) := fold_right (fun kv acc =>
-                                                let '(MkKeyValue tags key value) := kv in
-                                                let* (h, value') := extract_funs_from_exp value in
-                                                let+ (hs, vs) := acc in
-                                                (List.app h hs, (MkKeyValue tags key value')::vs)
-                                             ) (ok ([],[])) entries in
-        (hoist, ExpRecord entries)
-      | ExpUnaryOp op arg =>
-        let+ (hoist, arg') := extract_funs_from_exp arg in
-        (hoist, ExpUnaryOp op arg')
-      | ExpBinaryOp op (lhs,rhs) =>
-        let* (hoist_left, lhs') := extract_funs_from_exp lhs in
-        let+ (hoist_right, rhs') := extract_funs_from_exp rhs in
-        (List.app hoist_left hoist_right, ExpBinaryOp op (lhs', rhs'))
-      | ExpCast typ e =>
-        let+ (hoist, e') := extract_funs_from_exp e in
-        (hoist, ExpCast typ e')
-      | ExpTypeMember _ _ => ok ([], e)
-      | ExpErrorMember _ => ok ([], e)
-      | ExpExpressionMember expr name =>
-        let+ (hoist, expr') := extract_funs_from_exp expr in
-        (hoist, ExpExpressionMember expr' name)
-      | ExpTernary cond tru fls =>
-        let*  (hoist_cond, cond') := extract_funs_from_exp cond in
-        let*  (hoist_tru, tru') := extract_funs_from_exp tru in
-        let+ (hoist_fls, fls') := extract_funs_from_exp fls in
-        (List.app (List.app hoist_cond hoist_tru) hoist_fls,
-         ExpTernary cond' tru' fls')
-      | ExpFunctionCall func type_args args =>
-        let* (hoist_args, args') := fold_right (fun a_opt acc =>
-                                                  let* (hs, args) := acc in
-                                                  match a_opt with
-                                                  | None =>
-                                                    ok (hs, None :: args)
-                                                  | Some arg =>
-                                                    let+ (h, arg') := extract_funs_from_exp arg in
-                                                    (List.app h hs, (Some arg') :: args)
-                                                  end)
-                                               (ok ([],[]))
-                                               args
-        in
-        let+ (hoist_f, func') := voidify_fun_call_exp func type_args args' in
-        (hoist_f :: hoist_args, ExpFunctionCall func' type_args args')
-
-      | ExpNamelessInstantiation typ args =>
-        let* (hoist_args, args') := fold_right (fun arg acc =>
-                                                  let* (h, arg') := extract_funs_from_exp arg in
-                                                  let+ (hs, args) := acc in
-                                                  (List.app h hs, arg' :: args))
-                                               (ok ([],[]))
-                                               args in
-        let+ (hoist_ni, ni_var) := error "[FIXME] hoist Nameless Instantiation" in
-        (List.app hoist_args hoist_ni, ni_var)
-      | ExpDontCare => ok([], e)
-      | ExpMask e m =>
-        let*  (hoist_e, e') := extract_funs_from_exp e in
-        let+ (hoist_m, m') := extract_funs_from_exp m in
-        (List.app hoist_e hoist_m, ExpMask e' m')
-
-      | ExpRange lo hi =>
-        let*  (hoist_lo, lo') := extract_funs_from_exp lo in
-        let+ (hoist_hi, hi') := extract_funs_from_exp hi in
-        (List.app hoist_lo hoist_hi, ExpRange lo' hi')
-      end.
-
-    Function hoist_functions (statement : @Statement tags_t) : result (@Statement tags_t) := error "Implement.".
-
-  End HoistEffects.
-
-  Section ElimDA.
-
-    Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
-      match t with
-      | TypTypeName (BareName str) => ok str
-      | TypSpecializedType t [] => get_string_from_type t
-      | TypControl c => error "[FIXME] get name from control type"
-      | TypParser c => error "[FIXME] get name from parser type"
-      | _ => error "Don't know how to get constructor from arbitrary type"
-      end.
-
-    Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
-      let+ type_name := get_string_from_type t in
-      let (g, name) := NameGen.fresh g (P4String.str type_name) in
-      let p4str_name := {| P4String.tags := P4String.tags type_name;
-                           P4String.str := name
-                        |} in
-      (g, p4str_name).
-
-
-    (** Eliminate direct application statements by minpting a new name and then applying that named thing *)
-    Fixpoint elim_da_statement (namegen : NameGen.t) (s : Statement) :=
-      let '(MkStatement tags stmt typ) := s in
-      let+ (g, stmt') := elim_da_pre_statement namegen tags stmt typ in
-      (g, MkStatement tags stmt typ)
-    with elim_da_pre_statement (namegen : NameGen.t) (tags : tags_t) (stmt : StatementPreT) (type : StmType) : result (NameGen.t * StatementPreT) :=
-      match stmt with
-      | StatDirectApplication typ args =>
-        let+ (namegen', inst_name) := inst_name_from_type namegen typ in
-        let inst := StatInstantiation typ args inst_name None in
-        let inst_stmt := MkStatement tags inst type in
-        let inst_pre := ExpName (BareName inst_name) NoLocator in
-        let inst_exp := MkExpression tags inst_pre typ InOut in
-        let apply_name := {|P4String.tags := tags; P4String.str := "apply" |} in
-        let inst_apply := ExpExpressionMember inst_exp apply_name in
-        let inst_apply_exp := MkExpression tags inst_apply typ InOut in
-        let aply := StatMethodCall inst_apply_exp [] [] in
-        let aply_stmt := MkStatement tags aply type in
-        let blck := BlockCons inst_stmt (BlockCons aply_stmt (BlockEmpty tags)) in
-        (namegen', StatBlock blck)
-      | StatConditional cond tru fls_opt =>
-        let* (g', tru') := elim_da_statement namegen tru in
-        match fls_opt with
-        | None => ok (g', StatConditional cond tru' None)
-        | Some fls =>
-          let+ (g'', fls') := elim_da_statement namegen fls in
-          (g'', StatConditional cond tru' (Some fls'))
-        end
-      | StatBlock blck =>
-        let+ (g', blck') := elim_da_block namegen blck in
-        (g', StatBlock blck')
-      | _ => ok (namegen, stmt)
-      end
-    with elim_da_block (g : NameGen.t) (block : @Block tags_t) :=
-      match block with
-      | BlockEmpty _ => ok (g, block)
-      | BlockCons st rst =>
-        let* (g', st') := elim_da_statement g st in
-        let+ (g'', rst') := elim_da_block g' rst in
-        (g'', BlockCons st' rst')
-      end.
-
-  End ElimDA.
 
   Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result nat :=
     match member_list with
@@ -1038,22 +798,30 @@ Section ToP4cub.
   Fixpoint translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
     fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
 
-  Print E.constructor_arg.
-  Print E.constructor_args.
-
-  Print P4Type.
-
   Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result (E.constructor_params) :=
     let lookup := find (decl_has_name name) in
-    match lookup ctx.(controls) with
-    | Some (TopDecl.TPPackage _ [] cparams _) =>
+    match lookup ctx.(packages) with
+    | Some (TopDecl.TPPackage _ _ cparams _) =>
       ok cparams
-    | Some (TopDecl.TPControl name cparams _ _ _ _ _) =>
-      error (String.append (String.append "[FIXME] instantiated a control" name) ", not sure what actions to use.")
-    | Some _ =>
-      error "[FIXME] instantiating controls/Parsers etc is hard"
+    | Some _  =>
+      error "Invariant violated, ctx.(packages) is expected to only hold TPPackages"
     | None =>
-      error (String.append "[FIXME] instantated a table, function, or action named: " name)
+      error (String.append "[FIXME] instantated a control, parser, table, function, package, or action named: " name)
+    end.
+
+
+  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result (E.e tags_t) :=
+    match translate_expression arg with
+    | Ok _ (_,e) =>
+      (* try to reuse translation*)
+      ok e
+    | Error _ msg =>
+      (* if the naive translation fails, try something better  *)
+      let '(MkExpression tags expr typ dir) := arg in
+      match expr with
+      | _ =>
+        error ("naive expression translation for constructor arguments failed with message: " ++ msg)
+      end
     end.
 
   Definition translate_instantiation_args (ps : E.constructor_params) (es : list (E.e tags_t)) : result (E.constructor_args tags_t) :=
@@ -1066,17 +834,45 @@ Section ToP4cub.
                          ok ((str, E.CAExpr e)::acc)
                        | _, E.EVar _ nm _ =>
                          ok ((str, E.CAName nm)::acc)
-                       | _, _ => error "Couldn't translate instaniation properly"
+                       | _, _ => error "DONT KNOW HOW TO translate instaniations"
                        end) (ok []) param_args.
 
   Definition constructor_paramargs (ctor_name: string) (args : list Expression) (ctx : DeclCtx) :=
     let* params := lookup_params_by_ctor_name ctor_name ctx in
-    let* cub_typed_args := rred (List.map translate_expression args) in
-    let cub_args := List.map snd cub_typed_args in
+    let* cub_args := rred (List.map translate_constructor_arg_expression args) in
     translate_instantiation_args params cub_args.
 
-  Definition translate_constructor_param (tags : tags_t) (param : @P4Parameter tags_t) : result (either (string * string) (string * E.ct)) :=
-    let '(MkParameter opt dir typ default_arg_id var) := param in
+  Print P4Type.
+
+
+  Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * E.ct) :=
+    let '(MkParameter opt dir typ default_arg_id var) := parameter in
+    let v_str := P4String.str var in
+    match typ with
+    | TypExtern typname =>
+      ok(v_str, E.CTExtern (P4String.str typname))
+    | TypControl _ =>
+      error "[FIXME] translate control as constructor param"
+    | TypParser _ =>
+      error "[FIXME] translate parser as constructor param"
+    | TypPackage _ _ _  =>
+      error "[FIXME] translate package as constructor param"
+    | TypSpecializedType (TypTypeName (BareName name)) _   =>
+      ok (v_str, E.CTType (E.TVar (P4String.str name)))
+    | _ =>
+      error "[FIXME] dont kjnow how to translate type to constructor type"
+    end.
+
+  Definition translate_constructor_parameters (tags : tags_t) :=
+    fold_right (fun p acc =>
+                  let* params := acc in
+                  let+ param := translate_constructor_parameter tags p in
+                  param :: params
+               ) (ok []).
+
+  (* TODO write in terms of translate_constructor_parameter *)
+  Definition translate_constructor_parameter_either (tags : tags_t) (parameter : @P4Parameter tags_t) : result (either (string * string) (string * E.ct)) :=
+    let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     match typ with
     | TypExtern typname =>
@@ -1089,14 +885,15 @@ Section ToP4cub.
     | TypPackage _ _ _  =>
       error "[FIXME] translate package as constructor param"
     | _ =>
-      let+ cub_type := translate_exp_type tags typ in
-      Right (v_str, E.CTType cub_type)
+      error "[FIXME] dont kjnow how to translate type to constructor type"
+      (* let+ cub_type := translate_exp_type tags typ in *)
+      (* Right (v_str, E.CTType cub_type) *)
     end.
 
   Definition partition_constructor_params (tags : tags_t) (params : list (@P4Parameter tags_t)) :=
     fold_right (fun p acc =>
                   let* (extn, ctrlr) := acc in
-                  let+ param := translate_constructor_param tags p in
+                  let+ param := translate_constructor_parameter_either tags p in
                   match param with
                   | Left e => (e :: extn, ctrlr)
                   | Right c => (extn, c::ctrlr)
@@ -1182,7 +979,7 @@ Section ToP4cub.
       let d := TopDecl.TPInstantiate ctor_name cub_name [] cub_paramargs tags in
       match typ with
       | TypPackage _ _ _ => ok (add_package ctx d)
-      | _ =>  error "unimplemented declaration type"
+      | _ =>  error "unimplemented instantiation type"
       end
     | DeclParser tags name [] params constructor_params [] states =>
         let cub_name := P4String.str name in
@@ -1276,10 +1073,12 @@ Section ToP4cub.
     | DeclParserType tags name type_params params =>
     (* error "[FIXME] ParserType declarations unimplemented" *)
       ok ctx
-    | DeclPackageType tags name type_params params =>
-      (* TODO HIGH PRIO *)
-      (* error "[FIXME] PackageType declaration unimplemented" *)
-      ok ctx
+    | DeclPackageType tags name type_params parameters =>
+      let cub_name := P4String.str name in
+      let cub_type_params := List.map (@P4String.str tags_t) type_params in
+      let+ cub_params := translate_constructor_parameters tags parameters in
+      let p := TopDecl.TPPackage cub_name cub_type_params cub_params tags in
+      add_package ctx p
   end.
 
   (* This is redunant with the locals resolution in the previous code, but I
@@ -1296,7 +1095,7 @@ Section ToP4cub.
     end.
 
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
-    let '(Program decls) := SimplExpr.transform_prog tags p in
+    let* '(Program decls) := hoist_nameless_instantiations tags_t (SimplExpr.transform_prog tags p) in
     translate_decls decls.
 
 End ToP4cub.
@@ -1367,8 +1166,10 @@ Definition test := Program
                       ; DeparserImpl
                       ; verifyChecksum
                       ; computeChecksum
-                      (* ; main *)
+                      ; main
                      ].
+
+Compute (SimplExpr.transform_prog NoInfo test).
 
 Compute (translate_program Info NoInfo test).
 

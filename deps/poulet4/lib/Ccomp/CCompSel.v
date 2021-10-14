@@ -1,8 +1,13 @@
 From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
-Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.P4cub.Envn.
+Require Import BinaryString.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
+Require Import List.
+Require Import Coq.ZArith.BinIntDef.
+Require Import String.
+Require Coq.PArith.BinPosDef.
+Require Import Poulet4.P4cub.Syntax.Syntax.
+Require Import Poulet4.P4cub.Envn.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
@@ -10,10 +15,6 @@ Require Poulet4.P4sel.RemoveSideEffect.
 Require Import Poulet4.Ccomp.CCompEnv.
 Require Import Poulet4.Ccomp.Helloworld.
 Require Import Poulet4.Ccomp.CV1Model.
-Require Import List.
-Require Import Coq.ZArith.BinIntDef.
-Require Import String.
-Require Coq.PArith.BinPosDef.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
@@ -550,7 +551,6 @@ Section CCompSel.
   Definition CTranslateListType (exps : list (E.e tags_t)):=
     List.map (E.SelTypeOf tags_t) exps.
 
-    (*TODO: fix the tpointer change with bit vec*)
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
     |(id, typ) :: mtl, (fname, exp) :: etl => 
@@ -824,14 +824,14 @@ Section CCompSel.
                                     end 
                                   end 
     
-    | ST.SExternMethodCall e f _ (P4cub.Arrow args x) i => Some (Sskip, env) (*TODO: implement*)
+    | ST.SExternMethodCall e f _ (P4cub.Arrow args x) i => Some (Sskip, env) (*TODO: implement, need to be target specific.*)
     | ST.SReturnFruit t e i => match CTranslateExpr e env with
                               | None => None
                               | Some (e', env') => Some ((Sreturn (Some e')), env')
                               end
     | ST.SReturnVoid i => Some (Sreturn None, env)
-    | ST.SExit i => Some (Sskip, env) (*TODO: implement*)
-    | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement*)
+    | ST.SExit i => Some (Sskip, env) (*TODO: implement, what is this?*)
+    | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement, ugh.*)
     | ST.SInvoke tbl i => Some (Sskip, env) (*TODO: implement*)
 
     | ST.SBitAssign dst_t dst width val i => 
@@ -871,7 +871,7 @@ Section CCompSel.
                         end
                         end
 
-    | ST.SCast τ e dst i => None (*TODO:*)
+    | ST.SCast τ e dst i => None (*TODO: implement in the runtime*)
                         
     | ST.SUop dst_t op x dst i => CTranslateUop dst_t op x dst env
     | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
@@ -985,58 +985,6 @@ Section CCompSel.
       end
     end.
 
-  Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv tags_t ) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv tags_t ) :=
-  match st with
-  | PA.State stmt pe => 
-  match CTranslateStatement stmt env with
-    | None => None
-    | Some(stmt', env') =>
-    match pe with 
-    | PA.PGoto st i => 
-      match st with
-      | P4cub.Parser.STStart =>
-        match (lookup_function tags_t env' "start") with
-        | None => None
-        | Some (start_f, start_id) =>
-        Some (Clight.mkfunction
-          Ctypes.Tvoid
-          (AST.mkcallconv None true true)
-          params
-          (CCompEnv.get_vars tags_t env')
-          (CCompEnv.get_temps tags_t env')
-          (Ssequence stmt'
-          (Scall None (Evar start_id (Clight.type_of_function start_f)) [])) (*TODO: add args*)
-          , env')
-        end
-      | P4cub.Parser.STAccept =>
-        Some (Clight.mkfunction
-          Ctypes.Tvoid
-          (AST.mkcallconv None true true)
-          params
-          (CCompEnv.get_vars tags_t env')
-          (CCompEnv.get_temps tags_t env')
-          (Ssequence stmt' (Sreturn None))
-          , env') 
-      | P4cub.Parser.STReject => None (*TODO: implement*)
-      | P4cub.Parser.STName x => 
-      match lookup_function tags_t env' x with
-      | None => None
-      | Some (x_f, x_id) =>
-      Some (Clight.mkfunction
-          Ctypes.Tvoid
-          (AST.mkcallconv None true true)
-          params
-          (CCompEnv.get_vars tags_t env')
-          (CCompEnv.get_temps tags_t env')
-          (Ssequence stmt'
-          (Scall None (Evar x_id (Clight.type_of_function x_f)) [])) (*TODO: add args*)
-          , (set_temp_vars tags_t env env'))
-      end
-      end
-    | PA.PSelect exp def cases i => None (*unimplemented*)
-  end
-  end
-  end.
 
   Definition CTranslateParams (params : E.params) (env : ClightEnv tags_t ) 
   : list (AST.ident * Ctypes.type) * ClightEnv tags_t  :=
@@ -1210,6 +1158,231 @@ Definition PaFromArrow (arrow: E.arrowT) : (E.params):=
   | P.Arrow pas ret => 
   pas
   end.
+Definition CTranslatePatternVal (p : P4cub.Parser.pat) (env: ClightEnv tags_t) : option (Clight.statement * ident * ClightEnv tags_t) := 
+  match p with 
+  | P4cub.Parser.PATBit width val =>
+      let (env, fresh_id) := new_ident tags_t env in 
+      let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+      let env := add_var tags_t env fresh_name bit_vec in 
+      match find_ident tags_t env fresh_name with
+      | Some dst =>
+      let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        Some ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
+      | None => None
+      end
+  | P4cub.Parser.PATInt width val => 
+      let (env, fresh_id) := new_ident tags_t env in 
+      let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+      let env := add_var tags_t env fresh_name bit_vec in 
+      match find_ident tags_t env fresh_name with
+      | Some dst =>
+      let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        Some ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
+      | None => None
+      end
+  | _ => None
+  end.
+Definition CTranslatePatternMatch (input: Clight.expr) (p: P4cub.Parser.pat) (env: ClightEnv tags_t): option (Clight.statement * ident * ClightEnv tags_t) :=
+  let (env, fresh_id) := new_ident tags_t env in 
+  let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+  let env := add_var tags_t env fresh_name type_bool in 
+  match find_ident tags_t env fresh_name with
+    | None => None
+    | Some dst =>
+    let dst' := Eaddrof (Evar dst type_bool) TpointerBool in
+  match p with
+  | P4cub.Parser.PATWild => 
+    let assign := Sassign dst' (Econst_int (Integers.Int.one) (type_bool)) in 
+    Some (assign, dst, env)
+    
+  | P4cub.Parser.PATMask  p1 p2 => 
+    match CTranslatePatternVal p1 env with
+    | None => None
+    | Some (init1, var_left, env) =>
+    match CTranslatePatternVal p2 env with
+    | None => None
+    | Some (init2, var_right, env) =>
+    let (env, fresh_id) := new_ident tags_t env in 
+    let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+    let env := add_var tags_t env fresh_name bit_vec in 
+    match find_ident tags_t env fresh_name with
+    | None => None
+    | Some inputand =>
+    let (env, fresh_id) := new_ident tags_t env in 
+    let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+    let env := add_var tags_t env fresh_name bit_vec in 
+    match find_ident tags_t env fresh_name with
+    | None => None
+    | Some valueand =>
+      let inand' := Eaddrof (Evar inputand bit_vec) TpointerBitVec in
+      let valand' := Eaddrof (Evar valueand bit_vec) TpointerBitVec in
+      let assign_in := Scall None (bop_function _interp_bitwise_and) [inand'; input; (Evar var_right bit_vec)] in
+      let assign_val := Scall None (bop_function _interp_bitwise_and) [valand'; (Evar var_left bit_vec); (Evar var_right bit_vec)] in
+      let assign := Scall None (bop_function _interp_beq) [dst'; (Evar inputand bit_vec); (Evar valueand bit_vec)] in
+      let stmts := 
+        (Ssequence init1
+        (Ssequence init2
+        (Ssequence assign_in
+        (Ssequence assign_val
+        assign
+        ))))  in
+      Some (stmts, dst, env)
+    end
+    end
+    end
+    end
+
+  | P4cub.Parser.PATRange p1 p2 => 
+    match CTranslatePatternVal p1 env with
+    | None => None
+    | Some (init1, var_left, env) =>
+    match CTranslatePatternVal p2 env with
+    | None => None
+    | Some (init2, var_right, env) =>
+    let (env, fresh_id) := new_ident tags_t env in 
+    let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+    let env := add_var tags_t env fresh_name type_bool in 
+    match find_ident tags_t env fresh_name with
+    | None => None
+    | Some lefttrue =>
+    let (env, fresh_id) := new_ident tags_t env in 
+    let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+    let env := add_var tags_t env fresh_name type_bool in 
+    match find_ident tags_t env fresh_name with
+    | None => None
+    | Some righttrue =>
+      let lefttrue' := Eaddrof (Evar lefttrue type_bool) TpointerBool in
+      let righttrue' := Eaddrof (Evar righttrue type_bool) TpointerBool in
+      let assign_left := Scall None (bop_function _interp_bge) [lefttrue'; input; (Evar var_left bit_vec)] in
+      let assign_right := Scall None (bop_function _interp_ble) [righttrue'; input; (Evar var_right bit_vec)] in
+      let and_expr :=  Ebinop Oand (Evar lefttrue type_bool) (Evar righttrue type_bool) type_bool in
+      let assign := Sassign dst' and_expr in 
+      let stmts := 
+        (Ssequence init1
+        (Ssequence init2
+        (Ssequence assign_left
+        (Ssequence assign_right
+        assign
+        ))))  in
+      Some (stmts, dst, env)
+    end
+    end
+    end
+    end
+
+  | P4cub.Parser.PATInt width val
+  | P4cub.Parser.PATBit width val => 
+    match CTranslatePatternVal p env with
+    | None => None
+    | Some (init, var, env) =>
+    let assign := 
+    Scall None (bop_function _interp_beq) [dst'; input; (Evar var bit_vec)] in
+    let stmts := Ssequence init assign in
+    Some (stmts, dst, env)
+    end
+  | P4cub.Parser.PATTuple ps => 
+    None
+  end 
+  end.
+
+
+Definition CTranslateParserExpressionVal
+  (pe: PA.e tags_t) 
+  (env: ClightEnv tags_t)
+  (rec_call_args : list (Clight.expr))
+  : option (Clight.statement * ClightEnv tags_t) :=
+  match pe with 
+  | PA.PGoto st i => 
+    match st with
+    | P4cub.Parser.STStart =>
+      match (lookup_function tags_t env "start") with
+      | None => None
+      | Some (start_f, start_id) =>
+        Some (Scall None (Evar start_id (Clight.type_of_function start_f)) rec_call_args, env)
+      end
+    | P4cub.Parser.STAccept =>
+      Some ( Sreturn None, env) 
+    | P4cub.Parser.STReject => None (*TODO: implement*)
+    | P4cub.Parser.STName x => 
+    match lookup_function tags_t env x with
+    | None => None
+    | Some (x_f, x_id) =>
+    Some (Scall None (Evar x_id (Clight.type_of_function x_f)) rec_call_args
+        , env)
+    end
+    end
+  | PA.PSelect exp def cases i => 
+    None
+  end.
+  
+
+Definition CTranslateParserExpression 
+  (pe: PA.e tags_t) 
+  (env: ClightEnv tags_t)
+  (rec_call_args : list (Clight.expr))
+  : option (Clight.statement * ClightEnv tags_t) :=
+match pe with 
+| PA.PSelect exp def cases i => 
+  match CTranslateExpr exp env with
+    | None => None 
+    | Some (input, env) => 
+  match CTranslateParserExpressionVal def env rec_call_args with 
+    | None => None
+    | Some (default_stmt, env) =>
+      let fold_function := 
+      (fun (elt: P4cub.Parser.pat * PA.e tags_t) (cumulator: (Clight.statement * ClightEnv tags_t)) =>
+      let (p, action) := elt in
+      let (fail_stmt, env') := cumulator in
+      match CTranslatePatternMatch input p env' with
+      | None => cumulator
+      | Some (match_statement, this_match, env') =>
+      match CTranslateParserExpressionVal action env' rec_call_args with 
+      | None => cumulator
+      | Some (success_statement, env') =>
+      let new_stmt :=
+      Ssequence match_statement (Sifthenelse (Evar this_match type_bool) success_statement fail_stmt) in
+      (new_stmt, env')
+      end
+      end
+    ) in
+      let (stmts, env) := 
+      List.fold_right fold_function (default_stmt, env) cases in
+      Some (stmts, env)
+  end
+end
+| _ => CTranslateParserExpressionVal pe env rec_call_args
+end.
+
+Definition CTranslateParserState (st : PA.state_block tags_t) (env: ClightEnv tags_t ) (params: list (AST.ident * Ctypes.type)): option (Clight.function * ClightEnv tags_t ) :=
+  match st with
+  | PA.State stmt pe =>
+  let rec_call_args := List.map (fun (x: AST.ident * Ctypes.type) => Etempvar (fst x) (snd x)) params in
+  match CTranslateStatement stmt env with
+    | None => None
+    | Some(stmt', env') =>
+    match CTranslateParserExpression pe env' rec_call_args with
+    | None => None
+    | Some (estmt, env') =>
+    Some (Clight.mkfunction
+          Ctypes.Tvoid
+          (AST.mkcallconv None true true)
+          params
+          (CCompEnv.get_vars tags_t env')
+          (CCompEnv.get_temps tags_t env')
+          (Ssequence stmt' estmt)
+          , (set_temp_vars tags_t env env'))
+   
+  end
+  end
+  end.
 
 Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
   :=
@@ -1217,9 +1390,9 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
   | TD.TPParser p cparams eps params st states i =>
     let (fn_cparams, env_cparams) := CTranslateConstructorParams cparams env in
     let (fn_eparams, env_eparams) := CTranslateExternParams eps env_cparams in 
-    let (fn_params, env_params):= CTranslateParams params env_eparams in
+    let (fn_params, env_params):= CTranslateParams params env_eparams in 
     let (copyin, env_copyin) := CCopyIn params env_params in 
-    let (copyout, env_copyout) := CCopyOut params env_copyin in
+    let (copyout, env_copyout) := CCopyOut params env_copyin in (*copy in and copy out may need to copy cparams and eparams as well*)
     let state_names := F.keys states in 
     let fn_params := fn_cparams ++ fn_eparams ++ fn_params in 
     let env_fn_sig_declared := 
@@ -1260,6 +1433,8 @@ Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): op
       | None => None
       | Some (start_f, start_id) =>
       let call_args := CFindTempArgsForCallingSubFunctions params env_start_declared in
+      let e_call_args := List.map (fun (x: AST.ident * Ctypes.type) => Etempvar (fst x) (snd x)) fn_eparams in
+      let call_args := e_call_args ++ call_args in
       let fn_body := 
       Ssequence copyin 
       (Ssequence 

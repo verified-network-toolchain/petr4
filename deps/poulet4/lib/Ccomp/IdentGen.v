@@ -12,7 +12,7 @@ Section IdentGen.
   Definition gen_init : generator := xH.
 
   Definition gen_next (gen: generator) : (generator * ident) :=
-    (Pos.succ gen, $("__petr4_" ++ (BinaryString.of_pos gen))).
+    (Pos.succ gen, $("_p_e_t_r_4_" ++ (BinaryString.of_pos gen))).
   Fixpoint gen_n_next (gen: generator) (n:nat) : (generator * list ident) :=
     match n with
     | O => (gen, nil)

@@ -2595,7 +2595,8 @@ and type_conditional env ctx stmt_info cond true_branch false_branch =
   let expr_ctx = expr_ctxt_of_stmt_ctxt ctx in
   let expr_typed = cast_expression env expr_ctx TypBool cond in
   assert_bool (info cond) (type_of_expr expr_typed) |> ignore;
-  let type' stmt = fst (type_statement env ctx stmt) in
+  let env' = Checker_env.push_scope env in
+  let type' stmt = fst (type_statement env' ctx stmt) in
   let true_typed = type' true_branch in
   let true_type = type_of_stmt true_typed in
   let false_typed = option_map type' false_branch in
@@ -2626,14 +2627,14 @@ and type_statements env ctx statements =
   in
   List.fold_left ~f:fold ~init:(StmUnit, [], env) statements
 
-
 and rev_list_to_block info: Prog.coq_Statement list -> Prog.coq_Block =
   let f block stmt: Prog.coq_Block = BlockCons (stmt, block) in
   let init: Prog.coq_Block = BlockEmpty info in
   List.fold_left ~f ~init
 
 and type_block env ctx stmt_info block =
-  let typ, stmts, env' = type_statements env ctx (snd block).statements in
+  let env' = Checker_env.push_scope env in
+  let typ, stmts, env' = type_statements env' ctx (snd block).statements in
   let block = rev_list_to_block stmt_info stmts in
   MkStatement (stmt_info, StatBlock block, typ), env
 
@@ -2923,6 +2924,7 @@ and type_transition env ctx state_names transition : Prog.coq_ParserTransition =
     ParserSelect (trans_info, exprs_typed, cases_typed)
 
 and type_parser_state env state_names (state: Parser.state) : Prog.coq_ParserState =
+  let env = Checker_env.push_scope env in
   let (_, stmts_typed, env) = type_statements env StmtCxParserState (snd state).statements in
   let transition_typed = type_transition env ExprCxParserState state_names (snd state).transition in
   MkParserState (fst state, (snd state).name, stmts_typed, transition_typed)
@@ -2940,6 +2942,7 @@ and check_state_names names =
 
 and open_parser_scope env ctx params constructor_params locals states =
   let open Parser in
+  let env = Checker_env.push_scope env in
   let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
   let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
   let env = insert_params env constructor_params in
@@ -2977,6 +2980,7 @@ and type_parser env info name annotations type_params params constructor_params 
   parser_typed, env
 
 and open_control_scope env ctx params constructor_params locals =
+  let env = Checker_env.push_scope env in
   let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
   let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
   let env = insert_params env constructor_params in
@@ -3024,6 +3028,7 @@ and type_control env info name annotations type_params params constructor_params
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
 *)
 and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * Checker_env.t =
+  let env = Checker_env.push_scope env in
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
     | StmtCxMethod _ -> ParamCxDeclMethod, FunExtern

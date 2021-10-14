@@ -41,6 +41,14 @@ let empty_t () : t =
 let renamer env =
   env.renamer
 
+let push_scope (env: t) : t =
+  { typ = Env.push env.typ;
+    typ_of = Env.push env.typ_of;
+    const = Env.push env.const;
+    default_args = env.default_args;
+    externs = Env.push env.externs;
+    renamer = env.renamer }
+
 let resolve_type_name_opt name env =
   Env.find_opt name env.typ
 

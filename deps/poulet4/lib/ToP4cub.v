@@ -1202,7 +1202,3 @@ Definition test := Program
                      ].
 
 Compute (translate_program Info NoInfo test).
-
-Compute (preprocess Info NoInfo test).
-
-Compute (translate_program Info NoInfo (SimpleNat.prog)).

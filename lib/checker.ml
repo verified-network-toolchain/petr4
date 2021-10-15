@@ -645,7 +645,9 @@ and solve_types
     | TypTypeName (BareName tv1), TypTypeName (BareName tv2) ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
-      else Some (single_constraint unknowns tv1 t2)
+      else if List.mem ~equal:P4string.eq unknowns tv1
+      then Some (single_constraint unknowns tv1 t2)
+      else None
     | TypTypeName (BareName tv), typ ->
       if List.mem ~equal:P4string.eq unknowns tv
       then Some (single_constraint unknowns tv typ)

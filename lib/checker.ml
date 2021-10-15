@@ -364,11 +364,11 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     List.map ~f:(saturate_param env) params
   in
   let saturate_ctrl env (MkControlType (type_params, params)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkControlType (type_params, List.map ~f:(saturate_param env) params)
   in
   let saturate_function env (MkFunctionType (type_params, params, kind, ret)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkFunctionType (type_params,
                     saturate_params env params,
                     kind,
@@ -413,8 +413,8 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypSpecializedType (saturate_type env base,
                         saturate_types env args)
   | TypPackage (type_params, wildcard_params, params) ->
-    let env = Checker_env.insert_type_vars type_params env in
-    let env = Checker_env.insert_type_vars wildcard_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true wildcard_params env in
     TypPackage (type_params,
                 wildcard_params,
                 saturate_params env params)
@@ -430,7 +430,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypAction (saturate_params env data_params,
                saturate_params env ctrl_params)
   | TypConstructor (type_params, wildcard_params, params, ret) ->
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     TypConstructor (type_params,
                     wildcard_params,
                     saturate_params env params,
@@ -465,8 +465,8 @@ and reduce_to_underlying_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Typ
   | TypEnum (_, Some typ, _) -> reduce_to_underlying_type env typ
   | _ -> typ
 
-type var_constraint = P4string.t * coq_P4Type option
-type var_constraints = var_constraint list
+type var_constraint = P4string.t * coq_P4Type option [@@deriving sexp]
+type var_constraints = var_constraint list [@@deriving sexp]
 type soln = var_constraints option
 
 let empty_constraints unknowns : var_constraints =
@@ -2399,7 +2399,7 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.coq
   let t_params, w_params, params, ret = resolve_constructor_overload env decl_name args in
   let params_args = match_params_to_args env info params args in
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
-  let env' = Checker_env.insert_types type_params_args env in
+  let env' = Checker_env.insert_types ~shadow:false type_params_args env in
   let cast_arg (param, arg: coq_P4Parameter * Types.Expression.t option) =
     let MkParameter (is_opt, _, _, _, _) = param in
     match cast_param_arg env' ctx info (param, arg) with
@@ -2766,7 +2766,7 @@ and insert_params (env: Checker_env.t) (params: Types.Parameter.t list) : Checke
   let insert_param env (_, p) =
     let typ = translate_type env p.typ in
     let dir = translate_direction p.direction in
-    Checker_env.insert_dir_type_of (BareName p.variable) typ dir env
+    Checker_env.insert_dir_type_of ~shadow:true (BareName p.variable) typ dir env
   in
   List.fold_left ~f:insert_param ~init:env params
 
@@ -2990,6 +2990,15 @@ and open_control_scope env ctx params constructor_params locals =
 
 (* Section 13 *)
 and type_control env info name annotations type_params params constructor_params locals apply =
+  (*
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None -> ()
+  | Some (t, _) ->
+     match saturate_type env t with
+     | TypConstructor (_, _, _, TypControl _) -> ()
+     | bad_type -> raise_s [%message "cannot shadow object with control" ~bad_type:(bad_type: coq_P4Type)]
+  end;
+   *)
   if List.length type_params > 0
   then failwith "Control declarations cannot have type parameters";
   let inner_env, params_typed, constructor_params_typed, locals_typed =
@@ -3014,7 +3023,7 @@ and type_control env info name annotations type_params params constructor_params
     Typed.MkControlType ([], params_typed)
   in
   let ctor_type = Typed.TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
-  let env = Checker_env.insert_type_of (BareName name) ctor_type env in
+  let env = Checker_env.insert_type_of ~shadow:true (BareName name) ctor_type env in
   control, env
 
 (* Section 9
@@ -3027,7 +3036,7 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
 *)
-and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * Checker_env.t =
+and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * coq_P4Type =
   let env = Checker_env.push_scope env in
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
@@ -3051,17 +3060,19 @@ and type_function env (ctx: Typed.coq_StmtContext) info return name t_params par
     | _ ->
       failwith "bug: expected BlockStatement"
   in
-  let funtype = MkFunctionType (t_params, params_typed, kind, return_type) in
-  let env = Checker_env.insert_type_of (BareName name) (TypFunction funtype) env in
+  let funtype =
+    MkFunctionType (t_params,
+                    params_typed,
+                    kind,
+                    return_type) in
   let fn_typed : Prog.coq_Declaration =
     DeclFunction (info,
                   return_type,
                   name,
                   t_params,
                   params_typed,
-                  body_typed)
-  in
-  fn_typed, env
+                  body_typed) in
+  fn_typed, TypFunction funtype
 
 (* Section 7.2.9.1 *)
 and type_extern_function env info annotations return name t_params params =
@@ -3075,7 +3086,7 @@ and type_extern_function env info annotations return name t_params params =
   let fn_typed: Prog.coq_Declaration =
     DeclExternFunction (info, return, name, t_params @ wildcards, params_typed)
   in
-  fn_typed, Checker_env.insert_type_of (BareName name) (TypFunction typ) env
+  fn_typed, Checker_env.insert_type_of ~shadow:true (BareName name) (TypFunction typ) env
 
 and is_variable_type env (typ: coq_P4Type) =
   let typ = saturate_type env typ in
@@ -3139,7 +3150,7 @@ and type_variable env ctx info annotations typ name init =
   let var_typed : Prog.coq_Declaration =
     DeclVariable (info, expected_typ, name, init_typed)
   in
-  let env = Checker_env.insert_dir_type_of (BareName name) expected_typ InOut env in
+  let env = Checker_env.insert_dir_type_of ~shadow:true (BareName name) expected_typ InOut env in
   var_typed, env
 
 (* Section 12.11 *)
@@ -3176,8 +3187,14 @@ and type_action env info annotations name params body =
       action, action_type
     | _ -> failwith "expected function declaration"
   in
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None
+  | Some (TypAction _, _) -> ()
+  | Some (other_type, _) ->
+     raise_s [%message "cannot shadow with action" ~other_type:(other_type:coq_P4Type)]
+  end;
   action_typed,
-  Checker_env.insert_type_of (BareName name) action_type env
+  Checker_env.insert_type_of ~shadow:true (BareName name) action_type env
 
 (* Section 13.2 *)
 and type_table env ctx info annotations name properties : Prog.coq_Declaration * Checker_env.t =
@@ -3534,7 +3551,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                  size,
                  [])
     in
-    table_typed, Checker_env.insert_type_of (BareName name) table_typ env
+    table_typed, Checker_env.insert_type_of ~shadow:true (BareName name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
@@ -3739,7 +3756,11 @@ and type_extern_object env info annotations obj_name t_params methods =
   let env = Checker_env.insert_type (BareName obj_name) extern_type env in
   let env = Checker_env.insert_extern (BareName obj_name) extern_methods env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> Checker_env.insert_type_of (BareName obj_name) t env)
+              ~f:(fun env t -> Checker_env.insert_type_of
+                                 ~shadow:true
+                                 (BareName obj_name)
+                                 t
+                                 env)
   in
   extern_decl, env
 
@@ -3810,6 +3831,16 @@ and type_parser_type env info annotations name t_params params =
 
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =
+  begin match Checker_env.resolve_type_name_opt (BareName name) env with
+  | None
+  | Some (TypPackage _) -> ()
+  | Some other_type -> failwith "cannot shadow object with package"
+  end;
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None
+  | Some (TypConstructor (_, _, _, TypPackage _), _) -> ()
+  | Some other_type -> failwith "cannot shadow object with package constructor"
+  end;
   let body_env = Checker_env.insert_type_vars t_params env in
   let params_typed, wildcard_params =
     type_params ~gen_wildcards:true body_env (ParamCxConstructor ParamCxDeclPackage) params in
@@ -3821,8 +3852,8 @@ and type_package_type env info annotations name t_params params =
   let ctor_typ = TypConstructor (t_params, wildcard_params, params_typed, ret) in
   let env' =
     env
-    |> Checker_env.insert_type_of (BareName name) ctor_typ
-    |> Checker_env.insert_type (BareName name) pkg_typ
+    |> Checker_env.insert_type_of ~shadow:true (BareName name) ctor_typ
+    |> Checker_env.insert_type ~shadow:true (BareName name) pkg_typ
   in
   pkg_decl, env'
 
@@ -3853,7 +3884,10 @@ and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.De
     check_param_shadowing params [];
     let ret_type = translate_type env return in
     let ctx: coq_StmtContext = StmtCxFunction ret_type in
-    type_function env ctx (fst decl) return name type_params params body
+    let decl_typed, fn_type =
+      type_function env ctx (fst decl) return name type_params params body
+    in
+    decl_typed, Checker_env.insert_type_of (BareName name) fn_type env
   | Action { annotations; name; params; body } ->
     check_param_shadowing params [];
     type_action env (fst decl) annotations name params body

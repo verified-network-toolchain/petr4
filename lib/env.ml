@@ -6,6 +6,7 @@ let (<>) = Stdlib.(<>)
 
 exception BadEnvironment of string
 exception UnboundName of string
+exception AlreadyBound of string
 
 let mk_unbound (name: P4name.t) : exn =
   let str_name =
@@ -17,6 +18,17 @@ let mk_unbound (name: P4name.t) : exn =
        name.str
   in
   UnboundName str_name
+
+let mk_already_bound (name: P4name.t) : exn =
+  let str_name =
+    match name with
+    | QualifiedName (qs, name) ->
+      List.map ~f:(fun s -> s.str) qs @ [name.str]
+      |> String.concat ~sep:"."
+    | BareName name ->
+       name.str
+  in
+  AlreadyBound str_name
 
 type 'binding t = (string * 'binding) list list [@@deriving sexp,show,yojson]
 
@@ -72,14 +84,6 @@ let insert_toplevel (name: string) (value: 'a) (env: 'a t) : 'a t =
   let (env0,env1) = List.split_n env (List.length env - 1) in
   let env1' = insert_bare name value env1 in
   env0 @ env1'
-
-let insert (name: P4name.t) (value: 'a) (env: 'a t) : 'a t =
-  match name with
-  | BareName name ->
-    insert_bare name.str value env
-  | QualifiedName ([], name) ->
-    insert_toplevel name.str value env
-  | _ -> failwith "unimplemented"
 
 let update (name: P4name.t) (value: 'a) (env: 'a t) : 'a t option =
   match name with
@@ -145,5 +149,20 @@ let find_opt (name: P4name.t) (env: 'a t) : 'a option =
   | BareName n -> find_bare_opt n.str env
   | QualifiedName ([], n) -> find_toplevel_opt n.str env
   | _ -> failwith "unimplemented"
+
+let present (name: P4name.t) (env: 'a t) : bool =
+  match find_opt name env with
+  | Some _ -> true
+  | None -> false
+
+let insert ?shadow:(shadow=false) (name: P4name.t) (value: 'a) (env: 'a t) : 'a t =
+  if not shadow && present name env
+  then raise (mk_already_bound name)
+  else match name with
+       | BareName name ->
+          insert_bare name.str value env
+       | QualifiedName ([], name) ->
+          insert_toplevel name.str value env
+       | _ -> failwith "unimplemented"
 
 let empty_env : 'a t = [[]]

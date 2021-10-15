@@ -9,7 +9,7 @@ control C() {
     apply {
         bit<8> y = 0;
         .x(y);
-        bool y = true;
-        x(y);
+        bool z = true;
+        x(z);
     }
 }

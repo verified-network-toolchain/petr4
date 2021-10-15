@@ -66,9 +66,7 @@ let known_failures =
   ["default-control-argument.p4";
    "cast-call.p4";
    "issue1803_same_table_name.p4";
-   "issue1541.p4";
    "issue1672-bmv2.p4";
-   "issue1932.p4";
    "table-entries-optional-2-bmv2.p4";
    "control-verify.p4";
    "div1.p4";

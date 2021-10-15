@@ -2772,7 +2772,7 @@ and insert_params (env: Checker_env.t) (params: Types.Parameter.t list) : Checke
   in
   List.fold_left ~f:insert_param ~init:env params
 
-and type_initializer env ctx (init: Types.Statement.t) : Prog.coq_Initializer * Checker_env.t =
+and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Initializer * Checker_env.t  * Checker_env.t =
   begin match snd init with
   | DeclarationStatement { decl } ->
     begin match snd decl with
@@ -2783,14 +2783,16 @@ and type_initializer env ctx (init: Types.Statement.t) : Prog.coq_Initializer * 
       begin match type_function env ctx (fst decl) return name type_params params body with
       (* @synchronous allows access to other instantiations but not function declarations *)
       | DeclFunction (info, return_type, name, t_params, params_typed, body_typed), _ ->
-        InitFunction (info, return_type, name, t_params, params_typed, body_typed), env
+        InitFunction (info, return_type, name, t_params, params_typed, body_typed), env, env_top
       | _ -> failwith "BUG: expected DeclFunction."
       end
     (* More restrictions on instantiations? Variable declarations allowed? *)
     | Instantiation { annotations; typ; args; name; init } ->
       begin match type_instantiation env ctx (fst decl) annotations typ args name init with
-      | DeclInstantiation (info, typ, args, name, init_typed), env' ->
-        InitInstantiation (info, typ, args, name, init_typed), env'
+      | DeclInstantiation (info, typ, args, name, init_typed), instance_type ->
+        InitInstantiation (info, typ, args, name, init_typed), 
+        Checker_env.insert_type_of (BareName name) instance_type env,
+        Checker_env.insert_type_of (BareName name) instance_type env_top
       | _ -> failwith "BUG: expected DeclInstantiation."
       end
     | _ -> failwith "Unexpected declarations in the list of initializers."
@@ -2799,18 +2801,19 @@ and type_initializer env ctx (init: Types.Statement.t) : Prog.coq_Initializer * 
   end
 
 and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Initializer list * int =
-  let env = Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (top_scope env) in
+  let env_top = 
+    Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
   let extern_name, args =
     match instance_type with
     | TypExtern extern_name -> extern_name, []
     | TypSpecializedType (TypExtern extern_name, args) -> extern_name, args
     | _ -> raise_s [%message"Initializers are allowed only in the instantiation of an extern object."
-                    ~typ:(instance_type : Typed.coq_P4Type) ]
+                    ~typ:(instance_type : Typed.coq_P4Type)]
   in let ext = Checker_env.find_extern (BareName extern_name) env in 
   let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
   let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
-  let check_initializer (inits_typed, num_absts, env) decl =
-    let init_typed, env' = type_initializer env ctx decl in
+  let check_initializer (inits_typed, num_absts, env, env_top) decl =
+    let init_typed, env', env_top' = type_initializer env env_top ctx decl in
     let num_absts' = 
     begin match init_typed with
     | InitFunction (info, return_type, name, t_params, params_typed, body_typed) ->
@@ -2823,12 +2826,12 @@ and type_initializers env ctx instance_type (inits: Types.Statement.t list): Pro
       num_absts + 1
     | _ -> num_absts
     end
-    in inits_typed @ [init_typed], num_absts', env'
-  in let inits_typed, num_absts, _ = List.fold_left ~f:check_initializer ~init:([], 0, env) inits in
+    in inits_typed @ [init_typed], num_absts', env', env_top'
+  in let inits_typed, num_absts, _, _ = List.fold_left ~f:check_initializer ~init:([], 0, env, env_top) inits in
      inits_typed, num_absts
 
 (* Section 10.3 *)
-and type_instantiation env ctx info annotations typ args name init_block : Prog.coq_Declaration * Checker_env.t =
+and type_instantiation env ctx info annotations typ args name init_block : Prog.coq_Declaration * coq_P4Type =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
   let instance_typed = type_nameless_instantiation env expr_ctx info typ args in
   let instance_expr, instance_type, instance_dir = instance_typed in
@@ -2854,8 +2857,7 @@ and type_instantiation env ctx info annotations typ args name init_block : Prog.
   end;
   match instance_expr with
   | ExpNamelessInstantiation (typ, args) ->
-    DeclInstantiation (info, typ, args, name, inits_typed),
-    Checker_env.insert_type_of (BareName name) instance_type env
+    DeclInstantiation (info, typ, args, name, inits_typed), instance_type
   | _ -> failwith "BUG: expected NamelessInstantiation"
 
 and infer_constructor_type_args env ctx type_params wildcard_params params_args type_args =
@@ -3876,7 +3878,10 @@ and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.De
   | Constant { annotations; typ; name; value } ->
     type_constant env ctx (fst decl) annotations typ name value
   | Instantiation { annotations; typ; args; name; init } ->
-    type_instantiation env ctx (fst decl) annotations typ args name init
+    let decl_typed, instance_type =
+      type_instantiation env ctx (fst decl) annotations typ args name init
+    in
+    decl_typed, Checker_env.insert_type_of (BareName name) instance_type env
   | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
     check_param_shadowing params constructor_params;
     type_parser env (fst decl) name annotations type_params params constructor_params locals states

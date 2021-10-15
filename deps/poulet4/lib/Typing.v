@@ -185,18 +185,6 @@ Section Soundness.
   Local Hint Unfold expr_types : core.
   Local Hint Constructors exec_expr : core.
   Local Hint Constructors val_typ : core.
-
-  (*Section CanonicalForms.
-    Variables (rob : option bool -> bool -> Prop) (ge : @genv tags_t)
-              (p : path) (st : state) (e : expr) (v : Sval).
-
-    Hypothesis Hrn : run_expr ge rob p st e v.
-
-    Lemma canonical_forms_bool :
-      typ_of_expr e = TypBool -> exists bit, v = ValBaseBool bit.
-    Proof.
-    Abort.
-  End CanonicalForms.*)
   
   Ltac soundtac :=
     autounfold with *;
@@ -258,27 +246,6 @@ Section Soundness.
         simpl in *; eauto.
   Abort.
 
-  (*
-  Lemma eval_p4int_sval_not_null : forall i,
-      @eval_p4int_sval tags_t i <> ValBaseNull.
-  Proof.
-    destruct i as [tg z [[? [|]] |]]; cbn; discriminate.
-  Qed.
-  
-  Lemma exec_expr_null : forall ge rob p st e,
-      run_expr rob ge p st e ValBaseNull ->
-      exists tag t dir, e = MkExpression tag ExpDontCare t dir.
-  Proof.
-    intros rob ge p st e Hrun.
-    inversion Hrun; subst; eauto.
-    - exfalso. pose proof eval_p4int_sval_not_null i as Hnn.
-      rewrite <- H in Hnn; contradiction.
-    - (* [exec_expr_name] problematic:
-         need restructions on [st] and [ge]. *)
-      admit.
-    - Print array_access_idx_to_z.
-  Abort. *)
-  
   Lemma array_access_sound : forall tag arry idx ts dir n,
       typ_of_expr arry = TypArray (TypHeader ts) n ->
       typ_of_expr idx  = TypBit n ->
@@ -329,15 +296,6 @@ Section Soundness.
       rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
       (* Need result about [bitstring_slice]. *) admit.
   Admitted.
-
-  Local Hint Constructors exec_exprs : core.
-  
-  Lemma exec_exprs_iff : forall ge rob p st es vs,
-      exec_exprs ge rob p st es vs <-> Forall2 (run_expr ge rob p st) es vs.
-  Proof.
-    intros ge rob p st es vs; split;
-      intros H; induction H; auto.
-  Qed.
   
   Lemma list_sound : forall tag es dir,
       Forall (fun e => Γ ⊢e e) es ->
@@ -357,12 +315,10 @@ Section Soundness.
       destruct Hes as [Hrnes Htyps]. split.
     - clear Htyps; rewrite <- Forall_forall in Hrnes.
       rewrite Forall_exists_factor in Hrnes.
-      destruct Hrnes as [vs Hvs].
-      rewrite <- exec_exprs_iff in Hvs; eauto.
+      destruct Hrnes as [vs Hvs]; eauto.
     - clear Hrnes; intros v Hrn; simpl.
       inversion Hrn; subst; clear Hrn.
       rename H6 into Hesvs.
-      rewrite exec_exprs_iff in Hesvs.
       apply forall_Forall2 with (bs := vs) in Htyps;
         eauto using Forall2_length.
       apply Forall2_impl with
@@ -466,24 +422,53 @@ Section Soundness.
   Local Hint Unfold read_detbit : core.
   Local Hint Unfold sval_to_val : core.
   Local Hint Unfold val_to_sval : core.
-  Local Hint Constructors read_bits : core.
-
+  
   Lemma val_to_sval_ex : forall v,
-      exists v', @val_to_sval tags_t v v'.
+      @val_to_sval tags_t v (ValueBaseMap Some v).
   Proof.
-    autounfold with *.
-    induction v; eauto.
-    - exists (ValBaseBit (map Some value)).
-      constructor.
-      induction value; simpl in *; auto.
-    - exists (ValBaseInt (map Some value)).
-      constructor.
-      induction value; simpl in *; auto.
-    - exists (ValBaseVarbit max (map Some value)).
-      constructor.
-      induction value; simpl in *; auto.
-    - (* need induction principle for ValueBase. *)
-  Admitted.
+    autounfold with *; intro v.
+    induction v using (custom_ValueBase_ind bool); simpl; eauto.
+    - constructor.
+      rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
+      reflexivity.
+    - constructor.
+      rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
+      reflexivity.
+    - constructor.
+      rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
+      reflexivity.
+    - constructor.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      assumption.
+    - constructor. unfold AList.all_values.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      rewrite Forall_snd in H.
+      apply Forall_and; rewrite Forall_forall in *;
+        intros [? ?]; firstorder.
+    - constructor. unfold AList.all_values.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      rewrite Forall_snd in H.
+      apply Forall_and; rewrite Forall_forall in *;
+        intros [? ?]; firstorder.
+    - constructor; auto. unfold AList.all_values.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      rewrite Forall_snd in H.
+      apply Forall_and; rewrite Forall_forall in *;
+        intros [? ?]; firstorder.
+    - constructor. unfold AList.all_values.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      rewrite Forall_snd in H.
+      apply Forall_and; rewrite Forall_forall in *;
+        intros [? ?]; firstorder.
+    - constructor.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      assumption.
+    - constructor. unfold AList.all_values.
+      rewrite <- Forall2_map_r, Forall2_Forall.
+      rewrite Forall_snd in H.
+      apply Forall_and; rewrite Forall_forall in *;
+        intros [? ?]; firstorder.
+  Qed.
   
   Lemma unary_op_sound : forall tag o e t dir,
       unary_type o (typ_of_expr e) t ->

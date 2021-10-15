@@ -161,14 +161,6 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t boo
   | _ => None
   end.
 
-Inductive read_bits {A B} (read_one_bit : A -> B -> Prop) : 
-                    list A -> list B -> Prop :=
-  | read_nil : read_bits read_one_bit nil nil
-  | read_cons : forall b b' tl tl',
-                read_one_bit b b' ->
-                read_bits read_one_bit tl tl' ->
-                read_bits read_one_bit (b :: tl) (b' :: tl').
-
 Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
                    @ValueBase tags_t A -> @ValueBase tags_t B -> Prop :=
   | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
@@ -178,18 +170,18 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
   | exec_val_integer : forall n, 
                        exec_val read_one_bit (ValBaseInteger n) (ValBaseInteger n)
   | exec_val_bit : forall lb lb',
-                   read_bits read_one_bit lb lb' ->
+                   Forall2 read_one_bit lb lb' ->
                    exec_val read_one_bit (ValBaseBit lb) (ValBaseBit lb')
   | exec_val_int : forall lb lb',
-                   read_bits read_one_bit lb lb' ->
+                   Forall2 read_one_bit lb lb' ->
                    exec_val read_one_bit (ValBaseInt lb) (ValBaseInt lb')
   | exec_val_varbit : forall max lb lb',
-                      read_bits read_one_bit lb lb' ->
+                      Forall2 read_one_bit lb lb' ->
                       exec_val read_one_bit (ValBaseVarbit max lb) (ValBaseVarbit max lb')
   | exec_val_string : forall s,
                       exec_val read_one_bit (ValBaseString s) (ValBaseString s)
   | exec_val_tuple : forall lv lv',
-                     exec_vals read_one_bit lv lv' ->
+                     Forall2 (exec_val read_one_bit) lv lv' ->
                      exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
   | exec_val_record : forall kvs kvs',
                       AList.all_values (exec_val read_one_bit) kvs kvs' ->
@@ -208,9 +200,9 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                       exec_val read_one_bit (ValBaseHeader kvs b) (ValBaseHeader kvs' b')
   | exec_val_union : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseStruct kvs) (ValBaseStruct kvs')
+                     exec_val read_one_bit (ValBaseUnion kvs) (ValBaseUnion kvs')
   | exec_val_stack : forall lv lv' size next,
-                     exec_vals read_one_bit lv lv' ->
+                     Forall2 (exec_val read_one_bit) lv lv' ->
                      exec_val read_one_bit (ValBaseStack lv size next) (ValBaseStack lv' size next)
   | exec_val_enum_field : forall typ_name enum_name,
                           exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
@@ -221,26 +213,19 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                                                  (ValBaseSenumField typ_name enum_name v')
   | exec_val_senum : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')
-with exec_vals {A B} (read_one_bit : A -> B -> Prop) : 
-               list (@ValueBase tags_t A) -> list (@ValueBase tags_t B) -> Prop :=
-  | exec_vals_nil : exec_vals read_one_bit nil nil
-  | exec_vals_cons : forall hd tl hd' tl',
-                     exec_val read_one_bit hd hd' ->
-                     exec_vals read_one_bit tl tl' ->
-                     exec_vals read_one_bit (hd :: tl) (hd' :: tl').
+                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs').
 
 Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
   exec_val read_one_bit.
 
 Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
-  exec_vals read_one_bit.
+  Forall2 (exec_val read_one_bit).
 
 Definition val_to_sval := 
   exec_val read_detbit.
 
 Definition vals_to_svals := 
-  exec_vals read_detbit.
+  Forall2 (exec_val read_detbit).
 
 Definition eval_val_to_sval : Val -> Sval.
 Admitted.
@@ -469,7 +454,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                                  (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
                                  (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_expr_list : forall es vs this st tag typ dir,
-                     exec_exprs read_one_bit this st es vs ->
+      Forall2 (exec_expr read_one_bit this st) es vs ->
                      exec_expr read_one_bit this st
                      (MkExpression tag (ExpList es) typ dir)
                      (ValBaseTuple vs)
@@ -545,15 +530,15 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   | exec_expr_dont_care : forall this st tag typ dir,
                           exec_expr read_one_bit this st
                           (MkExpression tag ExpDontCare typ dir)
-                          ValBaseNull
-with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
+                          ValBaseNull.
+(*with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
                 path -> state -> list (@Expression tags_t) -> list Sval -> Prop :=
   | exec_exprs_nil : forall this st,
                      exec_exprs read_one_bit this st nil nil
   | exec_exprs_cons : forall this st expr es sv svs,
                       exec_expr read_one_bit this st expr sv ->
                       exec_exprs read_one_bit this st es svs ->
-                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).
+                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).*)
 
 Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
                         path -> (* temp_env -> *) state -> (@Expression tags_t) -> Val ->
@@ -567,7 +552,7 @@ Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                          path -> (* temp_env -> *) state -> list (@Expression tags_t) -> list Val ->
                         (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_exprs_det_intro : forall this st exprs svs vs,
-                           exec_exprs read_one_bit this st exprs svs ->
+      Forall2 (exec_expr read_one_bit this st) exprs svs ->
                            svals_to_vals read_one_bit svs vs ->
                            exec_exprs_det read_one_bit this st exprs vs.
 

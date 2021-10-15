@@ -362,3 +362,51 @@ Proof.
     induction uvs as [| [u v] uvs IHuvs];
     simpl in *; f_equal; auto.
 Qed.
+
+Lemma map_only_fst : forall (U V W : Type) (f : U -> V) (uws : list (U * W)),
+    map (fun '(u,w) => (f u, w)) uws =
+    let '(us,ws) := split uws in
+    combine (map f us) ws.
+Proof.
+  intros U V W f uws;
+    induction uws as [| [u w] uws IHuws];
+    simpl in *; auto.
+  destruct (split uws) as [us ws] eqn:Hequws;
+    simpl in *; f_equal; auto.
+Qed.
+
+Lemma map_only_snd : forall (U V W : Type) (f : V -> W) (uvs : list (U * V)),
+    map (fun '(u,v) => (u, f v)) uvs =
+    let '(us,vs) := split uvs in
+    combine us (map f vs).
+Proof.
+  intros U V W f uvs;
+    induction uvs as [| [u v] uvs IHuvs];
+    simpl in *; auto.
+  destruct (split uvs) as [us vs] eqn:Hequws;
+    simpl in *; f_equal; auto.
+Qed.
+
+Lemma Forall_fst : forall (U V : Type) (P : U -> Prop) (uvs : list (U * V)),
+    Forall (fun '(u,_) => P u) uvs <-> Forall (fun uv => P (fst uv)) uvs.
+Proof.
+  intros U V P uvs; split; intro H;
+    induction uvs as [| [u v] uvs IHuvs];
+    inversion H; subst; simpl in *; auto.
+Qed.
+
+Lemma Forall_snd : forall (U V : Type) (P : V -> Prop) (uvs : list (U * V)),
+    Forall (fun '(_,v) => P v) uvs <-> Forall (fun uv => P (snd uv)) uvs.
+Proof.
+  intros U V P uvs; split; intro H;
+    induction uvs as [| [u v] uvs IHuvs];
+    inversion H; subst; simpl in *; auto.
+Qed.
+
+Lemma Forall2_eq : forall (U : Type) (us vs : list U),
+    Forall2 eq us vs <-> us = vs.
+Proof.
+  intros U us vs; split; intros H; subst.
+  - induction H; subst; auto.
+  - induction vs; auto.
+Qed.

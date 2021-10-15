@@ -2399,7 +2399,7 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.coq
   let t_params, w_params, params, ret = resolve_constructor_overload env decl_name args in
   let params_args = match_params_to_args env info params args in
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
-  let env' = Checker_env.insert_types ~shadow:false type_params_args env in
+  let env' = Checker_env.insert_types type_params_args env in
   let cast_arg (param, arg: coq_P4Parameter * Types.Expression.t option) =
     let MkParameter (is_opt, _, _, _, _) = param in
     match cast_param_arg env' ctx info (param, arg) with
@@ -2770,7 +2770,7 @@ and insert_params (env: Checker_env.t) (params: Types.Parameter.t list) : Checke
   in
   List.fold_left ~f:insert_param ~init:env params
 
-and type_initializer env ctx instance_type (init: Types.Statement.t) : Prog.coq_Initializer * Checker_env.t =
+and type_initializer env ctx (init: Types.Statement.t) : Prog.coq_Initializer * Checker_env.t =
   begin match snd init with
   | DeclarationStatement { decl } ->
     begin match snd decl with
@@ -2778,8 +2778,7 @@ and type_initializer env ctx instance_type (init: Types.Statement.t) : Prog.coq_
       check_param_shadowing params [];
       let ret_type = translate_type env return in
       let ctx: coq_StmtContext = StmtCxMethod ret_type in
-      let top_env = Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (top_scope env) in
-      begin match type_function top_env ctx (fst decl) return name type_params params body with
+      begin match type_function env ctx (fst decl) return name type_params params body with
       (* @synchronous allows access to other instantiations but not function declarations *)
       | DeclFunction (info, return_type, name, t_params, params_typed, body_typed), _ ->
         InitFunction (info, return_type, name, t_params, params_typed, body_typed), env
@@ -2798,6 +2797,7 @@ and type_initializer env ctx instance_type (init: Types.Statement.t) : Prog.coq_
   end
 
 and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Initializer list * int =
+  let env = Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (top_scope env) in
   let extern_name, args =
     match instance_type with
     | TypExtern extern_name -> extern_name, []
@@ -2808,7 +2808,7 @@ and type_initializers env ctx instance_type (inits: Types.Statement.t list): Pro
   let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
   let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
   let check_initializer (inits_typed, num_absts, env) decl =
-    let init_typed, env' = type_initializer env ctx instance_type decl in
+    let init_typed, env' = type_initializer env ctx decl in
     let num_absts' = 
     begin match init_typed with
     | InitFunction (info, return_type, name, t_params, params_typed, body_typed) ->
@@ -2823,7 +2823,8 @@ and type_initializers env ctx instance_type (inits: Types.Statement.t list): Pro
     end
     in inits_typed @ [init_typed], num_absts', env'
   in let inits_typed, num_absts, _ = List.fold_left ~f:check_initializer ~init:([], 0, env) inits in
-    inits_typed, num_absts
+     inits_typed, num_absts
+
 (* Section 10.3 *)
 and type_instantiation env ctx info annotations typ args name init_block : Prog.coq_Declaration * Checker_env.t =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
@@ -3551,7 +3552,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                  size,
                  [])
     in
-    table_typed, Checker_env.insert_type_of ~shadow:true (BareName name) table_typ env
+    table_typed, Checker_env.insert_type_of ~shadow:false (BareName name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =

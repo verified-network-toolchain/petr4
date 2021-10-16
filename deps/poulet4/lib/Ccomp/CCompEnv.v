@@ -447,10 +447,9 @@ Section CEnv.
     composite_of_ident_from_list id env.(composites). *)
 
   Definition lookup_function (env: ClightEnv) (name: string) : option (Clight.function*ident) := 
-    match Env.find name env.(fenv), Env.find name env.(identMap) with
-    | Some (f), Some (id)=> Some (f,id)
-    | _ , _ => None
-    end.
+    let* f := Env.find name env.(fenv) in
+    let* fid := Env.find name env.(identMap) in
+    Some(f,fid).
 
 
   Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident): option Ctypes.type :=
@@ -477,10 +476,11 @@ Section CEnv.
   let keys := Env.keys env.(fenv) in 
   List.fold_right 
   (fun (key : string) (accumulator: option (list (AST.ident * Clight.function))) 
-    => match accumulator, lookup_function env key with
-      | Some l, Some (f, id) => Some ((id,f)::l) 
-      | _ , _ => None
-      end) (Some []) keys.
+    => 
+    let* l := accumulator in
+    let* '(f,fid) := lookup_function env key in
+    Some ((fid,f)::l))
+  (Some []) keys.
 
   Definition get_composites (env: ClightEnv) : list (Ctypes.composite_definition):= 
     List.map snd env.(composites).

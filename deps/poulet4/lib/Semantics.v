@@ -1087,7 +1087,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
                         exec_stmt this_path inst_m st
                         (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
-  (* StatInstantiation not considered yet *)
+  (* StatInstantiation must be hoisted. *)
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,

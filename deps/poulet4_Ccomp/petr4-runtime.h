@@ -26,9 +26,8 @@ struct BitVec{
 };
 
 struct TableKey{
-  struct BitVec val;
-  int match_bits;
-  //TODO: add support for ternary
+  int match_bits; 
+  char val[]; //string of chars to support ternary 
 };
 
 struct Table{
@@ -291,6 +290,8 @@ void add_entry(struct Table* table, struct TableKey* newkeys, int new_action){
   }
 }
 
+
+
 //given an array of values, return the action the table should take.
 //0 if it is default action
 //in the compiler, when it finds out the expression has type bool, it should
@@ -306,12 +307,27 @@ void table_match(int* dst,struct Table* table, struct BitVec* vals){
     for(int key = 0; key < table->num_keys; key++){
       switch (table->matchkind[key]){
         case 1:{
-          if(result){
-            interp_beq(&result, vals[key], table->keys[entry][key].val);
+          if(&result){
+            if(&vals[key] == &table->keys[entry][key].val) {
+              result = 1; 
+            }
+            else {
+              return; 
+            }
+          }
+        }
+        case 3:{
+          if(&result){
+            if(&vals[key] == 'X' || table->keys[entry][key].val == 'X'){
+              result = 1; 
+            }
+            else{
+              return; 
+            }
           }
         }
         default:{
-          //TODO: implement lpm and ternary
+          //TODO: implement lpm 
           result = result;
         }
       }

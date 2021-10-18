@@ -35,6 +35,7 @@ Section TypingDefs.
      - fixed-width numeric types?
      - headers (unions & stacks)?
      - senum values: see comments below.
+     - needs to be parameterized by bit type.
    *)
   Inductive val_typ (gsenum : genv_senum) : Sval -> typ -> Prop :=
   | typ_null : val_typ gsenum ValBaseNull TypVoid
@@ -413,8 +414,8 @@ Section Soundness.
   Inductive unary_type : OpUni -> typ -> typ -> Prop :=
   | UTBool :
       unary_type Not TypBool TypBool
-  | UTBitNot τ :
-      numeric τ -> unary_type BitNot τ τ
+  | UTBitNot w τ :
+      numeric_width w τ -> unary_type BitNot τ τ
   | UTUMinus τ :
       numeric τ -> unary_type UMinus τ τ.
 
@@ -469,6 +470,17 @@ Section Soundness.
       apply Forall_and; rewrite Forall_forall in *;
         intros [? ?]; firstorder.
   Qed.
+
+  Local Hint Resolve val_to_sval_ex : core.
+
+  Lemma unary_type_eq : forall o t t', unary_type o t t' -> t = t'.
+  Proof.
+    intros ? ? ? H; inversion H; subst; auto.
+  Qed.
+  
+  Fail Lemma exec_val_preserves_typ : forall A B (f : A -> B -> Prop) v v',
+      exec_val f v v' ->
+      forall t ges, val_typ ges v t -> val_typ ges v' t.
   
   Lemma unary_op_sound : forall tag o e t dir,
       unary_type o (typ_of_expr e) t ->
@@ -482,29 +494,24 @@ Section Soundness.
     pose proof He Henvs Henvt as [[v Hev] Hvt]; clear He; split.
     - apply Hvt in Hev as Hv; clear Hvt.
       assert (exists v', sval_to_val rob v v').
-      { inversion Hut; subst; try inv_numeric;
-          match goal with
-          | H: _ = typ_of_expr ?e
-            |-  _ => rewrite <- H in Hv
-          end; inversion Hv; subst.
-        - admit.
-        - admit.
-        - admit.
-        - admit.
-        - admit.
-        - admit.
-        - admit. }
+      { admit. }
       (* Need predicate that [rob v v'] holds in [expr_types]... *)
       destruct H as [v' Hv'].
-      destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop.
-      + inversion Hut; subst; try inv_numeric;
-          match goal with
-          | H: _ = typ_of_expr ?e
-            |-  _ => rewrite <- H in Hv
-          end; inversion Hv; inversion Hv';
-            subst; simpl in *; try discriminate; eauto. admit.
-      (*+ rewrite <- H1 in Hv; inversion Hv; subst.
-        assert (exists v', sval_to_val rob (ValBaseBool b) v').
-        destruct (Ops.Ops.eval_unary_op o (sval_to_val )). *)
+      destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
+      inversion Hut; subst; try inv_numeric; try inv_numeric_width;
+        match goal with
+        | H: _ = typ_of_expr ?e,
+             Hv: val_typ _ ?v (typ_of_expr ?e),
+                 Hv': sval_to_val _ ?v _
+          |- _ => rewrite <- H in *; inversion Hv; inversion Hv'; subst
+        end; simpl in *; try discriminate.
+    - clear v Hev; intros v Hev.
+      inversion Hev; subst; simpl in *.
+      pose proof Hvt _ H7 as Hargsv.
+      (* Need to know:
+         - [forall o t t', unary_type o t t' -> t = t']
+         - [forall f g t v v', exec_val f v v' -> val_typ g v t -> val_typ g v' t]
+         - [forall o v v' g t, eval_unary_op o v = Some v' -> val_typ g v t -> val_typ g v' t].
+         Requires a parameterized [val_typ]. *)
   Abort.
 End Soundness.

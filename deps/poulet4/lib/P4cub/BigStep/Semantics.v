@@ -54,13 +54,13 @@ Reserved Notation
           ϵ custom p4env).
 
 (** Parser-state-machine evaluation. *)
-Reserved Notation  "'Δ`' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
+Reserved Notation  "'SM' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
          (at level 40, strt custom p4prsrstateblock, curr custom p4prsrstate,
           fenv custom p4env, ϵ1 custom p4env, ϵ2 custom p4env,
           pis custom p4env, eis custom p4env, final custom p4prsrstate).
 
 (** Parser-state-block evaluation. *)
-Reserved Notation "'Δ' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
+Reserved Notation "'SB' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
          (at level 40, currb custom p4prsrstateblock,
           ϵ1 custom p4env, ϵ2 custom p4env, fenv custom p4env,
           pis custom p4env, eis custom p4env, next custom p4prsrstate).
@@ -446,7 +446,7 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      Δ` (pkt, fclosure, ϵ', pis', exts, strt, states, ={start}=)
+      SM (pkt, fclosure, ϵ', pis', exts, strt, states, ={start}=)
        ⇝ ⟨ϵ'', ={accept}=, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
@@ -470,7 +470,7 @@ Module Step.
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
       (* state machine evaluation *)
-      Δ` (pkt, fclosure, ϵ', pis', exts, strt, states, ={start}=) ⇝ ⟨ϵ'', reject, pkt'⟩ ->
+      SM (pkt, fclosure, ϵ', pis', exts, strt, states, ={start}=) ⇝ ⟨ϵ'', reject, pkt'⟩ ->
       (* copy-out *)
       copy_out argsv ϵ'' ϵ = ϵ''' ->
       ⟪ pkt, fs, ϵ, Parser pis eis, apply x with eargs & args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct, pkt' ⟫
@@ -546,16 +546,16 @@ Module Step.
                (ϵ' : epsilon) (pkt' : Paquet.t)
                (pis : pienv) (eis : ARCH.extern_env) :
       get_state_block strt states curr = Some currb ->
-      Δ (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', accept, pkt'⟩ ->
-      Δ` (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', accept, pkt'⟩
+      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', accept, pkt'⟩ ->
+      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', accept, pkt'⟩
   | bsm_reject (strt : PR.state_block tags_t)
                (states : F.fs string (PR.state_block tags_t))
                (curr : PR.state) (currb : PR.state_block tags_t)
                (ϵ' : epsilon) (pkt' : Paquet.t)
                (pis : pienv) (eis : ARCH.extern_env) :
       get_state_block strt states curr = Some currb ->
-      Δ (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', reject, pkt'⟩ ->
-      Δ` (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', reject, pkt'⟩
+      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', reject, pkt'⟩ ->
+      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', reject, pkt'⟩
   | bsm_continue (strt : PR.state_block tags_t)
                  (states : F.fs string (PR.state_block tags_t))
                  (curr : PR.state) (currb : PR.state_block tags_t)
@@ -563,10 +563,10 @@ Module Step.
                  (ϵ' ϵ'' : epsilon) (pkt' pkt'' : Paquet.t)
                  (pis : pienv) (eis : ARCH.extern_env) :
       get_state_block strt states curr = Some currb ->
-      Δ  (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', next, pkt'⟩ ->
-      Δ` (pkt', fs, ϵ', pis, eis, strt, states, next) ⇝ ⟨ϵ'', final, pkt''⟩ ->
-      Δ` (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ ϵ'', final, pkt''⟩
-  where  "'Δ`' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
+      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', next, pkt'⟩ ->
+      SM (pkt', fs, ϵ', pis, eis, strt, states, next) ⇝ ⟨ϵ'', final, pkt''⟩ ->
+      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ ϵ'', final, pkt''⟩
+  where  "'SM' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
            := (bigstep_state_machine
                  pkt1 fenv ϵ1 pis eis strt states curr ϵ2 final pkt2)
 
@@ -578,14 +578,14 @@ Module Step.
                (ϵ' : epsilon) (pkt' : Paquet.t)
                (pis : pienv) (eis : ARCH.extern_env) :
       ⟪ pkt, fs, ϵ, Parser pis eis, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct, pkt' ⟫ ->
-      Δ (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', reject, pkt'⟩
+      SB (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', reject, pkt'⟩
   | bsb_cont (s : ST.s tags_t) (e : PR.e tags_t)
              (st : PR.state) (ϵ' : epsilon) (pkt' : Paquet.t)
              (pis : pienv) (eis : ARCH.extern_env) :
       ⟪ pkt, fs, ϵ, Parser pis eis, s ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫ ->
       ⦑ ϵ', e ⦒ ⇓ st ->
-      Δ (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', st, pkt'⟩
-  where "'Δ' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
+      SB (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', st, pkt'⟩
+  where "'SB' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
   := (bigstep_state_block pkt1 fenv ϵ1 pis eis currb ϵ2 next pkt2).
 
 
@@ -779,7 +779,7 @@ Module Step.
   | pibs (ϵ ϵ': epsilon) (fs: fenv) (pis: pienv) (eis: ARCH.extern_env)
          (pkt pkt': Paquet.t) (strt: PR.state_block tags_t)
          (states : F.fs string (PR.state_block tags_t)) :
-      Δ` (pkt, fs, ϵ, pis, eis, strt, states, start) ⇝ ⟨ϵ', accept, pkt'⟩ ->
+      SM (pkt, fs, ϵ, pis, eis, strt, states, start) ⇝ ⟨ϵ', accept, pkt'⟩ ->
       parser_instance_big_step
         (PInst ϵ fs pis eis strt states) pkt pkt'.
   (**[]*)

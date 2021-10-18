@@ -12,8 +12,8 @@ Import P.P4cubNotations TypeEquivalence
        ProperType F.FieldTactics Env.EnvNotations.
 
 Section LValueTheorems.
-  Variable errs : errors.
-  Variable Γ : gamma.
+  Variable D : Delta.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
@@ -21,7 +21,7 @@ Section LValueTheorems.
     Local Hint Constructors check_expr : core.
 
     Theorem lvalue_preservation : forall (e e' : E.e tags_t) τ,
-      ℶ e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+      ℶ e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
         induction He; intros t Ht; inv Ht; eauto 3.
@@ -34,14 +34,14 @@ Section LValueTheorems.
     Hint Constructors lvalue_step : core.
 
     Theorem lvalue_progress : forall (e : E.e tags_t) τ,
-        lvalue_ok e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         lvalue e \/ exists e', ℶ e -->  e'.
     Proof.
       intros e τ Hlv; generalize dependent τ;
       induction Hlv; intros t Ht; inv Ht;
       try match goal with
-          | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
-            H: ⟦ errs, Γ ⟧ ⊢ ?e ∈ _
+          | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
+            H: ⟦ D, Γ ⟧ ⊢ ?e ∈ _
             |- _ => apply IH in H as [? | [? ?]]
           end; eauto 4.
     Qed.
@@ -49,7 +49,7 @@ Section LValueTheorems.
 End LValueTheorems.
 
 Section ExprTheorems.
-  Variable Γ : gamma.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
@@ -61,12 +61,12 @@ Section ExprTheorems.
       Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
-  Variable errs : errors.
+  Variable D : Delta.
 
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type : Prop :=
     forall (x : string) (τ : E.t) (v : E.e tags_t),
-      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ errs , Γ ⟧ ⊢ v ∈ τ.
+      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
   (**[]*)
 
   Definition envs_sound : Prop := envs_type /\ envs_subset.
@@ -87,7 +87,7 @@ Section ExprTheorems.
     Local Hint Constructors PT.proper_nesting : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
-        ℵ ϵ, e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+        ℵ ϵ, e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
@@ -138,12 +138,12 @@ Section ExprTheorems.
     Local Hint Constructors expr_step : core.
 
     Theorem expr_small_step_progress : forall e τ,
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
     Proof.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
       match goal with
-      | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _
+      | H: ⟦ D, Γ ⟧ ⊢ _ ∈ _
         |- _ => induction H using custom_check_expr_ind
       end;
       try match goal with
@@ -151,7 +151,7 @@ Section ExprTheorems.
             assert (value e); [ repeat constructor; eassumption
                           | left; assumption ]
           end;
-      repeat progress_simpl; eauto 4.
+      repeat progress_simpl; eauto 4. (*
       - right; apply Henvs_subset in H as [? ?]; eauto 3.
       - right; pose proof eval_slice_exists
                     _ _ _ _ _ _ _ H2 H H0 H1 as [? ?]; eauto 3.
@@ -216,7 +216,7 @@ Section ExprTheorems.
       - invert_proper_nesting.
         assert (Hidx : (BinIntDef.Z.to_nat idx < length x)%nat) by lia.
         pose proof nth_error_exists _ _ Hidx as [v ?]; eauto 5.
-    Qed. *)
+    Qed. *) *)
     Admitted.
   End Progress.
 End ExprTheorems.
@@ -224,9 +224,9 @@ End ExprTheorems.
 Section ParserExprTheorems.
   Variable sts : user_states.
 
-  Variable errs : errors.
+  Variable D : Delta.
 
-  Variable Γ : gamma.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
@@ -237,10 +237,10 @@ Section ParserExprTheorems.
     Local Hint Resolve expr_small_step_preservation : core.
     Hint Rewrite Forall_app : core.
 
-    Hypothesis Henvs_type : envs_type Γ ϵ errs.
+    Hypothesis Henvs_type : envs_type Γ ϵ D.
 
     Theorem parser_expr_preservation : forall e e',
-      π ϵ, e -->  e' -> ⟅ sts, errs, Γ ⟆ ⊢ e -> ⟅ sts, errs, Γ ⟆ ⊢ e'.
+      π ϵ, e -->  e' -> ⟅ sts, D, Γ ⟆ ⊢ e -> ⟅ sts, D, Γ ⟆ ⊢ e'.
     Proof.
       intros e e' Hpi Ht; induction Hpi; inv Ht; repeat subst_term; eauto 3.
       (*- econstructor; eauto 1; autorewrite with core in *;
@@ -267,10 +267,10 @@ Section ParserExprTheorems.
         select_expr p{ select e { cases } default:=d @ i }p.
     (**[]*)
 
-    Hypothesis Henvs_sound : envs_sound Γ ϵ errs.
+    Hypothesis Henvs_sound : envs_sound Γ ϵ D.
 
     Theorem parser_expr_progress : forall e,
-        select_expr e -> ⟅ sts, errs, Γ ⟆ ⊢ e -> exists e', π ϵ, e -->  e'.
+        select_expr e -> ⟅ sts, D, Γ ⟆ ⊢ e -> exists e', π ϵ, e -->  e'.
     Proof.
       intros e Hs He; induction He using check_prsrexpr_ind; inv Hs.
       eapply expr_small_step_progress in H as [Hev | [e' He']]; eauto 3.

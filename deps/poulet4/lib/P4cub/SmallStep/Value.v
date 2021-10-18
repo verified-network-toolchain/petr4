@@ -165,9 +165,9 @@ Module CanonicalForms.
   Ltac crush_canonical := intros; invert_canonical; eauto 4.
   
   Section CanonicalForms.
-    Variable errs : errors.
+    Variable Δ : Delta.
     
-    Variable Γ : gamma.
+    Variable Γ : Gamma.
     
     Context {tags_t : Type}.
     
@@ -176,39 +176,39 @@ Module CanonicalForms.
     Hypothesis Hv : value v.
     
     Lemma canonical_forms_bool :
-      ⟦ errs, Γ ⟧ ⊢ v ∈ Bool -> exists b i, v = <{ BOOL b @ i }>.
+      ⟦ Δ, Γ ⟧ ⊢ v ∈ Bool -> exists b i, v = <{ BOOL b @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_bit : forall w,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ bit<w> -> exists n i, v = <{ w W n @ i }>.
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ bit<w> -> exists n i, v = <{ w W n @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_int : forall w,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ int<w> -> exists z i, v = <{ w S z @ i }>.
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ int<w> -> exists z i, v = <{ w S z @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_tuple : forall ts,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ tuple ts -> exists es i, v = <{ tup es @ i }>.
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ tuple ts -> exists es i, v = <{ tup es @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_struct : forall ts,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ struct { ts } -> exists fs i, v = <{ struct { fs } @ i }>.
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ struct { ts } -> exists fs i, v = <{ struct { fs } @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_header : forall ts,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ hdr { ts } -> exists fs b i, v = <{ hdr { fs } valid:=b @ i }>.
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ hdr { ts } -> exists fs b i, v = <{ hdr { fs } valid:=b @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_error :
-      ⟦ errs, Γ ⟧ ⊢ v ∈ error -> exists err i, v = <{ Error err @ i }>.
+      ⟦ Δ, Γ ⟧ ⊢ v ∈ error -> exists err i, v = <{ Error err @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_matchkind :
-      ⟦ errs, Γ ⟧ ⊢ v ∈ matchkind -> exists mk i, v = <{ Matchkind mk @ i }>.
+      ⟦ Δ, Γ ⟧ ⊢ v ∈ matchkind -> exists mk i, v = <{ Matchkind mk @ i }>.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_headerstack : forall ts n,
-        ⟦ errs, Γ ⟧ ⊢ v ∈ stack ts[n] ->
+        ⟦ Δ, Γ ⟧ ⊢ v ∈ stack ts[n] ->
         exists hs ni i, v = <{ Stack hs:ts[n] nextIndex:= ni @ i }>.
     Proof. crush_canonical. Qed.
   End CanonicalForms.

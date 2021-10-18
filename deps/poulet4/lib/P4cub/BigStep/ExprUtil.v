@@ -171,14 +171,14 @@ Section Lemmas.
   Section HelpersType.
     Local Hint Constructors type_value : core.
     
-    Lemma eval_member_types : forall errs x v v' ts τ τ',
+    Lemma eval_member_types : forall  x v v' ts τ τ',
         eval_member x v = Some v' ->
         member_type ts τ ->
         F.get x ts = Some τ' ->
-        ∇ errs ⊢ v ∈ τ ->
-        ∇ errs ⊢ v' ∈ τ'.
+        ∇  ⊢ v ∈ τ ->
+        ∇  ⊢ v' ∈ τ'.
     Proof.
-      intros errs x v v' ts τ τ' Heval Hmem Hget Ht;
+      intros  x v v' ts τ τ' Heval Hmem Hget Ht;
         inv Hmem; inv Ht; unravel in *.
       - eapply F.relfs_get_r in H1 as [? ?]; eauto.
         intuition. rewrite Heval in H0; inv H0; eauto.
@@ -189,23 +189,23 @@ Section Lemmas.
     Local Hint Extern 0 => bit_bounded : core.
     Local Hint Extern 0 => int_bounded : core.
     
-    Lemma eval_slice_types : forall errs v v' τ hi lo w,
+    Lemma eval_slice_types : forall  v v' τ hi lo w,
         eval_slice hi lo v = Some v' ->
         (lo <= hi < w)%positive ->
         numeric_width w τ ->
-        ∇ errs ⊢ v ∈ τ ->
+        ∇  ⊢ v ∈ τ ->
         let w' := (hi - lo + 1)%positive in
-        ∇ errs ⊢ v' ∈ bit<w'>.
+        ∇  ⊢ v' ∈ bit<w'>.
     Proof.
-      intros errs v v' τ hi lo w Heval Hw Hnum Hv w'; subst w'.
+      intros  v v' τ hi lo w Heval Hw Hnum Hv w'; subst w'.
       inv Hnum; inv Hv; unravel in *; inv Heval; auto 2.
     Qed.
     
-    Lemma eval_bop_type : forall errs op τ1 τ2 τ v1 v2 v,
+    Lemma eval_bop_type : forall  op τ1 τ2 τ v1 v2 v,
         bop_type op τ1 τ2 τ -> eval_bop op v1 v2 = Some v ->
-        ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 -> ∇ errs ⊢ v ∈ τ.
+        ∇  ⊢ v1 ∈ τ1 -> ∇  ⊢ v2 ∈ τ2 -> ∇  ⊢ v ∈ τ.
     Proof.
-      intros errs op τ1 τ2 τ v1 v2 v Hbop Heval Ht1 Ht2; inv Hbop;
+      intros  op τ1 τ2 τ v1 v2 v Hbop Heval Ht1 Ht2; inv Hbop;
         repeat match goal with
                | H: Some _ = Some _ |- _ => inv H; constructor; auto 2
                | H: numeric _ |- _ => inv H
@@ -218,11 +218,11 @@ Section Lemmas.
     
     Local Hint Resolve proper_inside_header_nesting : core.
     
-    Lemma eval_cast_types : forall errs v v' τ τ',
+    Lemma eval_cast_types : forall  v v' τ τ',
         proper_cast τ τ' -> eval_cast τ' v = Some v' ->
-        ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
+        ∇  ⊢ v ∈ τ -> ∇  ⊢ v' ∈ τ'.
     Proof.
-      intros errs v v' τ τ' Hpc Heval Ht; inv Hpc; inv Ht;
+      intros  v v' τ τ' Hpc Heval Ht; inv Hpc; inv Ht;
         unravel in *; try match goal with
                           | H: Some _ = Some _ |- _ => inv H
                           end; auto 2.
@@ -260,11 +260,11 @@ Section Lemmas.
     Local Hint Resolve Forall_firstn : core.
     Local Hint Resolve Forall_skipn : core.
     
-    Lemma eval_uop_types : forall errs op τ τ' v v',
+    Lemma eval_uop_types : forall  op τ τ' v v',
         uop_type op τ τ' -> eval_uop op v = Some v' ->
-        ∇ errs ⊢ v ∈ τ -> ∇ errs ⊢ v' ∈ τ'.
+        ∇  ⊢ v ∈ τ -> ∇  ⊢ v' ∈ τ'.
     (*Proof.
-      intros errs op τ τ' v v' Huop Heval Ht;
+      intros  op τ τ' v v' Huop Heval Ht;
         inv Huop; inv Ht; unravel in *; inv Heval; auto 2;
           invert_proper_nesting;
           repeat match goal with
@@ -282,30 +282,30 @@ Section Lemmas.
   End HelpersType.
   
   Section HelpersExist.
-    Lemma eval_slice_exists : forall errs v τ hi lo w,
+    Lemma eval_slice_exists : forall  v τ hi lo w,
       (lo <= hi < w)%positive ->
       numeric_width w τ ->
-      ∇ errs ⊢ v ∈ τ ->
+      ∇  ⊢ v ∈ τ ->
       exists v', eval_slice hi lo v = Some v'.
     Proof.
-      intros errs v τ hi lo w Hw Hnum Hv;
+      intros  v τ hi lo w Hw Hnum Hv;
         inv Hnum; inv Hv; unravel; eauto 2.
     Qed.
     
-    Lemma eval_bop_exists : forall errs op τ1 τ2 τ v1 v2,
+    Lemma eval_bop_exists : forall  op τ1 τ2 τ v1 v2,
         bop_type op τ1 τ2 τ ->
-        ∇ errs ⊢ v1 ∈ τ1 -> ∇ errs ⊢ v2 ∈ τ2 ->
+        ∇  ⊢ v1 ∈ τ1 -> ∇  ⊢ v2 ∈ τ2 ->
         exists v, eval_bop op v1 v2 = Some v.
     Proof.
-      intros errs op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
+      intros  op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
         repeat inv_numeric; inv Ht1; inv Ht2; unravel; eauto 2;
           try inv_numeric_width.
     Qed.
     
-    Lemma eval_cast_exists : forall errs τ τ' v,
-        proper_cast τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_cast τ' v = Some v'.
+    Lemma eval_cast_exists : forall  τ τ' v,
+        proper_cast τ τ' -> ∇  ⊢ v ∈ τ -> exists v', eval_cast τ' v = Some v'.
     Proof.
-      intros errs τ τ' v Hpc Ht; inv Hpc; inv Ht; unravel; eauto 2.
+      intros  τ τ' v Hpc Ht; inv Hpc; inv Ht; unravel; eauto 2.
       - destruct b; eauto 2.
       - destruct n; eauto 2; destruct p; eauto 2;
           try (cbv in *; destruct H1; try destruct p; discriminate).
@@ -313,10 +313,10 @@ Section Lemmas.
       - destruct w2; eauto 2.
     Qed.
     
-    Lemma eval_uop_exist : forall errs op τ τ' v,
-        uop_type op τ τ' -> ∇ errs ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
+    Lemma eval_uop_exist : forall  op τ τ' v,
+        uop_type op τ τ' -> ∇  ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
     (*Proof.
-      intros errs op τ τ' v Huop Ht; inv Huop; inv Ht;
+      intros  op τ τ' v Huop Ht; inv Huop; inv Ht;
         unravel; repeat inv_numeric; eauto 2;
           try (destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2).
       - assert (Hnith : (Z.to_nat ni < length hs)%nat) by lia;
@@ -325,13 +325,13 @@ Section Lemmas.
     Qed. *)
     Admitted.
       
-    Lemma eval_member_exists : forall errs x v ts τ τ',
+    Lemma eval_member_exists : forall  x v ts τ τ',
         member_type ts τ ->
         F.get x ts = Some τ' ->
-        ∇ errs ⊢ v ∈ τ ->
+        ∇  ⊢ v ∈ τ ->
         exists v', eval_member x v = Some v'.
     Proof.
-      intros errs x v ts τ τ' Hmem Hget Ht;
+      intros  x v ts τ τ' Hmem Hget Ht;
         inv Hmem; inv Ht; unravel.
       - eapply F.relfs_get_r in H1 as [? ?]; eauto 2;
           intuition; eauto 2.

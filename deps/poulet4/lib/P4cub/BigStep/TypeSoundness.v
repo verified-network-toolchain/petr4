@@ -16,19 +16,19 @@ Import P.P4cubNotations Step
 
 Section BigStepTheorems.
   (** Epsilon's values type's agree with Gamma. *)
-  Definition envs_type (errs : errors) (Γ : gamma) (ϵ : epsilon) : Prop :=
+  Definition envs_type (Δ : Delta) (Γ : Gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : E.t) (v : V.v),
-      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ∇ errs ⊢ v ∈ τ.
+      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ∇ ⊢ v ∈ τ.
   (**[]*)
 
   (** Epsilon is a subset of Gamma. *)
-  Definition envs_subset (Γ : gamma) (ϵ : epsilon) : Prop :=
+  Definition envs_subset (Γ : Gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : E.t),
       Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
-  Definition envs_sound Γ ϵ errs : Prop :=
-    envs_type errs Γ ϵ /\ envs_subset Γ ϵ.
+  Definition envs_sound Γ ϵ Δ : Prop :=
+    envs_type Δ Γ ϵ /\ envs_subset Γ ϵ.
   (**[]*)
 
   Context {tags_t : Type}.
@@ -43,22 +43,22 @@ Section BigStepTheorems.
     Local Hint Constructors type_value : core.
 
     Theorem expr_big_step_preservation :
-      forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
+      forall (Δ : Delta) (Γ : Gamma) (e : E.e tags_t)
         (τ : E.t) (ϵ : epsilon) (v : V.v),
-        envs_type errs Γ ϵ ->
+        envs_type Δ Γ ϵ ->
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-        ∇ errs ⊢ v ∈ τ.
+        ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
+        ∇ ⊢ v ∈ τ.
     Proof.
-      unfold envs_type; intros errs Γ e τ ϵ v Het Hev.
+      unfold envs_type; intros D Γ e τ ϵ v Het Hev.
       generalize dependent τ.
       induction Hev using custom_expr_big_step_ind; intros t Ht; inv Ht;
       try constructor; eauto 4;
         repeat match goal with
                | w' := _ |- context [ ?w' ] => subst w'; eauto 3
                | H: error_ok _ _ |- _ => inv H; auto 1
-               | IHHev: (?P -> forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> ∇ errs ⊢ _ ∈ _),
-                 HP : ?P, He: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+               | IHHev: (?P -> forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> ∇ ⊢ _ ∈ _),
+                 HP : ?P, He: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
                  |- _ => pose proof IHHev HP _ He as IH; clear IHHev; inv IH
                end; eauto 2.
       (*
@@ -89,26 +89,26 @@ Section BigStepTheorems.
     Local Hint Constructors expr_big_step : core.
 
     Theorem expr_big_step_progress :
-      forall (errs : errors) (Γ : gamma) (e : E.e tags_t)
+      forall (D : Delta) (Γ : Gamma) (e : E.e tags_t)
         (τ : E.t) (ϵ : epsilon),
-        envs_sound Γ ϵ errs ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        envs_sound Γ ϵ D ->
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
     Proof.
-      intros errs Γ τ e ϵ [Htyp Hsub] Ht;
+      intros D Γ τ e ϵ [Htyp Hsub] Ht;
       unfold envs_subset, envs_type in *;
       induction Ht using custom_check_expr_ind;
         repeat match goal with
                | IHHt: (?P -> ?Q -> exists _, ⟨ ϵ, ?e ⟩ ⇓ _),
-                 HP: ?P, HQ: ?Q, He: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+                 HP: ?P, HQ: ?Q, He: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
                  |- _ => pose proof IHHt HP HQ as [? ?]; clear IHHt
                | Hev : (⟨ ϵ, ?e ⟩ ⇓ _),
-                 Ht: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+                 Ht: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
                  |- _ => pose proof expr_big_step_preservation
                             _ _ _ _ _ _ Htyp Hev Ht; clear Ht
-               end; eauto 2.
+               end; eauto 2. (*
       - apply Hsub in H as [? ?]; eauto 3.
-      - pose proof eval_slice_exists _ _ _ _ _ _ H H0 H2 as [? ?]; eauto 3.
+      - (*pose proof eval_slice_exists _ _ _ _ _ _ H H0 H2 as [? ?]; eauto 3.*) admit.
       - pose proof eval_cast_exists _ _ _ _ H H1 as [? ?]; eauto 3.
       - (*pose proof eval_uop_exist _ _ _ _ _ H H1 as [? ?]; eauto 3.*) admit.
       - pose proof eval_bop_exists _ _ _ _ _ _ _ H H3 H2 as [? ?]; eauto 3.
@@ -152,17 +152,17 @@ Section BigStepTheorems.
           exists ((b,vs) :: bvss); eauto 2. }
         destruct Hbvss; eauto 3.
       - inv H1. assert (Hnihs : BinInt.Z.to_nat idx < length hs) by lia.
-        pose proof nth_error_exists _ _ Hnihs as [[? ?] ?]; eauto 3.
+        pose proof nth_error_exists _ _ Hnihs as [[? ?] ?]; eauto 3. *)
     Admitted.
   End ExprProgress.
 
   Section LVPreservation.
     Local Hint Constructors type_lvalue : core.
 
-    Theorem lvalue_preservation : forall errs Γ (e : E.e tags_t) lv τ,
-        ⧠ e ⇓ lv -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> LL Γ ⊢ lv ∈ τ.
+    Theorem lvalue_preservation : forall D Γ (e : E.e tags_t) lv τ,
+        ⧠ e ⇓ lv -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> LL D, Γ ⊢ lv ∈ τ.
     Proof.
-      intros errs Γ e lv τ Hlv; generalize dependent τ;
+      intros D Γ e lv τ Hlv; generalize dependent τ;
         induction Hlv; intros t Ht; inv Ht; eauto 3.
       econstructor; eauto.
     Qed.
@@ -171,14 +171,14 @@ Section BigStepTheorems.
   Section LVProgress.
     Local Hint Constructors lvalue_big_step : core.
 
-    Theorem lvalue_progress : forall errs Γ (e : E.e tags_t) τ,
-        lvalue_ok e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
+    Theorem lvalue_progress : forall D Γ (e : E.e tags_t) τ,
+        lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
     Proof.
-      intros errs Γ e τ Hlv; generalize dependent τ;
+      intros D Γ e τ Hlv; generalize dependent τ;
       induction Hlv; intros t Ht; inv Ht;
       try match goal with
-          | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
-            H: (⟦ errs, Γ ⟧ ⊢ ?e ∈ _)
+          | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
+            H: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
             |- _ => apply IH in H as [? ?]
           end; eauto 3.
     Qed.
@@ -187,10 +187,10 @@ Section BigStepTheorems.
   Section ParserExprProgress.
     Hint Constructors parser_expr_big_step : core.
 
-    Theorem parser_expr_progress : forall sts errs Γ ϵ (e : PR.e tags_t),
-      envs_sound Γ ϵ errs -> ⟅ sts, errs, Γ ⟆ ⊢ e -> exists st, ⦑ ϵ, e ⦒ ⇓ st.
+    Theorem parser_expr_progress : forall sts D Γ ϵ (e : PR.e tags_t),
+      envs_sound Γ ϵ D -> ⟅ sts, D, Γ ⟆ ⊢ e -> exists st, ⦑ ϵ, e ⦒ ⇓ st.
     Proof.
-      intros sts errs Γ ϵ e Hsound He.
+      intros sts D Γ ϵ e Hsound He.
       induction He using custom_check_prsrexpr_ind; eauto.
       assert (Hvcases :
                 exists vcases, Forall2

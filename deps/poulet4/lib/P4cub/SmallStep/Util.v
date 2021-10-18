@@ -251,16 +251,16 @@ Section StepDefs.
     
     Import CanonicalForms.
     
-    Lemma eval_slice_types : forall errs Γ v v' τ hi lo w,
+    Lemma eval_slice_types : forall D Γ v v' τ hi lo w,
         eval_slice hi lo v = Some v' ->
         value v ->
         (lo <= hi < w)%positive ->
         numeric_width w τ ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
         let w' := (hi - lo + 1)%positive in
-        ⟦ errs, Γ ⟧ ⊢ v' ∈ bit<w'>.
+        ⟦ D, Γ ⟧ ⊢ v' ∈ bit<w'>.
     Proof.
-      intros errs Γ v v' τ hi lo w Heval Hv Hw Hnum Ht w'; subst w';
+      intros D Γ v v' τ hi lo w Heval Hv Hw Hnum Ht w'; subst w';
         inv Hnum; assert_canonical_forms; unravel in *; inv Heval; auto 2.
     Qed.
     
@@ -268,14 +268,14 @@ Section StepDefs.
     Local Hint Resolve BitArith.bound1 : core.
     Local Hint Resolve IntArith.bound0 : core.
     
-    Lemma eval_cast_types : forall errs Γ τ τ' v v',
+    Lemma eval_cast_types : forall D Γ τ τ' v v',
         eval_cast τ' v = Some v' ->
         value v ->
         proper_cast τ τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+        ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ v' ∈ τ'.
     Proof.
-      intros errs Γ τ τ' v v' Heval Hv Hpc Ht;
+      intros D Γ τ τ' v v' Heval Hv Hpc Ht;
         inv Hpc; assert_canonical_forms; unravel in *;
           try match goal with
               | H: context [ if ?b then _ else _ ]
@@ -290,7 +290,7 @@ Section StepDefs.
         ind_list_Forall; intros [| [? ?] ?] ?;
                                 unravel in *; try inv_Forall2_cons;
           constructor; try split;
-            unravel; try apply IHx; auto 2.
+            unravel; try apply IHx; auto 2. (*
       - inv Heval; constructor; auto 1.
         + apply pn_header. rewrite F.predfs_data_map. assumption.
         + clear x0 H0. generalize dependent fs.
@@ -298,30 +298,31 @@ Section StepDefs.
             unravel in *; try inv_Forall2_cons;
               constructor; try split;
                 unravel; try apply IHx; auto 2.
-    Qed.
+    Qed. *)
+    Admitted.
     
-    Lemma eval_bop_types : forall Γ errs op τ1 τ2 τ (i : tags_t) v1 v2 v,
+    Lemma eval_bop_types : forall Γ D op τ1 τ2 τ (i : tags_t) v1 v2 v,
         bop_type op τ1 τ2 τ ->
         value v1 -> value v2 ->
         eval_bop op v1 v2 i = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ.
+        ⟦ D, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ D, Γ ⟧ ⊢ v2 ∈ τ2 -> ⟦ D, Γ ⟧ ⊢ v ∈ τ.
     Proof.
-      intros Γ errs op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
+      intros Γ D op τ1 τ2 τ v1 v2 v i Hbop Hv1 Hv2 Heval Ht1 Ht2;
         inv Hbop; unravel in *; try inv_numeric;
           repeat assert_canonical_forms;
           try (inv_numeric_width; assert_canonical_forms);
           try (inv Heval; auto 2; assumption).
     Qed.
     
-    Lemma eval_member_types : forall errs Γ x v v' ts τ τ',
+    Lemma eval_member_types : forall D Γ x v v' ts τ τ',
         eval_member x v = Some v' ->
         value v ->
         member_type ts τ ->
         F.get x ts = Some τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
-        ⟦ errs, Γ ⟧ ⊢ v' ∈ τ'.
+        ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ v' ∈ τ'.
     Proof.
-      intros errs Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht;
+      intros D Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht;
         inv Hmem; assert_canonical_forms.
       - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
           unravel in *; rewrite H in Heval;
@@ -336,12 +337,11 @@ Section StepDefs.
     Local Hint Resolve proper_inside_header_nesting : core.
     Local Hint Resolve BitArith.bound0 : core.
     Local Hint Resolve IntArith.bound0 : core.
-    Local Hint Constructors error_ok : core.
     
-    Fail Lemma edefault_types : forall errs Γ i τ,
+    Fail Lemma edefault_types : forall D Γ i τ,
         PT.proper_nesting τ ->
         let e := edefault i τ in
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ.
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ.
     (*Proof.
       intros; subst e; induction τ using custom_t_ind; unravel;
         invert_proper_nesting; auto 2;
@@ -371,11 +371,11 @@ Section StepDefs.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_snd.
     
-    Lemma eval_uop_types : forall errs Γ op e v τ τ',
+    Lemma eval_uop_types : forall D Γ op e v τ τ',
         uop_type op τ τ' -> value e -> eval_uop op e = Some v ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ v ∈ τ'.
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ v ∈ τ'.
     (*Proof.
-      intros errs Γ op e v τ τ' Huop Hev Heval Het;
+      intros D Γ op e v τ τ' Huop Hev Heval Het;
         inv Huop; try inv_numeric;
           assert_canonical_forms; unravel in *;
             inv Heval; auto 2; invert_proper_nesting;
@@ -397,21 +397,21 @@ Section StepDefs.
   Section HelpersExist.
     Import CanonicalForms.
     
-    Lemma eval_slice_exists : forall errs Γ v τ hi lo w,
+    Lemma eval_slice_exists : forall D Γ v τ hi lo w,
         value v ->
         (lo <= hi < w)%positive ->
         numeric_width w τ ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
         exists v', eval_slice hi lo v = Some v'.
     Proof.
-      intros errs Γ v τ hi lo w Hv Hw Hnum Ht;
+      intros D Γ v τ hi lo w Hv Hw Hnum Ht;
         inv Hnum; assert_canonical_forms; unravel; eauto 2.
     Qed.
     
-    Lemma eval_cast_exists : forall errs Γ e τ τ',
+    Lemma eval_cast_exists : forall D Γ e τ τ',
         value e ->
         proper_cast τ τ' ->
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_cast τ' e = Some v.
     Proof.
       intros ? ? ? ? ? Hv Hpc Het; inv Hpc; assert_canonical_forms;
@@ -423,22 +423,22 @@ Section StepDefs.
       - destruct w2; eauto 2.
     Qed.
     
-    Lemma eval_bop_exists : forall errs Γ op τ1 τ2 τ (i : tags_t) v1 v2,
+    Lemma eval_bop_exists : forall D Γ op τ1 τ2 τ (i : tags_t) v1 v2,
         bop_type op τ1 τ2 τ ->
         value v1 -> value v2 ->
-        ⟦ errs, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ errs, Γ ⟧ ⊢ v2 ∈ τ2 ->
+        ⟦ D, Γ ⟧ ⊢ v1 ∈ τ1 -> ⟦ D, Γ ⟧ ⊢ v2 ∈ τ2 ->
         exists v, eval_bop op v1 v2 i = Some v.
     Proof.
-      intros errs Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
+      intros D Γ op τ1 τ2 τ i v1 v2 Hbop Hv1 Hv2 Ht1 Ht2;
         inv Hbop; try inv_numeric; try inv_numeric_width;
           repeat assert_canonical_forms; unravel; eauto 2.
     Qed.
     
-    Lemma eval_uop_exists : forall op errs Γ e τ τ',
-        uop_type op τ τ' -> value e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+    Lemma eval_uop_exists : forall op D Γ e τ τ',
+        uop_type op τ τ' -> value e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         exists v, eval_uop op e = Some v.
     (* Proof.
-      intros op errs Γ e τ τ' Hu Hv Het; inv Hu;
+      intros op D Γ e τ τ' Hu Hv Het; inv Hu;
         try inv_numeric; assert_canonical_forms;
           unravel; eauto 2.
       - assert (Hnihs : (Z.to_nat x0 < length x)%nat) by lia.
@@ -449,14 +449,14 @@ Section StepDefs.
     Qed. *)
     Admitted.
       
-    Lemma eval_member_exists : forall errs Γ x v ts τ τ',
+    Lemma eval_member_exists : forall D Γ x v ts τ τ',
         value v ->
         member_type ts τ ->
         F.get x ts = Some τ' ->
-        ⟦ errs, Γ ⟧ ⊢ v ∈ τ ->
+        ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
         exists v', eval_member x v = Some v'.
     Proof.
-      intros errs Γ x v ts τ τ' Hv Hmem Hget Ht;
+      intros D Γ x v ts τ τ' Hv Hmem Hget Ht;
         inv Hmem; assert_canonical_forms; unravel.
       - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
           unravel in *; rewrite H; unravel; eauto 2.

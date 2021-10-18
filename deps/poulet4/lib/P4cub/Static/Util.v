@@ -36,14 +36,11 @@ Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
 Import Env.EnvNotations.
 
-(** Available strings. *)
-Definition strs : Type := Env.t string unit.
-
-(** Available error names. *)
-Definition errors : Type := strs.
+(** Available type names. *)
+Definition Delta : Set := list string.
 
 (** Typing context. *)
-Definition gamma : Type := Env.t string E.t.
+Definition Gamma : Type := Env.t string E.t.
 
 (** Evidence for a type being a numeric of a given width. *)
 Inductive numeric_width (w : positive) : E.t -> Prop :=
@@ -125,11 +122,11 @@ Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
 (**[]*)
 
 (** Evidence an error is ok. *)
-Inductive error_ok (errs : errors) : option string -> Prop :=
+(*Inductive error_ok (errs : errors) : option string -> Prop :=
 | NoErrorOk : error_ok errs None
 | ErrorOk (x : string) :
     Env.find x errs = Some tt ->
-    error_ok errs (Some x).
+    error_ok errs (Some x).*)
 (**[]*)
 
 (** Evidence a cast is proper. *)
@@ -155,6 +152,34 @@ Inductive member_type : F.fs string E.t -> E.t -> Prop :=
 | mt_hdr ts : member_type ts {{ hdr { ts } }}.
 (**[]*)
 
+(** Ok types. *)
+Inductive t_ok (Δ : Delta) : E.t -> Prop :=
+| bool_ok :
+    t_ok Δ {{ Bool }}
+| bit_ok w :
+    t_ok Δ {{ bit<w> }}
+| int_ok w :
+    t_ok Δ {{ int<w> }}
+| error_ok :
+    t_ok Δ {{ error }}
+| matchkind_ok :
+    t_ok Δ {{ matchkind }}
+| tuple_ok ts :
+    Forall (t_ok Δ) ts ->
+    t_ok Δ {{ tuple ts }}
+| struct_ok ts :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ struct { ts } }}
+| header_ok ts :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ hdr { ts } }}
+| stack_ok ts n :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ stack ts[n] }}
+| var_ok T :
+    In T Δ ->
+    t_ok Δ T.
+
 (** Available functions. *)
 Definition fenv : Type := Env.t string E.arrowT.
 
@@ -171,7 +196,7 @@ Definition pienv : Type := Env.t string (F.fs string string * E.params).
 Definition eienv : Type := Env.t string (F.fs string E.arrowT).
 
 (** Available table names. *)
-Definition tblenv : Type := strs.
+Definition tblenv : Type := list string.
 
 (** Statement context. *)
 Inductive ctx : Type :=
@@ -230,7 +255,7 @@ Inductive return_void_ok : ctx -> Prop :=
 Definition cenv : Type := Env.t string E.ct.
 
 (** Available Package Instances. *)
-Definition pkgienv : Type := strs.
+Definition pkgienv : Type := Env.t string E.ct.
 
 (** Available Extern Constructors. *)
 Definition extenv : Type :=
@@ -238,15 +263,20 @@ Definition extenv : Type :=
 (**[]*)
 
 (** Put parameters into environment. *)
-Definition bind_all : E.params -> gamma -> gamma :=
-  F.fold (fun x '(P.PADirLess τ | P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
+Definition bind_all : E.params -> Gamma -> Gamma :=
+  F.fold
+    (fun x
+       '(P.PADirLess τ
+        | P.PAIn τ
+        | P.PAOut τ
+        | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
 (**[]*)
 
 (** Put (constructor) parameters into environments. *)
 Definition cbind_all :
   E.constructor_params  ->
-  gamma * pkgienv * cienv * pienv * eienv ->
-  gamma * pkgienv * cienv * pienv * eienv :=
+  Gamma * pkgienv * cienv * pienv * eienv ->
+  Gamma * pkgienv * cienv * pienv * eienv :=
   F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
             match c with
             | {{{ VType τ }}}
@@ -256,14 +286,14 @@ Definition cbind_all :
             | {{{ ParserType _ res pars }}}
               => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
             | E.CTExtern _
-              => p (* (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
+              => p (* TODO! (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}
-              => (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis)
+              => p (* TODO! (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis) *)
             end).
 (**[]*)
 
 (** Environment of user-defined parser states. *)
-Definition user_states : Type := strs.
+Definition user_states : Type := list string.
 
 (** Valid parser states. *)
 Inductive valid_state (us : user_states) : PR.state -> Prop :=
@@ -274,7 +304,7 @@ Inductive valid_state (us : user_states) : PR.state -> Prop :=
 | reject_valid :
     valid_state us ={ reject }=
 | name_valid (st : string) :
-    Env.find st us = Some tt ->
+    In st us ->
     valid_state us ={ δ st }=.
 (**[]*)
 

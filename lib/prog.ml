@@ -121,7 +121,8 @@ and 'a pre_StatementPreT =
            coq_Expression := pre_Expression;
            coq_Block := pre_Block;
            coq_StatementSwitchCase := pre_StatementSwitchCase;
-           coq_ValueBase := pre_ValueBase]]
+           coq_ValueBase := pre_ValueBase;
+           coq_Initializer := pre_Initializer]]
   [@@deriving sexp,show,yojson]
 and 'a pre_Statement =
   [%import:'a Poulet4.Syntax.coq_Statement
@@ -132,6 +133,15 @@ and 'a pre_Statement =
 and 'a pre_Block =
   [%import:'a Poulet4.Syntax.coq_Block
           [@with coq_Statement := pre_Statement]]
+  [@@deriving sexp,show,yojson]
+and 'a pre_Initializer =
+  [%import:'a Poulet4.Syntax.coq_Initializer
+          [@with Poulet4.P4String.t := P4string.pre_t;
+                 Poulet4.Typed.coq_P4Type := T.pre_P4Type;
+                 Poulet4.Typed.coq_P4Parameter := T.pre_P4Parameter;
+                 coq_Expression := pre_Expression;
+                 coq_Block := pre_Block;
+                 coq_Initializer := pre_Initializer]]
   [@@deriving sexp,show,yojson]
 type 'a pre_ParserCase =
   [%import:'a Poulet4.Syntax.coq_ParserCase
@@ -173,7 +183,8 @@ type 'a pre_Declaration =
            coq_TableEntry := pre_TableEntry;
            coq_TableProperty := pre_TableProperty;
            coq_DeclarationField := pre_DeclarationField;
-           coq_MethodPrototype := pre_MethodPrototype]]
+           coq_MethodPrototype := pre_MethodPrototype;
+           coq_Initializer := pre_Initializer]]
   [@@deriving sexp,show,yojson]
 type 'a pre_ValueTable =
   [%import:'a Poulet4.Syntax.coq_ValueTable
@@ -291,6 +302,8 @@ type coq_StatementPreT = Info.t pre_StatementPreT
 type coq_Statement = Info.t pre_Statement
   [@@deriving sexp,show,yojson]
 type coq_Block = Info.t pre_Block
+  [@@deriving sexp,show,yojson]
+type coq_Initializer = Info.t pre_Initializer
   [@@deriving sexp,show,yojson]
 type coq_ParserCase = Info.t pre_ParserCase
   [@@deriving sexp,show,yojson]

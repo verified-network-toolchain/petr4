@@ -177,7 +177,7 @@ Section Syntax.
   | StatInstantiation  (typ: @P4Type tags_t)
                        (args: list Expression)
                        (name: P4String)
-                       (init: option Block)
+                       (init: list Initializer)
   with Statement :=
   | MkStatement (tags: tags_t)
                 (stmt: StatementPreT)
@@ -185,7 +185,12 @@ Section Syntax.
   with Block :=
   | BlockEmpty (tags: tags_t)
   | BlockCons (statement: Statement)
-              (rest: Block).
+              (rest: Block)
+  with Initializer :=
+  | InitFunction (tags: tags_t) (ret: @P4Type tags_t) (name: P4String)
+                 (type_params: list P4String) (params: list (@P4Parameter tags_t)) (body: Block)
+  | InitInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
+                      (args: list Expression) (name: P4String) (init: list Initializer).
 
   Section statement_rec.
     Context
@@ -196,6 +201,8 @@ Section Syntax.
       {PStatementMaybe: option Statement -> Type}
       {PBlock: Block -> Type}
       {PBlockMaybe: option Block -> Type}
+      {PInitializer: Initializer -> Type}
+      {PInitializerList: list Initializer -> Type}
     .
 
     Hypotheses
@@ -235,8 +242,19 @@ Section Syntax.
                       PStatementPreT (StatConstant typ name value loc))
       (HStatVariable: forall typ name init loc,
                       PStatementPreT (StatVariable typ name init loc))
+      (HInitFunction: forall tags ret name type_params params body,
+                      PBlock body ->
+                      PInitializer (InitFunction tags ret name type_params params body))
+      (HInitInstantiation: forall tags typ args name init,
+                           PInitializerList init ->
+                           PInitializer (InitInstantiation tags typ args name init))
+      (HInitializerListNil: PInitializerList nil)
+      (HInitializerListCons: forall s l,
+                             PInitializer s ->
+                             PInitializerList l ->
+                             PInitializerList (s :: l))
       (HStatInstantiation: forall typ args name init,
-                           PBlockMaybe init ->
+                           PInitializerList init ->
                            PStatementPreT
                             (StatInstantiation typ args name init))
       (HMkStatement: forall tags stmt typ,
@@ -299,12 +317,12 @@ Section Syntax.
         HStatVariable typ name init loc
       | StatInstantiation typ args name init =>
         HStatInstantiation typ args name init
-          (option_rec (PBlock)
-                      (PBlockMaybe)
-                      (HBlockMaybeNone)
-                      (HBlockMaybeSome)
-                      (block_rec)
-                      init)
+          (list_rec (PInitializer)
+                    (PInitializerList)
+                    (HInitializerListNil)
+                    (HInitializerListCons)
+                    (initializer_rec)
+                    init)
       end
     with statement_switch_case_rec
       (s: StatementSwitchCase)
@@ -323,7 +341,22 @@ Section Syntax.
       | BlockCons stmt rest =>
         HBlockCons stmt rest (statement_rec stmt) (block_rec rest)
       end
-    .
+    with initializer_rec
+      (i: Initializer)
+      : PInitializer i
+    :=
+      match i with
+      | InitFunction tags ret name type_params params body =>
+        HInitFunction tags ret name type_params params body (block_rec body)
+      | InitInstantiation tags typ args name init =>
+        HInitInstantiation tags typ args name init
+          (list_rec (PInitializer)
+                    (PInitializerList)
+                    (HInitializerListNil)
+                    (HInitializerListCons)
+                    (initializer_rec)
+                    init)
+      end.
   End statement_rec.
 
   Inductive ParserCase :=
@@ -345,7 +378,7 @@ Section Syntax.
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
-                      (args: list Expression) (name: P4String) (init: option Block)
+                      (args: list Expression) (name: P4String) (init: list Initializer)
   | DeclParser (tags: tags_t)  (name: P4String)
                (type_params: list P4String) (params: list (@P4Parameter tags_t))
                (constructor_params: list (@P4Parameter tags_t))
@@ -414,7 +447,8 @@ Section Syntax.
 
   Record ExternMethods :=
     { type_params: list P4String;
-      methods: list ExternMethod }.
+      methods: list ExternMethod;
+      abst_methods: list ExternMethod }.
 
   Inductive ValuePreLvalue :=
   | ValLeftName (name: @Typed.name tags_t) (loc: Locator)

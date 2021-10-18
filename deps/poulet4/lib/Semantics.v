@@ -1087,7 +1087,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
                         exec_stmt this_path inst_m st
                         (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
-  (* StatInstantiation not considered yet *)
+  (* StatInstantiation must be hoisted. *)
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
@@ -1345,7 +1345,7 @@ End instantiate_class_body.
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
   | MkStatement _ (StatDirectApplication typ _) _  =>
-      [DeclInstantiation dummy_tags typ nil (get_type_name typ) None]
+      [DeclInstantiation dummy_tags typ nil (get_type_name typ) []]
   | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
   | _ => []
   end

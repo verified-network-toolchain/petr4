@@ -86,6 +86,7 @@ let expr_ctxt_of_stmt_ctxt (s: coq_StmtContext) : coq_ExprContext =
   | StmtCxAction -> ExprCxAction
   | StmtCxParserState -> ExprCxParserState
   | StmtCxApplyBlock -> ExprCxApplyBlock
+  | StmtCxMethod ret -> ExprCxMethod
 
 let expr_ctxt_of_decl_ctxt (s: coq_DeclContext) : coq_ExprContext =
   match s with

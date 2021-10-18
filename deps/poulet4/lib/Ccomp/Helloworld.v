@@ -31,6 +31,50 @@ Definition hdrs : t :=
   {{struct {[("hd", {{Bool}})]} }}.
 Definition pkt_in := E.CTExtern "packet_in".
 Definition pkt_out := E.CTExtern "packet_out".
+
+Inductive object :=
+  | ObjTable (entries : list table_entry)
+  | ObjRegister (reg : register)
+  | ObjPin (pin : packet_in)
+  | ObjPout (pout : packet_out).
+Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
+  match PathMap.get p es with
+  | Some (ObjTable entries) => entries
+  | _ => nil
+  end.
+Definition set_of_matches (entry: table_entry): option (ValSet * action_ref) :=
+  match entry with
+  | mk_table_entry matches action =>
+    match list_of_matches matches with
+    | None => None
+    | Some [a] => Some (a, action)
+    | Some l => Some (ValSetProd l, action)
+    end
+  end.
+Definition extern_match (key: list (Val * ident)) (entries: list table_entry): option action_ref :=
+  let ks := List.map fst key in
+  let mks := List.map snd key in
+  match check_lpm_count mks with
+  | None => None
+  | Some sort_mks =>
+    match allSome (List.map set_of_matches entries) with
+    | Some entries' =>
+      let (entries'', ks') :=
+          if list_eqb (@P4String.equivb tags_t) mks !["lpm"]
+          then (sort_lpm entries', ks)
+          else if sort_mks
+                then filter_lpm_prod mks ks entries'
+                else (entries', ks) in
+      let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
+                            entries'' in
+      match l with
+      | nil => None
+      | sa :: _ => Some (snd sa)
+      end
+    | None => None
+    end
+  end.
+
 Definition std_meta := {{struct {[("stdmeta", {{Bool}})]} }}.
 Definition oneplusone := 
   let width := Pos.of_nat 32 in  

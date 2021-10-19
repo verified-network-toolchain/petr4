@@ -2778,7 +2778,7 @@ and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Initia
     begin match snd decl with
     | Function {return; name; type_params; params; body} ->
       check_param_shadowing params [];
-      let ret_type = translate_type env return in
+      let ret_type = translate_type env_top return in
       let ctx: coq_StmtContext = StmtCxMethod ret_type in
       begin match type_function env_top ctx (fst decl) return name type_params params body with
       (* @synchronous allows access to other instantiations but not function declarations *)

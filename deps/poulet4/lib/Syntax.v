@@ -378,7 +378,7 @@ Section Syntax.
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
-                      (args: list Expression) (name: P4String) (init: list Initializer)
+                      (args: list Expression) (name: P4String) (init: list Declaration)
   | DeclParser (tags: tags_t)  (name: P4String)
                (type_params: list P4String) (params: list (@P4Parameter tags_t))
                (constructor_params: list (@P4Parameter tags_t))

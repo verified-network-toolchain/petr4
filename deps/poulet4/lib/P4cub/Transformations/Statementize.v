@@ -1,13 +1,12 @@
 Require Import Poulet4.P4cub.Syntax.AST.
-Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Error.
 Require Poulet4.P4sel.VarNameGen.
 Require Import Field.
 Import ListNotations.
 
 Open Scope list_scope.
-Open Scope string_scope.
 Open Scope nat_scope.
-
+Open Scope string_scope.
 
 Section Statementize.
   Context (tags_t : Type).
@@ -16,7 +15,8 @@ Section Statementize.
   Notation e := (P4cub.Expr.e tags_t).
   Notation st := (P4cub.Stmt.s tags_t).
   Notation td := (P4cub.TopDecl.d tags_t).
-
+  Inductive StatementizeError :=
+  | IllformedCargs.
 Definition TransformExprList' 
   (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
   (el : list e) (env: VarNameGen.t) (i: tags_t)
@@ -110,8 +110,8 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let stmt := P4cub.Stmt.SSeq lhs_stmt (P4cub.Stmt.SSeq rhs_stmt (P4cub.Stmt.SSeq declaration assign i) i) i in
     (stmt, P4cub.Expr.EVar dst_type var_name i, env')
 
-  | P4cub.Expr.ETuple es i => (*TODO: get the correct type*)
-    let type := P4cub.Expr.TBool in 
+  | P4cub.Expr.ETuple es i => 
+    let type := P4cub.Expr.cub_type_of tags_t expr in 
     let '(es_stmt, es', env_es) := TransformExprList es env i in 
     let (var_name, env') := VarNameGen.new_var env_es in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
@@ -119,8 +119,8 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let stmt := P4cub.Stmt.SSeq es_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
-  | P4cub.Expr.EStruct fields i => (*TODO: get the correct type*)
-    let type := P4cub.Expr.TBool in 
+  | P4cub.Expr.EStruct fields i => 
+    let type := P4cub.Expr.cub_type_of tags_t expr in 
     let '(fs_stmt, fs', env_fs) := TransformFields fields env i in 
     let (var_name, env') := VarNameGen.new_var env_fs in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
@@ -128,8 +128,8 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let stmt := P4cub.Stmt.SSeq fs_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
-  | P4cub.Expr.EHeader fields valid i =>(*TODO: get the correct type*)
-    let type := P4cub.Expr.TBool in 
+  | P4cub.Expr.EHeader fields valid i =>
+    let type := P4cub.Expr.cub_type_of tags_t expr in 
     let '(fs_stmt, fs', env_fs) := TransformFields fields env i in 
     let '(valid_stmt, valid', env_valid) := TransformExpr valid env in
     let (var_name, env') := VarNameGen.new_var env_valid in
@@ -138,8 +138,8 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let stmt := P4cub.Stmt.SSeq fs_stmt (P4cub.Stmt.SSeq valid_stmt (P4cub.Stmt.SSeq declaration assign i) i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
-  | P4cub.Expr.EHeaderStack fields headers size next_index i => (*TODO: get the correct type*)
-    let type := P4cub.Expr.TBool in 
+  | P4cub.Expr.EHeaderStack fields headers size next_index i => 
+    let type := P4cub.Expr.cub_type_of tags_t expr in 
     let '((hdrs_stmt, hdrs'), env_hdrs) := TransformExprList headers env i in 
     let (var_name, env') := VarNameGen.new_var env_hdrs in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
@@ -147,39 +147,48 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let stmt := P4cub.Stmt.SSeq hdrs_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
-  | P4cub.Expr.EHeaderStackAccess stack index i =>(*TODO: get the correct type*) 
-    let type := P4cub.Expr.TBool in 
+  | P4cub.Expr.EHeaderStackAccess stack index i =>
+    let type := P4cub.Expr.cub_type_of tags_t expr in 
     let '(stack_stmt, stack', env_stack) := TransformExpr stack env in
     let val := P4cub.Expr.EHeaderStackAccess stack' index i in 
     let stmt := stack_stmt in
     (stmt, val, env_stack)
   end.
 
+Fixpoint VerifyConstExpr (expr : e) : bool :=
+  match expr with
+  | P4cub.Expr.EBool b i => true
+  | P4cub.Expr.EBit width val i => true
+  | P4cub.Expr.EInt width val i => true
+  | P4cub.Expr.ESlice n τ hi lo i =>  VerifyConstExpr n
+  | P4cub.Expr.ECast type arg i => VerifyConstExpr arg
+  | P4cub.Expr.EUop op type arg i => VerifyConstExpr arg
+  | P4cub.Expr.EBop op lhs_type rhs_type lhs rhs i => andb (VerifyConstExpr lhs) (VerifyConstExpr rhs) 
+  | _ => false
+(* | P4cub.Expr.EVar type x i => false
+| P4cub.Expr.EExprMember mem expr_type arg i => false
+| P4cub.Expr.EError err i => false
+| P4cub.Expr.EMatchKind mk i => false
+| P4cub.Expr.ETuple es i => false
+| P4cub.Expr.EStruct fields i => false
+| P4cub.Expr.EHeader fields valid i => false
+| P4cub.Expr.EHeaderStack fields headers size next_index i => false
+| P4cub.Expr.EHeaderStackAccess stack index i => false *)
+end.
 
-
-Definition TranslateCArg 
-  (carg: P4cub.Expr.constructor_arg tags_t) (env: VarNameGen.t) (i : tags_t)
-  : st * P4cub.Expr.constructor_arg tags_t * VarNameGen.t :=
-  match carg with 
-  | P4cub.Expr.CAExpr expr => 
-    let '(stmt_expr, expr', env_expr) := TransformExpr expr env in
-    (stmt_expr, P4cub.Expr.CAExpr expr', env_expr)
-  | P4cub.Expr.CAName x => (P4cub.Stmt.SSkip i, P4cub.Expr.CAName x, env)
-  end.
-Definition TranslateCArgs 
-  (cargs: P4cub.Expr.constructor_args tags_t) (env: VarNameGen.t) (i: tags_t)
-  : st * P4cub.Expr.constructor_args tags_t * VarNameGen.t :=
+Definition VerifyCArgs 
+  (cargs: P4cub.Expr.constructor_args tags_t)
+  : bool :=
   Field.fold 
   (fun (name : string)
        (arg: P4cub.Expr.constructor_arg tags_t)
-       (cumulator : (P4cub.Stmt.s tags_t) * (P4cub.Expr.constructor_args tags_t) * VarNameGen.t)
-   => 
-   let '(prev_stmt, prev_cargs, prev_env) := cumulator in 
-   let '(arg_stmt, arg', arg_env) := TranslateCArg arg prev_env i in 
-   let new_stmt := P4cub.Stmt.SSeq prev_stmt arg_stmt i in
-   let new_cargs := prev_cargs ++ [(name,arg')] in
-   (new_stmt, new_cargs, arg_env) 
-  ) cargs (P4cub.Stmt.SSkip i, [], env).
+       (cumulator : bool)
+   => andb cumulator 
+      match arg with
+      | P4cub.Expr.CAName _ => true
+      | P4cub.Expr.CAExpr expr => VerifyConstExpr expr 
+      end
+  ) cargs (true).
 
 Definition TranslateArgs (arguments : P4cub.Expr.args tags_t) (env : VarNameGen.t) (i: tags_t)
   : st * P4cub.Expr.args tags_t * VarNameGen.t :=
@@ -376,40 +385,42 @@ Fixpoint TranslateControlDecl
 
 Fixpoint TranslateTopDecl
   (td : P4cub.TopDecl.d tags_t) (env : VarNameGen.t)
-  : (P4cub.TopDecl.d tags_t) * VarNameGen.t := 
+  : @error_monad StatementizeError ((P4cub.TopDecl.d tags_t) * VarNameGen.t) := 
   match td with 
-  | P4cub.TopDecl.TPInstantiate C x targs cargs i => (*TODO: what to do with the statement here?*)
-    let '(cargs_stmt, cargs', env_cargs) := TranslateCArgs cargs env i in
-    (P4cub.TopDecl.TPInstantiate C x targs cargs' i, env_cargs)
-
+  | P4cub.TopDecl.TPInstantiate C x targs cargs i =>
+    if (VerifyCArgs cargs) then
+    error_ret (P4cub.TopDecl.TPInstantiate C x targs cargs i, env)
+    else (err IllformedCargs)
   | P4cub.TopDecl.TPExtern e tparams cparams methods i => 
-    (P4cub.TopDecl.TPExtern e tparams cparams methods i, env)
+    error_ret (P4cub.TopDecl.TPExtern e tparams cparams methods i, env)
 
   | P4cub.TopDecl.TPControl c cparams eps params body apply_blk i =>
     let '(init_blk, body', env_body) := TranslateControlDecl body env in
     let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
-    (P4cub.TopDecl.TPControl c cparams eps params body' (P4cub.Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
+    error_ret (P4cub.TopDecl.TPControl c cparams eps params body' (P4cub.Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
 
   | P4cub.TopDecl.TPParser p cparams eps params start states i =>
     let (start', env_start) := TranslateParserState start env in
     let (states', env_states) := TranslateParserStates states env_start in
-    (P4cub.TopDecl.TPParser p cparams eps params start' states' i, env_states)
+    error_ret (P4cub.TopDecl.TPParser p cparams eps params start' states' i, env_states)
 
   | P4cub.TopDecl.TPFunction f tparams signature body i =>
     let (body', env_body) := TranslateStatement body env in 
-    (P4cub.TopDecl.TPFunction f tparams signature body' i, env_body)
+    error_ret (P4cub.TopDecl.TPFunction f tparams signature body' i, env_body)
 
   | P4cub.TopDecl.TPPackage p tparams cparams i => 
-    (P4cub.TopDecl.TPPackage p tparams cparams i, env)
+    error_ret (P4cub.TopDecl.TPPackage p tparams cparams i, env)
 
   | P4cub.TopDecl.TPSeq d1 d2 i => 
-    let (d1', env_d1) := TranslateTopDecl d1 env in
-    let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
-    (P4cub.TopDecl.TPSeq d1' d2' i, env_d2)
+    let* (d1', env_d1) := TranslateTopDecl d1 env in
+    let* (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
+    error_ret (P4cub.TopDecl.TPSeq d1' d2' i, env_d2)
   end.
 
 Definition TranslateProgram (program: P4cub.TopDecl.d tags_t) 
-  : P4cub.TopDecl.d tags_t :=
-  fst (TranslateTopDecl program VarNameGen.new_env).
+  : @error_monad StatementizeError (P4cub.TopDecl.d tags_t):=
+  let* (p, e) := TranslateTopDecl program VarNameGen.new_env in
+  error_ret p
+  .
 
 End Statementize.

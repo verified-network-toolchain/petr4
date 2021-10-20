@@ -11,7 +11,6 @@ Open Scope nat_scope.
 
 Section Statementize.
   Context (tags_t : Type).
-  Context (tags_dummy: tags_t).
   Notation t := P4cub.Expr.t.
   Notation ct := P4cub.Expr.ct.
   Notation e := (P4cub.Expr.e tags_t).
@@ -105,7 +104,7 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let '(lhs_stmt, lhs', env_lhs) := TransformExpr lhs env in 
     let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in 
     let (var_name, env') := VarNameGen.new_var env_rhs in
-    let dst_type := lhs_type in (*the result type is always the same as lhs type*)
+    let dst_type := lhs_type in
     let declaration := P4cub.Stmt.SVardecl dst_type var_name i in
     let assign := P4cub.Stmt.SAssign dst_type (P4cub.Expr.EVar dst_type var_name i) (P4cub.Expr.EBop op lhs_type rhs_type lhs' rhs' i) i in 
     let stmt := P4cub.Stmt.SSeq lhs_stmt (P4cub.Stmt.SSeq rhs_stmt (P4cub.Stmt.SSeq declaration assign i) i) i in
@@ -154,8 +153,6 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let val := P4cub.Expr.EHeaderStackAccess stack' index i in 
     let stmt := stack_stmt in
     (stmt, val, env_stack)
-  (*| P4cub.Expr.EString s i => ((P4cub.Stmt.SSkip i,P4cub.Expr.EString _ s i), env)
-  | P4cub.Expr.EEnum x m i => ((P4cub.Stmt.SSkip i, P4cub.Expr.EEnum _ x m i), env)*)
   end.
 
 
@@ -295,11 +292,11 @@ Fixpoint TranslateParserExpr (expr: P4cub.Parser.e tags_t) (env : VarNameGen.t)
   | P4cub.Parser.PGoto st i => 
     ((P4cub.Stmt.SSkip i, P4cub.Parser.PGoto st i), env)
   | P4cub.Parser.PSelect exp default cases i => 
-    let '((stmt_exp, exp'), env_exp) := TransformExpr exp env in
-    let '((stmt_default, default'), env_default) := TranslateParserExpr default env_exp  in
-    let '((stmt_cases, cases'), env_cases) := TranslateCases cases env_default i in
+    let '(stmt_exp, exp', env_exp) := TransformExpr exp env in
+    let '(stmt_default, default', env_default) := TranslateParserExpr default env_exp  in
+    let '(stmt_cases, cases', env_cases) := TranslateCases cases env_default i in
     let new_stmt := P4cub.Stmt.SSeq stmt_exp (P4cub.Stmt.SSeq stmt_default stmt_cases i ) i in
-    ((new_stmt, P4cub.Parser.PSelect exp' default' cases' i), env_cases)
+    (new_stmt, P4cub.Parser.PSelect exp' default' cases' i, env_cases)
   end.
   
 
@@ -315,7 +312,7 @@ Definition TranslateParserState
   match parser_state with 
   | P4cub.Parser.State stmt transition =>
     let (stmt', env_stmt) := TranslateStatement stmt env in
-    let '((stmt_transition, transition'), env_transition) := TranslateParserExpr transition env_stmt in
+    let '(stmt_transition, transition', env_transition) := TranslateParserExpr transition env_stmt in
     let i := ParserExprTags transition in  
     let new_stmt := P4cub.Stmt.SSeq stmt' stmt_transition i in 
     (P4cub.Parser.State new_stmt transition', env_transition)
@@ -325,7 +322,7 @@ Definition TranslateParserState
 Definition TranslateParserStates
   (states: Field.fs string (P4cub.Parser.state_block tags_t))
   (env: VarNameGen.t)
-  : (Field.fs string (P4cub.Parser.state_block tags_t)) * VarNameGen.t := 
+  : Field.fs string (P4cub.Parser.state_block tags_t) * VarNameGen.t := 
   Field.fold 
     (fun 
       (name: string)
@@ -339,20 +336,77 @@ Definition TranslateParserStates
 
 Definition TranslateTable
   (table : P4cub.Control.ControlDecl.table tags_t) (env: VarNameGen.t) (i : tags_t)
-  : (P4cub.Control.ControlDecl.table tags_t) * VarNameGen.t.
-  Admitted.
+  : st * P4cub.Control.ControlDecl.table tags_t * VarNameGen.t :=
+  match table with
+  | P4cub.Control.ControlDecl.Table key actions =>
+    let '(stmt_key, key', env_key) := 
+      List.fold_left 
+      (fun 
+        (cumulator: (P4cub.Stmt.s tags_t) * list (P4cub.Expr.t * P4cub.Expr.e tags_t * P4cub.Expr.matchkind) * VarNameGen.t)
+        (key : P4cub.Expr.t * P4cub.Expr.e tags_t * P4cub.Expr.matchkind)
+        => let '(prev_stmt, prev_keys, prev_env) := cumulator in
+          let '(type, expr, mk) := key in
+          let '(expr_stmt, expr', env_expr) := TransformExpr expr prev_env in 
+          let new_stmt := P4cub.Stmt.SSeq prev_stmt expr_stmt i in
+          let new_keys := prev_keys ++ [(type, expr', mk)] in 
+          (new_stmt, new_keys, env_expr)   
+        )
+        key (P4cub.Stmt.SSkip i, [], env)
+      in 
+      (stmt_key, P4cub.Control.ControlDecl.Table key' actions, env_key)
+  end .
 
 
 Fixpoint TranslateControlDecl 
   (cd : P4cub.Control.ControlDecl.d tags_t) (env : VarNameGen.t)
-  : (P4cub.Control.ControlDecl.d tags_t) * VarNameGen.t.
-  Admitted.
+  : st * P4cub.Control.ControlDecl.d tags_t * VarNameGen.t :=
+  match cd with
+  | P4cub.Control.ControlDecl.CDAction a signature body i =>
+    let (body', env_body) := TranslateStatement body env in 
+    (P4cub.Stmt.SSkip i, P4cub.Control.ControlDecl.CDAction a signature body' i , env_body)
+  | P4cub.Control.ControlDecl.CDTable t bdy i =>
+    let '(table_init, bdy', env_bdy) := TranslateTable bdy env i in 
+    (table_init, P4cub.Control.ControlDecl.CDTable t bdy' i, env_bdy)
+  | P4cub.Control.ControlDecl.CDSeq d1 d2 i => 
+    let '(st1, d1', env_d1) := TranslateControlDecl d1 env in 
+    let '(st2, d2', env_d2) := TranslateControlDecl d2 env_d1 in 
+    (P4cub.Stmt.SSeq st1 st2 i, P4cub.Control.ControlDecl.CDSeq d1' d2' i, env_d2)
+  end.
 
 
 Fixpoint TranslateTopDecl
   (td : P4cub.TopDecl.d tags_t) (env : VarNameGen.t)
-  : (P4cub.TopDecl.d tags_t) * VarNameGen.t.
-  Admitted.
+  : (P4cub.TopDecl.d tags_t) * VarNameGen.t := 
+  match td with 
+  | P4cub.TopDecl.TPInstantiate C x targs cargs i => (*TODO: what to do with the statement here?*)
+    let '(cargs_stmt, cargs', env_cargs) := TranslateCArgs cargs env i in
+    (P4cub.TopDecl.TPInstantiate C x targs cargs' i, env_cargs)
+
+  | P4cub.TopDecl.TPExtern e tparams cparams methods i => 
+    (P4cub.TopDecl.TPExtern e tparams cparams methods i, env)
+
+  | P4cub.TopDecl.TPControl c cparams eps params body apply_blk i =>
+    let '(init_blk, body', env_body) := TranslateControlDecl body env in
+    let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
+    (P4cub.TopDecl.TPControl c cparams eps params body' (P4cub.Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
+
+  | P4cub.TopDecl.TPParser p cparams eps params start states i =>
+    let (start', env_start) := TranslateParserState start env in
+    let (states', env_states) := TranslateParserStates states env_start in
+    (P4cub.TopDecl.TPParser p cparams eps params start' states' i, env_states)
+
+  | P4cub.TopDecl.TPFunction f tparams signature body i =>
+    let (body', env_body) := TranslateStatement body env in 
+    (P4cub.TopDecl.TPFunction f tparams signature body' i, env_body)
+
+  | P4cub.TopDecl.TPPackage p tparams cparams i => 
+    (P4cub.TopDecl.TPPackage p tparams cparams i, env)
+
+  | P4cub.TopDecl.TPSeq d1 d2 i => 
+    let (d1', env_d1) := TranslateTopDecl d1 env in
+    let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
+    (P4cub.TopDecl.TPSeq d1' d2' i, env_d2)
+  end.
 
 Definition TranslateProgram (program: P4cub.TopDecl.d tags_t) 
   : P4cub.TopDecl.d tags_t :=

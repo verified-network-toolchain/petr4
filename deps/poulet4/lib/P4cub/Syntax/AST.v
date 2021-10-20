@@ -343,6 +343,34 @@ Module P4cub.
       (**[]*)
 
       Definition constructor_args : Type := F.fs string constructor_arg.
+
+      Fixpoint cub_type_of (expr: e) : t := 
+        match expr with
+        | EBool _ _ => TBool                  
+        | EBit width _ _ => TBit width 
+        | EInt width _ _ => TInt width  
+        | EVar type _ _ => type      
+        | ESlice _ τ  _ _ _ => τ   
+        | ECast type _ _ => type       
+        | EUop _ type _ _ => type
+        | EBop _ lhs_type _ _ _ _ => lhs_type                
+        | ETuple es _ => 
+          TTuple (List.map cub_type_of es)
+        | EStruct fields _ =>
+          TStruct (F.map fst fields)
+        | EHeader fields valid _ => 
+          THeader (F.map fst fields)               
+        | EExprMember _ expr_type _ _ => expr_type            
+        | EError _ _ => TError     
+        | EMatchKind _ _ => TMatchKind      
+        | EHeaderStack fields _ size _ _ => 
+          THeaderStack fields size
+        | EHeaderStackAccess stack _ _ =>
+          match cub_type_of stack with
+          | THeaderStack type size => THeader type
+          | _ => TError
+          end
+        end.
     End Expressions.
 
     Arguments EBool {tags_t}.

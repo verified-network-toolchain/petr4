@@ -2720,7 +2720,7 @@ and type_switch env ctx stmt_info expr cases =
   let cases = List.fold ~init:[] ~f:case_checker cases in
   MkStatement (stmt_info, StatSwitch (expr_typed, cases), StmUnit), env
 
-and init_of_decl (decl: Prog.coq_Declaration) : Prog.Initializer =
+and init_of_decl (decl: Prog.coq_Declaration) : Prog.coq_Initializer =
   match decl with
   | DeclInstantiation (info, typ, args, name, init) ->
     InitInstantiation (info, typ, args, name, inits_of_decls init)
@@ -2728,8 +2728,8 @@ and init_of_decl (decl: Prog.coq_Declaration) : Prog.Initializer =
     InitFunction (info, return_type, name, t_params, params_typed, body_typed)
   | _ -> failwith "BUG: expected DeclInstantiation or DeclFunction."
 
-and inits_of_decls (decls: Prog.coq_Declaration list) : Prog.Initializer list =
-  map init_of_decl decls
+and inits_of_decls (decls: Prog.coq_Declaration list) : Prog.coq_Initializer list =
+  List.map ~f:init_of_decl decls
 
 and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
   let info, (stmt: Prog.coq_StatementPreT) =

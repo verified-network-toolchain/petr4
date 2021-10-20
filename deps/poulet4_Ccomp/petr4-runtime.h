@@ -25,22 +25,28 @@ struct BitVec{
   mpz_t value; 
 };
 
-struct TableKey{
-  int match_bits; 
-  char val[]; //string of chars to support ternary 
+typedef struct Pat{
+  struct BitVec mask; //ternary mask
+  struct BitVec val; //value 
+} Pat;
+
+typedef struct ActionRef{
+  int action;
+  struct BitVec* arguments;
+  int num_args;
+} ActionRef;
+
+struct Entry{
+  Pat* pattern;
+  //Priority is implicit by the order of the table
+  ActionRef action_ref;
 };
 
 struct Table{
   int num_keys;
   int num_entries;
-  //array of matchkinds for the keys
-  //1 = exact. TODO: 2 = lpm, 3 = ternary
-  int* matchkind;
-  //keys and their corresponding actions
-  struct TableKey** keys;
-  int* actions;
-  //0 = invalid, 1 = valid.
-  int* valid;
+  int capacity;//allocated
+  struct Entry* entries;
 };
 
 void reset_bitvec (mpz_t x) {
@@ -254,40 +260,51 @@ int interp_bor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   return 0; 
 }
 
+void init_pattern(struct Pat* pattern, struct BitVec mask, struct BitVec val){
+}
+
+void init_action(struct ActionRef* actionRef, int action, struct BitVec* arguments, int num_args){
+
+}
+
+void init_Entry(struct Entry* entry, Pat* pattern, ActionRef action){
+  
+}
+
 //initialize a table with the given number of keys, the desired size of the table
 //and the matchkind of all its keys
-void init_table(struct Table* table, int num_key, int size, int* matchkinds){
-  table->num_keys = num_key;
-  table->num_entries = size;
-  table->matchkind = (int*) malloc(sizeof(int) * num_key);
-  for(int i = 0; i < num_key; i++){
-    table->matchkind[i] = matchkinds[i];
-  };
-  table->keys = (struct TableKey**) malloc(sizeof(struct TableKey*) * size);
-  for(int i = 0; i < size; i++){
-    table->keys[i] = (struct TableKey*) malloc(sizeof(struct TableKey) * num_key);
-  };
-  table->actions = (int*) malloc(sizeof(int) * size);
-  table->valid = (int*) malloc(sizeof(int) * size);
-  for(int i = 0; i < size; i++){
-    table->valid[i] = 0;
-  }
+void init_table(struct Table* table, int num_keys, int size, int args_lub){
+  // table->num_keys = num_key;
+  // table->num_entries = size;
+  // table->matchkind = (int*) malloc(sizeof(int) * num_key);
+  // for(int i = 0; i < num_key; i++){
+  //   table->matchkind[i] = matchkinds[i];
+  // };
+  // table->keys = (struct TableKey**) malloc(sizeof(struct TableKey*) * size);
+  // for(int i = 0; i < size; i++){
+  //   table->keys[i] = (struct TableKey*) malloc(sizeof(struct TableKey) * num_key);
+  // };
+  // table->actions = (int*) malloc(sizeof(int) * size);
+  // table->valid = (int*) malloc(sizeof(int) * size);
+  // for(int i = 0; i < size; i++){
+  //   table->valid[i] = 0;
+  // }
 }
 
 //add a new entry to the table, find the first invalid entry to replace
 //if all entries are valid, the new entry won't be added.
 //TODO: support actions arguments.
-void add_entry(struct Table* table, struct TableKey* newkeys, int new_action){
-  for(int i = 0; i < table->num_entries; i++){
-    if(!table->valid[i]){
-      for(int j = 0; j < table->num_keys; j++){
-        table->keys[i][j] = newkeys[j];
-      }
-      table->actions[i] = new_action;
-      table->valid[i] = 1;
-      return;
-    }
-  }
+void add_entry(struct Table* table, struct Entry* entry){
+  // for(int i = 0; i < table->num_entries; i++){
+  //   if(!table->valid[i]){
+  //     for(int j = 0; j < table->num_keys; j++){
+  //       table->keys[i][j] = newkeys[j];
+  //     }
+  //     table->actions[i] = new_action;
+  //     table->valid[i] = 1;
+  //     return;
+  //   }
+  // }
 }
 
 
@@ -298,43 +315,43 @@ void add_entry(struct Table* table, struct TableKey* newkeys, int new_action){
 //translate it into a bitvec and then put it in the vals. 
 //TODO: support action arguments
 //QUESTION: what if the keys have different order?
-void table_match(int* dst,struct Table* table, struct BitVec* vals){
-  for(int entry = 0; entry < table->num_entries; entry++){
-    if(!table->valid[entry]){
-      continue;
-    }
-    int result = 1;
-    for(int key = 0; key < table->num_keys; key++){
-      switch (table->matchkind[key]){
-        case 1:{
-          if(&result){
-            if(&vals[key] == &table->keys[entry][key].val) {
-              result = 1; 
-            }
-            else {
-              return; 
-            }
-          }
-        }
-        case 3:{
-          if(&result){
-            if(&vals[key] == 'X' || table->keys[entry][key].val == 'X'){
-              result = 1; 
-            }
-            else{
-              return; 
-            }
-          }
-        }
-        default:{
-          //TODO: implement lpm 
-          result = result;
-        }
-      }
-    }
-    if(result){
-      *dst = table->actions[entry];
-    }
-  }
-  *dst = 0;
+void table_match(ActionRef* dst, struct Table* table, struct BitVec* keys){
+  // for(int entry = 0; entry < table->num_entries; entry++){
+  //   if(!table->valid[entry]){
+  //     continue;
+  //   }
+  //   int result = 1;
+  //   for(int key = 0; key < table->num_keys; key++){
+  //     switch (table->matchkind[key]){
+  //       case 1:{
+  //         if(&result){
+  //           if(&vals[key] == &table->keys[entry][key].val) {
+  //             result = 1; 
+  //           }
+  //           else {
+  //             return; 
+  //           }
+  //         }
+  //       }
+  //       case 3:{
+  //         if(&result){
+  //           if(&vals[key] == 'X' || table->keys[entry][key].val == 'X'){
+  //             result = 1; 
+  //           }
+  //           else{
+  //             return; 
+  //           }
+  //         }
+  //       }
+  //       default:{
+  //         //TODO: implement lpm 
+  //         result = result;
+  //       }
+  //     }
+  //   }
+  //   if(result){
+  //     *dst = table->actions[entry];
+  //   }
+  // }
+  // *dst = 0;
 }

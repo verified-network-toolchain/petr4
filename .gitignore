@@ -32,3 +32,4 @@ testruns/
 *.coq.conf
 *.coq.d
 *.glob
+deps/poulet4_Ccomp/helloworld.o

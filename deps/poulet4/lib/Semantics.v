@@ -1087,7 +1087,7 @@ Inductive exec_stmt : path -> inst_mem -> state -> (@Statement tags_t) -> state 
                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') v st' ->
                         exec_stmt this_path inst_m st
                         (MkStatement tags (StatConstant typ' name v loc) typ) st' SContinue
-  (* StatInstantiation must be hoisted. *)
+  (* StatInstantiation is unsupported. If supported, it should be considered in instantiation. *)
 
 with exec_block : path -> inst_mem -> state -> (@Block tags_t) -> state -> signal -> Prop :=
   | exec_block_nil : forall this_path inst_m st tags,
@@ -1235,14 +1235,13 @@ Definition unfold_cenv (ce : cenv) :=
 
 Coercion unfold_cenv : cenv >-> IdentMap.t.
 
-(* The following defines a group of mutually recursive functions:
-instantiate_expr: instantiate an instance expression (e.g. nameless instantiation)
-instantiate: instantiate an instance given typ and args
-instantiate_decl: instantiate an instance declaration
-instantiate_class_body: instantiate inner instances given a class definition
+(* The following section defines a group of mutually recursive functions:
+  instantiate_expr: instantiate an instance expression (e.g. nameless instantiation)
+  instantiate: instantiate an instance given typ and evaluated args
+  instantiate_decl: instantiate an instance declaration
+  instantiate_class_body: instantiate inner instances given a class definition
 *)
 
-(* A trick to define mutually recursive functions. *)
 Section instantiate_class_body.
 
 Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
@@ -1342,6 +1341,7 @@ Definition instantiate_decls' (ce : cenv) (e : ienv) (decls : list (@Declaration
 
 End instantiate_class_body.
 
+(* Currently, we only handle direct application but not StatInstantiation. *)
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
   | MkStatement _ (StatDirectApplication typ _) _  =>
@@ -1401,7 +1401,7 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
     match decl with
     | DeclParser _ class_name' _ params _ locals states =>
         let m := fold_left (inline_packet_in_packet_out p) params m in
-        let locals := concat (map get_direct_applications_ps states) in
+        let locals := locals ++ concat (map get_direct_applications_ps states) in
         let (m, s) := instantiate_decls ce' e locals p m s in
         let m := PathMap.set p (IMInst class_name p) m in
         (p, m, s)

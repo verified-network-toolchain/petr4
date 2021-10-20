@@ -273,13 +273,41 @@ Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t)
   end.
 
 
+Definition TranslateCases'
+  (TranslateParserExpr : P4cub.Parser.e tags_t -> VarNameGen.t -> st * P4cub.Parser.e tags_t * VarNameGen.t)
+  (cases: Field.fs P4cub.Parser.pat (P4cub.Parser.e tags_t)) (env: VarNameGen.t) (i : tags_t)
+  :P4cub.Stmt.s tags_t * Field.fs P4cub.Parser.pat (P4cub.Parser.e tags_t) * VarNameGen.t :=
+  Field.fold 
+  (fun (pattern: P4cub.Parser.pat) 
+       (e: P4cub.Parser.e tags_t) 
+       (cumulator: P4cub.Stmt.s tags_t * Field.fs P4cub.Parser.pat (P4cub.Parser.e tags_t) * VarNameGen.t)
+    => let '(prev_stmt, prev_cases, prev_env) := cumulator in 
+       let '(stmt_e, e', env_e) := TranslateParserExpr e prev_env in
+       let new_stmt := P4cub.Stmt.SSeq prev_stmt stmt_e i in 
+       let new_cases := prev_cases ++ [(pattern, e')] in
+       (new_stmt, new_cases, env_e) 
+    ) cases ((P4cub.Stmt.SSkip i, []), env).
+
 Fixpoint TranslateParserExpr (expr: P4cub.Parser.e tags_t) (env : VarNameGen.t)
-  : st * P4cub.Parser.e tags_t * VarNameGen.t.
-  Admitted.
+  : st * P4cub.Parser.e tags_t * VarNameGen.t :=
+  let TranslateCases := TranslateCases' TranslateParserExpr in 
+  match expr with 
+  | P4cub.Parser.PGoto st i => 
+    ((P4cub.Stmt.SSkip i, P4cub.Parser.PGoto st i), env)
+  | P4cub.Parser.PSelect exp default cases i => 
+    let '((stmt_exp, exp'), env_exp) := TransformExpr exp env in
+    let '((stmt_default, default'), env_default) := TranslateParserExpr default env_exp  in
+    let '((stmt_cases, cases'), env_cases) := TranslateCases cases env_default i in
+    let new_stmt := P4cub.Stmt.SSeq stmt_exp (P4cub.Stmt.SSeq stmt_default stmt_cases i ) i in
+    ((new_stmt, P4cub.Parser.PSelect exp' default' cases' i), env_cases)
+  end.
   
 
-Definition ParserExprTags (expr: P4cub.Parser.e tags_t) : tags_t.
-  Admitted.
+Definition ParserExprTags (expr: P4cub.Parser.e tags_t) : tags_t :=
+  match expr with
+  | P4cub.Parser.PGoto _ i
+  | P4cub.Parser.PSelect _ _ _ i =>  i
+  end.
 
 Definition TranslateParserState 
   (parser_state: P4cub.Parser.state_block tags_t) (env : VarNameGen.t)

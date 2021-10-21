@@ -153,8 +153,8 @@ Section Environment.
     | ValBaseRecord fields
     | ValBaseStruct fields
     | ValBaseUnion fields
-    | ValBaseHeader fields _
-    | ValBaseSenum fields => AList.get fields field
+    | ValBaseHeader fields _ => AList.get fields field
+    (*| ValBaseSenum fields => AList.get fields field*)
     | ValBaseStack hdrs len next =>
       if eq_const field StringConstants.last then List.nth_error hdrs (N.to_nat (len - 1)) else
       if eq_const field StringConstants.next then List.nth_error hdrs (N.to_nat next) else
@@ -289,10 +289,10 @@ Section Environment.
       let* fields' := lift_opt (AssertError "Unable to update member of union")
                                (AList.set fields member rhs) in
       state_return (ValBaseRecord fields')
-    | ValBaseSenum fields =>
+    (*| ValBaseSenum fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of enum.")
                                (AList.set fields member rhs) in
-      state_return (ValBaseSenum fields')
+      state_return (ValBaseSenum fields')*)
     | ValBaseStack hdrs len next =>
       if eq_const member StringConstants.last then update_array lhs (N.to_nat len) rhs else
       if eq_const member StringConstants.next then update_array lhs (N.to_nat next) rhs else

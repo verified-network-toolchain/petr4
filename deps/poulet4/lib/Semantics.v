@@ -80,7 +80,7 @@ Inductive fundef :=
 
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t Sval.
+Definition genv_senum := @IdentMap.t tags_t (P4String.AList tags_t Sval).
 
 Inductive inst_ref :=
   | mk_inst_ref (class : P4String) (p : path).
@@ -211,9 +211,9 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                            exec_val read_one_bit v v' ->
                            exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) 
                                                  (ValBaseSenumField typ_name enum_name v')
-  | exec_val_senum : forall kvs kvs',
+  (*| exec_val_senum : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs').
+                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
 
 Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
   exec_val read_one_bit.
@@ -379,7 +379,7 @@ Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval :=
   | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
   | ValBaseStack vs size next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) size next
   | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
-  | ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)
+  (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
   (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
   | _ => v
   end.
@@ -502,7 +502,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-                             IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
+                             IdentMap.get ename (ge_senum ge) = Some fields ->
                              AList.get fields member = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)

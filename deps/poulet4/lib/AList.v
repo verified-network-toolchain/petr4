@@ -305,10 +305,22 @@ Section AList.
     rewrite Forall2_eq in HPl.
     assumption.
   Qed.
-  
-  Fixpoint map_values {A B} (f : A -> B) (l : AList K A R): AList K B R :=
-    match l with
-    | [] => []
-    | (k, v) :: tl => (k, f v) :: (map_values f tl)
-    end.
 End AList.
+  
+Section Map.
+  Context {K A B : Type} {R: Relation_Definitions.relation K}
+          `{H: Equivalence K R} {KEqDec: EqDec K R}.
+  Variable (f : A -> B).
+  
+  Definition map_values  : AList K A R -> AList K B R :=
+    List.map (fun '(k,a) => (k,f a)).
+  
+  Lemma get_map_values : forall (l : AList K A R) (k : K),
+      get (map_values l) k = option_map f (get l k).
+  Proof.
+    unfold get.
+    induction l as [| [ky a] l IHl]; intros k; simpl; auto.
+    destruct (KEqDec k ky) as [Hkky | Hkky];
+      unfold equiv, complement in *; simpl in *; auto.
+  Qed.
+End Map.

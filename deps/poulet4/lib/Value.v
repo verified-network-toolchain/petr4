@@ -27,7 +27,7 @@ Section Value.
   | ValBaseStack (headers: list (@ValueBase bit)) (size: N) (next: N)
   | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)
   | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: (@ValueBase bit))
-  | ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit)).
+  (*| ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit))*).
 
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
@@ -126,8 +126,8 @@ Section Value.
     Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
     Hypothesis HSenumField : forall t x v,
         P v -> P (ValBaseSenumField t x v).
-    Hypothesis HSenum : forall vs,
-        Forall (fun '(_,v) => P v) vs -> P (ValBaseSenum vs).
+    (*Hypothesis HSenum : forall vs,
+        Forall (fun '(_,v) => P v) vs -> P (ValBaseSenum vs).*)
     
     Definition custom_ValueBase_ind :
       forall v : V, P v :=
@@ -160,7 +160,7 @@ Section Value.
         | ValBaseStack vs n i     => HStack _ n i (lind vs)
         | ValBaseEnumField t x    => HEnumField t x
         | ValBaseSenumField t x v => HSenumField t x _ (vind v)
-        | ValBaseSenum vs         => HSenum _ (alind vs)
+        (*| ValBaseSenum vs         => HSenum _ (alind vs)*)
         end.
   End ValBaseInd.
 
@@ -192,8 +192,8 @@ Section Value.
         ValBaseStack (map ValueBaseMap vs) n i
       | ValBaseEnumField t x => ValBaseEnumField t x
       | ValBaseSenumField t x v => ValBaseSenumField t x (ValueBaseMap v)
-      | ValBaseSenum vs =>
-        ValBaseSenum (map (fun '(x,v) => (x, ValueBaseMap v)) vs)
+      (*| ValBaseSenum vs =>
+        ValBaseSenum (map (fun '(x,v) => (x, ValueBaseMap v)) vs)*)
       end.
   End ValueBaseFunctor.
 

@@ -347,22 +347,25 @@ Proof.
     intros H; inversion H; subst; simpl in *; auto.
 Qed.
 
-Lemma map_fst_map : forall (U V W : Type) (f : U -> W) (uvs : list (U * V)),
-    map fst (map (fun '(u,v) => (f u,v)) uvs) = map f (map fst uvs).
-Proof.
-  intros U V W f uvs;
-    induction uvs as [| [u v] uvs IHuvs];
-    simpl in *; f_equal; auto.
-Qed.
+Section MapMap.
+  Variables (U V W X : Type)
+            (f : U -> W) (g : V -> X).
 
-Lemma map_snd_map : forall (U V W : Type) (f : V -> W) (uvs : list (U * V)),
-    map snd (map (fun '(u,v) => (u, f v)) uvs) = map f (map snd uvs).
-Proof.
-  intros U V W f uvs;
-    induction uvs as [| [u v] uvs IHuvs];
-    simpl in *; f_equal; auto.
-Qed.
-
+  Lemma map_fst_map : forall (uvs : list (U * V)),
+      map fst (map (fun '(u,v) => (f u, g v)) uvs) = map f (map fst uvs).
+  Proof.
+    intro uvs; induction uvs as [| [u v] uvs IHuvs];
+      simpl in *; f_equal; auto.
+  Qed.
+  
+  Lemma map_snd_map : forall (uvs : list (U * V)),
+      map snd (map (fun '(u,v) => (f u, g v)) uvs) = map g (map snd uvs).
+  Proof.
+    intro uvs; induction uvs as [| [u v] uvs IHuvs];
+      simpl in *; f_equal; auto.
+  Qed.
+End MapMap.
+  
 Lemma map_only_fst : forall (U V W : Type) (f : U -> V) (uws : list (U * W)),
     map (fun '(u,w) => (f u, w)) uws =
     let '(us,ws) := split uws in

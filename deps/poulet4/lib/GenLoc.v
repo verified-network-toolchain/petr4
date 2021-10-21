@@ -1,9 +1,9 @@
 Require Import Poulet4.Syntax.
-Require Import Typed.
-Require Import SyntaxUtil.
-Require Import SimplExpr.
-Require Import Monads.Monad.
-Require Import Monads.State.
+Require Import Poulet4.Typed.
+Require Import Poulet4.SyntaxUtil.
+Require Import Poulet4.SimplExpr.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
@@ -232,12 +232,8 @@ Section Transformer.
         let e' := IdentMap.set name loc e in
         mret (MkStatement tags (StatVariable typ' name init' loc) typ, e')
       | StatInstantiation typ' args name init =>
+        (* StatInstantiation is unsupported. *)
         let args' := transform_exprs e args in
-        (* let* init' := []
-          match init with
-          | Some init => let* init' := transform_blk e ns init in mret (Some init')
-          | None => mret None
-          end in *)
         mret (MkStatement tags (StatInstantiation typ' args' name []) typ, e)
       end
     with transform_stmt (e: env) (ns: list P4String) (stmt: @Statement tags_t):
@@ -358,7 +354,7 @@ Section Transformer.
       MkTableProperty tags const name value'
     end.
 
-  (* Transform declarations except parsers and controls. *)
+  (* Transform declarations except parsers, controls and instantiations. *)
   Definition transform_decl_base (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
@@ -367,11 +363,6 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (DeclConstant tags typ name value, e')
-    | DeclInstantiation tags typ args name init =>
-      let* _ := use name in
-      let loc := LCurScope [name] in
-      let e' := IdentMap.set name loc e in
-      mret (decl, e')
     | DeclFunction tags ret name type_params params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] params in
@@ -437,14 +428,27 @@ Section Transformer.
       mret (decl' :: decls0', e'')
     end.
 
-  Definition transform_decl (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
+  Fixpoint transform_decl (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
+    let transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls : list (@Declaration tags_t)):
+        monad (list (@Declaration tags_t) * env) :=
+      Utils.list_rec
+        (fun _ => env -> monad (@Declaration tags_t * env))
+        (fun _ => env -> monad (list (@Declaration tags_t) * env))
+        (fun e => mret (nil, e))
+        (fun decl decls' res_decl res_decls' e =>
+          let* (decl', e') := res_decl e in
+          let* (decls'', e'') := res_decls' e' in
+          mret (decl' :: decls'', e''))
+        (fun decl e => transform_decl LCurScope e decl)
+        decls
+        e in
     match decl with
     | DeclParser tags name type_params params cparams locals states =>
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in
         let* e'' := declare_params LInstance e' nil cparams in
-        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let* (locals', e''') := transform_decls LInstance e'' locals in
         let used_list := concat
               (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
         let* _ := put_state (fun l => used_list ++ l) in
@@ -459,7 +463,7 @@ Section Transformer.
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in
         let* e'' := declare_params LInstance e' nil cparams in
-        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let* (locals', e''') := transform_decls LInstance e'' locals in
         (* If there is a direct application in the apply block, then there will not be a definition with
           the same name in local definitions because of shadowing. So there will not be any conflict. *)
         let used_list := summarize_blk apply in
@@ -471,16 +475,22 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (DeclControl tags name type_params params cparams locals' apply', e')
+    | DeclInstantiation tags typ args name init =>
+      let* (init', _) := transform_decls LCurScope e init in
+      let* _ := use name in
+      let loc := LCurScope [name] in
+      let e' := IdentMap.set name loc e in
+      mret (DeclInstantiation tags typ args name init', e')
     | _ => transform_decl_base LCurScope e decl
     end.
 
-  Fixpoint transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)):
+  Fixpoint transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)) :
       monad (list (@Declaration tags_t) * env) :=
     match decls with
     | nil => mret (nil, e)
     | decl :: decls' =>
       let* (decl', e') := transform_decl LCurScope e decl in
-      let* (decls'', e'') := transform_decls LCurScope e decls' in
+      let* (decls'', e'') := transform_decls LCurScope e' decls' in
       mret (decl' :: decls'', e'')
     end.
 

@@ -2720,6 +2720,17 @@ and type_switch env ctx stmt_info expr cases =
   let cases = List.fold ~init:[] ~f:case_checker cases in
   MkStatement (stmt_info, StatSwitch (expr_typed, cases), StmUnit), env
 
+and init_of_decl (decl: Prog.coq_Declaration) : Prog.coq_Initializer =
+  match decl with
+  | DeclInstantiation (info, typ, args, name, init) ->
+    InitInstantiation (info, typ, args, name, inits_of_decls init)
+  | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+    InitFunction (info, return_type, name, t_params, params_typed, body_typed)
+  | _ -> failwith "BUG: expected DeclInstantiation or DeclFunction."
+
+and inits_of_decls (decls: Prog.coq_Declaration list) : Prog.coq_Initializer list =
+  List.map ~f:init_of_decl decls
+
 and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
   let info, (stmt: Prog.coq_StatementPreT) =
     match decl with
@@ -2728,7 +2739,7 @@ and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
     | DeclVariable (info, typ, name, init) ->
       info, StatVariable (typ, name, init, Prog.noLocator)
     | DeclInstantiation (info, typ, args, name, init) ->
-      info, StatInstantiation (typ, args, name, init)
+      info, StatInstantiation (typ, args, name, inits_of_decls init)
     | _ ->
       Info.dummy, StatEmpty
   in
@@ -2772,7 +2783,7 @@ and insert_params (env: Checker_env.t) (params: Types.Parameter.t list) : Checke
   in
   List.fold_left ~f:insert_param ~init:env params
 
-and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Initializer * Checker_env.t  * Checker_env.t =
+and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Declaration * Checker_env.t  * Checker_env.t =
   begin match snd init with
   | DeclarationStatement { decl } ->
     begin match snd decl with
@@ -2780,17 +2791,20 @@ and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Initia
       check_param_shadowing params [];
       let ret_type = translate_type env_top return in
       let ctx: coq_StmtContext = StmtCxMethod ret_type in
-      begin match type_function env_top ctx (fst decl) return name type_params params body with
+      let typed_func, _ = type_function env_top ctx (fst decl) return name type_params params body in
+      begin match typed_func with
       (* @synchronous allows access to other instantiations but not function declarations *)
-      | DeclFunction (info, return_type, name, t_params, params_typed, body_typed), _ ->
-        InitFunction (info, return_type, name, t_params, params_typed, body_typed), env, env_top
+      | DeclFunction _ ->
+        typed_func, env, env_top
       | _ -> failwith "BUG: expected DeclFunction."
       end
     (* More restrictions on instantiations? Variable declarations allowed? *)
     | Instantiation { annotations; typ; args; name; init } ->
-      begin match type_instantiation env ctx (fst decl) annotations typ args name init with
-      | DeclInstantiation (info, typ, args, name, init_typed), instance_type ->
-        InitInstantiation (info, typ, args, name, init_typed), 
+      let typed_instance, instance_type =
+        type_instantiation env ctx (fst decl) annotations typ args name init in
+      begin match typed_instance with
+      | DeclInstantiation (info, typ, args, name, init_typed) ->
+        typed_instance,
         Checker_env.insert_type_of (BareName name) instance_type env,
         Checker_env.insert_type_of (BareName name) instance_type env_top
       | _ -> failwith "BUG: expected DeclInstantiation."
@@ -2800,7 +2814,7 @@ and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Initia
   | _ -> failwith "Unexpected statement as the initializer."
   end
 
-and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Initializer list * int =
+and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Declaration list * int =
   let env_top = 
     Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
   let extern_name, args =
@@ -2816,7 +2830,7 @@ and type_initializers env ctx instance_type (inits: Types.Statement.t list): Pro
     let init_typed, env', env_top' = type_initializer env env_top ctx decl in
     let num_absts' = 
     begin match init_typed with
-    | InitFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+    | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
       begin match List.find ~f:(fun decl -> P4string.eq name (fst decl)) decls_abst with
       | Some (name, decl_type) ->
         let init_type = TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) in

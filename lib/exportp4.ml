@@ -743,7 +743,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_type typ
           print_exprs args
           p4string name
-          (print_list print_init) init
+          (print_list (print_decl None)) init
   | DeclParser (info, name, type_params, params, constructor_params, locals, states) ->
       let (f_str, decl_name) = 
         (gen_format_string decl_name "DeclParser@ %a@ %a@ %a@ %a@ %a@ %a@ %a")

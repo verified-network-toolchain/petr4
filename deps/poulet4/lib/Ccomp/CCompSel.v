@@ -8,6 +8,7 @@ Require Import String.
 Require Coq.PArith.BinPosDef.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.P4cub.Transformations.Statementize.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
@@ -21,7 +22,7 @@ Local Open Scope Z_scope.
 Local Open Scope clight_scope.
 Import Clightdefs.ClightNotations.
 Require Import Poulet4.Ccomp.Petr4Runtime.
-Module P := P4sel.
+Module P := P4cub.
 Module F := P.F.
 Module E := P.Expr.
 Module ST := P.Stmt.
@@ -256,14 +257,15 @@ Section CCompSel.
                         end
 
     | E.EHeaderStackAccess stack index i => 
-      let (stack_t,env) := CTranslateType (E.SelTypeOf tags_t stack) env in 
+      let (stack_t,env) := CTranslateType (E.cub_type_of tags_t stack) env in 
       let* (stack, env) :=  CTranslateExpr stack env in
       let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) 
         := findStackAttributes stack stack_t env in
       Some (ArrayAccess arr_var (Econst_int (Integers.Int.repr index) int_signed ) val_typ, env)
 
     | E.EError x i => None (*TODO: implement*)
-    | E.EMatchKind mk i => None (*TODO : implement*)    
+    | E.EMatchKind mk i => None (*TODO : implement*)
+    | _ => None (*Not Allowed*)
     end.
 
   Definition CTranslateExprList (el : list (E.e tags_t)) (env: ClightEnv tags_t ): option ((list Clight.expr) * ClightEnv tags_t ) :=
@@ -351,7 +353,7 @@ Section CCompSel.
 
   Definition ValidBitIndex (arg: E.e tags_t) (env: ClightEnv tags_t ) : option AST.ident
   :=
-    let* comp:= lookup_composite tags_t env (E.SelTypeOf tags_t arg) in
+    let* comp:= lookup_composite tags_t env (E.cub_type_of tags_t arg) in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _ =>
     match m with
@@ -365,7 +367,7 @@ Section CCompSel.
   
   Definition HeaderStackSize (arg: E.e tags_t) (env: ClightEnv tags_t ) : option AST.ident
   :=
-    let* comp := lookup_composite tags_t env (E.SelTypeOf tags_t arg) in
+    let* comp := lookup_composite tags_t env (E.cub_type_of tags_t arg) in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _=>
       match m with
@@ -498,7 +500,7 @@ Section CCompSel.
     F.map (fst) fields
   .
   Definition CTranslateListType (exps : list (E.e tags_t)):=
-    List.map (E.SelTypeOf tags_t) exps.
+    List.map (E.cub_type_of tags_t) exps.
 
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (E.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
@@ -677,11 +679,6 @@ Section CCompSel.
       let (cty, env_cty):= CTranslateType t env in
       Some (Sskip, CCompEnv.add_var tags_t env_cty x cty)
 
-    | ST.SAssign t e1 e2 i => 
-      let* (e1', env1) := CTranslateExpr e1 env in
-      let* (e2', env2) := CTranslateExpr e2 env1 in
-      Some (Sassign e1' e2', env2)
-
     | ST.SConditional t e s1 s2 i => 
       let* (e', env1) := CTranslateExpr e env in
       let* (s1', env2) := CTranslateStatement s1 env1 in
@@ -716,62 +713,91 @@ Section CCompSel.
     | ST.SExit i => Some (Sskip, env) (*TODO: implement, what is this?*)
     | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement, ugh.*)
     | ST.SInvoke tbl i => Some (Sskip, env) (*TODO: implement*)
+    | ST.SAssign t e1 e2 i => 
+      match e1 with
+      | E.EVar dst_t dst i => 
+        match e2 with
+        | E.EBit width val i => 
+          let* dst' := find_ident tags_t env dst in
+          let (env', val_id) := find_BitVec_String tags_t env val in 
+          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+          let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+          let val' := Evar val_id Cstring in
+          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+          Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+        
+        | E.EInt width val i => 
+          let* dst' := find_ident tags_t env dst in
+          let (env', val_id) := find_BitVec_String tags_t env val in 
+          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+          let signed := Econst_int (Integers.Int.one) (type_bool) in 
+          let val' := Evar val_id Cstring in
+          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+          Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
 
-    | ST.SBitAssign dst_t dst width val i => 
-      let* dst' := find_ident tags_t env dst in
-      let (env', val_id) := find_BitVec_String tags_t env val in 
-      let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-      let signed := Econst_int (Integers.Int.zero) (type_bool) in 
-      let val' := Evar val_id Cstring in
-      let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-      Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+        | E.ESlice n τ hi lo i => 
+          let* (n', env') := CTranslateExpr n env in
+          let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
+          let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
+          let* dst' := find_ident tags_t env dst in
+          let (tau', env') := CTranslateType τ env' in 
+          let dst' := Evar dst' tau' in
+          Some (Scall None slice_function [n'; hi'; lo'; dst'], env')
 
-    | ST.SIntAssign dst_t dst width val i =>
-      let* dst' := find_ident tags_t env dst in
-      let (env', val_id) := find_BitVec_String tags_t env val in 
-      let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-      let signed := Econst_int (Integers.Int.one) (type_bool) in 
-      let val' := Evar val_id Cstring in
-      let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-      Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+        | E.ECast τ e i => None (*TODO: implement in the runtime*)
+        
+        | E.EUop op dst_t x i => CTranslateUop dst_t op x dst env
 
-    | ST.SSlice n τ hi lo dst i => 
-      let* (n', env') := CTranslateExpr n env in
-      let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
-      let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
-      let* dst' := find_ident tags_t env dst in
-      let (tau', env') := CTranslateType τ env' in 
-      let dst' := Evar dst' tau' in
-      Some (Scall None slice_function [n'; hi'; lo'; dst'], env')
-
-    | ST.SCast τ e dst i => None (*TODO: implement in the runtime*)                        
-    | ST.SUop dst_t op x dst i => CTranslateUop dst_t op x dst env
-    | ST.SBop dst_t op x y dst i => CTranslateBop dst_t op x y dst env
+        | E.EBop op dst_t rhs_type x y i => CTranslateBop dst_t op x y dst env
                         
-    | ST.STuple es dst i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
-      let tuple := P4cub.Expr.TTuple (CTranslateListType es) in
-      let (typ, env) := CTranslateType tuple env in
-      let env_destination_declared := add_var tags_t env dst typ in
-      let* composite := lookup_composite tags_t env tuple in
-      let* dst := find_ident tags_t env_destination_declared dst in
-      CTranslateTupleAssgn es composite (Evar dst typ) env_destination_declared
+        | E.ETuple es i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
+          let tuple := P4cub.Expr.TTuple (CTranslateListType es) in
+          let (typ, env) := CTranslateType tuple env in
+          let* composite := lookup_composite tags_t env tuple in
+          let* dst := find_ident tags_t env dst in
+          CTranslateTupleAssgn es composite (Evar dst typ) env
 
-    | ST.SStruct fields dst i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
-      let struct := P4cub.Expr.TStruct (CTranslateFieldType fields) in
-      let (typ, env) := CTranslateType struct env in
-      let env_destination_declared := add_var tags_t env dst typ in
-      let* composite := lookup_composite tags_t env struct in
-      let* dst := find_ident tags_t env_destination_declared dst in
-      CTranslateStructAssgn fields composite (Evar dst typ) env_destination_declared
+        | E.EStruct fields i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
+          let struct := P4cub.Expr.TStruct (CTranslateFieldType fields) in
+          let (typ, env) := CTranslateType struct env in
+          let* composite := lookup_composite tags_t env struct in
+          let* dst := find_ident tags_t env dst in
+          CTranslateStructAssgn fields composite (Evar dst typ) env
 
-    | ST.SHeader fields dst b i => (*first create a temp of this header. then assign all the values to it. then return this temp*)
-      let hdr := P4cub.Expr.THeader (CTranslateFieldType fields) in
-      let (typ, env) := CTranslateType hdr env in
-      let* (valid, env) := CTranslateExpr b env in
-      let env_destination_declared := add_var tags_t env dst typ in
-      let* composite := lookup_composite tags_t env hdr in
-      let* dst := find_ident tags_t env_destination_declared dst in
-      CTranslateHeaderAssgn fields composite (Evar dst typ) env_destination_declared valid
+        | E.EHeader fields b i => (*first create a temp of this header. then assign all the values to it. then return this temp*)
+          let hdr := P4cub.Expr.THeader (CTranslateFieldType fields) in
+          let (typ, env) := CTranslateType hdr env in
+          let* (valid, env) := CTranslateExpr b env in
+          let* composite := lookup_composite tags_t env hdr in
+          let* dst := find_ident tags_t env dst in
+          CTranslateHeaderAssgn fields composite (Evar dst typ) env valid
+
+        | E.EHeaderStack fields headers size next_index i =>
+          let top_typ := P4cub.Expr.THeaderStack fields size in
+          let (top_typ, env) := CTranslateType top_typ env in
+          let* stack := find_ident tags_t env dst in
+          let stack_var := Evar stack top_typ in
+          let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
+             findStackAttributes stack_var top_typ env in
+          let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
+          let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
+          let assignSize := Sassign size_var int_size in
+          let assignNext := Sassign next_var int_next in
+          let env := add_temp tags_t env "i" int_signed in
+          let* i := find_ident tags_t env "i" in 
+          let i_var := Etempvar i int_signed in
+          HeaderStackAssignLoop env arr_var i_var fields headers val_typ
+
+        | _ => 
+          let* (e1', env1) := CTranslateExpr e1 env in
+          let* (e2', env2) := CTranslateExpr e2 env1 in
+          Some (Sassign e1' e2', env2)
+        end
+      | _ =>
+      let* (e1', env1) := CTranslateExpr e1 env in
+      let* (e2', env2) := CTranslateExpr e2 env1 in
+      Some (Sassign e1' e2', env2)
+      end
 
     | ST.SHeaderStackOp stack P4cub.Stmt.HSPush n i =>
       let* stack_id := 
@@ -791,22 +817,7 @@ Section CCompSel.
       in 
       CTranslatePop stack_id n env
     
-    | ST.SHeaderStack fields headers size next_index dst i =>
-      let top_typ := P4cub.Expr.THeaderStack fields size in
-      let (top_typ, env) := CTranslateType top_typ env in
-      let env_destination_declared := add_var tags_t env dst top_typ in
-      let* stack := find_ident tags_t env dst in
-      let stack_var := Evar stack top_typ in
-      let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
-         findStackAttributes stack_var top_typ env in
-      let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
-      let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
-      let assignSize := Sassign size_var int_size in
-      let assignNext := Sassign next_var int_next in
-      let env := add_temp tags_t env "i" int_signed in
-      let* i := find_ident tags_t env "i" in 
-      let i_var := Etempvar i int_signed in
-      HeaderStackAssignLoop env arr_var i_var fields headers val_typ 
+    (*  *)
 
     | ST.SSetValidity arg val i =>
       let* (arg', env) := CTranslateExpr arg env in 
@@ -1250,7 +1261,7 @@ Section CCompSel.
     let* (f, env_action_translated) := CTranslateAction params body env top_fn_params top_signature in
     Some (CCompEnv.add_function tags_t env_action_translated a f)
 
-  | CT.CDTable t (CT.Table ems actc init) i => Some env (*TODO: implement table*)
+  | CT.CDTable t (CT.Table ems acts) i => Some env (*TODO: implement table*)
   end.
   
   Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
@@ -1307,6 +1318,7 @@ Section CCompSel.
     | _ => None
     end.
 
+
   Fixpoint CTranslateTopDeclaration (d: TD.d tags_t) (env: ClightEnv tags_t ) : option (ClightEnv tags_t )
   := 
   match d with
@@ -1314,10 +1326,12 @@ Section CCompSel.
     let* env1 := CTranslateTopDeclaration d1 env in
     CTranslateTopDeclaration d2 env1 
 
-  | TD.TPInstantiate c x _ args args_init i => 
-    let* (init', env') := CTranslateStatement args_init env in
-    Some (set_main_init tags_t (set_instantiate_cargs tags_t env' args) init')
- 
+  | TD.TPInstantiate c x _ args i => 
+    (* let* (init', env') := CTranslateStatement args_init env in *)
+    (* Some (set_main_init tags_t (set_instantiate_cargs tags_t env args) Sskip) *)
+    (*TODO: Translate each instantiate into a function*)
+    (*TODO: Maybe we also want an abstract interpretation in the statementize pass?*)
+    None
   | TD.TPFunction _ _ _ _ _ => CTranslateFunction d env
   | TD.TPExtern e _ cparams methods i => None (*TODO: implement*)
   | TD.TPControl _ _ _ _ _ _ _ => CTranslateTopControl d env
@@ -1365,5 +1379,9 @@ Section CCompSel.
     end.  
 End CCompSel.
 
-Definition helloworld_program_sel := RemoveSideEffect.TranslateProgram nat helloworld_program.
-Definition test := CCompSel.Compile_print nat helloworld_program_sel.
+Definition helloworld_program_sel := Statementize.TranslateProgram nat helloworld_program.
+Definition test := 
+  match helloworld_program_sel with 
+  | inl helloworld_program_sel => CCompSel.Compile_print nat helloworld_program_sel
+  | inr _ => tt
+  end.

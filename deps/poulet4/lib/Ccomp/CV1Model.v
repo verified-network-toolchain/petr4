@@ -5,7 +5,6 @@ From compcert Require Import Clight Ctypes Integers Cop Clightdefs.
 Require Import Poulet4.Ccomp.CCompEnv.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.P4sel.P4sel.
 Require Import String.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
@@ -26,7 +25,7 @@ Definition empty_main :=
 
 (* The order is 
 Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
-Definition main_fn (env: ClightEnv tags_t ) (cargs: P4sel.Expr.constructor_args tags_t): Clight.function
+Definition main_fn (env: ClightEnv tags_t ) (cargs: P4cub.Expr.constructor_args tags_t): Clight.function
 := 
 (* this is sketchy because I'm not sure how many instantiations will there be
 and I'm not sure if the name works as I thought they would*)
@@ -37,12 +36,12 @@ let eg := Field.get "eg" cargs in
 let ck := Field.get "ck" cargs in
 let dep := Field.get "dep" cargs in
 match p, vr, ig, eg, ck , dep with
-| Some (P4sel.Expr.CAName p), 
-  Some (P4sel.Expr.CAName vr), 
-  Some (P4sel.Expr.CAName ig), 
-  Some (P4sel.Expr.CAName eg), 
-  Some (P4sel.Expr.CAName ck), 
-  Some (P4sel.Expr.CAName dep) => 
+| Some (P4cub.Expr.CAName p), 
+  Some (P4cub.Expr.CAName vr), 
+  Some (P4cub.Expr.CAName ig), 
+  Some (P4cub.Expr.CAName eg), 
+  Some (P4cub.Expr.CAName ck), 
+  Some (P4cub.Expr.CAName dep) => 
 
   match lookup_function tags_t env p, lookup_function tags_t env vr, lookup_function tags_t env ig, lookup_function tags_t env eg, lookup_function tags_t env ck, lookup_function tags_t env dep with
     | Some(pf,pid), Some(vrf,vrid), Some(igf,igid), Some(egf,egid), Some(ckf,ckid), Some(depf,depid) =>

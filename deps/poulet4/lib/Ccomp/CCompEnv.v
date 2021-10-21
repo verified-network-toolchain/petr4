@@ -1,11 +1,10 @@
 Set Warnings "-custom-entry-overridden".
 From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
-Require  Poulet4.P4cub.Syntax.Syntax.
+Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.P4cub.Envn.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
-Require Import Poulet4.P4sel.P4sel.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Init.Decimal.
 Import Clightdefs.ClightNotations.
@@ -24,7 +23,7 @@ Section CEnv.
     identGenerator : IdentGen.generator;
     fenv: Env.t string Clight.function;
     tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
-    instantiationCarg : P4sel.Expr.constructor_args tags_t;
+    instantiationCarg : P4cub.Expr.constructor_args tags_t;
     maininit: Clight.statement;
     globvars: (list (AST.ident * globvar Ctypes.type));
     numStrMap : Env.t Z AST.ident
@@ -328,7 +327,7 @@ Section CEnv.
     numStrMap := to.(numStrMap);
   |}.  
 
-  Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4sel.Expr.constructor_args tags_t) : ClightEnv :=
+  Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4cub.Expr.constructor_args tags_t) : ClightEnv :=
   {|
     identMap := env.(identMap);
     temps := env.(temps);
@@ -343,7 +342,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
   |}.  
 
-  Definition get_instantiate_cargs (env: ClightEnv) : P4sel.Expr.constructor_args tags_t := 
+  Definition get_instantiate_cargs (env: ClightEnv) : P4cub.Expr.constructor_args tags_t := 
     env.(instantiationCarg).
   Definition set_main_init (env: ClightEnv) (init: Clight.statement) : ClightEnv :=
   {|

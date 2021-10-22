@@ -87,16 +87,19 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let '(arg_stmt, arg', env_arg) := TransformExpr arg env in 
     let (var_name, env') := VarNameGen.new_var env_arg in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
-    let assign := P4cub.Stmt.SAssign type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.ECast type arg' i) i in 
+    let assign :=
+        P4cub.Stmt.SAssign
+          type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.ECast type arg' i) i in 
     let stmt := P4cub.Stmt.SSeq arg_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
   | P4cub.Expr.EUop op type arg i => 
-    let (arg_result, env_arg) := TransformExpr arg env in 
+    let '(arg_stmt, arg', env_arg) := TransformExpr arg env in 
     let (var_name, env') := VarNameGen.new_var env_arg in
-    let (arg_stmt, arg') := arg_result in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
-    let assign := P4cub.Stmt.SAssign type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.EUop op type arg' i) i in 
+    let assign :=
+        P4cub.Stmt.SAssign
+          type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.EUop op type arg' i) i in 
     let stmt := P4cub.Stmt.SSeq arg_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 

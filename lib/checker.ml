@@ -549,7 +549,6 @@ and infer_type_arguments env ctx type_params_args params_args constraints =
     empty_constraints unknowns
     |> gen_all_constraints env ctx unknowns params_args
   in
-  let _ = print_s[%message"params_args'" ~tparams:(params_args': (P4string.t * coq_P4Type) list)] in
   params_args' @ constraints_to_type_args constraints
 
 and merge_solutions env soln1 soln2 =
@@ -568,7 +567,7 @@ and solve_lists: 'a 'b.
     ~merge:(merge_solutions env)
     ~init:(Some (empty_constraints unknowns))
   |> option_collapse
-  |> option_map List.rev
+
 
 and solve_record_type_equality env equiv_vars unknowns (rec1: coq_FieldType list) (rec2: coq_FieldType list) =
   let solve_fields ((name1, type1), (name2, type2)) =
@@ -603,7 +602,7 @@ and solve_params_equality env equiv_vars unknowns ps1 ps2 =
     then (add_opt ps1) @ (List.init (ps2_len - ps1_len) ~f:(fun _ -> None)), add_opt ps2
     else add_opt ps1, (add_opt ps2) @ (List.init (ps1_len - ps2_len) ~f:(fun _ -> None))
   in
-  solve_lists env unknowns ~f:param_eq ps1' ps2'
+    solve_lists env unknowns ~f:param_eq ps1' ps2'
 
 and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
   let MkControlType (type_params1, params1) = ctrl1 in
@@ -2418,13 +2417,8 @@ and type_constructor_invocation env ctx info decl_name type_args args : Prog.coq
   let t_params, w_params, params, ret = resolve_constructor_overload env decl_name args in
   let params_args = match_params_to_args env info params args in
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
-  let _ = print_s[%message"duplicated type params" ~tpa:(type_params_args: (P4string.t * coq_P4Type) list )] in
   let env' = Checker_env.insert_types type_params_args env in
   let cast_arg (param, arg: coq_P4Parameter * Types.Expression.t option) =
-    begin match arg with
-    | Some arg -> print_s [%message "HERE" ~name:(decl_name:P4name.t) ~p:(reduce_type env' (type_of_param param): coq_P4Type) ~expr:(arg:Types.Expression.t)];
-    | _ -> print_s [%message "IDK"]
-    end;
     let MkParameter (is_opt, _, _, _, _) = param in
     match cast_param_arg env' ctx info (param, arg) with
     | _, Some e ->
@@ -2908,8 +2902,6 @@ and infer_constructor_type_args env ctx type_params wildcard_params params_args 
   let full_params_args =
     type_params_args @ List.map ~f:(fun v -> v, None) wildcard_params
   in
-  let _ = print_s[%message"first type params" ~tparams:(type_params: P4string.t list)] in
-  let _ = print_s[%message"duplicated type params" ~tpa:(List.map ~f:(fun v -> v, None) type_params: (P4string.t * coq_P4Type option) list )] in
   infer_type_arguments env ctx full_params_args params_args []
 
 (* Terrible hack - Ryan *)
@@ -3594,7 +3586,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                  size,
                  [])
     in
-    table_typed, Checker_env.insert_type_of ~shadow:false (BareName name) table_typ env
+    table_typed, Checker_env.insert_type_of ~shadow:true (BareName name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =

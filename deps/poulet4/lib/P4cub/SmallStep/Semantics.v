@@ -296,14 +296,14 @@ Module Step.
   | step_cond (e e' : E.e tags_t) (s1 s2 : ST.s tags_t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e -->  e' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ if e:Bool then s1 else s2 @ i ⋅ k -->
-      κ if e:Bool then s1 else s2 @ i ⋅ k, ϵ
+      κ if e then s1 else s2 @ i ⋅ k -->
+      κ if e then s1 else s2 @ i ⋅ k, ϵ
   | step_cond_true (s1 s2 : ST.s tags_t) (i' i : tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ if TRUE @ i' :Bool then s1 else s2 @ i ⋅ k -->  κ s1 ⋅ k, ϵ
+      κ if TRUE @ i' then s1 else s2 @ i ⋅ k -->  κ s1 ⋅ k, ϵ
   | step_cond_false (s1 s2 : ST.s tags_t) (i' i : tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ if FALSE @ i' :Bool then s1 else s2 @ i ⋅ k -->  κ s2 ⋅ k, ϵ
+      κ if FALSE @ i' then s1 else s2 @ i ⋅ k -->  κ s2 ⋅ k, ϵ
   | step_funcall_in_arg (prefix suffix : E.args tags_t) (f x : string)
                         (τ : E.t) (e e' : E.e tags_t)
                         (o : option (E.t * E.e tags_t))

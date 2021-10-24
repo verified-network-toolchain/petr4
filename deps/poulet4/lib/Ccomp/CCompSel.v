@@ -679,7 +679,7 @@ Section CCompSel.
       let (cty, env_cty):= CTranslateType t env in
       Some (Sskip, CCompEnv.add_var tags_t env_cty x cty)
 
-    | ST.SConditional t e s1 s2 i => 
+    | ST.SConditional e s1 s2 i => 
       let* (e', env1) := CTranslateExpr e env in
       let* (s1', env2) := CTranslateStatement s1 env1 in
       let* (s2', env3) := CTranslateStatement s2 env2 in                 

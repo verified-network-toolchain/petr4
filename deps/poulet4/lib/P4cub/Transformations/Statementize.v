@@ -245,11 +245,14 @@ Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t)
     let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in 
     let new_stmt := P4cub.Stmt.SSeq lhs_stmt (P4cub.Stmt.SSeq rhs_stmt (P4cub.Stmt.SAssign type lhs' rhs' i) i) i in 
     (new_stmt, env_rhs)
-  | P4cub.Stmt.SConditional guard_type guard tru_blk fls_blk i =>
+  | P4cub.Stmt.SConditional guard tru_blk fls_blk i =>
     let '(guard_stmt, guard', env_guard) := TransformExpr guard env in
     let (tru_blk', env_tru) := TranslateStatement tru_blk env_guard in 
     let (fls_blk', env_fls) := TranslateStatement fls_blk env_tru in 
-    let new_stmt := P4cub.Stmt.SSeq guard_stmt (P4cub.Stmt.SConditional guard_type guard' tru_blk' fls_blk' i) i in
+    let new_stmt :=
+        P4cub.Stmt.SSeq
+          guard_stmt
+          (P4cub.Stmt.SConditional guard' tru_blk' fls_blk' i) i in
     (new_stmt, env) 
   | P4cub.Stmt.SSeq s1 s2 i => 
     let (s1', env_s1) := TranslateStatement s1 env in 

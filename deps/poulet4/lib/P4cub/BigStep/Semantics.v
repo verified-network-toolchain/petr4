@@ -319,14 +319,14 @@ Module Step.
                   (ϵ' : epsilon) (sig : signal) (c : ctx) :
       ⟨ ϵ, guard ⟩ ⇓ TRUE ->
       ⟪ pkt, fs, ϵ, c, tru ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫ ->
-      ⟪ pkt, fs, ϵ, c, if guard:Bool then tru else fls @ i ⟫
+      ⟪ pkt, fs, ϵ, c, if guard then tru else fls @ i ⟫
         ⤋ ⟪ ϵ', sig, pkt ⟫
   | sbs_cond_false (guard : E.e tags_t)
                    (tru fls : ST.s tags_t) (i : tags_t)
                    (ϵ' : epsilon) (sig : signal) (c : ctx) :
       ⟨ ϵ, guard ⟩ ⇓ FALSE ->
       ⟪ pkt, fs, ϵ, c, fls ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫ ->
-      ⟪ pkt, fs, ϵ, c, if guard:Bool then tru else fls @ i ⟫
+      ⟪ pkt, fs, ϵ, c, if guard then tru else fls @ i ⟫
         ⤋ ⟪ ϵ', sig, pkt ⟫
   | sbs_action_call (args : E.args tags_t)
                     (argsv : V.argsv)

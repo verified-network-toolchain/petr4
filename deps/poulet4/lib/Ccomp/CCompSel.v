@@ -1379,7 +1379,7 @@ Section CCompSel.
     end.  
 End CCompSel.
 
-Definition helloworld_program_sel := Statementize.TranslateProgram nat helloworld_program.
+Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test := 
   match helloworld_program_sel with 
   | inl helloworld_program_sel => CCompSel.Compile_print nat helloworld_program_sel

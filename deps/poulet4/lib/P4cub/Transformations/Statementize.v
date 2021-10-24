@@ -9,7 +9,7 @@ Open Scope nat_scope.
 Open Scope string_scope.
 
 Section Statementize.
-  Context (tags_t : Type).
+  Context {tags_t : Type}.
   Notation t := P4cub.Expr.t.
   Notation ct := P4cub.Expr.ct.
   Notation e := (P4cub.Expr.e tags_t).
@@ -17,31 +17,28 @@ Section Statementize.
   Notation td := (P4cub.TopDecl.d tags_t).
   Inductive StatementizeError :=
   | IllformedCargs.
+
 Definition TransformExprList' 
   (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
   (el : list e) (env: VarNameGen.t) (i: tags_t)
   : st * list e * VarNameGen.t := 
-  List.fold_left 
-  (fun (cumulator: (st * list e * VarNameGen.t)) (expr: e)
-   => let '(prev_stmt, prev_el, prev_env) := cumulator in 
-      let '(new_stmt, new_e, new_env) := TransformExpr expr prev_env in
-      ((P4cub.Stmt.SSeq prev_stmt new_stmt i, prev_el ++ [new_e]), new_env) 
-  ) el ((P4cub.Stmt.SSkip i, []), env).
+  List.fold_right
+    (fun (expr: e)
+       '((prev_stmt, prev_el, prev_env): (st * list e * VarNameGen.t))
+     => let '(new_stmt, new_e, new_env) := TransformExpr expr prev_env in
+       ((P4cub.Stmt.SSeq new_stmt prev_stmt i, new_e :: prev_el), new_env))
+    ((P4cub.Stmt.SSkip i, []), env) el.
 
-
-Definition TransformFields' 
+Definition TransformFields'
   (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t))
   (fs : Field.fs string (t * e)) (env: VarNameGen.t) (i: tags_t)
   : st * Field.fs string (t * e) * VarNameGen.t :=
   Field.fold 
   (fun (name : string) 
-      (field: t * e)
-      (cumulator: st * Field.fs string (t * e) * VarNameGen.t)
-  =>  
-    let '(prev_stmt, prev_fs, prev_env) := cumulator in 
-    let '(type, expr) := field in
-    let '(new_stmt, new_expr, new_env):= TransformExpr expr prev_env in
-    (P4cub.Stmt.SSeq prev_stmt new_stmt i, prev_fs++[(name,(type,new_expr))], new_env)
+     '((type, expr): t * e)
+     '((prev_stmt, prev_fs, prev_env): st * Field.fs string (t * e) * VarNameGen.t)
+   => let '(new_stmt, new_expr, new_env):= TransformExpr expr prev_env in
+     (P4cub.Stmt.SSeq new_stmt prev_stmt i, (name,(type,new_expr)) :: prev_fs, new_env)
   ) fs ((P4cub.Stmt.SSkip i, []), env).
 
 Fixpoint TransformExpr (expr : e) (env: VarNameGen.t) 

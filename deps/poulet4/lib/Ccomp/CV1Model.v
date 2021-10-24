@@ -44,7 +44,7 @@ match p, vr, ig, eg, ck , dep with
   Some (P4cub.Expr.CAName dep) => 
 
   match lookup_function tags_t env p, lookup_function tags_t env vr, lookup_function tags_t env ig, lookup_function tags_t env eg, lookup_function tags_t env ck, lookup_function tags_t env dep with
-    | Some(pf,pid), Some(vrf,vrid), Some(igf,igid), Some(egf,egid), Some(ckf,ckid), Some(depf,depid) =>
+    | inl (pf,pid), inl (vrf,vrid), inl (igf,igid), inl (egf,egid), inl (ckf,ckid), inl (depf,depid) =>
       match pf.(fn_params) with
       | (_,_)::(_, (Tpointer Ht _))::(_, Tpointer Mt _)::(_, Tpointer STDt _)::_ => 
         let '(Hname, Mname, STDname, PKT_INname, PKT_OUTname) := ("_V1Header", "_V1Metadata", "_V1StandardMeta", "_V1PacketIn", "_V1PacketOut") in
@@ -54,7 +54,7 @@ match p, vr, ig, eg, ck , dep with
         let envPKTIn := add_var tags_t envSTD PKT_INname packet_in in 
         let envPKTOut := add_var tags_t envPKTIn PKT_OUTname packet_out in 
         match find_ident tags_t envPKTOut Hname,find_ident tags_t envPKTOut Mname,find_ident tags_t envPKTOut STDname,find_ident tags_t envPKTOut PKT_INname,find_ident tags_t envPKTOut PKT_OUTname with
-        | Some Hid,Some Mid,Some STDid,Some PKTINid,Some PKTOutid => 
+        | inl Hid,inl Mid,inl STDid,inl PKTINid,inl PKTOutid => 
           let '(H,M,STD,PKT_IN,PKT_OUT) := (Evar Hid Ht,Evar Mid Mt,Evar STDid STDt,Evar PKTINid packet_in, Evar PKTOutid packet_out) in
           let '(Href,Mref,STDref,PKT_Inref,PKT_OUTref) := (Eaddrof H (Tpointer Ht noattr),Eaddrof M (Tpointer Mt noattr),Eaddrof STD (Tpointer STDt noattr),Eaddrof PKT_IN (Tpointer packet_in noattr),Eaddrof PKT_OUT (Tpointer packet_out noattr))in
           (*declared all the variables*)

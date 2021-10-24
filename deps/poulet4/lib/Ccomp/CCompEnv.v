@@ -3,6 +3,8 @@ From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Error.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Coq.ZArith.BinIntDef.
@@ -10,7 +12,7 @@ Require Import Coq.Init.Decimal.
 Require Import Field.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
-Local Open Scope string_scope.
+Open Scope string_scope.
 Local Open Scope Z_scope.
 Module P := AST.P4cub.
 Module E := P.Expr.
@@ -401,11 +403,17 @@ Section CEnv.
     env.(maininit). *)
 
   Definition find_ident (env: ClightEnv) (name: string)
-  : option AST.ident :=
-    Env.find name env.(identMap). 
+  : @error_monad string AST.ident :=
+    match Env.find name env.(identMap) with 
+    | None => err "name does not exist in env"
+    | Some id => error_ret id
+    end. 
   Definition find_ident_temp_arg (env: ClightEnv) (name: string)
-    : option (AST.ident*AST.ident) :=
-      Env.find name env.(tempOfArg). 
+    : @error_monad string (AST.ident*AST.ident) :=
+    match Env.find name env.(tempOfArg) with
+    | None => err "argument name does not exist in env"
+    | Some (id1,id2) => error_ret (id1,id2)
+    end. 
   (* 
   Definition eq_su (su1 su2: struct_or_union) : bool :=
     match su1, su2 with
@@ -428,26 +436,26 @@ Section CEnv.
   : bool.
     Admitted.
     *)
-  Fixpoint  lookup_composite_rec (composites : list (E.t * composite_definition)) (p4t: E.t): option composite_definition :=
+  Fixpoint  lookup_composite_rec (composites : list (E.t * composite_definition)) (p4t: E.t): @error_monad string composite_definition :=
     match composites with
-    | nil => None
+    | nil => err "can't find the composite"
     | (head, comp) :: tl => if (head == p4t) 
-                            then Some comp 
+                            then error_ret comp 
                             else lookup_composite_rec tl p4t
     end.
 
-  Definition lookup_composite (env: ClightEnv) (p4t: E.t) : option composite_definition :=
+  Definition lookup_composite (env: ClightEnv) (p4t: E.t) : @error_monad string composite_definition :=
     lookup_composite_rec env.(composites) p4t.
 
-  Fixpoint  lookup_composite_id_rec (composites : list (E.t * composite_definition)) (id: ident): option composite_definition :=
+  Fixpoint  lookup_composite_id_rec (composites : list (E.t * composite_definition)) (id: ident): @error_monad string composite_definition :=
     match composites with
-    | nil => None
+    | nil => err "can't find the composite by id"
     | (head, comp) :: tl => if (name_composite_def comp == id)
-                            then Some comp 
+                            then error_ret comp 
                             else lookup_composite_id_rec tl id
     end.
 
-  Definition lookup_composite_id (env: ClightEnv) (id: ident) : option composite_definition :=
+  Definition lookup_composite_id (env: ClightEnv) (id: ident) : @error_monad string composite_definition :=
     lookup_composite_id_rec env.(composites) id.
 
   (* Fixpoint find_composite_from_list 
@@ -483,28 +491,31 @@ Section CEnv.
     : option Ctypes.composite_definition := 
     composite_of_ident_from_list id env.(composites). *)
 
-  Definition lookup_function (env: ClightEnv) (name: string) : option (Clight.function*ident) := 
-    let* f := Env.find name env.(fenv) in
-    let* fid := Env.find name env.(identMap) in
-    Some(f,fid).
+  Definition lookup_function (env: ClightEnv) (name: string) : @error_monad string (Clight.function*ident) := 
+    match Env.find name env.(fenv) , Env.find name env.(identMap) with
+    | Some f, Some fid => error_ret (f,fid)
+    | _, _ => err "failed to lookup the function"
+    end.
 
-  Definition lookup_topdecl (env: ClightEnv) (name: string) : option (P4cub.TopDecl.d tags_t) := 
-    let* decl := Env.find name env.(topdecltypes) in
-    Some(decl).
+  Definition lookup_topdecl (env: ClightEnv) (name: string) : @error_monad string (P4cub.TopDecl.d tags_t) := 
+    match Env.find name env.(topdecltypes) with
+    | None => err "failed to lookup the top declaration"
+    | Some decl => error_ret decl
+    end.
   
 
-  Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident): option Ctypes.type :=
+  Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident): @error_monad string Ctypes.type :=
     match temps with
-    | [] => None
+    | [] => err "failed to lookup the type"
     | (i, t) :: tl => if (i == id)
-                            then Some t 
+                            then error_ret t 
                             else lookup_type_rec tl id
     end.
 
-  Definition lookup_temp_type (env: ClightEnv) (id : AST.ident) : option (Ctypes.type) :=
+  Definition lookup_temp_type (env: ClightEnv) (id : AST.ident) : @error_monad string Ctypes.type :=
     lookup_type_rec env.(temps) id.
 
-  Definition lookup_var_type (env: ClightEnv) (id : AST.ident) : option (Ctypes.type) :=
+  Definition lookup_var_type (env: ClightEnv) (id : AST.ident) : @error_monad string Ctypes.type :=
     lookup_type_rec env.(vars) id.
 
   Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
@@ -512,20 +523,22 @@ Section CEnv.
   Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type)
     := env.(temps).
 
-  Definition get_functions (env: ClightEnv) : option (list (AST.ident * Clight.function))
+  Definition get_functions (env: ClightEnv) : @error_monad string (list (AST.ident * Clight.function))
   := 
   let keys := Env.keys env.(fenv) in 
   List.fold_right 
-  (fun (key : string) (accumulator: option (list (AST.ident * Clight.function))) 
+  (fun (key : string) (accumulator: @error_monad string (list (AST.ident * Clight.function))) 
     => 
     let* l := accumulator in
     let* '(f,fid) := lookup_function env key in
-    Some ((fid,f)::l))
-  (Some []) keys.
+    error_ret ((fid,f)::l))
+  (error_ret []) keys.
 
   Definition get_composites (env: ClightEnv) : list (Ctypes.composite_definition):= 
     List.map snd env.(composites).
 
   Definition get_globvars (env: ClightEnv) : list (AST.ident * globvar Ctypes.type)
   := env.(globvars).
+
+
 End CEnv.

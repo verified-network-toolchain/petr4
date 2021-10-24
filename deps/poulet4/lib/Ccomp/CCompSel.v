@@ -12,6 +12,7 @@ Require Import Poulet4.P4cub.Transformations.Statementize.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Error.
 Require Poulet4.P4sel.RemoveSideEffect.
 Require Import Poulet4.Ccomp.CCompEnv.
 Require Import Poulet4.Ccomp.Helloworld.
@@ -711,7 +712,10 @@ Section CCompSel.
 
     | ST.SReturnVoid i => Some (Sreturn None, env)
     | ST.SExit i => Some (Sskip, env) (*TODO: implement, what is this?*)
-    | ST.SApply x ext args i => Some (Sskip, env) (*TODO: implement, ugh.*)
+    | ST.SApply x ext args i => 
+      let* (f', id) := CCompEnv.lookup_function tags_t env x in
+      let* (elist, env') := CTranslateDirExprList args env in 
+      Some(Scall None (Evar id (Clight.type_of_function f')) elist, env')  (*TODO: figure out why extern args here?*)          
     | ST.SInvoke tbl i => Some (Sskip, env) (*TODO: implement*)
     | ST.SAssign t e1 e2 i => 
       match e1 with
@@ -1163,17 +1167,22 @@ Section CCompSel.
           (Ssequence stmt' estmt)
           , (set_temp_vars tags_t env env')).
 
-  Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
+  Definition CTranslateTopParser (parsr: TD.d tags_t) (env: ClightEnv tags_t ) 
+    (init: Clight.statement) (instance_name: string) 
+    : @error_monad string (ClightEnv tags_t )
   :=
     match parsr with
-    | TD.TPParser p cparams eps params st states i =>
-      let (fn_cparams, env_cparams) := CTranslateConstructorParams cparams env in
-      let (fn_eparams, env_eparams) := CTranslateExternParams eps env_cparams in 
+    | TD.TPParser p _ eps params st states i =>
+      let (fn_eparams, env_eparams) := CTranslateExternParams eps env in 
       let (fn_params, env_params):= CTranslateParams params env_eparams in 
-      let* (copyin, env_copyin) := CCopyIn params env_params in 
-      let* (copyout, env_copyout) := CCopyOut params env_copyin in (*copy in and copy out may need to copy cparams and eparams as well*)
+      match CCopyIn params env_params with 
+      | None => err "copyin"
+      | Some (copyin, env_copyin) =>   
+      match CCopyOut params env_copyin with 
+      | None => err "copyout"
+      | Some (copyout, env_copyout) =>   (*copy in and copy out may need to copy cparams and eparams as well*)
       let state_names := F.keys states in 
-      let fn_params := fn_cparams ++ fn_eparams ++ fn_params in 
+      let fn_params := fn_eparams ++ fn_params in 
       (*all functions inside one top parser declaration should have the same parameter*)
       let fn_sig := 
         (Clight.mkfunction 
@@ -1189,7 +1198,8 @@ Section CCompSel.
           (fun (cumulator : ClightEnv tags_t ) (state_name: string) =>
             CCompEnv.add_function tags_t cumulator state_name fn_sig
           ) state_names  env_start_fn_sig_declared in
-      let* env_fn_declared := 
+      
+      let env_fn_declared := 
         List.fold_left
         (fun (cumulator: option (ClightEnv tags_t )) (state_name: string) => 
           let* env' := cumulator in
@@ -1197,19 +1207,29 @@ Section CCompSel.
           let* (f, env_f_translated) := CTranslateParserState sb env' fn_params in
           Some(CCompEnv.update_function tags_t env_f_translated state_name f)
         ) state_names (Some (set_temp_vars tags_t env env_fn_sig_declared)) in
+      match env_fn_declared with
+      | None => err "translate parser state"
+      | Some env_fn_declared =>
       (*finished declaring all the state blocks except start state*)
-      let* (f_start, env_start_translated) := CTranslateParserState st (set_temp_vars tags_t env env_fn_declared) fn_params in
+      match CTranslateParserState st (set_temp_vars tags_t env env_fn_declared) fn_params with
+      | None => err "translate start state"
+      | Some  (f_start, env_start_translated) => 
       let env_start_declared := CCompEnv.update_function tags_t env_start_translated "start" f_start in
       let env_start_declared := set_temp_vars tags_t env_copyout env_start_declared in
-      let* (start_f, start_id) := (lookup_function tags_t env_start_declared "start") in
-      let* call_args := CFindTempArgsForCallingSubFunctions params env_start_declared in
+      match  (lookup_function tags_t env_start_declared "start") with
+      | None => err "look up start"
+      | Some  (start_f, start_id) =>
+      match CFindTempArgsForCallingSubFunctions params env_start_declared with
+      | None => err "find temp args for calling sub functions"
+      | Some call_args =>
       let e_call_args := List.map (fun (x: AST.ident * Ctypes.type) => Etempvar (fst x) (snd x)) fn_eparams in
       let call_args := e_call_args ++ call_args in
       let fn_body := 
-        Ssequence copyin 
+        Ssequence init
+        (Ssequence copyin 
         (Ssequence 
         (Scall None (Evar start_id (Clight.type_of_function start_f)) call_args)
-        copyout) in 
+        copyout)) in 
       let top_function := 
         (Clight.mkfunction
         Ctypes.Tvoid
@@ -1219,9 +1239,15 @@ Section CCompSel.
         (get_temps tags_t env_start_declared)
         fn_body)
       in
-      let env_topfn_added := CCompEnv.add_function tags_t env_start_declared p top_function in
-      Some( set_temp_vars tags_t env env_topfn_added)
-    | _ => None
+      let env_topfn_added := CCompEnv.add_function tags_t env_start_declared instance_name top_function in
+      error_ret ( set_temp_vars tags_t env env_topfn_added)
+      end
+      end
+      end
+      end
+      end
+      end
+    | _ => err "not parser"
     end.
 
 
@@ -1264,19 +1290,20 @@ Section CCompSel.
   | CT.CDTable t (CT.Table ems acts) i => Some env (*TODO: implement table*)
   end.
   
-  Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t ): option (ClightEnv tags_t )
+  Definition CTranslateTopControl (ctrl: TD.d tags_t) (env: ClightEnv tags_t) 
+    (init: Clight.statement) (instance_name: string)
+    : option (ClightEnv tags_t )
   := 
     match ctrl with
-    | TD.TPControl c cparams eps params body blk i => 
-      let (fn_cparams, env_top_fn_cparam) := CTranslateConstructorParams cparams env in
-      let (fn_eparams, env_top_fn_eparam) := CTranslateExternParams eps env_top_fn_cparam in
+    | TD.TPControl c _ eps params body blk i => 
+      let (fn_eparams, env_top_fn_eparam) := CTranslateExternParams eps env in
       let (fn_params, env_top_fn_param) := CTranslateParams params env_top_fn_eparam in
       let* (copyin, env_copyin) := CCopyIn params env_top_fn_param in 
       let* (copyout, env_copyout) := CCopyOut params env_copyin in 
-      let fn_params := fn_cparams ++ fn_eparams ++ fn_params in 
+      let fn_params := fn_eparams ++ fn_params in 
       let* env_local_decled := CTranslateControlLocalDeclaration body env_copyout fn_params params in
       let* (apply_blk, env_apply_block_translated) := CTranslateStatement blk env_local_decled in
-      let body:= Ssequence copyin (Ssequence apply_blk copyout) in
+      let body:= Ssequence init (Ssequence copyin (Ssequence apply_blk copyout)) in
       let top_fn := 
         Clight.mkfunction 
           Ctypes.Tvoid 
@@ -1286,7 +1313,7 @@ Section CCompSel.
           (get_temps tags_t env_apply_block_translated)
           body in
       let env_top_fn_declared := 
-        CCompEnv.add_function tags_t env_local_decled c top_fn in
+        CCompEnv.add_function tags_t env_local_decled instance_name top_fn in
       Some (set_temp_vars tags_t env env_top_fn_declared) 
 
     | _ => None
@@ -1317,9 +1344,57 @@ Section CCompSel.
 
     | _ => None
     end.
+  
+  Definition InjectConstructorArg (arg_name: string) 
+    (arg: E.constructor_arg tags_t) 
+    (cumulator: option (ClightEnv tags_t * Clight.statement))
+    : option (ClightEnv tags_t * Clight.statement) := 
+    let* (env, st) := cumulator in 
+    match arg with 
+    | E.CAExpr e => 
+      let* (init, env) := 
+      match e with 
+      | E.EBool b i =>
+        let env := add_var tags_t env arg_name type_bool in 
+        let* val_id := find_ident tags_t env arg_name in
+        let initialize := 
+          if b then 
+            Sassign (Evar val_id type_bool) (Econst_int (Integers.Int.zero) (type_bool)) 
+          else 
+            Sassign (Evar val_id type_bool) (Econst_int (Integers.Int.one) (type_bool)) 
+        in
+        Some (initialize, env)
+      | E.EBit width val i => 
+        let env := add_var tags_t env arg_name bit_vec in 
+        let* dst := find_ident tags_t env arg_name in
+        let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+      | E.EInt width val i => 
+        let env := add_var tags_t env arg_name bit_vec in 
+        let* dst := find_ident tags_t env arg_name in
+        let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        Some (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+      | _ => None
+        end in 
+        Some (env, Ssequence st init)
+    | E.CAName x =>
+      let* instance_id := CCompEnv.find_ident tags_t env x in 
+      Some (CCompEnv.bind tags_t env arg_name instance_id, st)
+    end.
 
+  Definition InjectConstructorArgs (env: ClightEnv tags_t) (cargs: E.constructor_args tags_t)
+    : option (ClightEnv tags_t * Clight.statement) :=
+    F.fold InjectConstructorArg cargs (Some(env, Sskip)).
 
-  Fixpoint CTranslateTopDeclaration (d: TD.d tags_t) (env: ClightEnv tags_t ) : option (ClightEnv tags_t )
+  Fixpoint CTranslateTopDeclaration (d: TD.d tags_t) (env: ClightEnv tags_t ) : @error_monad string (ClightEnv tags_t )
   := 
   match d with
   | TD.TPSeq d1 d2 i => 
@@ -1331,20 +1406,46 @@ Section CCompSel.
     (* Some (set_main_init tags_t (set_instantiate_cargs tags_t env args) Sskip) *)
     (*TODO: Translate each instantiate into a function*)
     (*TODO: Maybe we also want an abstract interpretation in the statementize pass?*)
-    None
-  | TD.TPFunction _ _ _ _ _ => CTranslateFunction d env
-  | TD.TPExtern e _ cparams methods i => None (*TODO: implement*)
-  | TD.TPControl _ _ _ _ _ _ _ => CTranslateTopControl d env
-  | TD.TPParser _ _ _ _ _ _ _ => CTranslateTopParser d env
-  | TD.TPPackage _ _ _ _ => None (*TODO: implement*)
+    let env := add_tpdecl tags_t env x d in
+    let env := if (x == "main") then set_instantiate_cargs tags_t env args else env in
+    match lookup_topdecl tags_t env c with 
+    | Some tpdecl => 
+      match tpdecl with
+      | TD.TPParser _ _ _ _ _ _ _  => 
+        match InjectConstructorArgs env args with 
+        | None => err "ConstructorArg failure"
+        | Some (env, init) =>
+         CTranslateTopParser tpdecl env init x
+        
+        end
+      | TD.TPControl _ _ _ _ _ _ _ =>
+        match InjectConstructorArgs env args with
+        | None => err "ConstructorArg failure"
+        | Some (env, init) => 
+        match CTranslateTopControl tpdecl env init x with
+        | None => err "Error TranslateTopControl"
+        | Some env => error_ret env
+        end 
+        end
+      | _ => error_ret env
+      end
+    | None => error_ret env
+    end
+  | TD.TPFunction _ _ _ _ _ => match CTranslateFunction d env with |None => err "function failure" |Some env => error_ret env end 
+  | TD.TPExtern e _ cparams methods i => err "don't know how to handle extern" (*TODO: implement*)
+  | TD.TPControl name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
+  (* CTranslateTopControl d env *)
+  | TD.TPParser name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
+   (* CTranslateTopParser d env *)
+  | TD.TPPackage name _ _ _ =>  error_ret (add_tpdecl tags_t env name d) (*TODO: implement*)
   end.
 
   Definition Compile (prog: TD.d tags_t) : Errors.res (Clight.program) := 
     let init_env := CCompEnv.newClightEnv tags_t in
     let main_id := $"main" in 
     match CTranslateTopDeclaration prog init_env with
-    | None => Errors.Error (Errors.msg "something went wrong")
-    | Some env_all_declared => 
+    | inr m => Errors.Error (Errors.msg m)
+    | inl env_all_declared => 
       match CCompEnv.get_functions tags_t env_all_declared with
       | None => Errors.Error (Errors.msg "can't find all the declared functions")
       | Some f_decls => 
@@ -1353,6 +1454,7 @@ Section CCompSel.
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
       let typ_decls := CCompEnv.get_composites tags_t env_all_declared in
+      
       let main_decl :=
       AST.Gfun (Ctypes.Internal (main_fn tags_t env_all_declared (get_instantiate_cargs tags_t env_all_declared)))
       in 
@@ -1380,6 +1482,11 @@ Section CCompSel.
 End CCompSel.
 
 Definition helloworld_program_sel := Statementize.TranslateProgram nat helloworld_program.
+Definition test_program :=
+  match helloworld_program_sel with 
+  | inl helloworld_program_sel => CCompSel.Compile nat helloworld_program_sel
+  | inr _ => Errors.Error (Errors.msg "went wrong")
+  end.
 Definition test := 
   match helloworld_program_sel with 
   | inl helloworld_program_sel => CCompSel.Compile_print nat helloworld_program_sel

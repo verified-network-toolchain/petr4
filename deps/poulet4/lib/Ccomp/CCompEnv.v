@@ -7,6 +7,7 @@ Require Import Coq.Strings.String.
 Require Import Poulet4.P4cub.Util.Utiliser.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Init.Decimal.
+Require Import Field.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
 Local Open Scope string_scope.
@@ -15,7 +16,7 @@ Module P := AST.P4cub.
 Module E := P.Expr.
 Section CEnv.
   Variable (tags_t: Type).
-  Record ClightEnv : Type := {
+  Inductive ClightEnv : Type := {
     identMap : Env.t string AST.ident; (*contains name and their original references*)
     temps : (list (AST.ident * Ctypes.type));
     vars : (list (AST.ident * Ctypes.type));
@@ -26,7 +27,8 @@ Section CEnv.
     instantiationCarg : P4cub.Expr.constructor_args tags_t;
     maininit: Clight.statement;
     globvars: (list (AST.ident * globvar Ctypes.type));
-    numStrMap : Env.t Z AST.ident
+    numStrMap : Env.t Z AST.ident;
+    topdecltypes : Env.t string (P4cub.TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -42,6 +44,7 @@ Section CEnv.
     maininit := Clight.Sskip;
     globvars := [];
     numStrMap :=  Env.empty Z AST.ident;
+    topdecltypes := Env.empty string (P4cub.TopDecl.d tags_t);
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -58,6 +61,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}.
 
 
@@ -77,6 +81,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -94,6 +99,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}.
 
 
@@ -113,6 +119,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}, new_ident).
 
 
@@ -132,6 +139,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}.
 
   Definition add_composite_typ 
@@ -150,8 +158,30 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |}
     .
+
+  Definition add_tpdecl 
+    (env: ClightEnv) 
+    (name: string)
+    (decl: P4cub.TopDecl.d tags_t): ClightEnv
+    := 
+    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    {|
+    identMap := Env.bind name new_ident env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites := env.(composites);
+    identGenerator := gen';
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
+    topdecltypes := Env.bind name decl env.(topdecltypes);
+    |}.
 
   Definition add_function 
   (env: ClightEnv) 
@@ -171,6 +201,7 @@ Section CEnv.
   maininit := env.(maininit);
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
   |}.
 
   Definition update_function
@@ -190,6 +221,7 @@ Section CEnv.
   maininit := env.(maininit);
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
   |}.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
@@ -274,6 +306,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := (new_id, gvar) :: env.(globvars);
     numStrMap := Env.bind val new_id env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
     |} in 
     (env', new_id)
   end.
@@ -295,6 +328,7 @@ Section CEnv.
   maininit := env.(maininit);
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -310,6 +344,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -325,6 +360,7 @@ Section CEnv.
     maininit := to.(maininit);
     globvars := to.(globvars);
     numStrMap := to.(numStrMap);
+    topdecltypes := to.(topdecltypes);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4cub.Expr.constructor_args tags_t) : ClightEnv :=
@@ -340,6 +376,7 @@ Section CEnv.
     maininit := env.(maininit);
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
   |}.  
 
   Definition get_instantiate_cargs (env: ClightEnv) : P4cub.Expr.constructor_args tags_t := 
@@ -357,10 +394,11 @@ Section CEnv.
     maininit := init;
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
   |}.  
 
-  Definition get_main_init (env: ClightEnv) : Clight.statement := 
-    env.(maininit).
+  (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
+    env.(maininit). *)
 
   Definition find_ident (env: ClightEnv) (name: string)
   : option AST.ident :=
@@ -450,6 +488,10 @@ Section CEnv.
     let* fid := Env.find name env.(identMap) in
     Some(f,fid).
 
+  Definition lookup_topdecl (env: ClightEnv) (name: string) : option (P4cub.TopDecl.d tags_t) := 
+    let* decl := Env.find name env.(topdecltypes) in
+    Some(decl).
+  
 
   Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident): option Ctypes.type :=
     match temps with

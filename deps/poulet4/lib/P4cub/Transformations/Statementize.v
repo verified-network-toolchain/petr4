@@ -87,16 +87,19 @@ Fixpoint TransformExpr (expr : e) (env: VarNameGen.t)
     let '(arg_stmt, arg', env_arg) := TransformExpr arg env in 
     let (var_name, env') := VarNameGen.new_var env_arg in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
-    let assign := P4cub.Stmt.SAssign type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.ECast type arg' i) i in 
+    let assign :=
+        P4cub.Stmt.SAssign
+          type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.ECast type arg' i) i in 
     let stmt := P4cub.Stmt.SSeq arg_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
   | P4cub.Expr.EUop op type arg i => 
-    let (arg_result, env_arg) := TransformExpr arg env in 
+    let '(arg_stmt, arg', env_arg) := TransformExpr arg env in 
     let (var_name, env') := VarNameGen.new_var env_arg in
-    let (arg_stmt, arg') := arg_result in
     let declaration := P4cub.Stmt.SVardecl type var_name i in
-    let assign := P4cub.Stmt.SAssign type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.EUop op type arg' i) i in 
+    let assign :=
+        P4cub.Stmt.SAssign
+          type (P4cub.Expr.EVar type var_name i) (P4cub.Expr.EUop op type arg' i) i in 
     let stmt := P4cub.Stmt.SSeq arg_stmt (P4cub.Stmt.SSeq declaration assign i) i in
     (stmt, P4cub.Expr.EVar type var_name i, env')
 
@@ -242,11 +245,14 @@ Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t)
     let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in 
     let new_stmt := P4cub.Stmt.SSeq lhs_stmt (P4cub.Stmt.SSeq rhs_stmt (P4cub.Stmt.SAssign type lhs' rhs' i) i) i in 
     (new_stmt, env_rhs)
-  | P4cub.Stmt.SConditional guard_type guard tru_blk fls_blk i =>
+  | P4cub.Stmt.SConditional guard tru_blk fls_blk i =>
     let '(guard_stmt, guard', env_guard) := TransformExpr guard env in
     let (tru_blk', env_tru) := TranslateStatement tru_blk env_guard in 
     let (fls_blk', env_fls) := TranslateStatement fls_blk env_tru in 
-    let new_stmt := P4cub.Stmt.SSeq guard_stmt (P4cub.Stmt.SConditional guard_type guard' tru_blk' fls_blk' i) i in
+    let new_stmt :=
+        P4cub.Stmt.SSeq
+          guard_stmt
+          (P4cub.Stmt.SConditional guard' tru_blk' fls_blk' i) i in
     (new_stmt, env) 
   | P4cub.Stmt.SSeq s1 s2 i => 
     let (s1', env_s1) := TranslateStatement s1 env in 

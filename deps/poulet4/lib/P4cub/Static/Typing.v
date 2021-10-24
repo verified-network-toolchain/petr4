@@ -233,7 +233,7 @@ Inductive check_stmt
     ⦃ fns, Δ, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
     ⦃ fns, Δ, Γ ⦄
-      con ⊢ if guard:Bool then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
+      con ⊢ if guard then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
 | chk_return_void (i : tags_t) (con : ctx) :
     return_void_ok con ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄

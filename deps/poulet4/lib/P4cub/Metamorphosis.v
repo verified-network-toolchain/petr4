@@ -293,17 +293,15 @@ Section Metamorphosis.
         e1 <- expr_morph e1 ;;
         e2 <<| expr_morph e2 ;; -{ asgn e1 := e2:t @ i }-
     | MkStatement i (StatBlock blk) _ => s <<| blk_morph blk ;; -{ b{ s }b }-
-    | MkStatement i (StatConditional ((MkExpression _ _ t _) as e) s1 None) _
-      => t <- type_morph t ;;
-        e <- expr_morph e ;;
+    | MkStatement i (StatConditional e s1 None) _
+      => e <- expr_morph e ;;
         s1 <<| stmt_morph s1 ;;
-        -{ if e:t then s1 else skip @ i @ i }-
-    | MkStatement i (StatConditional ((MkExpression _ _ t _) as e) s1 (Some s2)) _
-      => t <- type_morph t ;;
-        e <- expr_morph e ;;
+        -{ if e then s1 else skip @ i @ i }-
+    | MkStatement i (StatConditional e s1 (Some s2)) _
+      => e <- expr_morph e ;;
         s1 <- stmt_morph s1 ;;
         s2 <<| stmt_morph s2 ;;
-        -{ if e:t then s1 else s2 @ i }-
+        -{ if e then s1 else s2 @ i }-
     | MkStatement
         i (StatMethodCall
              (MkExpression _ 

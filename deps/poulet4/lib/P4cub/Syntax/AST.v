@@ -471,7 +471,7 @@ Module P4cub.
       | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
       | SAssign (type : E.t) (lhs rhs : E.e tags_t)
                 (i : tags_t)                            (* assignment *)
-      | SConditional (guard_type : E.t) (guard : E.e tags_t)
+      | SConditional (guard : E.e tags_t)
                      (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
       | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
       | SBlock (blk : s)                                (* blocks *)
@@ -544,12 +544,11 @@ Module P4cub.
                     (in custom p4stmt at level 40,
                         e1 custom p4expr, e2 custom p4expr,
                         t custom p4type, no associativity).
-      Notation "'if' e : t 'then' s1 'else' s2 @ i"
-              := (SConditional t e s1 s2 i)
+      Notation "'if' e 'then' s1 'else' s2 @ i"
+              := (SConditional e s1 s2 i)
                     (in custom p4stmt at level 80,
-                        t custom p4type, e custom p4expr,
                         s1 custom p4stmt, s2 custom p4stmt,
-                        no associativity).
+                        e custom p4expr, no associativity).
       Notation "'call' f < targs > ( args ) @ i"
         := (SFunCall f targs (Arrow args None) i)
              (in custom p4stmt at level 0, no associativity).

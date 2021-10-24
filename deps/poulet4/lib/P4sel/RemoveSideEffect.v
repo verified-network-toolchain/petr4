@@ -225,11 +225,11 @@ Fixpoint TranslateStatement (stmt : CubS.s tags_t) (env: VarNameGen.t) : (SelS.s
     let '((rhs_stmt, rhs'), env_rhs) := TranslateExpr rhs env_lhs in 
     let new_stmt := SelS.SSeq lhs_stmt (SelS.SSeq rhs_stmt (SelS.SAssign type lhs' rhs' i) i) i in 
     (new_stmt, env_rhs)
-  | CubS.SConditional guard_type guard tru_blk fls_blk i =>
+  | CubS.SConditional guard tru_blk fls_blk i =>
     let '((guard_stmt, guard'), env_guard) := TranslateExpr guard env in
     let (tru_blk', env_tru) := TranslateStatement tru_blk env_guard in 
     let (fls_blk', env_fls) := TranslateStatement fls_blk env_tru in 
-    let new_stmt := SelS.SSeq guard_stmt (SelS.SConditional guard_type guard' tru_blk' fls_blk' i) i in
+    let new_stmt := SelS.SSeq guard_stmt (SelS.SConditional guard' tru_blk' fls_blk' i) i in
     (new_stmt, env) 
   | CubS.SSeq s1 s2 i => 
     let (s1', env_s1) := TranslateStatement s1 env in 

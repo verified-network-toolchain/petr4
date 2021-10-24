@@ -88,8 +88,6 @@ let insert_types ?shadow:(shadow=false) names_types env =
   List.fold ~f:go ~init:env names_types
 
 let insert_type_var ?shadow:(shadow=false) var env =
-  if String.equal (P4name.name_only var) "__wild"
-  then print_s [%message "wild" ~typ:(resolve_type_name_opt var env: Typed.coq_P4Type option)];
   let typ: Typed.coq_P4Type = TypTypeName var in
   { env with typ = Env.insert ~shadow var typ env.typ }
 

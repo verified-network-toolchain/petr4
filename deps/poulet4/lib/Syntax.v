@@ -378,7 +378,7 @@ Section Syntax.
   | DeclConstant (tags: tags_t)  (typ: @P4Type tags_t)
                  (name: P4String) (value: ValueBase)
   | DeclInstantiation (tags: tags_t)  (typ: @P4Type tags_t)
-                      (args: list Expression) (name: P4String) (init: list Initializer)
+                      (args: list Expression) (name: P4String) (init: list Declaration)
   | DeclParser (tags: tags_t)  (name: P4String)
                (type_params: list P4String) (params: list (@P4Parameter tags_t))
                (constructor_params: list (@P4Parameter tags_t))
@@ -428,6 +428,126 @@ Section Syntax.
                    (type_params: list P4String) (params: list (@P4Parameter tags_t))
   | DeclPackageType (tags: tags_t)  (name: P4String)
                     (type_params: list P4String) (params: list (@P4Parameter tags_t)).
+
+  Section declaration_rec.
+    Context
+      {PDeclaration : Declaration -> Type}
+      {PDeclarationList : list Declaration -> Type}
+    .
+
+    Hypotheses
+      (HDeclConstant: forall tags typ name value,
+          PDeclaration (DeclConstant tags typ name value))
+      (HDeclInstantiation: forall tags typ args name init,
+          PDeclarationList init ->
+          PDeclaration (DeclInstantiation tags typ args name init))
+      (HDeclParser: forall tags name type_params params constructor_params locals states,
+          PDeclaration (DeclParser tags name type_params params constructor_params locals states))
+      (HDeclControl: forall tags name type_params params constructor_params locals apply,
+          PDeclaration (DeclControl tags name type_params params constructor_params locals apply))
+      (HDeclFunction: forall tags ret name type_params params body,
+          PDeclaration (DeclFunction tags ret name type_params params body))
+      (HDeclExternFunction: forall tags ret name type_params params,
+          PDeclaration (DeclExternFunction tags ret name type_params params))
+      (HDeclVariable: forall tags typ name init,
+          PDeclaration (DeclVariable tags typ name init))
+      (HDeclValueSet: forall tags typ size name,
+          PDeclaration (DeclValueSet tags typ size name))
+      (HDeclAction: forall tags name data_params ctrl_params body,
+          PDeclaration (DeclAction tags name data_params ctrl_params body))
+      (HDeclTable: forall tags name key actions entries default_action size custom_properties,
+          PDeclaration (DeclTable tags name key actions entries default_action size custom_properties))
+      (HDeclHeader: forall tags name fields,
+          PDeclaration (DeclHeader tags name fields))
+      (HDeclHeaderUnion: forall tags name fields,
+          PDeclaration (DeclHeaderUnion tags name fields))
+      (HDeclStruct: forall tags name fields,
+          PDeclaration (DeclStruct tags name fields))
+      (HDeclError: forall tags members,
+          PDeclaration (DeclError tags members))
+      (HDeclMatchKind: forall tags members,
+          PDeclaration (DeclMatchKind tags members))
+      (HDeclEnum: forall tags name members,
+          PDeclaration (DeclEnum tags name members))
+      (HDeclSerializableEnum: forall tags typ name members,
+          PDeclaration (DeclSerializableEnum tags typ name members))
+      (HDeclExternObject: forall tags name type_params methods,
+          PDeclaration (DeclExternObject tags name type_params methods))
+      (HDeclTypeDef: forall tags name typ_or_decl,
+          PDeclaration (DeclTypeDef tags name typ_or_decl))
+      (HDeclNewType: forall tags name typ_or_decl,
+          PDeclaration (DeclNewType tags name typ_or_decl))
+      (HDeclControlType: forall tags name type_params params,
+          PDeclaration (DeclControlType tags name type_params params))
+      (HDeclParserType: forall tags name type_params params,
+          PDeclaration (DeclParserType tags name type_params params))
+      (HDeclPackageType: forall tags name type_params params,
+          PDeclaration (DeclPackageType tags name type_params params))
+      (HDeclarationListNil: PDeclarationList nil)
+      (HDeclarationListCons: forall hd tl,
+          PDeclaration hd ->
+          PDeclarationList tl ->
+          PDeclarationList (cons hd tl)).
+
+    Fixpoint declaration_rec (decl : Declaration) :=
+      match decl with
+      | DeclConstant tags typ name value =>
+        HDeclConstant tags typ name value
+      | DeclInstantiation tags typ args name init =>
+        HDeclInstantiation tags typ args name init
+        (list_rec
+          PDeclaration
+          PDeclarationList
+          HDeclarationListNil
+          HDeclarationListCons
+          declaration_rec
+          init
+        )
+      | DeclParser tags name type_params params constructor_params locals states =>
+        HDeclParser tags name type_params params constructor_params locals states
+      | DeclControl tags name type_params params constructor_params locals apply =>
+        HDeclControl tags name type_params params constructor_params locals apply
+      | DeclFunction tags ret name type_params params body =>
+        HDeclFunction tags ret name type_params params body
+      | DeclExternFunction tags ret name type_params params =>
+        HDeclExternFunction tags ret name type_params params
+      | DeclVariable tags typ name init =>
+        HDeclVariable tags typ name init
+      | DeclValueSet tags typ size name =>
+        HDeclValueSet tags typ size name
+      | DeclAction tags name data_params ctrl_params body =>
+        HDeclAction tags name data_params ctrl_params body
+      | DeclTable tags name key actions entries default_action size custom_properties =>
+        HDeclTable tags name key actions entries default_action size custom_properties
+      | DeclHeader tags name fields =>
+        HDeclHeader tags name fields
+      | DeclHeaderUnion tags name fields =>
+        HDeclHeaderUnion tags name fields
+      | DeclStruct tags name fields =>
+        HDeclStruct tags name fields
+      | DeclError tags members =>
+        HDeclError tags members
+      | DeclMatchKind tags members =>
+        HDeclMatchKind tags members
+      | DeclEnum tags name members =>
+        HDeclEnum tags name members
+      | DeclSerializableEnum tags typ name members =>
+        HDeclSerializableEnum tags typ name members
+      | DeclExternObject tags name type_params methods =>
+        HDeclExternObject tags name type_params methods
+      | DeclTypeDef tags name typ_or_decl =>
+        HDeclTypeDef tags name typ_or_decl
+      | DeclNewType tags name typ_or_decl =>
+        HDeclNewType tags name typ_or_decl
+      | DeclControlType tags name type_params params =>
+        HDeclControlType tags name type_params params
+      | DeclParserType tags name type_params params =>
+        HDeclParserType tags name type_params params
+      | DeclPackageType tags name type_params params =>
+        HDeclPackageType tags name type_params params
+      end.
+
+  End declaration_rec.
 
   Definition ValueLoc := P4String.
 

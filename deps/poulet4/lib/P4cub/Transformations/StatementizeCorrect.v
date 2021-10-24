@@ -19,7 +19,7 @@ Section Correct.
      the statement to evaluate to
      (worry about this later). *)
   Lemma expr_semantic_pres : forall (e e' : E.e tags_t) env env' s,
-      TransformExpr _ e env = (s, e', env') ->
+      TransformExpr e env = (s, e', env') ->
       forall ϵ v pkt fe ctx, (* ctx & fe shouldn't matter. *)
         ⟨ ϵ, e ⟩ ⇓ v ->
         exists ϵ',

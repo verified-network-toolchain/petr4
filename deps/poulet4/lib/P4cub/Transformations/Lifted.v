@@ -116,21 +116,25 @@ Section Lifted.
 
   Ltac transformExpr_destr :=
     match goal with
-    | |- context [TransformExpr _ ?e ?env]
-      => destruct (TransformExpr _ e env) as [[? ?] ?] eqn:?; simpl in *
+    | |- context [TransformExpr ?e ?env]
+      => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
+    | |- context [TransformExprList' ?f ?e ?env ?i]
+      => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
+    | |- context [TransformFields' ?f ?e ?env ?i]
+      => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
     end.
 
   Ltac transformExpr_destr_hyp :=
     match goal with
-    | H: context [TransformExpr _ ?e ?env] |- _
-      => destruct (TransformExpr _ e env)
+    | H: context [TransformExpr ?e ?env] |- _
+      => destruct (TransformExpr e env)
         as [[? ?] ?] eqn:?; simpl in *
     end.
 
   Ltac transformExpr_destr_hyp_rewrite :=
     match goal with
-    | H: TransformExpr _ ?e ?env = (_,_,_),
-         Hy : context [TransformExpr _ ?e ?env]
+    | H: TransformExpr ?e ?env = (_,_,_),
+         Hy : context [TransformExpr ?e ?env]
       |- _ => rewrite H in Hy; simpl in *
     end.
 
@@ -147,27 +151,70 @@ Section Lifted.
     | |- context [fold_right ?f ?acc ?l]
       => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
     end.
+
+  Section HelperLemmas.
+    Variable f : E.e tags_t -> VarNameGen.t -> ST.s tags_t * E.e tags_t * VarNameGen.t.
+
+    (*Lemma TransformExprList'_lifted_expr :
+      forall es env i,
+        
+        Forall
+          lifted_expr
+          (snd (fst (TransformExprList' f es env i))).*)
+      
+    Section General.
+      Hypothesis Hf : forall e env, lifted_expr (snd (fst (f e env))).
+      
+      Lemma TransformExprList'_lifted_expr :
+        forall es env i,
+          Forall
+            lifted_expr
+            (snd (fst (TransformExprList' f es env i))).
+      Proof.
+        unfold TransformExprList'.
+        intro es; induction es as [| e es IHes];
+          intros env i; simpl; auto.
+        fold_destr. destruct (f e t) as [[s' e'] env'] eqn:Heqfet.
+        constructor.
+        - apply f_equal with (f:=snd ∘ fst) in Heqfet; unravel in *.
+          rewrite <- Heqfet; auto.
+        - specialize IHes with env i.
+          rewrite Hfoldl in IHes; auto.
+      Qed.
+      
+      Lemma TransformFields'_lifted_expr :
+        forall es env i,
+          F.predfs_data
+            (lifted_expr ∘ snd)
+            (snd (fst (TransformFields' f es env i))).
+      Proof.
+        unfold TransformFields', Field.fold.
+        intro es; induction es as [| (x & t & e) es IHes];
+          intros env i; unfold F.predfs_data, F.predf_data in *;
+            unravel in *; auto; fold_destr.
+        destruct (f e t0) as [[s' e'] env'] eqn:Heqfet; unravel.
+        constructor; unravel.
+        - apply f_equal with (f:=snd ∘ fst) in Heqfet;
+            unravel in *. rewrite <- Heqfet; auto.
+        - specialize IHes with env i.
+          rewrite Hfoldl in IHes; auto.
+      Qed.
+    End General.
+  End HelperLemmas.
+
+  Local Hint Resolve TransformExprList'_lifted_expr : core.
+  Local Hint Resolve TransformFields'_lifted_expr : core.
   
   Lemma TransformExpr_lifted_expr : forall e env,
-      lifted_expr (snd (fst (TransformExpr _ e env))).
+      lifted_expr (snd (fst (TransformExpr e env))).
   Proof.
     intro e; induction e using custom_e_ind;
       intro env; unravel in *;
         repeat transformExpr_destr; auto;
-        try (generalize dependent env;
-             unfold TransformExprList';
-             ind_list_Forall; intro env; simpl;
-             try fold_destr; auto; assumption);
-        try (generalize dependent env;
-             unfold TransformFields', Field.fold;
-             ind_list_predfs; intro env; simpl; auto;
-             try fold_destr; auto;
-             destruct p as [? ?] eqn:Heqp;
-             repeat transformExpr_destr; auto; assumption);
-        try (constructor; specialize IHe with env;
-             transformExpr_destr_hyp; inv Heqp; auto; assumption).
+          try (constructor; specialize IHe with env;
+               transformExpr_destr_hyp; inv Heqp; auto; assumption).
   Qed.
-
+  
   Local Hint Constructors lifted_stmt : core.
 
   Ltac seq_lift :=
@@ -177,9 +224,32 @@ Section Lifted.
     end.
 
   Local Hint Resolve TransformExpr_lifted_expr : core.
+
+  Lemma TransformExprList'_TransformExpr_lifted_expr : forall es env i,
+      Forall
+        lifted_expr
+        (snd
+           (fst
+              (TransformExprList'
+                 TransformExpr es env i))).
+  Proof.
+    auto.
+  Qed.
+
+  Local Hint Resolve TransformExprList'_TransformExpr_lifted_expr : core.
   
+  Lemma TransformFields'_TransformExpr_lifted_expr : forall es env i,
+      F.predfs_data
+        (lifted_expr ∘ snd)
+        (snd (fst (TransformFields' TransformExpr es env i))).
+  Proof.
+    auto.
+  Qed.
+
+  Local Hint Resolve TransformFields'_TransformExpr_lifted_expr : core.
+    
   Lemma TransformExpr_lifted_stmt : forall e env,
-      lifted_stmt (fst (fst (TransformExpr _ e env))).
+      lifted_stmt (fst (fst (TransformExpr e env))).
   Proof.
     intro e; induction e using custom_e_ind;
       intro env; unravel in *;
@@ -203,8 +273,22 @@ Section Lifted.
         apply f_equal with (f:= (snd ∘ fst)) in Heqp0.
       unravel in *; rewrite <- Heqp, <- Heqp0; auto.
     - admit.
+    - apply lifted_tuple.
+      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
     - admit.
+    - apply lifted_struct.
+      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
     - admit.
-    - admit. 
+    - apply lifted_header.
+      + apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
+        rewrite <- Heqp; auto.
+      + apply f_equal with (f := snd ∘ fst) in Heqp0; unravel in *.
+        rewrite <- Heqp0; auto.
+    - admit.
+    - apply lifted_stack.
+      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
   Admitted.
 End Lifted.

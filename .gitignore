@@ -1,7 +1,7 @@
 # Build artifacts
 _build/
 *.exe
-petr4.install
+*.install
 .merlin
 html_build/*bc.js
 html_build/p4

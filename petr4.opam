@@ -16,7 +16,6 @@ build: [
 depends: [
   "poulet4"
   "poulet4_Ccomp"
-  "str"
   "coq-compcert"
   "alcotest"
   "bignum"
@@ -36,6 +35,5 @@ depends: [
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
   "p4pp" {>= "0.1.5"}
-  "coq-paco" {>= "4.0.1"}
   "odoc"
 ]

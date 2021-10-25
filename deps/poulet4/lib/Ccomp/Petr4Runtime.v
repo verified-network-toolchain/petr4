@@ -19,8 +19,13 @@ Module Info.
   Definition normalized := false.
 End Info.
 
+Definition _ActionRef : ident := $"ActionRef".
 Definition _BitVec : ident := $"BitVec".
+Definition _Entry : ident := $"Entry".
+Definition _Pat : ident := $"Pat".
+Definition _Table : ident := $"Table".
 Definition __585 : ident := $"_585".
+Definition ___assert_fail : ident := $"__assert_fail".
 Definition ___builtin_ais_annot : ident := $"__builtin_ais_annot".
 Definition ___builtin_annot : ident := $"__builtin_annot".
 Definition ___builtin_annot_intval : ident := $"__builtin_annot_intval".
@@ -77,6 +82,7 @@ Definition ___compcert_va_composite : ident := $"__compcert_va_composite".
 Definition ___compcert_va_float64 : ident := $"__compcert_va_float64".
 Definition ___compcert_va_int32 : ident := $"__compcert_va_int32".
 Definition ___compcert_va_int64 : ident := $"__compcert_va_int64".
+Definition ___func__ : ident := $"__func__".
 Definition ___gmpz_add : ident := $"__gmpz_add".
 Definition ___gmpz_and : ident := $"__gmpz_and".
 Definition ___gmpz_cdiv_q : ident := $"__gmpz_cdiv_q".
@@ -91,21 +97,41 @@ Definition ___gmpz_mod : ident := $"__gmpz_mod".
 Definition ___gmpz_mul : ident := $"__gmpz_mul".
 Definition ___gmpz_mul_2exp : ident := $"__gmpz_mul_2exp".
 Definition ___gmpz_neg : ident := $"__gmpz_neg".
+Definition ___gmpz_set : ident := $"__gmpz_set".
+Definition ___gmpz_set_str : ident := $"__gmpz_set_str".
 Definition ___gmpz_set_ui : ident := $"__gmpz_set_ui".
 Definition ___gmpz_sub : ident := $"__gmpz_sub".
 Definition ___gmpz_tdiv_q_2exp : ident := $"__gmpz_tdiv_q_2exp".
 Definition ___gmpz_xor : ident := $"__gmpz_xor".
+Definition ___stringlit_1 : ident := $"__stringlit_1".
+Definition ___stringlit_2 : ident := $"__stringlit_2".
 Definition __mp_alloc : ident := $"_mp_alloc".
 Definition __mp_d : ident := $"_mp_d".
 Definition __mp_size : ident := $"_mp_size".
 Definition __res : ident := $"_res".
-Definition __res__1 : ident := $"_res__1".
+Definition _action : ident := $"action".
+Definition _actionRef : ident := $"actionRef".
+Definition _action_ref : ident := $"action_ref".
+Definition _add_entry : ident := $"add_entry".
+Definition _args_lub : ident := $"args_lub".
+Definition _arguments : ident := $"arguments".
+Definition _capacity : ident := $"capacity".
+Definition _check : ident := $"check".
+Definition _default_action : ident := $"default_action".
 Definition _dst : ident := $"dst".
 Definition _dst_value : ident := $"dst_value".
+Definition _entries : ident := $"entries".
+Definition _entry : ident := $"entry".
+Definition _entry_match : ident := $"entry_match".
 Definition _eval_sat_add_sub : ident := $"eval_sat_add_sub".
 Definition _eval_uminus : ident := $"eval_uminus".
+Definition _i : ident := $"i".
+Definition _init_action : ident := $"init_action".
 Definition _init_bitvec : ident := $"init_bitvec".
+Definition _init_entry : ident := $"init_entry".
 Definition _init_interp_binary_op : ident := $"init_interp_binary_op".
+Definition _init_pattern : ident := $"init_pattern".
+Definition _init_table : ident := $"init_table".
 Definition _interp_band : ident := $"interp_band".
 Definition _interp_bdiv : ident := $"interp_bdiv".
 Definition _interp_beq : ident := $"interp_beq".
@@ -128,15 +154,28 @@ Definition _interp_bshl : ident := $"interp_bshl".
 Definition _interp_bshr : ident := $"interp_bshr".
 Definition _is_add : ident := $"is_add".
 Definition _is_signed : ident := $"is_signed".
+Definition _key_masked : ident := $"key_masked".
+Definition _keys : ident := $"keys".
 Definition _l : ident := $"l".
 Definition _main : ident := $"main".
-Definition _op : ident := $"op".
+Definition _malloc : ident := $"malloc".
+Definition _mask : ident := $"mask".
+Definition _matched : ident := $"matched".
+Definition _num_args : ident := $"num_args".
+Definition _num_entries : ident := $"num_entries".
+Definition _num_keys : ident := $"num_keys".
+Definition _pattern : ident := $"pattern".
+Definition _pattern_match : ident := $"pattern_match".
 Definition _pow : ident := $"pow".
 Definition _r : ident := $"r".
 Definition _reset_bitvec : ident := $"reset_bitvec".
 Definition _sign : ident := $"sign".
+Definition _size : ident := $"size".
+Definition _table : ident := $"table".
+Definition _table_match : ident := $"table_match".
 Definition _v : ident := $"v".
 Definition _val : ident := $"val".
+Definition _val_masked : ident := $"val_masked".
 Definition _value : ident := $"value".
 Definition _w : ident := $"w".
 Definition _width : ident := $"width".
@@ -144,6 +183,41 @@ Definition _x : ident := $"x".
 Definition _t'1 : ident := 128%positive.
 Definition _t'2 : ident := 129%positive.
 Definition _t'3 : ident := 130%positive.
+
+Definition v___stringlit_1 := {|
+  gvar_info := (tarray tschar 16);
+  gvar_init := (Init_int8 (Int.repr 112) :: Init_int8 (Int.repr 101) ::
+                Init_int8 (Int.repr 116) :: Init_int8 (Int.repr 114) ::
+                Init_int8 (Int.repr 52) :: Init_int8 (Int.repr 45) ::
+                Init_int8 (Int.repr 114) :: Init_int8 (Int.repr 117) ::
+                Init_int8 (Int.repr 110) :: Init_int8 (Int.repr 116) ::
+                Init_int8 (Int.repr 105) :: Init_int8 (Int.repr 109) ::
+                Init_int8 (Int.repr 101) :: Init_int8 (Int.repr 46) ::
+                Init_int8 (Int.repr 99) :: Init_int8 (Int.repr 0) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v___stringlit_2 := {|
+  gvar_info := (tarray tschar 11);
+  gvar_init := (Init_int8 (Int.repr 99) :: Init_int8 (Int.repr 104) ::
+                Init_int8 (Int.repr 101) :: Init_int8 (Int.repr 99) ::
+                Init_int8 (Int.repr 107) :: Init_int8 (Int.repr 32) ::
+                Init_int8 (Int.repr 61) :: Init_int8 (Int.repr 61) ::
+                Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 48) ::
+                Init_int8 (Int.repr 0) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v_default_action := {|
+  gvar_info := (Tstruct _ActionRef noattr);
+  gvar_init := (Init_int32 (Int.repr 0) :: Init_space 4 ::
+                Init_int64 (Int64.repr 0) :: Init_int32 (Int.repr 0) ::
+                Init_space 4 :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
 
 Definition f_reset_bitvec := {|
   fn_return := tvoid;
@@ -158,15 +232,74 @@ Definition f_reset_bitvec := {|
   ((Etempvar _x (tptr (Tstruct __585 noattr))) :: nil))
 |}.
 
+Definition v___func__ := {|
+  gvar_info := (tarray tschar 12);
+  gvar_init := (Init_int8 (Int.repr 105) :: Init_int8 (Int.repr 110) ::
+                Init_int8 (Int.repr 105) :: Init_int8 (Int.repr 116) ::
+                Init_int8 (Int.repr 95) :: Init_int8 (Int.repr 98) ::
+                Init_int8 (Int.repr 105) :: Init_int8 (Int.repr 116) ::
+                Init_int8 (Int.repr 118) :: Init_int8 (Int.repr 101) ::
+                Init_int8 (Int.repr 99) :: Init_int8 (Int.repr 0) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
 Definition f_init_bitvec := {|
   fn_return := tvoid;
   fn_callconv := cc_default;
   fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) :: (_sign, tint) ::
                 (_w, tint) :: (_val, (tptr tschar)) :: nil);
-  fn_vars := nil;
-  fn_temps := nil;
+  fn_vars := ((_i, (tarray (Tstruct __585 noattr) 1)) :: nil);
+  fn_temps := ((_check, tint) :: (_t'1, tint) :: nil);
   fn_body :=
-Sskip
+(Ssequence
+  (Scall None
+    (Evar ___gmpz_init (Tfunction (Tcons (tptr (Tstruct __585 noattr)) Tnil)
+                         tvoid cc_default))
+    ((Evar _i (tarray (Tstruct __585 noattr) 1)) :: nil))
+  (Ssequence
+    (Scall None
+      (Evar ___gmpz_set_ui (Tfunction
+                             (Tcons (tptr (Tstruct __585 noattr))
+                               (Tcons tulong Tnil)) tvoid cc_default))
+      ((Evar _i (tarray (Tstruct __585 noattr) 1)) ::
+       (Econst_int (Int.repr 0) tint) :: nil))
+    (Ssequence
+      (Ssequence
+        (Scall (Some _t'1)
+          (Evar ___gmpz_set_str (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons (tptr tschar) (Tcons tint Tnil)))
+                                  tint cc_default))
+          ((Evar _i (tarray (Tstruct __585 noattr) 1)) ::
+           (Etempvar _val (tptr tschar)) ::
+           (Econst_int (Int.repr 10) tint) :: nil))
+        (Sset _check (Etempvar _t'1 tint)))
+      (Ssequence
+        (Sifthenelse (Ebinop Oeq (Etempvar _check tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          Sskip
+          (Scall None
+            (Evar ___assert_fail (Tfunction
+                                   (Tcons (tptr tschar)
+                                     (Tcons (tptr tschar)
+                                       (Tcons tuint
+                                         (Tcons (tptr tschar) Tnil)))) tvoid
+                                   cc_default))
+            ((Evar ___stringlit_2 (tarray tschar 11)) ::
+             (Evar ___stringlit_1 (tarray tschar 16)) ::
+             (Econst_int (Int.repr 95) tint) ::
+             (Evar ___func__ (tarray tschar 12)) :: nil)))
+        (Scall None
+          (Evar ___gmpz_set (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tvoid cc_default))
+          ((Efield
+             (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+               (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Evar _i (tarray (Tstruct __585 noattr) 1)) :: nil))))))
 |}.
 
 Definition f_eval_uminus := {|
@@ -306,10 +439,13 @@ Definition f_eval_sat_add_sub := {|
                 (Scall (Some _t'1)
                   (Evar _pow (Tfunction (Tcons tdouble (Tcons tdouble Tnil))
                                tdouble cc_default))
-                  ((Econst_int (Int.repr 2) tint) ::
-                   (Efield
-                     (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
-                       (Tstruct _BitVec noattr)) _width tint) :: nil))
+                  ((Econst_float (Float.of_bits (Int64.repr 4611686018427387904)) tdouble) ::
+                   (Ecast
+                     (Efield
+                       (Ederef
+                         (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+                         (Tstruct _BitVec noattr)) _width tint) tdouble) ::
+                   nil))
                 (Scall None
                   (Evar ___gmpz_fdiv_r_ui (Tfunction
                                             (Tcons
@@ -326,8 +462,8 @@ Definition f_eval_sat_add_sub := {|
                      (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
                        (Tstruct _BitVec noattr)) _value
                      (tarray (Tstruct __585 noattr) 1)) ::
-                   (Ebinop Osub (Etempvar _t'1 tdouble)
-                     (Econst_int (Int.repr 1) tint) tdouble) :: nil))))))))))
+                   (Ebinop Osub (Ecast (Etempvar _t'1 tdouble) tint)
+                     (Econst_int (Int.repr 1) tint) tint) :: nil))))))))))
 |}.
 
 Definition f_init_interp_binary_op := {|
@@ -405,14 +541,12 @@ Definition f_init_interp_binary_op := {|
 
 Definition f_interp_bplus := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -422,115 +556,81 @@ Definition f_interp_bplus := {|
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_add (Tfunction
+      (Scall None
+        (Evar ___gmpz_add (Tfunction
+                            (Tcons (tptr (Tstruct __585 noattr))
                               (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Scall None
-            (Evar ___gmpz_fdiv_r_ui (Tfunction
-                                      (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tulong
-                                      cc_default))
-            ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _width tint) ::
-             nil))
-          (Ssequence
-            (Sassign
-              (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-                (Tstruct _BitVec noattr))
-              (Evar _dst (Tstruct _BitVec noattr)))
-            (Sreturn None)))))))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                            tvoid cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil))
+      (Scall None
+        (Evar ___gmpz_fdiv_r_ui (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons (tptr (Tstruct __585 noattr))
+                                      (Tcons tulong Tnil))) tulong
+                                  cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _width tint) :: nil)))))
 |}.
 
 Definition f_interp_bplus_sat := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
-  fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+  fn_vars := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
+              (_l, (Tstruct _BitVec noattr)) ::
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
-  (Sassign (Evar _l (Tstruct _BitVec noattr))
-    (Etempvar _l (Tstruct _BitVec noattr)))
+  (Sassign (Evar _dst (tptr (Tstruct _BitVec noattr)))
+    (Etempvar _dst (tptr (Tstruct _BitVec noattr))))
   (Ssequence
-    (Sassign (Evar _r (Tstruct _BitVec noattr))
-      (Etempvar _r (Tstruct _BitVec noattr)))
+    (Sassign (Evar _l (Tstruct _BitVec noattr))
+      (Etempvar _l (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar _eval_sat_add_sub (Tfunction
-                                    (Tcons (tptr (Tstruct _BitVec noattr))
+      (Sassign (Evar _r (Tstruct _BitVec noattr))
+        (Etempvar _r (Tstruct _BitVec noattr)))
+      (Scall None
+        (Evar _eval_sat_add_sub (Tfunction
+                                  (Tcons (tptr (Tstruct _BitVec noattr))
+                                    (Tcons (Tstruct _BitVec noattr)
                                       (Tcons (Tstruct _BitVec noattr)
-                                        (Tcons (Tstruct _BitVec noattr)
-                                          (Tcons tint Tnil)))) tvoid
-                                    cc_default))
-          ((Eaddrof (Evar _dst (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) ::
-           (Evar _r (Tstruct _BitVec noattr)) ::
-           (Econst_int (Int.repr 1) tint) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+                                        (Tcons tint Tnil)))) tvoid
+                                  cc_default))
+        ((Eaddrof (Evar _dst (tptr (Tstruct _BitVec noattr)))
+           (tptr (tptr (Tstruct _BitVec noattr)))) ::
+         (Evar _l (Tstruct _BitVec noattr)) ::
+         (Evar _r (Tstruct _BitVec noattr)) ::
+         (Econst_int (Int.repr 1) tint) :: nil)))))
 |}.
 
 Definition f_interp_bminus := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -540,115 +640,81 @@ Definition f_interp_bminus := {|
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_sub (Tfunction
+      (Scall None
+        (Evar ___gmpz_sub (Tfunction
+                            (Tcons (tptr (Tstruct __585 noattr))
                               (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Scall None
-            (Evar ___gmpz_fdiv_r_ui (Tfunction
-                                      (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tulong
-                                      cc_default))
-            ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _width tint) ::
-             nil))
-          (Ssequence
-            (Sassign
-              (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-                (Tstruct _BitVec noattr))
-              (Evar _dst (Tstruct _BitVec noattr)))
-            (Sreturn None)))))))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                            tvoid cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil))
+      (Scall None
+        (Evar ___gmpz_fdiv_r_ui (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons (tptr (Tstruct __585 noattr))
+                                      (Tcons tulong Tnil))) tulong
+                                  cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _width tint) :: nil)))))
 |}.
 
 Definition f_interp_bminus_sat := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
-  fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+  fn_vars := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
+              (_l, (Tstruct _BitVec noattr)) ::
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
-  (Sassign (Evar _l (Tstruct _BitVec noattr))
-    (Etempvar _l (Tstruct _BitVec noattr)))
+  (Sassign (Evar _dst (tptr (Tstruct _BitVec noattr)))
+    (Etempvar _dst (tptr (Tstruct _BitVec noattr))))
   (Ssequence
-    (Sassign (Evar _r (Tstruct _BitVec noattr))
-      (Etempvar _r (Tstruct _BitVec noattr)))
+    (Sassign (Evar _l (Tstruct _BitVec noattr))
+      (Etempvar _l (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar _eval_sat_add_sub (Tfunction
-                                    (Tcons (tptr (Tstruct _BitVec noattr))
+      (Sassign (Evar _r (Tstruct _BitVec noattr))
+        (Etempvar _r (Tstruct _BitVec noattr)))
+      (Scall None
+        (Evar _eval_sat_add_sub (Tfunction
+                                  (Tcons (tptr (Tstruct _BitVec noattr))
+                                    (Tcons (Tstruct _BitVec noattr)
                                       (Tcons (Tstruct _BitVec noattr)
-                                        (Tcons (Tstruct _BitVec noattr)
-                                          (Tcons tint Tnil)))) tvoid
-                                    cc_default))
-          ((Eaddrof (Evar _dst (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) ::
-           (Evar _r (Tstruct _BitVec noattr)) ::
-           (Eunop Oneg (Econst_int (Int.repr 1) tint) tint) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+                                        (Tcons tint Tnil)))) tvoid
+                                  cc_default))
+        ((Eaddrof (Evar _dst (tptr (Tstruct _BitVec noattr)))
+           (tptr (tptr (Tstruct _BitVec noattr)))) ::
+         (Evar _l (Tstruct _BitVec noattr)) ::
+         (Evar _r (Tstruct _BitVec noattr)) ::
+         (Eunop Oneg (Econst_int (Int.repr 1) tint) tint) :: nil)))))
 |}.
 
 Definition f_interp_bmult := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -658,63 +724,47 @@ Definition f_interp_bmult := {|
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_mul (Tfunction
+      (Scall None
+        (Evar ___gmpz_mul (Tfunction
+                            (Tcons (tptr (Tstruct __585 noattr))
                               (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Scall None
-            (Evar ___gmpz_fdiv_r_ui (Tfunction
-                                      (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tulong
-                                      cc_default))
-            ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _width tint) ::
-             nil))
-          (Ssequence
-            (Sassign
-              (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-                (Tstruct _BitVec noattr))
-              (Evar _dst (Tstruct _BitVec noattr)))
-            (Sreturn None)))))))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                            tvoid cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil))
+      (Scall None
+        (Evar ___gmpz_fdiv_r_ui (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons (tptr (Tstruct __585 noattr))
+                                      (Tcons tulong Tnil))) tulong
+                                  cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _width tint) :: nil)))))
 |}.
 
 Definition f_interp_bdiv := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -724,63 +774,47 @@ Definition f_interp_bdiv := {|
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_cdiv_q (Tfunction
+      (Scall None
+        (Evar ___gmpz_cdiv_q (Tfunction
+                               (Tcons (tptr (Tstruct __585 noattr))
                                  (Tcons (tptr (Tstruct __585 noattr))
-                                   (Tcons (tptr (Tstruct __585 noattr))
-                                     (Tcons (tptr (Tstruct __585 noattr))
-                                       Tnil))) tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Scall None
-            (Evar ___gmpz_fdiv_r_ui (Tfunction
-                                      (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tulong
-                                      cc_default))
-            ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _dst (Tstruct _BitVec noattr)) _width tint) ::
-             nil))
-          (Ssequence
-            (Sassign
-              (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-                (Tstruct _BitVec noattr))
-              (Evar _dst (Tstruct _BitVec noattr)))
-            (Sreturn None)))))))
+                                   (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                               tvoid cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil))
+      (Scall None
+        (Evar ___gmpz_fdiv_r_ui (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons (tptr (Tstruct __585 noattr))
+                                      (Tcons tulong Tnil))) tulong
+                                  cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _width tint) :: nil)))))
 |}.
 
 Definition f_interp_bmod := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -789,50 +823,30 @@ Definition f_interp_bmod := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_mod (Tfunction
-                              (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+    (Scall None
+      (Evar ___gmpz_mod (Tfunction
+                          (Tcons (tptr (Tstruct __585 noattr))
+                            (Tcons (tptr (Tstruct __585 noattr))
+                              (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                          tvoid cc_default))
+      ((Efield
+         (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+           (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) :: nil))))
 |}.
 
 Definition f_interp_bshl := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -841,50 +855,29 @@ Definition f_interp_bshl := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_mul_2exp (Tfunction
-                                   (Tcons (tptr (Tstruct __585 noattr))
-                                     (Tcons (tptr (Tstruct __585 noattr))
-                                       (Tcons tulong Tnil))) tvoid
-                                   cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+    (Scall None
+      (Evar ___gmpz_mul_2exp (Tfunction
+                               (Tcons (tptr (Tstruct __585 noattr))
+                                 (Tcons (tptr (Tstruct __585 noattr))
+                                   (Tcons tulong Tnil))) tvoid cc_default))
+      ((Efield
+         (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+           (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) :: nil))))
 |}.
 
 Definition f_interp_bshr := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -893,57 +886,46 @@ Definition f_interp_bshr := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Sifthenelse (Efield (Evar _dst (Tstruct _BitVec noattr)) _is_signed
-                     tint)
-        (Scall None
-          (Evar ___gmpz_fdiv_q_2exp (Tfunction
+    (Sifthenelse (Efield
+                   (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+                     (Tstruct _BitVec noattr)) _is_signed tint)
+      (Scall None
+        (Evar ___gmpz_fdiv_q_2exp (Tfunction
+                                    (Tcons (tptr (Tstruct __585 noattr))
                                       (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tvoid
-                                      cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Scall None
-          (Evar ___gmpz_tdiv_q_2exp (Tfunction
+                                        (Tcons tulong Tnil))) tvoid
+                                    cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil))
+      (Scall None
+        (Evar ___gmpz_tdiv_q_2exp (Tfunction
+                                    (Tcons (tptr (Tstruct __585 noattr))
                                       (Tcons (tptr (Tstruct __585 noattr))
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tulong Tnil))) tvoid
-                                      cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))))))
+                                        (Tcons tulong Tnil))) tvoid
+                                    cc_default))
+        ((Efield
+           (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+             (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) ::
+         (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+           (tarray (Tstruct __585 noattr) 1)) :: nil)))))
 |}.
 
 Definition f_interp_ble := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -954,45 +936,31 @@ Definition f_interp_ble := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop Ole (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop Ole (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_bge := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1003,45 +971,31 @@ Definition f_interp_bge := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop Oge (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop Oge (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_blt := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1052,45 +1006,31 @@ Definition f_interp_blt := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop Olt (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop Olt (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_bgt := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1101,45 +1041,31 @@ Definition f_interp_bgt := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop Ogt (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop Ogt (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_beq := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1150,45 +1076,31 @@ Definition f_interp_beq := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop Oeq (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop Oeq (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_bne := {|
-  fn_return := tint;
+  fn_return := tvoid;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr tint)) :: (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1199,46 +1111,32 @@ Definition f_interp_bne := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Ssequence
-          (Scall (Some _t'1)
-            (Evar ___gmpz_cmp (Tfunction
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil))
-                                tint cc_default))
-            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) ::
-             (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-               (tarray (Tstruct __585 noattr) 1)) :: nil))
-          (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
-                         (Econst_int (Int.repr 0) tint) tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+        (Scall (Some _t'1)
+          (Evar ___gmpz_cmp (Tfunction
+                              (Tcons (tptr (Tstruct __585 noattr))
+                                (Tcons (tptr (Tstruct __585 noattr)) Tnil))
+                              tint cc_default))
+          ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) ::
+           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+             (tarray (Tstruct __585 noattr) 1)) :: nil))
+        (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+            (Econst_int (Int.repr 1) tint))
+          Sskip))
+      (Sassign (Ederef (Etempvar _dst (tptr tint)) tint)
+        (Econst_int (Int.repr 0) tint)))))
 |}.
 
 Definition f_interp_bitwise_and := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -1247,50 +1145,30 @@ Definition f_interp_bitwise_and := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_and (Tfunction
-                              (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+    (Scall None
+      (Evar ___gmpz_and (Tfunction
+                          (Tcons (tptr (Tstruct __585 noattr))
+                            (Tcons (tptr (Tstruct __585 noattr))
+                              (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                          tvoid cc_default))
+      ((Efield
+         (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+           (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) :: nil))))
 |}.
 
 Definition f_interp_bitwise_xor := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -1299,50 +1177,30 @@ Definition f_interp_bitwise_xor := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_xor (Tfunction
-                              (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+    (Scall None
+      (Evar ___gmpz_xor (Tfunction
+                          (Tcons (tptr (Tstruct __585 noattr))
+                            (Tcons (tptr (Tstruct __585 noattr))
+                              (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                          tvoid cc_default))
+      ((Efield
+         (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+           (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) :: nil))))
 |}.
 
 Definition f_interp_bitwise_or := {|
   fn_return := tvoid;
-  fn_callconv := {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|};
-  fn_params := ((__res, (tptr (Tstruct _BitVec noattr))) :: (_op, tint) ::
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
                 (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res__1, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := nil;
   fn_body :=
 (Ssequence
@@ -1351,49 +1209,30 @@ Definition f_interp_bitwise_or := {|
   (Ssequence
     (Sassign (Evar _r (Tstruct _BitVec noattr))
       (Etempvar _r (Tstruct _BitVec noattr)))
-    (Ssequence
-      (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res__1 (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res__1 (Tstruct _BitVec noattr))))
-      (Ssequence
-        (Scall None
-          (Evar ___gmpz_ior (Tfunction
-                              (Tcons (tptr (Tstruct __585 noattr))
-                                (Tcons (tptr (Tstruct __585 noattr))
-                                  (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
-                              tvoid cc_default))
-          ((Efield (Evar _dst (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _l (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) ::
-           (Efield (Evar _r (Tstruct _BitVec noattr)) _value
-             (tarray (Tstruct __585 noattr) 1)) :: nil))
-        (Ssequence
-          (Sassign
-            (Ederef (Etempvar __res (tptr (Tstruct _BitVec noattr)))
-              (Tstruct _BitVec noattr)) (Evar _dst (Tstruct _BitVec noattr)))
-          (Sreturn None))))))
+    (Scall None
+      (Evar ___gmpz_ior (Tfunction
+                          (Tcons (tptr (Tstruct __585 noattr))
+                            (Tcons (tptr (Tstruct __585 noattr))
+                              (Tcons (tptr (Tstruct __585 noattr)) Tnil)))
+                          tvoid cc_default))
+      ((Efield
+         (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
+           (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _l (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) ::
+       (Efield (Evar _r (Tstruct _BitVec noattr)) _value
+         (tarray (Tstruct __585 noattr) 1)) :: nil))))
 |}.
 
 Definition f_interp_band := {|
   fn_return := tint;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
+                (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'3, tint) :: (_t'2, tint) :: (_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1404,60 +1243,45 @@ Definition f_interp_band := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
         (Ssequence
-          (Ssequence
-            (Scall (Some _t'1)
-              (Evar ___gmpz_cmp_d (Tfunction
-                                    (Tcons (tptr (Tstruct __585 noattr))
-                                      (Tcons tdouble Tnil)) tint cc_default))
-              ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-                 (tarray (Tstruct __585 noattr) 1)) ::
-               (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) :: nil))
-            (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
-                           (Econst_int (Int.repr 0) tint) tint)
-              (Sset _t'2 (Econst_int (Int.repr 1) tint))
-              (Ssequence
-                (Scall (Some _t'3)
-                  (Evar ___gmpz_cmp_d (Tfunction
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tdouble Tnil)) tint
-                                        cc_default))
-                  ((Efield (Evar _r (Tstruct _BitVec noattr)) _value
-                     (tarray (Tstruct __585 noattr) 1)) ::
-                   (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) ::
-                   nil))
-                (Sset _t'2
-                  (Ecast
-                    (Ebinop One (Etempvar _t'3 tint)
-                      (Econst_int (Int.repr 0) tint) tint) tbool)))))
-          (Sifthenelse (Etempvar _t'2 tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+          (Scall (Some _t'1)
+            (Evar ___gmpz_cmp_d (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons tdouble Tnil)) tint cc_default))
+            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+               (tarray (Tstruct __585 noattr) 1)) ::
+             (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) :: nil))
+          (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
+                         (Econst_int (Int.repr 0) tint) tint)
+            (Sset _t'2 (Econst_int (Int.repr 1) tint))
+            (Ssequence
+              (Scall (Some _t'3)
+                (Evar ___gmpz_cmp_d (Tfunction
+                                      (Tcons (tptr (Tstruct __585 noattr))
+                                        (Tcons tdouble Tnil)) tint
+                                      cc_default))
+                ((Efield (Evar _r (Tstruct _BitVec noattr)) _value
+                   (tarray (Tstruct __585 noattr) 1)) ::
+                 (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) ::
+                 nil))
+              (Sset _t'2
+                (Ecast
+                  (Ebinop One (Etempvar _t'3 tint)
+                    (Econst_int (Int.repr 0) tint) tint) tbool)))))
+        (Sifthenelse (Etempvar _t'2 tint)
+          (Sreturn (Some (Econst_int (Int.repr 1) tint)))
+          Sskip))
+      (Sreturn (Some (Econst_int (Int.repr 0) tint))))))
 |}.
 
 Definition f_interp_bor := {|
   fn_return := tint;
   fn_callconv := cc_default;
-  fn_params := ((_op, tint) :: (_l, (Tstruct _BitVec noattr)) ::
+  fn_params := ((_dst, (tptr (Tstruct _BitVec noattr))) ::
+                (_l, (Tstruct _BitVec noattr)) ::
                 (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_vars := ((_l, (Tstruct _BitVec noattr)) ::
-              (_r, (Tstruct _BitVec noattr)) ::
-              (_dst, (Tstruct _BitVec noattr)) ::
-              (__res, (Tstruct _BitVec noattr)) :: nil);
+              (_r, (Tstruct _BitVec noattr)) :: nil);
   fn_temps := ((_t'3, tint) :: (_t'2, tint) :: (_t'1, tint) :: nil);
   fn_body :=
 (Ssequence
@@ -1468,49 +1292,427 @@ Definition f_interp_bor := {|
       (Etempvar _r (Tstruct _BitVec noattr)))
     (Ssequence
       (Ssequence
-        (Scall None
-          (Evar _init_interp_binary_op (Tfunction
-                                         (Tcons
-                                           (tptr (Tstruct _BitVec noattr))
-                                           (Tcons (Tstruct _BitVec noattr)
-                                             Tnil)) tvoid
-                                         {|cc_vararg:=None; cc_unproto:=false; cc_structret:=true|}))
-          ((Eaddrof (Evar __res (Tstruct _BitVec noattr))
-             (tptr (Tstruct _BitVec noattr))) ::
-           (Evar _l (Tstruct _BitVec noattr)) :: nil))
-        (Sassign (Evar _dst (Tstruct _BitVec noattr))
-          (Evar __res (Tstruct _BitVec noattr))))
-      (Ssequence
         (Ssequence
+          (Scall (Some _t'1)
+            (Evar ___gmpz_cmp_d (Tfunction
+                                  (Tcons (tptr (Tstruct __585 noattr))
+                                    (Tcons tdouble Tnil)) tint cc_default))
+            ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
+               (tarray (Tstruct __585 noattr) 1)) ::
+             (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) :: nil))
+          (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
+                         (Econst_int (Int.repr 0) tint) tint)
+            (Ssequence
+              (Scall (Some _t'3)
+                (Evar ___gmpz_cmp_d (Tfunction
+                                      (Tcons (tptr (Tstruct __585 noattr))
+                                        (Tcons tdouble Tnil)) tint
+                                      cc_default))
+                ((Efield (Evar _r (Tstruct _BitVec noattr)) _value
+                   (tarray (Tstruct __585 noattr) 1)) ::
+                 (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) ::
+                 nil))
+              (Sset _t'2
+                (Ecast
+                  (Ebinop One (Etempvar _t'3 tint)
+                    (Econst_int (Int.repr 0) tint) tint) tbool)))
+            (Sset _t'2 (Econst_int (Int.repr 0) tint))))
+        (Sifthenelse (Etempvar _t'2 tint)
+          (Sreturn (Some (Econst_int (Int.repr 1) tint)))
+          Sskip))
+      (Sreturn (Some (Econst_int (Int.repr 0) tint))))))
+|}.
+
+Definition f_init_pattern := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_pattern, (tptr (Tstruct _Pat noattr))) ::
+                (_mask, (Tstruct _BitVec noattr)) ::
+                (_val, (Tstruct _BitVec noattr)) :: nil);
+  fn_vars := ((_mask, (Tstruct _BitVec noattr)) ::
+              (_val, (Tstruct _BitVec noattr)) :: nil);
+  fn_temps := nil;
+  fn_body :=
+(Ssequence
+  (Sassign (Evar _mask (Tstruct _BitVec noattr))
+    (Etempvar _mask (Tstruct _BitVec noattr)))
+  (Ssequence
+    (Sassign (Evar _val (Tstruct _BitVec noattr))
+      (Etempvar _val (Tstruct _BitVec noattr)))
+    (Ssequence
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _pattern (tptr (Tstruct _Pat noattr)))
+            (Tstruct _Pat noattr)) _mask (Tstruct _BitVec noattr))
+        (Evar _mask (Tstruct _BitVec noattr)))
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _pattern (tptr (Tstruct _Pat noattr)))
+            (Tstruct _Pat noattr)) _val (Tstruct _BitVec noattr))
+        (Evar _val (Tstruct _BitVec noattr))))))
+|}.
+
+Definition f_init_action := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_actionRef, (tptr (Tstruct _ActionRef noattr))) ::
+                (_action, tint) ::
+                (_arguments, (tptr (Tstruct _BitVec noattr))) ::
+                (_num_args, tint) :: nil);
+  fn_vars := nil;
+  fn_temps := ((_i, tint) :: (_t'1, (tptr tvoid)) :: nil);
+  fn_body :=
+(Ssequence
+  (Sassign
+    (Efield
+      (Ederef (Etempvar _actionRef (tptr (Tstruct _ActionRef noattr)))
+        (Tstruct _ActionRef noattr)) _action tint) (Etempvar _action tint))
+  (Ssequence
+    (Ssequence
+      (Scall (Some _t'1)
+        (Evar _malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))
+        ((Ebinop Omul (Esizeof (Tstruct _BitVec noattr) tulong)
+           (Etempvar _num_args tint) tulong) :: nil))
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _actionRef (tptr (Tstruct _ActionRef noattr)))
+            (Tstruct _ActionRef noattr)) _arguments
+          (tptr (Tstruct _BitVec noattr)))
+        (Ecast (Etempvar _t'1 (tptr tvoid)) (tptr (Tstruct _BitVec noattr)))))
+    (Ssequence
+      (Ssequence
+        (Sset _i (Econst_int (Int.repr 0) tint))
+        (Sloop
           (Ssequence
-            (Scall (Some _t'1)
-              (Evar ___gmpz_cmp_d (Tfunction
-                                    (Tcons (tptr (Tstruct __585 noattr))
-                                      (Tcons tdouble Tnil)) tint cc_default))
-              ((Efield (Evar _l (Tstruct _BitVec noattr)) _value
-                 (tarray (Tstruct __585 noattr) 1)) ::
-               (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) :: nil))
-            (Sifthenelse (Ebinop One (Etempvar _t'1 tint)
-                           (Econst_int (Int.repr 0) tint) tint)
-              (Ssequence
-                (Scall (Some _t'3)
-                  (Evar ___gmpz_cmp_d (Tfunction
-                                        (Tcons (tptr (Tstruct __585 noattr))
-                                          (Tcons tdouble Tnil)) tint
-                                        cc_default))
-                  ((Efield (Evar _r (Tstruct _BitVec noattr)) _value
-                     (tarray (Tstruct __585 noattr) 1)) ::
-                   (Econst_float (Float.of_bits (Int64.repr 0)) tdouble) ::
-                   nil))
-                (Sset _t'2
-                  (Ecast
-                    (Ebinop One (Etempvar _t'3 tint)
-                      (Econst_int (Int.repr 0) tint) tint) tbool)))
-              (Sset _t'2 (Econst_int (Int.repr 0) tint))))
-          (Sifthenelse (Etempvar _t'2 tint)
-            (Sreturn (Some (Econst_int (Int.repr 1) tint)))
-            Sskip))
-        (Sreturn (Some (Econst_int (Int.repr 0) tint)))))))
+            (Sifthenelse (Ebinop Olt (Etempvar _i tint)
+                           (Etempvar _num_args tint) tint)
+              Sskip
+              Sbreak)
+            (Sassign
+              (Ederef
+                (Ebinop Oadd
+                  (Efield
+                    (Ederef
+                      (Etempvar _actionRef (tptr (Tstruct _ActionRef noattr)))
+                      (Tstruct _ActionRef noattr)) _arguments
+                    (tptr (Tstruct _BitVec noattr))) (Etempvar _i tint)
+                  (tptr (Tstruct _BitVec noattr))) (Tstruct _BitVec noattr))
+              (Ederef
+                (Ebinop Oadd
+                  (Etempvar _arguments (tptr (Tstruct _BitVec noattr)))
+                  (Etempvar _i tint) (tptr (Tstruct _BitVec noattr)))
+                (Tstruct _BitVec noattr))))
+          (Sset _i
+            (Ebinop Oadd (Etempvar _i tint) (Econst_int (Int.repr 1) tint)
+              tint))))
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _actionRef (tptr (Tstruct _ActionRef noattr)))
+            (Tstruct _ActionRef noattr)) _num_args tint)
+        (Etempvar _num_args tint)))))
+|}.
+
+Definition f_init_entry := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_entry, (tptr (Tstruct _Entry noattr))) ::
+                (_pattern, (tptr (Tstruct _Pat noattr))) ::
+                (_action, (Tstruct _ActionRef noattr)) ::
+                (_num_keys, tint) :: nil);
+  fn_vars := ((_action, (Tstruct _ActionRef noattr)) :: nil);
+  fn_temps := ((_i, tint) :: (_t'1, (tptr tvoid)) :: nil);
+  fn_body :=
+(Ssequence
+  (Sassign (Evar _action (Tstruct _ActionRef noattr))
+    (Etempvar _action (Tstruct _ActionRef noattr)))
+  (Ssequence
+    (Ssequence
+      (Scall (Some _t'1)
+        (Evar _malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))
+        ((Ebinop Omul (Esizeof (Tstruct _Pat noattr) tulong)
+           (Etempvar _num_keys tint) tulong) :: nil))
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _entry (tptr (Tstruct _Entry noattr)))
+            (Tstruct _Entry noattr)) _pattern (tptr (Tstruct _Pat noattr)))
+        (Ecast (Etempvar _t'1 (tptr tvoid)) (tptr (Tstruct _Pat noattr)))))
+    (Ssequence
+      (Ssequence
+        (Sset _i (Econst_int (Int.repr 0) tint))
+        (Sloop
+          (Ssequence
+            (Sifthenelse (Ebinop Olt (Etempvar _i tint)
+                           (Etempvar _num_keys tint) tint)
+              Sskip
+              Sbreak)
+            (Sassign
+              (Ederef
+                (Ebinop Oadd
+                  (Efield
+                    (Ederef (Etempvar _entry (tptr (Tstruct _Entry noattr)))
+                      (Tstruct _Entry noattr)) _pattern
+                    (tptr (Tstruct _Pat noattr))) (Etempvar _i tint)
+                  (tptr (Tstruct _Pat noattr))) (Tstruct _Pat noattr))
+              (Ederef
+                (Ebinop Oadd (Etempvar _pattern (tptr (Tstruct _Pat noattr)))
+                  (Etempvar _i tint) (tptr (Tstruct _Pat noattr)))
+                (Tstruct _Pat noattr))))
+          (Sset _i
+            (Ebinop Oadd (Etempvar _i tint) (Econst_int (Int.repr 1) tint)
+              tint))))
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _entry (tptr (Tstruct _Entry noattr)))
+            (Tstruct _Entry noattr)) _action_ref (Tstruct _ActionRef noattr))
+        (Evar _action (Tstruct _ActionRef noattr))))))
+|}.
+
+Definition f_init_table := {|
+  fn_return := (tptr (Tstruct _Table noattr));
+  fn_callconv := cc_default;
+  fn_params := ((_num_keys, tint) :: (_size, tint) :: (_args_lub, tint) ::
+                nil);
+  fn_vars := nil;
+  fn_temps := ((_table, (tptr (Tstruct _Table noattr))) ::
+               (_t'2, (tptr tvoid)) :: (_t'1, (tptr tvoid)) :: nil);
+  fn_body :=
+(Ssequence
+  (Ssequence
+    (Scall (Some _t'1)
+      (Evar _malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid) cc_default))
+      ((Esizeof (Tstruct _Table noattr) tulong) :: nil))
+    (Sset _table
+      (Ecast (Etempvar _t'1 (tptr tvoid)) (tptr (Tstruct _Table noattr)))))
+  (Ssequence
+    (Sassign
+      (Efield
+        (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+          (Tstruct _Table noattr)) _num_keys tint) (Etempvar _num_keys tint))
+    (Ssequence
+      (Sassign
+        (Efield
+          (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+            (Tstruct _Table noattr)) _capacity tint) (Etempvar _size tint))
+      (Ssequence
+        (Sassign
+          (Efield
+            (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+              (Tstruct _Table noattr)) _num_entries tint)
+          (Econst_int (Int.repr 0) tint))
+        (Ssequence
+          (Scall (Some _t'2)
+            (Evar _malloc (Tfunction (Tcons tulong Tnil) (tptr tvoid)
+                            cc_default))
+            ((Ebinop Omul (Esizeof (Tstruct _Entry noattr) tulong)
+               (Etempvar _size tint) tulong) :: nil))
+          (Sassign
+            (Efield
+              (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+                (Tstruct _Table noattr)) _entries
+              (tptr (Tstruct _Entry noattr)))
+            (Ecast (Etempvar _t'2 (tptr tvoid))
+              (tptr (Tstruct _Entry noattr)))))))))
+|}.
+
+Definition f_add_entry := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_table, (tptr (Tstruct _Table noattr))) ::
+                (_entry, (Tstruct _Entry noattr)) :: nil);
+  fn_vars := ((_entry, (Tstruct _Entry noattr)) :: nil);
+  fn_temps := nil;
+  fn_body :=
+(Ssequence
+  (Sassign (Evar _entry (Tstruct _Entry noattr))
+    (Etempvar _entry (Tstruct _Entry noattr)))
+  (Ssequence
+    (Sassign
+      (Ederef
+        (Ebinop Oadd
+          (Efield
+            (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+              (Tstruct _Table noattr)) _entries
+            (tptr (Tstruct _Entry noattr)))
+          (Efield
+            (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+              (Tstruct _Table noattr)) _num_entries tint)
+          (tptr (Tstruct _Entry noattr))) (Tstruct _Entry noattr))
+      (Evar _entry (Tstruct _Entry noattr)))
+    (Sassign
+      (Efield
+        (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+          (Tstruct _Table noattr)) _num_entries tint)
+      (Ebinop Oadd
+        (Efield
+          (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+            (Tstruct _Table noattr)) _num_entries tint)
+        (Econst_int (Int.repr 1) tint) tint))))
+|}.
+
+Definition f_pattern_match := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr tint)) :: (_pattern, (Tstruct _Pat noattr)) ::
+                (_val, (Tstruct _BitVec noattr)) :: nil);
+  fn_vars := ((_pattern, (Tstruct _Pat noattr)) ::
+              (_val, (Tstruct _BitVec noattr)) ::
+              (_val_masked, (Tstruct _BitVec noattr)) ::
+              (_key_masked, (Tstruct _BitVec noattr)) :: nil);
+  fn_temps := nil;
+  fn_body :=
+(Ssequence
+  (Sassign (Evar _pattern (Tstruct _Pat noattr))
+    (Etempvar _pattern (Tstruct _Pat noattr)))
+  (Ssequence
+    (Sassign (Evar _val (Tstruct _BitVec noattr))
+      (Etempvar _val (Tstruct _BitVec noattr)))
+    (Ssequence
+      (Scall None
+        (Evar _interp_bitwise_and (Tfunction
+                                    (Tcons (tptr (Tstruct _BitVec noattr))
+                                      (Tcons (Tstruct _BitVec noattr)
+                                        (Tcons (Tstruct _BitVec noattr) Tnil)))
+                                    tvoid cc_default))
+        ((Eaddrof (Evar _val_masked (Tstruct _BitVec noattr))
+           (tptr (Tstruct _BitVec noattr))) ::
+         (Evar _val (Tstruct _BitVec noattr)) ::
+         (Efield (Evar _pattern (Tstruct _Pat noattr)) _mask
+           (Tstruct _BitVec noattr)) :: nil))
+      (Ssequence
+        (Scall None
+          (Evar _interp_bitwise_and (Tfunction
+                                      (Tcons (tptr (Tstruct _BitVec noattr))
+                                        (Tcons (Tstruct _BitVec noattr)
+                                          (Tcons (Tstruct _BitVec noattr)
+                                            Tnil))) tvoid cc_default))
+          ((Eaddrof (Evar _key_masked (Tstruct _BitVec noattr))
+             (tptr (Tstruct _BitVec noattr))) ::
+           (Efield (Evar _pattern (Tstruct _Pat noattr)) _val
+             (Tstruct _BitVec noattr)) ::
+           (Efield (Evar _pattern (Tstruct _Pat noattr)) _mask
+             (Tstruct _BitVec noattr)) :: nil))
+        (Scall None
+          (Evar _interp_bne (Tfunction
+                              (Tcons (tptr tint)
+                                (Tcons (Tstruct _BitVec noattr)
+                                  (Tcons (Tstruct _BitVec noattr) Tnil)))
+                              tvoid cc_default))
+          ((Etempvar _dst (tptr tint)) ::
+           (Evar _val_masked (Tstruct _BitVec noattr)) ::
+           (Evar _key_masked (Tstruct _BitVec noattr)) :: nil))))))
+|}.
+
+Definition f_entry_match := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr tint)) :: (_entry, (Tstruct _Entry noattr)) ::
+                (_val, (tptr (Tstruct _BitVec noattr))) ::
+                (_num_keys, tint) :: nil);
+  fn_vars := ((_entry, (Tstruct _Entry noattr)) :: nil);
+  fn_temps := ((_i, tint) :: nil);
+  fn_body :=
+(Ssequence
+  (Sassign (Evar _entry (Tstruct _Entry noattr))
+    (Etempvar _entry (Tstruct _Entry noattr)))
+  (Ssequence
+    (Sset _i (Econst_int (Int.repr 0) tint))
+    (Sloop
+      (Ssequence
+        (Sifthenelse (Ebinop Olt (Etempvar _i tint) (Etempvar _num_keys tint)
+                       tint)
+          Sskip
+          Sbreak)
+        (Ssequence
+          (Scall None
+            (Evar _pattern_match (Tfunction
+                                   (Tcons (tptr tint)
+                                     (Tcons (Tstruct _Pat noattr)
+                                       (Tcons (Tstruct _BitVec noattr) Tnil)))
+                                   tvoid cc_default))
+            ((Etempvar _dst (tptr tint)) ::
+             (Ederef
+               (Ebinop Oadd
+                 (Efield (Evar _entry (Tstruct _Entry noattr)) _pattern
+                   (tptr (Tstruct _Pat noattr))) (Etempvar _i tint)
+                 (tptr (Tstruct _Pat noattr))) (Tstruct _Pat noattr)) ::
+             (Ederef
+               (Ebinop Oadd (Etempvar _val (tptr (Tstruct _BitVec noattr)))
+                 (Etempvar _i tint) (tptr (Tstruct _BitVec noattr)))
+               (Tstruct _BitVec noattr)) :: nil))
+          (Sifthenelse (Eunop Onotbool
+                         (Ederef (Etempvar _dst (tptr tint)) tint) tint)
+            (Sreturn None)
+            Sskip)))
+      (Sset _i
+        (Ebinop Oadd (Etempvar _i tint) (Econst_int (Int.repr 1) tint) tint)))))
+|}.
+
+Definition f_table_match := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_dst, (tptr (Tstruct _ActionRef noattr))) ::
+                (_table, (tptr (Tstruct _Table noattr))) ::
+                (_keys, (tptr (Tstruct _BitVec noattr))) :: nil);
+  fn_vars := ((_matched, tint) :: nil);
+  fn_temps := ((_i, tint) :: nil);
+  fn_body :=
+(Ssequence
+  (Sassign
+    (Ederef (Etempvar _dst (tptr (Tstruct _ActionRef noattr)))
+      (Tstruct _ActionRef noattr))
+    (Evar _default_action (Tstruct _ActionRef noattr)))
+  (Ssequence
+    (Sset _i
+      (Ebinop Osub
+        (Efield
+          (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+            (Tstruct _Table noattr)) _num_entries tint)
+        (Econst_int (Int.repr 1) tint) tint))
+    (Sloop
+      (Ssequence
+        (Sifthenelse (Ebinop Oge (Etempvar _i tint)
+                       (Econst_int (Int.repr 0) tint) tint)
+          Sskip
+          Sbreak)
+        (Ssequence
+          (Scall None
+            (Evar _entry_match (Tfunction
+                                 (Tcons (tptr tint)
+                                   (Tcons (Tstruct _Entry noattr)
+                                     (Tcons (tptr (Tstruct _BitVec noattr))
+                                       (Tcons tint Tnil)))) tvoid cc_default))
+            ((Eaddrof (Evar _matched tint) (tptr tint)) ::
+             (Ederef
+               (Ebinop Oadd
+                 (Efield
+                   (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+                     (Tstruct _Table noattr)) _entries
+                   (tptr (Tstruct _Entry noattr))) (Etempvar _i tint)
+                 (tptr (Tstruct _Entry noattr))) (Tstruct _Entry noattr)) ::
+             (Etempvar _keys (tptr (Tstruct _BitVec noattr))) ::
+             (Efield
+               (Ederef (Etempvar _table (tptr (Tstruct _Table noattr)))
+                 (Tstruct _Table noattr)) _num_keys tint) :: nil))
+          (Sifthenelse (Evar _matched tint)
+            (Ssequence
+              (Sassign
+                (Ederef (Etempvar _dst (tptr (Tstruct _ActionRef noattr)))
+                  (Tstruct _ActionRef noattr))
+                (Efield
+                  (Ederef
+                    (Ebinop Oadd
+                      (Efield
+                        (Ederef
+                          (Etempvar _table (tptr (Tstruct _Table noattr)))
+                          (Tstruct _Table noattr)) _entries
+                        (tptr (Tstruct _Entry noattr))) (Etempvar _i tint)
+                      (tptr (Tstruct _Entry noattr)))
+                    (Tstruct _Entry noattr)) _action_ref
+                  (Tstruct _ActionRef noattr)))
+              (Sreturn None))
+            Sskip)))
+      (Sset _i
+        (Ebinop Osub (Etempvar _i tint) (Econst_int (Int.repr 1) tint) tint)))))
 |}.
 
 Definition composites : list composite_definition :=
@@ -1521,10 +1723,28 @@ Definition composites : list composite_definition :=
  Composite _BitVec Struct
    ((_is_signed, tint) :: (_width, tint) ::
     (_value, (tarray (Tstruct __585 noattr) 1)) :: nil)
+   noattr ::
+ Composite _Pat Struct
+   ((_mask, (Tstruct _BitVec noattr)) :: (_val, (Tstruct _BitVec noattr)) ::
+    nil)
+   noattr ::
+ Composite _ActionRef Struct
+   ((_action, tint) :: (_arguments, (tptr (Tstruct _BitVec noattr))) ::
+    (_num_args, tint) :: nil)
+   noattr ::
+ Composite _Entry Struct
+   ((_pattern, (tptr (Tstruct _Pat noattr))) ::
+    (_action_ref, (Tstruct _ActionRef noattr)) :: nil)
+   noattr ::
+ Composite _Table Struct
+   ((_num_keys, tint) :: (_num_entries, tint) :: (_capacity, tint) ::
+    (_entries, (tptr (Tstruct _Entry noattr))) :: nil)
    noattr :: nil).
 
 Definition global_definitions : list (ident * globdef fundef type) :=
-((___builtin_ais_annot,
+((___stringlit_1, Gvar v___stringlit_1) ::
+ (___stringlit_2, Gvar v___stringlit_2) ::
+ (___builtin_ais_annot,
    Gfun(External (EF_builtin "__builtin_ais_annot"
                    (mksignature (AST.Tlong :: nil) AST.Tvoid
                      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
@@ -1791,6 +2011,8 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|}))
      (Tcons tint Tnil) tvoid
      {|cc_vararg:=(Some 1); cc_unproto:=false; cc_structret:=false|})) ::
+ (_malloc,
+   Gfun(External EF_malloc (Tcons tulong Tnil) (tptr tvoid) cc_default)) ::
  (___gmpz_add,
    Gfun(External (EF_external "__gmpz_add"
                    (mksignature (AST.Tlong :: AST.Tlong :: AST.Tlong :: nil)
@@ -1880,6 +2102,18 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      cc_default))
      (Tcons (tptr (Tstruct __585 noattr))
        (Tcons (tptr (Tstruct __585 noattr)) Tnil)) tvoid cc_default)) ::
+ (___gmpz_set,
+   Gfun(External (EF_external "__gmpz_set"
+                   (mksignature (AST.Tlong :: AST.Tlong :: nil) AST.Tvoid
+                     cc_default))
+     (Tcons (tptr (Tstruct __585 noattr))
+       (Tcons (tptr (Tstruct __585 noattr)) Tnil)) tvoid cc_default)) ::
+ (___gmpz_set_str,
+   Gfun(External (EF_external "__gmpz_set_str"
+                   (mksignature (AST.Tlong :: AST.Tlong :: AST.Tint :: nil)
+                     AST.Tint cc_default))
+     (Tcons (tptr (Tstruct __585 noattr))
+       (Tcons (tptr tschar) (Tcons tint Tnil))) tint cc_default)) ::
  (___gmpz_set_ui,
    Gfun(External (EF_external "__gmpz_set_ui"
                    (mksignature (AST.Tlong :: AST.Tlong :: nil) AST.Tvoid
@@ -1907,12 +2141,21 @@ Definition global_definitions : list (ident * globdef fundef type) :=
      (Tcons (tptr (Tstruct __585 noattr))
        (Tcons (tptr (Tstruct __585 noattr))
          (Tcons (tptr (Tstruct __585 noattr)) Tnil))) tvoid cc_default)) ::
+ (___assert_fail,
+   Gfun(External (EF_external "__assert_fail"
+                   (mksignature
+                     (AST.Tlong :: AST.Tlong :: AST.Tint :: AST.Tlong :: nil)
+                     AST.Tvoid cc_default))
+     (Tcons (tptr tschar)
+       (Tcons (tptr tschar) (Tcons tuint (Tcons (tptr tschar) Tnil)))) tvoid
+     cc_default)) ::
  (_pow,
    Gfun(External (EF_external "pow"
                    (mksignature (AST.Tfloat :: AST.Tfloat :: nil) AST.Tfloat
                      cc_default)) (Tcons tdouble (Tcons tdouble Tnil))
-     tdouble cc_default)) ::
+     tdouble cc_default)) :: (_default_action, Gvar v_default_action) ::
  (_reset_bitvec, Gfun(Internal f_reset_bitvec)) ::
+ (___func__, Gvar v___func__) ::
  (_init_bitvec, Gfun(Internal f_init_bitvec)) ::
  (_eval_uminus, Gfun(Internal f_eval_uminus)) ::
  (_eval_sat_add_sub, Gfun(Internal f_eval_sat_add_sub)) ::
@@ -1936,21 +2179,32 @@ Definition global_definitions : list (ident * globdef fundef type) :=
  (_interp_bitwise_xor, Gfun(Internal f_interp_bitwise_xor)) ::
  (_interp_bitwise_or, Gfun(Internal f_interp_bitwise_or)) ::
  (_interp_band, Gfun(Internal f_interp_band)) ::
- (_interp_bor, Gfun(Internal f_interp_bor)) :: nil).
+ (_interp_bor, Gfun(Internal f_interp_bor)) ::
+ (_init_pattern, Gfun(Internal f_init_pattern)) ::
+ (_init_action, Gfun(Internal f_init_action)) ::
+ (_init_entry, Gfun(Internal f_init_entry)) ::
+ (_init_table, Gfun(Internal f_init_table)) ::
+ (_add_entry, Gfun(Internal f_add_entry)) ::
+ (_pattern_match, Gfun(Internal f_pattern_match)) ::
+ (_entry_match, Gfun(Internal f_entry_match)) ::
+ (_table_match, Gfun(Internal f_table_match)) :: nil).
 
 Definition public_idents : list ident :=
-(_interp_bor :: _interp_band :: _interp_bitwise_or :: _interp_bitwise_xor ::
+(_table_match :: _entry_match :: _pattern_match :: _add_entry ::
+ _init_table :: _init_entry :: _init_action :: _init_pattern ::
+ _interp_bor :: _interp_band :: _interp_bitwise_or :: _interp_bitwise_xor ::
  _interp_bitwise_and :: _interp_bne :: _interp_beq :: _interp_bgt ::
  _interp_blt :: _interp_bge :: _interp_ble :: _interp_bshr :: _interp_bshl ::
  _interp_bmod :: _interp_bdiv :: _interp_bmult :: _interp_bminus_sat ::
  _interp_bminus :: _interp_bplus_sat :: _interp_bplus ::
  _init_interp_binary_op :: _eval_sat_add_sub :: _eval_uminus ::
- _init_bitvec :: _reset_bitvec :: _pow :: ___gmpz_xor ::
- ___gmpz_tdiv_q_2exp :: ___gmpz_sub :: ___gmpz_set_ui :: ___gmpz_neg ::
+ _init_bitvec :: _reset_bitvec :: _default_action :: _pow ::
+ ___assert_fail :: ___gmpz_xor :: ___gmpz_tdiv_q_2exp :: ___gmpz_sub ::
+ ___gmpz_set_ui :: ___gmpz_set_str :: ___gmpz_set :: ___gmpz_neg ::
  ___gmpz_mul_2exp :: ___gmpz_mul :: ___gmpz_mod :: ___gmpz_ior ::
  ___gmpz_init :: ___gmpz_fdiv_r_ui :: ___gmpz_fdiv_q_2exp :: ___gmpz_cmp_d ::
  ___gmpz_cmp :: ___gmpz_clear :: ___gmpz_cdiv_q :: ___gmpz_and ::
- ___gmpz_add :: ___builtin_debug :: ___builtin_write32_reversed ::
+ ___gmpz_add :: _malloc :: ___builtin_debug :: ___builtin_write32_reversed ::
  ___builtin_write16_reversed :: ___builtin_read32_reversed ::
  ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::
  ___builtin_fmsub :: ___builtin_fmadd :: ___builtin_fmin ::

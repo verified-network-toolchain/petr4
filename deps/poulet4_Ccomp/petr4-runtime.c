@@ -13,7 +13,7 @@ struct packet_out{
   void *out;
 };
 
-struct BitVec{
+typedef struct BitVec{
   //1 = signed, 0 = unsigned 
   int is_signed;
 
@@ -23,7 +23,7 @@ struct BitVec{
   //the GMP representation of the number. 
   //0<=value<=2^width-1 
   mpz_t value; 
-};
+} BitVec;
 
 typedef struct Pat{
   struct BitVec mask; //ternary mask
@@ -36,18 +36,20 @@ typedef struct ActionRef{
   int num_args;
 } ActionRef;
 
-struct Entry{
-  Pat* pattern;
-  //Priority is implicit by the order of the table
-  ActionRef action_ref;
-};
+ActionRef default_action = {0, NULL, 0};
 
-struct Table{
+typedef struct Entry{
+  Pat* pattern; // a pattern array.
+  //Priority is implicit by the order of the entries in the table
+  ActionRef action_ref; //since only one per entry, need not to be statically allocated itself.
+} Entry;
+
+typedef struct Table{
   int num_keys;
   int num_entries;
   int capacity;//allocated
   struct Entry* entries;
-};
+} Table;
 
 void reset_bitvec (mpz_t x) {
   mpz_clear(x);
@@ -260,98 +262,109 @@ int interp_bor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   return 0; 
 }
 
-void init_pattern(struct Pat* pattern, struct BitVec mask, struct BitVec val){
+//The pattern is a stack variable first, but the array of pattern will live in heap
+void init_pattern(Pat* pattern,struct BitVec mask, struct BitVec val){
+  pattern->mask = mask;
+  pattern->val = val;
 }
 
-void init_action(struct ActionRef* actionRef, int action, struct BitVec* arguments, int num_args){
-
+// Action will be a stack variable first, but the entry it resides in will live in heap
+// The arguments itself is first declared in stack, but we will allocate it in heap
+void init_action(ActionRef* actionRef, int action, struct BitVec* arguments, int num_args){
+  actionRef->action = action;
+  actionRef->arguments = (BitVec*) malloc(sizeof(BitVec) * num_args);
+  for(int i = 0; i < num_args; i++){
+    actionRef->arguments[i] = arguments[i];
+  };
+  actionRef->num_args = num_args;
 }
 
-void init_Entry(struct Entry* entry, Pat* pattern, ActionRef action){
+// Entry will be a stack variable first, but its value will be stored 
+// in the entry array which is in heap 
+// the pattern array live in stack, but we will transfer it into heap
+void init_entry(Entry* entry, Pat* pattern, ActionRef action, int num_keys){
+  entry->pattern = (Pat*) malloc(sizeof(Pat) * num_keys);
+  for (int i = 0; i < num_keys; i++)
+  {
+    entry->pattern[i] = pattern[i];
+  }
   
+  entry->action_ref = action;
 }
 
 //initialize a table with the given number of keys, the desired size of the table
 //and the matchkind of all its keys
-void init_table(struct Table* table, int num_keys, int size, int args_lub){
-  // table->num_keys = num_key;
-  // table->num_entries = size;
-  // table->matchkind = (int*) malloc(sizeof(int) * num_key);
-  // for(int i = 0; i < num_key; i++){
-  //   table->matchkind[i] = matchkinds[i];
-  // };
-  // table->keys = (struct TableKey**) malloc(sizeof(struct TableKey*) * size);
-  // for(int i = 0; i < size; i++){
-  //   table->keys[i] = (struct TableKey*) malloc(sizeof(struct TableKey) * num_key);
-  // };
-  // table->actions = (int*) malloc(sizeof(int) * size);
-  // table->valid = (int*) malloc(sizeof(int) * size);
-  // for(int i = 0; i < size; i++){
-  //   table->valid[i] = 0;
-  // }
+Table* init_table(int num_keys, int size, int args_lub){
+  Table* table = (Table* ) malloc(sizeof(Table));
+  table->num_keys = num_keys;
+  table->capacity = size;
+  table->num_entries = 0;
+  table->entries = (Entry*) malloc(sizeof(Entry) * size);
 }
 
-//add a new entry to the table, find the first invalid entry to replace
-//if all entries are valid, the new entry won't be added.
-//TODO: support actions arguments.
-void add_entry(struct Table* table, struct Entry* entry){
-  // for(int i = 0; i < table->num_entries; i++){
-  //   if(!table->valid[i]){
-  //     for(int j = 0; j < table->num_keys; j++){
-  //       table->keys[i][j] = newkeys[j];
-  //     }
-  //     table->actions[i] = new_action;
-  //     table->valid[i] = 1;
-  //     return;
-  //   }
-  // }
+//Example init table: 
+// Table* table = init_table(num_keys, size, args_lub);
+
+//Add a new entry to the table, however, this does not support inserting 
+//entry from control plane since the table does not store the numerical 
+// priority of each entry. And thus the order of the entry must be guaranteed
+// to be correct by the compiler.
+void add_entry(struct Table* table, Entry entry){
+  table->entries[table->num_entries] = entry;
+  table->num_entries++;
 }
 
 
+//Example add entry:
+// Pat[m] patterns;
+// for (int i = 0; i < m; i++){
+//   Bitvec mask;
+//   Bitvec val;
+//   init_bitvec(&mask, ...);
+//   init_bitvec(&val, ...);
+//   init_pattern(patterns+i, mask, val);
+// }
+// ActionRef action;
+// BitVec[n] arguments;
+// for (int i = 0; i < m; i++){
+//   init_bitvec(arguments+i, ...);
+// };
+// init_action(&action, action, arguments, n);
+// Entry entry;
+// init_entry(&entry, patterns, action, table->num_keys);
+// add_entry(table, entry);
+
+//match a value against a single pattern
+void pattern_match(int* dst, Pat pattern, BitVec val){
+  BitVec val_masked;
+  interp_bitwise_and(&val_masked, val, pattern.mask);
+  BitVec key_masked;
+  interp_bitwise_and(&key_masked, pattern.val, pattern.mask);
+  interp_bne(dst, val_masked, key_masked);
+}
+
+//match an array of bitvecs with an entry
+void entry_match(int* dst, Entry entry, BitVec* val, int num_keys){
+  for(int i = 0; i < num_keys; i++){
+    pattern_match(dst, entry.pattern[i], val[i]);
+    if(!(*dst)){
+      return;
+    }
+  }
+}
 
 //given an array of values, return the action the table should take.
 //0 if it is default action
 //in the compiler, when it finds out the expression has type bool, it should
 //translate it into a bitvec and then put it in the vals. 
-//TODO: support action arguments
-//QUESTION: what if the keys have different order?
 void table_match(ActionRef* dst, struct Table* table, struct BitVec* keys){
-  // for(int entry = 0; entry < table->num_entries; entry++){
-  //   if(!table->valid[entry]){
-  //     continue;
-  //   }
-  //   int result = 1;
-  //   for(int key = 0; key < table->num_keys; key++){
-  //     switch (table->matchkind[key]){
-  //       case 1:{
-  //         if(&result){
-  //           if(&vals[key] == &table->keys[entry][key].val) {
-  //             result = 1; 
-  //           }
-  //           else {
-  //             return; 
-  //           }
-  //         }
-  //       }
-  //       case 3:{
-  //         if(&result){
-  //           if(&vals[key] == 'X' || table->keys[entry][key].val == 'X'){
-  //             result = 1; 
-  //           }
-  //           else{
-  //             return; 
-  //           }
-  //         }
-  //       }
-  //       default:{
-  //         //TODO: implement lpm 
-  //         result = result;
-  //       }
-  //     }
-  //   }
-  //   if(result){
-  //     *dst = table->actions[entry];
-  //   }
-  // }
-  // *dst = 0;
+  *dst = default_action;
+  for (int i = table->num_entries-1; i>= 0; i--){
+    int matched;
+    entry_match(&matched, table->entries[i],keys, table->num_keys);
+    if(matched){
+      *dst = table->entries[i].action_ref;
+      return;
+    }
+  }
 }

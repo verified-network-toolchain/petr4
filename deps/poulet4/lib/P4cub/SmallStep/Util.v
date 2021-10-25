@@ -231,6 +231,13 @@ Section StepDefs.
     | _                             => None
     end.
   (**[]*)
+
+  (** Header stack access. *)
+  Definition eval_access (v : E.e tags_t) (n : Z) : option (E.e tags_t) :=
+    v
+      ▷ header_stack_data
+      >>| fourple_4
+      >>= (fun hs => nth_error hs (Z.to_nat n)).
   
   Section Edefault.
     Local Hint Constructors value : core.

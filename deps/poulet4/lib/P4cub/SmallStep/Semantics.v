@@ -125,8 +125,7 @@ Module Step.
       ℵ ϵ, e -->  e' ->
            ℵ ϵ, Access e[n] @ i -->  Access e'[n] @ i
   | step_stack_access_eval (v v' : E.e tags_t) (n : Z) (i : tags_t) :
-      header_stack_data v >>| fourple_4 >>=
-                        (fun hs => nth_error hs (Z.to_nat n)) = Some v' ->
+      eval_access v n = Some v' ->
       value v ->
       ℵ ϵ, Access v[n] @ i -->  v'
   | step_tuple (prefix suffix : list (E.e tags_t))

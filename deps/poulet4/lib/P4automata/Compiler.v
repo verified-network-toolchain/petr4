@@ -15,13 +15,10 @@ Open Scope list_scope.
 
 Set Universe Polymorphism.
 
-Module P := P4cub.
-Module E := P.Expr.
-Import P.P4cubNotations.
+Import AllCubNotations.
 Module V := Val.
 Import V.ValueNotations.
 Import V.LValueNotations.
-Module PR := P4cub.Parser.
 
 Section parser_to_p4automaton.
 
@@ -31,10 +28,10 @@ Section parser_to_p4automaton.
   | SONil
   | SOSeq (s1 s2 : state_operation)
   | SOExtract
-      (typ: E.t)
+      (typ: Expr.t)
       (into_lv: V.lv)
-  | SOVarDecl (x : string) (τ : E.t)
-  | SOAsgn (lhs rhs : E.e tags_t)
+  | SOVarDecl (x : string) (τ : Expr.t)
+  | SOAsgn (lhs rhs : Expr.e tags_t)
   | SOBlock (s : state_operation)
   (* function calls? other extern method calls? *).
   (**[]*)
@@ -42,17 +39,17 @@ Section parser_to_p4automaton.
   Section compile.
     (*Variables (pkt_name hdr_name: string).*)
     
-    (*Definition compile_expression (expr: E.e tags_t) : E.e tags_t :=
+    (*Definition compile_expression (expr: Expr.e tags_t) : Expr.e tags_t :=
       expr.*)
     Inductive compile_error := 
-    | CEBadLValue (e: E.e tags_t)
-    | CEBadExternArgs (args: E.arrowE tags_t)
+    | CEBadLValue (e: Expr.e tags_t)
+    | CEBadExternArgs (args: Expr.arrowE tags_t)
     | CEUnsupportedExtern (name: string)
-    | CEUnsupportedStmt (s: P4cub.Stmt.s tags_t)
-    | CEUnsupportedExpr (e: E.e tags_t)
+    | CEUnsupportedStmt (s: Stmt.s tags_t)
+    | CEUnsupportedExpr (e: Expr.e tags_t)
     | CEInconceivable (msg: string).
 
-    Fixpoint eval_lvalue (e : E.e tags_t) : @error_monad compile_error V.lv :=
+    Fixpoint eval_lvalue (e : Expr.e tags_t) : @error_monad compile_error V.lv :=
       match e with
       | <{ Var x:_ @ _ }> => mret l{ VAR x }l
       | <{ Slice e:_ [hi:lo] @ _ }>
@@ -69,7 +66,7 @@ Section parser_to_p4automaton.
     (**[]*)
 
     Fixpoint compile_statement
-             (stmt: P4cub.Stmt.s tags_t) : @error_monad compile_error state_operation :=
+             (stmt: Stmt.s tags_t) : @error_monad compile_error state_operation :=
       match stmt with
       | -{ skip @ _ }- =>
         mret SONil
@@ -82,17 +79,17 @@ Section parser_to_p4automaton.
       | -{ extern extern_lit calls f <[]> (args) gives x @ _ }- =>
         if f == "extract" then
           match args with
-          | ((_, P4cub.PAOut (t, e)) :: nil) =>
+          | ((_, PAOut (t, e)) :: nil) =>
             into_lv <<| eval_lvalue e ;; SOExtract t into_lv
-          | _=> err $ CEBadExternArgs (P4cub.Arrow args x)
+          | _=> err $ CEBadExternArgs (Arrow args x)
           end
         else
           err $ CEUnsupportedExtern f
       | _ => err $ CEUnsupportedStmt stmt end.
     
     Definition compile_state_block
-               (stblk : PR.state_block tags_t)
-      : @error_monad compile_error (state_operation * (PR.e tags_t)) :=
+               (stblk : AST.Parser.state_block tags_t)
+      : @error_monad compile_error (state_operation * (AST.Parser.e tags_t)) :=
       match stblk with
       | &{ state { s } transition e }& =>
         so <<| compile_statement s ;;
@@ -100,8 +97,8 @@ Section parser_to_p4automaton.
       end.
 
     Definition compile_state_blocks
-               (stblks : F.fs string (PR.state_block tags_t))
-      : @error_monad compile_error (F.fs string (state_operation * (PR.e tags_t))) :=
+               (stblks : F.fs string (AST.Parser.state_block tags_t))
+      : @error_monad compile_error (F.fs string (state_operation * (AST.Parser.e tags_t))) :=
       let cfld fld :=
           let '(x, stblk) := fld in
           sot <<| compile_state_block stblk ;; (x, sot) in
@@ -125,8 +122,8 @@ Section parser_to_p4automaton.
     | SOBlock op => operation_size op end.
 
   Definition P4Automaton_size
-             (strt : state_operation * (PR.e tags_t))
-             (states : F.fs string (state_operation * (PR.e tags_t)))
+             (strt : state_operation * (AST.Parser.e tags_t))
+             (states : F.fs string (state_operation * (AST.Parser.e tags_t)))
              (st : P4Automaton_State) : nat :=
     match st with
     | START => operation_size (fst strt)
@@ -139,7 +136,7 @@ Section parser_to_p4automaton.
   Theorem P4Automaton_Size_Cap : forall strt states st, 0%nat < P4Automaton_size strt states st.
   Admitted.
 
-  Fixpoint interp_expr (ϵ : epsilon) (expr : E.e tags_t) : @error_monad compile_error V.v :=
+  Fixpoint interp_expr (ϵ : epsilon) (expr : Expr.e tags_t) : @error_monad compile_error V.v :=
     match expr with
     | <{ BOOL b @ _ }> => mret ~{ VBOOL b }~
     | <{ w W n @ _ }> => mret ~{ w VW n }~
@@ -201,8 +198,8 @@ Section parser_to_p4automaton.
       | _ => err (CEUnsupportedExpr expr) end    
     end.
 
-  Fail Fixpoint interp_extract (τ : E.t) (pkt : list bool) : option V.v :=
-    let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * E.t) :=
+  Fail Fixpoint interp_extract (τ : Expr.t) (pkt : list bool) : option V.v :=
+    let f (acc : (list bool) * (list (option (string * V.v)))) (x : string * Expr.t) :=
         let '(pkt, fs) := acc in
         let '(n, τ) := x in
         let w := SynDefs.width_of_typ τ in
@@ -266,8 +263,8 @@ Section parser_to_p4automaton.
     | SOBlock op => interp_operation pkt e op end.
 
   Definition P4Automaton_update
-             (strt : state_operation * (PR.e tags_t))
-             (states : F.fs string (state_operation * (PR.e tags_t)))
+             (strt : state_operation * (AST.Parser.e tags_t))
+             (states : F.fs string (state_operation * (AST.Parser.e tags_t)))
              (st : P4Automaton_State)
              (pkt : list bool)
              (e : option epsilon) : option epsilon :=
@@ -280,9 +277,9 @@ Section parser_to_p4automaton.
 
   Fixpoint interp_transition
            (ϵ : epsilon)
-           (t : PR.e tags_t) : P4Automaton_State + bool :=
-    let fix frec (pes : F.fs PR.pat (PR.e tags_t))
-        : F.fs PR.pat (P4Automaton_State + bool) :=
+           (t : AST.Parser.e tags_t) : P4Automaton_State + bool :=
+    let fix frec (pes : F.fs AST.Parser.pat (AST.Parser.e tags_t))
+        : F.fs AST.Parser.pat (P4Automaton_State + bool) :=
         match pes with
         | [] => []
         | (p, t) :: pes => (p, interp_transition ϵ t) :: frec pes
@@ -307,8 +304,8 @@ Section parser_to_p4automaton.
   (**[]*)
   
   Definition P4Automaton_transitions
-             (strt : state_operation * (PR.e tags_t))
-             (states : F.fs string (state_operation * (PR.e tags_t)))
+             (strt : state_operation * (AST.Parser.e tags_t))
+             (states : F.fs string (state_operation * (AST.Parser.e tags_t)))
              (st : P4Automaton_State)
              (e : option epsilon) : P4Automaton_State + bool :=
     match e with
@@ -327,8 +324,8 @@ Section parser_to_p4automaton.
   | MNone.
 
   Definition parser_to_p4automaton
-      (strt : PR.state_block tags_t)
-      (states : F.fs string (PR.state_block tags_t))
+      (strt : AST.Parser.state_block tags_t)
+      (states : F.fs string (AST.Parser.state_block tags_t))
       : @error_monad compile_error p4automaton
     :=
     let strt := compile_state_block strt in
@@ -345,7 +342,7 @@ Section parser_to_p4automaton.
     | inr e, _ =>     inr e
     | inl _, inr e => inr e end.
 
-  Fixpoint topdecl_to_p4automata (d : P4cub.TopDecl.d tags_t) : list (@error_monad compile_error p4automaton) :=
+  Fixpoint topdecl_to_p4automata (d : TopDecl.d tags_t) : list (@error_monad compile_error p4automaton) :=
     match d with
     | %{ parser p ( cparams ) ( _ ) ( params ) start := strt { states } @ i }% =>
       (* TODO: extern runtime params *)

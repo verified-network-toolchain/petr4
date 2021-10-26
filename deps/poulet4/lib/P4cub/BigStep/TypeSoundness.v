@@ -5,25 +5,21 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.BigStep.IndPrincip.
 Require Import Poulet4.P4cub.Static.Static.
 
-Module P := Poulet4.P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Module ST := P.Stmt.
-Module PR := P.Parser.
 Module V := Val.
-Import P.P4cubNotations Step
+Import AllCubNotations Step
        V.ValueNotations V.LValueNotations
        F.FieldTactics ProperType.
 
 Section BigStepTheorems.
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type (Δ : Delta) (Γ : Gamma) (ϵ : epsilon) : Prop :=
-    forall (x : string) (τ : E.t) (v : V.v),
+    forall (x : string) (τ : Expr.t) (v : V.v),
       Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ∇ ⊢ v ∈ τ.
   (**[]*)
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset (Γ : Gamma) (ϵ : epsilon) : Prop :=
-    forall (x : string) (τ : E.t),
+    forall (x : string) (τ : Expr.t),
       Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
@@ -39,12 +35,12 @@ Section BigStepTheorems.
     Local Hint Resolve eval_bop_type : core.
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_member_types : core.
-    Local Hint Constructors PT.proper_nesting : core.
+    Local Hint Constructors ProperType.proper_nesting : core.
     Local Hint Constructors type_value : core.
 
     Theorem expr_big_step_preservation :
-      forall (Δ : Delta) (Γ : Gamma) (e : E.e tags_t)
-        (τ : E.t) (ϵ : epsilon) (v : V.v),
+      forall (Δ : Delta) (Γ : Gamma) (e : Expr.e tags_t)
+        (τ : Expr.t) (ϵ : epsilon) (v : V.v),
         envs_type Δ Γ ϵ ->
         ⟨ ϵ, e ⟩ ⇓ v ->
         ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
@@ -89,8 +85,8 @@ Section BigStepTheorems.
     Local Hint Constructors expr_big_step : core.
 
     Theorem expr_big_step_progress :
-      forall (D : Delta) (Γ : Gamma) (e : E.e tags_t)
-        (τ : E.t) (ϵ : epsilon),
+      forall (D : Delta) (Γ : Gamma) (e : Expr.e tags_t)
+        (τ : Expr.t) (ϵ : epsilon),
         envs_sound Γ ϵ D ->
         ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
@@ -130,7 +126,7 @@ Section BigStepTheorems.
           (Hvs: exists vfs,
               F.relfs (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs).
         { inv H; try match goal with
-                     | H: PT.base_type {{ hdr {_} }} |- _ => inv H
+                     | H: ProperType.base_type {{ hdr {_} }} |- _ => inv H
                      end.
           ind_relfs; repeat invert_nil_cons_relate;
           repeat invert_cons_cons_relate; try invert_cons_predfs.
@@ -159,7 +155,7 @@ Section BigStepTheorems.
   Section LVPreservation.
     Local Hint Constructors type_lvalue : core.
 
-    Theorem lvalue_preservation : forall D Γ (e : E.e tags_t) lv τ,
+    Theorem lvalue_preservation : forall D Γ (e : Expr.e tags_t) lv τ,
         ⧠ e ⇓ lv -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> LL D, Γ ⊢ lv ∈ τ.
     Proof.
       intros D Γ e lv τ Hlv; generalize dependent τ;
@@ -171,7 +167,7 @@ Section BigStepTheorems.
   Section LVProgress.
     Local Hint Constructors lvalue_big_step : core.
 
-    Theorem lvalue_progress : forall D Γ (e : E.e tags_t) τ,
+    Theorem lvalue_progress : forall D Γ (e : Expr.e tags_t) τ,
         lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
     Proof.
       intros D Γ e τ Hlv; generalize dependent τ;
@@ -187,7 +183,7 @@ Section BigStepTheorems.
   Section ParserExprProgress.
     Hint Constructors parser_expr_big_step : core.
 
-    Theorem parser_expr_progress : forall sts D Γ ϵ (e : PR.e tags_t),
+    Theorem parser_expr_progress : forall sts D Γ ϵ (e : AST.Parser.e tags_t),
       envs_sound Γ ϵ D -> ⟅ sts, D, Γ ⟆ ⊢ e -> exists st, ⦑ ϵ, e ⦒ ⇓ st.
     Proof.
       intros sts D Γ ϵ e Hsound He.

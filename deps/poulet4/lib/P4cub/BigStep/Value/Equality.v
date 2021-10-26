@@ -3,7 +3,7 @@ Require Import Poulet4.P4cub.BigStep.Value.Syntax
         Coq.PArith.BinPos Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.Syntax.
 Import Field.FieldTactics Val
-       ValueNotations P.P4cubNotations.
+       ValueNotations TypeNotations.
 Module TE := TypeEquivalence.
 
 Section VE.
@@ -63,7 +63,7 @@ Section VE.
     Hint Rewrite equiv_dec_refl.
     Hint Rewrite Z.eqb_refl.
     Hint Rewrite TE.eqbt_refl.
-    Hint Rewrite (@F.eqb_fs_reflx string E.t).
+    Hint Rewrite (@F.eqb_fs_reflx string Expr.t).
     Hint Rewrite andb_true_r.
     Hint Extern 0 => equiv_dec_refl_tactic : core.
     induction vl using custom_value_ind; simpl in *;

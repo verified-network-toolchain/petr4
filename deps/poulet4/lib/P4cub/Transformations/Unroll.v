@@ -1,12 +1,9 @@
-Require Import Coq.Strings.String.
-Require Import Coq.Init.Nat.
-Require Import Coq.Lists.List.
+Require Import Coq.Strings.String
+        Coq.Init.Nat Coq.Lists.List.
 
-Require Import Poulet4.P4cub.Syntax.AST.
-Import Field.
-Import P4cub.P4cubNotations.
-
-Import ListNotations.
+Require Import Poulet4.P4cub.Syntax.AST
+        Poulet4.P4cub.Syntax.CubNotations.
+Import Field ListNotations AllCubNotations.
 
 Open Scope list_scope.
 Open Scope string_scope.
@@ -15,8 +12,8 @@ Open Scope nat_scope.
 Section Unroll.
   Context (tags_t: Type).
   Context (tags_dummy: tags_t).
-  Notation tpdecl := (P4cub.TopDecl.d tags_t).
-  Notation ParserState := (P4cub.Parser.state_block tags_t).
+  Notation tpdecl := (TopDecl.d tags_t).
+  Notation ParserState := (Parser.state_block tags_t).
 
   Definition CFG : Type :=
     prod (list (prod string ParserState)) (list (prod string (list string))).

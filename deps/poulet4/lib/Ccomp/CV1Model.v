@@ -25,7 +25,7 @@ Definition empty_main :=
 
 (* The order is 
 Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
-Definition main_fn (env: ClightEnv tags_t ) (cargs: P4cub.Expr.constructor_args tags_t): Clight.function
+Definition main_fn (env: ClightEnv tags_t ) (cargs: Expr.constructor_args tags_t): Clight.function
 := 
 (* this is sketchy because I'm not sure how many instantiations will there be
 and I'm not sure if the name works as I thought they would*)
@@ -36,12 +36,12 @@ let eg := Field.get "eg" cargs in
 let ck := Field.get "ck" cargs in
 let dep := Field.get "dep" cargs in
 match p, vr, ig, eg, ck , dep with
-| Some (P4cub.Expr.CAName p), 
-  Some (P4cub.Expr.CAName vr), 
-  Some (P4cub.Expr.CAName ig), 
-  Some (P4cub.Expr.CAName eg), 
-  Some (P4cub.Expr.CAName ck), 
-  Some (P4cub.Expr.CAName dep) => 
+| Some (Expr.CAName p), 
+  Some (Expr.CAName vr), 
+  Some (Expr.CAName ig), 
+  Some (Expr.CAName eg), 
+  Some (Expr.CAName ck), 
+  Some (Expr.CAName dep) => 
 
   match lookup_function tags_t env p, lookup_function tags_t env vr, lookup_function tags_t env ig, lookup_function tags_t env eg, lookup_function tags_t env ck, lookup_function tags_t env dep with
     | inl (pf,pid), inl (vrf,vrid), inl (igf,igid), inl (egf,egid), inl (ckf,ckid), inl (depf,depid) =>
@@ -84,7 +84,3 @@ end .
 
 
 End v1model.
-
-
-
-

@@ -14,23 +14,22 @@ Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
 Open Scope string_scope.
 Local Open Scope Z_scope.
-Module P := AST.P4cub.
-Module E := P.Expr.
+
 Section CEnv.
   Variable (tags_t: Type).
   Inductive ClightEnv : Type := {
     identMap : Env.t string AST.ident; (*contains name and their original references*)
     temps : (list (AST.ident * Ctypes.type));
     vars : (list (AST.ident * Ctypes.type));
-    composites : (list (E.t * Ctypes.composite_definition));
+    composites : (list (Expr.t * Ctypes.composite_definition));
     identGenerator : IdentGen.generator;
     fenv: Env.t string Clight.function;
     tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
-    instantiationCarg : P4cub.Expr.constructor_args tags_t;
+    instantiationCarg : Expr.constructor_args tags_t;
     maininit: Clight.statement;
     globvars: (list (AST.ident * globvar Ctypes.type));
     numStrMap : Env.t Z AST.ident;
-    topdecltypes : Env.t string (P4cub.TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
+    topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -46,7 +45,7 @@ Section CEnv.
     maininit := Clight.Sskip;
     globvars := [];
     numStrMap :=  Env.empty Z AST.ident;
-    topdecltypes := Env.empty string (P4cub.TopDecl.d tags_t);
+    topdecltypes := Env.empty string (TopDecl.d tags_t);
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -146,7 +145,7 @@ Section CEnv.
 
   Definition add_composite_typ 
     (env: ClightEnv)
-    (p4t : E.t)
+    (p4t : Expr.t)
     (composite_def : Ctypes.composite_definition): ClightEnv := 
     {|
     identMap := env.(identMap);
@@ -167,7 +166,7 @@ Section CEnv.
   Definition add_tpdecl 
     (env: ClightEnv) 
     (name: string)
-    (decl: P4cub.TopDecl.d tags_t): ClightEnv
+    (decl: TopDecl.d tags_t): ClightEnv
     := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
     {|
@@ -365,7 +364,7 @@ Section CEnv.
     topdecltypes := to.(topdecltypes);
   |}.  
 
-  Definition set_instantiate_cargs (env: ClightEnv) (cargs: P4cub.Expr.constructor_args tags_t) : ClightEnv :=
+  Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
   {|
     identMap := env.(identMap);
     temps := env.(temps);
@@ -381,7 +380,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
   |}.  
 
-  Definition get_instantiate_cargs (env: ClightEnv) : P4cub.Expr.constructor_args tags_t := 
+  Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
     env.(instantiationCarg).
   Definition set_main_init (env: ClightEnv) (init: Clight.statement) : ClightEnv :=
   {|
@@ -436,7 +435,7 @@ Section CEnv.
   : bool.
     Admitted.
     *)
-  Fixpoint  lookup_composite_rec (composites : list (E.t * composite_definition)) (p4t: E.t): @error_monad string composite_definition :=
+  Fixpoint  lookup_composite_rec (composites : list (Expr.t * composite_definition)) (p4t: Expr.t): @error_monad string composite_definition :=
     match composites with
     | nil => err "can't find the composite"
     | (head, comp) :: tl => if (head == p4t) 
@@ -444,10 +443,10 @@ Section CEnv.
                             else lookup_composite_rec tl p4t
     end.
 
-  Definition lookup_composite (env: ClightEnv) (p4t: E.t) : @error_monad string composite_definition :=
+  Definition lookup_composite (env: ClightEnv) (p4t: Expr.t) : @error_monad string composite_definition :=
     lookup_composite_rec env.(composites) p4t.
 
-  Fixpoint  lookup_composite_id_rec (composites : list (E.t * composite_definition)) (id: ident): @error_monad string composite_definition :=
+  Fixpoint  lookup_composite_id_rec (composites : list (Expr.t * composite_definition)) (id: ident): @error_monad string composite_definition :=
     match composites with
     | nil => err "can't find the composite by id"
     | (head, comp) :: tl => if (name_composite_def comp == id)
@@ -497,7 +496,7 @@ Section CEnv.
     | _, _ => err "failed to lookup the function"
     end.
 
-  Definition lookup_topdecl (env: ClightEnv) (name: string) : @error_monad string (P4cub.TopDecl.d tags_t) := 
+  Definition lookup_topdecl (env: ClightEnv) (name: string) : @error_monad string (TopDecl.d tags_t) := 
     match Env.find name env.(topdecltypes) with
     | None => err "failed to lookup the top declaration"
     | Some decl => error_ret decl

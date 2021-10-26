@@ -3,37 +3,33 @@ Require Import Poulet4.P4cub.Static.Static.
 
 (** * Small-Step Values *)
 
-Module P := P4cub.
-Module E := P.Expr.
-Module F := P.F.
+Import AllCubNotations Env.EnvNotations.
 
-Import P.P4cubNotations Env.EnvNotations.
-
-Inductive value {tags_t : Type} : E.e tags_t -> Prop :=
+Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
 | value_bool (b : bool) (i : tags_t) :
     value <{ BOOL b @ i }>
 | value_bit (w : positive) (n : Z) (i : tags_t) :
     value <{ w W n @ i }>
 | value_int (w : positive) (z : Z) (i : tags_t) :
     value <{ w S z @ i }>
-| value_tuple (es : list (E.e tags_t)) (i : tags_t) :
+| value_tuple (es : list (Expr.e tags_t)) (i : tags_t) :
     Forall value es ->
     value <{ tup es @ i }>
-| value_struct (fs : F.fs string (E.t * E.e tags_t))
+| value_struct (fs : F.fs string (Expr.t * Expr.e tags_t))
                (i : tags_t) :
     F.predfs_data (value ∘ snd) fs ->
     value <{ struct { fs } @ i }>
-| value_header (fs : F.fs string (E.t * E.e tags_t))
-               (b : E.e tags_t) (i : tags_t) :
+| value_header (fs : F.fs string (Expr.t * Expr.e tags_t))
+               (b : Expr.e tags_t) (i : tags_t) :
     value b ->
     F.predfs_data (value ∘ snd) fs ->
     value <{ hdr { fs } valid:=b @ i }>
 | value_error (err : option (string)) (i : tags_t) :
     value <{ Error err @ i }>
-| value_matchkind (mk : E.matchkind) (i : tags_t) :
+| value_matchkind (mk : Expr.matchkind) (i : tags_t) :
     value <{ Matchkind mk @ i }>
-| value_headerstack (fs : F.fs string (E.t))
-                    (hs : list (E.e tags_t)) (n : positive)
+| value_headerstack (fs : F.fs string (Expr.t))
+                    (hs : list (Expr.e tags_t)) (n : positive)
                     (ni : Z) (i : tags_t) :
     Forall value hs ->
     value <{ Stack hs:fs[n] nextIndex:=ni @ i }>.
@@ -42,7 +38,7 @@ Inductive value {tags_t : Type} : E.e tags_t -> Prop :=
 Section IsValueInduction.
   Variable tags_t : Type.
   
-  Variable P : E.e tags_t -> Prop.
+  Variable P : Expr.e tags_t -> Prop.
   
   Hypothesis HBool : forall b i, P <{ BOOL b @ i }>.
   
@@ -76,16 +72,16 @@ Section IsValueInduction.
       Forall P hs ->
       P <{ Stack hs:fs[n] nextIndex:=ni @ i }>.
   
-  Definition custom_value_ind : forall (e : E.e tags_t),
+  Definition custom_value_ind : forall (e : Expr.e tags_t),
       value e -> P e :=
-    fix vind (e : E.e tags_t) (H : value e) : P e :=
-      let fix lind {es : list (E.e tags_t)}
+    fix vind (e : Expr.e tags_t) (H : value e) : P e :=
+      let fix lind {es : list (Expr.e tags_t)}
               (Hes : Forall value es) : Forall P es :=
           match Hes with
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (lind Ht)
           end in
-      let fix find {A : Type} {fs : F.fs string (A * E.e tags_t)}
+      let fix find {A : Type} {fs : F.fs string (A * Expr.e tags_t)}
               (Hfs : F.predfs_data (value ∘ snd) fs) :
             F.predfs_data (P ∘ snd) fs :=
           match Hfs with
@@ -112,7 +108,7 @@ Section Lemmas.
   Hint Constructors value : core.
   Hint Extern 0 => inv_Forall_cons : core.
   
-  Lemma value_exm : forall {tags_t : Type} (e : E.e tags_t), value e \/ ~ value e.
+  Lemma value_exm : forall {tags_t : Type} (e : Expr.e tags_t), value e \/ ~ value e.
   Proof.
     induction e using custom_e_ind; auto 2;
       try (right; intros H'; inv H'; contradiction).
@@ -133,7 +129,7 @@ Section Lemmas.
   Qed.
 End Lemmas.
 
-Inductive lvalue {tags_t : Type} : E.e tags_t -> Prop :=
+Inductive lvalue {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue <{ Var x:τ @ i }>
 | lvalue_slice lv τ hi lo i :
@@ -171,7 +167,7 @@ Module CanonicalForms.
     
     Context {tags_t : Type}.
     
-    Variable v : E.e tags_t.
+    Variable v : Expr.e tags_t.
     
     Hypothesis Hv : value v.
     

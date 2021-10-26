@@ -9,20 +9,20 @@ Require Import Poulet4.P4cub.Syntax.Syntax
 Section StepDefs.
   Import TypeEquivalence ProperType
          F.FieldTactics P4ArithTactics
-         P.P4cubNotations Env.EnvNotations.
+         AllCubNotations Env.EnvNotations.
   
   Context {tags_t : Type}.
   
   (** Expression environment. *)
-  Definition eenv : Type := Env.t (string) (E.e tags_t).
+  Definition eenv : Type := Env.t (string) (Expr.e tags_t).
   
   (** Bit-slicing. *)
-  Definition eval_slice (hi lo : positive) (v : E.e tags_t) : option (E.e tags_t) :=
+  Definition eval_slice (hi lo : positive) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
     match v with
     | <{ _ W z @ i }>
     | <{ _ S z @ i }>
       => let w' := (hi - lo + 1)%positive in
-        Some $ E.EBit w'
+        Some $ Expr.EBit w'
              (BitArith.mod_bound w' $
               BitArith.bitstring_slice z hi lo) i
     | _ => None
@@ -30,13 +30,13 @@ Section StepDefs.
   (**[]*)
   
   Definition eval_cast
-             (target : E.t) (v : E.e tags_t) : option (E.e tags_t) :=
+             (target : Expr.t) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
     match target, v with
-    | {{ bit<xH> }}, <{ TRUE @ i }>         => Some (E.EBit 1%positive 1%N i)
-    | {{ bit<xH> }}, <{ FALSE @ i }>        => Some (E.EBit 1%positive 0%N i)
-    | {{ Bool }}, E.EBit 1%positive 1%N i => Some <{ TRUE @ i }>
-    | {{ Bool }}, E.EBit 1%positive 0%N i => Some <{ FALSE @ i }>
-    | {{ bit<w> }}, E.EInt _ z i
+    | {{ bit<xH> }}, <{ TRUE @ i }>         => Some (Expr.EBit 1%positive 1%N i)
+    | {{ bit<xH> }}, <{ FALSE @ i }>        => Some (Expr.EBit 1%positive 0%N i)
+    | {{ Bool }}, Expr.EBit 1%positive 1%N i => Some <{ TRUE @ i }>
+    | {{ Bool }}, Expr.EBit 1%positive 0%N i => Some <{ FALSE @ i }>
+    | {{ bit<w> }}, Expr.EInt _ z i
       => let n := BitArith.mod_bound w z in
         Some <{ w W n @ i }>
     | {{ int<w> }}, <{ _ W n @ i }>
@@ -49,49 +49,49 @@ Section StepDefs.
       => let z := IntArith.mod_bound w z in
         Some <{ w S z @ i }>
     | {{ struct { fs } }}, <{ tup vs @ i }>
-      => Some $ E.EStruct (combine (F.keys fs) $ combine (F.values fs) vs) i
+      => Some $ Expr.EStruct (combine (F.keys fs) $ combine (F.values fs) vs) i
     | {{ hdr { fs } }}, <{ tup vs @ i }>
       => Some
-          $ E.EHeader
+          $ Expr.EHeader
           (combine (F.keys fs) $ combine (F.values fs) vs) <{ TRUE @ i }> i
     | _, _ => None
     end.
   (**[]*)
   
   (** Default (value) Expression. *)
-  Fail Fixpoint edefault (i : tags_t) (τ : E.t) : E.e tags_t :=
-    let fix lstruct (ts : list (E.t)) : list (E.e tags_t) :=
+  Fail Fixpoint edefault (i : tags_t) (τ : Expr.t) : Expr.e tags_t :=
+    let fix lstruct (ts : list (Expr.t)) : list (Expr.e tags_t) :=
         match ts with
         | []     => []
         | τ :: ts => edefault i τ :: lstruct ts
         end in
-    let fix fstruct (fs : F.fs string (E.t))
-        : F.fs string (E.t * E.e tags_t) :=
+    let fix fstruct (fs : F.fs string (Expr.t))
+        : F.fs string (Expr.t * Expr.e tags_t) :=
         match fs with
         | [] => []
         | (x, τ) :: fs => (x, (τ, edefault i τ)) :: fstruct fs
         end in
     match τ with
     | {{ Bool }} => <{ BOOL false @ i }>
-    | {{ bit<w> }} => E.EBit w 0%Z i
-    | {{ int<w> }} => E.EInt w 0%Z i
+    | {{ bit<w> }} => Expr.EBit w 0%Z i
+    | {{ int<w> }} => Expr.EInt w 0%Z i
     | {{ error }} => <{ Error None @ i }>
     | {{ matchkind }} => <{ Matchkind exact @ i }>
-    | {{ tuple ts }} => E.ETuple (lstruct ts) i
-    | {{ struct { fs } }} => E.EStruct (fstruct fs) i
-    | {{ hdr { fs } }} => E.EHeader (fstruct fs) <{ BOOL false @ i }> i
+    | {{ tuple ts }} => Expr.ETuple (lstruct ts) i
+    | {{ struct { fs } }} => Expr.EStruct (fstruct fs) i
+    | {{ hdr { fs } }} => Expr.EHeader (fstruct fs) <{ BOOL false @ i }> i
     | {{ stack tfs[n] }}
       => let tefs := fstruct tfs in
         let hs :=
             repeat
             <{ hdr { tefs } valid:= BOOL false @ i @ i }>
             (Pos.to_nat n) in
-        E.EHeaderStack tfs hs n 0%Z i
+        Expr.EHeaderStack tfs hs n 0%Z i
     end.
   (**[]*)
   
   (** Unary Operations. *)
-  Definition eval_uop (op : E.uop) (e : E.e tags_t) : option (E.e tags_t) :=
+  Definition eval_uop (op : Expr.uop) (e : Expr.e tags_t) : option (Expr.e tags_t) :=
     match op, e with
     | _{ ! }_, <{ BOOL b @ i }>
       => let b' := negb b in Some <{ BOOL b' @ i }>
@@ -117,114 +117,114 @@ Section StepDefs.
       => let pnat := Pos.to_nat p in
         let sizenat := Pos.to_nat n in
         let hdefault :=
-            E.EHeader
+            Expr.EHeader
               (F.map (fun τ => (τ, edefault i τ)) ts)
             <{ BOOL false @ i }> i in
         if lt_dec pnat sizenat then
           let new_hdrs := repeat hdefault pnat in
           let remains := firstn (sizenat - pnat) hs in
-          Some $ E.EHeaderStack ts (new_hdrs ++ remains) n
+          Some $ Expr.EHeaderStack ts (new_hdrs ++ remains) n
                (Z.min (ni + Zpos p)%Z (Z.pos n - 1)%Z) i
         else
           let new_hdrs := repeat hdefault sizenat in
-          Some $ E.EHeaderStack ts new_hdrs n (Z.pos n - 1)%Z i
+          Some $ Expr.EHeaderStack ts new_hdrs n (Z.pos n - 1)%Z i
     | _{ Pop p }_, <{ Stack hs:ts[n] nextIndex:=ni @ i }>
       => let pnat := Pos.to_nat p in
         let sizenat := Pos.to_nat n in
         let hdefault :=
-            E.EHeader
+            Expr.EHeader
               (F.map (fun τ => (τ, edefault i τ)) ts)
             <{ BOOL false @ i }> i in
         if lt_dec pnat sizenat then
           let new_hdrs := repeat hdefault pnat in
           let remains := skipn pnat hs in
-          Some $ E.EHeaderStack ts (remains ++ new_hdrs) n
+          Some $ Expr.EHeaderStack ts (remains ++ new_hdrs) n
                (Z.max 0 (ni - Zpos p)%Z) i
         else
           let new_hdrs := repeat hdefault sizenat in
-          Some $ E.EHeaderStack ts new_hdrs n 0%N i*)
+          Some $ Expr.EHeaderStack ts new_hdrs n 0%N i*)
     | _, _ => None
     end.
   (**[]*)
   
   (** Binary operations. *)
   Definition eval_bop
-             (op : E.bop) (v1 v2 : E.e tags_t) (i : tags_t) : option (E.e tags_t) :=
+             (op : Expr.bop) (v1 v2 : Expr.e tags_t) (i : tags_t) : option (Expr.e tags_t) :=
     match op, v1, v2 with
     | +{ + }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.plus_mod w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.plus_mod w n1 n2) i
     | +{ + }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.plus_mod w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.plus_mod w z1 z2) i
     | +{ |+| }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.plus_sat w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.plus_sat w n1 n2) i
     | +{ |+| }+,  <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.plus_sat w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.plus_sat w z1 z2) i
     | +{ - }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.minus_mod w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.minus_mod w n1 n2) i
     | +{ - }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.minus_mod w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.minus_mod w z1 z2) i
     | +{ |-| }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.minus_sat w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.minus_sat w n1 n2) i
     | +{ |-| }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.minus_sat w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.minus_sat w z1 z2) i
     | +{ × }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.mult_mod w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.mult_mod w n1 n2) i
     | +{ × }+, <{ w S n1 @ _ }>, <{ _ S n2 @ _ }>
-      => Some $ E.EInt w (IntArith.mult_mod w n1 n2) i
+      => Some $ Expr.EInt w (IntArith.mult_mod w n1 n2) i
     | +{ << }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.shift_left w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.shift_left w n1 n2) i
     | +{ << }+, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
-      => Some $ E.EInt w (IntArith.shift_left w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.shift_left w z1 z2) i
     | +{ >> }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.shift_right w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.shift_right w n1 n2) i
     | +{ >> }+, <{ w S z1 @ _ }>, <{ _ W z2 @ _ }>
-      => Some $ E.EInt w (IntArith.shift_right w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.shift_right w z1 z2) i
     | +{ & }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.bit_and w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.bit_and w n1 n2) i
     | +{ & }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.bit_and w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.bit_and w z1 z2) i
     | +{ ^ }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.bit_xor w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.bit_xor w n1 n2) i
     | +{ ^ }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.bit_xor w z1 z2) i
+      => Some $ Expr.EInt w (IntArith.bit_xor w z1 z2) i
     | +{ | }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }>
-      => Some $ E.EBit w (BitArith.bit_or w n1 n2) i
+      => Some $ Expr.EBit w (BitArith.bit_or w n1 n2) i
     | +{ | }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }>
-      => Some $ E.EInt w (IntArith.bit_or w z1 z2) i
-    | +{ <= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <=? n2)%Z i
-    | +{ <= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <=? z2)%Z i
-    | +{ < }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n1 <? n2)%Z i
-    | +{ < }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z1 <? z2)%Z i
-    | +{ >= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <=? n1)%Z i
-    | +{ >= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <=? z1)%Z i
-    | +{ > }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ E.EBool (n2 <? n1)%Z i
-    | +{ > }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ E.EBool (z2 <? z1)%Z i
-    | +{ && }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 && b2) i
-    | +{ || }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ E.EBool (b1 || b2) i
-    | +{ == }+, _, _ => Some $ E.EBool (ExprEquivalence.eqbe v1 v2) i
-    | +{ != }+, _, _ => Some $ E.EBool (negb $ ExprEquivalence.eqbe v1 v2) i
+      => Some $ Expr.EInt w (IntArith.bit_or w z1 z2) i
+    | +{ <= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ Expr.EBool (n1 <=? n2)%Z i
+    | +{ <= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ Expr.EBool (z1 <=? z2)%Z i
+    | +{ < }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ Expr.EBool (n1 <? n2)%Z i
+    | +{ < }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ Expr.EBool (z1 <? z2)%Z i
+    | +{ >= }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ Expr.EBool (n2 <=? n1)%Z i
+    | +{ >= }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ Expr.EBool (z2 <=? z1)%Z i
+    | +{ > }+, <{ w W n1 @ _ }>, <{ _ W n2 @ _ }> => Some $ Expr.EBool (n2 <? n1)%Z i
+    | +{ > }+, <{ w S z1 @ _ }>, <{ _ S z2 @ _ }> => Some $ Expr.EBool (z2 <? z1)%Z i
+    | +{ && }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ Expr.EBool (b1 && b2) i
+    | +{ || }+, <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => Some $ Expr.EBool (b1 || b2) i
+    | +{ == }+, _, _ => Some $ Expr.EBool (ExprEquivalence.eqbe v1 v2) i
+    | +{ != }+, _, _ => Some $ Expr.EBool (negb $ ExprEquivalence.eqbe v1 v2) i
     | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
     | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
-      => Some $ E.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
+      => Some $ Expr.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
     | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 S n2 @ _ }>
     | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 W n2 @ _ }>
-      => Some $ E.EInt (w1 + w2)%positive (IntArith.concat w1 w2 n1 n2) i
+      => Some $ Expr.EInt (w1 + w2)%positive (IntArith.concat w1 w2 n1 n2) i
     | _, _, _ => None
     end.
   (**[]*)
   
   (** Get header stack data from value. *)
-  Definition header_stack_data (v : E.e tags_t)
+  Definition header_stack_data (v : Expr.e tags_t)
     : option (positive * Z *
-              F.fs string (E.t) *
-              (list (E.e tags_t))) :=
+              F.fs string (Expr.t) *
+              (list (Expr.e tags_t))) :=
     match v with
     | <{ Stack hs:ts[n] nextIndex:=ni @ _}> => Some (n,ni,ts,hs)
     | _ => None
     end.
   (**[]*)
   
-  Definition eval_member (x : string) (v : E.e tags_t) : option (E.e tags_t) :=
+  Definition eval_member (x : string) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
     match v with
     | <{ struct { vs } @ _ }>
     | <{ hdr { vs } valid:=_ @ _ }> => vs ▷ F.get x >>| snd
@@ -233,7 +233,7 @@ Section StepDefs.
   (**[]*)
 
   (** Header stack access. *)
-  Definition eval_access (v : E.e tags_t) (n : Z) : option (E.e tags_t) :=
+  Definition eval_access (v : Expr.e tags_t) (n : Z) : option (Expr.e tags_t) :=
     v
       ▷ header_stack_data
       >>| fourple_4
@@ -372,8 +372,8 @@ Section StepDefs.
     Hint Rewrite (@F.predfs_data_map string).
     Hint Rewrite @F.map_fst.
     Hint Rewrite @map_compose.
-    Hint Rewrite (@Forall2_map_l E.t).
-    Hint Rewrite (@Forall2_Forall E.t).
+    Hint Rewrite (@Forall2_map_l Expr.t).
+    Hint Rewrite (@Forall2_Forall Expr.t).
     Hint Rewrite (@F.predfs_data_map).
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_snd.
@@ -473,7 +473,7 @@ Section StepDefs.
   End HelpersExist.
   
   (** Lookup an lvalue. *)
-  Fixpoint lv_lookup (ϵ : eenv) (lv : E.e tags_t) : option (E.e tags_t) :=
+  Fixpoint lv_lookup (ϵ : eenv) (lv : Expr.e tags_t) : option (Expr.e tags_t) :=
     match lv with
     | <{ Var x:_ @ _ }> => Env.find x ϵ
     | <{ Mem lv:_ dot x @ _ }> =>
@@ -493,7 +493,7 @@ Section StepDefs.
   (**[]*)
   
   (** Updating an lvalue in an environment. *)
-  Fixpoint lv_update (lv v : E.e tags_t) (ϵ : eenv) : eenv :=
+  Fixpoint lv_update (lv v : Expr.e tags_t) (ϵ : eenv) : eenv :=
     match lv with
     | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
     | <{ Mem lv:_ dot x @ _ }> =>
@@ -501,12 +501,12 @@ Section StepDefs.
       | Some <{ struct { vs } @ i }>
         => match F.get x vs with
           | None => ϵ
-          | Some (τ,_) => lv_update lv (E.EStruct (F.update x (τ,v) vs) i) ϵ
+          | Some (τ,_) => lv_update lv (Expr.EStruct (F.update x (τ,v) vs) i) ϵ
           end
       | Some <{ hdr { vs } valid:=b @ i }>
         => match F.get x vs with
           | None => ϵ
-          | Some (τ,_) => lv_update lv (E.EHeader (F.update x (τ,v) vs) b i) ϵ
+          | Some (τ,_) => lv_update lv (Expr.EHeader (F.update x (τ,v) vs) b i) ϵ
           end
       | _ => ϵ
       end
@@ -526,31 +526,31 @@ Section StepDefs.
       values of [In] args are substituted
       into the function parameters. *)
   Definition copy_in
-             (argsv : E.args tags_t)
+             (argsv : Expr.args tags_t)
              (ϵcall : eenv) : eenv -> eenv :=
     F.fold (fun x arg ϵ =>
               match arg with
-              | P.PAIn (_,v)     => !{ x ↦ v ;; ϵ }!
-              | P.PAInOut (_,lv) => match lv_lookup ϵcall lv with
+              | PAIn (_,v)     => !{ x ↦ v ;; ϵ }!
+              | PAInOut (_,lv) => match lv_lookup ϵcall lv with
                                    | None   => ϵ
                                    | Some v => !{ x ↦ v ;; ϵ }!
                                    end
-              | P.PAOut _    => ϵ
-              | P.PADirLess _ => ϵ (*what to do with directionless param*)
+              | PAOut _    => ϵ
+              | PADirLess _ => ϵ (*what to do with directionless param*)
               end) argsv.
   (**[]*)
   
   (** Update call-site environment with
       out variables from function call evaluation. *)
   Definition copy_out
-             (argsv : E.args tags_t)
+             (argsv : Expr.args tags_t)
              (ϵf : eenv) : eenv -> eenv :=
     F.fold (fun x arg ϵ =>
               match arg with
-              | P.PADirLess _ => ϵ (*what to do with directionless param*)
-              | P.PAIn _ => ϵ
-              | P.PAOut (_,lv)
-              | P.PAInOut (_,lv) =>
+              | PADirLess _ => ϵ (*what to do with directionless param*)
+              | PAIn _ => ϵ
+              | PAOut (_,lv)
+              | PAInOut (_,lv) =>
                 match Env.find x ϵf with
                 | None   => ϵ
                 | Some v => lv_update lv v ϵ
@@ -559,23 +559,23 @@ Section StepDefs.
   (**[]*)
   
   (** Table environment. *)
-  Definition tenv : Type := Env.t string (CD.table tags_t).
+  Definition tenv : Type := Env.t string (Control.table tags_t).
   
   (** Function declarations and closures. *)
   Inductive fdecl : Type :=
-  | FDecl (closure : eenv) (fs : fenv) (ins : ienv) (body : ST.s tags_t)
+  | FDecl (closure : eenv) (fs : fenv) (ins : ienv) (body : Stmt.s tags_t)
   with fenv : Type :=
   | FEnv (fs : Env.t string fdecl)
   (** Action declarations and closures *)
   with adecl : Type :=
-  | ADecl (closure : eenv) (fs : fenv) (ins : ienv) (aa : aenv) (body : ST.s tags_t)
+  | ADecl (closure : eenv) (fs : fenv) (ins : ienv) (aa : aenv) (body : Stmt.s tags_t)
   with aenv : Type :=
   | AEnv (aa : Env.t string adecl)
   (** Instances and Environment. *)
   with inst : Type :=
   | CInst (closure : eenv) (fs : fenv) (ins : ienv)
           (tbls : tenv) (aa : aenv)
-          (apply_blk : ST.s tags_t)  (* control instance *)
+          (apply_blk : Stmt.s tags_t)  (* control instance *)
   | PInst (* TODO: parser instance *)
   | EInst (* TODO: extern object instance *)
   with ienv : Type :=
@@ -609,9 +609,9 @@ Section StepDefs.
   (** Control plane table entries,
       essentially mapping tables to an action call. *)
   Definition entries : Type :=
-    list (E.e tags_t * E.matchkind) ->
+    list (Expr.e tags_t * Expr.matchkind) ->
     list string ->
-    string * E.args tags_t.
+    string * Expr.args tags_t.
   (**[]*)
   
   (** Control plane configuration. *)
@@ -620,7 +620,7 @@ Section StepDefs.
   (** Control declarations and closures. *)
   Inductive cdecl : Type :=
   | CDecl (cs : cenv) (closure : eenv) (fs : fenv) (ins : ienv)
-          (body : CD.d tags_t) (apply_block : ST.s tags_t)
+          (body : Control.d tags_t) (apply_block : Stmt.s tags_t)
   with cenv : Type :=
   | CEnv (cs : Env.t string cdecl).
   (**[]*)

@@ -11,7 +11,7 @@ Require Poulet4.P4cub.Syntax.Syntax.
 (** * P4cub AST *)
 Module P4sel.
   Module F := Field.
-  Module P4cub := Poulet4.P4cub.Syntax.AST.P4cub.
+  Module P4cub := Poulet4.P4cub.Syntax.AST.
   (** * Expression Grammar *)
   Module Expr.
     

@@ -1,16 +1,12 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
-Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST.
-
-Module P := P4cub.
-Module F := P.F.
-Module E := P.Expr.
-Module PRSR := P.Parser.
+Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
+        Poulet4.P4cub.Syntax.CubNotations.
 
 (** Custom induction principle for [t]. *)
 Section TypeInduction.
-  Import E TypeNotations.
+  Import Expr TypeNotations.
   
   (** An arbitrary property. *)
   Variable P : t -> Prop.
@@ -79,7 +75,7 @@ End TypeInduction.
 
 (** A custom induction principle for [e]. *)
 Section ExprInduction.
-  Import E.
+  Import Expr.
   Import TypeNotations.
   Import UopNotations.
   Import ExprNotations.
@@ -185,7 +181,7 @@ End ExprInduction.
 
 (** A custom induction principle for select patterns. *)
 Section PatternInduction.
-  Import PRSR.
+  Import Parser.
   Import ParserNotations.
       
   Variable P : pat -> Prop.
@@ -227,9 +223,9 @@ End PatternInduction.
 
 (** A custom induction principle for parser expressions. *)
 Section ParserExprInduction.
-  Import PRSR.
+  Import Parser.
   Import ParserNotations.
-  Import E.ExprNotations.
+  Import ExprNotations.
   
   Context {tags_t : Type}.
   

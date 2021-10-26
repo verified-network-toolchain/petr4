@@ -1,11 +1,7 @@
 Require Import Poulet4.P4cub.Envn Poulet4.P4cub.SmallStep.Value
         Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.SmallStep.Semantics.
 
-Module P := Poulet4.P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Module PR := P.Parser.
-Import P.P4cubNotations.
-Import Step F.FieldTactics.
+Import AllCubNotations Step F.FieldTactics.
 
 Section Determinism.
   Context {tags_t : Type}.
@@ -16,7 +12,7 @@ Section Determinism.
     Hint Rewrite map_app : core.
     Local Hint Extern 0 => inv_Forall_cons : core.
 
-    Lemma step_value_false : forall ϵ (e e' : E.e tags_t),
+    Lemma step_value_false : forall ϵ (e e' : Expr.e tags_t),
       ℵ ϵ, e -->  e' -> ~ value e.
     Proof.
       intros ϵ e e' He Hv; induction He; inv Hv;
@@ -50,7 +46,7 @@ Section Determinism.
     Local Hint Extern 0 => ind_case : core.
     Local Hint Extern 0 => contradiction : core.
 
-    Theorem expr_deterministic : forall ϵ (e e1 e2 : E.e tags_t),
+    Theorem expr_deterministic : forall ϵ (e e1 e2 : Expr.e tags_t),
         ℵ ϵ, e -->  e1 -> ℵ ϵ, e -->  e2 -> e1 = e2.
     Proof.
       intros ϵ e e1 e2 He1; generalize dependent e2;
@@ -78,7 +74,7 @@ Section Determinism.
     Admitted.
   End ExprDeterminism.
 
-  Lemma lvalue_deterministic : forall (e e1 e2 : E.e tags_t),
+  Lemma lvalue_deterministic : forall (e e1 e2 : Expr.e tags_t),
       ℶ e -->  e1 -> ℶ e -->  e2 -> e1 = e2.
   Proof.
     intros e e1 e2 H1; generalize dependent e2;
@@ -91,7 +87,7 @@ Section Determinism.
     Local Hint Extern 0 => inv_Forall_cons : core.
 
     Lemma parser_expr_deterministic :
-      forall ϵ (e e1 e2 : PR.e tags_t),
+      forall ϵ (e e1 e2 : AST.Parser.e tags_t),
         π ϵ, e -->  e1 -> π ϵ, e -->  e2 -> e1 = e2.
     Proof.
       intros ϵ e e1 e2 He1; generalize dependent e2;

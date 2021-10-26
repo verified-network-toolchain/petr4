@@ -2,9 +2,7 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Transformations.Statementize
         Coq.Numbers.DecimalString
         Coq.Strings.Ascii Coq.Strings.String.
-Import P4cub.P4cubNotations StringSyntax Field.FieldTactics.
-Module E := P4cub.Expr.
-Module ST := P4cub.Stmt.
+Import AllCubNotations StringSyntax Field.FieldTactics.
 
 Section Lifted.
   (*Open Scope char_scope.*)
@@ -12,7 +10,7 @@ Section Lifted.
   
   Context {tags_t : Type}.
   
-  Inductive lifted_expr : E.e tags_t -> Prop :=
+  Inductive lifted_expr : Expr.e tags_t -> Prop :=
   | lifted_bool b i :
       lifted_expr <{ BOOL b @ i }>
   | lifted_var x τ i :
@@ -28,13 +26,13 @@ Section Lifted.
       lifted_expr e ->
       lifted_expr <{ Access e[z] @ i }>.
 
-  Inductive lifted_args : E.arrowE tags_t -> Prop :=
+  Inductive lifted_args : Expr.arrowE tags_t -> Prop :=
   | lifted_args_arrow tes teo :
-      F.predfs_data (P4cub.pred_paramarg_same (lifted_expr ∘ snd)) tes ->
+      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) tes ->
       predop (lifted_expr ∘ snd) teo ->
-      lifted_args (P4cub.Arrow tes teo).
+      lifted_args (Arrow tes teo).
   
-  Inductive lifted_stmt : ST.s tags_t -> Prop :=
+  Inductive lifted_stmt : Stmt.s tags_t -> Prop :=
   | lifted_skip i :
       lifted_stmt -{ skip @ i }-
   | lifted_vardecl x τ i :
@@ -92,12 +90,12 @@ Section Lifted.
       lifted_stmt -{ b{ s }b }-
   | lifted_extern_method_call e f targs args i :
       lifted_args args ->
-      lifted_stmt (ST.SExternMethodCall e f targs args i)
+      lifted_stmt (Stmt.SExternMethodCall e f targs args i)
   | lifted_fun_call f targs args i :
       lifted_args args ->
-      lifted_stmt (ST.SFunCall f targs args i)
+      lifted_stmt (Stmt.SFunCall f targs args i)
   | lifted_act_call a args i :
-      F.predfs_data (P4cub.pred_paramarg_same (lifted_expr ∘ snd)) args ->
+      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) args ->
       lifted_stmt -{ calling a with args @ i }-
   | lifted_return_void i :
       lifted_stmt -{ returns @ i }-
@@ -109,7 +107,7 @@ Section Lifted.
   | lifted_invoke t i :
       lifted_stmt -{ invoke t @ i }-
   | lifted_apply x ext_args args i :
-      F.predfs_data (P4cub.pred_paramarg_same (lifted_expr ∘ snd)) args ->
+      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) args ->
       lifted_stmt -{ apply x with ext_args & args @ i }-.
   
   Local Hint Constructors lifted_expr : core.
@@ -153,7 +151,7 @@ Section Lifted.
     end.
 
   Section HelperLemmas.
-    Variable f : E.e tags_t -> VarNameGen.t -> ST.s tags_t * E.e tags_t * VarNameGen.t.
+    Variable f : Expr.e tags_t -> VarNameGen.t -> Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
 
     (*Lemma TransformExprList'_lifted_expr :
       forall es env i,

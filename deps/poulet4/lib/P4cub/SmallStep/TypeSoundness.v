@@ -6,9 +6,7 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.SmallStep.Util
         Poulet4.P4cub.SmallStep.Semantics.
 Import CanonicalForms Step.
-Module P := P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Import P.P4cubNotations TypeEquivalence
+Import AllCubNotations TypeEquivalence
        ProperType F.FieldTactics Env.EnvNotations.
 
 Section LValueTheorems.
@@ -20,7 +18,7 @@ Section LValueTheorems.
   Section LValuePreservation.
     Local Hint Constructors check_expr : core.
 
-    Theorem lvalue_preservation : forall (e e' : E.e tags_t) τ,
+    Theorem lvalue_preservation : forall (e e' : Expr.e tags_t) τ,
       ℶ e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
@@ -33,7 +31,7 @@ Section LValueTheorems.
     Hint Constructors lvalue : core.
     Hint Constructors lvalue_step : core.
 
-    Theorem lvalue_progress : forall (e : E.e tags_t) τ,
+    Theorem lvalue_progress : forall (e : Expr.e tags_t) τ,
         lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         lvalue e \/ exists e', ℶ e -->  e'.
     Proof.
@@ -57,7 +55,7 @@ Section ExprTheorems.
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset : Prop :=
-    forall (x : string) (τ : E.t),
+    forall (x : string) (τ : Expr.t),
       Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
@@ -65,7 +63,7 @@ Section ExprTheorems.
 
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type : Prop :=
-    forall (x : string) (τ : E.t) (v : E.e tags_t),
+    forall (x : string) (τ : Expr.t) (v : Expr.e tags_t),
       Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
   (**[]*)
 
@@ -84,7 +82,7 @@ Section ExprTheorems.
     Hint Rewrite app_length : core.
     Local Hint Resolve Forall2_app : core.
     Local Hint Constructors check_expr : core.
-    Local Hint Constructors PT.proper_nesting : core.
+    Local Hint Constructors ProperType.proper_nesting : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
         ℵ ϵ, e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
@@ -174,15 +172,15 @@ Section ExprTheorems.
         + destruct H4 as [? ?]. inv H2.
           subst fs; subst fs'.
           repeat rewrite app_comm_cons in *. right.
-          exists (E.EStruct (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
+          exists (Expr.EStruct (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
+          right. exists (Expr.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
+          right. exists (Expr.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
       - clear H. rename H0 into H; rename H1 into H0.
         induction H; repeat invert_cons_cons_relate;
@@ -192,18 +190,18 @@ Section ExprTheorems.
         + destruct H4 as [? ?]. inv H2.
           * subst fs; subst fs'.
             repeat rewrite app_comm_cons in *. right.
-            exists (E.EHeader
+            exists (Expr.EHeader
                  (((s0, p) :: prefix) ++ (x2, (τ, e')) :: suffix)
                <{ BOOL x @ x0 }> i).
             repeat constructor; unravel; eauto 1.
           * inv H9.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
+          exists (Expr.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
+          exists (Expr.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
       - clear H H0 H1 H2.
         induction H3; intros; repeat inv_Forall_cons; eauto 2;
@@ -262,7 +260,7 @@ Section ParserExprTheorems.
     Hint Rewrite Forall_app : core.
     Hint Resolve value_exm : core.
 
-    Inductive select_expr : PR.e tags_t -> Prop :=
+    Inductive select_expr : AST.Parser.e tags_t -> Prop :=
       Select_select e d cases i :
         select_expr p{ select e { cases } default:=d @ i }p.
     (**[]*)

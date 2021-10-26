@@ -2,12 +2,12 @@ Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.P4sel.P4sel.
 Require Import Poulet4.Monads.Option.
 Require Poulet4.P4sel.VarNameGen.
-Module Cub := P4cub.
+Module Cub := AST.
 Module F := Cub.F.
 Module CubE := Cub.Expr.
 Module CubS := Cub.Stmt.
 Module CubPA := Cub.Parser.
-Module CubCT := Cub.Control.ControlDecl.
+Module CubCT := Cub.Control.
 Module CubTD := Cub.TopDecl.
 Module Sel := P4sel.
 Module SelE := Sel.Expr.

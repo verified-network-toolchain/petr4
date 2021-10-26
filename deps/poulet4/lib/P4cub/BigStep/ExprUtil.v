@@ -4,19 +4,15 @@ Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value.Value
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxilary.
 Require Poulet4.P4cub.Static.Util.
-Module P := P4cub.
-Module E := P.Expr.
-Module F := P.F.
-Module V := Val.
-Import V.ValueNotations P.P4cubNotations Env.EnvNotations.
+Import Val.ValueNotations AllCubNotations Env.EnvNotations.
 
 (** Bit-slicing. *)
-Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
+Definition eval_slice (hi lo : positive) (v : Val.v) : option Val.v :=
   match v with
   | ~{ _ VW z }~
   | ~{ _ VS z }~
     => let w' := (hi - lo + 1)%positive in
-      Some $ V.VBit w' $
+      Some $ Val.VBit w' $
            BitArith.mod_bound w' $
            BitArith.bitstring_slice z hi lo
   | _ => None
@@ -24,19 +20,19 @@ Definition eval_slice (hi lo : positive) (v : V.v) : option V.v :=
 (**[]*)
 
 (** Unary Operations. *)
-Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
+Definition eval_uop (op : Expr.uop) (v : Val.v) : option Val.v :=
   match op, v with
-  | _{ ! }_, ~{ VBOOL b }~ => Some $ V.VBool  $ negb b
-  | _{ ~ }_, ~{ w VW n }~  => Some $ V.VBit w $ BitArith.bit_not w n
-  | _{ ~ }_, ~{ w VS n }~  => Some $ V.VInt w $ IntArith.bit_not w n
-  | _{ - }_, ~{ w VW z }~  => Some $ V.VBit w $ BitArith.neg w z
-  | _{ - }_, ~{ w VS z }~  => Some $ V.VInt w $ IntArith.neg w z
+  | _{ ! }_, ~{ VBOOL b }~ => Some $ Val.VBool  $ negb b
+  | _{ ~ }_, ~{ w VW n }~  => Some $ Val.VBit w $ BitArith.bit_not w n
+  | _{ ~ }_, ~{ w VS n }~  => Some $ Val.VInt w $ IntArith.bit_not w n
+  | _{ - }_, ~{ w VW z }~  => Some $ Val.VBit w $ BitArith.neg w z
+  | _{ - }_, ~{ w VS z }~  => Some $ Val.VInt w $ IntArith.neg w z
   | _{ isValid }_, ~{ HDR { _ } VALID:=b }~ => Some ~{ VBOOL b }~
   | _{ setValid }_, ~{ HDR { vs } VALID:=_ }~
     => Some ~{ HDR { vs } VALID:=true }~
   | _{ setInValid }_, ~{ HDR { vs } VALID:=_ }~
     => Some ~{ HDR { vs } VALID:=false }~
-  | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ V.VBit 32%positive $ Zpos n
+  | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ Val.VBit 32%positive $ Zpos n
   | _{ Next }_, ~{ STACK hs:_[_] NEXT:=ni }~
     => bvs <<| nth_error hs $ Z.to_nat ni ;;
       match bvs with
@@ -49,10 +45,10 @@ Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
         let new_hdrs := repeat (false, F.map vdefault ts) nnat in
         let remains := firstn (sizenat - nnat) hs in
         let new_nextIndex := Z.min (ni + Z.pos n) (Z.pos size - 1)%Z in
-        Some $ V.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
+        Some $ Val.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
       else
         let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
-        Some $ V.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
+        Some $ Val.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
   | _{ Pop n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
     => let nnat := Pos.to_nat n in
       let sizenat := Pos.to_nat size in
@@ -60,87 +56,87 @@ Definition eval_uop (op : E.uop) (v : V.v) : option V.v :=
         let new_hdrs := repeat (false, F.map vdefault ts) nnat in
         let remains := skipn nnat hs in
         Some $
-             V.VHeaderStack ts (remains ++ new_hdrs) size $
+             Val.VHeaderStack ts (remains ++ new_hdrs) size $
              Z.max 0%Z (ni - Zpos n)%Z
       else
         let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
-        Some $ V.VHeaderStack ts new_hdrs size 0%Z*)
+        Some $ Val.VHeaderStack ts new_hdrs size 0%Z*)
   | _, _ => None
   end.
 (**[]*)
 
 (** Binary operations. *)
-Definition eval_bop (op : E.bop) (v1 v2 : V.v) : option V.v :=
+Definition eval_bop (op : Expr.bop) (v1 v2 : Val.v) : option Val.v :=
   match op, v1, v2 with
   | +{ + }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.plus_mod w n1 n2
+    => Some $ Val.VBit w $ BitArith.plus_mod w n1 n2
   | +{ + }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.plus_mod w z1 z2
+    => Some $ Val.VInt w $ IntArith.plus_mod w z1 z2
   | +{ |+| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.plus_sat w n1 n2
+    => Some $ Val.VBit w $ BitArith.plus_sat w n1 n2
   | +{ |+| }+,  ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.plus_sat w z1 z2
+    => Some $ Val.VInt w $ IntArith.plus_sat w z1 z2
   | +{ - }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.minus_mod w n1 n2
+    => Some $ Val.VBit w $ BitArith.minus_mod w n1 n2
   | +{ - }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.minus_mod w z1 z2
+    => Some $ Val.VInt w $ IntArith.minus_mod w z1 z2
   | +{ |-| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.minus_sat w n1 n2
+    => Some $ Val.VBit w $ BitArith.minus_sat w n1 n2
   | +{ |-| }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.minus_sat w z1 z2
+    => Some $ Val.VInt w $ IntArith.minus_sat w z1 z2
   | +{ × }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.mult_mod w n1 n2
+    => Some $ Val.VBit w $ BitArith.mult_mod w n1 n2
   | +{ × }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.mult_mod w z1 z2
+    => Some $ Val.VInt w $ IntArith.mult_mod w z1 z2
   | +{ << }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.shift_left w n1 n2
+    => Some $ Val.VBit w $ BitArith.shift_left w n1 n2
   | +{ << }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
-    => Some $ V.VInt w $ IntArith.shift_left w z1 z2
+    => Some $ Val.VInt w $ IntArith.shift_left w z1 z2
   | +{ >> }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.shift_right w n1 n2
+    => Some $ Val.VBit w $ BitArith.shift_right w n1 n2
   | +{ >> }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
-    => Some $ V.VInt w $ IntArith.shift_right w z1 z2
+    => Some $ Val.VInt w $ IntArith.shift_right w z1 z2
   | +{ & }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.bit_and w n1 n2
+    => Some $ Val.VBit w $ BitArith.bit_and w n1 n2
   | +{ & }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.bit_and w z1 z2
+    => Some $ Val.VInt w $ IntArith.bit_and w z1 z2
   | +{ ^ }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.bit_xor w n1 n2
+    => Some $ Val.VBit w $ BitArith.bit_xor w n1 n2
   | +{ ^ }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.bit_xor w z1 z2
+    => Some $ Val.VInt w $ IntArith.bit_xor w z1 z2
   | +{ | }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
-    => Some $ V.VBit w $ BitArith.bit_or w n1 n2
+    => Some $ Val.VBit w $ BitArith.bit_or w n1 n2
   | +{ | }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
-    => Some $ V.VInt w $ IntArith.bit_or w z1 z2
-  | +{ <= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <=? n2)%Z
-  | +{ <= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <=? z2)%Z
-  | +{ < }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n1 <? n2)%Z
-  | +{ < }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z1 <? z2)%Z
-  | +{ >= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <=? n1)%Z
-  | +{ >= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <=? z1)%Z
-  | +{ > }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ V.VBool (n2 <? n1)%Z
-  | +{ > }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ V.VBool (z2 <? z1)%Z
-  | +{ && }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 && b2)
-  | +{ || }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ V.VBool (b1 || b2)
-  | +{ == }+, _, _ => Some $ V.VBool $ eqbv v1 v2
-  | +{ != }+, _, _ => Some $ V.VBool $ negb $ eqbv v1 v2
+    => Some $ Val.VInt w $ IntArith.bit_or w z1 z2
+  | +{ <= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n1 <=? n2)%Z
+  | +{ <= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z1 <=? z2)%Z
+  | +{ < }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n1 <? n2)%Z
+  | +{ < }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z1 <? z2)%Z
+  | +{ >= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n2 <=? n1)%Z
+  | +{ >= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z2 <=? z1)%Z
+  | +{ > }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n2 <? n1)%Z
+  | +{ > }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z2 <? z1)%Z
+  | +{ && }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ Val.VBool (b1 && b2)
+  | +{ || }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ Val.VBool (b1 || b2)
+  | +{ == }+, _, _ => Some $ Val.VBool $ eqbv v1 v2
+  | +{ != }+, _, _ => Some $ Val.VBool $ negb $ eqbv v1 v2
   | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
   | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
-    => Some $ V.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
+    => Some $ Val.VBit (w1 + w2)%positive $ BitArith.concat w1 w2 n1 n2
   | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
   | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
-    => Some $ V.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
+    => Some $ Val.VInt (w1 + w2)%positive $ IntArith.concat w1 w2 n1 n2
   | _, _, _ => None
   end.
 (**[]*)
 
 Definition eval_cast
-           (target : E.t) (v : V.v) : option V.v :=
+           (target : Expr.t) (v : Val.v) : option Val.v :=
   match target, v with
-  | {{ bit<xH> }}, ~{ TRUE }~         => Some (V.VBit 1%positive 1%N)
-  | {{ bit<xH> }}, ~{ FALSE }~        => Some (V.VBit 1%positive 0%N)
-  | {{ Bool }}, V.VBit 1%positive 1%N => Some ~{ TRUE }~
-  | {{ Bool }}, V.VBit 1%positive 0%N => Some ~{ FALSE }~
+  | {{ bit<xH> }}, ~{ TRUE }~         => Some (Val.VBit 1%positive 1%N)
+  | {{ bit<xH> }}, ~{ FALSE }~        => Some (Val.VBit 1%positive 0%N)
+  | {{ Bool }}, Val.VBit 1%positive 1%N => Some ~{ TRUE }~
+  | {{ Bool }}, Val.VBit 1%positive 0%N => Some ~{ FALSE }~
   | {{ bit<w> }}, ~{ _ VS z }~ => let n := BitArith.mod_bound w z in
                                  Some ~{ w VW n }~
   | {{ int<w> }}, ~{ _ VW n }~ => let z := IntArith.mod_bound w n in
@@ -150,14 +146,14 @@ Definition eval_cast
   | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.mod_bound w z in
                                  Some ~{ w VS z }~
   | {{ struct { fs } }}, ~{ TUPLE vs }~
-    => Some $ V.VStruct $ combine (F.keys fs) vs
+    => Some $ Val.VStruct $ combine (F.keys fs) vs
   | {{ hdr { fs } }}, ~{ TUPLE vs }~
-    => Some $ V.VHeader (combine (F.keys fs) vs) true
+    => Some $ Val.VHeader (combine (F.keys fs) vs) true
   | _, _ => None
   end.
 (**[]*)
 
-Definition eval_member (x : string) (v : V.v) : option V.v :=
+Definition eval_member (x : string) (v : Val.v) : option Val.v :=
   match v with
   | ~{ STRUCT { vs } }~
   | ~{ HDR { vs } VALID:=_ }~ => F.get x vs
@@ -250,8 +246,8 @@ Section Lemmas.
     Hint Rewrite Forall_app.
     Hint Rewrite @F.map_snd.
     Hint Rewrite @map_compose.
-    Hint Rewrite (@Forall2_map_l E.t).
-    Hint Rewrite (@Forall2_Forall E.t).
+    Hint Rewrite (@Forall2_map_l Expr.t).
+    Hint Rewrite (@Forall2_Forall Expr.t).
     Hint Rewrite @F.predfs_data_map.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_fst.

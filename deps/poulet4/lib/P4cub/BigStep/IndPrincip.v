@@ -4,14 +4,14 @@ Require Import Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.Value.Value
         Poulet4.P4cub.BigStep.Semantics
         Coq.ZArith.BinInt.
-Import Step P.P4cubNotations Val.ValueNotations.
+Import Step AllCubNotations Val.ValueNotations.
 
 (** A custom induction principle for
     the expression big-step relation. *)
 Section ExprEvalInduction.
   Variable (tags_t: Type).
   
-  Variable P : epsilon -> E.e tags_t -> V.v -> Prop.
+  Variable P : epsilon -> Expr.e tags_t -> V.v -> Prop.
   
   Hypothesis HBool : forall ϵ b i, P ϵ <{ BOOL b @ i }> ~{ VBOOL b }~.
   
@@ -117,11 +117,11 @@ Section ExprEvalInduction.
       the expression big-step relation.
       [Do induction ?H using custom_expr_big_step_ind]. *)
   Definition custom_expr_big_step_ind :
-    forall (ϵ : epsilon) (e : E.e tags_t)
+    forall (ϵ : epsilon) (e : Expr.e tags_t)
       (v : V.v) (Hy : ⟨ ϵ, e ⟩ ⇓ v), P ϵ e v :=
     fix ebsind ϵ e v Hy :=
       let fix lind
-              {es : list (E.e tags_t)}
+              {es : list (Expr.e tags_t)}
               {vs : list (V.v)}
               (HR : Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs)
           : Forall2 (P ϵ) es vs :=
@@ -131,7 +131,7 @@ Section ExprEvalInduction.
             => Forall2_cons _ _ (ebsind _ _ _ Hh) (lind Ht)
           end in
       let fix fsind
-              {efs : F.fs string (E.t * E.e tags_t)}
+              {efs : F.fs string (Expr.t * Expr.e tags_t)}
               {vfs : F.fs string (V.v)}
               (HRs : F.relfs
                        (fun te v =>
@@ -146,7 +146,7 @@ Section ExprEvalInduction.
             => Forall2_cons _ _ (conj Hx (ebsind _ _ _ Hhd)) (fsind Htl)
           end in
       let fix ffind
-              {es : list (E.e tags_t)}
+              {es : list (Expr.e tags_t)}
               {vss : list (bool * F.fs string (V.v))}
               (HRs : Forall2
                        (fun e bvs =>
@@ -196,7 +196,7 @@ End ExprEvalInduction.
 
 Section ParserExprInduction.
   Variable tags_t : Type.
-  Variable P : epsilon -> PR.e tags_t -> PR.state -> Prop.
+  Variable P : epsilon -> AST.Parser.e tags_t -> AST.Parser.state -> Prop.
   
   Hypothesis HGoto : forall ϵ st i,
       P ϵ p{ goto st @ i }p st.
@@ -225,12 +225,12 @@ Section ParserExprInduction.
       P ϵ p{ select e { cases } default:=def @ i }p st.
   
   Definition custom_parser_expr_big_step_ind :
-    forall (ϵ : epsilon) (e : PR.e tags_t) (st : PR.state),
+    forall (ϵ : epsilon) (e : AST.Parser.e tags_t) (st : AST.Parser.state),
       ⦑ ϵ, e ⦒ ⇓ st -> P ϵ e st :=
     fix pebsind ϵ e st H :=
       let fix cases_ind
-              {cases : F.fs PR.pat (PR.e tags_t)}
-              {vcases : F.fs PR.pat PR.state}
+              {cases : F.fs AST.Parser.pat (AST.Parser.e tags_t)}
+              {vcases : F.fs AST.Parser.pat AST.Parser.state}
               (Hcases :
                  Forall2
                    (fun pe ps =>

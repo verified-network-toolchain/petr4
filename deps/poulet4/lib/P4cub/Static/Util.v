@@ -6,15 +6,7 @@ Require Export Poulet4.P4Arith Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.Syntax.
 Declare Custom Entry p4signal.
 Declare Custom Entry p4context.
 
-Module P := P4cub.
-Module E := P.Expr.
-Module PT := ProperType.
-Module ST := P.Stmt.
-Module PR := P.Parser.
-Module CD := P.Control.ControlDecl.
-Module TD := P.TopDecl.
-Module F := P.F.
-Import P.P4cubNotations.
+Import AllCubNotations.
 
 (** Statement signals. *)
 Inductive signal : Set :=
@@ -40,10 +32,10 @@ Import Env.EnvNotations.
 Definition Delta : Set := list string.
 
 (** Typing context. *)
-Definition Gamma : Type := Env.t string E.t.
+Definition Gamma : Type := Env.t string Expr.t.
 
 (** Evidence for a type being a numeric of a given width. *)
-Inductive numeric_width (w : positive) : E.t -> Prop :=
+Inductive numeric_width (w : positive) : Expr.t -> Prop :=
 | numeric_width_bit : numeric_width w {{ bit<w> }}
 | numeric_width_int : numeric_width w {{ int<w> }}.
 
@@ -54,8 +46,8 @@ Ltac inv_numeric_width :=
 (**[]*)
 
 (** Evidence for a type being numeric. *)
-Inductive numeric : E.t -> Prop :=
-  Numeric (w : positive) (τ : E.t) :
+Inductive numeric : Expr.t -> Prop :=
+  Numeric (w : positive) (τ : Expr.t) :
     numeric_width w τ -> numeric τ.
 (**[]*)
 
@@ -66,7 +58,7 @@ Ltac inv_numeric :=
 (**[]*)
 
 (** Evidence a unary operation is valid for a type. *)
-Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
+Inductive uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
 | UTBool :
     uop_type _{ ! }_ {{ Bool }} {{ Bool }}
 | UTBitNot τ :
@@ -92,7 +84,7 @@ Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
-Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
+Inductive bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 | BTPlus τ : numeric τ -> bop_type +{ + }+ τ τ τ
 | BTPlusSat τ : numeric τ -> bop_type +{ |+| }+ τ τ τ
 | BTMinus τ : numeric τ -> bop_type +{ - }+ τ τ τ
@@ -130,30 +122,30 @@ Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
 (**[]*)
 
 (** Evidence a cast is proper. *)
-Inductive proper_cast : E.t -> E.t -> Prop :=
+Inductive proper_cast : Expr.t -> Expr.t -> Prop :=
 | pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
 | pc_bit_bool : proper_cast {{ bit<xH> }} {{ Bool }}
 | pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
 | pc_int_bit (w : positive) : proper_cast {{ int<w> }} {{ bit<w> }}
 | pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
 | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}
-| pc_tuple_struct (ts : list E.t) (fs : F.fs string E.t) :
+| pc_tuple_struct (ts : list Expr.t) (fs : F.fs string Expr.t) :
     ts = F.values fs ->
     proper_cast {{ tuple ts }} {{ struct { fs } }}
-| pc_tuple_hdr (ts : list E.t) (fs : F.fs string E.t) :
+| pc_tuple_hdr (ts : list Expr.t) (fs : F.fs string Expr.t) :
     ts = F.values fs ->
-    Forall PT.proper_inside_header ts ->
+    Forall ProperType.proper_inside_header ts ->
     proper_cast {{ tuple ts }} {{ hdr { fs } }}.
 (**[]*)
 
 (** Evidence member operations are valid on a type. *)
-Inductive member_type : F.fs string E.t -> E.t -> Prop :=
+Inductive member_type : F.fs string Expr.t -> Expr.t -> Prop :=
 | mt_struct ts : member_type ts {{ struct { ts } }}
 | mt_hdr ts : member_type ts {{ hdr { ts } }}.
 (**[]*)
 
 (** Ok types. *)
-Inductive t_ok (Δ : Delta) : E.t -> Prop :=
+Inductive t_ok (Δ : Delta) : Expr.t -> Prop :=
 | bool_ok :
     t_ok Δ {{ Bool }}
 | bit_ok w :
@@ -181,19 +173,19 @@ Inductive t_ok (Δ : Delta) : E.t -> Prop :=
     t_ok Δ T.
 
 (** Available functions. *)
-Definition fenv : Type := Env.t string E.arrowT.
+Definition fenv : Type := Env.t string Expr.arrowT.
 
 (** Available actions. *)
-Definition aenv : Type := Env.t string E.params.
+Definition aenv : Type := Env.t string Expr.params.
 
 (** Control Instance environment. *)
-Definition cienv : Type := Env.t string (F.fs string string * E.params).
+Definition cienv : Type := Env.t string (F.fs string string * Expr.params).
 
 (** Parser Instance environment. *)
-Definition pienv : Type := Env.t string (F.fs string string * E.params).
+Definition pienv : Type := Env.t string (F.fs string string * Expr.params).
 
 (** Available extern instances. *)
-Definition eienv : Type := Env.t string (F.fs string E.arrowT).
+Definition eienv : Type := Env.t string (F.fs string Expr.arrowT).
 
 (** Available table names. *)
 Definition tblenv : Type := list string.
@@ -203,7 +195,7 @@ Inductive ctx : Type :=
 | CAction (available_actions : aenv)
           (available_externs : eienv) (* action block *)
 | CVoid (* void function *)
-| CFunction (return_type : E.t) (* fruitful function *)
+| CFunction (return_type : Expr.t) (* fruitful function *)
 | CApplyBlock (tables : tblenv)
               (available_actions : aenv)
               (available_controls : cienv)
@@ -252,29 +244,29 @@ Inductive return_void_ok : ctx -> Prop :=
 (**[]*)
 
 (** Available constructor signatures. *)
-Definition cenv : Type := Env.t string E.ct.
+Definition cenv : Type := Env.t string Expr.ct.
 
 (** Available Package Instances. *)
-Definition pkgienv : Type := Env.t string E.ct.
+Definition pkgienv : Type := Env.t string Expr.ct.
 
 (** Available Extern Constructors. *)
 Definition extenv : Type :=
-  Env.t string (E.constructor_params * F.fs string E.arrowT).
+  Env.t string (Expr.constructor_params * F.fs string Expr.arrowT).
 (**[]*)
 
 (** Put parameters into environment. *)
-Definition bind_all : E.params -> Gamma -> Gamma :=
+Definition bind_all : Expr.params -> Gamma -> Gamma :=
   F.fold
     (fun x
-       '(P.PADirLess τ
-        | P.PAIn τ
-        | P.PAOut τ
-        | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
+       '(PADirLess τ
+        | PAIn τ
+        | PAOut τ
+        | PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
 (**[]*)
 
 (** Put (constructor) parameters into environments. *)
 Definition cbind_all :
-  E.constructor_params  ->
+  Expr.constructor_params  ->
   Gamma * pkgienv * cienv * pienv * eienv ->
   Gamma * pkgienv * cienv * pienv * eienv :=
   F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
@@ -285,7 +277,7 @@ Definition cbind_all :
               => (Γ, pkgis, !{ x ↦ (res,pars);; cis }!, pis, eis)
             | {{{ ParserType _ res pars }}}
               => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
-            | E.CTExtern _
+            | Expr.CTExtern _
               => p (* TODO! (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}
               => p (* TODO! (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis) *)
@@ -296,7 +288,7 @@ Definition cbind_all :
 Definition user_states : Type := list string.
 
 (** Valid parser states. *)
-Inductive valid_state (us : user_states) : PR.state -> Prop :=
+Inductive valid_state (us : user_states) : Parser.state -> Prop :=
 | start_valid :
     valid_state us ={ start }=
 | accept_valid :
@@ -309,11 +301,11 @@ Inductive valid_state (us : user_states) : PR.state -> Prop :=
 (**[]*)
 
 (** Appropriate signal. *)
-Inductive good_signal : E.arrowT -> signal -> Prop :=
+Inductive good_signal : Expr.arrowT -> signal -> Prop :=
 | good_signal_cont params :
-    good_signal (P.Arrow params None) SIG_Cont
+    good_signal (Arrow params None) SIG_Cont
 | good_signal_return params ret :
-    good_signal (P.Arrow params (Some ret)) SIG_Return.
+    good_signal (Arrow params (Some ret)) SIG_Return.
 (**[]*)
 
 Notation "x" := x (in custom p4context at level 0, x constr at level 0).
@@ -335,7 +327,7 @@ Notation "'Parser' pis eis"
            pis custom p4env, eis custom p4env).
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
-Inductive lvalue_ok {tags_t : Type} : E.e tags_t -> Prop :=
+Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue_ok <{ Var x:τ @ i }>
 | lvalue_bit_slice e τ h l i :

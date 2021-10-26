@@ -2,12 +2,13 @@ Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
-        Poulet4.P4cub.Static.Typing.
-Import P.P4cubNotations Env.EnvNotations.
+        Poulet4.P4cub.Static.Typing
+        Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations Env.EnvNotations.
 
 (** Custom induction principle for ok types. *)
 Section OkBoomerInduction.
-  Variable P : Delta -> E.t -> Prop.
+  Variable P : Delta -> Expr.t -> Prop.
   Variable Δ : Delta.
 
   Hypothesis HBool : P Δ {{ Bool }}.
@@ -37,15 +38,15 @@ Section OkBoomerInduction.
   (** Custom induction principle for expression typing.
       Do [induction ?H using custom_t_ok        _ind]. *)       
   Definition custom_t_ok_ind :
-    forall (τ : E.t) (HY : t_ok Δ τ), P Δ τ :=
+    forall (τ : Expr.t) (HY : t_ok Δ τ), P Δ τ :=
     fix toind τ HY :=
-      let fix lind {ts : list E.t} (Hts : Forall (t_ok Δ) ts)
+      let fix lind {ts : list Expr.t} (Hts : Forall (t_ok Δ) ts)
           : Forall (P Δ) ts :=
           match Hts with
           | Forall_nil _         => Forall_nil _
           | Forall_cons _ Pt Pts => Forall_cons _ (toind _ Pt) (lind Pts)
           end in
-      let fix find {ts : F.fs string E.t} (Hts : F.predfs_data (t_ok Δ) ts)
+      let fix find {ts : F.fs string Expr.t} (Hts : F.predfs_data (t_ok Δ) ts)
           : F.predfs_data (P Δ) ts :=
           match Hts with
           | Forall_nil _ => Forall_nil _
@@ -70,7 +71,7 @@ Section CheckExprInduction.
   Variable (tags_t : Type).
   
   (** An arbitrary predicate. *)
-  Variable P : Delta -> Gamma -> E.e tags_t -> E.t -> Prop.
+  Variable P : Delta -> Gamma -> Expr.e tags_t -> Expr.t -> Prop.
   
   Hypothesis HBool : forall Δ Γ b i,
       P Δ Γ <{ BOOL b @ i }> {{ Bool }}.
@@ -89,7 +90,7 @@ Section CheckExprInduction.
   Hypothesis HVar : forall Δ Γ x τ i,
       Env.find x Γ = Some τ ->
       t_ok Δ τ ->
-      PT.proper_nesting τ ->
+      ProperType.proper_nesting τ ->
       P Δ Γ <{ Var x:τ @ i }> τ.
   (**[]*)
   
@@ -154,7 +155,7 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HHdrLit : forall Δ Γ efs tfs i b,
-      PT.proper_nesting {{ hdr { tfs } }} ->
+      ProperType.proper_nesting {{ hdr { tfs } }} ->
       F.relfs
         (fun te τ =>
            (fst te) = τ /\ t_ok Δ τ /\
@@ -180,7 +181,7 @@ Section CheckExprInduction.
       BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       Pos.to_nat n = length hs ->
-      PT.proper_nesting {{ stack ts[n] }} ->
+      ProperType.proper_nesting {{ stack ts[n] }} ->
       t_ok Δ {{ stack ts[n] }} ->
       Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
       Forall (fun e => P Δ Γ e {{ hdr { ts } }}) hs ->
@@ -198,12 +199,12 @@ Section CheckExprInduction.
   (** Custom induction principle for expression typing.
       Do [induction ?H using custom_check_expr_ind]. *)
   Definition custom_check_expr_ind :
-    forall (Δ : Delta) (Γ : Gamma) (e : E.e tags_t) (τ : E.t)
+    forall (Δ : Delta) (Γ : Gamma) (e : Expr.e tags_t) (τ : Expr.t)
       (HY : ⟦ Δ, Γ ⟧ ⊢ e ∈ τ), P Δ Γ e τ :=
     fix chind Δ Γ e τ HY :=
       let fix lind
-              {es : list (E.e tags_t)}
-              {ts : list E.t}
+              {es : list (Expr.e tags_t)}
+              {ts : list Expr.t}
               (HR : Forall2 (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es ts)
           : Forall2 (P Δ Γ) es ts :=
           match HR with
@@ -212,7 +213,7 @@ Section CheckExprInduction.
             => Forall2_cons _ _ (chind _ _ _ _ Hh) (lind Htail)
           end in
       let fix lind_stk
-              {es : list (E.e tags_t)} {τ : E.t}
+              {es : list (Expr.e tags_t)} {τ : Expr.t}
               (HRs : Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es)
           : Forall (fun e => P Δ Γ e τ) es :=
           match HRs with
@@ -221,8 +222,8 @@ Section CheckExprInduction.
             => Forall_cons _ (chind _ _ _ _ Hhead) (lind_stk Htail)
           end in
       let fix fields_ind
-              {efs : F.fs string (E.t * E.e tags_t)}
-              {tfs : F.fs string E.t}
+              {efs : F.fs string (Expr.t * Expr.e tags_t)}
+              {tfs : F.fs string Expr.t}
               (HRs : F.relfs
                        (fun te τ =>
                           (fst te) = τ /\ t_ok Δ τ /\
@@ -273,7 +274,7 @@ Section CheckExprInduction.
 End CheckExprInduction.
 
 Section PatternCheckInduction.
-  Variable P : PR.pat -> E.t -> Prop.
+  Variable P : AST.Parser.pat -> Expr.t -> Prop.
   
   Hypothesis HWild : forall t, P [{ ?? }] t.
   
@@ -303,7 +304,7 @@ Section PatternCheckInduction.
   Definition custom_check_pat_ind : forall p t,
       check_pat p t -> P p t :=
     fix pind p t (H : check_pat p t) :=
-      let fix lind {ps : list PR.pat} {ts : list E.t}
+      let fix lind {ps : list AST.Parser.pat} {ts : list Expr.t}
               (H : Forall2 check_pat ps ts) : Forall2 P ps ts :=
           match H with
           | Forall2_nil _ => Forall2_nil _
@@ -328,7 +329,7 @@ Section CheckParserExprInduction.
   Variable tags_t: Type.
   
   (** An arbitrary predicate. *)
-  Variable P : user_states -> Delta -> Gamma -> PR.e tags_t -> Prop.
+  Variable P : user_states -> Delta -> Gamma -> AST.Parser.e tags_t -> Prop.
   
   Hypothesis HGoto : forall sts Δ Γ st i,
       valid_state sts st ->
@@ -349,11 +350,11 @@ Section CheckParserExprInduction.
   (** Custom induction principle.
       Do [induction ?H using custom_check_prsrexpr_ind] *)
   Definition custom_check_prsrexpr_ind :
-    forall (sts : user_states) (Δ : Delta) (Γ : Gamma) (e : PR.e tags_t)
+    forall (sts : user_states) (Δ : Delta) (Γ : Gamma) (e : AST.Parser.e tags_t)
       (Hy : ⟅ sts, Δ, Γ ⟆ ⊢ e), P sts Δ Γ e :=
     fix chind sts Δ Γ e Hy :=
       let fix lind
-              {cases : F.fs PR.pat (PR.e tags_t)} {τ : E.t}
+              {cases : F.fs AST.Parser.pat (AST.Parser.e tags_t)} {τ : Expr.t}
               (HR : Forall
                       (fun pe =>
                          let p := fst pe in

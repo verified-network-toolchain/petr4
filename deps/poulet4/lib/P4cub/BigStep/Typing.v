@@ -6,13 +6,8 @@ Require Import Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.Semantics
         Poulet4.P4cub.Static.Static
         Poulet4.P4cub.BigStep.TypeSoundness.
-
-Module P := Poulet4.P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Module ST := P.Stmt.
-Module PR := P.Parser.
 Module V := Val.
-Import Step P.P4cubNotations
+Import Step AllCubNotations
        V.ValueNotations V.LValueNotations
        F.FieldTactics ProperType.
 
@@ -25,7 +20,7 @@ Reserved Notation "'⟦⟦' dl , gm '⟧⟧' ⊨ e ∈ t"
     Progress & preservation included all in one. *)
 Definition semantic_expr_typing
            {tags_t : Type} (D : Delta) (Γ : Gamma)
-           (e: E.e tags_t) (t: E.t) : Prop :=
+           (e: Expr.e tags_t) (t: Expr.t) : Prop :=
   forall ϵ : epsilon,
     envs_sound Γ ϵ D ->
     (exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v) /\
@@ -70,7 +65,7 @@ Section Rules.
     intros b; unfold_sem_typ_expr; eauto.
   Qed.
   
-  Lemma sem_typ_uop : forall (op : E.uop) (τ τ' : E.t) (e : E.e tags_t),
+  Lemma sem_typ_uop : forall (op : Expr.uop) (τ τ' : Expr.t) (e : Expr.e tags_t),
       uop_type op τ τ' ->
       ⟦⟦ D, Γ ⟧⟧ ⊨ e ∈ τ ->
       ⟦⟦ D, Γ ⟧⟧ ⊨ UOP op e:τ @ i ∈ τ'.
@@ -82,7 +77,7 @@ Section Rules.
   Local Hint Resolve expr_big_step_preservation : core.
   Local Hint Resolve expr_big_step_progress : core.
   
-  Lemma soundness : forall (e : E.e tags_t) τ,
+  Lemma soundness : forall (e : Expr.e tags_t) τ,
       ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦⟦ D, Γ ⟧⟧ ⊨ e ∈ τ.
   Proof.
     intros e t Ht; intros ϵ H; split; eauto;
@@ -91,7 +86,7 @@ Section Rules.
 
   Local Hint Constructors check_expr : core.
   
-  Lemma completeness : forall (e : E.e tags_t) τ,
+  Lemma completeness : forall (e : Expr.e tags_t) τ,
       ⟦⟦ D, Γ ⟧⟧ ⊨ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e ∈ τ.
   Proof.
     intro e; induction e using custom_e_ind;

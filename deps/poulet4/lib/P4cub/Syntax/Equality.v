@@ -1,17 +1,14 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
-        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip.
+        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
+        Poulet4.P4cub.Syntax.CubNotations.
 
 Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
-Module P := P4cub.
-Module F := P.F.
-Module E := P.Expr.
-
 Module TypeEquivalence.
-  Import Field.FieldTactics E TypeNotations.
+  Import Field.FieldTactics Expr TypeNotations.
   
   Section TypeEquivalence.
     (** Decidable equality. *)
@@ -142,7 +139,7 @@ End TypeEquivalence.
 
 (** Decidable Expression Equivalence. *)
 Module ExprEquivalence.
-  Import Field.FieldTactics E
+  Import Field.FieldTactics Expr
          TypeNotations UopNotations BopNotations
          MatchkindNotations ExprNotations TypeEquivalence.
   

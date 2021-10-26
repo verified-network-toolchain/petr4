@@ -3,9 +3,6 @@ Require Import Poulet4.Monads.Error.
 Require Import Poulet4.P4cub.Syntax.P4Field.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4automata.Compiler.
-Module S := P4cub.Stmt.
-Module P := P4cub.Parser.
-Module TD := P4cub.TopDecl.
 
 
 Open Scope string_scope.
@@ -237,7 +234,7 @@ Section ParserTranslation.
   Definition states_to_cub 
     (decl_env : P4String.AList tags_t (@P4Type tags_t))
     (ss: list (@ParserState tags_t)) 
-    : @error_monad MorphError (F.fs string (P.state_block tags_t)) :=
+    : @error_monad MorphError (F.fs string (AST.Parser.state_block tags_t)) :=
     let ty_trans := inline_decls_ty decl_env in 
     let expr_trans := map_expr ty_trans (fun e => strip_casts (inline_none_casts e)) in 
     let stmt_trans := map_stmt expr_trans ty_trans id in 
@@ -247,8 +244,8 @@ Section ParserTranslation.
     sequence (map (fun s => parser_state_morph (s_worker s)) ss).
 
   Definition get_start 
-    (states: F.fs string (P.state_block tags_t))
-    : @error_monad (@MorphError tags_t) (P.state_block tags_t) := 
+    (states: F.fs string (AST.Parser.state_block tags_t))
+    : @error_monad (@MorphError tags_t) (AST.Parser.state_block tags_t) := 
     match Field.find_value (fun s => s ==b "start") states with 
     | Some x => mret x
     | None => err $ Inconceivable "could not find start state"
@@ -257,13 +254,13 @@ Section ParserTranslation.
   Definition decl_to_cub 
     (decl_env : P4String.AList tags_t (@P4Type tags_t))
     (p: @Declaration tags_t)
-    : @error_monad MorphError (TD.d tags_t) :=
+    : @error_monad MorphError (TopDecl.d tags_t) :=
     match p with 
     (* ignores locals and params, TODO *)
     | DeclParser tag name _ _ _ _ states => 
       cub_states <- states_to_cub decl_env states ;; 
       start <- get_start cub_states ;;
-      mret (TD.TPParser (P4String.str name) nil nil nil start cub_states tag)
+      mret (TopDecl.TPParser (P4String.str name) nil nil nil start cub_states tag)
     | _ => err $ Inconceivable "translating a non-parser decl"
     end. 
 

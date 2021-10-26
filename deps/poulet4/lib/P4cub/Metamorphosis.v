@@ -8,7 +8,8 @@ Require Poulet4.P4Int.
 Require Export Poulet4.Typed.
 Require Export Poulet4.Syntax.
 Require Export Poulet4.P4cub.Syntax.AST.
-Import P4cub.P4cubNotations.
+Require Import Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations.
 
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
@@ -24,11 +25,6 @@ Require Import Poulet4.Monads.Error.
      polymorphism be translated?
    - Should there be fresh string generation,
      & if so, how to implement it? *)
-
-Module P := P4cub.
-Module F := P.F.
-Module E := P.Expr.
-Module ST := P.Stmt.
 
 Section Metamorphosis.
   Context {tags_t : Type}.
@@ -55,15 +51,15 @@ Section Metamorphosis.
       - Should &, if so, how will
         header unions, strings, enums, varbits, & sets be compiled?
       - Why is there both a record and a struct type? *)
-  Fixpoint type_morph (t : P4Type) : @error_monad MorphError E.t :=
-    let fix lrec (ts : list P4Type) : @error_monad MorphError (list E.t) :=
+  Fixpoint type_morph (t : P4Type) : @error_monad MorphError Expr.t :=
+    let fix lrec (ts : list P4Type) : @error_monad MorphError (list Expr.t) :=
         match ts with
         | []     => mret []
         | t :: ts => t <- type_morph t ;;
                    ts <- lrec ts ;;
                    mret (t :: ts)
         end in
-    let fix frec (fs : P4String.AList tags_t P4Type) : @error_monad MorphError (F.fs string E.t) :=
+    let fix frec (fs : P4String.AList tags_t P4Type) : @error_monad MorphError (F.fs string Expr.t) :=
         match fs with
         | []         => mret []
         | (x,t) :: fs => t <- type_morph t ;;
@@ -74,8 +70,8 @@ Section Metamorphosis.
     | TypBool => mret {{ Bool }}
     | TypInteger => err (UnsupportedTy t) (* TODO *)
     | TypString => err (UnsupportedTy t) (* TODO *)
-    | TypInt w => mret $ E.TInt $ Pos.of_nat w
-    | TypBit w => mret $ E.TBit $ Pos.of_nat w
+    | TypInt w => mret $ Expr.TInt $ Pos.of_nat w
+    | TypBit w => mret $ Expr.TBit $ Pos.of_nat w
     | TypVarBit _ => err (UnsupportedTy t) (* TODO *)
     | TypArray t n =>
       let n := Pos.of_nat n in
@@ -110,38 +106,38 @@ Section Metamorphosis.
   (**[]*)
 
   (** Unary Operations *)
-  Definition uop_morph (op : OpUni) : E.uop :=
+  Definition uop_morph (op : OpUni) : Expr.uop :=
     match op with
-    | Not => E.Not
-    | BitNot => E.BitNot
-    | UMinus => E.UMinus
+    | Not => Expr.Not
+    | BitNot => Expr.BitNot
+    | UMinus => Expr.UMinus
     end.
   (**[]*)
 
   (** Binary Operations. *)
-  Definition bop_morph (op : OpBin) : @error_monad MorphError E.bop :=
+  Definition bop_morph (op : OpBin) : @error_monad MorphError Expr.bop :=
     match op with
-    | Plus => mret E.Plus
-    | PlusSat => mret E.PlusSat
-    | Minus => mret E.Minus
-    | MinusSat => mret E.MinusSat
-    | Mul => mret E.Times
+    | Plus => mret Expr.Plus
+    | PlusSat => mret Expr.PlusSat
+    | Minus => mret Expr.Minus
+    | MinusSat => mret Expr.MinusSat
+    | Mul => mret Expr.Times
     | Div => err (UnsupportedBop op)
     | Mod => err (UnsupportedBop op)
-    | Shl => mret E.Shl
-    | Shr => mret E.Shr
-    | Le => mret E.Le
-    | Ge => mret E.Ge
-    | Lt => mret E.Lt
-    | Gt => mret E.Gt
-    | Eq => mret E.Eq
-    | NotEq => mret E.NotEq
-    | BitAnd => mret E.BitAnd
-    | BitXor => mret E.BitXor
-    | BitOr => mret E.BitOr
-    | PlusPlus => mret E.PlusPlus
-    | And => mret E.And
-    | Or => mret E.Or
+    | Shl => mret Expr.Shl
+    | Shr => mret Expr.Shr
+    | Le => mret Expr.Le
+    | Ge => mret Expr.Ge
+    | Lt => mret Expr.Lt
+    | Gt => mret Expr.Gt
+    | Eq => mret Expr.Eq
+    | NotEq => mret Expr.NotEq
+    | BitAnd => mret Expr.BitAnd
+    | BitXor => mret Expr.BitXor
+    | BitOr => mret Expr.BitOr
+    | PlusPlus => mret Expr.PlusPlus
+    | And => mret Expr.And
+    | Or => mret Expr.Or
     end.
   (**[]*)
 
@@ -170,14 +166,14 @@ Section Metamorphosis.
       5. Why is [N] still used in [Syntax.v]?
          Didn't we decide it was undesirable to
          use both [N] and [Z]? *)
-  Fixpoint expr_morph (e : Expression) : @error_monad MorphError (E.e tags_t) :=
-    let fix lstruct (es : list Expression) : @error_monad MorphError (list (E.e tags_t)) :=
+  Fixpoint expr_morph (e : Expression) : @error_monad MorphError (Expr.e tags_t) :=
+    let fix lstruct (es : list Expression) : @error_monad MorphError (list (Expr.e tags_t)) :=
         match es with
         | []     => mret []
         | e :: es => e <- expr_morph e ;;
                    es <<| lstruct es ;; e :: es
         end in
-    let fix frec (fs : list KeyValue) : @error_monad MorphError (F.fs string (E.t * E.e tags_t)) :=
+    let fix frec (fs : list KeyValue) : @error_monad MorphError (F.fs string (Expr.t * Expr.e tags_t)) :=
         match fs with
         | [] => mret []
         | (MkKeyValue _ x ((MkExpression _ _ t _) as e))
@@ -197,7 +193,7 @@ Section Metamorphosis.
         end
     | MkExpression i (ExpName (BareName x) _) t _
       => t <<| type_morph t ;;
-        E.EVar t (P4String.str x) i
+        Expr.EVar t (P4String.str x) i
     | MkExpression i (ExpArrayAccess e1 e2) _ _
       => e1 <- expr_morph e1 ;;
         e2' <- expr_morph e2 ;;
@@ -217,7 +213,7 @@ Section Metamorphosis.
     | MkExpression i (ExpUnaryOp op e) t _
       => t <- type_morph t ;;
         e <<| expr_morph e ;;
-        E.EUop (uop_morph op) t e i
+        Expr.EUop (uop_morph op) t e i
     | MkExpression
         i (ExpBinaryOp
              op ((MkExpression _ _ t1 _) as e1, (MkExpression _ _ t2 _) as e2))
@@ -230,7 +226,7 @@ Section Metamorphosis.
       => t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
-      => mret $ E.EError (mret $ P4String.str err) i
+      => mret $ Expr.EError (mret $ P4String.str err) i
     | MkExpression i (ExpExpressionMember e f) t _ 
       => 
         let f := P4String.str f in 
@@ -241,7 +237,7 @@ Section Metamorphosis.
     end.
   (**[]*)
 
-  Definition type_expr_morph (e : Expression) : @error_monad MorphError (E.t * E.e tags_t) :=
+  Definition type_expr_morph (e : Expression) : @error_monad MorphError (Expr.t * Expr.e tags_t) :=
     match e with
     | MkExpression i _ t _ => t <- type_morph t ;;
                              e <<| expr_morph e ;; (t, e)
@@ -261,15 +257,15 @@ Section Metamorphosis.
          - method calls? Type subsitution?
       3. How to get parameter names to generate arguments?
       4. When and how will instantiations be lifted? *)
-  Fixpoint stmt_morph (s : Statement) : @error_monad MorphError (ST.s tags_t) :=
-    let fix blk_morph (blk : Block) : @error_monad MorphError (ST.s tags_t) :=
+  Fixpoint stmt_morph (s : Statement) : @error_monad MorphError (Stmt.s tags_t) :=
+    let fix blk_morph (blk : Block) : @error_monad MorphError (Stmt.s tags_t) :=
         match blk with
         | BlockEmpty i => mret -{ skip @ i }-
         | BlockCons ((MkStatement i _ _) as s) blk
           => s1 <- stmt_morph s ;;
             s2 <<| blk_morph blk ;; -{ s1; s2 @ i }-
         end in
-    (* let fix switch_case_morph (swcase : StatementSwitchCase) : option (ST.s tags_t) :=
+    (* let fix switch_case_morph (swcase : StatementSwitchCase) : option (Stmt.s tags_t) :=
         match swcase with
         end in *)
     match s with
@@ -326,7 +322,7 @@ Section Metamorphosis.
             match args with 
             | Some e :: nil => 
               let* '(t, e') := type_expr_morph e in
-              mret (("arg", P4cub.PAOut (t, e')) :: nil)
+              mret (("arg", PAOut (t, e')) :: nil)
             | _ => mret nil
             end ;;
           ty' <- mret None ;;
@@ -340,9 +336,9 @@ Section Metamorphosis.
 
   Definition parser_case_morph 
     (c: @ParserCase tags_t) 
-    : @error_monad MorphError (P.Parser.pat * string) :=
+    : @error_monad MorphError (Parser.pat * string) :=
     let 'MkParserCase tag matches next := c in 
-    let combine_pats := fun (p: list P.Parser.pat) =>
+    let combine_pats := fun (p: list Parser.pat) =>
       match p with 
       | pat :: nil => mret pat
       | _ :: _ => mret [{ PTUP p }]
@@ -377,8 +373,8 @@ Section Metamorphosis.
 
   Fixpoint get_default 
     (tag: tags_t) 
-    (cases: list (P.Parser.pat * string)) 
-    : @error_monad MorphError (P.Parser.e tags_t) :=
+    (cases: list (Parser.pat * string)) 
+    : @error_monad MorphError (Parser.e tags_t) :=
     match cases with 
     | nil => err $ Inconceivable "missing default case in parser select"
     | ([{ ?? }], s) :: _ => 
@@ -389,8 +385,8 @@ Section Metamorphosis.
 
   Definition morph_cexpr 
     (tag: tags_t)
-    (x: P.Parser.pat * string) 
-    : P.Parser.pat * (P.Parser.e tags_t) := 
+    (x: Parser.pat * string) 
+    : Parser.pat * (Parser.e tags_t) := 
     let '(pat, nxt) := x in 
     let st := morph_str nxt in 
     let nxt_jump := p{ goto st @ tag }p in 
@@ -398,7 +394,7 @@ Section Metamorphosis.
 
   Definition parser_trans_morph
     (t: @ParserTransition tags_t)
-    : @error_monad MorphError (P.Parser.e tags_t) :=
+    : @error_monad MorphError (Parser.e tags_t) :=
     match t with 
     | ParserDirect tag next_name => 
       let st := morph_name next_name in 
@@ -407,24 +403,24 @@ Section Metamorphosis.
       cub_cases <- sequence (map parser_case_morph cases) ;; 
       cub_exprs <- sequence (map expr_morph es) ;;
       def <- get_default tag cub_cases ;;
-      let exp := E.ETuple cub_exprs tag in 
+      let exp := Expr.ETuple cub_exprs tag in 
       let cub_cases' := map (fun '(k, v) => let v' := morph_str v in (k, p{ goto v' @ tag }p)) cub_cases in 
       mret p{ select exp { cub_cases' } default := def @ tag }p
     end.
 
-  Fixpoint combine_ss (tag: tags_t) (ss: list (ST.s tags_t)) : ST.s tags_t := 
+  Fixpoint combine_ss (tag: tags_t) (ss: list (Stmt.s tags_t)) : Stmt.s tags_t := 
     match ss with 
     | nil => -{ skip @ tag }-
     | s :: ss' => 
-      ST.SSeq s (combine_ss tag ss') tag
+      Stmt.SSeq s (combine_ss tag ss') tag
     end.
 
   Definition parser_state_morph 
     (ps: @ParserState tags_t) 
-    : @error_monad MorphError (string * P.Parser.state_block tags_t) :=
+    : @error_monad MorphError (string * Parser.state_block tags_t) :=
     let 'MkParserState tag name ss trans := ps in 
     ss' <- sequence (map stmt_morph ss) ;; 
     trans' <- parser_trans_morph trans ;; 
-    mret (P4String.str name, P.Parser.State (combine_ss tag ss') trans').
+    mret (P4String.str name, Parser.State (combine_ss tag ss') trans').
 
 End Metamorphosis.

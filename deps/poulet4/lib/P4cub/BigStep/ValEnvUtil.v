@@ -78,13 +78,13 @@ Definition copy_in
            (ϵcall : epsilon) : epsilon -> epsilon :=
   F.fold (fun x arg ϵ =>
             match arg with
-            | P.PAIn v     => !{ x ↦ v ;; ϵ }!
-            | P.PAInOut lv => match lv_lookup ϵcall lv with
+            | PAIn v     => !{ x ↦ v ;; ϵ }!
+            | PAInOut lv => match lv_lookup ϵcall lv with
                              | None   => ϵ
                              | Some v => !{ x ↦ v ;; ϵ }!
                              end
-            | P.PAOut _    => ϵ
-            | P.PADirLess _ => ϵ (*what to do with directionless param*)
+            | PAOut _    => ϵ
+            | PADirLess _ => ϵ (*what to do with directionless param*)
             end) argsv.
 (**[]*)
 
@@ -95,10 +95,10 @@ Definition copy_out
            (ϵf : epsilon) : epsilon -> epsilon :=
   F.fold (fun x arg ϵ =>
             match arg with
-            | P.PAIn _ => ϵ
-            | P.PADirLess _ => ϵ (*what to do with directionless param*)
-            | P.PAOut lv
-            | P.PAInOut lv =>
+            | PAIn _ => ϵ
+            | PADirLess _ => ϵ (*what to do with directionless param*)
+            | PAOut lv
+            | PAInOut lv =>
               match Env.find x ϵf with
               | None   => ϵ
               | Some v => lv_update lv v ϵ

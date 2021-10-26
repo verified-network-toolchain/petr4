@@ -297,7 +297,7 @@ Module Step.
       ⟪ pkt, fs, ϵ, c, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
   | sbs_vardecl (τ : Expr.t) (x : string)
                 (i : tags_t) (v : V.v) (c : ctx) :
-      (*vdefault τ = v ->*)
+      vdefault τ = Some v ->
       ⟪ pkt, fs, ϵ, c, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :

@@ -4,9 +4,46 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
+  Ltac transformExpr_destr :=
+    match goal with
+    | |- context [TransformExpr ?e ?env]
+      => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
+    | |- context [TransformExprList' ?f ?e ?env ?i]
+      => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
+    | |- context [TransformFields' ?f ?e ?env ?i]
+      => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
+    end.
+
+  Ltac transformExpr_destr_hyp :=
+    match goal with
+    | H: context [TransformExpr ?e ?env] |- _
+      => destruct (TransformExpr e env)
+        as [[? ?] ?] eqn:?; simpl in *
+    end.
+
+  Ltac transformExpr_destr_hyp_rewrite :=
+    match goal with
+    | H: TransformExpr ?e ?env = (_,_,_),
+         Hy : context [TransformExpr ?e ?env]
+      |- _ => rewrite H in Hy; simpl in *
+    end.
+
+  (*Ltac quantify_varNameGen :=
+    match goal with
+    | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
+      |- _ => specialize H with env
+    end.*)
+  
+  Ltac fold_destr :=
+    match goal with
+    | |- context [fold_left ?f ?l ?acc]
+      => destruct (fold_left f l acc) as [[? ?] ?] eqn:Hfoldl; simpl in *
+    | |- context [fold_right ?f ?acc ?l]
+      => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
+    end.
+
 Section Lifted.
-  (*Open Scope char_scope.*)
-  Open Scope string_scope.
+  Arguments String.append : simpl never.
   
   Context {tags_t : Type}.
   
@@ -111,45 +148,6 @@ Section Lifted.
       lifted_stmt -{ apply x with ext_args & args @ i }-.
   
   Local Hint Constructors lifted_expr : core.
-
-  Ltac transformExpr_destr :=
-    match goal with
-    | |- context [TransformExpr ?e ?env]
-      => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
-    | |- context [TransformExprList' ?f ?e ?env ?i]
-      => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
-    | |- context [TransformFields' ?f ?e ?env ?i]
-      => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
-    end.
-
-  Ltac transformExpr_destr_hyp :=
-    match goal with
-    | H: context [TransformExpr ?e ?env] |- _
-      => destruct (TransformExpr e env)
-        as [[? ?] ?] eqn:?; simpl in *
-    end.
-
-  Ltac transformExpr_destr_hyp_rewrite :=
-    match goal with
-    | H: TransformExpr ?e ?env = (_,_,_),
-         Hy : context [TransformExpr ?e ?env]
-      |- _ => rewrite H in Hy; simpl in *
-    end.
-
-  (*Ltac quantify_varNameGen :=
-    match goal with
-    | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
-      |- _ => specialize H with env
-    end.*)
-  
-  Ltac fold_destr :=
-    match goal with
-    | |- context [fold_left ?f ?l ?acc]
-      => destruct (fold_left f l acc) as [[? ?] ?] eqn:Hfoldl; simpl in *
-    | |- context [fold_right ?f ?acc ?l]
-      => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
-    end.
-
   Section HelperLemmas.
     Variable f : Expr.e tags_t -> VarNameGen.t -> Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
 

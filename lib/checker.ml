@@ -2266,7 +2266,11 @@ and select_constructor_params env info methods args =
     Some (match_params_to_args env info params args)
   | _ -> None
 
-and get_decl_type_params (decl : Prog.coq_Declaration) =
+(* Unused; 
+   One thing to note is that DeclExternObject is different from other declarations in that 
+   it does not include wildcards appearing in individual constructors. 
+   Example: Hash in tofino.p4 *)
+  and get_decl_type_params (decl : Prog.coq_Declaration) =
   match decl with
   | DeclExternObject (_, _, type_params, _)
   | DeclParser (_, _, type_params, _, _, _, _)

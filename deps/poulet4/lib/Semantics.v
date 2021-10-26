@@ -779,8 +779,11 @@ Definition is_return (sig : signal) : bool :=
   | _ => false
   end.
 
-Inductive get_return_val : signal -> Val -> Prop :=
-  | get_return_val_intro : forall v, get_return_val (SReturn v) v.
+Definition get_return_val (sig : signal) : option Val :=
+  match sig with
+  | SReturn v => Some v
+  | _ => None
+  end.
 
 Inductive get_return_sval : signal -> Sval -> Prop :=
   | get_return_sval_intro : forall v sv, 

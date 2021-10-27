@@ -184,12 +184,6 @@ and min_size_in_bytes env info hdr_type =
   let bits = min_size_in_bits' env info hdr_type in
   Bigint.of_int ((bits + 7) asr 3)
 
-and bigint_to_bool_list (b: Bigint.t) : bool list =
-  failwith "bigint_to_bool_list unimplemented"
-
-and bool_list_to_bigint (b: bool list) :  Bigint.t =
-  failwith "bool_list_to_bigint unimplemented"
-
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
 and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_Value option =

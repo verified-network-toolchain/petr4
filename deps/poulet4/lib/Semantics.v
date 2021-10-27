@@ -80,7 +80,7 @@ Inductive fundef :=
 
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t Sval.
+Definition genv_senum := @IdentMap.t tags_t (P4String.AList tags_t Sval).
 
 Inductive inst_ref :=
   | mk_inst_ref (class : P4String) (p : path).
@@ -120,8 +120,6 @@ Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
 
 Definition read_detbit (b : bool) (b': option bool) :=
   b' = Some b.
-
-Search (list (option _)).
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t bool) :=
   let '(MkExpression _ expr _ _) := expr in
@@ -163,14 +161,6 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t boo
   | _ => None
   end.
 
-Inductive read_bits {A B} (read_one_bit : A -> B -> Prop) : 
-                    list A -> list B -> Prop :=
-  | read_nil : read_bits read_one_bit nil nil
-  | read_cons : forall b b' tl tl',
-                read_one_bit b b' ->
-                read_bits read_one_bit tl tl' ->
-                read_bits read_one_bit (b :: tl) (b' :: tl').
-
 Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
                    @ValueBase tags_t A -> @ValueBase tags_t B -> Prop :=
   | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
@@ -180,18 +170,18 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
   | exec_val_integer : forall n, 
                        exec_val read_one_bit (ValBaseInteger n) (ValBaseInteger n)
   | exec_val_bit : forall lb lb',
-                   read_bits read_one_bit lb lb' ->
+                   Forall2 read_one_bit lb lb' ->
                    exec_val read_one_bit (ValBaseBit lb) (ValBaseBit lb')
   | exec_val_int : forall lb lb',
-                   read_bits read_one_bit lb lb' ->
+                   Forall2 read_one_bit lb lb' ->
                    exec_val read_one_bit (ValBaseInt lb) (ValBaseInt lb')
   | exec_val_varbit : forall max lb lb',
-                      read_bits read_one_bit lb lb' ->
+                      Forall2 read_one_bit lb lb' ->
                       exec_val read_one_bit (ValBaseVarbit max lb) (ValBaseVarbit max lb')
   | exec_val_string : forall s,
                       exec_val read_one_bit (ValBaseString s) (ValBaseString s)
   | exec_val_tuple : forall lv lv',
-                     exec_vals read_one_bit lv lv' ->
+                     Forall2 (exec_val read_one_bit) lv lv' ->
                      exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
   | exec_val_record : forall kvs kvs',
                       AList.all_values (exec_val read_one_bit) kvs kvs' ->
@@ -210,9 +200,9 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                       exec_val read_one_bit (ValBaseHeader kvs b) (ValBaseHeader kvs' b')
   | exec_val_union : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseStruct kvs) (ValBaseStruct kvs')
+                     exec_val read_one_bit (ValBaseUnion kvs) (ValBaseUnion kvs')
   | exec_val_stack : forall lv lv' size next,
-                     exec_vals read_one_bit lv lv' ->
+                     Forall2 (exec_val read_one_bit) lv lv' ->
                      exec_val read_one_bit (ValBaseStack lv size next) (ValBaseStack lv' size next)
   | exec_val_enum_field : forall typ_name enum_name,
                           exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
@@ -221,28 +211,21 @@ Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                            exec_val read_one_bit v v' ->
                            exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) 
                                                  (ValBaseSenumField typ_name enum_name v')
-  | exec_val_senum : forall kvs kvs',
+  (*| exec_val_senum : forall kvs kvs',
                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')
-with exec_vals {A B} (read_one_bit : A -> B -> Prop) : 
-               list (@ValueBase tags_t A) -> list (@ValueBase tags_t B) -> Prop :=
-  | exec_vals_nil : exec_vals read_one_bit nil nil
-  | exec_vals_cons : forall hd tl hd' tl',
-                     exec_val read_one_bit hd hd' ->
-                     exec_vals read_one_bit tl tl' ->
-                     exec_vals read_one_bit (hd :: tl) (hd' :: tl').
+                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
 
 Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
   exec_val read_one_bit.
 
 Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
-  exec_vals read_one_bit.
+  Forall2 (exec_val read_one_bit).
 
 Definition val_to_sval := 
   exec_val read_detbit.
 
 Definition vals_to_svals := 
-  exec_vals read_detbit.
+  Forall2 (exec_val read_detbit).
 
 Definition eval_val_to_sval : Val -> Sval.
 Admitted.
@@ -396,7 +379,7 @@ Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval :=
   | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
   | ValBaseStack vs size next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) size next
   | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
-  | ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)
+  (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
   (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
   | _ => v
   end.
@@ -471,7 +454,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                                  (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
                                  (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_expr_list : forall es vs this st tag typ dir,
-                     exec_exprs read_one_bit this st es vs ->
+      Forall2 (exec_expr read_one_bit this st) es vs ->
                      exec_expr read_one_bit this st
                      (MkExpression tag (ExpList es) typ dir)
                      (ValBaseTuple vs)
@@ -519,7 +502,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-                             IdentMap.get ename (ge_senum ge) = Some (ValBaseSenum fields) ->
+                             IdentMap.get ename (ge_senum ge) = Some fields ->
                              AList.get fields member = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
@@ -547,15 +530,15 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   | exec_expr_dont_care : forall this st tag typ dir,
                           exec_expr read_one_bit this st
                           (MkExpression tag ExpDontCare typ dir)
-                          ValBaseNull
-with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
+                          ValBaseNull.
+(*with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
                 path -> state -> list (@Expression tags_t) -> list Sval -> Prop :=
   | exec_exprs_nil : forall this st,
                      exec_exprs read_one_bit this st nil nil
   | exec_exprs_cons : forall this st expr es sv svs,
                       exec_expr read_one_bit this st expr sv ->
                       exec_exprs read_one_bit this st es svs ->
-                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).
+                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).*)
 
 Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
                         path -> (* temp_env -> *) state -> (@Expression tags_t) -> Val ->
@@ -569,7 +552,7 @@ Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                          path -> (* temp_env -> *) state -> list (@Expression tags_t) -> list Val ->
                         (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_exprs_det_intro : forall this st exprs svs vs,
-                           exec_exprs read_one_bit this st exprs svs ->
+      Forall2 (exec_expr read_one_bit this st) exprs svs ->
                            svals_to_vals read_one_bit svs vs ->
                            exec_exprs_det read_one_bit this st exprs vs.
 

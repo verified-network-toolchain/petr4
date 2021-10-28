@@ -21,11 +21,8 @@ Fixpoint vdefault (τ : Expr.t) : option v :=
       ~{ HDR { vs } VALID:=false }~
   | {{ stack ts[n] }}
     => vs <<| sequence $ List.map (fun '(x,t) => v <<| vdefault t ;; (x, v)) ts ;;
-      VHeaderStack ts (repeat (false, vs) (Pos.to_nat n)) n 0
+      VHeaderStack ts (repeat (false, vs) (Pos.to_nat n)) 0
   | Expr.TVar _ => None
-  (*| {{ Str }} => Some ~{ STR String.EmptyString }~
-  | {{ enum x { xs } }} =>
-    m <<| hd_error xs ;; ~{ ENUM x DOT m }~*)
   end.
 (**[]*)
 
@@ -63,16 +60,16 @@ Fixpoint approx_type (V : v) : Expr.t :=
     => Expr.TStruct $ F.map approx_type vs
   | ~{ HDR { vs } VALID:=_ }~
     => Expr.THeader $ F.map approx_type vs
-  | ~{ STACK _:ts[n] NEXT:=_ }~ => {{ stack ts[n] }}
-  (*| ~{ STR _ }~ => {{ Str }}
-  | ~{ ENUM x DOT m }~ => {{ enum x { [m] } }}*)
+  | ~{ STACK hs:ts NEXT:=_ }~ => Expr.THeaderStack ts (Pos.of_nat (length hs))
   end.
 (**[]*)
                       
 Section Util.
   Context {tags_t : Type}.
+
+  Variable i : tags_t.
   
-  Fixpoint expr_of_value (i : tags_t) (V : v) : Expr.e tags_t :=
+  Fixpoint expr_of_value (V : v) : Expr.e tags_t :=
     match V with
     | ~{ VBOOL b }~ => <{ BOOL b @ i }>
     | ~{ w VW n }~ => <{ w W n @ i }>
@@ -80,27 +77,17 @@ Section Util.
     | ~{ ERROR err }~ => <{ Error err @ i }>
     | ~{ MATCHKIND mk }~ => <{ Matchkind mk @ i }>
     | ~{ TUPLE vs }~
-      => Expr.ETuple (List.map (expr_of_value i) vs) i
+      => Expr.ETuple (List.map expr_of_value vs) i
     | ~{ STRUCT { vs } }~
-      => Expr.EStruct
-          (F.map
-             (fun v => (approx_type v, expr_of_value i v))
-             vs) i
+      => Expr.EStruct (F.map expr_of_value vs) i
     | ~{ HDR { vs } VALID:=b }~
-      => Expr.EHeader
-          (F.map
-             (fun v => (approx_type v, expr_of_value i v))
-             vs) <{ BOOL b @ i }> i
-    | ~{ STACK hs:ts[n] NEXT:=ni }~
+      => Expr.EHeader (F.map expr_of_value vs) <{ BOOL b @ i }> i
+    | ~{ STACK hs:ts NEXT:=ni }~
       => Expr.EHeaderStack
           ts
           (List.map
              (fun '(b,vs) =>
                 Expr.EHeader
-                  (F.map
-                     (fun v => (approx_type v, expr_of_value i v))
-                     vs) <{ BOOL b @ i }> i) hs) n ni i
-    (*| ~{ STR s }~ => <{ Stri s @ i }>
-    | ~{ ENUM x DOT m }~ => <{ Enum x dot m @ i }>*)
+                  (F.map expr_of_value vs) <{ BOOL b @ i }> i) hs) ni i
     end.
 End Util.

@@ -49,11 +49,11 @@ Section StepDefs.
       => let z := IntArith.mod_bound w z in
         Some <{ w S z @ i }>
     | {{ struct { fs } }}, <{ tup vs @ i }>
-      => Some $ Expr.EStruct (combine (F.keys fs) $ combine (F.values fs) vs) i
+      => Some $ Expr.EStruct (combine (F.keys fs) vs) i
     | {{ hdr { fs } }}, <{ tup vs @ i }>
       => Some
           $ Expr.EHeader
-          (combine (F.keys fs) $ combine (F.values fs) vs) <{ TRUE @ i }> i
+          (combine (F.keys fs) vs) <{ TRUE @ i }> i
     | _, _ => None
     end.
   (**[]*)
@@ -69,7 +69,7 @@ Section StepDefs.
         : F.fs string (Expr.t * Expr.e tags_t) :=
         match fs with
         | [] => []
-        | (x, τ) :: fs => (x, (τ, edefault i τ)) :: fstruct fs
+        | (x, τ) :: fs => (x, edefault i τ) :: fstruct fs
         end in
     match τ with
     | {{ Bool }} => <{ BOOL false @ i }>
@@ -108,41 +108,11 @@ Section StepDefs.
       => Some <{ hdr { fs } valid:=TRUE @ i @ i}>
     | _{ setInValid }_, <{ hdr { fs } valid:=b @ i }>
       => Some <{ hdr { fs } valid:=FALSE @ i @ i }>
-    | _{ Size }_, <{ Stack _:_[size] nextIndex:=_ @ i }>
+    | _{ Size }_, <{ Stack hs:_ nextIndex:=_ @ i }>
       => let w := 32%positive in
-        let s := Zpos size in Some <{ w W s @ i }>
-    | _{ Next }_, <{ Stack hs:_[_] nextIndex:=ni @ _ }>
+        let s := Z.of_nat (length hs) in Some <{ w W s @ i }>
+    | _{ Next }_, <{ Stack hs:_ nextIndex:=ni @ _ }>
       => nth_error hs $ Z.to_nat ni
-    (*| _{ Push p }_, <{ Stack hs:ts[n] nextIndex:=ni @ i }>
-      => let pnat := Pos.to_nat p in
-        let sizenat := Pos.to_nat n in
-        let hdefault :=
-            Expr.EHeader
-              (F.map (fun τ => (τ, edefault i τ)) ts)
-            <{ BOOL false @ i }> i in
-        if lt_dec pnat sizenat then
-          let new_hdrs := repeat hdefault pnat in
-          let remains := firstn (sizenat - pnat) hs in
-          Some $ Expr.EHeaderStack ts (new_hdrs ++ remains) n
-               (Z.min (ni + Zpos p)%Z (Z.pos n - 1)%Z) i
-        else
-          let new_hdrs := repeat hdefault sizenat in
-          Some $ Expr.EHeaderStack ts new_hdrs n (Z.pos n - 1)%Z i
-    | _{ Pop p }_, <{ Stack hs:ts[n] nextIndex:=ni @ i }>
-      => let pnat := Pos.to_nat p in
-        let sizenat := Pos.to_nat n in
-        let hdefault :=
-            Expr.EHeader
-              (F.map (fun τ => (τ, edefault i τ)) ts)
-            <{ BOOL false @ i }> i in
-        if lt_dec pnat sizenat then
-          let new_hdrs := repeat hdefault pnat in
-          let remains := skipn pnat hs in
-          Some $ Expr.EHeaderStack ts (remains ++ new_hdrs) n
-               (Z.max 0 (ni - Zpos p)%Z) i
-        else
-          let new_hdrs := repeat hdefault sizenat in
-          Some $ Expr.EHeaderStack ts new_hdrs n 0%N i*)
     | _, _ => None
     end.
   (**[]*)
@@ -215,11 +185,9 @@ Section StepDefs.
   
   (** Get header stack data from value. *)
   Definition header_stack_data (v : Expr.e tags_t)
-    : option (positive * Z *
-              F.fs string (Expr.t) *
-              (list (Expr.e tags_t))) :=
+    : option (Z * F.fs string (Expr.t) * (list (Expr.e tags_t))) :=
     match v with
-    | <{ Stack hs:ts[n] nextIndex:=ni @ _}> => Some (n,ni,ts,hs)
+    | <{ Stack hs:ts nextIndex:=ni @ _}> => Some (ni,ts,hs)
     | _ => None
     end.
   (**[]*)
@@ -227,7 +195,7 @@ Section StepDefs.
   Definition eval_member (x : string) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
     match v with
     | <{ struct { vs } @ _ }>
-    | <{ hdr { vs } valid:=_ @ _ }> => vs ▷ F.get x >>| snd
+    | <{ hdr { vs } valid:=_ @ _ }> => vs ▷ F.get x
     | _                             => None
     end.
   (**[]*)
@@ -236,7 +204,7 @@ Section StepDefs.
   Definition eval_access (v : Expr.e tags_t) (n : Z) : option (Expr.e tags_t) :=
     v
       ▷ header_stack_data
-      >>| fourple_4
+      >>| triple_3
       >>= (fun hs => nth_error hs (Z.to_nat n)).
   
   Section Edefault.
@@ -331,10 +299,10 @@ Section StepDefs.
     Proof.
       intros D Γ x v v' ts τ τ' Heval Hv Hmem Hget Ht;
         inv Hmem; assert_canonical_forms.
-      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
+      - eapply F.relfs_get_r in H1 as [? [? ?]]; eauto 2;
           unravel in *; rewrite H in Heval;
             unravel in *; inv Heval; intuition.
-      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2;
+      - eapply F.relfs_get_r in H6 as [? [? ?]]; eauto 2;
           unravel in *; rewrite H in Heval;
             unravel in *; inv Heval; intuition.
     Qed.
@@ -465,9 +433,9 @@ Section StepDefs.
     Proof.
       intros D Γ x v ts τ τ' Hv Hmem Hget Ht;
         inv Hmem; assert_canonical_forms; unravel.
-      - eapply F.relfs_get_r in H1 as [[? ?] [? ?]]; eauto 2;
+      - eapply F.relfs_get_r in H1 as [? [? ?]]; eauto 2;
           unravel in *; rewrite H; unravel; eauto 2.
-      - eapply F.relfs_get_r in H6 as [[? ?] [? ?]]; eauto 2;
+      - eapply F.relfs_get_r in H6 as [? [? ?]]; eauto 2;
           unravel in *; rewrite H; unravel; eauto 2.
     Qed.
   End HelpersExist.
@@ -476,16 +444,16 @@ Section StepDefs.
   Fixpoint lv_lookup (ϵ : eenv) (lv : Expr.e tags_t) : option (Expr.e tags_t) :=
     match lv with
     | <{ Var x:_ @ _ }> => Env.find x ϵ
-    | <{ Mem lv:_ dot x @ _ }> =>
+    | <{ Mem lv dot x @ _ }> =>
       (* TODO: use monadic bind. *)
       match lv_lookup ϵ lv with
       | Some <{ struct { fs } @ _ }>
-      | Some <{ hdr { fs } valid:=_  @ _ }> => fs ▷ F.get x >>| snd
+      | Some <{ hdr { fs } valid:=_  @ _ }> => fs ▷ F.get x
       | _ => None
       end
     | <{ Access lv[n] @ _ }> =>
       match lv_lookup ϵ lv with
-      | Some <{ Stack vss:_[_] nextIndex:=_ @ _ }> => nth_error vss (Z.to_nat n)
+      | Some <{ Stack vss:_ nextIndex:=_ @ _ }> => nth_error vss (Z.to_nat n)
       | _ => None
       end
     | _ => None
@@ -496,25 +464,19 @@ Section StepDefs.
   Fixpoint lv_update (lv v : Expr.e tags_t) (ϵ : eenv) : eenv :=
     match lv with
     | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
-    | <{ Mem lv:_ dot x @ _ }> =>
+    | <{ Mem lv dot x @ _ }> =>
       match lv_lookup ϵ lv with
       | Some <{ struct { vs } @ i }>
-        => match F.get x vs with
-          | None => ϵ
-          | Some (τ,_) => lv_update lv (Expr.EStruct (F.update x (τ,v) vs) i) ϵ
-          end
+        => lv_update lv (Expr.EStruct (F.update x v vs) i) ϵ
       | Some <{ hdr { vs } valid:=b @ i }>
-        => match F.get x vs with
-          | None => ϵ
-          | Some (τ,_) => lv_update lv (Expr.EHeader (F.update x (τ,v) vs) b i) ϵ
-          end
+        => lv_update lv (Expr.EHeader (F.update x v vs) b i) ϵ
       | _ => ϵ
       end
     | <{ Access lv[n] @ _ }> =>
       match lv_lookup ϵ lv with
-      | Some <{ Stack vss:ts[size] nextIndex:=ni @ i }> =>
+      | Some <{ Stack vss:ts nextIndex:=ni @ i }> =>
         let vss := nth_update (Z.to_nat n) v vss in
-        lv_update lv <{ Stack vss:ts[size] nextIndex:=ni @ i }> ϵ
+        lv_update lv <{ Stack vss:ts nextIndex:=ni @ i }> ϵ
       | _ => ϵ
       end
     | _ => ϵ
@@ -530,8 +492,8 @@ Section StepDefs.
              (ϵcall : eenv) : eenv -> eenv :=
     F.fold (fun x arg ϵ =>
               match arg with
-              | PAIn (_,v)     => !{ x ↦ v ;; ϵ }!
-              | PAInOut (_,lv) => match lv_lookup ϵcall lv with
+              | PAIn v     => !{ x ↦ v ;; ϵ }!
+              | PAInOut lv => match lv_lookup ϵcall lv with
                                    | None   => ϵ
                                    | Some v => !{ x ↦ v ;; ϵ }!
                                    end
@@ -549,8 +511,8 @@ Section StepDefs.
               match arg with
               | PADirLess _ => ϵ (*what to do with directionless param*)
               | PAIn _ => ϵ
-              | PAOut (_,lv)
-              | PAInOut (_,lv) =>
+              | PAOut lv
+              | PAInOut lv =>
                 match Env.find x ϵf with
                 | None   => ϵ
                 | Some v => lv_update lv v ϵ

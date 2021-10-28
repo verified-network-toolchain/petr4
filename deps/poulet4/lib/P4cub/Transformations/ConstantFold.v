@@ -8,7 +8,7 @@ Section ConstFold.
 
   (** Binary operation optimizations. *)
   Definition optimize_bop
-             (op : Expr.bop) (t1 t2 : Expr.t)
+             (op : Expr.bop)
              (e1 e2 : Expr.e tags_t) (i : tags_t)
     : Expr.e tags_t :=
     match op, e1, e2 with
@@ -39,7 +39,7 @@ Section ConstFold.
     | _, _, _ =>
       match eval_bop op e1 e2 i with
       | Some e' => e'
-      | None     => <{ BOP e1:t1 op e2:t2 @ i }>
+      | None     => <{ BOP e1 op e2 @ i }>
       end
     end.
   
@@ -52,11 +52,11 @@ Section ConstFold.
     | <{ Error _ @ _ }>
     | <{ Matchkind _ @ _ }>
     | <{ Var _ : _ @ _ }> => e
-    | <{ Slice e:t [hi:lo] @ i }> =>
+    | <{ Slice e [hi:lo] @ i }> =>
       let e' := cf_e e in
       match eval_slice hi lo e' with
       | Some e'' => e''
-      | None     => <{ Slice e':t [hi:lo] @ i }>
+      | None     => <{ Slice e' [hi:lo] @ i }>
       end
     | <{ Cast e:t @ i }> =>
       let e' := cf_e e in
@@ -64,27 +64,26 @@ Section ConstFold.
       | Some e'' => e''
       | None     => <{ Cast e':t @ i }>
       end
-    | <{ UOP op e:t @ i }> =>
+    | <{ UOP op e @ i }> =>
       let e' := cf_e e in
       match eval_uop op e with
       | Some e'' => e''
-      | None     => <{ UOP op e':t @ i }>
+      | None     => <{ UOP op e' @ i }>
       end
-    | <{ BOP e1:t1 op e2:t2 @ i }> =>
-      optimize_bop op t1 t2 (cf_e e1) (cf_e e2) i
+    | <{ BOP e1 op e2 @ i }> =>
+      optimize_bop op (cf_e e1) (cf_e e2) i
     | <{ tup es @ i }> => Expr.ETuple (map cf_e es) i
-    | <{ struct { es } @ i }> =>
-      Expr.EStruct (F.map (fun '(t,e) => (t,cf_e e)) es) i
+    | <{ struct { es } @ i }> => Expr.EStruct (F.map cf_e es) i
     | <{ hdr { es } valid:=e @ i }> =>
-      Expr.EHeader (F.map (fun '(t,e) => (t,cf_e e)) es) (cf_e e) i
-    | <{ Mem e:t dot x @ i }> =>
+      Expr.EHeader (F.map cf_e es) (cf_e e) i
+    | <{ Mem e dot x @ i }> =>
       let e' := cf_e e in
       match eval_member x e' with
       | Some e'' => e''
-      | None     => <{ Mem e':t dot x @ i }>
+      | None     => <{ Mem e' dot x @ i }>
       end
-    | <{ Stack hs:ts [n] nextIndex:=ni @ i }> =>
-      Expr.EHeaderStack ts (map cf_e hs) n ni i
+    | <{ Stack hs:ts nextIndex:=ni @ i }> =>
+      Expr.EHeaderStack ts (map cf_e hs) ni i
     | <{ Access e[n] @ i }> =>
       let e' := cf_e e in
       match eval_access e' n with

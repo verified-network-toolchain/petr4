@@ -15,24 +15,24 @@ Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
 | value_tuple (es : list (Expr.e tags_t)) (i : tags_t) :
     Forall value es ->
     value <{ tup es @ i }>
-| value_struct (fs : F.fs string (Expr.t * Expr.e tags_t))
+| value_struct (fs : F.fs string (Expr.e tags_t))
                (i : tags_t) :
-    F.predfs_data (value ∘ snd) fs ->
+    F.predfs_data value fs ->
     value <{ struct { fs } @ i }>
-| value_header (fs : F.fs string (Expr.t * Expr.e tags_t))
+| value_header (fs : F.fs string (Expr.e tags_t))
                (b : Expr.e tags_t) (i : tags_t) :
     value b ->
-    F.predfs_data (value ∘ snd) fs ->
+    F.predfs_data value fs ->
     value <{ hdr { fs } valid:=b @ i }>
 | value_error (err : option (string)) (i : tags_t) :
     value <{ Error err @ i }>
 | value_matchkind (mk : Expr.matchkind) (i : tags_t) :
     value <{ Matchkind mk @ i }>
 | value_headerstack (fs : F.fs string (Expr.t))
-                    (hs : list (Expr.e tags_t)) (n : positive)
+                    (hs : list (Expr.e tags_t))
                     (ni : Z) (i : tags_t) :
     Forall value hs ->
-    value <{ Stack hs:fs[n] nextIndex:=ni @ i }>.
+    value <{ Stack hs:fs nextIndex:=ni @ i }>.
 (**[]*)
 
 Section IsValueInduction.
@@ -52,25 +52,25 @@ Section IsValueInduction.
       P <{ tup es @ i }>.
   
   Hypothesis HStruct : forall fs i,
-      F.predfs_data (value ∘ snd) fs ->
-      F.predfs_data (P ∘ snd) fs ->
+      F.predfs_data value fs ->
+      F.predfs_data P fs ->
       P <{ struct { fs } @ i }>.
   
   Hypothesis HHeader : forall fs b i,
       value b ->
       P b ->
-      F.predfs_data (value ∘ snd) fs ->
-      F.predfs_data (P ∘ snd) fs ->
+      F.predfs_data value fs ->
+      F.predfs_data P fs ->
       P <{ hdr { fs } valid:=b @ i }>.
   
   Hypothesis HError : forall err i, P <{ Error err @ i }>.
   
   Hypothesis HMatchkind : forall mk i, P <{ Matchkind mk @ i }>.
   
-  Hypothesis HStack : forall fs hs n ni i,
+  Hypothesis HStack : forall fs hs ni i,
       Forall value hs ->
       Forall P hs ->
-      P <{ Stack hs:fs[n] nextIndex:=ni @ i }>.
+      P <{ Stack hs:fs nextIndex:=ni @ i }>.
   
   Definition custom_value_ind : forall (e : Expr.e tags_t),
       value e -> P e :=
@@ -81,9 +81,9 @@ Section IsValueInduction.
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (lind Ht)
           end in
-      let fix find {A : Type} {fs : F.fs string (A * Expr.e tags_t)}
-              (Hfs : F.predfs_data (value ∘ snd) fs) :
-            F.predfs_data (P ∘ snd) fs :=
+      let fix find {fs : F.fs string (Expr.e tags_t)}
+              (Hfs : F.predfs_data value fs) :
+            F.predfs_data P fs :=
           match Hfs with
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (find Ht)
@@ -98,7 +98,7 @@ Section IsValueInduction.
         => HHeader _ _ i Hb (vind _ Hb) Hfs (find Hfs)
       | value_error err i => HError err i
       | value_matchkind mk i => HMatchkind mk i
-      | value_headerstack fs _ n ni i Hhs => HStack fs _ n ni i Hhs (lind Hhs)
+      | value_headerstack fs _ ni i Hhs => HStack fs _ ni i Hhs (lind Hhs)
       end.
 End IsValueInduction.
 
@@ -115,12 +115,12 @@ Section Lemmas.
     - assert (Forall value es \/ ~ Forall value es).
       { ind_list_Forall; intuition. }
       intuition. right; intros H'; inv H'. contradiction.
-    - assert (F.predfs_data (value ∘ snd) fields \/
-              ~ F.predfs_data (value ∘ snd) fields).
+    - assert (F.predfs_data value fields \/
+              ~ F.predfs_data value fields).
       { ind_list_predfs; unfold F.predfs_data in *; intuition. }
       intuition. right; intros H'; inv H'. contradiction.
-    - assert (F.predfs_data (value ∘ snd) fields \/
-              ~ F.predfs_data (value ∘ snd) fields).
+    - assert (F.predfs_data value fields \/
+              ~ F.predfs_data value fields).
       { ind_list_predfs; unfold F.predfs_data in *; intuition. }
       intuition; right; intros H'; inv H'; contradiction.
     - assert (Forall value hs \/ ~ Forall value hs).
@@ -132,12 +132,12 @@ End Lemmas.
 Inductive lvalue {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue <{ Var x:τ @ i }>
-| lvalue_slice lv τ hi lo i :
+| lvalue_slice lv hi lo i :
     lvalue lv ->
-    lvalue <{ Slice lv:τ [hi:lo] @ i }>
-| lvalue_member lv τ x i :
+    lvalue <{ Slice lv [hi:lo] @ i }>
+| lvalue_member lv x i :
     lvalue lv ->
-    lvalue <{ Mem lv:τ dot x @ i }>
+    lvalue <{ Mem lv dot x @ i }>
 | lvalue_access lv idx i :
     lvalue lv ->
     lvalue <{ Access lv[idx] @ i }>.
@@ -205,7 +205,7 @@ Module CanonicalForms.
     
     Lemma canonical_forms_headerstack : forall ts n,
         ⟦ Δ, Γ ⟧ ⊢ v ∈ stack ts[n] ->
-        exists hs ni i, v = <{ Stack hs:ts[n] nextIndex:= ni @ i }>.
+        exists hs ni i, v = <{ Stack hs:ts nextIndex:= ni @ i }>.
     Proof. crush_canonical. Qed.
   End CanonicalForms.
   
@@ -218,7 +218,7 @@ Module CanonicalForms.
     | H: <{ struct { _ } @ _ }> = <{ struct { _ } @ _ }> |- _ => inv H
     | H: <{ hdr { _ } valid:=_ @ _ }> = <{ hdr { _ } valid:=_ @ _ }>
       |- _ => inv H
-    | H: <{ Stack _:_[_] nextIndex:=_ @ _ }> = <{ Stack _:_[_] nextIndex:=_ @ _ }>
+    | H: <{ Stack _:_ nextIndex:=_ @ _ }> = <{ Stack _:_ nextIndex:=_ @ _ }>
       |- _ => inv H
     end.
   (**[]*)

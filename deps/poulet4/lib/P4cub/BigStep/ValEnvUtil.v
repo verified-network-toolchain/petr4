@@ -25,7 +25,7 @@ Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   | l{ ACCESS lv[n] }l =>
     match lv_lookup ϵ lv with
     | None => None
-    | Some ~{ STACK vss:_[_] NEXT:=_ }~ =>
+    | Some ~{ STACK vss:_ NEXT:=_ }~ =>
       match nth_error vss (Z.to_nat n) with
       | None => None
       | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
@@ -61,9 +61,9 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   | l{ ACCESS lv[n] }l =>
     match v, lv_lookup ϵ lv with
     | ~{ HDR { vs } VALID:=b }~ ,
-      Some ~{ STACK vss:ts[size] NEXT:=ni }~ =>
+      Some ~{ STACK vss:ts NEXT:=ni }~ =>
       let vss := nth_update (Z.to_nat n) (b,vs) vss in
-      lv_update lv ~{ STACK vss:ts[size] NEXT:=ni }~ ϵ
+      lv_update lv ~{ STACK vss:ts NEXT:=ni }~ ϵ
     | _, Some _ | _, None => ϵ
     end
   end.

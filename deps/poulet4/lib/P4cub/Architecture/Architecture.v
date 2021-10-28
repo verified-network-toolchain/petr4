@@ -15,7 +15,7 @@ Module Arch (Pkt : P4Packet).
     closure : Env.t string E;
     dispatch_method :
       string ->                                 (* method name *)
-      arrow string (T * E) (T * LV) (T * LV) -> (* arguments *)
+      arrow string E LV LV -> (* arguments *)
       Env.t string E ->                         (* current environment *)
       paquet_monad (Env.t string E)            (* input/output packet &
                                                   resulting environment. *)

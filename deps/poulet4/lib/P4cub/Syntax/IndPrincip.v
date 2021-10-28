@@ -96,55 +96,51 @@ Section ExprInduction.
   Hypothesis HEVar : forall (ty : t) (x : string) i,
       P <{ Var x : ty @ i }>.
   
-  Hypothesis HESlice : forall n τ hi lo i,
-      P n -> P <{ Slice n:τ [ hi : lo ] @ i }>.
+  Hypothesis HESlice : forall n hi lo i,
+      P n -> P <{ Slice n [ hi : lo ] @ i }>.
   
   Hypothesis HECast : forall τ exp i,
       P exp -> P <{ Cast exp:τ @ i }>.
   
-  Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e tags_t) i,
-      P ex -> P <{ UOP op ex : ty @ i }>.
+  Hypothesis HEUop : forall (op : uop) (ex : e tags_t) i,
+      P ex -> P <{ UOP op ex @ i }>.
   
-  Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e tags_t) i,
-      P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
+  Hypothesis HEBop : forall (op : bop) (lhs rhs : e tags_t) i,
+      P lhs -> P rhs -> P <{ BOP lhs op rhs @ i }>.
   
   Hypothesis HETuple : forall es i,
       Forall P es -> P <{ tup es @ i }>.
   
   Hypothesis HEStruct : forall fields i,
-      F.predfs_data (P ∘ snd) fields -> P <{ struct {fields} @ i }>.
+      F.predfs_data P fields -> P <{ struct {fields} @ i }>.
   
   Hypothesis HEHeader : forall fields b i,
-      P b -> F.predfs_data (P ∘ snd) fields ->
+      P b -> F.predfs_data P fields ->
       P <{ hdr {fields} valid:=b @ i }>.
   
-  Hypothesis HEExprMember : forall x ty expr i,
-      P expr -> P <{ Mem expr:ty dot x @ i }>.
+  Hypothesis HEExprMember : forall x expr i,
+      P expr -> P <{ Mem expr dot x @ i }>.
   
   Hypothesis HEError : forall err i, P <{ Error err @ i }>.
   
   Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
   
-  Hypothesis HEStack : forall ts hs size ni i,
+  Hypothesis HEStack : forall ts hs ni i,
       Forall P hs ->
-      P <{ Stack hs:ts [size] nextIndex:=ni @ i }>.
+      P <{ Stack hs:ts nextIndex:=ni @ i }>.
   
   Hypothesis HAccess : forall e1 e2 i,
       P e1 -> P <{ Access e1[e2] @ i }>.
-
-  (*Hypothesis HString : forall s i, P <{ Stri s @ i }>.
-
-  Hypothesis HEnum : forall x m i, P <{ Enum x dot m @ i }>.*)
   
   (** A custom induction principle.
       Do [induction ?e using custom_e_ind]. *)
   Definition custom_e_ind : forall exp : e tags_t, P exp :=
     fix eind (expr : e tags_t) : P expr :=
-      let fix fields_ind {A:Type} (flds : F.fs string (A * e tags_t))
-          : F.predfs_data (P ∘ snd) flds :=
+      let fix fields_ind (flds : F.fs string (e tags_t))
+          : F.predfs_data P flds :=
           match flds with
-          | [] => Forall_nil (F.predf_data (P ∘ snd))
-          | (_, (_, hfe)) as hf :: tf
+          | [] => Forall_nil _
+          | (_, hfe) as hf :: tf
             => Forall_cons hf (eind hfe) (fields_ind tf)
           end in
       let fix list_ind (es : list (e tags_t)) : Forall P es :=
@@ -157,24 +153,21 @@ Section ExprInduction.
       | <{ w W n @ i }>  => HEBit w n i
       | <{ w S n @ i }>  => HEInt w n i
       | <{ Var x:ty @ i }> => HEVar ty x i
-      | <{ Slice n:τ [h:l] @ i }> => HESlice n τ h l i (eind n)
+      | <{ Slice n [h:l] @ i }> => HESlice n h l i (eind n)
       | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
-      | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
-      | <{ BOP lhs:lt op rhs:rt @ i }>
-        => HEBop op lt rt lhs rhs i
-                (eind lhs) (eind rhs)
+      | <{ UOP op exp @ i }> => HEUop op exp i (eind exp)
+      | <{ BOP lhs op rhs @ i }>
+        => HEBop op lhs rhs i (eind lhs) (eind rhs)
       | <{ tup es @ i }>         => HETuple es i (list_ind es)
       | <{ struct { fields } @ i }> => HEStruct fields i (fields_ind fields)
       | <{ hdr { fields } valid:=b @ i }>
         => HEHeader fields b i (eind b) (fields_ind fields)
-      | <{ Mem exp:ty dot x @ i }> => HEExprMember x ty exp i (eind exp)
+      | <{ Mem exp dot x @ i }> => HEExprMember x exp i (eind exp)
       | <{ Error err @ i }> => HEError err i
       | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
-      | <{ Stack hs:ts [n] nextIndex:=ni @ i }>
-        => HEStack ts hs n ni i (list_ind hs)
+      | <{ Stack hs:ts nextIndex:=ni @ i }>
+        => HEStack ts hs ni i (list_ind hs)
       | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
-      (*| <{ Stri s @ i }> => HString s i
-      | <{ Enum x dot m @ i }> => HEnum x m i*)
       end.
   (**[]*)
 End ExprInduction.

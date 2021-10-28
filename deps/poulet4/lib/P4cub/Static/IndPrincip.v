@@ -100,7 +100,7 @@ Section CheckExprInduction.
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
       let w' := (hi - lo + 1)%positive in
-      P Δ Γ <{ Slice e:τ [hi:lo] @ i }> {{ bit<w'> }}.
+      P Δ Γ <{ Slice e [hi:lo] @ i }> {{ bit<w'> }}.
   (**[]*)
   
   Hypothesis HCast : forall Δ Γ τ τ' e i,
@@ -116,7 +116,7 @@ Section CheckExprInduction.
       uop_type op τ τ' ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
-      P Δ Γ <{ UOP op e:τ @ i }> τ'.
+      P Δ Γ <{ UOP op e @ i }> τ'.
   
   Hypothesis HBop : forall Δ Γ op τ1 τ2 τ e1 e2 i,
       bop_type op τ1 τ2 τ ->
@@ -124,7 +124,7 @@ Section CheckExprInduction.
       P Δ Γ e1 τ1 ->
       ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
       P Δ Γ e2 τ2 ->
-      P Δ Γ <{ BOP e1:τ1 op e2:τ2 @ i }> τ.
+      P Δ Γ <{ BOP e1 op e2 @ i }> τ.
   
   Hypothesis HMem : forall Δ Γ e x fs τ τ' i,
       F.get x fs = Some τ' ->
@@ -133,7 +133,7 @@ Section CheckExprInduction.
       t_ok Δ τ' ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
-      P Δ Γ <{ Mem e:τ dot x @ i }> τ'.
+      P Δ Γ <{ Mem e dot x @ i }> τ'.
   (**[]*)
   
   Hypothesis HTuple : forall Δ Γ es i ts,
@@ -143,27 +143,15 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HStructLit : forall Δ Γ efs tfs i,
-      F.relfs
-        (fun te τ =>
-           (fst te) = τ /\ t_ok Δ τ /\
-           let e := snd te in
-           ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-      F.relfs
-        (fun te τ => let e := snd te in P Δ Γ e τ)
-        efs tfs ->
+      F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+      F.relfs (P Δ Γ) efs tfs ->
       P Δ Γ <{ struct { efs } @ i }> {{ struct { tfs } }}.
   (**[]*)
   
   Hypothesis HHdrLit : forall Δ Γ efs tfs i b,
       ProperType.proper_nesting {{ hdr { tfs } }} ->
-      F.relfs
-        (fun te τ =>
-           (fst te) = τ /\ t_ok Δ τ /\
-           let e := snd te in
-           ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-      F.relfs
-        (fun te τ => let e := snd te in P Δ Γ e τ)
-        efs tfs ->
+      F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+      F.relfs (P Δ Γ) efs tfs ->
       ⟦ Δ, Γ ⟧ ⊢ b ∈ Bool ->
       P Δ Γ b {{ Bool }} ->
       P Δ Γ <{ hdr { efs } valid:=b @ i }> {{ hdr { tfs } }}.
@@ -177,15 +165,15 @@ Section CheckExprInduction.
       P Δ Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
   (**[]*)
   
-  Hypothesis HStack : forall Δ Γ ts hs n ni i,
+  Hypothesis HStack : forall Δ Γ ts hs ni i,
+      let n := Pos.of_nat (length hs) in
       BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
-      Pos.to_nat n = length hs ->
       ProperType.proper_nesting {{ stack ts[n] }} ->
       t_ok Δ {{ stack ts[n] }} ->
       Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
       Forall (fun e => P Δ Γ e {{ hdr { ts } }}) hs ->
-      P Δ Γ <{ Stack hs:ts[n] nextIndex:=ni @ i }> {{ stack ts[n] }}.
+      P Δ Γ <{ Stack hs:ts nextIndex:=ni @ i }> {{ stack ts[n] }}.
   (**[]*)
   
   Hypothesis HAccess : forall Δ Γ e idx i ts n,
@@ -222,20 +210,14 @@ Section CheckExprInduction.
             => Forall_cons _ (chind _ _ _ _ Hhead) (lind_stk Htail)
           end in
       let fix fields_ind
-              {efs : F.fs string (Expr.t * Expr.e tags_t)}
+              {efs : F.fs string (Expr.e tags_t)}
               {tfs : F.fs string Expr.t}
-              (HRs : F.relfs
-                       (fun te τ =>
-                          (fst te) = τ /\ t_ok Δ τ /\
-                          let e := snd te in
-                          ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs)
-          : F.relfs
-              (fun te τ => let e := snd te in P Δ Γ e τ)
-              efs tfs :=
+              (HRs : F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs)
+          : F.relfs (P Δ Γ) efs tfs :=
           match HRs with
           | Forall2_nil _ => Forall2_nil _
-          | Forall2_cons te τ (conj HName (conj _ (conj _ Hhead))) Htail
-            => Forall2_cons te τ
+          | Forall2_cons e τ (conj HName Hhead) Htail
+            => Forall2_cons e τ
                            (conj HName (chind Δ Γ _ _ Hhead))
                            (fields_ind Htail)
           end in
@@ -265,8 +247,8 @@ Section CheckExprInduction.
         => HHdrLit _ _ _ _ i _ HP
                   HRs (fields_ind HRs)
                   Hb (chind _ _ _ _ Hb)
-      | chk_stack _ _ _ _ _ _ i Hn Hni Hlen HP Hok HRs
-        => HStack _ _ _ _ _ _ i Hn Hni Hlen HP Hok HRs (lind_stk HRs)
+      | chk_stack _ _ _ _ _ i Hn Hni HP Hok HRs
+        => HStack _ _ _ _ _ i Hn Hni HP Hok HRs (lind_stk HRs)
       | chk_access _ _ _ _ i _ _ Hok Hidx He
         => HAccess _ _ _ _ i _ _ Hok Hidx He (chind _ _ _ _ He)
       end.

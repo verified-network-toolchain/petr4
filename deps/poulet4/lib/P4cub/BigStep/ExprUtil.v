@@ -32,35 +32,13 @@ Definition eval_uop (op : Expr.uop) (v : Val.v) : option Val.v :=
     => Some ~{ HDR { vs } VALID:=true }~
   | _{ setInValid }_, ~{ HDR { vs } VALID:=_ }~
     => Some ~{ HDR { vs } VALID:=false }~
-  | _{ Size }_, ~{ STACK _:_[n] NEXT:=_ }~ => Some $ Val.VBit 32%positive $ Zpos n
-  | _{ Next }_, ~{ STACK hs:_[_] NEXT:=ni }~
+  | _{ Size }_, ~{ STACK hs:_ NEXT:=_ }~ =>
+    Some $ Val.VBit 32%positive $ Z.of_nat $ length hs
+  | _{ Next }_, ~{ STACK hs:_ NEXT:=ni }~
     => bvs <<| nth_error hs $ Z.to_nat ni ;;
       match bvs with
       | (b,vs) => ~{ HDR { vs } VALID:=b }~
       end
-  (*| _{ Push n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
-    => let nnat := Pos.to_nat n in
-      let sizenat := Pos.to_nat size in
-      if lt_dec nnat sizenat then
-        let new_hdrs := repeat (false, F.map vdefault ts) nnat in
-        let remains := firstn (sizenat - nnat) hs in
-        let new_nextIndex := Z.min (ni + Z.pos n) (Z.pos size - 1)%Z in
-        Some $ Val.VHeaderStack ts (new_hdrs ++ remains) size new_nextIndex
-      else
-        let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
-        Some $ Val.VHeaderStack ts new_hdrs size ((Z.pos size) - 1)%Z
-  | _{ Pop n }_, ~{ STACK hs:ts[size] NEXT:=ni }~
-    => let nnat := Pos.to_nat n in
-      let sizenat := Pos.to_nat size in
-      if lt_dec nnat sizenat then
-        let new_hdrs := repeat (false, F.map vdefault ts) nnat in
-        let remains := skipn nnat hs in
-        Some $
-             Val.VHeaderStack ts (remains ++ new_hdrs) size $
-             Z.max 0%Z (ni - Zpos n)%Z
-      else
-        let new_hdrs := repeat (false, F.map vdefault ts) sizenat in
-        Some $ Val.VHeaderStack ts new_hdrs size 0%Z*)
   | _, _ => None
   end.
 (**[]*)

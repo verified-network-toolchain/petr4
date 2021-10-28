@@ -139,11 +139,11 @@ Module Step.
   | ebs_var (x : string) (τ : Expr.t) (i : tags_t) (v : V.v) :
       Env.find x ϵ = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
-  | ebs_slice (e : Expr.e tags_t) (τ : Expr.t) (hi lo : positive)
+  | ebs_slice (e : Expr.e tags_t) (hi lo : positive)
               (i : tags_t) (v' v : V.v) :
       eval_slice hi lo v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟨ ϵ, Slice e:τ [hi:lo] @ i ⟩ ⇓ v'
+      ⟨ ϵ, Slice e [hi:lo] @ i ⟩ ⇓ v'
   | ebs_cast (τ : Expr.t) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
       eval_cast τ v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
@@ -153,44 +153,40 @@ Module Step.
   | ebs_matchkind (mk : Expr.matchkind) (i : tags_t) :
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
-  | ebs_uop (op : Expr.uop) (τ : Expr.t) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
-      (*eval_uop op v = Some v' ->*)
+  | ebs_uop (op : Expr.uop) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
+      eval_uop op v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟨ ϵ, UOP op e:τ @ i ⟩ ⇓ v'
+      ⟨ ϵ, UOP op e @ i ⟩ ⇓ v'
   (* Binary Operations. *)
-  | ebs_bop (op : Expr.bop) (τ1 τ2 : Expr.t) (e1 e2 : Expr.e tags_t)
+  | ebs_bop (op : Expr.bop) (e1 e2 : Expr.e tags_t)
             (i : tags_t) (v v1 v2 : V.v) :
       eval_bop op v1 v2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-      ⟨ ϵ, BOP e1:τ1 op e2:τ2 @ i ⟩ ⇓ v
+      ⟨ ϵ, BOP e1 op e2 @ i ⟩ ⇓ v
   (* Structs *)
-  | ebs_mem (e : Expr.e tags_t) (x : string) (τ : Expr.t)
+  | ebs_mem (e : Expr.e tags_t) (x : string)
             (i : tags_t) (v v' : V.v) :
       eval_member x v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟨ ϵ, Mem e:τ dot x @ i ⟩ ⇓ v'
+      ⟨ ϵ, Mem e dot x @ i ⟩ ⇓ v'
   | ebs_tuple (es : list (Expr.e tags_t)) (i : tags_t)
               (vs : list (V.v)) :
       Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
       ⟨ ϵ, tup es @ i ⟩ ⇓ TUPLE vs
-  | ebs_struct_lit (efs : F.fs string (Expr.t * Expr.e tags_t))
+  | ebs_struct_lit (efs : F.fs string (Expr.e tags_t))
                 (i : tags_t) (vfs : F.fs string V.v) :
-      F.relfs
-        (fun te v =>
-           let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+      F.relfs (fun e v => ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
       ⟨ ϵ, struct { efs } @ i ⟩ ⇓ STRUCT { vfs }
-  | ebs_hdr_lit (efs : F.fs string (Expr.t * Expr.e tags_t))
+  | ebs_hdr_lit (efs : F.fs string (Expr.e tags_t))
                 (e : Expr.e tags_t) (i : tags_t) (b : bool)
                 (vfs : F.fs string V.v) :
-      F.relfs
-        (fun te v =>
-           let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
+      F.relfs (fun e v => ⟨ ϵ, e ⟩ ⇓ v) efs vfs ->
       ⟨ ϵ, e ⟩ ⇓ VBOOL b ->
       ⟨ ϵ, hdr { efs } valid:=e @ i ⟩ ⇓ HDR { vfs } VALID:=b
   | ebs_hdr_stack (ts : F.fs string (Expr.t))
                   (hs : list (Expr.e tags_t))
-                  (n : positive) (ni : Z) (i : tags_t)
+                  (ni : Z) (i : tags_t)
                   (vss : list (bool * F.fs string (V.v))) :
       Forall2
         (fun e bvs =>
@@ -198,14 +194,14 @@ Module Step.
            let vs := snd bvs in
            ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b)
         hs vss ->
-      ⟨ ϵ, Stack hs:ts[n] nextIndex:=ni @ i ⟩ ⇓ STACK vss:ts [n] NEXT:=ni
+      ⟨ ϵ, Stack hs:ts nextIndex:=ni @ i ⟩ ⇓ STACK vss:ts NEXT:=ni
   | ebs_access (e : Expr.e tags_t) (i : tags_t)
-               (n : positive) (index ni : Z)
+               (index ni : Z)
                (ts : F.fs string (Expr.t))
                (vss : list (bool * F.fs string (V.v)))
                (b : bool) (vs : F.fs string (V.v)) :
       nth_error vss (Z.to_nat index) = Some (b,vs) ->
-      ⟨ ϵ, e ⟩ ⇓ STACK vss:ts [n] NEXT:=ni ->
+      ⟨ ϵ, e ⟩ ⇓ STACK vss:ts NEXT:=ni ->
       ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   (**[]*)
@@ -214,14 +210,14 @@ Module Step.
   Inductive lvalue_big_step {tags_t : Type} : Expr.e tags_t -> V.lv -> Prop :=
   | lvbs_var (x : string) (τ : Expr.t) (i : tags_t) :
       ⧠ Var x:τ @ i ⇓ VAR x
-  | lvbs_slice (e : Expr.e tags_t) (τ : Expr.t)
+  | lvbs_slice (e : Expr.e tags_t)
                (hi lo : positive) (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
-      ⧠ Slice e:τ [hi:lo] @ i ⇓ SLICE lv [hi:lo]
+      ⧠ Slice e [hi:lo] @ i ⇓ SLICE lv [hi:lo]
   | lvbs_member (e : Expr.e tags_t) (x : string)
-                (τ : Expr.t) (i : tags_t) (lv : V.lv) :
+                (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
-      ⧠ Mem e:τ dot x @ i ⇓ lv DOT x
+      ⧠ Mem e dot x @ i ⇓ lv DOT x
   | lvbs_access (e : Expr.e tags_t) (i : tags_t)
                       (lv : V.lv) (n : Z) :
       let w := 32%positive in
@@ -295,24 +291,28 @@ Module Step.
       interrupt sig ->
       ⟪ pkt, fs, ϵ, c, s ⟫ ⤋ ⟪ ϵ', sig, pkt' ⟫ ->
       ⟪ pkt, fs, ϵ, c, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
-  | sbs_vardecl (τ : Expr.t) (x : string)
+  | sbs_vardecl (x : string) (eo : either Expr.t (Expr.e tags_t))
                 (i : tags_t) (v : V.v) (c : ctx) :
-      vdefault τ = Some v ->
-      ⟪ pkt, fs, ϵ, c, var x : τ @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
-  | sbs_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t)
+      match eo with
+      | Right e => ⟨ ϵ, e ⟩ ⇓ v
+      | Left τ  => vdefault τ = Some v
+      end ->
+      ⟪ pkt, fs, ϵ, c, var x := eo @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
+  | sbs_assign (e1 e2 : Expr.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :
       lv_update lv v ϵ = ϵ' ->
       ⧠ e1 ⇓ lv ->
       ⟨ ϵ, e2 ⟩ ⇓ v ->
-      ⟪ pkt, fs, ϵ, c, asgn e1 := e2 : τ @ i ⟫ ⤋ ⟪ ϵ', C, pkt ⟫
+      ⟪ pkt, fs, ϵ, c, asgn e1 := e2 @ i ⟫ ⤋ ⟪ ϵ', C, pkt ⟫
   | sbs_exit (i : tags_t) (c : ctx) :
       ⟪ pkt, fs, ϵ, c, exit @ i ⟫ ⤋ ⟪ ϵ, X, pkt ⟫
   | sbs_retvoid (i : tags_t) :
-      ⟪ pkt, fs, ϵ, Void, returns @ i ⟫ ⤋ ⟪ ϵ, Void, pkt ⟫
+      ⟪ pkt, fs, ϵ, Void, return None @ i ⟫ ⤋ ⟪ ϵ, Void, pkt ⟫
   | sbs_retfruit (τ : Expr.t) (e : Expr.e tags_t)
                  (i : tags_t) (v : V.v) :
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟪ pkt, fs, ϵ, Function τ, return e:τ @ i ⟫ ⤋ ⟪ ϵ, Fruit v, pkt ⟫
+      let eo := Some e in
+      ⟪ pkt, fs, ϵ, Function τ, return eo @ i ⟫ ⤋ ⟪ ϵ, Fruit v, pkt ⟫
   | sbs_cond_true (guard : Expr.e tags_t)
                   (tru fls : Stmt.s tags_t) (i : tags_t)
                   (ϵ' : epsilon) (sig : signal) (c : ctx) :
@@ -344,8 +344,8 @@ Module Step.
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v  => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -364,8 +364,8 @@ Module Step.
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v  => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v  => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -386,8 +386,8 @@ Module Step.
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -400,7 +400,7 @@ Module Step.
       (* Assignment to lvalue. *)
       lv_update lv v ϵ''' = ϵ'''' ->
       ⟪ pkt, fs, ϵ, c,
-        let e:τ := call f <[]> (args) @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
+        let e := call f <[]> (args) @ i ⟫ ⤋ ⟪ ϵ'''', C, pkt ⟫
   | sbs_ctrl_apply (args : Expr.args tags_t) (eargs : F.fs string string)
                    (argsv : V.argsv) (x : string) (i : tags_t)
                    (body : Stmt.s tags_t) (fclosure : fenv) (cis cis' : cienv)
@@ -414,8 +414,8 @@ Module Step.
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in. *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -439,8 +439,8 @@ Module Step.
       (* Argument evaluation *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -463,8 +463,8 @@ Module Step.
       (* Argument evaluation *)
       F.relfs
         (rel_paramarg
-           (fun '(_,e) v => ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(_,e) lv => ⧠ e ⇓ lv))
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Copy-in *)
       copy_in argsv ϵ closure = ϵ' ->
@@ -497,10 +497,8 @@ Module Step.
       ⟪ pkt, fs, ϵ, ApplyBlock cp ts aa cis eis, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫
   | sbs_extern_method_call (x mthd : string) (i : tags_t)
                            (args : Expr.args tags_t)
-                           (eo : option (Expr.t * Expr.e tags_t)) (lvo : option (Expr.t * V.lv))
-                           (argsv : F.fs
-                                      string
-                                      (paramarg (Expr.t * V.v) (Expr.t * V.lv)))
+                           (eo : option (Expr.e tags_t)) (lvo : option V.lv)
+                           (argsv : F.fs string (paramarg V.v V.lv))
                            disp (** dispatch method *)
                            (cls cls'' : Env.t string ValuePacket.E) (pkt' : Paquet.t)
                            (exts : ARCH.extern_env) (c : ctx) :
@@ -517,18 +515,17 @@ Module Step.
       (* Evaluate arguments. *)
       F.relfs
         (rel_paramarg
-           (fun '(τ,e) '(t,v) => τ = t /\ ⟨ ϵ, e ⟩ ⇓ v)
-           (fun '(τ,e) '(t,lv) => τ = t /\ ⧠ e ⇓ lv))
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
         args argsv ->
       (* Evaluate lvalue. *)
-      relop (fun '(τ,e) '(t,lv) => τ = t /\ ⧠ e ⇓ lv) eo lvo ->
-      let argsv' := F.map (paramarg_map snd snd) argsv in
+      relop (fun e lv => ⧠ e ⇓ lv) eo lvo ->
       (** Copy-in. *)
-      let cls' := copy_in argsv' ϵ cls in
+      let cls' := copy_in argsv ϵ cls in
       (* Evaluate extern method call. *)
       disp mthd (Arrow argsv lvo) cls' pkt = (inl cls'', pkt') ->
       (* Copy-out. *)
-      let ϵ' := copy_out argsv' cls'' ϵ in
+      let ϵ' := copy_out argsv cls'' ϵ in
       ⟪ pkt, fs, ϵ, c,
         extern x calls mthd <[]> (args) gives eo @ i ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
   where "⟪ pkt1 , fs , ϵ1 , ctx , s ⟫ ⤋ ⟪ ϵ2 , sig , pkt2 ⟫"

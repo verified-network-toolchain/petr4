@@ -44,11 +44,10 @@ Inductive type_value : v -> Expr.t -> Prop :=
 | typ_matchkind (mk : Expr.matchkind) :
     ∇ ⊢ MATCHKIND mk ∈ matchkind
 | typ_headerstack (ts : Field.fs string Expr.t)
-                  (hs : list (bool * Field.fs string v))
-                  (n : positive) (ni : Z) :
+                  (hs : list (bool * Field.fs string v)) (ni : Z) :
+    let n := Pos.of_nat (length hs) in
     BitArith.bound 32%positive (Zpos n) ->
     (0 <= ni < (Zpos n))%Z ->
-    Pos.to_nat n = length hs ->
     proper_nesting {{ stack ts[n] }} ->
     (* t_ok Δ {{ stack ts[n] }} -> *)
     Forall
@@ -56,7 +55,7 @@ Inductive type_value : v -> Expr.t -> Prop :=
          let b := fst bvs in
          let vs := snd bvs in
          ∇ ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
-    ∇ ⊢ STACK hs:ts[n] NEXT:=ni ∈ stack ts[n]
+    ∇ ⊢ STACK hs:ts NEXT:=ni ∈ stack ts[n]
 where "∇ ⊢ vl ∈ τ" := (type_value vl τ) : type_scope.
 
 (** Custom induction for value typing. *)
@@ -95,10 +94,10 @@ Section ValueTypingInduction.
       Field.relfs (fun vl τ => P  vl τ) vs ts ->
       P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
   
-  Hypothesis HStack : forall  ts hs n ni,
+  Hypothesis HStack : forall  ts hs ni,
+      let n := Pos.of_nat (length hs) in
       BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
-      Pos.to_nat n = length hs ->
       proper_nesting {{ stack ts[n] }} ->
       Forall
         (fun bvs =>
@@ -110,7 +109,7 @@ Section ValueTypingInduction.
            let b := fst bvs in
            let vs := snd bvs in
            P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}) hs ->
-      P  ~{ STACK hs:ts[n] NEXT:=ni }~ {{ stack ts[n] }}.
+      P  ~{ STACK hs:ts NEXT:=ni }~ {{ stack ts[n] }}.
   
   (** Custom induction principle.
       Do [induction ?H using custom_type_value_ind]. *)
@@ -169,10 +168,8 @@ Section ValueTypingInduction.
       | typ_tuple _ _ Hvs => HTuple _ _ Hvs (lind Hvs)
       | typ_struct _ _ Hfs => HStruct _ _ Hfs (fsind Hfs)
       | typ_hdr _ b _ HP Hfs => HHeader _ b _ HP Hfs (fsind Hfs)
-      | typ_headerstack _ _ _ _ Hn Hni Hlen HP
-                        Hhs => HStack _ _ _ _ Hn Hni
-                                     Hlen HP
-                                     Hhs (hsind Hhs)
+      | typ_headerstack _ _ _ Hn Hni HP Hhs =>
+        HStack _ _ _ Hn Hni HP Hhs (hsind Hhs)
       end.
 End ValueTypingInduction.
 

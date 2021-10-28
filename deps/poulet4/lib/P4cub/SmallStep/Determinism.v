@@ -62,11 +62,11 @@ Section Determinism.
         eapply Forall_until_eq in H0 as [? [? ?]]; eauto 1; subst.
         repeat f_equal; inv_eq; auto 2. *) admit.
       - unfold F.predfs_data, F.predf_data in *.
-        assert (~ (value ∘ snd ∘ snd) (x, (τ, e))) by (unravel; auto 1).
-        assert (~ (value ∘ snd ∘ snd) (x0, (τ0, e0))) by (unravel; auto 1).
-        eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.
+        (*assert (~ (value ∘ snd ∘ snd) (x, e)) by (unravel; auto 1).
+        assert (~ (value ∘ snd ∘ snd) (x0, e0)) by (unravel; auto 1).
+        eapply Forall_until_eq in H1 as [? ?]; eauto 1; subst.
         repeat f_equal; inv_eq; auto 2.
-        admit. admit. admit. admit. admit. admit. admit. admit.
+        admit. admit. admit. admit. admit. admit. admit. admit.*) admit.
       - assert (~ value e) by auto 1.
         assert (~ value e0) by auto 1.
         eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.

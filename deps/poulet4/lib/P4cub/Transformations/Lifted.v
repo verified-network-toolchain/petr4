@@ -52,9 +52,9 @@ Section Lifted.
       lifted_expr <{ BOOL b @ i }>
   | lifted_var x τ i :
       lifted_expr <{ Var x:τ @ i }>
-  | lifted_member e x τ i :
+  | lifted_member e x i :
       lifted_expr e ->
-      lifted_expr <{ Mem e:τ dot x @ i }>
+      lifted_expr <{ Mem e dot x @ i }>
   | lifted_error err i :
       lifted_expr <{ Error err @ i }>
   | lifted_matchkind mk i :
@@ -65,54 +65,63 @@ Section Lifted.
 
   Inductive lifted_args : Expr.arrowE tags_t -> Prop :=
   | lifted_args_arrow tes teo :
-      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) tes ->
-      predop (lifted_expr ∘ snd) teo ->
+      F.predfs_data (pred_paramarg_same lifted_expr) tes ->
+      predop lifted_expr teo ->
       lifted_args (Arrow tes teo).
   
   Inductive lifted_stmt : Stmt.s tags_t -> Prop :=
   | lifted_skip i :
       lifted_stmt -{ skip @ i }-
-  | lifted_vardecl x τ i :
-      lifted_stmt -{ var x:τ @ i }-
-  | lifted_assign τ e1 e2 i :
+  | lifted_vardecl x te i :
+      match te with
+      | Left t => True
+      | Right e => lifted_expr e
+      end ->
+      lifted_stmt -{ var x := te @ i }-
+  | lifted_assign e1 e2 i :
       lifted_expr e1 ->
       lifted_expr e2 ->
-      lifted_stmt -{ asgn e1 := e2:τ @ i }-
-  | lifted_bit x w n τ τx i ix iw :
-      lifted_stmt -{ asgn Var x:τx @ ix := w W n @ iw : τ @ i }-
-  | lifted_int x w z τ τx i ix iw :
-      lifted_stmt -{ asgn Var x:τx @ ix := w S z @ iw : τ @ i }-
-  | lifted_uop op x e τ τx τe i ix ie :
+      lifted_stmt -{ asgn e1 := e2 @ i }-
+  | lifted_bit x w n i iw :
+      let e := Right <{ w W n @ iw }> in
+      lifted_stmt -{ var x := e @ i }-
+  | lifted_int x w z i iw :
+      let e := Right <{ w S z @ iw }> in
+      lifted_stmt -{ var x := e @ i }-
+  | lifted_uop op x e i ie :
       lifted_expr e ->
-      lifted_stmt -{ asgn Var x:τx @ ix := UOP op e:τe @ ie :τ @ i}-
-  | lifted_bop op x e1 e2 τ τx τ1 τ2 i ix ie1e2 :
+      let eu := Right <{ UOP op e @ ie }> in
+      lifted_stmt -{ var x := eu @ i}-
+  | lifted_bop op x e1 e2 i ie1e2 :
       lifted_expr e1 ->
       lifted_expr e2 ->
-      lifted_stmt
-      -{ asgn Var x:τx @ ix := BOP e1:τ1 op e2:τ2 @ ie1e2 : τ @ i }-
-  | lifted_slice x e hi lo τ τx τe i ix ie :
+      let eb := Right <{ BOP e1 op e2 @ ie1e2 }> in
+      lifted_stmt -{ var x := eb @ i }-
+  | lifted_slice x e hi lo i ie :
       lifted_expr e ->
-      lifted_stmt
-      -{ asgn Var x:τx @ ix := Slice e:τe [hi:lo] @ ie : τ @ i }-
-  | lifted_cast x e τ τx τe i ix ie :
+      let eslice := Right <{ Slice e [hi:lo] @ ie }> in
+      lifted_stmt -{ var x := eslice @ i }-
+  | lifted_cast x e τe i ie :
       lifted_expr e ->
-      lifted_stmt -{ asgn Var x:τx @ ix := Cast e:τe @ ie : τ @ i }-
-  | lifted_tuple x es τ τx i ix ies :
+      let ecast := Right <{ Cast e:τe @ ie }> in
+      lifted_stmt -{ var x := ecast @ i }-
+  | lifted_tuple x es i ies :
       Forall lifted_expr es ->
-      lifted_stmt -{ asgn Var x:τx @ ix := tup es @ ies : τ @ i }-
-  | lifted_struct x es τ τx i ix ies :
-      F.predfs_data (lifted_expr ∘ snd) es ->
-      lifted_stmt -{ asgn Var x:τx @ ix := struct { es } @ ies : τ @ i }-
-  | lifted_header x e es τ τx i ix ies :
+      let etup := Right <{ tup es @ ies }> in
+      lifted_stmt -{ var x := etup @ i }-
+  | lifted_struct x es i ies :
+      F.predfs_data lifted_expr es ->
+      let estruct := Right <{ struct { es } @ ies }> in
+      lifted_stmt -{ var x := estruct @ i }-
+  | lifted_header x e es i ies :
       lifted_expr e ->
-      F.predfs_data (lifted_expr ∘ snd) es ->
-      lifted_stmt
-      -{ asgn Var x:τx @ ix := hdr { es } valid:=e @ ies : τ @ i }-
-  | lifted_stack x es n ni τ τx τs i ix ies :
+      F.predfs_data lifted_expr es ->
+      let ehdr := Right <{ hdr { es } valid:=e @ ies }> in
+      lifted_stmt -{ var x := ehdr @ i }-
+  | lifted_stack x es ni τs i ies :
       Forall lifted_expr es ->
-      lifted_stmt
-      -{ asgn Var x:τx @ ix
-         := Stack es:τs[n] nextIndex:=ni @ ies : τ @ i }-
+      let estk := Right <{ Stack es:τs nextIndex:=ni @ ies }> in
+      lifted_stmt -{ var x := estk @ i }-
   | lifted_cond e s1 s2 i :
       lifted_expr e ->
       lifted_stmt s1 ->
@@ -132,19 +141,20 @@ Section Lifted.
       lifted_args args ->
       lifted_stmt (Stmt.SFunCall f targs args i)
   | lifted_act_call a args i :
-      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) args ->
+      F.predfs_data (pred_paramarg_same lifted_expr) args ->
       lifted_stmt -{ calling a with args @ i }-
-  | lifted_return_void i :
-      lifted_stmt -{ returns @ i }-
-  | lifted_return_fruit τ e i :
-      lifted_expr e ->
-      lifted_stmt -{ return e:τ @ i }-
+  | lifted_return eo i :
+      match eo with
+      | Some e => lifted_expr e
+      | None   => True
+      end ->
+      lifted_stmt -{ return eo @ i }-
   | lifted_exit i :
       lifted_stmt -{ exit @ i }-
   | lifted_invoke t i :
       lifted_stmt -{ invoke t @ i }-
   | lifted_apply x ext_args args i :
-      F.predfs_data (pred_paramarg_same (lifted_expr ∘ snd)) args ->
+      F.predfs_data (pred_paramarg_same lifted_expr) args ->
       lifted_stmt -{ apply x with ext_args & args @ i }-.
   
   Local Hint Constructors lifted_expr : core.
@@ -181,14 +191,14 @@ Section Lifted.
       Lemma TransformFields'_lifted_expr :
         forall es env i,
           F.predfs_data
-            (lifted_expr ∘ snd)
+            lifted_expr
             (snd (fst (TransformFields' f es env i))).
       Proof.
         unfold TransformFields', Field.fold.
-        intro es; induction es as [| (x & t & e) es IHes];
+        intro es; induction es as [| (x & e) es IHes];
           intros env i; unfold F.predfs_data, F.predf_data in *;
             unravel in *; auto; fold_destr.
-        destruct (f e t0) as [[s' e'] env'] eqn:Heqfet; unravel.
+        destruct (f e t) as [[s' e'] env'] eqn:Heqfet; unravel.
         constructor; unravel.
         - apply f_equal with (f:=snd ∘ fst) in Heqfet;
             unravel in *. rewrite <- Heqfet; auto.
@@ -236,7 +246,7 @@ Section Lifted.
   
   Lemma TransformFields'_TransformExpr_lifted_expr : forall es env i,
       F.predfs_data
-        (lifted_expr ∘ snd)
+        lifted_expr
         (snd (fst (TransformFields' TransformExpr es env i))).
   Proof.
     auto.
@@ -277,6 +287,7 @@ Section Lifted.
       apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
       rewrite <- Heqp; auto.
     - admit.
+      (*
     - apply lifted_header.
       + apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
         rewrite <- Heqp; auto.
@@ -285,6 +296,6 @@ Section Lifted.
     - admit.
     - apply lifted_stack.
       apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto.
+      rewrite <- Heqp; auto. *)
   Admitted.
 End Lifted.

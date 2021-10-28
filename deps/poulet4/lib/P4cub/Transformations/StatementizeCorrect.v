@@ -24,18 +24,15 @@ Section Correct.
   Ltac solve_this_stuff :=
     match goal with
     | |- exists eps',
-        ⟪ ?pkt, _, ?eps, _,
-          var ?x:?t @ _ ; asgn (Var ?x:_ @ _) := _:_ @ _ @ _ ⟫ ⤋ ⟪ _,C,?pkt ⟫
+        ⟪ ?pkt, _, ?eps, _, var ?x := ?e @ _ ⟫ ⤋ ⟪ _,C,?pkt ⟫
         /\ ⟨ eps', Var ?x:_ @ _ ⟩ ⇓ ?v
-      => assert (Hv': exists v', vdefault t = Some v')
-        by (unravel; eauto);
-        destruct Hv' as [v' Hv'];
+      => (* TODO: fix notation.
         exists !{ x ↦ v;; x ↦ v';; eps }!; split;
         [ apply sbs_seq_cont
             with (pkt' := pkt)
                  (ϵ' := !{ x ↦ v';; eps }!); eauto;
           try eapply sbs_assign; eauto; try reflexivity
-        | apply ebs_var; cbn; if_destr ]
+        | apply ebs_var; cbn; if_destr ] *) idtac
     end; assumption.
   
   (* Type Soundness for statements

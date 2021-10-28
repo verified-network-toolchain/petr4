@@ -1,20 +1,14 @@
-Require Import Coq.PArith.BinPos.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.NArith.BinNat.
-
-Require Import Poulet4.AList.
-Require Poulet4.P4String.
-Require Poulet4.P4Int.
-Require Export Poulet4.Typed.
-Require Export Poulet4.Syntax.
-Require Export Poulet4.P4cub.Syntax.AST.
+Require Import Coq.PArith.BinPos
+        Coq.ZArith.BinInt Coq.NArith.BinNat
+        Poulet4.AList.
+Require Poulet4.P4String Poulet4.P4Int.
+Require Export Poulet4.Typed
+        Poulet4.Syntax Poulet4.P4cub.Syntax.AST.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Import AllCubNotations.
 
-Require Import Coq.Strings.String.
-Require Import Coq.Classes.EquivDec.
-
-Require Import Poulet4.Monads.Error.
+Require Import Coq.Strings.String
+        Coq.Classes.EquivDec Poulet4.Monads.Error.
 
 (** * P4light -> P4cub *)
 
@@ -173,14 +167,14 @@ Section Metamorphosis.
         | e :: es => e <- expr_morph e ;;
                    es <<| lstruct es ;; e :: es
         end in
-    let fix frec (fs : list KeyValue) : @error_monad MorphError (F.fs string (Expr.t * Expr.e tags_t)) :=
+    let fix frec (fs : list KeyValue)
+        : @error_monad MorphError (F.fs string (Expr.e tags_t)) :=
         match fs with
         | [] => mret []
-        | (MkKeyValue _ x ((MkExpression _ _ t _) as e))
-            :: fs => t <- type_morph t ;;
-                   e <- expr_morph e ;;
-                   fs <<| frec fs ;;
-                   (P4String.str x, (t, e)) :: fs
+        | (MkKeyValue _ x e) :: fs
+          => e <- expr_morph e ;;
+            fs <<| frec fs ;;
+            (P4String.str x, e) :: fs
         end in
     match e with
     | MkExpression i (ExpBool b) _ _ => mret <{ BOOL b @ i }>
@@ -201,38 +195,31 @@ Section Metamorphosis.
         | <{ _ W idx @ _ }> => mret <{ Access e1[idx] @ i }>
         | _ => err $ UnsupportedExpr e2 (* TODO *)
         end
-    | MkExpression i (ExpBitStringAccess e lo hi) t _
+    | MkExpression i (ExpBitStringAccess e lo hi) _ _
       => let lo := Pos.pred $ N.succ_pos lo in
         let hi := Pos.pred $ N.succ_pos hi in
-        t <- type_morph t ;;
-        e <<| expr_morph e ;; <{ Slice e:t [hi:lo] @ i }>
+        e <<| expr_morph e ;; <{ Slice e [hi:lo] @ i }>
     | MkExpression i (ExpList es) _ _
       => es <<| lstruct es ;; <{ tup es @ i }>
     | MkExpression i (ExpRecord fs) _ _
       => fs <<| frec fs ;; <{ struct { fs } @ i }>
-    | MkExpression i (ExpUnaryOp op e) t _
-      => t <- type_morph t ;;
-        e <<| expr_morph e ;;
-        Expr.EUop (uop_morph op) t e i
-    | MkExpression
-        i (ExpBinaryOp
-             op ((MkExpression _ _ t1 _) as e1, (MkExpression _ _ t2 _) as e2))
-        _ _ => op <- bop_morph op ;;
-              t1 <- type_morph t1 ;;
-              t2 <- type_morph t2 ;;
-              e1 <- expr_morph e1 ;;
-              e2 <<| expr_morph e2 ;; <{ BOP e1:t1 op e2:t2 @ i }>
+    | MkExpression i (ExpUnaryOp op e) _ _
+      => e <<| expr_morph e ;;
+        Expr.EUop (uop_morph op) e i
+    | MkExpression i (ExpBinaryOp op (e1, e2)) _ _ =>
+           op <- bop_morph op ;;
+           e1 <- expr_morph e1 ;;
+           e2 <<| expr_morph e2 ;; <{ BOP e1 op e2 @ i }>
     | MkExpression i (ExpCast t e) _ _
       => t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
       => mret $ Expr.EError (mret $ P4String.str err) i
-    | MkExpression i (ExpExpressionMember e f) t _ 
+    | MkExpression i (ExpExpressionMember e f) _ _ 
       => 
         let f := P4String.str f in 
-        t <- type_morph t ;;
         e <<| expr_morph e ;; 
-        <{ Mem e:t dot f @ i }>
+        <{ Mem e dot f @ i }>
     | _ => err (UnsupportedExpr e)
     end.
   (**[]*)
@@ -271,23 +258,22 @@ Section Metamorphosis.
     match s with
     | MkStatement i StatEmpty _ => mret -{ skip @ i }-
     | MkStatement i StatExit  _ => mret -{ exit @ i }-
-    | MkStatement i (StatReturn None) _ => mret -{ returns @ i }-
-    | MkStatement
-        i (StatReturn (Some ((MkExpression _ _ t _) as e))) _
-      => t <- type_morph t ;;
-        e <<| expr_morph e ;; -{ return e:t @ i }-
-    | MkStatement i (StatVariable t x None _) _
-      => t <<| type_morph t ;;
-        let x := P4String.str x in -{ var x:t @ i }-
-    | MkStatement i (StatVariable t x (Some e) _) _
-      => t <- type_morph t ;;
-        e <<| expr_morph e ;;
+    | MkStatement i (StatReturn None) _ => mret -{ return None @ i }-
+    | MkStatement i (StatReturn (Some e)) _ =>
+      e <<| expr_morph e ;; Stmt.SReturn (Some e) i
+    | MkStatement i (StatVariable t x None _) _ =>
+      t <<| type_morph t ;;
+      let x := P4String.str x in
+      let t' := Left t in
+      -{ var x := t' @ i }-
+    | MkStatement i (StatVariable _ x (Some e) _) _
+      => e <<| expr_morph e ;;
         let x := P4String.str x in
-        -{ var x:t @ i; asgn Var x:t @ i := e:t @ i @ i }-
-    | MkStatement i (StatAssignment e1 ((MkExpression _ _ t _) as e2)) _
-      => t <- type_morph t ;;
-        e1 <- expr_morph e1 ;;
-        e2 <<| expr_morph e2 ;; -{ asgn e1 := e2:t @ i }-
+        let eo := Right e in
+        -{ var x := eo @ i }-
+    | MkStatement i (StatAssignment e1 e2) _
+      => e1 <- expr_morph e1 ;;
+        e2 <<| expr_morph e2 ;; -{ asgn e1 := e2 @ i }-
     | MkStatement i (StatBlock blk) _ => s <<| blk_morph blk ;; -{ b{ s }b }-
     | MkStatement i (StatConditional e s1 None) _
       => e <- expr_morph e ;;
@@ -298,6 +284,7 @@ Section Metamorphosis.
         s1 <- stmt_morph s1 ;;
         s2 <<| stmt_morph s2 ;;
         -{ if e then s1 else s2 @ i }-
+        (*
     | MkStatement
         i (StatMethodCall
              (MkExpression _ 
@@ -321,13 +308,12 @@ Section Metamorphosis.
           args' <- 
             match args with 
             | Some e :: nil => 
-              let* '(t, e') := type_expr_morph e in
-              mret (("arg", PAOut (t, e')) :: nil)
+              mret (("arg", PAOut (expr_morph e)) :: nil)
             | _ => mret nil
             end ;;
-          ty' <- mret None ;;
-          mret -{ extern x calls fname <[]> (args') gives ty' @ i }-
-        else err (UnsupportedStmt s)
+          let ty' := mret None in
+          -{ extern x calls fname <[]> (args') gives ty' @ i }-
+        else err (UnsupportedStmt s) *)
     | MkStatement i (StatSwitch e cases) _
       => e <- expr_morph e ;; err (UnsupportedStmt s) (* TODO *)
     | MkStatement _ _ _ => err (UnsupportedStmt s)

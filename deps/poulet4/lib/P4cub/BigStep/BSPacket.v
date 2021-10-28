@@ -69,17 +69,17 @@ Module BSPacketIn <: P4PacketIn.
 
   Definition dispatch_method
              (method: string)
-             '(Arrow args lv : arrow string (Expr.t * V.v) (Expr.t * V.lv) (Expr.t * V.lv))
+             '(Arrow args lv : arrow string V.v V.lv V.lv)
              (ϵ : epsilon)
     : PKT.paquet_monad epsilon :=
     match method,args,lv with
-    | "length", [], Some (_,lv)
+    | "length", [], Some lv
       => fun pkt => state_return
                   (lv_update
                      lv (V.VBit 32%positive $ PacketIn.length pkt) ϵ) pkt
-    | "advance", [("sizeInBits", PAIn (_, ~{ _ VW n }~))], None
+    | "advance", [("sizeInBits", PAIn ~{ _ VW n }~)], None
       => fun pkt => state_return ϵ (PacketIn.advance n pkt)
-    | "extract", [("hdr", PAOut (τ, lv))], None => p4extract τ lv ϵ
+    | "extract", [("hdr", PAOut lv)], None => p4extract {{ Bool }} lv ϵ (* TODO: fix *)
     | _,_,_ => state_fail PKT.EXN.Internal
     end.
 End BSPacketIn.

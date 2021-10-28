@@ -52,9 +52,9 @@ Section parser_to_p4automaton.
     Fixpoint eval_lvalue (e : Expr.e tags_t) : @error_monad compile_error V.lv :=
       match e with
       | <{ Var x:_ @ _ }> => mret l{ VAR x }l
-      | <{ Slice e:_ [hi:lo] @ _ }>
+      | <{ Slice e [hi:lo] @ _ }>
         => lv <<| eval_lvalue e ;; l{ SLICE lv [hi:lo] }l
-      | <{ Mem e:_ dot x @ _ }>
+      | <{ Mem e dot x @ _ }>
         => lv <<| eval_lvalue e ;; l{ lv DOT x }l
       | <{ Access e[n] @ _ }>
         => lv <<| eval_lvalue e ;; l{ ACCESS lv[n] }l
@@ -74,16 +74,17 @@ Section parser_to_p4automaton.
         f1 <- compile_statement s1 ;;
         f2 <<| compile_statement s2 ;;
         SOSeq f1 f2
-      | -{ var x:τ @ _ }- => mret $ SOVarDecl x τ
-      | -{ asgn e1 := e2:_ @ _ }- => mret $ SOAsgn e1 e2
+      (*| -{ var x := _ @ _ }- => mret $ SOVarDecl x τ (* TODO *)*)
+      | -{ asgn e1 := e2 @ _ }- => mret $ SOAsgn e1 e2
       | -{ extern extern_lit calls f <[]> (args) gives x @ _ }- =>
-        if f == "extract" then
+        (* TODO:
+          if f == "extract" then
           match args with
-          | ((_, PAOut (t, e)) :: nil) =>
+          | ((_, PAOut e) :: nil) =>
             into_lv <<| eval_lvalue e ;; SOExtract t into_lv
           | _=> err $ CEBadExternArgs (Arrow args x)
           end
-        else
+        else*)
           err $ CEUnsupportedExtern f
       | _ => err $ CEUnsupportedStmt stmt end.
     
@@ -113,7 +114,7 @@ Section parser_to_p4automaton.
     match op with
     | SONil => 0
     | SOSeq op1 op2 => (operation_size op1) + (operation_size op2)
-    | SOExtract τ _ => match SynDefs.width_of_typ τ with
+    | SOExtract τ _ => match width_of_typ τ with
                       | Some n => n
                       | None => 0
                       end
@@ -145,18 +146,18 @@ Section parser_to_p4automaton.
     | <{ Enum x dot m @ _ }> => mret ~{ ENUM x DOT m }~*)
     | <{ Var x : _ @ _ }> => 
       lift_opt_error (CEInconceivable (String.append "missing variable " x)) (Env.find x ϵ)
-    | <{ Slice e : _ [ h : l ] @ _ }> =>
+    | <{ Slice e [ h : l ] @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad slice") $ ExprUtil.eval_slice h l v
     | <{ Cast e : τ @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad cast") $ ExprUtil.eval_cast τ v
-    | <{ UOP op e : _ @ _ }> =>
+    | <{ UOP op e @ _ }> =>
       (*
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v *)
       err (CEUnsupportedExpr e) (* TODO: fix *)
-    | <{ BOP e1 : _ op e2 : _ @ _ }> =>
+    | <{ BOP e1 op e2 @ _ }> =>
       v1 <- interp_expr ϵ e1 ;;
       v2 <- interp_expr ϵ e2 ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_bop op v1 v2
@@ -164,22 +165,22 @@ Section parser_to_p4automaton.
       vs <<| sequence (List.map (interp_expr ϵ) es) ;;
       ~{ TUPLE vs }~
     | <{ struct { fs } @ i }> =>
-      vs <<| sequence (List.map (fun '(f, (_,e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
+      vs <<| sequence (List.map (fun '(f, e) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
       ~{ STRUCT { vs } }~
     | <{ hdr { fs } valid := b @ i }> =>
       b <- interp_expr ϵ b ;;
-      vs <- sequence (List.map (fun '(f, (_, e)) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
+      vs <- sequence (List.map (fun '(f, e) => v <<| interp_expr ϵ e ;; (f,v)) fs) ;;
       match b with
       | ~{ VBOOL b }~  => mret ~{ HDR { vs } VALID := b }~
       | _ => err (CEInconceivable "bad valid assignment") end
-    | <{ Mem e : _ dot x @ _ }> =>
+    | <{ Mem e dot x @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_member x v
     | <{ Error x @ _ }> =>
       mret ~{ ERROR x }~
     | <{ Matchkind x @ _ }> =>
       mret ~{ MATCHKIND x }~
-    | <{ Stack hdrs : ts [ size ] nextIndex := i @ _ }> =>
+    | <{ Stack hdrs : ts nextIndex := i @ _ }> =>
       vs <<| sequence (List.map (fun e =>
                                  v <- interp_expr ϵ e ;;
                                  match v with
@@ -187,11 +188,11 @@ Section parser_to_p4automaton.
                                    mret (b, vs)
                                  | _ => err (CEInconceivable "bad header stack assignment") end
                               ) hdrs) ;;
-      ~{ STACK vs : ts [ size ] NEXT := i }~
+      ~{ STACK vs : ts NEXT := i }~
     | <{ Access e [ n ] @ _ }> =>
       v <- interp_expr ϵ e ;;
       match v with
-      | ~{ STACK vs : _ [ _ ]  NEXT := _ }~ =>
+      | ~{ STACK vs : _  NEXT := _ }~ =>
         v <<| lift_opt_error (CEInconceivable "bad stack index") (List.nth_error vs (BinInt.Z.to_nat n)) ;;
         let '(b, fs) := v in
         ~{ HDR { fs } VALID := b }~

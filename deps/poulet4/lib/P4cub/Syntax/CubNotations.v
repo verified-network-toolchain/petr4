@@ -47,11 +47,6 @@ Module TypeNotations.
          (in custom p4type at level 6, no associativity).
   Notation "'stack' fields [ n ]"
     := (THeaderStack fields n) (in custom p4type at level 7).
-  (*Notation "'Str'"
-    := TString (in custom p4type at level 0, no associativity).
-    Notation "'enum' x { xs }"
-    := (TEnum x xs)
-    (in custom p4type at level 0, no associativity).*)
   
   Notation "'{{{' ty '}}}'" := ty (ty custom p4constructortype at level 99).
   Notation "( x )" := x (in custom p4constructortype, x at level 99).
@@ -89,8 +84,6 @@ Module UopNotations.
   Notation "'setInValid'" := SetInValid (in custom p4uop at level 0).
   Notation "'Next'" := NextIndex (in custom p4uop at level 0).
   Notation "'Size'" := Size (in custom p4uop at level 0).
-(*Notation "'Push' n" := (Push n) (in custom p4uop at level 0).
-  Notation "'Pop' n" := (Pop n) (in custom p4uop at level 0).*)
 End UopNotations.
 
 Module BopNotations.
@@ -142,26 +135,24 @@ Module ExprNotations.
   Notation "'BOOL' b @ i" := (EBool b i) (in custom p4expr at level 0).
   Notation "w 'W' n @ i" := (EBit w n i) (in custom p4expr at level 0).
   Notation "w 'S' n @ i" := (EInt w n i) (in custom p4expr at level 0).
-  Notation "'Var' x : ty @ i" := (EVar ty x i)
-                                   (in custom p4expr at level 0, no associativity).
-  Notation "'Slice' n : τ [ hi : lo ] @ i"
-    := (ESlice n τ hi lo i)
-         (in custom p4expr at level 10, τ custom p4type,
+  Notation "'Var' x : ty @ i"
+    := (EVar ty x i) (in custom p4expr at level 0, no associativity).
+  Notation "'Slice' n [ hi : lo ] @ i"
+    := (ESlice n hi lo i)
+         (in custom p4expr at level 10,
              n custom p4expr, right associativity).
   Notation "'Cast' e : τ @ i"
     := (ECast τ e i)
          (in custom p4expr at level 10, τ custom p4type,
              e custom p4expr, right associativity).
-  Notation "'UOP' op x : ty @ i"
-    := (EUop op ty x i)
-         (in custom p4expr at level 2,
-             x custom p4expr, ty custom p4type,
+  Notation "'UOP' op x @ i"
+    := (EUop op x i)
+         (in custom p4expr at level 2, x custom p4expr,
              op custom p4uop, no associativity).
-  Notation "'BOP' x : tx op y : ty @ i"
-    := (EBop op tx ty x y i)
+  Notation "'BOP' x op y @ i"
+    := (EBop op x y i)
          (in custom p4expr at level 10,
-             x custom p4expr, tx custom p4type,
-             y custom p4expr, ty custom p4type,
+             x custom p4expr, y custom p4expr,
              op custom p4bop, left associativity).
   Notation "'tup' es @ i"
     := (ETuple es i)
@@ -173,25 +164,20 @@ Module ExprNotations.
     := (EHeader fields b i)
          (in custom p4expr at level 6,
              b custom p4expr, no associativity).
-  Notation "'Mem' x : ty 'dot' y @ i"
-    := (EExprMember y ty x i)
+  Notation "'Mem' x 'dot' y @ i"
+    := (EExprMember y x i)
          (in custom p4expr at level 10, x custom p4expr,
-             ty custom p4type, left associativity).
-  Notation "'Error' x @ i" := (EError x i)
-                                (in custom p4expr at level 0, no associativity).
-  Notation "'Matchkind' mk @ i" := (EMatchKind mk i)
-                                     (in custom p4expr at level 0,
-                                         mk custom p4matchkind, no associativity).
-  Notation "'Stack' hdrs : ts [ n ] 'nextIndex' ':=' ni @ i"
-    := (EHeaderStack ts hdrs n ni i)
-         (in custom p4expr at level 0).
+             left associativity).
+  Notation "'Error' x @ i"
+    := (EError x i) (in custom p4expr at level 0, no associativity).
+  Notation "'Matchkind' mk @ i"
+    := (EMatchKind mk i)
+         (in custom p4expr at level 0, mk custom p4matchkind, no associativity).
+  Notation "'Stack' hdrs : ts 'nextIndex' ':=' ni @ i"
+    := (EHeaderStack ts hdrs ni i) (in custom p4expr at level 0).
   Notation "'Access' e1 [ e2 ] @ i"
     := (EHeaderStackAccess e1 e2 i)
          (in custom p4expr at level 10, e1 custom p4expr).
-(*Notation "'Stri' s @ i"
-  := (EString s i) (in custom p4expr at level 0).
-  Notation "'Enum' x 'dot' m @ i"
-  := (EEnum x m i) (in custom p4expr at level 0).*)
 End ExprNotations.
 
 Module StmtNotations.
@@ -216,14 +202,14 @@ Module StmtNotations.
     := (SBlock s)
          (in custom p4stmt at level 99,
              s custom p4stmt, no associativity).
-  Notation "'var' x : t @ i"
-    := (SVardecl t x i)
-         (in custom p4stmt at level 0, t custom p4type).
-  Notation "'asgn' e1 ':=' e2 : t @ i"
-    := (SAssign t e1 e2 i)
+  Notation "'var' x ':=' e @ i"
+    := (SVardecl x e i)
+         (in custom p4stmt at level 0).
+  Notation "'asgn' e1 ':=' e2 @ i"
+    := (SAssign e1 e2 i)
          (in custom p4stmt at level 40,
              e1 custom p4expr, e2 custom p4expr,
-             t custom p4type, no associativity).
+             no associativity).
   Notation "'if' e 'then' s1 'else' s2 @ i"
     := (SConditional e s1 s2 i)
          (in custom p4stmt at level 80,
@@ -232,10 +218,10 @@ Module StmtNotations.
   Notation "'call' f < targs > ( args ) @ i"
     := (SFunCall f targs (Arrow args None) i)
          (in custom p4stmt at level 0, no associativity).
-  Notation "'let' e : t ':=' 'call' f < targs > ( args ) @ i"
-    := (SFunCall f targs (Arrow args (Some (t,e))) i)
+  Notation "'let' e ':=' 'call' f < targs > ( args ) @ i"
+    := (SFunCall f targs (Arrow args (Some e)) i)
          (in custom p4stmt at level 0,
-             e custom p4expr, t custom p4stmt, no associativity).
+             e custom p4expr, no associativity).
   Notation "'funcall' f < targs > ( args ) 'into' o @ i"
     := (SFunCall f targs (Arrow args o) i)
          (in custom p4stmt at level 0, no associativity).
@@ -244,13 +230,8 @@ Module StmtNotations.
   Notation "'extern' e 'calls' f < targs > ( args ) 'gives' x @ i"
     := (SExternMethodCall e f targs (Arrow args x) i)
          (in custom p4stmt at level 0, no associativity).
-  Notation "'return' e : t @ i"
-    := (SReturnFruit t e i)
-         (in custom p4stmt at level 30,
-             e custom p4expr, t custom p4type, no associativity).
-  Notation "'returns' @ i"
-    := (SReturnVoid i)
-         (in custom p4stmt at level 0, no associativity).
+  Notation "'return' e @ i"
+    := (SReturn e i) (in custom p4stmt at level 30, no associativity).
   Notation "'exit' @ i"
     := (SExit i) (in custom p4stmt at level 0, no associativity).
   Notation "'apply' x 'with' extargs '&' args @ i"

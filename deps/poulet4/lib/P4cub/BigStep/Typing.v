@@ -68,7 +68,7 @@ Section Rules.
   Lemma sem_typ_uop : forall (op : Expr.uop) (τ τ' : Expr.t) (e : Expr.e tags_t),
       uop_type op τ τ' ->
       ⟦⟦ D, Γ ⟧⟧ ⊨ e ∈ τ ->
-      ⟦⟦ D, Γ ⟧⟧ ⊨ UOP op e:τ @ i ∈ τ'.
+      ⟦⟦ D, Γ ⟧⟧ ⊨ UOP op e @ i ∈ τ'.
   Proof.
     intros op t t' e Huop He; unfold_sem_typ_expr.
     (* Tedious proof... *)

@@ -75,7 +75,7 @@ Inductive check_expr
     numeric_width w τ ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
     let w' := (hi - lo + 1)%positive in
-    ⟦ Δ, Γ ⟧ ⊢ Slice e:τ [hi:lo] @ i ∈ bit<w'>
+    ⟦ Δ, Γ ⟧ ⊢ Slice e [hi:lo] @ i ∈ bit<w'>
 | chk_cast (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
     proper_cast τ' τ ->
     t_ok Δ τ' ->
@@ -86,13 +86,13 @@ Inductive check_expr
 | chk_uop (op : Expr.uop) (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
     uop_type op τ τ' ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ UOP op e:τ @ i ∈ τ'
+    ⟦ Δ, Γ ⟧ ⊢ UOP op e @ i ∈ τ'
 (* Binary Operations. *)
 | chk_bop (op : Expr.bop) (τ1 τ2 τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) :
     bop_type op τ1 τ2 τ ->
     ⟦ Δ , Γ ⟧ ⊢ e1 ∈ τ1 ->
     ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
-    ⟦ Δ , Γ ⟧ ⊢ BOP e1:τ1 op e2:τ2 @ i ∈ τ
+    ⟦ Δ , Γ ⟧ ⊢ BOP e1 op e2 @ i ∈ τ
 (* Member expressions. *)
 | chk_mem (e : Expr.e tags_t) (x : string)
           (fs : F.fs string Expr.t)
@@ -102,29 +102,21 @@ Inductive check_expr
     t_ok Δ τ ->
     t_ok Δ τ' ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ Mem e:τ dot x @ i ∈ τ'
+    ⟦ Δ, Γ ⟧ ⊢ Mem e dot x @ i ∈ τ'
 (* Structs. *)
 | chk_tuple (es : list (Expr.e tags_t)) (i : tags_t)
             (ts : list Expr.t) :
     Forall2 (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es ts ->
     ⟦ Δ, Γ ⟧ ⊢ tup es @ i ∈ tuple ts
-| chk_struct_lit (efs : F.fs string (Expr.t * Expr.e tags_t))
+| chk_struct_lit (efs : F.fs string (Expr.e tags_t))
                  (tfs : F.fs string Expr.t) (i : tags_t) :
-    F.relfs
-      (fun te τ =>
-         (fst te) = τ /\ t_ok Δ τ /\
-         let e := snd te in
-         ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+    F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
     ⟦ Δ , Γ ⟧ ⊢ struct { efs } @ i ∈ struct { tfs }
-| chk_hdr_lit (efs : F.fs string (Expr.t * Expr.e tags_t))
+| chk_hdr_lit (efs : F.fs string (Expr.e tags_t))
               (tfs : F.fs string Expr.t)
               (i : tags_t) (b : Expr.e tags_t) :
     ProperType.proper_nesting {{ hdr { tfs } }} ->
-    F.relfs
-      (fun te τ =>
-         (fst te) = τ /\ t_ok Δ τ /\
-         let e := snd te in
-         ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+    F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
     ⟦ Δ, Γ ⟧ ⊢ b ∈ Bool ->
     ⟦ Δ , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
   (* Errors and matchkinds. *)
@@ -135,14 +127,14 @@ Inductive check_expr
   (* Header stacks. *)
   | chk_stack (ts : F.fs string Expr.t)
               (hs : list (Expr.e tags_t))
-              (n : positive) (ni : Z) (i : tags_t) :
+              (ni : Z) (i : tags_t) :
+      let n := Pos.of_nat (length hs) in
       BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
-      Pos.to_nat n = length hs ->
       ProperType.proper_nesting {{ stack ts[n] }} ->
       t_ok Δ {{ stack ts[n] }} ->
       Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-      ⟦ Δ, Γ ⟧ ⊢ Stack hs:ts[n] nextIndex:=ni @ i ∈ stack ts[n]
+      ⟦ Δ, Γ ⟧ ⊢ Stack hs:ts nextIndex:=ni @ i ∈ stack ts[n]
   | chk_access (e : Expr.e tags_t) (idx : Z) (i : tags_t)
                (ts : F.fs string Expr.t) (n : positive) :
       (0 <= idx < (Zpos n))%Z ->
@@ -209,15 +201,17 @@ Inductive check_stmt
 | chk_block (s : Stmt.s tags_t) (Γ' : Gamma) (sig : signal) (con : ctx) :
     ⦃ fns, Δ, Γ ⦄ con ⊢ s ⊣ ⦃ Γ', sig ⦄ ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ b{ s }b ⊣ ⦃ Γ, C ⦄
-| chk_vardecl (τ : Expr.t) (x : string) (i : tags_t) (con : ctx) :
-    t_ok Δ τ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ var x:τ @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
+| chk_vardecl (τ : Expr.t) (x : string) eo (i : tags_t) (con : ctx) :
+    match eo with
+    | Right e => ⟦Δ,Γ⟧ ⊢ e ∈ τ
+    | Left τ  => t_ok Δ τ
+    end ->
+    ⦃ fns, Δ, Γ ⦄ con ⊢ var x := eo @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
 | chk_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) (con : ctx) :
-    t_ok Δ τ ->
     lvalue_ok e1 ->
     ⟦ Δ, Γ ⟧ ⊢ e1 ∈ τ ->
     ⟦ Δ, Γ ⟧ ⊢ e2 ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ asgn e1 := e2 : τ @ i ⊣ ⦃ Γ, C ⦄
+    ⦃ fns, Δ, Γ ⦄ con ⊢ asgn e1 := e2 @ i ⊣ ⦃ Γ, C ⦄
 | chk_cond (guard : Expr.e tags_t) (tru fls : Stmt.s tags_t)
            (Γ1 Γ2 : Gamma) (i : tags_t) (sgt sgf sg : signal) (con : ctx) :
     lub sgt sgf = sg ->
@@ -226,13 +220,13 @@ Inductive check_stmt
     ⦃ fns, Δ, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
     ⦃ fns, Δ, Γ ⦄
       con ⊢ if guard then tru else fls @ i ⊣ ⦃ Γ, sg ⦄
+(* TODO: fix:
 | chk_return_void (i : tags_t) (con : ctx) :
     return_void_ok con ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ returns @ i ⊣ ⦃ Γ, R ⦄
+    ⦃ fns, Δ, Γ ⦄ con ⊢ returns None @ i ⊣ ⦃ Γ, R ⦄
 | chk_return_fruit (τ : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
-    t_ok Δ τ ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ Function τ ⊢ return e:τ @ i ⊣ ⦃ Γ, R ⦄
+    ⦃ fns, Δ, Γ ⦄ Function τ ⊢ return (Some e) @ i ⊣ ⦃ Γ, R ⦄*)
 | chk_exit (i : tags_t) (con : ctx) :
     exit_ctx_ok con ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ exit @ i ⊣ ⦃ Γ, R ⦄
@@ -243,7 +237,7 @@ Inductive check_stmt
     Env.find f fns = Some (Arrow params None) ->
     F.relfs
       (rel_paramarg_same
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ))
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ))
       args params ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ call f<ts>(args) @ i ⊣ ⦃ Γ, C ⦄
 | chk_act_call (params : Expr.params)
@@ -254,8 +248,8 @@ Inductive check_stmt
     Env.find a aa = Some params ->
     F.relfs
       (rel_paramarg
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ calling a with args @ i ⊣ ⦃ Γ, C ⦄
 | chk_fun_call (τ : Expr.t) (e : Expr.e tags_t)
@@ -267,20 +261,20 @@ Inductive check_stmt
     Env.find f fns = Some (Arrow params (Some τ)) ->
     F.relfs
       (rel_paramarg
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
     ⦃ fns, Δ, Γ ⦄
-      con ⊢ let e : τ := call f<ts>(args) @ i ⊣ ⦃ Γ, C ⦄
+      con ⊢ let e := call f<ts>(args) @ i ⊣ ⦃ Γ, C ⦄
 | chk_apply (eargs : F.fs string string) (args : Expr.args tags_t) (x : string)
             (i : tags_t) (eps : F.fs string string) (params : Expr.params)
             (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
     Env.find x cis = Some (eps,params) ->
     F.relfs
       (rel_paramarg
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis
                      ⊢ apply x with eargs & args @ i ⊣ ⦃ Γ, C ⦄
@@ -298,8 +292,8 @@ Inductive check_stmt
     extern_call_ok eis con ->
     F.relfs
       (rel_paramarg
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
+         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, Δ, Γ ⦄
       con ⊢ extern e calls f<ts>(args) gives None @ i ⊣ ⦃ Γ, C ⦄
@@ -314,10 +308,10 @@ Inductive check_stmt
      extern_call_ok eis con ->
      F.relfs
        (rel_paramarg
-          (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-          (fun '(t,e) τ => τ = t /\ ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
+          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
+          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
        args params ->
-     let result := Some (τ,e) in
+     let result := Some e in
      (⦃ fns, Δ, Γ ⦄
         con ⊢ extern extrn calls f<ts>(args) gives result @ i ⊣ ⦃ Γ, C ⦄))
 where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"

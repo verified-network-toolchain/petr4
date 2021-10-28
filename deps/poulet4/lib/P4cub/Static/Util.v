@@ -75,11 +75,7 @@ Inductive uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
     uop_type _{ Next }_ {{ stack ts[n] }} {{ hdr { ts } }}
 | UTSize ts n :
     let w := 32%positive in
-    uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}
-(*| UTPush ts n p :
-    uop_type _{ Push p }_ {{ stack ts[n] }} {{ stack ts[n] }}
-| UTPop ts n p :
-    uop_type _{ Pop  p }_ {{ stack ts[n] }} {{ stack ts[n] }}*).
+    uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}.
 (**[]*)
 
 (** Evidence a binary operation is valid
@@ -330,12 +326,12 @@ Notation "'Parser' pis eis"
 Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue_ok <{ Var x:τ @ i }>
-| lvalue_bit_slice e τ h l i :
+| lvalue_bit_slice e h l i :
     lvalue_ok e ->
-    lvalue_ok <{ Slice e:τ [h:l] @ i }>
-| lvalue_member e τ x i :
+    lvalue_ok <{ Slice e [h:l] @ i }>
+| lvalue_member e x i :
     lvalue_ok e ->
-    lvalue_ok <{ Mem e:τ dot x @ i }>
+    lvalue_ok <{ Mem e dot x @ i }>
 | lvalue_access e idx i :
     lvalue_ok e ->
     lvalue_ok <{ Access e[idx] @ i }>.

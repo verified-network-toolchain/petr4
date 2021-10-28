@@ -121,9 +121,7 @@ Module Expr.
   | SetValid   (* set a header valid *)
   | SetInValid (* set a header invalid *)
   | NextIndex  (* get element at [nextIndex] from a header stack *)
-  | Size       (* get a header stack's size *)
-  (*| Push (n : positive) (* "push_front," shift stack right by [n] *)
-    | Pop  (n : positive) (* "push_front," shift stack left by [n] *)*).
+  | Size       (* get a header stack's size *).
   (**[]*)
   
   (** Binary operations.
@@ -176,42 +174,35 @@ Module Expr.
     | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
     | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
     | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
-    (*lvalue*)
-    | ESlice (arg : e) (τ : t)
+    | ESlice (arg : e)
              (hi lo : positive) (i : tags_t)         (* bit-slicing *)
     | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
-    | EUop (op : uop) (type : t)
-           (arg : e) (i : tags_t)                    (* unary operations *)
-    | EBop (op : bop) (lhs_type rhs_type : t)
-           (lhs rhs : e) (i : tags_t)                (* binary operations *)
+    | EUop (op : uop) (arg : e) (i : tags_t)         (* unary operations *)
+    | EBop (op : bop) (lhs rhs : e) (i : tags_t)     (* binary operations *)
     | ETuple (es : list e) (i : tags_t)              (* tuples *)
-    | EStruct (fields : F.fs string (t * e))
-              (i : tags_t)                           (* struct literals *)
-    | EHeader (fields : F.fs string (t * e))
+    | EStruct (fields : F.fs string e) (i : tags_t)  (* struct literals *)
+    | EHeader (fields : F.fs string e)
               (valid : e) (i : tags_t)               (* header literals *)
-    | EExprMember (mem : string) (expr_type : t)
+    | EExprMember (mem : string)
                   (arg : e) (i : tags_t)             (* member-expressions *)
     | EError (err : option string) (i : tags_t)      (* error literals *)
     | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
     | EHeaderStack (fields : F.fs string t)
-                   (headers : list e) (size : positive)
+                   (headers : list e)
                    (next_index : Z) (i : tags_t)     (* header stack literals,
-                                                        unique to p4light *)
-    (*lvalue*)
+                                                        unique to p4cub *)
     | EHeaderStackAccess (stack : e) (index : Z)
-                         (i : tags_t)                (* header stack indexing *)
-    (*| EString (str : string) (i : tags_t)            (* string expression *)
-      | EEnum (name member : string) (i : tags_t)      (* enum member *)*).
+                         (i : tags_t)                (* header stack indexing *).
     (**[]*)
     
     (** Function call arguments. *)
     Definition args : Type :=
-      F.fs string (paramarg (t * e) (t * e)).
+      F.fs string (paramarg e e).
     (**[]*)
     
     (** Function call. *)
     Definition arrowE : Type :=
-      arrow string (t * e) (t * e) (t * e).
+      arrow string e e e.
     (**[]*)
     
     (** Constructor arguments. *)
@@ -221,34 +212,6 @@ Module Expr.
     (**[]*)
     
     Definition constructor_args : Type := F.fs string constructor_arg.
-    
-    Fixpoint cub_type_of (expr: e) : t := 
-      match expr with
-      | EBool _ _ => TBool                  
-      | EBit width _ _ => TBit width 
-      | EInt width _ _ => TInt width  
-      | EVar type _ _ => type      
-      | ESlice _ τ  _ _ _ => τ   
-      | ECast type _ _ => type       
-      | EUop _ type _ _ => type
-      | EBop _ lhs_type _ _ _ _ => lhs_type                
-      | ETuple es _ => 
-        TTuple (List.map cub_type_of es)
-      | EStruct fields _ =>
-        TStruct (F.map fst fields)
-      | EHeader fields valid _ => 
-        THeader (F.map fst fields)               
-      | EExprMember _ expr_type _ _ => expr_type            
-      | EError _ _ => TError     
-      | EMatchKind _ _ => TMatchKind      
-      | EHeaderStack fields _ size _ _ => 
-        THeaderStack fields size
-      | EHeaderStackAccess stack _ _ =>
-        match cub_type_of stack with
-        | THeaderStack type size => THeader type
-        | _ => TError
-        end
-      end.
   End Expressions.
 
   Arguments EBool {tags_t}.
@@ -267,8 +230,6 @@ Module Expr.
   Arguments EMatchKind {tags_t}.
   Arguments EHeaderStack {_}.
   Arguments EHeaderStackAccess {_}.
-  (*Arguments EString {_}.
-  Arguments EEnum {_}.*)
   Arguments CAExpr {_}.
   Arguments CAName {_}.
 End Expr.
@@ -282,12 +243,12 @@ Module Stmt.
 
     (** Header Stack Operations. *)
     Inductive hsop : Set := HSPush | HSPop.
-    Inductive validity : Set := Valid | Invalid.
+
     Inductive s : Type :=
-    | SSkip (i : tags_t) (* skip/no-op *)
-    | SVardecl (type : E.t) (x : string) (i : tags_t) (* Variable declaration. *)
-    | SAssign (type : E.t) (lhs rhs : E.e tags_t)
-              (i : tags_t)                            (* assignment *)
+    | SSkip (i : tags_t)                              (* skip/no-op *)
+    | SVardecl (x : string) (expr : either E.t (E.e tags_t))
+               (i : tags_t)                           (* variable declaration. *)
+    | SAssign (lhs rhs : E.e tags_t) (i : tags_t)     (* assignment *)
     | SConditional (guard : E.e tags_t)
                    (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
     | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
@@ -301,9 +262,8 @@ Module Stmt.
                (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
     | SActCall (action_name : string)
                (args : E.args tags_t) (i : tags_t)    (* action call *)
-    | SReturnVoid (i : tags_t)                        (* void return statement *)
-    | SReturnFruit (return_type : E.t)
-                   (e : E.e tags_t) (i : tags_t)      (* fruitful return statement *)
+    | SReturn (e : option (E.e tags_t))
+              (i : tags_t)                            (* return statement *)
     | SExit (i : tags_t)                              (* exit statement *)
     | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
     | SApply (control_instance_name : string)
@@ -311,8 +271,7 @@ Module Stmt.
              (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
     | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
                      (n : positive) (i : tags_t)      (* push or pop statements *)
-
-    | SSetValidity (hdr : E.e tags_t) (val : validity)
+    | SSetValidity (hdr : E.e tags_t) (validity : bool)
                    (i : tags_t)                       (* set valid or set invalid *).
   (**[]*)
   End Statements.
@@ -326,8 +285,7 @@ Module Stmt.
   Arguments SFunCall {_}.
   Arguments SActCall {_}.
   Arguments SExternMethodCall {_}.
-  Arguments SReturnVoid {tags_t}.
-  Arguments SReturnFruit {tags_t}.
+  Arguments SReturn {_}.
   Arguments SExit {_}.
   Arguments SApply {_}.
   Arguments SInvoke {_}.

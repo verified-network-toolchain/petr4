@@ -46,12 +46,9 @@ Section VE.
     | VTuple vs1, VTuple vs2         => lstruct vs1 vs2
     | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_struct vs1 vs2
     | VStruct vs1,    VStruct vs2    => fields_struct vs1 vs2
-    | VHeaderStack ts1 vss1 n1 ni1,
-      VHeaderStack ts2 vss2 n2 ni2   => F.eqb_fs TE.eqbt ts1 ts2 &&
-                                       (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
-                                       ffstruct vss1 vss2
-    (*| VString s1,    VString s2      => if equiv_dec s1 s2 then true else false
-    | VEnum x1 m1,   VEnum x2 m2     => equiv_dec x1 x2 &&&& equiv_dec m1 m2*)
+    | VHeaderStack ts1 vss1 ni1,
+      VHeaderStack ts2 vss2 ni2      => F.eqb_fs TE.eqbt ts1 ts2 &&
+                                       (ni1 =? ni2)%Z && ffstruct vss1 vss2
     | _,              _              => false
     end.
   (**[]*)

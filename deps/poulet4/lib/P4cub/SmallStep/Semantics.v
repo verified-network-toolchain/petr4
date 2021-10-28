@@ -67,15 +67,15 @@ Module Step.
              (i : tags_t) (e : Expr.e tags_t) :
       Env.find x ϵ = Some e ->
       ℵ ϵ, Var x:τ @ i -->  e
-  | step_slice (e e' : Expr.e tags_t) (τ : Expr.t)
+  | step_slice (e e' : Expr.e tags_t)
                (hi lo : positive) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
-  | step_slice_eval (v v' : Expr.e tags_t) (τ : Expr.t)
+           ℵ ϵ, Slice e [hi:lo] @ i -->  Slice e' [hi:lo] @ i
+  | step_slice_eval (v v' : Expr.e tags_t)
                     (hi lo : positive) (i : tags_t) :
       eval_slice hi lo v = Some v' ->
       value v ->
-      ℵ ϵ, Slice v:τ [hi:lo] @ i -->  v'
+      ℵ ϵ, Slice v [hi:lo] @ i -->  v'
   | step_cast (τ : Expr.t) (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
            ℵ ϵ, Cast e:τ @ i -->  Cast e':τ @ i
@@ -83,38 +83,38 @@ Module Step.
       eval_cast τ v = Some v' ->
       value v ->
       ℵ ϵ, Cast v:τ @ i -->  v'
-  | step_uop (op : Expr.uop) (τ : Expr.t)
+  | step_uop (op : Expr.uop)
              (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, UOP op e:τ @ i -->  UOP op e':τ @ i
+           ℵ ϵ, UOP op e @ i -->  UOP op e' @ i
   | step_uop_eval (op : Expr.uop) (τ : Expr.t)
                   (v v' : Expr.e tags_t) (i : tags_t) :
-      (* TODO: eval_uop op v = Some v' -> *)
+      eval_uop op v = Some v' ->
       value v ->
-      ℵ ϵ, UOP op v:τ @ i -->  v'
-  | step_bop_l (op : Expr.bop) (τl τr : Expr.t)
+      ℵ ϵ, UOP op v @ i -->  v'
+  | step_bop_l (op : Expr.bop)
                (el el' er : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, el -->  el' ->
-           ℵ ϵ, BOP el:τl op er:τr @ i -->  BOP el':τl op er:τr @ i
-  | step_bop_r (op : Expr.bop) (τl τr : Expr.t)
+           ℵ ϵ, BOP el op er @ i -->  BOP el' op er @ i
+  | step_bop_r (op : Expr.bop)
                (vl er er' : Expr.e tags_t) (i : tags_t) :
       value vl ->
       ℵ ϵ, er -->  er' ->
-           ℵ ϵ, BOP vl:τl op er:τr @ i -->  BOP vl:τl op er':τr @ i
-  | step_bop_eval (op : Expr.bop) (τl τr : Expr.t)
+           ℵ ϵ, BOP vl op er @ i -->  BOP vl op er' @ i
+  | step_bop_eval (op : Expr.bop)
                   (vv vl vr : Expr.e tags_t) (i : tags_t) :
       eval_bop op vl vr i = Some vv ->
       value vl -> value vr ->
-      ℵ ϵ, BOP vl:τl op vr:τr @ i -->  vv
-  | step_member (x : string) (τ : Expr.t)
+      ℵ ϵ, BOP vl op vr @ i -->  vv
+  | step_member (x : string)
                 (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, Mem e:τ dot x @ i -->  Mem e:τ dot x @ i
-  | step_member_eval (x : string) (τ : Expr.t)
+           ℵ ϵ, Mem e dot x @ i -->  Mem e dot x @ i
+  | step_member_eval (x : string)
                      (v v' : Expr.e tags_t) (i : tags_t) :
       eval_member x v = Some v' ->
       value v ->
-      ℵ ϵ, Mem v:τ dot x @ i -->  v'
+      ℵ ϵ, Mem v dot x @ i -->  v'
   | step_stack_access (e e' : Expr.e tags_t) (n : Z) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
            ℵ ϵ, Access e[n] @ i -->  Access e'[n] @ i
@@ -129,37 +129,37 @@ Module Step.
            let es := prefix ++ e :: suffix in
            let es' := prefix ++ e' :: suffix in
            ℵ ϵ, tup es @ i -->  tup es' @ i
-  | step_struct (prefix suffix : F.fs string (Expr.t * Expr.e tags_t))
-                (x : string) (τ : Expr.t)
+  | step_struct (prefix suffix : F.fs string (Expr.e tags_t))
+                (x : string)
                 (e e' : Expr.e tags_t) (i : tags_t) :
-      F.predfs_data (value ∘ snd) prefix ->
+      F.predfs_data value prefix ->
       ℵ ϵ, e -->  e' ->
-           let fs := prefix ++ (x,(τ,e)) :: suffix in
-           let fs' := prefix ++ (x,(τ,e')) :: suffix in
+           let fs := prefix ++ (x,e) :: suffix in
+           let fs' := prefix ++ (x,e') :: suffix in
            ℵ ϵ, struct { fs } @ i -->  struct { fs' } @ i
-  | step_header (prefix suffix : F.fs string (Expr.t * Expr.e tags_t))
-                (x : string) (τ : Expr.t)
+  | step_header (prefix suffix : F.fs string (Expr.e tags_t))
+                (x : string)
                 (b e e' : Expr.e tags_t) (i : tags_t) :
       value b ->
-      F.predfs_data (value ∘ snd) prefix ->
+      F.predfs_data value prefix ->
       ℵ ϵ, e -->  e' ->
-           let fs := prefix ++ (x,(τ,e)) :: suffix in
-           let fs' := prefix ++ (x,(τ,e')) :: suffix in
+           let fs := prefix ++ (x,e) :: suffix in
+           let fs' := prefix ++ (x,e') :: suffix in
            ℵ ϵ, hdr { fs } valid:=b @ i -->  hdr { fs' } valid:=b @ i
-  | step_header_valid (fs : F.fs string (Expr.t * Expr.e tags_t))
+  | step_header_valid (fs : F.fs string (Expr.e tags_t))
                       (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
            ℵ ϵ, hdr { fs } valid:=e @ i -->  hdr { fs } valid:=e' @ i
-  | step_header_stack (ts : F.fs string (Expr.t))
+  | step_header_stack (ts : F.fs string Expr.t)
                       (prefix suffix : list (Expr.e tags_t))
-                      (e e' : Expr.e tags_t) (size : positive)
+                      (e e' : Expr.e tags_t)
                       (ni : Z) (i : tags_t) :
       Forall value prefix ->
       ℵ ϵ, e -->  e' ->
            let hs := prefix ++ e :: suffix in
            let hs' := prefix ++ e' :: suffix in
-           ℵ ϵ, Stack hs:ts[size] nextIndex:=ni @ i -->
-           Stack hs':ts[size] nextIndex:=ni @ i
+           ℵ ϵ, Stack hs:ts nextIndex:=ni @ i -->
+           Stack hs':ts nextIndex:=ni @ i
   where "'ℵ' ϵ , e1 '-->' e2" := (expr_step ϵ e1 e2).
   (**[]*)
 
@@ -167,13 +167,13 @@ Module Step.
            (at level 40, e1 custom p4expr, e2 custom p4expr).
   
   Inductive lvalue_step {tags_t : Type} : Expr.e tags_t -> Expr.e tags_t -> Prop :=
-  | lstep_slice (e e' : Expr.e tags_t) (τ : Expr.t)
+  | lstep_slice (e e' : Expr.e tags_t)
                 (hi lo : positive) (i : tags_t) :
       ℶ e -->  e' ->
-      ℶ Slice e:τ [hi:lo] @ i -->  Slice e':τ [hi:lo] @ i
-  | lstep_member (e e' : Expr.e tags_t) (τ : Expr.t) (x : string) (i : tags_t) :
+      ℶ Slice e [hi:lo] @ i -->  Slice e' [hi:lo] @ i
+  | lstep_member (e e' : Expr.e tags_t) (x : string) (i : tags_t) :
       ℶ e -->  e' ->
-      ℶ Mem e:τ dot x @ i -->   Mem e':τ dot x @ i
+      ℶ Mem e dot x @ i -->   Mem e' dot x @ i
   | lstep_access (e e' : Expr.e tags_t) (idx : Z) (i : tags_t) :
       ℶ e -->  e' ->
       ℶ Access e[idx] @ i -->   Access e'[idx] @ i
@@ -252,20 +252,20 @@ Module Step.
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ *)
-  | step_asgn_r (e1 e2 e2' : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
+  | step_asgn_r (e1 e2 e2' : Expr.e tags_t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e2 -->  e2' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ asgn e1 := e2:τ @ i ⋅ k -->  κ asgn e1 := e2':τ @ i ⋅ k, ϵ
-  | step_asgn_l (e1 e1' v2 : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
+      κ asgn e1 := e2 @ i ⋅ k -->  κ asgn e1 := e2' @ i ⋅ k, ϵ
+  | step_asgn_l (e1 e1' v2 : Expr.e tags_t) (i : tags_t) (k : kstmt) :
       value v2 ->
       ℶ e1 -->  e1' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ asgn e1 := v2:τ @ i ⋅ k -->  κ asgn e1' := v2:τ @ i ⋅ k, ϵ
-  | step_asgn (v1 v2 : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
+      κ asgn e1 := v2 @ i ⋅ k -->  κ asgn e1' := v2 @ i ⋅ k, ϵ
+  | step_asgn (v1 v2 : Expr.e tags_t) (i : tags_t) (k : kstmt) :
       lvalue v1 ->
       value v2 ->
       let ϵ' := lv_update v1 v2 ϵ in
-      ℸ cfg, tbls, aa, fns, ins, ϵ, κ asgn v1 := v2:τ @ i ⋅ k -->  k, ϵ'
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ asgn v1 := v2 @ i ⋅ k -->  k, ϵ'
   | step_exit (i : tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ exit @ i ⋅ k -->   EXIT k, ϵ
   | step_kexit_kseq (s : Stmt.s tags_t) (k : kstmt) :
@@ -273,15 +273,18 @@ Module Step.
   | step_kexit_kblock (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, ϵk ≪ ϵ
   | step_return_void (i : tags_t) (k : kstmt) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, κ returns @ i ⋅ k -->  VOID k, ϵ
+      ℸ cfg, tbls, aa, fns, ins, ϵ, κ return None @ i ⋅ k -->  VOID k, ϵ
   | step_return_fruit (e e' : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e -->  e' ->
+           let eo := Some e in
+           let eo' := Some e' in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ return e:τ @ i ⋅ k -->  κ return e':τ @ i ⋅ k, ϵ
+      κ return eo @ i ⋅ k -->  κ return eo' @ i ⋅ k, ϵ
   | step_return_value (v : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
       value v ->
+      let eo := Some v in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
-      κ return v:τ @ i ⋅ k -->  FRUIT v k, ϵ
+      κ return eo @ i ⋅ k -->  FRUIT v k, ϵ
   | step_kreturn_kseq (o : option (Expr.e tags_t)) (s : Stmt.s tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, RETURN o κ s ⋅ k -->  RETURN o k, ϵ
   | step_kreturn_kblock (o : option (Expr.e tags_t)) (ϵk : eenv) (k : kstmt) :
@@ -298,37 +301,31 @@ Module Step.
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ if FALSE @ i' then s1 else s2 @ i ⋅ k -->  κ s2 ⋅ k, ϵ
   | step_funcall_in_arg (prefix suffix : Expr.args tags_t) (f x : string)
-                        (τ : Expr.t) (e e' : Expr.e tags_t)
-                        (o : option (Expr.t * Expr.e tags_t))
+                        (e e' : Expr.e tags_t)
+                        (o : option (Expr.e tags_t))
                         (i : tags_t) (k : kstmt) :
-      F.predfs_data
-        (pred_paramarg
-           (value ∘ snd) (lvalue ∘ snd)) prefix ->
+      F.predfs_data (pred_paramarg value lvalue) prefix ->
       ℵ ϵ, e -->  e' ->
-      let args  := prefix ++ (x, PAIn (τ,e))  :: suffix in
-      let args' := prefix ++ (x, PAIn (τ,e')) :: suffix in
+      let args  := prefix ++ (x, PAIn e)  :: suffix in
+      let args' := prefix ++ (x, PAIn e') :: suffix in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ funcall f <[]> (args)  into o @ i ⋅ k -->
       κ funcall f <[]> (args') into o @ i ⋅ k, ϵ
-   | step_funcall_lvalue (args : Expr.args tags_t) (f : string) (τ : Expr.t)
+   | step_funcall_lvalue (args : Expr.args tags_t) (f : string)
                          (e e' : Expr.e tags_t) (i : tags_t) (k : kstmt) :
-       F.predfs_data
-         (pred_paramarg
-            (value ∘ snd) (lvalue ∘ snd)) args ->
+       F.predfs_data (pred_paramarg value lvalue) args ->
        ℶ e -->  e' ->
        ℸ cfg, tbls, aa, fns, ins, ϵ,
-       κ let e:τ  := call f <[]> (args) @ i ⋅ k -->
-       κ let e':τ := call f <[]> (args) @ i ⋅ k, ϵ
+       κ let e  := call f <[]> (args) @ i ⋅ k -->
+       κ let e' := call f <[]> (args) @ i ⋅ k, ϵ
    | step_funcall (args : Expr.args tags_t) (f : string)
-                  (o : option (Expr.t * Expr.e tags_t))
+                  (o : option (Expr.e tags_t))
                   (i : tags_t) (k : kstmt)
                   (body : Stmt.s tags_t) (fϵ : eenv)
                   (fclosure : fenv) (fins : ienv) :
        lookup fns f = Some (FDecl fϵ fclosure fins body) ->
-       predop (lvalue ∘ snd) o ->
-       F.predfs_data
-         (pred_paramarg
-            (value ∘ snd) (lvalue ∘ snd)) args ->
+       predop lvalue o ->
+       F.predfs_data (pred_paramarg value lvalue) args ->
        let fϵ' := copy_in args ϵ fϵ in
        let arrow := Arrow args o in
        ℸ cfg, tbls, aa, fns, ins, ϵ,
@@ -342,10 +339,10 @@ Module Step.
        let ϵ' := copy_out args ϵ ϵk in
        let arrow := Arrow args None in
        ℸ cfg, tbls, aa, fns, ins, ϵ, VOID Λ (arrow, ϵk) k -->  k, ϵ'
-   | step_fruit_kcall (v lv : Expr.e tags_t) (τ : Expr.t) (ϵk : eenv)
+   | step_fruit_kcall (v lv : Expr.e tags_t) (ϵk : eenv)
                       (args : Expr.args tags_t) (k : kstmt) :
        let ϵ' := ϵk ▷ copy_out args ϵ ▷ lv_update lv v in
-       let arrow := Arrow args (Some (τ, lv)) in
+       let arrow := Arrow args (Some lv) in
        ℸ cfg, tbls, aa, fns, ins, ϵ, FRUIT v Λ (arrow, ϵk) k -->  k, ϵ'
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
           := (kstmt_step cfg tbls aa fns ins ϵ1 k1 k2 ϵ2).

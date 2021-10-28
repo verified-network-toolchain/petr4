@@ -122,8 +122,56 @@ let field_cmp ((name1, _): coq_FieldType) ((name2, _): coq_FieldType) =
 
 let sort_fields = List.sort ~compare:field_cmp
 
-let val_to_literal (v: Prog.coq_Value) : Prog.coq_Expression =
-  failwith "val_to_literal unimplemented"
+let add_cast_unsafe (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
+  MkExpression (Info.dummy, ExpCast (new_typ, expr), new_typ, dir_of_expr expr)
+
+let rec val_to_literal (v: Prog.coq_Value) : Prog.coq_Expression =
+  let fs_to_literals fs: Prog.coq_Expression * (P4string.t * coq_P4Type) list =
+     let names = List.map ~f:fst fs in
+     let vs = List.map ~f:snd fs in
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     (MkExpression (Info.dummy, ExpList es, TypList typs, In), List.zip_exn names typs)
+  in
+  match v with
+  | ValBool b ->
+     MkExpression (Info.dummy, ExpBool b, TypBool, In)
+  | ValInteger v ->
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = None } in
+     MkExpression (Info.dummy, ExpInt i, TypInteger, In)
+  | ValBit (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, false) } in
+     MkExpression (Info.dummy, ExpInt i, TypBit width, In)
+  | ValInt (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, true) } in
+     MkExpression (Info.dummy, ExpInt i, TypInt width, In)
+  | ValString s ->
+     MkExpression (Info.dummy, ExpString s, TypString, In)
+  | ValTuple vs ->
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     MkExpression (Info.dummy, ExpList es, TypTuple typs, In)
+  | ValRecord fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypRecord t)
+  | ValError e ->
+     MkExpression (Info.dummy, ExpErrorMember e, TypError, In)
+  | ValMatchKind mk ->
+     MkExpression (Info.dummy, ExpTypeMember (BareName {str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
+  | ValStruct fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypStruct t)
+  | ValHeader (fs, valid) ->
+     if not valid then failwith "invalid header at compile time";
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypHeader t)
+  | ValEnumField (typ, mem)
+  | ValSenumField (typ, mem, _) ->
+     let name: P4name.t = BareName typ in
+     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName name, In)
+  | ValSenum vs -> failwith "ValSenum unsupported"
 
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
 let rec is_extern (env: Checker_env.t) (typ: Typed.coq_P4Type) =
@@ -836,9 +884,9 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
   MkExpression (exp_info, pre_expr, typ, dir)
 
 and add_cast env (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
-  let MkExpression (info, pre_expr, orig_typ, dir) = expr in
+  let orig_typ = type_of_expr expr in
   if cast_ok env orig_typ new_typ
-  then MkExpression (info, ExpCast (new_typ, expr), new_typ, dir)
+  then add_cast_unsafe expr new_typ
   else failwith "Cannot cast."
 
 and cast_if_needed env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =

@@ -86,13 +86,13 @@ Inductive check_expr
 | chk_uop (op : Expr.uop) (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
     uop_type op τ τ' ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ UOP op e @ i ∈ τ'
+    ⟦ Δ, Γ ⟧ ⊢ UOP op e : τ' @ i ∈ τ'
 (* Binary Operations. *)
 | chk_bop (op : Expr.bop) (τ1 τ2 τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) :
     bop_type op τ1 τ2 τ ->
     ⟦ Δ , Γ ⟧ ⊢ e1 ∈ τ1 ->
     ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
-    ⟦ Δ , Γ ⟧ ⊢ BOP e1 op e2 @ i ∈ τ
+    ⟦ Δ , Γ ⟧ ⊢ BOP e1 op e2 : τ @ i ∈ τ
 (* Member expressions. *)
 | chk_mem (e : Expr.e tags_t) (x : string)
           (fs : F.fs string Expr.t)
@@ -102,7 +102,7 @@ Inductive check_expr
     t_ok Δ τ ->
     t_ok Δ τ' ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ Mem e dot x @ i ∈ τ'
+    ⟦ Δ, Γ ⟧ ⊢ Mem e dot x : τ' @ i ∈ τ'
 (* Structs. *)
 | chk_tuple (es : list (Expr.e tags_t)) (i : tags_t)
             (ts : list Expr.t) :
@@ -140,7 +140,7 @@ Inductive check_expr
       (0 <= idx < (Zpos n))%Z ->
       t_ok Δ {{ stack ts[n] }} ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ stack ts[n] ->
-      ⟦ Δ, Γ ⟧ ⊢ Access e[idx] @ i ∈ hdr { ts }
+      ⟦ Δ, Γ ⟧ ⊢ Access e[idx] : ts @ i ∈ hdr { ts }
 where "⟦ ers ',' gm ⟧ ⊢ e ∈ ty"
         := (check_expr ers gm e ty) : type_scope.
 (**[]*)
@@ -206,7 +206,7 @@ Inductive check_stmt
     | Right e => ⟦Δ,Γ⟧ ⊢ e ∈ τ
     | Left τ  => t_ok Δ τ
     end ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ var x := eo @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
+    ⦃ fns, Δ, Γ ⦄ con ⊢ var x with eo @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
 | chk_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) (con : ctx) :
     lvalue_ok e1 ->
     ⟦ Δ, Γ ⟧ ⊢ e1 ∈ τ ->

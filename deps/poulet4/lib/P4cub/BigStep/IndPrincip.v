@@ -44,26 +44,26 @@ Section ExprEvalInduction.
       P ϵ <{ Matchkind mk @ i }> ~{ MATCHKIND mk }~.
   (**[]*)
   
-  Hypothesis HUop : forall ϵ op e i v v',
+  Hypothesis HUop : forall ϵ τ op e i v v',
       eval_uop op v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
-      P ϵ <{ UOP op e @ i }> v'.
+      P ϵ <{ UOP op e : τ @ i }> v'.
   
-  Hypothesis HBop : forall ϵ op e1 e2 i v v1 v2,
+  Hypothesis HBop : forall ϵ τ op e1 e2 i v v1 v2,
       eval_bop op v1 v2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       P ϵ e1 v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
       P ϵ e2 v2 ->
-      P ϵ <{ BOP e1 op e2 @ i }> v.
+      P ϵ <{ BOP e1 op e2 : τ @ i }> v.
   (**[]*)
   
-  Hypothesis HMem : forall ϵ e x i v v',
+  Hypothesis HMem : forall ϵ τ e x i v v',
       eval_member x v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
-      P ϵ <{ Mem e dot x @ i }> v'.
+      P ϵ <{ Mem e dot x : τ @ i }> v'.
   (**[]*)
   
   Hypothesis HTuple : forall ϵ es i vs,
@@ -106,7 +106,7 @@ Section ExprEvalInduction.
       nth_error vss (Z.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts NEXT:=ni ->
       P ϵ e ~{ STACK vss:ts NEXT:=ni }~ ->
-      P ϵ <{ Access e[index] @ i }> ~{ HDR { vs } VALID:=b }~.
+      P ϵ <{ Access e[index] : ts @ i }> ~{ HDR { vs } VALID:=b }~.
   (**[]*)
   
   (** Custom induction principle for
@@ -167,12 +167,12 @@ Section ExprEvalInduction.
         => HCast _ _ _ i _ _ Hv He (ebsind _ _ _ He)
       | ebs_error _ err i => HError _ err i
       | ebs_matchkind _ mk i => HMatchkind _ mk i
-      | ebs_uop _ _ i _ _ Hu Hv He
-        => HUop _ _ i _ _ Hu Hv He (ebsind _ _ _ He)
-      | ebs_bop _ _ _ _ i _ _ _ Hv He1 He2
-        => HBop _ _ _ _ i _ _ _ Hv He1 (ebsind _ _ _ He1) He2 (ebsind _ _ _ He2)
-      | ebs_mem _ _ _ i _ _ Heval He
-        => HMem _ _ _ i _ _ Heval He (ebsind _ _ _ He)
+      | ebs_uop _ t _ i _ _ Hu Hv He
+        => HUop _ t _ i _ _ Hu Hv He (ebsind _ _ _ He)
+      | ebs_bop _ t _ _ _ i _ _ _ Hv He1 He2
+        => HBop _ t _ _ _ i _ _ _ Hv He1 (ebsind _ _ _ He1) He2 (ebsind _ _ _ He2)
+      | ebs_mem _ t _ _ i _ _ Heval He
+        => HMem _ t _ _ i _ _ Heval He (ebsind _ _ _ He)
       | ebs_tuple _ _ i _ HR => HTuple _ _ i _ HR (lind HR)
       | ebs_struct_lit _ _ i _ HR => HStructLit _ _ i _ HR (fsind HR)
       | ebs_hdr_lit _ _ _ i _ _ HR He

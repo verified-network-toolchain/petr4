@@ -45,7 +45,7 @@ Section Statementize.
     : st * e * VarNameGen.t :=
     let (var_name, env') := VarNameGen.new_var env in
     (Stmt.SSeq s (Stmt.SVardecl var_name (Right expr) i) i,
-     Expr.EVar (t_of_e_default Expr.TBool expr) var_name i, env').
+     Expr.EVar (t_of_e expr) var_name i, env').
   
   Fixpoint TransformExpr (expr : e) (env: VarNameGen.t) 
     : st * e * VarNameGen.t := 
@@ -56,9 +56,9 @@ Section Statementize.
     | Expr.EVar     _ _ i
     | Expr.EError     _ i
     | Expr.EMatchKind _ i => (Stmt.SSkip i, expr, env)
-    | Expr.EExprMember mem arg i => 
+    | Expr.EExprMember ty mem arg i => 
       let '(arg_stmts, sel_arg, env') := TransformExpr arg env in
-      (arg_stmts, Expr.EExprMember mem sel_arg i, env')
+      (arg_stmts, Expr.EExprMember ty mem sel_arg i, env')
     | Expr.EBit _ _ i
     | Expr.EInt _ _ i =>
       decl_var_env (Stmt.SSkip i) expr env i
@@ -68,15 +68,15 @@ Section Statementize.
     | Expr.ECast type arg i =>
       let '(arg_stmt, arg', env_arg) := TransformExpr arg env in
       decl_var_env arg_stmt (Expr.ECast type arg' i) env_arg i
-    | Expr.EUop op arg i => 
+    | Expr.EUop rt op arg i => 
       let '(arg_stmt, arg', env_arg) := TransformExpr arg env in
-      decl_var_env arg_stmt (Expr.EUop op arg' i) env_arg i
-    | Expr.EBop op lhs rhs i => 
+      decl_var_env arg_stmt (Expr.EUop rt op arg' i) env_arg i
+    | Expr.EBop rt op lhs rhs i => 
       let '(lhs_stmt, lhs', env_lhs) := TransformExpr lhs env in 
       let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in
       decl_var_env
         (Stmt.SSeq lhs_stmt rhs_stmt i)
-        (Expr.EBop op lhs' rhs' i) env_rhs i
+        (Expr.EBop rt op lhs' rhs' i) env_rhs i
     | Expr.ETuple es i => 
       let '(es_stmt, es', env_es) := TransformExprList es env i in 
       decl_var_env es_stmt (Expr.ETuple es' i) env_es i
@@ -95,9 +95,9 @@ Section Statementize.
         hdrs_stmt
         (Expr.EHeaderStack fields hdrs' next_index i)
         env_hdrs i
-    | Expr.EHeaderStackAccess stack index i =>
+    | Expr.EHeaderStackAccess ts stack index i =>
       let '(stack_stmt, stack', env_stack) := TransformExpr stack env in
-      let val := Expr.EHeaderStackAccess stack' index i in 
+      let val := Expr.EHeaderStackAccess ts stack' index i in 
       let stmt := stack_stmt in
       (stmt, val, env_stack)
     end.
@@ -109,8 +109,8 @@ Section Statementize.
     | Expr.EInt _ _ _ => true
     | Expr.ESlice n _ _ i =>  VerifyConstExpr n
     | Expr.ECast _ arg _ => VerifyConstExpr arg
-    | Expr.EUop _ arg _ => VerifyConstExpr arg
-    | Expr.EBop _ lhs rhs _ => andb (VerifyConstExpr lhs) (VerifyConstExpr rhs) 
+    | Expr.EUop _ _ arg _ => VerifyConstExpr arg
+    | Expr.EBop _ _ lhs rhs _ => andb (VerifyConstExpr lhs) (VerifyConstExpr rhs) 
     | _ => false
     (* | Expr.EVar type x i => false
        | Expr.EExprMember mem expr_type arg i => false

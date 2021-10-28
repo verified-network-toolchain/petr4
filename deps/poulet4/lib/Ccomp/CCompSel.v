@@ -217,8 +217,7 @@ Section CCompSel.
                         end
                         end
 
-    | Expr.EExprMember y x i =>
-      let ty := t_of_e_default Expr.TBool x in
+    | Expr.EExprMember ty y x i =>
                         let(cty, env_ty):= CTranslateType ty env in
                         let* (x', env') := CTranslateExpr x env_ty in
                         match ty with
@@ -253,8 +252,8 @@ Section CCompSel.
                         | _ => err "member of an invalid type"
                         end
 
-    | Expr.EHeaderStackAccess stack index i => 
-      let (stack_t,env) := CTranslateType (t_of_e_default Expr.TBool stack) env in 
+    | Expr.EHeaderStackAccess ts stack index i => 
+      let (stack_t,env) := CTranslateType (Expr.THeader ts) env in 
       let* (stack, env) :=  CTranslateExpr stack env in
       let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) 
         := findStackAttributes stack stack_t env in
@@ -286,7 +285,7 @@ Section CCompSel.
         error_ret (el' ++ [e'], env'')
       | (_, PAOut e)
       | (_, PAInOut e) =>
-        let t := t_of_e_default Expr.TBool e in
+        let t := t_of_e e in
         let (ct, env_ct):= CTranslateType t env' in 
         let*  (e', env'') := CTranslateExpr e env_ct in
         let e' := Eaddrof e' (Tpointer ct noattr) in 
@@ -353,7 +352,7 @@ Section CCompSel.
 
   Definition ValidBitIndex (arg: Expr.e tags_t) (env: ClightEnv tags_t ) : @error_monad string AST.ident
   :=
-    let* comp:= lookup_composite tags_t env (t_of_e_default Expr.TBool arg) in
+    let* comp:= lookup_composite tags_t env (t_of_e arg) in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _ =>
       match m with
@@ -367,7 +366,7 @@ Section CCompSel.
   
   Definition HeaderStackSize (arg: Expr.e tags_t) (env: ClightEnv tags_t ) : @error_monad string AST.ident
   :=
-    let* comp := lookup_composite tags_t env (t_of_e_default Expr.TBool arg) in
+    let* comp := lookup_composite tags_t env (t_of_e arg) in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _=>
       match m with
@@ -496,10 +495,10 @@ Section CCompSel.
   
 
   Definition CTranslateFieldType (fields: F.fs string (Expr.e tags_t)) 
-    := F.map (t_of_e_default Expr.TBool) fields.
+    := F.map (t_of_e) fields.
     
   Definition CTranslateListType (exps : list (Expr.e tags_t)):=
-    List.map (t_of_e_default Expr.TBool) exps.
+    List.map (t_of_e) exps.
 
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (Expr.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
@@ -690,7 +689,7 @@ Section CCompSel.
       error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env')                              
 
     | Stmt.SFunCall f _ (Arrow args (Some e)) i =>
-      let t := t_of_e_default Expr.TBool e in
+      let t := t_of_e e in
       let (ct, env_ct) := CTranslateType t env in
       let* (f', id) := CCompEnv.lookup_function tags_t env_ct f in
       let* (elist, env') := CTranslateDirExprList args env_ct in
@@ -715,7 +714,7 @@ Section CCompSel.
       error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env')  (*TODO: figure out why extern args here?*)          
     | Stmt.SInvoke tbl i => error_ret (Sskip, env) (*TODO: implement*)
     | Stmt.SAssign e1 e2 i =>
-      let t := t_of_e_default Expr.TBool e1 in
+      let t := t_of_e e1 in
       match e1 with
       | Expr.EVar dst_t dst i => 
         match e2 with
@@ -738,7 +737,7 @@ Section CCompSel.
           error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
 
         | Expr.ESlice n hi lo i =>
-          let τ := t_of_e_default Expr.TBool n in
+          let τ := t_of_e n in
           let* (n', env') := CTranslateExpr n env in
           let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
           let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
@@ -749,9 +748,9 @@ Section CCompSel.
 
         | Expr.ECast τ e i => err "cast unimplemented" (*TODO: implement in the runtime*)
 
-        | Expr.EUop op x i => err "fixme" (*TODO: CTranslateUop dst_t op x dst env*)
+        | Expr.EUop dst_t op x i => CTranslateUop dst_t op x dst env
 
-        | Expr.EBop op x y i => err "fixme" (*TODO: CTranslateBop dst_t op x y dst env*)
+        | Expr.EBop dst_t op x y i => CTranslateBop dst_t op x y dst env
                         
         | Expr.ETuple es i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
           let tuple := Expr.TTuple (CTranslateListType es) in

@@ -329,10 +329,10 @@ Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_bit_slice e h l i :
     lvalue_ok e ->
     lvalue_ok <{ Slice e [h:l] @ i }>
-| lvalue_member e x i :
+| lvalue_member t e x i :
     lvalue_ok e ->
-    lvalue_ok <{ Mem e dot x @ i }>
-| lvalue_access e idx i :
+    lvalue_ok <{ Mem e dot x : t @ i }>
+| lvalue_access ts e idx i :
     lvalue_ok e ->
-    lvalue_ok <{ Access e[idx] @ i }>.
+    lvalue_ok <{ Access e[idx] : ts @ i }>.
 (**[]*)

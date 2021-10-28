@@ -188,12 +188,13 @@ Section Metamorphosis.
     | MkExpression i (ExpName (BareName x) _) t _
       => t <<| type_morph t ;;
         Expr.EVar t (P4String.str x) i
-    | MkExpression i (ExpArrayAccess e1 e2) _ _
-      => e1 <- expr_morph e1 ;;
+    | MkExpression i (ExpArrayAccess e1 e2) t _
+      => t <- type_morph t ;;
+        e1 <- expr_morph e1 ;;
         e2' <- expr_morph e2 ;;
-        match e2' with
-        | <{ _ W idx @ _ }> => mret <{ Access e1[idx] @ i }>
-        | _ => err $ UnsupportedExpr e2 (* TODO *)
+        match t, e2' with
+        | {{ hdr { ts } }}, <{ _ W idx @ _ }> => mret <{ Access e1[idx] : ts @ i }>
+        | _, _ => err $ UnsupportedExpr e2 (* TODO *)
         end
     | MkExpression i (ExpBitStringAccess e lo hi) _ _
       => let lo := Pos.pred $ N.succ_pos lo in
@@ -203,23 +204,25 @@ Section Metamorphosis.
       => es <<| lstruct es ;; <{ tup es @ i }>
     | MkExpression i (ExpRecord fs) _ _
       => fs <<| frec fs ;; <{ struct { fs } @ i }>
-    | MkExpression i (ExpUnaryOp op e) _ _
-      => e <<| expr_morph e ;;
-        Expr.EUop (uop_morph op) e i
-    | MkExpression i (ExpBinaryOp op (e1, e2)) _ _ =>
-           op <- bop_morph op ;;
-           e1 <- expr_morph e1 ;;
-           e2 <<| expr_morph e2 ;; <{ BOP e1 op e2 @ i }>
+    | MkExpression i (ExpUnaryOp op e) t _
+      => t <- type_morph t ;;
+        e <<| expr_morph e ;;
+        Expr.EUop t (uop_morph op) e i
+    | MkExpression i (ExpBinaryOp op (e1, e2)) t _
+      => t <-  type_morph t ;;
+        op <- bop_morph op ;;
+        e1 <- expr_morph e1 ;;
+        e2 <<| expr_morph e2 ;; <{ BOP e1 op e2 : t @ i }>
     | MkExpression i (ExpCast t e) _ _
       => t <- type_morph t ;;
         e <<| expr_morph e ;; <{ Cast e:t @ i }>
     | MkExpression i (ExpErrorMember err) _ _
       => mret $ Expr.EError (mret $ P4String.str err) i
-    | MkExpression i (ExpExpressionMember e f) _ _ 
-      => 
-        let f := P4String.str f in 
+    | MkExpression i (ExpExpressionMember e f) t _ 
+      => let f := P4String.str f in
+        t <- type_morph t ;;
         e <<| expr_morph e ;; 
-        <{ Mem e dot f @ i }>
+        <{ Mem e dot f : t @ i }>
     | _ => err (UnsupportedExpr e)
     end.
   (**[]*)
@@ -264,13 +267,11 @@ Section Metamorphosis.
     | MkStatement i (StatVariable t x None _) _ =>
       t <<| type_morph t ;;
       let x := P4String.str x in
-      let t' := Left t in
-      -{ var x := t' @ i }-
+      -{ delcare x : t @ i }-
     | MkStatement i (StatVariable _ x (Some e) _) _
       => e <<| expr_morph e ;;
         let x := P4String.str x in
-        let eo := Right e in
-        -{ var x := eo @ i }-
+        -{ init x := e @ i }-
     | MkStatement i (StatAssignment e1 e2) _
       => e1 <- expr_morph e1 ;;
         e2 <<| expr_morph e2 ;; -{ asgn e1 := e2 @ i }-

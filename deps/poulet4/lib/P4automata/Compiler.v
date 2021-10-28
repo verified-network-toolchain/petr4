@@ -54,9 +54,9 @@ Section parser_to_p4automaton.
       | <{ Var x:_ @ _ }> => mret l{ VAR x }l
       | <{ Slice e [hi:lo] @ _ }>
         => lv <<| eval_lvalue e ;; l{ SLICE lv [hi:lo] }l
-      | <{ Mem e dot x @ _ }>
+      | <{ Mem e dot x : _ @ _ }>
         => lv <<| eval_lvalue e ;; l{ lv DOT x }l
-      | <{ Access e[n] @ _ }>
+      | <{ Access e[n] : _ @ _ }>
         => lv <<| eval_lvalue e ;; l{ ACCESS lv[n] }l
       | _ => err (CEBadLValue e)
       end.
@@ -152,12 +152,12 @@ Section parser_to_p4automaton.
     | <{ Cast e : τ @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEInconceivable "bad cast") $ ExprUtil.eval_cast τ v
-    | <{ UOP op e @ _ }> =>
+    | <{ UOP op e : _ @ _ }> =>
       (*
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_uop op v *)
       err (CEUnsupportedExpr e) (* TODO: fix *)
-    | <{ BOP e1 op e2 @ _ }> =>
+    | <{ BOP e1 op e2 : _ @ _ }> =>
       v1 <- interp_expr ϵ e1 ;;
       v2 <- interp_expr ϵ e2 ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_bop op v1 v2
@@ -173,7 +173,7 @@ Section parser_to_p4automaton.
       match b with
       | ~{ VBOOL b }~  => mret ~{ HDR { vs } VALID := b }~
       | _ => err (CEInconceivable "bad valid assignment") end
-    | <{ Mem e dot x @ _ }> =>
+    | <{ Mem e dot x : _ @ _ }> =>
       v <- interp_expr ϵ e ;;
       lift_opt_error (CEUnsupportedExpr expr) $ ExprUtil.eval_member x v
     | <{ Error x @ _ }> =>
@@ -189,7 +189,7 @@ Section parser_to_p4automaton.
                                  | _ => err (CEInconceivable "bad header stack assignment") end
                               ) hdrs) ;;
       ~{ STACK vs : ts NEXT := i }~
-    | <{ Access e [ n ] @ _ }> =>
+    | <{ Access e [ n ] : _ @ _ }> =>
       v <- interp_expr ϵ e ;;
       match v with
       | ~{ STACK vs : _  NEXT := _ }~ =>

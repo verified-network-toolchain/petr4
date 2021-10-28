@@ -135,12 +135,12 @@ Inductive lvalue {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_slice lv hi lo i :
     lvalue lv ->
     lvalue <{ Slice lv [hi:lo] @ i }>
-| lvalue_member lv x i :
+| lvalue_member τ lv x i :
     lvalue lv ->
-    lvalue <{ Mem lv dot x @ i }>
-| lvalue_access lv idx i :
+    lvalue <{ Mem lv dot x : τ @ i }>
+| lvalue_access ts lv idx i :
     lvalue lv ->
-    lvalue <{ Access lv[idx] @ i }>.
+    lvalue <{ Access lv[idx] : ts @ i }>.
 (**[]*)
 
 Module CanonicalForms.

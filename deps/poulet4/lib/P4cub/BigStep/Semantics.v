@@ -153,23 +153,23 @@ Module Step.
   | ebs_matchkind (mk : Expr.matchkind) (i : tags_t) :
       ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
-  | ebs_uop (op : Expr.uop) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
+  | ebs_uop τ (op : Expr.uop) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
       eval_uop op v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟨ ϵ, UOP op e @ i ⟩ ⇓ v'
+      ⟨ ϵ, UOP op e : τ @ i ⟩ ⇓ v'
   (* Binary Operations. *)
-  | ebs_bop (op : Expr.bop) (e1 e2 : Expr.e tags_t)
+  | ebs_bop τ (op : Expr.bop) (e1 e2 : Expr.e tags_t)
             (i : tags_t) (v v1 v2 : V.v) :
       eval_bop op v1 v2 = Some v ->
       ⟨ ϵ, e1 ⟩ ⇓ v1 ->
       ⟨ ϵ, e2 ⟩ ⇓ v2 ->
-      ⟨ ϵ, BOP e1 op e2 @ i ⟩ ⇓ v
+      ⟨ ϵ, BOP e1 op e2 : τ @ i ⟩ ⇓ v
   (* Structs *)
-  | ebs_mem (e : Expr.e tags_t) (x : string)
+  | ebs_mem τ (e : Expr.e tags_t) (x : string)
             (i : tags_t) (v v' : V.v) :
       eval_member x v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
-      ⟨ ϵ, Mem e dot x @ i ⟩ ⇓ v'
+      ⟨ ϵ, Mem e dot x : τ @ i ⟩ ⇓ v'
   | ebs_tuple (es : list (Expr.e tags_t)) (i : tags_t)
               (vs : list (V.v)) :
       Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs ->
@@ -202,7 +202,7 @@ Module Step.
                (b : bool) (vs : F.fs string (V.v)) :
       nth_error vss (Z.to_nat index) = Some (b,vs) ->
       ⟨ ϵ, e ⟩ ⇓ STACK vss:ts NEXT:=ni ->
-      ⟨ ϵ, Access e[index] @ i ⟩ ⇓ HDR { vs } VALID:=b
+      ⟨ ϵ, Access e[index] : ts @ i ⟩ ⇓ HDR { vs } VALID:=b
   where "⟨ ϵ , e ⟩ ⇓ v" := (expr_big_step ϵ e v).
   (**[]*)
 
@@ -214,15 +214,15 @@ Module Step.
                (hi lo : positive) (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
       ⧠ Slice e [hi:lo] @ i ⇓ SLICE lv [hi:lo]
-  | lvbs_member (e : Expr.e tags_t) (x : string)
+  | lvbs_member τ (e : Expr.e tags_t) (x : string)
                 (i : tags_t) (lv : V.lv) :
       ⧠ e ⇓ lv ->
-      ⧠ Mem e dot x @ i ⇓ lv DOT x
-  | lvbs_access (e : Expr.e tags_t) (i : tags_t)
-                      (lv : V.lv) (n : Z) :
+      ⧠ Mem e dot x : τ @ i ⇓ lv DOT x
+  | lvbs_access ts (e : Expr.e tags_t) (i : tags_t)
+                (lv : V.lv) (n : Z) :
       let w := 32%positive in
       ⧠ e ⇓ lv ->
-      ⧠ Access e[n] @ i ⇓ ACCESS lv[n]
+      ⧠ Access e[n] : ts @ i ⇓ ACCESS lv[n]
   where "⧠ e ⇓ lv" := (lvalue_big_step e lv).
   (**[]*)
 
@@ -297,7 +297,7 @@ Module Step.
       | Right e => ⟨ ϵ, e ⟩ ⇓ v
       | Left τ  => vdefault τ = Some v
       end ->
-      ⟪ pkt, fs, ϵ, c, var x := eo @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
+      ⟪ pkt, fs, ϵ, c, var x with eo @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (e1 e2 : Expr.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :
       lv_update lv v ϵ = ϵ' ->

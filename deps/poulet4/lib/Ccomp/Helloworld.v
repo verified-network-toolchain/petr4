@@ -30,8 +30,7 @@ Definition std_meta := {{struct {[("stdmeta", {{Bool}})]} }}.
 Definition oneplusone := 
   let width := Pos.of_nat 32 in  
   let one := Z.of_nat 1 in
-  let e := Right <{BOP width S one @ 0 + width S one @ 0 @ 0}> in
-  -{var "x" := e @ 0}-.
+  -{init "x" := BOP width S one @ 0 + width S one @ 0 : bit<width> @ 0 @ 0}-.
 Definition parser_start_state : par_st_blk :=
    &{state { skip @ 0 } transition goto accept @ 0 }&.
 Definition parsr_cparams : Expr.constructor_params := [].

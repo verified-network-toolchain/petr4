@@ -85,10 +85,7 @@ Module Expr.
     | THeader (fields : F.fs string t) (* the header type *)
     | THeaderStack (fields : F.fs string t)
                    (size : positive)   (* header stack type *)
-    | TVar (type_name : string)        (* type variables *)
-    (*| TString                          (* strings *)
-      | TEnum (name : string)
-      (members : list string)    (* enum types *)*).
+    | TVar (type_name : string)        (* type variables *).
     (**[]*)
     
     (** Function parameters. *)
@@ -177,22 +174,24 @@ Module Expr.
     | ESlice (arg : e)
              (hi lo : positive) (i : tags_t)         (* bit-slicing *)
     | ECast (type : t) (arg : e) (i : tags_t)        (* explicit casts *)
-    | EUop (op : uop) (arg : e) (i : tags_t)         (* unary operations *)
-    | EBop (op : bop) (lhs rhs : e) (i : tags_t)     (* binary operations *)
+    | EUop (result_type : t) (op : uop)
+           (arg : e) (i : tags_t)                    (* unary operations *)
+    | EBop (result_type : t) (op : bop)
+           (lhs rhs : e) (i : tags_t)                (* binary operations *)
     | ETuple (es : list e) (i : tags_t)              (* tuples *)
     | EStruct (fields : F.fs string e) (i : tags_t)  (* struct literals *)
     | EHeader (fields : F.fs string e)
               (valid : e) (i : tags_t)               (* header literals *)
-    | EExprMember (mem : string)
+    | EExprMember (result_type : t) (mem : string)
                   (arg : e) (i : tags_t)             (* member-expressions *)
     | EError (err : option string) (i : tags_t)      (* error literals *)
     | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
     | EHeaderStack (fields : F.fs string t)
-                   (headers : list e)
-                   (next_index : Z) (i : tags_t)     (* header stack literals,
-                                                        unique to p4cub *)
-    | EHeaderStackAccess (stack : e) (index : Z)
-                         (i : tags_t)                (* header stack indexing *).
+                   (headers : list e)                (* header stack literals *)
+                   (next_index : Z) (i : tags_t)     (*unique to p4cub *)
+    | EHeaderStackAccess (result_hdr_type : F.fs string t)
+                         (stk : e)
+                         (index : Z) (i : tags_t)    (* header stack indexing *).
     (**[]*)
     
     (** Function call arguments. *)

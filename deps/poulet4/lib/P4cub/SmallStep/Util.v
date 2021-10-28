@@ -444,14 +444,14 @@ Section StepDefs.
   Fixpoint lv_lookup (ϵ : eenv) (lv : Expr.e tags_t) : option (Expr.e tags_t) :=
     match lv with
     | <{ Var x:_ @ _ }> => Env.find x ϵ
-    | <{ Mem lv dot x @ _ }> =>
+    | <{ Mem lv dot x : _ @ _ }> =>
       (* TODO: use monadic bind. *)
       match lv_lookup ϵ lv with
       | Some <{ struct { fs } @ _ }>
       | Some <{ hdr { fs } valid:=_  @ _ }> => fs ▷ F.get x
       | _ => None
       end
-    | <{ Access lv[n] @ _ }> =>
+    | <{ Access lv[n] : _ @ _ }> =>
       match lv_lookup ϵ lv with
       | Some <{ Stack vss:_ nextIndex:=_ @ _ }> => nth_error vss (Z.to_nat n)
       | _ => None
@@ -464,7 +464,7 @@ Section StepDefs.
   Fixpoint lv_update (lv v : Expr.e tags_t) (ϵ : eenv) : eenv :=
     match lv with
     | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
-    | <{ Mem lv dot x @ _ }> =>
+    | <{ Mem lv dot x : _ @ _ }> =>
       match lv_lookup ϵ lv with
       | Some <{ struct { vs } @ i }>
         => lv_update lv (Expr.EStruct (F.update x v vs) i) ϵ
@@ -472,7 +472,7 @@ Section StepDefs.
         => lv_update lv (Expr.EHeader (F.update x v vs) b i) ϵ
       | _ => ϵ
       end
-    | <{ Access lv[n] @ _ }> =>
+    | <{ Access lv[n] : _ @ _ }> =>
       match lv_lookup ϵ lv with
       | Some <{ Stack vss:ts nextIndex:=ni @ i }> =>
         let vss := nth_update (Z.to_nat n) v vss in

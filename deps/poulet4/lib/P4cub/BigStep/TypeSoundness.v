@@ -171,10 +171,10 @@ Section BigStepTheorems.
         lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
     Proof.
       intros D Γ e τ Hlv; generalize dependent τ;
-      induction Hlv; intros t Ht; inv Ht;
+        induction Hlv; intros t' Ht; inv Ht;
       try match goal with
           | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
-            H: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
+                H: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
             |- _ => apply IH in H as [? ?]
           end; eauto 3.
     Qed.

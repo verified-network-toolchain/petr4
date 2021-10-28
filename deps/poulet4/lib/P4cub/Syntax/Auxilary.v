@@ -72,39 +72,28 @@ Section TofE.
   Context {tags_t : Type}.
   
   (** Syntactic type of an expression. *)
-  Fixpoint t_of_e (expr: e tags_t) : option t := 
+  Fixpoint t_of_e (expr: e tags_t) : t := 
     match expr with
-    | <{ BOOL _   @ _ }> => Some {{ Bool }}
-    | <{ w W  _   @ _ }> => Some {{ bit<w> }}
-    | <{ w S  _   @ _ }> => Some {{ int<w> }}
-    | <{ Var  _:ty @ _ }> => Some ty
-    | <{ Cast _:ty @ _ }> => Some ty
-    | <{ Slice _ [hi:lo] @ _ }> => Some $ TBit (hi - lo + 1)
-    | <{ UOP op e @ _ }> => t_of_e e >>= t_of_uop op
-    | <{ BOP e1 op e2 @ _ }> =>
-      l <- t_of_e e1;; r <- t_of_e e2;; t_of_bop op l r
+    | <{ BOOL _   @ _ }> => {{ Bool }}
+    | <{ w W  _   @ _ }> => {{ bit<w> }}
+    | <{ w S  _   @ _ }> => {{ int<w> }}
+    | <{ Var  _:ty @ _ }> => ty
+    | <{ Cast _:ty @ _ }> => ty
+    | <{ Slice _ [hi:lo] @ _ }> => TBit (hi - lo + 1)
+    | <{ UOP _ _   : ty @ _ }> => ty
+    | <{ BOP _ _ _ : ty @ _ }> => ty
     | <{ tup es @ _ }> =>
-      ts <<| sequence $ List.map t_of_e es;; {{ tuple ts }}
+      TTuple $ List.map t_of_e es
     | <{ struct { es } @ _ }> =>
-      ts <<| sequence $
-         List.map (fun '(x,e) => t <<| t_of_e e;; (x,t)) es;;
-      {{ struct { ts } }}
+      TStruct $ F.map t_of_e es
     | <{ hdr { es } valid:=_ @ _ }> => 
-      ts <<| sequence $
-         List.map (fun '(x,e) => t <<| t_of_e e;; (x,t)) es;;
-      {{ hdr { ts } }}
-    | <{ Mem e dot x @ _ }> => t_of_e e >>= t_of_mem x
-    | <{ Error     _ @ _ }> => Some {{ error }}
-    | <{ Matchkind _ @ _ }> => Some {{ matchkind }}
+      THeader $ F.map t_of_e es
+    | <{ Mem _ dot _ : ty @ _ }> => ty
+    | <{ Error     _ @ _ }> => {{ error }}
+    | <{ Matchkind _ @ _ }> => {{ matchkind }}
     | <{ Stack hs:ts nextIndex:= _ @ _ }> => 
-      Some $ THeaderStack ts $ Pos.of_nat $ length hs
-    | <{ Access e[_] @ _ }> => t_of_e e >>= t_of_access
-    end.
-  
-  Definition t_of_e_default (default : t) (expr : e tags_t) : t :=
-    match t_of_e expr with
-    | Some ty => ty
-    | None    => default
+      THeaderStack ts $ Pos.of_nat $ length hs
+    | <{ Access _[_] : ts @ _ }> => {{ hdr { ts } }}
     end.
 End TofE.
 

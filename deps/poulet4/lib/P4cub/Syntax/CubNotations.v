@@ -1,5 +1,4 @@
 Set Warnings "-custom-entry-overridden".
-
 Require Import Poulet4.P4cub.Syntax.AST.
 
 (** Notation entries. *)
@@ -145,13 +144,15 @@ Module ExprNotations.
     := (ECast τ e i)
          (in custom p4expr at level 10, τ custom p4type,
              e custom p4expr, right associativity).
-  Notation "'UOP' op x @ i"
-    := (EUop op x i)
-         (in custom p4expr at level 2, x custom p4expr,
+  Notation "'UOP' op x : rt  @ i"
+    := (EUop rt op x i)
+         (in custom p4expr at level 2,
+             x custom p4expr, rt custom p4type,
              op custom p4uop, no associativity).
-  Notation "'BOP' x op y @ i"
-    := (EBop op x y i)
+  Notation "'BOP' x op y ':' rt @ i"
+    := (EBop rt op x y i)
          (in custom p4expr at level 10,
+             rt custom p4type,
              x custom p4expr, y custom p4expr,
              op custom p4bop, left associativity).
   Notation "'tup' es @ i"
@@ -164,10 +165,10 @@ Module ExprNotations.
     := (EHeader fields b i)
          (in custom p4expr at level 6,
              b custom p4expr, no associativity).
-  Notation "'Mem' x 'dot' y @ i"
-    := (EExprMember y x i)
+  Notation "'Mem' x 'dot' y ':' rt @ i"
+    := (EExprMember rt y x i)
          (in custom p4expr at level 10, x custom p4expr,
-             left associativity).
+             rt custom p4type, left associativity).
   Notation "'Error' x @ i"
     := (EError x i) (in custom p4expr at level 0, no associativity).
   Notation "'Matchkind' mk @ i"
@@ -175,9 +176,10 @@ Module ExprNotations.
          (in custom p4expr at level 0, mk custom p4matchkind, no associativity).
   Notation "'Stack' hdrs : ts 'nextIndex' ':=' ni @ i"
     := (EHeaderStack ts hdrs ni i) (in custom p4expr at level 0).
-  Notation "'Access' e1 [ e2 ] @ i"
-    := (EHeaderStackAccess e1 e2 i)
-         (in custom p4expr at level 10, e1 custom p4expr).
+  Notation "'Access' e1 [ e2 ] : ts @ i"
+    := (EHeaderStackAccess ts e1 e2 i)
+         (in custom p4expr at level 10,
+             e1 custom p4expr, left associativity).
 End ExprNotations.
 
 Module StmtNotations.
@@ -202,9 +204,17 @@ Module StmtNotations.
     := (SBlock s)
          (in custom p4stmt at level 99,
              s custom p4stmt, no associativity).
-  Notation "'var' x ':=' e @ i"
-    := (SVardecl x e i)
-         (in custom p4stmt at level 0).
+  Notation "'delcare' x ':' t @ i"
+    := (SVardecl x (Left t) i)
+         (in custom p4stmt at level 0,
+             t custom p4type, no associativity).
+  Notation "'init' x ':=' e @ i"
+    := (SVardecl x (Right e) i)
+         (in custom p4stmt at level 0,
+             e custom p4expr, no associativity).
+  Notation "'var' x 'with' et @ i"
+    := (SVardecl x et i)
+         (in custom p4stmt at level 0, no associativity).
   Notation "'asgn' e1 ':=' e2 @ i"
     := (SAssign e1 e2 i)
          (in custom p4stmt at level 40,

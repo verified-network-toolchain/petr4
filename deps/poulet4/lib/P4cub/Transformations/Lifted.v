@@ -4,43 +4,43 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
-  Ltac transformExpr_destr :=
-    match goal with
-    | |- context [TransformExpr ?e ?env]
-      => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
-    | |- context [TransformExprList' ?f ?e ?env ?i]
-      => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
-    | |- context [TransformFields' ?f ?e ?env ?i]
-      => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
-    end.
+Ltac transformExpr_destr :=
+  match goal with
+  | |- context [TransformExpr ?e ?env]
+    => destruct (TransformExpr e env) as [[? ?] ?] eqn:?; simpl in *
+  | |- context [TransformExprList' ?f ?e ?env ?i]
+    => destruct (TransformExprList' f e env i) as [[? ?] ?] eqn:?; simpl in *
+  | |- context [TransformFields' ?f ?e ?env ?i]
+    => destruct (TransformFields' f e env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
 
-  Ltac transformExpr_destr_hyp :=
-    match goal with
-    | H: context [TransformExpr ?e ?env] |- _
-      => destruct (TransformExpr e env)
-        as [[? ?] ?] eqn:?; simpl in *
-    end.
+Ltac transformExpr_destr_hyp :=
+  match goal with
+  | H: context [TransformExpr ?e ?env] |- _
+    => destruct (TransformExpr e env)
+      as [[? ?] ?] eqn:?; simpl in *
+  end.
 
-  Ltac transformExpr_destr_hyp_rewrite :=
-    match goal with
-    | H: TransformExpr ?e ?env = (_,_,_),
-         Hy : context [TransformExpr ?e ?env]
-      |- _ => rewrite H in Hy; simpl in *
-    end.
+Ltac transformExpr_destr_hyp_rewrite :=
+  match goal with
+  | H: TransformExpr ?e ?env = (_,_,_),
+       Hy : context [TransformExpr ?e ?env]
+    |- _ => rewrite H in Hy; simpl in *
+  end.
 
-  (*Ltac quantify_varNameGen :=
-    match goal with
-    | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
-      |- _ => specialize H with env
-    end.*)
-  
-  Ltac fold_destr :=
-    match goal with
-    | |- context [fold_left ?f ?l ?acc]
-      => destruct (fold_left f l acc) as [[? ?] ?] eqn:Hfoldl; simpl in *
-    | |- context [fold_right ?f ?acc ?l]
-      => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
-    end.
+(*Ltac quantify_varNameGen :=
+  match goal with
+        | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
+      |-   _ => specialize H with env
+    end.*) 
+
+Ltac fold_destr :=
+  match goal with
+  | |- context [fold_left ?f ?l ?acc]
+    => destruct (fold_left f l acc) as [[? ?] ?] eqn:Hfoldl; simpl in *
+  | |- context [fold_right ?f ?acc ?l]
+    => destruct (fold_right f acc l) as [[? ?] ?] eqn:Hfoldl; simpl in *
+  end.
 
 Section Lifted.
   Arguments String.append : simpl never.
@@ -52,16 +52,16 @@ Section Lifted.
       lifted_expr <{ BOOL b @ i }>
   | lifted_var x τ i :
       lifted_expr <{ Var x:τ @ i }>
-  | lifted_member e x i :
+  | lifted_member τ e x i :
       lifted_expr e ->
-      lifted_expr <{ Mem e dot x @ i }>
+      lifted_expr <{ Mem e dot x : τ @ i }>
   | lifted_error err i :
       lifted_expr <{ Error err @ i }>
   | lifted_matchkind mk i :
       lifted_expr <{ Matchkind mk @ i }>
-  | lifted_access e z i :
+  | lifted_access ts e z i :
       lifted_expr e ->
-      lifted_expr <{ Access e[z] @ i }>.
+      lifted_expr <{ Access e[z] : ts @ i }>.
 
   Inductive lifted_args : Expr.arrowE tags_t -> Prop :=
   | lifted_args_arrow tes teo :
@@ -77,51 +77,41 @@ Section Lifted.
       | Left t => True
       | Right e => lifted_expr e
       end ->
-      lifted_stmt -{ var x := te @ i }-
+      lifted_stmt -{ var x with te @ i }-
   | lifted_assign e1 e2 i :
       lifted_expr e1 ->
       lifted_expr e2 ->
       lifted_stmt -{ asgn e1 := e2 @ i }-
   | lifted_bit x w n i iw :
-      let e := Right <{ w W n @ iw }> in
-      lifted_stmt -{ var x := e @ i }-
+      lifted_stmt -{ init x := w W n @ iw @ i }-
   | lifted_int x w z i iw :
-      let e := Right <{ w S z @ iw }> in
-      lifted_stmt -{ var x := e @ i }-
-  | lifted_uop op x e i ie :
+      lifted_stmt -{ init x := w S z @ iw @ i }-
+  | lifted_uop τ op x e i ie :
       lifted_expr e ->
-      let eu := Right <{ UOP op e @ ie }> in
-      lifted_stmt -{ var x := eu @ i}-
-  | lifted_bop op x e1 e2 i ie1e2 :
+      lifted_stmt -{ init x := UOP op e : τ @ ie @ i}-
+  | lifted_bop τ op x e1 e2 i ie1e2 :
       lifted_expr e1 ->
       lifted_expr e2 ->
-      let eb := Right <{ BOP e1 op e2 @ ie1e2 }> in
-      lifted_stmt -{ var x := eb @ i }-
+      lifted_stmt -{ init x := BOP e1 op e2 : τ @ ie1e2 @ i }-
   | lifted_slice x e hi lo i ie :
       lifted_expr e ->
-      let eslice := Right <{ Slice e [hi:lo] @ ie }> in
-      lifted_stmt -{ var x := eslice @ i }-
+      lifted_stmt -{ init x := Slice e [hi:lo] @ ie @ i }-
   | lifted_cast x e τe i ie :
       lifted_expr e ->
-      let ecast := Right <{ Cast e:τe @ ie }> in
-      lifted_stmt -{ var x := ecast @ i }-
+      lifted_stmt -{ init x := Cast e:τe @ ie @ i }-
   | lifted_tuple x es i ies :
       Forall lifted_expr es ->
-      let etup := Right <{ tup es @ ies }> in
-      lifted_stmt -{ var x := etup @ i }-
+      lifted_stmt -{ init x := tup es @ ies @ i }-
   | lifted_struct x es i ies :
       F.predfs_data lifted_expr es ->
-      let estruct := Right <{ struct { es } @ ies }> in
-      lifted_stmt -{ var x := estruct @ i }-
+      lifted_stmt -{ init x := struct { es } @ ies @ i }-
   | lifted_header x e es i ies :
       lifted_expr e ->
       F.predfs_data lifted_expr es ->
-      let ehdr := Right <{ hdr { es } valid:=e @ ies }> in
-      lifted_stmt -{ var x := ehdr @ i }-
+      lifted_stmt -{ init x := hdr { es } valid:=e @ ies @ i }-
   | lifted_stack x es ni τs i ies :
       Forall lifted_expr es ->
-      let estk := Right <{ Stack es:τs nextIndex:=ni @ ies }> in
-      lifted_stmt -{ var x := estk @ i }-
+      lifted_stmt -{ init x := Stack es:τs nextIndex:=ni @ ies @ i }-
   | lifted_cond e s1 s2 i :
       lifted_expr e ->
       lifted_stmt s1 ->
@@ -159,7 +149,9 @@ Section Lifted.
   
   Local Hint Constructors lifted_expr : core.
   Section HelperLemmas.
-    Variable f : Expr.e tags_t -> VarNameGen.t -> Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
+    Variable f :
+      Expr.e tags_t -> VarNameGen.t ->
+      Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
 
     (*Lemma TransformExprList'_lifted_expr :
       forall es env i,

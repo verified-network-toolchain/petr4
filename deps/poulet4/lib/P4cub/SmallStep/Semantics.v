@@ -83,45 +83,45 @@ Module Step.
       eval_cast τ v = Some v' ->
       value v ->
       ℵ ϵ, Cast v:τ @ i -->  v'
-  | step_uop (op : Expr.uop)
+  | step_uop τ (op : Expr.uop)
              (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, UOP op e @ i -->  UOP op e' @ i
+           ℵ ϵ, UOP op e : τ @ i -->  UOP op e' : τ @ i
   | step_uop_eval (op : Expr.uop) (τ : Expr.t)
                   (v v' : Expr.e tags_t) (i : tags_t) :
       eval_uop op v = Some v' ->
       value v ->
-      ℵ ϵ, UOP op v @ i -->  v'
-  | step_bop_l (op : Expr.bop)
+      ℵ ϵ, UOP op v : τ @ i -->  v'
+  | step_bop_l τ (op : Expr.bop)
                (el el' er : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, el -->  el' ->
-           ℵ ϵ, BOP el op er @ i -->  BOP el' op er @ i
-  | step_bop_r (op : Expr.bop)
+           ℵ ϵ, BOP el op er : τ @ i -->  BOP el' op er : τ @ i
+  | step_bop_r τ (op : Expr.bop)
                (vl er er' : Expr.e tags_t) (i : tags_t) :
       value vl ->
       ℵ ϵ, er -->  er' ->
-           ℵ ϵ, BOP vl op er @ i -->  BOP vl op er' @ i
-  | step_bop_eval (op : Expr.bop)
+           ℵ ϵ, BOP vl op er : τ @ i -->  BOP vl op er' : τ @ i
+  | step_bop_eval τ (op : Expr.bop)
                   (vv vl vr : Expr.e tags_t) (i : tags_t) :
       eval_bop op vl vr i = Some vv ->
       value vl -> value vr ->
-      ℵ ϵ, BOP vl op vr @ i -->  vv
-  | step_member (x : string)
+      ℵ ϵ, BOP vl op vr : τ @ i -->  vv
+  | step_member τ (x : string)
                 (e e' : Expr.e tags_t) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, Mem e dot x @ i -->  Mem e dot x @ i
-  | step_member_eval (x : string)
+           ℵ ϵ, Mem e dot x : τ @ i -->  Mem e dot x : τ @ i
+  | step_member_eval τ (x : string)
                      (v v' : Expr.e tags_t) (i : tags_t) :
       eval_member x v = Some v' ->
       value v ->
-      ℵ ϵ, Mem v dot x @ i -->  v'
-  | step_stack_access (e e' : Expr.e tags_t) (n : Z) (i : tags_t) :
+      ℵ ϵ, Mem v dot x : τ @ i -->  v'
+  | step_stack_access ts (e e' : Expr.e tags_t) (n : Z) (i : tags_t) :
       ℵ ϵ, e -->  e' ->
-           ℵ ϵ, Access e[n] @ i -->  Access e'[n] @ i
-  | step_stack_access_eval (v v' : Expr.e tags_t) (n : Z) (i : tags_t) :
+           ℵ ϵ, Access e[n] : ts @ i -->  Access e'[n] : ts @ i
+  | step_stack_access_eval ts (v v' : Expr.e tags_t) (n : Z) (i : tags_t) :
       eval_access v n = Some v' ->
       value v ->
-      ℵ ϵ, Access v[n] @ i -->  v'
+      ℵ ϵ, Access v[n] : ts @ i -->  v'
   | step_tuple (prefix suffix : list (Expr.e tags_t))
                (e e' : Expr.e tags_t) (i : tags_t) :
       Forall value prefix ->
@@ -171,12 +171,12 @@ Module Step.
                 (hi lo : positive) (i : tags_t) :
       ℶ e -->  e' ->
       ℶ Slice e [hi:lo] @ i -->  Slice e' [hi:lo] @ i
-  | lstep_member (e e' : Expr.e tags_t) (x : string) (i : tags_t) :
+  | lstep_member τ (e e' : Expr.e tags_t) (x : string) (i : tags_t) :
       ℶ e -->  e' ->
-      ℶ Mem e dot x @ i -->   Mem e' dot x @ i
-  | lstep_access (e e' : Expr.e tags_t) (idx : Z) (i : tags_t) :
+      ℶ Mem e dot x : τ @ i -->   Mem e' dot x : τ @ i
+  | lstep_access ts (e e' : Expr.e tags_t) (idx : Z) (i : tags_t) :
       ℶ e -->  e' ->
-      ℶ Access e[idx] @ i -->   Access e'[idx] @ i
+      ℶ Access e[idx] : ts @ i -->   Access e'[idx] : ts @ i
   where "'ℶ' e1 '-->' e2" := (lvalue_step e1 e2).
   (**[]*)
   

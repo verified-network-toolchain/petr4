@@ -116,7 +116,7 @@ Section CheckExprInduction.
       uop_type op τ τ' ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
-      P Δ Γ <{ UOP op e @ i }> τ'.
+      P Δ Γ <{ UOP op e : τ' @ i }> τ'.
   
   Hypothesis HBop : forall Δ Γ op τ1 τ2 τ e1 e2 i,
       bop_type op τ1 τ2 τ ->
@@ -124,7 +124,7 @@ Section CheckExprInduction.
       P Δ Γ e1 τ1 ->
       ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
       P Δ Γ e2 τ2 ->
-      P Δ Γ <{ BOP e1 op e2 @ i }> τ.
+      P Δ Γ <{ BOP e1 op e2 : τ @ i }> τ.
   
   Hypothesis HMem : forall Δ Γ e x fs τ τ' i,
       F.get x fs = Some τ' ->
@@ -133,7 +133,7 @@ Section CheckExprInduction.
       t_ok Δ τ' ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
-      P Δ Γ <{ Mem e dot x @ i }> τ'.
+      P Δ Γ <{ Mem e dot x : τ' @ i }> τ'.
   (**[]*)
   
   Hypothesis HTuple : forall Δ Γ es i ts,
@@ -181,7 +181,7 @@ Section CheckExprInduction.
       t_ok Δ {{ stack ts[n] }} ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ stack ts[n] ->
       P Δ Γ e {{ stack ts[n] }} ->
-      P Δ Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
+      P Δ Γ <{ Access e[idx] : ts @ i }> {{ hdr { ts } }}.
   (**[]*)
   
   (** Custom induction principle for expression typing.

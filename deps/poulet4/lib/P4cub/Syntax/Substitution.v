@@ -18,9 +18,9 @@ Section TypeSubstitution.
     | {{ hdr { ts } }}    => Expr.THeader $ F.map tsub_t ts
     | {{ stack ts[n] }}   => Expr.THeaderStack (F.map tsub_t ts) n
     | Expr.TVar X => match Env.find X σ with
-                 | Some t => t
-                 | None   => t
-                 end
+                    | Some t => t
+                    | None   => t
+                    end
     end.
   (**[]*)
 
@@ -36,9 +36,9 @@ Section TypeSubstitution.
     | <{ Var x : t @ i }> => Expr.EVar (tsub_t t) x i
     | <{ Slice e [hi:lo] @ i }> => Expr.ESlice (tsub_e e) hi lo i
     | <{ Cast e:t @ i }> => Expr.ECast (tsub_t t) (tsub_e e) i
-    | <{ UOP op e @ i }> => Expr.EUop op (tsub_e e) i
-    | <{ BOP e1 op e2 @ i }>
-      => Expr.EBop op (tsub_e e1) (tsub_e e2) i
+    | <{ UOP op e : rt @ i }> => Expr.EUop (tsub_t rt) op (tsub_e e) i
+    | <{ BOP e1 op e2 : rt @ i }>
+      => Expr.EBop (tsub_t rt) op (tsub_e e1) (tsub_e e2) i
     | <{ tup es @ i }> => Expr.ETuple (List.map tsub_e es) i
     | <{ struct { es } @ i }>
       => Expr.EStruct (F.map tsub_e es) i
@@ -46,11 +46,12 @@ Section TypeSubstitution.
       => Expr.EHeader
           (F.map tsub_e es)
           (tsub_e e) i
-    | <{ Mem e dot x @ i }>
-      => Expr.EExprMember x (tsub_e e) i
+    | <{ Mem e dot x : rt @ i }>
+      => Expr.EExprMember (tsub_t rt) x (tsub_e e) i
     | <{ Stack hs:ts nextIndex:=ni @ i }>
       => Expr.EHeaderStack (F.map tsub_t ts) (List.map tsub_e hs) ni i
-    | <{ Access e[n] @ i }> => Expr.EHeaderStackAccess (tsub_e e) n i
+    | <{ Access e[n] : ts @ i }>
+      => Expr.EHeaderStackAccess (F.map tsub_t ts) (tsub_e e) n i
     end.
   (**[]*)
 End TypeSubstitution.

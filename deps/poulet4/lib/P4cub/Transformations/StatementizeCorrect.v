@@ -24,7 +24,7 @@ Section Correct.
   Ltac solve_this_stuff :=
     match goal with
     | |- exists eps',
-        ⟪ ?pkt, _, ?eps, _, var ?x := ?e @ _ ⟫ ⤋ ⟪ _,C,?pkt ⟫
+        ⟪ ?pkt, _, ?eps, _, init ?x := ?e @ _ ⟫ ⤋ ⟪ _,C,?pkt ⟫
         /\ ⟨ eps', Var ?x:_ @ _ ⟩ ⇓ ?v
       => (* TODO: fix notation.
         exists !{ x ↦ v;; x ↦ v';; eps }!; split;

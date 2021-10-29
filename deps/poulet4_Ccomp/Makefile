@@ -4,6 +4,7 @@
 
 all: Makefile.coq
 	@+$(MAKE) -f Makefile.coq all
+	cd ./extraction && dune build -p "poulet4_Ccomp" @install
 
 clean: Makefile.coq
 	@+$(MAKE) -f Makefile.coq cleanall

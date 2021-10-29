@@ -152,6 +152,7 @@ class MyApp(App):
       solver.add_constraint(f"conserve_{d}_at_{dst}",
                             incoming, "==", outgoing + [self.demands[d]])
 
+    # Setup the objective function
     solver.add_integer_var(f"max_util", lower_bound = 0)
     
     for a, b in self.topo.links():

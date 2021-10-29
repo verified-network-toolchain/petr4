@@ -34,7 +34,7 @@
                           "python3.9 webserver/server.py &"]}
     },
     "switches": {
-        "s1": {"program": "s1_no_affinity.p4"},
+        "s1": {"program": "s1_affinity.p4"},
         "s2": {"program": "forwarding.p4"},
         "s3": {"program": "forwarding.p4"}
     },

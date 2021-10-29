@@ -56,14 +56,14 @@ class MyApp(App):
     print(f"{switch} is up!")
     
     if switch == "s1":
-        for i in range(0, 3):
+        for i in range(0, 4):
             ind = i + 1
             dst_ip = self.host_map["w" + str(ind)]["ip"]
             
             entry = Entry("set_dst", [("meta.server_id", str(i))], "set_dip", [("addr", dst_ip)])
             self.insert(switch, entry)
                     
-        for i in range(1, 4):
+        for i in range(1, 5):
             src_ip = self.host_map["w" + str(i)]["ip"]
             
             entry = Entry("set_src", [("hdr.ipv4.srcAddr", src_ip)], "set_vip", [("addr", self.public_web_server_ip)])

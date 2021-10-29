@@ -8,6 +8,7 @@ class handler(BaseHTTPRequestHandler):
 
         message = "Hello, World!"
         self.wfile.write(bytes(message, "utf8"))
+        print("served")
 
 with HTTPServer(('0.0.0.0', 8000), handler) as server:
     server.serve_forever()

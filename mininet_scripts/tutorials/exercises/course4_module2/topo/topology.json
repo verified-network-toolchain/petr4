@@ -19,19 +19,19 @@
         "w1": {"ip": "10.0.5.5/24", "mac": "08:00:00:00:05:55",
               "commands":["route add default gw 10.0.5.50 dev eth0",
                           "arp -i eth0 -s 10.0.5.50 08:00:00:00:05:00",
-                          "python3.9 webserver/server.py &"]},
+                          "python3.9 webserver/server.py > /tmp/p4s.w1.log 2>&1 &"]},
         "w2": {"ip": "10.0.6.6/24", "mac": "08:00:00:00:06:66",
               "commands":["route add default gw 10.0.6.60 dev eth0",
                           "arp -i eth0 -s 10.0.6.60 08:00:00:00:06:00",
-                          "python3.9 webserver/server.py &"]},
+                          "python3.9 webserver/server.py > /tmp/p4s.w2.log 2>&1 &"]},
         "w3": {"ip": "10.0.7.7/24", "mac": "08:00:00:00:07:77",
               "commands":["route add default gw 10.0.7.70 dev eth0",
                           "arp -i eth0 -s 10.0.7.70 08:00:00:00:07:00",
-                          "python3.9 webserver/server.py &"]},
+                          "python3.9 webserver/server.py > /tmp/p4s.w3.log 2>&1 &"]},
         "w4": {"ip": "10.0.8.8/24", "mac": "08:00:00:00:08:88",
               "commands":["route add default gw 10.0.8.80 dev eth0",
                           "arp -i eth0 -s 10.0.8.80 08:00:00:00:08:00",
-                          "python3.9 webserver/server.py &"]}
+                          "python3.9 webserver/server.py > /tmp/p4s.w4.log 2>&1 &"]}
     },
     "switches": {
         "s1": {"program": "s1_affinity.p4"},

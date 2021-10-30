@@ -245,7 +245,47 @@ Section Lifted.
   Qed.
 
   Local Hint Resolve TransformFields'_TransformExpr_lifted_expr : core.
-    
+
+  Lemma TransformExprList'_lifted_stmt_Forall :
+    forall es,
+      Forall
+        (fun e => forall env,
+             lifted_stmt (fst (fst (TransformExpr e env)))) es ->
+      forall env i,
+        lifted_stmt (fst (fst (TransformExprList' TransformExpr es env i))).
+  Proof.
+    unfold TransformExprList';
+      intros es H; ind_list_Forall;
+        intros env i; simpl in *; auto.
+    intuition; fold_destr.
+    specialize H with env i.
+    rewrite Hfoldl in H; simpl in *; clear Hfoldl.
+    specialize H2 with t. transformExpr_destr.
+    auto.
+  Qed.
+
+  Local Hint Resolve TransformExprList'_lifted_stmt_Forall : core.
+
+  Lemma TransformFields'_lifted_stmt_Forall :
+    forall fields,
+      F.predfs_data
+        (fun e => forall env,
+             lifted_stmt (fst (fst (TransformExpr e env)))) fields ->
+      forall env i,
+        lifted_stmt (fst (fst (TransformFields' TransformExpr fields env i))).
+  Proof.
+    unfold TransformFields', Field.fold;
+      intros es H; ind_list_predfs;
+        intros env i; simpl in *; auto.
+    intuition. fold_destr.
+    specialize H with env i.
+    rewrite Hfoldl in H; simpl in *; clear Hfoldl.
+    specialize H2 with t. transformExpr_destr.
+    auto.
+  Qed.
+
+  Local Hint Resolve TransformFields'_lifted_stmt_Forall : core.
+  
   Lemma TransformExpr_lifted_stmt : forall e env,
       lifted_stmt (fst (fst (TransformExpr e env))).
   Proof.
@@ -267,27 +307,32 @@ Section Lifted.
     - specialize IHe1 with env;
         specialize IHe2 with t;
         transformExpr_destr_hyp_rewrite;
-        apply f_equal with (f:= (snd ∘ fst)) in Heqp;
-        apply f_equal with (f:= (snd ∘ fst)) in Heqp0.
+        apply f_equal with (f:= snd ∘ fst) in Heqp;
+        apply f_equal with (f:= snd ∘ fst) in Heqp0.
       unravel in *; rewrite <- Heqp, <- Heqp0; auto.
-    - admit.
+    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
     - apply lifted_tuple.
       apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
       rewrite <- Heqp; auto.
-    - admit.
+    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
     - apply lifted_struct.
       apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
       rewrite <- Heqp; auto.
-    - admit.
-      (*
+    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
+    - apply f_equal with (f := fst ∘ fst) in Heqp0; unravel in *.
+      rewrite <- Heqp0; auto.
     - apply lifted_header.
-      + apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-        rewrite <- Heqp; auto.
       + apply f_equal with (f := snd ∘ fst) in Heqp0; unravel in *.
         rewrite <- Heqp0; auto.
-    - admit.
+      + apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
+        rewrite <- Heqp; auto.
+    - apply f_equal with (f := fst ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
     - apply lifted_stack.
-      apply f_equal with (f := snd ∘ fst) in Heqp; unravel in *.
-      rewrite <- Heqp; auto. *)
-  Admitted.
+      apply f_equal with (f:=snd ∘ fst) in Heqp; unravel in *.
+      rewrite <- Heqp; auto.
+  Qed.
 End Lifted.

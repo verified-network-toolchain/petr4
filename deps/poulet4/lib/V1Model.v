@@ -33,14 +33,16 @@ Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
 
+Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
+
 Inductive register := mk_register {
   reg_width : N;
   reg_size : Z;
-  reg_content : list Z
+  reg_content : list Val
 }.
 
 Definition new_register (size : Z) (w : N) :=
-  mk_register w size (Zrepeat 0 size).
+  mk_register w size (Zrepeat (ValBaseBit (to_lbool w 0)) size).
 
 Definition packet_in := list bool.
 
@@ -96,13 +98,12 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
 Definition REG_INDEX_WIDTH := 32%N.
 
 Inductive register_read_sem : extern_func_sem :=
-  | exec_register_read : forall s p reg w index result,
+  | exec_register_read : forall s p reg w index,
       PathMap.get p s = Some (ObjRegister reg) ->
       reg_width reg = w ->
       -1 < index < reg_size reg ->
-      Znth index (reg_content reg) = result ->
       register_read_sem s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
-        s [ValBaseBit (to_lbool w result)] SReturnNull.
+        s [Znth index (reg_content reg)] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := !"register";
@@ -117,7 +118,7 @@ Inductive register_write_sem : extern_func_sem :=
       -1 < index < reg_size reg ->
       upd_Znth index (reg_content reg) value = content' ->
       register_write_sem s p nil 
-            [ValBaseBit (to_lbool REG_INDEX_WIDTH index); ValBaseBit (to_lbool w value)]
+            [ValBaseBit (to_lbool REG_INDEX_WIDTH index); value]
             (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
             [] SReturnNull.
 

@@ -33,7 +33,7 @@ Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
 
-Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
+Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
 
 Inductive register := mk_register {
   reg_width : N;

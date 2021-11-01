@@ -52,11 +52,14 @@ let print_nat p n =
 let print_bigint p n =
   fprintf p "%s" (Bignum.to_string_accurate (Bignum.of_bigint n))
 
+let print_bignat p n =
+  fprintf p "%s%%N" (Bignum.to_string_accurate (Bignum.of_bigint n))
+
 let p4int p (n : P4int.t) =
   fprintf p "{| @[<hov 0>itags := %a;@ value := %a;@ width_signed := %a |}@]" 
       print_info n.tags 
       print_bigint n.value
-      (print_option (print_pair print_bigint print_bool)) n.width_signed
+      (print_option (print_pair print_bignat print_bool)) n.width_signed
 
 let print_direction p (dir: direction) =
   let s = 

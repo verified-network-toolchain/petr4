@@ -877,9 +877,9 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
     | NamelessInstantiation { typ; args } ->
       type_nameless_instantiation env ctx exp_info typ args
     | Mask { expr; mask } ->
-      failwith "fix typing of masks"
+      failwith "mask outside of set context"
     | Range { lo; hi } ->
-      failwith "fix typing of ranges"
+      failwith "range outside of set context"
   in
   MkExpression (exp_info, pre_expr, typ, dir)
 
@@ -1021,9 +1021,9 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
                   typ,
                   Directionless)
   | Mask { expr; mask } ->
-     failwith "mask casts unimplemented due to removal of ExpMask from expressions"
+     failwith "mask casts unimplemented"
   | Range { lo; hi } ->
-     failwith "range casts unimplemented due to removal of ExpRange from expressions"
+     failwith "range casts unimplemented"
 
 and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   match dir with
@@ -2461,8 +2461,7 @@ and type_nameless_instantiation env ctx info typ args =
 
 (* Section 8.12.3 *)
 and type_mask env ctx expr mask =
-  let expr_typed = type_expression env ctx expr in
-  let mask_typed = type_expression env ctx mask in
+  let expr_typed, mask_typed = cast_to_same_type env ctx expr mask in
   let res_typ : coq_P4Type =
     match (type_of_expr expr_typed), (type_of_expr mask_typed) with
     | TypBit w1, TypBit w2 when w1 = w2 ->
@@ -2475,13 +2474,11 @@ and type_mask env ctx expr mask =
     | l_typ, r_typ -> failwith "bad type for mask operation &&&"
   in
   Prog.MatchMask (expr_typed, mask_typed),
-  TypSet res_typ,
-  Directionless
+  res_typ
 
 (* Section 8.12.4 *)
 and type_range env ctx lo hi = 
-  let lo_typed = type_expression env ctx lo in
-  let hi_typed = type_expression env ctx hi in
+  let lo_typed, hi_typed = cast_to_same_type env ctx lo hi in
   let typ : coq_P4Type =
     match (type_of_expr lo_typed), (type_of_expr hi_typed) with
     | TypBit l, TypBit r when l = r ->
@@ -2496,7 +2493,7 @@ and type_range env ctx lo hi =
       raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
-  Prog.MatchRange (lo_typed, hi_typed), TypSet typ, Directionless
+  Prog.MatchRange (lo_typed, hi_typed), typ
 
 and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Types.Statement.t) : unit =
   match ctx, snd stmt with
@@ -2833,23 +2830,31 @@ and check_match_type_eq env info set_type element_type =
 and check_set_expression env ctx (info, m: Types.Expression.t) (expected_type: coq_P4Type) : Prog.coq_MatchPreT * coq_P4Type =
   match m with
   | Mask {expr; mask} ->
-     let expr = type_expression env ctx expr in
-     let mask = type_expression env ctx mask in
-     let typ = type_of_expr expr in
-     MatchMask (expr, mask), typ
+     let m_typed, typ = type_mask env ctx expr mask in
+     print_s [%message "types for mask" ~typ:(typ:coq_P4Type) ~expected:(expected_type:coq_P4Type)];
+     m_typed, expected_type
   | Range {lo; hi} ->
-     let lo = type_expression env ctx lo in 
-     let hi = type_expression env ctx hi in
-     MatchRange (lo, hi), expected_type
+     let m_typed, typ = type_range env ctx lo hi in
+     print_s [%message "types for range" ~typ:(typ:coq_P4Type) ~expected:(expected_type:coq_P4Type)];
+     m_typed, expected_type
   | e ->
      let e_typed = type_expression env ctx (info, e) in
-     MatchCast (TypSet (type_of_expr e_typed), e_typed), expected_type
+     let e_typ = type_of_expr e_typed in
+     if type_equality env [] e_typ expected_type
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if cast_ok env e_typ expected_type
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if type_equality env [] e_typ (TypSet expected_type)
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if cast_ok env e_typ (TypSet expected_type)
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else failwith "set expression ill-typed"
 
 and check_match env ctx (info, m: Types.Match.t) (expected_type: coq_P4Type) : Prog.coq_Match =
   match m with
   | Default
   | DontCare ->
-    MkMatch (info, MatchDontCare, TypSet expected_type)
+    MkMatch (info, MatchDontCare, expected_type)
   | Expression { expr } ->
     let m_typed, typ = check_set_expression env ctx expr expected_type in
     MkMatch (info, m_typed, typ)

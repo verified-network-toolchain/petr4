@@ -431,8 +431,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   end.
 
 Instance V1ModelExternSem : ExternSem := Build_ExternSem
-  extern_state
-  extern_empty
+  object
   alloc_extern
   exec_extern
   extern_get_entries

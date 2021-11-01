@@ -2831,11 +2831,9 @@ and check_set_expression env ctx (info, m: Types.Expression.t) (expected_type: c
   match m with
   | Mask {expr; mask} ->
      let m_typed, typ = type_mask env ctx expr mask in
-     print_s [%message "types for mask" ~typ:(typ:coq_P4Type) ~expected:(expected_type:coq_P4Type)];
      m_typed, expected_type
   | Range {lo; hi} ->
      let m_typed, typ = type_range env ctx lo hi in
-     print_s [%message "types for range" ~typ:(typ:coq_P4Type) ~expected:(expected_type:coq_P4Type)];
      m_typed, expected_type
   | e ->
      let e_typed = type_expression env ctx (info, e) in

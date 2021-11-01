@@ -2830,16 +2830,29 @@ and check_match_type_eq env info set_type element_type =
     | _ ->
       assert_type_equality env info set_type (TypSet element_type)
 
+and check_set_expression env ctx (info, m: Types.Expression.t) (expected_type: coq_P4Type) : Prog.coq_MatchPreT * coq_P4Type =
+  match m with
+  | Mask {expr; mask} ->
+     let expr = type_expression env ctx expr in
+     let mask = type_expression env ctx mask in
+     let typ = type_of_expr expr in
+     MatchMask (expr, mask), typ
+  | Range {lo; hi} ->
+     let lo = type_expression env ctx lo in 
+     let hi = type_expression env ctx hi in
+     MatchRange (lo, hi), expected_type
+  | e ->
+     let e_typed = type_expression env ctx (info, e) in
+     MatchCast (TypSet (type_of_expr e_typed), e_typed), expected_type
+
 and check_match env ctx (info, m: Types.Match.t) (expected_type: coq_P4Type) : Prog.coq_Match =
   match m with
   | Default
   | DontCare ->
     MkMatch (info, MatchDontCare, TypSet expected_type)
   | Expression { expr } ->
-    let expr_typed = cast_expression env ctx (TypSet expected_type) expr in
-    let typ = type_of_expr expr_typed in
-    check_match_type_eq env info typ expected_type;
-    failwith "check_match unimplemented"
+    let m_typed, typ = check_set_expression env ctx expr expected_type in
+    MkMatch (info, m_typed, typ)
 
 and check_match_product env ctx (ms: Types.Match.t list) (expected_types: coq_P4Type list) =
   match ms, expected_types with

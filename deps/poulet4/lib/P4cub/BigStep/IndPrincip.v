@@ -250,3 +250,8 @@ Section ParserExprInduction.
       end.
   (**[]*)
 End ParserExprInduction.
+
+(** Mutual indution scheme for statement evaluation. *)
+Scheme stmt_big_step_ind := Induction for stmt_big_step Sort Prop
+  with bigstep_state_machine_ind := Induction for bigstep_state_machine Sort Prop
+  with bigstep_state_block_ind := Induction for bigstep_state_block Sort Prop.

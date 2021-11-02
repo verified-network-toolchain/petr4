@@ -32,7 +32,7 @@ Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 Notation signal := (@signal tags_t).
 
-Context `{@Target tags_t (@Expression tags_t)}. 
+Context {target : @Target tags_t (@Expression tags_t)}. 
 
 Definition mem := @PathMap.t tags_t Sval.
 
@@ -102,6 +102,8 @@ Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   | BareName id => IdentMap.get id ge_typ
   | QualifiedName _ id => IdentMap.get id ge_typ
   end.
+
+Section WithGenv.
 
 Variable ge : genv.
 
@@ -227,8 +229,7 @@ Definition val_to_sval :=
 Definition vals_to_svals := 
   Forall2 (exec_val read_detbit).
 
-Definition eval_val_to_sval : Val -> Sval.
-Admitted.
+Axiom eval_val_to_sval : Val -> Sval.
 
 Definition eval_p4int_sval (n: P4Int) : Sval :=
   match P4Int.width_signed n with
@@ -2124,11 +2125,14 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   | Program l => IdentMap.empty
   end.
 
+End WithGenv.
+
 Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let inst_m := fst (instantiate_prog prog) in
+  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty in
+  let inst_m := fst (instantiate_prog partial_ge prog) in
   let ge_inst := fst inst_m in
   let ge_const := snd inst_m in
   MkGenv ge_func ge_typ ge_senum ge_inst ge_const.

@@ -1,7 +1,6 @@
 Require Import Coq.Numbers.DecimalString.
 Require Import Coq.Strings.String.
-Require Import Coq.Init.Decimal.
-Require Import Coq.Init.Nat.
+
 Open Scope string_scope.
 Definition t : Type :=  nat.
 Definition new_env : t := 

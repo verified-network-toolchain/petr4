@@ -80,7 +80,7 @@ Section EnvDefs.
     
     Lemma bind_complete : forall x y v e,
         ~ equiv_rel x y ->
-        find x e = find x (bind y v e).
+        find x (bind y v e) = find x e.
     Proof.
       intros; simpl; auto.
     Qed.

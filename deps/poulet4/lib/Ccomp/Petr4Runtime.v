@@ -113,7 +113,6 @@ Definition _action : ident := $"action".
 Definition _actionRef : ident := $"actionRef".
 Definition _action_ref : ident := $"action_ref".
 Definition _add_entry : ident := $"add_entry".
-Definition _args_lub : ident := $"args_lub".
 Definition _arguments : ident := $"arguments".
 Definition _capacity : ident := $"capacity".
 Definition _check : ident := $"check".
@@ -1470,8 +1469,7 @@ Definition f_init_entry := {|
 Definition f_init_table := {|
   fn_return := (tptr (Tstruct _Table noattr));
   fn_callconv := cc_default;
-  fn_params := ((_num_keys, tint) :: (_size, tint) :: (_args_lub, tint) ::
-                nil);
+  fn_params := ((_num_keys, tint) :: (_size, tint) :: nil);
   fn_vars := nil;
   fn_temps := ((_table, (tptr (Tstruct _Table noattr))) ::
                (_t'2, (tptr tvoid)) :: (_t'1, (tptr tvoid)) :: nil);

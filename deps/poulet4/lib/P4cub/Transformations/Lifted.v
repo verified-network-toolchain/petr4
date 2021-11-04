@@ -337,4 +337,36 @@ Section Lifted.
   Qed.
 
   Local Hint Resolve TransformExpr_lifted_stmt : core.
+
+  Ltac transformExpr_f_equal Heqp func:= 
+    apply f_equal with (f := fst ) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
+      rewrite <- Heqp; auto.
+
+  Lemma TranslateStmt_lifted_stmt : forall (s : Stmt.s tags_t) (env:VarNameGen.t),
+  lifted_stmt (fst (TranslateStatement s env)).
+  Proof.
+  intros s. induction s; intros env; try simpl; auto; repeat transformExpr_destr.
+  - destruct expr.
+    + simpl. auto.
+    + transformExpr_destr. constructor. 
+      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)). 
+      * constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  - repeat constructor. 
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).   
+    + transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  - destruct (TranslateStatement s1 t) eqn:Hs1.
+   destruct (TranslateStatement s2 t0) eqn:Hs2. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + constructor. 
+      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+      * transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
+      * transformExpr_f_equal Hs2 (fun x:(Stmt.s tags_t) => x). 
+  - destruct (TranslateStatement s1 env) eqn:Hs1. destruct (TranslateStatement s2 t) eqn:Hs2. 
+    constructor. 
+    + transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
+    + transformExpr_f_equal Hs2 (fun x:(Stmt.s tags_t) => x). 
+  - destruct (TranslateStatement s env) eqn:Hs1. constructor. transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
+  Admitted. 
 End Lifted.

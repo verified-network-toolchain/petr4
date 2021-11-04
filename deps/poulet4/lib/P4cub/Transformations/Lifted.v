@@ -335,4 +335,6 @@ Section Lifted.
       apply f_equal with (f:=snd ∘ fst) in Heqp; unravel in *.
       rewrite <- Heqp; auto.
   Qed.
+
+  Local Hint Resolve TransformExpr_lifted_stmt : core.
 End Lifted.

@@ -12,6 +12,7 @@ Require Import String.
 Open Scope string_scope.
 
 Require Import Poulet4.P4cub.Inline.
+Require Import Poulet4.ToP4cub.
 
 Import Env.EnvNotations.
 
@@ -32,10 +33,11 @@ Module E := P.Expr.
 Module F := P.F.
 Module BV := GCL.BitVec.
 
-Definition tags_t : Type := Inline.tags_t.
 
-Module Ctx.
-  Record t : Type :=
+Section ToGCL.
+  Variable tags_t : Type.
+
+  Record ctx : Type :=
     mkCtx { stack : list nat; (* The current block stack *)
             used : list nat;  (* indices that have already been used *)
             locals : list string; (* variables in the current scope *)
@@ -52,110 +54,103 @@ Module Ctx.
        may_have_returned := false;
     |}.
 
-  Definition incr (ctx : t) : t :=
-    let new_idx := S(list_max (ctx.(stack) ++ ctx.(used))) in
-    {| stack := new_idx :: ctx.(stack);
-       used := ctx.(used);
+  Definition incr (c : ctx) : ctx :=
+    let new_idx := S(list_max (c.(stack) ++ c.(used))) in
+    {| stack := new_idx :: c.(stack);
+       used := c.(used);
        locals := [];
-       may_have_exited := ctx.(may_have_exited);
+       may_have_exited := c.(may_have_exited);
        may_have_returned := false;
     |}.
 
-  Definition current (ctx : t) : result nat :=
-    match ctx.(stack) with
+  Definition current (c : ctx) : result nat :=
+    match c.(stack) with
     | [] => error "Tried to get context counter from empty context"
     | idx :: _ => ok idx
     end.
 
-  Definition decr (old_ctx : t) (ctx : t)  : result (t) :=
-    match ctx.(stack) with
+  Definition decr (old_ctx : ctx) (new_ctx : ctx)  : result ctx :=
+    match new_ctx.(stack) with
     | [] => error "Tried decrement empty counter"
     | idx :: idxs =>
       let ctx' := {| stack := idxs;
-                     used := idx :: ctx.(stack);
+                     used := idx :: new_ctx.(stack);
                      locals := old_ctx.(locals);
-                     may_have_exited := old_ctx.(may_have_exited) || ctx.(may_have_exited);
+                     may_have_exited := old_ctx.(may_have_exited) || new_ctx.(may_have_exited);
                      may_have_returned := old_ctx.(may_have_returned);
                   |} in
       ok ctx'
     end.
 
-  Definition update_exit (ctx : t) (b : bool) :=
-    {| stack := ctx.(stack);
-       used := ctx.(used);
-       locals := ctx.(locals);
+  Definition update_exit (c : ctx) (b : bool) :=
+    {| stack := c.(stack);
+       used := c.(used);
+       locals := c.(locals);
        may_have_exited := b;
-       may_have_returned := ctx.(may_have_returned)
+       may_have_returned := c.(may_have_returned)
     |}.
 
-  Definition join (tctx fctx : t) : result t :=
+  Definition join (tctx fctx : ctx) : result ctx :=
     if list_eq Nat.eqb tctx.(stack) fctx.(stack)
     then ok {| stack := tctx.(stack);
-                 used := tctx.(used) ++ fctx.(used);
-                 locals := intersect_string_list tctx.(locals) fctx.(locals);
-                 may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
-                 may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
-              |}
+               used := tctx.(used) ++ fctx.(used);
+               locals := intersect_string_list tctx.(locals) fctx.(locals);
+               may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
+               may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
+            |}
     else error "Tried to join two contexts with different context counters".
 
-  Definition retvar_name (ctx : t) : string :=
-    fold_right (fun idx acc => acc ++ (string_of_nat idx)) "return" ctx.(stack).
+  Definition retvar_name (c : ctx) : string :=
+    fold_right (fun idx acc => acc ++ (string_of_nat idx)) "return" c.(stack).
 
-  Definition retvar (ctx : t) (i : tags_t) : E.e tags_t :=
-    E.EVar E.TBool (retvar_name ctx) i.
+  Definition retvar (c : ctx) (i : tags_t) : E.e tags_t :=
+    E.EVar E.TBool (retvar_name c) i.
 
-  Definition add_to_scope (ctx : t) (v : string) :=
-    {| stack := ctx.(stack);
-       used := ctx.(used);
-       locals := v :: ctx.(locals);
-       may_have_exited := ctx.(may_have_exited);
-       may_have_returned := ctx.(may_have_returned);
+  Definition add_to_scope (c : ctx) (v : string) :=
+    {| stack := c.(stack);
+       used := c.(used);
+       locals := v :: c.(locals);
+       may_have_exited := c.(may_have_exited);
+       may_have_returned := c.(may_have_returned);
     |}.
 
-  Definition is_local (ctx : t) (v : string) : bool :=
-    string_member v (ctx.(locals)).
+  Definition is_local (c : ctx) (v : string) : bool :=
+    string_member v (c.(locals)).
 
   Definition scope_name (v : string) (idx : nat) : string :=
     v ++ "__$__" ++ string_of_nat idx.
 
 
-  Definition relabel_for_scope (ctx : t) (v : string) : string :=
-    if is_local ctx v
-    then match current ctx with
+  Definition relabel_for_scope (c : ctx) (v : string) : string :=
+    if is_local c v
+    then match current c with
          | Error _ _ => v
          | Ok _ idx => scope_name v idx
          end
     else v.
 
-End Ctx.
-
-Module Arch.
-  Definition extern : Type := Env.t string (@GCL.t string BV.t GCL.form).
+  Definition extern : Type := Env.t string (@GCL.t tags_t string (BV.t tags_t) (Form.t tags_t)).
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
-  Definition find (m : model) (e f : string) : result GCL.t :=
+  Definition find (m : model) (e f : string) : result (GCL.t tags_t) :=
     let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
-let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
-ok fn.
+    let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
+    ok fn.
   Definition empty : model := Env.empty string extern.
-End Arch.
 
-Module Translate.
   Section Instr.
-    Definition target := @GCL.t string BV.t GCL.form.
+    Definition target := @GCL.t tags_t string (BV.t tags_t) (Form.t tags_t).
     Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
-    Fixpoint scopify (ctx : Ctx.t) (e : E.e tags_t) : E.e tags_t :=
+    Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
       match e with
       | E.EBool _ _ => e
       | E.EBit _ _ _ => e
       | E.EInt _ _ _ => e
       | E.EVar typ x i =>
-        let x' := Ctx.relabel_for_scope ctx x in
+        let x' := relabel_for_scope ctx x in
         E.EVar typ x' i
-      | E.EString _ _ => e
-      | E.EEnum _ _ _ => e
       | E.ESlice n τ hi lo i =>
         E.ESlice (scopify ctx n) τ hi lo i
       | E.ECast type arg i =>
@@ -182,21 +177,21 @@ Module Translate.
       end.
     (**[]*)
 
-    Definition iteb (guard : GCL.form) (tru fls : target) (i : tags_t) : target :=
-      GCL.GChoice (GCL.GSeq (GCL.GAssume guard) tru) (GCL.GSeq (GCL.GAssume (GCL.LNot guard i)) fls).
+    Definition iteb (guard : Form.t tags_t) (tru fls : target) (i : tags_t) : target :=
+      GCL.GChoice _ (GCL.GSeq _ (GCL.GAssume _ guard) tru) (GCL.GSeq _ (GCL.GAssume _ (Form.LNot _ guard i)) fls).
 
-    Definition seq (i : tags_t) (res1 res2 : (target * Ctx.t)) : target * Ctx.t :=
+    Definition seq (i : tags_t) (res1 res2 : (target * ctx)) : target * ctx :=
       let (g1, ctx1) := res1 in
       let (g2, ctx2) := res2 in
       let g2' :=
-          if Ctx.may_have_returned ctx1
-          then (iteb (GCL.is_true (Ctx.retvar_name ctx1) i) (GCL.GSkip i) g2 i)
+          if may_have_returned ctx1
+          then (iteb (GCL.is_true _ (retvar_name ctx1) i) (GCL.GSkip _ i) g2 i)
           else g2 in
       let g2'' :=
-          if Ctx.may_have_exited ctx1
-          then (iteb (GCL.exit i) (GCL.GSkip i) g2 i)
+          if may_have_exited ctx1
+          then (iteb (GCL.exit _ i) (GCL.GSkip _ i) g2 i)
           else g2' in
-      (GCL.GSeq g1 g2'', ctx2).
+      (GCL.GSeq _ g1 g2'', ctx2).
 
     Definition string_of_z (x : Z) :=
       if BinInt.Z.ltb x (Z0)
@@ -209,8 +204,6 @@ Module Translate.
       | E.EBit _ _ _ => error "BitVector Literals are not lvalues"
       | E.EInt _ _ _ => error "Integer literals are not lvalues"
       | E.EVar t x i => ok x
-      | E.EString _ _ => error "Strings are not lvalues"
-      | E.EEnum _ _ _ => error "Enums are not lvalues"
       | E.ESlice e τ hi lo pos =>
         (* TODO :: Allow assignment to slices *)
         error "[FIXME] Slices are not l-values "
@@ -237,13 +230,11 @@ Module Translate.
       | E.TBool => ok 1
       | E.TBit w => ok (BinPos.Pos.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
-      | E.TString => error "Cannot get the width of a string type"
       | E.TVar _ => error "Cannot get the width of a type variable"
       | E.TError => error "Cannot get the width of an error Type"
       | E.TMatchKind => error "Cannot get the width of a Match Kind Type"
       | E.TTuple types => error "Cannot get the width of a Tuple Type"
       | E.TStruct fields => error "Cannot get the width of a Struct Type"
-      | E.TEnum _ _ => error "Cannot Get the width of an Enum Type"
       | E.THeader fields => error "Cannot get the width of a Header Type"
       | E.THeaderStack fields size => error "Cannot get the width of a header stack type"
       end.
@@ -260,7 +251,6 @@ Module Translate.
       | E.EBool _ _ => error "A Boolean is not a header"
       | E.EBit _ _ _ => error "A bitvector literal is not a header"
       | E.EInt _ _ _ => error "An integer literal is not a header"
-      | E.EString _ _ => error "A string is not a header"
       | E.EVar t x i =>
         match t with
         | E.THeader _ => ok x
@@ -272,7 +262,6 @@ Module Translate.
       | E.EBop _ _ _ _ _ _ => error "No binary operation is a header"
       | E.ETuple _ _ => error "A Tuple is not a header"
       | E.EStruct _ _ => error "Structs are not headers"
-      | E.EEnum _ _ _ => error "Enums are not headers"
       | E.EHeader _ _ _ =>
         error "Header literals should not be keys"
       | E.EExprMember mem expr_type arg i =>
@@ -286,29 +275,27 @@ Module Translate.
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
-    Fixpoint to_rvalue (e : (E.e tags_t)) : result BV.t :=
+    Fixpoint to_rvalue (e : (E.e tags_t)) : result (BV.t tags_t) :=
       match e with
       | E.EBool b i =>
         if b
-        then ok (BV.bit 1 1 i)
-        else ok (BV.bit 0 1 i)
+        then ok (BV.bit _ 1 1 i)
+        else ok (BV.bit _ 0 1 i)
       | E.EBit w v i =>
-        ok (BV.bit (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
-      | E.EString _ _ =>
-        error "Cannot translate strings to bitvectors"
+        ok (BV.bit _  (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
         let+ w := width_of_type t in
-        BV.BVVar x w i
+        BV.BVVar _ x w i
 
       | E.ESlice e τ hi lo i =>
         let+ rv_e := to_rvalue e in
-        BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
+        BV.UnOp _ (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg i) in
+        let cast := fun w => ok (BV.UnOp _ (BV.BVCast w) rvalue_arg i) in
         match type with
         | E.TBool => cast 1
         | E.TBit w => cast (BinPos.Pos.to_nat w)
@@ -320,15 +307,15 @@ Module Translate.
         match op with
         | E.Not =>
           let+ rv_arg := to_rvalue arg in
-          BV.UnOp BV.BVNeg rv_arg i
+          BV.UnOp _ BV.BVNeg rv_arg i
         | E.BitNot =>
           let+ rv_arg := to_rvalue arg in
-          BV.UnOp BV.BVNeg rv_arg i
+          BV.UnOp _ BV.BVNeg rv_arg i
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
           let+ header := to_header_string arg in
           let hvld := header ++ ".is_valid" in
-          BV.BVVar hvld 1 i
+          BV.BVVar _ hvld 1 i
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
           error "SetValid as an expression is deprecated"
         | E.SetInValid =>
@@ -337,15 +324,11 @@ Module Translate.
           error "[FIXME] NextIndex for Header Stacks is unimplemented"
         | E.Size =>
           error "[FIXME] Size for Header Stacks is unimplmented"
-        | E.Push n =>
-          error "Push as an expression is deprecated"
-        | E.Pop n =>
-          error "Pop as an expression is deprecated"
         end
       | E.EBop op ltyp rtyp lhs rhs i =>
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
-        let bin := fun o => ok (BV.BinOp o l r i) in
+        let bin := fun o => ok (BV.BinOp _ o l r i) in
         let* signed :=
            match ltyp with
            | E.TBit _ => ok false
@@ -380,12 +363,10 @@ Module Translate.
         error "Structs in the rvalue position should have been factored out by previous passes"
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
-      | E.EEnum _ _ _ =>
-        error "Enums in the rvalue position should have been factored out by previous passes"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let+ w := width_of_type expr_type in
-        BV.BVVar (lv ++ "." ++ mem) w i
+        BV.BVVar _  (lv ++ "." ++ mem) w i
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
       | E.EHeaderStack _ _ _ _ _ =>
@@ -394,18 +375,16 @@ Module Translate.
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
-    Fixpoint to_form (e : (E.e tags_t)) : result GCL.form :=
+    Fixpoint to_form (e : (E.e tags_t)) : result (Form.t tags_t) :=
       match e with
-      | E.EBool b i => ok (GCL.LBool b i)
+      | E.EBool b i => ok (Form.LBool _ b i)
       | E.EBit _ _ _ =>
         error "Typeerror: Bitvector literals are not booleans (perhaps you want to insert a cast?)"
       | E.EInt _ _ _ =>
         error "Typeerror: Signed Ints are not booleans (perhaps you want to insert a cast?)"
-      | E.EString _ _ =>
-        error "Typeerror: Strings are not booleans"
       | E.EVar t x i =>
         match t with
-        | E.TBool => ok (GCL.LVar x i)
+        | E.TBool => ok (Form.LVar _ x i)
         | _ =>
           error "Typeerror: Expected a Boolean form, got something else (perhaps you want to insert a cast?)"
         end
@@ -415,7 +394,7 @@ Module Translate.
 
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg i) i) in
+        let cast := fun w => ok (GCL.isone _ (BV.UnOp _ (BV.BVCast w) rvalue_arg i) i) in
         match type with
         | E.TBool => cast 1
         | E.TBit w => cast (BinPos.Pos.to_nat w)
@@ -426,13 +405,13 @@ Module Translate.
       | E.EUop op type arg i =>
         let* rv_arg := to_rvalue arg in
         match op with
-        | E.Not => ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg i) i)
+        | E.Not => ok (GCL.isone _ (BV.UnOp _ BV.BVNeg rv_arg i) i)
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
           let+ header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
-          GCL.isone (BV.BVVar hvld 1 i) i
+          GCL.isone _ (BV.BVVar _ hvld 1 i) i
         | E.SetValid =>
           error "SetValid is deprecated as an expression"
         | E.SetInValid =>
@@ -441,25 +420,21 @@ Module Translate.
           error "[FIXME] Next Index for stacks is unimplemented"
         | E.Size =>
           error "[FIXME] Size for stacks is unimplemented"
-        | E.Push n =>
-          error "Push is deprecated as an expression"
-        | E.Pop n =>
-          error "Pop is deprecated as an expression"
         end
       | E.EBop op ltyp rtyp lhs rhs i =>
         let signed := match ltyp with
-                       | E.TBit _ => ok false
-                       | E.TInt _ => ok true
-                       | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
-                       end in
+                      | E.TBit _ => ok false
+                      | E.TInt _ => ok true
+                      | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
+                      end in
         let lbin := fun o_res => let* l := to_form lhs in
                                  let* r := to_form rhs in
                                  let+ o := o_res in
-                                 GCL.LBop o l r i in
+                                 Form.LBop _ o l r i in
         let cbin := fun o_res => let* l := to_rvalue lhs in
                                  let* r := to_rvalue rhs in
                                  let+ o := o_res in
-                                 GCL.LComp o l r i in
+                                 Form.LComp _ o l r i in
         match op with
         | E.Plus => error "Typeerror: (+) is not a boolean operator"
         | E.PlusSat => error "Typeerror: (|+|) is not a boolean operator"
@@ -468,18 +443,18 @@ Module Translate.
         | E.Times => error "Typerror: (*) is not a boolean operator"
         | E.Shl => error "Typerror: (<<) is not a boolean operator"
         | E.Shr => error "TYperror: (>>) is not a boolean operator"
-        | E.Le => cbin (GCL.LLe |=> signed)
-        | E.Ge => cbin (GCL.LGe |=> signed)
-        | E.Lt => cbin (GCL.LLt |=> signed)
-        | E.Gt => cbin (GCL.LGt |=> signed)
-        | E.Eq => cbin (ok GCL.LEq)
-        | E.NotEq => cbin (ok GCL.LNeq)
+        | E.Le => cbin (Form.LLe |=> signed)
+        | E.Ge => cbin (Form.LGe |=> signed)
+        | E.Lt => cbin (Form.LLt |=> signed)
+        | E.Gt => cbin (Form.LGt |=> signed)
+        | E.Eq => cbin (ok Form.LEq)
+        | E.NotEq => cbin (ok Form.LNeq)
         | E.BitAnd => error "Typeerror: (&) is not a boolean operator"
         | E.BitXor => error "Typeerror: (^) is not a boolean operator"
         | E.BitOr => error "Typeerror: (|) is not a boolean operator"
         | E.PlusPlus => error "Typeerror: (++) is not a boolean operator"
-        | E.And => lbin (ok GCL.LAnd)
-        | E.Or => lbin (ok GCL.LOr)
+        | E.And => lbin (ok Form.LAnd)
+        | E.Or => lbin (ok Form.LOr)
         end
       | E.ETuple _ _ =>
         error "Tuples are not formulae"
@@ -487,12 +462,10 @@ Module Translate.
         error "Structs are not formulae"
       | E.EHeader _ _ _ =>
         error "Headers are not formulae"
-      | E.EEnum _ _ _ =>
-        error "Enums are not formulae"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
         let~ w := (width_of_type expr_type) over ("failed getting type of " ++ mem) in
-        ok (GCL.isone (BV.BVVar lv w i) i)
+        ok (GCL.isone _ (BV.BVVar _ lv w i) i)
       | E.EError _ _ =>
         error "errors are not formulae"
       | E.EMatchKind _ _ =>
@@ -503,62 +476,62 @@ Module Translate.
         error "Headers (from header stack accesses) are not formulae"
       end.
 
-    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * Ctx.t)) : result (target * Ctx.t) :=
+    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * ctx)) : result (target * ctx) :=
       let (tg, tctx) := tres in
       let (fg, fctx) := fres in
-      let* ctx := Ctx.join tctx fctx in
+      let* ctx := join tctx fctx in
       let* phi := to_form guard in
       ok (iteb phi tg fg i, ctx).
 
-    Fixpoint inline_to_gcl (ctx : Ctx.t) (arch : Arch.model) (s : Inline.t) : result (target * Ctx.t) :=
+    Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
       match s with
-      | Inline.ISkip i =>
-        ok (GCL.GSkip i, ctx)
+      | Inline.ISkip _ i =>
+        ok (GCL.GSkip _ i, c)
 
-      | Inline.IVardecl typ x i =>
-        ok (GCL.GSkip i, Ctx.add_to_scope ctx x)
+      | Inline.IVardecl _ typ x i =>
+        ok (GCL.GSkip _ i, add_to_scope c x)
 
-      | Inline.IAssign type lhs rhs i =>
-        let* lhs' := to_lvalue (scopify ctx lhs) in
-        let+ rhs' := to_rvalue (scopify ctx rhs) in
-        let e := GCL.GAssign type lhs' rhs' i in
-        (e, ctx)
+      | Inline.IAssign _ type lhs rhs i =>
+        let* lhs' := to_lvalue (scopify c lhs) in
+        let+ rhs' := to_rvalue (scopify c rhs) in
+        let e := GCL.GAssign _ type lhs' rhs' i in
+        (e, c)
 
-      | Inline.IConditional guard_type guard tru_blk fls_blk i =>
-        let* tru_blk' := inline_to_gcl ctx arch tru_blk in
-        let* fls_blk' := inline_to_gcl ctx arch fls_blk in
-        cond guard_type (scopify ctx guard) i tru_blk' fls_blk'
+      | Inline.IConditional _ guard_type guard tru_blk fls_blk i =>
+        let* tru_blk' := inline_to_gcl c arch tru_blk in
+        let* fls_blk' := inline_to_gcl c arch fls_blk in
+        cond guard_type (scopify c guard) i tru_blk' fls_blk'
 
-      | Inline.ISeq s1 s2 i =>
-        let* g1 := inline_to_gcl ctx arch s1 in
+      | Inline.ISeq _ s1 s2 i =>
+        let* g1 := inline_to_gcl c arch s1 in
         let+ g2 := inline_to_gcl (snd g1) arch s2 in
         seq i g1 g2
 
-      | Inline.IBlock s =>
-        let* (gcl, ctx') := inline_to_gcl (Ctx.incr ctx) arch s in
-        let+ ctx'' := Ctx.decr ctx ctx' in
-        (gcl, ctx'')
+      | Inline.IBlock _ s =>
+        let* (gcl, c') := inline_to_gcl (incr c) arch s in
+        let+ c'' := decr c c' in
+        (gcl, c'')
 
-      | Inline.IReturnVoid i =>
-        let gasn := @GCL.GAssign string BV.t GCL.form in
-        ok (gasn (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.bit 1 1 i) i, ctx)
+      | Inline.IReturnVoid _ i =>
+        let g_asn := @GCL.GAssign _ string (BV.t _) (Form.t _) in
+        ok (g_asn (E.TBit (pos 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
 
-      | Inline.IReturnFruit typ expr i =>
+      | Inline.IReturnFruit _ typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign (E.TBit (pos 1)) (Ctx.retvar_name ctx) (BV.bit 1 1 i) i, ctx)
+        ok (GCL.GAssign _ (E.TBit (pos 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
 
-      | Inline.IExit i =>
-        ok (GCL.GAssign (E.TBit (pos 1)) "exit" (BV.bit 1 1 i) i, Ctx.update_exit ctx true)
+      | Inline.IExit _ i =>
+        ok (GCL.GAssign _ (E.TBit (pos 1)) "exit" (BV.bit _ 1 1 i) i, update_exit c true)
 
-      | Inline.IInvoke tbl keys actions i =>
-        let* actions' := union_map_snd (fst >>=> inline_to_gcl ctx arch) actions in
+      | Inline.IInvoke _ tbl keys actions i =>
+        let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
         let+ g := instr tbl i keys actions' in
-        (g, ctx)
+        (g, c)
 
-      | Inline.IExternMethodCall ext method args i =>
+      | Inline.IExternMethodCall _  ext method args i =>
         (** TODO handle copy-in/copy-out) *)
-        let+ g := Arch.find arch ext method in
-        (g, ctx)
+        let+ g := find arch ext method in
+        (g, c)
       end.
 
     Definition p4cub_statement_to_gcl (gas : nat)
@@ -566,390 +539,413 @@ Module Translate.
                (aenv : @aenv tags_t)
                (tenv : @tenv tags_t)
                (fenv : fenv)
-               (arch : Arch.model) (s : ST.s tags_t) : result target :=
-      let* inline_stmt := Inline.inline gas cienv aenv tenv fenv s in
-      let* no_tup := Inline.elim_tuple inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks no_tup in
-      let* no_hdr := Inline.elaborate_headers no_stk in
-      let* no_structs := Inline.elaborate_structs no_hdr in
-      let+ (gcl,_) := inline_to_gcl Ctx.initial arch no_structs in
+               (arch : model) (s : ST.s tags_t) : result target :=
+      let* inline_stmt := Inline.inline _ gas cienv aenv tenv fenv s in
+      let* no_tup := Inline.elim_tuple _ inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
+      let* no_hdr := Inline.elaborate_headers _ no_stk in
+      let* no_structs := Inline.elaborate_structs _ no_hdr in
+      let+ (gcl,_) := inline_to_gcl initial arch no_structs in
       gcl.
 
+    Definition get_cienv (ctx : ToP4cub.DeclCtx tags_t) : result (@cienv tags_t) :=
+      error "[TODO]".
+    Definition get_aenv (ctx : ToP4cub.DeclCtx tags_t)  : result (@aenv tags_t) :=
+      error "[TODO]".
+    Definition get_tenv (ctx : ToP4cub.DeclCtx tags_t) : result (@tenv tags_t) :=
+      error "[TODO]".
+    Definition get_fenv (ctx : ToP4cub.DeclCtx tags_t) : result (@fenv tags_t) :=
+      error "[TODO]".
+    Definition get_stmt (ctx : ToP4cub.DeclCtx tags_t) (arch : model) : result (ST.s tags_t) :=
+      error "[TODO]".
+
+    Definition p4cub_to_gcl (gas : nat) (arch : model) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+      let* cienv := get_cienv ctx in
+      let* aenv := get_aenv ctx in
+      let* tenv := get_tenv ctx in
+      let* fenv := get_fenv ctx in
+      let* stmt := get_stmt ctx arch in
+      p4cub_statement_to_gcl gas cienv aenv tenv fenv arch stmt.
+
   End Instr.
-  End Translate.
+End ToGCL.
 
-  Module Tests.
+Section Tests.
+  Require Import Poulet4.P4defs.
+  Definition d := NoInfo.
+  Definition bit (n : nat) : E.t := E.TBit (pos 4).
+  Definition asm_eq (s : string) (w : nat) (r : BV.t Info) (i : Info) : ToGCL.target Info :=
+    GCL.GAssume _ (Form.bvule _ (BV.BVVar _ s w i) r i).
 
-    Variable d : tags_t.
+  Definition s_sequence (ss : list (ST.s Info)) : ST.s Info :=
+    fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
 
-    Definition pos := GCL.pos.
-    Definition bit (n : nat) : E.t := E.TBit (pos 4).
-    Definition asm_eq (s : string) (w : nat) (r : BV.t) (i : tags_t) : Translate.target :=
-      GCL.GAssume (GCL.bvule (BV.BVVar s w i) r i).
+  Definition ethernet_type :=
+    E.THeader ([("dstAddr", bit 48);
+               ("srcAddr", bit 48);
+               ("etherType", bit 16)
+              ]).
 
-    Definition s_sequence (ss : list (ST.s tags_t)) : ST.s tags_t :=
-      fold_right (fun s acc => ST.SSeq s acc d) (ST.SSkip d) ss.
+  Definition ipv4_type :=
+    E.THeader ([("version", bit 4);
+               ("ihl", bit 4);
+               ("diffserv", bit 8);
+               ("totalLen", bit 16);
+               ("identification", bit 16);
+               ("flags", bit 3);
+               ("fragOffset", bit 13);
+               ("ttl", bit 8);
+               ("protocol", bit 8);
+               ("hdrChecksum", bit 16);
+               ("srcAddr", bit 32);
+               ("dstAddr", bit 32)]).
 
-    Definition ethernet_type :=
-      E.THeader ([("dstAddr", bit 48);
-                 ("srcAddr", bit 48);
-                 ("etherType", bit 16)
-                ]).
+  Definition meta_type :=
+    E.THeader [("do_forward", bit 1);
+              ("ipv4_sa", bit 32);
+              ("ipv4_da", bit 32);
+              ("ipv4_sp", bit 16);
+              ("ipv4_dp", bit 16);
+              ("nhop_ipv4", bit 32);
+              ("if_ipv4_addr", bit 32);
+              ("if_mac_addr", bit 32);
+              ("is_ext_if", bit 1);
+              ("tcpLength", bit 16);
+              ("if_index", bit 8)
+              ].
 
-    Definition ipv4_type :=
-      E.THeader ([("version", bit 4);
-                 ("ihl", bit 4);
-                 ("diffserv", bit 8);
-                 ("totalLen", bit 16);
-                 ("identification", bit 16);
-                 ("flags", bit 3);
-                 ("fragOffset", bit 13);
-                 ("ttl", bit 8);
-                 ("protocol", bit 8);
-                 ("hdrChecksum", bit 16);
-                 ("srcAddr", bit 32);
-                 ("dstAddr", bit 32)]).
+  Definition tcp_type :=
+    E.THeader [("srcPort", bit 16);
+              ("dstPort", bit 16);
+              ("seqNo", bit 32);
+              ("ackNo", bit 32);
+              ("dataOffset", bit 4);
+              ("res", bit 4);
+              ("flags", bit 8);
+              ("window", bit 16);
+              ("checksum", bit 16);
+              ("urgentPtr", bit 16)].
 
-    Definition meta_type :=
-      E.THeader [("do_forward", bit 1);
-                ("ipv4_sa", bit 32);
-                ("ipv4_da", bit 32);
-                ("ipv4_sp", bit 16);
-                ("ipv4_dp", bit 16);
-                ("nhop_ipv4", bit 32);
-                ("if_ipv4_addr", bit 32);
-                ("if_mac_addr", bit 32);
-                ("is_ext_if", bit 1);
-                ("tcpLength", bit 16);
-                ("if_index", bit 8)
-                ].
+  Definition std_meta_type :=
+    E.THeader [("ingress_port", bit 9);
+              ("egress_spec", bit 9);
+              ("egress_port", bit 9);
+              ("instance_type", bit 32);
+              ("packet_length", bit 32);
+              ("enq_timestamp", bit 32);
+              ("enq_qdepth", bit 19);
+              ("deq_timedelta", bit 32);
+              ("deq_qdepth", bit 32);
+              ("ingress_global_timestamp", bit 48);
+              ("egress_global_timestamp", bit 48);
+              ("mcast_grp", bit 16);
+              ("egress_rid", bit 16);
+              ("checksum_error", bit 1);
+              ("parser_error", E.TError);
+              ("priority", bit 3)].
 
-    Definition tcp_type :=
-      E.THeader [("srcPort", bit 16);
-                ("dstPort", bit 16);
-                ("seqNo", bit 32);
-                ("ackNo", bit 32);
-                ("dataOffset", bit 4);
-                ("res", bit 4);
-                ("flags", bit 8);
-                ("window", bit 16);
-                ("checksum", bit 16);
-                ("urgentPtr", bit 16)].
+  Definition simple_nat_ingress : (ST.s Info) :=
+    let fwd :=
+        E.EBop (E.Eq) (bit 1) (bit 1)
+               (E.EExprMember "do_forward" (bit 1) (E.EVar meta_type "meta" d) d)
+               (E.EBit (pos 1) (Zpos (pos 1)) d)
+               d
+    in
+    let ttl :=
+        E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" (bit 8) (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
+    in
+    let cond := E.EBop E.And E.TBool E.TBool fwd ttl d in
+    ST.SSeq (ST.SInvoke "if_info" d)
+            (ST.SSeq (ST.SInvoke "nat" d)
+                     (ST.SConditional E.TBool
+                                      cond
+                                      (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d)
+                                      (ST.SSkip d)
+                                      d)
+                     d)
+            d.
 
-    Definition std_meta_type :=
-      E.THeader [("ingress_port", bit 9);
-                ("egress_spec", bit 9);
-                ("egress_port", bit 9);
-                ("instance_type", bit 32);
-                ("packet_length", bit 32);
-                ("enq_timestamp", bit 32);
-                ("enq_qdepth", bit 19);
-                ("deq_timedelta", bit 32);
-                ("deq_qdepth", bit 32);
-                ("ingress_global_timestamp", bit 48);
-                ("egress_global_timestamp", bit 48);
-                ("mcast_grp", bit 16);
-                ("egress_rid", bit 16);
-                ("checksum_error", bit 1);
-                ("parser_error", E.TError);
-                ("priority", bit 3)].
+  Locate P4cub.Control.
 
-    Definition simple_nat_ingress : (ST.s tags_t) :=
-      let fwd :=
-          E.EBop (E.Eq) (bit 1) (bit 1)
-                 (E.EExprMember "do_forward" (bit 1) (E.EVar meta_type "meta" d) d)
-                 (E.EBit (pos 1) (Zpos (pos 1)) d)
-                 d
-      in
-      let ttl :=
-          E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" (bit 8) (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
-      in
-      let cond := E.EBop E.And E.TBool E.TBool fwd ttl d in
-      ST.SSeq (ST.SInvoke "if_info" d)
-              (ST.SSeq (ST.SInvoke "nat" d)
-                       (ST.SConditional E.TBool
-                                        cond
-                                        (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d)
-                                        (ST.SSkip d)
-                                        d)
-                       d)
-              d.
+  Definition meta (s : string) (w : nat) :=
+    E.EExprMember s (bit w) (E.EVar meta_type "meta" d) d.
 
-    Locate P4cub.Control.
+  Definition std_meta (s : string) (w : nat):=
+    E.EExprMember s (bit w)  (E.EVar std_meta_type "standard_metadata" d) d.
 
-    Definition meta (s : string) (w : nat) :=
-      E.EExprMember s (bit w) (E.EVar meta_type "meta" d) d.
+  Definition ethernet (s : string) (w : nat):=
+    E.EExprMember s (bit w) (E.EVar ethernet_type "ethernet" d) d.
 
-    Definition std_meta (s : string) (w : nat):=
-      E.EExprMember s (bit w)  (E.EVar std_meta_type "standard_metadata" d) d.
+  Definition ipv4 (s : string) (w : nat) :=
+    E.EExprMember s (bit w) (E.EVar ipv4_type "ipv4" d) d.
 
-    Definition ethernet (s : string) (w : nat):=
-      E.EExprMember s (bit w) (E.EVar ethernet_type "ethernet" d) d.
-
-    Definition ipv4 (s : string) (w : nat) :=
-      E.EExprMember s (bit w) (E.EVar ipv4_type "ipv4" d) d.
-
-    Definition tcp (s : string) (w : nat) :=
-      E.EExprMember s (bit w) (E.EVar tcp_type "tcp" d) d.
+  Definition tcp (s : string) (w : nat) :=
+    E.EExprMember s (bit w) (E.EVar tcp_type "tcp" d) d.
 
 
-    Definition valid (s : string) (t : E.t) :=
-      E.EUop E.IsValid E.TBool (E.EVar t s d) d.
+  Definition valid (s : string) (t : E.t) :=
+    E.EUop E.IsValid E.TBool (E.EVar t s d) d.
 
-    Definition ingress_table_env :=
-      [("if_info",
-        CD.Table ([(bit 8, meta "if_index" 8, E.MKExact)])
-                 (["_drop"; "set_if_info"])
-       );
-      ("nat",
-       CD.Table ([(bit 1, meta "is_ext_if" 1, E.MKExact);
-                 (bit 1, valid "ipv4" ipv4_type, E.MKExact);
-                 (bit 1, valid "tcp" tcp_type, E.MKExact);
-                 (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
-                 (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
-                 (bit 32, tcp "srcPort" 32, E.MKTernary);
-                 (bit 32, tcp "dstPort" 32, E.MKTernary)
-                ])
-                (["_drop";
-                 "nat_miss_ext_to_int";
-                 (* "nat_miss_int_to_ext"; requires generics *)
-                 "nat_hit_int_to_ext";
-                 "nat_hit_ext_to_int"
-                 (* "nat_no_nat" *)
-      ]));
-      ("ipv4_lpm",
-       CD.Table ([(bit 32, meta "ipv4_da" 32, E.MKLpm)])
-                (["set_nhop"; "_drop"])
-      );
-      ("forward",
-       CD.Table ([(bit 32, meta "nhop_ipv4" 32, E.MKExact)])
-                (["set_dmac"; "_drop"])
-      )
-      ].
+  Definition ingress_table_env :=
+    [("if_info",
+      CD.Table ([(bit 8, meta "if_index" 8, E.MKExact)])
+               (["_drop"; "set_if_info"])
+     );
+    ("nat",
+     CD.Table ([(bit 1, meta "is_ext_if" 1, E.MKExact);
+               (bit 1, valid "ipv4" ipv4_type, E.MKExact);
+               (bit 1, valid "tcp" tcp_type, E.MKExact);
+               (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
+               (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
+               (bit 32, tcp "srcPort" 32, E.MKTernary);
+               (bit 32, tcp "dstPort" 32, E.MKTernary)
+              ])
+              (["_drop";
+               "nat_miss_ext_to_int";
+               (* "nat_miss_int_to_ext"; requires generics *)
+               "nat_hit_int_to_ext";
+               "nat_hit_ext_to_int"
+               (* "nat_no_nat" *)
+    ]));
+    ("ipv4_lpm",
+     CD.Table ([(bit 32, meta "ipv4_da" 32, E.MKLpm)])
+              (["set_nhop"; "_drop"])
+    );
+    ("forward",
+     CD.Table ([(bit 32, meta "nhop_ipv4" 32, E.MKExact)])
+              (["set_dmac"; "_drop"])
+    )
+    ].
 
-    Definition empty_adecl : list string -> ST.s tags_t -> adecl :=
-      ADecl (Env.empty string ValEnvUtil.V.v)
-            (Env.empty string fdecl)
-            (Env.empty string adecl)
-            (Env.empty string ARCH.P4Extern).
+  Definition empty_adecl : list string -> ST.s Info -> adecl :=
+    ADecl (Env.empty string ValEnvUtil.V.v)
+          (Env.empty string fdecl)
+          (Env.empty string adecl)
+          (Env.empty string ARCH.P4Extern).
 
-    Locate PAInOut.
-    Definition mark_to_drop_args : E.arrowE tags_t :=
-      P.Arrow [("standard_metadata", P.PAInOut (std_meta_type, E.EVar std_meta_type "standard_metadata" d))] None.
+  Locate PAInOut.
+  Definition mark_to_drop_args : E.arrowE Info :=
+    P.Arrow [("standard_metadata", P.PAInOut (std_meta_type, E.EVar std_meta_type "standard_metadata" d))] None.
 
-    Definition set_if_info :=
-      s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
-                 ST.SAssign (bit 48) (meta "if_mac_addr" 48) (E.EVar (bit 48) "mac_addr" d) d;
-                 ST.SAssign (bit 1) (meta "is_ext_if" 1) (E.EVar (bit 48) "is_ext" d) d].
+  Definition set_if_info :=
+    s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
+               ST.SAssign (bit 48) (meta "if_mac_addr" 48) (E.EVar (bit 48) "mac_addr" d) d;
+               ST.SAssign (bit 1) (meta "is_ext_if" 1) (E.EVar (bit 48) "is_ext" d) d].
 
-    Definition nat_miss_ext_to_int :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) Z0 d) d;
-                 ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d].
+  Definition nat_miss_ext_to_int :=
+    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) Z0 d) d;
+               ST.SExternMethodCall "v1model" "mark_to_drop" [] mark_to_drop_args d].
 
-    Definition nat_hit_int_to_ext :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-                 ST.SAssign (bit 32) (meta "ipv4_sa" 32) (E.EVar (bit 32) "srcAddr" d) d;
-                 ST.SAssign (bit 32) (meta "tcp_sp" 32) (E.EVar (bit 32) "srcPort" d) d
-                 ]
-    .
-    Definition nat_hit_ext_to_int :=
-      s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-                 ST.SAssign (bit 32) (meta "ipv4_da" 32) (E.EVar (bit 32) "dstAddr" d) d;
-                 ST.SAssign (bit 32) (meta "tcp_dp" 32) (E.EVar (bit 32) "dstPort" d) d
-                 ]
-    .
-    Definition set_dmac :=
-      ST.SAssign (bit 48) (ethernet "dstAddr" 48) (E.EVar (bit 48) "dmac" d) d.
+  Definition nat_hit_int_to_ext :=
+    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+               ST.SAssign (bit 32) (meta "ipv4_sa" 32) (E.EVar (bit 32) "srcAddr" d) d;
+               ST.SAssign (bit 32) (meta "tcp_sp" 32) (E.EVar (bit 32) "srcPort" d) d
+               ]
+  .
+  Definition nat_hit_ext_to_int :=
+    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
+               ST.SAssign (bit 32) (meta "ipv4_da" 32) (E.EVar (bit 32) "dstAddr" d) d;
+               ST.SAssign (bit 32) (meta "tcp_dp" 32) (E.EVar (bit 32) "dstPort" d) d
+               ]
+  .
+  Definition set_dmac :=
+    ST.SAssign (bit 48) (ethernet "dstAddr" 48) (E.EVar (bit 48) "dmac" d) d.
 
-    Definition set_nhop :=
-      s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4" 32) (E.EVar (bit 32) "nhop_ipv4" d) d;
-                 ST.SAssign (bit 9) (std_meta "egress_spec" 9) (E.EVar (bit 9) "port" d) d;
-                 ST.SAssign (bit 8) (ipv4 "ttl" 8) (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl" 8) (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
-                 ].
+  Definition set_nhop :=
+    s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4" 32) (E.EVar (bit 32) "nhop_ipv4" d) d;
+               ST.SAssign (bit 9) (std_meta "egress_spec" 9) (E.EVar (bit 9) "port" d) d;
+               ST.SAssign (bit 8) (ipv4 "ttl" 8) (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl" 8) (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
+               ].
 
-    Definition ingress_action_env :=
-      [("_drop",
-        empty_adecl [] (ST.SExternMethodCall "v1model" "mark_to_drop" mark_to_drop_args d));
-      ("set_if_info", empty_adecl [] set_if_info);
-      ("nat_miss_ext_to_int", empty_adecl [] nat_miss_ext_to_int);
-      ("nat_hit_int_to_ext", empty_adecl ["srcAddr"; "srcPort"] nat_hit_int_to_ext);
-      ("nat_hit_ext_to_int", empty_adecl ["dstAddr"; "dstPort"] nat_hit_ext_to_int);
-      ("set_dmac", empty_adecl ["dmac"] set_dmac);
-      ("set_nhop", empty_adecl ["nhop_ipv4"; "port"] set_nhop)
-      ].
+  Definition ingress_action_env :=
+    [("_drop",
+      empty_adecl [] (ST.SExternMethodCall "v1model" "mark_to_drop" [] mark_to_drop_args d));
+    ("set_if_info", empty_adecl [] set_if_info);
+    ("nat_miss_ext_to_int", empty_adecl [] nat_miss_ext_to_int);
+    ("nat_hit_int_to_ext", empty_adecl ["srcAddr"; "srcPort"] nat_hit_int_to_ext);
+    ("nat_hit_ext_to_int", empty_adecl ["dstAddr"; "dstPort"] nat_hit_ext_to_int);
+    ("set_dmac", empty_adecl ["dmac"] set_dmac);
+    ("set_nhop", empty_adecl ["nhop_ipv4"; "port"] set_nhop)
+    ].
 
-    Definition matchrow_inner (table : string) (i : tags_t) (n : nat) (elt : E.t * E.e tags_t * E.matchkind) (acc_res : result GCL.form) : result GCL.form :=
-      let (te, mk) := elt in
-      let (typ, exp) := te in
-      let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
-      let* acc := acc_res in
-      let* w : nat := Translate.width_of_type typ in
-      let* k : BV.t := Translate.to_rvalue exp in
-      match mk with
-      | E.MKExact =>
-        ok (GCL.land (GCL.bvule (BV.BVVar symbmatch w i) k i) acc i : GCL.form)
-      | E.MKTernary =>
-        let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
-        ok (GCL.land (GCL.bvule (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
-                      (BV.band (BV.BVVar symbmask w i) k i) i)
-                 acc i)
-      | E.MKLpm =>
-        let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
-        ok (GCL.land (GCL.bvule (BV.band (BV.BVVar symbmask w i) (BV.BVVar symbmatch w i) i)
-                      (BV.band (BV.BVVar symbmask w i) k i) i)
-                 acc i)
-      end.
+  Open Scope string_scope.
+  Definition matchrow_inner (table : string) (i : Info) (n : nat) (elt : E.t * E.e Info * E.matchkind) (acc_res : result (Form.t _)) : result (Form.t _) :=
+    let (te, mk) := elt in
+    let (typ, exp) := te in
+    let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
+    let* acc := acc_res in
+    let* w  := width_of_type typ in
+    let* k  := to_rvalue _ exp in
+    match mk with
+    | E.MKExact =>
+      ok (Form.land _ (Form.bvule _ (BV.BVVar _ symbmatch w i) k i) acc i)
+    | E.MKTernary =>
+      let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
+      ok (Form.land _ (Form.bvule _ (BV.band _ (BV.BVVar _ symbmask w i) (BV.BVVar _ symbmatch w i) i)
+                              (BV.band _ (BV.BVVar _ symbmask w i) k i) i)
+                   acc i)
+    | E.MKLpm =>
+      let symbmask := "symb_" ++ table ++ "_mask__" ++ string_of_nat n in
+      ok (Form.land _ (Form.bvule _ (BV.band _ (BV.BVVar _ symbmask w i) (BV.BVVar _ symbmatch w i) i)
+                              (BV.band _ (BV.BVVar _ symbmask w i) k i) i)
+                   acc i)
+    end.
 
-    Definition matchrow (table : string) (keys : list (E.t * E.e tags_t * E.matchkind)) (i : tags_t) : result GCL.form :=
-      fold_lefti (matchrow_inner table i) (ok (GCL.LBool true i)) keys.
+  Definition matchrow (table : string) (keys : list (E.t * E.e Info * E.matchkind)) (i : Info) : result (Form.t _) :=
+    fold_lefti (matchrow_inner table i) (ok (Form.LBool _ true i)) keys.
 
-    Definition bits_to_encode_list_index {A : Type} (l : list A) : nat :=
-      let n := List.length l in
-      Nat.max (PeanoNat.Nat.log2_up n) 1.
-
-    Definition action_inner (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (w : nat) (n : nat) (named_action : string * Translate.target) (res_acc : result Translate.target) : result Translate.target :=
-      let (name, act) := named_action in
-      let* matchcond := matchrow name keys i in
-      let+ acc := res_acc in
-      GCL.g_sequence i
-                 [GCL.GAssume matchcond;
-                 asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i;
-                 asm_eq ("__symb_" ++ name ++ "_action") w  (BV.bit w n i) i;
-                 act (* TODO something with action data *)].
-
-    Definition actions_encoding (table : string) (i : tags_t) (keys : list (E.t * E.e tags_t * E.matchkind)) (actions : list (string * Translate.target)) : result Translate.target :=
-      let w := bits_to_encode_list_index actions in
-      fold_lefti (action_inner table i keys w) (ok (GCL.GSkip i)) actions.
-
-    Definition instr (name : string) (i : tags_t) (keys: list (E.t * E.e tags_t * E.matchkind)) (actions: list (string * Translate.target)) : result Translate.target :=
-      let+ hit := actions_encoding name i keys actions in
-      let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit 1 1 i) i in
-      GCL.GChoice hit miss.
-
-    Definition v1model : Arch.extern :=
-      [("mark_to_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit 1 1 d) d)].
-
-    Definition arch : Arch.model :=
-      [("v1model", v1model)].
-
-    Compute (Translate.to_rvalue (valid "ipv4" ipv4_type)).
-
-    Compute (instr "nat" d [(bit 1, meta "is_ext_if" 1, E.MKExact);
-                 (bit 1, valid "ipv4" ipv4_type, E.MKExact);
-                 (bit 1, valid "tcp" tcp_type, E.MKExact);
-                 (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
-                 (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
-                 (bit 32, tcp "srcPort" 32, E.MKTernary);
-                 (bit 32, tcp "dstPort" 32, E.MKTernary)
-                ] [("_drop", GCL.GAssign (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit 1 1 d) d)]).
-
-    Compute (Translate.p4cub_statement_to_gcl instr
-                                              10
-                                              (Env.empty string cinst)
-                                              ingress_action_env
-                                              ingress_table_env
-                                              (Env.empty string fdecl)
-                                              arch
-                                              simple_nat_ingress).
+  Definition bits_to_encode_list_index {A : Type} (l : list A) : nat :=
+    let n := List.length l in
+    Nat.max (PeanoNat.Nat.log2_up n) 1.
 
 
-    (* This example is to test the correct implementation of scoping. *)
-    (* the program itself is *)
-    (*  vardecl x; x := 5; f() *)
-    (* where f() := vardecl x := ipv4.src; ipv4.src := ipv4.dst; ipv4.dst := x *)
+  Print GCL.g_sequence.
+  Definition action_inner (table : string) (i : Info) (keys : list (E.t * E.e Info * E.matchkind)) (w : nat) (n : nat) (named_action : string * target Info) (res_acc : result (target Info)) : result (target Info) :=
+    let (name, act) := named_action in
+    let* matchcond := matchrow name keys i in
+    let+ acc := res_acc in
+    GCL.g_sequence Info i
+                   [GCL.GAssume _ matchcond;
+                   asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit _ 1 1 i) i;
+                   asm_eq ("__symb_" ++ name ++ "_action") w  (BV.bit _ w n i) i;
+                   act (* TODO something with action data *)].
 
-    Print P.F.f.
-    Print P.Arrow.
-    Print ST.SFunCall.
-    Print ST.E.arrowE.
-    Definition scope_occlusion_function :=
-      s_sequence [
-      ST.SVardecl (bit 32) "x" d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-      ST.SFunCall "swap" (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-      ]
-    .
+  Definition actions_encoding (table : string) (i : Info) (keys : list (E.t * E.e Info * E.matchkind)) (actions : list (string * target Info)) : result (target Info)  :=
+    let w := bits_to_encode_list_index actions in
+    fold_lefti (action_inner table i keys w) (ok (GCL.GSkip _ i)) actions.
 
-    Definition swap_body :=
-      let var := fun s => E.EVar (bit 32) s d in
-      let x := var "x" in
-      let y := var "y" in
-      let z := var "z" in
-      let assn := fun lhs rhs => ST.SAssign (bit 32) lhs rhs d in
-      s_sequence [
-      ST.SVardecl (bit 32) "x" d;
-      ST.SBlock (s_sequence [
-                 ST.SVardecl (bit 32) "x" d;
-                 assn x y;
-                 assn y z;
-                 assn z x
-                 ])
-      ].
+  Definition instr (name : string) (i : Info) (keys: list (E.t * E.e Info * E.matchkind)) (actions: list (string * target Info)) : result (target Info) :=
+    let+ hit := actions_encoding name i keys actions in
+    let miss := asm_eq ("__ghost_" ++ name ++ "_hit") 1 (BV.bit _ 1 1 i) i in
+    GCL.GChoice _ hit miss.
 
-    Definition swap_fdecl :=
-      FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl)
-            ["y"; "z"]
-            swap_body.
+  Definition v1model : extern Info :=
+    [("mark_to_drop", GCL.GAssign _ (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d)].
 
-    Definition swap_fenv := [("swap",swap_fdecl)].
+  Definition arch : model Info :=
+    [("v1model", v1model)].
 
-    Compute (Translate.p4cub_statement_to_gcl instr
-                                              100
-                                              (Env.empty string cinst)
-                                              (Env.empty string adecl)
-                                              (Env.empty string (CD.table tags_t))
-                                              (swap_fenv)
-                                              arch
-                                              scope_occlusion_function).
+  Compute (to_rvalue Info (valid "ipv4" ipv4_type)).
 
-    Definition scope_occlusion_block :=
-      s_sequence [
-      ST.SVardecl (bit 32) "x" d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-      ST.SBlock swap_body;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-      ]
-    .
+  Compute (instr "nat" d [(bit 1, meta "is_ext_if" 1, E.MKExact);
+                         (bit 1, valid "ipv4" ipv4_type, E.MKExact);
+                         (bit 1, valid "tcp" tcp_type, E.MKExact);
+                         (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
+                         (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
+                         (bit 32, tcp "srcPort" 32, E.MKTernary);
+                         (bit 32, tcp "dstPort" 32, E.MKTernary)
+                         ] [("_drop", GCL.GAssign Info (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit Info 1 1 d) d)]).
 
-    Compute (Translate.p4cub_statement_to_gcl instr
-                                              15
-                                              (Env.empty string cinst)
-                                              (Env.empty string adecl)
-                                              (Env.empty string (CD.table tags_t))
-                                              (Env.empty string fdecl)
-                                              arch
-                                              scope_occlusion_block).
+  Compute (p4cub_statement_to_gcl Info instr
+                                  10
+                                  (Env.empty string cinst)
+                                  ingress_action_env
+                                  ingress_table_env
+                                  (Env.empty string fdecl)
+                                  arch
+                                  simple_nat_ingress).
 
-    Definition scope_occlusion_action :=
-      s_sequence [
-      ST.SVardecl (bit 32) "x" d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-      ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
-      ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
-      ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-      ]
-    .
+  Definition scope_occlusion_function :=
+    s_sequence [
+    ST.SVardecl (bit 32) "x" d;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+    ST.SFunCall "swap" [] (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+    ]
+  .
 
-    Print ADecl.
-    Print ARCH.extern_env.
-    Definition swap_act :=
-      ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl)
-            (Env.empty string ARCH.P4Extern)
-            ["x"; "y"]
-            swap_body.
+  Definition swap_body :=
+    let var := fun s => E.EVar (bit 32) s d in
+    let x := var "x" in
+    let y := var "y" in
+    let z := var "z" in
+    let assn := fun lhs rhs => ST.SAssign (bit 32) lhs rhs d in
+    s_sequence [
+    ST.SVardecl (bit 32) "x" d;
+    ST.SBlock (s_sequence [
+               ST.SVardecl (bit 32) "x" d;
+               assn x y;
+               assn y z;
+               assn z x
+              ])
+    ].
 
-    Definition swap_aenv := [("swap", swap_act)].
+  Definition swap_fdecl :=
+    FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl)
+          ["y"; "z"]
+          swap_body.
 
-    Compute (Translate.p4cub_statement_to_gcl instr
-                                              15
-                                              (Env.empty string cinst)
-                                              swap_aenv
-                                              (Env.empty string (CD.table tags_t))
-                                              (Env.empty string fdecl)
-                                              arch
-                                              scope_occlusion_action).
+  Definition swap_fenv := [("swap",swap_fdecl)].
+
+  Compute (p4cub_statement_to_gcl Info instr
+                                  100
+                                  (Env.empty string cinst)
+                                  (Env.empty string adecl)
+                                  (Env.empty string (CD.table Info))
+                                  (swap_fenv)
+                                  arch
+                                  scope_occlusion_function).
+
+  Definition scope_occlusion_block :=
+    s_sequence [
+    ST.SVardecl (bit 32) "x" d;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+    ST.SBlock swap_body;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+    ]
+  .
+
+  Compute (p4cub_statement_to_gcl Info instr
+                                  15
+                                  (Env.empty string cinst)
+                                  (Env.empty string adecl)
+                                  (Env.empty string (CD.table Info))
+                                  (Env.empty string fdecl)
+                                  arch
+                                  scope_occlusion_block).
+
+  Definition scope_occlusion_action :=
+    s_sequence [
+    ST.SVardecl (bit 32) "x" d;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
+    ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
+    ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
+    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
+    ]
+  .
+
+  Definition swap_act :=
+    ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl)
+          (Env.empty string ARCH.P4Extern)
+          ["x"; "y"]
+          swap_body.
+
+  Definition swap_aenv := [("swap", swap_act)].
+
+  Compute (p4cub_statement_to_gcl Info instr
+                                  15
+                                  (Env.empty string cinst)
+                                  swap_aenv
+                                  (Env.empty string (CD.table Info))
+                                  (Env.empty string fdecl)
+                                  arch
+                                  scope_occlusion_action).
 
 
 
-  End Tests.
+End Tests.
+
+Module SimpleNat.
+
+  Require Import Poulet4.P4defs.
+  Definition v1model : model Info := [].
+
+  Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
+
+  Print p4cub_to_gcl.
+
+  Compute (let* sn := p4cub_simple_nat in
+           p4cub_to_gcl Info instr 1000 v1model sn).
+
+
+End SimpleNat.

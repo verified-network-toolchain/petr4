@@ -2,6 +2,7 @@ Set Warnings "-custom-entry-overridden".
 From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
+Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.P4cub.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Error.
@@ -30,6 +31,7 @@ Section CEnv.
     globvars: (list (AST.ident * globvar Ctypes.type));
     numStrMap : Env.t Z AST.ident;
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
+    tables : Env.t string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)); 
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -46,6 +48,7 @@ Section CEnv.
     globvars := [];
     numStrMap :=  Env.empty Z AST.ident;
     topdecltypes := Env.empty string (TopDecl.d tags_t);
+    tables := Env.empty string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -63,6 +66,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}.
 
 
@@ -83,6 +87,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -101,6 +106,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}.
 
 
@@ -121,6 +127,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}, new_ident).
 
 
@@ -141,6 +148,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}.
 
   Definition add_composite_typ 
@@ -160,6 +168,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
     |}
     .
 
@@ -182,6 +191,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := Env.bind name decl env.(topdecltypes);
+    tables := env.(tables);
     |}.
 
   Definition add_function 
@@ -203,6 +213,7 @@ Section CEnv.
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
   |}.
 
   Definition update_function
@@ -223,6 +234,7 @@ Section CEnv.
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
   |}.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
@@ -278,25 +290,22 @@ Section CEnv.
               (digit::l, Z.succ count)
     end.
 
-  Definition find_BitVec_String 
-  (env: ClightEnv)
-  (val: Z)
-  : ClightEnv * ident :=
-  match Env.find val env.(numStrMap) with 
-  | Some id => (env, id)
-  | None =>
-  let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
-  let dec := Z.to_int val in
-  let (inits, length) := to_C_dec_str dec in
-  let gvar :=  {|
-    gvar_info := (tarray tschar length);
-    gvar_init := inits;
+  Definition add_Table
+    (env : ClightEnv)
+    (name : string)
+    (key : list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))
+    (actions : list string) 
+    : ClightEnv :=
+    let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
+    let gvar :=  {|
+    gvar_info := (Tstruct _Table noattr);
+    gvar_init := [];
     gvar_readonly := false;
     gvar_volatile := false
-  |} in
-  let env' :=
+    |} in 
+    let env' := 
     {|
-    identMap := env.(identMap);
+    identMap := Env.bind name new_id env.(identMap);
     temps := env.(temps);
     vars := env.(vars);
     composites := env.(composites);
@@ -306,11 +315,12 @@ Section CEnv.
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := (new_id, gvar) :: env.(globvars);
-    numStrMap := Env.bind val new_id env.(numStrMap);
+    numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := Env.bind name (key, actions) env.(tables);
     |} in 
-    (env', new_id)
-  end.
+    env'
+    .
 
 
 
@@ -330,6 +340,7 @@ Section CEnv.
   globvars := env.(globvars);
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -346,6 +357,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -362,6 +374,7 @@ Section CEnv.
     globvars := to.(globvars);
     numStrMap := to.(numStrMap);
     topdecltypes := to.(topdecltypes);
+    tables := to.(tables);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
@@ -378,6 +391,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
   |}.  
 
   Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
@@ -396,6 +410,7 @@ Section CEnv.
     globvars := env.(globvars);
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
   |}.  
 
   (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
@@ -516,6 +531,53 @@ Section CEnv.
 
   Definition lookup_var_type (env: ClightEnv) (id : AST.ident) : @error_monad string Ctypes.type :=
     lookup_type_rec env.(vars) id.
+
+
+  
+    Definition find_BitVec_String 
+    (env: ClightEnv)
+    (val: Z)
+    : ClightEnv * ident :=
+    match Env.find val env.(numStrMap) with 
+    | Some id => (env, id)
+    | None =>
+    let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
+    let dec := Z.to_int val in
+    let (inits, length) := to_C_dec_str dec in
+    let gvar :=  {|
+      gvar_info := (tarray tschar length);
+      gvar_init := inits;
+      gvar_readonly := false;
+      gvar_volatile := false
+    |} in
+    let env' :=
+      {|
+      identMap := env.(identMap);
+      temps := env.(temps);
+      vars := env.(vars);
+      composites := env.(composites);
+      identGenerator := gen';
+      fenv := env.(fenv);
+      tempOfArg := env.(tempOfArg);
+      instantiationCarg := env.(instantiationCarg);
+      maininit := env.(maininit);
+      globvars := (new_id, gvar) :: env.(globvars);
+      numStrMap := Env.bind val new_id env.(numStrMap);
+      topdecltypes := env.(topdecltypes);
+      tables := env.(tables);
+      |} in 
+      (env', new_id)
+    end.
+
+  
+  Definition find_table (env: ClightEnv) (name: string) 
+    : @error_monad string (AST.ident * (list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)) 
+    := 
+    match Env.find name env.(identMap), Env.find name env.(tables) with
+    | Some id, Some (keys, actions) => error_ret (id, keys, actions)
+    | _, _ => err "can't find table"
+    end .
+
 
   Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
     := env.(vars).

@@ -294,7 +294,7 @@ void init_entry(Entry* entry, Pat* pattern, ActionRef action, int num_keys){
 
 //initialize a table with the given number of keys, the desired size of the table
 //and the matchkind of all its keys
-Table* init_table(int num_keys, int size, int args_lub){
+Table* init_table(int num_keys, int size){
   Table* table = (Table* ) malloc(sizeof(Table));
   table->num_keys = num_keys;
   table->capacity = size;

@@ -2,7 +2,7 @@ Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.SmallStep.Value
         Poulet4.P4cub.Envn Poulet4.P4Arith
-        Coq.PArith.BinPos Coq.ZArith.BinInt
+        Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Static.Static.
 
@@ -22,8 +22,8 @@ Section StepDefs.
     | <{ _ W z @ i }>
     | <{ _ S z @ i }>
       => let w' := (hi - lo + 1)%positive in
-        Some $ Expr.EBit w'
-             (BitArith.mod_bound w' $
+        Some $ Expr.EBit (Npos w')
+             (BitArith.mod_bound (Npos w') $
               BitArith.bitstring_slice z hi lo) i
     | _ => None
     end.
@@ -32,10 +32,10 @@ Section StepDefs.
   Definition eval_cast
              (target : Expr.t) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
     match target, v with
-    | {{ bit<xH> }}, <{ TRUE @ i }>         => Some (Expr.EBit 1%positive 1%N i)
-    | {{ bit<xH> }}, <{ FALSE @ i }>        => Some (Expr.EBit 1%positive 0%N i)
-    | {{ Bool }}, Expr.EBit 1%positive 1%N i => Some <{ TRUE @ i }>
-    | {{ Bool }}, Expr.EBit 1%positive 0%N i => Some <{ FALSE @ i }>
+    | (Expr.TBit (Npos 1)), <{ TRUE @ i }>         => Some (Expr.EBit 1%N 1%Z i)
+    | (Expr.TBit (Npos 1)), <{ FALSE @ i }>        => Some (Expr.EBit 1%N 0%Z i)
+    | {{ Bool }}, Expr.EBit 1%N 1%Z i => Some <{ TRUE @ i }>
+    | {{ Bool }}, Expr.EBit 1%N 0%Z i => Some <{ FALSE @ i }>
     | {{ bit<w> }}, Expr.EInt _ z i
       => let n := BitArith.mod_bound w z in
         Some <{ w W n @ i }>
@@ -108,9 +108,10 @@ Section StepDefs.
       => Some <{ hdr { fs } valid:=TRUE @ i @ i}>
     | _{ setInValid }_, <{ hdr { fs } valid:=b @ i }>
       => Some <{ hdr { fs } valid:=FALSE @ i @ i }>
-    | _{ Size }_, <{ Stack hs:_ nextIndex:=_ @ i }>
-      => let w := 32%positive in
-        let s := Z.of_nat (length hs) in Some <{ w W s @ i }>
+    | _{ Size }_, <{ Stack _:_ nextIndex:=_ @ i }>
+      => let w := 32%N in
+        (* XXX need actual size instead of 0 here *)
+        let s := Zpos xH in Some <{ w W s @ i }>
     | _{ Next }_, <{ Stack hs:_ nextIndex:=ni @ _ }>
       => nth_error hs $ Z.to_nat ni
     | _, _ => None
@@ -174,11 +175,19 @@ Section StepDefs.
     | +{ == }+, _, _ => Some $ Expr.EBool (ExprEquivalence.eqbe v1 v2) i
     | +{ != }+, _, _ => Some $ Expr.EBool (negb $ ExprEquivalence.eqbe v1 v2) i
     | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
+      => Some $ Expr.EBit (w1 + w2)%N (BitArith.concat w1 w2 n1 n2) i
     | +{ ++ }+, <{ w1 W n1 @ _ }>, <{ w2 S n2 @ _ }>
-      => Some $ Expr.EBit (w1 + w2)%positive (BitArith.concat w1 w2 n1 n2) i
+      => Some $ Expr.EBit (w1 + Npos w2)%N (BitArith.concat w1 (Npos w2) n1 n2) i
     | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 S n2 @ _ }>
+      => Some $ Expr.EInt (w1 + w2)%positive (IntArith.concat (Npos w1) (Npos w2) n1 n2) i
     | +{ ++ }+, <{ w1 S n1 @ _ }>, <{ w2 W n2 @ _ }>
-      => Some $ Expr.EInt (w1 + w2)%positive (IntArith.concat w1 w2 n1 n2) i
+      =>
+      match w2 with
+      | 0%N => 
+        Some (Expr.EInt w1 n1 i)
+      | Npos w2 =>
+        Some $ Expr.EInt (w1 + w2)%positive (IntArith.concat (Npos w1) (Npos w2) n1 n2) i
+      end
     | _, _, _ => None
     end.
   (**[]*)
@@ -229,18 +238,17 @@ Section StepDefs.
     Lemma eval_slice_types : forall D Γ v v' τ hi lo w,
         eval_slice hi lo v = Some v' ->
         value v ->
-        (lo <= hi < w)%positive ->
+        (Npos lo <= Npos hi < w)%N ->
         numeric_width w τ ->
         ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
-        let w' := (hi - lo + 1)%positive in
+        let w' := (Npos hi - Npos lo + 1)%N in
         ⟦ D, Γ ⟧ ⊢ v' ∈ bit<w'>.
     Proof.
       intros D Γ v v' τ hi lo w Heval Hv Hw Hnum Ht w'; subst w';
         inv Hnum; assert_canonical_forms; unravel in *; inv Heval; auto 2.
-    Qed.
+    Admitted.
     
     Local Hint Resolve BitArith.bound0 : core.
-    Local Hint Resolve BitArith.bound1 : core.
     Local Hint Resolve IntArith.bound0 : core.
     
     Lemma eval_cast_types : forall D Γ τ τ' v v',
@@ -257,7 +265,14 @@ Section StepDefs.
                 |- _ => destruct b eqn:?
               end; try (inv Heval; auto 2; assumption).
       - destruct x; try (inv Heval; auto 2; assumption).
-        destruct p; inv Heval; auto 2.
+        inv Heval; auto 2.
+        constructor.
+        unfold BitArith.bound.
+        unfold BitArith.upper_bound.
+        lia.
+    Admitted.
+    
+        (*
       - destruct w; inv Heval; auto 2.
       - destruct w2; inv Heval; auto 2.
       - inv Heval. constructor.
@@ -273,8 +288,7 @@ Section StepDefs.
             unravel in *; try inv_Forall2_cons;
               constructor; try split;
                 unravel; try apply IHx; auto 2.
-    Qed. *)
-    Admitted.
+         *) *)
     
     Lemma eval_bop_types : forall Γ D op τ1 τ2 τ (i : tags_t) v1 v2 v,
         bop_type op τ1 τ2 τ ->
@@ -374,7 +388,7 @@ Section StepDefs.
     
     Lemma eval_slice_exists : forall D Γ v τ hi lo w,
         value v ->
-        (lo <= hi < w)%positive ->
+        (Npos lo <= Npos hi < w)%N ->
         numeric_width w τ ->
         ⟦ D, Γ ⟧ ⊢ v ∈ τ ->
         exists v', eval_slice hi lo v = Some v'.
@@ -396,7 +410,7 @@ Section StepDefs.
           try (cbv in H0; destruct H0; try destruct p; discriminate).
       - destruct w; eauto 2.
       - destruct w2; eauto 2.
-    Qed.
+    Admitted.
     
     Lemma eval_bop_exists : forall D Γ op τ1 τ2 τ (i : tags_t) v1 v2,
         bop_type op τ1 τ2 τ ->

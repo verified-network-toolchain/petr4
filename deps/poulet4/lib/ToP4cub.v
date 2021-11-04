@@ -301,13 +301,13 @@ Section ToP4cub.
       typ'
     | TypControl c =>
       (* FIXME Solve control type issue*)
-      ok (E.TVar "$CONTROL_DUMMY")
+      ok (E.TVar "$DUMMY")
     | TypParser c =>
       (* FIXME solve control type issue*)
-      ok (E.TVar "$PARSER_DUMMY")
+      ok (E.TVar "$DUMMY")
     | TypExtern name =>
       (* error "An extern is not an expression type" *)
-      ok (E.TVar ("$EXTERN_DUMMY_"++ (P4String.str name)))
+      ok (E.TVar ("$DUMMY"++ (P4String.str name)))
     | TypFunction fn =>
       error "A function is not an expression"
     | TypAction _ _ =>
@@ -860,12 +860,13 @@ Section ToP4cub.
     (* FIXME Something is wrong here. We should be disambiguating here between CAExpr and CAName *)
     List.fold_right (fun '((str, typ), e) (acc_r : result (E.constructor_args tags_t)) =>
                        let* acc := acc_r in
-                       match typ, e with
-                       | E.CTType _, _ =>
+                       match e with
+                       | E.EVar (E.TVar s) nm _ =>
+                         if String.eqb s "$DUMMY"
+                         then ok ((str, E.CAName nm)::acc)
+                         else ok ((str, E.CAExpr e)::acc)
+                       | _ =>
                          ok ((str, E.CAExpr e)::acc)
-                       | _, E.EVar _ nm _ =>
-                         ok ((str, E.CAName nm)::acc)
-                       | _, _ => error "DONT KNOW HOW TO translate instaniations"
                        end) (ok []) param_args.
 
   Definition constructor_paramargs (ctor_name: string) (args : list Expression) (ctx : DeclCtx) :=

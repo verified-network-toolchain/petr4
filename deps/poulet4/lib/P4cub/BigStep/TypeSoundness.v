@@ -158,9 +158,11 @@ Section BigStepTheorems.
     Theorem lvalue_preservation : forall D Γ (e : Expr.e tags_t) lv τ,
         ⧠ e ⇓ lv -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> LL D, Γ ⊢ lv ∈ τ.
     Proof.
+      Unset Printing Notations.
       intros D Γ e lv τ Hlv; generalize dependent τ;
         induction Hlv; intros t Ht; inv Ht; eauto 3.
-      econstructor; eauto.
+      subst w'.
+      econstructor 2; eauto.
     Qed.
   End LVPreservation.
 

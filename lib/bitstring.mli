@@ -1,4 +1,4 @@
-type t = Bigint.t
+type t = Util.bigint
 
 (** [shift_bitstring_left v o] is [v] shifted left by [o]. *)
 val shift_bitstring_left : t -> t -> t
@@ -20,9 +20,9 @@ val of_twos_complement : t -> t -> t
     range [-2^(w-1) .. 2^(w-1)-1]. *)
 val to_twos_complement : t -> t -> t
 
-val bit_of_rawint : t -> int -> Prog.coq_ValueBase
+val bit_of_rawint : t -> int -> Prog.coq_Value
 
-val int_of_rawint : t -> int -> Prog.coq_ValueBase
+val int_of_rawint : t -> int -> Prog.coq_Value
 
 (* [bitwsie_neg_of_bigint n w] computes the bitwise negation of n as a
    w-bit two's complement number. *)

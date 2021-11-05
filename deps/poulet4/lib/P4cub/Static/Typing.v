@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.AST Poulet4.P4Arith
         Poulet4.P4cub.Envn Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Syntax.CubNotations.
@@ -57,8 +57,8 @@ Inductive check_expr
   : Expr.e tags_t -> Expr.t -> Prop :=
 (* Literals. *)
 | chk_bool (b : bool) (i : tags_t) :
-    ⟦ Δ , Γ ⟧ ⊢ BOOL b @ i ∈ Bool
-| chk_bit (w : positive) (n : Z) (i : tags_t) :
+    ⟦ Δ, Γ ⟧ ⊢ BOOL b @ i ∈ Bool
+| chk_bit (w : N) (n : Z) (i : tags_t) :
     BitArith.bound w n ->
     ⟦ Δ , Γ ⟧ ⊢ w W n @ i ∈ bit<w>
 | chk_int (w : positive) (n : Z) (i : tags_t) :
@@ -70,11 +70,11 @@ Inductive check_expr
     ProperType.proper_nesting τ ->
     ⟦ Δ , Γ ⟧ ⊢ Var x:τ @ i ∈ τ
 | chk_slice (e : Expr.e tags_t) (τ : Expr.t)
-            (hi lo w : positive) (i : tags_t) :
-    (lo <= hi < w)%positive ->
+            (hi lo : positive) (w : N) (i : tags_t) :
+    (Npos lo <= Npos hi < w)%N ->
     numeric_width w τ ->
     ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    let w' := (hi - lo + 1)%positive in
+    let w' := Npos (hi - lo + 1)%positive in
     ⟦ Δ, Γ ⟧ ⊢ Slice e [hi:lo] @ i ∈ bit<w'>
 | chk_cast (τ τ' : Expr.t) (e : Expr.e tags_t) (i : tags_t) :
     proper_cast τ' τ ->
@@ -127,9 +127,8 @@ Inductive check_expr
   (* Header stacks. *)
   | chk_stack (ts : F.fs string Expr.t)
               (hs : list (Expr.e tags_t))
-              (ni : Z) (i : tags_t) :
-      let n := Pos.of_nat (length hs) in
-      BitArith.bound 32%positive (Zpos n) ->
+              (n : positive) (ni : Z) (i : tags_t) :
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       ProperType.proper_nesting {{ stack ts[n] }} ->
       t_ok Δ {{ stack ts[n] }} ->

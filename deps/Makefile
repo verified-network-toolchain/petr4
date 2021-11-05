@@ -23,9 +23,9 @@ poulet4:
 
 poulet4_Ccomp: poulet4
 	$(MAKE) -C poulet4_Ccomp clean
+	$(MAKE) -C poulet4_Ccomp
 	opam unpin poulet4_Ccomp --yes
-	$(MAKE) -C ./poulet4_Ccomp
-	opam install ./poulet4_Ccomp/extraction --working-dir --assume-built --yes
+	opam install ./poulet4_Ccomp/extraction --working-dir --yes
 
 clean:
 	$(MAKE) -C poulet4 clean

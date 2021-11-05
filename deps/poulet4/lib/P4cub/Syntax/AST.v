@@ -76,7 +76,7 @@ Module Expr.
     (** Expression types. *)
     Inductive t : Type :=
     | TBool                            (* bool *)
-    | TBit (width : positive)          (* unsigned integers *)
+      | TBit (width : N)                 (* unsigned integers *)
     | TInt (width : positive)          (* signed integers *)
     | TError                           (* the error type *)
     | TMatchKind                       (* the matchkind type *)
@@ -168,7 +168,7 @@ Module Expr.
         unless the type is obvious. *)
     Inductive e : Type :=
     | EBool (b : bool) (i : tags_t)                     (* booleans *)
-    | EBit (width : positive) (val : Z) (i : tags_t) (* unsigned integers *)
+      | EBit (width : N) (val : Z) (i : tags_t)        (* unsigned integers *)
     | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
     | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
     | ESlice (arg : e)
@@ -309,11 +309,11 @@ Module Parser.
       Corresponds to keySet expressions in p4. *)
   Inductive pat : Type :=
   | PATWild                             (* wild-card/anything pattern *)
-  | PATMask  (p1 p2 : pat)              (* mask pattern *)
+  | PATMask (p1 p2 : pat)               (* mask pattern *)
   | PATRange (p1 p2 : pat)              (* range pattern *)
-  | PATBit (width : positive) (val : Z) (* unsigned-int pattern *)
+  | PATBit (width : N) (val : Z)        (* unsigned-int pattern *)
   | PATInt (width : positive) (val : Z) (* signed-int pattern *)
-  | PATTuple (ps : list pat)            (* tuple pattern *).
+  | PATTuple (ps : list pat).           (* tuple pattern *)
   (**[]*)
 
   Section Parsers.

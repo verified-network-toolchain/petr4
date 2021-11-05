@@ -31,32 +31,32 @@ deps:
 doc:
 	dune build @doc
 
-run:
+run: build
 	dune exec -- $(NAME)
 
-install:
+install: build
 	dune install
 
 ctest: build install
 	cd deps/poulet4_Ccomp && petr4 c && gcc -o helloworld.o ccompiled.c -lgmp -lm
 
-claims:
+claims: build
 	@test/claims.py
 
-ci-test:
+ci-test: build
 	#dune exec -- bin/test.exe
 	cd test && dune exec -- ./test.exe test -q
 
-test-stf:
+test-stf: build
 	dune exec -- bin/test.exe
 
-test:
+test: build
 	cd test && dune exec -- ./test.exe
 
 clean:
 	dune clean
 
-web:
+web: build
 	mkdir -p html_build/p4
 	cp $(WEB_EXAMPLES) html_build/p4
 	cd web && dune build ./web.bc.js --profile release && cp ../_build/default/web/web.bc.js ../html_build/ && cd ..

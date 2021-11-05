@@ -1654,7 +1654,7 @@ Coercion unfold_cenv : cenv >-> IdentMap.t.
 
 Section instantiate_class_body.
 
-Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
+Variable instantiate_class_body_ce : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
       (s : extern_state), path * inst_mem * extern_state.
 
 Section instantiate_expr'.
@@ -1690,7 +1690,7 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (inl (mk_inst_ref class_name p), m, s)
   else
     let e := IdentMap.sets params args e in
-    let '(_, m, s) := instantiate_class_body_rev_decls e class_name p m s in
+    let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
     (inl (mk_inst_ref class_name p), m, s).
 
 End instantiate_expr'.

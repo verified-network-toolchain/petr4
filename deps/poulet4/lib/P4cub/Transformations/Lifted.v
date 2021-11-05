@@ -4,6 +4,24 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
+Ltac translateStmt_destr :=
+  match goal with
+  | |- context [TranslateStatement ?s ?env]
+    => destruct (TranslateStatement s env) as [? ?] eqn:?; simpl in *
+  end.
+
+Ltac translateArrowE_destr :=
+  match goal with
+  | |- context [TranslateArrowE ?args ?env ?i]
+    => destruct (TranslateArrowE args env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
+Ltac translateArgs_destr :=
+  match goal with
+  | |- context [TranslateArgs ?args ?env ?i]
+    => destruct (TranslateArgs args env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
 Ltac transformExpr_destr :=
   match goal with
   | |- context [TransformExpr ?e ?env]
@@ -356,17 +374,28 @@ Section Lifted.
     + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
     + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).   
     + transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
-  - destruct (TranslateStatement s1 t) eqn:Hs1.
-   destruct (TranslateStatement s2 t0) eqn:Hs2. constructor.
+  - repeat translateStmt_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
     + constructor. 
       * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
-      * transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
-      * transformExpr_f_equal Hs2 (fun x:(Stmt.s tags_t) => x). 
-  - destruct (TranslateStatement s1 env) eqn:Hs1. destruct (TranslateStatement s2 t) eqn:Hs2. 
-    constructor. 
-    + transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
-    + transformExpr_f_equal Hs2 (fun x:(Stmt.s tags_t) => x). 
-  - destruct (TranslateStatement s env) eqn:Hs1. constructor. transformExpr_f_equal Hs1 (fun x:(Stmt.s tags_t) => x).
-  Admitted. 
+      * transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x).
+      * transformExpr_f_equal Heqp1 (fun x:(Stmt.s tags_t) => x). 
+  - repeat translateStmt_destr. constructor. 
+    + transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+    + transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x). 
+  - translateStmt_destr. constructor. transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+  - translateArrowE_destr. admit.
+  - translateArrowE_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). admit.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). constructor. admit.
+  - translateArgs_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).  admit.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.
+  - admit.
+  - translateArgs_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). admit.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.
+  - admit.
+  - admit.
+  Admitted.
 End Lifted.

@@ -332,6 +332,20 @@ Proof.
   intuition.
 Qed.
 
+Lemma reduce_inner_impl_forall : forall (A : Type) (P Q R : A -> Prop),
+    (forall a, P a -> Q a -> R a) -> (forall a, P a -> Q a) -> forall a, P a -> R a.
+Proof.
+  intuition.
+Qed.
+
+Lemma reduce_inner_impl_forall_impl : forall (A : Type) (P Q R S : A -> Prop),
+    (forall a, S a -> Q a) -> (forall a, P a -> Q a -> R a) ->
+    (forall a, P a -> S a) -> forall a, P a -> R a.
+Proof.
+  intuition.
+Qed.
+
+
 Lemma split_impl_conj : forall (A : Type) (P Q R : A -> Prop),
     (forall a, P a -> Q a /\ R a) <->
     (forall a, P a -> Q a) /\ forall a, P a -> R a.
@@ -412,4 +426,43 @@ Proof.
   intros U us vs; split; intros H; subst.
   - induction H; subst; auto.
   - induction vs; auto.
+Qed.
+
+Lemma map_pat_both : forall (U V W : Type) (f : U -> V -> W) luv,
+    map (fun '(u,v) => f u v) luv = map (fun uv => f (fst uv) (snd uv)) luv.
+Proof.
+  intros U V W f luv;
+    induction luv as [| [u v] luv IHluv];
+    simpl; f_equal; auto.
+Qed.
+
+Lemma Forall2_destr_pair_eq :
+  forall {U V W : Type}
+    (f : V -> option W)
+    (luv : list (U * V)) (luw : list (U * W)),
+    Forall2 (fun uv uw =>
+               match f (snd uv) with
+               | Some w => Some (fst uv, w)
+               | None   => None
+               end = Some uw) luv luw <->
+    map fst luv = map fst luw /\
+    Forall2 (fun v w => f v = Some w) (map snd luv) (map snd luw).
+Proof.
+  intros U V W f luv luw; split;
+    generalize dependent luw;
+    induction luv as [| [u v] luv IHluv];
+    intros [| [u' w] luw]; simpl in *; intros H; auto.
+  - inversion H.
+  - inversion H.
+  - inversion H; subst; clear H; simpl in *.
+    destruct (f v) as [w' |] eqn:Heqfv; simpl in *;
+      inversion H3; subst; clear H3.
+    apply IHluv in H5 as [Hfst Hsnd];
+      rewrite Hfst; split; auto.
+  - destruct H as [H _]; inversion H.
+  - destruct H as [H _]; inversion H.
+  - destruct H as [Hfst Hsnd];
+      inversion Hfst; inversion Hsnd; subst; clear Hfst Hsnd;
+        constructor; simpl; auto.
+    rewrite H4; auto.
 Qed.

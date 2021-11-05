@@ -235,7 +235,7 @@ Section Lemmas.
     Hint Rewrite @F.relfs_split_map_iff.
     Hint Rewrite @F.map_fst.
     Local Hint Resolve Forall_impl : core.
-    Fail Local Hint Resolve vdefault_types : core.
+    Local Hint Resolve vdefault_types : core.
     Local Hint Resolve Forall_firstn : core.
     Local Hint Resolve Forall_skipn : core.
     

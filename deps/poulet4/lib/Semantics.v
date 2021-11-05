@@ -1770,42 +1770,33 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
 Definition instantiate' :=
   instantiate'' instantiate_expr'.
 
-Fixpoint instantiate_init_decl' (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
+Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
       (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
   | DeclInstantiation _ typ args name init =>
       let '(inst, m, s) := instantiate' ce e typ args (p ++ [name]) m s in
-      let instantiate_init_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_init_decl' ce e decl p m s in
-      let '(_, m, s) := fold_left instantiate_init_decl'' init (e, m, s) in
+      let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl p m s in
+      let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set name inst e, m, s)
   | DeclFunction _ _ name type_params params body =>
-      let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
-      let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal [name; param])) params in
-      let fd := FInternal params init body in
-      let ee := extern_set_abstract_method (snd m) (p ++ [name]) (exec_abstract_method p fd) in
-      (e, (fst m, ee), s)
-  | _ => (e, m, s)
-  end.
-
-Definition instantiate_decl' (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
-      (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
-  match decl with
-  | DeclInstantiation _ typ args name init =>
-      let '(inst, m, s) := instantiate' ce e typ args (p ++ [name]) m s in
-      let instantiate_init_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_init_decl' ce e decl p m s in
-      let '(_, m, s) := fold_left instantiate_init_decl'' init (e, m, s) in
-      (IdentMap.set name inst e, m, s)
+      if is_init_block then
+        let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+        let init := uninit_out_params out_params in
+        let params := map get_param_name_dir params in
+        let params := map (map_fst (fun param => LGlobal [name; param])) params in
+        let fd := FInternal params init body in
+        let ee := extern_set_abstract_method (snd m) (p ++ [name]) (exec_abstract_method p fd) in
+        (e, (fst m, ee), s)
+      else
+        (e, m, s)
   | _ => (e, m, s)
   end.
 
 Definition instantiate_decls' (ce : cenv) (e : ienv) (decls : list (@Declaration tags_t))
       (p : path) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
   let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-    let '(e, m, s) := ems in instantiate_decl' ce e decl p m s in
+    let '(e, m, s) := ems in instantiate_decl' false ce e decl p m s in
   let '(_, m, s) := fold_left instantiate_decl'' decls (e, m, s) in
   (m, s).
 
@@ -1893,7 +1884,7 @@ Definition instantiate (ce : cenv) :=
   instantiate' (instantiate_class_body ce) ce.
 
 Definition instantiate_decl (ce : cenv) :=
-  instantiate_decl' (instantiate_class_body ce) ce.
+  instantiate_decl' (instantiate_class_body ce) false ce.
 
 Definition instantiate_decls (ce : cenv) :=
   instantiate_decls' (instantiate_class_body ce) ce.

@@ -48,11 +48,15 @@ Definition packet_in := list bool.
 
 Definition packet_out := list bool.
 
+Inductive env_object := .
+
 Inductive object :=
   | ObjTable (entries : list table_entry)
   | ObjRegister (reg : register)
   | ObjPin (pin : packet_in)
   | ObjPout (pout : packet_out).
+
+Definition extern_env := @PathMap.t tags_t env_object.
 
 Definition extern_state := @PathMap.t tags_t object.
 
@@ -60,22 +64,22 @@ Definition extern_empty : extern_state := PathMap.empty.
 
 Definition dummy_tags := @default tags_t _.
 
-Definition alloc_extern (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list Val) :=
+Definition alloc_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if P4String.equivb class !"register" then
     match args with
     (* | [ValBaseInteger size] *)
-    | [ValBaseBit bits]
+    | [inr (ValBaseBit bits)]
     (* | [ValBaseInt _ size] *) =>
         match targs with
         | [TypBit w] =>
             let (_, size) := BitArith.from_lbool bits in
-            PathMap.set p (ObjRegister (new_register size w)) s
-        | _ => s (* fail *)
+            (e, PathMap.set p (ObjRegister (new_register size w)) s)
+        | _ => (e, s) (* fail *)
         end
-    | _ => s (* fail *)
+    | _ => (e, s) (* fail *)
     end
   else
-    s.
+    (e, s).
 
 Definition extern_func_sem := extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
 
@@ -169,19 +173,19 @@ Definition packet_out_emit : extern_func := {|
 
 (* This only works when tags_t is a unit type. *)
 
-Inductive exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
-  | exec_extern_register_read : forall s p targs args s' args' vret,
+Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
+  | exec_extern_register_read : forall e s p targs args s' args' vret,
       apply_extern_func_sem register_read s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->
-      exec_extern s (ef_class register_read) (ef_func register_read) p targs args s' args' vret
-  | exec_extern_register_write : forall s p targs args s' args' vret,
+      exec_extern e s (ef_class register_read) (ef_func register_read) p targs args s' args' vret
+  | exec_extern_register_write : forall e s p targs args s' args' vret,
       apply_extern_func_sem register_write s (ef_class register_write) (ef_func register_write) p targs args s' args' vret ->
-      exec_extern s (ef_class register_write) (ef_func register_write) p targs args s' args' vret
-  | exec_extern_packet_in_extract : forall s p targs args s' args' vret,
+      exec_extern e s (ef_class register_write) (ef_func register_write) p targs args s' args' vret
+  | exec_extern_packet_in_extract : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_in_extract s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
-      exec_extern s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
-  | exec_extern_packet_out_emit : forall s p targs args s' args' vret,
+      exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
+  | exec_extern_packet_out_emit : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_out_emit s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
-      exec_extern s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
+      exec_extern e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
 
 Inductive ValSetT :=
 | VSTSingleton (value: Val)
@@ -431,8 +435,10 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   end.
 
 Instance V1ModelExternSem : ExternSem := Build_ExternSem
+  env_object
   object
   alloc_extern
+  (fun e _ _ => e) (* extern_set_abstract_method *)
   exec_extern
   extern_get_entries
   extern_match.

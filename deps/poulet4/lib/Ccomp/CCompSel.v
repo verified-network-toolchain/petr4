@@ -732,7 +732,7 @@ Section CCompSel.
         | Expr.EBit width val i => 
           let* dst' := find_ident tags_t env dst in
           let (env', val_id) := find_BitVec_String tags_t env val in 
-          let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
+          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
           let signed := Econst_int (Integers.Int.zero) (type_bool) in 
           let val' := Evar val_id Cstring in
           let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
@@ -1016,7 +1016,7 @@ Section CCompSel.
         let env := add_var tags_t env fresh_name bit_vec in 
         let* dst := find_ident tags_t env fresh_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
         let signed := Econst_int (Integers.Int.zero) (type_bool) in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
@@ -1372,7 +1372,7 @@ Section CCompSel.
         let env := add_var tags_t env arg_name bit_vec in 
         let* dst := find_ident tags_t env arg_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
         let signed := Econst_int (Integers.Int.zero) (type_bool) in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in

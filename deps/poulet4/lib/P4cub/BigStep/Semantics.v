@@ -132,7 +132,7 @@ Module Step.
   (* Literals. *)
   | ebs_bool (b : bool) (i : tags_t) :
       ⟨ ϵ, BOOL b @ i ⟩ ⇓ VBOOL b
-  | ebs_bit (w : N) (n : Z) (i : tags_t) :
+  | ebs_bit (w : positive) (n : Z) (i : tags_t) :
       ⟨ ϵ, w W n @ i ⟩ ⇓ w VW n
   | ebs_int (w : positive) (z : Z) (i : tags_t) :
       ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z

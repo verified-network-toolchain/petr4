@@ -2,7 +2,7 @@ Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Require Import Coq.Sorting.Permutation.
 Require Import Coq.Bool.Sumbool.
-Require Import Coq.Classes.Morphisms Poulet4.Utils.
+Require Import Coq.Classes.Morphisms.
 Import ListNotations.
 
 Definition AList
@@ -264,63 +264,4 @@ Section AList.
       key_unique l = true -> key_unique (filter l f) = true.
   Proof. intros. apply key_unique_sublist_true with l; auto. apply filter_sublist. Qed.
 
-  Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
-    AList K A R -> AList K B R -> Prop :=
-    Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
-  
-  (*Inductive all_values {A B} (hold_one_value : A -> B -> Prop) :
-                       AList K A R -> AList K B R -> Prop :=
-  | all_values_nil : all_values hold_one_value nil nil
-  | all_values_cons : forall k v v' kvs kvs',
-                      hold_one_value v v' ->
-                      all_values hold_one_value kvs kvs' ->
-                      all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
-
-  Local Hint Constructors all_values : core.*)
-  
-  Lemma Forall2_all_values :
-    forall (U W : Type) (P : U -> W -> Prop) us ws ks,
-      length ks = length us -> length ks = length ws ->
-      Forall2 P us ws <->
-      all_values P (combine ks us) (combine ks ws).
-  Proof.
-    intros U W P us ws ks Hlku Hlkw; unfold all_values.
-    rewrite Forall2_conj.
-    rewrite Forall2_map_both with (f := fst) (g := fst).
-    rewrite Forall2_map_both with (f := snd) (g := snd).
-    repeat rewrite map_snd_combine by auto.
-    repeat rewrite map_fst_combine by auto.
-    rewrite Forall2_Forall, Forall_forall.
-    intuition.
-  Qed.
-
-  Lemma all_values_keys_eq : forall {U W} (P : U -> W -> Prop) us ws,
-      all_values P us ws -> map fst us = map fst ws.
-  Proof.
-    intros U W P us ws HPuws.
-    unfold all_values in HPuws.
-    rewrite Forall2_conj in HPuws.
-    destruct HPuws as [HPl _].
-    rewrite Forall2_map_both in HPl.
-    rewrite Forall2_eq in HPl.
-    assumption.
-  Qed.
 End AList.
-  
-Section Map.
-  Context {K A B : Type} {R: Relation_Definitions.relation K}
-          `{H: Equivalence K R} {KEqDec: EqDec K R}.
-  Variable (f : A -> B).
-  
-  Definition map_values  : AList K A R -> AList K B R :=
-    List.map (fun '(k,a) => (k,f a)).
-  
-  Lemma get_map_values : forall (l : AList K A R) (k : K),
-      get (map_values l) k = option_map f (get l k).
-  Proof.
-    unfold get.
-    induction l as [| [ky a] l IHl]; intros k; simpl; auto.
-    destruct (KEqDec k ky) as [Hkky | Hkky];
-      unfold equiv, complement in *; simpl in *; auto.
-  Qed.
-End Map.

@@ -125,7 +125,7 @@ Section Transformer.
       let value' := map (transform_expr e) value in
       MkExpression tags (ExpList value') typ dir
     | ExpRecord entries =>
-      let entries' := map (fun '(k, v) => (k, transform_expr e v)) entries in
+      let entries' := map (transform_keyvalue e) entries in
       MkExpression tags (ExpRecord entries') typ dir
     | ExpUnaryOp op arg =>
       let arg' := transform_expr e arg in
@@ -157,10 +157,23 @@ Section Transformer.
       let args := map (transform_expr e) args in
       MkExpression tags (ExpNamelessInstantiation typ' args) typ dir
     | ExpDontCare => MkExpression tags ExpDontCare typ dir
+    | ExpMask expr mask =>
+      let expr' := transform_expr e expr in
+      let mask' := transform_expr e mask in
+      MkExpression tags (ExpMask expr' mask') typ dir
+    | ExpRange lo hi =>
+      let lo' := transform_expr e lo in
+      let hi' := transform_expr e hi in
+      MkExpression tags (ExpRange lo' hi') typ dir
     end
   with transform_expr (e: env) (expr: @Expression tags_t): @Expression tags_t :=
     match expr with
     | MkExpression tags expr typ dir => transform_ept e tags expr typ dir
+    end
+  with transform_keyvalue (e: env) (kv: @KeyValue tags_t): @KeyValue tags_t :=
+    match kv with
+    | MkKeyValue tags key value =>
+        MkKeyValue tags key (transform_expr e value)
     end.
 
   Definition transform_exprs (e: env) (exprs: list (@Expression tags_t)): list (@Expression tags_t) :=
@@ -295,17 +308,9 @@ Section Transformer.
     | MkMatch tags expr typ =>
       match expr with
       | MatchDontCare => mt
-      | MatchMask expr mask =>
+      | MatchExpression expr =>
         let expr' := transform_expr e expr in
-        let mask' := transform_expr e mask in
-        MkMatch tags (MatchMask expr' mask') typ
-      | MatchRange lo hi =>
-        let lo' := transform_expr e lo in
-        let hi' := transform_expr e hi in
-        MkMatch tags (MatchRange lo' hi') typ
-      | MatchCast typ' expr =>
-        let expr' := transform_expr e expr in
-        MkMatch tags (MatchCast typ' expr') typ
+        MkMatch tags (MatchExpression expr') typ
       end
     end.
 
@@ -380,10 +385,11 @@ Section Transformer.
       let e' := IdentMap.set name loc e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
+      let size' := transform_expr e size in
       let* _ := use name in
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
-      mret (DeclValueSet tags typ size name, e')
+      mret (DeclValueSet tags typ size' name, e')
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] data_params in

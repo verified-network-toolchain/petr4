@@ -97,9 +97,8 @@ Section ExprTheorems.
           | H: Some _ = Some _ |- _ => inv H
           end;
       try invert_proper_nesting; eauto 4.
-      (*
-      - eapply Forall_nth_error in H12; eauto 1.
-      - subst es; subst es';
+      - (* eapply Forall_nth_error in H12; eauto 1. *) admit.
+      - (*subst es; subst es';
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; eauto.*) admit.
       - (*subst fs; subst fs';
@@ -115,8 +114,7 @@ Section ExprTheorems.
         repeat constructor; unravel; auto 2.*) admit.
       - (*subst hs; subst hs'; constructor;
         autorewrite with core in *; intuition;
-        try inv_Forall_cons; eauto 3.
-*)
+        try inv_Forall_cons; eauto 3.*) admit.
     Admitted.
   End Preservation.
 

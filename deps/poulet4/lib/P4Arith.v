@@ -1,10 +1,6 @@
 Require Import Coq.ZArith.ZArith
         Coq.micromega.Lia
         Coq.Bool.Bool.
-Require Import Poulet4.Sublist.
-Require Import Coq.Lists.List.
-Require Import Poulet4.SyntaxUtil.
-Import ListNotations.
 
 Open Scope Z_scope.
 
@@ -20,9 +16,9 @@ Module BitArith.
   Import Z.
 
   Section Operations.
-    Variable (width : N).
+    Variable (width : positive).
 
-    Definition upper_bound : Z := 2 ^ (Z.of_N width).
+    Definition upper_bound : Z := 2 ^ pos width.
 
     Definition maxZ : Z := upper_bound - 1.
 
@@ -67,11 +63,14 @@ Module BitArith.
     Lemma bound0 : bound 0.
     Proof.
       unfold bound, upper_bound.
-      pose proof exp_ge_one 2 (Z.of_N width). lia.
+      pose proof exp_ge_one 2 (pos width). lia.
     Qed.
 
-    (* Modular bound *)
-    Definition mod_bound (n : Z) : Z := n mod upper_bound.
+    Lemma bound1 : bound 1.
+    Proof.
+      unfold bound, upper_bound.
+      pose proof pow_gt_1 2 (pos width). lia.
+    Qed.
 
     (* Saturating bound *)
     Definition sat_bound (n : Z) : Z :=
@@ -79,6 +78,12 @@ Module BitArith.
       then maxZ
       else if (n <? 0) then 0 else n.
     (**[]*)
+
+    (* Modular bound *)
+    Definition mod_bound (n : Z) : Z := n mod upper_bound.
+
+    (* Modular bound with unsigned bit output *)
+    Definition bit_bound := mod_bound.
 
     Lemma upper_bound_ge_1 : 1 <= upper_bound.
     Proof. unfold upper_bound; apply exp_ge_one; lia. Qed.
@@ -213,18 +218,8 @@ Module BitArith.
     Z.land (Z.shiftr i (Zpos lo)) mask.
 
   (** Bitwise concatination of bit with bit/int *)
-  Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
-    mod_bound (w1 + w2) (shiftl z1 (Z.of_N w2) + (mod_bound w2 z2)).
-
-  (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
-  Definition from_lbool (bits: list bool) : (N * Z) :=
-    let fix lbool_to_val (bits: list bool) : Z :=
-      match bits with
-      | [] => 0
-      | false :: tl => 2 * lbool_to_val tl
-      | true :: tl => 1 + 2 * (lbool_to_val tl)
-      end in
-    (Z.to_N (Zlength bits), lbool_to_val bits).
+  Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=
+    mod_bound (w1+w2) (shiftl z1 (pos w2) + (bit_bound w2 z2)).
   (**[]*)
 
 End BitArith.
@@ -271,15 +266,18 @@ Module IntArith.
       pose proof exp_ge_one 2 (pos width - 1). lia.
     Qed.
 
-    (* Modular bound *)
-    Definition mod_bound (n : Z) : Z :=
-      let m := n mod mod_amt in
-      if (m <? upper_bound) then m else m - mod_amt.
-
     (* Saturating bound *)
     Definition sat_bound (z : Z) :=
       if (z >? maxZ)%Z then maxZ
       else if (z <? minZ)%Z then minZ else z.
+
+    (* Modular bound with unsigned bit output *)
+    Definition bit_bound (n : Z) : Z := n mod mod_amt.
+
+    (* Modular bound *)
+    Definition mod_bound (n : Z) : Z :=
+      let m := bit_bound n in
+      if (m <? upper_bound) then m else m - mod_amt.
     (**[]*)
 
     Lemma sat_bound_bound : forall z, bound (sat_bound z).
@@ -298,7 +296,7 @@ Module IntArith.
 
     Lemma mod_bound_bound: forall z, bound (mod_bound z).
     Proof.
-      intros. unfold mod_bound, bound, minZ, maxZ.
+      intros. unfold mod_bound, bit_bound, bound, minZ, maxZ.
       pose proof (Z_mod_lt z mod_amt mod_amt_gt_0).
       remember (z mod mod_amt) as zz. clear z Heqzz. rename zz into z.
       pose proof upper_bound_ge_1. destruct (z <? upper_bound) eqn: ?H.
@@ -326,7 +324,7 @@ Module IntArith.
 
     Lemma bound_eq: forall z, bound z -> mod_bound z = z.
     Proof.
-      unfold bound, minZ, maxZ. intros. unfold mod_bound. pose proof mod_amt_neq_0.
+      unfold bound, minZ, maxZ. intros. unfold mod_bound, bit_bound. pose proof mod_amt_neq_0.
       destruct (Z_le_gt_dec 0 z).
       - pose proof mod_amt_2_upper_bound.
         assert (z mod mod_amt <? upper_bound = true). {
@@ -365,7 +363,7 @@ Module IntArith.
     Proof.
       intros. pose proof upper_bound_ge_1. pose proof mod_amt_2_upper_bound.
       unfold neg. destruct (eq_dec n minZ).
-      - subst. unfold mod_bound, minZ. rewrite opp_involutive.
+      - subst. unfold mod_bound, bit_bound, minZ. rewrite opp_involutive.
         assert (upper_bound mod mod_amt = upper_bound). { rewrite mod_small; lia. }
         assert (upper_bound mod mod_amt <? upper_bound = false). {
           rewrite ltb_ge. rewrite H2. easy. } rewrite H3. rewrite H2.
@@ -379,7 +377,7 @@ Module IntArith.
         mod_bound (a + mod_bound b) = mod_bound (a + b).
     Proof.
       pose proof mod_amt_neq_0.
-      intros. unfold mod_bound. destruct (b mod mod_amt <? upper_bound) eqn:?H.
+      intros. unfold mod_bound, bit_bound. destruct (b mod mod_amt <? upper_bound) eqn:?H.
       - rewrite add_mod_idemp_r; easy.
       - assert ((a + (b mod mod_amt - mod_amt)) mod mod_amt = (a + b) mod mod_amt). {
           rewrite add_mod; auto. rewrite Zminus_mod_idemp_l.
@@ -431,54 +429,13 @@ Module IntArith.
   End Operations.
 
   (** Bitwise concatination of int with int/bit *)
-  Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
-    mod_bound (pos_of_N (w1 + w2)) (shiftl z1 (Z.of_N w2) + (BitArith.mod_bound w2 z2)).
-
-  (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
-  Definition from_lbool (bits: list bool) : (N * Z) :=
-    let fix lbool_to_val (bits: list bool) : Z :=
-      match bits with
-      | []
-      | [false] => 0
-      | [true] => -1
-      | false :: tl => 2 * lbool_to_val tl
-      | true :: tl => 1 + 2 * (lbool_to_val tl)
-      end in
-    (Z.to_N (Zlength bits), lbool_to_val bits).
+  Definition concat (w1 w2 : positive) (z1 z2 : Z) : Z :=
+    mod_bound (w1+w2) (shiftl z1 (pos w2) + (bit_bound w2 z2)).
   (**[]*)
 
 End IntArith.
 
-(* Convert from (width:nat) and (value:Z) to little-endian (list bool) *)
-Definition to_lbool (width: N) (value: Z) : list bool :=
-  let fix to_lbool' lbool value :=
-    match lbool with
-    | _ :: tl => (Z.eqb (value mod 2) 1) :: (to_lbool' tl (value / 2))
-    | [] => []
-    end
-  in to_lbool' (Zrepeat false (Z.of_N width)) value.
-
-Definition to_loptbool (width: N) (value: Z) : list (option bool) :=
-  let fix to_loptbool' (lbool : list (option bool)) value :=
-    match lbool with
-    | _ :: tl => Some (Z.eqb (value mod 2) 1) :: (to_loptbool' tl (value / 2))
-    | [] => []
-    end
-  in to_loptbool' (Zrepeat None (Z.of_N width)) value.
-
 (*
-Compute (to_lbool (4)%nat (-7)).
-Compute (to_lbool (8)%nat (-7)).
-Compute (to_lbool (2)%nat (-7)).
-Compute (to_lbool (8)%nat (7)).
-Compute (to_lbool (8)%nat (0)).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (-8))).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (-15))).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (8))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (8))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (17))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (-1))).
-
 Compute (IntArith.concat 4 4 (-16) 31).
 Compute (IntArith.concat 4 4 15 31).
 Compute (IntArith.concat 4 4 (-8) 32).

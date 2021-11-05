@@ -4,7 +4,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.BigStep.Value.IndPrincip
         Poulet4.P4cub.BigStep.Value.Auxilary
-        Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
+        Coq.PArith.BinPos Coq.ZArith.BinInt
         Coq.micromega.Lia.
 Import ProperType Val ValueNotations
        LValueNotations AllCubNotations
@@ -18,8 +18,9 @@ Reserved Notation "'LL' Δ , Γ ⊢ lval ∈ τ"
           lval custom p4lvalue, τ custom p4type).
 
 Inductive type_value : v -> Expr.t -> Prop :=
-| typ_bool (b : bool) : ∇ ⊢ VBOOL b ∈ Bool
-| typ_bit (w : N) (n : Z) :
+| typ_bool (b : bool) :
+    ∇ ⊢ VBOOL b ∈ Bool
+| typ_bit (w : positive) (n : Z) :
     BitArith.bound w n ->
     ∇ ⊢ w VW n ∈ bit<w>
 | typ_int (w : positive) (z : Z) :
@@ -45,7 +46,7 @@ Inductive type_value : v -> Expr.t -> Prop :=
 | typ_headerstack (ts : Field.fs string Expr.t)
                   (hs : list (bool * Field.fs string v)) (ni : Z) :
     let n := Pos.of_nat (length hs) in
-    BitArith.bound 32%N (Zpos n) ->
+    BitArith.bound 32%positive (Zpos n) ->
     (0 <= ni < (Zpos n))%Z ->
     proper_nesting {{ stack ts[n] }} ->
     (* t_ok Δ {{ stack ts[n] }} -> *)
@@ -93,8 +94,9 @@ Section ValueTypingInduction.
       Field.relfs (fun vl τ => P  vl τ) vs ts ->
       P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
   
-  Hypothesis HStack : forall ts hs n ni,
-      BitArith.bound 32%N (Zpos n) ->
+  Hypothesis HStack : forall  ts hs ni,
+      let n := Pos.of_nat (length hs) in
+      BitArith.bound 32%positive (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       proper_nesting {{ stack ts[n] }} ->
       Forall
@@ -167,7 +169,7 @@ Section ValueTypingInduction.
       | typ_struct _ _ Hfs => HStruct _ _ Hfs (fsind Hfs)
       | typ_hdr _ b _ HP Hfs => HHeader _ b _ HP Hfs (fsind Hfs)
       | typ_headerstack _ _ _ Hn Hni HP Hhs =>
-        HStack _ _ _ _ Hn Hni HP Hhs (hsind Hhs)
+        HStack _ _ _ Hn Hni HP Hhs (hsind Hhs)
       end.
 End ValueTypingInduction.
 
@@ -176,11 +178,11 @@ Inductive type_lvalue (Δ : Delta) (Γ : Gamma) : lv -> Expr.t -> Prop :=
     Envn.Env.find x Γ = Some τ ->
     t_ok Δ τ ->
     LL Δ, Γ ⊢ VAR x ∈ τ
-| typ_slice (lval : lv) (hi lo : positive) (w : N) (τ : Expr.t) :
-    (Npos lo <= Npos hi < w)%N ->
+| typ_slice (lval : lv) (hi lo w : positive) (τ : Expr.t) :
+    (lo <= hi < w)%positive ->
     numeric_width w τ ->
     LL Δ, Γ ⊢ lval ∈ τ ->
-    let w' := Npos (hi - lo + 1)%positive in
+    let w' := (hi - lo + 1)%positive in
     LL Δ, Γ ⊢ SLICE lval [hi:lo] ∈ bit<w'>
 | typ_member (lval : lv) (x : string) (τ τ' : Expr.t) (ts : F.fs string Expr.t) :
     F.get x ts = Some τ' ->
@@ -208,147 +210,24 @@ Section Lemmas.
   Local Hint Constructors type_value : core.
   Local Hint Constructors proper_nesting : core.
   Hint Rewrite repeat_length.
-  Hint Rewrite Pos2Nat.id : core.
   
-  Lemma vdefault_types : forall τ val,
+  Fail Lemma vdefault_types :
+    forall (τ : Expr.t),
       proper_nesting τ ->
-      vdefault τ = Some val ->
+      let val := vdefault τ in
       ∇  ⊢ val ∈ τ.
-  Proof.
-    intros t val HPN; generalize dependent val.
-    induction t using custom_t_ind;
-      intros val HV; unravel in *;
-        try invert_proper_nesting; inv HV; auto.
-    - destruct (sequence (map vdefault ts)) as [vs |] eqn:Heqvs; inv H2.
-      constructor. apply Forall_and_inv in H1.
-      destruct H1 as [Hpt Hmk].
-      rewrite Forall_forall in H, Hpt.
-      pose proof Utils.reduce_inner_impl_forall
-           _ _ _ _ H Hpt as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := vs) in H'.
-      + apply sequence_Forall2 in Heqvs.
-        rewrite Utils.Forall2_flip.
-        rewrite <- Utils.Forall2_map_l in Heqvs.
-        pose proof Utils.Forall2_impl
-             _ _ (fun t v => vdefault t = Some v) (fun t v => ∇ ⊢ v ∈ t)
-          as HF2impl; cbn in *; auto.
-      + apply sequence_length in Heqvs.
-        rewrite map_length in Heqvs; auto.
-    - unfold option_monad in *.
-      destruct
-        (sequence
-           (map (fun '(x, t) => match vdefault t with
-                             | Some a => Some (x, a)
-                             | None => None
-                             end) fields))
-        as [xvs |] eqn:Heqxvs; inv H2.
-      unfold F.predfs_data, F.predf_data in *; unravel in *.
-      constructor. apply Forall_and_inv in H1.
-      destruct H1 as [Hpt Hmk].
-      rewrite Forall_forall in H, Hpt.
-      pose proof Utils.reduce_inner_impl_forall
-           _ _ _ _ H Hpt as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
-      + apply sequence_Forall2 in Heqxvs.
-        unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
-        destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
-               (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
-               snd (map snd xvs) fields as H''; cbn in *.
-          rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
-               _ _ (fun v t => vdefault t = Some v) type_value
-            as HF2impl; cbn in *; auto.
-      + apply sequence_length in Heqxvs.
-        rewrite map_length in Heqxvs.
-        rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
-        (sequence
-           (map (fun '(x, t) => match vdefault t with
-                             | Some a => Some (x, a)
-                             | None => None
-                             end) fields))
-        as [xvs |] eqn:Heqxvs; inv H2.
-      unfold F.predfs_data, F.predf_data in *; unravel in *.
-      constructor; auto.
-      rewrite Forall_forall in H, H1.
-      pose proof Utils.reduce_inner_impl_forall_impl
-           _ _ _ _ _
-           (fun xv => proper_inside_header_nesting (snd xv))
-           H H1 as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
-      + apply sequence_Forall2 in Heqxvs.
-        unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
-        destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
-               (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
-               snd (map snd xvs) fields as H''; cbn in *.
-          rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
-               _ _ (fun v t => vdefault t = Some v) type_value
-            as HF2impl; cbn in *; auto.
-      + apply sequence_length in Heqxvs.
-        rewrite map_length in Heqxvs.
-        rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
-        (sequence
-           (map (fun '(x, t) => match vdefault t with
-                             | Some a => Some (x, a)
-                             | None => None
-                             end) fields))
-        as [xvs |] eqn:Heqxvs; inv H1.
-      unfold F.predfs_data, F.predf_data in *; unravel in *.
-      assert (Hsize : size =
-                      Pos.of_nat
-                        (length (repeat (false, xvs) (Pos.to_nat size))))
-        by (autorewrite with core; lia).
-      rewrite Hsize at 2;
-        constructor; autorewrite with core; auto; try lia.
-      apply repeat_Forall; simpl.
-      constructor; auto; unfold Field.relfs, Field.relf; unravel.
-      rewrite Forall_forall in H, H3.
-      pose proof Utils.reduce_inner_impl_forall_impl
-           _ _ _ _ _
-           (fun xv => proper_inside_header_nesting (snd xv))
-           H H3 as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
-      + apply sequence_Forall2 in Heqxvs.
-        unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
-        destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
-               (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
-               snd (map snd xvs) fields as H''; cbn in *.
-          rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
-               _ _ (fun v t => vdefault t = Some v) type_value
-            as HF2impl; cbn in *; auto.
-      + apply sequence_length in Heqxvs.
-        rewrite map_length in Heqxvs.
-        rewrite map_length; auto.
-  Qed.
+  (*Proof.
+    intros  τ HPN; simpl.
+    induction τ using custom_t_ind; simpl; constructor;
+      try invert_proper_nesting;
+      autorewrite with core; auto; try lia;
+        try (ind_list_Forall; repeat inv_Forall_cons;
+             constructor; intuition; assumption);
+        try (apply repeat_Forall; unravel; constructor);
+        try (ind_list_predfs; repeat invert_cons_predfs;
+             constructor; try split; unravel;
+             intuition; assumption); auto.
+  Qed. *)
 
   Lemma approx_type_typing : forall  V T,
       ∇  ⊢ V ∈ T -> approx_type V = T.
@@ -365,8 +244,7 @@ Section Lemmas.
         induction H0; inv H1;
           repeat relf_destruct;
           unravel; subst; f_equal; auto.
-      (* XXX broken due to missing size in header stack *)
-  Admitted.
+  Qed.
   
   Local Hint Constructors check_expr : core.
   Local Hint Resolve approx_type_typing : core.

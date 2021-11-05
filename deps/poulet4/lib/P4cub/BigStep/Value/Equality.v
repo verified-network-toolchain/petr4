@@ -1,6 +1,6 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax
         Poulet4.P4cub.BigStep.Value.IndPrincip
-        Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
+        Coq.PArith.BinPos Coq.ZArith.BinInt
         Poulet4.P4cub.Syntax.Syntax.
 Import Field.FieldTactics Val
        ValueNotations TypeNotations.
@@ -35,7 +35,7 @@ Section VE.
     | VBool b1,       VBool b2       => eqb b1 b2
     | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
                                        (z1 =? z2)%Z
-    | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%N &&
+    | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%positive &&
                                        (n1 =? n2)%Z
     | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
                                        then true
@@ -59,7 +59,6 @@ Section VE.
     Hint Rewrite Pos.eqb_refl.
     Hint Rewrite equiv_dec_refl.
     Hint Rewrite Z.eqb_refl.
-    Hint Rewrite N.eqb_refl.
     Hint Rewrite TE.eqbt_refl.
     Hint Rewrite (@F.eqb_fs_reflx string Expr.t).
     Hint Rewrite andb_true_r.
@@ -159,7 +158,6 @@ Section VE.
                             unfold equiv in *; subst;
                               repeat eauto_too_dumb; subst; auto
                 end.
-    apply N.eqb_eq; assumption.
   Qed.
   
   Lemma eqbv_eq_iff : forall v1 v2 : v, eqbv v1 v2 = true <-> v1 = v2.

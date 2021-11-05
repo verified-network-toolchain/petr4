@@ -1,9 +1,7 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt
-        Poulet4.Monads.Monad Poulet4.Monads.Option
-        Coq.NArith.BinNatDef Coq.NArith.BinNat.
-
+        Poulet4.Monads.Monad Poulet4.Monads.Option.
 Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations
         Poulet4.P4cub.Syntax.Equality.
@@ -12,7 +10,7 @@ Import Expr TypeNotations UopNotations BopNotations ExprNotations MatchkindNotat
 Fixpoint width_of_typ (τ : t) : option nat :=
   match τ with
   | {{ Bool }} => Some 1%nat
-  | {{ bit<w> }} => Some $ N.to_nat w
+  | {{ bit<w> }}
   | {{ int<w> }} => Some $ Pos.to_nat w
   | {{ error }}
   | {{ matchkind }} => Some 0%nat
@@ -37,7 +35,7 @@ Definition t_of_uop (op : uop) (ty : t) : option t :=
   | (_{ setValid }_ | _{ setInValid }_), {{ hdr { _ } }}   => Some ty
   | _{ isValid }_                      , {{ hdr { _ } }}   => Some {{ Bool }}
   | _{ Next }_                         , {{ stack ts[_] }} => Some {{ hdr { ts } }}
-  | _{ Size }_                         , {{ stack _[_] }}  => Some $ TBit 32%N
+  | _{ Size }_                         , {{ stack _[_] }}  => Some $ TBit 32%positive
   | _                                  , _                 => None
   end.
 
@@ -50,16 +48,9 @@ Definition t_of_bop (op : bop) (l r : t) : option t :=
     _, _ => Some l
   | (+{ <= }+ | +{ >= }+ | +{ < }+ | +{ > }+ | +{ == }+ | +{ != }+),
     _, _ => Some {{ Bool }}
-  | +{ ++ }+, {{ bit<wl> }}, {{ bit<wr> }}
-    => Some $ TBit (wl + wr)%N
-  | +{ ++ }+, {{ bit<wl> }}, {{ int<wr> }}
-    => Some $ TBit (wl + Npos wr)%N
-  | +{ ++ }+, {{ int<wl> }}, {{ bit<wr> }}
-    => match wr with
-      | N0 => Some $ TInt wl
-      | Npos wr => Some $ TInt (wl + wr)
-      end
-  | +{ ++ }+, {{ int<wl> }}, {{ int<wr> }}
+  | +{ ++ }+, {{ bit<wl> }}, ({{ bit<wr> }} | {{ int<wr> }})
+    => Some $ TBit (wl + wr)%positive
+  | +{ ++ }+, {{ int<wl> }}, ({{ bit<wr> }} | {{ int<wr> }})
     => Some $ TInt (wl + wr)%positive
   | _, _, _ => None
   end.
@@ -88,7 +79,7 @@ Section TofE.
     | <{ w S  _   @ _ }> => {{ int<w> }}
     | <{ Var  _:ty @ _ }> => ty
     | <{ Cast _:ty @ _ }> => ty
-    | <{ Slice _ [hi:lo] @ _ }> => TBit (Npos hi - Npos lo + 1)
+    | <{ Slice _ [hi:lo] @ _ }> => TBit (hi - lo + 1)
     | <{ UOP _ _   : ty @ _ }> => ty
     | <{ BOP _ _ _ : ty @ _ }> => ty
     | <{ tup es @ _ }> =>
@@ -114,7 +105,7 @@ Module ProperType.
     (** Evidence a type is a base type. *)
     Inductive base_type : t -> Prop :=
     | base_bool : base_type {{ Bool }}
-    | base_bit (w : N) : base_type {{ bit<w> }}
+    | base_bit (w : positive) : base_type {{ bit<w> }}
     | base_int (w : positive) : base_type {{ int<w> }}.
     
     (** Allowed types within headers. *)
@@ -145,7 +136,7 @@ Module ProperType.
         proper_nesting {{ hdr { ts } }}
     | pn_header_stack (ts : F.fs string t)
                       (n : positive) :
-        BitArith.bound 32 (Zpos n) ->
+        BitArith.bound 32%positive (Zpos n) ->
         F.predfs_data proper_inside_header ts ->
         proper_nesting {{ stack ts[n] }}.
     

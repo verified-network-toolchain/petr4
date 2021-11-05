@@ -391,7 +391,11 @@ Section Lifted.
   - translateArgs_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).  admit.
     + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.
-  - admit.
+  - destruct e. 
+    + simpl. transformExpr_destr. constructor. 
+      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).  
+      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).  
+    + simpl. constructor. reflexivity. 
   - translateArgs_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). admit.
     + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.

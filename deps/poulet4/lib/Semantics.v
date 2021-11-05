@@ -93,7 +93,8 @@ Record genv := MkGenv {
   ge_typ :> genv_typ;
   ge_senum :> genv_senum;
   ge_inst :> genv_inst;
-  ge_const :> genv_const
+  ge_const :> genv_const;
+  ge_ext :> extern_env
 }.
 
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
@@ -1558,7 +1559,7 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
   (* Todo: check in/inout/out & uninitialized args *)
   | exec_func_external : forall obj_path class_name name (* params *) m es es' targs args argvs argvs' args' sig,
       svals_to_vals read_one_bit args argvs ->
-      exec_extern es class_name name obj_path targs argvs es' argvs' sig ->
+      exec_extern ge es class_name name obj_path targs argvs es' argvs' sig ->
       vals_to_svals argvs' args' ->
       exec_func read_one_bit obj_path (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
 
@@ -1624,12 +1625,12 @@ Axiom dummy_ienv_val : ienv_val.
 
 (* inst_mem is a legacy concept. Now it is actually the pair of genv_inst and genv_const.
   It is the result of instantiation. *)
-Definition inst_mem : Type := genv_inst * genv_const.
+Definition inst_mem : Type := genv_inst * genv_const * extern_env.
 
 Definition set_inst_mem (p : path) (v : ienv_val) (m : inst_mem) : inst_mem :=
   match v with
-  | inl inst => map_fst (PathMap.set p inst) m
-  | inr v => map_snd (PathMap.set p v) m
+  | inl inst => map_fst (map_fst (PathMap.set p inst)) m
+  | inr v => map_fst (map_snd (PathMap.set p v)) m
   end.
 
 (* cenv is a class environment, mapping names to closures. Each closure contains
@@ -1683,9 +1684,9 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := map_fst (PathMap.set p (mk_inst_ref class_name p)) m in
+    let m := map_fst (map_fst (PathMap.set p (mk_inst_ref class_name p))) m in
     let type_params := get_type_params typ in
-    let s := alloc_extern s class_name type_params p (map extract_val args) in
+    let (ee, s) := alloc_extern (snd m) s class_name type_params p (inl (map extract_val args)) in
     (inl (mk_inst_ref class_name p), m, s)
   else
     let e := IdentMap.sets params args e in
@@ -1859,7 +1860,7 @@ Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
 Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls (PathMap.empty, PathMap.empty) extern_empty
+      instantiate_global_decls decls (PathMap.empty, PathMap.empty, PathMap.empty) PathMap.empty
   end.
 
 Definition BlockNil := BlockEmpty dummy_tags.
@@ -2153,10 +2154,11 @@ Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty in
+  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty in
   let inst_m := fst (instantiate_prog partial_ge prog) in
-  let ge_inst := fst inst_m in
-  let ge_const := snd inst_m in
-  MkGenv ge_func ge_typ ge_senum ge_inst ge_const.
+  let ge_inst := fst (fst inst_m) in
+  let ge_const := snd (fst inst_m) in
+  let ge_ext := snd inst_m in
+  MkGenv ge_func ge_typ ge_senum ge_inst ge_const ge_ext.
 
 End Semantics.

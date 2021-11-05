@@ -55,13 +55,28 @@ Inductive table_entry :=
 
 Definition table_entry_valset : Type :=  ValSet * action_ref.
 
+Definition AbsMet (extern_state : Type) : Type :=
+  list Val -> extern_state -> list Val -> extern_state -> signal -> Prop.
+
+(* Plan:
+  For a initialization block:
+      xxx = {
+          extern A;
+          func f(...);
+      }
+      First alloc_extern xxx, then alloc_extern A, then alloc_extern f.
+*)
+
 Class ExternSem := {
+  extern_env_object : Type;
+  extern_env := @PathMap.t tags_t extern_env_object;
   extern_object : Type;
   extern_state := @PathMap.t tags_t extern_object;
-  extern_empty := @PathMap.empty tags_t extern_object;
   (* Allocation should be a function; calling may be fine as a relation. *)
-  alloc_extern : extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path -> list Val -> extern_state;
-  exec_extern : extern_state -> ident (* class *) -> ident (* method *) -> path -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
+  alloc_extern : extern_env -> extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path
+      -> list Val + AbsMet extern_state -> (extern_env * extern_state);
+  exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
+      -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.
@@ -77,7 +92,7 @@ Class SeparableExternSem := {
   ses_extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.
 
-Section ExternSemOfSeparableExternSem.
+(* Section ExternSemOfSeparableExternSem.
 Context (ses : SeparableExternSem).
 
 (* Definition extern_state' : Type := @PathMap.t tags_t ses_extern_object * @PathMap.t tags_t (list table_entry).
@@ -104,7 +119,7 @@ Definition ExternSemOfSeparableExternSem := {|
   extern_get_entries := extern_get_entries';
   extern_match := ses_extern_match
 |}. *)
-End ExternSemOfSeparableExternSem.
+End ExternSemOfSeparableExternSem. *)
 
 (* Coercion ExternSemOfSeparableExternSem : SeparableExternSem >-> ExternSem. *)
 

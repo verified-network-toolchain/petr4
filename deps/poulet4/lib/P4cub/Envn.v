@@ -198,7 +198,8 @@ Section EnvDefs.
     Qed.
 
     Lemma bind_sub_env_find_none : forall e k v,
-        sub_env e (bind k v e) -> find k e = None.
+        sub_env e (bind k v e) ->
+        find k e = None \/ find k e = Some v.
     Proof.
       unfold sub_env, bind;
         intro e; induction e as [| [d t] e IHe]; simpl in *;

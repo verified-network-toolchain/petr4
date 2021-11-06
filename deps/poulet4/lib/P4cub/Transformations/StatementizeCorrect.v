@@ -237,8 +237,31 @@ Section Correct.
     - pose proof IHev1 env pkt fe cx Hee as IH1; clear IHev1.
       transformExpr_destr_hyp.
       destruct IH1 as (eps'1 & Hs1 & Hv1 & Hsub1 & Henv1).
-      pose proof IHev2 t1 pkt fe cx.
+      assert (Hepst1 : epsilon_env eps t1).
+      { apply epsilon_env_leq with env; auto.
+        apply f_equal with (f := snd) in Heqp0; cbn in *.
+        rewrite <- Heqp0. auto using TransformExpr_env_inc. }
+      pose proof IHev2 t1 pkt fe cx Hepst1 as IH2; clear IHev2.
       transformExpr_destr_hyp; triplet_inv.
+      destruct IH2 as (eps'2 & Hs2 & Hv2 & Hsub2 & Henv2).
+      solve_this_stuff_with eps'2 v.
+      repeat split; eauto; unfold epsilon_env in *.
+      + apply sbs_seq_cont with (ϵ' := eps'2) (pkt' := pkt).
+        * apply sbs_seq_cont with (ϵ' := eps'1) (pkt' := pkt); auto.
+          (* need lemma about statement evaluation & ⊆. *) admit.
+        * constructor; auto.
+          (* need lemma about expression evaluation & ⊆. *) admit.
+      + transitivity eps'2; auto.
+        apply Env.find_none_bind_sub_env.
+        apply Henv2. lia.
+      + intros k Hk.
+        unfold VarNameGen.new_var, fst in *.
+        rewrite Env.bind_complete.
+        * apply Henv2. lia.
+        * intros Hwah.
+          apply string_append_inj_l in Hwah.
+          apply string_of_unit_of_to_uint_inj in Hwah.
+          lia.
       (*
       destruct IHev2 as (eps'2 & Hs2 & He2).
       solve_this_stuff_with eps'2 v; intuition.

@@ -163,6 +163,10 @@ Module Expr.
   
   Section Expressions.
     Variable (tags_t : Type).
+
+    (* AST parameterized by variable type.
+       variable type needs decidable equality (or an order).
+       order is faster then membership checking. *)
     
     (** Expressions annotated with types,
         unless the type is obvious. *)

@@ -184,6 +184,8 @@ Section EnvDefs.
       : @Antisymmetric _ _ eq_env_equivalence sub_env.
     Proof. firstorder. Qed.
 
+
+    (** TODO: [e ⊆ bind k v e <-> find k e = None \/ find k e = Some v] *)
     Lemma find_none_bind_sub_env : forall e k v,
         find k e = None -> sub_env e (bind k v e).
     Proof.

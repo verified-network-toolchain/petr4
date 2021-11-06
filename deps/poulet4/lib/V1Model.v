@@ -35,20 +35,22 @@ Notation action_ref := (@action_ref tags_t Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
 
-Inductive register := mk_register {
-  reg_width : N;
-  reg_size : Z;
-  reg_content : list Val
-}.
+Definition register_static : Type := N (* width *) * Z (* size *).
 
-Definition new_register (size : Z) (w : N) :=
-  mk_register w size (Zrepeat (ValBaseBit (to_lbool w 0)) size).
+Definition register := list Val.
+
+Definition new_register (size : Z) (w : N) : list Val :=
+  Zrepeat (ValBaseBit (to_lbool w 0)) size.
 
 Definition packet_in := list bool.
 
 Definition packet_out := list bool.
 
-Inductive env_object := .
+Inductive env_object :=
+  | EnvTable
+  | EnvRegister (reg_sta : register_static)
+  | EnvPin
+  | EnvPout.
 
 Inductive object :=
   | ObjTable (entries : list table_entry)
@@ -59,8 +61,6 @@ Inductive object :=
 Definition extern_env := @PathMap.t tags_t env_object.
 
 Definition extern_state := @PathMap.t tags_t object.
-
-Definition extern_empty : extern_state := PathMap.empty.
 
 Definition dummy_tags := @default tags_t _.
 
@@ -73,7 +73,8 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
         match targs with
         | [TypBit w] =>
             let (_, size) := BitArith.from_lbool bits in
-            (e, PathMap.set p (ObjRegister (new_register size w)) s)
+            (PathMap.set p (EnvRegister (w, size)) e,
+             PathMap.set p (ObjRegister (new_register size w)) s)
         | _ => (e, s) (* fail *)
         end
     | _ => (e, s) (* fail *)
@@ -81,7 +82,7 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
   else
     (e, s).
 
-Definition extern_func_sem := extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
@@ -89,12 +90,12 @@ Inductive extern_func := mk_extern_func_sem {
   ef_sem : extern_func_sem
 }.
 
-Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident -> ident -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
+Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_state -> ident -> ident -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   match func with
   | mk_extern_func_sem class_name func_name sem =>
-      fun s class_name' func_name' =>
+      fun e s class_name' func_name' =>
           if P4String.equivb class_name class_name' && P4String.equivb func_name func_name' then
-            sem s
+            sem e s
           else
             fun _ _ _ _ _ _ => False
   end.
@@ -102,12 +103,12 @@ Definition apply_extern_func_sem (func : extern_func) : extern_state -> ident ->
 Definition REG_INDEX_WIDTH := 32%N.
 
 Inductive register_read_sem : extern_func_sem :=
-  | exec_register_read : forall s p reg w index,
-      PathMap.get p s = Some (ObjRegister reg) ->
-      reg_width reg = w ->
-      -1 < index < reg_size reg ->
-      register_read_sem s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
-        s [Znth index (reg_content reg)] SReturnNull.
+  | exec_register_read : forall e s p content w size index,
+      PathMap.get p e = Some (EnvRegister (w, size)) ->
+      PathMap.get p s = Some (ObjRegister content) ->
+      -1 < index < size ->
+      register_read_sem e s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
+        s [Znth index content] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := !"register";
@@ -116,14 +117,14 @@ Definition register_read : extern_func := {|
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
-  | exec_register_write : forall s p reg w content' index value,
-      PathMap.get p s = Some (ObjRegister reg) ->
-      reg_width reg = w ->
-      -1 < index < reg_size reg ->
-      upd_Znth index (reg_content reg) value = content' ->
-      register_write_sem s p nil 
+  | exec_register_write : forall e s p content w size content' index value,
+      PathMap.get p e = Some (EnvRegister (w, size)) ->
+      PathMap.get p s = Some (ObjRegister content) ->
+      -1 < index < size ->
+      upd_Znth index content value = content' ->
+      register_write_sem e s p nil 
             [ValBaseBit (to_lbool REG_INDEX_WIDTH index); value]
-            (PathMap.set p (ObjRegister (mk_register w (reg_size reg) content')) s)
+            (PathMap.set p (ObjRegister content') s)
             [] SReturnNull.
 
 Definition register_write : extern_func := {|
@@ -136,16 +137,16 @@ Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
 Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
 
 Inductive packet_in_extract_sem : extern_func_sem :=
-  | exec_packet_in_extract : forall s p pin typ v pin',
+  | exec_packet_in_extract : forall e s p pin typ v pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract pin typ = (v, pin') ->
-      packet_in_extract_sem s p [typ] []
+      packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
           [v] SReturnNull
-  | exec_packet_in_extract2 : forall s p pin typ len v pin',
+  | exec_packet_in_extract2 : forall e s p pin typ len v pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem s p [typ] [ValBaseBit (to_lbool 32%N len)]
+      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
             (PathMap.set p (ObjPin pin') s)
           [v] SReturnNull.
 
@@ -158,10 +159,10 @@ Definition packet_in_extract : extern_func := {|
 Axiom emit : forall (pout : list bool) (v : Val), list bool.
 
 Inductive packet_out_emit_sem : extern_func_sem :=
-  | exec_packet_out_emit : forall s p pout typ v pout',
+  | exec_packet_out_emit : forall e s p pout typ v pout',
       PathMap.get p s = Some (ObjPout pout) ->
       emit pout v = pout' ->
-      packet_out_emit_sem s p [typ] [v]
+      packet_out_emit_sem e s p [typ] [v]
             (PathMap.set p (ObjPout pout') s)
           [] SReturnNull.
 
@@ -175,16 +176,16 @@ Definition packet_out_emit : extern_func := {|
 
 Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_extern_register_read : forall e s p targs args s' args' vret,
-      apply_extern_func_sem register_read s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->
+      apply_extern_func_sem register_read e s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->
       exec_extern e s (ef_class register_read) (ef_func register_read) p targs args s' args' vret
   | exec_extern_register_write : forall e s p targs args s' args' vret,
-      apply_extern_func_sem register_write s (ef_class register_write) (ef_func register_write) p targs args s' args' vret ->
+      apply_extern_func_sem register_write e s (ef_class register_write) (ef_func register_write) p targs args s' args' vret ->
       exec_extern e s (ef_class register_write) (ef_func register_write) p targs args s' args' vret
   | exec_extern_packet_in_extract : forall e s p targs args s' args' vret,
-      apply_extern_func_sem packet_in_extract s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
+      apply_extern_func_sem packet_in_extract e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
   | exec_extern_packet_out_emit : forall e s p targs args s' args' vret,
-      apply_extern_func_sem packet_out_emit s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
+      apply_extern_func_sem packet_out_emit e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
 
 Inductive ValSetT :=

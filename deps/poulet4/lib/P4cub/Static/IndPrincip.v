@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing
@@ -95,11 +95,11 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HSlice : forall Δ Γ e τ hi lo w i,
-      (lo <= hi < w)%positive ->
+      (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
       ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
       P Δ Γ e τ ->
-      let w' := (hi - lo + 1)%positive in
+      let w' := Npos (hi - lo + 1)%positive in
       P Δ Γ <{ Slice e [hi:lo] @ i }> {{ bit<w'> }}.
   (**[]*)
   
@@ -165,9 +165,8 @@ Section CheckExprInduction.
       P Δ Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
   (**[]*)
   
-  Hypothesis HStack : forall Δ Γ ts hs ni i,
-      let n := Pos.of_nat (length hs) in
-      BitArith.bound 32%positive (Zpos n) ->
+  Hypothesis HStack : forall Δ Γ ts hs n ni i,
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
       ProperType.proper_nesting {{ stack ts[n] }} ->
       t_ok Δ {{ stack ts[n] }} ->
@@ -247,8 +246,8 @@ Section CheckExprInduction.
         => HHdrLit _ _ _ _ i _ HP
                   HRs (fields_ind HRs)
                   Hb (chind _ _ _ _ Hb)
-      | chk_stack _ _ _ _ _ i Hn Hni HP Hok HRs
-        => HStack _ _ _ _ _ i Hn Hni HP Hok HRs (lind_stk HRs)
+      | chk_stack _ _ _ _ _ i _ Hn Hni HP Hok HRs
+        => HStack _ _ _ _ _ i _ Hn Hni HP Hok HRs (lind_stk HRs)
       | chk_access _ _ _ _ i _ _ Hok Hidx He
         => HAccess _ _ _ _ i _ _ Hok Hidx He (chind _ _ _ _ He)
       end.

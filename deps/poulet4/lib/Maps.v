@@ -1,6 +1,7 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Bool.Bool.
-Require P4String.
+Require Poulet4.P4String.
+Require Import Poulet4.P4cub.Util.EquivUtil.
 Import ListNotations.
 
 Module FuncAsMap.
@@ -25,9 +26,29 @@ Module FuncAsMap.
 
     Definition gets (kl: list key) (m: t): list (option value) :=
       map (fun k => get k m) kl.
-
   End FuncAsMap.
 
+  Section FuncMapMap.
+    Context {key: Type} {key_eqb: key -> key -> bool} {U V : Type}.
+
+    Section Map.
+      Variable f : U -> V.
+      
+      Definition map_map (e : @t key U) : @t key V :=
+        fun k => match e k with
+            | Some u => Some (f u)
+            | None   => None
+              end.
+    End Map.
+
+    Section Rel.
+      Variable R : U -> V -> Prop.
+
+      Definition related (eu : @t key U) (ev : @t key V) : Prop :=
+        forall k : key,
+          relop R (get k eu) (get k ev).
+    End Rel.
+  End FuncMapMap.
 End FuncAsMap.
 
 Module IdentMap.

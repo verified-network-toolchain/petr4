@@ -1,6 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.BigStep.Value.Value
-        Coq.ZArith.BinInt Poulet4.P4cub.Envn
+        Coq.NArith.BinNat Coq.ZArith.BinInt
+        Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.ExprUtil
         Poulet4.P4Arith.
 Module V := Val.
@@ -42,12 +43,13 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   | l{ SLICE lv [hi:lo] }l =>
     match v, lv_lookup ϵ lv with
     | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
-      let rhs := Z.shiftl n (Zpos w) in
+      let rhs := N.shiftl (Z.to_N n) w in
       let mask :=
-          (-1 - (Z.lxor
-                   (2 ^ (Zpos hi + 1) - 1)
-                   (2 ^ (Zpos lo - 1))))%Z in
-      let new := Z.lxor (Z.land n mask) rhs in
+          Z.to_N
+          (-1 - (Z.of_N (N.lxor
+                           (2 ^ (Npos hi + 1) - 1)
+                           (2 ^ (Npos lo - 1))))) in
+      let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
       lv_update lv ~{ w VW new }~ ϵ
     | _, Some _ | _, None => ϵ
     end

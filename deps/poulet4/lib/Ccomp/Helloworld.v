@@ -18,6 +18,7 @@ Notation tpdecl := (TopDecl.d nat).
 Import AllCubNotations.
 
 Require Import Coq.PArith.BinPosDef.
+Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Definition metadata : t := 
   let width := Pos.of_nat 32 in    
@@ -28,9 +29,9 @@ Definition pkt_in := Expr.CTExtern "packet_in".
 Definition pkt_out := Expr.CTExtern "packet_out".
 Definition std_meta := {{struct {[("stdmeta", {{Bool}})]} }}.
 Definition oneplusone := 
-  let width := Pos.of_nat 32 in  
+  let width := N.of_nat 32 in  
   let one := Z.of_nat 1 in
-  -{init "x" := BOP width S one @ 0 + width S one @ 0 : bit<width> @ 0 @ 0}-.
+  -{init "x" := BOP width W one @ 0 + width W one @ 0 : bit<width> @ 0 @ 0}-.
 Definition parser_start_state : par_st_blk :=
    &{state { skip @ 0 } transition goto accept @ 0 }&.
 Definition parsr_cparams : Expr.constructor_params := [].

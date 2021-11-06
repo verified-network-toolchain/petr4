@@ -8,7 +8,7 @@ Import AllCubNotations Env.EnvNotations.
 Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
 | value_bool (b : bool) (i : tags_t) :
     value <{ BOOL b @ i }>
-| value_bit (w : positive) (n : Z) (i : tags_t) :
+| value_bit (w : N) (n : Z) (i : tags_t) :
     value <{ w W n @ i }>
 | value_int (w : positive) (z : Z) (i : tags_t) :
     value <{ w S z @ i }>

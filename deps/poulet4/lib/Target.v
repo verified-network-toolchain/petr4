@@ -64,7 +64,7 @@ Class ExternSem := {
   extern_object : Type;
   extern_state := @PathMap.t tags_t extern_object;
   (* Allocation should be a function; calling may be fine as a relation. *)
-  alloc_extern : extern_env -> extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path
+  construct_extern : extern_env -> extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path
       -> list (path + Val) -> (extern_env * extern_state);
   extern_set_abstract_method : extern_env -> path -> AbsMet extern_state -> extern_env;
   exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path

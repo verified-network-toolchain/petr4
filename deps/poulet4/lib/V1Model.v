@@ -64,7 +64,7 @@ Definition extern_empty : extern_state := PathMap.empty.
 
 Definition dummy_tags := @default tags_t _.
 
-Definition alloc_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
+Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if P4String.equivb class !"register" then
     match args with
     (* | [ValBaseInteger size] *)
@@ -437,7 +437,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
 Instance V1ModelExternSem : ExternSem := Build_ExternSem
   env_object
   object
-  alloc_extern
+  construct_extern
   (fun e _ _ => e) (* extern_set_abstract_method *)
   exec_extern
   extern_get_entries

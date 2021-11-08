@@ -80,7 +80,7 @@ Section EnvDefs.
     
     Lemma bind_complete : forall x y v e,
         ~ equiv_rel x y ->
-        find x e = find x (bind y v e).
+        find x (bind y v e) = find x e.
     Proof.
       intros; simpl; auto.
     Qed.
@@ -184,6 +184,8 @@ Section EnvDefs.
       : @Antisymmetric _ _ eq_env_equivalence sub_env.
     Proof. firstorder. Qed.
 
+
+    (** TODO: [e ⊆ bind k v e <-> find k e = None \/ find k e = Some v] *)
     Lemma find_none_bind_sub_env : forall e k v,
         find k e = None -> sub_env e (bind k v e).
     Proof.
@@ -196,7 +198,8 @@ Section EnvDefs.
     Qed.
 
     Lemma bind_sub_env_find_none : forall e k v,
-        sub_env e (bind k v e) -> find k e = None.
+        sub_env e (bind k v e) ->
+        find k e = None \/ find k e = Some v.
     Proof.
       unfold sub_env, bind;
         intro e; induction e as [| [d t] e IHe]; simpl in *;

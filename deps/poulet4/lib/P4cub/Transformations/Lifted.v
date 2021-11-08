@@ -4,6 +4,24 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
+Ltac translateStmt_destr :=
+  match goal with
+  | |- context [TranslateStatement ?s ?env]
+    => destruct (TranslateStatement s env) as [? ?] eqn:?; simpl in *
+  end.
+
+Ltac translateArrowE_destr :=
+  match goal with
+  | |- context [TranslateArrowE ?args ?env ?i]
+    => destruct (TranslateArrowE args env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
+Ltac translateArgs_destr :=
+  match goal with
+  | |- context [TranslateArgs ?args ?env ?i]
+    => destruct (TranslateArgs args env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
 Ltac transformExpr_destr :=
   match goal with
   | |- context [TransformExpr ?e ?env]
@@ -335,4 +353,102 @@ Section Lifted.
       apply f_equal with (f:=snd ∘ fst) in Heqp; unravel in *.
       rewrite <- Heqp; auto.
   Qed.
+
+  Local Hint Resolve TransformExpr_lifted_stmt : core.
+
+  Ltac transformExpr_f_equal Heqp func:= 
+    apply f_equal with (f := fst) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
+      rewrite <- Heqp; auto.
+
+  Lemma TranslateArgs_lifted_stmt : forall (a : Expr.args tags_t) env i,
+  lifted_stmt (fst (fst (TranslateArgs a env i))).
+  Proof.
+    intros a i. induction a;
+      intro env; simpl.
+      - constructor.
+      - destruct a. destruct (TranslateArgs a0 i env) eqn:Hs2. destruct p0. transformExpr_destr. 
+        constructor.
+        + transformExpr_f_equal Hs2 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+        + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateArgs_lifted_stmt : core.
+
+  Lemma TranslateArrowE_lifted_stmt : forall (args : Expr.arrowE tags_t) env i, 
+  lifted_stmt (fst (fst (TranslateArrowE args env i))).
+  Proof.
+    intros args i. induction args; intro env; simpl.
+    destruct (TranslateArgs pas i env) eqn:Hs1. destruct p. destruct returns.
+    - transformExpr_destr. constructor.
+      + transformExpr_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+      + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    - simpl. transformExpr_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
+  Qed.
+
+  Local Hint Resolve TranslateArrowE_lifted_stmt : core.
+
+  Lemma TransformExpr_lifted_args : forall pas i (e:Expr.e tags_t) t env,
+  lifted_args (Arrow (snd (fst (TranslateArgs pas i env))) (Some (snd (fst (TransformExpr e t))))).
+  Proof.
+    intros pas i e t. induction e using custom_e_ind; intro env; simpl.
+    - constructor. unfold F.predfs_data, F.predf_data in *. 
+    unravel in *. auto. 
+  Admitted.
+   
+  Lemma TranslateArrowE_lifted_args : forall (args : Expr.arrowE tags_t) env i, 
+  lifted_args (snd (fst (TranslateArrowE args env i))).
+  Proof.
+    intros args i. induction args; intro env; simpl.
+    destruct (TranslateArgs pas i env) eqn:Hs1. destruct p eqn:Hs2. destruct returns eqn:Hs3.
+    - transformExpr_destr.  transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+      + transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
+    - simpl. transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
+  Admitted.
+
+  Lemma TranslateStmt_lifted_stmt : forall (s : Stmt.s tags_t) (env:VarNameGen.t),
+  lifted_stmt (fst (TranslateStatement s env)).
+  Proof.
+  intros s. induction s; intros env; try simpl; auto; repeat transformExpr_destr.
+  - destruct expr.
+    + simpl. auto.
+    + transformExpr_destr. constructor. 
+      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)). 
+      * constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  - repeat constructor. 
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).   
+    + transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  - repeat translateStmt_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + constructor. 
+      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+      * transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x).
+      * transformExpr_f_equal Heqp1 (fun x:(Stmt.s tags_t) => x). 
+  - repeat translateStmt_destr. constructor. 
+    + transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+    + transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x). 
+  - translateStmt_destr. constructor. transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+  - translateArrowE_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
+    + constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). admit.
+  - translateArrowE_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). constructor. admit.
+  - translateArgs_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
+  - destruct e.
+    + transformExpr_destr. constructor.
+      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+    + simpl. auto.
+  - translateArgs_destr. constructor.
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.
+  - admit.
+  - constructor. 
+    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + admit.
+  Admitted.
 End Lifted.

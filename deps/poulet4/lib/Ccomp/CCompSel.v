@@ -683,10 +683,91 @@ Section CCompSel.
       error_ret (Ssequence s1' s2', env2)
 
     | Stmt.SBlock s => CTranslateStatement s env
+
     | Stmt.SVardecl x (Left t) i => 
       let (cty, env_cty):= CTranslateType t env in
       error_ret (Sskip, CCompEnv.add_var tags_t env_cty x cty)
-    | Stmt.SVardecl x (Right e) i => err "FIXME" (* TODO *)
+
+    | Stmt.SVardecl x (Right e) i => 
+      let t := t_of_e e in
+      let dst_t := t in 
+      let dst := x in
+      let (cty, env) := CTranslateType t env in
+      let env :=  CCompEnv.add_var tags_t env x cty in
+      let* dst' := find_ident tags_t env dst in
+      match e with
+      | Expr.EBit width val i => 
+        let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+        error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+      
+      | Expr.EInt width val i => 
+        let (env', val_id) := find_BitVec_String tags_t env val in 
+        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
+        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+        error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
+
+      | Expr.ESlice n hi lo i =>
+        let τ := t_of_e n in
+        let* (n', env') := CTranslateExpr n env in
+        let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
+        let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
+        let (tau', env') := CTranslateType τ env' in 
+        let dst' := Evar dst' tau' in
+        error_ret (Scall None slice_function [n'; hi'; lo'; dst'], env')
+
+      | Expr.ECast τ e i => err "cast unimplemented" (*TODO: implement in the runtime*)
+
+      | Expr.EUop dst_t op x i => CTranslateUop dst_t op x dst env
+
+      | Expr.EBop dst_t op x y i => CTranslateBop dst_t op x y dst env
+                      
+      | Expr.ETuple es i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
+        let tuple := Expr.TTuple (CTranslateListType es) in
+        let (typ, env) := CTranslateType tuple env in
+        let* composite := lookup_composite tags_t env tuple in
+        CTranslateTupleAssgn es composite (Evar dst' typ) env
+
+      | Expr.EStruct fields i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
+        let struct := Expr.TStruct (CTranslateFieldType fields) in
+        let (typ, env) := CTranslateType struct env in
+        let* composite := lookup_composite tags_t env struct in
+        CTranslateStructAssgn fields composite (Evar dst' typ) env
+
+      | Expr.EHeader fields b i => (*first create a temp of this header. then assign all the values to it. then return this temp*)
+        let hdr := Expr.THeader (CTranslateFieldType fields) in
+        let (typ, env) := CTranslateType hdr env in
+        let* (valid, env) := CTranslateExpr b env in
+        let* composite := lookup_composite tags_t env hdr in
+        CTranslateHeaderAssgn fields composite (Evar dst' typ) env valid
+
+      | Expr.EHeaderStack fields headers next_index i =>
+        let size := Pos.of_nat (length headers) in
+        let top_typ := Expr.THeaderStack fields size in
+        let (top_typ, env) := CTranslateType top_typ env in
+        let* stack := find_ident tags_t env dst in
+        let stack_var := Evar stack top_typ in
+        let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
+            findStackAttributes stack_var top_typ env in
+        let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
+        let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
+        let assignSize := Sassign size_var int_size in
+        let assignNext := Sassign next_var int_next in
+        let env := add_temp tags_t env "i" int_signed in
+        let* i := find_ident tags_t env "i" in 
+        let i_var := Etempvar i int_signed in
+        HeaderStackAssignLoop env arr_var i_var fields headers val_typ
+
+      | _ => 
+        let* (e2', env2) := CTranslateExpr e env in
+        error_ret (Sassign (Evar dst' cty)  e2', env2)
+      end
+      
     | Stmt.SConditional e s1 s2 i => 
       let* (e', env1) := CTranslateExpr e env in
       let* (s1', env2) := CTranslateStatement s1 env1 in
@@ -725,93 +806,10 @@ Section CCompSel.
       error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env')  (*TODO: figure out why extern args here?*)          
     | Stmt.SInvoke tbl i => error_ret (Sskip, env) (*TODO: implement table*)
     | Stmt.SAssign e1 e2 i =>
-      let t := t_of_e e1 in
-      match e1 with
-      | Expr.EVar dst_t dst i => 
-        match e2 with
-        | Expr.EBit width val i => 
-          let* dst' := find_ident tags_t env dst in
-          let (env', val_id) := find_BitVec_String tags_t env val in 
-          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-          let signed := Econst_int (Integers.Int.zero) (type_bool) in 
-          let val' := Evar val_id Cstring in
-          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-          error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-        
-        | Expr.EInt width val i => 
-          let* dst' := find_ident tags_t env dst in
-          let (env', val_id) := find_BitVec_String tags_t env val in 
-          let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-          let signed := Econst_int (Integers.Int.one) (type_bool) in 
-          let val' := Evar val_id Cstring in
-          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-          error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-
-        | Expr.ESlice n hi lo i =>
-          let τ := t_of_e n in
-          let* (n', env') := CTranslateExpr n env in
-          let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
-          let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
-          let* dst' := find_ident tags_t env dst in
-          let (tau', env') := CTranslateType τ env' in 
-          let dst' := Evar dst' tau' in
-          error_ret (Scall None slice_function [n'; hi'; lo'; dst'], env')
-
-        | Expr.ECast τ e i => err "cast unimplemented" (*TODO: implement in the runtime*)
-
-        | Expr.EUop dst_t op x i => CTranslateUop dst_t op x dst env
-
-        | Expr.EBop dst_t op x y i => CTranslateBop dst_t op x y dst env
-                        
-        | Expr.ETuple es i =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
-          let tuple := Expr.TTuple (CTranslateListType es) in
-          let (typ, env) := CTranslateType tuple env in
-          let* composite := lookup_composite tags_t env tuple in
-          let* dst := find_ident tags_t env dst in
-          CTranslateTupleAssgn es composite (Evar dst typ) env
-
-        | Expr.EStruct fields i => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
-          let struct := Expr.TStruct (CTranslateFieldType fields) in
-          let (typ, env) := CTranslateType struct env in
-          let* composite := lookup_composite tags_t env struct in
-          let* dst := find_ident tags_t env dst in
-          CTranslateStructAssgn fields composite (Evar dst typ) env
-
-        | Expr.EHeader fields b i => (*first create a temp of this header. then assign all the values to it. then return this temp*)
-          let hdr := Expr.THeader (CTranslateFieldType fields) in
-          let (typ, env) := CTranslateType hdr env in
-          let* (valid, env) := CTranslateExpr b env in
-          let* composite := lookup_composite tags_t env hdr in
-          let* dst := find_ident tags_t env dst in
-          CTranslateHeaderAssgn fields composite (Evar dst typ) env valid
-
-        | Expr.EHeaderStack fields headers next_index i =>
-          let size := Pos.of_nat (length headers) in
-          let top_typ := Expr.THeaderStack fields size in
-          let (top_typ, env) := CTranslateType top_typ env in
-          let* stack := find_ident tags_t env dst in
-          let stack_var := Evar stack top_typ in
-          let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
-             findStackAttributes stack_var top_typ env in
-          let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
-          let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
-          let assignSize := Sassign size_var int_size in
-          let assignNext := Sassign next_var int_next in
-          let env := add_temp tags_t env "i" int_signed in
-          let* i := find_ident tags_t env "i" in 
-          let i_var := Etempvar i int_signed in
-          HeaderStackAssignLoop env arr_var i_var fields headers val_typ
-
-        | _ => 
-          let* (e1', env1) := CTranslateExpr e1 env in
-          let* (e2', env2) := CTranslateExpr e2 env1 in
-          error_ret (Sassign e1' e2', env2)
-        end
-      | _ =>
       let* (e1', env1) := CTranslateExpr e1 env in
       let* (e2', env2) := CTranslateExpr e2 env1 in
       error_ret (Sassign e1' e2', env2)
-      end
+      
 
     | Stmt.SHeaderStackOp stack Stmt.HSPush n i =>
       let* stack_id := 
@@ -1478,6 +1476,14 @@ Section CCompSel.
 End CCompSel.
 
 Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
+Definition test_program_only := 
+  match helloworld_program_sel with 
+  | inl helloworld_program_sel => CCompSel.Compile nat helloworld_program_sel
+  | inr _ => Errors.Error (Errors.msg "statementize failed")
+  end.
+
+Compute test_program_only.
+
 Definition test := 
   match helloworld_program_sel with 
   | inl helloworld_program_sel => CCompSel.Compile_print nat helloworld_program_sel

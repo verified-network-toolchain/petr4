@@ -31,7 +31,8 @@ Section CEnv.
     globvars: (list (AST.ident * globvar Ctypes.type));
     numStrMap : Env.t Z AST.ident;
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
-    tables : Env.t string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)); 
+    tables : Env.t string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
+    top_args : (list Clight.expr);
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -49,6 +50,7 @@ Section CEnv.
     numStrMap :=  Env.empty Z AST.ident;
     topdecltypes := Env.empty string (TopDecl.d tags_t);
     tables := Env.empty string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
+    top_args := [];
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -67,6 +69,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}.
 
 
@@ -88,6 +91,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -107,6 +111,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}.
 
 
@@ -128,6 +133,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}, new_ident).
 
 
@@ -149,6 +155,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}.
 
   Definition add_composite_typ 
@@ -169,6 +176,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}
     .
 
@@ -192,6 +200,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := Env.bind name decl env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
     |}.
 
   Definition add_function 
@@ -214,6 +223,7 @@ Section CEnv.
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
+  top_args := env.(top_args);
   |}.
 
   Definition update_function
@@ -235,6 +245,7 @@ Section CEnv.
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
+  top_args := env.(top_args);
   |}.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
@@ -318,6 +329,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := Env.bind name (key, actions) env.(tables);
+    top_args := env.(top_args);
     |} in 
     env'
     .
@@ -341,6 +353,7 @@ Section CEnv.
   numStrMap := env.(numStrMap);
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
+  top_args := env.(top_args);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -358,6 +371,7 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -375,6 +389,7 @@ Section CEnv.
     numStrMap := to.(numStrMap);
     topdecltypes := to.(topdecltypes);
     tables := to.(tables);
+    top_args := to.(top_args);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
@@ -392,10 +407,10 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
   |}.  
 
-  Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
-    env.(instantiationCarg).
+ 
   Definition set_main_init (env: ClightEnv) (init: Clight.statement) : ClightEnv :=
   {|
     identMap := env.(identMap);
@@ -411,6 +426,26 @@ Section CEnv.
     numStrMap := env.(numStrMap);
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
+    top_args := env.(top_args);
+  |}.  
+
+
+  Definition set_top_args (env: ClightEnv) (args: list Clight.expr) : ClightEnv := 
+  {|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites := env.(composites);
+    identGenerator := env.(identGenerator);
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
+    top_args := args;
   |}.  
 
   (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
@@ -505,6 +540,8 @@ Section CEnv.
     : option Ctypes.composite_definition := 
     composite_of_ident_from_list id env.(composites). *)
 
+  
+
   Definition lookup_function (env: ClightEnv) (name: string) : @error_monad string (Clight.function*ident) := 
     match Env.find name env.(fenv) , Env.find name env.(identMap) with
     | Some f, Some fid => error_ret (f,fid)
@@ -565,6 +602,7 @@ Section CEnv.
       numStrMap := Env.bind val new_id env.(numStrMap);
       topdecltypes := env.(topdecltypes);
       tables := env.(tables);
+      top_args := env.(top_args);
       |} in 
       (env', new_id)
     end.
@@ -579,6 +617,12 @@ Section CEnv.
     end .
 
 
+  Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
+    env.(instantiationCarg).
+
+  Definition get_top_args (env: ClightEnv) : list (Clight.expr) :=
+    env.(top_args).
+  
   Definition get_vars (env: ClightEnv) : list (AST.ident * Ctypes.type)
     := env.(vars).
   Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type)

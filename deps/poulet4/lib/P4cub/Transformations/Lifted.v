@@ -170,6 +170,16 @@ Section Lifted.
       lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
   
   Local Hint Constructors lifted_expr : core.
+
+  Inductive lifted_parser_expr : Parser.e tags_t -> Prop :=
+  | lifted_goto st i : 
+      lifted_parser_expr (Parser.PGoto st i)
+  | lifted_select exp default cases i: 
+      lifted_expr exp -> lifted_parser_expr default -> 
+      Field.predfs_data lifted_parser_expr cases -> lifted_parser_expr (Parser.PSelect exp default cases i).
+  
+  Local Hint Constructors lifted_parser_expr : core.
+
   Section HelperLemmas.
     Variable f :
       Expr.e tags_t -> VarNameGen.t ->
@@ -471,4 +481,6 @@ Section Lifted.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
     + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   Qed.
+
+
 End Lifted.

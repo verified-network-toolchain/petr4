@@ -163,7 +163,11 @@ Section Lifted.
       lifted_stmt -{ invoke t @ i }-
   | lifted_apply x ext_args args i :
       F.predfs_data (pred_paramarg_same lifted_expr) args ->
-      lifted_stmt -{ apply x with ext_args & args @ i }-.
+      lifted_stmt -{ apply x with ext_args & args @ i }-
+  | lifted_headerStackOp hdr_stk_name op n i : 
+      lifted_stmt (Stmt.SHeaderStackOp hdr_stk_name op n i)
+  | lifted_setValidity e validity i : 
+      lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
   
   Local Hint Constructors lifted_expr : core.
   Section HelperLemmas.
@@ -448,13 +452,13 @@ Section Lifted.
   - translateStmt_destr. constructor. transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
   - translateArrowE_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
-    + constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). admit.
+    + constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). 
   - translateArrowE_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). constructor. admit.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)).
   - translateArgs_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
   - destruct e.
     + transformExpr_destr. constructor.
       * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
@@ -462,10 +466,9 @@ Section Lifted.
     + simpl. auto.
   - translateArgs_destr. constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). constructor. admit.
-  - admit.
-  - constructor. 
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
+  - repeat constructor.
     + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-    + admit.
-  Admitted.
+    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  Qed.
 End Lifted.

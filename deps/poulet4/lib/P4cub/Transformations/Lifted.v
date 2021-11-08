@@ -387,23 +387,40 @@ Section Lifted.
 
   Local Hint Resolve TranslateArrowE_lifted_stmt : core.
 
+  Lemma TranslateArgs_lifted_expr : forall pas env i,
+  Field.predfs_data (pred_paramarg_same lifted_expr) (snd (fst (TranslateArgs pas i env))).
+  Proof.
+    intros pas i. induction pas; intro env; simpl.
+    - constructor.
+    - destruct a. translateArgs_destr. transformExpr_destr. destruct p; unfold F.predfs_data, F.predf_data in *; 
+    unravel in *; rewrite Forall_app; split; try transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.args tags_t)); repeat constructor;
+    simpl; unfold pred_paramarg_same, pred_paramarg; transformExpr_f_equal Heqp1 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateArgs_lifted_expr : core.
+
+  Local Hint Constructors predop : core.
+  Local Hint Constructors lifted_args : core.
+
   Lemma TransformExpr_lifted_args : forall pas i (e:Expr.e tags_t) t env,
   lifted_args (Arrow (snd (fst (TranslateArgs pas i env))) (Some (snd (fst (TransformExpr e t))))).
   Proof.
-    intros pas i e t. induction e using custom_e_ind; intro env; simpl.
-    - constructor. unfold F.predfs_data, F.predf_data in *. 
-    unravel in *. auto. 
-  Admitted.
+    intros pas i e t env; simpl; auto. 
+  Qed.
+
+  Local Hint Resolve TransformExpr_lifted_args : core.
    
   Lemma TranslateArrowE_lifted_args : forall (args : Expr.arrowE tags_t) env i, 
   lifted_args (snd (fst (TranslateArrowE args env i))).
   Proof.
-    intros args i. induction args; intro env; simpl.
+    intros [pas returns] i env; simpl.
     destruct (TranslateArgs pas i env) eqn:Hs1. destruct p eqn:Hs2. destruct returns eqn:Hs3.
     - transformExpr_destr.  transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
-      + transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
-    - simpl. transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). admit.
-  Admitted.
+      + transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
+    - simpl. transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateArrowE_lifted_args : core.
 
   Lemma TranslateStmt_lifted_stmt : forall (s : Stmt.s tags_t) (env:VarNameGen.t),
   lifted_stmt (fst (TranslateStatement s env)).

@@ -106,8 +106,8 @@ void test_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b10
   struct BitVec _p_e_t_r_4_0b100111;
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100110;
   _p_e_t_r_4_0b100110 = _p_e_t_r_4_0b100101;
-  init_bitvec(&_p_e_t_r_4_0b100111, 1, 32, _p_e_t_r_4_0b101000);
-  init_bitvec(&_p_e_t_r_4_0b101001, 1, 32, _p_e_t_r_4_0b101000);
+  init_bitvec(&_p_e_t_r_4_0b100111, 0, 32, _p_e_t_r_4_0b101000);
+  init_bitvec(&_p_e_t_r_4_0b101001, 0, 32, _p_e_t_r_4_0b101000);
   interp_bplus
     (&_p_e_t_r_4_0b101010, _p_e_t_r_4_0b100111, _p_e_t_r_4_0b101001);
   _p_e_t_r_4_0b101011 = _p_e_t_r_4_0b101010;

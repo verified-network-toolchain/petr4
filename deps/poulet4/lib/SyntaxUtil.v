@@ -73,6 +73,7 @@ Definition get_decl_class_name (decl : @Declaration tags_t) : option P4String :=
   match decl with
   | DeclParser _ name _ _ _ _ _
   | DeclControl _ name _ _ _ _ _
+  | DeclExternObject _ name _ _
   | DeclPackageType _ name _ _ =>
       Some name
   | _ =>

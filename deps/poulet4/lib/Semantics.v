@@ -1592,14 +1592,7 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | DeclParser _ _ _ _ constructor_params _ _
   | DeclControl _ _ _ _ constructor_params _ _
   | DeclPackageType _ _ _ constructor_params =>
-      fold_right
-          (fun param =>
-            match param with
-            | MkParameter _ _ _ _ name => cons name
-            end
-          )
-          nil
-          constructor_params
+      map get_param_name constructor_params
   | _ => nil
   end.
 
@@ -1706,6 +1699,8 @@ Definition ienv_val_to_sumtype (val : ienv_val) :=
 
 Definition dummy_cenv := mk_cenv IdentMap.empty.
 Definition dummy_decl := DeclError dummy_tags nil.
+
+Opaque dummy_cenv dummy_decl.
 
 (* Given type (class name and type args) and args (in expressions), instantiate the instantce at p. *)
 Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)

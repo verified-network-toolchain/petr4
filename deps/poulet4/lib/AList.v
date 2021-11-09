@@ -307,20 +307,42 @@ Section AList.
   Qed.
 End AList.
   
-Section Map.
+Section Rel.
   Context {K A B : Type} {R: Relation_Definitions.relation K}
           `{H: Equivalence K R} {KEqDec: EqDec K R}.
-  Variable (f : A -> B).
+  Section Map.
+    Variable (f : A -> B).
+    
+    Definition map_values  : AList K A R -> AList K B R :=
+      List.map (fun '(k,a) => (k,f a)).
   
-  Definition map_values  : AList K A R -> AList K B R :=
-    List.map (fun '(k,a) => (k,f a)).
-  
-  Lemma get_map_values : forall (l : AList K A R) (k : K),
-      get (map_values l) k = option_map f (get l k).
-  Proof.
-    unfold get.
-    induction l as [| [ky a] l IHl]; intros k; simpl; auto.
-    destruct (KEqDec k ky) as [Hkky | Hkky];
-      unfold equiv, complement in *; simpl in *; auto.
-  Qed.
-End Map.
+    Lemma get_map_values : forall (l : AList K A R) (k : K),
+        get (map_values l) k = option_map f (get l k).
+    Proof.
+      unfold get.
+      induction l as [| [ky a] l IHl]; intros k; simpl; auto.
+      destruct (KEqDec k ky) as [Hkky | Hkky];
+        unfold equiv, complement in *; simpl in *; auto.
+    Qed.
+  End Map.
+
+  Section Relate.
+    Variable Q : A -> B -> Prop.
+
+    Lemma get_relate_values : forall al bl k (a : A) (b : B),
+        Q a b ->
+        all_values Q al bl ->
+        get al k = Some a ->
+        get bl k = Some b.
+    Proof.
+      unfold get, all_values.
+      intro al; induction al as [| [ka a'] al IHal];
+        intros [| [kb b'] bl] k a b HQab Hall Hgetal; simpl in *;
+          inversion Hgetal; subst; inversion Hall; subst.
+      destruct (KEqDec k ka) as [Hka | Hka];
+        destruct (KEqDec k kb) as [Hkb | Hkb];
+        unfold equiv, complement in *; simpl in *; subst.
+      - inversion Hgetal; subst. destruct H4; subst.
+    Abort.
+  End Relate.
+End Rel.

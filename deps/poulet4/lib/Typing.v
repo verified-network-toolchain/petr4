@@ -4,6 +4,105 @@ Require Import Poulet4.Semantics Poulet4.Typed
 Import ListNotations.
 Require Poulet4.P4String.
 
+Section ExecValInd.
+  Variables (tags_t A B : Type).
+  Notation VA := (@ValueBase tags_t A).
+  Notation VB := (@ValueBase tags_t B).
+  Variables (R : A -> B -> Prop) (P : VA -> VB -> Prop).
+  
+  Hypothesis HNull : P ValBaseNull ValBaseNull.
+  Hypothesis HBool : forall a b,
+      R a b -> P (ValBaseBool a) (ValBaseBool b).
+  Hypothesis HInteger : forall n, P (ValBaseInteger n) (ValBaseInteger n).
+  Hypothesis HBit : forall la lb,
+      Forall2 R la lb -> P (ValBaseBit la) (ValBaseBit lb).
+  Hypothesis HInt : forall la lb,
+      Forall2 R la lb -> P (ValBaseInt la) (ValBaseInt lb).
+  Hypothesis HVarbit : forall max la lb,
+      Forall2 R la lb -> P (ValBaseVarbit max la) (ValBaseVarbit max lb).
+  Hypothesis HString : forall s, P (ValBaseString s) (ValBaseString s).
+  Hypothesis HTuple : forall vas vbs,
+      Forall2 (exec_val R) vas vbs ->
+      Forall2 P vas vbs ->
+      P (ValBaseTuple vas) (ValBaseTuple vbs).
+  Hypothesis HRecord : forall kvas kvbs,
+      AList.all_values (exec_val R) kvas kvbs ->
+      AList.all_values P kvas kvbs ->
+      P (ValBaseRecord kvas) (ValBaseRecord kvbs).
+  Hypothesis HError : forall s, P (ValBaseError s) (ValBaseError s).
+  Hypothesis HMatchkind : forall s, P (ValBaseMatchKind s) (ValBaseMatchKind s).
+  Hypothesis HStruct : forall kvas kvbs,
+      AList.all_values (exec_val R) kvas kvbs ->
+      AList.all_values P kvas kvbs ->
+      P (ValBaseStruct kvas) (ValBaseStruct kvbs).
+  Hypothesis HHeader : forall a b kvas kvbs,
+      R a b ->
+      AList.all_values (exec_val R) kvas kvbs ->
+      AList.all_values P kvas kvbs ->
+      P (ValBaseHeader kvas a) (ValBaseHeader kvbs b).
+  Hypothesis HUnion : forall kvas kvbs,
+      AList.all_values (exec_val R) kvas kvbs ->
+      AList.all_values P kvas kvbs ->
+      P (ValBaseUnion kvas) (ValBaseUnion kvbs).
+  Hypothesis HStack : forall vas vbs size next,
+      Forall2 (exec_val R) vas vbs ->
+      Forall2 P vas vbs ->
+      P (ValBaseStack vas size next) (ValBaseStack vbs size next).
+  Hypothesis HEnumField : forall type_name enum_name,
+      P
+        (ValBaseEnumField type_name enum_name)
+        (ValBaseEnumField type_name enum_name).
+  Hypothesis HSenumField : forall type_name enum_name va vb,
+      exec_val R va vb -> P va vb ->
+      P
+        (ValBaseSenumField type_name enum_name va)
+        (ValBaseSenumField type_name enum_name vb).
+  
+  Definition custom_exec_val_ind : forall va vb,
+      exec_val R va vb -> P va vb :=
+    fix evind va vb (H : exec_val R va vb) : P va vb :=
+      let fix lind
+              {vas} {vbs}
+              (HForall2 : Forall2 (exec_val R) vas vbs)
+          : Forall2 P vas vbs :=
+          match HForall2 with
+          | Forall2_nil _ => Forall2_nil _
+          | Forall2_cons _ _ Hhd Htl
+            => Forall2_cons _ _ (evind _ _ Hhd) (lind Htl)
+          end in
+      let fix alind
+              {kvas} {kvbs}
+              (Hall_values : AList.all_values (exec_val R) kvas kvbs)
+          : AList.all_values P kvas kvbs :=
+          match Hall_values with
+          | Forall2_nil _ => Forall2_nil _
+          | Forall2_cons _ _ (conj Hk Hhd) Htl
+            => Forall2_cons _ _ (conj Hk (evind _ _ Hhd)) (alind Htl)
+          end in
+      match H with
+      | exec_val_null _ => HNull
+      | exec_val_bool _ _ _ r => HBool _ _ r
+      | exec_val_integer _ n => HInteger n
+      | exec_val_bit _ _ _ rs => HBit _ _ rs
+      | exec_val_int _ _ _ rs => HInt _ _ rs
+      | exec_val_varbit _ _ max _ rs => HVarbit _ max _ rs
+      | exec_val_string _ s => HString s
+      | exec_val_tuple _ _ _ evs => HTuple _ _ evs (lind evs)
+      | exec_val_record _ _ _ evs => HRecord _ _ evs (alind evs)
+      | exec_val_error _ s => HError s
+      | exec_val_matchkind _ s => HMatchkind s
+      | exec_val_struct _ _ _ evs => HStruct _ _ evs (alind evs)
+      | exec_val_header _ _ _ _ _ r evs
+        => HHeader _ _ _ _ r evs (alind evs)
+      | exec_val_union _ _ _ evs => HUnion _ _ evs (alind evs)
+      | exec_val_stack _ _ _ size next evs
+        => HStack _ _ size next evs (lind evs)
+      | exec_val_enum_field _ tn en => HEnumField tn en
+      | exec_val_senum_field _ tn en _ _ ev
+        => HSenumField tn en _ _ ev (evind _ _ ev)
+      end.
+End ExecValInd.
+
 Section ValueTyping.
   Context {tags_t : Type}.
 
@@ -288,16 +387,97 @@ Section ValueTyping.
 
     Section Rel.
       Variable (R : A -> B -> Prop).
+
+      Local Hint Resolve Forall2_forall_impl_Forall2 : core.
+      Local Hint Resolve Forall2_forall_specialize : core.
+      Local Hint Resolve Forall2_impl : core.
+      Local Hint Resolve in_combine_l : core.
+      Local Hint Resolve nth_error_in_combine : core.
       
       Lemma exec_val_preserves_typ : forall va vb,
           exec_val R va vb ->
-          forall gsa gsb t,
+          forall gsa gsb,
             FuncAsMap.related
               (AList.all_values (exec_val R))
               gsa gsb ->
-            val_typ gsa va t -> val_typ gsb vb t.
+            forall t, val_typ gsa va t -> val_typ gsb vb t.
       Proof.
-        (* TODO: need induction principle for [exec_val]. *)
+        intros va vb Hev gsa gsb Hgs.
+        induction Hev using custom_exec_val_ind;
+          intros t Hvat; inversion Hvat; clear Hvat; subst; eauto.
+        - apply Forall2_length in H; rewrite H; auto.
+        - apply Forall2_length in H; rewrite H; auto.
+        - apply Forall2_length in H; rewrite H in H3; auto.
+        - constructor.
+          unfold AList.all_values in *.
+          rewrite Forall2_conj in *.
+          destruct H0 as [Habkeys Habtyps].
+          destruct H2 as [Hakeys Hatyps].
+          rewrite Forall2_map_both in *.
+          pose proof Forall2_map_both
+               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               snd snd kvas kvbs as H';
+            cbn in *; apply H' in Habtyps; clear H'.
+          rewrite Forall2_eq in *; rewrite <- Habkeys.
+          rewrite Forall2_map_both; split; eauto.
+        - constructor.
+          unfold AList.all_values in *.
+          rewrite Forall2_conj in *.
+          destruct H0 as [Habkeys Habtyps].
+          destruct H2 as [Hakeys Hatyps].
+          rewrite Forall2_map_both in *.
+          pose proof Forall2_map_both
+               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               snd snd kvas kvbs as H';
+            cbn in *; apply H' in Habtyps; clear H'.
+          rewrite Forall2_eq in *; rewrite <- Habkeys.
+          rewrite Forall2_map_both; split; eauto.
+        - constructor.
+          unfold AList.all_values in *.
+          rewrite Forall2_conj in *.
+          destruct H1 as [Habkeys Habtyps].
+          destruct H5 as [Hakeys Hatyps].
+          rewrite Forall2_map_both in *.
+          pose proof Forall2_map_both
+               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               snd snd kvas kvbs as H';
+            cbn in *; apply H' in Habtyps; clear H'.
+          rewrite Forall2_eq in *; rewrite <- Habkeys.
+          rewrite Forall2_map_both; split; eauto.
+        - constructor.
+          unfold AList.all_values in *.
+          rewrite Forall2_conj in *.
+          destruct H0 as [Habkeys Habtyps].
+          destruct H2 as [Hakeys Hatyps].
+          rewrite Forall2_map_both in *.
+          pose proof Forall2_map_both
+               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               snd snd kvas kvbs as H';
+            cbn in *; apply H' in Habtyps; clear H'.
+          rewrite Forall2_eq in *; rewrite <- Habkeys.
+          rewrite Forall2_map_both; split; eauto.
+        - apply Forall2_length in H.
+          constructor; try lia.
+          apply Forall2_forall_specialize with (t := TypHeader ts) in H0.
+          rewrite Forall_forall in *.
+          rewrite Forall2_forall in H0.
+          destruct H0 as [Hlen Hcomb].
+          intros vb Hinvbs.
+          apply In_nth_error in Hinvbs as Hnthvbs.
+          destruct Hnthvbs as [n Hnthvbs].
+          assert (Hnthvas: exists va, nth_error vas n = Some va).
+          { apply ListUtil.nth_error_exists.
+            rewrite Hlen, <- nth_error_Some, Hnthvbs; discriminate. }
+          destruct Hnthvas as [va Hnthvas]. eauto 6.
+        - unfold FuncAsMap.related, IdentMap.get in *.
+          specialize Hgs with type_name.
+          inversion Hgs; subst; unfold P4String.AList in *.
+          + exfalso; clear Hev vb H H4 H5 R enum_name gsb Hgs IHHev t0 B.
+            rewrite H2 in H0. discriminate.
+          + rewrite H2 in H; inversion H; subst; clear H.
+            apply AList.all_values_keys_eq in H1 as Hkeys.
+            rewrite Hkeys. constructor; auto.
+            (* need notion of equivalent types and values. *)
       Admitted.
     End Rel.
   End RelTyp.

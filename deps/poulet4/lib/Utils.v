@@ -466,3 +466,53 @@ Proof.
         constructor; simpl; auto.
     rewrite H4; auto.
 Qed.
+
+Section Forall2Impl.
+  Variables (T U V : Type).
+  Variables (R : T -> V -> Prop) (S : U -> V -> Prop).
+
+  Lemma Forall2_forall_impl_Forall2 : forall ts us,
+      Forall2 (fun t u => forall v, R t v -> S u v) ts us ->
+      forall vs, Forall2 R ts vs -> Forall2 S us vs.
+  Proof.
+    intros ts us H;
+      induction H as [| t u ts us Htu Htsus IHtsus];
+      intros vs Htsvs; inversion Htsvs; clear Htsvs; subst; auto.
+  Qed.
+End Forall2Impl.
+
+Lemma Forall2_forall_specialize :
+  forall (T U V : Type) (Q : T -> U -> V -> Prop) us vs,
+    Forall2 (fun u v => forall t, Q t u v) us vs ->
+    forall t, Forall2 (Q t) us vs.
+Proof.
+  intros T U V Q us vs H;
+    induction H as [| u v us vs Huv Husvs IHusvs];
+    intro t; auto.
+Qed.
+
+Lemma Forall2_forall : forall (U V : Type) (R : U -> V -> Prop) us vs,
+    Forall2 R us vs <->
+    List.length us = List.length vs /\
+    forall u v, In (u,v) (combine us vs) -> R u v.
+Proof.
+  intros U V R us vs; split; intros H.
+  - split; eauto using Forall2_length.
+    induction H; intros u v Hin; simpl in *; try contradiction.
+    destruct Hin as [Heq | Hin]; try inversion Heq; subst; auto.
+  - destruct H as [Hlen Hcomb].
+    generalize dependent vs.
+    induction us as [| u us IHus];
+      intros [| v vs] Hlen Hcomb; simpl in *; inversion Hlen; subst; auto.
+Qed.
+
+Lemma nth_error_in_combine :
+  forall (U V : Type) n us vs (u : U) (v : V),
+    nth_error us n = Some u ->
+    nth_error vs n = Some v ->
+    In (u,v) (combine us vs).
+Proof.
+  intros U V n; induction n as [| n IHn];
+    intros [| uu us] [| vv vs] u v Hu Hv;
+    simpl in *; inversion Hu; inversion Hv; subst; auto.
+Qed.

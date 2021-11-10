@@ -1711,7 +1711,7 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
   let params := get_constructor_param_names decl in
   let instantiate_arg (acc : list ienv_val * inst_mem * extern_state * list ident) arg :=
     let '(args, m, s, params) := acc in
-    let '(arg, m, s) := instantiate_expr' ce e arg (p ++ [hd dummy_ident params]) m s in
+    let '(arg, m, s) := instantiate_expr' ce e arg (match params with hd :: _ => p ++ [hd] | _ => [] end) m s in
     (* O(n^2) time complexity here. *)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
@@ -1745,6 +1745,7 @@ Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option V
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
 
+(* Evaluate/instantiate the expression expr at p. Copy the result to p if p is not []. *)
 Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p : path)
       (m : inst_mem) (s : extern_state) {struct expr} : ienv_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
@@ -1752,7 +1753,8 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
       (* Can inst be a Val, or just an inst_ref? *)
       let inst := force dummy_ienv_val (IdentMap.get name e) in
-      (inst, set_inst_mem p inst m, s)
+      let m := if path_equivb p [] then m else set_inst_mem p inst m in
+      (inst, m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' ce e typ args p m s
   | _ =>
@@ -1771,7 +1773,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
   | DeclInstantiation _ typ args name init =>
       let '(inst, m, s) := instantiate' ce e typ args (p ++ [name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_decl' true ce e decl p m s in
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set name inst e, m, s)
   | DeclFunction _ _ name type_params params body =>

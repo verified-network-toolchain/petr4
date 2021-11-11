@@ -2,6 +2,7 @@ Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Require Import Coq.Sorting.Permutation.
 Require Import Coq.Bool.Sumbool.
+Require Coq.Strings.String.
 Require Import Coq.Classes.Morphisms Poulet4.Utils.
 Import ListNotations.
 
@@ -267,7 +268,7 @@ Section AList.
   Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
-  
+
   (*Inductive all_values {A B} (hold_one_value : A -> B -> Prop) :
                        AList K A R -> AList K B R -> Prop :=
   | all_values_nil : all_values hold_one_value nil nil
@@ -277,7 +278,7 @@ Section AList.
                       all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
 
   Local Hint Constructors all_values : core.*)
-  
+
   Lemma Forall2_all_values :
     forall (U W : Type) (P : U -> W -> Prop) us ws ks,
       length ks = length us -> length ks = length ws ->
@@ -306,16 +307,18 @@ Section AList.
     assumption.
   Qed.
 End AList.
-  
+
+Definition StringAList V := AList String.string V eq.
+
 Section Rel.
   Context {K A B : Type} {R: Relation_Definitions.relation K}
           `{H: Equivalence K R} {KEqDec: EqDec K R}.
   Section Map.
     Variable (f : A -> B).
-    
+
     Definition map_values  : AList K A R -> AList K B R :=
       List.map (fun '(k,a) => (k,f a)).
-  
+
     Lemma get_map_values : forall (l : AList K A R) (k : K),
         get (map_values l) k = option_map f (get l k).
     Proof.

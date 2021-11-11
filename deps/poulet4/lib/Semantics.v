@@ -93,7 +93,8 @@ Record genv := MkGenv {
   ge_typ :> genv_typ;
   ge_senum :> genv_senum;
   ge_inst :> genv_inst;
-  ge_const :> genv_const
+  ge_const :> genv_const;
+  ge_ext :> extern_env
 }.
 
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
@@ -1558,7 +1559,7 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
   (* Todo: check in/inout/out & uninitialized args *)
   | exec_func_external : forall obj_path class_name name (* params *) m es es' targs args argvs argvs' args' sig,
       svals_to_vals read_one_bit args argvs ->
-      exec_extern es class_name name obj_path targs argvs es' argvs' sig ->
+      exec_extern ge es class_name name obj_path targs argvs es' argvs' sig ->
       vals_to_svals argvs' args' ->
       exec_func read_one_bit obj_path (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
 
@@ -1591,14 +1592,7 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | DeclParser _ _ _ _ constructor_params _ _
   | DeclControl _ _ _ _ constructor_params _ _
   | DeclPackageType _ _ _ constructor_params =>
-      fold_right
-          (fun param =>
-            match param with
-            | MkParameter _ _ _ _ name => cons name
-            end
-          )
-          nil
-          constructor_params
+      map get_param_name constructor_params
   | _ => nil
   end.
 
@@ -1618,18 +1612,47 @@ Definition get_type_params (typ : @P4Type tags_t) : list (@P4Type tags_t) :=
   | _ => nil
   end.
 
+Definition BlockNil := BlockEmpty dummy_tags.
+
+Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
+  BlockCons stmt BlockNil.
+
+(* out parameters are, with a few exceptions listed below, uninitialized and are treated
+   as l-values (See Section 6.6) within the body of the method or function...
+   Direction out parameters are always initialized at the beginning of execution of the portion
+   of the program that has the out parameters, e.g. control, parser, action, function, etc.
+   This initialization is not performed for parameters with any direction that is not out.
+      1. If a direction out parameter is of type header or header_union, it is set to “invalid”.
+      2. If a direction out parameter is of type header stack, all elements of the header stack
+         are set to “invalid”, and its nextIndex field is initialized to 0 (see Section 8.17).
+      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than
+         one of the types listed above, then apply these rules recursively to its members.
+      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
+         not initialize it to any predictable value.
+*)
+
+Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
+  match params with
+  | [] => BlockNil
+  | param :: params' =>
+      let block := uninit_out_params params' in
+      let (name, typ) := param in
+      let stmt := MkStatement dummy_tags (StatVariable typ name None (LInstance [name])) StmUnit in
+      BlockCons stmt block
+  end.
+
 Definition ienv_val : Type := inst_ref + Val.
 Definition ienv := @IdentMap.t tags_t ienv_val.
 Axiom dummy_ienv_val : ienv_val.
 
 (* inst_mem is a legacy concept. Now it is actually the pair of genv_inst and genv_const.
   It is the result of instantiation. *)
-Definition inst_mem : Type := genv_inst * genv_const.
+Definition inst_mem : Type := genv_inst * genv_const * extern_env.
 
 Definition set_inst_mem (p : path) (v : ienv_val) (m : inst_mem) : inst_mem :=
   match v with
-  | inl inst => map_fst (PathMap.set p inst) m
-  | inr v => map_snd (PathMap.set p v) m
+  | inl inst => map_fst (map_fst (PathMap.set p inst)) m
+  | inr v => map_fst (map_snd (PathMap.set p v)) m
   end.
 
 (* cenv is a class environment, mapping names to closures. Each closure contains
@@ -1644,6 +1667,13 @@ Definition unfold_cenv (ce : cenv) :=
 
 Coercion unfold_cenv : cenv >-> IdentMap.t.
 
+Inductive exec_abstract_method : path -> fundef -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop :=
+  | exec_abstract_method_intro : forall p fd es args es' args' sargs sargs' sig m',
+      vals_to_svals args sargs ->
+      exec_func read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
+      svals_to_vals read_ndetbit sargs' args' ->
+      exec_abstract_method p fd es args es' args' sig.
+
 (* The following section defines a group of mutually recursive functions:
   instantiate_expr: instantiate an instance expression (e.g. nameless instantiation)
   instantiate: instantiate an instance given typ and evaluated args
@@ -1653,7 +1683,7 @@ Coercion unfold_cenv : cenv >-> IdentMap.t.
 
 Section instantiate_class_body.
 
-Variable instantiate_class_body_rev_decls : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
+Variable instantiate_class_body_ce : forall (e : ienv) (class_name : ident) (p : path) (m : inst_mem)
       (s : extern_state), path * inst_mem * extern_state.
 
 Section instantiate_expr'.
@@ -1661,15 +1691,18 @@ Section instantiate_expr'.
 Variable instantiate_expr' : forall (ce : cenv) (e : ienv) (expr : @Expression tags_t)
       (p : path) (m : inst_mem) (s : extern_state), ienv_val * inst_mem * extern_state.
 
-Definition extract_val (val : ienv_val) :=
+Definition ienv_val_to_sumtype (val : ienv_val) :=
   match val with
-  | inr val => val
-  | _ => dummy_val
+  | inl (mk_inst_ref _ p) => inl p
+  | inr val => inr val
   end.
 
 Definition dummy_cenv := mk_cenv IdentMap.empty.
 Definition dummy_decl := DeclError dummy_tags nil.
 
+Opaque dummy_cenv dummy_decl.
+
+(* Given type (class name and type args) and args (in expressions), instantiate the instantce at p. *)
 Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
       (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : ienv_val * inst_mem * extern_state :=
   let class_name := get_type_name typ in
@@ -1678,18 +1711,18 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
   let params := get_constructor_param_names decl in
   let instantiate_arg (acc : list ienv_val * inst_mem * extern_state * list ident) arg :=
     let '(args, m, s, params) := acc in
-    let '(arg, m, s) := instantiate_expr' ce e arg (p ++ [hd dummy_ident params]) m s in
+    let '(arg, m, s) := instantiate_expr' ce e arg (match params with hd :: _ => p ++ [hd] | _ => [] end) m s in
     (* O(n^2) time complexity here. *)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := map_fst (PathMap.set p (mk_inst_ref class_name p)) m in
+    let m := map_fst (map_fst (PathMap.set p (mk_inst_ref class_name p))) m in
     let type_params := get_type_params typ in
-    let s := alloc_extern s class_name type_params p (map extract_val args) in
-    (inl (mk_inst_ref class_name p), m, s)
+    let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
+    (inl (mk_inst_ref class_name p), (fst m, ee), s)
   else
     let e := IdentMap.sets params args e in
-    let '(_, m, s) := instantiate_class_body_rev_decls e class_name p m s in
+    let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
     (inl (mk_inst_ref class_name p), m, s).
 
 End instantiate_expr'.
@@ -1712,6 +1745,7 @@ Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option V
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
 
+(* Evaluate/instantiate the expression expr at p. Copy the result to p if p is not []. *)
 Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p : path)
       (m : inst_mem) (s : extern_state) {struct expr} : ienv_val * inst_mem * extern_state :=
   let instantiate' := instantiate'' instantiate_expr' in
@@ -1719,7 +1753,8 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
       (* Can inst be a Val, or just an inst_ref? *)
       let inst := force dummy_ienv_val (IdentMap.get name e) in
-      (inst, set_inst_mem p inst m, s)
+      let m := if path_equivb p [] then m else set_inst_mem p inst m in
+      (inst, m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' ce e typ args p m s
   | _ =>
@@ -1732,19 +1767,33 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
 Definition instantiate' :=
   instantiate'' instantiate_expr'.
 
-Definition instantiate_decl' (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
+Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
       (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
-  | DeclInstantiation _ typ args name _ =>
+  | DeclInstantiation _ typ args name init =>
       let '(inst, m, s) := instantiate' ce e typ args (p ++ [name]) m s in
+      let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [name]) m s in
+      let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set name inst e, m, s)
+  | DeclFunction _ _ name type_params params body =>
+      if is_init_block then
+        let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+        let init := uninit_out_params out_params in
+        let params := map get_param_name_dir params in
+        let params := map (map_fst (fun param => LGlobal [name; param])) params in
+        let fd := FInternal params init body in
+        let ee := extern_set_abstract_method (snd m) (p ++ [name]) (exec_abstract_method p fd) in
+        (e, (fst m, ee), s)
+      else
+        (e, m, s)
   | _ => (e, m, s)
   end.
 
 Definition instantiate_decls' (ce : cenv) (e : ienv) (decls : list (@Declaration tags_t))
       (p : path) (m : inst_mem) (s : extern_state) : inst_mem * extern_state :=
   let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-    let '(e, m, s) := ems in instantiate_decl' ce e decl p m s in
+    let '(e, m, s) := ems in instantiate_decl' false ce e decl p m s in
   let '(_, m, s) := fold_left instantiate_decl'' decls (e, m, s) in
   (m, s).
 
@@ -1832,7 +1881,7 @@ Definition instantiate (ce : cenv) :=
   instantiate' (instantiate_class_body ce) ce.
 
 Definition instantiate_decl (ce : cenv) :=
-  instantiate_decl' (instantiate_class_body ce) ce.
+  instantiate_decl' (instantiate_class_body ce) false ce.
 
 Definition instantiate_decls (ce : cenv) :=
   instantiate_decls' (instantiate_class_body ce) ce.
@@ -1859,13 +1908,8 @@ Definition instantiate_global_decls (decls : list (@Declaration tags_t)) :
 Definition instantiate_prog (prog : @program tags_t) : inst_mem * extern_state :=
   match prog with
   | Program decls =>
-      instantiate_global_decls decls (PathMap.empty, PathMap.empty) extern_empty
+      instantiate_global_decls decls (PathMap.empty, PathMap.empty, PathMap.empty) PathMap.empty
   end.
-
-Definition BlockNil := BlockEmpty dummy_tags.
-
-Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
-  BlockCons stmt BlockNil.
 
 Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
   match locals with
@@ -1973,29 +2017,6 @@ Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
       mk_table_entry matches (unwrap_action_ref2 action)
   end.
 
-(* out parameters are, with a few exceptions listed below, uninitialized and are treated 
-   as l-values (See Section 6.6) within the body of the method or function.…..
-   Direction out parameters are always initialized at the beginning of execution of the portion 
-   of the program that has the out parameters, e.g. control, parser, action, function, etc. 
-   This initialization is not performed for parameters with any direction that is not out.
-      1. If a direction out parameter is of type header or header_union, it is set to “invalid”.
-      2. If a direction out parameter is of type header stack, all elements of the header stack
-         are set to “invalid”, and its nextIndex field is initialized to 0 (see Section 8.17).
-      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than
-         one of the types listed above, then apply these rules recursively to its members.
-      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
-         not initialize it to any predictable value.
-*)
-Fixpoint uninit_out_parames (params: list (ident * P4Type)) : Block :=
-  match params with
-  | [] => BlockNil
-  | param :: params' =>
-      let block := uninit_out_parames params' in
-      let (name, typ) := param in
-      let stmt := MkStatement dummy_tags (StatVariable typ name None (LInstance [name])) StmUnit in
-      BlockCons stmt block
-  end.
-
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
@@ -2020,7 +2041,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [name]) (FInternal params init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_parames out_params in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LGlobal [name; param])) params in
       PathMap.set (p ++ [name]) (FInternal params init body) ge
@@ -2036,7 +2057,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_parames out_params in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
@@ -2153,10 +2174,11 @@ Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty in
+  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty in
   let inst_m := fst (instantiate_prog partial_ge prog) in
-  let ge_inst := fst inst_m in
-  let ge_const := snd inst_m in
-  MkGenv ge_func ge_typ ge_senum ge_inst ge_const.
+  let ge_inst := fst (fst inst_m) in
+  let ge_const := snd (fst inst_m) in
+  let ge_ext := snd inst_m in
+  MkGenv ge_func ge_typ ge_senum ge_inst ge_const ge_ext.
 
 End Semantics.

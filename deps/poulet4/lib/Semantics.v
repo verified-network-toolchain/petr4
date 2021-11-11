@@ -1668,9 +1668,9 @@ Definition unfold_cenv (ce : cenv) :=
 Coercion unfold_cenv : cenv >-> IdentMap.t.
 
 Inductive exec_abstract_method : path -> fundef -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop :=
-  | exec_abstract_method_intro : forall p fd es args es' args' sargs sargs' sig m m',
+  | exec_abstract_method_intro : forall p fd es args es' args' sargs sargs' sig m',
       vals_to_svals args sargs ->
-      exec_func read_ndetbit p (m, es) fd nil sargs (m', es') sargs' sig ->
+      exec_func read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
       svals_to_vals read_ndetbit sargs' args' ->
       exec_abstract_method p fd es args es' args' sig.
 

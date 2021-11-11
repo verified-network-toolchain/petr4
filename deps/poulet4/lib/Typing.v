@@ -4,6 +4,22 @@ Require Import Poulet4.Semantics Poulet4.Typed
 Import ListNotations.
 Require Poulet4.P4String.
 
+(** Predicate that a
+    [read_one_bit] relation
+    is productive. *)
+Definition read_one_bit_reads
+           {U V : Type}
+           (read_one_bit : U -> V -> Prop) : Prop :=
+  forall u, exists v, read_one_bit u v.
+
+(** Relation that a
+    [read_one_bit] is an inverse
+    with respect to [f]. *)
+Definition read_one_bit_inverse
+           {U V : Type}
+           (read_one_bit : U -> V -> Prop) (f : V -> U -> Prop) : Prop :=
+  forall u v, read_one_bit u v <-> f v u.
+
 Section ExecValInd.
   Variables (tags_t A B : Type).
   Notation VA := (@ValueBase tags_t A).
@@ -172,16 +188,7 @@ Section ValueTyping.
         val_typ v t ->
         val_typ
           (ValBaseSenumField ename member v)
-          (TypEnum ename (Some t) (List.map fst fields))
-    (* TODO: what is a [ValBaseSenum _], and what is its type?
-       It seems to be something in [gsenum],
-       but should it be a value? *)
-    (*| typ_senum : forall fields ename t,
-        IdentMap.get ename gsenum = Some fields ->
-        Forall (fun xv => val_typ gsenum (snd xv) t) fields ->
-        val_typ
-          gsenum (ValBaseSenum fields)
-          (TypEnum ename (Some t) (List.map fst fields))*).
+          (TypEnum ename (Some t) (List.map fst fields)).
 
     Section ValTypInd.
       Variable P : V -> typ -> Prop.
@@ -393,6 +400,7 @@ Section ValueTyping.
       Local Hint Resolve Forall2_impl : core.
       Local Hint Resolve in_combine_l : core.
       Local Hint Resolve nth_error_in_combine : core.
+      Local Hint Resolve Forall2_length : core.
       
       Lemma exec_val_preserves_typ : forall va vb,
           exec_val R va vb ->
@@ -479,6 +487,94 @@ Section ValueTyping.
             rewrite Hkeys. constructor; auto.
             (* need notion of equivalent types and values. *)
       Admitted.
+
+      Local Hint Constructors exec_val : core.
+      Hint Rewrite map_length : core.
+      
+      Lemma exec_val_exists :
+        read_one_bit_reads R ->
+        forall (va : VA), exists vb, exec_val R va vb.
+      Proof.
+        intros HR va.
+        induction va using @custom_ValueBase_ind; eauto.
+        - unfold read_one_bit_reads in HR.
+          specialize HR with b. firstorder eauto.
+        - unfold read_one_bit_reads in HR.
+          assert (forall a, In a n -> exists b, R a b) by firstorder eauto.
+          rewrite <- Forall_forall, Forall_exists_factor in H.
+          firstorder eauto.
+        - unfold read_one_bit_reads in HR.
+          assert (forall a, In a z -> exists b, R a b) by firstorder eauto.
+          rewrite <- Forall_forall, Forall_exists_factor in H.
+          firstorder eauto.
+        - unfold read_one_bit_reads in HR.
+          assert (forall a, In a n -> exists b, R a b) by firstorder eauto.
+          rewrite <- Forall_forall, Forall_exists_factor in H.
+          firstorder eauto.
+        - rewrite Forall_exists_factor in H.
+          firstorder eauto.
+        - rewrite Forall_snd, Forall_exists_factor in H.
+          destruct H as [bs Hbs].
+          exists (ValBaseRecord (combine (map fst vs) bs)).
+          constructor. unfold AList.all_values.
+          rewrite Forall2_conj.
+          split; rewrite Forall2_map_both.
+          + rewrite Forall2_eq.
+            rewrite map_fst_combine;
+              autorewrite with core; eauto.
+          + rewrite Forall2_map_l in Hbs.
+            rewrite map_snd_combine;
+              autorewrite with core; eauto.
+            apply Forall2_length in Hbs.
+            autorewrite with core in *; assumption.
+        - rewrite Forall_snd, Forall_exists_factor in H.
+          destruct H as [bs Hbs].
+          exists (ValBaseStruct (combine (map fst vs) bs)).
+          constructor. unfold AList.all_values.
+          rewrite Forall2_conj.
+          split; rewrite Forall2_map_both.
+          + rewrite Forall2_eq.
+            rewrite map_fst_combine;
+              autorewrite with core; eauto.
+          + rewrite Forall2_map_l in Hbs.
+            rewrite map_snd_combine;
+              autorewrite with core; eauto.
+            apply Forall2_length in Hbs.
+            autorewrite with core in *; assumption.
+        - rewrite Forall_snd, Forall_exists_factor in H.
+          destruct H as [bs Hbs].
+          unfold read_one_bit_reads in HR.
+          specialize HR with b; destruct HR as [bb HR].
+          exists (ValBaseHeader (combine (map fst vs) bs) bb).
+          constructor; auto. unfold AList.all_values.
+          rewrite Forall2_conj.
+          split; rewrite Forall2_map_both.
+          + rewrite Forall2_eq.
+            rewrite map_fst_combine;
+              autorewrite with core; eauto.
+          + rewrite Forall2_map_l in Hbs.
+            rewrite map_snd_combine;
+              autorewrite with core; eauto.
+            apply Forall2_length in Hbs.
+            autorewrite with core in *; assumption.
+        - rewrite Forall_snd, Forall_exists_factor in H.
+          destruct H as [bs Hbs].
+          exists (ValBaseUnion (combine (map fst vs) bs)).
+          constructor. unfold AList.all_values.
+          rewrite Forall2_conj.
+          split; rewrite Forall2_map_both.
+          + rewrite Forall2_eq.
+            rewrite map_fst_combine;
+              autorewrite with core; eauto.
+          + rewrite Forall2_map_l in Hbs.
+            rewrite map_snd_combine;
+              autorewrite with core; eauto.
+            apply Forall2_length in Hbs.
+            autorewrite with core in *; assumption.
+        - rewrite Forall_exists_factor in H.
+          firstorder eauto.
+        - firstorder eauto.
+      Qed.
     End Rel.
   End RelTyp.
 End ValueTyping.
@@ -545,6 +641,7 @@ Section TypingDefs.
   Definition expr_types (g : gamma) (e : expr) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (p : path) (st : state),
+      read_one_bit_reads read_one_bit ->
       envs_same g st -> envs_type ge g st ->
       (exists v, run_expr ge read_one_bit p st e v) /\
       forall v, run_expr ge read_one_bit p st e v ->
@@ -555,6 +652,7 @@ Section TypingDefs.
   Definition stmt_types (g g' : gamma) (s : stmt) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (p : path) (st : state),
+      read_one_bit_reads read_one_bit ->
       envs_same g st -> envs_type ge g st ->
       (exists st' sig, run_stmt ge read_one_bit p st s st' sig) /\
       forall st' sig, run_stmt ge read_one_bit p st s st' sig ->
@@ -591,7 +689,7 @@ Section Soundness.
   
   Ltac soundtac :=
     autounfold with *;
-    intros rob ge p st Henvs Henvt;
+    intros rob ge p st Hrob Henvs Henvt;
     split; eauto;
     try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
   
@@ -647,7 +745,7 @@ Section Soundness.
       admit.
     - destruct l as [lp | lp]; simpl in Hgt;
         simpl in *; eauto.
-  Abort.
+  Admitted.
 
   Lemma array_access_sound : forall tag arry idx ts dir n,
       typ_of_expr arry = TypArray (TypHeader ts) n ->
@@ -658,9 +756,9 @@ Section Soundness.
   Proof.
     intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
       autounfold with * in *.
-    intros rob ge p st Henvs Henvt.
-    pose proof He1 rob ge p st Henvs Henvt as [[v1 Hev1] He1']; clear He1.
-    pose proof He2 rob ge p st Henvs Henvt as [[v2 Hev2] He2']; clear He2.
+    intros rob ge p st Hrob Henvs Henvt.
+    pose proof He1 rob ge p st Hrob Henvs Henvt as [[v1 Hev1] He1']; clear He1.
+    pose proof He2 rob ge p st Hrob Henvs Henvt as [[v2 Hev2] He2']; clear He2.
     split.
     - pose proof He1' v1 Hev1 as Hv1.
       pose proof He2' v2 Hev2 as Hv2.
@@ -676,7 +774,7 @@ Section Soundness.
       rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
       inversion Hv1; inversion Hv2; subst.
       (* Need result about [Znth_def]. *)
-  Abort.
+  Admitted.
 
   Lemma bigstring_access_sound : forall tag bits lo hi dir w,
       (lo <= hi < w)%N ->
@@ -688,8 +786,8 @@ Section Soundness.
   Proof.
     intros i e lo hi d w Hlwh Ht He.
     autounfold with * in *.
-    intros rob ge p st Henvs Henvt.
-    pose proof He rob ge p st Henvs Henvt as [[v Hev] He']; clear He.
+    intros rob ge p st Hrob Henvs Henvt.
+    pose proof He rob ge p st Hrob Henvs Henvt as [[v Hev] He']; clear He.
     split.
     - apply He' in Hev as Hv; rewrite Ht in Hv;
         inversion Hv; subst; rename v0 into bits.
@@ -706,10 +804,12 @@ Section Soundness.
         (TypTuple (map typ_of_expr es)) dir.
   Proof.
     intros i es d Hes. autounfold with * in *.
-    intros rob ge p st Henvs Henvt.
+    intros rob ge p st Hrob Henvs Henvt.
     rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (ge:=ge) (p:=p) (st:=st).
+      pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
+        simpl in Hes'; clear Hes; rename Hes' into Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes Henvs as Hes';
         simpl in Hes'; clear Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes' Henvt as Hes;
@@ -739,10 +839,12 @@ Section Soundness.
   Proof.
     intros i es d Hes.
     autounfold with * in *.
-    intros rob ge p st Henvs Henvt.
+    intros rob ge p st Hrob Henvs Henvt.
     rewrite Forall_forall in Hes.
     specialize Hes with
         (read_one_bit:=rob) (ge:=ge) (p:=p) (st:=st).
+    pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
+        simpl in Hes'; clear Hes; rename Hes' into Hes.
     pose proof reduce_inner_impl _ _ _ _ Hes Henvs as Hes';
       simpl in Hes'; clear Hes.
     pose proof reduce_inner_impl _ _ _ _ Hes' Henvt as Hes;
@@ -872,6 +974,24 @@ Section Soundness.
   Proof.
     intros ? ? ? H; inversion H; subst; auto.
   Qed.
+
+  Lemma eval_unary_op_preserves_typ : forall o v v' g t t',
+      unary_type o t t' ->
+      Ops.Ops.eval_unary_op o v = Some v' ->
+      val_typ g v t -> val_typ g v' t'.
+  Proof.
+    intros o v v' g t t' Hut Heval Hvt;
+      inversion Hut; subst;
+        inversion Hvt; subst;
+          try (inversion Heval; subst; auto; assumption).
+    - unfold Ops.Ops.eval_unary_op in Heval.
+      destruct (P4Arith.BitArith.from_lbool v0)
+        as [w' n'] eqn:Heqfromlbool.
+      injection Heval as Hv'. rewrite <- Hv'.
+      inversion H; subst; clear H.
+      (** TODO: need helper lemma about
+          [P4Arith.to_lbool] and [P4Arith.BitArith.bit_not]. *)
+  Admitted.
   
   Lemma unary_op_sound : forall tag o e t dir,
       unary_type o (typ_of_expr e) t ->
@@ -880,29 +1000,50 @@ Section Soundness.
   Proof.
     intros i o e t d Hut He.
     autounfold with * in *;
-      intros rob ge p st Henvs Henvt.
+      intros rob ge p st Hrob Henvs Henvt.
     specialize He with rob ge p st.
-    pose proof He Henvs Henvt as [[v Hev] Hvt]; clear He; split.
+    pose proof He Hrob Henvs Henvt as [[v Hev] Hvt]; clear He; split.
     - apply Hvt in Hev as Hv; clear Hvt.
-      assert (exists v', sval_to_val rob v v').
-      { admit. }
-      (* Need predicate that [rob v v'] holds in [expr_types]... *)
+      assert (exists v', sval_to_val rob v v')
+        by eauto using exec_val_exists.
       destruct H as [v' Hv'].
-      destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
-      inversion Hut; subst; try inv_numeric; try inv_numeric_width;
-        match goal with
-        | H: _ = typ_of_expr ?e,
-             Hv: val_typ _ ?v (typ_of_expr ?e),
-                 Hv': sval_to_val _ ?v _
-          |- _ => rewrite <- H in *; inversion Hv; inversion Hv'; subst
-        end; simpl in *; try discriminate.
+      assert (exists v''', Ops.Ops.eval_unary_op o v' = Some v''').
+      (* Maybe try to factor this out?
+        Lemma exists_eval_unary_op : forall o v,
+          exists v', Ops.Ops.eval_unary_op o v = Some v'. *)
+      { destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
+        inversion Hut; subst; try inv_numeric; try inv_numeric_width;
+          match goal with
+          | H: _ = typ_of_expr ?e,
+               Hv: val_typ _ ?v (typ_of_expr ?e),
+                   Hv': sval_to_val _ ?v _
+            |- _ => rewrite <- H in *; inversion Hv; inversion Hv'; subst
+          end; simpl in *; try discriminate. }
+      firstorder eauto.
     - clear v Hev; intros v Hev.
       inversion Hev; subst; simpl in *.
       pose proof Hvt _ H7 as Hargsv.
-      (* Need to know:
-         - [forall o t t', unary_type o t t' -> t = t']
-         - [forall f g t v v', exec_val f v v' -> val_typ g v t -> val_typ g v' t]
-         - [forall o v v' g t, eval_unary_op o v = Some v' -> val_typ g v t -> val_typ g v' t].
-         Requires a parameterized [val_typ]. *)
-  Abort.
+      assert (typ_of_expr e = t) by eauto using unary_type_eq.
+      rewrite H in *. clear e Hvt Hev H7 H.
+      pose proof exec_val_preserves_typ
+           _ _ _ H8 (ge_senum ge) as Hevpt.
+      assert (Hgsb : exists gsb,
+                 FuncAsMap.related
+                   (AList.all_values (exec_val rob))
+                   (ge_senum ge) gsb).
+      { admit. }
+      destruct Hgsb as [gsb Hgsb].
+      pose proof Hevpt _ Hgsb _ Hargsv as Hargv.
+      assert (Hv0: val_typ gsb v0 t)
+        by eauto using eval_unary_op_preserves_typ.
+      assert (Hgsb' :
+                FuncAsMap.related
+                  (AList.all_values val_to_sval)
+                  gsb (ge_senum ge)).
+      { (* TODO:
+           Need assumption
+           [read_one_bit_inverse rob read_detbit]. *)
+        admit. }
+      eauto using exec_val_preserves_typ.
+  Admitted.
 End Soundness.

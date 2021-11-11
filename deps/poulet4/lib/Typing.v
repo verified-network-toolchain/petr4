@@ -914,7 +914,7 @@ Section Soundness.
 
   (** Evidence a unary operation is valid for a type. *)
   Inductive unary_type : OpUni -> typ -> typ -> Prop :=
-  | UTBool :
+  | UTNot :
       unary_type Not TypBool TypBool
   | UTBitNot w τ :
       numeric_width w τ -> unary_type BitNot τ τ
@@ -1045,5 +1045,157 @@ Section Soundness.
            [read_one_bit_inverse rob read_detbit]. *)
         admit. }
       eauto using exec_val_preserves_typ.
+  Admitted.
+
+  (** Evidence a binary operation is valid for given types. *)
+  Variant binary_type : OpBin -> typ -> typ -> typ -> Prop :=
+  | BTPlusPlusBit w1 w2 t2 :
+      numeric_width w2 t2 ->
+      binary_type PlusPlus (TypBit w1) t2 (TypBit (w1 + w2)%N)
+  | BTPlusPlusInt w1 w2 t2 :
+      numeric_width w2 t2 ->
+      binary_type PlusPlus (TypInt w1) t2 (TypInt (w1 + w2)%N)
+  | BTShl w1 t1 t2 :
+      numeric_width w1 t1 -> numeric t2 ->
+      binary_type Shl t1 t2 t1
+  | BTShrBit w1 w2 t1 :
+      numeric_width w1 t1 ->
+      binary_type Shr t1 (TypBit w2) t1
+  | BTShlInteger w1 t1 :
+      numeric_width w1 t1 ->
+      binary_type Shr t1 TypInteger t1
+  | BTShrInteger w1 t1 :
+      numeric_width w1 t1 ->
+      binary_type Shr t1 TypInteger t1
+  | BTEq t :
+      binary_type Eq t t TypBool
+  | BTNotEq t :
+      binary_type NotEq t t TypBool
+  | BTPlus t :
+      numeric t ->
+      binary_type Plus t t t
+  | BTMinus t :
+      numeric t ->
+      binary_type Minus t t t
+  | BTMul t :
+      numeric t ->
+      binary_type Mul t t t
+  | BTDiv t :
+      numeric t ->
+      binary_type Div t t t
+  | BTMod t :
+      numeric t ->
+      binary_type Mod t t t
+  | BTLe t :
+      numeric t ->
+      binary_type Le t t TypBool
+  | BTGe t :
+      numeric t ->
+      binary_type Ge t t TypBool
+  | BTLt t :
+      numeric t ->
+      binary_type Lt t t TypBool
+  | BTGt t :
+      numeric t ->
+      binary_type Gt t t TypBool
+  | BTPlusSat w t :
+      numeric_width w t ->
+      binary_type PlusSat t t t
+  | BTMinusSat w t :
+      numeric_width w t ->
+      binary_type MinusSat t t t
+  | BTBitAnd w t :
+      numeric_width w t ->
+      binary_type BitAnd t t t
+  | BTBitOr w t :
+      numeric_width w t ->
+      binary_type BitOr t t t
+  | BTBitXor w t :
+      numeric_width w t ->
+      binary_type BitXor t t t
+  | BTAnd :
+      binary_type And TypBool TypBool TypBool
+  | BTOr :
+      binary_type Or TypBool TypBool TypBool.
+
+  Lemma binary_op_sound : forall tag o t e1 e2 dir,
+      binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
+      Γ ⊢e e1 -> Γ ⊢e e2 ->
+      Γ ⊢e MkExpression tag (ExpBinaryOp o (e1,e2)) t dir.
+  Proof.
+  Admitted.
+
+  Inductive cast_type : typ -> typ -> Prop :=
+  | CTBool w :
+      cast_type (TypBit w) TypBool
+  | CTBit t w :
+      match t with
+      | TypBool
+      | TypBit _
+      | TypInt _
+      | TypInteger
+      | TypEnum _ (Some (TypBit _)) _ => True
+      | _ => False
+      end ->
+      cast_type t (TypBit w)
+  | CTInt t w :
+      match t with
+      | TypBool
+      | TypBit _
+      | TypInt _
+      | TypInteger
+      | TypEnum _ (Some (TypInt _)) _ => True
+      | _ => False
+      end ->
+      cast_type t (TypInt w)
+  | CTEnum t1 t2 enum fields :
+      match t1, t2 with
+      | TypBit _, TypBit _
+      | TypInt _, TypInt _
+      | TypEnum _ (Some (TypBit _)) _, TypBit _
+      | TypEnum _ (Some (TypInt _)) _, TypInt _ => True
+      | _, _ => False
+      end ->
+      cast_type t1 (TypEnum enum (Some t2) fields)
+  | CTNewType x t t' :
+      cast_type t t' ->
+      cast_type t (TypNewType x t')
+  | CTStructOfTuple ts xts :
+      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+      cast_type (TypTuple ts) (TypStruct xts)
+  | CTStructOfRecord xts xts' :
+      AList.all_values cast_type xts xts' ->
+      cast_type (TypRecord xts) (TypStruct xts')
+  | CTHeaderOfTuple ts xts :
+      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+      cast_type (TypTuple ts) (TypHeader xts)
+  | CTHeaderOfRecord xts xts' :
+      AList.all_values cast_type xts xts' ->
+      cast_type (TypRecord xts) (TypHeader xts')
+  | CTTuple ts ts' :
+      Forall2 cast_type ts ts' ->
+      cast_type (TypTuple ts) (TypTuple ts').
+  
+  Lemma cast_sound : forall tag e t dir,
+      cast_type (typ_of_expr e) t ->
+      Γ ⊢e e ->
+      Γ ⊢e MkExpression tag (ExpCast t e) t dir.
+  Proof.
+  Admitted.
+
+  Lemma enum_sound : forall tag tname member ename members dir,
+      (* TODO: need [ge] of [genv].
+         name_to_type ge tname = Some (TypEnum ename None members) ->*)
+      In member members ->
+      Γ ⊢e MkExpression tag (ExpTypeMember tname member) (TypEnum ename None members) dir.
+  Proof.
+  Admitted.
+
+  Lemma senum_sound : forall tag tname member ename t members dir,
+      (*name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
+      IdentMap.get ename (ge_senum ge) = Some fields ->*)
+      In member members ->
+      Γ ⊢e MkExpression tag (ExpTypeMember tname member) (TypEnum ename (Some t) members) dir.
+  Proof.
   Admitted.
 End Soundness.

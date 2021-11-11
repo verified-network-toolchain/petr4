@@ -526,7 +526,7 @@ Section Lifted.
   assert (Heqp0' := Heqp0). hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
   hyp_f_equal Heqp0' (@snd (Stmt.s tags_t) (Parser.e tags_t)). simpl.
   repeat (constructor; auto). hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).
-  Qed.
+  Qed. 
 
   Local Hint Resolve TranslateParserExpr_lifted_stmt : core.
 

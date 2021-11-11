@@ -4,6 +4,18 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
+Ltac translateParserExpr_destr :=
+  match goal with 
+  | |- context [TranslateParserExpr ?e ?env]
+    => destruct (TranslateParserExpr e env) as [? ?] eqn:?; simpl in *
+  end.
+
+Ltac translateCases'_destr :=
+  match goal with 
+  | |- context [TranslateCases' ?c ?env ?i]
+    => destruct (TranslateCases' c env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
 Ltac translateStmt_destr :=
   match goal with
   | |- context [TranslateStatement ?s ?env]
@@ -482,5 +494,31 @@ Section Lifted.
     + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   Qed.
 
+  Local Hint Resolve TranslateStmt_lifted_stmt : core.
 
+  Lemma TranslateCases_lifted_stmt : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
+  (cases: Field.fs Parser.pat (Parser.e tags_t)) (env: VarNameGen.t) (i : tags_t),
+  lifted_stmt (fst (fst (TranslateCases' translateParserE cases env i))).
+  Proof.
+    intros. induction cases.
+    - simpl. auto.
+    - simpl. destruct a. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+    destruct p0. simpl. constructor.
+      + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t)).   
+  Admitted.
+
+  Local Hint Resolve TranslateCases_lifted_stmt : core.
+
+
+  Lemma TranslateParser_lifted_stmt : forall (e : Parser.e tags_t) (env:VarNameGen.t),
+  lifted_stmt (fst (fst (TranslateParserExpr e env))).
+  Proof.
+  intros e. induction e; intro env; try simpl; auto.
+  transformExpr_destr. translateParserExpr_destr. destruct p. destruct (TranslateCases' TranslateParserExpr cases t0 i) eqn:Hs1.
+  destruct p eqn: Hs2.
+  assert (Heqp' := Heqp). transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+  transformExpr_f_equal Heqp' (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+  assert (Heqp0' := Heqp0). transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  transformExpr_f_equal Heqp0' (@snd (Stmt.s tags_t) (Parser.e tags_t)). simpl.
+  repeat (constructor; auto). admit.
 End Lifted.

@@ -17,13 +17,13 @@ Section Properties.
   
   Context {tags_t : Type}.
   Local Hint Resolve Env.scope_shadow_sub_env : core.
+  Local Hint Resolve Utils.Forall2_dumb : core.
   Local Hint Constructors expr_big_step : core.
   
   Lemma expr_big_step_sub_env : forall ϵ ϵ' (e : Expr.e tags_t) v,
       ϵ ⊆ ϵ' -> ⟨ ϵ, e ⟩ ⇓ v -> ⟨ ϵ', e ⟩ ⇓ v.
   Proof.
-    intros ? eps' ? ? ? Hev.
-    generalize dependent eps'.
+    intros eps eps' e v Heps Hev.
     induction Hev
       as [ eps b i 
          | eps w n i
@@ -41,21 +41,28 @@ Section Properties.
          | eps es e i b vs Hevs IHevs Hev IHev
          | eps ts es ni i vss Hevsss IHevsss
          | eps e i n ni ts vss b vs Haccess Hevss IHevss
-         ] using custom_expr_big_step_ind;
-      intros eps' Hsub; eauto.
-    - constructor.
-  Admitted.
+         ] using custom_expr_big_step_ind; eauto.
+    - constructor; unfold F.relfs, F.relf in *; unravel in *.
+      rewrite Utils.Forall2_conj in *.
+      firstorder eauto.
+    - constructor; auto; unfold F.relfs, F.relf in *; unravel in *.
+      rewrite Utils.Forall2_conj in *.
+      firstorder eauto.
+  Qed.
+
+  Local Hint Resolve expr_big_step_sub_env : core.
+  Local Hint Constructors stmt_big_step : core.
   
   Lemma stmt_big_step_sub_env :
-    forall ϵ ϵ' (s : Stmt.s tags_t) pkt pkt' fs cx sig,
-      ⟪ pkt , fs , ϵ , cx , s ⟫ ⤋ ⟪ ϵ' , sig , pkt' ⟫ -> ϵ ⊆ ϵ'.
+    forall ϵ₁ ϵ₁' ϵ₂ ϵ₂' (s : Stmt.s tags_t) pkt pkt' fs cx sig,
+      ϵ₁ ⊆ ϵ₂ -> ϵ₁' ⊆ ϵ₂' ->
+      ⟪ pkt , fs , ϵ₁ , cx , s ⟫ ⤋ ⟪ ϵ₁' , sig , pkt' ⟫ ->
+      ⟪ pkt , fs , ϵ₂ , cx , s ⟫ ⤋ ⟪ ϵ₂' , sig , pkt' ⟫.
   Proof.
-    intros ? ? ? ? ? ? ? ? Hevals; induction Hevals;
-      try reflexivity;
-      try match goal with
-          | H12: ?e1 ⊆ ?e2, H23: ?e2 ⊆ ?e3
-            |- ?e1 ⊆ ?e3 => transitivity e2; assumption
-          end; auto.
-    - (* not generally true. *)
+    intros eps1 eps1' eps2 eps2' s pkt pkt' fs cx sig Heps Heps' Hsbs.
+    induction Hsbs; eauto 4.
+    (* TODO: need a notion of [env₁ ⊆ env₂]
+       that keeps track of exactly which bindings
+       [env₂] has that [env₁] does not. *)
   Abort.
 End Properties.

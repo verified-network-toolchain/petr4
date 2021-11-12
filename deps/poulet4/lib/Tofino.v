@@ -1,3 +1,5 @@
+(* Sample semantics for the Tofino target. *)
+(* Currently, it is only as complete as being able to test abstract methods' semantics. *)
 Require Import Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
@@ -20,7 +22,7 @@ Require Import Poulet4.P4Notations.
 Import ListNotations.
 Open Scope Z_scope.
 
-Section V1Model.
+Section Tofino.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Context {Expression: Type}.
@@ -39,18 +41,12 @@ Definition register_static : Type := N (* width *) * Z (* size *).
 
 Definition register := list Val.
 
-Definition new_register (size : Z) (w : N) : list Val :=
-  Zrepeat (ValBaseBit (to_lbool w 0)) size.
+Definition new_register (size : Z) (w : N) (init_val : Val) : list Val :=
+  Zrepeat init_val size.
 
 Definition packet_in := list bool.
 
 Definition packet_out := list bool.
-
-Inductive env_object :=
-  | EnvTable
-  | EnvRegister (reg_sta : register_static)
-  | EnvPin
-  | EnvPout.
 
 Inductive object :=
   | ObjTable (entries : list table_entry)
@@ -58,29 +54,46 @@ Inductive object :=
   | ObjPin (pin : packet_in)
   | ObjPout (pout : packet_out).
 
-Definition extern_env := @PathMap.t tags_t env_object.
-
 Definition extern_state := @PathMap.t tags_t object.
+
+Definition reg_action_static : Type := path (* register *).
+
+Inductive env_object :=
+  | EnvTable
+  | EnvRegister (reg_sta : register_static)
+  | EnvRegAction (ra_sta : reg_action_static)
+  | EnvAbsMet (abs_met_sem : @AbsMet tags_t extern_state)
+  | EnvPin
+  | EnvPout.
+
+Definition extern_env := @PathMap.t tags_t env_object.
 
 Definition dummy_tags := @default tags_t _.
 
+Definition dummy_extern_env : extern_env := PathMap.empty.
+Definition dummy_extern_state : extern_state := PathMap.empty.
+Opaque dummy_extern_env dummy_extern_state.
+
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
-  if P4String.equivb class !"register" then
-    match args with
-    (* | [ValBaseInteger size] *)
-    | [inr (ValBaseBit bits)]
-    (* | [ValBaseInt _ size] *) =>
-        match targs with
-        | [TypBit w] =>
-            let (_, size) := BitArith.from_lbool bits in
-            (PathMap.set p (EnvRegister (w, size)) e,
-             PathMap.set p (ObjRegister (new_register size w)) s)
-        | _ => (e, s) (* fail *)
-        end
-    | _ => (e, s) (* fail *)
+  if P4String.equivb class !"Register" then
+    match targs, args with
+    | [TypBit iw; TypBit w], [inr (ValBaseBit bits); inr init_val] =>
+        let (_, size) := BitArith.from_lbool bits in
+        (PathMap.set p (EnvRegister (w, size)) e,
+         PathMap.set p (ObjRegister (new_register size w init_val)) s)
+    | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
+    end
+  else if P4String.equivb class !"RegisterAction" then
+    match targs, args with
+    | [_; _; _], [inl reg] =>
+        (PathMap.set p (EnvRegAction reg) e, s)
+    | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
     end
   else
-    (e, s).
+    (dummy_extern_env, dummy_extern_state). (* fail *)
+
+Definition extern_set_abstract_method (e : extern_env) (p : path) (abs_met_sem : AbsMet extern_state) :=
+  PathMap.set p (EnvAbsMet abs_met_sem) e.
 
 Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
 
@@ -100,37 +113,55 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
             fun _ _ _ _ _ _ => False
   end.
 
-Definition REG_INDEX_WIDTH := 32%N.
-
 Inductive register_read_sem : extern_func_sem :=
-  | exec_register_read : forall e s p content w size index,
+  | exec_register_read : forall e s p content w size index_w index,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
       -1 < index < size ->
-      register_read_sem e s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
-        s [Znth index content] SReturnNull.
+      register_read_sem e s p nil [ValBaseBit (to_lbool index_w index)]
+        s [] (SReturn (Znth index content)).
 
 Definition register_read : extern_func := {|
-  ef_class := !"register";
+  ef_class := !"Register";
   ef_func := !"read";
   ef_sem := register_read_sem
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
-  | exec_register_write : forall e s p content w size content' index value,
+  | exec_register_write : forall e s p content w size content' index_w index value,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
       -1 < index < size ->
       upd_Znth index content value = content' ->
       register_write_sem e s p nil 
-            [ValBaseBit (to_lbool REG_INDEX_WIDTH index); value]
+            [ValBaseBit (to_lbool index_w index); value]
             (PathMap.set p (ObjRegister content') s)
             [] SReturnNull.
 
 Definition register_write : extern_func := {|
-  ef_class := !"register";
+  ef_class := !"Register";
   ef_func := !"write";
   ef_sem := register_write_sem
+|}.
+
+Inductive regaction_execute_sem : extern_func_sem :=
+  | exec_regaction_execute : forall e s p content w size content' index_w index reg apply_sem s' new_value retv,
+      PathMap.get p e = Some (EnvRegAction reg) ->
+      PathMap.get (p ++ !["apply"]) e = Some (EnvAbsMet apply_sem) ->
+      PathMap.get reg e = Some (EnvRegister (w, size)) ->
+      PathMap.get reg s = Some (ObjRegister content) ->
+      -1 < index < size ->
+      apply_sem s [Znth index content] s' [new_value; retv] SReturnNull ->
+      PathMap.get reg s' = Some (ObjRegister content') ->
+      regaction_execute_sem e s p nil
+            [ValBaseBit (to_lbool index_w index)]
+            (PathMap.set p (ObjRegister (upd_Znth index content' new_value)) s')
+            [] (SReturn retv).
+
+Definition regaction_execute : extern_func := {|
+  ef_class := !"RegisterAction";
+  ef_func := !"execute";
+  ef_sem := regaction_execute_sem
 |}.
 
 Axiom extract : forall (pin : list bool) (typ : P4Type), Val * list bool.
@@ -181,6 +212,9 @@ Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident
   | exec_extern_register_write : forall e s p targs args s' args' vret,
       apply_extern_func_sem register_write e s (ef_class register_write) (ef_func register_write) p targs args s' args' vret ->
       exec_extern e s (ef_class register_write) (ef_func register_write) p targs args s' args' vret
+  | exec_extern_regaction_execute : forall e s p targs args s' args' vret,
+      apply_extern_func_sem regaction_execute e s (ef_class regaction_execute) (ef_func regaction_execute) p targs args s' args' vret ->
+      exec_extern e s (ef_class regaction_execute) (ef_func regaction_execute) p targs args s' args' vret
   | exec_extern_packet_in_extract : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_in_extract e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
@@ -435,11 +469,11 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
     end
   end.
 
-Instance V1ModelExternSem : ExternSem := Build_ExternSem
+Instance TofinoExternSem : ExternSem := Build_ExternSem
   env_object
   object
   construct_extern
-  (fun e _ _ => e) (* extern_set_abstract_method *)
+  extern_set_abstract_method
   exec_extern
   extern_get_entries
   extern_match.
@@ -458,6 +492,6 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get !["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Instance V1Model : Target := Build_Target _ exec_prog.
+Instance Tofino : Target := Build_Target _ exec_prog.
 
-End V1Model.
+End Tofino.

@@ -262,35 +262,15 @@ Section Correct.
           apply string_append_inj_l in Hwah.
           apply string_of_unit_of_to_uint_inj in Hwah.
           lia.
-      (*
-      destruct IHev2 as (eps'2 & Hs2 & He2).
-      solve_this_stuff_with eps'2 v; intuition.
-      apply sbs_seq_cont with eps'2 pkt.
-      + apply sbs_seq_cont with eps'1 pkt; auto.
-        (* TODO: need helper lemmas
-         about environments and
-         statement evalution. *) admit.
-      + repeat econstructor; eauto.
-        (* TODO: need helper lemmas
-         about environments and
-         expression evalution. *) admit.
-    - specialize IHev with env pkt fe cx.
+    - pose proof IHev env pkt fe cx Hee as IH; clear IHev.
       transformExpr_destr_hyp; triplet_inv.
-      destruct IHev as (eps' & Hs & He); eauto.
-    - (* Has a similar problem to
-         binary operation case. *)
-      admit.
-    - (* Has a similar problem to
-         binary operation case. *)
-      admit.
-    - (* Has a similar problem to
-         binary operation case. *)
-      admit.
-    - (* Has a similar problem to
-         binary operation case. *)
-      admit.
-    - specialize IHevss with env pkt fe cx.
+      firstorder eauto.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - pose proof IHevss env pkt fe cx Hee as IH; clear IHevss.
       transformExpr_destr_hyp; triplet_inv.
-      destruct IHevss as (eps' & Hs & He); eauto. *)
+      firstorder eauto.
   Admitted.
 End Correct.

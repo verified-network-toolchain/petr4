@@ -36,6 +36,9 @@ Section EnvDefs.
     (x, v) :: e.
   (**[]*)
 
+  Definition remove (d : D) : t D T -> t D T :=
+    List.filter (fun '(d',_) => if HE d d' then false else true).
+  
   (** Scope Shadowing, [e1] shadows [e2]. *)
   Definition scope_shadow (e1 e2 : t D T) : t D T :=
     e1 ++ e2.
@@ -67,6 +70,13 @@ Section EnvDefs.
 
   Definition eq_env (e1 e2 : t D T) : Prop :=
     sub_env e1 e2 /\ sub_env e2 e1.
+  
+  Definition disjoint (e₁ e₂ : t D T) : Prop := forall k,
+      (find k e₁ <> None -> find k e₂ = None) /\
+      (find k e₂ <> None -> find k e₁ = None).
+  
+  Definition disjoint_union (e₁ e₂ e₃ : t D T) : Prop :=
+    disjoint e₁ e₂ /\ eq_env (e₁ ++ e₂) e₃.
   
   Section Lemmas.
     Local Hint Extern 0 => simpl_equiv_dec : core.
@@ -214,6 +224,207 @@ Section EnvDefs.
       induction e1 as [| [k1 v1] e1 IHe1];
         simpl in *; auto; try discriminate.
     Qed.
+
+    Lemma disjoint_sym : forall e1 e2,
+        disjoint e1 e2 -> disjoint e2 e1.
+    Proof.
+      firstorder.
+    Qed.
+
+    Lemma forall_conj_distr : forall (U : Type) (P Q : U -> Prop),
+        (forall u, P u /\ Q u) <-> (forall u, P u) /\ forall u, Q u.
+    Proof.
+      firstorder.
+    Qed.
+
+    Lemma disjoint_nexists : forall e1 e2,
+        disjoint e1 e2 -> ~ exists k v, find k e1 = Some v /\ find k e2 = Some v.
+    Proof.
+      intros e1 e2 H (k & v & He1 & He2).
+      unfold disjoint in H; specialize H with k.
+      destruct H as [H1 H2].
+      assert (Hnone: find k e1 <> None).
+      { rewrite He1; discriminate. }
+      apply H1 in Hnone. rewrite Hnone in He2.
+      discriminate.
+    Qed.
+
+    (** Need assumption that [e1]
+        and [e2] are not empty. *)
+    Lemma disjoint_eq_env : forall e1 e2,
+        disjoint e1 e2 -> ~ eq_env e1 e2.
+    Proof.
+      unfold disjoint, eq_env, sub_env.
+      intros e1 e2 Hd [Hs1 Hs2].
+    Abort.
+
+    Lemma find_app_eq : forall e1 e2 k,
+        find k (e1 ++ e2) =
+        match find k e1 with
+        | Some v => Some v
+        | None   => find k e2
+        end.
+    Proof.
+      intros e1; induction e1 as [| [k1 v1] e1 IHe1];
+        intros e2 k; unravel; auto.
+      destruct_if; auto.
+    Qed.
+    
+    Lemma find_app_l : forall e1 e2 k v,
+        find k e1 = Some v ->
+        find k (e1 ++ e2) = Some v.
+    Proof.
+      intros e1 e2 k v H; rewrite find_app_eq, H; reflexivity.
+    Qed.
+
+    Lemma find_app_r : forall e1 e2 k,
+        find k e1 = None ->
+        find k (e1 ++ e2) = find k e2.
+    Proof.
+      intros e1 e2 k H; rewrite find_app_eq, H; reflexivity.
+    Qed.
+
+    Lemma find_app_some : forall e1 e2 k v,
+        find k (e1 ++ e2) = Some v ->
+        find k e1 = Some v \/ find k e2 = Some v.
+    Proof.
+      intros e1 e2 k v H.
+      rewrite find_app_eq in H.
+      destruct (find k e1) as [v1 |] eqn:Hke1; auto.
+    Qed.
+    
+    Lemma disjoint_append_eq_env : forall e1 e2,
+        disjoint e1 e2 -> eq_env (e1 ++ e2) (e2 ++ e1).
+    Proof.
+      unfold disjoint, eq_env, sub_env;
+        intros e1 e2 Hd; split; intros k v Hkv;
+          rewrite find_app_eq in *;
+          specialize Hd with k; destruct Hd as [Hd1 Hd2];
+            destruct (find k e1) as [v1 |] eqn:He1;
+            destruct (find k e2) as [v2 |] eqn:He2; auto;
+              assert (Hneq: Some v1 <> None) by discriminate;
+              apply Hd1 in Hneq; discriminate.
+    Qed.
+
+    Lemma disjoint_nil : forall e, disjoint e [].
+    Proof.
+      unfold disjoint; intros e k; split;
+        unravel; auto; try contradiction.
+    Qed.
+
+    Local Hint Resolve disjoint_append_eq_env : core.
+    Local Hint Resolve disjoint_sym : core.
+    
+    Lemma disjoint_union_sym : forall e1 e2 e3,
+        disjoint_union e1 e2 e3 -> disjoint_union e2 e1 e3.
+    Proof.
+      unfold disjoint_union.
+      intros e1 e2 e3 [Hd Heq]; split; auto.
+      assert (eq_env (e1 ++ e2) (e2 ++ e1)) by auto.
+      etransitivity; eauto.
+    Qed.
+
+    Lemma disjoint_sub_env_app_inj_r : forall l r r',
+        disjoint l r ->
+        sub_env (l ++ r) (l ++ r') -> sub_env r r'.
+    Proof.
+      unfold disjoint, sub_env; intros l r r' Hd Hs k v Hkv;
+        specialize Hd with k; specialize Hs with k v;
+          destruct Hd as [Hd1 Hd2].
+      assert (Hnone: find k r <> None) by (rewrite Hkv; discriminate).
+      apply Hd2 in Hnone.
+      repeat rewrite find_app_eq, Hnone in Hs; auto.
+    Qed.
+
+    Lemma eq_env_disjoint : forall e1 e2 e3,
+        eq_env e1 e2 -> disjoint e1 e3 -> disjoint e2 e3.
+    Proof.
+      unfold eq_env, sub_env, disjoint;
+        intros e1 e2 e3 [Hs1 Hs2] Hd k;
+        specialize Hs1 with (k := k); specialize Hs2 with (k := k);
+          specialize Hd with k; destruct Hd as [Hd1 Hd2]; split; intros H.
+      - apply Hd1.
+        destruct (find k e2) as [v2 |] eqn:Hv2; try contradiction.
+        assert (Hke1: find k e1 = Some v2) by auto.
+        rewrite Hke1; discriminate.
+      - apply Hd2 in H.
+        destruct (find k e2) as [v2 |] eqn:Hv2; auto.
+        assert (Hke1 : find k e1 = Some v2) by auto.
+        rewrite Hke1 in H; discriminate.
+    Qed.
+
+    Local Hint Resolve disjoint_sub_env_app_inj_r : core.
+    
+    Lemma eq_env_app_inj : forall l r r',
+        disjoint l r -> disjoint l r' ->
+        eq_env (l ++ r) (l ++ r') -> eq_env r r'.
+    Proof.
+      unfold eq_env; intuition; eauto.
+    Qed.
+
+    Local Hint Resolve eq_env_app_inj : core.
+
+    Lemma disjoint_union_unique_eq_env : forall l r r' e,
+        disjoint_union l r e ->
+        disjoint_union l r' e -> eq_env r r'.
+    Proof.
+      unfold disjoint_union.
+      intros l r r' e [Hdr Hr] [Hdr' Hr'].
+      assert (Hlrr': eq_env (l ++ r) (l ++ r')).
+      { symmetry in Hr'; transitivity e; auto. }
+      eauto.
+    Qed.
+
+    Lemma app_sub_env : forall e1 e2 e3,
+        sub_env (e1 ++ e2) e3 -> sub_env e1 e3.
+    Proof.
+      unfold sub_env; intros e1 e2 e3 H k v Hkv;
+        specialize H with k v.
+      rewrite find_app_eq, Hkv in H; auto.
+    Qed.
+
+    Local Hint Resolve app_sub_env : core.
+    
+    Lemma disjoint_union_sub_env : forall e1 e2 e3,
+        disjoint_union e1 e2 e3 -> sub_env e1 e3.
+    Proof.
+      unfold disjoint_union, eq_env; intuition; eauto.
+    Qed.
+
+    Lemma sub_env_bind_l : forall l r k v,
+        sub_env ((k,v) :: l) r <->
+        find k r = Some v /\
+        match find k l with
+        | None    => sub_env l r
+        | Some v' => (v = v' /\ sub_env l r) \/ False (* TODO? *)
+        end.
+    Abort.
+    
+    Local Hint Resolve disjoint_nil : core.
+    Local Hint Resolve disjoint_sym : core.
+    
+    Lemma sub_env_bind_r : forall l r k v,
+        sub_env l (bind k v r) ->
+        sub_env l r \/ find k l = Some v.
+    Proof.
+      unfold sub_env, bind.
+      intro l; induction l as [| [kl vl] l IHl];
+        intros r k v Hs.
+      - left; intros ks vs Hksvs; simpl in *; discriminate.
+      - specialize IHl with r k v; unravel in *.
+        destruct_if.
+    Abort.
+    
+    Lemma sub_env_disjoint_union_exists : forall e1 e2,
+        sub_env e1 e2 -> exists e, disjoint_union e1 e e2.
+    Proof.
+      intros e1 e2 Hs.
+      unfold disjoint_union.
+      induction e1 as [| [k1 v1] e1 IHe1].
+      - firstorder.
+      - (* need unique representation maybe
+           for proof. *)
+    Admitted.
   End Lemmas.
 End EnvDefs.
 

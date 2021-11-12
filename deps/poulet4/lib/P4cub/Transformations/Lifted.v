@@ -182,7 +182,7 @@ Section Lifted.
       lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
   
   Local Hint Constructors lifted_expr : core.
-  Print Field.predfs_data.
+  (*Print Field.predfs_data.*)
   Inductive lifted_parser_expr : Parser.e tags_t -> Prop :=
   | lifted_goto st i : 
       lifted_parser_expr (Parser.PGoto st i)

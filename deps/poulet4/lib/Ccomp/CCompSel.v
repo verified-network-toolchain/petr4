@@ -50,7 +50,7 @@ Section CCompSel.
     | Expr.TBit (w) => (bit_vec,env)
     | Expr.TInt (w) => (bit_vec, env)
     | Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
-    | Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement, what exactly is an error type? Should it be depending on the target?*)
+    | Expr.TError => (int_unsigned, env) 
     | Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
 
     | Expr.TTuple (ts) => 

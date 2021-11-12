@@ -76,7 +76,7 @@ Module Expr.
     (** Expression types. *)
     Inductive t : Type :=
     | TBool                            (* bool *)
-      | TBit (width : N)                 (* unsigned integers *)
+    | TBit (width : N)                 (* unsigned integers *)
     | TInt (width : positive)          (* signed integers *)
     | TError                           (* the error type *)
     | TMatchKind                       (* the matchkind type *)

@@ -364,7 +364,7 @@ Section EnvDefs.
 
     Local Hint Resolve eq_env_app_inj : core.
 
-    Lemma disjoint_union_unique_eq_env : forall l r r' e,
+    Lemma disjoint_union_unique_eq_env_r : forall l r r' e,
         disjoint_union l r e ->
         disjoint_union l r' e -> eq_env r r'.
     Proof.
@@ -375,6 +375,13 @@ Section EnvDefs.
       eauto.
     Qed.
 
+    Lemma disjoint_union_unique_eq_env :  forall l r e e',
+        disjoint_union l r e ->
+        disjoint_union l r e' -> eq_env e e'.
+    Proof.
+      unfold disjoint_union; firstorder.
+    Qed.
+    
     Lemma app_sub_env : forall e1 e2 e3,
         sub_env (e1 ++ e2) e3 -> sub_env e1 e3.
     Proof.

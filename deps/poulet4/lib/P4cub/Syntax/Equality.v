@@ -166,6 +166,13 @@ Module ExprEquivalence.
     intros [] []; unfold equiv, complement in *;
       auto 2; right; intros ?; discriminate.
   Defined.
+
+  Instance MatchKindEqDec : EqDec Expr.matchkind eq.
+  Proof.
+    unfold EqDec; unfold equiv, complement.
+    intros [] []; try (left; reflexivity);
+      try (right; intros H; inversion H).
+  Defined.
   
   (** Equality of expressions. *)
   Inductive equive {tags_t : Type} : e tags_t -> e tags_t -> Prop :=

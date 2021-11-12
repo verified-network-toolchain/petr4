@@ -133,31 +133,16 @@ Section Correct.
           ⟪ pkt , fe , ϵ , ctx , s ⟫ ⤋ ⟪ ϵ' , C , pkt ⟫ /\
           (* statement evaluates to store [ϵ'] *)
           ⟨ ϵ', e' ⟩ ⇓ v /\ (* expression goes to same value [v] *)
-          ϵ ⊆ ϵ' /\
+          ϵ ⊆ ϵ' /\ (* [s] only extends existing environment. *)
+          (* Maybe need instead of [ϵ ⊆ ϵ']
+             [Env.disjoint_union ϵ μ ϵ']
+             such that [μ] is the declared variables from lifting [e] *)
           epsilon_env ϵ' env'.
   Proof.
-    intros ? ? ? ebs;
-      induction ebs
-      as [ eps b i 
-         | eps w n i
-         | eps w z i
-         | eps x t i v Hxv
-         | eps e hi lo i v v' Hslice Hev IHev
-         | eps t e i v v' Hcast Hev IHev
-         | eps err i
-         | eps mk i
-         | eps t op e i v v' Huop Hev IHev
-         | eps t op e1 e2 i v v1 v2 Hbop Hev1 IHev1 Hev2 IHev2
-         | eps t e x i v v' Hmem Hev IHev
-         | eps es i vs Hevs IHevs
-         | eps es i vs Hevs IHevs
-         | eps es e i b vs Hevs IHevs Hev IHev
-         | eps ts es ni i vss Hevsss IHevsss
-         | eps e i n ni ts vss b vs Haccess Hevss IHevss
-         ] using custom_expr_big_step_ind;
-      intros env pkt fe cx Hee; try transformExpr_destr;
-        unfold decl_var_env in *; cbn in *; try triplet_inv;
-          cbn in *; eauto (*; try solve_this_stuff *) .
+    intros e; induction e using custom_e_ind;
+      intros v eps Hev env pkt fe cx Hee; inv Hev;
+        try transformExpr_destr; unfold decl_var_env in *;
+          cbn in *; try triplet_inv; cbn in *.
     - exists eps. repeat split; eauto. reflexivity.
     - solve_this_stuff_with eps ~{ w VW n }~.
       repeat split; eauto; unfold epsilon_env in *.
@@ -171,7 +156,7 @@ Section Correct.
           apply string_append_inj_l in Hwah.
           apply string_of_unit_of_to_uint_inj in Hwah.
           lia.
-    - solve_this_stuff_with eps ~{ w VS z }~.
+    - solve_this_stuff_with eps ~{ w VS n }~.
       repeat split; eauto; unfold epsilon_env in *.
       + apply Env.find_none_bind_sub_env.
         apply Hee. lia.
@@ -184,6 +169,39 @@ Section Correct.
           apply string_of_unit_of_to_uint_inj in Hwah.
           lia.
     - exists eps. repeat split; auto. reflexivity.
+    - admit.
+    - admit.
+    - admit.
+    - pose proof IHe1 v1 eps H6 env pkt fe cx Hee as IH1; clear IHe1.
+      transformExpr_destr_hyp.
+      destruct IH1 as (eps'1 & Hs1 & Hv1 & Hsub1 & Henv1).
+      assert (Hepst1 : epsilon_env eps t0).
+      { apply epsilon_env_leq with env; auto.
+        apply f_equal with (f := snd) in Heqp0; cbn in *.
+        rewrite <- Heqp0. auto using TransformExpr_env_inc. }
+      pose proof IHe2 v2 eps H7 t0 pkt fe cx Hepst1 as IH2; clear IHe2.
+      transformExpr_destr_hyp; triplet_inv.
+      destruct IH2 as (eps'2 & Hs2 & Hv2 & Hsub2 & Henv2).
+      solve_this_stuff_with eps'2 v.
+      repeat split; eauto; unfold epsilon_env in *.
+      + apply sbs_seq_cont with (ϵ' := eps'2) (pkt' := pkt).
+        * apply sbs_seq_cont with (ϵ' := eps'1) (pkt' := pkt); auto.
+          (* need lemma about statement evaluation & ⊆. *) admit.
+        * constructor; auto.
+          econstructor; eauto.
+          (* need lemma about expression evaluation & ⊆. *) admit.
+      + transitivity eps'2; auto.
+        apply Env.find_none_bind_sub_env.
+        apply Henv2. lia.
+      + intros k Hk.
+        unfold VarNameGen.new_var, fst in *.
+        rewrite Env.bind_complete.
+        * apply Henv2. lia.
+        * intros Hwah.
+          apply string_append_inj_l in Hwah.
+          apply string_of_unit_of_to_uint_inj in Hwah.
+          lia.
+          (*
     - pose proof IHev env pkt fe cx Hee as IH; clear IHev.
       transformExpr_destr_hyp; triplet_inv.
       destruct IH as (eps' & Hs & Hv & Hsub & Henv).
@@ -271,6 +289,6 @@ Section Correct.
     - admit.
     - pose proof IHevss env pkt fe cx Hee as IH; clear IHevss.
       transformExpr_destr_hyp; triplet_inv.
-      firstorder eauto.
+      firstorder eauto. *)
   Admitted.
 End Correct.

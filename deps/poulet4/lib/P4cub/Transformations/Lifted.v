@@ -191,22 +191,28 @@ Section Lifted.
       Field.predfs_data lifted_parser_expr cases -> lifted_parser_expr (Parser.PSelect exp default cases i).
 
   Inductive lifted_parser_state : Parser.state_block tags_t -> Prop :=
-  | lifted_parser stmt transition: 
+  | lifted_parser stmt transition : 
       lifted_stmt stmt -> lifted_parser_expr transition -> lifted_parser_state (Parser.State stmt transition).
     
   Local Hint Constructors lifted_parser_expr : core.
+
+  Inductive lifted_table : Control.table tags_t -> Prop :=
+  | lifted_Table keys act :
+      Forall (fun '(_, e, _) => lifted_expr e ) keys -> lifted_table (Control.Table keys act).
+  
+  Inductive lifted_control_Decl : Control.d tags_t -> Prop :=
+  | lifted_CDAction act sig body i :
+      lifted_stmt body -> lifted_control_Decl (Control.CDAction act sig body i)
+  | lifted_CDTable table_name body i :
+      lifted_table body -> lifted_control_Decl (Control.CDTable table_name body i)
+  | lifted_CDSeq d1 d2 i :
+      lifted_control_Decl d1 -> lifted_control_Decl d2 -> lifted_control_Decl (Control.CDSeq d1 d2 i).
+
 
   Section HelperLemmas.
     Variable f :
       Expr.e tags_t -> VarNameGen.t ->
       Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
-
-    (*Lemma TransformExprList'_lifted_expr :
-      forall es env i,
-        
-        Forall
-          lifted_expr
-          (snd (fst (TransformExprList' f es env i))).*)
       
     Section General.
       Hypothesis Hf : forall e env, lifted_expr (snd (fst (f e env))).
@@ -500,51 +506,62 @@ Section Lifted.
 
   Local Hint Resolve TranslateStmt_lifted_stmt : core.
 
+
   Lemma TranslateCases_lifted_stmt : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
-  (cases: Field.fs Parser.pat (Parser.e tags_t)) (env: VarNameGen.t) (i : tags_t) (e': Parser.e tags_t) (env':VarNameGen.t), 
-  lifted_stmt (fst (fst (translateParserE e' env'))) ->
+  (cases: Field.fs Parser.pat (Parser.e tags_t)),
+  F.predfs_data (fun pe => forall env, lifted_stmt (fst (fst (translateParserE pe env)))) cases -> 
+  forall (env: VarNameGen.t) (i : tags_t), 
   lifted_stmt (fst (fst (TranslateCases' translateParserE cases env i))).
   Proof.
-    intros. induction cases.
-    - simpl. auto.
-    - simpl. destruct a. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
-    destruct p0. simpl. constructor.
-      + assumption.
-      + hyp_f_equal HS1 (@fst (Stmt.s tags_t) (Parser.e tags_t)). revert H. revert e' env'.
-      
-  Admitted.
+  intros translateParserE cases Hpte; ind_list_predfs; intros. 
+  - simpl. auto.
+  - simpl. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+  destruct p0. simpl. constructor.
+    + hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))). 
+    + hyp_f_equal HS1 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  Qed.
 
   Local Hint Resolve TranslateCases_lifted_stmt : core.
-
 
   Lemma TranslateParserExpr_lifted_stmt : forall (e : Parser.e tags_t) (env:VarNameGen.t),
   lifted_stmt (fst (fst (TranslateParserExpr e env))).
   Proof.
-  intros e. induction e; intro env; try simpl; auto.
-  transformExpr_destr. translateParserExpr_destr. destruct p. destruct (TranslateCases' TranslateParserExpr cases t0 i) eqn:Hs1.
-  destruct p eqn: Hs2.
-  assert (Heqp' := Heqp). hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-  hyp_f_equal Heqp' (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
-  assert (Heqp0' := Heqp0). hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
-  hyp_f_equal Heqp0' (@snd (Stmt.s tags_t) (Parser.e tags_t)). simpl.
-  repeat (constructor; auto). hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).
-  apply TranslateCases_lifted_stmt with (e':=e) (env':=env). auto.
+  intros e. induction e using pe_ind; intro env; try simpl; auto.
+  transformExpr_destr. translateParserExpr_destr. destruct p eqn:Hs0. destruct (TranslateCases' TranslateParserExpr cases t0 i) eqn:Hs1.
+  destruct p0 eqn: Hs2. simpl. repeat constructor; auto. 
+  - hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+  - hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  - hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).
   Qed. 
 
   Local Hint Resolve TranslateParserExpr_lifted_stmt : core.
 
+  Lemma TranslateCases_lifted_expr : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
+  (cases: Field.fs Parser.pat (Parser.e tags_t)),
+  F.predfs_data (fun pe => forall env, lifted_parser_expr (snd (fst (translateParserE pe env)))) cases -> 
+  forall (env: VarNameGen.t) (i : tags_t), 
+  F.predfs_data lifted_parser_expr (snd (fst (TranslateCases' translateParserE cases env i))).
+  Proof.
+  intros translateParserE cases Hpte; ind_list_predfs; intros; unfold F.predfs_data in *; 
+  unfold F.predf_data in *; unravel in *; auto.
+  translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+  destruct p0. simpl. rewrite Forall_app. split.
+    + hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))). 
+    + constructor; auto. simpl. hyp_f_equal HS1 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateCases_lifted_expr : core.
+
   Lemma TranslateParserExpr_lifted_parser_expr : forall (e : Parser.e tags_t) (env:VarNameGen.t),
   lifted_parser_expr (snd (fst (TranslateParserExpr e env))).
   Proof.
-  intros e. induction e; intro env; try simpl; auto.
+  intros e. induction e using pe_ind; intro env; try simpl; auto.
   transformExpr_destr. translateParserExpr_destr. destruct p.
   translateCases'_destr. constructor.
   - hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   - hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
-  - unfold F.predfs_data, F.predf_data in *; unravel in *. 
-  hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).  
-  
-  Admitted.
+  - hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).   
+  Qed. 
 
   Local Hint Resolve TranslateParserExpr_lifted_parser_expr : core.
 

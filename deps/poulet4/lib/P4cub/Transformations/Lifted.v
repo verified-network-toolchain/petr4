@@ -501,7 +501,8 @@ Section Lifted.
   Local Hint Resolve TranslateStmt_lifted_stmt : core.
 
   Lemma TranslateCases_lifted_stmt : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
-  (cases: Field.fs Parser.pat (Parser.e tags_t)) (env: VarNameGen.t) (i : tags_t),
+  (cases: Field.fs Parser.pat (Parser.e tags_t)) (env: VarNameGen.t) (i : tags_t) (e': Parser.e tags_t) (env':VarNameGen.t), 
+  lifted_stmt (fst (fst (translateParserE e' env'))) ->
   lifted_stmt (fst (fst (TranslateCases' translateParserE cases env i))).
   Proof.
     intros. induction cases.
@@ -509,7 +510,8 @@ Section Lifted.
     - simpl. destruct a. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
     destruct p0. simpl. constructor.
       + assumption.
-      + hyp_f_equal HS1 (@fst (Stmt.s tags_t) (Parser.e tags_t)). 
+      + hyp_f_equal HS1 (@fst (Stmt.s tags_t) (Parser.e tags_t)). revert H. revert e' env'.
+      
   Admitted.
 
   Local Hint Resolve TranslateCases_lifted_stmt : core.
@@ -526,6 +528,7 @@ Section Lifted.
   assert (Heqp0' := Heqp0). hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
   hyp_f_equal Heqp0' (@snd (Stmt.s tags_t) (Parser.e tags_t)). simpl.
   repeat (constructor; auto). hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).
+  apply TranslateCases_lifted_stmt with (e':=e) (env':=env). auto.
   Qed. 
 
   Local Hint Resolve TranslateParserExpr_lifted_stmt : core.
@@ -538,8 +541,9 @@ Section Lifted.
   translateCases'_destr. constructor.
   - hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   - hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
-  - unfold F.predfs_data, F.predf_data in *; unravel in *.
-  hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))). 
+  - unfold F.predfs_data, F.predf_data in *; unravel in *. 
+  hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).  
+  
   Admitted.
 
   Local Hint Resolve TranslateParserExpr_lifted_parser_expr : core.

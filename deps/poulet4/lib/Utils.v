@@ -516,3 +516,10 @@ Proof.
     intros [| uu us] [| vv vs] u v Hu Hv;
     simpl in *; inversion Hu; inversion Hv; subst; auto.
 Qed.
+
+(** Why I'm I getting goals such as these? *)
+Lemma Forall2_dumb : forall (U V : Type) (Q : Prop) (R : U -> V -> Prop) us vs,
+    Q -> Forall2 (fun u v => Q -> R u v) us vs -> Forall2 R us vs.
+Proof.
+  intros U V Q R us vs q H; induction H; auto.
+Qed.

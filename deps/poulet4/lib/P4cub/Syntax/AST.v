@@ -76,7 +76,7 @@ Module Expr.
     (** Expression types. *)
     Inductive t : Type :=
     | TBool                            (* bool *)
-      | TBit (width : N)                 (* unsigned integers *)
+    | TBit (width : N)                 (* unsigned integers *)
     | TInt (width : positive)          (* signed integers *)
     | TError                           (* the error type *)
     | TMatchKind                       (* the matchkind type *)
@@ -154,13 +154,6 @@ Module Expr.
   | MKLpm.
   (**[]*)
   
-  Instance MatchKindEqDec : EqDec matchkind eq.
-  Proof.
-    unfold EqDec; unfold equiv, complement.
-    intros [] []; try (left; reflexivity);
-      try (right; intros H; inversion H).
-  Defined.
-  
   Section Expressions.
     Variable (tags_t : Type).
 
@@ -172,7 +165,7 @@ Module Expr.
         unless the type is obvious. *)
     Inductive e : Type :=
     | EBool (b : bool) (i : tags_t)                     (* booleans *)
-      | EBit (width : N) (val : Z) (i : tags_t)        (* unsigned integers *)
+    | EBit (width : N) (val : Z) (i : tags_t)        (* unsigned integers *)
     | EInt (width : positive) (val : Z) (i : tags_t) (* signed integers *)
     | EVar (type : t) (x : string) (i : tags_t)      (* variables *)
     | ESlice (arg : e)

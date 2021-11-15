@@ -1,4 +1,4 @@
-#include "petr4-runtime.h"
+#include "Petr4Runtime.h"
 struct _p_e_t_r_4_0b10010;
 struct _p_e_t_r_4_0b1110;
 struct _p_e_t_r_4_0b1010;

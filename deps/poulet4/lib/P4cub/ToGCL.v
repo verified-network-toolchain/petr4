@@ -129,7 +129,9 @@ Section ToGCL.
          end
     else v.
 
-  Definition extern : Type := Env.t string (@GCL.t tags_t string (BV.t tags_t) (Form.t tags_t)).
+  Definition target := @GCL.t tags_t string (BV.t tags_t) (Form.t tags_t).
+
+  Definition extern : Type := Env.t string target.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
   Definition find (m : model) (e f : string) : result (GCL.t tags_t) :=
@@ -137,9 +139,10 @@ Section ToGCL.
     let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
     ok fn.
   Definition empty : model := Env.empty string extern.
+  Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result (ST.s tags_t).
 
   Section Instr.
-    Definition target := @GCL.t tags_t string (BV.t tags_t) (Form.t tags_t).
+
     Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
@@ -275,6 +278,24 @@ Section ToGCL.
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
+    Definition lookup_member_type_from_type (mem : string) (typ : E.t) : result E.t :=
+      match typ with
+      | E.TStruct fields =>
+        match F.find_value (String.eqb mem) fields with
+        | None => error ("cannot find " ++ mem ++ "in type")
+        | Some t => ok t
+        end
+      | E.THeader fields =>
+        match F.find_value (String.eqb mem) fields with
+        | None => error ("cannot find " ++ mem ++ "in type")
+        | Some t => ok t
+        end
+      | E.TVar v =>
+        error ("[ERROR] dont' know how to get type for member " ++ mem ++ " from type variable: " ++ v ++ ". Hint: maybe this should've been substituted in at the callsite?")
+      | _ =>
+        error ("[Error] Can't get type of member " ++ mem ++ "from type thats not a struct, header or var")
+      end.
+
     Fixpoint to_rvalue (e : (E.e tags_t)) : result (BV.t tags_t) :=
       match e with
       | E.EBool b i =>
@@ -365,7 +386,8 @@ Section ToGCL.
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.EExprMember mem expr_type arg i =>
         let* lv := to_lvalue arg in
-        let+ w := width_of_type expr_type in
+        let* t := lookup_member_type_from_type mem expr_type in
+        let+ w := width_of_type t in
         BV.BVVar _  (lv ++ "." ++ mem) w i
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
@@ -532,15 +554,17 @@ Section ToGCL.
         (** TODO handle copy-in/copy-out) *)
         let+ g := find arch ext method in
         (g, c)
+      | Inline.ISetValidity _ e v i =>
+        let+ header := to_lvalue e in
+        let hvld := header ++ ".is_valid" in
+        let vld_bit := if v then 1 else 0 in
+        (GCL.GAssign _ (E.TBit (pos 1)) hvld (BV.BitVec _ vld_bit (Some 1) i) i, c)
       end.
 
     Definition p4cub_statement_to_gcl (gas : nat)
-               (cienv : @cienv tags_t)
-               (aenv : @aenv tags_t)
-               (tenv : @tenv tags_t)
-               (fenv : fenv)
+               (ctx : ToP4cub.DeclCtx tags_t)
                (arch : model) (s : ST.s tags_t) : result target :=
-      let* inline_stmt := Inline.inline _ gas cienv aenv tenv fenv s in
+      let* inline_stmt := Inline.inline _ gas ctx s in
       let* no_tup := Inline.elim_tuple _ inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks _ no_tup in
       let* no_hdr := Inline.elaborate_headers _ no_stk in
@@ -548,24 +572,19 @@ Section ToGCL.
       let+ (gcl,_) := inline_to_gcl initial arch no_structs in
       gcl.
 
-    Definition get_cienv (ctx : ToP4cub.DeclCtx tags_t) : result (@cienv tags_t) :=
-      error "[TODO]".
-    Definition get_aenv (ctx : ToP4cub.DeclCtx tags_t)  : result (@aenv tags_t) :=
-      error "[TODO]".
-    Definition get_tenv (ctx : ToP4cub.DeclCtx tags_t) : result (@tenv tags_t) :=
-      error "[TODO]".
-    Definition get_fenv (ctx : ToP4cub.DeclCtx tags_t) : result (@fenv tags_t) :=
-      error "[TODO]".
-    Definition get_stmt (ctx : ToP4cub.DeclCtx tags_t) (arch : model) : result (ST.s tags_t) :=
-      error "[TODO]".
+    (* use externs to specify inter-pipeline behavior.*)
+    Definition get_main ctx (pipe : pipeline) : result (ST.s tags_t) :=
+      match find_package tags_t ctx "main" with
+      | Some (TD.TPInstantiate cname _ type_args args i) =>
+        pipe type_args args
+      | _ =>
+        error "expected package, got sth else"
+      end
+    .
 
-    Definition p4cub_to_gcl (gas : nat) (arch : model) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
-      let* cienv := get_cienv ctx in
-      let* aenv := get_aenv ctx in
-      let* tenv := get_tenv ctx in
-      let* fenv := get_fenv ctx in
-      let* stmt := get_stmt ctx arch in
-      p4cub_statement_to_gcl gas cienv aenv tenv fenv arch stmt.
+    Definition p4cub_to_gcl (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+      let* stmt := get_main ctx pipe in
+      p4cub_statement_to_gcl gas ctx ext stmt.
 
   End Instr.
 End ToGCL.
@@ -798,8 +817,6 @@ Section Tests.
     let n := List.length l in
     Nat.max (PeanoNat.Nat.log2_up n) 1.
 
-
-  Print GCL.g_sequence.
   Definition action_inner (table : string) (i : Info) (keys : list (E.t * E.e Info * E.matchkind)) (w : nat) (n : nat) (named_action : string * target Info) (res_acc : result (target Info)) : result (target Info) :=
     let (name, act) := named_action in
     let* matchcond := matchrow name keys i in
@@ -836,100 +853,100 @@ Section Tests.
                          (bit 32, tcp "dstPort" 32, E.MKTernary)
                          ] [("_drop", GCL.GAssign Info (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit Info 1 1 d) d)]).
 
-  Compute (p4cub_statement_to_gcl Info instr
-                                  10
-                                  (Env.empty string cinst)
-                                  ingress_action_env
-                                  ingress_table_env
-                                  (Env.empty string fdecl)
-                                  arch
-                                  simple_nat_ingress).
+(*   Compute (p4cub_statement_to_gcl Info instr *)
+(*                                   10 *)
+(*                                   (Env.empty string cinst) *)
+(*                                   ingress_action_env *)
+(*                                   ingress_table_env *)
+(*                                   (Env.empty string fdecl) *)
+(*                                   arch *)
+(*                                   simple_nat_ingress). *)
 
-  Definition scope_occlusion_function :=
-    s_sequence [
-    ST.SVardecl (bit 32) "x" d;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-    ST.SFunCall "swap" [] (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-    ]
-  .
+(*   Definition scope_occlusion_function := *)
+(*     s_sequence [ *)
+(*     ST.SVardecl (bit 32) "x" d; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d; *)
+(*     ST.SFunCall "swap" [] (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d *)
+(*     ] *)
+(*   . *)
 
-  Definition swap_body :=
-    let var := fun s => E.EVar (bit 32) s d in
-    let x := var "x" in
-    let y := var "y" in
-    let z := var "z" in
-    let assn := fun lhs rhs => ST.SAssign (bit 32) lhs rhs d in
-    s_sequence [
-    ST.SVardecl (bit 32) "x" d;
-    ST.SBlock (s_sequence [
-               ST.SVardecl (bit 32) "x" d;
-               assn x y;
-               assn y z;
-               assn z x
-              ])
-    ].
+(*   Definition swap_body := *)
+(*     let var := fun s => E.EVar (bit 32) s d in *)
+(*     let x := var "x" in *)
+(*     let y := var "y" in *)
+(*     let z := var "z" in *)
+(*     let assn := fun lhs rhs => ST.SAssign (bit 32) lhs rhs d in *)
+(*     s_sequence [ *)
+(*     ST.SVardecl (bit 32) "x" d; *)
+(*     ST.SBlock (s_sequence [ *)
+(*                ST.SVardecl (bit 32) "x" d; *)
+(*                assn x y; *)
+(*                assn y z; *)
+(*                assn z x *)
+(*               ]) *)
+(*     ]. *)
 
-  Definition swap_fdecl :=
-    FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl)
-          ["y"; "z"]
-          swap_body.
+(*   Definition swap_fdecl := *)
+(*     FDecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) *)
+(*           ["y"; "z"] *)
+(*           swap_body. *)
 
-  Definition swap_fenv := [("swap",swap_fdecl)].
+(*   Definition swap_fenv := [("swap",swap_fdecl)]. *)
 
-  Compute (p4cub_statement_to_gcl Info instr
-                                  100
-                                  (Env.empty string cinst)
-                                  (Env.empty string adecl)
-                                  (Env.empty string (CD.table Info))
-                                  (swap_fenv)
-                                  arch
-                                  scope_occlusion_function).
+(*   Compute (p4cub_statement_to_gcl Info instr *)
+(*                                   100 *)
+(*                                   (Env.empty string cinst) *)
+(*                                   (Env.empty string adecl) *)
+(*                                   (Env.empty string (CD.table Info)) *)
+(*                                   (swap_fenv) *)
+(*                                   arch *)
+(*                                   scope_occlusion_function). *)
 
-  Definition scope_occlusion_block :=
-    s_sequence [
-    ST.SVardecl (bit 32) "x" d;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-    ST.SBlock swap_body;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-    ]
-  .
+(*   Definition scope_occlusion_block := *)
+(*     s_sequence [ *)
+(*     ST.SVardecl (bit 32) "x" d; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d; *)
+(*     ST.SBlock swap_body; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d *)
+(*     ] *)
+(*   . *)
 
-  Compute (p4cub_statement_to_gcl Info instr
-                                  15
-                                  (Env.empty string cinst)
-                                  (Env.empty string adecl)
-                                  (Env.empty string (CD.table Info))
-                                  (Env.empty string fdecl)
-                                  arch
-                                  scope_occlusion_block).
+(*   Compute (p4cub_statement_to_gcl Info instr *)
+(*                                   15 *)
+(*                                   (Env.empty string cinst) *)
+(*                                   (Env.empty string adecl) *)
+(*                                   (Env.empty string (CD.table Info)) *)
+(*                                   (Env.empty string fdecl) *)
+(*                                   arch *)
+(*                                   scope_occlusion_block). *)
 
-  Definition scope_occlusion_action :=
-    s_sequence [
-    ST.SVardecl (bit 32) "x" d;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d;
-    ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
-    ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d;
-    ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d
-    ]
-  .
+(*   Definition scope_occlusion_action := *)
+(*     s_sequence [ *)
+(*     ST.SVardecl (bit 32) "x" d; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d; *)
+(*     ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
+(*     ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
+(*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d *)
+(*     ] *)
+(*   . *)
 
-  Definition swap_act :=
-    ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl)
-          (Env.empty string ARCH.P4Extern)
-          ["x"; "y"]
-          swap_body.
+(*   Definition swap_act := *)
+(*     ADecl (Env.empty string ValEnvUtil.V.v) (Env.empty string fdecl) (Env.empty string adecl) *)
+(*           (Env.empty string ARCH.P4Extern) *)
+(*           ["x"; "y"] *)
+(*           swap_body. *)
 
-  Definition swap_aenv := [("swap", swap_act)].
+(*   Definition swap_aenv := [("swap", swap_act)]. *)
 
-  Compute (p4cub_statement_to_gcl Info instr
-                                  15
-                                  (Env.empty string cinst)
-                                  swap_aenv
-                                  (Env.empty string (CD.table Info))
-                                  (Env.empty string fdecl)
-                                  arch
-                                  scope_occlusion_action).
+(*   Compute (p4cub_statement_to_gcl Info instr *)
+(*                                   15 *)
+(*                                   (Env.empty string cinst) *)
+(*                                   swap_aenv *)
+(*                                   (Env.empty string (CD.table Info)) *)
+(*                                   (Env.empty string fdecl) *)
+(*                                   arch *)
+(*                                   scope_occlusion_action). *)
 
 
 
@@ -938,14 +955,81 @@ End Tests.
 Module SimpleNat.
 
   Require Import Poulet4.P4defs.
-  Definition v1model : model Info := [].
+  Definition v1model : model Info :=
+    [("_", [("mark_to_drop",  GCL.GAssign _ (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d);
+            ("clone3", GCL.GSkip _ NoInfo)
+     ])
+    ].
 
   Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
 
-  Print p4cub_to_gcl.
+  Print ST.s.
+
+  Definition cub_seq (statements : list (ST.s Info)) : ST.s Info  :=
+    let seq := fun s1 s2 => ST.SSeq s1 s2 NoInfo in
+    List.fold_right seq (ST.SSkip NoInfo) statements.
+
+  Print E.constructor_args.
+  Print E.constructor_arg.
+  Print E.args.
+
+  Definition t_arg (dir : (E.t * E.e Info) -> P.paramarg (E.t * E.e Info) (E.t * E.e Info)) typ var := (var, dir (typ, E.EVar typ var NoInfo)).
+  Definition s_arg dir var stype :=
+    t_arg dir (E.TVar stype) var.
+
+  Definition v1pipeline (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s Info :=
+    let ext_args := [] in
+    let pargs := [
+        s_arg P.PADirLess "packet_in"           "b";
+        t_arg P.PAOut      htype                "parsedHdr";
+        t_arg P.PAInOut    mtype                "meta";
+        s_arg P.PAInOut    "standard_metdata_t" "standard_metadata"] in
+    let vck_args := [
+        t_arg P.PAInOut htype "hdr";
+        t_arg P.PAInOut mtype "meta"] in
+    let ing_args := [
+        t_arg P.PAInOut htype "hdr";
+        t_arg P.PAInOut mtype "meta";
+        s_arg P.PAInOut "standard_metadata_t" "standard_metadata"] in
+    let egr_args := [
+        t_arg P.PAInOut htype "hdr";
+        t_arg P.PAInOut mtype "meta";
+        s_arg P.PAInOut "standard_metadata_t" "standard_metadata"] in
+    let cck_args := [
+        t_arg P.PAInOut htype "hdr";
+        t_arg P.PAInOut mtype "meta"] in
+    let dep_args := [
+        s_arg P.PADirLess "packet_out" "b";
+        t_arg P.PAIn htype "hdr"] in
+    cub_seq [
+      (* ST.PApply _ parser   ext_args pargs    NoInfo; *)
+      (* ST.SApply   v_check  ext_args vck_args NoInfo; *)
+      ST.SApply   ingress  ext_args ing_args NoInfo;
+      ST.SApply   egress   ext_args egr_args NoInfo
+      (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
+      (* ST.SApply   deparser ext_args dep_args NoInfo *)
+    ].
+
+
+  Definition pipe (types : list E.t) (cargs : E.constructor_args Info) : result (ST.s Info) :=
+    match List.map snd cargs with
+    | [E.CAName p; E.CAName vc; E.CAName ing; E.CAName egr; E.CAName cc; E.CAName d] =>
+      match types with
+      | [htype; mtype] =>
+        ok (v1pipeline htype mtype p vc ing egr cc d)
+      | [] =>
+        error "no type arguments provided:("
+      | _ =>
+        error "ill-formed type arguments to V1Switch instantiation."
+      end
+    | _ =>
+      error "ill-formed constructor arguments to V1Switch instantiation."
+    end.
 
   Compute (let* sn := p4cub_simple_nat in
-           p4cub_to_gcl Info instr 1000 v1model sn).
+           let externs := v1model  in
+           p4cub_to_gcl Info instr 1000 externs pipe sn).
 
+  Print E.arrowE.
 
 End SimpleNat.

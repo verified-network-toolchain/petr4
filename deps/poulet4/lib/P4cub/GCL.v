@@ -28,8 +28,6 @@ Require Import Poulet4.P4cub.Inline.
 
 Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
-
-
 Module BitVec.
 Section BitVec.
   Variable tags_t : Type.
@@ -153,8 +151,6 @@ Section GCL.
 
   Definition g_sequence {L R F : Type} (i : tags_t) : list (@t L R F) -> @t L R F :=
     fold_right (GSeq) (GSkip i).
-
-
 
   Definition is_true (x : string) (i : tags_t) : Form.t tags_t :=
     Form.bveq tags_t (BitVec.BVVar tags_t x 1 i) (BitVec.bit tags_t 1 1 i) i.
@@ -444,7 +440,6 @@ Module Semantics.
         then ok (interp_comp comp u.(val) v.(val))
         else error "cannot compare signed and unsigned"
       end.
-
 
     (* translate_pipeline :: list t -> result t *)
     (* Model inter-stage behavior using GCL code (inluding externs) *)

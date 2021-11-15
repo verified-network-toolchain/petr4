@@ -135,6 +135,17 @@ Section ToP4cub.
                     (TopDecl.TPFunction "$DUMMY" [] (Arrow [] None) (ST.SSkip tags) tags)
                     decls.
 
+  Fixpoint of_cdecl (decls : DeclCtx) (d : TopDecl.C.d tags_t) :=
+    match d with
+    | CD.CDAction _ _ _ _ =>
+      add_action decls d
+    | CD.CDTable _ _ _ =>
+      add_table decls d
+    | CD.CDSeq d1 d2 i =>
+      let decls1 := of_cdecl decls d1 in
+      of_cdecl decls1 d2
+    end.
+
   Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
     let combine f := List.app (f hi_prio) (f lo_prio) in
     {| controls := combine controls;
@@ -169,6 +180,18 @@ Section ToP4cub.
       false
     end.
 
+  Print TopDecl.C.d.
+
+  Definition cdecl_has_name (name : string) (d : TopDecl.C.d tags_t) :=
+    let matches := String.eqb name in
+    match d with
+    | TopDecl.C.CDAction action_name _ _ _ => matches action_name
+    | TopDecl.C.CDTable table_name _ _ => matches table_name
+    | TopDecl.C.CDSeq _ _ _ =>
+      (* Should Not Occur *)
+      false
+    end.
+
   Definition is_member (name : string) (l : list (TopDecl.d tags_t)) : bool :=
     match find (decl_has_name name) l with
     | None => false
@@ -191,6 +214,27 @@ Section ToP4cub.
 
   Definition lookup_instantiatable (ctx : DeclCtx) (name : string) :=
     find (decl_has_name name) (ctx.(controls) ++ ctx.(parsers) ++ ctx.(packages) ++ ctx.(externs)).
+
+  Definition find_control (ctx : DeclCtx) (name : string) :=
+    find (decl_has_name name) (ctx.(controls)).
+
+  Definition find_parser (ctx : DeclCtx) (name : string) :=
+    find (decl_has_name name) (ctx.(parsers)).
+
+  Definition find_table (ctx : DeclCtx) (name : string) :=
+    find (cdecl_has_name name) (ctx.(tables)).
+
+  Definition find_action (ctx : DeclCtx) (name : string) :=
+    find (cdecl_has_name name) (ctx.(actions)).
+
+  Definition find_function (ctx : DeclCtx) (name : string) :=
+    find (decl_has_name name) (ctx.(functions)).
+
+  Definition find_package (ctx : DeclCtx) (name : string) :=
+    find (decl_has_name name) (ctx.(packages)).
+
+  Definition find_extern (ctx : DeclCtx) (name : string) :=
+    find (decl_has_name name) (ctx.(externs)).
 
   Definition translate_op_uni (op : OpUni) : E.uop :=
     match op with
@@ -335,13 +379,40 @@ Section ToP4cub.
   Definition get_type_of_expr (e : Expression) : @P4Type tags_t :=
     let '(MkExpression _ _ typ _) := e in
     typ.
+
+  Print TypBool.
   Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
     match t with
+    | TypBool => error "cannot get  from boolean"
+    | TypString => error "cannot get type name from string"
+    | TypInteger => error "cannot get type name from Integer"
+    | TypInt _ => error "cannot get type name from int "
+    | TypBit _ => error "cannot get type name from bit"
+    | TypVarBit _ => error "cannot get type name from varbit"
+    | TypArray _ _ => error "cannot get type name from array"
+    | TypTuple _ => error "cannot get type name from tuple"
+    | TypList _ => error "cannot get type name from list"
+    | TypRecord _ => error "cannot get type name from list"
+    | TypSet _ => error "cannot get type name from set"
+    | TypError => error "cannot get type name from error"
+    | TypMatchKind => error "cannot get type name from matchkind"
+    | TypVoid => error "cannot get type name from void"
+    | TypHeader _ => error "cannot get type name from Header"
+    | TypHeaderUnion _ => error "cannot get type name from Header Union"
+    | TypStruct _ => error "cannot get type name from struct"
+    | TypEnum _ _ _ => error "cannot get type name from enum"
     | TypTypeName (BareName str) => ok str
-    | TypSpecializedType t [] => get_string_from_type t
+    | TypTypeName (QualifiedName _ _) => error "cannot use qualified names in type string extraction"
+    | TypNewType str _ => ok str
     | TypControl c => error "[FIXME] get name from control type"
     | TypParser c => error "[FIXME] get name from parser type"
-    | _ => error "Don't know how to get constructor from arbitrary type"
+    | TypExtern str => ok str
+    | TypFunction _ => error "cannot get name from function type"
+    | TypAction _ _ => error "cannot get name from action type"
+    | TypTable s => ok s
+    | TypPackage _ _ _ => error "cannot get name from package type"
+    | TypSpecializedType t _ => get_string_from_type t
+    | TypConstructor _ _ _ _ => error "cannot get name from typconstructor"
     end.
 
   Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
@@ -351,7 +422,6 @@ Section ToP4cub.
                          P4String.str := name
                       |} in
     (g, p4str_name).
-
 
   Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result nat :=
     match member_list with
@@ -995,9 +1065,18 @@ Section ToP4cub.
     let+ cub_acts := acc in
     cub_act :: cub_acts.
 
+  Definition get_cub_type_args (i:tags_t) typ :=
+    match typ with
+    | TypSpecializedType _ args =>
+      rred (List.map (translate_exp_type i) args)
+    | _ =>
+      ok []
+    end.
+
+
   Definition translate_actions (actions : list TableActionRef) : result (list string) :=
     List.fold_right translate_actions_loop (ok []) actions.
-
+  Print DeclInstantiation.
   Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
@@ -1008,7 +1087,8 @@ Section ToP4cub.
       let* ctor_p4string := get_string_from_type typ in
       let ctor_name := P4String.str ctor_p4string in
       let* cub_paramargs := constructor_paramargs ctor_name args ctx in
-      let d := TopDecl.TPInstantiate ctor_name cub_name [] cub_paramargs tags in
+      let* type_args := get_cub_type_args tags typ in
+      let d := TopDecl.TPInstantiate ctor_name cub_name type_args cub_paramargs tags in
       let+ add_to_context := get_augment_from_name ctx ctor_name in
       add_to_context d
     | DeclParser tags name [] params constructor_params [] states =>
@@ -1039,9 +1119,14 @@ Section ToP4cub.
       (* let* cub_body := error "[FIXME] Translate function bodies" in *)
       (* error "[FIXME] implement function declarations" *)
       ok ctx
-    | DeclExternFunction tags ret name type_params params =>
-    (* error "[FIXME] Extern function declarations unimplemented" *)
-      ok ctx
+    | DeclExternFunction tags ret name type_params parameters =>
+      let* cub_ret := translate_return_type tags ret in
+      let* params := parameters_to_params tags parameters in
+      let arrowtype := Arrow params cub_ret in
+      let method := (P4String.str name, ([], arrowtype)) in
+      (* TODO come up with better naming scheme for externs *)
+      let d := TopDecl.TPExtern "_" [] [] [method] tags in
+      ok (add_extern ctx d)
     | DeclVariable tags typ name init =>
     (* error "[FIXME] Variable Declarations unimplemented" *)
       ok ctx
@@ -1176,8 +1261,8 @@ Definition test := Program
                       ; truncate'length
                       ; assert'check
                       ; assume'check
-                      ; log_msg'msg
-                      ; log_msg'msg'data
+                      (* ; log_msg'msg *)
+                      (* ; log_msg'msg'data *)
                       ; Parser
                       ; VerifyChecksum
                       ; Ingress
@@ -1201,5 +1286,6 @@ Definition test := Program
                       ; computeChecksum
                       ; main
                      ].
+Compute test.
 
 Compute (translate_program Info NoInfo test).

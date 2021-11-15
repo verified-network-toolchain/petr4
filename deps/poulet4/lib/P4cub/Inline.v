@@ -7,6 +7,8 @@ Require Export Poulet4.P4cub.BigStep.BigStep.
 Require Export Poulet4.P4cub.BigStep.Semantics.
 Require Export Poulet4.P4cub.BigStep.Value.Value.
 Require Export Poulet4.P4cub.Util.Result.
+Require Import Poulet4.ToP4cub.
+Import ToP4cub.
 Require Import Coq.Arith.EqNat.
 Require Import String.
 Open Scope string_scope.
@@ -19,14 +21,15 @@ Import Env.EnvNotations.
 
 Import Result.
 Import ResultNotations.
+Import ToP4cub.
 
 (** Compile to GCL *)
 Module P := P4cub.
 Module ST := P.Stmt.
 Module CD := P.Control.ControlDecl.
+Module TD := P.TopDecl.
 Module E := P.Expr.
 Module F := P.F.
-
 
 Section Inline.
 Variable tags_t : Type.
@@ -97,6 +100,7 @@ Inductive t : Type :=
           (keys : list (E.t * E.e tags_t * E.matchkind))
           (actions : list (string * t))
           (i : tags_t)
+| ISetValidity (hdr: E.e tags_t ) (val : bool) (i : tags_t) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
 | IExternMethodCall (extn : string) (method : string) (args : ST.E.arrowE tags_t) (i : tags_t).
 
 
@@ -140,7 +144,7 @@ Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e
 Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list string) :=
   match c with
   | ISkip _ => ok (c, params)
-  | IVardecl type x i => ok (c, filter (negb ∘ (eqb x)) params)
+  | IVardecl type x i => ok (c, filter (negb ∘ (String.eqb x)) params)
   | IAssign t lhs rhs i =>
     let rhs' := action_param_renamer_expr params rhs in
     ok (IAssign t lhs rhs' i, params)
@@ -163,6 +167,9 @@ Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list 
   | IExit _ => ok (c, params)
   | IInvoke _ _ _ _ =>
     error "Invocations should not occur within actions"
+  | ISetValidity e v i =>
+    let e' := action_param_renamer_expr params e in
+    ok (ISetValidity e' v i, params)
   | IExternMethodCall extn method (P.Arrow pargs ret) i =>
     let pargs' := F.fold (fun p a rst =>
           let f := fun '(t,e) => (t, action_param_renamer_expr params e) in
@@ -191,7 +198,7 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IBlock blk =>
     (IBlock (fst (subst_t η blk)), η)
   | IReturnVoid _ => (c, η)
-  | IReturnFruit _ _ _ => (c,η)
+  | IReturnFruit t e i => (IReturnFruit t (subst_e η e) i,η)
   | IExit _ => (c,η)
   | IInvoke x keys actions i =>
     let keys' := List.map (fun '(t,m,k) => (t, subst_e η m, k)) keys in
@@ -202,6 +209,8 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     let f := fun '(t,e) => (t,subst_e η e) in
     let pas' := F.map (P.paramarg_map f f) pas in
     (IExternMethodCall extn method (P.Arrow pas' returns) i, η)
+  | ISetValidity e v i =>
+    (ISetValidity (subst_e η e) v i, η)
   end.
 
 Definition copy (args : ST.E.args tags_t) : expenv :=
@@ -213,11 +222,16 @@ Definition copy (args : ST.E.args tags_t) : expenv :=
                              end)
          args (Env.empty EquivUtil.string (E.e tags_t)).
 
-Fixpoint inline (n : nat)
-         (cienv : @cienv tags_t)
-         (aenv : @aenv tags_t)
-         (tenv : @tenv tags_t)
-         (fenv : fenv)
+Definition string_list_of_params (ps : E.params) : list string :=
+  List.map fst ps.
+
+Definition translate_pattern (discriminee : E.e tags_t) (pat : P.Parser.pat) (i : tags_t):=
+  E.EBool true i.
+
+
+Fixpoint inline
+         (n : nat)
+         (ctx : DeclCtx tags_t)
          (s : ST.s tags_t)
          {struct n} : result t :=
   match n with
@@ -234,84 +248,117 @@ Fixpoint inline (n : nat)
       ok (IAssign type lhs rhs i)
 
     | ST.SConditional gtyp guard tru_blk fls_blk i =>
-      let* tru_blk' := inline n0 cienv aenv tenv fenv tru_blk in
-      let+ fls_blk' := inline n0 cienv aenv tenv fenv fls_blk in
+      let* tru_blk' := inline n0 ctx tru_blk in
+      let+ fls_blk' := inline n0 ctx fls_blk in
       IConditional gtyp guard tru_blk' fls_blk' i
 
     | ST.SSeq s1 s2 i =>
-      let* i1 := inline n0 cienv aenv tenv fenv s1 in
-      let+ i2 := inline n0 cienv aenv tenv fenv s2 in
+      let* i1 := inline n0 ctx s1 in
+      let+ i2 := inline n0 ctx s2 in
       ISeq i1 i2 i
 
     | ST.SBlock s =>
-      let+ blk := inline n0 cienv aenv tenv fenv s in
+      let+ blk := inline n0 ctx s in
       IBlock blk
 
     | ST.SFunCall f _ (P.Arrow args ret) i =>
-      let*~ fdecl := Env.find f fenv else "could not find function in environment" in
-match fdecl with
-| FDecl ε fenv' params body =>
-  (** TODO check copy-in/copy-out *)
-  let+ rslt := inline n0 cienv aenv tenv fenv' body in
-  let (s,_) := subst_t (args_to_expenv args) rslt in
-  IBlock s
-end
-| ST.SActCall a args i =>
-  let*~ adecl := Env.find a aenv else ("could not find action " ++ a ++ " in environment") in
-match adecl with
-| ADecl ε fenv' aenv' externs params body =>
-  (** TODO handle copy-in/copy-out *)
-  let+ rslt := inline n0 cienv aenv' tenv fenv' body in
-  let η := args_to_expenv args in
-  IBlock (fst (subst_t η rslt))
-end
-| ST.SApply ci ext_args args i =>
-  let*~ cinst := Env.find ci cienv else "could not find controller instance in environment" in
-match cinst with
-| CInst closure fenv' cienv' tenv' aenv' externs' apply_blk =>
-  let+ rslt := inline n0 cienv' aenv' tenv' fenv' apply_blk in
-  (** TODO check copy-in/copy-out *)
-  let η := copy args in
-  IBlock (fst (subst_t η rslt))
-end
+      match find_function _ ctx f with
+        | Some (TD.TPFunction _ _ _ body i) =>
+          (** TODO check copy-in/copy-out *)
+          let+ rslt := inline n0 ctx body in
+          let (s,_) := subst_t (args_to_expenv args) rslt in
+          IBlock s
+        | Some _ =>
+          error "[ERROR] Got a nonfunction when `find`ing a function"
+        | None =>
+          ok (IExternMethodCall "_" f (P.Arrow args ret) i)
+      end
 
-| ST.SReturnVoid i =>
-  ok (IReturnVoid i)
+    | ST.SActCall a args i =>
+      let*~ adecl := find_action tags_t ctx a else ("could not find action " ++ a ++ " in environment") in
+      match adecl with
+      | CD.CDAction _ _ body i =>
+        (** TODO handle copy-in/copy-out *)
+        let+ rslt := inline n0 ctx body in
+        let η := args_to_expenv args in
+        IBlock (fst (subst_t η rslt))
+      | _ =>
+        error "[ERROR] got a nonaction when `find`-ing a function"
+      end
 
-| ST.SReturnFruit typ expr i =>
-  ok (IReturnFruit typ expr i)
+    | ST.SApply ci ext_args args i =>
+      let*~ cinst := find_control tags_t ctx ci  else "could not find controller instance in environment" in
+      match cinst with
+      | TD.TPInstantiate cname _ _ cargs i =>
+        let*~ cdecl := find_control tags_t ctx cname else "could not find controller" in
+        match cdecl with
+        | TD.TPControl _ _ _ _ body apply_blk i =>
+          let ctx' := of_cdecl tags_t ctx body in
+          let+ rslt := inline n0 ctx' apply_blk in
+          (** TODO check copy-in/copy-out *)
+          let η := copy args in
+          IBlock (fst (subst_t η rslt))
+        | _ =>
+          error "Expected a control decl, got something else"
+        end
+      | _ =>
+         error "Expected a control instantiation, got something else"
+      end
 
-| ST.SExit i =>
-  ok (IExit i)
+    | ST.SReturnVoid i =>
+      ok (IReturnVoid i)
 
-| ST.SInvoke t i =>
-  let*~ tdecl := Env.find t tenv else "could not find table in environment" in
-match tdecl with
-| CD.Table keys actions =>
-  let act_to_gcl := fun a =>
-    let*~ (ADecl _ _ _ _ params body) := Env.find a aenv else "could not find action " ++ a ++ " in environment" in
-let* s := inline n0 cienv aenv tenv fenv body in
-let+ (s', _) := action_param_renamer params s in
-s'
-in
-let* acts := rred (List.map act_to_gcl actions) in
-let+ named_acts := zip actions acts in
-IInvoke t keys named_acts i
-end
+    | ST.SReturnFruit typ expr i =>
+      ok (IReturnFruit typ expr i)
 
-| ST.SExternMethodCall ext method _ args i =>
-  ok (IExternMethodCall ext method args i)
+    | ST.SExit i =>
+      ok (IExit i)
 
-| ST.SSetValidity _ _ _ =>
-  error "[FIXME] translate valid sets"
+    | ST.SInvoke t i =>
+      let*~ tdecl := find_table tags_t ctx t else "could not find table in environment" in
+      match tdecl with
+      | CD.CDTable _ (CD.Table keys actions) _ =>
+        let act_to_gcl := fun a =>
+          let*~ act := find_action tags_t ctx a else "could not find action " ++ a ++ " in environment" in
+          match act with
+          | CD.CDAction _ params body _ =>
+            let* s := inline n0 ctx body in
+            let+ (s', _) := action_param_renamer (string_list_of_params params) s in
+            s'
+          | _ =>
+            error "[ERROR] expecting action when `find`ing action, got something else"
+          end
+        in
+        let* acts := rred (List.map act_to_gcl actions) in
+        let+ named_acts := zip actions acts in
+        IInvoke t keys named_acts i
+      | _ =>
+        error "[ERROR] expecting table when getting table, got something else"
+      end
 
-| ST.PApply _ _ _ _ _ =>
-  error "[FIXME] translate parser applications"
+    | ST.SExternMethodCall ext method _ args i =>
+      ok (IExternMethodCall ext method args i)
 
-| ST.SHeaderStackOp _ _ _ _ =>
-  error "[FIXME] Translate Header Stack operations"
-end
+    | ST.SSetValidity e v i =>
+      match v with
+      | ST.Valid => ok (ISetValidity e true i)
+      | ST.Invalid => ok (ISetValidity e false i)
+      end
+    | ST.PApply _ _ _ _ i =>
+      (* let*~ prsr := find_parser tags_t ctx pname else "could not find parser instance" in *)
+      (* match pinst with *)
+      (* | TD.TPParser _ cparams eparams params start states i => *)
+      (*   inline_parser n0 ctx cparams eparams params start states i *)
+      (* | _ => error "[ERROR] expecting parser when `find`ing parser. got something else" *)
+      (* end *)
+      ok (ISkip i)
+
+    | ST.SHeaderStackOp _ _ _ _ =>
+      error "[FIXME] Translate Header Stack operations"
+  end
 end.
+
+
 
 Definition seq_tuple_elem_assign
            (tuple_name : string)
@@ -366,6 +413,9 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
   | IExternMethodCall _ _ _ _ =>
     (** TODO do we need to eliminate tuples in extern arguments? *)
     ok c
+  | ISetValidity _ _ _ =>
+    (** TODO do we need to eliminate tuples in valid sets? I think that'd be ill-typed *)
+    ok c
   end.
 
 (** TODO: Compiler pass to convert int<> -> bit<> *)
@@ -401,19 +451,16 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
         let lvars := header_fields l fields in
         let assign_fields := fun '(lvar, ltyp) acc_res =>
              let* acc := acc_res in
-             let*~ (_, rval) := F.find_value (eqb lvar) explicit_fields else "couldn't find field in field list" in
-ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i)
-in
-fold_right assign_fields
-           (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
-           lvars
-
-| _, _ =>
-  error "Can only copy variables or header literals type header"
-end
-| _ => ok c
-end
-
+             let*~ (_, rval) := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in
+             ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
+       fold_right assign_fields
+                  (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
+                  lvars
+      | _, _ =>
+        error "Can only copy variables or header literals type header"
+      end
+    | _ => ok c
+  end
 | IConditional guard_type guard tru fls i =>
   (** TODO: elaborate headers in guard? *)
   let* tru' := elaborate_headers tru in
@@ -436,6 +483,9 @@ end
   IInvoke x keys actions' i
 | IExternMethodCall _ _ _ _ =>
   (* TODO Do we need to eliminate tuples in arguments? *)
+  ok c
+| ISetValidity _ _ _ =>
+  (* TODO Do we need to eliminate tuples in valid-sets? that seems ill-typed *)
   ok c
 end.
 
@@ -506,6 +556,9 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   | IExternMethodCall _ _ _ _ =>
     (* TODO: Do something with arguments? *)
     ok c
+  | ISetValidity _ _ _ =>
+    (* TODO Eliminate header stack literals from expressions *)
+    ok c
   end.
 
 Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
@@ -537,41 +590,41 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
         let lvars := struct_fields l fields in
         let assign_fields := fun '(lvar, ltyp) acc_opt =>
              let* acc := acc_opt in
-             let*~ (_, rval) := F.find_value (eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
-ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i)
-in
-fold_right assign_fields
+             let*~ (_, rval) := F.find_value (String.eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
+             ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
+        fold_right assign_fields
            (ok (ISkip i))
            lvars
+      | _, _ =>
+         error "Can only elaborate struct assignments of the form var := {var | struct literal}"
+      end
+    | _ => ok c
+  end
+  | IConditional guard_type guard tru fls i =>
+    (** TODO: elaborate headers in guard? *)
+    let* tru' := elaborate_headers tru in
+    let+ fls' := elaborate_headers fls in
+    IConditional guard_type guard tru' fls' i
+  | ISeq s1 s2 i =>
+    let* s1' := elaborate_headers s1 in
+    let+ s2' := elaborate_headers s2 in
+    ISeq s1' s2' i
 
-| _, _ =>
-  error "Can only elaborate struct assignments of the form var := {var | struct literal}"
-end
-| _ => ok c
-end
-
-| IConditional guard_type guard tru fls i =>
-  (** TODO: elaborate headers in guard? *)
-  let* tru' := elaborate_headers tru in
-  let+ fls' := elaborate_headers fls in
-  IConditional guard_type guard tru' fls' i
-| ISeq s1 s2 i =>
-  let* s1' := elaborate_headers s1 in
-  let+ s2' := elaborate_headers s2 in
-  ISeq s1' s2' i
-
-| IBlock b =>
-  let+ b' := elaborate_headers b in
-  IBlock b'
-| IReturnVoid _ => ok c
-| IReturnFruit _ _ _ => ok c
-| IExit _ => ok c
-| IInvoke x keys actions i =>
-  let opt_actions := map_snd elaborate_structs actions in
-  let+ actions' := rred (List.map res_snd opt_actions) in
-  IInvoke x keys actions' i
-| IExternMethodCall _ _ _ _ =>
-  (* TODO Do we need to eliminate tuples in arguments? *)
-  ok c
+  | IBlock b =>
+    let+ b' := elaborate_headers b in
+    IBlock b'
+  | IReturnVoid _ => ok c
+  | IReturnFruit _ _ _ => ok c
+  | IExit _ => ok c
+  | IInvoke x keys actions i =>
+    let opt_actions := map_snd elaborate_structs actions in
+    let+ actions' := rred (List.map res_snd opt_actions) in
+    IInvoke x keys actions' i
+  | IExternMethodCall _ _ _ _ =>
+    (* TODO Do we need to eliminate tuples in arguments? *)
+    ok c
+  | ISetValidity _ _ _ =>
+    (* TODO Elaborate header stacks in expressions *)
+    ok c
 end.
 End Inline.

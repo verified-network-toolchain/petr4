@@ -7,8 +7,6 @@ Require Poulet4.P4String Poulet4.P4Int Poulet4.Syntax Poulet4.Typed.
 
 Section Value.
 
-  Context {tags_t: Type}.
-
   (* little-endian *)
   Inductive ValueBase {bit : Type} :=
   | ValBaseNull
@@ -27,9 +25,10 @@ Section Value.
   | ValBaseUnion (fields: StringAList (@ValueBase bit))
   | ValBaseStack (headers: list (@ValueBase bit)) (size: N) (next: N)
   | ValBaseEnumField (typ_name: string) (enum_name: string)
-  | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit))
-  (*| ValBaseSenum (_: StringAList tags_t (@ValueBase bit))*).
+  | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit)).
 
+  Context {tags_t : Type}.
+  
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
   | ValSetUniversal

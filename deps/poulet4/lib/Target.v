@@ -19,7 +19,6 @@ Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation Val := (@ValueBase bool).
 Notation ValSet := (@ValueSet tags_t).
-Notation signal := (@signal tags_t).
 
 Fixpoint width_of_val (v: Val): N :=
   let fix fields_width (fields: StringAList ValueBase) : N :=

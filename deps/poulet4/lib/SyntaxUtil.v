@@ -116,7 +116,7 @@ Inductive signal : Type :=
  | SReturn : Val -> signal
  | SExit
  (* parser's states include accept and reject *)
- | SReject : P4String -> signal.
+ | SReject : string -> signal.
 
 Definition SReturnNull := SReturn ValBaseNull.
 

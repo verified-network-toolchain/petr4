@@ -56,6 +56,7 @@ Section ToP4cub.
       functions : list (TopDecl.d tags_t);
       packages : list (TopDecl.d tags_t);
       externs : list (TopDecl.d tags_t);
+      types : list (string * E.t);
     }.
 
   Definition empty_declaration_context :=
@@ -65,7 +66,8 @@ Section ToP4cub.
        actions := [];
        functions := [];
        packages := [];
-       externs := []
+       externs := [];
+       types := []
     |}.
 
 
@@ -77,6 +79,7 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := decl.(packages);
        externs := decl.(externs);
+       types := decl.(types)
     |}.
 
   Definition add_parser (decl : DeclCtx) (p : TopDecl.d tags_t) :=
@@ -87,6 +90,7 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := decl.(packages);
        externs := decl.(externs);
+       types := decl.(types)
     |}.
 
   Definition add_package (decl : DeclCtx) (p : TopDecl.d tags_t) :=
@@ -97,6 +101,7 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := p::decl.(packages);
        externs := decl.(externs);
+       types := decl.(types);
     |}.
 
   Definition add_extern (decl : DeclCtx) (e : TopDecl.d tags_t) :=
@@ -107,6 +112,7 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := decl.(packages);
        externs := e::decl.(externs);
+       types := decl.(types);
     |}.
 
   Definition add_table (decl : DeclCtx) (t : TopDecl.C.d tags_t) :=
@@ -117,6 +123,7 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := decl.(packages);
        externs := decl.(externs);
+       types := decl.(types);
     |}.
 
   Definition add_action (decl : DeclCtx) (a : TopDecl.C.d tags_t) :=
@@ -127,7 +134,31 @@ Section ToP4cub.
        functions := decl.(functions);
        packages := decl.(packages);
        externs := decl.(externs);
+       types := decl.(types);
     |}.
+
+  Definition add_type (decl : DeclCtx) (typvar : string) (typ : E.t) :=
+    {| controls := decl.(controls);
+       parsers := decl.(parsers);
+       tables := decl.(tables);
+       actions := decl.(actions);
+       functions := decl.(functions);
+       packages := decl.(packages);
+       externs := decl.(externs);
+       types := (typvar, typ) :: decl.(types);
+    |}.
+
+
+  Definition subst_type (decl : DeclCtx) (typvar : string) (type : E.t) :=
+    {| controls := List.map (subst_type_var_top typvar type) decl.(controls);
+       parsers := List.map (subst_type_var_top typvar type) decl.(parsers);
+       tables := List.map (subst_type_var_top typvar type) decl.(tables);
+       actions := List.map (subst_type_var_ctrl typvar type) decl.(actions);
+       functions := List.map (subst_type_var_ctrl typvar type) decl.(functions);
+       packages := List.map (subst_type_var_ctrl typvar type) decl.(packages);
+       externs := List.map (subst_type_var_ctrl typvar type) decl.(externs);
+       types := (typvar, typ) :: List.fold_left (subst_type_var_type typvar type) [] decl.(types);
+    |}
   
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
@@ -155,6 +186,7 @@ Section ToP4cub.
        functions := combine functions;
        packages := combine packages;
        externs := combine externs;
+       types := List.app hi_prio.(types) lo_prio.(types);
     |}.
 
 
@@ -1077,6 +1109,16 @@ Section ToP4cub.
   Definition translate_actions (actions : list TableActionRef) : result (list string) :=
     List.fold_right translate_actions_loop (ok []) actions.
   Print DeclInstantiation.
+
+
+  Definition translate_decl_fields (fields : list DeclarationField) : result (F.fs string E.t) :=
+    rred (List.map (fun '(MkDeclarationField i typ name) =>
+                let+ t := translate_exp_type i typ in
+                (P4String.str name, t)
+             ) fields).
+
+
+  
   Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
@@ -1149,14 +1191,17 @@ Section ToP4cub.
       let t := TopDecl.C.CDTable name table tags in
       add_action ctx t
     | DeclHeader tags name fields =>
-    (* error "[FIXME] Header Declarations unimplemented" *)
-      ok ctx
+      (* error "[FIXME] Header Declarations unimplemented" *)
+      let+ fs := translate_decl_fields fields in
+      let t := E.THeader fs in
+      subst_type ctx (P4String.str name) t
     | DeclHeaderUnion tags name fields =>
     (* error "[FIXME] Header Union Declarations unimplemented" *)
       ok ctx
     | DeclStruct tags name fields =>
-    (* error "[FIXME] Struct Declarations unimplemented" *)
-      ok ctx
+      let+ fs := translate_decl_fields fields in
+      let t := E.TStruct fs in
+      subst_type ctx (P4String.str name) t
     | DeclError tags members =>
       (* error "[FIXME] Error Declarations unimplemented" *)
       ok ctx
@@ -1195,7 +1240,7 @@ Section ToP4cub.
       add_package ctx p
   end.
 
-  (* This is redunant with the locals resolution in the previous code, but I
+    (* This is redunant with the locals resolution in the previous code, but I
    * can't get it to compile using mutual fixpoints *)
   Definition translate_decls (decls : list (@Declaration tags_t)) : result DeclCtx :=
     let loop := fun acc decl => let* ctx := acc in

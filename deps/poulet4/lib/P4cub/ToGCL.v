@@ -233,7 +233,7 @@ Section ToGCL.
       | E.TBool => ok 1
       | E.TBit w => ok (BinPos.Pos.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
-      | E.TVar _ => error "Cannot get the width of a type variable"
+      | E.TVar _ => error "Cannot get the width of a typ variable"
       | E.TError => error "Cannot get the width of an error Type"
       | E.TMatchKind => error "Cannot get the width of a Match Kind Type"
       | E.TTuple types => error "Cannot get the width of a Tuple Type"
@@ -278,23 +278,31 @@ Section ToGCL.
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
-    Definition lookup_member_type_from_type (mem : string) (typ : E.t) : result E.t :=
-      match typ with
-      | E.TStruct fields =>
-        match F.find_value (String.eqb mem) fields with
-        | None => error ("cannot find " ++ mem ++ "in type")
-        | Some t => ok t
-        end
-      | E.THeader fields =>
-        match F.find_value (String.eqb mem) fields with
-        | None => error ("cannot find " ++ mem ++ "in type")
-        | Some t => ok t
-        end
-      | E.TVar v =>
-        error ("[ERROR] dont' know how to get type for member " ++ mem ++ " from type variable: " ++ v ++ ". Hint: maybe this should've been substituted in at the callsite?")
-      | _ =>
-        error ("[Error] Can't get type of member " ++ mem ++ "from type thats not a struct, header or var")
+    Definition lookup_member_from_fields mem fields : result E.t :=
+      match F.find_value (String.eqb mem) fields with
+      | None => error ("cannot find " ++ mem ++ "in type")
+      | Some t => ok t
       end.
+
+    (* Definition lookup_member_type_from_type (types : F.fs string E.t) (mem : string) (typ : E.t) : result E.t := *)
+    (*   match typ with *)
+    (*   | E.TStruct fields => *)
+    (*     lookup_member_from_fields fields *)
+    (*   | E.THeader fields => *)
+    (*     lookup_member_from_fields fields *)
+    (*   | E.TVar v => *)
+    (*     match F.find_value (eqb string) v with *)
+    (*     | None => error ("Could not fine definition for type variable" ++ v) *)
+    (*     | Some t => *)
+    (*       match t with *)
+    (*       | E.TStruct   *)
+    (*     error ("[ERROR] dont' know how to get type for member " *)
+    (*            ++ mem ++ *)
+    (*            " from type variable: " *)
+    (*            ++ v ++ ". Hint: maybe this should've been substituted in at the callsite?") *)
+    (*   | _ => *)
+    (*     error ("[Error] Can't get type of member " ++ mem ++ "from type thats not a struct, header or var") *)
+    (*   end. *)
 
     Fixpoint to_rvalue (e : (E.e tags_t)) : result (BV.t tags_t) :=
       match e with

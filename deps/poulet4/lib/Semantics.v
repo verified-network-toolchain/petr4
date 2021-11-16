@@ -586,9 +586,9 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
           | ExpExpressionMember expr name =>
               match eval_expr_gen hook expr with
               | Some (ValBaseStruct fields) =>
-                  AList.get fields name
+                  AList.get fields (str name)
               | Some (ValBaseHeader fields true) =>
-                  AList.get fields name
+                  AList.get fields (str name)
               | _ => None
               end
           | _ => None
@@ -977,12 +977,12 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                         exec_lexpr read_one_bit this st expr lv sig ->
                         exec_lexpr read_one_bit this st
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                        (MkValueLvalue (ValLeftMember lv name) typ) sig
+                        (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
   (* next < 0 is impossible by syntax. *)
   | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig ret_sig,
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
-                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject StackOutOfBounds)) ->
+                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
@@ -1020,7 +1020,7 @@ Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
   | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
       locator_equivb loc1 loc2
   | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
-      lval_equivb lv1 lv2 && P4String.equivb member1 member2
+      lval_equivb lv1 lv2 && String.eqb member1 member2
   | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
       lval_equivb lv1 lv2 && N.eqb msb1 msb2 && N.eqb lsb1 lsb2
   | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
@@ -1056,7 +1056,7 @@ Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Sval -> Prop :=
+with exec_read_member (this : path) : state -> Lval -> string -> P4Type -> Sval -> Prop :=
   | exec_read_member_header : forall is_valid fields st lv name typ sv,
                               exec_read this st lv (ValBaseHeader fields is_valid) ->
                               AList.get fields name = Some sv ->
@@ -1083,7 +1083,7 @@ with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Sva
     2. a write to a field in an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
    Guaranteed by not writing to invalid and unspecified-validity headers *)
-Inductive write_header_field: Sval -> P4String -> Sval -> Sval -> Prop :=
+Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
   | write_header_field_valid : forall fields fname fv fields',
                                AList.set fields fname fv = Some fields' ->
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
@@ -1117,9 +1117,9 @@ Inductive write_header_field: Sval -> P4String -> Sval -> Sval -> Prop :=
    1. Typechecker ensures that fname must exist in the fields.
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
-Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4String)
-                             (hfields: P4String.AList tags_t Sval) (is_valid: option bool) :
-                             option (P4String.AList tags_t Sval) :=
+Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
+                             (hfields: StringAList Sval) (is_valid: option bool) :
+                             option (StringAList Sval) :=
   match fields with
   | [] => Some []
   | (fname', ValBaseHeader hfields' is_valid') :: tl =>
@@ -1127,10 +1127,10 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4Stri
     | None => None
     | Some tl' =>
       match is_valid with
-      | Some true => if P4String.equivb fname fname'
+      | Some true => if String.eqb fname fname'
                      then Some ((fname, ValBaseHeader hfields (Some true)) :: tl')
                      else Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-      | Some false => if P4String.equivb fname fname'
+      | Some false => if String.eqb fname fname'
                       then Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
                       else Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') is_valid') :: tl')
       (* Since valid = None only occurs for out-of-bound header stack access, and hfields
@@ -1144,7 +1144,7 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4Stri
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
    Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
-Inductive update_member : Sval -> P4String -> Sval -> Sval -> Prop :=
+Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_header : forall fields is_valid fname fv sv,
                            write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
                            update_member (ValBaseHeader fields is_valid) fname fv sv
@@ -1320,7 +1320,7 @@ Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
 Definition empty_block := (BlockEmpty dummy_tags).
 
-Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase) : Block :=
+Fixpoint match_switch_case (member: string) (cases : list StatementSwitchCase) : Block :=
   let fix find_next_action cases :=
     match cases with
     | [] => empty_block
@@ -1330,20 +1330,20 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   match cases with
   | [] => empty_block
   | StatSwCaseAction _ (StatSwLabName _ label) code :: tl =>
-    if P4String.equivb label member then code
+    if String.eqb (str label) member then code
     else match_switch_case member tl
   | StatSwCaseFallThrough _ (StatSwLabName _ label) :: tl =>
-    if P4String.equivb label member then find_next_action tl
+    if String.eqb (str label) member then find_next_action tl
     else match_switch_case member tl
   | StatSwCaseAction _ (StatSwLabDefault _) code :: _ => code
   | StatSwCaseFallThrough _ (StatSwLabDefault _) :: _ => empty_block
   end.
 
-Definition table_retv (b : bool) (ename member : P4String) : Val :=
+Definition table_retv (b : bool) (ename member : string) : Val :=
   ValBaseStruct
-  [(!"hit", ValBaseBool b);
-   (!"miss", ValBaseBool (negb b));
-   (!"action_run", ValBaseEnumField ename member)].
+  [("hit", ValBaseBool b);
+   ("miss", ValBaseBool (negb b));
+   ("action_run", ValBaseEnumField ename member)].
 
 Definition name_only (name : Typed.name) : ident :=
   match name with
@@ -1545,9 +1545,9 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       (if is_some actionref
        then actionref = (Some (mk_action_ref action_name ctrl_args)) 
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
-            /\ retv = (SReturn (table_retv true !"" (get_expr_func_name action)))
+            /\ retv = (SReturn (table_retv true "" (str (get_expr_func_name action))))
        else action = default_action
-            /\ retv = (SReturn (table_retv false !"" (get_expr_func_name default_action)))) ->
+            /\ retv = (SReturn (table_retv false "" (str (get_expr_func_name default_action))))) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
         nil nil s' nil retv

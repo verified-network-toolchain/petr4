@@ -29,9 +29,8 @@ Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
-Notation Val := (@ValueBase tags_t bool).
+Notation Val := (@ValueBase bool).
 Notation ValSet := ValueSet.
-Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
 
@@ -62,7 +61,7 @@ Inductive env_object :=
   | EnvTable
   | EnvRegister (reg_sta : register_static)
   | EnvRegAction (ra_sta : reg_action_static)
-  | EnvAbsMet (abs_met_sem : @AbsMet tags_t extern_state)
+  | EnvAbsMet (abs_met_sem : @AbsMet extern_state)
   | EnvPin
   | EnvPout.
 

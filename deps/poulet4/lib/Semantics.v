@@ -19,6 +19,7 @@ Require Export Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
 Local Open Scope string_scope.
+Local Open Scope list_scope.
 
 Section Semantics.
 

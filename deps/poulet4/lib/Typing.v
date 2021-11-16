@@ -2,7 +2,8 @@ Require Import Poulet4.Semantics Poulet4.Typed
         Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List
         Poulet4.Value Coq.micromega.Lia Poulet4.Utils.
 Import ListNotations.
-Require Poulet4.P4String.
+Require Import Poulet4.P4String.
+Require Import Poulet4.AList.
 
 (** Predicate that a
     [read_one_bit] relation
@@ -22,8 +23,8 @@ Definition read_one_bit_inverse
 
 Section ExecValInd.
   Variables (tags_t A B : Type).
-  Notation VA := (@ValueBase tags_t A).
-  Notation VB := (@ValueBase tags_t B).
+  Notation VA := (@ValueBase A).
+  Notation VB := (@ValueBase B).
   Variables (R : A -> B -> Prop) (P : VA -> VB -> Prop).
   
   Hypothesis HNull : P ValBaseNull ValBaseNull.
@@ -126,9 +127,9 @@ Section ValueTyping.
 
   Section Val.
     Context {A : Type}.
-    Notation V := (@ValueBase tags_t A).
-    Notation senum_env := (@IdentMap.t tags_t (P4String.AList tags_t V)).
-    
+    Notation V := (@ValueBase A).
+    Notation senum_env := (@IdentMap.t tags_t (StringAList V)).
+
     (* TODO:
        What constraints do we need on:
        - fixed-width numeric types?
@@ -158,20 +159,20 @@ Section ValueTyping.
         Forall2 val_typ vs ts ->
         val_typ (ValBaseTuple vs) (TypTuple ts)
     | typ_record : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (clear_AList_tags ts) ->
         val_typ (ValBaseRecord vs) (TypRecord ts)
     | typ_error : forall err,
         val_typ (ValBaseError err) TypError
     | typ_matchkind : forall mk,
         val_typ (ValBaseMatchKind mk) TypMatchKind
     | typ_struct : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (clear_AList_tags ts) ->
         val_typ (ValBaseStruct vs) (TypStruct ts)
     | typ_header : forall b vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (clear_AList_tags ts) ->
         val_typ (ValBaseHeader vs b) (TypHeader ts)
     | typ_union : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (clear_AList_tags ts) ->
         val_typ (ValBaseUnion vs) (TypHeaderUnion ts)
     | typ_stack : forall s n vs ts,
         length vs = N.to_nat s ->
@@ -180,14 +181,14 @@ Section ValueTyping.
     | typ_enumfield : forall ename member members,
         In member members ->
         val_typ
-          (ValBaseEnumField ename member)
+          (ValBaseEnumField (str ename) (str member))
           (TypEnum ename None members)
     | typ_senumfield : forall ename member v t fields,
-        IdentMap.get ename gsenum = Some fields ->
-        AList.get fields member = Some v ->
+        IdentMap.get ename gsenum = Some (clear_AList_tags fields) ->
+        AList.get (clear_AList_tags fields) member = Some v ->
         val_typ v t ->
         val_typ
-          (ValBaseSenumField ename member v)
+          (ValBaseSenumField (str ename) member v)
           (TypEnum ename (Some t) (List.map fst fields)).
 
     Section ValTypInd.
@@ -210,24 +211,24 @@ Section ValueTyping.
           Forall2 P vs ts ->
           P (ValBaseTuple vs) (TypTuple ts).
       Hypothesis HRecord : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (clear_AList_tags ts) ->
+          AList.all_values P vs (clear_AList_tags ts) ->
           P (ValBaseRecord vs) (TypRecord ts).
       Hypothesis HError : forall err,
           P (ValBaseError err) TypError.
       Hypothesis HMatchkind : forall mk,
           P (ValBaseMatchKind mk) TypMatchKind.
       Hypothesis HStruct : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (clear_AList_tags ts) ->
+          AList.all_values P vs (clear_AList_tags ts) ->
           P (ValBaseStruct vs) (TypStruct ts).
       Hypothesis HHeader : forall b vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (clear_AList_tags ts) ->
+          AList.all_values P vs (clear_AList_tags ts) ->
           P (ValBaseHeader vs b) (TypHeader ts).
       Hypothesis HUnion : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (clear_AList_tags ts) ->
+          AList.all_values P vs (clear_AList_tags ts) ->
           P (ValBaseUnion vs) (TypHeaderUnion ts).
       Hypothesis HStack : forall s n vs ts,
           length vs = N.to_nat s ->
@@ -237,15 +238,15 @@ Section ValueTyping.
       Hypothesis HEnum : forall ename member members,
           In member members ->
           P
-            (ValBaseEnumField ename member)
+            (ValBaseEnumField (str ename) (str member))
             (TypEnum ename None members).
       Hypothesis HSenum : forall ename member v t fields,
-          IdentMap.get ename gsenum = Some fields ->
-          AList.get fields member = Some v ->
+          IdentMap.get ename gsenum = Some (clear_AList_tags fields) ->
+          AList.get (clear_AList_tags fields) member = Some v ->
           val_typ v t ->
           P v t ->
           P
-            (ValBaseSenumField ename member v)
+            (ValBaseSenumField (str ename) member v)
             (TypEnum ename (Some t) (List.map fst fields)).
 
       Definition custom_val_typ_ind :
@@ -260,14 +261,14 @@ Section ValueTyping.
                 Forall2_cons _ _ (vtind _ _ Hh) (lind Ht)
               end in
           let fix alind
-                  {vs : AList.AList (P4String.t _) V _}
+                  {vs : StringAList V}
                   {ts : AList.AList (P4String.t _) typ _}
-                  (H : AList.all_values val_typ vs ts)
-              : AList.all_values P vs ts :=
+                  (H : AList.all_values val_typ vs (clear_AList_tags ts))
+              : AList.all_values P vs (clear_AList_tags ts) :=
               match H with
               | Forall2_nil _ => Forall2_nil _
               | Forall2_cons _ _ (conj Hx Hh) Ht =>
-                Forall2_cons _ _ (conj Hx (vtind _ _ Hh)) (alind Ht)
+                Forall2_cons _ _ (conj Hx (vtind _ _ Hh)) (@alind Ht)
               end in
           let fix same_typ_ind {vs : list V} {t : typ}
                   (H : Forall (fun v => val_typ v t) vs)

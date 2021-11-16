@@ -17,15 +17,14 @@ Section SyntaxUtil.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Variable default_tag: tags_t.
-Notation Val := (@ValueBase tags_t bool).
+Notation Val := (@ValueBase bool).
 
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
-Check !"next".
+
 Axiom dummy_ident : unit -> ident. (* make it lazy for extracted OCaml. *)
-Axiom dummy_val : Val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with

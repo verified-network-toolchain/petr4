@@ -21,8 +21,8 @@ Import ListNotations.
 Section Semantics.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
-Notation Val := (@ValueBase tags_t bool).
-Notation Sval := (@ValueBase tags_t (option bool)).
+Notation Val := (@ValueBase bool).
+Notation Sval := (@ValueBase (option bool)).
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := (@ValueLvalue tags_t).
 
@@ -32,7 +32,7 @@ Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 Notation signal := (@signal tags_t).
 
-Context {target : @Target tags_t (@Expression tags_t)}. 
+Context {target : @Target tags_t (@Expression tags_t)}.
 
 Definition mem := @PathMap.t tags_t Sval.
 

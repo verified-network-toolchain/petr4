@@ -1,3 +1,4 @@
+Require Import Coq.Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
@@ -21,11 +22,10 @@ Module Ops.
   Section Operations.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
   Definition dummy_tags := @default tags_t _.
-  Definition empty_str := P4String.empty_str dummy_tags.
 
-  Notation Val := (@ValueBase tags_t bool).
+  Notation Val := (@ValueBase bool).
   Notation ValSet := (@ValueSet tags_t).
-  Definition Fields (A : Type):= P4String.AList tags_t A.
+  Definition Fields (A : Type):= AList.StringAList A.
 
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
     match op, v with
@@ -203,7 +203,7 @@ Module Ops.
       match l1, l2 with
       | nil, nil => Some true
       | (k1, v1) :: l1', (k2, v2) :: l2' =>
-        if negb (P4String.equivb k1 k2) then None
+        if negb (String.eqb k1 k2) then None
         else match eval_binary_op_eq v1 v2, eval_binary_op_eq_struct' l1' l2' with
              | Some b1, Some b2 => Some (b1 && b2)
              | _, _ => None
@@ -225,12 +225,12 @@ Module Ops.
       end in
     match v1, v2 with
     | ValBaseError s1, ValBaseError s2 =>
-        Some (P4String.equivb s1 s2)
+        Some (String.eqb s1 s2)
     | ValBaseEnumField t1 s1, ValBaseEnumField t2 s2 =>
-        if P4String.equivb t1 t2 then Some (P4String.equivb s1 s2)
+        if String.eqb t1 t2 then Some (String.eqb s1 s2)
         else None
     | ValBaseSenumField t1 s1 v1, ValBaseSenumField t2 s2 v2 =>
-        if P4String.equivb t1 t2 then eval_binary_op_eq v1 v2
+        if String.eqb t1 t2 then eval_binary_op_eq v1 v2
         else None
     | ValBaseBool b1, ValBaseBool b2 => 
         Some (eqb b1 b2)
@@ -368,25 +368,25 @@ Module Ops.
         from senum to its underlying type and then a explicit cast from the underlying type to
         the final senum type. However, since the implicit cast of senum is incorrect in the
         typechecker, the direct cast between senums are also implemented. *) 
-  Definition enum_of_val  (name: P4String.t tags_t) (typ: option (@P4Type tags_t))
+  Definition enum_of_val  (name: string) (typ: option (@P4Type tags_t))
                           (members: list (P4String.t tags_t)) (oldv : Val) : option Val :=
   match typ, oldv with
   | None, _ => None
   | Some (TypBit w), ValBaseBit bits
   | Some (TypBit w), ValBaseSenumField _ _ (ValBaseBit bits) => 
       if (w =? Z.to_N (Zlength bits))%N 
-      then Some (ValBaseSenumField name empty_str (ValBaseBit bits))
+      then Some (ValBaseSenumField name EmptyString (ValBaseBit bits))
       else None
   | Some (TypInt w), ValBaseInt bits
   | Some (TypInt w), ValBaseSenumField _ _ (ValBaseInt bits) =>
       if (Z.to_N (Zlength bits) =? w)%N 
-      then Some (ValBaseSenumField name empty_str (ValBaseInt bits))
+      then Some (ValBaseSenumField name EmptyString (ValBaseInt bits))
       else None
   | _, _ => None
   end.
 
   Fixpoint eval_cast (newtyp : @P4Type tags_t) (oldv : Val) : option Val :=
-    let fix values_of_val_tuple (l1: list P4Type) 
+    let fix values_of_val_tuple (l1: list P4Type)
                                 (l2: list Val) : option (list Val) :=
       match l1, l2 with
       | [], [] => Some []
@@ -402,32 +402,32 @@ Module Ops.
       | ValBaseTuple l2 => values_of_val_tuple l1 l2
       | _ => None
       end in
-    let fix fields_of_val_tuple (l1: Fields P4Type) 
+    let fix fields_of_val_tuple (l1: P4String.AList tags_t P4Type)
                                 (l2: list Val) : option (Fields Val) :=
       match l1, l2 with
       | [], [] => Some []
-      | (k, t) :: l1', oldv :: l2' => 
+      | (k, t) :: l1', oldv :: l2' =>
           match eval_cast t oldv, fields_of_val_tuple l1' l2' with
-          | Some newv, Some l3 => Some ((k, newv) :: l3)
+          | Some newv, Some l3 => Some ((str k, newv) :: l3)
           | _, _ => None
           end
       | _, _ => None 
       end in
-    let fix fields_of_val_record (l1: Fields P4Type) 
+    let fix fields_of_val_record (l1: P4String.AList tags_t P4Type)
                                  (l2: Fields Val) : option (Fields Val) :=
       match l1 with
       | [] => Some []
       | (k, t) :: l1' =>
-          match AList.get l2 k with
+          match AList.get l2 (str k) with
           | None => None
           | Some oldv =>
               match eval_cast t oldv, fields_of_val_record l1' l2 with
-              | Some newv, Some l3 => Some ((k, newv) :: l3)
+              | Some newv, Some l3 => Some ((str k, newv) :: l3)
               | _, _ => None
               end
           end
       end in
-    let fields_of_val (l1: Fields P4Type) (oldv: Val) : option (Fields Val) :=
+    let fields_of_val (l1: P4String.AList tags_t P4Type) (oldv: Val) : option (Fields Val) :=
       match oldv with
       | ValBaseTuple l2 => if negb (AList.key_unique l1) then None
                            else fields_of_val_tuple l1 l2
@@ -446,8 +446,8 @@ Module Ops.
        2. Need to define name_to_type such that no loop is possible. 
        eval_cast name_to_typ (name_to_typ name) oldv *)
     | TypTypeName name => None
-    | TypEnum n typ mems => enum_of_val n typ mems oldv
-    | TypStruct fields => 
+    | TypEnum n typ mems => enum_of_val (str n) typ mems oldv
+    | TypStruct fields =>
         match fields_of_val fields oldv with
         | Some fields' => Some (ValBaseStruct fields')
         | _ => None
@@ -457,12 +457,12 @@ Module Ops.
         — the list fields are assigned to the header fields in the order they appear — 
         or with a structure initializer expression 8.14. When initialized the header 
         automatically becomes valid: *)
-    | TypHeader fields => 
+    | TypHeader fields =>
         match fields_of_val fields oldv with
         | Some fields' => Some (ValBaseHeader fields' true)
         | _ => None
         end
-    | TypTuple types => 
+    | TypTuple types =>
         match values_of_val types oldv with
         | Some values => Some (ValBaseTuple values)
         | _ => None
@@ -480,8 +480,6 @@ Module Ops.
         end
     | _ => None
     end.
-  
-  (* Admitted. *)
 
   (* Fixpoint sort_by_key_typ (t: P4Type) : P4Type :=
     let fix sort_by_key_typ' (ll : Fields P4Type) : Fields P4Type :=

@@ -1,5 +1,5 @@
-Require Import Poulet4.Semantics Poulet4.Typed
-        Poulet4.Syntax Coq.NArith.BinNat Coq.Lists.List
+Require Import Poulet4.Semantics Poulet4.Typed Poulet4.Syntax
+        Coq.Strings.String Coq.NArith.BinNat Coq.Lists.List
         Poulet4.Value Coq.micromega.Lia Poulet4.Utils.
 Import ListNotations.
 Require Poulet4.P4String.
@@ -1183,19 +1183,111 @@ Section Soundness.
   Proof.
   Admitted.
 
-  Lemma enum_sound : forall tag tname member ename members dir,
+  Lemma enum_member_sound : forall tag tname member ename members dir,
       (* TODO: need [ge] of [genv].
          name_to_type ge tname = Some (TypEnum ename None members) ->*)
       In member members ->
-      Γ ⊢e MkExpression tag (ExpTypeMember tname member) (TypEnum ename None members) dir.
+      Γ ⊢e MkExpression
+        tag (ExpTypeMember tname member)
+        (TypEnum ename None members) dir.
   Proof.
   Admitted.
 
-  Lemma senum_sound : forall tag tname member ename t members dir,
+  Lemma senum_member_sound : forall tag tname member ename t members dir,
       (*name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
       IdentMap.get ename (ge_senum ge) = Some fields ->*)
       In member members ->
-      Γ ⊢e MkExpression tag (ExpTypeMember tname member) (TypEnum ename (Some t) members) dir.
+      Γ ⊢e MkExpression
+        tag (ExpTypeMember tname member)
+        (TypEnum ename (Some t) members) dir.
   Proof.
+  Admitted.
+
+  Lemma error_member_sound : forall tag err dir,
+      Γ ⊢e MkExpression
+        tag (ExpErrorMember err) TypError dir.
+  Proof.
+    soundtac.
+  Qed.
+
+  Variant member_type (ts : P4String.AList tags_t typ)
+    : typ -> Prop :=
+  | record_member_type :
+      member_type ts (TypRecord ts)
+  | struct_member_type :
+      member_type ts (TypStruct ts)
+  | header_member_type :
+      member_type ts (TypHeader ts)
+  | union_member_type :
+      member_type ts (TypHeaderUnion ts).
+  
+  Lemma other_member_sound : forall tag e x ts t dir,
+      member_type ts (typ_of_expr e) ->
+      AList.get ts x = Some t ->
+      Γ ⊢e e ->
+      Γ ⊢e MkExpression
+        tag (ExpExpressionMember e x) t dir.
+  Proof.
+  Admitted.
+
+  Lemma array_size_sound : forall tag e x dir t w,
+      (* P4Arith.BitArith.bound 32 w -> *)
+      (w < 2 ^ 32)%N ->
+      typ_of_expr e = TypArray t w ->
+      P4String.str x = "size"%string ->
+      Γ ⊢e e ->
+      Γ ⊢e MkExpression
+        tag (ExpExpressionMember e x) (TypBit 32) dir.
+  Proof.
+  Admitted.
+
+  Lemma array_last_index_sound : forall tag e x dir t w,
+      typ_of_expr e = TypArray t w ->
+      P4String.str x = "lastIndex"%string ->
+      Γ ⊢e e ->
+      Γ ⊢e MkExpression
+        tag (ExpExpressionMember e x) t dir.
+  Proof.
+  Admitted.
+
+  Lemma ternary_sound : forall tag e₁ e₂ e₃ t dir,
+      typ_of_expr e₁ = TypBool ->
+      typ_of_expr e₂ = typ_of_expr e₃ ->
+      typ_of_expr e₂ = t ->
+      Γ ⊢e e₁ ->
+      Γ ⊢e e₂ ->
+      Γ ⊢e e₃ ->
+      Γ ⊢e MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
+  Proof.
+  Admitted.
+
+  Lemma dontcare_sound : forall tag dir,
+      Γ ⊢e MkExpression tag ExpDontCare TypVoid dir.
+  Proof.
+    soundtac.
+  Qed.
+
+  Inductive lexpr_ok : expr -> Prop :=
+  | lexpr_name tag x loc t dir :
+      lexpr_ok (MkExpression tag (ExpName x loc) t dir)
+  | lexpr_member tag e x t dir :
+      lexpr_ok e ->
+      lexpr_ok (MkExpression tag (ExpExpressionMember e x) t dir)
+  | lexpr_slice tag e hi lo t dir :
+      lexpr_ok e ->
+      lexpr_ok (MkExpression tag (ExpBitStringAccess e lo hi) t dir)
+  | lexpr_access tag e₁ e₂ t dir :
+      lexpr_ok e₁ ->
+      lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
+
+  Lemma assign_sound : forall tag e₁ e₂,
+      lexpr_ok e₁ ->
+      Γ ⊢e e₁ ->
+      Γ ⊢e e₂ ->
+      Γ ⊢s MkStatement
+        tag (StatAssignment e₁ e₂) StmUnit
+        ⊣ (* relation to update context with this_path and type. *) Γ.
+  Proof.
+    (* Maybe typing needs to be parameterized by a path. *)
   Admitted.
 End Soundness.

@@ -22,7 +22,7 @@ Section Packet.
   Context (inject_bit: bool -> bit).
   Context (tags_t: Type).
   Notation P4String := (P4String.t tags_t).
-  Notation ValueBase := (@ValueBase tags_t bit).
+  Notation ValueBase := (@ValueBase  bit).
   Notation P4Type := (@P4Type tags_t).
 
   Definition packet_monad := @state_monad (list bool) exception.
@@ -46,10 +46,10 @@ Section Packet.
     Z.of_nat (to_nat (rev (Vector.to_list bits))).
 
   Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
-    let eval_packet_extract_fixed_field (into_field: P4String * P4Type) : packet_monad (P4String * ValueBase) :=
+    let eval_packet_extract_fixed_field (into_field: P4String * P4Type) : packet_monad (string * ValueBase) :=
       let (into_name, into_type) := into_field in
       let* v := eval_packet_extract_fixed into_type in
-        mret (into_name, v) in
+        mret (P4String.str into_name, v) in
     match into with
     | TypBool =>
       let* vec := read_first_bits 1 in

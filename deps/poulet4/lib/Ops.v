@@ -411,7 +411,7 @@ Module Ops.
           | Some newv, Some l3 => Some ((str k, newv) :: l3)
           | _, _ => None
           end
-      | _, _ => None 
+      | _, _ => None
       end in
     let fix fields_of_val_record (l1: P4String.AList tags_t P4Type)
                                  (l2: Fields Val) : option (Fields Val) :=

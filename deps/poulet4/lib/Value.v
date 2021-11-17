@@ -28,7 +28,7 @@ Section Value.
   | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit)).
 
   Context {tags_t : Type}.
-  
+
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
   | ValSetUniversal

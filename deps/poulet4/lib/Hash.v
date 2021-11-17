@@ -29,8 +29,9 @@ Section CRC.
   Variable (refout : bool).
 
   (* Input *)
-  Variable (in_width : nat).
-  Variable (input : Z).
+  Variable (input : Bits).
+
+  Definition in_width : nat := List.length input.
 
   Definition poly_bits : Bits :=
     Bitwise.little_to_big (Bitwise.of_N (N.of_hex_uint poly) out_width).
@@ -57,8 +58,7 @@ Section CRC.
 
   Definition input_bits : Bits := 
     let input_round :=
-      Bitwise.zero (in_width_round - in_width)
-      ++ (Bitwise.of_N (Z.to_N input) in_width) in
+      Bitwise.zero (in_width_round - in_width) ++ input in
     let input_rev :=
       if refin 
       then concat (map (@rev bool) (group_list input_round 8))
@@ -66,7 +66,7 @@ Section CRC.
     let input_padded := (Bitwise.zero out_width) ++ input_rev in
       Bitwise.xor init_bits (Bitwise.little_to_big input_padded).
 
-  Definition compute_crc : Z :=
+  Definition compute_crc : Bits :=
     let fix compute_crc' (bits : Bits) (i : nat) :=
       if i <=? out_width then bits
       else 
@@ -83,11 +83,11 @@ Section CRC.
         end in
     let crc_output := compute_crc' input_bits (length input_bits) in
     let crc_rev := if refout then rev crc_output else crc_output in
-    Z.of_N (Bitwise.to_N 
-      (Bitwise.big_to_little (Bitwise.xor xor_out_bits crc_rev))).
+      Bitwise.big_to_little (Bitwise.xor xor_out_bits crc_rev).
 
 End CRC.
 
+(* Z.of_N (Bitwise.to_N Bits *)
 (* Compute (compute_crc 16 (D8 (D0 (D0 (D5 Nil)))) (D0 Nil) (D0 Nil)
          true true 12 3911). *)
 (* Example: 

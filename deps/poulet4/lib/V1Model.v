@@ -4,6 +4,7 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
+Require Import Coq.Init.Hexadecimal.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
@@ -11,6 +12,7 @@ Require Import Poulet4.Value.
 Require Import Poulet4.Ops.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.P4Arith.
+Require Import Poulet4.Hash.
 Require Import Poulet4.Target.
 Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.Sublist.
@@ -25,6 +27,7 @@ Section V1Model.
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Context {Expression: Type}.
 Notation ident := (P4String.t tags_t).
+Notation P4String := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase tags_t bool).
@@ -172,6 +175,60 @@ Definition packet_out_emit : extern_func := {|
   ef_sem := packet_out_emit_sem
 |}.
 
+Definition get_hash_algorithm (algo : P4String) : option (nat * uint * uint * uint * bool * bool ) :=
+  if P4String.equivb algo !"crc32" then 
+      Some (32%nat, 
+            (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))), 
+            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
+            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
+            true, true)
+  else if P4String.equivb algo !"crc16" then
+      Some (16%nat, 
+            (D8(D0(D0(D5 Nil)))),
+            (D0 Nil),
+            (D0 Nil), 
+            true, true)
+  else None.
+
+Definition concat_tuple (lval : list Val) : option (list bool) :=
+  let fix concat_tuple' (lval : list Val) (res: list bool): option (list bool) :=
+    match lval with
+    | [] => Some (res)
+    | ValBaseBit value :: tl => concat_tuple' tl (value ++ res)
+    | ValBaseInt value :: tl => concat_tuple' tl (value ++ res)
+    | ValBaseVarbit _ value :: tl => concat_tuple' tl (value ++ res)
+    | _ => None
+    end
+  in concat_tuple' lval [].
+
+Definition bound_hash_output (outw: N) (base: list bool) 
+                             (max: list bool) (output: list bool) : Val :=
+  let (w1, base) := BitArith.from_lbool base in
+  let (w2, max) := BitArith.from_lbool max in
+  let (w3, output) := BitArith.from_lbool output in
+  let w4 := N.max (N.max w1 w2) w3 in
+    ValBaseBit (to_lbool outw
+                (BitArith.plus_mod w4 base 
+                (BitArith.modulo_mod w4 output max))).
+Check compute_crc.
+Inductive hash_sem : extern_func_sem :=
+  | exec_hash : forall e s p outw typs hash_name base lval max hashw poly init xor_out refin refout input output,
+      get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->
+      concat_tuple lval = Some input ->
+      bound_hash_output outw base max 
+        (compute_crc hashw poly init xor_out refin refout input) = output ->
+      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField !"HashAlgorithm" hash_name; 
+                           ValBaseBit base;
+                           ValBaseTuple lval;
+                           ValBaseBit max]
+        s [output] SReturnNull.
+
+Definition hash : extern_func := {|
+  ef_class := !"";
+  ef_func := !"hash";
+  ef_sem := hash_sem
+|}.
+
 (* This only works when tags_t is a unit type. *)
 
 Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
@@ -186,7 +243,10 @@ Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident
       exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret
   | exec_extern_packet_out_emit : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_out_emit e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret ->
-      exec_extern e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret.
+      exec_extern e s (ef_class packet_out_emit) (ef_func packet_out_emit) p targs args s' args' vret
+  | exec_extern_hash : forall e s p targs args s' args' vret,
+      apply_extern_func_sem hash e s (ef_class hash) (ef_func hash) p targs args s' args' vret ->
+      exec_extern e s (ef_class hash) (ef_func hash) p targs args s' args' vret.
 
 Inductive ValSetT :=
 | VSTSingleton (value: Val)

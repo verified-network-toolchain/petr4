@@ -284,25 +284,17 @@ Section ToGCL.
       | Some t => ok t
       end.
 
-    (* Definition lookup_member_type_from_type (types : F.fs string E.t) (mem : string) (typ : E.t) : result E.t := *)
-    (*   match typ with *)
-    (*   | E.TStruct fields => *)
-    (*     lookup_member_from_fields fields *)
-    (*   | E.THeader fields => *)
-    (*     lookup_member_from_fields fields *)
-    (*   | E.TVar v => *)
-    (*     match F.find_value (eqb string) v with *)
-    (*     | None => error ("Could not fine definition for type variable" ++ v) *)
-    (*     | Some t => *)
-    (*       match t with *)
-    (*       | E.TStruct   *)
-    (*     error ("[ERROR] dont' know how to get type for member " *)
-    (*            ++ mem ++ *)
-    (*            " from type variable: " *)
-    (*            ++ v ++ ". Hint: maybe this should've been substituted in at the callsite?") *)
-    (*   | _ => *)
-    (*     error ("[Error] Can't get type of member " ++ mem ++ "from type thats not a struct, header or var") *)
-    (*   end. *)
+    Definition lookup_member_type_from_type (mem : string) (typ : E.t) : result E.t :=
+      match typ with
+      | E.TStruct fields =>
+        lookup_member_from_fields mem fields
+      | E.THeader fields =>
+        lookup_member_from_fields mem fields
+      | E.TVar v =>
+        error ("Error :: Type variable " ++ v ++ "  should've been removed")
+      | _ =>
+        error "don't know how to extract member from type that has no members"
+      end.
 
     Fixpoint to_rvalue (e : (E.e tags_t)) : result (BV.t tags_t) :=
       match e with
@@ -1034,10 +1026,10 @@ Module SimpleNat.
       error "ill-formed constructor arguments to V1Switch instantiation."
     end.
 
+  Compute p4cub_simple_nat.
+
   Compute (let* sn := p4cub_simple_nat in
            let externs := v1model  in
            p4cub_to_gcl Info instr 1000 externs pipe sn).
-
-  Print E.arrowE.
 
 End SimpleNat.

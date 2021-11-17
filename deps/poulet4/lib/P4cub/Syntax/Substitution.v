@@ -43,11 +43,13 @@ Section TypeSubstitution.
     | <{ BOOL _ @ _ }>
     | <{ _ W _ @ _ }>
     | <{ _ S _ @ _ }>
-    | <{ Var _ : _ @ _ }>
     | <{ Error _ @ _ }>
     (*| <{ Stri _ @ _ }>
     | <{ Enum _ dot _ @ _ }>*)
     | <{ Matchkind _ @ _ }> => e
+    | <{ Var x : t @ i }> =>
+      let t' := tsub_t σ t in
+      <{ Var x : t' @ i }>
     | <{ Slice e:t [hi:lo] @ i }> => E.ESlice (tsub_e σ e) (tsub_t σ t) hi lo i
     | <{ Cast e:t @ i }> => E.ECast (tsub_t σ t) (tsub_e σ e) i
     | <{ UOP op e:t @ i }> => E.EUop op (tsub_t σ t) (tsub_e σ e) i
@@ -269,9 +271,21 @@ Section TypeSubstitution.
       TD.TPSeq (tsub_d σ d1) (tsub_d σ d2) i
     end.
 
+  Import String.
+  Open Scope string_scope.
 
+  Variable d : tags_t.
 
-
-
+  Compute tsub_s [("standard_metadata_t", E.TStruct [])]
+          (ST.SFunCall "mark_to_drop" []
+                       (P.Arrow
+                         [("standard_metadata",
+                           P.PAInOut
+                            (E.TVar "standard_metadata_t",
+                             E.EVar
+                              (E.TVar
+                                "standard_metadata_t")
+                              "standard_metadata" d))]
+                         None) d).
 
 End TypeSubstitution.

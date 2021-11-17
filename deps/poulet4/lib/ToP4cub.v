@@ -2,6 +2,7 @@ Require Export Poulet4.Syntax.
 Require Import Poulet4.SimplExpr.
 Require Export
         Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.Syntax.Substitution
         Poulet4.P4cub.Util.Result
         Poulet4.P4cub.BigStep.InstUtil.
 Import AST Result P4cub Envn.
@@ -15,6 +16,7 @@ Import HoistNameless.
 
 Module ST := Stmt.
 Module E := Expr.
+Module Sub := P4cub.Syntax.Substitution.
 
 Module NameGen.
   Definition t := list (string * nat).
@@ -148,17 +150,34 @@ Section ToP4cub.
        types := (typvar, typ) :: decl.(types);
     |}.
 
+  Fixpoint tsub_ts (σ : Env.t string E.t) (ts : F.fs string E.t) :=
+    let tsub_t := Sub.tsub_t in
+    match ts with
+    | [] => []
+    | (x,t)::ts' =>
+      match Env.find x σ with
+      | None => (x, tsub_t σ t) :: tsub_ts σ ts'
+      | Some _ =>
+        let σ' := Env.remove x σ in
+        let t' := tsub_t σ' t in
+        let σ'' := Env.bind x t' σ' in
+        (x, t') :: tsub_ts σ'' ts'
+      end
+    end.
 
-  Definition subst_type (decl : DeclCtx) (typvar : string) (type : E.t) :=
-    {| controls := List.map (subst_type_var_top typvar type) decl.(controls);
-       parsers := List.map (subst_type_var_top typvar type) decl.(parsers);
-       tables := List.map (subst_type_var_top typvar type) decl.(tables);
-       actions := List.map (subst_type_var_ctrl typvar type) decl.(actions);
-       functions := List.map (subst_type_var_ctrl typvar type) decl.(functions);
-       packages := List.map (subst_type_var_ctrl typvar type) decl.(packages);
-       externs := List.map (subst_type_var_ctrl typvar type) decl.(externs);
-       types := (typvar, typ) :: List.fold_left (subst_type_var_type typvar type) [] decl.(types);
-    |}
+  Definition subst_type (decl : DeclCtx) (typvar : string) (type : E.t) : DeclCtx :=
+    let σ := [(typvar, type)] in
+    let tsub_ds := List.map (Sub.tsub_d σ) in
+    let tsub_Cds := List.map (Sub.tsub_Cd σ) in
+    {| controls := tsub_ds decl.(controls);
+       parsers := tsub_ds decl.(parsers);
+       tables := tsub_Cds decl.(tables);
+       actions := tsub_Cds decl.(actions);
+       functions := tsub_ds decl.(functions);
+       packages := tsub_ds decl.(packages);
+       externs := tsub_ds decl.(externs);
+       types := (typvar, type) :: tsub_ts σ decl.(types);
+    |}.
   
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
@@ -1194,14 +1213,14 @@ Section ToP4cub.
       (* error "[FIXME] Header Declarations unimplemented" *)
       let+ fs := translate_decl_fields fields in
       let t := E.THeader fs in
-      subst_type ctx (P4String.str name) t
+      add_type ctx (P4String.str name) t
     | DeclHeaderUnion tags name fields =>
     (* error "[FIXME] Header Union Declarations unimplemented" *)
       ok ctx
     | DeclStruct tags name fields =>
       let+ fs := translate_decl_fields fields in
       let t := E.TStruct fs in
-      subst_type ctx (P4String.str name) t
+      add_type ctx (P4String.str name) t
     | DeclError tags members =>
       (* error "[FIXME] Error Declarations unimplemented" *)
       ok ctx
@@ -1257,9 +1276,14 @@ Section ToP4cub.
     (hoist_nameless_instantiations tags_t)
       ∘ (SimplExpr.transform_prog tags).
 
+  Print fold_right.
+  Definition inline_types (decls : DeclCtx) :=
+    fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
+
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
     let* '(Program decls) := preprocess tags p in
-    translate_decls decls.
+    let+ cub_decls := translate_decls decls in
+    inline_types cub_decls.
 
 End ToP4cub.
 

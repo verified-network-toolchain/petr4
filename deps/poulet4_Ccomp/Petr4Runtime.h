@@ -415,7 +415,7 @@ void interp_cast(BitVec* dst, BitVec src, int t, int width){
     dst->is_signed = 0;
     mpz_init(dst->value);
     if (src.is_signed){
-      if(mpz_cmp_si(src.vlaue, (long)0) < 0){
+      if(mpz_cmp_si(src.value, (long)0) < 0){
         mpz_t top;
         mpz_init(top);
         mpz_ui_pow_ui(top, 2, dst->width);

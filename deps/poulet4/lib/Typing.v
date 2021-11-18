@@ -271,13 +271,15 @@ Section Soundness.
       inversion Hv1; inversion Hv2; subst.
       (* Need to know [N_of_value idx < n]. *) admit.
     - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
-      rename H4 into He2; rename H10 into He1;
+      (* Molly commented the things below out since 
+         things does not work on H7 after Semantics.v changes *)
+      (* rename H4 into He2; rename H10 into He1;
         rename H7 into Hsval; rename H9 into Haa;
           rename H11 into Huninit.
       pose proof He1' _ He1 as Hv1.
       pose proof He2' _ He2 as Hv2.
       rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
-      inversion Hv1; inversion Hv2; subst.
+      inversion Hv1; inversion Hv2; subst. *)
       (* Need result about [Znth_def]. *)
   Admitted.
 

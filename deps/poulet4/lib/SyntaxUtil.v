@@ -152,4 +152,10 @@ Definition lift_option_kv {A B} (l : list (A * option B)) : option (list (A * B)
     end
   in List.fold_right lift_one_option (Some []) l.
 
+Definition kv_map_func {K A B} (f: A -> B) (kv : K * A): K * B :=
+  let (k, v) := kv in (k, f v).
+
+Definition kv_map {K A B} (f: A -> B) (kvs : list (K * A)): list (K * B) :=
+  List.map (kv_map_func f) kvs.
+
 End SyntaxUtil.

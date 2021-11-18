@@ -19,6 +19,7 @@ Require Import Poulet4.Sublist.
 Require Import Poulet4.Maps.
 Require Import Poulet4.CoqLib.
 Require Import Poulet4.P4Notations.
+Require Import Poulet4.ValueUtil.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -105,12 +106,14 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
 Definition REG_INDEX_WIDTH := 32%N.
 
 Inductive register_read_sem : extern_func_sem :=
-  | exec_register_read : forall e s p content w size index,
+  | exec_register_read : forall e s p content w size indexb index output,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
-      -1 < index < size ->
-      register_read_sem e s p nil [ValBaseBit (to_lbool REG_INDEX_WIDTH index)] 
-        s [Znth index content] SReturnNull.
+      BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
+      (if ((-1 <? index) && (index <? size))
+       then output = Znth index content
+       else output = ValBaseBit (to_lbool w 0))(*uninit_sval_of_typ None (TypBit w)) = Some output)*) ->
+      register_read_sem e s p nil [ValBaseBit indexb] s [output] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := !"register";
@@ -119,15 +122,15 @@ Definition register_read : extern_func := {|
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
-  | exec_register_write : forall e s p content w size content' index value,
+  | exec_register_write : forall e s s' p content w size indexb index valueb,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
-      -1 < index < size ->
-      upd_Znth index content value = content' ->
-      register_write_sem e s p nil 
-            [ValBaseBit (to_lbool REG_INDEX_WIDTH index); value]
-            (PathMap.set p (ObjRegister content') s)
-            [] SReturnNull.
+      N.of_nat (List.length valueb) = w ->
+      BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
+      (if ((-1 <? index) && (index <? size))
+       then (PathMap.set p (ObjRegister (upd_Znth index content (ValBaseBit valueb))) s) = s'
+       else s = s') ->
+      register_write_sem e s p nil [ValBaseBit indexb; ValBaseBit valueb] s' [] SReturnNull.
 
 Definition register_write : extern_func := {|
   ef_class := !"register";

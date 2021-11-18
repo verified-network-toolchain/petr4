@@ -5,7 +5,7 @@ Require Export
         Poulet4.P4cub.Syntax.Substitution
         Poulet4.P4cub.Util.Result
         Poulet4.P4cub.BigStep.InstUtil.
-Import AST Result P4cub Envn.
+Import AST Result Envn.
 Import ResultNotations.
 
 Require Import String.
@@ -16,7 +16,7 @@ Import HoistNameless.
 
 Module ST := Stmt.
 Module E := Expr.
-Module Sub := P4cub.Syntax.Substitution.
+Module Sub := Syntax.Substitution.
 
 Module NameGen.
   Definition t := list (string * nat).
@@ -185,13 +185,15 @@ Section ToP4cub.
                     (TopDecl.TPFunction "$DUMMY" [] (Arrow [] None) (ST.SSkip tags) tags)
                     decls.
 
+  Print TopDecl.C.d.
+
   Fixpoint of_cdecl (decls : DeclCtx) (d : TopDecl.C.d tags_t) :=
     match d with
-    | CD.CDAction _ _ _ _ =>
+    | Control.CDAction _ _ _ _ =>
       add_action decls d
-    | CD.CDTable _ _ _ =>
+    | Control.CDTable _ _ _ =>
       add_table decls d
-    | CD.CDSeq d1 d2 i =>
+    | Control.CDSeq d1 d2 i =>
       let decls1 := of_cdecl decls d1 in
       of_cdecl decls1 d2
     end.
@@ -231,14 +233,12 @@ Section ToP4cub.
       false
     end.
 
-  Print TopDecl.C.d.
-
   Definition cdecl_has_name (name : string) (d : TopDecl.C.d tags_t) :=
     let matches := String.eqb name in
     match d with
-    | TopDecl.C.CDAction action_name _ _ _ => matches action_name
-    | TopDecl.C.CDTable table_name _ _ => matches table_name
-    | TopDecl.C.CDSeq _ _ _ =>
+    | Control.CDAction action_name _ _ _ => matches action_name
+    | Control.CDTable table_name _ _ => matches table_name
+    | Control.CDSeq _ _ _ =>
       (* Should Not Occur *)
       false
     end.
@@ -330,7 +330,8 @@ Section ToP4cub.
     PeanoNat.Nat.max 1 (PeanoNat.Nat.log2_up num_members).
 
   Definition cub_type_of_enum (members : list (P4String.t tags_t)) :=
-    E.TBit (pos (width_of_enum members)).
+    E.TBit (Npos (pos (width_of_enum members))).
+
 
   Program Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
     let translate_fields :=
@@ -347,15 +348,15 @@ Section ToP4cub.
     | TypInteger =>
       (* TODO This should be added to P4cub, but can only be a value; enforced by the type system *)
       error "[FIXME] P4cub doesnt support Integers"
-    | TypInt w => ok (E.TInt (pos w))
-    | TypBit w => ok (E.TBit (pos w))
+    | TypInt w => ok (E.TInt (posN w))
+    | TypBit w => ok (E.TBit w)
     | TypVarBit w =>
       error "[FIXME] Compile to fixed-width"
     | TypArray typ size =>
       match typ with
       | TypHeader fields =>
         let+ cub_fields := translate_fields fields in
-        E.THeaderStack cub_fields (pos size)
+        E.THeaderStack cub_fields (posN size)
       | _ => error "Typeerror:: Arrays must contain Headers"
       end
     | TypTuple types =>
@@ -493,9 +494,9 @@ Section ToP4cub.
       match z.(width_signed) with
       | Some (w, b) =>
         if b then
-          ok (E.EInt (pos w) z.(value) z.(tags))
+          ok (E.EInt (posN w) z.(value) z.(tags))
         else
-          ok (E.EBit (pos w) z.(value) z.(tags))
+          ok (E.EBit w z.(value) z.(tags))
       | None => error "[FIXME] integer didnt have a width."
       end
     | ExpString s =>
@@ -510,12 +511,18 @@ Section ToP4cub.
       end
     | ExpArrayAccess array index =>
       let* stck := translate_expression array in
-      let+ index := realize_array_index index in
-      E.EHeaderStackAccess stck index i
+      let* type := translate_exp_type i (get_type_of_expr array) in
+      match type with
+      | E.THeaderStack fs _ =>
+        let+ index := realize_array_index index in
+        E.EHeaderStackAccess fs stck index i
+      | _ =>
+        error "translateed type of array access is not a headerstack type"
+      end
     | ExpBitStringAccess bits lo hi =>
       let* typ := translate_exp_type i (get_type_of_expr bits) in
       let+ e := translate_expression bits in
-      E.ESlice e typ (posN hi) (posN lo) i
+      E.ESlice e (posN hi) (posN lo) i
     | ExpList values =>
       let f := fun v res_rst =>
                  let* cub_v := translate_expression v in
@@ -525,25 +532,24 @@ Section ToP4cub.
       E.ETuple cub_values i
     | ExpRecord entries =>
       let f := fun kv res_rst =>
-                 let '(MkKeyValue i nm expr) := kv in
+                 let '(nm,expr) := kv in
                  let* type := translate_exp_type i (get_type_of_expr expr) in
                  let* expr := translate_expression expr in
                  let+ rst := res_rst in
-                 (P4String.str nm, (type,expr)) :: rst in
+                 (P4String.str nm, expr) :: rst in
       let+ cub_entries := fold_right f (ok []) entries  in
       E.EStruct cub_entries i
     | ExpUnaryOp op arg =>
       let eop := translate_op_uni op in
       let* typ := translate_exp_type i (get_type_of_expr arg) in
       let+ earg := translate_expression arg in
-      E.EUop eop typ earg i
+      E.EUop typ eop earg i
     | ExpBinaryOp op (e1,e2) =>
-      let* t1 := translate_exp_type i (get_type_of_expr e1) in
-      let* t2 := translate_exp_type i (get_type_of_expr e2) in
+      let* typ' := translate_exp_type i typ in
       let* e1' := translate_expression e1 in
       let* e2' := translate_expression e2 in
       let+ eop := translate_op_bin op in
-      E.EBop eop t1 t2 e1' e2' i
+      E.EBop typ' eop e1' e2' i
     | ExpCast typ expr =>
       let* expr' := translate_expression expr in
       let+ typ' := translate_exp_type i typ in
@@ -553,7 +559,7 @@ Section ToP4cub.
       | TypEnum _ _ members =>
         let w := width_of_enum members in
         let+ n := get_enum_id members name in
-        E.EBit (pos w) (BinIntDef.Z.of_nat n) i
+        E.EBit (Npos (pos w)) (BinIntDef.Z.of_nat n) i
       | _ =>
         error "Type Error. Type Member had non-enum type"
       end
@@ -563,7 +569,7 @@ Section ToP4cub.
     | ExpExpressionMember expr name =>
       let* cub_type := translate_exp_type i (get_type_of_expr expr) in
       let+ cub_expr := translate_expression expr in
-      E.EExprMember (P4String.str name) cub_type cub_expr i
+      E.EExprMember cub_type (P4String.str name) cub_expr i
     | ExpTernary cond tru fls =>
       error "Ternary expressions should have been hoisted by a previous pass"
     | ExpFunctionCall func type_args args =>
@@ -572,10 +578,10 @@ Section ToP4cub.
       error "Nameless Intantiations should have been hoisted by a previous pass"
     | ExpDontCare =>
       error "[FIXME] These are actually patterns (unimplemented)"
-    | ExpMask expr mask =>
-      error "[FIXME] actually patterns (unimplemented)"
-    | ExpRange lo hi =>
-      error "[FIXME] actually patterns (unimplemented)"
+    (* | ExpMask expr mask => *)
+    (*   error "[FIXME] actually patterns (unimplemented)" *)
+    (* | ExpRange lo hi => *)
+    (*   error "[FIXME] actually patterns (unimplemented)" *)
     end
   with translate_expression (e : @Expression tags_t) : result (E.e tags_t) :=
     match e with
@@ -605,18 +611,18 @@ Section ToP4cub.
       Some x
     end.
 
-  Definition apply_arg_to_param (x : string * paramarg E.t E.t * (E.t * E.e tags_t)) (acc : result (F.fs string (paramarg (E.t * E.e tags_t) (E.t * E.e tags_t)))) : result (F.fs string (paramarg (E.t * E.e tags_t) (E.t * E.e tags_t))) :=
-    let '(name, typ, (_, exp)) := x in
+  Definition apply_arg_to_param (x : string * paramarg E.t E.t * E.e tags_t) (acc : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t)))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+    let '(name, typ, exp) := x in
     let+ fs := acc in
     match typ with
-    | PAIn t => (name, PAIn (t, exp)) :: fs
-    | PAOut t => (name, PAOut (t, exp)) :: fs
-    | PAInOut t => (name, PAInOut (t,exp)) :: fs
-    | PADirLess t => (name, PADirLess (t,exp))::fs
+    | PAIn t => (name, PAIn (exp)) :: fs
+    | PAOut t => (name, PAOut (exp)) :: fs
+    | PAInOut t => (name, PAInOut (exp)) :: fs
+    | PADirLess t => (name, PADirLess (exp))::fs
     end.
 
 
-  Definition apply_args_to_params (params : F.fs string (paramarg E.t E.t)) (args : list (E.t * E.e tags_t)) : result (F.fs string (paramarg (E.t * E.e tags_t) (E.t * E.e tags_t))) :=
+  Definition apply_args_to_params (params : F.fs string (paramarg E.t E.t)) (args : list (E.e tags_t)) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
     let* params_args := zip params args in
     fold_right apply_arg_to_param (ok []) params_args.
 
@@ -642,6 +648,57 @@ Section ToP4cub.
     let+ cub_e := translate_expression e in
     (cub_t, cub_e).
 
+
+  Definition translate_apply tags callee : result (ST.s tags_t) :=
+    let typ := get_type_of_expr callee in
+    match typ with
+    | TypControl (MkControlType type_params parameters) =>
+      error "[FIXME] translate control apply calls"
+    | TypTable _ =>
+      let+ callee_name := get_name callee in
+      ST.SInvoke (P4String.str callee_name) tags
+    | TypParser _ =>
+      error "[FIXME] translate parser apply calls"
+    | _ =>
+      error "Error got a type that cannot be applied."
+    end.
+
+  Definition translate_set_validity tags v callee :=
+    let+ hdr := translate_expression callee in
+    ST.SSetValidity hdr v tags.
+
+  Definition translate_is_valid tags callee retvar :=
+    let* hdr := translate_expression callee in
+    match retvar with
+    | None => error "IsValid has no return value"
+    | Some rv =>
+      ok (ST.SAssign (E.EVar E.TBool rv tags)
+                     (E.EUop E.TBool E.IsValid hdr tags)
+                     tags)
+    end.
+
+  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args:=
+    let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
+    match extern_decl with
+    | None => error (String.append "ERROR expected an extern, but got " extern_str)
+    | Some (TopDecl.TPExtern extn_name tparams cparams methods i) =>
+      let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
+      match called_method with
+      | None =>
+        error (append "Couldn't find " (append (append extern_str ".") f_str))
+      | Some (_, (targs, Arrow params _)) =>
+        let arg_list := optionlist_to_list args in
+        let* cub_args := rred (List.map translate_expression arg_list) in
+        let+ paramargs := apply_args_to_params params cub_args in
+        (* TODO Currently assuming method calls return None*)
+        let typ : E.arrowE tags_t := Arrow paramargs None in
+        ST.SExternMethodCall extern_str f_str [] typ tags
+      end
+    | Some _ =>
+      error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
+    end.
+
+
   Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (tags : tags_t)
@@ -650,62 +707,30 @@ Section ToP4cub.
              (ret_var : option string)
              (f : P4String.t tags_t) : result (ST.s tags_t) :=
     let f_str := P4String.str f in
-    let typ := get_type_of_expr callee in
     if f_str =? "apply" then
-      match typ with
-      | TypControl (MkControlType type_params parameters) =>
-        error "[FIXME] translate control apply calls"
-      | TypTable _ =>
-        let* callee_name := get_name callee in
-        ok (ST.SInvoke (P4String.str callee_name) tags)
-      | TypParser _ =>
-        error "[FIXME] translate parser apply calls"
-      | _ =>
-        error "Error got a type that cannot be applied."
-      end
+      translate_apply tags callee
     else if f_str =? "setInvalid" then
-      let+ hdr := translate_expression callee in
-      ST.SSetValidity hdr ST.Invalid tags
+      translate_set_validity tags false callee
     else if f_str =? "setValid" then
-      let+ hdr := translate_expression callee in
-      ST.SSetValidity hdr ST.Valid tags
+      translate_set_validity tags true callee
     else if f_str =? "isValid" then
-      let* hdr := translate_expression callee in
-      match ret_var with
-      | None => error "IsValid has no return value"
-      | Some rv =>
-        ok (ST.SAssign E.TBool
-                       (E.EVar E.TBool rv tags)
-                       (E.EUop E.IsValid E.TBool hdr tags)
-                       tags)
-      end
+      translate_is_valid tags callee ret_var
     else
-      match typ with
+      match get_type_of_expr callee with
       | TypTypeName (BareName extern_obj) =>
-        let extern_str := (P4String.str extern_obj : string) in
-        let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
-        match extern_decl with
-        | None => error (String.append "ERROR expected an extern, but got " extern_str)
-        | Some (TopDecl.TPExtern extn_name tparams cparams methods i) =>
-          let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
-          match called_method with
-          | None =>
-            error (append "Couldn't find " (append (append extern_str ".") f_str))
-          | Some (_, (targs, Arrow params _)) =>
-            let arg_list := optionlist_to_list args in
-            let* cub_args := rred (List.map (translate_expression_and_type tags) arg_list) in
-            let+ paramargs := apply_args_to_params params cub_args in
-            (* TODO Currently assuming method calls return None*)
-            let typ : E.arrowE tags_t := Arrow paramargs None in
-            ST.SExternMethodCall (P4String.str extern_obj) f_str [] typ tags
-
-          end
-        | Some _ =>
-          error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
-        end
+        translate_extern_string tags ctx (P4String.str extern_obj) f_str args
       | _ =>
         error (String.append "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
+
+  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
+    let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
+    let* params := parameters_to_params tags parameters in
+    let* paramargs := apply_args_to_params params cub_args in
+    let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
+    let+ ret_typ := translate_return_type tags ret in
+    let cub_ret := option_map (fun t => (E.EVar t ret_var tags)) ret_typ in
+    ST.SFunCall (P4String.str fname) cub_type_params (Arrow paramargs cub_ret) tags.
 
   Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) : option (result (ST.s tags_t)) :=
     let '(MkExpression tags expr typ dir) := e in
@@ -718,12 +743,7 @@ Section ToP4cub.
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          Some (let* cub_args := rred (List.map (translate_expression_and_type tags) (optionlist_to_list args)) in
-                let* params := parameters_to_params tags parameters in
-                let* paramargs := apply_args_to_params params cub_args in
-                let+ ret_typ := translate_return_type tags ret in
-                let cub_ret := option_map (fun t => (t, E.EVar t ret_var tags)) ret_typ in
-                ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags)
+          Some (translate_function_application tags n ret_var ret type_args parameters args)
         | _ => Some (error "A name, applied like a method call, must be a function or extern type; I got something else")
         end
       | _ => Some (error "ERROR :: Cannot handle this kind of expression")
@@ -749,30 +769,31 @@ Section ToP4cub.
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          let* cub_args := rred (List.map (translate_expression_and_type i) (optionlist_to_list args)) in
-          let* params := parameters_to_params tags parameters in
-          let* paramargs := apply_args_to_params params cub_args in
-          let+ ret_typ := translate_return_type tags ret in
-          let cub_ret := option_map (fun t => (t, E.EVar t ("$RETVAR_" ++ (P4String.str n)) tags)) ret_typ in
-          ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags
+          translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
+          (* let* cub_args := rred (List.map (translate_expression_and_type i) (optionlist_to_list args)) in *)
+          (* let* params := parameters_to_params tags parameters in *)
+          (* let* paramargs := apply_args_to_params params cub_args in *)
+          (* let+ ret_typ := translate_return_type tags ret in *)
+          (* let cub_ret := option_map (fun t => (t, E.EVar t ("$RETVAR_" ++ (P4String.str n)) tags)) ret_typ in *)
+          (* ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags *)
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
         end
       | _ => error "ERROR :: Cannot handle this kind of expression"
       end
     | StatAssignment lhs rhs =>
-      let* (cub_ltyp, cub_lhs) := translate_expression_and_type i lhs in
+      let* cub_lhs := translate_expression lhs in
       let+ cub_rhs := translate_expression rhs in
-      ST.SAssign cub_ltyp cub_lhs cub_rhs i
+      ST.SAssign cub_lhs cub_rhs i
     | StatDirectApplication typ args =>
       error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
     | StatConditional cond tru fls_opt =>
-      let* (cub_type, cub_cond) := translate_expression_and_type i cond in
+      let* cub_cond := translate_expression cond in
       let* cub_tru := translate_statement ctx tru in
       let+ cub_fls := match fls_opt with
                        | None => ok (ST.SSkip i)
                        | Some fls => translate_statement ctx fls
                        end in
-      ST.SConditional cub_type cub_cond cub_tru cub_fls i
+      ST.SConditional cub_cond cub_tru cub_fls i
     | StatBlock block =>
       let+ sblck := translate_block ctx i block in
       ST.SBlock sblck
@@ -784,9 +805,9 @@ Section ToP4cub.
       match expr_opt with
       | Some e =>
         let+ (cub_typ, cub_expr) := translate_expression_and_type i e in
-        ST.SReturnFruit cub_typ cub_expr i
+        ST.SReturn (Some cub_expr) i
       | None =>
-        ok (ST.SReturnVoid i)
+        ok (ST.SReturn None i)
       end
     | StatSwitch expr cases =>
       error "[FIXME] switch statement not implemented"
@@ -795,7 +816,7 @@ Section ToP4cub.
     | StatVariable typ name init loc =>
       let* t := translate_exp_type i typ in
       let vname := P4String.str name in
-      let decl := ST.SVardecl t vname i in
+      let decl := ST.SVardecl vname (Left t) i in
       match init with
       | None =>
         ok decl
@@ -804,7 +825,7 @@ Section ToP4cub.
         | None =>  (** check whether e is a function call *)
           let+ cub_e := translate_expression e in
           let var := E.EVar t vname i in
-          let assign := ST.SAssign t var cub_e i in
+          let assign := ST.SAssign var cub_e i in
           ST.SSeq decl assign i
         | Some s =>
           let+ s := s in
@@ -843,29 +864,29 @@ Section ToP4cub.
   with translate_pre_expr tags pre_expr typ dir : result (Parser.pat) :=
     match pre_expr with
     | ExpDontCare => ok Parser.PATWild
-    | ExpRange lo hi =>
-      let* lopat := translate_expression_to_pattern lo in
-      let+ hipat := translate_expression_to_pattern hi in
-      Parser.PATRange lopat hipat
-    | ExpMask expr mask =>
-      let* expr_pat := translate_expression_to_pattern expr in
-      let+ mask_pat := translate_expression_to_pattern mask in
-      Parser.PATMask expr_pat mask_pat
+    (* | ExpRange lo hi => *)
+    (*   let* lopat := translate_expression_to_pattern lo in *)
+    (*   let+ hipat := translate_expression_to_pattern hi in *)
+    (*   Parser.PATRange lopat hipat *)
+    (* | ExpMask expr mask => *)
+    (*   let* expr_pat := translate_expression_to_pattern expr in *)
+    (*   let+ mask_pat := translate_expression_to_pattern mask in *)
+    (*   Parser.PATMask expr_pat mask_pat *)
     | ExpInt z =>
       match z.(width_signed) with
       | Some (w, signed) =>
         if signed
-        then ok (Parser.PATInt (pos w) z.(value))
-        else ok (Parser.PATBit (pos w) z.(value))
+        then ok (Parser.PATInt (posN w) z.(value))
+        else ok (Parser.PATBit w z.(value))
       | None => error "Masked ints must have a known width"
       end
     | ExpCast (TypSet (TypBit w)) (MkExpression _ (ExpInt z) _ _) =>
       match z.(width_signed) with
       | Some (_, signed) =>
         if signed
-        then ok (Parser.PATInt (pos w) z.(value))
-        else ok (Parser.PATBit (pos w) z.(value))
-      | _ => error "Masked ints must have a known width"
+        then ok (Parser.PATInt (posN w) z.(value))
+        else ok (Parser.PATBit w z.(value))
+      | _ => error "ints must have a known width"
       end
     | _ => error "unknown set variant"
     end.
@@ -874,7 +895,16 @@ Section ToP4cub.
     let '(MkMatch tags pre_match typ) := m in
     match pre_match with
     | MatchDontCare => ok Parser.PATWild
-    | MatchExpression e => translate_expression_to_pattern e
+    | MatchMask e mask =>
+      let* p_e := translate_expression_to_pattern e in
+      let+ p_m := translate_expression_to_pattern mask in
+      Parser.PATMask p_e p_m
+    | MatchRange lo hi =>
+      let* p_lo := translate_expression_to_pattern lo in
+      let+ p_hi := translate_expression_to_pattern hi in
+      Parser.PATMask p_lo p_hi
+    | MatchCast _ _ =>
+      error "[FIXME] Cannot Translate Cast"
     end.
 
   Definition translate_matches (ms : list Match) : result (list Parser.pat) :=
@@ -1288,73 +1318,73 @@ Section ToP4cub.
 End ToP4cub.
 
 
-Require Import Poulet4.P4defs.
-Require Import Poulet4.SimpleNat.
+(* Require Import Poulet4.P4defs. *)
+(* Require Import Poulet4.SimpleNat. *)
 
-Import SimpleNat.
+(* Import SimpleNat. *)
 
-Definition test := Program
-                     [decl'1
-                      ; packet_in
-                      ; packet_out
-                      ; verify'check'toSignal
-                      ; NoAction
-                      ; decl'2
-                      ; decl'3
-                      ; standard_metadata_t
-                      ; CounterType
-                      ; MeterType
-                      ; counter
-                      ; direct_counter
-                      ; meter
-                      ; direct_meter
-                      ; register
-                      ; action_profile
-                      ; random'result'lo'hi
-                      ; digest'receiver'data
-                      ; HashAlgorithm
-                      ; mark_to_drop
-                      ; mark_to_drop'standard_metadata
-                      ; hash'result'algo'base'data'max
-                      ; action_selector
-                      ; CloneType
-                      ; Checksum16
-                      ; verify_checksum'condition'data'checksum'algo
-                      ; update_checksum'condition'data'checksum'algo
-                      ; verify_checksum_with_payload'condition'data'checksum'algo
-                      ; update_checksum_with_payload'condition'data'checksum'algo
-                      ; resubmit'data
-                      ; recirculate'data
-                      ; clone'type'session
-                      ; clone3'type'session'data
-                      ; truncate'length
-                      ; assert'check
-                      ; assume'check
-                      (* ; log_msg'msg *)
-                      (* ; log_msg'msg'data *)
-                      ; Parser
-                      ; VerifyChecksum
-                      ; Ingress
-                      ; Egress
-                      ; ComputeChecksum
-                      ; Deparser
-                      ; V1Switch
-                      ; intrinsic_metadata_t
-                      ; meta_t
-                      ; cpu_header_t
-                      ; ethernet_t
-                      ; ipv4_t
-                      ; tcp_t
-                      ; metadata
-                      ; headers
-                      ; ParserImpl
-                      ; egress
-                      ; ingress
-                      ; DeparserImpl
-                      ; verifyChecksum
-                      ; computeChecksum
-                      ; main
-                     ].
-Compute test.
+(* Definition test := Program *)
+(*                      [decl'1 *)
+(*                       ; packet_in *)
+(*                       ; packet_out *)
+(*                       ; verify'check'toSignal *)
+(*                       ; NoAction *)
+(*                       ; decl'2 *)
+(*                       ; decl'3 *)
+(*                       ; standard_metadata_t *)
+(*                       ; CounterType *)
+(*                       ; MeterType *)
+(*                       ; counter *)
+(*                       ; direct_counter *)
+(*                       ; meter *)
+(*                       ; direct_meter *)
+(*                       ; register *)
+(*                       ; action_profile *)
+(*                       ; random'result'lo'hi *)
+(*                       ; digest'receiver'data *)
+(*                       ; HashAlgorithm *)
+(*                       ; mark_to_drop *)
+(*                       ; mark_to_drop'standard_metadata *)
+(*                       ; hash'result'algo'base'data'max *)
+(*                       ; action_selector *)
+(*                       ; CloneType *)
+(*                       ; Checksum16 *)
+(*                       ; verify_checksum'condition'data'checksum'algo *)
+(*                       ; update_checksum'condition'data'checksum'algo *)
+(*                       ; verify_checksum_with_payload'condition'data'checksum'algo *)
+(*                       ; update_checksum_with_payload'condition'data'checksum'algo *)
+(*                       ; resubmit'data *)
+(*                       ; recirculate'data *)
+(*                       ; clone'type'session *)
+(*                       ; clone3'type'session'data *)
+(*                       ; truncate'length *)
+(*                       ; assert'check *)
+(*                       ; assume'check *)
+(*                       (* ; log_msg'msg *) *)
+(*                       (* ; log_msg'msg'data *) *)
+(*                       ; Parser *)
+(*                       ; VerifyChecksum *)
+(*                       ; Ingress *)
+(*                       ; Egress *)
+(*                       ; ComputeChecksum *)
+(*                       ; Deparser *)
+(*                       ; V1Switch *)
+(*                       ; intrinsic_metadata_t *)
+(*                       ; meta_t *)
+(*                       ; cpu_header_t *)
+(*                       ; ethernet_t *)
+(*                       ; ipv4_t *)
+(*                       ; tcp_t *)
+(*                       ; metadata *)
+(*                       ; headers *)
+(*                       ; ParserImpl *)
+(*                       ; egress *)
+(*                       ; ingress *)
+(*                       ; DeparserImpl *)
+(*                       ; verifyChecksum *)
+(*                       ; computeChecksum *)
+(*                       ; main *)
+(*                      ]. *)
+(* Compute test. *)
 
-Compute (translate_program Info NoInfo test).
+(* Compute (translate_program Info NoInfo test). *)

@@ -63,11 +63,11 @@ Section Environment.
       end
     end.
 
-  Definition stack_lookup (key: string) : env_monad loc :=
+  Program Definition stack_lookup (key: string) : env_monad loc :=
     fun env =>
       match stack_lookup' key (env_stack env) with
       | None => state_fail (AssertError "Could not look up variable on stack.") env
-      | Some l => mret l env
+      | Some l => mret l (M:=env_monad) env
       end.
 
   Definition stack_insert' (key: string) (l: loc) (st: stack) : option stack :=
@@ -87,7 +87,7 @@ Section Environment.
       | top :: rest =>
         match MStr.find key top with
         | None =>
-          mret tt {|
+          mret tt (M:=env_monad) {|
             env_fresh := env_fresh env;
             env_stack := (MStr.add key l top) :: rest;
             env_heap := env_heap env;
@@ -97,7 +97,7 @@ Section Environment.
       end.
 
   Definition stack_push : env_monad unit :=
-    fun env => mret tt {|
+    fun env => mret tt (M:=env_monad) {|
       env_fresh := env_fresh env;
       env_stack := MStr.empty _ :: (env_stack env);
       env_heap := env_heap env;
@@ -107,7 +107,7 @@ Section Environment.
     fun env =>
       match env_stack env with
       | nil => state_fail (AssertError "No top scope to pop from the stack.") env
-      | _ :: rest => mret tt {|
+      | _ :: rest => mret tt (M:=env_monad) {|
           env_fresh := env_fresh env;
           env_stack := rest;
           env_heap := env_heap env;
@@ -118,11 +118,11 @@ Section Environment.
     fun env =>
       match MNat.find l (env_heap env) with
       | None => state_fail (AssertError "Unable to look up location on heap.") env
-      | Some val => mret val env
+      | Some val => mret val (M:=env_monad) env
       end.
 
   Definition heap_update (l: loc) (v: @Value tags_t bit) : env_monad unit :=
-    fun env => mret tt {|
+    fun env => mret tt (M:=env_monad) {|
       env_fresh := env_fresh env;
       env_stack := env_stack env;
       env_heap := MNat.add l v (env_heap env);
@@ -131,7 +131,7 @@ Section Environment.
   Definition heap_insert (v: @Value tags_t bit) : env_monad loc :=
     fun env =>
       let l := env_fresh env in
-      mret l {|
+      mret l (M:=env_monad) {|
         env_fresh := S l;
         env_stack := env_stack env;
         env_heap := MNat.add l v (env_heap env);
@@ -337,14 +337,14 @@ Section Environment.
   Definition toss_value (original: env_monad (@Value tags_t bit)) : env_monad unit :=
     fun env =>
       match original env with
-      | (inl result, env') => mret tt env'
+      | (inl result, env') => mret tt (M:=env_monad) env'
       | (inr exc, env') => state_fail exc env'
       end.
 
   Definition dummy_value (original: env_monad unit) : env_monad (@Value tags_t bit) :=
     fun env =>
       match original env with
-      | (inl tt, env') => mret (ValBase _ ValBaseNull) env'
+      | (inl tt, env') => mret (ValBase _ ValBaseNull) (M:=env_monad) env'
       | (inr exc, env') => state_fail exc env'
       end.
 End Environment.

@@ -19,11 +19,9 @@ Import Result.
 Import ResultNotations.
 
 (** Compile to GCL *)
-Module P := P4cub.
-Module ST := P.Stmt.
-Module CD := P.Control.ControlDecl.
-Module E := P.Expr.
-Module F := P.F.
+Module ST := Stmt.
+Module CD := Control.
+Module E := Expr.
 Require Import Poulet4.P4cub.Inline.
 
 Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
@@ -159,9 +157,9 @@ Section GCL.
   Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
   Definition efalse (i : tags_t) : E.e tags_t := E.EBool false i.
   Definition ite {lvalue rvalue : Type} (guard_type : E.t) (guard : E.e tags_t) (tru fls : @t lvalue rvalue (E.e tags_t)) (i : tags_t) : t :=
-    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.Not guard_type guard i)) fls).
+    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop guard_type E.Not guard i)) fls).
   Definition iteb {lvalue rvalue : Type} (guard : E.e tags_t) (tru fls : @t lvalue rvalue (E.e tags_t)) (i : tags_t) : t :=
-    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.Not E.TBool guard i)) fls).
+    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.TBool E.Not guard i)) fls).
 
   Definition isone (v : BitVec.t tags_t) (i :tags_t) : Form.t tags_t :=
     Form.bvule tags_t v (BitVec.bit tags_t 1 1 i) i.
@@ -278,7 +276,7 @@ Module Semantics.
           (* |+| : int<w> -> int<w> -> int<w>*)
           let int_op := Some (IntArith.plus_sat (pos w)) in
           (* |+| : bit<w> -> bit<w> -> bit<w>*)
-          let bit_op := Some (BitArith.plus_sat (pos w)) in
+          let bit_op := Some (BitArith.plus_sat (BinNat.N.of_nat w)) in
           apply_binop int_op bit_op u v
         | BitVec.BVPlus false _ =>
           (* + : bit<> -> bit<> -> bit<> *)
@@ -290,7 +288,7 @@ Module Semantics.
           (* |-| : int<w> -> int<w> -> int<w>*)
           let int_op := Some (IntArith.minus_sat (pos w)) in
           (* |-| : bit<w> -> bit<w> -> bit<w>*)
-          let bit_op := Some (BitArith.minus_sat (pos w)) in
+          let bit_op := Some (BitArith.minus_sat (BinNat.N.of_nat w)) in
           apply_binop int_op bit_op u v
         | BitVec.BVMinus false _ =>
           (* - : bit<> -> bit<> -> bit<> *)
@@ -307,9 +305,9 @@ Module Semantics.
           | Some w, Some w' =>
             let+ f :=
                if andb u.(signed) v.(signed)
-               then ok (IntArith.concat (pos w) (pos w'))
+               then ok (IntArith.concat (Npos (pos w)) (Npos (pos w')))
                else if andb (negb u.(signed)) (negb v.(signed))
-                    then ok (BitArith.concat (pos w) (pos w'))
+                    then ok (BitArith.concat (BinNat.N.of_nat w) (BinNat.N.of_nat w'))
                     else error "Sign Error"
             in
             let z := f u.(val) v.(val) in
@@ -323,7 +321,7 @@ Module Semantics.
             | Some w =>
               let f := if sg
                        then IntArith.shift_left (pos w)
-                       else BitArith.shift_left (pos w) in
+                       else BitArith.shift_left (BinNat.N.of_nat w) in
               ok {| signed := sg;
                     val := f u.(val) v.(val);
                     width := Some w |}
@@ -341,7 +339,7 @@ Module Semantics.
             | Some w =>
               let f := if sg
                        then IntArith.shift_right (pos w)
-                       else BitArith.shift_right (pos w) in
+                       else BitArith.shift_right (BinNat.N.of_nat w) in
               ok {| signed := sg;
                     val := f u.(val) v.(val);
                     width := Some w |}
@@ -383,7 +381,7 @@ Module Semantics.
             match u.(width) with
             | Some w =>
               {| signed := false;
-                 val := BitArith.bit_not (pos w) u.(val);
+                 val := BitArith.bit_not (BinNat.N.of_nat w) u.(val);
                  width := Some w |}
             | None =>
               {| signed := false;

@@ -24,7 +24,7 @@ Section InstEnv.
 
   Definition tenv : Type := Env.t string (Control.table tags_t).
 
-  Definition empty_tenv := Env.empty string (Control tags_t).
+  Definition empty_tenv := Env.empty string (Control.table tags_t).
 
   (** Function declarations and closures. *)
   Inductive fdecl : Type :=

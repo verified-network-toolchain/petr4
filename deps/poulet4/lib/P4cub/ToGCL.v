@@ -26,11 +26,10 @@ Require Import Poulet4.P4cub.GCL.
 
 
 (** Compile to GCL *)
-Module P := P4cub.
-Module ST := P.Stmt.
-Module CD := P.Control.ControlDecl.
-Module E := P.Expr.
-Module F := P.F.
+Module ST := Stmt.
+Module CD := Control.
+Module E := Expr.
+Module F := F.
 Module BV := GCL.BitVec.
 
 
@@ -154,29 +153,28 @@ Section ToGCL.
       | E.EVar typ x i =>
         let x' := relabel_for_scope ctx x in
         E.EVar typ x' i
-      | E.ESlice n τ hi lo i =>
-        E.ESlice (scopify ctx n) τ hi lo i
+      | E.ESlice e hi lo i =>
+        E.ESlice (scopify ctx e) hi lo i
       | E.ECast type arg i =>
         E.ECast type (scopify ctx arg) i
       | E.EUop op type arg i =>
         E.EUop op type (scopify ctx arg) i
-      | E.EBop op lhs_type rhs_type lhs rhs i =>
-        E.EBop op lhs_type rhs_type (scopify ctx lhs) (scopify ctx rhs) i
-
+      | E.EBop typ op lhs rhs i =>
+        E.EBop typ op (scopify ctx lhs) (scopify ctx rhs) i
       | E.ETuple es i =>
         E.ETuple (List.map (scopify ctx) es) i
       | E.EStruct fields i =>
-        E.EStruct (F.map (fun '(typ, exp) => (typ, scopify ctx exp)) fields) i
+        E.EStruct (F.map (scopify ctx) fields) i
       | E.EHeader fields valid i =>
-        E.EHeader (F.map (fun '(typ,exp) => (typ, scopify ctx exp)) fields) (scopify ctx valid) i
+        E.EHeader (F.map (scopify ctx) fields) (scopify ctx valid) i
       | E.EExprMember mem expr_type arg i =>
         E.EExprMember mem expr_type (scopify ctx arg) i
       | E.EError _ _ => e
       | E.EMatchKind _ _ => e
-      | E.EHeaderStack fields headers size next_index i =>
-        E.EHeaderStack fields (List.map (scopify ctx) headers) size next_index i
-      | E.EHeaderStackAccess stack index i =>
-        E.EHeaderStackAccess (scopify ctx stack) index i
+      | E.EHeaderStack fields headers next_index i =>
+        E.EHeaderStack fields (List.map (scopify ctx) headers) next_index i
+      | E.EHeaderStackAccess fs stack index i =>
+        E.EHeaderStackAccess fs (scopify ctx stack) index i
       end.
     (**[]*)
 
@@ -207,22 +205,22 @@ Section ToGCL.
       | E.EBit _ _ _ => error "BitVector Literals are not lvalues"
       | E.EInt _ _ _ => error "Integer literals are not lvalues"
       | E.EVar t x i => ok x
-      | E.ESlice e τ hi lo pos =>
+      | E.ESlice e hi lo pos =>
         (* TODO :: Allow assignment to slices *)
         error "[FIXME] Slices are not l-values "
       | E.ECast _ _ _ => error "Casts are not l-values"
       | E.EUop _ _ _ _ => error "Unary Operations are not l-values"
-      | E.EBop _ _ _ _ _ _ => error "Binary Operations are not l-values"
+      | E.EBop _ _ _ _ _ => error "Binary Operations are not l-values"
       | E.ETuple _ _ => error "Explicit Tuples are not l-values"
       | E.EStruct _ _ => error "Explicit Structs are not l-values"
       | E.EHeader _ _ _ => error "Explicit Headers are not l-values"
-      | E.EExprMember mem expr_type arg i =>
+      | E.EExprMember expr_type mem arg i =>
         let+ lv := to_lvalue arg in
         lv ++ "." ++ mem
       | E.EError _ _ => error "errors are not l-values"
       | E.EMatchKind _ _ => error "Match Kinds are not l-values"
-      | E.EHeaderStack _ _ _ _ _ => error "Header Stacks are not l-values"
-      | E.EHeaderStackAccess stack index i =>
+      | E.EHeaderStack _ _ _ _ => error "Header Stacks are not l-values"
+      | E.EHeaderStackAccess _ stack index i =>
         let+ lv := to_lvalue stack in
         (** TODO How to handle negative indices? **)
         lv ++ "["++ (string_of_z index) ++ "]"
@@ -231,7 +229,7 @@ Section ToGCL.
     Definition width_of_type (t : E.t) : result nat :=
       match t with
       | E.TBool => ok 1
-      | E.TBit w => ok (BinPos.Pos.to_nat w)
+      | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TVar _ => error "Cannot get the width of a typ variable"
       | E.TError => error "Cannot get the width of an error Type"
@@ -244,7 +242,7 @@ Section ToGCL.
 
     Definition get_header_of_stack (stack : E.e tags_t) : result E.t :=
       match stack with
-      | E.EHeaderStack fields headers size next_index i =>
+      | E.EHeaderStack fields headers next_index i =>
         ok (E.THeader fields)
       | _ => error "Tried to get the base header of something other than a header stack."
       end.
@@ -259,22 +257,22 @@ Section ToGCL.
         | E.THeader _ => ok x
         | _ => error "Got variable, but the header itself was no good"
         end
-      | E.ESlice _ _ _ _ _ => error "A Slice is not a header"
+      | E.ESlice _ _ _ _ => error "A Slice is not a header"
       | E.ECast _ _ _ => error "A Cast is not a header"
       | E.EUop _ _ _ _ => error "No unary operation is a header"
-      | E.EBop _ _ _ _ _ _ => error "No binary operation is a header"
+      | E.EBop _ _ _ _ _ => error "No binary operation is a header"
       | E.ETuple _ _ => error "A Tuple is not a header"
       | E.EStruct _ _ => error "Structs are not headers"
       | E.EHeader _ _ _ =>
         error "Header literals should not be keys"
-      | E.EExprMember mem expr_type arg i =>
+      | E.EExprMember expr_type mem arg i =>
         let+ str := to_header_string arg in
         str ++ "." ++ mem
       | E.EError _ _ => error "errors are not header strings"
       | E.EMatchKind _ _ => error "MatchKinds are not header strings"
-      | E.EHeaderStack _ _ _ _ _ =>
+      | E.EHeaderStack _ _ _ _ =>
         error "Header stacks are not headers"
-      | E.EHeaderStackAccess stack index i =>
+      | E.EHeaderStackAccess _ stack index i =>
         error "Header stack accesses as table keys should have been factored out in an earlier stage."
       end.
 
@@ -303,7 +301,7 @@ Section ToGCL.
         then ok (BV.bit _ 1 1 i)
         else ok (BV.bit _ 0 1 i)
       | E.EBit w v i =>
-        ok (BV.bit _  (BinInt.Z.to_nat v) (BinPos.Pos.to_nat w) i)
+        ok (BV.bit _  (BinInt.Z.to_nat v) (BinNat.N.to_nat w) i)
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
@@ -311,7 +309,7 @@ Section ToGCL.
         let+ w := width_of_type t in
         BV.BVVar _ x w i
 
-      | E.ESlice e τ hi lo i =>
+      | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
         BV.UnOp _ (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
       | E.ECast type arg i =>
@@ -319,12 +317,12 @@ Section ToGCL.
         let cast := fun w => ok (BV.UnOp _ (BV.BVCast w) rvalue_arg i) in
         match type with
         | E.TBool => cast 1
-        | E.TBit w => cast (BinPos.Pos.to_nat w)
+        | E.TBit w => cast (BinNat.N.to_nat w)
         | E.TInt w => error "[FIXME] Signed Integers are unimplemented "
         | _ =>
           error "Illegal cast, should've been caught by the type-checker"
         end
-      | E.EUop op type arg i =>
+      | E.EUop type op arg i =>
         match op with
         | E.Not =>
           let+ rv_arg := to_rvalue arg in
@@ -346,12 +344,12 @@ Section ToGCL.
         | E.Size =>
           error "[FIXME] Size for Header Stacks is unimplmented"
         end
-      | E.EBop op ltyp rtyp lhs rhs i =>
+      | E.EBop typ op lhs rhs i =>
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
         let bin := fun o => ok (BV.BinOp _ o l r i) in
         let* signed :=
-           match ltyp with
+           match typ with
            | E.TBit _ => ok false
            | E.TInt _ => ok true
            | _ => error "Typeerror: exected (un)singed bitvec for binar expression"
@@ -384,16 +382,16 @@ Section ToGCL.
         error "Structs in the rvalue position should have been factored out by previous passes"
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
-      | E.EExprMember mem expr_type arg i =>
+      | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
         let* t := lookup_member_type_from_type mem expr_type in
         let+ w := width_of_type t in
         BV.BVVar _  (lv ++ "." ++ mem) w i
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
-      | E.EHeaderStack _ _ _ _ _ =>
+      | E.EHeaderStack _ _ _ _ =>
         error "Header stacks in the rvalue position should have been factored out by previous passes"
-      | E.EHeaderStackAccess stack index i =>
+      | E.EHeaderStackAccess _ stack index i =>
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
@@ -411,7 +409,7 @@ Section ToGCL.
           error "Typeerror: Expected a Boolean form, got something else (perhaps you want to insert a cast?)"
         end
 
-      | E.ESlice e τ hi lo i =>
+      | E.ESlice e hi lo i =>
         error "Typeerror: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
       | E.ECast type arg i =>
@@ -419,12 +417,12 @@ Section ToGCL.
         let cast := fun w => ok (GCL.isone _ (BV.UnOp _ (BV.BVCast w) rvalue_arg i) i) in
         match type with
         | E.TBool => cast 1
-        | E.TBit w => cast (BinPos.Pos.to_nat w)
+        | E.TBit w => cast (BinNat.N.to_nat w)
         | E.TInt w => error "[FIXME] Handle Signed Integers"
         | _ =>
           error "Invalid Cast"
         end
-      | E.EUop op type arg i =>
+      | E.EUop type op arg i =>
         let* rv_arg := to_rvalue arg in
         match op with
         | E.Not => ok (GCL.isone _ (BV.UnOp _ BV.BVNeg rv_arg i) i)
@@ -443,8 +441,8 @@ Section ToGCL.
         | E.Size =>
           error "[FIXME] Size for stacks is unimplemented"
         end
-      | E.EBop op ltyp rtyp lhs rhs i =>
-        let signed := match ltyp with
+      | E.EBop typ op lhs rhs i =>
+        let signed := match typ with
                       | E.TBit _ => ok false
                       | E.TInt _ => ok true
                       | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
@@ -484,7 +482,7 @@ Section ToGCL.
         error "Structs are not formulae"
       | E.EHeader _ _ _ =>
         error "Headers are not formulae"
-      | E.EExprMember mem expr_type arg i =>
+      | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
         let~ w := (width_of_type expr_type) over ("failed getting type of " ++ mem) in
         ok (GCL.isone _ (BV.BVVar _ lv w i) i)
@@ -492,9 +490,9 @@ Section ToGCL.
         error "errors are not formulae"
       | E.EMatchKind _ _ =>
         error "Matchkinds are not formulae"
-      | E.EHeaderStack _ _ _ _ _ =>
+      | E.EHeaderStack _ _ _ _ =>
         error "HeaderStacks are not formulae"
-      | E.EHeaderStackAccess stack index i =>
+      | E.EHeaderStackAccess _ stack index i =>
         error "Headers (from header stack accesses) are not formulae"
       end.
 
@@ -536,14 +534,14 @@ Section ToGCL.
 
       | Inline.IReturnVoid _ i =>
         let g_asn := @GCL.GAssign _ string (BV.t _) (Form.t _) in
-        ok (g_asn (E.TBit (pos 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
+        ok (g_asn (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
 
       | Inline.IReturnFruit _ typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign _ (E.TBit (pos 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
+        ok (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
 
       | Inline.IExit _ i =>
-        ok (GCL.GAssign _ (E.TBit (pos 1)) "exit" (BV.bit _ 1 1 i) i, update_exit c true)
+        ok (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit _ 1 1 i) i, update_exit c true)
 
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
@@ -558,7 +556,7 @@ Section ToGCL.
         let+ header := to_lvalue e in
         let hvld := header ++ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
-        (GCL.GAssign _ (E.TBit (pos 1)) hvld (BV.BitVec _ vld_bit (Some 1) i) i, c)
+        (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec _ vld_bit (Some 1) i) i, c)
       end.
 
     Definition p4cub_statement_to_gcl (gas : nat)
@@ -589,10 +587,11 @@ Section ToGCL.
   End Instr.
 End ToGCL.
 
+Require Import Poulet4.P4defs.
+
 Section Tests.
-  Require Import Poulet4.P4defs.
   Definition d := NoInfo.
-  Definition bit (n : nat) : E.t := E.TBit (pos 4).
+  Definition bit (n : nat) : E.t := E.TBit (BinNat.N.of_nat 4).
   Definition asm_eq (s : string) (w : nat) (r : BV.t Info) (i : Info) : ToGCL.target Info :=
     GCL.GAssume _ (Form.bvule _ (BV.BVVar _ s w i) r i).
 
@@ -665,19 +664,18 @@ Section Tests.
 
   Definition simple_nat_ingress : (ST.s Info) :=
     let fwd :=
-        E.EBop (E.Eq) (bit 1) (bit 1)
-               (E.EExprMember "do_forward" (bit 1) (E.EVar meta_type "meta" d) d)
-               (E.EBit (pos 1) (Zpos (pos 1)) d)
+        E.EBop (bit 1) (E.Eq)
+               (E.EExprMember (bit 1) "do_forward" (E.EVar meta_type "meta" d) d)
+               (E.EBit (BinNat.N.of_nat 1) (Zpos (pos 1)) d)
                d
     in
     let ttl :=
-        E.EBop (E.Gt) (E.TBit (pos 8)) (E.TBit (pos 8)) (E.EExprMember "ttl" (bit 8) (E.EVar ipv4_type "ipv4" d) d) (E.EBit (pos 8) Z0 d) d
+        E.EBop (E.TBit (BinNat.N.of_nat 8)) (E.Gt) (E.EExprMember (bit 8) "ttl"  (E.EVar ipv4_type "ipv4" d) d) (E.EBit (BinNat.N.of_nat 8) Z0 d) d
     in
-    let cond := E.EBop E.And E.TBool E.TBool fwd ttl d in
+    let cond := E.EBop E.TBool E.And fwd ttl d in
     ST.SSeq (ST.SInvoke "if_info" d)
             (ST.SSeq (ST.SInvoke "nat" d)
-                     (ST.SConditional E.TBool
-                                      cond
+                     (ST.SConditional cond
                                       (ST.SSeq (ST.SInvoke "ipv4_lpm" d) (ST.SInvoke "forward" d) d)
                                       (ST.SSkip d)
                                       d)
@@ -687,23 +685,22 @@ Section Tests.
   Locate P4cub.Control.
 
   Definition meta (s : string) (w : nat) :=
-    E.EExprMember s (bit w) (E.EVar meta_type "meta" d) d.
+    E.EExprMember (bit w) s (E.EVar meta_type "meta" d) d.
 
   Definition std_meta (s : string) (w : nat):=
-    E.EExprMember s (bit w)  (E.EVar std_meta_type "standard_metadata" d) d.
+    E.EExprMember (bit w) s (E.EVar std_meta_type "standard_metadata" d) d.
 
   Definition ethernet (s : string) (w : nat):=
-    E.EExprMember s (bit w) (E.EVar ethernet_type "ethernet" d) d.
+    E.EExprMember (bit w) s (E.EVar ethernet_type "ethernet" d) d.
 
   Definition ipv4 (s : string) (w : nat) :=
-    E.EExprMember s (bit w) (E.EVar ipv4_type "ipv4" d) d.
+    E.EExprMember (bit w) s (E.EVar ipv4_type "ipv4" d) d.
 
   Definition tcp (s : string) (w : nat) :=
-    E.EExprMember s (bit w) (E.EVar tcp_type "tcp" d) d.
-
+    E.EExprMember (bit w) s (E.EVar tcp_type "tcp" d) d.
 
   Definition valid (s : string) (t : E.t) :=
-    E.EUop E.IsValid E.TBool (E.EVar t s d) d.
+    E.EUop E.TBool E.IsValid (E.EVar t s d) d.
 
   Definition ingress_table_env :=
     [("if_info",
@@ -736,7 +733,7 @@ Section Tests.
     )
     ].
 
-  Definition empty_adecl : list string -> ST.s Info -> adecl :=
+  Definition empty_adecl : ST.s Info -> adecl :=
     ADecl (Env.empty string ValEnvUtil.V.v)
           (Env.empty string fdecl)
           (Env.empty string adecl)
@@ -744,47 +741,47 @@ Section Tests.
 
   Locate PAInOut.
   Definition mark_to_drop_args : E.arrowE Info :=
-    P.Arrow [("standard_metadata", P.PAInOut (std_meta_type, E.EVar std_meta_type "standard_metadata" d))] None.
+    Arrow [("standard_metadata", PAInOut (E.EVar std_meta_type "standard_metadata" d))] None.
 
   Definition set_if_info :=
-    s_sequence [ST.SAssign (bit 32) (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
-               ST.SAssign (bit 48) (meta "if_mac_addr" 48) (E.EVar (bit 48) "mac_addr" d) d;
-               ST.SAssign (bit 1) (meta "is_ext_if" 1) (E.EVar (bit 48) "is_ext" d) d].
+    s_sequence [ST.SAssign (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
+               ST.SAssign (meta "if_mac_addr" 48) (E.EVar (bit 48) "mac_addr" d) d;
+               ST.SAssign (meta "is_ext_if" 1) (E.EVar (bit 48) "is_ext" d) d].
 
   Definition nat_miss_ext_to_int :=
-    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) Z0 d) d;
+    s_sequence [ST.SAssign (meta "do_forward" 1) (E.EBit (BinNat.N.of_nat 1) Z0 d) d;
                ST.SExternMethodCall "v1model" "mark_to_drop" [] mark_to_drop_args d].
 
   Definition nat_hit_int_to_ext :=
-    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-               ST.SAssign (bit 32) (meta "ipv4_sa" 32) (E.EVar (bit 32) "srcAddr" d) d;
-               ST.SAssign (bit 32) (meta "tcp_sp" 32) (E.EVar (bit 32) "srcPort" d) d
+    s_sequence [ST.SAssign (meta "do_forward" 1) (E.EBit (BinNat.N.of_nat 1) (Zpos (pos 1)) d) d;
+               ST.SAssign (meta "ipv4_sa" 32) (E.EVar (bit 32) "srcAddr" d) d;
+               ST.SAssign (meta "tcp_sp" 32) (E.EVar (bit 32) "srcPort" d) d
                ]
   .
   Definition nat_hit_ext_to_int :=
-    s_sequence [ST.SAssign (bit 1) (meta "do_forward" 1) (E.EBit (pos 1) (Zpos (pos 1)) d) d;
-               ST.SAssign (bit 32) (meta "ipv4_da" 32) (E.EVar (bit 32) "dstAddr" d) d;
-               ST.SAssign (bit 32) (meta "tcp_dp" 32) (E.EVar (bit 32) "dstPort" d) d
+    s_sequence [ST.SAssign (meta "do_forward" 1) (E.EBit (BinNat.N.of_nat 1) (Zpos (pos 1)) d) d;
+               ST.SAssign (meta "ipv4_da" 32) (E.EVar (bit 32) "dstAddr" d) d;
+               ST.SAssign (meta "tcp_dp" 32) (E.EVar (bit 32) "dstPort" d) d
                ]
   .
   Definition set_dmac :=
-    ST.SAssign (bit 48) (ethernet "dstAddr" 48) (E.EVar (bit 48) "dmac" d) d.
+    ST.SAssign (ethernet "dstAddr" 48) (E.EVar (bit 48) "dmac" d) d.
 
   Definition set_nhop :=
-    s_sequence [ST.SAssign (bit 32) (meta "nhop_ipv4" 32) (E.EVar (bit 32) "nhop_ipv4" d) d;
-               ST.SAssign (bit 9) (std_meta "egress_spec" 9) (E.EVar (bit 9) "port" d) d;
-               ST.SAssign (bit 8) (ipv4 "ttl" 8) (E.EBop E.Minus (E.TBit (pos 8)) (E.TBit (pos 8)) (ipv4 "ttl" 8) (E.EBit (pos 8) (Zpos (pos 1)) d) d) d
+    s_sequence [ST.SAssign (meta "nhop_ipv4" 32) (E.EVar (bit 32) "nhop_ipv4" d) d;
+               ST.SAssign (std_meta "egress_spec" 9) (E.EVar (bit 9) "port" d) d;
+               ST.SAssign (ipv4 "ttl" 8) (E.EBop (E.TBit (BinNat.N.of_nat 8)) E.Minus (ipv4 "ttl" 8) (E.EBit (BinNat.N.of_nat 8) (Zpos (pos 1)) d) d) d
                ].
 
   Definition ingress_action_env :=
     [("_drop",
-      empty_adecl [] (ST.SExternMethodCall "v1model" "mark_to_drop" [] mark_to_drop_args d));
-    ("set_if_info", empty_adecl [] set_if_info);
-    ("nat_miss_ext_to_int", empty_adecl [] nat_miss_ext_to_int);
-    ("nat_hit_int_to_ext", empty_adecl ["srcAddr"; "srcPort"] nat_hit_int_to_ext);
-    ("nat_hit_ext_to_int", empty_adecl ["dstAddr"; "dstPort"] nat_hit_ext_to_int);
-    ("set_dmac", empty_adecl ["dmac"] set_dmac);
-    ("set_nhop", empty_adecl ["nhop_ipv4"; "port"] set_nhop)
+      empty_adecl (ST.SExternMethodCall "v1model" "mark_to_drop" [] mark_to_drop_args d));
+    ("set_if_info", empty_adecl set_if_info);
+    ("nat_miss_ext_to_int", empty_adecl nat_miss_ext_to_int);
+    ("nat_hit_int_to_ext", empty_adecl nat_hit_int_to_ext);
+    ("nat_hit_ext_to_int", empty_adecl nat_hit_ext_to_int);
+    ("set_dmac", empty_adecl set_dmac);
+    ("set_nhop", empty_adecl set_nhop)
     ].
 
   Open Scope string_scope.
@@ -837,21 +834,21 @@ Section Tests.
     GCL.GChoice _ hit miss.
 
   Definition v1model : extern Info :=
-    [("mark_to_drop", GCL.GAssign _ (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d)].
+    [("mark_to_drop", GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d)].
 
   Definition arch : model Info :=
     [("v1model", v1model)].
 
-  Compute (to_rvalue Info (valid "ipv4" ipv4_type)).
+  (* Compute (to_rvalue Info (valid "ipv4" ipv4_type)). *)
 
-  Compute (instr "nat" d [(bit 1, meta "is_ext_if" 1, E.MKExact);
-                         (bit 1, valid "ipv4" ipv4_type, E.MKExact);
-                         (bit 1, valid "tcp" tcp_type, E.MKExact);
-                         (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
-                         (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
-                         (bit 32, tcp "srcPort" 32, E.MKTernary);
-                         (bit 32, tcp "dstPort" 32, E.MKTernary)
-                         ] [("_drop", GCL.GAssign Info (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit Info 1 1 d) d)]).
+  (* Compute (instr "nat" d [(bit 1, meta "is_ext_if" 1, E.MKExact); *)
+  (*                        (bit 1, valid "ipv4" ipv4_type, E.MKExact); *)
+  (*                        (bit 1, valid "tcp" tcp_type, E.MKExact); *)
+  (*                        (bit 32, ipv4 "srcAddr" 32, E.MKTernary); *)
+  (*                        (bit 32, ipv4 "dstAddr" 32, E.MKTernary); *)
+  (*                        (bit 32, tcp "srcPort" 32, E.MKTernary); *)
+  (*                        (bit 32, tcp "dstPort" 32, E.MKTernary) *)
+  (*                        ] [("_drop", GCL.GAssign Info (E.TBit (BinNat.N.of_nat 1)) "standard_metadata.egress_spec" (BV.bit Info 1 1 d) d)]). *)
 
 (*   Compute (p4cub_statement_to_gcl Info instr *)
 (*                                   10 *)
@@ -866,7 +863,7 @@ Section Tests.
 (*     s_sequence [ *)
 (*     ST.SVardecl (bit 32) "x" d; *)
 (*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d; *)
-(*     ST.SFunCall "swap" [] (P.Arrow [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d; *)
+(*     ST.SFunCall "swap" [] (Arrow [("y", PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", PAInOut (bit 32,(ipv4 "dstAddr" 32)))] None) d; *)
 (*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d *)
 (*     ] *)
 (*   . *)
@@ -925,8 +922,8 @@ Section Tests.
 (*     s_sequence [ *)
 (*     ST.SVardecl (bit 32) "x" d; *)
 (*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EBit (pos 32) (Zpos (pos 5)) d) d; *)
-(*     ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
-(*     ST.SActCall "swap" [("y", P.PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", P.PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
+(*     ST.SActCall "swap" [("y", PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
+(*     ST.SActCall "swap" [("y", PAInOut (bit 32, (ipv4 "srcAddr" 32))); ("z", PAInOut (bit 32,(ipv4 "dstAddr" 32)))] d; *)
 (*     ST.SAssign (bit 32) (E.EVar (bit 32) "x" d) (E.EVar (bit 32) "x" d) d *)
 (*     ] *)
 (*   . *)
@@ -951,56 +948,50 @@ Section Tests.
 
 
 End Tests.
+Require Import Poulet4.P4defs.
 
 Module SimpleNat.
 
-  Require Import Poulet4.P4defs.
   Definition v1model : model Info :=
-    [("_", [("mark_to_drop",  GCL.GAssign _ (E.TBit (pos 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d);
+    [("_", [("mark_to_drop",  GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) "standard_metadata.egress_spec" (BV.bit _ 1 1 d) d);
             ("clone3", GCL.GSkip _ NoInfo)
      ])
     ].
 
-  Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
-
-  Print ST.s.
+  (* Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test. *)
 
   Definition cub_seq (statements : list (ST.s Info)) : ST.s Info  :=
     let seq := fun s1 s2 => ST.SSeq s1 s2 NoInfo in
     List.fold_right seq (ST.SSkip NoInfo) statements.
 
-  Print E.constructor_args.
-  Print E.constructor_arg.
-  Print E.args.
-
-  Definition t_arg (dir : (E.t * E.e Info) -> P.paramarg (E.t * E.e Info) (E.t * E.e Info)) typ var := (var, dir (typ, E.EVar typ var NoInfo)).
+  Definition t_arg (dir : (E.e Info) -> paramarg (E.e Info) (E.e Info)) typ var := (var, dir (E.EVar typ var NoInfo)).
   Definition s_arg dir var stype :=
     t_arg dir (E.TVar stype) var.
 
   Definition v1pipeline (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s Info :=
     let ext_args := [] in
     let pargs := [
-        s_arg P.PADirLess "packet_in"           "b";
-        t_arg P.PAOut      htype                "parsedHdr";
-        t_arg P.PAInOut    mtype                "meta";
-        s_arg P.PAInOut    "standard_metdata_t" "standard_metadata"] in
+        s_arg PADirLess "packet_in"           "b";
+        t_arg PAOut      htype                "parsedHdr";
+        t_arg PAInOut    mtype                "meta";
+        s_arg PAInOut    "standard_metdata_t" "standard_metadata"] in
     let vck_args := [
-        t_arg P.PAInOut htype "hdr";
-        t_arg P.PAInOut mtype "meta"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta"] in
     let ing_args := [
-        t_arg P.PAInOut htype "hdr";
-        t_arg P.PAInOut mtype "meta";
-        s_arg P.PAInOut "standard_metadata_t" "standard_metadata"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta";
+        s_arg PAInOut "standard_metadata_t" "standard_metadata"] in
     let egr_args := [
-        t_arg P.PAInOut htype "hdr";
-        t_arg P.PAInOut mtype "meta";
-        s_arg P.PAInOut "standard_metadata_t" "standard_metadata"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta";
+        s_arg PAInOut "standard_metadata_t" "standard_metadata"] in
     let cck_args := [
-        t_arg P.PAInOut htype "hdr";
-        t_arg P.PAInOut mtype "meta"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta"] in
     let dep_args := [
-        s_arg P.PADirLess "packet_out" "b";
-        t_arg P.PAIn htype "hdr"] in
+        s_arg PADirLess "packet_out" "b";
+        t_arg PAIn htype "hdr"] in
     cub_seq [
       (* ST.PApply _ parser   ext_args pargs    NoInfo; *)
       (* ST.SApply   v_check  ext_args vck_args NoInfo; *)
@@ -1026,10 +1017,10 @@ Module SimpleNat.
       error "ill-formed constructor arguments to V1Switch instantiation."
     end.
 
-  Compute p4cub_simple_nat.
+  (* Compute p4cub_simple_nat. *)
 
-  Compute (let* sn := p4cub_simple_nat in
-           let externs := v1model  in
-           p4cub_to_gcl Info instr 1000 externs pipe sn).
+  (* Compute (let* sn := p4cub_simple_nat in *)
+  (*          let externs := v1model  in *)
+  (*          p4cub_to_gcl Info instr 1000 externs pipe sn). *)
 
 End SimpleNat.

@@ -46,17 +46,6 @@ Section EnvDefs.
     end.
   (** [] *)
 
-  (** Remove all values from the environment *)
-  Fixpoint remove (x : D) (e : t D T) : t D T :=
-    match e with
-    | [] => []
-    | (y,v) :: e' =>
-      if HE x y
-      then remove x e'
-      else (y,v) :: remove x e'
-    end.
-  (** [] *)
-
   (** Updating the environment. *)
   Definition bind (x : D) (v : T) (e : t D T) : t D T :=
     (x, v) :: e.

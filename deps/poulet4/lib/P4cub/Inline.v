@@ -24,26 +24,26 @@ Import ResultNotations.
 Import ToP4cub.
 
 (** Compile to GCL *)
-Module P := P4cub.
-Module ST := P.Stmt.
-Module CD := P.Control.ControlDecl.
-Module TD := P.TopDecl.
-Module E := P.Expr.
-Module F := P.F.
+Module ST := Stmt.
+Module CD := Control.
+Module TD := TopDecl.
+Module E := Expr.
+Module F := F.
 
 Section Inline.
 Variable tags_t : Type.
 
 Definition expenv : Type := Env.t string (E.e tags_t).
 
-Definition get_exp (pa : P.paramarg (ST.E.t * ST.E.e tags_t) (ST.E.t * ST.E.e tags_t)) :=
+Definition get_exp (pa : paramarg (ST.E.e tags_t) (ST.E.e tags_t)) :=
   match pa with
-  | P.PAInOut (_,e) => e
-  | P.PAIn (_,e) => e
-  | P.PAOut (_,e) => e
-  | P.PADirLess (_,e) => e
+  | PAInOut e => e
+  | PAIn e => e
+  | PAOut e => e
+  | PADirLess e => e
   end.
-Definition args_to_expenv (args : P.F.fs string (P.paramarg (ST.E.t * ST.E.e tags_t) (ST.E.t * ST.E.e tags_t))) : expenv :=
+
+Definition args_to_expenv (args : F.fs string (paramarg (ST.E.e tags_t) (ST.E.e tags_t))) : expenv :=
   F.fold (fun param arg env => Env.bind param (get_exp arg) env) args [].
 
 Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
@@ -56,28 +56,28 @@ Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
     | None => e
     | Some e' => e'
     end
-  | E.ESlice e τ hi lo i =>
-    E.ESlice (subst_e η e) τ hi lo i
+  | E.ESlice e hi lo i =>
+    E.ESlice (subst_e η e) hi lo i
   | E.ECast type arg i =>
     E.ECast type (subst_e η arg) i
   | E.EUop op type arg i =>
     E.EUop op type (subst_e η arg) i
-  | E.EBop op ltype rtype l r i =>
-    E.EBop op ltype rtype (subst_e η l) (subst_e η r) i
+  | E.EBop t op l r i =>
+    E.EBop t op (subst_e η l) (subst_e η r) i
   | E.ETuple es i =>
     E.ETuple (List.map (subst_e η) es) i
   | E.EStruct fields i =>
-    E.EStruct (F.map (fun '(t,e) => (t, subst_e η e)) fields) i
+    E.EStruct (F.map (subst_e η) fields) i
   | E.EHeader fields valid i =>
-    E.EHeader (F.map (fun '(t,e) => (t, subst_e η e)) fields) (subst_e η valid) i
+    E.EHeader (F.map (subst_e η) fields) (subst_e η valid) i
   | E.EExprMember mem expr_type arg i =>
     E.EExprMember mem expr_type (subst_e η arg) i
   | E.EError _ _ => e
   | E.EMatchKind _ _ => e
-  | E.EHeaderStack fields headers size ni i =>
-    E.EHeaderStack fields (List.map (subst_e η) headers) size ni i
-  | E.EHeaderStackAccess stack idx i =>
-    E.EHeaderStackAccess (subst_e η stack) idx i
+  | E.EHeaderStack fields headers ni i =>
+    E.EHeaderStack fields (List.map (subst_e η) headers) ni i
+  | E.EHeaderStackAccess fs stack idx i =>
+    E.EHeaderStackAccess fs (subst_e η stack) idx i
   end.
 
 Inductive t : Type :=
@@ -104,8 +104,6 @@ Inductive t : Type :=
 | IExternMethodCall (extn : string) (method : string) (args : ST.E.arrowE tags_t) (i : tags_t).
 
 
-Search (bool -> bool).
-
 Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e tags_t :=
   match e with
   | E.EBool _ _ => e
@@ -115,30 +113,30 @@ Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e
     if fold_right (fun y => orb (String.eqb x y)) false params
     then E.EVar type ("?" ++ x) i
     else E.EVar type x i
-  | E.ESlice e t hi lo i =>
-    E.ESlice (action_param_renamer_expr params e) t hi lo i
+  | E.ESlice e hi lo i =>
+    E.ESlice (action_param_renamer_expr params e) hi lo i
   | E.ECast typ arg i =>
     E.ECast typ (action_param_renamer_expr params arg) i
   | E.EUop op typ arg i =>
     E.EUop op typ (action_param_renamer_expr params arg) i
-  | E.EBop op ltyp rtyp le re i =>
+  | E.EBop t op le re i =>
     let le' := action_param_renamer_expr params le in
     let re' := action_param_renamer_expr params re in
-    E.EBop op ltyp rtyp le re i
+    E.EBop t op le re i
   | E.ETuple es i =>
     E.ETuple (List.map (action_param_renamer_expr params) es) i
   | E.EStruct fields i =>
-    E.EStruct (F.map (fun '(t,e) => (t, action_param_renamer_expr params e)) fields) i
+    E.EStruct (F.map (action_param_renamer_expr params) fields) i
   | E.EHeader fields valid i =>
-    E.EHeader (F.map (fun '(t,e) => (t, action_param_renamer_expr params e)) fields) (action_param_renamer_expr params valid) i
+    E.EHeader (F.map (action_param_renamer_expr params) fields) (action_param_renamer_expr params valid) i
   | E.EExprMember mem expr_type arg i =>
     E.EExprMember mem expr_type (action_param_renamer_expr params arg) i
   | E.EError _ _ => e
   | E.EMatchKind _ _ => e
-  | E.EHeaderStack fields headers size ni i =>
-    E.EHeaderStack fields (List.map (action_param_renamer_expr params) headers) size ni i
-  | E.EHeaderStackAccess stack idx i =>
-    E.EHeaderStackAccess (action_param_renamer_expr params stack) idx i
+  | E.EHeaderStack fields headers ni i =>
+    E.EHeaderStack fields (List.map (action_param_renamer_expr params) headers) ni i
+  | E.EHeaderStackAccess fs stack idx i =>
+    E.EHeaderStackAccess fs (action_param_renamer_expr params stack) idx i
   end.
 
 Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list string) :=
@@ -170,12 +168,11 @@ Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list 
   | ISetValidity e v i =>
     let e' := action_param_renamer_expr params e in
     ok (ISetValidity e' v i, params)
-  | IExternMethodCall extn method (P.Arrow pargs ret) i =>
+  | IExternMethodCall extn method (Arrow pargs ret) i =>
     let pargs' := F.fold (fun p a rst =>
-          let f := fun '(t,e) => (t, action_param_renamer_expr params e) in
-          let a' := P.paramarg_map f f a in
+          let a' := paramarg_map (action_param_renamer_expr params) (action_param_renamer_expr params) a in
           (p, a') :: rst) [] pargs in
-    ok (IExternMethodCall extn method (P.Arrow pargs' ret) i, params)
+    ok (IExternMethodCall extn method (Arrow pargs' ret) i, params)
   end.
 
 Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
@@ -205,29 +202,27 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
     (IInvoke x keys' actions' i, η)
 
-  | IExternMethodCall extn method (P.Arrow pas returns) i =>
-    let f := fun '(t,e) => (t,subst_e η e) in
-    let pas' := F.map (P.paramarg_map f f) pas in
-    (IExternMethodCall extn method (P.Arrow pas' returns) i, η)
+  | IExternMethodCall extn method (Arrow pas returns) i =>
+    let pas' := F.map (paramarg_map (subst_e η) (subst_e η)) pas in
+    (IExternMethodCall extn method (Arrow pas' returns) i, η)
   | ISetValidity e v i =>
     (ISetValidity (subst_e η e) v i, η)
   end.
 
 Definition copy (args : ST.E.args tags_t) : expenv :=
   F.fold (fun param arg η => match arg with
-                             | P.PAIn (_,e) => Env.bind param e η
-                             | P.PAInOut (_,e) => Env.bind param e η
-                             | P.PAOut (_,e) => Env.bind param e η
-                             | P.PADirLess (_,e) => Env.bind param e η
+                             | PAIn e => Env.bind param e η
+                             | PAInOut e => Env.bind param e η
+                             | PAOut e => Env.bind param e η
+                             | PADirLess e => Env.bind param e η
                              end)
          args (Env.empty EquivUtil.string (E.e tags_t)).
 
 Definition string_list_of_params (ps : E.params) : list string :=
   List.map fst ps.
 
-Definition translate_pattern (discriminee : E.e tags_t) (pat : P.Parser.pat) (i : tags_t):=
+Definition translate_pattern (discriminee : E.e tags_t) (pat : Parser.pat) (i : tags_t):=
   E.EBool true i.
-
 
 Fixpoint inline
          (n : nat)
@@ -241,16 +236,20 @@ Fixpoint inline
     | ST.SSkip i =>
       ok (ISkip i)
 
-    | ST.SVardecl typ x i =>
-      ok (IVardecl typ x i)
+    | ST.SVardecl x t_or_e i =>
+      match t_or_e with
+      | Left t =>  ok (IVardecl t x i)
+      | Right e =>
+        let t := t_of_e e in
+        ok (ISeq (IVardecl t x i) (IAssign t (E.EVar t x i) e i) i)
+      end
+    | ST.SAssign lhs rhs i =>
+      ok (IAssign (t_of_e rhs) lhs rhs i)
 
-    | ST.SAssign type lhs rhs i =>
-      ok (IAssign type lhs rhs i)
-
-    | ST.SConditional gtyp guard tru_blk fls_blk i =>
+    | ST.SConditional guard tru_blk fls_blk i =>
       let* tru_blk' := inline n0 ctx tru_blk in
       let+ fls_blk' := inline n0 ctx fls_blk in
-      IConditional gtyp guard tru_blk' fls_blk' i
+      IConditional (t_of_e guard) guard tru_blk' fls_blk' i
 
     | ST.SSeq s1 s2 i =>
       let* i1 := inline n0 ctx s1 in
@@ -261,7 +260,7 @@ Fixpoint inline
       let+ blk := inline n0 ctx s in
       IBlock blk
 
-    | ST.SFunCall f _ (P.Arrow args ret) i =>
+    | ST.SFunCall f _ (Arrow args ret) i =>
       match find_function _ ctx f with
         | Some (TD.TPFunction _ _ _ body i) =>
           (** TODO check copy-in/copy-out *)
@@ -271,7 +270,7 @@ Fixpoint inline
         | Some _ =>
           error "[ERROR] Got a nonfunction when `find`ing a function"
         | None =>
-          ok (IExternMethodCall "_" f (P.Arrow args ret) i)
+          ok (IExternMethodCall "_" f (Arrow args ret) i)
       end
 
     | ST.SActCall a args i =>
@@ -305,11 +304,11 @@ Fixpoint inline
          error "Expected a control instantiation, got something else"
       end
 
-    | ST.SReturnVoid i =>
+    | ST.SReturn None i =>
       ok (IReturnVoid i)
 
-    | ST.SReturnFruit typ expr i =>
-      ok (IReturnFruit typ expr i)
+    | ST.SReturn (Some expr) i =>
+      ok (IReturnFruit (t_of_e expr) expr i)
 
     | ST.SExit i =>
       ok (IExit i)
@@ -339,19 +338,16 @@ Fixpoint inline
     | ST.SExternMethodCall ext method _ args i =>
       ok (IExternMethodCall ext method args i)
 
-    | ST.SSetValidity e v i =>
-      match v with
-      | ST.Valid => ok (ISetValidity e true i)
-      | ST.Invalid => ok (ISetValidity e false i)
-      end
-    | ST.PApply _ _ _ _ i =>
+    | ST.SSetValidity e b i =>
+      ok (ISetValidity e b i)
+    (* | ST.PApply _ _ _ _ i => *)
       (* let*~ prsr := find_parser tags_t ctx pname else "could not find parser instance" in *)
       (* match pinst with *)
       (* | TD.TPParser _ cparams eparams params start states i => *)
       (*   inline_parser n0 ctx cparams eparams params start states i *)
       (* | _ => error "[ERROR] expecting parser when `find`ing parser. got something else" *)
       (* end *)
-      ok (ISkip i)
+      (* ok (ISkip i) *)
 
     | ST.SHeaderStackOp _ _ _ _ =>
       error "[FIXME] Translate Header Stack operations"
@@ -451,7 +447,7 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
         let lvars := header_fields l fields in
         let assign_fields := fun '(lvar, ltyp) acc_res =>
              let* acc := acc_res in
-             let*~ (_, rval) := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in
+             let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in
              ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
        fold_right assign_fields
                   (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
@@ -590,7 +586,7 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
         let lvars := struct_fields l fields in
         let assign_fields := fun '(lvar, ltyp) acc_opt =>
              let* acc := acc_opt in
-             let*~ (_, rval) := F.find_value (String.eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
+             let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
              ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
         fold_right assign_fields
            (ok (ISkip i))

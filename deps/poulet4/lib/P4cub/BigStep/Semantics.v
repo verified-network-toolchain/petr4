@@ -340,7 +340,7 @@ Module Step.
       | _ => None
       end = Some aa ->
       (* Looking up action. *)
-      Env.find a aa = Some (ADecl closure fclosure aclosure exts [(* TODO : Correctly use parameter lists  *)] body) ->
+      Env.find a aa = Some (ADecl closure fclosure aclosure exts body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
@@ -360,7 +360,7 @@ Module Step.
                   (body : Stmt.s tags_t) (fclosure : fenv)
                   (closure ϵ' ϵ'' ϵ''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure [(* TODO : Correctly use parameter lists  *)] body) ->
+      Env.find f fs = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
@@ -382,7 +382,7 @@ Module Step.
                    (body : Stmt.s tags_t) (fclosure : fenv)
                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure [(* TODO : Correctly use parameter lists  *)] body) ->
+      Env.find f fs = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg

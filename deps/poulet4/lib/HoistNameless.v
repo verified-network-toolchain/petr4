@@ -28,7 +28,6 @@ End NameGen.
 
 Section Nameless.
   Variable (tags_t : Type).
-
   Fixpoint hoist_expression (g : NameGen.t) (e : @Expression tags_t) : (NameGen.t * list (@Declaration tags_t) * @Expression tags_t) :=
     let '(MkExpression tags expr typ dir) := e in
     let new_expr := fun expr => MkExpression tags expr typ dir in
@@ -42,7 +41,7 @@ Section Nameless.
       let (fresh_string, g'') := NameGen.get_new g' in
       let fresh_name := {| P4String.str := fresh_string;
                            P4String.tags := tags |} in
-      let hoist := DeclInstantiation tags typ args' fresh_name None in
+      let hoist := DeclInstantiation tags typ args' fresh_name [] in
       let expr' := ExpName (Typed.BareName fresh_name) NoLocator in
       (g'', List.app rec_hoist [hoist], new_expr expr')
     | _ => (g, [],e)

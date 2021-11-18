@@ -1,12 +1,9 @@
 Require Import Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.AST.
 
-Module P := P4cub.
-Module E := P.Expr.
-Module F := P.F.
-Module TD := P.TopDecl.
-Module ST := P.Stmt.
-
-Import Env.EnvNotations P.P4cubNotations.
+(* Module P := P4cub. *)
+Module E := Expr.
+Module TD := TopDecl.
+Module ST := Stmt.
 
 Section TypeSubstitution.
 
@@ -21,96 +18,101 @@ Section TypeSubstitution.
 
   Fixpoint tsub_t (σ : Env.t string E.t) (t : E.t) : E.t :=
     match t with
-    | {{ Bool }}
-    | {{ bit<_> }}
-    | {{ int<_> }}
-    | {{ error }}
-    | {{ matchkind }}     => t
-    | {{ tuple ts }}      => E.TTuple $ List.map (tsub_t σ) ts
-    | {{ struct { ts } }} => E.TStruct $ F.map (tsub_t σ) ts
-    | {{ hdr { ts } }}    => E.THeader $ F.map (tsub_t σ) ts
-    | {{ stack ts[n] }}   => E.THeaderStack (F.map (tsub_t σ) ts) n
+    | E.TBool
+    | E.TBit _
+    | E.TInt _
+    | E.TError
+    | E.TMatchKind     => t
+    | E.TTuple ts      => E.TTuple $ List.map (tsub_t σ) ts
+    | E.TStruct ts => E.TStruct $ F.map (tsub_t σ) ts
+    | E.THeader ts    => E.THeader $ F.map (tsub_t σ) ts
+    | E.THeaderStack ts n   => E.THeaderStack (F.map (tsub_t σ) ts) n
     | E.TVar X => find_default σ X t
     end.
   (**[]*)
 
   Context {tags_t : Type}.
-  
+
   Fixpoint tsub_e (σ : Env.t string E.t) (e : E.e tags_t) : E.e tags_t :=
     match e with
-    | <{ BOOL _ @ _ }>
-    | <{ _ W _ @ _ }>
-    | <{ _ S _ @ _ }>
-    | <{ Error _ @ _ }>
-    | <{ Matchkind _ @ _ }> => e
-    | <{ Var x : t @ i }> => Expr.EVar (tsub_t t) x i
-    | <{ Slice e [hi:lo] @ i }> => Expr.ESlice (tsub_e e) hi lo i
-    | <{ Cast e:t @ i }> => Expr.ECast (tsub_t t) (tsub_e e) i
-    | <{ UOP op e : rt @ i }> => Expr.EUop (tsub_t rt) op (tsub_e e) i
-    | <{ BOP e1 op e2 : rt @ i }>
-      => Expr.EBop (tsub_t rt) op (tsub_e e1) (tsub_e e2) i
-    | <{ tup es @ i }> => Expr.ETuple (List.map tsub_e es) i
-    | <{ struct { es } @ i }>
-      => Expr.EStruct (F.map tsub_e es) i
-    | <{ hdr { es } valid:=e @ i }>
-      => Expr.EHeader
-          (F.map tsub_e es)
-          (tsub_e e) i
-    | <{ Mem e dot x : rt @ i }>
-      => Expr.EExprMember (tsub_t rt) x (tsub_e e) i
-    | <{ Stack hs:ts nextIndex:=ni @ i }>
-      => Expr.EHeaderStack (F.map tsub_t ts) (List.map tsub_e hs) ni i
-    | <{ Access e[n] : ts @ i }>
-      => Expr.EHeaderStackAccess (F.map tsub_t ts) (tsub_e e) n i
+    | E.EBool _ _
+    | E.EBit _ _ _
+    | E.EInt _ _ _
+    | E.EError _ _
+    | E.EMatchKind _ _ => e
+    | E.EVar t x i =>
+      E.EVar (tsub_t σ t) x i
+    | E.ESlice e hi lo i =>
+      Expr.ESlice (tsub_e σ e) hi lo i
+    | E.ECast t e i =>
+      Expr.ECast (tsub_t σ t) (tsub_e σ e) i
+    | E.EUop rt op e i =>
+      Expr.EUop (tsub_t σ rt) op (tsub_e σ e) i
+    | E.EBop rt op e1 e2 i =>
+      Expr.EBop (tsub_t σ rt) op (tsub_e σ e1) (tsub_e σ e2) i
+    | E.ETuple es i =>
+      E.ETuple (List.map (tsub_e σ) es) i
+    | E.EStruct es i =>
+      E.EStruct (F.map (tsub_e σ) es) i
+    | E.EHeader es e i =>
+      Expr.EHeader (F.map (tsub_e σ) es) (tsub_e σ e) i
+    | E.EExprMember rt mem arg i =>
+      E.EExprMember (tsub_t σ rt) mem (tsub_e σ arg) i
+    | E.EHeaderStack fs hs ni i =>
+      E.EHeaderStack (F.map (tsub_t σ) fs) (List.map (tsub_e σ) hs) ni i
+    | E.EHeaderStackAccess result_hdr_type stk index i =>
+      E.EHeaderStackAccess (F.map (tsub_t σ) result_hdr_type) (tsub_e σ stk) index i
     end.
   (**[]*)
 
 
-  Fixpoint tsub_param (σ : Env.t string E.t) (pa : P.paramarg E.t E.t) :=
+ Definition tsub_param (σ : Env.t string E.t) (pa : paramarg E.t E.t) :=
     match pa with
-    | P.PAIn t => P.PAIn (tsub_t σ t)
-    | P.PAOut t => P.PAOut (tsub_t σ t)
-    | P.PAInOut t => P.PAInOut (tsub_t σ t)
-    | P.PADirLess t => P.PAInOut (tsub_t σ t)
+    | PAIn t => PAIn (tsub_t σ t)
+    | PAOut t => PAOut (tsub_t σ t)
+    | PAInOut t => PAInOut (tsub_t σ t)
+    | PADirLess t => PAInOut (tsub_t σ t)
     end.
 
-  Fixpoint tsub_arg (σ : Env.t string E.t) (pa : P.paramarg (E.t * E.e tags_t) (E.t * E.e tags_t)) :=
+ Definition tsub_arg (σ : Env.t string E.t) (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
     match pa with
-    | P.PAIn (t,e) => P.PAIn (tsub_t σ t, tsub_e σ e)
-    | P.PAOut (t,e) => P.PAOut (tsub_t σ t, tsub_e σ e)
-    | P.PAInOut (t,e) => P.PAInOut (tsub_t σ t, tsub_e σ e)
-    | P.PADirLess (t,e) => P.PAInOut (tsub_t σ t, tsub_e σ e)
+    | PAIn e => PAIn (tsub_e σ e)
+    | PAOut e => PAOut (tsub_e σ e)
+    | PAInOut e => PAInOut (tsub_e σ e)
+    | PADirLess e => PAInOut (tsub_e σ e)
     end.
 
-  Definition tsub_retE (σ : Env.t string E.t) (ret : option (E.t * E.e tags_t)) :=
-    let* '(t,e) := ret in
-    Some (tsub_t σ t, tsub_e σ e).
+  Definition tsub_retE (σ : Env.t string E.t) (ret : option (E.e tags_t)) :=
+    let* e := ret in
+    Some (tsub_e σ e).
 
-  Fixpoint tsub_arrowE (σ : Env.t string E.t) (ar : TD.E.arrowE tags_t) :=
-    let '(P.Arrow args ret) := ar in
+  Definition tsub_arrowE (σ : Env.t string E.t) (ar : TD.E.arrowE tags_t) :=
+    let '(Arrow args ret) := ar in
     let args' := F.map (tsub_arg σ) args in
     let ret' := tsub_retE σ ret in
-    P.Arrow args' ret'.
+    Arrow args' ret'.
 
-  Print ST.PApply.
+  Definition map_either {A B C D : Type} (f : A -> B) (g : C -> D) (e : either A C) : either B D :=
+    match e with
+    | Left a => Left (f a)
+    | Right b => Right (g b)
+    end.
 
   Fixpoint tsub_s (σ : Env.t string E.t) (s : ST.s tags_t) : ST.s tags_t :=
     match s with
     | ST.SSkip _ => s
-    | ST.SVardecl t x i =>
-      let t' := tsub_t σ t in
-      ST.SVardecl t' x i
-    | ST.SAssign typ lhs rhs i =>
-      let typ' := tsub_t σ typ in
+    | ST.SVardecl x e i =>
+      let e' := map_either (tsub_t σ) (tsub_e σ) e in
+      ST.SVardecl x e' i
+    | ST.SAssign lhs rhs i =>
       let lhs' := tsub_e σ lhs in
       let rhs' := tsub_e σ rhs in
-      ST.SAssign typ' lhs' rhs' i
-    | ST.SConditional gt g tru fls i =>
-      let gt' := tsub_t σ gt in
+      ST.SAssign lhs' rhs' i
+    | ST.SConditional g tru fls i =>
       let g' := tsub_e σ g in
       let tru' := tsub_s σ tru in
       let fls' := tsub_s σ fls in
-      ST.SConditional gt' g' tru' fls' i
+      ST.SConditional g' tru' fls' i
     | ST.SSeq s1 s2 i =>
       let s1' := tsub_s σ s1 in
       let s2' := tsub_s σ s2 in
@@ -130,19 +132,17 @@ Section TypeSubstitution.
     | ST.SActCall a args i =>
       let args' := F.map (tsub_arg σ) args in
       ST.SActCall a args' i
-    | ST.SReturnVoid _ => s
-    | ST.SReturnFruit t e i =>
-      let t' := tsub_t σ t in
-      let e' := tsub_e σ e in
-      ST.SReturnFruit t' e' i
+    | ST.SReturn e i =>
+      let e' := tsub_retE σ e in
+      ST.SReturn e' i
     | ST.SExit _ => s
     | ST.SInvoke _ _ => s
     | ST.SApply ci ext_args args i =>
       let args' := F.map (tsub_arg σ) args in
       ST.SApply ci ext_args args i
-    | ST.PApply _ pi ext_args args i =>
-      let args' := F.map (tsub_arg σ) args in
-      ST.PApply _ pi ext_args args' i
+    (* | ST.PApply _ pi ext_args args i => *)
+    (*   let args' := F.map (tsub_arg σ) args in *)
+    (*   ST.PApply _ pi ext_args args' i *)
     | ST.SHeaderStackOp _ _ _ _ => s
     | ST.SSetValidity _ _ _ => s
     end.
@@ -170,19 +170,18 @@ Section TypeSubstitution.
     | E.CTPackage cparams =>
       E.CTPackage (F.map (tsub_cparam σ) cparams)
     | E.CTExtern e => E.CTExtern e
-    | {{{VType t}}} =>
-      (* FIXME i dont know why this works and E.CTType t doesnt... *)
-      let t := tsub_t σ t in
-      {{{VType t}}}
+    | E.CTType t =>
+      let t' := tsub_t σ t in
+      E.CTType t'
     end.
 
-  Fixpoint tsub_arrowT (σ : Env.t string E.t) (ar : TD.E.arrowT) :=
-    let '(P.Arrow params ret) := ar in
+  Definition tsub_arrowT (σ : Env.t string E.t) (ar : TD.E.arrowT) :=
+    let '(Arrow params ret) := ar in
     let params' := F.map (tsub_param σ) params in
     let ret' := tsub_retT σ ret in
-    P.Arrow params' ret'.
+    Arrow params' ret'.
 
-  Fixpoint tsub_method (σ : Env.t string E.t) (method_types : (list string * TD.E.arrowT)) :=
+  Definition tsub_method (σ : Env.t string E.t) (method_types : (list string * TD.E.arrowT)) :=
     let '(type_params, arrow) := method_types in
     let σ' := remove_types σ type_params in
     (type_params, tsub_arrowT σ' arrow).
@@ -206,11 +205,6 @@ Section TypeSubstitution.
       TD.C.CDSeq (tsub_Cd σ d1) (tsub_Cd σ d2) i
     end.
 
-  Print TD.P.state_block.
-
-
-  Print TD.P.e.
-
   Fixpoint tsub_transition (σ : Env.t string E.t) (transition : TD.P.e tags_t) :=
     match transition with
     | TD.P.PGoto s i =>
@@ -222,7 +216,7 @@ Section TypeSubstitution.
       TD.P.PSelect discriminee' default' cases' i
     end.
 
-  Fixpoint tsub_state (σ : Env.t string E.t) (st : TD.P.state_block tags_t) :=
+  Definition tsub_state (σ : Env.t string E.t) (st : TD.P.state_block tags_t) :=
     match st with
     | TD.P.State s e =>
       let e' := tsub_transition σ e in
@@ -265,22 +259,5 @@ Section TypeSubstitution.
     | TD.TPSeq d1 d2 i =>
       TD.TPSeq (tsub_d σ d1) (tsub_d σ d2) i
     end.
-
-  Import String.
-  Open Scope string_scope.
-
-  Variable d : tags_t.
-
-  Compute tsub_s [("standard_metadata_t", E.TStruct [])]
-          (ST.SFunCall "mark_to_drop" []
-                       (P.Arrow
-                         [("standard_metadata",
-                           P.PAInOut
-                            (E.TVar "standard_metadata_t",
-                             E.EVar
-                              (E.TVar
-                                "standard_metadata_t")
-                              "standard_metadata" d))]
-                         None) d).
 
 End TypeSubstitution.

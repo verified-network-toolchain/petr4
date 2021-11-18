@@ -233,7 +233,7 @@ Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
     cons (x,y) xys
   end.
 
-Fixpoint fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
+Definition fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
   snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
 
 Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) : result (list (A * C)) :=

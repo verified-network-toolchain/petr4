@@ -25,8 +25,6 @@ Section TypeSubstitution.
     | {{ bit<_> }}
     | {{ int<_> }}
     | {{ error }}
-    (*| {{ Str }}
-    | {{ enum _ { _ } }}*)
     | {{ matchkind }}     => t
     | {{ tuple ts }}      => E.TTuple $ List.map (tsub_t σ) ts
     | {{ struct { ts } }} => E.TStruct $ F.map (tsub_t σ) ts
@@ -44,29 +42,26 @@ Section TypeSubstitution.
     | <{ _ W _ @ _ }>
     | <{ _ S _ @ _ }>
     | <{ Error _ @ _ }>
-    (*| <{ Stri _ @ _ }>
-    | <{ Enum _ dot _ @ _ }>*)
     | <{ Matchkind _ @ _ }> => e
-    | <{ Var x : t @ i }> =>
-      let t' := tsub_t σ t in
-      <{ Var x : t' @ i }>
-    | <{ Slice e:t [hi:lo] @ i }> => E.ESlice (tsub_e σ e) (tsub_t σ t) hi lo i
-    | <{ Cast e:t @ i }> => E.ECast (tsub_t σ t) (tsub_e σ e) i
-    | <{ UOP op e:t @ i }> => E.EUop op (tsub_t σ t) (tsub_e σ e) i
-    | <{ BOP e1:t1 op e2:t2 @ i }>
-      => E.EBop op (tsub_t σ t1) (tsub_t σ t2) (tsub_e σ e1) (tsub_e σ e2) i
-    | <{ tup es @ i }> => E.ETuple (List.map (tsub_e σ) es) i
+    | <{ Var x : t @ i }> => Expr.EVar (tsub_t t) x i
+    | <{ Slice e [hi:lo] @ i }> => Expr.ESlice (tsub_e e) hi lo i
+    | <{ Cast e:t @ i }> => Expr.ECast (tsub_t t) (tsub_e e) i
+    | <{ UOP op e : rt @ i }> => Expr.EUop (tsub_t rt) op (tsub_e e) i
+    | <{ BOP e1 op e2 : rt @ i }>
+      => Expr.EBop (tsub_t rt) op (tsub_e e1) (tsub_e e2) i
+    | <{ tup es @ i }> => Expr.ETuple (List.map tsub_e es) i
     | <{ struct { es } @ i }>
-      => E.EStruct (F.map (fun '(t,e) => (tsub_t σ t, tsub_e σ e)) es) i
+      => Expr.EStruct (F.map tsub_e es) i
     | <{ hdr { es } valid:=e @ i }>
-      => E.EHeader
-          (F.map (fun '(t,e) => (tsub_t σ t, tsub_e σ e)) es)
-          (tsub_e σ e) i
-    | <{ Mem e:t dot x @ i }>
-      => E.EExprMember x (tsub_t σ t) (tsub_e σ e) i
-    | <{ Stack hs:ts[n] nextIndex:=ni @ i }>
-      => E.EHeaderStack (F.map (tsub_t σ) ts) (List.map (tsub_e σ) hs) n ni i
-    | <{ Access e[n] @ i }> => E.EHeaderStackAccess (tsub_e σ e) n i
+      => Expr.EHeader
+          (F.map tsub_e es)
+          (tsub_e e) i
+    | <{ Mem e dot x : rt @ i }>
+      => Expr.EExprMember (tsub_t rt) x (tsub_e e) i
+    | <{ Stack hs:ts nextIndex:=ni @ i }>
+      => Expr.EHeaderStack (F.map tsub_t ts) (List.map tsub_e hs) ni i
+    | <{ Access e[n] : ts @ i }>
+      => Expr.EHeaderStackAccess (F.map tsub_t ts) (tsub_e e) n i
     end.
   (**[]*)
 

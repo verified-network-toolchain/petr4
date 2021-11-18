@@ -35,7 +35,7 @@ Section Bitwise.
       | O => []
       | S w' => (N.odd n) :: (of_N' (N.div2 n) w')
       end in
-    of_N' (Z.to_N (BitArith.mod_bound (Pos.of_nat w) (Z.of_N n))) w.
+    of_N' (Z.to_N (BitArith.mod_bound (N.of_nat w) (Z.of_N n))) w.
 
   Fixpoint to_N (bits : Bits) : N := 
     match bits with 
@@ -84,12 +84,12 @@ Section Bitwise.
         - apply to_nat_zero.
     Admitted.
 
-  Definition slice (w: nat) (bits: Bits) (lo: nat) (hi: nat) : option Bits :=
+  Definition slice {A} (w: nat) (bits: list A) (lo: nat) (hi: nat) : option (list A) :=
     if (hi <? w) && (lo <=? hi) then
     Some (firstn (w - hi) (skipn lo bits)) else
     None.
 
-  Definition splice (wl: nat) (lhs: Bits) (lo: nat) (hi: nat) (wr: nat) (rhs: Bits) : option Bits :=
+  Definition splice {A} (wl: nat) (lhs: list A) (lo: nat) (hi: nat) (wr: nat) (rhs: list A) : option (list A) :=
     if (lo <=? hi) && (wr <=? (hi - lo + 1)) then
     let pref := firstn lo lhs in
     let suff := skipn (wl - hi + 1) lhs in

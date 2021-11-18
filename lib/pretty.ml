@@ -65,7 +65,7 @@ module P4Int = struct
      | None ->
        ()
      | Some (width,signed) ->
-       Format.fprintf fmt "%d%s" width (if signed then "s" else "w"));
+       Format.fprintf fmt "%s%s" (Bigint.to_string width) (if signed then "s" else "w"));
     format_bigint fmt i.value;
     Format.fprintf fmt "@]";
 end

@@ -2,13 +2,14 @@ Require Import Coq.Bool.Bvector.
 Require Import Coq.Strings.String.
 Require Import Coq.Lists.List.
 Require Import Coq.ZArith.BinIntDef.
+Require Import Coq.NArith.BinNat.
 
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.State.
 
 Require Import Poulet4.Environment.Environment.
 Require Import Poulet4.Utils.
-Require Import Poulet4.Syntax.
+Require Import Poulet4.Value.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Bitwise.
 Require Import Poulet4.AList.
@@ -17,9 +18,11 @@ Open Scope monad.
 Open Scope string_scope.
 
 Section Packet.
+  Context (bit: Type).
+  Context (inject_bit: bool -> bit).
   Context (tags_t: Type).
   Notation P4String := (P4String.t tags_t).
-  Notation ValueBase := (@ValueBase tags_t).
+  Notation ValueBase := (@ValueBase  bit).
   Notation P4Type := (@P4Type tags_t).
 
   Definition packet_monad := @state_monad (list bool) exception.
@@ -43,29 +46,29 @@ Section Packet.
     Z.of_nat (to_nat (rev (Vector.to_list bits))).
 
   Fixpoint eval_packet_extract_fixed (into: P4Type) : packet_monad ValueBase :=
-    let eval_packet_extract_fixed_field (into_field: P4String * P4Type) : packet_monad (P4String * ValueBase) :=
+    let eval_packet_extract_fixed_field (into_field: P4String * P4Type) : packet_monad (string * ValueBase) :=
       let (into_name, into_type) := into_field in
       let* v := eval_packet_extract_fixed into_type in
-        mret (into_name, v) in
+        mret (P4String.str into_name, v) in
     match into with
     | TypBool =>
       let* vec := read_first_bits 1 in
       match vec with
-      | (bit :: [])%vector => mret (ValBaseBool bit)
+      | (bit :: [])%vector => mret (ValBaseBool (inject_bit bit))
       | _ => state_fail Internal (* Does not happen -- vec has length exactly 1. *)
       end
     | TypBit width =>
-      let* vec := read_first_bits width in
-      mret (ValBaseBit width (convert_bits width vec))
+      let* vec := read_first_bits (N.to_nat width) in
+      mret (ValBaseBit (List.map inject_bit (Vector.to_list vec)))
     | TypInt width =>
-      let* vec := read_first_bits width in
-      mret (ValBaseInt width (convert_bits width vec))
+      let* vec := read_first_bits (N.to_nat width) in
+      mret (ValBaseInt (List.map inject_bit (Vector.to_list vec)))
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseRecord field_vals)
     | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-      mret (ValBaseHeader field_vals true)
+      mret (ValBaseHeader field_vals (inject_bit true))
     | _ => state_fail (TypeError "Unsupported type passed to extract.")
     end.
 
@@ -82,7 +85,5 @@ Section Packet.
     | TypInt _ => true
     | _ => false
     end.
-
-
 
 End Packet.

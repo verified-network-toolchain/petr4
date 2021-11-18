@@ -23,6 +23,7 @@ type coq_ExprContext = [%import:Poulet4.Typed.coq_ExprContext]
 type 'a pre_P4Type =
   [%import:'a Poulet4.Typed.coq_P4Type
     [@with name := P4name.pre_t;
+           Bigint.t := Util.bigint;
            Poulet4.P4String.t := P4string.pre_t;
            coq_ControlType := pre_ControlType;
            coq_P4Parameter := pre_P4Parameter;
@@ -44,6 +45,7 @@ and 'a pre_ControlType =
 and pre_P4Parameter =
   [%import:'a Poulet4.Typed.coq_P4Parameter
     [@with Poulet4.P4String.t := P4string.pre_t;
+           Bigint.t := Util.bigint;
            coq_P4Type := pre_P4Type]]
   [@@deriving sexp,show,yojson]
 type coq_P4Type = Info.t pre_P4Type
@@ -86,6 +88,7 @@ let expr_ctxt_of_stmt_ctxt (s: coq_StmtContext) : coq_ExprContext =
   | StmtCxAction -> ExprCxAction
   | StmtCxParserState -> ExprCxParserState
   | StmtCxApplyBlock -> ExprCxApplyBlock
+  | StmtCxMethod ret -> ExprCxMethod
 
 let expr_ctxt_of_decl_ctxt (s: coq_DeclContext) : coq_ExprContext =
   match s with

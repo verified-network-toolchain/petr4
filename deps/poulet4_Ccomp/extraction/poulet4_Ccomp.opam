@@ -7,10 +7,10 @@ homepage: "https://github.com/cornell-netlab/petr4"
 dev-repo: "git+https://github.com/cornell-netlab/petr4/"
 bug-reports: "https://github.com/cornell-netlab/petr4/issues"
 build: [
-  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs "@install"]
 ]
 install: [
-  ["dune" "install"]
+  ["dune" "install" "-p" name]
 ]
 depends: [
   "bignum"

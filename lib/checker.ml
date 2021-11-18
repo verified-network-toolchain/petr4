@@ -2,6 +2,7 @@ open Types
 open Typed
 open Util
 open Checker_env
+open P4string
 
 (* hack *)
 module Petr4Error = Error
@@ -77,7 +78,7 @@ let has_default_arg p =
 
 let find_default_arg env (MkParameter (_, _, _, arg_id, _): Typed.coq_P4Parameter) =
   match arg_id with
-  | Some arg_id -> Checker_env.find_default_arg arg_id env |> Some
+  | Some arg_id -> Checker_env.find_default_arg (Bigint.to_int_exn arg_id) env |> Some
   | None -> None
 
 let is_optional (param: Types.Parameter.t) =
@@ -122,6 +123,57 @@ let field_cmp ((name1, _): coq_FieldType) ((name2, _): coq_FieldType) =
 
 let sort_fields = List.sort ~compare:field_cmp
 
+let add_cast_unsafe (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
+  MkExpression (Info.dummy, ExpCast (new_typ, expr), new_typ, dir_of_expr expr)
+
+let rec val_to_literal (v: Prog.coq_Value) : Prog.coq_Expression =
+  let fs_to_literals fs: Prog.coq_Expression * (P4string.t * coq_P4Type) list =
+     let names = List.map ~f:fst fs in
+     let vs = List.map ~f:snd fs in
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     (MkExpression (Info.dummy, ExpList es, TypList typs, In), List.zip_exn names typs)
+  in
+  match v with
+  | ValBool b ->
+     MkExpression (Info.dummy, ExpBool b, TypBool, In)
+  | ValInteger v ->
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = None } in
+     MkExpression (Info.dummy, ExpInt i, TypInteger, In)
+  | ValBit (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, false) } in
+     MkExpression (Info.dummy, ExpInt i, TypBit width, In)
+  | ValInt (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, true) } in
+     MkExpression (Info.dummy, ExpInt i, TypInt width, In)
+  | ValString s ->
+     MkExpression (Info.dummy, ExpString s, TypString, In)
+  | ValTuple vs ->
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     MkExpression (Info.dummy, ExpList es, TypTuple typs, In)
+  | ValRecord fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypRecord t)
+  | ValError e ->
+     MkExpression (Info.dummy, ExpErrorMember e, TypError, In)
+  | ValMatchKind mk ->
+     MkExpression (Info.dummy, ExpTypeMember (BareName {str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
+  | ValStruct fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypStruct t)
+  | ValHeader (fs, valid) ->
+     if not valid then failwith "invalid header at compile time";
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypHeader t)
+  | ValEnumField (typ, mem)
+  | ValSenumField (typ, mem, _) ->
+     let name: P4name.t = BareName typ in
+     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName name, In)
+  | ValSenum vs -> failwith "ValSenum unsupported"
+
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
 let rec is_extern (env: Checker_env.t) (typ: Typed.coq_P4Type) =
   match typ with
@@ -152,7 +204,7 @@ let real_name_for_type_member env (typ_name: P4name.t) (name: P4string.t) : P4na
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
   match saturate_type env hdr_type with
   | TypBit width | TypInt width ->
-    width
+    Bigint.to_int_exn width
   | TypVarBit _ ->
     0
   | TypNewType (_, typ)
@@ -183,24 +235,21 @@ and min_size_in_bytes env info hdr_type =
 
 (* Evaluate the expression [expr] at compile time. Make sure to
  * typecheck the expression before trying to evaluate it! *)
-and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_ValueBase option =
+and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Prog.coq_Value option =
   let MkExpression (tags, expr, typ, dir) = expr in
   match expr with
   | ExpName (name, _) ->
-    begin match Checker_env.find_const_opt name env with
-      | Some (ValBase b) -> Some b
-      | _ -> None
-    end
-  | ExpBool b -> Some (ValBaseBool b)
-  | ExpString str -> Some (ValBaseString str)
+    Checker_env.find_const_opt name env
+  | ExpBool b -> Some (ValBool b)
+  | ExpString str -> Some (ValString str)
   | ExpInt i ->
     begin match i.width_signed with
       | None ->
-        Some (ValBaseInteger i.value)
+        Some (ValInteger i.value)
       | Some (width, signed) ->
         if signed
-        then Some (ValBaseInt (width, i.value))
-        else Some (ValBaseBit (width, i.value))
+        then Some (Bitstring.int_of_rawint i.value (Bigint.to_int_exn width))
+        else Some (Bitstring.bit_of_rawint i.value (Bigint.to_int_exn width))
     end
   | ExpUnaryOp (op, arg) ->
     begin match compile_time_eval_expr env arg with
@@ -221,49 +270,43 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
     option_map (Ops.interp_cast ~type_lookup typ) expr_val
   | ExpList values ->
     begin match compile_time_eval_exprs env values with
-      | Some vals -> Some (ValBaseTuple vals)
+      | Some vals -> Some (ValTuple vals)
       | None -> None
     end
   | ExpTypeMember (typ, name) ->
     let real_name = real_name_for_type_member env typ name in
-    begin match Checker_env.find_const_opt real_name env with
-      | Some (ValBase b) -> Some b
-      | _ -> None
-    end
+    Checker_env.find_const_opt real_name env
   | ExpErrorMember t ->
-    Some (ValBaseError t)
+    Some (ValError t)
   | ExpRecord entries ->
     let opt_entries =
-      List.map ~f:(fun (MkKeyValue (_, key, value)) ->
+      List.map ~f:(fun (key, value) ->
           match compile_time_eval_expr env value with
           | Some v -> Some (key, v)
           | None -> None)
         entries
     in
     begin match Util.list_option_flip opt_entries with
-      | Some es -> Some (ValBaseRecord es)
+      | Some es -> Some (ValRecord es)
       | None -> None
     end
   | ExpBitStringAccess (bits, hi, lo) ->
     begin match compile_time_eval_expr env bits with
-      | Some (ValBaseInt (w, v))
-      | Some (ValBaseBit (w, v)) ->
-        let slice_width = Bigint.(to_int_exn (hi - lo + one)) in
+      | Some (ValInt (w, v))
+      | Some (ValBit (w, v)) ->
         let slice_val = Bitstring.bitstring_slice v hi lo in
-        Some (ValBaseBit (slice_width, slice_val))
+        Some (ValBit (Bigint.(to_int_exn (max (hi - lo) zero)), slice_val))
       | _ -> None
     end
-  | ExpDontCare -> Some (ValBaseSet (ValSetUniversal))
+  | ExpDontCare -> failwith "set expression in non-set context"
   | ExpExpressionMember (expr, {str="size";_}) ->
     begin match saturate_type env (type_of_expr expr) with
-      | TypArray (_, size) -> Some (ValBaseInteger (Bigint.of_int size))
+      | TypArray (_, size) -> Some (ValInteger size)
       | _ -> None
     end
   | ExpExpressionMember (expr, name) ->
     begin match compile_time_eval_expr env expr with
-      | Some (ValBaseStruct fields)
-      | Some (ValBaseHeader (fields, _))
-      | Some (ValBaseUnion fields) ->
+      | Some (ValStruct fields) ->
         fields
         |> List.find ~f:(fun (n, _) -> P4string.eq n name)
         |> option_map snd
@@ -276,26 +319,26 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: Prog.coq_Expression) : Pr
         let MkExpression (i, expr, typ, _) = expr in
         let typ = saturate_type env typ in
         let size = min_size_in_bits env i typ in
-        Some (ValBaseInteger size)
+        Some (ValInteger size)
       | ExpExpressionMember (expr, {str="minSizeInBytes"; _}) ->
         let MkExpression (i, expr, typ, _) = expr in
         let typ = saturate_type env typ in
         let size = min_size_in_bytes env i typ in
-        Some (ValBaseInteger size)
+        Some (ValInteger size)
       | _ -> None
     end
   | _ ->
     None
 
-and compile_time_eval_exprs env exprs : Prog.coq_ValueBase list option =
+and compile_time_eval_exprs env exprs : Prog.coq_Value list option =
   let options = List.map ~f:(compile_time_eval_expr env) exprs in
   Util.list_option_flip options
 
-and bigint_of_value (v: Prog.coq_ValueBase) =
+and bigint_of_value (v: Prog.coq_Value) =
   match v with
-  | ValBaseInt (_, v)
-  | ValBaseBit (_, v)
-  | ValBaseInteger v ->
+  | ValInt (_, v)
+  | ValBit (_, v)
+  | ValInteger v ->
     Some v
   | _ -> None
 
@@ -313,8 +356,12 @@ and compile_time_eval_bigint env expr: Bigint.t =
  * [decl] before trying to evaluate it! *)
 and compile_time_eval_decl (env: Checker_env.t) (decl: Prog.coq_Declaration) : Checker_env.t =
   match decl with
-  | DeclConstant (_, _, name, value) ->
-    Checker_env.insert_const (BareName name) (ValBase value) env
+  | DeclConstant (_, _, name, exp) ->
+     begin match compile_time_eval_expr env exp with
+     | Some value ->
+        Checker_env.insert_const (BareName name) value env
+     | None -> env
+     end
   | _ -> env
 
 and get_type_params (t: coq_P4Type) : P4string.t list =
@@ -363,11 +410,11 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     List.map ~f:(saturate_param env) params
   in
   let saturate_ctrl env (MkControlType (type_params, params)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkControlType (type_params, List.map ~f:(saturate_param env) params)
   in
   let saturate_function env (MkFunctionType (type_params, params, kind, ret)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkFunctionType (type_params,
                     saturate_params env params,
                     kind,
@@ -412,8 +459,8 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypSpecializedType (saturate_type env base,
                         saturate_types env args)
   | TypPackage (type_params, wildcard_params, params) ->
-    let env = Checker_env.insert_type_vars type_params env in
-    let env = Checker_env.insert_type_vars wildcard_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true wildcard_params env in
     TypPackage (type_params,
                 wildcard_params,
                 saturate_params env params)
@@ -429,7 +476,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypAction (saturate_params env data_params,
                saturate_params env ctrl_params)
   | TypConstructor (type_params, wildcard_params, params, ret) ->
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     TypConstructor (type_params,
                     wildcard_params,
                     saturate_params env params,
@@ -464,8 +511,8 @@ and reduce_to_underlying_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Typ
   | TypEnum (_, Some typ, _) -> reduce_to_underlying_type env typ
   | _ -> typ
 
-type var_constraint = P4string.t * coq_P4Type option
-type var_constraints = var_constraint list
+type var_constraint = P4string.t * coq_P4Type option [@@deriving sexp]
+type var_constraints = var_constraint list [@@deriving sexp]
 type soln = var_constraints option
 
 let empty_constraints unknowns : var_constraints =
@@ -509,7 +556,7 @@ let rec merge_constraints env xs ys =
     List.map ~f:merge xys
   | Unequal_lengths -> fail ()
 
-and constraints_to_type_args _ (cs: var_constraints) : (P4string.t * coq_P4Type) list =
+and constraints_to_type_args (cs: var_constraints) : (P4string.t * coq_P4Type) list =
   let constraint_to_type_arg (var, type_opt) =
     match type_opt with
     | Some t -> (var, t)
@@ -528,14 +575,14 @@ and gen_all_constraints (env: Checker_env.t) ctx unknowns (params_args: (coq_P4P
         let constraints = merge_constraints env constraints arg_constraints in
         gen_all_constraints env ctx unknowns more constraints
       | None -> raise_s [%message "Could not solve type equality."
-                         ~param:(reduce_type env param_type: coq_P4Type) ~arg_typ:(reduce_type env expr_typ: coq_P4Type)]
+                         ~param:(param_type: coq_P4Type) ~arg_typ:(expr_typ: coq_P4Type)]
     end
   | (param_type, None) :: more ->
     gen_all_constraints env ctx unknowns more constraints
   | [] ->
     constraints
 
-and infer_type_arguments env ctx ret type_params_args params_args constraints =
+and infer_type_arguments env ctx type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
     | Some arg ->
@@ -548,7 +595,7 @@ and infer_type_arguments env ctx ret type_params_args params_args constraints =
     empty_constraints unknowns
     |> gen_all_constraints env ctx unknowns params_args
   in
-  params_args' @ constraints_to_type_args ret constraints
+  params_args' @ constraints_to_type_args constraints
 
 and merge_solutions env soln1 soln2 =
   match soln1, soln2 with
@@ -566,7 +613,7 @@ and solve_lists: 'a 'b.
     ~merge:(merge_solutions env)
     ~init:(Some (empty_constraints unknowns))
   |> option_collapse
-  |> option_map List.rev
+
 
 and solve_record_type_equality env equiv_vars unknowns (rec1: coq_FieldType list) (rec2: coq_FieldType list) =
   let solve_fields ((name1, type1), (name2, type2)) =
@@ -579,13 +626,29 @@ and solve_record_type_equality env equiv_vars unknowns (rec1: coq_FieldType list
   solve_lists env unknowns fields1 fields2 ~f:solve_fields
 
 and solve_params_equality env equiv_vars unknowns ps1 ps2 =
-  let param_eq (MkParameter (opt1, dir1, typ1, _, var1),
-                MkParameter (opt2, dir2, typ2, _, var2)) =
-    if eq_dir dir1 dir2
-    then solve_types env equiv_vars unknowns typ1 typ2
-    else None
+  let param_eq (p1, p2) =
+    match p1, p2 with
+    | Some (MkParameter (opt1, dir1, typ1, _, var1)),
+      Some (MkParameter (opt2, dir2, typ2, _, var2)) ->
+        if eq_dir dir1 dir2
+        then solve_types env equiv_vars unknowns typ1 typ2 
+        else None
+    | Some (MkParameter (opt, dir, typ, _, var)), None
+    | None, Some (MkParameter (opt, dir, typ, _, var)) ->
+        if opt
+        then Some (empty_constraints unknowns)
+        else None
+    | None, None -> failwith "BUG: only one parameter can be None."
   in
-  solve_lists env unknowns ~f:param_eq ps1 ps2
+  let add_opt ps = List.map ~f:(fun p -> Some p) ps in
+  let ps1_len = List.length ps1 in
+  let ps2_len = List.length ps2 in
+  let ps1', ps2' = 
+    if ps1_len < ps2_len
+    then (add_opt ps1) @ (List.init (ps2_len - ps1_len) ~f:(fun _ -> None)), add_opt ps2
+    else add_opt ps1, (add_opt ps2) @ (List.init (ps1_len - ps2_len) ~f:(fun _ -> None))
+  in
+    solve_lists env unknowns ~f:param_eq ps1' ps2'
 
 and solve_control_type_equality env equiv_vars unknowns ctrl1 ctrl2 =
   let MkControlType (type_params1, params1) = ctrl1 in
@@ -644,7 +707,9 @@ and solve_types
     | TypTypeName (BareName tv1), TypTypeName (BareName tv2) ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
-      else Some (single_constraint unknowns tv1 t2)
+      else if List.mem ~equal:P4string.eq unknowns tv1
+      then Some (single_constraint unknowns tv1 t2)
+      else None
     | TypTypeName (BareName tv), typ ->
       if List.mem ~equal:P4string.eq unknowns tv
       then Some (single_constraint unknowns tv typ)
@@ -831,16 +896,16 @@ and type_expression (env: Checker_env.t) (ctx: Typed.coq_ExprContext) (exp_info,
     | NamelessInstantiation { typ; args } ->
       type_nameless_instantiation env ctx exp_info typ args
     | Mask { expr; mask } ->
-      type_mask env ctx expr mask
+      failwith "mask outside of set context"
     | Range { lo; hi } ->
-      type_range env ctx lo hi
+      failwith "range outside of set context"
   in
   MkExpression (exp_info, pre_expr, typ, dir)
 
 and add_cast env (expr: Prog.coq_Expression) new_typ : Prog.coq_Expression =
-  let MkExpression (info, pre_expr, orig_typ, dir) = expr in
+  let orig_typ = type_of_expr expr in
   if cast_ok env orig_typ new_typ
-  then MkExpression (info, ExpCast (new_typ, expr), new_typ, dir)
+  then add_cast_unsafe expr new_typ
   else failwith "Cannot cast."
 
 and cast_if_needed env (expr: Prog.coq_Expression) typ : Prog.coq_Expression =
@@ -918,14 +983,14 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
         sort_fields fields
       | _ -> failwith "can't cast record"
     in
-    let cast_entry (field, entry: coq_FieldType * KeyValue.t) : Prog.coq_KeyValue =
+    let cast_entry (field, entry: coq_FieldType * KeyValue.t) =
       let (field_name, field_type) = field in
       if P4string.neq field_name (snd entry).key
       then failwith "bad names";
       let value_typed: Prog.coq_Expression =
         cast_expression env ctx field_type (snd entry).value
       in
-      MkKeyValue (fst entry, (snd entry).key, value_typed)
+      ((snd entry).key, value_typed)
     in
     let entries_casted =
       List.zip_exn fields entries
@@ -975,30 +1040,9 @@ and cast_expression (env: Checker_env.t) ctx (typ: coq_P4Type) (exp_info, exp: E
                   typ,
                   Directionless)
   | Mask { expr; mask } ->
-    let elt_width =
-      match reduce_type env typ with
-      | TypSet (TypBit width)
-      | TypSet (TypNewType (_, TypBit width))
-      | TypSet (TypEnum (_, Some (TypBit width), _)) ->
-        width
-      | _ -> failwith "must be a set of bit<w>"
-    in
-    let elt_type = TypBit elt_width in
-    let expr_typed = cast_expression env ctx elt_type expr in
-    let mask_typed = cast_expression env ctx elt_type mask in
-    MkExpression (exp_info,
-                  ExpMask (expr_typed, mask_typed),
-                  TypSet (elt_type),
-                  Directionless)
+     failwith "mask casts unimplemented"
   | Range { lo; hi } ->
-    let elt_typ =
-      match reduce_type env typ with
-      | TypSet typ -> typ
-      | _ -> failwith "must be a set"
-    in
-    let lo_typed = cast_expression env ctx elt_typ lo in
-    let hi_typed = cast_expression env ctx elt_typ hi in
-    MkExpression (exp_info, ExpRange (lo_typed, hi_typed), typ, Directionless)
+     failwith "range casts unimplemented"
 
 and translate_direction (dir: Types.Direction.t option) : Typed.direction =
   match dir with
@@ -1012,9 +1056,8 @@ and eval_to_positive_int env info expr =
     expr
     |> type_expression env ExprCxConstant
     |> compile_time_eval_bigint env
-    |> Bigint.to_int_exn
   in
-  if value > 0
+  if Bigint.(value > zero)
   then value
   else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
 
@@ -1049,13 +1092,15 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Types.Type
       |> type_expression env ExprCxConstant
       |> compile_time_eval_bigint env
       |> Bigint.to_int_exn in
-    ret @@ TypArray (hdt, len)
+    ret @@ TypArray (hdt, Bigint.of_int len)
   | Tuple tlist ->
     ret @@ TypTuple (List.map ~f:(translate_type env) tlist)
   | Void -> ret TypVoid
   | DontCare ->
-    let name = gen_wildcard env in
-    TypTypeName (BareName name), [name]
+    if gen_wildcards
+    then let name = gen_wildcard env in
+         TypTypeName (BareName name), [name]
+    else raise_s [%message"not generating wildcards" ~info:(fst typ: Info.t)] 
 
 and translate_type (env: Checker_env.t) (typ: Types.Type.t) : coq_P4Type =
   fst (translate_type' env typ)
@@ -1077,7 +1122,7 @@ and translate_parameters env params =
     MkParameter (is_optional (info, param),
                  translate_direction param.direction,
                  translate_type env param.typ,
-                 default_arg_id,
+                 option_map Bigint.of_int default_arg_id,
                  param.variable)
   in
   List.map ~f:translate_parameter params
@@ -1315,11 +1360,11 @@ and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
   if not @@ is_well_formed_type env typ
   then raise_s [%message "Parameter type is not well-formed." ~typ:(typ:coq_P4Type)];
   if not @@ is_valid_param_type env ctx typ
-  then failwith "Type cannot be passed as a parameter.";
+  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:Info.t)];
   if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
   then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:Info.t)]
 
-and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_info, param : Types.Parameter.t) : coq_P4Parameter * P4string.t list =
+and type_param ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_info, param : Types.Parameter.t) : coq_P4Parameter * P4string.t list =
   let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
   let env = Checker_env.insert_type_vars wildcards env in
   let dir = translate_direction param.direction in
@@ -1328,32 +1373,31 @@ and type_param' ?(gen_wildcards=false) env (ctx: Typed.coq_ParamContext) (param_
   MkParameter (is_optional (param_info, param),
                translate_direction param.direction,
                typ,
-               opt_arg_id,
+               option_map Bigint.of_int opt_arg_id,
                param.variable),
   wildcards
 
-and type_param env ctx param =
-  fst (type_param' env ctx param)
-
-and type_params' ?(gen_wildcards=false) env ctx params =
+and type_params ?(gen_wildcards=false) env ctx params =
   let params, wildcard_lists =
     params
-    |> List.map ~f:(type_param' ~gen_wildcards env ctx)
+    |> List.map ~f:(type_param ~gen_wildcards env ctx)
     |> List.unzip
   in
   params, List.concat wildcard_lists
 
-and type_params env ctx param =
-  fst (type_params' env ctx param)
-
-and type_constructor_param env decl_kind (param: Types.Parameter.t) : coq_P4Parameter =
+and type_constructor_param env decl_kind (param: Types.Parameter.t) : coq_P4Parameter * P4string.t list =
   if (snd param).direction <> None
   then raise_s [%message "Constructor parameters must be directionless"
         ~param:(param: Types.Parameter.t)];
-  type_param env (ParamCxConstructor decl_kind) param
+  type_param env ~gen_wildcards:true (ParamCxConstructor decl_kind) param
 
-and type_constructor_params env ctx params =
-  List.map ~f:(type_constructor_param env ctx) params
+and type_constructor_params env decl_kind params =
+  let params, wildcard_lists =
+    params
+    |> List.map ~f:(type_constructor_param env decl_kind)
+    |> List.unzip
+  in
+  params, List.concat wildcard_lists
 
 and type_int (int: P4int.t) : Prog.coq_ExpressionPreT * coq_P4Type * direction =
   let typ = 
@@ -1424,15 +1468,14 @@ and type_bit_string_access env ctx bits lo hi
     assert (is_numeric typ_hi);
     let val_lo = compile_time_eval_bigint env lo_typed in
     let val_hi = compile_time_eval_bigint env hi_typed in
-    let big_width = Bigint.of_int width in
     (* Bounds checking *)
     assert (Bigint.(<=) Bigint.zero val_lo);
-    assert (Bigint.(<) val_lo big_width);
+    assert (Bigint.(<) val_lo width);
     assert (Bigint.(<=) val_lo val_hi);
-    assert (Bigint.(<) val_hi big_width);
+    assert (Bigint.(<) val_hi width);
     let diff = Bigint.(-) val_hi val_lo |> Bigint.to_int_exn |> (+) 1 in
     ExpBitStringAccess (bits_typed, val_lo, val_hi),
-    TypBit diff,
+    TypBit (Bigint.of_int diff),
     bits_dir
   | typ ->
     failwith "Cannot bitslice this type."
@@ -1450,16 +1493,16 @@ and type_list env ctx values : Prog.coq_ExpressionPreT * coq_P4Type * direction 
   let types = List.map ~f:type_of_expr typed_exprs in
   ExpList typed_exprs, TypList types, Directionless
 
-and type_key_val env ctx ((info, entry): Types.KeyValue.t) : Prog.coq_KeyValue =
-  MkKeyValue (info, entry.key, type_expression env ctx entry.value)
+and type_key_val env ctx ((info, entry): Types.KeyValue.t) =
+  (entry.key, type_expression env ctx entry.value)
 
 and type_record env ctx entries =
   let entries_typed = List.map ~f:(type_key_val env ctx) entries in
   let rec_typed : Prog.coq_ExpressionPreT =
     ExpRecord entries_typed
   in
-  let kv_to_field (kv: Prog.coq_KeyValue) =
-    let MkKeyValue (tags, key, value) = kv in
+  let kv_to_field kv =
+    let (key, value) = kv in
     (key, type_of_expr value)
   in
   let fields = List.map ~f:kv_to_field entries_typed in
@@ -1753,7 +1796,7 @@ and check_binary_op env info (op_info, op) typed_l typed_r: Prog.coq_ExpressionP
         | TypBit l, TypBit r
         | TypInt l, TypBit r
         | TypBit l, TypInt r
-        | TypInt l, TypInt r -> TypBit (l + r)
+        | TypInt l, TypInt r -> TypBit Bigint.(l + r)
         | TypInt _, _
         | TypBit _, _ ->
           raise_mismatch (info_of_expr typed_r) "bit<> or int<>" r_typ
@@ -1802,8 +1845,9 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | t1, TypSet t2 ->
     not explicit &&
     type_equality env [] t1 t2
-  | TypBit 1, TypBool
-  | TypBool, TypBit 1
+  | TypBit b, TypBool
+  | TypBool, TypBit b ->
+     Bigint.(b = one) && explicit
   | TypInt _, TypBit _
   | TypBit _, TypInt _ ->
     explicit
@@ -1874,7 +1918,7 @@ and type_expression_member_builtin env (ctx: Typed.coq_ExprContext) info typ (na
     raise_unfound_member info name.str in
   match typ with
   | TypArray (typ, _) ->
-    let idx_typ = TypBit 32 in
+    let idx_typ = TypBit (Bigint.of_int 32) in
     begin match name.str with
       | "size"
       | "lastIndex" ->
@@ -1978,12 +2022,12 @@ and type_expression_member env ctx expr name =
       end
     | TypSpecializedType (TypExtern extern_name, args) ->
        begin match Checker_env.find_extern_opt (BareName extern_name) env with
-       | Some {type_params; methods} ->
+       | Some {type_params; methods; abst_methods} ->
           let extended_env = Checker_env.insert_types (List.zip_exn type_params args) env in
           let matches (m: Prog.coq_ExternMethod) =
             P4string.eq m.name name
           in
-          begin match List.find ~f:matches methods with
+          begin match List.find ~f:matches (methods @ abst_methods) with
           | Some m -> reduce_type extended_env (TypFunction m.typ)
           | None -> type_expression_member_builtin env ctx (info expr) expr_typ name
           end
@@ -2164,6 +2208,8 @@ and call_ok (ctx: coq_ExprContext) (fn_kind: coq_FunctionKind) : bool =
     | _, FunParser -> false
     | ExprCxApplyBlock, FunControl -> true
     | _, FunControl -> false
+    (* ATTN: Temporary change to allow extern used in the initializers *)
+    | ExprCxMethod, FunExtern -> true
     | ExprCxFunction, FunExtern -> false
     | _, FunExtern -> true
     | ExprCxApplyBlock, FunTable -> true
@@ -2205,13 +2251,13 @@ and type_function_call env ctx call_info func type_args args =
       | _ -> failwith "Mismatch in type arguments."
   in
   let type_params_args =
-    infer_type_arguments env ctx return_type type_params_args params_args type_params_args
+    infer_type_arguments env ctx type_params_args params_args type_params_args
   in
   let env = Checker_env.insert_types type_params_args env in
   let subst_param_arg ((MkParameter (opt, dir, typ, opt_value, var):coq_P4Parameter), arg) =
     let typ = saturate_type env typ in
     let param = MkParameter (opt, dir, typ, opt_value, var) in
-    validate_param env (ctx_of_kind kind) typ dir call_info opt_value;
+    validate_param env (ctx_of_kind kind) typ dir call_info (option_map Bigint.to_int_exn opt_value);
     param, arg
   in
   let params_args' = List.map params_args ~f:subst_param_arg in
@@ -2222,7 +2268,8 @@ and type_function_call env ctx call_info func type_args args =
   let call: Prog.coq_ExpressionPreT = ExpFunctionCall (func_typed, out_type_args, out_args) in
   if call_ok ctx kind
   then call, typ, Directionless
-  else failwith "Call not allowed in this context."
+  else raise_s [%message "Call not allowed in this context." 
+                ~ctx:(ctx: coq_ExprContext) ~kind:(kind: Typed.coq_FunctionKind)] 
 
 and select_constructor_params env info methods args =
   let matching_constructor (proto: Prog.coq_MethodPrototype) =
@@ -2241,7 +2288,11 @@ and select_constructor_params env info methods args =
     Some (match_params_to_args env info params args)
   | _ -> None
 
-and get_decl_type_params (decl : Prog.coq_Declaration) =
+(* Unused; 
+   One thing to note is that DeclExternObject is different from other declarations in that 
+   it does not include wildcards appearing in individual constructors. 
+   Example: Hash in tofino.p4 *)
+  and get_decl_type_params (decl : Prog.coq_Declaration) =
   match decl with
   | DeclExternObject (_, _, type_params, _)
   | DeclParser (_, _, type_params, _, _, _, _)
@@ -2360,7 +2411,7 @@ and resolve_function_overload_by ~f env ctx func : Prog.coq_Expression =
             let params = params_of_fn_type meth.typ in
             P4string.eq meth.name name && f params
           in
-          begin match List.find ~f:works ext.methods with
+          begin match List.find ~f:works (ext.methods @ ext.abst_methods) with
             | Some p -> MkExpression (fst func, prog_member, TypFunction p.typ, Directionless)
             | None -> failwith "couldn't find matching method"
           end
@@ -2437,8 +2488,7 @@ and type_nameless_instantiation env ctx info typ args =
 
 (* Section 8.12.3 *)
 and type_mask env ctx expr mask =
-  let expr_typed = type_expression env ctx expr in
-  let mask_typed = type_expression env ctx mask in
+  let expr_typed, mask_typed = cast_to_same_type env ctx expr mask in
   let res_typ : coq_P4Type =
     match (type_of_expr expr_typed), (type_of_expr mask_typed) with
     | TypBit w1, TypBit w2 when w1 = w2 ->
@@ -2450,14 +2500,12 @@ and type_mask env ctx expr mask =
       TypInteger
     | l_typ, r_typ -> failwith "bad type for mask operation &&&"
   in
-  ExpMask (expr_typed, mask_typed),
-  TypSet res_typ,
-  Directionless
+  Prog.MatchMask (expr_typed, mask_typed),
+  res_typ
 
 (* Section 8.12.4 *)
 and type_range env ctx lo hi = 
-  let lo_typed = type_expression env ctx lo in
-  let hi_typed = type_expression env ctx hi in
+  let lo_typed, hi_typed = cast_to_same_type env ctx lo hi in
   let typ : coq_P4Type =
     match (type_of_expr lo_typed), (type_of_expr hi_typed) with
     | TypBit l, TypBit r when l = r ->
@@ -2467,12 +2515,12 @@ and type_range env ctx lo hi =
     | TypInteger, TypInteger -> TypInteger
     (* TODO: add pretty-printer and [to_string] for Typed module *)
     | TypBit width, hi_typ ->
-      raise_mismatch (info hi) ("bit<" ^ (string_of_int width) ^ ">") hi_typ
+      raise_mismatch (info hi) ("bit<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | TypInt width, hi_typ ->
-      raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
+      raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
-  ExpRange (lo_typed, hi_typed), TypSet typ, Directionless
+  Prog.MatchRange (lo_typed, hi_typed), typ
 
 and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Types.Statement.t) : unit =
   match ctx, snd stmt with
@@ -2588,7 +2636,8 @@ and type_conditional env ctx stmt_info cond true_branch false_branch =
   let expr_ctx = expr_ctxt_of_stmt_ctxt ctx in
   let expr_typed = cast_expression env expr_ctx TypBool cond in
   assert_bool (info cond) (type_of_expr expr_typed) |> ignore;
-  let type' stmt = fst (type_statement env ctx stmt) in
+  let env' = Checker_env.push_scope env in
+  let type' stmt = fst (type_statement env' ctx stmt) in
   let true_typed = type' true_branch in
   let true_type = type_of_stmt true_typed in
   let false_typed = option_map type' false_branch in
@@ -2619,14 +2668,14 @@ and type_statements env ctx statements =
   in
   List.fold_left ~f:fold ~init:(StmUnit, [], env) statements
 
-
 and rev_list_to_block info: Prog.coq_Statement list -> Prog.coq_Block =
   let f block stmt: Prog.coq_Block = BlockCons (stmt, block) in
   let init: Prog.coq_Block = BlockEmpty info in
   List.fold_left ~f ~init
 
 and type_block env ctx stmt_info block =
-  let typ, stmts, env' = type_statements env ctx (snd block).statements in
+  let env' = Checker_env.push_scope env in
+  let typ, stmts, env' = type_statements env' ctx (snd block).statements in
   let block = rev_list_to_block stmt_info stmts in
   MkStatement (stmt_info, StatBlock block, typ), env
 
@@ -2643,7 +2692,8 @@ and type_return env ctx stmt_info expr =
     match ctx with
     | StmtCxApplyBlock
     | StmtCxAction -> TypVoid
-    | StmtCxFunction t -> t
+    | StmtCxFunction t
+    | StmtCxMethod t  -> t
     | StmtCxParserState -> failwith "return in parser state not allowed"
   in
   let (stmt, typ) : Prog.coq_StatementPreT * coq_P4Type =
@@ -2709,6 +2759,17 @@ and type_switch env ctx stmt_info expr cases =
   let cases = List.fold ~init:[] ~f:case_checker cases in
   MkStatement (stmt_info, StatSwitch (expr_typed, cases), StmUnit), env
 
+and init_of_decl (decl: Prog.coq_Declaration) : Prog.coq_Initializer =
+  match decl with
+  | DeclInstantiation (info, typ, args, name, init) ->
+    InitInstantiation (info, typ, args, name, inits_of_decls init)
+  | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+    InitFunction (info, return_type, name, t_params, params_typed, body_typed)
+  | _ -> failwith "BUG: expected DeclInstantiation or DeclFunction."
+
+and inits_of_decls (decls: Prog.coq_Declaration list) : Prog.coq_Initializer list =
+  List.map ~f:init_of_decl decls
+
 and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
   let info, (stmt: Prog.coq_StatementPreT) =
     match decl with
@@ -2717,7 +2778,7 @@ and stmt_of_decl_stmt (decl: Prog.coq_Declaration) : Prog.coq_Statement =
     | DeclVariable (info, typ, name, init) ->
       info, StatVariable (typ, name, init, Prog.noLocator)
     | DeclInstantiation (info, typ, args, name, init) ->
-      info, StatInstantiation (typ, args, name, init)
+      info, StatInstantiation (typ, args, name, inits_of_decls init)
     | _ ->
       Info.dummy, StatEmpty
   in
@@ -2745,10 +2806,11 @@ and type_constant env ctx decl_info annotations typ name expr : Prog.coq_Declara
   let typed_expr = cast_expression env expr_ctx expected_typ expr in
   match compile_time_eval_expr env typed_expr with
   | Some value ->
-    DeclConstant (decl_info, translate_type env typ, name, value),
+    let exp = val_to_literal value in
+    DeclConstant (decl_info, translate_type env typ, name, exp),
     env
     |> Checker_env.insert_dir_type_of (BareName name) expected_typ Directionless
-    |> Checker_env.insert_const (BareName name) (ValBase value)
+    |> Checker_env.insert_const (BareName name) value
   | None ->
     failwith "expression not compile-time-known"
 
@@ -2757,12 +2819,73 @@ and insert_params (env: Checker_env.t) (params: Types.Parameter.t list) : Checke
   let insert_param env (_, p) =
     let typ = translate_type env p.typ in
     let dir = translate_direction p.direction in
-    Checker_env.insert_dir_type_of (BareName p.variable) typ dir env
+    Checker_env.insert_dir_type_of ~shadow:true (BareName p.variable) typ dir env
   in
   List.fold_left ~f:insert_param ~init:env params
 
+and type_initializer env env_top ctx (init: Types.Statement.t) : Prog.coq_Declaration * Checker_env.t  * Checker_env.t =
+  begin match snd init with
+  | DeclarationStatement { decl } ->
+    begin match snd decl with
+    | Function {return; name; type_params; params; body} ->
+      check_param_shadowing params [];
+      let ret_type = translate_type env_top return in
+      let ctx: coq_StmtContext = StmtCxMethod ret_type in
+      let typed_func, _ = type_function env_top ctx (fst decl) return name type_params params body in
+      begin match typed_func with
+      (* @synchronous allows access to other instantiations but not function declarations *)
+      | DeclFunction _ ->
+        typed_func, env, env_top
+      | _ -> failwith "BUG: expected DeclFunction."
+      end
+    (* More restrictions on instantiations? Variable declarations allowed? *)
+    | Instantiation { annotations; typ; args; name; init } ->
+      let typed_instance, instance_type =
+        type_instantiation env ctx (fst decl) annotations typ args name init in
+      begin match typed_instance with
+      | DeclInstantiation (info, typ, args, name, init_typed) ->
+        typed_instance,
+        Checker_env.insert_type_of (BareName name) instance_type env,
+        Checker_env.insert_type_of (BareName name) instance_type env_top
+      | _ -> failwith "BUG: expected DeclInstantiation."
+      end
+    | _ -> failwith "Unexpected declarations in the list of initializers."
+    end
+  | _ -> failwith "Unexpected statement as the initializer."
+  end
+
+and type_initializers env ctx instance_type (inits: Types.Statement.t list): Prog.coq_Declaration list * int =
+  let env_top = 
+    Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
+  let extern_name, args =
+    match instance_type with
+    | TypExtern extern_name -> extern_name, []
+    | TypSpecializedType (TypExtern extern_name, args) -> extern_name, args
+    | _ -> raise_s [%message"Initializers are allowed only in the instantiation of an extern object."
+                    ~typ:(instance_type : Typed.coq_P4Type)]
+  in let ext = Checker_env.find_extern (BareName extern_name) env in 
+  let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
+  let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
+  let check_initializer (inits_typed, num_absts, env, env_top) decl =
+    let init_typed, env', env_top' = type_initializer env env_top ctx decl in
+    let num_absts' = 
+    begin match init_typed with
+    | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+      begin match List.find ~f:(fun decl -> P4string.eq name (fst decl)) decls_abst with
+      | Some (name, decl_type) ->
+        let init_type = TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) in
+          assert_type_equality env' name.tags decl_type init_type
+      | None -> ()
+      end;
+      num_absts + 1
+    | _ -> num_absts
+    end
+    in inits_typed @ [init_typed], num_absts', env', env_top'
+  in let inits_typed, num_absts, _, _ = List.fold_left ~f:check_initializer ~init:([], 0, env, env_top) inits in
+     inits_typed, num_absts
+
 (* Section 10.3 *)
-and type_instantiation env ctx info annotations typ args name : Prog.coq_Declaration * Checker_env.t =
+and type_instantiation env ctx info annotations typ args name init_block : Prog.coq_Declaration * coq_P4Type =
   let expr_ctx = expr_ctxt_of_decl_ctxt ctx in
   let instance_typed = type_nameless_instantiation env expr_ctx info typ args in
   let instance_expr, instance_type, instance_dir = instance_typed in
@@ -2773,10 +2896,22 @@ and type_instantiation env ctx info annotations typ args name : Prog.coq_Declara
       failwith "parsers cannot be instantiated in the top level scope"
     | _ -> ()
   end;
+  let inits_typed, num_absts =
+    begin match init_block with
+      | Some init_block -> type_initializers env ctx instance_type (snd init_block).statements
+      | None -> [], 0
+    end in
+  begin match instance_type with
+  | TypExtern extern_name
+  | TypSpecializedType (TypExtern extern_name, _) ->
+    let ext = Checker_env.find_extern (BareName extern_name) env in 
+    if List.length ext.abst_methods <> num_absts
+    then failwith "Abstract methods are not fully initialized during instantiation."
+  | _ -> ()
+  end;
   match instance_expr with
   | ExpNamelessInstantiation (typ, args) ->
-    DeclInstantiation (info, typ, args, name, None),
-    Checker_env.insert_type_of (BareName name) instance_type env
+    DeclInstantiation (info, typ, args, name, inits_typed), instance_type
   | _ -> failwith "BUG: expected NamelessInstantiation"
 
 and infer_constructor_type_args env ctx type_params wildcard_params params_args type_args =
@@ -2791,7 +2926,7 @@ and infer_constructor_type_args env ctx type_params wildcard_params params_args 
   let full_params_args =
     type_params_args @ List.map ~f:(fun v -> v, None) wildcard_params
   in
-  infer_type_arguments env ctx TypVoid full_params_args params_args []
+  infer_type_arguments env ctx full_params_args params_args []
 
 (* Terrible hack - Ryan *)
 and check_match_type_eq env info set_type element_type =
@@ -2805,16 +2940,35 @@ and check_match_type_eq env info set_type element_type =
     | _ ->
       assert_type_equality env info set_type (TypSet element_type)
 
+and check_set_expression env ctx (info, m: Types.Expression.t) (expected_type: coq_P4Type) : Prog.coq_MatchPreT * coq_P4Type =
+  match m with
+  | Mask {expr; mask} ->
+     let m_typed, typ = type_mask env ctx expr mask in
+     m_typed, expected_type
+  | Range {lo; hi} ->
+     let m_typed, typ = type_range env ctx lo hi in
+     m_typed, expected_type
+  | e ->
+     let e_typed = type_expression env ctx (info, e) in
+     let e_typ = type_of_expr e_typed in
+     if type_equality env [] e_typ expected_type
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if cast_ok env e_typ expected_type
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if type_equality env [] e_typ (TypSet expected_type)
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else if cast_ok env e_typ (TypSet expected_type)
+     then MatchCast (TypSet expected_type, e_typed), expected_type
+     else failwith "set expression ill-typed"
+
 and check_match env ctx (info, m: Types.Match.t) (expected_type: coq_P4Type) : Prog.coq_Match =
   match m with
   | Default
   | DontCare ->
-    MkMatch (info, MatchDontCare, TypSet expected_type)
+    MkMatch (info, MatchDontCare, expected_type)
   | Expression { expr } ->
-    let expr_typed = cast_expression env ctx (TypSet expected_type) expr in
-    let typ = type_of_expr expr_typed in
-    check_match_type_eq env info typ expected_type;
-    MkMatch (info, MatchExpression expr_typed, TypSet typ)
+    let m_typed, typ = check_set_expression env ctx expr expected_type in
+    MkMatch (info, m_typed, typ)
 
 and check_match_product env ctx (ms: Types.Match.t list) (expected_types: coq_P4Type list) =
   match ms, expected_types with
@@ -2848,6 +3002,7 @@ and type_transition env ctx state_names transition : Prog.coq_ParserTransition =
     ParserSelect (trans_info, exprs_typed, cases_typed)
 
 and type_parser_state env state_names (state: Parser.state) : Prog.coq_ParserState =
+  let env = Checker_env.push_scope env in
   let (_, stmts_typed, env) = type_statements env StmtCxParserState (snd state).statements in
   let transition_typed = type_transition env ExprCxParserState state_names (snd state).transition in
   MkParserState (fst state, (snd state).name, stmts_typed, transition_typed)
@@ -2865,8 +3020,9 @@ and check_state_names names =
 
 and open_parser_scope env ctx params constructor_params locals states =
   let open Parser in
-  let constructor_params_typed = type_constructor_params env ctx constructor_params in
-  let params_typed = type_params env (ParamCxRuntime ctx) params in
+  let env = Checker_env.push_scope env in
+  let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
+  let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
   let locals_typed, env = type_declarations env DeclCxNested locals in
@@ -2902,8 +3058,9 @@ and type_parser env info name annotations type_params params constructor_params 
   parser_typed, env
 
 and open_control_scope env ctx params constructor_params locals =
-  let params_typed = type_params env (ParamCxRuntime ctx) params in
-  let constructor_params_typed = type_constructor_params env ctx constructor_params in
+  let env = Checker_env.push_scope env in
+  let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
+  let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
   let env = insert_params env constructor_params in
   let env = insert_params env params in
   let locals_typed, env = type_declarations env DeclCxNested locals in
@@ -2911,6 +3068,15 @@ and open_control_scope env ctx params constructor_params locals =
 
 (* Section 13 *)
 and type_control env info name annotations type_params params constructor_params locals apply =
+  (*
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None -> ()
+  | Some (t, _) ->
+     match saturate_type env t with
+     | TypConstructor (_, _, _, TypControl _) -> ()
+     | bad_type -> raise_s [%message "cannot shadow object with control" ~bad_type:(bad_type: coq_P4Type)]
+  end;
+   *)
   if List.length type_params > 0
   then failwith "Control declarations cannot have type parameters";
   let inner_env, params_typed, constructor_params_typed, locals_typed =
@@ -2935,7 +3101,7 @@ and type_control env info name annotations type_params params constructor_params
     Typed.MkControlType ([], params_typed)
   in
   let ctor_type = Typed.TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
-  let env = Checker_env.insert_type_of (BareName name) ctor_type env in
+  let env = Checker_env.insert_type_of ~shadow:true (BareName name) ctor_type env in
   control, env
 
 (* Section 9
@@ -2948,15 +3114,17 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
 *)
-and type_function env (ctx: Typed.coq_StmtContext) info return name type_params params body =
+and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * coq_P4Type =
+  let env = Checker_env.push_scope env in
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
+    | StmtCxMethod _ -> ParamCxDeclMethod, FunExtern
     | StmtCxFunction _ -> ParamCxDeclFunction, FunFunction
     | StmtCxAction -> ParamCxDeclAction, FunAction
     | _ -> failwith "bad context for function"
   in
-  let body_env = Checker_env.insert_type_vars type_params env in
-  let params_typed = List.map ~f:(type_param body_env (ParamCxRuntime paramctx)) params in
+  let body_env = Checker_env.insert_type_vars t_params env in
+  let params_typed, _ = type_params body_env (ParamCxRuntime paramctx) params in
   let return_type = return |> translate_type env in
   let body_env = insert_params body_env params in
   let body_stmt_typed, _ = type_block body_env ctx (fst body) body in
@@ -2970,30 +3138,33 @@ and type_function env (ctx: Typed.coq_StmtContext) info return name type_params 
     | _ ->
       failwith "bug: expected BlockStatement"
   in
-  let funtype = MkFunctionType (type_params, params_typed, kind, return_type) in
-  let env = Checker_env.insert_type_of (BareName name) (TypFunction funtype) env in
+  let funtype =
+    MkFunctionType (t_params,
+                    params_typed,
+                    kind,
+                    return_type) in
   let fn_typed : Prog.coq_Declaration =
     DeclFunction (info,
                   return_type,
                   name,
-                  type_params,
+                  t_params,
                   params_typed,
-                  body_typed)
-  in
-  fn_typed, env
+                  body_typed) in
+  fn_typed, TypFunction funtype
 
 (* Section 7.2.9.1 *)
-and type_extern_function env info annotations return name type_params params =
+and type_extern_function env info annotations return name t_params params =
   let return = return |> translate_type env in
-  let env' = Checker_env.insert_type_vars type_params env in
-  let params_typed = List.map ~f:(type_param env' (ParamCxRuntime ParamCxDeclFunction)) params in
+  let env' = Checker_env.insert_type_vars t_params env in
+  let params_typed, wildcards =
+    type_params ~gen_wildcards:true env' (ParamCxRuntime ParamCxDeclMethod) params in
   let typ: coq_FunctionType =
-    MkFunctionType (type_params, params_typed, FunExtern, return)
+    MkFunctionType (t_params @ wildcards, params_typed, FunExtern, return)
   in
   let fn_typed: Prog.coq_Declaration =
-    DeclExternFunction (info, return, name, type_params, params_typed)
+    DeclExternFunction (info, return, name, t_params @ wildcards, params_typed)
   in
-  fn_typed, Checker_env.insert_type_of (BareName name) (TypFunction typ) env
+  fn_typed, Checker_env.insert_type_of ~shadow:true (BareName name) (TypFunction typ) env
 
 and is_variable_type env (typ: coq_P4Type) =
   let typ = saturate_type env typ in
@@ -3057,13 +3228,14 @@ and type_variable env ctx info annotations typ name init =
   let var_typed : Prog.coq_Declaration =
     DeclVariable (info, expected_typ, name, init_typed)
   in
-  let env = Checker_env.insert_dir_type_of (BareName name) expected_typ InOut env in
+  let env = Checker_env.insert_dir_type_of ~shadow:true (BareName name) expected_typ InOut env in
   var_typed, env
 
 (* Section 12.11 *)
 and type_value_set env ctx info annotations typ size name =
   let element_type = translate_type env typ in
   let size_typed = type_expression env ExprCxConstant size in
+  let size_typed = compile_time_eval_bigint env size_typed in
   let env = Checker_env.insert_type_of (BareName name) (TypSet element_type) env in
   let value_set : Prog.coq_Declaration =
     DeclValueSet (info, element_type, size_typed, name)
@@ -3094,8 +3266,14 @@ and type_action env info annotations name params body =
       action, action_type
     | _ -> failwith "expected function declaration"
   in
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None
+  | Some (TypAction _, _) -> ()
+  | Some (other_type, _) ->
+     raise_s [%message "cannot shadow with action" ~other_type:(other_type:coq_P4Type)]
+  end;
   action_typed,
-  Checker_env.insert_type_of (BareName name) action_type env
+  Checker_env.insert_type_of ~shadow:true (BareName name) action_type env
 
 (* Section 13.2 *)
 and type_table env ctx info annotations name properties : Prog.coq_Declaration * Checker_env.t =
@@ -3180,8 +3358,7 @@ and type_table_entries env ctx entries key_typs action_map =
 
 (* syntactic equality of expressions *)
 and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool =
-  let key_val_eq ((MkKeyValue (_, k1, v1)): Prog.coq_KeyValue)
-                 ((MkKeyValue (_, k2, v2)): Prog.coq_KeyValue) =
+  let key_val_eq ((k1, v1)) ((k2, v2)) =
     P4string.eq k1 k2 && expr_eq env v1 v2
   in
   let e1 = preexpr_of_expr expr1 in
@@ -3235,10 +3412,6 @@ and expr_eq env (expr1: Prog.coq_Expression) (expr2: Prog.coq_Expression) : bool
   | ExpNamelessInstantiation (t1, e1),
     ExpNamelessInstantiation (t2, e2)
     -> List.equal (expr_eq env) e1 e2
-  | ExpMask (e1, m1), ExpMask (e2, m2)
-    -> expr_eq env e1 e2 && expr_eq env m1 m2
-  | ExpRange (l1, h1), ExpRange (l2, h2) 
-    -> expr_eq env l1 l2 && expr_eq env h1 h2
   | _ -> false
 
 and type_default_action
@@ -3379,8 +3552,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
     let _ = assert_numeric (fst value) (type_of_expr value_typed) in
     let size = compile_time_eval_expr env value_typed in
     begin match size with
-      | Some (ValBaseInteger size) ->
-        let size: P4int.t = {tags=fst value; value=size; width_signed=None} in
+      | Some (ValInteger size) ->
         type_table' env ctx info annotations
           name
           key_types
@@ -3452,7 +3624,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                  size,
                  [])
     in
-    table_typed, Checker_env.insert_type_of (BareName name) table_typ env
+    table_typed, Checker_env.insert_type_of ~shadow:true (BareName name) table_typ env
 
 (* Section 7.2.2 *)
 and type_header env info annotations name fields =
@@ -3525,7 +3697,7 @@ and type_error env info members : Prog.coq_Declaration * Checker_env.t =
     in
     env
     |> Checker_env.insert_type_of name TypError
-    |> Checker_env.insert_const name (ValBase (ValBaseError e))
+    |> Checker_env.insert_const name (ValError e)
   in
   let env = List.fold_left ~f:add_err ~init:env members in
   DeclError (info, members), env
@@ -3536,7 +3708,7 @@ and type_match_kind env info members : Prog.coq_Declaration * Checker_env.t =
     let name: P4name.t = QualifiedName ([], e) in
     env
     |> Checker_env.insert_type_of name TypMatchKind
-    |> Checker_env.insert_const name (ValBase (ValBaseMatchKind e))
+    |> Checker_env.insert_const name (ValMatchKind e)
   in
   let env = List.fold_left ~f:add_mk ~init:env members in
   DeclMatchKind (info, members), env
@@ -3550,8 +3722,7 @@ and type_enum env info annotations (name: P4string.t) members : Prog.coq_Declara
     let member_name: P4name.t =
       QualifiedName ([], {tags = member.tags;
                           str = name.str ^ "." ^ member.str}) in
-    let enum_val: Prog.coq_Value =
-      ValBase (ValBaseEnumField (name, member)) in
+    let enum_val: Prog.coq_Value = ValEnumField (name, member) in
     env
     |> Checker_env.insert_type_of member_name enum_typ
     |> Checker_env.insert_const member_name enum_val
@@ -3586,8 +3757,7 @@ and type_serializable_enum env ctx info annotations underlying_type
     let expr_typed = cast_expression env expr_ctx underlying_type expr in
     match compile_time_eval_expr env expr_typed with
     | Some value ->
-      let enum_val: Prog.coq_Value =
-        ValBase (ValBaseEnumField (name, member)) in
+      let enum_val: Prog.coq_Value = ValEnumField (name, member) in
       env
       |> Checker_env.insert_type_of member_name enum_type
       |> Checker_env.insert_const member_name
@@ -3600,62 +3770,70 @@ and type_serializable_enum env ctx info annotations underlying_type
 
 and type_extern_object env info annotations obj_name t_params methods =
   let extern_type = TypExtern obj_name in
-  let extern_methods: Prog.coq_ExternMethods = {type_params = t_params; methods = []} in
+  let extern_methods: Prog.coq_ExternMethods = {type_params = t_params; methods = []; abst_methods = []} in
   let env' = env
              |> Checker_env.insert_type_vars t_params
              |> Checker_env.insert_type (BareName obj_name) extern_type
              |> Checker_env.insert_extern (BareName obj_name) extern_methods
   in
-  let consume_method (constructors, methods) m =
+  let consume_method (constructors, cstr_wildcards, methods) m =
     match snd m with
     | MethodPrototype.Constructor { annotations; name = cname; params } ->
-       if P4string.neq cname obj_name then failwith "Constructor name and type name disagree";
-       let params_typed = type_constructor_params env' ParamCxDeclMethod params in
-       let constructor_typed: Prog.coq_MethodPrototype =
-         ProtoConstructor (info, cname, params_typed)
-       in
-       (constructor_typed :: constructors, methods)
+      if P4string.neq cname obj_name then failwith "Constructor name and type name disagree";
+      let params_typed, param_wildcards = 
+        type_constructor_params env' ParamCxDeclMethod params in
+      let constructor_typed: Prog.coq_MethodPrototype =
+        ProtoConstructor (info, cname, params_typed)
+      in
+      (constructor_typed :: constructors, param_wildcards::cstr_wildcards, methods)
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }
     | MethodPrototype.AbstractMethod { annotations; return; name; type_params = t_params; params } ->
       if P4string.eq name obj_name
       then raise_s [%message "extern method must have different name from extern"
             ~m:(m: MethodPrototype.t)];
-      let method_type_params = t_params in
-      let method_type_params' = t_params in
-      let env' = Checker_env.insert_type_vars method_type_params' env' in
-      let params_typed = type_params env' (ParamCxRuntime ParamCxDeclMethod) params in
+      let env' = Checker_env.insert_type_vars t_params env' in
+      let params_typed, param_wildcards =
+        type_params ~gen_wildcards:true env' (ParamCxRuntime ParamCxDeclMethod) params in
       let return_typed = translate_type env' return in
       let method_typed: Prog.coq_MethodPrototype =
         match snd m with
         | Method _ ->
-          ProtoMethod (info, return_typed, name, method_type_params, params_typed)
+          ProtoMethod (info, return_typed, name, t_params @ param_wildcards, params_typed)
         | AbstractMethod _ ->
-          ProtoAbstractMethod (info, return_typed, name, method_type_params, params_typed)
+          ProtoAbstractMethod (info, return_typed, name, t_params @ param_wildcards, params_typed)
         | _ -> failwith "bug"
       in
-      (constructors, method_typed :: methods)
+      (constructors, cstr_wildcards, method_typed :: methods)
   in
-  let (cs, ms) = List.fold_left ~f:consume_method ~init:([], []) methods in
+  let (cs, cws, ms) = List.fold_left ~f:consume_method ~init:([], [], []) methods in
   let extern_decl: Prog.coq_Declaration =
     DeclExternObject (info, obj_name, t_params, cs @ ms) in
+  let is_abst_method (m: Prog.coq_MethodPrototype) = 
+    match m with ProtoAbstractMethod _ -> true | _ -> false in
   let extern_methods: Prog.coq_ExternMethods =
     { type_params = t_params;
-      methods = List.map ~f:(method_prototype_to_extern_method obj_name) ms }
+      methods = List.map ~f:(method_prototype_to_extern_method obj_name) (List.filter ~f:(fun m -> not (is_abst_method m)) ms);
+      abst_methods = List.map ~f:(method_prototype_to_extern_method obj_name) (List.filter ~f:is_abst_method ms) }
   in
+  let cs_ws = List.zip_exn cs cws in
   let extern_ctors =
-    List.map cs ~f:(function
-        | ProtoConstructor (_, cname, params_typed) ->
+    List.map cs_ws ~f:(function
+        | ProtoConstructor (_, cname, params_typed), ws ->
            if t_params <> []
            then let generic_args = List.map t_params ~f:(fun ty -> TypTypeName (BareName ty)) in
-                TypConstructor (t_params, [], params_typed,
+                TypConstructor (t_params, ws, params_typed,
                                 TypSpecializedType (extern_type, generic_args))
-           else TypConstructor (t_params, [], params_typed, extern_type)
+           else TypConstructor (t_params, ws, params_typed, extern_type)
         | _ -> failwith "bug: expected constructor")
   in
   let env = Checker_env.insert_type (BareName obj_name) extern_type env in
   let env = Checker_env.insert_extern (BareName obj_name) extern_methods env in
   let env = List.fold extern_ctors ~init:env
-              ~f:(fun env t -> Checker_env.insert_type_of (BareName obj_name) t env)
+              ~f:(fun env t -> Checker_env.insert_type_of
+                                 ~shadow:true
+                                 (BareName obj_name)
+                                 t
+                                 env)
   in
   extern_decl, env
 
@@ -3707,26 +3885,38 @@ and type_new_type env ctx info annotations name typ_or_decl =
 (* Section 7.2.11.2 *)
 and type_control_type env info annotations name t_params params =
   let body_env = Checker_env.insert_type_vars t_params env in
-  let params_typed = type_params body_env (ParamCxRuntime ParamCxDeclControl) params in
+  let params_typed, wildcards =
+    type_params ~gen_wildcards:true body_env (ParamCxRuntime ParamCxDeclControl) params in
   let ctrl_decl: Prog.coq_Declaration =
-    DeclControlType (info, name, t_params, params_typed) in
-  let ctrl_typ = TypControl (MkControlType (t_params, params_typed)) in
+    DeclControlType (info, name, t_params @ wildcards, params_typed) in
+  let ctrl_typ = TypControl (MkControlType (t_params @ wildcards, params_typed)) in
   ctrl_decl, Checker_env.insert_type (BareName name) ctrl_typ env
 
 (* Section 7.2.11 *)
 and type_parser_type env info annotations name t_params params =
   let body_env = Checker_env.insert_type_vars t_params env in
-  let params_typed = type_params body_env (ParamCxRuntime ParamCxDeclParser) params in
+  let params_typed, wildcards =
+    type_params ~gen_wildcards:true body_env (ParamCxRuntime ParamCxDeclParser) params in
   let parser_decl: Prog.coq_Declaration =
-    DeclParserType (info, name, t_params, params_typed) in
-  let parser_typ = TypParser (MkControlType (t_params, params_typed)) in
+    DeclParserType (info, name, t_params @ wildcards, params_typed) in
+  let parser_typ = TypParser (MkControlType (t_params @ wildcards, params_typed)) in
   parser_decl, Checker_env.insert_type (BareName name) parser_typ env
 
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =
+  begin match Checker_env.resolve_type_name_opt (BareName name) env with
+  | None
+  | Some (TypPackage _) -> ()
+  | Some other_type -> failwith "cannot shadow object with package"
+  end;
+  begin match Checker_env.find_type_of_opt (BareName name) env with
+  | None
+  | Some (TypConstructor (_, _, _, TypPackage _), _) -> ()
+  | Some other_type -> failwith "cannot shadow object with package constructor"
+  end;
   let body_env = Checker_env.insert_type_vars t_params env in
   let params_typed, wildcard_params =
-    type_params' ~gen_wildcards:true body_env (ParamCxConstructor ParamCxDeclPackage) params in
+    type_params ~gen_wildcards:true body_env (ParamCxConstructor ParamCxDeclPackage) params in
   let pkg_decl: Prog.coq_Declaration =
     DeclPackageType (info, name, t_params, params_typed)
   in
@@ -3735,8 +3925,8 @@ and type_package_type env info annotations name t_params params =
   let ctor_typ = TypConstructor (t_params, wildcard_params, params_typed, ret) in
   let env' =
     env
-    |> Checker_env.insert_type_of (BareName name) ctor_typ
-    |> Checker_env.insert_type (BareName name) pkg_typ
+    |> Checker_env.insert_type_of ~shadow:true (BareName name) ctor_typ
+    |> Checker_env.insert_type ~shadow:true (BareName name) pkg_typ
   in
   pkg_decl, env'
 
@@ -3756,10 +3946,10 @@ and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.De
   | Constant { annotations; typ; name; value } ->
     type_constant env ctx (fst decl) annotations typ name value
   | Instantiation { annotations; typ; args; name; init } ->
-    begin match init with
-      | Some init -> failwith "initializer block in instantiation unsupported"
-      | None -> type_instantiation env ctx (fst decl) annotations typ args name
-    end
+    let decl_typed, instance_type =
+      type_instantiation env ctx (fst decl) annotations typ args name init
+    in
+    decl_typed, Checker_env.insert_type_of (BareName name) instance_type env
   | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
     check_param_shadowing params constructor_params;
     type_parser env (fst decl) name annotations type_params params constructor_params locals states
@@ -3770,7 +3960,10 @@ and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Types.De
     check_param_shadowing params [];
     let ret_type = translate_type env return in
     let ctx: coq_StmtContext = StmtCxFunction ret_type in
-    type_function env ctx (fst decl) return name type_params params body
+    let decl_typed, fn_type =
+      type_function env ctx (fst decl) return name type_params params body
+    in
+    decl_typed, Checker_env.insert_type_of (BareName name) fn_type env
   | Action { annotations; name; params; body } ->
     check_param_shadowing params [];
     type_action env (fst decl) annotations name params body

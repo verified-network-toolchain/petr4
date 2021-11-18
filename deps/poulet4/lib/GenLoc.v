@@ -1,9 +1,9 @@
 Require Import Poulet4.Syntax.
-Require Import Typed.
-Require Import SyntaxUtil.
-Require Import SimplExpr.
-Require Import Monads.Monad.
-Require Import Monads.State.
+Require Import Poulet4.Typed.
+Require Import Poulet4.SyntaxUtil.
+Require Import Poulet4.SimplExpr.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.State.
 Require Import Coq.Strings.String.
 Require Import Coq.Strings.Ascii.
 Require Import Coq.NArith.NArith.
@@ -125,7 +125,7 @@ Section Transformer.
       let value' := map (transform_expr e) value in
       MkExpression tags (ExpList value') typ dir
     | ExpRecord entries =>
-      let entries' := map (transform_keyvalue e) entries in
+      let entries' := map (fun '(k, v) => (k, transform_expr e v)) entries in
       MkExpression tags (ExpRecord entries') typ dir
     | ExpUnaryOp op arg =>
       let arg' := transform_expr e arg in
@@ -157,23 +157,10 @@ Section Transformer.
       let args := map (transform_expr e) args in
       MkExpression tags (ExpNamelessInstantiation typ' args) typ dir
     | ExpDontCare => MkExpression tags ExpDontCare typ dir
-    | ExpMask expr mask =>
-      let expr' := transform_expr e expr in
-      let mask' := transform_expr e mask in
-      MkExpression tags (ExpMask expr' mask') typ dir
-    | ExpRange lo hi =>
-      let lo' := transform_expr e lo in
-      let hi' := transform_expr e hi in
-      MkExpression tags (ExpRange lo' hi') typ dir
     end
   with transform_expr (e: env) (expr: @Expression tags_t): @Expression tags_t :=
     match expr with
     | MkExpression tags expr typ dir => transform_ept e tags expr typ dir
-    end
-  with transform_keyvalue (e: env) (kv: @KeyValue tags_t): @KeyValue tags_t :=
-    match kv with
-    | MkKeyValue tags key value =>
-        MkKeyValue tags key (transform_expr e value)
     end.
 
   Definition transform_exprs (e: env) (exprs: list (@Expression tags_t)): list (@Expression tags_t) :=
@@ -232,13 +219,9 @@ Section Transformer.
         let e' := IdentMap.set name loc e in
         mret (MkStatement tags (StatVariable typ' name init' loc) typ, e')
       | StatInstantiation typ' args name init =>
+        (* StatInstantiation is unsupported. *)
         let args' := transform_exprs e args in
-        let* init' :=
-          match init with
-          | Some init => let* init' := transform_blk e ns init in mret (Some init')
-          | None => mret None
-          end in
-        mret (MkStatement tags (StatInstantiation typ' args' name init') typ, e)
+        mret (MkStatement tags (StatInstantiation typ' args' name []) typ, e)
       end
     with transform_stmt (e: env) (ns: list P4String) (stmt: @Statement tags_t):
            monad (@Statement tags_t * env) :=
@@ -312,9 +295,17 @@ Section Transformer.
     | MkMatch tags expr typ =>
       match expr with
       | MatchDontCare => mt
-      | MatchExpression expr =>
+      | MatchMask expr mask =>
         let expr' := transform_expr e expr in
-        MkMatch tags (MatchExpression expr') typ
+        let mask' := transform_expr e mask in
+        MkMatch tags (MatchMask expr' mask') typ
+      | MatchRange lo hi =>
+        let lo' := transform_expr e lo in
+        let hi' := transform_expr e hi in
+        MkMatch tags (MatchRange lo' hi') typ
+      | MatchCast typ' expr =>
+        let expr' := transform_expr e expr in
+        MkMatch tags (MatchCast typ' expr') typ
       end
     end.
 
@@ -358,7 +349,7 @@ Section Transformer.
       MkTableProperty tags const name value'
     end.
 
-  (* Transform declarations except parsers and controls. *)
+  (* Transform declarations except parsers, controls and instantiations. *)
   Definition transform_decl_base (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
     match decl with
@@ -367,11 +358,6 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (DeclConstant tags typ name value, e')
-    | DeclInstantiation tags typ args name init =>
-      let* _ := use name in
-      let loc := LCurScope [name] in
-      let e' := IdentMap.set name loc e in
-      mret (decl, e')
     | DeclFunction tags ret name type_params params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] params in
@@ -394,11 +380,10 @@ Section Transformer.
       let e' := IdentMap.set name loc e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
-      let size' := transform_expr e size in
       let* _ := use name in
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
-      mret (DeclValueSet tags typ size' name, e')
+      mret (DeclValueSet tags typ size name, e')
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
         let* e' := declare_params LCurScope e [name] data_params in
@@ -437,14 +422,27 @@ Section Transformer.
       mret (decl' :: decls0', e'')
     end.
 
-  Definition transform_decl (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
+  Fixpoint transform_decl (LCurScope: list P4String -> @Locator tags_t) (e: env) (decl: @Declaration tags_t):
       monad (@Declaration tags_t * env) :=
+    let transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls : list (@Declaration tags_t)):
+        monad (list (@Declaration tags_t) * env) :=
+      Utils.list_rec
+        (fun _ => env -> monad (@Declaration tags_t * env))
+        (fun _ => env -> monad (list (@Declaration tags_t) * env))
+        (fun e => mret (nil, e))
+        (fun decl decls' res_decl res_decls' e =>
+          let* (decl', e') := res_decl e in
+          let* (decls'', e'') := res_decls' e' in
+          mret (decl' :: decls'', e''))
+        (fun decl e => transform_decl LCurScope e decl)
+        decls
+        e in
     match decl with
     | DeclParser tags name type_params params cparams locals states =>
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in
         let* e'' := declare_params LInstance e' nil cparams in
-        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let* (locals', e''') := transform_decls LInstance e'' locals in
         let used_list := concat
               (map (fun ps => summarize_blk (list_statement_to_block default_tag (get_parser_state_statements ps))) states) in
         let* _ := put_state (fun l => used_list ++ l) in
@@ -459,7 +457,7 @@ Section Transformer.
       let inner_scope_monad := (
         let* e' := declare_params LInstance e nil params in
         let* e'' := declare_params LInstance e' nil cparams in
-        let* (locals', e''') := transform_decls_base LInstance e'' locals in
+        let* (locals', e''') := transform_decls LInstance e'' locals in
         (* If there is a direct application in the apply block, then there will not be a definition with
           the same name in local definitions because of shadowing. So there will not be any conflict. *)
         let used_list := summarize_blk apply in
@@ -471,16 +469,22 @@ Section Transformer.
       let loc := LCurScope [name] in
       let e' := IdentMap.set name loc e in
       mret (DeclControl tags name type_params params cparams locals' apply', e')
+    | DeclInstantiation tags typ args name init =>
+      let* (init', _) := transform_decls LCurScope e init in
+      let* _ := use name in
+      let loc := LCurScope [name] in
+      let e' := IdentMap.set name loc e in
+      mret (DeclInstantiation tags typ args name init', e')
     | _ => transform_decl_base LCurScope e decl
     end.
 
-  Fixpoint transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)):
+  Fixpoint transform_decls (LCurScope: list P4String -> @Locator tags_t) (e: env) (decls: list (@Declaration tags_t)) :
       monad (list (@Declaration tags_t) * env) :=
     match decls with
     | nil => mret (nil, e)
     | decl :: decls' =>
       let* (decl', e') := transform_decl LCurScope e decl in
-      let* (decls'', e'') := transform_decls LCurScope e decls' in
+      let* (decls'', e'') := transform_decls LCurScope e' decls' in
       mret (decl' :: decls'', e'')
     end.
 

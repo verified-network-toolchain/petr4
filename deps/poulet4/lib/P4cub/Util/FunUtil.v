@@ -62,6 +62,12 @@ Definition uncurry4 {A B C D E : Type}
   f a b c d.
 (**[]*)
 
+Definition triple_1 {A B C : Type}  '((a,_,_) : A * B * C) : A := a.
+
+Definition triple_2 {A B C : Type}  '((_,b,_) : A * B * C) : B := b.
+
+Definition triple_3 {A B C : Type}  '((_,_,c) : A * B * C) : C := c.
+
 Definition fourple_1 {A B C D : Type}  '((a,_,_,_) : A * B * C * D) : A := a.
 
 Definition fourple_2 {A B C D : Type}  '((_,b,_,_) : A * B * C * D) : B := b.

@@ -6,22 +6,20 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.SmallStep.Util
         Poulet4.P4cub.SmallStep.Semantics.
 Import CanonicalForms Step.
-Module P := P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Import P.P4cubNotations TypeEquivalence
+Import AllCubNotations TypeEquivalence
        ProperType F.FieldTactics Env.EnvNotations.
 
 Section LValueTheorems.
-  Variable errs : errors.
-  Variable Γ : gamma.
+  Variable D : Delta.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
   Section LValuePreservation.
     Local Hint Constructors check_expr : core.
 
-    Theorem lvalue_preservation : forall (e e' : E.e tags_t) τ,
-      ℶ e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+    Theorem lvalue_preservation : forall (e e' : Expr.e tags_t) τ,
+      ℶ e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
         induction He; intros t Ht; inv Ht; eauto 3.
@@ -33,15 +31,15 @@ Section LValueTheorems.
     Hint Constructors lvalue : core.
     Hint Constructors lvalue_step : core.
 
-    Theorem lvalue_progress : forall (e : E.e tags_t) τ,
-        lvalue_ok e -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
+    Theorem lvalue_progress : forall (e : Expr.e tags_t) τ,
+        lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
         lvalue e \/ exists e', ℶ e -->  e'.
     Proof.
       intros e τ Hlv; generalize dependent τ;
-      induction Hlv; intros t Ht; inv Ht;
+        induction Hlv; intros t' Ht; inv Ht;
       try match goal with
-          | IH: (forall _, ⟦ errs, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
-            H: ⟦ errs, Γ ⟧ ⊢ ?e ∈ _
+          | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
+                H: ⟦ D, Γ ⟧ ⊢ ?e ∈ _
             |- _ => apply IH in H as [? | [? ?]]
           end; eauto 4.
     Qed.
@@ -49,7 +47,7 @@ Section LValueTheorems.
 End LValueTheorems.
 
 Section ExprTheorems.
-  Variable Γ : gamma.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
@@ -57,16 +55,16 @@ Section ExprTheorems.
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset : Prop :=
-    forall (x : string) (τ : E.t),
+    forall (x : string) (τ : Expr.t),
       Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
   (**[]*)
 
-  Variable errs : errors.
+  Variable D : Delta.
 
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type : Prop :=
-    forall (x : string) (τ : E.t) (v : E.e tags_t),
-      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ errs , Γ ⟧ ⊢ v ∈ τ.
+    forall (x : string) (τ : Expr.t) (v : Expr.e tags_t),
+      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
   (**[]*)
 
   Definition envs_sound : Prop := envs_type /\ envs_subset.
@@ -84,10 +82,10 @@ Section ExprTheorems.
     Hint Rewrite app_length : core.
     Local Hint Resolve Forall2_app : core.
     Local Hint Constructors check_expr : core.
-    Local Hint Constructors PT.proper_nesting : core.
+    Local Hint Constructors ProperType.proper_nesting : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
-        ℵ ϵ, e -->  e' -> ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> ⟦ errs, Γ ⟧ ⊢ e' ∈ τ.
+        ℵ ϵ, e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
     Proof.
       unfold envs_type in Henvs_type; intros;
       generalize dependent τ;
@@ -99,8 +97,9 @@ Section ExprTheorems.
           | H: Some _ = Some _ |- _ => inv H
           end;
       try invert_proper_nesting; eauto 4.
-      - (* eapply Forall_nth_error in H12; eauto 1. *) admit.
-      - (*subst es; subst es';
+      (*
+      - eapply Forall_nth_error in H12; eauto 1.
+      - subst es; subst es';
         apply Forall2_app_inv_l in H5 as [? [? [? [? ?]]]];
         inv_Forall2_cons; eauto.*) admit.
       - (*subst fs; subst fs';
@@ -116,7 +115,8 @@ Section ExprTheorems.
         repeat constructor; unravel; auto 2.*) admit.
       - (*subst hs; subst hs'; constructor;
         autorewrite with core in *; intuition;
-        try inv_Forall_cons; eauto 3.*) admit.
+        try inv_Forall_cons; eauto 3.
+*)
     Admitted.
   End Preservation.
 
@@ -138,12 +138,12 @@ Section ExprTheorems.
     Local Hint Constructors expr_step : core.
 
     Theorem expr_small_step_progress : forall e τ,
-        ⟦ errs, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
+        ⟦ D, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
     Proof.
       destruct Henvs_sound as [Henvs_type Henvs_subset];
       clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
       match goal with
-      | H: ⟦ errs, Γ ⟧ ⊢ _ ∈ _
+      | H: ⟦ D, Γ ⟧ ⊢ _ ∈ _
         |- _ => induction H using custom_check_expr_ind
       end;
       try match goal with
@@ -151,7 +151,7 @@ Section ExprTheorems.
             assert (value e); [ repeat constructor; eassumption
                           | left; assumption ]
           end;
-      repeat progress_simpl; eauto 4.
+      repeat progress_simpl; eauto 4. (*
       - right; apply Henvs_subset in H as [? ?]; eauto 3.
       - right; pose proof eval_slice_exists
                     _ _ _ _ _ _ _ H2 H H0 H1 as [? ?]; eauto 3.
@@ -174,15 +174,15 @@ Section ExprTheorems.
         + destruct H4 as [? ?]. inv H2.
           subst fs; subst fs'.
           repeat rewrite app_comm_cons in *. right.
-          exists (E.EStruct (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
+          exists (Expr.EStruct (((s0, p) :: prefix) ++ (x0, (τ, e')) :: suffix) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
+          right. exists (Expr.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)).
-          right. exists (E.EStruct ([] ++ (s, (t', x)) :: l) i).
+          right. exists (Expr.EStruct ([] ++ (s, (t', x)) :: l) i).
           repeat constructor; unravel; eauto 1.
       - clear H. rename H0 into H; rename H1 into H0.
         induction H; repeat invert_cons_cons_relate;
@@ -192,18 +192,18 @@ Section ExprTheorems.
         + destruct H4 as [? ?]. inv H2.
           * subst fs; subst fs'.
             repeat rewrite app_comm_cons in *. right.
-            exists (E.EHeader
+            exists (Expr.EHeader
                  (((s0, p) :: prefix) ++ (x2, (τ, e')) :: suffix)
                <{ BOOL x @ x0 }> i).
             repeat constructor; unravel; eauto 1.
           * inv H9.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
+          exists (Expr.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
         + destruct p as [t' e]; simpl in *. unfold F.f.
           rewrite <- (app_nil_l ((s, (t', e)) :: l)). right.
-          exists (E.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
+          exists (Expr.EHeader ([] ++ (s, (t', x1)) :: l) <{ BOOL x @ x0 }> i).
           repeat constructor; unravel; eauto 1.
       - clear H H0 H1 H2.
         induction H3; intros; repeat inv_Forall_cons; eauto 2;
@@ -216,7 +216,7 @@ Section ExprTheorems.
       - invert_proper_nesting.
         assert (Hidx : (BinIntDef.Z.to_nat idx < length x)%nat) by lia.
         pose proof nth_error_exists _ _ Hidx as [v ?]; eauto 5.
-    Qed. *)
+    Qed. *) *)
     Admitted.
   End Progress.
 End ExprTheorems.
@@ -224,9 +224,9 @@ End ExprTheorems.
 Section ParserExprTheorems.
   Variable sts : user_states.
 
-  Variable errs : errors.
+  Variable D : Delta.
 
-  Variable Γ : gamma.
+  Variable Γ : Gamma.
 
   Context {tags_t : Type}.
 
@@ -237,10 +237,10 @@ Section ParserExprTheorems.
     Local Hint Resolve expr_small_step_preservation : core.
     Hint Rewrite Forall_app : core.
 
-    Hypothesis Henvs_type : envs_type Γ ϵ errs.
+    Hypothesis Henvs_type : envs_type Γ ϵ D.
 
     Theorem parser_expr_preservation : forall e e',
-      π ϵ, e -->  e' -> ⟅ sts, errs, Γ ⟆ ⊢ e -> ⟅ sts, errs, Γ ⟆ ⊢ e'.
+      π ϵ, e -->  e' -> ⟅ sts, D, Γ ⟆ ⊢ e -> ⟅ sts, D, Γ ⟆ ⊢ e'.
     Proof.
       intros e e' Hpi Ht; induction Hpi; inv Ht; repeat subst_term; eauto 3.
       (*- econstructor; eauto 1; autorewrite with core in *;
@@ -262,15 +262,15 @@ Section ParserExprTheorems.
     Hint Rewrite Forall_app : core.
     Hint Resolve value_exm : core.
 
-    Inductive select_expr : PR.e tags_t -> Prop :=
+    Inductive select_expr : AST.Parser.e tags_t -> Prop :=
       Select_select e d cases i :
         select_expr p{ select e { cases } default:=d @ i }p.
     (**[]*)
 
-    Hypothesis Henvs_sound : envs_sound Γ ϵ errs.
+    Hypothesis Henvs_sound : envs_sound Γ ϵ D.
 
     Theorem parser_expr_progress : forall e,
-        select_expr e -> ⟅ sts, errs, Γ ⟆ ⊢ e -> exists e', π ϵ, e -->  e'.
+        select_expr e -> ⟅ sts, D, Γ ⟆ ⊢ e -> exists e', π ϵ, e -->  e'.
     Proof.
       intros e Hs He; induction He using check_prsrexpr_ind; inv Hs.
       eapply expr_small_step_progress in H as [Hev | [e' He']]; eauto 3.

@@ -1,6 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.BigStep.Value.Value
-        Coq.ZArith.BinInt Poulet4.P4cub.Envn
+        Coq.NArith.BinNat Coq.ZArith.BinInt
+        Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.ExprUtil
         Poulet4.P4Arith.
 Module V := Val.
@@ -25,7 +26,7 @@ Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   | l{ ACCESS lv[n] }l =>
     match lv_lookup ϵ lv with
     | None => None
-    | Some ~{ STACK vss:_[_] NEXT:=_ }~ =>
+    | Some ~{ STACK vss:_ NEXT:=_ }~ =>
       match nth_error vss (Z.to_nat n) with
       | None => None
       | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
@@ -42,12 +43,13 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   | l{ SLICE lv [hi:lo] }l =>
     match v, lv_lookup ϵ lv with
     | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
-      let rhs := Z.shiftl n (Zpos w) in
+      let rhs := N.shiftl (Z.to_N n) w in
       let mask :=
-          (-1 - (Z.lxor
-                   (2 ^ (Zpos hi + 1) - 1)
-                   (2 ^ (Zpos lo - 1))))%Z in
-      let new := Z.lxor (Z.land n mask) rhs in
+          Z.to_N
+          (-1 - (Z.of_N (N.lxor
+                           (2 ^ (Npos hi + 1) - 1)
+                           (2 ^ (Npos lo - 1))))) in
+      let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
       lv_update lv ~{ w VW new }~ ϵ
     | _, Some _ | _, None => ϵ
     end
@@ -61,9 +63,9 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   | l{ ACCESS lv[n] }l =>
     match v, lv_lookup ϵ lv with
     | ~{ HDR { vs } VALID:=b }~ ,
-      Some ~{ STACK vss:ts[size] NEXT:=ni }~ =>
+      Some ~{ STACK vss:ts NEXT:=ni }~ =>
       let vss := nth_update (Z.to_nat n) (b,vs) vss in
-      lv_update lv ~{ STACK vss:ts[size] NEXT:=ni }~ ϵ
+      lv_update lv ~{ STACK vss:ts NEXT:=ni }~ ϵ
     | _, Some _ | _, None => ϵ
     end
   end.
@@ -78,13 +80,13 @@ Definition copy_in
            (ϵcall : epsilon) : epsilon -> epsilon :=
   F.fold (fun x arg ϵ =>
             match arg with
-            | P.PAIn v     => !{ x ↦ v ;; ϵ }!
-            | P.PAInOut lv => match lv_lookup ϵcall lv with
+            | PAIn v     => !{ x ↦ v ;; ϵ }!
+            | PAInOut lv => match lv_lookup ϵcall lv with
                              | None   => ϵ
                              | Some v => !{ x ↦ v ;; ϵ }!
                              end
-            | P.PAOut _    => ϵ
-            | P.PADirLess _ => ϵ (*what to do with directionless param*)
+            | PAOut _    => ϵ
+            | PADirLess _ => ϵ (*what to do with directionless param*)
             end) argsv.
 (**[]*)
 
@@ -95,10 +97,10 @@ Definition copy_out
            (ϵf : epsilon) : epsilon -> epsilon :=
   F.fold (fun x arg ϵ =>
             match arg with
-            | P.PAIn _ => ϵ
-            | P.PADirLess _ => ϵ (*what to do with directionless param*)
-            | P.PAOut lv
-            | P.PAInOut lv =>
+            | PAIn _ => ϵ
+            | PADirLess _ => ϵ (*what to do with directionless param*)
+            | PAOut lv
+            | PAInOut lv =>
               match Env.find x ϵf with
               | None   => ϵ
               | Some v => lv_update lv v ϵ

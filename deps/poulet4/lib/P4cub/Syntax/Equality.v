@@ -1,17 +1,16 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
-        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip.
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
+        Coq.NArith.BinNatDef Coq.NArith.BinNat
+        Poulet4.P4Arith
+        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
+        Poulet4.P4cub.Syntax.CubNotations.
 
 Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
-Module P := P4cub.
-Module F := P.F.
-Module E := P.Expr.
-
 Module TypeEquivalence.
-  Import Field.FieldTactics E TypeNotations.
+  Import Field.FieldTactics Expr TypeNotations.
   
   Section TypeEquivalence.
     (** Decidable equality. *)
@@ -35,7 +34,7 @@ Module TypeEquivalence.
       | {{ error }}, {{ error }}
       (*| {{ Str }}, {{ Str }}*)
       | {{ matchkind }}, {{ matchkind }} => true
-      | {{ bit<w1> }}, {{ bit<w2> }}
+      | {{ bit<w1> }}, {{ bit<w2> }} => (w1 =? w2)%N
       | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
       | {{ tuple ts1 }}, {{ tuple ts2 }} => lstruct ts1 ts2
       | {{ hdr { ts1 } }}, {{ hdr { ts2 } }}
@@ -56,6 +55,10 @@ Module TypeEquivalence.
     
     Lemma eqbt_refl : forall τ, eqbt τ τ = true.
     Proof.
+      Hint Rewrite Pos.eqb_refl.
+      Hint Rewrite N.eqb_refl.
+      Hint Rewrite equiv_dec_refl.
+      Hint Extern 0 => equiv_dec_refl_tactic : core.
       induction τ using custom_t_ind; unravel;
         autorewrite with core; auto;
           try ind_list_Forall; try ind_list_predfs;
@@ -107,6 +110,7 @@ Module TypeEquivalence.
                               unfold equiv in *; subst;
                                 repeat eauto_too_dumb; subst; auto
               end.
+      auto using Ndec.Neqb_complete.
     Qed.
     
     Lemma eqbt_eq_iff : forall t1 t2 : t,
@@ -142,7 +146,7 @@ End TypeEquivalence.
 
 (** Decidable Expression Equivalence. *)
 Module ExprEquivalence.
-  Import Field.FieldTactics E
+  Import Field.FieldTactics Expr
          TypeNotations UopNotations BopNotations
          MatchkindNotations ExprNotations TypeEquivalence.
   
@@ -162,6 +166,13 @@ Module ExprEquivalence.
     intros [] []; unfold equiv, complement in *;
       auto 2; right; intros ?; discriminate.
   Defined.
+
+  Instance MatchKindEqDec : EqDec Expr.matchkind eq.
+  Proof.
+    unfold EqDec; unfold equiv, complement.
+    intros [] []; try (left; reflexivity);
+      try (right; intros H; inversion H).
+  Defined.
   
   (** Equality of expressions. *)
   Inductive equive {tags_t : Type} : e tags_t -> e tags_t -> Prop :=
@@ -173,58 +184,42 @@ Module ExprEquivalence.
       ∮ w S z @ i ≡ w S z @ i'
   | equive_var x τ i1 i2 :
       ∮ Var x:τ @ i1 ≡ Var x:τ @ i2
-  | equive_slice e1 e2 τ h l i1 i2 :
+  | equive_slice e1 e2 h l i1 i2 :
       ∮ e1 ≡ e2 ->
-      ∮ Slice e1:τ [h:l] @ i1 ≡ Slice e2:τ [h:l] @ i2
+      ∮ Slice e1 [h:l] @ i1 ≡ Slice e2 [h:l] @ i2
   | equive_cast τ e1 e2 i1 i2 :
       ∮ e1 ≡ e2 ->
       ∮ Cast e1:τ @ i1 ≡ Cast e2:τ @ i2
-  | equive_uop op τ e1 e2 i1 i2 :
+  | equive_uop t op e1 e2 i1 i2 :
       ∮ e1 ≡ e2 ->
-      ∮ UOP op e1:τ @ i1 ≡ UOP op e2:τ @ i2
-  | equive_bop op τl τr el1 er1 el2 er2 i1 i2 :
+      ∮ UOP op e1 : t @ i1 ≡ UOP op e2 : t @ i2
+  | equive_bop t op el1 er1 el2 er2 i1 i2 :
       ∮ el1 ≡ el2 ->
       ∮ er1 ≡ er2 ->
-      ∮ BOP el1:τl op er1:τr @ i1 ≡ BOP el2:τl op er2:τr @ i2
+      ∮ BOP el1 op er1 : t @ i1 ≡ BOP el2 op er2 : t @ i2
   | equive_tuple es1 es2 i1 i2 :
       Forall2 equive es1 es2 ->
       ∮ tup es1 @ i1 ≡ tup es2 @ i2
   | equive_struct fs1 fs2 i1 i2 :
-      F.relfs
-        (fun et1 et2 =>
-           let τ1 := fst et1 in
-           let τ2 := fst et2 in
-           let e1 := snd et1 in
-           let e2 := snd et2 in
-           τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+      F.relfs equive fs1 fs2 ->
       ∮ struct { fs1 } @ i1 ≡ struct { fs2 } @ i2
   | equive_header fs1 fs2 e1 e2 i1 i2 :
-      F.relfs
-        (fun et1 et2 =>
-           let τ1 := fst et1 in
-           let τ2 := fst et2 in
-           let e1 := snd et1 in
-           let e2 := snd et2 in
-           τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
+      F.relfs equive fs1 fs2 ->
       ∮ e1 ≡ e2 ->
       ∮ hdr { fs1 } valid:=e1 @ i1 ≡ hdr { fs2 } valid:=e2 @ i2
-  | equive_member x τ e1 e2 i1 i2 :
+  | equive_member t x e1 e2 i1 i2 :
       ∮ e1 ≡ e2 ->
-      ∮ Mem e1:τ dot x @ i1 ≡ Mem e2:τ dot x @ i2
+      ∮ Mem e1 dot x : t @ i1 ≡ Mem e2 dot x : t @ i2
   | equive_error err i1 i2 :
       ∮ Error err @ i1 ≡ Error err @ i2
   | equive_matchkind mk i1 i2 :
       ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
-  | equive_header_stack ts hs1 hs2 n ni i1 i2 :
+  | equive_header_stack ts hs1 hs2 ni i1 i2 :
       Forall2 equive hs1 hs2 ->
-      ∮ Stack hs1:ts[n] nextIndex:=ni @ i1 ≡ Stack hs2:ts[n] nextIndex:=ni @ i2
-  | equive_stack_access e1 e2 n i1 i2 :
+      ∮ Stack hs1:ts nextIndex:=ni @ i1 ≡ Stack hs2:ts nextIndex:=ni @ i2
+  | equive_stack_access ts e1 e2 n i1 i2 :
       ∮ e1 ≡ e2 ->
-      ∮ Access e1[n] @ i1 ≡ Access e2[n] @ i2
-  (*| equive_string s i1 i2 :
-      ∮ Stri s @ i1 ≡ Stri s @ i2
-  | equive_enum x m i1 i2 :
-      ∮ Enum x dot m @ i1 ≡ Enum x dot m @ i2*)
+      ∮ Access e1[n] : ts @ i1 ≡ Access e2[n] : ts @ i2
   where "∮ e1 ≡ e2" := (equive e1 e2).
   
   (** Induction principle. *)
@@ -242,27 +237,27 @@ Module ExprEquivalence.
     Hypothesis HVar : forall x τ i1 i2,
         P <{ Var x:τ @ i1 }> <{ Var x:τ @ i2 }>.
     
-    Hypothesis HSlice : forall e1 e2 τ h l i1 i2,
+    Hypothesis HSlice : forall e1 e2 h l i1 i2,
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
-        P <{ Slice e1:τ [h:l] @ i1 }> <{ Slice e2:τ [h:l] @ i2 }>.
+        P <{ Slice e1 [h:l] @ i1 }> <{ Slice e2 [h:l] @ i2 }>.
     
     Hypothesis HCast : forall τ e1 e2 i1 i2,
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
         P <{ Cast e1:τ @ i1 }> <{ Cast e2:τ @ i2 }>.
     
-    Hypothesis HUop : forall op τ e1 e2 i1 i2,
+    Hypothesis HUop : forall t op e1 e2 i1 i2,
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
-        P <{ UOP op e1:τ @ i1 }> <{ UOP op e2:τ @ i2 }>.
+        P <{ UOP op e1 : t @ i1 }> <{ UOP op e2 : t @ i2 }>.
     
-    Hypothesis HBop : forall op τl τr el1 er1 el2 er2 i1 i2,
+    Hypothesis HBop : forall t op el1 er1 el2 er2 i1 i2,
         ∮ el1 ≡ el2 ->
         P el1 el2 ->
         ∮ er1 ≡ er2 ->
         P er1 er2 ->
-        P <{ BOP el1:τl op er1:τr @ i1 }> <{ BOP el2:τl op er2:τr @ i2 }>.
+        P <{ BOP el1 op er1 : t @ i1 }> <{ BOP el2 op er2 : t @ i2 }>.
     
     Hypothesis HTup : forall es1 es2 i1 i2,
         Forall2 equive es1 es2 ->
@@ -270,41 +265,21 @@ Module ExprEquivalence.
         P <{ tup es1 @ i1 }> <{ tup es2 @ i2 }>.
     
     Hypothesis HStruct : forall  fs1 fs2 i1 i2,
-        F.relfs
-          (fun et1 et2 =>
-             let τ1 := fst et1 in
-             let τ2 := fst et2 in
-             let e1 := snd et1 in
-             let e2 := snd et2 in
-             τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
-        F.relfs
-          (fun et1 et2 =>
-             let e1 := snd et1 in
-             let e2 := snd et2 in
-             P e1 e2) fs1 fs2 ->
+        F.relfs equive fs1 fs2 ->
+        F.relfs P fs1 fs2 ->
         P <{ struct { fs1 } @ i1 }> <{ struct { fs2 } @ i2 }>.
     
     Hypothesis HHeader : forall  fs1 fs2 e1 e2 i1 i2,
-        F.relfs
-          (fun et1 et2 =>
-             let τ1 := fst et1 in
-             let τ2 := fst et2 in
-             let e1 := snd et1 in
-             let e2 := snd et2 in
-             τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2 ->
-        F.relfs
-          (fun et1 et2 =>
-             let e1 := snd et1 in
-             let e2 := snd et2 in
-             P e1 e2) fs1 fs2 ->
+        F.relfs equive fs1 fs2 ->
+        F.relfs P fs1 fs2 ->
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
         P <{ hdr { fs1 } valid:=e1 @ i1 }> <{ hdr { fs2 } valid:=e2 @ i2 }>.
     
-    Hypothesis HMember : forall x τ e1 e2 i1 i2,
+    Hypothesis HMember : forall t x e1 e2 i1 i2,
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
-        P <{ Mem e1:τ dot x @ i1 }> <{ Mem e2:τ dot x @ i2 }>.
+        P <{ Mem e1 dot x : t @ i1 }> <{ Mem e2 dot x : t @ i2 }>.
     
     Hypothesis HError : forall err i1 i2,
         P <{ Error err @ i1 }> <{ Error err @ i2 }>.
@@ -312,22 +287,16 @@ Module ExprEquivalence.
     Hypothesis HMatchkind : forall mk i1 i2,
         P <{ Matchkind mk @ i1 }> <{ Matchkind mk @ i2 }>.
     
-    Hypothesis HHeaderStack : forall ts hs1 hs2 n ni i1 i2,
+    Hypothesis HHeaderStack : forall ts hs1 hs2 ni i1 i2,
         Forall2 equive hs1 hs2 ->
         Forall2 P hs1 hs2 ->
-        P <{ Stack hs1:ts[n] nextIndex:=ni @ i1 }>
-        <{ Stack hs2:ts[n] nextIndex:=ni @ i2 }>.
+        P <{ Stack hs1:ts nextIndex:=ni @ i1 }>
+        <{ Stack hs2:ts nextIndex:=ni @ i2 }>.
     
-    Hypothesis HAccess : forall e1 e2 n i1 i2,
+    Hypothesis HAccess : forall ts e1 e2 n i1 i2,
         ∮ e1 ≡ e2 ->
         P e1 e2 ->
-        P <{ Access e1[n] @ i1 }> <{ Access e2[n] @ i2 }>.
-
-    (*Hypothesis HString : forall s i1 i2,
-        P <{ Stri s @ i1 }> <{ Stri s @ i2 }>.
-
-    Hypothesis HEnum : forall x m i1 i2,
-        P <{ Enum x dot m @ i1 }> <{ Enum x dot m @ i2 }>.*)
+        P <{ Access e1[n] : ts @ i1 }> <{ Access e2[n] : ts @ i2 }>.
     
     (** Custom induction principle. *)
     Definition custom_equive_ind :
@@ -340,22 +309,12 @@ Module ExprEquivalence.
             | Forall2_cons _ _ Hh Ht
               => Forall2_cons _ _ (eeind _ _ Hh) (lind Ht)
             end in
-        let fix fsind {fs1 fs2 : F.fs string (t * e tags_t)}
-                (Hfs : F.relfs
-                         (fun et1 et2 =>
-                            let τ1 := fst et1 in
-                            let τ2 := fst et2 in
-                            let e1 := snd et1 in
-                            let e2 := snd et2 in
-                            τ1 = τ2 /\ ∮ e1 ≡ e2) fs1 fs2)
-            : F.relfs
-                (fun et1 et2 =>
-                   let e1 := snd et1 in
-                   let e2 := snd et2 in
-                   P e1 e2) fs1 fs2 :=
+        let fix fsind {fs1 fs2 : F.fs string (e tags_t)}
+                (Hfs : F.relfs equive fs1 fs2)
+            : F.relfs P fs1 fs2 :=
             match Hfs with
             | Forall2_nil _ => Forall2_nil _
-            | Forall2_cons _ _ (conj Hx (conj _ He)) Ht
+            | Forall2_cons _ _ (conj Hx He) Ht
               => Forall2_cons _ _
                              (conj Hx (eeind _ _ He)) (fsind Ht)
             end in
@@ -364,15 +323,15 @@ Module ExprEquivalence.
         | equive_bit w n i i' => HBit w n i i'
         | equive_int w z i i' => HInt w z i i'
         | equive_var x τ i1 i2 => HVar x τ i1 i2
-        | equive_slice _ _ _ h l i1 i2 He
-          => HSlice _ _ _ h l i1 i2 He (eeind _ _ He)
+        | equive_slice _ _ h l i1 i2 He
+          => HSlice _ _ h l i1 i2 He (eeind _ _ He)
         | equive_cast τ _ _ i1 i2 He
           => HCast τ _ _ i1 i2 He (eeind _ _ He)
-        | equive_uop op τ _ _ i1 i2 He
-          => HUop op τ _ _ i1 i2 He (eeind _ _ He)
-        | equive_bop op tl tr _ _ _ _ i1 i2 Hel Her
+        | equive_uop t op _ _ i1 i2 He
+          => HUop t op _ _ i1 i2 He (eeind _ _ He)
+        | equive_bop t op _ _ _ _ i1 i2 Hel Her
           => HBop
-              op tl tr _ _ _ _ i1 i2
+              t op _ _ _ _ i1 i2
               Hel (eeind _ _ Hel)
               Her (eeind _ _ Her)
         | equive_tuple _ _ i1 i2 Hes
@@ -381,16 +340,14 @@ Module ExprEquivalence.
           => HStruct _ _ i1 i2 Hfs (fsind Hfs)
         | equive_header _ _ _ _ i1 i2 Hfs He
           => HHeader _ _ _ _ i1 i2 Hfs (fsind Hfs) He (eeind _ _ He)
-        | equive_member x τ _ _ i1 i2 He
-          => HMember x τ _ _ i1 i2 He (eeind _ _ He)
+        | equive_member t x _ _ i1 i2 He
+          => HMember t x _ _ i1 i2 He (eeind _ _ He)
         | equive_error err i1 i2 => HError err i1 i2
         | equive_matchkind mk i1 i2 => HMatchkind mk i1 i2
-        | equive_header_stack ts _ _ n ni i1 i2 Hhs
-          => HHeaderStack ts _ _ n ni i1 i2 Hhs (lind Hhs)
-        | equive_stack_access _ _ n i1 i2 He
-          => HAccess _ _ n i1 i2 He (eeind _ _ He)
-        (*| equive_string s i1 i2 => HString s i1 i2
-        | equive_enum x m i1 i2 => HEnum x m i1 i2*)
+        | equive_header_stack ts _ _ ni i1 i2 Hhs
+          => HHeaderStack ts _ _ ni i1 i2 Hhs (lind Hhs)
+        | equive_stack_access ts _ _ n i1 i2 He
+          => HAccess ts _ _ n i1 i2 He (eeind _ _ He)
         end.
     (**[]*)
   End ExprEquivalenceInduction.
@@ -422,14 +379,7 @@ Module ExprEquivalence.
                 => induction H; inv IH; constructor; intuition
               end;
           try match goal with
-              | H: F.relfs
-                     (fun et1 et2 : t * e tags_t =>
-                        let τ1 := fst et1 in
-                        let τ2 := fst et2 in
-                        let e1 := snd et1 in
-                        let e2 := snd et2 in
-                        τ1 = τ2 /\ (∮ e1 ≡ e2))
-                     ?fs1 ?fs2,
+              | H: F.relfs equive ?fs1 ?fs2,
                    IH: F.relfs _ ?fs1 ?fs2 |- F.relfs _ ?fs2 ?fs1
                 => induction H; inv IH;
                     constructor; repeat relf_destruct;
@@ -462,7 +412,7 @@ Module ExprEquivalence.
                           H23: F.relfs _ ?f2 ?f3 |- _
                   => generalize dependent f3;
                       generalize dependent f2; induction H;
-                        intros [| [? [? ?]] ?] ? [| [? [? ?]] ?] ?;
+                        intros [| [? ?] ?] ? [| [? ?] ?] ?;
                                try match goal with
                                    | H: F.predf_data _ ?x |- _ => destruct x as [? [? ?]]
                                    end;
@@ -486,56 +436,48 @@ Module ExprEquivalence.
           | [], [] => true
           | e1::es1, e2::es2 => eqbe e1 e2 && lstruct es1 es2
           end in
-      let fix efsstruct {A : Type} (feq : A -> A -> bool)
-              (fs1 fs2 : F.fs string (A * e tags_t)) : bool :=
+      let fix efsstruct (fs1 fs2 : F.fs string (e tags_t)) : bool :=
           match fs1, fs2 with
           | [], _::_ | _::_, [] => false
           | [], [] => true
-          | (x1, (a1, e1))::fs1, (x2, (a2, e2))::fs2
-            => equiv_dec x1 x2 &&&& feq a1 a2 &&
-              eqbe e1 e2 && efsstruct feq fs1 fs2
+          | (x1, e1)::fs1, (x2, e2)::fs2
+            => equiv_dec x1 x2 &&&& eqbe e1 e2 && efsstruct fs1 fs2
           end in
       match e1, e2 with
       | <{ BOOL b1 @ _ }>, <{ BOOL b2 @ _ }> => eqb b1 b2
       | <{ w1 W n1 @ _ }>, <{ w2 W n2 @ _ }>
-        => (w1 =? w2)%positive && (n1 =? n2)%Z
+        => (w1 =? w2)%N && (n1 =? n2)%Z
       | <{ w1 S z1 @ _ }>, <{ w2 S z2 @ _ }>
         => (w1 =? w2)%positive && (z1 =? z2)%Z
       | <{ Var x1:τ1 @ _ }>, <{ Var x2:τ2 @ _ }>
         => equiv_dec x1 x2 &&&& eqbt τ1 τ2
-      | <{ Slice e1:t1 [h1:l1] @ _ }>, <{ Slice e2:t2 [h2:l2] @ _ }>
-        => (h1 =? h2)%positive && (l1 =? l2)%positive &&
-          eqbt t1 t2 && eqbe e1 e2
+      | <{ Slice e1 [h1:l1] @ _ }>, <{ Slice e2 [h2:l2] @ _ }>
+        => (h1 =? h2)%positive && (l1 =? l2)%positive && eqbe e1 e2
       | <{ Cast e1:τ1 @ _ }>, <{ Cast e2:τ2 @ _ }>
         => eqbt τ1 τ2 && eqbe e1 e2
-      | <{ UOP u1 e1:τ1 @ _ }>, <{ UOP u2 e2:τ2 @ _ }>
-        => equiv_dec u1 u2 &&&& eqbt τ1 τ2 && eqbe e1 e2
-      | <{ BOP el1:τl1 o1 er1:τr1 @ _ }>,
-        <{ BOP el2:τl2 o2 er2:τr2 @ _ }>
-        => equiv_dec o1 o2 &&&& eqbt τl1 τl2 && eqbt τr1 τr2
-          && eqbe el1 el2 && eqbe er1 er2
+      | <{ UOP u1 e1 : t1 @ _ }>, <{ UOP u2 e2 : t2 @ _ }>
+        => equiv_dec u1 u2 &&&& eqbe e1 e2 && eqbt t1 t2
+      | <{ BOP el1 o1 er1 : t1 @ _ }>,
+        <{ BOP el2 o2 er2 : t2 @ _ }>
+        => equiv_dec o1 o2 &&&& eqbe el1 el2 && eqbe er1 er2 && eqbt t1 t2
       | <{ tup es1 @ _ }>, <{ tup es2 @ _ }> => lstruct es1 es2
       | <{ struct { fs1 } @ _ }>, <{ struct { fs2 } @ _ }>
-        => efsstruct eqbt fs1 fs2
+        => efsstruct fs1 fs2
       | <{ hdr { fs1 } valid:=e1 @ _ }>,
         <{ hdr { fs2 } valid:=e2 @ _ }>
-        => eqbe e1 e2 && efsstruct eqbt fs1 fs2
-      | <{ Mem e1:τ1 dot x1 @ _ }>, <{ Mem e2:τ2 dot x2 @ _ }>
-        => equiv_dec x1 x2 &&&& eqbt τ1 τ2 && eqbe e1 e2
+        => eqbe e1 e2 && efsstruct fs1 fs2
+      | <{ Mem e1 dot x1 : t1 @ _ }>, <{ Mem e2 dot x2 : t2 @ _ }>
+        => equiv_dec x1 x2 &&&& eqbe e1 e2 && eqbt t1 t2
       | <{ Error err1 @ _ }>, <{ Error err2 @ _ }>
         => if equiv_dec err1 err2 then true else false
       | <{ Matchkind mk1 @ _ }>, <{ Matchkind mk2 @ _ }>
         => if equiv_dec mk1 mk2 then true else false
-      | <{ Stack hs1:ts1[n1] nextIndex:=ni1 @ _ }>,
-        <{ Stack hs2:ts2[n2] nextIndex:=ni2 @ _ }>
-        => (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
-          F.eqb_fs eqbt ts1 ts2 && lstruct hs1 hs2
-      | <{ Access hs1[n1] @ _ }>,
-        <{ Access hs2[n2] @ _ }> => (n1 =? n2)%Z && eqbe hs1 hs2
-      (*| <{ Stri s1 @ _ }>, <{ Stri s2 @ _ }>
-        => if equiv_dec s1 s2 then true else false
-      | <{ Enum x1 dot m1 @ _ }>, <{ Enum x2 dot m2 @ _ }>
-        => equiv_dec x1 x2 &&&& equiv_dec m1 m2 *)
+      | <{ Stack hs1:ts1 nextIndex:=ni1 @ _ }>,
+        <{ Stack hs2:ts2 nextIndex:=ni2 @ _ }>
+        => (ni1 =? ni2)%Z && F.eqb_fs eqbt ts1 ts2 && lstruct hs1 hs2
+      | <{ Access hs1[n1] : ts1 @ _ }>,
+        <{ Access hs2[n2] : ts2 @ _ }>
+        => eqb_list ts1 ts2 &&&& (n1 =? n2)%Z && eqbe hs1 hs2
       | _, _ => false
       end.
     (**[]*)
@@ -549,6 +491,7 @@ Module ExprEquivalence.
     Hint Rewrite equiv_dec_refl.
     Local Hint Extern 5 => equiv_dec_refl_tactic : core.
     Hint Rewrite (@relop_eq string).
+    Hint Rewrite @eqb_list_refl.
     
     (* TODO: somehow using a hidden axiom as an assumption. *)
     Lemma equive_eqbe : forall e1 e2 : e tags_t,
@@ -572,8 +515,8 @@ Module ExprEquivalence.
                 => induction H; inv IH; auto 1;
                     match goal with
                     | H: F.relf _ ?f1 ?f2 |- _
-                      => destruct f1 as [? [? ?]];
-                          destruct f2 as [? [? ?]];
+                      => destruct f1 as [? ?];
+                          destruct f2 as [? ?];
                           repeat relf_destruct; unravel in *;
                             unfold equiv in *;
                             intuition; subst;
@@ -591,13 +534,15 @@ Module ExprEquivalence.
                 end;
             try (equiv_dec_refl_tactic; auto 1;
                  autorewrite with core in *; contradiction).
-      (*repeat equiv_dec_refl_tactic; auto.*)
+      rewrite N.eqb_refl; tauto.
     Qed.
     
     Ltac eq_true_terms :=
       match goal with
       | H: eqb _ _ = true |- _
         => apply eqb_prop in H; subst
+      | H: (_ =? _)%N = true |- _
+        => apply Ndec.Neqb_complete in H; subst
       | H: (_ =? _)%positive = true |- _
         => apply Peqb_true_eq in H; subst
       | H: (_ =? _)%Z = true |- _
@@ -657,7 +602,7 @@ Module ExprEquivalence.
         try discriminate; auto 1;
           repeat eq_true_terms;
           unfold equiv in *;
-          subst; auto; constructor; auto 1;
+          subst; auto; try constructor; auto 1;
             try match goal with
                 | |- Forall2 _ ?es1 ?es2
                   => generalize dependent es2;
@@ -667,13 +612,17 @@ Module ExprEquivalence.
             try match goal with
                 | |- F.relfs _ ?fs1 ?fs2
                   => generalize dependent fs2;
-                      induction fs1 as [| [? [? ?]] ? ?];
-                      intros [| [? [? ?]] ?]; intros;
+                      induction fs1 as [| [? ?] ? ?];
+                      intros [| [? ?] ?]; intros;
                         unravel in *; try discriminate; auto 1;
                           try destruct_lifted_andb; repeat destruct_andb;
                             try invert_cons_predfs; repeat constructor;
                               intuition; unfold F.relfs in *; auto 2
                 end.
+      destruct (eqb_list rt result_hdr_type) eqn:Hb;
+        try discriminate.
+      repeat eq_true_terms.
+      rewrite eqb_list_iff in Hb; subst; auto.
     Qed.
     
     Local Hint Resolve equive_eqbe : core.

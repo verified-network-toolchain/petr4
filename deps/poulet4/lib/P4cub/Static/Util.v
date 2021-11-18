@@ -1,20 +1,12 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt.
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat.
 Require Export Poulet4.P4Arith Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.Syntax.
 
 (** Notation entries. *)
 Declare Custom Entry p4signal.
 Declare Custom Entry p4context.
 
-Module P := P4cub.
-Module E := P.Expr.
-Module PT := ProperType.
-Module ST := P.Stmt.
-Module PR := P.Parser.
-Module CD := P.Control.ControlDecl.
-Module TD := P.TopDecl.
-Module F := P.F.
-Import P.P4cubNotations.
+Import AllCubNotations.
 
 (** Statement signals. *)
 Inductive signal : Set :=
@@ -36,19 +28,16 @@ Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
 Import Env.EnvNotations.
 
-(** Available strings. *)
-Definition strs : Type := Env.t string unit.
-
-(** Available error names. *)
-Definition errors : Type := strs.
+(** Available type names. *)
+Definition Delta : Set := list string.
 
 (** Typing context. *)
-Definition gamma : Type := Env.t string E.t.
+Definition Gamma : Type := Env.t string Expr.t.
 
 (** Evidence for a type being a numeric of a given width. *)
-Inductive numeric_width (w : positive) : E.t -> Prop :=
-| numeric_width_bit : numeric_width w {{ bit<w> }}
-| numeric_width_int : numeric_width w {{ int<w> }}.
+Inductive numeric_width : N -> Expr.t -> Prop :=
+| numeric_width_bit : forall w, numeric_width w {{ bit<w> }}
+| numeric_width_int : forall w, numeric_width (Npos w) {{ int<w> }}.
 
 Ltac inv_numeric_width :=
   match goal with
@@ -57,9 +46,11 @@ Ltac inv_numeric_width :=
 (**[]*)
 
 (** Evidence for a type being numeric. *)
-Inductive numeric : E.t -> Prop :=
-  Numeric (w : positive) (τ : E.t) :
-    numeric_width w τ -> numeric τ.
+Inductive numeric : Expr.t -> Prop :=
+| NumericBit (τ : Expr.t) :
+    forall w, numeric {{ bit<w> }}
+| NumericInt (τ : Expr.t) :
+    forall w, numeric {{ int<w> }}.
 (**[]*)
 
 Ltac inv_numeric :=
@@ -69,7 +60,7 @@ Ltac inv_numeric :=
 (**[]*)
 
 (** Evidence a unary operation is valid for a type. *)
-Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
+Inductive uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
 | UTBool :
     uop_type _{ ! }_ {{ Bool }} {{ Bool }}
 | UTBitNot τ :
@@ -85,17 +76,13 @@ Inductive uop_type : E.uop -> E.t -> E.t -> Prop :=
 | UTNext ts n :
     uop_type _{ Next }_ {{ stack ts[n] }} {{ hdr { ts } }}
 | UTSize ts n :
-    let w := 32%positive in
-    uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}
-(*| UTPush ts n p :
-    uop_type _{ Push p }_ {{ stack ts[n] }} {{ stack ts[n] }}
-| UTPop ts n p :
-    uop_type _{ Pop  p }_ {{ stack ts[n] }} {{ stack ts[n] }}*).
+    let w := 32%N in
+    uop_type _{ Size }_ {{ stack ts[n] }} {{ bit<w> }}.
 (**[]*)
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
-Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
+Inductive bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 | BTPlus τ : numeric τ -> bop_type +{ + }+ τ τ τ
 | BTPlusSat τ : numeric τ -> bop_type +{ |+| }+ τ τ τ
 | BTMinus τ : numeric τ -> bop_type +{ - }+ τ τ τ
@@ -115,70 +102,101 @@ Inductive bop_type : E.bop -> E.t -> E.t -> E.t -> Prop :=
 | BTEq τ : bop_type +{ == }+ τ τ {{ Bool }}
 | BTNotEq τ : bop_type +{ != }+ τ τ {{ Bool }}
 | BTPlusPlusBit w1 w2 w τ2 :
-    (w1 + w2)%positive = w ->
+    (w1 + w2)%N = w ->
     numeric_width w2 τ2 ->
     bop_type +{ ++ }+ {{ bit<w1> }} τ2 {{ bit<w> }}
 | BTPlusPlusInt w1 w2 w τ2 :
     (w1 + w2)%positive = w ->
-    numeric_width w2 τ2 ->
-    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w> }}.
+    numeric_width (Npos w2) τ2 ->
+    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w> }}
+| BTPlusPlusIntZero w1 τ2 :
+    numeric_width N0 τ2 ->
+    bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w1> }}.
 (**[]*)
 
 (** Evidence an error is ok. *)
-Inductive error_ok (errs : errors) : option string -> Prop :=
+(*Inductive error_ok (errs : errors) : option string -> Prop :=
 | NoErrorOk : error_ok errs None
 | ErrorOk (x : string) :
     Env.find x errs = Some tt ->
-    error_ok errs (Some x).
+    error_ok errs (Some x).*)
 (**[]*)
 
 (** Evidence a cast is proper. *)
-Inductive proper_cast : E.t -> E.t -> Prop :=
-| pc_bool_bit : proper_cast {{ Bool }} {{ bit<xH> }}
-| pc_bit_bool : proper_cast {{ bit<xH> }} {{ Bool }}
-| pc_bit_int (w : positive) : proper_cast {{ bit<w> }} {{ int<w> }}
-| pc_int_bit (w : positive) : proper_cast {{ int<w> }} {{ bit<w> }}
-| pc_bit_bit (w1 w2 : positive) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
+Inductive proper_cast : Expr.t -> Expr.t -> Prop :=
+| pc_bool_bit : proper_cast {{ Bool }} (Expr.TBit 1)
+| pc_bit_bool : proper_cast (Expr.TBit 1) {{ Bool }}
+| pc_bit_int (w : positive) : proper_cast (Expr.TBit (Npos w)) {{ int<w> }}
+| pc_int_bit (w : positive) : proper_cast {{ int<w> }} (Expr.TBit (Npos w))
+| pc_bit_bit (w1 w2 : N) : proper_cast {{ bit<w1> }} {{ bit<w2> }}
 | pc_int_int (w1 w2 : positive) : proper_cast {{ int<w1> }} {{ int<w2> }}
-| pc_tuple_struct (ts : list E.t) (fs : F.fs string E.t) :
+| pc_tuple_struct (ts : list Expr.t) (fs : F.fs string Expr.t) :
     ts = F.values fs ->
     proper_cast {{ tuple ts }} {{ struct { fs } }}
-| pc_tuple_hdr (ts : list E.t) (fs : F.fs string E.t) :
+| pc_tuple_hdr (ts : list Expr.t) (fs : F.fs string Expr.t) :
     ts = F.values fs ->
-    Forall PT.proper_inside_header ts ->
+    Forall ProperType.proper_inside_header ts ->
     proper_cast {{ tuple ts }} {{ hdr { fs } }}.
 (**[]*)
 
 (** Evidence member operations are valid on a type. *)
-Inductive member_type : F.fs string E.t -> E.t -> Prop :=
+Inductive member_type : F.fs string Expr.t -> Expr.t -> Prop :=
 | mt_struct ts : member_type ts {{ struct { ts } }}
 | mt_hdr ts : member_type ts {{ hdr { ts } }}.
 (**[]*)
 
+(** Ok types. *)
+Inductive t_ok (Δ : Delta) : Expr.t -> Prop :=
+| bool_ok :
+    t_ok Δ {{ Bool }}
+| bit_ok w :
+    t_ok Δ {{ bit<w> }}
+| int_ok w :
+    t_ok Δ {{ int<w> }}
+| error_ok :
+    t_ok Δ {{ error }}
+| matchkind_ok :
+    t_ok Δ {{ matchkind }}
+| tuple_ok ts :
+    Forall (t_ok Δ) ts ->
+    t_ok Δ {{ tuple ts }}
+| struct_ok ts :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ struct { ts } }}
+| header_ok ts :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ hdr { ts } }}
+| stack_ok ts n :
+    F.predfs_data (t_ok Δ) ts ->
+    t_ok Δ {{ stack ts[n] }}
+| var_ok T :
+    In T Δ ->
+    t_ok Δ T.
+
 (** Available functions. *)
-Definition fenv : Type := Env.t string E.arrowT.
+Definition fenv : Type := Env.t string Expr.arrowT.
 
 (** Available actions. *)
-Definition aenv : Type := Env.t string E.params.
+Definition aenv : Type := Env.t string Expr.params.
 
 (** Control Instance environment. *)
-Definition cienv : Type := Env.t string (F.fs string string * E.params).
+Definition cienv : Type := Env.t string (F.fs string string * Expr.params).
 
 (** Parser Instance environment. *)
-Definition pienv : Type := Env.t string (F.fs string string * E.params).
+Definition pienv : Type := Env.t string (F.fs string string * Expr.params).
 
 (** Available extern instances. *)
-Definition eienv : Type := Env.t string (F.fs string E.arrowT).
+Definition eienv : Type := Env.t string (F.fs string Expr.arrowT).
 
 (** Available table names. *)
-Definition tblenv : Type := strs.
+Definition tblenv : Type := list string.
 
 (** Statement context. *)
 Inductive ctx : Type :=
 | CAction (available_actions : aenv)
           (available_externs : eienv) (* action block *)
 | CVoid (* void function *)
-| CFunction (return_type : E.t) (* fruitful function *)
+| CFunction (return_type : Expr.t) (* fruitful function *)
 | CApplyBlock (tables : tblenv)
               (available_actions : aenv)
               (available_controls : cienv)
@@ -227,26 +245,31 @@ Inductive return_void_ok : ctx -> Prop :=
 (**[]*)
 
 (** Available constructor signatures. *)
-Definition cenv : Type := Env.t string E.ct.
+Definition cenv : Type := Env.t string Expr.ct.
 
 (** Available Package Instances. *)
-Definition pkgienv : Type := strs.
+Definition pkgienv : Type := Env.t string Expr.ct.
 
 (** Available Extern Constructors. *)
 Definition extenv : Type :=
-  Env.t string (E.constructor_params * F.fs string E.arrowT).
+  Env.t string (Expr.constructor_params * F.fs string Expr.arrowT).
 (**[]*)
 
 (** Put parameters into environment. *)
-Definition bind_all : E.params -> gamma -> gamma :=
-  F.fold (fun x '(P.PADirLess τ | P.PAIn τ | P.PAOut τ | P.PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
+Definition bind_all : Expr.params -> Gamma -> Gamma :=
+  F.fold
+    (fun x
+       '(PADirLess τ
+        | PAIn τ
+        | PAOut τ
+        | PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
 (**[]*)
 
 (** Put (constructor) parameters into environments. *)
 Definition cbind_all :
-  E.constructor_params  ->
-  gamma * pkgienv * cienv * pienv * eienv ->
-  gamma * pkgienv * cienv * pienv * eienv :=
+  Expr.constructor_params  ->
+  Gamma * pkgienv * cienv * pienv * eienv ->
+  Gamma * pkgienv * cienv * pienv * eienv :=
   F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
             match c with
             | {{{ VType τ }}}
@@ -255,18 +278,18 @@ Definition cbind_all :
               => (Γ, pkgis, !{ x ↦ (res,pars);; cis }!, pis, eis)
             | {{{ ParserType _ res pars }}}
               => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
-            | E.CTExtern _
-              => p (* (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
+            | Expr.CTExtern _
+              => p (* TODO! (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
             | {{{ PackageType _ }}}
-              => (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis)
+              => p (* TODO! (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis) *)
             end).
 (**[]*)
 
 (** Environment of user-defined parser states. *)
-Definition user_states : Type := strs.
+Definition user_states : Type := list string.
 
 (** Valid parser states. *)
-Inductive valid_state (us : user_states) : PR.state -> Prop :=
+Inductive valid_state (us : user_states) : Parser.state -> Prop :=
 | start_valid :
     valid_state us ={ start }=
 | accept_valid :
@@ -274,16 +297,16 @@ Inductive valid_state (us : user_states) : PR.state -> Prop :=
 | reject_valid :
     valid_state us ={ reject }=
 | name_valid (st : string) :
-    Env.find st us = Some tt ->
+    In st us ->
     valid_state us ={ δ st }=.
 (**[]*)
 
 (** Appropriate signal. *)
-Inductive good_signal : E.arrowT -> signal -> Prop :=
+Inductive good_signal : Expr.arrowT -> signal -> Prop :=
 | good_signal_cont params :
-    good_signal (P.Arrow params None) SIG_Cont
+    good_signal (Arrow params None) SIG_Cont
 | good_signal_return params ret :
-    good_signal (P.Arrow params (Some ret)) SIG_Return.
+    good_signal (Arrow params (Some ret)) SIG_Return.
 (**[]*)
 
 Notation "x" := x (in custom p4context at level 0, x constr at level 0).
@@ -305,16 +328,16 @@ Notation "'Parser' pis eis"
            pis custom p4env, eis custom p4env).
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
-Inductive lvalue_ok {tags_t : Type} : E.e tags_t -> Prop :=
+Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=
 | lvalue_var x τ i :
     lvalue_ok <{ Var x:τ @ i }>
-| lvalue_bit_slice e τ h l i :
+| lvalue_bit_slice e h l i :
     lvalue_ok e ->
-    lvalue_ok <{ Slice e:τ [h:l] @ i }>
-| lvalue_member e τ x i :
+    lvalue_ok <{ Slice e [h:l] @ i }>
+| lvalue_member t e x i :
     lvalue_ok e ->
-    lvalue_ok <{ Mem e:τ dot x @ i }>
-| lvalue_access e idx i :
+    lvalue_ok <{ Mem e dot x : t @ i }>
+| lvalue_access ts e idx i :
     lvalue_ok e ->
-    lvalue_ok <{ Access e[idx] @ i }>.
+    lvalue_ok <{ Access e[idx] : ts @ i }>.
 (**[]*)

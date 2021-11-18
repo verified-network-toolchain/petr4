@@ -1,197 +1,244 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt
+Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
-        Poulet4.P4cub.Static.Typing.
+        Poulet4.P4cub.Static.Typing
+        Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations Env.EnvNotations.
 
-Import P.P4cubNotations Env.EnvNotations.
+(** Custom induction principle for ok types. *)
+Section OkBoomerInduction.
+  Variable P : Delta -> Expr.t -> Prop.
+  Variable Δ : Delta.
+
+  Hypothesis HBool : P Δ {{ Bool }}.
+  Hypothesis HBit : forall w, P Δ {{ bit<w> }}.
+  Hypothesis HInt : forall w, P Δ {{ int<w> }}.
+  Hypothesis HError : P Δ {{ error }}.
+  Hypothesis HMatchkind : P Δ {{ matchkind }}.
+  Hypothesis HTuple : forall ts,
+      Forall (t_ok Δ) ts ->
+      Forall (P Δ) ts ->
+      P Δ {{ tuple ts }}.
+  Hypothesis HStruct : forall ts,
+      F.predfs_data (t_ok Δ) ts ->
+      F.predfs_data (P Δ) ts ->
+      P Δ {{ struct { ts } }}.
+  Hypothesis HHeader : forall ts,
+      F.predfs_data (t_ok Δ) ts ->
+      F.predfs_data (P Δ) ts ->
+      P Δ {{ hdr { ts } }}.
+  Hypothesis HStack : forall ts n,
+      F.predfs_data (t_ok Δ) ts ->
+      F.predfs_data (P Δ) ts ->
+      P Δ {{ stack ts[n] }}.
+  Hypothesis HVar : forall T,
+      In T Δ -> P Δ T.
+
+  (** Custom induction principle for expression typing.
+      Do [induction ?H using custom_t_ok        _ind]. *)       
+  Definition custom_t_ok_ind :
+    forall (τ : Expr.t) (HY : t_ok Δ τ), P Δ τ :=
+    fix toind τ HY :=
+      let fix lind {ts : list Expr.t} (Hts : Forall (t_ok Δ) ts)
+          : Forall (P Δ) ts :=
+          match Hts with
+          | Forall_nil _         => Forall_nil _
+          | Forall_cons _ Pt Pts => Forall_cons _ (toind _ Pt) (lind Pts)
+          end in
+      let fix find {ts : F.fs string Expr.t} (Hts : F.predfs_data (t_ok Δ) ts)
+          : F.predfs_data (P Δ) ts :=
+          match Hts with
+          | Forall_nil _ => Forall_nil _
+          | Forall_cons _ Pt Pts => Forall_cons _ (toind _ Pt) (find Pts)
+          end in
+      match HY with
+      | bool_ok _          => HBool
+      | bit_ok _ w         => HBit w
+      | int_ok _ w         => HInt w
+      | error_ok _         => HError
+      | matchkind_ok _     => HMatchkind
+      | tuple_ok _ _ Hts   => HTuple _ Hts (lind Hts)
+      | struct_ok _ _ Hts  => HStruct _ Hts (find Hts)
+      | header_ok _ _ Hts  => HHeader _ Hts (find Hts)
+      | stack_ok _ _ n Hts => HStack _ n Hts (find Hts)
+      | var_ok _ T HT      => HVar _ HT
+      end.
+End OkBoomerInduction.
 
 (** Custom induction principle for expression typing. *)
 Section CheckExprInduction.
   Variable (tags_t : Type).
   
   (** An arbitrary predicate. *)
-  Variable P : errors -> gamma -> E.e tags_t -> E.t -> Prop.
+  Variable P : Delta -> Gamma -> Expr.e tags_t -> Expr.t -> Prop.
   
-  Hypothesis HBool : forall errs Γ b i,
-      P errs Γ <{ BOOL b @ i }> {{ Bool }}.
+  Hypothesis HBool : forall Δ Γ b i,
+      P Δ Γ <{ BOOL b @ i }> {{ Bool }}.
   (**[]*)
   
-  Hypothesis HBit : forall errs Γ w n i,
+  Hypothesis HBit : forall Δ Γ w n i,
       BitArith.bound w n ->
-      P errs Γ <{ w W n @ i }> {{ bit<w> }}.
+      P Δ Γ <{ w W n @ i }> {{ bit<w> }}.
   (**[]*)
   
-  Hypothesis HInt : forall errs Γ w z i,
+  Hypothesis HInt : forall Δ Γ w z i,
       IntArith.bound w z ->
-      P errs Γ <{ w S z @ i }> {{ int<w> }}.
+      P Δ Γ <{ w S z @ i }> {{ int<w> }}.
   (**[]*)
   
-  Hypothesis HVar : forall errs Γ x τ i,
+  Hypothesis HVar : forall Δ Γ x τ i,
       Env.find x Γ = Some τ ->
-      PT.proper_nesting τ ->
-      P errs Γ <{ Var x:τ @ i }> τ.
+      t_ok Δ τ ->
+      ProperType.proper_nesting τ ->
+      P Δ Γ <{ Var x:τ @ i }> τ.
   (**[]*)
   
-  Hypothesis HSlice : forall errs Γ e τ hi lo w i,
-      (lo <= hi < w)%positive ->
+  Hypothesis HSlice : forall Δ Γ e τ hi lo w i,
+      (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      P errs Γ e τ ->
-      let w' := (hi - lo + 1)%positive in
-      P errs Γ <{ Slice e:τ [hi:lo] @ i }> {{ bit<w'> }}.
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
+      P Δ Γ e τ ->
+      let w' := Npos (hi - lo + 1)%positive in
+      P Δ Γ <{ Slice e [hi:lo] @ i }> {{ bit<w'> }}.
   (**[]*)
   
-  Hypothesis HCast : forall errs Γ τ τ' e i,
+  Hypothesis HCast : forall Δ Γ τ τ' e i,
       proper_cast τ' τ ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ' ->
-      P errs Γ e τ' ->
-      P errs Γ <{ Cast e:τ @ i }> τ.
+      t_ok Δ τ' ->
+      t_ok Δ τ ->
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ τ' ->
+      P Δ Γ e τ' ->
+      P Δ Γ <{ Cast e:τ @ i }> τ.
   (**[]*)
   
-  Hypothesis HUop : forall errs Γ op τ τ' e i,
+  Hypothesis HUop : forall Δ Γ op τ τ' e i,
       uop_type op τ τ' ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      P errs Γ e τ ->
-      P errs Γ <{ UOP op e:τ @ i }> τ'.
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
+      P Δ Γ e τ ->
+      P Δ Γ <{ UOP op e : τ' @ i }> τ'.
   
-  Hypothesis HBop : forall errs Γ op τ1 τ2 τ e1 e2 i,
+  Hypothesis HBop : forall Δ Γ op τ1 τ2 τ e1 e2 i,
       bop_type op τ1 τ2 τ ->
-      ⟦ errs , Γ ⟧ ⊢ e1 ∈ τ1 ->
-      P errs Γ e1 τ1 ->
-      ⟦ errs , Γ ⟧ ⊢ e2 ∈ τ2 ->
-      P errs Γ e2 τ2 ->
-      P errs Γ <{ BOP e1:τ1 op e2:τ2 @ i }> τ.
+      ⟦ Δ , Γ ⟧ ⊢ e1 ∈ τ1 ->
+      P Δ Γ e1 τ1 ->
+      ⟦ Δ , Γ ⟧ ⊢ e2 ∈ τ2 ->
+      P Δ Γ e2 τ2 ->
+      P Δ Γ <{ BOP e1 op e2 : τ @ i }> τ.
   
-  Hypothesis HMem : forall errs Γ e x fs τ τ' i,
+  Hypothesis HMem : forall Δ Γ e x fs τ τ' i,
       F.get x fs = Some τ' ->
       member_type fs τ ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      P errs Γ e τ ->
-      P errs Γ <{ Mem e:τ dot x @ i }> τ'.
+      t_ok Δ τ ->
+      t_ok Δ τ' ->
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
+      P Δ Γ e τ ->
+      P Δ Γ <{ Mem e dot x : τ' @ i }> τ'.
   (**[]*)
   
-  Hypothesis HTuple : forall errs Γ es i ts,
-      Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts ->
-      Forall2 (P errs Γ) es ts ->
-      P errs Γ <{ tup es @ i }> {{ tuple ts }}.
+  Hypothesis HTuple : forall Δ Γ es i ts,
+      Forall2 (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es ts ->
+      Forall2 (P Δ Γ) es ts ->
+      P Δ Γ <{ tup es @ i }> {{ tuple ts }}.
   (**[]*)
   
-  Hypothesis HStructLit : forall errs Γ efs tfs i,
-      F.relfs
-        (fun te τ =>
-           (fst te) = τ /\
-           let e := snd te in
-           ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-      F.relfs
-        (fun te τ => let e := snd te in P errs Γ e τ)
-        efs tfs ->
-      P errs Γ <{ struct { efs } @ i }> {{ struct { tfs } }}.
+  Hypothesis HStructLit : forall Δ Γ efs tfs i,
+      F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+      F.relfs (P Δ Γ) efs tfs ->
+      P Δ Γ <{ struct { efs } @ i }> {{ struct { tfs } }}.
   (**[]*)
   
-  Hypothesis HHdrLit : forall errs Γ efs tfs i b,
-      PT.proper_nesting {{ hdr { tfs } }} ->
-      F.relfs
-        (fun te τ =>
-           (fst te) = τ /\
-           let e := snd te in
-           ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
-      F.relfs
-        (fun te τ => let e := snd te in P errs Γ e τ)
-        efs tfs ->
-      ⟦ errs, Γ ⟧ ⊢ b ∈ Bool ->
-      P errs Γ b {{ Bool }} ->
-      P errs Γ <{ hdr { efs } valid:=b @ i }> {{ hdr { tfs } }}.
+  Hypothesis HHdrLit : forall Δ Γ efs tfs i b,
+      ProperType.proper_nesting {{ hdr { tfs } }} ->
+      F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
+      F.relfs (P Δ Γ) efs tfs ->
+      ⟦ Δ, Γ ⟧ ⊢ b ∈ Bool ->
+      P Δ Γ b {{ Bool }} ->
+      P Δ Γ <{ hdr { efs } valid:=b @ i }> {{ hdr { tfs } }}.
   (**[]*)
   
-  Hypothesis HError : forall errs Γ err i,
-      error_ok errs err ->
-      P errs Γ <{ Error err @ i }> {{ error }}.
+  Hypothesis HError : forall Δ Γ err i,
+      P Δ Γ <{ Error err @ i }> {{ error }}.
   (**[]*)
   
-  Hypothesis HMatchKind : forall errs Γ mkd i,
-      P errs Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
+  Hypothesis HMatchKind : forall Δ Γ mkd i,
+      P Δ Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
   (**[]*)
   
-  Hypothesis HStack : forall errs Γ ts hs n ni i,
-      BitArith.bound 32%positive (Zpos n) ->
+  Hypothesis HStack : forall Δ Γ ts hs n ni i,
+      BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
-      Pos.to_nat n = length hs ->
-      PT.proper_nesting {{ stack ts[n] }} ->
-      Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
-      Forall (fun e => P errs Γ e {{ hdr { ts } }}) hs ->
-      P errs Γ <{ Stack hs:ts[n] nextIndex:=ni @ i }> {{ stack ts[n] }}.
+      ProperType.proper_nesting {{ stack ts[n] }} ->
+      t_ok Δ {{ stack ts[n] }} ->
+      Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ hdr { ts }) hs ->
+      Forall (fun e => P Δ Γ e {{ hdr { ts } }}) hs ->
+      P Δ Γ <{ Stack hs:ts nextIndex:=ni @ i }> {{ stack ts[n] }}.
   (**[]*)
   
-  Hypothesis HAccess : forall errs Γ e idx i ts n,
+  Hypothesis HAccess : forall Δ Γ e idx i ts n,
       (0 <= idx < (Zpos n))%Z ->
-      ⟦ errs, Γ ⟧ ⊢ e ∈ stack ts[n] ->
-      P errs Γ e {{ stack ts[n] }} ->
-      P errs Γ <{ Access e[idx] @ i }> {{ hdr { ts } }}.
+      t_ok Δ {{ stack ts[n] }} ->
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ stack ts[n] ->
+      P Δ Γ e {{ stack ts[n] }} ->
+      P Δ Γ <{ Access e[idx] : ts @ i }> {{ hdr { ts } }}.
   (**[]*)
   
   (** Custom induction principle for expression typing.
       Do [induction ?H using custom_check_expr_ind]. *)
   Definition custom_check_expr_ind :
-    forall (errs : errors) (Γ : gamma) (e : E.e tags_t) (τ : E.t)
-      (HY : ⟦ errs, Γ ⟧ ⊢ e ∈ τ), P errs Γ e τ :=
-    fix chind errs Γ e τ HY :=
+    forall (Δ : Delta) (Γ : Gamma) (e : Expr.e tags_t) (τ : Expr.t)
+      (HY : ⟦ Δ, Γ ⟧ ⊢ e ∈ τ), P Δ Γ e τ :=
+    fix chind Δ Γ e τ HY :=
       let fix lind
-              {es : list (E.e tags_t)}
-              {ts : list E.t}
-              (HR : Forall2 (fun e τ => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es ts)
-          : Forall2 (P errs Γ) es ts :=
+              {es : list (Expr.e tags_t)}
+              {ts : list Expr.t}
+              (HR : Forall2 (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es ts)
+          : Forall2 (P Δ Γ) es ts :=
           match HR with
           | Forall2_nil _ => Forall2_nil _
           | Forall2_cons _ _ Hh Htail
             => Forall2_cons _ _ (chind _ _ _ _ Hh) (lind Htail)
           end in
       let fix lind_stk
-              {es : list (E.e tags_t)} {τ : E.t}
-              (HRs : Forall (fun e => ⟦ errs, Γ ⟧ ⊢ e ∈ τ) es)
-          : Forall (fun e => P errs Γ e τ) es :=
+              {es : list (Expr.e tags_t)} {τ : Expr.t}
+              (HRs : Forall (fun e => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ) es)
+          : Forall (fun e => P Δ Γ e τ) es :=
           match HRs with
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ Hhead Htail
             => Forall_cons _ (chind _ _ _ _ Hhead) (lind_stk Htail)
           end in
       let fix fields_ind
-              {efs : F.fs string (E.t * E.e tags_t)}
-              {tfs : F.fs string E.t}
-              (HRs : F.relfs
-                       (fun te τ =>
-                          (fst te) = τ /\
-                          let e := snd te in
-                          ⟦ errs , Γ ⟧ ⊢ e ∈ τ) efs tfs)
-          : F.relfs
-              (fun te τ => let e := snd te in P errs Γ e τ)
-              efs tfs :=
+              {efs : F.fs string (Expr.e tags_t)}
+              {tfs : F.fs string Expr.t}
+              (HRs : F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs)
+          : F.relfs (P Δ Γ) efs tfs :=
           match HRs with
           | Forall2_nil _ => Forall2_nil _
-          | Forall2_cons te τ (conj HName (conj _ Hhead)) Htail
-            => Forall2_cons te τ
-                           (conj HName (chind errs Γ _ _ Hhead))
+          | Forall2_cons e τ (conj HName Hhead) Htail
+            => Forall2_cons e τ
+                           (conj HName (chind Δ Γ _ _ Hhead))
                            (fields_ind Htail)
           end in
       match HY with
-      | chk_bool _ _ b i     => HBool errs Γ b i
+      | chk_bool _ _ b i     => HBool Δ Γ b i
       | chk_bit _ _ _ _ H i => HBit _ _ _ _ H i
       | chk_int _ _ _ _ H i => HInt _ _ _ _ H i
-      | chk_var _ _ _ _ i HP HV => HVar _ _ _ _ i HP HV
+      | chk_var _ _ _ _ i HP Hok HV => HVar _ _ _ _ i HP Hok HV
       | chk_slice _ _ _ _ _ _ _ i Hlohiw Ht He
         => HSlice _ _ _ _ _ _ _ i Hlohiw Ht He (chind _ _ _ _ He)
-      | chk_cast _ _ _ _ _ i HPC He
-        => HCast _ _ _ _ _ i HPC He (chind _ _ _ _ He)
+      | chk_cast _ _ _ _ _ i HPC Hok Hok' He
+        => HCast _ _ _ _ _ i HPC Hok Hok' He (chind _ _ _ _ He)
       | chk_uop _ _ _ _ _ _ i Huop He
         => HUop _ _ _ _ _ _ i Huop He (chind _ _ _ _ He)
       | chk_bop _ _ _ _ _ _ _ _ i Hbop He1 He2
         => HBop _ _ _ _ _ _ _ _ i Hbop
                He1 (chind _ _ _ _ He1)
                He2 (chind _ _ _ _ He2)
-      | chk_mem _ _ _ _ _ _ _ _ i Hget He
-        => HMem _ _ _ _ _ _ _ _ i Hget He (chind _ _ _ _ He)
-      | chk_error _ _ _ i HOK => HError errs Γ _ i HOK
-      | chk_matchkind _ _ mk i  => HMatchKind errs Γ mk i
+      | chk_mem _ _ _ _ _ _ _ _ i Hok Hok' Hget He
+        => HMem _ _ _ _ _ _ _ _ i Hok Hok' Hget He (chind _ _ _ _ He)
+      | chk_error _ _ err i => HError Δ Γ err i
+      | chk_matchkind _ _ mk i  => HMatchKind Δ Γ mk i
       | chk_tuple _ _ _ i _ HR => HTuple _ _ _ i _ HR (lind HR)
       | chk_struct_lit _ _ _ _ i HRs
         => HStructLit _ _ _ _ i HRs (fields_ind HRs)
@@ -199,16 +246,16 @@ Section CheckExprInduction.
         => HHdrLit _ _ _ _ i _ HP
                   HRs (fields_ind HRs)
                   Hb (chind _ _ _ _ Hb)
-      | chk_stack _ _ _ _ _ _ i Hn Hni Hlen HP HRs
-        => HStack _ _ _ _ _ _ i Hn Hni Hlen HP HRs (lind_stk HRs)
-      | chk_access _ _ _ _ i _ _ Hidx He
-        => HAccess _ _ _ _ i _ _ Hidx He (chind _ _ _ _ He)
+      | chk_stack _ _ _ _ _ i _ Hn Hni HP Hok HRs
+        => HStack _ _ _ _ _ i _ Hn Hni HP Hok HRs (lind_stk HRs)
+      | chk_access _ _ _ _ i _ _ Hok Hidx He
+        => HAccess _ _ _ _ i _ _ Hok Hidx He (chind _ _ _ _ He)
       end.
   (**[]*)
 End CheckExprInduction.
 
 Section PatternCheckInduction.
-  Variable P : PR.pat -> E.t -> Prop.
+  Variable P : AST.Parser.pat -> Expr.t -> Prop.
   
   Hypothesis HWild : forall t, P [{ ?? }] t.
   
@@ -238,7 +285,7 @@ Section PatternCheckInduction.
   Definition custom_check_pat_ind : forall p t,
       check_pat p t -> P p t :=
     fix pind p t (H : check_pat p t) :=
-      let fix lind {ps : list PR.pat} {ts : list E.t}
+      let fix lind {ps : list AST.Parser.pat} {ts : list Expr.t}
               (H : Forall2 check_pat ps ts) : Forall2 P ps ts :=
           match H with
           | Forall2_nil _ => Forall2_nil _
@@ -263,38 +310,38 @@ Section CheckParserExprInduction.
   Variable tags_t: Type.
   
   (** An arbitrary predicate. *)
-  Variable P : user_states -> errors -> gamma -> PR.e tags_t -> Prop.
+  Variable P : user_states -> Delta -> Gamma -> AST.Parser.e tags_t -> Prop.
   
-  Hypothesis HGoto : forall sts errs Γ st i,
+  Hypothesis HGoto : forall sts Δ Γ st i,
       valid_state sts st ->
-      P sts errs Γ p{ goto st @ i }p.
+      P sts Δ Γ p{ goto st @ i }p.
   
-  Hypothesis HSelect : forall sts errs Γ e def cases i τ,
-      ⟦ errs, Γ ⟧ ⊢ e ∈ τ ->
-      ⟅ sts, errs, Γ ⟆ ⊢ def ->
-                   P sts errs Γ def ->
-                   Forall
-                     (fun pe =>
-                        let p := fst pe in
-                        let e := snd pe in
-                        check_pat p τ /\ ⟅ sts, errs, Γ ⟆ ⊢ e) cases ->
-                   F.predfs_data (P sts errs Γ) cases ->
-                   P sts errs Γ p{ select e { cases } default:=def @ i }p.
+  Hypothesis HSelect : forall sts Δ Γ e def cases i τ,
+      ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
+      ⟅ sts, Δ, Γ ⟆ ⊢ def ->
+                P sts Δ Γ def ->
+                Forall
+                  (fun pe =>
+                     let p := fst pe in
+                     let e := snd pe in
+                     check_pat p τ /\ ⟅ sts, Δ, Γ ⟆ ⊢ e) cases ->
+                F.predfs_data (P sts Δ Γ) cases ->
+                P sts Δ Γ p{ select e { cases } default:=def @ i }p.
   
   (** Custom induction principle.
       Do [induction ?H using custom_check_prsrexpr_ind] *)
   Definition custom_check_prsrexpr_ind :
-    forall (sts : user_states) (errs : errors) (Γ : gamma) (e : PR.e tags_t)
-      (Hy : ⟅ sts, errs, Γ ⟆ ⊢ e), P sts errs Γ e :=
-    fix chind sts errs Γ e Hy :=
+    forall (sts : user_states) (Δ : Delta) (Γ : Gamma) (e : AST.Parser.e tags_t)
+      (Hy : ⟅ sts, Δ, Γ ⟆ ⊢ e), P sts Δ Γ e :=
+    fix chind sts Δ Γ e Hy :=
       let fix lind
-              {cases : F.fs PR.pat (PR.e tags_t)} {τ : E.t}
+              {cases : F.fs AST.Parser.pat (AST.Parser.e tags_t)} {τ : Expr.t}
               (HR : Forall
                       (fun pe =>
                          let p := fst pe in
                          let e := snd pe in
-                         check_pat p τ /\ ⟅ sts, errs, Γ ⟆ ⊢ e) cases)
-          : F.predfs_data (P sts errs Γ) cases :=
+                         check_pat p τ /\ ⟅ sts, Δ, Γ ⟆ ⊢ e) cases)
+          : F.predfs_data (P sts Δ Γ) cases :=
           match HR with
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ (conj _ He) Htail

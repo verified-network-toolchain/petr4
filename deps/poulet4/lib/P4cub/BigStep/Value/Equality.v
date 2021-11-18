@@ -1,9 +1,9 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax
         Poulet4.P4cub.BigStep.Value.IndPrincip
-        Coq.PArith.BinPos Coq.ZArith.BinInt
+        Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax.
 Import Field.FieldTactics Val
-       ValueNotations P.P4cubNotations.
+       ValueNotations TypeNotations.
 Module TE := TypeEquivalence.
 
 Section VE.
@@ -35,7 +35,7 @@ Section VE.
     | VBool b1,       VBool b2       => eqb b1 b2
     | VInt w1 z1,     VInt w2 z2     => (w1 =? w2)%positive &&
                                        (z1 =? z2)%Z
-    | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%positive &&
+    | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%N &&
                                        (n1 =? n2)%Z
     | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
                                        then true
@@ -46,12 +46,9 @@ Section VE.
     | VTuple vs1, VTuple vs2         => lstruct vs1 vs2
     | VHeader vs1 b1, VHeader vs2 b2 => (eqb b1 b2)%bool && fields_struct vs1 vs2
     | VStruct vs1,    VStruct vs2    => fields_struct vs1 vs2
-    | VHeaderStack ts1 vss1 n1 ni1,
-      VHeaderStack ts2 vss2 n2 ni2   => F.eqb_fs TE.eqbt ts1 ts2 &&
-                                       (n1 =? n2)%positive && (ni1 =? ni2)%Z &&
-                                       ffstruct vss1 vss2
-    (*| VString s1,    VString s2      => if equiv_dec s1 s2 then true else false
-    | VEnum x1 m1,   VEnum x2 m2     => equiv_dec x1 x2 &&&& equiv_dec m1 m2*)
+    | VHeaderStack ts1 vss1 ni1,
+      VHeaderStack ts2 vss2 ni2      => F.eqb_fs TE.eqbt ts1 ts2 &&
+                                       (ni1 =? ni2)%Z && ffstruct vss1 vss2
     | _,              _              => false
     end.
   (**[]*)
@@ -62,8 +59,9 @@ Section VE.
     Hint Rewrite Pos.eqb_refl.
     Hint Rewrite equiv_dec_refl.
     Hint Rewrite Z.eqb_refl.
+    Hint Rewrite N.eqb_refl.
     Hint Rewrite TE.eqbt_refl.
-    Hint Rewrite (@F.eqb_fs_reflx string E.t).
+    Hint Rewrite (@F.eqb_fs_reflx string Expr.t).
     Hint Rewrite andb_true_r.
     Hint Extern 0 => equiv_dec_refl_tactic : core.
     induction vl using custom_value_ind; simpl in *;
@@ -161,6 +159,7 @@ Section VE.
                             unfold equiv in *; subst;
                               repeat eauto_too_dumb; subst; auto
                 end.
+    apply N.eqb_eq; assumption.
   Qed.
   
   Lemma eqbv_eq_iff : forall v1 v2 : v, eqbv v1 v2 = true <-> v1 = v2.

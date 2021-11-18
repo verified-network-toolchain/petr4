@@ -1,11 +1,8 @@
 Require Import Coq.Bool.Bool Coq.ZArith.BinIntDef
         Coq.ZArith.BinInt Poulet4.P4Arith.
 Require Export Poulet4.P4cub.Syntax.AST.
-Module P := P4cub.
-Import P.P4cubNotations.
-Module E := P.Expr.
-Module F := P.F.
-Module PR := P.Parser.
+Require Import Poulet4.P4cub.Syntax.CubNotations.
+Import AllCubNotations.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.
@@ -16,17 +13,15 @@ Module Val.
 Inductive v : Type :=
 | VBool (b : bool)
 | VInt (w : positive) (n : Z)
-| VBit (w : positive) (n : Z)
+| VBit (w : N) (n : Z)
 | VTuple (vs : list v)
 | VStruct (fs : F.fs string v)
 | VHeader (fs : F.fs string v) (validity : bool)
 | VError (err : option string)
-| VMatchKind (mk : P4cub.Expr.matchkind)
-| VHeaderStack (ts : F.fs string E.t)
+| VMatchKind (mk : Expr.matchkind)
+| VHeaderStack (ts : F.fs string Expr.t)
                (headers : list (bool * F.fs string v))
-               (size : positive) (nextIndex : Z)
-(*| VString (s : string)
-| VEnum (x m : string)*).
+               (next_index : Z).
 (**[]*)
 
 (** Lvalues. *)
@@ -39,7 +34,7 @@ Inductive lv : Type :=
 (**[]*)
 
 (** Evaluated arguments. *)
-Definition argsv : Type := F.fs string (P4cub.paramarg v lv).
+Definition argsv : Type := F.fs string (paramarg v lv).
 
 Module ValueNotations.
   Notation "'~{' val '}~'" := val (val custom p4value at level 99).
@@ -61,13 +56,9 @@ Module ValueNotations.
   Notation "'MATCHKIND' mk"
     := (VMatchKind mk)
          (in custom p4value at level 0, mk custom p4matchkind).
-  Notation "'STACK' vs : ts [ n ] 'NEXT' ':=' ni"
-           := (VHeaderStack ts vs n ni)
-                (in custom p4value at level 0, no associativity).
-  (*Notation "'STR' s"
-    := (VString s) (in custom p4value at level 0).
-  Notation "'ENUM' x 'DOT' m"
-    := (VEnum x m) (in custom p4value at level 0).*)
+  Notation "'STACK' vs : ts 'NEXT' ':=' ni"
+    := (VHeaderStack ts vs ni)
+         (in custom p4value at level 0, no associativity).
 End ValueNotations.
 
 Module LValueNotations.

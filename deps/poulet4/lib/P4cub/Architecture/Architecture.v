@@ -2,7 +2,6 @@ Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Architecture.Paquet
         Poulet4.P4cub.Envn.
-Module P := P4cub.
 
 (** P4cub's analogue to p4light's [Target.v].
     May be replace entirely with [Target.v]
@@ -16,7 +15,7 @@ Module Arch (Pkt : P4Packet).
     closure : Env.t string E;
     dispatch_method :
       string ->                                 (* method name *)
-      P.arrow string (T * E) (T * LV) (T * LV) -> (* arguments *)
+      arrow string E LV LV -> (* arguments *)
       Env.t string E ->                         (* current environment *)
       paquet_monad (Env.t string E)            (* input/output packet &
                                                   resulting environment. *)

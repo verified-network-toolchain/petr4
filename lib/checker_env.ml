@@ -2,8 +2,6 @@ module I = Info
 open Core_kernel
 module Info = I
 
-exception NameAlreadyBound
-
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)
     typ: Typed.coq_P4Type Env.t;
@@ -16,7 +14,7 @@ type t =
     (* externs *)
     externs: Prog.coq_ExternMethods Env.t;
     (* for generating fresh type variables *)
-    renamer: Renamer.t;
+    renamer: Renamer.t ref;
   }
 
 let empty_with_renamer r : t =
@@ -27,11 +25,27 @@ let empty_with_renamer r : t =
     externs = Env.empty_env;
     renamer = r }
 
+let top_scope env : t =
+  { typ = [List.last_exn env.typ];
+    typ_of = [List.last_exn env.typ_of];
+    const = [List.last_exn env.const];
+    default_args = env.default_args;
+    externs = [List.last_exn env.externs];
+    renamer = env.renamer }
+
 let empty_t () : t =
-  empty_with_renamer @@ Renamer.create ()
+  empty_with_renamer @@ ref (Renamer.create ())
 
 let renamer env =
-  env.renamer
+  !(env.renamer)
+
+let push_scope (env: t) : t =
+  { typ = Env.push env.typ;
+    typ_of = Env.push env.typ_of;
+    const = Env.push env.const;
+    default_args = env.default_args;
+    externs = Env.push env.externs;
+    renamer = env.renamer }
 
 let resolve_type_name_opt name env =
   Env.find_opt name env.typ
@@ -64,33 +78,31 @@ let find_extern name env =
 let find_extern_opt name env =
   Env.find_opt name env.externs
 
-let insert_type name typ env =
-  { env with typ = Env.insert name typ env.typ }
+let insert_type ?shadow:(shadow=false) name typ env =
+  { env with typ = Env.insert ~shadow name typ env.typ }
 
-let insert_types names_types env =
+let insert_types ?shadow:(shadow=false) names_types env =
   let go env (name, typ) =
-    insert_type (BareName name) typ env
+    insert_type ~shadow (BareName name) typ env
   in
   List.fold ~f:go ~init:env names_types
 
-let insert_type_var var env =
+let insert_type_var ?shadow:(shadow=false) var env =
   let typ: Typed.coq_P4Type = TypTypeName var in
-  { env with typ = Env.insert var typ env.typ }
+  { env with typ = Env.insert ~shadow var typ env.typ }
 
-let insert_type_vars vars env =
-  let go env var = insert_type_var (BareName var) env in
+let insert_type_vars ?shadow:(shadow=false) vars env =
+  let go env var = insert_type_var ~shadow (BareName var) env in
   List.fold ~f:go ~init:env vars
 
-let insert_dir_type_of var typ dir env =
-  { env with typ_of = Env.insert var (typ, dir) env.typ_of }
+let insert_dir_type_of ?shadow:(shadow=false) var typ dir env =
+  { env with typ_of = Env.insert ~shadow var (typ, dir) env.typ_of }
 
-let insert_type_of var typ env =
-  insert_dir_type_of var typ Directionless env
+let insert_type_of ?shadow:(shadow=false) var typ env =
+  insert_dir_type_of ~shadow var typ Directionless env
 
 let insert_const var value env =
-  match find_const_opt var env with
-  | Some _ -> raise NameAlreadyBound
-  | None -> { env with const = Env.insert var value env.const }
+  { env with const = Env.insert ~shadow:false var value env.const }
 
 let add_default_arg expr env =
   let l = !(env.default_args) in
@@ -98,6 +110,4 @@ let add_default_arg expr env =
   List.length l
 
 let insert_extern var value env =
-  match find_extern_opt var env with
-  | Some _ -> raise NameAlreadyBound
-  | None -> { env with externs = Env.insert var value env.externs }
+  { env with externs = Env.insert ~shadow:false var value env.externs }

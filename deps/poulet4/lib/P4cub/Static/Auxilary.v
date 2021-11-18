@@ -5,7 +5,7 @@ Require Import
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing
         Poulet4.P4cub.Static.IndPrincip.
-Import P.P4cubNotations.
+Import AllCubNotations.
 
 (** TODO *)
 Section TypeOf.

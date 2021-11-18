@@ -30,3 +30,38 @@ Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (bas
   end.
 
 Hint Unfold option_ret option_bind : core.
+
+Lemma sequence_length :
+  forall {A : Type} lmao (la : list A),
+    sequence lmao = Some la ->
+    length lmao = length la.
+Proof.
+  intros A lmao;
+    induction lmao as [| [ama |] lmao IHlmao];
+    intros [| a la] H; simpl in *;
+    autounfold with * in *;
+      try discriminate; auto.
+  - destruct (sequence lmao);
+      simpl in *; inversion H.
+  - destruct (sequence lmao) as [la' |] eqn:Heqlmao;
+      simpl in *; inversion H; subst;
+        f_equal; auto.
+Qed.
+
+Require Import Lists.List.
+
+Lemma sequence_Forall2 : forall {A : Type} lmao (la : list A),
+    sequence lmao = Some la ->
+    Forall2 (fun mao a => mao = Some a) lmao la.
+Proof.
+  intros A lmao;
+    induction lmao as [| [ama |] lmao IHlmao];
+    intros [| a la] H; simpl in *;
+      autounfold with * in *;
+      try discriminate; auto.
+  - destruct (sequence lmao);
+      simpl in *; inversion H.
+  - destruct (sequence lmao) as [la' |] eqn:Heqlmao;
+      simpl in *; inversion H; subst;
+        f_equal; auto.
+Qed.

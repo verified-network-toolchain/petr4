@@ -1,16 +1,12 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
-Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST.
-
-Module P := P4cub.
-Module F := P.F.
-Module E := P.Expr.
-Module PRSR := P.Parser.
+Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
+        Poulet4.P4cub.Syntax.CubNotations.
 
 (** Custom induction principle for [t]. *)
 Section TypeInduction.
-  Import E TypeNotations.
+  Import Expr TypeNotations.
   
   (** An arbitrary property. *)
   Variable P : t -> Prop.
@@ -38,10 +34,6 @@ Section TypeInduction.
   
   Hypothesis HTHeaderStack : forall fields size,
       F.predfs_data P fields -> P {{ stack fields[size] }}.
-
-  (*Hypothesis HTString : P {{ Str }}.
-
-  Hypothesis HTEnum : forall x xs, P {{ enum x { xs } }}.*)
   
   (** A custom induction principle.
       Do [induction ?t using custom_t_ind]. *)
@@ -71,15 +63,13 @@ Section TypeInduction.
       | {{ struct { fields } }} => HTStruct fields (fields_ind fields)
       | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
       | {{ stack fields[n] }} => HTHeaderStack fields n (fields_ind fields)
-      (*| {{ Str }} => HTString
-      | {{ enum x { xs } }} => HTEnum x xs*)
       end.
   (**[]*)
 End TypeInduction.
 
 (** A custom induction principle for [e]. *)
 Section ExprInduction.
-  Import E.
+  Import Expr.
   Import TypeNotations.
   Import UopNotations.
   Import ExprNotations.
@@ -100,55 +90,51 @@ Section ExprInduction.
   Hypothesis HEVar : forall (ty : t) (x : string) i,
       P <{ Var x : ty @ i }>.
   
-  Hypothesis HESlice : forall n τ hi lo i,
-      P n -> P <{ Slice n:τ [ hi : lo ] @ i }>.
+  Hypothesis HESlice : forall n hi lo i,
+      P n -> P <{ Slice n [ hi : lo ] @ i }>.
   
   Hypothesis HECast : forall τ exp i,
       P exp -> P <{ Cast exp:τ @ i }>.
   
-  Hypothesis HEUop : forall (op : uop) (ty : t) (ex : e tags_t) i,
-      P ex -> P <{ UOP op ex : ty @ i }>.
+  Hypothesis HEUop : forall (rt : t) (op : uop) (ex : e tags_t) i,
+      P ex -> P <{ UOP op ex : rt @ i }>.
   
-  Hypothesis HEBop : forall (op : bop) (lt rt : t) (lhs rhs : e tags_t) i,
-      P lhs -> P rhs -> P <{ BOP lhs:lt op rhs:rt @ i }>.
+  Hypothesis HEBop : forall rt (op : bop) (lhs rhs : e tags_t) i,
+      P lhs -> P rhs -> P <{ BOP lhs op rhs : rt @ i }>.
   
   Hypothesis HETuple : forall es i,
       Forall P es -> P <{ tup es @ i }>.
   
   Hypothesis HEStruct : forall fields i,
-      F.predfs_data (P ∘ snd) fields -> P <{ struct {fields} @ i }>.
+      F.predfs_data P fields -> P <{ struct {fields} @ i }>.
   
   Hypothesis HEHeader : forall fields b i,
-      P b -> F.predfs_data (P ∘ snd) fields ->
+      P b -> F.predfs_data P fields ->
       P <{ hdr {fields} valid:=b @ i }>.
   
-  Hypothesis HEExprMember : forall x ty expr i,
-      P expr -> P <{ Mem expr:ty dot x @ i }>.
+  Hypothesis HEExprMember : forall rt x expr i,
+      P expr -> P <{ Mem expr dot x : rt @ i }>.
   
   Hypothesis HEError : forall err i, P <{ Error err @ i }>.
   
   Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
   
-  Hypothesis HEStack : forall ts hs size ni i,
+  Hypothesis HEStack : forall ts hs ni i,
       Forall P hs ->
-      P <{ Stack hs:ts [size] nextIndex:=ni @ i }>.
+      P <{ Stack hs:ts nextIndex:=ni @ i }>.
   
-  Hypothesis HAccess : forall e1 e2 i,
-      P e1 -> P <{ Access e1[e2] @ i }>.
-
-  (*Hypothesis HString : forall s i, P <{ Stri s @ i }>.
-
-  Hypothesis HEnum : forall x m i, P <{ Enum x dot m @ i }>.*)
+  Hypothesis HAccess : forall rt e n i,
+      P e -> P <{ Access e[n] : rt @ i }>.
   
   (** A custom induction principle.
       Do [induction ?e using custom_e_ind]. *)
   Definition custom_e_ind : forall exp : e tags_t, P exp :=
     fix eind (expr : e tags_t) : P expr :=
-      let fix fields_ind {A:Type} (flds : F.fs string (A * e tags_t))
-          : F.predfs_data (P ∘ snd) flds :=
+      let fix fields_ind (flds : F.fs string (e tags_t))
+          : F.predfs_data P flds :=
           match flds with
-          | [] => Forall_nil (F.predf_data (P ∘ snd))
-          | (_, (_, hfe)) as hf :: tf
+          | [] => Forall_nil _
+          | (_, hfe) as hf :: tf
             => Forall_cons hf (eind hfe) (fields_ind tf)
           end in
       let fix list_ind (es : list (e tags_t)) : Forall P es :=
@@ -161,31 +147,28 @@ Section ExprInduction.
       | <{ w W n @ i }>  => HEBit w n i
       | <{ w S n @ i }>  => HEInt w n i
       | <{ Var x:ty @ i }> => HEVar ty x i
-      | <{ Slice n:τ [h:l] @ i }> => HESlice n τ h l i (eind n)
+      | <{ Slice n [h:l] @ i }> => HESlice n h l i (eind n)
       | <{ Cast exp:τ @ i }> => HECast τ exp i (eind exp)
-      | <{ UOP op exp:ty @ i }> => HEUop op ty exp i (eind exp)
-      | <{ BOP lhs:lt op rhs:rt @ i }>
-        => HEBop op lt rt lhs rhs i
-                (eind lhs) (eind rhs)
+      | <{ UOP op exp : t @ i }> => HEUop t op exp i (eind exp)
+      | <{ BOP lhs op rhs : t @ i }>
+        => HEBop t op lhs rhs i (eind lhs) (eind rhs)
       | <{ tup es @ i }>         => HETuple es i (list_ind es)
       | <{ struct { fields } @ i }> => HEStruct fields i (fields_ind fields)
       | <{ hdr { fields } valid:=b @ i }>
         => HEHeader fields b i (eind b) (fields_ind fields)
-      | <{ Mem exp:ty dot x @ i }> => HEExprMember x ty exp i (eind exp)
+      | <{ Mem exp dot x : rt @ i }> => HEExprMember rt x exp i (eind exp)
       | <{ Error err @ i }> => HEError err i
       | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
-      | <{ Stack hs:ts [n] nextIndex:=ni @ i }>
-        => HEStack ts hs n ni i (list_ind hs)
-      | <{ Access e1[e2] @ i }> => HAccess e1 e2 i (eind e1)
-      (*| <{ Stri s @ i }> => HString s i
-      | <{ Enum x dot m @ i }> => HEnum x m i*)
+      | <{ Stack hs:ts nextIndex:=ni @ i }>
+        => HEStack ts hs ni i (list_ind hs)
+      | <{ Access e[n] : rt @ i }> => HAccess rt e n i (eind e)
       end.
   (**[]*)
 End ExprInduction.
 
 (** A custom induction principle for select patterns. *)
 Section PatternInduction.
-  Import PRSR.
+  Import Parser.
   Import ParserNotations.
       
   Variable P : pat -> Prop.
@@ -227,9 +210,9 @@ End PatternInduction.
 
 (** A custom induction principle for parser expressions. *)
 Section ParserExprInduction.
-  Import PRSR.
+  Import Parser.
   Import ParserNotations.
-  Import E.ExprNotations.
+  Import ExprNotations.
   
   Context {tags_t : Type}.
   
@@ -240,6 +223,7 @@ Section ParserExprInduction.
   
   Hypothesis HSelect : forall exp st cases i,
       F.predfs_data P cases ->
+      P st -> 
       P p{ select exp { cases } default:=st @ i }p.
   (**[]*)
   
@@ -257,7 +241,7 @@ Section ParserExprInduction.
       match pe with
       | p{ goto st @ i }p => HState st i
       | p{ select exp { cases } default:=st @ i }p
-        => HSelect exp st _ i (fsind cases)
+        => HSelect exp st _ i (fsind cases) (peind st)
       end.
   (**[]*)
 End ParserExprInduction.

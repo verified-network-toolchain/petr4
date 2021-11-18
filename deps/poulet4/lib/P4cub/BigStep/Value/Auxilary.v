@@ -1,9 +1,11 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax
-        Coq.PArith.BinPos Coq.ZArith.BinInt.
-Import Val ValueNotations P.P4cubNotations.
+        Coq.PArith.BinPos Coq.ZArith.BinInt
+        Poulet4.P4cub.Syntax.CubNotations
+        Coq.NArith.BinNat.
+Import Val ValueNotations AllCubNotations.
 
 (** Intial/Default value from a type. *)
-Fixpoint vdefault (τ : E.t) : option v :=
+Fixpoint vdefault (τ : Expr.t) : option v :=
   match τ with
   | {{ error }}      => Some ~{ ERROR None }~
   | {{ matchkind }}  => Some ~{ MATCHKIND exact }~
@@ -20,15 +22,12 @@ Fixpoint vdefault (τ : E.t) : option v :=
       ~{ HDR { vs } VALID:=false }~
   | {{ stack ts[n] }}
     => vs <<| sequence $ List.map (fun '(x,t) => v <<| vdefault t ;; (x, v)) ts ;;
-      VHeaderStack ts (repeat (false, vs) (Pos.to_nat n)) n 0
-  | E.TVar _ => None
-  (*| {{ Str }} => Some ~{ STR String.EmptyString }~
-  | {{ enum x { xs } }} =>
-    m <<| hd_error xs ;; ~{ ENUM x DOT m }~*)
+      VHeaderStack ts (repeat (false, vs) (Pos.to_nat n)) 0
+  | Expr.TVar _ => None
   end.
 (**[]*)
 
-Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
+Fixpoint match_pattern (p : Parser.pat) (V : v) : bool :=
   match p, V with
   | [{ ?? }], _ => true
   | [{ (w PW a) &&& (_ PW b) }], ~{ _ VW c }~
@@ -36,7 +35,7 @@ Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
   | [{ (w PW a) .. (_ PW b) }], ~{ _ VW c }~
     => (a <=? c)%Z && (c <=? b)%Z
   | [{ w1 PW n1 }], ~{ w2 VW n2 }~ =>
-    (w1 =? w2)%positive && (n1 =? n2)%Z
+    (w1 =? w2)%N && (n1 =? n2)%Z
   | [{ w1 PS n1 }], ~{ w2 VS n2 }~ =>
     (w1 =? w2)%positive && (n1 =? n2)%Z
   | [{ PTUP ps }], ~{ TUPLE vs }~ =>
@@ -50,28 +49,28 @@ Fixpoint match_pattern (p : PR.pat) (V : v) : bool :=
   end.
 (**[]*)
 
-Fixpoint approx_type (V : v) : E.t :=
+Fixpoint approx_type (V : v) : Expr.t :=
   match V with
   | ~{ VBOOL _ }~ => {{ Bool }}
   | ~{ w VW _ }~ => {{ bit<w> }}
   | ~{ w VS _ }~ => {{ int<w> }}
   | ~{ ERROR _ }~ => {{ error }}
   | ~{ MATCHKIND _ }~ => {{ matchkind }}
-  | ~{ TUPLE vs }~ => E.TTuple $ List.map approx_type vs
+  | ~{ TUPLE vs }~ => Expr.TTuple $ List.map approx_type vs
   | ~{ STRUCT { vs } }~
-    => E.TStruct $ F.map approx_type vs
+    => Expr.TStruct $ F.map approx_type vs
   | ~{ HDR { vs } VALID:=_ }~
-    => E.THeader $ F.map approx_type vs
-  | ~{ STACK _:ts[n] NEXT:=_ }~ => {{ stack ts[n] }}
-  (*| ~{ STR _ }~ => {{ Str }}
-  | ~{ ENUM x DOT m }~ => {{ enum x { [m] } }}*)
+    => Expr.THeader $ F.map approx_type vs
+  | ~{ STACK hs:ts NEXT:=_ }~ => Expr.THeaderStack ts (Pos.of_nat (length hs))
   end.
 (**[]*)
                       
 Section Util.
   Context {tags_t : Type}.
+
+  Variable i : tags_t.
   
-  Fixpoint expr_of_value (i : tags_t) (V : v) : E.e tags_t :=
+  Fixpoint expr_of_value (V : v) : Expr.e tags_t :=
     match V with
     | ~{ VBOOL b }~ => <{ BOOL b @ i }>
     | ~{ w VW n }~ => <{ w W n @ i }>
@@ -79,27 +78,17 @@ Section Util.
     | ~{ ERROR err }~ => <{ Error err @ i }>
     | ~{ MATCHKIND mk }~ => <{ Matchkind mk @ i }>
     | ~{ TUPLE vs }~
-      => E.ETuple (List.map (expr_of_value i) vs) i
+      => Expr.ETuple (List.map expr_of_value vs) i
     | ~{ STRUCT { vs } }~
-      => E.EStruct
-          (F.map
-             (fun v => (approx_type v, expr_of_value i v))
-             vs) i
+      => Expr.EStruct (F.map expr_of_value vs) i
     | ~{ HDR { vs } VALID:=b }~
-      => E.EHeader
-          (F.map
-             (fun v => (approx_type v, expr_of_value i v))
-             vs) <{ BOOL b @ i }> i
-    | ~{ STACK hs:ts[n] NEXT:=ni }~
-      => E.EHeaderStack
+      => Expr.EHeader (F.map expr_of_value vs) <{ BOOL b @ i }> i
+    | ~{ STACK hs:ts NEXT:=ni }~
+      => Expr.EHeaderStack
           ts
           (List.map
              (fun '(b,vs) =>
-                E.EHeader
-                  (F.map
-                     (fun v => (approx_type v, expr_of_value i v))
-                     vs) <{ BOOL b @ i }> i) hs) n ni i
-    (*| ~{ STR s }~ => <{ Stri s @ i }>
-    | ~{ ENUM x DOT m }~ => <{ Enum x dot m @ i }>*)
+                Expr.EHeader
+                  (F.map expr_of_value vs) <{ BOOL b @ i }> i) hs) ni i
     end.
 End Util.

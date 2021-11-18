@@ -1,13 +1,10 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Envn
+Require Import Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.Value.Syntax
         Poulet4.P4cub.BigStep.Semantics
         Poulet4.P4cub.BigStep.IndPrincip.
-Module P := Poulet4.P4cub.Syntax.AST.P4cub.
-Module E := P.Expr.
-Module PR := P.Parser.
 Module V := Val.
-Import P.P4cubNotations V.ValueNotations
+Import AllCubNotations V.ValueNotations
        V.LValueNotations F.FieldTactics Step.
 
 Section Determinism.
@@ -26,7 +23,7 @@ Section Determinism.
 
     Local Hint Extern 0 => ind_case : core.
 
-    Theorem expr_deterministic : forall ϵ (e : E.e tags_t) v1 v2,
+    Theorem expr_deterministic : forall ϵ (e : Expr.e tags_t) v1 v2,
         ⟨ ϵ, e ⟩ ⇓ v1 -> ⟨ ϵ, e ⟩ ⇓ v2 -> v1 = v2.
     Proof.
       intros ϵ e v1 v2 Hv1; generalize dependent v2;
@@ -59,7 +56,7 @@ Section Determinism.
 
     Local Hint Extern 0 => ind_case : core.
 
-    Theorem lvalue_deterministic : forall (e : E.e tags_t) lv1 lv2,
+    Theorem lvalue_deterministic : forall (e : Expr.e tags_t) lv1 lv2,
         ⧠ e ⇓ lv1 -> ⧠ e ⇓ lv2 -> lv1 = lv2.
     Proof.
       intros e lv1 lv2 H1; generalize dependent lv2;
@@ -68,7 +65,7 @@ Section Determinism.
   End LValueDeterminism.
 
   Theorem parser_expr_deterministic :
-    forall (ϵ : epsilon) (e : PR.e tags_t) (st1 st2 : PR.state),
+    forall (ϵ : epsilon) (e : AST.Parser.e tags_t) (st1 st2 : AST.Parser.state),
       ⦑ ϵ, e ⦒ ⇓ st1 -> ⦑ ϵ, e ⦒ ⇓ st2 -> st1 = st2.
   Proof.
     intros ϵ e st1 st2 Hst1; generalize dependent st2;

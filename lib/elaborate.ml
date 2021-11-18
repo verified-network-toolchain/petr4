@@ -151,8 +151,8 @@ let subst_vars_params env params =
   List.map ~f:(subst_vars_param env) params
 
 let freshen_param env param =
-  let param' = Renamer.freshen_p4string env.renamer param in
-  Checker_env.insert_type (BareName param) (TypTypeName (BareName param')) env, param'
+  let param' = Renamer.freshen_p4string (renamer env) param in
+  Checker_env.insert_type ~shadow:true (BareName param) (TypTypeName (BareName param')) env, param'
 
 let check_shadowing params =
   let param_compare (p1: P4string.t) (p2: P4string.t) = String.compare p1.str p2.str in
@@ -242,7 +242,7 @@ let elab_decls env decls =
      cannot be changed, unlike bound type variable names! *)
   let observe_decl_name d =
     match Declaration.name_opt d with
-    | Some name -> Renamer.observe_name env.renamer name.str
+    | Some name -> Renamer.observe_name (renamer env) name.str
     | None -> ()
   in
   List.iter ~f:observe_decl_name decls;

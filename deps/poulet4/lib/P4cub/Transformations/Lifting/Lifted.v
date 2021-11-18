@@ -1,5 +1,5 @@
 Require Export Poulet4.P4cub.Syntax.Syntax
-        Poulet4.P4cub.Transformations.Statementize
+        Poulet4.P4cub.Transformations.Lifting.Statementize
         Coq.Numbers.DecimalString
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.

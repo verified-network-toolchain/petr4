@@ -1,14 +1,10 @@
 From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
-Require Import BinaryString.
-Require Import Coq.PArith.BinPosDef.
-Require Import Coq.PArith.BinPos.
-Require Import List.
-Require Import Coq.ZArith.BinIntDef.
-Require Import String.
+Require Import BinaryString
+        Coq.PArith.BinPosDef Coq.PArith.BinPos
+        List Coq.ZArith.BinIntDef String.
 Require Coq.PArith.BinPosDef.
-Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.P4cub.Envn.
-Require Import Poulet4.P4cub.Transformations.Statementize.
+From Poulet4.P4cub Require Import Syntax.Syntax Envn.
+Require Import Poulet4.P4cub.Transformations.Lifting.Statementize.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.Error.

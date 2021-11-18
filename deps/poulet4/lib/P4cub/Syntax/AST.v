@@ -232,8 +232,6 @@ End Expr.
 
 (** Statement Grammar *)
 Module Stmt.
-  Module E := Expr.
-
   Section Statements.
     Variable (tags_t : Type).
 
@@ -242,32 +240,32 @@ Module Stmt.
 
     Inductive s : Type :=
     | SSkip (i : tags_t)                              (* skip/no-op *)
-    | SVardecl (x : string) (expr : either E.t (E.e tags_t))
+    | SVardecl (x : string) (expr : either Expr.t (Expr.e tags_t))
                (i : tags_t)                           (* variable declaration. *)
-    | SAssign (lhs rhs : E.e tags_t) (i : tags_t)     (* assignment *)
-    | SConditional (guard : E.e tags_t)
+    | SAssign (lhs rhs : Expr.e tags_t) (i : tags_t)     (* assignment *)
+    | SConditional (guard : Expr.e tags_t)
                    (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
     | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
     | SBlock (blk : s)                                (* blocks *)
     | SExternMethodCall (extern_name method_name : string)
-                        (typ_args : list E.t)
-                        (args : E.arrowE tags_t)
+                        (typ_args : list Expr.t)
+                        (args : Expr.arrowE tags_t)
                         (i : tags_t)                  (* extern method calls *)
     | SFunCall (f : string)
-               (typ_args : list E.t)
-               (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
+               (typ_args : list Expr.t)
+               (args : Expr.arrowE tags_t) (i : tags_t)  (* function call *)
     | SActCall (action_name : string)
-               (args : E.args tags_t) (i : tags_t)    (* action call *)
-    | SReturn (e : option (E.e tags_t))
+               (args : Expr.args tags_t) (i : tags_t)    (* action call *)
+    | SReturn (e : option (Expr.e tags_t))
               (i : tags_t)                            (* return statement *)
     | SExit (i : tags_t)                              (* exit statement *)
     | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
     | SApply (control_instance_name : string)
              (ext_args : F.fs string string)
-             (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
+             (args : Expr.args tags_t) (i : tags_t)      (* control apply statements *)
     | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
                      (n : positive) (i : tags_t)      (* push or pop statements *)
-    | SSetValidity (hdr : E.e tags_t) (validity : bool)
+    | SSetValidity (hdr : Expr.e tags_t) (validity : bool)
                    (i : tags_t)                       (* set valid or set invalid *).
   (**[]*)
   End Statements.
@@ -291,9 +289,6 @@ End Stmt.
 
 (** Parsers *)
 Module Parser.
-  Module E := Expr.
-  Module S := Stmt.
-
   (** Labels for parser-states. *)
   Inductive state : Set :=
   | STStart              (* start state *)
@@ -319,7 +314,7 @@ Module Parser.
     (** Parser expressions, which evaluate to state names *)
     Inductive e : Type :=
     | PGoto (st : state) (i : tags_t) (* goto state [st] *)
-    | PSelect (discriminee : E.e tags_t)
+    | PSelect (discriminee : Expr.e tags_t)
               (default : e) (cases : F.fs pat e)
               (i : tags_t)           (* select expressions,
                                         where "default" is
@@ -328,7 +323,7 @@ Module Parser.
 
     (** Parser State Blocks. *)
     Inductive state_block : Type :=
-    | State (stmt : S.s tags_t) (transition : e).
+    | State (stmt : Stmt.s tags_t) (transition : e).
     (**[]*)
   End Parsers.
 
@@ -339,22 +334,19 @@ End Parser.
 
 (** Controls *)
 Module Control.
-  Module E := Expr.
-  Module S := Stmt.
-
   Section ControlDecls.
     Variable (tags_t : Type).
     
     (** Table. *)
     Inductive table : Type :=
-    | Table (key : list (E.t * E.e tags_t * E.matchkind))
+    | Table (key : list (Expr.t * Expr.e tags_t * Expr.matchkind))
             (actions : list string).
     (**[]*)
     
     (** Declarations that may occur within Controls. *)
     Inductive d : Type :=
     | CDAction (action_name : string)
-               (signature : E.params) (body : S.s tags_t)
+               (signature : Expr.params) (body : Stmt.s tags_t)
                (i : tags_t)               (* action declaration *)
     | CDTable (table_name : string)
               (body : table) (i : tags_t) (* table declaration *)
@@ -370,45 +362,40 @@ End Control.
 
 (** Top-Level Declarations *)
 Module TopDecl.
-  Module E := Expr.
-  Module S := Stmt.
-  Module C := Control.
-  Module P := Parser.
-
   Section TopDeclarations.
     Variable (tags_t : Type).
 
     (** Top-level declarations. *)
     Inductive d : Type :=
     | TPInstantiate (constructor_name instance_name : string)
-                    (type_args : list E.t)
-                    (cargs : E.constructor_args tags_t)
+                    (type_args : list Expr.t)
+                    (cargs : Expr.constructor_args tags_t)
                     (i : tags_t) (* instantiations *)
     | TPExtern (extern_name : string)
                (type_params : list string)
-               (cparams : E.constructor_params)
-               (methods : F.fs string (list string * E.arrowT))
+               (cparams : Expr.constructor_params)
+               (methods : F.fs string (list string * Expr.arrowT))
                (i : tags_t) (* extern declarations *)
     | TPControl (control_name : string)
-                (cparams : E.constructor_params) (* constructor params *)
+                (cparams : Expr.constructor_params) (* constructor params *)
                 (eparams : F.fs string string)   (* runtime extern params *)
-                (params : E.params)              (* apply block params *)
-                (body : C.d tags_t) (apply_blk : S.s tags_t)
+                (params : Expr.params)              (* apply block params *)
+                (body : Control.d tags_t) (apply_blk : Stmt.s tags_t)
                 (i : tags_t) (* control declarations *)
     | TPParser (parser_name : string)
-               (cparams : E.constructor_params) (* constructor params *)
+               (cparams : Expr.constructor_params) (* constructor params *)
                (eparams : F.fs string string)   (* runtime extern params *)
-               (params : E.params)              (* invocation params *)
-               (start : P.state_block tags_t)   (* start state *)
-               (states : F.fs string (P.state_block tags_t)) (* parser states *)
+               (params : Expr.params)              (* invocation params *)
+               (start : Parser.state_block tags_t)   (* start state *)
+               (states : F.fs string (Parser.state_block tags_t)) (* parser states *)
                (i : tags_t)  (* parser declaration *)
     | TPFunction (function_name : string)
                  (type_params : list string)
-                 (signature : E.arrowT) (body : S.s tags_t)
+                 (signature : Expr.arrowT) (body : Stmt.s tags_t)
                  (i : tags_t)(* function/method declaration *)
     | TPPackage (package_name : string)
                 (type_params : list string)
-                (cparams : E.constructor_params) (* constructor params *)
+                (cparams : Expr.constructor_params) (* constructor params *)
                 (i : tags_t) (* package type declaration *)
     | TPSeq (d1 d2 : d) (i : tags_t).
     (**[]*)

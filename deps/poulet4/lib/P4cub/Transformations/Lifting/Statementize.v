@@ -1,6 +1,6 @@
-Require Import Poulet4.Monads.Error
-        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.Auxilary.
-Require Poulet4.P4cub.Transformations.VarNameGen.
+From Poulet4 Require Import Monads.Error
+     P4cub.Syntax.AST P4cub.Syntax.Auxilary.
+Require Poulet4.P4cub.Transformations.Lifting.VarNameGen.
 Import ListNotations.
 
 Open Scope list_scope.

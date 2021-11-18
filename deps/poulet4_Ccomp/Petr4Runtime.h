@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <math.h> 
 
+enum p4int {FIXBIT, FIXINT};
 
 struct packet_in {
   void *in;
@@ -94,7 +95,10 @@ void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   check = mpz_set_str(i,val, 10);
   assert (check == 0); 
 
+  mpz_init(dst->value);
   mpz_set(dst->value, i); 
+  dst->is_signed = sign;
+  dst->width = w;
 }
 
 //unary operators
@@ -105,71 +109,178 @@ void eval_uminus(mpz_t v) {
   mpz_neg(dst_value, v);
 }
 
+void interp_uminus(BitVec *dst, BitVec src){
+  dst->width = src.width;
+  dst->is_signed = src.is_signed;
+  mpz_init(dst->value);
+  if(src.is_signed){
+    mpz_neg(dst->value, src.value);
+    mpz_t top;
+    mpz_init(top);
+    mpz_ui_pow_ui(top, 2, src.width-1);
+    if(mpz_cmp(dst->value,top)==0){
+      mpz_set(dst->value, src.value);
+    }
+  }else{
+    mpz_t top;
+    mpz_init(top);
+    mpz_ui_pow_ui(top, 2, src.width);
+    mpz_sub(dst->value, top, src.value);
+  }
+}
+
+
 //binary operators
 
 //helpers
 //is_add = 1 --> add, is_add = -1 --> subtract 
 void eval_sat_add_sub(struct BitVec *dst, struct BitVec l, struct BitVec r, int is_add) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
+  mpz_t min;
+  mpz_t max;
+  mpz_init(min);
+  mpz_init(max);
   if (l.is_signed == 1 && r.is_signed == 1) {
-    mpz_mul(r.value, r.value, is_add);
-    mpz_add(dst->value, l.value, r.value);
-    mpz_mod_ui(dst->value, dst->value, dst->width);
+    //signed, min = -2^{width-1}, max = 2^{width-1} - 1
+    mpz_ui_pow_ui(min, 2, (l.width - 1));
+    mpz_neg (min,min);
+    mpz_ui_pow_ui(max, 2, (l.width-1));
+    mpz_sub_ui(max, max, 1);
+
   }
   else {
-    mpz_mul(r.value, r.value, is_add);
-    dst->is_signed = 1; 
-    mpz_add(dst->value, l.value, r.value);
-    //pow(2, dst->width)-1 , this used to be the third argument in the line below
-    //but pow does not seem to be defined.
-    mpz_mod_ui(dst->value, dst->value, (int) pow(2.0, (double)dst->width)-1);
+    //signed, min = 0, max = 2^{width} - 1
+    mpz_set_ui(min, 0);
+    mpz_neg (min,min);
+    mpz_ui_pow_ui(max, 2, l.width);
+    mpz_sub_ui(max, max, 1);
+    
+  }
+  //arithmetic
+  mpz_mul(r.value, r.value, is_add);
+  mpz_add(dst->value, l.value, r.value);
+
+  //saturation
+  if(mpz_cmp(dst->value, min) < 0){
+    mpz_set(dst->value, min);
+  }else if(mpz_cmp(dst->value,max) > 0){
+    mpz_set(dst->value, max);
+  }
+
+}
+
+void wrap_around(BitVec* dst){
+  mpz_t min;
+  mpz_t max;
+  mpz_init(min);
+  mpz_init(max);
+
+  //signed, min = -2^{width-1}, max = 2^{width-1} - 1
+  mpz_ui_pow_ui(min, 2, (dst->width - 1));
+  mpz_neg (min,min);
+  mpz_ui_pow_ui(max, 2, (dst->width-1));
+  mpz_sub_ui(max, max, 1);
+
+  //wrap around if exceed.
+  if(mpz_cmp(dst->value, max)>0){
+    mpz_sub(dst->value, dst->value, max);
+    mpz_add(dst->value, dst->value, min);
+  }
+  if(mpz_cmp(dst->value, min) < 0){
+    mpz_sub(dst->value, dst->value, min);
+    mpz_add(dst->value, dst->value, max);
   }
 }
 
-struct BitVec init_interp_binary_op(struct BitVec l) {
-  mpz_t dst_value;
-  mpz_init(dst_value);
-  mpz_set_ui(dst_value, 0);
-  struct BitVec dst = { 0,
-                        l.width, //assumption: width of l and r are =
-                        dst_value };
-  return dst; 
-}
+// struct BitVec init_interp_binary_op(struct BitVec l) {
+//   mpz_t dst_value;
+//   mpz_init(dst_value);
+//   mpz_set_ui(dst_value, 0);
+//   struct BitVec dst = { 0,
+//                         l.width, //assumption: width of l and r are =
+//                         dst_value };
+//   return dst; 
+// }
 
 //main functions
 
-void interp_bplus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  mpz_add(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width);
+void interp_bplus(BitVec* dst, BitVec l, BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
+  if(l.is_signed){
+    mpz_add(dst->value, l.value, r.value);
+    wrap_around(dst);
+  }else{
+    mpz_t top;
+    mpz_init(top);
+    mpz_ui_pow_ui(top, 2, dst->width);
+    mpz_add(dst->value, l.value, r.value);
+    mpz_mod(dst->value, dst->value, top);
+  }
+
 }
 
-void interp_bplus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  eval_sat_add_sub(&dst, l, r, 1); 
+void interp_bplus_sat(BitVec* dst, BitVec l, struct BitVec r) {
+  eval_sat_add_sub(dst, l, r, 1); 
 }
 
-void interp_bminus(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  mpz_sub(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width); 
+void interp_bminus(BitVec* dst, BitVec l, BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
+  if(l.is_signed){
+    mpz_sub(dst->value, l.value, r.value);
+    wrap_around(dst);
+  }else{
+    mpz_t top;
+    mpz_init(top);
+    mpz_ui_pow_ui(top, 2, r.width);
+    mpz_sub(dst->value, top, r.value);
+    mpz_add(dst->value, dst->value, l.value);
+    mpz_mod(dst->value, dst->value, top); 
+  }
+  
 }
 
 void interp_bminus_sat(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  eval_sat_add_sub(&dst, l, r, -1); 
+  eval_sat_add_sub(dst, l, r, -1); 
 }
 
 void interp_bmult(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_mul(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width);
+  mpz_t top;
+  mpz_init(top);
+  mpz_ui_pow_ui(top, 2, l.width);
+  mpz_mod(dst->value, dst->value, top);
+  if(dst->is_signed){
+    wrap_around(dst);
+  }
 }
 
-void interp_bdiv(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  mpz_cdiv_q(dst->value, l.value, r.value);
-  mpz_mod_ui(dst->value, dst->value, dst->width); 
-}
+//No division in P4
+
+// void interp_bdiv(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+//   mpz_cdiv_q(dst->value, l.value, r.value);
+//   mpz_mod_ui(dst->value, dst->value, dst->width); 
+// }
 
 void interp_bmod(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_mod(dst->value, l.value, r.value);
 }
 
 void interp_bshl(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_mul_2exp(dst->value, l.value, r.value);
 }
 
@@ -178,88 +289,165 @@ void interp_bshr(struct BitVec* dst, struct BitVec l, struct BitVec r) {
   //For negative n, mpz_fdiv_q_2exp is effectively an arithmetic right shift 
   //treating n as twos complement the same as the bitwise logical functions 
   //do, whereas mpz_tdiv_q_2exp effectively treats n as sign and magnitude.
-  if(dst->is_signed) { //might want to fix this condition 
-    mpz_fdiv_q_2exp(dst->value, l.value, r.value); 
-  } 
-  else {
-    mpz_tdiv_q_2exp(dst->value, l.value, r.value);
-  }
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
+  mpz_fdiv_q_2exp(dst->value, l.value, r.value); 
 }
 
 //1 = true, 0 = false
 void interp_ble(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) <= 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 //1 = true, 0 = false
 void interp_bge(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) >= 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 //1 = true, 0 = false
 void interp_blt(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) < 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 //1 = true, 0 = false
 void interp_bgt(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) > 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 //1 = true, 0 = false
 void interp_beq(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) == 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 //1 = true, 0 = false
 void interp_bne(int* dst, struct BitVec l, struct BitVec r) {
   if (mpz_cmp(l.value, r.value) != 0) {
     *dst = 1;
+  } else {
+    *dst = 0;
   } 
-  *dst = 0; 
 }
 
 void interp_bitwise_and(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_and(dst->value, l.value, r.value); 
 }
 
 void interp_bitwise_xor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_xor(dst->value, l.value, r.value);  
 }
 
 void interp_bitwise_or(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+  mpz_init(dst->value);
+  dst->width = l.width;
+  dst->is_signed = l.is_signed;
   mpz_ior(dst->value, l.value, r.value); 
 }
 
-//1 = true, 0 = false
-int interp_band(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  if (mpz_cmp_d(l.value, 0.0) != 0 ||  mpz_cmp_d(r.value, 0.0) != 0) {
-    return 1;
-  } 
-  return 0; 
+// //1 = true, 0 = false
+// int interp_band(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+//   if (mpz_cmp_d(l.value, 0.0) != 0 ||  mpz_cmp_d(r.value, 0.0) != 0) {
+//     return 1;
+//   } 
+//   return 0; 
+// }
+
+// //1 = true, 0 = false
+// int interp_bor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
+//   if (mpz_cmp_d(l.value, 0.0) != 0 &&  mpz_cmp_d(r.value, 0.0) != 0) {
+//     return 1;
+//   } 
+//   return 0; 
+// }
+
+void interp_concat(BitVec* dst, BitVec l, BitVec r){
+  dst->width = l.width + r.width;
+  dst->is_signed = l.is_signed;
+  mpz_t left_shift;
+  mpz_init(left_shift);
+  mpz_set_si(left_shift, (long)r.width);
+  mpz_t left_shifted;
+  mpz_init(left_shifted);
+  mpz_mul_2exp(left_shifted, l.value, left_shift);
+  mpz_add(dst->value, left_shifted, r.value);
 }
 
-//1 = true, 0 = false
-int interp_bor(struct BitVec* dst, struct BitVec l, struct BitVec r) {
-  if (mpz_cmp_d(l.value, 0.0) != 0 &&  mpz_cmp_d(r.value, 0.0) != 0) {
-    return 1;
-  } 
-  return 0; 
+void interp_cast_to_bool(int* dst, BitVec src){ 
+  *dst = mpz_cmp_si(src.value, (long)0);
+}
+
+void interp_cast_from_bool(BitVec* dst, int src){
+  dst->width = 1;
+  dst->is_signed = 0;
+  mpz_init(dst->value);
+  mpz_set_si(dst->value, (long)src);
+}
+
+void interp_cast(BitVec* dst, BitVec src, int t, int width){
+  dst->width = width;
+  if(t == FIXBIT){
+    dst->is_signed = 0;
+    mpz_init(dst->value);
+    if (src.is_signed){
+      if(mpz_cmp_si(src.value, (long)0) < 0){
+        mpz_t top;
+        mpz_init(top);
+        mpz_ui_pow_ui(top, 2, dst->width);
+        mpz_add(dst->value, src.value, top);
+      } else {
+        mpz_set(dst->value, src.value);
+      }
+    }else{
+      if(src.width > width){
+        mpz_t top;
+        mpz_init(top);
+        mpz_ui_pow_ui(top, 2, dst->width);
+        mpz_mod(dst->value, src.value, top);
+      } else {
+        mpz_set(dst->value, src.value);
+      }
+    }
+  }else {
+    dst->is_signed = 1;
+    mpz_init(dst->value);
+    if(src.is_signed){
+      if(src.width > width){
+        mpz_t top;
+        mpz_init(top);
+        mpz_ui_pow_ui(top, 2, width);
+        mpz_mod(dst->value, src.value, top);
+        wrap_around(dst);
+      }else {
+        mpz_set(dst->value, src.value);
+      }
+    }
+  }
 }
 
 //The pattern is a stack variable first, but the array of pattern will live in heap

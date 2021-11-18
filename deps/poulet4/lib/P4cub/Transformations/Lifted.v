@@ -4,6 +4,18 @@ Require Export Poulet4.P4cub.Syntax.Syntax
         Coq.Strings.Ascii Coq.Strings.String.
 Import AllCubNotations StringSyntax Field.FieldTactics.
 
+Ltac translateParserExpr_destr :=
+  match goal with 
+  | |- context [TranslateParserExpr ?e ?env]
+    => destruct (TranslateParserExpr e env) as [? ?] eqn:?; simpl in *
+  end.
+
+Ltac translateCases'_destr :=
+  match goal with 
+  | |- context [TranslateCases' ?c ?env ?i]
+    => destruct (TranslateCases' c env i) as [[? ?] ?] eqn:?; simpl in *
+  end.
+
 Ltac translateStmt_destr :=
   match goal with
   | |- context [TranslateStatement ?s ?env]
@@ -170,27 +182,37 @@ Section Lifted.
       lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
   
   Local Hint Constructors lifted_expr : core.
-
+  (*Print Field.predfs_data.*)
   Inductive lifted_parser_expr : Parser.e tags_t -> Prop :=
   | lifted_goto st i : 
       lifted_parser_expr (Parser.PGoto st i)
   | lifted_select exp default cases i: 
       lifted_expr exp -> lifted_parser_expr default -> 
       Field.predfs_data lifted_parser_expr cases -> lifted_parser_expr (Parser.PSelect exp default cases i).
-  
+
+  Inductive lifted_parser_state : Parser.state_block tags_t -> Prop :=
+  | lifted_parser stmt transition : 
+      lifted_stmt stmt -> lifted_parser_expr transition -> lifted_parser_state (Parser.State stmt transition).
+    
   Local Hint Constructors lifted_parser_expr : core.
+
+  Inductive lifted_table : Control.table tags_t -> Prop :=
+  | lifted_Table keys act :
+      Forall (fun '(_, e, _) => lifted_expr e ) keys -> lifted_table (Control.Table keys act).
+  
+  Inductive lifted_control_Decl : Control.d tags_t -> Prop :=
+  | lifted_CDAction act sig body i :
+      lifted_stmt body -> lifted_control_Decl (Control.CDAction act sig body i)
+  | lifted_CDTable table_name body i :
+      lifted_table body -> lifted_control_Decl (Control.CDTable table_name body i)
+  | lifted_CDSeq d1 d2 i :
+      lifted_control_Decl d1 -> lifted_control_Decl d2 -> lifted_control_Decl (Control.CDSeq d1 d2 i).
+
 
   Section HelperLemmas.
     Variable f :
       Expr.e tags_t -> VarNameGen.t ->
       Stmt.s tags_t * Expr.e tags_t * VarNameGen.t.
-
-    (*Lemma TransformExprList'_lifted_expr :
-      forall es env i,
-        
-        Forall
-          lifted_expr
-          (snd (fst (TransformExprList' f es env i))).*)
       
     Section General.
       Hypothesis Hf : forall e env, lifted_expr (snd (fst (f e env))).
@@ -370,7 +392,7 @@ Section Lifted.
 
   Local Hint Resolve TransformExpr_lifted_stmt : core.
 
-  Ltac transformExpr_f_equal Heqp func:= 
+  Ltac hyp_f_equal Heqp func:= 
     apply f_equal with (f := fst) in Heqp; apply f_equal with (f := func) in Heqp; simpl in Heqp;
       rewrite <- Heqp; auto.
 
@@ -382,8 +404,8 @@ Section Lifted.
       - constructor.
       - destruct a. destruct (TranslateArgs a0 i env) eqn:Hs2. destruct p0. transformExpr_destr. 
         constructor.
-        + transformExpr_f_equal Hs2 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
-        + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+        + hyp_f_equal Hs2 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+        + hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
   Qed.
 
   Local Hint Resolve TranslateArgs_lifted_stmt : core.
@@ -394,9 +416,9 @@ Section Lifted.
     intros args i. induction args; intro env; simpl.
     destruct (TranslateArgs pas i env) eqn:Hs1. destruct p. destruct returns.
     - transformExpr_destr. constructor.
-      + transformExpr_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
-      + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-    - simpl. transformExpr_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
+      + hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+      + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    - simpl. hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
   Qed.
 
   Local Hint Resolve TranslateArrowE_lifted_stmt : core.
@@ -407,8 +429,8 @@ Section Lifted.
     intros pas i. induction pas; intro env; simpl.
     - constructor.
     - destruct a. translateArgs_destr. transformExpr_destr. destruct p; unfold F.predfs_data, F.predf_data in *; 
-    unravel in *; rewrite Forall_app; split; try transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.args tags_t)); repeat constructor;
-    simpl; unfold pred_paramarg_same, pred_paramarg; transformExpr_f_equal Heqp1 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+    unravel in *; rewrite Forall_app; split; try hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.args tags_t)); repeat constructor;
+    simpl; unfold pred_paramarg_same, pred_paramarg; hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   Qed.
 
   Local Hint Resolve TranslateArgs_lifted_expr : core.
@@ -429,9 +451,9 @@ Section Lifted.
   Proof.
     intros [pas returns] i env; simpl.
     destruct (TranslateArgs pas i env) eqn:Hs1. destruct p eqn:Hs2. destruct returns eqn:Hs3.
-    - transformExpr_destr.  transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
-      + transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
-    - simpl. transformExpr_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)).
+    - transformExpr_destr.  hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+      + hyp_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
+    - simpl. hyp_f_equal Hs1 (@snd (Stmt.s tags_t) (Expr.args tags_t)).
   Qed.
 
   Local Hint Resolve TranslateArrowE_lifted_args : core.
@@ -443,44 +465,115 @@ Section Lifted.
   - destruct expr.
     + simpl. auto.
     + transformExpr_destr. constructor. 
-      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)). 
-      * constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+      * hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)). 
+      * constructor. hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   - repeat constructor. 
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-    + transformExpr_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).   
-    + transformExpr_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).   
+    + hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   - repeat translateStmt_destr. constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
     + constructor. 
-      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
-      * transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x).
-      * transformExpr_f_equal Heqp1 (fun x:(Stmt.s tags_t) => x). 
+      * hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)). 
+      * hyp_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x).
+      * hyp_f_equal Heqp1 (fun x:(Stmt.s tags_t) => x). 
   - repeat translateStmt_destr. constructor. 
-    + transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
-    + transformExpr_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x). 
-  - translateStmt_destr. constructor. transformExpr_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+    + hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+    + hyp_f_equal Heqp0 (fun x:(Stmt.s tags_t) => x). 
+  - translateStmt_destr. constructor. hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
   - translateArrowE_destr. constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
-    + constructor. transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). 
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
+    + constructor. hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)). 
   - translateArrowE_destr. constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)).
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.arrowE tags_t)). 
+    + hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.arrowE tags_t)).
   - translateArgs_destr. constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)). 
+    + hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
   - destruct e.
     + transformExpr_destr. constructor.
-      * transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-      * transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+      * hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+      * hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
     + simpl. auto.
   - translateArgs_destr. constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.args tags_t)).
+    + hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.args tags_t)). 
   - repeat constructor.
-    + transformExpr_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
-    + transformExpr_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+    + hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
   Qed.
 
+  Local Hint Resolve TranslateStmt_lifted_stmt : core.
 
+
+  Lemma TranslateCases_lifted_stmt : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
+  (cases: Field.fs Parser.pat (Parser.e tags_t)),
+  F.predfs_data (fun pe => forall env, lifted_stmt (fst (fst (translateParserE pe env)))) cases -> 
+  forall (env: VarNameGen.t) (i : tags_t), 
+  lifted_stmt (fst (fst (TranslateCases' translateParserE cases env i))).
+  Proof.
+  intros translateParserE cases Hpte; ind_list_predfs; intros. 
+  - simpl. auto.
+  - simpl. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+  destruct p0. simpl. constructor.
+    + hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))). 
+    + hyp_f_equal HS1 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateCases_lifted_stmt : core.
+
+  Lemma TranslateParserExpr_lifted_stmt : forall (e : Parser.e tags_t) (env:VarNameGen.t),
+  lifted_stmt (fst (fst (TranslateParserExpr e env))).
+  Proof.
+  intros e. induction e using pe_ind; intro env; try simpl; auto.
+  transformExpr_destr. translateParserExpr_destr. destruct p eqn:Hs0. destruct (TranslateCases' TranslateParserExpr cases t0 i) eqn:Hs1.
+  destruct p0 eqn: Hs2. simpl. repeat constructor; auto. 
+  - hyp_f_equal Heqp (@fst (Stmt.s tags_t) (Expr.e tags_t)).
+  - hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  - hyp_f_equal Hs1 (@fst (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).
+  Qed. 
+
+  Local Hint Resolve TranslateParserExpr_lifted_stmt : core.
+
+  Lemma TranslateCases_lifted_expr : forall (translateParserE : Parser.e tags_t -> VarNameGen.t -> (Stmt.s tags_t) * Parser.e tags_t * VarNameGen.t)
+  (cases: Field.fs Parser.pat (Parser.e tags_t)),
+  F.predfs_data (fun pe => forall env, lifted_parser_expr (snd (fst (translateParserE pe env)))) cases -> 
+  forall (env: VarNameGen.t) (i : tags_t), 
+  F.predfs_data lifted_parser_expr (snd (fst (TranslateCases' translateParserE cases env i))).
+  Proof.
+  intros translateParserE cases Hpte; ind_list_predfs; intros; unfold F.predfs_data in *; 
+  unfold F.predf_data in *; unravel in *; auto.
+  translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+  destruct p0. simpl. rewrite Forall_app. split.
+    + hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))). 
+    + constructor; auto. simpl. hyp_f_equal HS1 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateCases_lifted_expr : core.
+
+  Lemma TranslateParserExpr_lifted_parser_expr : forall (e : Parser.e tags_t) (env:VarNameGen.t),
+  lifted_parser_expr (snd (fst (TranslateParserExpr e env))).
+  Proof.
+  intros e. induction e using pe_ind; intro env; try simpl; auto.
+  transformExpr_destr. translateParserExpr_destr. destruct p.
+  translateCases'_destr. constructor.
+  - hyp_f_equal Heqp (@snd (Stmt.s tags_t) (Expr.e tags_t)).
+  - hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
+  - hyp_f_equal Heqp1 (@snd (Stmt.s tags_t) (Field.fs Parser.pat (Parser.e tags_t))).   
+  Qed. 
+
+  Local Hint Resolve TranslateParserExpr_lifted_parser_expr : core.
+
+  Lemma TranslateParserState_lifted_stmt : forall (parser_state: Parser.state_block tags_t) (env : VarNameGen.t),
+  lifted_parser_state (fst (TranslateParserState parser_state env)).
+  Proof.
+  intros s. induction s. intro env. simpl. translateStmt_destr. translateParserExpr_destr.
+  destruct p. simpl. repeat constructor.
+  - hyp_f_equal Heqp (fun x:(Stmt.s tags_t) => x).
+  - hyp_f_equal Heqp0 (@fst (Stmt.s tags_t) (Parser.e tags_t)).
+  - hyp_f_equal Heqp0 (@snd (Stmt.s tags_t) (Parser.e tags_t)).
+  Qed.
+
+  Local Hint Resolve TranslateParserState_lifted_stmt : core.
 End Lifted.

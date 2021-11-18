@@ -218,13 +218,13 @@ Module BitArith.
 
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    let fix lbool_to_val (bits: list bool) : Z :=
+    let fix lbool_to_val (bits: list bool) (order: Z) (res : Z) : Z :=
       match bits with
-      | [] => 0
-      | false :: tl => 2 * lbool_to_val tl
-      | true :: tl => 1 + 2 * (lbool_to_val tl)
+      | [] => res
+      | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
+      | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
       end in
-    (Z.to_N (Zlength bits), lbool_to_val bits).
+    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
 End BitArith.
@@ -436,48 +436,48 @@ Module IntArith.
 
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    let fix lbool_to_val (bits: list bool) : Z :=
+    let fix lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
       match bits with
       | []
-      | [false] => 0
-      | [true] => -1
-      | false :: tl => 2 * lbool_to_val tl
-      | true :: tl => 1 + 2 * (lbool_to_val tl)
+      | [false] => res
+      | [true] => res - order
+      | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
+      | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
       end in
-    (Z.to_N (Zlength bits), lbool_to_val bits).
+    (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
 End IntArith.
 
-(* Convert from (width:nat) and (value:Z) to little-endian (list bool) *)
+(* Convert from (width:N) and (value:Z) to little-endian (list bool) *)
 Definition to_lbool (width: N) (value: Z) : list bool :=
-  let fix to_lbool' lbool value :=
-    match lbool with
-    | _ :: tl => (Z.eqb (value mod 2) 1) :: (to_lbool' tl (value / 2))
-    | [] => []
+  let fix to_lbool' (width: nat) (value: Z) (res: list bool)  :=
+    match width with
+    | S n => to_lbool' n (value / 2) ((Z.odd value) :: res)
+    | O => res
     end
-  in to_lbool' (Zrepeat false (Z.of_N width)) value.
+  in List.rev (to_lbool' (N.to_nat width) value []).
 
 Definition to_loptbool (width: N) (value: Z) : list (option bool) :=
-  let fix to_loptbool' (lbool : list (option bool)) value :=
-    match lbool with
-    | _ :: tl => Some (Z.eqb (value mod 2) 1) :: (to_loptbool' tl (value / 2))
-    | [] => []
+  let fix to_loptbool' (width: nat) (value: Z) (res : list (option bool)) :=
+    match width with
+    | S n => to_loptbool' n (value / 2) (Some (Z.odd value) :: res)
+    | O => res
     end
-  in to_loptbool' (Zrepeat None (Z.of_N width)) value.
+  in List.rev (to_loptbool' (N.to_nat width) value []).
 
 (*
-Compute (to_lbool (4)%nat (-7)).
-Compute (to_lbool (8)%nat (-7)).
-Compute (to_lbool (2)%nat (-7)).
-Compute (to_lbool (8)%nat (7)).
-Compute (to_lbool (8)%nat (0)).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (-8))).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (-15))).
-Compute (IntArith.from_lbool (to_lbool (4)%nat (8))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (8))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (17))).
-Compute (BitArith.from_lbool (to_lbool (4)%nat (-1))).
+  Compute (to_lbool (4)%N (-6)).
+  Compute (to_lbool (8)%N (-7)).
+  Compute (to_lbool (2)%N (-7)).
+  Compute (to_lbool (8)%N (7)).
+  Compute (to_lbool (8)%N (0)).
+  Compute (IntArith.from_lbool (to_lbool (4)%N (-8))).
+  Compute (IntArith.from_lbool (to_lbool (4)%N (-15))).
+  Compute (IntArith.from_lbool (to_lbool (4)%N (8))).
+  Compute (BitArith.from_lbool (to_lbool (4)%N (8))).
+  Compute (BitArith.from_lbool (to_lbool (4)%N (17))).
+  Compute (BitArith.from_lbool (to_lbool (4)%N (-1))).
 
 Compute (IntArith.concat 4 4 (-16) 31).
 Compute (IntArith.concat 4 4 15 31).

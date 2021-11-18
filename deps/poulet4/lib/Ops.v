@@ -135,13 +135,15 @@ Module Ops.
     match v1, v2 with
     | ValBaseBit bits1, ValBaseBit bits2
     | ValBaseBit bits1, ValBaseInt bits2 =>
-        Some (ValBaseBit (bits1 ++ bits2)) 
+        Some (ValBaseBit (bits2 ++ bits1)) 
+        (* ATTN: little-endian! *)
         (* let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := different_cases.from_lbool bits2 in
         Some (ValBaseBit (to_lbool (w1 + w2) (BitArith.concat w1 w2 n1 n2))) *)
     | ValBaseInt bits1, ValBaseInt bits2
     | ValBaseInt bits1, ValBaseBit bits2 =>
-        Some (ValBaseInt (bits1 ++ bits2))
+        Some (ValBaseInt (bits2 ++ bits1))
+        (* ATTN: little-endian! *)
         (* let (w1, n1) := IntArith.from_lbool bits1 in
         let (w2, n2) := different_cases.from_lbool bits2 in
         Some (ValBaseInt (to_lbool (w1 + w2) (IntArith.concat w1 w2 n1 n2))) *)

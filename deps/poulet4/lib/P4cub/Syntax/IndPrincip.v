@@ -223,6 +223,7 @@ Section ParserExprInduction.
   
   Hypothesis HSelect : forall exp st cases i,
       F.predfs_data P cases ->
+      P st -> 
       P p{ select exp { cases } default:=st @ i }p.
   (**[]*)
   
@@ -240,7 +241,7 @@ Section ParserExprInduction.
       match pe with
       | p{ goto st @ i }p => HState st i
       | p{ select exp { cases } default:=st @ i }p
-        => HSelect exp st _ i (fsind cases)
+        => HSelect exp st _ i (fsind cases) (peind st)
       end.
   (**[]*)
 End ParserExprInduction.

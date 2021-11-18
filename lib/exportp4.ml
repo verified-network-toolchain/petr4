@@ -101,17 +101,17 @@ let rec print_type p (typ : coq_P4Type) =
       fprintf p "@[<hov 0>TypInteger@]"
   | TypInt width ->
       fprintf p "(@[<hov 0>TypInt@ %a)@]"
-          print_bigint width
+          print_bignat width
   | TypBit width ->
       fprintf p "(@[<hov 0>TypBit@ %a)@]"
-          print_bigint width
+          print_bignat width
   | TypVarBit width ->
       fprintf p "(@[<hov 0>TypVarBit@ %a)@]"
-          print_bigint width
+          print_bignat width
   | TypArray (typ, size) ->
       fprintf p "(@[<hov 4>TypArray@ %a@ %a)@]"
           print_type typ
-          print_bigint size
+          print_bignat size
   | TypTuple typs ->
       fprintf p "(@[<hov 0>TypTuple@ %a)@]"
           (print_list print_type) typs
@@ -325,8 +325,8 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
   | ExpBitStringAccess (bits, lo, hi) ->
       fprintf p "(@[<hov 4>ExpBitStringAccess@ %a@ %a@ %a)@]"
           print_expr bits
-          print_bigint lo
-          print_bigint hi
+          print_bignat lo
+          print_bignat hi
   | ExpList exprs ->
       fprintf p "(@[<hov 0>ExpList@ %a)@]"
           (print_list print_expr) exprs
@@ -715,7 +715,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           decl_name
           print_info info
           print_type typ
-          print_bigint size
+          print_bignat size
           p4string name
   | DeclAction (info, name, data_params, ctrl_params, body) ->
       let (f_str, decl_name) = 
@@ -741,7 +741,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_table_actions actions
           (print_option print_table_entries) entries
           (print_option print_table_action_ref) default_action
-          (print_option print_bigint) size
+          (print_option print_bignat) size
           (print_list print_table_property) custom_properties
   | DeclHeader (info, name, fields) ->
       let (f_str, decl_name) = 

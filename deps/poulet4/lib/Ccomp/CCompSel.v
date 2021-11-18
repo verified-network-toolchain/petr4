@@ -18,6 +18,7 @@ Require Import Poulet4.Ccomp.CV1Model.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
+Local Open Scope N_scope.
 Local Open Scope clight_scope.
 Import Clightdefs.ClightNotations.
 Require Import Poulet4.Ccomp.Petr4Runtime.
@@ -50,7 +51,7 @@ Section CCompSel.
     | Expr.TBit (w) => (bit_vec,env)
     | Expr.TInt (w) => (bit_vec, env)
     | Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
-    | Expr.TError => (Ctypes.Tvoid, env) (*TODO: implement, what exactly is an error type? Should it be depending on the target?*)
+    | Expr.TError => (int_unsigned, env) 
     | Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
 
     | Expr.TTuple (ts) => 
@@ -345,6 +346,33 @@ Section CCompSel.
       Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
     .
 
+  Definition typelist_cast_to_bool :=   
+    Ctypes.Tcons TpointerBool
+    (Ctypes.Tcons bit_vec
+    Ctypes.Tnil).
+
+  Definition cast_to_bool_function := 
+    Evar _init_bitvec (Tfunction typelist_cast_to_bool tvoid cc_default). 
+
+
+  Definition typelist_cast_from_bool := 
+    Ctypes.Tcons TpointerBitVec
+    (Ctypes.Tcons type_bool
+    Ctypes.Tnil).
+
+  Definition cast_from_bool_function := 
+    Evar _init_bitvec (Tfunction typelist_cast_from_bool tvoid cc_default).
+
+  Definition typelist_cast_numbers :=
+    Ctypes.Tcons TpointerBitVec 
+    (Ctypes.Tcons bit_vec
+    (Ctypes.Tcons int_signed
+    (Ctypes.Tcons int_signed
+    Ctypes.Tnil))).
+
+  Definition cast_numbers_function := 
+    Evar _init_bitvec (Tfunction typelist_cast_numbers tvoid cc_default).
+
   Definition typelist_bitvec_init :=
     Ctypes.Tcons TpointerBitVec 
     (Ctypes.Tcons type_bool
@@ -372,6 +400,7 @@ Section CCompSel.
   Definition table_match_function length := 
     Evar _table_match (Tfunction (typelist_table_match length) tvoid cc_default)
     .
+
 
   Definition ValidBitIndex (arg: Expr.e tags_t) (env: ClightEnv tags_t ) : @error_monad string AST.ident
   :=
@@ -503,8 +532,7 @@ Section CCompSel.
     | Expr.BitOr => error_ret (Scall None (bop_function _interp_bitwise_or) [dst_ref; le'; re'], env_re)
 
     | Expr.PlusPlus => 
-    (*TODO: Need implementation in runtime*)
-      error_ret (Scall None (bop_function _interp_bplus) [dst_ref; le'; re'], env_re)
+      error_ret (Scall None (bop_function _interp_concat) [dst_ref; le'; re'], env_re)
 
     | Expr.And => 
       let and_expr :=  Ebinop Oand le' re' type_bool in
@@ -793,7 +821,27 @@ Section CCompSel.
         let dst' := Evar dst' tau' in
         error_ret (Scall None slice_function [n'; hi'; lo'; dst'], env')
 
-      | Expr.ECast τ e i => err "cast unimplemented" (*TODO: implement in the runtime*)
+      | Expr.ECast τ e i => 
+        let* (e', env') := CTranslateExpr e env in 
+        let (tau', env') := CTranslateType τ env' in 
+        let dst' := Evar dst' tau' in
+        match τ, t_of_e e with 
+        | Expr.TBool, Expr.TBit (w) => 
+          error_ret (Scall None cast_to_bool_function [dst'; e'], env')
+        | Expr.TBit (w), Expr.TBool => 
+          error_ret (Scall None cast_from_bool_function [dst'; e'], env')
+        | Expr.TBit (w), Expr.TInt (_)
+        | Expr.TBit (w), Expr.TBit (_) =>
+          let t := Econst_int (Integers.Int.zero) (int_unsigned) in
+          let width := Econst_int (Integers.Int.repr (Z.of_N w)) (int_unsigned) in
+          error_ret (Scall None cast_numbers_function [dst'; e'; t; width], env')
+        | Expr.TInt (w), Expr.TBit (_)
+        | Expr.TInt (w), Expr.TInt (_) =>
+          let t := Econst_int (Integers.Int.zero) (int_unsigned) in
+          let width := Econst_int (Integers.Int.repr (Zpos w)) (int_unsigned) in
+          error_ret (Scall None cast_numbers_function [dst'; e'; t; width], env')
+        | _, _ => error_ret (Sskip, env)
+        end
 
       | Expr.EUop dst_t op x i => CTranslateUop dst_t op x dst env
 

@@ -1,21 +1,11 @@
-Require Import Coq.Strings.String.
-Require Import Coq.Bool.Bool.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Lists.List.
-Require Import Coq.Program.Program.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
+Require Import Coq.Strings.String Coq.Bool.Bool
+        Coq.ZArith.BinInt Coq.ZArith.ZArith
+        Coq.Lists.List Coq.Program.Program
+        Poulet4.Typed Poulet4.Syntax.
 Require Export Poulet4.Value.
-Require Import Poulet4.P4Int.
-Require Import Poulet4.P4String.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.AList.
-Require Import Poulet4.Ops.
-Require Import Poulet4.Maps.
-Require Export Poulet4.Target.
-Require Export Poulet4.SyntaxUtil.
-Require Export Poulet4.Sublist.
+Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
+        Poulet4.AList Poulet4.Ops Poulet4.Maps.
+Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
 Local Open Scope string_scope.
@@ -535,14 +525,6 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                           exec_expr read_one_bit this st
                           (MkExpression tag ExpDontCare typ dir)
                           ValBaseNull.
-(*with exec_exprs (read_one_bit : option bool -> bool -> Prop) : 
-                path -> state -> list (@Expression tags_t) -> list Sval -> Prop :=
-  | exec_exprs_nil : forall this st,
-                     exec_exprs read_one_bit this st nil nil
-  | exec_exprs_cons : forall this st expr es sv svs,
-                      exec_expr read_one_bit this st expr sv ->
-                      exec_exprs read_one_bit this st es svs ->
-                      exec_exprs read_one_bit this st (expr :: es) (sv :: svs).*)
 
 Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
                         path -> (* temp_env -> *) state -> (@Expression tags_t) -> Val ->
@@ -847,7 +829,7 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
 Inductive exec_match (read_one_bit : option bool -> bool -> Prop) : 
                      path -> state -> @Match tags_t -> ValSet -> Prop :=
   | exec_match_dont_care : forall this st tag typ,
-                           exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
+      exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
   | exec_match_mask : forall expr exprv mask maskv this st tag typ,
                       exec_expr_det read_one_bit this st expr exprv ->
                       exec_expr_det read_one_bit this st mask maskv ->
@@ -914,6 +896,8 @@ Definition is_some {A} (input: option A) : bool :=
   | _ => true
   end.
 
+(* QUESTION: Why does this only go two-layers deep in an expression?
+   What about arbitrary nesting? *)
 Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
@@ -924,9 +908,10 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       match loc with
       | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
+        (* QUESTION: why isn't [p] used to look up instance? *)
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-              option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
@@ -951,7 +936,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
         match expr with
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
+            | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
             | LInstance p =>
                 match PathMap.get (this_path ++ p) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
@@ -1168,12 +1153,12 @@ Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sv
 
 Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat) 
                               (nbits : list A) : list A :=
-    match bits, lo, hi, nbits with
-    | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
-    | _::tl, O, S hi', nhd::ntl => nhd :: (update_bitstring tl lo hi' ntl)
-    | _::tl, O, O, [nhd] => nhd :: tl
-    | _, _, _, _ => bits
-    end.
+  match bits, lo, hi, nbits with
+  | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
+  | _::tl, O, S hi', nhd::ntl => nhd :: (update_bitstring tl lo hi' ntl)
+  | _::tl, O, O, [nhd] => nhd :: tl
+  | _, _, _, _ => bits
+  end.
 
 (* Writing and updating happens all be in sval, so it requires converting the rhs val to sval beforehand *)
 (* If any of these kinds of writes are performed:
@@ -1393,12 +1378,12 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state ->
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                     path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
   | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
-                        exec_expr_det read_one_bit this_path st rhs v ->
-                        exec_lexpr read_one_bit this_path st lhs lv sig ->
-                        val_to_sval v sv -> 
-                        (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
-                        exec_stmt read_one_bit this_path st
-                        (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
+      exec_expr_det read_one_bit this_path st rhs v ->
+      exec_lexpr read_one_bit this_path st lhs lv sig ->
+      val_to_sval v sv -> 
+      (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
   | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path st tags typ st' st'' sig sig' ret_sig,
                                  exec_call read_one_bit this_path st rhs st' sig' ->
                                  exec_lexpr read_one_bit this_path st lhs lv sig ->

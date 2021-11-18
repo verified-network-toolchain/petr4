@@ -22,8 +22,8 @@ Definition read_one_bit_inverse
 
 Section ExecValInd.
   Variables (tags_t A B : Type).
-  Notation VA := (@ValueBase tags_t A).
-  Notation VB := (@ValueBase tags_t B).
+  Notation VA := (@ValueBase A).
+  Notation VB := (@ValueBase B).
   Variables (R : A -> B -> Prop) (P : VA -> VB -> Prop).
   
   Hypothesis HNull : P ValBaseNull ValBaseNull.
@@ -126,9 +126,9 @@ Section ValueTyping.
 
   Section Val.
     Context {A : Type}.
-    Notation V := (@ValueBase tags_t A).
-    Notation senum_env := (@IdentMap.t tags_t (P4String.AList tags_t V)).
-    
+    Notation V := (@ValueBase A).
+    Notation senum_env := (@IdentMap.t tags_t (AList.StringAList V)).
+
     (* TODO:
        What constraints do we need on:
        - fixed-width numeric types?
@@ -137,7 +137,7 @@ Section ValueTyping.
        - needs to be parameterized by bit type. *)
 
     Variable (gsenum : senum_env).
-
+    
     Inductive val_typ : V -> typ -> Prop :=
     | typ_null :
         val_typ ValBaseNull TypVoid
@@ -158,20 +158,20 @@ Section ValueTyping.
         Forall2 val_typ vs ts ->
         val_typ (ValBaseTuple vs) (TypTuple ts)
     | typ_record : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseRecord vs) (TypRecord ts)
     | typ_error : forall err,
         val_typ (ValBaseError err) TypError
     | typ_matchkind : forall mk,
         val_typ (ValBaseMatchKind mk) TypMatchKind
     | typ_struct : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseStruct vs) (TypStruct ts)
     | typ_header : forall b vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseHeader vs b) (TypHeader ts)
     | typ_union : forall vs ts,
-        AList.all_values val_typ vs ts ->
+        AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseUnion vs) (TypHeaderUnion ts)
     | typ_stack : forall s n vs ts,
         length vs = N.to_nat s ->
@@ -180,14 +180,15 @@ Section ValueTyping.
     | typ_enumfield : forall ename member members,
         In member members ->
         val_typ
-          (ValBaseEnumField ename member)
+          (ValBaseEnumField (P4String.str ename) (P4String.str member))
           (TypEnum ename None members)
     | typ_senumfield : forall ename member v t fields,
-        IdentMap.get ename gsenum = Some fields ->
-        AList.get fields member = Some v ->
+        IdentMap.get ename gsenum =
+        Some (P4String.clear_AList_tags fields) ->
+        AList.get (P4String.clear_AList_tags fields) member = Some v ->
         val_typ v t ->
         val_typ
-          (ValBaseSenumField ename member v)
+          (ValBaseSenumField (P4String.str ename) member v)
           (TypEnum ename (Some t) (List.map fst fields)).
 
     Section ValTypInd.
@@ -210,24 +211,24 @@ Section ValueTyping.
           Forall2 P vs ts ->
           P (ValBaseTuple vs) (TypTuple ts).
       Hypothesis HRecord : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
+          AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseRecord vs) (TypRecord ts).
       Hypothesis HError : forall err,
           P (ValBaseError err) TypError.
       Hypothesis HMatchkind : forall mk,
           P (ValBaseMatchKind mk) TypMatchKind.
       Hypothesis HStruct : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
+          AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseStruct vs) (TypStruct ts).
       Hypothesis HHeader : forall b vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
+          AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseHeader vs b) (TypHeader ts).
       Hypothesis HUnion : forall vs ts,
-          AList.all_values val_typ vs ts ->
-          AList.all_values P vs ts ->
+          AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
+          AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseUnion vs) (TypHeaderUnion ts).
       Hypothesis HStack : forall s n vs ts,
           length vs = N.to_nat s ->
@@ -237,15 +238,16 @@ Section ValueTyping.
       Hypothesis HEnum : forall ename member members,
           In member members ->
           P
-            (ValBaseEnumField ename member)
+            (ValBaseEnumField (P4String.str ename) (P4String.str member))
             (TypEnum ename None members).
       Hypothesis HSenum : forall ename member v t fields,
-          IdentMap.get ename gsenum = Some fields ->
-          AList.get fields member = Some v ->
+          IdentMap.get ename gsenum =
+          Some (P4String.clear_AList_tags fields) ->
+          AList.get (P4String.clear_AList_tags fields) member = Some v ->
           val_typ v t ->
           P v t ->
           P
-            (ValBaseSenumField ename member v)
+            (ValBaseSenumField (P4String.str ename) member v)
             (TypEnum ename (Some t) (List.map fst fields)).
 
       Definition custom_val_typ_ind :
@@ -260,8 +262,8 @@ Section ValueTyping.
                 Forall2_cons _ _ (vtind _ _ Hh) (lind Ht)
               end in
           let fix alind
-                  {vs : AList.AList (P4String.t _) V _}
-                  {ts : AList.AList (P4String.t _) typ _}
+                  {vs : AList.AList String.string V _}
+                  {ts : AList.AList String.string typ _}
                   (H : AList.all_values val_typ vs ts)
               : AList.all_values P vs ts :=
               match H with
@@ -286,7 +288,8 @@ Section ValueTyping.
           | typ_varbit _ _ H => HVarbit _ _ H
           | typ_string s => HString s
           | typ_tuple _ _ H => HTuple _ _ H (lind H)
-          | typ_record _ _ H => HRecord _ _ H (alind H)
+          | typ_record _ _ H =>
+            HRecord _ _ H (alind H)
           | typ_error err => HError err
           | typ_matchkind mk => HMatchkind mk
           | typ_struct _ _ H => HStruct _ _ H (alind H)
@@ -302,8 +305,8 @@ Section ValueTyping.
 
   Section RelTyp.
     Context {A B : Type}.
-    Notation VA := (@ValueBase tags_t A).
-    Notation VB := (@ValueBase tags_t B).
+    Notation VA := (@ValueBase A).
+    Notation VB := (@ValueBase B).
 
     Local Hint Constructors val_typ : core.
     
@@ -385,11 +388,11 @@ Section ValueTyping.
           constructor; auto.
           + unfold IdentMap.get,
             FuncAsMap.get, FuncAsMap.map_map in *.
-            rewrite H; reflexivity.
-          + rewrite AList.get_map_values, H0; reflexivity.
+            rewrite H. (*reflexivity.*) admit.
+          + (*rewrite AList.get_map_values, H0; reflexivity.*) admit.
           + unfold AList.map_values.
             rewrite map_fst_map, map_id; reflexivity.
-      Qed.
+      Admitted.
     End Map.
 
     Section Rel.
@@ -478,13 +481,13 @@ Section ValueTyping.
             rewrite Hlen, <- nth_error_Some, Hnthvbs; discriminate. }
           destruct Hnthvas as [va Hnthvas]. eauto 6.
         - unfold FuncAsMap.related, IdentMap.get in *.
-          specialize Hgs with type_name.
+          specialize Hgs with ename.
           inversion Hgs; subst; unfold P4String.AList in *.
           + exfalso; clear Hev vb H H4 H5 R enum_name gsb Hgs IHHev t0 B.
-            rewrite H2 in H0. discriminate.
-          + rewrite H2 in H; inversion H; subst; clear H.
+            (*rewrite H2 in H0. discriminate.*) admit.
+          + (*rewrite H2 in H; inversion H; subst; clear H.
             apply AList.all_values_keys_eq in H1 as Hkeys.
-            rewrite Hkeys. constructor; auto.
+            rewrite Hkeys. constructor; auto.*)
             (* need notion of equivalent types and values. *)
       Admitted.
 

@@ -1,12 +1,11 @@
 Require Import Coq.ZArith.BinInt Coq.Lists.List Poulet4.Utils.
+Require Import Coq.Strings.String.
+Require Import Coq.Init.Datatypes.
 Import ListNotations.
+Require Import Poulet4.AList.
 Require Poulet4.P4String Poulet4.P4Int Poulet4.Syntax Poulet4.Typed.
 
 Section Value.
-
-  Context {tags_t: Type}.
-  Notation P4String := (P4String.t tags_t).
-  Notation P4Int := (P4Int.t tags_t).
 
   (* little-endian *)
   Inductive ValueBase {bit : Type} :=
@@ -16,18 +15,19 @@ Section Value.
   | ValBaseBit (value: list bit)
   | ValBaseInt (value: list bit)
   | ValBaseVarbit (max: N) (value: list bit)
-  | ValBaseString (_: P4String)
+  | ValBaseString (_: string)
   | ValBaseTuple (_: list (@ValueBase bit))
-  | ValBaseRecord (_: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseError (_: P4String)
-  | ValBaseMatchKind (_: P4String)
-  | ValBaseStruct (fields: P4String.AList tags_t (@ValueBase bit))
-  | ValBaseHeader (fields: P4String.AList tags_t (@ValueBase bit)) (is_valid: bit)
-  | ValBaseUnion (fields: P4String.AList tags_t (@ValueBase bit))
+  | ValBaseRecord (_: StringAList (@ValueBase bit))
+  | ValBaseError (_: string)
+  | ValBaseMatchKind (_: string)
+  | ValBaseStruct (fields: StringAList (@ValueBase bit))
+  | ValBaseHeader (fields: StringAList (@ValueBase bit)) (is_valid: bit)
+  | ValBaseUnion (fields: StringAList (@ValueBase bit))
   | ValBaseStack (headers: list (@ValueBase bit)) (size: N) (next: N)
-  | ValBaseEnumField (typ_name: P4String) (enum_name: P4String)
-  | ValBaseSenumField (typ_name: P4String) (enum_name: P4String) (value: (@ValueBase bit))
-  (*| ValBaseSenum (_: P4String.AList tags_t (@ValueBase bit))*).
+  | ValBaseEnumField (typ_name: string) (enum_name: string)
+  | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit)).
+
+  Context {tags_t : Type}.
 
   Inductive ValueSet:=
   | ValSetSingleton (value: (@ValueBase bool))
@@ -38,22 +38,22 @@ Section Value.
   | ValSetLpm (nbits: N) (value: (@ValueBase bool))
   | ValSetValueSet (size: N) (members: list (list (@Syntax.Match tags_t))) (sets: list ValueSet).
 
-  Definition ValueLoc := P4String.
+  Definition ValueLoc := string.
 
   Inductive ValueTable :=
-  | MkValTable (name: P4String) (keys: list (@Syntax.TableKey tags_t))
+  | MkValTable (name: string) (keys: list (@Syntax.TableKey tags_t))
                (actions: list (@Syntax.TableActionRef tags_t))
                (default_action: @Syntax.TableActionRef tags_t)
                (const_entries: list (@Syntax.TableEntry tags_t)).
 
 
-  Definition Env_env binding := list (P4String.AList tags_t binding).
+  Definition Env_env binding := list (StringAList binding).
 
   Inductive Env_EvalEnv :=
-  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@Typed.P4Type tags_t)) (namespace: P4String).
+  | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@Typed.P4Type tags_t)) (namespace: string).
   Inductive ValuePreLvalue :=
   | ValLeftName (name: @Typed.name tags_t) (loc: (@Syntax.Locator tags_t))
-  | ValLeftMember (expr: ValueLvalue) (name: P4String)
+  | ValLeftMember (expr: ValueLvalue) (name: string)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: N)
   with ValueLvalue :=
@@ -61,8 +61,8 @@ Section Value.
 
   Inductive ValueFunctionImplementation :=
   | ValFuncImplUser (scope: Env_EvalEnv) (body: (@Syntax.Block tags_t))
-  | ValFuncImplExtern (name: P4String) (caller: option (ValueLoc * P4String))
-  | ValFuncImplBuiltin (name: P4String) (caller: ValueLvalue).
+  | ValFuncImplExtern (name: string) (caller: option (ValueLoc * string))
+  | ValFuncImplBuiltin (name: string) (caller: ValueLvalue).
 
   Inductive ValueObject :=
   | ValObjParser (scope: Env_EvalEnv)
@@ -74,8 +74,8 @@ Section Value.
                   (constructor_params: list (@Typed.P4Parameter tags_t))
                   (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
                   (apply: (@Syntax.Block tags_t))
-  | ValObjPackage (args: P4String.AList tags_t ValueLoc)
-  | ValObjRuntime (loc: ValueLoc) (obj_name: P4String)
+  | ValObjPackage (args: StringAList ValueLoc)
+  | ValObjRuntime (loc: ValueLoc) (obj_name: string)
   | ValObjFun (params: list (@Typed.P4Parameter tags_t)) (impl: ValueFunctionImplementation)
   | ValObjAction (scope: Env_EvalEnv) (params: list (@Typed.P4Parameter tags_t))
                  (body: (@Syntax.Block tags_t))
@@ -89,8 +89,8 @@ Section Value.
   | ValConsControl (scope: Env_EvalEnv) (constructor_params: list (@Typed.P4Parameter tags_t))
                    (params: list (@Typed.P4Parameter tags_t)) (locals: list (@Syntax.Declaration tags_t))
                    (apply: (@Syntax.Block tags_t))
-  | ValConsPackage (params: list (@Typed.P4Parameter tags_t)) (args: P4String.AList tags_t ValueLoc)
-  | ValConsExternObj (_: P4String.AList tags_t (list (@Typed.P4Parameter tags_t))).
+  | ValConsPackage (params: list (@Typed.P4Parameter tags_t)) (args: StringAList ValueLoc)
+  | ValConsExternObj (_: StringAList (list (@Typed.P4Parameter tags_t))).
 
   Inductive Value (bit : Type) :=
   | ValBase (_: @ValueBase bit)
@@ -98,7 +98,7 @@ Section Value.
   | ValCons (_: ValueConstructor).
 
   Section ValBaseInd.
-    Variable bit : Type.    
+    Variable bit : Type.
     Notation V := (@ValueBase bit).
     Variable P : V -> Prop.
 
@@ -206,7 +206,7 @@ Section Value.
       apply map_ext_Forall in H;
       rewrite H, map_id; reflexivity
     end.
-  
+
   Ltac alist_solve :=
     match goal with
     | H: Forall (fun '(_, _) => _) ?vs
@@ -224,7 +224,7 @@ Section Value.
       try rewrite <- Hsl2 in Hsl1;
       try rewrite <- map_map with (f := snd) in H
     end.
-  
+
   Lemma ValueBaseMap_id : forall (A : Type) (v : @ValueBase A),
       ValueBaseMap (fun x => x) v = v.
   Proof.
@@ -235,7 +235,7 @@ Section Value.
         try (alist_solve;
              rewrite map_snd_combine in H by auto; assumption).
   Qed.
-  
+
   Lemma ValueBaseMap_compose : forall (T U W : Type) (f : T -> U) (g : U -> W) v,
       ValueBaseMap g (ValueBaseMap f v) =
       ValueBaseMap (fun t => g (f t)) v.

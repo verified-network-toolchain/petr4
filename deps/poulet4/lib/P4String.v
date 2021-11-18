@@ -1,8 +1,10 @@
 Require Import Coq.Strings.String.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Bool.Bool.
+Require Import Coq.Lists.List.
 
-Require AList.
+Require Poulet4.AList.
+Import ListNotations.
 
 Instance StrEqDec:EqDec string eq.
 Proof.
@@ -57,3 +59,10 @@ Proof.
 Qed.
 
 Definition AList (tags_t V: Type) := AList.AList (t tags_t) V (@equiv tags_t).
+
+Fixpoint clear_AList_tags {tags_t V : Type} (al : AList tags_t V) : AList.StringAList V :=
+  match al with
+  | (Build_t _ _ str, v) :: tl =>
+      (str, v) :: clear_AList_tags tl
+  | [] => []
+  end.

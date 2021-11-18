@@ -3,17 +3,19 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.Lists.List Coq.Program.Program
         Poulet4.Typed Poulet4.Syntax.
 Require Export Poulet4.Value.
-Require Import Poulet4.P4Int Poulet4.P4Arith
+Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
 Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
 
 Section Semantics.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
-Notation Val := (@ValueBase tags_t bool).
-Notation Sval := (@ValueBase tags_t (option bool)).
+Notation Val := (@ValueBase bool).
+Notation Sval := (@ValueBase (option bool)).
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := (@ValueLvalue tags_t).
 
@@ -21,9 +23,8 @@ Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
-Notation signal := (@signal tags_t).
 
-Context {target : @Target tags_t (@Expression tags_t)}. 
+Context {target : @Target tags_t (@Expression tags_t)}.
 
 Definition mem := @PathMap.t tags_t Sval.
 
@@ -71,7 +72,7 @@ Inductive fundef :=
 
 Definition genv_func := @PathMap.t tags_t fundef.
 Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t (P4String.AList tags_t Sval).
+Definition genv_senum := @IdentMap.t tags_t (StringAList Sval).
 
 Inductive inst_ref :=
   | mk_inst_ref (class : P4String) (p : path).
@@ -115,7 +116,7 @@ Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
 Definition read_detbit (b : bool) (b': option bool) :=
   b' = Some b.
 
-Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t bool) :=
+Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in
   match expr with
   | ExpBool b => Some (ValBaseBool b)
@@ -125,10 +126,10 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t boo
           | Some (w, false) => ValBaseBit (to_lbool w i.(value))
           | Some (w, true) => ValBaseInt (to_lbool w i.(value))
           end)
-  | ExpString s => Some (ValBaseString s)
-  | ExpErrorMember t => Some (ValBaseError t)
+  | ExpString s => Some (ValBaseString (str s))
+  | ExpErrorMember t => Some (ValBaseError (str t))
   | ExpList es =>
-    let fix eval_literals  (exprs: list (@Expression tags_t)) : option (list (@ValueBase tags_t bool)) :=
+    let fix eval_literals  (exprs: list (@Expression tags_t)) : option (list Val) :=
         match exprs with
         | expr :: exprs' =>
           match eval_literal expr, eval_literals exprs' with
@@ -141,11 +142,11 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t boo
     option_map ValBaseTuple (eval_literals es)
   | ExpRecord fs =>
     let fix eval_literals  (kvs: @P4String.AList tags_t Expression)
-        : option (@P4String.AList tags_t (@ValueBase tags_t bool)) :=
+        : option (StringAList Val) :=
         match kvs with
         | (k, e) :: kvs' =>
           match eval_literal e, eval_literals kvs' with
-          | Some v, Some vs => Some ((k, v) :: vs)
+          | Some v, Some vs => Some ((str k, v) :: vs)
           | _, _ => None
           end
         | [] => Some []
@@ -156,7 +157,7 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option (@ValueBase tags_t boo
   end.
 
 Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
-                   @ValueBase tags_t A -> @ValueBase tags_t B -> Prop :=
+                   @ValueBase A -> @ValueBase B -> Prop :=
   | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
   | exec_val_bool : forall b b',
                     read_one_bit b b' ->
@@ -256,7 +257,7 @@ Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   | _ => None
   end.
 
-Definition sval_to_bits_width {A} (v : @ValueBase tags_t A) : option (list A * nat) :=
+Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
   match v with
   | ValBaseInt bits
   | ValBaseBit bits => Some (bits, List.length bits)
@@ -273,10 +274,10 @@ Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
     end
   in List.rev (bitstring_slice' bits lo hi []).
 
-Definition kv_map_func {A B} (f: A -> B) (kv : P4String * A): P4String * B :=
+Definition kv_map_func {K A B} (f: A -> B) (kv : K * A): K * B :=
   let (k, v) := kv in (k, f v).
 
-Definition kv_map {A B} (f: A -> B) (kvs : P4String.AList tags_t A): P4String.AList tags_t B :=
+Definition kv_map {K A B} (f: A -> B) (kvs : list (K * A)): list (K * B) :=
   List.map (kv_map_func f) kvs.
 
 Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
@@ -298,22 +299,22 @@ Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): opt
         end
     | TypRecord fields =>
         match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseRecord kvs)
+        | Some kvs => Some (ValBaseRecord (P4String.clear_AList_tags kvs))
         | None => None
         end
     | TypHeader fields =>
         match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseHeader kvs hvalid)
+        | Some kvs => Some (ValBaseHeader (P4String.clear_AList_tags kvs) hvalid)
         | None => None
         end
     | TypHeaderUnion fields =>
         match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseUnion kvs)
+        | Some kvs => Some (ValBaseUnion (P4String.clear_AList_tags kvs))
         | None => None
         end
     | TypStruct fields =>
         match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseStruct kvs)
+        | Some kvs => Some (ValBaseStruct (P4String.clear_AList_tags kvs))
         | None => None
         end
     | TypNewType _ typ' => uninit_sval_of_typ' hvalid typ'
@@ -333,11 +334,11 @@ Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): opt
        from uninit_sval_of_sval and val_to_sval. *)
     | TypVarBit w => Some (ValBaseVarbit w [])
     | TypInteger => Some (ValBaseInteger 0)
-    | TypError => Some (ValBaseError NoError)
+    | TypError => Some (ValBaseError "NoError")
     | TypEnum tname None members => 
         (* Empty members is a syntax error *)
         if (Nat.eqb (List.length members) 0) then None
-        else Some (ValBaseEnumField tname (List.hd !"" members))
+        else Some (ValBaseEnumField (str tname) (str (List.hd !"" members)))
     | _ => None
     end
   in match get_real_type typ with
@@ -383,7 +384,7 @@ Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval :=
        since the header was last made valid. 
    Guaranteed by setting all fields to noninitialized when the header is made invalid (declaration & setInvalid)
    and setting only the valid bit and given fields when the header is made valid (initialization & setValid) *)
-Inductive get_member : Sval -> P4String -> Sval -> Prop :=
+Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_struct : forall fields member v,
                         AList.get fields member = Some v ->
                         get_member (ValBaseStruct fields) member v
@@ -397,13 +398,13 @@ Inductive get_member : Sval -> P4String -> Sval -> Prop :=
                         AList.get fields member = Some v ->
                         get_member (ValBaseHeader fields b) member v
   | get_member_stack_size : forall headers size next,
-                            get_member (ValBaseStack headers size next) !"size" 
+                            get_member (ValBaseStack headers size next) "size"
                               (ValBaseBit (to_loptbool 32 (Z.of_N size)))
   | get_member_stack_last_index : forall headers size next sv,
                                   (if (next =? 0)%N 
                                     then uninit_sval_of_typ None (TypBit 32) = Some sv 
                                     else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
-                                  get_member (ValBaseStack headers size next) !"lastIndex" sv.
+                                  get_member (ValBaseStack headers size next) "lastIndex" sv.
 
 (* Note that expressions don't need decl_path. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
@@ -421,7 +422,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   | exec_expr_string : forall s this st tag typ dir,
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpString s) typ dir)
-                       (ValBaseString s)
+                       (ValBaseString (str s))
   | exec_expr_name: forall name loc sv this st tag typ dir,
                     loc_to_sval this loc st = Some sv ->
                     exec_expr read_one_bit this st
@@ -452,7 +453,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                      (MkExpression tag (ExpList es) typ dir)
                      (ValBaseTuple vs)
   | exec_expr_record : forall kvs kvs' this st tag typ dir,
-                       AList.all_values (exec_expr read_one_bit this st) kvs kvs' ->
+                       AList.all_values (exec_expr read_one_bit this st) (clear_AList_tags kvs) kvs' ->
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpRecord kvs) typ dir)
                        (ValBaseRecord kvs')
@@ -491,26 +492,24 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             List.In member members ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
-                            (ValBaseEnumField ename member)
+                            (ValBaseEnumField (str ename) (str member))
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
                              IdentMap.get ename (ge_senum ge) = Some fields ->
-                             AList.get fields member = Some sv ->
+                             AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
-                             (ValBaseSenumField ename member sv)
+                             (ValBaseSenumField (str ename) (str member) sv)
   | exec_expr_error_member : forall err this st tag typ dir,
-      exec_expr
-        read_one_bit this st
-        (MkExpression tag (ExpErrorMember err) typ dir)
-        (ValBaseError err)
+                             exec_expr read_one_bit this st
+                             (MkExpression tag (ExpErrorMember err) typ dir)
+                             (ValBaseError (str err))
   | exec_expr_other_member : forall expr member sv sv' this st tag typ dir,
-      exec_expr read_one_bit this st expr sv ->
-      get_member sv member sv' ->
-      exec_expr
-        read_one_bit this st
-        (MkExpression tag (ExpExpressionMember expr member) typ dir) sv'
+                             exec_expr read_one_bit this st expr sv ->
+                             get_member sv (str member) sv' ->
+                             exec_expr read_one_bit this st
+                             (MkExpression tag (ExpExpressionMember expr member) typ dir) sv'
   (* TODO:
      ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin
      ValBaseUnion: isValid is supposed to be handled in exec_builtin
@@ -570,9 +569,9 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
           | ExpExpressionMember expr name =>
               match eval_expr_gen hook expr with
               | Some (ValBaseStruct fields) =>
-                  AList.get fields name
+                  AList.get fields (str name)
               | Some (ValBaseHeader fields true) =>
-                  AList.get fields name
+                  AList.get fields (str name)
               | _ => None
               end
           | _ => None
@@ -964,12 +963,12 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                         exec_lexpr read_one_bit this st expr lv sig ->
                         exec_lexpr read_one_bit this st
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                        (MkValueLvalue (ValLeftMember lv name) typ) sig
+                        (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
   (* next < 0 is impossible by syntax. *)
   | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig ret_sig,
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
-                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject StackOutOfBounds)) ->
+                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
@@ -1007,7 +1006,7 @@ Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
   | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
       locator_equivb loc1 loc2
   | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
-      lval_equivb lv1 lv2 && P4String.equivb member1 member2
+      lval_equivb lv1 lv2 && String.eqb member1 member2
   | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
       lval_equivb lv1 lv2 && N.eqb msb1 msb2 && N.eqb lsb1 lsb2
   | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
@@ -1043,7 +1042,7 @@ Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Sval -> Prop :=
+with exec_read_member (this : path) : state -> Lval -> string -> P4Type -> Sval -> Prop :=
   | exec_read_member_header : forall is_valid fields st lv name typ sv,
                               exec_read this st lv (ValBaseHeader fields is_valid) ->
                               AList.get fields name = Some sv ->
@@ -1070,7 +1069,7 @@ with exec_read_member (this : path) : state -> Lval -> P4String -> P4Type -> Sva
     2. a write to a field in an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
    Guaranteed by not writing to invalid and unspecified-validity headers *)
-Inductive write_header_field: Sval -> P4String -> Sval -> Sval -> Prop :=
+Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
   | write_header_field_valid : forall fields fname fv fields',
                                AList.set fields fname fv = Some fields' ->
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
@@ -1104,9 +1103,9 @@ Inductive write_header_field: Sval -> P4String -> Sval -> Sval -> Prop :=
    1. Typechecker ensures that fname must exist in the fields.
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
-Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4String)
-                             (hfields: P4String.AList tags_t Sval) (is_valid: option bool) :
-                             option (P4String.AList tags_t Sval) :=
+Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
+                             (hfields: StringAList Sval) (is_valid: option bool) :
+                             option (StringAList Sval) :=
   match fields with
   | [] => Some []
   | (fname', ValBaseHeader hfields' is_valid') :: tl =>
@@ -1114,10 +1113,10 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4Stri
     | None => None
     | Some tl' =>
       match is_valid with
-      | Some true => if P4String.equivb fname fname'
+      | Some true => if String.eqb fname fname'
                      then Some ((fname, ValBaseHeader hfields (Some true)) :: tl')
                      else Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-      | Some false => if P4String.equivb fname fname'
+      | Some false => if String.eqb fname fname'
                       then Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
                       else Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') is_valid') :: tl')
       (* Since valid = None only occurs for out-of-bound header stack access, and hfields
@@ -1131,7 +1130,7 @@ Fixpoint update_union_member (fields: P4String.AList tags_t Sval) (fname: P4Stri
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
    Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
-Inductive update_member : Sval -> P4String -> Sval -> Sval -> Prop :=
+Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_header : forall fields is_valid fname fv sv,
                            write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
                            update_member (ValBaseHeader fields is_valid) fname fv sv
@@ -1307,7 +1306,7 @@ Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
 Definition empty_block := (BlockEmpty dummy_tags).
 
-Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase) : Block :=
+Fixpoint match_switch_case (member: string) (cases : list StatementSwitchCase) : Block :=
   let fix find_next_action cases :=
     match cases with
     | [] => empty_block
@@ -1317,20 +1316,20 @@ Fixpoint match_switch_case (member: P4String) (cases : list StatementSwitchCase)
   match cases with
   | [] => empty_block
   | StatSwCaseAction _ (StatSwLabName _ label) code :: tl =>
-    if P4String.equivb label member then code
+    if String.eqb (str label) member then code
     else match_switch_case member tl
   | StatSwCaseFallThrough _ (StatSwLabName _ label) :: tl =>
-    if P4String.equivb label member then find_next_action tl
+    if String.eqb (str label) member then find_next_action tl
     else match_switch_case member tl
   | StatSwCaseAction _ (StatSwLabDefault _) code :: _ => code
   | StatSwCaseFallThrough _ (StatSwLabDefault _) :: _ => empty_block
   end.
 
-Definition table_retv (b : bool) (ename member : P4String) : Val :=
+Definition table_retv (b : bool) (ename member : string) : Val :=
   ValBaseStruct
-  [(!"hit", ValBaseBool b);
-   (!"miss", ValBaseBool (negb b));
-   (!"action_run", ValBaseEnumField ename member)].
+  [("hit", ValBaseBool b);
+   ("miss", ValBaseBool (negb b));
+   ("action_run", ValBaseEnumField ename member)].
 
 Definition name_only (name : Typed.name) : ident :=
   match name with
@@ -1532,9 +1531,9 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       (if is_some actionref
        then actionref = (Some (mk_action_ref action_name ctrl_args)) 
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
-            /\ retv = (SReturn (table_retv true !"" (get_expr_func_name action)))
+            /\ retv = (SReturn (table_retv true "" (str (get_expr_func_name action))))
        else action = default_action
-            /\ retv = (SReturn (table_retv false !"" (get_expr_func_name default_action)))) ->
+            /\ retv = (SReturn (table_retv false "" (str (get_expr_func_name default_action))))) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
         nil nil s' nil retv

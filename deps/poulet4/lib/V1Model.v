@@ -30,9 +30,8 @@ Notation ident := (P4String.t tags_t).
 Notation P4String := (P4String.t tags_t).
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
-Notation Val := (@ValueBase tags_t bool).
+Notation Val := (@ValueBase bool).
 Notation ValSet := ValueSet.
-Notation signal := (@signal tags_t).
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref tags_t Expression).
 
@@ -175,14 +174,14 @@ Definition packet_out_emit : extern_func := {|
   ef_sem := packet_out_emit_sem
 |}.
 
-Definition get_hash_algorithm (algo : P4String) : option (nat * uint * uint * uint * bool * bool ) :=
-  if P4String.equivb algo !"crc32" then 
+Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
+  if String.eqb algo "crc32" then 
       Some (32%nat, 
             (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))), 
             (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
             (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
             true, true)
-  else if P4String.equivb algo !"crc16" then
+  else if String.eqb algo "crc16" then
       Some (16%nat, 
             (D8(D0(D0(D5 Nil)))),
             (D0 Nil),
@@ -217,7 +216,7 @@ Inductive hash_sem : extern_func_sem :=
       concat_tuple lval = Some input ->
       bound_hash_output outw base max 
         (compute_crc hashw poly init xor_out refin refout input) = output ->
-      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField !"HashAlgorithm" hash_name; 
+      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name; 
                            ValBaseBit base;
                            ValBaseTuple lval;
                            ValBaseBit max]

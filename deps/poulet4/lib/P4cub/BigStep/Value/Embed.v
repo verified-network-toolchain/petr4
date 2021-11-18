@@ -5,13 +5,11 @@ Require Export Poulet4.P4cub.BigStep.Value.Syntax
 Require Poulet4.P4String.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Import AllCubNotations Val.ValueNotations.
+Local Open Scope string_scope.
 
 (** Embeding [p4cub] values in [p4light] values. *)
 Section Embed.
-  Context {tags_t: Type}.
-  Notation P4String := (P4String.t tags_t).
-  Notation P4Int := (P4Int.t tags_t).
-  Notation VAL := (@ValueBase tags_t bool).
+  Notation VAL := (@ValueBase bool).
 
   Inductive Embed : Val.v -> VAL -> Prop :=
   | Embed_bool b :
@@ -25,26 +23,26 @@ Section Embed.
       Embed ~{ TUPLE vs }~ (ValBaseTuple vs')
   | Embed_struct vs vs' :
       Forall2 (fun xv xv' =>
-                 fst xv = P4String.str (fst xv') /\
+                 fst xv = fst xv' /\
                  Embed (snd xv) (snd xv')) vs vs' ->
       Embed ~{ STRUCT { vs } }~ (ValBaseStruct vs')
   | Embed_header vs vs' b :
       Forall2 (fun xv xv' =>
-                 fst xv = P4String.str (fst xv') /\
+                 fst xv = fst xv' /\
                  Embed (snd xv) (snd xv')) vs vs' ->
       Embed ~{ HDR { vs } VALID:=b }~ (ValBaseHeader vs' b)
   | Embed_error eo er :
       match eo with
       | Some err => err 
       | None     => "no error"%string
-      end = P4String.str er ->
+      end = er ->
       Embed ~{ ERROR eo }~ (ValBaseError er)
   | Embed_matchkind mk mk' :
       match mk with
       | Expr.MKExact   => "exact"%string
       | Expr.MKTernary => "ternary"%string
       | Expr.MKLpm     => "lpm"%string
-      end = P4String.str mk' ->
+      end = mk' ->
       Embed ~{ MATCHKIND mk }~ (ValBaseMatchKind mk')
   | Embed_stack hs ts i hs' :
       Forall2
@@ -54,10 +52,6 @@ Section Embed.
       Embed
         ~{ STACK hs:ts NEXT:=i }~
         (ValBaseStack hs' (BinInt.Z.to_N i) (BinInt.Z.to_N i)).
-  
-  Variable dummy : tags_t.
-
-  Definition str_of_str := P4String.Build_t _ dummy.
 
   Fixpoint embed (v : Val.v) : VAL :=
     match v with
@@ -67,21 +61,21 @@ Section Embed.
     | ~{ TUPLE vs }~      => ValBaseTuple $ map embed vs
     | ~{ STRUCT { vs } }~ =>
       ValBaseStruct
-        $ map (fun '(x,v) => (str_of_str x, embed v)) vs
+        $ map (fun '(x,v) => (x, embed v)) vs
     | ~{ HDR { vs } VALID:=b }~ =>
       ValBaseHeader
-        (map (fun '(x,v) => (str_of_str x, embed v)) vs) b
-    | Val.VError (Some err)   => ValBaseError $ str_of_str err
-    | ~{ ERROR  None       }~ => ValBaseError $ str_of_str "no error"
-    | ~{ MATCHKIND exact   }~ => ValBaseMatchKind $ str_of_str "exact"
-    | ~{ MATCHKIND ternary }~ => ValBaseMatchKind $ str_of_str "ternary"
-    | ~{ MATCHKIND lpm     }~ => ValBaseMatchKind $ str_of_str "lpm"
+        (map (fun '(x,v) => (x, embed v)) vs) b
+    | Val.VError (Some err)   => ValBaseError $ err
+    | ~{ ERROR  None       }~ => ValBaseError $ "no error"
+    | ~{ MATCHKIND exact   }~ => ValBaseMatchKind $ "exact"
+    | ~{ MATCHKIND ternary }~ => ValBaseMatchKind $ "ternary"
+    | ~{ MATCHKIND lpm     }~ => ValBaseMatchKind $ "lpm"
     | ~{ STACK hs:_ NEXT:=i }~ =>
       ValBaseStack
         (map
            (fun '(b,vs) =>
               ValBaseHeader
-                (map (fun '(x,v) => (str_of_str x, embed v)) vs) b) hs)
+                (map (fun '(x,v) => (x, embed v)) vs) b) hs)
         (BinInt.Z.to_N i) (BinInt.Z.to_N i)
     end.
 

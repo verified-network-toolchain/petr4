@@ -10,18 +10,18 @@ Require Import Poulet4.Value.
 Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.P4Int.
 Require Import Poulet4.Maps.
+Require Import Poulet4.AList.
 
 Section Target.
 
 Context {tags_t: Type}.
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
-Notation Val := (@ValueBase tags_t bool).
+Notation Val := (@ValueBase bool).
 Notation ValSet := (@ValueSet tags_t).
-Notation signal := (@signal tags_t).
 
 Fixpoint width_of_val (v: Val): N :=
-  let fix fields_width (fields: P4String.AList tags_t ValueBase) : N :=
+  let fix fields_width (fields: StringAList ValueBase) : N :=
       match fields with
       | nil => N.of_nat O
       | (id, v) :: rest => (width_of_val v + fields_width rest)%N

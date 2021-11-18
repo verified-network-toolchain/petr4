@@ -148,7 +148,7 @@ Section Environment.
     | _ :: scopes' => top_scope scopes'
     end.
 
-  Definition lookup_value (v: @ValueBase tags_t bit) (field: P4String.t tags_t) : @option_monad (@ValueBase tags_t bit) :=
+  Definition lookup_value (v: @ValueBase bit) (field: string) : @option_monad (@ValueBase bit) :=
     match v with
     | ValBaseRecord fields
     | ValBaseStruct fields
@@ -156,13 +156,13 @@ Section Environment.
     | ValBaseHeader fields _ => AList.get fields field
     (*| ValBaseSenum fields => AList.get fields field*)
     | ValBaseStack hdrs len next =>
-      if eq_const field StringConstants.last then List.nth_error hdrs (N.to_nat (len - 1)) else
-      if eq_const field StringConstants.next then List.nth_error hdrs (N.to_nat next) else
+      if String.eqb field StringConstants.last then List.nth_error hdrs (N.to_nat (len - 1)) else
+      if String.eqb field StringConstants.next then List.nth_error hdrs (N.to_nat next) else
       None
     | _ => None
     end.
 
-  Definition bit_slice (v: @ValueBase tags_t bit) (msb lsb: N) : @option_monad (@ValueBase tags_t bit) :=
+  Definition bit_slice (v: @ValueBase bit) (msb lsb: N) : @option_monad (@ValueBase bit) :=
     match v with
     | ValBaseBit bits
     | ValBaseInt bits =>
@@ -182,7 +182,7 @@ Section Environment.
     | _ => None
     end.
 
-  Definition array_index (v: @ValueBase tags_t bit) (idx: nat): @option_monad (@ValueBase tags_t bit) :=
+  Definition array_index (v: @ValueBase bit) (idx: nat): @option_monad (@ValueBase bit) :=
     match v with
     | ValBaseStack hdrs _ _ => nth_error hdrs idx
     | _ => None
@@ -244,7 +244,7 @@ Section Environment.
     lift_opt (AssertError "Could not dig into value.") (env_dig val_inner lv)
   .
 
-  Definition update_slice (lhs: @ValueBase tags_t bit) (msb: nat) (lsb: nat) (rhs: @ValueBase tags_t bit) : env_monad (@ValueBase tags_t bit) :=
+  Definition update_slice (lhs: @ValueBase bit) (msb: nat) (lsb: nat) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match (lhs, rhs) with
     | (ValBaseBit vl, ValBaseBit vr) =>
       let wl := List.length vl in
@@ -261,7 +261,7 @@ Section Environment.
   Definition split_list {A} (idx: nat) (xs: list A) : (list A * list A) :=
     (firstn idx xs, skipn (List.length xs - idx) xs).
 
-  Definition update_array (lhs: @ValueBase tags_t bit) (idx: nat) (rhs: @ValueBase tags_t bit) : env_monad (@ValueBase tags_t bit) :=
+  Definition update_array (lhs: @ValueBase bit) (idx: nat) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match lhs with
     | ValBaseStack hdrs len nxt =>
       if N.leb len (N.of_nat idx) then state_fail (AssertError "Out of bounds header stack write.") else
@@ -270,7 +270,7 @@ Section Environment.
     | _ => state_fail (TypeError "Attempt to update something that is not a header stack.")
     end.
 
-  Definition update_member (lhs: @ValueBase tags_t bit) (member: @P4String.t tags_t) (rhs: @ValueBase tags_t bit) : env_monad (@ValueBase tags_t bit) :=
+  Definition update_member (lhs: @ValueBase bit) (member: string) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match lhs with
     (* TODO: there must be a cleaner way... *)
     | ValBaseRecord fields =>
@@ -294,8 +294,8 @@ Section Environment.
                                (AList.set fields member rhs) in
       state_return (ValBaseSenum fields')*)
     | ValBaseStack hdrs len next =>
-      if eq_const member StringConstants.last then update_array lhs (N.to_nat len) rhs else
-      if eq_const member StringConstants.next then update_array lhs (N.to_nat next) rhs else
+      if String.eqb member StringConstants.last then update_array lhs (N.to_nat len) rhs else
+      if String.eqb member StringConstants.next then update_array lhs (N.to_nat next) rhs else
       state_fail (AssertError "Can only update next and last members of header stack.")
     | _ => state_fail (AssertError "Unsupported value in member update.")
     end.

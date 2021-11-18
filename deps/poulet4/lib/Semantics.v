@@ -1,20 +1,11 @@
-Require Import Coq.Strings.String.
-Require Import Coq.Bool.Bool.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Lists.List.
-Require Import Coq.Program.Program.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
+Require Import Coq.Strings.String Coq.Bool.Bool
+        Coq.ZArith.BinInt Coq.ZArith.ZArith
+        Coq.Lists.List Coq.Program.Program
+        Poulet4.Typed Poulet4.Syntax.
 Require Export Poulet4.Value.
-Require Import Poulet4.P4Int.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.AList.
-Require Import Poulet4.Ops.
-Require Import Poulet4.Maps.
-Require Export Poulet4.Target.
-Require Export Poulet4.SyntaxUtil.
-Require Export Poulet4.Sublist.
+Require Import Poulet4.P4Int Poulet4.P4Arith
+        Poulet4.AList Poulet4.Ops Poulet4.Maps.
+Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
 
@@ -906,6 +897,8 @@ Definition is_some {A} (input: option A) : bool :=
   | _ => true
   end.
 
+(* QUESTION: Why does this only go two-layers deep in an expression?
+   What about arbitrary nesting? *)
 Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
@@ -916,9 +909,10 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       match loc with
       | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
+        (* QUESTION: why isn't [p] used to look up instance? *)
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-              option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
@@ -943,7 +937,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
         match expr with
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
+            | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
             | LInstance p =>
                 match PathMap.get (this_path ++ p) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>

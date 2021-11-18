@@ -210,7 +210,7 @@ Definition bound_hash_output (outw: N) (base: list bool)
     ValBaseBit (to_lbool outw
                 (BitArith.plus_mod w4 base 
                 (BitArith.modulo_mod w4 output max))).
-Check compute_crc.
+(*Check compute_crc.*)
 Inductive hash_sem : extern_func_sem :=
   | exec_hash : forall e s p outw typs hash_name base lval max hashw poly init xor_out refin refout input output,
       get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->

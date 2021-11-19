@@ -2102,7 +2102,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
                       end
     | None => None
     end
-  | _ => None
+  | _ => Some ge_typ
   end.
 
 Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)

@@ -9,7 +9,7 @@ Require Coq.Logic.Eqdep_dec.
 Module F := Field.
 
 (** Function call parameters/arguments. *)
-Inductive paramarg (A B : Type) : Type :=
+Variant paramarg (A B : Type) : Type :=
 | PAIn (a : A)
 | PAOut (b : B)
 | PAInOut (b : B)
@@ -64,11 +64,13 @@ Definition rel_paramarg_same {A B : Type} (R : A -> B -> Prop) :
 (**[]*)
 
 (** Function signatures/instantiations. *)
-Inductive arrow (K A B R : Type) : Type :=
-  Arrow (pas : F.fs K (paramarg A B)) (returns : option R).
+Record arrow (K A B R : Type) : Type :=
+  { paramargs : F.fs K (paramarg A B);
+    rtrns : option R }.
 (**[]*)
 
-Arguments Arrow {_} {_} {_} {_}.
+Arguments paramargs {_} {_} {_} {_}.
+Arguments rtrns {_} {_} {_} {_}.
 
 (** * Expression Grammar *)
 Module Expr.
@@ -110,7 +112,7 @@ Module Expr.
     Definition constructor_params : Type := F.fs string ct.
   End P4Types.
   
-  Inductive uop : Set :=
+  Variant uop : Set :=
   | Not        (* boolean negation *)
   | BitNot     (* bitwise negation *)
   | UMinus     (* integer negation *)
@@ -125,7 +127,7 @@ Module Expr.
       The "Sat" suffix denotes
       saturating arithmetic:
       where there is no overflow. *)
-  Inductive bop : Set :=
+  Variant bop : Set :=
   | Plus     (* integer addition *)
   | PlusSat  (* saturating addition *)
   | Minus    (* integer subtraction *)
@@ -148,7 +150,7 @@ Module Expr.
   (**[]*)
   
   (** Default matchkinds. *)
-  Inductive matchkind : Set :=
+  Variant matchkind : Set :=
   | MKExact
   | MKTernary
   | MKLpm.
@@ -202,7 +204,7 @@ Module Expr.
     (**[]*)
     
     (** Constructor arguments. *)
-    Inductive constructor_arg : Type :=
+    Variant constructor_arg : Type :=
     | CAExpr (expr : e)   (* plain expression *)
     | CAName (x : string) (* name of parser, control, package, or extern *).
     (**[]*)
@@ -236,7 +238,7 @@ Module Stmt.
     Variable (tags_t : Type).
 
     (** Header Stack Operations. *)
-    Inductive hsop : Set := HSPush | HSPop.
+    Variant hsop : Set := HSPush | HSPop.
 
     Inductive s : Type :=
     | SSkip (i : tags_t)                              (* skip/no-op *)
@@ -290,7 +292,7 @@ End Stmt.
 (** Parsers *)
 Module Parser.
   (** Labels for parser-states. *)
-  Inductive state : Set :=
+  Variant state : Set :=
   | STStart              (* start state *)
   | STAccept             (* accept state *)
   | STReject             (* reject state *)
@@ -322,14 +324,15 @@ Module Parser.
     (**[]*)
 
     (** Parser State Blocks. *)
-    Inductive state_block : Type :=
-    | State (stmt : Stmt.s tags_t) (transition : e).
+    Record state_block : Type :=
+      { stmt : Stmt.s tags_t; trans : e }.
     (**[]*)
   End Parsers.
 
+  Arguments stmt {_}.
+  Arguments trans {_}.
   Arguments PGoto {_}.
   Arguments PSelect {_}.
-  Arguments State {_}.
 End Parser.
 
 (** Controls *)
@@ -338,9 +341,9 @@ Module Control.
     Variable (tags_t : Type).
     
     (** Table. *)
-    Inductive table : Type :=
-    | Table (key : list (Expr.t * Expr.e tags_t * Expr.matchkind))
-            (actions : list string).
+    Record table : Type :=
+      { table_key : list (Expr.t * Expr.e tags_t * Expr.matchkind);
+        table_actions : list string }.
     (**[]*)
     
     (** Declarations that may occur within Controls. *)
@@ -353,8 +356,9 @@ Module Control.
     | CDSeq (d1 d2 : d) (i : tags_t)      (* sequence of declarations *).
     (**[]*)
   End ControlDecls.
-  
-  Arguments Table {_}.
+
+  Arguments table_key {_}.
+  Arguments table_actions {_}.
   Arguments CDAction {_}.
   Arguments CDTable {_}.
   Arguments CDSeq {_}.

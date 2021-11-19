@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.SmallStep.Value
-        Poulet4.P4cub.SmallStep.Util Coq.ZArith.BinInt
-        Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Envn.
+Require Import Coq.ZArith.BinInt.
+From Poulet4.P4cub Require Import SmallStep.Value
+     SmallStep.Util Syntax.Syntax Envn.
 
 (* TODO: correctly handle type parameters/arguments. *)
 
@@ -235,7 +235,7 @@ Module Step.
       is inspired by that of a small-step
       semantics for Cminor.
       [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
-  Inductive kstmt_step {tags_t : Type}
+  Variant kstmt_step {tags_t : Type}
             (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
             (fns : fenv) (ins : @ienv tags_t) (ϵ : eenv) :
     kstmt -> kstmt -> eenv -> Prop :=
@@ -327,22 +327,22 @@ Module Step.
        predop lvalue o ->
        F.predfs_data (pred_paramarg value lvalue) args ->
        let fϵ' := copy_in args ϵ fϵ in
-       let arrow := Arrow args o in
+       let arrow := {|paramargs:=args; rtrns:=o|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ,
        κ funcall f <[]> (args) into o @ i ⋅ k -->
        κ body ⋅ Λ (arrow, ϵ) k, fϵ'
    | step_kexit_kcall (ϵk : eenv) (args : Expr.args tags_t) (k : kstmt) :
        let ϵ' := copy_out args ϵ ϵk in
-       let arrow := Arrow args None in
+       let arrow := {|paramargs:=args; rtrns:=None|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT Λ (arrow, ϵk) k -->  k, ϵ'
    | step_void_kcall (ϵk : eenv) (args : Expr.args tags_t) (k : kstmt) :
        let ϵ' := copy_out args ϵ ϵk in
-       let arrow := Arrow args None in
+       let arrow := {|paramargs:=args; rtrns:=None|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, VOID Λ (arrow, ϵk) k -->  k, ϵ'
    | step_fruit_kcall (v lv : Expr.e tags_t) (ϵk : eenv)
                       (args : Expr.args tags_t) (k : kstmt) :
        let ϵ' := ϵk ▷ copy_out args ϵ ▷ lv_update lv v in
-       let arrow := Arrow args (Some lv) in
+       let arrow := {|paramargs:=args; rtrns:=Some lv|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, FRUIT v Λ (arrow, ϵk) k -->  k, ϵ'
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
           := (kstmt_step cfg tbls aa fns ins ϵ1 k1 k2 ϵ2).

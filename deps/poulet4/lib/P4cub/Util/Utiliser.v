@@ -3,7 +3,7 @@ Require Export Poulet4.P4cub.Util.FunUtil
         Poulet4.P4cub.Util.EquivUtil
         Poulet4.P4cub.Util.StringUtil.
 
-Inductive either (A B : Type) : Type :=
+Variant either (A B : Type) : Type :=
 | Left (a : A)
 | Right (b : B).
 (**[]*)

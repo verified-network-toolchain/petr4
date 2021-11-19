@@ -1,14 +1,12 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Architecture.Paquet
-        Poulet4.P4cub.Architecture.PacketIn
-        Coq.PArith.BinPos
-        Coq.NArith.BinNat
-        Coq.Strings.String
-        Poulet4.P4cub.Envn
-        Poulet4.P4cub.Architecture.Architecture
-        Poulet4.P4cub.BigStep.ValEnvUtil
-        Poulet4.P4cub.BigStep.Value.Syntax
-        Poulet4.P4cub.Syntax.CubNotations.
+From Coq Require Import PArith.BinPos
+     NArith.BinNat Strings.String.
+From Poulet4.P4cub Require Import
+     Architecture.Paquet
+     Architecture.PacketIn Envn
+     Architecture.Architecture
+     BigStep.ValEnvUtil BigStep.Value.Syntax
+     Syntax.CubNotations.
 Module V := Val.
 Import AllCubNotations V.ValueNotations.
 
@@ -71,7 +69,7 @@ Module BSPacketIn <: P4PacketIn.
 
   Definition dispatch_method
              (method: string)
-             '(Arrow args lv : arrow string V.v V.lv V.lv)
+             '({|paramargs:=args; rtrns:=lv|} : arrow string V.v V.lv V.lv)
              (ϵ : epsilon)
     : PKT.paquet_monad epsilon :=
     match method,args,lv with

@@ -221,7 +221,7 @@ Section Forall2_Equivalence.
 End Forall2_Equivalence.
 
 (** Option Predicate *)
-Inductive predop {A : Type} (P : A -> Prop) : option A -> Prop :=
+Variant predop {A : Type} (P : A -> Prop) : option A -> Prop :=
 | predop_none : predop P None
 | predop_some (a : A) : P a -> predop P (Some a).
 
@@ -230,7 +230,7 @@ Section Relop.
   Context {A B : Type}.
   Variable R : A -> B -> Prop.
 
-  Inductive relop : option A -> option B -> Prop :=
+  Variant relop : option A -> option B -> Prop :=
   | relop_none : relop None None
   | relop_some a b : R a b -> relop (Some a) (Some b).
 End Relop.

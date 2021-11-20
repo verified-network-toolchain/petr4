@@ -17,19 +17,19 @@ Section TypingDefs.
   Notation Sval := (@ValueBase (option bool)).
 
   (* Local variable typing environment. *)
-  Definition gamma_local := @PathMap.t tags_t typ.
+  Definition gamma_local := PathMap.t typ.
 
   (* Constant & global variable typing environment. *)
-  Definition gamma_const := @PathMap.t tags_t typ.
+  Definition gamma_const := PathMap.t typ.
 
   (* Function definition typing environment. TODO! *)
-  Definition gamma_func := @PathMap.t tags_t unit.
+  Definition gamma_func := PathMap.t unit.
 
   (* Instance typing environment. TODO. *)
-  Definition gamma_inst := @PathMap.t tags_t unit.
+  Definition gamma_inst := PathMap.t unit.
 
   (* Extern instance typing environment. TODO. *)
-  Definition gamma_ext := @PathMap.t tags_t unit.
+  Definition gamma_ext := PathMap.t unit.
   
   (* Expression typing environment. *)
   Record gamma_expr := {
@@ -43,13 +43,15 @@ Section TypingDefs.
     inst_gamma :> gamma_inst;
     ext_gamma :> gamma_ext }.
 
+  Definition p2l (p: path): list string := map (@P4String.str tags_t) p.
+  
   (** TODO: is this correct?
       Typing analogue to [loc_to_sval].
       How will [this] be used...? *)
   Definition typ_of_loc (this : path) (l : Locator) (g : gamma_expr) : option typ :=
     match l with
-    | LInstance p => PathMap.get p (local_gamma g)
-    | LGlobal   p => PathMap.get p (const_gamma g)
+    | LInstance p => PathMap.get (p2l p) (local_gamma g)
+    | LGlobal   p => PathMap.get (p2l p) (const_gamma g)
     end.
 
   (** TODO: is search correct?
@@ -60,11 +62,11 @@ Section TypingDefs.
              (this : path) (gf : gamma_func) (gi : gamma_inst) (func : expr) : option (path * unit) :=
     match func with
     | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
-      option_map (fun funt => (nil, funt)) (PathMap.get p gf)
+      option_map (fun funt => (nil, funt)) (PathMap.get (p2l p) gf)
     | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
-      match PathMap.get this gi with
+      match PathMap.get (p2l this) gi with
       | Some _ (* class name? *) =>
-        option_map (fun funt => (this, funt)) (PathMap.get (nil (* todo: class name? *) ++ p) gf)
+        option_map (fun funt => (this, funt)) (PathMap.get (p2l (nil (* todo: class name? *) ++ p)) gf)
       | None => None
       end
     | _ => None
@@ -87,19 +89,20 @@ Section TypingDefs.
   Definition gamma_expr_prop
              (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_expr_domain p g st ge /\ gamma_expr_val_typ p g st ge.
-  
+
+  Set Printing Implicit.
   (* TODO: is this correct? *)
   Definition gamma_inst_domain
-             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
+             (g : gamma_inst) (ge_inst : @genv_inst tags_t) : Prop :=
     forall (p : path),
-      PathMap.get p g = None <-> PathMap.get p ge_inst = None.
+      PathMap.get (p2l p) g = None <-> PathMap.get (p2l p) ge_inst = None.
 
   (* TODO: stub. *)
   Definition gamma_inst_types
-             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
+             (g : gamma_inst) (ge_inst : @genv_inst tags_t) : Prop :=
     forall (p : path) (inst : inst_ref) (it : unit),
-      PathMap.get p g = Some it ->
-      PathMap.get p ge_inst = Some inst ->
+      PathMap.get (p2l p) g = Some it ->
+      PathMap.get (p2l p) ge_inst = Some inst ->
       True (* Stub, property of [it] and [inst]. *).
 
   Definition gamma_inst_prop
@@ -528,8 +531,8 @@ Section Soundness.
       pose proof Hvt _ H7 as Hargsv.
       assert (typ_of_expr e = t) by eauto using unary_type_eq.
       rewrite H in *. clear e Hvt Hev H7 H.
-      pose proof exec_val_preserves_typ
-           _ _ _ H8 (ge_senum ge) as Hevpt.
+      pose proof (@exec_val_preserves_typ tags_t _ _
+           _ _ _ H8 (ge_senum ge)) as Hevpt.
       assert (Hgsb : exists gsb,
                  FuncAsMap.related
                    (AList.all_values (exec_val rob))

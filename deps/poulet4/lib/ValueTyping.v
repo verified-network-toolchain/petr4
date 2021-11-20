@@ -127,7 +127,7 @@ Section ValueTyping.
   Section Val.
     Context {A : Type}.
     Notation V := (@ValueBase A).
-    Notation senum_env := (@IdentMap.t tags_t (AList.StringAList V)).
+    Notation senum_env := (IdentMap.t (AList.StringAList V)).
 
     (* TODO:
        What constraints do we need on:
@@ -137,6 +137,8 @@ Section ValueTyping.
        - needs to be parameterized by bit type. *)
 
     Variable (gsenum : senum_env).
+
+    Set Printing Implicit.
     
     Inductive val_typ : V -> typ -> Prop :=
     | typ_null :
@@ -183,7 +185,7 @@ Section ValueTyping.
           (ValBaseEnumField (P4String.str ename) (P4String.str member))
           (TypEnum ename None members)
     | typ_senumfield : forall ename member v t fields,
-        IdentMap.get ename gsenum =
+        IdentMap.get (P4String.str ename) gsenum =
         Some (P4String.clear_AList_tags fields) ->
         AList.get (P4String.clear_AList_tags fields) member = Some v ->
         val_typ v t ->
@@ -241,7 +243,7 @@ Section ValueTyping.
             (ValBaseEnumField (P4String.str ename) (P4String.str member))
             (TypEnum ename None members).
       Hypothesis HSenum : forall ename member v t fields,
-          IdentMap.get ename gsenum =
+          IdentMap.get (P4String.str ename) gsenum =
           Some (P4String.clear_AList_tags fields) ->
           AList.get (P4String.clear_AList_tags fields) member = Some v ->
           val_typ v t ->
@@ -481,7 +483,7 @@ Section ValueTyping.
             rewrite Hlen, <- nth_error_Some, Hnthvbs; discriminate. }
           destruct Hnthvas as [va Hnthvas]. eauto 6.
         - unfold FuncAsMap.related, IdentMap.get in *.
-          specialize Hgs with ename.
+          specialize Hgs with (P4String.str ename).
           inversion Hgs; subst; unfold P4String.AList in *.
           + exfalso; clear Hev vb H H4 H5 R enum_name gsb Hgs IHHev t0 B.
             (*rewrite H2 in H0. discriminate.*) admit.

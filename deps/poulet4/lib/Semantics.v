@@ -26,7 +26,7 @@ Notation P4String := (P4String.t tags_t).
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 
-Definition mem := @PathMap.t tags_t Sval.
+Definition mem := PathMap.t Sval.
 
 Definition state : Type := mem * extern_state.
 
@@ -70,15 +70,15 @@ Inductive fundef :=
       (name : ident)
       (* (params : list (ident * direction)) *).
 
-Definition genv_func := @PathMap.t tags_t fundef.
-Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t (StringAList Sval).
+Definition genv_func := PathMap.t fundef.
+Definition genv_typ := IdentMap.t (@P4Type tags_t).
+Definition genv_senum := IdentMap.t (StringAList Sval).
 
 Inductive inst_ref :=
   | mk_inst_ref (class : P4String) (p : path).
 
-Definition genv_inst := @PathMap.t tags_t inst_ref.
-Definition genv_const := @PathMap.t tags_t Val.
+Definition genv_inst := PathMap.t inst_ref.
+Definition genv_const := PathMap.t Val.
 
 Record genv := MkGenv {
   ge_func :> genv_func;
@@ -92,8 +92,8 @@ Record genv := MkGenv {
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   option (@P4Type tags_t) :=
   match typ with
-  | BareName id => IdentMap.get id ge_typ
-  | QualifiedName _ id => IdentMap.get id ge_typ
+  | BareName id => IdentMap.get (P4String.str id) ge_typ
+  | QualifiedName _ id => IdentMap.get (P4String.str id) ge_typ
   end.
 
 Section WithGenv.
@@ -312,13 +312,15 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
+Definition p2l (p: path): list string := map (@P4String.str tags_t) p.
+
 Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :=
   match loc with
   | LInstance p =>
-      PathMap.get p (get_memory s)
+      PathMap.get (p2l p) (get_memory s)
   (* TODO deal with local constant *)
   | LGlobal p =>
-      option_map eval_val_to_sval (PathMap.get p (ge_const ge))
+      option_map eval_val_to_sval (PathMap.get (p2l p) (ge_const ge))
   end.
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
@@ -467,7 +469,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-                             IdentMap.get ename (ge_senum ge) = Some fields ->
+                             IdentMap.get (P4String.str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
@@ -691,14 +693,14 @@ Definition filter_pure_out {A} (params : list (A * direction)) : list A :=
 
 (* NOTE: We may need to modify for the call convention for overloaded functions. *)
 Definition bind_parameters (params : list (path * direction)) (args : list Sval) (s s' : state) :=
-  s' = update_memory (PathMap.sets (filter_in params) args) s.
+  s' = update_memory (PathMap.sets (map p2l (filter_in params)) args) s.
 
 (* NOTE: We may need to modify for the call convention for overloaded functions. *)
 (* Definition extract_parameters (params : list (path * direction)) (args : list Val) (s : state) :=
   map Some args = PathMap.gets (filter_out params) (get_memory s). *)
 
 Definition extract_parameters (paths : list path) (s : state) : option (list Sval) :=
-  lift_option (PathMap.gets paths (get_memory s)).
+  lift_option (PathMap.gets (map p2l paths) (get_memory s)).
 
 Definition not_continue (s : signal) : bool :=
   match s with
@@ -877,12 +879,12 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
   (* function/action *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
-      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
+      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get (p2l p) ge_func)
       | LInstance p =>
         (* QUESTION: why isn't [p] used to look up instance? *)
-          match PathMap.get this_path ge_inst with
+          match PathMap.get (p2l this_path) ge_inst with
           | Some (mk_inst_ref class_name _) =>
-            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+            option_map (fun fd => (this_path, fd)) (PathMap.get (p2l ([class_name] ++ p)) ge_func)
           | _ => None
           end
       end
@@ -894,9 +896,9 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
+                match PathMap.get (p2l (this_path ++ p)) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge_func)
+                    option_map (fun fd => (inst_path, fd)) (PathMap.get (p2l [class_name]) ge_func)
                 | _ => None
                 end
             end
@@ -909,9 +911,9 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
+                match PathMap.get (p2l (this_path ++ p)) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
-                    match PathMap.get [class_name; name] ge_func with
+                    match PathMap.get (p2l [class_name; name]) ge_func with
                     | Some fd => Some (inst_path, fd)
                     | None => None
                     end
@@ -967,8 +969,8 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
 
 Definition locator_equivb (loc1 loc2 : @Locator tags_t) : bool :=
   match loc1, loc2 with
-  | LInstance p1, LInstance p2 => path_equivb p1 p2
-  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
+  | LInstance p1, LInstance p2 => path_equivb (p2l p1) (p2l p2)
+  | LGlobal p1, LGlobal p2 => path_equivb (p2l p1) (p2l p2)
   | _, _ => false
   end.
 
@@ -987,7 +989,7 @@ Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
-  update_memory (PathMap.set p sv) s.
+  update_memory (PathMap.set (p2l p) sv) s.
 
 Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
@@ -1473,9 +1475,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
-      (if path_equivb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
+      (if path_equivb (p2l this_path) (p2l obj_path) then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
       exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
-      (if path_equivb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
+      (if path_equivb (p2l this_path) (p2l obj_path) then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
       exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
@@ -1602,7 +1604,7 @@ Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
   end.
 
 Definition ienv_val : Type := inst_ref + Val.
-Definition ienv := @IdentMap.t tags_t ienv_val.
+Definition ienv := IdentMap.t ienv_val.
 Axiom dummy_ienv_val : ienv_val.
 
 (* inst_mem is a legacy concept. Now it is actually the pair of genv_inst and genv_const.
@@ -1611,14 +1613,14 @@ Definition inst_mem : Type := genv_inst * genv_const * extern_env.
 
 Definition set_inst_mem (p : path) (v : ienv_val) (m : inst_mem) : inst_mem :=
   match v with
-  | inl inst => map_fst (map_fst (PathMap.set p inst)) m
-  | inr v => map_fst (map_snd (PathMap.set p v)) m
+  | inl inst => map_fst (map_fst (PathMap.set (p2l p) inst)) m
+  | inr v => map_fst (map_snd (PathMap.set (p2l p) v)) m
   end.
 
 (* cenv is a class environment, mapping names to closures. Each closure contains
   a class (parser/control) definition and an environment to interpret its free names.
   It's designed in this way to ensure termination. *)
-Inductive cenv := mk_cenv : @IdentMap.t tags_t (cenv * @Declaration tags_t) -> cenv.
+Inductive cenv := mk_cenv : IdentMap.t (cenv * @Declaration tags_t) -> cenv.
 
 Definition unfold_cenv (ce : cenv) :=
   match ce with
@@ -1666,7 +1668,7 @@ Opaque dummy_cenv dummy_decl.
 Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
       (args : list (@Expression tags_t)) (p : path) (m : inst_mem) (s : extern_state) : ienv_val * inst_mem * extern_state :=
   let class_name := get_type_name typ in
-  let (_, decl) := force (dummy_cenv, dummy_decl) (IdentMap.get class_name ce) in
+  let (_, decl) := force (dummy_cenv, dummy_decl) (IdentMap.get (P4String.str class_name) ce) in
   (* params := nil if decl is an external object, but params is only used to name the instances. *)
   let params := get_constructor_param_names decl in
   let instantiate_arg (acc : list ienv_val * inst_mem * extern_state * list ident) arg :=
@@ -1676,12 +1678,12 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := map_fst (map_fst (PathMap.set p (mk_inst_ref class_name p))) m in
+    let m := map_fst (map_fst (PathMap.set (p2l p) (mk_inst_ref class_name p))) m in
     let type_params := get_type_params typ in
     let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
     (inl (mk_inst_ref class_name p), (fst m, ee), s)
   else
-    let e := IdentMap.sets params args e in
+    let e := IdentMap.sets (p2l params) args e in
     let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
     (inl (mk_inst_ref class_name p), m, s).
 
@@ -1690,7 +1692,7 @@ End instantiate_expr'.
 Definition get_val_ienv (e : ienv) (name : Typed.name) : option Val :=
   match name with
   | BareName name =>
-      match IdentMap.get name e with
+      match IdentMap.get (@P4String.str tags_t name) e with
       | Some (inr v) => Some v
       | _ => None
       end
@@ -1712,8 +1714,8 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
   match expr with
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
       (* Can inst be a Val, or just an inst_ref? *)
-      let inst := force dummy_ienv_val (IdentMap.get name e) in
-      let m := if path_equivb p [] then m else set_inst_mem p inst m in
+      let inst := force dummy_ienv_val (IdentMap.get (P4String.str name) e) in
+      let m := if path_equivb (p2l p) [] then m else set_inst_mem p inst m in
       (inst, m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' ce e typ args p m s
@@ -1735,7 +1737,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
         let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
-      (IdentMap.set name inst e, m, s)
+      (IdentMap.set (P4String.str name) inst e, m, s)
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
@@ -1813,7 +1815,7 @@ Definition inline_packet_in_and_packet_out (p : path) (m : inst_mem) (param : @P
 
 Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p : path)
       (m : inst_mem) (s : extern_state) : path * inst_mem * extern_state :=
-  match IdentMap.get class_name ce with
+  match IdentMap.get (P4String.str class_name) ce with
   | Some (ce', decl) =>
     let instantiate_decls := instantiate_decls' (instantiate_class_body ce') in
     match decl with
@@ -1855,7 +1857,7 @@ Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (ce : ce
       let ce' :=
         match get_decl_class_name decl with
         | Some name =>
-            mk_cenv (IdentMap.set name (ce, decl) ce)
+            mk_cenv (IdentMap.set (P4String.str name) (ce, decl) ce)
         | None => ce
         end in
       instantiate_global_decls' decls' ce' e m s
@@ -1903,7 +1905,7 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
-      PathMap.set (p ++ [name]) (FInternal nil BlockNil body) ge
+      PathMap.set (p2l (p ++ [name])) (FInternal nil BlockNil body) ge
   end.
 
 Definition reject_state :=
@@ -1935,7 +1937,7 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
           let loc :=
             match name with
             | BareName id =>
-                match PathMap.get (p ++ [id]) ge with
+                match PathMap.get (p2l (p ++ [id])) ge with
                 | Some _ => LInstance [id]
                 | None => LGlobal [id]
                 end
@@ -1944,8 +1946,8 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
           let typ :=
             let ofd :=
               match loc with
-              | LInstance p' => PathMap.get (p ++ p') ge
-              | LGlobal p' => PathMap.get p' ge
+              | LInstance p' => PathMap.get (p2l (p ++ p')) ge
+              | LGlobal p' => PathMap.get (p2l p') ge
               end in
             match ofd with
             | Some (FInternal params _ _) =>
@@ -1986,32 +1988,32 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [name])) states ge in
-      let ge := PathMap.set (p ++ !["accept"]) (FInternal nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ !["reject"]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p2l (p ++ !["accept"])) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p2l (p ++ !["reject"])) (FInternal nil BlockNil BlockNil) ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance !["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [name]) (FInternal params init (BlockSingleton stmt)) ge
+      PathMap.set (p2l (p ++ [name])) (FInternal params init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [name]) (FInternal params init apply) ge
+      PathMap.set (p2l (p ++ [name])) (FInternal params init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LGlobal [name; param])) params in
-      PathMap.set (p ++ [name]) (FInternal params init body) ge
+      PathMap.set (p2l (p ++ [name])) (FInternal params init body) ge
   | DeclExternFunction _ _ name _ _ =>
-      PathMap.set (p ++ [name]) (FExternal !"" name) ge
+      PathMap.set (p2l (p ++ [name])) (FExternal !"" name) ge
   | DeclExternObject _ name _ methods =>
       let add_method_prototype ge' method :=
         match method with
         | ProtoMethod _ _ mname _ _ =>
-            PathMap.set (p ++ [name; mname]) (FExternal name mname) ge'
+            PathMap.set (p2l (p ++ [name; mname])) (FExternal name mname) ge'
         | _ => ge
         end
       in fold_left add_method_prototype methods ge
@@ -2021,16 +2023,16 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
-        if path_equivb p [] then
+        if path_equivb (p2l p) [] then
           map (map_fst (fun param => LGlobal [name; param])) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance [name; param])) (params ++ ctrl_params) in
-      PathMap.set (p ++ [name]) (FInternal combined_params init body) ge
+      PathMap.set (p2l (p ++ [name])) (FInternal combined_params init body) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=
         FTable name keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
             (option_map (map unwrap_table_entry) entries) in
-      PathMap.set (p ++ [name]) table ge
+      PathMap.set (p2l (p ++ [name])) table ge
   | _ => ge
   end.
 
@@ -2064,38 +2066,38 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
          (decl: @Declaration tags_t): option genv_typ :=
   match decl with
   | DeclHeader tags name fields =>
-    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypHeader (conv_decl_fields fields)) ge_typ)
   | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
   | DeclStruct tags name fields =>
-    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypStruct (conv_decl_fields fields)) ge_typ)
   | DeclControlType tags name type_params params =>
-    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypControl (MkControlType type_params params)) ge_typ)
   | DeclParserType tags name type_params params =>
-    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypParser (MkControlType type_params params)) ge_typ)
   (* TODO: DeclPackageType and TypPackage are inconsistency *)
   | DeclPackageType tags name type_params params =>
-    Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypPackage type_params nil params) ge_typ)
   | DeclEnum tags name members =>
-    Some (IdentMap.set name (TypEnum name None members) ge_typ)
+    Some (IdentMap.set (P4String.str name) (TypEnum name None members) ge_typ)
   (* TODO: Do we need to consider the difference between DeclTypeDef
      and DeclNewType? *)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with
     | TypTypeName name2 => match name_to_type ge_typ name2 with
-                           | Some typ2 => Some (IdentMap.set name typ2 ge_typ)
+                           | Some typ2 => Some (IdentMap.set (P4String.str name) typ2 ge_typ)
                            | None => None
                            end
-    | _ => Some (IdentMap.set name typ ge_typ)
+    | _ => Some (IdentMap.set (P4String.str name) typ ge_typ)
     end
   | DeclTypeDef tags name (inr decl2)
   | DeclNewType tags name (inr decl2) =>
     match add_to_genv_typ ge_typ decl2 with
     | Some ge_typ2 => match get_decl_typ_name decl2 with
                       | Some name2 =>
-                        match IdentMap.get name2 ge_typ2 with
-                        | Some typ2 => Some (IdentMap.set name typ2 ge_typ2)
+                        match IdentMap.get (P4String.str name2) ge_typ2 with
+                        | Some typ2 => Some (IdentMap.set (P4String.str name) typ2 ge_typ2)
                         | None => None
                         end
                       | None => None

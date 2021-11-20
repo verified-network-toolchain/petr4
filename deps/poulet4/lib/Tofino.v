@@ -53,7 +53,7 @@ Inductive object :=
   | ObjPin (pin : packet_in)
   | ObjPout (pout : packet_out).
 
-Definition extern_state := @PathMap.t tags_t object.
+Definition extern_state := PathMap.t object.
 
 Definition reg_action_static : Type := path (* register *).
 
@@ -65,7 +65,7 @@ Inductive env_object :=
   | EnvPin
   | EnvPout.
 
-Definition extern_env := @PathMap.t tags_t env_object.
+Definition extern_env := PathMap.t env_object.
 
 Definition dummy_tags := @default tags_t _.
 
@@ -73,26 +73,28 @@ Definition dummy_extern_env : extern_env := PathMap.empty.
 Definition dummy_extern_state : extern_state := PathMap.empty.
 Opaque dummy_extern_env dummy_extern_state.
 
+Definition p2l (p: path): list string := map (@P4String.str tags_t) p.
+
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if P4String.equivb class !"Register" then
     match targs, args with
     | [TypBit iw; TypBit w], [inr (ValBaseBit bits); inr init_val] =>
         let (_, size) := BitArith.from_lbool bits in
-        (PathMap.set p (EnvRegister (w, size)) e,
-         PathMap.set p (ObjRegister (new_register size w init_val)) s)
+        (PathMap.set (p2l p) (EnvRegister (w, size)) e,
+         PathMap.set (p2l p) (ObjRegister (new_register size w init_val)) s)
     | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
     end
   else if P4String.equivb class !"RegisterAction" then
     match targs, args with
     | [_; _; _], [inl reg] =>
-        (PathMap.set p (EnvRegAction reg) e, s)
+        (PathMap.set (p2l p) (EnvRegAction reg) e, s)
     | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
     end
   else
     (dummy_extern_env, dummy_extern_state). (* fail *)
 
 Definition extern_set_abstract_method (e : extern_env) (p : path) (abs_met_sem : AbsMet extern_state) :=
-  PathMap.set p (EnvAbsMet abs_met_sem) e.
+  PathMap.set (p2l p) (EnvAbsMet abs_met_sem) e.
 
 Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
 
@@ -114,8 +116,8 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
 
 Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall e s p content w size index_w indexb index output,
-      PathMap.get p e = Some (EnvRegister (w, size)) ->
-      PathMap.get p s = Some (ObjRegister content) ->
+      PathMap.get (p2l p) e = Some (EnvRegister (w, size)) ->
+      PathMap.get (p2l p) s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
        then output = Znth index content
@@ -130,12 +132,12 @@ Definition register_read : extern_func := {|
 
 Inductive register_write_sem : extern_func_sem :=
   | exec_register_write : forall e s s' p content w size index_w indexb index valueb,
-      PathMap.get p e = Some (EnvRegister (w, size)) ->
-      PathMap.get p s = Some (ObjRegister content) ->
+      PathMap.get (p2l p) e = Some (EnvRegister (w, size)) ->
+      PathMap.get (p2l p) s = Some (ObjRegister content) ->
       N.of_nat (List.length valueb) = w ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
-       then (PathMap.set p (ObjRegister (upd_Znth index content (ValBaseBit valueb))) s) = s'
+       then (PathMap.set (p2l p) (ObjRegister (upd_Znth index content (ValBaseBit valueb))) s) = s'
        else s = s') ->
       register_write_sem e s p nil [ValBaseBit indexb; ValBaseBit valueb] s' [] SReturnNull.
 
@@ -147,18 +149,18 @@ Definition register_write : extern_func := {|
 
 Inductive regaction_execute_sem : extern_func_sem :=
   | exec_regaction_execute : forall e s p content w size content' index_w indexb index reg apply_sem s' s'' old_value new_value retv,
-      PathMap.get p e = Some (EnvRegAction reg) ->
-      PathMap.get (p ++ !["apply"]) e = Some (EnvAbsMet apply_sem) ->
-      PathMap.get reg e = Some (EnvRegister (w, size)) ->
-      PathMap.get reg s = Some (ObjRegister content) ->
+      PathMap.get (p2l p) e = Some (EnvRegAction reg) ->
+      PathMap.get (p2l (p ++ !["apply"])) e = Some (EnvAbsMet apply_sem) ->
+      PathMap.get (p2l reg) e = Some (EnvRegister (w, size)) ->
+      PathMap.get (p2l reg) s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
        then old_value = Znth index content
        else old_value = ValBaseBit (to_lbool w 0)) ->
        apply_sem s [old_value] s' [new_value; retv] SReturnNull ->
        (if ((-1 <? index) && (index <? size))
-       then PathMap.get reg s' = Some (ObjRegister content')
-            /\ s'' = PathMap.set p (ObjRegister (upd_Znth index content' new_value)) s'
+       then PathMap.get (p2l reg) s' = Some (ObjRegister content')
+            /\ s'' = PathMap.set (p2l p) (ObjRegister (upd_Znth index content' new_value)) s'
        else s'' = s /\ content = content') ->
       regaction_execute_sem e s p nil [ValBaseBit indexb] s'' [] (SReturn retv).
 
@@ -173,16 +175,16 @@ Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list b
 
 Inductive packet_in_extract_sem : extern_func_sem :=
   | exec_packet_in_extract : forall e s p pin typ v pin',
-      PathMap.get p s = Some (ObjPin pin) ->
+      PathMap.get (p2l p) s = Some (ObjPin pin) ->
       extract pin typ = (v, pin') ->
       packet_in_extract_sem e s p [typ] []
-            (PathMap.set p (ObjPin pin') s)
+            (PathMap.set (p2l p) (ObjPin pin') s)
           [v] SReturnNull
   | exec_packet_in_extract2 : forall e s p pin typ len v pin',
-      PathMap.get p s = Some (ObjPin pin) ->
+      PathMap.get (p2l p) s = Some (ObjPin pin) ->
       extract2 pin typ len = (v, pin') ->
       packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
-            (PathMap.set p (ObjPin pin') s)
+            (PathMap.set (p2l p) (ObjPin pin') s)
           [v] SReturnNull.
 
 Definition packet_in_extract : extern_func := {|
@@ -195,10 +197,10 @@ Axiom emit : forall (pout : list bool) (v : Val), list bool.
 
 Inductive packet_out_emit_sem : extern_func_sem :=
   | exec_packet_out_emit : forall e s p pout typ v pout',
-      PathMap.get p s = Some (ObjPout pout) ->
+      PathMap.get (p2l p) s = Some (ObjPout pout) ->
       emit pout v = pout' ->
       packet_out_emit_sem e s p [typ] [v]
-            (PathMap.set p (ObjPout pout') s)
+            (PathMap.set (p2l p) (ObjPout pout') s)
           [] SReturnNull.
 
 Definition packet_out_emit : extern_func := {|
@@ -247,7 +249,7 @@ Fixpoint valset_to_valsett (vs : ValSet) :=
   end.
 
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
-  match PathMap.get p es with
+  match PathMap.get (p2l p) es with
   | Some (ObjTable entries) => entries
   | _ => nil
   end.
@@ -486,14 +488,14 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
-      PathMap.set !["packet_in"] (ObjPin pin) s0 = s1 ->
+      PathMap.set (p2l !["packet_in"]) (ObjPin pin) s0 = s1 ->
       module_sem !["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
       module_sem !["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
       module_sem !["main"; "ig"] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
       module_sem !["main"; "eg"] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
       module_sem !["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
       module_sem !["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
-      PathMap.get !["packet_out"] s7 = Some (ObjPout pout) ->
+      PathMap.get (p2l !["packet_out"]) s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
 Instance Tofino : Target := Build_Target _ exec_prog.

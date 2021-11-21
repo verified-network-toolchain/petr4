@@ -47,19 +47,19 @@ Definition p2l (p: list (@P4String.t tags_t)): list string :=
 
 Definition loc_to_path (this : path) (loc : Locator) : path :=
   match loc with
-  | LGlobal p => p2l p
-  | LInstance p => this ++ p2l p
+  | LGlobal p => p
+  | LInstance p => this ++ p
   end.
 
 Definition get_loc_path (loc : Locator) : path :=
   match loc with
-  | LGlobal p => p2l p
-  | LInstance p => p2l p
+  | LGlobal p => p
+  | LInstance p => p
   end.
 
 Inductive fundef :=
   | FInternal
-      (params : list (@Locator tags_t * direction))
+      (params : list (Locator * direction))
       (init : @Block tags_t)
       (body : @Block tags_t)
   | FTable
@@ -318,10 +318,10 @@ Definition eval_p4int_val (n: P4Int) : Val :=
 Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :=
   match loc with
   | LInstance p =>
-      PathMap.get (p2l p) (get_memory s)
+      PathMap.get p (get_memory s)
   (* TODO deal with local constant *)
   | LGlobal p =>
-      option_map eval_val_to_sval (PathMap.get (p2l p) (ge_const ge))
+      option_map eval_val_to_sval (PathMap.get p (ge_const ge))
   end.
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
@@ -880,12 +880,12 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
   (* function/action *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
-      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get (p2l p) ge_func)
+      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
         (* QUESTION: why isn't [p] used to look up instance? *)
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p2l p) ge_func)
+            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
@@ -897,7 +897,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p2l p) ge_inst with
+                match PathMap.get (this_path ++ p) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
                     option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge_func)
                 | _ => None
@@ -912,7 +912,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
             match loc with
             | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
             | LInstance p =>
-                match PathMap.get (this_path ++ p2l p) ge_inst with
+                match PathMap.get (this_path ++ p) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
                     match PathMap.get [class_name; str name] ge_func with
                     | Some fd => Some (inst_path, fd)
@@ -968,10 +968,10 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
 
-Definition locator_equivb (loc1 loc2 : @Locator tags_t) : bool :=
+Definition locator_equivb (loc1 loc2 : Locator) : bool :=
   match loc1, loc2 with
-  | LInstance p1, LInstance p2 => path_equivb (p2l p1) (p2l p2)
-  | LGlobal p1, LGlobal p2 => path_equivb (p2l p1) (p2l p2)
+  | LInstance p1, LInstance p2 => path_equivb p1 p2
+  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
   | _, _ => false
   end.
 
@@ -1275,7 +1275,7 @@ Definition extract_outlvals (dirs : list direction) (args : list argument) : lis
 
 Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
-  MkExpression dummy_tags (ExpName (BareName name) (LInstance [name])) dummy_type (* TODO place the actual function type *)
+  MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) dummy_type (* TODO place the actual function type *)
   Directionless.
 
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
@@ -1601,7 +1601,7 @@ Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
       let block := uninit_out_params params' in
       let (name, typ) := param in
       let p4name := P4String.Build_t tags_t inhabitant_tags_t name in
-      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance [p4name])) StmUnit in
+      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance [str p4name])) StmUnit in
       BlockCons stmt block
   end.
 
@@ -1746,7 +1746,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
         let iout_params := map (fun p => (str (fst p), snd p)) out_params in
         let init := uninit_out_params iout_params in
         let params := map get_param_name_dir params in
-        let params := map (map_fst (fun param => LGlobal [name; param])) params in
+        let params := map (map_fst (fun param => LGlobal (p2l [name; param]))) params in
         let fd := FInternal params init body in
         let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
@@ -1883,7 +1883,7 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
       let block' := process_locals locals' in
       match decl with
       | DeclVariable tags typ name init =>
-          let stmt := MkStatement tags (StatVariable typ name init (LInstance [name])) StmUnit in
+          let stmt := MkStatement tags (StatVariable typ name init (LInstance [str name])) StmUnit in
           BlockCons stmt block'
       | _ => block'
       end
@@ -1895,7 +1895,7 @@ Definition empty_func_type : @P4Type tags_t :=
 Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
   match trans with
   | ParserDirect tags next =>
-      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [next])) empty_func_type Directionless in
+      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
       let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
       BlockSingleton stmt
   | ParserSelect _ _ _ => BlockNil (* TODO *)
@@ -1912,7 +1912,7 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
   end.
 
 Definition reject_state :=
-  let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal !["verify"])) dummy_type Directionless) in
+  let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal ["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
@@ -1923,7 +1923,7 @@ Definition is_directional (dir : direction) : bool :=
   | _ => true
   end.
 
-Definition action_param_to_p4param (param : @Locator tags_t * direction) : P4Parameter :=
+Definition action_param_to_p4param (param : Locator * direction) : P4Parameter :=
   let (name, dir) := param in
   let dir :=
     match dir with
@@ -1941,16 +1941,16 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
             match name with
             | BareName id =>
                 match PathMap.get (p ++ [str id]) ge with
-                | Some _ => LInstance [id]
-                | None => LGlobal [id]
+                | Some _ => LInstance [str id]
+                | None => LGlobal [str id]
                 end
-            | QualifiedName p id => LGlobal (p ++ [id])
+            | QualifiedName p id => LGlobal (p2l (p ++ [id]))
             end in
           let typ :=
             let ofd :=
               match loc with
-              | LInstance p' => PathMap.get (p ++ p2l p') ge
-              | LGlobal p' => PathMap.get (p2l p') ge
+              | LInstance p' => PathMap.get (p ++ p') ge
+              | LGlobal p' => PathMap.get p' ge
               end in
             match ofd with
             | Some (FInternal params _ _) =>
@@ -1986,20 +1986,20 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [param])) params in
+      let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
       let ge := PathMap.set (p ++ ["accept"]) (FInternal nil BlockNil BlockNil) ge in
       let ge := PathMap.set (p ++ ["reject"]) (FInternal nil BlockNil BlockNil) ge in
-      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance !["begin"]))
+      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
       PathMap.set (p ++ [str name]) (FInternal params init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [param])) params in
+      let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
@@ -2009,7 +2009,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let iout_params := map (fun p => (str (fst p), snd p)) out_params in
       let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal [name; param])) params in
+      let params := map (map_fst (fun param => LGlobal (p2l [name; param]))) params in
       PathMap.set (p ++ [str name]) (FInternal params init body) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
@@ -2029,9 +2029,9 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
         if path_equivb p [] then
-          map (map_fst (fun param => LGlobal [name; param])) (params ++ ctrl_params)
+          map (map_fst (fun param => LGlobal (p2l [name; param]))) (params ++ ctrl_params)
         else
-          map (map_fst (fun param => LInstance [name; param])) (params ++ ctrl_params) in
+          map (map_fst (fun param => LInstance (p2l [name; param]))) (params ++ ctrl_params) in
       PathMap.set (p ++ [str name]) (FInternal combined_params init body) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=

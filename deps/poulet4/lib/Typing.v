@@ -43,15 +43,13 @@ Section TypingDefs.
     inst_gamma :> gamma_inst;
     ext_gamma :> gamma_ext }.
 
-  Definition p2l (p: list (P4String.t tags_t)): list string := map (@P4String.str tags_t) p.
-  
   (** TODO: is this correct?
       Typing analogue to [loc_to_sval].
       How will [this] be used...? *)
   Definition typ_of_loc (this : path) (l : Locator) (g : gamma_expr) : option typ :=
     match l with
-    | LInstance p => PathMap.get (p2l p) (local_gamma g)
-    | LGlobal   p => PathMap.get (p2l p) (const_gamma g)
+    | LInstance p => PathMap.get p (local_gamma g)
+    | LGlobal   p => PathMap.get p (const_gamma g)
     end.
 
   (** TODO: is search correct?
@@ -62,11 +60,11 @@ Section TypingDefs.
              (this : path) (gf : gamma_func) (gi : gamma_inst) (func : expr) : option (path * unit) :=
     match func with
     | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
-      option_map (fun funt => (nil, funt)) (PathMap.get (p2l p) gf)
+      option_map (fun funt => (nil, funt)) (PathMap.get p gf)
     | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
       match PathMap.get this gi with
       | Some _ (* class name? *) =>
-        option_map (fun funt => (this, funt)) (PathMap.get (p2l (nil (* todo: class name? *) ++ p)) gf)
+        option_map (fun funt => (this, funt)) (PathMap.get (nil (* todo: class name? *) ++ p) gf)
       | None => None
       end
     | _ => None

@@ -1,9 +1,15 @@
 Require Export Poulet4.ValueTyping.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
-(* TODO: need to parameterize
-   typing definitions by [path]. 
-   Or remove [path] parameters from [Semantics.v]. *)
+(* TODO:
+   Need parametric operations
+   for [PathMap.t] and [Locator]
+   to be shared by
+   the static & dynamic semantics:
+   [lookup : forall {A}, Locator -> path -> PathMap.t A -> option A]
+   [update : forall {A}, Locator -> path -> A -> PathMap.t A -> PathMap.t A]
+   Only the variable-to-value mapping of [state]
+   relates to the type-context analogue. *)
     
 Section TypingDefs.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
@@ -57,14 +63,18 @@ Section TypingDefs.
       TODO: incomplete case elimination.
       Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
-             (this : path) (gf : gamma_func) (gi : gamma_inst) (func : expr) : option (path * unit) :=
+             (this : path) (gf : gamma_func)
+             (gi : gamma_inst) (func : expr)
+    : option (path * unit) :=
     match func with
     | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
       option_map (fun funt => (nil, funt)) (PathMap.get p gf)
     | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
       match PathMap.get this gi with
       | Some _ (* class name? *) =>
-        option_map (fun funt => (this, funt)) (PathMap.get (nil (* todo: class name? *) ++ p) gf)
+        option_map
+          (fun funt => (this, funt))
+          (PathMap.get (nil (* todo: class name? *) ++ p) gf)
       | None => None
       end
     | _ => None
@@ -107,8 +117,9 @@ Section TypingDefs.
     gamma_inst_domain g ge_inst /\ gamma_inst_types g ge_inst.
   
   Definition gamma_func_domain
-             (this : path) (gf : gamma_func) (gi : gamma_inst) (ge : genv) : Prop :=
-    forall (e : expr), lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
+             (this : path) (gf : gamma_func)
+             (gi : gamma_inst) (ge : genv) : Prop := forall (e : expr),
+      lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
 
   (** TODO: stub. *)
   Definition gamma_func_types
@@ -138,6 +149,12 @@ Section TypingDefs.
     | MkExpression _ _ t _ => t
     end.
   (**[]*)
+
+  Definition typ_of_stmt (s : stmt) : StmType :=
+    match s with
+    | MkStatement _ _ t => t
+    end.
+  (**[]*)
   
   (** Expression typing. *)
   Definition expr_types (this : path) (g : gamma_expr) (e : expr) : Prop :=
@@ -150,6 +167,13 @@ Section TypingDefs.
            val_typ (ge_senum ge) v (typ_of_expr e).
   (**[]*)
 
+  Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
+    match τ₁, τ₂ with
+    | StmUnit, _
+    | _, StmUnit => StmUnit
+    | _, _       => StmVoid
+    end.
+  
   (** Statement typing. *)
   Definition stmt_types (this : path) (g g' : gamma_stmt) (s : stmt) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
@@ -186,6 +210,7 @@ Section Soundness.
   Local Hint Unfold expr_types : core.
   Local Hint Constructors exec_expr : core.
   Local Hint Constructors val_typ : core.
+  Local Hint Constructors exec_val : core.
 
   Variable (this : path).
   
@@ -425,7 +450,6 @@ Section Soundness.
   | UTUMinus τ :
       numeric τ -> unary_type UMinus τ τ.
 
-  Local Hint Constructors exec_val : core.
   Local Hint Unfold read_detbit : core.
   Local Hint Unfold sval_to_val : core.
   Local Hint Unfold val_to_sval : core.
@@ -784,18 +808,45 @@ Section Soundness.
       lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
   End ExprTyping.
 
+  Local Hint Constructors exec_stmt : core.
+  
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
     
     Lemma assign_sound : forall tag e₁ e₂,
       lexpr_ok e₁ ->
-      (expr_gamma Γ) ⊢e e₁ ≀ this ->
-      (expr_gamma Γ) ⊢e e₂ ≀ this ->
+      Γ ⊢e e₁ ≀ this ->
+      Γ ⊢e e₂ ≀ this ->
       Γ ⊢s MkStatement
         tag (StatAssignment e₁ e₂) StmUnit
         ⊣ (* relation to update context with this_path and type. *) Γ ≀ this.
     Proof.
-      (* Maybe typing needs to be parameterized by a path. *)
+    Admitted.
+
+    Lemma cond_sound : forall tag e s₁ s₂ Γ₁,
+        typ_of_expr e = TypBool -> Γ ⊢e e ≀ this ->
+        Γ ⊢s s₁ ⊣ Γ₁ ≀ this ->
+        EquivUtil.predop (fun s₂ => exists Γ₂, Γ ⊢s s₂ ⊣ Γ₂ ≀ this) s₂ ->
+        Γ ⊢s MkStatement
+          tag (StatConditional e s₁ s₂)
+          (match s₂ with
+           | None    => typ_of_stmt s₁
+           | Some s₂ => lub_StmType (typ_of_stmt s₁) (typ_of_stmt s₂)
+           end) ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma exit_sound : forall tag,
+        Γ ⊢s MkStatement tag StatExit StmVoid ⊣ Γ ≀ this.
+    Proof.
+      unfold stmt_types; intros; split; eauto.
+      intros ? ? Hrn; inversion Hrn; subst; eauto.
+    Qed.
+
+    Lemma return_sound : forall tag e,
+        EquivUtil.predop (fun e => Γ ⊢e e ≀ this) e ->
+        Γ ⊢s MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
+    Proof.
     Admitted.
   End StmtTyping.
 End Soundness.

@@ -15,7 +15,7 @@ Require Import Poulet4.AList.
 Section Target.
 
 Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
+Notation ident := string.
 Notation path := (list ident).
 Notation Val := (@ValueBase bool).
 Notation ValSet := (@ValueSet tags_t).

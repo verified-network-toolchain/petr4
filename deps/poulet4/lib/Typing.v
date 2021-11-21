@@ -12,7 +12,7 @@ Section TypingDefs.
   Notation expr := (@Expression tags_t).
   Notation stmt := (@Statement tags_t).
   Notation signal := (@signal tags_t).
-  Notation ident := (P4String.t tags_t).
+  Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
 
@@ -43,7 +43,7 @@ Section TypingDefs.
     inst_gamma :> gamma_inst;
     ext_gamma :> gamma_ext }.
 
-  Definition p2l (p: path): list string := map (@P4String.str tags_t) p.
+  Definition p2l (p: list (P4String.t tags_t)): list string := map (@P4String.str tags_t) p.
   
   (** TODO: is this correct?
       Typing analogue to [loc_to_sval].
@@ -64,7 +64,7 @@ Section TypingDefs.
     | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
       option_map (fun funt => (nil, funt)) (PathMap.get (p2l p) gf)
     | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
-      match PathMap.get (p2l this) gi with
+      match PathMap.get this gi with
       | Some _ (* class name? *) =>
         option_map (fun funt => (this, funt)) (PathMap.get (p2l (nil (* todo: class name? *) ++ p)) gf)
       | None => None
@@ -93,16 +93,16 @@ Section TypingDefs.
   Set Printing Implicit.
   (* TODO: is this correct? *)
   Definition gamma_inst_domain
-             (g : gamma_inst) (ge_inst : @genv_inst tags_t) : Prop :=
+             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
     forall (p : path),
-      PathMap.get (p2l p) g = None <-> PathMap.get (p2l p) ge_inst = None.
+      PathMap.get p g = None <-> PathMap.get p ge_inst = None.
 
   (* TODO: stub. *)
   Definition gamma_inst_types
-             (g : gamma_inst) (ge_inst : @genv_inst tags_t) : Prop :=
+             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
     forall (p : path) (inst : inst_ref) (it : unit),
-      PathMap.get (p2l p) g = Some it ->
-      PathMap.get (p2l p) ge_inst = Some inst ->
+      PathMap.get p g = Some it ->
+      PathMap.get p ge_inst = Some inst ->
       True (* Stub, property of [it] and [inst]. *).
 
   Definition gamma_inst_prop
@@ -177,7 +177,7 @@ Section Soundness.
   Notation expr := (@Expression tags_t).
   Notation stmt := (@Statement tags_t).
   Notation signal := (@signal tags_t).
-  Notation ident := (P4String.t tags_t).
+  Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
 

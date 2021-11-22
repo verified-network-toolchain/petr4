@@ -53,8 +53,8 @@ Section ToP4cub.
   Record DeclCtx :=
     { controls :  list (TopDecl.d tags_t);
       parsers : list (TopDecl.d tags_t);
-      tables : list (TopDecl.C.d tags_t);
-      actions : list (TopDecl.C.d tags_t);
+      tables : list (Control.d tags_t);
+      actions : list (Control.d tags_t);
       functions : list (TopDecl.d tags_t);
       packages : list (TopDecl.d tags_t);
       externs : list (TopDecl.d tags_t);
@@ -117,7 +117,7 @@ Section ToP4cub.
        types := decl.(types);
     |}.
 
-  Definition add_table (decl : DeclCtx) (t : TopDecl.C.d tags_t) :=
+  Definition add_table (decl : DeclCtx) (t : Control.d tags_t) :=
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := t::decl.(tables);
@@ -128,7 +128,7 @@ Section ToP4cub.
        types := decl.(types);
     |}.
 
-  Definition add_action (decl : DeclCtx) (a : TopDecl.C.d tags_t) :=
+  Definition add_action (decl : DeclCtx) (a : Control.d tags_t) :=
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
@@ -178,16 +178,18 @@ Section ToP4cub.
        externs := tsub_ds decl.(externs);
        types := (typvar, type) :: tsub_ts σ decl.(types);
     |}.
-  
+
+  Print arrow.
+
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
+    let dummy_type := {| paramargs := []; rtrns := None |} in
+    let dummy_function := TopDecl.TPFunction "$DUMMY" [] dummy_type (ST.SSkip tags) tags in
     List.fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
-                    (TopDecl.TPFunction "$DUMMY" [] (Arrow [] None) (ST.SSkip tags) tags)
+                    dummy_function
                     decls.
 
-  Print TopDecl.C.d.
-
-  Fixpoint of_cdecl (decls : DeclCtx) (d : TopDecl.C.d tags_t) :=
+  Fixpoint of_cdecl (decls : DeclCtx) (d : Control.d tags_t) :=
     match d with
     | Control.CDAction _ _ _ _ =>
       add_action decls d
@@ -211,9 +213,9 @@ Section ToP4cub.
     |}.
 
 
-  Definition to_ctrl_decl tags (c: DeclCtx) : TopDecl.C.d tags_t :=
-    List.fold_right (fun d1 d2 => TopDecl.C.CDSeq d1 d2 tags)
-                    (TopDecl.C.CDAction "$DUMMY_ACTION" [] (ST.SSkip tags) (tags))
+  Definition to_ctrl_decl tags (c: DeclCtx) : Control.d tags_t :=
+    List.fold_right (fun d1 d2 => Control.CDSeq d1 d2 tags)
+                    (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip tags) (tags))
                     (List.app c.(actions) c.(tables)).
 
   Definition find {A : Type} (f : A -> bool) : list A -> option A :=
@@ -233,7 +235,7 @@ Section ToP4cub.
       false
     end.
 
-  Definition cdecl_has_name (name : string) (d : TopDecl.C.d tags_t) :=
+  Definition cdecl_has_name (name : string) (d : Control.d tags_t) :=
     let matches := String.eqb name in
     match d with
     | Control.CDAction action_name _ _ _ => matches action_name
@@ -686,12 +688,13 @@ Section ToP4cub.
       match called_method with
       | None =>
         error (append "Couldn't find " (append (append extern_str ".") f_str))
-      | Some (_, (targs, Arrow params _)) =>
+      | Some (_, (targs, ar)) =>
+        let params := paramargs ar in
         let arg_list := optionlist_to_list args in
         let* cub_args := rred (List.map translate_expression arg_list) in
         let+ paramargs := apply_args_to_params params cub_args in
         (* TODO Currently assuming method calls return None*)
-        let typ : E.arrowE tags_t := Arrow paramargs None in
+        let typ : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
         ST.SExternMethodCall extern_str f_str [] typ tags
       end
     | Some _ =>
@@ -730,7 +733,8 @@ Section ToP4cub.
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
     let cub_ret := option_map (fun t => (E.EVar t ret_var tags)) ret_typ in
-    ST.SFunCall (P4String.str fname) cub_type_params (Arrow paramargs cub_ret) tags.
+    let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
+    ST.SFunCall (P4String.str fname) cub_type_params cub_ar tags.
 
   Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) : option (result (ST.s tags_t)) :=
     let '(MkExpression tags expr typ dir) := e in
@@ -962,7 +966,8 @@ Section ToP4cub.
     let '(MkParserState tags name statements transition) := pstate in
     let* ss := translate_statements ctx tags statements in
     let+ trans := translate_transition transition in
-    (P4String.str name, Parser.State ss trans).
+    let parser_state := {| Parser.stmt := ss; Parser.trans := trans |} in
+    (P4String.str name, parser_state).
 
   Definition translate_parser_states_inner (ctx : DeclCtx) (p : ParserState) (res_acc : result ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
     let* (nm, state) := translate_parser_state ctx p in
@@ -1088,11 +1093,11 @@ Section ToP4cub.
     | ProtoMethod tags ret name type_args parameters =>
       let* cub_ret := translate_return_type tags ret in
       let* params := parameters_to_params tags parameters in
-      let arrowtype := Arrow params cub_ret in
+      let arrowtype := {|paramargs:=params; rtrns := cub_ret |} in
       ok (P4String.str name, ([], arrowtype))
     | ProtoConstructor tags type_args parameters  =>
       let* params := parameters_to_params tags parameters in
-      let arrowtype := Arrow params (Some (E.TVar (P4String.str ext_name))) in
+      let arrowtype := {|paramargs:= params; rtrns:= (Some (E.TVar (P4String.str ext_name))) |} in
       ok (P4String.str ext_name, ([], arrowtype))
     | ProtoAbstractMethod _ _ _ _ _ =>
       error "[FIXME] Dont know how to translate abstract methods"
@@ -1106,8 +1111,6 @@ Section ToP4cub.
     let+ cub_ctrl_params := parameters_to_params tags ctrl_params in
     (* TODO ensure ctrl params are directionless? *)
     List.app cub_data_params cub_ctrl_params.
-
-  Print TableKey.
 
   Definition translate_matchkind (matchkind : P4String.t tags_t) : result E.matchkind :=
     let mk_str := P4String.str matchkind in
@@ -1213,7 +1216,7 @@ Section ToP4cub.
     | DeclExternFunction tags ret name type_params parameters =>
       let* cub_ret := translate_return_type tags ret in
       let* params := parameters_to_params tags parameters in
-      let arrowtype := Arrow params cub_ret in
+      let arrowtype := {|paramargs:=params; rtrns:=cub_ret|} in
       let method := (P4String.str name, ([], arrowtype)) in
       (* TODO come up with better naming scheme for externs *)
       let d := TopDecl.TPExtern "_" [] [] [method] tags in
@@ -1229,15 +1232,15 @@ Section ToP4cub.
       let cub_name := P4String.str name in
       let* cub_signature := translate_action_params tags data_params ctrl_params in
       let+ cub_body := translate_block ctx tags body in
-      let a := TopDecl.C.CDAction cub_name cub_signature cub_body tags in
+      let a := Control.CDAction cub_name cub_signature cub_body tags in
       add_action ctx a
     | DeclTable tags name keys actions entries default_action size custom_properties =>
       (* TODO High prio *)
       let name := P4String.str name in
       let* cub_keys := translate_keys keys in
       let+ cub_actions := translate_actions actions in
-      let table := TopDecl.C.Table cub_keys cub_actions in
-      let t := TopDecl.C.CDTable name table tags in
+      let table := {| Control.table_key := cub_keys; Control.table_actions:= cub_actions|} in
+      let t := Control.CDTable name table tags in
       add_action ctx t
     | DeclHeader tags name fields =>
       (* error "[FIXME] Header Declarations unimplemented" *)

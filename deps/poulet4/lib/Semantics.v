@@ -2,7 +2,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.ZArith.BinInt Coq.ZArith.ZArith
         Coq.Lists.List Coq.Program.Program
         Poulet4.Typed Poulet4.Syntax.
-Require Export Poulet4.Value.
+Require Export Poulet4.Value Poulet4.ValueUtil.
 Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
 Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
@@ -100,21 +100,163 @@ Section WithGenv.
 
 Variable ge : genv.
 
-Definition get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+  let fix get_real_types (typs: list (@P4Type tags_t)):
+    option (list (@P4Type tags_t)) :=
+    match typs with
+    | [] => Some []
+    | a :: rest => match get_real_type a with
+                   | None => None
+                   | Some reala => match get_real_types rest with
+                                   | Some realrest => Some (reala :: realrest)
+                                   | None => None
+                                   end
+                   end
+    end in
+  let fix get_real_alist (fields: P4String.AList tags_t P4Type):
+    option (P4String.AList tags_t P4Type) :=
+    match fields with
+    | [] => Some []
+    | (a, t) :: rest =>
+        match get_real_type t with
+        | None => None
+        | Some realt => match get_real_alist rest with
+                        | Some realrest => Some ((a, realt) :: realrest)
+                        | None => None
+                        end
+        end
+    end in
+  let get_real_param (param: P4Parameter): option P4Parameter :=
+    match param with
+    | MkParameter opt dir typ argid var =>
+        match get_real_type typ with
+        | Some realt => Some (MkParameter opt dir realt argid var)
+        | None => None
+        end
+    end in
+  let fix get_real_params (params: list P4Parameter) : option (list P4Parameter) :=
+    match params with
+    | [] => Some []
+    | p :: rest => match get_real_param p with
+                   | Some realp => match get_real_params rest with
+                                   | Some realrest => Some (realp :: realrest)
+                                   | None => None
+                                   end
+                   | None => None
+                   end
+    end in
+  let get_real_ctrl (ctrl: ControlType): option ControlType :=
+    match ctrl with
+    | MkControlType type_params params =>
+        match get_real_params params with
+        | Some realps => Some (MkControlType type_params realps)
+        | None => None
+        end
+    end in
+  let get_real_func (fn: FunctionType): option FunctionType :=
+    match fn with
+    | MkFunctionType type_params params kind ret =>
+        match get_real_type ret with
+        | None => None
+        | Some realret => match get_real_params params with
+                          | Some realps => Some (MkFunctionType type_params realps kind realret)
+                          | None => None
+                          end
+        end
+    end in
   match typ with
   | TypTypeName name => name_to_type ge name
-  | _ => Some typ
+  | TypArray atyp size => match get_real_type atyp with
+                          | Some realtyp => Some (TypArray atyp size)
+                          | None => None
+                          end
+  | TypTuple types => match get_real_types types with
+                      | Some realtypes => Some (TypTuple realtypes)
+                      | None => None
+                      end
+  | TypList types => match get_real_types types with
+                      | Some realtypes => Some (TypList realtypes)
+                      | None => None
+                     end
+  | TypRecord fields => match get_real_alist fields with
+                        | Some realfs => Some (TypRecord realfs)
+                        | None => None
+                        end
+  | TypSet elt_type => match get_real_type elt_type with
+                       | Some realt => Some (TypSet realt)
+                       | None => None
+                       end
+  | TypHeader fields => match get_real_alist fields with
+                        | Some realfs => Some (TypHeader realfs)
+                        | None => None
+                        end
+  | TypHeaderUnion fields => match get_real_alist fields with
+                             | Some realfs => Some (TypHeaderUnion realfs)
+                             | None => None
+                             end
+  | TypStruct fields => match get_real_alist fields with
+                        | Some realfs => Some (TypStruct realfs)
+                        | None => None
+                        end
+  | TypEnum name (Some atyp) members => match get_real_type atyp with
+                                        | Some realt => Some (TypEnum name (Some realt) members)
+                                        | None => None
+                                        end
+  | TypNewType _ atyp => get_real_type atyp
+  | TypControl ctrl => match get_real_ctrl ctrl with
+                       | Some realcs => Some (TypControl realcs)
+                       | None => None
+                       end
+  | TypParser ctrl => match get_real_ctrl ctrl with
+                      | Some realcs => Some (TypParser realcs)
+                      | None => None
+                      end
+  | TypFunction fn => match get_real_func fn with
+                      | Some realfn => Some (TypFunction realfn)
+                      | None => None
+                      end
+  | TypAction data_params ctrl_params =>
+      match get_real_params data_params with
+      | None => None
+      | Some datas => match get_real_params ctrl_params with
+                      | None => None
+                      | Some ctrls => Some (TypAction datas ctrls)
+                      end
+      end
+  | TypPackage typeps wildcards params =>
+      match get_real_params params with
+      | None => None
+      | Some reals => Some (TypPackage typeps wildcards reals)
+      end
+  | TypSpecializedType base args =>
+      match get_real_type base with
+      | None => None
+      | Some realb => match get_real_types args with
+                      | None => None
+                      | Some realargs => Some (TypSpecializedType realb realargs)
+                      end
+      end
+  | TypConstructor typeps wildcards params ret =>
+      match get_real_type ret with
+      | None => None
+      | Some realret => match get_real_params params with
+                        | None => None
+                        | Some rps => Some (TypConstructor typeps wildcards rps realret)
+                        end
+      end
+  | TypBool => Some TypBool
+  | TypString => Some TypString
+  | TypInteger => Some TypInteger
+  | TypInt w => Some (TypInt w)
+  | TypBit w => Some (TypBit w)
+  | TypVarBit w => Some (TypVarBit w)
+  | TypError => Some TypError
+  | TypMatchKind => Some TypMatchKind
+  | TypVoid => Some TypVoid
+  | TypExtern e => Some (TypExtern e)
+  | TypEnum a None b => Some (TypEnum a None b)
+  | TypTable a => Some (TypTable a)
   end.
-
-Inductive read_ndetbit : option bool -> bool -> Prop :=
-  | read_none : forall b, read_ndetbit None b
-  | read_some : forall b, read_ndetbit (Some b) b.
-
-Inductive strict_read_ndetbit : option bool -> bool -> Prop :=
-  | strict_read_some : forall b, strict_read_ndetbit (Some b) b.
-
-Definition read_detbit (b : bool) (b': option bool) :=
-  b' = Some b.
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in
@@ -155,74 +297,6 @@ Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
     option_map ValBaseStruct (eval_literals fs)
   | _ => None
   end.
-
-Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
-                   @ValueBase A -> @ValueBase B -> Prop :=
-  | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
-  | exec_val_bool : forall b b',
-                    read_one_bit b b' ->
-                    exec_val read_one_bit (ValBaseBool b) (ValBaseBool b')
-  | exec_val_integer : forall n, 
-                       exec_val read_one_bit (ValBaseInteger n) (ValBaseInteger n)
-  | exec_val_bit : forall lb lb',
-                   Forall2 read_one_bit lb lb' ->
-                   exec_val read_one_bit (ValBaseBit lb) (ValBaseBit lb')
-  | exec_val_int : forall lb lb',
-                   Forall2 read_one_bit lb lb' ->
-                   exec_val read_one_bit (ValBaseInt lb) (ValBaseInt lb')
-  | exec_val_varbit : forall max lb lb',
-                      Forall2 read_one_bit lb lb' ->
-                      exec_val read_one_bit (ValBaseVarbit max lb) (ValBaseVarbit max lb')
-  | exec_val_string : forall s,
-                      exec_val read_one_bit (ValBaseString s) (ValBaseString s)
-  | exec_val_tuple : forall lv lv',
-                     Forall2 (exec_val read_one_bit) lv lv' ->
-                     exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
-  | exec_val_record : forall kvs kvs',
-                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                      exec_val read_one_bit (ValBaseRecord kvs) (ValBaseRecord kvs')
-  | exec_val_error: forall s,
-                    exec_val read_one_bit (ValBaseError s) (ValBaseError s)
-  | exec_val_matchkind: forall s,
-                        exec_val read_one_bit (ValBaseMatchKind s) (ValBaseMatchKind s)
-  | exec_val_struct : forall kvs kvs',
-                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                      exec_val read_one_bit (ValBaseStruct kvs) (ValBaseStruct kvs')
-  (* Invariant: when validity bit is None, kvs are also None. *)
-  | exec_val_header : forall kvs kvs' b b',
-                      read_one_bit b b' ->
-                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                      exec_val read_one_bit (ValBaseHeader kvs b) (ValBaseHeader kvs' b')
-  | exec_val_union : forall kvs kvs',
-                     AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseUnion kvs) (ValBaseUnion kvs')
-  | exec_val_stack : forall lv lv' size next,
-                     Forall2 (exec_val read_one_bit) lv lv' ->
-                     exec_val read_one_bit (ValBaseStack lv size next) (ValBaseStack lv' size next)
-  | exec_val_enum_field : forall typ_name enum_name,
-                          exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
-                                                (ValBaseEnumField typ_name enum_name)
-  | exec_val_senum_field : forall typ_name enum_name v v',
-                           exec_val read_one_bit v v' ->
-                           exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) 
-                                                 (ValBaseSenumField typ_name enum_name v')
-  (*| exec_val_senum : forall kvs kvs',
-                     AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                     exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
-
-Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
-  exec_val read_one_bit.
-
-Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
-  Forall2 (exec_val read_one_bit).
-
-Definition val_to_sval := 
-  exec_val read_detbit.
-
-Definition vals_to_svals := 
-  Forall2 (exec_val read_detbit).
-
-Axiom eval_val_to_sval : Val -> Sval.
 
 Definition eval_p4int_sval (n: P4Int) : Sval :=
   match P4Int.width_signed n with
@@ -274,110 +348,6 @@ Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
     end
   in List.rev (bitstring_slice' bits lo hi []).
 
-Definition kv_map_func {K A B} (f: A -> B) (kv : K * A): K * B :=
-  let (k, v) := kv in (k, f v).
-
-Definition kv_map {K A B} (f: A -> B) (kvs : list (K * A)): list (K * B) :=
-  List.map (kv_map_func f) kvs.
-
-Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
-  let fix uninit_sval_of_typ' hvalid typ : option Sval :=
-    match typ with
-    | TypBool => Some (ValBaseBool None)
-    | TypInt w => Some (ValBaseInt (Zrepeat None (Z.of_N w)))
-    | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
-    | TypArray typ size =>
-        match uninit_sval_of_typ' hvalid typ with
-        | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) size 0)
-        | None => None
-        end
-    | TypTuple typs
-    | TypList typs => 
-        match lift_option (List.map (uninit_sval_of_typ' hvalid) typs) with
-        | Some svs => Some (ValBaseTuple svs)
-        | None => None
-        end
-    | TypRecord fields =>
-        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseRecord (P4String.clear_AList_tags kvs))
-        | None => None
-        end
-    | TypHeader fields =>
-        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseHeader (P4String.clear_AList_tags kvs) hvalid)
-        | None => None
-        end
-    | TypHeaderUnion fields =>
-        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseUnion (P4String.clear_AList_tags kvs))
-        | None => None
-        end
-    | TypStruct fields =>
-        match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-        | Some kvs => Some (ValBaseStruct (P4String.clear_AList_tags kvs))
-        | None => None
-        end
-    | TypNewType _ typ' => uninit_sval_of_typ' hvalid typ'
-    (* TypTypeName should have been already resolved *)
-    | TypTypeName _ => None
-    (* Two possibilities for senum:
-       1. Use the default values (similar to the enum type):
-          For enum values with an underlying type the default value is 0. (7.3.)
-       2. Use the underlying types's uninitialized values:
-          Since an senum's underlying type is either bit or int, it can also be uninitialized
-          by the underlying types.
-       The current implementation follows the option 2. *)
-    | TypEnum tname (Some typ') members => uninit_sval_of_typ' hvalid typ'
-    (* The P4Spec does not specify the unintialized values for the following types,
-       so we use the default values for now. (7.3.) 
-       Note that this design choice makes the svals output from uninit_sval_of_typ different
-       from uninit_sval_of_sval and val_to_sval. *)
-    | TypVarBit w => Some (ValBaseVarbit w [])
-    | TypInteger => Some (ValBaseInteger 0)
-    | TypError => Some (ValBaseError "NoError")
-    | TypEnum tname None members => 
-        (* Empty members is a syntax error *)
-        if (Nat.eqb (List.length members) 0) then None
-        else Some (ValBaseEnumField (str tname) (str (List.hd !"" members)))
-    | _ => None
-    end
-  in match get_real_type typ with
-     | Some typ' => uninit_sval_of_typ' hvalid typ'
-     | None => None
-     end.
-(* Type without uninitialized svals:
-     TypeString: can be used only for compile-time constant string values (7.1.),
-                 one cannot declare variables with a string type (7.1.5.),
-                 so it cannot be uninitialized.
-     TypVoid: It contains no values (7.1.1.).
-     TypSet, TypMatchKind: They do not have default values (7.3.).
-     TypControl, TypParser, TypExtern, TypFunction, TypAction, 
-     TypTable, TypPackage, TypSpecializedType, TypConstructor
-*)
-
-(* The definition of uninit_sval_of_sval follows val_to_sval instead of uninit_sval_of_typ.
-   The discrepancies between uninit_sval_of_sval and uninit_sval_of_typ:
-   1. ValBaseInteger, ValBaseVarbit, ValBaseError, ValBaseEnumField - different output sval
-   2. ValBaseString, ValBaseMatchKind, ValBaseNull - not exist in uninit_sval_of_typ *)
-Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval := 
-  match v with
-  | ValBaseBool _ => ValBaseBool None
-  | ValBaseBit bits => ValBaseBit (List.map (fun _ => None) bits)
-  | ValBaseInt bits => ValBaseInt (List.map (fun _ => None) bits)
-  (* May need change after clarifying the uninit sval of varbit *)
-  | ValBaseVarbit max bits => ValBaseVarbit max (List.map (fun _ => None) bits)
-  | ValBaseTuple vs => ValBaseTuple (List.map (uninit_sval_of_sval hvalid) vs)
-  | ValBaseRecord kvs => ValBaseRecord (kv_map (uninit_sval_of_sval hvalid) kvs)
-  | ValBaseStruct kvs => ValBaseStruct (kv_map (uninit_sval_of_sval hvalid) kvs)
-  | ValBaseHeader kvs is_valid => ValBaseHeader (kv_map (uninit_sval_of_sval hvalid) kvs) hvalid
-  | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
-  | ValBaseStack vs size next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) size next
-  | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
-  (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
-  (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
-  | _ => v
-  end.
-
 (* The following reads give unspecified values: 
     1. reading a field from a header that is currently invalid.
     2. reading a field from a header that is currently valid, but the field has not been initialized 
@@ -408,8 +378,8 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
 
 (* Note that expressions don't need decl_path. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
-                    : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
-                      (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
+  : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
+    (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_expr_bool : forall b this st tag typ dir,
                      exec_expr read_one_bit this st
                      (MkExpression tag (ExpBool b) typ dir)
@@ -428,12 +398,13 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                     exec_expr read_one_bit this st
                     (MkExpression tag (ExpName name loc) typ dir)
                     sv
-  | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ dir,
+  | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
                             exec_expr read_one_bit this st idx idxsv ->
                             sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
                             exec_expr read_one_bit this st array (ValBaseStack headers size next) ->
-                            uninit_sval_of_typ None typ = Some default_header ->
+                            get_real_type typ = Some rtyp ->
+                            uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def idxz headers default_header = header ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpArrayAccess array idx) typ dir)
@@ -1034,9 +1005,10 @@ Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
                            (lonat <= hinat < wn)%nat ->
                            exec_read this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) 
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
-  | exec_read_array_access: forall lv headers size next default_header header idx st typ,
+  | exec_read_array_access: forall lv headers size next default_header header idx st typ rtyp,
                             exec_read this st lv (ValBaseStack headers size next) ->
-                            uninit_sval_of_typ None typ = Some default_header ->
+                            get_real_type typ = Some rtyp ->
+                            uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
                             exec_read this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
@@ -1167,13 +1139,13 @@ Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
    Guaranteed by update_stack_header, if idx >= size, state is unchanged. *)
 Inductive exec_write (this : path) : state -> Lval -> Sval -> state -> Prop :=
   | exec_write_name : forall name loc st rhs typ st',
-                      update_val_by_loc this st loc rhs = st' ->
-                      exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
+      update_val_by_loc this st loc rhs = st' ->
+      exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
   | exec_write_member : forall lv fname sv sv' st rhs typ st',
-                        exec_read this st lv sv ->
-                        update_member sv fname rhs sv' ->
-                        exec_write this st lv sv' st' ->
-                        exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
+      exec_read this st lv sv ->
+      update_member sv fname rhs sv' ->
+      exec_write this st lv sv' st' ->
+      exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
   | exec_write_bit_access_bit : forall lv bits bits' lo lonat hi hinat st typ st',
                                 exec_read this st lv (ValBaseBit bits) ->
                                 N.to_nat lo = lonat ->
@@ -1376,94 +1348,123 @@ Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state ->
   .
 
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
-                    path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
-  | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
-      exec_expr_det read_one_bit this_path st rhs v ->
-      exec_lexpr read_one_bit this_path st lhs lv sig ->
-      val_to_sval v sv -> 
-      (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
+  path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
+| exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
+    exec_expr_det read_one_bit this_path st rhs v ->
+    exec_lexpr read_one_bit this_path st lhs lv sig ->
+    val_to_sval v sv -> 
+    (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
+    exec_stmt read_one_bit this_path st
+              (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
+| exec_stmt_assign_func_call : forall lhs lv rhs sv this_path
+                                 st tags typ st' st'' sig sig' ret_sig,
+    exec_call read_one_bit this_path st rhs st' sig' ->
+    exec_lexpr read_one_bit this_path st lhs lv sig ->
+    (if not_continue sig then st'' = st /\ ret_sig = sig
+     else if not_return sig' then st'' = st' /\ ret_sig = sig'
+          else get_return_sval sig' sv /\
+               exec_write this_path st' lv sv st'' /\ ret_sig = SContinue) ->
+    exec_stmt read_one_bit this_path st
+              (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
+| exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
+    exec_call
+      read_one_bit this_path st
+      (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
+              st' sig ->
+    force_continue_signal sig = sig' ->
+    exec_stmt read_one_bit this_path st
+              (MkStatement tags (StatMethodCall func nil args) typ) st' sig'
+| exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
+      exec_call read_one_bit this_path st
+                (MkExpression
+                   dummy_tags
+                   (ExpFunctionCall
+                      (direct_application_expression typ')
+                      nil (map Some args)) TypVoid Directionless)
+                st' sig ->
+      force_continue_signal sig = sig' ->
       exec_stmt read_one_bit this_path st
-                (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
-  | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path st tags typ st' st'' sig sig' ret_sig,
-                                 exec_call read_one_bit this_path st rhs st' sig' ->
-                                 exec_lexpr read_one_bit this_path st lhs lv sig ->
-                                 (if not_continue sig then st'' = st /\ ret_sig = sig
-                                  else if not_return sig' then st'' = st' /\ ret_sig = sig'
-                                  else get_return_sval sig' sv /\ exec_write this_path st' lv sv st'' /\ ret_sig = SContinue) ->
-                                 exec_stmt read_one_bit this_path st
-                                 (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
-  | exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
-                            exec_call read_one_bit this_path st
-                              (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
-                              st' sig ->
-                            force_continue_signal sig = sig' ->
-                            exec_stmt read_one_bit this_path st
-                            (MkStatement tags (StatMethodCall func nil args) typ) st' sig'
-  | exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
-                                   exec_call read_one_bit this_path st
-                                      (MkExpression dummy_tags
-                                        (ExpFunctionCall (direct_application_expression typ') nil (map Some args)) TypVoid Directionless)
-                                      st' sig ->
-                                   force_continue_signal sig = sig' ->
-                                   exec_stmt read_one_bit this_path st
-                                   (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
-  | exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
-                                     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
-                                     exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
-                                     exec_stmt read_one_bit this_path st
-                                     (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-  | exec_stmt_conditional_none_fls : forall cond tru b this_path st tags typ st' sig,
-                                     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
-                                     exec_stmt read_one_bit this_path st (if b then tru else empty_statement) st' sig ->
-                                     exec_stmt read_one_bit this_path st
-                                     (MkStatement tags (StatConditional cond tru None) typ) st SContinue
+                (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
+| exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
+    exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
+    exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
+    exec_stmt read_one_bit this_path st
+              (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
+| exec_stmt_conditional_none_fls : forall cond tru b this_path st tags typ st' sig,
+    exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
+    exec_stmt
+      read_one_bit this_path st (if b then tru else empty_statement) st' sig ->
+    exec_stmt read_one_bit this_path st
+              (MkStatement tags (StatConditional cond tru None) typ) st SContinue
   | exec_stmt_block : forall block this_path st tags typ st' sig,
-                      exec_block read_one_bit this_path st block st' sig ->
-                      exec_stmt read_one_bit this_path st
-                      (MkStatement tags (StatBlock block) typ) st' sig
+      exec_block read_one_bit this_path st block st' sig ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatBlock block) typ) st' sig
   | exec_stmt_exit : forall this_path (st: state) tags typ st,
-                     exec_stmt read_one_bit this_path st
-                     (MkStatement tags StatExit typ) st SExit
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags StatExit typ) st SExit
   | exec_stmt_return_none : forall this_path (st: state) tags typ st,
-                            exec_stmt read_one_bit this_path st
-                            (MkStatement tags (StatReturn None) typ) st SReturnNull
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatReturn None) typ) st SReturnNull
   | exec_stmt_return_some : forall e v this_path (st: state) tags typ st,
-                            exec_expr_det read_one_bit this_path st e v ->
-                            exec_stmt read_one_bit this_path st
-                            (MkStatement tags (StatReturn (Some e)) typ) st (SReturn v)
+      exec_expr_det read_one_bit this_path st e v ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatReturn (Some e)) typ) st (SReturn v)
   | exec_stmt_empty : forall this_path (st: state) tags typ st,
-                      exec_stmt read_one_bit this_path st
-                      (MkStatement tags StatEmpty typ) st SContinue
-  | exec_stmt_switch: forall e b ename member cases block typ dir this_path (st st': state) st'' tags tags' typ' st st' sig,
-                      exec_call read_one_bit this_path st e st' (SReturn (table_retv b ename member)) ->
-                      match_switch_case member cases = block ->
-                      exec_block read_one_bit this_path st' block st'' sig ->
-                      exec_stmt read_one_bit this_path st
-                      (MkStatement tags (StatSwitch (MkExpression tags' (ExpExpressionMember e !"action_run") typ dir) cases) typ') st'' sig
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags StatEmpty typ) st SContinue
+  | exec_stmt_switch:
+      forall e b ename member cases block typ dir this_path
+        (st st': state) st'' tags tags' typ' st st' sig,
+        exec_call
+          read_one_bit this_path st e st'
+          (SReturn (table_retv b ename member)) ->
+        match_switch_case member cases = block ->
+        exec_block read_one_bit this_path st' block st'' sig ->
+        exec_stmt
+          read_one_bit this_path st
+          (MkStatement
+             tags
+             (StatSwitch
+                (MkExpression
+                   tags'
+                   (ExpExpressionMember e !"action_run")
+                   typ dir) cases) typ') st'' sig
   | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
-                         exec_expr_det read_one_bit this_path st e v ->
-                         val_to_sval v sv ->
-                         exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                         exec_stmt read_one_bit this_path st
-                         (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' SContinue
-  | exec_stmt_variable_func_call : forall typ' name e sv loc this_path st tags typ st' st'' sig,
-                                   exec_call read_one_bit this_path st e st' sig ->
-                                   (if not_return sig then st'' = st'
-                                   else get_return_sval sig sv 
-                                        /\ exec_write this_path st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->
-                                   exec_stmt read_one_bit this_path st
-                                   (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st'' (force_continue_signal sig)
-  | exec_stmt_variable_undef : forall typ' name loc sv this_path st tags typ st',
-                               uninit_sval_of_typ (Some false) typ' = Some sv ->
-                               exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                               exec_stmt read_one_bit this_path st
-                               (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
+      exec_expr_det read_one_bit this_path st e v ->
+      val_to_sval v sv ->
+      exec_write
+        this_path st
+        (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_stmt
+        read_one_bit this_path st
+        (MkStatement tags (StatVariable typ' name (Some e) loc) typ) st' SContinue
+  | exec_stmt_variable_func_call :
+      forall typ' name e sv loc this_path st tags typ st' st'' sig,
+        exec_call read_one_bit this_path st e st' sig ->
+        (if not_return sig then st'' = st'
+         else get_return_sval sig sv /\
+              exec_write
+                this_path st'
+                (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->
+        exec_stmt
+          read_one_bit this_path st
+          (MkStatement tags (StatVariable typ' name (Some e) loc) typ)
+          st'' (force_continue_signal sig)
+  | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
+      get_real_type typ' = Some rtyp ->
+      uninit_sval_of_typ (Some false) rtyp = Some sv ->
+      exec_write
+        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
   | exec_stmt_constant: forall typ' name e v sv loc this_path st tags typ st',
-                        eval_literal e = Some v ->
-                        val_to_sval v sv ->
-                        exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
-                        exec_stmt read_one_bit this_path st
-                        (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
+      eval_literal e = Some v ->
+      val_to_sval v sv ->
+      exec_write
+        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
   (* StatInstantiation is unsupported. If supported, it should be considered in instantiation. *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :
@@ -2129,7 +2130,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
                       end
     | None => None
     end
-  | _ => None
+  | _ => Some ge_typ
   end.
 
 Fixpoint add_decls_to_ge_typ (oge_typ: option genv_typ)

@@ -1,6 +1,6 @@
-Require Import Poulet4.Monads.Error
-        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.Auxilary.
-Require Poulet4.P4cub.Transformations.VarNameGen.
+From Poulet4 Require Import Monads.Error
+     P4cub.Syntax.AST P4cub.Syntax.Auxilary.
+Require Poulet4.P4cub.Transformations.Lifting.VarNameGen.
 Import ListNotations.
 
 Open Scope list_scope.
@@ -163,20 +163,19 @@ Section Statementize.
       ) arguments ((Stmt.SSkip i, []), env).
   
   
-  Definition TranslateArrowE (arguments : Expr.arrowE tags_t) (env : VarNameGen.t) (i: tags_t)
+  Definition TranslateArrowE
+             '({|paramargs:=pas; rtrns:=returns|} : Expr.arrowE tags_t)
+             (env : VarNameGen.t) (i: tags_t)
     : st * Expr.arrowE tags_t * VarNameGen.t :=
-    match arguments with 
-    | Arrow pas returns => 
-      let '(pas_stmt, pas', env_pas) := TranslateArgs pas env i in 
-      let '(returns_stmt, returns', env_returns):= 
-          match returns with
-          | None => ((pas_stmt, None), env_pas)
-          | Some expr => 
-            let '(expr_stmt, expr', env_expr) := TransformExpr expr env_pas in
-            (Stmt.SSeq pas_stmt expr_stmt i, Some expr', env_expr) 
-          end in
-      (returns_stmt, Arrow pas' returns', env_returns)
-    end.
+    let '(pas_stmt, pas', env_pas) := TranslateArgs pas env i in 
+    let '(returns_stmt, returns', env_returns):= 
+        match returns with
+        | None => ((pas_stmt, None), env_pas)
+        | Some expr => 
+          let '(expr_stmt, expr', env_expr) := TransformExpr expr env_pas in
+          (Stmt.SSeq pas_stmt expr_stmt i, Some expr', env_expr) 
+        end in
+    (returns_stmt, {|paramargs:=pas'; rtrns:=returns'|}, env_returns).
   
   Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t) 
     : st * VarNameGen.t := 
@@ -267,16 +266,14 @@ Section Statementize.
     end.
   
   Definition TranslateParserState 
-             (parser_state: Parser.state_block tags_t) (env : VarNameGen.t)
+             '({|Parser.stmt:=stmt; Parser.trans:=transition|}: Parser.state_block tags_t)
+             (env : VarNameGen.t)
     : (Parser.state_block tags_t) * VarNameGen.t := 
-    match parser_state with 
-    | Parser.State stmt transition =>
-      let (stmt', env_stmt) := TranslateStatement stmt env in
-      let '(stmt_transition, transition', env_transition) := TranslateParserExpr transition env_stmt in
-      let i := ParserExprTags transition in  
-      let new_stmt := Stmt.SSeq stmt' stmt_transition i in 
-      (Parser.State new_stmt transition', env_transition)
-    end.
+    let (stmt', env_stmt) := TranslateStatement stmt env in
+    let '(stmt_transition, transition', env_transition) := TranslateParserExpr transition env_stmt in
+    let i := ParserExprTags transition in  
+    let new_stmt := Stmt.SSeq stmt' stmt_transition i in 
+    ({|Parser.stmt:=new_stmt; Parser.trans:=transition'|}, env_transition).
   
   
   Definition TranslateParserStates
@@ -295,27 +292,22 @@ Section Statementize.
       ) states ([],env).
   
   Definition TranslateTable
-             (table : Control.table tags_t) (env: VarNameGen.t) (i : tags_t)
+             '({|Control.table_key:=key; Control.table_actions:=actions|} : Control.table tags_t)
+             (env: VarNameGen.t) (i : tags_t)
     : st * Control.table tags_t * VarNameGen.t :=
-    match table with
-    | Control.Table key actions =>
-      let '(stmt_key, key', env_key) := 
-          List.fold_left 
-            (fun 
-                (cumulator: (Stmt.s tags_t) * list (Expr.t * Expr.e tags_t * Expr.matchkind) * VarNameGen.t)
-                (key : Expr.t * Expr.e tags_t * Expr.matchkind)
-              => let '(prev_stmt, prev_keys, prev_env) := cumulator in
-                let '(type, expr, mk) := key in
-                let '(expr_stmt, expr', env_expr) := TransformExpr expr prev_env in 
-                let new_stmt := Stmt.SSeq prev_stmt expr_stmt i in
-                let new_keys := prev_keys ++ [(type, expr', mk)] in 
-                (new_stmt, new_keys, env_expr)   
-            )
-            key (Stmt.SSkip i, [], env)
-      in 
-      (stmt_key, Control.Table key' actions, env_key)
-    end .
-  
+    let '(stmt_key, key', env_key) := 
+        List.fold_left 
+          (fun 
+              (cumulator: (Stmt.s tags_t) * list (Expr.t * Expr.e tags_t * Expr.matchkind) * VarNameGen.t)
+              (key : Expr.t * Expr.e tags_t * Expr.matchkind)
+            => let '(prev_stmt, prev_keys, prev_env) := cumulator in
+              let '(type, expr, mk) := key in
+              let '(expr_stmt, expr', env_expr) := TransformExpr expr prev_env in 
+              let new_stmt := Stmt.SSeq prev_stmt expr_stmt i in
+              let new_keys := prev_keys ++ [(type, expr', mk)] in 
+              (new_stmt, new_keys, env_expr))
+          key (Stmt.SSkip i, [], env) in 
+    (stmt_key, {|Control.table_key:=key'; Control.table_actions:=actions|}, env_key).
   
   Fixpoint TranslateControlDecl 
            (cd : Control.d tags_t) (env : VarNameGen.t)

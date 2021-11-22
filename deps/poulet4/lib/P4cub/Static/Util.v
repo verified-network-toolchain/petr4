@@ -9,7 +9,7 @@ Declare Custom Entry p4context.
 Import AllCubNotations.
 
 (** Statement signals. *)
-Inductive signal : Set :=
+Variant signal : Set :=
 | SIG_Cont   (* continue *)
 | SIG_Return (* return *).
 
@@ -35,7 +35,7 @@ Definition Delta : Set := list string.
 Definition Gamma : Type := Env.t string Expr.t.
 
 (** Evidence for a type being a numeric of a given width. *)
-Inductive numeric_width : N -> Expr.t -> Prop :=
+Variant numeric_width : N -> Expr.t -> Prop :=
 | numeric_width_bit : forall w, numeric_width w {{ bit<w> }}
 | numeric_width_int : forall w, numeric_width (Npos w) {{ int<w> }}.
 
@@ -46,7 +46,7 @@ Ltac inv_numeric_width :=
 (**[]*)
 
 (** Evidence for a type being numeric. *)
-Inductive numeric : Expr.t -> Prop :=
+Variant numeric : Expr.t -> Prop :=
 | NumericBit (τ : Expr.t) :
     forall w, numeric {{ bit<w> }}
 | NumericInt (τ : Expr.t) :
@@ -60,7 +60,7 @@ Ltac inv_numeric :=
 (**[]*)
 
 (** Evidence a unary operation is valid for a type. *)
-Inductive uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
+Variant uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
 | UTBool :
     uop_type _{ ! }_ {{ Bool }} {{ Bool }}
 | UTBitNot τ :
@@ -82,7 +82,7 @@ Inductive uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
-Inductive bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
+Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 | BTPlus τ : numeric τ -> bop_type +{ + }+ τ τ τ
 | BTPlusSat τ : numeric τ -> bop_type +{ |+| }+ τ τ τ
 | BTMinus τ : numeric τ -> bop_type +{ - }+ τ τ τ
@@ -115,7 +115,7 @@ Inductive bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 (**[]*)
 
 (** Evidence an error is ok. *)
-(*Inductive error_ok (errs : errors) : option string -> Prop :=
+(*Variant error_ok (errs : errors) : option string -> Prop :=
 | NoErrorOk : error_ok errs None
 | ErrorOk (x : string) :
     Env.find x errs = Some tt ->
@@ -123,7 +123,7 @@ Inductive bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 (**[]*)
 
 (** Evidence a cast is proper. *)
-Inductive proper_cast : Expr.t -> Expr.t -> Prop :=
+Variant proper_cast : Expr.t -> Expr.t -> Prop :=
 | pc_bool_bit : proper_cast {{ Bool }} (Expr.TBit 1)
 | pc_bit_bool : proper_cast (Expr.TBit 1) {{ Bool }}
 | pc_bit_int (w : positive) : proper_cast (Expr.TBit (Npos w)) {{ int<w> }}
@@ -140,7 +140,7 @@ Inductive proper_cast : Expr.t -> Expr.t -> Prop :=
 (**[]*)
 
 (** Evidence member operations are valid on a type. *)
-Inductive member_type : F.fs string Expr.t -> Expr.t -> Prop :=
+Variant member_type : F.fs string Expr.t -> Expr.t -> Prop :=
 | mt_struct ts : member_type ts {{ struct { ts } }}
 | mt_hdr ts : member_type ts {{ hdr { ts } }}.
 (**[]*)
@@ -192,7 +192,7 @@ Definition eienv : Type := Env.t string (F.fs string Expr.arrowT).
 Definition tblenv : Type := list string.
 
 (** Statement context. *)
-Inductive ctx : Type :=
+Variant ctx : Type :=
 | CAction (available_actions : aenv)
           (available_externs : eienv) (* action block *)
 | CVoid (* void function *)
@@ -206,7 +206,7 @@ Inductive ctx : Type :=
 (**[]*)
 
 (** Evidence an extern method call context is ok. *)
-Inductive extern_call_ok (eis : eienv) : ctx -> Prop :=
+Variant extern_call_ok (eis : eienv) : ctx -> Prop :=
 | extern_action_ok {aa : aenv} :
     extern_call_ok eis (CAction aa eis)
 | extern_apply_block_ok {tbls : tblenv} {aa : aenv} {cis : cienv} :
@@ -216,7 +216,7 @@ Inductive extern_call_ok (eis : eienv) : ctx -> Prop :=
 (**[]*)
 
 (** Evidence an action call context is ok. *)
-Inductive action_call_ok
+Variant action_call_ok
           (aa : aenv) : ctx -> Prop :=
 | action_action_ok {eis : eienv} :
     action_call_ok aa (CAction aa eis)
@@ -225,7 +225,7 @@ Inductive action_call_ok
 (**[]*)
 
 (** Evidence an exit context ok. *)
-Inductive exit_ctx_ok : ctx -> Prop :=
+Variant exit_ctx_ok : ctx -> Prop :=
 | exit_action_ok {aa : aenv} {eis : eienv} :
     exit_ctx_ok (CAction aa eis)
 | exit_applyblk_ok {tbls : tblenv} {aa : aenv}
@@ -234,7 +234,7 @@ Inductive exit_ctx_ok : ctx -> Prop :=
 (**[]*)
 
 (** Evidence a void return is ok. *)
-Inductive return_void_ok : ctx -> Prop :=
+Variant return_void_ok : ctx -> Prop :=
 | return_void_action {aa : aenv} {eis : eienv} :
     return_void_ok (CAction aa eis)
 | return_void_void :
@@ -289,7 +289,7 @@ Definition cbind_all :
 Definition user_states : Type := list string.
 
 (** Valid parser states. *)
-Inductive valid_state (us : user_states) : Parser.state -> Prop :=
+Variant valid_state (us : user_states) : Parser.state -> Prop :=
 | start_valid :
     valid_state us ={ start }=
 | accept_valid :
@@ -302,11 +302,11 @@ Inductive valid_state (us : user_states) : Parser.state -> Prop :=
 (**[]*)
 
 (** Appropriate signal. *)
-Inductive good_signal : Expr.arrowT -> signal -> Prop :=
+Variant good_signal : Expr.arrowT -> signal -> Prop :=
 | good_signal_cont params :
-    good_signal (Arrow params None) SIG_Cont
+    good_signal {|paramargs:=params; rtrns:=None|} SIG_Cont
 | good_signal_return params ret :
-    good_signal (Arrow params (Some ret)) SIG_Return.
+    good_signal {|paramargs:=params; rtrns:=Some ret|} SIG_Return.
 (**[]*)
 
 Notation "x" := x (in custom p4context at level 0, x constr at level 0).

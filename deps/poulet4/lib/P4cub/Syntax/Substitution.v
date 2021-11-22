@@ -86,11 +86,14 @@ Section TypeSubstitution.
     let* e := ret in
     Some (tsub_e σ e).
 
-  Definition tsub_arrowE (σ : Env.t string E.t) (ar : TD.E.arrowE tags_t) :=
-    let '(Arrow args ret) := ar in
+  Print arrow.
+
+  Definition tsub_arrowE (σ : Env.t string E.t) (ar : E.arrowE tags_t) :=
+    let args := paramargs ar in
+    let ret := rtrns ar in
     let args' := F.map (tsub_arg σ) args in
     let ret' := tsub_retE σ ret in
-    Arrow args' ret'.
+    {| paramargs := args'; rtrns := ret' |}.
 
   Definition map_either {A B C D : Type} (f : A -> B) (g : C -> D) (e : either A C) : either B D :=
     match e with
@@ -175,53 +178,54 @@ Section TypeSubstitution.
       E.CTType t'
     end.
 
-  Definition tsub_arrowT (σ : Env.t string E.t) (ar : TD.E.arrowT) :=
-    let '(Arrow params ret) := ar in
+  Definition tsub_arrowT (σ : Env.t string E.t) (ar : E.arrowT) :=
+    let params := paramargs ar in
+    let ret := rtrns ar in
     let params' := F.map (tsub_param σ) params in
     let ret' := tsub_retT σ ret in
-    Arrow params' ret'.
+    {| paramargs := params'; rtrns := ret' |}.
 
-  Definition tsub_method (σ : Env.t string E.t) (method_types : (list string * TD.E.arrowT)) :=
+  Definition tsub_method (σ : Env.t string E.t) (method_types : (list string * E.arrowT)) :=
     let '(type_params, arrow) := method_types in
     let σ' := remove_types σ type_params in
     (type_params, tsub_arrowT σ' arrow).
 
-  Definition tsub_table (σ : Env.t string E.t) (tbl : TD.C.table tags_t) :=
-    match tbl with
-    | TD.C.Table keys acts =>
-      let keys' := List.map (fun '(t,e,mk) => (tsub_t σ t, tsub_e σ e, mk)) keys in
-      TD.C.Table keys' acts
-    end.
+  Print Control.table.
 
-  Fixpoint tsub_Cd (σ : Env.t string E.t) (d : TD.C.d tags_t) :=
+  Definition tsub_table (σ : Env.t string E.t) (tbl : Control.table tags_t) :=
+    let keys := Control.table_key tbl in
+    let acts := Control.table_actions tbl in
+    let keys' := List.map (fun '(t,e,mk) => (tsub_t σ t, tsub_e σ e, mk)) keys in
+    {| Control.table_key := keys'; Control.table_actions := acts |}.
+
+  Fixpoint tsub_Cd (σ : Env.t string E.t) (d : Control.d tags_t) :=
     match d with
-    | TD.C.CDAction a sig body i =>
+    | Control.CDAction a sig body i =>
       let sig' := F.map (tsub_param σ) sig in
       let body' := tsub_s σ body in
-      TD.C.CDAction a sig' body' i
-    | TD.C.CDTable t tbl i =>
-      TD.C.CDTable t (tsub_table σ tbl) i
-    | TD.C.CDSeq d1 d2 i =>
-      TD.C.CDSeq (tsub_Cd σ d1) (tsub_Cd σ d2) i
+      Control.CDAction a sig' body' i
+    | Control.CDTable t tbl i =>
+      Control.CDTable t (tsub_table σ tbl) i
+    | Control.CDSeq d1 d2 i =>
+      Control.CDSeq (tsub_Cd σ d1) (tsub_Cd σ d2) i
     end.
 
-  Fixpoint tsub_transition (σ : Env.t string E.t) (transition : TD.P.e tags_t) :=
+  Fixpoint tsub_transition (σ : Env.t string E.t) (transition : Parser.e tags_t) :=
     match transition with
-    | TD.P.PGoto s i =>
-      TD.P.PGoto s i
-    | TD.P.PSelect discriminee default cases i =>
+    | Parser.PGoto s i =>
+      Parser.PGoto s i
+    | Parser.PSelect discriminee default cases i =>
       let discriminee' := tsub_e σ discriminee in
       let default' := tsub_transition σ default in
       let cases' := F.map (tsub_transition σ) cases in
-      TD.P.PSelect discriminee' default' cases' i
+      Parser.PSelect discriminee' default' cases' i
     end.
 
-  Definition tsub_state (σ : Env.t string E.t) (st : TD.P.state_block tags_t) :=
-    match st with
-    | TD.P.State s e =>
-      let e' := tsub_transition σ e in
-      TD.P.State s e'
-    end.
+  Definition tsub_state (σ : Env.t string E.t) (st : Parser.state_block tags_t) :=
+    let s := Parser.stmt st in
+    let e := Parser.trans st in
+    let e' := tsub_transition σ e in
+    {| Parser.stmt := s; Parser.trans := e' |}.
 
   Fixpoint tsub_d (σ : Env.t string E.t) (d : TD.d tags_t) : TD.d tags_t :=
     match d with

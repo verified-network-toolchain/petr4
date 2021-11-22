@@ -226,19 +226,19 @@ Module StmtNotations.
              s1 custom p4stmt, s2 custom p4stmt,
              e custom p4expr, no associativity).
   Notation "'call' f < targs > ( args ) @ i"
-    := (SFunCall f targs (Arrow args None) i)
+    := (SFunCall f targs {| paramargs := args; rtrns := None |} i)
          (in custom p4stmt at level 0, no associativity).
   Notation "'let' e ':=' 'call' f < targs > ( args ) @ i"
-    := (SFunCall f targs (Arrow args (Some e)) i)
+    := (SFunCall f targs {| paramargs := args; rtrns := Some e |} i)
          (in custom p4stmt at level 0,
              e custom p4expr, no associativity).
   Notation "'funcall' f < targs > ( args ) 'into' o @ i"
-    := (SFunCall f targs (Arrow args o) i)
+    := (SFunCall f targs {| paramargs := args; rtrns := o |} i)
          (in custom p4stmt at level 0, no associativity).
   Notation "'calling' a 'with' args @ i"
     := (SActCall a args i) (in custom p4stmt at level 0).
   Notation "'extern' e 'calls' f < targs > ( args ) 'gives' x @ i"
-    := (SExternMethodCall e f targs (Arrow args x) i)
+    := (SExternMethodCall e f targs {| paramargs:=args; rtrns:=x |} i)
          (in custom p4stmt at level 0, no associativity).
   Notation "'return' e @ i"
     := (SReturn e i) (in custom p4stmt at level 30, no associativity).
@@ -296,7 +296,7 @@ Module ParserNotations.
   Notation "x"
     := x (in custom p4prsrstateblock at level 0, x constr at level 0).
   Notation "'state' { s } 'transition' pe"
-    := (State s pe)
+    := {| stmt:=s; trans:=pe |}
          (in custom p4prsrstateblock at level 0,
              s custom p4stmt, pe custom p4prsrexpr).
 End ParserNotations.
@@ -317,7 +317,7 @@ Module ControlNotations.
     := (CDAction a params body i)
          (in custom p4ctrldecl at level 0, body custom p4stmt).
   Notation "'table' t 'key' ':=' ems 'actions' ':=' acts @ i"
-    := (CDTable t (Table ems acts) i)
+    := (CDTable t {|table_key:=ems; table_actions:=acts|} i)
          (in custom p4ctrldecl at level 0).
 End ControlNotations.
 
@@ -336,10 +336,10 @@ Module TopDeclNotations.
   Notation "'Instance' x 'of' c < targs > ( args ) @ i"
     := (TPInstantiate c x targs args i) (in custom p4topdecl at level 0).
   Notation "'void' f < tparams > ( params ) { body } @ i"
-    := (TPFunction f tparams (Arrow params None) body i)
+    := (TPFunction f tparams {|paramargs:=params; rtrns:=None|} body i)
          (in custom p4topdecl at level 0, body custom p4stmt).
   Notation "'fn' f < tparams > ( params ) '->' t { body } @ i"
-    := (TPFunction f tparams (Arrow params (Some t)) body i)
+    := (TPFunction f tparams {|paramargs:=params; rtrns:=Some t|} body i)
          (in custom p4topdecl at level 0,
              t custom p4type, body custom p4stmt).
   Notation "'extern' e < tparams > ( cparams ) { methods } @ i"

@@ -19,7 +19,7 @@ all: poulet4 poulet4_Ccomp
 poulet4:
 	opam unpin poulet4 --yes
 	$(MAKE) -C ./poulet4
-	opam install ./poulet4 --working-dir --assume-built --yes
+	opam install ./poulet4 --working-dir --yes
 
 poulet4_Ccomp: poulet4
 	$(MAKE) -C poulet4_Ccomp clean

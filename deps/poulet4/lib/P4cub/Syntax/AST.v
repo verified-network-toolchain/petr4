@@ -9,7 +9,7 @@ Require Coq.Logic.Eqdep_dec.
 Module F := Field.
 
 (** Function call parameters/arguments. *)
-Inductive paramarg (A B : Type) : Type :=
+Variant paramarg (A B : Type) : Type :=
 | PAIn (a : A)
 | PAOut (b : B)
 | PAInOut (b : B)
@@ -64,11 +64,13 @@ Definition rel_paramarg_same {A B : Type} (R : A -> B -> Prop) :
 (**[]*)
 
 (** Function signatures/instantiations. *)
-Inductive arrow (K A B R : Type) : Type :=
-  Arrow (pas : F.fs K (paramarg A B)) (returns : option R).
+Record arrow (K A B R : Type) : Type :=
+  { paramargs : F.fs K (paramarg A B);
+    rtrns : option R }.
 (**[]*)
 
-Arguments Arrow {_} {_} {_} {_}.
+Arguments paramargs {_} {_} {_} {_}.
+Arguments rtrns {_} {_} {_} {_}.
 
 (** * Expression Grammar *)
 Module Expr.
@@ -110,7 +112,7 @@ Module Expr.
     Definition constructor_params : Type := F.fs string ct.
   End P4Types.
   
-  Inductive uop : Set :=
+  Variant uop : Set :=
   | Not        (* boolean negation *)
   | BitNot     (* bitwise negation *)
   | UMinus     (* integer negation *)
@@ -125,7 +127,7 @@ Module Expr.
       The "Sat" suffix denotes
       saturating arithmetic:
       where there is no overflow. *)
-  Inductive bop : Set :=
+  Variant bop : Set :=
   | Plus     (* integer addition *)
   | PlusSat  (* saturating addition *)
   | Minus    (* integer subtraction *)
@@ -148,7 +150,7 @@ Module Expr.
   (**[]*)
   
   (** Default matchkinds. *)
-  Inductive matchkind : Set :=
+  Variant matchkind : Set :=
   | MKExact
   | MKTernary
   | MKLpm.
@@ -202,7 +204,7 @@ Module Expr.
     (**[]*)
     
     (** Constructor arguments. *)
-    Inductive constructor_arg : Type :=
+    Variant constructor_arg : Type :=
     | CAExpr (expr : e)   (* plain expression *)
     | CAName (x : string) (* name of parser, control, package, or extern *).
     (**[]*)
@@ -232,42 +234,40 @@ End Expr.
 
 (** Statement Grammar *)
 Module Stmt.
-  Module E := Expr.
-
   Section Statements.
     Variable (tags_t : Type).
 
     (** Header Stack Operations. *)
-    Inductive hsop : Set := HSPush | HSPop.
+    Variant hsop : Set := HSPush | HSPop.
 
     Inductive s : Type :=
     | SSkip (i : tags_t)                              (* skip/no-op *)
-    | SVardecl (x : string) (expr : either E.t (E.e tags_t))
+    | SVardecl (x : string) (expr : either Expr.t (Expr.e tags_t))
                (i : tags_t)                           (* variable declaration. *)
-    | SAssign (lhs rhs : E.e tags_t) (i : tags_t)     (* assignment *)
-    | SConditional (guard : E.e tags_t)
+    | SAssign (lhs rhs : Expr.e tags_t) (i : tags_t)     (* assignment *)
+    | SConditional (guard : Expr.e tags_t)
                    (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
     | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
     | SBlock (blk : s)                                (* blocks *)
     | SExternMethodCall (extern_name method_name : string)
-                        (typ_args : list E.t)
-                        (args : E.arrowE tags_t)
+                        (typ_args : list Expr.t)
+                        (args : Expr.arrowE tags_t)
                         (i : tags_t)                  (* extern method calls *)
     | SFunCall (f : string)
-               (typ_args : list E.t)
-               (args : E.arrowE tags_t) (i : tags_t)  (* function call *)
+               (typ_args : list Expr.t)
+               (args : Expr.arrowE tags_t) (i : tags_t)  (* function call *)
     | SActCall (action_name : string)
-               (args : E.args tags_t) (i : tags_t)    (* action call *)
-    | SReturn (e : option (E.e tags_t))
+               (args : Expr.args tags_t) (i : tags_t)    (* action call *)
+    | SReturn (e : option (Expr.e tags_t))
               (i : tags_t)                            (* return statement *)
     | SExit (i : tags_t)                              (* exit statement *)
     | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
     | SApply (control_instance_name : string)
              (ext_args : F.fs string string)
-             (args : E.args tags_t) (i : tags_t)      (* control apply statements *)
+             (args : Expr.args tags_t) (i : tags_t)      (* control apply statements *)
     | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
                      (n : positive) (i : tags_t)      (* push or pop statements *)
-    | SSetValidity (hdr : E.e tags_t) (validity : bool)
+    | SSetValidity (hdr : Expr.e tags_t) (validity : bool)
                    (i : tags_t)                       (* set valid or set invalid *).
   (**[]*)
   End Statements.
@@ -291,11 +291,8 @@ End Stmt.
 
 (** Parsers *)
 Module Parser.
-  Module E := Expr.
-  Module S := Stmt.
-
   (** Labels for parser-states. *)
-  Inductive state : Set :=
+  Variant state : Set :=
   | STStart              (* start state *)
   | STAccept             (* accept state *)
   | STReject             (* reject state *)
@@ -319,50 +316,49 @@ Module Parser.
     (** Parser expressions, which evaluate to state names *)
     Inductive e : Type :=
     | PGoto (st : state) (i : tags_t) (* goto state [st] *)
-    | PSelect (discriminee : E.e tags_t)
+    | PSelect (discriminee : Expr.e tags_t)
               (default : e) (cases : F.fs pat e)
               (i : tags_t)           (* select expressions,
                                         where "default" is
                                         the catch-all case *).
     (**[]*)
 
-    Inductive state_block : Type :=
-    | State (stmt : S.s tags_t) (transition : e).
-
+    (** Parser State Blocks. *)
+    Record state_block : Type :=
+      { stmt : Stmt.s tags_t; trans : e }.
     (**[]*)
   End Parsers.
 
+  Arguments stmt {_}.
+  Arguments trans {_}.
   Arguments PGoto {_}.
   Arguments PSelect {_}.
-  Arguments State {_}.
 End Parser.
 
 (** Controls *)
 Module Control.
-  Module E := Expr.
-  Module S := Stmt.
-
   Section ControlDecls.
     Variable (tags_t : Type).
     
     (** Table. *)
-    Inductive table : Type :=
-    | Table (key : list (E.t * E.e tags_t * E.matchkind))
-            (actions : list string).
+    Record table : Type :=
+      { table_key : list (Expr.t * Expr.e tags_t * Expr.matchkind);
+        table_actions : list string }.
     (**[]*)
     
     (** Declarations that may occur within Controls. *)
     Inductive d : Type :=
     | CDAction (action_name : string)
-               (signature : E.params) (body : S.s tags_t)
+               (signature : Expr.params) (body : Stmt.s tags_t)
                (i : tags_t)               (* action declaration *)
     | CDTable (table_name : string)
               (body : table) (i : tags_t) (* table declaration *)
     | CDSeq (d1 d2 : d) (i : tags_t)      (* sequence of declarations *).
     (**[]*)
   End ControlDecls.
-  
-  Arguments Table {_}.
+
+  Arguments table_key {_}.
+  Arguments table_actions {_}.
   Arguments CDAction {_}.
   Arguments CDTable {_}.
   Arguments CDSeq {_}.
@@ -370,45 +366,40 @@ End Control.
 
 (** Top-Level Declarations *)
 Module TopDecl.
-  Module E := Expr.
-  Module S := Stmt.
-  Module C := Control.
-  Module P := Parser.
-
   Section TopDeclarations.
     Variable (tags_t : Type).
 
     (** Top-level declarations. *)
     Inductive d : Type :=
     | TPInstantiate (constructor_name instance_name : string)
-                    (type_args : list E.t)
-                    (cargs : E.constructor_args tags_t)
+                    (type_args : list Expr.t)
+                    (cargs : Expr.constructor_args tags_t)
                     (i : tags_t) (* instantiations *)
     | TPExtern (extern_name : string)
                (type_params : list string)
-               (cparams : E.constructor_params)
-               (methods : F.fs string (list string * E.arrowT))
+               (cparams : Expr.constructor_params)
+               (methods : F.fs string (list string * Expr.arrowT))
                (i : tags_t) (* extern declarations *)
     | TPControl (control_name : string)
-                (cparams : E.constructor_params) (* constructor params *)
+                (cparams : Expr.constructor_params) (* constructor params *)
                 (eparams : F.fs string string)   (* runtime extern params *)
-                (params : E.params)              (* apply block params *)
-                (body : C.d tags_t) (apply_blk : S.s tags_t)
+                (params : Expr.params)              (* apply block params *)
+                (body : Control.d tags_t) (apply_blk : Stmt.s tags_t)
                 (i : tags_t) (* control declarations *)
     | TPParser (parser_name : string)
-               (cparams : E.constructor_params) (* constructor params *)
+               (cparams : Expr.constructor_params) (* constructor params *)
                (eparams : F.fs string string)   (* runtime extern params *)
-               (params : E.params)              (* invocation params *)
-               (start : P.state_block tags_t)   (* start state *)
-               (states : F.fs string (P.state_block tags_t)) (* parser states *)
+               (params : Expr.params)              (* invocation params *)
+               (start : Parser.state_block tags_t)   (* start state *)
+               (states : F.fs string (Parser.state_block tags_t)) (* parser states *)
                (i : tags_t)  (* parser declaration *)
     | TPFunction (function_name : string)
                  (type_params : list string)
-                 (signature : E.arrowT) (body : S.s tags_t)
+                 (signature : Expr.arrowT) (body : Stmt.s tags_t)
                  (i : tags_t)(* function/method declaration *)
     | TPPackage (package_name : string)
                 (type_params : list string)
-                (cparams : E.constructor_params) (* constructor params *)
+                (cparams : Expr.constructor_params) (* constructor params *)
                 (i : tags_t) (* package type declaration *)
     | TPSeq (d1 d2 : d) (i : tags_t).
     (**[]*)

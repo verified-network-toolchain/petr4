@@ -704,32 +704,31 @@ Section Tests.
 
   Definition ingress_table_env :=
     [("if_info",
-      CD.Table ([(bit 8, meta "if_index" 8, E.MKExact)])
-               (["_drop"; "set_if_info"])
+      {| Control.table_key:= [(bit 8, meta "if_index" 8, E.MKExact)];
+         Control.table_actions:= ["_drop"; "set_if_info"] |}
      );
     ("nat",
-     CD.Table ([(bit 1, meta "is_ext_if" 1, E.MKExact);
-               (bit 1, valid "ipv4" ipv4_type, E.MKExact);
-               (bit 1, valid "tcp" tcp_type, E.MKExact);
-               (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
-               (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
-               (bit 32, tcp "srcPort" 32, E.MKTernary);
-               (bit 32, tcp "dstPort" 32, E.MKTernary)
-              ])
-              (["_drop";
-               "nat_miss_ext_to_int";
-               (* "nat_miss_int_to_ext"; requires generics *)
-               "nat_hit_int_to_ext";
-               "nat_hit_ext_to_int"
-               (* "nat_no_nat" *)
-    ]));
+     {| Control.table_key:=
+          [(bit 1, meta "is_ext_if" 1, E.MKExact);
+          (bit 1, valid "ipv4" ipv4_type, E.MKExact);
+          (bit 1, valid "tcp" tcp_type, E.MKExact);
+          (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
+          (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
+          (bit 32, tcp "srcPort" 32, E.MKTernary);
+          (bit 32, tcp "dstPort" 32, E.MKTernary)];
+        Control.table_actions :=
+          ["_drop";
+          "nat_miss_ext_to_int";
+          (* "nat_miss_int_to_ext"; requires generics *)
+          "nat_hit_int_to_ext";
+          "nat_hit_ext_to_int"]|});
     ("ipv4_lpm",
-     CD.Table ([(bit 32, meta "ipv4_da" 32, E.MKLpm)])
-              (["set_nhop"; "_drop"])
+     {| Control.table_key:= [(bit 32, meta "ipv4_da" 32, E.MKLpm)];
+        Control.table_actions:= ["set_nhop"; "_drop"]|}
     );
     ("forward",
-     CD.Table ([(bit 32, meta "nhop_ipv4" 32, E.MKExact)])
-              (["set_dmac"; "_drop"])
+     {| Control.table_key:= [(bit 32, meta "nhop_ipv4" 32, E.MKExact)];
+        Control.table_actions:= ["set_dmac"; "_drop"] |}
     )
     ].
 
@@ -739,9 +738,8 @@ Section Tests.
           (Env.empty string adecl)
           (Env.empty string ARCH.P4Extern).
 
-  Locate PAInOut.
-  Definition mark_to_drop_args : E.arrowE Info :=
-    Arrow [("standard_metadata", PAInOut (E.EVar std_meta_type "standard_metadata" d))] None.
+    Definition mark_to_drop_args : E.arrowE Info :=
+      {| paramargs:=[("standard_metadata", PAInOut (E.EVar std_meta_type "standard_metadata" d))]; rtrns:=None|}.
 
   Definition set_if_info :=
     s_sequence [ST.SAssign (meta "if_ipv4_addr" 32) (E.EVar (bit 32) "ipv4_addr" d) d;
@@ -1016,7 +1014,7 @@ Module SimpleNat.
     end.
 
   Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
-  Compute p4cub_simple_nat.
+  (* Compute p4cub_simple_nat. *)
 
   Compute (let* sn := p4cub_simple_nat in
            let externs := v1model  in

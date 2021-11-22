@@ -35,7 +35,7 @@ Variable tags_t : Type.
 
 Definition expenv : Type := Env.t string (E.e tags_t).
 
-Definition get_exp (pa : paramarg (ST.E.e tags_t) (ST.E.e tags_t)) :=
+Definition get_exp (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
   match pa with
   | PAInOut e => e
   | PAIn e => e
@@ -43,7 +43,7 @@ Definition get_exp (pa : paramarg (ST.E.e tags_t) (ST.E.e tags_t)) :=
   | PADirLess e => e
   end.
 
-Definition args_to_expenv (args : F.fs string (paramarg (ST.E.e tags_t) (ST.E.e tags_t))) : expenv :=
+Definition args_to_expenv (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) : expenv :=
   F.fold (fun param arg env => Env.bind param (get_exp arg) env) args [].
 
 Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
@@ -101,7 +101,7 @@ Inductive t : Type :=
           (actions : list (string * t))
           (i : tags_t)
 | ISetValidity (hdr: E.e tags_t ) (val : bool) (i : tags_t) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
-| IExternMethodCall (extn : string) (method : string) (args : ST.E.arrowE tags_t) (i : tags_t).
+| IExternMethodCall (extn : string) (method : string) (args : E.arrowE tags_t) (i : tags_t).
 
 
 Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e tags_t :=
@@ -168,11 +168,14 @@ Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list 
   | ISetValidity e v i =>
     let e' := action_param_renamer_expr params e in
     ok (ISetValidity e' v i, params)
-  | IExternMethodCall extn method (Arrow pargs ret) i =>
+  | IExternMethodCall extn method ar i =>
+    let pargs := paramargs ar in
+    let ret := rtrns ar in
     let pargs' := F.fold (fun p a rst =>
           let a' := paramarg_map (action_param_renamer_expr params) (action_param_renamer_expr params) a in
           (p, a') :: rst) [] pargs in
-    ok (IExternMethodCall extn method (Arrow pargs' ret) i, params)
+    let ar' := {| paramargs := pargs'; rtrns := ret |} in
+    ok (IExternMethodCall extn method ar' i, params)
   end.
 
 Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
@@ -202,14 +205,17 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
     (IInvoke x keys' actions' i, η)
 
-  | IExternMethodCall extn method (Arrow pas returns) i =>
+  | IExternMethodCall extn method ar i =>
+    let pas := paramargs ar in
+    let returns := rtrns ar in
     let pas' := F.map (paramarg_map (subst_e η) (subst_e η)) pas in
-    (IExternMethodCall extn method (Arrow pas' returns) i, η)
+    let ar' := {| paramargs := pas'; rtrns:=returns |} in
+    (IExternMethodCall extn method ar' i, η)
   | ISetValidity e v i =>
     (ISetValidity (subst_e η e) v i, η)
   end.
 
-Definition copy (args : ST.E.args tags_t) : expenv :=
+Definition copy (args : E.args tags_t) : expenv :=
   F.fold (fun param arg η => match arg with
                              | PAIn e => Env.bind param e η
                              | PAInOut e => Env.bind param e η
@@ -260,7 +266,9 @@ Fixpoint inline
       let+ blk := inline n0 ctx s in
       IBlock blk
 
-    | ST.SFunCall f _ (Arrow args ret) i =>
+    | ST.SFunCall f _ ar i =>
+      let args := paramargs ar in
+      let ret := rtrns ar in
       match find_function _ ctx f with
         | Some (TD.TPFunction _ _ _ body i) =>
           (** TODO check copy-in/copy-out *)
@@ -270,7 +278,7 @@ Fixpoint inline
         | Some _ =>
           error "[ERROR] Got a nonfunction when `find`ing a function"
         | None =>
-          ok (IExternMethodCall "_" f (Arrow args ret) i)
+          ok (IExternMethodCall "_" f {|paramargs:=args; rtrns:=ret|} i)
       end
 
     | ST.SActCall a args i =>
@@ -316,7 +324,9 @@ Fixpoint inline
     | ST.SInvoke t i =>
       let*~ tdecl := find_table tags_t ctx t else "could not find table in environment" in
       match tdecl with
-      | CD.CDTable _ (CD.Table keys actions) _ =>
+      | CD.CDTable _ tbl _ =>
+        let keys := Control.table_key tbl in
+        let actions := Control.table_actions tbl in
         let act_to_gcl := fun a =>
           let*~ act := find_action tags_t ctx a else "could not find action " ++ a ++ " in environment" in
           match act with

@@ -1,20 +1,13 @@
 From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
-Require Import BinaryString.
-Require Import Coq.PArith.BinPosDef.
-Require Import Coq.PArith.BinPos.
-Require Import List.
-Require Import Coq.ZArith.BinIntDef.
-Require Import String.
+Require Import BinaryString
+        Coq.PArith.BinPosDef Coq.PArith.BinPos
+        List Coq.ZArith.BinIntDef String.
 Require Coq.PArith.BinPosDef.
-Require Import Poulet4.P4cub.Syntax.Syntax.
-Require Import Poulet4.P4cub.Envn.
-Require Import Poulet4.P4cub.Transformations.Statementize.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
-Require Import Poulet4.Monads.Error.
-Require Import Poulet4.Ccomp.CCompEnv.
-Require Import Poulet4.Ccomp.Helloworld.
-Require Import Poulet4.Ccomp.CV1Model.
+From Poulet4.P4cub Require Import Syntax.Syntax Envn.
+From Poulet4 Require Import
+     P4cub.Transformations.Lifting.Statementize
+     Monads.Monad Monads.Option Monads.Error
+     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
@@ -894,7 +887,7 @@ Section CCompSel.
       let* (s2', env3) := CTranslateStatement s2 env2 in                 
       error_ret (Sifthenelse e' s1' s2', env3)
 
-    | Stmt.SFunCall f _ (Arrow args None) i =>
+    | Stmt.SFunCall f _ {|paramargs:=args; rtrns:=None|} i =>
       let* (f', id) := CCompEnv.lookup_function tags_t env f in
       let* (elist, env') := CTranslateDirExprList args env in 
       error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env') 
@@ -905,7 +898,7 @@ Section CCompSel.
       let elist := (get_top_args tags_t env') ++ elist in 
       error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env')                              
 
-    | Stmt.SFunCall f _ (Arrow args (Some e)) i =>
+    | Stmt.SFunCall f _ {|paramargs:=args; rtrns:=Some e|} i =>
       let t := t_of_e e in
       let (ct, env_ct) := CTranslateType t env in
       let* (f', id) := CCompEnv.lookup_function tags_t env_ct f in
@@ -915,12 +908,10 @@ Section CCompSel.
       error_ret (
         (Ssequence 
         (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
-        (Sassign lvalue (Etempvar tempid ct) ))
-        , env')
-    
-    | Stmt.SExternMethodCall e f _ (Arrow args x) i => error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
-
-    | Stmt.SReturn (Some e) i => 
+        (Sassign lvalue (Etempvar tempid ct) )), env')
+    | Stmt.SExternMethodCall e f _ {|paramargs:=args; rtrns:=x|} i =>
+      error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
+    | Stmt.SReturn (Some e) i =>
       let* (e', env') := CTranslateExpr e env in
       error_ret ((Sreturn (Some e')), env')
     | Stmt.SReturn None i => error_ret (Sreturn None, env)
@@ -971,7 +962,6 @@ Section CCompSel.
       error_ret (assign , env)  
 
     end.
-
 
   Definition CTranslateParams (params : Expr.params) (env : ClightEnv tags_t ) 
     : list (AST.ident * Ctypes.type) * ClightEnv tags_t  
@@ -1121,21 +1111,15 @@ Section CCompSel.
     let e_call_args := List.map (fun (x: AST.ident * Ctypes.type) => Etempvar (fst x) (snd x)) fn_eparams in
     error_ret (e_call_args ++ call_args).
 
-  Definition CTranslateArrow (signature : Expr.arrowT) (env : ClightEnv tags_t )
+  Definition CTranslateArrow '({|paramargs:=pas; rtrns:=ret|} : Expr.arrowT) (env : ClightEnv tags_t )
     : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv tags_t  
-  := 
-    let  '(Arrow pas ret) := signature in
-    let (fn_params, env_params_created) := CTranslateParams pas env in 
-    match ret with 
-    | None => (fn_params, Ctypes.Tvoid, env_params_created)
-    | Some return_t => 
-      let (ct, env_ct):= CTranslateType return_t env_params_created in 
-      (fn_params, ct , env_ct)
-    end.
-      
-  Definition PaFromArrow (arrow: Expr.arrowT) : (Expr.params):=
-    let '(Arrow pas ret) := arrow in
-    pas.
+  := let (fn_params, env_params_created) := CTranslateParams pas env in 
+     match ret with 
+     | None => (fn_params, Ctypes.Tvoid, env_params_created)
+     | Some return_t => 
+       let (ct, env_ct):= CTranslateType return_t env_params_created in 
+       (fn_params, ct , env_ct)
+     end.
 
   Definition CTranslatePatternVal (p : Parser.pat) (env: ClightEnv tags_t)
     : @error_monad string (Clight.statement * ident * ClightEnv tags_t) := 
@@ -1293,9 +1277,11 @@ Section CCompSel.
     | _ => CTranslateParserExpressionVal pe env
     end.
 
-  Definition CTranslateParserState (st : Parser.state_block tags_t) (env: ClightEnv tags_t ) (params: list (AST.ident * Ctypes.type))
+  Definition CTranslateParserState
+             '({|Parser.stmt:=stmt; Parser.trans:=pe|} : Parser.state_block tags_t)
+             (env: ClightEnv tags_t)
+             (params: list (AST.ident * Ctypes.type))
     : @error_monad string (Clight.function * ClightEnv tags_t ) :=
-    let '(Parser.State stmt pe) := st in
     let* (stmt', env') := CTranslateStatement stmt env in
     let rec_call_args := get_top_args tags_t env' in
     let* (estmt, env') := CTranslateParserExpression pe env' in
@@ -1413,7 +1399,7 @@ Section CCompSel.
     let* (f, env_action_translated) := CTranslateAction params body env top_fn_params top_signature in
     error_ret (Sskip, CCompEnv.add_function tags_t env_action_translated a f)
 
-  | Control.CDTable name (Control.Table keys acts) i => 
+  | Control.CDTable name {|Control.table_key:=keys; Control.table_actions:=acts|} i => 
     let env := add_Table tags_t env name keys acts in 
     let* '(id, _, _) := find_table tags_t env name in 
     let num_keys :=  Econst_int (Integers.Int.repr (Z.of_nat (List.length keys))) int_signed in
@@ -1461,7 +1447,7 @@ Section CCompSel.
     match funcdecl with
     | TopDecl.TPFunction name _ signature body _ => 
       let '(fn_params, fn_return, env_params_created) := CTranslateArrow signature env in 
-      let paramargs := PaFromArrow signature in
+      let paramargs := AST.paramargs signature in
       let* (copyin, env_copyin) := CCopyIn paramargs env_params_created in
       let* (copyout, env_copyout) := CCopyOut paramargs env_copyin in
       let* (c_body, env_body_translated) := CTranslateStatement body env_copyout in
@@ -1609,7 +1595,6 @@ Definition test_program_only :=
   | inl helloworld_program_sel => CCompSel.Compile nat helloworld_program_sel
   | inr _ => Errors.Error (Errors.msg "statementize failed")
   end.
-
 
 Definition test := 
   match helloworld_program_sel with 

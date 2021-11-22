@@ -112,13 +112,13 @@ Module ProperType.
   
   Section ProperTypeNesting.
     (** Evidence a type is a base type. *)
-    Inductive base_type : t -> Prop :=
+    Variant base_type : t -> Prop :=
     | base_bool : base_type {{ Bool }}
     | base_bit (w : N) : base_type {{ bit<w> }}
     | base_int (w : positive) : base_type {{ int<w> }}.
     
     (** Allowed types within headers. *)
-    Inductive proper_inside_header : t -> Prop :=
+    Variant proper_inside_header : t -> Prop :=
     | pih_bool (τ : t) :
         base_type τ ->
         proper_inside_header τ

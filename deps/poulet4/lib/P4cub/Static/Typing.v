@@ -233,7 +233,7 @@ Inductive check_stmt
                 (ts : list Expr.t)
                 (args : Expr.args tags_t)
                 (f : string) (i : tags_t) (con : ctx) :
-    Env.find f fns = Some (Arrow params None) ->
+    Env.find f fns = Some {|paramargs:=params; rtrns:=None|} ->
     F.relfs
       (rel_paramarg_same
          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ))
@@ -257,7 +257,7 @@ Inductive check_stmt
                (args : Expr.args tags_t)
                (f : string) (i : tags_t) (con : ctx) :
     t_ok Δ τ ->
-    Env.find f fns = Some (Arrow params (Some τ)) ->
+    Env.find f fns = Some {|paramargs:=params; rtrns:=Some τ|} ->
     F.relfs
       (rel_paramarg
          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
@@ -287,7 +287,7 @@ Inductive check_stmt
                        (eis : eienv) (params : Expr.params)
                        (mhds : F.fs string Expr.arrowT) :
     Env.find e eis = Some mhds ->
-    F.get f mhds = Some (Arrow params None) ->
+    F.get f mhds = Some {|paramargs:=params; rtrns:=None|} ->
     extern_call_ok eis con ->
     F.relfs
       (rel_paramarg
@@ -303,7 +303,7 @@ Inductive check_stmt
                         (params: Expr.params) (τ : Expr.t)
                         (mhds : F.fs string Expr.arrowT) :
     (Env.find extrn eis = Some mhds ->
-     F.get f mhds = Some (Arrow params (Some τ)) ->
+     F.get f mhds = Some {|paramargs:=params; rtrns:=Some τ|} ->
      extern_call_ok eis con ->
      F.relfs
        (rel_paramarg
@@ -318,18 +318,16 @@ where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
 (**[]*)
 
 (** Parser State typing. *)
-Inductive check_parser_state
+Definition check_parser_state
           {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
           (sts : user_states) (Δ : Delta) (Γ : Gamma)
-  : AST.Parser.state_block tags_t -> Prop :=
-| chk_state (s : Stmt.s tags_t) (e : AST.Parser.e tags_t)
-            (Γ' : Gamma) (sg : signal) :
-    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
-    ⟅ sts, Δ, Γ' ⟆ ⊢ e ->
-                 ⟅⟅ fns, pis, eis, sts, Δ, Γ ⟆⟆ ⊢ state { s } transition e
-where "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
-        := (check_parser_state fns pis eis sts Δ Γ s).
+          '(&{state { s } transition e}& : AST.Parser.state_block tags_t) : Prop :=
+  exists (Γ' : Gamma) (sg : signal),
+    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄.
 (**[]*)
+
+Notation "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
+  := (check_parser_state fns pis eis sts Δ Γ s).
 
 (** Control declaration typing. *)
 Inductive check_ctrldecl {tags_t : Type}
@@ -510,7 +508,7 @@ Inductive check_topdecl
                      (Γ' Γ'' : Gamma) (sg : signal) :
     bind_all params !{∅}! = Γ' ->
     ⦃ fns, Δ, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := Arrow params (Some τ) in
+    let func := {|paramargs:=params; rtrns:=Some τ|} in
     ⦗ cs, fns, pgis, cis, pis, eis ⦘
       ⊢ fn f <Δ> (params) -> τ { body } @ i
       ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘
@@ -520,7 +518,7 @@ Inductive check_topdecl
                     (Γ' Γ'' : Gamma) (sg : signal) :
     bind_all params !{∅}! = Γ' ->
     ⦃ fns, Δ, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := Arrow params None in
+    let func := {|paramargs:=params; rtrns:=None|} in
     ⦗ cs, fns, pgis, cis, pis, eis ⦘
       ⊢ void f<Δ>(params) { body } @ i
       ⊣ ⦗ eis, pis, cis, pgis, f ↦ func;;  fns, cs ⦘

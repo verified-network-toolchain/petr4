@@ -70,7 +70,7 @@ Module Step.
   Import AllCubNotations V.ValueNotations V.LValueNotations.
 
   (** Statement signals. *)
-  Inductive signal : Type :=
+  Variant signal : Type :=
   | SIG_Cont                  (* continue *)
   | SIG_Exit                  (* exit *)
   | SIG_Rtrn (v : option V.v) (* return *)
@@ -87,14 +87,14 @@ Module Step.
 
   (** Evidence that control-flow
       is interrupted by an exit or return statement. *)
-  Inductive interrupt : signal -> Prop :=
+  Variant interrupt : signal -> Prop :=
   | interrupt_exit : interrupt SIG_Exit
   | interrupt_rtrn (vo : option V.v) : interrupt (SIG_Rtrn vo)
   | interrupt_rjct : interrupt SIG_Rjct.
   (**[]*)
 
   (** Context for statement evaluation. *)
-  Inductive ctx {tags_t : Type} : Type :=
+  Variant ctx {tags_t : Type} : Type :=
   | CAction (available_actions : @aenv tags_t)
             (available_externs : ARCH.extern_env)
   | CVoid                         (* void function *)
@@ -485,7 +485,7 @@ Module Step.
       (* Get control-plane entries. *)
       Env.find x cp = Some es ->
       (* Get appropriate table. *)
-      Env.find x ts = Some (Control.Table ky acts) ->
+      Env.find x ts = Some {|Control.table_key:=ky; Control.table_actions:=acts|} ->
       (* Evaluate key. *)
       Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
       (* Get action and arguments.
@@ -523,7 +523,7 @@ Module Step.
       (** Copy-in. *)
       let cls' := copy_in argsv ϵ cls in
       (* Evaluate extern method call. *)
-      disp mthd (Arrow argsv lvo) cls' pkt = (inl cls'', pkt') ->
+      disp mthd {|paramargs:=argsv; rtrns:=lvo|} cls' pkt = (inl cls'', pkt') ->
       (* Copy-out. *)
       let ϵ' := copy_out argsv cls'' ϵ in
       ⟪ pkt, fs, ϵ, c,
@@ -600,7 +600,7 @@ Module Step.
                         (Expr.t * Expr.e tags_t * Expr.matchkind))
                (actns : list (string))
                (i : tags_t) :
-      let tbl := Control.Table kys actns in
+      let tbl := {|Control.table_key:=kys; Control.table_actions:=actns|} in
       ⦉ tbls, aa, fns, cis, eis, ϵ, table t key:=kys actions:=actns @ i ⦊
         ⟱  ⦉ aa, t ↦ tbl;; tbls ⦊
   | cdbs_seq (d1 d2 : Control.d tags_t) (i : tags_t)
@@ -770,7 +770,7 @@ Module Step.
 
   (** Evaluating a parser instance. *)
   (* TODO: reject state? *)
-  Inductive parser_instance_big_step
+  Variant parser_instance_big_step
             {tags_t: Type} : pinst -> Paquet.t -> Paquet.t -> Prop :=
   | pibs (ϵ ϵ': epsilon) (fs: fenv) (pis: pienv) (eis: ARCH.extern_env)
          (pkt pkt': Paquet.t) (strt: AST.Parser.state_block tags_t)
@@ -781,33 +781,27 @@ Module Step.
   (**[]*)
 
   (** Evaluating a control instance. *)
-  Inductive control_instance_big_step
-            {tags_t: Type} (cp: ctrl)
-    : cinst -> Paquet.t -> Paquet.t -> Prop :=
-  | cibs (ϵ ϵ' : epsilon) (fs : fenv)
-         (cis : Env.t string cinst) (tbls : tenv)
-         (aa : aenv) (eis : ARCH.extern_env)
-         (apply_blk : Stmt.s tags_t) (pkt pkt' : Paquet.t) :
-      ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫ ->
-      control_instance_big_step
-        cp (CInst ϵ fs cis tbls aa eis apply_blk) pkt pkt'.
+  Definition control_instance_big_step
+             {tags_t: Type} (cp: @ctrl tags_t)
+             '((CInst ϵ fs cis tbls aa eis apply_blk) : @cinst tags_t)
+             (pkt pkt' : Paquet.t) : Prop :=
+    exists (ϵ' : epsilon),
+      ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫.
   (**[]*)
   
   (** Entire program pipeline. *)
-  Inductive pipeline_big_step
+  Definition pipeline_big_step
             {tags_t: Type} (cp: ctrl) (pl: pipeline)
-    : TopDecl.d tags_t -> Paquet.t -> Paquet.t -> Prop :=
-  | pipebs (prog: TopDecl.d tags_t)
-           (pkt pkt' pkt'': Paquet.t)
-           (ps: penv) (cs: cenv) (es: eenv) (fs: fenv)
-           (pis: pienv) (cis: cienv) (eis: ARCH.extern_env) :
+            (prog : TopDecl.d tags_t) (pkt pkt'' : Paquet.t) : Prop :=
+    exists (pkt' : Paquet.t)
+      (ps: penv) (cs: cenv) (es: eenv) (fs: fenv)
+      (pis: pienv) (cis: cienv) (eis: ARCH.extern_env),
       (* Evaluate declarations to obtain instances. *)
-      ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ ->
+      ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ /\
       (** Gather parser instances for pipeline. *)
       let pl_prsrs := Env.gather pis $ prsrs pl in
       let pl_ctrls := Env.gather cis $ ctrls pl in
       (** Parser Pipeline. *)
-      FoldLeft parser_instance_big_step pl_prsrs pkt pkt' ->
-      FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt'' ->
-      pipeline_big_step cp pl prog pkt pkt''.
+      FoldLeft parser_instance_big_step pl_prsrs pkt pkt' /\
+      FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt''.
 End Step.

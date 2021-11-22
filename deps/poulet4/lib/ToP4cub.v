@@ -903,8 +903,8 @@ Section ToP4cub.
       let* p_lo := translate_expression_to_pattern lo in
       let+ p_hi := translate_expression_to_pattern hi in
       Parser.PATMask p_lo p_hi
-    | MatchCast _ _ =>
-      error "[FIXME] Cannot Translate Cast"
+    | MatchCast typ m =>
+      translate_pre_expr tags (ExpCast typ m) typ Directionless
     end.
 
   Definition translate_matches (ms : list Match) : result (list Parser.pat) :=
@@ -1318,73 +1318,73 @@ Section ToP4cub.
 End ToP4cub.
 
 
-(* Require Import Poulet4.P4defs. *)
-(* Require Import Poulet4.SimpleNat. *)
+Require Import Poulet4.P4defs.
+Require Import Poulet4.SimpleNat.
 
-(* Import SimpleNat. *)
+Import SimpleNat.
 
-(* Definition test := Program *)
-(*                      [decl'1 *)
-(*                       ; packet_in *)
-(*                       ; packet_out *)
-(*                       ; verify'check'toSignal *)
-(*                       ; NoAction *)
-(*                       ; decl'2 *)
-(*                       ; decl'3 *)
-(*                       ; standard_metadata_t *)
-(*                       ; CounterType *)
-(*                       ; MeterType *)
-(*                       ; counter *)
-(*                       ; direct_counter *)
-(*                       ; meter *)
-(*                       ; direct_meter *)
-(*                       ; register *)
-(*                       ; action_profile *)
-(*                       ; random'result'lo'hi *)
-(*                       ; digest'receiver'data *)
-(*                       ; HashAlgorithm *)
-(*                       ; mark_to_drop *)
-(*                       ; mark_to_drop'standard_metadata *)
-(*                       ; hash'result'algo'base'data'max *)
-(*                       ; action_selector *)
-(*                       ; CloneType *)
-(*                       ; Checksum16 *)
-(*                       ; verify_checksum'condition'data'checksum'algo *)
-(*                       ; update_checksum'condition'data'checksum'algo *)
-(*                       ; verify_checksum_with_payload'condition'data'checksum'algo *)
-(*                       ; update_checksum_with_payload'condition'data'checksum'algo *)
-(*                       ; resubmit'data *)
-(*                       ; recirculate'data *)
-(*                       ; clone'type'session *)
-(*                       ; clone3'type'session'data *)
-(*                       ; truncate'length *)
-(*                       ; assert'check *)
-(*                       ; assume'check *)
-(*                       (* ; log_msg'msg *) *)
-(*                       (* ; log_msg'msg'data *) *)
-(*                       ; Parser *)
-(*                       ; VerifyChecksum *)
-(*                       ; Ingress *)
-(*                       ; Egress *)
-(*                       ; ComputeChecksum *)
-(*                       ; Deparser *)
-(*                       ; V1Switch *)
-(*                       ; intrinsic_metadata_t *)
-(*                       ; meta_t *)
-(*                       ; cpu_header_t *)
-(*                       ; ethernet_t *)
-(*                       ; ipv4_t *)
-(*                       ; tcp_t *)
-(*                       ; metadata *)
-(*                       ; headers *)
-(*                       ; ParserImpl *)
-(*                       ; egress *)
-(*                       ; ingress *)
-(*                       ; DeparserImpl *)
-(*                       ; verifyChecksum *)
-(*                       ; computeChecksum *)
-(*                       ; main *)
-(*                      ]. *)
+Definition test := Program
+                     [decl'1
+                      ; packet_in
+                      ; packet_out
+                      ; verify'check'toSignal
+                      ; NoAction
+                      ; decl'2
+                      ; decl'3
+                      ; standard_metadata_t
+                      ; CounterType
+                      ; MeterType
+                      ; counter
+                      ; direct_counter
+                      ; meter
+                      ; direct_meter
+                      ; register
+                      ; action_profile
+                      ; random'result'lo'hi
+                      ; digest'receiver'data
+                      ; HashAlgorithm
+                      ; mark_to_drop
+                      ; mark_to_drop'standard_metadata
+                      ; hash'result'algo'base'data'max
+                      ; action_selector
+                      ; CloneType
+                      ; Checksum16
+                      ; verify_checksum'condition'data'checksum'algo
+                      ; update_checksum'condition'data'checksum'algo
+                      ; verify_checksum_with_payload'condition'data'checksum'algo
+                      ; update_checksum_with_payload'condition'data'checksum'algo
+                      ; resubmit'data
+                      ; recirculate'data
+                      ; clone'type'session
+                      ; clone3'type'session'data
+                      ; truncate'length
+                      ; assert'check
+                      ; assume'check
+                      (* ; log_msg'msg *)
+                      (* ; log_msg'msg'data *)
+                      ; Parser
+                      ; VerifyChecksum
+                      ; Ingress
+                      ; Egress
+                      ; ComputeChecksum
+                      ; Deparser
+                      ; V1Switch
+                      ; intrinsic_metadata_t
+                      ; meta_t
+                      ; cpu_header_t
+                      ; ethernet_t
+                      ; ipv4_t
+                      ; tcp_t
+                      ; metadata
+                      ; headers
+                      ; ParserImpl
+                      ; egress
+                      ; ingress
+                      ; DeparserImpl
+                      ; verifyChecksum
+                      ; computeChecksum
+                      ; main
+                     ].
 (* Compute test. *)
 
-(* Compute (translate_program Info NoInfo test). *)
+Compute (translate_program Info NoInfo test).

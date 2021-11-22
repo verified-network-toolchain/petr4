@@ -958,8 +958,6 @@ Module SimpleNat.
      ])
     ].
 
-  (* Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test. *)
-
   Definition cub_seq (statements : list (ST.s Info)) : ST.s Info  :=
     let seq := fun s1 s2 => ST.SSeq s1 s2 NoInfo in
     List.fold_right seq (ST.SSkip NoInfo) statements.
@@ -1017,10 +1015,11 @@ Module SimpleNat.
       error "ill-formed constructor arguments to V1Switch instantiation."
     end.
 
-  (* Compute p4cub_simple_nat. *)
+  Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
+  Compute p4cub_simple_nat.
 
-  (* Compute (let* sn := p4cub_simple_nat in *)
-  (*          let externs := v1model  in *)
-  (*          p4cub_to_gcl Info instr 1000 externs pipe sn). *)
+  Compute (let* sn := p4cub_simple_nat in
+           let externs := v1model  in
+           p4cub_to_gcl Info instr 1000 externs pipe sn).
 
 End SimpleNat.

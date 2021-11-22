@@ -342,7 +342,8 @@ Module Control.
     
     (** Table. *)
     Record table : Type :=
-      { table_key : list (Expr.t * Expr.e tags_t * Expr.matchkind);
+      (* { table_key : list (Expr.e tags_t * Expr.matchkind);  --> correct version *)
+      { table_key : list (Expr.t * Expr.e tags_t * Expr.matchkind); 
         table_actions : list string }.
     (**[]*)
     

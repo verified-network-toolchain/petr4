@@ -604,7 +604,11 @@ Section Lifted.
     forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
       lifted_stmt (fst (fst (TranslateTable t env i))).
   Proof.
-    intros [ky acts] i env; cbn; fold_destr; clear acts.
+  intros [ky acts] i env; cbn; fold_destr; clear acts.
+    hyp_f_equal_fst Hfoldl. 
+    clear Hfoldl l t s.
+    generalize dependent env.
+    induction ky as [| [[type e] mk] ky IHky]; intros env; simpl in *; auto.
   Admitted.
 
   Local Hint Resolve TranslateTable_lifted_stmt : core.

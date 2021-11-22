@@ -318,18 +318,16 @@ where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
 (**[]*)
 
 (** Parser State typing. *)
-Variant check_parser_state
+Definition check_parser_state
           {tags_t : Type} (fns : fenv) (pis : pienv) (eis : eienv)
           (sts : user_states) (Δ : Delta) (Γ : Gamma)
-  : AST.Parser.state_block tags_t -> Prop :=
-| chk_state (s : Stmt.s tags_t) (e : AST.Parser.e tags_t)
-            (Γ' : Gamma) (sg : signal) :
-    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄ ->
-    ⟅ sts, Δ, Γ' ⟆ ⊢ e ->
-                 ⟅⟅ fns, pis, eis, sts, Δ, Γ ⟆⟆ ⊢ state { s } transition e
-where "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
-        := (check_parser_state fns pis eis sts Δ Γ s).
+          '(&{state { s } transition e}& : AST.Parser.state_block tags_t) : Prop :=
+  exists (Γ' : Gamma) (sg : signal),
+    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄.
 (**[]*)
+
+Notation "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
+  := (check_parser_state fns pis eis sts Δ Γ s).
 
 (** Control declaration typing. *)
 Inductive check_ctrldecl {tags_t : Type}

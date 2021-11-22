@@ -17,6 +17,7 @@ Section TypingDefs.
   Notation typ := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
   Notation stmt := (@Statement tags_t).
+  Notation block := (@Block tags_t).
   Notation signal := (@signal tags_t).
   Notation ident := (P4String.t tags_t).
   Notation path := (list ident).
@@ -143,18 +144,13 @@ Section TypingDefs.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
+  Notation run_blk := (@exec_block tags_t dummy T).
 
-  Definition typ_of_expr (e : expr) : typ :=
-    match e with
-    | MkExpression _ _ t _ => t
-    end.
-  (**[]*)
+  Definition typ_of_expr
+             '(MkExpression _ _ t _ : expr) : typ := t.
 
-  Definition typ_of_stmt (s : stmt) : StmType :=
-    match s with
-    | MkStatement _ _ t => t
-    end.
-  (**[]*)
+  Definition typ_of_stmt
+             '(MkStatement _ _ t : stmt) : StmType := t.
   
   (** Expression typing. *)
   Definition expr_types (this : path) (g : gamma_expr) (e : expr) : Prop :=
@@ -183,12 +179,35 @@ Section TypingDefs.
       (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
       forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
                  gamma_stmt_prop this g' ge st'.
+
+  Inductive Block_StmTypes : block -> StmType -> Prop :=
+  | Empty_StmType tag :
+      Block_StmTypes (BlockEmpty tag) StmUnit
+  | Last_StmtType s tag t :
+      typ_of_stmt s = t ->
+      Block_StmTypes (BlockCons s (BlockEmpty tag)) t
+  | Cons_StmtType s blk t :
+      typ_of_stmt s = StmUnit ->
+      Block_StmTypes blk t ->
+      Block_StmTypes (BlockCons s blk) t.
+      
+  (** Block typing. *)
+  Definition block_types (this : path) (g g' : gamma_stmt) (blk : block) : Prop :=
+    forall (read_one_bit : option bool -> bool -> Prop)
+      (ge : genv) (st : state),
+      read_one_bit_reads read_one_bit ->
+      gamma_stmt_prop this g ge st ->
+      (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
+      forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
+                 gamma_stmt_prop this g' ge st'.
 End TypingDefs.
 
 Notation "Γ '⊢e' e ≀ this"
   := (expr_types this Γ e) (at level 80, no associativity) : type_scope.
 Notation "Γ1 '⊢s' s ⊣ Γ2 ≀ this"
   := (stmt_types this Γ1 Γ2 s) (at level 80, no associativity) : type_scope.
+Notation "Γ1 '⊢b' blk ⊣ Γ2 ≀ this"
+  := (block_types this Γ1 Γ2 blk) (at level 80, no associativity) : type_scope.
 
 (* TODO. *)
 Section Soundness.
@@ -197,6 +216,7 @@ Section Soundness.
   Notation typ := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
   Notation stmt := (@Statement tags_t).
+  Notation block := (@Block tags_t).
   Notation signal := (@signal tags_t).
   Notation ident := (P4String.t tags_t).
   Notation path := (list ident).
@@ -206,6 +226,7 @@ Section Soundness.
 
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
+  Notation run_blk := (@exec_block tags_t dummy T).
 
   Local Hint Unfold expr_types : core.
   Local Hint Constructors exec_expr : core.
@@ -809,6 +830,7 @@ Section Soundness.
   End ExprTyping.
 
   Local Hint Constructors exec_stmt : core.
+  Local Hint Constructors exec_block : core.
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
@@ -846,6 +868,21 @@ Section Soundness.
     Lemma return_sound : forall tag e,
         EquivUtil.predop (fun e => Γ ⊢e e ≀ this) e ->
         Γ ⊢s MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma empty_sound : forall tag,
+        Γ ⊢s MkStatement tag StatEmpty StmUnit ⊣ Γ ≀ this.
+    Proof.
+      unfold stmt_types; intros; split; eauto.
+      intros ? ? Hrn; inversion Hrn; subst; eauto.
+    Qed.
+    
+    (** TODO: shadowing operation on [Γ] & [Γ']. *)
+    Lemma block_sound : forall Γ' tag blk t,
+        Block_StmTypes blk t ->
+        Γ ⊢b blk ⊣ Γ' ≀ this ->
+        Γ ⊢s MkStatement tag (StatBlock blk) t ⊣ Γ' ≀ this.
     Proof.
     Admitted.
   End StmtTyping.

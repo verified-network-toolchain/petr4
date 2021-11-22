@@ -781,33 +781,27 @@ Module Step.
   (**[]*)
 
   (** Evaluating a control instance. *)
-  Variant control_instance_big_step
-            {tags_t: Type} (cp: ctrl)
-    : cinst -> Paquet.t -> Paquet.t -> Prop :=
-  | cibs (ϵ ϵ' : epsilon) (fs : fenv)
-         (cis : Env.t string cinst) (tbls : tenv)
-         (aa : aenv) (eis : ARCH.extern_env)
-         (apply_blk : Stmt.s tags_t) (pkt pkt' : Paquet.t) :
-      ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫ ->
-      control_instance_big_step
-        cp (CInst ϵ fs cis tbls aa eis apply_blk) pkt pkt'.
+  Definition control_instance_big_step
+             {tags_t: Type} (cp: @ctrl tags_t)
+             '((CInst ϵ fs cis tbls aa eis apply_blk) : @cinst tags_t)
+             (pkt pkt' : Paquet.t) : Prop :=
+    exists (ϵ' : epsilon),
+      ⟪ pkt, fs, ϵ, ApplyBlock cp tbls aa cis eis, apply_blk⟫ ⤋  ⟪ ϵ', C, pkt' ⟫.
   (**[]*)
   
   (** Entire program pipeline. *)
-  Variant pipeline_big_step
+  Definition pipeline_big_step
             {tags_t: Type} (cp: ctrl) (pl: pipeline)
-    : TopDecl.d tags_t -> Paquet.t -> Paquet.t -> Prop :=
-  | pipebs (prog: TopDecl.d tags_t)
-           (pkt pkt' pkt'': Paquet.t)
-           (ps: penv) (cs: cenv) (es: eenv) (fs: fenv)
-           (pis: pienv) (cis: cienv) (eis: ARCH.extern_env) :
+            (prog : TopDecl.d tags_t) (pkt pkt'' : Paquet.t) : Prop :=
+    exists (pkt' : Paquet.t)
+      (ps: penv) (cs: cenv) (es: eenv) (fs: fenv)
+      (pis: pienv) (cis: cienv) (eis: ARCH.extern_env),
       (* Evaluate declarations to obtain instances. *)
-      ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ ->
+      ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ /\
       (** Gather parser instances for pipeline. *)
       let pl_prsrs := Env.gather pis $ prsrs pl in
       let pl_ctrls := Env.gather cis $ ctrls pl in
       (** Parser Pipeline. *)
-      FoldLeft parser_instance_big_step pl_prsrs pkt pkt' ->
-      FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt'' ->
-      pipeline_big_step cp pl prog pkt pkt''.
+      FoldLeft parser_instance_big_step pl_prsrs pkt pkt' /\
+      FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt''.
 End Step.

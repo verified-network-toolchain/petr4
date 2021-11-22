@@ -1367,8 +1367,9 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
 | exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
-    exec_call read_one_bit this_path st
-              (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
+    exec_call
+      read_one_bit this_path st
+      (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
               st' sig ->
     force_continue_signal sig = sig' ->
     exec_stmt read_one_bit this_path st
@@ -1453,13 +1454,15 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
       get_real_type typ' = Some rtyp ->
       uninit_sval_of_typ (Some false) rtyp = Some sv ->
-      exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_write
+        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
   | exec_stmt_constant: forall typ' name e v sv loc this_path st tags typ st',
       eval_literal e = Some v ->
       val_to_sval v sv ->
-      exec_write this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_write
+        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
   (* StatInstantiation is unsupported. If supported, it should be considered in instantiation. *)

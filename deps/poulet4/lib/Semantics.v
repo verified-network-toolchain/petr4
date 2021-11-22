@@ -42,7 +42,7 @@ Definition get_memory (s : state) : mem :=
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
-Definition p2l (p: list (@P4String.t tags_t)): list string :=
+Definition clear_list (p: list (@P4String.t tags_t)): list string :=
   map (@str tags_t) p.
 
 Definition loc_to_path (this : path) (loc : Locator) : path :=
@@ -1555,7 +1555,7 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | DeclParser _ _ _ _ constructor_params _ _
   | DeclControl _ _ _ _ constructor_params _ _
   | DeclPackageType _ _ _ constructor_params =>
-      (p2l (map get_param_name constructor_params))
+      (clear_list (map get_param_name constructor_params))
   | _ => nil
   end.
 
@@ -1735,9 +1735,9 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
   | DeclInstantiation _ typ args name init =>
-      let '(inst, m, s) := instantiate' ce e typ args (p ++ p2l [name]) m s in
+      let '(inst, m, s) := instantiate' ce e typ args (p ++ clear_list [name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ p2l [name]) m s in
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ clear_list [name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set (str name) inst e, m, s)
   | DeclFunction _ _ name type_params params body =>
@@ -1746,7 +1746,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
         let iout_params := map (fun p => (str (fst p), snd p)) out_params in
         let init := uninit_out_params iout_params in
         let params := map get_param_name_dir params in
-        let params := map (map_fst (fun param => LGlobal (p2l [name; param]))) params in
+        let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
         let fd := FInternal params init body in
         let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
@@ -1944,7 +1944,7 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
                 | Some _ => LInstance [str id]
                 | None => LGlobal [str id]
                 end
-            | QualifiedName p id => LGlobal (p2l (p ++ [id]))
+            | QualifiedName p id => LGlobal (clear_list (p ++ [id]))
             end in
           let typ :=
             let ofd :=
@@ -2009,7 +2009,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let iout_params := map (fun p => (str (fst p), snd p)) out_params in
       let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal (p2l [name; param]))) params in
+      let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
       PathMap.set (p ++ [str name]) (FInternal params init body) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
@@ -2029,9 +2029,9 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
         if path_equivb p [] then
-          map (map_fst (fun param => LGlobal (p2l [name; param]))) (params ++ ctrl_params)
+          map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
         else
-          map (map_fst (fun param => LInstance (p2l [name; param]))) (params ++ ctrl_params) in
+          map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in
       PathMap.set (p ++ [str name]) (FInternal combined_params init body) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=

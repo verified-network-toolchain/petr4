@@ -94,7 +94,7 @@ Section Transformer.
 
   Definition env := IdentMap.t Locator.
 
-  Definition p2l (p: list (P4String.t tags_t)): list string :=
+  Definition clear_list (p: list (P4String.t tags_t)): list string :=
     map (@P4String.str tags_t) p.
 
   Definition name_to_loc (e: env) (n: @Typed.name tags_t) :=
@@ -105,7 +105,7 @@ Section Transformer.
         | None => NoLocator
         end
     | QualifiedName path name =>
-        LGlobal (p2l (path ++ [name]))
+        LGlobal (clear_list (path ++ [name]))
     end.
 
   Fixpoint transform_ept (e: env) (tags: tags_t) (expr: @ExpressionPreT tags_t) (typ: P4Type) (dir: direction):
@@ -212,13 +212,13 @@ Section Transformer.
         mret (MkStatement tags (StatSwitch expr' cases') typ, e)
       | StatConstant typ' name value _ =>
         let* name' := fresh name in
-        let loc := LCurScope (p2l (ns ++ [name'])) in
+        let loc := LCurScope (clear_list (ns ++ [name'])) in
         let e' := IdentMap.set (P4String.str name) loc e in
         mret (MkStatement tags (StatConstant typ' name value loc) typ, e')
       | StatVariable typ' name init _ =>
         let* name' :=  fresh name in
         let init' := option_map (transform_expr e) init in
-        let loc := LCurScope (p2l (ns ++ [name'])) in
+        let loc := LCurScope (clear_list (ns ++ [name'])) in
         let e' := IdentMap.set (P4String.str name) loc e in
         mret (MkStatement tags (StatVariable typ' name init' loc) typ, e')
       | StatInstantiation typ' args name init =>
@@ -260,7 +260,7 @@ Section Transformer.
                             (params: list (@P4Parameter tags_t)): monad env :=
     let names := map get_param_name params in
     let env_add e name :=
-      let loc := LCurScope (p2l (ns ++ [name])) in
+      let loc := LCurScope (clear_list (ns ++ [name])) in
       IdentMap.set (P4String.str name) loc e in
     let e' := fold_left env_add names e in
     let* _ := sequence (map use names) in

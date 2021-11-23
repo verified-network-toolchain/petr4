@@ -704,18 +704,18 @@ Section Tests.
 
   Definition ingress_table_env :=
     [("if_info",
-      {| Control.table_key:= [(bit 8, meta "if_index" 8, E.MKExact)];
+      {| Control.table_key:= [(meta "if_index" 8, E.MKExact)];
          Control.table_actions:= ["_drop"; "set_if_info"] |}
      );
     ("nat",
      {| Control.table_key:=
-          [(bit 1, meta "is_ext_if" 1, E.MKExact);
-          (bit 1, valid "ipv4" ipv4_type, E.MKExact);
-          (bit 1, valid "tcp" tcp_type, E.MKExact);
-          (bit 32, ipv4 "srcAddr" 32, E.MKTernary);
-          (bit 32, ipv4 "dstAddr" 32, E.MKTernary);
-          (bit 32, tcp "srcPort" 32, E.MKTernary);
-          (bit 32, tcp "dstPort" 32, E.MKTernary)];
+          [(meta "is_ext_if" 1, E.MKExact);
+          (valid "ipv4" ipv4_type, E.MKExact);
+          (valid "tcp" tcp_type, E.MKExact);
+          (ipv4 "srcAddr" 32, E.MKTernary);
+          (ipv4 "dstAddr" 32, E.MKTernary);
+          (tcp "srcPort" 32, E.MKTernary);
+          (tcp "dstPort" 32, E.MKTernary)];
         Control.table_actions :=
           ["_drop";
           "nat_miss_ext_to_int";
@@ -723,11 +723,11 @@ Section Tests.
           "nat_hit_int_to_ext";
           "nat_hit_ext_to_int"]|});
     ("ipv4_lpm",
-     {| Control.table_key:= [(bit 32, meta "ipv4_da" 32, E.MKLpm)];
+     {| Control.table_key:= [(meta "ipv4_da" 32, E.MKLpm)];
         Control.table_actions:= ["set_nhop"; "_drop"]|}
     );
     ("forward",
-     {| Control.table_key:= [(bit 32, meta "nhop_ipv4" 32, E.MKExact)];
+     {| Control.table_key:= [(meta "nhop_ipv4" 32, E.MKExact)];
         Control.table_actions:= ["set_dmac"; "_drop"] |}
     )
     ].

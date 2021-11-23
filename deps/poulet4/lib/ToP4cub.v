@@ -1121,18 +1121,18 @@ Section ToP4cub.
     | _ => error ("Matchkind not supported by P4cub: " ++ mk_str)
     end.
 
-  Definition translate_key (key : TableKey) : result (E.t * E.e tags_t * E.matchkind) :=
+  Definition translate_key (key : TableKey) : result (E.e tags_t * E.matchkind) :=
     let '(MkTableKey tags key_exp matchkind) := key in
-    let* (t, e) := translate_expression_and_type tags key_exp in
+    let* e := translate_expression key_exp in
     let+ mk := translate_matchkind matchkind in
-    (t, e, mk).
+    (e, mk).
 
-  Definition translate_keys_loop (key : TableKey) (acc : result (list (E.t * E.e tags_t * E.matchkind))) : result (list (E.t * E.e tags_t * E.matchkind)) :=
+  Definition translate_keys_loop (key : TableKey) (acc : result (list (E.e tags_t * E.matchkind))) : result (list (E.e tags_t * E.matchkind)) :=
     let* cub_key := translate_key key in
     let+ cub_keys := acc in
     cub_key :: cub_keys.
 
-  Definition translate_keys (keys : list TableKey) : result (list (E.t * E.e tags_t * E.matchkind)) :=
+  Definition translate_keys (keys : list TableKey) : result (list (E.e tags_t * E.matchkind)) :=
     List.fold_right translate_keys_loop (ok []) keys.
 
   Definition translate_action (action : TableActionRef) : result string :=

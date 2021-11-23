@@ -201,7 +201,7 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IReturnFruit t e i => (IReturnFruit t (subst_e η e) i,η)
   | IExit _ => (c,η)
   | IInvoke x keys actions i =>
-    let keys' := List.map (fun '(t,m,k) => (t, subst_e η m, k)) keys in
+    let keys' := List.map (fun '(t, m,k) => (t, subst_e η m, k)) keys in
     let actions' := List.map (fun '(s,a) => (s, fst(subst_t η a))) actions in
     (IInvoke x keys' actions' i, η)
 
@@ -325,7 +325,7 @@ Fixpoint inline
       let*~ tdecl := find_table tags_t ctx t else "could not find table in environment" in
       match tdecl with
       | CD.CDTable _ tbl _ =>
-        let keys := Control.table_key tbl in
+        let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
         let actions := Control.table_actions tbl in
         let act_to_gcl := fun a =>
           let*~ act := find_action tags_t ctx a else "could not find action " ++ a ++ " in environment" in

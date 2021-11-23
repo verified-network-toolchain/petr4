@@ -193,10 +193,10 @@ Section TypeSubstitution.
   Print Control.table.
 
   Definition tsub_table (σ : Env.t string E.t) (tbl : Control.table tags_t) :=
-    let keys := Control.table_key tbl in
-    let acts := Control.table_actions tbl in
-    let keys' := List.map (fun '(t,e,mk) => (tsub_t σ t, tsub_e σ e, mk)) keys in
-    {| Control.table_key := keys'; Control.table_actions := acts |}.
+    let tbl_keys := Control.table_key tbl in
+    let tbl_acts := Control.table_actions tbl in
+    let tbl_keys' := List.map (fun '(e,mk) => (tsub_e σ e, mk)) tbl_keys in
+    {| Control.table_key := tbl_keys'; Control.table_actions := tbl_acts |}.
 
   Fixpoint tsub_Cd (σ : Env.t string E.t) (d : Control.d tags_t) :=
     match d with

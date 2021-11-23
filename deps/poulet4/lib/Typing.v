@@ -19,24 +19,24 @@ Section TypingDefs.
   Notation stmt := (@Statement tags_t).
   Notation block := (@Block tags_t).
   Notation signal := (@signal tags_t).
-  Notation ident := (P4String.t tags_t).
+  Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
 
   (* Local variable typing environment. *)
-  Definition gamma_local := @PathMap.t tags_t typ.
+  Definition gamma_local := PathMap.t typ.
 
   (* Constant & global variable typing environment. *)
-  Definition gamma_const := @PathMap.t tags_t typ.
+  Definition gamma_const := PathMap.t typ.
 
   (* Function definition typing environment. TODO! *)
-  Definition gamma_func := @PathMap.t tags_t unit.
+  Definition gamma_func := PathMap.t unit.
 
   (* Instance typing environment. TODO. *)
-  Definition gamma_inst := @PathMap.t tags_t unit.
+  Definition gamma_inst := PathMap.t unit.
 
   (* Extern instance typing environment. TODO. *)
-  Definition gamma_ext := @PathMap.t tags_t unit.
+  Definition gamma_ext := PathMap.t unit.
   
   (* Expression typing environment. *)
   Record gamma_expr := {
@@ -99,7 +99,8 @@ Section TypingDefs.
   Definition gamma_expr_prop
              (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_expr_domain p g st ge /\ gamma_expr_val_typ p g st ge.
-  
+
+  Set Printing Implicit.
   (* TODO: is this correct? *)
   Definition gamma_inst_domain
              (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
@@ -219,7 +220,7 @@ Section Soundness.
   Notation stmt := (@Statement tags_t).
   Notation block := (@Block tags_t).
   Notation signal := (@signal tags_t).
-  Notation ident := (P4String.t tags_t).
+  Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
 
@@ -574,8 +575,8 @@ Section Soundness.
       pose proof Hvt _ H7 as Hargsv.
       assert (typ_of_expr e = t) by eauto using unary_type_eq.
       rewrite H in *. clear e Hvt Hev H7 H.
-      pose proof exec_val_preserves_typ
-           _ _ _ H8 (ge_senum ge) as Hevpt.
+      pose proof (@exec_val_preserves_typ tags_t _ _
+           _ _ _ H8 (ge_senum ge)) as Hevpt.
       assert (Hgsb : exists gsb,
                  FuncAsMap.related
                    (AList.all_values (exec_val rob))

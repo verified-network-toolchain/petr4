@@ -15,11 +15,8 @@ type coq_OpUni = [%import:Poulet4.Syntax.coq_OpUni]
   [@@deriving sexp,show,yojson]
 type coq_OpBin = [%import:Poulet4.Syntax.coq_OpBin]
   [@@deriving sexp,show,yojson]
-type 'a pre_Locator =
-  [%import:'a Poulet4.Syntax.coq_Locator
-    [@with Poulet4.P4String.t := P4string.pre_t]]
-  [@@deriving sexp,show,yojson]
-type coq_Locator = Info.t pre_Locator
+type coq_Locator =
+  [%import:Poulet4.Syntax.coq_Locator]
   [@@deriving sexp,show,yojson]
 let noLocator = LGlobal []
 type 'a pre_ExpressionPreT =
@@ -32,7 +29,7 @@ type 'a pre_ExpressionPreT =
       Poulet4.Typed.name := P4name.pre_t;
       Poulet4.Typed.coq_P4Type := T.pre_P4Type;
       Poulet4.Typed.direction := T.direction;
-      coq_Locator := pre_Locator]]
+      coq_Locator := coq_Locator]]
   [@@deriving sexp,show,yojson]
 and 'a pre_Expression =
   [%import:'a Poulet4.Syntax.coq_Expression
@@ -97,7 +94,7 @@ and 'a pre_StatementPreT =
     [@with Poulet4.P4String.t := P4string.pre_t;
            coq_Initializer := pre_Initializer;
            Poulet4.Typed.coq_P4Type := T.pre_P4Type;
-           coq_Locator := pre_Locator;
+           coq_Locator := coq_Locator;
            coq_Statement := pre_Statement;
            coq_Expression := pre_Expression;
            coq_Block := pre_Block;

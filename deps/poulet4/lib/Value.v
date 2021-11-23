@@ -52,7 +52,7 @@ Section Value.
   Inductive Env_EvalEnv :=
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@Typed.P4Type tags_t)) (namespace: string).
   Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t) (loc: (@Syntax.Locator tags_t))
+  | ValLeftName (name: @Typed.name tags_t) (loc: (Syntax.Locator))
   | ValLeftMember (expr: ValueLvalue) (name: string)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: N)

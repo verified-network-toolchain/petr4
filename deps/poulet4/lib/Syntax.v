@@ -1,5 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Numbers.BinNums.
+Require Import Coq.Strings.String.
 
 Require Import Poulet4.Info.
 Require Import Poulet4.Typed.
@@ -52,8 +53,8 @@ Section Syntax.
   | Or.
 
   Inductive Locator :=
-  | LGlobal (p: list P4String)
-  | LInstance (p: list P4String).
+  | LGlobal (p: list string)
+  | LInstance (p: list string).
 
   Definition NoLocator := LGlobal nil.
 

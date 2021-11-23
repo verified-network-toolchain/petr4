@@ -1,6 +1,5 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Bool.Bool.
-Require Poulet4.P4String.
 Require Import Poulet4.P4cub.Util.EquivUtil.
 Import ListNotations.
 
@@ -55,17 +54,16 @@ Module IdentMap.
 
 Section IdentMap.
 
-Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
+Notation ident := String.string.
 Context {A: Type}.
 
 Definition t := @FuncAsMap.t ident A.
 Definition empty : t := FuncAsMap.empty.
 Definition get : ident -> t -> option A := FuncAsMap.get.
 Definition set : ident -> A -> t -> t :=
-  @FuncAsMap.set ident (@P4String.equivb tags_t) A.
+  @FuncAsMap.set ident String.eqb A.
 Definition sets: list ident -> list A -> t -> t :=
-  @FuncAsMap.sets ident (@P4String.equivb tags_t) A.
+  @FuncAsMap.sets ident String.eqb A.
 Definition gets: list ident -> t -> list (option A) := FuncAsMap.gets.
 
 End IdentMap.
@@ -76,16 +74,15 @@ Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
   Nat.eqb (length al) (length bl) &&
   forallb (uncurry eqb) (combine al bl).
 
-Definition path_equivb {tags_t: Type} :
-  (list (P4String.t tags_t)) -> (list (P4String.t tags_t)) -> bool :=
-  list_eqb (@P4String.equivb tags_t).
+Definition path_equivb :
+  (list String.string) -> (list String.string) -> bool :=
+  list_eqb String.eqb.
 
 Module PathMap.
 
 Section PathMap.
 
-Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
+Notation ident := String.string.
 Notation path := (list ident).
 Context {A: Type}.
 
@@ -102,5 +99,5 @@ End PathMap.
 
 End PathMap.
 
-Arguments IdentMap.t {_} _.
-Arguments PathMap.t {_} _.
+Arguments IdentMap.t _: clear implicits.
+Arguments PathMap.t _: clear implicits.

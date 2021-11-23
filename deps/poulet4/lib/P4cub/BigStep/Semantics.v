@@ -475,7 +475,7 @@ Module Step.
       ⟪ pkt, fs, ϵ, Parser pis eis, apply x with eargs & args @ i ⟫ ⤋ ⟪ ϵ''', SIG_Rjct, pkt' ⟫
   | sbs_invoke (x : string) (i : tags_t)
                (es : entries)
-               (ky : list (Expr.t * Expr.e tags_t * Expr.matchkind))
+               (ky : list (Expr.e tags_t * Expr.matchkind))
                (acts : list (string))
                (vky : list (V.v * Expr.matchkind))
                (a : string) (args : Expr.args tags_t)
@@ -487,7 +487,7 @@ Module Step.
       (* Get appropriate table. *)
       Env.find x ts = Some {|Control.table_key:=ky; Control.table_actions:=acts|} ->
       (* Evaluate key. *)
-      Forall2 (fun '(_,k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
+      Forall2 (fun '(k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
       (* Get action and arguments.
          Black box, need extra assumption for soundness. *)
       es vky acts = (a,args) ->
@@ -597,7 +597,7 @@ Module Step.
         ⟱  ⦉ aa', tbls ⦊
   | cdbs_table (t : string)
                (kys : list
-                        (Expr.t * Expr.e tags_t * Expr.matchkind))
+                        (Expr.e tags_t * Expr.matchkind))
                (actns : list (string))
                (i : tags_t) :
       let tbl := {|Control.table_key:=kys; Control.table_actions:=actns|} in

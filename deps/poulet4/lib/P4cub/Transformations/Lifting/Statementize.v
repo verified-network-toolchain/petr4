@@ -292,21 +292,16 @@ Section Statementize.
       ) states ([],env).
   
   Definition TranslateTable
-             '({|Control.table_key:=key; Control.table_actions:=actions|} : Control.table tags_t)
+             '({|Control.table_key:=key;
+                 Control.table_actions:=actions|} : Control.table tags_t)
              (env: VarNameGen.t) (i : tags_t)
     : st * Control.table tags_t * VarNameGen.t :=
     let '(stmt_key, key', env_key) := 
-        List.fold_left 
-          (fun 
-              (cumulator: (Stmt.s tags_t) * list (Expr.t * Expr.e tags_t * Expr.matchkind) * VarNameGen.t)
-              (key : Expr.t * Expr.e tags_t * Expr.matchkind)
-            => let '(prev_stmt, prev_keys, prev_env) := cumulator in
-              let '(type, expr, mk) := key in
-              let '(expr_stmt, expr', env_expr) := TransformExpr expr prev_env in 
-              let new_stmt := Stmt.SSeq prev_stmt expr_stmt i in
-              let new_keys := prev_keys ++ [(type, expr', mk)] in 
-              (new_stmt, new_keys, env_expr))
-          key (Stmt.SSkip i, [], env) in 
+        List.fold_right 
+          (fun '(e,mk) '(s',ky',env) =>
+             let '(s, e', env') := TransformExpr e env in 
+             (Stmt.SSeq s s' i, (e',mk) :: ky', env'))
+          (Stmt.SSkip i, [], env) key in 
     (stmt_key, {|Control.table_key:=key'; Control.table_actions:=actions|}, env_key).
   
   Fixpoint TranslateControlDecl 

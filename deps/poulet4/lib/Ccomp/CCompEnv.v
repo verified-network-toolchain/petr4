@@ -31,25 +31,25 @@ Section CEnv.
     globvars: (list (AST.ident * globvar Ctypes.type));
     numStrMap : Env.t Z AST.ident;
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
-    tables : Env.t string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
+    tables : Env.t string ((list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
     top_args : (list Clight.expr);
   }.
 
   Definition newClightEnv : ClightEnv :=
     {|
-    identMap := Env.empty string AST.ident;
+    identMap := Env.empty _ _;
     temps := [];
     vars := [];
     composites := [];
     identGenerator := IdentGen.gen_init;
-    fenv := Env.empty string Clight.function;
-    tempOfArg := Env.empty string (AST.ident* AST.ident);
+    fenv := Env.empty _ _;
+    tempOfArg := Env.empty _ _;
     instantiationCarg := [];
     maininit := Clight.Sskip;
     globvars := [];
-    numStrMap :=  Env.empty Z AST.ident;
-    topdecltypes := Env.empty string (TopDecl.d tags_t);
-    tables := Env.empty string ((list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
+    numStrMap :=  Env.empty _ _;
+    topdecltypes := Env.empty _ _;
+    tables := Env.empty _ _;
     top_args := [];
     |}.
 
@@ -71,7 +71,6 @@ Section CEnv.
     tables := env.(tables);
     top_args := env.(top_args);
     |}.
-
 
 
   Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
@@ -304,7 +303,7 @@ Section CEnv.
   Definition add_Table
     (env : ClightEnv)
     (name : string)
-    (key : list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))
+    (key : list (AST.Expr.e tags_t * AST.Expr.matchkind))
     (actions : list string) 
     : ClightEnv :=
     let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
@@ -609,7 +608,9 @@ Section CEnv.
 
   
   Definition find_table (env: ClightEnv) (name: string) 
-    : @error_monad string (AST.ident * (list (AST.Expr.t * AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)) 
+    : @error_monad
+        string
+        (AST.ident * (list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)) 
     := 
     match Env.find name env.(identMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => error_ret (id, keys, actions)

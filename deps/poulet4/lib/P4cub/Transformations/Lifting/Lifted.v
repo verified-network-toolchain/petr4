@@ -208,7 +208,7 @@ Section Lifted.
   Local Hint Constructors lifted_parser_expr : core.
 
   Definition lifted_table (tbl : Control.table tags_t) : Prop :=
-    Forall (fun '(_, e, _) => lifted_expr e) (Control.table_key tbl).
+    Forall (fun '(e, _) => lifted_expr e) (Control.table_key tbl).
   
   Inductive lifted_control_Decl : Control.d tags_t -> Prop :=
   | lifted_CDAction act sig body i :
@@ -604,8 +604,16 @@ Section Lifted.
     forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
       lifted_stmt (fst (fst (TranslateTable t env i))).
   Proof.
-    intros [ky acts] i env; cbn; fold_destr; clear acts.
-  Admitted.
+    intros [ky acts] env i; cbn; fold_destr; clear acts.
+    hyp_f_equal_fst Hfoldl.
+    clear Hfoldl l t s.
+    generalize dependent env.
+    induction ky as [| [e mk] ky IHky]; intros env; simpl in *; auto.
+    fold_destr; transformExpr_destr.
+    specialize IHky with env.
+    rewrite Hfoldl in IHky; simpl in *.
+    hyp_f_equal_fst Heqp.
+  Qed.
 
   Local Hint Resolve TranslateTable_lifted_stmt : core.
 

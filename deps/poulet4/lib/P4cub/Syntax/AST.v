@@ -264,11 +264,11 @@ Module Stmt.
     | SInvoke (table_name : string) (i : tags_t)      (* table invocation *)
     | SApply (control_instance_name : string)
              (ext_args : F.fs string string)
-             (args : Expr.args tags_t) (i : tags_t)      (* control apply statements *)
+             (args : Expr.args tags_t) (i : tags_t) (* control apply statements *)
     | SHeaderStackOp (hdr_stk_name : string) (s : hsop)
-                     (n : positive) (i : tags_t)      (* push or pop statements *)
+                     (n : positive) (i : tags_t)  (* push or pop statements *)
     | SSetValidity (hdr : Expr.e tags_t) (validity : bool)
-                   (i : tags_t)                       (* set valid or set invalid *).
+                   (i : tags_t)               (* set valid or set invalid *).
   (**[]*)
   End Statements.
 
@@ -342,7 +342,7 @@ Module Control.
     
     (** Table. *)
     Record table : Type :=
-      { table_key : list (Expr.t * Expr.e tags_t * Expr.matchkind);
+      { table_key : list (Expr.e tags_t * Expr.matchkind); 
         table_actions : list string }.
     (**[]*)
     

@@ -53,7 +53,8 @@ Section TypingDefs.
   (** TODO: is this correct?
       Typing analogue to [loc_to_sval].
       How will [this] be used...? *)
-  Definition typ_of_loc (this : path) (l : Locator) (g : gamma_expr) : option typ :=
+  Definition typ_of_loc
+             (this : path) (l : Locator) (g : gamma_expr) : option typ :=
     match l with
     | LInstance p => PathMap.get p (local_gamma g)
     | LGlobal   p => PathMap.get p (const_gamma g)

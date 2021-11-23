@@ -727,7 +727,7 @@ Section CCompSel.
   Definition CTranslateTableInvoke (tbl : string) (env: ClightEnv tags_t) :=
     let* (table_id, keys, fn_names) := find_table tags_t env tbl in   
     let (env', action_id) := CCompEnv.add_temp_nameless tags_t env action_ref in
-    let elist := List.map (fun x => match x with | (_, b, _) => b end) keys in 
+    let elist := List.map (fun x => match x with | (b, _) => b end) keys in 
     let* (elist, env') := CTranslateExprList elist env in 
     let key_length := Z.of_nat (List.length keys) in 
     let t_keys := Tarray bit_vec key_length noattr in
@@ -1397,7 +1397,7 @@ Section CCompSel.
       (get_temps tags_t env_body_translated)
       body), (set_temp_vars tags_t env env_body_translated))
   .
-
+  
   Fixpoint CTranslateControlLocalDeclaration 
   (ct : Control.d tags_t) (env: ClightEnv tags_t ) 
   (top_fn_params: list (AST.ident * Ctypes.type))

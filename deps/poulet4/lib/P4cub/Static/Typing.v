@@ -344,10 +344,10 @@ Inductive check_ctrldecl {tags_t : Type}
       ⊢ action a ( signature ) { body } @ i
       ⊣ ⦅ a ↦ signature ;; acts, tbls ⦆
 | chk_table (t : string)
-            (kys : list (Expr.t * Expr.e tags_t * Expr.matchkind))
+            (kys : list (Expr.e tags_t * Expr.matchkind))
             (actns : list string) (i : tags_t) :
     (* Keys type. *)
-    Forall (fun '(τ,e,_) => ⟦ [], Γ ⟧ ⊢ e ∈ τ) kys ->
+    Forall (fun '(e,_) => exists τ, ⟦ [], Γ ⟧ ⊢ e ∈ τ) kys ->
     (* Actions available *)
     Forall (fun a => exists pms, Env.find a acts = Some pms) actns ->
     ⦅ tbls, acts, fns, cis, eis, Γ ⦆

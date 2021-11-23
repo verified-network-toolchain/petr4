@@ -54,7 +54,7 @@ Definition get_loc_path (loc : Locator) : path :=
   | LInstance p => p
   end.
 
-Inductive fundef :=
+Variant fundef :=
   | FInternal
       (params : list (@Locator tags_t * direction))
       (init : @Block tags_t)

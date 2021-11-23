@@ -226,18 +226,18 @@ Section ToGCL.
         lv ++ "["++ (string_of_z index) ++ "]"
       end.
 
-    Definition width_of_type (t : E.t) : result nat :=
+    Definition width_of_type (x:string) (t : E.t) : result nat :=
       match t with
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
-      | E.TVar _ => error "Cannot get the width of a typ variable"
-      | E.TError => error "Cannot get the width of an error Type"
-      | E.TMatchKind => error "Cannot get the width of a Match Kind Type"
-      | E.TTuple types => error "Cannot get the width of a Tuple Type"
-      | E.TStruct fields => error "Cannot get the width of a Struct Type"
-      | E.THeader fields => error "Cannot get the width of a Header Type"
-      | E.THeaderStack fields size => error "Cannot get the width of a header stack type"
+      | E.TVar tx => error ("Cannot get the width of a typ variable " ++ tx ++ " for var " ++ x)
+      | E.TError => error ("Cannot get the width of an ErrorType for var " ++ x)
+      | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" ++ x)
+      | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
+      | E.TStruct fields => error ("Cannot get the width of a Struct Type for var " ++ x)
+      | E.THeader fields => error ("Cannot get the width of a Header Type for var" ++ x)
+      | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" ++ x)
       end.
 
     Definition get_header_of_stack (stack : E.e tags_t) : result E.t :=
@@ -306,7 +306,7 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let+ w := width_of_type t in
+        let+ w := width_of_type x t in
         BV.BVVar _ x w i
 
       | E.ESlice e hi lo i =>
@@ -382,10 +382,9 @@ Section ToGCL.
         error "Structs in the rvalue position should have been factored out by previous passes"
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
-      | E.EExprMember expr_type mem arg i =>
-        let* lv := to_lvalue arg in
-        let* t := lookup_member_type_from_type mem expr_type in
-        let+ w := width_of_type t in
+      | E.EExprMember ret_type mem arg i =>
+        let* w := width_of_type mem ret_type in
+        let+ lv := to_lvalue arg in
         BV.BVVar _  (lv ++ "." ++ mem) w i
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
@@ -484,7 +483,7 @@ Section ToGCL.
         error "Headers are not formulae"
       | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
-        let~ w := (width_of_type expr_type) over ("failed getting type of " ++ mem) in
+        let~ w := (width_of_type mem expr_type) over ("failed getting type of " ++ mem) in
         ok (GCL.isone _ (BV.BVVar _ lv w i) i)
       | E.EError _ _ =>
         error "errors are not formulae"
@@ -727,7 +726,7 @@ Section Tests.
         Control.table_actions:= ["set_nhop"; "_drop"]|}
     );
     ("forward",
-     {| Control.table_key:= [(meta "nhop_ipv4" 32, E.MKExact)];
+     {| Control.table_key:= [( meta "nhop_ipv4" 32, E.MKExact)];
         Control.table_actions:= ["set_dmac"; "_drop"] |}
     )
     ].
@@ -788,7 +787,7 @@ Section Tests.
     let (typ, exp) := te in
     let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
     let* acc := acc_res in
-    let* w  := width_of_type typ in
+    let* w  := width_of_type table typ in
     let* k  := to_rvalue _ exp in
     match mk with
     | E.MKExact =>
@@ -814,7 +813,7 @@ Section Tests.
 
   Definition action_inner (table : string) (i : Info) (keys : list (E.t * E.e Info * E.matchkind)) (w : nat) (n : nat) (named_action : string * target Info) (res_acc : result (target Info)) : result (target Info) :=
     let (name, act) := named_action in
-    let* matchcond := matchrow name keys i in
+    let* matchcond := matchrow table keys i in
     let+ acc := res_acc in
     GCL.g_sequence Info i
                    [GCL.GAssume _ matchcond;
@@ -1016,8 +1015,20 @@ Module SimpleNat.
   Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo test.
   (* Compute p4cub_simple_nat. *)
 
-  Compute (let* sn := p4cub_simple_nat in
-           let externs := v1model  in
-           p4cub_to_gcl Info instr 1000 externs pipe sn).
+  Definition is_ok {A : Type} (r : result A) : Prop :=
+    match r with
+    | Error _ _ => False
+    | Ok _ _  => True
+    end.
+
+  Definition simple_nat_test_case :=
+    let* sn := p4cub_simple_nat in
+    let externs := v1model  in
+    p4cub_to_gcl Info instr 1000 externs pipe sn.
+
+  (* Compute simple_nat_test_case. *)
+
+  Lemma simple_nat_test1 : is_ok simple_nat_test_case.
+  Proof. compute. trivial. Qed.
 
 End SimpleNat.

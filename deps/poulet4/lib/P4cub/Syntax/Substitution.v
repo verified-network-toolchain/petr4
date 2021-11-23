@@ -254,7 +254,7 @@ Section TypeSubstitution.
     | TD.TPFunction f tparams params body i =>
       let σ' := remove_types σ tparams in
       let cparams' := tsub_arrowT σ' params in
-      let body' := tsub_s σ body in
+      let body' := tsub_s σ' body in
       TD.TPFunction f tparams cparams' body' i
     | TD.TPPackage p tparams cparams i =>
       let σ' := remove_types σ tparams in

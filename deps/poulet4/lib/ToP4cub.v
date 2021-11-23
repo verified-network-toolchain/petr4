@@ -3,6 +3,7 @@ Require Import Poulet4.SimplExpr.
 Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Substitution
+        Poulet4.P4cub.Syntax.InferMemberTypes
         Poulet4.P4cub.Util.Result
         Poulet4.P4cub.BigStep.InstUtil.
 Import AST Result Envn.
@@ -1292,7 +1293,7 @@ Section ToP4cub.
       add_package ctx p
   end.
 
-    (* This is redunant with the locals resolution in the previous code, but I
+  (* This is redunant with the locals resolution in the previous code, but I
    * can't get it to compile using mutual fixpoints *)
   Definition translate_decls (decls : list (@Declaration tags_t)) : result DeclCtx :=
     let loop := fun acc decl => let* ctx := acc in
@@ -1309,14 +1310,28 @@ Section ToP4cub.
     (hoist_nameless_instantiations tags_t)
       ∘ (SimplExpr.transform_prog tags).
 
-  Print fold_right.
   Definition inline_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
+
+  Print InferMemberTypes.
+
+  Definition infer_member_types (decl : DeclCtx) :=
+    let infer_ds := List.map InferMemberTypes.inf_d in
+    let infer_Cds := List.map InferMemberTypes.inf_Cd in
+    {| controls := infer_ds decl.(controls);
+       parsers := infer_ds decl.(parsers);
+       tables := infer_Cds decl.(tables);
+       actions := infer_Cds decl.(actions);
+       functions := infer_ds decl.(functions);
+       packages := infer_ds decl.(packages);
+       externs := infer_ds decl.(externs);
+       types := decl.(types);
+    |}.
 
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
     let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
-    inline_types cub_decls.
+    infer_member_types (inline_types cub_decls).
 
 End ToP4cub.
 
@@ -1388,6 +1403,6 @@ Definition test := Program
                       ; computeChecksum
                       ; main
                      ].
-(* Compute test. *)
+Compute test.
 
 Compute (translate_program Info NoInfo test).

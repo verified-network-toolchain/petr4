@@ -389,12 +389,9 @@ void interp_bitwise_or(struct BitVec* dst, struct BitVec l, struct BitVec r) {
 void interp_concat(BitVec* dst, BitVec l, BitVec r){
   dst->width = l.width + r.width;
   dst->is_signed = l.is_signed;
-  mpz_t left_shift;
-  mpz_init(left_shift);
-  mpz_set_si(left_shift, (long)r.width);
   mpz_t left_shifted;
   mpz_init(left_shifted);
-  mpz_mul_2exp(left_shifted, l.value, left_shift);
+  mpz_mul_2exp(left_shifted, l.value,  (long unsigned int)r.width);
   mpz_add(dst->value, left_shifted, r.value);
 }
 

@@ -28,6 +28,14 @@ Section CCompSel.
   Definition int_signed := Tint I32 Signed noattr.
   Definition char := Tint I8 Unsigned noattr.
   Definition Cstring := Tpointer char noattr.
+  Definition Cfalse := Econst_int (Integers.Int.zero) (type_bool).
+  Definition Ctrue := Econst_int (Integers.Int.one) (type_bool).
+  Definition Cint_of_Z val:= Econst_int (Integers.Int.repr val) int_signed.
+  Definition Cuint_of_Z val:= Econst_int (Integers.Int.repr val) int_unsigned.
+  Definition Cint_one := Econst_int Integers.Int.one int_signed.
+  Definition Cint_zero := Econst_int Integers.Int.zero int_signed.
+  Definition Cuint_one := Econst_int Integers.Int.one int_unsigned.
+  Definition Cuint_zero := Econst_int Integers.Int.zero int_unsigned.
   Definition bit_vec := 
     (Tstruct (RunTime._BitVec) noattr).
   Definition table_t := 
@@ -199,8 +207,8 @@ Section CCompSel.
   Fixpoint CTranslateExpr (e: Expr.e tags_t) (env: ClightEnv tags_t )
     : @error_monad string (Clight.expr * ClightEnv tags_t ) :=
     match e with
-    | Expr.EBool true i =>   error_ret (Econst_int (Integers.Int.one) (type_bool), env)
-    | Expr.EBool false i =>  error_ret (Econst_int (Integers.Int.zero) (type_bool), env)
+    | Expr.EBool true i =>   error_ret (Ctrue, env)
+    | Expr.EBool false i =>  error_ret (Cfalse, env)
 
     | Expr.EVar ty x i => (*first find if x has been declared. If not, declare it *)
                         let (cty, env_ty) := CTranslateType ty env in
@@ -256,7 +264,7 @@ Section CCompSel.
       let* (stack, env) :=  CTranslateExpr stack env in
       let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) 
         := findStackAttributes stack stack_t env in
-      error_ret (ArrayAccess arr_var (Econst_int (Integers.Int.repr index) int_signed ) val_typ, env)
+      error_ret (ArrayAccess arr_var (Cint_of_Z index) val_typ, env)
 
     | Expr.EError x i => err "EError , todo : implement" (*TODO: implement*)
     | Expr.EMatchKind mk i => err "EMatchKind, todo : implement" (*TODO : implement*)
@@ -454,7 +462,7 @@ Section CCompSel.
     | Expr.NextIndex =>
       let* index := HeaderStackIndex arg env_arg in
       let member := Efield arg' index int_signed in
-      let increment := Ebinop Oadd member (Econst_int Integers.Int.one int_signed) int_signed in
+      let increment := Ebinop Oadd member (Cint_one) int_signed in
       let assign := Sassign member increment in 
       let to_dst := Sassign dst' arg' in
       error_ret (Ssequence assign to_dst, env_arg) 
@@ -599,10 +607,10 @@ Section CCompSel.
     (i : AST.ident) (val_typ : Ctypes.type) (val_typ_valid_index : AST.ident)
   := 
     let ivar := Etempvar i int_signed in
-    let int_one := Econst_int Integers.Int.one int_signed in
-    let int_zero := Econst_int Integers.Int.zero int_signed in
-    let int_n := Econst_int (Integers.Int.repr (Zpos n)) int_signed in
-    let false := Econst_int Integers.Int.zero type_bool in
+    let int_one := Cint_one in
+    let int_zero := Cint_zero in
+    let int_n := Cint_of_Z (Zpos n) in
+    let false := Cfalse in
     let for_loop := 
     Sfor 
     (Sset i (Ebinop Osub size int_one int_signed)) 
@@ -648,10 +656,10 @@ Section CCompSel.
     (i : AST.ident) (val_typ : Ctypes.type) (val_typ_valid_index : AST.ident)
   := 
     let ivar := Etempvar i int_signed in
-    let int_one := Econst_int Integers.Int.one int_signed in
-    let int_zero := Econst_int Integers.Int.zero int_signed in
-    let int_n := Econst_int (Integers.Int.repr (Zpos n)) int_signed in
-    let false := Econst_int Integers.Int.zero type_bool in
+    let int_one := Cint_one in
+    let int_zero := Cint_zero in
+    let int_n := Cint_of_Z (Zpos n) in
+    let false := Cfalse in
     let for_loop := 
     Sfor 
     (Sset i int_zero) 
@@ -695,8 +703,8 @@ Section CCompSel.
     (header_typ : Ctypes.type)
     : @error_monad string (Clight.statement * ClightEnv tags_t)
   := 
-    let true := Econst_int Integers.Int.one type_bool in
-    let int_one := Econst_int Integers.Int.one int_signed in
+    let true := Ctrue in
+    let int_one := Cint_one in
     match headers with
     | [] => error_ret (Sskip, env)
     | header :: tl => 
@@ -713,7 +721,7 @@ Section CCompSel.
     | O => []
     | S l' => 
     getTableActionArgs args l' ++ 
-    [(ArrayAccess args (Econst_int (Integers.Int.repr (Z.of_nat length)) int_signed) bit_vec)]
+    [(ArrayAccess args (Cint_of_Z (Z.of_nat length)) bit_vec)]
     end.
 
   Definition CTranslateTableInvoke (tbl : string) (env: ClightEnv tags_t) :=
@@ -731,7 +739,7 @@ Section CCompSel.
       List.fold_left 
         (fun (x: nat * Clight.statement) val => 
           let (i, st) := x in 
-          let index := Econst_int (Integers.Int.repr (Z.of_nat i)) int_signed in 
+          let index := Cint_of_Z (Z.of_nat i) in 
           let st' := Ssequence st (Sassign (ArrayAccess (Evar arrid t_keys) index bit_vec) (val)) in
           let i' := i+1 in
           (i',st') 
@@ -745,7 +753,7 @@ Section CCompSel.
         (fun f_name (x: @error_monad string (nat*Clight.statement)) =>
           let* (f', f'_id) := CCompEnv.lookup_function tags_t env f_name in
           let* (i, st) := x in 
-          let index := Econst_int (Integers.Int.repr (Z.of_nat i)) int_signed in
+          let index := Cint_of_Z (Z.of_nat i) in
           let st' := Sifthenelse
           (Ebinop Oeq action_to_take_id index type_bool)
           (
@@ -791,16 +799,16 @@ Section CCompSel.
       match e with
       | Expr.EBit width val i => 
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let w := Cint_of_Z (Z.of_N width) in
+        let signed := Cfalse in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
         error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
       
       | Expr.EInt width val i => 
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let w := Cint_of_Z (Zpos width) in
+        let signed := Ctrue in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
         error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
@@ -808,8 +816,8 @@ Section CCompSel.
       | Expr.ESlice n hi lo i =>
         let τ := t_of_e n in
         let* (n', env') := CTranslateExpr n env in
-        let hi' := Econst_int (Integers.Int.repr (Zpos hi)) (int_unsigned) in
-        let lo' := Econst_int (Integers.Int.repr (Zpos lo)) (int_unsigned) in
+        let hi' := Cuint_of_Z (Zpos hi) in
+        let lo' := Cuint_of_Z (Zpos lo) in
         let (tau', env') := CTranslateType τ env' in 
         let dst' := Evar dst' tau' in
         error_ret (Scall None slice_function [n'; hi'; lo'; dst'], env')
@@ -825,13 +833,13 @@ Section CCompSel.
           error_ret (Scall None cast_from_bool_function [dst'; e'], env')
         | Expr.TBit (w), Expr.TInt (_)
         | Expr.TBit (w), Expr.TBit (_) =>
-          let t := Econst_int (Integers.Int.zero) (int_unsigned) in
-          let width := Econst_int (Integers.Int.repr (Z.of_N w)) (int_unsigned) in
+          let t := Cuint_zero in
+          let width := Cuint_of_Z (Z.of_N w) in
           error_ret (Scall None cast_numbers_function [dst'; e'; t; width], env')
         | Expr.TInt (w), Expr.TBit (_)
         | Expr.TInt (w), Expr.TInt (_) =>
-          let t := Econst_int (Integers.Int.zero) (int_unsigned) in
-          let width := Econst_int (Integers.Int.repr (Zpos w)) (int_unsigned) in
+          let t := Cuint_zero in
+          let width := Cuint_of_Z (Zpos w) in
           error_ret (Scall None cast_numbers_function [dst'; e'; t; width], env')
         | _, _ => error_ret (Sskip, env)
         end
@@ -867,8 +875,8 @@ Section CCompSel.
         let stack_var := Evar stack top_typ in
         let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
             findStackAttributes stack_var top_typ env in
-        let int_size := Econst_int (Integers.Int.repr (Zpos size)) int_signed in
-        let int_next := Econst_int (Integers.Int.repr next_index) int_signed in
+        let int_size := Cint_of_Z (Zpos size) in
+        let int_next := Cint_of_Z (next_index) in
         let assignSize := Sassign size_var int_size in
         let assignNext := Sassign next_var int_next in
         let env := add_temp tags_t env "i" int_signed in
@@ -915,11 +923,16 @@ Section CCompSel.
       let* (e', env') := CTranslateExpr e env in
       error_ret ((Sreturn (Some e')), env')
     | Stmt.SReturn None i => error_ret (Sreturn None, env)
-    | Stmt.SExit i => error_ret (Sskip, env) (*TODO: implement, what is this?*)
+    | Stmt.SExit i => error_ret (Sreturn (Some Cfalse), env)
     | Stmt.SApply x ext args i => 
       let* (f', id) := CCompEnv.lookup_function tags_t env x in
       let* (elist, env') := CTranslateDirExprList args env in 
-      error_ret (Scall None (Evar id (Clight.type_of_function f')) elist, env')  (*TODO: figure out why extern args here?*)          
+      let (env', resultid) := CCompEnv.add_temp_nameless tags_t env' type_bool in
+      let result := (Etempvar resultid type_bool) in 
+      let compute := Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
+      let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
+      error_ret (Ssequence compute judge, env')
+
     | Stmt.SInvoke tbl i =>
       CTranslateTableInvoke tbl env  
 
@@ -955,8 +968,8 @@ Section CCompSel.
       let member :=  Efield arg' index type_bool in
       let val := 
         match val with
-        | true => Econst_int Integers.Int.one type_bool
-        | false => Econst_int Integers.Int.zero type_bool
+        | true => Ctrue
+        | false => Cfalse
         end in
       let assign := Sassign member val in
       error_ret (assign , env)  
@@ -1130,8 +1143,8 @@ Section CCompSel.
         let env := add_var tags_t env fresh_name bit_vec in 
         let* dst := find_ident tags_t env fresh_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let w := Cint_of_Z (Z.of_N width) in
+        let signed := Cfalse in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
         error_ret ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
@@ -1142,8 +1155,8 @@ Section CCompSel.
         let env := add_var tags_t env fresh_name bit_vec in 
         let* dst := find_ident tags_t env fresh_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let w := Cint_of_Z (Zpos width) in
+        let signed := Ctrue in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
         error_ret ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
@@ -1160,7 +1173,7 @@ Section CCompSel.
     let dst' := Eaddrof (Evar dst type_bool) TpointerBool in
     match p with
     | Parser.PATWild => 
-      let assign := Sassign dst' (Econst_int (Integers.Int.one) (type_bool)) in 
+      let assign := Sassign dst' Ctrue in 
       error_ret (assign, dst, env)
       
     | Parser.PATMask  p1 p2 => 
@@ -1240,9 +1253,10 @@ Section CCompSel.
         error_ret (Scall None (Evar start_id (Clight.type_of_function start_f)) rec_call_args, env)
 
       | Parser.STAccept =>
-        error_ret ( Sreturn None, env)
+        error_ret ( Sreturn (Some Ctrue), env)
          
-      | Parser.STReject => err "not sure how to implement error state" (*TODO: implement*)
+      | Parser.STReject =>
+        error_ret ( Sreturn (Some Cfalse), env)
       
       | Parser.STName x => 
         let*  (x_f, x_id) := lookup_function tags_t env x in
@@ -1286,7 +1300,7 @@ Section CCompSel.
     let rec_call_args := get_top_args tags_t env' in
     let* (estmt, env') := CTranslateParserExpression pe env' in
     error_ret (Clight.mkfunction
-          Ctypes.Tvoid
+          Ctypes.type_bool
           (AST.mkcallconv None true true)
           params
           (CCompEnv.get_vars tags_t env')
@@ -1311,7 +1325,7 @@ Section CCompSel.
       (*all functions inside one top parser declaration should have the same parameter*)
       let fn_sig := 
         (Clight.mkfunction 
-        Ctypes.Tvoid 
+        type_bool 
         (AST.mkcallconv None true true) 
         fn_params
         []
@@ -1349,7 +1363,7 @@ Section CCompSel.
         copyout)) in 
       let top_function := 
         (Clight.mkfunction
-        Ctypes.Tvoid
+        type_bool
         (AST.mkcallconv None true true)
         fn_params
         (get_vars tags_t env_start_declared)
@@ -1376,7 +1390,7 @@ Section CCompSel.
   let body:= Ssequence copyin (Ssequence c_body copyout) in
   error_ret (
     (Clight.mkfunction 
-      Ctypes.Tvoid
+      type_bool
       (AST.mkcallconv None true true)
       fn_params 
       (get_vars tags_t env_body_translated)
@@ -1402,8 +1416,8 @@ Section CCompSel.
   | Control.CDTable name {|Control.table_key:=keys; Control.table_actions:=acts|} i => 
     let env := add_Table tags_t env name keys acts in 
     let* '(id, _, _) := find_table tags_t env name in 
-    let num_keys :=  Econst_int (Integers.Int.repr (Z.of_nat (List.length keys))) int_signed in
-    let size := Econst_int (Integers.Int.repr (Z.of_nat 256)) int_signed in
+    let num_keys :=  Cint_of_Z (Z.of_nat (List.length keys)) in
+    let size := Cint_of_Z (256) in
     let decl_stmt := Scall (Some id) bitvec_init_function [num_keys; size] in 
     error_ret (decl_stmt, env)
   end.
@@ -1426,7 +1440,7 @@ Section CCompSel.
       let body:= Ssequence init (Ssequence copyin (Ssequence apply_blk copyout)) in
       let top_fn := 
         Clight.mkfunction 
-          Ctypes.Tvoid 
+          type_bool 
           (AST.mkcallconv None true true)
           fn_params 
           (get_vars tags_t env_apply_block_translated)
@@ -1479,17 +1493,17 @@ Section CCompSel.
         let* val_id := find_ident tags_t env arg_name in
         let initialize := 
           if b then 
-            Sassign (Evar val_id type_bool) (Econst_int (Integers.Int.zero) (type_bool)) 
+            Sassign (Evar val_id type_bool) Cfalse 
           else 
-            Sassign (Evar val_id type_bool) (Econst_int (Integers.Int.one) (type_bool)) 
+            Sassign (Evar val_id type_bool) Ctrue 
         in
         error_ret (initialize, env)
       | Expr.EBit width val i => 
         let env := add_var tags_t env arg_name bit_vec in 
         let* dst := find_ident tags_t env arg_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Z.of_N width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.zero) (type_bool) in 
+        let w := Cint_of_Z (Z.of_N width) in
+        let signed := Cfalse in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
         error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
@@ -1497,8 +1511,8 @@ Section CCompSel.
         let env := add_var tags_t env arg_name bit_vec in 
         let* dst := find_ident tags_t env arg_name in
         let (env', val_id) := find_BitVec_String tags_t env val in 
-        let w := Econst_int (Integers.Int.repr (Zpos width)) (int_signed) in
-        let signed := Econst_int (Integers.Int.one) (type_bool) in 
+        let w := Cint_of_Z (Zpos width) in
+        let signed := Ctrue in 
         let val' := Evar val_id Cstring in
         let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
         error_ret (Scall None bitvec_init_function [dst'; signed; w; val'], env')

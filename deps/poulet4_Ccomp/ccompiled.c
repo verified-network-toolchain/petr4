@@ -15,18 +15,18 @@ struct _p_e_t_r_4_0b1010 {
 };
 
 int main();
-void my_compute();
-void test_computeChecksum();
-void my_verify();
-void test_verifyChecksum();
-void my_deparser();
-void test_deparser();
-void my_egress();
-void test_egress();
-void my_ingress();
-void test_ingress();
-void my_parser();
-void start();
+_Bool my_compute();
+_Bool test_computeChecksum();
+_Bool my_verify();
+_Bool test_verifyChecksum();
+_Bool my_deparser();
+_Bool test_deparser();
+_Bool my_egress();
+_Bool test_egress();
+_Bool my_ingress();
+_Bool test_ingress();
+_Bool my_parser();
+_Bool start();
 signed char _p_e_t_r_4_0b101000[2] = { 49, 0, };
 
 int main(void)
@@ -48,7 +48,7 @@ int main(void)
   my_deparser(_p_e_t_r_4_0b111011, _p_e_t_r_4_0b110111);
 }
 
-void my_compute(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b110100)
+_Bool my_compute(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b110100)
 {
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b110101;
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b110011;
@@ -59,7 +59,7 @@ void my_compute(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct _p_e_t_r_4
   *_p_e_t_r_4_0b110100 = _p_e_t_r_4_0b110101;
 }
 
-void test_computeChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b110100)
+_Bool test_computeChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b110100)
 {
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b110101;
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b110011;
@@ -69,7 +69,7 @@ void test_computeChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b110010, struct 
   *_p_e_t_r_4_0b110100 = _p_e_t_r_4_0b110101;
 }
 
-void my_verify(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b101111)
+_Bool my_verify(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b101111)
 {
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b110000;
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b101110;
@@ -80,7 +80,7 @@ void my_verify(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _p_e_t_r_4_
   *_p_e_t_r_4_0b101111 = _p_e_t_r_4_0b110000;
 }
 
-void test_verifyChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b101111)
+_Bool test_verifyChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b101111)
 {
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b110000;
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b101110;
@@ -90,7 +90,7 @@ void test_verifyChecksum(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b101101, struct _
   *_p_e_t_r_4_0b101111 = _p_e_t_r_4_0b110000;
 }
 
-void my_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100101)
+_Bool my_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100101)
 {
   struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100110;
   _p_e_t_r_4_0b100110 = _p_e_t_r_4_0b100101;
@@ -98,7 +98,7 @@ void my_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b1010
   _p_e_t_r_4_0b100101 = _p_e_t_r_4_0b100110;
 }
 
-void test_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100101)
+_Bool test_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b100101)
 {
   struct BitVec _p_e_t_r_4_0b101011;
   struct BitVec _p_e_t_r_4_0b101010;
@@ -114,7 +114,7 @@ void test_deparser(struct packet_out _p_e_t_r_4_0b100100, struct _p_e_t_r_4_0b10
   _p_e_t_r_4_0b100101 = _p_e_t_r_4_0b100110;
 }
 
-void my_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11111, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b100001)
+_Bool my_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11111, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b100001)
 {
   struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b100010;
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b100000;
@@ -128,7 +128,7 @@ void my_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0
   *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
 }
 
-void test_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11111, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b100001)
+_Bool test_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11111, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b100001)
 {
   struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b100010;
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b100000;
@@ -141,7 +141,7 @@ void test_egress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4
   *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
 }
 
-void my_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11000, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b11010)
+_Bool my_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11000, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b11010)
 {
   struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b11011;
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b11001;
@@ -155,7 +155,7 @@ void my_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_4_
   *_p_e_t_r_4_0b11010 = _p_e_t_r_4_0b11011;
 }
 
-void test_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11000, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b11010)
+_Bool test_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b11000, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b11010)
 {
   struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b11011;
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b11001;
@@ -168,7 +168,7 @@ void test_ingress(struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b10110, struct _p_e_t_r_
   *_p_e_t_r_4_0b11010 = _p_e_t_r_4_0b11011;
 }
 
-void my_parser(struct packet_in _p_e_t_r_4_0b1000, struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b1001, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b1101, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b10001)
+_Bool my_parser(struct packet_in _p_e_t_r_4_0b1000, struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b1001, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b1101, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b10001)
 {
   struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b10100;
   struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b10000;
@@ -184,10 +184,10 @@ void my_parser(struct packet_in _p_e_t_r_4_0b1000, struct _p_e_t_r_4_0b1010 *_p_
   *_p_e_t_r_4_0b10001 = _p_e_t_r_4_0b10100;
 }
 
-void start(struct packet_in _p_e_t_r_4_0b1000, struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b1001, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b1101, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b10001)
+_Bool start(struct packet_in _p_e_t_r_4_0b1000, struct _p_e_t_r_4_0b1010 *_p_e_t_r_4_0b1001, struct _p_e_t_r_4_0b1110 *_p_e_t_r_4_0b1101, struct _p_e_t_r_4_0b10010 *_p_e_t_r_4_0b10001)
 {
   /*skip*/;
-  return;
+  return 1;
 }
 
 

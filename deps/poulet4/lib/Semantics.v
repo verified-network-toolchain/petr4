@@ -319,8 +319,8 @@ Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :
   match loc with
   | LInstance p =>
       PathMap.get p (get_memory s)
-  (* TODO deal with local constant *)
   | LGlobal p =>
+      (* This should be impossible. *)
       option_map eval_val_to_sval (PathMap.get p (ge_const ge))
   end.
 
@@ -379,7 +379,20 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                                     else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers size next) "lastIndex" sv.
 
-(* Note that expressions don't need decl_path. *)
+Definition is_directional (dir : direction) : bool :=
+  match dir with
+  | Directionless => false
+  | _ => true
+  end.
+
+Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
+  match loc with
+  | LInstance p =>
+      option_map eval_val_to_sval (PathMap.get (this ++ p) (ge_const ge))
+  | LGlobal p =>
+      option_map eval_val_to_sval (PathMap.get p (ge_const ge))
+  end.
+
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
     (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
@@ -396,11 +409,18 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString (str s))
-  | exec_expr_name: forall name loc sv this st tag typ dir,
-                    loc_to_sval this loc st = Some sv ->
-                    exec_expr read_one_bit this st
-                    (MkExpression tag (ExpName name loc) typ dir)
-                    sv
+  | exec_expr_name_var : forall name loc sv this st tag typ dir,
+                         is_directional dir = true ->
+                         loc_to_sval this loc st = Some sv ->
+                         exec_expr read_one_bit this st
+                         (MkExpression tag (ExpName name loc) typ dir)
+                         sv
+  | exec_expr_name_const : forall name loc sv this st tag typ dir,
+                           is_directional dir = false ->
+                           loc_to_sval_const this loc = Some sv ->
+                           exec_expr read_one_bit this st
+                           (MkExpression tag (ExpName name loc) typ dir)
+                           sv
   | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
                             exec_expr read_one_bit this st idx idxsv ->
                             sval_to_val read_one_bit idxsv idxv ->
@@ -1461,13 +1481,10 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
         this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
-  | exec_stmt_constant: forall typ' name e v sv loc this_path st tags typ st',
-      eval_literal e = Some v ->
-      val_to_sval v sv ->
-      exec_write
-        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+  | exec_stmt_constant: forall typ' name e loc this_path st tags typ,
+      (* Constant is ignored at runtime. *)
       exec_stmt read_one_bit this_path st
-                (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
+                (MkStatement tags (StatConstant typ' name e loc) typ) st SContinue
   (* StatInstantiation is unsupported. If supported, it should be considered in instantiation. *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :
@@ -1944,12 +1961,6 @@ Definition reject_state :=
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
-
-Definition is_directional (dir : direction) : bool :=
-  match dir with
-  | Directionless => false
-  | _ => true
-  end.
 
 Definition action_param_to_p4param (param : Locator * direction) : P4Parameter :=
   let (name, dir) := param in

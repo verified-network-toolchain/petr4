@@ -277,6 +277,7 @@ Section Transformer.
     match tpar with
     | MkTablePreActionRef name args =>
       let name' :=
+        (* Action names should only be global or directly under a control block. *)
         match name_to_loc e name with
         | LGlobal [name'] => QualifiedName [] (P4String.Build_t tags_t default_tag name')
         | LInstance [_] => name

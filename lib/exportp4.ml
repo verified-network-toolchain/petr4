@@ -6,14 +6,6 @@ open Format
               Typed.ml -> Type.v
  ***********************************************)
 
-let print_sep_list ?(sep="") f p l =
-  let print_item b x =
-    if b then fprintf p "%s@ " sep;
-    f p x ;
-    true in
-  ignore (List.fold_left print_item false l)
-
-
 let print_bool p b =
   let s =
     match b with
@@ -53,6 +45,12 @@ let p4string p (s : P4string.t) =
 
 let p4strings =
   print_list p4string
+
+let print_coq_string p s =
+  fprintf p "\"%s\"" s
+
+let print_coq_strings =
+  print_list print_coq_string
 
 let print_nat p n =
   fprintf p "%d" n
@@ -298,10 +296,10 @@ let print_locator p (loc: coq_Locator) =
       fprintf p "NoLocator"
   | LGlobal path ->
       fprintf p "(@[<hov 4>LGlobal@ %a)@]" (* TODO formatting *)
-          (print_sep_list ~sep:" " print_string) path
+          print_coq_strings path
   | LInstance path ->
       fprintf p "(@[<hov 4>LInstance@ %a)@]" (* TODO formatting *)
-          (print_sep_list ~sep:" " print_string) path
+          print_coq_strings path
 
 let rec print_expr p (expr : coq_Expression) =
   match expr with
@@ -611,7 +609,7 @@ let print_parser_state p (state: coq_ParserState) =
 let print_parser_states =
   print_list print_parser_state
 
-let print_sum_type_left f p l=
+let print_sum_type_left f p l =
   fprintf p "(@[<hov 0>inl %a)@]" f l
 
 let print_sum_type_right f p r =

@@ -21,16 +21,21 @@ Section InstEnv.
   Definition ctrl : Type := Env.t string entries.
   
   (** Table environment. *)
+
   Definition tenv : Type := Env.t string (Control.table tags_t).
-  
+
+  Definition empty_tenv := Env.empty string (Control.table tags_t).
+
   (** Function declarations and closures. *)
   Inductive fdecl : Type :=
   | FDecl (closure : epsilon) (* value closure *)
           (fs : Env.t string fdecl) (* function closure *)
+          (* (params : list string) (* function parameters*) *)
           (body : Stmt.s tags_t) (* function body *).
   (**[]*)
   
   Definition fenv : Type := Env.t string fdecl.
+  Definition empty_fenv := Env.t string fdecl.
   
   (** Action declarations and closures. *)
   Inductive adecl : Type :=
@@ -38,10 +43,12 @@ Section InstEnv.
           (fs : fenv) (* function closure *)
           (aa : Env.t string adecl) (* action closure *)
           (eis : ARCH.extern_env) (* extern instance closure *)
+          (* (params : list string) (*action parameters *) *)
           (body : Stmt.s tags_t) (* action body *).
   (**[]*)
   
   Definition aenv : Type := Env.t string adecl.
+  Definition empty_aenv := Env.empty string adecl.
   
   (** Control instances and environment. *)
   Inductive cinst : Type :=
@@ -55,6 +62,7 @@ Section InstEnv.
   (**[]*)
   
   Definition cienv : Type := Env.t string cinst.
+  Definition empty_cienv := Env.empty string cinst.
   
   (** Parser instances. *)
   Inductive pinst : Type :=
@@ -67,6 +75,7 @@ Section InstEnv.
   (**[]*)
   
   Definition pienv : Type := Env.t string pinst.
+  Definition empty_pienv := Env.empty string pinst.
   
   (** Control declarations and closures. *)
   Inductive cdecl : Type :=
@@ -80,6 +89,7 @@ Section InstEnv.
   (**[]*)
 
   Definition cenv : Type := Env.t string cdecl.
+  Definition empty_cdecl := Env.t string cdecl.
   
   (** Parser declarations and closures. *)
   Inductive pdecl : Type :=
@@ -93,6 +103,7 @@ Section InstEnv.
   (**[]*)
 
   Definition penv : Type := Env.t string pdecl.
+  Definition empty_penv := Env.empty string pdecl.
 
   (** Extern declarations and closures. *)
   Inductive edecl : Type :=
@@ -102,4 +113,5 @@ Section InstEnv.
           (eis : ARCH.extern_env) (* extern instance closure *).
 
   Definition eenv : Type := Env.t string edecl.
+  Definition empty_eenv := Env.empty string edecl.
 End InstEnv.

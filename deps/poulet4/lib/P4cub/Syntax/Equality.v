@@ -6,6 +6,7 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
         Poulet4.P4cub.Syntax.CubNotations.
 
+
 Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
@@ -21,7 +22,7 @@ Module TypeEquivalence.
           | t1::ts1, t2::ts2 => eqbt t1 t2 && lstruct ts1 ts2
           | [], _::_ | _::_, [] => false
           end in
-      let fix fstruct (ts1 ts2 : F.fs string t) : bool :=
+      let fix fstruct (ts1 ts2 : F.fs String.string t) : bool :=
           match ts1, ts2 with
           | [], [] => true
           | (x1,t1)::ts1, (x2,t2)::ts2
@@ -309,7 +310,7 @@ Module ExprEquivalence.
             | Forall2_cons _ _ Hh Ht
               => Forall2_cons _ _ (eeind _ _ Hh) (lind Ht)
             end in
-        let fix fsind {fs1 fs2 : F.fs string (e tags_t)}
+        let fix fsind {fs1 fs2 : F.fs String.string (e tags_t)}
                 (Hfs : F.relfs equive fs1 fs2)
             : F.relfs P fs1 fs2 :=
             match Hfs with
@@ -436,7 +437,7 @@ Module ExprEquivalence.
           | [], [] => true
           | e1::es1, e2::es2 => eqbe e1 e2 && lstruct es1 es2
           end in
-      let fix efsstruct (fs1 fs2 : F.fs string (e tags_t)) : bool :=
+      let fix efsstruct (fs1 fs2 : F.fs String.string (e tags_t)) : bool :=
           match fs1, fs2 with
           | [], _::_ | _::_, [] => false
           | [], [] => true
@@ -490,7 +491,7 @@ Module ExprEquivalence.
     Hint Rewrite eqbt_refl.
     Hint Rewrite equiv_dec_refl.
     Local Hint Extern 5 => equiv_dec_refl_tactic : core.
-    Hint Rewrite (@relop_eq string).
+    Hint Rewrite (@relop_eq String.string).
     Hint Rewrite @eqb_list_refl.
     
     (* TODO: somehow using a hidden axiom as an assumption. *)

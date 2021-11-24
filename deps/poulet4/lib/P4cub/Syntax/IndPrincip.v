@@ -3,6 +3,7 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
 Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
+Import String.
 
 (** Custom induction principle for [t]. *)
 Section TypeInduction.

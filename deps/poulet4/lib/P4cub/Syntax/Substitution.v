@@ -1,4 +1,5 @@
 Require Import Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.AST.
+Import String.
 
 (* Module P := P4cub. *)
 Module E := Expr.

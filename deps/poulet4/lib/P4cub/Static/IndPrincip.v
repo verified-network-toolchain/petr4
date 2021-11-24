@@ -4,6 +4,7 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing
         Poulet4.P4cub.Syntax.CubNotations.
+Import String.
 Import AllCubNotations Env.EnvNotations.
 
 (** Custom induction principle for ok types. *)

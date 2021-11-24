@@ -6,7 +6,7 @@ Require Import Coq.micromega.Lia
 Require Import Poulet4.P4cub.Static.Static.
 
 Module V := Val.
-Import AllCubNotations Step
+Import String AllCubNotations Step
        V.ValueNotations V.LValueNotations
        F.FieldTactics ProperType.
 

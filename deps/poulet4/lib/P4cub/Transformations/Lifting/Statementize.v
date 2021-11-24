@@ -1,11 +1,14 @@
 From Poulet4 Require Import Monads.Error
      P4cub.Syntax.AST P4cub.Syntax.Auxilary.
 Require Poulet4.P4cub.Transformations.Lifting.VarNameGen.
+
+Import String.
 Import ListNotations.
 
-Open Scope list_scope.
 Open Scope nat_scope.
 Open Scope string_scope.
+Open Scope list_scope.
+
 
 Section Statementize.
   Context {tags_t : Type}.

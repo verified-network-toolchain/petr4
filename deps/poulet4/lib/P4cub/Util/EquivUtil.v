@@ -2,7 +2,7 @@ Require Export Coq.Numbers.BinNums
         Coq.Bool.Bool
         Poulet4.P4cub.Util.ListUtil.
 Require Import Coq.micromega.Lia.
-Require Coq.Strings.String.
+Require Import Coq.Strings.String.
 
 (** * Useful Notations *)
 
@@ -330,7 +330,8 @@ Instance NEqDec : EqDec N eq := { equiv_dec := BinNat.N.eq_dec }.
 
 Instance ZEqDec : EqDec Z eq := { equiv_dec := BinInt.Z.eq_dec }.
 
-(** Tag-less strings. *)
-Definition string := String.string.
+(* (** Tag-less strings. *) *)
+(* Definition string := String.string. *)
 
-Instance StringEqDec : EqDec string eq := { equiv_dec := Coq.Strings.String.string_dec }.
+
+Instance StringEqDec : EqDec String.string eq := { equiv_dec := Coq.Strings.String.string_dec }.

@@ -856,12 +856,14 @@ Section ToP4cub.
     end.
 
   Definition translate_state_name (state_name : P4String.t tags_t) :=
-    match P4String.str state_name with
-    | "accept" => Parser.STAccept
-    | "reject" => Parser.STReject
-    | "start" => Parser.STStart
-    | st => Parser.STName st
-    end.
+    let s := P4String.str state_name in
+    if String.eqb s "accept"
+    then Parser.STAccept
+    else if String.eqb s "reject"
+         then Parser.STReject
+         else if String.eqb s "start"
+              then Parser.STStart
+              else Parser.STName s.
 
   Fixpoint translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
     let '(MkExpression tags pre_expr typ dir) := e in
@@ -1115,12 +1117,13 @@ Section ToP4cub.
 
   Definition translate_matchkind (matchkind : P4String.t tags_t) : result E.matchkind :=
     let mk_str := P4String.str matchkind in
-    match mk_str with
-    | "lpm" => ok E.MKLpm
-    | "ternary" => ok E.MKTernary
-    | "exact" => ok E.MKExact
-    | _ => error ("Matchkind not supported by P4cub: " ++ mk_str)
-    end.
+    if String.eqb mk_str "lpm"
+    then ok E.MKLpm
+    else if String.eqb mk_str "ternary"
+         then ok E.MKTernary
+         else if String.eqb mk_str "exact"
+              then ok E.MKExact
+              else error ("Matchkind not supported by P4cub: " ++ mk_str).
 
   Definition translate_key (key : TableKey) : result (E.e tags_t * E.matchkind) :=
     let '(MkTableKey tags key_exp matchkind) := key in
@@ -1403,6 +1406,6 @@ Definition test := Program
                       ; computeChecksum
                       ; main
                      ].
-Compute test.
+(* Compute test. *)
 
-Compute (translate_program Info NoInfo test).
+(* Compute (translate_program Info NoInfo test). *)

@@ -5,6 +5,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Static.Static.
+Import String.
 
 Section StepDefs.
   Import TypeEquivalence ProperType

@@ -2,6 +2,8 @@
 
 Require Import Poulet4.P4cub.Envn.
 Require Poulet4.P4cub.Architecture.Paquet.
+Import String.
+
 Module PKT := Paquet.
 (* TODO: helpers need a different file from semantics. *)
 Require Import Coq.ZArith.BinIntDef Poulet4.P4cub.Util.Utiliser.

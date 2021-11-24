@@ -224,9 +224,9 @@ Section Inference.
       let cparams' := inf_arrowT params in
       let body' := inf_s body in
       TD.TPFunction f tparams cparams' body' i
-    | TD.TPPackage p tparams cparams i =>
+    (*| TD.TPPackage p tparams cparams i =>
       let cparams' := F.map inf_cparam cparams in
-      TD.TPPackage p tparams cparams' i
+      TD.TPPackage p tparams cparams' i*)
     | TD.TPSeq d1 d2 i =>
       TD.TPSeq (inf_d d1) (inf_d d2) i
     end.

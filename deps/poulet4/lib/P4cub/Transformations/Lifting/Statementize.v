@@ -346,8 +346,8 @@ Fixpoint TranslateTopDecl
     let (body', env_body) := TranslateStatement body env in 
     error_ret (TopDecl.TPFunction f tparams signature body' i, env_body)
               
-  | TopDecl.TPPackage p tparams cparams i => 
-    error_ret (TopDecl.TPPackage p tparams cparams i, env)
+  (*| TopDecl.TPPackage p tparams cparams i => 
+    error_ret (TopDecl.TPPackage p tparams cparams i, env)*)
 
   | TopDecl.TPSeq d1 d2 i => 
     let* (d1', env_d1) := TranslateTopDecl d1 env in

@@ -1559,7 +1559,6 @@ Section CCompSel.
   (* CTranslateTopControl d env *)
   | TopDecl.TPParser name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
    (* CTranslateTopParser d env *)
-  | TopDecl.TPPackage name _ _ _ =>  error_ret (add_tpdecl tags_t env name d) (*TODO: implement*)
   end.
 
   Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 

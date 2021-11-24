@@ -495,13 +495,13 @@ Inductive check_topdecl
     ⦗ cs, fns, pgis, cis, pis, eis, \Delta ⦘
       ⊢ extern e (cparams) { mthds } @ i
       ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn;; cs ⦘ *)
-| chk_package (pkg : string)
+(*| chk_package (pkg : string)
               (TS : list string)
               (cparams : Expr.constructor_params) (i : tags_t) :
     let pkge := {{{ PackageType cparams }}} in
     ⦗ cs, fns, pgis, cis, pis, eis ⦘
       ⊢ package pkg <TS> (cparams) @ i
-      ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge;; cs ⦘
+      ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge;; cs ⦘*)
 | chk_fruit_function (f : string) (params : Expr.params)
                      (Δ : list string)
                      (τ : Expr.t) (body : Stmt.s tags_t) (i : tags_t)

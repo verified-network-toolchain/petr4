@@ -23,32 +23,25 @@ Section TypingDefs.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
 
+  Variant funtype :=
+  | FTInternal
+      (params : list (typ * direction))
+      (returns : option typ)
+  | FTTable
+      (keys : list (typ * string))
+  | FTExternal
+      (class name : ident).
+  
   (* Local variable typing environment. *)
   Definition gamma_local := PathMap.t typ.
 
   (* Constant & global variable typing environment. *)
   Definition gamma_const := PathMap.t typ.
-
-  (* Function definition typing environment. TODO! *)
-  Definition gamma_func := PathMap.t unit.
-
-  (* Instance typing environment. TODO. *)
-  Definition gamma_inst := PathMap.t unit.
-
-  (* Extern instance typing environment. TODO. *)
-  Definition gamma_ext := PathMap.t unit.
   
   (* Expression typing environment. *)
   Record gamma_expr := {
     local_gamma :> gamma_local;
     const_gamma :> gamma_const }.
-    
-  (* Statement typing Environment. *)
-  Record gamma_stmt : Type := {
-    expr_gamma :> gamma_expr;
-    func_gamma :> gamma_func;
-    inst_gamma :> gamma_inst;
-    ext_gamma :> gamma_ext }.
 
   (** TODO: is this correct?
       Typing analogue to [loc_to_sval].
@@ -58,28 +51,6 @@ Section TypingDefs.
     match l with
     | LInstance p => PathMap.get p (local_gamma g)
     | LGlobal   p => PathMap.get p (const_gamma g)
-    end.
-
-  (** TODO: is search correct?
-      TODO: Function type is a stub.
-      TODO: incomplete case elimination.
-      Typing analogue to [lookup_func]. *)
-  Definition lookup_func_typ
-             (this : path) (gf : gamma_func)
-             (gi : gamma_inst) (func : expr)
-    : option (path * unit) :=
-    match func with
-    | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
-      option_map (fun funt => (nil, funt)) (PathMap.get p gf)
-    | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
-      match PathMap.get this gi with
-      | Some _ (* class name? *) =>
-        option_map
-          (fun funt => (this, funt))
-          (PathMap.get (nil (* todo: class name? *) ++ p) gf)
-      | None => None
-      end
-    | _ => None
     end.
   
   Context `{T : @Target tags_t expr}.
@@ -99,8 +70,66 @@ Section TypingDefs.
   Definition gamma_expr_prop
              (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_expr_domain p g st ge /\ gamma_expr_val_typ p g st ge.
+  
+  Notation run_expr := (@exec_expr tags_t dummy T).
+  Notation run_stmt := (@exec_stmt tags_t dummy T).
+  Notation run_blk := (@exec_block tags_t dummy T).
 
-  Set Printing Implicit.
+  Definition typ_of_expr
+             '(MkExpression _ _ t _ : expr) : typ := t.
+
+  Definition typ_of_stmt
+             '(MkStatement _ _ t : stmt) : StmType := t.
+  
+  (** Expression typing. *)
+  Definition expr_types (this : path) (g : gamma_expr) (e : expr) : Prop :=
+    forall (read_one_bit : option bool -> bool -> Prop)
+      (ge : genv) (st : state),
+      read_one_bit_reads read_one_bit ->
+      gamma_expr_prop this g st ge ->
+      (exists v, run_expr ge read_one_bit this st e v) /\
+      forall v, run_expr ge read_one_bit this st e v ->
+           val_typ (ge_senum ge) v (typ_of_expr e).
+  (**[]*)
+
+  (* Function definition typing environment. TODO! *)
+  Definition gamma_func := PathMap.t funtype.
+
+  (* Instance typing environment. TODO. *)
+  Definition gamma_inst := PathMap.t unit.
+
+  (* Extern instance typing environment. TODO. *)
+  Definition gamma_ext := PathMap.t unit.
+
+  (* Statement typing Environment. *)
+  Record gamma_stmt : Type := {
+    expr_gamma :> gamma_expr;
+    func_gamma :> gamma_func;
+    inst_gamma :> gamma_inst;
+    ext_gamma :> gamma_ext }.
+
+  (** TODO: is search correct?
+      TODO: Function type is a stub.
+      TODO: incomplete case elimination.
+      Typing analogue to [lookup_func]. *)
+  Definition lookup_func_typ
+             (this : path) (gf : gamma_func)
+             (gi : gamma_inst) (func : expr)
+    : option (path * funtype) :=
+    match func with
+    | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
+      option_map (fun funt => (nil, funt)) (PathMap.get p gf)
+    | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
+      match PathMap.get this gi with
+      | Some _ (* class name? *) =>
+        option_map
+          (fun funt => (this, funt))
+          (PathMap.get (nil (* todo: class name? *) ++ p) gf)
+      | None => None
+      end
+    | _ => None
+    end.
+  
   (* TODO: is this correct? *)
   Definition gamma_inst_domain
              (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
@@ -124,47 +153,47 @@ Section TypingDefs.
              (gi : gamma_inst) (ge : genv) : Prop := forall (e : expr),
       lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
 
+  Variant fundef_funtype_match
+          (Γ : gamma_expr) (this : path)
+    : @fundef tags_t -> funtype -> Prop :=
+  | Internal_match params init body params' rt :
+      Forall2 (fun '(_,d) '(_,d') => d = d') params params' ->
+      fundef_funtype_match Γ this (FInternal params init body) (FTInternal params' rt)
+  | Table_match name keys actions dflt entries key_typs :
+      Forall2
+        (fun '(MkTableKey _ e mk) '(t,mk') =>
+           expr_types this Γ e /\
+           typ_of_expr e = t /\ P4String.str mk = mk')
+        keys key_typs ->
+      fundef_funtype_match
+        Γ this
+        (FTable name keys actions dflt entries)
+        (FTTable key_typs)
+  | External_match (class name : string) :
+      fundef_funtype_match
+        Γ this (FExternal class name) (FTExternal class name).
+  
   (** TODO: stub. *)
   Definition gamma_func_types
-             (this : path) (gf : gamma_func) (gi : gamma_inst) (ge : genv) : Prop :=
-    forall (e : expr) (p p' : path) (fd : fundef) (ft : unit),
+             (this : path) (g : gamma_expr) (gf : gamma_func)
+             (gi : gamma_inst) (ge : genv) : Prop :=
+    forall (e : expr) (p p' : path) (fd : fundef) (ft : funtype),
       lookup_func_typ this gf gi e = Some (p,ft) ->
       lookup_func ge this e = Some (p',fd) ->
-      p = p' /\
-      True (* Stub, some property on [fd] and [ft]. *).
+      p = p' /\ fundef_funtype_match g this fd ft.
 
   Definition gamma_func_prop
-             (this : path) (gf : gamma_func) (gi : gamma_inst) (ge : genv) : Prop :=
-    gamma_func_domain this gf gi ge /\ gamma_func_types this gf gi ge.
+             (this : path) (g : gamma_expr)
+             (gf : gamma_func) (gi : gamma_inst) (ge : genv) : Prop :=
+    gamma_func_domain this gf gi ge /\ gamma_func_types this g gf gi ge.
 
   (** TODO: externs... *)
   Definition gamma_stmt_prop
              (this : path) (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
     gamma_inst_prop (inst_gamma g) ge /\
-    gamma_func_prop this (func_gamma g) (inst_gamma g) ge.
+    gamma_func_prop this (expr_gamma g) (func_gamma g) (inst_gamma g) ge.
   
-  Notation run_expr := (@exec_expr tags_t dummy T).
-  Notation run_stmt := (@exec_stmt tags_t dummy T).
-  Notation run_blk := (@exec_block tags_t dummy T).
-
-  Definition typ_of_expr
-             '(MkExpression _ _ t _ : expr) : typ := t.
-
-  Definition typ_of_stmt
-             '(MkStatement _ _ t : stmt) : StmType := t.
-  
-  (** Expression typing. *)
-  Definition expr_types (this : path) (g : gamma_expr) (e : expr) : Prop :=
-    forall (read_one_bit : option bool -> bool -> Prop)
-      (ge : genv) (st : state),
-      read_one_bit_reads read_one_bit ->
-      gamma_expr_prop this g st ge ->
-      (exists v, run_expr ge read_one_bit this st e v) /\
-      forall v, run_expr ge read_one_bit this st e v ->
-           val_typ (ge_senum ge) v (typ_of_expr e).
-  (**[]*)
-
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
     | StmUnit, _
@@ -842,8 +871,7 @@ Section Soundness.
       Γ ⊢e e₁ ≀ this ->
       Γ ⊢e e₂ ≀ this ->
       Γ ⊢s MkStatement
-        tag (StatAssignment e₁ e₂) StmUnit
-        ⊣ (* relation to update context with this_path and type. *) Γ ≀ this.
+        tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
@@ -884,7 +912,7 @@ Section Soundness.
     Lemma block_sound : forall Γ' tag blk t,
         Block_StmTypes blk t ->
         Γ ⊢b blk ⊣ Γ' ≀ this ->
-        Γ ⊢s MkStatement tag (StatBlock blk) t ⊣ Γ' ≀ this.
+        Γ ⊢s MkStatement tag (StatBlock blk) t ⊣ Γ ≀ this.
     Proof.
     Admitted.
   End StmtTyping.

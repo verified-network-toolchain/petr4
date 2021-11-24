@@ -352,9 +352,9 @@ Module TopDeclNotations.
   Notation "'parser' p ( cparams ) ( eps ) ( params ) 'start' ':=' st { states } @ i"
     := (TPParser p cparams eps params st states i)
          (in custom p4topdecl at level 0, st custom p4prsrstateblock).
-  Notation "'package' p < tparams > ( cparams ) @ i"
+  (*Notation "'package' p < tparams > ( cparams ) @ i"
     := (TPPackage p tparams cparams i)
-         (in custom p4topdecl at level 0).
+         (in custom p4topdecl at level 0).*)
 End TopDeclNotations.
 
 Module AllCubNotations.

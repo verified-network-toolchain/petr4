@@ -86,7 +86,7 @@ Section TypeSubstitution.
     let* e := ret in
     Some (tsub_e σ e).
 
-  Print arrow.
+  (*Print arrow.*)
 
   Definition tsub_arrowE (σ : Env.t string E.t) (ar : E.arrowE tags_t) :=
     let args := paramargs ar in
@@ -190,7 +190,7 @@ Section TypeSubstitution.
     let σ' := remove_types σ type_params in
     (type_params, tsub_arrowT σ' arrow).
 
-  Print Control.table.
+  (*Print Control.table.*)
 
   Definition tsub_table (σ : Env.t string E.t) (tbl : Control.table tags_t) :=
     let tbl_keys := Control.table_key tbl in
@@ -256,10 +256,10 @@ Section TypeSubstitution.
       let cparams' := tsub_arrowT σ' params in
       let body' := tsub_s σ' body in
       TD.TPFunction f tparams cparams' body' i
-    | TD.TPPackage p tparams cparams i =>
+    (*| TD.TPPackage p tparams cparams i =>
       let σ' := remove_types σ tparams in
       let cparams' := F.map (tsub_cparam σ') cparams in
-      TD.TPPackage p tparams cparams' i
+      TD.TPPackage p tparams cparams' i*)
     | TD.TPSeq d1 d2 i =>
       TD.TPSeq (tsub_d σ d1) (tsub_d σ d2) i
     end.

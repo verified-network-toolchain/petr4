@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Export Poulet4.Syntax.
 Require Import Poulet4.SimplExpr.
 Require Export
@@ -180,7 +181,7 @@ Section ToP4cub.
        types := (typvar, type) :: tsub_ts σ decl.(types);
     |}.
 
-  Print arrow.
+  (*Print arrow.*)
 
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
@@ -230,7 +231,7 @@ Section ToP4cub.
     | TopDecl.TPControl control_name _ _ _ _ _ _ => matches control_name
     | TopDecl.TPParser parser_name _ _ _ _ _ _ => matches parser_name
     | TopDecl.TPFunction function_name _ _ _ _ => matches function_name
-    | TopDecl.TPPackage package_name _ _ _ => matches package_name
+    (*| TopDecl.TPPackage package_name _ _ _ => matches package_name*)
     | TopDecl.TPSeq _ _ _ =>
       (* Should Not Occur *)
       false
@@ -435,7 +436,7 @@ Section ToP4cub.
     let '(MkExpression _ _ typ _) := e in
     typ.
 
-  Print TypBool.
+  (*Print TypBool.*)
   Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
     match t with
     | TypBool => error "cannot get  from boolean"
@@ -980,12 +981,12 @@ Section ToP4cub.
   Fixpoint translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
     fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
 
-  Print TopDecl.d.
+  (*Print TopDecl.d.*)
 
   Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result (E.constructor_params) :=
     match lookup_instantiatable ctx name with
-    | Some (TopDecl.TPPackage _ _ cparams _) =>
-      ok cparams
+    (*| Some (TopDecl.TPPackage _ _ cparams _) =>
+      ok cparams*)
     | Some (TopDecl.TPParser _ cparams _ _ _ _ _)  =>
       ok cparams
     | Some (TopDecl.TPControl _ cparams _ _ _ _ _) =>
@@ -1031,7 +1032,7 @@ Section ToP4cub.
     let* cub_args := rred (List.map translate_constructor_arg_expression args) in
     translate_instantiation_args params cub_args.
 
-  Print P4Type.
+  (*Print P4Type.*)
 
 
   Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * E.ct) :=
@@ -1161,7 +1162,7 @@ Section ToP4cub.
 
   Definition translate_actions (actions : list TableActionRef) : result (list string) :=
     List.fold_right translate_actions_loop (ok []) actions.
-  Print DeclInstantiation.
+  (*Print DeclInstantiation.*)
 
 
   Definition translate_decl_fields (fields : list DeclarationField) : result (F.fs string E.t) :=
@@ -1286,11 +1287,13 @@ Section ToP4cub.
     (* error "[FIXME] ParserType declarations unimplemented" *)
       ok ctx
     | DeclPackageType tags name type_params parameters =>
-      let cub_name := P4String.str name in
+      (*let cub_name := P4String.str name in
       let cub_type_params := List.map (@P4String.str tags_t) type_params in
       let+ cub_params := translate_constructor_parameters tags parameters in
       let p := TopDecl.TPPackage cub_name cub_type_params cub_params tags in
-      add_package ctx p
+      add_package ctx p*)
+      ok ctx
+         (* error "[FIXME] P4light inlining step necessary" *)
   end.
 
   (* This is redunant with the locals resolution in the previous code, but I
@@ -1313,7 +1316,7 @@ Section ToP4cub.
   Definition inline_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
 
-  Print InferMemberTypes.
+  (*Print InferMemberTypes.*)
 
   Definition infer_member_types (decl : DeclCtx) :=
     let infer_ds := List.map InferMemberTypes.inf_d in
@@ -1403,6 +1406,6 @@ Definition test := Program
                       ; computeChecksum
                       ; main
                      ].
-Compute test.
+(*Compute test.*)
 
-Compute (translate_program Info NoInfo test).
+(*Compute (translate_program Info NoInfo test).*)

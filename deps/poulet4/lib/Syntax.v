@@ -14,7 +14,7 @@ Section Syntax.
   Notation P4String := (P4String.t tags_t).
   Notation P4Int := (P4Int.t tags_t).
 
-  Inductive MethodPrototype :=
+  Variant MethodPrototype :=
   | ProtoConstructor (tags: tags_t) (name: P4String)
                      (params: list (@P4Parameter tags_t))
   | ProtoAbstractMethod (tags: tags_t) (ret: @P4Type tags_t)
@@ -24,12 +24,12 @@ Section Syntax.
                 (name: P4String) (type_params: list P4String)
                 (params: list (@P4Parameter tags_t)).
 
-  Inductive OpUni : Type :=
+  Variant OpUni : Type :=
   | Not
   | BitNot
   | UMinus.
 
-  Inductive OpBin : Type :=
+  Variant OpBin : Type :=
   | Plus
   | PlusSat
   | Minus
@@ -52,13 +52,13 @@ Section Syntax.
   | And
   | Or.
 
-  Inductive Locator :=
+  Variant Locator :=
   | LGlobal (p: list string)
   | LInstance (p: list string).
 
   Definition NoLocator := LGlobal nil.
 
-  (* Inductive KeyValue :=
+  (* Variant KeyValue :=
   | MkKeyValue (tags: tags_t) (key: P4String) (value: Expression) *)
   Inductive ExpressionPreT :=
   | ExpBool (b: bool)
@@ -83,36 +83,36 @@ Section Syntax.
   with Expression :=
   | MkExpression (tags: tags_t) (expr: ExpressionPreT) (typ: @P4Type tags_t) (dir: direction).
 
-  Inductive MatchPreT :=
+  Variant MatchPreT :=
   | MatchDontCare
   | MatchMask (expr: Expression) (mask: Expression)
   | MatchRange (lo: Expression) (hi: Expression)
   | MatchCast (typ: @P4Type tags_t) (expr: Expression).
 
-  Inductive Match :=
+  Variant Match :=
   | MkMatch (tags: tags_t) (expr: MatchPreT) (typ: @P4Type tags_t).
 
-  Inductive TablePreActionRef :=
+  Variant TablePreActionRef :=
   | MkTablePreActionRef (name: @Typed.name tags_t)
                         (args: list (option Expression)).
 
-  Inductive TableActionRef :=
+  Variant TableActionRef :=
   | MkTableActionRef (tags: tags_t) (action: TablePreActionRef)
                      (typ: @Typed.P4Type tags_t).
 
-  Inductive TableKey :=
+  Variant TableKey :=
   | MkTableKey (tags: tags_t)  (key: Expression)
                (match_kind: P4String).
 
-  Inductive TableEntry :=
+  Variant TableEntry :=
   | MkTableEntry (tags: tags_t)  (matches: list Match)
                  (action: TableActionRef).
 
-  Inductive TableProperty :=
+  Variant TableProperty :=
   | MkTableProperty (tags: tags_t)  (const: bool)
                     (name: P4String) (value: Expression).
 
-  Inductive StatementSwitchLabel :=
+  Variant StatementSwitchLabel :=
   | StatSwLabDefault (tags: tags_t)
   | StatSwLabName (tags: tags_t) (_: P4String).
 
@@ -330,18 +330,18 @@ Section Syntax.
       end.
   End statement_rec.
 
-  Inductive ParserCase :=
+  Variant ParserCase :=
   | MkParserCase (tags: tags_t) (matches: list Match) (next: P4String).
 
-  Inductive ParserTransition :=
+  Variant ParserTransition :=
   | ParserDirect (tags: tags_t) (next: P4String)
   | ParserSelect (tags: tags_t) (exprs: list Expression) (cases: list ParserCase).
 
-  Inductive ParserState :=
+  Variant ParserState :=
   | MkParserState (tags: tags_t)  (name: P4String)
                   (statements: list Statement) (transition: ParserTransition).
 
-  Inductive DeclarationField :=
+  Variant DeclarationField :=
   | MkDeclarationField (tags: tags_t)  (typ: @P4Type tags_t)
                        (name: P4String).
 
@@ -409,6 +409,6 @@ Section Syntax.
       methods: list ExternMethod;
       abst_methods: list ExternMethod }.
 
-  Inductive program := Program (_: list Declaration).
+  Variant program := Program (_: list Declaration).
 
 End Syntax.

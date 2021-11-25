@@ -945,7 +945,7 @@ Section ToP4cub.
     let*~ def := def_opt else "ERROR, could not retrieve default from parser case list" in
     ok (def, cases).
 
-  Fixpoint translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
+  Definition translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
     match transition with
     | ParserDirect tags next =>
       let next_state := translate_state_name next in
@@ -964,7 +964,7 @@ Section ToP4cub.
                (ok (ST.SSkip tags))
                statements.
 
-  Fixpoint translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
+  Definition translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
     let '(MkParserState tags name statements transition) := pstate in
     let* ss := translate_statements ctx tags statements in
     let+ trans := translate_transition transition in
@@ -978,7 +978,7 @@ Section ToP4cub.
     then (Some state, (nm, state)::states)
     else (start_opt, (nm, state)::states).
 
-  Fixpoint translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
+  Definition translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
     fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
 
   (*Print TopDecl.d.*)

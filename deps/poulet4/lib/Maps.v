@@ -17,7 +17,9 @@ Module FuncAsMap.
     Definition get: key -> t -> option value := fun k fmap => fmap k.
     Definition set: key -> value -> t -> t :=
       fun k v fmap x => if key_eqb x k then Some v else fmap x.
-
+    Definition remove (ky : key) (fmap : t) : t :=
+      fun k => if key_eqb k ky then None else fmap k.
+    
     Definition sets: list key -> list value -> t -> t :=
       fun kList vList fmap =>
         fold_left (fun fM kvPair => set (fst kvPair) (snd kvPair) fM)
@@ -25,6 +27,9 @@ Module FuncAsMap.
 
     Definition gets (kl: list key) (m: t): list (option value) :=
       map (fun k => get k m) kl.
+
+    Definition removes (ks : list key) (m : t) : t :=
+      List.fold_right remove m ks.
   End FuncAsMap.
 
   Section FuncMapMap.
@@ -62,10 +67,13 @@ Definition empty : t := FuncAsMap.empty.
 Definition get : ident -> t -> option A := FuncAsMap.get.
 Definition set : ident -> A -> t -> t :=
   @FuncAsMap.set ident String.eqb A.
+Definition remove : ident -> t -> t :=
+  @FuncAsMap.remove ident String.eqb A.
 Definition sets: list ident -> list A -> t -> t :=
   @FuncAsMap.sets ident String.eqb A.
 Definition gets: list ident -> t -> list (option A) := FuncAsMap.gets.
-
+Definition removes : list ident -> t -> t :=
+  @FuncAsMap.removes ident String.eqb A.
 End IdentMap.
 
 End IdentMap.
@@ -91,10 +99,13 @@ Definition empty : t := FuncAsMap.empty.
 Definition get : path -> t -> option A := FuncAsMap.get.
 Definition set : path -> A -> t -> t :=
   @FuncAsMap.set path path_equivb A.
+Definition remove : path -> t -> t :=
+  @FuncAsMap.remove path path_equivb A.
 Definition sets : list path -> list A -> t -> t :=
   @FuncAsMap.sets path path_equivb A.
 Definition gets: list path -> t -> list (option A) := FuncAsMap.gets.
-
+Definition removes : list path -> t -> t :=
+  @FuncAsMap.removes path path_equivb A.
 End PathMap.
 
 End PathMap.

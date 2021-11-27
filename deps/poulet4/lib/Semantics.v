@@ -914,7 +914,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       end
   (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
-      if P4String.equivb name !"apply" then
+      if String.eqb (P4String.str name) "apply" then
         match expr with
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
@@ -956,18 +956,19 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                       (MkExpression tag (ExpName name loc) typ dir)
                       (MkValueLvalue (ValLeftName name loc) typ) SContinue
   | exec_lexpr_member : forall expr lv name this st tag typ dir sig,
-                        P4String.equivb !"next" name = false ->
+                        String.eqb (P4String.str name) "next" = false ->
                         exec_lexpr read_one_bit this st expr lv sig ->
                         exec_lexpr read_one_bit this st
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
                         (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
   (* next < 0 is impossible by syntax. *)
-  | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig ret_sig,
+  | exec_lexpr_member_next : forall expr lv name headers size next this st tag typ dir sig ret_sig,
+                             String.eqb (P4String.str name) "next" = true ->
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
                              (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
-                             (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
+                             (MkExpression tag (ExpExpressionMember expr name) typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
   (* ATTN: lo and hi interchanged here *)
   | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsbl this st tag typ dir sig,
@@ -990,26 +991,6 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
-
-Definition locator_equivb (loc1 loc2 : Locator) : bool :=
-  match loc1, loc2 with
-  | LInstance p1, LInstance p2 => path_eqb p1 p2
-  | LGlobal p1, LGlobal p2 => path_eqb p1 p2
-  | _, _ => false
-  end.
-
-Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
-  match lv1, lv2 with
-  | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
-      locator_equivb loc1 loc2
-  | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
-      lval_equivb lv1 lv2 && String.eqb member1 member2
-  | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
-      lval_equivb lv1 lv2 && N.eqb msb1 msb2 && N.eqb lsb1 lsb2
-  | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
-      lval_equivb lv1 lv2 && N.eqb idx1 idx2
-  | _, _ => false
-  end.
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
@@ -1839,7 +1820,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name !"packet_in"
+          String.eqb (P4String.str name) "packet_in"
       | _ => false
       end
   end.
@@ -1851,7 +1832,7 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name !"packet_out"
+          String.eqb (P4String.str name) "packet_out"
       | _ => false
       end
   end.

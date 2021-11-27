@@ -993,8 +993,8 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
 
 Definition locator_equivb (loc1 loc2 : Locator) : bool :=
   match loc1, loc2 with
-  | LInstance p1, LInstance p2 => path_equivb p1 p2
-  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
+  | LInstance p1, LInstance p2 => path_eqb p1 p2
+  | LGlobal p1, LGlobal p2 => path_eqb p1 p2
   | _, _ => false
   end.
 
@@ -1524,9 +1524,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
-      (if path_equivb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
+      (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
       exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
-      (if path_equivb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
+      (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
       exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
@@ -1765,7 +1765,7 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
       (* Can inst be a Val, or just an inst_ref? *)
       let inst := force dummy_ienv_val (IdentMap.get (str name) e) in
-      let m := if path_equivb p [] then m else set_inst_mem p inst m in
+      let m := if path_eqb p [] then m else set_inst_mem p inst m in
       (inst, m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' ce e typ args p m s
@@ -2070,7 +2070,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
-        if path_equivb p [] then
+        if path_eqb p [] then
           map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in

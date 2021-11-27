@@ -82,7 +82,7 @@ Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
   Nat.eqb (length al) (length bl) &&
   forallb (uncurry eqb) (combine al bl).
 
-Definition path_equivb :
+Definition path_eqb :
   (list String.string) -> (list String.string) -> bool :=
   list_eqb String.eqb.
 
@@ -98,14 +98,14 @@ Definition t := @FuncAsMap.t path A.
 Definition empty : t := FuncAsMap.empty.
 Definition get : path -> t -> option A := FuncAsMap.get.
 Definition set : path -> A -> t -> t :=
-  @FuncAsMap.set path path_equivb A.
+  @FuncAsMap.set path path_eqb A.
 Definition remove : path -> t -> t :=
-  @FuncAsMap.remove path path_equivb A.
+  @FuncAsMap.remove path path_eqb A.
 Definition sets : list path -> list A -> t -> t :=
-  @FuncAsMap.sets path path_equivb A.
+  @FuncAsMap.sets path path_eqb A.
 Definition gets: list path -> t -> list (option A) := FuncAsMap.gets.
 Definition removes : list path -> t -> t :=
-  @FuncAsMap.removes path path_equivb A.
+  @FuncAsMap.removes path path_eqb A.
 End PathMap.
 
 End PathMap.

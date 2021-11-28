@@ -256,4 +256,14 @@ Section Value.
              rewrite combine_split by auto;
              f_equal; rewrite H; reflexivity).
   Qed.
+
+  Inductive signal : Type :=
+ | SContinue : signal
+ | SReturn : (@ValueBase bool) -> signal
+ | SExit
+ (* parser's states include accept and reject *)
+ | SReject : string -> signal.
+
+  Definition SReturnNull := SReturn ValBaseNull.
+
 End Value.

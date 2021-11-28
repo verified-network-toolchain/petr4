@@ -2,7 +2,7 @@ Require Import Poulet4.Typed Poulet4.Syntax Poulet4.Maps Coq.Lists.List.
 Require Poulet4.P4String.
 Import List.ListNotations.
 
-(* TODO: inline type-declarations in p4light programs. *)
+(** * Inline type-declarations in p4light programs. *)
 
 Context {tags_t : Type}.
 Notation typ := (@P4Type tags_t).
@@ -31,6 +31,9 @@ Definition
 Notation "σ '∖' Xs"
   := (IdentMap.removes Xs σ)
        (at level 10, left associativity) : sub_scope.
+Notation "X '|->' τ ';;'  σ"
+  := (IdentMap.set X τ σ)
+       (at level 12, right associativity) : sub_scope.
 
 (** [P4Type] substition. *)
 Reserved Notation "σ '†t'" (at level 11, right associativity).
@@ -62,10 +65,6 @@ Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
   | TypHeader τs            => TypHeader (almap (σ †t) τs)
   | TypHeaderUnion τs       => TypHeaderUnion (almap (σ †t) τs)
   | TypEnum x τ mems        => TypEnum x (omap (σ †t) τ) mems
-  (* TODO: correct? *)
-  | TypTypeName
-      (BareName T
-      | QualifiedName _ T)  => sub_default σ (P4String.str T) τ
   | TypNewType x τ          => TypNewType x (σ †t τ)
   | TypControl ct           => TypControl (σ †ct ct)
   | TypParser  ct           => TypParser  (σ †ct ct)
@@ -73,6 +72,11 @@ Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
   | TypFunction ft          => TypFunction (σ †ft ft)
   | TypAction cps ps        => TypAction (lmap (σ †p) cps) (lmap (σ †p) ps)
   | TypSpecializedType τ τs => TypSpecializedType (σ †t τ) (lmap (σ †t) τs)
+  (* TODO: correct? *)
+  | TypTypeName
+      (BareName {| P4String.str := T |}
+      | QualifiedName _ {| P4String.str := T |})
+    => sub_default σ T τ
   | TypPackage Xs ws params
     => TypPackage Xs ws (lmap (σ ∖ (lmap P4String.str Xs) †p) params)
   | TypConstructor Xs ws ps τ
@@ -324,17 +328,19 @@ Notation "σ '†ps'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_DeclarationField
+  inline_typ_DeclarationField
   (σ : substitution) '(MkDeclarationField i τ x : DeclarationField)
-  : DeclarationField := MkDeclarationField i (σ †t τ) x.
+  : P4String.t _ * P4Type := (x, σ †t τ).
 
-Notation "σ '†df'"
-  := (sub_typs_DeclarationField σ)
+Notation "σ '‡df'"
+  := (inline_typ_DeclarationField σ)
        (at level 11, right associativity) : sub_scope.
+
+Reserved Notation "σ '‡d'" (at level 11, right associativity).
 
 (** Inline type declarations. *)
 Fixpoint
-  inline_typ_decl
+  inline_typ_Declaration
   (σ : substitution) (d : Declaration) {struct d}
   : substitution * option Declaration :=
   let fix itds σ ds
@@ -342,7 +348,7 @@ Fixpoint
       match ds with
       | [] => (σ, [])
       | d :: ds
-        => let '(σ',dio) := inline_typ_decl σ d in
+        => let '(σ',dio) := σ ‡d d in
           let (σ'', ds') := itds σ' ds in
           (σ'', match dio with
                 | Some d' => [d']
@@ -350,6 +356,9 @@ Fixpoint
                 end ++ ds')
       end in
   match d with
+  (* TODO: are error & matchkind cases correct? *)
+  | DeclError _ _
+  | DeclMatchKind _ _    => (σ, None)
   | DeclConstant i τ x e => (σ, Some (DeclConstant i (σ †t τ) x (σ †e e)))
   | DeclInstantiation i τ es x ds
     => (* TODO: Are type declarations in [ds] in scope? *)
@@ -397,5 +406,21 @@ Fixpoint
             i x (lmap (σ †tk) k) (lmap (σ †tar) tars)
             (omap (lmap (σ †te)) tes)
             (omap (σ †tar) dtar) n (lmap (σ †tp) tps)))
+  | DeclHeader _ {| P4String.str := T |} dfs
+    => (T |-> TypHeader (lmap (σ ‡df) dfs) ;; σ, None)
+  | DeclHeaderUnion _ {| P4String.str := T |} dfs
+    => (T |-> TypHeaderUnion (lmap (σ ‡df) dfs) ;; σ, None)
+  | DeclStruct _ {| P4String.str := T |} dfs
+    => (T |-> TypStruct (lmap (σ ‡df) dfs) ;; σ, None)
+  (* TODO: are enum cases correct? *)
+  | DeclEnum _ ({| P4String.str := T |} as X) xs
+    => (T |-> TypEnum X None xs ;; σ, None)
+  | DeclSerializableEnum i τ ({| P4String.str := T |} as X) es
+    => (T |-> TypEnum X (Some (σ †t τ)) (lmap fst es) ;; σ,
+       Some (DeclSerializableEnum i τ X (almap (σ †e) es)))
+  | DeclExternObject i x Xs mtds
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ, Some (DeclExternObject i x Xs (lmap (σ' †mp) mtds)))
   | _ => (σ, None)
-  end.
+  end
+where "σ '‡d'" := (inline_typ_Declaration σ).

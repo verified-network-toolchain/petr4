@@ -1,13 +1,13 @@
-Require Import Poulet4.Typed Poulet4.Syntax Poulet4.Maps.
+Require Import Poulet4.Typed Poulet4.Syntax Poulet4.Maps Coq.Lists.List.
 Require Poulet4.P4String.
+Import List.ListNotations.
 
 (* TODO: inline type-declarations in p4light programs. *)
 
 Context {tags_t : Type}.
 Notation typ := (@P4Type tags_t).
-Notation expr := (@Expression tags_t).
 Notation parameter := (@P4Parameter tags_t).
-Notation lmap := List.map.
+Notation lmap := map.
 Notation almap := AList.map_values.
 Notation omap := option_map.
 
@@ -41,7 +41,7 @@ Reserved Notation "σ '†ft'" (at level 11, right associativity).
 (** [P4Parameter] substitution. *)
 Reserved Notation "σ '†p'" (at level 11, right associativity).
   
-Fixpoint sub_typs_typ (σ : substitution) (τ : typ) : typ :=
+Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
   match τ with
   | TypBool
   | TypString
@@ -79,40 +79,42 @@ Fixpoint sub_typs_typ (σ : substitution) (τ : typ) : typ :=
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       TypConstructor Xs ws (lmap (σ' †p) ps) (σ' †t τ)
   end
-where "σ '†t'" := (sub_typs_typ σ) : sub_scope with
-sub_typs_controltype
+where "σ '†t'" := (sub_typs_P4Type σ) : sub_scope with
+sub_typs_ControlType
   (σ : substitution) (ctrltype : ControlType) : ControlType :=
   match ctrltype with
   | MkControlType Xs params
     => MkControlType Xs (lmap (σ ∖ (lmap P4String.str Xs) †p) params)
   end
-where "σ '†ct'" := (sub_typs_controltype σ) : sub_scope with
-sub_typs_functype
+where "σ '†ct'" := (sub_typs_ControlType σ) : sub_scope with
+sub_typs_FunctionType
   (σ : substitution) (functype : FunctionType) : FunctionType :=
   match functype with
   | MkFunctionType Xs params kind ret
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       MkFunctionType Xs (lmap (σ' †p) params) kind (σ' †t ret)
   end
-where "σ '†ft'" := (sub_typs_functype σ) : sub_scope with
-sub_typs_param
+where "σ '†ft'" := (sub_typs_FunctionType σ) : sub_scope with
+sub_typs_P4Parameter
   (σ : substitution) (param : parameter) : parameter :=
   match param with
   | MkParameter b d τ def x => MkParameter b d (σ †t τ) def x
   end
-where "σ '†p'" := (sub_typs_param σ) : sub_scope.
+where "σ '†p'" := (sub_typs_P4Parameter σ) : sub_scope.
 
 (** [Expression] substitution. *)
 Reserved Notation "σ '†e'" (at level 11, right associativity).
 (** [ExpressionPreT] substitution. *)
 Reserved Notation "σ '†e_pre'" (at level 11, right associativity).
 
-Fixpoint sub_typs_expr (σ : substitution) (e : Expression) : Expression :=
+Fixpoint
+  sub_typs_Expression
+  (σ : substitution) (e : Expression) : Expression :=
     match e with
     | MkExpression i e τ d => MkExpression i (σ †e_pre e) (σ †t τ) d
     end
-where  "σ '†e'" := (sub_typs_expr σ) with
-sub_typs_expr_pre
+where  "σ '†e'" := (sub_typs_Expression σ) with
+sub_typs_ExpressionPreT
   (σ : substitution) (e : ExpressionPreT) : ExpressionPreT :=
   match e with
     | ExpBool _
@@ -136,10 +138,10 @@ sub_typs_expr_pre
     | ExpNamelessInstantiation τ es
       => ExpNamelessInstantiation (σ †t τ) (lmap (σ †e) es)
   end
-where  "σ '†e_pre'" := (sub_typs_expr_pre σ).
+where  "σ '†e_pre'" := (sub_typs_ExpressionPreT σ).
 
 Definition
-  sub_typs_methodprototype
+  sub_typs_MethodPrototype
   (σ : substitution) (mp : MethodPrototype) : MethodPrototype :=
   match mp with
   | ProtoConstructor i x ps => ProtoConstructor i x (lmap (σ †p) ps)
@@ -152,11 +154,11 @@ Definition
   end.
 
 Notation "σ '†mp'"
-  := (sub_typs_methodprototype σ)
+  := (sub_typs_MethodPrototype σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_match_pre
+  sub_typs_MatchPreT
   (σ : substitution) (m : MatchPreT) : MatchPreT :=
   match m with
   | MatchDontCare    => MatchDontCare
@@ -166,54 +168,63 @@ Definition
   end.
 
 Notation "σ '†match_pre'"
-  := (sub_typs_match_pre σ)
+  := (sub_typs_MatchPreT σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_match
+  sub_typs_Match
   (σ : substitution) '(MkMatch i m τ : Match) : Match :=
   MkMatch i (σ †match_pre m) (σ †t τ).
 
 Notation "σ '†match'"
-  := (sub_typs_match σ)
+  := (sub_typs_Match σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_table_pre_action_ref
+  sub_typs_TablePreActionRef
   (σ : substitution)
   '(MkTablePreActionRef x es : TablePreActionRef)
   : TablePreActionRef := MkTablePreActionRef x (lmap (omap (σ †e)) es).
 
 Notation "σ '†tar_pre'"
-  := (sub_typs_table_pre_action_ref σ)
+  := (sub_typs_TablePreActionRef σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_table_action_ref
+  sub_typs_TableActionRef
   (σ : substitution)
   '(MkTableActionRef i ar τ : TableActionRef)
   : TableActionRef := MkTableActionRef i (σ †tar_pre ar) (σ †t τ).
 
 Notation "σ '†tar'"
-  := (sub_typs_table_action_ref σ)
+  := (sub_typs_TableActionRef σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_table_key
+  sub_typs_TableKey
   (σ : substitution) '(MkTableKey i k mk : TableKey)
   : TableKey := MkTableKey i (σ †e k) mk.
 
 Notation "σ '†tk'"
-  := (sub_typs_table_key σ)
+  := (sub_typs_TableKey σ)
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_table_property
+  sub_typs_TableEntry
+  (σ : substitution) '(MkTableEntry i ms tar : TableEntry)
+  : TableEntry := MkTableEntry i (lmap (σ †match) ms) (σ †tar tar).
+
+Notation "σ '†te'"
+  := (sub_typs_TableEntry σ)
+       (at level 11, right associativity) : sub_scope.
+
+Definition
+  sub_typs_TableProperty
   (σ : substitution) '(MkTableProperty i b x e : TableProperty)
   : TableProperty := MkTableProperty i b x (σ †e e).
 
 Notation "σ '†tp'"
-  := (sub_typs_table_property σ)
+  := (sub_typs_TableProperty σ)
        (at level 11, right associativity) : sub_scope.
 
 (** [Statement] substitution. *)
@@ -228,13 +239,13 @@ Reserved Notation "σ '†switch'" (at level 11, right associativity).
 Reserved Notation "σ '†init'" (at level 11, right associativity).
 
 Fixpoint
-  sub_typs_stmt
+  sub_typs_Statement
   (σ : substitution) (s : Statement) : Statement :=
   match s with
   | MkStatement i s τ => MkStatement i (σ †s_pre s) τ
   end
-where "σ '†s'" := (sub_typs_stmt σ) with
-sub_typs_stmt_pre
+where "σ '†s'" := (sub_typs_Statement σ) with
+sub_typs_StatementPreT
   (σ : substitution) (s : StatementPreT) : StatementPreT :=
   match s with
   | StatExit
@@ -253,23 +264,23 @@ sub_typs_stmt_pre
   | StatMethodCall e τs es
     => StatMethodCall (σ †e e) (lmap (σ †t) τs) (lmap (omap (σ †e)) es)
   end
-where "σ '†s_pre'" := (sub_typs_stmt_pre σ) with
-sub_typs_block
+where "σ '†s_pre'" := (sub_typs_StatementPreT σ) with
+sub_typs_Block
   (σ : substitution) (blk : Block) : Block :=
   match blk with
   | BlockEmpty _    => blk
   | BlockCons s blk => BlockCons (σ †s s) (σ †blk blk)
   end
-where "σ '†blk'" := (sub_typs_block σ) with
-sub_typs_switchcase
+where "σ '†blk'" := (sub_typs_Block σ) with
+sub_typs_StatementSwitchCase
   (σ : substitution)
   (sc : StatementSwitchCase) : StatementSwitchCase :=
   match sc with
   | StatSwCaseFallThrough _ _  => sc
   | StatSwCaseAction i lbl blk => StatSwCaseAction i lbl (σ †blk blk)
   end
-where "σ '†switch'" := (sub_typs_switchcase σ) with
-sub_typs_initializer
+where "σ '†switch'" := (sub_typs_StatementSwitchCase σ) with
+sub_typs_Initializer
   (σ : substitution) (init : Initializer) : Initializer :=
   match init with
   | InitFunction i τ x Xs ps blk
@@ -280,4 +291,111 @@ sub_typs_initializer
         i (σ †t τ) (lmap (σ †e) es)
         x (lmap (σ †init) init)
   end
-where "σ '†init'" := (sub_typs_initializer σ).
+where "σ '†init'" := (sub_typs_Initializer σ).
+
+Definition
+  sub_typs_ParserCase
+  (σ : substitution) '(MkParserCase i ms x : ParserCase)
+  : ParserCase := MkParserCase i (lmap (σ †match) ms) x.
+
+Notation "σ '†pc'"
+  := (sub_typs_ParserCase σ)
+       (at level 11, right associativity) : sub_scope.
+
+Definition
+  sub_typs_ParserTransition
+  (σ : substitution) (pt : ParserTransition) : ParserTransition :=
+  match pt with
+  | ParserDirect _ _      => pt
+  | ParserSelect i es pcs => ParserSelect i (lmap (σ †e) es) (lmap (σ †pc) pcs)
+  end.
+
+Notation "σ '†pt'"
+  := (sub_typs_ParserTransition σ)
+       (at level 11, right associativity) : sub_scope.
+
+Definition
+  sub_typs_ParserState
+  (σ : substitution) '(MkParserState i x ss pt : ParserState)
+  : ParserState := MkParserState i x (lmap (σ †s) ss) (σ †pt pt).
+
+Notation "σ '†ps'"
+  := (sub_typs_ParserState σ)
+       (at level 11, right associativity) : sub_scope.
+
+Definition
+  sub_typs_DeclarationField
+  (σ : substitution) '(MkDeclarationField i τ x : DeclarationField)
+  : DeclarationField := MkDeclarationField i (σ †t τ) x.
+
+Notation "σ '†df'"
+  := (sub_typs_DeclarationField σ)
+       (at level 11, right associativity) : sub_scope.
+
+(** Inline type declarations. *)
+Fixpoint
+  inline_typ_decl
+  (σ : substitution) (d : Declaration) {struct d}
+  : substitution * option Declaration :=
+  let fix itds σ ds
+      : substitution * list Declaration :=
+      match ds with
+      | [] => (σ, [])
+      | d :: ds
+        => let '(σ',dio) := inline_typ_decl σ d in
+          let (σ'', ds') := itds σ' ds in
+          (σ'', match dio with
+                | Some d' => [d']
+                | None    => []
+                end ++ ds')
+      end in
+  match d with
+  | DeclConstant i τ x e => (σ, Some (DeclConstant i (σ †t τ) x (σ †e e)))
+  | DeclInstantiation i τ es x ds
+    => (* TODO: Are type declarations in [ds] in scope? *)
+    let '(σ', ds') := itds σ ds in
+    (σ', Some (DeclInstantiation i (σ †t τ) (lmap (σ †e) es) x ds'))
+  | DeclParser i x [] ps cps ds states
+    => let '(σ', ds') := itds σ ds in
+      (σ,
+       Some
+         (DeclParser
+            i x [] (lmap (σ †p) ps)
+            (lmap (σ †p) cps) ds' (lmap (σ †ps) states)))
+  | DeclControl i x [] ps cps ds blk
+    => let '(σ', ds') := itds σ ds in
+      (σ,
+       Some
+         (DeclControl
+            i x [] (lmap (σ †p) ps)
+            (lmap (σ †p) cps) ds' (σ' †blk blk)))
+  | DeclFunction i τ x Xs ps blk
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ,
+       Some
+         (DeclFunction
+            i (σ' †t τ) x Xs (lmap (σ' †p) ps) (σ' †blk blk)))
+  | DeclExternFunction i τ x Xs ps
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ,
+       Some
+         (DeclExternFunction
+            i (σ' †t τ) x Xs (lmap (σ' †p) ps)))
+  | DeclVariable i τ x e
+    => (σ, Some (DeclVariable i (σ †t τ) x (omap (σ †e) e)))
+  | DeclValueSet i τ n x
+    => (σ, Some (DeclValueSet i (σ †t τ) n x))
+  | DeclAction i x ps cps blk
+    => (σ,
+       Some
+         (DeclAction
+            i x (lmap (σ †p) ps) (lmap (σ †p) ps) (σ †blk blk)))
+  | DeclTable i x k tars tes dtar n tps
+    => (σ,
+       Some
+         (DeclTable
+            i x (lmap (σ †tk) k) (lmap (σ †tar) tars)
+            (omap (lmap (σ †te)) tes)
+            (omap (σ †tar) dtar) n (lmap (σ †tp) tps)))
+  | _ => (σ, None)
+  end.

@@ -115,8 +115,8 @@ Section Lifted.
       lifted_stmt -{ skip @ i }-
   | lifted_vardecl x te i :
       match te with
-      | Left t => True
-      | Right e => lifted_expr e
+      | inl t => True
+      | inr e => lifted_expr e
       end ->
       lifted_stmt -{ var x with te @ i }-
   | lifted_assign e1 e2 i :

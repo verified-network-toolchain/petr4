@@ -55,8 +55,8 @@ Section Occurs.
   Inductive Occurs_s : Stmt.s tags_t -> Prop :=
   | Occurs_vardecl y et i :
       match et with
-      | Left _ => x = y
-      | Right e => x = y \/ Occurs_e e
+      | inl _ => x = y
+      | inr e => x = y \/ Occurs_e e
       end ->
       Occurs_s -{ var x with et @ i }-
   | Occurs_assign e₁ e₂ i :

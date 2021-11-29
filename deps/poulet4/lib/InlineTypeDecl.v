@@ -1,4 +1,5 @@
-Require Import Poulet4.Typed Poulet4.Syntax Poulet4.Maps Coq.Lists.List.
+Require Import Coq.Lists.List Poulet4.Syntax.
+From Poulet4 Require Import Typed Maps Utils P4cub.Util.FunUtil.
 Require Poulet4.P4String.
 Import List.ListNotations.
 
@@ -31,9 +32,9 @@ Definition
 Notation "σ '∖' Xs"
   := (IdentMap.removes Xs σ)
        (at level 10, left associativity) : sub_scope.
-Notation "X '|->' τ ';;'  σ"
+Notation "σ ∋ X '|->' τ"
   := (IdentMap.set X τ σ)
-       (at level 12, right associativity) : sub_scope.
+       (at level 20, left associativity) : sub_scope.
 
 (** [P4Type] substition. *)
 Reserved Notation "σ '†t'" (at level 11, right associativity).
@@ -407,20 +408,53 @@ Fixpoint
             (omap (lmap (σ †te)) tes)
             (omap (σ †tar) dtar) n (lmap (σ †tp) tps)))
   | DeclHeader _ {| P4String.str := T |} dfs
-    => (T |-> TypHeader (lmap (σ ‡df) dfs) ;; σ, None)
+    => (σ ∋ T |-> TypHeader (lmap (σ ‡df) dfs), None)
   | DeclHeaderUnion _ {| P4String.str := T |} dfs
-    => (T |-> TypHeaderUnion (lmap (σ ‡df) dfs) ;; σ, None)
+    => (σ ∋ T |-> TypHeaderUnion (lmap (σ ‡df) dfs), None)
   | DeclStruct _ {| P4String.str := T |} dfs
-    => (T |-> TypStruct (lmap (σ ‡df) dfs) ;; σ, None)
+    => (σ ∋ T |-> TypStruct (lmap (σ ‡df) dfs), None)
   (* TODO: are enum cases correct? *)
   | DeclEnum _ ({| P4String.str := T |} as X) xs
-    => (T |-> TypEnum X None xs ;; σ, None)
+    => (σ ∋ T |-> TypEnum X None xs, None)
   | DeclSerializableEnum i τ ({| P4String.str := T |} as X) es
-    => (T |-> TypEnum X (Some (σ †t τ)) (lmap fst es) ;; σ,
+    => (σ ∋ T |-> TypEnum X (Some (σ †t τ)) (lmap fst es),
        Some (DeclSerializableEnum i τ X (almap (σ †e) es)))
   | DeclExternObject i x Xs mtds
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       (σ, Some (DeclExternObject i x Xs (lmap (σ' †mp) mtds)))
+  | DeclTypeDef _ {| P4String.str := T |} (inl τ)
+  | DeclNewType _ {| P4String.str := T |} (inl τ)
+    => (σ ∋ T |-> σ †t τ, None)
+  (* TODO: case analysis on [d]?
+     How to assign a type to [T]? *)
+  | DeclTypeDef _ {| P4String.str := _ |} (inr d)
+  | DeclNewType _ {| P4String.str := _ |} (inr d)
+    => (fst (σ ‡d d), None)
+  | DeclControlType _ {| P4String.str := T |} Xs ps
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ' ∋ T |-> TypControl (MkControlType Xs (lmap (σ' †p) ps)), None)
+  | DeclParserType _ {| P4String.str := T |} Xs ps
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ' ∋ T |-> TypParser (MkControlType Xs (lmap (σ' †p) ps)), None)
+  | DeclPackageType _ {| P4String.str := T |} Xs ps
+    => let σ' := σ ∖ (lmap P4String.str Xs) in
+      (σ' ∋ T |-> TypPackage Xs [] (lmap (σ' †p) ps), None)
   | _ => (σ, None)
   end
 where "σ '‡d'" := (inline_typ_Declaration σ).
+
+Definition
+  inline_typ_program
+  (σ : substitution) '(Program ds) : substitution * program :=
+  prod_map_r
+    (Program ∘ (@rev _))
+    (fold_left
+       (fun '(σ, ds') d =>
+          prod_map_r
+            (fun dio =>
+               match dio with
+               | Some d' => [d']
+               | None    => []
+               end ++ ds')
+            (σ ‡d d))
+       ds (σ,[])).

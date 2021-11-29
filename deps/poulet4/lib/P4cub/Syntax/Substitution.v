@@ -95,17 +95,11 @@ Section TypeSubstitution.
     let ret' := tsub_retE σ ret in
     {| paramargs := args'; rtrns := ret' |}.
 
-  Definition map_either {A B C D : Type} (f : A -> B) (g : C -> D) (e : either A C) : either B D :=
-    match e with
-    | Left a => Left (f a)
-    | Right b => Right (g b)
-    end.
-
   Fixpoint tsub_s (σ : Env.t string E.t) (s : ST.s tags_t) : ST.s tags_t :=
     match s with
     | ST.SSkip _ => s
     | ST.SVardecl x e i =>
-      let e' := map_either (tsub_t σ) (tsub_e σ) e in
+      let e' := map_sum (tsub_t σ) (tsub_e σ) e in
       ST.SVardecl x e' i
     | ST.SAssign lhs rhs i =>
       let lhs' := tsub_e σ lhs in

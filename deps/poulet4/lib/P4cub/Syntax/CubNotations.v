@@ -205,11 +205,11 @@ Module StmtNotations.
          (in custom p4stmt at level 99,
              s custom p4stmt, no associativity).
   Notation "'delcare' x ':' t @ i"
-    := (SVardecl x (Left t) i)
+    := (SVardecl x (inl t) i)
          (in custom p4stmt at level 0,
              t custom p4type, no associativity).
   Notation "'init' x ':=' e @ i"
-    := (SVardecl x (Right e) i)
+    := (SVardecl x (inr e) i)
          (in custom p4stmt at level 0,
              e custom p4expr, no associativity).
   Notation "'var' x 'with' et @ i"

@@ -822,7 +822,7 @@ Section ToP4cub.
     | StatVariable typ name init loc =>
       let* t := translate_exp_type i typ in
       let vname := P4String.str name in
-      let decl := ST.SVardecl vname (Left t) i in
+      let decl := ST.SVardecl vname (inl t) i in
       match init with
       | None =>
         ok decl
@@ -923,20 +923,23 @@ Section ToP4cub.
                              end)
                true patterns.
 
-  Definition translate_parser_case (pcase : @ParserCase tags_t) : result (either (Parser.e tags_t) (Parser.pat * Parser.e tags_t)) :=
+  Definition
+    translate_parser_case
+    (pcase : @ParserCase tags_t)
+    : result (Parser.e tags_t + (Parser.pat * Parser.e tags_t)) :=
     let '(MkParserCase tags matches next) := pcase in
     let transition := Parser.PGoto (translate_state_name next) tags in
     let+ patterns := translate_matches matches in
     if total_wildcard patterns
-    then Left transition
-    else Right (Parser.PATTuple patterns, transition).
+    then inl transition
+    else inr (Parser.PATTuple patterns, transition).
 
   Definition translate_parser_case_loop pcase acc :=
     let* (def_opt, cases) := acc in
     let+ cub_case := translate_parser_case pcase in
     match cub_case with
-    | Left x => (Some x, cases)
-    | Right y => (def_opt, y::cases)
+    | inl x => (Some x, cases)
+    | inr y => (def_opt, y::cases)
     end.
 
   (* TODO ASSUME default is the last element of case list *)
@@ -1061,13 +1064,16 @@ Section ToP4cub.
                ) (ok []).
 
   (* TODO write in terms of translate_constructor_parameter *)
-  Definition translate_constructor_parameter_either (tags : tags_t) (parameter : @P4Parameter tags_t) : result (either (string * string) (string * E.ct)) :=
+  Definition
+    translate_constructor_parameter_either
+    (tags : tags_t) (parameter : @P4Parameter tags_t)
+    : result (string * string + string * E.ct) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     match typ with
     | TypExtern typname =>
       (* Translate to CTExtern or to extern list? *)
-      ok(Left (v_str, P4String.str typname))
+      ok (inl (v_str, P4String.str typname))
     | TypControl _ =>
       error "[FIXME] translate control as constructor param"
     | TypParser _ =>
@@ -1085,8 +1091,8 @@ Section ToP4cub.
                   let* (extn, ctrlr) := acc in
                   let+ param := translate_constructor_parameter_either tags p in
                   match param with
-                  | Left e => (e :: extn, ctrlr)
-                  | Right c => (extn, c::ctrlr)
+                  | inl e => (e :: extn, ctrlr)
+                  | inr c => (extn, c::ctrlr)
                   end
                ) (ok ([],[])) params.
 

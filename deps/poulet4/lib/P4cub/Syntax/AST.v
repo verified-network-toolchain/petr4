@@ -242,7 +242,7 @@ Module Stmt.
 
     Inductive s : Type :=
     | SSkip (i : tags_t)                              (* skip/no-op *)
-    | SVardecl (x : string) (expr : either Expr.t (Expr.e tags_t))
+    | SVardecl (x : string) (expr : Expr.t + Expr.e tags_t)
                (i : tags_t)                           (* variable declaration. *)
     | SAssign (lhs rhs : Expr.e tags_t) (i : tags_t)     (* assignment *)
     | SConditional (guard : Expr.e tags_t)

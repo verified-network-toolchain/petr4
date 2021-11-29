@@ -202,8 +202,8 @@ Inductive check_stmt
     ⦃ fns, Δ, Γ ⦄ con ⊢ b{ s }b ⊣ ⦃ Γ, C ⦄
 | chk_vardecl (τ : Expr.t) (x : string) eo (i : tags_t) (con : ctx) :
     match eo with
-    | Right e => ⟦Δ,Γ⟧ ⊢ e ∈ τ
-    | Left τ  => t_ok Δ τ
+    | inr e => ⟦Δ,Γ⟧ ⊢ e ∈ τ
+    | inl τ => t_ok Δ τ
     end ->
     ⦃ fns, Δ, Γ ⦄ con ⊢ var x with eo @ i ⊣ ⦃ x ↦ τ ;; Γ, C ⦄
 | chk_assign (τ : Expr.t) (e1 e2 : Expr.e tags_t) (i : tags_t) (con : ctx) :

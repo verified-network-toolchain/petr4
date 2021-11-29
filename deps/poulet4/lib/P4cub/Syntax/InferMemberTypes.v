@@ -79,17 +79,11 @@ Section Inference.
     let ret' := inf_retE ret in
     {| paramargs := args'; rtrns := ret' |}.
 
-  Definition map_either {A B C D : Type} (f : A -> B) (g : C -> D) (e : either A C) : either B D :=
-    match e with
-    | Left a => Left (f a)
-    | Right b => Right (g b)
-    end.
-
   Fixpoint inf_s  (s : ST.s tags_t) : ST.s tags_t :=
     match s with
     | ST.SSkip _ => s
     | ST.SVardecl x e i =>
-      let e' := map_either id inf_e e in
+      let e' := map_sum id inf_e e in
       ST.SVardecl x e' i
     | ST.SAssign lhs rhs i =>
       let lhs' := inf_e lhs in

@@ -44,7 +44,7 @@ Section Statementize.
              (s : st) (expr : e) (env : VarNameGen.t) (i : tags_t)
     : st * e * VarNameGen.t :=
     let (var_name, env') := VarNameGen.new_var env in
-    (Stmt.SSeq s (Stmt.SVardecl var_name (Right expr) i) i,
+    (Stmt.SSeq s (Stmt.SVardecl var_name (inr expr) i) i,
      Expr.EVar (t_of_e expr) var_name i, env').
   
   Fixpoint TransformExpr (expr : e) (env: VarNameGen.t) 
@@ -185,10 +185,10 @@ Section Statementize.
     | Stmt.SExit _
     | Stmt.SInvoke _ _
     | Stmt.SReturn None _
-    | Stmt.SVardecl _ (Left _) _ => (stmt, env)
-    | Stmt.SVardecl x (Right e) i =>
+    | Stmt.SVardecl _ (inl _) _ => (stmt, env)
+    | Stmt.SVardecl x (inr e) i =>
       let '(s,e',env') := TransformExpr e env in
-      (Stmt.SSeq s (Stmt.SVardecl x (Right e') i) i, env')
+      (Stmt.SSeq s (Stmt.SVardecl x (inr e') i) i, env')
     | Stmt.SAssign lhs rhs i => 
       let '(lhs_stmt, lhs', env_lhs) := TransformExpr lhs env in 
       let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in 

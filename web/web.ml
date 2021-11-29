@@ -19,6 +19,22 @@ open Js_of_ocaml
 
 exception ParsingError of string
 
+module Webpp = P4pp.Eval.Make(struct
+  let exists = function
+    | "/core.p4" 
+    | "/sr_acl.p4" 
+    | "/v1model.p4" -> 
+      true
+    | str -> 
+      false
+
+  let load = function
+    | "/core.p4" -> Bake.core_p4_str
+    | "/sr_acl.p4" -> Bake.sr_acl_p4_str
+    | "/v1model.p4" -> Bake.v1model_p4_str
+    |  fn -> failwith (fn ^ ": not found")
+end)
+
 module Conf: Parse_config = struct
   let red s = s
   let green s = s
@@ -26,7 +42,7 @@ module Conf: Parse_config = struct
   let preprocess _ p4_file_contents =
     let file ="input.p4" in
     let env = P4pp.Eval.empty file ["/"] [] in
-    let str,_ = P4pp.Eval.Web.preprocess env file p4_file_contents in
+    let str,_ = Webpp.preprocess env file p4_file_contents in
     str
 end
 
@@ -40,6 +56,12 @@ let eval verbose packet_str add ctrl_str p4_contents =
 let _ =
   Js.export "Petr4"
     (object%js
+       method read path =
+         let path = Js.to_string path in
+         if Webpp.exists path
+         then Webpp.load path |> Js.string
+         else "Error in web.ml: file " ^ path ^ " not found" |> Js.string
+
        method eval packet control_string p4_content =
         try
           eval false (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string

@@ -441,3 +441,321 @@ control MyDeparser(packet_out pkt, in headers_t hdr) {
 
 V1Switch(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;
 |}
+
+let register_p4_str =
+  {|#include <core.p4>
+#include <v1model.p4>
+
+const bit<32> reg_size = 128;
+
+header my_header_t {
+    bit<32> h;
+}
+
+struct metadata { }
+struct headers {
+    my_header_t h;
+}
+
+parser MyParser(packet_in packet,
+                out headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+    state start {
+        packet.extract(hdr.h);
+        transition accept;
+    }
+}
+
+control MyChecksum(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+control MyIngress(inout headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata) { 
+
+    apply { }
+}
+
+control MyEgress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
+    apply { }
+}
+
+control MyDeparser(packet_out packet, in headers hdr) {
+    register<bit<32>>(reg_size) r;
+    bit<32> index;
+    bit<32> reg_read_val;
+    bit<32> reg_write_val;
+    apply {
+        index = 2;
+        reg_write_val = hdr.h.h;
+        r.read(reg_read_val, index);
+        r.write(index, reg_write_val);
+
+        packet.emit(reg_read_val);
+    }
+}
+
+//this is declaration
+V1Switch(
+    MyParser(),
+    MyChecksum(),
+    MyIngress(),
+    MyEgress(),
+    MyChecksum(),
+    MyDeparser()
+    )
+main;
+|}
+
+let switch_ebpf_p4_str = {|/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <ebpf_model.p4>
+#include <core.p4>
+
+#include "ebpf_headers.p4"
+
+struct Headers_t
+{
+    Ethernet_h ethernet;
+    IPv4_h     ipv4;
+}
+
+parser prs(packet_in p, out Headers_t headers)
+{
+    state start
+    {
+        p.extract(headers.ethernet);
+        transition select(headers.ethernet.etherType)
+        {
+            16w0x800 : ip;
+            default : reject;
+        }
+    }
+
+    state ip
+    {
+        p.extract(headers.ipv4);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, out bool pass)
+{
+    action Reject(IPv4Address addr)
+    {
+        pass = false;
+        headers.ipv4.srcAddr = addr;
+    }
+
+    table Check_src_ip {
+        key = { headers.ipv4.srcAddr : exact; }
+        actions =
+        {
+            Reject;
+            NoAction;
+        }
+
+        implementation = hash_table(1024);
+        const default_action = NoAction;
+    }
+
+    apply {
+        pass = true;
+
+        switch (Check_src_ip.apply().action_run) {
+        Reject: {
+            pass = false;
+        }
+        NoAction: {}
+        }
+    }
+}
+
+ebpfFilter(prs(), pipe()) main;
+|}
+
+let table_entries_lpm_bmv2_p4_str =
+  {|/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+header hdr {
+    bit<8>  e;
+    bit<16> t;
+    bit<8>  l;
+    bit<8> r;
+    bit<8>  v;
+}
+
+struct Header_t {
+    hdr h;
+}
+struct Meta_t {}
+
+parser p(packet_in b, out Header_t h, inout Meta_t m, inout standard_metadata_t sm) {
+    state start {
+        b.extract(h.h);
+        transition accept;
+    }
+}
+
+control vrfy(inout Header_t h, inout Meta_t m) { apply {} }
+control update(inout Header_t h, inout Meta_t m) { apply {} }
+control egress(inout Header_t h, inout Meta_t m, inout standard_metadata_t sm) { apply {} }
+control deparser(packet_out b, in Header_t h) { apply { b.emit(h.h); } }
+
+control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t standard_meta) {
+
+    action a() { standard_meta.egress_spec = 0; }
+    action a_with_control_params(bit<9> x) { standard_meta.egress_spec = x; }
+
+    table t_lpm {
+
+  	key = {
+            h.h.l : lpm;
+        }
+
+	actions = {
+            a;
+            a_with_control_params;
+        }
+
+	default_action = a;
+
+        const entries = {
+            0x11 &&& 0xF0 : a_with_control_params(11);
+            0x12          : a_with_control_params(12);
+            _             : a_with_control_params(13);
+        }
+    }
+
+    apply {
+        t_lpm.apply();
+    }
+}
+
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+|}
+
+let union_valid_bmv2_p4_str =
+{|/*
+Copyright 2017 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+header Hdr1 {
+    bit<32> a;
+}
+
+header Hdr2 {
+    bit<64> b;
+}
+
+header_union U {
+    Hdr1 h1;
+    Hdr2 h2;
+}
+
+struct Headers {
+    Hdr1 h1;
+    U u;
+}
+
+struct Meta {}
+
+parser p(packet_in b, out Headers h, inout Meta m, inout standard_metadata_t sm) {
+    state start {
+        b.extract(h.h1);
+        transition select(h.h1.a) {
+            0: getH1;
+            default: getH1;
+        }
+    }
+
+    state getH1 {
+        b.extract(h.u.h1);
+        transition accept;
+    }
+
+    state getH2 {
+        b.extract(h.u.h2);
+        transition accept;
+    }
+}
+
+control vrfy(inout Headers h, inout Meta m) { apply {} }
+control update(inout Headers h, inout Meta m) { apply {} }
+
+control egress(inout Headers h, inout Meta m, inout standard_metadata_t sm) { apply {} }
+
+control deparser(packet_out b, in Headers h) {
+    apply {
+        b.emit(h.h1);
+        b.emit(h.u);
+    }
+}
+
+control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
+    action a() { }
+    table t {
+        key = {
+            h.u.isValid() : exact;
+        }
+        actions = { a; }
+        default_action = a;
+    }
+    apply {
+        t.apply();
+    }
+}
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+|}

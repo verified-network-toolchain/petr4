@@ -23,6 +23,10 @@ module Webpp = P4pp.Eval.Make(struct
   let exists = function
     | "/core.p4" 
     | "/sr_acl.p4" 
+    | "/register.p4"
+    | "/switch_ebpf.p4"
+    | "/table-entries-lpm-bmv2.p4"
+    | "/union-valid-bmv2.p4"
     | "/v1model.p4" -> 
       true
     | str -> 
@@ -32,6 +36,12 @@ module Webpp = P4pp.Eval.Make(struct
     | "/core.p4" -> Bake.core_p4_str
     | "/sr_acl.p4" -> Bake.sr_acl_p4_str
     | "/v1model.p4" -> Bake.v1model_p4_str
+    | "/register.p4" -> Bake.register_p4_str
+    | "/switch_ebpf.p4" -> Bake.switch_ebpf_p4_str
+    | "/table-entries-lpm-bmv2.p4" ->
+        Bake.table_entries_lpm_bmv2_p4_str
+    | "/union-valid-bmv2.p4" ->
+        Bake.union_valid_bmv2_p4_str
     |  fn -> failwith (fn ^ ": not found")
 end)
 

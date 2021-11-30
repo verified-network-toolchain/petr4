@@ -44,6 +44,15 @@ Section TypingDefs.
     | LInstance p => PathMap.get p (local_gamma g)
     | LGlobal   p => PathMap.get p (const_gamma g)
     end.
+
+  Definition
+    bind_typ_gamma_expr
+    (this : path) (l : Locator) (τ : typ)
+    '({| local_gamma:=lg; const_gamma:=cg |} : gamma_expr) : gamma_expr :=
+    match l with
+    | LInstance p => {| local_gamma:=PathMap.set p τ lg; const_gamma:=cg |}
+    | LGlobal   p => {| local_gamma:=lg; const_gamma:=PathMap.set p τ lg|}
+    end.
   
   Context `{T : @Target tags_t expr}.
   
@@ -100,6 +109,14 @@ Section TypingDefs.
     func_gamma :> gamma_func;
     inst_gamma :> gamma_inst;
     ext_gamma :> gamma_ext }.
+
+  Definition
+    bind_typ_gamma_stmt
+    (this : path) (l : Locator) (τ : typ)
+    '({| expr_gamma:=eg; func_gamma:=fg;
+         inst_gamma:=ig; ext_gamma:=exg |} : gamma_stmt) : gamma_stmt :=
+    {| expr_gamma:=bind_typ_gamma_expr this l τ eg;
+       func_gamma:=fg; inst_gamma:=ig; ext_gamma:=exg |}.
 
   (** TODO: is search correct?
       TODO: Function type is a stub.
@@ -272,6 +289,7 @@ Section Soundness.
   Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
+  Notation predopt := (EquivUtil.predop).
 
   Context `{T : @Target tags_t expr}.
 
@@ -890,7 +908,7 @@ Section Soundness.
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
         Γ ⊢e e₁ ≀ this ->
-        Γ ⊢e e₂ ≀ this ->
+        Γ ⊢e e₂ ≀ this \/ Γ ⊢c e₂ ≀ this ->
         Γ ⊢s MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
     Proof.
@@ -900,7 +918,7 @@ Section Soundness.
         typ_of_expr e = TypBool ->
         Γ ⊢e e ≀ this ->
         Γ ⊢s s₁ ⊣ Γ₁ ≀ this ->
-        EquivUtil.predop (fun s₂ => exists Γ₂, Γ ⊢s s₂ ⊣ Γ₂ ≀ this) s₂ ->
+        predopt (fun s₂ => exists Γ₂, Γ ⊢s s₂ ⊣ Γ₂ ≀ this) s₂ ->
         Γ ⊢s MkStatement
           tag (StatConditional e s₁ s₂)
           (match s₂ with
@@ -918,7 +936,7 @@ Section Soundness.
     Qed.
 
     Lemma return_sound : forall tag e,
-        EquivUtil.predop (fun e => Γ ⊢e e ≀ this) e ->
+        predopt (fun e => Γ ⊢e e ≀ this) e ->
         Γ ⊢s MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
     Proof.
     Admitted.
@@ -963,6 +981,17 @@ Section Soundness.
              nil (map Some es)) TypVoid Directionless ≀ this ->
         Γ ⊢s MkStatement tag
           (StatDirectApplication τ es) StmUnit ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma stat_variable_sound : forall tag τ x e l,
+        predopt
+          (fun e =>
+             typ_of_expr e = τ /\
+             (Γ ⊢e e ≀ this \/ Γ ⊢c e ≀ this)) e ->
+        Γ ⊢s MkStatement
+          tag (StatVariable τ x e l) StmUnit
+          ⊣ bind_typ_gamma_stmt this l τ Γ ≀ this.
     Proof.
     Admitted.
   End StmtTyping.

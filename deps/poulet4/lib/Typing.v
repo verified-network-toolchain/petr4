@@ -22,15 +22,7 @@ Section TypingDefs.
   Notation ident := string.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
-
-  Variant funtype :=
-  | FTInternal
-      (params : list (typ * direction))
-      (returns : option typ)
-  | FTTable
-      (keys : list (typ * string))
-  | FTExternal
-      (class name : ident).
+  Notation funtype := (@FunctionType tags_t).
   
   (* Local variable typing environment. *)
   Definition gamma_local := PathMap.t typ.
@@ -73,7 +65,8 @@ Section TypingDefs.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
-  Notation run_blk := (@exec_block tags_t dummy T).
+  Notation run_blk  := (@exec_block tags_t dummy T).
+  Notation run_call := (@exec_call tags_t dummy T).
 
   Definition typ_of_expr
              '(MkExpression _ _ t _ : expr) : typ := t.
@@ -153,46 +146,55 @@ Section TypingDefs.
              (gi : gamma_inst) (ge : genv) : Prop := forall (e : expr),
       lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
 
-  Variant fundef_funtype_match
-          (Γ : gamma_expr) (this : path)
+  Variant fundef_funtype_prop
+          (Γ : gamma_expr) (Γext : gamma_ext) (this : path)
     : @fundef tags_t -> funtype -> Prop :=
-  | Internal_match params init body params' rt :
-      Forall2 (fun '(_,d) '(_,d') => d = d') params params' ->
-      fundef_funtype_match Γ this (FInternal params init body) (FTInternal params' rt)
+  (* TODO : need to know [body] & [init] are well-typed. *)
+  | Internal_prop params init body Xs params' rt :
+      Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
+      fundef_funtype_prop
+        Γ Γext this
+        (FInternal params init body)
+        (MkFunctionType Xs params' FunFunction rt)
   | Table_match name keys actions dflt entries key_typs :
       Forall2
         (fun '(MkTableKey _ e mk) '(t,mk') =>
            expr_types this Γ e /\
            typ_of_expr e = t /\ P4String.str mk = mk')
         keys key_typs ->
-      fundef_funtype_match
-        Γ this
+      fundef_funtype_prop
+        Γ Γext this
         (FTable name keys actions dflt entries)
-        (FTTable key_typs)
-  | External_match (class name : string) :
-      fundef_funtype_match
-        Γ this (FExternal class name) (FTExternal class name).
+        (MkFunctionType [] [] FunTable TypVoid)
+  | External_match class name Xs params rt :
+      (* TODO: lookup [FExternal] by [class] or [name]. *)
+      fundef_funtype_prop
+        Γ Γext this
+        (FExternal class name)
+        (MkFunctionType Xs params FunExtern rt).
   
   (** TODO: stub. *)
   Definition gamma_func_types
              (this : path) (g : gamma_expr) (gf : gamma_func)
-             (gi : gamma_inst) (ge : genv) : Prop :=
+             (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
     forall (e : expr) (p p' : path) (fd : fundef) (ft : funtype),
       lookup_func_typ this gf gi e = Some (p,ft) ->
       lookup_func ge this e = Some (p',fd) ->
-      p = p' /\ fundef_funtype_match g this fd ft.
+      p = p' /\ fundef_funtype_prop g gext this fd ft.
 
   Definition gamma_func_prop
-             (this : path) (g : gamma_expr)
-             (gf : gamma_func) (gi : gamma_inst) (ge : genv) : Prop :=
-    gamma_func_domain this gf gi ge /\ gamma_func_types this g gf gi ge.
+             (this : path) (g : gamma_expr) (gf : gamma_func)
+             (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
+    gamma_func_domain this gf gi ge /\ gamma_func_types this g gf gi gext ge.
 
   (** TODO: externs... *)
   Definition gamma_stmt_prop
              (this : path) (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
     gamma_inst_prop (inst_gamma g) ge /\
-    gamma_func_prop this (expr_gamma g) (func_gamma g) (inst_gamma g) ge.
+    gamma_func_prop
+      this (expr_gamma g) (func_gamma g)
+      (inst_gamma g) (ext_gamma g) ge.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -231,14 +233,32 @@ Section TypingDefs.
       (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
       forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                  gamma_stmt_prop this g' ge st'.
+  
+  (** Call typing. *)
+  Definition
+    call_types
+    (this : path) (g : gamma_stmt) (call : expr) : Prop :=
+    forall (read_one_bit : option bool -> bool -> Prop) (ge : genv) (st : state),
+      read_one_bit_reads read_one_bit ->
+      gamma_stmt_prop this g ge st ->
+      (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
+      forall st' sig, run_call ge read_one_bit this st call st' sig ->
+                 gamma_stmt_prop this g ge st'.
+    
 End TypingDefs.
 
 Notation "Γ '⊢e' e ≀ this"
-  := (expr_types this Γ e) (at level 80, no associativity) : type_scope.
-Notation "Γ1 '⊢s' s ⊣ Γ2 ≀ this"
-  := (stmt_types this Γ1 Γ2 s) (at level 80, no associativity) : type_scope.
-Notation "Γ1 '⊢b' blk ⊣ Γ2 ≀ this"
-  := (block_types this Γ1 Γ2 blk) (at level 80, no associativity) : type_scope.
+  := (expr_types this Γ e)
+       (at level 80, no associativity) : type_scope.
+Notation "Γ₁ '⊢s' s ⊣ Γ₂ ≀ this"
+  := (stmt_types this Γ₁ Γ₂ s)
+       (at level 80, no associativity) : type_scope.
+Notation "Γ₁ '⊢b' blk ⊣ Γ₂ ≀ this"
+  := (block_types this Γ₁ Γ₂ blk)
+       (at level 80, no associativity) : type_scope.
+Notation "Γ '⊢c' e ≀ this"
+  := (call_types this Γ e)
+       (at level 80, no associativity) : type_scope.
 
 (* TODO. *)
 Section Soundness.
@@ -867,16 +887,18 @@ Section Soundness.
     Variable (Γ : @gamma_stmt tags_t).
     
     Lemma assign_sound : forall tag e₁ e₂,
-      lexpr_ok e₁ ->
-      Γ ⊢e e₁ ≀ this ->
-      Γ ⊢e e₂ ≀ this ->
-      Γ ⊢s MkStatement
-        tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
+        typ_of_expr e₁ = typ_of_expr e₂ ->
+        lexpr_ok e₁ ->
+        Γ ⊢e e₁ ≀ this ->
+        Γ ⊢e e₂ ≀ this ->
+        Γ ⊢s MkStatement
+          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
     Lemma cond_sound : forall tag e s₁ s₂ Γ₁,
-        typ_of_expr e = TypBool -> Γ ⊢e e ≀ this ->
+        typ_of_expr e = TypBool ->
+        Γ ⊢e e ≀ this ->
         Γ ⊢s s₁ ⊣ Γ₁ ≀ this ->
         EquivUtil.predop (fun s₂ => exists Γ₂, Γ ⊢s s₂ ⊣ Γ₂ ≀ this) s₂ ->
         Γ ⊢s MkStatement
@@ -908,11 +930,39 @@ Section Soundness.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
     
-    (** TODO: shadowing operation on [Γ] & [Γ']. *)
     Lemma block_sound : forall Γ' tag blk t,
         Block_StmTypes blk t ->
         Γ ⊢b blk ⊣ Γ' ≀ this ->
         Γ ⊢s MkStatement tag (StatBlock blk) t ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma assign_func_call_sound : forall tag e₁ e₂,
+        typ_of_expr e₁ = typ_of_expr e₂ ->
+        lexpr_ok e₁ ->
+        Γ ⊢e e₁ ≀ this ->
+        Γ ⊢c e₂ ≀ this ->
+        Γ ⊢s MkStatement
+          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma method_call_sound : forall tag e τs es,
+        Γ ⊢c  MkExpression dummy_tags
+          (ExpFunctionCall e τs es)
+          TypVoid Directionless ≀ this ->
+        Γ ⊢s MkStatement tag
+          (StatMethodCall e τs es) StmUnit ⊣ Γ ≀ this.
+    Proof.
+    Admitted.
+
+    Lemma direct_application_sound : forall tag τ es,
+        Γ ⊢c MkExpression dummy_tags
+          (ExpFunctionCall
+             (direct_application_expression τ)
+             nil (map Some es)) TypVoid Directionless ≀ this ->
+        Γ ⊢s MkStatement tag
+          (StatDirectApplication τ es) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
   End StmtTyping.

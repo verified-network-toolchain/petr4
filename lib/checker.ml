@@ -3104,6 +3104,14 @@ and type_control env info name annotations type_params params constructor_params
   let env = Checker_env.insert_type_of ~shadow:true (BareName name) ctor_type env in
   control, env
 
+and add_direction (param: Types.Parameter.t) : Types.Parameter.t =
+  let open Types in 
+  let p = snd param in
+  let direction: Direction.t option = Some (Info.dummy, In) in
+  match p.direction with
+  | None -> (fst param, {p with direction})
+  | _ -> param
+
 (* Section 9
 
  * Function Declaration:
@@ -3114,7 +3122,7 @@ and type_control env info name annotations type_params params constructor_params
  * -------------------------------------------------------
  *    Δ, T, Γ |- tr fn<...Aj,...>(...di ti xi,...){...stk;...}
 *)
-and type_function env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * coq_P4Type =
+and type_function ?(add_dirs = false) env (ctx: Typed.coq_StmtContext) info return name t_params params body : Prog.coq_Declaration * coq_P4Type =
   let env = Checker_env.push_scope env in
   let (paramctx: Typed.coq_ParamContextDeclaration), (kind: Typed.coq_FunctionKind) =
     match ctx with
@@ -3125,8 +3133,13 @@ and type_function env (ctx: Typed.coq_StmtContext) info return name t_params par
   in
   let body_env = Checker_env.insert_type_vars t_params env in
   let params_typed, _ = type_params body_env (ParamCxRuntime paramctx) params in
+  let params_body =
+    if add_dirs
+    then List.map ~f:add_direction params
+    else params
+  in
   let return_type = return |> translate_type env in
-  let body_env = insert_params body_env params in
+  let body_env = insert_params body_env params_body in
   let body_stmt_typed, _ = type_block body_env ctx (fst body) body in
   let body_typed : Prog.coq_Block =
     match body_stmt_typed, return_type with
@@ -3245,7 +3258,7 @@ and type_value_set env ctx info annotations typ size name =
 (* Section 13.1 *)
 and type_action env info annotations name params body =
   let fn_typed, fn_env =
-    type_function env StmtCxAction info (Info.dummy, Types.Type.Void) name [] params body
+    type_function ~add_dirs:true env StmtCxAction info (Info.dummy, Types.Type.Void) name [] params body
   in
   let action_typed, action_type =
     match fn_typed with

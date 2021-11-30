@@ -11,7 +11,7 @@
     ToP4cub ToGCL GCL Inline
     HoistNameless InferMemberTypes Substitution
     Auxilary Envn Result P4Arith
-    EquivUtil StringUtil ListUtil SimpleNat Utiliser
+    EquivUtil StringUtil ListUtil Utiliser
     Bool String Nat
     BinNums BinInt Zpower
     Specif Basics PeanoNat

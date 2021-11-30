@@ -86,10 +86,7 @@
     <div class="row">
       <div class="col-lg-3">
         <h3>Input Packet</h3>
-        <textarea rows="4" cols="100" id="packet-in" style="font-family: 'Consolas'; font-size:10pt;" spellcheck="false">01
-0F 01
-AA BB
-50 65 74 72 34 20 69 73 20 61 77 65 73 6f 6d 65 21</textarea>
+        <textarea rows="4" cols="100" id="packet-in" style="font-family: 'Consolas'; font-size:10pt;" spellcheck="false"></textarea>
       </div>
     </div>
     <div class="row">
@@ -133,13 +130,23 @@ AA BB
     var in_area = document.getElementById("packet-in")
     var out_area = document.getElementById("packet-out")
     button.onclick = function () {
+        const button = document.getElementById("evaluate")
+        var in_area = document.getElementById("packet-in")
+        var out_area = document.getElementById("packet-out")
         out_area.value = Petr4.eval(in_area.value, control_editor.getValue(), p4_editor.getValue());
     }
     
     function select_demo(){
-      var path = "/" + document.getElementById("demo_options").value;
-      var code = Petr4.read(path);
+      var in_area = document.getElementById("packet-in")
+      var code_path = "/" + document.getElementById("demo_options").value;
+      var pkt_path = code_path + ".pkt";
+      var desc_path = code_path + ".txt";
+      var code = Petr4.read(code_path);
+      var pkt = Petr4.read(pkt_path);
+      var desc = Petr4.read(desc_path);
+      in_area.value = pkt;
       p4_editor.setValue(code, -1);            
+      // TODO update description <div> innerHTML here
     }
     select_demo();
     </script>

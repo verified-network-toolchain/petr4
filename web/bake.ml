@@ -759,3 +759,22 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
 
 V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
 |}
+
+let sr_acl_p4_pkt =
+  "01 0F 01 AA BB 50 65 74 72 34 20 69 73 20 61 77 65 73 6F 6D 65 21"
+
+let null_pkt = "00 00 00 00 00 00 00 00"
+
+let fs =
+  [("/core.p4", core_p4_str);
+   ("/v1model.p4", v1model_p4_str);
+   ("/sr_acl.p4", sr_acl_p4_str);
+   ("/sr_acl.p4.pkt", sr_acl_p4_pkt);
+   ("/register.p4", register_p4_str);
+   ("/register.p4.pkt", null_pkt);
+   ("/switch_ebpf.p4", switch_ebpf_p4_str);
+   ("/switch_ebpf.p4.pkt", null_pkt);
+   ("/table-entries-lpm-bmv2.p4", table_entries_lpm_bmv2_p4_str);
+   ("/table-entries-lpm-bmv2.p4.pkt", null_pkt);
+   ("/union-valid-bmv2.p4", union_valid_bmv2_p4_str);
+   ("/union-valid-bmv2.p4.pkt", null_pkt)]

@@ -16,33 +16,18 @@
 
 open Petr4.Common
 open Js_of_ocaml
+open Core_kernel
 
 exception ParsingError of string
 
 module Webpp = P4pp.Eval.Make(struct
-  let exists = function
-    | "/core.p4" 
-    | "/sr_acl.p4" 
-    | "/register.p4"
-    | "/switch_ebpf.p4"
-    | "/table-entries-lpm-bmv2.p4"
-    | "/union-valid-bmv2.p4"
-    | "/v1model.p4" -> 
-      true
-    | str -> 
-      false
+  let exists =
+    List.Assoc.mem ~equal:String.equal Bake.fs
 
-  let load = function
-    | "/core.p4" -> Bake.core_p4_str
-    | "/sr_acl.p4" -> Bake.sr_acl_p4_str
-    | "/v1model.p4" -> Bake.v1model_p4_str
-    | "/register.p4" -> Bake.register_p4_str
-    | "/switch_ebpf.p4" -> Bake.switch_ebpf_p4_str
-    | "/table-entries-lpm-bmv2.p4" ->
-        Bake.table_entries_lpm_bmv2_p4_str
-    | "/union-valid-bmv2.p4" ->
-        Bake.union_valid_bmv2_p4_str
-    |  fn -> failwith (fn ^ ": not found")
+  let load path = 
+    match List.Assoc.find ~equal:String.equal Bake.fs path with
+    | Some contents -> contents
+    | None -> failwith (path ^ ": not found")
 end)
 
 module Conf: Parse_config = struct
@@ -50,9 +35,9 @@ module Conf: Parse_config = struct
   let green s = s
 
   let preprocess _ p4_file_contents =
-    let file ="input.p4" in
+    let file = "input.p4" in
     let env = P4pp.Eval.empty file ["/"] [] in
-    let str,_ = Webpp.preprocess env file p4_file_contents in
+    let str, _ = Webpp.preprocess env file p4_file_contents in
     str
 end
 
@@ -76,5 +61,5 @@ let _ =
         try
           eval false (Js.to_string packet) [] (Js.to_string control_string) (Js.to_string p4_content) |> Js.string
         with e ->
-          Printf.sprintf "Exception: %s" (Printexc.to_string e) |> Js.string
+          Printf.sprintf "Exception: %s" (Exn.to_string e) |> Js.string
      end)

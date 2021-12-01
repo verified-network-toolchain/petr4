@@ -53,6 +53,4 @@ clean:
 	dune clean
 
 web:
-	mkdir -p html_build/p4
-	cp $(WEB_EXAMPLES) html_build/p4
-	cd web && dune build ./web.bc.js --profile release && cp ../_build/default/web/web.bc.js ../html_build/ && cd ..
+	dune build _build/default/web/web.bc.js --profile release && cp _build/default/web/web.bc.js web/html_build/

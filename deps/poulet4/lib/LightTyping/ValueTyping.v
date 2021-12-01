@@ -1,8 +1,5 @@
-Require Export Poulet4.Semantics Poulet4.Typed Poulet4.Syntax
-        Coq.Strings.String Coq.NArith.BinNat Coq.Lists.List
+Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
         Poulet4.Value Coq.micromega.Lia Poulet4.Utils.
-Export ListNotations.
-Require Poulet4.P4String.
 
 (** Predicate that a
     [read_one_bit] relation
@@ -81,7 +78,7 @@ Section ValueTyping.
         Forall (fun v => val_typ v (TypHeader ts)) vs ->
         val_typ (ValBaseStack vs s n) (TypArray (TypHeader ts) n)
     | typ_enumfield : forall ename member members,
-        In member members ->
+        List.In member members ->
         val_typ
           (ValBaseEnumField (P4String.str ename) (P4String.str member))
           (TypEnum ename None members)
@@ -139,7 +136,7 @@ Section ValueTyping.
           Forall (fun v => P v (TypHeader ts)) vs ->
           P (ValBaseStack vs s n) (TypArray (TypHeader ts) n).
       Hypothesis HEnum : forall ename member members,
-          In member members ->
+          List.In member members ->
           P
             (ValBaseEnumField (P4String.str ename) (P4String.str member))
             (TypEnum ename None members).
@@ -406,15 +403,15 @@ Section ValueTyping.
         - unfold read_one_bit_reads in HR.
           specialize HR with b. firstorder eauto.
         - unfold read_one_bit_reads in HR.
-          assert (forall a, In a n -> exists b, R a b) by firstorder eauto.
+          assert (forall a, List.In a n -> exists b, R a b) by firstorder eauto.
           rewrite <- Forall_forall, Forall_exists_factor in H.
           firstorder eauto.
         - unfold read_one_bit_reads in HR.
-          assert (forall a, In a z -> exists b, R a b) by firstorder eauto.
+          assert (forall a, List.In a z -> exists b, R a b) by firstorder eauto.
           rewrite <- Forall_forall, Forall_exists_factor in H.
           firstorder eauto.
         - unfold read_one_bit_reads in HR.
-          assert (forall a, In a n -> exists b, R a b) by firstorder eauto.
+          assert (forall a, List.In a n -> exists b, R a b) by firstorder eauto.
           rewrite <- Forall_forall, Forall_exists_factor in H.
           firstorder eauto.
         - rewrite Forall_exists_factor in H.

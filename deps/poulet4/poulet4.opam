@@ -17,4 +17,5 @@ depends: [
   "coq" {build}
   "coq-equations" {build}
   "coq-record-update" {build}
+  "coq-compcert" {build}
 ]

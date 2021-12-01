@@ -1046,5 +1046,5 @@ and Block : sig
             end
 
 type program =
-    Program of Declaration.t list [@name "program"]
+    P4lightram of Declaration.t list [@name "program"]
 [@@deriving sexp,show,yojson]

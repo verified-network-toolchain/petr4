@@ -1,6 +1,5 @@
 open Core_kernel
-open Typed
-open Prog
+open P4light
 open Bitstring
 
 (*----------------------------------------------------------------------------*)
@@ -373,7 +372,7 @@ let rec int_of_val (width : int) (v : coq_Value) : coq_Value =
   | ValSenumField(_, _, v) -> int_of_val width v
   | _ -> failwith "cast to bitstring undefined"
 
-let fields_for_cast (fields: Typed.coq_FieldType list) (value: coq_Value) =
+let fields_for_cast (fields: P4light.coq_FieldType list) (value: coq_Value) =
   match value with
   | ValTuple vals ->
      let fields_vals = List.zip_exn fields vals in
@@ -381,7 +380,7 @@ let fields_for_cast (fields: Typed.coq_FieldType list) (value: coq_Value) =
   | ValRecord fields -> fields
   | _ -> failwith "cannot cast"
 
-let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> Typed.coq_P4Type)
+let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> P4light.coq_P4Type)
       (new_type: coq_P4Type) (value: coq_Value) : coq_Value =
   match new_type with
   | TypBool -> bool_of_val value

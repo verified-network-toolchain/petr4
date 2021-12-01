@@ -591,4 +591,4 @@ end
 
 (** [program] represents a P4 program with a [Declaration.t] list. *)
 type program =
-  Program of Declaration.t list [@@deriving sexp,show,yojson]
+  P4lightram of Declaration.t list [@@deriving sexp,show,yojson]

@@ -15,7 +15,7 @@
 
 open Core_kernel
 open Util
-module P4 = Types
+module P4 = Surface
 
 let format_list f fmt l =
   List.iter l ~f:(f fmt)
@@ -823,6 +823,6 @@ end
 
 let format_program fmt p =
   match p with
-  | P4.Program(ds) ->
+  | P4.P4lightram(ds) ->
     Format.fprintf fmt "@[%a@\n@]"
       (format_list_nl Declaration.format_t) ds

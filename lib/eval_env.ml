@@ -1,4 +1,4 @@
-open Typed
+open P4light
 open Core_kernel
 
 type t = {

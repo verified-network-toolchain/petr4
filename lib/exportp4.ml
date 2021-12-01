@@ -1,9 +1,8 @@
-open Typed
-open Prog
+open P4light
 open Format
 
 (***********************************************
-              Typed.ml -> Type.v
+              P4light.ml -> Type.v
  ***********************************************)
 
 let print_bool p b =
@@ -76,7 +75,7 @@ let print_direction p (dir: direction) =
     | Directionless -> "Directionless"
   in fprintf p "%s" s
 
-let print_name p (name : Info.t Poulet4.Typed.name) =
+let print_name p (name : P4name.t) =
   match name with
   | BareName s ->
       fprintf p "(@[<hov 0>BareName@ %a)@]" p4string s
@@ -939,7 +938,7 @@ let get_decl_name (decl: coq_Declaration): string option =
     | DeclError (_, _)
     | DeclMatchKind (_, _) -> None
 
-let collect_decl_names (program : Prog.program): string list =
+let collect_decl_names (program : P4light.program): string list =
   List.filter_map Fun.id (List.map get_decl_name program)
 
 let print_top_decl p (existing: string list) (decl : coq_Declaration): string =
@@ -962,13 +961,13 @@ let print_header p =
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ "
 
-let print_program p (program : Prog.program) =
+let print_program p (program : P4light.program) =
   fprintf p "@[<v 0>";
   print_header p;
   let existing = collect_decl_names program in
   let decl_names = List.map (print_top_decl p existing) program in
   let prog_name = Some "prog" in
-  let (f_str, prog_name) = (gen_format_string prog_name "Program@ %a")
+  let (f_str, prog_name) = (gen_format_string prog_name "P4lightram@ %a")
   in fprintf p f_str
         prog_name
         (print_list print_string) decl_names;

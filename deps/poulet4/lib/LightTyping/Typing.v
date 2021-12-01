@@ -84,11 +84,15 @@ Section TypingDefs.
              '(MkStatement _ _ t : stmt) : StmType := t.
   
   (** Expression typing. *)
-  Definition expr_types (this : path) (g : gamma_expr) (e : expr) : Prop :=
+  Definition
+    expr_types
+    (this : path) (d : list string)
+    (g : gamma_expr) (e : expr) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
       gamma_expr_prop this g st ge ->
+      d ⊢ok typ_of_expr e ->
       (exists v, run_expr ge read_one_bit this st e v) /\
       forall v, run_expr ge read_one_bit this st e v ->
            val_typ (ge_senum ge) v (typ_of_expr e).
@@ -164,53 +168,58 @@ Section TypingDefs.
       lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
 
   Variant fundef_funtype_prop
-          (Γ : gamma_expr) (Γext : gamma_ext) (this : path)
+          (Δ : list string) (Γ : gamma_expr)
+          (Γext : gamma_ext) (this : path)
     : @fundef tags_t -> funtype -> Prop :=
   (* TODO : need to know [body] & [init] are well-typed. *)
   | Internal_prop params init body Xs params' rt :
       Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
       fundef_funtype_prop
-        Γ Γext this
+        Δ Γ Γext this
         (FInternal params init body)
         (MkFunctionType Xs params' FunFunction rt)
   | Table_match name keys actions dflt entries key_typs :
       Forall2
         (fun '(MkTableKey _ e mk) '(t,mk') =>
-           expr_types this Γ e /\
+           expr_types this Δ Γ e /\
            typ_of_expr e = t /\ P4String.str mk = mk')
         keys key_typs ->
       fundef_funtype_prop
-        Γ Γext this
+        Δ Γ Γext this
         (FTable name keys actions dflt entries)
         (MkFunctionType [] [] FunTable TypVoid)
   | External_match class name Xs params rt :
       (* TODO: lookup [FExternal] by [class] or [name]. *)
       fundef_funtype_prop
-        Γ Γext this
+        Δ Γ Γext this
         (FExternal class name)
         (MkFunctionType Xs params FunExtern rt).
   
   (** TODO: stub. *)
   Definition gamma_func_types
-             (this : path) (g : gamma_expr) (gf : gamma_func)
+             (this : path) (d : list string)
+             (g : gamma_expr) (gf : gamma_func)
              (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
     forall (e : expr) (p p' : path) (fd : fundef) (ft : funtype),
       lookup_func_typ this gf gi e = Some (p,ft) ->
       lookup_func ge this e = Some (p',fd) ->
-      p = p' /\ fundef_funtype_prop g gext this fd ft.
+      p = p' /\ fundef_funtype_prop d g gext this fd ft.
 
   Definition gamma_func_prop
-             (this : path) (g : gamma_expr) (gf : gamma_func)
+             (this : path) (d : list string)
+             (g : gamma_expr) (gf : gamma_func)
              (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
-    gamma_func_domain this gf gi ge /\ gamma_func_types this g gf gi gext ge.
+    gamma_func_domain this gf gi ge /\
+    gamma_func_types this d g gf gi gext ge.
 
   (** TODO: externs... *)
   Definition gamma_stmt_prop
-             (this : path) (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
+             (this : path) (d : list string)
+             (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
     gamma_inst_prop (inst_gamma g) ge /\
     gamma_func_prop
-      this (expr_gamma g) (func_gamma g)
+      this d (expr_gamma g) (func_gamma g)
       (inst_gamma g) (ext_gamma g) ge.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
@@ -221,14 +230,17 @@ Section TypingDefs.
     end.
   
   (** Statement typing. *)
-  Definition stmt_types (this : path) (g g' : gamma_stmt) (s : stmt) : Prop :=
+  Definition
+    stmt_types
+    (this : path) (d : list string)
+    (g g' : gamma_stmt) (s : stmt) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this g ge st ->
+      gamma_stmt_prop this d g ge st ->
       (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
       forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
-                 gamma_stmt_prop this g' ge st'.
+                 gamma_stmt_prop this d g' ge st'.
 
   Inductive Block_StmTypes : block -> StmType -> Prop :=
   | Empty_StmType tag :
@@ -242,39 +254,44 @@ Section TypingDefs.
       Block_StmTypes (BlockCons s blk) t.
       
   (** Block typing. *)
-  Definition block_types (this : path) (g g' : gamma_stmt) (blk : block) : Prop :=
+  Definition
+    block_types
+    (this : path) (d : list string)
+    (g g' : gamma_stmt) (blk : block) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this g ge st ->
+      gamma_stmt_prop this d g ge st ->
       (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
       forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
-                 gamma_stmt_prop this g' ge st'.
+                 gamma_stmt_prop this d g' ge st'.
   
   (** Call typing. *)
   Definition
     call_types
-    (this : path) (g : gamma_stmt) (call : expr) : Prop :=
+    (this : path) (d : list string)
+    (g : gamma_stmt) (call : expr) : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop) (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this g ge st ->
+      gamma_stmt_prop this d g ge st ->
+      d ⊢ok typ_of_expr call ->
       (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
       forall st' sig, run_call ge read_one_bit this st call st' sig ->
-                 gamma_stmt_prop this g ge st'.
+                 gamma_stmt_prop this d g ge st'.
     
 End TypingDefs.
 
-Notation "Γ '⊢e' e ≀ this"
-  := (expr_types this Γ e)
+Notation "Δ '~' Γ '⊢ₑ' e ≀ this"
+  := (expr_types this Δ Γ e)
        (at level 80, no associativity) : type_scope.
-Notation "Γ₁ '⊢s' s ⊣ Γ₂ ≀ this"
-  := (stmt_types this Γ₁ Γ₂ s)
+Notation "Δ '~' Γ₁ '⊢ₛ' s ⊣ Γ₂ ≀ this"
+  := (stmt_types this Δ Γ₁ Γ₂ s)
        (at level 80, no associativity) : type_scope.
-Notation "Γ₁ '⊢b' blk ⊣ Γ₂ ≀ this"
-  := (block_types this Γ₁ Γ₂ blk)
+Notation "Δ '~' Γ₁ '⊢ᵦ' blk ⊣ Γ₂ ≀ this"
+  := (block_types this Δ Γ₁ Γ₂ blk)
        (at level 80, no associativity) : type_scope.
-Notation "Γ '⊢c' e ≀ this"
-  := (call_types this Γ e)
+Notation "Δ '~' Γ '⊢ᵪ' e ≀ this"
+  := (call_types this Δ Γ e)
        (at level 80, no associativity) : type_scope.
 
 (* TODO. *)
@@ -300,26 +317,27 @@ Section Soundness.
   Local Hint Constructors exec_expr : core.
   Local Hint Constructors val_typ : core.
   Local Hint Constructors exec_val : core.
+  Local Hint Constructors P4Type_ok : core.
 
-  Variable (this : path).
+  Variables (this : path) (Δ : list string).
   
   Section ExprTyping.
     Variable (Γ : @gamma_expr tags_t).
 
     Ltac soundtac :=
       autounfold with *;
-      intros rob ge st Hrob Hg;
+      intros rob ge st Hrob Hg Hok;
       split; eauto;
       try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
   
     Lemma bool_sound : forall tag b dir,
-        Γ ⊢e MkExpression tag (ExpBool b) TypBool dir ≀ this.
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpBool b) TypBool dir ≀ this.
     Proof.
       intros; soundtac.
     Qed.
   
     Lemma arbitrary_int_sound : forall tag i z dir,
-        Γ ⊢e
+        Δ ~ Γ ⊢ₑ
           MkExpression
           tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir ≀ this.
     Proof.
@@ -327,32 +345,36 @@ Section Soundness.
     Qed.
     
     Lemma unsigned_int_sound : forall tag i z w dir,
-        Γ ⊢e
+        Δ ~ Γ ⊢ₑ
           MkExpression tag
-          (ExpInt (P4Int.Build_t _ i z (Some (w,false)))) (TypBit w) dir ≀ this.
+          (ExpInt
+             (P4Int.Build_t _ i z (Some (w,false))))
+          (TypBit w) dir ≀ this.
     Proof.
       intros tag i z dir; soundtac.
       (* TODO: need some result about [P4Arith.to_loptbool]. *)
     Admitted.
     
     Lemma signed_int_sound : forall tag i z w dir,
-        Γ ⊢e
+        Δ ~ Γ ⊢ₑ
           MkExpression
-          tag (ExpInt (P4Int.Build_t _ i z (Some (w,true)))) (TypInt w) dir ≀ this.
+          tag
+          (ExpInt (P4Int.Build_t _ i z (Some (w,true))))
+          (TypInt w) dir ≀ this.
     Proof.
       intros tag i z dir; soundtac.
       (* TODO: need some result about [P4Arith.to_loptbool]. *)
     Admitted.
     
     Lemma string_sound : forall tag s dir,
-        Γ ⊢e MkExpression tag (ExpString s) TypString dir ≀ this.
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpString s) TypString dir ≀ this.
     Proof.
       intros; soundtac.
     Qed.
     
     Lemma name_sound : forall tag x loc t dir,
         typ_of_loc this loc Γ = Some t ->
-        Γ ⊢e MkExpression tag (ExpName x loc) t dir ≀ this.
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
     Proof.
       intros i x l t d Hgt; soundtac.
     - destruct l as [lp | lp]; simpl in Hgt;
@@ -369,19 +391,20 @@ Section Soundness.
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
-        Γ ⊢e arry ≀ this ->
-        Γ ⊢e idx ≀ this ->
-        Γ ⊢e MkExpression tag (ExpArrayAccess arry idx) (TypHeader ts) dir ≀ this.
+        Δ ~ Γ ⊢ₑ arry ≀ this ->
+        Δ ~ Γ ⊢ₑ idx ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression
+          tag (ExpArrayAccess arry idx) (TypHeader ts) dir ≀ this.
     Proof.
       intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros rob ge st Hrob Hg.
-      pose proof He1 rob ge st Hrob Hg as [[v1 Hev1] He1']; clear He1.
-      pose proof He2 rob ge st Hrob Hg as [[v2 Hev2] He2']; clear He2.
+      intros rob ge st Hrob Hg Hok. simpl in *.
+      rewrite Ht1, Ht2 in *.
+      pose proof He1 rob ge st Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
+      pose proof He2 rob ge st Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
       split.
       - pose proof He1' v1 Hev1 as Hv1.
         pose proof He2' v2 Hev2 as Hv2.
-        rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
         inversion Hv1; inversion Hv2; subst.
         (* Need to know [N_of_value idx < n]. *) admit.
       - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
@@ -400,17 +423,18 @@ Section Soundness.
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,
         (lo <= hi < w)%N ->
         typ_of_expr bits = TypBit w ->
-        Γ ⊢e bits ≀ this ->
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ bits ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpBitStringAccess bits lo hi)
           (TypBit (hi - lo + 1)%N) dir ≀ this.
     Proof.
       intros i e lo hi d w Hlwh Ht He.
       autounfold with * in *.
-      intros rob ge st Hrob Hg.
-      pose proof He rob ge st Hrob Hg as [[v Hev] He']; clear He.
+      intros rob ge st Hrob Hg Hok.
+      rewrite Ht in *.
+      pose proof He rob ge st Hrob Hg as [[v Hev] He']; clear He; auto.
       split.
-      - apply He' in Hev as Hv; rewrite Ht in Hv;
+      - apply He' in Hev as Hv;
           inversion Hv; subst; rename v0 into bits.
         exists (ValBaseBit (bitstring_slice bits (N.to_nat lo) (N.to_nat hi))).
         eapply exec_expr_bitstring_access with (wn := length bits); eauto; lia.
@@ -420,12 +444,12 @@ Section Soundness.
     Admitted.
   
     Lemma list_sound : forall tag es dir,
-        Forall (fun e => Γ ⊢e e ≀ this) es ->
-        Γ ⊢e MkExpression tag (ExpList es)
+        Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) es ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpList es)
           (TypTuple (map typ_of_expr es)) dir ≀ this.
     Proof.
       intros i es d Hes. autounfold with * in *.
-      intros rob ge st Hrob Hg.
+      intros rob ge st Hrob Hg Hok.
       rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (ge:=ge) (st:=st).
@@ -433,14 +457,20 @@ Section Soundness.
         simpl in Hes'; clear Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
         simpl in Hes; clear Hes'.
-      rewrite split_impl_conj in Hes.
-      destruct Hes as [Hrnes Htyps]. split.
-      - clear Htyps; rewrite <- Forall_forall in Hrnes.
+      simpl in *; inversion Hok;
+        rename H0 into Hτs; rename H into Hτs_eq.
+      rewrite <- Forall_forall in Hes.
+      rewrite Forall_map in Hτs.
+      unfold Basics.compose in *.
+      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
+      apply Forall_and_inv in Hq as [Hrnes Htyps]; split.
+      - clear Htyps.
         rewrite Forall_exists_factor in Hrnes.
         destruct Hrnes as [vs Hvs]; eauto.
       - clear Hrnes; intros v Hrn; simpl.
         inversion Hrn; subst; clear Hrn.
         rename H6 into Hesvs.
+        rewrite Forall_forall in Htyps.
         apply forall_Forall2 with (bs := vs) in Htyps;
           eauto using Forall2_length.
         apply Forall2_impl with
@@ -450,15 +480,14 @@ Section Soundness.
     Qed.
     
     Lemma record_sound : forall tag es dir,
-        Forall (fun e => Γ ⊢e e ≀ this) (map snd es) ->
-        Γ ⊢e
-          MkExpression
+        Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) (map snd es) ->
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpRecord es)
           (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir ≀ this.
     Proof.
       intros i es d Hes.
       autounfold with * in *.
-      intros rob ge st Hrob Hg.
+      intros rob ge st Hrob Hg Hok.
       rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (ge:=ge) (st:=st).
@@ -466,9 +495,21 @@ Section Soundness.
         simpl in Hes'; clear Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
         simpl in Hes; clear Hes'.
-      rewrite split_impl_conj in Hes.
-      destruct Hes as [Hrns Htyps]. split.
-      - clear Htyps. rewrite <- Forall_forall in Hrns.
+      simpl in *; inversion Hok;
+        rename H0 into Hτs; rename H into Hτs_eq.
+      rewrite <- Forall_forall in Hes.
+      pose proof Forall_map
+           (P4Type_ok Δ) snd
+           (map (fun '(x, e) => (x, typ_of_expr e)) es)
+        as Hfm.
+      unfold Basics.compose in Hfm.
+      rewrite <- Hfm in Hτs; clear Hfm.
+      rewrite map_snd_map in Hτs.
+      rewrite Forall_map in Hτs.
+      unfold Basics.compose in *.
+      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
+      apply Forall_and_inv in Hq as [Hrns Htyps]; split.
+      - clear Htyps.
         rewrite Forall_exists_factor in Hrns.
         destruct Hrns as [vs Hvs].
         rewrite AList.Forall2_all_values
@@ -576,13 +617,16 @@ Section Soundness.
   
     Lemma unary_op_sound : forall tag o e t dir,
         unary_type o (typ_of_expr e) t ->
-        Γ ⊢e e ≀ this ->
-        Γ ⊢e MkExpression tag (ExpUnaryOp o e) t dir ≀ this.
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir ≀ this.
     Proof.
       intros i o e t d Hut He.
-      autounfold with * in *; intros rob ge st Hrob Hg.
+      autounfold with * in *; intros rob ge st Hrob Hg Hok.
       specialize He with rob ge st.
-      pose proof He Hrob Hg as [[v Hev] Hvt]; clear He; split.
+      simpl in *.
+      apply unary_type_eq in Hut as Hut_eq.
+      rewrite Hut_eq in He.
+      pose proof He Hrob Hg Hok as [[v Hev] Hvt]; clear He; split.
       - apply Hvt in Hev as Hv; clear Hvt.
         assert (exists v', sval_to_val rob v v')
           by eauto using exec_val_exists.
@@ -603,8 +647,6 @@ Section Soundness.
       - clear v Hev; intros v Hev.
         inversion Hev; subst; simpl in *.
         pose proof Hvt _ H7 as Hargsv.
-        assert (typ_of_expr e = t) by eauto using unary_type_eq.
-        rewrite H in *. clear e Hvt Hev H7 H.
         pose proof
              (@exec_val_preserves_typ
                 tags_t _ _ _ _ _ H8 (ge_senum ge)) as Hevpt.
@@ -615,7 +657,7 @@ Section Soundness.
         { admit. }
         destruct Hgsb as [gsb Hgsb].
         pose proof Hevpt _ Hgsb _ Hargsv as Hargv.
-        assert (Hv0: val_typ gsb v0 t)
+        assert (Hv0: val_typ gsb v0 (typ_of_expr e))
           by eauto using eval_unary_op_preserves_typ.
         assert (Hgsb' :
                   FuncAsMap.related
@@ -630,15 +672,16 @@ Section Soundness.
 
     Lemma binary_op_sound : forall tag o t e1 e2 dir,
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
-        Γ ⊢e e1 ≀ this -> Γ ⊢e e2 ≀ this ->
-        Γ ⊢e MkExpression tag (ExpBinaryOp o (e1,e2)) t dir ≀ this.
+        Δ ~ Γ ⊢ₑ e1 ≀ this ->
+        Δ ~ Γ ⊢ₑ e2 ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir ≀ this.
     Proof.
     Admitted.
   
     Lemma cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->
-        Γ ⊢e e ≀ this ->
-        Γ ⊢e MkExpression tag (ExpCast t e) t dir ≀ this.
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpCast t e) t dir ≀ this.
     Proof.
     Admitted.
 
@@ -646,7 +689,7 @@ Section Soundness.
         (* TODO: need [ge] of [genv].
            name_to_type ge tname = Some (TypEnum ename None members) ->*)
         List.In member members ->
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpTypeMember tname member)
           (TypEnum ename None members) dir ≀ this.
     Proof.
@@ -656,14 +699,14 @@ Section Soundness.
         (*name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
           IdentMap.get ename (ge_senum ge) = Some fields ->*)
         List.In member members ->
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpTypeMember tname member)
           (TypEnum ename (Some t) members) dir ≀ this.
     Proof.
     Admitted.
 
     Lemma error_member_sound : forall tag err dir,
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpErrorMember err) TypError dir ≀ this.
     Proof.
       soundtac.
@@ -672,8 +715,8 @@ Section Soundness.
     Lemma other_member_sound : forall tag e x ts t dir,
       member_type ts (typ_of_expr e) ->
       AList.get ts x = Some t ->
-      Γ ⊢e e ≀ this ->
-      Γ ⊢e MkExpression
+      Δ ~ Γ ⊢ₑ e ≀ this ->
+      Δ ~ Γ ⊢ₑ MkExpression
         tag (ExpExpressionMember e x) t dir ≀ this.
     Proof.
     Admitted.
@@ -683,8 +726,8 @@ Section Soundness.
         (w < 2 ^ 32)%N ->
         typ_of_expr e = TypArray t w ->
         P4String.str x = "size"%string ->
-        Γ ⊢e e ≀ this ->
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpExpressionMember e x) (TypBit 32) dir ≀ this.
     Proof.
     Admitted.
@@ -692,8 +735,8 @@ Section Soundness.
     Lemma array_last_index_sound : forall tag e x dir t w,
         typ_of_expr e = TypArray t w ->
         P4String.str x = "lastIndex"%string ->
-        Γ ⊢e e ≀ this ->
-        Γ ⊢e MkExpression
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpExpressionMember e x) t dir ≀ this.
     Proof.
     Admitted.
@@ -702,15 +745,15 @@ Section Soundness.
         typ_of_expr e₁ = TypBool ->
         typ_of_expr e₂ = typ_of_expr e₃ ->
         typ_of_expr e₂ = t ->
-        Γ ⊢e e₁ ≀ this ->
-        Γ ⊢e e₂ ≀ this ->
-        Γ ⊢e e₃ ≀ this ->
-        Γ ⊢e MkExpression tag (ExpTernary e₁ e₂ e₃) t dir ≀ this.
+        Δ ~ Γ ⊢ₑ e₁ ≀ this ->
+        Δ ~ Γ ⊢ₑ e₂ ≀ this ->
+        Δ ~ Γ ⊢ₑ e₃ ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir ≀ this.
     Proof.
     Admitted.
 
     Lemma dontcare_sound : forall tag dir,
-        Γ ⊢e MkExpression tag ExpDontCare TypVoid dir ≀ this.
+        Δ ~ Γ ⊢ₑ MkExpression tag ExpDontCare TypVoid dir ≀ this.
     Proof.
       soundtac.
     Qed.
@@ -725,19 +768,19 @@ Section Soundness.
     Lemma assign_sound : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
-        Γ ⊢e e₁ ≀ this ->
-        Γ ⊢e e₂ ≀ this \/ Γ ⊢c e₂ ≀ this ->
-        Γ ⊢s MkStatement
+        Δ ~ Γ ⊢ₑ e₁ ≀ this ->
+        Δ ~ Γ ⊢ₑ e₂ ≀ this \/ Δ ~ Γ ⊢ᵪ e₂ ≀ this ->
+        Δ ~ Γ ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
     Lemma cond_sound : forall tag e s₁ s₂ Γ₁,
         typ_of_expr e = TypBool ->
-        Γ ⊢e e ≀ this ->
-        Γ ⊢s s₁ ⊣ Γ₁ ≀ this ->
-        predopt (fun s₂ => exists Γ₂, Γ ⊢s s₂ ⊣ Γ₂ ≀ this) s₂ ->
-        Γ ⊢s MkStatement
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₛ s₁ ⊣ Γ₁ ≀ this ->
+        predopt (fun s₂ => exists Γ₂, Δ ~ Γ ⊢ₛ s₂ ⊣ Γ₂ ≀ this) s₂ ->
+        Δ ~ Γ ⊢ₛ MkStatement
           tag (StatConditional e s₁ s₂)
           (match s₂ with
            | None    => typ_of_stmt s₁
@@ -747,20 +790,20 @@ Section Soundness.
     Admitted.
 
     Lemma exit_sound : forall tag,
-        Γ ⊢s MkStatement tag StatExit StmVoid ⊣ Γ ≀ this.
+        Δ ~ Γ ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ ≀ this.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
 
     Lemma return_sound : forall tag e,
-        predopt (fun e => Γ ⊢e e ≀ this) e ->
-        Γ ⊢s MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
+        predopt (fun e => Δ ~ Γ ⊢ₑ e ≀ this) e ->
+        Δ ~ Γ ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
     Lemma empty_sound : forall tag,
-        Γ ⊢s MkStatement tag StatEmpty StmUnit ⊣ Γ ≀ this.
+        Δ ~ Γ ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ ≀ this.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
@@ -768,36 +811,26 @@ Section Soundness.
     
     Lemma block_sound : forall Γ' tag blk t,
         Block_StmTypes blk t ->
-        Γ ⊢b blk ⊣ Γ' ≀ this ->
-        Γ ⊢s MkStatement tag (StatBlock blk) t ⊣ Γ ≀ this.
-    Proof.
-    Admitted.
-
-    Lemma assign_func_call_sound : forall tag e₁ e₂,
-        typ_of_expr e₁ = typ_of_expr e₂ ->
-        lexpr_ok e₁ ->
-        Γ ⊢e e₁ ≀ this ->
-        Γ ⊢c e₂ ≀ this ->
-        Γ ⊢s MkStatement
-          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
+        Δ ~ Γ ⊢ᵦ blk ⊣ Γ' ≀ this ->
+        Δ ~ Γ ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
     Lemma method_call_sound : forall tag e τs es,
-        Γ ⊢c  MkExpression dummy_tags
+        Δ ~ Γ ⊢ᵪ MkExpression dummy_tags
           (ExpFunctionCall e τs es)
           TypVoid Directionless ≀ this ->
-        Γ ⊢s MkStatement tag
+        Δ ~ Γ ⊢ₛ MkStatement tag
           (StatMethodCall e τs es) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
 
     Lemma direct_application_sound : forall tag τ es,
-        Γ ⊢c MkExpression dummy_tags
+        Δ ~ Γ ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
              (direct_application_expression τ)
              nil (map Some es)) TypVoid Directionless ≀ this ->
-        Γ ⊢s MkStatement tag
+        Δ ~ Γ ⊢ₛ MkStatement tag
           (StatDirectApplication τ es) StmUnit ⊣ Γ ≀ this.
     Proof.
     Admitted.
@@ -806,8 +839,8 @@ Section Soundness.
         predopt
           (fun e =>
              typ_of_expr e = τ /\
-             (Γ ⊢e e ≀ this \/ Γ ⊢c e ≀ this)) e ->
-        Γ ⊢s MkStatement
+             (Δ ~ Γ ⊢ₑ e ≀ this \/ Δ ~ Γ ⊢ᵪ e ≀ this)) e ->
+        Δ ~ Γ ⊢ₛ MkStatement
           tag (StatVariable τ x e l) StmUnit
           ⊣ bind_typ_gamma_stmt this l τ Γ ≀ this.
     Proof.

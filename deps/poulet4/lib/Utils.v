@@ -233,6 +233,12 @@ Section MapCombine.
   Qed.
 End MapCombine.
 
+Lemma Forall_impl_Forall : forall (U : Type) (P Q : U -> Prop) us,
+    Forall (fun u => P u -> Q u) us -> Forall P us -> Forall Q us.
+Proof.
+  intros; rewrite Forall_forall in *; auto.
+Qed.
+
 Section Forall.
   Variables (A B : Type) (R : A -> B -> Prop).
   

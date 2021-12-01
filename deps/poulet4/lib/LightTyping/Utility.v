@@ -5,6 +5,7 @@ Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
 Notation predopt    := (EquivUtil.predop).
 Notation remove_str := (remove string_dec).
+Notation remove_all := (fold_right remove_str).
 
 Section Utils.
   Context {tags_t : Type}.
@@ -204,7 +205,7 @@ Ltac inv_numeric :=
 Reserved Notation "Δ '⊢ok' τ" (at level 80, no associativity).
 
 Inductive
-  typ_ok
+  P4Type_ok
   {tags_t : Type} (Δ : list string) : @P4Type tags_t -> Prop :=
 | bool_ok :
     Δ ⊢ok TypBool
@@ -255,5 +256,52 @@ Inductive
 | newType_ok X τ :
     remove_str (P4String.str X) Δ ⊢ok τ ->
     Δ ⊢ok TypNewType X τ
-where "Δ '⊢ok' τ" := (typ_ok Δ τ) : type_scope.
-(* TODO: more [P4Types]. *)
+| control_ok ct :
+    ControlType_ok Δ ct ->
+    Δ ⊢ok TypControl ct
+| parser_ok pt :
+    ControlType_ok Δ pt ->
+    Δ ⊢ok TypParser pt
+(* TODO: How should externs be handled? *)
+| extern_ok X :
+    Δ ⊢ok TypExtern X
+(* TODO: how to handle wildcard params? *)
+| package_ok Xs Ys params :
+    Forall
+      (fun p =>
+         P4Parameter_ok
+           (remove_all (map P4String.str Xs) Δ) p)
+      params ->
+    Δ ⊢ok TypPackage Xs Ys params
+| specialized_ok τ τs :
+    Forall (fun τ => Δ ⊢ok τ) τs ->
+    Δ ⊢ok τ ->
+    Δ ⊢ok TypSpecializedType τ τs
+| constructor_ok Xs Ys params τ :
+    Forall
+      (fun p =>
+         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      params ->
+    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    Δ ⊢ok TypConstructor Xs Ys params τ
+where "Δ '⊢ok' τ" := (P4Type_ok Δ τ) : type_scope
+with ControlType_ok {tags_t : Type} (Δ : list string) : ControlType -> Prop :=
+| controlType_ok Xs params :
+    Forall
+      (fun p =>
+         P4Parameter_ok
+           (remove_all (map P4String.str Xs) Δ) p)
+      params ->
+    ControlType_ok Δ (MkControlType Xs params)
+with FunctionType_ok {tags_t : Type} (Δ : list string) : FunctionType -> Prop :=
+| functionType_ok Xs params k τ :
+    Forall
+      (fun p =>
+         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      params ->
+    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    FunctionType_ok Δ (MkFunctionType Xs params k τ)
+with P4Parameter_ok {tags_t : Type} (Δ : list string) : P4Parameter -> Prop :=
+| parameter_ok b d τ n x :
+    Δ ⊢ok τ ->
+    P4Parameter_ok Δ (MkParameter b d τ n x).

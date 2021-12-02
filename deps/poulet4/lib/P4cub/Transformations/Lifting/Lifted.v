@@ -202,11 +202,15 @@ Section Lifted.
       Field.predfs_data lifted_parser_expr cases ->
       lifted_parser_expr (Parser.PSelect exp default cases i).
 
+  Local Hint Constructors lifted_parser_expr : core.
+  
   Definition lifted_parser_state (stblk : Parser.state_block tags_t) : Prop :=
     lifted_stmt (Parser.stmt stblk) /\ lifted_parser_expr (Parser.trans stblk).
-    
-  Local Hint Constructors lifted_parser_expr : core.
+  
+  Definition lifted_parser_states (states: F.fs string (Parser.state_block tags_t)) : Prop := 
+    F.predfs_data lifted_parser_state states.
 
+  Check lifted_parser_states.
   Definition lifted_table (tbl : Control.table tags_t) : Prop :=
     Forall (fun '(e, _) => lifted_expr e) (Control.table_key tbl).
   
@@ -220,6 +224,23 @@ Section Lifted.
   | lifted_CDSeq d1 d2 i :
       lifted_control_Decl d1 -> lifted_control_Decl d2 ->
       lifted_control_Decl (Control.CDSeq d1 d2 i).
+
+  Inductive lifted_top_Decl : TopDecl.d tags_t -> Prop :=
+  | lifted_TPInstantiate c_name i_name type_args cargs i :
+      lifted_top_Decl (TopDecl.TPInstantiate c_name i_name type_args cargs i)
+  | lifted_TPExtern e_name type_params c_params methods i : 
+      lifted_top_Decl (TopDecl.TPExtern e_name type_params c_params methods i)
+  | lifted_TPControl c cparams eps params body apply_blk i :
+      lifted_control_Decl body -> lifted_stmt apply_blk ->
+      lifted_top_Decl (TopDecl.TPControl c cparams eps params body apply_blk i)
+  | lifted_TPParser p cparams eps params start_state states i :
+      lifted_parser_state start_state -> lifted_parser_states states ->
+      lifted_top_Decl (TopDecl.TPParser p cparams eps params start_state states i)
+  | lifted_TPFunction f tparams signature body i :
+      lifted_stmt body -> lifted_top_Decl (TopDecl.TPFunction f tparams signature body i)
+  | lifted_TPSeq d1 d2 i :
+      lifted_top_Decl d1 -> lifted_top_Decl d2 ->
+      lifted_top_Decl (TopDecl.TPSeq d1 d2 i).
 
   Section HelperLemmas.
     Variable f :
@@ -629,4 +650,9 @@ Section Lifted.
   Qed.  
   
   Local Hint Resolve TranslateControlDecl_lifted_stmt : core.
+
+  (* Not Done, unsure how to write lemma with monad
+  Lemma TranslateTopDecl_lifted_stmt : forall (td : TopDecl.d tags_t) (env : VarNameGen.t),
+      lifted_ *)
+
 End Lifted.

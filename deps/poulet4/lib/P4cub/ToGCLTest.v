@@ -22,11 +22,10 @@ Definition d := NoInfo.
 Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo ToP4cubTest.test.
 (* Compute p4cub_simple_nat. *)
 
-
 Definition simple_nat_test_case :=
   let* sn := p4cub_simple_nat in
   let externs := V1model.externs in
-  ToGCL.p4cub_to_gcl Info TableInstr.instr 1000 externs V1model.package sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
 (* Compute simple_nat_test_case. *)
 

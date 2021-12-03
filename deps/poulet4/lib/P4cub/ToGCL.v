@@ -7,6 +7,7 @@ Require Export Poulet4.P4cub.BigStep.BigStep.
 Require Export Poulet4.P4cub.BigStep.Semantics.
 Require Export Poulet4.P4cub.BigStep.Value.Value.
 Require Export Poulet4.P4cub.Util.Result.
+
 Require Import Coq.Arith.EqNat.
 Require Import String.
 Open Scope string_scope.
@@ -128,12 +129,12 @@ Section ToGCL.
          end
     else v.
 
-  Definition target := @GCL.t tags_t string (BV.t tags_t) (Form.t tags_t).
+  Definition target := @GCL.t string BV.t Form.t.
 
   Definition extern : Type := Env.t string target.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
-  Definition find (m : model) (e f : string) : result (GCL.t tags_t) :=
+  Definition find (m : model) (e f : string) : result GCL.t :=
     let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
     let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
     ok fn.
@@ -142,7 +143,7 @@ Section ToGCL.
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t tags_t * E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t* E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -178,21 +179,21 @@ Section ToGCL.
       end.
     (**[]*)
 
-    Definition iteb (guard : Form.t tags_t) (tru fls : target) (i : tags_t) : target :=
-      GCL.GChoice _ (GCL.GSeq _ (GCL.GAssume _ guard) tru) (GCL.GSeq _ (GCL.GAssume _ (Form.LNot _ guard i)) fls).
+    Definition iteb (guard : Form.t) (tru fls : target): target :=
+      GCL.GChoice (GCL.GSeq (GCL.GAssume guard) tru) (GCL.GSeq (GCL.GAssume (Form.LNot guard)) fls).
 
     Definition seq (i : tags_t) (res1 res2 : (target * ctx)) : target * ctx :=
       let (g1, ctx1) := res1 in
       let (g2, ctx2) := res2 in
       let g2' :=
           if may_have_returned ctx1
-          then (iteb (GCL.is_true _ (retvar_name ctx1) i) (GCL.GSkip _ i) g2 i)
+          then (iteb (GCL.is_true (retvar_name ctx1)) GCL.GSkip g2)
           else g2 in
       let g2'' :=
           if may_have_exited ctx1
-          then (iteb (GCL.exit _ i) (GCL.GSkip _ i) g2 i)
+          then iteb (Form.bveq (BV.BVVar "exit" 1) (BV.bit 1 1)) (GCL.GSkip) g2
           else g2' in
-      (GCL.GSeq _ g1 g2'', ctx2).
+      (GCL.GSeq g1 g2'', ctx2).
 
     Definition string_of_z (x : Z) :=
       if BinInt.Z.ltb x (Z0)
@@ -294,27 +295,27 @@ Section ToGCL.
         error "don't know how to extract member from type that has no members"
       end.
 
-    Fixpoint to_rvalue (e : (E.e tags_t)) : result (BV.t tags_t) :=
+    Fixpoint to_rvalue (e : (E.e tags_t)) : result BV.t :=
       match e with
       | E.EBool b i =>
         if b
-        then ok (BV.bit _ 1 1 i)
-        else ok (BV.bit _ 0 1 i)
+        then ok (BV.bit 1 1)
+        else ok (BV.bit 0 1)
       | E.EBit w v i =>
-        ok (BV.bit _  (BinInt.Z.to_nat v) (BinNat.N.to_nat w) i)
+        ok (BV.bit (BinInt.Z.to_nat v) (BinNat.N.to_nat w))
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
         let+ w := width_of_type x t in
-        BV.BVVar _ x w i
+        BV.BVVar x w
 
       | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
-        BV.UnOp _ (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e i
+        BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => ok (BV.UnOp _ (BV.BVCast w) rvalue_arg i) in
+        let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg) in
         match type with
         | E.TBool => cast 1
         | E.TBit w => cast (BinNat.N.to_nat w)
@@ -326,15 +327,15 @@ Section ToGCL.
         match op with
         | E.Not =>
           let+ rv_arg := to_rvalue arg in
-          BV.UnOp _ BV.BVNeg rv_arg i
+          BV.UnOp BV.BVNeg rv_arg
         | E.BitNot =>
           let+ rv_arg := to_rvalue arg in
-          BV.UnOp _ BV.BVNeg rv_arg i
+          BV.UnOp BV.BVNeg rv_arg
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
           let+ header := to_header_string arg in
           let hvld := header ++ ".is_valid" in
-          BV.BVVar _ hvld 1 i
+          BV.BVVar hvld 1
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
           error "SetValid as an expression is deprecated"
         | E.SetInValid =>
@@ -347,7 +348,7 @@ Section ToGCL.
       | E.EBop typ op lhs rhs i =>
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
-        let bin := fun o => ok (BV.BinOp _ o l r i) in
+        let bin := fun o => ok (BV.BinOp o l r) in
         let* signed :=
            match typ with
            | E.TBit _ => ok false
@@ -385,7 +386,7 @@ Section ToGCL.
       | E.EExprMember ret_type mem arg i =>
         let* w := width_of_type mem ret_type in
         let+ lv := to_lvalue arg in
-        BV.BVVar _  (lv ++ "." ++ mem) w i
+        BV.BVVar (lv ++ "." ++ mem) w
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
       | E.EHeaderStack _ _ _ _ =>
@@ -394,16 +395,16 @@ Section ToGCL.
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
-    Fixpoint to_form (e : (E.e tags_t)) : result (Form.t tags_t) :=
+    Fixpoint to_form (e : (E.e tags_t)) : result Form.t :=
       match e with
-      | E.EBool b i => ok (Form.LBool _ b i)
+      | E.EBool b i => ok (Form.LBool b)
       | E.EBit _ _ _ =>
         error "Typeerror: Bitvector literals are not booleans (perhaps you want to insert a cast?)"
       | E.EInt _ _ _ =>
         error "Typeerror: Signed Ints are not booleans (perhaps you want to insert a cast?)"
       | E.EVar t x i =>
         match t with
-        | E.TBool => ok (Form.LVar _ x i)
+        | E.TBool => ok (Form.LVar x)
         | _ =>
           error "Typeerror: Expected a Boolean form, got something else (perhaps you want to insert a cast?)"
         end
@@ -413,7 +414,7 @@ Section ToGCL.
 
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
-        let cast := fun w => ok (GCL.isone _ (BV.UnOp _ (BV.BVCast w) rvalue_arg i) i) in
+        let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg)) in
         match type with
         | E.TBool => cast 1
         | E.TBit w => cast (BinNat.N.to_nat w)
@@ -424,13 +425,13 @@ Section ToGCL.
       | E.EUop type op arg i =>
         let* rv_arg := to_rvalue arg in
         match op with
-        | E.Not => ok (GCL.isone _ (BV.UnOp _ BV.BVNeg rv_arg i) i)
+        | E.Not => ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
           let+ header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
-          GCL.isone _ (BV.BVVar _ hvld 1 i) i
+          GCL.isone (BV.BVVar hvld 1)
         | E.SetValid =>
           error "SetValid is deprecated as an expression"
         | E.SetInValid =>
@@ -449,11 +450,11 @@ Section ToGCL.
         let lbin := fun o_res => let* l := to_form lhs in
                                  let* r := to_form rhs in
                                  let+ o := o_res in
-                                 Form.LBop _ o l r i in
+                                 Form.LBop o l r in
         let cbin := fun o_res => let* l := to_rvalue lhs in
                                  let* r := to_rvalue rhs in
                                  let+ o := o_res in
-                                 Form.LComp _ o l r i in
+                                 Form.LComp o l r in
         match op with
         | E.Plus => error "Typeerror: (+) is not a boolean operator"
         | E.PlusSat => error "Typeerror: (|+|) is not a boolean operator"
@@ -484,7 +485,7 @@ Section ToGCL.
       | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
         let~ w := (width_of_type mem expr_type) over ("failed getting type of " ++ mem) in
-        ok (GCL.isone _ (BV.BVVar _ lv w i) i)
+        ok (GCL.isone (BV.BVVar lv w))
       | E.EError _ _ =>
         error "errors are not formulae"
       | E.EMatchKind _ _ =>
@@ -500,20 +501,20 @@ Section ToGCL.
       let (fg, fctx) := fres in
       let* ctx := join tctx fctx in
       let* phi := to_form guard in
-      ok (iteb phi tg fg i, ctx).
+      ok (iteb phi tg fg, ctx).
 
     Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
       match s with
       | Inline.ISkip _ i =>
-        ok (GCL.GSkip _ i, c)
+        ok (GCL.GSkip, c)
 
       | Inline.IVardecl _ typ x i =>
-        ok (GCL.GSkip _ i, add_to_scope c x)
+        ok (GCL.GSkip, add_to_scope c x)
 
       | Inline.IAssign _ type lhs rhs i =>
         let* lhs' := to_lvalue (scopify c lhs) in
         let+ rhs' := to_rvalue (scopify c rhs) in
-        let e := GCL.GAssign _ type lhs' rhs' i in
+        let e := GCL.GAssign type lhs' rhs' in
         (e, c)
 
       | Inline.IConditional _ guard_type guard tru_blk fls_blk i =>
@@ -532,15 +533,15 @@ Section ToGCL.
         (gcl, c'')
 
       | Inline.IReturnVoid _ i =>
-        let g_asn := @GCL.GAssign _ string (BV.t _) (Form.t _) in
-        ok (g_asn (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
+        let g_asn := @GCL.GAssign string BV.t Form.t in
+        ok (g_asn (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit 1 1), c)
 
       | Inline.IReturnFruit _ typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit _ 1 1 i) i, c)
+        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit 1 1), c)
 
       | Inline.IExit _ i =>
-        ok (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit _ 1 1 i) i, update_exit c true)
+        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit 1 1), update_exit c true)
 
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
@@ -559,7 +560,7 @@ Section ToGCL.
         let+ header := to_lvalue e in
         let hvld := header ++ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
-        (GCL.GAssign _ (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec _ vld_bit (Some 1) i) i, c)
+        (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec vld_bit (Some 1)), c)
       end.
 
     Definition p4cub_statement_to_gcl (gas : nat)
@@ -583,9 +584,16 @@ Section ToGCL.
       end
     .
 
-    Definition p4cub_to_gcl (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+    Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
       let* stmt := get_main ctx pipe in
       p4cub_statement_to_gcl gas ctx ext stmt.
+
+    (* Definition from_p4cub_v1model gas ctx : result target := *)
+    (*   from_p4cub gas V1model.externs V1model.package ctx. *)
+
+    (* Definition from_p4light_v1model {tags_t : T} (tags : tags_t) gas p : result target := *)
+    (*   let* ctx := ToP4cub.translate_program T tags p in *)
+    (*   from_p4cub_v1model gas ctx. *)
 
   End Instr.
 End ToGCL.

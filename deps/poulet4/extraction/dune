@@ -10,6 +10,7 @@
     AST EquivDec
     ToP4cub ToGCL GCL Inline
     HoistNameless InferMemberTypes Substitution
+    TableInstr V1model
     Auxilary Envn Result P4Arith
     EquivUtil StringUtil ListUtil Utiliser
     Bool String Nat

@@ -142,7 +142,7 @@ Section ToGCL.
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (E.t * E.e tags_t * E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t tags_t * E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -544,7 +544,11 @@ Section ToGCL.
 
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
-        let+ g := instr tbl i keys actions' in
+        let* keys' := rred (map (fun '(t,e,mk) =>
+                                   let* w := width_of_type (tbl ++ " key") t in
+                                   let+ e' := to_rvalue e in
+                                   (w, e', mk)) keys) in
+        let+ g := instr tbl i keys' actions' in
         (g, c)
 
       | Inline.IExternMethodCall _  ext method args i =>

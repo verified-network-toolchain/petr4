@@ -459,12 +459,7 @@ Definition to_lbool (width: N) (value: Z) : list bool :=
   in List.rev (to_lbool' (N.to_nat width) value []).
 
 Definition to_loptbool (width: N) (value: Z) : list (option bool) :=
-  let fix to_loptbool' (width: nat) (value: Z) (res : list (option bool)) :=
-    match width with
-    | S n => to_loptbool' n (value / 2) (Some (Z.odd value) :: res)
-    | O => res
-    end
-  in List.rev (to_loptbool' (N.to_nat width) value []).
+  map Some (to_lbool width value).
 
 (*
   Compute (to_lbool (4)%N (-6)).

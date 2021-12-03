@@ -35,6 +35,8 @@ Require Poulet4.ConstValue.
 Require Poulet4.P4cub.GCL.
 Require Poulet4.ToP4cub.
 Require Poulet4.P4cub.ToGCL.
+Require Poulet4.P4cub.TableInstr.
+Require Poulet4.P4cub.V1model.
 
 Separate Extraction Poulet4.Syntax
          Poulet4.Typed Poulet4.SimplExpr
@@ -42,4 +44,6 @@ Separate Extraction Poulet4.Syntax
          Poulet4.ConstValue
          Poulet4.ToP4cub
          Poulet4.P4cub.GCL
-         Poulet4.P4cub.ToGCL.
+         Poulet4.P4cub.ToGCL
+         Poulet4.P4cub.TableInstr
+         Poulet4.P4cub.V1model.

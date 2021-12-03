@@ -45,13 +45,19 @@ Section Occurs.
       Occurs_e e ->
       Occurs_e <{ Access e[n]:τs @ i }>.
 
-  (* TODO: arguments and constructor arguments
-     occurence check. *)
+
+  (** [x] occurs in call arguments. *)
+  Definition
+    Occurs_arrowE
+    '({| paramargs := es; rtrns := e |} : Expr.arrowE tags_t) : Prop :=
+    Exists (pred_paramarg_same Occurs_e ∘ snd) es \/
+    match e with
+    | Some e => Occurs_e e
+    | None   => False
+    end.
   
   (** A variable [x] Occurs in a statement. *)
-  (* TODO: cases with [arrow]:
-     function, action calls,
-     control, parser apply, etc. *)
+  (* TODO: control, parser apply, etc. *)
   Inductive Occurs_s : Stmt.s tags_t -> Prop :=
   | Occurs_vardecl y et i :
       match et with
@@ -76,5 +82,11 @@ Section Occurs.
       Occurs_s (Stmt.SReturn (Some e) i)
   | Occurs_set_validity e b i :
     Occurs_e e ->
-    Occurs_s (Stmt.SSetValidity e b i).
+    Occurs_s (Stmt.SSetValidity e b i)
+  | Occurs_extern_method_call e m τs args i :
+      Occurs_arrowE args ->
+      Occurs_s (Stmt.SExternMethodCall e m τs args i)
+  | occurs_fun_call f τs args i :
+      Occurs_arrowE args ->
+      Occurs_s (Stmt.SFunCall f τs args i).
 End Occurs.

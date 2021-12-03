@@ -210,7 +210,7 @@ Section Lifted.
   Definition lifted_parser_states (states: F.fs string (Parser.state_block tags_t)) : Prop := 
     F.predfs_data lifted_parser_state states.
 
-  Check lifted_parser_states.
+  (*Check lifted_parser_states.*)
   Definition lifted_table (tbl : Control.table tags_t) : Prop :=
     Forall (fun '(e, _) => lifted_expr e) (Control.table_key tbl).
   

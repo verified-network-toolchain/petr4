@@ -18,8 +18,8 @@ Import ListNotations.
 
 Coercion pos_of_N: N >-> positive.
 
-Module Ops.
-  Section Operations.
+
+Section Ops.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
   Definition dummy_tags := @default tags_t _.
 
@@ -501,5 +501,4 @@ Module Ops.
   Definition eval_cast (newtyp : P4Type) (oldv : Val) : option Val :=
     eval_cast' (sort_by_key_typ newtyp) (sort_by_key_val oldv). *)
 
-  End Operations.
 End Ops.

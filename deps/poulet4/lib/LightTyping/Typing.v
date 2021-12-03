@@ -599,14 +599,14 @@ Section Soundness.
     
     Lemma eval_unary_op_preserves_typ : forall o v v' g t t',
         unary_type o t t' ->
-        Ops.Ops.eval_unary_op o v = Some v' ->
+        Ops.eval_unary_op o v = Some v' ->
         val_typ g v t -> @val_typ tags_t  _ g v' t'.
     Proof.
       intros o v v' g t t' Hut Heval Hvt;
         inversion Hut; subst;
           inversion Hvt; subst;
             try (inversion Heval; subst; auto; assumption).
-      - unfold Ops.Ops.eval_unary_op in Heval.
+      - unfold Ops.eval_unary_op in Heval.
         destruct (P4Arith.BitArith.from_lbool v0)
           as [w' n'] eqn:Heqfromlbool.
         injection Heval as Hv'. rewrite <- Hv'.
@@ -631,11 +631,11 @@ Section Soundness.
         assert (exists v', sval_to_val rob v v')
           by eauto using exec_val_exists.
         destruct H as [v' Hv'].
-        assert (exists v''', Ops.Ops.eval_unary_op o v' = Some v''').
+        assert (exists v''', Ops.eval_unary_op o v' = Some v''').
         (* Maybe try to factor this out?
            Lemma exists_eval_unary_op : forall o v,
-           exists v', Ops.Ops.eval_unary_op o v = Some v'. *)
-        { destruct (Ops.Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
+           exists v', Ops.eval_unary_op o v = Some v'. *)
+        { destruct (Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
           inversion Hut; subst; try inv_numeric; try inv_numeric_width;
             match goal with
             | H: _ = typ_of_expr ?e,

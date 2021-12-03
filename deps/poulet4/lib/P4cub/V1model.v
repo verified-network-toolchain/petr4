@@ -76,5 +76,5 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
   end.
 
 
-Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas p4cub : result ToGCL.target :=
+Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas p4cub : result GCL.target :=
   ToGCL.from_p4cub tags_t instr gas externs (package d) p4cub.

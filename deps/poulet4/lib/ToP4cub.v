@@ -347,7 +347,7 @@ Section ToP4cub.
     | TypBool => ok E.TBool
     | TypString =>
       (* TODO Strings should only occur as arguments to externs.  We should add these to P4cub *)
-      error "String is not a valid p4cub type"
+      ok E.TBool
     | TypInteger =>
       (* TODO This should be added to P4cub, but can only be a value; enforced by the type system *)
       error "[FIXME] P4cub doesnt support Integers"
@@ -502,8 +502,9 @@ Section ToP4cub.
           ok (E.EBit w z.(value) z.(tags))
       | None => error "[FIXME] integer didnt have a width."
       end
-    | ExpString s =>
-      error "[FIXME] strings need to be compiled away"
+    | ExpString _ =>
+      (* [FIXME] strings need to be compiled away *)
+      ok (E.EBool false i)
     | ExpName name loc =>
       match name with
       | BareName str =>

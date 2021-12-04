@@ -251,7 +251,7 @@ Inductive
     predopt (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) τ ->
     Δ ⊢ok TypEnum X τ mems
 | typeName_ok X :
-    List.In (string_of_name X) Δ ->
+    List.In (P4String.str X) Δ ->
     Δ ⊢ok TypTypeName X
 | newType_ok X τ :
     remove_str (P4String.str X) Δ ⊢ok τ ->

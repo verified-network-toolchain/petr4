@@ -169,7 +169,7 @@ Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
         end
     end in
   match typ with
-  | TypTypeName name => name_to_type ge name
+  | TypTypeName name => IdentMap.get (str name) (ge_typ ge)
   | TypArray atyp size => match get_real_type atyp with
                           | Some realtyp => Some (TypArray atyp size)
                           | None => None
@@ -1586,8 +1586,8 @@ Axiom dummy_val : Val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
-  | TypSpecializedType (TypTypeName (BareName type_name)) _ => str type_name
-  | TypTypeName (BareName type_name) => str type_name
+  | TypSpecializedType (TypTypeName type_name) _ => str type_name
+  | TypTypeName ( type_name) => str type_name
   | _ => dummy_ident
   end.
 
@@ -1812,7 +1812,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName (BareName name) =>
+      | TypTypeName ( name) =>
           String.eqb (P4String.str name) "packet_in"
       | _ => false
       end
@@ -1824,7 +1824,7 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName (BareName name) =>
+      | TypTypeName ( name) =>
           String.eqb (P4String.str name) "packet_out"
       | _ => false
       end
@@ -2109,7 +2109,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with
-    | TypTypeName name2 => match name_to_type ge_typ name2 with
+    | TypTypeName name2 => match IdentMap.get (str name2) ge_typ with
                            | Some typ2 => Some (IdentMap.set (str name) typ2 ge_typ)
                            | None => None
                            end

@@ -1,5 +1,4 @@
-Require Import Coq.Numbers.BinNums.
-Require Import Coq.Classes.EquivDec.
+From Coq Require Import Numbers.BinNums Classes.EquivDec.
 
 Require Poulet4.P4String.
 Require Poulet4.P4Int.
@@ -56,7 +55,7 @@ Section Typed.
   | TypHeaderUnion (fields: P4String.AList tags_t P4Type)
   | TypStruct (fields: P4String.AList tags_t P4Type)
   | TypEnum (name: P4String) (typ: option P4Type) (members: list P4String)
-  | TypTypeName (name: name)
+  | TypTypeName (name: P4String)
   | TypNewType (name: P4String) (typ: P4Type)
   | TypControl (_: ControlType)
   | TypParser (_: ControlType)

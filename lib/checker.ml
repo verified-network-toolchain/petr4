@@ -2438,7 +2438,7 @@ and resolve_function_overload env ctx type_name args =
   | None ->
     resolve_function_overload_by ~f:(overload_param_count_ok args) env ctx type_name
 
-and type_constructor_invocation env ctx info decl_name type_args args : P4light.coq_Expression list * coq_P4Type =
+and type_constructor_invocation env ctx info decl_name type_args args : P4light.coq_Expression list * coq_P4Type list * coq_P4Type =
   let type_args = List.map ~f:(translate_type_opt env) type_args in
   let t_params, w_params, params, ret = resolve_constructor_overload env decl_name args in
   let params_args = match_params_to_args env info params args in
@@ -2461,7 +2461,7 @@ and type_constructor_invocation env ctx info decl_name type_args args : P4light.
     |> List.filter_map ~f:cast_arg
   in
   let ret = saturate_type env' ret in
-  args_typed, ret
+  args_typed, List.map ~f:snd type_params_args, ret
 
 (* Section 14.1 *)
 and type_nameless_instantiation env ctx info typ args =
@@ -2469,10 +2469,10 @@ and type_nameless_instantiation env ctx info typ args =
   | Type.SpecializedType { base; args = type_args } ->
     begin match snd base with
       | TypeName decl_name ->
-        let out_args, out_typ =
+        let out_args, out_type_args, out_typ =
           type_constructor_invocation env ctx info decl_name type_args args
         in
-        ExpNamelessInstantiation (translate_type env typ, out_args),
+        ExpNamelessInstantiation (TypSpecializedType (translate_type env base, out_type_args), out_args),
         out_typ,
         Directionless
       | _ ->

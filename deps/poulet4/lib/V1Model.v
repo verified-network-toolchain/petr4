@@ -22,19 +22,19 @@ Require Import Poulet4.P4Notations.
 Require Import Poulet4.ValueUtil.
 Import ListNotations.
 Open Scope Z_scope.
+Open Scope string_scope.
 
 Section V1Model.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Context {Expression: Type}.
-Notation ident := (P4String.t tags_t).
-Notation P4String := (P4String.t tags_t).
+Notation ident := string.
 Notation path := (list ident).
 Notation P4Type := (@P4Type tags_t).
 Notation Val := (@ValueBase bool).
 Notation ValSet := ValueSet.
 Notation table_entry := (@table_entry tags_t Expression).
-Notation action_ref := (@action_ref tags_t Expression).
+Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
 
@@ -61,14 +61,14 @@ Inductive object :=
   | ObjPin (pin : packet_in)
   | ObjPout (pout : packet_out).
 
-Definition extern_env := @PathMap.t tags_t env_object.
+Definition extern_env := PathMap.t env_object.
 
-Definition extern_state := @PathMap.t tags_t object.
+Definition extern_state := PathMap.t object.
 
 Definition dummy_tags := @default tags_t _.
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
-  if P4String.equivb class !"register" then
+  if String.eqb class "register" then
     match args with
     (* | [ValBaseInteger size] *)
     | [inr (ValBaseBit bits)]
@@ -97,7 +97,7 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
   match func with
   | mk_extern_func_sem class_name func_name sem =>
       fun e s class_name' func_name' =>
-          if P4String.equivb class_name class_name' && P4String.equivb func_name func_name' then
+          if String.eqb class_name class_name' && String.eqb func_name func_name' then
             sem e s
           else
             fun _ _ _ _ _ _ => False
@@ -116,8 +116,8 @@ Inductive register_read_sem : extern_func_sem :=
       register_read_sem e s p nil [ValBaseBit indexb] s [output] SReturnNull.
 
 Definition register_read : extern_func := {|
-  ef_class := !"register";
-  ef_func := !"read";
+  ef_class := "register";
+  ef_func := "read";
   ef_sem := register_read_sem
 |}.
 
@@ -133,8 +133,8 @@ Inductive register_write_sem : extern_func_sem :=
       register_write_sem e s p nil [ValBaseBit indexb; ValBaseBit valueb] s' [] SReturnNull.
 
 Definition register_write : extern_func := {|
-  ef_class := !"register";
-  ef_func := !"write";
+  ef_class := "register";
+  ef_func := "write";
   ef_sem := register_write_sem
 |}.
 
@@ -156,8 +156,8 @@ Inductive packet_in_extract_sem : extern_func_sem :=
           [v] SReturnNull.
 
 Definition packet_in_extract : extern_func := {|
-  ef_class := !"packet_in";
-  ef_func := !"extract";
+  ef_class := "packet_in";
+  ef_func := "extract";
   ef_sem := packet_in_extract_sem
 |}.
 
@@ -172,8 +172,8 @@ Inductive packet_out_emit_sem : extern_func_sem :=
           [] SReturnNull.
 
 Definition packet_out_emit : extern_func := {|
-  ef_class := !"packet_out";
-  ef_func := !"emit";
+  ef_class := "packet_out";
+  ef_func := "emit";
   ef_sem := packet_out_emit_sem
 |}.
 
@@ -196,9 +196,9 @@ Definition concat_tuple (lval : list Val) : option (list bool) :=
   let fix concat_tuple' (lval : list Val) (res: list bool): option (list bool) :=
     match lval with
     | [] => Some (res)
-    | ValBaseBit value :: tl => concat_tuple' tl (value ++ res)
-    | ValBaseInt value :: tl => concat_tuple' tl (value ++ res)
-    | ValBaseVarbit _ value :: tl => concat_tuple' tl (value ++ res)
+    | ValBaseBit value :: tl => concat_tuple' tl (List.app value res)
+    | ValBaseInt value :: tl => concat_tuple' tl (List.app value res)
+    | ValBaseVarbit _ value :: tl => concat_tuple' tl (List.app value res)
     | _ => None
     end
   in concat_tuple' lval [].
@@ -226,8 +226,8 @@ Inductive hash_sem : extern_func_sem :=
         s [output] SReturnNull.
 
 Definition hash : extern_func := {|
-  ef_class := !"";
-  ef_func := !"hash";
+  ef_class := "";
+  ef_func := "hash";
   ef_sem := hash_sem
 |}.
 
@@ -277,7 +277,7 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   end.
 
 Definition check_lpm_count (mks: list ident): option bool :=
-  let num_lpm := List.length (List.filter (P4String.equivb !"lpm") mks) in
+  let num_lpm := List.length (List.filter (String.eqb "lpm") mks) in
   if (1 <? num_lpm)%nat
   then None
   else Some (num_lpm =? 1)%nat.
@@ -456,7 +456,7 @@ Definition is_some_true (b: option bool): bool :=
 
 Definition filter_lpm_prod (ids: list ident) (vals: list Val)
            (entries: list (ValSetT * action_ref)): list (ValSetT * action_ref) * list Val :=
-  match findi (P4String.equivb !"lpm") ids with
+  match findi (String.eqb "lpm") ids with
   | None => ([], [])
   | Some (index, _) =>
     let f (es: ValSetT * action_ref): option (ValSetT * action_ref) :=
@@ -484,7 +484,7 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | Some sort_mks =>
     let entries' := List.map (fun p => (valset_to_valsett (fst p), snd p)) entries in
         let (entries'', ks') :=
-            if list_eqb (@P4String.equivb tags_t) mks !["lpm"]
+            if list_eqb String.eqb mks ["lpm"]
             then (sort_lpm entries', ks)
             else if sort_mks
                  then filter_lpm_prod mks ks entries'
@@ -510,14 +510,14 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
       meta1 standard_metadata1 hdr2 meta2 standard_metadata2 hdr3 meta3 hdr4 meta4 standard_metadata4 hdr5 meta5 standard_metadata5 hdr6 meta6,
-      PathMap.set !["packet_in"] (ObjPin pin) s0 = s1 ->
-      module_sem !["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
-      module_sem !["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
-      module_sem !["main"; "ig"] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
-      module_sem !["main"; "eg"] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
-      module_sem !["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
-      module_sem !["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
-      PathMap.get !["packet_out"] s7 = Some (ObjPout pout) ->
+      PathMap.set ["packet_in"] (ObjPin pin) s0 = s1 ->
+      module_sem ["main"; "p"] s1 [meta1; standard_metadata1] s2 [hdr2; meta2; standard_metadata2] SReturnNull ->
+      module_sem ["main"; "vr"] s2 [hdr2; meta2] s3 [hdr3; meta3] SReturnNull ->
+      module_sem ["main"; "ig"] s3 [hdr3; meta3; standard_metadata2] s4 [hdr4; meta4; standard_metadata4] SReturnNull ->
+      module_sem ["main"; "eg"] s4 [hdr4; meta4; standard_metadata4] s5 [hdr5; meta5; standard_metadata5] SReturnNull ->
+      module_sem ["main"; "ck"] s5 [hdr5; meta5] s6 [hdr6; meta6] SReturnNull ->
+      module_sem ["main"; "dep"] s6 [hdr6] s7 nil SReturnNull ->
+      PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
 Instance V1Model : Target := Build_Target _ exec_prog.

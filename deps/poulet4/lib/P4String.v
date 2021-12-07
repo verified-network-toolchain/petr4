@@ -15,8 +15,8 @@ Defined.
 Record t (tags_t: Type) :=
   { tags: tags_t;
     str: string }.
-Arguments tags [tags_t] _.
-Arguments str [tags_t] _.
+Arguments tags {tags_t}.
+Arguments str {tags_t}.
 
 Definition empty_str [tags_t: Type] (tag : tags_t) :  (t tags_t) :=
   {| tags := tag; str := "" |}.

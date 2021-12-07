@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4Arith.

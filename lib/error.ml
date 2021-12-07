@@ -1,9 +1,9 @@
-open Typed
+open P4light
 
 type error =
   | Unbound of string
   | Mismatch of
-      { expected: string; (* TODO: string or Typed.t? *)
+      { expected: string; (* TODO: string or P4light.t? *)
         found: coq_P4Type; }
   | UnfoundMember of
       { expected_member: string}

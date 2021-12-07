@@ -206,11 +206,11 @@ Module StmtNotations.
          (in custom p4stmt at level 99,
              s custom p4stmt, no associativity).
   Notation "'delcare' x ':' t @ i"
-    := (SVardecl x (Left t) i)
+    := (SVardecl x (inl t) i)
          (in custom p4stmt at level 0,
              t custom p4type, no associativity).
   Notation "'init' x ':=' e @ i"
-    := (SVardecl x (Right e) i)
+    := (SVardecl x (inr e) i)
          (in custom p4stmt at level 0,
              e custom p4expr, no associativity).
   Notation "'var' x 'with' et @ i"
@@ -353,9 +353,9 @@ Module TopDeclNotations.
   Notation "'parser' p ( cparams ) ( eps ) ( params ) 'start' ':=' st { states } @ i"
     := (TPParser p cparams eps params st states i)
          (in custom p4topdecl at level 0, st custom p4prsrstateblock).
-  Notation "'package' p < tparams > ( cparams ) @ i"
+  (*Notation "'package' p < tparams > ( cparams ) @ i"
     := (TPPackage p tparams cparams i)
-         (in custom p4topdecl at level 0).
+         (in custom p4topdecl at level 0).*)
 End TopDeclNotations.
 
 Module AllCubNotations.

@@ -22,56 +22,56 @@ module P4String : sig
 end
 
 module Expression : sig
-  val format_t : Format.formatter -> Types.Expression.t -> unit
+  val format_t : Format.formatter -> Surface.Expression.t -> unit
 end
 
 module MethodPrototype : sig
-  val format_t : Format.formatter -> Types.MethodPrototype.t -> unit
+  val format_t : Format.formatter -> Surface.MethodPrototype.t -> unit
 end
 
 module Statement : sig
-  val format_t : Format.formatter -> Types.Statement.t -> unit
+  val format_t : Format.formatter -> Surface.Statement.t -> unit
 end
 
 module Block : sig
-  val format_t : Format.formatter -> Types.Block.t -> unit
+  val format_t : Format.formatter -> Surface.Block.t -> unit
 end
 
 module Argument : sig
-  val format_t : Format.formatter -> Types.Argument.t -> unit
+  val format_t : Format.formatter -> Surface.Argument.t -> unit
 end
 
 module Type : sig
-  val format_t : Format.formatter -> Types.Type.t -> unit
+  val format_t : Format.formatter -> Surface.Type.t -> unit
 end
 
 module Annotation : sig
-  val format_t : Format.formatter -> Types.Annotation.t -> unit
+  val format_t : Format.formatter -> Surface.Annotation.t -> unit
 end
 
 module Direction : sig
-  val format_t : Format.formatter -> Types.Direction.t -> unit
+  val format_t : Format.formatter -> Surface.Direction.t -> unit
 end
 
 module Parameter : sig
-  val format_t : Format.formatter -> Types.Parameter.t -> unit
+  val format_t : Format.formatter -> Surface.Parameter.t -> unit
 end
 
 module Match: sig
-  val format_t : Format.formatter -> Types.Match.t -> unit
+  val format_t : Format.formatter -> Surface.Match.t -> unit
 end
 
 module Parser : sig
-  val format_state : Format.formatter -> Types.Parser.state -> unit
-  val format_states : Format.formatter -> Types.Parser.state list -> unit
+  val format_state : Format.formatter -> Surface.Parser.state -> unit
+  val format_states : Format.formatter -> Surface.Parser.state list -> unit
 end
 
 module Table : sig
-  val format_property : Format.formatter -> Types.Table.property -> unit
+  val format_property : Format.formatter -> Surface.Table.property -> unit
 end
 
 module Declaration : sig
-  val format_t : Format.formatter -> Types.Declaration.t -> unit
+  val format_t : Format.formatter -> Surface.Declaration.t -> unit
 end
 
-val format_program : Format.formatter -> Types.program -> unit
+val format_program : Format.formatter -> Surface.program -> unit

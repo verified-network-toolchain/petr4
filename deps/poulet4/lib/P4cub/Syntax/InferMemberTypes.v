@@ -80,17 +80,11 @@ Section Inference.
     let ret' := inf_retE ret in
     {| paramargs := args'; rtrns := ret' |}.
 
-  Definition map_either {A B C D : Type} (f : A -> B) (g : C -> D) (e : either A C) : either B D :=
-    match e with
-    | Left a => Left (f a)
-    | Right b => Right (g b)
-    end.
-
   Fixpoint inf_s  (s : ST.s tags_t) : ST.s tags_t :=
     match s with
     | ST.SSkip _ => s
     | ST.SVardecl x e i =>
-      let e' := map_either id inf_e e in
+      let e' := map_sum id inf_e e in
       ST.SVardecl x e' i
     | ST.SAssign lhs rhs i =>
       let lhs' := inf_e lhs in
@@ -225,9 +219,9 @@ Section Inference.
       let cparams' := inf_arrowT params in
       let body' := inf_s body in
       TD.TPFunction f tparams cparams' body' i
-    | TD.TPPackage p tparams cparams i =>
+    (*| TD.TPPackage p tparams cparams i =>
       let cparams' := F.map inf_cparam cparams in
-      TD.TPPackage p tparams cparams' i
+      TD.TPPackage p tparams cparams' i*)
     | TD.TPSeq d1 d2 i =>
       TD.TPSeq (inf_d d1) (inf_d d2) i
     end.

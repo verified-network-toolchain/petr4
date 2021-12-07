@@ -15,7 +15,7 @@ Require Import Poulet4.AList.
 Section Target.
 
 Context {tags_t: Type}.
-Notation ident := (P4String.t tags_t).
+Notation ident := string.
 Notation path := (list ident).
 Notation Val := (@ValueBase bool).
 Notation ValSet := (@ValueSet tags_t).
@@ -60,9 +60,9 @@ Definition AbsMet (extern_state : Type) : Type :=
 
 Class ExternSem := {
   extern_env_object : Type;
-  extern_env := @PathMap.t tags_t extern_env_object;
+  extern_env := PathMap.t extern_env_object;
   extern_object : Type;
-  extern_state := @PathMap.t tags_t extern_object;
+  extern_state := PathMap.t extern_object;
   (* Allocation should be a function; calling may be fine as a relation. *)
   construct_extern : extern_env -> extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path
       -> list (path + Val) -> (extern_env * extern_state);

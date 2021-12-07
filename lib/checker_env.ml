@@ -4,15 +4,15 @@ module Info = I
 
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)
-    typ: Typed.coq_P4Type Env.t;
+    typ: P4light.coq_P4Type Env.t;
     (* maps variables to their types & directions *)
-    typ_of: (Typed.coq_P4Type * Typed.direction) Env.t;
+    typ_of: (P4light.coq_P4Type * P4light.direction) Env.t;
     (* maps constants to their values *)
-    const: Prog.coq_Value Env.t;
+    const: P4light.coq_Value Env.t;
     (* maps default expr ids to expressions *)
-    default_args: Types.Expression.t list ref;
+    default_args: Surface.Expression.t list ref;
     (* externs *)
-    externs: Prog.coq_ExternMethods Env.t;
+    externs: P4light.coq_ExternMethods Env.t;
     (* for generating fresh type variables *)
     renamer: Renamer.t ref;
   }
@@ -88,7 +88,7 @@ let insert_types ?shadow:(shadow=false) names_types env =
   List.fold ~f:go ~init:env names_types
 
 let insert_type_var ?shadow:(shadow=false) var env =
-  let typ: Typed.coq_P4Type = TypTypeName var in
+  let typ: P4light.coq_P4Type = TypTypeName var in
   { env with typ = Env.insert ~shadow var typ env.typ }
 
 let insert_type_vars ?shadow:(shadow=false) vars env =

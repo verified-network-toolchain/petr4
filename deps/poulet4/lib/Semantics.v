@@ -19,14 +19,14 @@ Notation Sval := (@ValueBase (option bool)).
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := (@ValueLvalue tags_t).
 
-Notation ident := (P4String.t tags_t).
+Notation ident := string.
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
-Notation P4String := (P4String.t tags_t).
+(* Notation P4String := (P4String.t tags_t). *)
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 
-Definition mem := @PathMap.t tags_t Sval.
+Definition mem := PathMap.t Sval.
 
 Definition state : Type := mem * extern_state.
 
@@ -42,6 +42,9 @@ Definition get_memory (s : state) : mem :=
 Definition get_external_state (s : state) :=
   let (_, es) := s in es.
 
+Definition clear_list (p: list (@P4String.t tags_t)): list string :=
+  map (@str tags_t) p.
+
 Definition loc_to_path (this : path) (loc : Locator) : path :=
   match loc with
   | LGlobal p => p
@@ -56,7 +59,7 @@ Definition get_loc_path (loc : Locator) : path :=
 
 Variant fundef :=
   | FInternal
-      (params : list (@Locator tags_t * direction))
+      (params : list (Locator * direction))
       (init : @Block tags_t)
       (body : @Block tags_t)
   | FTable
@@ -70,15 +73,15 @@ Variant fundef :=
       (name : ident)
       (* (params : list (ident * direction)) *).
 
-Definition genv_func := @PathMap.t tags_t fundef.
-Definition genv_typ := @IdentMap.t tags_t (@P4Type tags_t).
-Definition genv_senum := @IdentMap.t tags_t (StringAList Sval).
+Definition genv_func := PathMap.t fundef.
+Definition genv_typ := IdentMap.t (@P4Type tags_t).
+Definition genv_senum := IdentMap.t (StringAList Sval).
 
 Inductive inst_ref :=
-  | mk_inst_ref (class : P4String) (p : path).
+  | mk_inst_ref (class : string) (p : path).
 
-Definition genv_inst := @PathMap.t tags_t inst_ref.
-Definition genv_const := @PathMap.t tags_t Val.
+Definition genv_inst := PathMap.t inst_ref.
+Definition genv_const := PathMap.t Val.
 
 Record genv := MkGenv {
   ge_func :> genv_func;
@@ -92,8 +95,8 @@ Record genv := MkGenv {
 Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
   option (@P4Type tags_t) :=
   match typ with
-  | BareName id => IdentMap.get id ge_typ
-  | QualifiedName _ id => IdentMap.get id ge_typ
+  | BareName id => IdentMap.get (str id) ge_typ
+  | QualifiedName _ id => IdentMap.get (str id) ge_typ
   end.
 
 Section WithGenv.
@@ -316,8 +319,8 @@ Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :
   match loc with
   | LInstance p =>
       PathMap.get p (get_memory s)
-  (* TODO deal with local constant *)
   | LGlobal p =>
+      (* This should be impossible. *)
       option_map eval_val_to_sval (PathMap.get p (ge_const ge))
   end.
 
@@ -376,7 +379,23 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                                     else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers size next) "lastIndex" sv.
 
-(* Note that expressions don't need decl_path. *)
+Definition is_directional (dir : direction) : bool :=
+  match dir with
+  | Directionless => false
+  | _ => true
+  end.
+
+Definition loc_to_val_const (this : path) (loc : Locator) : option Val :=
+  match loc with
+  | LInstance p =>
+      PathMap.get (this ++ p) (ge_const ge)
+  | LGlobal p =>
+      PathMap.get p (ge_const ge)
+  end.
+
+Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
+  option_map eval_val_to_sval (loc_to_val_const this loc).
+
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
     (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
@@ -393,11 +412,18 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpString s) typ dir)
                        (ValBaseString (str s))
-  | exec_expr_name: forall name loc sv this st tag typ dir,
-                    loc_to_sval this loc st = Some sv ->
-                    exec_expr read_one_bit this st
-                    (MkExpression tag (ExpName name loc) typ dir)
-                    sv
+  | exec_expr_name_var : forall name loc sv this st tag typ dir,
+                         is_directional dir = true ->
+                         loc_to_sval this loc st = Some sv ->
+                         exec_expr read_one_bit this st
+                         (MkExpression tag (ExpName name loc) typ dir)
+                         sv
+  | exec_expr_name_const : forall name loc sv this st tag typ dir,
+                           is_directional dir = false ->
+                           loc_to_sval_const this loc = Some sv ->
+                           exec_expr read_one_bit this st
+                           (MkExpression tag (ExpName name loc) typ dir)
+                           sv
   | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
                             exec_expr read_one_bit this st idx idxsv ->
                             sval_to_val read_one_bit idxsv idxv ->
@@ -467,7 +493,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
                              name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-                             IdentMap.get ename (ge_senum ge) = Some fields ->
+                             IdentMap.get (str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
@@ -756,7 +782,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
       | MkExpression _ (ExpFunctionCall (MkExpression _ f _ _) _ _) _ _ =>
           match f with
           | ExpName (BareName fname) _ | ExpName (QualifiedName _ fname) _ =>
-              if P4String.equivb name fname then
+              if String.eqb name (str fname) then
                   Some (action)
               else
                   get_action actions' name
@@ -788,7 +814,7 @@ Definition table_key_key (key : @TableKey tags_t) : (@Expression tags_t) :=
 
 Definition table_key_matchkind (key : @TableKey tags_t) : ident :=
   match key with
-  | MkTableKey _ _ match_kind => match_kind
+  | MkTableKey _ _ match_kind => str match_kind
   end.
 
 Definition get_entries (s : state) (table : path) (const_entries : option (list table_entry)) : (list table_entry) :=
@@ -888,7 +914,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       end
   (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
-      if P4String.equivb name !"apply" then
+      if String.eqb (P4String.str name) "apply" then
         match expr with
         | MkExpression _ (ExpName _ loc) _ _ =>
             match loc with
@@ -911,7 +937,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
             | LInstance p =>
                 match PathMap.get (this_path ++ p) ge_inst with
                 | Some (mk_inst_ref class_name inst_path) =>
-                    match PathMap.get [class_name; name] ge_func with
+                    match PathMap.get [class_name; str name] ge_func with
                     | Some fd => Some (inst_path, fd)
                     | None => None
                     end
@@ -930,18 +956,19 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                       (MkExpression tag (ExpName name loc) typ dir)
                       (MkValueLvalue (ValLeftName name loc) typ) SContinue
   | exec_lexpr_member : forall expr lv name this st tag typ dir sig,
-                        P4String.equivb !"next" name = false ->
+                        String.eqb (P4String.str name) "next" = false ->
                         exec_lexpr read_one_bit this st expr lv sig ->
                         exec_lexpr read_one_bit this st
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
                         (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
   (* next < 0 is impossible by syntax. *)
-  | exec_lexpr_member_next : forall expr lv headers size next this st tag typ dir sig ret_sig,
+  | exec_lexpr_member_next : forall expr lv name headers size next this st tag typ dir sig ret_sig,
+                             String.eqb (P4String.str name) "next" = true ->
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
                              (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
-                             (MkExpression tag (ExpExpressionMember expr !"next") typ dir)
+                             (MkExpression tag (ExpExpressionMember expr name) typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
   (* ATTN: lo and hi interchanged here *)
   | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsbl this st tag typ dir sig,
@@ -964,26 +991,6 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
-
-Definition locator_equivb (loc1 loc2 : @Locator tags_t) : bool :=
-  match loc1, loc2 with
-  | LInstance p1, LInstance p2 => path_equivb p1 p2
-  | LGlobal p1, LGlobal p2 => path_equivb p1 p2
-  | _, _ => false
-  end.
-
-Fixpoint lval_equivb (lv1 lv2 : Lval) : bool :=
-  match lv1, lv2 with
-  | MkValueLvalue (ValLeftName _ loc1) _, MkValueLvalue (ValLeftName _ loc2) _ =>
-      locator_equivb loc1 loc2
-  | MkValueLvalue (ValLeftMember lv1 member1) _, MkValueLvalue (ValLeftMember lv2 member2) _ =>
-      lval_equivb lv1 lv2 && String.eqb member1 member2
-  | MkValueLvalue (ValLeftBitAccess lv1 msb1 lsb1) _, MkValueLvalue (ValLeftBitAccess lv2 msb2 lsb2) _ =>
-      lval_equivb lv1 lv2 && N.eqb msb1 msb2 && N.eqb lsb1 lsb2
-  | MkValueLvalue (ValLeftArrayAccess lv1 idx1) _, MkValueLvalue (ValLeftArrayAccess lv2 idx2) _ =>
-      lval_equivb lv1 lv2 && N.eqb idx1 idx2
-  | _, _ => false
-  end.
 
 Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
@@ -1272,7 +1279,7 @@ Definition extract_outlvals (dirs : list direction) (args : list argument) : lis
 
 Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
-  MkExpression dummy_tags (ExpName (BareName name) (LInstance [name])) dummy_type (* TODO place the actual function type *)
+  MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) dummy_type (* TODO place the actual function type *)
   Directionless.
 
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
@@ -1303,24 +1310,24 @@ Definition table_retv (b : bool) (ename member : string) : Val :=
    ("miss", ValBaseBool (negb b));
    ("action_run", ValBaseEnumField ename member)].
 
-Definition name_only (name : Typed.name) : ident :=
+Definition name_only (name : @Typed.name tags_t) : ident :=
   match name with
-  | BareName name => name
-  | QualifiedName _ name => name
+  | BareName name => str name
+  | QualifiedName _ name => str name
   end.
 
 Definition get_expr_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpName name _) _ _  =>
       name_only name
-  | _ => !""
+  | _ => ""
   end.
 
 Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   match expr with
   | MkExpression _ (ExpFunctionCall func _ _) _ _  =>
       get_expr_name func
-  | _ => !""
+  | _ => ""
   end.
 
 (* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
@@ -1458,13 +1465,10 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
         this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
-  | exec_stmt_constant: forall typ' name e v sv loc this_path st tags typ st',
-      eval_literal e = Some v ->
-      val_to_sval v sv ->
-      exec_write
-        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+  | exec_stmt_constant: forall typ' name e loc this_path st tags typ,
+      (* Constant is ignored at runtime. *)
       exec_stmt read_one_bit this_path st
-                (MkStatement tags (StatConstant typ' name e loc) typ) st' SContinue
+                (MkStatement tags (StatConstant typ' name e loc) typ) st SContinue
   (* StatInstantiation is unsupported. If supported, it should be considered in instantiation. *)
 
 with exec_block (read_one_bit : option bool -> bool -> Prop) :
@@ -1489,7 +1493,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        else if not_continue sig' then s' = s /\ sig'' = sig'
        else exec_builtin this_path s lv fname (extract_invals argvals) s' sig'') ->
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
-          (MkExpression tag' (ExpExpressionMember lhs fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
+          (MkExpression tag' (ExpExpressionMember lhs (P4String.Build_t tags_t inhabitant_tags_t fname)) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
           nil args) typ dir) s' sig''
   (* eval the call expression:
        1. eval arguments;
@@ -1501,9 +1505,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
-      (if path_equivb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
+      (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
       exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
-      (if path_equivb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
+      (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
       exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
@@ -1532,9 +1536,9 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       (if is_some actionref
        then actionref = (Some (mk_action_ref action_name ctrl_args)) 
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
-            /\ retv = (SReturn (table_retv true "" (str (get_expr_func_name action))))
+            /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
        else action = default_action
-            /\ retv = (SReturn (table_retv false "" (str (get_expr_func_name default_action))))) ->
+            /\ retv = (SReturn (table_retv false "" (get_expr_func_name default_action)))) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
         nil nil s' nil retv
@@ -1560,7 +1564,7 @@ Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@De
       | DeclControl _ name' _ _ _ _ _
       | DeclExternObject _ name' _ _
       | DeclPackageType _ name' _ _ =>
-          if P4String.equivb name name' then
+          if String.eqb name (str name') then
             decl
           else
             get_decl rev_decls' name
@@ -1580,7 +1584,7 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | DeclParser _ _ _ _ constructor_params _ _
   | DeclControl _ _ _ _ constructor_params _ _
   | DeclPackageType _ _ _ constructor_params =>
-      map get_param_name constructor_params
+      (clear_list (map get_param_name constructor_params))
   | _ => nil
   end.
 
@@ -1589,8 +1593,8 @@ Axiom dummy_val : Val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
-  | TypSpecializedType (TypTypeName (BareName type_name)) _ => type_name
-  | TypTypeName (BareName type_name) => type_name
+  | TypSpecializedType (TypTypeName (BareName type_name)) _ => str type_name
+  | TypTypeName (BareName type_name) => str type_name
   | _ => dummy_ident
   end.
 
@@ -1625,12 +1629,13 @@ Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
   | param :: params' =>
       let block := uninit_out_params params' in
       let (name, typ) := param in
-      let stmt := MkStatement dummy_tags (StatVariable typ name None (LInstance [name])) StmUnit in
+      let p4name := P4String.Build_t tags_t inhabitant_tags_t name in
+      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance [str p4name])) StmUnit in
       BlockCons stmt block
   end.
 
 Definition ienv_val : Type := inst_ref + Val.
-Definition ienv := @IdentMap.t tags_t ienv_val.
+Definition ienv := IdentMap.t ienv_val.
 Axiom dummy_ienv_val : ienv_val.
 
 (* inst_mem is a legacy concept. Now it is actually the pair of genv_inst and genv_const.
@@ -1646,7 +1651,7 @@ Definition set_inst_mem (p : path) (v : ienv_val) (m : inst_mem) : inst_mem :=
 (* cenv is a class environment, mapping names to closures. Each closure contains
   a class (parser/control) definition and an environment to interpret its free names.
   It's designed in this way to ensure termination. *)
-Inductive cenv := mk_cenv : @IdentMap.t tags_t (cenv * @Declaration tags_t) -> cenv.
+Inductive cenv := mk_cenv : IdentMap.t (cenv * @Declaration tags_t) -> cenv.
 
 Definition unfold_cenv (ce : cenv) :=
   match ce with
@@ -1718,7 +1723,7 @@ End instantiate_expr'.
 Definition get_val_ienv (e : ienv) (name : Typed.name) : option Val :=
   match name with
   | BareName name =>
-      match IdentMap.get name e with
+      match IdentMap.get (@str tags_t name) e with
       | Some (inr v) => Some v
       | _ => None
       end
@@ -1740,8 +1745,8 @@ Fixpoint instantiate_expr' (ce : cenv) (e : ienv) (expr : @Expression tags_t) (p
   match expr with
   | MkExpression _ (ExpName (BareName name) _) _ _ =>
       (* Can inst be a Val, or just an inst_ref? *)
-      let inst := force dummy_ienv_val (IdentMap.get name e) in
-      let m := if path_equivb p [] then m else set_inst_mem p inst m in
+      let inst := force dummy_ienv_val (IdentMap.get (str name) e) in
+      let m := if path_eqb p [] then m else set_inst_mem p inst m in
       (inst, m, s)
   | MkExpression _ (ExpNamelessInstantiation typ args) _ _ =>
       instantiate' ce e typ args p m s
@@ -1759,19 +1764,20 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
   | DeclInstantiation _ typ args name init =>
-      let '(inst, m, s) := instantiate' ce e typ args (p ++ [name]) m s in
+      let '(inst, m, s) := instantiate' ce e typ args (p ++ clear_list [name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [name]) m s in
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ clear_list [name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
-      (IdentMap.set name inst e, m, s)
+      (IdentMap.set (str name) inst e, m, s)
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-        let init := uninit_out_params out_params in
+        let iout_params := map (fun p => (str (fst p), snd p)) out_params in
+        let init := uninit_out_params iout_params in
         let params := map get_param_name_dir params in
-        let params := map (map_fst (fun param => LGlobal [name; param])) params in
+        let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
         let fd := FInternal params init body in
-        let ee := extern_set_abstract_method (snd m) (p ++ [name]) (exec_abstract_method p fd) in
+        let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
       else
         (e, m, s)
@@ -1791,7 +1797,7 @@ End instantiate_class_body.
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
   | MkStatement _ (StatDirectApplication typ _) _  =>
-      [DeclInstantiation dummy_tags typ nil (get_type_name typ) []]
+      [DeclInstantiation dummy_tags typ nil (P4String.Build_t tags_t inhabitant_tags_t (get_type_name typ)) []]
   | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
   | _ => []
   end
@@ -1807,35 +1813,35 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
-Definition packet_in_instance : ienv_val := (inl (mk_inst_ref !"packet_in" !["packet_in"])).
+Definition packet_in_instance : ienv_val := (inl (mk_inst_ref "packet_in" ["packet_in"])).
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name !"packet_in"
+          String.eqb (P4String.str name) "packet_in"
       | _ => false
       end
   end.
 
-Definition packet_out_instance : ienv_val := (inl (mk_inst_ref !"packet_out" !["packet_out"])).
+Definition packet_out_instance : ienv_val := (inl (mk_inst_ref "packet_out" ["packet_out"])).
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
       | TypTypeName (BareName name) =>
-          P4String.equivb name !"packet_out"
+          String.eqb (P4String.str name) "packet_out"
       | _ => false
       end
   end.
 
 Definition inline_packet_in_and_packet_out (p : path) (m : inst_mem) (param : @P4Parameter tags_t) : inst_mem :=
   if is_packet_in param then
-    set_inst_mem (p ++ [get_param_name param]) packet_in_instance m
+    set_inst_mem (p ++ [str (get_param_name param)]) packet_in_instance m
   else if is_packet_out param then
-    set_inst_mem (p ++ [get_param_name param]) packet_out_instance m
+    set_inst_mem (p ++ [str (get_param_name param)]) packet_out_instance m
   else
     m.
 
@@ -1883,7 +1889,7 @@ Fixpoint instantiate_global_decls' (decls : list (@Declaration tags_t)) (ce : ce
       let ce' :=
         match get_decl_class_name decl with
         | Some name =>
-            mk_cenv (IdentMap.set name (ce, decl) ce)
+            mk_cenv (IdentMap.set (str name) (ce, decl) ce)
         | None => ce
         end in
       instantiate_global_decls' decls' ce' e m s
@@ -1906,7 +1912,7 @@ Fixpoint process_locals (locals : list (@Declaration tags_t)) : @Block tags_t :=
       let block' := process_locals locals' in
       match decl with
       | DeclVariable tags typ name init =>
-          let stmt := MkStatement tags (StatVariable typ name init (LInstance [name])) StmUnit in
+          let stmt := MkStatement tags (StatVariable typ name init (LInstance [str name])) StmUnit in
           BlockCons stmt block'
       | _ => block'
       end
@@ -1918,7 +1924,7 @@ Definition empty_func_type : @P4Type tags_t :=
 Definition load_parser_transition (p : path) (trans : @ParserTransition tags_t) : @Block tags_t :=
   match trans with
   | ParserDirect tags next =>
-      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [next])) empty_func_type Directionless in
+      let method := MkExpression dummy_tags (ExpName (BareName next) (LInstance [str next])) empty_func_type Directionless in
       let stmt := MkStatement tags (StatMethodCall method nil nil) StmUnit in
       BlockSingleton stmt
   | ParserSelect _ _ _ => BlockNil (* TODO *)
@@ -1931,22 +1937,16 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
-      PathMap.set (p ++ [name]) (FInternal nil BlockNil body) ge
+      PathMap.set (p ++ [str name]) (FInternal nil BlockNil body) ge
   end.
 
 Definition reject_state :=
-  let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal !["verify"])) dummy_type Directionless) in
+  let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal ["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
 
-Definition is_directional (dir : direction) : bool :=
-  match dir with
-  | Directionless => false
-  | _ => true
-  end.
-
-Definition action_param_to_p4param (param : @Locator tags_t * direction) : P4Parameter :=
+Definition action_param_to_p4param (param : Locator * direction) : P4Parameter :=
   let (name, dir) := param in
   let dir :=
     match dir with
@@ -1963,11 +1963,11 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
           let loc :=
             match name with
             | BareName id =>
-                match PathMap.get (p ++ [id]) ge with
-                | Some _ => LInstance [id]
-                | None => LGlobal [id]
+                match PathMap.get (p ++ [str id]) ge with
+                | Some _ => LInstance [str id]
+                | None => LGlobal [str id]
                 end
-            | QualifiedName p id => LGlobal (p ++ [id])
+            | QualifiedName p id => LGlobal (clear_list (p ++ [id]))
             end in
           let typ :=
             let ofd :=
@@ -1985,7 +1985,7 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
       end
   end.
 
-Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref tags_t Expression) :=
+Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref (@Expression tags_t)) :=
   match ref with
   | MkTableActionRef _ ref _ =>
       match ref with
@@ -1995,7 +1995,7 @@ Definition unwrap_action_ref2 (ref : TableActionRef) : (@action_ref tags_t Expre
             | BareName id => id
             | QualifiedName _ id => id
             end in
-          mk_action_ref id args
+          mk_action_ref (str id) args
       end
   end.
 
@@ -2009,56 +2009,58 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [param])) params in
+      let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
-      let ge := fold_left (load_decl (p ++ [name])) locals ge in
+      let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
-      let ge := fold_left (load_parser_state (p ++ [name])) states ge in
-      let ge := PathMap.set (p ++ !["accept"]) (FInternal nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ !["reject"]) (FInternal nil BlockNil BlockNil) ge in
-      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance !["begin"]))
+      let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
+      let ge := PathMap.set (p ++ ["accept"]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ ["reject"]) (FInternal nil BlockNil BlockNil) ge in
+      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [name]) (FInternal params init (BlockSingleton stmt)) ge
+      PathMap.set (p ++ [str name]) (FInternal params init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [param])) params in
+      let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
-      let ge := fold_left (load_decl (p ++ [name])) locals ge in
+      let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [name]) (FInternal params init apply) ge
+      PathMap.set (p ++ [str name]) (FInternal params init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let iout_params := map (fun p => (str (fst p), snd p)) out_params in
+      let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal [name; param])) params in
-      PathMap.set (p ++ [name]) (FInternal params init body) ge
+      let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
+      PathMap.set (p ++ [str name]) (FInternal params init body) ge
   | DeclExternFunction _ _ name _ _ =>
-      PathMap.set (p ++ [name]) (FExternal !"" name) ge
+      PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
   | DeclExternObject _ name _ methods =>
       let add_method_prototype ge' method :=
         match method with
         | ProtoMethod _ _ mname _ _ =>
-            PathMap.set (p ++ [name; mname]) (FExternal name mname) ge'
+            PathMap.set (p ++ [str name; str mname]) (FExternal (str name) (str mname)) ge'
         | _ => ge
         end
       in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let iout_params := map (fun p => (str (fst p), snd p)) out_params in
+      let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
-        if path_equivb p [] then
-          map (map_fst (fun param => LGlobal [name; param])) (params ++ ctrl_params)
+        if path_eqb p [] then
+          map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
         else
-          map (map_fst (fun param => LInstance [name; param])) (params ++ ctrl_params) in
-      PathMap.set (p ++ [name]) (FInternal combined_params init body) ge
+          map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in
+      PathMap.set (p ++ [str name]) (FInternal combined_params init body) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=
-        FTable name keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
+        FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
             (option_map (map unwrap_table_entry) entries) in
-      PathMap.set (p ++ [name]) table ge
+      PathMap.set (p ++ [str name]) table ge
   | _ => ge
   end.
 
@@ -2074,7 +2076,7 @@ Definition conv_decl_field (fild: DeclarationField):
 Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
   fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
 
-Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
+Definition get_decl_typ_name (decl: @Declaration tags_t): option ident :=
   match decl with
   | DeclHeader _ name _
   | DeclHeaderUnion _ name _
@@ -2083,7 +2085,7 @@ Definition get_decl_typ_name (decl: @Declaration tags_t): option P4String :=
   | DeclParserType _ name _ _
   | DeclPackageType _ name _ _
   | DeclTypeDef _ name _
-  | DeclNewType _ name _ => Some name
+  | DeclNewType _ name _ => Some (str name)
   | _ => None
   end.
 
@@ -2092,30 +2094,30 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
          (decl: @Declaration tags_t): option genv_typ :=
   match decl with
   | DeclHeader tags name fields =>
-    Some (IdentMap.set name (TypHeader (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeader (conv_decl_fields fields)) ge_typ)
   | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set name (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
   | DeclStruct tags name fields =>
-    Some (IdentMap.set name (TypStruct (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypStruct (conv_decl_fields fields)) ge_typ)
   | DeclControlType tags name type_params params =>
-    Some (IdentMap.set name (TypControl (MkControlType type_params params)) ge_typ)
+    Some (IdentMap.set (str name) (TypControl (MkControlType type_params params)) ge_typ)
   | DeclParserType tags name type_params params =>
-    Some (IdentMap.set name (TypParser (MkControlType type_params params)) ge_typ)
+    Some (IdentMap.set (str name) (TypParser (MkControlType type_params params)) ge_typ)
   (* TODO: DeclPackageType and TypPackage are inconsistency *)
   | DeclPackageType tags name type_params params =>
-    Some (IdentMap.set name (TypPackage type_params nil params) ge_typ)
+    Some (IdentMap.set (str name) (TypPackage type_params nil params) ge_typ)
   | DeclEnum tags name members =>
-    Some (IdentMap.set name (TypEnum name None members) ge_typ)
+    Some (IdentMap.set (str name) (TypEnum name None members) ge_typ)
   (* TODO: Do we need to consider the difference between DeclTypeDef
      and DeclNewType? *)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with
     | TypTypeName name2 => match name_to_type ge_typ name2 with
-                           | Some typ2 => Some (IdentMap.set name typ2 ge_typ)
+                           | Some typ2 => Some (IdentMap.set (str name) typ2 ge_typ)
                            | None => None
                            end
-    | _ => Some (IdentMap.set name typ ge_typ)
+    | _ => Some (IdentMap.set (str name) typ ge_typ)
     end
   | DeclTypeDef tags name (inr decl2)
   | DeclNewType tags name (inr decl2) =>
@@ -2123,7 +2125,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
     | Some ge_typ2 => match get_decl_typ_name decl2 with
                       | Some name2 =>
                         match IdentMap.get name2 ge_typ2 with
-                        | Some typ2 => Some (IdentMap.set name typ2 ge_typ2)
+                        | Some typ2 => Some (IdentMap.set (str name) typ2 ge_typ2)
                         | None => None
                         end
                       | None => None

@@ -75,3 +75,11 @@ Definition fourple_2 {A B C D : Type}  '((_,b,_,_) : A * B * C * D) : B := b.
 Definition fourple_3 {A B C D : Type}  '((_,_,c,_) : A * B * C * D) : C := c.
 
 Definition fourple_4 {A B C D : Type}  '((_,_,_,d) : A * B * C * D) : D := d.
+
+Definition
+  map_sum
+  {A B C D : Type} (f : A -> B) (g : C -> D) (e : A + C) : B + D :=
+  match e with
+  | inl a => inl (f a)
+  | inr b => inr (g b)
+  end.

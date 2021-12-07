@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4Arith.
@@ -590,10 +591,5 @@ Section ToGCL.
 
     (* Definition from_p4cub_v1model gas ctx : result target := *)
     (*   from_p4cub gas V1model.externs V1model.package ctx. *)
-
-    (* Definition from_p4light_v1model {tags_t : T} (tags : tags_t) gas p : result target := *)
-    (*   let* ctx := ToP4cub.translate_program T tags p in *)
-    (*   from_p4cub_v1model gas ctx. *)
-
   End Instr.
 End ToGCL.

@@ -6,7 +6,6 @@ Require Import Coq.NArith.BinNatDef.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
-Require Import Poulet4.Value.
 Require Export Poulet4.Maps.
 Require Export Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
@@ -17,7 +16,6 @@ Section SyntaxUtil.
 
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Variable default_tag: tags_t.
-Notation Val := (@ValueBase bool).
 
 Notation ident := (P4String.t tags_t).
 Notation path := (list ident).
@@ -109,25 +107,6 @@ Definition map_fst {A B C} (f : A -> B) (p : A * C) : B * C :=
 
 Definition map_snd {A B C} (f : A -> B) (p : C * A) : C * B :=
   let (c, a) := p in (c, f a).
-
-(* ************ Semantics common definitions ************************)
-Inductive signal : Type :=
- | SContinue : signal
- | SReturn : Val -> signal
- | SExit
- (* parser's states include accept and reject *)
- | SReject : string -> signal.
-
-Definition SReturnNull := SReturn ValBaseNull.
-
-(* Errors *)
-Definition NoError := !"NoError".
-Definition PacketTooShort := !"PacketTooShort".
-Definition NoMatch := !"NoMatch".
-Definition StackOutOfBounds := !"StackOutOfBounds".
-Definition HeaderTooShort := !"HeaderTooShort".
-Definition ParserTimeout := !"ParserTimeout".
-Definition ParserInvalidArgument := !"ParserInvalidArgument".
 
 (* Conversion *)
 Definition pos_of_N (n : N) : positive :=

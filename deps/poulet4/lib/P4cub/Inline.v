@@ -1,3 +1,4 @@
+Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4Arith.
@@ -244,8 +245,8 @@ Fixpoint inline
 
     | ST.SVardecl x t_or_e i =>
       match t_or_e with
-      | Left t =>  ok (IVardecl t x i)
-      | Right e =>
+      | inl t =>  ok (IVardecl t x i)
+      | inr e =>
         let t := t_of_e e in
         ok (ISeq (IVardecl t x i) (IAssign t (E.EVar t x i) e i) i)
       end

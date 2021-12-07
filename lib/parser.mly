@@ -18,7 +18,7 @@ module P4Info = Info
 
 open Core_kernel
 open Context
-open Types
+open Surface
 open P4string
 
 module Info = P4Info
@@ -79,9 +79,9 @@ let rec smash_annotations l tok2 =
 %left DOT
 
 
-%start <Types.program> p4program
-%start <Types.Declaration.t> variableDeclaration
-%start <Types.Declaration.t> typeDeclaration
+%start <Surface.program> p4program
+%start <Surface.Declaration.t> variableDeclaration
+%start <Surface.Declaration.t> typeDeclaration
 
 %%
 
@@ -203,7 +203,7 @@ list(X):
 
 (**************************** P4-16 GRAMMAR ******************************)
 
-p4program : ds = topDeclarationList END { Program(ds) };
+p4program : ds = topDeclarationList END { P4lightram(ds) };
 
 topDeclarationList:
 | (* empty *) { [] }
@@ -1295,7 +1295,7 @@ expression:
   { (Info.merge (info expr) name.tags,
      Expression.ExpressionMember { expr; name }) }
 | arg1 = expression op = binop arg2 = expression
-  { (Info.merge (Types.info arg1) (Types.info arg2),
+  { (Info.merge (Surface.info arg1) (Surface.info arg2),
      Expression.BinaryOp { op; args = (arg1, arg2) }) }
 | cond = expression QUESTION tru = expression COLON fls = expression
    { (Info.merge (info cond) (info fls),

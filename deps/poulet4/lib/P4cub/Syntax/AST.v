@@ -242,7 +242,7 @@ Module Stmt.
 
     Inductive s : Type :=
     | SSkip (i : tags_t)                              (* skip/no-op *)
-    | SVardecl (x : string) (expr : either Expr.t (Expr.e tags_t))
+    | SVardecl (x : string) (expr : Expr.t + Expr.e tags_t)
                (i : tags_t)                           (* variable declaration. *)
     | SAssign (lhs rhs : Expr.e tags_t) (i : tags_t)     (* assignment *)
     | SConditional (guard : Expr.e tags_t)
@@ -397,10 +397,10 @@ Module TopDecl.
                  (type_params : list string)
                  (signature : Expr.arrowT) (body : Stmt.s tags_t)
                  (i : tags_t)(* function/method declaration *)
-    | TPPackage (package_name : string)
+    (*| TPPackage (package_name : string)
                 (type_params : list string)
                 (cparams : Expr.constructor_params) (* constructor params *)
-                (i : tags_t) (* package type declaration *)
+                (i : tags_t) (* package type declaration *)*)
     | TPSeq (d1 d2 : d) (i : tags_t).
     (**[]*)
   End TopDeclarations.
@@ -410,6 +410,6 @@ Module TopDecl.
   Arguments TPControl {_}.
   Arguments TPParser {_}.
   Arguments TPFunction {_}.
-  Arguments TPPackage {_}.
+  (*Arguments TPPackage {_}.*)
   Arguments TPSeq {_}.
 End TopDecl.

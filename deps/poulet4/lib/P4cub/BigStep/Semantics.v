@@ -292,11 +292,11 @@ Module Step.
       interrupt sig ->
       ⟪ pkt, fs, ϵ, c, s ⟫ ⤋ ⟪ ϵ', sig, pkt' ⟫ ->
       ⟪ pkt, fs, ϵ, c, b{ s }b ⟫ ⤋ ⟪ ϵ ≪ ϵ', sig, pkt' ⟫
-  | sbs_vardecl (x : string) (eo : either Expr.t (Expr.e tags_t))
+  | sbs_vardecl (x : string) (eo : Expr.t + Expr.e tags_t)
                 (i : tags_t) (v : V.v) (c : ctx) :
       match eo with
-      | Right e => ⟨ ϵ, e ⟩ ⇓ v
-      | Left τ  => vdefault τ = Some v
+      | inr e => ⟨ ϵ, e ⟩ ⇓ v
+      | inl τ => vdefault τ = Some v
       end ->
       ⟪ pkt, fs, ϵ, c, var x with eo @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
   | sbs_assign (e1 e2 : Expr.e tags_t) (i : tags_t)
@@ -625,7 +625,7 @@ Module Step.
       fenv -> @eenv tags_t -> cenv -> penv -> Prop :=
   | dbs_instantiate_ctrl (c x : string) (i : tags_t)
                          (cargs : Expr.constructor_args tags_t)
-                         (vargs : F.fs string (either V.v cinst))
+                         (vargs : F.fs string (V.v + cinst))
                          (ctrlclosure : cenv) (fclosure : fenv)
                          (ciclosure cis' : cienv) (eis' : ARCH.extern_env)
                          (body : Control.d tags_t) (applyblk : Stmt.s tags_t)
@@ -635,14 +635,14 @@ Module Step.
       F.relfs
         (fun carg v =>
            match carg,v with
-           | Expr.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, Right cinst => Env.find c cis = Some cinst
+           | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
+           | Expr.CAName c, inr cinst => Env.find c cis = Some cinst
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>
                 match v with
-                | Left v => (!{ x ↦ v;; ϵ }!, ins)
-                | Right cinst => (ϵ, Env.bind x cinst ins)
+                | inl v     => (!{ x ↦ v;; ϵ }!, ins)
+                | inr cinst => (ϵ, Env.bind x cinst ins)
                 end) vargs (closure,ciclosure) = (ϵ',cis') ->
       ⦉ ∅, ∅, fclosure, cis, eis, ϵ', body ⦊ ⟱  ⦉ aa, tbls ⦊ ->
       let cis'' :=
@@ -651,7 +651,7 @@ Module Step.
         ⟱  ⦇ eis, cis'', pis, fns, es, cs, ps ⦈
   | dbs_instantiate_prsr (p x : string) (i : tags_t)
                          (cargs : Expr.constructor_args tags_t)
-                         (vargs : F.fs string (either V.v pinst))
+                         (vargs : F.fs string (V.v + pinst))
                          (prsrclosure : penv) (fclosure : fenv)
                          (piclosure pis' : pienv) (eis' : ARCH.extern_env)
                          (strt : AST.Parser.state_block tags_t)
@@ -662,14 +662,14 @@ Module Step.
       F.relfs
         (fun carg v =>
            match carg,v with
-           | Expr.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, Right pinst => Env.find p pis = Some pinst
+           | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
+           | Expr.CAName c, inr pinst => Env.find p pis = Some pinst
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>
                 match v with
-                | Left v => (!{ x ↦ v;; ϵ }!, ins)
-                | Right pinst => (ϵ, Env.bind x pinst ins)
+                | inl v     => (!{ x ↦ v;; ϵ }!, ins)
+                | inr pinst => (ϵ, Env.bind x pinst ins)
                 end) vargs (closure,piclosure) = (ϵ',pis') ->
       let pis'' :=
           Env.bind x (PInst ϵ'' fclosure pis eis strt states) pis' in
@@ -677,7 +677,7 @@ Module Step.
         ⟱  ⦇ eis, cis, pis'', fns, es, cs, ps ⦈
   | dbs_instantiate_extn (e x : string) (i : tags_t)
                          (cargs : Expr.constructor_args tags_t)
-                         (vargs : F.fs string (either V.v ARCH.P4Extern))
+                         (vargs : F.fs string (V.v + ARCH.P4Extern))
                          (extnclosure : eenv) (fclosure : fenv)
                          (eis' : ARCH.extern_env)
                          disp (** TODO: get dispatch method
@@ -689,8 +689,8 @@ Module Step.
       F.relfs
         (fun carg v =>
            match carg,v with
-           | Expr.CAExpr e, Left v => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, Right einst => Env.find e eis = Some einst
+           | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
+           | Expr.CAName c, inr einst => Env.find e eis = Some einst
            | _, _ => False
            end) cargs vargs ->
       (*F.fold (fun x v '(ϵ,ins) =>

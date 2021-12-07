@@ -233,6 +233,12 @@ Section MapCombine.
   Qed.
 End MapCombine.
 
+Lemma Forall_impl_Forall : forall (U : Type) (P Q : U -> Prop) us,
+    Forall (fun u => P u -> Q u) us -> Forall P us -> Forall Q us.
+Proof.
+  intros; rewrite Forall_forall in *; auto.
+Qed.
+
 Section Forall.
   Variables (A B : Type) (R : A -> B -> Prop).
   
@@ -523,3 +529,12 @@ Lemma Forall2_dumb : forall (U V : Type) (Q : Prop) (R : U -> V -> Prop) us vs,
 Proof.
   intros U V Q R us vs q H; induction H; auto.
 Qed.
+
+Section ProdMap.
+  Context {U V W : Type}.
+  Variable f : U -> W.
+
+  Definition prod_map_l '((u,v) : U * V) : W * V := (f u, v).
+
+  Definition prod_map_r '((v,u) : V * U) : V * W := (v, f u).
+End ProdMap.

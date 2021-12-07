@@ -39,7 +39,7 @@ module Make_parse (Conf: Parse_config) = struct
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
           Format.printf "%a@\n%!" pretty prog;
           Format.printf "----------@\n";
-          Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
+          Format.printf "%s@\n%!" (prog |> Surface.program_to_yojson |> Yojson.Safe.pretty_to_string)
         end;
       `Ok prog
 
@@ -89,7 +89,7 @@ module Make_parse (Conf: Parse_config) = struct
       let _, typed_prog = Checker.check_program renamer prog in
       begin
         if print_json then
-          let json = Types.program_to_yojson prog in
+          let json = Surface.program_to_yojson prog in
           let to_string j =
             if pretty_json then
               Yojson.Safe.pretty_to_string j
@@ -101,7 +101,7 @@ module Make_parse (Conf: Parse_config) = struct
       end;
       begin
         if typed_json then
-          let json = Prog.program_to_yojson typed_prog in
+          let json = P4light.program_to_yojson typed_prog in
           Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string json)
       end;
       begin
@@ -140,7 +140,7 @@ module Make_parse (Conf: Parse_config) = struct
                   |> Util.to_list
                   |> List.map ~f:Util.to_list in
     let vsets =
-      List.map matches ~f:(fun l -> List.map l ~f:Prog.Match.of_yojson_exn) in
+      List.map matches ~f:(fun l -> List.map l ~f:P4light.Match.of_yojson_exn) in
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let elab_prog, renamer = Elaborate.elab prog in

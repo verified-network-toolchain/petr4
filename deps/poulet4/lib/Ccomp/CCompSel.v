@@ -785,11 +785,11 @@ Section CCompSel.
 
     | Stmt.SBlock s => CTranslateStatement s env
 
-    | Stmt.SVardecl x (Left t) i => 
+    | Stmt.SVardecl x (inl t) i => 
       let (cty, env_cty):= CTranslateType t env in
       error_ret (Sskip, CCompEnv.add_var tags_t env_cty x cty)
 
-    | Stmt.SVardecl x (Right e) i => 
+    | Stmt.SVardecl x (inr e) i => 
       let t := t_of_e e in
       let dst_t := t in 
       let dst := x in
@@ -1559,7 +1559,6 @@ Section CCompSel.
   (* CTranslateTopControl d env *)
   | TopDecl.TPParser name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
    (* CTranslateTopParser d env *)
-  | TopDecl.TPPackage name _ _ _ =>  error_ret (add_tpdecl tags_t env name d) (*TODO: implement*)
   end.
 
   Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 

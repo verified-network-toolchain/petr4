@@ -1,9 +1,8 @@
-open Typed
-open Prog
+open P4light
 open Format
 
 (***********************************************
-              Typed.ml -> Type.v
+              P4light.ml -> Type.v
  ***********************************************)
 
 let print_bool p b =
@@ -68,7 +67,7 @@ let print_direction p (dir: direction) =
     | Directionless -> ""
   in fprintf p "%s" s
 
-let print_name p (name : Info.t Poulet4.Typed.name) =
+let print_name p (name : P4name.t) =
   match name with
   | BareName s ->
       fprintf p "%s" s.str
@@ -757,7 +756,7 @@ let print_decls =
 let print_header p imports =
   let _ = List.map (fprintf p "#include \"%s\"@,") imports in ()
 
-let print_program p (imports : string list) (program : Prog.program) =
+let print_program p (imports : string list) (program : P4light.program) =
   fprintf p "@[<v 0>";
   print_header p imports;
   print_decls p program;

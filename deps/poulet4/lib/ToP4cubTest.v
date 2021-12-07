@@ -43,8 +43,8 @@ Definition test := Syntax.Program [decl'1
                       ; truncate'length
                       ; assert'check
                       ; assume'check
-                      (* ; log_msg'msg *)
-                      (* ; log_msg'msg'data *)
+                      ; log_msg'msg
+                      ; log_msg'msg'data
                       ; Parser
                       ; VerifyChecksum
                       ; Ingress
@@ -70,7 +70,7 @@ Definition test := Syntax.Program [decl'1
                      ].
 (* Compute test. *)
 
-(* compute (translate_program Info NoInfo test). *)
+(* Compute (translate_program Info NoInfo test). *)
 Lemma simplenat_no_error: Result.is_ok (translate_program Info NoInfo test).
 Proof.
   compute.

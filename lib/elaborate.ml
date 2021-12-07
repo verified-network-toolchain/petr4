@@ -1,7 +1,7 @@
 module I = Info
 open Core_kernel
 open Util
-open Types
+open Surface
 open Checker_env
 module Info = I
 
@@ -13,7 +13,7 @@ let subst_vars_name env type_name =
   end
 
 let rec subst_vars_type env typ =
-  let open Types.Type in
+  let open Surface.Type in
   fst typ,
   match snd typ with
   | TypeName name ->
@@ -34,7 +34,7 @@ let subst_vars_arguments env args =
   List.map ~f:(subst_vars_argument env) args
 
 let rec subst_vars_expression env expr =
-  let open Types.Expression in
+  let open Surface.Expression in
   let go = subst_vars_expression env in
   let go_l = List.map ~f:go in
   fst expr,
@@ -71,7 +71,7 @@ let rec subst_vars_expression env expr =
   | e -> e
 
 let rec subst_vars_statement env stmt =
-  let open Types.Statement in
+  let open Surface.Statement in
   fst stmt,
   match snd stmt with
   | MethodCall { func; type_args; args } ->
@@ -101,7 +101,7 @@ let rec subst_vars_statement env stmt =
      DeclarationStatement { decl = subst_vars_stmt_declaration env decl }
 
 and subst_vars_case env case =
-  let open Types.Statement in
+  let open Surface.Statement in
   fst case,
   match snd case with
   | Action { label; code } ->
@@ -113,12 +113,12 @@ and subst_vars_cases env cases =
   List.map ~f:(subst_vars_case env) cases
 
 and subst_vars_block env block =
-  let open Types.Block in
+  let open Surface.Block in
   let { annotations; statements } = snd block in
   fst block, { annotations; statements = List.map ~f:(subst_vars_statement env) statements }
 
 and subst_vars_stmt_declaration env decl =
-  let open Types.Declaration in
+  let open Surface.Declaration in
   fst decl,
   match snd decl with
   | Instantiation { annotations; typ; args; name; init } ->
@@ -138,10 +138,10 @@ and subst_vars_stmt_declaration env decl =
                 name = name;
                 init = option_map (subst_vars_expression env) init }
   | _ -> raise_s [%message "declaration is not allowed as a statement"
-                     ~decl:(decl: Types.Declaration.t)]
+                     ~decl:(decl: Surface.Declaration.t)]
 
 let subst_vars_param env param =
-  let open Types.Parameter in
+  let open Surface.Parameter in
   let { annotations; direction; typ; variable; opt_value } = snd param in
   let typ = subst_vars_type env typ in
   let opt_value = Util.option_map (subst_vars_expression env) opt_value in
@@ -170,7 +170,7 @@ let rec freshen_params env params =
      env, param :: params
 
 let elab_method env m =
-  let open Types.MethodPrototype in
+  let open Surface.MethodPrototype in
   fst m,
   match snd m with
   | Constructor { annotations; name; params } ->
@@ -248,6 +248,6 @@ let elab_decls env decls =
   List.iter ~f:observe_decl_name decls;
   elab_decls' env decls
 
-let elab (Program decls) =
+let elab (P4lightram decls) =
   let env = Checker_env.empty_t () in
-  Program (elab_decls env decls), env.renamer
+  P4lightram (elab_decls env decls), env.renamer

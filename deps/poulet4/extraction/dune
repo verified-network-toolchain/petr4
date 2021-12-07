@@ -12,7 +12,7 @@
     HoistNameless InferMemberTypes Substitution
     TableInstr V1model
     Auxilary Envn Result P4Arith
-    EquivUtil StringUtil ListUtil Utiliser
+    EquivUtil StringUtil ListUtil FunUtil
     Bool String Nat
     BinNums BinInt Zpower
     Specif Basics PeanoNat

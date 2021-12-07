@@ -73,6 +73,105 @@ Section ValueUtil.
                       AList.all_values (exec_val read_one_bit) kvs kvs' ->
                       exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
 
+  Section ExecValInd.
+    Variables (A B : Type).
+    Notation VA := (@ValueBase A).
+    Notation VB := (@ValueBase B).
+    Variables (R : A -> B -> Prop) (P : VA -> VB -> Prop).
+
+    Hypothesis HNull : P ValBaseNull ValBaseNull.
+    Hypothesis HBool : forall a b,
+        R a b -> P (ValBaseBool a) (ValBaseBool b).
+    Hypothesis HInteger : forall n, P (ValBaseInteger n) (ValBaseInteger n).
+    Hypothesis HBit : forall la lb,
+        Forall2 R la lb -> P (ValBaseBit la) (ValBaseBit lb).
+    Hypothesis HInt : forall la lb,
+        Forall2 R la lb -> P (ValBaseInt la) (ValBaseInt lb).
+    Hypothesis HVarbit : forall max la lb,
+        Forall2 R la lb -> P (ValBaseVarbit max la) (ValBaseVarbit max lb).
+    Hypothesis HString : forall s, P (ValBaseString s) (ValBaseString s).
+    Hypothesis HTuple : forall vas vbs,
+        Forall2 (exec_val R) vas vbs ->
+        Forall2 P vas vbs ->
+        P (ValBaseTuple vas) (ValBaseTuple vbs).
+    Hypothesis HRecord : forall kvas kvbs,
+        AList.all_values (exec_val R) kvas kvbs ->
+        AList.all_values P kvas kvbs ->
+        P (ValBaseRecord kvas) (ValBaseRecord kvbs).
+    Hypothesis HError : forall s, P (ValBaseError s) (ValBaseError s).
+    Hypothesis HMatchkind : forall s, P (ValBaseMatchKind s) (ValBaseMatchKind s).
+    Hypothesis HStruct : forall kvas kvbs,
+        AList.all_values (exec_val R) kvas kvbs ->
+        AList.all_values P kvas kvbs ->
+        P (ValBaseStruct kvas) (ValBaseStruct kvbs).
+    Hypothesis HHeader : forall a b kvas kvbs,
+        R a b ->
+        AList.all_values (exec_val R) kvas kvbs ->
+        AList.all_values P kvas kvbs ->
+        P (ValBaseHeader kvas a) (ValBaseHeader kvbs b).
+    Hypothesis HUnion : forall kvas kvbs,
+        AList.all_values (exec_val R) kvas kvbs ->
+        AList.all_values P kvas kvbs ->
+        P (ValBaseUnion kvas) (ValBaseUnion kvbs).
+    Hypothesis HStack : forall vas vbs size next,
+        Forall2 (exec_val R) vas vbs ->
+        Forall2 P vas vbs ->
+        P (ValBaseStack vas size next) (ValBaseStack vbs size next).
+    Hypothesis HEnumField : forall type_name enum_name,
+        P
+          (ValBaseEnumField type_name enum_name)
+          (ValBaseEnumField type_name enum_name).
+    Hypothesis HSenumField : forall type_name enum_name va vb,
+        exec_val R va vb -> P va vb ->
+        P
+          (ValBaseSenumField type_name enum_name va)
+          (ValBaseSenumField type_name enum_name vb).
+
+    Definition custom_exec_val_ind : forall va vb,
+        exec_val R va vb -> P va vb :=
+      fix evind va vb (H : exec_val R va vb) : P va vb :=
+        let fix lind
+                {vas} {vbs}
+                (HForall2 : Forall2 (exec_val R) vas vbs)
+            : Forall2 P vas vbs :=
+            match HForall2 with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ Hhd Htl
+              => Forall2_cons _ _ (evind _ _ Hhd) (lind Htl)
+            end in
+        let fix alind
+                {kvas} {kvbs}
+                (Hall_values : AList.all_values (exec_val R) kvas kvbs)
+            : AList.all_values P kvas kvbs :=
+            match Hall_values with
+            | Forall2_nil _ => Forall2_nil _
+            | Forall2_cons _ _ (conj Hk Hhd) Htl
+              => Forall2_cons _ _ (conj Hk (evind _ _ Hhd)) (alind Htl)
+            end in
+        match H with
+        | exec_val_null _ => HNull
+        | exec_val_bool _ _ _ r => HBool _ _ r
+        | exec_val_integer _ n => HInteger n
+        | exec_val_bit _ _ _ rs => HBit _ _ rs
+        | exec_val_int _ _ _ rs => HInt _ _ rs
+        | exec_val_varbit _ _ max _ rs => HVarbit _ max _ rs
+        | exec_val_string _ s => HString s
+        | exec_val_tuple _ _ _ evs => HTuple _ _ evs (lind evs)
+        | exec_val_record _ _ _ evs => HRecord _ _ evs (alind evs)
+        | exec_val_error _ s => HError s
+        | exec_val_matchkind _ s => HMatchkind s
+        | exec_val_struct _ _ _ evs => HStruct _ _ evs (alind evs)
+        | exec_val_header _ _ _ _ _ r evs
+          => HHeader _ _ _ _ r evs (alind evs)
+        | exec_val_union _ _ _ evs => HUnion _ _ evs (alind evs)
+        | exec_val_stack _ _ _ size next evs
+          => HStack _ _ size next evs (lind evs)
+        | exec_val_enum_field _ tn en => HEnumField tn en
+        | exec_val_senum_field _ tn en _ _ ev
+          => HSenumField tn en _ _ ev (evind _ _ ev)
+        end.
+  End ExecValInd.
+
   Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
     exec_val read_one_bit.
 

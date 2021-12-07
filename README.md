@@ -5,7 +5,7 @@ The Petr4 project is developing the formal semantics of the [P4
 Language](https://p4.org) backed by an independent reference implementation.
 
 # POPL'21 artifact
-See https://cornell-netlab.github.io/petr4/ or check out the `gh-pages` branch
+See https://verified-network-toolchain.github.io/petr4/ or check out the `gh-pages` branch
 for information on the Petr4 artifact.
 
 ## Getting Started

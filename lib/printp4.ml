@@ -133,7 +133,7 @@ let rec print_type p (typ : coq_P4Type) =
   | TypEnum (s, typ, members) ->
       failwith "unimplemented: print_type TypEnum"
   | TypTypeName name ->
-      fprintf p "@[<h>%a@]" print_name name
+      fprintf p "@[<h>%a@]" print_string name.str
   | TypNewType (s, typ) ->
       failwith "unimplemented: print_type TypNewType"
   | TypControl ctrl ->

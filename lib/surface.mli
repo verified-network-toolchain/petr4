@@ -124,7 +124,7 @@ and Type : sig
     | IntType of Expression.t (** Fixed-with signed integers *)
     | BitType of Expression.t (** Fixed-width unsigned integers *)
     | VarBit of Expression.t (** Variable-width integers with a maximum width *)
-    | TypeName of P4name.t (** Named types *)
+    | TypeName of P4string.t (** Named types *)
     | SpecializedType of 
         { base: t;
           args: t list } (** Type applications, with a base type and a list of type arguments. *)

@@ -380,7 +380,7 @@ let fields_for_cast (fields: P4light.coq_FieldType list) (value: coq_Value) =
   | ValRecord fields -> fields
   | _ -> failwith "cannot cast"
 
-let rec interp_cast ~type_lookup:(type_lookup: P4name.t -> P4light.coq_P4Type)
+let rec interp_cast ~type_lookup:(type_lookup: P4string.t -> P4light.coq_P4Type)
       (new_type: coq_P4Type) (value: coq_Value) : coq_Value =
   match new_type with
   | TypBool -> bool_of_val value

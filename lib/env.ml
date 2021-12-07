@@ -58,7 +58,7 @@ let update_in_scope name value scope =
   | Some (xs, _, ys) ->
      Some (xs @ (name, value) :: ys)
 
-let insert_bare name value env =
+let insert_bare name value env : 'a t =
   match env with
   | [] -> no_scopes ()
   | h :: t -> ((name, value) :: h) :: t

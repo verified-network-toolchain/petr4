@@ -171,7 +171,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
   | ValEnumField (typ, mem)
   | ValSenumField (typ, mem, _) ->
      let name: P4name.t = BareName typ in
-     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName name, In)
+     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName typ, In)
   | ValSenum vs -> failwith "ValSenum unsupported"
 
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
@@ -181,7 +181,7 @@ let rec is_extern (env: Checker_env.t) (typ: P4light.coq_P4Type) =
   | TypTypeName n ->
     begin match Checker_env.resolve_type_name n env with
       | TypTypeName n' ->
-        if P4name.name_eq n n'
+        if String.equal n.str n'.str
         then false
         else is_extern env (TypTypeName n')
       | typ -> is_extern env typ
@@ -410,11 +410,11 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     List.map ~f:(saturate_param env) params
   in
   let saturate_ctrl env (MkControlType (type_params, params)) =
-    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars type_params env in
     MkControlType (type_params, List.map ~f:(saturate_param env) params)
   in
   let saturate_function env (MkFunctionType (type_params, params, kind, ret)) =
-    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars type_params env in
     MkFunctionType (type_params,
                     saturate_params env params,
                     kind,
@@ -425,7 +425,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     begin match Checker_env.resolve_type_name_opt t env with
       | None -> typ
       | Some (TypTypeName t') ->
-        if P4name.name_eq t' t
+        if P4string.eq t' t
         then typ
         else saturate_type env (TypTypeName t')
       | Some typ' ->
@@ -459,8 +459,8 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypSpecializedType (saturate_type env base,
                         saturate_types env args)
   | TypPackage (type_params, wildcard_params, params) ->
-    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
-    let env = Checker_env.insert_type_vars ~shadow:true wildcard_params env in
+    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars wildcard_params env in
     TypPackage (type_params,
                 wildcard_params,
                 saturate_params env params)
@@ -476,7 +476,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypAction (saturate_params env data_params,
                saturate_params env ctrl_params)
   | TypConstructor (type_params, wildcard_params, params, ret) ->
-    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars type_params env in
     TypConstructor (type_params,
                     wildcard_params,
                     saturate_params env params,
@@ -692,9 +692,6 @@ and solve_types
   let t1 = reduce_type env type1 in
   let t2 = reduce_type env type2 in
   begin match t1, t2 with
-    | TypTypeName (QualifiedName _), _
-    | _, TypTypeName (QualifiedName _) ->
-      failwith "Name in saturated type."
     | TypSpecializedType (TypExtern e1, args1),
       TypSpecializedType (TypExtern e2, args2) ->
       let ok (t1, t2) = solve_types env equiv_vars unknowns t1 t2 in
@@ -704,13 +701,13 @@ and solve_types
     | TypSpecializedType (base, args), _
     | _, TypSpecializedType (base, args) ->
       raise_s [%message "Stuck specialized type." ~t:(TypSpecializedType (base, args):coq_P4Type)]
-    | TypTypeName (BareName tv1), TypTypeName (BareName tv2) ->
+    | TypTypeName tv1, TypTypeName tv2 ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
       else if List.mem ~equal:P4string.eq unknowns tv1
       then Some (single_constraint unknowns tv1 t2)
       else None
-    | TypTypeName (BareName tv), typ ->
+    | TypTypeName tv, typ ->
       if List.mem ~equal:P4string.eq unknowns tv
       then Some (single_constraint unknowns tv typ)
       else None
@@ -1076,7 +1073,9 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | IntType e -> ret @@ TypInt (eval_to_positive_int env (fst typ) e)
   | BitType e -> ret @@ TypBit (eval_to_positive_int env (fst typ) e)
   | VarBit e -> ret @@ TypVarBit (eval_to_positive_int env (fst typ) e)
-  | TypeName ps -> ret @@ TypTypeName ps
+  | TypeName
+      (P4name.BareName ps
+      | P4name.QualifiedName (_,ps)) -> ret @@ TypTypeName ps
   | SpecializedType {base; args} ->
     let args, wildcards =
       args
@@ -1099,7 +1098,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | DontCare ->
     if gen_wildcards
     then let name = gen_wildcard env in
-         TypTypeName (BareName name), [name]
+      TypTypeName name, [name]
     else raise_s [%message"not generating wildcards" ~info:(fst typ: Info.t)] 
 
 and translate_type (env: Checker_env.t) (typ: Surface.Type.t) : coq_P4Type =
@@ -1182,7 +1181,7 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
   | TypTypeName name ->
     Checker_env.resolve_type_name_opt name env <> None
   | TypTable result_typ_name ->
-    Checker_env.resolve_type_name_opt (BareName result_typ_name) env <> None
+    Checker_env.resolve_type_name_opt result_typ_name env <> None
   | TypNewType (name, typ) ->
     is_well_formed_type env typ
   (* Polymorphic types *)

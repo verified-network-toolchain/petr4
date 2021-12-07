@@ -47,12 +47,12 @@ let push_scope (env: t) : t =
     externs = Env.push env.externs;
     renamer = env.renamer }
 
-let resolve_type_name_opt name env =
-  Env.find_opt name env.typ
+let resolve_type_name_opt (name : P4string.t) env =
+  Env.find_bare_opt name.str env.typ
 
-let resolve_type_name name env =
-  Env.opt_to_unbound name
-    @@ resolve_type_name_opt name env
+let resolve_type_name (name : P4string.t) env =
+  Util.opt_to_exn (Env.UnboundName name.str)
+  @@ resolve_type_name_opt name env
 
 let find_type_of_opt name env =
   Env.find_opt name env.typ_of
@@ -87,12 +87,12 @@ let insert_types ?shadow:(shadow=false) names_types env =
   in
   List.fold ~f:go ~init:env names_types
 
-let insert_type_var ?shadow:(shadow=false) var env =
+let insert_type_var var env =
   let typ: P4light.coq_P4Type = TypTypeName var in
-  { env with typ = Env.insert ~shadow var typ env.typ }
+  { env with typ = Env.insert_bare var.str typ env.typ }
 
-let insert_type_vars ?shadow:(shadow=false) vars env =
-  let go env var = insert_type_var ~shadow (BareName var) env in
+let insert_type_vars vars env =
+  let go env var = insert_type_var var env in
   List.fold ~f:go ~init:env vars
 
 let insert_dir_type_of ?shadow:(shadow=false) var typ dir env =

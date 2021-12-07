@@ -5,6 +5,7 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.SmallStep.Value
         Poulet4.P4cub.SmallStep.Util
         Poulet4.P4cub.SmallStep.Semantics.
+Import String.
 Import CanonicalForms Step.
 Import AllCubNotations TypeEquivalence
        ProperType F.FieldTactics Env.EnvNotations.

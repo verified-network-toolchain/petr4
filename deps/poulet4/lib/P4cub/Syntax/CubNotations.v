@@ -1,5 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.AST.
+Import String.
 
 (** Notation entries. *)
 Declare Custom Entry p4type.

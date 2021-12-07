@@ -5,6 +5,7 @@ Require Import Coq.ZArith.BinInt Poulet4.P4cub.Envn
 Require Export Poulet4.P4cub.BigStep.ExprUtil
         Poulet4.P4cub.BigStep.ValEnvUtil
         Poulet4.P4cub.BigStep.InstUtil.
+Import String.
 
 (* TODO : correctly handle type parameters & arguments. *)
 

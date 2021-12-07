@@ -1,6 +1,7 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
+Import String.
 Import AllCubNotations.
 
 (* TODO: induction hypothesis. *)

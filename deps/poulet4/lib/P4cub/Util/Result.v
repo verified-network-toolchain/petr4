@@ -10,6 +10,18 @@ Module Result.
   Definition ok {A : Type} (x : A) : result A := Ok A x.
   Definition error {A : Type} (s : string) : result A := Error A s.
 
+  Definition is_ok {A : Type} (x : result A) : Prop :=
+    match x with
+    | Ok _ x => True
+    | _ => False
+    end.
+
+  Definition is_error {A : Type} (x : result A) : Prop :=
+    match x with
+    | Error _ x => True
+    | _ => False
+    end.
+
   Definition bind {A B : Type} (r : result A)  (f : A -> result B) : result B :=
     match r with
     | Error _ s => Error B s

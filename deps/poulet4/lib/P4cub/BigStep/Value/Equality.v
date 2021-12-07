@@ -15,7 +15,7 @@ Section VE.
         | v1::vs1, v2::vs2 => eqbv v1 v2 && lstruct vs1 vs2
         | [], _::_ | _::_, [] => false
         end in
-    let fix fields_struct (vs1 vs2 : Field.fs string v) : bool :=
+    let fix fields_struct (vs1 vs2 : Field.fs String.string v) : bool :=
         match vs1, vs2 with
         | [],           []           => true
         | (x1, v1)::vs1, (x2, v2)::vs2
@@ -23,7 +23,7 @@ Section VE.
         | [],            _::_
         | _::_,           []          => false
         end in
-    let fix ffstruct (v1ss v2ss : list (bool * Field.fs string v)) : bool :=
+    let fix ffstruct (v1ss v2ss : list (bool * Field.fs String.string v)) : bool :=
         match v1ss, v2ss with
         | [], _::_ | _::_, [] => false
         | [], [] => true
@@ -61,13 +61,13 @@ Section VE.
     Hint Rewrite Z.eqb_refl.
     Hint Rewrite N.eqb_refl.
     Hint Rewrite TE.eqbt_refl.
-    Hint Rewrite (@F.eqb_fs_reflx string Expr.t).
+    Hint Rewrite (@F.eqb_fs_reflx String.string Expr.t).
     Hint Rewrite andb_true_r.
     Hint Extern 0 => equiv_dec_refl_tactic : core.
     induction vl using custom_value_ind; simpl in *;
       autorewrite with core; simpl; auto;
         try match goal with
-            | hs: list (bool * F.fs string v),
+            | hs: list (bool * F.fs String.string v),
                   H: Forall _ ?hs
               |- _ => induction hs as [| [? ?] ? ?];
                       try inv_Forall_cons;
@@ -122,7 +122,7 @@ Section VE.
         repeat (eq_true_terms); unfold equiv in *; auto; f_equal;
           repeat (eq_true_terms); auto;
             try match goal with
-                | hs1: list (bool * F.fs string v),
+                | hs1: list (bool * F.fs String.string v),
                        IH: Forall _ ?hs1,
                            H: _ ?hs1 ?hs2 = true
                   |- ?hs1 = ?hs2

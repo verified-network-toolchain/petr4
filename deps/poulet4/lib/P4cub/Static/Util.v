@@ -6,6 +6,7 @@ Require Export Poulet4.P4Arith Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.Syntax.
 Declare Custom Entry p4signal.
 Declare Custom Entry p4context.
 
+Import String.
 Import AllCubNotations.
 
 (** Statement signals. *)

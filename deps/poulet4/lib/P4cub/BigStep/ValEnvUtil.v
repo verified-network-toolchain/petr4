@@ -4,6 +4,7 @@ Require Import Poulet4.P4cub.BigStep.Value.Value
         Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.ExprUtil
         Poulet4.P4Arith.
+Import String.
 Module V := Val.
 Import V.ValueNotations V.LValueNotations Env.EnvNotations.
 

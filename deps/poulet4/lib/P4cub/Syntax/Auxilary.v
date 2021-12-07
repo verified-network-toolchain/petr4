@@ -64,7 +64,7 @@ Definition t_of_bop (op : bop) (l r : t) : option t :=
   | _, _, _ => None
   end.
 
-Definition t_of_mem (x : string) (ty : t) : option t :=
+Definition t_of_mem (x : String.string) (ty : t) : option t :=
   match ty with
   | {{ struct { ts } }}
   | {{ hdr    { ts } }} => F.get x ts
@@ -122,7 +122,7 @@ Module ProperType.
     | pih_bool (τ : t) :
         base_type τ ->
         proper_inside_header τ
-    | pih_struct (ts : F.fs string t) :
+    | pih_struct (ts : F.fs String.string t) :
         F.predfs_data base_type ts ->
         proper_inside_header {{ struct { ts } }}.
     
@@ -132,7 +132,7 @@ Module ProperType.
         base_type τ -> proper_nesting τ
     | pn_error : proper_nesting {{ error }}
     | pn_matchkind : proper_nesting {{ matchkind }}
-    | pn_struct (ts : F.fs string t) :
+    | pn_struct (ts : F.fs String.string t) :
         F.predfs_data
           (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
         proper_nesting {{ struct { ts } }}
@@ -140,10 +140,10 @@ Module ProperType.
         Forall
           (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
         proper_nesting {{ tuple ts }}
-    | pn_header (ts : F.fs string t) :
+    | pn_header (ts : F.fs String.string t) :
         F.predfs_data proper_inside_header ts ->
         proper_nesting {{ hdr { ts } }}
-    | pn_header_stack (ts : F.fs string t)
+    | pn_header_stack (ts : F.fs String.string t)
                       (n : positive) :
         BitArith.bound 32 (Zpos n) ->
         F.predfs_data proper_inside_header ts ->

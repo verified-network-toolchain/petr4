@@ -29,7 +29,6 @@ Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 
 Module BitVec.
 Section BitVec.
-  Variable tags_t : Type.
   Inductive bop :=
   | BVPlus (sat : bool) (signed : bool)
   | BVMinus (sat : bool) (signed : bool)
@@ -47,11 +46,11 @@ Section BitVec.
   | BVSlice (hi lo : nat).
 
   Inductive t :=
-  | BitVec (n : nat) (w : option nat) (i : tags_t)
-  | Int (z : Z) (w : option nat) (i : tags_t)
-  | BVVar (x : string) (w : nat) (i : tags_t)
-  | BinOp (op : bop) (u v : t) (i : tags_t)
-  | UnOp (op : uop) (v : t) (i : tags_t).
+  | BitVec (n : nat) (w : option nat)
+  | Int (z : Z) (w : option nat)
+  | BVVar (x : string) (w : nat)
+  | BinOp (op : bop) (u v : t)
+  | UnOp (op : uop) (v : t).
 
   Definition bit (w : nat) (n : nat) := BitVec n (Some w).
   Definition varbit (n : nat) := BitVec n None.
@@ -89,9 +88,6 @@ End BitVec.
 Module Form.
 Section Form.
 
-  Variable tags_t : Type.
-
-
   Inductive lbop := LOr
                   | LAnd
                   | LImp
@@ -105,11 +101,11 @@ Section Form.
                    | LNeq.
 
   Inductive t :=
-  | LBool (b : bool) (i : tags_t)
-  | LBop (op : lbop) (ϕ ψ : t) (i : tags_t)
-  | LNot (ϕ : t) (i : tags_t)
-  | LVar (x : string) (i : tags_t)
-  | LComp (comp : lcomp) (bv1 bv2 : BitVec.t tags_t) (i : tags_t).
+  | LBool (b : bool)
+  | LBop (op : lbop) (ϕ ψ : t)
+  | LNot (ϕ : t)
+  | LVar (x : string)
+  | LComp (comp : lcomp) (bv1 bv2 : BitVec.t).
 
   Definition bveq := LComp LEq.
   Definition bvule := LComp (LLe false).
@@ -136,11 +132,9 @@ End Form.
 
 Module GCL.
 Section GCL.
-  Variable tags_t : Type.
-
   Inductive t {lvalue rvalue form : Type} : Type :=
-  | GSkip (i : tags_t)
-  | GAssign (type : E.t) (lhs : lvalue) (rhs : rvalue) (i : tags_t)
+  | GSkip
+  | GAssign (type : E.t) (lhs : lvalue) (rhs : rvalue)
   | GSeq (g1 g2 : t)
   | GChoice (g1 g2 : t)
   | GAssume (phi : form)
@@ -148,22 +142,14 @@ Section GCL.
   | GExternVoid (e : string) (args : list rvalue)
   | GExternAssn (x : string) (e : string) (args : list rvalue).
 
-  Definition g_sequence {L R F : Type} (i : tags_t) : list (@t L R F) -> @t L R F :=
-    fold_right (GSeq) (GSkip i).
+  Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
+    fold_right GSeq GSkip.
 
-  Definition is_true (x : string) (i : tags_t) : Form.t tags_t :=
-    Form.bveq tags_t (BitVec.BVVar tags_t x 1 i) (BitVec.bit tags_t 1 1 i) i.
+  Definition is_true (x : string) : Form.t :=
+    Form.bveq (BitVec.BVVar x 1) (BitVec.bit 1 1).
 
-  Definition exit (i : tags_t) : Form.t tags_t := is_true "exit" i.
-  Definition etrue (i : tags_t) : E.e tags_t := E.EBool true i.
-  Definition efalse (i : tags_t) : E.e tags_t := E.EBool false i.
-  Definition ite {lvalue rvalue : Type} (guard_type : E.t) (guard : E.e tags_t) (tru fls : @t lvalue rvalue (E.e tags_t)) (i : tags_t) : t :=
-    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop guard_type E.Not guard i)) fls).
-  Definition iteb {lvalue rvalue : Type} (guard : E.e tags_t) (tru fls : @t lvalue rvalue (E.e tags_t)) (i : tags_t) : t :=
-    GChoice (GSeq (GAssume guard) tru) (GSeq (GAssume (E.EUop E.TBool E.Not guard i)) fls).
-
-  Definition isone (v : BitVec.t tags_t) (i :tags_t) : Form.t tags_t :=
-    Form.bvule tags_t v (BitVec.bit tags_t 1 1 i) i.
+  Definition isone (v : BitVec.t) : Form.t :=
+    Form.bvule v (BitVec.bit 1 1).
 End GCL.
 End GCL.
 
@@ -175,10 +161,9 @@ Module Semantics.
 
   Module Arch.
     Section Arch.
-      Variable tags_t : Type.
-      Definition impl : Type := store -> list (BitVec.t tags_t) -> (store * option bv).
+      Definition impl : Type := store -> list BitVec.t -> (store * option bv).
       Definition t := list (string * impl).
-      Fixpoint run (a : t) (s : store) (f : string) (args : list (BitVec.t tags_t)) :=
+      Fixpoint run (a : t) (s : store) (f : string) (args : list BitVec.t) :=
         match a with
         | [] => error ("Could not find implementation for extern " ++ f)
         | (g,impl)::a' =>
@@ -253,22 +238,22 @@ Module Semantics.
       |  _, _ => error "one had width the other didnt'"
       end.
 
-    Fixpoint eval (s : store) (b : BitVec.t tags_t) : result bv :=
+    Fixpoint eval (s : store) (b : BitVec.t) : result bv :=
       match b with
-      | BitVec.BitVec _ n w _ =>
+      | BitVec.BitVec n w =>
         ok ({|signed := false;
               val := BinInt.Z.of_nat n;
               width := w |})
 
-      | BitVec.Int _ z w _ =>
+      | BitVec.Int z w =>
         ok ({|signed := true;
               val := z;
               width := w |})
 
-      | BitVec.BVVar _ x _ _ =>
+      | BitVec.BVVar x _ =>
         lookup s x
 
-      | BitVec.BinOp _ op bv1 bv2 i =>
+      | BitVec.BinOp op bv1 bv2 =>
         let* u := eval s bv1 in
         let* v := eval s bv2 in
         match op with
@@ -363,7 +348,7 @@ Module Semantics.
           apply_binop f f u v
         end
 
-      | BitVec.UnOp _ op bv0 i =>
+      | BitVec.UnOp op bv0 =>
         let+ u := eval s bv0 in
         match op with
         | BitVec.BVNeg =>
@@ -413,11 +398,11 @@ Module Semantics.
       | Form.LNeq => negb (BinInt.Z.eqb x y)
       end.
 
-    Fixpoint models (s : store) (phi : Form.t tags_t) : result bool :=
+    Fixpoint models (s : store) (phi : Form.t) : result bool :=
       match phi with
-      | Form.LBool _ b _ =>
+      | Form.LBool b =>
         ok b
-      | Form.LBop _ op ϕ ψ _ =>
+      | Form.LBop op ϕ ψ =>
         let* a := models s ϕ in
         let+ b := models s ψ in
         match op with
@@ -426,12 +411,12 @@ Module Semantics.
         | Form.LImp => implb a b
         | Form.LIff => eqb a b
         end
-      | Form.LNot _ ϕ _ =>
+      | Form.LNot ϕ =>
         let+ a := models s ϕ in
         negb a
-      | Form.LVar _ _ _ =>
+      | Form.LVar _ =>
         error "boolean variables unimplemented"
-      | Form.LComp _ comp bv1 bv2 i =>
+      | Form.LComp comp bv1 bv2 =>
         let* u := eval s bv1 in
         let* v:= eval s bv2 in
         let* _ := get_width u v in
@@ -442,34 +427,34 @@ Module Semantics.
 
     (* translate_pipeline :: list t -> result t *)
     (* Model inter-stage behavior using GCL code (inluding externs) *)
-    Fixpoint denote (a : Arch.t tags_t) (s : store) (g : @GCL.t tags_t string (BitVec.t tags_t) (Form.t tags_t)) : result (list store) :=
+    Fixpoint denote (a : Arch.t) (s : store) (g : @GCL.t string BitVec.t Form.t) : result (list store) :=
       match g with
-      | GCL.GSkip _ _ => ok [s]
-      | GCL.GAssign _ _ lhs rhs _ =>
+      | GCL.GSkip => ok [s]
+      | GCL.GAssign _ lhs rhs =>
         let+ bv := eval s rhs in
         [update s lhs bv]
-      | GCL.GSeq _  g1 g2 =>
+      | GCL.GSeq g1 g2 =>
         let* ss1 := denote a s g1 in
         fold_right (fun s1 acc => let* s := denote a s1 g2 in
                                   let+ ss := acc in
                                   List.app s ss) (ok []) ss1
-      | GCL.GChoice _ g1 g2 =>
+      | GCL.GChoice g1 g2 =>
         let* ss1 := denote a s g1 in
         let+ ss2 := denote a s g2 in
         List.app ss1 ss2
-      | GCL.GAssume _ phi =>
+      | GCL.GAssume phi =>
         let+ b : bool := models s phi in
         if b then [s] else []
-      | GCL.GAssert _ phi =>
+      | GCL.GAssert phi =>
         let* b : bool := models s phi in
         if b
         then error "Assertion Failure"
         else ok [s]
-      | GCL.GExternVoid _ f args =>
-        let+ (s', _) := Arch.run tags_t a s f args in
+      | GCL.GExternVoid f args =>
+        let+ (s', _) := Arch.run a s f args in
         [s']
-      | GCL.GExternAssn _ x f args =>
-        let* (s', ret_opt) := Arch.run tags_t a s f args in
+      | GCL.GExternAssn x f args =>
+        let* (s', ret_opt) := Arch.run a s f args in
         let*~ ret := ret_opt else "expected return value from fruitful extern" in
         ok [update s' x ret]
       end.

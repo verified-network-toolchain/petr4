@@ -3,7 +3,7 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.Classes.EquivDec Coq.Program.Program.
 Require Export Poulet4.P4cub.Syntax.P4Field.
 Require Coq.Logic.Eqdep_dec.
-
+Import String.
 (** * P4cub AST *)
 
 Module F := Field.

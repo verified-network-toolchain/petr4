@@ -3,6 +3,7 @@ Require Import Coq.Bool.Bool Coq.ZArith.BinIntDef
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Import AllCubNotations.
+Import String.
 
 (** Notation entries. *)
 Declare Custom Entry p4value.

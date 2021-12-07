@@ -223,7 +223,7 @@ Definition copy (args : E.args tags_t) : expenv :=
                              | PAOut e => Env.bind param e η
                              | PADirLess e => Env.bind param e η
                              end)
-         args (Env.empty EquivUtil.string (E.e tags_t)).
+         args (Env.empty String.string (E.e tags_t)).
 
 Definition string_list_of_params (ps : E.params) : list string :=
   List.map fst ps.

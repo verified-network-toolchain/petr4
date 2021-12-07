@@ -6,6 +6,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.micromega.Lia.
+Import String.
 Import ProperType Val ValueNotations
        LValueNotations AllCubNotations
        Env.EnvNotations.
@@ -44,7 +45,7 @@ Inductive type_value : v -> Expr.t -> Prop :=
     ∇ ⊢ MATCHKIND mk ∈ matchkind
 | typ_headerstack (ts : Field.fs string Expr.t)
                   (hs : list (bool * Field.fs string v)) (ni : Z) :
-    let n := Pos.of_nat (length hs) in
+    let n := Pos.of_nat (List.length hs) in
     BitArith.bound 32%N (Zpos n) ->
     (0 <= ni < (Zpos n))%Z ->
     proper_nesting {{ stack ts[n] }} ->

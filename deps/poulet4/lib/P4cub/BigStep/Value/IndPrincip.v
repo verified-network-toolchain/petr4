@@ -1,6 +1,7 @@
 Require Import Poulet4.P4cub.BigStep.Value.Syntax
         Poulet4.P4cub.Syntax.CubNotations.
 Import Val ValueNotations AllCubNotations.
+Import String.
 
 (** A custom induction principle for value. *)
 Section ValueInduction.

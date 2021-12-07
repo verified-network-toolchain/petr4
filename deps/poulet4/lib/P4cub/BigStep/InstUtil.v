@@ -3,6 +3,7 @@ Require Import Poulet4.P4cub.BigStep.Value.Value
         Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.ValEnvUtil
         Poulet4.P4cub.BigStep.BSPacket.
+Import String.
 Module V := Val.
 Import V.ValueNotations V.LValueNotations.
 

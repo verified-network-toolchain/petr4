@@ -4,6 +4,7 @@ Require Import Poulet4.P4Arith Poulet4.P4cub.BigStep.Value.Value
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxilary.
 Require Poulet4.P4cub.Static.Util.
+Import String.
 Import Val.ValueNotations AllCubNotations Env.EnvNotations.
 
 (** Bit-slicing. *)

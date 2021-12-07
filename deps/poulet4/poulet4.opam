@@ -14,6 +14,7 @@ install: [
 ]
 depends: [
   "bignum"
+  "dune" {build}
   "coq" {build}
   "coq-equations" {build}
   "coq-record-update" {build}

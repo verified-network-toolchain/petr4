@@ -1251,13 +1251,13 @@ Inductive exec_write_option : state -> option Lval -> Sval -> state -> Prop :=
 | exec_write_option_none : forall s sv,
                            exec_write_option s None sv s.
 
-Inductive exec_writes_option : state -> list (option Lval) -> list Sval -> state -> Prop :=
-| exec_writes_option_nil : forall s,
-                           exec_writes_option s nil nil s
-| exec_writes_option_cons : forall s1 s2 s3 lv lvs sv svs,
+Inductive exec_write_options : state -> list (option Lval) -> list Sval -> state -> Prop :=
+| exec_write_options_nil : forall s,
+                           exec_write_options s nil nil s
+| exec_write_options_cons : forall s1 s2 s3 lv lvs sv svs,
                             exec_write_option s1 lv sv s2 ->
-                            exec_writes_option s2 lvs svs s3 ->
-                            exec_writes_option s1 (lv :: lvs) (sv :: svs) s3.
+                            exec_write_options s2 lvs svs s3 ->
+                            exec_write_options s1 (lv :: lvs) (sv :: svs) s3.
 
 Definition extract_invals (args : list argument) : list Sval :=
   let f arg :=
@@ -1504,7 +1504,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
       exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
       (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
-      exec_writes_option s4 (extract_outlvals dirs argvals) outvals s5 ->
+      exec_write_options s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       ret_s ret_sig

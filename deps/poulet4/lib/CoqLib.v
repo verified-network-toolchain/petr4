@@ -301,12 +301,12 @@ Proof.
         -- rewrite Ascii.eqb_neq. intro. subst a1. apply H1. now eapply ascii_leb_eq.
 Qed.
 
-Eval vm_compute in string_leb "abcd" "abcde".
+(* Eval vm_compute in string_leb "abcd" "abcde". *)
 
 Local Open Scope string_scope.
 
-Eval vm_compute in
-    mergeSort string_leb ["Bob"; "Alice"; "Tom"; "Jinn"; "Jin"; "Carol"].
+(* Eval vm_compute in
+    mergeSort string_leb ["Bob"; "Alice"; "Tom"; "Jinn"; "Jin"; "Carol"]. *)
 
 Definition findi {A: Type} (f: A -> bool) (l: list A): option (nat * A) :=
   let fix iter (al: list A) (index: nat): option (nat * A) :=
@@ -315,6 +315,22 @@ Definition findi {A: Type} (f: A -> bool) (l: list A): option (nat * A) :=
       | a :: rest => if f a then Some (index, a) else iter rest (S index)
       end in
   iter l O.
+
+Inductive Forall_fold {A B} (P : A -> B -> A -> Prop) : A -> list B -> A -> Prop :=
+  | Forall_fold_nil : forall a,
+      Forall_fold P a [] a
+  | Forall_fold_cons : forall a b a' bs a'',
+      P a b a' ->
+      Forall_fold P a' bs a'' ->
+      Forall_fold P a (b :: bs) a''.
+
+Inductive Forall2_fold {A B C} (P : A -> B -> C -> A -> Prop) : A -> list B -> list C -> A -> Prop :=
+  | Forall2_fold_nil : forall a,
+      Forall2_fold P a [] [] a
+  | Forall2_fold_cons : forall a b c a' bs cs a'',
+      P a b c a' ->
+      Forall2_fold P a' bs cs a'' ->
+      Forall2_fold P a (b :: bs) (c :: cs) a''.
 
 (* Eval vm_compute in findi (Nat.eqb 5) [1; 2; 5; 6; 3]. *)
 

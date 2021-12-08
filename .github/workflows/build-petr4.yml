@@ -1,1 +1,32 @@
 name: build-petr4
+
+on:
+  # Trigger the workflow on push or pull request,
+  # but only for the main branch
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - macos-11
+          - ubuntu-latest
+        ocaml-version:
+          - 4.12.0
+          - 4.11.0
+          - 4.10.1
+          - 4.09.1
+
+    runs-on: ${{ matrix.os }}
+
+
+    
+     

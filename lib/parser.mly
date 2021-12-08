@@ -722,6 +722,7 @@ namedType:
     { t }
 ;
 
+
 prefixedTypeName:
 | name = NAME TYPENAME
     { BareName name }
@@ -730,8 +731,9 @@ prefixedTypeName:
 ;
 
 prefixedType:
-| name = prefixedTypeName
-    { P4name.name_info name, Type.TypeName name }
+| name = NAME TYPENAME
+    { name.tags, Type.TypeName name }
+;
 
 typeName:
 | typ = prefixedType
@@ -806,7 +808,7 @@ typeOrVoid:
 | info = VOID
   { (info, Type.Void) }
 | name = varName
-  { (name.tags, Type.TypeName (BareName name)) }    (* may be a type variable *)
+  { (name.tags, Type.TypeName name) }    (* may be a type variable *)
 ;
 
 optTypeParameters:
@@ -830,7 +832,7 @@ realTypeArg:
 typeArg:
 | info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
-| name = nonTypeName { (name.tags, Type.TypeName (BareName name)) }
+| name = nonTypeName { (name.tags, Type.TypeName name) }
 | info = VOID { (info, Type.Void) }
 ;
 

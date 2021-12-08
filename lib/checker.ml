@@ -1073,9 +1073,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | IntType e -> ret @@ TypInt (eval_to_positive_int env (fst typ) e)
   | BitType e -> ret @@ TypBit (eval_to_positive_int env (fst typ) e)
   | VarBit e -> ret @@ TypVarBit (eval_to_positive_int env (fst typ) e)
-  | TypeName
-      (P4name.BareName ps
-      | P4name.QualifiedName (_,ps)) -> ret @@ TypTypeName ps
+  | TypeName ps -> ret @@ TypTypeName ps
   | SpecializedType {base; args} ->
     let args, wildcards =
       args

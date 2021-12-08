@@ -342,14 +342,9 @@ end = struct
     | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
-    | TypeName (BareName x) ->
+    | TypeName x ->
       Format.fprintf fmt "@[%s@]"
         x.str
-    | TypeName (QualifiedName ([], x)) ->
-      Format.fprintf fmt "@[.%s@]"
-        x.str;
-    | TypeName _ ->
-       failwith "unimplemented"
     | SpecializedType x ->
       Format.fprintf fmt "@[%a<%a>@]"
         format_t x.base

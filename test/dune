@@ -1,5 +1,5 @@
 (tests
   (names test)
-  (libraries core petr4 alcotest)
+  (libraries core p4pp petr4 alcotest)
   (deps (source_tree ../examples))
   (action (run %{test} -e)))

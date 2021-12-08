@@ -838,7 +838,7 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                         exec_match read_one_bit this st
                         (MkMatch tag (MatchRange lo hi) typ)
                         (ValSetRange lov hiv)
-  |exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
+  | exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
                       exec_expr_det read_one_bit this st expr oldv ->
                       get_real_type newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->

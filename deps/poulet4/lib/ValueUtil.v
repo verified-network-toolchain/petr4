@@ -184,7 +184,36 @@ Section ValueUtil.
   Definition vals_to_svals := 
     Forall2 (exec_val read_detbit).
 
-  Axiom eval_val_to_sval : Val -> Sval.
+  Fixpoint eval_val_to_sval (val: Val): Sval :=
+    let fix eval_val_to_svals (vl: list Val): list Sval :=
+      match vl with
+      | [] => []
+      | s :: rest => eval_val_to_sval s :: eval_val_to_svals rest
+      end in
+    let fix val_to_avals (sl: StringAList Val): StringAList Sval :=
+      match sl with
+      | [] => []
+      | (k, s) :: rest => (k, eval_val_to_sval s) :: val_to_avals rest
+      end in
+    match val with
+    | ValBaseNull => ValBaseNull
+    | ValBaseBool b => ValBaseBool (Some b)
+    | ValBaseInteger z => ValBaseInteger z
+    | ValBaseBit vl => ValBaseBit (map Some vl)
+    | ValBaseInt vl => ValBaseInt (map Some vl)
+    | ValBaseVarbit m vl => ValBaseVarbit m (map Some vl)
+    | ValBaseString s => ValBaseString s
+    | ValBaseTuple vl => ValBaseTuple (eval_val_to_svals vl)
+    | ValBaseRecord rl => ValBaseRecord (val_to_avals rl)
+    | ValBaseError s => ValBaseError s
+    | ValBaseMatchKind s => ValBaseMatchKind s
+    | ValBaseStruct rl => ValBaseStruct (val_to_avals rl)
+    | ValBaseHeader rl b => ValBaseHeader (val_to_avals rl) (Some b)
+    | ValBaseUnion rl => ValBaseUnion (val_to_avals rl)
+    | ValBaseStack vl s n => ValBaseStack (eval_val_to_svals vl) s n
+    | ValBaseEnumField t e => ValBaseEnumField t e
+    | ValBaseSenumField t e v => ValBaseSenumField t e (eval_val_to_sval v)
+    end.
 
   Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
     let fix uninit_sval_of_typ' hvalid (typ : @P4Type tags_t) : option Sval :=

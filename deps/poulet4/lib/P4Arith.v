@@ -177,6 +177,15 @@ Module BitArith.
       rewrite !mod_bound_double_add. rewrite (add_comm c (a + b)).
       now rewrite add_assoc.
     Qed.
+
+    Lemma plus_mod_mod: forall a b,
+        plus_mod (mod_bound a) (mod_bound b) = plus_mod a b.
+    Proof.
+      intros. unfold plus_mod. rewrite mod_bound_double_add.
+      rewrite (Z.add_comm (mod_bound a)). rewrite mod_bound_double_add.
+      now rewrite Z.add_comm.
+    Qed.
+    
     (**[]*)
 
     (* The following bitwise operation may be wrong *)
@@ -530,6 +539,28 @@ Proof.
       rewrite <- (Z.add_0_r ((v / 2) mod 2 ^ z)) at 2.
       rewrite Zplus_mod_idemp_l. rewrite Z.add_0_r. lia.
 Qed.
+
+Lemma to_lbool_bit_mod: forall w v,
+    to_lbool w (BitArith.mod_bound w v) = to_lbool w v.
+Proof.
+  intros. unfold to_lbool. unfold BitArith.mod_bound, BitArith.upper_bound.
+  f_equal. remember (N.to_nat w). rewrite <- N_nat_Z. rewrite <- Heqn. clear.
+  revert v. induction n; intros; cbn [to_lbool']; auto.
+  rewrite nil_to_lbool'. rewrite (nil_to_lbool' _ _ [Z.odd v]). f_equal.
+  - rewrite <- (IHn (v / 2)). f_equal. rewrite Nat2Z.inj_succ.
+    rewrite Z.pow_succ_r by lia. rewrite Z.rem_mul_r; try lia.
+    2: apply Z.pow_pos_nonneg; lia. rewrite Z.mul_comm. rewrite Z.div_add by lia.
+    rewrite Zmod_div. lia.
+  - f_equal. rewrite !Zodd_mod. f_equal.
+    rewrite <- Znumtheory.Zmod_div_mod; try lia.
+    + apply Z.pow_pos_nonneg; lia.
+    + exists (2 ^ Z.of_nat n). rewrite Nat2Z.inj_succ.
+      rewrite Z.pow_succ_r; lia.
+Qed.
+
+Lemma to_lbool_bit_plus: forall w v1 v2,
+    to_lbool w (BitArith.plus_mod w v1 v2) = to_lbool w (v1 + v2).
+Proof. intros. unfold BitArith.plus_mod. now rewrite to_lbool_bit_mod. Qed.
 
 (*
   Compute (to_lbool (4)%N (-6)).

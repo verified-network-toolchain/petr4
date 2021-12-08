@@ -59,7 +59,7 @@ Definition get_loc_path (loc : Locator) : path :=
 
 Variant fundef :=
   | FInternal
-      (params : list (Locator * direction))
+      (params : list (path * direction))
       (init : @Block tags_t)
       (body : @Block tags_t)
   | FTable
@@ -1523,12 +1523,12 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
 with exec_func (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
   | exec_func_internal : forall obj_path s params init body args s''' args' s' s'' sig sig' sig'',
-      bind_parameters (map (map_fst (fun param => get_loc_path param)) params) args s s' ->
+      bind_parameters params args s s' ->
       exec_block read_one_bit obj_path s' init  s'' sig ->
       is_continue sig = true ->
       exec_block read_one_bit obj_path s'' body s''' sig' ->
       force_return_signal sig' = sig'' ->
-      extract_parameters (filter_out (map (map_fst (fun param => get_loc_path param)) params)) s''' = Some args'->
+      extract_parameters (filter_out params) s''' = Some args'->
       exec_func read_one_bit obj_path s (FInternal params init body) nil args s''' args' sig''
 
   | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
@@ -1776,7 +1776,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
         let init := uninit_out_params iout_params in
         let params := map get_param_name_dir params in
         let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
-        let fd := FInternal params init body in
+        let fd := FInternal (map (map_fst get_loc_path) params) init body in
         let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
       else
@@ -1946,7 +1946,7 @@ Definition reject_state :=
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
   FInternal nil BlockNil (BlockSingleton stmt).
 
-Definition action_param_to_p4param (param : Locator * direction) : P4Parameter :=
+Definition action_param_to_p4param (param : path * direction) : P4Parameter :=
   let (name, dir) := param in
   let dir :=
     match dir with
@@ -2019,21 +2019,21 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [str name]) (FInternal params init (BlockSingleton stmt)) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [str name]) (FInternal params init apply) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let iout_params := map (fun p => (str (fst p), snd p)) out_params in
       let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
-      PathMap.set (p ++ [str name]) (FInternal params init body) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init body) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
   | DeclExternObject _ name _ methods =>
@@ -2055,7 +2055,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
           map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in
-      PathMap.set (p ++ [str name]) (FInternal combined_params init body) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) init body) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=
         FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)

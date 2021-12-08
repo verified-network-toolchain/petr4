@@ -59,13 +59,13 @@ Section TypingDefs.
   Definition gamma_expr_domain
              (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     forall (l : Locator),
-      typ_of_loc p l g = None <-> loc_to_sval ge p l st = None.
+      typ_of_loc p l g = None <-> loc_to_sval l st = None.
 
   Definition gamma_expr_val_typ
              (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     forall (l : Locator) (t : typ) (v : Sval),
       typ_of_loc p l g = Some t ->
-      loc_to_sval ge p l st = Some v ->
+      loc_to_sval l st = Some v ->
       val_typ (ge_senum ge) v t.
 
   Definition gamma_expr_prop

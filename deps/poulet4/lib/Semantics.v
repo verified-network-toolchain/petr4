@@ -315,13 +315,12 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
-Definition loc_to_sval (this : path) (loc : Locator) (s : state) : option Sval :=
+Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
   match loc with
   | LInstance p =>
       PathMap.get p (get_memory s)
   | LGlobal p =>
-      (* This should be impossible. *)
-      option_map eval_val_to_sval (PathMap.get p (ge_const ge))
+      None
   end.
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
@@ -414,7 +413,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                        (ValBaseString (str s))
   | exec_expr_name_var : forall name loc sv this st tag typ dir,
                          is_directional dir = true ->
-                         loc_to_sval this loc st = Some sv ->
+                         loc_to_sval loc st = Some sv ->
                          exec_expr read_one_bit this st
                          (MkExpression tag (ExpName name loc) typ dir)
                          sv
@@ -992,48 +991,48 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
 
-Definition update_val_by_loc (this : path) (s : state) (loc : Locator) (sv : Sval): state :=
+Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
   update_memory (PathMap.set p sv) s.
 
-Inductive exec_read (this : path) : state -> Lval -> Sval -> Prop :=
+Inductive exec_read : state -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
-                     loc_to_sval this loc st = Some sv ->
-                     exec_read this st (MkValueLvalue (ValLeftName name loc) typ) sv
+                     loc_to_sval loc st = Some sv ->
+                     exec_read st (MkValueLvalue (ValLeftName name loc) typ) sv
   | exec_read_by_member : forall lv name st sv typ,
-                          exec_read_member this st lv name typ sv ->
-                          exec_read this st (MkValueLvalue (ValLeftMember lv name) typ) sv
+                          exec_read_member st lv name typ sv ->
+                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv
   (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
   | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
-                           exec_read this st lv bitssv ->
+                           exec_read st lv bitssv ->
                            sval_to_bits_width bitssv = Some (bitsbl, wn) ->
                            N.to_nat lo = lonat ->
                            N.to_nat hi = hinat ->
                            (lonat <= hinat < wn)%nat ->
-                           exec_read this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) 
+                           exec_read st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_read_array_access: forall lv headers size next default_header header idx st typ rtyp,
-                            exec_read this st lv (ValBaseStack headers size next) ->
+                            exec_read st lv (ValBaseStack headers size next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
-                            exec_read this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
+                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
 (* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member (this : path) : state -> Lval -> string -> P4Type -> Sval -> Prop :=
+with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
   | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read this st lv (ValBaseHeader fields is_valid) ->
+                              exec_read st lv (ValBaseHeader fields is_valid) ->
                               AList.get fields name = Some sv ->
-                              exec_read_member this st lv name typ sv
+                              exec_read_member st lv name typ sv
   | exec_read_member_struct : forall fields st lv name typ sv,
-                              exec_read this st lv (ValBaseStruct fields) ->
+                              exec_read st lv (ValBaseStruct fields) ->
                               AList.get fields name = Some sv ->
-                              exec_read_member this st lv name typ sv
+                              exec_read_member st lv name typ sv
   | exec_read_member_union: forall fields st lv name typ sv,
-                            exec_read this st lv (ValBaseUnion fields) ->
+                            exec_read st lv (ValBaseUnion fields) ->
                             AList.get fields name = Some sv ->
-                            exec_read_member this st lv name typ sv.
+                            exec_read_member st lv name typ sv.
 
 (*  Write to the field of an invalid header in a union makes the possibly existing valid header
     take undefined value. It should be guaranteed there is at most one valid header in a union. 
@@ -1144,39 +1143,39 @@ Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
     2.variant. a write to an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
    Guaranteed by update_stack_header, if idx >= size, state is unchanged. *)
-Inductive exec_write (this : path) : state -> Lval -> Sval -> state -> Prop :=
+Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
   | exec_write_name : forall name loc st rhs typ st',
-      update_val_by_loc this st loc rhs = st' ->
-      exec_write this st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
+      update_val_by_loc st loc rhs = st' ->
+      exec_write st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
   | exec_write_member : forall lv fname sv sv' st rhs typ st',
-      exec_read this st lv sv ->
+      exec_read st lv sv ->
       update_member sv fname rhs sv' ->
-      exec_write this st lv sv' st' ->
-      exec_write this st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
+      exec_write st lv sv' st' ->
+      exec_write st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
   | exec_write_bit_access_bit : forall lv bits bits' lo lonat hi hinat st typ st',
-                                exec_read this st lv (ValBaseBit bits) ->
+                                exec_read st lv (ValBaseBit bits) ->
                                 N.to_nat lo = lonat ->
                                 N.to_nat hi = hinat ->
                                 (lonat <= hinat < List.length bits)%nat ->
                                 update_bitstring bits lonat hinat bits = bits' ->
-                                exec_write this st lv (ValBaseBit bits') st' ->
-                                exec_write this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                exec_write st lv (ValBaseBit bits') st' ->
+                                exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                   (ValBaseBit bits') st'
    | exec_write_bit_access_int : forall lv bits bits' lo lonat hi hinat st typ st',
-                                  exec_read this st lv (ValBaseInt bits) ->
+                                  exec_read st lv (ValBaseInt bits) ->
                                   N.to_nat lo = lonat ->
                                   N.to_nat hi = hinat ->
                                   (lonat <= hinat < List.length bits)%nat ->
                                   update_bitstring bits lonat hinat bits = bits' ->
-                                  exec_write this st lv (ValBaseInt bits') st' ->
-                                  exec_write this st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                  exec_write st lv (ValBaseInt bits') st' ->
+                                  exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
   | exec_write_array_access : forall lv headers size next (idx: N) headers' st rhs typ st',
-                              exec_read this st lv (ValBaseStack headers size next) ->
+                              exec_read st lv (ValBaseStack headers size next) ->
                               update_stack_header headers idx rhs = headers' ->
-                              exec_write this st lv (ValBaseStack headers' size next) st' ->
-                              exec_write this st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
+                              exec_write st lv (ValBaseStack headers' size next) st' ->
+                              exec_write st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Sval) * (option Lval).
 
@@ -1219,7 +1218,7 @@ Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    exec_arg read_one_bit this st (Some expr) Out (None, Some lv) sig
   | exec_arg_inout : forall this st expr lv sv v sv' sig,
                      exec_lexpr read_one_bit this st expr lv sig ->
-                     exec_read this st lv sv ->
+                     exec_read st lv sv ->
                      (* determinize sval similar to in parameters; why not exec_expr_det? *)
                      sval_to_val read_one_bit sv v ->
                      val_to_sval v sv' ->
@@ -1245,20 +1244,20 @@ Inductive exec_args (read_one_bit : option bool -> bool -> Prop) :
                          exec_args p s exps dirs args sig' ->
                          exec_args p s (exp :: exps) (dir :: dirs) (arg :: args) sig. *)
 
-Inductive exec_write_option : path -> state -> option Lval -> Sval -> state -> Prop :=
-| exec_write_option_some : forall p s lval sv s',
-                           exec_write p s lval sv s' ->
-                           exec_write_option p s (Some lval) sv s'
-| exec_write_option_none : forall p s sv,
-                           exec_write_option p s None sv s.
+Inductive exec_write_option : state -> option Lval -> Sval -> state -> Prop :=
+| exec_write_option_some : forall s lval sv s',
+                           exec_write s lval sv s' ->
+                           exec_write_option s (Some lval) sv s'
+| exec_write_option_none : forall s sv,
+                           exec_write_option s None sv s.
 
-Inductive exec_writes_option : path -> state -> list (option Lval) -> list Sval -> state -> Prop :=
-| exec_writes_option_nil : forall p s,
-                           exec_writes_option p s nil nil s
-| exec_writes_option_cons : forall p s1 s2 s3 lv lvs sv svs,
-                            exec_write_option p s1 lv sv s2 ->
-                            exec_writes_option p s2 lvs svs s3 ->
-                            exec_writes_option p s1 (lv :: lvs) (sv :: svs) s3.
+Inductive exec_writes_option : state -> list (option Lval) -> list Sval -> state -> Prop :=
+| exec_writes_option_nil : forall s,
+                           exec_writes_option s nil nil s
+| exec_writes_option_cons : forall s1 s2 s3 lv lvs sv svs,
+                            exec_write_option s1 lv sv s2 ->
+                            exec_writes_option s2 lvs svs s3 ->
+                            exec_writes_option s1 (lv :: lvs) (sv :: svs) s3.
 
 Definition extract_invals (args : list argument) : list Sval :=
   let f arg :=
@@ -1360,7 +1359,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     exec_expr_det read_one_bit this_path st rhs v ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
     val_to_sval v sv -> 
-    (if is_continue sig then exec_write this_path st lv sv st' else st' = st) ->
+    (if is_continue sig then exec_write st lv sv st' else st' = st) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
 | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path
@@ -1370,7 +1369,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     (if not_continue sig then st'' = st /\ ret_sig = sig
      else if not_return sig' then st'' = st' /\ ret_sig = sig'
           else get_return_sval sig' sv /\
-               exec_write this_path st' lv sv st'' /\ ret_sig = SContinue) ->
+               exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
 | exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
@@ -1440,8 +1439,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
       exec_expr_det read_one_bit this_path st e v ->
       val_to_sval v sv ->
-      exec_write
-        this_path st
+      exec_write st
         (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt
         read_one_bit this_path st
@@ -1451,8 +1449,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
         exec_call read_one_bit this_path st e st' sig ->
         (if not_return sig then st'' = st'
          else get_return_sval sig sv /\
-              exec_write
-                this_path st'
+              exec_write st'
                 (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->
         exec_stmt
           read_one_bit this_path st
@@ -1461,8 +1458,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
       get_real_type typ' = Some rtyp ->
       uninit_sval_of_typ (Some false) rtyp = Some sv ->
-      exec_write
-        this_path st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
   | exec_stmt_constant: forall typ' name e loc this_path st tags typ,
@@ -1508,7 +1504,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
       exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
       (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
-      exec_writes_option this_path s4 (extract_outlvals dirs argvals) outvals s5 ->
+      exec_writes_option s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       ret_s ret_sig

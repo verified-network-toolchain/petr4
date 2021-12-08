@@ -170,6 +170,16 @@ Module BitArith.
         + unfold bound in *; lia.
     Qed.
 
+    Lemma neg_bound: forall n, neg (mod_bound n) = neg n.
+    Proof.
+      intros. unfold neg. unfold mod_bound. pose proof upper_bound_ge_1.
+      destruct (Z.eq_dec (n mod upper_bound) 0).
+      - rewrite e. apply Z_mod_zero_opp in e. 2: lia. rewrite e.
+        simpl. apply Zmod_0_l.
+      - rewrite (mod_opp_l_nz n) by lia.
+        rewrite mod_opp_l_nz; try lia; rewrite Zmod_mod; auto.
+    Qed.
+
     Lemma plus_mod_assoc: forall a b c,
         plus_mod (plus_mod a b) c = plus_mod a (plus_mod b c).
     Proof.
@@ -185,7 +195,22 @@ Module BitArith.
       rewrite (Z.add_comm (mod_bound a)). rewrite mod_bound_double_add.
       now rewrite Z.add_comm.
     Qed.
-    
+
+    Lemma minus_mod_mod: forall a b,
+        minus_mod (mod_bound a) (mod_bound b) = minus_mod a b.
+    Proof.
+      intros. rewrite !minus_mod_eq. unfold plus_mod.
+      rewrite Z.add_comm. rewrite mod_bound_double_add. rewrite neg_bound.
+      now rewrite Z.add_comm.
+    Qed.
+
+    Lemma mult_mod_mod: forall a b,
+        mult_mod (mod_bound a) (mod_bound b) = mult_mod a b.
+    Proof.
+      intros. unfold mult_mod. unfold mod_bound. pose proof upper_bound_ge_1.
+      rewrite <- mul_mod; lia.
+    Qed.
+
     (**[]*)
 
     (* The following bitwise operation may be wrong *)
@@ -465,16 +490,17 @@ Module IntArith.
   Definition concat (w1 w2 : N) (z1 z2 : Z) : Z :=
     mod_bound (pos_of_N (w1 + w2)) (shiftl z1 (Z.of_N w2) + (BitArith.mod_bound w2 z2)).
 
+  Fixpoint lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
+    match bits with
+    | []
+    | [false] => res
+    | [true] => res - order
+    | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
+    | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
+    end.
+
   (* Convert from little-endian (list bool) to (width:nat, value:Z) *)
   Definition from_lbool (bits: list bool) : (N * Z) :=
-    let fix lbool_to_val (bits: list bool) (order: Z) (res: Z): Z :=
-      match bits with
-      | []
-      | [false] => res
-      | [true] => res - order
-      | false :: tl => lbool_to_val tl (Z.shiftl order 1) res
-      | true :: tl => lbool_to_val tl (Z.shiftl order 1) (res + order)
-      end in
     (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
@@ -561,6 +587,14 @@ Qed.
 Lemma to_lbool_bit_plus: forall w v1 v2,
     to_lbool w (BitArith.plus_mod w v1 v2) = to_lbool w (v1 + v2).
 Proof. intros. unfold BitArith.plus_mod. now rewrite to_lbool_bit_mod. Qed.
+
+Lemma to_lbool_bit_minus: forall w v1 v2,
+    to_lbool w (BitArith.minus_mod w v1 v2) = to_lbool w (v1 - v2).
+Proof. intros. unfold BitArith.minus_mod. now rewrite to_lbool_bit_mod. Qed.
+
+Lemma to_lbool_bit_mult: forall w v1 v2,
+    to_lbool w (BitArith.mult_mod w v1 v2) = to_lbool w (v1 * v2).
+Proof. intros. unfold BitArith.mult_mod. now rewrite to_lbool_bit_mod. Qed.
 
 (*
   Compute (to_lbool (4)%N (-6)).

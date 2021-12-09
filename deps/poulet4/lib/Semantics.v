@@ -1021,12 +1021,12 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
 with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
-  | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read st lv (ValBaseHeader fields is_valid) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
   | exec_read_member_struct : forall fields st lv name typ sv,
                               exec_read st lv (ValBaseStruct fields) ->
+                              AList.get fields name = Some sv ->
+                              exec_read_member st lv name typ sv
+  | exec_read_member_header : forall is_valid fields st lv name typ sv,
+                              exec_read st lv (ValBaseHeader fields is_valid) ->
                               AList.get fields name = Some sv ->
                               exec_read_member st lv name typ sv
   | exec_read_member_union: forall fields st lv name typ sv,

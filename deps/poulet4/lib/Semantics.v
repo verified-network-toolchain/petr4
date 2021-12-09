@@ -1109,12 +1109,12 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
    Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
-  | update_member_header : forall fields is_valid fname fv sv,
-                           write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
-                           update_member (ValBaseHeader fields is_valid) fname fv sv
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
                            update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')
+  | update_member_header : forall fields is_valid fname fv sv,
+                           write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
+                           update_member (ValBaseHeader fields is_valid) fname fv sv
   | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
                           update_union_member fields fname hfields is_valid = Some fields' ->
                           update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)

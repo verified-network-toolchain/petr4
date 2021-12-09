@@ -566,7 +566,9 @@ Definition meta_t := DeclStruct NoInfo {| stags := NoInfo; str := "meta_t" |}
      (MkDeclarationField NoInfo (TypBit 16%N)
           {| stags := NoInfo; str := "tcpLength" |});
      (MkDeclarationField NoInfo (TypBit 8%N)
-          {| stags := NoInfo; str := "if_index" |})].
+          {| stags := NoInfo; str := "if_index" |});
+     (MkDeclarationField NoInfo (TypBit 9%N)
+          {| stags := NoInfo; str := "init_egress_spec" |})].
 
 Definition cpu_header_t := DeclHeader NoInfo
     {| stags := NoInfo; str := "cpu_header_t" |}
@@ -650,8 +652,9 @@ Definition metadata := DeclStruct NoInfo
             ( {| stags := NoInfo; str := "if_mac_addr" |}, (TypBit 48%N) );
             ( {| stags := NoInfo; str := "is_ext_if" |}, (TypBit 1%N) );
             ( {| stags := NoInfo; str := "tcpLength" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "if_index" |}, (TypBit 8%N) )])
-          {| stags := NoInfo; str := "meta" |})].
+            ( {| stags := NoInfo; str := "if_index" |}, (TypBit 8%N) );
+            ( {| stags := NoInfo; str := "init_egress_spec" |},
+              (TypBit 9%N) )]) {| stags := NoInfo; str := "meta" |})].
 
 Definition headers := DeclStruct NoInfo
     {| stags := NoInfo; str := "headers" |}
@@ -764,7 +767,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "if_index" |})
                           (TypBit 8%N) Directionless)
                      (MkExpression NoInfo
@@ -1000,7 +1006,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "tcpLength" |})
                           (TypBit 16%N) Directionless)
                      (MkExpression NoInfo
@@ -1121,7 +1130,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "ipv4_da" |})
                           (TypBit 32%N) Directionless)
                      (MkExpression NoInfo
@@ -1226,7 +1238,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "ipv4_sa" |})
                           (TypBit 32%N) Directionless)
                      (MkExpression NoInfo
@@ -1480,7 +1495,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "tcp_dp" |})
                           (TypBit 16%N) Directionless)
                      (MkExpression NoInfo
@@ -1578,7 +1596,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "tcp_sp" |})
                           (TypBit 16%N) Directionless)
                      (MkExpression NoInfo
@@ -1757,7 +1778,10 @@ Definition ParserImpl := DeclParser NoInfo
                                         (TypBit 16%N) );
                                       ( {| stags := NoInfo;
                                            str := "if_index" |},
-                                        (TypBit 8%N) )]) Directionless)
+                                        (TypBit 8%N) );
+                                      ( {| stags := NoInfo;
+                                           str := "init_egress_spec" |},
+                                        (TypBit 9%N) )]) Directionless)
                                {| stags := NoInfo; str := "if_index" |})
                           (TypBit 8%N) Directionless)
                      (MkExpression NoInfo
@@ -1919,8 +1943,7 @@ Definition egress := DeclControl NoInfo
                                    (ExpName
                                     (BareName
                                      {| stags := NoInfo; str := "smac" |})
-                                    NoLocator) (TypBit 48%N) Directionless))
-                         StmUnit)
+                                    NoLocator) (TypBit 48%N) In)) StmUnit)
                     (BlockCons
                          (MkStatement NoInfo
                               (StatAssignment
@@ -2032,7 +2055,10 @@ Definition egress := DeclControl NoInfo
                                                       (TypBit 16%N) );
                                                     ( {| stags := NoInfo;
                                                          str := "if_index" |},
-                                                      (TypBit 8%N) )])
+                                                      (TypBit 8%N) );
+                                                    ( {| stags := NoInfo;
+                                                         str := "init_egress_spec" |},
+                                                      (TypBit 9%N) )])
                                                   Directionless)
                                              {| stags := NoInfo;
                                                 str := "ipv4_sa" |})
@@ -2155,7 +2181,10 @@ Definition egress := DeclControl NoInfo
                                                            (TypBit 16%N) );
                                                          ( {| stags := NoInfo;
                                                               str := "if_index" |},
-                                                           (TypBit 8%N) )])
+                                                           (TypBit 8%N) );
+                                                         ( {| stags := NoInfo;
+                                                              str := "init_egress_spec" |},
+                                                           (TypBit 9%N) )])
                                                        Directionless)
                                                   {| stags := NoInfo;
                                                      str := "ipv4_da" |})
@@ -2273,7 +2302,10 @@ Definition egress := DeclControl NoInfo
                                                                 (TypBit 16%N) );
                                                               ( {| stags := NoInfo;
                                                                    str := "if_index" |},
-                                                                (TypBit 8%N) )])
+                                                                (TypBit 8%N) );
+                                                              ( {| stags := NoInfo;
+                                                                   str := "init_egress_spec" |},
+                                                                (TypBit 9%N) )])
                                                             Directionless)
                                                        {| stags := NoInfo;
                                                           str := "tcp_sp" |})
@@ -2458,7 +2490,13 @@ Definition egress := DeclControl NoInfo
                                                                    stags := NoInfo;
                                                                    str := "if_index" |},
                                                                    (TypBit
-                                                                    8%N) )])
+                                                                    8%N) );
+                                                                   ( 
+                                                                   {| 
+                                                                   stags := NoInfo;
+                                                                   str := "init_egress_spec" |},
+                                                                   (TypBit
+                                                                    9%N) )])
                                                                  Directionless)
                                                             {| stags := NoInfo;
                                                                str := "tcp_dp" |})
@@ -2762,7 +2800,10 @@ Definition egress := DeclControl NoInfo
                                                                 (TypBit 16%N) );
                                                               ( {| stags := NoInfo;
                                                                    str := "if_index" |},
-                                                                (TypBit 8%N) )])
+                                                                (TypBit 8%N) );
+                                                              ( {| stags := NoInfo;
+                                                                   str := "init_egress_spec" |},
+                                                                (TypBit 9%N) )])
                                                             Directionless)
                                                        {| stags := NoInfo;
                                                           str := "if_index" |})
@@ -2885,7 +2926,101 @@ Definition egress := DeclControl NoInfo
                                                          str := "apply_result_send_to_cpu" |}))))
                                               Directionless) nil nil)
                                     StmUnit) (BlockEmpty NoInfo))) StmUnit)))
-              StmUnit) (BlockEmpty NoInfo)).
+              StmUnit)
+         (BlockCons
+              (MkStatement NoInfo
+                   (StatMethodCall
+                        (MkExpression NoInfo
+                             (ExpName
+                              (BareName
+                               {| stags := NoInfo; str := "assert" |})
+                              NoLocator)
+                             (TypFunction
+                              (MkFunctionType nil
+                                   [(MkParameter false In TypBool None
+                                         {| stags := NoInfo;
+                                            str := "check" |})] FunExtern
+                                   TypVoid)) Directionless) nil
+                        [(Some
+                          (MkExpression NoInfo
+                               (ExpBinaryOp NotEq
+                                    ( (MkExpression NoInfo
+                                           (ExpExpressionMember
+                                                (MkExpression NoInfo
+                                                     (ExpName
+                                                      (BareName
+                                                       {| stags := NoInfo;
+                                                          str := "standard_metadata" |})
+                                                      NoLocator)
+                                                     (TypTypeName
+                                                      (BareName
+                                                       {| stags := NoInfo;
+                                                          str := "standard_metadata_t" |}))
+                                                     InOut)
+                                                {| stags := NoInfo;
+                                                   str := "egress_spec" |})
+                                           (TypBit 9%N) Directionless),
+                                      (MkExpression NoInfo
+                                           (ExpExpressionMember
+                                                (MkExpression NoInfo
+                                                     (ExpExpressionMember
+                                                          (MkExpression
+                                                               NoInfo
+                                                               (ExpName
+                                                                (BareName
+                                                                 {| stags := NoInfo;
+                                                                    str := "meta" |})
+                                                                NoLocator)
+                                                               (TypTypeName
+                                                                (BareName
+                                                                 {| stags := NoInfo;
+                                                                    str := "metadata" |}))
+                                                               InOut)
+                                                          {| stags := NoInfo;
+                                                             str := "meta" |})
+                                                     (TypStruct
+                                                      [( {| stags := NoInfo;
+                                                            str := "do_forward" |},
+                                                         (TypBit 1%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "ipv4_sa" |},
+                                                         (TypBit 32%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "ipv4_da" |},
+                                                         (TypBit 32%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "tcp_sp" |},
+                                                         (TypBit 16%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "tcp_dp" |},
+                                                         (TypBit 16%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "nhop_ipv4" |},
+                                                         (TypBit 32%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "if_ipv4_addr" |},
+                                                         (TypBit 32%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "if_mac_addr" |},
+                                                         (TypBit 48%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "is_ext_if" |},
+                                                         (TypBit 1%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "tcpLength" |},
+                                                         (TypBit 16%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "if_index" |},
+                                                         (TypBit 8%N) );
+                                                       ( {| stags := NoInfo;
+                                                            str := "init_egress_spec" |},
+                                                         (TypBit 9%N) )])
+                                                     Directionless)
+                                                {| stags := NoInfo;
+                                                   str := "init_egress_spec" |})
+                                           (TypBit 9%N) Directionless) ))
+                               TypBool Directionless))]) StmUnit)
+              (BlockEmpty NoInfo))).
 
 Definition ingress := DeclControl NoInfo
     {| stags := NoInfo; str := "ingress" |} nil
@@ -2938,8 +3073,8 @@ Definition ingress := DeclControl NoInfo
                               (ExpName
                                (BareName
                                 {| stags := NoInfo; str := "dmac" |})
-                               NoLocator) (TypBit 48%N) Directionless))
-                    StmUnit) (BlockEmpty NoInfo)));
+                               NoLocator) (TypBit 48%N) In)) StmUnit)
+               (BlockEmpty NoInfo)));
      (DeclAction NoInfo {| stags := NoInfo; str := "_drop" |} nil nil
           (BlockCons
                (MkStatement NoInfo
@@ -3032,7 +3167,10 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo;
                                       str := "if_ipv4_addr" |}) (TypBit 32%N)
                               Directionless)
@@ -3040,8 +3178,7 @@ Definition ingress := DeclControl NoInfo
                               (ExpName
                                (BareName
                                 {| stags := NoInfo; str := "ipv4_addr" |})
-                               NoLocator) (TypBit 32%N) Directionless))
-                    StmUnit)
+                               NoLocator) (TypBit 32%N) In)) StmUnit)
                (BlockCons
                     (MkStatement NoInfo
                          (StatAssignment
@@ -3095,7 +3232,10 @@ Definition ingress := DeclControl NoInfo
                                                  (TypBit 16%N) );
                                                ( {| stags := NoInfo;
                                                     str := "if_index" |},
-                                                 (TypBit 8%N) )])
+                                                 (TypBit 8%N) );
+                                               ( {| stags := NoInfo;
+                                                    str := "init_egress_spec" |},
+                                                 (TypBit 9%N) )])
                                              Directionless)
                                         {| stags := NoInfo;
                                            str := "if_mac_addr" |})
@@ -3104,8 +3244,7 @@ Definition ingress := DeclControl NoInfo
                                    (ExpName
                                     (BareName
                                      {| stags := NoInfo; str := "mac_addr" |})
-                                    NoLocator) (TypBit 48%N) Directionless))
-                         StmUnit)
+                                    NoLocator) (TypBit 48%N) In)) StmUnit)
                     (BlockCons
                          (MkStatement NoInfo
                               (StatAssignment
@@ -3159,7 +3298,10 @@ Definition ingress := DeclControl NoInfo
                                                       (TypBit 16%N) );
                                                     ( {| stags := NoInfo;
                                                          str := "if_index" |},
-                                                      (TypBit 8%N) )])
+                                                      (TypBit 8%N) );
+                                                    ( {| stags := NoInfo;
+                                                         str := "init_egress_spec" |},
+                                                      (TypBit 9%N) )])
                                                   Directionless)
                                              {| stags := NoInfo;
                                                 str := "is_ext_if" |})
@@ -3169,7 +3311,7 @@ Definition ingress := DeclControl NoInfo
                                          (BareName
                                           {| stags := NoInfo;
                                              str := "is_ext" |}) NoLocator)
-                                        (TypBit 1%N) Directionless)) StmUnit)
+                                        (TypBit 1%N) In)) StmUnit)
                          (BlockEmpty NoInfo)))));
      (DeclAction NoInfo {| stags := NoInfo; str := "set_nhop" |} nil
           [(MkParameter false Directionless (TypBit 32%N) None
@@ -3229,15 +3371,17 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo; str := "nhop_ipv4" |})
                               (TypBit 32%N) Directionless)
                          (MkExpression NoInfo
                               (ExpName
                                (BareName
                                 {| stags := NoInfo; str := "nhop_ipv4" |})
-                               NoLocator) (TypBit 32%N) Directionless))
-                    StmUnit)
+                               NoLocator) (TypBit 32%N) In)) StmUnit)
                (BlockCons
                     (MkStatement NoInfo
                          (StatAssignment
@@ -3261,8 +3405,7 @@ Definition ingress := DeclControl NoInfo
                                    (ExpName
                                     (BareName
                                      {| stags := NoInfo; str := "port" |})
-                                    NoLocator) (TypBit 9%N) Directionless))
-                         StmUnit)
+                                    NoLocator) (TypBit 9%N) In)) StmUnit)
                     (BlockCons
                          (MkStatement NoInfo
                               (StatAssignment
@@ -3635,7 +3778,10 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo; str := "do_forward" |})
                               (TypBit 1%N) Directionless)
                          (MkExpression NoInfo
@@ -3734,7 +3880,10 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo; str := "do_forward" |})
                               (TypBit 1%N) Directionless)
                          (MkExpression NoInfo
@@ -3795,7 +3944,10 @@ Definition ingress := DeclControl NoInfo
                                                  (TypBit 16%N) );
                                                ( {| stags := NoInfo;
                                                     str := "if_index" |},
-                                                 (TypBit 8%N) )])
+                                                 (TypBit 8%N) );
+                                               ( {| stags := NoInfo;
+                                                    str := "init_egress_spec" |},
+                                                 (TypBit 9%N) )])
                                              Directionless)
                                         {| stags := NoInfo;
                                            str := "ipv4_sa" |}) (TypBit 32%N)
@@ -3804,8 +3956,7 @@ Definition ingress := DeclControl NoInfo
                                    (ExpName
                                     (BareName
                                      {| stags := NoInfo; str := "srcAddr" |})
-                                    NoLocator) (TypBit 32%N) Directionless))
-                         StmUnit)
+                                    NoLocator) (TypBit 32%N) In)) StmUnit)
                     (BlockCons
                          (MkStatement NoInfo
                               (StatAssignment
@@ -3859,7 +4010,10 @@ Definition ingress := DeclControl NoInfo
                                                       (TypBit 16%N) );
                                                     ( {| stags := NoInfo;
                                                          str := "if_index" |},
-                                                      (TypBit 8%N) )])
+                                                      (TypBit 8%N) );
+                                                    ( {| stags := NoInfo;
+                                                         str := "init_egress_spec" |},
+                                                      (TypBit 9%N) )])
                                                   Directionless)
                                              {| stags := NoInfo;
                                                 str := "tcp_sp" |})
@@ -3869,8 +4023,8 @@ Definition ingress := DeclControl NoInfo
                                          (BareName
                                           {| stags := NoInfo;
                                              str := "srcPort" |}) NoLocator)
-                                        (TypBit 16%N) Directionless))
-                              StmUnit) (BlockEmpty NoInfo)))));
+                                        (TypBit 16%N) In)) StmUnit)
+                         (BlockEmpty NoInfo)))));
      (DeclAction NoInfo {| stags := NoInfo; str := "nat_hit_ext_to_int" |}
           nil
           [(MkParameter false Directionless (TypBit 32%N) None
@@ -3930,7 +4084,10 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo; str := "do_forward" |})
                               (TypBit 1%N) Directionless)
                          (MkExpression NoInfo
@@ -3991,7 +4148,10 @@ Definition ingress := DeclControl NoInfo
                                                  (TypBit 16%N) );
                                                ( {| stags := NoInfo;
                                                     str := "if_index" |},
-                                                 (TypBit 8%N) )])
+                                                 (TypBit 8%N) );
+                                               ( {| stags := NoInfo;
+                                                    str := "init_egress_spec" |},
+                                                 (TypBit 9%N) )])
                                              Directionless)
                                         {| stags := NoInfo;
                                            str := "ipv4_da" |}) (TypBit 32%N)
@@ -4000,8 +4160,7 @@ Definition ingress := DeclControl NoInfo
                                    (ExpName
                                     (BareName
                                      {| stags := NoInfo; str := "dstAddr" |})
-                                    NoLocator) (TypBit 32%N) Directionless))
-                         StmUnit)
+                                    NoLocator) (TypBit 32%N) In)) StmUnit)
                     (BlockCons
                          (MkStatement NoInfo
                               (StatAssignment
@@ -4055,7 +4214,10 @@ Definition ingress := DeclControl NoInfo
                                                       (TypBit 16%N) );
                                                     ( {| stags := NoInfo;
                                                          str := "if_index" |},
-                                                      (TypBit 8%N) )])
+                                                      (TypBit 8%N) );
+                                                    ( {| stags := NoInfo;
+                                                         str := "init_egress_spec" |},
+                                                      (TypBit 9%N) )])
                                                   Directionless)
                                              {| stags := NoInfo;
                                                 str := "tcp_dp" |})
@@ -4065,8 +4227,8 @@ Definition ingress := DeclControl NoInfo
                                          (BareName
                                           {| stags := NoInfo;
                                              str := "dstPort" |}) NoLocator)
-                                        (TypBit 16%N) Directionless))
-                              StmUnit) (BlockEmpty NoInfo)))));
+                                        (TypBit 16%N) In)) StmUnit)
+                         (BlockEmpty NoInfo)))));
      (DeclAction NoInfo {| stags := NoInfo; str := "nat_no_nat" |} nil nil
           (BlockCons
                (MkStatement NoInfo
@@ -4121,7 +4283,10 @@ Definition ingress := DeclControl NoInfo
                                             (TypBit 16%N) );
                                           ( {| stags := NoInfo;
                                                str := "if_index" |},
-                                            (TypBit 8%N) )]) Directionless)
+                                            (TypBit 8%N) );
+                                          ( {| stags := NoInfo;
+                                               str := "init_egress_spec" |},
+                                            (TypBit 9%N) )]) Directionless)
                                    {| stags := NoInfo; str := "do_forward" |})
                               (TypBit 1%N) Directionless)
                          (MkExpression NoInfo
@@ -4170,7 +4335,10 @@ Definition ingress := DeclControl NoInfo
                                  ( {| stags := NoInfo; str := "tcpLength" |},
                                    (TypBit 16%N) );
                                  ( {| stags := NoInfo; str := "if_index" |},
-                                   (TypBit 8%N) )]) Directionless)
+                                   (TypBit 8%N) );
+                                 ( {| stags := NoInfo;
+                                      str := "init_egress_spec" |},
+                                   (TypBit 9%N) )]) Directionless)
                           {| stags := NoInfo; str := "nhop_ipv4" |})
                      (TypBit 32%N) Directionless)
                 {| stags := NoInfo; str := "exact" |})]
@@ -4224,7 +4392,10 @@ Definition ingress := DeclControl NoInfo
                                  ( {| stags := NoInfo; str := "tcpLength" |},
                                    (TypBit 16%N) );
                                  ( {| stags := NoInfo; str := "if_index" |},
-                                   (TypBit 8%N) )]) Directionless)
+                                   (TypBit 8%N) );
+                                 ( {| stags := NoInfo;
+                                      str := "init_egress_spec" |},
+                                   (TypBit 9%N) )]) Directionless)
                           {| stags := NoInfo; str := "if_index" |})
                      (TypBit 8%N) Directionless)
                 {| stags := NoInfo; str := "exact" |})]
@@ -4284,7 +4455,10 @@ Definition ingress := DeclControl NoInfo
                                  ( {| stags := NoInfo; str := "tcpLength" |},
                                    (TypBit 16%N) );
                                  ( {| stags := NoInfo; str := "if_index" |},
-                                   (TypBit 8%N) )]) Directionless)
+                                   (TypBit 8%N) );
+                                 ( {| stags := NoInfo;
+                                      str := "init_egress_spec" |},
+                                   (TypBit 9%N) )]) Directionless)
                           {| stags := NoInfo; str := "ipv4_da" |})
                      (TypBit 32%N) Directionless)
                 {| stags := NoInfo; str := "lpm" |})]
@@ -4340,7 +4514,10 @@ Definition ingress := DeclControl NoInfo
                                  ( {| stags := NoInfo; str := "tcpLength" |},
                                    (TypBit 16%N) );
                                  ( {| stags := NoInfo; str := "if_index" |},
-                                   (TypBit 8%N) )]) Directionless)
+                                   (TypBit 8%N) );
+                                 ( {| stags := NoInfo;
+                                      str := "init_egress_spec" |},
+                                   (TypBit 9%N) )]) Directionless)
                           {| stags := NoInfo; str := "is_ext_if" |})
                      (TypBit 1%N) Directionless)
                 {| stags := NoInfo; str := "exact" |});
@@ -4670,26 +4847,71 @@ Definition ingress := DeclControl NoInfo
                      nil) (TypAction nil nil))] None None (Some 128%N) nil)]
     (BlockCons
          (MkStatement NoInfo
-              (StatMethodCall
+              (StatAssignment
+                   (MkExpression NoInfo
+                        (ExpExpressionMember
+                             (MkExpression NoInfo
+                                  (ExpExpressionMember
+                                       (MkExpression NoInfo
+                                            (ExpName
+                                             (BareName
+                                              {| stags := NoInfo;
+                                                 str := "meta" |}) NoLocator)
+                                            (TypTypeName
+                                             (BareName
+                                              {| stags := NoInfo;
+                                                 str := "metadata" |}))
+                                            InOut)
+                                       {| stags := NoInfo; str := "meta" |})
+                                  (TypStruct
+                                   [( {| stags := NoInfo;
+                                         str := "do_forward" |},
+                                      (TypBit 1%N) );
+                                    ( {| stags := NoInfo; str := "ipv4_sa" |},
+                                      (TypBit 32%N) );
+                                    ( {| stags := NoInfo; str := "ipv4_da" |},
+                                      (TypBit 32%N) );
+                                    ( {| stags := NoInfo; str := "tcp_sp" |},
+                                      (TypBit 16%N) );
+                                    ( {| stags := NoInfo; str := "tcp_dp" |},
+                                      (TypBit 16%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "nhop_ipv4" |},
+                                      (TypBit 32%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "if_ipv4_addr" |},
+                                      (TypBit 32%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "if_mac_addr" |},
+                                      (TypBit 48%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "is_ext_if" |},
+                                      (TypBit 1%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "tcpLength" |},
+                                      (TypBit 16%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "if_index" |}, (TypBit 8%N) );
+                                    ( {| stags := NoInfo;
+                                         str := "init_egress_spec" |},
+                                      (TypBit 9%N) )]) Directionless)
+                             {| stags := NoInfo; str := "init_egress_spec" |})
+                        (TypBit 9%N) Directionless)
                    (MkExpression NoInfo
                         (ExpExpressionMember
                              (MkExpression NoInfo
                                   (ExpName
                                    (BareName
-                                    {| stags := NoInfo; str := "if_info" |})
+                                    {| stags := NoInfo;
+                                       str := "standard_metadata" |})
                                    NoLocator)
-                                  (TypTable
-                                   {| stags := NoInfo;
-                                      str := "apply_result_if_info" |})
-                                  Directionless)
-                             {| stags := NoInfo; str := "apply" |})
-                        (TypFunction
-                         (MkFunctionType nil nil FunTable
-                              (TypTypeName
-                               (BareName
-                                {| stags := NoInfo;
-                                   str := "apply_result_if_info" |}))))
-                        Directionless) nil nil) StmUnit)
+                                  (TypTypeName
+                                   (BareName
+                                    {| stags := NoInfo;
+                                       str := "standard_metadata_t" |}))
+                                  InOut)
+                             {| stags := NoInfo; str := "egress_spec" |})
+                        (TypBit 9%N) Directionless)) StmUnit)
          (BlockCons
               (MkStatement NoInfo
                    (StatMethodCall
@@ -4698,11 +4920,11 @@ Definition ingress := DeclControl NoInfo
                                   (MkExpression NoInfo
                                        (ExpName
                                         (BareName
-                                         {| stags := NoInfo; str := "nat" |})
-                                        NoLocator)
+                                         {| stags := NoInfo;
+                                            str := "if_info" |}) NoLocator)
                                        (TypTable
                                         {| stags := NoInfo;
-                                           str := "apply_result_nat" |})
+                                           str := "apply_result_if_info" |})
                                        Directionless)
                                   {| stags := NoInfo; str := "apply" |})
                              (TypFunction
@@ -4710,21 +4932,44 @@ Definition ingress := DeclControl NoInfo
                                    (TypTypeName
                                     (BareName
                                      {| stags := NoInfo;
-                                        str := "apply_result_nat" |}))))
+                                        str := "apply_result_if_info" |}))))
                              Directionless) nil nil) StmUnit)
               (BlockCons
                    (MkStatement NoInfo
-                        (StatConditional
+                        (StatMethodCall
                              (MkExpression NoInfo
-                                  (ExpBinaryOp And
-                                       ( (MkExpression NoInfo
-                                              (ExpBinaryOp Eq
-                                                   ( (MkExpression NoInfo
-                                                          (ExpExpressionMember
-                                                               (MkExpression
-                                                                    NoInfo
+                                  (ExpExpressionMember
+                                       (MkExpression NoInfo
+                                            (ExpName
+                                             (BareName
+                                              {| stags := NoInfo;
+                                                 str := "nat" |}) NoLocator)
+                                            (TypTable
+                                             {| stags := NoInfo;
+                                                str := "apply_result_nat" |})
+                                            Directionless)
+                                       {| stags := NoInfo; str := "apply" |})
+                                  (TypFunction
+                                   (MkFunctionType nil nil FunTable
+                                        (TypTypeName
+                                         (BareName
+                                          {| stags := NoInfo;
+                                             str := "apply_result_nat" |}))))
+                                  Directionless) nil nil) StmUnit)
+                   (BlockCons
+                        (MkStatement NoInfo
+                             (StatConditional
+                                  (MkExpression NoInfo
+                                       (ExpBinaryOp And
+                                            ( (MkExpression NoInfo
+                                                   (ExpBinaryOp Eq
+                                                        ( (MkExpression
+                                                               NoInfo
+                                                               (ExpExpressionMember
                                                                     (
-                                                                    ExpExpressionMember
+                                                                    MkExpression
+                                                                    NoInfo
+                                                                    (ExpExpressionMember
                                                                     (MkExpression
                                                                     NoInfo
                                                                     (ExpName
@@ -4741,10 +4986,8 @@ Definition ingress := DeclControl NoInfo
                                                                     InOut)
                                                                     {| stags := NoInfo;
                                                                     str := "meta" |})
-                                                                    (
-                                                                    TypStruct
-                                                                    [
-                                                                    ( 
+                                                                    (TypStruct
+                                                                    [( 
                                                                     {| 
                                                                     stags := NoInfo;
                                                                     str := "do_forward" |},
@@ -4820,30 +5063,42 @@ Definition ingress := DeclControl NoInfo
                                                                     str := "if_index" |},
                                                                     (
                                                                     TypBit
-                                                                    8%N) )])
-                                                                    Directionless)
-                                                               {| stags := NoInfo;
-                                                                  str := "do_forward" |})
-                                                          (TypBit 1%N)
-                                                          Directionless),
-                                                     (MkExpression NoInfo
-                                                          (ExpInt
-                                                           {| itags := NoInfo;
-                                                              value := 1;
-                                                              width_signed := (
-                                                              Some
-                                                              ( 1%N, false )) |})
-                                                          (TypBit 1%N)
-                                                          Directionless) ))
-                                              TypBool Directionless),
-                                         (MkExpression NoInfo
-                                              (ExpBinaryOp Gt
-                                                   ( (MkExpression NoInfo
-                                                          (ExpExpressionMember
-                                                               (MkExpression
-                                                                    NoInfo
+                                                                    8%N) );
+                                                                    ( 
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "init_egress_spec" |},
                                                                     (
-                                                                    ExpExpressionMember
+                                                                    TypBit
+                                                                    9%N) )])
+                                                                    Directionless)
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "do_forward" |})
+                                                               (TypBit 1%N)
+                                                               Directionless),
+                                                          (MkExpression
+                                                               NoInfo
+                                                               (ExpInt
+                                                                {| itags := NoInfo;
+                                                                   value := 1;
+                                                                   width_signed := (
+                                                                   Some
+                                                                   ( 
+                                                                   1%N,
+                                                                   false )) |})
+                                                               (TypBit 1%N)
+                                                               Directionless) ))
+                                                   TypBool Directionless),
+                                              (MkExpression NoInfo
+                                                   (ExpBinaryOp Gt
+                                                        ( (MkExpression
+                                                               NoInfo
+                                                               (ExpExpressionMember
+                                                                    (
+                                                                    MkExpression
+                                                                    NoInfo
+                                                                    (ExpExpressionMember
                                                                     (MkExpression
                                                                     NoInfo
                                                                     (ExpName
@@ -4860,10 +5115,8 @@ Definition ingress := DeclControl NoInfo
                                                                     InOut)
                                                                     {| stags := NoInfo;
                                                                     str := "ipv4" |})
-                                                                    (
-                                                                    TypHeader
-                                                                    [
-                                                                    ( 
+                                                                    (TypHeader
+                                                                    [( 
                                                                     {| 
                                                                     stags := NoInfo;
                                                                     str := "version" |},
@@ -4948,58 +5201,65 @@ Definition ingress := DeclControl NoInfo
                                                                     TypBit
                                                                     32%N) )])
                                                                     Directionless)
-                                                               {| stags := NoInfo;
-                                                                  str := "ttl" |})
-                                                          (TypBit 8%N)
-                                                          Directionless),
-                                                     (MkExpression NoInfo
-                                                          (ExpInt
-                                                           {| itags := NoInfo;
-                                                              value := 0;
-                                                              width_signed := (
-                                                              Some
-                                                              ( 8%N, false )) |})
-                                                          (TypBit 8%N)
-                                                          Directionless) ))
-                                              TypBool Directionless) ))
-                                  TypBool Directionless)
-                             (MkStatement NoInfo
-                                  (StatBlock
-                                   (BlockCons
-                                        (MkStatement NoInfo
-                                             (StatMethodCall
-                                                  (MkExpression NoInfo
-                                                       (ExpExpressionMember
-                                                            (MkExpression
-                                                                 NoInfo
-                                                                 (ExpName
-                                                                  (BareName
-                                                                   {| 
-                                                                   stags := NoInfo;
-                                                                   str := "ipv4_lpm" |})
-                                                                  NoLocator)
-                                                                 (TypTable
-                                                                  {| 
-                                                                  stags := NoInfo;
-                                                                  str := "apply_result_ipv4_lpm" |})
-                                                                 Directionless)
-                                                            {| stags := NoInfo;
-                                                               str := "apply" |})
-                                                       (TypFunction
-                                                        (MkFunctionType nil
-                                                             nil FunTable
-                                                             (TypTypeName
-                                                              (BareName
-                                                               {| stags := NoInfo;
-                                                                  str := "apply_result_ipv4_lpm" |}))))
-                                                       Directionless) nil
-                                                  nil) StmUnit)
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "ttl" |})
+                                                               (TypBit 8%N)
+                                                               Directionless),
+                                                          (MkExpression
+                                                               NoInfo
+                                                               (ExpInt
+                                                                {| itags := NoInfo;
+                                                                   value := 0;
+                                                                   width_signed := (
+                                                                   Some
+                                                                   ( 
+                                                                   8%N,
+                                                                   false )) |})
+                                                               (TypBit 8%N)
+                                                               Directionless) ))
+                                                   TypBool Directionless) ))
+                                       TypBool Directionless)
+                                  (MkStatement NoInfo
+                                       (StatBlock
                                         (BlockCons
                                              (MkStatement NoInfo
                                                   (StatMethodCall
                                                        (MkExpression NoInfo
                                                             (ExpExpressionMember
                                                                  (MkExpression
+                                                                    NoInfo
+                                                                    (ExpName
+                                                                    (BareName
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "ipv4_lpm" |})
+                                                                    NoLocator)
+                                                                    (TypTable
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "apply_result_ipv4_lpm" |})
+                                                                    Directionless)
+                                                                 {| stags := NoInfo;
+                                                                    str := "apply" |})
+                                                            (TypFunction
+                                                             (MkFunctionType
+                                                                  nil nil
+                                                                  FunTable
+                                                                  (TypTypeName
+                                                                   (BareName
+                                                                    {| 
+                                                                    stags := NoInfo;
+                                                                    str := "apply_result_ipv4_lpm" |}))))
+                                                            Directionless)
+                                                       nil nil) StmUnit)
+                                             (BlockCons
+                                                  (MkStatement NoInfo
+                                                       (StatMethodCall
+                                                            (MkExpression
+                                                                 NoInfo
+                                                                 (ExpExpressionMember
+                                                                    (MkExpression
                                                                     NoInfo
                                                                     (ExpName
                                                                     (BareName
@@ -5012,21 +5272,23 @@ Definition ingress := DeclControl NoInfo
                                                                     stags := NoInfo;
                                                                     str := "apply_result_forward" |})
                                                                     Directionless)
-                                                                 {| stags := NoInfo;
+                                                                    {| 
+                                                                    stags := NoInfo;
                                                                     str := "apply" |})
-                                                            (TypFunction
-                                                             (MkFunctionType
-                                                                  nil nil
-                                                                  FunTable
-                                                                  (TypTypeName
-                                                                   (BareName
+                                                                 (TypFunction
+                                                                  (MkFunctionType
+                                                                    nil nil
+                                                                    FunTable
+                                                                    (TypTypeName
+                                                                    (BareName
                                                                     {| 
                                                                     stags := NoInfo;
                                                                     str := "apply_result_forward" |}))))
-                                                            Directionless)
-                                                       nil nil) StmUnit)
-                                             (BlockEmpty NoInfo)))) StmUnit)
-                             None) StmUnit) (BlockEmpty NoInfo)))).
+                                                                 Directionless)
+                                                            nil nil) StmUnit)
+                                                  (BlockEmpty NoInfo))))
+                                       StmUnit) None) StmUnit)
+                        (BlockEmpty NoInfo))))).
 
 Definition DeparserImpl := DeclControl NoInfo
     {| stags := NoInfo; str := "DeparserImpl" |} nil
@@ -6450,7 +6712,10 @@ Definition verifyChecksum := DeclControl NoInfo
                                                     (TypBit 16%N) );
                                                   ( {| stags := NoInfo;
                                                        str := "if_index" |},
-                                                    (TypBit 8%N) )])
+                                                    (TypBit 8%N) );
+                                                  ( {| stags := NoInfo;
+                                                       str := "init_egress_spec" |},
+                                                    (TypBit 9%N) )])
                                                 Directionless)
                                            {| stags := NoInfo;
                                               str := "tcpLength" |})
@@ -8099,7 +8364,10 @@ Definition computeChecksum := DeclControl NoInfo
                                                     (TypBit 16%N) );
                                                   ( {| stags := NoInfo;
                                                        str := "if_index" |},
-                                                    (TypBit 8%N) )])
+                                                    (TypBit 8%N) );
+                                                  ( {| stags := NoInfo;
+                                                       str := "init_egress_spec" |},
+                                                    (TypBit 9%N) )])
                                                 Directionless)
                                            {| stags := NoInfo;
                                               str := "tcpLength" |})
@@ -8657,98 +8925,63 @@ Definition main := DeclInstantiation NoInfo
     (TypSpecializedType
          (TypTypeName (BareName {| stags := NoInfo; str := "V1Switch" |}))
          [(TypStruct
-             [( {| stags := NoInfo; str := "cpu_header" |},
-                (TypHeader
-                   [( {| stags := NoInfo; str := "preamble" |},
-                      (TypBit 64%N) );
-                   ( {| stags := NoInfo; str := "device" |},
-                     (TypBit 8%N) );
-                   ( {| stags := NoInfo; str := "reason" |},
-                     (TypBit 8%N) );
-                   ( {| stags := NoInfo; str := "if_index" |},
-                     (TypBit 8%N) )]) );
-             ( {| stags := NoInfo; str := "ethernet" |},
-               (TypHeader
-                  [( {| stags := NoInfo; str := "dstAddr" |},
-                     (TypBit 48%N) );
-                  ( {| stags := NoInfo; str := "srcAddr" |},
-                    (TypBit 48%N) );
-                  ( {| stags := NoInfo; str := "etherType" |},
-                    (TypBit 16%N) )]) );
-             ( {| stags := NoInfo; str := "ipv4" |},
-               (TypHeader
-                  [( {| stags := NoInfo; str := "version" |},
-                     (TypBit 4%N) );
-                  ( {| stags := NoInfo; str := "ihl" |},
-                    (TypBit 4%N) );
-                  ( {| stags := NoInfo; str := "diffserv" |},
-                    (TypBit 8%N) );
-                  ( {| stags := NoInfo; str := "totalLen" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "identification" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "flags" |},
-                    (TypBit 3%N) );
-                  ( {| stags := NoInfo; str := "fragOffset" |},
-                    (TypBit 13%N) );
-                  ( {| stags := NoInfo; str := "ttl" |},
-                    (TypBit 8%N) );
-                  ( {| stags := NoInfo; str := "protocol" |},
-                    (TypBit 8%N) );
-                  ( {| stags := NoInfo; str := "hdrChecksum" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "srcAddr" |},
-                    (TypBit 32%N) );
-                  ( {| stags := NoInfo; str := "dstAddr" |},
-                    (TypBit 32%N) )]) );
-             ( {| stags := NoInfo; str := "tcp" |},
-               (TypHeader
-                  [( {| stags := NoInfo; str := "srcPort" |},
-                     (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "dstPort" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "seqNo" |},
-                    (TypBit 32%N) );
-                  ( {| stags := NoInfo; str := "ackNo" |},
-                    (TypBit 32%N) );
-                  ( {| stags := NoInfo; str := "dataOffset" |},
-                    (TypBit 4%N) );
-                  ( {| stags := NoInfo; str := "res" |},
-                    (TypBit 4%N) );
-                  ( {| stags := NoInfo; str := "flags" |},
-                    (TypBit 8%N) );
-                  ( {| stags := NoInfo; str := "window" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "checksum" |},
-                    (TypBit 16%N) );
-                  ( {| stags := NoInfo; str := "urgentPtr" |},
-                    (TypBit 16%N) )]) )])
-          ; (TypStruct
-               [( {| stags := NoInfo; str := "meta" |},
-                  (TypStruct
-                     [( {| stags := NoInfo; str := "do_forward" |},
-                        (TypBit 1%N) );
-                     ( {| stags := NoInfo; str := "ipv4_sa" |},
-                       (TypBit 32%N) );
-                     ( {| stags := NoInfo; str := "ipv4_da" |},
-                       (TypBit 32%N) );
-                     ( {| stags := NoInfo; str := "tcp_sp" |},
-                       (TypBit 16%N) );
-                     ( {| stags := NoInfo; str := "tcp_dp" |},
-                       (TypBit 16%N) );
-                     ( {| stags := NoInfo; str := "nhop_ipv4" |},
-                       (TypBit 32%N) );
-                     ( {| stags := NoInfo; str := "if_ipv4_addr" |},
-                       (TypBit 32%N) );
-                     ( {| stags := NoInfo; str := "if_mac_addr" |},
-                       (TypBit 48%N) );
-                     ( {| stags := NoInfo; str := "is_ext_if" |},
-                       (TypBit 1%N) );
-                     ( {| stags := NoInfo; str := "tcpLength" |},
-                       (TypBit 16%N) );
-                     ( {| stags := NoInfo; str := "if_index" |},
-                       (TypBit 8%N) )]) )])
-         ])
+           [( {| stags := NoInfo; str := "cpu_header" |},
+              (TypHeader
+               [( {| stags := NoInfo; str := "preamble" |}, (TypBit 64%N) );
+                ( {| stags := NoInfo; str := "device" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "reason" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "if_index" |}, (TypBit 8%N) )]) );
+            ( {| stags := NoInfo; str := "ethernet" |},
+              (TypHeader
+               [( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 48%N) );
+                ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 48%N) );
+                ( {| stags := NoInfo; str := "etherType" |}, (TypBit 16%N) )]) );
+            ( {| stags := NoInfo; str := "ipv4" |},
+              (TypHeader
+               [( {| stags := NoInfo; str := "version" |}, (TypBit 4%N) );
+                ( {| stags := NoInfo; str := "ihl" |}, (TypBit 4%N) );
+                ( {| stags := NoInfo; str := "diffserv" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "totalLen" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "identification" |},
+                  (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "flags" |}, (TypBit 3%N) );
+                ( {| stags := NoInfo; str := "fragOffset" |}, (TypBit 13%N) );
+                ( {| stags := NoInfo; str := "ttl" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "protocol" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "hdrChecksum" |},
+                  (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 32%N) )]) );
+            ( {| stags := NoInfo; str := "tcp" |},
+              (TypHeader
+               [( {| stags := NoInfo; str := "srcPort" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "dstPort" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "seqNo" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "ackNo" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "dataOffset" |}, (TypBit 4%N) );
+                ( {| stags := NoInfo; str := "res" |}, (TypBit 4%N) );
+                ( {| stags := NoInfo; str := "flags" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "window" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "checksum" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "urgentPtr" |}, (TypBit 16%N) )]) )]);
+          (TypStruct
+           [( {| stags := NoInfo; str := "meta" |},
+              (TypStruct
+               [( {| stags := NoInfo; str := "do_forward" |}, (TypBit 1%N) );
+                ( {| stags := NoInfo; str := "ipv4_sa" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "ipv4_da" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "tcp_sp" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "tcp_dp" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "nhop_ipv4" |}, (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "if_ipv4_addr" |},
+                  (TypBit 32%N) );
+                ( {| stags := NoInfo; str := "if_mac_addr" |},
+                  (TypBit 48%N) );
+                ( {| stags := NoInfo; str := "is_ext_if" |}, (TypBit 1%N) );
+                ( {| stags := NoInfo; str := "tcpLength" |}, (TypBit 16%N) );
+                ( {| stags := NoInfo; str := "if_index" |}, (TypBit 8%N) );
+                ( {| stags := NoInfo; str := "init_egress_spec" |},
+                  (TypBit 9%N) )]) )])])
     [(MkExpression NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
@@ -8761,7 +8994,7 @@ Definition main := DeclInstantiation NoInfo
                       (TypExtern {| stags := NoInfo; str := "packet_in" |})
                       None {| stags := NoInfo; str := "packet" |});
                  (MkParameter false Out
-                              (TypStruct
+                      (TypStruct
                        [( {| stags := NoInfo; str := "cpu_header" |},
                           (TypHeader
                            [( {| stags := NoInfo; str := "preamble" |},
@@ -8854,8 +9087,10 @@ Definition main := DeclInstantiation NoInfo
                             ( {| stags := NoInfo; str := "tcpLength" |},
                               (TypBit 16%N) );
                             ( {| stags := NoInfo; str := "if_index" |},
-                              (TypBit 8%N) )]) )]) None
-                      {| stags := NoInfo; str := "meta" |});
+                              (TypBit 8%N) );
+                            ( {| stags := NoInfo;
+                                 str := "init_egress_spec" |}, (TypBit 9%N) )]) )])
+                      None {| stags := NoInfo; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
                        [( {| stags := NoInfo; str := "ingress_port" |},
@@ -8997,8 +9232,11 @@ Definition main := DeclInstantiation NoInfo
                             ( {| stags := NoInfo; str := "tcpLength" |},
                               (TypBit 16%N) );
                             ( {| stags := NoInfo; str := "if_index" |},
-                              (TypBit 8%N) )]) )]) None
-                      {| stags := NoInfo; str := "meta" |})])) Directionless);
+                              (TypBit 8%N) );
+                            ( {| stags := NoInfo;
+                                 str := "init_egress_spec" |}, (TypBit 9%N) )]) )])
+                      None {| stags := NoInfo; str := "meta" |})]))
+          Directionless);
      (MkExpression NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
@@ -9101,8 +9339,10 @@ Definition main := DeclInstantiation NoInfo
                             ( {| stags := NoInfo; str := "tcpLength" |},
                               (TypBit 16%N) );
                             ( {| stags := NoInfo; str := "if_index" |},
-                              (TypBit 8%N) )]) )]) None
-                      {| stags := NoInfo; str := "meta" |});
+                              (TypBit 8%N) );
+                            ( {| stags := NoInfo;
+                                 str := "init_egress_spec" |}, (TypBit 9%N) )]) )])
+                      None {| stags := NoInfo; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
                        [( {| stags := NoInfo; str := "ingress_port" |},
@@ -9243,8 +9483,10 @@ Definition main := DeclInstantiation NoInfo
                             ( {| stags := NoInfo; str := "tcpLength" |},
                               (TypBit 16%N) );
                             ( {| stags := NoInfo; str := "if_index" |},
-                              (TypBit 8%N) )]) )]) None
-                      {| stags := NoInfo; str := "meta" |});
+                              (TypBit 8%N) );
+                            ( {| stags := NoInfo;
+                                 str := "init_egress_spec" |}, (TypBit 9%N) )]) )])
+                      None {| stags := NoInfo; str := "meta" |});
                  (MkParameter false InOut
                       (TypStruct
                        [( {| stags := NoInfo; str := "ingress_port" |},
@@ -9386,8 +9628,11 @@ Definition main := DeclInstantiation NoInfo
                             ( {| stags := NoInfo; str := "tcpLength" |},
                               (TypBit 16%N) );
                             ( {| stags := NoInfo; str := "if_index" |},
-                              (TypBit 8%N) )]) )]) None
-                      {| stags := NoInfo; str := "meta" |})])) Directionless);
+                              (TypBit 8%N) );
+                            ( {| stags := NoInfo;
+                                 str := "init_egress_spec" |}, (TypBit 9%N) )]) )])
+                      None {| stags := NoInfo; str := "meta" |})]))
+          Directionless);
      (MkExpression NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
@@ -9470,7 +9715,7 @@ Definition main := DeclInstantiation NoInfo
                       {| stags := NoInfo; str := "hdr" |})])) Directionless)]
     {| stags := NoInfo; str := "main" |} nil.
 
-Definition prog := Program
+Definition prog := Syntax.Program
     [decl'1; packet_in; packet_out; verify'check'toSignal; NoAction; decl'2;
      decl'3; standard_metadata_t; CounterType; MeterType; counter;
      direct_counter; meter; direct_meter; register; action_profile;

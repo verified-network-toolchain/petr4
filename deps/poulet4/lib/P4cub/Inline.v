@@ -185,7 +185,7 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
   | IVardecl type x i  =>
     (IVardecl type x i, Env.remove x η)
   | IAssign t lhs rhs i =>
-    (IAssign t (subst_e η lhs) (subst_e η lhs) i , η)
+    (IAssign t (subst_e η lhs) (subst_e η rhs) i , η)
   | IConditional guard_type guard tru_blk fls_blk i =>
     (IConditional guard_type
                   (subst_e η guard)
@@ -392,6 +392,54 @@ Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
   | (a, Ok _ b) => ok (a, b)
   end.
 
+Fixpoint foldi {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=
+  snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (0, init) xs).
+
+
+Definition elaborate_tuple_literal
+           (param : string)
+           (ctor : E.e tags_t -> paramarg (E.e tags_t) (E.e tags_t))
+           (es : list (E.e tags_t))
+           (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+  foldi (fun idx e acc =>
+   let index := fun s =>  s ++ ".[" ++ string_of_nat idx ++ "]" in
+   (index param, ctor e) :: acc) args es.
+
+Definition paramarg_map_union {A B : Type} (f : A -> F.fs string B) (pa : paramarg A A) : F.fs string (paramarg B B) :=
+  match pa with
+  | PAIn a => F.map PAIn (f a)
+  | PAOut a => F.map PAOut (f a)
+  | PAInOut a => F.map PAInOut (f a)
+  | PADirLess a => F.map PADirLess (f a)
+  end.
+
+Definition elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs string (E.e tags_t) :=
+  let index := fun s idx => s ++ "[" ++ string_of_nat idx ++ "]" in
+  let access := fun s f => s ++ "." ++ f in
+  match arg with
+  | E.EVar (E.TStruct fs) x i =>
+    List.fold_right (fun '(f, t) acc => (access param f, (E.EVar t (access x f) i)) :: acc) [] fs
+
+  | E.EVar (E.TTuple ts) x i =>
+    foldi (fun idx t acc => (index param idx, (E.EVar t (index x idx) i)) :: acc) [] ts
+
+  | E.ETuple es i =>
+    foldi (fun idx e acc => (index param idx, e) :: acc) [] es
+  | _ => [(param, arg)]
+  end.
+
+Definition elaborate_argument (parg : F.f string (paramarg (E.e tags_t) (E.e tags_t))) : F.fs string (paramarg (E.e tags_t) (E.e tags_t)) :=
+  let '(param, arg) := parg in
+  paramarg_map_union (elaborate_arg_expression param) arg.
+
+
+Definition elaborate_arguments (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :  F.fs string (paramarg (E.e tags_t) (E.e tags_t)) :=
+  List.concat (List.map elaborate_argument args).
+
+Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
+  {| paramargs := elaborate_arguments ar.(paramargs);
+     rtrns := ar.(rtrns) |}.
+
 Fixpoint elim_tuple (c : Inline.t) : result t :=
   match c with
   | ISkip _ => ok c
@@ -414,12 +462,14 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
   | IExit _ => ok c
   | IInvoke x keys actions i =>
     (** TODO do we need to eliminate tuples in keys??*)
-    let opt_actions := map_snd elim_tuple actions in
-    let+ actions' := rred (List.map res_snd opt_actions) in
-    IInvoke x keys actions' i
-  | IExternMethodCall _ _ _ _ =>
-    (** TODO do we need to eliminate tuples in extern arguments? *)
-    ok c
+    let+ actions := List.fold_right (fun '(name, act) acc =>
+                     let* act := elim_tuple act in
+                     let+ acc := acc in
+                     (name, act) :: acc) (ok []) actions in
+    IInvoke x keys actions i
+  | IExternMethodCall extern method arrow tags =>
+    let arrow := elaborate_arrowE arrow in
+    ok (IExternMethodCall extern method arrow tags)
   | ISetValidity _ _ _ =>
     (** TODO do we need to eliminate tuples in valid sets? I think that'd be ill-typed *)
     ok c
@@ -488,9 +538,9 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
   let opt_actions := map_snd elaborate_headers actions in
   let+ actions' := rred (List.map res_snd opt_actions) in
   IInvoke x keys actions' i
-| IExternMethodCall _ _ _ _ =>
-  (* TODO Do we need to eliminate tuples in arguments? *)
-  ok c
+| IExternMethodCall extern method arrow tags =>
+  let arrow := elaborate_arrowE arrow in
+  ok (IExternMethodCall extern method arrow tags)
 | ISetValidity _ _ _ =>
   (* TODO Do we need to eliminate tuples in valid-sets? that seems ill-typed *)
   ok c
@@ -560,9 +610,9 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
     in
     let+ actions' := fold_right rec_act_call (ok []) actions in
     IInvoke x keys actions' i
-  | IExternMethodCall _ _ _ _ =>
-    (* TODO: Do something with arguments? *)
-    ok c
+  | IExternMethodCall extern method arrow tags =>
+    let arrow := elaborate_arrowE arrow in
+    ok (IExternMethodCall extern method arrow tags)
   | ISetValidity _ _ _ =>
     (* TODO Eliminate header stack literals from expressions *)
     ok c
@@ -627,9 +677,9 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
     let opt_actions := map_snd elaborate_structs actions in
     let+ actions' := rred (List.map res_snd opt_actions) in
     IInvoke x keys actions' i
-  | IExternMethodCall _ _ _ _ =>
-    (* TODO Do we need to eliminate tuples in arguments? *)
-    ok c
+  | IExternMethodCall extern method arrow tags =>
+    let arrow := elaborate_arrowE arrow in
+    ok (IExternMethodCall extern method arrow tags)
   | ISetValidity _ _ _ =>
     (* TODO Elaborate header stacks in expressions *)
     ok c

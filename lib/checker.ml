@@ -160,7 +160,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
   | ValError e ->
      MkExpression (Info.dummy, ExpErrorMember e, TypError, In)
   | ValMatchKind mk ->
-     MkExpression (Info.dummy, ExpTypeMember (BareName {str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
+     MkExpression (Info.dummy, ExpTypeMember ({str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
   | ValStruct fs ->
      let e, t = fs_to_literals fs in
      add_cast_unsafe e (TypStruct t)
@@ -170,8 +170,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
      add_cast_unsafe e (TypHeader t)
   | ValEnumField (typ, mem)
   | ValSenumField (typ, mem, _) ->
-     let name: P4name.t = BareName typ in
-     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName typ, In)
+     MkExpression (Info.dummy, ExpTypeMember (typ, mem), TypTypeName typ, In)
   | ValSenum vs -> failwith "ValSenum unsupported"
 
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
@@ -191,15 +190,8 @@ let rec is_extern (env: Checker_env.t) (typ: P4light.coq_P4Type) =
   | _ -> false
 
 (* Ugly hack *)
-let real_name_for_type_member env (typ_name: P4name.t) (name: P4string.t) : P4name.t =
-  begin match typ_name with
-    | QualifiedName (qs, typ_name) ->
-      let prefixed_name = {name with str = typ_name.str ^ "." ^ name.str} in
-      QualifiedName (qs, prefixed_name)
-    | BareName typ_name ->
-      let prefixed_name = {name with str = typ_name.str ^ "." ^ name.str} in
-      BareName prefixed_name
-  end
+let real_name_for_type_member env (typ_name: P4string.t) (name: P4string.t) : P4name.t =
+  BareName {name with str = typ_name.str ^ "." ^ name.str}
 
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
   match saturate_type env hdr_type with
@@ -1948,7 +1940,7 @@ and type_expression_member_function_builtin env info typ (name: P4string.t) : co
   | TypTable result_typ_name ->
     begin match name.str with
       | "apply" ->
-        let ret = TypTypeName (BareName result_typ_name) in
+        let ret = TypTypeName result_typ_name in
         Some (TypFunction (MkFunctionType ([], [], FunTable, ret)))
       | _ -> None
     end
@@ -2343,13 +2335,14 @@ and overload_param_names_ok (arg_names: P4string.t list) (params: coq_P4Paramete
   in
   List.for_all params ~f:param_has_arg && List.for_all arg_names ~f:arg_has_param
 
-and resolve_constructor_overload_by ~f:(f: coq_P4Parameter list -> bool) env type_name =
+and resolve_constructor_overload_by
+    ~f:(f: coq_P4Parameter list -> bool) env (type_name : P4string.t) =
   let ok : coq_P4Type -> bool =
     function
     | TypConstructor (_, _, parameters, _) -> f parameters
     | _ -> false
   in
-  let candidates = Checker_env.find_types_of type_name env in
+  let candidates = Checker_env.find_types_of (BareName type_name) env in
   match
     candidates
     |> List.map ~f:fst
@@ -2358,7 +2351,7 @@ and resolve_constructor_overload_by ~f:(f: coq_P4Parameter list -> bool) env typ
   | Some (P4light.TypConstructor (ts, ws, ps, ret)) -> ts, ws, ps, ret
   | ctor -> failwith "Bad constructor type or no matching constructor."
 
-and resolve_constructor_overload env type_name args =
+and resolve_constructor_overload env (type_name : P4string.t) args =
   let arg_name arg =
     match snd arg with
     | Argument.KeyValue {key; _} -> Some key
@@ -3405,7 +3398,7 @@ and expr_eq env (expr1: P4light.coq_Expression) (expr2: P4light.coq_Expression) 
     -> type_equality env [] t1 t2 && expr_eq env e1 e2
   | ExpTypeMember (n1, s1),
     ExpTypeMember (n2, s2)
-    -> P4name.name_eq n1 n2 && P4string.eq s1 s2
+    -> P4string.eq n1 n2 && P4string.eq s1 s2
   | ExpErrorMember s1,
     ExpErrorMember s2
     -> P4string.eq s1 s2
@@ -3830,7 +3823,7 @@ and type_extern_object env info annotations obj_name t_params methods =
     List.map cs_ws ~f:(function
         | ProtoConstructor (_, cname, params_typed), ws ->
            if t_params <> []
-           then let generic_args = List.map t_params ~f:(fun ty -> TypTypeName (BareName ty)) in
+           then let generic_args = List.map t_params ~f:(fun ty -> TypTypeName ty) in
                 TypConstructor (t_params, ws, params_typed,
                                 TypSpecializedType (extern_type, generic_args))
            else TypConstructor (t_params, ws, params_typed, extern_type)
@@ -3852,7 +3845,7 @@ and method_prototype_to_extern_method extern_name (m: P4light.coq_MethodPrototyp
   match m with
   | ProtoConstructor (_, name, params) ->
     { name = name;
-      typ = MkFunctionType ([], params, FunExtern, TypTypeName (BareName extern_name)) }
+      typ = MkFunctionType ([], params, FunExtern, TypTypeName extern_name) }
   | ProtoAbstractMethod (_, return, name, type_params, params)
   | ProtoMethod (_, return, name, type_params, params) ->
     { name = name;
@@ -3870,7 +3863,7 @@ and type_type_def env ctx info annotations name typ_or_decl =
   | Right decl ->
     let decl_name = Declaration.name decl in
     let decl_typed, env' = type_declaration env ctx decl in
-    let decl_typ = Checker_env.resolve_type_name (BareName decl_name) env' in
+    let decl_typ = Checker_env.resolve_type_name decl_name env' in
     let typedef_typed: P4light.coq_Declaration =
       DeclTypeDef (info, name, Coq_inr decl_typed) in
     typedef_typed, Checker_env.insert_type (BareName name) decl_typ env'
@@ -3886,7 +3879,7 @@ and type_new_type env ctx info annotations name typ_or_decl =
   | Right decl ->
     let decl_name = Declaration.name decl in
     let decl_typed, env = type_declaration env ctx decl in
-    let decl_typ = Checker_env.resolve_type_name (BareName decl_name) env in
+    let decl_typ = Checker_env.resolve_type_name decl_name env in
     let newtype_typed: P4light.coq_Declaration =
       DeclNewType (info, name, Coq_inr decl_typed) in
     let newtype = TypNewType (name, decl_typ) in
@@ -3914,7 +3907,7 @@ and type_parser_type env info annotations name t_params params =
 
 (* Section 7.2.12 *)
 and type_package_type env info annotations name t_params params =
-  begin match Checker_env.resolve_type_name_opt (BareName name) env with
+  begin match Checker_env.resolve_type_name_opt name env with
   | None
   | Some (TypPackage _) -> ()
   | Some other_type -> failwith "cannot shadow object with package"

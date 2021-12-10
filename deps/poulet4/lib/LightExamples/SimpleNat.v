@@ -3553,8 +3553,7 @@ Definition ingress := DeclControl NoInfo
                                 (TypBit 3%N) )])])]
                          [(Some
                            (MkExpression NoInfo
-                                (ExpTypeMember
-                                     (BareName
+                                (ExpTypeMember (
                                       {| stags := NoInfo;
                                          str := "CloneType" |})
                                      {| stags := NoInfo; str := "I2E" |})
@@ -6226,8 +6225,7 @@ Definition verifyChecksum := DeclControl NoInfo
                           (TypBit 16%N) Directionless));
                     (Some
                      (MkExpression NoInfo
-                          (ExpTypeMember
-                               (BareName
+                          (ExpTypeMember (
                                 {| stags := NoInfo; str := "HashAlgorithm" |})
                                {| stags := NoInfo; str := "csum16" |})
                           (TypEnum
@@ -7094,8 +7092,7 @@ Definition verifyChecksum := DeclControl NoInfo
                                (TypBit 16%N) Directionless));
                          (Some
                           (MkExpression NoInfo
-                               (ExpTypeMember
-                                    (BareName
+                               (ExpTypeMember (
                                      {| stags := NoInfo;
                                         str := "HashAlgorithm" |})
                                     {| stags := NoInfo; str := "csum16" |})
@@ -7845,8 +7842,7 @@ Definition computeChecksum := DeclControl NoInfo
                           (TypBit 16%N) Directionless));
                     (Some
                      (MkExpression NoInfo
-                          (ExpTypeMember
-                               (BareName
+                          (ExpTypeMember (
                                 {| stags := NoInfo; str := "HashAlgorithm" |})
                                {| stags := NoInfo; str := "csum16" |})
                           (TypEnum
@@ -8713,8 +8709,7 @@ Definition computeChecksum := DeclControl NoInfo
                                (TypBit 16%N) Directionless));
                          (Some
                           (MkExpression NoInfo
-                               (ExpTypeMember
-                                    (BareName
+                               (ExpTypeMember (
                                      {| stags := NoInfo;
                                         str := "HashAlgorithm" |})
                                     {| stags := NoInfo; str := "csum16" |})

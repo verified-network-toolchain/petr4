@@ -93,13 +93,6 @@ Record genv := MkGenv {
   ge_ext :> extern_env
 }.
 
-Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
-  option (@P4Type tags_t) :=
-  match typ with
-  | BareName id => IdentMap.get (str id) ge_typ
-  | QualifiedName _ id => IdentMap.get (str id) ge_typ
-  end.
-
 Section WithGenv.
 
 Variable ge : genv.
@@ -485,14 +478,14 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                      newsv
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
-                            name_to_type ge tname = Some (TypEnum ename None members) ->
+      IdentMap.get (str tname) (ge_typ ge)= Some (TypEnum ename None members) ->
                             List.In member members ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
-                             name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
+      IdentMap.get (str tname) (ge_typ ge)= Some (TypEnum ename (Some etyp) members) ->
                              IdentMap.get (str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st

@@ -230,7 +230,7 @@ and Expression : sig
           expr: t }
     (** Type casts *)
     | TypeMember of
-        { typ: P4name.t;
+        { typ: P4string.t;
           name: P4string.t }
     (** Type members. *)
     | ErrorMember of P4string.t (** Error members *)

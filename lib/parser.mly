@@ -722,14 +722,6 @@ namedType:
     { t }
 ;
 
-
-prefixedTypeName:
-| name = NAME TYPENAME
-    { BareName name }
-| dotPrefix go_toplevel name = NAME TYPENAME go_local
-    { QualifiedName ([], name) }
-;
-
 prefixedType:
 | name = NAME TYPENAME
     { name.tags, Type.TypeName name }
@@ -1287,7 +1279,7 @@ expression:
 | info1 = L_PAREN typ = typeRef R_PAREN expr = expression %prec PREFIX
   { (Info.merge info1 (info expr),
      Expression.Cast { typ; expr }) }
-| typ = prefixedTypeName DOT name = member
+| typ = NAME TYPENAME DOT name = member
   { (name.tags,
      Expression.TypeMember { typ; name }) }
 | info1 = ERROR DOT name = member

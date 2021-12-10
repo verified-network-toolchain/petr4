@@ -352,7 +352,7 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_expr expr
   | ExpTypeMember (name, s)->
       fprintf p "(@[<hov 4>ExpTypeMember@ %a@ %a)@]"
-          print_name name
+        p4string name
           p4string s
   | ExpErrorMember s ->
       fprintf p "(@[<hov 0>ExpErrorMember@ %a)@]"

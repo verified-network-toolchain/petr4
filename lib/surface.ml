@@ -399,7 +399,7 @@ and Expression : sig
             { typ: Type.t;
               expr: t }
         | TypeMember of
-            { typ: P4name.t;
+            { typ: P4string.t;
               name: P4string.t }
         | ErrorMember of P4string.t
         | ExpressionMember of
@@ -453,7 +453,7 @@ end = struct
         { typ: Type.t [@key "type"];
           expr: t }  [@name "cast"]
     | TypeMember of
-        { typ: P4name.t [@key "type"];
+        { typ: P4string.t [@key "type"];
           name: P4string.t } [@name "type_member"]
     | ErrorMember of P4string.t [@name "error_member"]
     | ExpressionMember of

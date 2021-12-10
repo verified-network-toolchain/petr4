@@ -42,3 +42,19 @@ Definition simple_nat_inline_test : result (Inline.t Info) :=
 
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.
 Proof. compute. trivial. Qed.
+
+
+Import ECMP2.
+
+Definition p4cub_ecmp2 := ToP4cub.translate_program Info NoInfo ECMP2.prog.
+
+Definition ecmp2_test_case :=
+  let* sn := p4cub_ecmp2 in
+  let externs := V1model.externs in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+
+(* Compute p4cub_ecmp2. *)
+(* Compute ecmp2_test_case. *)
+
+Lemma ecmp2_test : is_ok ecmp2_test_case.
+Proof. compute. trivial. Qed.

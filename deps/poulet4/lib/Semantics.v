@@ -1,6 +1,7 @@
 Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.ZArith.BinInt Coq.ZArith.ZArith
         Coq.Lists.List Coq.Program.Program
+        Coq.ssr.ssrbool
         Poulet4.Typed Poulet4.Syntax.
 Require Export Poulet4.Value Poulet4.ValueUtil.
 Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
@@ -886,11 +887,7 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       exec_table_match read_one_bit this_path s name const_entries matched_action.
 
 
-Definition is_some {A} (input: option A) : bool :=
-  match input with
-  | None => false
-  | _ => true
-  end.
+Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 
 (* QUESTION: Why does this only go two-layers deep in an expression?
    What about arbitrary nesting? *)

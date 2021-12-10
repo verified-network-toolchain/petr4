@@ -79,8 +79,7 @@ End IdentMap.
 End IdentMap.
 
 Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
-  Nat.eqb (length al) (length bl) &&
-  forallb (uncurry eqb) (combine al bl).
+  ListUtil.list_eq eqb al bl.
 
 Definition path_eqb :
   (list String.string) -> (list String.string) -> bool :=

@@ -13,15 +13,15 @@ Module E := GCL.E.
 Module ST := Stmt.
 
 Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
-  G.GAssume (F.bvule (BV.BVVar s w) r).
+  G.GAssume (F.bveq (BV.BVVar s w) r).
 
 Open Scope string_scope.
 Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * E.matchkind) (acc_res : result F.t) : result F.t :=
   let (te, mk) := elt in
   let (w, k) := te in
-  let symbmatch := "_symb_" ++ table ++ "_match__" ++ string_of_nat n in
+  let symbmatch := "_symb$" ++ table ++ "$match__" ++ string_of_nat n in
   let* acc := acc_res in
-  ok (F.land (F.bvule (BV.BVVar symbmatch w) k) acc).
+  ok (F.land (F.bveq (BV.BVVar symbmatch w) k) acc).
 
 Definition matchrow (table : string) (keys : list (nat * BV.t * E.matchkind)) : result F.t :=
   fold_lefti (matchrow_inner table) (ok (F.LBool true)) keys.
@@ -35,13 +35,13 @@ Definition action_inner (table : string) (keys : list (nat * BV.t * E.matchkind)
   let+ acc := res_acc in
   G.GChoice
       (G.GSeq
-        (asm_eq ("_symb_" ++ table ++ "$" ++ name ++ "_action") w  (BV.bit (Some w) n))
+        (asm_eq ("_symb$" ++ table ++ "$action") w  (BV.bit (Some w) n))
         act)
       acc.
 
 Definition actions_encoding (table : string) (keys : list (nat * BV.t * E.matchkind)) (actions : list (string * ToGCL.target)) : result ToGCL.target :=
   let w := bits_to_encode_list_index actions in
-  fold_lefti (action_inner table keys w) (ok (G.GSkip)) actions.
+  fold_lefti (action_inner table keys w) (ok (G.GAssume (F.LBool false))) actions.
 
 Definition instr (table : string) (i : Info) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
   let* matchcond := matchrow table keys in

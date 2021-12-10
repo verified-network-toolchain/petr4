@@ -19,9 +19,9 @@ opam upgrade
 #opam switch 4.09.1
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 #install dune
-opam install dune
+#opam install dune
 cd ../..
-#opam external-lib-deps --missing @install
+dune external-lib-deps --missing @install
 
 # build petr4
 dune build

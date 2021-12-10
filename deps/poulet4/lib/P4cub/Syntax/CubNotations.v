@@ -205,7 +205,7 @@ Module StmtNotations.
     := (SBlock s)
          (in custom p4stmt at level 99,
              s custom p4stmt, no associativity).
-  Notation "'delcare' x ':' t @ i"
+  Notation "'declare' x ':' t @ i"
     := (SVardecl x (inl t) i)
          (in custom p4stmt at level 0,
              t custom p4type, no associativity).

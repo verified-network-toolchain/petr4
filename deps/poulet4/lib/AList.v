@@ -2,6 +2,7 @@ Require Import Coq.Classes.EquivDec.
 Require Import Coq.Lists.List.
 Require Import Coq.Sorting.Permutation.
 Require Import Coq.Bool.Sumbool.
+Require Coq.ssr.ssrbool.
 Require Coq.Strings.String.
 Require Import Coq.Classes.Morphisms Poulet4.Utils.
 Import ListNotations.
@@ -88,6 +89,26 @@ Section AList.
         * simpl in H2. destruct a as [k' v']. destruct (KEqDec k k'). 1: inversion H2.
           destruct (set l k v2). 1: inversion H2. apply IHl; auto.
           now rewrite get_neq_cons in H1.
+  Qed.
+
+  Lemma get_none_set: forall l k v,
+                      get l k = None ->
+                      set l k v = None.
+  Proof.
+    induction l; intros.
+    - auto.
+    - simpl. destruct a as [k' v']. destruct (KEqDec k k') eqn:?.
+      + rewrite get_eq_cons in H0 by auto. inversion H0.
+      + rewrite IHl; auto.
+        rewrite get_neq_cons in H0; auto.
+  Qed.
+
+  Lemma get_set_is_some: forall l k v,
+    ssrbool.isSome (get l k) = ssrbool.isSome (set l k v).
+  Proof.
+    intros. destruct (get l k) eqn:H0.
+    - now erewrite get_some_set by eauto.
+    - now erewrite get_none_set by eauto.
   Qed.
 
   Lemma set_some_get: forall l k v, get (set_some l k v) k = Some v.

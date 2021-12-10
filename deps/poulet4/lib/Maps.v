@@ -30,6 +30,16 @@ Module FuncAsMap.
 
     Definition removes (ks : list key) (m : t) : t :=
       List.fold_right remove m ks.
+
+    Lemma get_set_same:
+      forall k v m, (forall k, key_eqb k k = true) -> get k (set k v m) = Some v.
+    Proof. intros. unfold set, get. now rewrite H. Qed.
+
+    Lemma get_set_diff:
+      forall k k' v m, (forall k k', k <> k' -> key_eqb k k' = false) ->
+                       k <> k' -> get k (set k' v m) = get k m.
+    Proof. intros. unfold set, get. specialize (H _ _ H0). now rewrite H. Qed.
+
   End FuncAsMap.
 
   Section FuncMapMap.
@@ -79,12 +89,25 @@ End IdentMap.
 End IdentMap.
 
 Definition list_eqb {A} (eqb : A -> A -> bool) al bl :=
-  Nat.eqb (length al) (length bl) &&
-  forallb (uncurry eqb) (combine al bl).
+  ListUtil.list_eq eqb al bl.
 
 Definition path_eqb :
   (list String.string) -> (list String.string) -> bool :=
   list_eqb String.eqb.
+
+Lemma path_eqb_refl: forall k, path_eqb k k = true.
+Proof.
+  intros. unfold path_eqb. induction k; simpl; auto.
+  rewrite IHk. rewrite String.eqb_refl. now simpl.
+Qed.
+
+Lemma path_eqb_neq: forall k k', k <> k' -> path_eqb k k' = false.
+Proof.
+  induction k, k'; intros; unfold path_eqb; simpl; auto.
+  - exfalso. now apply H.
+  - destruct (String.eqb a s) eqn:?; simpl; auto.
+    rewrite IHk; auto. rewrite String.eqb_eq in Heqb. intro. apply H. now subst.
+Qed.
 
 Module PathMap.
 
@@ -106,6 +129,14 @@ Definition sets : list path -> list A -> t -> t :=
 Definition gets: list path -> t -> list (option A) := FuncAsMap.gets.
 Definition removes : list path -> t -> t :=
   @FuncAsMap.removes path path_eqb A.
+
+Lemma get_set_same: forall k v m, get k (set k v m) = Some v.
+Proof. intros. apply FuncAsMap.get_set_same. apply path_eqb_refl. Qed.
+
+Lemma get_set_diff:
+  forall k k' v m, k <> k' -> get k (set k' v m) = get k m.
+Proof. intros. apply FuncAsMap.get_set_diff; auto. apply path_eqb_neq. Qed.
+
 End PathMap.
 
 End PathMap.

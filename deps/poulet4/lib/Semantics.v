@@ -1,6 +1,7 @@
 Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.ZArith.BinInt Coq.ZArith.ZArith
         Coq.Lists.List Coq.Program.Program
+        Coq.ssr.ssrbool
         Poulet4.Typed Poulet4.Syntax.
 Require Export Poulet4.Value Poulet4.ValueUtil.
 Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
@@ -886,11 +887,7 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       exec_table_match read_one_bit this_path s name const_entries matched_action.
 
 
-Definition is_some {A} (input: option A) : bool :=
-  match input with
-  | None => false
-  | _ => true
-  end.
+Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 
 (* QUESTION: Why does this only go two-layers deep in an expression?
    What about arbitrary nesting? *)
@@ -1021,12 +1018,12 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
    Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
 with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
-  | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read st lv (ValBaseHeader fields is_valid) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
   | exec_read_member_struct : forall fields st lv name typ sv,
                               exec_read st lv (ValBaseStruct fields) ->
+                              AList.get fields name = Some sv ->
+                              exec_read_member st lv name typ sv
+  | exec_read_member_header : forall is_valid fields st lv name typ sv,
+                              exec_read st lv (ValBaseHeader fields is_valid) ->
                               AList.get fields name = Some sv ->
                               exec_read_member st lv name typ sv
   | exec_read_member_union: forall fields st lv name typ sv,
@@ -1109,12 +1106,12 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
    by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
    Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
-  | update_member_header : forall fields is_valid fname fv sv,
-                           write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
-                           update_member (ValBaseHeader fields is_valid) fname fv sv
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
                            update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')
+  | update_member_header : forall fields is_valid fname fv sv,
+                           write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
+                           update_member (ValBaseHeader fields is_valid) fname fv sv
   | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
                           update_union_member fields fname hfields is_valid = Some fields' ->
                           update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)

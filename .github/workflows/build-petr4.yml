@@ -11,21 +11,37 @@ on:
       - main
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - macos-latest
-          - macos-11
-          - ubuntu-latest
-        ocaml-version:
-          - 4.12.0
-          - 4.11.0
-          - 4.10.1
-          - 4.09.1
+  build-ubuntu:
+    runs-on: ubuntu-latest
 
-    runs-on: ${{ matrix.os }}
+    steps: 
+      - name: checkout/main
+        uses: actions/checkout@main
+      
+      - name: setup-ocaml
+        uses: ocaml/setup-ocaml@v1
+        with:
+          ocaml-version: '4.12.0'
+
+      - name: build-ubuntu
+        run: ./.github/scripts/build-petr4-ubuntu.sh
+        shell: bash
+
+  build-macos-latest:
+    runs-on: macos-latest
+
+    steps: 
+      - name: checkout-main
+        uses: actions/checkout@main
+        
+      - name: setup-ocaml
+        uses: ocaml/setup-ocaml@v1
+        with: 
+          ocaml-version: '4.12.0'
+        
+      - name: build-macos
+        run: ./.github/scripts/build-petr4-macos.sh
+        shell: bash
 
 
     

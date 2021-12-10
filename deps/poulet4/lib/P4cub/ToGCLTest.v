@@ -10,7 +10,7 @@ Require Import Poulet4.P4cub.TableInstr.
 Require Import Poulet4.P4cub.V1model.
 Require Poulet4.P4cub.GCL.
 Require Poulet4.P4cub.ToGCL.
-Import Result ResultNotations SimpleNat Syntax List ListNotations.
+Import Result ResultNotations Syntax List ListNotations.
 
 
 Module GCL := GCL.GCL.
@@ -19,7 +19,9 @@ Module E := GCL.E.
 Module ST := Stmt.
 Definition d := NoInfo.
 
-Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo ToP4cubTest.test.
+Import SimpleNat.
+
+Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
 (* Compute p4cub_simple_nat. *)
 
 Definition simple_nat_test_case :=

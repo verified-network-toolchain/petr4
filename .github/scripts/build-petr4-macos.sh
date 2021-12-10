@@ -10,7 +10,7 @@ export PETR4_DEPS="m4 \
 
 
 # install dependencies
-sudo brew update
+brew update
 brew install \
   ${PETR4_DEPS}
 opam update
@@ -19,9 +19,9 @@ opam upgrade
 #opam switch 4.09.1
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 #install dune
-opam install dune
-cd /petr4
-opam external-lib-deps --missing @insall
+#opam install dune
+cd ../..
+opam external-lib-deps --missing @install
 
 # build petr4
 dune build

@@ -23,7 +23,8 @@ eval $(opam env)
 #opam install dune
 export PATH="/usr/local/opt/dune/bin:$PATH"
 cd ../..
-dune external-lib-deps --missing @install
+#dune external-lib-deps --missing @install
+opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson
 
 # build petr4
 dune build

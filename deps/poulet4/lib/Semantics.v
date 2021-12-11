@@ -373,11 +373,11 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                         get_member (ValBaseHeader fields b) member v
   | get_member_stack_size : forall headers size next,
                             get_member (ValBaseStack headers size next) "size"
-                              (ValBaseBit (to_loptbool 32 (Z.of_N size)))
+                              (ValBaseBit (to_loptbool 32%N (Z.of_N size)))
   | get_member_stack_last_index : forall headers size next sv,
                                   (if (next =? 0)%N 
-                                    then uninit_sval_of_typ None (TypBit 32) = Some sv 
-                                    else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
+                                    then uninit_sval_of_typ None (TypBit 32%N) = Some sv 
+                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers size next) "lastIndex" sv.
 
 Definition is_directional (dir : direction) : bool :=
@@ -1033,13 +1033,15 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
                                (ValBaseHeader fields' (Some true))
   | write_header_field_invalid : forall fields fname fv fields',
-                                 AList.set fields fname (uninit_sval_of_sval (Some false) fv) = Some fields' ->
+                                 (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                                 AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
                                  write_header_field (ValBaseHeader fields (Some false)) fname fv
                                  (ValBaseHeader fields' (Some false))
   (* is_valid = None only during an out-of-bound header stack access. This constructor is only used when
     writing to a[n].x that n is out of bounds. *)
   | write_header_field_undef : forall fields fname fv fields',
-                               AList.set fields fname (uninit_sval_of_sval (Some false) fv) = Some fields' ->
+                               (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                               AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
                                write_header_field (ValBaseHeader fields None) fname fv
                                (ValBaseHeader fields' None).
 
@@ -1089,7 +1091,8 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
           (* is_valid = None when during an out-of-bound header stack access. *)
           | _ => is_valid'
           end in
-        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') new_is_valid') :: tl')
+        (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval None) hfields') new_is_valid') :: tl')
     end
   | _ :: _ => None
   end.

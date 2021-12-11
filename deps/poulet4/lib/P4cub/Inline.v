@@ -393,8 +393,6 @@ Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
   | (a, Ok _ b) => ok (a, b)
   end.
 
-Locate fold_righti.
-
 Definition elaborate_tuple_literal
            (param : string)
            (ctor : E.e tags_t -> paramarg (E.e tags_t) (E.e tags_t))

@@ -654,7 +654,7 @@ Section ToP4cub.
 
 
   Definition apply_args_to_params (params : F.fs string (paramarg E.t E.t)) (args : list (E.e tags_t)) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
-    let* params_args := zip params args in
+    let~ params_args := zip params args over "zipping param args failed" in
     fold_right apply_arg_to_param (ok []) params_args.
 
   Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
@@ -1015,8 +1015,6 @@ Section ToP4cub.
 
   Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result (E.constructor_params) :=
     match lookup_instantiatable ctx name with
-    (*| Some (TopDecl.TPPackage _ _ cparams _) =>
-      ok cparams*)
     | Some (TopDecl.TPParser _ cparams _ _ _ _ _)  =>
       ok cparams
     | Some (TopDecl.TPControl _ cparams _ _ _ _ _) =>
@@ -1049,7 +1047,7 @@ Section ToP4cub.
     end.
 
   Definition translate_instantiation_args (ps : E.constructor_params) (es : list (E.e tags_t)) : result (E.constructor_args tags_t) :=
-    let* param_args := zip ps es in
+    let~ param_args := zip ps es over ("zipping instantiation args failed. there were " ++ string_of_nat (List.length ps) ++ "params and " ++ string_of_nat (List.length es) ++ "args") in
     (* FIXME Something is wrong here. We should be disambiguating here between CAExpr and CAName *)
     List.fold_right (fun '((str, typ), e) (acc_r : result (E.constructor_args tags_t)) =>
                        let* acc := acc_r in
@@ -1065,7 +1063,8 @@ Section ToP4cub.
   Definition constructor_paramargs (ctor_name: string) (args : list Expression) (ctx : DeclCtx) :=
     let* params := lookup_params_by_ctor_name ctor_name ctx in
     let* cub_args := rred (List.map translate_constructor_arg_expression args) in
-    translate_instantiation_args params cub_args.
+    let~ inst := translate_instantiation_args params cub_args over "instantiation failed looking up " ++ ctor_name ++ "params: " ++ string_of_nat (List.length params) in
+    ok inst.
 
   (*Print P4Type.*)
 
@@ -1211,7 +1210,11 @@ Section ToP4cub.
              ) fields).
 
 
-  
+  Definition extract_type (p : paramarg E.t E.t) : E.t :=
+    match p with
+    | PAIn t | PAOut t | PAInOut t | PADirLess t => t
+    end.
+
   Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
@@ -1310,8 +1313,13 @@ Section ToP4cub.
     | DeclExternObject tags name type_params methods =>
       (* error "[FIXME] Extern Object declarations unimplemented" *)
       let str_name := P4String.str name in
-      let+ cub_methods := translate_methods name methods in
-      let d := TopDecl.TPExtern str_name [] [] cub_methods tags in
+      let+ (cub_methods : F.fs string (list string * Expr.arrowT)) := translate_methods name methods in
+      let cparams := match List.find (String.eqb str_name ∘ fst) cub_methods with
+                     | None => []
+                     | Some (_, (_, ar)) => F.map (E.CTType ∘ extract_type) ar.(paramargs)
+                     end in
+      let cub_type_params := List.map P4String.str type_params in
+      let d := TopDecl.TPExtern str_name cub_type_params cparams cub_methods tags in
       add_extern ctx d
     | DeclTypeDef tags name typ_or_decl =>
     (* error "[FIXME] Type Definitions unimplemented" *)

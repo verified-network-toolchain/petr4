@@ -257,7 +257,8 @@ Section ToGCL.
       | E.EVar t x i =>
         match t with
         | E.THeader _ => ok x
-        | _ => error "Got variable, but the header itself was no good"
+        | E.TStruct _ => ok x
+        | _ => error ("While trying to construct a string from a header, got variable " ++ x ++ ", but the type wasnt a header or struct")
         end
       | E.ESlice _ _ _ _ => error "A Slice is not a header"
       | E.ECast _ _ _ => error "A Cast is not a header"

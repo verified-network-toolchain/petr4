@@ -23,7 +23,6 @@ Notation Lval := (@ValueLvalue tags_t).
 Notation ident := string.
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
-(* Notation P4String := (P4String.t tags_t). *)
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 
@@ -351,12 +350,14 @@ Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
     end
   in List.rev (bitstring_slice' bits lo hi []).
 
-(* The following reads give unspecified values: 
+(* The following reads give unspecified values:
     1. reading a field from a header that is currently invalid.
-    2. reading a field from a header that is currently valid, but the field has not been initialized 
-       since the header was last made valid. 
-   Guaranteed by setting all fields to noninitialized when the header is made invalid (declaration & setInvalid)
-   and setting only the valid bit and given fields when the header is made valid (initialization & setValid) *)
+    2. reading a field from a header that is currently valid, but the field has not been initialized
+       since the header was last made valid.
+  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
+  (including invalid members of header unions) contents must be undefined. For example, when setting
+  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
+  the fields should remain undefined. *)
 Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_struct : forall fields member v,
                         AList.get fields member = Some v ->
@@ -992,13 +993,18 @@ Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
   update_memory (PathMap.set p sv) s.
 
+(* Nominal fields like "next" are not addressible, so they cannot be fields in lvalues. When evaluating
+  lvalues, they are converted to addressible lvalues. So they are not considered in exec_read and
+  exec_write. *)
+
 Inductive exec_read : state -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
                      loc_to_sval loc st = Some sv ->
                      exec_read st (MkValueLvalue (ValLeftName name loc) typ) sv
-  | exec_read_by_member : forall lv name st sv typ,
-                          exec_read_member st lv name typ sv ->
-                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv
+  | exec_read_by_member : forall lv name st sv typ sv',
+                          exec_read st lv sv ->
+                          get_member sv name sv' ->
+                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv'
   (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
   | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
                            exec_read st lv bitssv ->
@@ -1013,33 +1019,10 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
-                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
-  | exec_read_member_struct : forall fields st lv name typ sv,
-                              exec_read st lv (ValBaseStruct fields) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read st lv (ValBaseHeader fields is_valid) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_union: forall fields st lv name typ sv,
-                            exec_read st lv (ValBaseUnion fields) ->
-                            AList.get fields name = Some sv ->
-                            exec_read_member st lv name typ sv.
+                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
-(*  Write to the field of an invalid header in a union makes the possibly existing valid header
-    take undefined value. It should be guaranteed there is at most one valid header in a union. 
-    Guaranteed by:
-    1. Writing to the field of an invalid header in a union will first execute write_header_field,
-       which does not change such a header.
-    2. Writing an invalid header into a union happens in update_union_member, which converts
-       all headers to invalid. *)
 (* If any of these kinds of writes are performed:
-    1. a write to a field in a currently invalid header, either a regular header or an element of 
+    1. a write to a field in a currently invalid header, either a regular header or an element of
        a header stack with an index that is in range, and that header is not part of a header_union
     2. a write to a field in an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
@@ -1049,15 +1032,24 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
                                AList.set fields fname fv = Some fields' ->
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
                                (ValBaseHeader fields' (Some true))
-  | write_header_field_invalid : forall fields fname fv,
+  | write_header_field_invalid : forall fields fname fv fields',
+                                 AList.set fields fname (uninit_sval_of_sval (Some false) fv) = Some fields' ->
                                  write_header_field (ValBaseHeader fields (Some false)) fname fv
-                                 (ValBaseHeader fields (Some false))
-  (* Since valid = None only occurs for out-of-bound header stack access, and for that case 
-     writing to lval is prevented by update_stack_header, this relation should never be hit. *)
-  | write_header_field_undef : forall fields fname fv,
-                                 write_header_field (ValBaseHeader fields None) fname fv
-                                 (ValBaseHeader fields None).
+                                 (ValBaseHeader fields' (Some false))
+  (* is_valid = None only during an out-of-bound header stack access. This constructor is only used when
+    writing to a[n].x that n is out of bounds. *)
+  | write_header_field_undef : forall fields fname fv fields',
+                               AList.set fields fname (uninit_sval_of_sval (Some false) fv) = Some fields' ->
+                               write_header_field (ValBaseHeader fields None) fname fv
+                               (ValBaseHeader fields' None).
 
+(*  Writing to a field of an invalid header in a union makes the possibly existing valid header
+    take undefined value. It should be guaranteed there is at most one valid header in a union.
+    Guaranteed by:
+    1. Writing to the field of an invalid header in a union will first execute write_header_field,
+       which does not change such a header.
+    2. Writing an invalid header into a union happens in update_union_member, which converts
+       all headers to invalid. *)
 (* More formally, if u is an expression whose type is a header union U with fields ranged over 
    by hi, then the following operations can be used to manipulate u:
    1. u.hi.setValid(): sets the valid bit for header hi to true and sets the valid bit 
@@ -1078,6 +1070,7 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
    1. Typechecker ensures that fname must exist in the fields.
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
+
 Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
                              (hfields: StringAList Sval) (is_valid: option bool) :
                              option (StringAList Sval) :=
@@ -1087,24 +1080,20 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
     match update_union_member tl fname hfields is_valid with
     | None => None
     | Some tl' =>
-      match is_valid with
-      | Some true => if String.eqb fname fname'
-                     then Some ((fname, ValBaseHeader hfields (Some true)) :: tl')
-                     else Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-      | Some false => if String.eqb fname fname'
-                      then Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-                      else Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') is_valid') :: tl')
-      (* Since valid = None only occurs for out-of-bound header stack access, and hfields
-         should be result of exec_expr, it should have been determinized at this point. *)
-      | _ => None
-      end
+      if String.eqb fname fname' then
+        Some ((fname, ValBaseHeader hfields is_valid) :: tl')
+      else
+        let new_is_valid' :=
+          match is_valid with
+          | Some true => Some false
+          (* is_valid = None when during an out-of-bound header stack access. *)
+          | _ => is_valid'
+          end in
+        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') new_is_valid') :: tl')
     end
   | _ :: _ => None
   end.
 
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->

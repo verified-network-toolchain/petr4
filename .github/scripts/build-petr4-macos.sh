@@ -25,6 +25,7 @@ eval $(opam env)
 cd ../..
 #dune external-lib-deps --missing @install
 opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson
+dune external-lib-deps --missing @@default
 
 # build petr4
 dune build

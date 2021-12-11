@@ -1,7 +1,7 @@
 Require Import Poulet4.P4defs.
 Require Import Poulet4.Syntax.
-Require Import Poulet4.SimpleNat.
-Require Import Poulet4.ECMP2.
+Require Import Poulet4.LightExamples.SimpleNat.
+Require Import Poulet4.LightExamples.ECMP2.
 Require Import Poulet4.P4cub.Util.Result.
 Require Import Poulet4.ToP4cub.
 

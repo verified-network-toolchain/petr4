@@ -478,7 +478,7 @@ Section Soundness.
             (Q := fun e v => val_typ (ge_senum ge) v (typ_of_expr e)) in Htyps; auto.
         rewrite Forall2_flip, Forall2_map_r in Htyps; auto.
     Qed.
-    
+
     Lemma record_sound : forall tag es dir,
         Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) (map snd es) ->
         Δ ~ Γ ⊢ₑ MkExpression

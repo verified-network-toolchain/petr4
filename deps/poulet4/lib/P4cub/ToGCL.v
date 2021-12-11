@@ -135,7 +135,7 @@ Section ToGCL.
   Definition extern : Type := Env.t string target.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
-  Definition find (m : model) (e f : string) : result GCL.t :=
+  Definition find (m : model) (e f : string) : result (GCL.t) :=
     let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
     let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
     ok fn.
@@ -192,7 +192,7 @@ Section ToGCL.
           else g2 in
       let g2'' :=
           if may_have_exited ctx1
-          then iteb (Form.bveq (BV.BVVar "exit" 1) (BV.bit 1 1)) (GCL.GSkip) g2
+          then iteb (Form.bveq (BV.BVVar "exit" 1) (BV.bit (Some 1) 1)) (GCL.GSkip) g2
           else g2' in
       (GCL.GSeq g1 g2'', ctx2).
 
@@ -234,7 +234,7 @@ Section ToGCL.
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TVar tx => error ("Cannot get the width of a typ variable " ++ tx ++ " for var " ++ x)
-      | E.TError => error ("Cannot get the width of an ErrorType for var " ++ x)
+      | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
       | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" ++ x)
       | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
       | E.TStruct fields => error ("Cannot get the width of a Struct Type for var " ++ x)
@@ -300,10 +300,10 @@ Section ToGCL.
       match e with
       | E.EBool b i =>
         if b
-        then ok (BV.bit 1 1)
-        else ok (BV.bit 0 1)
+        then ok (BV.bit (Some 1) 1)
+        else ok (BV.bit (Some 1) 0)
       | E.EBit w v i =>
-        ok (BV.bit (BinInt.Z.to_nat v) (BinNat.N.to_nat w))
+        ok (BV.bit (Some (BinNat.N.to_nat w)) (BinInt.Z.to_nat v))
       | E.EInt _ _ _ =>
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
@@ -504,6 +504,35 @@ Section ToGCL.
       let* phi := to_form guard in
       ok (iteb phi tg fg, ctx).
 
+    Definition arrowE_to_arglist (arrow : E.arrowE tags_t) : result (list (string * (Form.t + BV.t))) :=
+      List.fold_right (fun '(name, pa) acc_res =>
+                         let* res := acc_res in
+                         match pa with
+                         | PAIn e
+                         | PAOut e
+                         | PAInOut e
+                         | PADirLess e =>
+                           match to_form e with
+                           | Error _ _ =>
+                             let* e' := to_rvalue e in
+                             ok ((name, inr e') :: res)
+                           | Ok _ phi =>
+                             ok ((name, inl phi) :: res)
+                           end
+                         end)
+                      (ok [])
+                      arrow.(paramargs).
+
+    Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result target :=
+      List.fold_right (fun '(param, arg) g_res' =>
+                let+ g' := g_res' in
+                match arg with
+                | inl phi =>
+                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g
+                | inr bv_expr =>
+                  GCL.subst_rvalue (fun _ _ x => x) BV.subst_bv Form.subst_bv param bv_expr g
+                end) (ok g) s.
+
     Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
       match s with
       | Inline.ISkip _ i =>
@@ -535,14 +564,14 @@ Section ToGCL.
 
       | Inline.IReturnVoid _ i =>
         let g_asn := @GCL.GAssign string BV.t Form.t in
-        ok (g_asn (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit 1 1), c)
+        ok (g_asn (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit (Some 1) 1), c)
 
       | Inline.IReturnFruit _ typ expr i =>
         (** TODO create var for return type & save it *)
-        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit 1 1), c)
+        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) (retvar_name c) (BV.bit (Some 1) 1), c)
 
       | Inline.IExit _ i =>
-        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit 1 1), update_exit c true)
+        ok (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) "exit" (BV.bit (Some 1) 1), update_exit c true)
 
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
@@ -555,8 +584,10 @@ Section ToGCL.
 
       | Inline.IExternMethodCall _  ext method args i =>
         (** TODO handle copy-in/copy-out) *)
-        let+ g := find arch ext method in
-        (g, c)
+        let* g := find arch ext method in
+        let* gcl_args := arrowE_to_arglist args in
+        let+ g' := subst_args g gcl_args in
+        (g', c)
       | Inline.ISetValidity _ e v i =>
         let+ header := to_lvalue e in
         let hvld := header ++ ".is_valid" in
@@ -588,6 +619,17 @@ Section ToGCL.
     Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
       let* stmt := get_main ctx pipe in
       p4cub_statement_to_gcl gas ctx ext stmt.
+
+    Definition inline_from_p4cub (gas : nat)
+               (ext : model) (pipe : pipeline)
+               (ctx : ToP4cub.DeclCtx tags_t)  : result (Inline.t tags_t) :=
+      let* s := get_main ctx pipe in
+      let* inline_stmt := Inline.inline _ gas ctx s in
+      let* no_tup := Inline.elim_tuple _ inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
+      let* no_hdr := Inline.elaborate_headers _ no_stk in
+      let+ no_structs := Inline.elaborate_structs _ no_hdr in
+      no_structs.
 
     (* Definition from_p4cub_v1model gas ctx : result target := *)
     (*   from_p4cub gas V1model.externs V1model.package ctx. *)

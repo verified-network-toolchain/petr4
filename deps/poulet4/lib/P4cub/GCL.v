@@ -52,7 +52,8 @@ Section BitVec.
   | BinOp (op : bop) (u v : t)
   | UnOp (op : uop) (v : t).
 
-  Definition bit (w : nat) (n : nat) := BitVec n (Some w).
+
+  Definition bit (w : option nat) (n : nat) := BitVec n w.
   Definition varbit (n : nat) := BitVec n None.
   Definition int (w : nat) (n : Z) := Int n (Some w).
   Definition integer (n : Z) := Int n None.
@@ -81,6 +82,20 @@ Section BitVec.
   Definition band := BinOp BVAnd.
   Definition bor := BinOp BVOr.
   Definition bxor := BinOp BVXor.
+
+  Fixpoint subst_bv (param : string) (sub_in e: t) :=
+    match e with
+    | BitVec _ _ | Int _ _ => e
+    | BVVar x w =>
+      if String.eqb param x then
+        sub_in
+      else
+        e
+    | BinOp op u v =>
+      BinOp op (subst_bv param sub_in u) (subst_bv param sub_in v)
+    | UnOp op u =>
+      UnOp op (subst_bv param sub_in u)
+    end.
 
 End BitVec.
 End BitVec.
@@ -127,6 +142,33 @@ Section Form.
   Definition limp := LBop LImp.
   Definition liff := LBop LIff.
 
+  Fixpoint subst_form (param : string) (sub_in phi : t) : t :=
+    match phi with
+    | LBool _ | LComp _ _ _ => phi
+    | LBop op phi psi =>
+      LBop op (subst_form param sub_in phi) (subst_form param sub_in psi)
+    | LNot phi =>
+      LNot (subst_form param sub_in phi)
+    | LVar x =>
+      if String.eqb x param then
+        sub_in
+      else
+        phi
+    end.
+
+  Fixpoint subst_bv (param : string) (e : BitVec.t) (phi : t) : t :=
+    match phi with
+    | LBool _ | LVar _ => phi
+    | LComp c bv1 bv2 =>
+      let bv1' := BitVec.subst_bv param e bv1 in
+      let bv2' := BitVec.subst_bv param e bv2 in
+      LComp c bv1' bv2'
+    | LBop op phi psi =>
+      LBop op (subst_bv param e phi) (subst_bv param e psi)
+    | LNot phi =>
+      LNot (subst_bv param e phi)
+    end.
+
 End Form.
 End Form.
 
@@ -140,16 +182,61 @@ Section GCL.
   | GAssume (phi : form)
   | GAssert (phi : form)
   | GExternVoid (e : string) (args : list rvalue)
-  | GExternAssn (x : string) (e : string) (args : list rvalue).
+  | GExternAssn (x : lvalue) (e : string) (args : list rvalue).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
     fold_right GSeq GSkip.
 
   Definition is_true (x : string) : Form.t :=
-    Form.bveq (BitVec.BVVar x 1) (BitVec.bit 1 1).
+    Form.bveq (BitVec.BVVar x 1) (BitVec.bit (Some 1) 1).
 
   Definition isone (v : BitVec.t) : Form.t :=
-    Form.bvule v (BitVec.bit 1 1).
+    Form.bvule v (BitVec.bit (Some 1) 1).
+
+  Fixpoint subst_form
+           {L R F : Type}
+           (l : string -> F -> L -> L) (r : string -> F -> R -> R) (f : string -> F -> F -> F)
+           (param : string) (phi : F) (g : t) : t :=
+    match g with
+    | GSkip => GSkip
+    | GAssign t x e =>
+      GAssign t (l param phi x) (r param phi e)
+    | GSeq g1 g2 =>
+      GSeq (subst_form l r f param phi g1) (subst_form l r f param phi g2)
+    | GChoice g1 g2 =>
+      GChoice (subst_form l r f param phi g1) (subst_form l r f param phi g2)
+    | GAssume psi =>
+      GAssume (f param phi psi)
+    | GAssert psi =>
+      GAssert (f param phi psi)
+    | GExternVoid e args =>
+      GExternVoid e (List.map (r param phi) args)
+    | GExternAssn x e args =>
+      GExternAssn (l param phi x) e (List.map (r param phi) args)
+    end.
+
+  Fixpoint subst_rvalue
+           {L R F : Type}
+           (l : string -> R -> L -> L) (r : string -> R -> R -> R) (f : string -> R -> F -> F)
+           (param : string) (e : R) (g : t) : t :=
+    match g with
+    | GSkip => GSkip
+    | GAssign t x e' =>
+      GAssign t (l param e x) (r param e e')
+    | GSeq g1 g2 =>
+      GSeq (subst_rvalue l r f param e g1) (subst_rvalue l r f param e g2)
+    | GChoice g1 g2 =>
+      GChoice (subst_rvalue l r f param e g1) (subst_rvalue l r f param e g2)
+    | GAssume psi =>
+      GAssume (f param e psi)
+    | GAssert psi =>
+      GAssert (f param e psi)
+    | GExternVoid ext args =>
+      GExternVoid ext (List.map (r param e) args)
+    | GExternAssn x ext args =>
+      GExternAssn (l param e x) ext (List.map (r param e) args)
+    end.
+
 End GCL.
 End GCL.
 

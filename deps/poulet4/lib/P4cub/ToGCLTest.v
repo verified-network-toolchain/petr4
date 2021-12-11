@@ -27,6 +27,15 @@ Definition simple_nat_test_case :=
   let externs := V1model.externs in
   ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
+
+Definition simple_nat_inline_test : result (Inline.t Info) :=
+  let* sn := p4cub_simple_nat in
+  ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) sn.
+
+(* Compute p4cub_simple_nat. *)
+
+(* Compute simple_nat_inline_test. *)
+
 (* Compute simple_nat_test_case. *)
 
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.

@@ -39,6 +39,11 @@ for information on the Petr4 artifact.
     ```
 
 1. Install [p4pp](https://github.com/cornell-netlab/p4pp) from source.
+1. Install Coq and Bignum.
+   ```
+   opam install coq
+   opam install bignum
+   ```
 
 1. Build bundled dependencies.
    ```

@@ -478,14 +478,14 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                      newsv
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
-      IdentMap.get (str tname) (ge_typ ge)= Some (TypEnum ename None members) ->
+                            IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename None members) ->
                             List.In member members ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
-      IdentMap.get (str tname) (ge_typ ge)= Some (TypEnum ename (Some etyp) members) ->
+                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename (Some etyp) members) ->
                              IdentMap.get (str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
@@ -776,7 +776,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
           match f with
           | ExpName (BareName fname) _ | ExpName (QualifiedName _ fname) _ =>
               if String.eqb name (str fname) then
-                  Some (action)
+                  Some action
               else
                   get_action actions' name
           | _ => get_action actions' name
@@ -1580,7 +1580,7 @@ Axiom dummy_val : Val.
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
   | TypSpecializedType (TypTypeName type_name) _ => str type_name
-  | TypTypeName ( type_name) => str type_name
+  | TypTypeName type_name => str type_name
   | _ => dummy_ident
   end.
 
@@ -1805,7 +1805,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName ( name) =>
+      | TypTypeName name =>
           String.eqb (P4String.str name) "packet_in"
       | _ => false
       end
@@ -1817,7 +1817,7 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName ( name) =>
+      | TypTypeName name =>
           String.eqb (P4String.str name) "packet_out"
       | _ => false
       end

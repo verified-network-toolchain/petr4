@@ -28,5 +28,6 @@ opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriv
 #dune external-lib-deps --missing @@default
 
 # build petr4
-dune build
+dune init project petr4
+dune build --profile release
 dune install

@@ -17,6 +17,7 @@ Open Scope string_scope.
 Require Import List.
 
 Require Import Poulet4.P4cub.Util.StringUtil.
+Require Import Poulet4.P4cub.Util.ListUtil.
 
 Import Env.EnvNotations.
 
@@ -392,16 +393,14 @@ Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
   | (a, Ok _ b) => ok (a, b)
   end.
 
-Fixpoint foldi {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=
-  snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (0, init) xs).
-
+Locate fold_righti.
 
 Definition elaborate_tuple_literal
            (param : string)
            (ctor : E.e tags_t -> paramarg (E.e tags_t) (E.e tags_t))
            (es : list (E.e tags_t))
            (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
-  foldi (fun idx e acc =>
+  ListUtil.fold_righti (fun idx e acc =>
    let index := fun s =>  s ++ ".[" ++ string_of_nat idx ++ "]" in
    (index param, ctor e) :: acc) args es.
 
@@ -421,10 +420,10 @@ Definition elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs s
     List.fold_right (fun '(f, t) acc => (access param f, (E.EVar t (access x f) i)) :: acc) [] fs
 
   | E.EVar (E.TTuple ts) x i =>
-    foldi (fun idx t acc => (index param idx, (E.EVar t (index x idx) i)) :: acc) [] ts
+    ListUtil.fold_righti (fun idx t acc => (index param idx, (E.EVar t (index x idx) i)) :: acc) [] ts
 
   | E.ETuple es i =>
-    foldi (fun idx e acc => (index param idx, e) :: acc) [] es
+    ListUtil.fold_righti (fun idx e acc => (index param idx, e) :: acc) [] es
   | _ => [(param, arg)]
   end.
 

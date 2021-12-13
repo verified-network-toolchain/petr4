@@ -29,6 +29,8 @@ for information on the Petr4 artifact.
    ```
 
 #### Installing from source
+You can use the [scripts](https://github.com/verified-network-toolchain/petr4/tree/main/.github/scripts) to install Petr4. 
+Alternatively, follow theses steps:
 1. Check the installed version of OCaml:
     ```
     ocamlc -v
@@ -43,6 +45,10 @@ for information on the Petr4 artifact.
 1. Use OPAM to install dependencies. 
    ```
    opam install . --deps-only
+   ```
+   If this doesn't work, install the dependencies manually.
+   ```
+   opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
    ```
 
 1. Build binaries using the supplied `Makefile`

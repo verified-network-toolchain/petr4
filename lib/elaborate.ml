@@ -152,7 +152,7 @@ let subst_vars_params env params =
 
 let freshen_param env param =
   let param' = Renamer.freshen_p4string (renamer env) param in
-  Checker_env.insert_type ~shadow:true (BareName param) (TypTypeName param') env, param'
+  Checker_env.insert_type ~shadow:true (BareName param) (TypTypeName (BareName param')) env, param'
 
 let check_shadowing params =
   let param_compare (p1: P4string.t) (p2: P4string.t) = String.compare p1.str p2.str in

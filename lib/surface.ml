@@ -215,7 +215,7 @@ and Type : sig
     | BitType of Expression.t
     | VarBit of Expression.t
     (* this could be a typename or a type variable. *)
-    | TypeName of P4string.t
+    | TypeName of P4name.t
     | SpecializedType of
         { base: t;
           args: t list }
@@ -239,7 +239,7 @@ end = struct
     | IntType of Expression.t [@name "int"]
     | BitType of Expression.t  [@name "bit"]
     | VarBit of Expression.t  [@name "varbit"]
-    | TypeName of P4string.t [@name "name"]
+    | TypeName of P4name.t [@name "name"]
     | SpecializedType of
         { base: t;
           args: t list } [@name "specialized"]
@@ -266,7 +266,7 @@ end = struct
     | BitType e1, BitType e2 -> failwith "TODO"
     | VarBit e1, VarBit e2 -> failwith "TODO"
     | TypeName n1, TypeName n2 ->
-      P4string.eq n1 n2
+      P4name.name_eq n1 n2
     | SpecializedType { base=b1; args=a1 },
       SpecializedType { base=b2; args=a2 }
       -> eq b1 b2 &&
@@ -399,7 +399,7 @@ and Expression : sig
             { typ: Type.t;
               expr: t }
         | TypeMember of
-            { typ: P4string.t;
+            { typ: P4name.t;
               name: P4string.t }
         | ErrorMember of P4string.t
         | ExpressionMember of
@@ -453,7 +453,7 @@ end = struct
         { typ: Type.t [@key "type"];
           expr: t }  [@name "cast"]
     | TypeMember of
-        { typ: P4string.t [@key "type"];
+        { typ: P4name.t [@key "type"];
           name: P4string.t } [@name "type_member"]
     | ErrorMember of P4string.t [@name "error_member"]
     | ExpressionMember of

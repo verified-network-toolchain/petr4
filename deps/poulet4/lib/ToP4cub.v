@@ -730,7 +730,6 @@ Section ToP4cub.
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
     end.
 
-
   Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (tags : tags_t)
@@ -751,8 +750,11 @@ Section ToP4cub.
       match get_type_of_expr callee with
       | TypTypeName (BareName extern_obj) =>
         translate_extern_string tags ctx (P4String.str extern_obj) f_str args
+      | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
+        (* [TODO] Something is weird here RE type arguments *)
+        translate_extern_string tags ctx (P4String.str extern_obj_type) f_str args
       | _ =>
-        error (String.append "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s: " f_str)
+        error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
 
   Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
@@ -1028,7 +1030,7 @@ Section ToP4cub.
       | Some (_, (_ , cparams, _)) =>
         ok cparams
       | None =>
-          error (String.append "Error, couldn't find: " name)
+          error ("Error, couldn't find: " ++ name ++ " from " ++ string_of_nat (List.length ctx.(externs)) ++ " externs")
       end
     end.
 
@@ -1220,7 +1222,6 @@ Section ToP4cub.
     | DeclConstant tags typ name value =>
       error "[FIXME] Constant declarations unimplemented"
     | DeclInstantiation tags typ args name init =>
-      (* TODO HIGH PRIORITY *)
       let cub_name := P4String.str name in
       let* ctor_p4string := get_string_from_type typ in
       let ctor_name := P4String.str ctor_p4string in
@@ -1245,10 +1246,10 @@ Section ToP4cub.
       let* local_ctx :=
          let loop := fun acc decl => let* ctx := acc in
                                      translate_decl ctx decl in
-         fold_left loop locals (ok (empty_declaration_context))
+         fold_left loop locals (ok ctx)
       in
       let cub_body := to_ctrl_decl tags local_ctx in
-      let+ cub_block := translate_block (extend local_ctx ctx) tags apply_blk in
+      let+ cub_block := translate_block local_ctx tags apply_blk in
       let d := TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags in
       add_control ctx d
     | DeclFunction tags ret name type_params params body =>

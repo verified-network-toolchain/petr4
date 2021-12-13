@@ -2,6 +2,7 @@ Require Import Poulet4.P4defs.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.LightExamples.SimpleNat.
 Require Import Poulet4.LightExamples.ECMP2.
+Require Import Poulet4.LightExamples.Flowlet.
 Require Import Poulet4.P4cub.Util.Result.
 Require Import Poulet4.ToP4cub.
 
@@ -29,3 +30,9 @@ Proof.
   compute.
   trivial.
 Qed.
+
+(* CAVEAT EMPTOR -- had to manually add type-widths to bitvectors *)
+Definition cub_flowlet := translate_program Info NoInfo Flowlet.prog.
+(* Compute cub_flowlet. *)
+Lemma flowlet_no_error: Result.is_ok cub_flowlet.
+Proof. compute; trivial. Qed.

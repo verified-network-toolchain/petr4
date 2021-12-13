@@ -16,8 +16,9 @@ Module ST := Stmt.
 Definition externs : ToGCL.model :=
   [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9) 511));
          ("clone3", G.GSkip);
-         ("assert", G.GAssert (F.LVar "check"))])
-   ].
+         ("assert", G.GAssert (F.LVar "check"))]);
+  ("register", [("read", G.GSkip); ("write", G.GSkip)])
+  ].
 
 Definition cub_seq {tags_t : Type} (i : tags_t) (statements : list (ST.s tags_t)) : ST.s tags_t  :=
   let seq := fun s1 s2 => ST.SSeq s1 s2 i in

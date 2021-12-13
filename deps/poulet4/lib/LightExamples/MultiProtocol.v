@@ -20,20 +20,20 @@ Definition packet_in := DeclExternObject NoInfo
           [(MkParameter false In (TypBit 32%N) None
                 {| stags := NoInfo; str := "sizeInBits" |})]);
      (ProtoMethod NoInfo
-          (TypTypeName (BareName {| stags := NoInfo; str := "T1" |}))
+          (TypTypeName {| stags := NoInfo; str := "T1" |})
           {| stags := NoInfo; str := "lookahead" |}
           [{| stags := NoInfo; str := "T1" |}] nil);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "extract" |}
           [{| stags := NoInfo; str := "T0" |}]
           [(MkParameter false Out
-                (TypTypeName (BareName {| stags := NoInfo; str := "T0" |}))
+                (TypTypeName {| stags := NoInfo; str := "T0" |})
                 None {| stags := NoInfo; str := "variableSizeHeader" |});
            (MkParameter false In (TypBit 32%N) None
                 {| stags := NoInfo; str := "variableFieldSizeInBits" |})]);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "extract" |}
           [{| stags := NoInfo; str := "T" |}]
           [(MkParameter false Out
-                (TypTypeName (BareName {| stags := NoInfo; str := "T" |}))
+                (TypTypeName {| stags := NoInfo; str := "T" |})
                 None {| stags := NoInfo; str := "hdr" |})])].
 
 Definition packet_out := DeclExternObject NoInfo
@@ -41,7 +41,7 @@ Definition packet_out := DeclExternObject NoInfo
     [(ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "emit" |}
           [{| stags := NoInfo; str := "T2" |}]
           [(MkParameter false In
-                (TypTypeName (BareName {| stags := NoInfo; str := "T2" |}))
+                (TypTypeName {| stags := NoInfo; str := "T2" |})
                 None {| stags := NoInfo; str := "hdr" |})])].
 
 Definition verify'check'toSignal := DeclExternFunction NoInfo TypVoid
@@ -117,7 +117,7 @@ Definition counter := DeclExternObject NoInfo
                 {| stags := NoInfo; str := "size" |});
            (MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| stags := NoInfo; str := "CounterType" |})) 
+                 {| stags := NoInfo; str := "CounterType" |})
                 None {| stags := NoInfo; str := "type" |})]);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "count" |} nil
           [(MkParameter false In (TypBit 32%N) None
@@ -128,7 +128,7 @@ Definition direct_counter := DeclExternObject NoInfo
     [(ProtoConstructor NoInfo {| stags := NoInfo; str := "direct_counter" |}
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| stags := NoInfo; str := "CounterType" |})) 
+                 {| stags := NoInfo; str := "CounterType" |})
                 None {| stags := NoInfo; str := "type" |})]);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "count" |} nil
           nil)].
@@ -140,7 +140,7 @@ Definition meter := DeclExternObject NoInfo
                 {| stags := NoInfo; str := "size" |});
            (MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| stags := NoInfo; str := "MeterType" |})) 
+                 {| stags := NoInfo; str := "MeterType" |})
                 None {| stags := NoInfo; str := "type" |})]);
      (ProtoMethod NoInfo TypVoid
           {| stags := NoInfo; str := "execute_meter" |}
@@ -148,7 +148,7 @@ Definition meter := DeclExternObject NoInfo
           [(MkParameter false In (TypBit 32%N) None
                 {| stags := NoInfo; str := "index" |});
            (MkParameter false Out
-                (TypTypeName (BareName {| stags := NoInfo; str := "T3" |}))
+                (TypTypeName {| stags := NoInfo; str := "T3" |})
                 None {| stags := NoInfo; str := "result" |})])].
 
 Definition direct_meter := DeclExternObject NoInfo
@@ -157,11 +157,11 @@ Definition direct_meter := DeclExternObject NoInfo
     [(ProtoConstructor NoInfo {| stags := NoInfo; str := "direct_meter" |}
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| stags := NoInfo; str := "MeterType" |})) 
+                   {| stags := NoInfo; str := "MeterType" |})
                 None {| stags := NoInfo; str := "type" |})]);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "read" |} nil
           [(MkParameter false Out
-                (TypTypeName (BareName {| stags := NoInfo; str := "T4" |}))
+                (TypTypeName {| stags := NoInfo; str := "T4" |})
                 None {| stags := NoInfo; str := "result" |})])].
 
 Definition register := DeclExternObject NoInfo
@@ -174,11 +174,11 @@ Definition register := DeclExternObject NoInfo
           [(MkParameter false In (TypBit 32%N) None
                 {| stags := NoInfo; str := "index" |});
            (MkParameter false In
-                (TypTypeName (BareName {| stags := NoInfo; str := "T5" |}))
+                (TypTypeName {| stags := NoInfo; str := "T5" |})
                 None {| stags := NoInfo; str := "value" |})]);
      (ProtoMethod NoInfo TypVoid {| stags := NoInfo; str := "read" |} nil
           [(MkParameter false Out
-                (TypTypeName (BareName {| stags := NoInfo; str := "T5" |}))
+                (TypTypeName {| stags := NoInfo; str := "T5" |})
                 None {| stags := NoInfo; str := "result" |});
            (MkParameter false In (TypBit 32%N) None
                 {| stags := NoInfo; str := "index" |})])].
@@ -193,13 +193,13 @@ Definition random'result'lo'hi := DeclExternFunction NoInfo TypVoid
     {| stags := NoInfo; str := "random" |}
     [{| stags := NoInfo; str := "T6" |}]
     [(MkParameter false Out
-          (TypTypeName (BareName {| stags := NoInfo; str := "T6" |})) 
+          (TypTypeName {| stags := NoInfo; str := "T6" |})
           None {| stags := NoInfo; str := "result" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T6" |})) 
+          (TypTypeName {| stags := NoInfo; str := "T6" |})
           None {| stags := NoInfo; str := "lo" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T6" |})) 
+          (TypTypeName  {| stags := NoInfo; str := "T6" |})
           None {| stags := NoInfo; str := "hi" |})].
 
 Definition digest'receiver'data := DeclExternFunction NoInfo TypVoid
@@ -208,7 +208,7 @@ Definition digest'receiver'data := DeclExternFunction NoInfo TypVoid
     [(MkParameter false In (TypBit 32%N) None
           {| stags := NoInfo; str := "receiver" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T7" |})) 
+          (TypTypeName {| stags := NoInfo; str := "T7" |})
           None {| stags := NoInfo; str := "data" |})].
 
 Definition HashAlgorithm := DeclEnum NoInfo
@@ -229,7 +229,7 @@ Definition mark_to_drop'standard_metadata := DeclExternFunction NoInfo
     TypVoid {| stags := NoInfo; str := "mark_to_drop" |} nil
     [(MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+             {| stags := NoInfo; str := "standard_metadata_t" |})
           None {| stags := NoInfo; str := "standard_metadata" |})].
 
 Definition hash'result'algo'base'data'max := DeclExternFunction NoInfo
@@ -237,20 +237,20 @@ Definition hash'result'algo'base'data'max := DeclExternFunction NoInfo
     [{| stags := NoInfo; str := "O" |}; {| stags := NoInfo; str := "T8" |};
      {| stags := NoInfo; str := "D" |}; {| stags := NoInfo; str := "M" |}]
     [(MkParameter false Out
-          (TypTypeName (BareName {| stags := NoInfo; str := "O" |})) 
+          (TypTypeName {| stags := NoInfo; str := "O" |})
           None {| stags := NoInfo; str := "result" |});
      (MkParameter false In
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "HashAlgorithm" |})) 
+             {| stags := NoInfo; str := "HashAlgorithm" |})
           None {| stags := NoInfo; str := "algo" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T8" |})) 
+          (TypTypeName {| stags := NoInfo; str := "T8" |})
           None {| stags := NoInfo; str := "base" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "D" |})) 
+          (TypTypeName {| stags := NoInfo; str := "D" |})
           None {| stags := NoInfo; str := "data" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "M" |})) 
+          (TypTypeName {| stags := NoInfo; str := "M" |})
           None {| stags := NoInfo; str := "max" |})].
 
 Definition action_selector := DeclExternObject NoInfo
@@ -258,7 +258,7 @@ Definition action_selector := DeclExternObject NoInfo
     [(ProtoConstructor NoInfo {| stags := NoInfo; str := "action_selector" |}
           [(MkParameter false Directionless
                 (TypTypeName
-                 (BareName {| stags := NoInfo; str := "HashAlgorithm" |}))
+                   {| stags := NoInfo; str := "HashAlgorithm" |})
                 None {| stags := NoInfo; str := "algorithm" |});
            (MkParameter false Directionless (TypBit 32%N) None
                 {| stags := NoInfo; str := "size" |});
@@ -276,7 +276,7 @@ Definition Checksum16 := DeclExternObject NoInfo
      (ProtoMethod NoInfo (TypBit 16%N) {| stags := NoInfo; str := "get" |}
           [{| stags := NoInfo; str := "D9" |}]
           [(MkParameter false In
-                (TypTypeName (BareName {| stags := NoInfo; str := "D9" |}))
+                (TypTypeName {| stags := NoInfo; str := "D9" |})
                 None {| stags := NoInfo; str := "data" |})])].
 
 Definition verify_checksum'condition'data'checksum'algo := DeclExternFunction
@@ -286,14 +286,14 @@ Definition verify_checksum'condition'data'checksum'algo := DeclExternFunction
     [(MkParameter false In TypBool None
           {| stags := NoInfo; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T10" |})) 
+          (TypTypeName {| stags := NoInfo; str := "T10" |})
           None {| stags := NoInfo; str := "data" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "O11" |})) 
+          (TypTypeName {| stags := NoInfo; str := "O11" |})
           None {| stags := NoInfo; str := "checksum" |});
      (MkParameter false Directionless
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "HashAlgorithm" |})) 
+             {| stags := NoInfo; str := "HashAlgorithm" |})
           None {| stags := NoInfo; str := "algo" |})].
 
 Definition update_checksum'condition'data'checksum'algo := DeclExternFunction
@@ -303,14 +303,14 @@ Definition update_checksum'condition'data'checksum'algo := DeclExternFunction
     [(MkParameter false In TypBool None
           {| stags := NoInfo; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T12" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T12" |}))
           None {| stags := NoInfo; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "O13" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "O13" |}))
           None {| stags := NoInfo; str := "checksum" |});
      (MkParameter false Directionless
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "HashAlgorithm" |})) 
+           ({| stags := NoInfo; str := "HashAlgorithm" |}))
           None {| stags := NoInfo; str := "algo" |})].
 
 Definition verify_checksum_with_payload'condition'data'checksum'algo := DeclExternFunction
@@ -321,14 +321,14 @@ Definition verify_checksum_with_payload'condition'data'checksum'algo := DeclExte
     [(MkParameter false In TypBool None
           {| stags := NoInfo; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T14" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T14" |}))
           None {| stags := NoInfo; str := "data" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "O15" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "O15" |}))
           None {| stags := NoInfo; str := "checksum" |});
      (MkParameter false Directionless
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "HashAlgorithm" |})) 
+           ({| stags := NoInfo; str := "HashAlgorithm" |}))
           None {| stags := NoInfo; str := "algo" |})].
 
 Definition update_checksum_with_payload'condition'data'checksum'algo := DeclExternFunction
@@ -339,34 +339,34 @@ Definition update_checksum_with_payload'condition'data'checksum'algo := DeclExte
     [(MkParameter false In TypBool None
           {| stags := NoInfo; str := "condition" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T16" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T16" |}))
           None {| stags := NoInfo; str := "data" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "O17" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "O17" |}))
           None {| stags := NoInfo; str := "checksum" |});
      (MkParameter false Directionless
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "HashAlgorithm" |})) 
+           ({| stags := NoInfo; str := "HashAlgorithm" |}))
           None {| stags := NoInfo; str := "algo" |})].
 
 Definition resubmit'data := DeclExternFunction NoInfo TypVoid
     {| stags := NoInfo; str := "resubmit" |}
     [{| stags := NoInfo; str := "T18" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T18" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T18" |}))
           None {| stags := NoInfo; str := "data" |})].
 
 Definition recirculate'data := DeclExternFunction NoInfo TypVoid
     {| stags := NoInfo; str := "recirculate" |}
     [{| stags := NoInfo; str := "T19" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T19" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T19" |}))
           None {| stags := NoInfo; str := "data" |})].
 
 Definition clone'type'session := DeclExternFunction NoInfo TypVoid
     {| stags := NoInfo; str := "clone" |} nil
     [(MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "CloneType" |}))
+          (TypTypeName ({| stags := NoInfo; str := "CloneType" |}))
           None {| stags := NoInfo; str := "type" |});
      (MkParameter false In (TypBit 32%N) None
           {| stags := NoInfo; str := "session" |})].
@@ -375,12 +375,12 @@ Definition clone3'type'session'data := DeclExternFunction NoInfo TypVoid
     {| stags := NoInfo; str := "clone3" |}
     [{| stags := NoInfo; str := "T20" |}]
     [(MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "CloneType" |}))
+          (TypTypeName ({| stags := NoInfo; str := "CloneType" |}))
           None {| stags := NoInfo; str := "type" |});
      (MkParameter false In (TypBit 32%N) None
           {| stags := NoInfo; str := "session" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T20" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T20" |}))
           None {| stags := NoInfo; str := "data" |})].
 
 Definition truncate'length := DeclExternFunction NoInfo TypVoid
@@ -409,24 +409,24 @@ Definition log_msg'msg'data := DeclExternFunction NoInfo TypVoid
     [(MkParameter false Directionless TypString None
           {| stags := NoInfo; str := "msg" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "T21" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "T21" |}))
           None {| stags := NoInfo; str := "data" |})].
 
 Definition Parser := DeclParserType NoInfo
     {| stags := NoInfo; str := "Parser" |}
     [{| stags := NoInfo; str := "H" |}; {| stags := NoInfo; str := "M22" |}]
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| stags := NoInfo; str := "packet_in" |}))
+          (TypTypeName ({| stags := NoInfo; str := "packet_in" |}))
           None {| stags := NoInfo; str := "b" |});
      (MkParameter false Out
-          (TypTypeName (BareName {| stags := NoInfo; str := "H" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H" |}))
           None {| stags := NoInfo; str := "parsedHdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "M22" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "M22" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})].
 
 Definition VerifyChecksum := DeclControlType NoInfo
@@ -434,10 +434,10 @@ Definition VerifyChecksum := DeclControlType NoInfo
     [{| stags := NoInfo; str := "H23" |};
      {| stags := NoInfo; str := "M24" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "H23" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H23" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "M24" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "M24" |}))
           None {| stags := NoInfo; str := "meta" |})].
 
 Definition Ingress := DeclControlType NoInfo
@@ -445,14 +445,14 @@ Definition Ingress := DeclControlType NoInfo
     [{| stags := NoInfo; str := "H25" |};
      {| stags := NoInfo; str := "M26" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "H25" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H25" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "M26" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "M26" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})].
 
 Definition Egress := DeclControlType NoInfo
@@ -460,14 +460,14 @@ Definition Egress := DeclControlType NoInfo
     [{| stags := NoInfo; str := "H27" |};
      {| stags := NoInfo; str := "M28" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "H27" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H27" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "M28" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "M28" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})].
 
 Definition ComputeChecksum := DeclControlType NoInfo
@@ -475,20 +475,20 @@ Definition ComputeChecksum := DeclControlType NoInfo
     [{| stags := NoInfo; str := "H29" |};
      {| stags := NoInfo; str := "M30" |}]
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "H29" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H29" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "M30" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "M30" |}))
           None {| stags := NoInfo; str := "meta" |})].
 
 Definition Deparser := DeclControlType NoInfo
     {| stags := NoInfo; str := "Deparser" |}
     [{| stags := NoInfo; str := "H31" |}]
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| stags := NoInfo; str := "packet_out" |}))
+          (TypTypeName ({| stags := NoInfo; str := "packet_out" |}))
           None {| stags := NoInfo; str := "b" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "H31" |})) 
+          (TypTypeName ({| stags := NoInfo; str := "H31" |}))
           None {| stags := NoInfo; str := "hdr" |})].
 
 Definition V1Switch := DeclPackageType NoInfo
@@ -498,43 +498,43 @@ Definition V1Switch := DeclPackageType NoInfo
     [(MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "Parser" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}));
-                (TypTypeName (BareName {| stags := NoInfo; str := "M33" |}))])
+                ({| stags := NoInfo; str := "Parser" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}));
+                (TypTypeName ({| stags := NoInfo; str := "M33" |}))])
           None {| stags := NoInfo; str := "p" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "VerifyChecksum" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}));
-                (TypTypeName (BareName {| stags := NoInfo; str := "M33" |}))])
+                ({| stags := NoInfo; str := "VerifyChecksum" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}));
+                (TypTypeName ({| stags := NoInfo; str := "M33" |}))])
           None {| stags := NoInfo; str := "vr" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "Ingress" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}));
-                (TypTypeName (BareName {| stags := NoInfo; str := "M33" |}))])
+                ({| stags := NoInfo; str := "Ingress" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}));
+                (TypTypeName ({| stags := NoInfo; str := "M33" |}))])
           None {| stags := NoInfo; str := "ig" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "Egress" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}));
-                (TypTypeName (BareName {| stags := NoInfo; str := "M33" |}))])
+                ({| stags := NoInfo; str := "Egress" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}));
+                (TypTypeName ({| stags := NoInfo; str := "M33" |}))])
           None {| stags := NoInfo; str := "eg" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "ComputeChecksum" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}));
-                (TypTypeName (BareName {| stags := NoInfo; str := "M33" |}))])
+                ({| stags := NoInfo; str := "ComputeChecksum" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}));
+                (TypTypeName ({| stags := NoInfo; str := "M33" |}))])
           None {| stags := NoInfo; str := "ck" |});
      (MkParameter false Directionless
           (TypSpecializedType
                (TypTypeName
-                (BareName {| stags := NoInfo; str := "Deparser" |}))
-               [(TypTypeName (BareName {| stags := NoInfo; str := "H32" |}))])
+                ({| stags := NoInfo; str := "Deparser" |}))
+               [(TypTypeName ({| stags := NoInfo; str := "H32" |}))])
           None {| stags := NoInfo; str := "dep" |})].
 
 Definition ingress_metadata_t := DeclStruct NoInfo
@@ -727,17 +727,17 @@ Definition headers := DeclStruct NoInfo
 Definition ParserImpl := DeclParser NoInfo
     {| stags := NoInfo; str := "ParserImpl" |} nil
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| stags := NoInfo; str := "packet_in" |}))
+          (TypTypeName ({| stags := NoInfo; str := "packet_in" |}))
           None {| stags := NoInfo; str := "packet" |});
      (MkParameter false Out
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          (TypTypeName ({| stags := NoInfo; str := "metadata" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
     [(MkParserState NoInfo {| stags := NoInfo; str := "parse_icmp" |}
           [(MkStatement NoInfo
@@ -750,8 +750,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -760,8 +759,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -779,8 +777,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "icmp" |})
                             (TypHeader
@@ -800,8 +797,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -810,8 +806,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -847,8 +842,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "ipv4" |})
                             (TypHeader
@@ -888,8 +882,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "ipv4" |})
                                (TypHeader
@@ -931,8 +924,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "ipv4" |})
                                (TypHeader
@@ -974,8 +966,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "ipv4" |})
                                (TypHeader
@@ -1218,8 +1209,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -1228,8 +1218,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -1259,8 +1248,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "ipv6" |})
                             (TypHeader
@@ -1291,8 +1279,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "ipv6" |})
                                (TypHeader
@@ -1371,8 +1358,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -1381,8 +1367,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -1415,8 +1400,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "tcp" |})
                             (TypHeader
@@ -1452,8 +1436,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -1462,8 +1445,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -1485,8 +1467,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "udp" |})
                             (TypHeader
@@ -1510,8 +1491,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -1520,8 +1500,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -1541,8 +1520,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "vlan_tag" |})
                             (TypHeader
@@ -1565,8 +1543,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "vlan_tag" |})
                                (TypHeader
@@ -1622,8 +1599,7 @@ Definition ParserImpl := DeclParser NoInfo
                                       {| stags := NoInfo; str := "packet" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo;
+                                     ({| stags := NoInfo;
                                          str := "packet_in" |}))
                                     Directionless)
                                {| stags := NoInfo; str := "extract" |})
@@ -1632,8 +1608,7 @@ Definition ParserImpl := DeclParser NoInfo
                                 [{| stags := NoInfo; str := "T" |}]
                                 [(MkParameter false Out
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo; str := "T" |}))
+                                       ({| stags := NoInfo; str := "T" |}))
                                       None
                                       {| stags := NoInfo; str := "hdr" |})]
                                 FunExtern TypVoid)) Directionless)
@@ -1653,8 +1628,7 @@ Definition ParserImpl := DeclParser NoInfo
                                         {| stags := NoInfo; str := "hdr" |})
                                        NoLocator)
                                       (TypTypeName
-                                       (BareName
-                                        {| stags := NoInfo;
+                                       ({| stags := NoInfo;
                                            str := "headers" |})) Out)
                                  {| stags := NoInfo; str := "ethernet" |})
                             (TypHeader
@@ -1675,8 +1649,7 @@ Definition ParserImpl := DeclParser NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) Out)
                                     {| stags := NoInfo; str := "ethernet" |})
                                (TypHeader
@@ -1751,28 +1724,28 @@ Definition ParserImpl := DeclParser NoInfo
 Definition egress := DeclControl NoInfo
     {| stags := NoInfo; str := "egress" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          (TypTypeName ({| stags := NoInfo; str := "metadata" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
     (BlockEmpty NoInfo).
 
 Definition ingress := DeclControl NoInfo
     {| stags := NoInfo; str := "ingress" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          (TypTypeName ({| stags := NoInfo; str := "metadata" |}))
           None {| stags := NoInfo; str := "meta" |});
      (MkParameter false InOut
           (TypTypeName
-           (BareName {| stags := NoInfo; str := "standard_metadata_t" |}))
+           ({| stags := NoInfo; str := "standard_metadata_t" |}))
           None {| stags := NoInfo; str := "standard_metadata" |})] nil
     [(DeclAction NoInfo {| stags := NoInfo; str := "l2_packet" |} nil nil
           (BlockCons
@@ -1789,8 +1762,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -1829,8 +1801,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -1869,8 +1840,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -1909,8 +1879,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -1949,8 +1918,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -1991,8 +1959,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -2032,8 +1999,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -2070,8 +2036,7 @@ Definition ingress := DeclControl NoInfo
                                (MkFunctionType nil
                                     [(MkParameter false InOut
                                           (TypTypeName
-                                           (BareName
-                                            {| stags := NoInfo;
+                                           ({| stags := NoInfo;
                                                str := "standard_metadata_t" |}))
                                           None
                                           {| stags := NoInfo;
@@ -2085,8 +2050,7 @@ Definition ingress := DeclControl NoInfo
                                      str := "standard_metadata" |})
                                  NoLocator)
                                 (TypTypeName
-                                 (BareName
-                                  {| stags := NoInfo;
+                                 ({| stags := NoInfo;
                                      str := "standard_metadata_t" |})) InOut))])
                     StmUnit) (BlockEmpty NoInfo)));
      (DeclAction NoInfo {| stags := NoInfo; str := "send_packet" |} nil nil
@@ -2102,8 +2066,7 @@ Definition ingress := DeclControl NoInfo
                                              str := "standard_metadata" |})
                                          NoLocator)
                                         (TypTypeName
-                                         (BareName
-                                          {| stags := NoInfo;
+                                         ({| stags := NoInfo;
                                              str := "standard_metadata_t" |}))
                                         InOut)
                                    {| stags := NoInfo;
@@ -2120,8 +2083,7 @@ Definition ingress := DeclControl NoInfo
                                                        str := "meta" |})
                                                    NoLocator)
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "metadata" |}))
                                                   InOut)
                                              {| stags := NoInfo;
@@ -2151,8 +2113,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "ethernet" |})
                                (TypHeader
@@ -2197,8 +2158,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "icmp" |})
                                (TypHeader
@@ -2230,8 +2190,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "ipv4" |})
                                (TypHeader
@@ -2288,8 +2247,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "ipv6" |})
                                (TypHeader
@@ -2337,8 +2295,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "ethernet" |})
                                (TypHeader
@@ -2375,8 +2332,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "meta" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "metadata" |})) InOut)
                                     {| stags := NoInfo;
                                        str := "ing_metadata" |})
@@ -2410,8 +2366,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "tcp" |})
                                (TypHeader
@@ -2458,8 +2413,7 @@ Definition ingress := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) InOut)
                                     {| stags := NoInfo; str := "udp" |})
                                (TypHeader
@@ -2506,8 +2460,7 @@ Definition ingress := DeclControl NoInfo
                                             (TypFunction
                                              (MkFunctionType nil nil FunTable
                                                   (TypTypeName
-                                                   (BareName
-                                                    {| stags := NoInfo;
+                                                   ({| stags := NoInfo;
                                                        str := "apply_result_ethertype_match" |}))))
                                             Directionless) nil nil)
                                   (TypStruct
@@ -2567,8 +2520,7 @@ Definition ingress := DeclControl NoInfo
                                               (MkFunctionType nil nil
                                                    FunTable
                                                    (TypTypeName
-                                                    (BareName
-                                                     {| stags := NoInfo;
+                                                    ({| stags := NoInfo;
                                                         str := "apply_result_ipv4_match" |}))))
                                              Directionless) nil nil) StmUnit)
                               (BlockEmpty NoInfo)));
@@ -2599,8 +2551,7 @@ Definition ingress := DeclControl NoInfo
                                               (MkFunctionType nil nil
                                                    FunTable
                                                    (TypTypeName
-                                                    (BareName
-                                                     {| stags := NoInfo;
+                                                    ({| stags := NoInfo;
                                                         str := "apply_result_ipv6_match" |}))))
                                              Directionless) nil nil) StmUnit)
                               (BlockEmpty NoInfo)));
@@ -2626,8 +2577,7 @@ Definition ingress := DeclControl NoInfo
                                               (MkFunctionType nil nil
                                                    FunTable
                                                    (TypTypeName
-                                                    (BareName
-                                                     {| stags := NoInfo;
+                                                    ({| stags := NoInfo;
                                                         str := "apply_result_l2_match" |}))))
                                              Directionless) nil nil) StmUnit)
                               (BlockEmpty NoInfo)))]) StmUnit)
@@ -2647,8 +2597,7 @@ Definition ingress := DeclControl NoInfo
                                                                 str := "hdr" |})
                                                             NoLocator)
                                                            (TypTypeName
-                                                            (BareName
-                                                             {| stags := NoInfo;
+                                                            ({| stags := NoInfo;
                                                                 str := "headers" |}))
                                                            InOut)
                                                       {| stags := NoInfo;
@@ -2714,8 +2663,7 @@ Definition ingress := DeclControl NoInfo
                                                    (MkFunctionType nil nil
                                                         FunTable
                                                         (TypTypeName
-                                                         (BareName
-                                                          {| stags := NoInfo;
+                                                         ({| stags := NoInfo;
                                                              str := "apply_result_tcp_check" |}))))
                                                   Directionless) nil nil)
                                         StmUnit) (BlockEmpty NoInfo)))
@@ -2742,8 +2690,7 @@ Definition ingress := DeclControl NoInfo
                                                                     str := "hdr" |})
                                                                     NoLocator)
                                                                     (TypTypeName
-                                                                    (BareName
-                                                                    {| 
+                                                                    ({|
                                                                     stags := NoInfo;
                                                                     str := "headers" |}))
                                                                     InOut)
@@ -2818,8 +2765,7 @@ Definition ingress := DeclControl NoInfo
                                                                     nil nil
                                                                     FunTable
                                                                     (TypTypeName
-                                                                    (BareName
-                                                                    {| 
+                                                                    ({|
                                                                     stags := NoInfo;
                                                                     str := "apply_result_udp_check" |}))))
                                                                     Directionless)
@@ -2852,8 +2798,7 @@ Definition ingress := DeclControl NoInfo
                                                                     str := "hdr" |})
                                                                     NoLocator)
                                                                     (TypTypeName
-                                                                    (BareName
-                                                                    {| 
+                                                                    ({|
                                                                     stags := NoInfo;
                                                                     str := "headers" |}))
                                                                     InOut)
@@ -2917,8 +2862,7 @@ Definition ingress := DeclControl NoInfo
                                                                     nil nil
                                                                     FunTable
                                                                     (TypTypeName
-                                                                    (BareName
-                                                                    {| 
+                                                                    ({|
                                                                     stags := NoInfo;
                                                                     str := "apply_result_icmp_check" |}))))
                                                                     Directionless)
@@ -2951,8 +2895,7 @@ Definition ingress := DeclControl NoInfo
                                   (TypFunction
                                    (MkFunctionType nil nil FunTable
                                         (TypTypeName
-                                         (BareName
-                                          {| stags := NoInfo;
+                                         ({| stags := NoInfo;
                                              str := "apply_result_set_egress" |}))))
                                   Directionless) nil nil) StmUnit)
                    (BlockEmpty NoInfo)))).
@@ -2960,10 +2903,10 @@ Definition ingress := DeclControl NoInfo
 Definition DeparserImpl := DeclControl NoInfo
     {| stags := NoInfo; str := "DeparserImpl" |} nil
     [(MkParameter false Directionless
-          (TypTypeName (BareName {| stags := NoInfo; str := "packet_out" |}))
+          (TypTypeName ({| stags := NoInfo; str := "packet_out" |}))
           None {| stags := NoInfo; str := "packet" |});
      (MkParameter false In
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |})] nil nil
     (BlockCons
          (MkStatement NoInfo
@@ -2976,8 +2919,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                     {| stags := NoInfo; str := "packet" |})
                                    NoLocator)
                                   (TypTypeName
-                                   (BareName
-                                    {| stags := NoInfo;
+                                   ({| stags := NoInfo;
                                        str := "packet_out" |}))
                                   Directionless)
                              {| stags := NoInfo; str := "emit" |})
@@ -2985,8 +2927,7 @@ Definition DeparserImpl := DeclControl NoInfo
                          (MkFunctionType [{| stags := NoInfo; str := "T2" |}]
                               [(MkParameter false In
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo; str := "T2" |}))
+                                     ({| stags := NoInfo; str := "T2" |}))
                                     None {| stags := NoInfo; str := "hdr" |})]
                               FunExtern TypVoid)) Directionless)
                    [(TypHeader
@@ -3005,8 +2946,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                       {| stags := NoInfo; str := "hdr" |})
                                      NoLocator)
                                     (TypTypeName
-                                     (BareName
-                                      {| stags := NoInfo; str := "headers" |}))
+                                     ({| stags := NoInfo; str := "headers" |}))
                                     In)
                                {| stags := NoInfo; str := "ethernet" |})
                           (TypHeader
@@ -3027,8 +2967,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                          {| stags := NoInfo;
                                             str := "packet" |}) NoLocator)
                                        (TypTypeName
-                                        (BareName
-                                         {| stags := NoInfo;
+                                        ({| stags := NoInfo;
                                             str := "packet_out" |}))
                                        Directionless)
                                   {| stags := NoInfo; str := "emit" |})
@@ -3037,8 +2976,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                    [{| stags := NoInfo; str := "T2" |}]
                                    [(MkParameter false In
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo; str := "T2" |}))
+                                          ({| stags := NoInfo; str := "T2" |}))
                                          None
                                          {| stags := NoInfo; str := "hdr" |})]
                                    FunExtern TypVoid)) Directionless)
@@ -3060,8 +2998,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                            {| stags := NoInfo;
                                               str := "hdr" |}) NoLocator)
                                          (TypTypeName
-                                          (BareName
-                                           {| stags := NoInfo;
+                                          ({| stags := NoInfo;
                                               str := "headers" |})) In)
                                     {| stags := NoInfo; str := "vlan_tag" |})
                                (TypHeader
@@ -3086,8 +3023,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                  str := "packet" |})
                                              NoLocator)
                                             (TypTypeName
-                                             (BareName
-                                              {| stags := NoInfo;
+                                             ({| stags := NoInfo;
                                                  str := "packet_out" |}))
                                             Directionless)
                                        {| stags := NoInfo; str := "emit" |})
@@ -3096,8 +3032,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                         [{| stags := NoInfo; str := "T2" |}]
                                         [(MkParameter false In
                                               (TypTypeName
-                                               (BareName
-                                                {| stags := NoInfo;
+                                               ({| stags := NoInfo;
                                                    str := "T2" |})) None
                                               {| stags := NoInfo;
                                                  str := "hdr" |})] FunExtern
@@ -3129,8 +3064,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                    str := "hdr" |})
                                                NoLocator)
                                               (TypTypeName
-                                               (BareName
-                                                {| stags := NoInfo;
+                                               ({| stags := NoInfo;
                                                    str := "headers" |})) In)
                                          {| stags := NoInfo; str := "ipv6" |})
                                     (TypHeader
@@ -3171,8 +3105,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                       str := "packet" |})
                                                   NoLocator)
                                                  (TypTypeName
-                                                  (BareName
-                                                   {| stags := NoInfo;
+                                                  ({| stags := NoInfo;
                                                       str := "packet_out" |}))
                                                  Directionless)
                                             {| stags := NoInfo;
@@ -3183,8 +3116,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                  str := "T2" |}]
                                              [(MkParameter false In
                                                    (TypTypeName
-                                                    (BareName
-                                                     {| stags := NoInfo;
+                                                    ({| stags := NoInfo;
                                                         str := "T2" |})) 
                                                    None
                                                    {| stags := NoInfo;
@@ -3234,8 +3166,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                         str := "hdr" |})
                                                     NoLocator)
                                                    (TypTypeName
-                                                    (BareName
-                                                     {| stags := NoInfo;
+                                                    ({| stags := NoInfo;
                                                         str := "headers" |}))
                                                    In)
                                               {| stags := NoInfo;
@@ -3290,8 +3221,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                            str := "packet" |})
                                                        NoLocator)
                                                       (TypTypeName
-                                                       (BareName
-                                                        {| stags := NoInfo;
+                                                       ({| stags := NoInfo;
                                                            str := "packet_out" |}))
                                                       Directionless)
                                                  {| stags := NoInfo;
@@ -3302,8 +3232,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                       str := "T2" |}]
                                                   [(MkParameter false In
                                                         (TypTypeName
-                                                         (BareName
-                                                          {| stags := NoInfo;
+                                                         ({| stags := NoInfo;
                                                              str := "T2" |}))
                                                         None
                                                         {| stags := NoInfo;
@@ -3333,8 +3262,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                              str := "hdr" |})
                                                          NoLocator)
                                                         (TypTypeName
-                                                         (BareName
-                                                          {| stags := NoInfo;
+                                                         ({| stags := NoInfo;
                                                              str := "headers" |}))
                                                         In)
                                                    {| stags := NoInfo;
@@ -3365,8 +3293,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                                 str := "packet" |})
                                                             NoLocator)
                                                            (TypTypeName
-                                                            (BareName
-                                                             {| stags := NoInfo;
+                                                            ({| stags := NoInfo;
                                                                 str := "packet_out" |}))
                                                            Directionless)
                                                       {| stags := NoInfo;
@@ -3377,8 +3304,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                            str := "T2" |}]
                                                        [(MkParameter false In
                                                              (TypTypeName
-                                                              (BareName
-                                                               {| stags := NoInfo;
+                                                              ({| stags := NoInfo;
                                                                   str := "T2" |}))
                                                              None
                                                              {| stags := NoInfo;
@@ -3426,8 +3352,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                                   str := "hdr" |})
                                                               NoLocator)
                                                              (TypTypeName
-                                                              (BareName
-                                                               {| stags := NoInfo;
+                                                              ({| stags := NoInfo;
                                                                   str := "headers" |}))
                                                              In)
                                                         {| stags := NoInfo;
@@ -3478,8 +3403,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                                   str := "packet" |})
                                                                  NoLocator)
                                                                 (TypTypeName
-                                                                 (BareName
-                                                                  {| 
+                                                                 ({|
                                                                   stags := NoInfo;
                                                                   str := "packet_out" |}))
                                                                 Directionless)
@@ -3492,8 +3416,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                             [(MkParameter
                                                                   false In
                                                                   (TypTypeName
-                                                                   (BareName
-                                                                    {| 
+                                                                   ({|
                                                                     stags := NoInfo;
                                                                     str := "T2" |}))
                                                                   None
@@ -3522,8 +3445,7 @@ Definition DeparserImpl := DeclControl NoInfo
                                                                     str := "hdr" |})
                                                                    NoLocator)
                                                                   (TypTypeName
-                                                                   (BareName
-                                                                    {| 
+                                                                   ({|
                                                                     stags := NoInfo;
                                                                     str := "headers" |}))
                                                                   In)
@@ -3542,26 +3464,26 @@ Definition DeparserImpl := DeclControl NoInfo
 Definition verifyChecksum := DeclControl NoInfo
     {| stags := NoInfo; str := "verifyChecksum" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          (TypTypeName ({| stags := NoInfo; str := "metadata" |}))
           None {| stags := NoInfo; str := "meta" |})] nil nil
     (BlockEmpty NoInfo).
 
 Definition computeChecksum := DeclControl NoInfo
     {| stags := NoInfo; str := "computeChecksum" |} nil
     [(MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "headers" |}))
+          (TypTypeName ({| stags := NoInfo; str := "headers" |}))
           None {| stags := NoInfo; str := "hdr" |});
      (MkParameter false InOut
-          (TypTypeName (BareName {| stags := NoInfo; str := "metadata" |}))
+          (TypTypeName ({| stags := NoInfo; str := "metadata" |}))
           None {| stags := NoInfo; str := "meta" |})] nil nil
     (BlockEmpty NoInfo).
 
 Definition main := DeclInstantiation NoInfo
     (TypSpecializedType
-         (TypTypeName (BareName {| stags := NoInfo; str := "V1Switch" |}))
+         (TypTypeName ({| stags := NoInfo; str := "V1Switch" |}))
          [(TypStruct
            [( {| stags := NoInfo; str := "ethernet" |},
               (TypHeader
@@ -3634,7 +3556,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| stags := NoInfo; str := "ParserImpl" |}))
+                     ({| stags := NoInfo; str := "ParserImpl" |}))
                     nil) nil)
           (TypParser
            (MkControlType nil
@@ -3797,8 +3719,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName
-                      {| stags := NoInfo; str := "verifyChecksum" |})) nil)
+                     ({| stags := NoInfo; str := "verifyChecksum" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
@@ -3920,7 +3841,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| stags := NoInfo; str := "ingress" |})) nil)
+                     ({| stags := NoInfo; str := "ingress" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
@@ -4080,7 +4001,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| stags := NoInfo; str := "egress" |})) nil)
+                     ({| stags := NoInfo; str := "egress" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
@@ -4240,8 +4161,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName
-                      {| stags := NoInfo; str := "computeChecksum" |})) nil)
+                     ({| stags := NoInfo; str := "computeChecksum" |})) nil)
                nil)
           (TypControl
            (MkControlType nil
@@ -4363,7 +4283,7 @@ Definition main := DeclInstantiation NoInfo
           (ExpNamelessInstantiation
                (TypSpecializedType
                     (TypTypeName
-                     (BareName {| stags := NoInfo; str := "DeparserImpl" |}))
+                     ({| stags := NoInfo; str := "DeparserImpl" |}))
                     nil) nil)
           (TypControl
            (MkControlType nil

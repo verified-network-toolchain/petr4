@@ -1,7 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 Require Export Poulet4.Syntax.
 Require Import Poulet4.SimplExpr.
-Require Import Poulet4.P4cub.Util.ListUtil.
 Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Substitution
@@ -779,62 +778,12 @@ Section ToP4cub.
       None
     end.
 
-  Definition get_label_index (tenum : list (P4String.t tags_t))  (label : P4String.t tags_t) : result Z :=
-    match ListUtil.findi (P4String.equivb label) tenum with
-    | Some i =>
-      ok (BinInt.Z.of_nat i)
-    | None =>
-      error ("[ERROR] Couldnt find label [" ++ P4String.str label ++ "] in enum")
-    end.
-
-  Print P4Type.
-
-  Definition get_enum_type (expression : @Expression tags_t) : result (list (P4String.t tags_t)) :=
-    let '(MkExpression tags pre_expr type dir) := expression in
-    match type with
-    | TypEnum _ _ variants =>
-      ok variants
-    | _ =>
-      error "could not get enum type from non-enum variant"
-    end.
-
-  Fixpoint translate_statement_switch_case ctx (match_expr : E.e tags_t) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) (ssw : @StatementSwitchCase tags_t) : result ((option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) :=
-    (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
-    let '(cond_opt, ifthen) := acc in
-    (* Force the agggregated conditional to be a boolean *)
-    let acc_cond := fun tags => SyntaxUtil.force (E.EBool false tags) cond_opt in
-    (* Build the case match by building the label index check and or-ing the aggregated conditional *)
-    let case_match := fun tags label =>
-                        let+ val := get_label_index tenum label in
-                        let mtch := E.EBop E.TBool E.Eq match_expr (E.EBit bits val tags) tags in
-                        E.EBop E.TBool E.Or (acc_cond tags) mtch tags in
-    (* check the cases *)
+  Fixpoint translate_statement_switch_case (ssw : @StatementSwitchCase tags_t) : result (ST.s tags_t) :=
     match ssw with
-    | StatSwCaseAction tags label block =>
-      (* This case discharges the built up conditions. so the first part of the pair is always None *)
-      match label with
-      | StatSwLabName tags labname =>
-        let* cond := case_match tags labname in
-        let* st := translate_block ctx tags block in
-        let else__ifthen : ST.s tags_t -> ST.s tags_t := fun else_ => ST.SConditional cond st else_ tags in
-        (* The continuation is still "open" *)
-        ok (None, ifthen ∘ else__ifthen)
-      | StatSwLabDefault tags =>
-        let* else_ := translate_block ctx tags block in
-        (* in the default case, we throw away the argument because we have the else case, *)
-        (* if anything comes after, its dead code *)
-        ok (None, fun (_ : ST.s tags_t) => (ifthen else_ : ST.s tags_t))
-      end
+    | StatSwCaseAction tags label code =>
+      error "[FIXME] switch case action unimplemented"
     | StatSwCaseFallThrough tags label =>
-      match label with
-      | StatSwLabDefault _ =>
-        error "[ERROR] Cannot have default label as a fall-through case in a switch statement"
-      | StatSwLabName tags labname =>
-        (* This case doesn't change the continuation but accumulates a condition *)
-        (* Note that the accumulation happens automagically in the [case_match function]*)
-        let+ cond := case_match tags labname in
-        (Some cond, (ifthen : ST.s tags_t -> ST.s tags_t))
-      end
+      error "[FIXME] switch case fall through unimplemented"
     end
   with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result (ST.s tags_t) :=
     match pre_s with
@@ -847,6 +796,12 @@ Section ToP4cub.
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
           translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
+          (* let* cub_args := rred (List.map (translate_expression_and_type i) (optionlist_to_list args)) in *)
+          (* let* params := parameters_to_params tags parameters in *)
+          (* let* paramargs := apply_args_to_params params cub_args in *)
+          (* let+ ret_typ := translate_return_type tags ret in *)
+          (* let cub_ret := option_map (fun t => (t, E.EVar t ("$RETVAR_" ++ (P4String.str n)) tags)) ret_typ in *)
+          (* ST.SFunCall (P4String.str n) [] (Arrow paramargs cub_ret) tags *)
         | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
         end
       | _ => error "ERROR :: Cannot handle this kind of expression"
@@ -881,17 +836,7 @@ Section ToP4cub.
         ok (ST.SReturn None i)
       end
     | StatSwitch expr cases =>
-      let* tenum := get_enum_type expr in
-      let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum)) in
-      let* expr := translate_expression expr in
-      let+ (_, cases_as_ifs) :=
-          List.fold_left (fun acc_res switch_case =>
-                            let* acc := acc_res in
-                            translate_statement_switch_case ctx expr bits tenum acc switch_case
-                         ) cases (ok (None, fun x => x))
-
-      in
-      cases_as_ifs (ST.SSkip i)
+      error "[FIXME] switch statement not implemented"
     | StatConstant typ name value loc =>
       error "Constant Statement should not occur"
     | StatVariable typ name init loc =>

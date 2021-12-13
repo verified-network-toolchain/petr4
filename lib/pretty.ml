@@ -161,7 +161,7 @@ end = struct
         format_t x.expr
     | TypeMember x ->
       Format.fprintf fmt "@[<4>%a.%s@]"
-        P4String.format_t x.typ
+        name_format_t x.typ
         x.name.str
     | ErrorMember x ->
       Format.fprintf fmt "@[<4>error.%s@]" x.str
@@ -342,9 +342,14 @@ end = struct
     | VarBit x ->
       Format.fprintf fmt "@[varbit@ <%a>@]"
         Expression.format_t x
-    | TypeName x ->
+    | TypeName (BareName x) ->
       Format.fprintf fmt "@[%s@]"
         x.str
+    | TypeName (QualifiedName ([], x)) ->
+      Format.fprintf fmt "@[.%s@]"
+        x.str;
+    | TypeName _ ->
+       failwith "unimplemented"
     | SpecializedType x ->
       Format.fprintf fmt "@[%a<%a>@]"
         format_t x.base

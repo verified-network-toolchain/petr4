@@ -722,10 +722,16 @@ namedType:
     { t }
 ;
 
-prefixedType:
+prefixedTypeName:
 | name = NAME TYPENAME
-    { name.tags, Type.TypeName name }
+    { BareName name }
+| dotPrefix go_toplevel name = NAME TYPENAME go_local
+    { QualifiedName ([], name) }
 ;
+
+prefixedType:
+| name = prefixedTypeName
+    { P4name.name_info name, Type.TypeName name }
 
 typeName:
 | typ = prefixedType
@@ -800,7 +806,7 @@ typeOrVoid:
 | info = VOID
   { (info, Type.Void) }
 | name = varName
-  { (name.tags, Type.TypeName name) }    (* may be a type variable *)
+  { (name.tags, Type.TypeName (BareName name)) }    (* may be a type variable *)
 ;
 
 optTypeParameters:
@@ -824,7 +830,7 @@ realTypeArg:
 typeArg:
 | info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
-| name = nonTypeName { (name.tags, Type.TypeName name) }
+| name = nonTypeName { (name.tags, Type.TypeName (BareName name)) }
 | info = VOID { (info, Type.Void) }
 ;
 
@@ -1279,7 +1285,7 @@ expression:
 | info1 = L_PAREN typ = typeRef R_PAREN expr = expression %prec PREFIX
   { (Info.merge info1 (info expr),
      Expression.Cast { typ; expr }) }
-| typ = NAME TYPENAME DOT name = member
+| typ = prefixedTypeName DOT name = member
   { (name.tags,
      Expression.TypeMember { typ; name }) }
 | info1 = ERROR DOT name = member

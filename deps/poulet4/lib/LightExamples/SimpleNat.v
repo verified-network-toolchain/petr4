@@ -2881,8 +2881,7 @@ Definition egress := DeclControl NoInfo
                                                        {| stags := NoInfo;
                                                           str := "standard_metadata" |})
                                                       NoLocator)
-                                                     (TypTypeName
-                                                      (BareName
+                                                     (TypTypeName (
                                                        {| stags := NoInfo;
                                                           str := "standard_metadata_t" |}))
                                                      InOut)
@@ -2900,8 +2899,7 @@ Definition egress := DeclControl NoInfo
                                                                  {| stags := NoInfo;
                                                                     str := "meta" |})
                                                                 NoLocator)
-                                                               (TypTypeName
-                                                                (BareName
+                                                               (TypTypeName (
                                                                  {| stags := NoInfo;
                                                                     str := "metadata" |}))
                                                                InOut)
@@ -4751,8 +4749,7 @@ Definition ingress := DeclControl NoInfo
                                              (BareName
                                               {| stags := NoInfo;
                                                  str := "meta" |}) NoLocator)
-                                            (TypTypeName
-                                             (BareName
+                                            (TypTypeName (
                                               {| stags := NoInfo;
                                                  str := "metadata" |}))
                                             InOut)
@@ -4799,8 +4796,7 @@ Definition ingress := DeclControl NoInfo
                                     {| stags := NoInfo;
                                        str := "standard_metadata" |})
                                    NoLocator)
-                                  (TypTypeName
-                                   (BareName
+                                  (TypTypeName (
                                     {| stags := NoInfo;
                                        str := "standard_metadata_t" |}))
                                   InOut)
@@ -4844,8 +4840,7 @@ Definition ingress := DeclControl NoInfo
                                        {| stags := NoInfo; str := "apply" |})
                                   (TypFunction
                                    (MkFunctionType nil nil FunTable
-                                        (TypTypeName
-                                         (BareName
+                                        (TypTypeName (
                                           {| stags := NoInfo;
                                              str := "apply_result_nat" |}))))
                                   Directionless) nil nil) StmUnit)
@@ -5169,8 +5164,7 @@ Definition ingress := DeclControl NoInfo
                                                                   (MkFunctionType
                                                                     nil nil
                                                                     FunTable
-                                                                    (TypTypeName
-                                                                    (BareName
+                                                                    (TypTypeName (
                                                                     {| 
                                                                     stags := NoInfo;
                                                                     str := "apply_result_forward" |}))))

@@ -11,28 +11,28 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
-jobs:
-  # This workflow contains two jobs called "build-ubuntu" and "build-macos"
-  build-ubuntu:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+# # A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# jobs:
+#   # This workflow contains two jobs called "build-ubuntu" and "build-macos"
+#   build-ubuntu:
+#     # The type of runner that the job will run on
+#     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps: 
-      - name: checkout-main
-        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-        uses: actions/checkout@poulet4
+#     # Steps represent a sequence of tasks that will be executed as part of the job
+#     steps: 
+#       - name: checkout-main
+#         # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+#         uses: actions/checkout@main
       
-      - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
-        with:
-          ocaml-version: '4.12.0'
+#       - name: setup-ocaml
+#         uses: ocaml/setup-ocaml@v1
+#         with:
+#           ocaml-version: '4.12.0'
 
-      - name: build-ubuntu
-        # Runs the script to build poulet4 on ubuntu
-        run: ./.github/scripts/build-petr4-ubuntu.sh
-        shell: bash
+#       - name: build-ubuntu
+#         # Runs the script to build poulet4 on ubuntu
+#         run: ./.github/scripts/build-poulet4-ubuntu.sh
+#         shell: bash
 
   build-macos-latest:
     runs-on: macos-latest
@@ -47,5 +47,5 @@ jobs:
           ocaml-version: '4.12.0'
         
       - name: build-macos
-        run: ./.github/scripts/build-petr4-macos.sh
+        run: ./.github/scripts/build-poulet4-macos.sh
         shell: bash

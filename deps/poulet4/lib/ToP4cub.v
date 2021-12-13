@@ -889,7 +889,7 @@ Section ToP4cub.
       end
     | StatSwitch expr cases =>
       let* tenum := get_enum_type expr in
-      let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum) + 1) in
+      let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum)) in
       let* expr := translate_expression expr in
       let+ (_, cases_as_ifs) :=
           List.fold_left (fun acc_res switch_case =>

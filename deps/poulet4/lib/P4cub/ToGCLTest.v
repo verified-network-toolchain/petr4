@@ -72,8 +72,8 @@ Definition multiprotocol_test_case :=
   let externs := V1model.externs in
   ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
-Compute p4cub_multiprotocol.
-Compute multiprotocol_test_case.
+(* Compute p4cub_multiprotocol. *)
+(* Compute multiprotocol_test_case. *)
 
 Lemma multiprotocol_test : is_ok multiprotocol_test_case.
 Proof. compute. trivial. Qed.

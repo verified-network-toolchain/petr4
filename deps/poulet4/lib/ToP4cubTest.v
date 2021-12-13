@@ -31,7 +31,7 @@ Proof.
 Qed.
 
 
-Compute (translate_program Info NoInfo MultiProtocol.prog).
+(* Compute (translate_program Info NoInfo MultiProtocol.prog). *)
 
 Lemma multiprotocol_no_error :
   Result.is_ok (translate_program Info NoInfo MultiProtocol.prog).

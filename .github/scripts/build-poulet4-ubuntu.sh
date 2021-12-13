@@ -21,8 +21,8 @@ opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
 #install dune
 #opam install dune
-export PATH="/usr/local/opt/dune/bin:$PATH"
-cd ../..
+#export PATH="/usr/local/opt/dune/bin:$PATH"
+#cd ../..
 #dune external-lib-deps --missing @install
 opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
 #dune external-lib-deps --missing @@default

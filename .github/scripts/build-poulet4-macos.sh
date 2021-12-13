@@ -8,7 +8,7 @@ set -x  # Make command execution verbose
 export PETR4_DEPS="m4 \
                    gmp"
 
-
+pwd
 # install dependencies
 brew update
 brew install \
@@ -22,11 +22,12 @@ eval $(opam env)
 #install dune
 #opam install dune
 #export PATH="/usr/local/opt/dune/bin:$PATH"
-cd ../..
+#cd ../..
 #dune external-lib-deps --missing @install
 opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
 #dune external-lib-deps --missing @@default
 
+pwd
 make
 make install
 

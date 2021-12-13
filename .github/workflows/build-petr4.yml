@@ -15,7 +15,7 @@ jobs:
 
     steps: 
       - name: checkout/main
-        uses: actions/checkout@main
+        uses: actions/checkout@v1
       
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v1
@@ -31,7 +31,7 @@ jobs:
 
     steps: 
       - name: checkout-main
-        uses: actions/checkout@main
+        uses: actions/checkout@v1
         
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v1

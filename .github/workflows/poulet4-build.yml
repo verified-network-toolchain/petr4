@@ -1,4 +1,4 @@
-name: build-poulet4
+name: poulet4-build
 
 # Controls when the workflow will run
 on:

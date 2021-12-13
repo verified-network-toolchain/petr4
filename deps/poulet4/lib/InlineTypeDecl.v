@@ -73,11 +73,7 @@ Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
   | TypFunction ft          => TypFunction (σ †ft ft)
   | TypAction cps ps        => TypAction (lmap (σ †p) cps) (lmap (σ †p) ps)
   | TypSpecializedType τ τs => TypSpecializedType (σ †t τ) (lmap (σ †t) τs)
-  (* TODO: correct? *)
-  | TypTypeName
-      (BareName {| P4String.str := T |}
-      | QualifiedName _ {| P4String.str := T |})
-    => sub_default σ T τ
+  | TypTypeName {| P4String.str := T |} => sub_default σ T τ
   | TypPackage Xs ws params
     => TypPackage Xs ws (lmap (σ ∖ (lmap P4String.str Xs) †p) params)
   | TypConstructor Xs ws ps τ

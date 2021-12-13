@@ -415,13 +415,7 @@ Section ToP4cub.
       E.TStruct fields'
     | TypEnum name typ members =>
       ok (cub_type_of_enum members)
-    | TypTypeName name =>
-      match name with
-      | BareName nm =>
-        ok (E.TVar (P4String.str nm))
-      | QualifiedName _ _ =>
-        error "Unsure how to handle qualified names"
-      end
+    | TypTypeName name => ok (E.TVar (P4String.str name))
     | TypNewType name typ =>
       let+ typ' := translate_exp_type i typ in
       typ'
@@ -483,8 +477,7 @@ Section ToP4cub.
     | TypHeaderUnion _ => error "cannot get type name from Header Union"
     | TypStruct _ => error "cannot get type name from struct"
     | TypEnum _ _ _ => error "cannot get type name from enum"
-    | TypTypeName (BareName str) => ok str
-    | TypTypeName (QualifiedName _ _) => error "cannot use qualified names in type string extraction"
+    | TypTypeName str => ok str
     | TypNewType str _ => ok str
     | TypControl c => error "[FIXME] get name from control type"
     | TypParser c => error "[FIXME] get name from parser type"
@@ -749,7 +742,7 @@ Section ToP4cub.
       translate_is_valid tags callee ret_var
     else
       match get_type_of_expr callee with
-      | TypTypeName (BareName extern_obj) =>
+      | TypTypeName extern_obj =>
         translate_extern_string tags ctx (P4String.str extern_obj) f_str args
       | _ =>
         error (String.append "ERROR: :: Cannot translate non-externs member functions that aren't `apply`s: " f_str)
@@ -1081,7 +1074,7 @@ Section ToP4cub.
       error "[FIXME] translate parser as constructor param"
     | TypPackage _ _ _  =>
       error "[FIXME] translate package as constructor param"
-    | TypSpecializedType (TypTypeName (BareName name)) _   =>
+    | TypSpecializedType (TypTypeName ( name)) _   =>
       ok (v_str, E.CTType (E.TVar (P4String.str name)))
     | _ =>
       error "[FIXME] dont kjnow how to translate type to constructor type"

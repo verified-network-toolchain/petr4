@@ -30,7 +30,7 @@ let name_eq n1 n2 =
      s1.str = s2.str
   | _ -> false
 
-and name_only n =
+let name_only n =
   match n with
   | BareName s -> s.str
   | QualifiedName (_, s) -> s.str

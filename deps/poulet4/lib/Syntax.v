@@ -72,7 +72,7 @@ Section Syntax.
   | ExpUnaryOp (op: OpUni) (arg: Expression)
   | ExpBinaryOp (op: OpBin) (args: (Expression * Expression))
   | ExpCast (typ: @P4Type tags_t) (expr: Expression)
-  | ExpTypeMember (typ: @Typed.name tags_t) (name: P4String)
+  | ExpTypeMember (typ: P4String) (name: P4String)
   | ExpErrorMember (_: P4String)
   | ExpExpressionMember (expr: Expression) (name: P4String)
   | ExpTernary (cond: Expression) (tru: Expression) (fls: Expression)

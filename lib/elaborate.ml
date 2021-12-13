@@ -7,7 +7,7 @@ module Info = I
 
 let subst_vars_name env type_name =
   begin match Checker_env.resolve_type_name_opt type_name env with
-  | Some (TypTypeName v) -> v
+  | Some (TypTypeName v) -> P4name.BareName v
   | Some _ -> failwith "unexpected type value during elaboration"
   | None -> type_name
   end
@@ -152,7 +152,8 @@ let subst_vars_params env params =
 
 let freshen_param env param =
   let param' = Renamer.freshen_p4string (renamer env) param in
-  Checker_env.insert_type ~shadow:true (BareName param) (TypTypeName (BareName param')) env, param'
+  Checker_env.insert_type
+    ~shadow:true (BareName param) (TypTypeName param') env, param'
 
 let check_shadowing params =
   let param_compare (p1: P4string.t) (p2: P4string.t) = String.compare p1.str p2.str in

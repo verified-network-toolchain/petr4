@@ -89,10 +89,10 @@ let insert_types ?shadow:(shadow=false) names_types env =
 
 let insert_type_var ?shadow:(shadow=false) var env =
   let typ: P4light.coq_P4Type = TypTypeName var in
-  { env with typ = Env.insert ~shadow var typ env.typ }
+  { env with typ = Env.insert_bare ~shadow var.str typ env.typ }
 
 let insert_type_vars ?shadow:(shadow=false) vars env =
-  let go env var = insert_type_var ~shadow (BareName var) env in
+  let go env var = insert_type_var ~shadow var env in
   List.fold ~f:go ~init:env vars
 
 let insert_dir_type_of ?shadow:(shadow=false) var typ dir env =

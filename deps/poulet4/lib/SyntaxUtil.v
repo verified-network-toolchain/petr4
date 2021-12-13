@@ -26,8 +26,8 @@ Axiom dummy_ident : unit -> ident. (* make it lazy for extracted OCaml. *)
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
-  | TypSpecializedType (TypTypeName (BareName type_name)) _ => type_name
-  | TypTypeName (BareName type_name) => type_name
+  | TypSpecializedType (TypTypeName type_name) _ => type_name
+  | TypTypeName type_name => type_name
   | _ => dummy_ident tt
   end.
 

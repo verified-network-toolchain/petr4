@@ -1604,13 +1604,7 @@ End CCompSel.
 
 Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 
-  match helloworld_program_sel with 
-  | inl helloworld_program_sel => CCompSel.Compile nat helloworld_program_sel
-  | inr _ => Errors.Error (Errors.msg "statementize failed")
-  end.
+  CCompSel.Compile nat helloworld_program_sel.
 
 Definition test := 
-  match helloworld_program_sel with 
-  | inl helloworld_program_sel => CCompSel.Compile_print nat helloworld_program_sel
-  | inr _ => tt
-  end.
+  CCompSel.Compile_print nat helloworld_program_sel.

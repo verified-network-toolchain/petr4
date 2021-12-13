@@ -22,7 +22,7 @@ jobs:
     steps: 
       - name: checkout-main
         # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-        uses: actions/checkout@v2
+        uses: actions/checkout@poulet4
       
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v1

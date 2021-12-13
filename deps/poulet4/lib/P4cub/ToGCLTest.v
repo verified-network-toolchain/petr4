@@ -59,3 +59,15 @@ Definition ecmp2_test_case :=
 
 Lemma ecmp2_test : is_ok ecmp2_test_case.
 Proof. compute. trivial. Qed.
+
+(* CAVEAT EMPTOR -- had to manually add type-widths to bitvectors *)
+Definition p4cub_flowlet := ToP4cub.translate_program Info NoInfo Flowlet.prog.
+Definition gcl_flowlet :=
+  let* sn := p4cub_flowlet in
+  let externs := V1model.externs in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+
+(* Compute cub_flowlet. *)
+(* Compute gcl_flowlet. *)
+Lemma flowlet_no_error: Result.is_ok gcl_flowlet.
+Proof. compute; trivial. Qed.

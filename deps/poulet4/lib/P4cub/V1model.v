@@ -16,7 +16,8 @@ Module ST := Stmt.
 Definition externs : ToGCL.model :=
   [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9) 511));
          ("clone3", G.GSkip);
-         ("assert", G.GAssert (F.LVar "check"))]);
+         ("assert", G.GAssert (F.LVar "check"));
+         ("hash", G.GSkip)]);
   ("register", [("read", G.GSkip); ("write", G.GSkip)])
   ].
 

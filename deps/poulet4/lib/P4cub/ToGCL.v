@@ -137,7 +137,7 @@ Section ToGCL.
   Definition model : Type := Env.t string extern.
   Definition find (m : model) (e f : string) : result (GCL.t) :=
     let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
-    let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
+    let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern " ++ e in
     ok fn.
   Definition empty : model := Env.empty string extern.
   Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result (ST.s tags_t).

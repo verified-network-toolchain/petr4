@@ -402,11 +402,11 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     List.map ~f:(saturate_param env) params
   in
   let saturate_ctrl env (MkControlType (type_params, params)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkControlType (type_params, List.map ~f:(saturate_param env) params)
   in
   let saturate_function env (MkFunctionType (type_params, params, kind, ret)) =
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     MkFunctionType (type_params,
                     saturate_params env params,
                     kind,
@@ -451,8 +451,8 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypSpecializedType (saturate_type env base,
                         saturate_types env args)
   | TypPackage (type_params, wildcard_params, params) ->
-    let env = Checker_env.insert_type_vars type_params env in
-    let env = Checker_env.insert_type_vars wildcard_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true wildcard_params env in
     TypPackage (type_params,
                 wildcard_params,
                 saturate_params env params)
@@ -468,7 +468,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypAction (saturate_params env data_params,
                saturate_params env ctrl_params)
   | TypConstructor (type_params, wildcard_params, params, ret) ->
-    let env = Checker_env.insert_type_vars type_params env in
+    let env = Checker_env.insert_type_vars ~shadow:true type_params env in
     TypConstructor (type_params,
                     wildcard_params,
                     saturate_params env params,

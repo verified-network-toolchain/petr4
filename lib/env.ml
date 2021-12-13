@@ -52,45 +52,6 @@ let split_at (name: string) scope =
   in
   split_at' [] scope
 
-let update_in_scope name value scope =
-  match split_at name scope with
-  | None -> None
-  | Some (xs, _, ys) ->
-     Some (xs @ (name, value) :: ys)
-
-let insert_bare name value env : 'a t =
-  match env with
-  | [] -> no_scopes ()
-  | h :: t -> ((name, value) :: h) :: t
-
-let rec update_bare name value env =
-  match env with
-  | [] -> no_scopes ()
-  | inner_scope :: scopes ->
-     match update_in_scope name value inner_scope with
-     | Some inner_scope -> Some (inner_scope :: scopes)
-     | None ->
-        match update_bare name value scopes with
-        | Some env -> Some (inner_scope :: env)
-        | None -> None
-
-let update_toplevel name value env =
-  let (env0,env1) = List.split_n env (List.length env - 1) in
-  match update_bare name value env1 with
-  | Some env1' -> Some (env0 @ env1')
-  | None -> None
-
-let insert_toplevel (name: string) (value: 'a) (env: 'a t) : 'a t =
-  let (env0,env1) = List.split_n env (List.length env - 1) in
-  let env1' = insert_bare name value env1 in
-  env0 @ env1'
-
-let update (name: P4name.t) (value: 'a) (env: 'a t) : 'a t option =
-  match name with
-  | BareName name -> update_bare name.str value env
-  | QualifiedName ([], name) -> update_toplevel name.str value env
-  | _ -> failwith "unimplemented"
-
 let rec find_bare_opt (name: string) : 'a t -> 'a option =
   function
   | [] -> None
@@ -119,6 +80,52 @@ let find_all (name: P4name.t) (env: 'a t) : 'a list =
      | Some top -> find_all_bare n.str [top]
      | None -> no_scopes ()
      end
+  | _ -> failwith "unimplemented"
+
+let present_bare name env : bool =
+  match find_bare_opt name env with
+  | Some _ -> true
+  | None -> false
+
+let update_in_scope name value scope =
+  match split_at name scope with
+  | None -> None
+  | Some (xs, _, ys) ->
+     Some (xs @ (name, value) :: ys)
+
+let insert_bare ?shadow:(shadow=true) name value env : 'a t =
+  if not shadow && present_bare name env
+  then raise (mk_already_bound (BareName ({str=name; tags=Info.dummy})))
+  else match env with
+       | [] -> no_scopes ()
+       | h :: t -> ((name, value) :: h) :: t
+
+let rec update_bare name value env =
+  match env with
+  | [] -> no_scopes ()
+  | inner_scope :: scopes ->
+     match update_in_scope name value inner_scope with
+     | Some inner_scope -> Some (inner_scope :: scopes)
+     | None ->
+        match update_bare name value scopes with
+        | Some env -> Some (inner_scope :: env)
+        | None -> None
+
+let update_toplevel name value env =
+  let (env0,env1) = List.split_n env (List.length env - 1) in
+  match update_bare name value env1 with
+  | Some env1' -> Some (env0 @ env1')
+  | None -> None
+
+let insert_toplevel (name: string) (value: 'a) (env: 'a t) : 'a t =
+  let (env0,env1) = List.split_n env (List.length env - 1) in
+  let env1' = insert_bare name value env1 in
+  env0 @ env1'
+
+let update (name: P4name.t) (value: 'a) (env: 'a t) : 'a t option =
+  match name with
+  | BareName name -> update_bare name.str value env
+  | QualifiedName ([], name) -> update_toplevel name.str value env
   | _ -> failwith "unimplemented"
 
 let opt_to_unbound name =
@@ -155,7 +162,7 @@ let present (name: P4name.t) (env: 'a t) : bool =
   | Some _ -> true
   | None -> false
 
-let insert ?shadow:(shadow=false) (name: P4name.t) (value: 'a) (env: 'a t) : 'a t =
+let insert ?shadow:(shadow=true) (name: P4name.t) (value: 'a) (env: 'a t) : 'a t =
   if not shadow && present name env
   then raise (mk_already_bound name)
   else match name with

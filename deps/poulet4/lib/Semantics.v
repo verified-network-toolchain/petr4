@@ -1933,6 +1933,9 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
       PathMap.set (p ++ [str name]) (FInternal nil BlockNil body) ge
   end.
 
+Definition accept_state :=
+  FInternal nil BlockNil BlockNil.
+
 Definition reject_state :=
   let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal ["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
@@ -2007,8 +2010,8 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
-      let ge := PathMap.set (p ++ ["accept"]) (FInternal nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ ["reject"]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ ["accept"]) accept_state ge in
+      let ge := PathMap.set (p ++ ["reject"]) reject_state ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in

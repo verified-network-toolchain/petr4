@@ -27,9 +27,6 @@ cd ../..
 opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
 #dune external-lib-deps --missing @@default
 
-# build petr4
-#dune init project petr4
-dune build --profile release
-dune install
-
+make
+make install
 

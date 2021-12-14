@@ -20,8 +20,6 @@ export PETR4_DEPS_OPAM="ANSITerminal \
                         js_of_ocaml-lwt \
                         js_of_ocaml-ppx"
 
-#staged_pps ppx_import ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show
-
 export POULET4_DEPS="coq-equations \
                      coq-record-update \
                      coq-compcert "
@@ -56,5 +54,5 @@ opam install \
 opam install ppx_import
 
 make
-# make install
+make install
 

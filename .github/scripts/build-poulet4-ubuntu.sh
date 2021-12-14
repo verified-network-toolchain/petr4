@@ -9,6 +9,24 @@ set -x  # Make command execution verbose
 export PETR4_DEPS="m4 \
                    libgmp-dev"
 
+export PETR4_DEPS_OPAM="ANSITerminal \
+                        alcotest \
+                        bignum \
+                        cstruct-sexp \
+                        pp \
+                        ppx_deriving \
+                        ppx_deriving_yojson \
+                        yojson \
+                        js_of_ocaml \
+                        js_of_ocaml-lwt \
+                        js_of_ocaml-ppx"
+
+export POULET4_DEPS="coq-equations \
+                     coq-record-update \
+                     coq-compcert "
+
+export POULET4_CCOMP_DEPS="zarith"
+
 # install deps
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -16,16 +34,25 @@ sudo apt-get install -y --no-install-recommends \
 opam update
 opam upgrade
 # install p4pp
-#opam switch 4.09.1
+opam switch 4.12.0
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
-#install dune
-#opam install dune
-#export PATH="/usr/local/opt/dune/bin:$PATH"
-#cd ../..
+
+# install deps for poulet4
+opam pin add coq 8.13.2
+opam repo add coq-released https://coq.inria.fr/opam/released
+# install dependencies for petr4, poulet4, poulet4_ccomp
+opam install \
+  ${PETR4_DEPS_OPAM} \
+  ${POULET4_DEPS} \
+  ${POULET4_CCOMP_DEPS}
+#opam install coq-equations coq-record-update coq-compcert 
+# install deps for poulet4_ccomp
+#opam install zarith
+
 #dune external-lib-deps --missing @install
-opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
-#dune external-lib-deps --missing @@default
+opam install ppx_import
 
 make
 make install
+

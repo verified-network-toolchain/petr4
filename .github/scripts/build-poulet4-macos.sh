@@ -52,8 +52,9 @@ opam install \
 # install deps for poulet4_ccomp
 #opam install zarith
 
-dune external-lib-deps --missing @install
+#dune external-lib-deps --missing @install
+opam install ppx_import
 
-# make
+make
 # make install
 

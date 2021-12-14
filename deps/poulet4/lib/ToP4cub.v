@@ -787,7 +787,7 @@ Section ToP4cub.
       error ("[ERROR] Couldnt find label [" ++ P4String.str label ++ "] in enum")
     end.
 
-  Print P4Type.
+  (*Print P4Type.*)
 
   Definition get_enum_type (expression : @Expression tags_t) : result (list (P4String.t tags_t)) :=
     let '(MkExpression tags pre_expr type dir) := expression in

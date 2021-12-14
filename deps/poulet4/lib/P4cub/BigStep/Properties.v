@@ -7,16 +7,8 @@ Import AllCubNotations Val.ValueNotations
        Val.LValueNotations F.FieldTactics Step.
 
 Section Properties.
-  Lemma lv_update_sub_env : forall lv v ϵ,
-    ϵ ⊆ lv_update lv v ϵ.
-  Proof.
-    intro lv;
-      induction lv; intros v eps; simpl.
-    - (* not generally true. *) admit.
-  Abort.
-  
   Context {tags_t : Type}.
-  Local Hint Resolve Env.scope_shadow_sub_env : core.
+  Local Hint Resolve Env.shadow_sub_env_l : core.
   Local Hint Resolve Utils.Forall2_dumb : core.
   Local Hint Constructors expr_big_step : core.
   

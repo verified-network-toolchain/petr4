@@ -2,6 +2,16 @@ Require Import Poulet4.P4cub.Util.Utiliser.
 
 Declare Custom Entry p4env.
 
+Ltac destr_equiv_dec :=
+  match goal with
+  | H: EqDec _ ?R, E: context [?R ?x ?y] |- _
+    => destruct (R x y) as [? | ?];
+      unravel in *; try contradiction; unravel in *
+  | H: EqDec _ ?R |- context [?R ?x ?y]
+    => destruct (R x y) as [? | ?];
+      unravel in *; try contradiction; unravel in *
+  end.
+
 (** * Environments *)
 Module Env.
 
@@ -55,8 +65,13 @@ Section EnvDefs.
     List.filter (fun '(d',_) => if HE d d' then false else true).
   
   (** Scope Shadowing, [e1] shadows [e2]. *)
-  Definition scope_shadow (e1 e2 : t D T) : t D T :=
-    e1 ++ e2.
+  Definition shadow (e1 e2 : t D T) : t D T :=
+    List.map
+      (fun '((d,_) as dt) =>
+         match find d e2 with
+         | Some t2 => (d,t2)
+         | None    => dt
+         end) e1.
   (**[]*)
   
   (** Gather values given a list of keys. *)
@@ -230,16 +245,88 @@ Section EnvDefs.
         intro e; induction e as [| [d t] e IHe]; simpl in *;
           intros ky vl H; auto.
     Abort.
-               
-    Lemma scope_shadow_sub_env :
-      forall e1 e2, sub_env e1 (scope_shadow e1 e2).
+
+    Lemma find_shadow : forall k e1 e2,
+        find k (shadow e1 e2) =
+        match find k e1, find k e2 with
+        | Some _, Some v => Some v
+        | Some v, None   => Some v
+        | None  , _      => None
+        end.
     Proof.
-      unfold sub_env, scope_shadow;
-        intros e1 e2 k v Hkv.
-      induction e1 as [| [k1 v1] e1 IHe1];
-        simpl in *; auto; try discriminate.
+      intros k e1; induction e1 as [| [k1 v1] e1 IHe1];
+        intros e2; cbn in *; auto.
+      unfold shadow in IHe1; rewrite IHe1; clear IHe1.
+      repeat destruct_if.
+      - rewrite (find_equiv_rel e2 k k1)
+          by auto using find_equiv_rel.
+        destruct (find k1 e2) as [t |] eqn:Heqt; auto.
+      - destruct (find k1 e2) as [t |] eqn:Heqt;
+          destruct_if; try contradiction; reflexivity.
+    Qed.
+    
+    Lemma shadow_sub_env_l : forall e1 e2 e3,
+        sub_env e1 e2 ->
+        sub_env (shadow e1 e3) (shadow e2 e3).
+    Proof.
+      unfold sub_env; intros e1 e2 e3 Hs k v.
+      repeat rewrite find_shadow; intro H.
+      destruct (find k e1) as [t |] eqn:Heqt;
+        simpl in *; try discriminate;
+          apply Hs in Heqt; rewrite Heqt; assumption.
     Qed.
 
+    Lemma shadow_sub_env_r : forall e1 e2 e3,
+        sub_env e2 e3 ->
+        sub_env (shadow e1 e2) (shadow e1 e3).
+    Proof.
+      unfold sub_env; intros e1 e2 e3 Hs k v.
+      repeat rewrite find_shadow; intro H.
+      destruct (find k e2) as [t |] eqn:Heqt; simpl in *.
+      - apply Hs in Heqt; rewrite Heqt; assumption.
+      - destruct (find k e1) as [t' |] eqn:Heqt'; simpl in *; inv H.
+    Abort.
+
+    Lemma shadow_eq_env_l : forall e1 e2 e3,
+        eq_env e1 e2 ->
+        eq_env (shadow e1 e3) (shadow e2 e3).
+    Proof.
+      unfold eq_env; intros e1 e2 e3 [Hs1 Hs2];
+        split; auto using shadow_sub_env_l.
+    Qed.
+
+    Lemma find_eq_env : forall e1 e2,
+        eq_env e1 e2 <-> forall k, find k e1 = find k e2.
+    Proof.
+      unfold eq_env, sub_env; intros e1 e2; split.
+      - intros [H12 H21] k.
+        destruct (find k e1) as [v1 |] eqn:Heqv1; firstorder.
+        destruct (find k e2) as [v2 |] eqn:Heqv2; intuition.
+        apply H21 in Heqv2; rewrite Heqv1 in Heqv2; discriminate.
+      - intros H; split; intros k v Hkv;
+          [ rewrite <- H | rewrite H]; assumption.
+    Qed.
+
+    Lemma bind_eq_env : forall k v e1 e2,
+        eq_env e1 e2 -> eq_env (bind k v e1) (bind k v e2).
+    Proof.
+      intros d t e1 e2.
+      repeat rewrite find_eq_env; intros H k.
+      destruct (HE k d) as [Hkd | Hkd];
+        unravel in *; eauto.
+    Qed.
+
+    Lemma shadow_eq_env_r : forall e1 e2 e3,
+        eq_env e2 e3 ->
+        eq_env (shadow e1 e2) (shadow e1 e3).
+    Proof.
+      intros e1 e2 e3.
+      repeat rewrite find_eq_env.
+      intros H k.
+      repeat rewrite find_shadow.
+      rewrite H. reflexivity.
+    Qed.
+    
     Lemma disjoint_sym : forall e1 e2,
         disjoint e1 e2 -> disjoint e2 e1.
     Proof.
@@ -514,8 +601,8 @@ Module EnvNotations.
          (in custom p4env at level 40, e custom p4env,
              right associativity).
   Notation "e1 ≪ e2"
-           := (scope_shadow e1 e2)
-                (in custom p4env at level 41, e1 custom p4env,
-                    e2 custom p4env, right associativity).
+    := (shadow e1 e2)
+         (in custom p4env at level 41, e1 custom p4env,
+             e2 custom p4env, right associativity).
 End EnvNotations.
 End Env.

@@ -86,6 +86,7 @@ Section Embed.
     intro v; induction v using custom_value_ind;
       unravel in *; auto.
     - constructor.
+    - constructor.
       rewrite <- Forall2_map_r, Forall2_Forall; auto.
     - constructor.
       rewrite <- Forall2_map_r, Forall2_Forall.

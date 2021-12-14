@@ -37,6 +37,19 @@ Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   end.
 (**[]*)
 
+Definition mask_of_hi_lo hi lo :=
+  Z.to_N
+    (-1 -
+     (Z.of_N
+        (N.lxor
+           (2 ^ (Npos hi + 1) - 1)
+           (2 ^ (Npos lo - 1))))).
+
+Definition slice_of_lvalue w n hi lo :=
+  Z.lxor
+    (Z.land n $ Z.of_N $ mask_of_hi_lo hi lo) $
+    Z.of_N $ N.shiftl (Z.to_N n) w.
+
 (** Updating an lvalue in an environment. *)
 Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   match lv with
@@ -44,19 +57,13 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   | l{ SLICE lv [hi:lo] }l =>
     match v, lv_lookup ϵ lv with
     | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
-      let rhs := N.shiftl (Z.to_N n) w in
-      let mask :=
-          Z.to_N
-          (-1 - (Z.of_N (N.lxor
-                           (2 ^ (Npos hi + 1) - 1)
-                           (2 ^ (Npos lo - 1))))) in
-      let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
+      let new := slice_of_lvalue w n hi lo in
       lv_update lv ~{ w VW new }~ ϵ
     | _, Some _ | _, None => ϵ
     end
   | l{ lv DOT x }l =>
     match lv_lookup ϵ lv with
-    | Some ~{ STRUCT { vs } }~ => lv_update lv (V.VStruct (F.update x v vs)) ϵ
+    | Some ~{ STRUCT { vs } }~ => lv_update lv (V.VStruct $ F.update x v vs) ϵ
     | Some ~{ HDR { vs } VALID:=b }~ =>
       lv_update lv (V.VHeader (F.update x v vs) b) ϵ
     | Some _ | None => ϵ

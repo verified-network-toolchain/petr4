@@ -76,13 +76,6 @@ Ltac transformExpr_destr_hyp_rewrite :=
     |- _ => rewrite H in Hy; simpl in *
   end.
 
-
-(*Ltac quantify_varNameGen :=
-  match goal with
-        | env: VarNameGen.t, H: (forall _: VarNameGen.t, _)
-      |-   _ => specialize H with env
-    end.*) 
-
 Ltac fold_destr :=
   match goal with
   | |- context [fold_left ?f ?l ?acc]
@@ -564,9 +557,10 @@ Section Lifted.
   Proof.
   intros translateParserE cases Hpte; ind_list_predfs; intros. 
   - simpl. auto.
-  - simpl. translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
-  destruct p0. simpl. constructor.
-    + hyp_f_equal_fst Heqp0.
+  - fold_destr. destruct (translateParserE e t) eqn: HS1.
+    destruct p0. simpl. constructor.
+    + unfold TranslateCases' in *.
+      hyp_f_equal_fst Hfoldl. apply IHcases; auto.
     + hyp_f_equal_fst HS1.
   Qed.
 
@@ -593,10 +587,11 @@ Section Lifted.
   Proof.
   intros translateParserE cases Hpte; ind_list_predfs; intros; unfold F.predfs_data in *; 
   unfold F.predf_data in *; unravel in *; auto.
-  translateCases'_destr. destruct (translateParserE e t) eqn: HS1.
+  fold_destr. destruct (translateParserE e t) eqn: HS1.
   destruct p0. simpl. rewrite Forall_app. split.
-    + hyp_f_equal_snd Heqp0.
-    + constructor; auto. simpl. hyp_f_equal_snd HS1.
+  - unfold TranslateCases' in *.
+    hyp_f_equal_snd Hfoldl. apply IHcases; auto.
+  - constructor; auto. simpl. hyp_f_equal_snd HS1.
   Qed.
 
   Local Hint Resolve TranslateCases_lifted_expr : core.

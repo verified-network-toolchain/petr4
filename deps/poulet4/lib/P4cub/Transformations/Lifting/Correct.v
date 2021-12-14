@@ -177,7 +177,13 @@ Section Correct.
       { apply epsilon_env_leq with env; auto.
         apply f_equal with (f := snd) in Heqp0; cbn in *.
         rewrite <- Heqp0. auto using TransformExpr_env_inc. }
-      pose proof IHe2 v2 eps H7 t0 pkt fe cx Hepst1 as IH2; clear IHe2.
+      assert (Heps'1 : ⟨ eps'1 , e2 ⟩ ⇓ v2).
+      { apply Env.sub_env_disjoint_union_exists in Hsub1 as Hue.
+        destruct Hue as (eps'1' & Hdj & Happ).
+        (*setoid_rewrite <- Happ.
+        rewrite <- Happ.*) admit. }
+        
+      (*pose proof IHe2 v2 eps'1 H7 t0 pkt fe cx Hepst1 as IH2; clear IHe2.
       transformExpr_destr_hyp; triplet_inv.
       destruct IH2 as (eps'2 & Hs2 & Hv2 & Hsub2 & Henv2).
       solve_this_stuff_with eps'2 v.
@@ -187,6 +193,7 @@ Section Correct.
           (* need lemma about statement evaluation & ⊆. *) admit.
         * constructor; auto.
           econstructor; eauto.
+          
           (* need lemma about expression evaluation & ⊆. *) admit.
       + transitivity eps'2; auto.
         apply Env.find_none_bind_sub_env.
@@ -198,7 +205,7 @@ Section Correct.
         * intros Hwah.
           apply string_append_inj_l in Hwah.
           apply string_of_unit_of_to_uint_inj in Hwah.
-          lia.
+          lia.*)
           (*
     - pose proof IHev env pkt fe cx Hee as IH; clear IHev.
       transformExpr_destr_hyp; triplet_inv.

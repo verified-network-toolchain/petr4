@@ -16,22 +16,22 @@ Infix "$" := apply (at level 41, right associativity).
 (** * Reduction Tactics *)
 
 Tactic Notation "unravel" :=
-  simpl;
+  cbn;
   unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
-  equiv, complement; simpl.
+  equiv, complement; cbn.
 
 Tactic Notation "unravel" "in" hyp(H) :=
-  simpl in H;
+  cbn in H;
   unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
-  equiv, complement in H; simpl in H.
+  equiv, complement in H; cbn in H.
 
 Tactic Notation "unravel" "in" "*" :=
-  simpl in *;
+  cbn in *;
   unfold "∘", "$", "▷",
   mret, mbind, option_ret, option_bind,
-  equiv, complement in *; simpl in *.
+  equiv, complement in *; cbn in *.
 
 Ltac inv H := inversion H; clear H; subst.
 

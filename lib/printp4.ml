@@ -133,7 +133,7 @@ let rec print_type p (typ : coq_P4Type) =
   | TypEnum (s, typ, members) ->
       failwith "unimplemented: print_type TypEnum"
   | TypTypeName name ->
-      fprintf p "@[<h>%a@]" print_name name
+      fprintf p "@[<h>%a@]" print_string name.str
   | TypNewType (s, typ) ->
       failwith "unimplemented: print_type TypNewType"
   | TypControl ctrl ->
@@ -308,7 +308,7 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_expr expr
   | ExpTypeMember (name, s)->
       fprintf p "@[<h>%a.%s@]"
-          print_name name s.str
+        p4string name s.str
   | ExpErrorMember s ->
       fprintf p "@[<h>error.%s@]" s.str
   | ExpExpressionMember (expr, s) ->

@@ -93,13 +93,6 @@ Record genv := MkGenv {
   ge_ext :> extern_env
 }.
 
-Definition name_to_type (ge_typ: genv_typ) (typ : @Typed.name tags_t):
-  option (@P4Type tags_t) :=
-  match typ with
-  | BareName id => IdentMap.get (str id) ge_typ
-  | QualifiedName _ id => IdentMap.get (str id) ge_typ
-  end.
-
 Section WithGenv.
 
 Variable ge : genv.
@@ -169,7 +162,7 @@ Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
         end
     end in
   match typ with
-  | TypTypeName name => name_to_type ge name
+  | TypTypeName name => IdentMap.get (str name) (ge_typ ge)
   | TypArray atyp size => match get_real_type atyp with
                           | Some realtyp => Some (TypArray atyp size)
                           | None => None
@@ -485,14 +478,14 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                      newsv
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
-                            name_to_type ge tname = Some (TypEnum ename None members) ->
+                            IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename None members) ->
                             List.In member members ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))
   (* We need rethink about how to handle senum lookup. *)
   | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
-                             name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
+                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename (Some etyp) members) ->
                              IdentMap.get (str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
@@ -783,7 +776,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
           match f with
           | ExpName (BareName fname) _ | ExpName (QualifiedName _ fname) _ =>
               if String.eqb name (str fname) then
-                  Some (action)
+                  Some action
               else
                   get_action actions' name
           | _ => get_action actions' name
@@ -1586,8 +1579,8 @@ Axiom dummy_val : Val.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
-  | TypSpecializedType (TypTypeName (BareName type_name)) _ => str type_name
-  | TypTypeName (BareName type_name) => str type_name
+  | TypSpecializedType (TypTypeName type_name) _ => str type_name
+  | TypTypeName type_name => str type_name
   | _ => dummy_ident
   end.
 
@@ -1812,7 +1805,7 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName (BareName name) =>
+      | TypTypeName name =>
           String.eqb (P4String.str name) "packet_in"
       | _ => false
       end
@@ -1824,7 +1817,7 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
   | MkParameter _ _ typ _ _ =>
       match typ with
-      | TypTypeName (BareName name) =>
+      | TypTypeName name =>
           String.eqb (P4String.str name) "packet_out"
       | _ => false
       end
@@ -1933,6 +1926,9 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
       PathMap.set (p ++ [str name]) (FInternal nil BlockNil body) ge
   end.
 
+Definition accept_state :=
+  FInternal nil BlockNil BlockNil.
+
 Definition reject_state :=
   let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal ["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
@@ -2007,8 +2003,8 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
-      let ge := PathMap.set (p ++ ["accept"]) (FInternal nil BlockNil BlockNil) ge in
-      let ge := PathMap.set (p ++ ["reject"]) (FInternal nil BlockNil BlockNil) ge in
+      let ge := PathMap.set (p ++ ["accept"]) accept_state ge in
+      let ge := PathMap.set (p ++ ["reject"]) reject_state ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
@@ -2106,7 +2102,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
   | DeclTypeDef tags name (inl typ)
   | DeclNewType tags name (inl typ) =>
     match typ with
-    | TypTypeName name2 => match name_to_type ge_typ name2 with
+    | TypTypeName name2 => match IdentMap.get (str name2) ge_typ with
                            | Some typ2 => Some (IdentMap.set (str name) typ2 ge_typ)
                            | None => None
                            end

@@ -56,6 +56,12 @@ Ltac translateTable_destr :=
     => destruct (TranslateTable body env i) as [[? ?] ?] eqn:?; simpl in *
   end.
 
+Ltac translateTopDecl_destr := 
+  match goal with
+  | |- context [TranslateTopDecl ?td ?env]
+    => destruct (TranslateTopDecl td env) as [? ?] eqn:?; simpl in *
+  end.
+
 Ltac transformExpr_destr_hyp :=
   match goal with
   | H: context [TransformExpr ?e ?env] |- _
@@ -621,6 +627,32 @@ Section Lifted.
 
   Local Hint Resolve TranslateParserState_lifted_stmt : core.
 
+  Lemma TranslateParserStates_lifted_stmt :
+    forall (parser_states: Field.fs string (Parser.state_block tags_t)) (env : VarNameGen.t),
+      lifted_parser_states (fst (TranslateParserStates parser_states env)).
+  Proof.
+    induction parser_states; intros; simpl in *.
+    - constructor.
+    - destruct a.
+      unfold lifted_parser_states, F.predfs_data.
+      destruct (TranslateParserStates parser_states env) as [prev_states env_prev] eqn:?.
+      destruct (TranslateParserState s0 env_prev) as [s' env_state] eqn:?.
+      apply Forall_app; split.
+      + apply (f_equal fst) in Heqp.
+        simpl (fst _) in Heqp.
+        rewrite <- Heqp.
+        apply IHparser_states.
+      + constructor; auto.
+        unfold F.predf_data.
+        change _ with (lifted_parser_state s').
+        apply (f_equal fst) in Heqp0.
+        simpl (fst _) in Heqp0.
+        rewrite <- Heqp0.
+        auto.
+  Qed.
+
+  Local Hint Resolve TranslateParserStates_lifted_stmt : core.
+
   Lemma TranslateTable_lifted_stmt :
     forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
       lifted_stmt (fst (fst (TranslateTable t env i))).
@@ -638,6 +670,26 @@ Section Lifted.
 
   Local Hint Resolve TranslateTable_lifted_stmt : core.
 
+  Lemma TranslateTable_lifted_table :
+    forall (t: Control.table tags_t) (env: VarNameGen.t) (i : tags_t),
+      lifted_table (snd (fst (TranslateTable t env i))).
+  Proof.
+    intros [ky acts] env i; cbn; fold_destr.
+    hyp_f_equal_snd Hfoldl.
+    clear Hfoldl l t s.
+    generalize dependent env.
+    induction ky as [| [e mk] ky IHky]; intros env; simpl in *.
+    - constructor.
+    - fold_destr; transformExpr_destr.
+      specialize IHky with env.
+      rewrite Hfoldl in IHky; simpl in *.
+      constructor.
+      + hyp_f_equal_snd Heqp.
+      + inversion IHky; simpl in *; subst l; auto.
+  Qed.
+
+  Local Hint Resolve TranslateTable_lifted_table : core.
+
   Lemma TranslateControlDecl_lifted_stmt : forall (cd : Control.d tags_t) (env : VarNameGen.t),
       lifted_stmt (fst (fst (TranslateControlDecl cd env))).
   Proof.
@@ -648,11 +700,75 @@ Section Lifted.
       + hyp_f_equal_fst Heqp.
       + hyp_f_equal_fst Heqp0.
   Qed.  
-  
+
   Local Hint Resolve TranslateControlDecl_lifted_stmt : core.
 
-  (* Not Done, unsure how to write lemma with monad
-  Lemma TranslateTopDecl_lifted_stmt : forall (td : TopDecl.d tags_t) (env : VarNameGen.t),
-      lifted_ *)
+  Lemma TranslateControlDecl_lifted_decl : forall (cd : Control.d tags_t) (env : VarNameGen.t),
+      lifted_control_Decl (snd (fst (TranslateControlDecl cd env))).
+  Proof.
+    intro cd. induction cd; intro env; simpl; auto.  
+    - translateStmt_destr. 
+      constructor.
+      replace s with (fst (TranslateStatement body env))
+        by (rewrite Heqp; exact eq_refl).
+      eauto.
+    - translateTable_destr.
+      constructor.
+      hyp_f_equal_snd Heqp.
+    - repeat translateControlDecl_destr. constructor.
+      + hyp_f_equal_snd Heqp.
+      + hyp_f_equal_snd Heqp0.
+  Qed.  
+  
+  Local Hint Resolve TranslateControlDecl_lifted_decl : core.
+
+  Lemma TranslateTopDecl_lifted_top_Decl : forall (td : TopDecl.d tags_t) (env : VarNameGen.t),
+      lifted_top_Decl (fst (TranslateTopDecl td env)).
+  Proof.
+    induction td; intros; simpl; try solve [constructor].
+    - translateControlDecl_destr.
+      translateStmt_destr.
+      constructor.
+      + hyp_f_equal_snd Heqp.
+      + constructor.
+        * hyp_f_equal_fst Heqp.
+        * replace s0 with (fst (TranslateStatement apply_blk t))
+            by (rewrite Heqp0; exact eq_refl).
+          auto.
+    - (* annoying--can't write (... start env) here because start gets
+      grabbed by some notation and then fails to parse *)
+      destruct (TranslateParserState _ env) as [start' env_start] eqn:?.
+      destruct (TranslateParserStates states env_start) as [states' env_states] eqn:?.
+      constructor.
+      + apply (f_equal fst) in Heqp.
+        simpl (fst _) in Heqp.
+        rewrite <- Heqp.
+        auto.
+      + apply (f_equal fst) in Heqp0.
+        simpl (fst _) in Heqp0.
+        rewrite <- Heqp0.
+        eauto.
+    - translateStmt_destr.
+      constructor; auto.
+      replace s with (fst (TranslateStatement body env))
+        by (rewrite Heqp; exact eq_refl).
+      auto.
+    - translateTopDecl_destr.
+      translateTopDecl_destr.
+      replace d with (fst (TranslateTopDecl td1 env))
+        by (rewrite Heqp; exact eq_refl).
+      replace d0 with (fst (TranslateTopDecl td2 t))
+        by (rewrite Heqp0; exact eq_refl).
+      constructor; auto.
+  Qed.
+
+  Local Hint Resolve TranslateTopDecl_lifted_top_Decl : core.
+
+  Lemma TranslateProgram_lifted_top_Decl : forall (prog: TopDecl.d tags_t),
+      lifted_top_Decl (TranslateProgram prog).
+  Proof.
+    unfold TranslateProgram.
+    auto.
+  Qed.
 
 End Lifted.

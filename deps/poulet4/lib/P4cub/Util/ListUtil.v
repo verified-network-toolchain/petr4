@@ -239,6 +239,16 @@ Definition fold_righti {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : li
 Definition fold_lefti { A B : Type } (f : nat -> A -> B -> B) (init : B) (lst : list A) : B :=
   snd (fold_left (fun '(n, b) a => (S n, f n a b)) lst (O, init)).
 
+Definition findi { A : Type } (select : A -> bool) (l : list A) : option nat :=
+  fold_lefti (fun i a found_at_n =>
+                match found_at_n with
+                | Some _ => found_at_n
+                | None => if select a
+                          then Some i
+                          else None
+                end
+             ) None l.
+
 Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) : result (list (A * C)) :=
   rred (List.map (snd_res_map f) xs).
 

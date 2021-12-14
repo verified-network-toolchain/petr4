@@ -151,7 +151,7 @@ let rec print_type p (typ : coq_P4Type) =
           p4strings members
   | TypTypeName name ->
       fprintf p "(@[<hov 0>TypTypeName@ %a)@]"
-          print_name name
+          p4string name
   | TypNewType (s, typ) ->
       fprintf p "(@[<hov 4>TypNewType@ %a@ %a)@]"
           p4string s
@@ -352,7 +352,7 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_expr expr
   | ExpTypeMember (name, s)->
       fprintf p "(@[<hov 4>ExpTypeMember@ %a@ %a)@]"
-          print_name name
+        p4string name
           p4string s
   | ExpErrorMember s ->
       fprintf p "(@[<hov 0>ExpErrorMember@ %a)@]"

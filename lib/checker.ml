@@ -160,7 +160,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
   | ValError e ->
      MkExpression (Info.dummy, ExpErrorMember e, TypError, In)
   | ValMatchKind mk ->
-     MkExpression (Info.dummy, ExpTypeMember (BareName {str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
+     MkExpression (Info.dummy, ExpTypeMember ({str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
   | ValStruct fs ->
      let e, t = fs_to_literals fs in
      add_cast_unsafe e (TypStruct t)
@@ -170,8 +170,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
      add_cast_unsafe e (TypHeader t)
   | ValEnumField (typ, mem)
   | ValSenumField (typ, mem, _) ->
-     let name: P4name.t = BareName typ in
-     MkExpression (Info.dummy, ExpTypeMember (name, mem), TypTypeName name, In)
+     MkExpression (Info.dummy, ExpTypeMember (typ, mem), TypTypeName typ, In)
   | ValSenum vs -> failwith "ValSenum unsupported"
 
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
@@ -179,9 +178,9 @@ let rec is_extern (env: Checker_env.t) (typ: P4light.coq_P4Type) =
   match typ with
   | TypExtern _ -> true
   | TypTypeName n ->
-    begin match Checker_env.resolve_type_name n env with
+    begin match Checker_env.resolve_type_name (BareName n) env with
       | TypTypeName n' ->
-        if P4name.name_eq n n'
+        if P4string.eq n n'
         then false
         else is_extern env (TypTypeName n')
       | typ -> is_extern env typ
@@ -266,7 +265,7 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: P4light.coq_Expression) :
     end
   | ExpCast (typ, expr) ->
     let expr_val = compile_time_eval_expr env expr in
-    let type_lookup name = Checker_env.resolve_type_name name env in
+    let type_lookup name = Checker_env.resolve_type_name (BareName name) env in
     option_map (Ops.interp_cast ~type_lookup typ) expr_val
   | ExpList values ->
     begin match compile_time_eval_exprs env values with
@@ -274,7 +273,7 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: P4light.coq_Expression) :
       | None -> None
     end
   | ExpTypeMember (typ, name) ->
-    let real_name = real_name_for_type_member env typ name in
+    let real_name = real_name_for_type_member env (BareName typ) name in
     Checker_env.find_const_opt real_name env
   | ExpErrorMember t ->
     Some (ValError t)
@@ -422,10 +421,10 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
   in
   match typ with
   | TypTypeName t ->
-    begin match Checker_env.resolve_type_name_opt t env with
+    begin match Checker_env.resolve_type_name_opt (BareName t) env with
       | None -> typ
       | Some (TypTypeName t') ->
-        if P4name.name_eq t' t
+        if P4string.eq t' t
         then typ
         else saturate_type env (TypTypeName t')
       | Some typ' ->
@@ -692,9 +691,6 @@ and solve_types
   let t1 = reduce_type env type1 in
   let t2 = reduce_type env type2 in
   begin match t1, t2 with
-    | TypTypeName (QualifiedName _), _
-    | _, TypTypeName (QualifiedName _) ->
-      failwith "Name in saturated type."
     | TypSpecializedType (TypExtern e1, args1),
       TypSpecializedType (TypExtern e2, args2) ->
       let ok (t1, t2) = solve_types env equiv_vars unknowns t1 t2 in
@@ -704,13 +700,13 @@ and solve_types
     | TypSpecializedType (base, args), _
     | _, TypSpecializedType (base, args) ->
       raise_s [%message "Stuck specialized type." ~t:(TypSpecializedType (base, args):coq_P4Type)]
-    | TypTypeName (BareName tv1), TypTypeName (BareName tv2) ->
+    | TypTypeName ( tv1), TypTypeName ( tv2) ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
       else if List.mem ~equal:P4string.eq unknowns tv1
       then Some (single_constraint unknowns tv1 t2)
       else None
-    | TypTypeName (BareName tv), typ ->
+    | TypTypeName ( tv), typ ->
       if List.mem ~equal:P4string.eq unknowns tv
       then Some (single_constraint unknowns tv typ)
       else None
@@ -1076,7 +1072,8 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | IntType e -> ret @@ TypInt (eval_to_positive_int env (fst typ) e)
   | BitType e -> ret @@ TypBit (eval_to_positive_int env (fst typ) e)
   | VarBit e -> ret @@ TypVarBit (eval_to_positive_int env (fst typ) e)
-  | TypeName ps -> ret @@ TypTypeName ps
+  | TypeName
+      (BareName x | QualifiedName (_,x)) -> ret @@ TypTypeName x
   | SpecializedType {base; args} ->
     let args, wildcards =
       args
@@ -1099,7 +1096,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
   | DontCare ->
     if gen_wildcards
     then let name = gen_wildcard env in
-         TypTypeName (BareName name), [name]
+         TypTypeName ( name), [name]
     else raise_s [%message"not generating wildcards" ~info:(fst typ: Info.t)] 
 
 and translate_type (env: Checker_env.t) (typ: Surface.Type.t) : coq_P4Type =
@@ -1180,7 +1177,7 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
     are_construct_params_types_well_formed env ctrl_params
   (* Type names *)
   | TypTypeName name ->
-    Checker_env.resolve_type_name_opt name env <> None
+    Checker_env.resolve_type_name_opt (BareName name) env <> None
   | TypTable result_typ_name ->
     Checker_env.resolve_type_name_opt (BareName result_typ_name) env <> None
   | TypNewType (name, typ) ->
@@ -1893,10 +1890,12 @@ and type_cast env ctx typ expr : P4light.coq_ExpressionPreT * coq_P4Type * direc
   else failwith "Illegal explicit cast."
 
 (* ? *)
-and type_type_member env ctx typ name : P4light.coq_ExpressionPreT * coq_P4Type * direction =
+and type_type_member
+    env ctx ((BareName x | QualifiedName (_,x)) as typ) name
+  : P4light.coq_ExpressionPreT * coq_P4Type * direction =
   let real_name = real_name_for_type_member env typ name in
   let full_type, dir = Checker_env.find_type_of real_name env in
-  ExpTypeMember (typ, name), full_type, dir
+  ExpTypeMember (x, name), full_type, dir
 
 and type_error_member env ctx (name: P4string.t) : P4light.coq_ExpressionPreT * coq_P4Type * direction =
   let packed_name: P4string.t = {name with str = "error." ^ name.str} in
@@ -1951,7 +1950,7 @@ and type_expression_member_function_builtin env info typ (name: P4string.t) : co
   | TypTable result_typ_name ->
     begin match name.str with
       | "apply" ->
-        let ret = TypTypeName (BareName result_typ_name) in
+        let ret = TypTypeName ( result_typ_name) in
         Some (TypFunction (MkFunctionType ([], [], FunTable, ret)))
       | _ -> None
     end
@@ -3408,7 +3407,7 @@ and expr_eq env (expr1: P4light.coq_Expression) (expr2: P4light.coq_Expression) 
     -> type_equality env [] t1 t2 && expr_eq env e1 e2
   | ExpTypeMember (n1, s1),
     ExpTypeMember (n2, s2)
-    -> P4name.name_eq n1 n2 && P4string.eq s1 s2
+    -> P4string.eq n1 n2 && P4string.eq s1 s2
   | ExpErrorMember s1,
     ExpErrorMember s2
     -> P4string.eq s1 s2
@@ -3833,7 +3832,7 @@ and type_extern_object env info annotations obj_name t_params methods =
     List.map cs_ws ~f:(function
         | ProtoConstructor (_, cname, params_typed), ws ->
            if t_params <> []
-           then let generic_args = List.map t_params ~f:(fun ty -> TypTypeName (BareName ty)) in
+           then let generic_args = List.map t_params ~f:(fun ty -> TypTypeName ( ty)) in
                 TypConstructor (t_params, ws, params_typed,
                                 TypSpecializedType (extern_type, generic_args))
            else TypConstructor (t_params, ws, params_typed, extern_type)
@@ -3855,7 +3854,7 @@ and method_prototype_to_extern_method extern_name (m: P4light.coq_MethodPrototyp
   match m with
   | ProtoConstructor (_, name, params) ->
     { name = name;
-      typ = MkFunctionType ([], params, FunExtern, TypTypeName (BareName extern_name)) }
+      typ = MkFunctionType ([], params, FunExtern, TypTypeName ( extern_name)) }
   | ProtoAbstractMethod (_, return, name, type_params, params)
   | ProtoMethod (_, return, name, type_params, params) ->
     { name = name;

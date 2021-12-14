@@ -1,4 +1,4 @@
-From Poulet4 Require Import Monads.Error
+From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxilary.
 Require Poulet4.P4cub.Transformations.Lifting.VarNameGen.
 
@@ -17,8 +17,6 @@ Section Statementize.
   Notation e := (Expr.e tags_t).
   Notation st := (Stmt.s tags_t).
   Notation td := (TopDecl.d tags_t).
-  Inductive StatementizeError :=
-  | IllformedCargs.
 
   Definition TransformExprList' 
              (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
@@ -104,41 +102,6 @@ Section Statementize.
       let stmt := stack_stmt in
       (stmt, val, env_stack)
     end.
-  
-  Fixpoint VerifyConstExpr (expr : e) : bool :=
-    match expr with
-    | Expr.EBool _ _
-    | Expr.EBit _ _ _
-    | Expr.EInt _ _ _ => true
-    | Expr.ESlice n _ _ i =>  VerifyConstExpr n
-    | Expr.ECast _ arg _ => VerifyConstExpr arg
-    | Expr.EUop _ _ arg _ => VerifyConstExpr arg
-    | Expr.EBop _ _ lhs rhs _ => andb (VerifyConstExpr lhs) (VerifyConstExpr rhs) 
-    | _ => false
-    (* | Expr.EVar type x i => false
-       | Expr.EExprMember mem expr_type arg i => false
-       | Expr.EError err i => false
-       | Expr.EMatchKind mk i => false
-       | Expr.ETuple es i => false
-       | Expr.EStruct fields i => false
-       | Expr.EHeader fields valid i => false
-       | Expr.EHeaderStack fields headers size next_index i => false
-       | Expr.EHeaderStackAccess stack index i => false *)
-    end.
-  
-  Definition VerifyCArgs 
-             (cargs: Expr.constructor_args tags_t)
-    : bool :=
-    Field.fold 
-      (fun (name : string)
-         (arg: Expr.constructor_arg tags_t)
-         (cumulator : bool)
-       => andb cumulator 
-              match arg with
-              | Expr.CAName _ => true
-              | Expr.CAExpr expr => VerifyConstExpr expr 
-              end
-      ) cargs (true).
   
   Definition TranslateArgs (arguments : Expr.args tags_t) (env : VarNameGen.t) (i: tags_t)
     : st * Expr.args tags_t * VarNameGen.t :=
@@ -326,42 +289,39 @@ Section Statementize.
 
 Fixpoint TranslateTopDecl
          (td : TopDecl.d tags_t) (env : VarNameGen.t)
-  : @error_monad StatementizeError ((TopDecl.d tags_t) * VarNameGen.t) := 
+  : TopDecl.d tags_t * VarNameGen.t := 
   match td with 
   | TopDecl.TPInstantiate C x targs cargs i =>
-    if (VerifyCArgs cargs) then
-      error_ret (TopDecl.TPInstantiate C x targs cargs i, env)
-    else (err IllformedCargs)
+    (TopDecl.TPInstantiate C x targs cargs i, env)
+
   | TopDecl.TPExtern e tparams cparams methods i => 
-    error_ret (TopDecl.TPExtern e tparams cparams methods i, env)
+    (TopDecl.TPExtern e tparams cparams methods i, env)
               
   | TopDecl.TPControl c cparams eps params body apply_blk i =>
     let '(init_blk, body', env_body) := TranslateControlDecl body env in
     let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
-    error_ret (TopDecl.TPControl c cparams eps params body' (Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
+    (TopDecl.TPControl c cparams eps params body' (Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
               
   | TopDecl.TPParser p cparams eps params start states i =>
     let (start', env_start) := TranslateParserState start env in
     let (states', env_states) := TranslateParserStates states env_start in
-    error_ret (TopDecl.TPParser p cparams eps params start' states' i, env_states)
+    (TopDecl.TPParser p cparams eps params start' states' i, env_states)
               
   | TopDecl.TPFunction f tparams signature body i =>
     let (body', env_body) := TranslateStatement body env in 
-    error_ret (TopDecl.TPFunction f tparams signature body' i, env_body)
+    (TopDecl.TPFunction f tparams signature body' i, env_body)
               
   (*| TopDecl.TPPackage p tparams cparams i => 
     error_ret (TopDecl.TPPackage p tparams cparams i, env)*)
 
   | TopDecl.TPSeq d1 d2 i => 
-    let* (d1', env_d1) := TranslateTopDecl d1 env in
-    let* (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
-    error_ret (TopDecl.TPSeq d1' d2' i, env_d2)
+    let (d1', env_d1) := TranslateTopDecl d1 env in
+    let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
+    (TopDecl.TPSeq d1' d2' i, env_d2)
   end.
 
-Definition TranslateProgram (program: TopDecl.d tags_t) 
-  : @error_monad StatementizeError (TopDecl.d tags_t):=
-  let* (p, e) := TranslateTopDecl program VarNameGen.new_env in
-  error_ret p
+Definition TranslateProgram (program: TopDecl.d tags_t) : TopDecl.d tags_t :=
+  fst (TranslateTopDecl program VarNameGen.new_env)
 .
 
 End Statementize.

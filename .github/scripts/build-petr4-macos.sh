@@ -8,17 +8,17 @@ set -x  # Make command execution verbose
 export PETR4_DEPS="m4 \
                    gmp"
 
-export PETR4_DEPS_OPAM = "ANSITerminal \
-                          alcotest \
-                          bignum \
-                          cstruct-sexp \
-                          pp \
-                          ppx_deriving \
-                          ppx_deriving_yojson \
-                          yojson \
-                          js_of_ocaml \
-                          js_of_ocaml-lwt \
-                          js_of_ocaml-ppx"
+export PETR4_DEPS_OPAM="ANSITerminal \
+                        alcotest \
+                        bignum \
+                        cstruct-sexp \
+                        pp \
+                        ppx_deriving \
+                        ppx_deriving_yojson \
+                        yojson \
+                        js_of_ocaml \
+                        js_of_ocaml-lwt \
+                        js_of_ocaml-ppx"
 
 # install dependencies
 brew update
@@ -33,13 +33,13 @@ eval $(opam env)
 #install dune
 #opam install dune
 #export PATH="/usr/local/opt/dune/bin:$PATH"
-cd ../..
 #dune external-lib-deps --missing @install
 #opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
 opam install \
   ${PETR4_DEPS_OPAM}
 #dune external-lib-deps --missing @@default
 
+#cd ../..
 # build petr4
 #dune init project petr4
 dune build --profile release

@@ -1,15 +1,18 @@
 Require Import Poulet4.P4defs.
 Require Import Poulet4.Syntax.
-Require Import Poulet4.LightExamples.SimpleNat.
-Require Import Poulet4.LightExamples.ECMP2.
-Require Import Poulet4.LightExamples.Flowlet.
-Require Import Poulet4.LightExamples.MultiProtocol.
 Require Import Poulet4.P4cub.Util.Result.
 Require Import Poulet4.ToP4cub.
 
 Import Result Syntax List ListNotations.
 
+
 (* The Test Programs*)
+
+Require Import Poulet4.LightExamples.SimpleNat.
+Require Import Poulet4.LightExamples.ECMP2.
+Require Import Poulet4.LightExamples.Flowlet.
+Require Import Poulet4.LightExamples.MultiProtocol.
+Require Import Poulet4.LightExamples.LinearRoad.
 
 (* Test Lemma For simple_nat.p4*)
 (* Compute (translate_program Info NoInfo SimpleNat.prog). *)
@@ -45,3 +48,8 @@ Proof.
   compute.
   trivial.
 Qed.
+
+(* Linearroad *)
+Definition p4cub_linearroad := ToP4cub.translate_program Info NoInfo LinearRoad.prog.
+Lemma linearroad_no_error : Result.is_ok p4cub_linearroad.
+Proof. compute; trivial. Qed.

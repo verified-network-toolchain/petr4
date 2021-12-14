@@ -237,7 +237,8 @@ Section ToGCL.
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
       | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" ++ x)
       | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
-      | E.TStruct fields => error ("Cannot get the width of a Struct Type for var " ++ x)
+      | E.TStruct fields =>
+        error ("Cannot get the width of a Struct Type with "++ string_of_nat (List.length fields) ++ " for var " ++ x)
       | E.THeader fields => error ("Cannot get the width of a Header Type for var" ++ x)
       | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" ++ x)
       end.
@@ -309,9 +310,8 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let+ w := width_of_type x t in
-        BV.BVVar x w
-
+        let~ w := width_of_type x t over ("couldn't get type-width of " ++ x ++ " while converting to rvalue") in
+        ok (BV.BVVar x w)
       | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
         BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e
@@ -386,7 +386,7 @@ Section ToGCL.
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.EExprMember ret_type mem arg i =>
-        let* w := width_of_type mem ret_type in
+        let~ w := width_of_type mem ret_type over ("couldn't get width of ??." ++ mem ++ " while converting to_rvalue") in
         let+ lv := to_lvalue arg in
         BV.BVVar (lv ++ "." ++ mem) w
       | E.EError _ _ => error "errors are not rvalues."
@@ -515,7 +515,7 @@ Section ToGCL.
                          | PADirLess e =>
                            match to_form e with
                            | Error _ _ =>
-                             let* e' := to_rvalue e in
+                             let~ e' := to_rvalue e over ("failed converting argument named " ++ name ++ " to_rvalue") in
                              ok ((name, inr e') :: res)
                            | Ok _ phi =>
                              ok ((name, inl phi) :: res)
@@ -577,7 +577,7 @@ Section ToGCL.
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let* w := width_of_type (tbl ++ " key") t in
+                                   let~ w := width_of_type (tbl ++ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " ++ tbl ) in
                                    let+ e' := to_rvalue e in
                                    (w, e', mk)) keys) in
         let+ g := instr tbl i keys' actions' in

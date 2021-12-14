@@ -9,6 +9,7 @@ Require Import Poulet4.P4cub.TableInstr.
 Require Import Poulet4.P4cub.V1model.
 Require Poulet4.P4cub.GCL.
 Require Poulet4.P4cub.ToGCL.
+Require Poulet4.P4cub.Inline.
 Import Result ResultNotations Syntax List ListNotations.
 
 
@@ -16,7 +17,8 @@ Import Result ResultNotations Syntax List ListNotations.
 Require Import Poulet4.LightExamples.SimpleNat.
 Require Import Poulet4.LightExamples.ECMP2.
 Require Import Poulet4.LightExamples.MultiProtocol.
-
+Require Import Poulet4.LightExamples.Flowlet.
+Require Import Poulet4.LightExamples.LinearRoad.
 
 Module GCL := GCL.GCL.
 Module BV := ToGCL.BV.
@@ -88,3 +90,24 @@ Definition multiprotocol_test_case :=
 
 Lemma multiprotocol_test : is_ok multiprotocol_test_case.
 Proof. compute. trivial. Qed.
+
+
+(* LinearRoad *)
+
+Definition p4cub_linearroad := ToP4cub.translate_program Info NoInfo LinearRoad.prog.
+
+Definition inline_linearroad :=
+  let* ctx := p4cub_linearroad in
+  ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) ctx.
+
+
+Definition linearroad_test_case :=
+  let* sn := p4cub_linearroad in
+  let externs := V1model.externs in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+
+(* Compute inline_linearroad. *)
+(* Compute linearroad_test_case. *)
+
+Lemma linearroad_test : is_ok linearroad_test_case.
+Proof. compute; trivial. Qed.

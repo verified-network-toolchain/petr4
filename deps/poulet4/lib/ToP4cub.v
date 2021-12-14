@@ -773,7 +773,7 @@ Section ToP4cub.
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
           Some (translate_function_application tags n ret_var ret type_args parameters args)
-        | _ => Some (error "A name, applied like a method call, must be a function or extern type; I got something else")
+        | _ => Some (error ("[function_call_init] A name," ++ P4String.str n ++ "applied like a method call, must be a function or extern type; I got something else"))
         end
       | _ => Some (error "ERROR :: Cannot handle this kind of expression")
       end
@@ -849,7 +849,12 @@ Section ToP4cub.
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
           translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
-        | _ => error "A name, applied like a method call, must be a function or extern type; I got something else"
+        | TypAction data_params ctrl_params =>
+          let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
+          let* params := parameters_to_params tags data_params in
+          let+ paramargs := apply_args_to_params params cub_args in
+          ST.SActCall (P4String.str n) paramargs i
+        | _ => error ("[translate_statement_pre_t] A name," ++ P4String.str n ++"applied like a method call, must be a function or extern type; I got something else")
         end
       | _ => error "ERROR :: Cannot handle this kind of expression"
       end

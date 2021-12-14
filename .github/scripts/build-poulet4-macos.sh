@@ -31,7 +31,9 @@ opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriv
 pwd
 
 # install deps for poulet4
-opam install coq coq-equations coq-record-update coq-compcert 
+opam pin add coq 8.14.0
+opam repo add coq-released https://coq.inria.fr/opam/released
+opam install coq-equations coq-record-update coq-compcert 
 # install deps for poulet4_ccomp
 opam install zarith
 make

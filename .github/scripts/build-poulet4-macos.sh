@@ -20,6 +20,8 @@ export PETR4_DEPS_OPAM="ANSITerminal \
                         js_of_ocaml-lwt \
                         js_of_ocaml-ppx"
 
+#staged_pps ppx_import ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show
+
 export POULET4_DEPS="coq-equations \
                      coq-record-update \
                      coq-compcert "
@@ -50,6 +52,8 @@ opam install \
 # install deps for poulet4_ccomp
 #opam install zarith
 
-make
-make install
+dune external-lib-deps --missing @install
+
+# make
+# make install
 

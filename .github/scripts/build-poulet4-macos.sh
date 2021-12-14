@@ -24,10 +24,16 @@ eval $(opam env)
 #export PATH="/usr/local/opt/dune/bin:$PATH"
 #cd ../..
 #dune external-lib-deps --missing @install
+# install dependencies for petr4
 opam install ANSITerminal alcotest bignum cstruct-sexp pp ppx_deriving ppx_deriving_yojson yojson js_of_ocaml js_of_ocaml-lwt js_of_ocaml-ppx
 #dune external-lib-deps --missing @@default
 
 pwd
+
+# install deps for poulet4
+opam install coq coq-equations coq-record-update coq-compcert 
+# install deps for poulet4_ccomp
+opam install zarith
 make
 make install
 

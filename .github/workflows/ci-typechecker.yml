@@ -20,3 +20,4 @@ jobs:
           docker pull p4lang/p4c
           docker images
           docker run p4lang/p4c
+          p4c --version

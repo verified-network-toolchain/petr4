@@ -9,7 +9,7 @@ on:
    branches: [ poulet4 ]
 
   # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+ workflow_dispatch:
 
 # # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -32,7 +32,7 @@ jobs:
       - name: build-ubuntu
         # Runs the script to build poulet4 on ubuntu
         run: ./.github/scripts/build-poulet4-ubuntu.sh
-#         shell: bash
+        shell: bash
 
   build-macos-latest:
     runs-on: macos-latest

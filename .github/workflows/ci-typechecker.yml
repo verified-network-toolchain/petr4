@@ -1,0 +1,16 @@
+name: ci-typechecker
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  #  push:
+  #    branches: [ main ]
+  #  pull_request:
+  #    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  p4c-docker:
+    runs-on: ubuntu-latest
+    container:
+      image: p4lang/p4c

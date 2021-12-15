@@ -12,5 +12,4 @@ on:
 jobs:
   p4c-docker:
     runs-on: ubuntu-latest
-    container:
-      image: p4lang:p4c-latest
+    container: p4lang:p4c-latest

@@ -19,3 +19,4 @@ jobs:
         run: |
           docker pull p4lang/p4c
           docker images
+          docker run p4c

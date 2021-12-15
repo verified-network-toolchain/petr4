@@ -23,7 +23,6 @@ Notation Lval := (@ValueLvalue tags_t).
 Notation ident := string.
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
-(* Notation P4String := (P4String.t tags_t). *)
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 
@@ -344,12 +343,14 @@ Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
     end
   in List.rev (bitstring_slice' bits lo hi []).
 
-(* The following reads give unspecified values: 
+(* The following reads give unspecified values:
     1. reading a field from a header that is currently invalid.
-    2. reading a field from a header that is currently valid, but the field has not been initialized 
-       since the header was last made valid. 
-   Guaranteed by setting all fields to noninitialized when the header is made invalid (declaration & setInvalid)
-   and setting only the valid bit and given fields when the header is made valid (initialization & setValid) *)
+    2. reading a field from a header that is currently valid, but the field has not been initialized
+       since the header was last made valid.
+  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
+  (including invalid members of header unions) contents must be undefined. For example, when setting
+  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
+  the fields should remain undefined. *)
 Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_struct : forall fields member v,
                         AList.get fields member = Some v ->
@@ -365,11 +366,11 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                         get_member (ValBaseHeader fields b) member v
   | get_member_stack_size : forall headers size next,
                             get_member (ValBaseStack headers size next) "size"
-                              (ValBaseBit (to_loptbool 32 (Z.of_N size)))
+                              (ValBaseBit (to_loptbool 32%N (Z.of_N size)))
   | get_member_stack_last_index : forall headers size next sv,
-                                  (if (next =? 0)%N 
-                                    then uninit_sval_of_typ None (TypBit 32) = Some sv 
-                                    else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
+                                  (if (next =? 0)%N
+                                    then uninit_sval_of_typ None (TypBit 32%N) = Some sv
+                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers size next) "lastIndex" sv.
 
 Definition is_directional (dir : direction) : bool :=
@@ -506,7 +507,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
      ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
   | exec_expr_ternary : forall cond tru fls b sv sv' this st tag typ dir,
                         exec_expr read_one_bit this st cond sv ->
-                        sval_to_val read_one_bit sv (ValBaseBool b) -> 
+                        sval_to_val read_one_bit sv (ValBaseBool b) ->
                         exec_expr read_one_bit this st (if b then tru else fls) sv' ->
                         exec_expr read_one_bit this st
                         (MkExpression tag (ExpTernary cond tru fls) typ dir)
@@ -524,7 +525,7 @@ Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
                           sval_to_val read_one_bit sv v ->
                           exec_expr_det read_one_bit this st expr v.
 
-Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                          path -> (* temp_env -> *) state -> list (@Expression tags_t) -> list Val ->
                         (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_exprs_det_intro : forall this st exprs svs vs,
@@ -570,7 +571,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
   end.
 
 Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v -> 
+  forall (H_hook : forall expr v, hook expr = Some v ->
           exec_expr_det read_one_bit this st expr v),
   eval_expr_gen hook expr = Some v ->
   exec_expr_det read_one_bit this st expr v.
@@ -605,8 +606,8 @@ Proof.
 Qed. *)
 
 Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v -> 
-          forall v', exec_expr_det read_one_bit this st expr v' -> 
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          forall v', exec_expr_det read_one_bit this st expr v' ->
           v' = v),
   eval_expr_gen hook expr = Some v ->
   forall v', exec_expr_det read_one_bit this st expr v' ->
@@ -762,7 +763,7 @@ Definition get_return_val (sig : signal) : option Val :=
   end.
 
 Inductive get_return_sval : signal -> Sval -> Prop :=
-  | get_return_sval_intro : forall v sv, 
+  | get_return_sval_intro : forall v sv,
                            val_to_sval v sv ->
                            get_return_sval (SReturn v) sv.
 
@@ -788,7 +789,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
 Axiom dummy_type : @P4Type tags_t.
 Definition dummy_tags := @default tags_t _.
 
-Definition add_ctrl_args (oaction : option (@Expression tags_t)) 
+Definition add_ctrl_args (oaction : option (@Expression tags_t))
                          (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
   match oaction with
   | Some action =>
@@ -816,7 +817,7 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | None => extern_get_entries (get_external_state s) table
   end.
 
-Inductive exec_match (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                      path -> state -> @Match tags_t -> ValSet -> Prop :=
   | exec_match_dont_care : forall this st tag typ,
       exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
@@ -850,17 +851,17 @@ Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
                        exec_matches read_one_bit this st (m :: ms) (sv :: svs).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> state -> table_entry -> 
+                           path -> state -> table_entry ->
                            (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
   | exec_table_entry_intro : forall this st ms svs action entryvs,
                              exec_matches read_one_bit this st ms svs ->
                              (if (List.length svs =? 1)%nat
-                              then entryvs = (List.hd ValSetUniversal svs, action) 
+                              then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
                              exec_table_entry read_one_bit this st (mk_table_entry ms action) entryvs.
-  
+
 Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
-                             path -> state -> list table_entry -> 
+                             path -> state -> list table_entry ->
                              list (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
   | exec_table_entries_nil : forall this st,
                        exec_table_entries read_one_bit this st nil nil
@@ -974,7 +975,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                exec_lexpr read_one_bit this st array lv sig ->
                                exec_expr_det read_one_bit this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
-                               (if (idxz >=? 0) 
+                               (if (idxz >=? 0)
                                 then idxn = Z.to_N idxz
                                 else exec_expr read_one_bit this st array (ValBaseStack headers idxn next)) ->
                                exec_lexpr read_one_bit this st
@@ -985,13 +986,18 @@ Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
   update_memory (PathMap.set p sv) s.
 
+(* Nominal fields like "next" are not addressible, so they cannot be fields in lvalues. When evaluating
+  lvalues, they are converted to addressible lvalues. So they are not considered in exec_read and
+  exec_write. *)
+
 Inductive exec_read : state -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
                      loc_to_sval loc st = Some sv ->
                      exec_read st (MkValueLvalue (ValLeftName name loc) typ) sv
-  | exec_read_by_member : forall lv name st sv typ,
-                          exec_read_member st lv name typ sv ->
-                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv
+  | exec_read_by_member : forall lv name st sv typ sv',
+                          exec_read st lv sv ->
+                          get_member sv name sv' ->
+                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv'
   (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
   | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
                            exec_read st lv bitssv ->
@@ -1006,33 +1012,10 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
-                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
-  | exec_read_member_struct : forall fields st lv name typ sv,
-                              exec_read st lv (ValBaseStruct fields) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read st lv (ValBaseHeader fields is_valid) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_union: forall fields st lv name typ sv,
-                            exec_read st lv (ValBaseUnion fields) ->
-                            AList.get fields name = Some sv ->
-                            exec_read_member st lv name typ sv.
+                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
-(*  Write to the field of an invalid header in a union makes the possibly existing valid header
-    take undefined value. It should be guaranteed there is at most one valid header in a union. 
-    Guaranteed by:
-    1. Writing to the field of an invalid header in a union will first execute write_header_field,
-       which does not change such a header.
-    2. Writing an invalid header into a union happens in update_union_member, which converts
-       all headers to invalid. *)
 (* If any of these kinds of writes are performed:
-    1. a write to a field in a currently invalid header, either a regular header or an element of 
+    1. a write to a field in a currently invalid header, either a regular header or an element of
        a header stack with an index that is in range, and that header is not part of a header_union
     2. a write to a field in an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
@@ -1042,35 +1025,47 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
                                AList.set fields fname fv = Some fields' ->
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
                                (ValBaseHeader fields' (Some true))
-  | write_header_field_invalid : forall fields fname fv,
+  | write_header_field_invalid : forall fields fname fv fields',
+                                 (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                                 AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
                                  write_header_field (ValBaseHeader fields (Some false)) fname fv
-                                 (ValBaseHeader fields (Some false))
-  (* Since valid = None only occurs for out-of-bound header stack access, and for that case 
-     writing to lval is prevented by update_stack_header, this relation should never be hit. *)
-  | write_header_field_undef : forall fields fname fv,
-                                 write_header_field (ValBaseHeader fields None) fname fv
-                                 (ValBaseHeader fields None).
+                                 (ValBaseHeader fields' (Some false))
+  (* is_valid = None only during an out-of-bounds header stack access. This constructor is only used when
+    writing to a[n].x that n is out of bounds. *)
+  | write_header_field_undef : forall fields fname fv fields',
+                               (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                               AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
+                               write_header_field (ValBaseHeader fields None) fname fv
+                               (ValBaseHeader fields' None).
 
-(* More formally, if u is an expression whose type is a header union U with fields ranged over 
+(*  Writing to a field of an invalid header in a union makes the possibly existing valid header
+    take undefined value. It should be guaranteed there is at most one valid header in a union.
+    Guaranteed by:
+    1. Writing to the field of an invalid header in a union will first execute write_header_field,
+       which does not change such a header.
+    2. Writing an invalid header into a union happens in update_union_member, which converts
+       all headers to invalid. *)
+(* More formally, if u is an expression whose type is a header union U with fields ranged over
    by hi, then the following operations can be used to manipulate u:
-   1. u.hi.setValid(): sets the valid bit for header hi to true and sets the valid bit 
-                       for all other headers to false, which implies that reading these 
+   1. u.hi.setValid(): sets the valid bit for header hi to true and sets the valid bit
+                       for all other headers to false, which implies that reading these
                        headers will return an unspecified value.
-   2. u.hi.setInvalid(): if the valid bit for any member header of u is true then sets 
-                         it to false, which implies that reading any member header of u 
+   2. u.hi.setInvalid(): if the valid bit for any member header of u is true then sets
+                         it to false, which implies that reading any member header of u
                          will return an unspecified value.
-   We can understand an assignment to a union u.hi = e as equivalent to 
+   We can understand an assignment to a union u.hi = e as equivalent to
    u.hi.setValid(); u.hi = e; if e is valid and
    u.hi.setInvalid(); otherwise.
-   Consider a situation where a header_union u1 has member headers u1.h1 and u1.h2, and at a given 
-   point in the program's execution u1.h1 is valid and u1.h2 is invalid. If a write is attempted 
-   to a field of the invalid member header u1.h2, then any or all of the fields of the valid member 
-   header u1.h1 may change as a result. Such a write must not change the validity of any member 
+   Consider a situation where a header_union u1 has member headers u1.h1 and u1.h2, and at a given
+   point in the program's execution u1.h1 is valid and u1.h2 is invalid. If a write is attempted
+   to a field of the invalid member header u1.h2, then any or all of the fields of the valid member
+   header u1.h1 may change as a result. Such a write must not change the validity of any member
    headers of u1, nor any other state that is currently defined in the system.
    Guaranteed by:
    1. Typechecker ensures that fname must exist in the fields.
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
+
 Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
                              (hfields: StringAList Sval) (is_valid: option bool) :
                              option (StringAList Sval) :=
@@ -1080,24 +1075,23 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
     match update_union_member tl fname hfields is_valid with
     | None => None
     | Some tl' =>
-      match is_valid with
-      | Some true => if String.eqb fname fname'
-                     then Some ((fname, ValBaseHeader hfields (Some true)) :: tl')
-                     else Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-      | Some false => if String.eqb fname fname'
-                      then Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-                      else Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') is_valid') :: tl')
-      (* Since valid = None only occurs for out-of-bound header stack access, and hfields
-         should be result of exec_expr, it should have been determinized at this point. *)
-      | _ => None
-      end
+      if String.eqb fname fname' then
+        Some ((fname, ValBaseHeader hfields is_valid) :: tl')
+      else
+        let new_is_valid' :=
+          match is_valid with
+          | Some true => Some false
+          | Some false => is_valid'
+          (* is_valid = None should be impossible. A header member of a header union should never have
+            None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
+          | _ => is_valid'
+          end in
+        (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval None) hfields') new_is_valid') :: tl')
     end
   | _ :: _ => None
   end.
 
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
@@ -1119,7 +1113,7 @@ Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sv
     end
   in update_stack_header' headers (N.to_nat idx) v.
 
-Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat) 
+Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
                               (nbits : list A) : list A :=
   match bits, lo, hi, nbits with
   | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
@@ -1184,18 +1178,18 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
 (* inout -> (Some _, Some _) *)
 (* out parameters are, with a few exceptions listed below, uninitialized and are treated as l-values
    (See Section 6.6) within the body of the method or function...
-   Direction out parameters are always initialized at the beginning of execution of the portion of 
-   the program that has the out parameters, e.g. control, parser, action, function, etc. This 
+   Direction out parameters are always initialized at the beginning of execution of the portion of
+   the program that has the out parameters, e.g. control, parser, action, function, etc. This
    initialization is not performed for parameters with any direction that is not out.
       1. If a direction out parameter is of type header or header_union, it is set to “invalid”.
-      2. If a direction out parameter is of type header stack, all elements of the header stack 
+      2. If a direction out parameter is of type header stack, all elements of the header stack
          are set to “invalid”, and its nextIndex field is initialized to 0 (see Section 8.17).
-      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than 
+      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than
          one of the types listed above, then apply these rules recursively to its members.
-      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need 
+      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
          not initialize it to any predictable value.
 *)
-Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
   | exec_arg_in : forall this st expr v sv,
                   exec_expr_det read_one_bit this st expr v ->
@@ -1320,24 +1314,24 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   end.
 
 (* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
-(* The expression h.minSizeInBits() is defined for any value h that has a header type. 
-   The expression is equal to the sum of the sizes of all of header h's fields in bits, 
-   counting all varbit fields as length 0. An expression h.minSizeInBits() is a compile-time 
+(* The expression h.minSizeInBits() is defined for any value h that has a header type.
+   The expression is equal to the sum of the sizes of all of header h's fields in bits,
+   counting all varbit fields as length 0. An expression h.minSizeInBits() is a compile-time
    constant with type int.
-   The expression h.minSizeInBytes() is similar to h.minSizeInBits(), except that it returns 
-   the total size of all of the header's fields in bytes, rounding up to the next whole number 
-   of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is 
+   The expression h.minSizeInBytes() is similar to h.minSizeInBits(), except that it returns
+   the total size of all of the header's fields in bytes, rounding up to the next whole number
+   of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is
    equal to (h.minSizeInBits() + 7) >> 3. *)
 (* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
 (* u.isValid() returns true if any member of the header union u is valid, otherwise it returns false. *)
 (* It should be guaranteed there is at most one valid header in a union. *)
 (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
-(* Calling the isValid() method on an element of a header stack, where the index is out of range, 
-   returns an undefined boolean value, i.e., it is either true or false, but the specification 
+(* Calling the isValid() method on an element of a header stack, where the index is out of range,
+   returns an undefined boolean value, i.e., it is either true or false, but the specification
    does not require one or the other, nor that a consistent value is returned across multiple such calls.*)
 (* If any of these kinds of writes are performed:
    ... a method call of setValid() or setInvalid() on an element of a header stack, where the index is out of range
-   then that write must not change any state that is currently defined in the system, neither in header 
+   then that write must not change any state that is currently defined in the system, neither in header
    fields nor anywhere else. In particular, if an invalid header is involved in the write, it must remain invalid. *)
 Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
   (* this_path s lv fname args s' sig *) (* TODO *)
@@ -1348,7 +1342,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
 | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st rhs v ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
-    val_to_sval v sv -> 
+    val_to_sval v sv ->
     (if is_continue sig then exec_write st lv sv st' else st' = st) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
@@ -1464,9 +1458,9 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
   | exec_block_cons : forall stmt rest this_path st st' st'' sig sig',
                       (* This style is for avoiding backtracking *)
                       exec_stmt read_one_bit this_path st stmt st' sig ->
-                      exec_block read_one_bit this_path st' 
+                      exec_block read_one_bit this_path st'
                           (if is_continue sig then rest else empty_block) st'' sig' ->
-                      exec_block read_one_bit this_path st (BlockCons stmt rest) st'' 
+                      exec_block read_one_bit this_path st (BlockCons stmt rest) st''
                           (if is_continue sig then sig' else sig)
 
 with exec_call (read_one_bit : option bool -> bool -> Prop) :
@@ -1475,7 +1469,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       let dirs := map get_param_dir params in
       exec_lexpr read_one_bit this_path s lhs lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
-      (if not_continue sig then s' = s /\ sig'' = sig 
+      (if not_continue sig then s' = s /\ sig'' = sig
        else if not_continue sig' then s' = s /\ sig'' = sig'
        else exec_builtin this_path s lv fname (extract_invals argvals) s' sig'') ->
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
@@ -1520,7 +1514,7 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
   | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name const_entries actionref ->
       (if is_some actionref
-       then actionref = (Some (mk_action_ref action_name ctrl_args)) 
+       then actionref = (Some (mk_action_ref action_name ctrl_args))
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
             /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
        else action = default_action

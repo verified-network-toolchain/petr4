@@ -12,4 +12,9 @@ on:
 jobs:
   p4c-docker:
     runs-on: ubuntu-latest
-    container: p4lang:p4c-latest
+    # container:
+    #   image: p4lang:p4c-latest
+    steps: 
+      - name: build p4c image
+        run: |
+          docker build -t p4c .

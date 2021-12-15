@@ -521,7 +521,7 @@ Section ToP4cub.
           ok (E.EInt (posN w) z.(value) z.(tags))
         else
           ok (E.EBit w z.(value) z.(tags))
-      | None => error "[FIXME] integer didnt have a width."
+      | None => error ("[FIXME] integer didnt have a width: " ++ string_of_nat (BinInt.Z.to_nat z.(value)))
       end
     | ExpString _ =>
       (* [FIXME] strings need to be compiled away *)
@@ -742,7 +742,7 @@ Section ToP4cub.
       translate_is_valid tags callee ret_var
     else
       match get_type_of_expr callee with
-      | TypTypeName extern_obj =>
+      | TypTypeName extern_obj | TypExtern extern_obj =>
         translate_extern_string tags ctx (P4String.str extern_obj) f_str args
       | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
         (* [TODO] Something is weird here RE type arguments *)

@@ -13,6 +13,7 @@ Require Import Poulet4.LightExamples.ECMP2.
 Require Import Poulet4.LightExamples.Flowlet.
 Require Import Poulet4.LightExamples.MultiProtocol.
 Require Import Poulet4.LightExamples.LinearRoad.
+Require Import Poulet4.LightExamples.HeavyHitter.
 
 (* Test Lemma For simple_nat.p4*)
 (* Compute (translate_program Info NoInfo SimpleNat.prog). *)
@@ -52,4 +53,11 @@ Qed.
 (* Linearroad *)
 Definition p4cub_linearroad := ToP4cub.translate_program Info NoInfo LinearRoad.prog.
 Lemma linearroad_no_error : Result.is_ok p4cub_linearroad.
+Proof. compute; trivial. Qed.
+
+(* Heavy Hitter 1 *)
+Definition p4cub_heavy_hitter := ToP4cub.translate_program Info NoInfo HeavyHitter.prog.
+(* Compute HeavyHitter.prog. *)
+(* Compute p4cub_heavy_hitter. *)
+Lemma heavy_hitter_no_error: Result.is_ok p4cub_heavy_hitter.
 Proof. compute; trivial. Qed.

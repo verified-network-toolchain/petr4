@@ -111,3 +111,12 @@ Definition linearroad_test_case :=
 
 Lemma linearroad_test : is_ok linearroad_test_case.
 Proof. compute; trivial. Qed.
+
+(* heavy_hitter_1 *)
+
+Definition heavy_hitter_test_case :=
+  let* hh := ToP4cubTest.p4cub_heavy_hitter in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) hh.
+
+Lemma heavy_hitter_test: is_ok heavy_hitter_test_case.
+Proof. compute; trivial. Qed.

@@ -18,4 +18,4 @@ jobs:
       - name: build p4c image
         run: |
           docker pull p4lang/p4c
-          docker build -t p4c .
+          docker images

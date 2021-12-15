@@ -5,7 +5,8 @@ Require Import Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Envn
         Poulet4.P4cub.BigStep.IndPrincip
         Coq.Classes.Morphisms.
 Import AllCubNotations Val.ValueNotations
-       Val.LValueNotations F.FieldTactics Step.
+       Val.LValueNotations F.FieldTactics Step
+       Poulet4.P4cub.BigStep.IndPrincip.
 
 Section EnvEq.
   Lemma eq_env_lv_lookup : forall lv ϵ ϵ',
@@ -47,6 +48,8 @@ Section EnvEq.
         try rewrite IHvs; eauto.
   Qed.
 
+  Local Hint Resolve eq_env_copy_in : core.
+  
   Lemma eq_env_copy_out_l : forall argsv ϵ₁ ϵ₁' ϵ₂,
       ϵ₁ ≝ ϵ₁' -> copy_out argsv ϵ₁ ϵ₂ = copy_out argsv ϵ₁' ϵ₂.
   Proof.
@@ -60,6 +63,8 @@ Section EnvEq.
         try rewrite IHvs; auto.
   Qed.
 
+  Local Hint Resolve eq_env_copy_out_l : core.
+  
   Lemma eq_env_copy_out_r : forall argsv ϵ₁ ϵ₂ ϵ₂',
       ϵ₂ ≝ ϵ₂' -> copy_out argsv ϵ₁ ϵ₂ ≝ copy_out argsv ϵ₁ ϵ₂'.
   Proof.
@@ -71,6 +76,8 @@ Section EnvEq.
       unravel; auto;
         try destruct (Env.find x e1) as [v1 |] eqn:Heqv1; auto.
   Qed.
+
+  Local Hint Resolve eq_env_copy_out_r : core.
   
   Context {tags_t : Type}.
 
@@ -102,6 +109,35 @@ Section EnvEq.
   Qed.
 
   Local Hint Resolve eq_env_expr_big_step : core.
+
+  Lemma eq_env_param_arg_eval :
+    forall (args : Expr.args tags_t) argsv ϵ ϵ',
+      ϵ ≝ ϵ' ->
+      F.relfs
+        (rel_paramarg
+           (fun e v => ⟨ ϵ, e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv))
+        args argsv ->
+      F.relfs
+        (rel_paramarg
+           (fun e v => ⟨ ϵ', e ⟩ ⇓ v)
+           (fun e lv => ⧠ e ⇓ lv)) args argsv.
+  Proof.
+    intros args argsv h h' Hh Hargs.
+    autounfold with * in *; unravel in *; autorewrite with core in *.
+    destruct Hargs as [Hxs Hargs]; split; auto; clear Hxs.
+    rewrite Utils.Forall2_map_both in *.
+    unfold F.f in *;
+      remember (map snd args) as args' eqn:Heqargs;
+      remember (map snd argsv) as argsv' eqn:Heqargsv;
+      clear args argsv Heqargs Heqargsv.
+    induction Hargs as
+        [| [e | e | e | e] [v | lv | lv | v] es vs Hev IHevs];
+      unfold rel_paramarg in *;
+      unravel in *; constructor; eauto.
+  Qed.
+
+  Local Hint Resolve eq_env_param_arg_eval : core.
   Local Hint Constructors parser_expr_big_step : core.
 
   Lemma eq_env_parser_expr_big_step :
@@ -116,44 +152,90 @@ Section EnvEq.
     autorewrite with core in *.
     split; eauto 2.
   Qed.
-    
+
+  Local Hint Resolve eq_env_parser_expr_big_step : core.
   Local Hint Constructors stmt_big_step : core.
+  Local Hint Constructors bigstep_state_machine : core.
+  Local Hint Constructors bigstep_state_block : core.
   Local Hint Resolve Env.shadow_eq_env_l : core.
   Local Hint Resolve Env.shadow_eq_env_r : core.
   
+  Definition
+    eq_env_stmt_big_step_def
+    pkt fs ϵ₁ cx (s : Stmt.s tags_t) ϵ₁' sig pkt'
+    (H : ⟪ pkt, fs, ϵ₁, cx, s ⟫ ⤋ ⟪ ϵ₁', sig, pkt' ⟫) := forall ϵ₂,
+      ϵ₁ ≝ ϵ₂ -> exists ϵ₂',
+        ⟪ pkt , fs , ϵ₂ , cx , s ⟫ ⤋ ⟪ ϵ₂' , sig , pkt' ⟫
+        /\ ϵ₁' ≝ ϵ₂'.
+  
+  Definition
+    eq_env_big_step_state_machine_def
+    pkt fs ϵ₁ ps ee (sb : AST.Parser.state_block tags_t)
+    states strt_lbl ϵ₁' nxt_lbl pkt'
+    (H : SM (pkt, fs, ϵ₁, ps, ee, sb, states, strt_lbl)
+            ⇝ ⟨ ϵ₁', nxt_lbl, pkt' ⟩) := forall ϵ₂,
+      ϵ₁ ≝ ϵ₂ -> exists ϵ₂',
+        SM (pkt, fs, ϵ₂, ps, ee, sb, states, strt_lbl)
+           ⇝ ⟨ ϵ₂', nxt_lbl, pkt' ⟩ /\ ϵ₁' ≝ ϵ₂'.
+
+  Definition
+    eq_env_big_step_state_block_def
+    pkt fs ϵ₁ ps ee (sb : AST.Parser.state_block tags_t)
+    ϵ₁' lbl pkt'
+    (H : SB (pkt, fs, ϵ₁, ps, ee, sb)⇝ ⟨ ϵ₁', lbl, pkt' ⟩) := forall ϵ₂,
+      ϵ₁ ≝ ϵ₂ -> exists ϵ₂',
+        SB (pkt, fs, ϵ₂, ps, ee, sb)⇝
+           ⟨ ϵ₂', lbl, pkt' ⟩ /\ ϵ₁' ≝ ϵ₂'.
+
+  Definition eq_env_sbs_ind :=
+    stmt_big_step_ind
+      _ eq_env_stmt_big_step_def
+      eq_env_big_step_state_machine_def
+      eq_env_big_step_state_block_def.
+
+  Ltac plz_have_mercy :=
+    match goal with
+    | IH: (forall h', ?h ≝ h' -> exists h'', _ /\ _ ≝ h''), H: ?h ≝ _
+      |- _ => pose proof H as ? ;
+            apply IH in H as (? & ? & ?); clear IH
+    end.
+
+  Ltac copyin_mercy :=
+    match goal with
+    | IH : (forall eps,
+               copy_in ?vs ?h ?cls ≝ eps ->
+               exists eps', _ /\ _ ≝ eps'), Heps: ?h ≝ ?h' |- _
+      => assert (Hcpyin : copy_in vs h cls = copy_in vs h' cls) by eauto;
+        assert (Hcpyin_eq_env : copy_in vs h cls ≝ copy_in vs h' cls)
+          by (rewrite Hcpyin; reflexivity)
+    end.
+
+  Ltac block_mercy :=
+    match goal with
+    | H: ?h1 ≝ ?h2, H': ?h1' ≝ ?h2'
+      |- exists h, _ /\ !{ ?h1 ≪ ?h1' }! ≝ h
+      => exists !{ h2 ≪ h2' }!; split; auto;
+        erewrite Env.shadow_eq_env_l; eauto;
+        assumption
+    end.
+  
   Lemma eq_env_stmt_big_step :
-    forall (s : Stmt.s tags_t) ϵ₁ ϵ₁' ϵ₂ fs cx pkt pkt' sig,
-      ϵ₁ ≝ ϵ₂ ->
-      ⟪ pkt , fs , ϵ₁ , cx , s ⟫ ⤋ ⟪ ϵ₁' , sig , pkt' ⟫ ->
-      exists ϵ₂', ⟪ pkt , fs , ϵ₂ , cx , s ⟫ ⤋ ⟪ ϵ₂' , sig , pkt' ⟫ /\ ϵ₁' ≝ ϵ₂'.
+    forall pkt fs ϵ₁ cx (s : Stmt.s tags_t) ϵ₁' sig pkt'
+      (H : ⟪ pkt, fs, ϵ₁, cx, s ⟫ ⤋ ⟪ ϵ₁', sig, pkt' ⟫),
+      eq_env_stmt_big_step_def _ _ _ _ _ _ _ _ H.
   Proof.
-    intros s g1 g1' g2 fs cx pkt pkt' sig Hg Hsbs;
-      generalize dependent g2;
-      induction Hsbs; intros g2 Hg; eauto 3.
-    - pose proof IHHsbs1 _ Hg as IH1; clear IHHsbs1.
-      destruct IH1 as (g' & Hs1g' & Hg').
-      pose proof IHHsbs2 _ Hg' as IH2; clear IHHsbs2.
-      destruct IH2 as (g'' & Hs2g'' & Hg''); eauto.
-    - pose proof IHHsbs _ Hg as IH; clear IHHsbs.
-      destruct IH as (g' & Hsg' & Hg'); eauto.
-    - pose proof IHHsbs _ Hg as IH; clear IHHsbs.
-      destruct IH as (g' & Hsg' & Hg').
-      exists !{ g2 ≪ g' }!; split; auto.
-      erewrite Env.shadow_eq_env_l; eauto.
-    - pose proof IHHsbs _ Hg as IH; clear IHHsbs.
-      destruct IH as (g' & Hsg' & Hg').
-      exists !{ g2 ≪ g' }!; split; auto.
-      erewrite Env.shadow_eq_env_l; eauto.
-    - exists !{ x ↦ v;; g2}!; split; auto.
+    apply eq_env_sbs_ind;
+      unfold eq_env_stmt_big_step_def,
+      eq_env_big_step_state_machine_def,
+      eq_env_big_step_state_block_def;
+      intros; subst; try copyin_mercy;
+        repeat plz_have_mercy;
+        try block_mercy; eauto 7.
+    - exists !{ x ↦ v;; ϵ₂}!; split; auto.
       constructor; destruct eo as [t | e]; eauto 2.
-    - exists (lv_update lv v g2); split; try rewrite <- H; eauto.
-    - econstructor; split; eauto 1.
-      constructor; eauto.
-    - pose proof IHHsbs _ Hg as IH; clear IHHsbs.
-      destruct IH as (g' & Hs & Hg'); eauto.
-    - pose proof IHHsbs _ Hg as IH; clear IHHsbs.
-      destruct IH as (g' & Hs & Hg'); eauto.
-    - 
+    - (* TODO: table invocation semantics... *) admit.
+    - erewrite eq_env_copy_in in e1 by eauto.
+      exists (copy_out argsv cls'' ϵ₂). eauto.
   Admitted.
 End EnvEq.
 

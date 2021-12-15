@@ -20,4 +20,5 @@ jobs:
           docker pull p4lang/p4c
           docker images
           docker run -dp 3000:3000 p4lang/p4c
-          p4lang/p4c --help
+          docker container ls
+          p4c --help

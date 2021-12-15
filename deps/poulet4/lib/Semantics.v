@@ -1088,7 +1088,9 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
         let new_is_valid' :=
           match is_valid with
           | Some true => Some false
-          (* is_valid = None only during an out-of-bounds header stack access. *)
+          | Some false => is_valid'
+          (* is_valid = None should be impossible. A header member of a header union should never have
+            None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
           | _ => is_valid'
           end in
         (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)

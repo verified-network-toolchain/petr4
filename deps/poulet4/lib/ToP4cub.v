@@ -7,6 +7,7 @@ Require Export
         Poulet4.P4cub.Syntax.Substitution
         Poulet4.P4cub.Syntax.InferMemberTypes
         Poulet4.P4cub.Util.Result
+        Poulet4.P4cub.Util.FunUtil
         Poulet4.P4cub.BigStep.InstUtil.
 Import AST Result Envn.
 Import ResultNotations.
@@ -647,8 +648,8 @@ Section ToP4cub.
     end.
 
 
-  Definition apply_args_to_params (params : F.fs string (paramarg E.t E.t)) (args : list (E.e tags_t)) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
-    let~ params_args := zip params args over "zipping param args failed" in
+  Definition apply_args_to_params (f_str : string) (params : F.fs string (paramarg E.t E.t)) (args : list (E.e tags_t)) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+    let~ params_args := zip params args over ("zipping arguments of " ++ f_str ++ " failed") in
     fold_right apply_arg_to_param (ok []) params_args.
 
   Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
@@ -715,7 +716,7 @@ Section ToP4cub.
         let params := paramargs ar in
         let arg_list := optionlist_to_list args in
         let* cub_args := rred (List.map translate_expression arg_list) in
-        let+ paramargs := apply_args_to_params params cub_args in
+        let+ paramargs := apply_args_to_params f_str params cub_args in
         (* TODO Currently assuming method calls return None*)
         let typ : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
         ST.SExternMethodCall extern_str f_str [] typ tags
@@ -724,7 +725,19 @@ Section ToP4cub.
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
     end.
 
-  Definition translate_expression_member_call
+  Fixpoint get_hdr_stack_name (e : Expression) : result string :=
+    let '(MkExpression tags pre_e typ dir) := e in
+    match pre_e with
+    | ExpName (BareName str) loc =>
+      ok (P4String.str str)
+    | ExpExpressionMember exp name =>
+      let+ rec_name := get_hdr_stack_name exp in
+      rec_name ++ "." ++ @P4String.str tags_t name
+    | _ =>
+      error "ERROR :: Failed to compute string for header stack.. didnt recognize expresssion type"
+    end.
+
+    Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (tags : tags_t)
              (ctx : DeclCtx)
@@ -747,6 +760,29 @@ Section ToP4cub.
       | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
         (* [TODO] Something is weird here RE type arguments *)
         translate_extern_string tags ctx (P4String.str extern_obj_type) f_str args
+      | TypArray typ n =>
+        (* TODO need to unroll the number of pop_fronts/backs based on argument index *)
+        let* op :=
+           if f_str =? "pop_front" then ok ST.HSPop
+           else if f_str =? "push_back" then ok ST.HSPush
+           else error ("ERROR :: unknown header_stack operation " ++ f_str)
+        in
+        let* num_ops :=
+           match args with
+           | [Some (MkExpression tags (ExpInt int) typ dir)] =>
+             ok (BinInt.Z.to_nat int.(value))
+           | [None] | [] =>
+             ok 1
+           | _ =>
+             error ("Got an incorrect number of arguments for header stack operation "
+                      ++ f_str ++
+                      "Expected 1 or 0, got " ++ string_of_nat (List.length args))
+           end
+        in
+        let* hdr_stack_name := get_hdr_stack_name callee in
+        let+ cub_type := translate_exp_type tags typ in
+        let st_op := ST.SHeaderStackOp hdr_stack_name cub_type op (posN n) tags in
+        @FunUtil.n_compose (ST.s tags_t) num_ops (fun s => ST.SSeq st_op s tags) (ST.SSkip tags)
       | _ =>
         error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
@@ -754,7 +790,7 @@ Section ToP4cub.
   Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
     let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
     let* params := parameters_to_params tags parameters in
-    let* paramargs := apply_args_to_params params cub_args in
+    let* paramargs := apply_args_to_params (P4String.str fname) params cub_args in
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
     let cub_ret := option_map (fun t => (E.EVar t ret_var tags)) ret_typ in
@@ -851,8 +887,8 @@ Section ToP4cub.
           translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
         | TypAction data_params ctrl_params =>
           let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
-          let* params := parameters_to_params tags data_params in
-          let+ paramargs := apply_args_to_params params cub_args in
+          let* params := parameters_to_params tags (List.app data_params ctrl_params) in
+          let+ paramargs := apply_args_to_params (P4String.str n) params cub_args in
           ST.SActCall (P4String.str n) paramargs i
         | _ => error ("[translate_statement_pre_t] A name," ++ P4String.str n ++"applied like a method call, must be a function or extern type; I got something else")
         end
@@ -976,7 +1012,7 @@ Section ToP4cub.
         if signed
         then ok (Parser.PATInt (posN w) z.(value))
         else ok (Parser.PATBit w z.(value))
-      | _ => error "ints must have a known width"
+      | _ => error ("ints must have a known width: " ++ string_of_nat (BinInt.Z.to_nat z.(value)))
       end
     | _ => error "unknown set variant"
     end.

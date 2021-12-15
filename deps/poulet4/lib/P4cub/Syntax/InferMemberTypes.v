@@ -121,7 +121,7 @@ Section Inference.
     (* | ST.PApply _ pi ext_args args i => *)
     (*   let args' := F.map (inf_arg σ) args in *)
     (*   ST.PApply _ pi ext_args args' i *)
-    | ST.SHeaderStackOp _ _ _ _ => s
+    | ST.SHeaderStackOp _ _ _ _ _ => s
     | ST.SSetValidity _ _ _ => s
     end.
 

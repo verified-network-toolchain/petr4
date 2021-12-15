@@ -141,10 +141,9 @@ Section TypeSubstitution.
     (* | ST.PApply _ pi ext_args args i => *)
     (*   let args' := F.map (tsub_arg σ) args in *)
     (*   ST.PApply _ pi ext_args args' i *)
-    | ST.SHeaderStackOp _ _ _ _ => s
+    | ST.SHeaderStackOp _ _ _ _ _ => s
     | ST.SSetValidity _ _ _ => s
     end.
-
 
   Definition tsub_carg (σ : Env.t string E.t) (carg : E.constructor_arg tags_t) :=
     match carg with

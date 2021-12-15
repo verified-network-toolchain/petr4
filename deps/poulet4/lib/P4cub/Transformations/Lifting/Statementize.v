@@ -146,7 +146,7 @@ Section Statementize.
   Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t) 
     : st * VarNameGen.t := 
     match stmt with
-    | Stmt.SHeaderStackOp _ _ _ _
+    | Stmt.SHeaderStackOp _ _ _ _ _
     | Stmt.SSkip _
     | Stmt.SExit _
     | Stmt.SInvoke _ _

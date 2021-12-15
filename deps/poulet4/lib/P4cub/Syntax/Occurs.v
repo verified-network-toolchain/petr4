@@ -60,7 +60,7 @@ Section FV.
     | -{ exit @ _ }-
     | -{ invoke _ @ _ }-             => []
     | -{ declare x : _ @ _ }-
-    | Stmt.SHeaderStackOp x _ _ _    => [x]
+    | Stmt.SHeaderStackOp x _ _ _ _    => [x]
     | -{ init x := e @ _ }-          => x :: FVₑ e
     | -{ asgn e₁ := e₂ @ _ }-        => FVₑ e₁ ++ FVₑ e₂
     | -{ if e then s₁ else s₂ @ _ }- => FVₑ e ++ FVₛ s₁ ++ FVₛ s₂
@@ -165,8 +165,8 @@ Section Occurs.
   | Occurs_apply y exts es i :
       Exists (pred_paramarg_same Occursₑ ∘ snd) es ->
       Occursₛ (Stmt.SApply y exts es i)
-  | Occurs_stack_op o n i :
-      Occursₛ (Stmt.SHeaderStackOp x o n i).
+  | Occurs_stack_op t o n i :
+      Occursₛ (Stmt.SHeaderStackOp x t o n i).
 
   Section FV_Occurs.
     Hint Rewrite in_app_iff : core.

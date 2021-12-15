@@ -594,6 +594,8 @@ Section ToGCL.
         let hvld := header ++ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
         (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec vld_bit (Some 1)), c)
+      | Inline.IHeaderStackOp _ stck _ _ _ _ =>
+        error ("Tried to translate a header stack operation on " ++ stck ++ " to GCL. This should've been eliminated during the inlining phase.")
       end.
 
     Definition p4cub_statement_to_gcl (gas : nat)

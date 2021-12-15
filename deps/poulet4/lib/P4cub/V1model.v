@@ -21,6 +21,7 @@ Definition externs : ToGCL.model :=
          ("truncate", G.GSkip)
    ]);
   ("counter", [("count", G.GSkip)]);
+  ("direct_counter", [("count", G.GSkip)]);
   ("register", [("read", G.GSkip); ("write", G.GSkip)])
   ].
 

@@ -120,3 +120,13 @@ Definition heavy_hitter_test_case :=
 
 Lemma heavy_hitter_test: is_ok heavy_hitter_test_case.
 Proof. compute; trivial. Qed.
+
+
+(* netchain *)
+
+Definition netchain_test_case :=
+  let* nc := ToP4cubTest.p4cub_netchain in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) nc.
+
+Lemma netchain_test: is_ok netchain_test_case.
+Proof. compute; trivial. Qed.

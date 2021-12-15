@@ -103,8 +103,13 @@ Inductive t : Type :=
           (actions : list (string * t))
           (i : tags_t)
 | ISetValidity (hdr: E.e tags_t ) (val : bool) (i : tags_t) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
+| IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i : tags_t)
 | IExternMethodCall (extn : string) (method : string) (args : E.arrowE tags_t) (i : tags_t).
 
+Definition rename_string (x : string) (params : list string) :=
+  if fold_right (fun y => orb (String.eqb x y)) false params
+  then "?" ++ x
+  else x.
 
 Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e tags_t :=
   match e with
@@ -112,9 +117,7 @@ Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e
   | E.EBit _ _ _ => e
   | E.EInt _ _ _ => e
   | E.EVar type x i =>
-    if fold_right (fun y => orb (String.eqb x y)) false params
-    then E.EVar type ("?" ++ x) i
-    else E.EVar type x i
+    E.EVar type (rename_string x params) i
   | E.ESlice e hi lo i =>
     E.ESlice (action_param_renamer_expr params e) hi lo i
   | E.ECast typ arg i =>
@@ -147,7 +150,8 @@ Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list 
   | IVardecl type x i => ok (c, filter (negb ∘ (String.eqb x)) params)
   | IAssign t lhs rhs i =>
     let rhs' := action_param_renamer_expr params rhs in
-    ok (IAssign t lhs rhs' i, params)
+    let lhs' := action_param_renamer_expr params lhs in
+    ok (IAssign t lhs' rhs' i, params)
   | IConditional typ cond tru fls i =>
     let cond' := action_param_renamer_expr params cond in
     let* (tru', _) := action_param_renamer params tru in
@@ -170,6 +174,8 @@ Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list 
   | ISetValidity e v i =>
     let e' := action_param_renamer_expr params e in
     ok (ISetValidity e' v i, params)
+  | IHeaderStackOp hdr_stck_name typ hsop size i =>
+    ok (IHeaderStackOp (rename_string hdr_stck_name params) typ hsop size i, params)
   | IExternMethodCall extn method ar i =>
     let pargs := paramargs ar in
     let ret := rtrns ar in
@@ -215,6 +221,13 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     (IExternMethodCall extn method ar' i, η)
   | ISetValidity e v i =>
     (ISetValidity (subst_e η e) v i, η)
+  | IHeaderStackOp hdr_stck_name stck_el_typ hsop size i =>
+    match Env.find hdr_stck_name η with
+    | None => (c, η)
+    | Some e' =>
+      let stck_type := t_of_e e' in
+      (ISeq (IAssign stck_type (E.EVar stck_type hdr_stck_name i) e' i) c i, η)
+    end
   end.
 
 Definition copy (args : E.args tags_t) : expenv :=
@@ -406,8 +419,8 @@ Fixpoint inline
       (* end *)
       (* ok (ISkip i) *)
 
-    | ST.SHeaderStackOp _ _ _ _ =>
-      error "[FIXME] Translate Header Stack operations"
+    | ST.SHeaderStackOp s typ op n i =>
+      ok (IHeaderStackOp s typ op n i)
   end
 end.
 
@@ -480,11 +493,9 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
   | ISetValidity _ _ _ =>
     (** TODO do we need to eliminate tuples in valid sets? I think that'd be ill-typed *)
     ok c
+  | IHeaderStackOp _ _ _ _ _ =>
+    ok c
   end.
-
-(** TODO: Compiler pass to convert int<> -> bit<> *)
-Fixpoint encode_ints_as_bvs (c : Inline.t) : option Inline.t :=
-  None.
 
 Fixpoint header_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
   F.fold (fun f typ acc => (s ++ "__f__" ++ f, typ) :: acc ) fields [(s ++ ".is_valid", E.TBool)].
@@ -551,6 +562,9 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
 | ISetValidity _ _ _ =>
   (* TODO Do we need to eliminate tuples in valid-sets? that seems ill-typed *)
   ok c
+| IHeaderStackOp _ _ _ _ _ =>
+  (* TODO Do we need to eliminate tuples in valid-sets? that seems ill-typed *)
+  ok c
 end.
 
 
@@ -559,7 +573,6 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   | O => init
   | S n' => f n (ifold n' f init)
   end.
-
 
 Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   match c with
@@ -623,6 +636,29 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   | ISetValidity _ _ _ =>
     (* TODO Eliminate header stack literals from expressions *)
     ok c
+  | IHeaderStackOp stck typ ST.HSPush n tags =>
+    let seq := fun hidx lodx => ISeq hidx lodx tags in
+    let indexed_stck := fun i => stck ++ "["++ string_of_nat i++"]" in
+    let mk_ith_stack_copy :=
+        fun i => IAssign typ
+                         (E.EVar typ (indexed_stck i) tags)
+                         (E.EVar typ (indexed_stck (i-1)) tags)
+                         tags
+    in
+    ok (ifold (BinPos.Pos.to_nat n - 2) (fun i => seq (mk_ith_stack_copy (i+1)))
+              (ISetValidity (E.EVar typ (indexed_stck 0) tags) true tags))
+  | IHeaderStackOp stck typ ST.HSPop n tags =>
+    let seq := fun hidx lodx => ISeq lodx hidx tags in
+    let indexed_stck := fun i => stck ++ "["++ string_of_nat i++"]" in
+    let mk_ith_stack_copy :=
+        fun i => IAssign typ
+                         (E.EVar typ (indexed_stck i) tags)
+                         (E.EVar typ (indexed_stck (i+1)) tags)
+                         tags
+    in
+    let n := BinPos.Pos.to_nat n in
+    ok (ifold (n - 2) (fun i => seq (mk_ith_stack_copy i))
+              (ISetValidity (E.EVar typ (indexed_stck (n-1)) tags) true tags))
   end.
 
 Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
@@ -689,6 +725,8 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
     ok (IExternMethodCall extern method arrow tags)
   | ISetValidity _ _ _ =>
     (* TODO Elaborate header stacks in expressions *)
+    ok c
+  | IHeaderStackOp _ _ _ _ _ =>
     ok c
 end.
 End Inline.

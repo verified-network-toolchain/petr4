@@ -14,6 +14,8 @@ Require Import Poulet4.LightExamples.Flowlet.
 Require Import Poulet4.LightExamples.MultiProtocol.
 Require Import Poulet4.LightExamples.LinearRoad.
 Require Import Poulet4.LightExamples.HeavyHitter.
+Require Import Poulet4.LightExamples.Netchain.
+Require Import Poulet4.LightExamples.Hula.
 
 (* Test Lemma For simple_nat.p4*)
 (* Compute (translate_program Info NoInfo SimpleNat.prog). *)
@@ -60,4 +62,15 @@ Definition p4cub_heavy_hitter := ToP4cub.translate_program Info NoInfo HeavyHitt
 (* Compute HeavyHitter.prog. *)
 (* Compute p4cub_heavy_hitter. *)
 Lemma heavy_hitter_no_error: Result.is_ok p4cub_heavy_hitter.
+Proof. compute; trivial. Qed.
+
+(* Netchain *)
+Definition p4cub_netchain := ToP4cub.translate_program Info NoInfo Netchain.prog.
+Lemma netchain_no_error: Result.is_ok p4cub_netchain.
+Proof. compute; trivial. Qed.
+
+(* HULA *)
+Definition p4cub_hula := ToP4cub.translate_program Info NoInfo Hula.prog.
+Compute p4cub_hula.
+Lemma hula_no_error: Result.is_ok p4cub_hula.
 Proof. compute; trivial. Qed.

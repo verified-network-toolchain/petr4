@@ -1037,7 +1037,7 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
                                  AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
                                  write_header_field (ValBaseHeader fields (Some false)) fname fv
                                  (ValBaseHeader fields' (Some false))
-  (* is_valid = None only during an out-of-bound header stack access. This constructor is only used when
+  (* is_valid = None only during an out-of-bounds header stack access. This constructor is only used when
     writing to a[n].x that n is out of bounds. *)
   | write_header_field_undef : forall fields fname fv fields',
                                (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
@@ -1088,7 +1088,7 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
         let new_is_valid' :=
           match is_valid with
           | Some true => Some false
-          (* is_valid = None when during an out-of-bound header stack access. *)
+          (* is_valid = None only during an out-of-bounds header stack access. *)
           | _ => is_valid'
           end in
         (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)

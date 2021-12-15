@@ -15,11 +15,5 @@ jobs:
     container:
       image: p4lang/p4c
     steps: 
-      - name: build p4c image
+      - name: run p4c 
         run: p4c --help
-#         run: |
-#           docker pull p4lang/p4c
-#           docker images
-#           docker run -dp 3000:3000 p4lang/p4c
-#           docker container ls
-#           p4c --help

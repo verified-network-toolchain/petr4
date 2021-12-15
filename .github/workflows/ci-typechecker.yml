@@ -13,7 +13,7 @@ jobs:
   p4c-docker:
     runs-on: ubuntu-latest
     container:
-      image: p4c:p4lang
+      image: p4c:latest
     steps: 
       - name: build p4c image
         run: p4c --help

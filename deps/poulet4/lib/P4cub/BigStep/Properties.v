@@ -48,30 +48,15 @@ Section Properties.
   Local Hint Resolve Env.disjoint_union_unique_eq_env : core.
   
   Lemma stmt_big_step_disjoint_union :
-    forall ϵ₁ ϵ₁' ϵ₂ ϵ₂' μ (s : Stmt.s tags_t) pkt pkt' fs cx sig,
-      Env.disjoint_union ϵ₁  μ ϵ₂ ->
-      Env.disjoint_union ϵ₁' μ ϵ₂' ->
+    forall ϵ₁ ϵ₁' ϵ₂ μ (s : Stmt.s tags_t) pkt pkt' fs cx sig,
+      Env.disjoint_union ϵ₁ μ ϵ₂ ->
       ⟪ pkt , fs , ϵ₁ , cx , s ⟫ ⤋ ⟪ ϵ₁' , sig , pkt' ⟫ ->
-      ⟪ pkt , fs , ϵ₂ , cx , s ⟫ ⤋ ⟪ ϵ₂' , sig , pkt' ⟫.
+      exists ϵ₂',
+        ⟪ pkt , fs , ϵ₂ , cx , s ⟫ ⤋ ⟪ ϵ₂' , sig , pkt' ⟫
+        /\ Env.disjoint_union ϵ₁' μ ϵ₂'.
   Proof.
-    intros eps1 eps1' eps2 eps2' mu s pkt pkt' fs cx sig Hdu Hdu' Hsbs.
-    induction Hsbs; eauto 4.
-    - assert (Heqenv: eps2 ≝ eps2') by eauto.
-      (* Fail rewrite Heqenv. *)
-      (* TODO: needs evaluation under equivalent environments. *)
-  Abort.
-
-  Lemma stmt_big_step_disjoint_union :
-    forall ϵ ϵ' μ (s : Stmt.s tags_t) pkt pkt' fs cx sig,
-      Env.disjoint ϵ μ ->
-      ⟪ pkt , fs ,  ϵ       , cx , s ⟫ ⤋ ⟪  ϵ'       , sig , pkt' ⟫ ->
-      ⟪ pkt , fs , (μ ++ ϵ) , cx , s ⟫ ⤋ ⟪ (μ ++ ϵ') , sig , pkt' ⟫.
-  Proof.
-    intros eps eps' mu s pkt pkt' fs cx sig Hd Hsbs.
-    induction Hsbs; eauto 4.
-    - apply sbs_seq_cont with (ϵ'0 := mu ++ ϵ') (pkt'0 := pkt'); auto.
-      apply IHHsbs2.
-      (* Needs assumption that [disjoint ϵ' μ] *)
-      admit.
-  Abort.
+    intros eps1 eps1' eps2 mu s pkt pkt' fs cx sig Hdu Hsbs.
+    induction Hsbs; eauto 3.
+    - admit.
+  Admitted.
 End Properties.

@@ -192,6 +192,18 @@ Section EnvEq.
       _ eq_env_stmt_big_step_def
       eq_env_big_step_state_machine_def
       eq_env_big_step_state_block_def.
+  
+  Definition eq_env_bsm_ind :=
+    bigstep_state_machine_ind
+      _ eq_env_stmt_big_step_def
+      eq_env_big_step_state_machine_def
+      eq_env_big_step_state_block_def.
+
+  Definition eq_env_bsb_ind :=
+    bigstep_state_block_ind
+      _ eq_env_stmt_big_step_def
+      eq_env_big_step_state_machine_def
+      eq_env_big_step_state_block_def.
 
   Ltac plz_have_mercy :=
     match goal with
@@ -237,10 +249,59 @@ Section EnvEq.
     - erewrite eq_env_copy_in in e1 by eauto.
       exists (copy_out argsv cls'' ϵ₂). eauto.
   Admitted.
+
+  Lemma eq_env_big_step_state_machine :
+    forall pkt fs ϵ₁ ps ee sb states strt_lbl ϵ₁' nxt_lbl pkt'
+      (H : SM (pkt, fs, ϵ₁, ps, ee, sb, states, strt_lbl)
+              ⇝ ⟨ ϵ₁', nxt_lbl, pkt' ⟩),
+      eq_env_big_step_state_machine_def _ _ _ _ _ _ _ _ _ _ _ H.
+  Proof.
+    apply eq_env_bsm_ind;
+      unfold eq_env_stmt_big_step_def,
+      eq_env_big_step_state_machine_def,
+      eq_env_big_step_state_block_def;
+      intros; subst; try copyin_mercy;
+        repeat plz_have_mercy;
+        try block_mercy; eauto 7.
+    - exists !{ x ↦ v;; ϵ₂}!; split; auto.
+      constructor; destruct eo as [t | e]; eauto 2.
+    - (* TODO: table invocation semantics... *) admit.
+    - erewrite eq_env_copy_in in e1 by eauto.
+      exists (copy_out argsv cls'' ϵ₂). eauto.
+  Admitted.
+
+  Lemma eq_env_big_step_state_block :
+    forall pkt fs ϵ₁ ps ee sb ϵ₁' lbl pkt'
+      (H : SB (pkt, fs, ϵ₁, ps, ee, sb)⇝ ⟨ ϵ₁', lbl, pkt' ⟩),
+      eq_env_big_step_state_block_def _ _ _ _ _ _ _ _ _ H.
+  Proof.
+    apply eq_env_bsb_ind;
+      unfold eq_env_stmt_big_step_def,
+      eq_env_big_step_state_machine_def,
+      eq_env_big_step_state_block_def;
+      intros; subst; try copyin_mercy;
+        repeat plz_have_mercy;
+        try block_mercy; eauto 7.
+    - exists !{ x ↦ v;; ϵ₂}!; split; auto.
+      constructor; destruct eo as [t | e]; eauto 2.
+    - (* TODO: table invocation semantics... *) admit.
+    - erewrite eq_env_copy_in in e1 by eauto.
+      exists (copy_out argsv cls'' ϵ₂). eauto.
+  Admitted.
 End EnvEq.
 
 Section Proper.
   Context {tags_t : Type}.
+
+  Global Instance Proper_expr_big_step_env :
+    @Proper
+      (epsilon -> Expr.e tags_t -> Val.v -> Prop)
+      (Env.eq_env ==> eq ==> eq ==> fun (P Q : Prop) => P -> Q)
+      expr_big_step.
+  Proof.
+    intros eps eps' Heps e e' He v v' Hv Hev; subst.
+    eauto using eq_env_expr_big_step.
+  Qed.
     
   Global Instance Proper_expr_big_step :
     @Proper
@@ -251,5 +312,23 @@ Section Proper.
       expr_big_step.
   Proof.
     unfold Proper. intros a b c d e. cbv.
+  Admitted.
+
+  Global Instance Proper_stmt_big_step_env :
+    @Proper
+      (Paquet.t -> fenv -> epsilon -> ctx -> Stmt.s tags_t ->
+       epsilon -> signal -> Paquet.t -> Prop)
+      (eq ==> eq ==> Env.eq_env ==> eq ==> eq ==>
+          Env.eq_env ==> eq ==> eq ==> fun (P Q : Prop) => P -> Q)
+      stmt_big_step.
+  Proof.
+    intros
+      ? pkt Hpt ? fs Hfs eps1 eps2 Heps ? cx Hcx ? s Hs
+      eps1' eps2' Heps' ? sg Hsg ? pkt' Hpkt' H; subst.
+    pose proof eq_env_stmt_big_step _ _ _ _ _ _ _ _ H as H'.
+    unfold eq_env_stmt_big_step_def in H'.
+    pose proof H' _ Heps as H''; clear H'.
+    destruct H'' as (h' & Hsh' & Hh').
+    (* Maybe env should be a function again... *)
   Admitted.
 End Proper.

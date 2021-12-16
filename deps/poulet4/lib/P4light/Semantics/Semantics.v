@@ -6,12 +6,10 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Poulet4.P4light.Syntax.Syntax
         Poulet4.Utils.Maps Poulet4.Utils.AList.
 Require Export Poulet4.P4light.Architecture.Target
-        VST.zlist.Zlist.
-From Poulet4.P4light.Syntax Require Export
-     Value ValueUtil SyntaxUtil.
+        VST.zlist.Zlist Poulet4.P4light.Syntax.Value.
+From Poulet4.P4light.Syntax Require Export ValueUtil SyntaxUtil.
 From Poulet4.P4light.Syntax Require Import P4String P4Int P4Notations.
 From Poulet4.P4light.Semantics Require Import P4Arith Ops.
->>>>>>> began refactor:deps/poulet4/lib/P4light/Semantics/Semantics.v
 Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.

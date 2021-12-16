@@ -4,9 +4,9 @@ Require Import Coq.ZArith.BinInt.
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
-Require Import Poulet4.P4light.Syntax.Typed.
 Require Import Poulet4.P4light.Syntax.Syntax.
-From Poulet4.P4light.Syntax Require Import Value SyntaxUtil P4Int.
+Require Import Poulet4.P4light.Syntax.Value.
+From Poulet4.P4light.Syntax Require Import Typed SyntaxUtil P4Int.
 From Poulet4.Utils Require Import Maps AList.
 
 Section Target.

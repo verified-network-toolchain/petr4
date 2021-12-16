@@ -1,10 +1,10 @@
 Require Import Coq.Strings.String
         Coq.ZArith.ZArith Coq.Lists.List
-        VST.zlist.Zlist.
+        VST.zlist.Zlist
+        Poulet4.P4light.Syntax.Value.
 From Poulet4.Utils Require Import AList Sublist ForallMap.
 From Poulet4.P4light.Syntax Require Import
-     Value Typed P4String SyntaxUtil P4Notations.
-
+     Typed P4String SyntaxUtil P4Notations.
 Import ListNotations.
 
 Section ValueUtil.

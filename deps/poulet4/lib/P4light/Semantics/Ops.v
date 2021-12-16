@@ -3,11 +3,11 @@ From Coq Require Import Strings.String Bool.Bool
      micromega.Lia.
 Require Import
         VST.zlist.Zlist
-        Poulet4.P4light.Syntax.Typed
+        Poulet4.P4light.Syntax.Value
         Poulet4.P4light.Syntax.Syntax
         Poulet4.P4light.Semantics.P4Arith.
 From Poulet4.P4light.Syntax Require Import
-     Value P4String SyntaxUtil.
+     Typed P4String SyntaxUtil.
 From Poulet4.Utils Require Import AList CoqLib.
 
 Import ListNotations.

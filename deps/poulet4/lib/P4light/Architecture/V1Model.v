@@ -5,10 +5,10 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Coq.Init.Hexadecimal.
-Require Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
-     Value P4Int SyntaxUtil P4Notations ValueUtil.
+     Typed P4Int SyntaxUtil P4Notations ValueUtil.
 From Poulet4.P4light.Semantics Require Import Ops P4Arith Hash.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.

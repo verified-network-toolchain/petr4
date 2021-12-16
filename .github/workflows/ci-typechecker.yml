@@ -17,7 +17,7 @@ jobs:
     steps: 
       - name: run p4c 
         run: p4c --help
-      - uses: actions/checkout@latest
+      - uses: actions/checkout@main
       - name: run petr4
         uses: ./.github/actions/build-petr4.yml@main
 

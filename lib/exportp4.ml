@@ -151,7 +151,7 @@ let rec print_type p (typ : coq_P4Type) =
           p4strings members
   | TypTypeName name ->
       fprintf p "(@[<hov 0>TypTypeName@ %a)@]"
-          print_string name.str
+          p4string name
   | TypNewType (s, typ) ->
       fprintf p "(@[<hov 4>TypNewType@ %a@ %a)@]"
           p4string s

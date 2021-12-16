@@ -10,10 +10,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  p4c-docker:
+  typecheck-petr4-vs-p4c:
     runs-on: ubuntu-latest
     container:
       image: p4lang/p4c
     steps: 
       - name: run p4c 
         run: p4c --help
+      - name: run petr4
+        uses: ./.github/workflows/build-petr4.yml@main
+

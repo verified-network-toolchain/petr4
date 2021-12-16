@@ -4,10 +4,12 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Poulet4.Monads.Monad Poulet4.Monads.Option
         Coq.NArith.BinNatDef Coq.NArith.BinNat.
 
-Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
+Require Import Poulet4.P4light.Semantics.P4Arith
+        Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations
         Poulet4.P4cub.Syntax.Equality.
-Import Expr TypeNotations UopNotations BopNotations ExprNotations MatchkindNotations.
+Import Expr TypeNotations UopNotations
+       BopNotations ExprNotations MatchkindNotations.
 
 Fixpoint width_of_typ (τ : t) : option nat :=
   match τ with

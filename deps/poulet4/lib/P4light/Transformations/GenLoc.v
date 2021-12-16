@@ -1,7 +1,6 @@
-Require Import Poulet4.Syntax.
-Require Import Poulet4.Typed.
-Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.SimplExpr.
+Require Import Poulet4.P4light.Syntax.Syntax.
+From Poulet4.P4light.Syntax Require Import Typed SyntaxUtil.
+Require Import Poulet4.P4light.Transformations.SimplExpr.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.State.
 Require Import Coq.Strings.String.

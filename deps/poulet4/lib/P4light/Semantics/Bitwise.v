@@ -3,7 +3,7 @@ Require Import Coq.Arith.PeanoNat.
 Require Import Coq.ZArith.BinInt.
 Require Import Coq.NArith.BinNatDef.
 
-Require Import Poulet4.P4Arith.
+Require Import Poulet4.P4light.Semantics.P4Arith.
 
 Import ListNotations.
 

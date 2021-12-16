@@ -5,21 +5,14 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Coq.Init.Hexadecimal.
-
-Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
-Require Import Poulet4.Value.
-Require Import Poulet4.Ops.
-Require Import Poulet4.P4Int.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.Hash.
-Require Import Poulet4.Target.
-Require Import Poulet4.SyntaxUtil.
-Require Import VST.zlist.Zlist.
-Require Import Poulet4.Maps.
-Require Import Poulet4.CoqLib.
-Require Import Poulet4.P4Notations.
-Require Import Poulet4.ValueUtil.
+Require Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.P4light.Syntax.Syntax.
+From Poulet4.P4light.Syntax Require Import
+     Value P4Int SyntaxUtil P4Notations ValueUtil.
+From Poulet4.P4light.Semantics Require Import Ops P4Arith Hash.
+Require Import VST.zlist.Zlist
+        Poulet4.P4light.Architecture.Target.
+From Poulet4.Utils Require Import Maps CoqLib.
 Import ListNotations.
 Open Scope Z_scope.
 Open Scope string_scope.

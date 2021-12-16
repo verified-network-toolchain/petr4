@@ -5,8 +5,8 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Poulet4.P4light.Syntax.Typed
         Poulet4.P4light.Syntax.Syntax
         Poulet4.Utils.Maps Poulet4.Utils.AList.
-Require Export VST.zlist.Zlist
-        Poulet4.P4light.Archetecture.Target.
+Require Export Poulet4.P4light.Architecture.Target
+        VST.zlist.Zlist.
 From Poulet4.P4light.Syntax Require Export
      Value ValueUtil SyntaxUtil.
 From Poulet4.P4light.Syntax Require Import P4String P4Int P4Notations.

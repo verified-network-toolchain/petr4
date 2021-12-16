@@ -1,12 +1,12 @@
 (** * The P4 Core [packet_in] Extern *)
 
-Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.Utils.Util.Envn.
 Require Poulet4.P4cub.Architecture.Paquet.
 Import String.
 
 Module PKT := Paquet.
 (* TODO: helpers need a different file from semantics. *)
-Require Import Coq.ZArith.BinIntDef Poulet4.P4cub.Util.Utiliser.
+Require Import Coq.ZArith.BinIntDef Poulet4.Utils.Util.Utiliser.
 
 (** [packet_in.advance] *)
 Definition advance (sizeInBits : Z) (pkt : PKT.t) : PKT.t :=

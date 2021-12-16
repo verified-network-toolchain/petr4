@@ -3,13 +3,10 @@ Require Import Coq.Program.Program.
 Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.NArith.BinNatDef.
-
-Require Export Poulet4.Utils.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Syntax.
-Require Export Poulet4.Maps.
-Require Export VST.zlist.Zlist.
-Require Import Poulet4.P4Notations.
+Require Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.P4light.Syntax.Syntax.
+Require Export Poulet4.Utils.Maps VST.zlist.Zlist.
+Require Import Poulet4.P4light.Syntax.P4Notations.
 Require Import String.
 Import ListNotations.
 

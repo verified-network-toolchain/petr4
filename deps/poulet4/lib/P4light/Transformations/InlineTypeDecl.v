@@ -1,7 +1,7 @@
-Require Import Poulet4.P4light.Typed
+Require Import Poulet4.P4light.Syntax.Typed
         Coq.Lists.List Poulet4.P4light.Syntax.Syntax.
 From Poulet4.Utils Require Import Maps Utils Util.FunUtil.
-Require Poulet4.P4String Poulet4.AListUtil.
+Require Poulet4.P4light.Syntax.P4String.
 Import List.ListNotations.
 
 (** * Inline type-declarations in p4light programs. *)

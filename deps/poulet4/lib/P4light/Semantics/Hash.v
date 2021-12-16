@@ -6,7 +6,7 @@ Require Import Coq.Lists.List.
 
 Import ListNotations.
 
-Require Import Poulet4.Bitwise.
+Require Import Poulet4.P4light.Semantics.Bitwise.
 
 (* CRC Steps:
     1. BMV2-specific: the [input] is appended with zeros to the end

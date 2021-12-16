@@ -4,7 +4,7 @@ Require Export Coq.ZArith.ZArith.
 Require Export Coq.Strings.String.
 From Poulet4.P4light.Syntax Require Export
      P4String P4Int Typed.
-Require Import Poulet4.P4light.Syntax.Syntax.
+Require Export Poulet4.P4light.Syntax.Syntax.
 Require Import VST.zlist.Zlist.
 
 Notation stags := P4String.tags.

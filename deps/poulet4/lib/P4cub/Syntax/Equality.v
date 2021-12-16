@@ -2,7 +2,6 @@ Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt
         Coq.NArith.BinNatDef Coq.NArith.BinNat
-        Poulet4.P4Arith
         Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
         Poulet4.P4cub.Syntax.CubNotations.
 
@@ -111,7 +110,7 @@ Module TypeEquivalence.
                               unfold equiv in *; subst;
                                 repeat eauto_too_dumb; subst; auto
               end.
-      auto using Ndec.Neqb_complete.
+      auto using InitialRing.Neqb_ok.
     Qed.
     
     Lemma eqbt_eq_iff : forall t1 t2 : t,
@@ -543,7 +542,7 @@ Module ExprEquivalence.
       | H: eqb _ _ = true |- _
         => apply eqb_prop in H; subst
       | H: (_ =? _)%N = true |- _
-        => apply Ndec.Neqb_complete in H; subst
+        => apply InitialRing.Neqb_ok in H; subst
       | H: (_ =? _)%positive = true |- _
         => apply Peqb_true_eq in H; subst
       | H: (_ =? _)%Z = true |- _

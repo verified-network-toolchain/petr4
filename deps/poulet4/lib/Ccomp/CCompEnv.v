@@ -3,11 +3,11 @@ From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
-Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.Utils.Util.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Error.
 Require Import Coq.Strings.String.
-Require Import Poulet4.P4cub.Util.Utiliser.
+Require Import Poulet4.Utils.Util.Utiliser.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Init.Decimal.
 Require Import Field.

@@ -1,4 +1,4 @@
-Require Export Poulet4.P4cub.Util.Utiliser
+Require Export Poulet4.Utils.Util.Utiliser
         Poulet4.Platform.Packet
         Poulet4.Monads.State.
 Require Poulet4.Environment.Environment.

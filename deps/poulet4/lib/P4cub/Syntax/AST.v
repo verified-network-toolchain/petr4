@@ -1,5 +1,5 @@
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt Poulet4.P4Arith
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
         Coq.Classes.EquivDec Coq.Program.Program.
 Require Export Poulet4.P4cub.Syntax.P4Field.
 Require Coq.Logic.Eqdep_dec.

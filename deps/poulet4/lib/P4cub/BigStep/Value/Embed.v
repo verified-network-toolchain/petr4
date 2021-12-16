@@ -1,8 +1,9 @@
 Require Export Poulet4.P4cub.BigStep.Value.Syntax
-        Poulet4.Value Poulet4.P4Arith Coq.Strings.String
+        Poulet4.P4light.Syntax.Value Coq.Strings.String
         Poulet4.P4cub.BigStep.Value.IndPrincip
-        Poulet4.ForallMap.
-Require Poulet4.P4String.
+        Poulet4.ForallMap
+        Poulet4.Utils.Utils Poulet4.P4light.Semantics.P4Arith.
+Require Poulet4.P4light.Syntax.P4String.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Import AllCubNotations Val.ValueNotations.
 Local Open Scope string_scope.

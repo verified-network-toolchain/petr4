@@ -8,11 +8,11 @@ Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.State.
 
 Require Import Poulet4.Environment.Environment.
-Require Import Poulet4.Utils.
-Require Import Poulet4.Value.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Bitwise.
-Require Import Poulet4.AList.
+Require Import Poulet4.Utils.Utils.
+Require Import Poulet4.P4light.Syntax.Value.
+Require Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.P4light.Semantics.Bitwise.
+Require Import Poulet4.Utils.AList.
 
 Open Scope monad.
 Open Scope string_scope.

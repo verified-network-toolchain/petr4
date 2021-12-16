@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
-        Poulet4.P4cub.Syntax.AST Poulet4.P4Arith
-        Poulet4.P4cub.Envn Poulet4.P4cub.Static.Util
+        Poulet4.P4cub.Syntax.AST Poulet4.P4light.Semantics.P4Arith
+        Poulet4.Utils.Util.Envn Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Syntax.CubNotations.
 Import String.
 (* TODO: type parameters, arguments, ok types. *)

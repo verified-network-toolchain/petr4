@@ -130,3 +130,12 @@ Definition netchain_test_case :=
 
 Lemma netchain_test: is_ok netchain_test_case.
 Proof. compute; trivial. Qed.
+
+
+(* hula *)
+Definition hula_test_case :=
+  let* hula := ToP4cubTest.p4cub_hula in
+  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) hula.
+
+Lemma hula_test: is_ok hula_test_case.
+Proof. compute; trivial. Qed.

@@ -71,6 +71,6 @@ Proof. compute; trivial. Qed.
 
 (* HULA *)
 Definition p4cub_hula := ToP4cub.translate_program Info NoInfo Hula.prog.
-Compute p4cub_hula.
+(* Compute p4cub_hula. *)
 Lemma hula_no_error: Result.is_ok p4cub_hula.
 Proof. compute; trivial. Qed.

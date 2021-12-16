@@ -310,7 +310,7 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let~ w := width_of_type x t over ("couldn't get type-width of " ++ x ++ " while converting to rvalue") in
+        let* w := width_of_type x t in (* over ("couldn't get type-width of " ++ x ++ " while converting to rvalue") in*)
         ok (BV.BVVar x w)
       | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
@@ -515,7 +515,7 @@ Section ToGCL.
                          | PADirLess e =>
                            match to_form e with
                            | Error _ _ =>
-                             let~ e' := to_rvalue e over ("failed converting argument named " ++ name ++ " to_rvalue") in
+                             let* e' := to_rvalue e in
                              ok ((name, inr e') :: res)
                            | Ok _ phi =>
                              ok ((name, inl phi) :: res)

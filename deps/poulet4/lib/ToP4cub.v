@@ -675,11 +675,16 @@ Section ToP4cub.
     (cub_t, cub_e).
 
 
-  Definition translate_apply tags callee : result (ST.s tags_t) :=
+  Definition translate_apply tags callee args : result (ST.s tags_t) :=
     let typ := get_type_of_expr callee in
     match typ with
     | TypControl (MkControlType type_params parameters) =>
-      error "[FIXME] translate control apply calls"
+      let* callee_name := get_name callee in
+      let callee_name_string := P4String.str callee_name in
+      let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
+      let* params := parameters_to_params tags parameters in
+      let+ paramargs := apply_args_to_params callee_name_string params cub_args in
+      ST.SApply (P4String.str callee_name) [] paramargs tags
     | TypTable _ =>
       let+ callee_name := get_name callee in
       ST.SInvoke (P4String.str callee_name) tags
@@ -746,7 +751,7 @@ Section ToP4cub.
              (f : P4String.t tags_t) : result (ST.s tags_t) :=
     let f_str := P4String.str f in
     if f_str =? "apply" then
-      translate_apply tags callee
+      translate_apply tags callee args
     else if f_str =? "setInvalid" then
       translate_set_validity tags false callee
     else if f_str =? "setValid" then
@@ -764,7 +769,7 @@ Section ToP4cub.
         (* TODO need to unroll the number of pop_fronts/backs based on argument index *)
         let* op :=
            if f_str =? "pop_front" then ok ST.HSPop
-           else if f_str =? "push_back" then ok ST.HSPush
+           else if f_str =? "push_front" then ok ST.HSPush
            else error ("ERROR :: unknown header_stack operation " ++ f_str)
         in
         let* num_ops :=
@@ -1062,10 +1067,10 @@ Section ToP4cub.
     | inr y => (def_opt, y::cases)
     end.
 
-  (* TODO ASSUME default is the last element of case list *)
-  Definition translate_cases (cases : list (@ParserCase tags_t)) : result (Parser.e tags_t * F.fs Parser.pat (Parser.e tags_t)) :=
+    (* TODO ASSUME default is the last element of case list *)
+  Definition translate_cases (tags : tags_t) (cases : list (@ParserCase tags_t)) : result (Parser.e tags_t * F.fs Parser.pat (Parser.e tags_t)) :=
     let* (def_opt, cases) := List.fold_right translate_parser_case_loop (ok (None, [])) cases in
-    let*~ def := def_opt else "ERROR, could not retrieve default from parser case list" in
+    let def := SyntaxUtil.force (Parser.PGoto Parser.STReject tags) def_opt in
     ok (def, cases).
 
   Definition translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
@@ -1076,7 +1081,7 @@ Section ToP4cub.
     | ParserSelect tags exprs cases =>
       let* type_expr_list := rred (List.map (translate_expression_and_type tags) exprs) in
       let expr_list := List.map snd type_expr_list in
-      let+ (default, cub_cases) := translate_cases cases in
+      let+ (default, cub_cases) := translate_cases tags cases in
       Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
     end.
 
@@ -1411,8 +1416,11 @@ Section ToP4cub.
       let cub_type_params := List.map P4String.str type_params in
       let d := TopDecl.TPExtern str_name cub_type_params cparams cub_methods tags in
       add_extern ctx d
-    | DeclTypeDef tags name typ_or_decl =>
-    (* error "[FIXME] Type Definitions unimplemented" *)
+    | DeclTypeDef tags name (inl typ) =>
+      let+ typ := translate_exp_type tags typ in
+      add_type ctx (P4String.str name) typ
+    | DeclTypeDef tags name (inr typ) =>
+      (* [FIXME] what to do here? *)
       ok ctx
     | DeclNewType tags name typ_or_decl =>
     (* error "[FIXME] Newtypes unimplemented" *)

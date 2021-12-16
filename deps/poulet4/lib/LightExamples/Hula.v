@@ -890,9 +890,10 @@ Definition MyParser := DeclParser NoInfo
                                                        (ExpInt
                                                         {| itags := NoInfo;
                                                            value := 1;
-                                                           width_signed := 
-                                                           None |})
-                                                       TypInteger
+                                                           width_signed := (
+                                                           Some
+                                                           ( 1%N, false )) |})
+                                                       (TypBit 1%N)
                                                        Directionless))
                            (TypBit 1%N))]
                      {| stags := NoInfo; str := "parse_ipv4" |});
@@ -1123,49 +1124,41 @@ Definition MyIngress := DeclControl NoInfo
                (TypTypeName {| stags := NoInfo; str := "register" |})
                [(TypTypeName {| stags := NoInfo; str := "qdepth_t" |})])
           [(MkExpression NoInfo
-                (ExpCast (TypBit 32%N)
-                     (MkExpression NoInfo
-                          (ExpInt
-                           {| itags := NoInfo; value := 32;
-                              width_signed := None |}) TypInteger
-                          Directionless)) (TypBit 32%N) Directionless)]
+                (ExpInt
+                 {| itags := NoInfo; value := 32;
+                    width_signed := (Some ( 32%N, false )) |}) (TypBit 32%N)
+                Directionless)]
           {| stags := NoInfo; str := "srcindex_qdepth_reg" |} nil);
      (DeclInstantiation NoInfo
           (TypSpecializedType
                (TypTypeName {| stags := NoInfo; str := "register" |})
                [(TypTypeName {| stags := NoInfo; str := "digest_t" |})])
           [(MkExpression NoInfo
-                (ExpCast (TypBit 32%N)
-                     (MkExpression NoInfo
-                          (ExpInt
-                           {| itags := NoInfo; value := 32;
-                              width_signed := None |}) TypInteger
-                          Directionless)) (TypBit 32%N) Directionless)]
+                (ExpInt
+                 {| itags := NoInfo; value := 32;
+                    width_signed := (Some ( 32%N, false )) |}) (TypBit 32%N)
+                Directionless)]
           {| stags := NoInfo; str := "srcindex_digest_reg" |} nil);
      (DeclInstantiation NoInfo
           (TypSpecializedType
                (TypTypeName {| stags := NoInfo; str := "register" |})
                [(TypBit 16%N)])
           [(MkExpression NoInfo
-                (ExpCast (TypBit 32%N)
-                     (MkExpression NoInfo
-                          (ExpInt
-                           {| itags := NoInfo; value := 32;
-                              width_signed := None |}) TypInteger
-                          Directionless)) (TypBit 32%N) Directionless)]
+                (ExpInt
+                 {| itags := NoInfo; value := 32;
+                    width_signed := (Some ( 32%N, false )) |}) (TypBit 32%N)
+                Directionless)]
           {| stags := NoInfo; str := "dstindex_nhop_reg" |} nil);
      (DeclInstantiation NoInfo
           (TypSpecializedType
                (TypTypeName {| stags := NoInfo; str := "register" |})
                [(TypBit 16%N)])
           [(MkExpression NoInfo
-                (ExpCast (TypBit 32%N)
-                     (MkExpression NoInfo
-                          (ExpInt
-                           {| itags := NoInfo; value := 65536;
-                              width_signed := None |}) TypInteger
-                          Directionless)) (TypBit 32%N) Directionless)]
-          {| stags := NoInfo; str := "flow_port_reg" |} nil);
+                (ExpInt
+                 {| itags := NoInfo; value := 65536;
+                    width_signed := (Some ( 32%N, false )) |}) (TypBit 32%N)
+                Directionless)] {| stags := NoInfo; str := "flow_port_reg" |}
+          nil);
      (DeclAction NoInfo {| stags := NoInfo; str := "drop" |} nil nil
           (BlockCons
                (MkStatement NoInfo
@@ -1300,14 +1293,10 @@ Definition MyIngress := DeclControl NoInfo
                                                   str := "ttl" |})
                                           (TypBit 8%N) Directionless),
                                      (MkExpression NoInfo
-                                          (ExpCast (TypBit 8%N)
-                                               (MkExpression NoInfo
-                                                    (ExpInt
-                                                     {| itags := NoInfo;
-                                                        value := 1;
-                                                        width_signed := 
-                                                        None |}) TypInteger
-                                                    Directionless))
+                                          (ExpInt
+                                           {| itags := NoInfo; value := 1;
+                                              width_signed := (Some
+                                                               ( 8%N, false )) |})
                                           (TypBit 8%N) Directionless) ))
                               (TypBit 8%N) Directionless)) StmUnit)
                (BlockEmpty NoInfo)));
@@ -1884,12 +1873,9 @@ Definition MyIngress := DeclControl NoInfo
                                    {| stags := NoInfo; str := "dir" |})
                               (TypBit 1%N) Directionless)
                          (MkExpression NoInfo
-                              (ExpCast (TypBit 1%N)
-                                   (MkExpression NoInfo
-                                        (ExpInt
-                                         {| itags := NoInfo; value := 1;
-                                            width_signed := None |})
-                                        TypInteger Directionless))
+                              (ExpInt
+                               {| itags := NoInfo; value := 1;
+                                  width_signed := (Some ( 1%N, false )) |})
                               (TypBit 1%N) Directionless)) StmUnit)
                (BlockCons
                     (MkStatement NoInfo

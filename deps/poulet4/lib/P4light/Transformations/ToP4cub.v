@@ -7,7 +7,7 @@ Require Export
         Poulet4.P4cub.Syntax.Substitution
         Poulet4.P4cub.Syntax.InferMemberTypes
         Poulet4.Utils.Util.Result
-        Poulet4.P4cub.BigStep.InstUtil.
+        Poulet4.P4cub.Semantics.Dynamic.BigStep.InstUtil.
 Import AST Result Envn.
 Import ResultNotations.
 

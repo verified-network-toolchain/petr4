@@ -4,7 +4,7 @@ Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.Utils.Util.Result
         Poulet4.Utils.Util.StringUtil
-        Poulet4.P4cub.BigStep.InstUtil.
+        Poulet4.P4cub.Semantics.Dynamic.BigStep.InstUtil.
 
 Import StringUtil.
 

@@ -1,18 +1,18 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 Require Export Poulet4.P4cub.Syntax.AST.
-Require Export Poulet4.P4Arith.
-Require Export Poulet4.P4cub.Envn.
+Require Export Poulet4.P4light.Semantics.P4Arith.
+Require Export Poulet4.Utils.Util.Envn.
 Require Export Poulet4.P4cub.BigStep.InstUtil.
 Require Export Poulet4.P4cub.BigStep.BigStep.
 Require Export Poulet4.P4cub.BigStep.Semantics.
 Require Export Poulet4.P4cub.BigStep.Value.Value.
-Require Export Poulet4.P4cub.Util.Result.
+Require Export Poulet4.Utils.Util.Result.
 Require Import Coq.Arith.EqNat.
 Require Import String.
 Open Scope string_scope.
 
-Require Import Poulet4.P4cub.Util.StringUtil.
+Require Import Poulet4.Utils.Util.StringUtil.
 
 Import Env.EnvNotations.
 

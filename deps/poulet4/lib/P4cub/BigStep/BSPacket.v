@@ -1,9 +1,10 @@
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import PArith.BinPos
      NArith.BinNat Strings.String.
+Require Import Poulet4.Utils.Util.Envn.
 From Poulet4.P4cub Require Import
      Architecture.Paquet
-     Architecture.PacketIn Envn
+     Architecture.PacketIn
      Architecture.Architecture
      BigStep.ValEnvUtil BigStep.Value.Syntax
      Syntax.CubNotations.

@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax.
 From Poulet4.P4cub Require Export BigStep.BigStep
-     Envn Transformations.Lifting.Lifted.
+     Transformations.Lifting.Lifted.
 Import AllCubNotations Env.EnvNotations
        Val.ValueNotations Step.
 

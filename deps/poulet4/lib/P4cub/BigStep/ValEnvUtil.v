@@ -1,9 +1,9 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.BigStep.Value.Value
         Coq.NArith.BinNat Coq.ZArith.BinInt
-        Poulet4.P4cub.Envn
+        Poulet4.Utils.Util.Envn
         Poulet4.P4cub.BigStep.ExprUtil
-        Poulet4.P4Arith.
+        Poulet4.P4light.Semantics.P4Arith.
 Import String.
 Module V := Val.
 Import V.ValueNotations V.LValueNotations Env.EnvNotations.

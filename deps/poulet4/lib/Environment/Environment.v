@@ -11,8 +11,9 @@ Require Import Poulet4.Monads.State.
 Require Import Poulet4.Monads.Transformers.
 
 Require Import Poulet4.P4light.Semantics.Bitwise.
+Require Import Poulet4.P4light.Syntax.Value.
 From Poulet4.P4light.Syntax Require Import
-     Typed Value P4String StringConstants.
+     Typed P4String StringConstants.
 
 Open Scope monad.
 Open Scope bool_scope.

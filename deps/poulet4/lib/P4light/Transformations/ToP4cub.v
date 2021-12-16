@@ -6,7 +6,7 @@ Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Substitution
         Poulet4.P4cub.Syntax.InferMemberTypes
-        Poulet4.P4cub.Utils.Result
+        Poulet4.Utils.Util.Result
         Poulet4.P4cub.BigStep.InstUtil.
 Import AST Result Envn.
 Import ResultNotations.
@@ -14,7 +14,7 @@ Import ResultNotations.
 Require Import String.
 Open Scope string_scope.
 
-Require Import Poulet4.HoistNameless.
+Require Import Poulet4.P4light.Transformations.HoistNameless.
 Import HoistNameless.
 
 Module ST := Stmt.

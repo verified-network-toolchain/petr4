@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Export Poulet4.P4cub.Envn
+Require Export Poulet4.Utils.Util.Envn
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Static.Util
         Poulet4.P4cub.Static.Typing

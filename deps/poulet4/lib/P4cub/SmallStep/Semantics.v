@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.ZArith.BinInt.
-From Poulet4.P4cub Require Import SmallStep.Value
-     SmallStep.Util Syntax.Syntax Envn.
+Require Import Coq.ZArith.BinInt
+        Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Util.Envn.
+From Poulet4.P4cub Require Import SmallStep.Value SmallStep.Util.
 Import String.
 
 (* TODO: correctly handle type parameters/arguments. *)

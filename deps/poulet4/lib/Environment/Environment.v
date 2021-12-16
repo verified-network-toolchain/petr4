@@ -10,11 +10,9 @@ Require Import Poulet4.Monads.Option.
 Require Import Poulet4.Monads.State.
 Require Import Poulet4.Monads.Transformers.
 
-Require Import Poulet4.Bitwise.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Value.
-Require Import Poulet4.P4String.
-Require Poulet4.StringConstants.
+Require Import Poulet4.P4light.Semantics.Bitwise.
+From Poulet4.P4light.Syntax Require Import
+     Typed Value P4String StringConstants.
 
 Open Scope monad.
 Open Scope bool_scope.

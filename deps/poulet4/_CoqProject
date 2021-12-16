@@ -1,6 +1,8 @@
 -Q _build/default/lib Poulet4
 -Q _build/default/lib/Environment Poulet4.Environment
 -Q _build/default/lib/Monads Poulet4.Monads
+-Q _build/default/lib/P4light Poulet4.P4light
+-Q _build/default/lib/Utils Poulet4.Utils
 -Q _build/default/lib/P4cub Poulet4.P4cub
 -Q _build/default/lib/P4Automata Poulet4.P4automata
 -Q _build/default/lib/Platform Poulet4.Platform

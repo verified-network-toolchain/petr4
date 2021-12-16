@@ -18,5 +18,5 @@ jobs:
       - name: run p4c 
         run: p4c --help
       - name: run petr4
-        uses: ./.github/workflows/build-petr4.yml@main
+        uses: ./.github/actions/build-petr4.yml@main
 

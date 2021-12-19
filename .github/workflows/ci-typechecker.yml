@@ -15,8 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@main
       
-  reuse-build-petr4:
-    uses: pataei/petr4/.github/workflows/build-petr4.yml@main
+#   reuse-build-petr4:
+#     uses: pataei/petr4/.github/workflows/build-petr4.yml@main
       
   build-p4c:
     runs-on: ubuntu-latest
@@ -24,9 +24,14 @@ jobs:
       image: p4lang/p4c
     steps: 
       - name: run p4c 
-        run: |
-          p4c --help
-#       - uses: actions/checkout@main
-#       - name: run petr4
-#         uses: ./.github/workflow/build-petr4.yml
+        run: p4c --help
+        
+      - name: setup-ocaml
+        uses: ocaml/setup-ocaml@v1
+        with:
+          ocaml-version: '4.12.0'
 
+      - name: build-ubuntu
+        run: ./.github/scripts/build-petr4-ubuntu.sh
+        shell: bash
+        

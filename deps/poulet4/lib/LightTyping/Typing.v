@@ -129,7 +129,7 @@ Section TypingDefs.
   Definition lookup_func_typ
              (this : path) (gf : gamma_func)
              (gi : gamma_inst) (func : expr)
-    : option (path * funtype) :=
+    : option (option path * funtype). Admitted. (* :=
     match func with
     | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
       option_map (fun funt => (nil, funt)) (PathMap.get p gf)
@@ -142,7 +142,7 @@ Section TypingDefs.
       | None => None
       end
     | _ => None
-    end.
+    end. *)
   
   (* TODO: is this correct? *)
   Definition gamma_inst_domain
@@ -200,7 +200,7 @@ Section TypingDefs.
              (this : path) (d : list string)
              (g : gamma_expr) (gf : gamma_func)
              (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
-    forall (e : expr) (p p' : path) (fd : fundef) (ft : funtype),
+    forall (e : expr) (p p' : option path) (fd : fundef) (ft : funtype),
       lookup_func_typ this gf gi e = Some (p,ft) ->
       lookup_func ge this e = Some (p',fd) ->
       p = p' /\ fundef_funtype_prop d g gext this fd ft.

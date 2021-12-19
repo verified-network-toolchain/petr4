@@ -1313,6 +1313,35 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => ""
   end.
 
+(* isValid() is supported by headers and header unions. If u is a header union, u.isValid() returns true
+  if any member of the header union u is valid, otherwise it returns false. *)
+Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bool -> Prop :=
+| exec_isValid_header : forall fields valid_bit is_valid,
+    read_one_bit valid_bit is_valid ->
+    exec_isValid read_one_bit (ValBaseHeader fields valid_bit) is_valid
+| exec_isValid_union : forall fields valid_bits,
+    Forall2 (exec_isValid read_one_bit) (map snd fields) valid_bits ->
+    exec_isValid read_one_bit (ValBaseUnion fields)
+      (fold_left orb valid_bits false).
+
+Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := ValBaseNull.
+
+Definition push_front (headers : list Sval) (next : N) (count : Z) : list Sval * N :=
+  let size := Zlength headers in
+  if (count <=? size)%Z then
+    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
+      ++ sublist 0 (size - count) headers, Z.to_N (Z.of_N next + count))
+  else
+    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size, Z.to_N (Z.of_N next + count)).
+
+Definition pop_front (headers : list Sval) (next : N) (count : Z) : list Sval * N :=
+  let size := Zlength headers in
+  if (count <=? size)%Z then
+    (sublist count size headers ++ Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count,
+      Z.to_N (Z.of_N next - count))
+  else
+    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size, Z.to_N (Z.of_N next - count)).
+
 (* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
 (* The expression h.minSizeInBits() is defined for any value h that has a header type.
    The expression is equal to the sum of the sizes of all of header h's fields in bits,
@@ -1323,8 +1352,8 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
    of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is
    equal to (h.minSizeInBits() + 7) >> 3. *)
 (* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
-(* u.isValid() returns true if any member of the header union u is valid, otherwise it returns false. *)
 (* It should be guaranteed there is at most one valid header in a union. *)
+(* stack.next must be handled in a preprocessor, as it returns an lvalue. *)
 (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
 (* Calling the isValid() method on an element of a header stack, where the index is out of range,
    returns an undefined boolean value, i.e., it is either true or false, but the specification
@@ -1333,9 +1362,27 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
    ... a method call of setValid() or setInvalid() on an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system, neither in header
    fields nor anywhere else. In particular, if an invalid header is involved in the write, it must remain invalid. *)
-Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
-  (* this_path s lv fname args s' sig *) (* TODO *)
-  .
+Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
+| exec_builtin_isValid : forall p st lv sv is_valid,
+    exec_read st lv sv ->
+    exec_isValid read_one_bit sv is_valid ->
+    exec_builtin read_one_bit p st lv "isValid" [] st (SReturn (ValBaseBool is_valid))
+| exec_builtin_setValid : forall p st lv fields is_valid st',
+    exec_read st lv (ValBaseHeader fields is_valid) ->
+    exec_write st lv (ValBaseHeader fields (Some true)) st' ->
+    exec_builtin read_one_bit p st lv "setValid" [] st' (SReturn ValBaseNull)
+| exec_builtin_setInalid : forall p st lv fields is_valid st',
+    exec_read st lv (ValBaseHeader fields is_valid) ->
+    exec_write st lv (ValBaseHeader fields (Some false)) st' ->
+    exec_builtin read_one_bit p st lv "setInalid" [] st' (SReturn ValBaseNull)
+| exec_builtin_push_front : forall p st lv headers size next count st',
+    exec_read st lv (ValBaseStack headers size next) ->
+    exec_write st lv (let (headers', next') := push_front headers next count in ValBaseStack headers' size next') st' ->
+    exec_builtin read_one_bit p st lv "push_front" [ValBaseInteger count] st' (SReturn ValBaseNull)
+| exec_builtin_pop_front : forall p st lv headers size next count st',
+    exec_read st lv (ValBaseStack headers size next) ->
+    exec_write st lv (let (headers', next') := pop_front headers next count in ValBaseStack headers' size next') st' ->
+    exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).
 
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
@@ -1465,13 +1512,17 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
 
 with exec_call (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
+  (* Perhaps we want to allow some built-in fucntions, e.g. isValid(), execute on rvalues. We can do that
+    by some preprocessing. *)
   | exec_call_builtin : forall this_path s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
       exec_lexpr read_one_bit this_path s lhs lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
       (if not_continue sig then s' = s /\ sig'' = sig
        else if not_continue sig' then s' = s /\ sig'' = sig'
-       else exec_builtin this_path s lv fname (extract_invals argvals) s' sig'') ->
+       else exec_builtin read_one_bit this_path s lv fname (extract_invals argvals) s' sig'') ->
+      (* As far as we know, built-in functions do not have out/inout parameters. So there's not a caller
+        copy-out step. Also exec_args should never raise any signal other than continue. *)
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
           (MkExpression tag' (ExpExpressionMember lhs (P4String.Build_t tags_t inhabitant_tags_t fname)) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
           nil args) typ dir) s' sig''

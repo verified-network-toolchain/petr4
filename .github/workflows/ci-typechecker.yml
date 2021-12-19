@@ -10,13 +10,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  use-build-petr4:
+  checkout:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@main
-      - name: reuse build-petr4
-        uses: pataei/petr4/.github/actions/build-petr4@main
-    
+      
+  reuse-build-petr4:
+    uses: pataei/petr4/.github/workflows/build-petr4.yml@main
+      
 #   build-p4c:
 #     runs-on: ubuntu-latest
 #     container:

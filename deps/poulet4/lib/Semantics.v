@@ -880,62 +880,53 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       extern_match (combine keyvals match_kinds) entryvs = matched_action ->
       exec_table_match read_one_bit this_path s name const_entries matched_action.
 
-
 Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 
-(* QUESTION: Why does this only go two-layers deep in an expression?
-   What about arbitrary nesting? *)
-Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (path * fundef) :=
+(* Look up function definition (fundef) and the path on which the function should be executed.
+  Return None if failed.
+  Return Some (None, fd) if the function should be executed on the current path. *)
+Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
   match func with
-  (* function/action *)
+  (* function/action/parser transition *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
-      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
+      | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
-        (* QUESTION: why isn't [p] used to look up instance? *)
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+              option_map (fun fd => (None, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
   (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
-      if String.eqb (P4String.str name) "apply" then
-        match expr with
-        | MkExpression _ (ExpName _ loc) _ _ =>
-            match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
-            | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
-                | Some (mk_inst_ref class_name inst_path) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge_func)
-                | _ => None
-                end
-            end
-        | _ => None
-        end
-      (* If the method name is not apply, it is an external method. *)
-      else
-        match expr with
-        | MkExpression _ (ExpName _ loc) _ _ =>
-            match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
-            | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
-                | Some (mk_inst_ref class_name inst_path) =>
-                    match PathMap.get [class_name; str name] ge_func with
-                    | Some fd => Some (inst_path, fd)
-                    | None => None
-                    end
-                | _ => None
-                end
-            end
-        | _ => None
-        end
+      match expr with
+      | MkExpression _ (ExpName _ loc) _ _ =>
+          match loc with
+          | LGlobal p =>
+              match PathMap.get p ge_inst with
+              | Some (mk_inst_ref class_name inst_path) =>
+                  match PathMap.get [class_name; str name] ge_func with
+                  | Some fd => Some (Some inst_path, fd)
+                  | None => None
+                  end
+              | None => None
+              end
+          | LInstance p =>
+              match PathMap.get (this_path ++ p) ge_inst with
+              | Some (mk_inst_ref class_name inst_path) =>
+                  match PathMap.get [class_name; str name] ge_func with
+                  | Some fd => Some (Some inst_path, fd)
+                  | None => None
+                  end
+              | None => None
+              end
+          end
+      | _ => None
+      end
   | _ => None
   end.
 
@@ -1536,9 +1527,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
-      (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
-      exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
-      (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
+      s2 = (if is_some obj_path then set_memory PathMap.empty s1 else s1) ->
+      exec_func read_one_bit (force this_path obj_path) s2 fd targs (extract_invals argvals) s3 outvals sig' ->
+      s4 = (if is_some obj_path then set_memory (get_memory s1) s3 else s3) ->
       exec_write_options s4 (extract_outlvals dirs argvals) outvals s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
@@ -2048,19 +2039,19 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
-      let ge := PathMap.set (p ++ ["accept"]) accept_state ge in
-      let ge := PathMap.set (p ++ ["reject"]) reject_state ge in
+      let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
+      let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init (BlockSingleton stmt)) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) init (BlockSingleton stmt)) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init apply) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) init apply) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let iout_params := map (fun p => (str (fst p), snd p)) out_params in

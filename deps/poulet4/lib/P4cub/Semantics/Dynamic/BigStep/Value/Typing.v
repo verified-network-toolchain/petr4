@@ -5,18 +5,15 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
-        Coq.micromega.Lia Poulet4.ForallMap.
-Import String.
-Import ProperType Val ValueNotations
-       LValueNotations AllCubNotations
-       Env.EnvNotations.
+        Poulet4.ForallMap Coq.micromega.Lia.
+Import String ProperType Val ValueNotations
+       LValueNotations AllCubNotations Clmt.Notations.
 
 Reserved Notation "∇ ⊢ v ∈ τ"
          (at level 40, v custom p4value, τ custom p4type).
 
 Reserved Notation "'LL' Δ , Γ ⊢ lval ∈ τ"
-         (at level 40, Δ custom p4env, Γ custom p4env,
-          lval custom p4lvalue, τ custom p4type).
+         (at level 40, lval custom p4lvalue, τ custom p4type).
 
 Inductive type_value : v -> Expr.t -> Prop :=
 | typ_bool (b : bool) : ∇ ⊢ VBOOL b ∈ Bool
@@ -174,7 +171,7 @@ End ValueTypingInduction.
 
 Inductive type_lvalue (Δ : Delta) (Γ : Gamma) : lv -> Expr.t -> Prop :=
 | typ_var (x : string) (τ : Expr.t) :
-    Envn.Env.find x Γ = Some τ ->
+    Γ x = Some τ ->
     t_ok Δ τ ->
     LL Δ, Γ ⊢ VAR x ∈ τ
 | typ_slice (lval : lv) (hi lo : positive) (w : N) (τ : Expr.t) :

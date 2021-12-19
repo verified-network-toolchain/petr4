@@ -2,8 +2,7 @@ Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Semantics.Static.Static.
 
 (** * Small-Step Values *)
-Import String.
-Import AllCubNotations Env.EnvNotations.
+Import String AllCubNotations.
 
 Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
 | value_bool (b : bool) (i : tags_t) :

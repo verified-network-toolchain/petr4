@@ -1,19 +1,18 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.NArith.BinNat Coq.ZArith.BinInt
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
-        Poulet4.Utils.Util.Envn Poulet4.P4light.Semantics.P4Arith
+        Poulet4.P4cub.Semantics.Climate Poulet4.P4light.Semantics.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.ExprUtil.
-Import String.
 Module V := Val.
-Import V.ValueNotations V.LValueNotations Env.EnvNotations.
+Import String V.ValueNotations V.LValueNotations Clmt.Notations.
 
 (** Variable to Value mappings. *)
-Definition epsilon : Type := Env.t string V.v.
+Definition epsilon : Type := Clmt.t string V.v.
 
 (** Lookup an lvalue. *)
 Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   match lv with
-  | l{ VAR x }l => Env.find x ϵ
+  | l{ VAR x }l => ϵ x
   | l{ SLICE lv [hi:lo] }l=>
     lv_lookup ϵ lv >>= eval_slice hi lo
   | l{ lv DOT x }l =>
@@ -36,10 +35,12 @@ Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
   end.
 (**[]*)
 
+Open Scope climate_scope.
+
 (** Updating an lvalue in an environment. *)
 Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
   match lv with
-  | l{ VAR x }l    => !{ x ↦ v ;; ϵ }!
+  | l{ VAR x }l    => x ↦ v ,, ϵ
   | l{ SLICE lv [hi:lo] }l =>
     match v, lv_lookup ϵ lv with
     | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
@@ -80,10 +81,10 @@ Definition copy_in
            (ϵcall : epsilon) : epsilon -> epsilon :=
   F.fold (fun x arg ϵ =>
             match arg with
-            | PAIn v     => !{ x ↦ v ;; ϵ }!
+            | PAIn v     => x ↦ v ,, ϵ
             | PAInOut lv => match lv_lookup ϵcall lv with
                              | None   => ϵ
-                             | Some v => !{ x ↦ v ;; ϵ }!
+                             | Some v => x ↦ v ,, ϵ
                              end
             | PAOut _    => ϵ
             | PADirLess _ => ϵ (*what to do with directionless param*)
@@ -101,7 +102,7 @@ Definition copy_out
             | PADirLess _ => ϵ (*what to do with directionless param*)
             | PAOut lv
             | PAInOut lv =>
-              match Env.find x ϵf with
+              match ϵf x with
               | None   => ϵ
               | Some v => lv_update lv v ϵ
               end

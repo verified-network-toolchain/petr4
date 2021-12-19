@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.ZArith.BinInt Poulet4.Utils.Util.Envn.
+Require Import Coq.ZArith.BinInt Poulet4.P4cub.Semantics.Climate.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value BigStep.BSPacket.
 From Poulet4.P4cub.Semantics.Dynamic Require Export
@@ -16,7 +16,7 @@ Declare Custom Entry p4evalcontext.
 
 (** Expression evaluation. *)
 Reserved Notation "⟨ envn , e ⟩ ⇓ v"
-         (at level 40, envn custom p4env, e custom p4expr, v custom p4value).
+         (at level 40, e custom p4expr, v custom p4value).
 
 (** L-value evaluation. *)
 Reserved Notation "⧠ e ⇓ lv"
@@ -24,50 +24,36 @@ Reserved Notation "⧠ e ⇓ lv"
 
 (** Parser-expression evaluation. *)
 Reserved Notation "⦑ envn , e ⦒ ⇓ st"
-         (at level 40, envn custom p4env, e custom p4prsrexpr, st custom p4prsrstate).
+         (at level 40, e custom p4prsrexpr, st custom p4prsrstate).
 
 (** Statement evaluation. *)
 Reserved Notation "⟪ pkt1 , fenv , ϵ1 , ctx , s ⟫ ⤋ ⟪ ϵ2 , sig , pkt2 ⟫"
          (at level 40, s custom p4stmt,
           ctx custom p4evalcontext,
-          ϵ1 custom p4env, ϵ2 custom p4env,
           sig custom p4evalsignal).
 
 (** Control-declaration evaluation. *)
 Reserved Notation "⦉ ts1 , aa1 , fns , cis , eis , ϵ1 , d ⦊ ⟱  ⦉ aa2 , ts2 ⦊"
-         (at level 40, d custom p4ctrldecl,
-          cis custom p4env, eis custom p4env,
-          fns custom p4env, aa1 custom p4env, aa2 custom p4env,
-          ts2 custom p4env, ts1 custom p4env).
+         (at level 40, d custom p4ctrldecl).
 
 (** Top-declaration evaluation. *)
 Reserved Notation
          "⦇ p1 , c1 , e1 , f1 , pi1 , ci1 , ei1 , ϵ , d ⦈ ⟱  ⦇ ei2 , ci2 , pi2 , f2 , e2 , c2 , p2 ⦈"
-         (at level 40, d custom p4topdecl,
-          f1 custom p4env, f2 custom p4env,
-          pi1 custom p4env, pi2 custom p4env,
-          ci1 custom p4env, ci2 custom p4env,
-          ei1 custom p4env, ei2 custom p4env,
-          c1 custom p4env, c2 custom p4env,
-          p1 custom p4env, p2 custom p4env,
-          e1 custom p4env, e2 custom p4env,
-          ϵ custom p4env).
+         (at level 40, d custom p4topdecl).
 
 (** Parser-state-machine evaluation. *)
 Reserved Notation  "'SM' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
-         (at level 40, strt custom p4prsrstateblock, curr custom p4prsrstate,
-          fenv custom p4env, ϵ1 custom p4env, ϵ2 custom p4env,
-          pis custom p4env, eis custom p4env, final custom p4prsrstate).
+         (at level 40, strt custom p4prsrstateblock,
+          curr custom p4prsrstate, final custom p4prsrstate).
 
 (** Parser-state-block evaluation. *)
 Reserved Notation "'SB' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
-         (at level 40, currb custom p4prsrstateblock,
-          ϵ1 custom p4env, ϵ2 custom p4env, fenv custom p4env,
-          pis custom p4env, eis custom p4env, next custom p4prsrstate).
+         (at level 40, currb custom p4prsrstateblock, next custom p4prsrstate).
 
 Module Step.
-  Export Env.EnvNotations.
+  Export Clmt.Notations.
   Import AllCubNotations V.ValueNotations V.LValueNotations.
+  Open Scope climate_scope.
 
   (** Statement signals. *)
   Variant signal : Type :=
@@ -111,21 +97,17 @@ Module Step.
   Notation "x" := x (in custom p4evalcontext at level 0, x constr at level 0).
   Notation "'Action' aa eis"
     := (CAction aa eis)
-         (in custom p4evalcontext at level 0,
-             aa custom p4env, eis custom p4env).
+         (in custom p4evalcontext at level 0).
   Notation "'Void'" := CVoid (in custom p4evalcontext at level 0).
   Notation "'Function' t"
     := (CFunction t)
          (in custom p4evalcontext at level 0, t custom p4type).
   Notation "'ApplyBlock' cps tbls aa cis eis"
     := (CApplyBlock cps tbls aa cis eis)
-         (in custom p4evalcontext at level 0,
-             cps custom p4env, tbls custom p4env,
-             aa custom p4env, cis custom p4env, eis custom p4env).
+         (in custom p4evalcontext at level 0).
   Notation "'Parser' pis eis"
     := (CParserState pis eis)
-         (in custom p4evalcontext at level 0,
-             pis custom p4env, eis custom p4env).
+         (in custom p4evalcontext at level 0).
 
   (** Expression big-step semantics. *)
   Inductive expr_big_step {tags_t : Type} (ϵ : epsilon) : Expr.e tags_t -> V.v -> Prop :=
@@ -137,7 +119,7 @@ Module Step.
   | ebs_int (w : positive) (z : Z) (i : tags_t) :
       ⟨ ϵ, w S z @ i ⟩ ⇓ w VS z
   | ebs_var (x : string) (τ : Expr.t) (i : tags_t) (v : V.v) :
-      Env.find x ϵ = Some v ->
+      ϵ x = Some v ->
       ⟨ ϵ, Var x:τ @ i ⟩ ⇓ v
   | ebs_slice (e : Expr.e tags_t) (hi lo : positive)
               (i : tags_t) (v' v : V.v) :
@@ -297,7 +279,7 @@ Module Step.
       | inr e => ⟨ ϵ, e ⟩ ⇓ v
       | inl τ => vdefault τ = Some v
       end ->
-      ⟪ pkt, fs, ϵ, c, var x with eo @ i ⟫ ⤋ ⟪ x ↦ v ;; ϵ, C, pkt ⟫
+      ⟪ pkt, fs, ϵ, c, var x with eo @ i ⟫ ⤋ ⟪ x ↦ v ,, ϵ, C, pkt ⟫
   | sbs_assign (e1 e2 : Expr.e tags_t) (i : tags_t)
                (lv : V.lv) (v : V.v) (ϵ' : epsilon) (c : ctx) :
       lv_update lv v ϵ = ϵ' ->
@@ -340,7 +322,7 @@ Module Step.
       | _ => None
       end = Some aa ->
       (* Looking up action. *)
-      Env.find a aa = Some (ADecl closure fclosure aclosure exts body) ->
+      aa a = Some (ADecl closure fclosure aclosure exts body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
@@ -360,7 +342,7 @@ Module Step.
                   (body : Stmt.s tags_t) (fclosure : fenv)
                   (closure ϵ' ϵ'' ϵ''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure body) ->
+      fs f = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
@@ -382,7 +364,7 @@ Module Step.
                    (body : Stmt.s tags_t) (fclosure : fenv)
                    (closure ϵ' ϵ'' ϵ''' ϵ'''' : epsilon) (c : ctx) :
       (* Looking up function. *)
-      Env.find f fs = Some (FDecl closure fclosure body) ->
+      fs f = Some (FDecl closure fclosure body) ->
       (* Argument evaluation. *)
       F.relfs
         (rel_paramarg
@@ -409,7 +391,7 @@ Module Step.
                    (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup. *)
-      Env.find x cis =
+      cis x =
       Some (CInst closure fclosure cis' tblclosure aclosure exts body) ->
       (* Argument evaluation. *)
       F.relfs
@@ -435,7 +417,7 @@ Module Step.
                           (closure ϵ' ϵ'' ϵ''' : epsilon) (pkt' : Paquet.t) :
       (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup *)
-      Env.find x pis = Some (PInst closure fclosure pis' exts strt states) ->
+      pis x = Some (PInst closure fclosure pis' exts strt states) ->
       (* Argument evaluation *)
       F.relfs
         (rel_paramarg
@@ -459,7 +441,7 @@ Module Step.
                           (pkt' : Paquet.t) (exts eis : ARCH.extern_env) :
       (* TODO: evaluate with extern instance arguments *)
       (* Instance lookup *)
-      Env.find x pis = Some (PInst closure fclosure pis' exts strt states) ->
+      pis x = Some (PInst closure fclosure pis' exts strt states) ->
       (* Argument evaluation *)
       F.relfs
         (rel_paramarg
@@ -483,9 +465,9 @@ Module Step.
                (cp : ctrl) (ts : tenv) (aa : aenv)
                (cis : cienv) (eis : ARCH.extern_env) :
       (* Get control-plane entries. *)
-      Env.find x cp = Some es ->
+      cp x = Some es ->
       (* Get appropriate table. *)
-      Env.find x ts = Some {|Control.table_key:=ky; Control.table_actions:=acts|} ->
+      ts x = Some {|Control.table_key:=ky; Control.table_actions:=acts|} ->
       (* Evaluate key. *)
       Forall2 (fun '(k,_) '(v,_) => ⟨ ϵ, k ⟩ ⇓ v) ky vky ->
       (* Get action and arguments.
@@ -500,7 +482,7 @@ Module Step.
                            (eo : option (Expr.e tags_t)) (lvo : option V.lv)
                            (argsv : F.fs string (paramarg V.v V.lv))
                            disp (** dispatch method *)
-                           (cls cls'' : Env.t string ValuePacket.E) (pkt' : Paquet.t)
+                           (cls cls'' : Clmt.t string ValuePacket.E) (pkt' : Paquet.t)
                            (exts : ARCH.extern_env) (c : ctx) :
       match c with
       | CParserState _ exts
@@ -509,7 +491,7 @@ Module Step.
       | _ => None
       end = Some exts ->
       (* Get extern instance. *)
-      Env.find x exts =
+      exts x =
       Some {| ARCH.closure := cls;
               ARCH.dispatch_method := disp; |} ->
       (* Evaluate arguments. *)
@@ -592,7 +574,7 @@ Module Step.
     : Control.d tags_t -> aenv -> tenv -> Prop :=
   | cdbs_action (a : string) (params : Expr.params)
                 (body : Stmt.s tags_t) (i : tags_t) :
-      let aa' := Env.bind a (ADecl ϵ fns aa eis body) aa in
+      let aa' := Clmt.bind a (ADecl ϵ fns aa eis body) aa in
       ⦉ tbls, aa, fns, cis, eis, ϵ, action a (params) {body} @ i ⦊
         ⟱  ⦉ aa', tbls ⦊
   | cdbs_table (t : string)
@@ -602,7 +584,7 @@ Module Step.
                (i : tags_t) :
       let tbl := {|Control.table_key:=kys; Control.table_actions:=actns|} in
       ⦉ tbls, aa, fns, cis, eis, ϵ, table t key:=kys actions:=actns @ i ⦊
-        ⟱  ⦉ aa, t ↦ tbl;; tbls ⦊
+        ⟱  ⦉ aa, t ↦ tbl,, tbls ⦊
   | cdbs_seq (d1 d2 : Control.d tags_t) (i : tags_t)
              (aa' aa'' : aenv) (tbls' tbls'' : tenv) :
       ⦉ tbls,  aa,  fns, cis, eis, ϵ, d1 ⦊ ⟱  ⦉ aa',  tbls'  ⦊ ->
@@ -629,23 +611,23 @@ Module Step.
                          (ciclosure cis' : cienv) (eis' : ARCH.extern_env)
                          (body : Control.d tags_t) (applyblk : Stmt.s tags_t)
                          (closure ϵ' ϵ'' : epsilon) (tbls : tenv) (aa : aenv) :
-      Env.find c cs =
+      cs c =
       Some (CDecl ctrlclosure closure fclosure ciclosure eis body applyblk) ->
       F.relfs
         (fun carg v =>
            match carg,v with
            | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, inr cinst => Env.find c cis = Some cinst
+           | Expr.CAName c, inr cinst => cis c = Some cinst
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>
                 match v with
-                | inl v     => (!{ x ↦ v;; ϵ }!, ins)
-                | inr cinst => (ϵ, Env.bind x cinst ins)
+                | inl v     => ( x ↦ v,, ϵ , ins)
+                | inr cinst => (ϵ, Clmt.bind x cinst ins)
                 end) vargs (closure,ciclosure) = (ϵ',cis') ->
       ⦉ ∅, ∅, fclosure, cis, eis, ϵ', body ⦊ ⟱  ⦉ aa, tbls ⦊ ->
       let cis'' :=
-          Env.bind x (CInst ϵ'' fclosure cis tbls aa eis applyblk) cis' in
+          Clmt.bind x (CInst ϵ'' fclosure cis tbls aa eis applyblk) cis' in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of c <[]> (cargs) @ i ⦈
         ⟱  ⦇ eis, cis'', pis, fns, es, cs, ps ⦈
   | dbs_instantiate_prsr (p x : string) (i : tags_t)
@@ -656,22 +638,22 @@ Module Step.
                          (strt : AST.Parser.state_block tags_t)
                          (states : F.fs string (AST.Parser.state_block tags_t))
                          (closure ϵ' ϵ'' : epsilon) :
-      Env.find p ps =
+      ps p =
       Some (PDecl prsrclosure closure fclosure piclosure eis strt states) ->
       F.relfs
         (fun carg v =>
            match carg,v with
            | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, inr pinst => Env.find p pis = Some pinst
+           | Expr.CAName c, inr pinst => pis p = Some pinst
            | _, _ => False
            end) cargs vargs ->
       F.fold (fun x v '(ϵ,ins) =>
                 match v with
-                | inl v     => (!{ x ↦ v;; ϵ }!, ins)
-                | inr pinst => (ϵ, Env.bind x pinst ins)
+                | inl v     => ( x ↦ v,, ϵ , ins)
+                | inr pinst => (ϵ, Clmt.bind x pinst ins)
                 end) vargs (closure,piclosure) = (ϵ',pis') ->
       let pis'' :=
-          Env.bind x (PInst ϵ'' fclosure pis eis strt states) pis' in
+          Clmt.bind x (PInst ϵ'' fclosure pis eis strt states) pis' in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of p <[]>(cargs) @ i ⦈
         ⟱  ⦇ eis, cis, pis'', fns, es, cs, ps ⦈
   | dbs_instantiate_extn (e x : string) (i : tags_t)
@@ -683,22 +665,22 @@ Module Step.
                                         from architecture. *)
                          (* dispatch method *)
                          (closure ϵ' ϵ'' : epsilon) :
-      Env.find e es =
+      es e =
       Some (EDecl extnclosure closure fclosure eis) ->
       F.relfs
         (fun carg v =>
            match carg,v with
            | Expr.CAExpr e, inl v     => ⟨ ϵ, e ⟩ ⇓ v
-           | Expr.CAName c, inr einst => Env.find e eis = Some einst
+           | Expr.CAName c, inr einst => eis e = Some einst
            | _, _ => False
            end) cargs vargs ->
       (*F.fold (fun x v '(ϵ,ins) =>
                 match v with
-                | Left v => (!{ x ↦ v;; ϵ }!, ins)
-                | Right einst => (ϵ, Env.bind x einst ins)
+                | Left v => ( x ↦ v,, ϵ , ins)
+                | Right einst => (ϵ, Clmt.bind x einst ins)
                 end) vargs (closure,eiclosure) = (ϵ',eis') ->*)
       let eis'' :=
-          Env.bind x {| ARCH.closure := ϵ';
+          Clmt.bind x {| ARCH.closure := ϵ';
                         ARCH.dispatch_method := disp |} eis' in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, Instance x of e<[]>(cargs) @ i ⦈
         ⟱  ⦇ eis'', cis, pis, fns, es, cs, ps ⦈
@@ -706,7 +688,7 @@ Module Step.
                       (eparams : F.fs string string)
                       (params : Expr.params) (body : Control.d tags_t)
                       (apply_blk : Stmt.s tags_t) (i : tags_t) :
-      let cs' := Env.bind c (CDecl cs ϵ fns cis eis body apply_blk) cs in
+      let cs' := Clmt.bind c (CDecl cs ϵ fns cis eis body apply_blk) cs in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
         control c (cparams)(eparams)(params) apply { apply_blk } where { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es, cs', ps ⦈
@@ -717,25 +699,25 @@ Module Step.
                      (i : tags_t) :
       (* TODO: need parser/extern declaration environment
          as well as instantiation cases for parsers & externs *)
-      let ps' := Env.bind p (PDecl ps ϵ fns pis eis strt states) ps in
+      let ps' := Clmt.bind p (PDecl ps ϵ fns pis eis strt states) ps in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
         parser p (cparams)(eparams)(params) start := strt { states } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es, cs, ps' ⦈
 (*  | tpbs_extern_decl (e : string) (i : tags_t)
                      (cparams : Expr.constructor_params)
                      (methods : F.fs string Expr.arrowT) :
-      let es' := Env.bind e (EDecl es ϵ fns eis) es in
+      let es' := Clmt.bind e (EDecl es ϵ fns eis) es in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ,
         extern e (cparams) { methods } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns, es', cs , ps ⦈ *)
   | tpbs_fruit_function (f : string) (params : Expr.params)
                         (τ : Expr.t) (body : Stmt.s tags_t) (i : tags_t) :
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Clmt.bind f (FDecl ϵ fns body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, fn f <[]> (params) -> τ { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_void_function (f : string) (params : Expr.params)
                        (body : Stmt.s tags_t) (i : tags_t) :
-      let fns' := Env.bind f (FDecl ϵ fns body) fns in
+      let fns' := Clmt.bind f (FDecl ϵ fns body) fns in
       ⦇ ps, cs, es, fns, pis, cis, eis, ϵ, void f <[]> (params) { body } @ i ⦈
         ⟱  ⦇ eis, cis, pis, fns', es, cs, ps ⦈
   | tpbs_seq (d1 d2 : TopDecl.d tags_t) (i : tags_t) (pis' pis'' : pienv)
@@ -799,8 +781,8 @@ Module Step.
       (* Evaluate declarations to obtain instances. *)
       ⦇∅,∅,∅,∅,∅,∅,∅,∅,prog⦈ ⟱  ⦇eis,cis,pis,fs,es,cs,ps⦈ /\
       (** Gather parser instances for pipeline. *)
-      let pl_prsrs := Env.gather pis $ prsrs pl in
-      let pl_ctrls := Env.gather cis $ ctrls pl in
+      let pl_prsrs := Clmt.gather pis $ prsrs pl in
+      let pl_ctrls := Clmt.gather cis $ ctrls pl in
       (** Parser Pipeline. *)
       FoldLeft parser_instance_big_step pl_prsrs pkt pkt' /\
       FoldLeft (control_instance_big_step cp) pl_ctrls pkt' pkt''.

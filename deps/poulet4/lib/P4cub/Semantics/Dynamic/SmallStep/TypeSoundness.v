@@ -8,7 +8,7 @@ Require Import Coq.micromega.Lia
 Import String.
 Import CanonicalForms Step.
 Import AllCubNotations TypeEquivalence
-       ProperType F.FieldTactics Env.EnvNotations.
+       ProperType F.FieldTactics Clmt.Notations.
 
 Section LValueTheorems.
   Variable D : Delta.
@@ -57,7 +57,7 @@ Section ExprTheorems.
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset : Prop :=
     forall (x : string) (τ : Expr.t),
-      Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
+      Γ x = Some τ -> exists v, ϵ x = Some v.
   (**[]*)
 
   Variable D : Delta.
@@ -65,7 +65,7 @@ Section ExprTheorems.
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type : Prop :=
     forall (x : string) (τ : Expr.t) (v : Expr.e tags_t),
-      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
+      Γ x = Some τ -> ϵ x = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
   (**[]*)
 
   Definition envs_sound : Prop := envs_type /\ envs_subset.

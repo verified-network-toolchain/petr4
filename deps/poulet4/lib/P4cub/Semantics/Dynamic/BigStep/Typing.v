@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Syntax
-        Poulet4.Utils.Util.Envn.
+        Poulet4.P4cub.Semantics.Climate.
 From Poulet4.P4cub.Semantics Require Import Static.Static
      Dynamic.BigStep.Value.Value
      Dynamic.BigStep.Semantics
@@ -13,8 +13,7 @@ Import Step AllCubNotations
 
 (** Semantic expression typing. *)
 Reserved Notation "'⟦⟦' dl , gm '⟧⟧' ⊨ e ∈ t"
-         (at level 40, e custom p4expr, t custom p4type,
-          gm custom p4env, dl custom p4env).
+         (at level 40, e custom p4expr, t custom p4type).
 
 (** An expression [e] evaluates in a "well-typed" way.
     Progress & preservation included all in one. *)
@@ -91,7 +90,7 @@ Section Rules.
   Proof.
     intro e; induction e using custom_e_ind;
       intros t Hsem; unfold_sem_typ_expr_hyp.
-    - specialize Hsem with (ϵ := !{∅}!); simpl in *.
+    - specialize Hsem with (ϵ := ∅); simpl in *.
       (* hmmmm... *)
   Abort.
 End Rules.

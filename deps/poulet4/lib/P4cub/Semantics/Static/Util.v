@@ -1,8 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat.
-Require Export Poulet4.Utils.Util.Envn
-        Poulet4.P4light.Semantics.P4Arith
-        Poulet4.P4cub.Syntax.Syntax.
+From Coq Require Import PArith.BinPos ZArith.BinInt NArith.BinNat.
+From Poulet4 Require Export P4cub.Semantics.Climate
+     P4light.Semantics.P4Arith P4cub.Syntax.Syntax.
 
 (** Notation entries. *)
 Declare Custom Entry p4signal.
@@ -29,13 +28,13 @@ Notation "x" := x (in custom p4signal at level 0, x constr at level 0).
 Notation "'C'" := SIG_Cont (in custom p4signal at level 0).
 Notation "'R'" := SIG_Return (in custom p4signal at level 0).
 
-Import Env.EnvNotations.
+Import Clmt.Notations.
 
 (** Available type names. *)
 Definition Delta : Set := list string.
 
 (** Typing context. *)
-Definition Gamma : Type := Env.t string Expr.t.
+Definition Gamma : Type := Clmt.t string Expr.t.
 
 (** Evidence for a type being a numeric of a given width. *)
 Variant numeric_width : N -> Expr.t -> Prop :=
@@ -117,14 +116,6 @@ Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
     bop_type +{ ++ }+ {{ int<w1> }} τ2 {{ int<w1> }}.
 (**[]*)
 
-(** Evidence an error is ok. *)
-(*Variant error_ok (errs : errors) : option string -> Prop :=
-| NoErrorOk : error_ok errs None
-| ErrorOk (x : string) :
-    Env.find x errs = Some tt ->
-    error_ok errs (Some x).*)
-(**[]*)
-
 (** Evidence a cast is proper. *)
 Variant proper_cast : Expr.t -> Expr.t -> Prop :=
 | pc_bool_bit : proper_cast {{ Bool }} (Expr.TBit 1)
@@ -177,19 +168,19 @@ Inductive t_ok (Δ : Delta) : Expr.t -> Prop :=
     t_ok Δ T.
 
 (** Available functions. *)
-Definition fenv : Type := Env.t string Expr.arrowT.
+Definition fenv : Type := Clmt.t string Expr.arrowT.
 
 (** Available actions. *)
-Definition aenv : Type := Env.t string Expr.params.
+Definition aenv : Type := Clmt.t string Expr.params.
 
 (** Control Instance environment. *)
-Definition cienv : Type := Env.t string (F.fs string string * Expr.params).
+Definition cienv : Type := Clmt.t string (F.fs string string * Expr.params).
 
 (** Parser Instance environment. *)
-Definition pienv : Type := Env.t string (F.fs string string * Expr.params).
+Definition pienv : Type := Clmt.t string (F.fs string string * Expr.params).
 
 (** Available extern instances. *)
-Definition eienv : Type := Env.t string (F.fs string Expr.arrowT).
+Definition eienv : Type := Clmt.t string (F.fs string Expr.arrowT).
 
 (** Available table names. *)
 Definition tblenv : Type := list string.
@@ -248,24 +239,27 @@ Variant return_void_ok : ctx -> Prop :=
 (**[]*)
 
 (** Available constructor signatures. *)
-Definition cenv : Type := Env.t string Expr.ct.
+Definition cenv : Type := Clmt.t string Expr.ct.
 
 (** Available Package Instances. *)
-Definition pkgienv : Type := Env.t string Expr.ct.
+Definition pkgienv : Type := Clmt.t string Expr.ct.
 
 (** Available Extern Constructors. *)
 Definition extenv : Type :=
-  Env.t string (Expr.constructor_params * F.fs string Expr.arrowT).
+  Clmt.t string (Expr.constructor_params * F.fs string Expr.arrowT).
 (**[]*)
 
+Local Open Scope climate_scope.
+
 (** Put parameters into environment. *)
+
 Definition bind_all : Expr.params -> Gamma -> Gamma :=
   F.fold
     (fun x
        '(PADirLess τ
         | PAIn τ
         | PAOut τ
-        | PAInOut τ) Γ => !{ x ↦ τ ;; Γ }!).
+        | PAInOut τ) Γ => x ↦ τ ,, Γ).
 (**[]*)
 
 (** Put (constructor) parameters into environments. *)
@@ -276,15 +270,15 @@ Definition cbind_all :
   F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
             match c with
             | {{{ VType τ }}}
-              => (!{ x ↦ τ;; Γ }!, pkgis, cis, pis, eis)
+              => ( x ↦ τ,, Γ , pkgis, cis, pis, eis)
             | {{{ ControlType _ res pars }}}
-              => (Γ, pkgis, !{ x ↦ (res,pars);; cis }!, pis, eis)
+              => (Γ, pkgis,  x ↦ (res,pars),, cis , pis, eis)
             | {{{ ParserType _ res pars }}}
-              => (Γ, pkgis, cis, !{ x ↦ (res,pars);; pis }!, eis)
+              => (Γ, pkgis, cis,  x ↦ (res,pars),, pis , eis)
             | Expr.CTExtern _
-              => p (* TODO! (Γ, pkgis, cis, pis, !{ x ↦ mhds;; eis }!) *)
+              => p (* TODO! (Γ, pkgis, cis, pis,  x ↦ mhds,, eis ) *)
             | {{{ PackageType _ }}}
-              => p (* TODO! (Γ, !{ x ↦ tt;; pkgis }!, cis, pis, eis) *)
+              => p (* TODO! (Γ,  x ↦ tt,, pkgis , cis, pis, eis) *)
             end).
 (**[]*)
 
@@ -315,20 +309,17 @@ Variant good_signal : Expr.arrowT -> signal -> Prop :=
 Notation "x" := x (in custom p4context at level 0, x constr at level 0).
 Notation "'Action' aa eis"
   := (CAction aa eis)
-       (in custom p4context at level 0,
-           aa custom p4env, eis custom p4env).
+       (in custom p4context at level 0).
 Notation "'Void'" := CVoid (in custom p4context at level 0).
 Notation "'Function' t"
   := (CFunction t)
        (in custom p4context at level 0, t custom p4type).
 Notation "'ApplyBlock' tbls aa cis eis"
   := (CApplyBlock tbls aa cis eis)
-       (in custom p4context at level 0, tbls custom p4env,
-           aa custom p4env, cis custom p4env, eis custom p4env).
+       (in custom p4context at level 0).
 Notation "'Parser' pis eis"
   := (CParserState pis eis)
-       (in custom p4context at level 0,
-           pis custom p4env, eis custom p4env).
+       (in custom p4context at level 0).
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=

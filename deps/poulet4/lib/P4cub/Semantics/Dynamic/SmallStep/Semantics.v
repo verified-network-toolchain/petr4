@@ -1,6 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.ZArith.BinInt
-        Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Util.Envn.
+        Poulet4.P4cub.Syntax.Syntax Poulet4.P4cub.Semantics.Climate.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      SmallStep.Value SmallStep.Util.
 Import String.
@@ -11,7 +11,8 @@ Import String.
 Declare Custom Entry p4kstmt.
 
 Module Step.
-  Import AllCubNotations Env.EnvNotations.
+  Import AllCubNotations Clmt.Notations.
+  Open Scope climate_scope.
 
   (** Continuation statements. *)
   Inductive kstmt {tags_t : Type} : Type :=
@@ -36,11 +37,11 @@ Module Step.
              k custom p4kstmt, right associativity).
   Notation "'∫' env '⊗' k"
     := (KBlock env k)
-         (in custom p4kstmt at level 99, env custom p4env,
+         (in custom p4kstmt at level 99,
              k custom p4kstmt, right associativity).
   Notation "'Λ' ( args , env ) k"
     := (KCall args env k)
-         (in custom p4kstmt at level 99, env custom p4env,
+         (in custom p4kstmt at level 99,
              k custom p4kstmt, right associativity).
   Notation "'EXIT' k"
     := (KExit k)
@@ -67,7 +68,7 @@ Module Step.
     : Expr.e tags_t -> Expr.e tags_t -> Prop :=
   | step_var (x : string) (τ : Expr.t)
              (i : tags_t) (e : Expr.e tags_t) :
-      Env.find x ϵ = Some e ->
+      ϵ x = Some e ->
       ℵ ϵ, Var x:τ @ i -->  e
   | step_slice (e e' : Expr.e tags_t)
                (hi lo : positive) (i : tags_t) :
@@ -203,8 +204,7 @@ Module Step.
           := (step_parser_expr envn pe1 pe2).
 
   Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
-           (at level 40, k1 custom p4kstmt, k2 custom p4kstmt,
-            ϵ1 custom p4env, ϵ2 custom p4env).
+           (at level 40, k1 custom p4kstmt, k2 custom p4kstmt).
   (** TODO: Architecture & Target Issues:
       - Need a general model for architectures & targets that is both:
         + suitably abstract & parameterizable for all levels of compilation.
@@ -249,7 +249,7 @@ Module Step.
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ b{ s }b ⋅ k -->  κ s ⋅ ∫ ϵ ⊗ k, ϵ
   | step_kblock (ϵk : eenv) (k : kstmt) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, ϵk ≪ ϵ
+      ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, (ϵk ≪ ϵ)
   (*| step_vardecl (τ : Expr.t) (x : string) (i : tags_t) (k : kstmt) :
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
@@ -273,7 +273,7 @@ Module Step.
   | step_kexit_kseq (s : Stmt.s tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT κ s ⋅ k -->  EXIT k, ϵ
   | step_kexit_kblock (ϵk : eenv) (k : kstmt) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, ϵk ≪ ϵ
+      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, (ϵk ≪ ϵ)
   | step_return_void (i : tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ return None @ i ⋅ k -->  VOID k, ϵ
   | step_return_fruit (e e' : Expr.e tags_t) (τ : Expr.t) (i : tags_t) (k : kstmt) :
@@ -290,7 +290,7 @@ Module Step.
   | step_kreturn_kseq (o : option (Expr.e tags_t)) (s : Stmt.s tags_t) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, RETURN o κ s ⋅ k -->  RETURN o k, ϵ
   | step_kreturn_kblock (o : option (Expr.e tags_t)) (ϵk : eenv) (k : kstmt) :
-      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, ϵk ≪ ϵ
+      ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, (ϵk ≪ ϵ)
   | step_cond (e e' : Expr.e tags_t) (s1 s2 : Stmt.s tags_t) (i : tags_t) (k : kstmt) :
       ℵ ϵ, e -->  e' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,

@@ -13,13 +13,13 @@ Section BigStepTheorems.
   (** Epsilon's values type's agree with Gamma. *)
   Definition envs_type (Δ : Delta) (Γ : Gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : Expr.t) (v : V.v),
-      Env.find x Γ = Some τ -> Env.find x ϵ = Some v -> ∇ ⊢ v ∈ τ.
+      Γ x = Some τ -> ϵ x = Some v -> ∇ ⊢ v ∈ τ.
   (**[]*)
 
   (** Epsilon is a subset of Gamma. *)
   Definition envs_subset (Γ : Gamma) (ϵ : epsilon) : Prop :=
     forall (x : string) (τ : Expr.t),
-      Env.find x Γ = Some τ -> exists v, Env.find x ϵ = Some v.
+      Γ x = Some τ -> exists v, ϵ x = Some v.
   (**[]*)
 
   Definition envs_sound Γ ϵ Δ : Prop :=

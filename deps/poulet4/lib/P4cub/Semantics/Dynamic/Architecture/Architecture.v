@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Semantics.Dynamic.Architecture.Paquet
-        Poulet4.Utils.Util.Envn.
+From Poulet4.P4cub Require Import
+     Syntax.AST Semantics.Climate Semantics.Dynamic.Architecture.Paquet.
+        
 Import String.
 
 (** P4cub's analogue to p4light's [Target.v].
@@ -13,17 +13,17 @@ Module Arch (Pkt : P4Packet).
 
   (** p4 [extern] instance signature. *)
   Record P4Extern := {
-    closure : Env.t string E;
+    closure : Clmt.t string E;
     dispatch_method :
       string ->                                 (* method name *)
       arrow string E LV LV -> (* arguments *)
-      Env.t string E ->                         (* current environment *)
-      paquet_monad (Env.t string E)            (* input/output packet &
+      Clmt.t string E ->                         (* current environment *)
+      paquet_monad (Clmt.t string E)            (* input/output packet &
                                                   resulting environment. *)
       (** TODO: useful lemmas. **) }.
   (**[]*)
 
-  Definition extern_env : Type := Env.t string P4Extern.
+  Definition extern_env : Type := Clmt.t string P4Extern.
 
   (** TODO: notion of pipeline. *)
 End Arch.

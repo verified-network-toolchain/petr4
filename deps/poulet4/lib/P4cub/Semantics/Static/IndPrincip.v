@@ -5,7 +5,7 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Semantics.Static.Typing
         Poulet4.P4cub.Syntax.CubNotations.
 Import String.
-Import AllCubNotations Env.EnvNotations.
+Import AllCubNotations Clmt.Notations.
 
 (** Custom induction principle for ok types. *)
 Section OkBoomerInduction.
@@ -89,7 +89,7 @@ Section CheckExprInduction.
   (**[]*)
   
   Hypothesis HVar : forall Δ Γ x τ i,
-      Env.find x Γ = Some τ ->
+      Γ x = Some τ ->
       t_ok Δ τ ->
       ProperType.proper_nesting τ ->
       P Δ Γ <{ Var x:τ @ i }> τ.

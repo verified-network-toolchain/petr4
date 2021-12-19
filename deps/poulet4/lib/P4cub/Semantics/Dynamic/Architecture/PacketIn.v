@@ -1,6 +1,6 @@
 (** * The P4 Core [packet_in] Extern *)
 
-Require Import Poulet4.Utils.Util.Envn.
+Require Import Poulet4.P4cub.Semantics.Climate.
 Require Poulet4.P4cub.Semantics.Dynamic.Architecture.Paquet.
 Import String.
 
@@ -19,5 +19,5 @@ Definition length : PKT.t -> Z := Z.of_nat ∘ PKT.in_length.
 Module Type P4PacketIn.
   Include PKT.P4Packet.
 
-  Parameter p4extract : T -> LV -> Env.t string E -> PKT.paquet_monad (Env.t string E).
+  Parameter p4extract : T -> LV -> Clmt.t string E -> PKT.paquet_monad (Clmt.t string E).
 End P4PacketIn.

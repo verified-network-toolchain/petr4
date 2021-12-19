@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Value
-        Poulet4.Utils.Util.Envn Poulet4.P4light.Semantics.P4Arith
+        Poulet4.P4cub.Semantics.Climate Poulet4.P4light.Semantics.P4Arith
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Semantics.Static.Static.
@@ -10,12 +10,12 @@ Import String.
 Section StepDefs.
   Import TypeEquivalence ProperType
          F.FieldTactics P4ArithTactics
-         AllCubNotations Env.EnvNotations.
+         AllCubNotations Clmt.Notations.
   
   Context {tags_t : Type}.
   
   (** Expression environment. *)
-  Definition eenv : Type := Env.t (string) (Expr.e tags_t).
+  Definition eenv : Type := Clmt.t (string) (Expr.e tags_t).
   
   (** Bit-slicing. *)
   Definition eval_slice (hi lo : positive) (v : Expr.e tags_t) : option (Expr.e tags_t) :=
@@ -458,7 +458,7 @@ Section StepDefs.
   (** Lookup an lvalue. *)
   Fixpoint lv_lookup (ϵ : eenv) (lv : Expr.e tags_t) : option (Expr.e tags_t) :=
     match lv with
-    | <{ Var x:_ @ _ }> => Env.find x ϵ
+    | <{ Var x:_ @ _ }> => ϵ x
     | <{ Mem lv dot x : _ @ _ }> =>
       (* TODO: use monadic bind. *)
       match lv_lookup ϵ lv with
@@ -478,7 +478,7 @@ Section StepDefs.
   (** Updating an lvalue in an environment. *)
   Fixpoint lv_update (lv v : Expr.e tags_t) (ϵ : eenv) : eenv :=
     match lv with
-    | <{ Var x:_ @ _ }> => !{ x ↦ v ;; ϵ }!
+    | <{ Var x:_ @ _ }> => ( x ↦ v ,, ϵ )
     | <{ Mem lv dot x : _ @ _ }> =>
       match lv_lookup ϵ lv with
       | Some <{ struct { vs } @ i }>
@@ -507,10 +507,10 @@ Section StepDefs.
              (ϵcall : eenv) : eenv -> eenv :=
     F.fold (fun x arg ϵ =>
               match arg with
-              | PAIn v     => !{ x ↦ v ;; ϵ }!
+              | PAIn v     => ( x ↦ v ,, ϵ )
               | PAInOut lv => match lv_lookup ϵcall lv with
                                    | None   => ϵ
-                                   | Some v => !{ x ↦ v ;; ϵ }!
+                                   | Some v => ( x ↦ v ,, ϵ )
                                    end
               | PAOut _    => ϵ
               | PADirLess _ => ϵ (*what to do with directionless param*)
@@ -528,7 +528,7 @@ Section StepDefs.
               | PAIn _ => ϵ
               | PAOut lv
               | PAInOut lv =>
-                match Env.find x ϵf with
+                match ϵf x with
                 | None   => ϵ
                 | Some v => lv_update lv v ϵ
                 end
@@ -536,19 +536,19 @@ Section StepDefs.
   (**[]*)
   
   (** Table environment. *)
-  Definition tenv : Type := Env.t string (Control.table tags_t).
+  Definition tenv : Type := Clmt.t string (Control.table tags_t).
   
   (** Function declarations and closures. *)
   Inductive fdecl : Type :=
   | FDecl (closure : eenv) (fs : fenv) (ins : ienv) (body : Stmt.s tags_t)
   with fenv : Type :=
-  | FEnv (fs : Env.t string fdecl)
+  | FClmt (fs : Clmt.t string fdecl)
   (** Action declarations and closures *)
   with adecl : Type :=
   | ADecl (closure : eenv) (fs : fenv) (ins : ienv) (aa : aenv) (body : Stmt.s tags_t)
   with aenv : Type :=
-  | AEnv (aa : Env.t string adecl)
-  (** Instances and Environment. *)
+  | AClmt (aa : Clmt.t string adecl)
+  (** Instances and Clmtironment. *)
   with inst : Type :=
   | CInst (closure : eenv) (fs : fenv) (ins : ienv)
           (tbls : tenv) (aa : aenv)
@@ -556,31 +556,31 @@ Section StepDefs.
   | PInst (* TODO: parser instance *)
   | EInst (* TODO: extern object instance *)
   with ienv : Type :=
-  | IEnv (ins : Env.t string inst).
+  | IClmt (ins : Clmt.t string inst).
   (**[]*)
   
   (** Function lookup. *)
-  Definition lookup '(FEnv fs : fenv) : string -> option fdecl := fun s => Env.find s fs.
+  Definition lookup '(FClmt fs : fenv) : string -> option fdecl := fs.
   
   (** Bind a function declaration to an environment. *)
-  Definition update '(FEnv fs : fenv) (x : string) (d : fdecl) : fenv :=
-    FEnv !{ x ↦ d ;; fs }!.
+  Definition update '(FClmt fs : fenv) (x : string) (d : fdecl) : fenv :=
+    FClmt ( x ↦ d ,, fs ).
   (**[]*)
   
   (** Instance lookup. *)
-  Definition ilookup '(IEnv fs : ienv) : string -> option inst := fun i => Env.find i fs.
+  Definition ilookup '(IClmt fs : ienv) : string -> option inst := fs.
   
   (** Bind an instance to an environment. *)
-  Definition iupdate '(IEnv fs : ienv) (x : string) (d : inst) : ienv :=
-    IEnv !{ x ↦ d ;; fs }!.
+  Definition iupdate '(IClmt fs : ienv) (x : string) (d : inst) : ienv :=
+    IClmt ( x ↦ d ,, fs ).
   (**[]*)
   
   (** Action lookup. *)
-  Definition alookup '(AEnv aa : aenv) : string -> option adecl := (fun x => Env.find x aa).
+  Definition alookup '(AClmt aa : aenv) : string -> option adecl := aa.
   
   (** Bind a function declaration to an environment. *)
-  Definition aupdate '(AEnv aa : aenv) (x : string) (d : adecl) : aenv :=
-    AEnv !{ x ↦ d ;; aa }!.
+  Definition aupdate '(AClmt aa : aenv) (x : string) (d : adecl) : aenv :=
+    AClmt ( x ↦ d ,, aa ).
   (**[]*)
   
   (** Control plane table entries,
@@ -592,21 +592,21 @@ Section StepDefs.
   (**[]*)
   
   (** Control plane configuration. *)
-  Definition ctrl : Type := Env.t string entries.
+  Definition ctrl : Type := Clmt.t string entries.
   
   (** Control declarations and closures. *)
   Inductive cdecl : Type :=
   | CDecl (cs : cenv) (closure : eenv) (fs : fenv) (ins : ienv)
           (body : Control.d tags_t) (apply_block : Stmt.s tags_t)
   with cenv : Type :=
-  | CEnv (cs : Env.t string cdecl).
+  | CClmt (cs : Clmt.t string cdecl).
   (**[]*)
   
   (** Control lookup. *)
-  Definition clookup '(CEnv cs : cenv) : string -> option cdecl := (fun x => Env.find x cs).
+  Definition clookup '(CClmt cs : cenv) : string -> option cdecl := cs.
   
   (** Bind an instance to an environment. *)
-  Definition cupdate '(CEnv cs : cenv) (x : string) (d : cdecl) : cenv :=
-    CEnv !{ x ↦ d ;; cs }!.
+  Definition cupdate '(CClmt cs : cenv) (x : string) (d : cdecl) : cenv :=
+    CClmt ( x ↦ d ,, cs ).
   (**[]*)
 End StepDefs.

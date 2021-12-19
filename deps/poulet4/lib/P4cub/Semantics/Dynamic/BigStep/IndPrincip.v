@@ -1,6 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.Utils.Util.Envn
-        Poulet4.P4cub.Syntax.AST Coq.ZArith.BinInt.
+Require Import Poulet4.P4cub.Syntax.AST Coq.ZArith.BinInt.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value BigStep.Semantics.
 Import String.
@@ -20,7 +19,7 @@ Section ExprEvalInduction.
   Hypothesis HInt : forall ϵ w z i, P ϵ <{ w S z @ i }> ~{ w VS z }~.
   
   Hypothesis HVar : forall ϵ x τ i v,
-      Env.find x ϵ = Some v ->
+      ϵ x = Some v ->
       P ϵ <{ Var x:τ @ i }> v.
   (**[]*)
   

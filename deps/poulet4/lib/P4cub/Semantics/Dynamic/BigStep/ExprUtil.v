@@ -3,10 +3,9 @@ Require Import Poulet4.P4light.Semantics.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
-        Poulet4.P4cub.Syntax.Auxilary.
+        Poulet4.P4cub.Syntax.Auxilary Poulet4.P4cub.Semantics.Climate.
 Require Poulet4.P4cub.Semantics.Static.Util.
-Import String.
-Import Val.ValueNotations AllCubNotations Env.EnvNotations.
+Import String Val.ValueNotations AllCubNotations Clmt.Notations.
 
 (** Bit-slicing. *)
 Definition eval_slice (hi lo : positive) (v : Val.v) : option Val.v :=

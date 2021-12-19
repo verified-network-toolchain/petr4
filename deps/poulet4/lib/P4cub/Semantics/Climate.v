@@ -24,7 +24,16 @@ Module Clmt.
 
     Definition remove (d : D) (e : t D T) : t D T :=
       fun y => if d == y then None else e y.
-  
+
+    (** Gather values given a list of keys. *)
+    Definition gather (e: t D T) : list D -> list T :=
+      List.fold_right
+        (fun k acc =>
+           match e k with
+           | Some v => v :: acc
+           | None => acc
+           end) [].
+    
     (** Scope Shadowing, [e1] shadows [e2]. *)
     Definition shadow (e1 e2 : t D T) : t D T :=
       fun d => match e1 d, e2 d with
@@ -314,7 +323,7 @@ Module Clmt.
            (at level 80, no associativity) : type_scope.
     Notation "'∅'"
       := (empty _ _) (at level 0, no associativity) : climate_scope.
-    Notation "x ↦ v ';;' e"
+    Notation "x ↦ v ',,' e"
       := (bind x v e)
            (at level 41, right associativity) : climate_scope.
     Notation "e1 ≪ e2"

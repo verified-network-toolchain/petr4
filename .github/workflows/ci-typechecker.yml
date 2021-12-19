@@ -18,13 +18,15 @@ jobs:
   reuse-build-petr4:
     uses: pataei/petr4/.github/workflows/build-petr4.yml@main
       
-#   build-p4c:
-#     runs-on: ubuntu-latest
-#     container:
-#       image: p4lang/p4c
-#     steps: 
-#       - name: run p4c 
-#         run: p4c --help
+  build-p4c:
+    runs-on: ubuntu-latest
+    container:
+      image: p4lang/p4c
+    steps: 
+      - name: run p4c 
+        run: |
+          p4c --help
+          petr4 --help
 #       - uses: actions/checkout@main
 #       - name: run petr4
 #         uses: ./.github/workflow/build-petr4.yml

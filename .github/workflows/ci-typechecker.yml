@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@main
       - name: reuse build-petr4
-        uses: ./.github/actions/build-petr4@main
+        uses: pataei/petr4/.github/actions/build-petr4@main
     
 #   build-p4c:
 #     runs-on: ubuntu-latest

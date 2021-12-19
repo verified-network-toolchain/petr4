@@ -8,23 +8,28 @@ on:
   #  pull_request:
   #    branches: [ main ]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["docker-build-petr4-p4c"]
+    branches: [main]
+    types:
+      - completed
 
 jobs:
-  checkout:
+  pet4-vs-p4c:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@main
+#     steps:
+#       - uses: actions/checkout@main
       
 #   reuse-build-petr4:
 #     uses: pataei/petr4/.github/workflows/build-petr4.yml@main
       
-  build-p4c:
-    runs-on: ubuntu-latest
-    container:
-      image: p4lang/p4c
-    steps: 
-      - name: run p4c 
-        run: p4c --help
+#   build-p4c:
+#     runs-on: ubuntu-latest
+#     container:
+#       image: p4lang/p4c
+#     steps: 
+#       - name: run p4c 
+#         run: p4c --help
         
       - name: checkout/main
         uses: actions/checkout@v1

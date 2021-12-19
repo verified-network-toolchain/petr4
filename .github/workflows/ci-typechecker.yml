@@ -26,6 +26,9 @@ jobs:
       - name: run p4c 
         run: p4c --help
         
+      - name: checkout/main
+        uses: actions/checkout@v1
+        
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v1
         with:

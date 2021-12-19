@@ -17,11 +17,15 @@ on:
 jobs:
   pet4-vs-p4c:
     runs-on: ubuntu-latest
+# have a job that checkouts first and another to reuse a workflow like the following:
+#   checkout:
+#     runs-on: ubuntu-latest
 #     steps:
 #       - uses: actions/checkout@main
       
 #   reuse-build-petr4:
 #     uses: pataei/petr4/.github/workflows/build-petr4.yml@main
+
       
 #   build-p4c:
 #     runs-on: ubuntu-latest
@@ -30,16 +34,3 @@ jobs:
 #     steps: 
 #       - name: run p4c 
 #         run: p4c --help
-        
-      - name: checkout/main
-        uses: actions/checkout@v1
-        
-      - name: setup-ocaml
-        uses: ocaml/setup-ocaml@v1
-        with:
-          ocaml-version: '4.12.0'
-
-      - name: build-ubuntu
-        run: ./.github/scripts/build-petr4-ubuntu.sh
-        shell: bash
-        

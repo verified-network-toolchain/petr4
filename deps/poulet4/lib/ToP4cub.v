@@ -641,19 +641,36 @@ Section ToP4cub.
     let '(name, typ, exp) := x in
     let+ fs := acc in
     match typ with
-    | PAIn t => (name, PAIn (exp)) :: fs
-    | PAOut t => (name, PAOut (exp)) :: fs
-    | PAInOut t => (name, PAInOut (exp)) :: fs
-    | PADirLess t => (name, PADirLess (exp))::fs
+    | PAIn _ => (name, PAIn exp) :: fs
+    | PAOut _ => (name, PAOut exp) :: fs
+    | PAInOut _ => (name, PAInOut exp) :: fs
+    | PADirLess _ => (name, PADirLess exp)::fs
     end.
 
+  Definition paramarg_fst {A B C : Type} (p : paramarg (A * B) (A * C)) : A :=
+    match p with
+    | PAIn (a,_)
+    | PAOut (a,_)
+    | PAInOut (a,_)
+    | PADirLess (a,_) =>
+      a
+    end.
 
-  Definition apply_args_to_params (f_str : string) (params : F.fs string (paramarg E.t E.t)) (args : list (E.e tags_t)) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
-    let~ params_args := zip params args over ("zipping arguments of " ++ f_str ++ " failed") in
-    fold_right apply_arg_to_param (ok []) params_args.
+  Fixpoint apply_args_to_params (f_str : string) (params : F.fs string (paramarg E.t E.t)) (args : list (option (E.e tags_t))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+    match params, args with
+    | [], [] => ok []
+    | [], _ =>
+      error ("Passed too many arguments to " ++ f_str ++ " ("  ++ string_of_nat (List.length args) ++ " extra)")
+    | _, [] =>
+      error ("Insufficient arguments for " ++ f_str ++ " (" ++ string_of_nat (List.length params) ++ " are missing)")
+    | _::params', None::args' =>
+      apply_args_to_params f_str params' args'
+    | (p_str,param)::params', (Some arg)::args' =>
+      apply_arg_to_param (p_str, param, arg) (apply_args_to_params f_str params' args')
+    end.
 
   Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
-    let '(MkParameter b dir typ default_arg_id var) := parameter in
+    let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     let* t := translate_exp_type tags typ in
     let+ parg := match dir with
@@ -665,15 +682,42 @@ Section ToP4cub.
     in
     (v_str, parg).
 
-  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result E.params :=
+  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result (F.fs string (paramarg E.t E.t)) :=
     rred (List.map (parameter_to_paramarg tags) parameters).
-
 
   Definition translate_expression_and_type tags e :=
     let* cub_t := translate_exp_type tags (get_type_of_expr e) in
     let+ cub_e := translate_expression e in
     (cub_t, cub_e).
 
+  Definition list_of_opts_map {A B : Type} (f : A -> B) (opt_as : list (option A)) :=
+    List.map (option_map f) opt_as.
+
+  Fixpoint commute_result_optlist {A : Type} (l : list (option (result A))) : result (list (option A)) :=
+    match l with
+    | [] => ok []
+    | o :: l =>
+      let* l := commute_result_optlist l in
+      match o with
+      | None =>
+        ok (None :: l)
+      | Some a_res =>
+        let+ a := a_res in
+        Some a :: l
+      end
+    end.
+
+  Definition translate_arglist: list (option (@Expression tags_t)) -> result (list (option (E.e tags_t))):=
+    commute_result_optlist ∘ (list_of_opts_map translate_expression).
+
+  Definition translate_application_args
+             (tags : tags_t)
+             (callee : string)
+             (parameters : list P4Parameter)
+             (args : list (option (@Expression tags_t))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+    let* (cub_args : list (option (E.e tags_t))) := translate_arglist args in
+    let* (params : F.fs string (paramarg E.t E.t)) := parameters_to_params tags parameters in
+    apply_args_to_params callee params cub_args.
 
   Definition translate_apply tags callee args : result (ST.s tags_t) :=
     let typ := get_type_of_expr callee in
@@ -681,9 +725,7 @@ Section ToP4cub.
     | TypControl (MkControlType type_params parameters) =>
       let* callee_name := get_name callee in
       let callee_name_string := P4String.str callee_name in
-      let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
-      let* params := parameters_to_params tags parameters in
-      let+ paramargs := apply_args_to_params callee_name_string params cub_args in
+      let+ paramargs := translate_application_args tags callee_name_string parameters args in
       ST.SApply (P4String.str callee_name) [] paramargs tags
     | TypTable _ =>
       let+ callee_name := get_name callee in
@@ -708,7 +750,7 @@ Section ToP4cub.
                      tags)
     end.
 
-  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args:=
+  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args :=
     let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
     match extern_decl with
     | None => error (String.append "ERROR expected an extern, but got " extern_str)
@@ -719,12 +761,11 @@ Section ToP4cub.
         error (append "Couldn't find " (append (append extern_str ".") f_str))
       | Some (_, (targs, ar)) =>
         let params := paramargs ar in
-        let arg_list := optionlist_to_list args in
-        let* cub_args := rred (List.map translate_expression arg_list) in
+        let* cub_args := translate_arglist args in
         let+ paramargs := apply_args_to_params f_str params cub_args in
         (* TODO Currently assuming method calls return None*)
-        let typ : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
-        ST.SExternMethodCall extern_str f_str [] typ tags
+        let args : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
+        ST.SExternMethodCall extern_str f_str [] args tags
       end
     | Some _ =>
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
@@ -793,9 +834,7 @@ Section ToP4cub.
       end.
 
   Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
-    let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
-    let* params := parameters_to_params tags parameters in
-    let* paramargs := apply_args_to_params (P4String.str fname) params cub_args in
+    let* paramargs := translate_application_args tags (P4String.str fname) parameters args in
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
     let cub_ret := option_map (fun t => (E.EVar t ret_var tags)) ret_typ in
@@ -891,9 +930,7 @@ Section ToP4cub.
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
           translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
         | TypAction data_params ctrl_params =>
-          let* cub_args := rred (List.map translate_expression (optionlist_to_list args)) in
-          let* params := parameters_to_params tags (List.app data_params ctrl_params) in
-          let+ paramargs := apply_args_to_params (P4String.str n) params cub_args in
+          let+ paramargs := translate_application_args tags (P4String.str n) (data_params ++ ctrl_params) args in
           ST.SActCall (P4String.str n) paramargs i
         | _ => error ("[translate_statement_pre_t] A name," ++ P4String.str n ++"applied like a method call, must be a function or extern type; I got something else")
         end

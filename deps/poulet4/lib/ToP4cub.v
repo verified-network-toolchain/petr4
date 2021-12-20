@@ -1379,10 +1379,13 @@ Section ToP4cub.
                                      translate_decl ctx decl in
          fold_left loop locals (ok ctx)
       in
+      (* This step loses information about local instantiations *)
       let cub_body := to_ctrl_decl tags local_ctx in
       let+ cub_block := translate_block local_ctx tags apply_blk in
+      (* Lift body decls & rename occurences in d *)
       let d := TopDecl.TPControl cub_name cub_cparams cub_eparams cub_params cub_body cub_block tags in
-      add_control ctx d
+      (* THIS IS CERTAINLY WRONG *)
+      add_control local_ctx d
     | DeclFunction tags ret name type_params params body =>
       (* let cub_name := P4String.str name in *)
       (* let* cub_signature := error "[FIXME] Translate function signature" in *)

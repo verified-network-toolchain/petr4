@@ -35,6 +35,7 @@ Module F := F.
 Section Inline.
 Variable tags_t : Type.
 
+
 Definition expenv : Type := Env.t string (E.e tags_t).
 
 Definition get_exp (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
@@ -354,12 +355,13 @@ Fixpoint inline
       end
 
     | ST.SApply ci ext_args args i =>
-      let*~ cinst := find_control tags_t ctx ci  else "could not find controller instance in environment" in
+      let*~ cinst := find_control tags_t ctx ci else "could not find controller instance " ++ ci ++ " in environment" in
       match cinst with
       | TD.TPInstantiate cname _ _ cargs i =>
         let*~ cdecl := find_control tags_t ctx cname else "could not find controller" in
         match cdecl with
         | TD.TPControl _ _ _ _ body apply_blk i =>
+          (* Context is begin extended with body, but why can't I find the controls? *)
           let ctx' := of_cdecl tags_t ctx body in
           let+ rslt := inline n0 ctx' apply_blk in
           (** TODO check copy-in/copy-out *)
@@ -497,8 +499,19 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
     ok c
   end.
 
-Fixpoint header_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
-  F.fold (fun f typ acc => (s ++ "__f__" ++ f, typ) :: acc ) fields [(s ++ ".is_valid", E.TBool)].
+Fixpoint header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
+  (* TODO Type of ExprMember might need to be the header type *)
+  F.fold (fun f typ acc => (E.EExprMember typ f e tags, typ) :: acc )
+         fields
+         [(E.EExprMember E.TBool "isValid" e tags, E.TBool)].
+
+Fixpoint header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
+  let lhs_members := header_fields tags lhs fields in
+  let rhs_members := header_fields tags rhs fields in
+  let+ assigns := zip lhs_members rhs_members  in
+  let f := fun '((lhs_mem, typ), (rhs_mem, _)) acc => ISeq (IAssign typ lhs_mem rhs_mem tags) acc tags in
+  List.fold_right f (ISkip tags) assigns.
+
 
 Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
   match c with
@@ -506,34 +519,65 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
   | IVardecl type s i =>
     (** TODO elaborate header if type = THeader *)
     match type with
-    | E.THeader fields =>
-      let vars := header_fields s fields in
-      let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in
-      ok elabd_hdr_decls
+    (* | E.THeader fields => *)
+    (*   let vars := header_fields i (E.EVar type s i) fields in *)
+    (*   let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in *)
+    (*   ok elabd_hdr_decls *)
     | _ => ok c
     end
   | IAssign type lhs rhs i =>
     match type with
     | E.THeader fields =>
-      (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
-      match lhs, rhs with
-      | E.EVar _ l il, E.EVar _ r ir =>
-        let lvars := header_fields l fields in
-        let rvars := header_fields r fields in
-        let+ lrvars := zip lvars rvars in
-        fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
-      | E.EVar _ l il, E.EHeader explicit_fields valid i =>
-        let lvars := header_fields l fields in
-        let assign_fields := fun '(lvar, ltyp) acc_res =>
-             let* acc := acc_res in
-             let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in
-             ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
-       fold_right assign_fields
-                  (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i))
-                  lvars
-      | _, _ =>
-        error "Can only copy variables or header literals type header"
-      end
+      header_elaboration_assign i lhs rhs fields
+    (*   (** TODO : What other assignments to headers are legal? EHeader? EStruct? *) *)
+    (*   match lhs, rhs with *)
+    (*   | E.EVar _ l il, E.EVar _ r ir => *)
+    (*     let lvars := header_fields l fields in *)
+    (*     let rvars := header_fields r fields in *)
+    (*     let+ lrvars := zip lvars rvars in *)
+    (*     fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars *)
+    (*   | E.EVar _ l il, E.EHeader explicit_fields valid i => *)
+    (*     let lvars := header_fields l fields in *)
+    (*     let assign_fields := fun '(lvar, ltyp) acc_res => *)
+    (*          let* acc := acc_res in *)
+    (*          let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in *)
+    (*          ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in *)
+    (*    fold_right assign_fields *)
+    (*               (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i)) *)
+    (*               lvars *)
+    (*   | E.ESlice _ _ _ _, _ => *)
+    (*     error ("[elaborate_headers] Type Error. bitvector slice != header type") *)
+    (*   | E.EVar _ x _ , _ => *)
+    (*     error ("[elaborate_headers] Error assigning to [" ++ x ++ "] . Can only copy variables or header literals of type header.") *)
+    (*   | E.EBool _ _, _ => *)
+    (*     error ("[elaborate_headers] Type error, bool != header type") *)
+    (*   | E.EBit _ _ _, _ => *)
+    (*     error ("[elaborate_headers] Type error, bit<> != header type") *)
+    (*   | E.EInt _ _ _, _ => *)
+    (*     error ("[elaborate_headers] Type error, int<> != header type") *)
+    (*   | E.ECast _ _ _, _ => *)
+    (*     error ("[elaborate_headers] a cast is not an lvalue") *)
+    (*   | E.EUop _ _ _ _, _ => *)
+    (*     error ("[elaborate_headers] a unary op is not an lvalue") *)
+    (*   | E.EBop _ _ _ _ _, _ => *)
+    (*     error ("[elaborate_headers] a binary op is not an lvalue") *)
+    (*   | E.ETuple _ _, _ => *)
+    (*     error ("[elaborate_headers] a tuple is not an lvalue") *)
+    (*   | E.EStruct _ _, _ => *)
+    (*     error ("[elaborate_headers] Type Error:: struct type != header type ") *)
+    (*   | E.EExprMember _ mem _ _, _ => *)
+    (*     error ("[elaborate_headers] [FIXME] trying to elaborate header to an expresssion member lvalue " ++ mem) *)
+    (*   | E.EError _ _, _ => *)
+    (*     error ("[elaborate_headers] an error is not an lvalue ") *)
+    (*   | E.EMatchKind _ _, _ => *)
+    (*     error ("[elaborate_headers] a matchkind is not an lvalue ") *)
+    (*   | E.EHeaderStack _ _ _ _ , _ => *)
+    (*     error ("[elaborate_headers] a headerstack literal is not an lvalue ") *)
+    (*   | E.EHeader _ _ _ , _ => *)
+    (*     error ("[elaborate_headers] a header literal is not an lvalue ") *)
+    (*   | E.EHeaderStackAccess _ _ _ _, _  => *)
+    (*     error ("[elaborate_headers] [FIXME] need to translate a header stack access header-asignment ") *)
+    (*   end *)
     | _ => ok c
   end
 | IConditional guard_type guard tru fls i =>

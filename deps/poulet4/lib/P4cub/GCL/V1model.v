@@ -1,6 +1,6 @@
 Require Import Poulet4.P4light.Syntax.P4defs.
 Require Import Poulet4.Utils.Util.Result.
-Require Import Poulet4.Utils.Util.Envn.
+Require Import Poulet4.Utils.Envn.
 Require Poulet4.P4cub.GCL.GCL.
 Require Poulet4.P4cub.GCL.ToGCL.
 Import Result ResultNotations Syntax List ListNotations String.

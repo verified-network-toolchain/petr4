@@ -3,7 +3,7 @@ From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
-Require Import Poulet4.Utils.Util.Envn.
+Require Import Poulet4.Utils.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Error.
 Require Import Coq.Strings.String.

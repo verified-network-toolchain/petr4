@@ -2,7 +2,7 @@ Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 Require Export Poulet4.P4cub.Syntax.AST.
 Require Export Poulet4.P4light.Semantics.P4Arith.
-Require Export Poulet4.Utils.Util.Envn.
+Require Export Poulet4.Utils.Envn.
 Require Export Poulet4.P4cub.Semantics.Dynamic.BigStep.BigStep.
 Require Export Poulet4.Utils.Util.Result.
 Require Import Poulet4.P4light.Transformations.ToP4cub.

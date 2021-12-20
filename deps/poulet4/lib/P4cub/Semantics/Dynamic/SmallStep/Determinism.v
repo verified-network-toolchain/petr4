@@ -1,4 +1,4 @@
-From Poulet4 Require Import Utils.Util.Envn P4cub.Syntax.Syntax.
+From Poulet4 Require Import P4cub.Syntax.Syntax.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      SmallStep.Value SmallStep.Semantics.
 Import String.

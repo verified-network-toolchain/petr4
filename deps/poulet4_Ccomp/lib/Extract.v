@@ -42,8 +42,8 @@ Require Coq.extraction.Extraction.
 Require Import ExtrOcamlBasic.
 Require BinPosDef.
 Require Import ExtrOcamlString.
-Require Poulet4.SimplExpr.
-Require Poulet4.GenLoc.
+Require Poulet4.P4light.Transformations.SimplExpr.
+Require Poulet4.P4light.Transformations.GenLoc.
 Require Poulet4.Ccomp.CCompSel.
 
 Extract Inlined Constant Coqlib.proj_sumbool => "(fun x -> x)".

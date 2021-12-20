@@ -1505,17 +1505,17 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
   (* Perhaps we want to allow some built-in fucntions, e.g. isValid(), execute on rvalues. We can do that
     by some preprocessing. *)
-  | exec_call_builtin : forall this_path s tags tags' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
+  | exec_call_builtin : forall this_path s tags tags' expr fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
-      exec_lexpr read_one_bit this_path s lhs lv sig ->
+      exec_lexpr read_one_bit this_path s expr lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
       (if not_continue sig then s' = s /\ sig'' = sig
        else if not_continue sig' then s' = s /\ sig'' = sig'
-       else exec_builtin read_one_bit this_path s lv fname (extract_invals argvals) s' sig'') ->
+       else exec_builtin read_one_bit this_path s lv (str fname) (extract_invals argvals) s' sig'') ->
       (* As far as we know, built-in functions do not have out/inout parameters. So there's not a caller
         copy-out step. Also exec_args should never raise any signal other than continue. *)
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
-          (MkExpression tags' (ExpExpressionMember lhs (P4String.Build_t tags_t inhabitant_tags_t fname)) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
+          (MkExpression tags' (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
           nil args) typ dir) s' sig''
   (* eval the call expression:
        1. eval arguments;

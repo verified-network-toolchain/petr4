@@ -3651,9 +3651,10 @@ and type_header env info annotations name fields =
 
 and type_field env (field_info, field) =
   let open Surface.Declaration in
-  let typ = saturate_type env (translate_type env field.typ) in
+  let raw_typ = translate_type env field.typ in 
+  let typ = saturate_type env raw_typ in
   let pre_field : P4light.coq_DeclarationField =
-    MkDeclarationField (field_info, typ, field.name) in
+    MkDeclarationField (field_info, raw_typ, field.name) in
   let pre_record_field : coq_FieldType =
     (field.name, typ) in
   pre_field, pre_record_field

@@ -278,7 +278,7 @@ Section ValueUtil.
       end
     in uninit_sval_of_typ' hvalid typ.
   (* Type without uninitialized svals:
-      TypeString: can be used only for compile-time constant string values (7.1.),
+      TypString: can be used only for compile-time constant string values (7.1.),
                   one cannot declare variables with a string type (7.1.5.),
                   so it cannot be uninitialized.
       TypVoid: It contains no values (7.1.1.).

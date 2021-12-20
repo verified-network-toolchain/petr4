@@ -1375,6 +1375,13 @@ Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> st
     exec_write st lv (let (headers', next') := pop_front headers next count in ValBaseStack headers' size next') st' ->
     exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).
 
+Definition is_builtin_func (expr : @Expression tags_t) : bool :=
+  match expr with
+  | MkExpression _ _ (TypFunction (MkFunctionType _ _ FunBuiltin _)) _ =>
+      true
+  | _ => false
+  end.
+
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
 | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
@@ -1505,7 +1512,9 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
   (* Perhaps we want to allow some built-in fucntions, e.g. isValid(), execute on rvalues. We can do that
     by some preprocessing. *)
-  | exec_call_builtin : forall this_path s tags tags' expr fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
+  (* The code will be simpler if we avoid expanding the TypFunction part but using an is_builtin function
+    to test it. However, that will make repeat econstructor need backtracking. *)
+  | exec_call_builtin : forall this_path s tags tags' expr fname tparams params typ' dir' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
       exec_lexpr read_one_bit this_path s expr lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
@@ -1515,7 +1524,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
       (* As far as we know, built-in functions do not have out/inout parameters. So there's not a caller
         copy-out step. Also exec_args should never raise any signal other than continue. *)
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
-          (MkExpression tags' (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
+          (MkExpression tags' (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir')
           nil args) typ dir) s' sig''
   (* eval the call expression:
        1. eval arguments;
@@ -1524,6 +1533,7 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        4. write back out parameters.
   *)
   | exec_call_func : forall this_path s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
+      is_builtin_func func = false ->
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->

@@ -714,4 +714,50 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
   | IHeaderStackOp _ _ _ _ _ =>
     ok c
 end.
+
+Print F.fold.
+
+Fixpoint eliminate_slice_assignments (c : t) : result t :=
+  match c with
+  | ISkip _ => ok c
+  | IVardecl _ _ _=> ok c
+  | IAssign typ (E.ESlice e hi lo _) rhs i =>
+    let lhs_typ := t_of_e e in
+    let concat := fun typ lhs rhs => E.EBop typ E.PlusPlus lhs rhs i in
+    let mk_new_rhs : positive -> E.e tags_t := fun w =>
+      let upper := E.ESlice e w (BinPos.Pos.succ hi) i in
+      let lower := E.ESlice e (BinPos.Pos.pred lo) (pos 0) i in
+      let mid_type := E.TBit (Npos (BinPos.Pos.sub w lo)) in
+      concat lhs_typ (concat mid_type upper rhs) lower in
+    let* (rhs' : E.e tags_t) := match lhs_typ with
+                 | E.TBit w => ok (mk_new_rhs (posN w))
+                 | E.TInt w => ok (mk_new_rhs w)
+                 | _ => error "Cannot get width"
+                                end in
+    ok (IAssign lhs_typ e rhs' i)
+  | IAssign _ _ _ i => ok c
+  | IConditional typ guard tru fls i =>
+    let* tru' := eliminate_slice_assignments tru in
+    let+ fls' := eliminate_slice_assignments fls in
+    IConditional typ guard tru' fls' i
+  | ISeq s1 s2 i =>
+    let* s1' := eliminate_slice_assignments s1 in
+    let+ s2' := eliminate_slice_assignments s2 in
+    ISeq s1 s2 i
+  | IBlock blk =>
+    let+ blk' := eliminate_slice_assignments blk in
+    IBlock blk'
+  | IReturnVoid _ => ok c
+  | IReturnFruit _ _ _ => ok c
+  | IExit _ => ok c
+  | IInvoke tbl keys actions i =>
+    let+ actions' := F.fold (fun name act acts =>
+             let* act' := eliminate_slice_assignments act in
+             let+ acts' := acts in
+             (name, act') :: acts') actions (ok []) in
+    IInvoke tbl keys actions' i
+  | ISetValidity  _ _ _  => ok c
+  | IHeaderStackOp _ _ _ _ _ => ok c
+  | IExternMethodCall _ _ _ _ => ok c
+  end.
 End Inline.

@@ -201,6 +201,9 @@ Section ToGCL.
       then "-" ++ string_of_nat (BinInt.Z.abs_nat x)
       else string_of_nat (BinInt.Z.abs_nat x).
 
+    Definition string_of_pos (x : positive) :=
+      string_of_nat (BinPosDef.Pos.to_nat x).
+
     Fixpoint to_lvalue (e : E.e tags_t) : result string :=
       match e with
       | E.EBool _ _ => error "Boolean Literals are not lvalues"
@@ -209,7 +212,7 @@ Section ToGCL.
       | E.EVar t x i => ok x
       | E.ESlice e hi lo pos =>
         (* TODO :: Allow assignment to slices *)
-        error "[FIXME] Slices are not l-values "
+        error ("[FIXME] Slices ["++ string_of_pos hi ++"," ++ string_of_pos lo ++ "] are not l-values")
       | E.ECast _ _ _ => error "Casts are not l-values"
       | E.EUop _ _ _ _ => error "Unary Operations are not l-values"
       | E.EBop _ _ _ _ _ => error "Binary Operations are not l-values"
@@ -544,10 +547,10 @@ Section ToGCL.
         ok (GCL.GSkip, add_to_scope c x)
 
       | Inline.IAssign _ type lhs rhs i =>
-        let~ rhs' := to_rvalue (scopify c rhs) over "couldn't convert to rvalue as rhs of Iassign" in
-        let+ lhs' := to_lvalue (scopify c lhs) in
+        let~ rhs' := to_rvalue (scopify c rhs) over "couldn't convert rhs of IAssign to rvalue" in
+        let~ lhs' := to_lvalue (scopify c lhs) over "couldn't convert lhs of IAssign to lvalue"  in
         let e := GCL.GAssign type lhs' rhs' in
-        (e, c)
+        ok (e, c)
 
       | Inline.IConditional _ guard_type guard tru_blk fls_blk i =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in
@@ -599,17 +602,6 @@ Section ToGCL.
         error ("Tried to translate a header stack operation on " ++ stck ++ " to GCL. This should've been eliminated during the inlining phase.")
       end.
 
-    Definition p4cub_statement_to_gcl (gas : nat)
-               (ctx : ToP4cub.DeclCtx tags_t)
-               (arch : model) (s : ST.s tags_t) : result target :=
-      let* inline_stmt := Inline.inline _ gas ctx s in
-      let* no_tup := Inline.elim_tuple _ inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
-      let* no_hdr := Inline.elaborate_headers _ no_stk in
-      let* no_structs := Inline.elaborate_structs _ no_hdr in
-      let+ (gcl,_) := inline_to_gcl initial arch no_structs in
-      gcl.
-
     (* use externs to specify inter-pipeline behavior.*)
     Definition get_main ctx (pipe : pipeline) : result (ST.s tags_t) :=
       match find_package tags_t ctx "main" with
@@ -617,25 +609,34 @@ Section ToGCL.
         pipe type_args args
       | _ =>
         error "expected package, got sth else"
-      end
-    .
+      end.
 
-    Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
-      let* stmt := get_main ctx pipe in
-      p4cub_statement_to_gcl gas ctx ext stmt.
+
+    Definition inlining_passes (gas : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
+      let* inline_stmt := Inline.inline _ gas ctx s in
+      let* no_tup := Inline.elim_tuple _ inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
+      let* no_hdr := Inline.elaborate_headers _ no_stk in
+      let* no_structs := Inline.elaborate_structs _ no_hdr in
+      let+ no_slice := Inline.eliminate_slice_assignments _ no_structs in
+      no_slice.
 
     Definition inline_from_p4cub (gas : nat)
                (ext : model) (pipe : pipeline)
                (ctx : ToP4cub.DeclCtx tags_t)  : result (Inline.t tags_t) :=
       let* s := get_main ctx pipe in
-      let* inline_stmt := Inline.inline _ gas ctx s in
-      let* no_tup := Inline.elim_tuple _ inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
-      let* no_hdr := Inline.elaborate_headers _ no_stk in
-      let+ no_structs := Inline.elaborate_structs _ no_hdr in
-      no_structs.
+      inlining_passes gas ext ctx s.
 
-    (* Definition from_p4cub_v1model gas ctx : result target := *)
-    (*   from_p4cub gas V1model.externs V1model.package ctx. *)
+    Definition p4cub_statement_to_gcl (gas : nat)
+               (ctx : ToP4cub.DeclCtx tags_t)
+               (arch : model) (s : ST.s tags_t) : result target :=
+      let* inlined := inlining_passes gas arch ctx s in
+      let+ (gcl,_) := inline_to_gcl initial arch inlined in
+      gcl.
+
+    Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+      let* stmt := get_main ctx pipe in
+      p4cub_statement_to_gcl gas ctx ext stmt.
+
   End Instr.
 End ToGCL.

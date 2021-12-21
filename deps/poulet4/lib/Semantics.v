@@ -881,7 +881,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       | LInstance p =>
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-              option_map (fun fd => (None, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+              option_map (fun fd => (None, fd)) (PathMap.get (class_name :: p) ge_func)
           | _ => None
           end
       end

@@ -24,53 +24,80 @@ Section TypingDefs.
   Notation Sval := (@ValueBase (option bool)).
   Notation funtype := (@FunctionType tags_t).
   
-  (* Local variable typing environment. *)
-  Definition gamma_local := PathMap.t typ.
+  (* Normal (mutable/non-constant) variable typing environment. *)
+  Definition gamma_var := PathMap.t typ.
 
-  (* Constant & global variable typing environment. *)
+  (* Constant variable typing environment. *)
   Definition gamma_const := PathMap.t typ.
   
   (* Expression typing environment. *)
   Record gamma_expr := {
-    local_gamma :> gamma_local;
+    var_gamma :> gamma_var;
     const_gamma :> gamma_const }.
 
-  (** TODO: is this correct?
-      Typing analogue to [loc_to_sval].
-      How will [this] be used...? *)
-  Definition typ_of_loc
-             (this : path) (l : Locator) (g : gamma_expr) : option typ :=
+  (** Typing analogue to [Semantics.loc_to_sval]. *)
+  Definition typ_of_loc_var
+             (l : Locator) (g : gamma_var) : option typ :=
     match l with
-    | LInstance p => PathMap.get p (local_gamma g)
-    | LGlobal   p => PathMap.get p (const_gamma g)
+    | LInstance p => PathMap.get p g
+    | LGlobal   _ => None
     end.
 
-  Definition
-    bind_typ_gamma_expr
-    (this : path) (l : Locator) (τ : typ)
-    '({| local_gamma:=lg; const_gamma:=cg |} : gamma_expr) : gamma_expr :=
+  (** Typing analogue to [Semantics.loc_to_sval_const].*)
+  Definition typ_of_loc_const
+             (this : path) (l : Locator) (g : gamma_const) : option typ :=
     match l with
-    | LInstance p => {| local_gamma:=PathMap.set p τ lg; const_gamma:=cg |}
-    | LGlobal   p => {| local_gamma:=lg; const_gamma:=PathMap.set p τ lg|}
+    | LInstance p => PathMap.get (this ++ p) g
+    | LGlobal   p => PathMap.get p           g
     end.
+
+  Definition bind_var_typ
+             (l : Locator) (τ : typ) (g : gamma_var) : gamma_var :=
+    PathMap.set (get_loc_path l) τ g.
+
+  Definition bind_var_typ_gamma_expr
+             (l : Locator) (τ : typ)
+             '({| var_gamma:=vg; const_gamma:=cg |} : gamma_expr)
+    : gamma_expr := {| var_gamma:=bind_var_typ l τ vg; const_gamma:=cg |}.
   
   Context `{T : @Target tags_t expr}.
-  
-  Definition gamma_expr_domain
-             (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
-    forall (l : Locator),
-      typ_of_loc p l g = None <-> loc_to_sval l st = None.
 
-  Definition gamma_expr_val_typ
-             (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
-    forall (l : Locator) (t : typ) (v : Sval),
-      typ_of_loc p l g = Some t ->
+  Definition gamma_var_domain (g : gamma_var) (st : state) : Prop :=
+    forall l : Locator, typ_of_loc_var l g = None <-> loc_to_sval l st = None.
+
+  Definition gamma_var_val_typ
+             (g : gamma_var) (st : state)
+             (gs : genv_senum) : Prop :=
+    forall l t v,
+      typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
+      val_typ gs v t.
+
+  Definition gamma_var_prop
+             (g : gamma_var) (st : state) (gs : genv_senum) : Prop :=
+    gamma_var_domain g st /\ gamma_var_val_typ g st gs.
+  
+  Definition gamma_const_domain
+             (this : path) (g : gamma_const)
+             (ge : genv) : Prop :=
+    forall l : Locator,
+      typ_of_loc_const this l g = None <-> loc_to_sval_const ge this l = None.
+
+  Definition gamma_const_val_typ
+             (this : path) (g : gamma_const)
+             (ge : genv) : Prop :=
+    forall l t v,
+      typ_of_loc_const this l g = Some t ->
+      loc_to_sval_const ge this l = Some v ->
       val_typ (ge_senum ge) v t.
 
+  Definition gamma_const_prop
+             (this : path) (g : gamma_const) (ge : genv) : Prop :=
+    gamma_const_domain this g ge /\ gamma_const_val_typ this g ge.
+  
   Definition gamma_expr_prop
-             (p : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
-    gamma_expr_domain p g st ge /\ gamma_expr_val_typ p g st ge.
+             (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
+    gamma_var_prop g st ge /\ gamma_const_prop this g ge.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
@@ -86,13 +113,16 @@ Section TypingDefs.
   (** Expression typing. *)
   Definition
     expr_types
-    (this : path) (d : list string)
-    (g : gamma_expr) (e : expr) : Prop :=
+    (this : path)     (** Local path. *)
+    (Δ : list string) (** Type variables in context. *)
+    (Γ : gamma_expr)  (** Typing environment. *)
+    (e : expr)        (** Expression to type. *)
+    : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_expr_prop this g st ge ->
-      d ⊢ok typ_of_expr e ->
+      gamma_expr_prop this Γ st ge ->
+      Δ ⊢ok typ_of_expr e ->
       (exists v, run_expr ge read_one_bit this st e v) /\
       forall v, run_expr ge read_one_bit this st e v ->
            val_typ (ge_senum ge) v (typ_of_expr e).
@@ -101,9 +131,6 @@ Section TypingDefs.
   (* Function definition typing environment. TODO! *)
   Definition gamma_func := PathMap.t funtype.
 
-  (* Instance typing environment. TODO. *)
-  Definition gamma_inst := PathMap.t unit.
-
   (* Extern instance typing environment. TODO. *)
   Definition gamma_ext := PathMap.t unit.
 
@@ -111,15 +138,15 @@ Section TypingDefs.
   Record gamma_stmt : Type := {
     expr_gamma :> gamma_expr;
     func_gamma :> gamma_func;
-    inst_gamma :> gamma_inst;
+    inst_gamma :> genv_inst;
     ext_gamma :> gamma_ext }.
 
   Definition
     bind_typ_gamma_stmt
-    (this : path) (l : Locator) (τ : typ)
+    (l : Locator) (τ : typ)
     '({| expr_gamma:=eg; func_gamma:=fg;
          inst_gamma:=ig; ext_gamma:=exg |} : gamma_stmt) : gamma_stmt :=
-    {| expr_gamma:=bind_typ_gamma_expr this l τ eg;
+    {| expr_gamma:=bind_var_typ_gamma_expr l τ eg;
        func_gamma:=fg; inst_gamma:=ig; ext_gamma:=exg |}.
 
   (** TODO: is search correct?
@@ -127,22 +154,29 @@ Section TypingDefs.
       TODO: incomplete case elimination.
       Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
-             (this : path) (gf : gamma_func)
-             (gi : gamma_inst) (func : expr)
-    : option (option path * funtype). Admitted. (* :=
+             (this : path) (gf : gamma_func) (gi : genv_inst)
+             '(MkExpression _ func _ _ : expr)
+    : option (option path * funtype) :=
     match func with
-    | MkExpression _ (ExpName _ (LGlobal p)) _ _ =>
-      option_map (fun funt => (nil, funt)) (PathMap.get p gf)
-    | MkExpression _ (ExpName _ (LInstance p)) _ _ =>
+    | ExpName _ (LGlobal p) =>
+      option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
+    | ExpName _ (LInstance p) =>
       match PathMap.get this gi with
-      | Some _ (* class name? *) =>
-        option_map
-          (fun funt => (this, funt))
-          (PathMap.get (nil (* todo: class name? *) ++ p) gf)
-      | None => None
+      | None                       => None
+      | Some (mk_inst_ref class _) =>
+        option_map (fun funt => (None, funt)) (PathMap.get (class :: p) gf)
       end
+        (* TODO: use monad notations.
+    | ExpExpressionMember (MkExpression _ (ExpName _ (LInstance p)) _ _) x
+      => option_bind
+          (fun '(mk_inst_ref class inst_path) =>
+             option_map
+          )
+          (PathMap.get (this ++ p) gi)
+    | ExpExpressionMember (MkExpression _ (ExpName _ (LGlobal p)) _ _) x
+*)
     | _ => None
-    end. *)
+    end.
   
   (* TODO: is this correct? *)
   Definition gamma_inst_domain

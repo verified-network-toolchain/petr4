@@ -958,7 +958,7 @@ let print_env_env print_binding =
   print_list (print_list (print_pair p4string print_binding))
 
 let print_header p =
-  fprintf p "Require Import Poulet4.P4light.Syntax.P4defs.@ ";
+  fprintf p "Require Import Poulet4.P4defs.@ ";
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ "
 

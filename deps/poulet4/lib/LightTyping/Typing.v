@@ -172,11 +172,11 @@ Section TypingDefs.
           (Γext : gamma_ext) (this : path)
     : @fundef tags_t -> funtype -> Prop :=
   (* TODO : need to know [body] & [init] are well-typed. *)
-  | Internal_prop params init body Xs params' rt :
+  | Internal_prop params body Xs params' rt :
       Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
       fundef_funtype_prop
         Δ Γ Γext this
-        (FInternal params init body)
+        (FInternal params body)
         (MkFunctionType Xs params' FunFunction rt)
   | Table_match name keys actions dflt entries key_typs :
       Forall2

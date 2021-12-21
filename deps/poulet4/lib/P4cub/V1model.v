@@ -18,11 +18,16 @@ Definition externs : ToGCL.model :=
          ("clone3", G.GSkip);
          ("assert", G.GAssert (F.LVar "check"));
          ("hash", G.GSkip);
-         ("truncate", G.GSkip)
+         ("truncate", G.GSkip);
+         ("random", G.GSkip);
+         ("crc_poly", G.GSkip);
+         ("digest", G.GSkip)
    ]);
   ("counter", [("count", G.GSkip)]);
   ("direct_counter", [("count", G.GSkip)]);
-  ("register", [("read", G.GSkip); ("write", G.GSkip)])
+  ("register", [("read", G.GSkip); ("write", G.GSkip)]);
+  ("meter", [("meter", G.GSkip); ("execute_meter", G.GSkip)]);
+  ("direct_meter", [("direct_meter", G.GSkip); ("read", G.GSkip)])
   ].
 
 Definition cub_seq {tags_t : Type} (i : tags_t) (statements : list (ST.s tags_t)) : ST.s tags_t  :=
@@ -40,7 +45,7 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
         s_arg i PADirLess "packet_in"           "b";
         t_arg i PAOut      htype                "parsedHdr";
         t_arg i PAInOut    mtype                "meta";
-        s_arg i PAInOut    "standard_metdata_t" "standard_metadata"] in
+        s_arg i PAInOut    "standard_metadata_t" "standard_metadata"] in
   let vck_args := [
         t_arg i PAInOut htype "hdr";
         t_arg i PAInOut mtype "meta"] in

@@ -512,75 +512,17 @@ Fixpoint header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs st
   let f := fun '((lhs_mem, typ), (rhs_mem, _)) acc => ISeq (IAssign typ lhs_mem rhs_mem tags) acc tags in
   List.fold_right f (ISkip tags) assigns.
 
-
 Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
   match c with
   | ISkip _ => ok c
-  | IVardecl type s i =>
-    (** TODO elaborate header if type = THeader *)
-    match type with
-    (* | E.THeader fields => *)
-    (*   let vars := header_fields i (E.EVar type s i) fields in *)
-    (*   let elabd_hdr_decls := fold_left (fun acc '(var_str, var_typ) => ISeq (IVardecl var_typ var_str i) acc i) vars (ISkip i) in *)
-    (*   ok elabd_hdr_decls *)
-    | _ => ok c
-    end
+  | IVardecl _ _ _ => ok c
   | IAssign type lhs rhs i =>
     match type with
     | E.THeader fields =>
       header_elaboration_assign i lhs rhs fields
-    (*   (** TODO : What other assignments to headers are legal? EHeader? EStruct? *) *)
-    (*   match lhs, rhs with *)
-    (*   | E.EVar _ l il, E.EVar _ r ir => *)
-    (*     let lvars := header_fields l fields in *)
-    (*     let rvars := header_fields r fields in *)
-    (*     let+ lrvars := zip lvars rvars in *)
-    (*     fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars *)
-    (*   | E.EVar _ l il, E.EHeader explicit_fields valid i => *)
-    (*     let lvars := header_fields l fields in *)
-    (*     let assign_fields := fun '(lvar, ltyp) acc_res => *)
-    (*          let* acc := acc_res in *)
-    (*          let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldn't find field in field list" in *)
-    (*          ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in *)
-    (*    fold_right assign_fields *)
-    (*               (ok (IAssign E.TBool (E.EVar E.TBool (l ++ ".is_valid") il) valid i)) *)
-    (*               lvars *)
-    (*   | E.ESlice _ _ _ _, _ => *)
-    (*     error ("[elaborate_headers] Type Error. bitvector slice != header type") *)
-    (*   | E.EVar _ x _ , _ => *)
-    (*     error ("[elaborate_headers] Error assigning to [" ++ x ++ "] . Can only copy variables or header literals of type header.") *)
-    (*   | E.EBool _ _, _ => *)
-    (*     error ("[elaborate_headers] Type error, bool != header type") *)
-    (*   | E.EBit _ _ _, _ => *)
-    (*     error ("[elaborate_headers] Type error, bit<> != header type") *)
-    (*   | E.EInt _ _ _, _ => *)
-    (*     error ("[elaborate_headers] Type error, int<> != header type") *)
-    (*   | E.ECast _ _ _, _ => *)
-    (*     error ("[elaborate_headers] a cast is not an lvalue") *)
-    (*   | E.EUop _ _ _ _, _ => *)
-    (*     error ("[elaborate_headers] a unary op is not an lvalue") *)
-    (*   | E.EBop _ _ _ _ _, _ => *)
-    (*     error ("[elaborate_headers] a binary op is not an lvalue") *)
-    (*   | E.ETuple _ _, _ => *)
-    (*     error ("[elaborate_headers] a tuple is not an lvalue") *)
-    (*   | E.EStruct _ _, _ => *)
-    (*     error ("[elaborate_headers] Type Error:: struct type != header type ") *)
-    (*   | E.EExprMember _ mem _ _, _ => *)
-    (*     error ("[elaborate_headers] [FIXME] trying to elaborate header to an expresssion member lvalue " ++ mem) *)
-    (*   | E.EError _ _, _ => *)
-    (*     error ("[elaborate_headers] an error is not an lvalue ") *)
-    (*   | E.EMatchKind _ _, _ => *)
-    (*     error ("[elaborate_headers] a matchkind is not an lvalue ") *)
-    (*   | E.EHeaderStack _ _ _ _ , _ => *)
-    (*     error ("[elaborate_headers] a headerstack literal is not an lvalue ") *)
-    (*   | E.EHeader _ _ _ , _ => *)
-    (*     error ("[elaborate_headers] a header literal is not an lvalue ") *)
-    (*   | E.EHeaderStackAccess _ _ _ _, _  => *)
-    (*     error ("[elaborate_headers] [FIXME] need to translate a header stack access header-asignment ") *)
-    (*   end *)
     | _ => ok c
-  end
-| IConditional guard_type guard tru fls i =>
+    end
+  | IConditional guard_type guard tru fls i =>
   (** TODO: elaborate headers in guard? *)
   let* tru' := elaborate_headers tru in
   let+ fls' := elaborate_headers fls in
@@ -610,7 +552,6 @@ Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
   (* TODO Do we need to eliminate tuples in valid-sets? that seems ill-typed *)
   ok c
 end.
-
 
 Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   match n with

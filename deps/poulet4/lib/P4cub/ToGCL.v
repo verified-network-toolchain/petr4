@@ -277,7 +277,8 @@ Section ToGCL.
       | E.EHeaderStack _ _ _ _ =>
         error "Header stacks are not headers"
       | E.EHeaderStackAccess _ stack index i =>
-        error "Header stack accesses as table keys should have been factored out in an earlier stage."
+        let+ stack_string := to_header_string stack in
+        stack_string ++ "[" ++ (string_of_z index) ++ "]"
       end.
 
     Definition lookup_member_from_fields mem fields : result E.t :=
@@ -415,7 +416,7 @@ Section ToGCL.
         error "Typeerror: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
       | E.ECast type arg i =>
-        let* rvalue_arg := to_rvalue arg in
+        let~ rvalue_arg := to_rvalue arg over "couldn't convert to rvalue under cast" in
         let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg)) in
         match type with
         | E.TBool => cast 1
@@ -425,7 +426,7 @@ Section ToGCL.
           error "Invalid Cast"
         end
       | E.EUop type op arg i =>
-        let* rv_arg := to_rvalue arg in
+        let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in
         match op with
         | E.Not => ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
@@ -453,8 +454,8 @@ Section ToGCL.
                                  let* r := to_form rhs in
                                  let+ o := o_res in
                                  Form.LBop o l r in
-        let cbin := fun o_res => let* l := to_rvalue lhs in
-                                 let* r := to_rvalue rhs in
+        let cbin := fun o_res => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
+                                 let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
                                  let+ o := o_res in
                                  Form.LComp o l r in
         match op with
@@ -515,7 +516,7 @@ Section ToGCL.
                          | PADirLess e =>
                            match to_form e with
                            | Error _ _ =>
-                             let* e' := to_rvalue e in
+                             let~ e' := to_rvalue e over "couldn't conver't rvalue in arrowE_to_arglist" in
                              ok ((name, inr e') :: res)
                            | Ok _ phi =>
                              ok ((name, inl phi) :: res)
@@ -543,8 +544,8 @@ Section ToGCL.
         ok (GCL.GSkip, add_to_scope c x)
 
       | Inline.IAssign _ type lhs rhs i =>
-        let* lhs' := to_lvalue (scopify c lhs) in
-        let+ rhs' := to_rvalue (scopify c rhs) in
+        let~ rhs' := to_rvalue (scopify c rhs) over "couldn't convert to rvalue as rhs of Iassign" in
+        let+ lhs' := to_lvalue (scopify c lhs) in
         let e := GCL.GAssign type lhs' rhs' in
         (e, c)
 
@@ -578,8 +579,8 @@ Section ToGCL.
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
         let* keys' := rred (map (fun '(t,e,mk) =>
                                    let~ w := width_of_type (tbl ++ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " ++ tbl ) in
-                                   let+ e' := to_rvalue e in
-                                   (w, e', mk)) keys) in
+                                   let~ e' := to_rvalue e over "failed converting keys to rvalue" in
+                                   ok (w, e', mk)) keys) in
         let+ g := instr tbl i keys' actions' in
         (g, c)
 

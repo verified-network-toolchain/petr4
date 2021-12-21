@@ -1,3 +1,4 @@
+Set Warnings "-extraction-reserved-identifier".
 Require Coq.extraction.Extraction.
 Require Import Coq.extraction.ExtrOcamlBasic.
 Require Import Coq.extraction.ExtrOcamlNativeString.

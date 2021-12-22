@@ -1045,13 +1045,13 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
 
-Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
+Fixpoint update_union_member (is_inner : bool) (fields: StringAList Sval) (fname: string)
                              (hfields: StringAList Sval) (is_valid: option bool) :
                              option (StringAList Sval) :=
   match fields with
   | [] => Some []
   | (fname', ValBaseHeader hfields' is_valid') :: tl =>
-    match update_union_member tl fname hfields is_valid with
+    match update_union_member is_inner tl fname hfields is_valid with
     | None => None
     | Some tl' =>
       if String.eqb fname fname' then
@@ -1060,7 +1060,10 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
         let new_is_valid' :=
           match is_valid with
           | Some true => Some false
-          | Some false => is_valid'
+          (* If is_inner = true, it's writing to a field of a header member, so the validity bit of other
+            header members should remain unchanged. If is_inner = false, it's calling setInvalid() or
+            assigning to a header member directly. The other header members should become invalid. *)
+          | Some false => if is_inner then is_valid' else Some false
           (* is_valid = None should be impossible. A header member of a header union should never have
             None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
           | _ => is_valid'
@@ -1071,16 +1074,16 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
   | _ :: _ => None
   end.
 
-Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
+Inductive update_member (is_inner : bool) : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
-                           update_member (ValBaseStruct fields) fname fv (ValBaseStruct fields')
+                           update_member is_inner (ValBaseStruct fields) fname fv (ValBaseStruct fields')
   | update_member_header : forall fields is_valid fname fv sv,
                            write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
-                           update_member (ValBaseHeader fields is_valid) fname fv sv
+                           update_member is_inner (ValBaseHeader fields is_valid) fname fv sv
   | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
-                          update_union_member fields fname hfields is_valid = Some fields' ->
-                          update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
+                          update_union_member is_inner fields fname hfields is_valid = Some fields' ->
+                          update_member is_inner (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
                           (ValBaseUnion fields').
 
 Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sval :=
@@ -1106,23 +1109,27 @@ Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
     2.variant. a write to an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
    Guaranteed by update_stack_header, if idx >= size, state is unchanged. *)
-Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
+(* The is_inner flag marks whether it is used inside another exec_write. This differentiate the behavior
+  of writing to a field of an invalid header member of a header union and calling setInvalid() for a
+  header member. *)
+
+Inductive exec_write (is_inner : bool) : state -> Lval -> Sval -> state -> Prop :=
   | exec_write_name : forall name loc st rhs typ st',
       update_val_by_loc st loc rhs = st' ->
-      exec_write st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
+      exec_write is_inner st (MkValueLvalue (ValLeftName name loc) typ) rhs st'
   | exec_write_member : forall lv fname sv sv' st rhs typ st',
       exec_read st lv sv ->
-      update_member sv fname rhs sv' ->
-      exec_write st lv sv' st' ->
-      exec_write st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
+      update_member is_inner sv fname rhs sv' ->
+      exec_write true st lv sv' st' ->
+      exec_write is_inner st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
   | exec_write_bit_access_bit : forall lv bits bits' lo lonat hi hinat st typ st',
                                 exec_read st lv (ValBaseBit bits) ->
                                 N.to_nat lo = lonat ->
                                 N.to_nat hi = hinat ->
                                 (lonat <= hinat < List.length bits)%nat ->
                                 update_bitstring bits lonat hinat bits = bits' ->
-                                exec_write st lv (ValBaseBit bits') st' ->
-                                exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                exec_write true st lv (ValBaseBit bits') st' ->
+                                exec_write is_inner st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                   (ValBaseBit bits') st'
    | exec_write_bit_access_int : forall lv bits bits' lo lonat hi hinat st typ st',
                                   exec_read st lv (ValBaseInt bits) ->
@@ -1130,15 +1137,15 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
                                   N.to_nat hi = hinat ->
                                   (lonat <= hinat < List.length bits)%nat ->
                                   update_bitstring bits lonat hinat bits = bits' ->
-                                  exec_write st lv (ValBaseInt bits') st' ->
-                                  exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                                  exec_write true st lv (ValBaseInt bits') st' ->
+                                  exec_write is_inner st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
   | exec_write_array_access : forall lv headers size next (idx: N) headers' st rhs typ st',
                               exec_read st lv (ValBaseStack headers size next) ->
                               update_stack_header headers idx rhs = headers' ->
-                              exec_write st lv (ValBaseStack headers' size next) st' ->
-                              exec_write st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
+                              exec_write true st lv (ValBaseStack headers' size next) st' ->
+                              exec_write is_inner st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Sval) * (option Lval).
 
@@ -1209,7 +1216,7 @@ Inductive exec_args (read_one_bit : option bool -> bool -> Prop) :
 
 Inductive exec_write_option : state -> option Lval -> Sval -> state -> Prop :=
 | exec_write_option_some : forall s lval sv s',
-                           exec_write s lval sv s' ->
+                           exec_write false s lval sv s' ->
                            exec_write_option s (Some lval) sv s'
 | exec_write_option_none : forall s sv,
                            exec_write_option s None sv s.
@@ -1380,7 +1387,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     exec_expr_det read_one_bit this_path st rhs v ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
     val_to_sval v sv ->
-    (if is_continue sig then exec_write st lv sv st' else st' = st) ->
+    (if is_continue sig then exec_write false st lv sv st' else st' = st) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
 | exec_stmt_assign_func_call : forall lhs lv rhs sv this_path
@@ -1390,7 +1397,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     (if not_continue sig then st'' = st /\ ret_sig = sig
      else if not_return sig' then st'' = st' /\ ret_sig = sig'
           else get_return_sval sig' sv /\
-               exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
+               exec_write false st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
 | exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
@@ -1460,7 +1467,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
       exec_expr_det read_one_bit this_path st e v ->
       val_to_sval v sv ->
-      exec_write st
+      exec_write false st
         (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt
         read_one_bit this_path st
@@ -1470,7 +1477,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
         exec_call read_one_bit this_path st e st' sig ->
         (if not_return sig then st'' = st'
          else get_return_sval sig sv /\
-              exec_write st'
+              exec_write false st'
                 (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->
         exec_stmt
           read_one_bit this_path st
@@ -1479,7 +1486,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
       get_real_type typ' = Some rtyp ->
       uninit_sval_of_typ (Some false) rtyp = Some sv ->
-      exec_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
+      exec_write false st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatVariable typ' name None loc) typ) st' SContinue
   | exec_stmt_constant: forall typ' name e loc this_path st tags typ,

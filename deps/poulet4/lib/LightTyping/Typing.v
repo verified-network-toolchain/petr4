@@ -1,4 +1,5 @@
-Require Export Poulet4.LightTyping.ValueTyping.
+Require Export Poulet4.LightTyping.ValueTyping
+        Poulet4.Monads.Monad Poulet4.Monads.Option.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
 (* TODO:
@@ -149,10 +150,7 @@ Section TypingDefs.
     {| expr_gamma:=bind_var_typ_gamma_expr l τ eg;
        func_gamma:=fg; inst_gamma:=ig; ext_gamma:=exg |}.
 
-  (** TODO: is search correct?
-      TODO: Function type is a stub.
-      TODO: incomplete case elimination.
-      Typing analogue to [lookup_func]. *)
+  (** Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
              (this : path) (gf : gamma_func) (gi : genv_inst)
              '(MkExpression _ func _ _ : expr)
@@ -161,44 +159,20 @@ Section TypingDefs.
     | ExpName _ (LGlobal p) =>
       option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
     | ExpName _ (LInstance p) =>
-      match PathMap.get this gi with
-      | None                       => None
-      | Some (mk_inst_ref class _) =>
-        option_map (fun funt => (None, funt)) (PathMap.get (class :: p) gf)
-      end
-        (* TODO: use monad notations.
+      let* '(mk_inst_ref class _) := PathMap.get this gi in
+      let^ ft := PathMap.get (class :: p) gf in (None,ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LInstance p)) _ _) x
-      => option_bind
-          (fun '(mk_inst_ref class inst_path) =>
-             option_map
-          )
-          (PathMap.get (this ++ p) gi)
+      => let* '(mk_inst_ref class inst_path) := PathMap.get (this ++ p) gi in
+        let^ ft := PathMap.get [class; P4String.str x] gf in (Some inst_path, ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LGlobal p)) _ _) x
-*)
+      => let* '(mk_inst_ref class inst_path) := PathMap.get p gi in
+        let^ ft := PathMap.get [class; P4String.str x] gf in (Some inst_path, ft)
     | _ => None
     end.
-  
-  (* TODO: is this correct? *)
-  Definition gamma_inst_domain
-             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
-    forall (p : path),
-      PathMap.get p g = None <-> PathMap.get p ge_inst = None.
 
-  (* TODO: stub. *)
-  Definition gamma_inst_types
-             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
-    forall (p : path) (inst : inst_ref) (it : unit),
-      PathMap.get p g = Some it ->
-      PathMap.get p ge_inst = Some inst ->
-      True (* Stub, property of [it] and [inst]. *).
-
-  Definition gamma_inst_prop
-             (g : gamma_inst) (ge_inst : genv_inst) : Prop :=
-    gamma_inst_domain g ge_inst /\ gamma_inst_types g ge_inst.
-  
   Definition gamma_func_domain
              (this : path) (gf : gamma_func)
-             (gi : gamma_inst) (ge : genv) : Prop := forall (e : expr),
+             (gi : genv_inst) (ge : genv) : Prop := forall (e : expr),
       lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
 
   Variant fundef_funtype_prop
@@ -233,7 +207,7 @@ Section TypingDefs.
   Definition gamma_func_types
              (this : path) (d : list string)
              (g : gamma_expr) (gf : gamma_func)
-             (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
+             (gi : genv_inst) (gext : gamma_ext) (ge : genv) : Prop :=
     forall (e : expr) (p p' : option path) (fd : fundef) (ft : funtype),
       lookup_func_typ this gf gi e = Some (p,ft) ->
       lookup_func ge this e = Some (p',fd) ->
@@ -242,7 +216,7 @@ Section TypingDefs.
   Definition gamma_func_prop
              (this : path) (d : list string)
              (g : gamma_expr) (gf : gamma_func)
-             (gi : gamma_inst) (gext : gamma_ext) (ge : genv) : Prop :=
+             (gi : genv_inst) (gext : gamma_ext) (ge : genv) : Prop :=
     gamma_func_domain this gf gi ge /\
     gamma_func_types this d g gf gi gext ge.
 
@@ -251,10 +225,10 @@ Section TypingDefs.
              (this : path) (d : list string)
              (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
-    gamma_inst_prop (inst_gamma g) ge /\
     gamma_func_prop
       this d (expr_gamma g) (func_gamma g)
-      (inst_gamma g) (ext_gamma g) ge.
+      (inst_gamma g) (ext_gamma g) ge /\
+    inst_gamma g = ge_inst ge.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -266,15 +240,18 @@ Section TypingDefs.
   (** Statement typing. *)
   Definition
     stmt_types
-    (this : path) (d : list string)
-    (g g' : gamma_stmt) (s : stmt) : Prop :=
+    (this : path)       (* Local path. *)
+    (Δ : list string)   (* Type names in context. *)
+    (Γ Γ' : gamma_stmt) (* Input & output typing environment. *)
+    (s : stmt)          (* Statement in question. *)
+    : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this d g ge st ->
+      gamma_stmt_prop this Δ Γ ge st ->
       (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
       forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
-                 gamma_stmt_prop this d g' ge st'.
+                 gamma_stmt_prop this Δ Γ' ge st'.
 
   Inductive Block_StmTypes : block -> StmType -> Prop :=
   | Empty_StmType tag :
@@ -290,29 +267,34 @@ Section TypingDefs.
   (** Block typing. *)
   Definition
     block_types
-    (this : path) (d : list string)
-    (g g' : gamma_stmt) (blk : block) : Prop :=
+    (this : path)       (* Local path. *)
+    (Δ : list string)   (* Type variable names in context. *)
+    (Γ Γ' : gamma_stmt) (* Input & output typing environments. *)
+    (blk : block)       (* Statement block. *)
+    : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this d g ge st ->
+      gamma_stmt_prop this Δ Γ ge st ->
       (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
       forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
-                 gamma_stmt_prop this d g' ge st'.
+                 gamma_stmt_prop this Δ Γ' ge st'.
   
   (** Call typing. *)
   Definition
     call_types
-    (this : path) (d : list string)
-    (g : gamma_stmt) (call : expr) : Prop :=
+    (this : path)     (* Local path. *)
+    (Δ : list string) (* Typing variables in context. *)
+    (Γ : gamma_stmt)  (* Typing environment. *)
+    (call : expr)     (* Call expression. *)
+    : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop) (ge : genv) (st : state),
       read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this d g ge st ->
-      d ⊢ok typ_of_expr call ->
+      gamma_stmt_prop this Δ Γ ge st ->
+      Δ ⊢ok typ_of_expr call ->
       (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
       forall st' sig, run_call ge read_one_bit this st call st' sig ->
-                 gamma_stmt_prop this d g ge st'.
-    
+                 gamma_stmt_prop this Δ Γ ge st'.
 End TypingDefs.
 
 Notation "Δ '~' Γ '⊢ₑ' e ≀ this"
@@ -407,7 +389,7 @@ Section Soundness.
     Qed.
     
     Lemma name_sound : forall tag x loc t dir,
-        typ_of_loc this loc Γ = Some t ->
+        typ_of_loc_var loc Γ = Some t ->
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
     Proof.
       intros i x l t d Hgt; soundtac.
@@ -422,6 +404,12 @@ Section Soundness.
         simpl in *; eauto.
     Admitted.
 
+    Lemma constant_sound : forall tag x loc t dir,
+        typ_of_loc_const this loc Γ = Some t ->
+        Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
+    Proof.
+    Admitted.
+    
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
@@ -876,7 +864,7 @@ Section Soundness.
              (Δ ~ Γ ⊢ₑ e ≀ this \/ Δ ~ Γ ⊢ᵪ e ≀ this)) e ->
         Δ ~ Γ ⊢ₛ MkStatement
           tag (StatVariable τ x e l) StmUnit
-          ⊣ bind_typ_gamma_stmt this l τ Γ ≀ this.
+          ⊣ bind_typ_gamma_stmt l τ Γ ≀ this.
     Proof.
     Admitted.
   End StmtTyping.

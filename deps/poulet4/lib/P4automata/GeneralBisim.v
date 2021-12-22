@@ -263,9 +263,9 @@ Module BisimExample.
        d := fun q a => Qaccept |}.
 
   Definition R0 x y := (x = Qaccept <-> y = Qaccept).
-  Hint Unfold R0.
+  Local Hint Unfold R0 : core.
   Definition R x y := (x = Qaccept <-> y = Qaccept) \/ x = Qleft /\ y = Qright.
-  Hint Unfold R.
+  Local Hint Unfold R : core.
   Notation rr := (R0 :: R :: nil).
 
   Lemma prebisim_example:

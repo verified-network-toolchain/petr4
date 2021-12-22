@@ -29,7 +29,7 @@ Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (bas
   | Some x :: xs => reduce_option xs f (f x base)
   end.
 
-Hint Unfold option_ret option_bind : core.
+Global Hint Unfold option_ret option_bind : core.
 
 Lemma sequence_length :
   forall {A : Type} lmao (la : list A),

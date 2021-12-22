@@ -495,7 +495,7 @@ Section Transformer.
   Definition transform_prog (prog: @program tags_t): @program tags_t + exception :=
     match prog with
     | Program decls =>
-      match (transform_decls LGlobal IdentMap.empty decls) nil with
+      match transform_decls LGlobal IdentMap.empty decls nil with
       | (inl (decls', _), _) => inl (Program decls')
       | (inr ex, _) => inr ex
       end

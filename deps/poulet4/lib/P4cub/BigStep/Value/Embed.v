@@ -51,7 +51,7 @@ Section Embed.
         hs hs' ->
       Embed
         ~{ STACK hs:ts NEXT:=i }~
-        (ValBaseStack hs' (BinInt.Z.to_N i) (BinInt.Z.to_N i)).
+        (ValBaseStack hs' (BinInt.Z.to_N i)).
 
   Fixpoint embed (v : Val.v) : VAL :=
     match v with
@@ -76,7 +76,7 @@ Section Embed.
            (fun '(b,vs) =>
               ValBaseHeader
                 (map (fun '(x,v) => (x, embed v)) vs) b) hs)
-        (BinInt.Z.to_N i) (BinInt.Z.to_N i)
+        (BinInt.Z.to_N i)
     end.
 
   Local Hint Constructors Embed : core.

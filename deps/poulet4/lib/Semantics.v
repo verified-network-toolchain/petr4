@@ -363,14 +363,14 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_header : forall fields b member v,
                         AList.get fields member = Some v ->
                         get_member (ValBaseHeader fields b) member v
-  | get_member_stack_size : forall headers size next,
-                            get_member (ValBaseStack headers size next) "size"
-                              (ValBaseBit (to_loptbool 32%N (Z.of_N size)))
-  | get_member_stack_last_index : forall headers size next sv,
+  | get_member_stack_size : forall headers next,
+                            get_member (ValBaseStack headers next) "size"
+                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
+  | get_member_stack_last_index : forall headers next sv,
                                   (if (next =? 0)%N
                                     then uninit_sval_of_typ None (TypBit 32%N) = Some sv
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
-                                  get_member (ValBaseStack headers size next) "lastIndex" sv.
+                                  get_member (ValBaseStack headers next) "lastIndex" sv.
 
 Definition is_directional (dir : direction) : bool :=
   match dir with
@@ -417,11 +417,11 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                            exec_expr read_one_bit this st
                            (MkExpression tag (ExpName name loc) typ dir)
                            sv
-  | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
+  | exec_expr_array_access: forall array headers next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
                             exec_expr read_one_bit this st idx idxsv ->
                             sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
-                            exec_expr read_one_bit this st array (ValBaseStack headers size next) ->
+                            exec_expr read_one_bit this st array (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def idxz headers default_header = header ->
@@ -500,10 +500,6 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                              get_member sv (str member) sv' ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr member) typ dir) sv'
-  (* TODO:
-     ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin
-     ValBaseUnion: isValid is supposed to be handled in exec_builtin
-     ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
   | exec_expr_ternary : forall cond tru fls b sv sv' this st tag typ dir,
                         exec_expr read_one_bit this st cond sv ->
                         sval_to_val read_one_bit sv (ValBaseBool b) ->
@@ -934,7 +930,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
   | exec_lexpr_member_next : forall expr lv name headers size next this st tag typ dir sig ret_sig,
                              String.eqb (P4String.str name) "next" = true ->
                              exec_lexpr read_one_bit this st expr lv sig ->
-                             exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
+                             exec_expr read_one_bit this st expr (ValBaseStack headers next) ->
                              (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
@@ -956,7 +952,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                array_access_idx_to_z idxv = Some idxz ->
                                (if (idxz >=? 0)
                                 then idxn = Z.to_N idxz
-                                else exec_expr read_one_bit this st array (ValBaseStack headers idxn next)) ->
+                                else exec_expr read_one_bit this st array (ValBaseStack headers next)) ->
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
@@ -986,8 +982,8 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                            (lonat <= hinat < wn)%nat ->
                            exec_read st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
-  | exec_read_array_access: forall lv headers size next default_header header idx st typ rtyp,
-                            exec_read st lv (ValBaseStack headers size next) ->
+  | exec_read_array_access: forall lv headers next default_header header idx st typ rtyp,
+                            exec_read st lv (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
@@ -1134,10 +1130,10 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
                                   exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
-  | exec_write_array_access : forall lv headers size next (idx: N) headers' st rhs typ st',
-                              exec_read st lv (ValBaseStack headers size next) ->
+  | exec_write_array_access : forall lv headers next (idx: N) headers' st rhs typ st',
+                              exec_read st lv (ValBaseStack headers next) ->
                               update_stack_header headers idx rhs = headers' ->
-                              exec_write st lv (ValBaseStack headers' size next) st' ->
+                              exec_write st lv (ValBaseStack headers' next) st' ->
                               exec_write st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Sval) * (option Lval).
@@ -1309,23 +1305,29 @@ Definition dummy_val {bit} : (@ValueBase bit) := ValBaseNull.
 Global Opaque dummy_val.
 Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
 
-Definition push_front (headers : list Sval) (next : N) (count : Z) : list Sval * N :=
+Definition push_front (headers : list Sval) (next : N) (count : Z) : Sval :=
   let size := Zlength headers in
-  if (count <=? size)%Z then
-    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
-      ++ sublist 0 (size - count) headers, Z.to_N (Z.of_N next + count))
-  else
-    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size, Z.to_N (Z.of_N next + count)).
+  let headers' :=
+    if (count <=? size)%Z then
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
+        ++ sublist 0 (size - count) headers
+    else
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size
+  in
+  let next' := Z.to_N (Z.of_N next + count) in
+  ValBaseStack headers' next'.
 
-Definition pop_front (headers : list Sval) (next : N) (count : Z) : list Sval * N :=
+Definition pop_front (headers : list Sval) (next : N) (count : Z) : Sval :=
   let size := Zlength headers in
-  if (count <=? size)%Z then
-    (sublist count size headers ++ Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count,
-      Z.to_N (Z.of_N next - count))
-  else
-    (Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size, Z.to_N (Z.of_N next - count)).
+  let headers' :=
+    if (count <=? size)%Z then
+      sublist count size headers ++ Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
+    else
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size
+  in
+  let next' := Z.to_N (Z.of_N next - count) in
+  ValBaseStack headers' next'.
 
-(* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
 (* The expression h.minSizeInBits() is defined for any value h that has a header type.
    The expression is equal to the sum of the sizes of all of header h's fields in bits,
    counting all varbit fields as length 0. An expression h.minSizeInBits() is a compile-time
@@ -1334,7 +1336,6 @@ Definition pop_front (headers : list Sval) (next : N) (count : Z) : list Sval * 
    the total size of all of the header's fields in bytes, rounding up to the next whole number
    of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is
    equal to (h.minSizeInBits() + 7) >> 3. *)
-(* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
 (* It should be guaranteed there is at most one valid header in a union. *)
 (* stack.next must be handled in a preprocessor, as it returns an lvalue. *)
 (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
@@ -1345,6 +1346,7 @@ Definition pop_front (headers : list Sval) (next : N) (count : Z) : list Sval * 
    ... a method call of setValid() or setInvalid() on an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system, neither in header
    fields nor anywhere else. In particular, if an invalid header is involved in the write, it must remain invalid. *)
+
 Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
 | exec_builtin_isValid : forall p st lv sv is_valid,
     exec_read st lv sv ->
@@ -1357,14 +1359,14 @@ Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> st
 | exec_builtin_setInalid : forall p st lv fields is_valid st',
     exec_read st lv (ValBaseHeader fields is_valid) ->
     exec_write st lv (ValBaseHeader fields (Some false)) st' ->
-    exec_builtin read_one_bit p st lv "setInalid" [] st' (SReturn ValBaseNull)
-| exec_builtin_push_front : forall p st lv headers size next count st',
-    exec_read st lv (ValBaseStack headers size next) ->
-    exec_write st lv (let (headers', next') := push_front headers next count in ValBaseStack headers' size next') st' ->
+    exec_builtin read_one_bit p st lv "setInvalid" [] st' (SReturn ValBaseNull)
+| exec_builtin_push_front : forall p st lv headers next count st',
+    exec_read st lv (ValBaseStack headers next) ->
+    exec_write st lv (push_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "push_front" [ValBaseInteger count] st' (SReturn ValBaseNull)
-| exec_builtin_pop_front : forall p st lv headers size next count st',
-    exec_read st lv (ValBaseStack headers size next) ->
-    exec_write st lv (let (headers', next') := pop_front headers next count in ValBaseStack headers' size next') st' ->
+| exec_builtin_pop_front : forall p st lv headers next count st',
+    exec_read st lv (ValBaseStack headers next) ->
+    exec_write st lv (pop_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).
 
 Definition is_builtin_func (expr : @Expression tags_t) : bool :=

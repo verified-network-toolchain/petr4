@@ -73,10 +73,9 @@ Section ValueTyping.
     | typ_union : forall vs ts,
         AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseUnion vs) (TypHeaderUnion ts)
-    | typ_stack : forall s n vs ts,
-        length vs = N.to_nat s ->
+    | typ_stack : forall n vs ts,
         Forall (fun v => val_typ v (TypHeader ts)) vs ->
-        val_typ (ValBaseStack vs s n) (TypArray (TypHeader ts) n)
+        val_typ (ValBaseStack vs n) (TypArray (TypHeader ts) n)
     | typ_enumfield : forall ename member members,
         List.In member members ->
         val_typ
@@ -130,11 +129,10 @@ Section ValueTyping.
           AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
           AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseUnion vs) (TypHeaderUnion ts).
-      Hypothesis HStack : forall s n vs ts,
-          length vs = N.to_nat s ->
+      Hypothesis HStack : forall n vs ts,
           Forall (fun v => val_typ v (TypHeader ts)) vs ->
           Forall (fun v => P v (TypHeader ts)) vs ->
-          P (ValBaseStack vs s n) (TypArray (TypHeader ts) n).
+          P (ValBaseStack vs n) (TypArray (TypHeader ts) n).
       Hypothesis HEnum : forall ename member members,
           List.In member members ->
           P
@@ -195,7 +193,7 @@ Section ValueTyping.
           | typ_struct _ _ H => HStruct _ _ H (alind H)
           | typ_header b _ _ H => HHeader b _ _ H (alind H)
           | typ_union _ _ H => HUnion _ _ H (alind H)
-          | typ_stack _ n _ _ Hl H => HStack _ n _ _ Hl H (same_typ_ind H)
+          | typ_stack n _ _ H => HStack n _ _ H (same_typ_ind H)
           | typ_enumfield x _ _ H => HEnum x _ _ H
           | typ_senumfield _ _ _ _ _ H1 H2 Hv =>
             HSenum _ _ _ _ _ H1 H2 Hv (vtind _ _ Hv)
@@ -279,7 +277,6 @@ Section ValueTyping.
             map_map, <- Forall2_map_both.
             assumption.
         - constructor.
-          + rewrite map_length; assumption.
           + rewrite Forall_map.
             unfold Basics.compose.
             assumption.

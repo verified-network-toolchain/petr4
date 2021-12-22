@@ -23,7 +23,7 @@ Section Value.
   | ValBaseStruct (fields: StringAList (@ValueBase bit))
   | ValBaseHeader (fields: StringAList (@ValueBase bit)) (is_valid: bit)
   | ValBaseUnion (fields: StringAList (@ValueBase bit))
-  | ValBaseStack (headers: list (@ValueBase bit)) (size: N) (next: N)
+  | ValBaseStack (headers: list (@ValueBase bit)) (next: N)
   | ValBaseEnumField (typ_name: string) (enum_name: string)
   | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit)).
 
@@ -122,8 +122,8 @@ Section Value.
         Forall (fun '(_,v) => P v) vs -> P (ValBaseHeader vs b).
     Hypothesis HUnion : forall vs,
         Forall (fun '(_,v) => P v) vs -> P (ValBaseUnion vs).
-    Hypothesis HStack : forall vs n i,
-        Forall P vs -> P (ValBaseStack vs n i).
+    Hypothesis HStack : forall vs i,
+        Forall P vs -> P (ValBaseStack vs i).
     Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
     Hypothesis HSenumField : forall t x v,
         P v -> P (ValBaseSenumField t x v).
@@ -158,7 +158,7 @@ Section Value.
         | ValBaseStruct vs        => HStruct _ (alind vs)
         | ValBaseHeader vs b      => HHeader _ b (alind vs)
         | ValBaseUnion vs         => HUnion _ (alind vs)
-        | ValBaseStack vs n i     => HStack _ n i (lind vs)
+        | ValBaseStack vs i       => HStack _ i (lind vs)
         | ValBaseEnumField t x    => HEnumField t x
         | ValBaseSenumField t x v => HSenumField t x _ (vind v)
         (*| ValBaseSenum vs         => HSenum _ (alind vs)*)
@@ -189,8 +189,8 @@ Section Value.
         ValBaseHeader (map (fun '(x,v) => (x, ValueBaseMap v)) vs) (f a)
       | ValBaseUnion vs     =>
         ValBaseUnion (map (fun '(x,v) => (x, ValueBaseMap v)) vs)
-      | ValBaseStack vs n i =>
-        ValBaseStack (map ValueBaseMap vs) n i
+      | ValBaseStack vs i =>
+        ValBaseStack (map ValueBaseMap vs) i
       | ValBaseEnumField t x => ValBaseEnumField t x
       | ValBaseSenumField t x v => ValBaseSenumField t x (ValueBaseMap v)
       (*| ValBaseSenum vs =>

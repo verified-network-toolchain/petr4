@@ -1361,10 +1361,12 @@ Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> st
     exec_write st lv (ValBaseHeader fields (Some false)) st' ->
     exec_builtin read_one_bit p st lv "setInvalid" [] st' (SReturn ValBaseNull)
 | exec_builtin_push_front : forall p st lv headers next count st',
+    count >= 0 ->
     exec_read st lv (ValBaseStack headers next) ->
     exec_write st lv (push_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "push_front" [ValBaseInteger count] st' (SReturn ValBaseNull)
 | exec_builtin_pop_front : forall p st lv headers next count st',
+    count >= 0 ->
     exec_read st lv (ValBaseStack headers next) ->
     exec_write st lv (pop_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).

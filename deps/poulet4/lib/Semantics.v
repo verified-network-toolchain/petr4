@@ -1303,7 +1303,7 @@ Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bo
 
 Definition dummy_val {bit} : (@ValueBase bit) := ValBaseNull.
 Global Opaque dummy_val.
-Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
+Global Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
 
 Definition push_front (headers : list Sval) (next : N) (count : Z) : Sval :=
   let size := Zlength headers in

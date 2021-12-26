@@ -26,7 +26,7 @@ Definition d := NoInfo.
 
 Import SimpleNat.
 
-Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
+(* Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
 (* Compute p4cub_simple_nat. *)
 
 Definition simple_nat_test_case :=
@@ -76,4 +76,4 @@ Definition multiprotocol_test_case :=
 (* Compute multiprotocol_test_case. *)
 
 Lemma multiprotocol_test : is_ok multiprotocol_test_case.
-Proof. compute. trivial. Qed.
+Proof. compute. trivial. Qed. *)

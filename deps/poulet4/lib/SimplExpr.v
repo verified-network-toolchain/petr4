@@ -211,6 +211,12 @@ Section Transformer.
     | x :: rest => BlockCons x (prepend_to_block rest blk)
     end.
 
+  Definition stmts_to_block (l : list (@Statement tags_t)) :=
+    prepend_to_block l (BlockEmpty default_tag).
+
+  Definition stmts_to_stmt (l : list (@Statement tags_t)) :=
+    MkStatement default_tag (StatBlock (stmts_to_block l)) StmUnit.
+
   Definition transform_exp_stmt (nameIdx: N) (exp: @Expression tags_t):
     (list (@Statement tags_t) * (@Expression tags_t) * N) :=
       let (l1e1, n1) := transform_exp nameIdx exp in
@@ -267,10 +273,12 @@ Section Transformer.
       let (l1e1, n1) := transform_exp_stmt nameIdx cond in
       let (l1, e1) := l1e1 in
       let (stl2, n2) := transform_stmt n1 tru in
-      let (stl3, n3) := match fls with
-                        | None => (nil, n2)
-                        | Some stmt' => transform_stmt n2 stmt'
-                        end in (l1 ++ stl2 ++ stl3, n3)
+      let (stl3, n3) :=
+        match fls with
+        | None => (nil, n2)
+        | Some stmt' => transform_stmt n2 stmt'
+        end in
+      (l1 ++ [MkStatement tags (StatConditional e1 (stmts_to_stmt stl2) (Some (stmts_to_stmt stl3))) typ], n3)
     | StatBlock block =>
       let (blk, n1) := transform_blk nameIdx block in
       ([MkStatement tags (StatBlock blk) typ], n1)

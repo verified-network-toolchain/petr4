@@ -6,7 +6,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
 Require Export Poulet4.Value Poulet4.ValueUtil.
 Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
-Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
+Require Export Poulet4.Target Poulet4.SyntaxUtil VST.zlist.Zlist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
 Local Open Scope string_scope.
@@ -424,7 +424,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             exec_expr read_one_bit this st array (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
-                            Znth_def idxz headers default_header = header ->
+                            Znth (d := default_header) idxz headers = header ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpArrayAccess array idx) typ dir)
                             header
@@ -986,7 +986,7 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                             exec_read st lv (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
-                            Znth_def (Z.of_N idx) headers default_header = header ->
+                            Znth (d := default_header) (Z.of_N idx) headers = header ->
                             exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
 (* If any of these kinds of writes are performed:

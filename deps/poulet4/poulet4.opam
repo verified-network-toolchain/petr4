@@ -19,4 +19,5 @@ depends: [
   "coq-equations" {build}
   "coq-record-update" {build}
   "coq-compcert" {build}
+  "coq-vst-zlist" {build}
 ]

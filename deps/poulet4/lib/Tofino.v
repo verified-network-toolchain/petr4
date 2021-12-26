@@ -15,7 +15,7 @@ Require Import Poulet4.P4Int.
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.Target.
 Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 Require Import Poulet4.Maps.
 Require Import Poulet4.CoqLib.
 Require Import Poulet4.P4Notations.

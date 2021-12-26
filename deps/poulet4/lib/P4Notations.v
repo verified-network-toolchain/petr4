@@ -1,7 +1,7 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Strings.String.
 Require Import Poulet4.P4String.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 
 (* Definition MkIdent {tags_t : Type} {tags_t_inhabitant : Inhabitant tags_t} (name : string) :=
   P4String.Build_t tags_t default name. *)

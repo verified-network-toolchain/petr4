@@ -10,7 +10,7 @@ Require Import Poulet4.Value.
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.P4String.
 Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 Require Import Poulet4.AList.
 Require Import Poulet4.CoqLib.
 

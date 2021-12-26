@@ -1,7 +1,7 @@
 Require Import Coq.ZArith.ZArith
         Coq.micromega.Lia
         Coq.Bool.Bool.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 Require Import Coq.Lists.List.
 Require Import Poulet4.SyntaxUtil.
 Import ListNotations.

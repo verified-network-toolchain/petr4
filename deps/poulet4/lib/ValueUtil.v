@@ -1,6 +1,6 @@
 Require Import Coq.Strings.String Coq.ZArith.ZArith Coq.Lists.List.
 Require Import Poulet4.Value Poulet4.Typed Poulet4.P4String
-               Poulet4.SyntaxUtil Poulet4.AList Poulet4.Sublist.
+               Poulet4.SyntaxUtil Poulet4.AList VST.zlist.Zlist.
 Require Import Poulet4.P4Notations.
 Import ListNotations.
 

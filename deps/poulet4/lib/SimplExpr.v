@@ -199,7 +199,11 @@ Section Transformer.
     prepend_to_block l (BlockEmpty default_tag).
 
   Definition stmts_to_stmt (l : list (@Statement tags_t)) :=
-    MkStatement default_tag (StatBlock (stmts_to_block l)) StmUnit.
+    match l with
+    | [stmt] => stmt
+    | _ =>
+        MkStatement default_tag (StatBlock (stmts_to_block l)) StmUnit
+    end.
 
   Definition transform_exp_stmt (nameIdx: N) (exp: @Expression tags_t):
     (list (@Statement tags_t) * (@Expression tags_t) * N) :=

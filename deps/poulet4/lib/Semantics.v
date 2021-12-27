@@ -8,6 +8,7 @@ Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
 Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
+From Poulet4.Monads Require Import Monad Option.
 Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
@@ -96,149 +97,57 @@ Section WithGenv.
 Variable ge : genv.
 
 Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
-  let fix get_real_types (typs: list (@P4Type tags_t)):
-    option (list (@P4Type tags_t)) :=
-    match typs with
-    | [] => Some []
-    | a :: rest => match get_real_type a with
-                   | None => None
-                   | Some reala => match get_real_types rest with
-                                   | Some realrest => Some (reala :: realrest)
-                                   | None => None
-                                   end
-                   end
-    end in
-  let fix get_real_alist (fields: P4String.AList tags_t P4Type):
-    option (P4String.AList tags_t P4Type) :=
-    match fields with
-    | [] => Some []
-    | (a, t) :: rest =>
-        match get_real_type t with
-        | None => None
-        | Some realt => match get_real_alist rest with
-                        | Some realrest => Some ((a, realt) :: realrest)
-                        | None => None
-                        end
-        end
-    end in
-  let get_real_param (param: P4Parameter): option P4Parameter :=
-    match param with
-    | MkParameter opt dir typ argid var =>
-        match get_real_type typ with
-        | Some realt => Some (MkParameter opt dir realt argid var)
-        | None => None
-        end
-    end in
-  let fix get_real_params (params: list P4Parameter) : option (list P4Parameter) :=
-    match params with
-    | [] => Some []
-    | p :: rest => match get_real_param p with
-                   | Some realp => match get_real_params rest with
-                                   | Some realrest => Some (realp :: realrest)
-                                   | None => None
-                                   end
-                   | None => None
-                   end
-    end in
-  let get_real_ctrl (ctrl: ControlType): option ControlType :=
-    match ctrl with
-    | MkControlType type_params params =>
-        match get_real_params params with
-        | Some realps => Some (MkControlType type_params realps)
-        | None => None
-        end
-    end in
-  let get_real_func (fn: FunctionType): option FunctionType :=
-    match fn with
-    | MkFunctionType type_params params kind ret =>
-        match get_real_type ret with
-        | None => None
-        | Some realret => match get_real_params params with
-                          | Some realps => Some (MkFunctionType type_params realps kind realret)
-                          | None => None
-                          end
-        end
-    end in
   match typ with
   | TypTypeName name => IdentMap.get (str name) (ge_typ ge)
-  | TypArray atyp size => match get_real_type atyp with
-                          | Some realtyp => Some (TypArray atyp size)
-                          | None => None
-                          end
-  | TypTuple types => match get_real_types types with
-                      | Some realtypes => Some (TypTuple realtypes)
-                      | None => None
-                      end
-  | TypList types => match get_real_types types with
-                      | Some realtypes => Some (TypList realtypes)
-                      | None => None
-                     end
-  | TypRecord fields => match get_real_alist fields with
-                        | Some realfs => Some (TypRecord realfs)
-                        | None => None
-                        end
-  | TypSet elt_type => match get_real_type elt_type with
-                       | Some realt => Some (TypSet realt)
-                       | None => None
-                       end
-  | TypHeader fields => match get_real_alist fields with
-                        | Some realfs => Some (TypHeader realfs)
-                        | None => None
-                        end
-  | TypHeaderUnion fields => match get_real_alist fields with
-                             | Some realfs => Some (TypHeaderUnion realfs)
-                             | None => None
-                             end
-  | TypStruct fields => match get_real_alist fields with
-                        | Some realfs => Some (TypStruct realfs)
-                        | None => None
-                        end
-  | TypEnum name (Some atyp) members => match get_real_type atyp with
-                                        | Some realt => Some (TypEnum name (Some realt) members)
-                                        | None => None
-                                        end
+  | TypArray atyp size =>
+    let^ realtyp := get_real_type atyp in TypArray realtyp size
+  | TypTuple types =>
+    sequence (List.map get_real_type types) >>| TypTuple
+  | TypList types =>
+    sequence (List.map get_real_type types) >>| TypList
+  | TypRecord fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type t >>| pair a)
+         fields)
+      >>| TypRecord
+  | TypSet elt_type => get_real_type elt_type >>| TypSet
+  | TypHeader fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type t >>| pair a)
+         fields)
+      >>| TypHeader
+  | TypHeaderUnion fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type t >>| pair a)
+         fields)
+      >>| TypHeaderUnion
+  | TypStruct fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type t >>| pair a)
+         fields)
+      >>| TypStruct
+  | TypEnum name (Some atyp) members =>
+    let^ realt := get_real_type atyp in TypEnum name (Some realt) members
   | TypNewType _ atyp => get_real_type atyp
-  | TypControl ctrl => match get_real_ctrl ctrl with
-                       | Some realcs => Some (TypControl realcs)
-                       | None => None
-                       end
-  | TypParser ctrl => match get_real_ctrl ctrl with
-                      | Some realcs => Some (TypParser realcs)
-                      | None => None
-                      end
-  | TypFunction fn => match get_real_func fn with
-                      | Some realfn => Some (TypFunction realfn)
-                      | None => None
-                      end
+  | TypControl ctrl => get_real_ctrl ctrl >>| TypControl
+  | TypParser ctrl => get_real_ctrl ctrl >>| TypParser
+  | TypFunction fn => get_real_func fn >>| TypFunction
   | TypAction data_params ctrl_params =>
-      match get_real_params data_params with
-      | None => None
-      | Some datas => match get_real_params ctrl_params with
-                      | None => None
-                      | Some ctrls => Some (TypAction datas ctrls)
-                      end
-      end
+    let* datas := sequence (List.map get_real_param data_params) in
+    sequence (List.map get_real_param ctrl_params) >>| TypAction datas
   | TypPackage typeps wildcards params =>
-      match get_real_params params with
-      | None => None
-      | Some reals => Some (TypPackage typeps wildcards reals)
-      end
+    sequence (List.map get_real_param params) >>| TypPackage typeps wildcards
   | TypSpecializedType base args =>
-      match get_real_type base with
-      | None => None
-      | Some realb => match get_real_types args with
-                      | None => None
-                      | Some realargs => Some (TypSpecializedType realb realargs)
-                      end
-      end
+    let* realb := get_real_type base in
+    sequence (List.map get_real_type args) >>| TypSpecializedType realb
   | TypConstructor typeps wildcards params ret =>
-      match get_real_type ret with
-      | None => None
-      | Some realret => match get_real_params params with
-                        | None => None
-                        | Some rps => Some (TypConstructor typeps wildcards rps realret)
-                        end
-      end
+    let* realret := get_real_type ret in
+    let^ rps :=  sequence (List.map get_real_param params) in
+    TypConstructor typeps wildcards rps realret
   | TypBool => Some TypBool
   | TypString => Some TypString
   | TypInteger => Some TypInteger
@@ -251,7 +160,25 @@ Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   | TypExtern e => Some (TypExtern e)
   | TypEnum a None b => Some (TypEnum a None b)
   | TypTable a => Some (TypTable a)
-  end.
+  end
+with get_real_param (param: P4Parameter): option P4Parameter :=
+       match param with
+       | MkParameter opt dir typ argid var =>
+         let^ realt := get_real_type typ in
+         MkParameter opt dir realt argid var
+       end
+with get_real_ctrl (ctrl: ControlType): option ControlType :=
+       match ctrl with
+       | MkControlType type_params params =>
+         sequence (List.map get_real_param params) >>| MkControlType type_params
+       end
+with get_real_func (fn: FunctionType): option FunctionType :=
+       match fn with
+       | MkFunctionType type_params params kind ret =>
+         let* realret := get_real_type ret in
+         let^ realps  := sequence (List.map get_real_param params) in
+         MkFunctionType type_params realps kind realret
+       end.
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in

@@ -305,3 +305,8 @@ with P4Parameter_ok {tags_t : Type} (Δ : list string) : P4Parameter -> Prop :=
 | parameter_ok b d τ n x :
     Δ ⊢ok τ ->
     P4Parameter_ok Δ (MkParameter b d τ n x).
+
+Scheme my_P4Type_ok_ind       := Induction for P4Type_ok       Sort Prop
+  with my_ControlType_ok_ind  := Induction for ControlType_ok  Sort Prop
+  with my_FunctionType_ok_ind := Induction for FunctionType_ok Sort Prop
+  with my_P4Parameter_ok_ind  := Induction for P4Parameter_ok  Sort Prop.

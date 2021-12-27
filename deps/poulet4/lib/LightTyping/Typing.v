@@ -111,6 +111,10 @@ Section TypingDefs.
   Definition typ_of_stmt
              '(MkStatement _ _ t : stmt) : StmType := t.
   
+  Definition delta_genv_prop
+             (ge : @genv_typ tags_t) : list string -> Prop :=
+    Forall (fun X => exists t, IdentMap.get X ge = Some t).
+  
   (** Expression typing. *)
   Definition
     expr_types
@@ -121,6 +125,7 @@ Section TypingDefs.
     : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
+      delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_expr_prop this Γ st ge ->
       Δ ⊢ok typ_of_expr e ->
@@ -247,6 +252,7 @@ Section TypingDefs.
     : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
+      delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
       (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
@@ -274,6 +280,7 @@ Section TypingDefs.
     : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
+      delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
       (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
@@ -289,6 +296,7 @@ Section TypingDefs.
     (call : expr)     (* Call expression. *)
     : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop) (ge : genv) (st : state),
+      delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
       Δ ⊢ok typ_of_expr call ->
@@ -310,6 +318,11 @@ Notation "Δ '~' Γ '⊢ᵪ' e ≀ this"
   := (call_types this Δ Γ e)
        (at level 80, no associativity) : type_scope.
 
+Scheme my_P4Type_ind       := Induction for P4Type       Sort Prop
+  with my_ControlType_ind  := Induction for ControlType  Sort Prop
+  with my_FunctionType_ind := Induction for FunctionType Sort Prop
+  with my_P4Parameter_ind  := Induction for P4Parameter  Sort Prop.
+
 (* TODO. *)
 Section Soundness.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
@@ -325,6 +338,78 @@ Section Soundness.
 
   Context `{T : @Target tags_t expr}.
 
+  Definition
+    ok_get_real_type_ex_def
+    Δ τ (H: Δ ⊢ok τ) := forall ge : genv,
+      delta_genv_prop ge Δ ->
+      exists ρ, get_real_type ge τ = Some ρ.
+  
+  Definition
+    ok_get_real_ctrl_ex_def
+    Δ ct (H: ControlType_ok Δ ct) := forall ge : genv,
+      delta_genv_prop ge Δ ->
+      exists ct', get_real_ctrl ge ct = Some ct'.
+
+  Definition
+    ok_get_real_func_ex_def
+    Δ ft (H : FunctionType_ok Δ ft) := forall ge : genv,
+      delta_genv_prop ge Δ ->
+      exists ft', get_real_func ge ft = Some ft'.
+
+  Definition
+    ok_get_real_param_ex_def
+    Δ p (H: P4Parameter_ok Δ p) := forall ge : genv,
+      delta_genv_prop ge Δ ->
+      exists p', get_real_param ge p = Some p'.
+
+  Definition
+    ok_get_real_type_ex_ind :=
+    my_P4Type_ok_ind
+      _ ok_get_real_type_ex_def
+      ok_get_real_ctrl_ex_def
+      ok_get_real_func_ex_def
+      ok_get_real_param_ex_def.
+  
+  Lemma ok_get_real_type_ex :
+    forall Δ τ (H : Δ ⊢ok τ),
+      ok_get_real_type_ex_def Δ τ H.
+  Proof.
+    apply ok_get_real_type_ex_ind;
+      unfold ok_get_real_type_ex_def,
+      ok_get_real_ctrl_ex_def,
+      ok_get_real_func_ex_def,
+      ok_get_real_param_ex_def; cbn;
+        unfold option_bind, option_ret; eauto 2.
+    - intros d t n H Hge ge Hdge.
+      apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
+    - intros d ts H ge Hge. admit.
+      (* Need custom induction principle...sigh. *)
+    - admit.
+    - admit.
+    - intros d t H Hge ge Hdge.
+      apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
+    - admit.
+    - admit.
+    - admit.
+    - intros d X ot mems H ge Hdge.
+      inversion H; subst; eauto. admit.
+      (* Need custom induction principle. *)
+    - intros d X H ge Hdge.
+      unfold delta_genv_prop in Hdge.
+      rewrite Forall_forall in Hdge.
+      intuition.
+    - intros d X t H Hge ge Hdge. admit.
+      (* TODO: maybe need to change [get_real_type]. *)
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+  Admitted.
+  
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
   Notation run_blk := (@exec_block tags_t dummy T).
@@ -342,7 +427,7 @@ Section Soundness.
 
     Ltac soundtac :=
       autounfold with *;
-      intros rob ge st Hrob Hg Hok;
+      intros rob ge st Hdlta Hrob Hg Hok;
       split; eauto;
       try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
   
@@ -389,26 +474,38 @@ Section Soundness.
     Qed.
     
     Lemma name_sound : forall tag x loc t dir,
+        is_directional dir = true ->
         typ_of_loc_var loc Γ = Some t ->
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
     Proof.
-      intros i x l t d Hgt; soundtac.
-    - destruct l as [lp | lp]; simpl in Hgt;
-        (*eapply envs_same_some_l in Hgt as [v Hv]; *) eauto.
-      (*exists v. constructor; simpl.*)
-      (** TODO:
-          1. Need type preservation to [eval_val_to_sval].
-          2. Perhaps [envs_same] needs to include [genv]. *)
-      admit. admit.
-    - destruct l as [lp | lp]; simpl in Hgt;
-        simpl in *; eauto.
-    Admitted.
+      intros i x l t d Hd Hgt; soundtac.
+      - unfold gamma_expr_prop, gamma_var_prop, gamma_var_domain in Hg.
+        destruct Hg as [[Hg _] _].
+        assert (Hv : exists v, loc_to_sval l st = Some v).
+        { destruct (loc_to_sval l st) as [v |] eqn:Hv; eauto.
+          rewrite <- Hg, Hgt in Hv; discriminate. }
+        destruct Hv; eauto.
+      - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
+        destruct Hg as [[_ Hg] _]; eauto.
+      - rewrite Hd in H7; discriminate.
+    Qed.
 
     Lemma constant_sound : forall tag x loc t dir,
+        is_directional dir = false ->
         typ_of_loc_const this loc Γ = Some t ->
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
     Proof.
-    Admitted.
+      intros i x l t d Hd Hgt; soundtac.
+      - unfold gamma_expr_prop, gamma_const_prop, gamma_const_domain in Hg.
+        destruct Hg as (_ & Hg & _).
+        assert (Hv : exists v, loc_to_sval_const ge this l = Some v).
+        { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
+          rewrite <- Hg, Hgt in Hv; discriminate. }
+        destruct Hv; eauto.
+      - rewrite Hd in H7; discriminate.
+      - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
+        destruct Hg as (_ & _ & Hg); eauto.
+    Qed.
     
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->
@@ -420,15 +517,36 @@ Section Soundness.
     Proof.
       intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros rob ge st Hrob Hg Hok. simpl in *.
+      intros rob ge st Hrob Hg Hok; simpl in *.
       rewrite Ht1, Ht2 in *.
       pose proof He1 rob ge st Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
       pose proof He2 rob ge st Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
       split.
-      - pose proof He1' v1 Hev1 as Hv1.
+      - assert (Hv2': exists v2', sval_to_val rob v2 v2')
+          by eauto using exec_val_exists.
+        pose proof He1' v1 Hev1 as Hv1.
         pose proof He2' v2 Hev2 as Hv2.
-        inversion Hv1; inversion Hv2; subst.
-        (* Need to know [N_of_value idx < n]. *) admit.
+        destruct Hv2' as [v2' Hv2'].
+        inversion Hv1; inversion Hv2; inversion Hv2';
+          subst; try discriminate.
+        rename v into bs; inversion H7; subst; clear H7.
+        assert
+          (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
+          by (simpl; eauto); destruct Hz as [z Hz].
+        assert (Hreal: exists real, get_real_type ge (TypHeader ts) = Some real).
+        { assert
+            (Hdelta :
+               Forall
+                 (fun X =>
+                    exists t, IdentMap.get X (ge_typ ge) = Some t) Δ) by admit.
+          assert
+            (Hge_typ : forall t,
+                Δ ⊢ok t ->
+                forall v, val_typ v t ->
+                     exists t', get_real_type ge t = Some t' /\
+                           val_typ v t'.
+                                           
+            ).
       - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
     (* Molly commented the things below out since 
        things does not work on H7 after Semantics.v changes *)

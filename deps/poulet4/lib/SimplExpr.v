@@ -67,8 +67,7 @@ Section Transformer.
       (l1 ++ l2, MkExpression tag (ExpArrayAccess e1 e2) typ dir, n2)
     | ExpBitStringAccess bits lo hi =>
       let '(l1, e1, n1) := transform_exp nameIdx bits in
-      (l1, MkExpression tag (ExpBitStringAccess e1 lo hi)
-                                                typ dir, n1)
+      (l1, MkExpression tag (ExpBitStringAccess e1 lo hi) typ dir, n1)
     | ExpList value =>
       let '(l1, e1, n1) :=
           ((fix transform_list (idx: N) (l: list (@Expression tags_t)):
@@ -137,7 +136,7 @@ Section Transformer.
               end) n0 args) in
       (l0 ++ l1 ++ [(N_to_tempvar n1,
                MkExpression tag (ExpFunctionCall e0 type_args e1) typ dir)],
-       MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ dir, add1 n1)
+       MkExpression tag (ExpName (BareName (N_to_tempvar n1)) NoLocator) typ InOut, add1 n1)
     | ExpNamelessInstantiation typ' args =>
       (nil, MkExpression tag (ExpNamelessInstantiation typ' args) typ dir, nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)

@@ -318,11 +318,6 @@ Notation "Δ '~' Γ '⊢ᵪ' e ≀ this"
   := (call_types this Δ Γ e)
        (at level 80, no associativity) : type_scope.
 
-Scheme my_P4Type_ind       := Induction for P4Type       Sort Prop
-  with my_ControlType_ind  := Induction for ControlType  Sort Prop
-  with my_FunctionType_ind := Induction for FunctionType Sort Prop
-  with my_P4Parameter_ind  := Induction for P4Parameter  Sort Prop.
-
 (* TODO. *)
 Section Soundness.
   Context {tags_t : Type} {dummy : Inhabitant tags_t}.
@@ -339,29 +334,25 @@ Section Soundness.
   Context `{T : @Target tags_t expr}.
 
   Definition
-    ok_get_real_type_ex_def
-    Δ τ (H: Δ ⊢ok τ) := forall ge : genv,
+    ok_get_real_type_ex_def Δ τ := forall ge : genv,
       delta_genv_prop ge Δ ->
       exists ρ, get_real_type ge τ = Some ρ.
   
   Definition
-    ok_get_real_ctrl_ex_def
-    Δ ct (H: ControlType_ok Δ ct) := forall ge : genv,
+    ok_get_real_ctrl_ex_def Δ ct := forall ge : genv,
       delta_genv_prop ge Δ ->
       exists ct', get_real_ctrl ge ct = Some ct'.
 
   Definition
-    ok_get_real_func_ex_def
-    Δ ft (H : FunctionType_ok Δ ft) := forall ge : genv,
+    ok_get_real_func_ex_def Δ ft := forall ge : genv,
       delta_genv_prop ge Δ ->
       exists ft', get_real_func ge ft = Some ft'.
 
   Definition
-    ok_get_real_param_ex_def
-    Δ p (H: P4Parameter_ok Δ p) := forall ge : genv,
+    ok_get_real_param_ex_def Δ p := forall ge : genv,
       delta_genv_prop ge Δ ->
       exists p', get_real_param ge p = Some p'.
-
+  
   Definition
     ok_get_real_type_ex_ind :=
     my_P4Type_ok_ind
@@ -371,8 +362,8 @@ Section Soundness.
       ok_get_real_param_ex_def.
   
   Lemma ok_get_real_type_ex :
-    forall Δ τ (H : Δ ⊢ok τ),
-      ok_get_real_type_ex_def Δ τ H.
+    forall Δ τ, Δ ⊢ok τ ->
+      ok_get_real_type_ex_def Δ τ.
   Proof.
     apply ok_get_real_type_ex_ind;
       unfold ok_get_real_type_ex_def,
@@ -382,18 +373,184 @@ Section Soundness.
         unfold option_bind, option_ret; eauto 2.
     - intros d t n H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
-    - intros d ts H ge Hge. admit.
-      (* Need custom induction principle...sigh. *)
-    - admit.
-    - admit.
+    - intros d ts Hts IHts ge Hge.
+      rewrite Forall_forall in IHts.
+      specialize IHts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := get_real_type ge)
+        in Hts'.
+      rewrite Forall2_sequence_iff in Hts'.
+      rewrite Hts'; eauto.
+    - intros d ts Hts IHts ge Hge.
+      rewrite Forall_forall in IHts.
+      specialize IHts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := get_real_type ge)
+        in Hts'.
+      rewrite Forall2_sequence_iff in Hts'.
+      rewrite Hts'; eauto.
+    - intros d xts Hxts IHxts ge Hge.
+      rewrite Forall_forall in IHxts.
+      specialize IHxts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite map_pat_both.
+      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
+      { rewrite map_fst_combine; try reflexivity.
+        apply Forall2_length in Hts'.
+        repeat rewrite map_length; assumption. }
+      assert (Hsnd :
+                Forall2
+                  (fun a b => get_real_type ge a = Some b)
+                  (map snd xts) (map snd (combine (map fst xts) ts'))).
+      { rewrite map_snd_combine.
+        - rewrite <- Forall2_map_l. assumption.
+        - apply Forall2_length in Hts'.
+          repeat rewrite map_length in *; assumption. }
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
+        in Hts'.
+      rewrite <- map_map with (f := snd) in Hts'.
+      pose proof conj Hfst Hsnd as H.
+      rewrite <- Forall2_destr_pair_eq in H.
+      rewrite Forall2_map_l
+        with
+          (f :=
+             fun uv =>
+               match get_real_type ge (snd uv) with
+               | Some w => Some (fst uv, w)
+               | None   => None
+               end)
+          (R := fun uv uw => uv = Some uw) in H.
+      rewrite Forall2_sequence_iff in H.
+      unfold option_monad_inst in *; unfold option_monad in *.
+      rewrite H; eauto.
     - intros d t H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
-    - admit.
-    - admit.
-    - admit.
-    - intros d X ot mems H ge Hdge.
-      inversion H; subst; eauto. admit.
-      (* Need custom induction principle. *)
+    - intros d xts Hxts IHxts ge Hge.
+      rewrite Forall_forall in IHxts.
+      specialize IHxts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite map_pat_both.
+      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
+      { rewrite map_fst_combine; try reflexivity.
+        apply Forall2_length in Hts'.
+        repeat rewrite map_length; assumption. }
+      assert (Hsnd :
+                Forall2
+                  (fun a b => get_real_type ge a = Some b)
+                  (map snd xts) (map snd (combine (map fst xts) ts'))).
+      { rewrite map_snd_combine.
+        - rewrite <- Forall2_map_l. assumption.
+        - apply Forall2_length in Hts'.
+          repeat rewrite map_length in *; assumption. }
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
+        in Hts'.
+      rewrite <- map_map with (f := snd) in Hts'.
+      pose proof conj Hfst Hsnd as H.
+      rewrite <- Forall2_destr_pair_eq in H.
+      rewrite Forall2_map_l
+        with
+          (f :=
+             fun uv =>
+               match get_real_type ge (snd uv) with
+               | Some w => Some (fst uv, w)
+               | None   => None
+               end)
+          (R := fun uv uw => uv = Some uw) in H.
+      rewrite Forall2_sequence_iff in H.
+      unfold option_monad_inst in *; unfold option_monad in *.
+      rewrite H; eauto.
+    - intros d xts Hxts IHxts ge Hge.
+      rewrite Forall_forall in IHxts.
+      specialize IHxts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite map_pat_both.
+      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
+      { rewrite map_fst_combine; try reflexivity.
+        apply Forall2_length in Hts'.
+        repeat rewrite map_length; assumption. }
+      assert (Hsnd :
+                Forall2
+                  (fun a b => get_real_type ge a = Some b)
+                  (map snd xts) (map snd (combine (map fst xts) ts'))).
+      { rewrite map_snd_combine.
+        - rewrite <- Forall2_map_l. assumption.
+        - apply Forall2_length in Hts'.
+          repeat rewrite map_length in *; assumption. }
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
+        in Hts'.
+      rewrite <- map_map with (f := snd) in Hts'.
+      pose proof conj Hfst Hsnd as H.
+      rewrite <- Forall2_destr_pair_eq in H.
+      rewrite Forall2_map_l
+        with
+          (f :=
+             fun uv =>
+               match get_real_type ge (snd uv) with
+               | Some w => Some (fst uv, w)
+               | None   => None
+               end)
+          (R := fun uv uw => uv = Some uw) in H.
+      rewrite Forall2_sequence_iff in H.
+      unfold option_monad_inst in *; unfold option_monad in *.
+      rewrite H; eauto.
+    - intros d xts Hxts IHxts ge Hge.
+      rewrite Forall_forall in IHxts.
+      specialize IHxts with (ge := ge).
+      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
+      rewrite <- Forall_forall, Forall_exists_factor in H.
+      destruct H as [ts' Hts'].
+      rewrite map_pat_both.
+      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
+      { rewrite map_fst_combine; try reflexivity.
+        apply Forall2_length in Hts'.
+        repeat rewrite map_length; assumption. }
+      assert (Hsnd :
+                Forall2
+                  (fun a b => get_real_type ge a = Some b)
+                  (map snd xts) (map snd (combine (map fst xts) ts'))).
+      { rewrite map_snd_combine.
+        - rewrite <- Forall2_map_l. assumption.
+        - apply Forall2_length in Hts'.
+          repeat rewrite map_length in *; assumption. }
+      rewrite Forall2_map_l
+        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
+        in Hts'.
+      rewrite <- map_map with (f := snd) in Hts'.
+      pose proof conj Hfst Hsnd as H.
+      rewrite <- Forall2_destr_pair_eq in H.
+      rewrite Forall2_map_l
+        with
+          (f :=
+             fun uv =>
+               match get_real_type ge (snd uv) with
+               | Some w => Some (fst uv, w)
+               | None   => None
+               end)
+          (R := fun uv uw => uv = Some uw) in H.
+      rewrite Forall2_sequence_iff in H.
+      unfold option_monad_inst in *; unfold option_monad in *.
+      rewrite H; eauto.
+    - intros d X ot mems H Hot ge Hdge.
+      inversion Hot; subst; eauto.
+      unfold delta_genv_prop in *.
+      pose proof H0 _ (Forall_remove _ _ _ _ Hdge) as [rt Hrt].
+      (* Need to do induction on [P4Type]... sigh... *)
+      (*
     - intros d X H ge Hdge.
       unfold delta_genv_prop in Hdge.
       rewrite Forall_forall in Hdge.
@@ -407,7 +564,7 @@ Section Soundness.
     - admit.
     - admit.
     - admit.
-    - admit.
+    - admit. *)
   Admitted.
   
   Notation run_expr := (@exec_expr tags_t dummy T).

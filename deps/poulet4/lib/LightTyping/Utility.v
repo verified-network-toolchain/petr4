@@ -264,7 +264,18 @@ Inductive
     Δ ⊢ok TypParser pt
 (* TODO: How should externs be handled? *)
 | extern_ok X :
+    List.In (P4String.str X) Δ ->
     Δ ⊢ok TypExtern X
+| function_ok ft :
+    FunctionType_ok Δ ft ->
+    Δ ⊢ok TypFunction ft
+| action_ok ds cs :
+    Forall (P4Parameter_ok Δ) ds ->
+    Forall (P4Parameter_ok Δ) cs ->
+    Δ ⊢ok TypAction ds cs
+| table_ok X :
+    List.In (P4String.str X) Δ ->
+    Δ ⊢ok TypTable X
 (* TODO: how to handle wildcard params? *)
 | package_ok Xs Ys params :
     Forall
@@ -382,8 +393,22 @@ Section OkBoomerInd.
   Hypothesis HParser : forall Δ pt,
       ControlType_ok Δ pt -> Q Δ pt -> P Δ (TypParser pt).
 
-  Hypothesis HExtern : forall Δ X, P Δ (TypExtern X).
+  Hypothesis HExtern : forall Δ X,
+      List.In (P4String.str X) Δ -> P Δ (TypExtern X).
 
+  Hypothesis HFunction : forall Δ ft,
+    FunctionType_ok Δ ft -> R Δ ft -> P Δ (TypFunction ft).
+
+  Hypothesis HAction : forall Δ ds cs,
+      Forall (P4Parameter_ok Δ) ds ->
+      Forall (S Δ) ds ->
+      Forall (P4Parameter_ok Δ) cs ->
+      Forall (S Δ) cs ->
+      P Δ (TypAction ds cs).
+
+  Hypothesis HTable : forall Δ X,
+      List.In (P4String.str X) Δ -> P Δ (TypTable X).
+  
   Hypothesis HPackage : forall Δ Xs Ys params,
       Forall
         (P4Parameter_ok
@@ -436,9 +461,48 @@ Section OkBoomerInd.
       S Δ (MkParameter b d τ n x).
 
   (** Custom induction principles for the [_ok] rules. *)
-  Fail Fixpoint
+  Fixpoint
     my_P4Type_ok_ind
     Δ t (H : Δ ⊢ok t) {struct H} : P Δ t :=
+    let fix my_P4Type_list_ok
+            {Δ} {ts} (H : Forall (fun t => Δ ⊢ok t) ts) {struct H}
+        : Forall (P Δ) ts :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Type_ok_ind _ _ Hh)
+              (my_P4Type_list_ok Ht)
+        end in
+    let fix my_P4Type_alist_ok
+            {Δ} {ts} (H : Forall (fun t => Δ ⊢ok snd t) ts) {struct H}
+        : Forall (fun t => P Δ (snd t)) ts :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Type_ok_ind _ _ Hh)
+              (my_P4Type_alist_ok Ht)
+        end in
+    let my_P4Type_predopt_ok
+          {Δ} {t} (H: predopt (fun τ => Δ ⊢ok τ) t)
+        : predopt (P Δ) t :=
+        match H with
+        | EquivUtil.predop_none _ => EquivUtil.predop_none _
+        | EquivUtil.predop_some _ _ H
+          => EquivUtil.predop_some _ _ (my_P4Type_ok_ind _ _ H)
+        end in
+    let fix my_P4Parameter_list_ok
+            {Δ} {ps}
+            (H : Forall (P4Parameter_ok Δ) ps)
+        : Forall (S Δ) ps :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Parameter_ok_ind _ _ Hh)
+              (my_P4Parameter_list_ok Ht)
+        end in
     match H with
     | bool_ok _ => HBool _
     | integer_ok _ => HInteger _
@@ -461,7 +525,15 @@ Section OkBoomerInd.
     | newType_ok _ _ _ H => HNewType _ _ _ H (my_P4Type_ok_ind _ _ H)
     | control_ok _ _ H => HControl _ _ H (my_ControlType_ok_ind _ _ H)
     | parser_ok _ _ H => HParser _ _ H (my_ControlType_ok_ind _ _ H)
-    | extern_ok _ X => HExtern _ X
+    | extern_ok _ _ H => HExtern _ _ H
+    | function_ok _ _ H
+      => HFunction _ _ H (my_FunctionType_ok_ind _ _ H)
+    | action_ok _ _ _ Hds Hcs
+      => HAction
+          _ _ _
+          Hds (my_P4Parameter_list_ok Hds)
+          Hcs (my_P4Parameter_list_ok Hcs)
+    | table_ok _ _ H => HTable _ _ H
     | package_ok _ _ _ _ H => HPackage _ _ _ _ H (my_P4Parameter_list_ok H)
     | specialized_ok _ _ _ Hts Ht
       => HSpecialized
@@ -474,61 +546,47 @@ Section OkBoomerInd.
           Hps (my_P4Parameter_list_ok Hps)
           Ht (my_P4Type_ok_ind _ _ Ht)
     end
-  with my_P4Type_list_ok
-         {Δ} {ts} (H : Forall (fun t => Δ ⊢ok t) ts) {struct H}
-       : Forall (P Δ) ts :=
-         match H with
-         | Forall_nil _ => Forall_nil _
-         | Forall_cons _ Hh Ht
-           => Forall_cons
-               _ (my_P4Type_ok_ind _ _ Hh)
-               (my_P4Type_list_ok Ht)
-         end
-  with my_P4Type_alist_ok
-         {Δ} {ts} (H : Forall (fun t => Δ ⊢ok snd t) ts) {struct H}
-       : Forall (fun t => P Δ (snd t)) ts :=
-         match H with
-         | Forall_nil _ => Forall_nil _
-         | Forall_cons _ Hh Ht
-           => Forall_cons
-               _ (my_P4Type_ok_ind _ _ Hh)
-               (my_P4Type_alist_ok Ht)
-         end
-  with my_P4Type_predopt_ok
-         {Δ} {t} (H: predopt (fun τ => Δ ⊢ok τ) t) {struct H}
-       : predopt (P Δ) t :=
-         match H with
-         | EquivUtil.predop_none _ => EquivUtil.predop_none _
-         | EquivUtil.predop_some _ _ H
-           => EquivUtil.predop_some _ _ (my_P4Type_ok_ind _ _ H)
-         end
   with my_ControlType_ok_ind
          Δ ct (H : ControlType_ok Δ ct) : Q Δ ct :=
+         let fix my_P4Parameter_list_ok
+                 {Δ} {ps}
+                 (H : Forall (P4Parameter_ok Δ) ps)
+             : Forall (S Δ) ps :=
+             match H with
+             | Forall_nil _ => Forall_nil _
+             | Forall_cons _ Hh Ht
+               => Forall_cons
+                   _ (my_P4Parameter_ok_ind _ _ Hh)
+                   (my_P4Parameter_list_ok Ht)
+             end in
          match H with
          | controlType_ok _ _ _ Hps
            => HControlType _ _ _ Hps (my_P4Parameter_list_ok Hps)
+         end
+  with my_FunctionType_ok_ind
+         Δ ft (H : FunctionType_ok Δ ft) : R Δ ft :=
+         let fix my_P4Parameter_list_ok
+                 {Δ} {ps}
+                 (H : Forall (P4Parameter_ok Δ) ps)
+             : Forall (S Δ) ps :=
+             match H with
+             | Forall_nil _ => Forall_nil _
+             | Forall_cons _ Hh Ht
+               => Forall_cons
+                   _ (my_P4Parameter_ok_ind _ _ Hh)
+                   (my_P4Parameter_list_ok Ht)
+             end in
+         match H with
+         | functionType_ok _ _ _ k _ Hps Hrt
+           => HFunctionType
+               _ _ _ k _
+               Hps (my_P4Parameter_list_ok Hps)
+               Hrt (my_P4Type_ok_ind _ _ Hrt)
          end
   with my_P4Parameter_ok_ind
          Δ p (H : P4Parameter_ok Δ p) : S Δ p :=
          match H with
          | parameter_ok _ b d _ n x H
            => HP4Parameter _ b d _ n x H (my_P4Type_ok_ind _ _ H)
-         end
-  with my_P4Parameter_list_ok
-         {Δ} {ps}
-         (H : Forall (P4Parameter_ok Δ) ps)
-       : Forall (S Δ) ps :=
-         match H with
-         | Forall_nil _ => Forall_nil _
-         | Forall_cons _ Hh Ht
-           => Forall_cons
-               _ (my_P4Parameter_ok_ind _ _ Hh)
-               (my_P4Parameter_list_ok Ht)
          end.
 End OkBoomerInd.
-
-(** TODO: will be replaced by above. *)
-Scheme my_P4Type_ok_ind       := Induction for P4Type_ok       Sort Prop
-  with my_ControlType_ok_ind  := Induction for ControlType_ok  Sort Prop
-  with my_FunctionType_ok_ind := Induction for FunctionType_ok Sort Prop
-  with my_P4Parameter_ok_ind  := Induction for P4Parameter_ok  Sort Prop.

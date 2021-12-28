@@ -94,91 +94,132 @@ Record genv := MkGenv {
 
 Section WithGenv.
 
-Variable ge : genv.
+  Fixpoint
+    get_real_type
+    (get : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+    match typ with
+    | TypTypeName name => IdentMap.get (str name) get
+    | TypArray atyp size =>
+      let^ realtyp := get_real_type get atyp in TypArray realtyp size
+    | TypTuple types =>
+      sequence (List.map (get_real_type get) types) >>| TypTuple
+    | TypList types =>
+      sequence (List.map (get_real_type get) types) >>| TypList
+    | TypRecord fields =>
+      sequence
+        (List.map
+           (fun '(a,t) => get_real_type get t >>| pair a)
+           fields)
+        >>| TypRecord
+    | TypSet elt_type => get_real_type get elt_type >>| TypSet
+    | TypHeader fields =>
+      sequence
+        (List.map
+           (fun '(a,t) => get_real_type get t >>| pair a)
+           fields)
+        >>| TypHeader
+    | TypHeaderUnion fields =>
+      sequence
+        (List.map
+           (fun '(a,t) => get_real_type get t >>| pair a)
+           fields)
+        >>| TypHeaderUnion
+    | TypStruct fields =>
+      sequence
+        (List.map
+           (fun '(a,t) => get_real_type get t >>| pair a)
+           fields)
+        >>| TypStruct
+    | TypEnum X (Some atyp) members =>
+      let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
+      TypEnum X (Some realt) members
+    | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
+    | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
+    | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
+    | TypFunction fn => get_real_func get fn >>| TypFunction
+    | TypAction data_params ctrl_params =>
+      let* datas := sequence (List.map (get_real_param get) data_params) in
+      sequence (List.map (get_real_param get) ctrl_params) >>| TypAction datas
+    | TypPackage Xs wildcards params =>
+      sequence
+        (List.map
+           (get_real_param
+              (IdentMap.removes
+                 (List.map str Xs)
+                 get))
+           params)
+        >>| TypPackage Xs wildcards
+    | TypSpecializedType base args =>
+      let* realb := get_real_type get base in
+      sequence (List.map (get_real_type get) args) >>| TypSpecializedType realb
+    | TypConstructor Xs wildcards params ret =>
+      let* realret :=
+         get_real_type
+           (IdentMap.removes
+              (List.map str Xs) get) ret in
+      let^ rps :=
+         sequence
+           (List.map
+              (get_real_param
+                 (IdentMap.removes
+                    (List.map str Xs) get))
+              params) in
+      TypConstructor Xs wildcards rps realret
+    | TypBool => Some TypBool
+    | TypString => Some TypString
+    | TypInteger => Some TypInteger
+    | TypInt w => Some (TypInt w)
+    | TypBit w => Some (TypBit w)
+    | TypVarBit w => Some (TypVarBit w)
+    | TypError => Some TypError
+    | TypMatchKind => Some TypMatchKind
+    | TypVoid => Some TypVoid
+    | TypExtern e => Some (TypExtern e)
+    | TypEnum a None b => Some (TypEnum a None b)
+    | TypTable a => Some (TypTable a)
+    end
+  with get_real_param
+         (get : genv_typ) (param: P4Parameter): option P4Parameter :=
+         match param with
+         | MkParameter opt dir typ argid var =>
+           let^ realt := get_real_type get typ in
+           MkParameter opt dir realt argid var
+         end
+  with get_real_ctrl
+         (get : genv_typ) (ctrl: ControlType): option ControlType :=
+         match ctrl with
+         | MkControlType Xs params =>
+           sequence
+             (List.map
+                (get_real_param
+                   (IdentMap.removes
+                      (List.map str Xs)
+                      get))
+                params)
+                    >>| MkControlType Xs
+         end
+  with get_real_func
+         (get : genv_typ) (fn: FunctionType): option FunctionType :=
+         match fn with
+         | MkFunctionType Xs params kind ret =>
+           let* realret :=
+              get_real_type
+                (IdentMap.removes
+                   (List.map str Xs)
+                   get)
+                ret in
+           let^ realps :=
+              sequence
+                (List.map
+                   (get_real_param
+                      (IdentMap.removes
+                         (List.map str Xs)
+                         get))
+                   params) in
+           MkFunctionType Xs realps kind realret
+         end.
 
-Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
-  match typ with
-  | TypTypeName name => IdentMap.get (str name) (ge_typ ge)
-  | TypArray atyp size =>
-    let^ realtyp := get_real_type atyp in TypArray realtyp size
-  | TypTuple types =>
-    sequence (List.map get_real_type types) >>| TypTuple
-  | TypList types =>
-    sequence (List.map get_real_type types) >>| TypList
-  | TypRecord fields =>
-    sequence
-      (List.map
-         (fun '(a,t) => get_real_type t >>| pair a)
-         fields)
-      >>| TypRecord
-  | TypSet elt_type => get_real_type elt_type >>| TypSet
-  | TypHeader fields =>
-    sequence
-      (List.map
-         (fun '(a,t) => get_real_type t >>| pair a)
-         fields)
-      >>| TypHeader
-  | TypHeaderUnion fields =>
-    sequence
-      (List.map
-         (fun '(a,t) => get_real_type t >>| pair a)
-         fields)
-      >>| TypHeaderUnion
-  | TypStruct fields =>
-    sequence
-      (List.map
-         (fun '(a,t) => get_real_type t >>| pair a)
-         fields)
-      >>| TypStruct
-  | TypEnum name (Some atyp) members =>
-    let^ realt := get_real_type atyp in TypEnum name (Some realt) members
-  | TypNewType _ atyp => get_real_type atyp
-  | TypControl ctrl => get_real_ctrl ctrl >>| TypControl
-  | TypParser ctrl => get_real_ctrl ctrl >>| TypParser
-  | TypFunction fn => get_real_func fn >>| TypFunction
-  | TypAction data_params ctrl_params =>
-    let* datas := sequence (List.map get_real_param data_params) in
-    sequence (List.map get_real_param ctrl_params) >>| TypAction datas
-  | TypPackage typeps wildcards params =>
-    sequence (List.map get_real_param params) >>| TypPackage typeps wildcards
-  | TypSpecializedType base args =>
-    let* realb := get_real_type base in
-    sequence (List.map get_real_type args) >>| TypSpecializedType realb
-  | TypConstructor typeps wildcards params ret =>
-    let* realret := get_real_type ret in
-    let^ rps :=  sequence (List.map get_real_param params) in
-    TypConstructor typeps wildcards rps realret
-  | TypBool => Some TypBool
-  | TypString => Some TypString
-  | TypInteger => Some TypInteger
-  | TypInt w => Some (TypInt w)
-  | TypBit w => Some (TypBit w)
-  | TypVarBit w => Some (TypVarBit w)
-  | TypError => Some TypError
-  | TypMatchKind => Some TypMatchKind
-  | TypVoid => Some TypVoid
-  | TypExtern e => Some (TypExtern e)
-  | TypEnum a None b => Some (TypEnum a None b)
-  | TypTable a => Some (TypTable a)
-  end
-with get_real_param (param: P4Parameter): option P4Parameter :=
-       match param with
-       | MkParameter opt dir typ argid var =>
-         let^ realt := get_real_type typ in
-         MkParameter opt dir realt argid var
-       end
-with get_real_ctrl (ctrl: ControlType): option ControlType :=
-       match ctrl with
-       | MkControlType type_params params =>
-         sequence (List.map get_real_param params) >>| MkControlType type_params
-       end
-with get_real_func (fn: FunctionType): option FunctionType :=
-       match fn with
-       | MkFunctionType type_params params kind ret =>
-         let* realret := get_real_type ret in
-         let^ realps  := sequence (List.map get_real_param params) in
-         MkFunctionType type_params realps kind realret
-       end.
+Variable ge : genv.
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in
@@ -349,7 +390,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
                             exec_expr read_one_bit this st array (ValBaseStack headers next) ->
-                            get_real_type typ = Some rtyp ->
+                            get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def idxz headers default_header = header ->
                             exec_expr read_one_bit this st
@@ -393,11 +434,11 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                           (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
                           sv
   | exec_expr_cast : forall newtyp expr oldsv oldv newv newsv this st tag typ dir real_typ,
-  (* We assume that get_real_type contains the real type corresponding to a
+  (* We assume that get_real_type (ge_typ ge) contains the real type corresponding to a
      type name so that we can use get the real type from it. *)
                      exec_expr read_one_bit this st expr oldsv ->
                      sval_to_val read_one_bit oldsv oldv ->
-                     get_real_type newtyp = Some real_typ ->
+                     get_real_type (ge_typ ge) newtyp = Some real_typ ->
                      Ops.eval_cast real_typ oldv = Some newv ->
                      val_to_sval newv newsv ->
                      exec_expr read_one_bit this st
@@ -475,7 +516,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
               | _, _ => None
               end
           | ExpCast newtyp arg =>
-              match eval_expr_gen hook arg, get_real_type newtyp with
+              match eval_expr_gen hook arg, get_real_type (ge_typ ge) newtyp with
               | Some argv, Some real_typ => Ops.eval_cast real_typ argv
               | _, _ => None
               end
@@ -518,7 +559,7 @@ Proof.
         only 2-3 : inversion H2.
       econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
       econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
       * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
@@ -562,7 +603,7 @@ Proof.
     + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
       inversion H1; subst.
       assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      destruct (get_real_type typ0) eqn:?; only 2 : inversion H3.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
       congruence.
     + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
       * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
@@ -746,7 +787,7 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                         (ValSetRange lov hiv)
   | exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
                       exec_expr_det read_one_bit this st expr oldv ->
-                      get_real_type newtyp = Some real_typ ->
+                      get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->
                       exec_match read_one_bit this st
                       (MkMatch tag (MatchCast newtyp expr) typ)
@@ -911,7 +952,7 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_read_array_access: forall lv headers next default_header header idx st typ rtyp,
                             exec_read st lv (ValBaseStack headers next) ->
-                            get_real_type typ = Some rtyp ->
+                            get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
                             exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
@@ -1395,7 +1436,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
           (MkStatement tags (StatVariable typ' name (Some e) loc) typ)
           st'' (force_continue_signal sig)
   | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
-      get_real_type typ' = Some rtyp ->
+      get_real_type (ge_typ ge) typ' = Some rtyp ->
       uninit_sval_of_typ (Some false) rtyp = Some sv ->
       exec_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st

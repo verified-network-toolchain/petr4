@@ -530,6 +530,19 @@ Proof.
   intros U V Q R us vs q H; induction H; auto.
 Qed.
 
+Lemma Forall_remove :
+  forall (U : Type) (P : U -> Prop) {HU : forall u₁ u₂, {u₁ = u₂} + {u₁ <> u₂}} u us,
+    Forall P us -> Forall P (remove HU u us).
+Proof.
+  intros U P HU u us H.
+  generalize dependent HU;
+    generalize dependent u.
+  induction H
+    as [| u us Hus IHus]; intros u' HU;
+    cbn in *; auto.
+  destruct (HU u' u) as [Hu'u | Hu'u]; subst; auto.
+Qed.
+
 Section ProdMap.
   Context {U V W : Type}.
   Variable f : U -> W.

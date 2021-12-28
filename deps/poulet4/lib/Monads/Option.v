@@ -65,3 +65,25 @@ Proof.
       simpl in *; inversion H; subst;
         f_equal; auto.
 Qed.
+
+Lemma Forall2_sequence : forall {A : Type} lmao (la : list A),
+    Forall2 (fun mao a => mao = Some a) lmao la ->
+    sequence lmao = Some la.
+Proof.
+  intros A lmao la H;
+    induction H as
+      [| mao a lmao la Hala Hlmaola IHlmaola];
+    cbn in *; try reflexivity.
+  destruct mao as [a' |]; inversion Hala; subst.
+  rewrite IHlmaola. reflexivity.
+Qed.
+
+Local Hint Resolve sequence_Forall2 : core.
+Local Hint Resolve Forall2_sequence : core.
+
+Lemma Forall2_sequence_iff : forall {A : Type} lmao (la : list A),
+    Forall2 (fun mao a => mao = Some a) lmao la <->
+    sequence lmao = Some la.
+Proof.
+  intuition.
+Qed.

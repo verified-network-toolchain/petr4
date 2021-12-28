@@ -4,6 +4,7 @@ Require Import Coq.Strings.String.
 Require Import Coq.PArith.BinPosDef.
 Require Import Coq.NArith.BinNatDef.
 
+Require Export Poulet4.Utils.
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
 Require Export Poulet4.Maps.
@@ -114,14 +115,6 @@ Definition pos_of_N (n : N) : positive :=
   | N0 => 1
   | Npos p => p
   end.
-
-Definition lift_option {A} (l : list (option A)) : option (list A) :=
-  let lift_one_option (x : option A) (acc : option (list A)) :=
-    match x, acc with
-    | Some x', Some acc' => Some (x' :: acc')
-    | _, _ => None
-    end
-  in List.fold_right lift_one_option (Some []) l.
 
 Definition lift_option_kv {A B} (l : list (A * option B)) : option (list (A * B)) :=
   let lift_one_option (kv : A * option B) (acc : option (list (A * B))) :=

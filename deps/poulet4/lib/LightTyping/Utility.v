@@ -268,9 +268,8 @@ Inductive
 (* TODO: how to handle wildcard params? *)
 | package_ok Xs Ys params :
     Forall
-      (fun p =>
-         P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok
+         (remove_all (map P4String.str Xs) Δ))
       params ->
     Δ ⊢ok TypPackage Xs Ys params
 | specialized_ok τ τs :
@@ -279,8 +278,7 @@ Inductive
     Δ ⊢ok TypSpecializedType τ τs
 | constructor_ok Xs Ys params τ :
     Forall
-      (fun p =>
-         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
       params ->
     remove_all (map P4String.str Xs) Δ ⊢ok τ ->
     Δ ⊢ok TypConstructor Xs Ys params τ
@@ -288,16 +286,14 @@ where "Δ '⊢ok' τ" := (P4Type_ok Δ τ) : type_scope
 with ControlType_ok {tags_t : Type} (Δ : list string) : ControlType -> Prop :=
 | controlType_ok Xs params :
     Forall
-      (fun p =>
-         P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok
+         (remove_all (map P4String.str Xs) Δ))
       params ->
     ControlType_ok Δ (MkControlType Xs params)
 with FunctionType_ok {tags_t : Type} (Δ : list string) : FunctionType -> Prop :=
 | functionType_ok Xs params k τ :
     Forall
-      (fun p =>
-         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
       params ->
     remove_all (map P4String.str Xs) Δ ⊢ok τ ->
     FunctionType_ok Δ (MkFunctionType Xs params k τ)
@@ -306,6 +302,232 @@ with P4Parameter_ok {tags_t : Type} (Δ : list string) : P4Parameter -> Prop :=
     Δ ⊢ok τ ->
     P4Parameter_ok Δ (MkParameter b d τ n x).
 
+Section OkBoomerInd.
+  Variables
+    (tags_t : Type)
+    (P : list string -> @P4Type tags_t -> Prop)
+    (Q : list string -> @ControlType tags_t -> Prop)
+    (R : list string -> @FunctionType tags_t -> Prop)
+    (S : list string -> @P4Parameter tags_t -> Prop).
+
+  Hypothesis HBool : forall Δ, P Δ TypBool.
+
+  Hypothesis HInteger : forall Δ, P Δ TypInteger.
+
+  Hypothesis HInt : forall Δ w, P Δ (TypInt w).
+
+  Hypothesis HBit : forall Δ w, P Δ (TypBit w).
+
+  Hypothesis HVarbit : forall Δ w, P Δ (TypVarBit w).
+
+  Hypothesis HArray : forall Δ t n,
+      Δ ⊢ok t -> P Δ t -> P Δ (TypArray t n).
+
+  Hypothesis HTuple : forall Δ ts,
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall (P Δ) ts ->
+      P Δ (TypTuple ts).
+  
+  Hypothesis HList : forall Δ ts,
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall (P Δ) ts ->
+      P Δ (TypList ts).
+
+  Hypothesis HRecord : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypRecord ts).
+
+  Hypothesis HSet : forall Δ t,
+      Δ ⊢ok t -> P Δ t -> P Δ (TypSet t).
+
+  Hypothesis HError : forall Δ, P Δ TypError.
+
+  Hypothesis HMatchKind : forall Δ, P Δ TypMatchKind.
+
+  Hypothesis HVoid : forall Δ, P Δ TypVoid.
+
+  Hypothesis HHeader : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypHeader ts).
+
+  Hypothesis HUnion : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypHeaderUnion ts).
+
+  Hypothesis HStruct : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypStruct ts).
+
+  Hypothesis HEnum : forall Δ X t mems,
+      predopt (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) t ->
+      predopt (P (remove_str (P4String.str X) Δ)) t ->
+      P Δ (TypEnum X t mems).
+
+  Hypothesis HName : forall Δ X,
+      List.In (P4String.str X) Δ ->
+      P Δ (TypTypeName X).
+
+  Hypothesis HNewType : forall Δ X τ,
+      remove_str (P4String.str X) Δ ⊢ok τ ->
+      P (remove_str (P4String.str X) Δ) τ ->
+      P Δ (TypNewType X τ).
+
+  Hypothesis HControl : forall Δ ct,
+      ControlType_ok Δ ct -> Q Δ ct -> P Δ (TypControl ct).
+
+  Hypothesis HParser : forall Δ pt,
+      ControlType_ok Δ pt -> Q Δ pt -> P Δ (TypParser pt).
+
+  Hypothesis HExtern : forall Δ X, P Δ (TypExtern X).
+
+  Hypothesis HPackage : forall Δ Xs Ys params,
+      Forall
+        (P4Parameter_ok
+           (remove_all (map P4String.str Xs) Δ))
+        params ->
+      Forall
+        (S (remove_all (map P4String.str Xs) Δ))
+        params ->
+      P Δ (TypPackage Xs Ys params).
+
+  Hypothesis HSpecialized : forall Δ τ τs,
+      Forall (fun τ => Δ ⊢ok τ) τs ->
+      Forall (P Δ) τs ->
+      Δ ⊢ok τ -> P Δ τ ->
+      P Δ (TypSpecializedType τ τs).
+
+  Hypothesis HConstructor : forall Δ Xs Ys params τ,
+      Forall
+        (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+        params ->
+      Forall (S (remove_all (map P4String.str Xs) Δ))
+        params ->
+      remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+      P (remove_all (map P4String.str Xs) Δ) τ ->
+      P Δ (TypConstructor Xs Ys params τ).
+  
+  Hypothesis HControlType : forall Δ Xs params,
+      Forall
+        (P4Parameter_ok
+           (remove_all (map P4String.str Xs) Δ))
+        params ->
+      Forall
+        (S (remove_all (map P4String.str Xs) Δ))
+        params ->
+      Q Δ (MkControlType Xs params).
+  
+  Hypothesis HFunctionType : forall Δ Xs params k τ,
+      Forall
+        (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+        params ->
+      Forall
+        (S (remove_all (map P4String.str Xs) Δ))
+        params ->
+      remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+      P (remove_all (map P4String.str Xs) Δ) τ ->
+      R Δ (MkFunctionType Xs params k τ).
+  
+  Hypothesis HP4Parameter : forall Δ b d τ n x,
+      Δ ⊢ok τ -> P Δ τ ->
+      S Δ (MkParameter b d τ n x).
+
+  (** Custom induction principles for the [_ok] rules. *)
+  Fail Fixpoint
+    my_P4Type_ok_ind
+    Δ t (H : Δ ⊢ok t) {struct H} : P Δ t :=
+    match H with
+    | bool_ok _ => HBool _
+    | integer_ok _ => HInteger _
+    | int_ok _ w => HInt _ w
+    | bit_ok _ w => HBit _ w
+    | varbit_ok _ w => HVarbit _ w
+    | array_ok _ _ n H => HArray _ _ n H (my_P4Type_ok_ind _ _ H)
+    | tuple_ok _ _ H => HTuple _ _ H (my_P4Type_list_ok H)
+    | list_ok _ _ H => HList _ _ H (my_P4Type_list_ok H)
+    | record_ok _ _ H => HRecord _ _ H (my_P4Type_alist_ok H)
+    | set_ok _ _ H => HSet _ _ H (my_P4Type_ok_ind _ _ H)
+    | error_ok _ => HError _
+    | matchkind_ok _ => HMatchKind _
+    | void_ok _ => HVoid _
+    | header_ok _ _ H => HHeader _ _ H (my_P4Type_alist_ok H)
+    | union_ok _ _ H => HUnion _ _ H (my_P4Type_alist_ok H)
+    | struct_ok _ _ H => HStruct _ _ H (my_P4Type_alist_ok H)
+    | enum_ok _ X _ mems H => HEnum _ X _ mems H (my_P4Type_predopt_ok H)
+    | typeName_ok _ _ H => HName _ _ H
+    | newType_ok _ _ _ H => HNewType _ _ _ H (my_P4Type_ok_ind _ _ H)
+    | control_ok _ _ H => HControl _ _ H (my_ControlType_ok_ind _ _ H)
+    | parser_ok _ _ H => HParser _ _ H (my_ControlType_ok_ind _ _ H)
+    | extern_ok _ X => HExtern _ X
+    | package_ok _ _ _ _ H => HPackage _ _ _ _ H (my_P4Parameter_list_ok H)
+    | specialized_ok _ _ _ Hts Ht
+      => HSpecialized
+          _ _ _
+          Hts (my_P4Type_list_ok Hts)
+          Ht (my_P4Type_ok_ind _ _ Ht)
+    | constructor_ok _ _ _ _ _ Hps Ht
+      => HConstructor
+          _ _ _ _ _
+          Hps (my_P4Parameter_list_ok Hps)
+          Ht (my_P4Type_ok_ind _ _ Ht)
+    end
+  with my_P4Type_list_ok
+         {Δ} {ts} (H : Forall (fun t => Δ ⊢ok t) ts) {struct H}
+       : Forall (P Δ) ts :=
+         match H with
+         | Forall_nil _ => Forall_nil _
+         | Forall_cons _ Hh Ht
+           => Forall_cons
+               _ (my_P4Type_ok_ind _ _ Hh)
+               (my_P4Type_list_ok Ht)
+         end
+  with my_P4Type_alist_ok
+         {Δ} {ts} (H : Forall (fun t => Δ ⊢ok snd t) ts) {struct H}
+       : Forall (fun t => P Δ (snd t)) ts :=
+         match H with
+         | Forall_nil _ => Forall_nil _
+         | Forall_cons _ Hh Ht
+           => Forall_cons
+               _ (my_P4Type_ok_ind _ _ Hh)
+               (my_P4Type_alist_ok Ht)
+         end
+  with my_P4Type_predopt_ok
+         {Δ} {t} (H: predopt (fun τ => Δ ⊢ok τ) t) {struct H}
+       : predopt (P Δ) t :=
+         match H with
+         | EquivUtil.predop_none _ => EquivUtil.predop_none _
+         | EquivUtil.predop_some _ _ H
+           => EquivUtil.predop_some _ _ (my_P4Type_ok_ind _ _ H)
+         end
+  with my_ControlType_ok_ind
+         Δ ct (H : ControlType_ok Δ ct) : Q Δ ct :=
+         match H with
+         | controlType_ok _ _ _ Hps
+           => HControlType _ _ _ Hps (my_P4Parameter_list_ok Hps)
+         end
+  with my_P4Parameter_ok_ind
+         Δ p (H : P4Parameter_ok Δ p) : S Δ p :=
+         match H with
+         | parameter_ok _ b d _ n x H
+           => HP4Parameter _ b d _ n x H (my_P4Type_ok_ind _ _ H)
+         end
+  with my_P4Parameter_list_ok
+         {Δ} {ps}
+         (H : Forall (P4Parameter_ok Δ) ps)
+       : Forall (S Δ) ps :=
+         match H with
+         | Forall_nil _ => Forall_nil _
+         | Forall_cons _ Hh Ht
+           => Forall_cons
+               _ (my_P4Parameter_ok_ind _ _ Hh)
+               (my_P4Parameter_list_ok Ht)
+         end.
+End OkBoomerInd.
+
+(** TODO: will be replaced by above. *)
 Scheme my_P4Type_ok_ind       := Induction for P4Type_ok       Sort Prop
   with my_ControlType_ok_ind  := Induction for ControlType_ok  Sort Prop
   with my_FunctionType_ok_ind := Induction for FunctionType_ok Sort Prop

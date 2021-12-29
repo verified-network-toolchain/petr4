@@ -331,25 +331,23 @@ Section Soundness.
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
 
-  Context `{T : @Target tags_t expr}.
-
   Definition
-    ok_get_real_type_ex_def Δ τ := forall ge : genv,
+    ok_get_real_type_ex_def Δ (τ : typ) := forall ge : genv_typ,
       delta_genv_prop ge Δ ->
       exists ρ, get_real_type ge τ = Some ρ.
   
   Definition
-    ok_get_real_ctrl_ex_def Δ ct := forall ge : genv,
+    ok_get_real_ctrl_ex_def Δ ct := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists ct', get_real_ctrl ge ct = Some ct'.
 
   Definition
-    ok_get_real_func_ex_def Δ ft := forall ge : genv,
+    ok_get_real_func_ex_def Δ ft := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists ft', get_real_func ge ft = Some ft'.
 
   Definition
-    ok_get_real_param_ex_def Δ p := forall ge : genv,
+    ok_get_real_param_ex_def Δ p := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists p', get_real_param ge p = Some p'.
   
@@ -546,10 +544,20 @@ Section Soundness.
       unfold option_monad_inst in *; unfold option_monad in *.
       rewrite H; eauto.
     - intros d X ot mems H Hot ge Hdge.
-      inversion Hot; subst; eauto.
-      unfold delta_genv_prop in *.
-      pose proof H0 _ (Forall_remove _ _ _ _ Hdge) as [rt Hrt].
-      (* Need to do induction on [P4Type]... sigh... *)
+      inversion Hot as [| t Ht]; subst; eauto.
+      specialize Ht with (ge := IdentMap.remove (P4String.str X) ge).
+      assert (HdX :
+                delta_genv_prop
+                  (IdentMap.remove (P4String.str X) ge)
+                  (remove_str (P4String.str X) d)).
+      { clear Ht H Hot mems dummy t.
+        unfold delta_genv_prop in *.
+        rewrite Forall_forall in *; intros Y HInY.
+        apply in_remove in HInY as [HInYd HYX].
+        unfold IdentMap.get, IdentMap.remove in *.
+        rewrite FuncAsMap.remove_complete by assumption; eauto. }
+      apply Ht in HdX as [rt Hrt]; clear Ht.
+      rewrite Hrt; eauto.
       (*
     - intros d X H ge Hdge.
       unfold delta_genv_prop in Hdge.
@@ -566,6 +574,8 @@ Section Soundness.
     - admit.
     - admit. *)
   Admitted.
+
+  Context `{T : @Target tags_t expr}.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).

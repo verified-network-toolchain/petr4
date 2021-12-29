@@ -8,11 +8,11 @@ on:
   #  pull_request:
   #    branches: [ main ]
   workflow_dispatch:
-  workflow_run:
-    workflows: ["docker-build-petr4-p4c"]
-    branches: [main]
-    types:
-      - completed
+#   workflow_run:
+#     workflows: ["docker-build-petr4-p4c"]
+#     branches: [main]
+#     types:
+#       - completed
 
 jobs:
   pet4-vs-p4c:

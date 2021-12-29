@@ -2,19 +2,19 @@ name: push-petr4-docker-img
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow after the "" workflow 
+  # Triggers the workflow after the "build-petr4" workflow 
   # has completed successfully.
   workflow_run:
     workflows: ["build-petr4"]
     branches: [main]
     types: 
       - completed
-  workflow_dispatch:
+#   workflow_dispatch:
 
 jobs:
   build-push-docker-img:
     runs-on: ubuntu-latest
-    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps: 
       - name: checkout main
         uses: actions/checkout@v1

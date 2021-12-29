@@ -566,9 +566,50 @@ Section Soundness.
           unfold option_bind, option_ret in Hps'.
         rewrite Hps'; eauto.
       + eauto.
-    - admit.
-  Admitted.
+    - intros d t ts Hts IHts Ht IHt ge Hged.
+      eapply list_ok_get_real_type_ex
+        in Hts as [ts' Hts']; eauto.
+      apply IHt in Hged as [t' Ht'].
+      rewrite Ht', Hts'; eauto.
+    - intros d Xs Ys ps t Hps IHps Ht IHt ge Hged.
+      apply delta_genv_prop_removes
+        with (Xs := map P4String.str Xs) in Hged.
+      eapply list_ok_get_real_param_ex
+        in Hps as [ps' Hps']; eauto.
+      apply IHt in Hged as [t' Ht'].
+      rewrite Ht'.
+      unfold get_real_param in Hps';
+        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+      rewrite Hps'; eauto.
+    - intros d Xs ps Hps IHps ge Hged.
+      apply delta_genv_prop_removes
+        with (Xs := map P4String.str Xs) in Hged.
+      eapply list_ok_get_real_param_ex
+        in Hps as [ps' Hps']; eauto.
+      unfold get_real_param in Hps';
+        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+      rewrite Hps'; eauto.
+    - intros d Xs ps k t Hps IHps Ht IHt ge Hged.
+      apply delta_genv_prop_removes
+        with (Xs := map P4String.str Xs) in Hged.
+      eapply list_ok_get_real_param_ex
+        in Hps as [ps' Hps']; eauto.
+      apply IHt in Hged as [t' Ht'].
+      unfold get_real_param in Hps';
+        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+      rewrite Hps'; clear Hps'.
+      unfold get_real_type in Ht';
+        cbn in Ht'; unfold option_bind, option_ret in Ht'.
+      rewrite Ht'; eauto.
+    - intros d b dr t n x Ht IHt ge Hged.
+      apply IHt in Hged as [t' Ht'].
+      unfold get_real_type in Ht';
+        cbn in Ht'; unfold option_bind, option_ret in Ht'.
+      rewrite Ht'; eauto.
+  Qed.
 
+  Local Hint Resolve ok_get_real_type_ex : core.
+  
   Context {dummy : Inhabitant tags_t} `{T : @Target tags_t expr}.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
@@ -678,11 +719,11 @@ Section Soundness.
     Proof.
       intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros rob ge st Hrob Hg Hok; simpl in *.
+      intros rob ge st Hdelta Hrob Hg Hok; simpl in *.
       rewrite Ht1, Ht2 in *.
-      pose proof He1 rob ge st Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
-      pose proof He2 rob ge st Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
-      (*split.
+      pose proof He1 rob ge st Hdelta Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
+      pose proof He2 rob ge st Hdelta Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
+      split.
       - assert (Hv2': exists v2', sval_to_val rob v2 v2')
           by eauto using exec_val_exists.
         pose proof He1' v1 Hev1 as Hv1.
@@ -690,25 +731,25 @@ Section Soundness.
         destruct Hv2' as [v2' Hv2'].
         inversion Hv1; inversion Hv2; inversion Hv2';
           subst; try discriminate.
-        rename v into bs; inversion H7; subst; clear H7.
+        rename v into bs; inversion H6; subst; clear H6.
         assert
           (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
           by (simpl; eauto); destruct Hz as [z Hz].
         assert (Hreal: exists real, get_real_type ge (TypHeader ts) = Some real).
-        { assert
-            (Hdelta :
-               Forall
-                 (fun X =>
-                    exists t, IdentMap.get X (ge_typ ge) = Some t) Δ) by admit.
-          assert
-            (Hge_typ : forall t,
-                Δ ⊢ok t ->
-                forall v, val_typ v t ->
-                     exists t', get_real_type ge t = Some t' /\
-                           val_typ v t'.
-                                           
-            ).
-      - intros v' Haa; inversion Haa; clear Haa; subst; simpl.*)
+        { pose proof ok_get_real_type_ex as Hbruh;
+            unfold ok_get_real_type_ex_def in Hbruh; eauto. }
+        destruct Hreal as [rt Hrt].
+        assert (forall Δ ge (t t' : typ),
+                   delta_genv_prop ge Δ ->
+                   get_real_type ge t = Some t' ->
+                   Δ ⊢ok t -> [] ⊢ok t') by admit.
+        Fail assert (forall t, proper_type t ->
+                     [] ⊢ok t -> exists v, uninit_sval_of_typ None t = Some v).
+        assert (Huninit : exists v, uninit_sval_of_typ None rt = Some v) by admit.
+        assert (forall t v,
+                   uninit_sval_of_typ None t = Some v -> val_typ (ge_senum ge) v t) by admit.
+        (*Locate uninit_sval_of_typ.*) admit.
+      - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
     (* Molly commented the things below out since 
        things does not work on H7 after Semantics.v changes *)
     (* rename H4 into He2; rename H10 into He1;

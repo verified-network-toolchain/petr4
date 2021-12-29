@@ -1424,7 +1424,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     exec_stmt
       read_one_bit this_path st (if b then tru else empty_statement) st' sig ->
     exec_stmt read_one_bit this_path st
-              (MkStatement tags (StatConditional cond tru None) typ) st SContinue
+              (MkStatement tags (StatConditional cond tru None) typ) st' sig
   | exec_stmt_block : forall block this_path st tags typ st' sig,
       exec_block read_one_bit this_path st block st' sig ->
       exec_stmt read_one_bit this_path st

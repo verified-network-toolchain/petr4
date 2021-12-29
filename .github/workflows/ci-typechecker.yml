@@ -20,8 +20,8 @@ jobs:
 # have a job that checkouts first and another to reuse a workflow like the following:
 #   checkout:
 #     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@main
+    steps:
+      - uses: actions/checkout@main
       
 #   reuse-build-petr4:
 #     uses: pataei/petr4/.github/workflows/build-petr4.yml@main

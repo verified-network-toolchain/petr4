@@ -9,11 +9,18 @@ LABEL description="This docker image extends p4c with petr4."
 ARG IMAGE_TYPE=build
 
 ENV PETR4_DEPS pkg-config \
+               sudo \
                git \
                m4 \
                libgmp-dev \
-               software-properties-common \
-               ocaml 
+               ocaml \
+               curl \
+               build-essential \
+               zlib1g-dev \
+               libssl-dev \ 
+               ocaml-native-compilers \
+               apt-utils \
+               opam
                #\
                #sudo \
                #build-essential \
@@ -45,26 +52,36 @@ WORKDIR /petr4/
 ####
 #install opam and deps
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends $PETR4_DEPS && \
+    apt-get install -y software-properties-common && \
+    apt-get update && \
     add-apt-repository ppa:avsm/ppa && \
-    apt update -y && \
-    apt install -y opam && \
-    eval $(opam env) && \
+    apt-get update -y && \
+    apt-get upgrade -y && \
+    apt-get dist-upgrade -y && \
+    apt-get install -y --no-install-recommends $PETR4_DEPS && \
     opam init --disable-sandboxing -y && \
-    opam switch create 4.09.1 && \
-    opam update -y && \
-    opam upgrade -y && \
-    eval $(opam env)
+    eval $(opam env) && \
+    opam update && \
+    opam switch list-available && \
+    opam switch create 4.12.0 && \
+    opam init --disable-sandboxing -y && \
+    eval $(opam env) && \
+    opam update
 
 #pin p4pp and install its deps 
-RUN opam pin -y add p4pp https://github.com/cornell-netlab/p4pp.git && \
-    eval $(opam env) 
+RUN sudo opam pin -y add p4pp https://github.com/cornell-netlab/p4pp.git && \
+    eval $(opam env)
 
 #install opam deps for petr4
-RUN opam install -y $PETR4_DEPS_OPAM 
+RUN opam install -y $PETR4_DEPS_OPAM && \
+    eval $(opam env)
+
+
+#RUN opam config env
+ENV PATH "/root/.opam/4.12.0/bin:${PATH}"
+RUN echo "export PATH=/root/.opam/4.12.0/bin:${PATH}" >> /etc/environment && \
+    . /etc/environment
 
 #build and install petr4
-RUN dune build --profile release 
-#&& \
-RUN dune install
-
+RUN dune build --profile release && \
+    dune install

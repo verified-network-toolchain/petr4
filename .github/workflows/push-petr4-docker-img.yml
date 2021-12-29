@@ -36,7 +36,7 @@ jobs:
         with:
           dockerfile: Dockerfile
           push: true
-          tags: pataei/petr4:latest
+          # tags: pataei/petr4:latest
           
 
 

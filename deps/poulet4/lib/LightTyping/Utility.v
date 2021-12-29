@@ -280,7 +280,7 @@ Inductive
 | package_ok Xs Ys params :
     Forall
       (P4Parameter_ok
-         (remove_all (map P4String.str Xs) Δ))
+         (remove_all Δ (map P4String.str Xs)))
       params ->
     Δ ⊢ok TypPackage Xs Ys params
 | specialized_ok τ τs :
@@ -289,24 +289,24 @@ Inductive
     Δ ⊢ok TypSpecializedType τ τs
 | constructor_ok Xs Ys params τ :
     Forall
-      (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+      (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
       params ->
-    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    remove_all Δ (map P4String.str Xs) ⊢ok τ ->
     Δ ⊢ok TypConstructor Xs Ys params τ
 where "Δ '⊢ok' τ" := (P4Type_ok Δ τ) : type_scope
 with ControlType_ok {tags_t : Type} (Δ : list string) : ControlType -> Prop :=
 | controlType_ok Xs params :
     Forall
       (P4Parameter_ok
-         (remove_all (map P4String.str Xs) Δ))
+         (remove_all Δ (map P4String.str Xs)))
       params ->
     ControlType_ok Δ (MkControlType Xs params)
 with FunctionType_ok {tags_t : Type} (Δ : list string) : FunctionType -> Prop :=
 | functionType_ok Xs params k τ :
     Forall
-      (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+      (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
       params ->
-    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    remove_all Δ (map P4String.str Xs) ⊢ok τ ->
     FunctionType_ok Δ (MkFunctionType Xs params k τ)
 with P4Parameter_ok {tags_t : Type} (Δ : list string) : P4Parameter -> Prop :=
 | parameter_ok b d τ n x :
@@ -412,10 +412,10 @@ Section OkBoomerInd.
   Hypothesis HPackage : forall Δ Xs Ys params,
       Forall
         (P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ))
+           (remove_all Δ (map P4String.str Xs)))
         params ->
       Forall
-        (S (remove_all (map P4String.str Xs) Δ))
+        (S (remove_all Δ (map P4String.str Xs)))
         params ->
       P Δ (TypPackage Xs Ys params).
 
@@ -427,33 +427,33 @@ Section OkBoomerInd.
 
   Hypothesis HConstructor : forall Δ Xs Ys params τ,
       Forall
-        (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+        (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
         params ->
-      Forall (S (remove_all (map P4String.str Xs) Δ))
+      Forall (S (remove_all Δ (map P4String.str Xs)))
         params ->
-      remove_all (map P4String.str Xs) Δ ⊢ok τ ->
-      P (remove_all (map P4String.str Xs) Δ) τ ->
+      remove_all Δ (map P4String.str Xs) ⊢ok τ ->
+      P (remove_all Δ (map P4String.str Xs)) τ ->
       P Δ (TypConstructor Xs Ys params τ).
   
   Hypothesis HControlType : forall Δ Xs params,
       Forall
         (P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ))
+           (remove_all Δ (map P4String.str Xs)))
         params ->
       Forall
-        (S (remove_all (map P4String.str Xs) Δ))
+        (S (remove_all Δ (map P4String.str Xs)))
         params ->
       Q Δ (MkControlType Xs params).
   
   Hypothesis HFunctionType : forall Δ Xs params k τ,
       Forall
-        (P4Parameter_ok (remove_all (map P4String.str Xs) Δ))
+        (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
         params ->
       Forall
-        (S (remove_all (map P4String.str Xs) Δ))
+        (S (remove_all Δ (map P4String.str Xs)))
         params ->
-      remove_all (map P4String.str Xs) Δ ⊢ok τ ->
-      P (remove_all (map P4String.str Xs) Δ) τ ->
+      remove_all Δ (map P4String.str Xs) ⊢ok τ ->
+      P (remove_all Δ (map P4String.str Xs)) τ ->
       R Δ (MkFunctionType Xs params k τ).
   
   Hypothesis HP4Parameter : forall Δ b d τ n x,

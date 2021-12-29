@@ -320,7 +320,7 @@ Notation "Δ '~' Γ '⊢ᵪ' e ≀ this"
 
 (* TODO. *)
 Section Soundness.
-  Context {tags_t : Type} {dummy : Inhabitant tags_t}.
+  Context {tags_t : Type}.
 
   Notation typ := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
@@ -358,6 +358,137 @@ Section Soundness.
       ok_get_real_ctrl_ex_def
       ok_get_real_func_ex_def
       ok_get_real_param_ex_def.
+
+  Lemma delta_genv_prop_remove : forall Δ (ge : @genv_typ tags_t) X,
+      delta_genv_prop ge Δ ->
+      delta_genv_prop (IdentMap.remove X ge) (remove_str X Δ).
+  Proof.
+    intros d ge X H.
+    unfold delta_genv_prop in *.
+    rewrite Forall_forall in *; intros Y HInY.
+    apply in_remove in HInY as [HInYd HYX].
+    unfold IdentMap.get, IdentMap.remove in *.
+    rewrite FuncAsMap.remove_complete by assumption; eauto.
+  Qed.
+
+  Local Hint Resolve delta_genv_prop_remove : core.
+
+  Lemma delta_genv_prop_removes : forall Xs Δ (ge : @genv_typ tags_t),
+      delta_genv_prop ge Δ ->
+      delta_genv_prop (IdentMap.removes Xs ge) (remove_all Δ Xs).
+  Proof.
+    unfold IdentMap.removes, FuncAsMap.removes.
+    intro Xs; induction Xs as [| X Xs IHXs]; intros d ge Hged; cbn; auto.
+  Qed.
+
+  Local Hint Resolve delta_genv_prop_removes : core.
+
+  Lemma list_ok_get_real_type_ex : forall Δ ts,
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall
+        (fun τ => forall ge,
+             delta_genv_prop ge Δ ->
+             exists ρ, get_real_type ge τ = Some ρ) ts ->
+      forall ge : @genv_typ tags_t,
+        delta_genv_prop ge Δ ->
+        exists ρs,
+          sequence (map (get_real_type ge) ts) = Some ρs.
+  Proof.
+    intros d ts Hts IHts ge Hge.
+    rewrite Forall_forall in IHts.
+    specialize IHts with (ge := ge).
+    pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
+    rewrite <- Forall_forall, Forall_exists_factor in H.
+    destruct H as [ts' Hts'].
+    rewrite Forall2_map_l
+      with (R := fun a b => a = Some b) (f := get_real_type ge)
+      in Hts'.
+    rewrite Forall2_sequence_iff in Hts'; eauto.
+  Qed.
+
+  Local Hint Resolve list_ok_get_real_type_ex : core.
+
+  Lemma alist_ok_get_real_type_ex :
+    forall Δ (ts : list (P4String.t tags_t * typ)),
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall
+        (fun t => forall ge,
+             delta_genv_prop ge Δ ->
+             exists ρ, get_real_type ge (snd t) = Some ρ) ts ->
+      forall ge : @genv_typ tags_t,
+        delta_genv_prop ge Δ -> exists ρs,
+          sequence
+            (map
+               (fun '(a, t) =>
+                  match get_real_type ge t with
+                  | Some t' => Some (a, t')
+                  | None    => None
+                  end) ts) = Some ρs.
+  Proof.
+    intros d xts Hxts IHxts ge Hge.
+    rewrite Forall_forall in IHxts.
+    specialize IHxts with (ge := ge).
+    pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
+    rewrite <- Forall_forall, Forall_exists_factor in H.
+    destruct H as [ts' Hts'].
+    rewrite map_pat_both.
+    assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
+    { rewrite map_fst_combine; try reflexivity.
+      apply Forall2_length in Hts'.
+      repeat rewrite map_length; assumption. }
+    assert (Hsnd :
+              Forall2
+                (fun a b => get_real_type ge a = Some b)
+                (map snd xts) (map snd (combine (map fst xts) ts'))).
+    { rewrite map_snd_combine.
+      - rewrite <- Forall2_map_l. assumption.
+      - apply Forall2_length in Hts'.
+        repeat rewrite map_length in *; assumption. }
+    rewrite Forall2_map_l
+      with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
+      in Hts'.
+    rewrite <- map_map with (f := snd) in Hts'.
+    pose proof conj Hfst Hsnd as H.
+    rewrite <- Forall2_destr_pair_eq in H.
+    rewrite Forall2_map_l
+      with
+        (f :=
+           fun uv =>
+             match get_real_type ge (snd uv) with
+             | Some w => Some (fst uv, w)
+             | None   => None
+             end)
+        (R := fun uv uw => uv = Some uw) in H.
+    rewrite Forall2_sequence_iff in H.
+    unfold option_monad_inst in *; unfold option_monad in *.
+    rewrite H; eauto.
+  Qed.
+
+  Local Hint Resolve alist_ok_get_real_type_ex : core.
+
+  Lemma list_ok_get_real_param_ex : forall Δ ps,
+      Forall (P4Parameter_ok Δ) ps ->
+      Forall
+        (fun p => forall ge,
+             delta_genv_prop ge Δ -> exists p',
+               get_real_param ge p = Some p')
+        ps -> forall ge : @genv_typ tags_t,
+          delta_genv_prop ge Δ ->
+          exists ps', sequence (map (get_real_param ge) ps) = Some ps'.
+  Proof.
+    intros d ps Hps IHps ge Hged.
+    rewrite Forall_forall in IHps.
+    specialize IHps with (ge := ge).
+    pose proof reduce_inner_impl _ _ _ _ IHps Hged as H; cbn in *.
+    rewrite <- Forall_forall, Forall_exists_factor in H.
+    destruct H as [ps' Hps'].
+    rewrite Forall2_map_l
+      with (R := fun a b => a = Some b) (f := get_real_param ge)
+      in Hps'.
+    rewrite Forall2_sequence_iff in Hps'; eauto.
+  Qed.
+
+  Local Hint Resolve list_ok_get_real_param_ex : core.
   
   Lemma ok_get_real_type_ex :
     forall Δ τ, Δ ⊢ok τ ->
@@ -372,210 +503,73 @@ Section Soundness.
     - intros d t n H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
     - intros d ts Hts IHts ge Hge.
-      rewrite Forall_forall in IHts.
-      specialize IHts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := get_real_type ge)
-        in Hts'.
-      rewrite Forall2_sequence_iff in Hts'.
+      eapply list_ok_get_real_type_ex in Hts as [ts' Hts']; eauto.
       rewrite Hts'; eauto.
     - intros d ts Hts IHts ge Hge.
-      rewrite Forall_forall in IHts.
-      specialize IHts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := get_real_type ge)
-        in Hts'.
-      rewrite Forall2_sequence_iff in Hts'.
+      eapply list_ok_get_real_type_ex in Hts as [ts' Hts']; eauto.
       rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
-      rewrite Forall_forall in IHxts.
-      specialize IHxts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite map_pat_both.
-      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
-      { rewrite map_fst_combine; try reflexivity.
-        apply Forall2_length in Hts'.
-        repeat rewrite map_length; assumption. }
-      assert (Hsnd :
-                Forall2
-                  (fun a b => get_real_type ge a = Some b)
-                  (map snd xts) (map snd (combine (map fst xts) ts'))).
-      { rewrite map_snd_combine.
-        - rewrite <- Forall2_map_l. assumption.
-        - apply Forall2_length in Hts'.
-          repeat rewrite map_length in *; assumption. }
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
-        in Hts'.
-      rewrite <- map_map with (f := snd) in Hts'.
-      pose proof conj Hfst Hsnd as H.
-      rewrite <- Forall2_destr_pair_eq in H.
-      rewrite Forall2_map_l
-        with
-          (f :=
-             fun uv =>
-               match get_real_type ge (snd uv) with
-               | Some w => Some (fst uv, w)
-               | None   => None
-               end)
-          (R := fun uv uw => uv = Some uw) in H.
-      rewrite Forall2_sequence_iff in H.
-      unfold option_monad_inst in *; unfold option_monad in *.
-      rewrite H; eauto.
+      eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
+      unfold option_monad_inst, option_monad in *.
+      rewrite Hts'; eauto.
     - intros d t H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
     - intros d xts Hxts IHxts ge Hge.
-      rewrite Forall_forall in IHxts.
-      specialize IHxts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite map_pat_both.
-      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
-      { rewrite map_fst_combine; try reflexivity.
-        apply Forall2_length in Hts'.
-        repeat rewrite map_length; assumption. }
-      assert (Hsnd :
-                Forall2
-                  (fun a b => get_real_type ge a = Some b)
-                  (map snd xts) (map snd (combine (map fst xts) ts'))).
-      { rewrite map_snd_combine.
-        - rewrite <- Forall2_map_l. assumption.
-        - apply Forall2_length in Hts'.
-          repeat rewrite map_length in *; assumption. }
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
-        in Hts'.
-      rewrite <- map_map with (f := snd) in Hts'.
-      pose proof conj Hfst Hsnd as H.
-      rewrite <- Forall2_destr_pair_eq in H.
-      rewrite Forall2_map_l
-        with
-          (f :=
-             fun uv =>
-               match get_real_type ge (snd uv) with
-               | Some w => Some (fst uv, w)
-               | None   => None
-               end)
-          (R := fun uv uw => uv = Some uw) in H.
-      rewrite Forall2_sequence_iff in H.
-      unfold option_monad_inst in *; unfold option_monad in *.
-      rewrite H; eauto.
+      eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
+      unfold option_monad_inst, option_monad in *.
+      rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
-      rewrite Forall_forall in IHxts.
-      specialize IHxts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite map_pat_both.
-      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
-      { rewrite map_fst_combine; try reflexivity.
-        apply Forall2_length in Hts'.
-        repeat rewrite map_length; assumption. }
-      assert (Hsnd :
-                Forall2
-                  (fun a b => get_real_type ge a = Some b)
-                  (map snd xts) (map snd (combine (map fst xts) ts'))).
-      { rewrite map_snd_combine.
-        - rewrite <- Forall2_map_l. assumption.
-        - apply Forall2_length in Hts'.
-          repeat rewrite map_length in *; assumption. }
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
-        in Hts'.
-      rewrite <- map_map with (f := snd) in Hts'.
-      pose proof conj Hfst Hsnd as H.
-      rewrite <- Forall2_destr_pair_eq in H.
-      rewrite Forall2_map_l
-        with
-          (f :=
-             fun uv =>
-               match get_real_type ge (snd uv) with
-               | Some w => Some (fst uv, w)
-               | None   => None
-               end)
-          (R := fun uv uw => uv = Some uw) in H.
-      rewrite Forall2_sequence_iff in H.
-      unfold option_monad_inst in *; unfold option_monad in *.
-      rewrite H; eauto.
+      eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
+      unfold option_monad_inst, option_monad in *.
+      rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
-      rewrite Forall_forall in IHxts.
-      specialize IHxts with (ge := ge).
-      pose proof reduce_inner_impl _ _ _ _ IHxts Hge as H; cbn in *.
-      rewrite <- Forall_forall, Forall_exists_factor in H.
-      destruct H as [ts' Hts'].
-      rewrite map_pat_both.
-      assert (Hfst : map fst xts = map fst (combine (map fst xts) ts')).
-      { rewrite map_fst_combine; try reflexivity.
-        apply Forall2_length in Hts'.
-        repeat rewrite map_length; assumption. }
-      assert (Hsnd :
-                Forall2
-                  (fun a b => get_real_type ge a = Some b)
-                  (map snd xts) (map snd (combine (map fst xts) ts'))).
-      { rewrite map_snd_combine.
-        - rewrite <- Forall2_map_l. assumption.
-        - apply Forall2_length in Hts'.
-          repeat rewrite map_length in *; assumption. }
-      rewrite Forall2_map_l
-        with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
-        in Hts'.
-      rewrite <- map_map with (f := snd) in Hts'.
-      pose proof conj Hfst Hsnd as H.
-      rewrite <- Forall2_destr_pair_eq in H.
-      rewrite Forall2_map_l
-        with
-          (f :=
-             fun uv =>
-               match get_real_type ge (snd uv) with
-               | Some w => Some (fst uv, w)
-               | None   => None
-               end)
-          (R := fun uv uw => uv = Some uw) in H.
-      rewrite Forall2_sequence_iff in H.
-      unfold option_monad_inst in *; unfold option_monad in *.
-      rewrite H; eauto.
+      eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
+      unfold option_monad_inst, option_monad in *.
+      rewrite Hts'; eauto.
     - intros d X ot mems H Hot ge Hdge.
       inversion Hot as [| t Ht]; subst; eauto.
       specialize Ht with (ge := IdentMap.remove (P4String.str X) ge).
       assert (HdX :
                 delta_genv_prop
                   (IdentMap.remove (P4String.str X) ge)
-                  (remove_str (P4String.str X) d)).
-      { clear Ht H Hot mems dummy t.
-        unfold delta_genv_prop in *.
-        rewrite Forall_forall in *; intros Y HInY.
-        apply in_remove in HInY as [HInYd HYX].
-        unfold IdentMap.get, IdentMap.remove in *.
-        rewrite FuncAsMap.remove_complete by assumption; eauto. }
+                  (remove_str (P4String.str X) d)) by eauto.
       apply Ht in HdX as [rt Hrt]; clear Ht.
       rewrite Hrt; eauto.
-      (*
-    - intros d X H ge Hdge.
-      unfold delta_genv_prop in Hdge.
-      rewrite Forall_forall in Hdge.
-      intuition.
-    - intros d X t H Hge ge Hdge. admit.
-      (* TODO: maybe need to change [get_real_type]. *)
+    - intros d X HXd ge Hge.
+      unfold delta_genv_prop in Hge.
+      rewrite Forall_forall in Hge. eauto.
+    - firstorder.
+    - intros d ct Hct IH ge Hdge.
+      apply IH in Hdge as [ct' Hct'].
+      unfold get_real_ctrl in Hct'.
+      cbn in Hct'; unfold option_bind, option_ret in Hct'.
+      rewrite Hct'; eauto.
+    - intros d ct Hct IH ge Hdge.
+      apply IH in Hdge as [ct' Hct'].
+      unfold get_real_ctrl in Hct'.
+      cbn in Hct'; unfold option_bind, option_ret in Hct'.
+      rewrite Hct'; eauto.
+    - intros d ct Hct IH ge Hdge.
+      apply IH in Hdge as [ft' Hft'].
+      unfold get_real_func in Hft'.
+      cbn in Hft'; unfold option_bind, option_ret in Hft'.
+      rewrite Hft'; eauto.
+    - intros d ds cs Hds IHds Hcs IHcs ge Hged.
+      eapply list_ok_get_real_param_ex in Hds as [ds' Hds']; eauto.
+      eapply list_ok_get_real_param_ex in Hcs as [cs' Hcs']; eauto.
+      unfold get_real_param in Hds'; unfold get_real_param in Hcs'.
+      cbn in Hds'; cbn in Hcs'; unfold option_bind, option_ret in Hcs', Hds'.
+      rewrite Hcs', Hds'; eauto.
+    - intros d Xs Ys ps Hps IHps ge Hged.
+      eapply list_ok_get_real_param_ex in Hps as [ps' Hps']; eauto.
+      + unfold get_real_param in Hps'; cbn in Hps';
+          unfold option_bind, option_ret in Hps'.
+        rewrite Hps'; eauto.
+      + eauto.
     - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit. *)
   Admitted.
 
-  Context `{T : @Target tags_t expr}.
+  Context {dummy : Inhabitant tags_t} `{T : @Target tags_t expr}.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).

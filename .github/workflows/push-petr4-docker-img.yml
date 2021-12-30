@@ -14,7 +14,10 @@ on:
 jobs:
   build-push-docker-img:
     runs-on: ubuntu-latest
-#     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    contents: read
+    packages: write
+    
     steps: 
       - name: checkout main
         uses: actions/checkout@v1
@@ -32,12 +35,12 @@ jobs:
           images: pataei/petr4
 
       - name: build and push docker img 
-        uses: docker/build-push-action@v1
+        uses: docker/build-push-action@v2
         with:
           dockerfile: Dockerfile
           push: true
-          tags: pataei/petr4:latest
-#           tags: ${{ steps.meta.outputs.tags }}
+          # tags: pataei/petr4:latest
+          tags: ${{ steps.meta.outputs.tags }}
           
 
 

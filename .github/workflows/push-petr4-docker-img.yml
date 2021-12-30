@@ -9,12 +9,12 @@ on:
     branches: [main]
     types: 
       - completed
-  workflow_dispatch:
+#   workflow_dispatch:
 
 jobs:
   build-push-docker-img:
     runs-on: ubuntu-latest
-    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
       packages: write

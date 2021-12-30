@@ -42,7 +42,7 @@ Module ValuePacket <: P4Packet.
       => vs <<| sequence $ List.map read_field ts ;;
         ~{ HDR { vs } VALID:=true }~
     | _ => state_fail
-            $ EXN.TypeError "Unsupported type passed to extract."
+            $ TypeError "Unsupported type passed to extract."
     end.
   (**[]*)
   
@@ -80,7 +80,7 @@ Module BSPacketIn <: P4PacketIn.
     | "advance", [("sizeInBits", PAIn (~{ _ VW n }~))], None
       => fun pkt => state_return ϵ (PacketIn.advance n pkt)
     | "extract", [("hdr", PAOut lv)], None => p4extract {{ Bool }} lv ϵ (* TODO: fix *)
-    | _,_,_ => state_fail PKT.EXN.Internal
+    | _,_,_ => state_fail Internal
     end.
 End BSPacketIn.
 

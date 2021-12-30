@@ -1,8 +1,8 @@
 Require Export Poulet4.Utils.Util.Utiliser
         Poulet4.Platform.Packet
         Poulet4.Monads.State.
-Require Poulet4.Environment.Environment.
-Module EXN := Poulet4.Environment.Environment.
+(*Require Poulet4.Environment.Environment.
+Module EXN := Poulet4.Environment.Environment.*)
 (* TODO: why is [exception] defined in [EXN]? *)
 Require Import Coq.PArith.BinPosDef Coq.Strings.String.
 
@@ -24,7 +24,7 @@ Definition consume_incoming (n : nat) (pkt : t) : t :=
 (**[]*)
 
 (** State Monad for [t] *)
-Definition paquet_monad : Type -> Type := @state_monad t EXN.exception.
+Definition paquet_monad : Type -> Type := @state_monad t exception.
 
 (** Lift from [packet_monad] to [paquet_monad] *)
 Definition lyft_inc

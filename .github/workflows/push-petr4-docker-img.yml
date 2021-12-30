@@ -14,7 +14,7 @@ on:
 jobs:
   build-push-docker-img:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+#     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps: 
       - name: checkout main
         uses: actions/checkout@v1

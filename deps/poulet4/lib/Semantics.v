@@ -1395,14 +1395,14 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
-| exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
+| exec_stmt_method_call : forall this_path st tags func targs args typ st' sig sig',
     exec_call
       read_one_bit this_path st
-      (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
+      (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless)
               st' sig ->
     force_continue_signal sig = sig' ->
     exec_stmt read_one_bit this_path st
-              (MkStatement tags (StatMethodCall func nil args) typ) st' sig'
+              (MkStatement tags (StatMethodCall func targs args) typ) st' sig'
 | exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
       exec_call read_one_bit this_path st
                 (MkExpression
@@ -1442,23 +1442,12 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_empty : forall this_path (st: state) tags typ st,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags StatEmpty typ) st SContinue
-  | exec_stmt_switch:
-      forall e b ename member cases block typ dir this_path
-        (st st': state) st'' tags tags' typ' st st' sig,
-        exec_call
-          read_one_bit this_path st e st'
-          (SReturn (table_retv b ename member)) ->
-        match_switch_case member cases = block ->
-        exec_block read_one_bit this_path st' block st'' sig ->
-        exec_stmt
-          read_one_bit this_path st
-          (MkStatement
-             tags
-             (StatSwitch
-                (MkExpression
-                   tags'
-                   (ExpExpressionMember e !"action_run")
-                   typ dir) cases) typ') st'' sig
+  | exec_stmt_switch : forall tags expr cases typ this_path st st' sig s block,
+      exec_expr_det read_one_bit this_path st expr (ValBaseString s) ->
+      match_switch_case s cases = block ->
+      exec_block read_one_bit this_path st block st' sig ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatSwitch expr cases) typ) st' sig
   | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
       exec_expr_det read_one_bit this_path st e v ->
       val_to_sval v sv ->

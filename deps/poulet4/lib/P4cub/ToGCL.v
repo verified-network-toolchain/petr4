@@ -401,6 +401,23 @@ Section ToGCL.
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
+    Print E.t.
+
+    Definition get_sign typ :=
+       match typ with
+       | E.TBit _ => ok false
+       | E.TInt _ => ok true
+       | E.TBool => error "Typerror:: expected (signed?) bitvector; got boolean"
+       | E.TError => error "Typerror:: expected (signed?) bitvector; got error type"
+       | E.TMatchKind => error "Typerror:: expected (signed?) bitvector; got matchkind type"
+       | E.TTuple _ => error "Typerror:: expected (signed?) bitvector; got typle type"
+       | E.TStruct _ => error "Typerror:: expected (signed?) bitvector; got struct type"
+       | E.THeader _ => error "Typerror:: expected (signed?) bitvector; got header type"
+       | E.THeaderStack _ _ => error "Typeerror:: expected (signed?) bitvector; got header stack type"
+       | E.TVar _ => error "Typeerror:: expected (signed?) bitvector; got type variable"
+       end.
+
+    
     Fixpoint to_form (e : (E.e tags_t)) : result Form.t :=
       match e with
       | E.EBool b i => ok (Form.LBool b)
@@ -448,19 +465,21 @@ Section ToGCL.
           error "[FIXME] Size for stacks is unimplemented"
         end
       | E.EBop typ op lhs rhs i =>
-        let signed := match typ with
-                      | E.TBit _ => ok false
-                      | E.TInt _ => ok true
-                      | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
-                      end in
-        let lbin := fun o_res => let* l := to_form lhs in
-                                 let* r := to_form rhs in
-                                 let+ o := o_res in
-                                 Form.LBop o l r in
-        let cbin := fun o_res => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
-                                 let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
-                                 let+ o := o_res in
-                                 Form.LComp o l r in
+        let lbin := fun o => let* l := to_form lhs in
+                             let* r := to_form rhs in
+                             ok (Form.LBop o l r) in
+        let cbin := fun o => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
+                             let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
+                             ok (Form.LComp o l r) in
+        let cbin_sign := fun o => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
+                                  let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
+                                  let* lsign := get_sign (t_of_e lhs) in
+                                  let* rsign := get_sign (t_of_e rhs) in
+                                  if eqb lsign rsign then
+                                    ok (Form.LComp (o lsign) l r)
+                                  else
+                                    error "Signedness Mismatch in comparison operator"
+        in
         match op with
         | E.Plus => error "Typeerror: (+) is not a boolean operator"
         | E.PlusSat => error "Typeerror: (|+|) is not a boolean operator"
@@ -469,18 +488,18 @@ Section ToGCL.
         | E.Times => error "Typerror: (*) is not a boolean operator"
         | E.Shl => error "Typerror: (<<) is not a boolean operator"
         | E.Shr => error "TYperror: (>>) is not a boolean operator"
-        | E.Le => cbin (Form.LLe |=> signed)
-        | E.Ge => cbin (Form.LGe |=> signed)
-        | E.Lt => cbin (Form.LLt |=> signed)
-        | E.Gt => cbin (Form.LGt |=> signed)
-        | E.Eq => cbin (ok Form.LEq)
-        | E.NotEq => cbin (ok Form.LNeq)
+        | E.Le => cbin_sign Form.LLe
+        | E.Ge => cbin_sign Form.LGe
+        | E.Lt => cbin_sign Form.LLt
+        | E.Gt => cbin_sign Form.LGt
+        | E.Eq => cbin Form.LEq
+        | E.NotEq => cbin Form.LNeq
         | E.BitAnd => error "Typeerror: (&) is not a boolean operator"
         | E.BitXor => error "Typeerror: (^) is not a boolean operator"
         | E.BitOr => error "Typeerror: (|) is not a boolean operator"
         | E.PlusPlus => error "Typeerror: (++) is not a boolean operator"
-        | E.And => lbin (ok Form.LAnd)
-        | E.Or => lbin (ok Form.LOr)
+        | E.And => lbin Form.LAnd
+        | E.Or => lbin Form.LOr
         end
       | E.ETuple _ _ =>
         error "Tuples are not formulae"

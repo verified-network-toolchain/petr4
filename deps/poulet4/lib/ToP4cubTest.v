@@ -5,7 +5,6 @@ Require Import Poulet4.ToP4cub.
 
 Import Result Syntax List ListNotations.
 
-
 (* The Test Programs*)
 
 Require Import Poulet4.LightExamples.SimpleNat.
@@ -16,6 +15,14 @@ Require Import Poulet4.LightExamples.LinearRoad.
 Require Import Poulet4.LightExamples.HeavyHitter.
 Require Import Poulet4.LightExamples.Netchain.
 Require Import Poulet4.LightExamples.Hula.
+
+
+(**                       NOTE
+ * Don't comment out these test cases if they break.
+ * These are regression tests, which maintain code quality
+ * Commenting them out without fixing the problems is the same
+ * as breaking the build.
+ **)
 
 (* Test Lemma For simple_nat.p4*)
 (* Compute (translate_program Info NoInfo SimpleNat.prog). *)
@@ -71,6 +78,5 @@ Proof. compute; trivial. Qed.
 
 (* HULA *)
 Definition p4cub_hula := ToP4cub.translate_program Info NoInfo Hula.prog.
-(* Compute p4cub_hula. *)
 Lemma hula_no_error: Result.is_ok p4cub_hula.
 Proof. compute; trivial. Qed.

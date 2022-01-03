@@ -14,6 +14,8 @@
 (*  INRIA Non-Commercial License Agreement.                            *)
 (*                                                                     *)
 (* *********************************************************************)
+
+Set Warnings "-extraction-reserved-identifier".
 From compcert Require Coqlib.
 From compcert Require Wfsimpl.
 From compcert Require Decidableplus.

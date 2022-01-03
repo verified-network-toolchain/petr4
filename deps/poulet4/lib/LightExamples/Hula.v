@@ -2322,7 +2322,7 @@ Definition MyIngress := DeclControl NoInfo
                                                                     itags := NoInfo;
                                                                     value := 0;
                                                                     width_signed := 
-                                                                    None |})
+                                                                    Some (1%N, false) |})
                                                                    TypInteger
                                                                    Directionless))
                                                          (TypBit 1%N)
@@ -3683,7 +3683,7 @@ Definition MyIngress := DeclControl NoInfo
                                                                     itags := NoInfo;
                                                                     value := 0;
                                                                     width_signed := 
-                                                                    None |})
+                                                                    Some (16%N, false)|})
                                                                     TypInteger
                                                                     Directionless))
                                                                     (TypBit
@@ -4118,7 +4118,7 @@ Definition MyEgress := DeclControl NoInfo
                                                            {| itags := NoInfo;
                                                               value := 0;
                                                               width_signed := 
-                                                              None |})
+                                                              Some (1%N, false) |})
                                                           TypInteger
                                                           Directionless))
                                                 (TypBit 1%N) Directionless) ))

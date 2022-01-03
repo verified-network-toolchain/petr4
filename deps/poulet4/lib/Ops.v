@@ -264,8 +264,8 @@ Section Ops.
         | None => None
         | Some b3 => Some ((b1 && b2 && b3) || ((negb b1) && (negb b1)))
         end
-    | ValBaseStack vs1 s1 n1, ValBaseStack vs2 s2 n2 =>
-        if negb (s1 =? s2)%N then None
+    | ValBaseStack vs1 n1, ValBaseStack vs2 n2 =>
+        if negb (Zlength vs1 =? Zlength vs2)%Z then None
         else eval_binary_op_eq_tuple vs1 vs2
     | ValBaseTuple vs1, ValBaseTuple vs2 =>
         eval_binary_op_eq_tuple vs1 vs2

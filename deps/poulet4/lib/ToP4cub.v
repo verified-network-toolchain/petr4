@@ -458,7 +458,6 @@ Section ToP4cub.
     let '(MkExpression _ _ typ _) := e in
     typ.
 
-  (*Print TypBool.*)
   Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
     match t with
     | TypBool => error "cannot get  from boolean"
@@ -540,10 +539,10 @@ Section ToP4cub.
       let* type := translate_exp_type i (get_type_of_expr array) in
       match type with
       | E.THeaderStack fs _ =>
-        let+ index := realize_array_index index in
-        E.EHeaderStackAccess fs stck index i
+        let~ index := realize_array_index index over "Failed to realize array index" in
+        ok (E.EHeaderStackAccess fs stck index i)
       | _ =>
-        error "translateed type of array access is not a headerstack type"
+        error "translated type of array access is not a headerstack type"
       end
     | ExpBitStringAccess bits lo hi =>
       let* typ := translate_exp_type i (get_type_of_expr bits) in
@@ -868,8 +867,6 @@ Section ToP4cub.
     | None =>
       error ("[ERROR] Couldnt find label [" ++ P4String.str label ++ "] in enum")
     end.
-
-  Print P4Type.
 
   Definition get_enum_type (expression : @Expression tags_t) : result (list (P4String.t tags_t)) :=
     let '(MkExpression tags pre_expr type dir) := expression in
@@ -1199,8 +1196,6 @@ Section ToP4cub.
     let~ inst := translate_instantiation_args params cub_args over "instantiation failed looking up " ++ ctor_name ++ "params: " ++ string_of_nat (List.length params) in
     ok inst.
 
-  (*Print P4Type.*)
-
 
   Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * E.ct) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
@@ -1333,7 +1328,6 @@ Section ToP4cub.
 
   Definition translate_actions (actions : list TableActionRef) : result (list string) :=
     List.fold_right translate_actions_loop (ok []) actions.
-  (*Print DeclInstantiation.*)
 
 
   Definition translate_decl_fields (fields : list DeclarationField) : result (F.fs string E.t) :=
@@ -1499,8 +1493,6 @@ Section ToP4cub.
 
   Definition inline_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
-
-  (*Print InferMemberTypes.*)
 
   Definition infer_member_types (decl : DeclCtx) :=
     let infer_ds := List.map InferMemberTypes.inf_d in

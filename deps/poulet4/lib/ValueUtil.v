@@ -59,9 +59,9 @@ Section ValueUtil.
     | exec_val_union : forall kvs kvs',
                       AList.all_values (exec_val read_one_bit) kvs kvs' ->
                       exec_val read_one_bit (ValBaseUnion kvs) (ValBaseUnion kvs')
-    | exec_val_stack : forall lv lv' size next,
+    | exec_val_stack : forall lv lv' next,
                       Forall2 (exec_val read_one_bit) lv lv' ->
-                      exec_val read_one_bit (ValBaseStack lv size next) (ValBaseStack lv' size next)
+                      exec_val read_one_bit (ValBaseStack lv next) (ValBaseStack lv' next)
     | exec_val_enum_field : forall typ_name enum_name,
                             exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
                                                   (ValBaseEnumField typ_name enum_name)
@@ -113,10 +113,10 @@ Section ValueUtil.
         AList.all_values (exec_val R) kvas kvbs ->
         AList.all_values P kvas kvbs ->
         P (ValBaseUnion kvas) (ValBaseUnion kvbs).
-    Hypothesis HStack : forall vas vbs size next,
+    Hypothesis HStack : forall vas vbs next,
         Forall2 (exec_val R) vas vbs ->
         Forall2 P vas vbs ->
-        P (ValBaseStack vas size next) (ValBaseStack vbs size next).
+        P (ValBaseStack vas next) (ValBaseStack vbs next).
     Hypothesis HEnumField : forall type_name enum_name,
         P
           (ValBaseEnumField type_name enum_name)
@@ -164,8 +164,8 @@ Section ValueUtil.
         | exec_val_header _ _ _ _ _ r evs
           => HHeader _ _ _ _ r evs (alind evs)
         | exec_val_union _ _ _ evs => HUnion _ _ evs (alind evs)
-        | exec_val_stack _ _ _ size next evs
-          => HStack _ _ size next evs (lind evs)
+        | exec_val_stack _ _ _ next evs
+          => HStack _ _ next evs (lind evs)
         | exec_val_enum_field _ tn en => HEnumField tn en
         | exec_val_senum_field _ tn en _ _ ev
           => HSenumField tn en _ _ ev (evind _ _ ev)
@@ -210,7 +210,7 @@ Section ValueUtil.
     | ValBaseStruct rl => ValBaseStruct (val_to_avals rl)
     | ValBaseHeader rl b => ValBaseHeader (val_to_avals rl) (Some b)
     | ValBaseUnion rl => ValBaseUnion (val_to_avals rl)
-    | ValBaseStack vl s n => ValBaseStack (eval_val_to_svals vl) s n
+    | ValBaseStack vl n => ValBaseStack (eval_val_to_svals vl) n
     | ValBaseEnumField t e => ValBaseEnumField t e
     | ValBaseSenumField t e v => ValBaseSenumField t e (eval_val_to_sval v)
     end.
@@ -223,7 +223,7 @@ Section ValueUtil.
       | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
       | TypArray typ size =>
           match uninit_sval_of_typ' hvalid typ with
-          | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) size 0)
+          | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) 0)
           | None => None
           end
       | TypTuple typs
@@ -278,7 +278,7 @@ Section ValueUtil.
       end
     in uninit_sval_of_typ' hvalid typ.
   (* Type without uninitialized svals:
-      TypeString: can be used only for compile-time constant string values (7.1.),
+      TypString: can be used only for compile-time constant string values (7.1.),
                   one cannot declare variables with a string type (7.1.5.),
                   so it cannot be uninitialized.
       TypVoid: It contains no values (7.1.1.).
@@ -303,7 +303,7 @@ Section ValueUtil.
     | ValBaseStruct kvs => ValBaseStruct (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseHeader kvs is_valid => ValBaseHeader (kv_map (uninit_sval_of_sval hvalid) kvs) hvalid
     | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
-    | ValBaseStack vs size next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) size next
+    | ValBaseStack vs next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) next
     | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
     (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
     (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)

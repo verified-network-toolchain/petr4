@@ -23,7 +23,6 @@ Notation Lval := (@ValueLvalue tags_t).
 Notation ident := string.
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
-(* Notation P4String := (P4String.t tags_t). *)
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 
@@ -61,7 +60,6 @@ Definition get_loc_path (loc : Locator) : path :=
 Variant fundef :=
   | FInternal
       (params : list (path * direction))
-      (init : @Block tags_t)
       (body : @Block tags_t)
   | FTable
       (name : ident)
@@ -344,12 +342,14 @@ Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
     end
   in List.rev (bitstring_slice' bits lo hi []).
 
-(* The following reads give unspecified values: 
+(* The following reads give unspecified values:
     1. reading a field from a header that is currently invalid.
-    2. reading a field from a header that is currently valid, but the field has not been initialized 
-       since the header was last made valid. 
-   Guaranteed by setting all fields to noninitialized when the header is made invalid (declaration & setInvalid)
-   and setting only the valid bit and given fields when the header is made valid (initialization & setValid) *)
+    2. reading a field from a header that is currently valid, but the field has not been initialized
+       since the header was last made valid.
+  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
+  (including invalid members of header unions) contents must be undefined. For example, when setting
+  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
+  the fields should remain undefined. *)
 Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_struct : forall fields member v,
                         AList.get fields member = Some v ->
@@ -363,14 +363,14 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_header : forall fields b member v,
                         AList.get fields member = Some v ->
                         get_member (ValBaseHeader fields b) member v
-  | get_member_stack_size : forall headers size next,
-                            get_member (ValBaseStack headers size next) "size"
-                              (ValBaseBit (to_loptbool 32 (Z.of_N size)))
-  | get_member_stack_last_index : forall headers size next sv,
-                                  (if (next =? 0)%N 
-                                    then uninit_sval_of_typ None (TypBit 32) = Some sv 
-                                    else sv = (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1))))) ->
-                                  get_member (ValBaseStack headers size next) "lastIndex" sv.
+  | get_member_stack_size : forall headers next,
+                            get_member (ValBaseStack headers next) "size"
+                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
+  | get_member_stack_last_index : forall headers next sv,
+                                  (if (next =? 0)%N
+                                    then uninit_sval_of_typ None (TypBit 32%N) = Some sv
+                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
+                                  get_member (ValBaseStack headers next) "lastIndex" sv.
 
 Definition is_directional (dir : direction) : bool :=
   match dir with
@@ -417,11 +417,11 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                            exec_expr read_one_bit this st
                            (MkExpression tag (ExpName name loc) typ dir)
                            sv
-  | exec_expr_array_access: forall array headers size next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
+  | exec_expr_array_access: forall array headers next idx idxsv idxv idxz header default_header this st tag typ rtyp dir,
                             exec_expr read_one_bit this st idx idxsv ->
                             sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
-                            exec_expr read_one_bit this st array (ValBaseStack headers size next) ->
+                            exec_expr read_one_bit this st array (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def idxz headers default_header = header ->
@@ -500,13 +500,9 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                              get_member sv (str member) sv' ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr member) typ dir) sv'
-  (* TODO:
-     ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin
-     ValBaseUnion: isValid is supposed to be handled in exec_builtin
-     ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
   | exec_expr_ternary : forall cond tru fls b sv sv' this st tag typ dir,
                         exec_expr read_one_bit this st cond sv ->
-                        sval_to_val read_one_bit sv (ValBaseBool b) -> 
+                        sval_to_val read_one_bit sv (ValBaseBool b) ->
                         exec_expr read_one_bit this st (if b then tru else fls) sv' ->
                         exec_expr read_one_bit this st
                         (MkExpression tag (ExpTernary cond tru fls) typ dir)
@@ -524,7 +520,7 @@ Inductive exec_expr_det (read_one_bit : option bool -> bool -> Prop) :
                           sval_to_val read_one_bit sv v ->
                           exec_expr_det read_one_bit this st expr v.
 
-Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                          path -> (* temp_env -> *) state -> list (@Expression tags_t) -> list Val ->
                         (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
   | exec_exprs_det_intro : forall this st exprs svs vs,
@@ -570,7 +566,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
   end.
 
 Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v -> 
+  forall (H_hook : forall expr v, hook expr = Some v ->
           exec_expr_det read_one_bit this st expr v),
   eval_expr_gen hook expr = Some v ->
   exec_expr_det read_one_bit this st expr v.
@@ -605,8 +601,8 @@ Proof.
 Qed. *)
 
 Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v -> 
-          forall v', exec_expr_det read_one_bit this st expr v' -> 
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          forall v', exec_expr_det read_one_bit this st expr v' ->
           v' = v),
   eval_expr_gen hook expr = Some v ->
   forall v', exec_expr_det read_one_bit this st expr v' ->
@@ -708,17 +704,6 @@ Definition filter_pure_out {A} (params : list (A * direction)) : list A :=
     if is_pure_out (snd param) then [fst param] else [] in
   flat_map f params.
 
-(* NOTE: We may need to modify for the call convention for overloaded functions. *)
-Definition bind_parameters (params : list (path * direction)) (args : list Sval) (s s' : state) :=
-  s' = update_memory (PathMap.sets (filter_in params) args) s.
-
-(* NOTE: We may need to modify for the call convention for overloaded functions. *)
-(* Definition extract_parameters (params : list (path * direction)) (args : list Val) (s : state) :=
-  map Some args = PathMap.gets (filter_out params) (get_memory s). *)
-
-Definition extract_parameters (paths : list path) (s : state) : option (list Sval) :=
-  lift_option (PathMap.gets paths (get_memory s)).
-
 Definition not_continue (s : signal) : bool :=
   match s with
   | SContinue => false
@@ -762,7 +747,7 @@ Definition get_return_val (sig : signal) : option Val :=
   end.
 
 Inductive get_return_sval : signal -> Sval -> Prop :=
-  | get_return_sval_intro : forall v sv, 
+  | get_return_sval_intro : forall v sv,
                            val_to_sval v sv ->
                            get_return_sval (SReturn v) sv.
 
@@ -788,7 +773,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
 Axiom dummy_type : @P4Type tags_t.
 Definition dummy_tags := @default tags_t _.
 
-Definition add_ctrl_args (oaction : option (@Expression tags_t)) 
+Definition add_ctrl_args (oaction : option (@Expression tags_t))
                          (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
   match oaction with
   | Some action =>
@@ -816,7 +801,7 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | None => extern_get_entries (get_external_state s) table
   end.
 
-Inductive exec_match (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                      path -> state -> @Match tags_t -> ValSet -> Prop :=
   | exec_match_dont_care : forall this st tag typ,
       exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
@@ -850,17 +835,17 @@ Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
                        exec_matches read_one_bit this st (m :: ms) (sv :: svs).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> state -> table_entry -> 
+                           path -> state -> table_entry ->
                            (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
   | exec_table_entry_intro : forall this st ms svs action entryvs,
                              exec_matches read_one_bit this st ms svs ->
                              (if (List.length svs =? 1)%nat
-                              then entryvs = (List.hd ValSetUniversal svs, action) 
+                              then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
                              exec_table_entry read_one_bit this st (mk_table_entry ms action) entryvs.
-  
+
 Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
-                             path -> state -> list table_entry -> 
+                             path -> state -> list table_entry ->
                              list (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
   | exec_table_entries_nil : forall this st,
                        exec_table_entries read_one_bit this st nil nil
@@ -879,62 +864,53 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       extern_match (combine keyvals match_kinds) entryvs = matched_action ->
       exec_table_match read_one_bit this_path s name const_entries matched_action.
 
-
 Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 
-(* QUESTION: Why does this only go two-layers deep in an expression?
-   What about arbitrary nesting? *)
-Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (path * fundef) :=
+(* Look up function definition (fundef) and the path on which the function should be executed.
+  Return None if failed.
+  Return Some (None, fd) if the function should be executed on the current path. *)
+Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
   match func with
-  (* function/action *)
+  (* function/action/parser transition *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
-      | LGlobal p => option_map (fun fd => (nil, fd)) (PathMap.get p ge_func)
+      | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
-        (* QUESTION: why isn't [p] used to look up instance? *)
           match PathMap.get this_path ge_inst with
           | Some (mk_inst_ref class_name _) =>
-            option_map (fun fd => (this_path, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+              option_map (fun fd => (None, fd)) (PathMap.get ([class_name] ++ p) ge_func)
           | _ => None
           end
       end
   (* apply/extern *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
-      if String.eqb (P4String.str name) "apply" then
-        match expr with
-        | MkExpression _ (ExpName _ loc) _ _ =>
-            match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is impposible. *)
-            | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
-                | Some (mk_inst_ref class_name inst_path) =>
-                    option_map (fun fd => (inst_path, fd)) (PathMap.get [class_name] ge_func)
-                | _ => None
-                end
-            end
-        | _ => None
-        end
-      (* If the method name is not apply, it is an external method. *)
-      else
-        match expr with
-        | MkExpression _ (ExpName _ loc) _ _ =>
-            match loc with
-            | LGlobal p => None (* TODO We need to confirm this branch is imposible. *)
-            | LInstance p =>
-                match PathMap.get (this_path ++ p) ge_inst with
-                | Some (mk_inst_ref class_name inst_path) =>
-                    match PathMap.get [class_name; str name] ge_func with
-                    | Some fd => Some (inst_path, fd)
-                    | None => None
-                    end
-                | _ => None
-                end
-            end
-        | _ => None
-        end
+      match expr with
+      | MkExpression _ (ExpName _ loc) _ _ =>
+          match loc with
+          | LGlobal p =>
+              match PathMap.get p ge_inst with
+              | Some (mk_inst_ref class_name inst_path) =>
+                  match PathMap.get [class_name; str name] ge_func with
+                  | Some fd => Some (Some inst_path, fd)
+                  | None => None
+                  end
+              | None => None
+              end
+          | LInstance p =>
+              match PathMap.get (this_path ++ p) ge_inst with
+              | Some (mk_inst_ref class_name inst_path) =>
+                  match PathMap.get [class_name; str name] ge_func with
+                  | Some fd => Some (Some inst_path, fd)
+                  | None => None
+                  end
+              | None => None
+              end
+          end
+      | _ => None
+      end
   | _ => None
   end.
 
@@ -954,7 +930,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
   | exec_lexpr_member_next : forall expr lv name headers size next this st tag typ dir sig ret_sig,
                              String.eqb (P4String.str name) "next" = true ->
                              exec_lexpr read_one_bit this st expr lv sig ->
-                             exec_expr read_one_bit this st expr (ValBaseStack headers size next) ->
+                             exec_expr read_one_bit this st expr (ValBaseStack headers next) ->
                              (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
@@ -974,9 +950,9 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                exec_lexpr read_one_bit this st array lv sig ->
                                exec_expr_det read_one_bit this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
-                               (if (idxz >=? 0) 
+                               (if (idxz >=? 0)
                                 then idxn = Z.to_N idxz
-                                else exec_expr read_one_bit this st array (ValBaseStack headers idxn next)) ->
+                                else exec_expr read_one_bit this st array (ValBaseStack headers next)) ->
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
@@ -985,13 +961,18 @@ Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
   update_memory (PathMap.set p sv) s.
 
+(* Nominal fields like "next" are not addressible, so they cannot be fields in lvalues. When evaluating
+  lvalues, they are converted to addressible lvalues. So they are not considered in exec_read and
+  exec_write. *)
+
 Inductive exec_read : state -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
                      loc_to_sval loc st = Some sv ->
                      exec_read st (MkValueLvalue (ValLeftName name loc) typ) sv
-  | exec_read_by_member : forall lv name st sv typ,
-                          exec_read_member st lv name typ sv ->
-                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv
+  | exec_read_by_member : forall lv name st sv typ sv',
+                          exec_read st lv sv ->
+                          get_member sv name sv' ->
+                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv'
   (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
   | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
                            exec_read st lv bitssv ->
@@ -1001,38 +982,15 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                            (lonat <= hinat < wn)%nat ->
                            exec_read st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
-  | exec_read_array_access: forall lv headers size next default_header header idx st typ rtyp,
-                            exec_read st lv (ValBaseStack headers size next) ->
+  | exec_read_array_access: forall lv headers next default_header header idx st typ rtyp,
+                            exec_read st lv (ValBaseStack headers next) ->
                             get_real_type typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
-                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index). 
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist.  *)
-with exec_read_member : state -> Lval -> string -> P4Type -> Sval -> Prop :=
-  | exec_read_member_struct : forall fields st lv name typ sv,
-                              exec_read st lv (ValBaseStruct fields) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_header : forall is_valid fields st lv name typ sv,
-                              exec_read st lv (ValBaseHeader fields is_valid) ->
-                              AList.get fields name = Some sv ->
-                              exec_read_member st lv name typ sv
-  | exec_read_member_union: forall fields st lv name typ sv,
-                            exec_read st lv (ValBaseUnion fields) ->
-                            AList.get fields name = Some sv ->
-                            exec_read_member st lv name typ sv.
+                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
-(*  Write to the field of an invalid header in a union makes the possibly existing valid header
-    take undefined value. It should be guaranteed there is at most one valid header in a union. 
-    Guaranteed by:
-    1. Writing to the field of an invalid header in a union will first execute write_header_field,
-       which does not change such a header.
-    2. Writing an invalid header into a union happens in update_union_member, which converts
-       all headers to invalid. *)
 (* If any of these kinds of writes are performed:
-    1. a write to a field in a currently invalid header, either a regular header or an element of 
+    1. a write to a field in a currently invalid header, either a regular header or an element of
        a header stack with an index that is in range, and that header is not part of a header_union
     2. a write to a field in an element of a header stack, where the index is out of range
    then that write must not change any state that is currently defined in the system...
@@ -1042,35 +1000,47 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
                                AList.set fields fname fv = Some fields' ->
                                write_header_field (ValBaseHeader fields (Some true)) fname fv
                                (ValBaseHeader fields' (Some true))
-  | write_header_field_invalid : forall fields fname fv,
+  | write_header_field_invalid : forall fields fname fv fields',
+                                 (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                                 AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
                                  write_header_field (ValBaseHeader fields (Some false)) fname fv
-                                 (ValBaseHeader fields (Some false))
-  (* Since valid = None only occurs for out-of-bound header stack access, and for that case 
-     writing to lval is prevented by update_stack_header, this relation should never be hit. *)
-  | write_header_field_undef : forall fields fname fv,
-                                 write_header_field (ValBaseHeader fields None) fname fv
-                                 (ValBaseHeader fields None).
+                                 (ValBaseHeader fields' (Some false))
+  (* is_valid = None only during an out-of-bounds header stack access. This constructor is only used when
+    writing to a[n].x that n is out of bounds. *)
+  | write_header_field_undef : forall fields fname fv fields',
+                               (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+                               AList.set fields fname (uninit_sval_of_sval None fv) = Some fields' ->
+                               write_header_field (ValBaseHeader fields None) fname fv
+                               (ValBaseHeader fields' None).
 
-(* More formally, if u is an expression whose type is a header union U with fields ranged over 
+(*  Writing to a field of an invalid header in a union makes the possibly existing valid header
+    take undefined value. It should be guaranteed there is at most one valid header in a union.
+    Guaranteed by:
+    1. Writing to the field of an invalid header in a union will first execute write_header_field,
+       which does not change such a header.
+    2. Writing an invalid header into a union happens in update_union_member, which converts
+       all headers to invalid. *)
+(* More formally, if u is an expression whose type is a header union U with fields ranged over
    by hi, then the following operations can be used to manipulate u:
-   1. u.hi.setValid(): sets the valid bit for header hi to true and sets the valid bit 
-                       for all other headers to false, which implies that reading these 
+   1. u.hi.setValid(): sets the valid bit for header hi to true and sets the valid bit
+                       for all other headers to false, which implies that reading these
                        headers will return an unspecified value.
-   2. u.hi.setInvalid(): if the valid bit for any member header of u is true then sets 
-                         it to false, which implies that reading any member header of u 
+   2. u.hi.setInvalid(): if the valid bit for any member header of u is true then sets
+                         it to false, which implies that reading any member header of u
                          will return an unspecified value.
-   We can understand an assignment to a union u.hi = e as equivalent to 
+   We can understand an assignment to a union u.hi = e as equivalent to
    u.hi.setValid(); u.hi = e; if e is valid and
    u.hi.setInvalid(); otherwise.
-   Consider a situation where a header_union u1 has member headers u1.h1 and u1.h2, and at a given 
-   point in the program's execution u1.h1 is valid and u1.h2 is invalid. If a write is attempted 
-   to a field of the invalid member header u1.h2, then any or all of the fields of the valid member 
-   header u1.h1 may change as a result. Such a write must not change the validity of any member 
+   Consider a situation where a header_union u1 has member headers u1.h1 and u1.h2, and at a given
+   point in the program's execution u1.h1 is valid and u1.h2 is invalid. If a write is attempted
+   to a field of the invalid member header u1.h2, then any or all of the fields of the valid member
+   header u1.h1 may change as a result. Such a write must not change the validity of any member
    headers of u1, nor any other state that is currently defined in the system.
    Guaranteed by:
    1. Typechecker ensures that fname must exist in the fields.
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
+
 Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
                              (hfields: StringAList Sval) (is_valid: option bool) :
                              option (StringAList Sval) :=
@@ -1080,24 +1050,23 @@ Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
     match update_union_member tl fname hfields is_valid with
     | None => None
     | Some tl' =>
-      match is_valid with
-      | Some true => if String.eqb fname fname'
-                     then Some ((fname, ValBaseHeader hfields (Some true)) :: tl')
-                     else Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-      | Some false => if String.eqb fname fname'
-                      then Some ((fname', ValBaseHeader hfields' (Some false)) :: tl')
-                      else Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval (Some false)) hfields') is_valid') :: tl')
-      (* Since valid = None only occurs for out-of-bound header stack access, and hfields
-         should be result of exec_expr, it should have been determinized at this point. *)
-      | _ => None
-      end
+      if String.eqb fname fname' then
+        Some ((fname, ValBaseHeader hfields is_valid) :: tl')
+      else
+        let new_is_valid' :=
+          match is_valid with
+          | Some true => Some false
+          | Some false => is_valid'
+          (* is_valid = None should be impossible. A header member of a header union should never have
+            None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
+          | _ => is_valid'
+          end in
+        (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
+        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval None) hfields') new_is_valid') :: tl')
     end
   | _ :: _ => None
   end.
 
-(* (ValLeftMember (ValBaseStack headers size) !"next") is guaranteed avoided
-   by conversions in exec_lexpr to (ValLeftArrayAccess (ValBaseStack headers size) index).
-   Also, value here if derived from lvalue in the caller, so !"last" does not exist. *)
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_struct : forall fields' fields fname fv,
                            AList.set fields fname fv = Some fields' ->
@@ -1119,7 +1088,7 @@ Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sv
     end
   in update_stack_header' headers (N.to_nat idx) v.
 
-Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat) 
+Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
                               (nbits : list A) : list A :=
   match bits, lo, hi, nbits with
   | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
@@ -1161,10 +1130,10 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
                                   exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
-  | exec_write_array_access : forall lv headers size next (idx: N) headers' st rhs typ st',
-                              exec_read st lv (ValBaseStack headers size next) ->
+  | exec_write_array_access : forall lv headers next (idx: N) headers' st rhs typ st',
+                              exec_read st lv (ValBaseStack headers next) ->
                               update_stack_header headers idx rhs = headers' ->
-                              exec_write st lv (ValBaseStack headers' size next) st' ->
+                              exec_write st lv (ValBaseStack headers' next) st' ->
                               exec_write st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) rhs st'.
 
 Definition argument : Type := (option Sval) * (option Lval).
@@ -1184,18 +1153,18 @@ Definition get_arg_directions (func : @Expression tags_t) : list direction :=
 (* inout -> (Some _, Some _) *)
 (* out parameters are, with a few exceptions listed below, uninitialized and are treated as l-values
    (See Section 6.6) within the body of the method or function...
-   Direction out parameters are always initialized at the beginning of execution of the portion of 
-   the program that has the out parameters, e.g. control, parser, action, function, etc. This 
+   Direction out parameters are always initialized at the beginning of execution of the portion of
+   the program that has the out parameters, e.g. control, parser, action, function, etc. This
    initialization is not performed for parameters with any direction that is not out.
       1. If a direction out parameter is of type header or header_union, it is set to “invalid”.
-      2. If a direction out parameter is of type header stack, all elements of the header stack 
+      2. If a direction out parameter is of type header stack, all elements of the header stack
          are set to “invalid”, and its nextIndex field is initialized to 0 (see Section 8.17).
-      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than 
+      3. If a direction out parameter is a compound type, e.g. a struct or tuple, other than
          one of the types listed above, then apply these rules recursively to its members.
-      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need 
+      4. If a direction out parameter has any other type, e.g. bit<W>, an implementation need
          not initialize it to any predictable value.
 *)
-Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) : 
+Inductive exec_arg (read_one_bit : option bool -> bool -> Prop) :
                    path -> state -> option (@Expression tags_t) -> direction -> argument -> signal -> Prop :=
   | exec_arg_in : forall this st expr v sv,
                   exec_expr_det read_one_bit this st expr v ->
@@ -1249,6 +1218,17 @@ Inductive exec_write_options : state -> list (option Lval) -> list Sval -> state
                             exec_write_options s2 lvs svs s3 ->
                             exec_write_options s1 (lv :: lvs) (sv :: svs) s3.
 
+(* NOTE: We may need to modify for the call convention for overloaded functions. *)
+Definition exec_func_copy_in (params : list (path * direction)) (args : list Sval) (s : state) : state :=
+  update_memory (PathMap.sets (filter_in params) args) s.
+
+(* NOTE: We may need to modify for the call convention for overloaded functions. *)
+Definition exec_func_copy_out (params : list (path * direction)) (s : state) : option (list Sval) :=
+  lift_option (PathMap.gets (filter_out params) (get_memory s)).
+
+Definition exec_call_copy_out (args : list (option Lval * direction)) (vals : list Sval) (s s' : state) : Prop :=
+  exec_write_options s (filter_out args) vals s'.
+
 Definition extract_invals (args : list argument) : list Sval :=
   let f arg :=
     match arg with
@@ -1256,15 +1236,6 @@ Definition extract_invals (args : list argument) : list Sval :=
     | (None, _) => []
     end in
   flat_map f args.
-
-Definition extract_outlvals (dirs : list direction) (args : list argument) : list (option Lval) :=
-  let f dirarg :=
-    match dirarg with
-    | (Out, (_, olv)) => [olv]
-    | (InOut, (_, olv)) => [olv]
-    | _ => []
-    end in
-  flat_map f (combine dirs args).
 
 Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
@@ -1319,36 +1290,98 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => ""
   end.
 
-(* ValBaseHeader: setValid, setInvalid, isValid are supposed to be handled in exec_builtin *)
-(* The expression h.minSizeInBits() is defined for any value h that has a header type. 
-   The expression is equal to the sum of the sizes of all of header h's fields in bits, 
-   counting all varbit fields as length 0. An expression h.minSizeInBits() is a compile-time 
+(* isValid() is supported by headers and header unions. If u is a header union, u.isValid() returns true
+  if any member of the header union u is valid, otherwise it returns false. *)
+Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bool -> Prop :=
+| exec_isValid_header : forall fields valid_bit is_valid,
+    read_one_bit valid_bit is_valid ->
+    exec_isValid read_one_bit (ValBaseHeader fields valid_bit) is_valid
+| exec_isValid_union : forall fields valid_bits,
+    Forall2 (exec_isValid read_one_bit) (map snd fields) valid_bits ->
+    exec_isValid read_one_bit (ValBaseUnion fields)
+      (fold_left orb valid_bits false).
+
+Definition dummy_val {bit} : (@ValueBase bit) := ValBaseNull.
+Global Opaque dummy_val.
+Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
+
+Definition push_front (headers : list Sval) (next : N) (count : Z) : Sval :=
+  let size := Zlength headers in
+  let headers' :=
+    if (count <=? size)%Z then
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
+        ++ sublist 0 (size - count) headers
+    else
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size
+  in
+  let next' := Z.to_N (Z.of_N next + count) in
+  ValBaseStack headers' next'.
+
+Definition pop_front (headers : list Sval) (next : N) (count : Z) : Sval :=
+  let size := Zlength headers in
+  let headers' :=
+    if (count <=? size)%Z then
+      sublist count size headers ++ Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) count
+    else
+      Zrepeat (uninit_sval_of_sval (Some false) (Znth 0 headers)) size
+  in
+  let next' := Z.to_N (Z.of_N next - count) in
+  ValBaseStack headers' next'.
+
+(* The expression h.minSizeInBits() is defined for any value h that has a header type.
+   The expression is equal to the sum of the sizes of all of header h's fields in bits,
+   counting all varbit fields as length 0. An expression h.minSizeInBits() is a compile-time
    constant with type int.
-   The expression h.minSizeInBytes() is similar to h.minSizeInBits(), except that it returns 
-   the total size of all of the header's fields in bytes, rounding up to the next whole number 
-   of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is 
+   The expression h.minSizeInBytes() is similar to h.minSizeInBits(), except that it returns
+   the total size of all of the header's fields in bytes, rounding up to the next whole number
+   of bytes if the header's size is not a multiple of 8 bits long. h.minSizeInBytes() is
    equal to (h.minSizeInBits() + 7) >> 3. *)
-(* ValBaseUnion: isValid is supposed to be handled in exec_builtin *)
-(* u.isValid() returns true if any member of the header union u is valid, otherwise it returns false. *)
 (* It should be guaranteed there is at most one valid header in a union. *)
+(* stack.next must be handled in a preprocessor, as it returns an lvalue. *)
 (* ValBaseStack: next, last, pop_front, push_front are supposed to be handled in exec_builtin *)
-(* Calling the isValid() method on an element of a header stack, where the index is out of range, 
-   returns an undefined boolean value, i.e., it is either true or false, but the specification 
+(* Calling the isValid() method on an element of a header stack, where the index is out of range,
+   returns an undefined boolean value, i.e., it is either true or false, but the specification
    does not require one or the other, nor that a consistent value is returned across multiple such calls.*)
 (* If any of these kinds of writes are performed:
    ... a method call of setValid() or setInvalid() on an element of a header stack, where the index is out of range
-   then that write must not change any state that is currently defined in the system, neither in header 
+   then that write must not change any state that is currently defined in the system, neither in header
    fields nor anywhere else. In particular, if an invalid header is involved in the write, it must remain invalid. *)
-Inductive exec_builtin : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
-  (* this_path s lv fname args s' sig *) (* TODO *)
-  .
+
+Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> state -> Lval -> ident -> list Sval -> state -> signal -> Prop :=
+| exec_builtin_isValid : forall p st lv sv is_valid,
+    exec_read st lv sv ->
+    exec_isValid read_one_bit sv is_valid ->
+    exec_builtin read_one_bit p st lv "isValid" [] st (SReturn (ValBaseBool is_valid))
+| exec_builtin_setValid : forall p st lv fields is_valid st',
+    exec_read st lv (ValBaseHeader fields is_valid) ->
+    exec_write st lv (ValBaseHeader fields (Some true)) st' ->
+    exec_builtin read_one_bit p st lv "setValid" [] st' (SReturn ValBaseNull)
+| exec_builtin_setInalid : forall p st lv fields is_valid st',
+    exec_read st lv (ValBaseHeader fields is_valid) ->
+    exec_write st lv (ValBaseHeader fields (Some false)) st' ->
+    exec_builtin read_one_bit p st lv "setInvalid" [] st' (SReturn ValBaseNull)
+| exec_builtin_push_front : forall p st lv headers next count st',
+    exec_read st lv (ValBaseStack headers next) ->
+    exec_write st lv (push_front headers next count) st' ->
+    exec_builtin read_one_bit p st lv "push_front" [ValBaseInteger count] st' (SReturn ValBaseNull)
+| exec_builtin_pop_front : forall p st lv headers next count st',
+    exec_read st lv (ValBaseStack headers next) ->
+    exec_write st lv (pop_front headers next count) st' ->
+    exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).
+
+Definition is_builtin_func (expr : @Expression tags_t) : bool :=
+  match expr with
+  | MkExpression _ _ (TypFunction (MkFunctionType _ _ FunBuiltin _)) _ =>
+      true
+  | _ => false
+  end.
 
 Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   path -> state -> (@Statement tags_t) -> state -> signal -> Prop :=
 | exec_stmt_assign : forall lhs lv rhs v sv this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st rhs v ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
-    val_to_sval v sv -> 
+    val_to_sval v sv ->
     (if is_continue sig then exec_write st lv sv st' else st' = st) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
@@ -1362,14 +1395,14 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
-| exec_stmt_method_call : forall this_path st tags func args typ st' sig sig',
+| exec_stmt_method_call : forall this_path st tags func targs args typ st' sig sig',
     exec_call
       read_one_bit this_path st
-      (MkExpression dummy_tags (ExpFunctionCall func nil args) TypVoid Directionless)
+      (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless)
               st' sig ->
     force_continue_signal sig = sig' ->
     exec_stmt read_one_bit this_path st
-              (MkStatement tags (StatMethodCall func nil args) typ) st' sig'
+              (MkStatement tags (StatMethodCall func targs args) typ) st' sig'
 | exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
       exec_call read_one_bit this_path st
                 (MkExpression
@@ -1391,7 +1424,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     exec_stmt
       read_one_bit this_path st (if b then tru else empty_statement) st' sig ->
     exec_stmt read_one_bit this_path st
-              (MkStatement tags (StatConditional cond tru None) typ) st SContinue
+              (MkStatement tags (StatConditional cond tru None) typ) st' sig
   | exec_stmt_block : forall block this_path st tags typ st' sig,
       exec_block read_one_bit this_path st block st' sig ->
       exec_stmt read_one_bit this_path st
@@ -1409,23 +1442,12 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_empty : forall this_path (st: state) tags typ st,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags StatEmpty typ) st SContinue
-  | exec_stmt_switch:
-      forall e b ename member cases block typ dir this_path
-        (st st': state) st'' tags tags' typ' st st' sig,
-        exec_call
-          read_one_bit this_path st e st'
-          (SReturn (table_retv b ename member)) ->
-        match_switch_case member cases = block ->
-        exec_block read_one_bit this_path st' block st'' sig ->
-        exec_stmt
-          read_one_bit this_path st
-          (MkStatement
-             tags
-             (StatSwitch
-                (MkExpression
-                   tags'
-                   (ExpExpressionMember e !"action_run")
-                   typ dir) cases) typ') st'' sig
+  | exec_stmt_switch : forall tags expr cases typ this_path st st' sig s block,
+      exec_expr_det read_one_bit this_path st expr (ValBaseString s) ->
+      match_switch_case s cases = block ->
+      exec_block read_one_bit this_path st block st' sig ->
+      exec_stmt read_one_bit this_path st
+                (MkStatement tags (StatSwitch expr cases) typ) st' sig
   | exec_stmt_variable : forall typ' name e v sv loc this_path st tags typ st',
       exec_expr_det read_one_bit this_path st e v ->
       val_to_sval v sv ->
@@ -1464,22 +1486,28 @@ with exec_block (read_one_bit : option bool -> bool -> Prop) :
   | exec_block_cons : forall stmt rest this_path st st' st'' sig sig',
                       (* This style is for avoiding backtracking *)
                       exec_stmt read_one_bit this_path st stmt st' sig ->
-                      exec_block read_one_bit this_path st' 
+                      exec_block read_one_bit this_path st'
                           (if is_continue sig then rest else empty_block) st'' sig' ->
-                      exec_block read_one_bit this_path st (BlockCons stmt rest) st'' 
+                      exec_block read_one_bit this_path st (BlockCons stmt rest) st''
                           (if is_continue sig then sig' else sig)
 
 with exec_call (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> (@Expression tags_t) -> state -> signal -> Prop :=
-  | exec_call_builtin : forall this_path s tags tag' lhs fname tparams params typ' args typ dir argvals s' sig sig' sig'' lv,
+  (* Perhaps we want to allow some built-in fucntions, e.g. isValid(), execute on rvalues. We can do that
+    by some preprocessing. *)
+  (* The code will be simpler if we avoid expanding the TypFunction part but using an is_builtin function
+    to test it. However, that will make repeat econstructor need backtracking. *)
+  | exec_call_builtin : forall this_path s tags tags' expr fname tparams params typ' dir' args typ dir argvals s' sig sig' sig'' lv,
       let dirs := map get_param_dir params in
-      exec_lexpr read_one_bit this_path s lhs lv sig ->
+      exec_lexpr read_one_bit this_path s expr lv sig ->
       exec_args read_one_bit this_path s args dirs argvals sig' ->
-      (if not_continue sig then s' = s /\ sig'' = sig 
+      (if not_continue sig then s' = s /\ sig'' = sig
        else if not_continue sig' then s' = s /\ sig'' = sig'
-       else exec_builtin this_path s lv fname (extract_invals argvals) s' sig'') ->
+       else exec_builtin read_one_bit this_path s lv (str fname) (extract_invals argvals) s' sig'') ->
+      (* As far as we know, built-in functions do not have out/inout parameters. So there's not a caller
+        copy-out step. Also exec_args should never raise any signal other than continue. *)
       exec_call read_one_bit this_path s (MkExpression tags (ExpFunctionCall
-          (MkExpression tag' (ExpExpressionMember lhs (P4String.Build_t tags_t inhabitant_tags_t fname)) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir)
+          (MkExpression tags' (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ')) dir')
           nil args) typ dir) s' sig''
   (* eval the call expression:
        1. eval arguments;
@@ -1488,39 +1516,32 @@ with exec_call (read_one_bit : option bool -> bool -> Prop) :
        4. write back out parameters.
   *)
   | exec_call_func : forall this_path s1 tags func targs args typ dir argvals obj_path fd outvals s2 s3 s4 s5 sig sig' ret_s ret_sig,
+      is_builtin_func func = false ->
       let dirs := get_arg_directions func in
       exec_args read_one_bit this_path s1 args dirs argvals sig ->
       lookup_func this_path func = Some (obj_path, fd) ->
-      (if path_eqb this_path obj_path then s2 = s1 else s2 = (set_memory PathMap.empty s1)) ->
-      exec_func read_one_bit obj_path s2 fd targs (extract_invals argvals) s3 outvals sig' ->
-      (if path_eqb this_path obj_path then s4 = s3 else s4 = (set_memory (get_memory s1) s3)) ->
-      exec_write_options s4 (extract_outlvals dirs argvals) outvals s5 ->
+      s2 = (if is_some obj_path then set_memory PathMap.empty s1 else s1) ->
+      exec_func read_one_bit (force this_path obj_path) s2 fd targs (extract_invals argvals) s3 outvals sig' ->
+      s4 = (if is_some obj_path then set_memory (get_memory s1) s3 else s3) ->
+      exec_call_copy_out (combine (map snd argvals) dirs) outvals s4  s5 ->
       (if is_continue sig then ret_s = s5 /\ ret_sig = sig' else ret_s = s1 /\ ret_sig = sig) ->
       exec_call read_one_bit this_path s1 (MkExpression tags (ExpFunctionCall func targs args) typ dir)
       ret_s ret_sig
-  (* The only example of non-continue signals during exec_args (after SimplExpr) is hd.extract(hdrs.next). *)
-  (* | exec_call_other : forall this_path s tags func args typ dir argvals sig,
-      let dirs := get_arg_directions func in
-      exec_args this_path s args dirs argvals sig ->
-      not_continue sig = true ->
-      exec_call this_path s (MkExpression tags (ExpFunctionCall func nil args) typ dir) s sig *)
 
 (* Only in/inout arguments in the first list Val and only out/inout arguments in the second list Val. *)
 with exec_func (read_one_bit : option bool -> bool -> Prop) :
                path -> state -> fundef -> list P4Type -> list Sval -> state -> list Sval -> signal -> Prop :=
-  | exec_func_internal : forall obj_path s params init body args s''' args' s' s'' sig sig' sig'',
-      bind_parameters params args s s' ->
-      exec_block read_one_bit obj_path s' init  s'' sig ->
-      is_continue sig = true ->
-      exec_block read_one_bit obj_path s'' body s''' sig' ->
-      force_return_signal sig' = sig'' ->
-      extract_parameters (filter_out params) s''' = Some args'->
-      exec_func read_one_bit obj_path s (FInternal params init body) nil args s''' args' sig''
+  | exec_func_internal : forall obj_path s params body args args' s' s'' sig sig',
+      exec_func_copy_in params args s = s' ->
+      exec_block read_one_bit obj_path s' body s'' sig ->
+      force_return_signal sig = sig' ->
+      exec_func_copy_out params s'' = Some args'->
+      exec_func read_one_bit obj_path s (FInternal params body) nil args s'' args' sig'
 
   | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name const_entries actionref ->
       (if is_some actionref
-       then actionref = (Some (mk_action_ref action_name ctrl_args)) 
+       then actionref = (Some (mk_action_ref action_name ctrl_args))
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
             /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
        else action = default_action
@@ -1574,8 +1595,8 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | _ => nil
   end.
 
-Axiom dummy_ident : ident.
-Axiom dummy_val : Val.
+Definition dummy_ident : ident := "".
+Global Opaque dummy_ident.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
@@ -1762,7 +1783,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
         let init := uninit_out_params iout_params in
         let params := map get_param_name_dir params in
         let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
-        let fd := FInternal (map (map_fst get_loc_path) params) init body in
+        let fd := FInternal (map (map_fst get_loc_path) params) (block_app init body) in
         let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
       else
@@ -1923,17 +1944,17 @@ Definition load_parser_state (p : path) (ge : genv_func) (state : @ParserState t
   match state with
   | MkParserState _ name body trans =>
       let body := block_app (block_of_list_statement body) (load_parser_transition p trans) in
-      PathMap.set (p ++ [str name]) (FInternal nil BlockNil body) ge
+      PathMap.set (p ++ [str name]) (FInternal nil body) ge
   end.
 
 Definition accept_state :=
-  FInternal nil BlockNil BlockNil.
+  FInternal nil BlockNil.
 
 Definition reject_state :=
   let verify := (MkExpression dummy_tags (ExpName (BareName !"verify") (LGlobal ["verify"])) dummy_type Directionless) in
   let false_expr := (MkExpression dummy_tags (ExpBool false) TypBool Directionless) in
   let stmt := (MkStatement dummy_tags (StatMethodCall verify nil [Some false_expr]) StmUnit) in
-  FInternal nil BlockNil (BlockSingleton stmt).
+  FInternal nil (BlockSingleton stmt).
 
 Definition action_param_to_p4param (param : path * direction) : P4Parameter :=
   let (name, dir) := param in
@@ -1965,7 +1986,7 @@ Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) 
               | LGlobal p' => PathMap.get p' ge
               end in
             match ofd with
-            | Some (FInternal params _ _) =>
+            | Some (FInternal params _) =>
                 TypFunction (MkFunctionType nil (map action_param_to_p4param params) FunAction TypVoid)
             | _ => dummy_type (* impossible *)
             end in
@@ -2003,26 +2024,26 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
-      let ge := PathMap.set (p ++ ["accept"]) accept_state ge in
-      let ge := PathMap.set (p ++ ["reject"]) reject_state ge in
+      let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
+      let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
       let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init (BlockSingleton stmt)) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [str param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init apply) ge
+      PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
       let iout_params := map (fun p => (str (fst p), snd p)) out_params in
       let init := uninit_out_params iout_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) init body) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
   | DeclExternObject _ name _ methods =>
@@ -2044,7 +2065,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
           map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
         else
           map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in
-      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) init body) ge
+      PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=
         FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)

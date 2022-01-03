@@ -1,9 +1,19 @@
+Set Warnings "-extraction-reserved-identifier".
 Require Coq.extraction.Extraction.
 Require Import Coq.extraction.ExtrOcamlBasic.
 Require Import Coq.extraction.ExtrOcamlNativeString.
-Require Import Coq.extraction.ExtrOcamlNatInt.
 
 Require Import Coq.Numbers.BinNums.
+
+Extract Inductive nat =>
+int [ "0" "Stdlib.Int.succ" ]
+    "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
+
+Extract Constant pred => "fun n -> Stdlib.max 0 (n-1)".
+Extract Constant minus => "fun n m -> Stdlib.max 0 (n-m)".
+
+Extract Inlined Constant max => "Stdlib.max".
+Extract Inlined Constant min => "Stdlib.min".
 
 Extract Inductive positive => "Bigint.t"
   [ "(fun p -> Bigint.of_zarith_bigint (Zarith.Z.succ (Zarith.Z.mul (Zarith.Z.of_int 2) (Bigint.to_zarith_bigint p))))"

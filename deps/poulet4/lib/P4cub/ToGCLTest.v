@@ -26,7 +26,13 @@ Module E := GCL.E.
 Module ST := Stmt.
 Definition d := NoInfo.
 
-Import SimpleNat.
+
+(**                       NOTE
+ * Don't comment out these test cases if they break.
+ * These are regression tests, which maintain code quality
+ * Commenting them out without fixing the problems is the same
+ * as breaking the build.
+ **)
 
 Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
 (* Compute p4cub_simple_nat. *)
@@ -36,15 +42,12 @@ Definition simple_nat_test_case :=
   let externs := V1model.externs in
   ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
-
 Definition simple_nat_inline_test : result (Inline.t Info) :=
   let* sn := p4cub_simple_nat in
   ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) sn.
 
 (* Compute p4cub_simple_nat. *)
-
 (* Compute simple_nat_inline_test. *)
-
 (* Compute simple_nat_test_case. *)
 
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.

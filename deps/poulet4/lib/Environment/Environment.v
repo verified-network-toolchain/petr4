@@ -155,8 +155,8 @@ Section Environment.
     | ValBaseUnion fields
     | ValBaseHeader fields _ => AList.get fields field
     (*| ValBaseSenum fields => AList.get fields field*)
-    | ValBaseStack hdrs len next =>
-      if String.eqb field StringConstants.last then List.nth_error hdrs (N.to_nat (len - 1)) else
+    | ValBaseStack hdrs next =>
+      if String.eqb field StringConstants.last then List.nth_error hdrs (N.to_nat (next - 1)) else
       if String.eqb field StringConstants.next then List.nth_error hdrs (N.to_nat next) else
       None
     | _ => None
@@ -184,7 +184,7 @@ Section Environment.
 
   Definition array_index (v: @ValueBase bit) (idx: nat): @option_monad (@ValueBase bit) :=
     match v with
-    | ValBaseStack hdrs _ _ => nth_error hdrs idx
+    | ValBaseStack hdrs _ => nth_error hdrs idx
     | _ => None
     end.
 
@@ -263,10 +263,10 @@ Section Environment.
 
   Definition update_array (lhs: @ValueBase bit) (idx: nat) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match lhs with
-    | ValBaseStack hdrs len nxt =>
-      if N.leb len (N.of_nat idx) then state_fail (AssertError "Out of bounds header stack write.") else
+    | ValBaseStack hdrs nxt =>
+      if N.leb (N.of_nat (List.length hdrs)) (N.of_nat idx) then state_fail (AssertError "Out of bounds header stack write.") else
       let (pref, suff) := split_list idx hdrs in
-      state_return (ValBaseStack (pref ++ rhs :: suff) len nxt)
+      state_return (ValBaseStack (pref ++ rhs :: suff) nxt)
     | _ => state_fail (TypeError "Attempt to update something that is not a header stack.")
     end.
 
@@ -293,8 +293,8 @@ Section Environment.
       let* fields' := lift_opt (AssertError "Unable to update member of enum.")
                                (AList.set fields member rhs) in
       state_return (ValBaseSenum fields')*)
-    | ValBaseStack hdrs len next =>
-      if String.eqb member StringConstants.last then update_array lhs (N.to_nat len) rhs else
+    | ValBaseStack hdrs next =>
+      if String.eqb member StringConstants.last then update_array lhs (N.to_nat (next - 1)) rhs else
       if String.eqb member StringConstants.next then update_array lhs (N.to_nat next) rhs else
       state_fail (AssertError "Can only update next and last members of header stack.")
     | _ => state_fail (AssertError "Unsupported value in member update.")

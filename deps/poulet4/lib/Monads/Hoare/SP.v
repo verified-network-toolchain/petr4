@@ -12,7 +12,7 @@ Open Scope hoare_scope.
 
 Definition Pred {State: Type} := State -> Prop.
 Definition top {State: Type} : @Pred State := fun _ => True.
-Hint Unfold top : core.
+Global Hint Unfold top : core.
 
 Definition hoare_triple_partial
     {State Exception Result: Type}

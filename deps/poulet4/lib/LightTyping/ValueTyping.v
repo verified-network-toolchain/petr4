@@ -1,5 +1,6 @@
 Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
-        Poulet4.Value Coq.micromega.Lia Poulet4.Utils.
+        Poulet4.Value Coq.micromega.Lia Poulet4.Utils
+        Poulet4.Monads.Monad Poulet4.Monads.Option.
 
 (** Predicate that a
     [read_one_bit] relation
@@ -35,8 +36,6 @@ Section ValueTyping.
        - needs to be parameterized by bit type. *)
 
     Variable (gsenum : senum_env).
-
-    Set Printing Implicit.
     
     Inductive val_typ : V -> typ -> Prop :=
     | typ_null :
@@ -50,7 +49,7 @@ Section ValueTyping.
     | typ_int : forall v,
         val_typ (ValBaseInt v) (TypInt (N.of_nat (length v)))
     | typ_varbit : forall n v,
-        N.to_nat n < length v ->
+        length v <= N.to_nat n ->
         val_typ (ValBaseVarbit n v) (TypVarBit n)
     | typ_string : forall s,
         val_typ (ValBaseString s) TypString
@@ -75,7 +74,7 @@ Section ValueTyping.
         val_typ (ValBaseUnion vs) (TypHeaderUnion ts)
     | typ_stack : forall n vs ts,
         Forall (fun v => val_typ v (TypHeader ts)) vs ->
-        val_typ (ValBaseStack vs n) (TypArray (TypHeader ts) n)
+        val_typ (ValBaseStack vs n) (TypArray (TypHeader ts) (N.of_nat (length vs)))
     | typ_enumfield : forall ename member members,
         List.In member members ->
         val_typ
@@ -101,7 +100,7 @@ Section ValueTyping.
       Hypothesis HInt : forall bits,
           P (ValBaseInt bits) (TypInt (N.of_nat (length bits))).
       Hypothesis HVarbit : forall n bits,
-          N.to_nat n < length bits ->
+          length bits <= N.to_nat n ->
           P (ValBaseVarbit n bits) (TypVarBit n).
       Hypothesis HString : forall s,
           P (ValBaseString s) TypString.
@@ -132,7 +131,7 @@ Section ValueTyping.
       Hypothesis HStack : forall n vs ts,
           Forall (fun v => val_typ v (TypHeader ts)) vs ->
           Forall (fun v => P v (TypHeader ts)) vs ->
-          P (ValBaseStack vs n) (TypArray (TypHeader ts) n).
+          P (ValBaseStack vs n) (TypArray (TypHeader ts) (N.of_nat (length vs))).
       Hypothesis HEnum : forall ename member members,
           List.In member members ->
           P
@@ -276,10 +275,13 @@ Section ValueTyping.
             rewrite Forall2_map_both, map_snd_map,
             map_map, <- Forall2_map_both.
             assumption.
-        - constructor.
-          + rewrite Forall_map.
-            unfold Basics.compose.
-            assumption.
+        - replace (length vs)
+            with (length (map (ValueBaseMap f) vs))
+            by (rewrite map_length; reflexivity).
+          constructor.
+          rewrite Forall_map.
+          unfold Basics.compose.
+          assumption.
         - replace (map fst fields) with
               (map fst (AList.map_values (ValueBaseMap f) fields)).
           constructor; auto.
@@ -365,6 +367,7 @@ Section ValueTyping.
           rewrite Forall2_eq in *; rewrite <- Habkeys.
           rewrite Forall2_map_both; split; eauto.
         - apply Forall2_length in H.
+          apply Forall2_length in H0 as Hlen; rewrite Hlen; clear Hlen.
           constructor; try lia.
           apply Forall2_forall_specialize with (t := TypHeader ts) in H0.
           rewrite Forall_forall in *.
@@ -477,4 +480,75 @@ Section ValueTyping.
       Qed.
     End Rel.
   End RelTyp.
+
+  Section Uninit.
+    Context {dummy : Inhabitant tags_t}.
+
+    Definition uninit_sval_of_typ_val_typ_def (t : typ) :=
+      forall b v ge, uninit_sval_of_typ b t = Some v -> val_typ ge v t.
+
+    Definition uninit_sval_of_typ_val_typ_ind :=
+      my_P4Type_ind
+        _ uninit_sval_of_typ_val_typ_def
+        (fun _ => True) (fun _ => True) (fun _ => True).
+
+    Local Hint Constructors val_typ : core.
+
+    Ltac some_inv :=
+      match goal with
+      | H: Some _ = Some _
+        |- _ => inversion H; subst; clear H
+      end.
+    
+    Lemma uninit_sval_of_typ_val_typ : forall t,
+        uninit_sval_of_typ_val_typ_def t.
+    Proof.
+      apply uninit_sval_of_typ_val_typ_ind;
+        unfold uninit_sval_of_typ_val_typ_def;
+        intros; cbn in *; try discriminate;
+          try some_inv; auto.
+      - assert (Hw : w = N.of_nat (length (repeat (@None bool) (N.to_nat w))))
+          by (rewrite repeat_length; lia).
+        rewrite Hw at 2; auto.
+      - assert (Hw : w = N.of_nat (length (repeat (@None bool) (N.to_nat w))))
+          by (rewrite repeat_length; lia).
+        rewrite Hw at 2; auto.
+      - constructor; simpl; lia.
+      - unfold option_bind, option_ret in *.
+        destruct (uninit_sval_of_typ b t) as [v' |] eqn:Hv';
+          cbn in *; try discriminate; some_inv.
+        assert (Hn : n = N.of_nat (length (repeat v' (N.to_nat n))))
+          by (rewrite repeat_length; lia).
+        rewrite Hn at 2.
+        Fail apply typ_stack.
+        admit. (* consider making [typ_stack] less restrictive,
+                  adding [is_expr] as an assumption &
+                  enforcing [TArray] there. *)
+      - unfold option_bind, option_ret in *.
+        destruct (sequence (map (uninit_sval_of_typ b) ts))
+          as [vs |] eqn:Hvs; try discriminate; some_inv.
+        rewrite <- Forall2_sequence_iff,
+        <- Forall2_map_l, Forall2_flip in Hvs.
+        constructor.
+        apply Forall2_impl
+          with (R := fun v t => uninit_sval_of_typ b t = Some v)
+               (Q := val_typ ge); auto.
+        rewrite Forall2_forall.
+        rewrite Forall_forall in H.
+        split; eauto using Forall2_length.
+        intros v t HIn Huninit.
+        assert (HInts : List.In t ts) by admit.
+        (* TODO helper lemma for [combine]. *)
+        eauto.
+      - unfold option_bind, option_ret in *.
+        destruct (sequence (map (uninit_sval_of_typ b) ts))
+          as [vs |] eqn:Hvs; try discriminate; some_inv.
+        rewrite <- Forall2_sequence_iff,
+        <- Forall2_map_l, Forall2_flip in Hvs.
+        Fail constructor.
+        admit. (* TODO: maybe need another constructor for [val_typ]. *)
+      - admit.
+      - admit.
+    Admitted.
+  End Uninit.
 End ValueTyping.

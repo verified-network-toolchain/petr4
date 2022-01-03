@@ -219,11 +219,11 @@ Section ValueUtil.
            (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
     match typ with
     | TypBool => Some (ValBaseBool None)
-    | TypInt w => Some (ValBaseInt (Zrepeat None (Z.of_N w)))
-    | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
+    | TypInt w => Some (ValBaseInt (repeat None (N.to_nat w)))
+    | TypBit w => Some (ValBaseBit (repeat None (N.to_nat w)))
     | TypArray typ size =>
       let^ sv := uninit_sval_of_typ hvalid typ in
-      ValBaseStack (Zrepeat sv (Z.of_N size)) 0
+      ValBaseStack (repeat sv (N.to_nat size)) 0
     | TypTuple typs
     | TypList typs => 
       sequence (List.map (uninit_sval_of_typ hvalid) typs) >>| ValBaseTuple

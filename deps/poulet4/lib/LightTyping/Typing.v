@@ -68,15 +68,16 @@ Section TypingDefs.
 
   Definition gamma_var_val_typ
              (g : gamma_var) (st : state)
-             (gs : genv_senum) : Prop :=
+             (gt : genv_typ) (gs : genv_senum) : Prop :=
     forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
-      val_typ gs v t.
+      exists rt, get_real_type gt t = Some rt /\ val_typ gs v rt.
 
   Definition gamma_var_prop
-             (g : gamma_var) (st : state) (gs : genv_senum) : Prop :=
-    gamma_var_domain g st /\ gamma_var_val_typ g st gs.
+             (g : gamma_var) (st : state)
+             (gt : genv_typ) (gs : genv_senum) : Prop :=
+    gamma_var_domain g st /\ gamma_var_val_typ g st gt gs.
   
   Definition gamma_const_domain
              (this : path) (g : gamma_const)
@@ -90,7 +91,7 @@ Section TypingDefs.
     forall l t v,
       typ_of_loc_const this l g = Some t ->
       loc_to_sval_const ge this l = Some v ->
-      val_typ (ge_senum ge) v t.
+      exists rt, get_real_type ge t = Some rt /\ val_typ (ge_senum ge) v rt.
 
   Definition gamma_const_prop
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
@@ -98,7 +99,7 @@ Section TypingDefs.
   
   Definition gamma_expr_prop
              (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
-    gamma_var_prop g st ge /\ gamma_const_prop this g ge.
+    gamma_var_prop g st ge ge /\ gamma_const_prop this g ge.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
@@ -114,6 +115,10 @@ Section TypingDefs.
   Definition delta_genv_prop
              (ge : @genv_typ tags_t) : list string -> Prop :=
     Forall (fun X => exists t, IdentMap.get X ge = Some t).
+
+  Definition genv_is_expr_typ (ge : @genv_typ tags_t) : Prop :=
+    forall t r, get_real_type ge t = Some r ->
+           is_expr_typ t -> is_expr_typ r.
   
   (** Expression typing. *)
   Definition
@@ -125,13 +130,18 @@ Section TypingDefs.
     : Prop :=
     forall (read_one_bit : option bool -> bool -> Prop)
       (ge : genv) (st : state),
-      delta_genv_prop ge Δ ->
-      read_one_bit_reads read_one_bit ->
-      gamma_expr_prop this Γ st ge ->
-      Δ ⊢ok typ_of_expr e ->
+      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
+      read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+      gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
+      Δ ⊢ok typ_of_expr e ->             (** Type variables are bound. *)
+      is_expr_typ (typ_of_expr e) ->     (** Is a valid expression type. *)
+      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
+      (** Progress. *)
       (exists v, run_expr ge read_one_bit this st e v) /\
+      (* Preservation. *)
       forall v, run_expr ge read_one_bit this st e v ->
-           val_typ (ge_senum ge) v (typ_of_expr e).
+           exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
+                 val_typ (ge_senum ge) v rt.
   (**[]*)
 
   (* Function definition typing environment. TODO! *)
@@ -611,6 +621,8 @@ Section Soundness.
   Local Hint Resolve ok_get_real_type_ex : core.
   
   Context {dummy : Inhabitant tags_t} `{T : @Target tags_t expr}.
+
+  Open Scope monad_scope.
   
   Notation run_expr := (@exec_expr tags_t dummy T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
@@ -621,6 +633,7 @@ Section Soundness.
   Local Hint Constructors val_typ : core.
   Local Hint Constructors exec_val : core.
   Local Hint Constructors P4Type_ok : core.
+  Local Hint Constructors is_expr_typ : core.
 
   Variables (this : path) (Δ : list string).
   
@@ -629,7 +642,7 @@ Section Soundness.
 
     Ltac soundtac :=
       autounfold with *;
-      intros rob ge st Hdlta Hrob Hg Hok;
+      intros rob ge st Hdlta Hrob Hg Hok Hise Hgrt;
       split; eauto;
       try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
   
@@ -708,7 +721,7 @@ Section Soundness.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
-    
+
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
@@ -719,15 +732,32 @@ Section Soundness.
     Proof.
       intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros rob ge st Hdelta Hrob Hg Hok; simpl in *.
+      intros rob ge st Hdelta Hrob Hg Hok Hise Hgrt; simpl in *.
       rewrite Ht1, Ht2 in *.
       pose proof He1 rob ge st Hdelta Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
       pose proof He2 rob ge st Hdelta Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
       split.
       - assert (Hv2': exists v2', sval_to_val rob v2 v2')
           by eauto using exec_val_exists.
-        pose proof He1' v1 Hev1 as Hv1.
-        pose proof He2' v2 Hev2 as Hv2.
+        pose proof He1' v1 Hev1 as (r1 & Hr1 & Hv1).
+        pose proof He2' v2 Hev2 as (r2 & Hr2 & Hv2).
+        clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2.
+        unfold option_bind, option_ret in *.
+        destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
+          as [rs |] eqn:Hrs;
+          unfold ">>|",">>=" in *;
+          unfold option_monad_inst, option_monad in *;
+          unfold mret, mbind, option_bind, option_ret in *;
+          unfold option_monad_inst, option_monad in *;
+          rewrite Hrs in Hr1; try discriminate.
+        inversion Hr1; subst; clear Hr1.
+        assert (Hhrs: get_real_type ge (TypHeader ts) = Some (TypHeader rs)).
+        { cbn in *.
+          unfold ">>|",">>=" in *;
+          unfold option_monad_inst, option_monad in *;
+          unfold mret, mbind, option_bind, option_ret in *;
+          unfold option_monad_inst, option_monad in *;
+          rewrite Hrs; reflexivity. }
         destruct Hv2' as [v2' Hv2'].
         inversion Hv1; inversion Hv2; inversion Hv2';
           subst; try discriminate.
@@ -735,31 +765,41 @@ Section Soundness.
         assert
           (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
           by (simpl; eauto); destruct Hz as [z Hz].
-        assert (Hreal: exists real, get_real_type ge (TypHeader ts) = Some real).
-        { pose proof ok_get_real_type_ex as Hbruh;
-            unfold ok_get_real_type_ex_def in Hbruh; eauto. }
-        destruct Hreal as [rt Hrt].
         assert (forall Δ ge (t t' : typ),
                    delta_genv_prop ge Δ ->
                    get_real_type ge t = Some t' ->
                    Δ ⊢ok t -> [] ⊢ok t') by admit.
-        Fail assert (forall t, proper_type t ->
-                     [] ⊢ok t -> exists v, uninit_sval_of_typ None t = Some v).
-        assert (Huninit : exists v, uninit_sval_of_typ None rt = Some v) by admit.
-        assert (forall t v,
-                   uninit_sval_of_typ None t = Some v -> val_typ (ge_senum ge) v t) by admit.
-        (*Locate uninit_sval_of_typ.*) admit.
-      - intros v' Haa; inversion Haa; clear Haa; subst; simpl.
-    (* Molly commented the things below out since 
-       things does not work on H7 after Semantics.v changes *)
-    (* rename H4 into He2; rename H10 into He1;
-       rename H7 into Hsval; rename H9 into Haa;
-       rename H11 into Huninit.
-       pose proof He1' _ He1 as Hv1.
-       pose proof He2' _ He2 as Hv2.
-       rewrite Ht1 in Hv1; rewrite Ht2 in Hv2.
-       inversion Hv1; inversion Hv2; subst. *)
-        (* Need result about [Znth_def]. *)
+        assert (Hrtok : [] ⊢ok (TypHeader rs)) by admit.
+        assert (Huninit : exists v, uninit_sval_of_typ None (TypHeader rs) = Some v)
+          by eauto using is_expr_typ_uninit_sval_of_typ.
+        destruct Huninit as [v Hv]; eauto.
+      - clear v1 v2 Hev1 Hev2.
+        intros v Hev; inversion Hev; subst.
+        apply He1' in H10 as (r1 & Hr1 & Hv1); clear He1'.
+        apply He2' in H4 as (r2 & Hr2 & Hv2); clear He2'.
+        rewrite H11.
+        unfold get_real_type in Hr1, H11;
+          fold (@get_real_type tags_t) in Hr1, H11.
+        rewrite H11 in Hr1.
+        cbv in Hr1; inversion Hr1; subst; clear Hr1 H11.
+        cbn in *; inversion Hr2; subst; clear Hr2.
+        inversion Hv1; subst.
+        eexists; split; eauto.
+        unfold Znth_def.
+        destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
+        + pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
+          unfold uninit_sval_of_typ_val_typ_def in H.
+          eauto.
+        + rewrite <- nth_default_eq.
+          unfold nth_default.
+          destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
+          * inversion Hv1; subst.
+            rewrite Forall_forall in H1.
+            eauto using nth_error_In.
+          * pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
+            unfold uninit_sval_of_typ_val_typ_def in H.
+            eauto.
+            (* TODO: maybe change Znth in [Semantics.v]. *)
     Admitted.
 
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,
@@ -775,14 +815,14 @@ Section Soundness.
       intros rob ge st Hrob Hg Hok.
       rewrite Ht in *.
       pose proof He rob ge st Hrob Hg as [[v Hev] He']; clear He; auto.
-      split.
+      (*split.
       - apply He' in Hev as Hv;
           inversion Hv; subst; rename v0 into bits.
         exists (ValBaseBit (bitstring_slice bits (N.to_nat lo) (N.to_nat hi))).
         eapply exec_expr_bitstring_access with (wn := length bits); eauto; lia.
       - clear v Hev. intros v Hrn; inversion Hrn; subst; simpl.
         (*rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.*)
-        (* Need result about [bitstring_slice]. *) admit.
+        (* Need result about [bitstring_slice]. *) admit. *)
     Admitted.
   
     Lemma list_sound : forall tag es dir,

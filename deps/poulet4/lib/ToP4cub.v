@@ -364,8 +364,7 @@ Section ToP4cub.
   Definition cub_type_of_enum (members : list (P4String.t tags_t)) :=
     E.TBit (Npos (pos (width_of_enum members))).
 
-
-  Program Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
+  Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
     let translate_fields :=
         fold_right (fun '(name,typ) res_rst =>
                       let* cub_typ := translate_exp_type i typ in
@@ -386,9 +385,14 @@ Section ToP4cub.
       error "[FIXME] Compile to fixed-width"
     | TypArray typ size =>
       match typ with
+      | TypStruct fields
       | TypHeader fields =>
         let+ cub_fields := translate_fields fields in
         E.THeaderStack cub_fields (posN size)
+      | TypTypeName s =>
+        error ("Typerror:: Arrays must contain headers, got type variable: " ++ @P4String.str tags_t s)
+      | TypNewType s _ =>
+        error ("Typerror:: Arrays must contain headers, got type variable: " ++ @P4String.str tags_t s)
       | _ => error "Typeerror:: Arrays must contain Headers"
       end
     | TypTuple types =>
@@ -444,6 +448,7 @@ Section ToP4cub.
     | TypConstructor _ _ _ _ =>
       error "A type constructor is not an expression"
     end.
+
 
   Definition realize_array_index (e : @Expression tags_t) : result Z :=
     match e with

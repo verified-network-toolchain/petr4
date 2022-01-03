@@ -61,8 +61,8 @@ Definition ecmp2_test_case :=
   let externs := V1model.externs in
   ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
-(* Compute p4cub_ecmp2. *)
-(* Compute ecmp2_test_case. *)
+Compute p4cub_ecmp2.
+Compute ecmp2_test_case.
 
 Lemma ecmp2_test : is_ok ecmp2_test_case.
 Proof. compute. trivial. Qed.
@@ -130,6 +130,8 @@ Proof. compute; trivial. Qed.
 Definition netchain_test_case :=
   let* nc := ToP4cubTest.p4cub_netchain in
   ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) nc.
+
+Print TypHeader.
 
 Lemma netchain_test: is_ok netchain_test_case.
 Proof. compute; trivial. Qed.

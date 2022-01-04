@@ -69,7 +69,7 @@ RUN apt-get update && \
     opam update
 
 #pin p4pp and install its deps 
-RUN opam install menhir.20211128 && \ 
+RUN opam install menhir.20211128 -y && \ 
     opam pin -y add p4pp https://github.com/cornell-netlab/p4pp.git && \
     eval $(opam env)
 

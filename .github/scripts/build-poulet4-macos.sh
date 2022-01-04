@@ -35,6 +35,7 @@ opam update
 opam upgrade
 # install p4pp
 opam switch 4.12.0
+opam install menhir.20211128
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
 

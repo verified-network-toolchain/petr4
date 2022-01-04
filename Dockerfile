@@ -63,7 +63,8 @@ RUN apt-get update && \
     eval $(opam env) && \
     opam update && \
     opam switch list-available && \
-    opam switch create 4.12.0 && \
+    opam switch create 4.09.1 && \
+#    opam switch create 4.12.0 && \
     opam init --disable-sandboxing -y && \
     eval $(opam env) && \
     opam update

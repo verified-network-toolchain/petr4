@@ -19,7 +19,7 @@ git clone https://github.com/p4lang/p4c.git
 # done
 
 # find /p4cgit/p4c/testdata/ -type p4 -exec command {options} {} \; > results.out
-find /petr4/p4cgit/p4c/testdata/ -name "*.p4" -exec petr4 -I /petr4/p4cgit/p4c/p4include/ {options} {} \; -exec petr4 -I /petr4/p4cgit/p4c/p4include/ --top4 "" {} \; > /petr4/results/typecheck-results.out
+find /petr4/p4cgit/p4c/testdata/ -name "*.p4" -exec petr4 typecheck -I /petr4/p4cgit/p4c/p4include/ {} \; -exec p4test -I /petr4/p4cgit/p4c/p4include/ --top4 "" {} \; > /petr4/results/typecheck-results.out
 
 
 

@@ -1,0 +1,29 @@
+name: ci-typechecker
+
+on:
+  workflow_dispatch:
+  # workflow_run:
+  #   workflows: ["push-petr4-docker-img"]
+  #   branches: [main]
+  #   types:
+  #     - completed
+
+jobs:
+  petr4-vs-p4c:
+    runs-on: ubuntu-latest
+    # if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    container:
+      image: pataei/petr4
+    steps: 
+      - name: typecheck test petr4 vs p4c
+        run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
+        shell: bash
+
+
+# have a job that checkouts first and another to reuse a workflow like the following:
+#   checkout:
+#     runs-on: ubuntu-latest
+    # steps:
+    #   - uses: actions/checkout@main      
+#   reuse-build-petr4:
+#     uses: pataei/petr4/.github/workflows/build-petr4.yml@main

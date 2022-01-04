@@ -27,8 +27,10 @@ sudo apt-get install -y --no-install-recommends \
   ${PETR4_DEPS}
 opam update
 opam upgrade
+# opam uninstall menhir
+opam install menhir.20211128
 # install p4pp
-#opam switch 4.09.1
+# opam switch create 4.09.1
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
 #export PATH="/usr/local/opt/dune/bin:$PATH"

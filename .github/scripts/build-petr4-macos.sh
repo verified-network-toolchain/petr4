@@ -28,7 +28,7 @@ opam update
 opam upgrade
 
 # install p4pp
-#opam switch 4.09.1
+opam switch 4.09.1
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
 #dune external-lib-deps --missing @install

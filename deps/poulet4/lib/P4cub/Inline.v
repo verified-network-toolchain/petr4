@@ -290,6 +290,29 @@ Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
 
+Print IExternMethodCall.
+
+Definition assume b tags :=
+  let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
+  IExternMethodCall "_" "assume" args tags.
+
+Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (tags : tags_t) :=
+  let symb_key := E.EVar key_type symb_var tags in
+  (symb_key, E.EBop E.TBool E.Eq symb_key key tags).
+
+Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i tags :=
+  let keyname := "_symb$" ++ t ++ "$match_" ++ string_of_nat i in
+  match keys with
+  | [] => (ISkip tags, [])
+  | ((key_type, key_expr, key_mk)::keys) =>
+    let (assumes, new_keys) := normalize_keys_aux t keys (i+1) tags in
+    let (symb_key, eq) := realize_symbolic_key keyname key_type key_expr tags in
+    (ISeq (assume eq tags) assumes tags, (key_type, symb_key, key_mk)::new_keys)
+  end.
+
+Definition normalize_keys t keys :=
+  normalize_keys_aux t keys 0.
+
 Fixpoint inline
          (n : nat)
          (ctx : DeclCtx tags_t)
@@ -402,7 +425,9 @@ Fixpoint inline
         in
         let* acts := rred (List.map act_to_gcl actions) in
         let+ named_acts := zip actions acts in
-        IInvoke t keys named_acts i
+        let (assumes, keys') := normalize_keys t keys i in
+        let invocation := IInvoke t keys' named_acts i in
+        ISeq assumes invocation i
       | _ =>
         error "[ERROR] expecting table when getting table, got something else"
       end
@@ -647,7 +672,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   end.
 
 Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
-  F.fold (fun f typ acc => (s ++ "__s__" ++ f, typ) :: acc ) fields [].
+  F.fold (fun f typ acc => (s ++ "." ++ f, typ) :: acc ) fields [].
 
 (** TODO: Compiler pass to elaborate structs *)
 Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
@@ -715,8 +740,6 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
     ok c
 end.
 
-Print F.fold.
-
 Fixpoint eliminate_slice_assignments (c : t) : result t :=
   match c with
   | ISkip _ => ok c
@@ -760,4 +783,104 @@ Fixpoint eliminate_slice_assignments (c : t) : result t :=
   | IHeaderStackOp _ _ _ _ _ => ok c
   | IExternMethodCall _ _ _ _ => ok c
   end.
+
+Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
+  let args := {|paramargs := [("check", PAIn check)]; rtrns:= None|} in
+  IExternMethodCall "_" "assert" args tags.
+
+Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
+  E.EUop E.TBool E.IsValid hdr tags.
+
+Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
+  match e with
+  | E.EBool _ _ | E.EBit _ _ _
+  | E.EInt _ _ _ | E.EVar _ _ _
+  | E.EError _ _ | E.EMatchKind _ _  =>  ok (ISkip tags)
+  | E.EExprMember type name e tags =>
+    match t_of_e e with
+    | E.THeader _  =>
+      ok (inline_assert (isValid e tags) tags)
+    | _ =>
+      ok (ISkip tags)
+    end
+  | E.ESlice e _ _ tags =>
+    header_asserts e tags
+  | E.ECast _ e tags =>
+    header_asserts e tags
+  | E.EUop _ _ e tags =>
+    header_asserts e tags
+  | E.EBop _ _ lhs rhs tags =>
+    let* lhs_asserts := header_asserts lhs tags in
+    let+ rhs_asserts := header_asserts rhs tags in
+    ISeq lhs_asserts rhs_asserts tags
+  | E.ETuple _ _ =>
+    (* List.fold_left (fun acc_asserts e => *)
+    (* let* acc_asserts := acc_asserts in *)
+    (* let+ new_asserts := header_asserts e tags in *)
+    (* ISeq acc_asserts new_asserts tags) es (ok (ISkip tags)) *)
+    error "[ERROR] [header_asserts] tuples should be factored out by now"
+  | E.EStruct _ _ =>
+    error "[ERROR] [header_asserts] structs should be factored out by now"
+  | E.EHeader _ _ _ =>
+    error "[ERROR] [header_asserts] header literals should be factored out by now"
+  | E.EHeaderStack _ _ _ _ =>
+    error "[ERROR] [header_asserts] header stacks should be factored out by now"
+  | E.EHeaderStackAccess _ _ _ _ =>
+    error "[ERROR] [header_asserts] header stack accesses should be factored out by now"
+  end.
+
+
+Definition get_from_paramarg {A : Type} (pa : paramarg A A) :=
+  match pa with
+  | PAIn a => a
+  | PAOut a => a
+  | PAInOut a => a
+  | PADirLess a => a
+  end.
+
+Fixpoint assert_headers_valid_before_use (c : t) : result t :=
+  match c with
+  | ISkip _
+  | IVardecl _ _ _=> ok c
+  | IAssign _ lhs rhs tags =>
+    let* lhs_asserts := header_asserts lhs tags in
+    let+ rhs_asserts := header_asserts rhs tags in
+    ISeq (ISeq lhs_asserts rhs_asserts tags) c tags
+  | IConditional typ guard tru fls tags =>
+    let* tru' := assert_headers_valid_before_use tru in
+    let* fls' := assert_headers_valid_before_use fls in
+    let+ guard_asserts := header_asserts guard tags in
+    IConditional typ guard tru' fls' tags
+  | ISeq s1 s2 tags =>
+    let* s1' := assert_headers_valid_before_use s1 in
+    let+ s2' := assert_headers_valid_before_use s2 in
+    ISeq s1 s2 tags
+  | IBlock blk =>
+    let+ blk' := assert_headers_valid_before_use blk in
+    IBlock blk'
+  | IReturnVoid _ => ok c
+  | IReturnFruit _ e tags =>
+    let+ asserts := header_asserts e tags in
+    ISeq asserts c tags
+  | IExit _ => ok c
+  | IInvoke t ks acts tags =>
+  (* Assume keys have been normalized, so dont to check them*)
+    let+ acts' := rred (List.map (fun '(a,c) =>
+                  let+ c' := assert_headers_valid_before_use c in
+                  (a, c')) acts) in
+    IInvoke t ks acts' tags
+  | ISetValidity  _ _ _  => ok c
+  | IHeaderStackOp _ _ _ _ _ =>
+    (* Assume this has been factored out already *)
+    error "header stacks shouldhave been factored out already"
+  | IExternMethodCall ext method args tags =>
+    let paramargs := paramargs args in
+    let+ asserts := List.fold_left (fun acc_asserts '(param, arg)  =>
+                   let* acc_asserts := acc_asserts in
+                   let arg_exp := get_from_paramarg arg in
+                   let+ new_asserts := header_asserts arg_exp tags in
+                   ISeq acc_asserts new_asserts tags) paramargs (ok (ISkip tags)) in
+    ISeq asserts (IExternMethodCall ext method args tags) tags
+  end.
+
 End Inline.

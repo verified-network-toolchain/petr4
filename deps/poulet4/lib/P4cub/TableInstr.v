@@ -16,6 +16,10 @@ Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
   G.GAssume (F.bveq (BV.BVVar s w) r).
 
 Open Scope string_scope.
+(* Rewrite Plan *)
+(* ✓ 1. Add _.assume extern *)
+(* ✓ 2. Normalize tables with symbolic variables *)
+(* 3. Write p4cub->p4cub instrumentation pass to assert header validity *)
 Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * E.matchkind) (acc_res : result F.t) : result F.t :=
   let (te, mk) := elt in
   let (w, k) := te in
@@ -41,9 +45,10 @@ Definition action_inner (table : string) (keys : list (nat * BV.t * E.matchkind)
 
 Definition actions_encoding (table : string) (keys : list (nat * BV.t * E.matchkind)) (actions : list (string * ToGCL.target)) : result ToGCL.target :=
   let w := bits_to_encode_list_index actions in
-  fold_lefti (action_inner table keys w) (ok (G.GAssume (F.LBool false))) actions.
+  fold_lefti (action_inner table keys w) (ok (G.GSkip)) actions.
 
 Definition instr (table : string) (i : Info) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
-  let* matchcond := matchrow table keys in
+  (* let* matchcond := matchrow table keys in *)
   let+ acts := actions_encoding table keys actions in
-  G.GSeq (G.GAssume matchcond) acts.
+  (* G.GSeq (G.GAssume matchcond) *)
+  acts.

@@ -17,6 +17,7 @@ Definition externs : ToGCL.model :=
   [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9) 511));
          ("clone3", G.GSkip);
          ("assert", G.GAssert (F.LVar "check"));
+         ("assume", G.GAssume (F.LVar "check"));
          ("hash", G.GSkip);
          ("truncate", G.GSkip);
          ("random", G.GSkip);
@@ -33,6 +34,19 @@ Definition externs : ToGCL.model :=
 Definition cub_seq {tags_t : Type} (i : tags_t) (statements : list (ST.s tags_t)) : ST.s tags_t  :=
   let seq := fun s1 s2 => ST.SSeq s1 s2 i in
   List.fold_right seq (ST.SSkip i) statements.
+
+Print Expr.arrowE.
+Print arrow.
+Definition det_fwd_asst {tags_t : Type} (i : tags_t) :=
+  let assertion :=
+      E.EBop E.TBool
+             E.NotEq
+             (E.EVar (E.TBit 9%N) "standard_metadata.egress_spec" i)
+             (E.EBit 9%N 511%Z i) i
+  in
+  let paramargs := [("check", PAIn assertion)] in
+  let arrowE := {| paramargs := paramargs ; rtrns := None |} in
+  ST.SExternMethodCall "_" "assert" [] arrowE i.
 
 Definition t_arg {tags_t : Type} (i : tags_t) (dir : (E.e tags_t) -> paramarg (E.e tags_t) (E.e tags_t)) typ var :=
   (var, dir (E.EVar typ var i)).
@@ -67,7 +81,8 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
         (* ST.PApply _ parser   ext_args pargs    NoInfo; *)
         (* ST.SApply   v_check  ext_args vck_args NoInfo; *)
         ST.SApply   ingress  ext_args ing_args i;
-        ST.SApply   egress   ext_args egr_args i
+        ST.SApply   egress   ext_args egr_args i;
+        det_fwd_asst i
         (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
         (* ST.SApply   deparser ext_args dep_args NoInfo *)
     ].
@@ -87,6 +102,8 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-
 Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas p4cub : result ToGCL.target :=
+  let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
+  let assume_decl := TopDecl.TPExtern "_" [] [] [("assume", ([], arrowtype))] d in
+  let p4cub_instrumented := ToP4cub.add_extern tags_t p4cub assume_decl in
   ToGCL.from_p4cub tags_t instr gas externs (package d) p4cub.

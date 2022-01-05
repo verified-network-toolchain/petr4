@@ -2,6 +2,7 @@ Set Warnings "-custom-entry-overridden".
 Require Export Poulet4.Syntax.
 Require Import Poulet4.SimplExpr.
 Require Import Poulet4.P4cub.Util.ListUtil.
+Require Import Poulet4.InlineTypeDecl.
 Require Export
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Syntax.Substitution
@@ -463,7 +464,7 @@ Section ToP4cub.
     let '(MkExpression _ _ typ _) := e in
     typ.
 
-  Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
+    Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
     match t with
     | TypBool => error "cannot get  from boolean"
     | TypString => error "cannot get type name from string"
@@ -495,14 +496,6 @@ Section ToP4cub.
     | TypSpecializedType t _ => get_string_from_type t
     | TypConstructor _ _ _ _ => error "cannot get name from typconstructor"
     end.
-
-  Definition inst_name_from_type (g : NameGen.t) (t : P4Type) : result (NameGen.t * P4String.t tags_t) :=
-    let+ type_name := get_string_from_type t in
-    let (g, name) := NameGen.fresh g (P4String.str type_name) in
-    let p4str_name := {| P4String.tags := P4String.tags type_name;
-                         P4String.str := name
-                      |} in
-    (g, p4str_name).
 
   Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result nat :=
     match member_list with
@@ -1479,6 +1472,23 @@ Section ToP4cub.
       (* error "[FIXME] P4light inlining step necessary" *)
   end.
 
+  Fixpoint inline_types_decls decls :=
+    match decls with
+    | [] => ok []
+    | d::decls =>
+      let+ decls' := inline_types_decls decls in
+      match InlineTypeDecl.substitution_from_decl d with
+      | None => d::decls'
+      | Some σ =>
+        let d' := @InlineTypeDecl.substitute_typ_Declaration tags_t σ d in
+        d' :: decls'
+      end
+    end.
+
+  Definition inline_types_prog '(Program decls) :=
+    let+ decls' := inline_types_decls decls in
+    Program decls'.
+
   (* This is redunant with the locals resolution in the previous code, but I
    * can't get it to compile using mutual fixpoints *)
   Definition translate_decls (decls : list (@Declaration tags_t)) : result DeclCtx :=
@@ -1492,11 +1502,11 @@ Section ToP4cub.
     | Some rst => Some (TopDecl.TPSeq d rst i)
     end.
 
-  Definition preprocess (tags : tags_t)  :=
-    (hoist_nameless_instantiations tags_t)
-      ∘ (SimplExpr.transform_prog tags).
+  Definition preprocess (tags : tags_t) p :=
+    let* hoisted_simpl := hoist_nameless_instantiations tags_t (SimplExpr.transform_prog tags p) in
+    inline_types_prog hoisted_simpl.
 
-  Definition inline_types (decls : DeclCtx) :=
+  Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.
 
   Definition infer_member_types (decl : DeclCtx) :=
@@ -1518,6 +1528,6 @@ Section ToP4cub.
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
     let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
-    infer_member_types (inline_types cub_decls).
+    infer_member_types (inline_cub_types cub_decls).
 
 End ToP4cub.

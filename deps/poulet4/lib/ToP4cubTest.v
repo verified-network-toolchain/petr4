@@ -25,7 +25,8 @@ Require Import Poulet4.LightExamples.Hula.
  **)
 
 (* Test Lemma For simple_nat.p4*)
-(* Compute (translate_program Info NoInfo SimpleNat.prog). *)
+Compute (preprocess Info NoInfo SimpleNat.prog).
+Compute (translate_program Info NoInfo SimpleNat.prog).
 Lemma simplenat_no_error: Result.is_ok (translate_program Info NoInfo SimpleNat.prog).
 Proof.
   compute.

@@ -9,7 +9,7 @@
 	ConstValue
     AST EquivDec
     ToP4cub ToGCL GCL Inline
-    HoistNameless InferMemberTypes Substitution
+    HoistNameless InferMemberTypes Substitution InlineTypeDecl
     TableInstr V1model
     Auxilary Envn Result P4Arith
     EquivUtil StringUtil ListUtil FunUtil

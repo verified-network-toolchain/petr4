@@ -72,7 +72,7 @@ Section TypingDefs.
     forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
-      exists rt, get_real_type gt t = Some rt /\ val_typ gs v rt.
+      exists rt, get_real_type gt t = Some rt /\ val_typ gs v (normᵗ rt).
 
   Definition gamma_var_prop
              (g : gamma_var) (st : state)
@@ -91,8 +91,9 @@ Section TypingDefs.
     forall l t v,
       typ_of_loc_const this l g = Some t ->
       loc_to_sval_const ge this l = Some v ->
-      exists rt, get_real_type ge t = Some rt /\ val_typ (ge_senum ge) v rt.
-
+      exists rt, get_real_type ge t = Some rt /\
+            val_typ (ge_senum ge) v (normᵗ rt).
+  
   Definition gamma_const_prop
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
     gamma_const_domain this g ge /\ gamma_const_val_typ this g ge.
@@ -141,7 +142,7 @@ Section TypingDefs.
       (* Preservation. *)
       forall v, run_expr ge read_one_bit this st e v ->
            exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                 val_typ (ge_senum ge) v rt.
+                 val_typ (ge_senum ge) v (normᵗ rt).
   (**[]*)
 
   (* Function definition typing environment. TODO! *)
@@ -640,11 +641,17 @@ Section Soundness.
   Section ExprTyping.
     Variable (Γ : @gamma_expr tags_t).
 
+    Ltac solve_ex :=
+      match goal with
+      | |- exists rt, Some ?t = Some rt /\ _
+        => exists t; cbn; eauto
+      end.
+    
     Ltac soundtac :=
       autounfold with *;
       intros rob ge st Hdlta Hrob Hg Hok Hise Hgrt;
       split; eauto;
-      try (intros v Hrn; inversion Hrn; subst; cbn; eauto).
+      try (intros v Hrn; inversion Hrn; subst; cbn; solve_ex).
   
     Lemma bool_sound : forall tag b dir,
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpBool b) TypBool dir ≀ this.
@@ -701,9 +708,9 @@ Section Soundness.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
-        destruct Hg as [[_ Hg] _]; eauto.
-      - rewrite Hd in H7; discriminate.
-    Qed.
+        destruct Hg as [[_ Hg] _]; intros v Hv; cbn in *.
+        eapply Hg; eauto.
+    Admitted.
 
     Lemma constant_sound : forall tag x loc t dir,
         is_directional dir = false ->
@@ -717,10 +724,10 @@ Section Soundness.
         { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
-      - rewrite Hd in H7; discriminate.
+      (*- rewrite Hd in H7; discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
-        destruct Hg as (_ & _ & Hg); eauto.
-    Qed.
+        destruct Hg as (_ & _ & Hg); eauto.*)
+    Admitted.
 
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->

@@ -5,9 +5,6 @@ Import List.ListNotations.
 
 (** * Inline type-declarations in p4light programs. *)
 
-Context {tags_t : Type}.
-Notation typ := (@P4Type tags_t).
-Notation parameter := (@P4Parameter tags_t).
 Notation lmap := map.
 Notation almap := AList.map_values.
 Notation omap := option_map.
@@ -18,11 +15,11 @@ Open Scope sub_scope.
 
 (* TODO: how do [name]s in type names work
    with bare or qualifieds? *)
-Notation substitution := (IdentMap.t typ).
+Definition substitution (tags_t : Type) := (IdentMap.t (@P4Type tags_t)).
 
 Definition
-  sub_default
-  (σ : substitution) (X : String.string) (τ : typ) : typ :=
+  sub_default {tags_t : Type}
+  (σ : substitution tags_t) (X : String.string) (τ : P4Type) : P4Type :=
   match IdentMap.get X σ with
   | Some τ => τ
   | None   => τ
@@ -38,14 +35,15 @@ Notation "σ ∋ X '|->' τ"
 
 (** [P4Type] substition. *)
 Reserved Notation "σ '†t'" (at level 11, right associativity).
-(** [ControlType] substitution. *)
+(** [ControlType] substitution tags_t. *)
 Reserved Notation "σ '†ct'" (at level 11, right associativity).
 (** [FunctionType] substition. *)
 Reserved Notation "σ '†ft'" (at level 11, right associativity).
-(** [P4Parameter] substitution. *)
+(** [P4Parameter] substitution tags_t. *)
 Reserved Notation "σ '†p'" (at level 11, right associativity).
   
-Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
+Fixpoint sub_typs_P4Type
+         {tags_t} (σ : substitution tags_t) (τ : P4Type) : P4Type :=
   match τ with
   | TypBool
   | TypString
@@ -81,42 +79,42 @@ Fixpoint sub_typs_P4Type (σ : substitution) (τ : typ) : typ :=
       TypConstructor Xs ws (lmap (σ' †p) ps) (σ' †t τ)
   end
 where "σ '†t'" := (sub_typs_P4Type σ) : sub_scope with
-sub_typs_ControlType
-  (σ : substitution) (ctrltype : ControlType) : ControlType :=
+sub_typs_ControlType {tags_t}
+  (σ : substitution tags_t) (ctrltype : ControlType) : ControlType :=
   match ctrltype with
   | MkControlType Xs params
     => MkControlType Xs (lmap (σ ∖ (lmap P4String.str Xs) †p) params)
   end
 where "σ '†ct'" := (sub_typs_ControlType σ) : sub_scope with
-sub_typs_FunctionType
-  (σ : substitution) (functype : FunctionType) : FunctionType :=
+sub_typs_FunctionType {tags_t}
+  (σ : substitution tags_t) (functype : FunctionType) : FunctionType :=
   match functype with
   | MkFunctionType Xs params kind ret
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       MkFunctionType Xs (lmap (σ' †p) params) kind (σ' †t ret)
   end
 where "σ '†ft'" := (sub_typs_FunctionType σ) : sub_scope with
-sub_typs_P4Parameter
-  (σ : substitution) (param : parameter) : parameter :=
+sub_typs_P4Parameter {tags_t}
+  (σ : substitution tags_t) (param : P4Parameter) : P4Parameter :=
   match param with
   | MkParameter b d τ def x => MkParameter b d (σ †t τ) def x
   end
 where "σ '†p'" := (sub_typs_P4Parameter σ) : sub_scope.
 
-(** [Expression] substitution. *)
+(** [Expression] substitution tags_t. *)
 Reserved Notation "σ '†e'" (at level 11, right associativity).
-(** [ExpressionPreT] substitution. *)
+(** [ExpressionPreT] substitution tags_t. *)
 Reserved Notation "σ '†e_pre'" (at level 11, right associativity).
 
 Fixpoint
-  sub_typs_Expression
-  (σ : substitution) (e : Expression) : Expression :=
+  sub_typs_Expression {tags_t}
+  (σ : substitution tags_t) (e : Expression) : Expression :=
     match e with
     | MkExpression i e τ d => MkExpression i (σ †e_pre e) (σ †t τ) d
     end
 where  "σ '†e'" := (sub_typs_Expression σ) with
-sub_typs_ExpressionPreT
-  (σ : substitution) (e : ExpressionPreT) : ExpressionPreT :=
+sub_typs_ExpressionPreT {tags_t}
+  (σ : substitution tags_t) (e : ExpressionPreT) : ExpressionPreT :=
   match e with
     | ExpBool _
     | ExpInt _
@@ -142,8 +140,8 @@ sub_typs_ExpressionPreT
 where  "σ '†e_pre'" := (sub_typs_ExpressionPreT σ).
 
 Definition
-  sub_typs_MethodPrototype
-  (σ : substitution) (mp : MethodPrototype) : MethodPrototype :=
+  sub_typs_MethodPrototype {tags_t}
+  (σ : substitution tags_t) (mp : MethodPrototype) : MethodPrototype :=
   match mp with
   | ProtoConstructor i x ps => ProtoConstructor i x (lmap (σ †p) ps)
   | ProtoAbstractMethod i τ x Xs ps
@@ -159,8 +157,8 @@ Notation "σ '†mp'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_MatchPreT
-  (σ : substitution) (m : MatchPreT) : MatchPreT :=
+  sub_typs_MatchPreT {tags_t}
+  (σ : substitution tags_t) (m : MatchPreT) : MatchPreT :=
   match m with
   | MatchDontCare    => MatchDontCare
   | MatchMask  e₁ e₂ => MatchMask  (σ †e e₁) (σ †e e₂)
@@ -173,8 +171,8 @@ Notation "σ '†match_pre'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_Match
-  (σ : substitution) '(MkMatch i m τ : Match) : Match :=
+  sub_typs_Match {tags_t}
+  (σ : substitution tags_t) '(MkMatch i m τ : Match) : Match :=
   MkMatch i (σ †match_pre m) (σ †t τ).
 
 Notation "σ '†match'"
@@ -182,8 +180,8 @@ Notation "σ '†match'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_TablePreActionRef
-  (σ : substitution)
+  sub_typs_TablePreActionRef {tags_t}
+  (σ : substitution tags_t)
   '(MkTablePreActionRef x es : TablePreActionRef)
   : TablePreActionRef := MkTablePreActionRef x (lmap (omap (σ †e)) es).
 
@@ -192,8 +190,8 @@ Notation "σ '†tar_pre'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_TableActionRef
-  (σ : substitution)
+  sub_typs_TableActionRef {tags_t}
+  (σ : substitution tags_t)
   '(MkTableActionRef i ar τ : TableActionRef)
   : TableActionRef := MkTableActionRef i (σ †tar_pre ar) (σ †t τ).
 
@@ -202,8 +200,8 @@ Notation "σ '†tar'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_TableKey
-  (σ : substitution) '(MkTableKey i k mk : TableKey)
+  sub_typs_TableKey {tags_t}
+  (σ : substitution tags_t) '(MkTableKey i k mk : TableKey)
   : TableKey := MkTableKey i (σ †e k) mk.
 
 Notation "σ '†tk'"
@@ -211,8 +209,8 @@ Notation "σ '†tk'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_TableEntry
-  (σ : substitution) '(MkTableEntry i ms tar : TableEntry)
+  sub_typs_TableEntry {tags_t}
+  (σ : substitution tags_t) '(MkTableEntry i ms tar : TableEntry)
   : TableEntry := MkTableEntry i (lmap (σ †match) ms) (σ †tar tar).
 
 Notation "σ '†te'"
@@ -220,19 +218,19 @@ Notation "σ '†te'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_TableProperty
-  (σ : substitution) '(MkTableProperty i b x e : TableProperty)
+  sub_typs_TableProperty {tags_t}
+  (σ : substitution tags_t) '(MkTableProperty i b x e : TableProperty)
   : TableProperty := MkTableProperty i b x (σ †e e).
 
 Notation "σ '†tp'"
   := (sub_typs_TableProperty σ)
        (at level 11, right associativity) : sub_scope.
 
-(** [Statement] substitution. *)
+(** [Statement] substitution tags_t. *)
 Reserved Notation "σ '†s'" (at level 11, right associativity).
-(** [StatementPreT] substitution. *)
+(** [StatementPreT] substitution tags_t. *)
 Reserved Notation "σ '†s_pre'" (at level 11, right associativity).
-(** [Block] substitution. *)
+(** [Block] substitution tags_t. *)
 Reserved Notation "σ '†blk'" (at level 11, right associativity).
 (** [StatementSwitchCase] substition. *)
 Reserved Notation "σ '†switch'" (at level 11, right associativity).
@@ -240,14 +238,14 @@ Reserved Notation "σ '†switch'" (at level 11, right associativity).
 Reserved Notation "σ '†init'" (at level 11, right associativity).
 
 Fixpoint
-  sub_typs_Statement
-  (σ : substitution) (s : Statement) : Statement :=
+  sub_typs_Statement {tags_t}
+  (σ : substitution tags_t) (s : Statement) : Statement :=
   match s with
   | MkStatement i s τ => MkStatement i (σ †s_pre s) τ
   end
 where "σ '†s'" := (sub_typs_Statement σ) with
-sub_typs_StatementPreT
-  (σ : substitution) (s : StatementPreT) : StatementPreT :=
+sub_typs_StatementPreT {tags_t}
+  (σ : substitution tags_t) (s : StatementPreT) : StatementPreT :=
   match s with
   | StatExit
   | StatEmpty               => s
@@ -266,23 +264,23 @@ sub_typs_StatementPreT
     => StatMethodCall (σ †e e) (lmap (σ †t) τs) (lmap (omap (σ †e)) es)
   end
 where "σ '†s_pre'" := (sub_typs_StatementPreT σ) with
-sub_typs_Block
-  (σ : substitution) (blk : Block) : Block :=
+sub_typs_Block {tags_t}
+  (σ : substitution tags_t) (blk : Block) : Block :=
   match blk with
   | BlockEmpty _    => blk
   | BlockCons s blk => BlockCons (σ †s s) (σ †blk blk)
   end
 where "σ '†blk'" := (sub_typs_Block σ) with
-sub_typs_StatementSwitchCase
-  (σ : substitution)
+sub_typs_StatementSwitchCase {tags_t}
+  (σ : substitution tags_t)
   (sc : StatementSwitchCase) : StatementSwitchCase :=
   match sc with
   | StatSwCaseFallThrough _ _  => sc
   | StatSwCaseAction i lbl blk => StatSwCaseAction i lbl (σ †blk blk)
   end
 where "σ '†switch'" := (sub_typs_StatementSwitchCase σ) with
-sub_typs_Initializer
-  (σ : substitution) (init : Initializer) : Initializer :=
+sub_typs_Initializer {tags_t}
+  (σ : substitution tags_t) (init : Initializer) : Initializer :=
   match init with
   | InitFunction i τ x Xs ps blk
     => let σ' := σ ∖ (lmap P4String.str Xs) in
@@ -295,8 +293,8 @@ sub_typs_Initializer
 where "σ '†init'" := (sub_typs_Initializer σ).
 
 Definition
-  sub_typs_ParserCase
-  (σ : substitution) '(MkParserCase i ms x : ParserCase)
+  sub_typs_ParserCase {tags_t}
+  (σ : substitution tags_t) '(MkParserCase i ms x : ParserCase)
   : ParserCase := MkParserCase i (lmap (σ †match) ms) x.
 
 Notation "σ '†pc'"
@@ -304,8 +302,8 @@ Notation "σ '†pc'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_ParserTransition
-  (σ : substitution) (pt : ParserTransition) : ParserTransition :=
+  sub_typs_ParserTransition {tags_t}
+  (σ : substitution tags_t) (pt : ParserTransition) : ParserTransition :=
   match pt with
   | ParserDirect _ _      => pt
   | ParserSelect i es pcs => ParserSelect i (lmap (σ †e) es) (lmap (σ †pc) pcs)
@@ -316,8 +314,8 @@ Notation "σ '†pt'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  sub_typs_ParserState
-  (σ : substitution) '(MkParserState i x ss pt : ParserState)
+  sub_typs_ParserState {tags_t}
+  (σ : substitution tags_t) '(MkParserState i x ss pt : ParserState)
   : ParserState := MkParserState i x (lmap (σ †s) ss) (σ †pt pt).
 
 Notation "σ '†ps'"
@@ -325,8 +323,8 @@ Notation "σ '†ps'"
        (at level 11, right associativity) : sub_scope.
 
 Definition
-  inline_typ_DeclarationField
-  (σ : substitution) '(MkDeclarationField i τ x : DeclarationField)
+  inline_typ_DeclarationField {tags_t}
+  (σ : substitution tags_t) '(MkDeclarationField i τ x : DeclarationField)
   : P4String.t _ * P4Type := (x, σ †t τ).
 
 Notation "σ '‡df'"
@@ -337,11 +335,11 @@ Reserved Notation "σ '‡d'" (at level 11, right associativity).
 
 (** Inline type declarations. *)
 Fixpoint
-  inline_typ_Declaration
-  (σ : substitution) (d : Declaration) {struct d}
-  : substitution * option Declaration :=
+  inline_typ_Declaration {tags_t}
+  (σ : substitution tags_t) (d : Declaration) {struct d}
+  : substitution tags_t * option Declaration :=
   let fix itds σ ds
-      : substitution * list Declaration :=
+      : substitution tags_t * list Declaration :=
       match ds with
       | [] => (σ, [])
       | d :: ds
@@ -440,8 +438,8 @@ Fixpoint
 where "σ '‡d'" := (inline_typ_Declaration σ).
 
 Definition
-  inline_typ_program
-  (σ : substitution) '(Program ds) : substitution * program :=
+  inline_typ_program {tags_t}
+  (σ : substitution tags_t) '(Program ds) : substitution tags_t * program :=
   prod_map_r
     (Program ∘ (@rev _))
     (fold_left

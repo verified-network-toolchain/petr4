@@ -207,9 +207,9 @@ Section Utils.
       is_expr_typ (TypBit w)
   | is_varbit w :
       is_expr_typ (TypVarBit w)
-  | is_array t n :
-      is_expr_typ t ->
-      is_expr_typ (TypArray t n)
+  | is_array ts n :
+      is_expr_typ (TypHeader ts) ->
+      is_expr_typ (TypArray (TypHeader ts) n)
   | is_tuple ts :
       Forall is_expr_typ ts ->
       is_expr_typ (TypTuple ts)
@@ -250,8 +250,9 @@ Section IsExprTypInd.
   Hypothesis HInt : forall w, P (TypInt w).
   Hypothesis HBit : forall w, P (TypBit w).
   Hypothesis HVarbit : forall w, P (TypVarBit w).
-  Hypothesis HArray : forall t n,
-      is_expr_typ t -> P t -> P (TypArray t n).
+  Hypothesis HArray : forall ts n,
+      is_expr_typ (TypHeader ts) -> P (TypHeader ts) ->
+      P (TypArray (TypHeader ts) n).
   Hypothesis HTuple : forall ts,
       Forall is_expr_typ ts ->
       Forall P ts ->
@@ -862,28 +863,56 @@ Section Lemmas.
         unfold option_monad_inst, option_monad,
         option_bind, option_ret in *;
         try contradiction; eauto.
-    - eapply is_expr_typ_list_uninit_sval_of_typ in Hts as [vs Hvs]; eauto.
+    - eapply is_expr_typ_list_uninit_sval_of_typ
+        in Hts as [vs Hvs]; eauto.
       unfold option_monad_inst, option_monad,
       option_bind, option_ret in Hvs; rewrite Hvs; eauto.
-    - eapply is_expr_typ_list_uninit_sval_of_typ in Hts as [vs Hvs]; eauto.
+    - eapply is_expr_typ_list_uninit_sval_of_typ
+        in Hts as [vs Hvs]; eauto.
       unfold option_monad_inst, option_monad,
       option_bind, option_ret in Hvs; rewrite Hvs; eauto.
-    - eapply is_expr_typ_alist_uninit_sval_of_typ in Hxts as [xvs Hxvs]; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - eapply is_expr_typ_alist_uninit_sval_of_typ in Hxts as [xvs Hxvs]; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - eapply is_expr_typ_alist_uninit_sval_of_typ in Hxts as [xvs Hxvs]; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - eapply is_expr_typ_alist_uninit_sval_of_typ in Hxts as [xvs Hxvs]; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - destruct t as [t |];
-        inversion Ht; inversion IHt; inversion H0; subst; cbn in *; eauto.
+    - destruct t as [t |]; inversion Ht;
+        inversion IHt; inversion H0;
+          subst; cbn in *; eauto.
       assert (Heqb: PeanoNat.Nat.eqb (length ms) 0 = false)
         by (rewrite PeanoNat.Nat.eqb_neq; lia).
       rewrite Heqb; eauto.
   Qed.
+
+  Definition uninit_sval_of_typ_is_expr_typ_def (t : @P4Type tags_t) :=
+    forall b v, uninit_sval_of_typ b t = Some v -> is_expr_typ t.
+
+  Definition uninit_sval_of_typ_is_expr_typ_ind :=
+    my_P4Type_ind
+      _ uninit_sval_of_typ_is_expr_typ_def
+      (fun _ => True) (fun _ => True) (fun _ => True).
+
+  Local Hint Constructors is_expr_typ : core.
+
+  Lemma uninit_sval_of_typ_is_expr_typ : forall t,
+      uninit_sval_of_typ_is_expr_typ_def t.
+  Proof.
+    apply uninit_sval_of_typ_is_expr_typ_ind;
+      unfold uninit_sval_of_typ_is_expr_typ_def; cbn; auto.
+    - intros t n IH b v H.
+      destruct (uninit_sval_of_typ b t) as [v' |] eqn:Hv'; cbn in *;
+        unfold option_ret in H; inversion H; subst; clear H.
+      apply IH in Hv'. Fail apply is_array.
+  Abort.
 End Lemmas.

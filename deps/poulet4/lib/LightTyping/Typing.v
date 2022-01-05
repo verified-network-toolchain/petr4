@@ -788,8 +788,7 @@ Section Soundness.
         unfold Znth_def.
         destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
         + pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
-          unfold uninit_sval_of_typ_val_typ_def in H.
-          eauto.
+          (*eapply H; eauto.*) admit.
         + rewrite <- nth_default_eq.
           unfold nth_default.
           destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
@@ -797,9 +796,7 @@ Section Soundness.
             rewrite Forall_forall in H1.
             eauto using nth_error_In.
           * pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
-            unfold uninit_sval_of_typ_val_typ_def in H.
-            eauto.
-            (* TODO: maybe change Znth in [Semantics.v]. *)
+            eauto. admit.
     Admitted.
 
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,
@@ -958,11 +955,6 @@ Section Soundness.
         rewrite Forall_snd in H.
         apply Forall_and; rewrite Forall_forall in *;
           intros [? ?]; firstorder.
-      - constructor. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-        intros [? ?]; firstorder.
       - constructor; auto. unfold AList.all_values.
         rewrite <- Forall2_map_r, Forall2_Forall.
         rewrite Forall_snd in H.

@@ -322,9 +322,6 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
   | get_member_struct : forall fields member v,
                         AList.get fields member = Some v ->
                         get_member (ValBaseStruct fields) member v
-  | get_member_record : forall fields member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseRecord fields) member v
   | get_member_union : forall fields member v,
                        AList.get fields member = Some v ->
                        get_member (ValBaseUnion fields) member v
@@ -414,7 +411,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                        AList.all_values (exec_expr read_one_bit this st) (clear_AList_tags kvs) kvs' ->
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpRecord kvs) typ dir)
-                       (ValBaseRecord kvs')
+                       (ValBaseStruct kvs')
   | exec_expr_unary_op : forall op arg argsv argv v sv this st tag typ dir,
                          exec_expr read_one_bit this st arg argsv ->
                          sval_to_val read_one_bit argsv argv ->

@@ -41,9 +41,6 @@ Section ValueUtil.
     | exec_val_tuple : forall lv lv',
                       Forall2 (exec_val read_one_bit) lv lv' ->
                       exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
-    | exec_val_record : forall kvs kvs',
-                        AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                        exec_val read_one_bit (ValBaseRecord kvs) (ValBaseRecord kvs')
     | exec_val_error: forall s,
                       exec_val read_one_bit (ValBaseError s) (ValBaseError s)
     | exec_val_matchkind: forall s,
@@ -94,10 +91,6 @@ Section ValueUtil.
         Forall2 (exec_val R) vas vbs ->
         Forall2 P vas vbs ->
         P (ValBaseTuple vas) (ValBaseTuple vbs).
-    Hypothesis HRecord : forall kvas kvbs,
-        AList.all_values (exec_val R) kvas kvbs ->
-        AList.all_values P kvas kvbs ->
-        P (ValBaseRecord kvas) (ValBaseRecord kvbs).
     Hypothesis HError : forall s, P (ValBaseError s) (ValBaseError s).
     Hypothesis HMatchkind : forall s, P (ValBaseMatchKind s) (ValBaseMatchKind s).
     Hypothesis HStruct : forall kvas kvbs,
@@ -157,7 +150,6 @@ Section ValueUtil.
         | exec_val_varbit _ _ max _ rs => HVarbit _ max _ rs
         | exec_val_string _ s => HString s
         | exec_val_tuple _ _ _ evs => HTuple _ _ evs (lind evs)
-        | exec_val_record _ _ _ evs => HRecord _ _ evs (alind evs)
         | exec_val_error _ s => HError s
         | exec_val_matchkind _ s => HMatchkind s
         | exec_val_struct _ _ _ evs => HStruct _ _ evs (alind evs)
@@ -204,7 +196,6 @@ Section ValueUtil.
     | ValBaseVarbit m vl => ValBaseVarbit m (map Some vl)
     | ValBaseString s => ValBaseString s
     | ValBaseTuple vl => ValBaseTuple (eval_val_to_svals vl)
-    | ValBaseRecord rl => ValBaseRecord (val_to_avals rl)
     | ValBaseError s => ValBaseError s
     | ValBaseMatchKind s => ValBaseMatchKind s
     | ValBaseStruct rl => ValBaseStruct (val_to_avals rl)
@@ -225,14 +216,8 @@ Section ValueUtil.
       let^ sv := uninit_sval_of_typ hvalid typ in
       ValBaseStack (repeat sv (N.to_nat size)) 0
     | TypTuple typs
-    | TypList typs => 
+    | TypList typs =>
       sequence (List.map (uninit_sval_of_typ hvalid) typs) >>| ValBaseTuple
-    | TypRecord fields =>
-      sequence
-        (List.map
-           (fun '({| P4String.str := x |}, t) =>
-              uninit_sval_of_typ hvalid t >>| pair x)
-           fields) >>| ValBaseRecord
     | TypHeader fields =>
       let^ kvs :=
          sequence
@@ -247,6 +232,7 @@ Section ValueUtil.
            (fun '({| P4String.str := x |}, t) =>
               uninit_sval_of_typ hvalid t >>| pair x)
            fields) >>| ValBaseUnion
+    | TypRecord fields
     | TypStruct fields =>
       sequence
         (List.map
@@ -299,14 +285,11 @@ Section ValueUtil.
     (* May need change after clarifying the uninit sval of varbit *)
     | ValBaseVarbit max bits => ValBaseVarbit max (List.map (fun _ => None) bits)
     | ValBaseTuple vs => ValBaseTuple (List.map (uninit_sval_of_sval hvalid) vs)
-    | ValBaseRecord kvs => ValBaseRecord (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseStruct kvs => ValBaseStruct (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseHeader kvs is_valid => ValBaseHeader (kv_map (uninit_sval_of_sval hvalid) kvs) hvalid
     | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseStack vs next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) next
     | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
-    (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
-    (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
     | _ => v
     end.
 

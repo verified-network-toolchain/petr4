@@ -63,9 +63,10 @@ Section Packet.
     | TypInt width =>
       let* vec := read_first_bits (N.to_nat width) in
       mret (ValBaseInt (List.map inject_bit (Vector.to_list vec)))
+    | TypStruct field_types
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-      mret (ValBaseRecord field_vals)
+      mret (ValBaseStruct field_vals)
     | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseHeader field_vals (inject_bit true))

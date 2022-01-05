@@ -255,8 +255,6 @@ Section Ops.
         else None
     | ValBaseStruct l1, ValBaseStruct l2 =>
         eval_binary_op_eq_struct l1 l2
-    | ValBaseRecord l1, ValBaseRecord l2 => None
-        (* eval_binary_op_eq_struct l1 l2 *)
     | ValBaseUnion l1, ValBaseUnion l2 =>
         eval_binary_op_eq_struct l1 l2
     | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
@@ -432,8 +430,9 @@ Section Ops.
     let fields_of_val (l1: P4String.AList tags_t P4Type) (oldv: Val) : option (Fields Val) :=
       match oldv with
       | ValBaseTuple l2 => if negb (AList.key_unique l1) then None
-                           else fields_of_val_tuple l1 l2
-      | ValBaseRecord l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
+                          else fields_of_val_tuple l1 l2
+      | ValBaseHeader l2 _
+      | ValBaseStruct l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
                             else if negb ((List.length l1) =? (List.length l2))%nat then None
                             else fields_of_val_record l1 l2
       | _ => None

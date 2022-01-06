@@ -250,7 +250,7 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs str
   let index := fun s idx => s ++ "[" ++ string_of_nat idx ++ "]" in
   let access := fun s f => s ++ "." ++ f in
   match arg with
-  | E.EVar (E.TStruct fs) x tags =>
+  | E.EVar (E.TStruct fs) x tags | E.EVar (E.THeader fs) x tags =>
     List.fold_right (fun '(f, t) acc =>
      (access param f, (E.EVar t (access x f) tags)) :: acc) [] fs
 
@@ -289,8 +289,6 @@ Definition elaborate_arguments (args : F.fs string (paramarg (E.e tags_t) (E.e t
 Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
-
-Print IExternMethodCall.
 
 Definition assume b tags :=
   let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in

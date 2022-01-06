@@ -35,7 +35,6 @@ Definition d := NoInfo.
  **)
 
 Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
-(* Compute p4cub_simple_nat. *)
 
 Definition simple_nat_test_case :=
   let* sn := p4cub_simple_nat in
@@ -47,8 +46,28 @@ Definition simple_nat_inline_test : result (Inline.t Info) :=
   ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) sn.
 
 (* Compute p4cub_simple_nat. *)
-(* Compute simple_nat_inline_test. *)
-(* Compute simple_nat_test_case. *)
+Compute simple_nat_inline_test.
+Compute (Inline.elaborate_arg_expression Info "standard_metadata"
+                                        (Inline.E.EVar
+                                           (Inline.E.THeader
+                                              [("ingress_port", Inline.E.TBit 9);
+                                              ("egress_spec", Inline.E.TBit 9);
+                                              ("egress_port", Inline.E.TBit 9);
+                                              ("instance_type", Inline.E.TBit 32);
+                                              ("packet_length", Inline.E.TBit 32);
+                                              ("enq_timestamp", Inline.E.TBit 32);
+                                              ("enq_qdepth", Inline.E.TBit 19);
+                                              ("deq_timedelta", Inline.E.TBit 32);
+                                              ("deq_qdepth", Inline.E.TBit 19);
+                                              ("ingress_global_timestamp", Inline.E.TBit 48);
+                                              ("egress_global_timestamp", Inline.E.TBit 48);
+                                              ("mcast_grp", Inline.E.TBit 16);
+                                              ("egress_rid", Inline.E.TBit 16);
+                                              ("checksum_error", Inline.E.TBit 1);
+                                              ("parser_error", Inline.E.TError);
+                                              ("priority", Inline.E.TBit 3)]) "standard_metadata"
+                                           NoInfo)).
+Compute simple_nat_test_case.
 
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.
 Proof. compute. trivial. Qed.
@@ -61,8 +80,8 @@ Definition ecmp2_test_case :=
   let externs := V1model.externs in
   ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
 
-Compute p4cub_ecmp2.
-Compute ecmp2_test_case.
+(* Compute p4cub_ecmp2. *)
+(* Compute ecmp2_test_case. *)
 
 Lemma ecmp2_test : is_ok ecmp2_test_case.
 Proof. compute. trivial. Qed.

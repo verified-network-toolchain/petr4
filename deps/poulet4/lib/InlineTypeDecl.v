@@ -560,13 +560,13 @@ Fixpoint substitute_typ_Declaration (σ : substitution) (d : Declaration) :=
     DeclTable i x k' tars' tes' dtars' n tps'
   | DeclHeader tags hdr dfs =>
     let dfs' := lmap (σ †df) dfs in
-    DeclHeader tags hdr dfs
+    DeclHeader tags hdr dfs'
   | DeclHeaderUnion tags name dfs =>
     let dfs' := lmap (σ †df) dfs in
-    DeclHeaderUnion tags name dfs
+    DeclHeaderUnion tags name dfs'
   | DeclStruct tags name dfs =>
     let dfs' := lmap (σ †df) dfs in
-    DeclStruct tags name dfs
+    DeclStruct tags name dfs'
   | DeclEnum tags name variants =>
     DeclEnum tags name variants
   | DeclSerializableEnum i τ X es =>
@@ -604,5 +604,59 @@ Fixpoint substitute_typ_Declaration (σ : substitution) (d : Declaration) :=
     DeclPackageType tags name Xs ps
   end
 where "σ '†d'" := (substitute_typ_Declaration σ).
+
+Variable NoInfo : tags_t.
+
+Import String.
+Open Scope string_scope.
+
+Definition overlay_t :=
+  DeclHeader NoInfo {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}
+             [MkDeclarationField NoInfo (TypBit (BinNat.N.of_nat 32)) {| P4String.tags := NoInfo; P4String.str := "swip" |}].
+
+Definition overlay_field :=
+  MkDeclarationField NoInfo
+                     (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
+                     {| P4String.tags := NoInfo; P4String.str := "overlay" |}.
+
+Definition headers_fields :=
+  [
+    MkDeclarationField NoInfo
+                       (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |})
+                       {| P4String.tags := NoInfo; P4String.str := "ethernet" |}
+    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |})
+                         {| P4String.tags := NoInfo; P4String.str := "ipv4" |}
+    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |})
+                         {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |}
+    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |})
+                         {| P4String.tags := NoInfo; P4String.str := "tcp" |}
+    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |})
+                         {| P4String.tags := NoInfo; P4String.str := "udp" |}
+    ; MkDeclarationField NoInfo
+                         (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
+                         {| P4String.tags := NoInfo; P4String.str := "overlay" |}].
+
+Definition headers :=
+  DeclStruct NoInfo {| P4String.tags := NoInfo; P4String.str := "headers" |}
+             [MkDeclarationField NoInfo
+                                 (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |})
+                                 {| P4String.tags := NoInfo; P4String.str := "ethernet" |};
+             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |})
+                                {| P4String.tags := NoInfo; P4String.str := "ipv4" |};
+             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |})
+                                {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |};
+             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |})
+                                {| P4String.tags := NoInfo; P4String.str := "tcp" |};
+             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |})
+                                {| P4String.tags := NoInfo; P4String.str := "udp" |};
+             MkDeclarationField NoInfo
+                                (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
+                                {| P4String.tags := NoInfo; P4String.str := "overlay" |}].
+
+Definition overlay_subst := (substitution_from_decl overlay_t).
+
+Compute (let* σ := overlay_subst in Some (σ †d headers)).
+Compute (let* σ := overlay_subst in Some (lmap (σ †df) headers_fields)).
+Compute (let* σ := overlay_subst in Some (σ †df overlay_field)).
 
 End InlineTypeDecl.

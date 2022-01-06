@@ -616,83 +616,37 @@ Definition overlay_t := DeclHeader NoInfo
 Definition metadata := DeclStruct NoInfo
     {| stags := NoInfo; str := "metadata" |}
     [(MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "index" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "location_t" |})
           {| stags := NoInfo; str := "location" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "ipaddress" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "role" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "failed" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "my_md_t" |})
           {| stags := NoInfo; str := "my_md" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "ipv4_srcAddr" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "ipv4_dstAddr" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "reply_addr_t" |})
           {| stags := NoInfo; str := "reply_to_client_md" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "seq" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "tmp" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "sequence_md_t" |})
           {| stags := NoInfo; str := "sequence_md" |})].
 
 Definition headers := DeclStruct NoInfo
     {| stags := NoInfo; str := "headers" |}
     [(MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 48%N) );
-            ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 48%N) );
-            ( {| stags := NoInfo; str := "etherType" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "ethernet_t" |})
           {| stags := NoInfo; str := "ethernet" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "version" |}, (TypBit 4%N) );
-            ( {| stags := NoInfo; str := "ihl" |}, (TypBit 4%N) );
-            ( {| stags := NoInfo; str := "diffserv" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "totalLen" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "identification" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "flags" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "fragOffset" |}, (TypBit 13%N) );
-            ( {| stags := NoInfo; str := "ttl" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "protocol" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "hdrChecksum" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "ipv4_t" |})
           {| stags := NoInfo; str := "ipv4" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "op" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "sc" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seq" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "key" |}, (TypBit 128%N) );
-            ( {| stags := NoInfo; str := "value" |}, (TypBit 128%N) );
-            ( {| stags := NoInfo; str := "vgroup" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "nc_hdr_t" |})
           {| stags := NoInfo; str := "nc_hdr" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "srcPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "dstPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "seqNo" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "ackNo" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "dataOffset" |}, (TypBit 4%N) );
-            ( {| stags := NoInfo; str := "res" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "ecn" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "ctrl" |}, (TypBit 6%N) );
-            ( {| stags := NoInfo; str := "window" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "checksum" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "urgentPtr" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "tcp_t" |})
           {| stags := NoInfo; str := "tcp" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "srcPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "dstPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "len" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "checksum" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "udp_t" |})
           {| stags := NoInfo; str := "udp" |});
      (MkDeclarationField NoInfo
-          (TypArray
-               (TypHeader
-                [( {| stags := NoInfo; str := "swip" |}, (TypBit 32%N) )])
+          (TypArray (TypTypeName {| stags := NoInfo; str := "overlay_t" |})
                10%N) {| stags := NoInfo; str := "overlay" |})].
 
 Definition ParserImpl := DeclParser NoInfo

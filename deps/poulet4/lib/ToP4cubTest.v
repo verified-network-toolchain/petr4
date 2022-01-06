@@ -25,8 +25,8 @@ Require Import Poulet4.LightExamples.Hula.
  **)
 
 (* Test Lemma For simple_nat.p4*)
-Compute (preprocess Info NoInfo SimpleNat.prog).
-Compute (translate_program Info NoInfo SimpleNat.prog).
+(* Compute (preprocess Info NoInfo SimpleNat.prog). *)
+(* Compute (translate_program Info NoInfo SimpleNat.prog). *)
 Lemma simplenat_no_error: Result.is_ok (translate_program Info NoInfo SimpleNat.prog).
 Proof.
   compute.
@@ -74,6 +74,10 @@ Proof. compute; trivial. Qed.
 
 (* Netchain *)
 Definition p4cub_netchain := ToP4cub.translate_program Info NoInfo Netchain.prog.
+(* Compute (preprocess Info NoInfo Netchain.prog). *)
+(* Compute (aeval (ToP4cub.inline_types_prog Info (Program [InlineTypeDecl.overlay_t NoInfo; *)
+(*                                                  InlineTypeDecl.headers NoInfo]))). *)
+(* Compute p4cub_netchain. *)
 Lemma netchain_no_error: Result.is_ok p4cub_netchain.
 Proof. compute; trivial. Qed.
 

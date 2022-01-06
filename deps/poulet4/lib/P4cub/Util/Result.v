@@ -49,7 +49,7 @@ Module Result.
 
   Definition overwritebind {A B : Type} (r : result A) (str : string) (f : A -> result B) : result B :=
     match r with
-    | Error _ s => error (s ++ " because: " ++ str)
+    | Error _ s => error (str ++ " because: \n" ++ s)
     | Ok _ x  => f x
     end.
 

@@ -1480,8 +1480,8 @@ Section ToP4cub.
       match InlineTypeDecl.substitution_from_decl d with
       | None => d::decls'
       | Some σ =>
-        let d' := @InlineTypeDecl.substitute_typ_Declaration tags_t σ d in
-        d' :: decls'
+        let decls'' := List.map (@InlineTypeDecl.substitute_typ_Declaration tags_t σ) decls' in
+        d :: decls''
       end
     end.
 

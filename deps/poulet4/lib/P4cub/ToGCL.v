@@ -538,7 +538,7 @@ Section ToGCL.
                          | PADirLess e =>
                            match to_form e with
                            | Error _ _ =>
-                             let~ e' := to_rvalue e over "couldn't conver't rvalue in arrowE_to_arglist" in
+                             let~ e' := to_rvalue e over "couldn't convert rvalue in arrowE_to_arglist" in
                              ok ((name, inr e') :: res)
                            | Ok _ phi =>
                              ok ((name, inl phi) :: res)
@@ -609,7 +609,7 @@ Section ToGCL.
       | Inline.IExternMethodCall _  ext method args i =>
         (** TODO handle copy-in/copy-out) *)
         let* g := find arch ext method in
-        let* gcl_args := arrowE_to_arglist args in
+        let~ gcl_args := arrowE_to_arglist args over "failed to convert arguments to " ++ ext ++ "." ++ method in
         let+ g' := subst_args g gcl_args in
         (g', c)
       | Inline.ISetValidity _ e v i =>

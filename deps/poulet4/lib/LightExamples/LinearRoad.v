@@ -775,184 +775,74 @@ Definition udp_t := DeclHeader NoInfo {| stags := NoInfo; str := "udp_t" |}
 Definition metadata := DeclStruct NoInfo
     {| stags := NoInfo; str := "metadata" |}
     [(MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "recirculate" |}, (TypBit 1%N) )])
+          (TypTypeName {| stags := NoInfo; str := "egress_metadata_t" |})
           {| stags := NoInfo; str := "accident_egress_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "cur_stp_cnt" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "prev_stp_cnt" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "accident_seg" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "has_accident_ahead" |},
-              (TypBit 1%N) )]) {| stags := NoInfo; str := "accident_meta" |});
+          (TypTypeName {| stags := NoInfo; str := "accident_meta_t" |})
+          {| stags := NoInfo; str := "accident_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "recirculate" |}, (TypBit 1%N) )])
+          (TypTypeName {| stags := NoInfo; str := "egress_metadata_t" |})
           {| stags := NoInfo; str := "accnt_bal_egress_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "vol" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "prev_vol" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "ewma_spd" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "seg_metadata_t" |})
           {| stags := NoInfo; str := "seg_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "seg0l1" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg0l2" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg0l3" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg1l1" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg1l2" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg1l3" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg2l1" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg2l2" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg2l3" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg3l1" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg3l2" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg3l3" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg4l1" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg4l2" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg4l3" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg0_ord" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg1_ord" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg2_ord" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg3_ord" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg4_ord" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "stopped_metadata_t" |})
           {| stags := NoInfo; str := "stopped_ahead" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "recirculated" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "dir" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "seg_cur" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg_end" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "toll_sum" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "time_sum" |}, (TypBit 16%N) )])
+          (TypTypeName
+           {| stags := NoInfo; str := "travel_estimate_metadata_t" |})
           {| stags := NoInfo; str := "te_md" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "recirculate" |}, (TypBit 1%N) )])
+          (TypTypeName {| stags := NoInfo; str := "egress_metadata_t" |})
           {| stags := NoInfo; str := "toll_egress_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "toll" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "has_toll" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "bal" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "toll_metadata_t" |})
           {| stags := NoInfo; str := "toll_meta" |});
      (MkDeclarationField NoInfo
-          (TypStruct
-           [( {| stags := NoInfo; str := "new" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "new_seg" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "prev_spd" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "prev_xway" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "prev_lane" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "prev_seg" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "prev_dir" |}, (TypBit 1%N) );
-            ( {| stags := NoInfo; str := "prev_nomove_cnt" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "nomove_cnt" |}, (TypBit 3%N) )])
+          (TypTypeName {| stags := NoInfo; str := "v_state_metadata_t" |})
           {| stags := NoInfo; str := "v_state" |})].
 
 Definition headers := DeclStruct NoInfo
     {| stags := NoInfo; str := "headers" |}
     [(MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "emit" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "seg" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "accident_alert_t" |})
           {| stags := NoInfo; str := "accident_alert" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "emit" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "bal" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "accnt_bal_t" |})
           {| stags := NoInfo; str := "accnt_bal" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "accnt_bal_req_t" |})
           {| stags := NoInfo; str := "accnt_bal_req" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 48%N) );
-            ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 48%N) );
-            ( {| stags := NoInfo; str := "etherType" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "ethernet_t" |})
           {| stags := NoInfo; str := "ethernet" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "emit" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "bal" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "expenditure_report_t" |})
           {| stags := NoInfo; str := "expenditure_report" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "xway" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "day" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "expenditure_req_t" |})
           {| stags := NoInfo; str := "expenditure_req" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "version" |}, (TypBit 4%N) );
-            ( {| stags := NoInfo; str := "ihl" |}, (TypBit 4%N) );
-            ( {| stags := NoInfo; str := "diffserv" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "totalLen" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "identification" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "flags" |}, (TypBit 3%N) );
-            ( {| stags := NoInfo; str := "fragOffset" |}, (TypBit 13%N) );
-            ( {| stags := NoInfo; str := "ttl" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "protocol" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "hdrChecksum" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "srcAddr" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "dstAddr" |}, (TypBit 32%N) )])
+          (TypTypeName {| stags := NoInfo; str := "ipv4_t" |})
           {| stags := NoInfo; str := "ipv4" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "msg_type" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "lr_msg_type_t" |})
           {| stags := NoInfo; str := "lr_msg_type" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "spd" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "xway" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "lane" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "dir" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "pos_report_t" |})
           {| stags := NoInfo; str := "pos_report" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "vid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "emit" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "spd" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "toll" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "toll_notification_t" |})
           {| stags := NoInfo; str := "toll_notification" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "travel_time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "toll" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "travel_estimate_t" |})
           {| stags := NoInfo; str := "travel_estimate" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "time" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "qid" |}, (TypBit 32%N) );
-            ( {| stags := NoInfo; str := "xway" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg_init" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "seg_end" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "dow" |}, (TypBit 8%N) );
-            ( {| stags := NoInfo; str := "tod" |}, (TypBit 8%N) )])
+          (TypTypeName {| stags := NoInfo; str := "travel_estimate_req_t" |})
           {| stags := NoInfo; str := "travel_estimate_req" |});
      (MkDeclarationField NoInfo
-          (TypHeader
-           [( {| stags := NoInfo; str := "srcPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "dstPort" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "length_" |}, (TypBit 16%N) );
-            ( {| stags := NoInfo; str := "checksum" |}, (TypBit 16%N) )])
+          (TypTypeName {| stags := NoInfo; str := "udp_t" |})
           {| stags := NoInfo; str := "udp" |})].
 
 Definition ParserImpl := DeclParser NoInfo
@@ -26153,15 +26043,10 @@ Definition ingress := DeclControl NoInfo
                               (MkExpression NoInfo
                                    (ExpCast (TypBit 16%N)
                                         (MkExpression NoInfo
-                                             (ExpBinaryOp Shr
+                                             (ExpBinaryOp Plus
                                                   ( (MkExpression NoInfo
-                                                         (ExpBinaryOp Plus
+                                                         (ExpBinaryOp Mul
                                                               ( (MkExpression
-                                                                    NoInfo
-                                                                    (ExpBinaryOp
-                                                                    Mul
-                                                                    ( (
-                                                                    MkExpression
                                                                     NoInfo
                                                                     (ExpCast
                                                                     (TypBit
@@ -26218,7 +26103,7 @@ Definition ingress := DeclControl NoInfo
                                                                     (TypBit
                                                                     32%N)
                                                                     Directionless),
-                                                                    (MkExpression
+                                                                (MkExpression
                                                                     NoInfo
                                                                     (ExpInt
                                                                     {| 
@@ -26232,15 +26117,17 @@ Definition ingress := DeclControl NoInfo
                                                                     (TypBit
                                                                     32%N)
                                                                     Directionless) ))
-                                                                    (TypBit
-                                                                    32%N)
-                                                                    Directionless),
-                                                                (MkExpression
-                                                                    NoInfo
-                                                                    (ExpCast
-                                                                    (TypBit
-                                                                    32%N)
-                                                                    (MkExpression
+                                                         (TypBit 32%N)
+                                                         Directionless),
+                                                    (MkExpression NoInfo
+                                                         (ExpCast
+                                                              (TypBit 32%N)
+                                                              (MkExpression
+                                                                   NoInfo
+                                                                   (ExpBinaryOp
+                                                                    Shr
+                                                                    ( (
+                                                                    MkExpression
                                                                     NoInfo
                                                                     (ExpBinaryOp
                                                                     Mul
@@ -26346,20 +26233,25 @@ Definition ingress := DeclControl NoInfo
                                                                     Directionless) ))
                                                                     (TypBit
                                                                     16%N)
-                                                                    Directionless))
+                                                                    Directionless),
+                                                                    (MkExpression
+                                                                    NoInfo
+                                                                    (ExpInt
+                                                                    {| 
+                                                                    itags := NoInfo;
+                                                                    value := 7;
+                                                                    width_signed := (
+                                                                    Some
+                                                                    ( 
+                                                                    16%N,
+                                                                    false )) |})
                                                                     (TypBit
-                                                                    32%N)
+                                                                    16%N)
                                                                     Directionless) ))
+                                                                   (TypBit
+                                                                    16%N)
+                                                                   Directionless))
                                                          (TypBit 32%N)
-                                                         Directionless),
-                                                    (MkExpression NoInfo
-                                                         (ExpInt
-                                                          {| itags := NoInfo;
-                                                             value := 7;
-                                                             width_signed := (
-                                                             Some
-                                                             ( 16%N, false )) |})
-                                                         (TypBit 16%N)
                                                          Directionless) ))
                                              (TypBit 32%N) Directionless))
                                    (TypBit 16%N) Directionless)) StmUnit)
@@ -31464,7 +31356,7 @@ Definition ingress := DeclControl NoInfo
                                    (TypBit 1%N) )]) Directionless)
                           {| stags := NoInfo; str := "has_accident_ahead" |})
                      (TypBit 1%N) Directionless)
-                {| stags := NoInfo; str := "exact" |})]
+                {| stags := NoInfo; str := "ternary" |})]
           [(MkTableActionRef NoInfo
                 (MkTablePreActionRef
                      (BareName {| stags := NoInfo; str := "issue_toll" |})

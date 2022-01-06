@@ -214,7 +214,10 @@ Section ToGCL.
         (* TODO :: Allow assignment to slices *)
         error ("[FIXME] Slices ["++ string_of_pos hi ++"," ++ string_of_pos lo ++ "] are not l-values")
       | E.ECast _ _ _ => error "Casts are not l-values"
-      | E.EUop _ _ _ _ => error "Unary Operations are not l-values"
+      | E.EUop E.TBool E.IsValid e _ =>
+        let+ lv := to_lvalue e in
+        lv ++ "." ++ "is_valid"
+      | E.EUop _ _ _ _ => error "Unary Operations (aside from is_valid) are not l-values"
       | E.EBop _ _ _ _ _ => error "Binary Operations are not l-values"
       | E.ETuple _ _ => error "Explicit Tuples are not l-values"
       | E.EStruct _ _ => error "Explicit Structs are not l-values"
@@ -339,7 +342,7 @@ Section ToGCL.
           BV.UnOp BV.BVNeg rv_arg
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
-          let+ header := to_header_string arg in
+          let+ header := to_lvalue arg in
           let hvld := header ++ ".is_valid" in
           BV.BVVar hvld 1
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
@@ -401,8 +404,6 @@ Section ToGCL.
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
-    Print E.t.
-
     Definition get_sign typ :=
        match typ with
        | E.TBit _ => ok false
@@ -446,9 +447,10 @@ Section ToGCL.
           error "Invalid Cast"
         end
       | E.EUop type op arg i =>
-        let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in
         match op with
-        | E.Not => ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
+        | E.Not =>
+          let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in
+          ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
@@ -637,9 +639,8 @@ Section ToGCL.
       let* no_hdr := Inline.elaborate_headers _ no_stk in
       let* no_structs := Inline.elaborate_structs _ no_hdr in
       let* no_slice := Inline.eliminate_slice_assignments _ no_structs in
-      let* hdrs_valid := Inline.assert_headers_valid_before_use _ no_slice in
-      ok hdrs_valid.
-
+      (* let* hdrs_valid := Inline.assert_headers_valid_before_use _ no_slice in *)
+      ok no_slice.
 
     Definition inline_from_p4cub (gas : nat)
                (ext : model) (pipe : pipeline)
@@ -651,7 +652,8 @@ Section ToGCL.
                (ctx : ToP4cub.DeclCtx tags_t)
                (arch : model) (s : ST.s tags_t) : result target :=
       let* inlined := inlining_passes gas arch ctx s in
-      let+ (gcl,_) := inline_to_gcl initial arch inlined in
+      let* instred := Inline.assert_headers_valid_before_use _ inlined in
+      let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
     Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=

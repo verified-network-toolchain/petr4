@@ -40,7 +40,7 @@ Definition det_fwd_asst {tags_t : Type} (i : tags_t) :=
       E.EBop E.TBool
              E.NotEq
              (E.EVar (E.TBit 9%N) "standard_metadata.egress_spec" i)
-             (E.EBit 9%N 511%Z i) i
+             (E.EBit 9%N 0%Z i) i
   in
   let paramargs := [("check", PAIn assertion)] in
   let arrowE := {| paramargs := paramargs ; rtrns := None |} in

@@ -41,7 +41,7 @@ Variable tags_t : Type.
 (*Left and right brackets for array accesses *)
 Definition AAL := "$_". (* evoke [ *)
 Definition AAR := "_$". (* evoke ] *)
-Definition index_array_str fields s idx :=
+Definition index_array_str s idx :=
   s ++ AAL ++ string_of_nat idx ++ AAR.
 
 Definition expenv : Type := Env.t string (E.e tags_t).
@@ -115,81 +115,82 @@ Inductive t : Type :=
 | IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i : tags_t)
 | IExternMethodCall (extn : string) (method : string) (args : E.arrowE tags_t) (i : tags_t).
 
-Definition rename_string (x : string) (params : list string) :=
+Definition rename_string (table action x : string) (params : list string) :=
   if fold_right (fun y => orb (String.eqb x y)) false params
-  then "?" ++ x
+  then "_symb$" ++ table ++ "$" ++ action ++ "$arg$" ++ x
   else x.
 
-Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e tags_t :=
+Fixpoint action_param_renamer_expr (table action : string) (params : list string) (e : E.e tags_t) : E.e tags_t :=
   match e with
   | E.EBool _ _ => e
   | E.EBit _ _ _ => e
   | E.EInt _ _ _ => e
   | E.EVar type x i =>
-    E.EVar type (rename_string x params) i
+    E.EVar type (rename_string table action x params) i
   | E.ESlice e hi lo i =>
-    E.ESlice (action_param_renamer_expr params e) hi lo i
+    E.ESlice (action_param_renamer_expr table action params e) hi lo i
   | E.ECast typ arg i =>
-    E.ECast typ (action_param_renamer_expr params arg) i
+    E.ECast typ (action_param_renamer_expr table action params arg) i
   | E.EUop op typ arg i =>
-    E.EUop op typ (action_param_renamer_expr params arg) i
+    E.EUop op typ (action_param_renamer_expr table action params arg) i
   | E.EBop t op le re i =>
-    let le' := action_param_renamer_expr params le in
-    let re' := action_param_renamer_expr params re in
+    let le' := action_param_renamer_expr table action params le in
+    let re' := action_param_renamer_expr table action params re in
     E.EBop t op le re i
   | E.ETuple es i =>
-    E.ETuple (List.map (action_param_renamer_expr params) es) i
+    E.ETuple (List.map (action_param_renamer_expr table action params) es) i
   | E.EStruct fields i =>
-    E.EStruct (F.map (action_param_renamer_expr params) fields) i
+    E.EStruct (F.map (action_param_renamer_expr table action params) fields) i
   | E.EHeader fields valid i =>
-    E.EHeader (F.map (action_param_renamer_expr params) fields) (action_param_renamer_expr params valid) i
+    E.EHeader (F.map (action_param_renamer_expr table action params) fields) (action_param_renamer_expr table action params valid) i
   | E.EExprMember mem expr_type arg i =>
-    E.EExprMember mem expr_type (action_param_renamer_expr params arg) i
+    E.EExprMember mem expr_type (action_param_renamer_expr table action params arg) i
   | E.EError _ _ => e
   | E.EMatchKind _ _ => e
   | E.EHeaderStack fields headers ni i =>
-    E.EHeaderStack fields (List.map (action_param_renamer_expr params) headers) ni i
+    E.EHeaderStack fields (List.map (action_param_renamer_expr table action params) headers) ni i
   | E.EHeaderStackAccess fs stack idx i =>
-    E.EHeaderStackAccess fs (action_param_renamer_expr params stack) idx i
+    E.EHeaderStackAccess fs (action_param_renamer_expr table action params stack) idx i
   end.
 
-Fixpoint action_param_renamer (params : list string) (c : t) : result (t * list string) :=
+Fixpoint action_param_renamer (table action : string) (params : list string) (c : t) : result (t * list string) :=
   match c with
   | ISkip _ => ok (c, params)
   | IVardecl type x i => ok (c, filter (negb ∘ (String.eqb x)) params)
   | IAssign t lhs rhs i =>
-    let rhs' := action_param_renamer_expr params rhs in
-    let lhs' := action_param_renamer_expr params lhs in
+    let rhs' := action_param_renamer_expr table action params rhs in
+    let lhs' := action_param_renamer_expr table action params lhs in
     ok (IAssign t lhs' rhs' i, params)
   | IConditional typ cond tru fls i =>
-    let cond' := action_param_renamer_expr params cond in
-    let* (tru', _) := action_param_renamer params tru in
-    let+ (fls', _) := action_param_renamer params fls in
+    let cond' := action_param_renamer_expr table action params cond in
+    let* (tru', _) := action_param_renamer table action params tru in
+    let+ (fls', _) := action_param_renamer table action params fls in
     (IConditional typ cond' tru' fls' i, params)
   | ISeq c1 c2 i =>
-    let* (c1', params1) := action_param_renamer params c1 in
-    let+ (c2', params2) := action_param_renamer params1 c2 in
+    let* (c1', params1) := action_param_renamer table action params c1 in
+    let+ (c2', params2) := action_param_renamer table action params1 c2 in
     (ISeq c1' c2' i, params2)
   | IBlock blck =>
-    let+ (blck', _) := action_param_renamer params blck in
+    let+ (blck', _) := action_param_renamer table action params blck in
     (blck', params)
   | IReturnVoid _ => ok (c, params)
   | IReturnFruit t e i =>
-    let e' := action_param_renamer_expr params e in
+    let e' := action_param_renamer_expr table action params e in
     ok (IReturnFruit t e' i, params)
   | IExit _ => ok (c, params)
   | IInvoke _ _ _ _ =>
     error "Invocations should not occur within actions"
   | ISetValidity e v i =>
-    let e' := action_param_renamer_expr params e in
+    let e' := action_param_renamer_expr table action params e in
     ok (ISetValidity e' v i, params)
   | IHeaderStackOp hdr_stck_name typ hsop size i =>
-    ok (IHeaderStackOp (rename_string hdr_stck_name params) typ hsop size i, params)
+    ok (IHeaderStackOp (rename_string hdr_stck_name table action params) typ hsop size i, params)
   | IExternMethodCall extn method ar i =>
     let pargs := paramargs ar in
     let ret := rtrns ar in
     let pargs' := F.fold (fun p a rst =>
-          let a' := paramarg_map (action_param_renamer_expr params) (action_param_renamer_expr params) a in
+          let a' := paramarg_map (action_param_renamer_expr table action params)
+                                 (action_param_renamer_expr table action params) a in
           (p, a') :: rst) [] pargs in
     let ar' := {| paramargs := pargs'; rtrns := ret |} in
     ok (IExternMethodCall extn method ar' i, params)
@@ -259,9 +260,9 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs str
   match arg with
   | E.EVar (E.TStruct fs) x tags | E.EVar (E.THeader fs) x tags =>
     List.fold_right (fun '(f, t) acc =>
-     (access param f, (E.EVar t (access x f) tags)) :: acc) [] fs
+     (access param f, (E.EExprMember t f arg tags)) :: acc) [] fs
 
-  | E.EExprMember (E.TStruct fs) mem _ tags  =>
+  | E.EExprMember (E.TStruct fs) mem _ tags | E.EExprMember (E.THeader fs) mem _ tags  =>
     let member_member := fun f t => E.EExprMember t f arg tags in
     List.fold_right (fun '(f, t) acc =>
      (access param f, member_member f t) :: acc) [] fs
@@ -422,7 +423,7 @@ Fixpoint inline
           match act with
           | CD.CDAction _ params body _ =>
             let* s := inline n0 ctx body in
-            let+ (s', _) := action_param_renamer (string_list_of_params params) s in
+            let+ (s', _) := action_param_renamer t a (string_list_of_params params) s in
             s'
           | _ =>
             error "[ERROR] expecting action when `find`ing action, got something else"
@@ -533,7 +534,7 @@ Fixpoint header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.
   (* TODO Type of ExprMember might need to be the header type *)
   F.fold (fun f typ acc => (E.EExprMember typ f e tags, typ) :: acc )
          fields
-         [(E.EExprMember E.TBool "isValid" e tags, E.TBool)].
+         [(E.EUop E.TBool E.IsValid e tags, E.TBool)].
 
 Fixpoint header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
   let lhs_members := header_fields tags lhs fields in
@@ -855,11 +856,11 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     let* tru' := assert_headers_valid_before_use tru in
     let* fls' := assert_headers_valid_before_use fls in
     let+ guard_asserts := header_asserts guard tags in
-    IConditional typ guard tru' fls' tags
+    ISeq guard_asserts (IConditional typ guard tru' fls' tags) tags
   | ISeq s1 s2 tags =>
     let* s1' := assert_headers_valid_before_use s1 in
     let+ s2' := assert_headers_valid_before_use s2 in
-    ISeq s1 s2 tags
+    ISeq s1' s2' tags
   | IBlock blk =>
     let+ blk' := assert_headers_valid_before_use blk in
     IBlock blk'

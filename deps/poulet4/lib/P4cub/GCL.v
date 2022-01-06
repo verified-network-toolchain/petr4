@@ -191,7 +191,7 @@ Section GCL.
     Form.bveq (BitVec.BVVar x 1) (BitVec.bit (Some 1) 1).
 
   Definition isone (v : BitVec.t) : Form.t :=
-    Form.bvule v (BitVec.bit (Some 1) 1).
+    Form.bveq v (BitVec.bit (Some 1) 1).
 
   Fixpoint subst_form
            {L R F : Type}

@@ -50,10 +50,11 @@ Definition instrumented_simple_nat : result (Inline.t Info) :=
   let* isn := inline_simple_nat in
   Inline.assert_headers_valid_before_use _ isn.
 
-(* Compute p4cub_simple_nat. *)
-(* Compute inline_simple_nat. *)
+Compute p4cub_simple_nat.
+Compute (ToP4cub.preprocess Info NoInfo SimpleNat.prog).
+Compute inline_simple_nat.
 (* Compute instrumented_simple_nat. *)
-(* Compute simple_nat_test_case. *)
+Compute simple_nat_test_case.
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.
 Proof. compute. trivial. Qed.
 

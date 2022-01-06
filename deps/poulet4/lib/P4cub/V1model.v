@@ -74,12 +74,12 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
         t_arg i PAInOut mtype "meta"] in
   let dep_args := [
         s_arg i PADirLess "packet_out" "b";
-        t_arg i PAIn htype "hdr"] in
+      t_arg i PAIn htype "hdr"] in
   cub_seq i [
-        (* ST.PApply _ parser   ext_args pargs    NoInfo; *)
-        (* ST.SApply   v_check  ext_args vck_args NoInfo; *)
-        ST.SApply   ingress  ext_args ing_args i;
-        ST.SApply   egress   ext_args egr_args i;
+        ST.SApply parser  ext_args pargs    i;
+        (* ST.SApply v_check ext_args vck_args i; *)
+        ST.SApply ingress ext_args ing_args i;
+        ST.SApply egress  ext_args egr_args i;
         det_fwd_asst i
         (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
         (* ST.SApply   deparser ext_args dep_args NoInfo *)

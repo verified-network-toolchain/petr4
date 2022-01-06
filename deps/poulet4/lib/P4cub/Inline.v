@@ -7,9 +7,11 @@ Require Export Poulet4.P4cub.BigStep.InstUtil.
 Require Export Poulet4.P4cub.BigStep.BigStep.
 Require Export Poulet4.P4cub.BigStep.Semantics.
 Require Export Poulet4.P4cub.BigStep.Value.Value.
-Require Export Poulet4.P4cub.Util.Result.
+Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.ToP4cub.
 Import ToP4cub.
+Require Export Poulet4.P4cub.Util.Result.
+Import Result.
 Require Import Coq.Arith.EqNat.
 Require Import String.
 Open Scope string_scope.
@@ -316,10 +318,110 @@ Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i t
     (ISeq (assume eq tags) assumes tags, (key_type, symb_key, key_mk)::new_keys)
   end.
 
-Definition normalize_keys t keys :=
-  normalize_keys_aux t keys 0.
+Definition normalize_keys t keys := normalize_keys_aux t keys 0.
 
-Fixpoint inline
+Print Parser.state_block.
+Print Parser.state.
+Print Parser.e.
+
+Definition get_state_name state :=
+  match state with
+  | Parser.STStart => "start"
+  | Parser.STAccept => "accept"
+  | Parser.STReject => "reject"
+  | Parser.STName s => s
+  end.
+
+Definition state_flag_name name := "_state$" ++ name ++ "$next".
+Definition state_flag name tags : E.e tags_t := E.EVar E.TBool (state_flag_name name) tags.
+Definition set_state_flag name value tags := IAssign E.TBool (state_flag name tags) (E.EBool value tags) tags.
+Definition handle_flags name stmt trans tags :=
+  ISeq (IConditional E.TBool
+                     (state_flag name tags)
+                     (ISeq stmt trans tags)
+                     (ISkip tags) tags)
+       (set_state_flag name false tags) tags.
+
+Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
+  match pat with
+  | Parser.PATBit w v =>
+    ok (E.EBit w v tags)
+  | Parser.PATInt w v =>
+    ok (E.EInt w v tags)
+  | _ =>
+    error "pattern too complicated, expecting int or bv literal"
+  end.
+
+Fixpoint translate_pat tags e pat : result (E.e tags_t) :=
+  let bool_op := fun o x y => E.EBop E.TBool o x y tags in
+  let mask := fun t x y => E.EBop t E.BitAnd x y tags in
+  let and := bool_op E.And in
+  let eq := bool_op E.Eq in
+  let le := bool_op E.Le in
+  match pat with
+  | Parser.PATWild =>
+    ok (E.EBool true tags)
+  | Parser.PATMask pat msk =>
+    let* e_pat := translate_simple_patterns pat tags in
+    let+ e_msk := translate_simple_patterns msk tags in
+    let t := t_of_e e_pat in
+    eq (mask t e e_msk) (mask t e_pat e_msk)
+  | Parser.PATRange lo hi =>
+    let* e_lo := translate_simple_patterns lo tags in
+    let+ e_hi := translate_simple_patterns hi tags in
+    and (le e e_hi)
+        (le e_lo e)
+  | Parser.PATBit _ _
+  | Parser.PATInt _ _ =>
+    let+ e_pat := translate_simple_patterns pat tags in
+    eq e e_pat
+  | Parser.PATTuple pats =>
+    let+ e_pats := rred (List.map (translate_pat tags e) pats) in
+    eq e (E.ETuple e_pats tags)
+  end.
+
+Definition lookup_parser_state name states : option (Parser.state_block tags_t) :=
+  F.find_value (String.eqb name) states.
+
+Definition lookup_parser_states (names : list string) states :=
+  List.fold_right (fun n acc =>
+   if String.eqb n "accept" || String.eqb n "reject"
+   then acc
+   else match lookup_parser_state n states with
+        | None => acc
+        | Some s => (n,s) :: acc
+        end) [] names.
+
+Open Scope list_scope.
+Fixpoint inline_state gas ctx name state states (tags : tags_t) : result ((list (string * Parser.state_block tags_t)) * t) :=
+  let+ stmt := inline gas ctx (Parser.stmt state) in
+  let (neighbor_names, trans) := inline_transition gas ctx name (Parser.trans state) in
+  let neighbor_states := lookup_parser_states neighbor_names states in
+  (neighbor_states, handle_flags name stmt trans tags)
+with inline_transition gas ctx name trans : (list string) * t  :=
+  match trans with
+  | Parser.PGoto state tags =>
+    let name := get_state_name state in
+    ([name], set_state_flag name true tags)
+  | Parser.PSelect discriminee default states tags =>
+    let default := inline_transition (gas-1) ctx name default in
+    let inline_trans_loop := fun '(pat, trans) acc  =>
+             let* '(states, inln) := acc in
+             let+ cond := translate_pat tags discriminee pat in
+             let '(new_states, trans) := inline_transition (gas - 1) ctx name trans in
+             (states ++ new_states, IConditional E.TBool cond trans inln) in
+    List.fold_right inline_trans_loop (ok default) states
+  end
+with inline_parser gas tags ctx current_name current states : t :=
+  let+ (neighbors, inline_current) := inline_state gas ctx current_name current states tags in
+  if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb gas 0)
+  then ISkip tags
+  else List.fold_right
+    (fun '(n, s) inln => ISeq (inline_parser (gas-1) tags ctx n s states) inln tags)
+    (ISkip tags)
+    neighbors
+
+with inline
          (n : nat)
          (ctx : DeclCtx tags_t)
          (s : ST.s tags_t)
@@ -383,26 +485,44 @@ Fixpoint inline
         error "[ERROR] got a nonaction when `find`-ing a function"
       end
 
-    | ST.SApply ci ext_args args i =>
-      let*~ cinst := find_control tags_t ctx ci else "could not find controller instance " ++ ci ++ " in environment" in
-      match cinst with
-      | TD.TPInstantiate cname _ _ cargs i =>
-        let*~ cdecl := find_control tags_t ctx cname else "could not find controller" in
-        match cdecl with
-        | TD.TPControl _ _ _ _ body apply_blk i =>
-          (* Context is begin extended with body, but why can't I find the controls? *)
-          let ctx' := of_cdecl tags_t ctx body in
-          let+ rslt := inline n0 ctx' apply_blk in
-          (** TODO check copy-in/copy-out *)
-          let η := copy args in
-          IBlock (fst (subst_t η rslt))
-        | _ =>
-          error "Expected a control decl, got something else"
+      | ST.SApply inst ext_args args tags =>
+        match find_control _ ctx inst with
+        | None =>
+          let parser := find_parser _ ctx inst in
+          let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
+          match pinst with
+          | TD.TPInstantiate pname _ _ pargs tags =>
+            let pdecl_opt := find_parser _ ctx pname in
+            let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
+            match pdecl with
+            | TD.TPParser _ _ _ _ start states tags =>
+              error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!")
+            | _ =>
+              error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
+            end
+          | _ =>
+            error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
+          end
+        | Some cinst =>
+          match cinst with
+          | TD.TPInstantiate cname _ _ cargs i =>
+            let cdecl_opt := find_control tags_t ctx cname in
+            let* cdecl := from_opt cdecl_opt "could not find controller" in
+            match cdecl with
+            | TD.TPControl _ _ _ _ body apply_blk i =>
+              (* Context is begin extended with body, but why can't I find the controls? *)
+              let ctx' := of_cdecl tags_t ctx body in
+              let+ rslt := inline n0 ctx' apply_blk in
+              (** TODO check copy-in/copy-out *)
+              let η := copy args in
+              IBlock (fst (subst_t η rslt))
+            | _ =>
+              error "Expected a control decl, got something else"
+            end
+          | _ =>
+            error "Expected a control instantiation, got something else"
+          end
         end
-      | _ =>
-         error "Expected a control instantiation, got something else"
-      end
-
     | ST.SReturn None i =>
       ok (IReturnVoid i)
 
@@ -813,6 +933,8 @@ Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
     header_asserts e tags
   | E.ECast _ e tags =>
     header_asserts e tags
+  | E.EUop _ E.IsValid e tags =>
+    ok (ISkip tags)
   | E.EUop _ _ e tags =>
     header_asserts e tags
   | E.EBop _ _ lhs rhs tags =>

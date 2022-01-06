@@ -40,6 +40,12 @@ Module Result.
     | Some x => f x
     end.
 
+  Definition from_opt {A} (r : option A) (msg : string) :=
+    match r with
+    | None => error msg
+    | Some a => ok a
+    end.
+
   Definition map {A B : Type} (f : A ->  B)  (r : result A) : result B :=
     match r with
     | Error _ s => error s

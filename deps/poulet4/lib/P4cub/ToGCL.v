@@ -228,7 +228,7 @@ Section ToGCL.
       | E.EHeaderStackAccess _ stack index i =>
         let+ lv := to_lvalue stack in
         (** TODO How to handle negative indices? **)
-        lv ++ "["++ (string_of_z index) ++ "]"
+        Inline.index_array_str lv (BinInt.Z.to_nat index)
       end.
 
     Definition width_of_type (x:string) (t : E.t) : result nat :=
@@ -281,7 +281,7 @@ Section ToGCL.
         error "Header stacks are not headers"
       | E.EHeaderStackAccess _ stack index i =>
         let+ stack_string := to_header_string stack in
-        stack_string ++ "[" ++ (string_of_z index) ++ "]"
+        Inline.index_array_str stack_string (BinInt.Z.to_nat index)
       end.
 
     Definition lookup_member_from_fields mem fields : result E.t :=

@@ -36,6 +36,14 @@ Section Inline.
 Variable tags_t : Type.
 
 
+
+(* this needs to be changed to an array access *)
+(*Left and right brackets for array accesses *)
+Definition AAL := "$_". (* evoke [ *)
+Definition AAR := "_$". (* evoke ] *)
+Definition index_array_str fields s idx :=
+  s ++ AAL ++ string_of_nat idx ++ AAR.
+
 Definition expenv : Type := Env.t string (E.e tags_t).
 
 Definition get_exp (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
@@ -247,7 +255,6 @@ Definition translate_pattern (discriminee : E.e tags_t) (pat : Parser.pat) (i : 
   E.EBool true i.
 
 Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs string (E.e tags_t) :=
-  let index := fun s idx => s ++ "[" ++ string_of_nat idx ++ "]" in
   let access := fun s f => s ++ "." ++ f in
   match arg with
   | E.EVar (E.TStruct fs) x tags | E.EVar (E.THeader fs) x tags =>
@@ -260,11 +267,11 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs str
      (access param f, member_member f t) :: acc) [] fs
 
   | E.EVar (E.TTuple ts) x tags =>
-    ListUtil.fold_righti (fun idx t acc => (index param idx, (E.EVar t (index x idx) tags)) :: acc) [] ts
+    ListUtil.fold_righti (fun idx t acc => (index_array_str param idx, (E.EVar t (index_array_str x idx) tags)) :: acc) [] ts
 
   | E.ETuple es _ =>
     ListUtil.fold_righti (fun i e acc =>
-          let param_i := index param i in
+          let param_i := index_array_str param i in
           let es := elaborate_arg_expression param_i e in
           List.app es acc) [] es
   | _ => [(param, arg)]
@@ -482,7 +489,7 @@ Definition elaborate_tuple_literal
            (es : list (E.e tags_t))
            (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
   ListUtil.fold_righti (fun idx e acc =>
-   let index := fun s =>  s ++ ".[" ++ string_of_nat idx ++ "]" in
+   let index := fun s =>  index_array_str s idx in
    (index param, ctor e) :: acc) args es.
 
 Fixpoint elim_tuple (c : Inline.t) : result t :=
@@ -589,7 +596,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
     match type with
     | E.THeaderStack fields size =>
       ok (ifold (BinPos.Pos.to_nat size)
-                (fun n acc => ISeq (IVardecl (E.THeader fields) (x ++ "[" ++ string_of_nat n ++ "]") i) acc i) (ISkip i))
+                (fun n acc => ISeq (IVardecl (E.THeader fields) (index_array_str x n) i) acc i) (ISkip i))
     | _ => ok c
     end
   | IAssign type lhs rhs i =>
@@ -599,8 +606,8 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
       | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
         let iter := ifold (BinPos.Pos.to_nat size) in
         (* Should these be `HeaderStackAccess`es? *)
-        let lvars := iter (fun n => cons (lvar ++ "[" ++ string_of_nat n ++ "]")) [] in
-        let rvars := iter (fun n => cons (rvar ++ "[" ++ string_of_nat n ++ "]")) [] in
+        let lvars := iter (fun n => cons (index_array_str lvar n)) [] in
+        let rvars := iter (fun n => cons (index_array_str rvar n)) [] in
         let+ lrvars := zip lvars rvars in
         let htype := E.THeader fields in
         let mk := E.EVar htype in
@@ -646,7 +653,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
     ok c
   | IHeaderStackOp stck typ ST.HSPush n tags =>
     let seq := fun hidx lodx => ISeq hidx lodx tags in
-    let indexed_stck := fun i => stck ++ "["++ string_of_nat i++"]" in
+    let indexed_stck := index_array_str stck in
     let mk_ith_stack_copy :=
         fun i => IAssign typ
                          (E.EVar typ (indexed_stck i) tags)
@@ -657,7 +664,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
               (ISetValidity (E.EVar typ (indexed_stck 0) tags) true tags))
   | IHeaderStackOp stck typ ST.HSPop n tags =>
     let seq := fun hidx lodx => ISeq lodx hidx tags in
-    let indexed_stck := fun i => stck ++ "["++ string_of_nat i++"]" in
+    let indexed_stck := index_array_str stck in
     let mk_ith_stack_copy :=
         fun i => IAssign typ
                          (E.EVar typ (indexed_stck i) tags)

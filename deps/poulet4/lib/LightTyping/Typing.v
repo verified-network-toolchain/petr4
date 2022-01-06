@@ -651,7 +651,7 @@ Section Soundness.
       autounfold with *;
       intros rob ge st Hdlta Hrob Hg Hok Hise Hgrt;
       split; eauto;
-      try (intros v Hrn; inversion Hrn; subst; cbn; solve_ex).
+      try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex).
   
     Lemma bool_sound : forall tag b dir,
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpBool b) TypBool dir ≀ this.
@@ -708,9 +708,9 @@ Section Soundness.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
-        destruct Hg as [[_ Hg] _]; intros v Hv; cbn in *.
-        eapply Hg; eauto.
-    Admitted.
+        destruct Hg as [[_ Hg] _]; eauto.
+      - rewrite Hd in H7; discriminate.
+    Qed.
 
     Lemma constant_sound : forall tag x loc t dir,
         is_directional dir = false ->
@@ -724,10 +724,10 @@ Section Soundness.
         { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
-      (*- rewrite Hd in H7; discriminate.
+      - rewrite Hd in H7; discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
-        destruct Hg as (_ & _ & Hg); eauto.*)
-    Admitted.
+        destruct Hg as (_ & _ & Hg); eauto.
+    Qed.
 
     Lemma array_access_sound : forall tag arry idx ts dir n,
         typ_of_expr arry = TypArray (TypHeader ts) n ->
@@ -748,7 +748,7 @@ Section Soundness.
           by eauto using exec_val_exists.
         pose proof He1' v1 Hev1 as (r1 & Hr1 & Hv1).
         pose proof He2' v2 Hev2 as (r2 & Hr2 & Hv2).
-        clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2.
+        clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2; cbn in *.
         unfold option_bind, option_ret in *.
         destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
           as [rs |] eqn:Hrs;
@@ -757,7 +757,7 @@ Section Soundness.
           unfold mret, mbind, option_bind, option_ret in *;
           unfold option_monad_inst, option_monad in *;
           rewrite Hrs in Hr1; try discriminate.
-        inversion Hr1; subst; clear Hr1.
+        inversion Hr1; subst; clear Hr1; cbn in *.
         assert (Hhrs: get_real_type ge (TypHeader ts) = Some (TypHeader rs)).
         { cbn in *.
           unfold ">>|",">>=" in *;
@@ -791,19 +791,31 @@ Section Soundness.
         cbv in Hr1; inversion Hr1; subst; clear Hr1 H11.
         cbn in *; inversion Hr2; subst; clear Hr2.
         inversion Hv1; subst.
-        eexists; split; eauto.
+        eexists; split; eauto; cbn in *.
         unfold Znth_def.
         destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
-        + pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
-          (*eapply H; eauto.*) admit.
+        + pose proof uninit_sval_of_typ_val_typ rtyp as H.
+          eapply H; eauto.
+          assert (Hisv: forall v (t : typ), val_typ (ge_senum ge) v t -> is_expr_typ t) by admit.
+          apply Hisv in Hv1 as Hv1'.
+          inversion Hv1'; subst.
+          rewrite H1 in H3.
+          assert (Hisn: forall t : typ, is_expr_typ (normᵗ t) -> is_expr_typ t) by admit.
+          auto.
         + rewrite <- nth_default_eq.
           unfold nth_default.
           destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
           * inversion Hv1; subst.
             rewrite Forall_forall in H1.
             eauto using nth_error_In.
-          * pose proof uninit_sval_of_typ_val_typ (TypHeader ts0) as H.
-            eauto. admit.
+          * pose proof uninit_sval_of_typ_val_typ rtyp as H.
+            eapply H; eauto.
+            assert (Hisv: forall v (t : typ), val_typ (ge_senum ge) v t -> is_expr_typ t) by admit.
+            apply Hisv in Hv1 as Hv1'.
+            inversion Hv1'; subst.
+            rewrite H1 in H3.
+            assert (Hisn: forall t : typ, is_expr_typ (normᵗ t) -> is_expr_typ t) by admit.
+            auto.
     Admitted.
 
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,

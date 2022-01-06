@@ -60,9 +60,5 @@ Qed.
 
 Definition AList (tags_t V: Type) := AList.AList (t tags_t) V (@equiv tags_t).
 
-Fixpoint clear_AList_tags {tags_t V : Type} (al : AList tags_t V) : AList.StringAList V :=
-  match al with
-  | (Build_t _ _ str, v) :: tl =>
-      (str, v) :: clear_AList_tags tl
-  | [] => []
-  end.
+Definition clear_AList_tags {tags_t V : Type} : AList tags_t V -> AList.StringAList V :=
+  List.map (fun '(x, v) => (str x,v)).

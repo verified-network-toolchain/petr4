@@ -887,12 +887,12 @@ Section Lemmas.
         in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - destruct t as [t |]; inversion Ht;
+    - destruct t as [t |];
+        destruct X as [d X];
+        destruct ms as [| [i M] ms];
+        inversion Ht;
         inversion IHt; inversion H0;
-          subst; cbn in *; eauto.
-      assert (Heqb: PeanoNat.Nat.eqb (length ms) 0 = false)
-        by (rewrite PeanoNat.Nat.eqb_neq; lia).
-      rewrite Heqb; eauto.
+          subst; cbn in *; eauto; try lia; eauto.
   Qed.
 
   Definition uninit_sval_of_typ_is_expr_typ_def (t : @P4Type tags_t) :=

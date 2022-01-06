@@ -248,8 +248,12 @@ Section ValueUtil.
        2. Use the underlying types's uninitialized values:
        Since an senum's underlying type is either bit or int, it can also be uninitialized
        by the underlying types.
-       The current implementation follows the option 2. *)
-    | TypEnum tname (Some typ') members => uninit_sval_of_typ hvalid typ'
+       The current implementation follows the option 2.
+       Rudy's note: attempt create a default [ValBaseSenumField]
+       for type preservation proof. *)
+    | TypEnum {| P4String.str := X |}
+              (Some typ') ({| P4String.str := M |} :: _) =>
+      uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X M
     (* The P4Spec does not specify the unintialized values for the following types,
        so we use the default values for now. (7.3.) 
        Note that this design choice makes the svals output from uninit_sval_of_typ different

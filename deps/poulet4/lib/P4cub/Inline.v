@@ -392,47 +392,86 @@ Definition lookup_parser_states (names : list string) states :=
         | Some s => (n,s) :: acc
         end) [] names.
 
-Open Scope list_scope.
-Fixpoint inline_state gas ctx name state states (tags : tags_t) : result ((list (string * Parser.state_block tags_t)) * t) :=
-  let+ stmt := inline gas ctx (Parser.stmt state) in
-  let (neighbor_names, trans) := inline_transition gas ctx name (Parser.trans state) in
-  let neighbor_states := lookup_parser_states neighbor_names states in
-  (neighbor_states, handle_flags name stmt trans tags)
-with inline_transition gas ctx name trans : (list string) * t  :=
-  match trans with
-  | Parser.PGoto state tags =>
-    let name := get_state_name state in
-    ([name], set_state_flag name true tags)
-  | Parser.PSelect discriminee default states tags =>
-    let default := inline_transition (gas-1) ctx name default in
-    let inline_trans_loop := fun '(pat, trans) acc  =>
-             let* '(states, inln) := acc in
-             let+ cond := translate_pat tags discriminee pat in
-             let '(new_states, trans) := inline_transition (gas - 1) ctx name trans in
-             (states ++ new_states, IConditional E.TBool cond trans inln) in
-    List.fold_right inline_trans_loop (ok default) states
-  end
-with inline_parser gas tags ctx current_name current states : t :=
-  let+ (neighbors, inline_current) := inline_state gas ctx current_name current states tags in
-  if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb gas 0)
-  then ISkip tags
-  else List.fold_right
-    (fun '(n, s) inln => ISeq (inline_parser (gas-1) tags ctx n s states) inln tags)
-    (ISkip tags)
-    neighbors
+Definition lex_le (x : nat * nat) (y : nat * nat) : Prop :=
+  let (gas_x, unroll_y) := x in
+  let (gas_y, unroll_x) := x in
+  (gas_x < gas_y) \/ (gas_x = gas_y /\ unroll_x <= unroll_y).
 
-with inline
-         (n : nat)
+
+Open Scope list_scope.
+Fixpoint inline_state
+         (gas : nat)
+         (unroll : nat)
          (ctx : DeclCtx tags_t)
-         (s : ST.s tags_t)
-         {struct n} : result t :=
-  match n with
-  | 0 => error "Inliner ran out of gas"
-  | S n0 =>
+         (name : string)
+         (state : Parser.state_block tags_t)
+         (states : F.fs string (Parser.state_block tags_t))
+         (tags : tags_t)
+  : result ((list (string * Parser.state_block tags_t)) * t) :=
+  match gas with
+  | O => ok ([], ISkip tags)
+  | S gas =>
+    let* stmt := inline gas unroll ctx (Parser.stmt state) in
+    let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in
+    let neighbor_states := lookup_parser_states neighbor_names states in
+    (neighbor_states, handle_flags name stmt trans tags)
+  end
+with inline_transition (gas : nat)
+                       (unroll : nat)
+                       (ctx : DeclCtx tags_t)
+                       (name : string)
+                       (trans : Parser.e tags_t )
+                       (tags : tags_t)
+     : result ((list string) * t)  :=
+       match gas with
+       | O => ok ([], ISkip tags)
+       | S gas =>
+         match trans with
+         | Parser.PGoto state tags =>
+           let name := get_state_name state in
+           ok ([name], set_state_flag name true tags)
+         | Parser.PSelect discriminee default states tags =>
+           let default := inline_transition gas unroll ctx name default tags in
+           let inline_trans_loop := fun '(pat, trans) acc  =>
+                    let* (states, inln) := acc in
+                    let* cond := translate_pat tags discriminee pat in
+                    let+ (new_states, trans) := inline_transition gas unroll ctx name trans tags in
+                    (states ++ new_states, IConditional E.TBool cond trans inln tags) in
+           List.fold_right inline_trans_loop default states
+         end
+       end
+with inline_parser (gas : nat)
+                   (unroll : nat)
+                   (tags : tags_t)
+                   (ctx : DeclCtx tags_t)
+                   (current_name : string)
+                   (current : Parser.state_block tags_t)
+                   (states : F.fs string (Parser.state_block tags_t))
+     : result t :=
+       match gas with
+       | O => ok (ISkip tags)
+       | S gas =>
+         let* (neighbors, inline_current) := inline_state gas unroll ctx current_name current states tags in
+         if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb unroll 0)
+         then ok (ISkip tags)
+         else List.fold_right (fun '(n, s) inln =>
+               let* inln := inln in
+               let+ prsr := inline_parser gas (unroll-1) tags ctx n s states in
+               ISeq prsr inln tags)
+                              (ok (ISkip tags))
+                              neighbors
+       end
+with  inline (gas : nat)
+             (unroll : nat)
+             (ctx : DeclCtx tags_t)
+             (s : ST.s tags_t)
+  : result t :=
+  match gas with
+  | O => error "Inliner ran out of gas"
+  | S gas =>
     match s with
     | ST.SSkip i =>
       ok (ISkip i)
-
     | ST.SVardecl x t_or_e i =>
       match t_or_e with
       | inl t =>  ok (IVardecl t x i)
@@ -444,85 +483,86 @@ with inline
       ok (IAssign (t_of_e rhs) lhs rhs i)
 
     | ST.SConditional guard tru_blk fls_blk i =>
-      let* tru_blk' := inline n0 ctx tru_blk in
-      let+ fls_blk' := inline n0 ctx fls_blk in
+      let* tru_blk' := inline gas unroll ctx tru_blk in
+      let+ fls_blk' := inline gas unroll ctx fls_blk in
       IConditional (t_of_e guard) guard tru_blk' fls_blk' i
 
     | ST.SSeq s1 s2 i =>
-      let* i1 := inline n0 ctx s1 in
-      let+ i2 := inline n0 ctx s2 in
+      let* i1 := inline gas unroll ctx s1 in
+      let+ i2 := inline gas unroll ctx s2 in
       ISeq i1 i2 i
 
     | ST.SBlock s =>
-      let+ blk := inline n0 ctx s in
+      let+ blk := inline gas unroll ctx s in
       IBlock blk
 
     | ST.SFunCall f _ ar i =>
       let args := paramargs ar in
       let ret := rtrns ar in
       match find_function _ ctx f with
-        | Some (TD.TPFunction _ _ _ body i) =>
-          (** TODO check copy-in/copy-out *)
-          let+ rslt := inline n0 ctx body in
-          let (s,_) := subst_t (args_to_expenv args) rslt in
-          IBlock s
-        | Some _ =>
-          error "[ERROR] Got a nonfunction when `find`ing a function"
-        | None =>
-          let args := elaborate_arrowE {|paramargs:=args; rtrns:=ret|} in
-          ok (IExternMethodCall "_" f args i)
+      | Some (TD.TPFunction _ _ _ body i) =>
+        (** TODO check copy-in/copy-out *)
+        let+ rslt := inline gas unroll ctx body in
+        let (s,_) := subst_t (args_to_expenv args) rslt in
+        IBlock s
+      | Some _ =>
+        error "[ERROR] Got a nonfunction when `find`ing a function"
+      | None =>
+        let args := elaborate_arrowE {|paramargs:=args; rtrns:=ret|} in
+        ok (IExternMethodCall "_" f args i)
       end
 
     | ST.SActCall a args i =>
-      let*~ adecl := find_action tags_t ctx a else ("could not find action " ++ a ++ " in environment") in
+      let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
       match adecl with
       | CD.CDAction _ _ body i =>
         (** TODO handle copy-in/copy-out *)
-        let+ rslt := inline n0 ctx body in
+        let+ rslt := inline gas unroll ctx body in
         let η := args_to_expenv args in
         IBlock (fst (subst_t η rslt))
       | _ =>
         error "[ERROR] got a nonaction when `find`-ing a function"
       end
 
-      | ST.SApply inst ext_args args tags =>
-        match find_control _ ctx inst with
-        | None =>
-          let parser := find_parser _ ctx inst in
-          let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
-          match pinst with
-          | TD.TPInstantiate pname _ _ pargs tags =>
-            let pdecl_opt := find_parser _ ctx pname in
-            let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
-            match pdecl with
-            | TD.TPParser _ _ _ _ start states tags =>
-              error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!")
-            | _ =>
-              error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
-            end
+    | ST.SApply inst ext_args args tags =>
+      match find_control _ ctx inst with
+      | None =>
+        let parser := find_parser _ ctx inst in
+        let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
+        match pinst with
+        | TD.TPInstantiate pname _ _ pargs tags =>
+          let pdecl_opt := find_parser _ ctx pname in
+          let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
+          match pdecl with
+          | TD.TPParser _ _ _ _ start states tags =>
+            inline_parser gas unroll tags ctx "start" start states
+          (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
           | _ =>
-            error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
+            error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
           end
-        | Some cinst =>
-          match cinst with
-          | TD.TPInstantiate cname _ _ cargs i =>
-            let cdecl_opt := find_control tags_t ctx cname in
-            let* cdecl := from_opt cdecl_opt "could not find controller" in
-            match cdecl with
-            | TD.TPControl _ _ _ _ body apply_blk i =>
-              (* Context is begin extended with body, but why can't I find the controls? *)
-              let ctx' := of_cdecl tags_t ctx body in
-              let+ rslt := inline n0 ctx' apply_blk in
-              (** TODO check copy-in/copy-out *)
-              let η := copy args in
-              IBlock (fst (subst_t η rslt))
-            | _ =>
-              error "Expected a control decl, got something else"
-            end
-          | _ =>
-            error "Expected a control instantiation, got something else"
-          end
+        | _ =>
+          error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
         end
+      | Some cinst =>
+        match cinst with
+        | TD.TPInstantiate cname _ _ cargs i =>
+          let cdecl_opt := find_control tags_t ctx cname in
+          let* cdecl := from_opt cdecl_opt "could not find controller" in
+          match cdecl with
+          | TD.TPControl _ _ _ _ body apply_blk i =>
+            (* Context is begin extended with body, but why can't I find the controls? *)
+            let ctx' := of_cdecl tags_t ctx body in
+            let+ rslt := inline gas unroll ctx' apply_blk in
+            (** TODO check copy-in/copy-out *)
+            let η := copy args in
+            IBlock (fst (subst_t η rslt))
+          | _ =>
+            error "Expected a control decl, got something else"
+          end
+        | _ =>
+          error "Expected a control instantiation, got something else"
+        end
+      end
     | ST.SReturn None i =>
       ok (IReturnVoid i)
 
@@ -533,16 +573,16 @@ with inline
       ok (IExit i)
 
     | ST.SInvoke t i =>
-      let*~ tdecl := find_table tags_t ctx t else "could not find table in environment" in
+      let* tdecl := from_opt (find_table tags_t ctx t) "could not find table in environment" in
       match tdecl with
       | CD.CDTable _ tbl _ =>
         let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
         let actions := Control.table_actions tbl in
         let act_to_gcl := fun a =>
-          let*~ act := find_action tags_t ctx a else "could not find action " ++ a ++ " in environment" in
+          let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
           match act with
           | CD.CDAction _ params body _ =>
-            let* s := inline n0 ctx body in
+            let* s := inline gas unroll ctx body in
             let+ (s', _) := action_param_renamer t a (string_list_of_params params) s in
             s'
           | _ =>
@@ -563,22 +603,13 @@ with inline
 
     | ST.SSetValidity e b i =>
       ok (ISetValidity e b i)
-    (* | ST.PApply _ _ _ _ i => *)
-      (* let*~ prsr := find_parser tags_t ctx pname else "could not find parser instance" in *)
-      (* match pinst with *)
-      (* | TD.TPParser _ cparams eparams params start states i => *)
-      (*   inline_parser n0 ctx cparams eparams params start states i *)
-      (* | _ => error "[ERROR] expecting parser when `find`ing parser. got something else" *)
-      (* end *)
-      (* ok (ISkip i) *)
 
     | ST.SHeaderStackOp s typ op n i =>
       ok (IHeaderStackOp s typ op n i)
-  end
-end.
+    end
+  end.
 
-
-
+Open Scope string_scope.
 Definition seq_tuple_elem_assign
            (tuple_name : string)
            (i : tags_t)

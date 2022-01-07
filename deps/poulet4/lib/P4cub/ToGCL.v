@@ -632,8 +632,8 @@ Section ToGCL.
         error "expected package, got sth else"
       end.
 
-    Definition inlining_passes (gas : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
-      let* inline_stmt := Inline.inline _ gas ctx s in
+    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
+      let* inline_stmt := Inline.inline _ gas unroll ctx s in
       let* no_tup := Inline.elim_tuple _ inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks _ no_tup in
       let* no_hdr := Inline.elaborate_headers _ no_stk in
@@ -642,23 +642,23 @@ Section ToGCL.
       (* let* hdrs_valid := Inline.assert_headers_valid_before_use _ no_slice in *)
       ok no_slice.
 
-    Definition inline_from_p4cub (gas : nat)
+    Definition inline_from_p4cub (gas unroll : nat)
                (ext : model) (pipe : pipeline)
                (ctx : ToP4cub.DeclCtx tags_t)  : result (Inline.t tags_t) :=
       let* s := get_main ctx pipe in
-      inlining_passes gas ext ctx s.
+      inlining_passes gas unroll ext ctx s.
 
-    Definition p4cub_statement_to_gcl (gas : nat)
+    Definition p4cub_statement_to_gcl (gas unroll : nat)
                (ctx : ToP4cub.DeclCtx tags_t)
                (arch : model) (s : ST.s tags_t) : result target :=
-      let* inlined := inlining_passes gas arch ctx s in
+      let* inlined := inlining_passes gas unroll arch ctx s in
       let* instred := Inline.assert_headers_valid_before_use _ inlined in
       let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
-    Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
       let* stmt := get_main ctx pipe in
-      p4cub_statement_to_gcl gas ctx ext stmt.
+      p4cub_statement_to_gcl gas unroll ctx ext stmt.
 
   End Instr.
 End ToGCL.

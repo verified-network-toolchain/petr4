@@ -40,21 +40,21 @@ Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.p
 Definition simple_nat_test_case :=
   let* sn := p4cub_simple_nat in
   let externs := V1model.externs in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 externs (V1model.package NoInfo) sn.
 
 Definition inline_simple_nat : result (Inline.t Info) :=
   let* sn := p4cub_simple_nat in
-  ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.inline_from_p4cub Info 1000 10 externs (V1model.package NoInfo) sn.
 
 Definition instrumented_simple_nat : result (Inline.t Info) :=
   let* isn := inline_simple_nat in
   Inline.assert_headers_valid_before_use _ isn.
 
-Compute p4cub_simple_nat.
-Compute (ToP4cub.preprocess Info NoInfo SimpleNat.prog).
-Compute inline_simple_nat.
-(* Compute instrumented_simple_nat. *)
-Compute simple_nat_test_case.
+(* Compute p4cub_simple_nat. *)
+(* Compute (ToP4cub.preprocess Info NoInfo SimpleNat.prog). *)
+(* Compute inline_simple_nat. *)
+(* (* Compute instrumented_simple_nat. *) *)
+(* Compute simple_nat_test_case. *)
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.
 Proof. compute. trivial. Qed.
 
@@ -64,7 +64,7 @@ Definition p4cub_ecmp2 := ToP4cub.translate_program Info NoInfo ECMP2.prog.
 Definition ecmp2_test_case :=
   let* sn := p4cub_ecmp2 in
   let externs := V1model.externs in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 externs (V1model.package NoInfo) sn.
 
 (* Compute p4cub_ecmp2. *)
 (* Compute ecmp2_test_case. *)
@@ -77,7 +77,7 @@ Definition p4cub_flowlet := ToP4cub.translate_program Info NoInfo Flowlet.prog.
 Definition gcl_flowlet :=
   let* sn := p4cub_flowlet in
   let externs := V1model.externs in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 externs (V1model.package NoInfo) sn.
 
 (* Compute cub_flowlet. *)
 (* Compute gcl_flowlet. *)
@@ -91,11 +91,11 @@ Definition p4cub_multiprotocol := ToP4cub.translate_program Info NoInfo MultiPro
 Definition multiprotocol_test_case :=
   let* sn := p4cub_multiprotocol in
   let externs := V1model.externs in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 externs (V1model.package NoInfo) sn.
 
 Definition inline_multiprotocol : result (Inline.t Info) :=
   let* mp := p4cub_multiprotocol in
-  ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) mp.
+  ToGCL.inline_from_p4cub Info 1000 10 externs (V1model.package NoInfo) mp.
 
 Definition instrumented_multiprotocol : result (Inline.t Info) :=
   let* imp := inline_multiprotocol in
@@ -186,6 +186,7 @@ Definition assert_args : E.arrowE Info :=
 (* Definition assert_impl : ToGCL.target := GCL.GCL.GAssert (GCL.Form.LVar "check"). *)
 (* Compute (let+ a := arglist in ToGCL.subst_args assert_impl a). *)
 
+
 Compute (ToGCL.inline_to_gcl Info TableInstr.instr ToGCL.initial
                              (Poulet4.P4cub.V1model.externs)
                              (Inline.IExternMethodCall Info "_" "assert" assert_args
@@ -201,15 +202,15 @@ Definition p4cub_linearroad := ToP4cub.translate_program Info NoInfo LinearRoad.
 
 Definition inline_linearroad :=
   let* ctx := p4cub_linearroad in
-  ToGCL.inline_from_p4cub Info 1000 externs (V1model.package NoInfo) ctx.
+  ToGCL.inline_from_p4cub Info 1000 10 externs (V1model.package NoInfo) ctx.
 
 
 Definition linearroad_test_case :=
   let* sn := p4cub_linearroad in
   let externs := V1model.externs in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 externs (V1model.package NoInfo) sn.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 externs (V1model.package NoInfo) sn.
 
-Compute inline_linearroad.
+(* Compute inline_linearroad. *)
 (* Compute linearroad_test_case. *)
 
 Lemma linearroad_test : is_ok linearroad_test_case.
@@ -219,7 +220,7 @@ Proof. compute; trivial. Qed.
 
 Definition heavy_hitter_test_case :=
   let* hh := ToP4cubTest.p4cub_heavy_hitter in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) hh.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 V1model.externs (V1model.package NoInfo) hh.
 
 Lemma heavy_hitter_test: is_ok heavy_hitter_test_case.
 Proof. compute; trivial. Qed.
@@ -229,15 +230,14 @@ Proof. compute; trivial. Qed.
 
 Definition netchain_test_case :=
   let* nc := ToP4cubTest.p4cub_netchain in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) nc.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 V1model.externs (V1model.package NoInfo) nc.
 Lemma netchain_test: is_ok netchain_test_case.
 Proof. compute; trivial. Qed.
-
 
 (* hula *)
 Definition hula_test_case :=
   let* hula := ToP4cubTest.p4cub_hula in
-  ToGCL.from_p4cub Info TableInstr.instr 1000 V1model.externs (V1model.package NoInfo) hula.
+  ToGCL.from_p4cub Info TableInstr.instr 1000 10 V1model.externs (V1model.package NoInfo) hula.
 
 Lemma hula_test: is_ok hula_test_case.
 Proof. compute; trivial. Qed.

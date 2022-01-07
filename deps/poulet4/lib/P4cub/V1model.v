@@ -100,8 +100,8 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas p4cub : result ToGCL.target :=
+Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas unroll p4cub : result ToGCL.target :=
   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
   let assume_decl := TopDecl.TPExtern "_" [] [] [("assume", ([], arrowtype))] d in
   let p4cub_instrumented := ToP4cub.add_extern tags_t p4cub assume_decl in
-  ToGCL.from_p4cub tags_t instr gas externs (package d) p4cub.
+  ToGCL.from_p4cub tags_t instr gas unroll externs (package d) p4cub.

@@ -5,7 +5,7 @@ Require Import Poulet4.P4Notations Poulet4.Monads.Monad Poulet4.Monads.Option.
 Import ListNotations.
 
 Section ValueUtil.
-  Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+  Context {tags_t: Type}.
   Notation Val := (@ValueBase bool).
   Notation Sval := (@ValueBase (option bool)).
 

@@ -13,9 +13,15 @@ Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 
-Section Semantics.
+Definition is_directional (dir : direction) : bool :=
+  match dir with
+  | Directionless => false
+  | _ => true
+  end.
 
-Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+Section Semantics.
+  
+Context {tags_t: Type}.
 Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
 Notation ValSet := (@ValueSet tags_t).
@@ -25,38 +31,7 @@ Notation ident := string.
 Notation path := (list ident).
 Notation P4Int := (P4Int.t tags_t).
 
-Context {target : @Target tags_t (@Expression tags_t)}.
-
 Definition mem := PathMap.t Sval.
-
-Definition state : Type := mem * extern_state.
-
-Definition set_memory m (s : state) : state :=
-  let (_, es) := s in (m, es).
-
-Definition update_memory (f : mem -> mem) (s : state) : state :=
-  let (m, es) := s in (f m, es).
-
-Definition get_memory (s : state) : mem :=
-  let (m, _) := s in m.
-
-Definition get_external_state (s : state) :=
-  let (_, es) := s in es.
-
-Definition clear_list (p: list (@P4String.t tags_t)): list string :=
-  map (@str tags_t) p.
-
-Definition loc_to_path (this : path) (loc : Locator) : path :=
-  match loc with
-  | LGlobal p => p
-  | LInstance p => this ++ p
-  end.
-
-Definition get_loc_path (loc : Locator) : path :=
-  match loc with
-  | LGlobal p => p
-  | LInstance p => p
-  end.
 
 Variant fundef :=
   | FInternal
@@ -73,153 +48,155 @@ Variant fundef :=
       (name : ident)
       (* (params : list (ident * direction)) *).
 
-Definition genv_func := PathMap.t fundef.
-Definition genv_typ := IdentMap.t (@P4Type tags_t).
-Definition genv_senum := IdentMap.t (StringAList Sval).
-
 Inductive inst_ref :=
   | mk_inst_ref (class : string) (p : path).
 
 Definition genv_inst := PathMap.t inst_ref.
 Definition genv_const := PathMap.t Val.
 
-Record genv := MkGenv {
-  ge_func :> genv_func;
-  ge_typ :> genv_typ;
-  ge_senum :> genv_senum;
-  ge_inst :> genv_inst;
-  ge_const :> genv_const;
-  ge_ext :> extern_env
-}.
+Definition genv_func := PathMap.t fundef.
+Definition genv_typ := IdentMap.t (@P4Type tags_t).
+Definition genv_senum := IdentMap.t (StringAList Sval).
 
-Section WithGenv.
+Definition clear_list (p: list (@P4String.t tags_t)): list string :=
+  map (@str tags_t) p.
 
-  Fixpoint
-    get_real_type
-    (get : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
-    match typ with
-    | TypTypeName name => IdentMap.get (str name) get
-    | TypArray atyp size =>
-      let^ realtyp := get_real_type get atyp in TypArray realtyp size
-    | TypTuple types =>
-      sequence (List.map (get_real_type get) types) >>| TypTuple
-    | TypList types =>
-      sequence (List.map (get_real_type get) types) >>| TypList
-    | TypRecord fields =>
-      sequence
-        (List.map
-           (fun '(a,t) => get_real_type get t >>| pair a)
-           fields)
-        >>| TypRecord
-    | TypSet elt_type => get_real_type get elt_type >>| TypSet
-    | TypHeader fields =>
-      sequence
-        (List.map
-           (fun '(a,t) => get_real_type get t >>| pair a)
-           fields)
-        >>| TypHeader
-    | TypHeaderUnion fields =>
-      sequence
-        (List.map
-           (fun '(a,t) => get_real_type get t >>| pair a)
-           fields)
-        >>| TypHeaderUnion
-    | TypStruct fields =>
-      sequence
-        (List.map
-           (fun '(a,t) => get_real_type get t >>| pair a)
-           fields)
-        >>| TypStruct
-    | TypEnum X (Some atyp) members =>
-      let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
-      TypEnum X (Some realt) members
-    | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
-    | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
-    | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
-    | TypFunction fn => get_real_func get fn >>| TypFunction
-    | TypAction data_params ctrl_params =>
-      let* datas := sequence (List.map (get_real_param get) data_params) in
-      sequence (List.map (get_real_param get) ctrl_params) >>| TypAction datas
-    | TypPackage Xs wildcards params =>
-      sequence
-        (List.map
-           (get_real_param
-              (IdentMap.removes
-                 (List.map str Xs)
-                 get))
-           params)
-        >>| TypPackage Xs wildcards
-    | TypSpecializedType base args =>
-      let* realb := get_real_type get base in
-      sequence (List.map (get_real_type get) args) >>| TypSpecializedType realb
-    | TypConstructor Xs wildcards params ret =>
-      let* realret :=
-         get_real_type
-           (IdentMap.removes
-              (List.map str Xs) get) ret in
-      let^ rps :=
+Definition loc_to_path (this : path) (loc : Locator) : path :=
+  match loc with
+  | LGlobal p => p
+  | LInstance p => this ++ p
+  end.
+
+Definition get_loc_path (loc : Locator) : path :=
+  match loc with
+  | LGlobal p => p
+  | LInstance p => p
+  end.
+
+Fixpoint
+  get_real_type
+  (get : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
+  match typ with
+  | TypTypeName name => IdentMap.get (str name) get
+  | TypArray atyp size =>
+    let^ realtyp := get_real_type get atyp in TypArray realtyp size
+  | TypTuple types =>
+    sequence (List.map (get_real_type get) types) >>| TypTuple
+  | TypList types =>
+    sequence (List.map (get_real_type get) types) >>| TypList
+  | TypRecord fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypRecord
+  | TypSet elt_type => get_real_type get elt_type >>| TypSet
+  | TypHeader fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypHeader
+  | TypHeaderUnion fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypHeaderUnion
+  | TypStruct fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypStruct
+  | TypEnum X (Some atyp) members =>
+    let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
+    TypEnum X (Some realt) members
+  | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
+  | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
+  | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
+  | TypFunction fn => get_real_func get fn >>| TypFunction
+  | TypAction data_params ctrl_params =>
+    let* datas := sequence (List.map (get_real_param get) data_params) in
+    sequence (List.map (get_real_param get) ctrl_params) >>| TypAction datas
+  | TypPackage Xs wildcards params =>
+    sequence
+      (List.map
+         (get_real_param
+            (IdentMap.removes
+               (List.map str Xs)
+               get))
+         params)
+      >>| TypPackage Xs wildcards
+  | TypSpecializedType base args =>
+    let* realb := get_real_type get base in
+    sequence (List.map (get_real_type get) args) >>| TypSpecializedType realb
+  | TypConstructor Xs wildcards params ret =>
+    let* realret :=
+       get_real_type
+         (IdentMap.removes
+            (List.map str Xs) get) ret in
+    let^ rps :=
+       sequence
+         (List.map
+            (get_real_param
+               (IdentMap.removes
+                  (List.map str Xs) get))
+            params) in
+    TypConstructor Xs wildcards rps realret
+  | TypBool => Some TypBool
+  | TypString => Some TypString
+  | TypInteger => Some TypInteger
+  | TypInt w => Some (TypInt w)
+  | TypBit w => Some (TypBit w)
+  | TypVarBit w => Some (TypVarBit w)
+  | TypError => Some TypError
+  | TypMatchKind => Some TypMatchKind
+  | TypVoid => Some TypVoid
+  | TypExtern e => Some (TypExtern e)
+  | TypEnum a None b => Some (TypEnum a None b)
+  | TypTable a => Some (TypTable a)
+  end
+with get_real_param
+       (get : genv_typ) (param: P4Parameter): option P4Parameter :=
+       match param with
+       | MkParameter opt dir typ argid var =>
+         let^ realt := get_real_type get typ in
+         MkParameter opt dir realt argid var
+       end
+with get_real_ctrl
+       (get : genv_typ) (ctrl: ControlType): option ControlType :=
+       match ctrl with
+       | MkControlType Xs params =>
          sequence
            (List.map
               (get_real_param
                  (IdentMap.removes
-                    (List.map str Xs) get))
-              params) in
-      TypConstructor Xs wildcards rps realret
-    | TypBool => Some TypBool
-    | TypString => Some TypString
-    | TypInteger => Some TypInteger
-    | TypInt w => Some (TypInt w)
-    | TypBit w => Some (TypBit w)
-    | TypVarBit w => Some (TypVarBit w)
-    | TypError => Some TypError
-    | TypMatchKind => Some TypMatchKind
-    | TypVoid => Some TypVoid
-    | TypExtern e => Some (TypExtern e)
-    | TypEnum a None b => Some (TypEnum a None b)
-    | TypTable a => Some (TypTable a)
-    end
-  with get_real_param
-         (get : genv_typ) (param: P4Parameter): option P4Parameter :=
-         match param with
-         | MkParameter opt dir typ argid var =>
-           let^ realt := get_real_type get typ in
-           MkParameter opt dir realt argid var
-         end
-  with get_real_ctrl
-         (get : genv_typ) (ctrl: ControlType): option ControlType :=
-         match ctrl with
-         | MkControlType Xs params =>
-           sequence
-             (List.map
-                (get_real_param
-                   (IdentMap.removes
-                      (List.map str Xs)
-                      get))
-                params)
-                    >>| MkControlType Xs
-         end
-  with get_real_func
-         (get : genv_typ) (fn: FunctionType): option FunctionType :=
-         match fn with
-         | MkFunctionType Xs params kind ret =>
-           let* realret :=
-              get_real_type
-                (IdentMap.removes
-                   (List.map str Xs)
-                   get)
-                ret in
-           let^ realps :=
-              sequence
-                (List.map
-                   (get_real_param
-                      (IdentMap.removes
-                         (List.map str Xs)
-                         get))
-                   params) in
-           MkFunctionType Xs realps kind realret
-         end.
-
-Variable ge : genv.
+                    (List.map str Xs)
+                    get))
+              params)
+           >>| MkControlType Xs
+       end
+with get_real_func
+       (get : genv_typ) (fn: FunctionType): option FunctionType :=
+       match fn with
+       | MkFunctionType Xs params kind ret =>
+         let* realret :=
+            get_real_type
+              (IdentMap.removes
+                 (List.map str Xs)
+                 get)
+              ret in
+         let^ realps :=
+            sequence
+              (List.map
+                 (get_real_param
+                    (IdentMap.removes
+                       (List.map str Xs)
+                       get))
+                 params) in
+         MkFunctionType Xs realps kind realret
+       end.
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in
@@ -273,14 +250,6 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | None => ValBaseInteger (P4Int.value n)
   | Some (w, true) => ValBaseInt (to_lbool w (P4Int.value n))
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
-  end.
-
-Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
-  match loc with
-  | LInstance p =>
-      PathMap.get p (get_memory s)
-  | LGlobal p =>
-      None
   end.
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
@@ -337,11 +306,42 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers next) "lastIndex" sv.
 
-Definition is_directional (dir : direction) : bool :=
-  match dir with
-  | Directionless => false
-  | _ => true
+Context {target : @Target tags_t (@Expression tags_t)}.
+
+Definition state : Type := mem * extern_state.
+
+Definition set_memory m (s : state) : state :=
+  let (_, es) := s in (m, es).
+
+Definition update_memory (f : mem -> mem) (s : state) : state :=
+  let (m, es) := s in (f m, es).
+
+Definition get_memory (s : state) : mem :=
+  let (m, _) := s in m.
+
+Definition get_external_state (s : state) :=
+  let (_, es) := s in es.
+
+Record genv := MkGenv {
+  ge_func :> genv_func;
+  ge_typ :> genv_typ;
+  ge_senum :> genv_senum;
+  ge_inst :> genv_inst;
+  ge_const :> genv_const;
+  ge_ext :> extern_env
+}.
+
+Section WithGenv.
+
+Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
+  match loc with
+  | LInstance p =>
+      PathMap.get p (get_memory s)
+  | LGlobal p =>
+      None
   end.
+  
+Variable ge : genv.
 
 Definition loc_to_val_const (this : path) (loc : Locator) : option Val :=
   match loc with
@@ -736,6 +736,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
   end.
 
 Axiom dummy_type : @P4Type tags_t.
+Context `{inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_tags := @default tags_t _.
 
 Definition add_ctrl_args (oaction : option (@Expression tags_t))
@@ -2134,6 +2135,8 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   end.
 
 End WithGenv.
+
+Context `{inhabitant_tags_t : Inhabitant tags_t}.
 
 Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in

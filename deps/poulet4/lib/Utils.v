@@ -1,13 +1,10 @@
-Require Import Coq.Bool.Bvector.
-Require Import Coq.Lists.List.
-Require Import Coq.Strings.String.
-Require Import Coq.NArith.BinNatDef.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.PArith.BinPos.
-Require Import Coq.Structures.OrderedTypeEx.
+From Coq Require Import Bool.Bvector
+     Lists.List Strings.String
+     NArith.BinNatDef ZArith.BinIntDef
+     PArith.BinPos Structures.OrderedTypeEx
+     micromega.Lia.
 
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Monad Poulet4.Monads.Option.
 
 Open Scope monad.
 
@@ -551,3 +548,36 @@ Section ProdMap.
 
   Definition prod_map_r '((v,u) : V * U) : V * W := (v, f u).
 End ProdMap.
+
+Lemma split_inj : forall (U V : Type) (uvs₁ uvs₂ : list (U * V)),
+    split uvs₁ = split uvs₂ -> uvs₁ = uvs₂.
+Proof.
+  intros U V usv1;
+    induction usv1 as [| [u1 v1] usv1 IHusv1];
+    intros [| [u2 v2] usv2] H;
+    simpl in *; auto.
+  - destruct (split usv2) as [us2 vs2] eqn:H2; inversion H.
+  - destruct (split usv1) as [us1 vs1] eqn:H1; inversion H.
+  - specialize IHusv1 with usv2.
+    destruct (split usv1) as [us1 vs1] eqn:H1;
+      destruct (split usv2) as [us2 vs2] eqn:H2.
+    inversion H; subst; f_equal; auto.
+Qed.
+
+Lemma map_pat_combine : forall (T U V W: Type) (f : T -> V) (g : U -> W) tus,
+    map (fun '(t,u) => (f t, g u)) tus =
+    combine (map f (map fst tus)) (map g (map snd tus)).
+Proof.
+  intros T U V W f g tus;
+    induction tus as [| [t u] tus IHtus];
+    simpl; f_equal; auto.
+Qed.
+
+Lemma nth_error_some_length : forall {A : Type} n l (a : A),
+    nth_error l n = Some a -> n < List.length l.
+Proof.
+  intros A n;
+    induction n as [| n IHn];
+    intros [| h l] a Hnth; cbn in *;
+      try discriminate; firstorder lia.
+Qed.

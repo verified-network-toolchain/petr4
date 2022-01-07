@@ -2,30 +2,6 @@ Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
         Poulet4.Value Coq.micromega.Lia Poulet4.Utils
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 
-Lemma split_inj : forall (U V : Type) (uvs₁ uvs₂ : list (U * V)),
-    split uvs₁ = split uvs₂ -> uvs₁ = uvs₂.
-Proof.
-  intros U V usv1;
-    induction usv1 as [| [u1 v1] usv1 IHusv1];
-    intros [| [u2 v2] usv2] H;
-    simpl in *; auto.
-  - destruct (split usv2) as [us2 vs2] eqn:H2; inversion H.
-  - destruct (split usv1) as [us1 vs1] eqn:H1; inversion H.
-  - specialize IHusv1 with usv2.
-    destruct (split usv1) as [us1 vs1] eqn:H1;
-      destruct (split usv2) as [us2 vs2] eqn:H2.
-    inversion H; subst; f_equal; auto.
-Qed.
-
-Lemma map_pat_combine : forall (T U V W: Type) (f : T -> V) (g : U -> W) tus,
-    map (fun '(t,u) => (f t, g u)) tus =
-    combine (map f (map fst tus)) (map g (map snd tus)).
-Proof.
-  intros T U V W f g tus;
-    induction tus as [| [t u] tus IHtus];
-    simpl; f_equal; auto.
-Qed.
-
 (** Predicate that a
     [read_one_bit] relation
     is productive. *)
@@ -420,112 +396,7 @@ Section ValueTyping.
   End RelTyp.
 
   Section Uninit.
-    Fixpoint normᵗ (t : typ) : typ :=
-      match t with
-      | TypBool
-      | TypString
-      | TypInteger
-      | TypInt _
-      | TypBit _
-      | TypVarBit _
-      | TypError
-      | TypMatchKind
-      | TypVoid
-      | TypTypeName _
-      | TypExtern _
-      | TypTable _   => t
-      | TypArray t n => TypArray (normᵗ t) n
-      | TypList  ts
-      | TypTuple ts  => TypTuple (map normᵗ ts)
-      | TypRecord ts
-      | TypStruct ts => TypStruct (map (fun '(x,t) => (x, normᵗ t)) ts)
-      | TypSet    t  => TypSet (normᵗ t)
-      | TypHeader ts => TypHeader (map (fun '(x,t) => (x, normᵗ t)) ts)
-      | TypHeaderUnion ts => TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) ts)
-      | TypEnum X t ms    => TypEnum X (option_map normᵗ t) ms
-      | TypNewType _ t    => normᵗ t
-      | TypControl ct             => TypControl (normᶜ ct)
-      | TypParser  ct             => TypParser  (normᶜ ct)
-      | TypFunction ft            => TypFunction (normᶠ ft)
-      | TypAction cs ds           => TypAction (map normᵖ cs) (map normᵖ ds)
-      | TypPackage Xs ws ps       => TypPackage Xs ws (map normᵖ ps)
-      | TypSpecializedType t ts   => TypSpecializedType (normᵗ t) (map normᵗ ts)
-      | TypConstructor Xs ws ps t => TypConstructor Xs ws (map normᵖ ps) (normᵗ t)
-      end
-    with normᶜ (ct : ControlType) : ControlType :=
-           match ct with
-           | MkControlType Xs ps => MkControlType Xs (map normᵖ ps)
-           end
-    with normᶠ (ft : FunctionType) : FunctionType :=
-           match ft with
-           | MkFunctionType Xs ps k t
-             => MkFunctionType Xs (map normᵖ ps) k (normᵗ t)
-           end
-    with normᵖ (p : P4Parameter) : P4Parameter :=
-           match p with
-           | MkParameter b d t a x => MkParameter b d (normᵗ t) a x
-           end.
-
-    Definition normᵗ_idem_def t := normᵗ (normᵗ t) = normᵗ t.
-    Definition normᶜ_idem_def t := normᶜ (normᶜ t) = normᶜ t.
-    Definition normᶠ_idem_def t := normᶠ (normᶠ t) = normᶠ t.
-    Definition normᵖ_idem_def t := normᵖ (normᵖ t) = normᵖ t.
-
-    Definition normᵗ_idem_ind :=
-      my_P4Type_ind
-        _ normᵗ_idem_def normᶜ_idem_def
-        normᶠ_idem_def normᵖ_idem_def.
-
-    Ltac list_idem :=
-      intros ts Hts; f_equal;
-      apply map_ext_Forall in Hts;
-      rewrite map_map; auto; assumption.
-    
-    Ltac alist_idem :=
-      intros xts Hxts; f_equal;
-      pose proof Forall_map
-           (fun t => normᵗ (normᵗ t) = normᵗ t) snd xts
-        as H; unfold Basics.compose in H;
-      rewrite <- H in Hxts; clear H;
-      apply map_ext_Forall in Hxts;
-      repeat rewrite map_pat_combine;
-      repeat rewrite map_fst_combine;
-      repeat rewrite map_snd_combine;
-      repeat rewrite map_length; auto;
-      repeat rewrite map_id; rewrite map_map;
-      f_equal; auto; assumption.
-    
-    Lemma normᵗ_idem : forall t, normᵗ_idem_def t.
-    Proof.
-      apply normᵗ_idem_ind;
-        unfold normᵗ_idem_def,normᶜ_idem_def,
-        normᶠ_idem_def,normᵖ_idem_def; cbn in *;
-          try (intros; f_equal; eauto; assumption);
-          try list_idem; try alist_idem; eauto.
-      - intros X [t |] ms H; inversion H; subst; cbn; do 2 f_equal; auto.
-      - intros ds cs Hds Hcs.
-        apply map_ext_Forall in Hds, Hcs.
-        repeat rewrite map_map; f_equal; auto.
-      - intros Xs ws ps H.
-        apply map_ext_Forall in H.
-        repeat rewrite map_map; f_equal; auto.
-      - intros t ts Hts Ht.
-        apply map_ext_Forall in Hts;
-          rewrite map_map; f_equal; auto.
-      - intros Xs ws ps t Hps Ht.
-        apply map_ext_Forall in Hps;
-          rewrite map_map; f_equal; auto.
-      - intros Xs ps Hps;
-          apply map_ext_Forall in Hps;
-          rewrite map_map; f_equal; auto.
-      - intros Xs ps k t Hps Ht;
-          apply map_ext_Forall in Hps;
-          rewrite map_map; f_equal; auto.
-    Qed.
-    
-    Context {dummy : Inhabitant tags_t}.
-
-    Definition uninit_sval_of_typ_norm_def t :=
+    Definition uninit_sval_of_typ_norm_def (t : typ) :=
       forall b, uninit_sval_of_typ b (normᵗ t) = uninit_sval_of_typ b t.
 
     Definition uninit_sval_of_typ_norm_ind :=

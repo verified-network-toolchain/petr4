@@ -2,6 +2,15 @@ Require Export Poulet4.LightTyping.ValueTyping
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
+Lemma nth_error_some_length : forall {A : Type} n l (a : A),
+    nth_error l n = Some a -> n < length l.
+Proof.
+  intros A n;
+    induction n as [| n IHn];
+    intros [| h l] a Hnth; cbn in *;
+      try discriminate; firstorder lia.
+Qed.
+
 (* TODO:
    Need parametric operations
    for [PathMap.t] and [Locator]
@@ -68,16 +77,16 @@ Section TypingDefs.
 
   Definition gamma_var_val_typ
              (g : gamma_var) (st : state)
-             (gt : genv_typ) (gs : genv_senum) : Prop :=
+             (gt : genv_typ) : Prop :=
     forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
-      exists rt, get_real_type gt t = Some rt /\ val_typ gs v (normᵗ rt).
+      exists rt, get_real_type gt t = Some rt /\ val_typ v (normᵗ rt).
 
   Definition gamma_var_prop
              (g : gamma_var) (st : state)
-             (gt : genv_typ) (gs : genv_senum) : Prop :=
-    gamma_var_domain g st /\ gamma_var_val_typ g st gt gs.
+             (gt : genv_typ) : Prop :=
+    gamma_var_domain g st /\ gamma_var_val_typ g st gt.
   
   Definition gamma_const_domain
              (this : path) (g : gamma_const)
@@ -92,7 +101,7 @@ Section TypingDefs.
       typ_of_loc_const this l g = Some t ->
       loc_to_sval_const ge this l = Some v ->
       exists rt, get_real_type ge t = Some rt /\
-            val_typ (ge_senum ge) v (normᵗ rt).
+            val_typ v (normᵗ rt).
   
   Definition gamma_const_prop
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
@@ -100,9 +109,9 @@ Section TypingDefs.
   
   Definition gamma_expr_prop
              (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
-    gamma_var_prop g st ge ge /\ gamma_const_prop this g ge.
+    gamma_var_prop g st ge /\ gamma_const_prop this g ge.
   
-  Notation run_expr := (@exec_expr tags_t dummy T).
+  Notation run_expr := (@exec_expr tags_t T).
   Notation run_stmt := (@exec_stmt tags_t dummy T).
   Notation run_blk  := (@exec_block tags_t dummy T).
   Notation run_call := (@exec_call tags_t dummy T).
@@ -115,13 +124,15 @@ Section TypingDefs.
   
   Definition delta_genv_prop
              (ge : @genv_typ tags_t) : list string -> Prop :=
-    Forall (fun X => exists t, IdentMap.get X ge = Some t).
+    Forall (fun X => exists t, IdentMap.get X ge = Some t
+           (* [/\ [] ⊢ok t] *)).
 
   Definition genv_is_expr_typ (ge : @genv_typ tags_t) : Prop :=
     forall t r, get_real_type ge t = Some r ->
            is_expr_typ t -> is_expr_typ r.
   
   (** Expression typing. *)
+  Unset Printing Notations.
   Definition
     expr_types
     (this : path)     (** Local path. *)
@@ -142,9 +153,9 @@ Section TypingDefs.
       (* Preservation. *)
       forall v, run_expr ge read_one_bit this st e v ->
            exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                 val_typ (ge_senum ge) v (normᵗ rt).
+                 val_typ v (normᵗ rt).
   (**[]*)
-
+  
   (* Function definition typing environment. TODO! *)
   Definition gamma_func := PathMap.t funtype.
 
@@ -342,25 +353,35 @@ Section Soundness.
   Notation path := (list ident).
   Notation Sval := (@ValueBase tags_t (option bool)).
 
+  Create HintDb ind_def.
+  
   Definition
     ok_get_real_type_ex_def Δ (τ : typ) := forall ge : genv_typ,
       delta_genv_prop ge Δ ->
       exists ρ, get_real_type ge τ = Some ρ.
+
+  Local Hint Unfold ok_get_real_type_ex_def : ind_def.
   
   Definition
     ok_get_real_ctrl_ex_def Δ ct := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists ct', get_real_ctrl ge ct = Some ct'.
 
+  Local Hint Unfold ok_get_real_ctrl_ex_def : ind_def.
+  
   Definition
     ok_get_real_func_ex_def Δ ft := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists ft', get_real_func ge ft = Some ft'.
 
+  Local Hint Unfold ok_get_real_func_ex_def : ind_def.
+
   Definition
     ok_get_real_param_ex_def Δ p := forall ge : @genv_typ tags_t,
       delta_genv_prop ge Δ ->
       exists p', get_real_param ge p = Some p'.
+
+  Local Hint Unfold ok_get_real_param_ex_def : ind_def.
   
   Definition
     ok_get_real_type_ex_ind :=
@@ -419,6 +440,12 @@ Section Soundness.
 
   Local Hint Resolve list_ok_get_real_type_ex : core.
 
+  Create HintDb option_monad.
+  Local Hint Unfold option_ret : option_monad.
+  Local Hint Unfold option_bind : option_monad.
+  Local Hint Unfold option_monad : option_monad.
+  Local Hint Unfold option_monad_inst : option_monad.
+  
   Lemma alist_ok_get_real_type_ex :
     forall Δ (ts : list (P4String.t tags_t * typ)),
       Forall (fun t => Δ ⊢ok snd t) ts ->
@@ -471,7 +498,7 @@ Section Soundness.
              end)
         (R := fun uv uw => uv = Some uw) in H.
     rewrite Forall2_sequence_iff in H.
-    unfold option_monad_inst in *; unfold option_monad in *.
+    autounfold with option_monad in *.
     rewrite H; eauto.
   Qed.
 
@@ -506,36 +533,35 @@ Section Soundness.
       ok_get_real_type_ex_def Δ τ.
   Proof.
     apply ok_get_real_type_ex_ind;
-      unfold ok_get_real_type_ex_def,
-      ok_get_real_ctrl_ex_def,
-      ok_get_real_func_ex_def,
-      ok_get_real_param_ex_def; cbn;
-        unfold option_bind, option_ret; eauto 2.
+      autounfold with ind_def; cbn;
+        autounfold with option_monad; eauto 2.
     - intros d t n H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
     - intros d ts Hts IHts ge Hge.
       eapply list_ok_get_real_type_ex in Hts as [ts' Hts']; eauto.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d ts Hts IHts ge Hge.
       eapply list_ok_get_real_type_ex in Hts as [ts' Hts']; eauto.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
       eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
-      unfold option_monad_inst, option_monad in *.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d t H Hge ge Hdge.
       apply Hge in Hdge as [r Hr]; rewrite Hr; eauto 2.
     - intros d xts Hxts IHxts ge Hge.
       eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
-      unfold option_monad_inst, option_monad in *.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
       eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
-      unfold option_monad_inst, option_monad in *.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d xts Hxts IHxts ge Hge.
       eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
-      unfold option_monad_inst, option_monad in *.
+      autounfold with option_monad in *.
       rewrite Hts'; eauto.
     - intros d X ot mems H Hot ge Hdge.
       inversion Hot as [| t Ht]; subst; eauto.
@@ -553,34 +579,36 @@ Section Soundness.
     - intros d ct Hct IH ge Hdge.
       apply IH in Hdge as [ct' Hct'].
       unfold get_real_ctrl in Hct'.
-      cbn in Hct'; unfold option_bind, option_ret in Hct'.
+      cbn in Hct'; autounfold with option_monad in Hct'.
       rewrite Hct'; eauto.
     - intros d ct Hct IH ge Hdge.
       apply IH in Hdge as [ct' Hct'].
       unfold get_real_ctrl in Hct'.
-      cbn in Hct'; unfold option_bind, option_ret in Hct'.
+      cbn in Hct'; autounfold with option_monad in Hct'.
       rewrite Hct'; eauto.
     - intros d ct Hct IH ge Hdge.
       apply IH in Hdge as [ft' Hft'].
       unfold get_real_func in Hft'.
-      cbn in Hft'; unfold option_bind, option_ret in Hft'.
+      cbn in Hft'; autounfold with option_monad in Hft'.
       rewrite Hft'; eauto.
     - intros d ds cs Hds IHds Hcs IHcs ge Hged.
       eapply list_ok_get_real_param_ex in Hds as [ds' Hds']; eauto.
       eapply list_ok_get_real_param_ex in Hcs as [cs' Hcs']; eauto.
       unfold get_real_param in Hds'; unfold get_real_param in Hcs'.
-      cbn in Hds'; cbn in Hcs'; unfold option_bind, option_ret in Hcs', Hds'.
+      cbn in Hds', Hcs';
+        autounfold with option_monad in Hcs', Hds'.
       rewrite Hcs', Hds'; eauto.
     - intros d Xs Ys ps Hps IHps ge Hged.
       eapply list_ok_get_real_param_ex in Hps as [ps' Hps']; eauto.
       + unfold get_real_param in Hps'; cbn in Hps';
-          unfold option_bind, option_ret in Hps'.
+          autounfold with option_monad in Hps'.
         rewrite Hps'; eauto.
       + eauto.
     - intros d t ts Hts IHts Ht IHt ge Hged.
       eapply list_ok_get_real_type_ex
         in Hts as [ts' Hts']; eauto.
       apply IHt in Hged as [t' Ht'].
+      autounfold with option_monad in *.
       rewrite Ht', Hts'; eauto.
     - intros d Xs Ys ps t Hps IHps Ht IHt ge Hged.
       apply delta_genv_prop_removes
@@ -590,7 +618,7 @@ Section Soundness.
       apply IHt in Hged as [t' Ht'].
       rewrite Ht'.
       unfold get_real_param in Hps';
-        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+        cbn in Hps'; autounfold with option_monad in Hps'.
       rewrite Hps'; eauto.
     - intros d Xs ps Hps IHps ge Hged.
       apply delta_genv_prop_removes
@@ -598,7 +626,7 @@ Section Soundness.
       eapply list_ok_get_real_param_ex
         in Hps as [ps' Hps']; eauto.
       unfold get_real_param in Hps';
-        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+        cbn in Hps'; autounfold with option_monad in Hps'.
       rewrite Hps'; eauto.
     - intros d Xs ps k t Hps IHps Ht IHt ge Hged.
       apply delta_genv_prop_removes
@@ -607,19 +635,119 @@ Section Soundness.
         in Hps as [ps' Hps']; eauto.
       apply IHt in Hged as [t' Ht'].
       unfold get_real_param in Hps';
-        cbn in Hps'; unfold option_bind, option_ret in Hps'.
+        cbn in Hps'; autounfold with option_monad in Hps'.
       rewrite Hps'; clear Hps'.
       unfold get_real_type in Ht';
-        cbn in Ht'; unfold option_bind, option_ret in Ht'.
+        cbn in Ht'; autounfold with option_monad in Ht'.
       rewrite Ht'; eauto.
     - intros d b dr t n x Ht IHt ge Hged.
       apply IHt in Hged as [t' Ht'].
       unfold get_real_type in Ht';
-        cbn in Ht'; unfold option_bind, option_ret in Ht'.
+        cbn in Ht'; autounfold with option_monad in Ht'.
       rewrite Ht'; eauto.
   Qed.
 
   Local Hint Resolve ok_get_real_type_ex : core.
+  
+  Definition delta_genv_prop_ok_typ_nil_def
+             Δ (t : typ) := forall ge rt,
+      delta_genv_prop ge Δ ->
+      get_real_type ge t = Some rt ->
+      [] ⊢ok rt.
+
+  Local Hint Unfold delta_genv_prop_ok_typ_nil_def : ind_def.
+  
+  Definition delta_genv_prop_ok_ctrl_nil_def
+             Δ (ct : @ControlType tags_t) := forall ge ct',
+      delta_genv_prop ge Δ ->
+      get_real_ctrl ge ct = Some ct' ->
+      ControlType_ok [] ct'.
+
+  Local Hint Unfold delta_genv_prop_ok_ctrl_nil_def : ind_def.
+
+  Definition delta_genv_prop_ok_func_nil_def
+             Δ (ft : @FunctionType tags_t) := forall ge ft',
+      delta_genv_prop ge Δ ->
+      get_real_func ge ft = Some ft' ->
+      FunctionType_ok [] ft'.
+
+  Local Hint Unfold delta_genv_prop_ok_func_nil_def : ind_def.
+
+  Definition delta_genv_prop_ok_param_nil_def
+             Δ (p : @P4Parameter tags_t) := forall ge p',
+      delta_genv_prop ge Δ ->
+      get_real_param ge p = Some p' ->
+      P4Parameter_ok [] p'.
+
+  Local Hint Unfold delta_genv_prop_ok_param_nil_def : ind_def.
+
+  Definition delta_genv_prop_ok_typ_nil_ind :=
+    my_P4Type_ok_ind
+      _ delta_genv_prop_ok_typ_nil_def
+      delta_genv_prop_ok_ctrl_nil_def
+      delta_genv_prop_ok_func_nil_def
+      delta_genv_prop_ok_param_nil_def.
+
+  Ltac some_inv :=
+    match goal with
+    | H: Some _ = Some _ |- _ => inversion H; subst; clear H
+    end.
+
+  Ltac match_some_inv :=
+    match goal with
+    | H: match ?trm with Some _ => _ | None => _ end = Some _
+      |- _ => destruct trm as [? |] eqn:? ; cbn in *;
+            try discriminate
+    end.
+
+  Local Hint Constructors P4Type_ok : core.
+  Local Hint Constructors ControlType_ok : core.
+  Local Hint Constructors FunctionType_ok : core.
+  Local Hint Constructors P4Parameter_ok : core.
+
+  Local Hint Resolve nth_error_some_length : core.
+  Local Hint Resolve nth_error_In : core.
+  Local Hint Resolve nth_error_in_combine : core.
+  Local Hint Resolve ListUtil.nth_error_exists : core.
+  Local Hint Resolve In_nth_error : core.
+    
+  Lemma delta_genv_prop_ok_typ_nil : forall Δ t,
+      Δ ⊢ok t ->
+      delta_genv_prop_ok_typ_nil_def Δ t.
+  Proof.
+    apply delta_genv_prop_ok_typ_nil_ind;
+      autounfold with ind_def; cbn;
+        autounfold with option_monad;
+        try (intros; repeat match_some_inv;
+             some_inv; eauto; assumption).
+    - intros d ts Hts IHts ge r Hge Hr.
+      match_some_inv; some_inv.
+      rewrite Forall_forall in IHts.
+      specialize IHts with (ge := ge).
+      constructor.
+      rewrite Forall_forall.
+      rewrite <- Forall2_sequence_iff, <- Forall2_map_l in Heqo.
+      rewrite Forall2_forall in Heqo.
+      destruct Heqo as [Hlen Htsl].
+      intros x Hxl.
+      apply In_nth_error in Hxl as [n Hn].
+      assert (Htst: exists t, nth_error ts n = Some t).
+      { apply ListUtil.nth_error_exists.
+        rewrite Hlen.
+        eauto using nth_error_some_length. }
+      firstorder eauto.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - intros d X HXd ge r Hge Hr.
+      unfold delta_genv_prop in Hge.
+      (* Problem:
+         types bound to names in [genv_typ]
+         may have free type variables... *)
+  Abort.
   
   Context {dummy : Inhabitant tags_t} `{T : @Target tags_t expr}.
 
@@ -796,7 +924,7 @@ Section Soundness.
         destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
         + pose proof uninit_sval_of_typ_val_typ rtyp as H.
           eapply H; eauto.
-          assert (Hisv: forall v (t : typ), val_typ (ge_senum ge) v t -> is_expr_typ t) by admit.
+          assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
           apply Hisv in Hv1 as Hv1'.
           inversion Hv1'; subst.
           rewrite H1 in H3.
@@ -810,7 +938,7 @@ Section Soundness.
             eauto using nth_error_In.
           * pose proof uninit_sval_of_typ_val_typ rtyp as H.
             eapply H; eauto.
-            assert (Hisv: forall v (t : typ), val_typ (ge_senum ge) v t -> is_expr_typ t) by admit.
+            assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
             apply Hisv in Hv1 as Hv1'.
             inversion Hv1'; subst.
             rewrite H1 in H3.
@@ -991,12 +1119,12 @@ Section Soundness.
 
     Local Hint Resolve val_to_sval_ex : core.
     
-    Lemma eval_unary_op_preserves_typ : forall o v v' g t t',
+    Lemma eval_unary_op_preserves_typ : forall o v v' t t',
         unary_type o t t' ->
         Ops.eval_unary_op o v = Some v' ->
-        val_typ g v t -> @val_typ tags_t  _ g v' t'.
+        val_typ v t -> @val_typ tags_t _ v' t'.
     Proof.
-      intros o v v' g t t' Hut Heval Hvt;
+      intros o v v' t t' Hut Heval Hvt;
         inversion Hut; subst;
           inversion Hvt; subst;
             try (inversion Heval; subst; auto; assumption).

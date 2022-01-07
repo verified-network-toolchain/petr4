@@ -62,13 +62,10 @@ Section ValueUtil.
     | exec_val_enum_field : forall typ_name enum_name,
                             exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
                                                   (ValBaseEnumField typ_name enum_name)
-    | exec_val_senum_field : forall typ_name enum_name v v',
+    | exec_val_senum_field : forall typ_name v v',
                             exec_val read_one_bit v v' ->
-                            exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) 
-                                                  (ValBaseSenumField typ_name enum_name v')
-    (*| exec_val_senum : forall kvs kvs',
-                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                      exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
+                            exec_val read_one_bit (ValBaseSenumField typ_name v) 
+                                                  (ValBaseSenumField typ_name v').
 
   Section ExecValInd.
     Variables (A B : Type).
@@ -114,11 +111,11 @@ Section ValueUtil.
         P
           (ValBaseEnumField type_name enum_name)
           (ValBaseEnumField type_name enum_name).
-    Hypothesis HSenumField : forall type_name enum_name va vb,
+    Hypothesis HSenumField : forall type_name va vb,
         exec_val R va vb -> P va vb ->
         P
-          (ValBaseSenumField type_name enum_name va)
-          (ValBaseSenumField type_name enum_name vb).
+          (ValBaseSenumField type_name va)
+          (ValBaseSenumField type_name vb).
 
     Definition custom_exec_val_ind : forall va vb,
         exec_val R va vb -> P va vb :=
@@ -159,8 +156,8 @@ Section ValueUtil.
         | exec_val_stack _ _ _ next evs
           => HStack _ _ next evs (lind evs)
         | exec_val_enum_field _ tn en => HEnumField tn en
-        | exec_val_senum_field _ tn en _ _ ev
-          => HSenumField tn en _ _ ev (evind _ _ ev)
+        | exec_val_senum_field _ tn _ _ ev
+          => HSenumField tn _ _ ev (evind _ _ ev)
         end.
   End ExecValInd.
 
@@ -203,7 +200,7 @@ Section ValueUtil.
     | ValBaseUnion rl => ValBaseUnion (val_to_avals rl)
     | ValBaseStack vl n => ValBaseStack (eval_val_to_svals vl) n
     | ValBaseEnumField t e => ValBaseEnumField t e
-    | ValBaseSenumField t e v => ValBaseSenumField t e (eval_val_to_sval v)
+    | ValBaseSenumField t v => ValBaseSenumField t (eval_val_to_sval v)
     end.
 
   Fixpoint uninit_sval_of_typ
@@ -239,6 +236,8 @@ Section ValueUtil.
            (fun '({| P4String.str := x |}, t) =>
               uninit_sval_of_typ hvalid t >>| pair x)
            fields) >>| ValBaseStruct
+    | TypEnum tname None (mem :: _) => 
+      Some (ValBaseEnumField (str tname) (str mem))
     | TypNewType _ typ' => uninit_sval_of_typ hvalid typ'
     (* TypTypeName should have been already resolved *)
     | TypTypeName _ => None
@@ -251,9 +250,8 @@ Section ValueUtil.
        The current implementation follows the option 2.
        Rudy's note: attempt create a default [ValBaseSenumField]
        for type preservation proof. *)
-    | TypEnum {| P4String.str := X |}
-              (Some typ') ({| P4String.str := M |} :: _) =>
-      uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X M
+    | TypEnum {| P4String.str := X |} (Some typ') _ =>
+      uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X
     (* The P4Spec does not specify the unintialized values for the following types,
        so we use the default values for now. (7.3.) 
        Note that this design choice makes the svals output from uninit_sval_of_typ different
@@ -261,10 +259,6 @@ Section ValueUtil.
     | TypVarBit w => Some (ValBaseVarbit w [])
     | TypInteger => Some (ValBaseInteger 0)
     | TypError => Some (ValBaseError "NoError")
-    | TypEnum tname None members => 
-      (* Empty members is a syntax error *)
-      if (Nat.eqb (List.length members) 0) then None
-      else Some (ValBaseEnumField (str tname) (str (List.hd !"" members)))
     | _ => None
     end.
   (* Type without uninitialized svals:
@@ -293,7 +287,7 @@ Section ValueUtil.
     | ValBaseHeader kvs is_valid => ValBaseHeader (kv_map (uninit_sval_of_sval hvalid) kvs) hvalid
     | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseStack vs next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) next
-    | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
+    | ValBaseSenumField typ_name v =>  ValBaseSenumField typ_name (uninit_sval_of_sval hvalid v)
     | _ => v
     end.
 

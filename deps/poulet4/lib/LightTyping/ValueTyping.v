@@ -50,16 +50,6 @@ Section ValueTyping.
   Section Val.
     Context {A : Type}.
     Notation V := (@ValueBase A).
-    Notation senum_env := (IdentMap.t (AList.StringAList V)).
-
-    (* TODO:
-       What constraints do we need on:
-       - fixed-width numeric types?
-       - headers (unions & stacks)?
-       - senum values: see comments below.
-       - needs to be parameterized by bit type. *)
-
-    Variable (gsenum : senum_env).
     
     Inductive val_typ : V -> typ -> Prop :=
     | typ_null :
@@ -101,14 +91,11 @@ Section ValueTyping.
         val_typ
           (ValBaseEnumField (P4String.str ename) (P4String.str member))
           (TypEnum ename None members)
-    | typ_senumfield : forall ename member v t fields,
-        IdentMap.get (P4String.str ename) gsenum =
-        Some (P4String.clear_AList_tags fields) ->
-        AList.get (P4String.clear_AList_tags fields) member = Some v ->
+    | typ_senumfield : forall ename v t fields,
         val_typ v t ->
         val_typ
-          (ValBaseSenumField (P4String.str ename) member v)
-          (TypEnum ename (Some t) (List.map fst fields)).
+          (ValBaseSenumField (P4String.str ename) v)
+          (TypEnum ename (Some t) fields).
 
     Section ValTypInd.
       Variable P : V -> typ -> Prop.
@@ -154,15 +141,12 @@ Section ValueTyping.
           P
             (ValBaseEnumField (P4String.str ename) (P4String.str member))
             (TypEnum ename None members).
-      Hypothesis HSenum : forall ename member v t fields,
-          IdentMap.get (P4String.str ename) gsenum =
-          Some (P4String.clear_AList_tags fields) ->
-          AList.get (P4String.clear_AList_tags fields) member = Some v ->
+      Hypothesis HSenum : forall ename v t fields,
           val_typ v t ->
           P v t ->
           P
-            (ValBaseSenumField (P4String.str ename) member v)
-            (TypEnum ename (Some t) (List.map fst fields)).
+            (ValBaseSenumField (P4String.str ename) v)
+            (TypEnum ename (Some t) fields).
 
       Definition custom_val_typ_ind :
         forall (v : V) (t : typ), val_typ v t -> P v t :=
@@ -209,8 +193,8 @@ Section ValueTyping.
           | typ_union _ _ H => HUnion _ _ H (alind H)
           | typ_stack n _ _ H => HStack n _ _ H (same_typ_ind H)
           | typ_enumfield x _ _ H => HEnum x _ _ H
-          | typ_senumfield _ _ _ _ _ H1 H2 Hv =>
-            HSenum _ _ _ _ _ H1 H2 Hv (vtind _ _ Hv)
+          | typ_senumfield X _ _ ms Hv =>
+            HSenum X _ _ ms Hv (vtind _ _ Hv)
           end.
     End ValTypInd.
   End Val.
@@ -225,13 +209,12 @@ Section ValueTyping.
     Section Map.
       Variable (f : A -> B).
       
-      Lemma ValueBaseMap_preserves_type : forall gs v t,
-          val_typ gs v t ->
+      Lemma ValueBaseMap_preserves_type : forall v t,
+          val_typ v t ->
           val_typ
-            (FuncAsMap.map_map (AList.map_values (ValueBaseMap f)) gs)
             (ValueBaseMap f v) t.
       Proof.
-        intros gs v t Hv;
+        intros v t Hv;
           induction Hv using @custom_val_typ_ind;
           simpl in *; auto.
         - replace (length bits)
@@ -285,16 +268,7 @@ Section ValueTyping.
           rewrite Forall_map.
           unfold Basics.compose.
           assumption.
-        - replace (map fst fields) with
-              (map fst (AList.map_values (ValueBaseMap f) fields)).
-          constructor; auto.
-          + unfold IdentMap.get,
-            FuncAsMap.get, FuncAsMap.map_map in *.
-            rewrite H. (*reflexivity.*) admit.
-          + (*rewrite AList.get_map_values, H0; reflexivity.*) admit.
-          + unfold AList.map_values.
-            rewrite map_fst_map, map_id; reflexivity.
-      Admitted.
+      Qed.
     End Map.
 
     Section Rel.
@@ -309,13 +283,9 @@ Section ValueTyping.
       
       Lemma exec_val_preserves_typ : forall va vb,
           exec_val R va vb ->
-          forall gsa gsb,
-            FuncAsMap.related
-              (AList.all_values (exec_val R))
-              gsa gsb ->
-            forall t, val_typ gsa va t -> val_typ gsb vb t.
+          forall t, val_typ va t -> val_typ vb t.
       Proof.
-        intros va vb Hev gsa gsb Hgs.
+        intros va vb Hev.
         induction Hev using custom_exec_val_ind;
           intros t Hvat; inversion Hvat; clear Hvat; subst; eauto.
         - apply Forall2_length in H; rewrite H; auto.
@@ -328,7 +298,7 @@ Section ValueTyping.
           destruct H2 as [Hakeys Hatyps].
           rewrite Forall2_map_both in *.
           pose proof Forall2_map_both
-               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               _ _ _ _ (fun va vb => forall t, val_typ va t -> val_typ vb t)
                snd snd kvas kvbs as H';
             cbn in *; apply H' in Habtyps; clear H'.
           rewrite Forall2_eq in *; rewrite <- Habkeys.
@@ -340,7 +310,7 @@ Section ValueTyping.
           destruct H5 as [Hakeys Hatyps].
           rewrite Forall2_map_both in *.
           pose proof Forall2_map_both
-               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               _ _ _ _ (fun va vb => forall t, val_typ va t -> val_typ vb t)
                snd snd kvas kvbs as H';
             cbn in *; apply H' in Habtyps; clear H'.
           rewrite Forall2_eq in *; rewrite <- Habkeys.
@@ -352,7 +322,7 @@ Section ValueTyping.
           destruct H2 as [Hakeys Hatyps].
           rewrite Forall2_map_both in *.
           pose proof Forall2_map_both
-               _ _ _ _ (fun va vb => forall t, val_typ gsa va t -> val_typ gsb vb t)
+               _ _ _ _ (fun va vb => forall t, val_typ va t -> val_typ vb t)
                snd snd kvas kvbs as H';
             cbn in *; apply H' in Habtyps; clear H'.
           rewrite Forall2_eq in *; rewrite <- Habkeys.
@@ -371,16 +341,7 @@ Section ValueTyping.
           { apply ListUtil.nth_error_exists.
             rewrite Hlen, <- nth_error_Some, Hnthvbs; discriminate. }
           destruct Hnthvas as [va Hnthvas]. eauto 6.
-        - unfold FuncAsMap.related, IdentMap.get in *.
-          specialize Hgs with (P4String.str ename).
-          inversion Hgs; subst; unfold P4String.AList in *.
-          + exfalso; clear Hev vb H H4 H5 R enum_name gsb Hgs IHHev t0 B.
-            (*rewrite H2 in H0. discriminate.*) admit.
-          + (*rewrite H2 in H; inversion H; subst; clear H.
-            apply AList.all_values_keys_eq in H1 as Hkeys.
-            rewrite Hkeys. constructor; auto.*)
-            (* need notion of equivalent types and values. *)
-      Admitted.
+      Qed.
 
       Local Hint Constructors exec_val : core.
       Hint Rewrite map_length : core.
@@ -618,16 +579,16 @@ Section ValueTyping.
       end.
     
     Lemma uninit_sval_of_typ_list_val_typ :
-      forall b ts ge v,
+      forall b ts v,
         Forall is_expr_typ ts ->
         Forall
-          (fun t => forall v ge,
-               uninit_sval_of_typ b t = Some v -> val_typ ge v (normᵗ t))
+          (fun t => forall v,
+               uninit_sval_of_typ b t = Some v -> val_typ v (normᵗ t))
           ts ->
         sequence (map (uninit_sval_of_typ b) ts) >>| ValBaseTuple = Some v ->
-        val_typ ge v (TypTuple (map normᵗ ts)).
+        val_typ v (TypTuple (map normᵗ ts)).
     Proof.
-      intros b ts ge v Hts IHts Hob; cbn in *.
+      intros b ts v Hts IHts Hob; cbn in *.
       unfold option_bind, option_ret in *.
       destruct (sequence (map (uninit_sval_of_typ b) ts))
         as [vs |] eqn:Hvs; cbn in *; try discriminate; some_inv.
@@ -636,7 +597,7 @@ Section ValueTyping.
       constructor.
       apply Forall2_impl
         with (R := fun v t => uninit_sval_of_typ b t = Some v)
-             (Q := val_typ ge).
+             (Q := val_typ).
       - rewrite Forall2_forall;
           rewrite Forall_forall in IHts;
           split;
@@ -649,7 +610,7 @@ Section ValueTyping.
             unfold uninit_sval_of_typ_norm_def in Husotn;
             rewrite Husotn in Hun; clear Husotn; eauto ].
       - pose proof Forall2_map_l
-             _ _ _ (fun vo v => vo = Some v) (uninit_sval_of_typ b) as H';
+             _ _ _ (fun vo v => vo = Some v) (@uninit_sval_of_typ tags_t b) as H';
           cbn in H'; rewrite Forall2_flip, H';
             rewrite Forall2_flip, H' in Hvs; clear H';
               rewrite map_map;
@@ -665,26 +626,25 @@ Section ValueTyping.
 
     Lemma uninit_sval_of_typ_alist_val_typ :
       forall b (xts : list (P4String.t tags_t * typ))
-        (ge : IdentMap.t (AList.StringAList (@ValueBase (option bool))))
         (v : @ValueBase (option bool)),
         Forall (fun xt => is_expr_typ (snd xt)) xts ->
-        Forall (fun xt => forall v ge,
+        Forall (fun xt => forall v,
                     uninit_sval_of_typ b (snd xt) = Some v ->
-                    val_typ ge v (normᵗ (snd xt))) xts ->
+                    val_typ v (normᵗ (snd xt))) xts ->
         (sequence (map (fun '({| P4String.str := x |}, t) =>
                          uninit_sval_of_typ b t >>| pair x) xts)
                   >>| ValBaseStruct = Some v ->
-         val_typ ge v (TypStruct (map (fun '(x,t) => (x, normᵗ t)) xts))) /\
+         val_typ v (TypStruct (map (fun '(x,t) => (x, normᵗ t)) xts))) /\
         (sequence (map (fun '({| P4String.str := x |}, t) =>
                          uninit_sval_of_typ b t >>| pair x) xts)
                   >>| (fun xvs => ValBaseHeader xvs b) = Some v ->
-         val_typ ge v (TypHeader (map (fun '(x,t) => (x, normᵗ t)) xts))) /\
+         val_typ v (TypHeader (map (fun '(x,t) => (x, normᵗ t)) xts))) /\
         (sequence (map (fun '({| P4String.str := x |}, t) =>
                           uninit_sval_of_typ b t >>| pair x) xts)
                   >>| ValBaseUnion = Some v ->
-        val_typ ge v (TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) xts))).
+         val_typ v (TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) xts))).
     Proof.
-      intros b xts ge v Hxts IHxts.
+      intros b xts v Hxts IHxts.
       repeat split; intro Hob;
         destruct
           (sequence
@@ -731,15 +691,14 @@ Section ValueTyping.
       end.
     Local Hint Extern 0 => width_solve : core.
     
-    Lemma uninit_sval_of_typ_val_typ : forall t b v ge,
+    Lemma uninit_sval_of_typ_val_typ : forall t b v,
         is_expr_typ t ->
         uninit_sval_of_typ b t = Some v ->
-        val_typ ge v (normᵗ t).
+        val_typ v (normᵗ t).
     Proof.
-      intros t b v ge H; generalize dependent ge;
-        generalize dependent v.
+      intros t b v H; generalize dependent v.
       induction H using my_is_expr_typ_ind;
-        intros v ge Huninit; cbn in *;
+        intros v Huninit; cbn in *;
           try discriminate; try some_inv; eauto.
       - constructor; simpl; lia.
       - unfold option_bind, option_ret in *.
@@ -747,7 +706,7 @@ Section ValueTyping.
           as [v' |] eqn:Hv';
           cbn in *; unfold option_bind, option_ret in *;
             rewrite Hv' in Huninit; try discriminate.
-        apply IHis_expr_typ with (ge := ge) in Hv';
+        apply IHis_expr_typ in Hv';
           clear IHis_expr_typ; some_inv.
         width_solve.
       - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
@@ -756,26 +715,24 @@ Section ValueTyping.
             firstorder eauto.
       - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
       - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
-      - destruct t as [t |];
-          unfold option_bind, option_ret in *;
-            inversion H1; subst.
-        + destruct X as [iX X];
-            destruct mems as [| [iM M] mems];
-            simpl in *; try lia.
-          destruct (uninit_sval_of_typ b t)
+      - destruct X as [iX X'] eqn:HX;
+          destruct mems as [| [iM M] mems];
+          cbn in *; try lia.
+        destruct t as [t |];
+          unfold option_map,option_bind, option_ret in *;
+          inversion H1; revert HX; subst.
+        + destruct (uninit_sval_of_typ b t)
             as [v' |] eqn:Hut; eauto;
             try discriminate; some_inv.
-          admit. (* Impossible, unless value typing
-                    becomes less restrictive,
-                    doesn't incluse [senum]s,
-                    or [uninit_sval_of_typ] is
-                    parameterized by a [genv_senum]. *)
-        + cbv.
-          destruct X as [i X'] eqn:HeqX.
-          destruct mems as [| M mems]; cbn in *; try lia.
-          inversion Huninit.
+          intros HX.
           replace X' with (P4String.str X) at 1 by (subst; auto).
-          rewrite <- HeqX. intuition.
-    Admitted.
+          rewrite <- HX; auto.
+        + some_inv.
+          intros HX.
+          replace X' with (P4String.str X) at 1 by (subst; auto).
+          rewrite <- HX. simpl.
+          replace M with (P4String.str {| P4String.tags:=iM; P4String.str :=M |}) at 1
+            by auto. intuition.
+    Qed.
   End Uninit.
 End ValueTyping.

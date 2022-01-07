@@ -24,7 +24,7 @@ Section Value.
   | ValBaseUnion (fields: StringAList (@ValueBase bit))
   | ValBaseStack (headers: list (@ValueBase bit)) (next: N)
   | ValBaseEnumField (typ_name: string) (enum_name: string)
-  | ValBaseSenumField (typ_name: string) (enum_name: string) (value: (@ValueBase bit)).
+  | ValBaseSenumField (typ_name: string) (value: (@ValueBase bit)).
 
   Context {tags_t : Type}.
 
@@ -122,10 +122,8 @@ Section Value.
     Hypothesis HStack : forall vs i,
         Forall P vs -> P (ValBaseStack vs i).
     Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
-    Hypothesis HSenumField : forall t x v,
-        P v -> P (ValBaseSenumField t x v).
-    (*Hypothesis HSenum : forall vs,
-        Forall (fun '(_,v) => P v) vs -> P (ValBaseSenum vs).*)
+    Hypothesis HSenumField : forall t v,
+        P v -> P (ValBaseSenumField t v).
     
     Definition custom_ValueBase_ind :
       forall v : V, P v :=
@@ -156,8 +154,7 @@ Section Value.
         | ValBaseUnion vs         => HUnion _ (alind vs)
         | ValBaseStack vs i       => HStack _ i (lind vs)
         | ValBaseEnumField t x    => HEnumField t x
-        | ValBaseSenumField t x v => HSenumField t x _ (vind v)
-        (*| ValBaseSenum vs         => HSenum _ (alind vs)*)
+        | ValBaseSenumField t v   => HSenumField t _ (vind v)
         end.
   End ValBaseInd.
 
@@ -186,7 +183,7 @@ Section Value.
       | ValBaseStack vs i =>
         ValBaseStack (map ValueBaseMap vs) i
       | ValBaseEnumField t x => ValBaseEnumField t x
-      | ValBaseSenumField t x v => ValBaseSenumField t x (ValueBaseMap v)
+      | ValBaseSenumField t v => ValBaseSenumField t (ValueBaseMap v)
       end.
   End ValueBaseFunctor.
 

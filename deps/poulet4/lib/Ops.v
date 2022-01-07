@@ -231,7 +231,7 @@ Section Ops.
     | ValBaseEnumField t1 s1, ValBaseEnumField t2 s2 =>
         if String.eqb t1 t2 then Some (String.eqb s1 s2)
         else None
-    | ValBaseSenumField t1 s1 v1, ValBaseSenumField t2 s2 v2 =>
+    | ValBaseSenumField t1 v1, ValBaseSenumField t2 v2 =>
         if String.eqb t1 t2 then eval_binary_op_eq v1 v2
         else None
     | ValBaseBool b1, ValBaseBool b2 => 
@@ -330,7 +330,7 @@ Section Ops.
       in Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
   | ValBaseInteger n => 
       Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
-  | ValBaseSenumField _ _ v => 
+  | ValBaseSenumField _ v => 
       match v with
       | ValBaseBit bits => 
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
@@ -350,7 +350,7 @@ Section Ops.
       in Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
   | ValBaseInteger n => 
       Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
-  | ValBaseSenumField _ _ v => 
+  | ValBaseSenumField _ v => 
       match v with
       | ValBaseInt bits => 
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
@@ -373,14 +373,14 @@ Section Ops.
   match typ, oldv with
   | None, _ => None
   | Some (TypBit w), ValBaseBit bits
-  | Some (TypBit w), ValBaseSenumField _ _ (ValBaseBit bits) => 
+  | Some (TypBit w), ValBaseSenumField _ (ValBaseBit bits) => 
       if (w =? Z.to_N (Zlength bits))%N 
-      then Some (ValBaseSenumField name EmptyString (ValBaseBit bits))
+      then Some (ValBaseSenumField name (ValBaseBit bits))
       else None
   | Some (TypInt w), ValBaseInt bits
-  | Some (TypInt w), ValBaseSenumField _ _ (ValBaseInt bits) =>
+  | Some (TypInt w), ValBaseSenumField _ (ValBaseInt bits) =>
       if (Z.to_N (Zlength bits) =? w)%N 
-      then Some (ValBaseSenumField name EmptyString (ValBaseInt bits))
+      then Some (ValBaseSenumField name (ValBaseInt bits))
       else None
   | _, _ => None
   end.

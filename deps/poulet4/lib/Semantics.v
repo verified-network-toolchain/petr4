@@ -289,7 +289,7 @@ Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
   | ValBaseInteger value => Some value
   (* added in v1.2.2 *)
-  | ValBaseSenumField _ _ value => array_access_idx_to_z value
+  | ValBaseSenumField _ value => array_access_idx_to_z value
   | _ => None
   end.
 
@@ -333,7 +333,7 @@ Inductive get_member : Sval -> string -> Sval -> Prop :=
                               (ValBaseBit (to_loptbool 32%N (Zlength headers)))
   | get_member_stack_last_index : forall headers next sv,
                                   (if (next =? 0)%N
-                                    then uninit_sval_of_typ None (TypBit 32%N) = Some sv
+                                    then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers next) "lastIndex" sv.
 
@@ -455,7 +455,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
-                             (ValBaseSenumField (str ename) (str member) sv)
+                             (ValBaseSenumField (str ename) sv)
   | exec_expr_error_member : forall err this st tag typ dir,
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpErrorMember err) typ dir)

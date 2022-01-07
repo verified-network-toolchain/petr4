@@ -342,6 +342,59 @@ Definition handle_flags name stmt trans tags :=
                      (ISkip tags) tags)
        (set_state_flag name false tags) tags.
 
+Definition extract_single (es : list (E.e tags_t)) (msg : string) : result (E.e tags_t) :=
+  match es with
+  | [e] => ok e
+  | _ => error msg
+  end.
+
+Fixpoint elim_tuple_expr (e : E.e tags_t) :=
+  match e with
+  | E.EBool _ _
+  | E.EBit _ _ _
+  | E.EInt _ _ _ => ok [e]
+  | E.EVar _ _ _ =>
+    (* TODO a var can (?) be a tuple, need to inline it here. *)
+    ok [e]
+  | E.ESlice _ _ _ _ =>
+    (* A tuple cannot be sliced *)
+    ok [e]
+  | E.ECast t e tags =>
+    let* es := elim_tuple_expr e in
+    let+ e := extract_single es "TypeError: tuples cannot be cast" in
+    [E.ECast t e tags]
+  | E.EUop t op e tags =>
+    (* THere are no unary operations that operate on Tuples *)
+    let* es := elim_tuple_expr e in
+    let+ e := extract_single es "TypeError: no unary operators for tuples" in
+    [E.EUop t op e tags]
+  | E.EBop t op e e' tags =>
+    match op with
+    | E.Eq =>
+      let* es  := elim_tuple_expr e in
+      let* es' := elim_tuple_expr e' in
+      let+ eq_pairs := zip es es' in
+      let eq := fun e1 e2 => E.EBop E.TBool E.Eq e1 e2 tags in
+      let and := fun e1 e2 => E.EBop E.TBool E.And e1 e2 tags in
+      [fold_right (fun '(e1,e2) => and (eq e1 e2))
+                  (E.EBool true tags)
+                  eq_pairs]
+    | _ =>
+      let* es  := elim_tuple_expr e in
+      let* es' := elim_tuple_expr e' in
+      let* e := extract_single es "TypeError: (=) is the only binary op on tuples got something else" in
+      let+ e' := extract_single es' "TypeError: (=) is the only binary op on tuples got something else" in
+      [E.EBop t op e e' tags]
+    end
+  | E.ETuple es tags =>
+    let+ ees := rred (List.map elim_tuple_expr es) in
+    List.concat ees
+  | _ =>
+  (* TODO Figure out what to do more complicated types *)
+    ok [e]
+  end.
+
+
 Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
   match pat with
   | Parser.PATBit w v =>
@@ -352,7 +405,10 @@ Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
     error "pattern too complicated, expecting int or bv literal"
   end.
 
-Fixpoint translate_pat tags e pat : result (E.e tags_t) :=
+
+
+
+Program Fixpoint translate_pat tags e pat { struct pat } : result (E.e tags_t)  :=
   let bool_op := fun o x y => E.EBop E.TBool o x y tags in
   let mask := fun t x y => E.EBop t E.BitAnd x y tags in
   let and := bool_op E.And in
@@ -376,8 +432,16 @@ Fixpoint translate_pat tags e pat : result (E.e tags_t) :=
     let+ e_pat := translate_simple_patterns pat tags in
     eq e e_pat
   | Parser.PATTuple pats =>
-    let+ e_pats := rred (List.map (translate_pat tags e) pats) in
-    eq e (E.ETuple e_pats tags)
+    let* es := elim_tuple_expr e in
+    let+ matches :=
+       ListUtil.fold_righti
+       (fun i p acc => let* acc := acc in
+                       let* e := ListUtil.ith es i in
+                       let+ cond := translate_pat tags e p in
+                       and cond acc)
+       (ok (E.EBool true tags)) pats
+    in
+    matches
   end.
 
 Definition lookup_parser_state name states : option (Parser.state_block tags_t) :=
@@ -391,12 +455,6 @@ Definition lookup_parser_states (names : list string) states :=
         | None => acc
         | Some s => (n,s) :: acc
         end) [] names.
-
-Definition lex_le (x : nat * nat) (y : nat * nat) : Prop :=
-  let (gas_x, unroll_y) := x in
-  let (gas_y, unroll_x) := x in
-  (gas_x < gas_y) \/ (gas_x = gas_y /\ unroll_x <= unroll_y).
-
 
 Open Scope list_scope.
 Fixpoint inline_state
@@ -453,18 +511,16 @@ with inline_parser (gas : nat)
        | S gas =>
          let* (neighbors, inline_current) := inline_state gas unroll ctx current_name current states tags in
          if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb unroll 0)
-         then ok (ISkip tags)
-         else List.fold_right (fun '(n, s) inln =>
+         then ok (inline_current)
+         else List.fold_left (fun inln '(n, s) =>
                let* inln := inln in
                let+ prsr := inline_parser gas (unroll-1) tags ctx n s states in
-               ISeq prsr inln tags)
-                              (ok (ISkip tags))
-                              neighbors
+               ISeq inln prsr tags) neighbors (ok inline_current)
        end
-with  inline (gas : nat)
-             (unroll : nat)
-             (ctx : DeclCtx tags_t)
-             (s : ST.s tags_t)
+with inline (gas : nat)
+            (unroll : nat)
+            (ctx : DeclCtx tags_t)
+            (s : ST.s tags_t)
   : result t :=
   match gas with
   | O => error "Inliner ran out of gas"
@@ -651,9 +707,11 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
   | IAssign type lhs rhs i =>
     elim_tuple_assign type lhs rhs i
   | IConditional typ g tru fls i =>
+    let* gs' := elim_tuple_expr g in
+    let* g' := extract_single gs' "TypeError conditional must be a singleton" in
     let* tru' := elim_tuple tru in
     let+ fls' := elim_tuple fls in
-    IConditional typ g tru' fls' i
+    IConditional typ g' tru' fls' i
   | ISeq c1 c2 i =>
     let* c1' := elim_tuple c1 in
     let+ c2' := elim_tuple c2 in

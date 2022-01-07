@@ -245,7 +245,8 @@ Section ToGCL.
       | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
       | E.TStruct fields =>
         error ("Cannot get the width of a Struct Type with "++ string_of_nat (List.length fields) ++ " for var " ++ x)
-      | E.THeader fields => error ("Cannot get the width of a Header Type for var" ++ x)
+      | E.THeader fields =>
+        error ("Cannot get the width of a Header Type for var " ++ x)
       | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" ++ x)
       end.
 
@@ -358,21 +359,77 @@ Section ToGCL.
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
         let bin := fun o => ok (BV.BinOp o l r) in
-        let* signed :=
-           match typ with
-           | E.TBit _ => ok false
-           | E.TInt _ => ok true
-           | _ => error "Typeerror: exected (un)singed bitvec for binar expression"
-           end
-        in
+        (* let* signed := *)
+        (*    match typ with *)
+        (*    | E.TBit _ => ok false *)
+        (*    | E.TInt _ => ok true *)
+        (*    | _ => error "Typeerror: expected (un)signed bitvec for binary expression" *)
+        (*    end *)
+        (* in *)
         match op with
-        | E.Plus => bin (BV.BVPlus false signed)
-        | E.PlusSat => bin (BV.BVPlus true signed)
-        | E.Minus => bin (BV.BVMinus false signed)
-        | E.MinusSat => bin (BV.BVMinus true signed)
-        | E.Times => bin (BV.BVTimes signed)
-        | E.Shl => bin (BV.BVShl signed)
-        | E.Shr => bin (BV.BVShr signed)
+        | E.Plus =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVPlus false signed)
+        | E.PlusSat =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVPlus true signed)
+        | E.Minus =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVMinus false signed)
+        | E.MinusSat =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVMinus true signed)
+        | E.Times =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVTimes signed)
+        | E.Shl =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVShl signed)
+        | E.Shr =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVShr signed)
         | E.Le => error "Typeerror: (<=) is a boolean, expected BV expression"
         | E.Ge => error "Typeerror: (>=) is a boolean, expected BV expression"
         | E.Lt => error "Typeerror: (<) is a boolean, expected BV expression"

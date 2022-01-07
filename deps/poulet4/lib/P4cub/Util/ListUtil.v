@@ -1,4 +1,5 @@
 Require Export Poulet4.P4cub.Util.FunUtil
+        Poulet4.P4cub.Util.StringUtil
         Coq.Lists.List.
 Require Import Coq.micromega.Lia.
 Export ListNotations.
@@ -231,6 +232,16 @@ Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
   | x::xs, y::ys =>
     let+ xys := zip xs ys in
     cons (x,y) xys
+  end.
+
+Fixpoint ith { A : Type } (xs : list A) (i : nat) : result A :=
+  match xs with
+  | [] => error ("ListAccessFailure: list had " ++ StringUtil.string_of_nat i ++ " too few elements")
+  | x::xs =>
+    match i with
+    | O => ok x
+    | S i =>  ith xs (i-1)
+    end
   end.
 
 Definition fold_righti {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=

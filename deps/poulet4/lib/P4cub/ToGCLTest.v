@@ -49,12 +49,159 @@ Definition inline_simple_nat : result (Inline.t Info) :=
 Definition instrumented_simple_nat : result (Inline.t Info) :=
   let* isn := inline_simple_nat in
   Inline.assert_headers_valid_before_use _ isn.
+Require Import Poulet4.P4cub.Syntax.InferMemberTypes.
 
-(* Compute p4cub_simple_nat. *)
+Compute (let+ sn := p4cub_simple_nat in ToP4cub.infer_member_types Info sn).
+
+Compute InferMemberTypes.inf_s
+        (Stmt.SAssign
+                        (Expr.EExprMember
+                           (Expr.TStruct
+                              [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                              ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                              ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                              ("if_ipv4_addr", Expr.TBit 32); ("if_mac_addr", Expr.TBit 48);
+                              ("is_ext_if", Expr.TBit 1); ("tcpLength", Expr.TBit 16);
+                              ("if_index", Expr.TBit 8); ("init_egress_spec", Expr.TBit 9)])
+                           "if_index"
+                           (Expr.EExprMember
+                              (Expr.THeader
+                                 [("meta",
+                                  Expr.TStruct
+                                    [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                                    ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                                    ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                                    ("if_ipv4_addr", Expr.TBit 32); ("if_mac_addr", Expr.TBit 48);
+                                    ("is_ext_if", Expr.TBit 1); ("tcpLength", Expr.TBit 16);
+                                    ("if_index", Expr.TBit 8); ("init_egress_spec", Expr.TBit 9)])])
+                              "meta"
+                              (Expr.EVar
+                                 (Expr.THeader
+                                    [("meta",
+                                     Expr.TStruct
+                                       [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                                       ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                                       ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                                       ("if_ipv4_addr", Expr.TBit 32);
+                                       ("if_mac_addr", Expr.TBit 48); ("is_ext_if", Expr.TBit 1);
+                                       ("tcpLength", Expr.TBit 16); ("if_index", Expr.TBit 8);
+                                       ("init_egress_spec", Expr.TBit 9)])]) "meta" NoInfo) NoInfo)
+                           NoInfo)
+                        (Expr.ECast (Expr.TBit 8)
+                           (Expr.EExprMember
+                              (Expr.THeader
+                                 [("ingress_port", Expr.TBit 9); ("egress_spec", Expr.TBit 9);
+                                 ("egress_port", Expr.TBit 9); ("instance_type", Expr.TBit 32);
+                                 ("packet_length", Expr.TBit 32); ("enq_timestamp", Expr.TBit 32);
+                                 ("enq_qdepth", Expr.TBit 19); ("deq_timedelta", Expr.TBit 32);
+                                 ("deq_qdepth", Expr.TBit 19);
+                                 ("ingress_global_timestamp", Expr.TBit 48);
+                                 ("egress_global_timestamp", Expr.TBit 48);
+                                 ("mcast_grp", Expr.TBit 16); ("egress_rid", Expr.TBit 16);
+                                 ("checksum_error", Expr.TBit 1); ("parser_error", Expr.TError);
+                                 ("priority", Expr.TBit 3)]) "ingress_port"
+                              (Expr.EVar
+                                 (Expr.THeader
+                                    [("ingress_port", Expr.TBit 9); ("egress_spec", Expr.TBit 9);
+                                    ("egress_port", Expr.TBit 9); ("instance_type", Expr.TBit 32);
+                                    ("packet_length", Expr.TBit 32);
+                                    ("enq_timestamp", Expr.TBit 32); ("enq_qdepth", Expr.TBit 19);
+                                    ("deq_timedelta", Expr.TBit 32); ("deq_qdepth", Expr.TBit 19);
+                                    ("ingress_global_timestamp", Expr.TBit 48);
+                                    ("egress_global_timestamp", Expr.TBit 48);
+                                    ("mcast_grp", Expr.TBit 16); ("egress_rid", Expr.TBit 16);
+                                    ("checksum_error", Expr.TBit 1); ("parser_error", Expr.TError);
+                                    ("priority", Expr.TBit 3)]) "standard_metadata" NoInfo) NoInfo)
+                           NoInfo) NoInfo).
+
+
+Definition sn_start_state :=
+               {|
+                 Parser.stmt :=
+                   Stmt.SSeq
+                     (Stmt.SAssign
+                        (Expr.EExprMember
+                           (Expr.TStruct
+                              [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                              ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                              ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                              ("if_ipv4_addr", Expr.TBit 32); ("if_mac_addr", Expr.TBit 48);
+                              ("is_ext_if", Expr.TBit 1); ("tcpLength", Expr.TBit 16);
+                              ("if_index", Expr.TBit 8); ("init_egress_spec", Expr.TBit 9)])
+                           "if_index"
+                           (Expr.EExprMember
+                              (Expr.THeader
+                                 [("meta",
+                                  Expr.TStruct
+                                    [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                                    ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                                    ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                                    ("if_ipv4_addr", Expr.TBit 32); ("if_mac_addr", Expr.TBit 48);
+                                    ("is_ext_if", Expr.TBit 1); ("tcpLength", Expr.TBit 16);
+                                    ("if_index", Expr.TBit 8); ("init_egress_spec", Expr.TBit 9)])])
+                              "meta"
+                              (Expr.EVar
+                                 (Expr.THeader
+                                    [("meta",
+                                     Expr.TStruct
+                                       [("do_forward", Expr.TBit 1); ("ipv4_sa", Expr.TBit 32);
+                                       ("ipv4_da", Expr.TBit 32); ("tcp_sp", Expr.TBit 16);
+                                       ("tcp_dp", Expr.TBit 16); ("nhop_ipv4", Expr.TBit 32);
+                                       ("if_ipv4_addr", Expr.TBit 32);
+                                       ("if_mac_addr", Expr.TBit 48); ("is_ext_if", Expr.TBit 1);
+                                       ("tcpLength", Expr.TBit 16); ("if_index", Expr.TBit 8);
+                                       ("init_egress_spec", Expr.TBit 9)])]) "meta" NoInfo) NoInfo)
+                           NoInfo)
+                        (Expr.ECast (Expr.TBit 8)
+                           (Expr.EExprMember
+                              (Expr.THeader
+                                 [("ingress_port", Expr.TBit 9); ("egress_spec", Expr.TBit 9);
+                                 ("egress_port", Expr.TBit 9); ("instance_type", Expr.TBit 32);
+                                 ("packet_length", Expr.TBit 32); ("enq_timestamp", Expr.TBit 32);
+                                 ("enq_qdepth", Expr.TBit 19); ("deq_timedelta", Expr.TBit 32);
+                                 ("deq_qdepth", Expr.TBit 19);
+                                 ("ingress_global_timestamp", Expr.TBit 48);
+                                 ("egress_global_timestamp", Expr.TBit 48);
+                                 ("mcast_grp", Expr.TBit 16); ("egress_rid", Expr.TBit 16);
+                                 ("checksum_error", Expr.TBit 1); ("parser_error", Expr.TError);
+                                 ("priority", Expr.TBit 3)]) "ingress_port"
+                              (Expr.EVar
+                                 (Expr.THeader
+                                    [("ingress_port", Expr.TBit 9); ("egress_spec", Expr.TBit 9);
+                                    ("egress_port", Expr.TBit 9); ("instance_type", Expr.TBit 32);
+                                    ("packet_length", Expr.TBit 32);
+                                    ("enq_timestamp", Expr.TBit 32); ("enq_qdepth", Expr.TBit 19);
+                                    ("deq_timedelta", Expr.TBit 32); ("deq_qdepth", Expr.TBit 19);
+                                    ("ingress_global_timestamp", Expr.TBit 48);
+                                    ("egress_global_timestamp", Expr.TBit 48);
+                                    ("mcast_grp", Expr.TBit 16); ("egress_rid", Expr.TBit 16);
+                                    ("checksum_error", Expr.TBit 1); ("parser_error", Expr.TError);
+                                    ("priority", Expr.TBit 3)]) "standard_metadata" NoInfo) NoInfo)
+                           NoInfo) NoInfo) (Stmt.SSkip NoInfo) NoInfo;
+                 Parser.trans :=
+                   Parser.PSelect
+                     (Expr.ETuple [Expr.ESlice (Expr.EVar (Expr.TBit 64) "t'0" NoInfo) 63 1 NoInfo]
+                        NoInfo) (Parser.PGoto (Parser.STName "parse_ethernet") NoInfo)
+                     [(Parser.PATTuple [Parser.PATBit 64 0],
+                      Parser.PGoto (Parser.STName "parse_cpu_header") NoInfo)] NoInfo
+               |}.
+Print Inline.inline_state.
+Check Inline.inline_parser.
+Compute let* ctx := p4cub_simple_nat  in
+        Inline.inline_parser Info 1000 10 NoInfo ctx "start" sn_start_state [].
+Check Inline.translate_pat.
+Compute (Inline.translate_pat Info NoInfo
+        (Expr.ETuple [Expr.EVar (Expr.TBit 64) "t'0" NoInfo] NoInfo)
+        (Parser.PATTuple [Parser.PATBit 64 0])).
+(* = [t0] [= [t0] [63w0]]  *)
+
+
 (* Compute (ToP4cub.preprocess Info NoInfo SimpleNat.prog). *)
-(* Compute inline_simple_nat. *)
-(* (* Compute instrumented_simple_nat. *) *)
-(* Compute simple_nat_test_case. *)
+Compute inline_simple_nat.
+Print E.EBop.
+Compute instrumented_simple_nat.
+
+Compute simple_nat_test_case.
 Lemma simple_nat_test1 : is_ok simple_nat_test_case.
 Proof. compute. trivial. Qed.
 
@@ -231,13 +378,16 @@ Proof. compute; trivial. Qed.
 Definition netchain_test_case :=
   let* nc := ToP4cubTest.p4cub_netchain in
   ToGCL.from_p4cub Info TableInstr.instr 1000 10 V1model.externs (V1model.package NoInfo) nc.
+Compute netchain_test_case.
+
 Lemma netchain_test: is_ok netchain_test_case.
-Proof. compute; trivial. Qed.
+Proof. compute; trivial. Admitted.
+(* EHC need to handle next *)
 
 (* hula *)
 Definition hula_test_case :=
   let* hula := ToP4cubTest.p4cub_hula in
   ToGCL.from_p4cub Info TableInstr.instr 1000 10 V1model.externs (V1model.package NoInfo) hula.
-
 Lemma hula_test: is_ok hula_test_case.
-Proof. compute; trivial. Qed.
+Proof. compute; trivial. Admitted.
+(* EHC need to handle next *)

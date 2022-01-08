@@ -7,7 +7,19 @@ Require Import Poulet4.Monads.Monad Poulet4.Monads.Option
 
 Notation predopt    := (EquivUtil.predop).
 Notation remove_str := (remove string_dec).
+
+Lemma remove_str_nil : forall s, remove_str s [] = [].
+Proof.
+  auto.
+Qed.
+
 Notation remove_all := (fold_right remove_str).
+
+Lemma remove_all_nil : forall ss, remove_all [] ss = [].
+Proof.
+  intros ss; induction ss as [| s ss IHss];
+    cbn in *; try rewrite IHss; auto.
+Qed.
 
 Section Utils.
   Context {tags_t : Type}.
@@ -453,9 +465,7 @@ Inductive
 | parser_ok pt :
     ControlType_ok Δ pt ->
     Δ ⊢ok TypParser pt
-(* TODO: How should externs be handled? *)
 | extern_ok X :
-    List.In (P4String.str X) Δ ->
     Δ ⊢ok TypExtern X
 | function_ok ft :
     FunctionType_ok Δ ft ->
@@ -465,9 +475,7 @@ Inductive
     Forall (P4Parameter_ok Δ) cs ->
     Δ ⊢ok TypAction ds cs
 | table_ok X :
-    List.In (P4String.str X) Δ ->
     Δ ⊢ok TypTable X
-(* TODO: how to handle wildcard params? *)
 | package_ok Xs Ys params :
     Forall
       (P4Parameter_ok
@@ -584,8 +592,7 @@ Section OkBoomerInd.
   Hypothesis HParser : forall Δ pt,
       ControlType_ok Δ pt -> Q Δ pt -> P Δ (TypParser pt).
 
-  Hypothesis HExtern : forall Δ X,
-      List.In (P4String.str X) Δ -> P Δ (TypExtern X).
+  Hypothesis HExtern : forall Δ X, P Δ (TypExtern X).
 
   Hypothesis HFunction : forall Δ ft,
     FunctionType_ok Δ ft -> R Δ ft -> P Δ (TypFunction ft).
@@ -597,8 +604,7 @@ Section OkBoomerInd.
       Forall (S Δ) cs ->
       P Δ (TypAction ds cs).
 
-  Hypothesis HTable : forall Δ X,
-      List.In (P4String.str X) Δ -> P Δ (TypTable X).
+  Hypothesis HTable : forall Δ X, P Δ (TypTable X).
   
   Hypothesis HPackage : forall Δ Xs Ys params,
       Forall
@@ -716,7 +722,7 @@ Section OkBoomerInd.
     | newType_ok _ _ _ H => HNewType _ _ _ H (my_P4Type_ok_ind _ _ H)
     | control_ok _ _ H => HControl _ _ H (my_ControlType_ok_ind _ _ H)
     | parser_ok _ _ H => HParser _ _ H (my_ControlType_ok_ind _ _ H)
-    | extern_ok _ _ H => HExtern _ _ H
+    | extern_ok _ X => HExtern _ X
     | function_ok _ _ H
       => HFunction _ _ H (my_FunctionType_ok_ind _ _ H)
     | action_ok _ _ _ Hds Hcs
@@ -724,7 +730,7 @@ Section OkBoomerInd.
           _ _ _
           Hds (my_P4Parameter_list_ok Hds)
           Hcs (my_P4Parameter_list_ok Hcs)
-    | table_ok _ _ H => HTable _ _ H
+    | table_ok _ X => HTable _ X
     | package_ok _ _ _ _ H => HPackage _ _ _ _ H (my_P4Parameter_list_ok H)
     | specialized_ok _ _ _ Hts Ht
       => HSpecialized

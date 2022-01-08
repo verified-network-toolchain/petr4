@@ -160,11 +160,9 @@ Section Soundness.
         assert
           (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
           by (simpl; eauto); destruct Hz as [z Hz].
-        assert (forall Δ ge (t t' : typ),
-                   delta_genv_prop ge Δ ->
-                   get_real_type ge t = Some t' ->
-                   Δ ⊢ok t -> [] ⊢ok t') by admit.
-        assert (Hrtok : [] ⊢ok (TypHeader rs)) by admit.
+        epose proof delta_genv_prop_ok_typ_nil as Hnil;
+          unfold delta_genv_prop_ok_typ_nil_def in Hnil.
+        assert (Hrtok : [] ⊢ok (TypHeader rs)) by eauto.
         assert (Huninit : exists v, uninit_sval_of_typ None (TypHeader rs) = Some v)
           by eauto using is_expr_typ_uninit_sval_of_typ.
         destruct Huninit as [v Hv]; eauto.

@@ -3,6 +3,8 @@ Require Export Poulet4.LightTyping.Typing.
 Section Lemmas.
   Context {tags_t : Type}.
 
+  Local Hint Constructors predopt : core.
+  
   Notation typ := (@P4Type tags_t).
   Notation ident := string.
   Notation path := (list ident).
@@ -228,7 +230,7 @@ Section Lemmas.
       rewrite Hrt; eauto.
     - intros d X HXd ge Hge.
       unfold delta_genv_prop in Hge.
-      rewrite Forall_forall in Hge. eauto.
+      rewrite Forall_forall in Hge. firstorder.
     - firstorder.
     - intros d ct Hct IH ge Hdge.
       apply IH in Hdge as [ct' Hct'].
@@ -362,7 +364,105 @@ Section Lemmas.
   Local Hint Resolve nth_error_in_combine : core.
   Local Hint Resolve ListUtil.nth_error_exists : core.
   Local Hint Resolve In_nth_error : core.
-    
+
+  Lemma delta_genv_prop_ok_typ_nil_list : forall Δ ge (ts rs : list typ),
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall (fun t =>
+                forall ge r,
+                  delta_genv_prop ge Δ ->
+                  get_real_type ge t = Some r ->
+                  [] ⊢ok r) ts ->
+      delta_genv_prop ge Δ ->
+      sequence (map (get_real_type ge) ts) = Some rs ->
+      Forall (fun r => [] ⊢ok r) rs.
+  Proof.
+    intros d ge ts rs Hts IHts Hge Hrs.
+    rewrite Forall_forall in IHts.
+    specialize IHts with (ge := ge).
+    rewrite Forall_forall.
+    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hrs.
+    destruct Hrs as [Hlen Htsl].
+    intros x Hxl.
+    apply In_nth_error in Hxl as [n Hn].
+    assert (Htst: exists t, nth_error ts n = Some t).
+    { apply ListUtil.nth_error_exists.
+      rewrite Hlen.
+      eauto using nth_error_some_length. }
+    firstorder eauto.
+  Qed.
+
+  Local Hint Resolve delta_genv_prop_ok_typ_nil_list : core.
+
+  Lemma delta_genv_prop_ok_typ_nil_alist :
+    forall Δ ge (xts xrs : list (P4String.t tags_t * typ)),
+      Forall (fun xt => Δ ⊢ok snd xt) xts ->
+      Forall (fun xt => forall ge r,
+                  delta_genv_prop ge Δ ->
+                  get_real_type ge (snd xt) = Some r ->
+                  [] ⊢ok r) xts ->
+      delta_genv_prop ge Δ ->
+      sequence
+        (map
+           (fun '(x,t) =>
+              match get_real_type ge t with
+              | Some r => Some (x,r)
+              | None   => None
+              end)
+           xts)
+      = Some xrs ->
+      Forall (fun xr => [] ⊢ok snd xr) xrs.
+  Proof.
+    intros d ge xts xrs Hxts IHxts Hge Hxrs.
+    rewrite Forall_forall in IHxts.
+    specialize IHxts with (ge := ge).
+    rewrite Forall_forall.
+    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hxrs.
+    destruct Hxrs as [Hlen Htsl].
+    intros [x r] Hxl.
+    apply In_nth_error in Hxl as [n Hn].
+    assert (Htst: exists yt, nth_error xts n = Some yt).
+    { apply ListUtil.nth_error_exists.
+      rewrite Hlen.
+      eauto using nth_error_some_length. }
+    destruct Htst as [[y t] Hyt].
+    specialize Htsl with (u := (y,t)) (v := (x,r)); cbn in *.
+    assert (HIn : List.In ((y,t),(x,r)) (combine xts xrs)) by eauto.
+    apply Htsl in HIn. match_some_inv; some_inv; eauto.
+  Qed.
+
+  Local Hint Resolve delta_genv_prop_ok_typ_nil_alist : core.
+
+  Lemma delta_genv_prop_ok_param_nil_list :
+    forall Δ ge (ps rs : list (@P4Parameter tags_t)),
+      Forall (P4Parameter_ok Δ) ps ->
+      Forall
+        (fun p =>
+           forall ge p',
+             delta_genv_prop ge Δ ->
+             get_real_param ge p = Some p' ->
+             P4Parameter_ok [] p') ps ->
+      delta_genv_prop ge Δ ->
+      sequence (map (get_real_param ge) ps) = Some rs ->
+      Forall (P4Parameter_ok []) rs.
+  Proof.
+    intros d ge ps rs Hps IHps Hge Hrs.
+    rewrite Forall_forall in IHps.
+    specialize IHps with (ge := ge).
+    rewrite Forall_forall.
+    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hrs.
+    destruct Hrs as [Hlen Htsl].
+    intros x Hxl.
+    apply In_nth_error in Hxl as [n Hn].
+    assert (Htst: exists p, nth_error ps n = Some p).
+    { apply ListUtil.nth_error_exists.
+      rewrite Hlen.
+      eauto using nth_error_some_length. }
+    firstorder eauto.
+  Qed.
+
+  Local Hint Resolve delta_genv_prop_ok_param_nil_list : core.
+  Hint Rewrite remove_all_nil : core.
+  
   Lemma delta_genv_prop_ok_typ_nil : forall Δ t,
       Δ ⊢ok t ->
       delta_genv_prop_ok_typ_nil_def Δ t.
@@ -372,32 +472,40 @@ Section Lemmas.
         autounfold with option_monad;
         try (intros; repeat match_some_inv;
              some_inv; eauto; assumption).
-    - intros d ts Hts IHts ge r Hge Hr.
-      match_some_inv; some_inv.
-      rewrite Forall_forall in IHts.
-      specialize IHts with (ge := ge).
-      constructor.
-      rewrite Forall_forall.
-      rewrite <- Forall2_sequence_iff, <- Forall2_map_l in Heqo.
-      rewrite Forall2_forall in Heqo.
-      destruct Heqo as [Hlen Htsl].
-      intros x Hxl.
-      apply In_nth_error in Hxl as [n Hn].
-      assert (Htst: exists t, nth_error ts n = Some t).
-      { apply ListUtil.nth_error_exists.
-        rewrite Hlen.
-        eauto using nth_error_some_length. }
-      firstorder eauto.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
+    - intros d X t mems Ht IHt ge r Hge Hr.
+      destruct t as [t |]; inversion IHt; subst;
+        try match_some_inv; some_inv; eauto.
+      constructor; constructor; cbn.
+      apply H0 in Heqo; eauto.
     - intros d X HXd ge r Hge Hr.
       unfold delta_genv_prop in Hge.
-      (* Problem:
-         types bound to names in [genv_typ]
-         may have free type variables... *)
-  Abort.
+      rewrite Forall_forall in Hge.
+      apply Hge in HXd.
+      destruct HXd as (t' & Hget & Ht').
+      rewrite Hget in Hr; inversion Hr; subst; auto.
+    - intros d X t Ht IHt ge r Hge Hr.
+      apply IHt in Hr; auto.
+    - intros d Xs Ts ps Hps IHps ge r Hge Hr.
+      match_some_inv; some_inv.
+      constructor; autorewrite with core.
+      eapply delta_genv_prop_ok_param_nil_list in Hps;
+        eauto using delta_genv_prop_removes.
+    - intros d Xs Ys ps t Hps IHps Ht IHts ge r Hge Hr.
+      repeat match_some_inv; some_inv.
+      constructor; autorewrite with core.
+      eapply delta_genv_prop_ok_param_nil_list in Heqo0;
+        eauto using delta_genv_prop_removes.
+      eapply IHts; eauto using delta_genv_prop_removes.
+    - intros d Xs ps Hps IHps ge r Hge Hr.
+      match_some_inv; some_inv.
+      constructor; autorewrite with core.
+      eapply delta_genv_prop_ok_param_nil_list in Hps;
+        eauto using delta_genv_prop_removes.
+    - intros d Xs ps k t Hps IHps Ht IHt ge r Hge Hr.
+      repeat match_some_inv; some_inv.
+      constructor; autorewrite with core.
+      eapply delta_genv_prop_ok_param_nil_list in Hps;
+        eauto using delta_genv_prop_removes.
+      eapply IHt; eauto using delta_genv_prop_removes.
+  Qed.
 End Lemmas.

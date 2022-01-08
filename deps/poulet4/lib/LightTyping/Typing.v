@@ -113,8 +113,7 @@ Section TypingDefs.
   
   Definition delta_genv_prop
              (ge : @genv_typ tags_t) : list string -> Prop :=
-    Forall (fun X => exists t, IdentMap.get X ge = Some t
-           (* [/\ [] ⊢ok t] *)).
+    Forall (fun X => exists t, IdentMap.get X ge = Some t /\ [] ⊢ok t).
 
   Definition genv_is_expr_typ (ge : @genv_typ tags_t) : Prop :=
     forall t r, get_real_type ge t = Some r ->

@@ -335,12 +335,12 @@ Definition get_state_name state :=
 Definition state_flag_name name := "_state$" ++ name ++ "$next".
 Definition state_flag name tags : E.e tags_t := E.EVar E.TBool (state_flag_name name) tags.
 Definition set_state_flag name value tags := IAssign E.TBool (state_flag name tags) (E.EBool value tags) tags.
-Definition handle_flags name stmt trans tags :=
-  ISeq (IConditional E.TBool
-                     (state_flag name tags)
-                     (ISeq stmt trans tags)
-                     (ISkip tags) tags)
-       (set_state_flag name false tags) tags.
+Definition construct_state name stmt trans tags :=
+  IConditional E.TBool
+               (state_flag name tags)
+               (ISeq (set_state_flag name false tags)
+                     (ISeq stmt trans tags) tags)
+               (ISkip tags) tags.
 
 Definition extract_single (es : list (E.e tags_t)) (msg : string) : result (E.e tags_t) :=
   match es with
@@ -472,7 +472,7 @@ Fixpoint inline_state
     let* stmt := inline gas unroll ctx (Parser.stmt state) in
     let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in
     let neighbor_states := lookup_parser_states neighbor_names states in
-    (neighbor_states, handle_flags name stmt trans tags)
+    (neighbor_states, construct_state name stmt trans tags)
   end
 with inline_transition (gas : nat)
                        (unroll : nat)
@@ -591,7 +591,9 @@ with inline (gas : nat)
           let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
           match pdecl with
           | TD.TPParser _ _ _ _ start states tags =>
-            inline_parser gas unroll tags ctx "start" start states
+            let+ parser := inline_parser gas unroll tags ctx "start" start states in
+            ISeq (set_state_flag "start" true tags)
+                 parser tags
           (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
           | _ =>
             error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")

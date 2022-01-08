@@ -481,10 +481,12 @@ Definition
   | DeclValueSet _ _ _ _ => None
   | DeclAction _ _ _ _ _ => None
   | DeclTable _ _ _ _ _ _ _ _ => None
-  | DeclHeader tags name fields
-  | DeclStruct tags name fields =>
+  | DeclHeader tags name fields  =>
     let alist_fields := List.map (fun '(MkDeclarationField _ t name) => (name, t)) fields in
     Some (singleton (P4String.str name) (TypHeader alist_fields))
+  | DeclStruct tags name fields =>
+    let alist_fields := List.map (fun '(MkDeclarationField _ t name) => (name, t)) fields in
+    Some (singleton (P4String.str name) (TypStruct alist_fields))
   | DeclHeaderUnion _ _ _ => None
   | DeclError _ _ => None
   | DeclMatchKind _ _ => None
@@ -500,8 +502,6 @@ Definition
   | DeclParserType _ _ _ _ => None
   | DeclPackageType _ _ _ _ => None
   end.
-
-Print DeclHeaderUnion.
 
 (** [Declaration] substitution. *)
 Reserved Notation "σ '†d'" (at level 11, right associativity).

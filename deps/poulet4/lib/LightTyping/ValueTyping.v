@@ -59,9 +59,9 @@ Section ValueTyping.
     | typ_union : forall vs ts,
         AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
         val_typ (ValBaseUnion vs) (TypHeaderUnion ts)
-    | typ_stack : forall n vs ts,
-        Forall (fun v => val_typ v (TypHeader ts)) vs ->
-        val_typ (ValBaseStack vs n) (TypArray (TypHeader ts) (N.of_nat (length vs)))
+    | typ_array : forall n vs t,
+        Forall (fun v => val_typ v t) vs ->
+        val_typ (ValBaseStack vs n) (TypArray t (N.of_nat (length vs)))
     | typ_enumfield : forall ename member members,
         List.In member members ->
         val_typ
@@ -108,10 +108,10 @@ Section ValueTyping.
           AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
           AList.all_values P vs (P4String.clear_AList_tags ts) ->
           P (ValBaseUnion vs) (TypHeaderUnion ts).
-      Hypothesis HStack : forall n vs ts,
-          Forall (fun v => val_typ v (TypHeader ts)) vs ->
-          Forall (fun v => P v (TypHeader ts)) vs ->
-          P (ValBaseStack vs n) (TypArray (TypHeader ts) (N.of_nat (length vs))).
+      Hypothesis HArray : forall n vs t,
+          Forall (fun v => val_typ v t) vs ->
+          Forall (fun v => P v t) vs ->
+          P (ValBaseStack vs n) (TypArray t (N.of_nat (length vs))).
       Hypothesis HEnum : forall ename member members,
           List.In member members ->
           P
@@ -167,7 +167,7 @@ Section ValueTyping.
           | typ_struct _ _ H => HStruct _ _ H (alind H)
           | typ_header b _ _ H => HHeader b _ _ H (alind H)
           | typ_union _ _ H => HUnion _ _ H (alind H)
-          | typ_stack n _ _ H => HStack n _ _ H (same_typ_ind H)
+          | typ_array n _ _ H => HArray n _ _ H (same_typ_ind H)
           | typ_enumfield x _ _ H => HEnum x _ _ H
           | typ_senumfield X _ _ ms Hv =>
             HSenum X _ _ ms Hv (vtind _ _ Hv)
@@ -306,7 +306,7 @@ Section ValueTyping.
         - apply Forall2_length in H.
           apply Forall2_length in H0 as Hlen; rewrite Hlen; clear Hlen.
           constructor; try lia.
-          apply Forall2_forall_specialize with (t := TypHeader ts) in H0.
+          apply Forall2_forall_specialize with (t := t0) in H0.
           rewrite Forall_forall in *.
           rewrite Forall2_forall in H0.
           destruct H0 as [Hlen Hcomb].
@@ -573,12 +573,8 @@ Section ValueTyping.
           try discriminate; try some_inv; eauto.
       - constructor; simpl; lia.
       - unfold option_bind, option_ret in *.
-        destruct (uninit_sval_of_typ b (TypHeader ts))
-          as [v' |] eqn:Hv';
-          cbn in *; unfold option_bind, option_ret in *;
-            rewrite Hv' in Huninit; try discriminate.
-        apply IHis_expr_typ in Hv';
-          clear IHis_expr_typ; some_inv.
+        destruct (uninit_sval_of_typ b t)
+          as [v' |] eqn:Hv'; inversion Huninit; subst.
         width_solve.
       - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
       - eapply uninit_sval_of_typ_alist_val_typ in H;

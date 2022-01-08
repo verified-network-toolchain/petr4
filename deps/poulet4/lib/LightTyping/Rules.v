@@ -23,6 +23,7 @@ Section Soundness.
   Local Hint Constructors P4Type_ok : core.
   Local Hint Constructors is_expr_typ : core.
   Local Hint Resolve ok_get_real_type_ex : core.
+  Local Hint Resolve is_expr_typ_normᵗ_impl : core.
 
   Variables (this : path) (Δ : list string).
   
@@ -184,10 +185,7 @@ Section Soundness.
           eapply H; eauto.
           assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
           apply Hisv in Hv1 as Hv1'.
-          inversion Hv1'; subst.
-          rewrite H1 in H3.
-          assert (Hisn: forall t : typ, is_expr_typ (normᵗ t) -> is_expr_typ t) by admit.
-          auto.
+          inversion Hv1'; subst; auto.
         + rewrite <- nth_default_eq.
           unfold nth_default.
           destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
@@ -198,10 +196,7 @@ Section Soundness.
             eapply H; eauto.
             assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
             apply Hisv in Hv1 as Hv1'.
-            inversion Hv1'; subst.
-            rewrite H1 in H3.
-            assert (Hisn: forall t : typ, is_expr_typ (normᵗ t) -> is_expr_typ t) by admit.
-            auto.
+            inversion Hv1'; subst; auto.
     Admitted.
 
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,

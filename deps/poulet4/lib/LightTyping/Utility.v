@@ -220,9 +220,9 @@ Section Utils.
       is_expr_typ (TypBit w)
   | is_varbit w :
       is_expr_typ (TypVarBit w)
-  | is_array ts n :
-      is_expr_typ (TypHeader ts) ->
-      is_expr_typ (TypArray (TypHeader ts) n)
+  | is_array t n :
+      is_expr_typ t ->
+      is_expr_typ (TypArray t n)
   | is_tuple ts :
       Forall is_expr_typ ts ->
       is_expr_typ (TypTuple ts)
@@ -309,9 +309,9 @@ Section IsExprTypInd.
   Hypothesis HInt : forall w, P (TypInt w).
   Hypothesis HBit : forall w, P (TypBit w).
   Hypothesis HVarbit : forall w, P (TypVarBit w).
-  Hypothesis HArray : forall ts n,
-      is_expr_typ (TypHeader ts) -> P (TypHeader ts) ->
-      P (TypArray (TypHeader ts) n).
+  Hypothesis HArray : forall t n,
+      is_expr_typ t -> P t ->
+      P (TypArray t n).
   Hypothesis HTuple : forall ts,
       Forall is_expr_typ ts ->
       Forall P ts ->
@@ -1004,5 +1004,79 @@ Section Lemmas.
     - intros Xs ps k t Hps Ht;
         apply map_ext_Forall in Hps;
         rewrite map_map; f_equal; auto.
+  Qed.
+
+  Local Hint Constructors is_expr_typ : core.
+
+  Ltac bruh :=
+    match goal with
+    | |- forall t, ?ty = normᵗ t -> is_expr_typ t
+      => apply (my_P4Type_ind
+                 tags_t (fun t => ty = normᵗ t -> is_expr_typ t)
+                 (fun _ => True) (fun _ => True) (fun _ => True)); cbn;
+        try discriminate; auto
+    end.
+
+  Local Hint Extern 2 => bruh : core.
+  Local Hint Resolve in_map : core.
+
+  Ltac bruh_list :=
+    intros ts' IHts' Hts';
+    injection Hts' as ?; subst;
+    constructor;
+    rewrite Forall_forall in *; eauto.
+
+  Local Hint Extern 0 => bruh_list : core.
+  
+  Ltac bruh_alist :=
+    intros xts' IHxts' Hxts';
+    injection Hxts' as ?; subst;
+    constructor;
+    rewrite Forall_forall in *;
+    intros [x t] Hxt; cbn in *;
+    match goal with
+    | H: List.In _ ?l,
+         IH: context [List.In _ (map ?g ?l)]
+      |- _ => apply in_map with (f := g) in H as Hinmap; eauto
+    end.
+
+  Local Hint Extern 0 => bruh_alist : core.
+  
+  Lemma is_expr_typ_normᵗ_impl : forall t : typ,
+      is_expr_typ (normᵗ t) -> is_expr_typ t.
+  Proof.
+    intros t Ht.
+    remember (normᵗ t) as normᵗt eqn:Heqt.
+    generalize dependent t.
+    induction Ht as
+        [ (* bool *)
+        | (* string *)
+        | (* integer *)
+        | w (* int *)
+        | w (* bit *)
+        | w (* varbit *)
+        | t n Ht IHt (* array *)
+        | ts Hts IHts (* tuple *)
+        | ts Hts IHts (* list *)
+        | xts Hxts IHxts (* record *)
+        | (* error *)
+        | xts Hxts IHxts (* header *)
+        | xts Hxts IHxts (* union *)
+        | xts Hxts IHxts (* struct *)
+        | X t ms Hms Ht IHt (* enum *)
+        | X (* name *)
+        | X t Ht IHt (* newtype *)
+        ] using my_is_expr_typ_ind; auto 3.
+    - bruh.
+      intros ty w IHty H.
+      inversion H; subst; auto.
+    - bruh.
+      intros Y t' l IHt' Ht'.
+      injection Ht' as ? ? ?; subst.
+      constructor; auto.
+      inversion IHt'; inversion IHt; inversion Ht; subst;
+        cbn in *; try discriminate; auto.
+      inversion H1; inversion H3; subst.
+      constructor. apply H2; reflexivity.
   Qed.
 End Lemmas.

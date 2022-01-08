@@ -1392,7 +1392,10 @@ Section ToP4cub.
       (* TODO come up with better naming scheme for externs *)
       let d := TopDecl.TPExtern "_" [] [] [method] tags in
       ok (add_extern ctx d)
-    | DeclVariable tags typ name init =>
+    | DeclVariable tags typ name None =>
+    (* error "[FIXME] Variable Declarations unimplemented" *)
+      ok ctx
+    | DeclVariable tags typ name (Some e) =>
     (* error "[FIXME] Variable Declarations unimplemented" *)
       ok ctx
     | DeclValueSet tags typ size name =>

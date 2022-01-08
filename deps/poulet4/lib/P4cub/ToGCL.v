@@ -595,25 +595,39 @@ Section ToGCL.
                          | PAOut e
                          | PAInOut e
                          | PADirLess e =>
-                           match to_form e with
-                           | Error _ _ =>
+                           match t_of_e e with
+                           | E.TBool =>
+                             let~ phi := to_form e over "couldn't convert form in arrowE_to_arglist" in
+                             ok ((name, inl phi) :: res)
+                           | _ =>
                              let~ e' := to_rvalue e over "couldn't convert rvalue in arrowE_to_arglist" in
                              ok ((name, inr e') :: res)
-                           | Ok _ phi =>
-                             ok ((name, inl phi) :: res)
                            end
                          end)
                       (ok [])
                       arrow.(paramargs).
+
+
+    Definition lvalue_subst param new old :=
+          if String.eqb param old then
+            match new with
+            | BV.BVVar new_string w =>
+              new_string
+            | _ =>
+              (* Not sure how to substitute in anything else*)
+              old
+            end
+          else
+            old.
 
     Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result target :=
       List.fold_right (fun '(param, arg) g_res' =>
                 let+ g' := g_res' in
                 match arg with
                 | inl phi =>
-                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g
+                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g'
                 | inr bv_expr =>
-                  GCL.subst_rvalue (fun _ _ x => x) BV.subst_bv Form.subst_bv param bv_expr g
+                  GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_expr g'
                 end) (ok g) s.
 
     Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=

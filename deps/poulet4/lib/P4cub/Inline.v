@@ -254,24 +254,25 @@ Definition copy (args : E.args tags_t) : expenv :=
 Definition string_list_of_params (ps : E.params) : list string :=
   List.map fst ps.
 
-Definition translate_pattern (discriminee : E.e tags_t) (pat : Parser.pat) (i : tags_t):=
-  E.EBool true i.
-
 Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs string (E.e tags_t) :=
   let access := fun s f => s ++ "." ++ f in
+  let is_valid := fun tags => let one_bit := E.TBit (BinNat.N.of_nat 1) in
+                              (access param "is_valid",
+                               E.EExprMember one_bit "is_valid" arg tags) in
+  let member_member := fun f t tags => E.EExprMember t f arg tags in
+  let loop := fun tags '(f, t) acc => (access param f, member_member f t tags) :: acc in
   match arg with
-  | E.EVar (E.TStruct fs) x tags | E.EVar (E.THeader fs) x tags =>
+  | E.EVar (E.TStruct fs) x tags =>
     List.fold_right (fun '(f, t) acc =>
      (access param f, (E.EExprMember t f arg tags)) :: acc) [] fs
-
-  | E.EExprMember (E.TStruct fs) mem _ tags | E.EExprMember (E.THeader fs) mem _ tags  =>
-    let member_member := fun f t => E.EExprMember t f arg tags in
-    List.fold_right (fun '(f, t) acc =>
-     (access param f, member_member f t) :: acc) [] fs
-
+  | E.EVar (E.THeader fs) x tags =>
+    List.fold_right (loop tags) [is_valid tags] fs
+  | E.EExprMember (E.TStruct fs) mem _ tags =>
+    List.fold_right (loop tags) [] fs
+  | E.EExprMember (E.THeader fs) mem _ tags  =>
+    List.fold_right (loop tags) [is_valid tags] fs
   | E.EVar (E.TTuple ts) x tags =>
     ListUtil.fold_righti (fun idx t acc => (index_array_str param idx, (E.EVar t (index_array_str x idx) tags)) :: acc) [] ts
-
   | E.ETuple es _ =>
     ListUtil.fold_righti (fun i e acc =>
           let param_i := index_array_str param i in
@@ -1014,6 +1015,7 @@ Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
   | E.EInt _ _ _ | E.EVar _ _ _
   | E.EError _ _ | E.EMatchKind _ _  =>  ok (ISkip tags)
   | E.EExprMember type name e tags =>
+    if String.eqb name "is_valid" then ok (ISkip tags) else
     match t_of_e e with
     | E.THeader _  =>
       ok (inline_assert (isValid e tags) tags)
@@ -1093,6 +1095,7 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     (* Assume this has been factored out already *)
     error "header stacks shouldhave been factored out already"
   | IExternMethodCall ext method args tags =>
+    if String.eqb method "extract" then ok c else
     let paramargs := paramargs args in
     let+ asserts := List.fold_left (fun acc_asserts '(param, arg)  =>
                    let* acc_asserts := acc_asserts in

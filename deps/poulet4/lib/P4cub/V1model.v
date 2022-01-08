@@ -24,7 +24,7 @@ Definition externs : ToGCL.model :=
          ("crc_poly", G.GSkip);
          ("digest", G.GSkip)
    ]);
-  ("packet_in", [("extract", G.GSkip)]);
+  ("packet_in", [("extract", G.GAssign (E.TBit 1%N) "hdr.is_valid" (BV.bit (Some 1) 1))]);
   ("counter", [("count", G.GSkip)]);
   ("direct_counter", [("count", G.GSkip)]);
   ("register", [("read", G.GSkip); ("write", G.GSkip)]);

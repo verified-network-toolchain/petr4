@@ -65,7 +65,7 @@ Section TypingDefs.
     forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
-      exists rt, get_real_type gt t = Some rt /\ val_typ v (normᵗ rt).
+      exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
 
   Definition gamma_var_prop
              `{T : @Target tags_t expr}
@@ -88,7 +88,7 @@ Section TypingDefs.
       typ_of_loc_const this l g = Some t ->
       loc_to_sval_const ge this l = Some v ->
       exists rt, get_real_type ge t = Some rt /\
-            val_typ v (normᵗ rt).
+            ⊢ᵥ v \: normᵗ rt.
   
   Definition gamma_const_prop
              `{T : @Target tags_t expr}
@@ -141,7 +141,7 @@ Section TypingDefs.
       (* Preservation. *)
       forall v, run_expr ge read_one_bit this st e v ->
            exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                 val_typ v (normᵗ rt).
+                 ⊢ᵥ v \: normᵗ rt.
   (**[]*)
   
   (* Function definition typing environment. TODO! *)

@@ -24,6 +24,7 @@ Section Soundness.
   Local Hint Constructors is_expr_typ : core.
   Local Hint Resolve ok_get_real_type_ex : core.
   Local Hint Resolve is_expr_typ_normᵗ_impl : core.
+  Local Hint Resolve val_typ_is_expr_typ : core.
 
   Variables (this : path) (Δ : list string).
   
@@ -117,8 +118,9 @@ Section Soundness.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
-
+    
     Lemma array_access_sound : forall tag arry idx ts dir n,
+        0 < N.to_nat n ->
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
         Δ ~ Γ ⊢ₑ arry ≀ this ->
@@ -126,7 +128,7 @@ Section Soundness.
         Δ ~ Γ ⊢ₑ MkExpression
           tag (ExpArrayAccess arry idx) (TypHeader ts) dir ≀ this.
     Proof.
-      intros i e1 e2 ts d n Ht1 Ht2 He1 He2;
+      intros i e1 e2 ts d n Hn Ht1 Ht2 He1 He2;
         autounfold with * in *.
       intros Tgt rob ge st Hdelta Hrob Hg Hok Hise Hgrt; simpl in *.
       rewrite Ht1, Ht2 in *.
@@ -183,21 +185,19 @@ Section Soundness.
         destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
         + pose proof uninit_sval_of_typ_val_typ rtyp as H.
           eapply H; eauto.
-          assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
-          apply Hisv in Hv1 as Hv1'.
+          apply val_typ_is_expr_typ in Hv1 as Hv1'.
           inversion Hv1'; subst; auto.
         + rewrite <- nth_default_eq.
           unfold nth_default.
           destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
           * inversion Hv1; subst.
-            rewrite Forall_forall in H1.
+            rewrite Forall_forall in H6.
             eauto using nth_error_In.
           * pose proof uninit_sval_of_typ_val_typ rtyp as H.
             eapply H; eauto.
-            assert (Hisv: forall A (v : @ValueBase A) (t : typ), val_typ v t -> is_expr_typ t) by admit.
-            apply Hisv in Hv1 as Hv1'.
+            apply val_typ_is_expr_typ in Hv1 as Hv1'.
             inversion Hv1'; subst; auto.
-    Admitted.
+    Qed.
 
     Lemma bigstring_access_sound : forall tag bits lo hi dir w,
         (lo <= hi < w)%N ->
@@ -374,10 +374,10 @@ Section Soundness.
 
     Local Hint Resolve val_to_sval_ex : core.
     
-    Lemma eval_unary_op_preserves_typ : forall o v v' t t',
+    Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
         unary_type o t t' ->
         Ops.eval_unary_op o v = Some v' ->
-        val_typ v t -> @val_typ tags_t _ v' t'.
+        ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
     Proof.
       intros o v v' t t' Hut Heval Hvt;
         inversion Hut; subst;
@@ -528,12 +528,6 @@ Section Soundness.
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir ≀ this.
     Proof.
     Admitted.
-
-    Lemma dontcare_sound : forall tag dir,
-        Δ ~ Γ ⊢ₑ MkExpression tag ExpDontCare TypVoid dir ≀ this.
-    Proof.
-      soundtac.
-    Qed.
   End ExprTyping.
 
   Local Hint Constructors exec_stmt : core.

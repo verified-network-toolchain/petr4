@@ -221,6 +221,7 @@ Section Utils.
   | is_varbit w :
       is_expr_typ (TypVarBit w)
   | is_array t n :
+      0 < N.to_nat n ->
       is_expr_typ t ->
       is_expr_typ (TypArray t n)
   | is_tuple ts :
@@ -243,10 +244,12 @@ Section Utils.
   | is_struct ts :
       Forall (fun t => is_expr_typ (snd t)) ts ->
       is_expr_typ (TypStruct ts)
-  | is_enum X t mems :
+  | is_enum X mems :
       length mems > 0 ->
-      predopt is_expr_typ t ->
-      is_expr_typ (TypEnum X t mems)
+      is_expr_typ (TypEnum X None mems)
+  | is_senum X t mems :
+      is_expr_typ t ->
+      is_expr_typ (TypEnum X (Some t) mems)
   | is_name X :
       is_expr_typ (TypTypeName X)
   | is_newtype X t :
@@ -310,6 +313,7 @@ Section IsExprTypInd.
   Hypothesis HBit : forall w, P (TypBit w).
   Hypothesis HVarbit : forall w, P (TypVarBit w).
   Hypothesis HArray : forall t n,
+      0 < N.to_nat n ->
       is_expr_typ t -> P t ->
       P (TypArray t n).
   Hypothesis HTuple : forall ts,
@@ -337,11 +341,12 @@ Section IsExprTypInd.
       Forall (fun t => is_expr_typ (snd t)) ts ->
       Forall (fun t => P (snd t)) ts ->
       P (TypStruct ts).
-  Hypothesis HEnum : forall X t mems,
+  Hypothesis HEnum : forall X mems,
       length mems > 0 ->
-      predopt is_expr_typ t ->
-      predopt P t ->
-      P (TypEnum X t mems).
+      P (TypEnum X None mems).
+  Hypothesis HSenum : forall X t mems,
+      is_expr_typ t ->
+      P t -> P (TypEnum X (Some t) mems).
   Hypothesis HName : forall X, P (TypTypeName X).
   Hypothesis HNewType : forall X t,
       is_expr_typ t -> P t -> P (TypNewType X t).
@@ -381,7 +386,7 @@ Section IsExprTypInd.
       | is_int w         => HInt w
       | is_bit w         => HBit w
       | is_varbit w      => HVarbit w
-      | is_array _ n H   => HArray _ n H (I _ H)
+      | is_array _ _ n H => HArray _ _ n H (I _ H)
       | is_tuple _ H     => HTuple _ H (L H)
       | is_list  _ H     => HList _ H (L H)
       | is_record _ H    => HRecord _ H (AL H)
@@ -391,7 +396,8 @@ Section IsExprTypInd.
       | is_struct _ H    => HStruct _ H (AL H)
       | is_name X        => HName X
       | is_newtype X _ H => HNewType X _ H (I _ H)
-      | is_enum X _ _ Hm H  => HEnum X _ _ Hm H (PO H)
+      | is_enum X _   H  => HEnum X _ H
+      | is_senum X _ ms H => HSenum X _ ms H (I _ H)
       end.
 End IsExprTypInd.
 
@@ -909,7 +915,8 @@ Section Lemmas.
         | xts Hxts IHxts (* header *)
         | xts Hxts IHxts (* union *)
         | xts Hxts IHxts (* struct *)
-        | X t ms Hms Ht IHt (* enum *)
+        | X ms Hms       (* enum *)
+        | X t ms Ht IHt (* senum *)
         | X (* name *)
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind;
@@ -917,6 +924,8 @@ Section Lemmas.
         unfold option_monad_inst, option_monad,
         option_bind, option_ret in *;
         try contradiction; eauto.
+    - assert (H0n: (0 <? n)%N = true) by (rewrite N.ltb_lt; lia).
+      rewrite H0n; eauto.
     - eapply is_expr_typ_list_uninit_sval_of_typ
         in Hts as [vs Hvs]; eauto.
       unfold option_monad_inst, option_monad,
@@ -941,12 +950,12 @@ Section Lemmas.
         in Hxts as [xvs Hxvs]; eauto.
       unfold ">>|",">>=",mret, option_monad_inst, option_monad,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
-    - destruct t as [t |];
-        destruct X as [d X];
+    - destruct X as [d X];
         destruct ms as [| [i M] ms];
-        inversion Ht;
-        inversion IHt; inversion H0;
-          subst; cbn in *; eauto; try lia; eauto.
+        simpl in *; try lia; eauto.
+    - destruct X as [d X].
+      inversion H0;
+      subst; cbn in *; eauto; try lia; eauto.
   Qed.
 
   Definition normᵗ_idem_def (t : typ) := normᵗ (normᵗ t) = normᵗ t.
@@ -1063,7 +1072,8 @@ Section Lemmas.
         | xts Hxts IHxts (* header *)
         | xts Hxts IHxts (* union *)
         | xts Hxts IHxts (* struct *)
-        | X t ms Hms Ht IHt (* enum *)
+        | X ms Hms       (* enum *)
+        | X t ms Ht IHt (* senum *)
         | X (* name *)
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind; auto 3.
@@ -1073,10 +1083,59 @@ Section Lemmas.
     - bruh.
       intros Y t' l IHt' Ht'.
       injection Ht' as ? ? ?; subst.
-      constructor; auto.
-      inversion IHt'; inversion IHt; inversion Ht; subst;
+      destruct t' as [t |]; cbn in *; try discriminate; auto.
+    - bruh.
+      intros Y t' l IHt' Ht'.
+      injection Ht' as ? ? ?; subst.
+      inversion IHt'; subst;
         cbn in *; try discriminate; auto.
-      inversion H1; inversion H3; subst.
-      constructor. apply H2; reflexivity.
+      inversion H0; subst; auto.
+  Qed.
+
+  Definition uninit_sval_of_typ_norm_def (t : typ) :=
+    forall b, uninit_sval_of_typ b (normᵗ t) = uninit_sval_of_typ b t.
+
+  Definition uninit_sval_of_typ_norm_ind :=
+    my_P4Type_ind
+      _ uninit_sval_of_typ_norm_def
+      (fun _ => True) (fun _ => True) (fun _ => True).
+
+  Ltac list_uninit_norm :=
+    intros ts Hts b;
+    rewrite Forall_forall in Hts;
+    specialize Hts with (b:=b);
+    rewrite <- Forall_forall in Hts;
+    apply map_ext_Forall in Hts;
+    do 2 f_equal; rewrite map_map; auto; assumption.
+
+  Ltac alist_uninit_norm :=
+    intros xts Hxts b;
+    rewrite Forall_forall in Hxts;
+    specialize Hxts with (b:=b);
+    rewrite <- Forall_forall in Hxts;
+    apply map_ext_Forall in Hxts;
+    do 2 f_equal;
+    rewrite <- map_map with
+        (g := uninit_sval_of_typ b) (f := snd) in Hxts;
+    rewrite <- map_map with
+        (g := uninit_sval_of_typ b) (f := fun xt => normᵗ (snd xt)) in Hxts;
+    rewrite <- map_map with
+        (g := normᵗ) (f := snd) in Hxts;
+    rewrite map_pat_combine, map_id;
+    unfold option_ret, option_bind;
+    induction xts as [| [[i x] t] xts IHxts];
+    simpl in *; inversion Hxts; subst; f_equal; auto; assumption.
+  
+  Lemma uninit_sval_of_typ_norm : forall t,
+      uninit_sval_of_typ_norm_def t.
+  Proof.
+    apply uninit_sval_of_typ_norm_ind;
+      unfold uninit_sval_of_typ_norm_def; cbn;
+        try (intros; f_equal; auto; assumption);
+        try list_uninit_norm; try alist_uninit_norm; auto.
+    - intros t n IH b.
+      destruct (0 <? n)%N eqn:H0n; f_equal; auto.
+    - intros [iX X] [t |] [| [iM M] ms] H b;
+        inversion H; subst; simpl in *; f_equal; eauto.
   Qed.
 End Lemmas.

@@ -581,3 +581,20 @@ Proof.
     intros [| h l] a Hnth; cbn in *;
       try discriminate; firstorder lia.
 Qed.
+
+Lemma Forall2_only_l_Forall : forall (U V : Type) (P : U -> Prop) us (vs : list V),
+    Forall2 (fun u _ => P u) us vs -> Forall P us.
+Proof.
+  intros U V P us;
+    induction us as [| u us IHus];
+    intros [| v vs] H; inversion H; subst;
+      cbn in *; eauto.
+Qed.
+
+Corollary Forall2_only_r_Forall : forall (U V : Type) (P : V -> Prop) (us : list U) vs,
+    Forall2 (fun _ v => P v) us vs -> Forall P vs.
+Proof.
+  intros U V P us vs H.
+  rewrite Forall2_flip in H.
+  eauto using Forall2_only_l_Forall.
+Qed.

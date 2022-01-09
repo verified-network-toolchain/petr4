@@ -210,8 +210,10 @@ Section ValueUtil.
     | TypInt w => Some (ValBaseInt (repeat None (N.to_nat w)))
     | TypBit w => Some (ValBaseBit (repeat None (N.to_nat w)))
     | TypArray typ size =>
-      let^ sv := uninit_sval_of_typ hvalid typ in
-      ValBaseStack (repeat sv (N.to_nat size)) 0
+      if (0 <? size)%N then
+        let^ sv := uninit_sval_of_typ hvalid typ in
+        ValBaseStack (repeat sv (N.to_nat size)) 0
+      else None
     | TypTuple typs
     | TypList typs =>
       sequence (List.map (uninit_sval_of_typ hvalid) typs) >>| ValBaseTuple

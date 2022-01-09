@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.Lemmas.
+Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
 
 (** * P4light Typing Rules of Inference *)
 
@@ -64,9 +64,11 @@ Section Soundness.
              (P4Int.Build_t _ i z (Some (w,false))))
           (TypBit w) dir ≀ this.
     Proof.
-      intros tag i z dir; soundtac.
-      (* TODO: need some result about [P4Arith.to_loptbool]. *)
-    Admitted.
+      intros tag i z w dir; soundtac; split; auto.
+      replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
+      unfold P4Arith.to_loptbool, P4Arith.to_lbool.
+      rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
+    Qed.
     
     Lemma signed_int_sound : forall tag i z w dir,
         Δ ~ Γ ⊢ₑ
@@ -75,9 +77,11 @@ Section Soundness.
           (ExpInt (P4Int.Build_t _ i z (Some (w,true))))
           (TypInt w) dir ≀ this.
     Proof.
-      intros tag i z dir; soundtac.
-      (* TODO: need some result about [P4Arith.to_loptbool]. *)
-    Admitted.
+      intros tag i z w dir; soundtac; split; auto.
+      replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
+      unfold P4Arith.to_loptbool, P4Arith.to_lbool.
+      rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
+    Qed.
     
     Lemma string_sound : forall tag s dir,
         Δ ~ Γ ⊢ₑ MkExpression tag (ExpString s) TypString dir ≀ this.
@@ -209,18 +213,26 @@ Section Soundness.
     Proof.
       intros i e lo hi d w Hlwh Ht He.
       autounfold with * in *.
-      intros rob ge st Hrob Hg Hok.
-      rewrite Ht in *.
-      pose proof He rob ge st Hrob Hg as [[v Hev] He']; clear He; auto.
-      (*split.
-      - apply He' in Hev as Hv;
-          inversion Hv; subst; rename v0 into bits.
+      intros T rob ge st Hdlta Hrob Hg Hok Hise Hgrt.
+      rewrite Ht in *; cbn in *.
+      pose proof He T rob ge st Hdlta Hrob Hg as [[v Hev] He']; clear He; auto.
+      split.
+      - apply He' in Hev as Hv';
+          destruct Hv' as (rt & Hrt & Hv);
+          inversion Hv; inversion Hrt; clear Hrt; subst; cbn in *; try discriminate.
+        rename v0 into bits. inversion H1; clear H1; subst.
         exists (ValBaseBit (bitstring_slice bits (N.to_nat lo) (N.to_nat hi))).
         eapply exec_expr_bitstring_access with (wn := length bits); eauto; lia.
-      - clear v Hev. intros v Hrn; inversion Hrn; subst; simpl.
-        (*rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.*)
-        (* Need result about [bitstring_slice]. *) admit. *)
-    Admitted.
+      - clear v Hev; intros v Hrn; inversion Hrn; subst; simpl.
+        solve_ex; split; auto.
+        rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
+        replace (hi - lo + 1)%N
+          with (N.of_nat (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
+        apply He' in He as (r & Hr & Hv); inversion Hr; subst; clear Hr; cbn in *.
+        inversion Hv; subst; cbn in *.
+        inversion Hsval; subst; clear Hsval.
+        apply bitstring_slice_length in Hlhw; lia.
+    Qed.
   
     Lemma list_sound : forall tag es dir,
         Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) es ->

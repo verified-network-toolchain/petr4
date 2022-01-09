@@ -269,16 +269,6 @@ Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
   | _ => None
   end.
 
-Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
-  let fix bitstring_slice' (bits: list A) (lo : nat) (hi : nat) (slice: list A) :=
-    match bits, lo, hi with
-    | _ ::tl, S lo', S hi' => bitstring_slice' tl lo' hi' slice
-    | hd::tl, O, S hi' => bitstring_slice' tl O hi' (hd::slice)
-    | hd::tl, O, O => hd::slice
-    | _, _, _ => slice
-    end
-  in List.rev (bitstring_slice' bits lo hi []).
-
 (* The following reads give unspecified values:
     1. reading a field from a header that is currently invalid.
     2. reading a field from a header that is currently valid, but the field has not been initialized

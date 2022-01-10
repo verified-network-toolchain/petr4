@@ -460,9 +460,58 @@ Definition instrumented_multiprotocol : result (Inline.t Info) :=
   let* imp := inline_multiprotocol in
   Inline.assert_headers_valid_before_use _ imp.
 
-(* Compute p4cub_multiprotocol. *)
-(* Compute instrumented_multiprotocol. *)
-(* Compute multiprotocol_test_case. *)
+Compute (ToP4cub.preprocess Info NoInfo MultiProtocol.prog).
+
+Compute (ToP4cub.translate_statement Info (ToP4cub.empty_declaration_context Info)
+(MkStatement NoInfo
+                    (StatVariable
+                       (TypStruct
+                          [({| P4String.tags := NoInfo; str := "hit" |}, TypBool); ({| P4String.tags := NoInfo; str := "miss" |}, TypBool);
+                          ({| P4String.tags := NoInfo; str := "action_run" |},
+                          TypEnum {| P4String.tags := NoInfo; str := "action_list_ethertype_match" |} None
+                            [{| P4String.tags := NoInfo; str := "l2_packet" |}; {| P4String.tags := NoInfo; str := "ipv4_packet" |};
+                            {| P4String.tags := NoInfo; str := "ipv6_packet" |}; {| P4String.tags := NoInfo; str := "mpls_packet" |};
+                            {| P4String.tags := NoInfo; str := "mim_packet" |}])]) {| P4String.tags := NoInfo; str := "t'0" |}
+                       (Some
+                          (MkExpression NoInfo
+                             (ExpFunctionCall
+                                (MkExpression NoInfo
+                                   (ExpExpressionMember
+                                      (MkExpression NoInfo (ExpName (BareName {| P4String.tags := NoInfo; str := "ethertype_match" |}) (LGlobal []))
+                                         (TypTable {| P4String.tags := NoInfo; str := "apply_result_ethertype_match" |}) Directionless) {| P4String.tags := NoInfo; str := "apply" |})
+                                   (TypFunction (MkFunctionType [] [] FunTable (TypTypeName {| P4String.tags := NoInfo; str := "apply_result_ethertype_match" |}))) Directionless) []
+                                [])
+                             (TypStruct
+                                [({| P4String.tags := NoInfo; str := "hit" |}, TypBool); ({| P4String.tags := NoInfo; str := "miss" |}, TypBool);
+                                ({| P4String.tags := NoInfo; str := "action_run" |},
+                                TypEnum {| P4String.tags := NoInfo; str := "action_list_ethertype_match" |} None
+                                  [{| P4String.tags := NoInfo; str := "l2_packet" |}; {| P4String.tags := NoInfo; str := "ipv4_packet" |};
+                                  {| P4String.tags := NoInfo; str := "ipv6_packet" |}; {| P4String.tags := NoInfo; str := "mpls_packet" |};
+                                  {| P4String.tags := NoInfo; str := "mim_packet" |}])]) Directionless)) (LGlobal [])) StmVoid)).
+Compute p4cub_multiprotocol.
+Compute instrumented_multiprotocol.
+Compute inline_multiprotocol.
+
+Compute (Inline.elaborate_structs Info
+                                  (Inline.IAssign Info
+                                                  (Inline.E.TStruct
+                                                     [("hit", Inline.E.TBool); ("miss", Inline.E.TBool);
+                                                     ("action_run", Inline.E.TBit 3)])
+                                                  (Inline.E.EVar
+                                                     (Inline.E.TStruct
+                                                        [("hit", Inline.E.TBool);
+                                                        ("miss", Inline.E.TBool);
+                                                        ("action_run", Inline.E.TBit 3)])
+                                                     "_return$ethertype_match" NoInfo)
+                                                  (Inline.E.EVar
+                                                     (Inline.E.TStruct
+                                                        [("hit", Inline.E.TBool);
+                                                        ("miss", Inline.E.TBool);
+                                                        ("action_run", Inline.E.TBit 3)]) "t'0" NoInfo)
+                                                  NoInfo)).
+
+Compute multiprotocol_test_case.
+
 
 Definition ethernet :=
   (Inline.E.EExprMember

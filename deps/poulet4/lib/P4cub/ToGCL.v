@@ -119,7 +119,8 @@ Section ToGCL.
     string_member v (c.(locals)).
 
   Definition scope_name (v : string) (idx : nat) : string :=
-    v ++ "__$__" ++ string_of_nat idx.
+    (* v ++ "__$__" ++ string_of_nat idx. *)
+    v.
 
 
   Definition relabel_for_scope (c : ctx) (v : string) : string :=

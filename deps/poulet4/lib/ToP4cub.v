@@ -716,7 +716,7 @@ Section ToP4cub.
     let* (params : F.fs string (paramarg E.t E.t)) := parameters_to_params tags parameters in
     apply_args_to_params callee params cub_args.
 
-  Definition translate_apply tags callee args : result (ST.s tags_t) :=
+  Definition translate_apply tags callee args ret_var ret_type : result (ST.s tags_t) :=
     let typ := get_type_of_expr callee in
     match typ with
     | TypControl (MkControlType type_params parameters) =>
@@ -726,7 +726,18 @@ Section ToP4cub.
       ST.SApply (P4String.str callee_name) [] paramargs tags
     | TypTable _ =>
       let+ callee_name := get_name callee in
-      ST.SInvoke (P4String.str callee_name) tags
+      let callee_string := P4String.str callee_name in
+      (* TODO make this an EExprMember *)
+      match ret_var, ret_type with
+      | Some rv, Some rt =>
+        let switch_expr := E.EVar rt rv tags in
+        let action_run_var := E.EVar rt ("_return$" ++ callee_string) tags in
+        ST.SSeq (ST.SInvoke callee_string tags)
+                (ST.SAssign switch_expr action_run_var tags) tags
+      | _, _ =>
+        ST.SInvoke callee_string tags
+
+      end
     | TypParser _ =>
       error "[FIXME] translate parser apply calls"
     | _ =>
@@ -786,10 +797,11 @@ Section ToP4cub.
              (ctx : DeclCtx)
              (callee : Expression)
              (ret_var : option string)
+             (ret_type : option E.t)
              (f : P4String.t tags_t) : result (ST.s tags_t) :=
     let f_str := P4String.str f in
     if f_str =? "apply" then
-      translate_apply tags callee args
+      translate_apply tags callee args ret_var ret_type
     else if f_str =? "setInvalid" then
       translate_set_validity tags false callee
     else if f_str =? "setValid" then
@@ -838,14 +850,14 @@ Section ToP4cub.
     let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
     ST.SFunCall (P4String.str fname) cub_type_params cub_ar tags.
 
-  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) : option (result (ST.s tags_t)) :=
+  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result (ST.s tags_t)) :=
     let '(MkExpression tags expr typ dir) := e in
     match expr with
     | ExpFunctionCall func type_args args =>
       let '(MkExpression tags func_pre typ dir) := func in
       match func_pre with
       | ExpExpressionMember callee f =>
-        Some (translate_expression_member_call args tags ctx callee (Some ret_var) f)
+        Some (translate_expression_member_call args tags ctx callee (Some ret_var) (Some ret_type) f)
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
@@ -919,7 +931,7 @@ Section ToP4cub.
       let '(MkExpression tags func_pre typ dir) := func in
       match func_pre with
       | ExpExpressionMember callee f =>
-        translate_expression_member_call args tags ctx callee None f
+        translate_expression_member_call args tags ctx callee None None f
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
@@ -982,7 +994,7 @@ Section ToP4cub.
       | None =>
         ok decl
       | Some e =>
-        match function_call_init ctx e vname with
+        match function_call_init ctx e vname t with
         | None =>  (** check whether e is a function call *)
           let+ cub_e := translate_expression e in
           let var := E.EVar t vname i in

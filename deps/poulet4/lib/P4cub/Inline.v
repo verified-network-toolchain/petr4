@@ -631,27 +631,36 @@ with inline (gas : nat)
     | ST.SExit i =>
       ok (IExit i)
 
-    | ST.SInvoke t i =>
-      let* tdecl := from_opt (find_table tags_t ctx t) "could not find table in environment" in
+    | ST.SInvoke tbl_name i =>
+      let* tdecl := from_opt (find_table tags_t ctx tbl_name) "could not find table in environment" in
       match tdecl with
       | CD.CDTable _ tbl _ =>
         let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
         let actions := Control.table_actions tbl in
-        let act_to_gcl := fun a =>
+        let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
+        let act_sizeN := BinNat.N.of_nat act_size in
+        let act_type := E.TBit act_sizeN in
+        let act_to_gcl := fun i a acc_res =>
+          let* acc := acc_res in
           let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
           match act with
-          | CD.CDAction _ params body _ =>
+          | CD.CDAction _ params body tags =>
             let* s := inline gas unroll ctx body in
-            let+ (s', _) := action_param_renamer t a (string_list_of_params params) s in
-            s'
+            let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
+            let set_action_run :=
+                IAssign act_type
+                          (E.EVar act_type "_return$ethertype_match.action_run" tags)
+                          (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
+            in
+            (ISeq set_action_run s' tags) :: acc
           | _ =>
             error "[ERROR] expecting action when `find`ing action, got something else"
           end
         in
-        let* acts := rred (List.map act_to_gcl actions) in
+        let* acts := fold_righti act_to_gcl (ok []) actions in
         let+ named_acts := zip actions acts in
-        let (assumes, keys') := normalize_keys t keys i in
-        let invocation := IInvoke t keys' named_acts i in
+        let (assumes, keys') := normalize_keys tbl_name keys i in
+        let invocation := IInvoke tbl_name keys' named_acts i in
         ISeq assumes invocation i
       | _ =>
         error "[ERROR] expecting table when getting table, got something else"
@@ -930,16 +939,16 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
   end
   | IConditional guard_type guard tru fls i =>
     (** TODO: elaborate headers in guard? *)
-    let* tru' := elaborate_headers tru in
-    let+ fls' := elaborate_headers fls in
+    let* tru' := elaborate_structs tru in
+    let+ fls' := elaborate_structs fls in
     IConditional guard_type guard tru' fls' i
   | ISeq s1 s2 i =>
-    let* s1' := elaborate_headers s1 in
-    let+ s2' := elaborate_headers s2 in
+    let* s1' := elaborate_structs s1 in
+    let+ s2' := elaborate_structs s2 in
     ISeq s1' s2' i
 
   | IBlock b =>
-    let+ b' := elaborate_headers b in
+    let+ b' := elaborate_structs b in
     IBlock b'
   | IReturnVoid _ => ok c
   | IReturnFruit _ _ _ => ok c
@@ -1098,6 +1107,7 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     if String.eqb method "extract" then ok c else
     let paramargs := paramargs args in
     let+ asserts := List.fold_left (fun acc_asserts '(param, arg)  =>
+
                    let* acc_asserts := acc_asserts in
                    let arg_exp := get_from_paramarg arg in
                    let+ new_asserts := header_asserts arg_exp tags in

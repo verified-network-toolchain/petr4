@@ -37,9 +37,9 @@ Section Interpreter.
     | ValBaseUnion fields
     | ValBaseHeader fields _ =>
       AList.get fields member
-    | ValBaseStack headers size next =>
+    | ValBaseStack headers next =>
       if string_dec member "size"
-      then Some (ValBaseBit (to_loptbool 32 (Z.of_N size)))
+      then Some (ValBaseBit (to_loptbool 32%N (Zlength headers)))
       else if string_dec member "lastIndex"
            then last_index_of_next next
            else None

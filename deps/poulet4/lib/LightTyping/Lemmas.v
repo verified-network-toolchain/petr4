@@ -1,14 +1,96 @@
 Require Export Poulet4.LightTyping.Typing.
 
+Ltac some_inv :=
+  match goal with
+  | H: Some _ = Some _ |- _ => inversion H; subst; clear H
+  end.
+
+Ltac match_some_inv :=
+  match goal with
+  | H: match ?trm with Some _ => _ | None => _ end = Some _
+    |- _ => destruct trm as [? |] eqn:? ; cbn in *;
+          try discriminate
+  end.
+
 Section Lemmas.
   Context {tags_t : Type}.
-
-  Local Hint Constructors predopt : core.
-  
   Notation typ := (@P4Type tags_t).
   Notation ident := string.
   Notation path := (list ident).
 
+  Create HintDb option_monad.
+  Local Hint Unfold option_ret : option_monad.
+  Local Hint Unfold option_bind : option_monad.
+  Local Hint Unfold option_monad : option_monad.
+  Local Hint Unfold option_monad_inst : option_monad.
+  Local Hint Constructors predopt : core.
+  Local Hint Constructors member_type : core.
+
+  Lemma get_real_member_type : forall (t r : typ) ts ge,
+      get_real_type ge t = Some r ->
+      member_type ts t ->
+      exists rs, member_type rs r.
+  Proof.
+    intros t r ts ge Hge Hmem.
+    inversion Hmem; subst; cbn in *;
+      autounfold with option_monad in *;
+      try match_some_inv; try some_inv;
+        try match goal with
+            | H: sequence _ = Some ?rs
+              |- exists _, _ => exists rs; auto
+            end.
+  Qed.
+
+  Local Hint Constructors get_member : core.
+
+  Lemma member_get_member_ex : forall x v ts (t t' : typ),
+      AList.get ts x = Some t'  ->
+      member_type ts t ->
+      ⊢ᵥ v \: t ->
+      exists v', get_member v (P4String.str x) v'.
+  Proof.
+    intros x v ts t t' Htsx Hmem Hvt.
+    inversion Hmem; subst; inversion Hvt; subst; cbn in *;
+      unfold AList.all_values, P4String.clear_AList_tags in *;
+      rewrite Forall2_conj in *;
+      match goal with
+      | H: Forall2 _ ?vs _ /\ Forall2 _ ?vs _
+        |- _ => destruct H as [H _];
+                enough (exists v', AList.get vs (P4String.str x) = Some v')
+                by firstorder eauto
+      end;
+      match goal with
+      | H: Forall2 _ ?vs _
+        |- _ =>
+        rewrite Forall2_map_both, Forall2_eq, map_fst_map in H;
+          apply AList.get_some_in_fst in Htsx as (x' & Hxx' & Hx');
+          apply in_map with (f := P4String.str) in Hx';
+          rewrite <- H in Hx';
+          destruct x as [ix x]; destruct x' as [ix' x']; cbn in *;
+            unfold Equivalence.equiv, P4String.equiv in Hxx'; cbn in *; subst;
+              apply AList.in_fst_get_some in Hx' as [v Hv]; eauto
+      end.  
+  Qed.
+
+  Local Hint Constructors val_typ : core.
+  
+  Lemma get_member_types : forall x ts (t t' : typ) v v',
+      member_type ts t ->
+      AList.get ts x = Some t' ->
+      get_member v (P4String.str x) v' ->
+      ⊢ᵥ v \: t ->
+      ⊢ᵥ v' \: t'.
+  Proof.
+    intros x ts t t' v v' Htst Htsx Hgm Hvt.
+    inversion Htst; subst; inversion Hvt; subst;
+      inversion Hgm; subst;
+        rewrite P4String.get_clear_AList_tags in Htsx;
+        match goal with
+        | H: AList.all_values _ _ _
+          |- _ => eapply AList.get_relate_values in H; eauto
+        end.
+  Qed.
+  
   Create HintDb ind_def.
   
   Definition
@@ -95,12 +177,6 @@ Section Lemmas.
   Qed.
 
   Local Hint Resolve list_ok_get_real_type_ex : core.
-
-  Create HintDb option_monad.
-  Local Hint Unfold option_ret : option_monad.
-  Local Hint Unfold option_bind : option_monad.
-  Local Hint Unfold option_monad : option_monad.
-  Local Hint Unfold option_monad_inst : option_monad.
   
   Lemma alist_ok_get_real_type_ex :
     forall Δ (ts : list (P4String.t tags_t * typ)),
@@ -342,18 +418,6 @@ Section Lemmas.
       delta_genv_prop_ok_func_nil_def
       delta_genv_prop_ok_param_nil_def.
 
-  Ltac some_inv :=
-    match goal with
-    | H: Some _ = Some _ |- _ => inversion H; subst; clear H
-    end.
-
-  Ltac match_some_inv :=
-    match goal with
-    | H: match ?trm with Some _ => _ | None => _ end = Some _
-      |- _ => destruct trm as [? |] eqn:? ; cbn in *;
-            try discriminate
-    end.
-
   Local Hint Constructors P4Type_ok : core.
   Local Hint Constructors ControlType_ok : core.
   Local Hint Constructors FunctionType_ok : core.
@@ -507,5 +571,16 @@ Section Lemmas.
       eapply delta_genv_prop_ok_param_nil_list in Hps;
         eauto using delta_genv_prop_removes.
       eapply IHt; eauto using delta_genv_prop_removes.
+  Qed.
+
+  Lemma member_type_get_real_type : forall ts rs (t r : typ) ge,
+      member_type ts t -> member_type rs r ->
+      get_real_type ge t = Some r ->
+      sequence (map (fun '(x,t) => get_real_type ge t >>| pair x) ts) = Some rs.
+  Proof.
+    intros ts rs t r ge Hts Hrs Htr;
+      inversion Hts; subst; inversion Hrs; subst;
+        cbn in *; autounfold with option_monad in *;
+          match_some_inv; some_inv; reflexivity.
   Qed.
 End Lemmas.

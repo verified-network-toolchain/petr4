@@ -1138,4 +1138,13 @@ Section Lemmas.
     - intros [iX X] [t |] [| [iM M] ms] H b;
         inversion H; subst; simpl in *; f_equal; eauto.
   Qed.
+
+  Local Hint Constructors member_type : core.
+  
+  Lemma member_type_normᵗ : forall ts (t : typ),
+      member_type ts t ->
+      member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t).
+  Proof.
+    intros ts t H; inversion H; subst; cbn; auto.
+  Qed.
 End Lemmas.

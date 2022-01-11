@@ -58,7 +58,24 @@ Proof.
   apply Coq.Strings.String.eqb_spec.
 Qed.
 
-Definition AList (tags_t V: Type) := AList.AList (t tags_t) V (@equiv tags_t).
+Section AList.
+  Variables tags_t V : Type.
 
-Definition clear_AList_tags {tags_t V : Type} : AList tags_t V -> AList.StringAList V :=
-  List.map (fun '(x, v) => (str x,v)).
+  Definition AList := AList.AList (t tags_t) V (@equiv tags_t).
+
+  Definition clear_AList_tags : AList -> AList.StringAList V :=
+    List.map (fun '(x, v) => (str x,v)).
+
+  Lemma get_clear_AList_tags : forall vs x,
+      AList.get vs x = AList.get (clear_AList_tags vs) (str x).
+  Proof.
+    unfold AList.get, clear_AList_tags;
+      intros vs [t x]; induction vs as [| [[i y] v] vs IHvs];
+        simpl in *; auto.
+    destruct (string_dec x y) as [Hxy | Hxy];
+      destruct (StrEqDec x y) as [Hxy' | Hxy'];
+      unfold "=/=", "===" in *; subst; try contradiction; auto.
+  Qed.
+End AList.
+
+Arguments clear_AList_tags {_} {_}.

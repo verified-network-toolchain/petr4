@@ -527,13 +527,16 @@ Section Soundness.
     Proof.
       soundtac.
     Qed.
-  
+
+    Local Hint Resolve member_get_member_ex : core.
+    Local Hint Resolve get_member_types : core.
+    
     Lemma other_member_sound : forall tag e x ts t dir,
-      member_type ts (typ_of_expr e) ->
-      AList.get ts x = Some t ->
-      Δ ~ Γ ⊢ₑ e ≀ this ->
-      Δ ~ Γ ⊢ₑ MkExpression
-        tag (ExpExpressionMember e x) t dir ≀ this.
+        member_type ts (typ_of_expr e) ->
+        AList.get ts x = Some t ->
+        Δ ~ Γ ⊢ₑ e ≀ this ->
+        Δ ~ Γ ⊢ₑ MkExpression
+          tag (ExpExpressionMember e x) t dir ≀ this.
     Proof.
       (* TODO: maybe need an [⊢ok] for all syntax forms of p4light...yikes!
          For now I may be able to get away with just these assumptions. *)
@@ -542,25 +545,25 @@ Section Soundness.
       assert (Htoeise : is_expr_typ (typ_of_expr e)) by admit.
       intros Tgt rob ge st Hdlta Hrob Hg Hok Hise Hgrt.
       pose proof He Tgt rob ge st Hdlta Hrob Hg Htoeok Htoeise Hgrt as [[v Hev] Hv].
-      assert (Hlem1: forall (t r : typ) ts,
-                 get_real_type ge t = Some r ->
-                 member_type ts t ->
-                 exists rs, member_type rs r) by admit.
-      assert (Hlem2 : forall ts (t : typ),
-                     member_type ts t ->
-                     member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t)) by admit.
       cbn in *; split.
-      - assert (Hget: exists v', @get_member tags_t v (P4String.str x) v').
+      - assert (Hget: exists v', get_member v (P4String.str x) v').
         { apply Hv in Hev as (r & Hr & Hvr).
-          pose proof Hlem1 _ _ _ Hr Hmem as [rs Hmemrs].
-          apply Hlem2 in Hmemrs.
-          assert (Hlem3 : forall x v ts (t t' : typ),
-                 AList.get ts x = Some t'  ->
-                 member_type ts t ->
-                 ⊢ᵥ v \: t ->
-                 exists v', @get_member tags_t v (P4String.str x) v') by admit.
-          assert (Hlem3' :
-                    exists r', AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r') by admit.
+          pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
+          (*assert (Hwah :
+                    sequence (map (fun '(x,t) => get_real_type ge t >>| pair x) ts)
+                    = Some rs) by admit.
+          rewrite <- Forall2_sequence_iff in Hwah.
+          unfold ">>|",">>=",
+          option_monad_inst,option_monad,
+          option_bind,option_ret,mret
+            in Hwah.*)
+          apply member_type_normᵗ in Hmemrs.
+          assert (Hlem3' : exists r',
+                     AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
+          { clear Hv Hdlta Hg Hgrt Hok Hrob st Hise v Hvr Htoeise Htoeok
+                  i Hmem He dir rob this Δ Γ.
+            remember (typ_of_expr e) as te eqn:Heqte; clear Heqte.
+            exists (normᵗ r). admit. }
           destruct Hlem3' as [r' Hr']; eauto. }
         destruct Hget as [v' Hv'].
         exists v'; eapply exec_expr_other_member; eauto.
@@ -568,14 +571,8 @@ Section Soundness.
         apply Hv in H7 as (r & Hr & Hvr).
         pose proof ok_get_real_type_ex _ _ Hok _ Hdlta as [r' Hr'].
         exists r'; split; auto.
-        assert (Hlem4 : forall x ts (t t' : typ) v v',
-                   member_type ts t ->
-                   AList.get ts x = Some t' ->
-                   @get_member tags_t v (P4String.str x) v' ->
-                   ⊢ᵥ v \: t ->
-                   ⊢ᵥ v' \: t') by admit.
-        pose proof Hlem1 _ _ _ Hr Hmem as [rs Hmemrs].
-        apply Hlem2 in Hmemrs.
+        pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
+        apply member_type_normᵗ in Hmemrs.
         assert (Hlem3' :
                   AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')) by admit.
         eauto.

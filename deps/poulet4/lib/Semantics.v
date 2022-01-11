@@ -20,18 +20,82 @@ Definition is_directional (dir : direction) : bool :=
   end.
 
 Section Semantics.
-  
-Context {tags_t: Type}.
 Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
-Notation ValSet := (@ValueSet tags_t).
-Notation Lval := (@ValueLvalue tags_t).
+
+Definition mem := PathMap.t Sval.
 
 Notation ident := string.
 Notation path := (list ident).
-Notation P4Int := (P4Int.t tags_t).
 
-Definition mem := PathMap.t Sval.
+Inductive inst_ref :=
+  | mk_inst_ref (class : string) (p : path).
+
+Definition genv_inst := PathMap.t inst_ref.
+Definition genv_const := PathMap.t Val.
+Definition genv_senum := IdentMap.t (StringAList Sval).
+
+Definition loc_to_path (this : path) (loc : Locator) : path :=
+  match loc with
+  | LGlobal p => p
+  | LInstance p => this ++ p
+  end.
+
+Definition get_loc_path (loc : Locator) : path :=
+  match loc with
+  | LGlobal p => p
+  | LInstance p => p
+  end.
+
+Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
+  match v with
+  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
+  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseInteger value => Some value
+  (* added in v1.2.2 *)
+  | ValBaseSenumField _ value => array_access_idx_to_z value
+  | _ => None
+  end.
+
+Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
+  match v with
+  | ValBaseInt bits
+  | ValBaseBit bits => Some (bits, List.length bits)
+  | _ => None
+  end.
+
+(* The following reads give unspecified values:
+    1. reading a field from a header that is currently invalid.
+    2. reading a field from a header that is currently valid, but the field has not been initialized
+       since the header was last made valid.
+  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
+  (including invalid members of header unions) contents must be undefined. For example, when setting
+  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
+  the fields should remain undefined. *)
+Variant get_member : Sval -> string -> Sval -> Prop :=
+  | get_member_struct : forall fields member v,
+                        AList.get fields member = Some v ->
+                        get_member (ValBaseStruct fields) member v
+  | get_member_union : forall fields member v,
+                       AList.get fields member = Some v ->
+                       get_member (ValBaseUnion fields) member v
+  | get_member_header : forall fields b member v,
+                        AList.get fields member = Some v ->
+                        get_member (ValBaseHeader fields b) member v
+  | get_member_stack_size : forall headers next,
+                            get_member (ValBaseStack headers next) "size"
+                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
+  | get_member_stack_last_index : forall headers next sv tags_t,
+                                  (if (next =? 0)%N
+                                    then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv
+                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
+                                  get_member (ValBaseStack headers next) "lastIndex" sv.
+
+Context {tags_t: Type}.
+
+Notation ValSet := (@ValueSet tags_t).
+Notation Lval := (@ValueLvalue tags_t).
+Notation P4Int := (P4Int.t tags_t).
 
 Variant fundef :=
   | FInternal
@@ -48,30 +112,12 @@ Variant fundef :=
       (name : ident)
       (* (params : list (ident * direction)) *).
 
-Inductive inst_ref :=
-  | mk_inst_ref (class : string) (p : path).
-
-Definition genv_inst := PathMap.t inst_ref.
-Definition genv_const := PathMap.t Val.
-
 Definition genv_func := PathMap.t fundef.
 Definition genv_typ := IdentMap.t (@P4Type tags_t).
-Definition genv_senum := IdentMap.t (StringAList Sval).
+
 
 Definition clear_list (p: list (@P4String.t tags_t)): list string :=
   map (@str tags_t) p.
-
-Definition loc_to_path (this : path) (loc : Locator) : path :=
-  match loc with
-  | LGlobal p => p
-  | LInstance p => this ++ p
-  end.
-
-Definition get_loc_path (loc : Locator) : path :=
-  match loc with
-  | LGlobal p => p
-  | LInstance p => p
-  end.
 
 Fixpoint
   get_real_type
@@ -251,50 +297,6 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, true) => ValBaseInt (to_lbool w (P4Int.value n))
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
-
-Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
-  match v with
-  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
-  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
-  | ValBaseInteger value => Some value
-  (* added in v1.2.2 *)
-  | ValBaseSenumField _ value => array_access_idx_to_z value
-  | _ => None
-  end.
-
-Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
-  match v with
-  | ValBaseInt bits
-  | ValBaseBit bits => Some (bits, List.length bits)
-  | _ => None
-  end.
-
-(* The following reads give unspecified values:
-    1. reading a field from a header that is currently invalid.
-    2. reading a field from a header that is currently valid, but the field has not been initialized
-       since the header was last made valid.
-  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
-  (including invalid members of header unions) contents must be undefined. For example, when setting
-  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
-  the fields should remain undefined. *)
-Inductive get_member : Sval -> string -> Sval -> Prop :=
-  | get_member_struct : forall fields member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseStruct fields) member v
-  | get_member_union : forall fields member v,
-                       AList.get fields member = Some v ->
-                       get_member (ValBaseUnion fields) member v
-  | get_member_header : forall fields b member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseHeader fields b) member v
-  | get_member_stack_size : forall headers next,
-                            get_member (ValBaseStack headers next) "size"
-                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
-  | get_member_stack_last_index : forall headers next sv,
-                                  (if (next =? 0)%N
-                                    then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv
-                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
-                                  get_member (ValBaseStack headers next) "lastIndex" sv.
 
 Context {target : @Target tags_t (@Expression tags_t)}.
 

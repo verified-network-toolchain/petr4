@@ -1,26 +1,19 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Coq.Program.Basics.
-Require Export Poulet4.P4cub.Syntax.AST.
-Require Export Poulet4.P4light.Semantics.P4Arith.
-Require Export Poulet4.Utils.Envn.
-Require Export Poulet4.P4cub.Semantics.Dynamic.BigStep.BigStep.
-Require Export Poulet4.Utils.Util.Result.
-Require Import Coq.Arith.EqNat.
+From Coq Require Import Program.Basics Arith.EqNat.
+From Poulet4 Require Export P4cub.Syntax.AST
+     P4light.Semantics.P4Arith Utils.Envn
+     P4cub.Semantics.Dynamic.BigStep.BigStep
+     Utils.Util.Result Utils.Util.StringUtil.
 Require Import String.
+Import Env.EnvNotations Result ResultNotations.
+
 Open Scope string_scope.
-
-Require Import Poulet4.Utils.Util.StringUtil.
-
-Import Env.EnvNotations.
-
-Import Result.
-Import ResultNotations.
 
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.
 Module E := Expr.
-Require Import Poulet4.P4cub.GCL.Inline.
+Require Import Poulet4.GCL.Inline.
 
 Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
 

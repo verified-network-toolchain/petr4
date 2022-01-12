@@ -1,9 +1,8 @@
-Require Import Poulet4.P4light.Syntax.P4defs.
-Require Import Poulet4.Utils.Util.Result.
-Require Import Poulet4.P4light.Transformations.ToP4cubTest.
-Require Poulet4.P4cub.GCL.GCL.
-Require Poulet4.P4cub.GCL.ToGCL.
-Import Result ResultNotations SimpleNat Syntax List ListNotations.
+Set Warnings "-custom-entry-overridden".
+From Poulet4 Require Import
+     P4light.Syntax.P4defs Utils.Util.Result
+     Compile.ToP4cubTest GCL.GCL GCL.ToGCL.
+Import Result ResultNotations Syntax List ListNotations.
 
 Module G := GCL.GCL.
 Module F := GCL.Form.

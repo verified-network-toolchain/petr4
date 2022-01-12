@@ -1,8 +1,7 @@
-Require Import Poulet4.P4light.Syntax.P4defs.
-Require Import Poulet4.Utils.Util.Result.
-Require Import Poulet4.Utils.Envn.
-Require Poulet4.P4cub.GCL.GCL.
-Require Poulet4.P4cub.GCL.ToGCL.
+Set Warnings "-custom-entry-overridden".
+From Poulet4 Require Import P4light.Syntax.P4defs
+     Utils.Util.Result Utils.Envn
+     GCL.GCL GCL.ToGCL.
 Import Result ResultNotations Syntax List ListNotations String.
 Open Scope string_scope.
 
@@ -13,7 +12,7 @@ Module E := GCL.E.
 Module ST := Stmt.
 
 Definition externs : ToGCL.model :=
-  [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9) 511));
+  [("_", [("mark_to_drop",  G.GAssign (E.TBit (BinNat.N.of_nat 9)) "standard_metadata.egress_spec" (BV.bit (Some 9%nat) 511));
          ("clone3", G.GSkip);
          ("assert", G.GAssert (F.LVar "check"))])
    ].

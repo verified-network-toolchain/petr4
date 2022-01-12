@@ -1,29 +1,15 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
-Require Export Poulet4.P4cub.Syntax.AST.
-Require Export Poulet4.P4light.Semantics.P4Arith.
-Require Export Poulet4.Utils.Envn.
-Require Export Poulet4.P4cub.Semantics.Dynamic.BigStep.BigStep.
-Require Export Poulet4.Utils.Util.Result.
+From Poulet4 Require Export P4cub.Syntax.AST
+     P4light.Semantics.P4Arith Utils.Envn
+     P4cub.Semantics.Dynamic.BigStep.BigStep
+     Utils.Util.Result.
+Require Import Coq.Arith.EqNat String.
+From Poulet4 Require Import GCL.GCL GCL.Inline Compile.ToP4cub.
+Import Env.EnvNotations Result ResultNotations.
+From Poulet4.Utils.Util Require Import ListUtil StringUtil.
 
-Require Import Coq.Arith.EqNat.
-Require Import String.
 Open Scope string_scope.
-
-Require Import Poulet4.P4cub.GCL.Inline.
-Require Import Poulet4.P4light.Transformations.ToP4cub.
-
-Import Env.EnvNotations.
-
-Import Result.
-Import ResultNotations.
-
-Import Poulet4.Utils.Util.ListUtil.
-Import Poulet4.Utils.Util.StringUtil.
-
-Require Import Poulet4.P4cub.GCL.GCL.
-
-
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.

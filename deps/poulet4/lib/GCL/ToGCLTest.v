@@ -1,21 +1,14 @@
-Require Import Poulet4.P4light.Syntax.P4defs.
-Require Import Poulet4.P4light.Syntax.Syntax.
-Require Import Poulet4.Utils.Util.Result.
-Require Import Poulet4.P4light.Transformations.ToP4cubTest.
-Require Import Poulet4.Utils.Envn.
+From Poulet4 Require Import P4light.Syntax.P4defs
+     P4light.Syntax.Syntax Utils.Util.Result
+     Compile.ToP4cubTest Utils.Envn
+     GCL.TableInstr GCL.V1model.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.InstUtil BigStep.BSPacket.
-Require Import Poulet4.P4cub.GCL.TableInstr.
-Require Import Poulet4.P4cub.GCL.V1model.
-Require Poulet4.P4cub.GCL.GCL.
-Require Poulet4.P4cub.GCL.ToGCL.
+From Poulet4 Require GCL.GCL GCL.ToGCL.
 Import Result ResultNotations Syntax List ListNotations.
 
-
 (* Import the Test programs *)
-Require Import Poulet4.P4light.Examples.SimpleNat.
-Require Import Poulet4.P4light.Examples.ECMP2.
-Require Import Poulet4.P4light.Examples.MultiProtocol.
+From Poulet4.P4light.Examples Require Import SimpleNat ECMP2 MultiProtocol.
 
 
 Module GCL := GCL.GCL.

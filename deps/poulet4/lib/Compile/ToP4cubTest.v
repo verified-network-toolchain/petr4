@@ -1,10 +1,7 @@
-Require Import Poulet4.P4light.Syntax.P4defs.
-Require Import Poulet4.P4light.Syntax.Syntax.
-Require Import Poulet4.P4light.Examples.SimpleNat.
-Require Import Poulet4.P4light.Examples.ECMP2.
-Require Import Poulet4.P4light.Examples.MultiProtocol.
-Require Import Poulet4.Utils.Util.Result.
-Require Import Poulet4.P4light.Transformations.ToP4cub.
+From Poulet4 Require Import P4light.Syntax.P4defs
+     P4light.Syntax.Syntax P4light.Examples.SimpleNat
+     P4light.Examples.ECMP2 P4light.Examples.MultiProtocol
+     Utils.Util.Result Compile.ToP4cub.
 
 Import Result Syntax List ListNotations.
 

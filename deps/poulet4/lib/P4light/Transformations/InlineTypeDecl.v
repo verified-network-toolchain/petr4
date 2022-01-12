@@ -129,7 +129,7 @@ sub_typs_ExpressionPreT {tags_t}
     | ExpList es                 => ExpList (lmap (σ †e) es)
     | ExpRecord es               => ExpRecord (almap (σ †e) es)
     | ExpUnaryOp op e            => ExpUnaryOp op (σ †e e)
-    | ExpBinaryOp op (e₁,e₂)     => ExpBinaryOp op (σ †e e₁, σ †e e₂)
+    | ExpBinaryOp op e₁ e₂       => ExpBinaryOp op (σ †e e₁) (σ †e e₂)
     | ExpCast τ e                => ExpCast (σ †t τ) (σ †e e)
     | ExpExpressionMember e x    => ExpExpressionMember (σ †e e) x
     | ExpTernary e₁ e₂ e₃        => ExpTernary (σ †e e₁) (σ †e e₂) (σ †e e₃)

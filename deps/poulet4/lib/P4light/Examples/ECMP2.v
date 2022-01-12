@@ -1243,7 +1243,7 @@ Definition ingress := DeclControl NoInfo
                                         Directionless)
                                    (MkExpression NoInfo
                                         (ExpBinaryOp Plus
-                                             ( (MkExpression NoInfo
+                                                     (MkExpression NoInfo
                                                     (ExpExpressionMember
                                                          (MkExpression NoInfo
                                                               (ExpExpressionMember
@@ -1328,7 +1328,7 @@ Definition ingress := DeclControl NoInfo
                                                          {| stags := NoInfo;
                                                             str := "ttl" |})
                                                     (TypBit 8%N)
-                                                    Directionless),
+                                                    Directionless)
                                                (MkExpression NoInfo
                                                     (ExpInt
                                                      {| itags := NoInfo;
@@ -1336,7 +1336,7 @@ Definition ingress := DeclControl NoInfo
                                                         width_signed := (
                                                         Some ( 8%N, false )) |})
                                                     (TypBit 8%N)
-                                                    Directionless) ))
+                                                    Directionless))
                                         (TypBit 8%N) Directionless)) StmUnit)
                          (BlockEmpty NoInfo)))));
      (DeclAction NoInfo {| stags := NoInfo; str := "set_dmac" |} nil
@@ -1686,7 +1686,7 @@ Definition ingress := DeclControl NoInfo
               (StatConditional
                    (MkExpression NoInfo
                         (ExpBinaryOp And
-                             ( (MkExpression NoInfo
+                                     (MkExpression NoInfo
                                     (ExpFunctionCall
                                          (MkExpression NoInfo
                                               (ExpExpressionMember
@@ -1751,10 +1751,10 @@ Definition ingress := DeclControl NoInfo
                                                (MkFunctionType nil nil
                                                     FunBuiltin TypBool))
                                               Directionless) nil nil) 
-                                    TypBool Directionless),
+                                    TypBool Directionless)
                                (MkExpression NoInfo
                                     (ExpBinaryOp Gt
-                                         ( (MkExpression NoInfo
+                                                 (MkExpression NoInfo
                                                 (ExpExpressionMember
                                                      (MkExpression NoInfo
                                                           (ExpExpressionMember
@@ -1816,15 +1816,15 @@ Definition ingress := DeclControl NoInfo
                                                           Directionless)
                                                      {| stags := NoInfo;
                                                         str := "ttl" |})
-                                                (TypBit 8%N) Directionless),
+                                                (TypBit 8%N) Directionless)
                                            (MkExpression NoInfo
                                                 (ExpInt
                                                  {| itags := NoInfo;
                                                     value := 0;
                                                     width_signed := (
                                                     Some ( 8%N, false )) |})
-                                                (TypBit 8%N) Directionless) ))
-                                    TypBool Directionless) )) TypBool
+                                                (TypBit 8%N) Directionless) )
+                                    TypBool Directionless)) TypBool
                         Directionless)
                    (MkStatement NoInfo
                         (StatBlock

@@ -132,10 +132,10 @@ Section Transformer.
     | ExpUnaryOp op arg =>
       let arg' := transform_expr e arg in
       MkExpression tags (ExpUnaryOp op arg') typ dir
-    | ExpBinaryOp op (arg1, arg2) =>
+    | ExpBinaryOp op arg1 arg2 =>
       let arg1' := transform_expr e arg1 in
       let arg2' := transform_expr e arg2 in
-      MkExpression tags (ExpBinaryOp op (arg1', arg2')) typ dir
+      MkExpression tags (ExpBinaryOp op arg1' arg2') typ dir
     | ExpCast typ' expr =>
       let expr' := transform_expr e expr in
       MkExpression tags (ExpCast typ' expr') typ dir

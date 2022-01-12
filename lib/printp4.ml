@@ -285,11 +285,11 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
       fprintf p "@[<h>(%a %a)@]"
           print_op_uni op_uni
           print_expr expr
-  | ExpBinaryOp (op_bin, expr_pair) ->
+  | ExpBinaryOp (op_bin, e1, e2) ->
       fprintf p "@[<h>(%a %a %a)@]"
-          print_expr (fst expr_pair)
+          print_expr e1
           print_op_bin op_bin
-          print_expr (snd expr_pair)
+          print_expr e2
   | ExpCast (typ, expr) ->
       if printable_type typ
       then fprintf p "@[<h>(%a)%a@]" 

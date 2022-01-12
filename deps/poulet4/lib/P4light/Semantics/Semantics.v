@@ -421,7 +421,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                           Ops.eval_binary_op op largv rargv = Some v ->
                           val_to_sval v sv ->
                           exec_expr read_one_bit this st
-                          (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
+                          (MkExpression tag (ExpBinaryOp op larg rarg) typ dir)
                           sv
   | exec_expr_cast : forall newtyp expr oldsv oldv newv newsv this st tag typ dir real_typ,
   (* We assume that get_real_type (ge_typ ge) contains the real type corresponding to a
@@ -500,7 +500,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
               | Some argv => Ops.eval_unary_op op argv
               | None => None
               end
-          | ExpBinaryOp op (larg, rarg) =>
+          | ExpBinaryOp op larg rarg =>
               match eval_expr_gen hook larg, eval_expr_gen hook rarg with
               | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
               | _, _ => None

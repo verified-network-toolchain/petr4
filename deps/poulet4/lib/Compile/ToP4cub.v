@@ -568,7 +568,7 @@ Section ToP4cub.
       let* typ := translate_exp_type i (get_type_of_expr arg) in
       let+ earg := translate_expression arg in
       E.EUop typ eop earg i
-    | ExpBinaryOp op (e1,e2) =>
+    | ExpBinaryOp op e1 e2 =>
       let* typ' := translate_exp_type i typ in
       let* e1' := translate_expression e1 in
       let* e2' := translate_expression e2 in

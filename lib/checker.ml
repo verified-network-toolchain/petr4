@@ -253,7 +253,7 @@ and compile_time_eval_expr (env: Checker_env.t) (expr: P4light.coq_Expression) :
         Some (Ops.interp_unary_op op arg)
       | None -> None
     end
-  | ExpBinaryOp (op, (l, r)) ->
+  | ExpBinaryOp (op, l, r) ->
     begin match compile_time_eval_expr env l,
                 compile_time_eval_expr env r with
     | Some l, Some r ->
@@ -1827,7 +1827,7 @@ and check_binary_op env info (op_info, op) typed_l typed_r: P4light.coq_Expressi
         | _ -> failwith "Bad right hand argument to shift."
       end
   in
-  ExpBinaryOp (binop_to_coq_binop op, (typed_l, typed_r)), typ, dir
+  ExpBinaryOp (binop_to_coq_binop op, typed_l, typed_r), typ, dir
 
 (* See section 8.9.2 "Explicit casts" *)
 and cast_ok ?(explicit = false) env original_type new_type =
@@ -3388,8 +3388,8 @@ and expr_eq env (expr1: P4light.coq_Expression) (expr2: P4light.coq_Expression) 
   | ExpUnaryOp (o1, e1),
     ExpUnaryOp (o2, e2)
     -> o1 = o2 && expr_eq env e1 e2
-  | ExpBinaryOp (b1, (l1, r1)),
-    ExpBinaryOp (b2, (l2, r2))
+  | ExpBinaryOp (b1, l1, r1),
+    ExpBinaryOp (b2, l2, r2)
     -> b1 = b2 && expr_eq env l1 l2 && expr_eq env r1 r2
   | ExpCast (t1, e1), ExpCast (t2, e2)
     -> type_equality env [] t1 t2 && expr_eq env e1 e2

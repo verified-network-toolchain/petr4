@@ -97,10 +97,10 @@ Section Transformer.
     | ExpUnaryOp op arg =>
       let '(l1, e1, n1) := transform_exp nameIdx arg in
       (l1, MkExpression tag (ExpUnaryOp op e1) typ dir, n1)
-    | ExpBinaryOp op (arg1, arg2) =>
+    | ExpBinaryOp op arg1 arg2 =>
       let '(l1, e1, n1) := transform_exp nameIdx arg1 in
       let '(l2, e2, n2) := transform_exp n1 arg2 in
-      (l1 ++ l2, MkExpression tag (ExpBinaryOp op (e1, e2)) typ dir, n2)
+      (l1 ++ l2, MkExpression tag (ExpBinaryOp op e1 e2) typ dir, n2)
     | ExpCast typ' expr =>
       let '(l1, e1, n1) := transform_exp nameIdx expr in
       (l1, MkExpression tag (ExpCast typ' e1) typ dir, n1)

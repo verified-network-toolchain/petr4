@@ -68,7 +68,7 @@ Section Syntax.
   | ExpList (value: list Expression)
   | ExpRecord (entries: P4String.AList tags_t Expression)
   | ExpUnaryOp (op: OpUni) (arg: Expression)
-  | ExpBinaryOp (op: OpBin) (args: (Expression * Expression))
+  | ExpBinaryOp (op: OpBin) (arg1: Expression) (arg2: Expression)
   | ExpCast (typ: @P4Type tags_t) (expr: Expression)
   | ExpTypeMember (typ: P4String) (name: P4String)
   | ExpErrorMember (_: P4String)

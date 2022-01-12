@@ -1,5 +1,5 @@
 From Poulet4 Require Import P4light.Syntax.P4defs
-     P4light.Syntax.Syntax Utils.Util.Result
+     P4light.Syntax.Syntax Monads.Result
      Compile.ToP4cubTest Utils.Envn
      GCL.TableInstr GCL.V1model.
 From Poulet4.P4cub.Semantics.Dynamic Require Import

@@ -1,6 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 From Poulet4 Require Import
-     P4light.Syntax.P4defs Utils.Util.Result
+     P4light.Syntax.P4defs Monads.Result
      Compile.ToP4cubTest GCL.GCL GCL.ToGCL.
 Import Result ResultNotations Syntax List ListNotations.
 

@@ -1,15 +1,15 @@
 Set Warnings "-custom-entry-overridden".
-Require Export Poulet4.P4light.Syntax.Syntax.
-Require Import Poulet4.P4light.Transformations.SimplExpr.
-Require Import Poulet4.Utils.Util.ListUtil.
-Require Export
-        Poulet4.P4cub.Syntax.Syntax
-        Poulet4.P4cub.Syntax.Substitution
-        Poulet4.P4cub.Syntax.InferMemberTypes
-        Poulet4.Utils.Util.Result
-        Poulet4.P4cub.Semantics.Dynamic.BigStep.InstUtil.
-Import AST Result Envn.
-Import ResultNotations.
+From Poulet4 Require Import
+     P4light.Transformations.SimplExpr
+     Utils.Util.ListUtil.
+From Poulet4 Require Export
+     P4light.Syntax.Syntax
+     P4cub.Syntax.Syntax
+     P4cub.Syntax.Substitution
+     P4cub.Syntax.InferMemberTypes
+     Monads.Result
+     P4cub.Semantics.Dynamic.BigStep.InstUtil.
+Import AST Result Envn ResultNotations.
 
 Require Import String.
 Open Scope string_scope.

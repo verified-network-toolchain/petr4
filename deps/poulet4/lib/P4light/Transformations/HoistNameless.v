@@ -1,10 +1,9 @@
-Require Import Poulet4.P4light.Syntax.Syntax.
-Require Import Poulet4.P4light.Transformations.SimplExpr.
-Require Export
-        Poulet4.P4cub.Syntax.Syntax
-        Poulet4.Utils.Util.Result
-        Poulet4.Utils.Util.StringUtil
-        Poulet4.P4cub.Semantics.Dynamic.BigStep.InstUtil.
+From Poulet4 Require Import
+     P4light.Syntax.Syntax P4light.Transformations.SimplExpr.
+From Poulet4 Require Export
+     P4cub.Syntax.Syntax Monads.Result
+     Utils.Util.StringUtil
+     P4cub.Semantics.Dynamic.BigStep.InstUtil.
 
 Import StringUtil.
 

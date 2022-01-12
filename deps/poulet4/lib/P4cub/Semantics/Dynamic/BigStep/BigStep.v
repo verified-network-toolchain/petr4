@@ -5,4 +5,5 @@ From Poulet4.P4cub.Semantics.Dynamic Require Export
      BigStep.ValEnvUtil BigStep.BSPacket
      BigStep.InstUtil BigStep.Semantics
      BigStep.IndPrincip BigStep.Determinism
-     BigStep.TypeSoundness BigStep.Typing.
+     BigStep.TypeSoundness BigStep.Typing
+     BigStep.Properties.

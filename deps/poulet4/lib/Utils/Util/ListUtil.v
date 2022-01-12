@@ -1,6 +1,5 @@
-Require Export Poulet4.Utils.Util.FunUtil
-        Coq.Lists.List.
-Require Import Coq.micromega.Lia.
+From Coq Require Export Lists.List micromega.Lia.
+From Poulet4 Require Export Utils.Util.FunUtil Monads.Result.
 Export ListNotations.
 
 (** * List Tactics *)
@@ -182,9 +181,6 @@ Section FoldLeftProp.
   (**[]*)
 End FoldLeftProp.
 
-Require Import Poulet4.Utils.Util.Result.
-Import Result.
-Import ResultNotations.
 Import String.
 
 Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
@@ -192,17 +188,6 @@ Definition opt_snd { A B : Type } (p : A * option B ) : option (A * B) :=
   | (_, None) => None
   | (a, Some b) => Some (a,b)
   end.
-
-Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
-  match p with
-  | (_, Error _ s) => error s
-  | (a, Ok _ b) => ok (a, b)
-  end.
-
-Definition snd_res_map {A B C : Type} (f : B -> result C) (p : A * B) : result (A * C) :=
-  let (x,y) := p in
-  let+ z := f y in
-  (x, z).
 
 Fixpoint string_member (x : string) (l1 : list string) : bool :=
   match l1 with
@@ -220,6 +205,8 @@ Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
   | [], _ => false
   | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
   end.
+
+Import Result ResultNotations.
 
 Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
   match xs, ys with

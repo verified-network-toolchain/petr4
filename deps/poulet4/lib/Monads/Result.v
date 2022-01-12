@@ -1,6 +1,4 @@
-Require Import Poulet4.Monads.Monad.
-Require Import String.
-Require Import List.
+Require Import Poulet4.Monads.Monad String List.
 
 Module Result.
   Inductive result (A : Type) : Type :=
@@ -67,6 +65,17 @@ Module Result.
     | _ => ok nil
     end.
 
+  Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
+    match p with
+    | (_, Error _ s) => error s
+    | (a, Ok _ b) => ok (a, b)
+    end.
+
+  Definition
+    snd_res_map {A B C : Type}
+    (f : B -> result C) '((x,y) : A * B) : result (A * C) :=
+    map (pair x) (f y).
+  
   Module ResultNotations.
     Notation "'let+' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
                                               (at level 61, p as pattern, c1 at next level, right associativity).

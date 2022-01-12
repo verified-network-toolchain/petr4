@@ -3,7 +3,7 @@ From Coq Require Import Program.Basics Arith.EqNat.
 From Poulet4 Require Export P4cub.Syntax.AST
      P4light.Semantics.P4Arith Utils.Envn
      P4cub.Semantics.Dynamic.BigStep.BigStep
-     Utils.Util.Result Utils.Util.StringUtil.
+     Monads.Result Utils.Util.StringUtil.
 Require Import String.
 Import Env.EnvNotations Result ResultNotations.
 

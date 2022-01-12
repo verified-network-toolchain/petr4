@@ -174,13 +174,13 @@ Section TypingDefs.
     | ExpName _ (LGlobal p) =>
       option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
     | ExpName _ (LInstance p) =>
-      let* '(mk_inst_ref class _) := PathMap.get this gi in
+      let* '{|iclass:=class|} := PathMap.get this gi in
       let^ ft := PathMap.get (class :: p) gf in (None,ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LInstance p)) _ _) x
-      => let* '(mk_inst_ref class inst_path) := PathMap.get (this ++ p) gi in
+      => let* '{|iclass:=class; ipath:=inst_path|} := PathMap.get (this ++ p) gi in
         let^ ft := PathMap.get [class; P4String.str x] gf in (Some inst_path, ft)
     | ExpExpressionMember (MkExpression _ (ExpName _ (LGlobal p)) _ _) x
-      => let* '(mk_inst_ref class inst_path) := PathMap.get p gi in
+      => let* '{|iclass:=class; ipath:=inst_path|} := PathMap.get p gi in
         let^ ft := PathMap.get [class; P4String.str x] gf in (Some inst_path, ft)
     | _ => None
     end.

@@ -28,8 +28,8 @@ Definition mem := PathMap.t Sval.
 Notation ident := string.
 Notation path := (list ident).
 
-Inductive inst_ref :=
-  | mk_inst_ref (class : string) (p : path).
+Record inst_ref : Set :=
+  { iclass:ident; ipath:path }.
 
 Definition genv_inst := PathMap.t inst_ref.
 Definition genv_const := PathMap.t Val.
@@ -827,6 +827,7 @@ Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 (* Look up function definition (fundef) and the path on which the function should be executed.
   Return None if failed.
   Return Some (None, fd) if the function should be executed on the current path. *)
+
 Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
@@ -838,7 +839,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
           match PathMap.get this_path ge_inst with
-          | Some (mk_inst_ref class_name _) =>
+          | Some {| iclass:=class_name; |} =>
               option_map (fun fd => (None, fd)) (PathMap.get (class_name :: p) ge_func)
           | _ => None
           end
@@ -850,7 +851,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
           match loc with
           | LGlobal p =>
               match PathMap.get p ge_inst with
-              | Some (mk_inst_ref class_name inst_path) =>
+              | Some {|iclass:=class_name; ipath:=inst_path|} =>
                   match PathMap.get [class_name; str name] ge_func with
                   | Some fd => Some (Some inst_path, fd)
                   | None => None
@@ -859,7 +860,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
               end
           | LInstance p =>
               match PathMap.get (this_path ++ p) ge_inst with
-              | Some (mk_inst_ref class_name inst_path) =>
+              | Some {|iclass:=class_name; ipath:=inst_path|} =>
                   match PathMap.get [class_name; str name] ge_func with
                   | Some fd => Some (Some inst_path, fd)
                   | None => None
@@ -1651,7 +1652,7 @@ Variable instantiate_expr' : forall (ce : cenv) (e : ienv) (expr : @Expression t
 
 Definition ienv_val_to_sumtype (val : ienv_val) :=
   match val with
-  | inl (mk_inst_ref _ p) => inl p
+  | inl {| ipath:=p |} => inl p
   | inr val => inr val
   end.
 
@@ -1674,14 +1675,14 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := map_fst (map_fst (PathMap.set p (mk_inst_ref class_name p))) m in
+    let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
     let type_params := get_type_params typ in
     let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
-    (inl (mk_inst_ref class_name p), (fst m, ee), s)
+    (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
   else
     let e := IdentMap.sets params args e in
     let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
-    (inl (mk_inst_ref class_name p), m, s).
+    (inl {|iclass:=class_name; ipath:=p|}, m, s).
 
 End instantiate_expr'.
 
@@ -1778,7 +1779,8 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
-Definition packet_in_instance : ienv_val := (inl (mk_inst_ref "packet_in" ["packet_in"])).
+Definition packet_in_instance : ienv_val :=
+  inl {|iclass:="packet_in"; ipath:=["packet_in"]|}.
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1790,7 +1792,8 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
       end
   end.
 
-Definition packet_out_instance : ienv_val := (inl (mk_inst_ref "packet_out" ["packet_out"])).
+Definition packet_out_instance : ienv_val :=
+  inl {|iclass:="packet_out"; ipath:=["packet_out"]|}.
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1820,13 +1823,13 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ concat (map get_direct_applications_ps states) in
         let (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
         (p, m, s)
     | DeclControl _ class_name' _ params _ locals apply =>
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ get_direct_applications_blk apply in
         let (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
         (p, m, s)
     | _ => (p, m, s) (* impossible *)
     end

@@ -8,42 +8,32 @@ Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
 Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
 Require Import Poulet4.P4Notations.
+From Poulet4.Monads Require Import Monad Option.
 Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 
-Section Semantics.
+Definition is_directional (dir : direction) : bool :=
+  match dir with
+  | Directionless => false
+  | _ => true
+  end.
 
-Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+Section Semantics.
 Notation Val := (@ValueBase bool).
 Notation Sval := (@ValueBase (option bool)).
-Notation ValSet := (@ValueSet tags_t).
-Notation Lval := (@ValueLvalue tags_t).
-
-Notation ident := string.
-Notation path := (list ident).
-Notation P4Int := (P4Int.t tags_t).
-
-Context {target : @Target tags_t (@Expression tags_t)}.
 
 Definition mem := PathMap.t Sval.
 
-Definition state : Type := mem * extern_state.
+Notation ident := string.
+Notation path := (list ident).
 
-Definition set_memory m (s : state) : state :=
-  let (_, es) := s in (m, es).
+Record inst_ref : Set :=
+  { iclass:ident; ipath:path }.
 
-Definition update_memory (f : mem -> mem) (s : state) : state :=
-  let (m, es) := s in (f m, es).
-
-Definition get_memory (s : state) : mem :=
-  let (m, _) := s in m.
-
-Definition get_external_state (s : state) :=
-  let (_, es) := s in es.
-
-Definition clear_list (p: list (@P4String.t tags_t)): list string :=
-  map (@str tags_t) p.
+Definition genv_inst := PathMap.t inst_ref.
+Definition genv_const := PathMap.t Val.
+Definition genv_senum := IdentMap.t (StringAList Sval).
 
 Definition loc_to_path (this : path) (loc : Locator) : path :=
   match loc with
@@ -56,6 +46,56 @@ Definition get_loc_path (loc : Locator) : path :=
   | LGlobal p => p
   | LInstance p => p
   end.
+
+Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
+  match v with
+  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
+  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseInteger value => Some value
+  (* added in v1.2.2 *)
+  | ValBaseSenumField _ value => array_access_idx_to_z value
+  | _ => None
+  end.
+
+Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
+  match v with
+  | ValBaseInt bits
+  | ValBaseBit bits => Some (bits, List.length bits)
+  | _ => None
+  end.
+
+(* The following reads give unspecified values:
+    1. reading a field from a header that is currently invalid.
+    2. reading a field from a header that is currently valid, but the field has not been initialized
+       since the header was last made valid.
+  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
+  (including invalid members of header unions) contents must be undefined. For example, when setting
+  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
+  the fields should remain undefined. *)
+Variant get_member : Sval -> string -> Sval -> Prop :=
+  | get_member_struct : forall fields member v,
+                        AList.get fields member = Some v ->
+                        get_member (ValBaseStruct fields) member v
+  | get_member_union : forall fields member v,
+                       AList.get fields member = Some v ->
+                       get_member (ValBaseUnion fields) member v
+  | get_member_header : forall fields b member v,
+                        AList.get fields member = Some v ->
+                        get_member (ValBaseHeader fields b) member v
+  | get_member_stack_size : forall headers next,
+                            get_member (ValBaseStack headers next) "size"
+                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
+  | get_member_stack_last_index : forall headers next sv tags_t,
+                                  (if (next =? 0)%N
+                                    then uninit_sval_of_typ None (@TypBit tags_t 32%N) = Some sv
+                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
+                                  get_member (ValBaseStack headers next) "lastIndex" sv.
+
+Context {tags_t: Type}.
+
+Notation ValSet := (@ValueSet tags_t).
+Notation Lval := (@ValueLvalue tags_t).
+Notation P4Int := (P4Int.t tags_t).
 
 Variant fundef :=
   | FInternal
@@ -74,171 +114,82 @@ Variant fundef :=
 
 Definition genv_func := PathMap.t fundef.
 Definition genv_typ := IdentMap.t (@P4Type tags_t).
-Definition genv_senum := IdentMap.t (StringAList Sval).
 
-Inductive inst_ref :=
-  | mk_inst_ref (class : string) (p : path).
 
-Definition genv_inst := PathMap.t inst_ref.
-Definition genv_const := PathMap.t Val.
+Definition clear_list (p: list (@P4String.t tags_t)): list string :=
+  map (@str tags_t) p.
 
-Record genv := MkGenv {
-  ge_func :> genv_func;
-  ge_typ :> genv_typ;
-  ge_senum :> genv_senum;
-  ge_inst :> genv_inst;
-  ge_const :> genv_const;
-  ge_ext :> extern_env
-}.
-
-Section WithGenv.
-
-Variable ge : genv.
-
-Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
-  let fix get_real_types (typs: list (@P4Type tags_t)):
-    option (list (@P4Type tags_t)) :=
-    match typs with
-    | [] => Some []
-    | a :: rest => match get_real_type a with
-                   | None => None
-                   | Some reala => match get_real_types rest with
-                                   | Some realrest => Some (reala :: realrest)
-                                   | None => None
-                                   end
-                   end
-    end in
-  let fix get_real_alist (fields: P4String.AList tags_t P4Type):
-    option (P4String.AList tags_t P4Type) :=
-    match fields with
-    | [] => Some []
-    | (a, t) :: rest =>
-        match get_real_type t with
-        | None => None
-        | Some realt => match get_real_alist rest with
-                        | Some realrest => Some ((a, realt) :: realrest)
-                        | None => None
-                        end
-        end
-    end in
-  let get_real_param (param: P4Parameter): option P4Parameter :=
-    match param with
-    | MkParameter opt dir typ argid var =>
-        match get_real_type typ with
-        | Some realt => Some (MkParameter opt dir realt argid var)
-        | None => None
-        end
-    end in
-  let fix get_real_params (params: list P4Parameter) : option (list P4Parameter) :=
-    match params with
-    | [] => Some []
-    | p :: rest => match get_real_param p with
-                   | Some realp => match get_real_params rest with
-                                   | Some realrest => Some (realp :: realrest)
-                                   | None => None
-                                   end
-                   | None => None
-                   end
-    end in
-  let get_real_ctrl (ctrl: ControlType): option ControlType :=
-    match ctrl with
-    | MkControlType type_params params =>
-        match get_real_params params with
-        | Some realps => Some (MkControlType type_params realps)
-        | None => None
-        end
-    end in
-  let get_real_func (fn: FunctionType): option FunctionType :=
-    match fn with
-    | MkFunctionType type_params params kind ret =>
-        match get_real_type ret with
-        | None => None
-        | Some realret => match get_real_params params with
-                          | Some realps => Some (MkFunctionType type_params realps kind realret)
-                          | None => None
-                          end
-        end
-    end in
+Fixpoint
+  get_real_type
+  (get : genv_typ) (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   match typ with
-  | TypTypeName name => IdentMap.get (str name) (ge_typ ge)
-  | TypArray atyp size => match get_real_type atyp with
-                          | Some realtyp => Some (TypArray atyp size)
-                          | None => None
-                          end
-  | TypTuple types => match get_real_types types with
-                      | Some realtypes => Some (TypTuple realtypes)
-                      | None => None
-                      end
-  | TypList types => match get_real_types types with
-                      | Some realtypes => Some (TypList realtypes)
-                      | None => None
-                     end
-  | TypRecord fields => match get_real_alist fields with
-                        | Some realfs => Some (TypRecord realfs)
-                        | None => None
-                        end
-  | TypSet elt_type => match get_real_type elt_type with
-                       | Some realt => Some (TypSet realt)
-                       | None => None
-                       end
-  | TypHeader fields => match get_real_alist fields with
-                        | Some realfs => Some (TypHeader realfs)
-                        | None => None
-                        end
-  | TypHeaderUnion fields => match get_real_alist fields with
-                             | Some realfs => Some (TypHeaderUnion realfs)
-                             | None => None
-                             end
-  | TypStruct fields => match get_real_alist fields with
-                        | Some realfs => Some (TypStruct realfs)
-                        | None => None
-                        end
-  | TypEnum name (Some atyp) members => match get_real_type atyp with
-                                        | Some realt => Some (TypEnum name (Some realt) members)
-                                        | None => None
-                                        end
-  | TypNewType _ atyp => get_real_type atyp
-  | TypControl ctrl => match get_real_ctrl ctrl with
-                       | Some realcs => Some (TypControl realcs)
-                       | None => None
-                       end
-  | TypParser ctrl => match get_real_ctrl ctrl with
-                      | Some realcs => Some (TypParser realcs)
-                      | None => None
-                      end
-  | TypFunction fn => match get_real_func fn with
-                      | Some realfn => Some (TypFunction realfn)
-                      | None => None
-                      end
+  | TypTypeName name => IdentMap.get (str name) get
+  | TypArray atyp size =>
+    let^ realtyp := get_real_type get atyp in TypArray realtyp size
+  | TypTuple types =>
+    sequence (List.map (get_real_type get) types) >>| TypTuple
+  | TypList types =>
+    sequence (List.map (get_real_type get) types) >>| TypList
+  | TypRecord fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypRecord
+  | TypSet elt_type => get_real_type get elt_type >>| TypSet
+  | TypHeader fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypHeader
+  | TypHeaderUnion fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypHeaderUnion
+  | TypStruct fields =>
+    sequence
+      (List.map
+         (fun '(a,t) => get_real_type get t >>| pair a)
+         fields)
+      >>| TypStruct
+  | TypEnum X (Some atyp) members =>
+    let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
+    TypEnum X (Some realt) members
+  | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
+  | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
+  | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
+  | TypFunction fn => get_real_func get fn >>| TypFunction
   | TypAction data_params ctrl_params =>
-      match get_real_params data_params with
-      | None => None
-      | Some datas => match get_real_params ctrl_params with
-                      | None => None
-                      | Some ctrls => Some (TypAction datas ctrls)
-                      end
-      end
-  | TypPackage typeps wildcards params =>
-      match get_real_params params with
-      | None => None
-      | Some reals => Some (TypPackage typeps wildcards reals)
-      end
+    let* datas := sequence (List.map (get_real_param get) data_params) in
+    sequence (List.map (get_real_param get) ctrl_params) >>| TypAction datas
+  | TypPackage Xs wildcards params =>
+    sequence
+      (List.map
+         (get_real_param
+            (IdentMap.removes
+               (List.map str Xs)
+               get))
+         params)
+      >>| TypPackage Xs wildcards
   | TypSpecializedType base args =>
-      match get_real_type base with
-      | None => None
-      | Some realb => match get_real_types args with
-                      | None => None
-                      | Some realargs => Some (TypSpecializedType realb realargs)
-                      end
-      end
-  | TypConstructor typeps wildcards params ret =>
-      match get_real_type ret with
-      | None => None
-      | Some realret => match get_real_params params with
-                        | None => None
-                        | Some rps => Some (TypConstructor typeps wildcards rps realret)
-                        end
-      end
+    let* realb := get_real_type get base in
+    sequence (List.map (get_real_type get) args) >>| TypSpecializedType realb
+  | TypConstructor Xs wildcards params ret =>
+    let* realret :=
+       get_real_type
+         (IdentMap.removes
+            (List.map str Xs) get) ret in
+    let^ rps :=
+       sequence
+         (List.map
+            (get_real_param
+               (IdentMap.removes
+                  (List.map str Xs) get))
+            params) in
+    TypConstructor Xs wildcards rps realret
   | TypBool => Some TypBool
   | TypString => Some TypString
   | TypInteger => Some TypInteger
@@ -251,7 +202,47 @@ Fixpoint get_real_type (typ: @P4Type tags_t): option (@P4Type tags_t) :=
   | TypExtern e => Some (TypExtern e)
   | TypEnum a None b => Some (TypEnum a None b)
   | TypTable a => Some (TypTable a)
-  end.
+  end
+with get_real_param
+       (get : genv_typ) (param: P4Parameter): option P4Parameter :=
+       match param with
+       | MkParameter opt dir typ argid var =>
+         let^ realt := get_real_type get typ in
+         MkParameter opt dir realt argid var
+       end
+with get_real_ctrl
+       (get : genv_typ) (ctrl: ControlType): option ControlType :=
+       match ctrl with
+       | MkControlType Xs params =>
+         sequence
+           (List.map
+              (get_real_param
+                 (IdentMap.removes
+                    (List.map str Xs)
+                    get))
+              params)
+           >>| MkControlType Xs
+       end
+with get_real_func
+       (get : genv_typ) (fn: FunctionType): option FunctionType :=
+       match fn with
+       | MkFunctionType Xs params kind ret =>
+         let* realret :=
+            get_real_type
+              (IdentMap.removes
+                 (List.map str Xs)
+                 get)
+              ret in
+         let^ realps :=
+            sequence
+              (List.map
+                 (get_real_param
+                    (IdentMap.removes
+                       (List.map str Xs)
+                       get))
+                 params) in
+         MkFunctionType Xs realps kind realret
+       end.
 
 Fixpoint eval_literal (expr: @Expression tags_t) : option Val :=
   let '(MkExpression _ expr _ _) := expr in
@@ -307,6 +298,33 @@ Definition eval_p4int_val (n: P4Int) : Val :=
   | Some (w, false) => ValBaseBit (to_lbool w (P4Int.value n))
   end.
 
+Context {target : @Target tags_t (@Expression tags_t)}.
+
+Definition state : Type := mem * extern_state.
+
+Definition set_memory m (s : state) : state :=
+  let (_, es) := s in (m, es).
+
+Definition update_memory (f : mem -> mem) (s : state) : state :=
+  let (m, es) := s in (f m, es).
+
+Definition get_memory (s : state) : mem :=
+  let (m, _) := s in m.
+
+Definition get_external_state (s : state) :=
+  let (_, es) := s in es.
+
+Record genv := MkGenv {
+  ge_func :> genv_func;
+  ge_typ :> genv_typ;
+  ge_senum :> genv_senum;
+  ge_inst :> genv_inst;
+  ge_const :> genv_const;
+  ge_ext :> extern_env
+}.
+
+Section WithGenv.
+
 Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
   match loc with
   | LInstance p =>
@@ -314,69 +332,8 @@ Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
   | LGlobal p =>
       None
   end.
-
-Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
-  match v with
-  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
-  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
-  | ValBaseInteger value => Some value
-  (* added in v1.2.2 *)
-  | ValBaseSenumField _ _ value => array_access_idx_to_z value
-  | _ => None
-  end.
-
-Definition sval_to_bits_width {A} (v : @ValueBase A) : option (list A * nat) :=
-  match v with
-  | ValBaseInt bits
-  | ValBaseBit bits => Some (bits, List.length bits)
-  | _ => None
-  end.
-
-Definition bitstring_slice {A} (bits: list A) (lo : nat) (hi : nat) : list A :=
-  let fix bitstring_slice' (bits: list A) (lo : nat) (hi : nat) (slice: list A) :=
-    match bits, lo, hi with
-    | _ ::tl, S lo', S hi' => bitstring_slice' tl lo' hi' slice
-    | hd::tl, O, S hi' => bitstring_slice' tl O hi' (hd::slice)
-    | hd::tl, O, O => hd::slice
-    | _, _, _ => slice
-    end
-  in List.rev (bitstring_slice' bits lo hi []).
-
-(* The following reads give unspecified values:
-    1. reading a field from a header that is currently invalid.
-    2. reading a field from a header that is currently valid, but the field has not been initialized
-       since the header was last made valid.
-  So in order to guarantee these, we must maintain a global invariant that all invalid/undef headers'
-  (including invalid members of header unions) contents must be undefined. For example, when setting
-  a header to invalid, all the fields should be turned undefined, and when setting a header to valid,
-  the fields should remain undefined. *)
-Inductive get_member : Sval -> string -> Sval -> Prop :=
-  | get_member_struct : forall fields member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseStruct fields) member v
-  | get_member_record : forall fields member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseRecord fields) member v
-  | get_member_union : forall fields member v,
-                       AList.get fields member = Some v ->
-                       get_member (ValBaseUnion fields) member v
-  | get_member_header : forall fields b member v,
-                        AList.get fields member = Some v ->
-                        get_member (ValBaseHeader fields b) member v
-  | get_member_stack_size : forall headers next,
-                            get_member (ValBaseStack headers next) "size"
-                              (ValBaseBit (to_loptbool 32%N (Zlength headers)))
-  | get_member_stack_last_index : forall headers next sv,
-                                  (if (next =? 0)%N
-                                    then uninit_sval_of_typ None (TypBit 32%N) = Some sv
-                                    else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
-                                  get_member (ValBaseStack headers next) "lastIndex" sv.
-
-Definition is_directional (dir : direction) : bool :=
-  match dir with
-  | Directionless => false
-  | _ => true
-  end.
+  
+Variable ge : genv.
 
 Definition loc_to_val_const (this : path) (loc : Locator) : option Val :=
   match loc with
@@ -422,7 +379,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             sval_to_val read_one_bit idxsv idxv ->
                             array_access_idx_to_z idxv = Some idxz ->
                             exec_expr read_one_bit this st array (ValBaseStack headers next) ->
-                            get_real_type typ = Some rtyp ->
+                            get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def idxz headers default_header = header ->
                             exec_expr read_one_bit this st
@@ -446,7 +403,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                        AList.all_values (exec_expr read_one_bit this st) (clear_AList_tags kvs) kvs' ->
                        exec_expr read_one_bit this st
                        (MkExpression tag (ExpRecord kvs) typ dir)
-                       (ValBaseRecord kvs')
+                       (ValBaseStruct kvs')
   | exec_expr_unary_op : forall op arg argsv argv v sv this st tag typ dir,
                          exec_expr read_one_bit this st arg argsv ->
                          sval_to_val read_one_bit argsv argv ->
@@ -466,11 +423,11 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                           (MkExpression tag (ExpBinaryOp op (larg, rarg)) typ dir)
                           sv
   | exec_expr_cast : forall newtyp expr oldsv oldv newv newsv this st tag typ dir real_typ,
-  (* We assume that get_real_type contains the real type corresponding to a
+  (* We assume that get_real_type (ge_typ ge) contains the real type corresponding to a
      type name so that we can use get the real type from it. *)
                      exec_expr read_one_bit this st expr oldsv ->
                      sval_to_val read_one_bit oldsv oldv ->
-                     get_real_type newtyp = Some real_typ ->
+                     get_real_type (ge_typ ge) newtyp = Some real_typ ->
                      Ops.eval_cast real_typ oldv = Some newv ->
                      val_to_sval newv newsv ->
                      exec_expr read_one_bit this st
@@ -490,7 +447,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpTypeMember tname member) typ dir)
-                             (ValBaseSenumField (str ename) (str member) sv)
+                             (ValBaseSenumField (str ename) sv)
   | exec_expr_error_member : forall err this st tag typ dir,
                              exec_expr read_one_bit this st
                              (MkExpression tag (ExpErrorMember err) typ dir)
@@ -548,7 +505,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
               | _, _ => None
               end
           | ExpCast newtyp arg =>
-              match eval_expr_gen hook arg, get_real_type newtyp with
+              match eval_expr_gen hook arg, get_real_type (ge_typ ge) newtyp with
               | Some argv, Some real_typ => Ops.eval_cast real_typ argv
               | _, _ => None
               end
@@ -591,7 +548,7 @@ Proof.
         only 2-3 : inversion H2.
       econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      destruct (get_real_type typ0) eqn:?; only 2 : inversion H2.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
       econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
     + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
       * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
@@ -635,7 +592,7 @@ Proof.
     + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
       inversion H1; subst.
       assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      destruct (get_real_type typ0) eqn:?; only 2 : inversion H3.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
       congruence.
     + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
       * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
@@ -771,6 +728,7 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
   end.
 
 Axiom dummy_type : @P4Type tags_t.
+Context `{inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_tags := @default tags_t _.
 
 Definition add_ctrl_args (oaction : option (@Expression tags_t))
@@ -819,7 +777,7 @@ Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
                         (ValSetRange lov hiv)
   | exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
                       exec_expr_det read_one_bit this st expr oldv ->
-                      get_real_type newtyp = Some real_typ ->
+                      get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->
                       exec_match read_one_bit this st
                       (MkMatch tag (MatchCast newtyp expr) typ)
@@ -869,6 +827,7 @@ Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 (* Look up function definition (fundef) and the path on which the function should be executed.
   Return None if failed.
   Return Some (None, fd) if the function should be executed on the current path. *)
+
 Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (option path * fundef) :=
   let ge_func := ge_func ge in
   let ge_inst := ge_inst ge in
@@ -880,8 +839,8 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
       | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
       | LInstance p =>
           match PathMap.get this_path ge_inst with
-          | Some (mk_inst_ref class_name _) =>
-              option_map (fun fd => (None, fd)) (PathMap.get ([class_name] ++ p) ge_func)
+          | Some {| iclass:=class_name; |} =>
+              option_map (fun fd => (None, fd)) (PathMap.get (class_name :: p) ge_func)
           | _ => None
           end
       end
@@ -892,7 +851,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
           match loc with
           | LGlobal p =>
               match PathMap.get p ge_inst with
-              | Some (mk_inst_ref class_name inst_path) =>
+              | Some {|iclass:=class_name; ipath:=inst_path|} =>
                   match PathMap.get [class_name; str name] ge_func with
                   | Some fd => Some (Some inst_path, fd)
                   | None => None
@@ -901,7 +860,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
               end
           | LInstance p =>
               match PathMap.get (this_path ++ p) ge_inst with
-              | Some (mk_inst_ref class_name inst_path) =>
+              | Some {|iclass:=class_name; ipath:=inst_path|} =>
                   match PathMap.get [class_name; str name] ge_func with
                   | Some fd => Some (Some inst_path, fd)
                   | None => None
@@ -984,7 +943,7 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_read_array_access: forall lv headers next default_header header idx st typ rtyp,
                             exec_read st lv (ValBaseStack headers next) ->
-                            get_real_type typ = Some rtyp ->
+                            get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth_def (Z.of_N idx) headers default_header = header ->
                             exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
@@ -1468,7 +1427,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
           (MkStatement tags (StatVariable typ' name (Some e) loc) typ)
           st'' (force_continue_signal sig)
   | exec_stmt_variable_undef : forall typ' rtyp name loc sv this_path st tags typ st',
-      get_real_type typ' = Some rtyp ->
+      get_real_type (ge_typ ge) typ' = Some rtyp ->
       uninit_sval_of_typ (Some false) rtyp = Some sv ->
       exec_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st' ->
       exec_stmt read_one_bit this_path st
@@ -1693,7 +1652,7 @@ Variable instantiate_expr' : forall (ce : cenv) (e : ienv) (expr : @Expression t
 
 Definition ienv_val_to_sumtype (val : ienv_val) :=
   match val with
-  | inl (mk_inst_ref _ p) => inl p
+  | inl {| ipath:=p |} => inl p
   | inr val => inr val
   end.
 
@@ -1716,14 +1675,14 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
     (args ++ [arg], m, s, tl params) in
   let '(args, m, s) := fst (fold_left instantiate_arg args (nil, m, s, params)) in
   if is_decl_extern_obj decl then
-    let m := map_fst (map_fst (PathMap.set p (mk_inst_ref class_name p))) m in
+    let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
     let type_params := get_type_params typ in
     let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
-    (inl (mk_inst_ref class_name p), (fst m, ee), s)
+    (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
   else
     let e := IdentMap.sets params args e in
     let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
-    (inl (mk_inst_ref class_name p), m, s).
+    (inl {|iclass:=class_name; ipath:=p|}, m, s).
 
 End instantiate_expr'.
 
@@ -1820,7 +1779,8 @@ Definition get_direct_applications_ps (ps : @ParserState tags_t) : list (@Declar
 
 (* TODO we need to evaluate constants in instantiation. *)
 
-Definition packet_in_instance : ienv_val := (inl (mk_inst_ref "packet_in" ["packet_in"])).
+Definition packet_in_instance : ienv_val :=
+  inl {|iclass:="packet_in"; ipath:=["packet_in"]|}.
 
 Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1832,7 +1792,8 @@ Definition is_packet_in (param : @P4Parameter tags_t) : bool :=
       end
   end.
 
-Definition packet_out_instance : ienv_val := (inl (mk_inst_ref "packet_out" ["packet_out"])).
+Definition packet_out_instance : ienv_val :=
+  inl {|iclass:="packet_out"; ipath:=["packet_out"]|}.
 
 Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
   match param with
@@ -1862,13 +1823,13 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ concat (map get_direct_applications_ps states) in
         let (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
         (p, m, s)
     | DeclControl _ class_name' _ params _ locals apply =>
         let m := fold_left (inline_packet_in_and_packet_out p) params m in
         let locals := locals ++ get_direct_applications_blk apply in
         let (m, s) := instantiate_decls ce' e locals p m s in
-        let m := set_inst_mem p (inl (mk_inst_ref class_name p)) m in
+        let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
         (p, m, s)
     | _ => (p, m, s) (* impossible *)
     end
@@ -2169,6 +2130,8 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   end.
 
 End WithGenv.
+
+Context `{inhabitant_tags_t : Inhabitant tags_t}.
 
 Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in

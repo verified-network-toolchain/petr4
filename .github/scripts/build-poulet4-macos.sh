@@ -36,6 +36,7 @@ opam upgrade
 # install p4pp
 opam switch 4.12.0
 opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
+opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git#zlist
 eval $(opam env)
 
 # install deps for poulet4

@@ -35,6 +35,7 @@ install:
 - opam repo add coq-released https://coq.inria.fr/opam/released
 - git clone https://github.com/tchajed/coq-record-update
 - opam install ./coq-record-update
+- opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git#zlist
 
 script:
 - opam update

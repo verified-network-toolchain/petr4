@@ -44,5 +44,21 @@ Section InterpreterSafe.
     - admit.
     - admit.
   Admitted.
-  
+
+  (* This theorem is not really completeness, but close enough.
+   * We don't expect every behavior of exec_expr to be exhibited by
+   * the interpreter, but things that do run under exec_expr should at
+   * least evaluate to something under interp_expr. They may differ due
+   * to how the interpreter resolves nondeterminism.
+   *
+   * This is a lower priority to prove, IMO, than safety/soundness.
+   *)
+  Theorem interp_expr_complete:
+    forall expr this st sv,
+      Semantics.exec_expr ge read_one_bit this st expr sv ->
+      exists sv',
+        Interpreter.interp_expr ge this st expr = Some sv'.
+  Proof.
+  Admitted.
+
 End InterpreterSafe.

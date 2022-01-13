@@ -549,6 +549,31 @@ Section ProdMap.
   Definition prod_map_r '((v,u) : V * U) : V * W := (v, f u).
 End ProdMap.
 
+Definition lift_option {A} (l : list (option A)) : option (list A) :=
+  let lift_one_option (x : option A) (acc : option (list A)) :=
+    match x, acc with
+    | Some x', Some acc' => Some (x' :: acc')
+    | _, _ => None
+    end
+  in List.fold_right lift_one_option (Some nil) l.
+
+Lemma lift_option_map_some: forall {A: Type} (al: list A),
+    lift_option (map Some al) = Some al.
+Proof. intros. induction al; simpl; [|rewrite IHal]; easy. Qed.
+
+Lemma lift_option_inv : forall {A} (xl : list (option A)) (al : list A),
+  lift_option xl = Some al ->
+  xl = map Some al.
+Proof.
+  induction xl; intros.
+  - inversion H. auto.
+  - destruct a.
+    + simpl in H. destruct (lift_option xl).
+      * inversion H. simpl; f_equal; auto.
+      * inversion H.
+    + inversion H.
+Qed.
+
 Lemma split_inj : forall (U V : Type) (uvs₁ uvs₂ : list (U * V)),
     split uvs₁ = split uvs₂ -> uvs₁ = uvs₂.
 Proof.

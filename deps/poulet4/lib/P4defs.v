@@ -7,7 +7,7 @@ Require Export Poulet4.P4String.
 Require Export Poulet4.P4Int.
 Require Export Poulet4.Syntax.
 Require Export Poulet4.Typed.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 
 Notation stags := P4String.tags.
 Notation itags := P4Int.tags.

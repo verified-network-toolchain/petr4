@@ -6,7 +6,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
 Require Export Poulet4.Value Poulet4.ValueUtil.
 Require Import Poulet4.P4String Poulet4.P4Int Poulet4.P4Arith
         Poulet4.AList Poulet4.Ops Poulet4.Maps.
-Require Export Poulet4.Target Poulet4.SyntaxUtil Poulet4.Sublist.
+Require Export Poulet4.Target Poulet4.SyntaxUtil VST.zlist.Zlist.
 Require Import Poulet4.P4Notations.
 From Poulet4.Monads Require Import Monad Option.
 Import ListNotations.
@@ -381,7 +381,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                             exec_expr read_one_bit this st array (ValBaseStack headers next) ->
                             get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
-                            Znth_def idxz headers default_header = header ->
+                            Znth (d := default_header) idxz headers = header ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpArrayAccess array idx) typ dir)
                             header
@@ -945,7 +945,7 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                             exec_read st lv (ValBaseStack headers next) ->
                             get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
-                            Znth_def (Z.of_N idx) headers default_header = header ->
+                            Znth (d := default_header) (Z.of_N idx) headers = header ->
                             exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
 (* If any of these kinds of writes are performed:
@@ -1262,7 +1262,7 @@ Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bo
 
 Definition dummy_val {bit} : (@ValueBase bit) := ValBaseNull.
 Global Opaque dummy_val.
-Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
+Global Instance Inhabitant_ValueBase {bit} : Inhabitant (@ValueBase bit) := dummy_val.
 
 Definition push_front (headers : list Sval) (next : N) (count : Z) : Sval :=
   let size := Zlength headers in
@@ -1320,10 +1320,12 @@ Inductive exec_builtin (read_one_bit : option bool -> bool -> Prop) : path -> st
     exec_write st lv (ValBaseHeader fields (Some false)) st' ->
     exec_builtin read_one_bit p st lv "setInvalid" [] st' (SReturn ValBaseNull)
 | exec_builtin_push_front : forall p st lv headers next count st',
+    count >= 0 ->
     exec_read st lv (ValBaseStack headers next) ->
     exec_write st lv (push_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "push_front" [ValBaseInteger count] st' (SReturn ValBaseNull)
 | exec_builtin_pop_front : forall p st lv headers next count st',
+    count >= 0 ->
     exec_read st lv (ValBaseStack headers next) ->
     exec_write st lv (pop_front headers next count) st' ->
     exec_builtin read_one_bit p st lv "pop_front" [ValBaseInteger count] st' (SReturn ValBaseNull).

@@ -185,7 +185,7 @@ Section Soundness.
         cbn in *; inversion Hr2; subst; clear Hr2.
         inversion Hv1; subst.
         eexists; split; eauto; cbn in *.
-        unfold Znth_def.
+        unfold Znth.
         destruct (ZArith_dec.Z_lt_dec idxz Z0) as [Hidxz | Hidxz].
         + pose proof uninit_sval_of_typ_val_typ rtyp as H.
           eapply H; eauto.

@@ -807,6 +807,19 @@ Proof.
         rewrite Zlength_nil in H1. lia.
 Qed.
 
+Lemma bit_to_lbool_back: forall w v,
+    BitArith.lbool_to_val (to_lbool w v) 1 0 = BitArith.mod_bound w v.
+Proof.
+  intros. unfold to_lbool. rewrite <- Nnat.N2Nat.id at 2. remember (N.to_nat w).
+  clear . revert v. induction n; intros; simpl.
+  - unfold BitArith.mod_bound, BitArith.upper_bound. simpl. now rewrite Z.mod_1_r.
+  - rewrite nil_to_lbool'. rewrite rev_app_distr. simpl rev at 1.
+    rewrite BitArith.lbool_to_val_app. simpl. rewrite BitArith.lbool_to_val_1_0.
+    rewrite IHn by lia. unfold BitArith.mod_bound, BitArith.upper_bound.
+    rewrite N2Z.inj_pos. rewrite nat_N_Z. rewrite Zpos_P_of_succ_nat.
+    rewrite Z.pow_succ_r by lia. apply div_2_mod_2_pow. lia.
+Qed.
+
 (*
   Compute (to_lbool (4)%N (-6)).
   Compute (to_lbool (8)%N (-7)).

@@ -1,4 +1,5 @@
 Require Import Poulet4.Syntax.
+Require Import Poulet4.ExprInd.
 Require Poulet4.Semantics.
 Require Poulet4.Interpreter.
 Check @Interpreter.interp_expr.

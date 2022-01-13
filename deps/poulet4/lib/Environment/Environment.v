@@ -150,7 +150,6 @@ Section Environment.
 
   Definition lookup_value (v: @ValueBase bit) (field: string) : @option_monad (@ValueBase bit) :=
     match v with
-    | ValBaseRecord fields
     | ValBaseStruct fields
     | ValBaseUnion fields
     | ValBaseHeader fields _ => AList.get fields field
@@ -273,10 +272,6 @@ Section Environment.
   Definition update_member (lhs: @ValueBase bit) (member: string) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match lhs with
     (* TODO: there must be a cleaner way... *)
-    | ValBaseRecord fields =>
-      let* fields' := lift_opt (AssertError "Unable to update member of record.")
-                               (AList.set fields member rhs) in
-      state_return (ValBaseRecord fields')
     | ValBaseStruct fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of struct.")
                                (AList.set fields member rhs) in
@@ -288,7 +283,7 @@ Section Environment.
     | ValBaseUnion fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of union")
                                (AList.set fields member rhs) in
-      state_return (ValBaseRecord fields')
+      state_return (ValBaseUnion fields')
     (*| ValBaseSenum fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of enum.")
                                (AList.set fields member rhs) in

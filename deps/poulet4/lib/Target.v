@@ -35,7 +35,7 @@ Fixpoint width_of_val (v: Val): N :=
   | ValBaseTuple vs => List.fold_right N.add (0)%N (List.map width_of_val vs)
   | ValBaseStruct fields
   | ValBaseHeader fields _ => fields_width fields
-  | ValBaseSenumField _ _ v => width_of_val v
+  | ValBaseSenumField _ v => width_of_val v
   | _ => N.of_nat O
   end.
 

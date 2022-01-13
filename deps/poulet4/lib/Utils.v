@@ -1,13 +1,10 @@
-Require Import Coq.Bool.Bvector.
-Require Import Coq.Lists.List.
-Require Import Coq.Strings.String.
-Require Import Coq.NArith.BinNatDef.
-Require Import Coq.ZArith.BinIntDef.
-Require Import Coq.PArith.BinPos.
-Require Import Coq.Structures.OrderedTypeEx.
+From Coq Require Import Bool.Bvector
+     Lists.List Strings.String
+     NArith.BinNatDef ZArith.BinIntDef
+     PArith.BinPos Structures.OrderedTypeEx
+     micromega.Lia.
 
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
+Require Import Poulet4.Monads.Monad Poulet4.Monads.Option.
 
 Open Scope monad.
 
@@ -530,6 +527,19 @@ Proof.
   intros U V Q R us vs q H; induction H; auto.
 Qed.
 
+Lemma Forall_remove :
+  forall (U : Type) (P : U -> Prop) {HU : forall u₁ u₂, {u₁ = u₂} + {u₁ <> u₂}} u us,
+    Forall P us -> Forall P (remove HU u us).
+Proof.
+  intros U P HU u us H.
+  generalize dependent HU;
+    generalize dependent u.
+  induction H
+    as [| u us Hus IHus]; intros u' HU;
+    cbn in *; auto.
+  destruct (HU u' u) as [Hu'u | Hu'u]; subst; auto.
+Qed.
+
 Section ProdMap.
   Context {U V W : Type}.
   Variable f : U -> W.
@@ -562,4 +572,54 @@ Proof.
       * inversion H. simpl; f_equal; auto.
       * inversion H.
     + inversion H.
+Qed.
+
+Lemma split_inj : forall (U V : Type) (uvs₁ uvs₂ : list (U * V)),
+    split uvs₁ = split uvs₂ -> uvs₁ = uvs₂.
+Proof.
+  intros U V usv1;
+    induction usv1 as [| [u1 v1] usv1 IHusv1];
+    intros [| [u2 v2] usv2] H;
+    simpl in *; auto.
+  - destruct (split usv2) as [us2 vs2] eqn:H2; inversion H.
+  - destruct (split usv1) as [us1 vs1] eqn:H1; inversion H.
+  - specialize IHusv1 with usv2.
+    destruct (split usv1) as [us1 vs1] eqn:H1;
+      destruct (split usv2) as [us2 vs2] eqn:H2.
+    inversion H; subst; f_equal; auto.
+Qed.
+
+Lemma map_pat_combine : forall (T U V W: Type) (f : T -> V) (g : U -> W) tus,
+    map (fun '(t,u) => (f t, g u)) tus =
+    combine (map f (map fst tus)) (map g (map snd tus)).
+Proof.
+  intros T U V W f g tus;
+    induction tus as [| [t u] tus IHtus];
+    simpl; f_equal; auto.
+Qed.
+
+Lemma nth_error_some_length : forall {A : Type} n l (a : A),
+    nth_error l n = Some a -> n < List.length l.
+Proof.
+  intros A n;
+    induction n as [| n IHn];
+    intros [| h l] a Hnth; cbn in *;
+      try discriminate; firstorder lia.
+Qed.
+
+Lemma Forall2_only_l_Forall : forall (U V : Type) (P : U -> Prop) us (vs : list V),
+    Forall2 (fun u _ => P u) us vs -> Forall P us.
+Proof.
+  intros U V P us;
+    induction us as [| u us IHus];
+    intros [| v vs] H; inversion H; subst;
+      cbn in *; eauto.
+Qed.
+
+Corollary Forall2_only_r_Forall : forall (U V : Type) (P : V -> Prop) (us : list U) vs,
+    Forall2 (fun _ v => P v) us vs -> Forall P vs.
+Proof.
+  intros U V P us vs H.
+  rewrite Forall2_flip in H.
+  eauto using Forall2_only_l_Forall.
 Qed.

@@ -1,11 +1,11 @@
 Require Import Coq.Strings.String Coq.ZArith.ZArith Coq.Lists.List.
 Require Import Poulet4.Value Poulet4.Typed Poulet4.P4String
                Poulet4.SyntaxUtil Poulet4.AList VST.zlist.Zlist.
-Require Import Poulet4.P4Notations.
+Require Import Poulet4.P4Notations Poulet4.Monads.Monad Poulet4.Monads.Option.
 Import ListNotations.
 
 Section ValueUtil.
-  Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+  Context {tags_t: Type}.
   Notation Val := (@ValueBase bool).
   Notation Sval := (@ValueBase (option bool)).
 
@@ -41,9 +41,6 @@ Section ValueUtil.
     | exec_val_tuple : forall lv lv',
                       Forall2 (exec_val read_one_bit) lv lv' ->
                       exec_val read_one_bit (ValBaseTuple lv) (ValBaseTuple lv')
-    | exec_val_record : forall kvs kvs',
-                        AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                        exec_val read_one_bit (ValBaseRecord kvs) (ValBaseRecord kvs')
     | exec_val_error: forall s,
                       exec_val read_one_bit (ValBaseError s) (ValBaseError s)
     | exec_val_matchkind: forall s,
@@ -65,13 +62,10 @@ Section ValueUtil.
     | exec_val_enum_field : forall typ_name enum_name,
                             exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
                                                   (ValBaseEnumField typ_name enum_name)
-    | exec_val_senum_field : forall typ_name enum_name v v',
+    | exec_val_senum_field : forall typ_name v v',
                             exec_val read_one_bit v v' ->
-                            exec_val read_one_bit (ValBaseSenumField typ_name enum_name v) 
-                                                  (ValBaseSenumField typ_name enum_name v')
-    (*| exec_val_senum : forall kvs kvs',
-                      AList.all_values (exec_val read_one_bit) kvs kvs' ->
-                      exec_val read_one_bit (ValBaseSenum kvs) (ValBaseSenum kvs')*).
+                            exec_val read_one_bit (ValBaseSenumField typ_name v) 
+                                                  (ValBaseSenumField typ_name v').
 
   Section ExecValInd.
     Variables (A B : Type).
@@ -94,10 +88,6 @@ Section ValueUtil.
         Forall2 (exec_val R) vas vbs ->
         Forall2 P vas vbs ->
         P (ValBaseTuple vas) (ValBaseTuple vbs).
-    Hypothesis HRecord : forall kvas kvbs,
-        AList.all_values (exec_val R) kvas kvbs ->
-        AList.all_values P kvas kvbs ->
-        P (ValBaseRecord kvas) (ValBaseRecord kvbs).
     Hypothesis HError : forall s, P (ValBaseError s) (ValBaseError s).
     Hypothesis HMatchkind : forall s, P (ValBaseMatchKind s) (ValBaseMatchKind s).
     Hypothesis HStruct : forall kvas kvbs,
@@ -121,11 +111,11 @@ Section ValueUtil.
         P
           (ValBaseEnumField type_name enum_name)
           (ValBaseEnumField type_name enum_name).
-    Hypothesis HSenumField : forall type_name enum_name va vb,
+    Hypothesis HSenumField : forall type_name va vb,
         exec_val R va vb -> P va vb ->
         P
-          (ValBaseSenumField type_name enum_name va)
-          (ValBaseSenumField type_name enum_name vb).
+          (ValBaseSenumField type_name va)
+          (ValBaseSenumField type_name vb).
 
     Definition custom_exec_val_ind : forall va vb,
         exec_val R va vb -> P va vb :=
@@ -157,7 +147,6 @@ Section ValueUtil.
         | exec_val_varbit _ _ max _ rs => HVarbit _ max _ rs
         | exec_val_string _ s => HString s
         | exec_val_tuple _ _ _ evs => HTuple _ _ evs (lind evs)
-        | exec_val_record _ _ _ evs => HRecord _ _ evs (alind evs)
         | exec_val_error _ s => HError s
         | exec_val_matchkind _ s => HMatchkind s
         | exec_val_struct _ _ _ evs => HStruct _ _ evs (alind evs)
@@ -167,8 +156,8 @@ Section ValueUtil.
         | exec_val_stack _ _ _ next evs
           => HStack _ _ next evs (lind evs)
         | exec_val_enum_field _ tn en => HEnumField tn en
-        | exec_val_senum_field _ tn en _ _ ev
-          => HSenumField tn en _ _ ev (evind _ _ ev)
+        | exec_val_senum_field _ tn _ _ ev
+          => HSenumField tn _ _ ev (evind _ _ ev)
         end.
   End ExecValInd.
 
@@ -204,7 +193,6 @@ Section ValueUtil.
     | ValBaseVarbit m vl => ValBaseVarbit m (map Some vl)
     | ValBaseString s => ValBaseString s
     | ValBaseTuple vl => ValBaseTuple (eval_val_to_svals vl)
-    | ValBaseRecord rl => ValBaseRecord (val_to_avals rl)
     | ValBaseError s => ValBaseError s
     | ValBaseMatchKind s => ValBaseMatchKind s
     | ValBaseStruct rl => ValBaseStruct (val_to_avals rl)
@@ -212,71 +200,69 @@ Section ValueUtil.
     | ValBaseUnion rl => ValBaseUnion (val_to_avals rl)
     | ValBaseStack vl n => ValBaseStack (eval_val_to_svals vl) n
     | ValBaseEnumField t e => ValBaseEnumField t e
-    | ValBaseSenumField t e v => ValBaseSenumField t e (eval_val_to_sval v)
+    | ValBaseSenumField t v => ValBaseSenumField t (eval_val_to_sval v)
     end.
 
-  Definition uninit_sval_of_typ (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
-    let fix uninit_sval_of_typ' hvalid (typ : @P4Type tags_t) : option Sval :=
-      match typ with
-      | TypBool => Some (ValBaseBool None)
-      | TypInt w => Some (ValBaseInt (Zrepeat None (Z.of_N w)))
-      | TypBit w => Some (ValBaseBit (Zrepeat None (Z.of_N w)))
-      | TypArray typ size =>
-          match uninit_sval_of_typ' hvalid typ with
-          | Some sv => Some (ValBaseStack (Zrepeat sv (Z.of_N size)) 0)
-          | None => None
-          end
-      | TypTuple typs
-      | TypList typs => 
-          match lift_option (List.map (uninit_sval_of_typ' hvalid) typs) with
-          | Some svs => Some (ValBaseTuple svs)
-          | None => None
-          end
-      | TypRecord fields =>
-          match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-          | Some kvs => Some (ValBaseRecord (P4String.clear_AList_tags kvs))
-          | None => None
-          end
-      | TypHeader fields =>
-          match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-          | Some kvs => Some (ValBaseHeader (P4String.clear_AList_tags kvs) hvalid)
-          | None => None
-          end
-      | TypHeaderUnion fields =>
-          match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-          | Some kvs => Some (ValBaseUnion (P4String.clear_AList_tags kvs))
-          | None => None
-          end
-      | TypStruct fields =>
-          match lift_option_kv (kv_map (uninit_sval_of_typ' hvalid) fields) with
-          | Some kvs => Some (ValBaseStruct (P4String.clear_AList_tags kvs))
-          | None => None
-          end
-      | TypNewType _ typ' => uninit_sval_of_typ' hvalid typ'
-      (* TypTypeName should have been already resolved *)
-      | TypTypeName _ => None
-      (* Two possibilities for senum:
-        1. Use the default values (similar to the enum type):
-            For enum values with an underlying type the default value is 0. (7.3.)
-        2. Use the underlying types's uninitialized values:
-            Since an senum's underlying type is either bit or int, it can also be uninitialized
-            by the underlying types.
-        The current implementation follows the option 2. *)
-      | TypEnum tname (Some typ') members => uninit_sval_of_typ' hvalid typ'
-      (* The P4Spec does not specify the unintialized values for the following types,
-        so we use the default values for now. (7.3.) 
-        Note that this design choice makes the svals output from uninit_sval_of_typ different
-        from uninit_sval_of_sval and val_to_sval. *)
-      | TypVarBit w => Some (ValBaseVarbit w [])
-      | TypInteger => Some (ValBaseInteger 0)
-      | TypError => Some (ValBaseError "NoError")
-      | TypEnum tname None members => 
-          (* Empty members is a syntax error *)
-          if (Nat.eqb (List.length members) 0) then None
-          else Some (ValBaseEnumField (str tname) (str (List.hd !"" members)))
-      | _ => None
-      end
-    in uninit_sval_of_typ' hvalid typ.
+  Fixpoint uninit_sval_of_typ
+           (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
+    match typ with
+    | TypBool => Some (ValBaseBool None)
+    | TypInt w => Some (ValBaseInt (repeat None (N.to_nat w)))
+    | TypBit w => Some (ValBaseBit (repeat None (N.to_nat w)))
+    | TypArray typ size =>
+      if (0 <? size)%N then
+        let^ sv := uninit_sval_of_typ hvalid typ in
+        ValBaseStack (repeat sv (N.to_nat size)) 0
+      else None
+    | TypTuple typs
+    | TypList typs =>
+      sequence (List.map (uninit_sval_of_typ hvalid) typs) >>| ValBaseTuple
+    | TypHeader fields =>
+      let^ kvs :=
+         sequence
+           (List.map
+              (fun '({| P4String.str := x |}, t) =>
+                 uninit_sval_of_typ hvalid t >>| pair x)
+              fields) in
+      ValBaseHeader kvs hvalid
+    | TypHeaderUnion fields =>
+      sequence
+        (List.map
+           (fun '({| P4String.str := x |}, t) =>
+              uninit_sval_of_typ hvalid t >>| pair x)
+           fields) >>| ValBaseUnion
+    | TypRecord fields
+    | TypStruct fields =>
+      sequence
+        (List.map
+           (fun '({| P4String.str := x |}, t) =>
+              uninit_sval_of_typ hvalid t >>| pair x)
+           fields) >>| ValBaseStruct
+    | TypEnum tname None (mem :: _) => 
+      Some (ValBaseEnumField (str tname) (str mem))
+    | TypNewType _ typ' => uninit_sval_of_typ hvalid typ'
+    (* TypTypeName should have been already resolved *)
+    | TypTypeName _ => None
+    (* Two possibilities for senum:
+       1. Use the default values (similar to the enum type):
+       For enum values with an underlying type the default value is 0. (7.3.)
+       2. Use the underlying types's uninitialized values:
+       Since an senum's underlying type is either bit or int, it can also be uninitialized
+       by the underlying types.
+       The current implementation follows the option 2.
+       Rudy's note: attempt create a default [ValBaseSenumField]
+       for type preservation proof. *)
+    | TypEnum {| P4String.str := X |} (Some typ') _ =>
+      uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X
+    (* The P4Spec does not specify the unintialized values for the following types,
+       so we use the default values for now. (7.3.) 
+       Note that this design choice makes the svals output from uninit_sval_of_typ different
+       from uninit_sval_of_sval and val_to_sval. *)
+    | TypVarBit w => Some (ValBaseVarbit w [])
+    | TypInteger => Some (ValBaseInteger 0)
+    | TypError => Some (ValBaseError "NoError")
+    | _ => None
+    end.
   (* Type without uninitialized svals:
       TypString: can be used only for compile-time constant string values (7.1.),
                   one cannot declare variables with a string type (7.1.5.),
@@ -299,14 +285,11 @@ Section ValueUtil.
     (* May need change after clarifying the uninit sval of varbit *)
     | ValBaseVarbit max bits => ValBaseVarbit max (List.map (fun _ => None) bits)
     | ValBaseTuple vs => ValBaseTuple (List.map (uninit_sval_of_sval hvalid) vs)
-    | ValBaseRecord kvs => ValBaseRecord (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseStruct kvs => ValBaseStruct (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseHeader kvs is_valid => ValBaseHeader (kv_map (uninit_sval_of_sval hvalid) kvs) hvalid
     | ValBaseUnion kvs => ValBaseUnion (kv_map (uninit_sval_of_sval hvalid) kvs)
     | ValBaseStack vs next => ValBaseStack (List.map (uninit_sval_of_sval hvalid) vs) next
-    | ValBaseSenumField typ_name enum_name v =>  ValBaseSenumField typ_name enum_name (uninit_sval_of_sval hvalid v)
-    (*| ValBaseSenum kvs => ValBaseSenum (kv_map (uninit_sval_of_sval hvalid) kvs)*)
-    (* ValBaseNull, ValBaseInteger, ValBaseString, ValBaseError, ValBaseMatchKind, ValBaseEnumField*)
+    | ValBaseSenumField typ_name v =>  ValBaseSenumField typ_name (uninit_sval_of_sval hvalid v)
     | _ => v
     end.
 

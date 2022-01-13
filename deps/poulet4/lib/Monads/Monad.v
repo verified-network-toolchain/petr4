@@ -58,3 +58,15 @@ Notation "x '<<|' c1 ;; c2" := (lift_monad (fun x => c2) c1)
     format "x  '<<|'  c1 ';;' '//' c2",
     right associativity
   ) : monad_scope.
+
+Notation "'let^' x ':=' c1 'in' c2" := (@lift_monad _ _ _ _ (fun x => c2) c1)
+  ( at level 61, x pattern, 
+    format "'let^'  x  ':='  c1  'in' '//' c2", c1 at next level, 
+    right associativity
+  ) : monad_scope.
+
+Notation "'let^' ' x ':=' c1 'in' c2" := (@lift_monad _ _ _ _ (fun x => c2) c1)
+  ( at level 61, x pattern, 
+    format "'let^'  ' x  ':='  c1  'in' '//' c2", c1 at next level, 
+    right associativity
+  ) : monad_scope.

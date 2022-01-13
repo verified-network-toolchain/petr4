@@ -285,7 +285,7 @@ Definition check_lpm_count (mks: list ident): option bool :=
 Fixpoint assert_bit (v: Val): option (list bool) :=
   match v with
   | ValBaseBit bits => Some bits
-  | ValBaseSenumField _ _ val => assert_bit val
+  | ValBaseSenumField _ val => assert_bit val
   | _ => None
   end.
 
@@ -397,7 +397,7 @@ Fixpoint assert_int (v: Val): option (N * Z) :=
   match v with
   | ValBaseBit bits => Some (BitArith.from_lbool bits)
   | ValBaseInt bits => Some (IntArith.from_lbool bits)
-  | ValBaseSenumField _ _ val => assert_int val
+  | ValBaseSenumField _ val => assert_int val
   | _ => None
   end.
 

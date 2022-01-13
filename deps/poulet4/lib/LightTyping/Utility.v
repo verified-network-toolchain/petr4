@@ -1,11 +1,25 @@
-From Coq Require Export NArith.BinNat Strings.String Lists.List.
-Require Export Poulet4.Typed Poulet4.Syntax.
+From Coq Require Export NArith.BinNat Strings.String Lists.List micromega.Lia.
+Require Export Poulet4.Typed Poulet4.Syntax Poulet4.ValueUtil.
 Export ListNotations.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
+Require Import Poulet4.Monads.Monad Poulet4.Monads.Option
+        Poulet4.Sublist Poulet4.Utils.
 
 Notation predopt    := (EquivUtil.predop).
 Notation remove_str := (remove string_dec).
+
+Lemma remove_str_nil : forall s, remove_str s [] = [].
+Proof.
+  auto.
+Qed.
+
 Notation remove_all := (fold_right remove_str).
+
+Lemma remove_all_nil : forall ss, remove_all [] ss = [].
+Proof.
+  intros ss; induction ss as [| s ss IHss];
+    cbn in *; try rewrite IHss; auto.
+Qed.
 
 Section Utils.
   Context {tags_t : Type}.
@@ -190,7 +204,202 @@ Section Utils.
   | lexpr_access tag e₁ e₂ t dir :
       lexpr_ok e₁ ->
       lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
+
+  (** Types of p4light expressions.
+      Correlates to [uninit_sval_of_typ]. *)
+  Inductive is_expr_typ : typ -> Prop :=
+  | is_bool :
+      is_expr_typ TypBool
+  | is_string :
+      is_expr_typ TypString
+  | is_integer :
+      is_expr_typ TypInteger
+  | is_int w :
+      is_expr_typ (TypInt w)
+  | is_bit w :
+      is_expr_typ (TypBit w)
+  | is_varbit w :
+      is_expr_typ (TypVarBit w)
+  | is_array t n :
+      0 < N.to_nat n ->
+      is_expr_typ t ->
+      is_expr_typ (TypArray t n)
+  | is_tuple ts :
+      Forall is_expr_typ ts ->
+      is_expr_typ (TypTuple ts)
+  | is_list ts :
+      Forall is_expr_typ ts ->
+      is_expr_typ (TypList ts)
+  | is_record ts :
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      is_expr_typ (TypRecord ts)
+  | is_error :
+      is_expr_typ TypError
+  | is_header ts :
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      is_expr_typ (TypHeader ts)
+  | is_union ts :
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      is_expr_typ (TypHeaderUnion ts)
+  | is_struct ts :
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      is_expr_typ (TypStruct ts)
+  | is_enum X mems :
+      length mems > 0 ->
+      is_expr_typ (TypEnum X None mems)
+  | is_senum X t mems :
+      is_expr_typ t ->
+      is_expr_typ (TypEnum X (Some t) mems)
+  | is_name X :
+      is_expr_typ (TypTypeName X)
+  | is_newtype X t :
+      is_expr_typ t ->
+      is_expr_typ (TypNewType X t).
+
+  Fixpoint normᵗ (t : typ) : typ :=
+    match t with
+    | TypBool
+    | TypString
+    | TypInteger
+    | TypInt _
+    | TypBit _
+    | TypVarBit _
+    | TypError
+    | TypMatchKind
+    | TypVoid
+    | TypTypeName _
+    | TypExtern _
+    | TypTable _   => t
+    | TypArray t n => TypArray (normᵗ t) n
+    | TypList  ts
+    | TypTuple ts  => TypTuple (map normᵗ ts)
+    | TypRecord ts
+    | TypStruct ts => TypStruct (map (fun '(x,t) => (x, normᵗ t)) ts)
+    | TypSet    t  => TypSet (normᵗ t)
+    | TypHeader ts => TypHeader (map (fun '(x,t) => (x, normᵗ t)) ts)
+    | TypHeaderUnion ts => TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) ts)
+    | TypEnum X t ms    => TypEnum X (option_map normᵗ t) ms
+    | TypNewType _ t    => normᵗ t
+    | TypControl ct             => TypControl (normᶜ ct)
+    | TypParser  ct             => TypParser  (normᶜ ct)
+    | TypFunction ft            => TypFunction (normᶠ ft)
+    | TypAction cs ds           => TypAction (map normᵖ cs) (map normᵖ ds)
+    | TypPackage Xs ws ps       => TypPackage Xs ws (map normᵖ ps)
+    | TypSpecializedType t ts   => TypSpecializedType (normᵗ t) (map normᵗ ts)
+    | TypConstructor Xs ws ps t => TypConstructor Xs ws (map normᵖ ps) (normᵗ t)
+    end
+  with normᶜ (ct : ControlType) : ControlType :=
+         match ct with
+         | MkControlType Xs ps => MkControlType Xs (map normᵖ ps)
+         end
+  with normᶠ (ft : FunctionType) : FunctionType :=
+         match ft with
+         | MkFunctionType Xs ps k t
+           => MkFunctionType Xs (map normᵖ ps) k (normᵗ t)
+         end
+  with normᵖ (p : P4Parameter) : P4Parameter :=
+         match p with
+         | MkParameter b d t a x => MkParameter b d (normᵗ t) a x
+         end.
 End Utils.
+
+Section IsExprTypInd.
+  Variables (tags_t : Type) (P : @P4Type tags_t -> Prop).
+  
+  Hypothesis HBool : P TypBool.
+  Hypothesis HString : P TypString.
+  Hypothesis HInteger : P TypInteger.
+  Hypothesis HInt : forall w, P (TypInt w).
+  Hypothesis HBit : forall w, P (TypBit w).
+  Hypothesis HVarbit : forall w, P (TypVarBit w).
+  Hypothesis HArray : forall t n,
+      0 < N.to_nat n ->
+      is_expr_typ t -> P t ->
+      P (TypArray t n).
+  Hypothesis HTuple : forall ts,
+      Forall is_expr_typ ts ->
+      Forall P ts ->
+      P (TypTuple ts).
+  Hypothesis HList : forall ts,
+      Forall is_expr_typ ts ->
+      Forall P ts ->
+      P (TypList ts).
+  Hypothesis HRecord : forall ts,
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      Forall (fun t => P (snd t)) ts ->
+      P (TypRecord ts).
+  Hypothesis HError : P TypError.
+  Hypothesis HHeader : forall ts,
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      Forall (fun t => P (snd t)) ts ->
+      P (TypHeader ts).
+  Hypothesis HUnion : forall ts,
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      Forall (fun t => P (snd t)) ts ->
+      P (TypHeaderUnion ts).
+  Hypothesis HStruct : forall ts,
+      Forall (fun t => is_expr_typ (snd t)) ts ->
+      Forall (fun t => P (snd t)) ts ->
+      P (TypStruct ts).
+  Hypothesis HEnum : forall X mems,
+      length mems > 0 ->
+      P (TypEnum X None mems).
+  Hypothesis HSenum : forall X t mems,
+      is_expr_typ t ->
+      P t -> P (TypEnum X (Some t) mems).
+  Hypothesis HName : forall X, P (TypTypeName X).
+  Hypothesis HNewType : forall X t,
+      is_expr_typ t -> P t -> P (TypNewType X t).
+
+  Definition my_is_expr_typ_ind
+    : forall (t : P4Type), is_expr_typ t -> P t :=
+    fix I t H :=
+      let fix L {ts} (H : Forall is_expr_typ ts)
+          : Forall P ts :=
+          match H with
+          | Forall_nil _ => Forall_nil _
+          | Forall_cons _ Hh Ht
+            => Forall_cons _ (I _ Hh) (L Ht)
+          end in
+      let fix AL
+              {ts : list (P4String.t tags_t * P4Type)}
+              (H : Forall (fun t => is_expr_typ (snd t)) ts)
+          : Forall (fun t => P (snd t)) ts :=
+          match H with
+          | Forall_nil _ => Forall_nil _
+          | Forall_cons _ Hh Hts
+            => Forall_cons _ (I _ Hh) (AL Hts)
+          end in
+      let PO
+            {ot : option P4Type}
+            (H : predopt is_expr_typ ot)
+          : predopt P ot :=
+          match H with
+          | EquivUtil.predop_none _ => EquivUtil.predop_none _
+          | EquivUtil.predop_some _ _ H
+            => EquivUtil.predop_some _ _ (I _ H)
+          end in
+      match H with
+      | is_bool          => HBool
+      | is_string        => HString
+      | is_integer       => HInteger
+      | is_int w         => HInt w
+      | is_bit w         => HBit w
+      | is_varbit w      => HVarbit w
+      | is_array _ _ n H => HArray _ _ n H (I _ H)
+      | is_tuple _ H     => HTuple _ H (L H)
+      | is_list  _ H     => HList _ H (L H)
+      | is_record _ H    => HRecord _ H (AL H)
+      | is_error         => HError
+      | is_header _ H    => HHeader _ H (AL H)
+      | is_union  _ H    => HUnion  _ H (AL H)
+      | is_struct _ H    => HStruct _ H (AL H)
+      | is_name X        => HName X
+      | is_newtype X _ H => HNewType X _ H (I _ H)
+      | is_enum X _   H  => HEnum X _ H
+      | is_senum X _ ms H => HSenum X _ ms H (I _ H)
+      end.
+End IsExprTypInd.
 
 Ltac inv_numeric_width :=
   match goal with
@@ -262,15 +471,21 @@ Inductive
 | parser_ok pt :
     ControlType_ok Δ pt ->
     Δ ⊢ok TypParser pt
-(* TODO: How should externs be handled? *)
 | extern_ok X :
     Δ ⊢ok TypExtern X
-(* TODO: how to handle wildcard params? *)
+| function_ok ft :
+    FunctionType_ok Δ ft ->
+    Δ ⊢ok TypFunction ft
+| action_ok ds cs :
+    Forall (P4Parameter_ok Δ) ds ->
+    Forall (P4Parameter_ok Δ) cs ->
+    Δ ⊢ok TypAction ds cs
+| table_ok X :
+    Δ ⊢ok TypTable X
 | package_ok Xs Ys params :
     Forall
-      (fun p =>
-         P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok
+         (remove_all Δ (map P4String.str Xs)))
       params ->
     Δ ⊢ok TypPackage Xs Ys params
 | specialized_ok τ τs :
@@ -279,29 +494,657 @@ Inductive
     Δ ⊢ok TypSpecializedType τ τs
 | constructor_ok Xs Ys params τ :
     Forall
-      (fun p =>
-         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
       params ->
-    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    remove_all Δ (map P4String.str Xs) ⊢ok τ ->
     Δ ⊢ok TypConstructor Xs Ys params τ
 where "Δ '⊢ok' τ" := (P4Type_ok Δ τ) : type_scope
 with ControlType_ok {tags_t : Type} (Δ : list string) : ControlType -> Prop :=
 | controlType_ok Xs params :
     Forall
-      (fun p =>
-         P4Parameter_ok
-           (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok
+         (remove_all Δ (map P4String.str Xs)))
       params ->
     ControlType_ok Δ (MkControlType Xs params)
 with FunctionType_ok {tags_t : Type} (Δ : list string) : FunctionType -> Prop :=
 | functionType_ok Xs params k τ :
     Forall
-      (fun p =>
-         P4Parameter_ok (remove_all (map P4String.str Xs) Δ) p)
+      (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
       params ->
-    remove_all (map P4String.str Xs) Δ ⊢ok τ ->
+    remove_all Δ (map P4String.str Xs) ⊢ok τ ->
     FunctionType_ok Δ (MkFunctionType Xs params k τ)
 with P4Parameter_ok {tags_t : Type} (Δ : list string) : P4Parameter -> Prop :=
 | parameter_ok b d τ n x :
     Δ ⊢ok τ ->
     P4Parameter_ok Δ (MkParameter b d τ n x).
+
+Section OkBoomerInd.
+  Variables
+    (tags_t : Type)
+    (P : list string -> @P4Type tags_t -> Prop)
+    (Q : list string -> @ControlType tags_t -> Prop)
+    (R : list string -> @FunctionType tags_t -> Prop)
+    (S : list string -> @P4Parameter tags_t -> Prop).
+
+  Hypothesis HBool : forall Δ, P Δ TypBool.
+
+  Hypothesis HInteger : forall Δ, P Δ TypInteger.
+
+  Hypothesis HInt : forall Δ w, P Δ (TypInt w).
+
+  Hypothesis HBit : forall Δ w, P Δ (TypBit w).
+
+  Hypothesis HVarbit : forall Δ w, P Δ (TypVarBit w).
+
+  Hypothesis HArray : forall Δ t n,
+      Δ ⊢ok t -> P Δ t -> P Δ (TypArray t n).
+
+  Hypothesis HTuple : forall Δ ts,
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall (P Δ) ts ->
+      P Δ (TypTuple ts).
+  
+  Hypothesis HList : forall Δ ts,
+      Forall (fun t => Δ ⊢ok t) ts ->
+      Forall (P Δ) ts ->
+      P Δ (TypList ts).
+
+  Hypothesis HRecord : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypRecord ts).
+
+  Hypothesis HSet : forall Δ t,
+      Δ ⊢ok t -> P Δ t -> P Δ (TypSet t).
+
+  Hypothesis HError : forall Δ, P Δ TypError.
+
+  Hypothesis HMatchKind : forall Δ, P Δ TypMatchKind.
+
+  Hypothesis HVoid : forall Δ, P Δ TypVoid.
+
+  Hypothesis HHeader : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypHeader ts).
+
+  Hypothesis HUnion : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypHeaderUnion ts).
+
+  Hypothesis HStruct : forall Δ ts,
+      Forall (fun t => Δ ⊢ok snd t) ts ->
+      Forall (fun t => P Δ (snd t)) ts ->
+      P Δ (TypStruct ts).
+
+  Hypothesis HEnum : forall Δ X t mems,
+      predopt (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) t ->
+      predopt (P (remove_str (P4String.str X) Δ)) t ->
+      P Δ (TypEnum X t mems).
+
+  Hypothesis HName : forall Δ X,
+      List.In (P4String.str X) Δ ->
+      P Δ (TypTypeName X).
+
+  Hypothesis HNewType : forall Δ X τ,
+      remove_str (P4String.str X) Δ ⊢ok τ ->
+      P (remove_str (P4String.str X) Δ) τ ->
+      P Δ (TypNewType X τ).
+
+  Hypothesis HControl : forall Δ ct,
+      ControlType_ok Δ ct -> Q Δ ct -> P Δ (TypControl ct).
+
+  Hypothesis HParser : forall Δ pt,
+      ControlType_ok Δ pt -> Q Δ pt -> P Δ (TypParser pt).
+
+  Hypothesis HExtern : forall Δ X, P Δ (TypExtern X).
+
+  Hypothesis HFunction : forall Δ ft,
+    FunctionType_ok Δ ft -> R Δ ft -> P Δ (TypFunction ft).
+
+  Hypothesis HAction : forall Δ ds cs,
+      Forall (P4Parameter_ok Δ) ds ->
+      Forall (S Δ) ds ->
+      Forall (P4Parameter_ok Δ) cs ->
+      Forall (S Δ) cs ->
+      P Δ (TypAction ds cs).
+
+  Hypothesis HTable : forall Δ X, P Δ (TypTable X).
+  
+  Hypothesis HPackage : forall Δ Xs Ys params,
+      Forall
+        (P4Parameter_ok
+           (remove_all Δ (map P4String.str Xs)))
+        params ->
+      Forall
+        (S (remove_all Δ (map P4String.str Xs)))
+        params ->
+      P Δ (TypPackage Xs Ys params).
+
+  Hypothesis HSpecialized : forall Δ τ τs,
+      Forall (fun τ => Δ ⊢ok τ) τs ->
+      Forall (P Δ) τs ->
+      Δ ⊢ok τ -> P Δ τ ->
+      P Δ (TypSpecializedType τ τs).
+
+  Hypothesis HConstructor : forall Δ Xs Ys params τ,
+      Forall
+        (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
+        params ->
+      Forall (S (remove_all Δ (map P4String.str Xs)))
+        params ->
+      remove_all Δ (map P4String.str Xs) ⊢ok τ ->
+      P (remove_all Δ (map P4String.str Xs)) τ ->
+      P Δ (TypConstructor Xs Ys params τ).
+  
+  Hypothesis HControlType : forall Δ Xs params,
+      Forall
+        (P4Parameter_ok
+           (remove_all Δ (map P4String.str Xs)))
+        params ->
+      Forall
+        (S (remove_all Δ (map P4String.str Xs)))
+        params ->
+      Q Δ (MkControlType Xs params).
+  
+  Hypothesis HFunctionType : forall Δ Xs params k τ,
+      Forall
+        (P4Parameter_ok (remove_all Δ (map P4String.str Xs)))
+        params ->
+      Forall
+        (S (remove_all Δ (map P4String.str Xs)))
+        params ->
+      remove_all Δ (map P4String.str Xs) ⊢ok τ ->
+      P (remove_all Δ (map P4String.str Xs)) τ ->
+      R Δ (MkFunctionType Xs params k τ).
+  
+  Hypothesis HP4Parameter : forall Δ b d τ n x,
+      Δ ⊢ok τ -> P Δ τ ->
+      S Δ (MkParameter b d τ n x).
+
+  (** Custom induction principles for the [_ok] rules. *)
+  Fixpoint
+    my_P4Type_ok_ind
+    Δ t (H : Δ ⊢ok t) {struct H} : P Δ t :=
+    let fix my_P4Type_list_ok
+            {Δ} {ts} (H : Forall (fun t => Δ ⊢ok t) ts) {struct H}
+        : Forall (P Δ) ts :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Type_ok_ind _ _ Hh)
+              (my_P4Type_list_ok Ht)
+        end in
+    let fix my_P4Type_alist_ok
+            {Δ} {ts} (H : Forall (fun t => Δ ⊢ok snd t) ts) {struct H}
+        : Forall (fun t => P Δ (snd t)) ts :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Type_ok_ind _ _ Hh)
+              (my_P4Type_alist_ok Ht)
+        end in
+    let my_P4Type_predopt_ok
+          {Δ} {t} (H: predopt (fun τ => Δ ⊢ok τ) t)
+        : predopt (P Δ) t :=
+        match H with
+        | EquivUtil.predop_none _ => EquivUtil.predop_none _
+        | EquivUtil.predop_some _ _ H
+          => EquivUtil.predop_some _ _ (my_P4Type_ok_ind _ _ H)
+        end in
+    let fix my_P4Parameter_list_ok
+            {Δ} {ps}
+            (H : Forall (P4Parameter_ok Δ) ps)
+        : Forall (S Δ) ps :=
+        match H with
+        | Forall_nil _ => Forall_nil _
+        | Forall_cons _ Hh Ht
+          => Forall_cons
+              _ (my_P4Parameter_ok_ind _ _ Hh)
+              (my_P4Parameter_list_ok Ht)
+        end in
+    match H with
+    | bool_ok _ => HBool _
+    | integer_ok _ => HInteger _
+    | int_ok _ w => HInt _ w
+    | bit_ok _ w => HBit _ w
+    | varbit_ok _ w => HVarbit _ w
+    | array_ok _ _ n H => HArray _ _ n H (my_P4Type_ok_ind _ _ H)
+    | tuple_ok _ _ H => HTuple _ _ H (my_P4Type_list_ok H)
+    | list_ok _ _ H => HList _ _ H (my_P4Type_list_ok H)
+    | record_ok _ _ H => HRecord _ _ H (my_P4Type_alist_ok H)
+    | set_ok _ _ H => HSet _ _ H (my_P4Type_ok_ind _ _ H)
+    | error_ok _ => HError _
+    | matchkind_ok _ => HMatchKind _
+    | void_ok _ => HVoid _
+    | header_ok _ _ H => HHeader _ _ H (my_P4Type_alist_ok H)
+    | union_ok _ _ H => HUnion _ _ H (my_P4Type_alist_ok H)
+    | struct_ok _ _ H => HStruct _ _ H (my_P4Type_alist_ok H)
+    | enum_ok _ X _ mems H => HEnum _ X _ mems H (my_P4Type_predopt_ok H)
+    | typeName_ok _ _ H => HName _ _ H
+    | newType_ok _ _ _ H => HNewType _ _ _ H (my_P4Type_ok_ind _ _ H)
+    | control_ok _ _ H => HControl _ _ H (my_ControlType_ok_ind _ _ H)
+    | parser_ok _ _ H => HParser _ _ H (my_ControlType_ok_ind _ _ H)
+    | extern_ok _ X => HExtern _ X
+    | function_ok _ _ H
+      => HFunction _ _ H (my_FunctionType_ok_ind _ _ H)
+    | action_ok _ _ _ Hds Hcs
+      => HAction
+          _ _ _
+          Hds (my_P4Parameter_list_ok Hds)
+          Hcs (my_P4Parameter_list_ok Hcs)
+    | table_ok _ X => HTable _ X
+    | package_ok _ _ _ _ H => HPackage _ _ _ _ H (my_P4Parameter_list_ok H)
+    | specialized_ok _ _ _ Hts Ht
+      => HSpecialized
+          _ _ _
+          Hts (my_P4Type_list_ok Hts)
+          Ht (my_P4Type_ok_ind _ _ Ht)
+    | constructor_ok _ _ _ _ _ Hps Ht
+      => HConstructor
+          _ _ _ _ _
+          Hps (my_P4Parameter_list_ok Hps)
+          Ht (my_P4Type_ok_ind _ _ Ht)
+    end
+  with my_ControlType_ok_ind
+         Δ ct (H : ControlType_ok Δ ct) : Q Δ ct :=
+         let fix my_P4Parameter_list_ok
+                 {Δ} {ps}
+                 (H : Forall (P4Parameter_ok Δ) ps)
+             : Forall (S Δ) ps :=
+             match H with
+             | Forall_nil _ => Forall_nil _
+             | Forall_cons _ Hh Ht
+               => Forall_cons
+                   _ (my_P4Parameter_ok_ind _ _ Hh)
+                   (my_P4Parameter_list_ok Ht)
+             end in
+         match H with
+         | controlType_ok _ _ _ Hps
+           => HControlType _ _ _ Hps (my_P4Parameter_list_ok Hps)
+         end
+  with my_FunctionType_ok_ind
+         Δ ft (H : FunctionType_ok Δ ft) : R Δ ft :=
+         let fix my_P4Parameter_list_ok
+                 {Δ} {ps}
+                 (H : Forall (P4Parameter_ok Δ) ps)
+             : Forall (S Δ) ps :=
+             match H with
+             | Forall_nil _ => Forall_nil _
+             | Forall_cons _ Hh Ht
+               => Forall_cons
+                   _ (my_P4Parameter_ok_ind _ _ Hh)
+                   (my_P4Parameter_list_ok Ht)
+             end in
+         match H with
+         | functionType_ok _ _ _ k _ Hps Hrt
+           => HFunctionType
+               _ _ _ k _
+               Hps (my_P4Parameter_list_ok Hps)
+               Hrt (my_P4Type_ok_ind _ _ Hrt)
+         end
+  with my_P4Parameter_ok_ind
+         Δ p (H : P4Parameter_ok Δ p) : S Δ p :=
+         match H with
+         | parameter_ok _ b d _ n x H
+           => HP4Parameter _ b d _ n x H (my_P4Type_ok_ind _ _ H)
+         end.
+End OkBoomerInd.
+
+Section Lemmas.
+  Context {tags_t : Type}.
+  Notation typ := (@P4Type tags_t).
+  
+  Lemma is_expr_typ_list_uninit_sval_of_typ :
+    forall (ts : list (typ)) b,
+      Forall is_expr_typ ts ->
+      Forall
+        (fun t => [] ⊢ok t -> exists v,
+             uninit_sval_of_typ b t = Some v) ts ->
+      Forall (fun τ : P4Type => [] ⊢ok τ) ts ->
+      exists vs, sequence (map (uninit_sval_of_typ b) ts) = Some vs.
+  Proof.
+    intros ts b Hts IHts Hokts.
+    rewrite Forall_forall in IHts, Hokts.
+    pose proof Utils.reduce_inner_impl_forall
+         _ _ _ _ IHts Hokts as H; cbn in H.
+    rewrite <- Forall_forall, Utils.Forall_exists_factor in H.
+    destruct H as [vs Hvs].
+    pose proof Utils.Forall2_map_l
+         _ _ _
+         (fun ov v => ov = Some v)
+         (uninit_sval_of_typ b) ts vs as H; cbn in H.
+    rewrite H in Hvs; clear H.
+    rewrite Forall2_sequence_iff in Hvs; eauto.
+  Qed.
+
+  Local Open Scope monad_scope.
+  
+  Lemma is_expr_typ_alist_uninit_sval_of_typ :
+    forall (xts : list (P4String.t tags_t * (typ))) b,
+      Forall (fun xt => is_expr_typ (snd xt)) xts ->
+      Forall
+        (fun xt =>
+           [] ⊢ok snd xt ->
+           exists v, uninit_sval_of_typ b (snd xt) = Some v)
+        xts ->
+      Forall (fun xt => [] ⊢ok snd xt) xts ->
+      exists xvs,
+        sequence
+          (List.map
+             (fun '({| P4String.str := x |}, t) =>
+                uninit_sval_of_typ b t >>| pair x)
+             xts)
+        = Some xvs.
+  Proof.
+    intros xts b Hxts IHxts Hok.
+    rewrite Forall_forall in IHxts, Hok.
+    pose proof Utils.reduce_inner_impl_forall
+         _ _ _ _ IHxts Hok as H; cbn in H.
+    rewrite <- Forall_forall, Utils.Forall_exists_factor in H.
+    destruct H as [vs Hvs].
+    pose proof Utils.Forall2_map_l
+         _ _ _
+         (fun ov v => ov = Some v)
+         (fun xt => uninit_sval_of_typ b (snd xt))
+         xts vs as H; cbn in H.
+    rewrite H in Hvs; clear H.
+    rewrite <- List.map_map, Forall2_sequence_iff in Hvs.
+    exists (combine (map P4String.str (map fst xts)) vs).
+    assert (Hmap:
+              List.map
+                (fun '({| P4String.str := x |}, t) =>
+                   uninit_sval_of_typ b t >>| pair x)
+                xts =
+              List.map
+                (fun '(x, t) => uninit_sval_of_typ b t >>| pair x)
+                (List.map (fun '(x,t) => (P4String.str x, t)) xts)).
+    { clear Hvs IHxts Hxts Hok vs.
+      induction xts as [| [[i x] t] xts IHxts];
+        cbn in *; try rewrite IHxts; auto. }
+    rewrite Hmap; clear Hmap.
+    unfold ">>|", ">>=".
+    unfold option_monad_inst, option_monad,
+    option_bind, option_ret, mret in *.
+    repeat rewrite Utils.map_pat_both.
+    clear Hok Hxts IHxts.
+    generalize dependent vs.
+    induction xts as [| [[i x] t] xts IHxts];
+      intros [| v vs] Hvs; cbn in *; auto.
+    - destruct (uninit_sval_of_typ b t) as [v |] eqn:Hv;
+        cbn in *; try discriminate.
+      destruct (sequence (map (uninit_sval_of_typ b) (map snd xts)))
+        as [vs |] eqn:Hvs'; cbn in *; inversion Hvs.
+    - destruct (uninit_sval_of_typ b t) as [v' |] eqn:Hv';
+        cbn in *; try discriminate.
+      destruct (sequence (map (uninit_sval_of_typ b) (map snd xts)))
+        as [vs' |] eqn:Hvs'; cbn in *; inversion Hvs; subst.
+      rewrite IHxts with vs; auto.
+  Qed.
+
+  Ltac apply_ind :=
+    match goal with
+    | H: ?Q, IH: (?Q -> exists v, _)
+      |- _ => apply IH in H as [? Hv];
+            rewrite Hv; clear Hv IH;
+            eauto; assumption
+    end.
+
+  Local Hint Extern 0 => apply_ind : core.
+  
+  Lemma is_expr_typ_uninit_sval_of_typ : forall (t : typ) b,
+    is_expr_typ t -> [] ⊢ok t ->
+    exists v, uninit_sval_of_typ b t = Some v.
+  Proof.
+    intros t b Ht Hok;
+      induction Ht as
+        [ (* bool *)
+        | (* string *)
+        | (* integer *)
+        | w (* int *)
+        | w (* bit *)
+        | w (* varbit *)
+        | t n Ht IHt (* array *)
+        | ts Hts IHts (* tuple *)
+        | ts Hts IHts (* list *)
+        | xts Hxts IHxts (* record *)
+        | (* error *)
+        | xts Hxts IHxts (* header *)
+        | xts Hxts IHxts (* union *)
+        | xts Hxts IHxts (* struct *)
+        | X ms Hms       (* enum *)
+        | X t ms Ht IHt (* senum *)
+        | X (* name *)
+        | X t Ht IHt (* newtype *)
+        ] using my_is_expr_typ_ind;
+      inversion Hok; subst; cbn in *;
+        unfold option_monad_inst, option_monad,
+        option_bind, option_ret in *;
+        try contradiction; eauto.
+    - assert (H0n: (0 <? n)%N = true) by (rewrite N.ltb_lt; lia).
+      rewrite H0n; eauto.
+    - eapply is_expr_typ_list_uninit_sval_of_typ
+        in Hts as [vs Hvs]; eauto.
+      unfold option_monad_inst, option_monad,
+      option_bind, option_ret in Hvs; rewrite Hvs; eauto.
+    - eapply is_expr_typ_list_uninit_sval_of_typ
+        in Hts as [vs Hvs]; eauto.
+      unfold option_monad_inst, option_monad,
+      option_bind, option_ret in Hvs; rewrite Hvs; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
+      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
+      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
+      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
+    - eapply is_expr_typ_alist_uninit_sval_of_typ
+        in Hxts as [xvs Hxvs]; eauto.
+      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
+    - destruct X as [d X];
+        destruct ms as [| [i M] ms];
+        simpl in *; try lia; eauto.
+    - destruct X as [d X].
+      inversion H0;
+      subst; cbn in *; eauto; try lia; eauto.
+  Qed.
+
+  Definition normᵗ_idem_def (t : typ) := normᵗ (normᵗ t) = normᵗ t.
+  Definition normᶜ_idem_def (t : @ControlType tags_t) := normᶜ (normᶜ t) = normᶜ t.
+  Definition normᶠ_idem_def (t : @FunctionType tags_t) := normᶠ (normᶠ t) = normᶠ t.
+  Definition normᵖ_idem_def (t : @P4Parameter tags_t) := normᵖ (normᵖ t) = normᵖ t.
+  
+  Definition normᵗ_idem_ind :=
+    my_P4Type_ind
+      _ normᵗ_idem_def normᶜ_idem_def
+      normᶠ_idem_def normᵖ_idem_def.
+
+  Ltac list_idem :=
+    intros ts Hts; f_equal;
+    apply map_ext_Forall in Hts;
+    rewrite map_map; auto; assumption.
+  
+  Ltac alist_idem :=
+    intros xts Hxts; f_equal;
+    pose proof Forall_map
+         (fun t => normᵗ (normᵗ t) = normᵗ t) snd xts
+      as H; unfold Basics.compose in H;
+    rewrite <- H in Hxts; clear H;
+    apply map_ext_Forall in Hxts;
+    repeat rewrite map_pat_combine;
+    repeat rewrite map_fst_combine;
+    repeat rewrite map_snd_combine;
+    repeat rewrite map_length; auto;
+    repeat rewrite map_id; rewrite map_map;
+    f_equal; auto; assumption.
+    
+  Lemma normᵗ_idem : forall t, normᵗ_idem_def t.
+  Proof.
+    apply normᵗ_idem_ind;
+      unfold normᵗ_idem_def,normᶜ_idem_def,
+      normᶠ_idem_def,normᵖ_idem_def; cbn in *;
+        try (intros; f_equal; eauto; assumption);
+        try list_idem; try alist_idem; eauto.
+    - intros X [t |] ms H; inversion H; subst; cbn; do 2 f_equal; auto.
+    - intros ds cs Hds Hcs.
+      apply map_ext_Forall in Hds, Hcs.
+      repeat rewrite map_map; f_equal; auto.
+    - intros Xs ws ps H.
+      apply map_ext_Forall in H.
+      repeat rewrite map_map; f_equal; auto.
+    - intros t ts Hts Ht.
+      apply map_ext_Forall in Hts;
+        rewrite map_map; f_equal; auto.
+    - intros Xs ws ps t Hps Ht.
+      apply map_ext_Forall in Hps;
+        rewrite map_map; f_equal; auto.
+    - intros Xs ps Hps;
+        apply map_ext_Forall in Hps;
+        rewrite map_map; f_equal; auto.
+    - intros Xs ps k t Hps Ht;
+        apply map_ext_Forall in Hps;
+        rewrite map_map; f_equal; auto.
+  Qed.
+
+  Local Hint Constructors is_expr_typ : core.
+
+  Ltac bruh :=
+    match goal with
+    | |- forall t, ?ty = normᵗ t -> is_expr_typ t
+      => apply (my_P4Type_ind
+                 tags_t (fun t => ty = normᵗ t -> is_expr_typ t)
+                 (fun _ => True) (fun _ => True) (fun _ => True)); cbn;
+        try discriminate; auto
+    end.
+
+  Local Hint Extern 2 => bruh : core.
+  Local Hint Resolve in_map : core.
+
+  Ltac bruh_list :=
+    intros ts' IHts' Hts';
+    injection Hts' as ?; subst;
+    constructor;
+    rewrite Forall_forall in *; eauto.
+
+  Local Hint Extern 0 => bruh_list : core.
+  
+  Ltac bruh_alist :=
+    intros xts' IHxts' Hxts';
+    injection Hxts' as ?; subst;
+    constructor;
+    rewrite Forall_forall in *;
+    intros [x t] Hxt; cbn in *;
+    match goal with
+    | H: List.In _ ?l,
+         IH: context [List.In _ (map ?g ?l)]
+      |- _ => apply in_map with (f := g) in H as Hinmap; eauto
+    end.
+
+  Local Hint Extern 0 => bruh_alist : core.
+  
+  Lemma is_expr_typ_normᵗ_impl : forall t : typ,
+      is_expr_typ (normᵗ t) -> is_expr_typ t.
+  Proof.
+    intros t Ht.
+    remember (normᵗ t) as normᵗt eqn:Heqt.
+    generalize dependent t.
+    induction Ht as
+        [ (* bool *)
+        | (* string *)
+        | (* integer *)
+        | w (* int *)
+        | w (* bit *)
+        | w (* varbit *)
+        | t n Ht IHt (* array *)
+        | ts Hts IHts (* tuple *)
+        | ts Hts IHts (* list *)
+        | xts Hxts IHxts (* record *)
+        | (* error *)
+        | xts Hxts IHxts (* header *)
+        | xts Hxts IHxts (* union *)
+        | xts Hxts IHxts (* struct *)
+        | X ms Hms       (* enum *)
+        | X t ms Ht IHt (* senum *)
+        | X (* name *)
+        | X t Ht IHt (* newtype *)
+        ] using my_is_expr_typ_ind; auto 3.
+    - bruh.
+      intros ty w IHty H.
+      inversion H; subst; auto.
+    - bruh.
+      intros Y t' l IHt' Ht'.
+      injection Ht' as ? ? ?; subst.
+      destruct t' as [t |]; cbn in *; try discriminate; auto.
+    - bruh.
+      intros Y t' l IHt' Ht'.
+      injection Ht' as ? ? ?; subst.
+      inversion IHt'; subst;
+        cbn in *; try discriminate; auto.
+      inversion H0; subst; auto.
+  Qed.
+
+  Definition uninit_sval_of_typ_norm_def (t : typ) :=
+    forall b, uninit_sval_of_typ b (normᵗ t) = uninit_sval_of_typ b t.
+
+  Definition uninit_sval_of_typ_norm_ind :=
+    my_P4Type_ind
+      _ uninit_sval_of_typ_norm_def
+      (fun _ => True) (fun _ => True) (fun _ => True).
+
+  Ltac list_uninit_norm :=
+    intros ts Hts b;
+    rewrite Forall_forall in Hts;
+    specialize Hts with (b:=b);
+    rewrite <- Forall_forall in Hts;
+    apply map_ext_Forall in Hts;
+    do 2 f_equal; rewrite map_map; auto; assumption.
+
+  Ltac alist_uninit_norm :=
+    intros xts Hxts b;
+    rewrite Forall_forall in Hxts;
+    specialize Hxts with (b:=b);
+    rewrite <- Forall_forall in Hxts;
+    apply map_ext_Forall in Hxts;
+    do 2 f_equal;
+    rewrite <- map_map with
+        (g := uninit_sval_of_typ b) (f := snd) in Hxts;
+    rewrite <- map_map with
+        (g := uninit_sval_of_typ b) (f := fun xt => normᵗ (snd xt)) in Hxts;
+    rewrite <- map_map with
+        (g := normᵗ) (f := snd) in Hxts;
+    rewrite map_pat_combine, map_id;
+    unfold option_ret, option_bind;
+    induction xts as [| [[i x] t] xts IHxts];
+    simpl in *; inversion Hxts; subst; f_equal; auto; assumption.
+  
+  Lemma uninit_sval_of_typ_norm : forall t,
+      uninit_sval_of_typ_norm_def t.
+  Proof.
+    apply uninit_sval_of_typ_norm_ind;
+      unfold uninit_sval_of_typ_norm_def; cbn;
+        try (intros; f_equal; auto; assumption);
+        try list_uninit_norm; try alist_uninit_norm; auto.
+    - intros t n IH b.
+      destruct (0 <? n)%N eqn:H0n; f_equal; auto.
+    - intros [iX X] [t |] [| [iM M] ms] H b;
+        inversion H; subst; simpl in *; f_equal; eauto.
+  Qed.
+
+  Local Hint Constructors member_type : core.
+  
+  Lemma member_type_normᵗ : forall ts (t : typ),
+      member_type ts t ->
+      member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t).
+  Proof.
+    intros ts t H; inversion H; subst; cbn; auto.
+  Qed.
+End Lemmas.

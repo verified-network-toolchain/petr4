@@ -26,7 +26,7 @@ Open Scope string_scope.
 
 Section V1Model.
 
-Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+Context {tags_t: Type} (* {inhabitant_tags_t : Inhabitant tags_t} *).
 Context {Expression: Type}.
 Notation ident := string.
 Notation path := (list ident).
@@ -65,7 +65,7 @@ Definition extern_env := PathMap.t env_object.
 
 Definition extern_state := PathMap.t object.
 
-Definition dummy_tags := @default tags_t _.
+(* Definition dummy_tags := @default tags_t _. *)
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "register" then

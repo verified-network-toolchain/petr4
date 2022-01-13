@@ -1000,30 +1000,29 @@ Inductive write_header_field: Sval -> string -> Sval -> Sval -> Prop :=
    2. Updating with an invalid header makes fields in all the headers unspecified (validity unchanged).
 *)
 
-Fixpoint update_union_member (fields: StringAList Sval) (fname: string)
+Definition havoc_header (update_is_valid : option bool -> option bool) : Sval -> option Sval :=
+  fun sv =>
+    match sv with
+    | ValBaseHeader fields is_valid =>
+        Some (ValBaseHeader (kv_map (uninit_sval_of_sval None) fields) (update_is_valid is_valid))
+    | _ => None
+    end.
+
+Definition update_union_member (fields: StringAList Sval) (fname: string)
                              (hfields: StringAList Sval) (is_valid: option bool) :
                              option (StringAList Sval) :=
-  match fields with
-  | [] => Some []
-  | (fname', ValBaseHeader hfields' is_valid') :: tl =>
-    match update_union_member tl fname hfields is_valid with
-    | None => None
-    | Some tl' =>
-      if String.eqb fname fname' then
-        Some ((fname, ValBaseHeader hfields is_valid) :: tl')
-      else
-        let new_is_valid' :=
-          match is_valid with
-          | Some true => Some false
-          | Some false => is_valid'
-          (* is_valid = None should be impossible. A header member of a header union should never have
-            None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
-          | _ => is_valid'
-          end in
-        (* It's safe to use (uninit_sval_of_sval None) here because there's no nested headers. *)
-        Some ((fname', ValBaseHeader (kv_map (uninit_sval_of_sval None) hfields') new_is_valid') :: tl')
-    end
-  | _ :: _ => None
+  let update_is_valid :=
+    match is_valid with
+    | Some true => fun _ => Some false
+    | Some false => id
+      (* is_valid = None should be impossible. A header member of a header union should never have
+        None validity bit. is_valid = None only for an out-of-bounds header stack access. *)
+    | _ => id
+    end in
+  match lift_option_kv (kv_map (havoc_header update_is_valid) fields) with
+  | Some havoc_fields =>
+      AList.set havoc_fields fname (ValBaseHeader hfields is_valid)
+  | _ => None
   end.
 
 Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
@@ -1033,7 +1032,7 @@ Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_header : forall fields is_valid fname fv sv,
                            write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
                            update_member (ValBaseHeader fields is_valid) fname fv sv
-  | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
+  | update_member_union : forall hfields is_valid fields fields' fname,
                           update_union_member fields fname hfields is_valid = Some fields' ->
                           update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
                           (ValBaseUnion fields').

@@ -3,8 +3,9 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.Lists.List Coq.Program.Program
         Coq.ssr.ssrbool
         Poulet4.P4light.Syntax.Typed
-        Poulet4.P4light.Syntax.Syntax
-        Poulet4.Utils.Maps Poulet4.Utils.AList.
+        Poulet4.P4light.Syntax.Syntax        
+        Poulet4.Monads.Monad Poulet4.Monads.Option.
+From Poulet4.Utils Require Import Utils Maps AList.
 Require Export Poulet4.P4light.Architecture.Target
         VST.zlist.Zlist Poulet4.P4light.Syntax.Value.
 From Poulet4.P4light.Syntax Require Export ValueUtil SyntaxUtil.

@@ -13,7 +13,7 @@ From Poulet4.P4light.Syntax Require Import
 From Poulet4.P4light.Semantics Require Import Ops P4Arith.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
-From Poulet4.Utils Require Import Sublist Maps CoqLib.
+From Poulet4.Utils Require Import Maps CoqLib Utils.
 
 Import ListNotations.
 Open Scope Z_scope.
@@ -270,7 +270,6 @@ Fixpoint bits_to_lpm_nbits (acc: N) (b: bool) (v: list bool): option N :=
   end.
 
 (* Compute (bits_to_lpm_nbits 0 false (to_lbool 5 (-2))). *)
-
 Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
   match vs with
   | VSTUniversal

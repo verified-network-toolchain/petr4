@@ -116,7 +116,7 @@ End Typed.
 
 Require Import Coq.Lists.List.
 Import ListNotations.
-Require Poulet4.P4cub.Util.EquivUtil.
+Require Poulet4.Utils.Util.EquivUtil.
 
 Section P4TypeInd.
   Variable tags_t : Type.

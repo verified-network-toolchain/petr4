@@ -1,4 +1,5 @@
-Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops Poulet4.LightTyping.CTK.
+From Poulet4.P4light Require Export
+     Semantics.Typing.Lemmas Semantics.Ops Semantics.Typing.CTK.
 
 (** * P4light Typing Rules of Inference *)
 

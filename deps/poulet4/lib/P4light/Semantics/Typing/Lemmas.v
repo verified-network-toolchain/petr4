@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.Typing Poulet4.P4Arith Coq.ZArith.BinInt.
+Require Export Poulet4.P4light.Semantics.Typing.Typing.
 
 (** * Helper Lemmas for [Rules.v]. *)
 

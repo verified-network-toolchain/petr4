@@ -3,7 +3,7 @@ Require Export Poulet4.Typed Poulet4.Syntax Poulet4.ValueUtil.
 Export ListNotations.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 Require Import Poulet4.Monads.Monad Poulet4.Monads.Option
-        Poulet4.Sublist Poulet4.Utils.
+        VST.zlist.sublist Poulet4.Utils.
 
 Notation predopt    := (EquivUtil.predop).
 Notation remove_str := (remove string_dec).

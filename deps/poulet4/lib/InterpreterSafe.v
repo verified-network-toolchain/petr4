@@ -27,9 +27,15 @@ Section InterpreterSafe.
       subst sv.
       constructor.
       reflexivity.
-    - admit.
-    - admit.
-    - admit.
+    - cbv in H.
+      inversion H.
+      subst sv.
+      constructor.
+    - cbn in H. destruct (Semantics.is_directional dir) eqn:?H.
+      + constructor; auto.
+      + now apply Semantics.exec_expr_name_const.
+    - cbn in H.
+      admit.
     - admit.
     - admit.
     - admit.

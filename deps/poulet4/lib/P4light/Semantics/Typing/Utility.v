@@ -2,7 +2,7 @@ From Coq Require Export NArith.BinNat Strings.String
      Lists.List micromega.Lia.
 Require Export Poulet4.P4light.Syntax.Typed
         Poulet4.P4light.Syntax.Syntax
-        Poulet4.Monads.Monad Poulet4.Monads.Option
+        Poulet4.Monads.Option
         VST.zlist.sublist Poulet4.Utils.Utils
         Poulet4.Syntax.ValueUtil Poulet4.ForallMap
         Poulet4.P4light.Typing.Ok

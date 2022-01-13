@@ -1,6 +1,4 @@
-Require Export Poulet4.Monads.Monad
-        Poulet4.Monads.Option
-        Coq.Classes.EquivDec.
+Require Export Poulet4.Monads.Option Coq.Classes.EquivDec.
 Require Import Basics.
 
 (** * Combinators *)

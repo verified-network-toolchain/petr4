@@ -1,4 +1,5 @@
-Require Import Poulet4.Monads.Monad String List.
+Require Import String List.
+Require Export Poulet4.Monads.Monad.
 
 Module Result.
   Inductive result (A : Type) : Type :=

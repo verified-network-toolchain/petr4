@@ -24,7 +24,7 @@ Section Interpreter.
   Variable (ge : genv).
 
   Definition last_index_of_next (next: N) : option Sval :=
-    if (next =? 0)%N 
+    if (next =? 0)%N
     then uninit_sval_of_typ None (TypBit 32)
     else Some (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1)))).
 
@@ -57,7 +57,7 @@ Section Interpreter.
 
   Definition bits_init : list (option bool) -> list bool :=
     List.map bit_init.
-  
+
   (* Corresponds to exec_val from the big-step semantics. *)
   Fixpoint interp_sval_val (v: Sval) : Val :=
     match v with
@@ -98,10 +98,9 @@ Section Interpreter.
     end.
 
   Fixpoint interp_expr (this: path) (st: state) (expr: @Expression tags_t) : option Sval :=
-    let '(MkExpression tags expr typ dir) := expr in
-    interp_pre_expr this st typ dir expr
-  with interp_pre_expr (this: path) (st: state) (typ: P4Type) (dir: direction) (expr: @ExpressionPreT tags_t) : option Sval :=
     match expr with
+      MkExpression tags expr typ dir =>
+        match expr with
     | ExpBool b =>
       mret (ValBaseBool (Some b))
     | ExpInt i =>
@@ -190,6 +189,7 @@ Section Interpreter.
       None (* not implemented in exec_expr *)
     | ExpNamelessInstantiation typ args =>
       None (* not implemented in exec_expr *)
+        end
     end.
 
 End Interpreter.

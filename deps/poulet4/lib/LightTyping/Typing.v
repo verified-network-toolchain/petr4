@@ -133,7 +133,7 @@ Section TypingDefs.
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
       read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
       gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
-      Δ ⊢ok typ_of_expr e ->             (** Type variables are bound. *)
+      Δ ⊢okᵉ e ->                        (** Type variables are bound. *)
       is_expr_typ (typ_of_expr e) ->     (** Is a valid expression type. *)
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       (** Progress. *)
@@ -270,6 +270,7 @@ Section TypingDefs.
       delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
+      Δ ⊢okˢ s ->
       (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
       forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
                  gamma_stmt_prop this Δ Γ' ge st'.
@@ -300,6 +301,7 @@ Section TypingDefs.
       delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
+      Δ ⊢okᵇ blk ->
       (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
       forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                  gamma_stmt_prop this Δ Γ' ge st'.
@@ -318,7 +320,7 @@ Section TypingDefs.
       delta_genv_prop ge Δ ->
       read_one_bit_reads read_one_bit ->
       gamma_stmt_prop this Δ Γ ge st ->
-      Δ ⊢ok typ_of_expr call ->
+      Δ ⊢okᵉ call ->
       (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
       forall st' sig, run_call ge read_one_bit this st call st' sig ->
                  gamma_stmt_prop this Δ Γ ge st'.

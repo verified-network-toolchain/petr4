@@ -495,7 +495,7 @@ Section Lemmas.
                 firstorder; f_equal; auto.
   Qed.
   Local Hint Resolve uninit_sval_of_typ_alist_val_typ : core.
-  Local Hint Resolve Forall_repeat : core.
+  Local Hint Resolve sublist.Forall_repeat : core.
 
   Ltac width_solve :=
     match goal with

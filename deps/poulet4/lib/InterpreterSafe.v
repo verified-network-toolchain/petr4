@@ -15,9 +15,7 @@ Section InterpreterSafe.
       Interpreter.interp_expr ge this st expr = Some sv ->
       Semantics.exec_expr ge read_one_bit this st expr sv.
   Proof.
-    destruct expr.
-    (* Will need a real induction scheme. Not sure if that's defined anywhere already. *)
-    induction expr; intros.
+    induction expr using expr_ind; intros.
     - cbv in H.
       inversion H.
       subst sv.

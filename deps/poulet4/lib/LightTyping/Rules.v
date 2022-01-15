@@ -41,7 +41,7 @@ Section Soundness.
     Ltac soundtac :=
       autounfold with *;
       intros Hgrt Hdlta Hok Hise rob st Hrob Hg;
-      inversion Hok; subst;
+      inversion Hok; subst; inversion Hise; subst;
       split; eauto;
       try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex);
       cbn in *.
@@ -109,7 +109,7 @@ Section Soundness.
         destruct Hv; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
         destruct Hg as [[_ Hg] _]; eauto.
-      - rewrite Hd in H9; discriminate.
+      - rewrite Hd in H11; discriminate.
     Qed.
 
     Lemma constant_sound : forall tag x loc t dir,
@@ -124,7 +124,7 @@ Section Soundness.
         { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
-      - rewrite Hd in H9; discriminate.
+      - rewrite Hd in H11; discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
@@ -143,10 +143,11 @@ Section Soundness.
         autounfold with * in *.
       intros Hgrt Hdelta Hok Hise rob st Hrob Hg; simpl in *.
       inversion Hok; subst. inversion H4; subst.
-      rename H1 into Hokts.
-      rename H4 into Hoke1e2.
-      rename H2 into Hoke1.
-      rename H3 into Hoke2.
+      rename H1 into Hokts; rename H4 into Hoke1e2;
+        rename H2 into Hoke1; rename H3 into Hoke2.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hists; rename H4 into Hisacc;
+        rename H2 into Hise1; rename H3 into Hise2.
       rewrite Ht1, Ht2 in *.
       pose proof He1 Hgrt Hdelta as [[v1 Hev1] He1']; clear He1; eauto.
       pose proof He2 Hgrt Hdelta as [[v2 Hev2] He2']; clear He2; eauto.
@@ -229,6 +230,9 @@ Section Soundness.
       intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokbit; rename H4 into Hokacc; rename H0 into Hoke.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hisbit; rename H4 into Hisacc;
+        rename H0 into Hisee.
       rewrite Ht in *; cbn in *.
       pose proof He Hgrt Hdelta as [[v Hev] He']; clear He; eauto.
       split.
@@ -545,7 +549,7 @@ Section Soundness.
           ⊢ₑ MkExpression
           tag (ExpErrorMember err) TypError dir.
     Proof.
-      soundtac.
+      intros tag err dir; soundtac.
     Qed.
 
     Local Hint Resolve member_get_member_ex : core.
@@ -560,12 +564,13 @@ Section Soundness.
       (* TODO: maybe need an [⊢ok] for all syntax forms of p4light...yikes!
          For now I may be able to get away with just these assumptions. *)
       intros i e x ts t dir Hmem Hts He.
-      intros Hgrt Hdlta Hok Hise rob st Hrob Hg.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
-      assert (Htoeise : is_expr_typ (typ_of_expr e)) by admit.
-      pose proof He Hgrt Hdlta Htoeok as [[v Hev] Hv]; eauto.
-      cbn in *; split.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hist; rename H4 into Hismem; rename H0 into Hise'.
+      pose proof He Hgrt Hdlta as [[v Hev] Hv]; eauto.
+      split.
       - assert (Hget: exists v', get_member v (P4String.str x) v').
         { apply Hv in Hev as (r & Hr & Hvr).
           pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
@@ -580,7 +585,7 @@ Section Soundness.
           apply member_type_normᵗ in Hmemrs.
           assert (Hlem3' : exists r',
                      AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
-          { clear Hokmem Hokt Hv Hdlta Hg Hgrt Hok Hrob st Hise v Hvr Htoeise Htoeok
+          { clear Hokmem Hokt Hv Hdlta Hg Hgrt Hok Hrob st Hise v Hvr Hise' Hist Hismem Htoeok
                   i Hmem He dir rob this Δ Γ.
             remember (typ_of_expr e) as te eqn:Heqte; clear Heqte.
             exists (normᵗ r). admit. }

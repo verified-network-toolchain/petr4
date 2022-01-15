@@ -199,7 +199,7 @@ Section TypingDefs.
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
       Δ ⊢okᵉ e ->                        (** Type variables are bound. *)
-      is_expr_typ (typ_of_expr e) ->     (** Is a valid expression type. *)
+      is_expr e ->                       (** Is a well-formed expression. *)
       forall (read_one_bit : option bool -> bool -> Prop) (** Interprets uninitialized bits. *)
         (st : state)                      (** Runtime environment. *),
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)

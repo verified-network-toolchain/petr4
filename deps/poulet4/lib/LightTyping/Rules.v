@@ -161,17 +161,17 @@ Section Soundness.
         destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
           as [rs |] eqn:Hrs;
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst, option_monad in *;
+          unfold option_monad_inst in *;
           unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst, option_monad in *;
+          unfold option_monad_inst in *;
           rewrite Hrs in Hr1; try discriminate.
         inversion Hr1; subst; clear Hr1; cbn in *.
         assert (Hhrs: get_real_type ge (TypHeader ts) = Some (TypHeader rs)).
         { cbn in *.
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst, option_monad in *;
+          unfold option_monad_inst in *;
           unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst, option_monad in *;
+          unfold option_monad_inst in *;
           rewrite Hrs; reflexivity. }
         destruct Hv2' as [v2' Hv2'].
         inversion Hv1; inversion Hv2; inversion Hv2';
@@ -561,8 +561,6 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
-      (* TODO: maybe need an [⊢ok] for all syntax forms of p4light...yikes!
-         For now I may be able to get away with just these assumptions. *)
       intros i e x ts t dir Hmem Hts He.
       intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
@@ -597,9 +595,27 @@ Section Soundness.
         pose proof ok_get_real_type_ex _ _ Hokt _ Hdlta as [r' Hr'].
         exists r'; split; auto.
         pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
+        pose proof member_type_get_real_type
+               _ _ _ _ _
+               Hmem Hmemrs Hr as Hlem.
         apply member_type_normᵗ in Hmemrs.
+        Search ((?A -> ?B) -> option ?A -> option ?B).
+        Check f_equal.
+        apply f_equal with
+            (f := option_map (map (fun '(x,t) => (x,normᵗ t)))) in Hlem.
+        cbn in Hlem.
+        rewrite option_map_lift_monad,sequence_map in Hlem.
+        Search (option_map normᵗ (get_real_type _ _)).
+        repeat rewrite map_pat_both in Hlem.
+        rewrite map_map in Hlem.
+        unfold option_map,option_bind,option_ret in Hlem.
         assert (Hlem3' :
-                  AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')) by admit.
+                  AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
+        { clear H8 Hr Hvr Hev v Hv Hist Htoeok
+                Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
+                Hokt Hokmem dir Δ Γ i. admit.
+          
+        }
         eauto.
     Admitted.
 

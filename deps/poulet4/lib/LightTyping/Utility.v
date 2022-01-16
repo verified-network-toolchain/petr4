@@ -319,7 +319,7 @@ Section Lemmas.
         cbn in *; try rewrite IHxts; auto. }
     rewrite Hmap; clear Hmap.
     unfold ">>|", ">>=".
-    unfold option_monad_inst, option_monad,
+    unfold option_monad_inst,
     option_bind, option_ret, mret in *.
     repeat rewrite Utils.map_pat_both.
     clear Hok Hxts IHxts.
@@ -373,34 +373,34 @@ Section Lemmas.
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind;
       inversion Hok; subst; cbn in *;
-        unfold option_monad_inst, option_monad,
+        unfold option_monad_inst,
         option_bind, option_ret in *;
         try contradiction; eauto.
     - assert (H0n: (0 <? n)%N = true) by (rewrite N.ltb_lt; lia).
       rewrite H0n; eauto.
     - eapply is_expr_typ_list_uninit_sval_of_typ
         in Hts as [vs Hvs]; eauto.
-      unfold option_monad_inst, option_monad,
+      unfold option_monad_inst,
       option_bind, option_ret in Hvs; rewrite Hvs; eauto.
     - eapply is_expr_typ_list_uninit_sval_of_typ
         in Hts as [vs Hvs]; eauto.
-      unfold option_monad_inst, option_monad,
+      unfold option_monad_inst,
       option_bind, option_ret in Hvs; rewrite Hvs; eauto.
     - eapply is_expr_typ_alist_uninit_sval_of_typ
         in Hxts as [xvs Hxvs]; eauto.
-      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      unfold ">>|",">>=",mret, option_monad_inst,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
     - eapply is_expr_typ_alist_uninit_sval_of_typ
         in Hxts as [xvs Hxvs]; eauto.
-      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      unfold ">>|",">>=",mret, option_monad_inst,
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
     - eapply is_expr_typ_alist_uninit_sval_of_typ
         in Hxts as [xvs Hxvs]; eauto.
-      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      unfold ">>|",">>=",mret, option_monad_inst, 
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
     - eapply is_expr_typ_alist_uninit_sval_of_typ
         in Hxts as [xvs Hxvs]; eauto.
-      unfold ">>|",">>=",mret, option_monad_inst, option_monad,
+      unfold ">>|",">>=",mret, option_monad_inst, 
       option_bind, option_ret in Hxvs; rewrite Hxvs; eauto.
     - destruct X as [d X];
         destruct ms as [| [i M] ms];

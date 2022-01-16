@@ -235,8 +235,7 @@ Section Lemmas.
           as HF2impl; cbn in *; auto.
       + apply sequence_length in Heqvs.
         rewrite map_length in Heqvs; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)
@@ -270,8 +269,7 @@ Section Lemmas.
       + apply sequence_length in Heqxvs.
         rewrite map_length in Heqxvs.
         rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)
@@ -306,8 +304,7 @@ Section Lemmas.
       + apply sequence_length in Heqxvs.
         rewrite map_length in Heqxvs.
         rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)

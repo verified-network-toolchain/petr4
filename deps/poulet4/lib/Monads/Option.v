@@ -3,13 +3,9 @@ Require Import Poulet4.Monads.Monad.
 Open Scope monad.
 Open Scope list_scope.
 
+Definition option_ret (A: Type) (a: A) : option A := Some a.
 
-Definition option_monad {Result: Type} :=
-  option Result.
-
-Definition option_ret (A: Type) (a: A) : option_monad := Some a.
-
-Definition option_bind (A B: Type) (c: @option_monad A) (f: A -> @option_monad B) : option_monad :=
+Definition option_bind (A B: Type) (c: option A) (f: A -> option B) : option B :=
   match c with
   | Some a => f a
   | None => None
@@ -20,7 +16,7 @@ Global Instance option_monad_inst : Monad option :=
     mbind := option_bind;
   }.
 
-Definition option_fail {A : Type} : @option_monad A := None.
+Definition option_fail {A : Type} : option A := None.
 
 Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (base: A) : option A :=
   match acts with
@@ -87,3 +83,25 @@ Lemma Forall2_sequence_iff : forall {A : Type} lmao (la : list A),
 Proof.
   intuition.
 Qed.
+
+Lemma sequence_map : forall {U V : Type} (f : U -> V) us,
+    sequence us >>| List.map f =
+    sequence (List.map (lift_monad f) us).
+Proof.
+  intros U V f us.
+  induction us as [| [u |] us IHus]; cbn in *;
+    unfold option_ret,option_bind in *; auto.
+  rewrite <- IHus.
+  destruct (sequence us) as [sus |]; cbn in *; auto.
+Qed.
+
+(** Proved w/o functional extentionality! *)
+Lemma option_map_lift_monad : forall (U V : Type),
+    @option_map U V = @lift_monad U V option _.
+Proof.
+  intros U V.
+  unfold option_map, lift_monad, ">>=",
+  option_monad_inst, option_bind,mret,option_ret;
+    reflexivity.
+Qed.
+(* Print Assumptions option_map_lift_monad. *)

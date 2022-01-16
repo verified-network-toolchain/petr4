@@ -148,7 +148,7 @@ Section Environment.
     | _ :: scopes' => top_scope scopes'
     end.
 
-  Definition lookup_value (v: @ValueBase bit) (field: string) : @option_monad (@ValueBase bit) :=
+  Definition lookup_value (v: @ValueBase bit) (field: string) : option (@ValueBase bit) :=
     match v with
     | ValBaseStruct fields
     | ValBaseUnion fields
@@ -161,7 +161,7 @@ Section Environment.
     | _ => None
     end.
 
-  Definition bit_slice (v: @ValueBase bit) (msb lsb: N) : @option_monad (@ValueBase bit) :=
+  Definition bit_slice (v: @ValueBase bit) (msb lsb: N) : option (@ValueBase bit) :=
     match v with
     | ValBaseBit bits
     | ValBaseInt bits =>
@@ -181,7 +181,7 @@ Section Environment.
     | _ => None
     end.
 
-  Definition array_index (v: @ValueBase bit) (idx: nat): @option_monad (@ValueBase bit) :=
+  Definition array_index (v: @ValueBase bit) (idx: nat): option (@ValueBase bit) :=
     match v with
     | ValBaseStack hdrs _ => nth_error hdrs idx
     | _ => None
@@ -204,7 +204,9 @@ Section Environment.
   Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t bit) :=
     env_name_lookup (BareName name).
 
-  (* Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t) : option_monad :=
+  (* 
+  Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t)
+    : option (Value bit) :=
     match lval with
     | ValLeftName _ _ => Some val
     | ValLeftMember _ member =>

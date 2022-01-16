@@ -21,7 +21,6 @@ Section Lemmas.
   Create HintDb option_monad.
   Local Hint Unfold option_ret : option_monad.
   Local Hint Unfold option_bind : option_monad.
-  Local Hint Unfold option_monad : option_monad.
   Local Hint Unfold option_monad_inst : option_monad.
   Local Hint Constructors predopt : core.
   Local Hint Constructors member_type : core.
@@ -583,4 +582,139 @@ Section Lemmas.
         cbn in *; autounfold with option_monad in *;
           match_some_inv; some_inv; reflexivity.
   Qed.
+
+  Definition get_real_type_normᵗ_def (t : typ) :=
+    forall ge, get_real_type ge t >>| normᵗ = get_real_type ge (normᵗ t).
+  Local Hint Unfold get_real_type_normᵗ_def : ind_def.
+
+  Definition get_real_ctrl_normᶜ_def (c : @ControlType tags_t) :=
+    forall ge, get_real_ctrl ge c >>| normᶜ = get_real_ctrl ge (normᶜ c).
+  Local Hint Unfold get_real_ctrl_normᶜ_def : ind_def.
+
+  Definition get_real_func_normᶠ_def (f : @FunctionType tags_t) :=
+    forall ge, get_real_func ge f >>| normᶠ = get_real_func ge (normᶠ f).
+  Local Hint Unfold get_real_func_normᶠ_def : ind_def.
+
+  Definition get_real_param_normᵖ_def (p : @P4Parameter tags_t) :=
+    forall ge, get_real_param ge p >>| normᵖ = get_real_param ge (normᵖ p).
+  Local Hint Unfold get_real_param_normᵖ_def : ind_def.
+
+  Definition get_real_type_normᵗ_ind :=
+    my_P4Type_ind
+      _ get_real_type_normᵗ_def
+      get_real_ctrl_normᶜ_def
+      get_real_func_normᶠ_def
+      get_real_param_normᵖ_def.
+
+  Ltac solve_list_grtn :=
+    intros ts IH ge;
+    rewrite Forall_forall in IH;
+    specialize IH with (ge := ge);
+    rewrite <- Forall_forall in IH;
+    apply map_ext_Forall in IH;
+    rewrite <- map_map with
+        (f:=normᵗ) (g:=get_real_type ge) in IH;
+    rewrite <- map_map with
+        (g:= fun x => option_bind _ _ x (fun t => option_ret _ (normᵗ t)))
+        (f:=get_real_type ge) in IH;
+    apply f_equal with (f:=sequence) in IH;
+    epose proof sequence_map as Hsm;
+    unfold ">>|",">>=",mbind,mret,option_monad_inst in Hsm;
+    rewrite <- Hsm in IH; clear Hsm;
+    autounfold with option_monad in *;
+    rewrite <- IH;
+    destruct (sequence (map (get_real_type ge) ts))
+      as [rs|] eqn:Hrs; reflexivity.
+
+  Local Hint Extern 0 => solve_list_grtn : core.
+
+  Ltac solve_alist_grtn :=
+    intros xts IH ge;
+    rewrite Forall_forall in IH;
+    specialize IH with (ge := ge);
+    rewrite <- Forall_forall in IH;
+    apply map_ext_Forall in IH;
+    rewrite <- map_map with
+        (g:= fun x => get_real_type ge (normᵗ x))
+        (f:=snd) in IH;
+    rewrite <- map_map with
+        (f:=normᵗ) (g:=get_real_type ge) in IH;
+    rewrite <- map_map with
+        (g:= fun t => option_bind _ _ (get_real_type ge t) (fun x => option_ret _ (normᵗ x)))
+        (f:=snd) in IH;
+    rewrite map_pat_combine;
+    epose proof @map_bind_pair _ option_monad_inst as Hmbp;
+    unfold ">>|",">>=",option_monad_inst,mret,mbind in Hmbp;
+    repeat rewrite Hmbp with (f:=id) (g:=get_real_type ge); clear Hmbp;
+    repeat rewrite map_id;
+    rewrite map_fst_combine, map_snd_combine
+      by (repeat rewrite map_length; reflexivity);
+    apply f_equal with (f:=combine (map fst xts)) in IH;
+    apply f_equal with (f:=map (fun '(a,b) => b >>| pair a)) in IH;
+    unfold ">>|",">>=",option_monad_inst,mbind,mret in IH;
+    rewrite <- IH; clear IH;
+    replace (map fst xts) with (map id (map fst xts))
+      by (rewrite map_id; reflexivity);
+    repeat rewrite <- map_pat_combine; unfold id;
+    repeat rewrite map_pat_both;
+    repeat rewrite map_map;
+    autounfold with option_monad in *;
+    induction xts as [| [x t] xts IHxts]; cbn in *; try reflexivity;
+    destruct (get_real_type ge t) as [r |] eqn:Hr; cbn in *; try reflexivity;
+    destruct (sequence
+                (map
+                   (fun x : P4String.t tags_t * typ =>
+                      match get_real_type ge (snd x) with
+                      | Some a => Some (fst x, a)
+                      | None => None
+                      end) xts))
+      as [xrs |] eqn:Hxrs; cbn in *;
+    destruct (sequence
+                (map
+                   (fun x0 : P4String.t tags_t * typ =>
+                      match match get_real_type ge (snd x0) with
+                            | Some a => Some (normᵗ a)
+                            | None => None
+                            end with
+                      | Some a => Some (fst x0, a)
+                      | None => None
+                      end) xts))
+      as [rs' |] eqn:Hrs'; cbn in *;
+    try some_inv; try discriminate; try reflexivity.
+
+  Local Hint Extern 0 => solve_alist_grtn : core.
+
+  Ltac solve_grtn :=
+    autounfold with option_monad; cbn; intros;
+    match goal with
+    | IH: (forall ge: genv_typ,
+              match get_real_type ge ?t with
+              | Some r => Some (normᵗ r)
+              | None   => None
+              end = get_real_type ge (normᵗ ?t))
+      |- context [get_real_type ?ge ?t]
+      => rewrite <- IH; clear IH;
+        destruct (get_real_type ge t)
+          as [r |] eqn:Heqr; reflexivity
+    end.
+
+  Local Hint Extern 0 => solve_grtn : core.
+  
+  Lemma get_real_type_normᵗ : forall (t : typ),
+      get_real_type_normᵗ_def t.
+  Proof.
+    apply get_real_type_normᵗ_ind;
+      autounfold with ind_def; cbn;
+        try (autounfold with option_monad;
+             cbn; reflexivity; assumption); auto 1.
+    - autounfold with option_monad; cbn.
+      intros X t ms IH ge.
+      destruct t as [t |]; inversion IH; subst; cbn; auto 1.
+    - autounfold with option_monad.
+      intros X ge. (* False. :( *)
+  Abort.
+
+  (*Lemma member_type_get_real_type_norm : forall ts rs (t r : typ) ge,
+      member_type ts t -> member_type rs r ->
+      get_real_type ge t = Some r ->*)
 End Lemmas.

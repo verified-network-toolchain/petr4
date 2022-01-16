@@ -192,4 +192,100 @@ Section Interpreter.
         end
     end.
 
+  Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal).
+  Admitted.
+
+  Fixpoint interp_write (st: state) (lv: Lval) (sv: Sval) : option state.
+  Admitted.
+
+  Definition is_call (expr: @Expression tags_t) : bool :=
+    match expr with
+    | MkExpression _ (ExpFunctionCall func targs args) _ _ => true
+    | _ => false
+    end.
+
+  Fixpoint interp_stmt (this: path) (st: state) (fuel: nat) (stmt: @Statement tags_t) : option (state * signal) :=
+    match fuel with
+    | O => None
+    | S fuel =>
+      match stmt with
+      | MkStatement tags (StatAssignment lhs rhs) typ =>
+        if is_call rhs
+        then let* (st', sig_call) := interp_call this st fuel rhs in
+             let* (lv, sig_lhs) := interp_lexpr this st lhs in
+             if not_continue sig_lhs
+             then Some (st, sig_lhs)
+             else match sig_call with
+                  | SReturn v =>
+                    let* sv := interp_val_sval v in
+                    let* st'' := interp_write st' lv sv in
+                    Some (st'', SContinue)
+                  | _ =>
+                    Some (st', sig_call)
+                  end
+        else let* v := interp_expr this st rhs in
+             let* (lv, sig) := interp_lexpr this st lhs in
+             let* st' := interp_write st lv v in
+             Some (if is_continue sig then st' else st, sig)
+      | MkStatement tags (StatMethodCall func targs args) typ =>
+        let* (st', sig) := interp_call this st fuel (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless) in
+        let sig' := force_continue_signal sig in
+        Some (st', sig')
+      | MkStatement tags (StatDirectApplication typ' args) typ =>
+        None
+      | MkStatement tags (StatConditional cond tru (Some fls)) typ =>
+        None
+      | MkStatement tags (StatConditional cond tru None) typ =>
+        None
+      | MkStatement tags (StatBlock block) typ =>
+        interp_block this st fuel block
+      | MkStatement tags StatExit typ =>
+        None
+      | MkStatement tags (StatReturn None) typ =>
+        None
+      | MkStatement tags (StatReturn (Some e)) typ =>
+        None
+      | MkStatement tags StatEmpty typ =>
+        None
+      | MkStatement tags (StatSwitch expr cases) typ =>
+        None
+      | MkStatement tags (StatVariable typ' name (Some e) loc) typ =>
+        None
+      | MkStatement tags (StatVariable typ' name None loc) typ =>
+        None
+      | MkStatement tags (StatConstant typ' name e loc) typ =>
+        None
+      | _ => None
+      end
+    end
+  with interp_block (this: path) (st: state) (fuel: nat) (block: @Block tags_t) : option (state * signal) :=
+         match fuel with
+         | O => None
+         | S fuel =>
+           match block with
+           | BlockEmpty tags => Some (st, SContinue)
+           | BlockCons stmt rest =>
+             let* (st, sig) := interp_stmt this st fuel stmt in
+             let* (st', sig') :=
+                interp_block this st fuel (if is_continue sig then rest else empty_block)
+             in
+             Some (st', if is_continue sig then sig' else sig)
+           end
+         end 
+  with interp_call (this: path) (st: state) (fuel: nat) (call: @Expression tags_t) : option (state * signal) :=
+         match call with 
+         | MkExpression tags (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ)) dir =>
+           None
+         | MkExpression tags (ExpFunctionCall func targs args) typ dir =>
+           None
+         | _ => None
+         end
+  with interp_func (this: path) (st: state) (fuel: nat) (fn: @fundef tags_t) (typ_args: list (@P4Type tags_t)) (args: list Sval) : option (state * list Sval * signal) :=
+         match fn with
+         | FInternal params body => None
+         | FTable name keys actions (Some default_action) const_entries => None
+         | FTable name keys actions None const_entries => None
+         | FExternal class_name name => None
+         end.
+  
 End Interpreter.

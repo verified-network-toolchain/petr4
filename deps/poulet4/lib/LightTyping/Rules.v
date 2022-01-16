@@ -262,23 +262,28 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpList es)
                       (TypTuple (map typ_of_expr es)) dir.
     Proof.
-      (*intros i es d Hes. autounfold with * in *.
-      intros Tgt rob ge st Hrob Hg Hok.
+      intros i es d Hes. autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok Hise rob st Hrob Hg.
       rewrite Forall_forall in Hes.
       specialize Hes with
-          (T := Tgt)
-          (read_one_bit:=rob) (ge:=ge) (st:=st).
-      pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
+          (read_one_bit:=rob) (st:=st).
+      pose proof reduce_inner_impl _ _ _ _ Hes Hgrt as Hes';
         simpl in Hes'; clear Hes.
-      pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
+      pose proof reduce_inner_impl _ _ _ _ Hes' Hged as Hes;
         simpl in Hes; clear Hes'.
-      simpl in *; inversion Hok;
-        rename H0 into Hτs; rename H into Hτs_eq.
-      rewrite <- Forall_forall in Hes.*)
-      (*rewrite Forall_map in Hτs.
+      pose proof (fun a inaes oka ise => Hes a inaes oka ise Hrob Hg) as Hduh; clear Hes.
+      rewrite <- Forall_forall in Hduh.
+      inversion Hok; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Hoktup; rename H4 into Hoklist;
+        rename H0 into Hoktoees; rename H2 into Hokes.
+      inversion Hise; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Hisettup; rename H4 into Hispees;
+        rename H0 into Hisetes; rename H2 into Hisees.
+      rewrite Forall_map in Hisetes.
       unfold Basics.compose in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
-      apply Forall_and_inv in Hq as [Hrnes Htyps]; split.
+      pose proof Forall_impl_Forall _ _ _ _ Hduh Hokes as Hq; clear Hduh Hokes; cbn in *.
+      pose proof Forall_impl_Forall _ _ _ _ Hq Hisees as Hp; clear Hq Hisees; cbn in *.
+      apply Forall_and_inv in Hp as [Hrnes Htyps]; split.
       - clear Htyps.
         rewrite Forall_exists_factor in Hrnes.
         destruct Hrnes as [vs Hvs]; eauto.
@@ -288,12 +293,21 @@ Section Soundness.
         rewrite Forall_forall in Htyps.
         apply forall_Forall2 with (bs := vs) in Htyps;
           eauto using Forall2_length.
-        apply Forall2_impl with
-            (R := run_expr ge rob this st)
-            (Q := fun e v => val_typ (ge_senum ge) v (typ_of_expr e)) in Htyps; auto.
-        rewrite Forall2_flip, Forall2_map_r in Htyps; auto.
-    Qed.*)
-    Admitted.
+        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hesvs as H; clear Htyps Hesvs.
+        rewrite Forall2_flip in H.
+        rewrite Forall2_map_r with
+            (R := fun v t => exists r, get_real_type ge t = Some r /\ ⊢ᵥ v \: normᵗ r)
+            (f := typ_of_expr) in H.
+        apply Forall2_ex_factor in H as [rs Hrs].
+        rewrite Forall3_permute_12, Forall3_conj_sep in Hrs.
+        destruct Hrs as [Hesrs Hvsrs].
+        rewrite Forall2_map_l with
+            (R := fun ro r => ro = Some r) (f := get_real_type ge) in Hesrs.
+        rewrite Forall2_sequence_iff in Hesrs.
+        rewrite Forall2_map_r with (f:=normᵗ) in Hvsrs.
+        rewrite Hesrs; autounfold with option_monad; cbn;
+          solve_ex; split; auto.
+    Qed.
 
     Lemma record_sound : forall tag es dir,
         Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) (map snd es) ->

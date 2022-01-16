@@ -5,6 +5,7 @@ From Coq Require Import Bool.Bvector
      micromega.Lia.
 
 Require Import Poulet4.Monads.Monad Poulet4.Monads.Option.
+Import ListNotations.
 
 Open Scope monad.
 
@@ -200,6 +201,14 @@ Section option_rec.
     end
   .
 End option_rec.
+
+Lemma length_nth_error_some : forall (U : Type) n us,
+    n < List.length us -> exists u : U, nth_error us n = Some u.
+Proof.
+  intros U n; induction n as [| n IHn];
+    intros [| u us] H; cbn in *; try lia; eauto.
+  assert (n < List.length us) by lia; auto.
+Qed.
 
 Section MapCombine.
   Variables U V : Type.
@@ -509,15 +518,58 @@ Proof.
       intros [| v vs] Hlen Hcomb; simpl in *; inversion Hlen; subst; auto.
 Qed.
 
+Lemma Forall2_Forall_combine : forall (U V : Type) (R : U -> V -> Prop) us vs,
+    Forall2 R us vs <->
+    List.length us = List.length vs /\
+    Forall (uncurry R) (combine us vs).
+Proof.
+  intros U V R us vs.
+  rewrite Forall_forall, Forall2_forall.
+  apply and_iff_compat_l; split.
+  - intros H [u v]; cbn; auto.
+  - firstorder.
+Qed.
+
+Lemma nth_error_combine :
+  forall (U V : Type) n us vs (u : U) (v : V),
+    nth_error us n = Some u ->
+    nth_error vs n = Some v ->
+    nth_error (combine us vs) n = Some (u,v).
+Proof.
+  intros U V n; induction n as [| n IHn];
+    intros [| u us] [| v vs] u' v' Hus Hvs; cbn in *;
+      try discriminate; auto;
+        inversion Hus; inversion Hvs; subst; reflexivity.
+Qed.
+
 Lemma nth_error_in_combine :
   forall (U V : Type) n us vs (u : U) (v : V),
     nth_error us n = Some u ->
     nth_error vs n = Some v ->
     In (u,v) (combine us vs).
 Proof.
-  intros U V n; induction n as [| n IHn];
-    intros [| uu us] [| vv vs] u v Hu Hv;
-    simpl in *; inversion Hu; inversion Hv; subst; auto.
+  Local Hint Resolve nth_error_combine : core.
+  eauto using nth_error_In.
+Qed.
+
+Lemma Forall2_forall_nth_error : forall (U V : Type) (R : U -> V -> Prop) us vs,
+    Forall2 R us vs <->
+    List.length us = List.length vs /\
+    forall n u v,
+      nth_error us n = Some u ->
+      nth_error vs n = Some v ->
+      R u v.
+Proof.
+  intros U V R us vs.
+  rewrite Forall2_forall.
+  split; intros [Hlen H]; split;
+    eauto using nth_error_in_combine.
+  intros u v Husvs.
+  apply In_nth_error in Husvs as [n Hn].
+  apply map_nth_error with (f:=fst) in Hn as Hnus.
+  apply map_nth_error with (f:=snd) in Hn as Hnvs.
+  rewrite map_fst_combine in Hnus by assumption;
+    rewrite map_snd_combine in Hnvs by assumption; eauto.
 Qed.
 
 (** Why I'm I getting goals such as these? *)
@@ -622,4 +674,155 @@ Proof.
   intros U V P us vs H.
   rewrite Forall2_flip in H.
   eauto using Forall2_only_l_Forall.
+Qed.
+
+Section Forall3.
+  Context {T U V : Type}.
+  Variable R : T -> U -> V -> Prop.
+
+  Inductive Forall3 : list T -> list U -> list V -> Prop :=
+  | Forall3_nil :
+      Forall3 [] [] []
+  | Forall3_cons t u v ts us vs :
+      R t u v ->
+      Forall3 ts us vs ->
+      Forall3 (t :: ts) (u :: us) (v :: vs).
+
+  Local Hint Constructors Forall3 : core.
+  
+  Lemma Forall2_ex_factor : forall ts us,
+      Forall2 (fun t u => exists v, R t u v) ts us ->
+      exists vs, Forall3 ts us vs.
+  Proof.
+    intros ts us H;
+      induction H as [| t u ts us [v Htuv] Htsus [vs IHtsus]];
+      eauto.
+  Qed.
+
+  Lemma Forall3_forall : forall ts us vs,
+      Forall3 ts us vs <->
+      List.length ts = List.length us /\ List.length us = List.length vs /\
+      forall n t u v,
+        nth_error ts n = Some t ->
+        nth_error us n = Some u ->
+        nth_error vs n = Some v ->
+        R t u v.
+  Proof.
+    intros ts us vs; split.
+    - intros H.
+      induction H as [| t u v ts us vs Htuv Htsusvs [Htsus [Husvs IHtsusvs]]]; cbn;
+        repeat split; try lia;
+          intros [| n] t' u' v' Ht' Hu' Hv'; cbn in *; try discriminate; eauto.
+      inversion Ht'; subst; inversion Hu'; subst;
+        inversion Hv'; subst; clear Ht' Hu' Hv'; assumption.
+    - intros (Htsus & Husvs & H).
+      generalize dependent vs; generalize dependent us.
+      induction ts as [| t ts IHts];
+        intros [| u us] Htsus [| v vs] Husvs H; cbn in *; try lia; auto.
+      injection Htsus as Htus; injection Husvs as Huvs.
+      constructor.
+      + apply H with (n := 0); reflexivity.
+      + apply IHts; auto.
+        intros n t' u' v' Ht' Hu' Hv'.
+        specialize H with (n := S n); cbn in *; auto.
+  Qed.
+
+  Local Hint Resolve nth_error_combine : core.
+  Local Hint Resolve nth_error_in_combine : core.
+
+  Lemma Forall3_Forall2_combine_l : forall ts us vs,
+      Forall3 ts us vs <->
+      List.length ts = List.length us /\
+      Forall2 (fun '(t,u) v => R t u v) (combine ts us) vs.
+  Proof.
+    intros ts us vs.
+    rewrite Forall3_forall.
+    split.
+    - rewrite Forall2_forall_nth_error, combine_length.
+      intros (Htsus & Husvs & H).
+      repeat split; try lia.
+      intros n [u t] v Hnthtsus Hnthvs.
+      apply map_nth_error with (f:=fst) in Hnthtsus as Hnthts.
+      apply map_nth_error with (f:=snd) in Hnthtsus as Hnthus.
+      rewrite map_fst_combine in Hnthts by assumption;
+        rewrite map_snd_combine in Hnthus by assumption; eauto.
+    - rewrite Forall2_forall, combine_length.
+      intros (Htsus & Htsusvs & H).
+      repeat split; try lia.
+      intros n t u v Hts Hus Hvs.
+      specialize H with (u:=(t,u)) (v:=v); cbn in *; eauto.
+  Qed.
+
+  Lemma Forall3_Forall2_combine_r : forall ts us vs,
+      Forall3 ts us vs <->
+      List.length us = List.length vs /\
+      Forall2 (fun t '(u,v) => R t u v) ts (combine us vs).
+  Proof.
+    intros ts us vs.
+    rewrite Forall3_Forall2_combine_l;
+      repeat rewrite Forall2_forall_nth_error, combine_length.
+    split; intros (Htsus & Htsusvs & H); repeat split; try lia.
+    - intros n t [u v] Hnthts Hnthusvs.
+      specialize H with (n:=n) (u:=(t,u)) (v:=v); cbn in *.
+      apply map_nth_error with (f := fst) in Hnthusvs as Hnthus.
+      apply map_nth_error with (f := snd) in Hnthusvs as Hnthvs.
+      rewrite map_fst_combine in Hnthus by lia.
+      rewrite map_snd_combine in Hnthvs by lia; cbn in *; eauto.
+    - intros n [t u] v Hnthtsus Hnthvs.
+      specialize H with (n:=n) (u:=t) (v:=(u,v)); cbn in *.
+      apply map_nth_error with (f := fst) in Hnthtsus as Hnthts.
+      apply map_nth_error with (f := snd) in Hnthtsus as Hnthus.
+      rewrite map_fst_combine in Hnthts by lia.
+      rewrite map_snd_combine in Hnthus by lia; cbn in *; eauto.
+  Qed.
+End Forall3.
+
+Lemma Forall3_permute_12 : forall T U V (R : T -> U -> V -> Prop) ts us vs,
+    Forall3 R ts us vs <-> Forall3 (fun u t => R t u) us ts vs.
+Proof.
+  intros T U V R ts us vs.
+  repeat rewrite Forall3_forall.
+  split; intros (H₁ & H₂ & H); repeat split; try lia; eauto.
+Qed.
+
+Lemma Forall3_permute_13 : forall T U V (R : T -> U -> V -> Prop) ts us vs,
+    Forall3 R ts us vs <-> Forall3 (fun v u t => R t u v) vs us ts.
+Proof.
+  intros T U V R ts us vs.
+  repeat rewrite Forall3_forall.
+  split; intros (H₁ & H₂ & H); repeat split; try lia; eauto.
+Qed.
+
+Lemma Forall3_permute_23 : forall T U V (R : T -> U -> V -> Prop) ts us vs,
+    Forall3 R ts us vs <-> Forall3 (fun t v u => R t u v) ts vs us.
+Proof.
+  intros T U V R ts us vs.
+  repeat rewrite Forall3_forall.
+  split; intros (H₁ & H₂ & H); repeat split; try lia; eauto.
+Qed.
+
+Lemma Forall3_conj_sep : forall T U V (Q : T -> V -> Prop) (R : U -> V -> Prop) ts us vs,
+    Forall3 (fun t u v => Q t v /\ R u v) ts us vs <->
+    Forall2 Q ts vs /\ Forall2 R us vs.
+Proof.
+  Local Hint Resolve nth_error_some_length : core.
+  Local Hint Resolve length_nth_error_some : core.
+  intros T U V Q R ts us vs.
+  rewrite Forall3_forall.
+  repeat rewrite Forall2_forall_nth_error; split.
+  - intros (Htsus & Husvs & H).
+    repeat split; try lia.
+    + intros n t v Hnthts Hnthvs.
+      assert (Hu: exists u, nth_error us n = Some u).
+      { apply nth_error_some_length in Hnthts.
+        rewrite Htsus in Hnthts; auto. }
+      destruct Hu as [u Hnthus].
+      pose proof H _ _ _ _ Hnthts Hnthus Hnthvs as [Hq _]; assumption.
+    + intros n u v Hnthus Hnthvs.
+      assert (Ht: exists t, nth_error ts n = Some t).
+      { apply nth_error_some_length in Hnthus.
+        rewrite <- Htsus in Hnthus; auto. }
+      destruct Ht as [t Hnthts].
+      pose proof H _ _ _ _ Hnthts Hnthus Hnthvs as [_ Hr]; assumption.
+  - intros [[Htsvs HQ] [Husvs HR]]; do 2 (split; try lia); eauto.
 Qed.

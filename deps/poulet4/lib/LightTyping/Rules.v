@@ -3,6 +3,13 @@ Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
 (** * P4light Typing Rules of Inference *)
 
 Section Soundness.
+  Create HintDb option_monad.
+  Local Hint Unfold option_ret        : option_monad.
+  Local Hint Unfold option_bind       : option_monad.
+  Local Hint Unfold option_monad_inst : option_monad.
+  Local Hint Unfold mret  : option_monad.
+  Local Hint Unfold mbind : option_monad.
+
   Context {tags_t : Type}.
 
   Notation typ := (@P4Type tags_t).
@@ -157,22 +164,18 @@ Section Soundness.
         pose proof He1' v1 Hev1 as (r1 & Hr1 & Hv1).
         pose proof He2' v2 Hev2 as (r2 & Hr2 & Hv2).
         clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2; cbn in *.
-        unfold option_bind, option_ret in *.
+        autounfold with option_monad in *.
         destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
           as [rs |] eqn:Hrs;
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst in *;
-          unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst in *;
+          autounfold with option_monad in *;
           rewrite Hrs in Hr1; try discriminate.
         inversion Hr1; subst; clear Hr1; cbn in *.
         assert (Hhrs: get_real_type ge (TypHeader ts) = Some (TypHeader rs)).
         { cbn in *.
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst in *;
-          unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst in *;
-          rewrite Hrs; reflexivity. }
+            autounfold with option_monad in *;
+            rewrite Hrs; reflexivity. }
         destruct Hv2' as [v2' Hv2'].
         inversion Hv1; inversion Hv2; inversion Hv2';
           subst; try discriminate.
@@ -246,7 +249,8 @@ Section Soundness.
         solve_ex; split; auto.
         rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
         replace (hi - lo + 1)%N
-          with (N.of_nat (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
+          with (N.of_nat
+                  (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
         apply He' in He as (r & Hr & Hv); inversion Hr; subst; clear Hr; cbn in *.
         inversion Hv; subst; cbn in *.
         inversion Hsval; subst; clear Hsval.
@@ -494,55 +498,43 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma enum_member_sound : forall tag tname member ename members dir,
-        (* TODO: need [ge] of [genv].
-           name_to_type ge tname = Some (TypEnum ename None members) ->*)
-        List.In member members ->
+    Lemma enum_member_sound : forall tag X M E mems dir,
+        IdentMap.get (P4String.str X) (ge_typ ge)
+        = Some (TypEnum E None mems) ->
+        List.In M mems ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
-          tag (ExpTypeMember tname member)
-          (TypEnum ename None members) dir.
+          tag (ExpTypeMember X M)
+          (TypEnum E None mems) dir.
     Proof.
-      intros tag X M E mems dir Hmem.
-      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *; split.
-      - exists (ValBaseEnumField (P4String.str E) (P4String.str M)).
-        econstructor; eauto.
-        (* Need [X] to be bound in [Δ], [In X Δ]. *)
-        inversion Hok; subst; inversion H1; subst; inversion H4; subst.
-        unfold delta_genv_prop in Hdlta.
-        rewrite Forall_forall in Hdlta.
-        (* It is not enough to know
-           whether or not [X] is bound in [Δ], [In X Δ].
-           applying [Hdlta] only gives that
-           [exists r', get X ge = Some r' /\ [] ⊢ok r'].
-           [r'] Must be further constrained somehow...
-           It would be helpful if [X] was just substitued with
-           [TypEnum E None mems] by this point in the evaluation.
-           If [ExpTypeMember : P4Type -> P4String -> ExpressionPreT],
-           then either I could require it in this lemma's statement,
-           or in the definition of typing in [Typing.v]
-           I could perform a substitution using [genv_type],
-           which I've been implicitly doing already. *)
-        unfold gamma_expr_prop in Hg.
-        admit. (* Need some assumption for this? *)
-        admit.
-      - intros v Hrn.
-        (*Search (exec_expr _ _ _ _ (MkExpression _ (ExpTypeMember _ _) _ _)). *)
-        inversion Hrn; subst; solve_ex; split; auto.
-        + admit.
-        + admit. (* this case should not exist...*)
-    Admitted.
+      intros tag X M E mems dir Hget Hmem.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *; split; eauto.
+      intros v Hrn.
+      inversion Hrn; subst; solve_ex; split; auto.
+      - rewrite Hget in H7; some_inv; auto.
+      - rewrite Hget in H7; some_inv.
+    Qed.
 
-    Lemma senum_member_sound : forall tag tname member ename t members dir,
-        (*name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-          IdentMap.get ename (ge_senum ge) = Some fields ->*)
-        List.In member members ->
+    (*Lemma senum_member_sound :
+      forall tag X M E t (mems : list (P4String.t tags_t * Sval)) dir,
+        IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E (Some t) (map fst mems)) ->
+        (*IdentMap.get (P4String.str E) (ge_senum ge) = Some mems ->*)
+        List.In M (map fst mems) ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
-          tag (ExpTypeMember tname member)
-          (TypEnum ename (Some t) members) dir.
+          tag (ExpTypeMember X M)
+          (TypEnum E (Some t) (map fst mems)) dir.
     Proof.
-    Admitted.
+      intros i X M E t mems dir HM.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
+      inversion Hok; subst; inversion H1; subst;
+        inversion H4; subst; inversion H0; subst.
+      rename H1 into Hokenumt; rename H4 into HokXM;
+        rename H0 into Hoksomet; rename H2 into HinX; rename H3 into Hokt.
+      inversion Hise; subst; inversion H1; subst.
+      rename H1 into Hisetenum; rename H4 into Hispe; rename H0 into Hiset. split.
+      - 
+      Admitted.*)
 
     Lemma error_member_sound : forall tag err dir,
         (ge,this,Δ,Γ)

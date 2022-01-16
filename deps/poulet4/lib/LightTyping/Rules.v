@@ -572,26 +572,41 @@ Section Soundness.
       - assert (Hget: exists v', get_member v (P4String.str x) v').
         { apply Hv in Hev as (r & Hr & Hvr).
           pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
-          (*assert (Hwah :
-                    sequence (map (fun '(x,t) => get_real_type ge t >>| pair x) ts)
-                    = Some rs) by admit.
-          rewrite <- Forall2_sequence_iff in Hwah.
-          unfold ">>|",">>=",
-          option_monad_inst,option_monad,
-          option_bind,option_ret,mret
-            in Hwah.*)
-          apply member_type_normᵗ in Hmemrs.
+          apply member_type_normᵗ in Hmemrs as Hmemrs_norm.
           assert (Hlem3' : exists r',
                      AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
-          { clear Hokmem Hokt Hv Hdlta Hg Hgrt Hok Hrob st Hise v Hvr Hise' Hist Hismem Htoeok
-                  i Hmem He dir rob this Δ Γ.
-            remember (typ_of_expr e) as te eqn:Heqte; clear Heqte.
-            exists (normᵗ r). admit. }
+          { clear i dir Γ Δ He Hdlta Hok
+                  Hg Hokt Hokmem Htoeok v Hvr Hise
+                  rob Hrob Hgrt Hv st.
+            pose proof member_type_get_real_type
+                 _ _ _ _ _
+                 Hmem Hmemrs Hr as Hlem.
+            apply f_equal with
+                (f := option_map (map (fun '(x,t) => (x,normᵗ t)))) in Hlem.
+            cbn in Hlem.
+            rewrite option_map_lift_monad,sequence_map in Hlem.
+            repeat rewrite map_pat_both in Hlem.
+            rewrite map_map in Hlem.
+            clear e Hmem Hismem Hise' Hist Hr r Hmemrs Hmemrs_norm.
+            unfold option_map,option_bind,option_ret in Hlem.
+            unfold ">>|",">>=",mbind,mret,option_monad_inst,
+            option_bind,option_ret in *.
+            generalize dependent t; generalize dependent rs.
+            induction ts as [| [y t] ts IHts];
+              intros [| [z r] rs] Hrs t' Hxt';
+              cbn in *; try discriminate;
+                repeat match_some_inv; repeat some_inv.
+            inversion H0; subst.
+            pose proof P4String.equiv_reflect x z as Hxz.
+            inversion Hxz; subst.
+            + rewrite AList.get_eq_cons by assumption; eauto.
+            + rewrite AList.get_neq_cons in Hxt' by assumption.
+              rewrite AList.get_neq_cons by assumption; eauto. }
           destruct Hlem3' as [r' Hr']; eauto. }
         destruct Hget as [v' Hv'].
         exists v'; eapply exec_expr_other_member; eauto.
       - clear v Hev; intros v Hev. inversion Hev; subst.
-        apply Hv in H7 as (r & Hr & Hvr).
+        apply Hv in H7 as (r & Hr & Hvr); clear Hv.
         pose proof ok_get_real_type_ex _ _ Hokt _ Hdlta as [r' Hr'].
         exists r'; split; auto.
         pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
@@ -599,25 +614,36 @@ Section Soundness.
                _ _ _ _ _
                Hmem Hmemrs Hr as Hlem.
         apply member_type_normᵗ in Hmemrs.
-        Search ((?A -> ?B) -> option ?A -> option ?B).
-        Check f_equal.
         apply f_equal with
             (f := option_map (map (fun '(x,t) => (x,normᵗ t)))) in Hlem.
         cbn in Hlem.
         rewrite option_map_lift_monad,sequence_map in Hlem.
-        Search (option_map normᵗ (get_real_type _ _)).
         repeat rewrite map_pat_both in Hlem.
         rewrite map_map in Hlem.
         unfold option_map,option_bind,option_ret in Hlem.
         assert (Hlem3' :
                   AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
-        { clear H8 Hr Hvr Hev v Hv Hist Htoeok
+        { clear H8 Hvr Hev v Hist Htoeok
                 Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
-                Hokt Hokmem dir Δ Γ i. admit.
-          
-        }
+                Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
+          unfold ">>|",">>=",mbind,mret,option_monad_inst,
+          option_bind,option_ret in *.
+          generalize dependent r'; generalize dependent t.
+          generalize dependent rs.
+          induction ts as [| [y t] ts IHts];
+            intros [| [z r] rs] Hrs t' Hxt' r' Ht'r';
+            cbn in *; try discriminate;
+              repeat match_some_inv; repeat some_inv.
+          inversion H0; subst.
+          pose proof P4String.equiv_reflect x z as Hxz.
+          inversion Hxz; subst.
+          + rewrite AList.get_eq_cons in Hxt' by assumption; some_inv.
+            rewrite AList.get_eq_cons by assumption.
+            rewrite Heqo2 in Ht'r'; some_inv; reflexivity.
+          + rewrite AList.get_neq_cons in Hxt' by assumption.
+            rewrite AList.get_neq_cons by assumption; eauto. }
         eauto.
-    Admitted.
+    Qed.
 
     Lemma array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)

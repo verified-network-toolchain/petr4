@@ -192,8 +192,38 @@ Section Interpreter.
         end
     end.
 
-  Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal).
-  Admitted.
+  Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal) :=
+    match expr with
+    | MkExpression tag (ExpName name loc) typ dir =>
+      Some (MkValueLvalue (ValLeftName name loc) typ, SContinue)
+    | MkExpression tag (ExpExpressionMember expr name) typ dir =>
+      let* (lv, sig) := interp_lexpr this st expr in
+      if String.eqb (str name) "next"
+      then let* v := interp_expr this st expr in
+           match v with
+           | ValBaseStack headers next =>
+             let ret_sig := if (next <? N.of_nat (List.length headers))%N
+                            then sig
+                            else SReject "StackOutOfBounds" in
+             Some (MkValueLvalue (ValLeftArrayAccess lv next) typ, ret_sig)
+           | _ => None
+           end
+      else Some ((MkValueLvalue (ValLeftMember lv (str name)) typ), sig)
+    | MkExpression tag (ExpBitStringAccess bits lo hi) typ dir =>
+      let* (lv, sig) := interp_lexpr this st bits in
+      let* bitsv := interp_expr this st bits in
+      let* (bitsbl, wn) := sval_to_bits_width bitsv in
+      if ((lo <=? hi)%N && (hi <? N.of_nat wn)%N)%bool
+      then Some (MkValueLvalue (ValLeftBitAccess lv hi lo) typ, sig)
+      else None
+    | MkExpression tag (ExpArrayAccess array idx) typ dir =>
+      let* (lv, sig) := interp_lexpr this st array in
+      let* idxv := interp_expr this st idx in
+      let* idxz := array_access_idx_to_z (interp_sval_val idxv) in
+      let* idxn := if idxz >=? 0 then Some (Z.to_N idxz) else None in
+      Some (MkValueLvalue (ValLeftArrayAccess lv idxn) typ, sig)
+    | _ => None
+    end.
 
   Fixpoint interp_write (st: state) (lv: Lval) (sv: Sval) : option state.
   Admitted.

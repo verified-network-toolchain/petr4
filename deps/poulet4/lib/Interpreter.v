@@ -312,11 +312,83 @@ Section Interpreter.
       end
     end.
 
+  (* Corresponds to exec_write_option *)
+  Definition interp_write_option (st: state) (lv: option Lval) (rhs: Sval) : option state :=
+    match lv with
+    | Some lval => interp_write st lval rhs
+    | None => Some st
+    end.
+
   Definition is_call (expr: @Expression tags_t) : bool :=
     match expr with
     | MkExpression _ (ExpFunctionCall func targs args) _ _ => true
     | _ => false
     end.
+
+  Definition interp_table_match (this: path) (st: state) (name: ident) (entries: option (list (@table_entry tags_t (@Expression tags_t)))) : option (@action_ref (@Expression tags_t)).
+  Admitted.
+
+  Definition interp_extern:
+    extern_env ->
+    extern_state ->
+    ident ->
+    ident ->
+    path ->
+    list (@P4Type tags_t) ->
+    list Val ->
+    option (extern_state *
+            list Val *
+            signal).
+  Admitted.
+
+  Definition interp_builtin :
+    path -> state -> Lval -> ident -> list Sval -> option (state * signal).
+  Admitted.
+
+  Fixpoint interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
+    match exp, dir with
+    | Some expr, In =>
+      let* sv := interp_expr this st expr in
+      Some ((Some sv, None), SContinue)
+    | None, Out =>
+      Some ((None, None), SContinue)
+    | Some expr, Out =>
+      let* (lv, sig) := interp_lexpr this st expr in
+      let* sv' := interp_read st lv in
+      Some ((Some sv', Some lv), sig)
+    | Some expr, InOut =>
+      let* (lv, sig) := interp_lexpr this st expr in
+      let* sv := interp_read st lv in
+      let v := interp_sval_val sv in
+      let* sv' := interp_val_sval v in
+      Some ((Some sv', Some lv), sig)
+    | _, _ => None
+    end.
+
+  Fixpoint interp_args (this: path) (st: state) (exps: list (option (@Expression tags_t))) (dirs: list direction) : option (list argument * signal) :=
+    match exps, dirs with
+    | nil, nil =>
+      Some (nil, SContinue)
+    | exp :: exps, dir :: dirs =>
+      let* (arg, sig) := interp_arg this st exp dir in
+      let* (args, sig') := interp_args this st exps dirs in
+      let ret_sig := if is_continue sig then sig' else sig in
+      Some (arg :: args, ret_sig)
+    | _, _ => None
+    end.
+
+  Fixpoint interp_write_options (st: state) (args: list (option Lval)) (vals: list Sval) : option state :=
+    match args, vals with
+    | nil, nil =>
+      Some st
+    | arg :: args, val :: vals =>
+      let* st' := interp_write_option st arg val in
+      interp_write_options st' args vals
+    | _, _ => None
+    end.
+
+  Definition interp_call_copy_out (args : list (option Lval * direction)) (vals : list Sval) (s: state) : option state :=
+    interp_write_options s (filter_out args) vals.
 
   Fixpoint interp_stmt (this: path) (st: state) (fuel: nat) (stmt: @Statement tags_t) : option (state * signal) :=
     match fuel with
@@ -387,19 +459,79 @@ Section Interpreter.
            end
          end 
   with interp_call (this: path) (st: state) (fuel: nat) (call: @Expression tags_t) : option (state * signal) :=
-         match call with 
-         | MkExpression tags (ExpExpressionMember expr fname) (TypFunction (MkFunctionType tparams params FunBuiltin typ)) dir =>
-           None
-         | MkExpression tags (ExpFunctionCall func targs args) typ dir =>
-           None
-         | _ => None
+         match fuel with
+         | S fuel =>
+           match call with 
+           | MkExpression tags (ExpFunctionCall
+                                  (MkExpression _
+                                                (ExpExpressionMember expr fname)
+                                                (TypFunction
+                                                   (MkFunctionType tparams params FunBuiltin typ'))
+                                                dir')
+                                  nil args) typ dir =>
+             let dirs := List.map get_param_dir params in
+             let* (lv, sig) := interp_lexpr this st expr in
+             let* (argvals, sig') := interp_args this st args dirs in
+             if not_continue sig
+             then Some (st, sig)
+             else if not_continue sig'
+                  then Some (st, sig')
+                  else interp_builtin this st lv (str fname) (extract_invals argvals)
+           | MkExpression tags (ExpFunctionCall func targs args) typ dir =>
+             if is_builtin_func func
+             then None
+             else let dirs := get_arg_directions func in
+                  let* (argvals, sig) := interp_args this st args dirs in
+                  let* (obj_path, fd) := lookup_func ge this func in
+                  let s2 := if is_some obj_path then set_memory PathMap.empty st else st in
+                  let* (s3, outvals, sig') := interp_func (force this obj_path) s2 fuel fd targs (extract_invals argvals) in
+                  let s4 := if is_some obj_path then set_memory (get_memory st) s3 else s3 in
+                  let* s5 := interp_call_copy_out (List.combine (List.map snd argvals) dirs) outvals s4 in
+                  let (ret_s, ret_sig) := if is_continue sig then (s5, sig') else (st, sig) in
+                  Some (ret_s, ret_sig)
+           | _ => None
+           end
+         | O => None
          end
-  with interp_func (this: path) (st: state) (fuel: nat) (fn: @fundef tags_t) (typ_args: list (@P4Type tags_t)) (args: list Sval) : option (state * list Sval * signal) :=
-         match fn with
-         | FInternal params body => None
-         | FTable name keys actions (Some default_action) const_entries => None
-         | FTable name keys actions None const_entries => None
-         | FExternal class_name name => None
+  with interp_func (obj_path: path) (s: state) (fuel: nat) (fn: @fundef tags_t) (typ_args: list (@P4Type tags_t)) (args: list Sval) : option (state * list Sval * signal) :=
+         match fuel with
+         | S fuel =>
+           match fn with
+           | FInternal params body =>
+             let s' := exec_func_copy_in params args s in
+             let* (s'', sig) := interp_block obj_path s' fuel body in
+             let sig' := force_return_signal sig in
+             let* args' := exec_func_copy_out params s'' in
+             Some (s'', args', sig')
+           | FTable name keys actions (Some default_action) const_entries =>
+             let action_ref := interp_table_match obj_path s name const_entries in
+             let* (action, retv) :=
+                match action_ref with
+                | Some (mk_action_ref action_name ctrl_args) =>
+                  let* action := add_ctrl_args (get_action actions action_name) ctrl_args in
+                  let retv := SReturn (table_retv true "" (get_expr_func_name action)) in
+                  Some (action, retv)
+                | None =>
+                  let action := default_action in
+                  let retv := SReturn (table_retv false "" (get_expr_func_name default_action)) in
+                  Some (action, retv)
+                end
+             in
+             let* (s', call_sig) := interp_call obj_path s fuel action in
+             match call_sig with
+             | SReturn ValBaseNull => Some (s', nil, retv)
+             | _ => None
+             end
+           | FTable name keys actions None const_entries =>
+             None
+           | FExternal class_name name =>
+             let (m, es) := s in
+             let argvs := List.map interp_sval_val args in
+             let* (es', argvs', sig) := interp_extern ge es class_name name obj_path typ_args argvs in
+             let* args' := lift_option (List.map interp_val_sval argvs') in
+             Some ((m, es'), args', sig)
+           end
+         | O => None
          end.
   
 End Interpreter.

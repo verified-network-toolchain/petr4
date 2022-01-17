@@ -9,6 +9,10 @@ Require Import Poulet4.Semantics.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 
+Import List.ListNotations.
+
+Open Scope string_scope.
+
 Section Interpreter.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
   Notation Val := (@ValueBase bool).
@@ -213,6 +217,9 @@ Section Interpreter.
         end
     end.
 
+  Definition interp_exprs (this: path) (st: state) (exprs: list (@Expression tags_t)) : option (list Sval) :=
+    lift_option (List.map (interp_expr this st) exprs).
+
   Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal) :=
     match expr with
     | MkExpression tag (ExpName name loc) typ dir =>
@@ -325,27 +332,116 @@ Section Interpreter.
     | _ => false
     end.
 
-  Definition interp_table_match (this: path) (st: state) (name: ident) (entries: option (list (@table_entry tags_t (@Expression tags_t)))) : option (@action_ref (@Expression tags_t)).
-  Admitted.
+  Definition interp_match (this: path) (st: state) (m: @Match tags_t) : option ValSet :=
+    match m with
+    | MkMatch _ MatchDontCare _ =>
+      Some ValSetUniversal
+    | MkMatch  _ (MatchMask expr mask) typ =>
+      let* exprsv := interp_expr this st expr in
+      let* masksv := interp_expr this st mask in
+      Some (ValSetMask (interp_sval_val exprsv) (interp_sval_val masksv))
+    | MkMatch _ (MatchRange lo hi) _ =>
+      let* losv := interp_expr this st lo in
+      let* hisv := interp_expr this st hi in
+      Some (ValSetRange (interp_sval_val losv) (interp_sval_val hisv))
+    | MkMatch _ (MatchCast newtyp expr) _ =>
+      let* oldsv := interp_expr this st expr in
+      let* real_typ := get_real_type ge newtyp in
+      Ops.eval_cast_set real_typ (interp_sval_val oldsv)
+    end.
 
-  Definition interp_extern:
-    extern_env ->
-    extern_state ->
-    ident ->
-    ident ->
-    path ->
-    list (@P4Type tags_t) ->
-    list Val ->
-    option (extern_state *
-            list Val *
-            signal).
-  Admitted.
+  Fixpoint interp_matches (this: path) (st: state) (matches: list (@Match tags_t)) : option (list ValSet) :=
+    match matches with
+    | nil => Some nil
+    | m :: ms =>
+      let* sv := interp_match this st m in
+      let* svs := interp_matches this st ms in
+      Some (sv :: svs)
+    end.
 
-  Definition interp_builtin :
-    path -> state -> Lval -> ident -> list Sval -> option (state * signal).
-  Admitted.
+  Definition interp_table_entry (this: path) (st: state) (entry: table_entry) : option (@table_entry_valset tags_t (@Expression tags_t)) :=
+    let 'mk_table_entry ms action := entry in
+    let* svs := interp_matches this st ms in
+    if (List.length svs =? 1)%nat
+    then Some (List.hd ValSetUniversal svs, action)
+    else Some (ValSetProd svs, action).
 
-  Fixpoint interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
+  Fixpoint interp_table_entries (this: path) (st: state) (entries: list table_entry) : option (list (@table_entry_valset tags_t (@Expression tags_t))) :=
+    match entries with
+    | nil => Some nil 
+    | te :: tes =>
+      let* tev := interp_table_entry this st te in
+      let* tevs := interp_table_entries this st tes in
+      Some (tev :: tevs)
+    end.
+
+  Definition interp_table_match (this: path) (st: state) (name: ident) (keys: list (@TableKey tags_t)) (const_entries: option (list (@table_entry tags_t (@Expression tags_t)))) : option (@action_ref (@Expression tags_t)) :=
+    let entries := get_entries st (this ++ [name]) const_entries in
+    let match_kinds := List.map table_key_matchkind keys in
+    let* keysvals := interp_exprs this st (List.map table_key_key keys) in
+    let keyvals := List.map interp_sval_val keysvals in
+    let* entryvs := interp_table_entries this st entries in
+    extern_match (List.combine keyvals match_kinds) entryvs.
+
+  Definition interp_isValid (sv: Sval) : bool := false.
+ 
+  Definition interp_builtin (this: path) (st: state) (lv: Lval) (name: ident) (args: list Sval) : option (state * signal) :=
+    if name =? "isValid"
+    then let* sv := interp_read st lv in
+         let is_valid := interp_isValid sv in
+         match args with
+         | nil => Some (st, SReturn (ValBaseBool is_valid))
+         | _ => None
+         end
+    else if name =? "setValid"
+         then let* sv := interp_read st lv in
+              match sv with
+              | ValBaseHeader fields is_valid =>
+                match args with
+                | nil => let* st' := interp_write st lv (ValBaseHeader fields (Some true)) in
+                        Some (st', SReturn ValBaseNull)
+                | _ => None
+                end
+              | _ => None
+              end
+         else if name =? "setInvalid"
+              then let* sv := interp_read st lv in
+                   match sv with
+                   | ValBaseHeader fields is_valid =>
+                     match args with
+                     | nil => let* st' := interp_write st lv (ValBaseHeader fields (Some false)) in
+                             Some (st', SReturn ValBaseNull)
+                     | _ => None
+                     end
+                   | _ => None
+                   end
+              else if name =? "push_front"
+                   then let* sv := interp_read st lv in
+                        match sv with
+                        | ValBaseStack headers next =>
+                          match args with
+                          | [ValBaseInteger count] =>
+                            let* st' := interp_write st lv (push_front headers next count) in
+                            Some (st', SReturn ValBaseNull)
+                          | _ => None
+                          end
+                        | _ => None
+                        end
+                   else if name =? "pop_front"
+                        then let* sv := interp_read st lv in
+                             match sv with
+                             | ValBaseStack headers next =>
+                               match args with
+                               | [ValBaseInteger count] =>
+                                 let* st' := interp_write st lv (pop_front headers next count) in
+                                 Some (st', SReturn ValBaseNull)
+                               | _ => None
+                               end
+                             | _ => None
+                             end
+                        else None.
+
+  Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
     match exp, dir with
     | Some expr, In =>
       let* sv := interp_expr this st expr in
@@ -418,29 +514,69 @@ Section Interpreter.
         let sig' := force_continue_signal sig in
         Some (st', sig')
       | MkStatement tags (StatDirectApplication typ' args) typ =>
-        None
+        let* (st', sig) := interp_call this st fuel
+                (MkExpression
+                   dummy_tags
+                   (ExpFunctionCall
+                      (direct_application_expression typ')
+                      nil (List.map Some args)) TypVoid Directionless) in
+        let sig' := force_continue_signal sig in
+        Some (st', sig')
       | MkStatement tags (StatConditional cond tru (Some fls)) typ =>
-        None
+        let* condsv := interp_expr this st cond in
+        match interp_sval_val condsv with
+        | ValBaseBool b =>
+          interp_stmt this st fuel (if b then tru else fls)
+        | _ => None
+        end
       | MkStatement tags (StatConditional cond tru None) typ =>
-        None
+        let* condsv := interp_expr this st cond in
+        match interp_sval_val condsv with
+        | ValBaseBool b =>
+          interp_stmt this st fuel (if b then tru else empty_statement)
+        | _ => None
+        end
       | MkStatement tags (StatBlock block) typ =>
         interp_block this st fuel block
       | MkStatement tags StatExit typ =>
-        None
+        Some (st, SExit)
       | MkStatement tags (StatReturn None) typ =>
-        None
+        Some (st, SReturnNull)
       | MkStatement tags (StatReturn (Some e)) typ =>
-        None
+        let* sv := interp_expr this st e in
+        Some (st, SReturn (interp_sval_val sv))
       | MkStatement tags StatEmpty typ =>
-        None
+        Some (st, SContinue)
       | MkStatement tags (StatSwitch expr cases) typ =>
-        None
+        let* sv := interp_expr this st expr in
+        match interp_sval_val sv with
+        | ValBaseString s =>
+          let block := match_switch_case s cases in
+          interp_block this st fuel block
+        | _ =>
+          None
+        end
       | MkStatement tags (StatVariable typ' name (Some e) loc) typ =>
-        None
+        if is_call e
+        then let* (st', sig) := interp_call this st fuel e in
+             match sig with
+             | SReturn v =>
+               let* sv := interp_val_sval v in
+               let* st'' := interp_write st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+               Some (st'', SContinue)
+             | _ => 
+               Some (st', sig)
+             end
+        else let* sv := interp_expr this st e in
+             let* st' := interp_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+             Some (st', SContinue)
       | MkStatement tags (StatVariable typ' name None loc) typ =>
-        None
+        let* rtyp := get_real_type ge typ' in
+        let* sv := uninit_sval_of_typ (Some false) rtyp in
+        let* st' := interp_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+        Some (st', SContinue)
       | MkStatement tags (StatConstant typ' name e loc) typ =>
-        None
+        Some (st, SContinue)
       | _ => None
       end
     end
@@ -467,8 +603,8 @@ Section Interpreter.
                                                 (ExpExpressionMember expr fname)
                                                 (TypFunction
                                                    (MkFunctionType tparams params FunBuiltin typ'))
-                                                dir')
-                                  nil args) typ dir =>
+                                                _)
+                                  nil args) _ _ =>
              let dirs := List.map get_param_dir params in
              let* (lv, sig) := interp_lexpr this st expr in
              let* (argvals, sig') := interp_args this st args dirs in
@@ -477,7 +613,7 @@ Section Interpreter.
              else if not_continue sig'
                   then Some (st, sig')
                   else interp_builtin this st lv (str fname) (extract_invals argvals)
-           | MkExpression tags (ExpFunctionCall func targs args) typ dir =>
+           | MkExpression _ (ExpFunctionCall func targs args) _ _ =>
              if is_builtin_func func
              then None
              else let dirs := get_arg_directions func in
@@ -504,7 +640,7 @@ Section Interpreter.
              let* args' := exec_func_copy_out params s'' in
              Some (s'', args', sig')
            | FTable name keys actions (Some default_action) const_entries =>
-             let action_ref := interp_table_match obj_path s name const_entries in
+             let action_ref := interp_table_match obj_path s name keys const_entries in
              let* (action, retv) :=
                 match action_ref with
                 | Some (mk_action_ref action_name ctrl_args) =>

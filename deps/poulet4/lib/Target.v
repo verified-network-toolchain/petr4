@@ -69,6 +69,9 @@ Class ExternSem := {
   extern_set_abstract_method : extern_env -> path -> AbsMet extern_state -> extern_env;
   exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
       -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
+  (* runnable version of exec_extern *)
+  interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
+      -> list (@P4Type tags_t) -> list Val -> option (extern_state * list Val * signal);
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.

@@ -46,6 +46,27 @@ Section Interpreter.
     | _ => None
     end.
 
+  (* This function implements the update_member relation from the
+     big-step semantics. *)
+  Definition set_member (v: Sval) (fname: ident) (fv: Sval) : option Sval :=
+    match v with
+    | ValBaseStruct fields =>
+      let* fields' := AList.set fields fname fv in
+      Some (ValBaseStruct fields')
+    | ValBaseHeader fields is_valid =>
+      (* Not correct, need an implementation for write_header_field *)
+      let* fields' := AList.set fields fname fv in
+      Some (ValBaseHeader fields' is_valid)
+    | ValBaseUnion fields =>
+      match fv with
+      | ValBaseHeader hfields is_valid0 =>
+        let* fields' := update_union_member fields fname hfields is_valid0 in
+        Some (ValBaseUnion fields')
+      | _ => None
+      end
+    | _ => None
+    end.
+
   Definition interp_val_sval (v: Val) : option Sval :=
     Some (eval_val_to_sval v).
 
@@ -225,8 +246,71 @@ Section Interpreter.
     | _ => None
     end.
 
-  Fixpoint interp_write (st: state) (lv: Lval) (sv: Sval) : option state.
-  Admitted.
+
+  Fixpoint interp_read (st: state) (lv: Lval) : option Sval :=
+    match lv with
+    | MkValueLvalue (ValLeftName name loc) typ =>
+      loc_to_sval loc st
+    | MkValueLvalue (ValLeftMember lv fname) typ =>
+      let* sv := interp_read st lv in
+      find_member sv fname
+    | MkValueLvalue (ValLeftBitAccess lv hi lo) typ =>
+      let* bitssv := interp_read st lv in
+      let* (bitsbl, wn) := sval_to_bits_width bitssv in
+      let lonat := N.to_nat lo in
+      let hinat := N.to_nat hi in
+      if ((lonat <=? hinat)%nat && (hinat <? wn)%nat)%bool
+      then Some (ValBaseBit (bitstring_slice bitsbl lonat hinat))
+      else None
+    | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>
+      let* v := interp_read st lv in
+      match v with
+      | ValBaseStack headers next =>
+        let* rtyp := get_real_type ge typ in
+        let* default_header := uninit_sval_of_typ None rtyp in
+        let header := Znth_def (Z.of_N idx) headers default_header in
+        Some header
+      | _ => None
+      end
+    end.
+
+  Fixpoint interp_write (st: state) (lv: Lval) (rhs: Sval) : option state :=
+    match lv with
+    | MkValueLvalue (ValLeftName name loc) typ =>
+      Some (update_val_by_loc st loc rhs)
+    | MkValueLvalue (ValLeftMember lv fname) typ =>
+      let* sv := interp_read st lv in
+      let* sv' := set_member sv fname rhs in
+      interp_write st lv sv'
+    | MkValueLvalue (ValLeftBitAccess lv hi lo) typ =>
+      let* sv := interp_read st lv in
+      let lonat := N.to_nat lo in
+      let hinat := N.to_nat hi in
+      match sv with
+      | ValBaseBit bits =>
+        let bits' := update_bitstring bits lonat hinat bits in
+        if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
+        then let sv' := ValBaseBit bits' in
+             interp_write st lv sv'
+        else None
+      | ValBaseInt bits =>
+        let bits' := update_bitstring bits lonat hinat bits in
+        if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
+        then let sv' := (ValBaseInt bits') in
+             interp_write st lv sv'
+        else None
+      | _ => None
+      end
+    | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>
+      let* sv := interp_read st lv in
+      match sv with
+      | ValBaseStack headers next =>
+        let headers' := update_stack_header headers idx rhs in
+        interp_write st lv (ValBaseStack headers' next)
+      | _ =>
+        None
+      end
+    end.
 
   Definition is_call (expr: @Expression tags_t) : bool :=
     match expr with

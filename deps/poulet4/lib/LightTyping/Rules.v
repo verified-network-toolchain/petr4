@@ -469,6 +469,24 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ e2 ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir.
     Proof.
+      intros i o t e1 e2 d Hbt He1 He2.
+      autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok His rob st Hrob Hgst.
+      inversion Hok; subst; inversion H4; subst.
+      rename H1 into Hokt; rename H4 into Heokb;
+        rename H2 into Hoke1; rename H5 into Hoke2.
+      inversion His; subst; inversion H4; subst.
+      rename H1 into Hiset; rename H4 into Hispe;
+        rename H2 into Hisee1; rename H5 into Hisee2.
+      pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrob Hgst as [[v1 Hev1] Hvt1].
+      pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrob Hgst as [[v2 Hev2] Hvt2].
+      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hrob Hgst; split.
+      - admit.
+      - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
+        apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
+        apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
+        assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1) by eauto using exec_val_preserves_typ.
+        assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2) by eauto using exec_val_preserves_typ.
     Admitted.
   
     Theorem cast_sound : forall tag e t dir,

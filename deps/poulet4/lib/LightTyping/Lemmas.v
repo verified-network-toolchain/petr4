@@ -67,6 +67,30 @@ Section Lemmas.
                      lia).
   Qed.
 
+  Lemma eval_binary_op_preserves_typ : forall o (t t1 t2 : typ) v v1 v2,
+      binary_type o t1 t2 t ->
+      Ops.eval_binary_op o v1 v2 = Some v ->
+      ⊢ᵥ v1 \: t1 -> ⊢ᵥ v2 \: t2 -> ⊢ᵥ v \: t.
+  Proof.
+    intros o t t1 t2 v v1 v2 Hbt Hebo Hvt1 Hvt2;
+      inversion Hbt; subst;
+        inversion Hvt1; subst; inversion Hvt2; subst;
+          cbn in *; try discriminate;
+            try inv_numeric; try inv_numeric_width;
+              try some_inv;
+              try rewrite <- Nnat.Nat2N.inj_add;
+              try match goal with
+                  | |- ⊢ᵥ ValBaseBit (?l ++ ?r) \: TypBit (N.of_nat (length ?r + length ?l))
+                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
+                  | |- ⊢ᵥ ValBaseInt (?l ++ ?r) \: TypInt (N.of_nat (length ?r + length ?l))
+                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
+                  end;
+              try match goal with
+                  | H: context [if ?t then _ else _] |- _
+                    => destruct t eqn:?; cbn in *; try discriminate; try some_inv
+                  end; auto.
+  Admitted.
+  
   Notation ident := string.
   Notation path := (list ident).
 

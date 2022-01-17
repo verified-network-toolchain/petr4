@@ -12,6 +12,25 @@ Ltac match_some_inv :=
           try discriminate
   end.
 
+Local Hint Unfold read_detbit : core.
+Local Hint Unfold sval_to_val : core.
+Local Hint Unfold val_to_sval : core.
+Local Hint Constructors exec_val : core.
+    
+Lemma val_to_sval_ex : forall v,
+    val_to_sval v (ValueBaseMap Some v).
+Proof.
+  autounfold with *; intro v.
+  induction v using (custom_ValueBase_ind bool); simpl; eauto;
+    try (constructor; rewrite <- Forall2_map_r, Forall2_Forall;
+         (rewrite Forall_forall; reflexivity) || assumption);
+    try (constructor; auto; unfold AList.all_values;
+         rewrite <- Forall2_map_r, Forall2_Forall;
+         rewrite Forall_snd in H;
+         apply Forall_and; rewrite Forall_forall in *;
+         intros [? ?]; firstorder).
+Qed.
+
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).

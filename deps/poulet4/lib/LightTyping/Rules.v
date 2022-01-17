@@ -53,13 +53,13 @@ Section Soundness.
       try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex);
       cbn in *.
   
-    Lemma bool_sound : forall tag b dir,
+    Theorem bool_sound : forall tag b dir,
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBool b) TypBool dir.
     Proof.
       intros; soundtac.
     Qed.
   
-    Lemma arbitrary_int_sound : forall tag i z dir,
+    Theorem arbitrary_int_sound : forall tag i z dir,
         (ge,this,Δ,Γ)
           ⊢ₑ
           MkExpression
@@ -68,7 +68,7 @@ Section Soundness.
       intros; soundtac.
     Qed.
     
-    Lemma unsigned_int_sound : forall tag i z w dir,
+    Theorem unsigned_int_sound : forall tag i z w dir,
         (ge,this,Δ,Γ)
           ⊢ₑ
           MkExpression tag
@@ -82,7 +82,7 @@ Section Soundness.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
     
-    Lemma signed_int_sound : forall tag i z w dir,
+    Theorem signed_int_sound : forall tag i z w dir,
         (ge,this,Δ,Γ)
           ⊢ₑ
           MkExpression
@@ -96,13 +96,13 @@ Section Soundness.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
     
-    Lemma string_sound : forall tag s dir,
+    Theorem string_sound : forall tag s dir,
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpString s) TypString dir.
     Proof.
       intros; soundtac.
     Qed.
     
-    Lemma name_sound : forall tag x loc t dir,
+    Theorem name_sound : forall tag x loc t dir,
         is_directional dir = true ->
         typ_of_loc_var loc Γ = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
@@ -119,7 +119,7 @@ Section Soundness.
       - rewrite Hd in H11; discriminate.
     Qed.
 
-    Lemma constant_sound : forall tag x loc t dir,
+    Theorem constant_sound : forall tag x loc t dir,
         is_directional dir = false ->
         typ_of_loc_const this loc Γ = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
@@ -136,7 +136,7 @@ Section Soundness.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
     
-    Lemma array_access_sound : forall tag arry idx ts dir n,
+    Theorem array_access_sound : forall tag arry idx ts dir n,
         0 < N.to_nat n ->
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
@@ -219,7 +219,7 @@ Section Soundness.
             inversion Hv1'; subst; auto.
     Qed.
 
-    Lemma bigstring_access_sound : forall tag bits lo hi dir w,
+    Theorem bigstring_access_sound : forall tag bits lo hi dir w,
         (lo <= hi < w)%N ->
         typ_of_expr bits = TypBit w ->
         (ge,this,Δ,Γ) ⊢ₑ bits ->
@@ -257,7 +257,7 @@ Section Soundness.
         apply bitstring_slice_length in Hlhw; lia.
     Qed.
   
-    Lemma list_sound : forall tag es dir,
+    Theorem list_sound : forall tag es dir,
         Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) es ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpList es)
                       (TypTuple (map typ_of_expr es)) dir.
@@ -309,122 +309,105 @@ Section Soundness.
           solve_ex; split; auto.
     Qed.
 
-    Lemma record_sound : forall tag es dir,
+    Hint Rewrite map_length : core.
+    Local Hint Resolve Forall2_length : core.
+    
+    Theorem record_sound : forall tag es dir,
         Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) (map snd es) ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpRecord es)
           (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir.
     Proof.
-      (*intros i es d Hes.
-      autounfold with * in *.
-      intros Tgt rob ge st Hrob Hg Hok.
+      intros i es d Hes.
+      autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok Hise rob st Hrob Hg.
+      inversion Hok; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Htokrec; rename H4 into Heokrec;
+        rename H0 into Htokes; rename H2 into Heokes.
+      inversion Hise; subst; inversion H1; subst; inversion H4; subst.
+      unfold Basics.compose in *.
+      rename H1 into Hisetrec; rename H4 into Hispe;
+        rename H0 into Hisetes; rename H2 into Hisees.
       rewrite Forall_forall in Hes.
       specialize Hes with
-          (T := Tgt)
-          (read_one_bit:=rob) (ge:=ge) (st:=st).
-      pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
-        simpl in Hes'; clear Hes.
-      pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
-        simpl in Hes; clear Hes'.
-      simpl in *; inversion Hok;
-        rename H0 into Hτs; rename H into Hτs_eq.
-      rewrite <- Forall_forall in Hes.
-      pose proof Forall_map
-           (P4Type_ok Δ) snd
-           (map (fun '(x, e) => (x, typ_of_expr e)) es)
-        as Hfm.
-        unfold Basics.compose in Hfm.*)
-      (*rewrite <- Hfm in Hτs; clear Hfm.
-      rewrite map_snd_map in Hτs.
-      rewrite Forall_map in Hτs.
-      unfold Basics.compose in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
-      apply Forall_and_inv in Hq as [Hrns Htyps]; split.
+          (read_one_bit:=rob) (st:=st).
+      pose proof (fun e HInnes Hok Hise =>
+                    Hes e HInnes Hgrt Hged Hok Hise Hrob Hg)
+        as H; clear Hes; rename H into Hes.
+      rewrite <- Forall_forall,Forall_map in Hes.
+      unfold Basics.compose in Hes; cbn in Hes.
+      pose proof Forall_impl_Forall _ _ _ _ Hes Heokes as H; clear Hes Heokes.
+      pose proof Forall_impl_Forall _ _ _ _ H Hisees as Hes; clear H Hisees.
+      apply Forall_and_inv in Hes as [Hrnes Htyps]; split.
       - clear Htyps.
-        rewrite Forall_exists_factor in Hrns.
-        destruct Hrns as [vs Hvs].
-        rewrite AList.Forall2_all_values
-          with (ks := map fst es) in Hvs.
-        + rewrite combine_map_fst_snd in Hvs; eauto. admit.
-        + repeat rewrite map_length; reflexivity.
-        + rewrite map_length, <- map_length with (f := snd).
-          eauto using Forall2_length.
-      - clear Hrns; intros v Hrns.
-        inversion Hrns; subst.
-        rename H6 into Heskvs.
-        rewrite <- combine_map_fst_snd with (l := es)   in Heskvs.
-        rewrite <- combine_map_fst_snd with (l := kvs') in Heskvs.
-        apply AList.all_values_keys_eq in Heskvs as Hmf.
-        repeat rewrite combine_map_fst_snd in Hmf.
-        rewrite <- Hmf in Heskvs.*)
-    (*rewrite <- AList.Forall2_all_values in Heskvs.
-      + constructor; unfold AList.all_values;
-        rewrite Forall2_conj; split.
-        * rewrite Forall2_map_both, Forall2_eq,
-          map_fst_map, map_id; auto.
-        * rewrite Forall2_map_both.
-          rewrite map_snd_map.
-          assert (Hl : length es = length kvs').
-          { rewrite <- map_length with (f := fst) (l := es).
-            rewrite <- map_length with (f := fst) (l := kvs'), Hmf.
-            reflexivity. }
-          rewrite <- map_length with (f := snd) (l := es) in Hl.
-          rewrite <- map_length with (f := snd) (l := kvs') in Hl.
-          pose proof forall_Forall2 _ _ _ _ Htyps (map snd kvs') Hl as Hff2.
-          apply Forall2_impl with
-              (R := run_expr ge rob this st)
-              (Q := fun e v => val_typ (ge_senum ge) v (typ_of_expr e)) in Hff2; auto.
-          rewrite Forall2_flip,Forall2_map_r in Hff2; assumption.
-      + repeat rewrite map_length; reflexivity.
-      + rewrite Hmf; repeat rewrite map_length; reflexivity.
-  Qed.*)
-    Admitted.
-
-    Local Hint Unfold read_detbit : core.
-    Local Hint Unfold sval_to_val : core.
-    Local Hint Unfold val_to_sval : core.
-    
-    Lemma val_to_sval_ex : forall v,
-        val_to_sval v (ValueBaseMap Some v).
-    Proof.
-      autounfold with *; intro v.
-      induction v using (custom_ValueBase_ind bool); simpl; eauto.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        assumption.
-      - constructor. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor; auto. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        assumption.
+        rewrite Forall_exists_factor in Hrnes.
+        destruct Hrnes as [vs Hvs].
+        exists (ValBaseStruct (combine (map P4String.str (map fst es)) vs)).
+        constructor. unfold AList.all_values, P4String.clear_AList_tags.
+        rewrite Forall2_conj,
+        Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+        rewrite map_snd_combine by (autorewrite with core; eauto).
+        rewrite map_fst_combine by (autorewrite with core; eauto).
+        rewrite Forall2_eq,map_fst_map,map_snd_map,map_id;split;auto.
+        rewrite <- Forall2_map_l; assumption.
+      - clear Hrnes.
+        intros v Hev; inversion Hev; subst.
+        rename kvs' into xvs; rename H6 into Hxvs.
+        unfold AList.all_values,P4String.clear_AList_tags in Hxvs.
+        rewrite Forall2_conj in Hxvs.
+        destruct Hxvs as [Hfsteq Hxvs].
+        rewrite Forall2_map_both,Forall2_eq,map_fst_map in Hfsteq.
+        rewrite map_pat_both, <- Forall2_map_l in Hxvs; cbn in *.
+        rewrite Forall_forall in Htyps.
+        apply forall_Forall2 with (bs := map snd xvs) in Htyps;
+          autorewrite with core; eauto.
+        rewrite <- Forall2_map_r in Htyps.
+        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hxvs as H; clear Htyps Hxvs.
+        apply Forall2_ex_factor in H as [rs Hrs].
+        rewrite Forall3_conj_sep in Hrs.
+        destruct Hrs as [Hesrs Hxvsrs].
+        rewrite Forall2_map_l with
+            (R:=fun e t => get_real_type ge (typ_of_expr e) = Some t)
+            (f:=snd) in Hesrs.
+        rewrite Forall2_map_l with
+            (R:=fun t r => get_real_type ge t = Some r)
+            (f:=typ_of_expr) in Hesrs.
+        rewrite Forall2_map_l with
+            (R:=fun ro r => ro = Some r) (f:=get_real_type ge) in Hesrs.
+        rewrite Forall2_sequence_iff in Hesrs.
+        rewrite map_pat_combine,map_id.
+        pose proof @map_bind_pair _ option_monad_inst as Hmbp.
+        unfold ">>|",">>=",mbind,mret in Hmbp.
+        autounfold with option_monad in *.
+        rewrite Hmbp; clear Hmbp.
+        exists (TypRecord (combine (map fst es) rs)); cbn; split.
+        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob
+                Hg Htokrec Heokrec Htokes Hev Hfsteq Hxvsrs.
+          clear Hgrt Hisetrec Hispe Hisetes.
+          generalize dependent rs.
+          induction es as [| [x e] es IHes];
+            intros [| r rs] Hrs; cbn in *; try discriminate;
+              try specialize IHes with rs;
+              repeat match_some_inv; some_inv; try reflexivity.
+          intuition; match_some_inv; some_inv; reflexivity.
+        + constructor.
+          unfold AList.all_values,P4String.clear_AList_tags.
+          rewrite Forall2_conj,
+          Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+          repeat rewrite map_fst_map.
+          repeat rewrite map_snd_map.
+          repeat rewrite map_id.
+          rewrite map_fst_combine by
+              (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+          rewrite map_snd_combine by
+              (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+          rewrite Forall2_eq, <- Forall2_map_both; auto.
     Qed.
 
     Local Hint Resolve val_to_sval_ex : core.
     
-    Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
+    Theorem eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
         unary_type o t t' ->
         Ops.eval_unary_op o v = Some v' ->
         ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
@@ -442,7 +425,7 @@ Section Soundness.
         [P4Arith.to_lbool] and [P4Arith.BitArith.bit_not]. *)
     Admitted.
   
-    Lemma unary_op_sound : forall tag o e t dir,
+    Theorem unary_op_sound : forall tag o e t dir,
         unary_type o (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
@@ -460,7 +443,7 @@ Section Soundness.
         destruct H as [v' Hv'].
         assert (exists v''', Ops.eval_unary_op o v' = Some v''').
         (* Maybe try to factor this out?
-           Lemma exists_eval_unary_op : forall o v,
+           Theorem exists_eval_unary_op : forall o v,
            exists v', Ops.eval_unary_op o v = Some v'. *)
         { destruct (Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
           inversion Hut; subst; try inv_numeric; try inv_numeric_width;
@@ -497,7 +480,7 @@ Section Soundness.
         eauto using exec_val_preserves_typ.*)
     Admitted.
 
-    Lemma binary_op_sound : forall tag o t e1 e2 dir,
+    Theorem binary_op_sound : forall tag o t e1 e2 dir,
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
         (ge,this,Δ,Γ) ⊢ₑ e1 ->
         (ge,this,Δ,Γ) ⊢ₑ e2 ->
@@ -505,16 +488,15 @@ Section Soundness.
     Proof.
     Admitted.
   
-    Lemma cast_sound : forall tag e t dir,
+    Theorem cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
     Proof.
     Admitted.
 
-    Lemma enum_member_sound : forall tag X M E mems dir,
-        IdentMap.get (P4String.str X) (ge_typ ge)
-        = Some (TypEnum E None mems) ->
+    Theorem enum_member_sound : forall tag X M E mems dir,
+        IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E None mems) ->
         List.In M mems ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
@@ -529,7 +511,7 @@ Section Soundness.
       - rewrite Hget in H7; some_inv.
     Qed.
 
-    (*Lemma senum_member_sound :
+    (*Theorem senum_member_sound :
       forall tag X M E t (mems : list (P4String.t tags_t * Sval)) dir,
         IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E (Some t) (map fst mems)) ->
         (*IdentMap.get (P4String.str E) (ge_senum ge) = Some mems ->*)
@@ -550,7 +532,7 @@ Section Soundness.
       - 
       Admitted.*)
 
-    Lemma error_member_sound : forall tag err dir,
+    Theorem error_member_sound : forall tag err dir,
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpErrorMember err) TypError dir.
@@ -561,7 +543,7 @@ Section Soundness.
     Local Hint Resolve member_get_member_ex : core.
     Local Hint Resolve get_member_types : core.
     
-    Lemma other_member_sound : forall tag e x ts t dir,
+    Theorem other_member_sound : forall tag e x ts t dir,
         member_type ts (typ_of_expr e) ->
         AList.get ts x = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
@@ -651,7 +633,7 @@ Section Soundness.
         eauto.
     Qed.
 
-    Lemma array_size_sound : forall tag e x dir t w,
+    Theorem array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)
         (w < 2 ^ 32)%N ->
         typ_of_expr e = TypArray t w ->
@@ -661,7 +643,7 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma array_last_index_sound : forall tag e x dir t w,
+    Theorem array_last_index_sound : forall tag e x dir t w,
         typ_of_expr e = TypArray t w ->
         P4String.str x = "lastIndex"%string ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
@@ -669,7 +651,7 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma ternary_sound : forall tag e₁ e₂ e₃ t dir,
+    Theorem ternary_sound : forall tag e₁ e₂ e₃ t dir,
         typ_of_expr e₁ = TypBool ->
         typ_of_expr e₂ = typ_of_expr e₃ ->
         typ_of_expr e₂ = t ->
@@ -687,7 +669,7 @@ Section Soundness.
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
     
-    Lemma assign_sound : forall tag e₁ e₂,
+    Theorem assign_sound : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
         (ge,this,Δ,Γ) ⊢ₑ e₁->
@@ -698,7 +680,7 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma cond_sound : forall tag e s₁ s₂ Γ₁,
+    Theorem cond_sound : forall tag e s₁ s₂ Γ₁,
         typ_of_expr e = TypBool ->
         (ge,this,Δ,Γ) ⊢ₑ e->
         (ge,this,Δ,Γ) ⊢ₛ s₁ ⊣ Γ₁ ->
@@ -713,34 +695,34 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma exit_sound : forall tag,
+    Theorem exit_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
 
-    Lemma return_sound : forall tag e,
+    Theorem return_sound : forall tag e,
         predopt (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma empty_sound : forall tag,
+    Theorem empty_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
     
-    Lemma block_sound : forall Γ' tag blk t,
+    Theorem block_sound : forall Γ' tag blk t,
         Block_StmTypes blk t ->
         (ge,this,Δ,Γ) ⊢ᵦ blk ⊣ Γ' ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
+    Theorem method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
         (ge,this,Δ,Γ)
           ⊢ᵪ MkExpression dummy_tags
           (ExpFunctionCall e τs es)
@@ -751,7 +733,7 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ es,
+    Theorem direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ es,
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
@@ -763,7 +745,7 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Lemma stat_variable_sound : forall tag τ x e l,
+    Theorem stat_variable_sound : forall tag τ x e l,
         predopt
           (fun e =>
              typ_of_expr e = τ /\

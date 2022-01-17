@@ -429,9 +429,9 @@ Section Soundness.
         assert (Hutr: unary_type o r r).
         { inversion Hut; subst;
             try inv_numeric; try inv_numeric_width;
-            try match goal with
-                | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
-                end; cbn in *; try some_inv; auto. }
+              try match goal with
+                  | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
+                  end; cbn in *; try some_inv; auto. }
         assert (Hutr_normᵗ: unary_type o (normᵗ r) (normᵗ r)).
         { inversion Hutr; subst;
             try inv_numeric;
@@ -449,29 +449,19 @@ Section Soundness.
         destruct H as [v'' Hv'']; eauto.
       - clear v Hev; intros v Hev.
         inversion Hev; subst; simpl in *.
-        pose proof Hvt _ H7 as Hargsv.
-        (*pose proof
-             (@exec_val_preserves_typ
-                tags_t _ _ _ _ _ H8 (ge_senum ge)) as Hevpt.
-        assert (Hgsb : exists gsb,
-                   FuncAsMap.related
-                     (AList.all_values (exec_val rob))
-                     (ge_senum ge) gsb).
-        { admit. }
-        destruct Hgsb as [gsb Hgsb].
-        pose proof Hevpt _ Hgsb _ Hargsv as Hargv.
-        assert (Hv0: val_typ gsb v0 (typ_of_expr e))
-          by eauto using eval_unary_op_preserves_typ.
-        assert (Hgsb' :
-                  FuncAsMap.related
-                    (AList.all_values val_to_sval)
-                    gsb (ge_senum ge)).
-        { (* TODO:
-             Need assumption
-             [read_one_bit_inverse rob read_detbit]. *)
-          admit. }
-        eauto using exec_val_preserves_typ.*)
-    Admitted.
+        pose proof Hvt _ H7 as (r & Hr & Hvr); clear Hvt H7.
+        pose proof exec_val_preserves_typ _ _ _ H8 _ Hvr as Hargvr; clear H8 Hvr.
+        assert (Hr_eq : typ_of_expr e = r /\ r = normᵗ r).
+        { inversion Hut; subst; try inv_numeric; try inv_numeric_width;
+            try match goal with
+                | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
+                end; cbn in *; try some_inv; auto. }
+        destruct Hr_eq as [Het Hrr]; subst r.
+        rewrite Hrr in Hut.
+        pose proof eval_unary_op_preserves_typ
+             _ _ _ _ _ Hut H9 Hargvr as Hv0; clear H9 Hargvr.
+        eauto using exec_val_preserves_typ.
+    Qed.
 
     Theorem binary_op_sound : forall tag o t e1 e2 dir,
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->

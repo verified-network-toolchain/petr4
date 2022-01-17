@@ -404,60 +404,53 @@ Section Soundness.
               (apply sequence_length in Hesrs; autorewrite with core in *; auto).
           rewrite Forall2_eq, <- Forall2_map_both; auto.
     Qed.
-
+    
     Local Hint Resolve val_to_sval_ex : core.
     
-    Theorem eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
-        unary_type o t t' ->
-        Ops.eval_unary_op o v = Some v' ->
-        ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
-    Proof.
-      intros o v v' t t' Hut Heval Hvt;
-        inversion Hut; subst;
-          inversion Hvt; subst;
-            try (inversion Heval; subst; auto; assumption).
-      - unfold Ops.eval_unary_op in Heval.
-        destruct (P4Arith.BitArith.from_lbool v0)
-          as [w' n'] eqn:Heqfromlbool.
-        injection Heval as Hv'. rewrite <- Hv'.
-        inversion H; subst; clear H.
-    (** TODO: need helper lemma about
-        [P4Arith.to_lbool] and [P4Arith.BitArith.bit_not]. *)
-    Admitted.
-  
     Theorem unary_op_sound : forall tag o e t dir,
         unary_type o (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
     Proof.
-      intros i o e t d Hut He.
-      autounfold with * in *; intros Hgrt Hdelta Hok Hise rob st Hrob Hg; cbn in *.
-      pose proof He Hgrt Hdelta.
-      simpl in *.
-      apply unary_type_eq in Hut as Hut_eq.
-      rewrite Hut_eq in He.
-      (*pose proof He Hrob Hg Hok as [[v Hev] Hvt]; clear He; split.
-      - apply Hvt in Hev as Hv; clear Hvt.
-        assert (exists v', sval_to_val rob v v')
-          by eauto using exec_val_exists.
+      intros i o e t d Hut He; autounfold with * in *; cbn in *.
+      intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
+      inversion Hok; subst; inversion H4; subst.
+      rename H1 into Hokt; rename H4 into Hokuop; rename H0 into Hoke.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hiset; rename H4 into Hispe; rename H0 into Hisee.
+      pose proof He Hgrt Hdelta Hoke Hisee _ _ Hrob Hg as [[v Hev] Hvt].
+      apply unary_type_eq in Hut as Hut_eq; subst t.
+      clear He Hgrt Hdelta Hoke Hisee; split.
+      - assert (exists v', sval_to_val rob v v') by eauto using exec_val_exists.
         destruct H as [v' Hv'].
+        apply Hvt in Hev as Hev'.
+        destruct Hev' as (r & Hr & Hvr).
+        pose proof exec_val_preserves_typ _ _ _ Hv' _ Hvr as Hv'r.
+        assert (Hutr: unary_type o r r).
+        { inversion Hut; subst;
+            try inv_numeric; try inv_numeric_width;
+            try match goal with
+                | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
+                end; cbn in *; try some_inv; auto. }
+        assert (Hutr_normᵗ: unary_type o (normᵗ r) (normᵗ r)).
+        { inversion Hutr; subst;
+            try inv_numeric;
+            try inv_numeric_width;
+            cbn; auto. }
         assert (exists v''', Ops.eval_unary_op o v' = Some v''').
-        (* Maybe try to factor this out?
-           Theorem exists_eval_unary_op : forall o v,
-           exists v', Ops.eval_unary_op o v = Some v'. *)
         { destruct (Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
-          inversion Hut; subst; try inv_numeric; try inv_numeric_width;
-            match goal with
-            | H: _ = typ_of_expr ?e,
-                 Hv: val_typ _ ?v (typ_of_expr ?e),
-                     Hv': sval_to_val _ ?v _
-              |- _ => rewrite <- H in *; inversion Hv; inversion Hv'; subst
-            end; simpl in *; try discriminate. }
-        firstorder eauto. admit.
+          inversion Hutr_normᵗ; subst;
+            try inv_numeric; try inv_numeric_width;
+              inversion Hv'r; subst; cbn in *; try discriminate;
+                try match goal with
+                    | H1: _ = ?a, H2: _ = ?a |- _ => rewrite <- H1 in H2; clear H1
+                    end;
+                try discriminate. }
+        destruct H as [v'' Hv'']; eauto.
       - clear v Hev; intros v Hev.
         inversion Hev; subst; simpl in *.
         pose proof Hvt _ H7 as Hargsv.
-        pose proof
+        (*pose proof
              (@exec_val_preserves_typ
                 tags_t _ _ _ _ _ H8 (ge_senum ge)) as Hevpt.
         assert (Hgsb : exists gsb,

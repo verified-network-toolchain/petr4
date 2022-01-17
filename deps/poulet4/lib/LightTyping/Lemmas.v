@@ -34,6 +34,39 @@ Qed.
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).
+
+  Local Hint Constructors val_typ : core.
+  Local Hint Resolve val_to_sval_ex : core.
+  
+  Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
+      unary_type o t t' ->
+      Ops.eval_unary_op o v = Some v' ->
+      ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
+  Proof.
+    intros o v v' t t' Hut Heval Hvt;
+      inversion Hut; subst;
+        inversion Hvt; subst;
+          unfold Ops.eval_unary_op in Heval;
+          try discriminate; try some_inv; auto;
+            try match goal with
+                | H: context [let (_,_) := P4Arith.BitArith.from_lbool ?bs in _]
+                  |- _ => destruct (P4Arith.BitArith.from_lbool bs)
+                    as [w' n] eqn:Hbs; some_inv;
+                          try inv_numeric; try inv_numeric_width
+                end;
+            try match goal with
+                | |- ⊢ᵥ ValBaseBit ?v \: TypBit (N.of_nat (length ?bs))
+                  => replace (length bs) with (length v); auto
+                | |- ⊢ᵥ ValBaseInt ?v \: TypInt (N.of_nat (length ?bs))
+                  => replace (length bs) with (length v); auto
+                end; unfold P4Arith.to_lbool;
+              try rewrite rev_length,P4Arith.length_to_lbool'; cbn;
+                try (apply f_equal with (f:=fst) in Hbs; cbn in Hbs;
+                     apply f_equal with (f:=N.to_nat) in Hbs;
+                     rewrite <- Hbs,Znat.Z_N_nat,Zcomplements.Zlength_correct;
+                     lia).
+  Qed.
+
   Notation ident := string.
   Notation path := (list ident).
 
@@ -89,8 +122,6 @@ Section Lemmas.
               apply AList.in_fst_get_some in Hx' as [v Hv]; eauto
       end.  
   Qed.
-
-  Local Hint Constructors val_typ : core.
   
   Lemma get_member_types : forall x ts (t t' : typ) v v',
       member_type ts t ->

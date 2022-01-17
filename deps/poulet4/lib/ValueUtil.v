@@ -19,13 +19,13 @@ Section ValueUtil.
   Definition read_detbit (b : bool) (b': option bool) :=
     b' = Some b.
 
-  Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) : 
+  Inductive exec_val {A B} (read_one_bit : A -> B -> Prop) :
                     @ValueBase A -> @ValueBase B -> Prop :=
     | exec_val_null : exec_val read_one_bit ValBaseNull ValBaseNull
     | exec_val_bool : forall b b',
                       read_one_bit b b' ->
                       exec_val read_one_bit (ValBaseBool b) (ValBaseBool b')
-    | exec_val_integer : forall n, 
+    | exec_val_integer : forall n,
                         exec_val read_one_bit (ValBaseInteger n) (ValBaseInteger n)
     | exec_val_bit : forall lb lb',
                     Forall2 read_one_bit lb lb' ->
@@ -60,11 +60,11 @@ Section ValueUtil.
                       Forall2 (exec_val read_one_bit) lv lv' ->
                       exec_val read_one_bit (ValBaseStack lv next) (ValBaseStack lv' next)
     | exec_val_enum_field : forall typ_name enum_name,
-                            exec_val read_one_bit (ValBaseEnumField typ_name enum_name) 
+                            exec_val read_one_bit (ValBaseEnumField typ_name enum_name)
                                                   (ValBaseEnumField typ_name enum_name)
     | exec_val_senum_field : forall typ_name v v',
                             exec_val read_one_bit v v' ->
-                            exec_val read_one_bit (ValBaseSenumField typ_name v) 
+                            exec_val read_one_bit (ValBaseSenumField typ_name v)
                                                   (ValBaseSenumField typ_name v').
 
   Section ExecValInd.
@@ -161,16 +161,16 @@ Section ValueUtil.
         end.
   End ExecValInd.
 
-  Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) := 
+  Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) :=
     exec_val read_one_bit.
 
   Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
     Forall2 (exec_val read_one_bit).
 
-  Definition val_to_sval := 
+  Definition val_to_sval :=
     exec_val read_detbit.
 
-  Definition vals_to_svals := 
+  Definition vals_to_svals :=
     Forall2 (exec_val read_detbit).
 
   Fixpoint eval_val_to_sval (val: Val): Sval :=
@@ -238,7 +238,7 @@ Section ValueUtil.
            (fun '({| P4String.str := x |}, t) =>
               uninit_sval_of_typ hvalid t >>| pair x)
            fields) >>| ValBaseStruct
-    | TypEnum tname None (mem :: _) => 
+    | TypEnum tname None (mem :: _) =>
       Some (ValBaseEnumField (str tname) (str mem))
     | TypNewType _ typ' => uninit_sval_of_typ hvalid typ'
     (* TypTypeName should have been already resolved *)
@@ -255,7 +255,7 @@ Section ValueUtil.
     | TypEnum {| P4String.str := X |} (Some typ') _ =>
       uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X
     (* The P4Spec does not specify the unintialized values for the following types,
-       so we use the default values for now. (7.3.) 
+       so we use the default values for now. (7.3.)
        Note that this design choice makes the svals output from uninit_sval_of_typ different
        from uninit_sval_of_sval and val_to_sval. *)
     | TypVarBit w => Some (ValBaseVarbit w [])
@@ -269,7 +269,7 @@ Section ValueUtil.
                   so it cannot be uninitialized.
       TypVoid: It contains no values (7.1.1.).
       TypSet, TypMatchKind: They do not have default values (7.3.).
-      TypControl, TypParser, TypExtern, TypFunction, TypAction, 
+      TypControl, TypParser, TypExtern, TypFunction, TypAction,
       TypTable, TypPackage, TypSpecializedType, TypConstructor
   *)
 
@@ -277,7 +277,7 @@ Section ValueUtil.
     The discrepancies between uninit_sval_of_sval and uninit_sval_of_typ:
     1. ValBaseInteger, ValBaseVarbit, ValBaseError, ValBaseEnumField - different output sval
     2. ValBaseString, ValBaseMatchKind, ValBaseNull - not exist in uninit_sval_of_typ *)
-  Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval := 
+  Fixpoint uninit_sval_of_sval (hvalid : option bool) (v : Sval): Sval :=
     match v with
     | ValBaseBool _ => ValBaseBool None
     | ValBaseBit bits => ValBaseBit (List.map (fun _ => None) bits)
@@ -294,3 +294,63 @@ Section ValueUtil.
     end.
 
 End ValueUtil.
+
+Lemma val_to_sval_iff:
+  forall v1 v2, val_to_sval v1 v2 <-> eval_val_to_sval v1 = v2.
+Proof.
+  remember (fix eval_val_to_svals (vl : list ValueBase) : list ValueBase :=
+              match vl with
+              | [] => []
+              | s :: rest => eval_val_to_sval s :: eval_val_to_svals rest
+              end) as eval_val_to_svals. rename Heqeval_val_to_svals into Hsvals.
+  remember (fix val_to_avals (sl : StringAList ValueBase) : StringAList ValueBase :=
+              match sl with
+              | [] => []
+              | (k, s) :: rest => (k, eval_val_to_sval s) :: val_to_avals rest
+              end) as val_to_avals. rename Heqval_to_avals into Havals.
+  intros. split. intros.
+  - revert v2 H.
+    induction v1 using custom_ValueBase_ind; intros; try (now inversion H).
+    + inversion H; subst. inversion H1. now simpl.
+    + inversion H; subst; clear H. simpl. induction H1; simpl; auto. inversion H.
+      now inversion IHForall2.
+    + inversion H; subst; clear H. simpl. induction H1; simpl; auto. inversion H.
+      now inversion IHForall2.
+    + inversion H; subst; clear H. simpl. induction H3; simpl; auto. inversion H.
+      now inversion IHForall2.
+    + inversion H0. subst lv v2. clear H0. simpl. rewrite <- Hsvals. revert lv' H2.
+      induction H; intros; rewrite Hsvals. 1: now inversion H2. rewrite <- Hsvals.
+      inversion H2. subst x0 l0 lv'. clear H2. apply H in H4. rewrite H4.
+      apply IHForall in H6. now inversion H6.
+    + inversion H0. subst kvs v2. clear H0. simpl. rewrite <- Havals. revert kvs' H2.
+      induction H; intros; rewrite Havals. 1: now inversion H2. rewrite <- Havals.
+      destruct x. inversion H2. subst x l0 kvs'. clear H2. destruct y. simpl fst in *.
+      simpl snd in *. destruct H4. subst s0. apply H in H2. subst v0.
+      apply IHForall in H6. now inversion H6.
+    + inversion H0. subst kvs v2 b0. clear H0. inversion H3. subst b'. clear H3.
+      simpl. rewrite <- Havals. revert kvs' H5. induction H; intros; rewrite Havals.
+      1: now inversion H5. rewrite <- Havals. destruct x. inversion H5.
+      subst x l0 kvs'. clear H5. destruct y. simpl fst in *. simpl snd in *.
+      destruct H3. subst s0. apply H in H2. subst v0. apply IHForall in H6.
+      now inversion H6.
+    + inversion H0. subst kvs v2. clear H0. simpl. rewrite <- Havals. revert kvs' H2.
+      induction H; intros; rewrite Havals. 1: now inversion H2. rewrite <- Havals.
+      destruct x. inversion H2. subst x l0 kvs'. clear H2. destruct y. simpl fst in *.
+      simpl snd in *. destruct H4. subst s0. apply H in H2. subst v0.
+      apply IHForall in H6. now inversion H6.
+    + inversion H0. subst lv next v2. clear H0. simpl. rewrite <- Hsvals.
+      revert lv' H4. induction H; intros; rewrite Hsvals. 1: now inversion H4.
+      rewrite <- Hsvals. inversion H4. subst x0 l0 lv'. clear H4. apply H in H3.
+      rewrite H3. apply IHForall in H6. now inversion H6.
+    + inversion H; subst; clear H. simpl. apply IHv1 in H3. now subst.
+  - intros. subst v2. induction v1 using Value.custom_ValueBase_ind;
+      try (now constructor); simpl.
+    1, 3: constructor; induction n; simpl; constructor; auto; easy.
+    1: constructor; induction z; simpl; constructor; auto; easy.
+    1, 5: rewrite <- Hsvals; constructor; induction H; rewrite Hsvals;
+    [constructor | rewrite <- Hsvals; constructor; auto].
+    1, 3: rewrite <- Havals; constructor; induction H; rewrite Havals;
+    [constructor | rewrite <- Havals; destruct x; constructor; simpl; auto].
+    rewrite <- Havals. constructor. 1: constructor. induction H; rewrite Havals.
+    1: constructor. rewrite <- Havals. destruct x. constructor; simpl; auto.
+Qed.

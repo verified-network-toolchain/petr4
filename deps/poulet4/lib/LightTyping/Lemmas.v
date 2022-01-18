@@ -16,6 +16,8 @@ Ltac if_destruct :=
   match goal with
   | H: context [if ?t then _ else _] |- _
     => destruct t eqn:?; cbn in *; try discriminate; try some_inv
+  | |- context [if ?t then _ else _]
+    => destruct t eqn:?; cbn in *; try discriminate; try some_inv
   end.
 
 Local Hint Unfold read_detbit : core.
@@ -140,6 +142,41 @@ Section Lemmas.
   Proof.
     intros o r r1 r2 Hbt; inversion Hbt; subst; cbn; eauto.
   Qed.
+
+  Lemma eval_binary_op_ex : forall o (t t1 t2 : typ) v1 v2,
+      binary_type o t1 t2 t ->
+      ⊢ᵥ v1 \: t1 ->
+      ⊢ᵥ v2 \: t2 ->
+      exists v, Ops.eval_binary_op o v1 v2 = Some v.
+  Proof.
+    intros o t t1 t2 v1 v2 Hbt Hv1 Hv2;
+      inversion Hbt; subst;
+        try inv_numeric; try inv_numeric_width;
+          inversion Hv1; subst; inversion Hv2; subst; cbn; eauto;
+            try if_destruct; eauto;
+              repeat rewrite Zcomplements.Zlength_correct in *;
+              try match goal with
+                  | H: (_ =? _)%N = false |- _ => rewrite N.eqb_neq in H; lia
+                  end;
+              try match goal with
+                  | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
+                    => destruct trm as [? |] eqn:?;idtac; eauto
+                  end;
+              try match goal with
+                  | H: binary_type Eq _ _ _ |- _ => admit
+                  | H: binary_type NotEq _ _ _ |- _ => admit
+                  end;
+              try if_destruct; eauto.
+    (** TODO:
+        1. [eval_binary_op_shift] fails when [v2 = ValBasInteger n2] such that [n2 < 0].
+           Needs a default (undefined?) value (perhaps just v1?).
+        2. [AList.key_unique] should be checked in [P4Type_ok].
+        3. Need a predicate to restrict which types may be compared for equality.
+        4. Need to know equality will never fail for well-typed values
+           whose types respect the aforementioned predicate
+        5. Division is troublesome, need a default value.
+     *) 
+  Admitted.
   
   Notation ident := string.
   Notation path := (list ident).

@@ -483,8 +483,16 @@ Section Soundness.
         rename H2 into Hisee1; rename H5 into Hisee2.
       pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrob Hgst as [[v1 Hev1] Hvt1].
       pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrob Hgst as [[v2 Hev2] Hvt2].
-      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hrob Hgst; split.
-      - admit.
+      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst; split.
+      - apply Hvt1 in Hev1 as Hev1'; destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
+        apply Hvt2 in Hev2 as Hev2'; destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
+        (*Check exec_expr_binary_op.*)
+        assert (Hv1': exists v1', sval_to_val rob v1 v1') by eauto using exec_val_exists.
+        assert (Hv2': exists v2', sval_to_val rob v2 v2') by eauto using exec_val_exists.
+        destruct Hv1' as [v1' Hv1']; destruct Hv2' as [v2' Hv2'].
+        assert (Hvr1': ⊢ᵥ v1' \: normᵗ r1) by eauto.
+        assert (Hvr2': ⊢ᵥ v2' \: normᵗ r2) by eauto.
+        admit.
       - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
         apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.

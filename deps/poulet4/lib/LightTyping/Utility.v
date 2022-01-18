@@ -51,17 +51,17 @@ Section Utils.
   | BTPlusPlusInt w1 w2 t2 :
       numeric_width w2 t2 ->
       binary_type PlusPlus (TypInt w1) t2 (TypInt (w1 + w2)%N)
-  | BTShl w1 t1 t2 :
-      numeric_width w1 t1 -> numeric t2 ->
-      binary_type Shl t1 t2 t1
-  | BTShrBit w1 w2 t1 :
-      numeric_width w1 t1 ->
+  | BTShlBit t1 w2 :
+      numeric t1 ->
+      binary_type Shl t1 (TypBit w2) t1
+  | BTShlInteger t1 :
+      numeric t1 ->
+      binary_type Shl t1 TypInteger t1
+  | BTShrBit t1 w2 :
+      numeric t1 ->
       binary_type Shr t1 (TypBit w2) t1
-  | BTShlInteger w1 t1 :
-      numeric_width w1 t1 ->
-      binary_type Shr t1 TypInteger t1
-  | BTShrInteger w1 t1 :
-      numeric_width w1 t1 ->
+  | BTShrInteger t1 :
+      numeric t1 ->
       binary_type Shr t1 TypInteger t1
   | BTEq t :
       binary_type Eq t t TypBool
@@ -76,12 +76,14 @@ Section Utils.
   | BTMul t :
       numeric t ->
       binary_type Mul t t t
-  | BTDiv t :
-      numeric t ->
-      binary_type Div t t t
-  | BTMod t :
-      numeric t ->
-      binary_type Mod t t t
+  | BTDivBit w :
+      binary_type Div (TypBit w) (TypBit w) (TypBit w)
+  | BTDivInteger :
+      binary_type Div TypInteger TypInteger TypInteger
+  | BTModBit w :
+      binary_type Mod (TypBit w) (TypBit w) (TypBit w)
+  | BTModInteger :
+      binary_type Mod TypInteger TypInteger TypInteger
   | BTLe t :
       numeric t ->
       binary_type Le t t TypBool

@@ -406,6 +406,8 @@ Section Soundness.
     Qed.
     
     Local Hint Resolve val_to_sval_ex : core.
+    Local Hint Resolve exec_val_preserves_typ : core.
+    Local Hint Resolve eval_unary_op_preserves_typ : core.
     
     Theorem unary_op_sound : forall tag o e t dir,
         unary_type o (typ_of_expr e) t ->
@@ -457,12 +459,13 @@ Section Soundness.
                 | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
                 end; cbn in *; try some_inv; auto. }
         destruct Hr_eq as [Het Hrr]; subst r.
-        rewrite Hrr in Hut.
-        pose proof eval_unary_op_preserves_typ
-             _ _ _ _ _ Hut H9 Hargvr as Hv0; clear H9 Hargvr.
-        eauto using exec_val_preserves_typ.
+        rewrite Hrr in Hut; eauto.
     Qed.
 
+    Local Hint Resolve eval_binary_op_preserves_typ : core.
+    Local Hint Resolve binary_type_get_real_type : core.
+    Local Hint Resolve binary_type_normᵗ : core.
+    
     Theorem binary_op_sound : forall tag o t e1 e2 dir,
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
         (ge,this,Δ,Γ) ⊢ₑ e1 ->
@@ -487,6 +490,9 @@ Section Soundness.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
         assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1) by eauto using exec_val_preserves_typ.
         assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2) by eauto using exec_val_preserves_typ.
+        assert (Hr : exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r)
+          by eauto using binary_type_get_real_type.
+        destruct Hr as (r & Hr & Hbr); eauto 6.
     Admitted.
   
     Theorem cast_sound : forall tag e t dir,

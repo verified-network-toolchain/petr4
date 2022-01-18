@@ -12,6 +12,12 @@ Ltac match_some_inv :=
           try discriminate
   end.
 
+Ltac if_destruct :=
+  match goal with
+  | H: context [if ?t then _ else _] |- _
+    => destruct t eqn:?; cbn in *; try discriminate; try some_inv
+  end.
+
 Local Hint Unfold read_detbit : core.
 Local Hint Unfold sval_to_val : core.
 Local Hint Unfold val_to_sval : core.
@@ -37,6 +43,14 @@ Section Lemmas.
 
   Local Hint Constructors val_typ : core.
   Local Hint Resolve val_to_sval_ex : core.
+
+  Ltac bitint_length_rewrite :=
+    match goal with
+    | |- ⊢ᵥ ValBaseBit ?v \: TypBit (N.of_nat (length ?bs))
+      => replace (length bs) with (length v); auto
+    | |- ⊢ᵥ ValBaseInt ?v \: TypInt (N.of_nat (length ?bs))
+      => replace (length bs) with (length v); auto
+    end.
   
   Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
       unary_type o t t' ->
@@ -54,12 +68,7 @@ Section Lemmas.
                     as [w' n] eqn:Hbs; some_inv;
                           try inv_numeric; try inv_numeric_width
                 end;
-            try match goal with
-                | |- ⊢ᵥ ValBaseBit ?v \: TypBit (N.of_nat (length ?bs))
-                  => replace (length bs) with (length v); auto
-                | |- ⊢ᵥ ValBaseInt ?v \: TypInt (N.of_nat (length ?bs))
-                  => replace (length bs) with (length v); auto
-                end; unfold P4Arith.to_lbool;
+            try bitint_length_rewrite; unfold P4Arith.to_lbool;
               try rewrite rev_length,P4Arith.length_to_lbool'; cbn;
                 try (apply f_equal with (f:=fst) in Hbs; cbn in Hbs;
                      apply f_equal with (f:=N.to_nat) in Hbs;
@@ -85,11 +94,52 @@ Section Lemmas.
                   | |- ⊢ᵥ ValBaseInt (?l ++ ?r) \: TypInt (N.of_nat (length ?r + length ?l))
                     => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
                   end;
-              try match goal with
-                  | H: context [if ?t then _ else _] |- _
-                    => destruct t eqn:?; cbn in *; try discriminate; try some_inv
-                  end; auto.
-  Admitted.
+              repeat if_destruct;
+              try match_some_inv; try some_inv; auto;
+                try bitint_length_rewrite;
+                unfold P4Arith.to_lbool;
+                try rewrite rev_length,P4Arith.length_to_lbool'; cbn;
+                  try rewrite Znat.Z_N_nat,Zcomplements.Zlength_correct; try lia.
+  Qed.
+
+  Local Hint Constructors binary_type : core.
+  Local Hint Constructors numeric_width : core.
+  Local Hint Constructors numeric : core.
+  
+  Lemma binary_type_get_real_type : forall ge o (t t1 t2 r1 r2 : typ),
+      binary_type o t1 t2 t ->
+      get_real_type ge t1 = Some r1 ->
+      get_real_type ge t2 = Some r2 ->
+      exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r.
+  Proof.
+    intros ge o t t1 t2 r1 r2 Hbt Hr1 Hr2.
+    inversion Hbt; subst;
+      try inv_numeric; try inv_numeric_width;
+        cbn in *; repeat some_inv; eauto;
+          try (rewrite Hr1 in Hr2; some_inv; eauto).
+  Qed.
+  
+  Lemma numeric_width_normᵗ : forall w (t : typ),
+      numeric_width w t -> numeric_width w (normᵗ t).
+  Proof.
+    intros w t H; inv_numeric_width; auto.
+  Qed.
+
+  Local Hint Resolve numeric_width_normᵗ : core.
+  
+  Lemma numeric_normᵗ : forall t : typ,
+      numeric t -> numeric (normᵗ t).
+  Proof.
+    intros t H; inv_numeric; auto.
+  Qed.
+
+  Local Hint Resolve numeric_normᵗ : core.
+  
+  Lemma binary_type_normᵗ : forall o (r r1 r2 : typ),
+      binary_type o r1 r2 r -> binary_type o (normᵗ r1) (normᵗ r2) (normᵗ r).
+  Proof.
+    intros o r r1 r2 Hbt; inversion Hbt; subst; cbn; eauto.
+  Qed.
   
   Notation ident := string.
   Notation path := (list ident).

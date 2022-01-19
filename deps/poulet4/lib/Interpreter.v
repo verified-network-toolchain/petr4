@@ -293,19 +293,21 @@ Section Interpreter.
       let* sv := interp_read st lv in
       let lonat := N.to_nat lo in
       let hinat := N.to_nat hi in
-      match sv with
-      | ValBaseBit bits =>
-        let bits' := update_bitstring bits lonat hinat bits in
-        if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
-        then let sv' := ValBaseBit bits' in
-             interp_write st lv sv'
-        else None
-      | ValBaseInt bits =>
-        let bits' := update_bitstring bits lonat hinat bits in
-        if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
-        then let sv' := (ValBaseInt bits') in
-             interp_write st lv sv'
-        else None
+      match rhs with
+      | ValBaseBit bits' =>
+        match sv with
+        | ValBaseBit bits =>
+          let bits'' := update_bitstring bits lonat hinat bits' in
+          if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
+          then interp_write st lv (ValBaseBit bits'')
+          else None
+        | ValBaseInt bits =>
+          let bits'' := update_bitstring bits lonat hinat bits' in
+          if ((lonat <=? hinat)%nat && (hinat <? List.length bits)%nat)%bool
+          then interp_write st lv (ValBaseInt bits'')
+          else None
+        | _ => None
+        end
       | _ => None
       end
     | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>

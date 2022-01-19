@@ -226,12 +226,26 @@ Section InterpreterSafe.
       destruct a.
       repeat optbind_inv.
       inversion H; subst.
-      destruct (BinInt.Z.geb a0 Z0) eqn:?; try congruence.
-      econstructor; eauto.
-      inversion Heqo2; subst.
+      destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+      destruct (BinInt.Z.ltb a2 Z0) eqn:?.
       + econstructor; eauto.
-        eapply interp_expr_safe; eauto.
-      + admit. (* need to change defn in Semantics for this to go through. *)
+        * econstructor;
+            [|rewrite <- Heqv0;
+              eauto using sval_to_val_interp];
+          eapply interp_expr_safe; eauto.
+        * econstructor; eauto.
+          eapply interp_expr_safe; eauto.
+        * rewrite Heqb.
+          congruence.
+      + econstructor; eauto.
+        * econstructor;
+            [|rewrite <- Heqv0;
+              eauto using sval_to_val_interp];
+          eapply interp_expr_safe; eauto.
+        * econstructor; eauto.
+          eapply interp_expr_safe; eauto.
+        * rewrite Heqb.
+          congruence.
     - intros.
       simpl in H.
       repeat optbind_inv.
@@ -256,20 +270,17 @@ Section InterpreterSafe.
       + optbind_inv.
         destruct a; try congruence.
         inversion H; subst.
-        econstructor.
+        eapply Semantics.exec_lexpr_member_next with (size:=N.of_nat (Datatypes.length headers)).
         * assumption.
         * eapply IHexpr.
           eassumption.
         * eapply interp_expr_safe; eauto.
-        * (* Issue: size is no longer constrained by anything since it is not part of the value datatype anymore. *)
-          admit.
+        * destruct (next <? N.of_nat _)%N; reflexivity.
       + inversion H; subst.
         econstructor.
         * assumption.
         * eapply IHexpr; eauto.
-  (* some shelved goals left that need investigating, probably more
-  unconstrained constructor parameters. *)
-  Admitted.
+  Qed.
 
   Theorem interp_read_safe:
     forall lv ge st v,

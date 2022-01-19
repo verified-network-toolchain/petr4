@@ -300,40 +300,6 @@ Section Environment.
     | _ => state_fail (AssertError "Unsupported value in member update.")
     end.
 
-  Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t bit) : env_monad unit :=
-    let 'MkValueLvalue lv _ := lvalue in
-    match lv with
-    | ValLeftName nm _ =>
-      let* loc := get_name_loc nm in
-      heap_update loc value
-
-    (* TODO: again, it would be good to refactor some of this logic *)
-    | ValLeftMember inner member =>
-      let* lv' := env_lookup inner in
-      match (lv', value) with
-      | (ValBase _ lv'', ValBase _ value') =>
-        let* value'' := update_member lv'' member value' in
-        env_update inner (ValBase _ value'')
-      | _ => state_fail (TypeError "Member expression did not evaluate to base values.")
-      end
-    | ValLeftBitAccess inner msb lsb =>
-      let* lv' := env_lookup inner in
-      match (lv', value) with
-      | (ValBase _ lv'', ValBase _ value') =>
-        let* value'' := update_slice lv'' (N.to_nat msb) (N.to_nat lsb) value' in
-        env_update inner (ValBase _ value'')
-      | _ => state_fail (TypeError "Bit access expression did not evaluate to base values.")
-      end
-    | ValLeftArrayAccess inner idx =>
-      let* lv' := env_lookup inner in
-      match (lv', value) with
-      | (ValBase _ lv'', ValBase _ value') =>
-        let* value'' := update_array lv'' (N.to_nat idx) value' in
-        env_update inner (ValBase _ value'')
-      | _ => state_fail (TypeError "Array access expression did not evaluate to base values.")
-      end
-    end.
-
   Definition toss_value (original: env_monad (@Value tags_t bit)) : env_monad unit :=
     fun env =>
       match original env with

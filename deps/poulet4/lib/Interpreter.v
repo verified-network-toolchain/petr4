@@ -246,9 +246,20 @@ Section Interpreter.
       else None
     | MkExpression tag (ExpArrayAccess array idx) typ dir =>
       let* (lv, sig) := interp_lexpr this st array in
+      let* v := interp_expr this st array in
+      let* size :=
+         match Interpreter.interp_sval_val v with
+         | ValBaseStack headers _ =>
+           Some (List.length headers)
+         | _ => None
+         end in
       let* idxv := interp_expr this st idx in
       let* idxz := array_access_idx_to_z (interp_sval_val idxv) in
-      let* idxn := if idxz >=? 0 then Some (Z.to_N idxz) else None in
+      let* idxn :=
+         if idxz <? 0
+         then Some (N.of_nat size + 1)%N
+         else Some (Z.to_N idxz)
+      in
       Some (MkValueLvalue (ValLeftArrayAccess lv idxn) typ, sig)
     | _ => None
     end.

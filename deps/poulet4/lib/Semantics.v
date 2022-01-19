@@ -927,11 +927,11 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
                         (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
   (* next < 0 is impossible by syntax. *)
-  | exec_lexpr_member_next : forall expr lv name headers size next this st tag typ dir sig ret_sig,
+  | exec_lexpr_member_next : forall expr lv name headers next this st tag typ dir sig ret_sig,
                              String.eqb (P4String.str name) "next" = true ->
                              exec_lexpr read_one_bit this st expr lv sig ->
                              exec_expr read_one_bit this st expr (ValBaseStack headers next) ->
-                             (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
+                             (if (next <? N.of_nat (List.length headers))%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
                              (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig

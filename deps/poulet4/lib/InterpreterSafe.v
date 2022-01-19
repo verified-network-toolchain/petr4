@@ -270,7 +270,7 @@ Section InterpreterSafe.
       + optbind_inv.
         destruct a; try congruence.
         inversion H; subst.
-        eapply Semantics.exec_lexpr_member_next with (size:=N.of_nat (Datatypes.length headers)).
+        econstructor.
         * assumption.
         * eapply IHexpr.
           eassumption.

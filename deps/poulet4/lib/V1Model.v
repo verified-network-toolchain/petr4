@@ -192,16 +192,16 @@ Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint
             true, true)
   else None.
 
-Definition concat_tuple (lval : list Val) : option (list bool) :=
-  let fix concat_tuple' (lval : list Val) (res: list bool): option (list bool) :=
-    match lval with
-    | [] => Some (res)
-    | ValBaseBit value :: tl => concat_tuple' tl (List.app value res)
-    | ValBaseInt value :: tl => concat_tuple' tl (List.app value res)
-    | ValBaseVarbit _ value :: tl => concat_tuple' tl (List.app value res)
-    | _ => None
-    end
-  in concat_tuple' lval [].
+Definition val_to_bits (v : Val) : option (list bool) :=
+  match v with
+  | ValBaseBit value => Some value
+  | ValBaseInt value => Some value
+  | ValBaseVarbit _ value => Some value
+  | _ => None
+  end.
+
+Definition concat_tuple (vs : list Val) : option (list bool) :=
+  option_map (@concat bool) (lift_option (map val_to_bits vs)).
 
 Definition bound_hash_output (outw: N) (base: list bool) 
                              (max: list bool) (output: list bool) : Val :=
@@ -214,14 +214,14 @@ Definition bound_hash_output (outw: N) (base: list bool)
                 (BitArith.modulo_mod w4 output max))).
 (*Check compute_crc.*)
 Inductive hash_sem : extern_func_sem :=
-  | exec_hash : forall e s p outw typs hash_name base lval max hashw poly init xor_out refin refout input output,
+  | exec_hash : forall e s p outw typs hash_name base vs max hashw poly init xor_out refin refout input output,
       get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->
-      concat_tuple lval = Some input ->
+      concat_tuple vs = Some input ->
       bound_hash_output outw base max 
         (compute_crc hashw poly init xor_out refin refout input) = output ->
       hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name; 
                            ValBaseBit base;
-                           ValBaseTuple lval;
+                           ValBaseTuple vs;
                            ValBaseBit max]
         s [output] SReturnNull.
 

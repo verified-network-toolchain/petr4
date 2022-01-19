@@ -1429,17 +1429,17 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
       exec_block read_one_bit this_path st block st' sig ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatBlock block) typ) st' sig
-  | exec_stmt_exit : forall this_path (st: state) tags typ st,
+  | exec_stmt_exit : forall this_path st tags typ,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags StatExit typ) st SExit
-  | exec_stmt_return_none : forall this_path (st: state) tags typ st,
+  | exec_stmt_return_none : forall this_path st tags typ,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatReturn None) typ) st SReturnNull
-  | exec_stmt_return_some : forall e v this_path (st: state) tags typ st,
+  | exec_stmt_return_some : forall e v this_path st tags typ,
       exec_expr_det read_one_bit this_path st e v ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatReturn (Some e)) typ) st (SReturn v)
-  | exec_stmt_empty : forall this_path (st: state) tags typ st,
+  | exec_stmt_empty : forall this_path st tags typ,
       exec_stmt read_one_bit this_path st
                 (MkStatement tags StatEmpty typ) st SContinue
   | exec_stmt_switch : forall tags expr cases typ this_path st st' sig s block,

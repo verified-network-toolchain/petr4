@@ -1111,22 +1111,22 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
       update_member sv fname rhs sv' ->
       exec_write st lv sv' st' ->
       exec_write st (MkValueLvalue (ValLeftMember lv fname) typ) rhs st'
-  | exec_write_bit_access_bit : forall lv bits bits' lo lonat hi hinat st typ st',
+  | exec_write_bit_access_bit : forall lv bits bits' bits'' lo lonat hi hinat st typ st',
                                 exec_read st lv (ValBaseBit bits) ->
                                 N.to_nat lo = lonat ->
                                 N.to_nat hi = hinat ->
                                 (lonat <= hinat < List.length bits)%nat ->
-                                update_bitstring bits lonat hinat bits = bits' ->
-                                exec_write st lv (ValBaseBit bits') st' ->
+                                update_bitstring bits lonat hinat bits' = bits'' ->
+                                exec_write st lv (ValBaseBit bits'') st' ->
                                 exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                   (ValBaseBit bits') st'
-   | exec_write_bit_access_int : forall lv bits bits' lo lonat hi hinat st typ st',
+   | exec_write_bit_access_int : forall lv bits bits' bits'' lo lonat hi hinat st typ st',
                                   exec_read st lv (ValBaseInt bits) ->
                                   N.to_nat lo = lonat ->
                                   N.to_nat hi = hinat ->
                                   (lonat <= hinat < List.length bits)%nat ->
-                                  update_bitstring bits lonat hinat bits = bits' ->
-                                  exec_write st lv (ValBaseInt bits') st' ->
+                                  update_bitstring bits lonat hinat bits' = bits'' ->
+                                  exec_write st lv (ValBaseInt bits'') st' ->
                                   exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)

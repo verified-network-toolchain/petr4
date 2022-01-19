@@ -55,7 +55,7 @@ Section Value.
   | ValLeftName (name: @Typed.name tags_t) (loc: (Syntax.Locator))
   | ValLeftMember (expr: ValueLvalue) (name: string)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: N)
+  | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z)
   with ValueLvalue :=
   | MkValueLvalue (lvalue: ValuePreLvalue) (typ: @Typed.P4Type tags_t).
 

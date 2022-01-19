@@ -893,7 +893,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                              (if (next <? size)%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                             (MkValueLvalue (ValLeftArrayAccess lv next) typ) ret_sig
+                             (MkValueLvalue (ValLeftArrayAccess lv (Z.of_N next)) typ) ret_sig
   (* ATTN: lo and hi interchanged here *)
   | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsbl this st tag typ dir sig,
                                    exec_lexpr read_one_bit this st bits lv sig ->
@@ -905,16 +905,13 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                    (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) sig
   (* Make negative idxz equal to size to stay out of bound as a nat idx.
      Write to out-of-bound indices l-values is handled in exec_write *)
-  | exec_lexpr_array_access : forall array lv idx idxv idxz idxn headers next this st tag typ dir sig,
+  | exec_lexpr_array_access : forall array lv idx idxv idxz this st tag typ dir sig,
                                exec_lexpr read_one_bit this st array lv sig ->
                                exec_expr_det read_one_bit this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
-                               (if (idxz >=? 0)
-                                then idxn = Z.to_N idxz
-                                else exec_expr read_one_bit this st array (ValBaseStack headers next)) ->
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                               (MkValueLvalue (ValLeftArrayAccess lv idxn) typ) sig.
+                               (MkValueLvalue (ValLeftArrayAccess lv idxz) typ) sig.
 
 Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
@@ -945,7 +942,7 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                             exec_read st lv (ValBaseStack headers next) ->
                             get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
-                            Znth (d := default_header) (Z.of_N idx) headers = header ->
+                            Znth (d := default_header) idx headers = header ->
                             exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
 
 (* If any of these kinds of writes are performed:
@@ -1037,14 +1034,8 @@ Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
                           update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
                           (ValBaseUnion fields').
 
-Definition update_stack_header (headers: list Sval) (idx: N) (v: Sval) : list Sval :=
-  let fix update_stack_header' headers idx' v :=
-    match headers, idx' with
-    | header :: tl, O => v :: tl
-    | header :: tl, S n => header :: (update_stack_header' tl n v)
-    | [], _ => []
-    end
-  in update_stack_header' headers (N.to_nat idx) v.
+Definition update_stack_header (headers: list Sval) (idx: Z) (v: Sval) : list Sval :=
+  upd_Znth idx headers v.
 
 Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
                               (nbits : list A) : list A :=
@@ -1088,7 +1079,7 @@ Inductive exec_write : state -> Lval -> Sval -> state -> Prop :=
                                   exec_write st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
                                     (ValBaseBit bits') st'
   (* By update_stack_header, if idx >= size, state currently defined is unchanged. *)
-  | exec_write_array_access : forall lv headers next (idx: N) headers' st rhs typ st',
+  | exec_write_array_access : forall lv headers next idx headers' st rhs typ st',
                               exec_read st lv (ValBaseStack headers next) ->
                               update_stack_header headers idx rhs = headers' ->
                               exec_write st lv (ValBaseStack headers' next) st' ->

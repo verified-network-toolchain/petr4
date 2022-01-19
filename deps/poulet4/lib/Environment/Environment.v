@@ -204,7 +204,7 @@ Section Environment.
   Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t bit) :=
     env_name_lookup (BareName name).
 
-  Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t) : option_monad :=
+  (* Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t) : option_monad :=
     match lval with
     | ValLeftName _ _ => Some val
     | ValLeftMember _ member =>
@@ -229,9 +229,9 @@ Section Environment.
       | _ => None
       end
     end
-  .
+  . *)
 
-  Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t bit) :=
+  (* Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t bit) :=
     let 'MkValueLvalue lv _ := lvalue in
     let* val_inner := match lv with
     | ValLeftName name _ => env_name_lookup name
@@ -241,7 +241,7 @@ Section Environment.
       env_lookup inner
     end in
     lift_opt (AssertError "Could not dig into value.") (env_dig val_inner lv)
-  .
+  . *)
 
   Definition update_slice (lhs: @ValueBase bit) (msb: nat) (lsb: nat) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match (lhs, rhs) with
@@ -295,7 +295,7 @@ Section Environment.
     | _ => state_fail (AssertError "Unsupported value in member update.")
     end.
 
-  Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t bit) : env_monad unit :=
+  (* Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t bit) : env_monad unit :=
     let 'MkValueLvalue lv _ := lvalue in
     match lv with
     | ValLeftName nm _ =>
@@ -327,7 +327,7 @@ Section Environment.
         env_update inner (ValBase _ value'')
       | _ => state_fail (TypeError "Array access expression did not evaluate to base values.")
       end
-    end.
+    end. *)
 
   Definition toss_value (original: env_monad (@Value tags_t bit)) : env_monad unit :=
     fun env =>

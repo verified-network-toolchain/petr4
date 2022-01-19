@@ -5,6 +5,8 @@ Require Import Poulet4.Syntax.
 Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.ValueUtil.
 Require Import Poulet4.ExprInd.
+Require Import Poulet4.Monads.Monad.
+Require Import Poulet4.Monads.Option.
 Require Poulet4.Semantics.
 Require Poulet4.Interpreter.
 Check @Interpreter.interp_expr.
@@ -267,6 +269,104 @@ Section InterpreterSafe.
         * eapply IHexpr; eauto.
   (* some shelved goals left that need investigating, probably more
   unconstrained constructor parameters. *)
+  Admitted.
+
+  Definition stmt_safe stmt :=
+    forall this st fuel st' sig,
+      Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
+      Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
+
+  Definition pre_stmt_safe pre_stmt :=
+    forall tags styp,
+      stmt_safe (MkStatement tags pre_stmt styp).
+
+  Definition block_safe block :=
+    forall this st fuel st' sig,
+      Interpreter.interp_block ge this st fuel block = Some (st', sig) ->
+      Semantics.exec_block ge read_ndetbit this st block st' sig.
+
+  Theorem interp_stmt_safe:
+    forall stmt this st fuel st' sig,
+      Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
+      Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
+  Proof.
+    intro stmt.
+    pattern stmt.
+    eapply (Syntax.statement_rec
+              (PBlock := block_safe)
+              (PStatement := stmt_safe)
+              (PStatementMaybe := fun s =>
+                                    match s with
+                                    | Some stmt => stmt_safe stmt
+                                    | None => True
+                                    end)
+              (PStatementPreT := pre_stmt_safe)
+              (PStatementSwitchCase := fun _ => True)
+              (PStatementSwitchCaseList := fun _ => True)
+              (PInitializer := fun _ => True)
+              (PInitializerList := fun _ => True)
+           );
+      unfold pre_stmt_safe, stmt_safe, block_safe;
+      intros.
+    - tauto.
+    - tauto.
+    - tauto.
+    - tauto.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - destruct fuel; [discriminate|].
+      unfold Interpreter.interp_stmt in H.
+      inversion H; subst.
+      constructor.
+    - destruct fuel; [discriminate|].
+      unfold Interpreter.interp_stmt in H.
+      inversion H; subst.
+      constructor.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - tauto.
+    - tauto.
+    - tauto.
+    - tauto.
+    - destruct fuel; discriminate.
+    - eauto.
+    - tauto.
+    - eauto.
+    - destruct fuel; [discriminate|].
+      inversion H; subst.
+      constructor.
+    - destruct fuel; [discriminate|].
+      set (eval :=
+             let* (st, sig) := Interpreter.interp_stmt ge this st fuel stmt0 in
+             let* (st', sig') :=
+                Interpreter.interp_block ge this st fuel
+                                         (if Semantics.is_continue sig
+                                          then rest
+                                          else Semantics.empty_block)
+             in
+             Some (st', if Semantics.is_continue sig then sig' else sig)).
+      assert (eval = Some (st', sig)) by (rewrite <- H1; reflexivity).
+      unfold eval in H2.
+      simpl in H2.
+      optbind_inv.
+      destruct a.
+      optbind_inv.
+      destruct a.
+      inversion H2.
+      subst.
+      econstructor.
+      + eapply H.
+        eapply Heqo.
+      + destruct (Semantics.is_continue s0) eqn:?.
+        * eapply H0; eauto.
+        * destruct fuel; [discriminate|].
+          inversion Heqo0; subst.
+          constructor.
   Admitted.
 
 End InterpreterSafe.

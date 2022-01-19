@@ -1074,7 +1074,7 @@ Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
   | update_member_header : forall fields is_valid fname fv sv,
                            write_header_field (ValBaseHeader fields is_valid) fname fv sv ->
                            update_member (ValBaseHeader fields is_valid) fname fv sv
-  | update_member_union : forall hfields (is_valid: bool) fields fields' is_valid fname,
+  | update_member_union : forall hfields is_valid fields fields' fname,
                           update_union_member fields fname hfields is_valid = Some fields' ->
                           update_member (ValBaseUnion fields) fname (ValBaseHeader hfields is_valid)
                           (ValBaseUnion fields').

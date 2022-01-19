@@ -1,0 +1,41 @@
+{
+    "hosts": {
+        "h1": {"ip": "10.0.1.1/24", "mac": "08:00:00:00:01:11",
+              "commands":["route add default gw 10.0.1.10 dev eth0",
+                          "arp -i eth0 -s 10.0.1.10 08:00:00:00:01:00"]},
+        "h2": {"ip": "10.0.2.2/24", "mac": "08:00:00:00:02:22",
+              "commands":["route add default gw 10.0.2.20 dev eth0",
+                          "arp -i eth0 -s 10.0.2.20 08:00:00:00:02:00"]},
+        "h3": {"ip": "10.0.3.3/24", "mac": "08:00:00:00:03:33",
+              "commands":["route add default gw 10.0.3.30 dev eth0",
+                          "arp -i eth0 -s 10.0.3.30 08:00:00:00:03:00"]},
+        "h4": {"ip": "10.0.4.4/24", "mac": "08:00:00:00:04:44",
+              "commands":["route add default gw 10.0.4.40 dev eth0",
+                          "arp -i eth0 -s 10.0.4.40 08:00:00:00:04:00"]},
+        "w1": {"ip": "10.0.5.5/24", "mac": "08:00:00:00:05:55",
+              "commands":["route add default gw 10.0.5.50 dev eth0",
+                          "arp -i eth0 -s 10.0.5.50 08:00:00:00:05:00",
+                          "python3.9 webserver/server.py &"]},
+        "w2": {"ip": "10.0.6.6/24", "mac": "08:00:00:00:06:66",
+              "commands":["route add default gw 10.0.6.60 dev eth0",
+                          "arp -i eth0 -s 10.0.6.60 08:00:00:00:06:00",
+                          "python3.9 webserver/server.py &"]},
+        "w3": {"ip": "10.0.7.7/24", "mac": "08:00:00:00:07:77",
+              "commands":["route add default gw 10.0.7.70 dev eth0",
+                          "arp -i eth0 -s 10.0.7.70 08:00:00:00:07:00",
+                          "python3.9 webserver/server.py &"]},
+        "w4": {"ip": "10.0.8.8/24", "mac": "08:00:00:00:08:88",
+              "commands":["route add default gw 10.0.8.80 dev eth0",
+                          "arp -i eth0 -s 10.0.8.80 08:00:00:00:08:00",
+                          "python3.9 webserver/server.py &"]}
+    },
+    "switches": {
+        "s1": {"program": "s1_no_affinity.p4"},
+        "s2": {"program": "forwarding.p4"},
+        "s3": {"program": "forwarding.p4"}
+    },
+    "links": [
+        ["s1-p1", "h1"], ["s1-p2", "h2"], ["s1-p3", "h3"], ["s1-p4", "h4"], ["s1-p5", "s3-p1"],
+        ["s2-p1", "w1"], ["s2-p2", "w2"], ["s2-p3", "w3"], ["s2-p4", "w4"], ["s2-p5", "s3-p2"]
+    ]
+}

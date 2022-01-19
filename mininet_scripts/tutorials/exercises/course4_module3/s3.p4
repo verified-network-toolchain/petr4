@@ -64,7 +64,7 @@ header discovery_hdr_t {
 }
 
 struct metadata {
-    /* empty */
+    bit<1>  ph_key;
     bit<32> server_id;
     bit<32> active_server_cnt;
 }
@@ -244,8 +244,23 @@ control MyIngress(inout headers hdr,
         }
         default_action = NoAction;
     }
+
+    action set_active_server_cnt(bit<32> cnt){
+        meta.active_server_cnt = cnt;
+    }
+
+    table active_server_cnt{
+        key = {meta.ph_key: exact;}
+        actions = {
+            set_active_server_cnt;
+        }
+    }
                
     apply {
+        meta.ph_key = 1;
+        active_server_cnt.apply();
+        meta.active_server_cnt = 4;
+
         if (hdr.ipv4.isValid()) {
           if (standard_metadata.ingress_port == IN){
               do_lb();

@@ -62,7 +62,7 @@ header discovery_hdr_t {
 }
 
 struct metadata {
-    /* empty */
+    bit<1>  ph_key;
     bit<32> fw_id;
     bit<32> active_fw_cnt;
 }
@@ -132,6 +132,18 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
+    
+    action set_active_fw_cnt(bit<32> cnt){
+        meta.active_fw_cnt = cnt;
+    }
+
+    table active_fw_cnt{
+        key = {meta.ph_key: exact;}
+        actions = {
+            set_active_fw_cnt;
+        } 
+    }
+
     action drop() {
         mark_to_drop(standard_metadata);
     }
@@ -164,9 +176,14 @@ control MyIngress(inout headers hdr,
     }
 
     apply {
+        meta.ph_key = 1;
+        active_fw_cnt.apply();
+        meta.active_fw_cnt = 4;
+
         if (hdr.ipv4.isValid()) {
           if (standard_metadata.ingress_port == IN){
               do_lb();
+              hdr.ipv4.diffserv = 1;
               standard_metadata.egress_spec = (egressSpec_t) (meta.fw_id + 1);
           }
           else if (standard_metadata.ingress_port != OUT){

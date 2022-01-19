@@ -7,7 +7,8 @@ port = sys.argv[2]
 
 time.sleep(10)
 
-for i in range(0, 30):
+CNT = 1;
+for i in range(0, CNT):
     try:
       r = requests.get('http://%s:%s/' % (ip, port), timeout = 5)
       print(r.text, flush = True)

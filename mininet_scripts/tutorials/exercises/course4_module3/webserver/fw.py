@@ -1,7 +1,6 @@
 from scapy.all import *
-from nf_tag_header import NFTag
 
-allowed_list = ["10.0.1.1"]
+allowed_list = ["10.0.1.1", "10.0.2.2", "10.0.3.3", "10.0.4.4"]
 def get_if():
     ifs=get_if_list()
     iface=None
@@ -16,15 +15,15 @@ def get_if():
 
 def handle_pkt(pkt):
     pkt.show2()
-    if IP in pkt and NFTag in pkt: 
+    if IP in pkt and pkt[IP].tos == 1: 
       if pkt[IP].src in allowed_list:
-        pkt[NFTag].tag = 3
+        pkt[IP].tos = 0
         sendp(pkt, iface = get_if())
         #pkt.show2()
         #sys.stdout.flush()
 
 def incoming(pkt):
-    return (NFTag in pkt and pkt[NFTag].tag == 2)
+    return (IP in pkt and pkt[IP].tos == 1)
 
 def main():
     iface = get_if()

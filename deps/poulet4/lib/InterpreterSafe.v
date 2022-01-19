@@ -174,4 +174,99 @@ Section InterpreterSafe.
   Proof.
   Admitted.
 
+  Ltac optbind_inv :=
+    match goal with
+    | H: Option.option_bind _ _ ?c ?f = Some ?v |- _ =>
+      let a := fresh "a" in
+      destruct c as [a|] eqn:?;
+      simpl in H;
+      [|congruence]
+    end.
+
+  Lemma sval_to_bits_width_sval_val_comm:
+    forall (sv: @Value.ValueBase (option bool)) bits len,
+      Semantics.sval_to_bits_width sv = Some (bits, len) ->
+      Semantics.sval_to_bits_width (Interpreter.interp_sval_val sv) = Some (Interpreter.bits_init bits, len).
+  Proof.
+    intros.
+    unfold Semantics.sval_to_bits_width.
+    destruct sv;
+      cbn in *;
+      try intuition congruence.
+    - inversion H.
+      subst len.
+      inversion H; subst; auto.
+      unfold Interpreter.bits_init.
+      rewrite List.map_length.
+      reflexivity.
+    - inversion H.
+      subst len.
+      inversion H; subst; auto.
+      unfold Interpreter.bits_init.
+      rewrite List.map_length.
+      reflexivity.
+  Qed.
+
+  Theorem interp_lexpr_safe:
+    forall expr this st lv sig,
+      Interpreter.interp_lexpr ge this st expr = Some (lv, sig) ->
+      Semantics.exec_lexpr ge read_ndetbit this st expr lv sig.
+  Proof.
+    induction expr using expr_ind;
+      try solve [simpl; intros; congruence].
+    - intros.
+      simpl.
+      inversion H; subst. 
+      constructor.
+    - intros.
+      cbn in H.
+      repeat optbind_inv.
+      destruct a.
+      repeat optbind_inv.
+      inversion H; subst.
+      destruct (BinInt.Z.geb a0 Z0) eqn:?; try congruence.
+      econstructor; eauto.
+      inversion Heqo2; subst.
+      + econstructor; eauto.
+        eapply interp_expr_safe; eauto.
+      + admit. (* need to change defn in Semantics for this to go through. *)
+    - intros.
+      simpl in H.
+      repeat optbind_inv.
+      destruct a.
+      repeat optbind_inv.
+      destruct a0.
+      destruct ((lo <=? hi)%N && (hi <? N.of_nat n)%N)%bool eqn:?;
+               [|congruence].
+      inversion H; subst.
+      econstructor; eauto using sval_to_bits_width_sval_val_comm.
+      + econstructor; eauto using interp_expr_safe.
+      + apply andb_prop in Heqb.
+        destruct Heqb.
+        split.
+        * now apply N.leb_le.
+        * apply N.ltb_lt; eauto.
+    - intros.
+      simpl in H.
+      repeat optbind_inv.
+      destruct a.
+      destruct (P4String.str name =? "next")%string eqn:?.
+      + optbind_inv.
+        destruct a; try congruence.
+        inversion H; subst.
+        econstructor.
+        * assumption.
+        * eapply IHexpr.
+          eassumption.
+        * eapply interp_expr_safe; eauto.
+        * (* Issue: size is no longer constrained by anything since it is not part of the value datatype anymore. *)
+          admit.
+      + inversion H; subst.
+        econstructor.
+        * assumption.
+        * eapply IHexpr; eauto.
+  (* some shelved goals left that need investigating, probably more
+  unconstrained constructor parameters. *)
+  Admitted.
+
 End InterpreterSafe.

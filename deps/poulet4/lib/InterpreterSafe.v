@@ -413,7 +413,6 @@ Section InterpreterSafe.
     forall this st fuel st' sig,
       Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
       Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
-  Section LvalueInd.
 
   Definition pre_stmt_safe pre_stmt :=
     forall tags styp,

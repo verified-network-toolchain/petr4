@@ -285,6 +285,22 @@ Section InterpreterSafe.
       Interpreter.interp_block ge this st fuel block = Some (st', sig) ->
       Semantics.exec_block ge read_ndetbit this st block st' sig.
 
+  Definition switch_case_safe switch_case :=
+    match switch_case with
+    | StatSwCaseAction _ _ block => block_safe block
+    | StatSwCaseFallThrough _ _ => True
+    end.
+
+  Definition switch_cases_safe switch_cases :=
+    forall member,
+      block_safe (Semantics.match_switch_case member switch_cases).
+
+  Lemma empty_block_safe:
+    forall tags,
+      block_safe (BlockEmpty tags).
+  Proof.
+  Admitted.
+
   Theorem interp_stmt_safe:
     forall stmt this st fuel st' sig,
       Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
@@ -301,22 +317,96 @@ Section InterpreterSafe.
                                     | None => True
                                     end)
               (PStatementPreT := pre_stmt_safe)
-              (PStatementSwitchCase := fun _ => True)
-              (PStatementSwitchCaseList := fun _ => True)
+              (PStatementSwitchCase := switch_case_safe)
+              (PStatementSwitchCaseList := switch_cases_safe)
               (PInitializer := fun _ => True)
               (PInitializerList := fun _ => True)
            );
       unfold pre_stmt_safe, stmt_safe, block_safe;
+      intros; try exact I.
+    - exact H.
+    - unfold switch_cases_safe.
+      simpl.
       intros.
-    - tauto.
-    - tauto.
-    - tauto.
-    - tauto.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
+      eapply empty_block_safe.
+    - unfold switch_cases_safe.
+      intros.
+      simpl.
+      destruct s.
+      + destruct label; eauto.
+        destruct (P4String.str t =? member)%string; eauto.
+      + destruct label eqn:?; eauto using empty_block_safe.
+        destruct (P4String.str t =? member)%string eqn:?; eauto.
+        unfold switch_cases_safe in H0.
+        admit.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      optbind_inv.
+      destruct a.
+      inversion H; subst.
+      econstructor; eauto.
+      admit.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      destruct (Interpreter.is_call rhs) eqn:?.
+      + optbind_inv.
+        destruct a.
+        optbind_inv.
+        destruct a.
+        admit.
+      + optbind_inv.
+        optbind_inv.
+        destruct a0.
+        optbind_inv.
+        inversion H; subst.
+        destruct (Semantics.is_continue sig) eqn:?.
+        * econstructor.
+          -- admit.
+          -- eapply interp_lexpr_safe; eauto.
+          -- admit.
+          -- rewrite Heqb0; eauto.
+             admit.
+        * econstructor.
+          -- admit.
+          -- eapply interp_lexpr_safe; eauto.
+          -- admit.
+          -- rewrite Heqb0; eauto.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      optbind_inv.
+      destruct a.
+      inversion H.
+      subst.
+      econstructor; eauto.
+      (* need lemma/IH about interp_call *)
+      admit.
+    - destruct fuel; [discriminate|].
+      cbn in H0.
+      destruct fls.
+      + optbind_inv.
+        destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+        econstructor; eauto.
+        * econstructor;
+            [|rewrite <- Heqv; eapply sval_to_val_interp].
+          eapply interp_expr_safe; eauto.
+        * destruct b; eauto.
+      + optbind_inv.
+        destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+        econstructor; eauto.
+        * econstructor;
+            [|rewrite <- Heqv; eapply sval_to_val_interp].
+          eapply interp_expr_safe; eauto.
+        * destruct b; eauto.
+          destruct fuel; [discriminate|].
+          inversion H0; subst.
+          constructor.
+    - destruct fuel; [discriminate|].
+      set (eval := Interpreter.interp_block ge this st fuel block).
+      assert (eval = Some (st', sig))
+        by (rewrite <- H0; reflexivity).
+      unfold eval in *.
+      constructor.
+      eauto.
     - destruct fuel; [discriminate|].
       unfold Interpreter.interp_stmt in H.
       inversion H; subst.
@@ -325,17 +415,53 @@ Section InterpreterSafe.
       unfold Interpreter.interp_stmt in H.
       inversion H; subst.
       constructor.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-    - tauto.
-    - tauto.
-    - tauto.
-    - tauto.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      destruct expr.
+      + optbind_inv.
+        inversion H.
+        subst.
+        econstructor.
+        econstructor;
+          eauto using sval_to_val_interp, interp_expr_safe.
+      + inversion H. 
+        subst.
+        econstructor.
+    - destruct fuel; [discriminate|].
+      cbn in H0.
+      optbind_inv.
+      destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
+      econstructor.
+      + rewrite <- Heqv.
+        econstructor;
+          eauto using sval_to_val_interp, interp_expr_safe.
+      + reflexivity.
+      + eapply H; eauto.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      inversion H.
+      subst.
+      constructor.
+    - destruct fuel; [discriminate|].
+      cbn in H.
+      destruct init.
+      + destruct (Interpreter.is_call e).
+        * admit.
+        * optbind_inv.
+          inversion H.
+          subst.
+          econstructor; eauto.
+          -- econstructor;
+               eauto using sval_to_val_interp, interp_expr_safe.
+          -- admit.
+      + optbind_inv.
+        optbind_inv.
+        inversion H.
+        subst.
+        econstructor; eauto.
+        admit.
     - destruct fuel; discriminate.
     - eauto.
-    - tauto.
     - eauto.
     - destruct fuel; [discriminate|].
       inversion H; subst.

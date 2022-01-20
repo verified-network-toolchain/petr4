@@ -36,17 +36,21 @@ Section Is.
       Forall is_expr_typ ts ->
       is_expr_typ (TypList ts)
   | is_record ts :
+      AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
       is_expr_typ (TypRecord ts)
   | is_error :
       is_expr_typ TypError
   | is_header ts :
+      AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
       is_expr_typ (TypHeader ts)
   | is_union ts :
+      AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
       is_expr_typ (TypHeaderUnion ts)
   | is_struct ts :
+      AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
       is_expr_typ (TypStruct ts)
   | is_enum X mems :
@@ -86,6 +90,7 @@ Section Is.
       Forall is_expr es ->
       is_pre_expr (ExpList es)
   | is_ExpRecord es :
+      AList.key_unique es = true ->
       Forall (is_expr ∘ snd) es ->
       is_pre_expr (ExpRecord es)
   | is_ExpUnaryOp o e :
@@ -138,19 +143,23 @@ Section IsInd.
         Forall P ts ->
         P (TypList ts).
     Hypothesis HRecord : forall ts,
+        AList.key_unique ts = true ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypRecord ts).
     Hypothesis HError : P TypError.
     Hypothesis HHeader : forall ts,
+        AList.key_unique ts = true ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypHeader ts).
     Hypothesis HUnion : forall ts,
+        AList.key_unique ts = true ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypHeaderUnion ts).
     Hypothesis HStruct : forall ts,
+        AList.key_unique ts = true ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypStruct ts).
@@ -202,11 +211,11 @@ Section IsInd.
         | is_array _ _ n H => HArray _ _ n H (I _ H)
         | is_tuple _ H     => HTuple _ H (L H)
         | is_list  _ H     => HList _ H (L H)
-        | is_record _ H    => HRecord _ H (AL H)
+        | is_record _ U H  => HRecord _ U H (AL H)
         | is_error         => HError
-        | is_header _ H    => HHeader _ H (AL H)
-        | is_union  _ H    => HUnion  _ H (AL H)
-        | is_struct _ H    => HStruct _ H (AL H)
+        | is_header _ U H  => HHeader _ U H (AL H)
+        | is_union  _ U H  => HUnion  _ U H (AL H)
+        | is_struct _ U H  => HStruct _ U H (AL H)
         | is_name X        => HName X
         | is_newtype X _ H => HNewType X _ H (I _ H)
         | is_enum X _   H  => HEnum X _ H

@@ -326,7 +326,7 @@ Section AList.
   Lemma key_unique_true_filter: forall l f,
       key_unique l = true -> key_unique (filter l f) = true.
   Proof. intros. apply key_unique_sublist_true with l; auto. apply filter_sublist. Qed.
-
+  
   Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
@@ -365,6 +365,37 @@ Definition StringAList V := AList String.string V eq.
 Section Rel.
   Context {K A B : Type} {R: Relation_Definitions.relation K}
           `{H: Equivalence K R} {KEqDec: EqDec K R}.
+
+  Lemma map_fst_get : forall (kas : list (K * A)) (kbs : list (K * B)),
+      map fst kas = map fst kbs ->
+      forall k, (get kas k = None -> get kbs k = None) /\
+           forall a, get kas k = Some a -> exists b, get kbs k = Some b.
+  Proof.
+    unfold get.
+    intro kas; induction kas as [| [k a] kas IHkas];
+      intros [| [k' b] kbs] Heq; cbn in *; try discriminate.
+    - firstorder discriminate.
+    - injection Heq as Hk Hkas; subst; intro k.
+      apply IHkas with (k:=k) in Hkas; clear IHkas.
+      destruct Hkas as [Hnone Hsome];
+        destruct (KEqDec k k') as [Hkk' | Hkk']; split; eauto; try discriminate.
+  Qed.
+  
+  Lemma map_fst_key_unique : forall (kas : list (K * A)) (kbs : list (K * B)),
+      map fst kas = map fst kbs ->
+      key_unique kas = key_unique kbs.
+  Proof.
+    intro kas; induction kas as [| [k a] kas IHkas];
+      intros [| [k' b] kbs] Heq; cbn in *; try discriminate || reflexivity.
+    injection Heq as Hk Hkas; subst.
+    apply IHkas in Hkas as IH; clear IHkas.
+    apply map_fst_get with (k:=k') in Hkas as [Hnone Hsome].
+    destruct (get kas k') as [a' |] eqn:Hget.
+    - assert (Hb: exists b, get kbs k' = Some b) by eauto.
+      destruct Hb as [b' Hb]; rewrite Hb; reflexivity.
+    - rewrite Hnone by reflexivity; assumption.
+  Qed.
+    
   Section Map.
     Variable (f : A -> B).
 
@@ -378,6 +409,16 @@ Section Rel.
       induction l as [| [ky a] l IHl]; intros k; simpl; auto.
       destruct (KEqDec k ky) as [Hkky | Hkky];
         unfold equiv, complement in *; simpl in *; auto.
+    Qed.
+
+    Lemma key_unique_map_values : forall (l : AList K A R),
+        key_unique (map_values l) = key_unique l.
+    Proof.
+      intro l; induction l as [| [k a] l IHl]; cbn in *; auto.
+      destruct (get (map_values l) k) as [b |] eqn:Hget;
+        rewrite get_map_values in Hget;
+        destruct (get l k) as [a' |]; cbn in *;
+          try discriminate; auto.
     Qed.
   End Map.
 

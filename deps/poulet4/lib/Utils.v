@@ -826,3 +826,22 @@ Proof.
       pose proof H _ _ _ _ Hnthts Hnthus Hnthvs as [_ Hr]; assumption.
   - intros [[Htsvs HQ] [Husvs HR]]; do 2 (split; try lia); eauto.
 Qed.
+
+Lemma Forall_specialize_Forall2 : forall (U V : Type) (R : U -> V -> Prop) us,
+    Forall (fun u => forall v, R u v) us -> forall vs,
+      List.length us = List.length vs -> Forall2 R us vs.
+Proof.
+  intros U V R us H;
+    induction H as [| u us Hu Hus IHus];
+    intros [| v vs] Husvs; cbn in *; try discriminate; auto.
+Qed.
+
+Lemma Forall2_Forall_impl_Forall : forall (U V : Type) (R : U -> V -> Prop) (Q : V -> Prop) us vs,
+    Forall2 R us vs -> Forall (fun u => forall v, R u v -> Q v) us -> Forall Q vs.
+Proof.
+  intros U V R Q us vs Husvs Hus.
+  apply Forall_specialize_Forall2 with (vs:=vs) in Hus; eauto using Forall2_length.
+  apply Forall2_impl with
+      (R:=R) (Q:=fun _ v => Q v) in Hus; auto.
+  eauto using Forall2_only_r_Forall.
+Qed.

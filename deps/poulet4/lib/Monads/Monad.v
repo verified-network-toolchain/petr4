@@ -66,6 +66,7 @@ Proof.
     cbn in *; f_equal; auto.
 Qed.
 
+
 Notation "x '<<|' c1 ;; c2" := (lift_monad (fun x => c2) c1)
   ( at level 100, c1 at next level,
     format "x  '<<|'  c1 ';;' '//' c2",

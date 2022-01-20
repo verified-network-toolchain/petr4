@@ -3,8 +3,6 @@ Require Import Poulet4.Monads.Monad.
 Open Scope monad.
 Open Scope list_scope.
 
-Definition option_ret (A: Type) (a: A) : option A := Some a.
-
 Definition option_bind (A B: Type) (c: option A) (f: A -> option B) : option B :=
   match c with
   | Some a => f a
@@ -12,7 +10,7 @@ Definition option_bind (A B: Type) (c: option A) (f: A -> option B) : option B :
   end.
 
 Global Instance option_monad_inst : Monad option :=
-  { mret := option_ret;
+  { mret := @Some;
     mbind := option_bind;
   }.
 
@@ -25,7 +23,7 @@ Fixpoint reduce_option {A : Type} (acts: list (option A)) (f : A -> A -> A) (bas
   | Some x :: xs => reduce_option xs f (f x base)
   end.
 
-Global Hint Unfold option_ret option_bind : core.
+Global Hint Unfold option_bind : core.
 
 Lemma sequence_length :
   forall {A : Type} lmao (la : list A),
@@ -90,7 +88,7 @@ Lemma sequence_map : forall {U V : Type} (f : U -> V) us,
 Proof.
   intros U V f us.
   induction us as [| [u |] us IHus]; cbn in *;
-    unfold option_ret,option_bind in *; auto.
+    unfold option_bind in *; auto.
   rewrite <- IHus.
   destruct (sequence us) as [sus |]; cbn in *; auto.
 Qed.
@@ -101,7 +99,19 @@ Lemma option_map_lift_monad : forall (U V : Type),
 Proof.
   intros U V.
   unfold option_map, lift_monad, ">>=",
-  option_monad_inst, option_bind,mret,option_ret;
-    reflexivity.
+  option_monad_inst, option_bind,mret; reflexivity.
 Qed.
 (* Print Assumptions option_map_lift_monad. *)
+
+Lemma map_lift_monad_snd_map :
+  forall (U V W : Type) (f : V -> option W) (uvs : list (U * V)),
+    map
+      (lift_monad snd)
+      (map (fun '(u,v) => f v >>| pair u) uvs) =
+    map f (map snd uvs).
+Proof.
+  intros U V W f uvs.
+  induction uvs as [| [u v] uvs IHuvs];
+    cbn in *; f_equal; auto; unfold option_bind;
+  destruct (f v) as [w |] eqn:Heqfv; cbn; reflexivity.
+Qed.

@@ -278,7 +278,7 @@ Section Ops.
     | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
         match eval_binary_op_eq_struct l1 l2 with (* implicit type check *)
         | None => None
-        | Some b3 => Some ((b1 && b2 && b3) || ((negb b1) && (negb b1)))
+        | Some b3 => Some (eqb b1 b2 && b3)
         end
     | ValBaseStack vs1 n1, ValBaseStack vs2 n2 =>
         if negb (Zlength vs1 =? Zlength vs2)%Z then None

@@ -4,7 +4,6 @@ Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
 
 Section Soundness.
   Create HintDb option_monad.
-  Local Hint Unfold option_ret        : option_monad.
   Local Hint Unfold option_bind       : option_monad.
   Local Hint Unfold option_monad_inst : option_monad.
   Local Hint Unfold mret  : option_monad.
@@ -328,7 +327,8 @@ Section Soundness.
       inversion Hise; subst; inversion H1; subst; inversion H4; subst.
       unfold Basics.compose in *.
       rename H1 into Hisetrec; rename H4 into Hispe;
-        rename H0 into Hisetes; rename H2 into Hisees.
+        rename H0 into Utoees; rename H2 into Hisetes;
+          rename H3 into Ues; rename H5 into Hisees.
       rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (st:=st).
@@ -384,7 +384,7 @@ Section Soundness.
         exists (TypRecord (combine (map fst es) rs)); cbn; split.
         + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob
                 Hg Htokrec Heokrec Htokes Hev Hfsteq Hxvsrs.
-          clear Hgrt Hisetrec Hispe Hisetes.
+          clear Hgrt Hisetrec Hispe Hisetes Utoees Ues.
           generalize dependent rs.
           induction es as [| [x e] es IHes];
             intros [| r rs] Hrs; cbn in *; try discriminate;
@@ -392,18 +392,19 @@ Section Soundness.
               repeat match_some_inv; some_inv; try reflexivity.
           intuition; match_some_inv; some_inv; reflexivity.
         + constructor.
-          unfold AList.all_values,P4String.clear_AList_tags.
-          rewrite Forall2_conj,
-          Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
-          repeat rewrite map_fst_map.
-          repeat rewrite map_snd_map.
-          repeat rewrite map_id.
-          rewrite map_fst_combine by
-              (apply sequence_length in Hesrs; autorewrite with core in *; auto).
-          rewrite map_snd_combine by
-              (apply sequence_length in Hesrs; autorewrite with core in *; auto).
-          rewrite Forall2_eq, <- Forall2_map_both; auto.
-    Qed.
+          * admit.
+          *  unfold AList.all_values,P4String.clear_AList_tags.
+             rewrite Forall2_conj,
+             Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+             repeat rewrite map_fst_map.
+             repeat rewrite map_snd_map.
+             repeat rewrite map_id.
+             rewrite map_fst_combine by
+                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+             rewrite map_snd_combine by
+                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+             rewrite Forall2_eq, <- Forall2_map_both; auto.
+    Admitted.
     
     Local Hint Resolve val_to_sval_ex : core.
     Local Hint Resolve exec_val_preserves_typ : core.
@@ -591,9 +592,9 @@ Section Soundness.
             repeat rewrite map_pat_both in Hlem.
             rewrite map_map in Hlem.
             clear e Hmem Hismem Hise' Hist Hr r Hmemrs Hmemrs_norm.
-            unfold option_map,option_bind,option_ret in Hlem.
+            unfold option_map,option_bind in Hlem.
             unfold ">>|",">>=",mbind,mret,option_monad_inst,
-            option_bind,option_ret in *.
+            option_bind in *.
             generalize dependent t; generalize dependent rs.
             induction ts as [| [y t] ts IHts];
               intros [| [z r] rs] Hrs t' Hxt';
@@ -623,14 +624,14 @@ Section Soundness.
         rewrite option_map_lift_monad,sequence_map in Hlem.
         repeat rewrite map_pat_both in Hlem.
         rewrite map_map in Hlem.
-        unfold option_map,option_bind,option_ret in Hlem.
+        unfold option_map,option_bind in Hlem.
         assert (Hlem3' :
                   AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
         { clear H8 Hvr Hev v Hist Htoeok
                 Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
                 Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
           unfold ">>|",">>=",mbind,mret,option_monad_inst,
-          option_bind,option_ret in *.
+          option_bind in *.
           generalize dependent r'; generalize dependent t.
           generalize dependent rs.
           induction ts as [| [y t] ts IHts];
@@ -699,7 +700,7 @@ Section Soundness.
         typ_of_expr e = TypBool ->
         (ge,this,Δ,Γ) ⊢ₑ e->
         (ge,this,Δ,Γ) ⊢ₛ s₁ ⊣ Γ₁ ->
-        predopt (fun s₂ => exists Γ₂, (ge,this,Δ,Γ) ⊢ₛ s₂ ⊣ Γ₂) s₂ ->
+        predop (fun s₂ => exists Γ₂, (ge,this,Δ,Γ) ⊢ₛ s₂ ⊣ Γ₂) s₂ ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement
           tag (StatConditional e s₁ s₂)
@@ -718,7 +719,7 @@ Section Soundness.
     Qed.
 
     Theorem return_sound : forall tag e,
-        predopt (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
+        predop (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
     Proof.
     Admitted.
@@ -761,7 +762,7 @@ Section Soundness.
     Admitted.
 
     Theorem stat_variable_sound : forall tag τ x e l,
-        predopt
+        predop
           (fun e =>
              typ_of_expr e = τ /\
              ((ge,this,Δ,Γ) ⊢ₑ e \/ (ge,this,Δ,Γ) ⊢ᵪ e)) e ->

@@ -1390,8 +1390,8 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                                  st tags typ st' st'' sig sig' ret_sig,
     exec_call read_one_bit this_path st rhs st' sig' ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
-    (if not_continue sig then st'' = st /\ ret_sig = sig
-     else if not_return sig' then st'' = st' /\ ret_sig = sig'
+    (if not_continue sig then st'' = st /\ ret_sig = sig /\ sv = Value.ValBaseNull
+     else if not_return sig' then st'' = st' /\ ret_sig = sig' /\ sv = Value.ValBaseNull
           else get_return_sval sig' sv /\
                exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
@@ -1460,7 +1460,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
   | exec_stmt_variable_func_call :
       forall typ' name e sv loc this_path st tags typ st' st'' sig,
         exec_call read_one_bit this_path st e st' sig ->
-        (if not_return sig then st'' = st'
+        (if not_return sig then st'' = st' /\ sv = ValBaseNull
          else get_return_sval sig sv /\
               exec_write st'
                 (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv st'') ->

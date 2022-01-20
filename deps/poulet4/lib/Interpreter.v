@@ -50,6 +50,19 @@ Section Interpreter.
     | _ => None
     end.
 
+  Definition set_header_field (fields: AList.AList string Sval eq) (is_valid: option bool) (fname: string) (fv: Sval) : option Sval :=
+    match is_valid with
+    | Some true =>
+      let* fields' := AList.set fields fname fv in
+      Some (ValBaseHeader fields' (Some true))
+    | Some false =>
+      let* fields' := AList.set fields fname (uninit_sval_of_sval None fv) in
+      Some (ValBaseHeader fields' (Some false))
+    | None =>
+      let* fields' := AList.set fields fname (uninit_sval_of_sval None fv) in
+      Some (ValBaseHeader fields' None)
+    end.
+
   (* This function implements the update_member relation from the
      big-step semantics. *)
   Definition set_member (v: Sval) (fname: ident) (fv: Sval) : option Sval :=
@@ -58,9 +71,7 @@ Section Interpreter.
       let* fields' := AList.set fields fname fv in
       Some (ValBaseStruct fields')
     | ValBaseHeader fields is_valid =>
-      (* Not correct, need an implementation for write_header_field *)
-      let* fields' := AList.set fields fname fv in
-      Some (ValBaseHeader fields' is_valid)
+      set_header_field fields is_valid fname fv
     | ValBaseUnion fields =>
       match fv with
       | ValBaseHeader hfields is_valid0 =>
@@ -617,24 +628,24 @@ Section Interpreter.
          match fuel with
          | S fuel =>
            match call with 
-           | MkExpression tags (ExpFunctionCall
-                                  (MkExpression _
-                                                (ExpExpressionMember expr fname)
-                                                (TypFunction
-                                                   (MkFunctionType tparams params FunBuiltin typ'))
-                                                _)
-                                  nil args) _ _ =>
-             let dirs := List.map get_param_dir params in
-             let* (lv, sig) := interp_lexpr this st expr in
-             let* (argvals, sig') := interp_args this st args dirs in
-             if not_continue sig
-             then Some (st, sig)
-             else if not_continue sig'
-                  then Some (st, sig')
-                  else interp_builtin this st lv (str fname) (extract_invals argvals)
            | MkExpression _ (ExpFunctionCall func targs args) _ _ =>
              if is_builtin_func func
-             then None
+             then match func, targs with 
+                  | MkExpression _ (ExpExpressionMember expr fname)
+                                 (TypFunction (MkFunctionType tparams params FunBuiltin typ'))
+                                 _,
+                    nil =>
+                    let dirs := List.map get_param_dir params in
+                    let* (lv, sig) := interp_lexpr this st expr in
+                    let* (argvals, sig') := interp_args this st args dirs in
+                    if not_continue sig
+                    then Some (st, sig)
+                    else if not_continue sig'
+                         then Some (st, sig')
+                         else interp_builtin this st lv (str fname) (extract_invals argvals)
+                                             
+                  | _, _ => None
+                  end
              else let dirs := get_arg_directions func in
                   let* (argvals, sig) := interp_args this st args dirs in
                   let* (obj_path, fd) := lookup_func ge this func in
@@ -653,29 +664,37 @@ Section Interpreter.
          | S fuel =>
            match fn with
            | FInternal params body =>
-             let s' := exec_func_copy_in params args s in
-             let* (s'', sig) := interp_block obj_path s' fuel body in
-             let sig' := force_return_signal sig in
-             let* args' := exec_func_copy_out params s'' in
-             Some (s'', args', sig')
+             match typ_args with
+             | nil =>
+               let s' := exec_func_copy_in params args s in
+               let* (s'', sig) := interp_block obj_path s' fuel body in
+               let sig' := force_return_signal sig in
+               let* args' := exec_func_copy_out params s'' in
+               Some (s'', args', sig')
+             | _ :: _ => None
+             end
            | FTable name keys actions (Some default_action) const_entries =>
-             let action_ref := interp_table_match obj_path s name keys const_entries in
-             let* (action, retv) :=
-                match action_ref with
-                | Some (mk_action_ref action_name ctrl_args) =>
-                  let* action := add_ctrl_args (get_action actions action_name) ctrl_args in
-                  let retv := SReturn (table_retv true "" (get_expr_func_name action)) in
-                  Some (action, retv)
-                | None =>
-                  let action := default_action in
-                  let retv := SReturn (table_retv false "" (get_expr_func_name default_action)) in
-                  Some (action, retv)
-                end
-             in
-             let* (s', call_sig) := interp_call obj_path s fuel action in
-             match call_sig with
-             | SReturn ValBaseNull => Some (s', nil, retv)
-             | _ => None
+             match typ_args, args with
+             | nil, nil =>
+               let action_ref := interp_table_match obj_path s name keys const_entries in
+               let* (action, retv) :=
+                  match action_ref with
+                  | Some (mk_action_ref action_name ctrl_args) =>
+                    let* action := add_ctrl_args (get_action actions action_name) ctrl_args in
+                    let retv := SReturn (table_retv true "" (get_expr_func_name action)) in
+                    Some (action, retv)
+                  | None =>
+                    let action := default_action in
+                    let retv := SReturn (table_retv false "" (get_expr_func_name default_action)) in
+                    Some (action, retv)
+                  end
+               in
+               let* (s', call_sig) := interp_call obj_path s fuel action in
+               match call_sig with
+               | SReturn ValBaseNull => Some (s', nil, retv)
+               | _ => None
+               end
+             | _, _ => None
              end
            | FTable name keys actions None const_entries =>
              None

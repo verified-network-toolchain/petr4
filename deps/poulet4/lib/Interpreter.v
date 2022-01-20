@@ -499,6 +499,10 @@ Section Interpreter.
   Definition interp_call_copy_out (args : list (option Lval * direction)) (vals : list Sval) (s: state) : option state :=
     interp_write_options s (filter_out args) vals.
 
+  Definition interp_expr_det (this: path) (st: state) (expr: @Expression tags_t) : option Val :=
+    let* sv := interp_expr this st expr in
+    Some (interp_sval_val sv).
+
   Fixpoint interp_stmt (this: path) (st: state) (fuel: nat) (stmt: @Statement tags_t) : option (state * signal) :=
     match fuel with
     | O => None
@@ -518,9 +522,10 @@ Section Interpreter.
                   | _ =>
                     Some (st', sig_call)
                   end
-        else let* v := interp_expr this st rhs in
+        else let* v := interp_expr_det this st rhs in
+             let* sv := interp_val_sval v in 
              let* (lv, sig) := interp_lexpr this st lhs in
-             let* st' := interp_write st lv v in
+             let* st' := interp_write st lv sv in
              Some (if is_continue sig then st' else st, sig)
       | MkStatement tags (StatMethodCall func targs args) typ =>
         let* (st', sig) := interp_call this st fuel (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless) in
@@ -580,7 +585,8 @@ Section Interpreter.
              | _ => 
                Some (st', sig)
              end
-        else let* sv := interp_expr this st e in
+        else let* v := interp_expr_det this st e in
+             let* sv := interp_val_sval v in 
              let* st' := interp_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
              Some (st', SContinue)
       | MkStatement tags (StatVariable typ' name None loc) typ =>

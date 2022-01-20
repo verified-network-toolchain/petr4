@@ -445,6 +445,22 @@ Section InterpreterSafe.
     constructor.
   Qed.
 
+  Lemma interp_expr_det_safe:
+    forall this st expr v,
+      Interpreter.interp_expr_det ge this st expr = Some v ->
+      Semantics.exec_expr_det ge read_ndetbit this st expr v.
+  Proof.
+    unfold Interpreter.interp_expr_det.
+    intros.
+    simpl in H.
+    optbind_inv.
+    inversion H.
+    econstructor.
+    - eapply interp_expr_safe.
+      eapply Heqo.
+    - eapply sval_to_val_interp.
+  Qed.
+
   Theorem interp_stmt_safe:
     forall stmt this st fuel st' sig,
       Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
@@ -499,23 +515,14 @@ Section InterpreterSafe.
         destruct a.
         admit.
       + optbind_inv.
+        eapply interp_expr_det_safe in Heqo.
         optbind_inv.
         destruct a0.
         optbind_inv.
         inversion H; subst.
-        destruct (Semantics.is_continue sig) eqn:?.
-        * econstructor.
-          4:rewrite Heqb0.
-          4:apply interp_write_safe; eauto.
-          -- econstructor;
-               eauto using sval_to_val_interp, interp_expr_safe.
-          -- eapply interp_lexpr_safe; eauto.
-          -- admit.
-        * econstructor;
-            eauto using interp_lexpr_safe.
-          -- econstructor;
-               eauto using sval_to_val_interp, interp_expr_safe.
-          -- rewrite Heqb0; eauto.
+        econstructor; eauto using interp_lexpr_safe.
+        destruct (Semantics.is_continue sig) eqn:?;
+                 eauto using interp_write_safe.
     - destruct fuel; [discriminate|].
       cbn in H.
       optbind_inv.
@@ -590,16 +597,13 @@ Section InterpreterSafe.
     - destruct fuel; [discriminate|].
       cbn in H.
       destruct init.
-      + destruct (Interpreter.is_call e).
+      + destruct (Interpreter.is_call e) eqn:?.
         * admit.
         * optbind_inv.
           inversion H.
           subst.
-          econstructor.
-          3: apply interp_write_safe; simpl; auto.
-          -- econstructor;
-               eauto using sval_to_val_interp, interp_expr_safe.
-          -- admit.
+          eapply interp_expr_det_safe in Heqo.
+          econstructor; eauto using interp_write_safe.
       + optbind_inv.
         optbind_inv.
         inversion H.

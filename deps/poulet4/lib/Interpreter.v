@@ -465,17 +465,21 @@ Section Interpreter.
                              end
                         else None.
 
+  Definition interp_expr_det (this: path) (st: state) (expr: @Expression tags_t) : option Val :=
+    let* sv := interp_expr this st expr in
+    Some (interp_sval_val sv).
+
   Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
     match exp, dir with
     | Some expr, In =>
-      let* sv := interp_expr this st expr in
+      let* v := interp_expr_det this st expr in
+      let* sv := interp_val_sval v in
       Some ((Some sv, None), SContinue)
     | None, Out =>
       Some ((None, None), SContinue)
     | Some expr, Out =>
       let* (lv, sig) := interp_lexpr this st expr in
-      let* sv' := interp_read st lv in
-      Some ((Some sv', Some lv), sig)
+      Some ((None, Some lv), sig)
     | Some expr, InOut =>
       let* (lv, sig) := interp_lexpr this st expr in
       let* sv := interp_read st lv in
@@ -509,10 +513,6 @@ Section Interpreter.
 
   Definition interp_call_copy_out (args : list (option Lval * direction)) (vals : list Sval) (s: state) : option state :=
     interp_write_options s (filter_out args) vals.
-
-  Definition interp_expr_det (this: path) (st: state) (expr: @Expression tags_t) : option Val :=
-    let* sv := interp_expr this st expr in
-    Some (interp_sval_val sv).
 
   Fixpoint interp_stmt (this: path) (st: state) (fuel: nat) (stmt: @Statement tags_t) : option (state * signal) :=
     match fuel with

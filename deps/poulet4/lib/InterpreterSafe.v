@@ -463,6 +463,57 @@ Section InterpreterSafe.
     - eapply sval_to_val_interp.
   Qed.
 
+  Lemma interp_arg_safe:
+    forall this st exp dir arg sig,
+      Interpreter.interp_arg ge this st exp dir = Some (arg, sig) ->
+      Semantics.exec_arg ge read_ndetbit this st exp dir arg sig.
+  Proof.
+    intros.
+    unfold Interpreter.interp_arg in H.
+    destruct exp.
+    - destruct dir;
+        simpl in *;
+        try (optbind_inv; inversion H);
+        subst.
+      + econstructor; eauto using interp_expr_det_safe.
+      + destruct a.
+        inversion H.
+        subst.
+        econstructor; eauto using interp_lexpr_safe.
+      + destruct a.
+        optbind_inv.
+        optbind_inv.
+        inversion H.
+        subst.
+        econstructor; eauto using interp_lexpr_safe, interp_read_safe.
+      + discriminate.
+    - destruct dir; try discriminate.
+      inversion H.
+      econstructor; eauto.
+  Qed.
+
+  Lemma interp_args_safe:
+    forall exps this st dirs args sig,
+      Interpreter.interp_args ge this st exps dirs = Some (args, sig) ->
+      Semantics.exec_args ge read_ndetbit this st exps dirs args sig.
+  Proof.
+    induction exps; intros.
+    - simpl.
+      destruct dirs; simpl in H.
+      + inversion H.
+        constructor.
+      + discriminate.
+    - destruct dirs; simpl in H; try discriminate.
+      optbind_inv.
+      destruct a0.
+      optbind_inv.
+      destruct a1.
+      inversion H.
+      subst.
+      econstructor; eauto using interp_arg_safe.
+      destruct (Semantics.is_continue s); reflexivity.
+  Qed.
+
   Definition fuel_stmt_safe (fuel: nat) : Prop :=
     forall stmt this st st' sig,
       Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
@@ -657,9 +708,10 @@ Section InterpreterSafe.
         destruct a.
         optbind_inv.
         destruct a.
-        eapply Semantics.exec_call_builtin; eauto using interp_lexpr_safe.
-        * admit. 
-        * admit. 
+        eapply Semantics.exec_call_builtin; eauto using interp_lexpr_safe, interp_args_safe.
+        destruct (Semantics.not_continue s), (Semantics.not_continue s0);
+          try intuition congruence.
+        admit. (* interp_builtin *)
       + destruct func; simpl in Heqb.
         cbn in H.
         rewrite Heqb in H.
@@ -670,11 +722,9 @@ Section InterpreterSafe.
         optbind_inv.
         destruct a as [[? ?] ?].
         optbind_inv.
-        econstructor; eauto using interp_lexpr_safe.
-        * admit.
-        * admit.
-        * admit.
-        *
+        econstructor; eauto using interp_lexpr_safe, interp_args_safe.
+        * admit. (* interp_call_copy_out *)
+        * destruct (Semantics.is_continue s); intuition congruence.
     - unfold Interpreter.interp_func in H.
       simpl in H.
       destruct typ_args; [|discriminate].
@@ -718,9 +768,9 @@ Section InterpreterSafe.
       inversion H.
       subst.
       econstructor.
-      admit.
-      admit.
-      admit.
+      + admit. (* svals_to_vals/map *)
+      + admit. (* interp_extern/exec_extern *)
+      + admit. (* vals_to_svals/lift_option *)
   Admitted.
       
   Theorem interp_call_safe:

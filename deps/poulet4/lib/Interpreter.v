@@ -30,7 +30,7 @@ Section Interpreter.
 
   Definition last_index_of_next (next: N) : option Sval :=
     if (next =? 0)%N
-    then uninit_sval_of_typ None (TypBit 32)
+    then uninit_sval_of_typ None (@TypBit tags_t 32)
     else Some (ValBaseBit (to_loptbool 32 (Z.of_N (next - 1)))).
 
   (* This function implements the get_member relation from the
@@ -38,7 +38,6 @@ Section Interpreter.
   Definition find_member (v: Sval) (member: string) : option Sval :=
     match v with
     | ValBaseStruct fields
-    | ValBaseRecord fields
     | ValBaseUnion fields
     | ValBaseHeader fields _ =>
       AList.get fields member
@@ -114,8 +113,6 @@ Section Interpreter.
       ValBaseString s
     | ValBaseTuple vs =>
       ValBaseTuple (List.map interp_sval_val vs)
-    | ValBaseRecord fields =>
-      ValBaseRecord (AList.map_values interp_sval_val fields)
     | ValBaseError e =>
       ValBaseError e
     | ValBaseMatchKind m =>
@@ -130,8 +127,8 @@ Section Interpreter.
       ValBaseStack (List.map interp_sval_val headers) next
     | ValBaseEnumField typ_name enum_name =>
       ValBaseEnumField typ_name enum_name
-    | ValBaseSenumField typ_name enum_name value =>
-      ValBaseSenumField typ_name enum_name (interp_sval_val value)
+    | ValBaseSenumField typ_name value =>
+      ValBaseSenumField typ_name (interp_sval_val value)
     end.
 
   Fixpoint interp_expr (this: path) (st: state) (expr: @Expression tags_t) : option Sval :=
@@ -156,7 +153,7 @@ Section Interpreter.
       | Some (ValBaseStack headers next) =>
         let* rtyp := get_real_type ge typ in
         let* default_header := uninit_sval_of_typ None rtyp in
-        Some (Znth_def idxz headers default_header)
+        Some (@Znth _ default_header idxz headers)
       | _ => None
       end
     | ExpBitStringAccess bits lo hi =>
@@ -165,7 +162,7 @@ Section Interpreter.
       let lonat := N.to_nat lo in
       let hinat := N.to_nat hi in
       if andb (Nat.leb lonat hinat) (Nat.ltb hinat wn)
-      then Some (ValBaseBit (bitstring_slice bitsbl lonat hinat))
+      then Some (ValBaseBit (Ops.bitstring_slice bitsbl lonat hinat))
       else None
     | ExpList es =>
       let* svs := lift_option (List.map (interp_expr this st) es) in
@@ -173,7 +170,7 @@ Section Interpreter.
     | ExpRecord entries =>
       let* entries_svs := lift_option_kv (AList.map_values (interp_expr this st) entries) in
       let entries' := List.map (fun '(k, v) => (str k, v)) entries_svs in
-      Some (ValBaseRecord entries')
+      Some (ValBaseStruct entries')
     | ExpUnaryOp op arg =>
       let* argsv := interp_expr this st arg in
       let argv := interp_sval_val argsv in
@@ -202,7 +199,7 @@ Section Interpreter.
       | TypEnum ename (Some etyp) members =>
         let* fields := IdentMap.get (str ename) (ge_senum ge) in
         let* sv := AList.get fields (str member) in
-        Some (ValBaseSenumField (str ename) (str member) sv)
+        Some (ValBaseSenumField (str ename) sv)
       | _ => None
       end
     | ExpErrorMember err =>
@@ -250,7 +247,7 @@ Section Interpreter.
              let ret_sig := if (next <? N.of_nat (List.length headers))%N
                             then sig
                             else SReject "StackOutOfBounds" in
-             Some (MkValueLvalue (ValLeftArrayAccess lv next) typ, ret_sig)
+             Some (MkValueLvalue (ValLeftArrayAccess lv (Z.of_N next)) typ, ret_sig)
            | _ => None
            end
       else Some ((MkValueLvalue (ValLeftMember lv (str name)) typ), sig)
@@ -263,21 +260,16 @@ Section Interpreter.
       else None
     | MkExpression tag (ExpArrayAccess array idx) typ dir =>
       let* (lv, sig) := interp_lexpr this st array in
-      let* v := interp_expr this st array in
+      let* v := interp_expr_det this st array in
       let* size :=
-         match Interpreter.interp_sval_val v with
-         | ValBaseStack headers _ =>
+         match v with
+         | ValBaseStack headers next =>
            Some (List.length headers)
          | _ => None
          end in
-      let* idxv := interp_expr this st idx in
-      let* idxz := array_access_idx_to_z (interp_sval_val idxv) in
-      let* idxn :=
-         if idxz <? 0
-         then Some (N.of_nat size + 1)%N
-         else Some (Z.to_N idxz)
-      in
-      Some (MkValueLvalue (ValLeftArrayAccess lv idxn) typ, sig)
+      let* idxv := interp_expr_det this st idx in
+      let* idxz := array_access_idx_to_z idxv in
+      Some (MkValueLvalue (ValLeftArrayAccess lv idxz) typ, sig)
     | _ => None
     end.
 
@@ -295,7 +287,7 @@ Section Interpreter.
       let lonat := N.to_nat lo in
       let hinat := N.to_nat hi in
       if ((lonat <=? hinat)%nat && (hinat <? wn)%nat)%bool
-      then Some (ValBaseBit (bitstring_slice bitsbl lonat hinat))
+      then Some (ValBaseBit (Ops.bitstring_slice bitsbl lonat hinat))
       else None
     | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>
       let* v := interp_read st lv in
@@ -303,7 +295,7 @@ Section Interpreter.
       | ValBaseStack headers next =>
         let* rtyp := get_real_type ge typ in
         let* default_header := uninit_sval_of_typ None rtyp in
-        let header := Znth_def (Z.of_N idx) headers default_header in
+        let header := @Znth _ default_header idx headers in
         Some header
       | _ => None
       end
@@ -462,6 +454,7 @@ Section Interpreter.
                         | ValBaseStack headers next =>
                           match args with
                           | [ValBaseInteger count] =>
+                            let* _ := if (0 <=? count)%Z then Some tt else None in
                             let* st' := interp_write st lv (push_front headers next count) in
                             Some (st', SReturn ValBaseNull)
                           | _ => None
@@ -474,6 +467,7 @@ Section Interpreter.
                              | ValBaseStack headers next =>
                                match args with
                                | [ValBaseInteger count] =>
+                                 let* _ := if (0 <=? count)%Z then Some tt else None in
                                  let* st' := interp_write st lv (pop_front headers next count) in
                                  Some (st', SReturn ValBaseNull)
                                | _ => None

@@ -9,8 +9,6 @@ Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Poulet4.Semantics.
 Require Poulet4.Interpreter.
-Check @Interpreter.interp_expr.
-Print Interpreter.interp_expr.
 
 Ltac destruct_match H :=
   match goal with
@@ -42,9 +40,9 @@ Proof.
   induction v using Value.custom_ValueBase_ind; try (now constructor); simpl.
   1, 3: constructor; induction n; simpl; constructor; auto; easy.
   1: constructor; induction z; simpl; constructor; auto; easy.
-  1, 6: rewrite <- Hevals; constructor; induction H; rewrite Hevals;
+  1,5: rewrite <- Hevals; constructor; induction H; rewrite Hevals;
   [constructor | rewrite <- Hevals; constructor; auto].
-  1, 2, 4: rewrite <- Havals; constructor; induction H; rewrite Havals;
+  1, 3: rewrite <- Havals; constructor; induction H; rewrite Havals;
   [constructor | rewrite <- Havals; destruct x; constructor; simpl; auto].
   rewrite <- Havals. constructor. 1: constructor. induction H; rewrite Havals.
   1: constructor. rewrite <- Havals. destruct x. constructor; simpl; auto.
@@ -65,29 +63,31 @@ Proof.
     try (now constructor); simpl; constructor; auto.
   1, 3: induction n; simpl; constructor; auto.
   1: induction z; simpl; constructor; auto.
-  1, 6: induction H; simpl; constructor; auto.
+  1, 5: induction H; simpl; constructor; auto.
   all: induction H; simpl; constructor; destruct x; auto.
 Qed.
 
 #[local] Hint Resolve sval_to_val_interp : core.
 
 Section InterpreterSafe.
-  Context {tags_t: Type} {tag: Sublist.Inhabitant tags_t}.
+  Context {tags_t: Type} {tag: Inhabitant tags_t}.
   Variable (target: @Target.Target tags_t (@Expression tags_t)).
   Variable (ge: Semantics.genv).
   Variable (read_one_bit: option bool -> bool -> Prop).
 
   Lemma find_member_get:
     forall (name : string) (sv v : Value.ValueBase),
-    Interpreter.find_member v name = Some sv ->
+    @Interpreter.find_member tags_t v name = Some sv ->
     Semantics.get_member v name sv.
   Proof.
     intros. revert sv H. induction v using Value.custom_ValueBase_ind; intros;
       try (now inversion H); simpl in H0; try now constructor. destruct_match H0.
     - rewrite e. inversion H0. subst. clear H0. constructor.
-    - destruct_match H0. 2: inversion H0. rewrite e. constructor.
+    - destruct_match H0. 2: inversion H0. rewrite e. econstructor.
       unfold Interpreter.last_index_of_next in H0.
       destruct_match H0; [|inversion H0]; auto.
+      Unshelve.
+      exact tags_t.
   Qed.
 
   Theorem interp_expr_safe:
@@ -216,6 +216,22 @@ Section InterpreterSafe.
       reflexivity.
   Qed.
 
+  Lemma interp_expr_det_safe:
+    forall this st expr v,
+      Interpreter.interp_expr_det ge this st expr = Some v ->
+      Semantics.exec_expr_det ge read_ndetbit this st expr v.
+  Proof.
+    unfold Interpreter.interp_expr_det.
+    intros.
+    simpl in H.
+    optbind_inv.
+    inversion H.
+    econstructor.
+    - eapply interp_expr_safe.
+      eapply Heqo.
+    - eapply sval_to_val_interp.
+  Qed.
+
   Theorem interp_lexpr_safe:
     forall expr this st lv sig,
       Interpreter.interp_lexpr ge this st expr = Some (lv, sig) ->
@@ -232,27 +248,20 @@ Section InterpreterSafe.
       repeat optbind_inv.
       destruct a.
       repeat optbind_inv.
+      destruct a; try discriminate.
       inversion H; subst.
-      destruct (Interpreter.interp_sval_val a) eqn:?; try discriminate.
-      destruct (BinInt.Z.ltb a2 Z0) eqn:?.
-      + econstructor; eauto.
-        * econstructor;
-            [|rewrite <- Heqv0;
-              eauto using sval_to_val_interp];
-          eapply interp_expr_safe; eauto.
-        * econstructor; eauto.
-          eapply interp_expr_safe; eauto.
-        * rewrite Heqb.
-          congruence.
-      + econstructor; eauto.
-        * econstructor;
-            [|rewrite <- Heqv0;
-              eauto using sval_to_val_interp];
-          eapply interp_expr_safe; eauto.
-        * econstructor; eauto.
-          eapply interp_expr_safe; eauto.
-        * rewrite Heqb.
-          congruence.
+      inversion Heqo0; subst.
+      econstructor; eauto.
+      + eapply interp_expr_det_safe; eauto.
+        unfold Interpreter.interp_expr_det.
+        rewrite Heqo5; simpl.
+        rewrite H1.
+        eauto.
+      + eapply interp_expr_det_safe; eauto.
+        unfold Interpreter.interp_expr_det.
+        eauto.
+        rewrite Heqo4; simpl.
+        congruence.
     - intros.
       simpl in H.
       repeat optbind_inv.
@@ -454,22 +463,6 @@ Section InterpreterSafe.
     constructor.
   Qed.
 
-  Lemma interp_expr_det_safe:
-    forall this st expr v,
-      Interpreter.interp_expr_det ge this st expr = Some v ->
-      Semantics.exec_expr_det ge read_ndetbit this st expr v.
-  Proof.
-    unfold Interpreter.interp_expr_det.
-    intros.
-    simpl in H.
-    optbind_inv.
-    inversion H.
-    econstructor.
-    - eapply interp_expr_safe.
-      eapply Heqo.
-    - eapply sval_to_val_interp.
-  Qed.
-
   Lemma interp_arg_safe:
     forall this st exp dir arg sig,
       Interpreter.interp_arg ge this st exp dir = Some (arg, sig) ->
@@ -569,7 +562,6 @@ Section InterpreterSafe.
   Proof.
     unfold Interpreter.interp_builtin.
     intros.
-    Locate "=?".
     repeat (destruct ((name =? _)%string) eqn:?;
                      match goal with
                      | H: (name =? ?str)%string = true |- _ =>
@@ -605,18 +597,22 @@ Section InterpreterSafe.
       destruct v; try discriminate.
       destruct args; try discriminate.
       optbind_inv.
+      optbind_inv.
+      destruct (BinInt.Z.leb_spec Z0 z); try discriminate.
       inversion H.
       subst.
-      econstructor; eauto using interp_read_safe, interp_write_safe.
+      econstructor; eauto using interp_read_safe, interp_write_safe, BinInt.Z.le_ge.
     - optbind_inv.
       destruct a; try discriminate.
       destruct args; try discriminate.
       destruct v; try discriminate.
       destruct args; try discriminate.
       optbind_inv.
+      optbind_inv.
+      destruct (BinInt.Z.leb_spec Z0 z); try discriminate.
       inversion H.
       subst.
-      econstructor; eauto using interp_read_safe, interp_write_safe.
+      econstructor; eauto using interp_read_safe, interp_write_safe, BinInt.Z.le_ge.
     - discriminate.
   Qed.
 
@@ -1133,4 +1129,3 @@ Section InterpreterSafe.
   Qed.
 
 End InterpreterSafe.
-Print Assumptions interp_stmt_safe.

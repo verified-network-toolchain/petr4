@@ -504,6 +504,7 @@ Section Soundness.
            which I've been implicitly doing already. *)
         unfold gamma_expr_prop in Hg.
         admit. (* Need some assumption for this? *)
+        admit.
       - intros v Hrn.
         (*Search (exec_expr _ _ _ _ (MkExpression _ (ExpTypeMember _ _) _ _)). *)
         inversion Hrn; subst; solve_ex; split; auto.

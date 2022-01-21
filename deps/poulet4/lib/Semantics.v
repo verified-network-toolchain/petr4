@@ -905,14 +905,11 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                    (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) sig
   (* Make negative idxz equal to size to stay out of bound as a nat idx.
      Write to out-of-bound indices l-values is handled in exec_write *)
-  | exec_lexpr_array_access : forall array lv idx idxv idxz this st tag typ dir sig,
+  | exec_lexpr_array_access : forall array lv idx idxv idxz this st tag typ dir sig headers next,
                                exec_lexpr read_one_bit this st array lv sig ->
                                exec_expr_det read_one_bit this st array (ValBaseStack headers next) ->
                                exec_expr_det read_one_bit this st idx idxv ->
                                array_access_idx_to_z idxv = Some idxz ->
-                               (if (idxz <? 0)%Z
-                                then (idxn = N.of_nat (List.length headers) + 1)%N
-                                else idxn = Z.to_N idxz) ->
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
                                (MkValueLvalue (ValLeftArrayAccess lv idxz) typ) sig.

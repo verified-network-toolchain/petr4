@@ -9,6 +9,29 @@ Module FuncAsMap.
 
     Context {key: Type}.
     Context {key_eqb: key -> key -> bool}.
+
+    (* TODO: maybe [key_eqb] should be replaced with
+       decidable equality, or all lemmas need
+       assumptions that [key_eqb] agrees with equality. *)
+    Axiom key_eqb_eq_iff : forall k₁ k₂,
+        key_eqb k₁ k₂ = true <-> k₁ = k₂.
+
+    Corollary key_eqb_neq_iff : forall k₁ k₂,
+        key_eqb k₁ k₂ = false <-> k₁ <> k₂.
+    Proof.
+      intros k1 k2; split.
+      - intros Hf H.
+        rewrite <- key_eqb_eq_iff, Hf in H; discriminate.
+      - intro H; destruct (key_eqb k1 k2) eqn:Hk1k2;
+          try reflexivity.
+        rewrite key_eqb_eq_iff in Hk1k2; contradiction.
+    Qed.
+
+    Corollary key_eqb_same : forall k, key_eqb k k = true.
+    Proof.
+      intro k; rewrite key_eqb_eq_iff; reflexivity.
+    Qed.
+    
     Context {value: Type}.
 
     Definition t := key -> option value.
@@ -19,6 +42,21 @@ Module FuncAsMap.
       fun k v fmap x => if key_eqb x k then Some v else fmap x.
     Definition remove (ky : key) (fmap : t) : t :=
       fun k => if key_eqb k ky then None else fmap k.
+
+    Lemma remove_sound : forall X fmap,
+        get X (remove X fmap) = None.
+    Proof.
+      intros X fmap; cbv.
+      rewrite key_eqb_same; reflexivity.
+    Qed.
+    
+    Lemma remove_complete : forall X Y fmap,
+        X <> Y -> get X (remove Y fmap) = get X fmap.
+    Proof.
+      intros X Y fmap HXY; cbv.
+      rewrite <- key_eqb_neq_iff in HXY.
+      rewrite HXY; reflexivity.
+    Qed.
     
     Definition sets: list key -> list value -> t -> t :=
       fun kList vList fmap =>

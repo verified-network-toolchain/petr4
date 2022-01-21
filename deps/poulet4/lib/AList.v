@@ -61,6 +61,47 @@ Section AList.
     | nil =>[(k, v)]
     end.
 
+  Lemma get_some_nth_error : forall l k v,
+      get l k = Some v ->
+      exists n k', k === k' /\ nth_error l n = Some (k',v).
+  Proof.
+    unfold get; intro l; induction l as [| [ky vy] l IHl];
+      intros k v Hlkv; cbn in *; try discriminate.
+    destruct (KEqDec k ky) as [Hkky | Hkky]; cbn in *.
+    - inversion Hlkv; subst; exists 0, ky; auto.
+    - apply IHl in Hlkv as (n & k' & Hk' & Hn);
+        exists (S n), k'; auto.
+  Qed.
+
+    
+  Lemma get_some_in_fst : forall l k v,
+      get l k = Some v -> exists k', k === k' /\ List.In k' (map fst l).
+  Proof.
+    intros l k v Hlkv.
+    apply get_some_nth_error in Hlkv as (n & k' & Hk' & Hn).
+    apply nth_error_In in Hn.
+    apply in_map with (f := fst) in Hn; eauto.
+  Qed.
+
+  Lemma in_fst_get_some : forall l k,
+      List.In k (map fst l) -> exists v, get l k = Some v.
+  Proof.
+    unfold get; intro l; induction l as [| [ky vy] l IHl];
+      intros k Hkl; cbn in *; try contradiction.
+    destruct Hkl as [Hkyk | Hkl]; subst.
+    - destruct (KEqDec k k) as [Hkk | Hkk]; cbn in *; eauto.
+      unfold "=/=", "===" in *; exfalso; apply Hkk; reflexivity.
+    - destruct (KEqDec k ky) as [Hkky | Hkky]; cbn in *; eauto.
+  Qed.
+
+  Lemma nth_error_fst_get_some : forall n l k,
+      nth_error (map fst l) n = Some k -> exists v, get l k = Some v.
+  Proof.
+    intros n l k Hnth.
+    apply nth_error_In in Hnth.
+    eauto using in_fst_get_some.
+  Qed.
+  
   Lemma get_neq_cons:
     forall (k' : K) (v' : V) (l : list (K * V)) (k : K),
       k =/= k' -> get ((k', v') :: l) k = get l k.
@@ -290,16 +331,6 @@ Section AList.
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
 
-  (*Inductive all_values {A B} (hold_one_value : A -> B -> Prop) :
-                       AList K A R -> AList K B R -> Prop :=
-  | all_values_nil : all_values hold_one_value nil nil
-  | all_values_cons : forall k v v' kvs kvs',
-                      hold_one_value v v' ->
-                      all_values hold_one_value kvs kvs' ->
-                      all_values hold_one_value ((k, v):: kvs) ((k, v'):: kvs').
-
-  Local Hint Constructors all_values : core.*)
-
   Lemma Forall2_all_values :
     forall (U W : Type) (P : U -> W -> Prop) us ws ks,
       length ks = length us -> length ks = length ws ->
@@ -354,19 +385,25 @@ Section Rel.
     Variable Q : A -> B -> Prop.
 
     Lemma get_relate_values : forall al bl k (a : A) (b : B),
-        Q a b ->
         all_values Q al bl ->
         get al k = Some a ->
-        get bl k = Some b.
+        get bl k = Some b ->
+        Q a b.
     Proof.
       unfold get, all_values.
       intro al; induction al as [| [ka a'] al IHal];
-        intros [| [kb b'] bl] k a b HQab Hall Hgetal; simpl in *;
-          inversion Hgetal; subst; inversion Hall; subst.
+        intros [| [kb b'] bl] k a b Hall Hgetal Hgetbl; cbn in *;
+          inversion Hall; subst; try discriminate.
       destruct (KEqDec k ka) as [Hka | Hka];
         destruct (KEqDec k kb) as [Hkb | Hkb];
-        unfold equiv, complement in *; simpl in *; subst.
-      - inversion Hgetal; subst. destruct H4; subst.
-    Abort.
+        unfold equiv, complement in *; simpl in *; subst;
+          repeat match goal with
+                 | H: Some _ = Some _
+                   |- _ => inversion H; subst; clear H
+                 end;
+          match goal with
+          | H: _ /\ _ |- _ => destruct H; subst; eauto; try contradiction
+          end.
+    Qed.
   End Relate.
 End Rel.

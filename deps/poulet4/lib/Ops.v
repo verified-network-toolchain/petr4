@@ -1,8 +1,6 @@
-Require Import Coq.Strings.String.
-Require Import Coq.Bool.Bool.
-Require Import Coq.ZArith.BinInt.
-Require Import Coq.ZArith.ZArith.
-Require Import Coq.Lists.List.
+From Coq Require Import Strings.String Bool.Bool
+     ZArith.BinInt ZArith.ZArith Lists.List
+     micromega.Lia.
 
 Require Import Poulet4.Typed.
 Require Import Poulet4.Syntax.
@@ -10,11 +8,48 @@ Require Import Poulet4.Value.
 Require Import Poulet4.P4Arith.
 Require Import Poulet4.P4String.
 Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 Require Import Poulet4.AList.
 Require Import Poulet4.CoqLib.
 
 Import ListNotations.
+
+Section BitStringSlice.
+  Context {A : Type}.
+
+  Fixpoint bitstring_slice' (bits: list A) (lo : nat) (hi : nat) (slice: list A) : list A :=
+    match bits, lo, hi with
+    | _ ::tl, S lo', S hi' => bitstring_slice' tl lo' hi' slice
+    | hd::tl, O, S hi' => bitstring_slice' tl O hi' (hd::slice)
+    | hd::tl, O, O => hd::slice
+    | _, _, _ => slice
+    end.
+
+  Definition bitstring_slice (bits: list A) (lo : nat) (hi : nat) : list A :=
+    List.rev (bitstring_slice' bits lo hi []).
+
+  Lemma bitstring_slice'_length : forall bits slice hi lo,
+        (lo <= hi < length bits)%nat ->
+        length (bitstring_slice' bits lo hi slice)
+        = (hi - lo + 1 + length slice)%nat.
+  Proof.
+    intro bits; induction bits as [| bit bits IHbits];
+      intros slice [| hi] [| lo] H; cbn in *; try lia.
+    - rewrite IHbits by lia; cbn; lia.
+    - rewrite IHbits by lia; reflexivity.
+  Qed.
+    
+  Lemma bitstring_slice_length : forall bits hi lo,
+      (lo <= hi < length bits)%nat ->
+      length (bitstring_slice bits lo hi)
+      = (hi - lo + 1)%nat.
+  Proof.
+    intros bits hi lo H.
+    unfold bitstring_slice.
+    rewrite rev_length.
+    rewrite bitstring_slice'_length by lia; cbn; lia.
+  Qed.
+End BitStringSlice.
 
 Coercion pos_of_N: N >-> positive.
 
@@ -231,7 +266,7 @@ Section Ops.
     | ValBaseEnumField t1 s1, ValBaseEnumField t2 s2 =>
         if String.eqb t1 t2 then Some (String.eqb s1 s2)
         else None
-    | ValBaseSenumField t1 s1 v1, ValBaseSenumField t2 s2 v2 =>
+    | ValBaseSenumField t1 v1, ValBaseSenumField t2 v2 =>
         if String.eqb t1 t2 then eval_binary_op_eq v1 v2
         else None
     | ValBaseBool b1, ValBaseBool b2 => 
@@ -255,8 +290,6 @@ Section Ops.
         else None
     | ValBaseStruct l1, ValBaseStruct l2 =>
         eval_binary_op_eq_struct l1 l2
-    | ValBaseRecord l1, ValBaseRecord l2 => None
-        (* eval_binary_op_eq_struct l1 l2 *)
     | ValBaseUnion l1, ValBaseUnion l2 =>
         eval_binary_op_eq_struct l1 l2
     | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
@@ -332,7 +365,7 @@ Section Ops.
       in Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
   | ValBaseInteger n => 
       Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
-  | ValBaseSenumField _ _ v => 
+  | ValBaseSenumField _ v => 
       match v with
       | ValBaseBit bits => 
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
@@ -352,7 +385,7 @@ Section Ops.
       in Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
   | ValBaseInteger n => 
       Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
-  | ValBaseSenumField _ _ v => 
+  | ValBaseSenumField _ v => 
       match v with
       | ValBaseInt bits => 
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
@@ -375,14 +408,14 @@ Section Ops.
   match typ, oldv with
   | None, _ => None
   | Some (TypBit w), ValBaseBit bits
-  | Some (TypBit w), ValBaseSenumField _ _ (ValBaseBit bits) => 
+  | Some (TypBit w), ValBaseSenumField _ (ValBaseBit bits) => 
       if (w =? Z.to_N (Zlength bits))%N 
-      then Some (ValBaseSenumField name EmptyString (ValBaseBit bits))
+      then Some (ValBaseSenumField name (ValBaseBit bits))
       else None
   | Some (TypInt w), ValBaseInt bits
-  | Some (TypInt w), ValBaseSenumField _ _ (ValBaseInt bits) =>
+  | Some (TypInt w), ValBaseSenumField _ (ValBaseInt bits) =>
       if (Z.to_N (Zlength bits) =? w)%N 
-      then Some (ValBaseSenumField name EmptyString (ValBaseInt bits))
+      then Some (ValBaseSenumField name (ValBaseInt bits))
       else None
   | _, _ => None
   end.
@@ -432,8 +465,9 @@ Section Ops.
     let fields_of_val (l1: P4String.AList tags_t P4Type) (oldv: Val) : option (Fields Val) :=
       match oldv with
       | ValBaseTuple l2 => if negb (AList.key_unique l1) then None
-                           else fields_of_val_tuple l1 l2
-      | ValBaseRecord l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
+                          else fields_of_val_tuple l1 l2
+      | ValBaseHeader l2 _
+      | ValBaseStruct l2 => if negb ((AList.key_unique l1) && (AList.key_unique l2)) then None
                             else if negb ((List.length l1) =? (List.length l2))%nat then None
                             else fields_of_val_record l1 l2
       | _ => None

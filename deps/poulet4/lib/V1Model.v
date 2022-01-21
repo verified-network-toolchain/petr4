@@ -15,7 +15,7 @@ Require Import Poulet4.P4Arith.
 Require Import Poulet4.Hash.
 Require Import Poulet4.Target.
 Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.Sublist.
+Require Import VST.zlist.Zlist.
 Require Import Poulet4.Maps.
 Require Import Poulet4.CoqLib.
 Require Import Poulet4.P4Notations.
@@ -26,7 +26,7 @@ Open Scope string_scope.
 
 Section V1Model.
 
-Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
+Context {tags_t: Type} (* {inhabitant_tags_t : Inhabitant tags_t} *).
 Context {Expression: Type}.
 Notation ident := string.
 Notation path := (list ident).
@@ -65,7 +65,7 @@ Definition extern_env := PathMap.t env_object.
 
 Definition extern_state := PathMap.t object.
 
-Definition dummy_tags := @default tags_t _.
+(* Definition dummy_tags := @default tags_t _. *)
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "register" then
@@ -192,16 +192,16 @@ Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint
             true, true)
   else None.
 
-Definition concat_tuple (lval : list Val) : option (list bool) :=
-  let fix concat_tuple' (lval : list Val) (res: list bool): option (list bool) :=
-    match lval with
-    | [] => Some (res)
-    | ValBaseBit value :: tl => concat_tuple' tl (List.app value res)
-    | ValBaseInt value :: tl => concat_tuple' tl (List.app value res)
-    | ValBaseVarbit _ value :: tl => concat_tuple' tl (List.app value res)
-    | _ => None
-    end
-  in concat_tuple' lval [].
+Definition val_to_bits (v : Val) : option (list bool) :=
+  match v with
+  | ValBaseBit value => Some value
+  | ValBaseInt value => Some value
+  | ValBaseVarbit _ value => Some value
+  | _ => None
+  end.
+
+Definition concat_tuple (vs : list Val) : option (list bool) :=
+  option_map (@concat bool) (lift_option (map val_to_bits vs)).
 
 Definition bound_hash_output (outw: N) (base: list bool) 
                              (max: list bool) (output: list bool) : Val :=
@@ -214,14 +214,14 @@ Definition bound_hash_output (outw: N) (base: list bool)
                 (BitArith.modulo_mod w4 output max))).
 (*Check compute_crc.*)
 Inductive hash_sem : extern_func_sem :=
-  | exec_hash : forall e s p outw typs hash_name base lval max hashw poly init xor_out refin refout input output,
+  | exec_hash : forall e s p outw typs hash_name base vs max hashw poly init xor_out refin refout input output,
       get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->
-      concat_tuple lval = Some input ->
+      concat_tuple vs = Some input ->
       bound_hash_output outw base max 
         (compute_crc hashw poly init xor_out refin refout input) = output ->
       hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name; 
                            ValBaseBit base;
-                           ValBaseTuple lval;
+                           ValBaseTuple vs;
                            ValBaseBit max]
         s [output] SReturnNull.
 
@@ -285,7 +285,7 @@ Definition check_lpm_count (mks: list ident): option bool :=
 Fixpoint assert_bit (v: Val): option (list bool) :=
   match v with
   | ValBaseBit bits => Some bits
-  | ValBaseSenumField _ _ val => assert_bit val
+  | ValBaseSenumField _ val => assert_bit val
   | _ => None
   end.
 
@@ -397,7 +397,7 @@ Fixpoint assert_int (v: Val): option (N * Z) :=
   match v with
   | ValBaseBit bits => Some (BitArith.from_lbool bits)
   | ValBaseInt bits => Some (IntArith.from_lbool bits)
-  | ValBaseSenumField _ _ val => assert_int val
+  | ValBaseSenumField _ val => assert_int val
   | _ => None
   end.
 

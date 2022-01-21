@@ -48,6 +48,7 @@ for information on the Petr4 artifact.
 1. Build bundled dependencies.
    ```
    opam repo add coq-released https://coq.inria.fr/opam/released
+   opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git#zlist
    make deps
    ```
 

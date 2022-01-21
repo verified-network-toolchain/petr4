@@ -150,7 +150,6 @@ Section Environment.
 
   Definition lookup_value (v: @ValueBase bit) (field: string) : @option_monad (@ValueBase bit) :=
     match v with
-    | ValBaseRecord fields
     | ValBaseStruct fields
     | ValBaseUnion fields
     | ValBaseHeader fields _ => AList.get fields field
@@ -205,7 +204,7 @@ Section Environment.
   Definition env_str_lookup (name: P4String.t tags_t) : env_monad (@Value tags_t bit) :=
     env_name_lookup (BareName name).
 
-  Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t) : option_monad :=
+  (* Definition env_dig (val: @Value tags_t bit) (lval: @ValuePreLvalue tags_t) : option_monad :=
     match lval with
     | ValLeftName _ _ => Some val
     | ValLeftMember _ member =>
@@ -230,9 +229,9 @@ Section Environment.
       | _ => None
       end
     end
-  .
+  . *)
 
-  Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t bit) :=
+  (* Fixpoint env_lookup (lvalue: @ValueLvalue tags_t) : env_monad (@Value tags_t bit) :=
     let 'MkValueLvalue lv _ := lvalue in
     let* val_inner := match lv with
     | ValLeftName name _ => env_name_lookup name
@@ -242,7 +241,7 @@ Section Environment.
       env_lookup inner
     end in
     lift_opt (AssertError "Could not dig into value.") (env_dig val_inner lv)
-  .
+  . *)
 
   Definition update_slice (lhs: @ValueBase bit) (msb: nat) (lsb: nat) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match (lhs, rhs) with
@@ -273,10 +272,6 @@ Section Environment.
   Definition update_member (lhs: @ValueBase bit) (member: string) (rhs: @ValueBase bit) : env_monad (@ValueBase bit) :=
     match lhs with
     (* TODO: there must be a cleaner way... *)
-    | ValBaseRecord fields =>
-      let* fields' := lift_opt (AssertError "Unable to update member of record.")
-                               (AList.set fields member rhs) in
-      state_return (ValBaseRecord fields')
     | ValBaseStruct fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of struct.")
                                (AList.set fields member rhs) in
@@ -288,7 +283,7 @@ Section Environment.
     | ValBaseUnion fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of union")
                                (AList.set fields member rhs) in
-      state_return (ValBaseRecord fields')
+      state_return (ValBaseUnion fields')
     (*| ValBaseSenum fields =>
       let* fields' := lift_opt (AssertError "Unable to update member of enum.")
                                (AList.set fields member rhs) in
@@ -299,6 +294,40 @@ Section Environment.
       state_fail (AssertError "Can only update next and last members of header stack.")
     | _ => state_fail (AssertError "Unsupported value in member update.")
     end.
+
+  (* Fixpoint env_update (lvalue: @ValueLvalue tags_t) (value: @Value tags_t bit) : env_monad unit :=
+    let 'MkValueLvalue lv _ := lvalue in
+    match lv with
+    | ValLeftName nm _ =>
+      let* loc := get_name_loc nm in
+      heap_update loc value
+
+    (* TODO: again, it would be good to refactor some of this logic *)
+    | ValLeftMember inner member =>
+      let* lv' := env_lookup inner in
+      match (lv', value) with
+      | (ValBase _ lv'', ValBase _ value') =>
+        let* value'' := update_member lv'' member value' in
+        env_update inner (ValBase _ value'')
+      | _ => state_fail (TypeError "Member expression did not evaluate to base values.")
+      end
+    | ValLeftBitAccess inner msb lsb =>
+      let* lv' := env_lookup inner in
+      match (lv', value) with
+      | (ValBase _ lv'', ValBase _ value') =>
+        let* value'' := update_slice lv'' (N.to_nat msb) (N.to_nat lsb) value' in
+        env_update inner (ValBase _ value'')
+      | _ => state_fail (TypeError "Bit access expression did not evaluate to base values.")
+      end
+    | ValLeftArrayAccess inner idx =>
+      let* lv' := env_lookup inner in
+      match (lv', value) with
+      | (ValBase _ lv'', ValBase _ value') =>
+        let* value'' := update_array lv'' (N.to_nat idx) value' in
+        env_update inner (ValBase _ value'')
+      | _ => state_fail (TypeError "Array access expression did not evaluate to base values.")
+      end
+    end. *)
 
   Definition toss_value (original: env_monad (@Value tags_t bit)) : env_monad unit :=
     fun env =>

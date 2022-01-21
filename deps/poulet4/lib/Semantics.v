@@ -855,14 +855,14 @@ Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
                        exec_table_entries read_one_bit this st (te :: tes) (tev :: tevs).
 
 Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
-                           path -> state -> ident -> option (list table_entry) -> option action_ref -> Prop :=
+                           path -> state -> ident -> list TableKey -> option (list table_entry) -> option action_ref -> Prop :=
   | exec_table_match_intro : forall this_path name keys keyvals const_entries entryvs s matched_action,
       let entries := get_entries s (this_path ++ [name]) const_entries in
       let match_kinds := map table_key_matchkind keys in
       exec_exprs_det read_one_bit this_path s (map table_key_key keys) keyvals ->
       exec_table_entries read_one_bit this_path s entries entryvs ->
       extern_match (combine keyvals match_kinds) entryvs = matched_action ->
-      exec_table_match read_one_bit this_path s name const_entries matched_action.
+      exec_table_match read_one_bit this_path s name keys const_entries matched_action.
 
 Definition is_some : forall {A} (input: option A), bool := @ssrbool.isSome.
 
@@ -1540,12 +1540,13 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_func read_one_bit obj_path s (FInternal params body) nil args s'' args' sig'
 
   | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
-      exec_table_match read_one_bit obj_path s name const_entries actionref ->
+      exec_table_match read_one_bit obj_path s name keys const_entries actionref ->
       (if is_some actionref
        then actionref = (Some (mk_action_ref action_name ctrl_args))
             /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
             /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
        else action = default_action
+            /\ actionref = None
             /\ retv = (SReturn (table_retv false "" (get_expr_func_name default_action)))) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)

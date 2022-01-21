@@ -8,6 +8,7 @@ Require Import Poulet4.P4String.
 Require Import Poulet4.Semantics.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
+From Equations Require Import Equations.
 
 Import List.ListNotations.
 
@@ -228,8 +229,13 @@ Section Interpreter.
         end
     end.
 
-  Definition interp_exprs (this: path) (st: state) (exprs: list (@Expression tags_t)) : option (list Sval) :=
-    lift_option (List.map (interp_expr this st) exprs).
+  Definition interp_expr_det (this: path) (st: state) (expr: @Expression tags_t) : option Val :=
+    let* sv := interp_expr this st expr in
+    Some (interp_sval_val sv).
+
+  Definition interp_exprs (this: path) (st: state) (exprs: list (@Expression tags_t)) : option (list Val) :=
+    let* svs := lift_option (List.map (interp_expr this st) exprs) in
+    Some (List.map interp_sval_val svs).
 
   Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal) :=
     match expr with
@@ -361,17 +367,17 @@ Section Interpreter.
     | MkMatch _ MatchDontCare _ =>
       Some ValSetUniversal
     | MkMatch  _ (MatchMask expr mask) typ =>
-      let* exprsv := interp_expr this st expr in
-      let* masksv := interp_expr this st mask in
-      Some (ValSetMask (interp_sval_val exprsv) (interp_sval_val masksv))
+      let* exprv := interp_expr_det this st expr in
+      let* maskv := interp_expr_det this st mask in
+      Some (ValSetMask exprv maskv)
     | MkMatch _ (MatchRange lo hi) _ =>
-      let* losv := interp_expr this st lo in
-      let* hisv := interp_expr this st hi in
-      Some (ValSetRange (interp_sval_val losv) (interp_sval_val hisv))
+      let* lov := interp_expr_det this st lo in
+      let* hiv := interp_expr_det this st hi in
+      Some (ValSetRange lov hiv)
     | MkMatch _ (MatchCast newtyp expr) _ =>
-      let* oldsv := interp_expr this st expr in
+      let* oldv := interp_expr_det this st expr in
       let* real_typ := get_real_type ge newtyp in
-      Ops.eval_cast_set real_typ (interp_sval_val oldsv)
+      Ops.eval_cast_set real_typ oldv
     end.
 
   Fixpoint interp_matches (this: path) (st: state) (matches: list (@Match tags_t)) : option (list ValSet) :=
@@ -399,20 +405,31 @@ Section Interpreter.
       Some (tev :: tevs)
     end.
 
-  Definition interp_table_match (this: path) (st: state) (name: ident) (keys: list (@TableKey tags_t)) (const_entries: option (list (@table_entry tags_t (@Expression tags_t)))) : option (@action_ref (@Expression tags_t)) :=
+  Definition interp_table_match (this: path) (st: state) (name: ident) (keys: list (@TableKey tags_t)) (const_entries: option (list (@table_entry tags_t (@Expression tags_t)))) : option (option (@action_ref (@Expression tags_t))) :=
     let entries := get_entries st (this ++ [name]) const_entries in
     let match_kinds := List.map table_key_matchkind keys in
-    let* keysvals := interp_exprs this st (List.map table_key_key keys) in
-    let keyvals := List.map interp_sval_val keysvals in
+    let* keyvals := interp_exprs this st (List.map table_key_key keys) in
     let* entryvs := interp_table_entries this st entries in
-    extern_match (List.combine keyvals match_kinds) entryvs.
+    Some (extern_match (List.combine keyvals match_kinds) entryvs).
 
-  Definition interp_isValid (sv: Sval) : bool := false.
- 
+  Equations interp_isValid (sv: Sval) : option bool :=
+    { interp_isValid (ValBaseHeader fields valid_bit) :=
+        Some (bit_init valid_bit);
+      interp_isValid (ValBaseUnion fields) :=
+        let* valid_bits := interp_isValid_fields fields in
+        Some (List.fold_left orb valid_bits false);
+      interp_isValid _ := None }
+  where interp_isValid_fields (fields: list (string * Sval)) : option (list bool) :=
+    { interp_isValid_fields (f :: rest) :=
+         let* hd_valid := interp_isValid (snd f) in
+         let* rest_valid := interp_isValid_fields rest in
+         Some (hd_valid :: rest_valid);
+      interp_isValid_fields nil := Some nil }.
+
   Definition interp_builtin (this: path) (st: state) (lv: Lval) (name: ident) (args: list Sval) : option (state * signal) :=
     if name =? "isValid"
     then let* sv := interp_read st lv in
-         let is_valid := interp_isValid sv in
+         let* is_valid := interp_isValid sv in
          match args with
          | nil => Some (st, SReturn (ValBaseBool is_valid))
          | _ => None
@@ -464,10 +481,6 @@ Section Interpreter.
                              | _ => None
                              end
                         else None.
-
-  Definition interp_expr_det (this: path) (st: state) (expr: @Expression tags_t) : option Val :=
-    let* sv := interp_expr this st expr in
-    Some (interp_sval_val sv).
 
   Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
     match exp, dir with
@@ -676,7 +689,7 @@ Section Interpreter.
            | FTable name keys actions (Some default_action) const_entries =>
              match typ_args, args with
              | nil, nil =>
-               let action_ref := interp_table_match obj_path s name keys const_entries in
+               let* action_ref := interp_table_match obj_path s name keys const_entries in
                let* (action, retv) :=
                   match action_ref with
                   | Some (mk_action_ref action_name ctrl_args) =>

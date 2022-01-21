@@ -72,6 +72,10 @@ Class ExternSem := {
   (* runnable version of exec_extern *)
   interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
       -> list (@P4Type tags_t) -> list Val -> option (extern_state * list Val * signal);
+  interp_extern_safe :
+    forall env st class method this targs args st' retvs sig,
+      interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+      exec_extern env st class method this targs args st' retvs sig;
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.

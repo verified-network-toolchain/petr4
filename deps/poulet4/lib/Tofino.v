@@ -477,6 +477,13 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
 Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
 Admitted.
 
+Definition interp_extern_safe :
+  forall env st class method this targs args st' retvs sig,
+    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    exec_extern env st class method this targs args st' retvs sig.
+Proof.
+Admitted.
+
 Instance TofinoExternSem : ExternSem := Build_ExternSem
   env_object
   object
@@ -484,6 +491,7 @@ Instance TofinoExternSem : ExternSem := Build_ExternSem
   extern_set_abstract_method
   exec_extern
   interp_extern
+  interp_extern_safe
   extern_get_entries
   extern_match.
 

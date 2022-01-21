@@ -219,13 +219,13 @@ Section ValueUtil.
     exec_val read_one_bit.
 
   Definition svals_to_vals (read_one_bit : option bool -> bool -> Prop) :=
-    Forall2 (exec_val read_one_bit).
+    Forall2 (sval_to_val read_one_bit).
 
   Definition val_to_sval := 
     exec_val read_detbit.
 
   Definition vals_to_svals := 
-    Forall2 (exec_val read_detbit).
+    Forall2 val_to_sval.
 
   Fixpoint eval_val_to_sval (val: Val): Sval :=
     let fix eval_val_to_svals (vl: list Val): list Sval :=

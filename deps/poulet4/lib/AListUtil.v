@@ -1,11 +1,71 @@
 Require Export Poulet4.AList Poulet4.ForallMap Coq.Classes.EquivDec.
 
 Section Util.
+  Context {K V: Type}
+          {R : Relation_Definitions.relation K}          
+          `{HKR: EqDec K R}.
+
+  Lemma get_equiv : forall (kvs : list (K * V)) k₁ k₂,
+      k₁ === k₂ -> get kvs k₁ = get kvs k₂.
+  Proof.
+    induction kvs as [| [k v] kvs IHkvs];
+      intros k1 k2 Hk; cbn in *; try reflexivity.
+    destruct (equiv_dec k1 k) as [Hk1k | Hk1k].
+    - rewrite get_eq_cons by assumption.
+      rewrite get_eq_cons; try reflexivity.
+      symmetry in Hk; transitivity k1; assumption.
+    - rewrite get_neq_cons by assumption.
+      rewrite get_neq_cons; auto.
+      intros H; apply Hk1k.
+      transitivity k2; assumption.
+  Qed.
+
+  Lemma get_none_not_in_fst : forall (l : list (K * V)) (k : K),
+      get l k = None -> forall k', k === k' -> ~ In k' (map fst l).
+  Proof.
+    intros l k Hnone k' Hk'k Hk'.
+    apply in_fst_get_some in Hk' as [v Hv].
+    erewrite get_equiv in Hnone by eassumption.
+    rewrite Hnone in Hv; discriminate.
+  Qed.
+
+  Lemma not_in_fst_get_none : forall (l : list (K * V)) k,
+      (forall k', k === k'  -> ~ In k' (map fst l)) -> get l k = None.
+  Proof.
+    intros l k H.
+    destruct (get l k) as [v |] eqn:Hv; try reflexivity.
+    apply get_some_in_fst in Hv as (k' & Hkk' & Hk').
+    firstorder.
+  Qed.
+End Util.
+
+Section ALL.
   Variables
     (K U W : Type)
-    (R: Relation_Definitions.relation K)
-    (P : U -> W -> Prop).
-  Context `{Equivalence K R}.
+    (R: Relation_Definitions.relation K).
+  Context `{HKR: EqDec K R}.
+
+  Lemma key_unique_combine : forall (kvs : list (K * U)) (vs : list W),
+      length kvs = length vs ->
+      AList.key_unique (combine (map fst kvs) vs) = AList.key_unique kvs.
+  Proof.
+    intro kvs; induction kvs as [| [k v] kvs IHkvs];
+      intros [| v' vs] Hlen; cbn in *;
+        try (discriminate || reflexivity).
+    destruct (get (combine (map fst kvs) vs) k)
+      as [v'' |] eqn:Hv''.
+    - apply get_some_in_fst in Hv'' as (k' & Hkk' & Hk').
+      rewrite map_fst_combine in Hk' by (rewrite map_length; lia).
+      apply in_fst_get_some in Hk' as [v''' Hv'''].
+      erewrite get_equiv by eauto.
+      rewrite Hv'''; reflexivity.
+    - pose proof get_none_not_in_fst _ _ Hv'' as H.
+      rewrite map_fst_combine in H by (rewrite map_length; lia).
+      apply not_in_fst_get_none in H.
+      rewrite H; apply IHkvs; lia.
+  Qed.
+
+  Variable P : U -> W -> Prop.
   
   Lemma Forall2_all_values : forall us ws ks,
       length ks = length us -> length ks = length ws ->
@@ -33,7 +93,7 @@ Section Util.
     rewrite Forall2_eq in HPl.
     assumption.
   Qed.
-End Util.
+End ALL.
 
 Section Rel.
   Context {K A B : Type} {R: Relation_Definitions.relation K}

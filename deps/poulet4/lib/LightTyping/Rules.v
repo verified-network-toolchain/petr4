@@ -392,7 +392,15 @@ Section Soundness.
               repeat match_some_inv; some_inv; try reflexivity.
           intuition; match_some_inv; some_inv; reflexivity.
         + constructor.
-          * admit.
+          * rewrite <- Forall2_sequence_iff in Hesrs.
+            repeat rewrite <- Forall2_map_l in Hesrs.
+            clear - Utoees Hesrs.
+            pose proof @AListUtil.key_unique_map_values as H'.
+            unfold AListUtil.map_values in H'.
+            rewrite H' in Utoees; rewrite H'; clear H'.
+            rewrite AListUtil.key_unique_combine
+              by eauto using Forall2_length.
+            assumption.
           *  unfold AList.all_values,P4String.clear_AList_tags.
              rewrite Forall2_conj,
              Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
@@ -404,7 +412,7 @@ Section Soundness.
              rewrite map_snd_combine by
                  (apply sequence_length in Hesrs; autorewrite with core in *; auto).
              rewrite Forall2_eq, <- Forall2_map_both; auto.
-    Admitted.
+    Qed.
     
     Local Hint Resolve val_to_sval_ex : core.
     Local Hint Resolve exec_val_preserves_typ : core.
@@ -487,13 +495,19 @@ Section Soundness.
       clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst; split.
       - apply Hvt1 in Hev1 as Hev1'; destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in Hev2 as Hev2'; destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
-        (*Check exec_expr_binary_op.*)
         assert (Hv1': exists v1', sval_to_val rob v1 v1') by eauto using exec_val_exists.
         assert (Hv2': exists v2', sval_to_val rob v2 v2') by eauto using exec_val_exists.
         destruct Hv1' as [v1' Hv1']; destruct Hv2' as [v2' Hv2'].
         assert (Hvr1': ⊢ᵥ v1' \: normᵗ r1) by eauto.
         assert (Hvr2': ⊢ᵥ v2' \: normᵗ r2) by eauto.
-        admit.
+        pose proof binary_type_get_real_type
+             _ _ _ _ _ _ _ Hbt Hr1 Hr2 as (r & Hr & Hbr).
+        apply binary_type_normᵗ in Hbr.
+        assert (Hv: exists v, Ops.eval_binary_op o v1' v2' = Some v)
+          by eauto using eval_binary_op_ex.
+        destruct Hv as [v Hv].
+        assert (Hv': exists v', val_to_sval v v') by eauto.
+        eauto.
       - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
         apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
@@ -502,7 +516,7 @@ Section Soundness.
         assert (Hr : exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r)
           by eauto using binary_type_get_real_type.
         destruct Hr as (r & Hr & Hbr); eauto 6.
-    Admitted.
+    Qed.
   
     Theorem cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->

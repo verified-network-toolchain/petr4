@@ -213,7 +213,7 @@ Section ValueUtil.
   Definition val_to_sval :=
     exec_val read_detbit.
 
-  Definition vals_to_svals := 
+  Definition vals_to_svals :=
     Forall2 val_to_sval.
 
   Fixpoint eval_val_to_sval (val: Val): Sval :=

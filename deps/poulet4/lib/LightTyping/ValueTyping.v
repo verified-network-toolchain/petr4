@@ -1,5 +1,5 @@
 Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
-        Poulet4.Value Coq.micromega.Lia Poulet4.Utils
+        Poulet4.Value Coq.micromega.Lia Poulet4.ForallMap
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 
 (** Predicate that a
@@ -437,8 +437,8 @@ Section Lemmas.
         unfold option_bind in *;
         try discriminate; some_inv;
     econstructor;
-      try (epose proof AList.key_unique_map_values as Hmv;
-           unfold AList.map_values in Hmv; rewrite Hmv; clear Hmv; assumption);
+      try (epose proof AListUtil.key_unique_map_values as Hmv;
+           unfold AListUtil.map_values in Hmv; rewrite Hmv; clear Hmv; assumption);
     unfold AList.all_values;
       rewrite <- Forall2_sequence_iff in Hxvs;
       rewrite Forall2_conj;

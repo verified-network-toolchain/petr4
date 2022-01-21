@@ -1,9 +1,10 @@
 Require Export Coq.micromega.Lia Poulet4.ValueUtil
         Poulet4.LightTyping.Ok Poulet4.LightTyping.IsTerm.
 Require Import Poulet4.Monads.Monad Poulet4.Monads.Option
-        VST.zlist.sublist Poulet4.Utils.
+        VST.zlist.sublist Poulet4.ForallMap.
+Require Poulet4.AListUtil.
 
-Section Utils.
+Section Util.
   Context {tags_t : Type}.
   Notation typ  := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
@@ -269,7 +270,7 @@ Section Utils.
          match p with
          | MkParameter b d t a x => MkParameter b d (normᵗ t) a x
          end.
-End Utils.
+End Util.
 
 Ltac inv_numeric_width :=
   match goal with
@@ -437,11 +438,11 @@ Section Lemmas.
   Proof.
     intros ts b Hts IHts Hokts.
     rewrite Forall_forall in IHts, Hokts.
-    pose proof Utils.reduce_inner_impl_forall
+    pose proof reduce_inner_impl_forall
          _ _ _ _ IHts Hokts as H; cbn in H.
-    rewrite <- Forall_forall, Utils.Forall_exists_factor in H.
+    rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [vs Hvs].
-    pose proof Utils.Forall2_map_l
+    pose proof Forall2_map_l
          _ _ _
          (fun ov v => ov = Some v)
          (uninit_sval_of_typ b) ts vs as H; cbn in H.
@@ -470,11 +471,11 @@ Section Lemmas.
   Proof.
     intros xts b Hxts IHxts Hok.
     rewrite Forall_forall in IHxts, Hok.
-    pose proof Utils.reduce_inner_impl_forall
+    pose proof reduce_inner_impl_forall
          _ _ _ _ IHxts Hok as H; cbn in H.
-    rewrite <- Forall_forall, Utils.Forall_exists_factor in H.
+    rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [vs Hvs].
-    pose proof Utils.Forall2_map_l
+    pose proof Forall2_map_l
          _ _ _
          (fun ov v => ov = Some v)
          (fun xt => uninit_sval_of_typ b (snd xt))
@@ -497,7 +498,7 @@ Section Lemmas.
     unfold ">>|", ">>=".
     unfold option_monad_inst,
     option_bind, mret in *.
-    repeat rewrite Utils.map_pat_both.
+    repeat rewrite map_pat_both.
     clear Hok Hxts IHxts.
     generalize dependent vs.
     induction xts as [| [[i x] t] xts IHxts];
@@ -669,8 +670,8 @@ Section Lemmas.
     | Uxts: AList.key_unique _ = true
       |- _ => intros xts' IHxts' Hxts';
             injection Hxts' as ?; subst;
-            epose proof AList.key_unique_map_values as Hmv;
-            unfold AList.map_values in Hmv;
+            epose proof AListUtil.key_unique_map_values as Hmv;
+            unfold AListUtil.map_values in Hmv;
             rewrite Hmv in Uxts; clear Hmv;
             constructor; auto;
             rewrite Forall_forall in *;

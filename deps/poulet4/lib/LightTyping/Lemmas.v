@@ -160,28 +160,79 @@ Section Lemmas.
     induction Ht using my_Eq_type_ind;
       intros v1 v2 Hv1 Hv2;
       inversion Hv1; subst;
-        inversion Hv2; subst; cbn in *; eauto.
-    - if_destruct; eauto.
-      rewrite String.eqb_refl in Heqb; discriminate.
-    - inversion H0; subst; if_destruct; eauto.
-      rewrite String.eqb_refl in Heqb; discriminate.
-    - if_destruct; eauto.
-      do 2 rewrite Zcomplements.Zlength_correct in Heqb.
-      rewrite N.eqb_neq in Heqb. lia.
-    - if_destruct; eauto.
-      do 2 rewrite Zcomplements.Zlength_correct in Heqb.
-      rewrite N.eqb_neq in Heqb. lia.
-    - if_destruct; eauto; rewrite N.eqb_neq in Heqb; lia.
-    - if_destruct.
-      + rewrite negb_true_iff in Heqb.
-        rewrite andb_false_iff in Heqb.
-        destruct Heqb as [U | U].
-        * apply AList.all_values_keys_eq in H4.
-          apply AList.map_fst_key_unique in H4.
-          rewrite H4,P4String.key_unique_clear_AList_tags,H2 in U; discriminate.
-        * apply AList.all_values_keys_eq in H6.
-          apply AList.map_fst_key_unique in H6.
-          rewrite H6,P4String.key_unique_clear_AList_tags,H3 in U; discriminate.
+        inversion Hv2; subst; cbn in *;
+          repeat if_destruct; eauto;
+            repeat rewrite Zcomplements.Zlength_correct in *;
+            try rewrite negb_true_iff in *;
+            try match goal with
+                | H: (?x =? ?x)%string = false
+                  |- _ => rewrite String.eqb_refl in H; discriminate
+                | H: (_ =? _)%N = false
+                  |- _ => rewrite N.eqb_neq in H; lia
+                end;
+            try match goal with
+                | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
+                  |- _ => rewrite andb_false_iff in U; destruct U as [U | U];
+                          match goal with
+                          | H: AList.all_values
+                                 _ ?vs (P4String.clear_AList_tags ?xts),
+                            Htrue: AList.key_unique ?xts = true, Hfls: AList.key_unique ?vs = false
+                            |- _ => apply AListUtil.all_values_keys_eq in H;
+                                    apply AListUtil.map_fst_key_unique in H;
+                                    rewrite H,P4String.key_unique_clear_AList_tags,Htrue in Hfls;
+                                    discriminate
+                          end
+                end.
+    - inversion H0; subst; eauto.
+    - match goal with
+      | IH: Forall
+              ((fun t => forall v1 v2,
+                    ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
+                        Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
+        Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
+        Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
+        Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
+        |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
+                rewrite <- Forall_map in IH;
+                rewrite Forall2_conj in Hxv1s,Hxv2s;
+                destruct Hxv1s as [Hfstv1s Hsndv1s];
+                destruct Hxv2s as [Hfstv2s Hsndv2s]
+                                    (*
+                                      rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstvs,Hfstvs0.
+      rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndvs,Hsndvs0.
+      rewrite map_fst_map,Forall2_eq in Hfstvs,Hfstvs0.
+      rewrite map_snd_map,map_id,Forall2_flip in Hsndvs,Hsndvs0.
+      assert (Hlen_xts_vs: length (map snd xts) = length (map snd vs))
+        by eauto using Forall2_length.
+      assert (Hlen_xts_vs0: length (map snd xts) = length (map snd vs0))
+        by eauto using Forall2_length.
+      assert (Hlen_vs_vs0: length (map snd vs) = length (map snd vs0)) by lia.
+      pose proof Forall_specialize_Forall2
+           _ _ _ _ H0 _ Hlen_xts_vs as H'; clear H0 Hlen_xts_vs.
+      pose proof Forall2_specialize_Forall3
+           _ _ _ _ _ _ H' _ Hlen_vs_vs0 as H'';
+        clear H' Hlen_vs_vs0 Hlen_xts_vs0.
+      pose proof Forall3_Forall2_Forall2_impl_Forall2
+           _ _ _ _ _ _ _ _ _ H'' Hsndvs Hsndvs0 as H'; clear H'' Hsndvs Hsndvs0.
+      apply Forall2_ex_factor in H'.
+      destruct H' as [bs Hbs]. *)
+      end.
+      (*
+      rewrite <- Forall3_map_12 in Hbs.
+      rewrite <- Hfstvs0 in Hfstvs.
+      clear xts H Hv1 Hv2 H2 Hfstvs0 H3 tags_t.
+      rewrite negb_false_iff in Heqb.
+      apply andb_prop in Heqb as [U1 U2].
+      induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
+        cbn in *; eauto.
+      destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
+        destruct (AList.get xv2s y) as [v2' |] eqn:Hv2'; cbn in *; try discriminate.
+      injection Hfstvs as Hxy Hfst; subst.
+      rewrite String.eqb_refl,Hvb; cbn; clear Hvb.
+      pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
+        rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto.
+    - 
+  Qed.*)
   Admitted.
 
   Local Hint Resolve eval_binary_op_eq_ex : core.
@@ -283,7 +334,7 @@ Section Lemmas.
         rewrite P4String.get_clear_AList_tags in Htsx;
         match goal with
         | H: AList.all_values _ _ _
-          |- _ => eapply AList.get_relate_values in H; eauto
+          |- _ => eapply AListUtil.get_relate_values in H; eauto
         end.
   Qed.
   

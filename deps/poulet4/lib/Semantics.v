@@ -479,7 +479,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename None members) ->
-                            List.In member members ->
+                            List.In (str member) (List.map str members) ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))

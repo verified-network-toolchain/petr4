@@ -147,7 +147,14 @@ Section InterpreterSafe.
       + destruct_match H. 2: inversion H.
         destruct_match H; inversion H; subst; clear H. econstructor; eauto.
       + destruct_match H; inversion H. subst. clear H. econstructor; eauto.
-        apply List.find_some in H1. admit.
+        apply List.find_some in H1.
+        intuition.
+        apply List.in_map_iff.
+        exists t0.
+        split; auto.
+        symmetry.
+        apply eqb_eq.
+        auto.
     - simpl in H. inversion H. subst. constructor.
     - cbn in H. destruct_optbind H. 2: inversion H.
       destruct_match H; inversion H; subst; clear H. econstructor; eauto.
@@ -158,7 +165,7 @@ Section InterpreterSafe.
     - simpl in H0. inversion H0.
     - simpl in H0. inversion H0.
     - simpl in H. inversion H. constructor.
-  Admitted.
+  Qed.
 
   (* This theorem is not really completeness, but close enough.
    * We don't expect every behavior of exec_expr to be exhibited by

@@ -169,6 +169,8 @@ Section Lemmas.
                   |- _ => rewrite String.eqb_refl in H; discriminate
                 | H: (_ =? _)%N = false
                   |- _ => rewrite N.eqb_neq in H; lia
+                | H: BinInt.Z.eqb _ _ = false
+                  |- _ => rewrite BinInt.Z.eqb_neq in H; lia
                 end;
             try match goal with
                 | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
@@ -182,58 +184,77 @@ Section Lemmas.
                                     rewrite H,P4String.key_unique_clear_AList_tags,Htrue in Hfls;
                                     discriminate
                           end
+                end;
+            try match goal with
+                | IH: Forall
+                        ((fun t => forall v1 v2,
+                              ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
+                                  Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
+                  Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
+                  Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
+                  Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
+                  |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
+                          rewrite <- Forall_map in IH;
+                          rewrite Forall2_conj in Hxv1s,Hxv2s;
+                          destruct Hxv1s as [Hfstv1s Hsndv1s];
+                          destruct Hxv2s as [Hfstv2s Hsndv2s];
+                          rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstv1s,Hfstv2s;
+                          rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndv1s,Hsndv2s;
+                          rewrite map_fst_map,Forall2_eq in Hfstv1s,Hfstv2s;
+                          rewrite map_snd_map,map_id,Forall2_flip in Hsndv1s,Hsndv2s;
+                          assert (Hlen_xts_v1s: length (map snd xts) = length (map snd xv1s))
+                            by eauto using Forall2_length;
+                          assert (Hlen_xts_v2s: length (map snd xts) = length (map snd xv2s))
+                            by eauto using Forall2_length;
+                          assert (Hlen_v1s_v2s: length (map snd xv1s) = length (map snd xv2s)) by lia;
+                          pose proof Forall_specialize_Forall2
+                               _ _ _ _ IH _ Hlen_xts_v1s as H'; clear IH Hlen_xts_v1s;
+                            pose proof Forall2_specialize_Forall3
+                                 _ _ _ _ _ _ H' _ Hlen_v1s_v2s as H'';
+                            clear H' Hlen_v1s_v2s Hlen_xts_v2s;
+                            pose proof Forall3_Forall2_Forall2_impl_Forall2
+                                 _ _ _ _ _ _ _ _ _ H'' Hsndv1s Hsndv2s as H';
+                            clear H'' Hsndv1s Hsndv2s;
+                            apply Forall2_ex_factor in H';
+                            destruct H' as [bs Hbs];
+                            rewrite <- Forall3_map_12 in Hbs;
+                            rewrite <- Hfstv2s in Hfstv1s;
+                            clear dependent tags_t;
+                            rewrite negb_false_iff in Heqb;
+                            apply andb_prop in Heqb as [U1 U2];
+                            induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
+                            cbn in *; eauto;
+                              destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
+                              destruct (AList.get xv2s y) as [v2' |] eqn:Hv2';
+                              cbn in *; try discriminate;
+                                injection Hfstv1s as Hxy Hfst; subst;
+                                  rewrite String.eqb_refl,Hvb; cbn; clear Hvb;
+                                    pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
+                                    rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
                 end.
     - inversion H0; subst; eauto.
-    - match goal with
-      | IH: Forall
-              ((fun t => forall v1 v2,
-                    ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
-                        Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
-        Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
-        Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
-        Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
-        |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
-                rewrite <- Forall_map in IH;
-                rewrite Forall2_conj in Hxv1s,Hxv2s;
-                destruct Hxv1s as [Hfstv1s Hsndv1s];
-                destruct Hxv2s as [Hfstv2s Hsndv2s]
-                                    (*
-                                      rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstvs,Hfstvs0.
-      rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndvs,Hsndvs0.
-      rewrite map_fst_map,Forall2_eq in Hfstvs,Hfstvs0.
-      rewrite map_snd_map,map_id,Forall2_flip in Hsndvs,Hsndvs0.
-      assert (Hlen_xts_vs: length (map snd xts) = length (map snd vs))
-        by eauto using Forall2_length.
-      assert (Hlen_xts_vs0: length (map snd xts) = length (map snd vs0))
-        by eauto using Forall2_length.
-      assert (Hlen_vs_vs0: length (map snd vs) = length (map snd vs0)) by lia.
-      pose proof Forall_specialize_Forall2
-           _ _ _ _ H0 _ Hlen_xts_vs as H'; clear H0 Hlen_xts_vs.
-      pose proof Forall2_specialize_Forall3
-           _ _ _ _ _ _ H' _ Hlen_vs_vs0 as H'';
-        clear H' Hlen_vs_vs0 Hlen_xts_vs0.
-      pose proof Forall3_Forall2_Forall2_impl_Forall2
-           _ _ _ _ _ _ _ _ _ H'' Hsndvs Hsndvs0 as H'; clear H'' Hsndvs Hsndvs0.
-      apply Forall2_ex_factor in H'.
-      destruct H' as [bs Hbs]. *)
-      end.
-      (*
-      rewrite <- Forall3_map_12 in Hbs.
-      rewrite <- Hfstvs0 in Hfstvs.
-      clear xts H Hv1 Hv2 H2 Hfstvs0 H3 tags_t.
-      rewrite negb_false_iff in Heqb.
-      apply andb_prop in Heqb as [U1 U2].
-      induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
-        cbn in *; eauto.
-      destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
-        destruct (AList.get xv2s y) as [v2' |] eqn:Hv2'; cbn in *; try discriminate.
-      injection Hfstvs as Hxy Hfst; subst.
-      rewrite String.eqb_refl,Hvb; cbn; clear Hvb.
-      pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
-        rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto.
-    - 
-  Qed.*)
-  Admitted.
+    - rewrite Forall2_flip in H3,H4.
+      eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
+      assert (Hlenvsvs0 : length vs = length vs0)
+        by (apply Forall2_length in H3,H4; lia).
+      eapply Forall2_specialize_Forall3 with (ws:=vs0) in H0; try assumption.
+      eapply Forall3_Forall2_Forall2_impl_Forall2 in H0; eauto.
+      clear dependent tags_t; clear Hlenvsvs0.
+      apply Forall2_ex_factor in H0 as [bs Hbs].
+      induction Hbs as [| v1 v2 b v1s v2s bs Hvb Hvbs [b' IHvbs]]; cbn; eauto.
+      rewrite Hvb,IHvbs; clear Hvb IHvbs; eauto.
+    - assert (Hlen : length vs = length vs0) by lia.
+      clear Heqb H2 H4 Hv1 Hv2 n0 n Ht H0.
+      generalize dependent vs0.
+      induction vs as [| v1 vs1 IHvs1]; inv H3;
+        intros [| v2 vs2] Hvs2 Hlen; inv Hvs2;
+          cbn in *; try discriminate; eauto.
+      assert (Hb: exists b, Ops.eval_binary_op_eq v1 v2 = Some b) by eauto.
+      destruct Hb as [b Hb]; rewrite Hb; clear Hb.
+      assert (Hlen' : length vs1 = length vs2) by lia.
+      pose proof IHvs1 H2 _ H4 Hlen' as [b' Hb'];
+        rewrite Hb'; clear IHvs1 H2 H4 Hlen' Hb'; eauto.
+  Qed.
 
   Local Hint Resolve eval_binary_op_eq_ex : core.
   
@@ -243,34 +264,25 @@ Section Lemmas.
       ⊢ᵥ v2 \: t2 ->
       exists v, Ops.eval_binary_op o v1 v2 = Some v.
   Proof.
-    intros o t t1 t2 v1 v2 Hbt Hv1 Hv2;
-      inversion Hbt; subst;
-        try inv_numeric; try inv_numeric_width;
-          inversion Hv1; subst; inversion Hv2; subst; cbn; eauto;
-            try if_destruct; eauto;
-              repeat rewrite Zcomplements.Zlength_correct in *;
-              try match goal with
-                  | H: (_ =? _)%N = false |- _ => rewrite N.eqb_neq in H; lia
-                  end;
-              try match goal with
-                  | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
-                    => destruct trm as [? |] eqn:?;idtac; eauto
-                  end;
-              try match goal with
-                  | H: binary_type Eq _ _ _ |- _ => admit
-                  | H: binary_type NotEq _ _ _ |- _ => admit
-                  end;
-              try if_destruct; eauto.
-    (** TODO:
-        1. [eval_binary_op_shift] fails when [v2 = ValBasInteger n2] such that [n2 < 0].
-           Needs a default (undefined?) value (perhaps just v1?).
-        2. [AList.key_unique] should be checked in [is_expr_typ].
-        3. Need a predicate to restrict which types may be compared for equality.
-        4. Need to know equality will never fail for well-typed values
-           whose types respect the aforementioned predicate
-        5. Division is troublesome, need a default value.
-     *) 
-  Admitted.
+    intros o t t1 t2 v1 v2 Hbt Hv1 Hv2; inv Hbt; cbn;
+      try match goal with
+          | HE: Eq_type ?t, Hv1: ⊢ᵥ ?v1 \: ?t, Hv2: ⊢ᵥ ?v2 \: ?t
+            |- context [Ops.eval_binary_op_eq ?v1 ?v2]
+            => pose proof eval_binary_op_eq_ex _ _ _ H Hv1 Hv2 as [b Hb];
+                rewrite Hb; eauto
+          end;
+      try inv_numeric; try inv_numeric_width;
+        inv Hv1; inv Hv2; subst; cbn; eauto;
+          try if_destruct; eauto;
+            repeat rewrite Zcomplements.Zlength_correct in *;
+            try match goal with
+                | H: (_ =? _)%N = false |- _ => rewrite N.eqb_neq in H; lia
+                end;
+            try match goal with
+                | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
+                  => destruct trm as [? |] eqn:?;idtac; eauto
+                end; try if_destruct; eauto.
+  Qed.
   
   Notation ident := string.
   Notation path := (list ident).

@@ -22,8 +22,6 @@ Proof.
     cbn in *; try rewrite IHss; auto.
 Qed.
 
-(** Ok. *)
-
 (** Ok types. *)
 Reserved Notation "Δ '⊢ok' τ" (at level 80, no associativity).
 (** Ok expressions. *)
@@ -37,6 +35,7 @@ Reserved Notation "Δ '⊢ok`ˢ' s" (at level 80, no associativity).
 (** Ok blocks. *)
 Reserved Notation "Δ '⊢okᵇ' b" (at level 80, no associativity).
 
+(** Free type variables bound by [Δ]. *)
 Inductive
   P4Type_ok
   {tags_t : Type} (Δ : list string) : @P4Type tags_t -> Prop :=
@@ -297,6 +296,7 @@ with Initializer_ok
     Forall (Initializer_ok Δ) init ->
     Initializer_ok Δ (InitInstantiation i t es x init).
 
+(** Custom induction principles. *)
 Section OkBoomerInd.
   Variable tags_t : Type.
 

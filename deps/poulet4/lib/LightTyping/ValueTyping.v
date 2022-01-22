@@ -2,6 +2,8 @@ Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
         Poulet4.Value Coq.micromega.Lia Poulet4.ForallMap
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 
+(** * Typing of p4light Values. *)
+
 (** Predicate that a
     [read_one_bit] relation
     is productive. *)
@@ -20,6 +22,8 @@ Definition read_one_bit_inverse
 
 Reserved Notation "'⊢ᵥ' v '\:' t" (at level 80, no associativity).
 
+(** There's a 1-to-1 correspondence
+    between values & types. *)
 Inductive val_typ
           {A tags_t : Type}
   : @ValueBase A -> @P4Type tags_t -> Prop :=
@@ -66,6 +70,7 @@ Inductive val_typ
     ⊢ᵥ ValBaseSenumField (P4String.str ename) v \: TypEnum ename (Some t) fields
 where "'⊢ᵥ' v '\:' t" := (val_typ v t) : type_scope.
 
+(** Induction principle. *)
 Section ValTypInd.
   Variables (A tags_t : Type).
   Notation V := (@ValueBase A).
@@ -169,6 +174,7 @@ Section ValTypInd.
       end.
 End ValTypInd.
 
+(** Results for relations & mappings between values. *)
 Section RelTyp.
   Context {A B tags_t : Type}.
   Notation VA := (@ValueBase A).
@@ -352,6 +358,7 @@ Section RelTyp.
   End Rel.
 End RelTyp.
 
+(** Utility. *)
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).

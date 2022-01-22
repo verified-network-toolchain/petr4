@@ -10,7 +10,7 @@ Section Is.
   Notation expr := (@Expression tags_t).
   Notation pre_expr := (@ExpressionPreT tags_t).
   
-  (** Types of p4light expressions.
+  (** Allowed types for p4light expressions.
       Correlates to [uninit_sval_of_typ]. *)
   Inductive is_expr_typ : typ -> Prop :=
   | is_bool :
@@ -65,6 +65,7 @@ Section Is.
       is_expr_typ t ->
       is_expr_typ (TypNewType X t).
 
+  (** Well-formed p4light expressions. *)
   Inductive is_expr : expr -> Prop :=
     is_MkExpression i e t d :
       is_expr_typ t ->
@@ -118,6 +119,7 @@ Section Is.
       is_pre_expr (ExpTernary e1 e2 e3).
 End Is.
 
+(** Custom induction principles. *)
 Section IsInd.
   Variable tags_t : Type.
 

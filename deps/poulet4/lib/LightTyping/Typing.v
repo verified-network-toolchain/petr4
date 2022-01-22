@@ -4,6 +4,10 @@ Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
 (** * P4light Typing Definitions *)
 
+(** All well-typed p4light term is defined as
+    one satisfying progress & preservation,
+    rather than an [Inductive] rule. *)
+
 Section TypingDefs.
   Context {tags_t : Type}.
 
@@ -267,13 +271,15 @@ Section TypingDefs.
       : Prop :=
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okˢ s ->
-      forall (dummy : Inhabitant tags_t)
-        (read_one_bit : option bool -> bool -> Prop)
-        (st : state),
-        read_one_bit_reads read_one_bit ->
-        gamma_stmt_prop Γ st ->
+      Δ ⊢okˢ s ->                        (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        (** Progress. *)
         (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
+        (** Preservation. *)
         forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
                    gamma_stmt_prop Γ' st'.
 
@@ -285,12 +291,12 @@ Section TypingDefs.
       : Prop :=
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okᵇ blk ->
-      forall (dummy : Inhabitant tags_t)
-        (read_one_bit : option bool -> bool -> Prop)
-        (st : state),
-        read_one_bit_reads read_one_bit ->
-        gamma_stmt_prop Γ st ->
+      Δ ⊢okᵇ blk ->                      (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
         forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                    gamma_stmt_prop Γ' st'.
@@ -303,13 +309,15 @@ Section TypingDefs.
       : Prop :=
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okᵉ call ->
-      forall (dummy : Inhabitant tags_t)
-        (read_one_bit : option bool -> bool -> Prop)
-        (st : state),
-        read_one_bit_reads read_one_bit ->
-        gamma_stmt_prop Γ st ->
+      Δ ⊢okᵉ call ->                     (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        (** Progress. *)
         (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
+        (** Preservation. *)
         forall st' sig, run_call ge read_one_bit this st call st' sig ->
                    gamma_stmt_prop Γ st'.
   End Typing.

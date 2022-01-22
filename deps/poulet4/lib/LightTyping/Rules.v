@@ -2,6 +2,9 @@ Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
 
 (** * P4light Typing Rules of Inference *)
 
+(** Inference rules for the p4light types system
+    given as theorems for progress & preservation. *)
+
 Section Soundness.
   Create HintDb option_monad.
   Local Hint Unfold option_bind       : option_monad.

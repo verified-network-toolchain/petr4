@@ -1,5 +1,7 @@
 Require Export Poulet4.LightTyping.Typing.
 
+(** * Helper Lemmas for [Rules.v]. *)
+
 Local Hint Unfold read_detbit : core.
 Local Hint Unfold sval_to_val : core.
 Local Hint Unfold val_to_sval : core.

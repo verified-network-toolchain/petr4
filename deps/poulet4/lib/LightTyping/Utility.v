@@ -4,6 +4,8 @@ Require Import Poulet4.Monads.Monad Poulet4.Monads.Option
         VST.zlist.sublist Poulet4.ForallMap.
 Require Poulet4.AListUtil.
 
+(** * Utility Definitions & Lemmas for Type System. *)
+
 Section Util.
   Context {tags_t : Type}.
   Notation typ  := (@P4Type tags_t).
@@ -149,7 +151,8 @@ Section Util.
       binary_type And TypBool TypBool TypBool
   | BTOr :
       binary_type Or TypBool TypBool TypBool.
-  
+
+  (** Evidence a cast is allowed. *)
   Inductive cast_type : typ -> typ -> Prop :=
   | CTBool w :
       cast_type (TypBit w) TypBool
@@ -201,6 +204,7 @@ Section Util.
       Forall2 cast_type ts ts' ->
       cast_type (TypTuple ts) (TypTuple ts').
   
+  (** Types whose fields are accessable via [AList.v] functions. *)
   Variant member_type (ts : P4String.AList tags_t typ)
     : typ -> Prop :=
   | record_member_type :
@@ -211,7 +215,8 @@ Section Util.
       member_type ts (TypHeader ts)
   | union_member_type :
       member_type ts (TypHeaderUnion ts).
-  
+
+  (** May syntactically appear as an l-expression. *)
   Inductive lexpr_ok : expr -> Prop :=
   | lexpr_name tag x loc t dir :
       lexpr_ok (MkExpression tag (ExpName x loc) t dir)
@@ -225,6 +230,9 @@ Section Util.
       lexpr_ok e₁ ->
       lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
 
+  (** "Normalizes" a type to those in a
+      one-to-one correspondence with values
+      as defined in [ValueTyping.v]. *)
   Fixpoint normᵗ (t : typ) : typ :=
     match t with
     | TypBool

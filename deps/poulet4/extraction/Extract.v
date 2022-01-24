@@ -42,16 +42,19 @@ Extract Inlined Constant Nat.add => "(+)".
 Require Poulet4.Syntax.
 Require Poulet4.Typed.
 Require Poulet4.ConstValue.
+Require Poulet4.Interpreter.
 Require Poulet4.P4cub.GCL.
 Require Poulet4.ToP4cub.
 Require Poulet4.P4cub.ToGCL.
 Require Poulet4.P4cub.TableInstr.
 Require Poulet4.P4cub.V1model.
-
+Locate Zcomplements.
+Print Coq.ZArith.Zcomplements.
 Separate Extraction Poulet4.Syntax
          Poulet4.Typed Poulet4.SimplExpr
          Poulet4.GenLoc
          Poulet4.ConstValue
+         Poulet4.Interpreter
          Poulet4.ToP4cub
          Poulet4.P4cub.GCL
          Poulet4.P4cub.ToGCL

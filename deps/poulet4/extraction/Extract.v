@@ -48,8 +48,42 @@ Require Poulet4.ToP4cub.
 Require Poulet4.P4cub.ToGCL.
 Require Poulet4.P4cub.TableInstr.
 Require Poulet4.P4cub.V1model.
-Locate Zcomplements.
-Print Coq.ZArith.Zcomplements.
+
+(* The Set Extraction Flag 716 command below turns on the following
+extraction optimizations.
+
+
+See the refman for details: https://coq.inria.fr/refman/addendum/extraction.html#coq:flag.Extraction-Optimize
+
+716 = 0b01011001100
+         | ||  |+---Simplify case with iota-redux
+         | ||  +----Factor case branches as functions
+         | |+-------Simplify case by swapping case and lambda
+         | +--------Some case optimization
+         +----------Use linear let reduction
+
+It is necessary in order to compile interp_isValid as it is currently written,
+because it includes a nested fixpoint which OCaml normally rejects.
+
+    File "extraction/Interpreter.ml", lines 724-748, characters 6-61:
+    724 | ......let x0 = x fix_0 in
+    725 |       (fun sv ->
+    726 |       match sv with
+    727 |       | ValBaseNull -> Coq_interp_isValid_graph_equation_1
+    728 |       | ValBaseBool o -> Coq_interp_isValid_graph_equation_2 o
+    ...
+    745 |       | ValBaseEnumField (typ_name, enum_name) ->
+    746 |         Coq_interp_isValid_graph_equation_15 (typ_name, enum_name)
+    747 |       | ValBaseSenumField (typ_name, sv0) ->
+    748 |         Coq_interp_isValid_graph_equation_16 (typ_name, sv0))
+    Error: This kind of expression is not allowed as right-hand side of `let rec'
+
+The optimizations somehow optimize away the nested fixpoint and avoid this error message.
+ *)
+Set Extraction Flag 716.
+Extraction Inline Interpreter.interp_isValid.
+Extraction NoInline Interpreter.interp_isValid_fields.
+
 Separate Extraction Poulet4.Syntax
          Poulet4.Typed Poulet4.SimplExpr
          Poulet4.GenLoc

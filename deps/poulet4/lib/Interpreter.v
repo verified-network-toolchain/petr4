@@ -408,14 +408,14 @@ Section Interpreter.
     { interp_isValid (ValBaseHeader fields valid_bit) :=
         Some (bit_init valid_bit);
       interp_isValid (ValBaseUnion fields) :=
-        let* valid_bits := interp_isValid_fields fields in
-        Some (List.fold_left orb valid_bits false);
+        let* valids := (interp_isValid_fields fields) in
+        Some (List.fold_left orb valids false);
       interp_isValid _ := None }
   where interp_isValid_fields (fields: list (string * Sval)) : option (list bool) :=
     { interp_isValid_fields (f :: rest) :=
-         let* hd_valid := interp_isValid (snd f) in
-         let* rest_valid := interp_isValid_fields rest in
-         Some (hd_valid :: rest_valid);
+        let* f_valid := interp_isValid (snd f) in
+        let* rest_valid := interp_isValid_fields rest in
+        Some (f_valid :: rest_valid);
       interp_isValid_fields nil := Some nil }.
 
   Definition interp_builtin (this: path) (st: state) (lv: Lval) (name: ident) (args: list Sval) : option (state * signal) :=

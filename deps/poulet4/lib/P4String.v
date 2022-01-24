@@ -76,6 +76,14 @@ Section AList.
       destruct (StrEqDec x y) as [Hxy' | Hxy'];
       unfold "=/=", "===" in *; subst; try contradiction; auto.
   Qed.
+
+  Lemma key_unique_clear_AList_tags : forall vs,
+      AList.key_unique (clear_AList_tags vs) = AList.key_unique vs.
+  Proof.
+    unfold clear_AList_tags; intro vs;
+      induction vs as [| [x v] vs IHvs]; cbn in *; try reflexivity.
+    rewrite get_clear_AList_tags, IHvs; reflexivity.
+  Qed.
 End AList.
 
 Arguments clear_AList_tags {_} {_}.

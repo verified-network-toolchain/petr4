@@ -5,7 +5,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.BigStep.Value.IndPrincip
         Poulet4.P4cub.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
-        Coq.micromega.Lia.
+        Coq.micromega.Lia Poulet4.ForallMap.
 Import String.
 Import ProperType Val ValueNotations
        LValueNotations AllCubNotations
@@ -224,19 +224,18 @@ Section Lemmas.
       constructor. apply Forall_and_inv in H1.
       destruct H1 as [Hpt Hmk].
       rewrite Forall_forall in H, Hpt.
-      pose proof Utils.reduce_inner_impl_forall
+      pose proof reduce_inner_impl_forall
            _ _ _ _ H Hpt as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := vs) in H'.
+      apply forall_Forall2 with (bs := vs) in H'.
       + apply sequence_Forall2 in Heqvs.
-        rewrite Utils.Forall2_flip.
-        rewrite <- Utils.Forall2_map_l in Heqvs.
-        pose proof Utils.Forall2_impl
+        rewrite Forall2_flip.
+        rewrite <- ForallMap.Forall2_map_l in Heqvs.
+        pose proof Forall2_impl
              _ _ (fun t v => vdefault t = Some v) (fun t v => ∇ ⊢ v ∈ t)
           as HF2impl; cbn in *; auto.
       + apply sequence_length in Heqvs.
         rewrite map_length in Heqvs; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)
@@ -247,31 +246,30 @@ Section Lemmas.
       constructor. apply Forall_and_inv in H1.
       destruct H1 as [Hpt Hmk].
       rewrite Forall_forall in H, Hpt.
-      pose proof Utils.reduce_inner_impl_forall
+      pose proof reduce_inner_impl_forall
            _ _ _ _ H Hpt as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
+      apply forall_Forall2 with (bs := map snd xvs) in H'.
       + apply sequence_Forall2 in Heqxvs.
         unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
+        rewrite map_pat_both in Heqxvs.
+        rewrite <- ForallMap.Forall2_map_l in Heqxvs.
+        rewrite Forall2_destr_pair_eq in Heqxvs.
         destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
+        rewrite Forall2_conj; split; unfold Field.f.
+        * rewrite Forall2_map_both, Forall2_eq; auto.
+        * rewrite Forall2_map_both.
+          rewrite Forall2_flip in H', Hsnd.
+          pose proof Forall2_map_r _ _ _
                (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
                snd (map snd xvs) fields as H''; cbn in *.
           rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
+          pose proof Forall2_impl
                _ _ (fun v t => vdefault t = Some v) type_value
             as HF2impl; cbn in *; auto.
       + apply sequence_length in Heqxvs.
         rewrite map_length in Heqxvs.
         rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)
@@ -281,33 +279,32 @@ Section Lemmas.
       unfold F.predfs_data, F.predf_data in *; unravel in *.
       constructor; auto.
       rewrite Forall_forall in H, H1.
-      pose proof Utils.reduce_inner_impl_forall_impl
+      pose proof reduce_inner_impl_forall_impl
            _ _ _ _ _
            (fun xv => proper_inside_header_nesting (snd xv))
            H H1 as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
+      apply forall_Forall2 with (bs := map snd xvs) in H'.
       + apply sequence_Forall2 in Heqxvs.
         unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
+        rewrite map_pat_both in Heqxvs.
+        rewrite <- ForallMap.Forall2_map_l in Heqxvs.
+        rewrite Forall2_destr_pair_eq in Heqxvs.
         destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
+        rewrite Forall2_conj; split; unfold Field.f.
+        * rewrite Forall2_map_both, Forall2_eq; auto.
+        * rewrite Forall2_map_both.
+          rewrite Forall2_flip in H', Hsnd.
+          pose proof Forall2_map_r _ _ _
                (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
                snd (map snd xvs) fields as H''; cbn in *.
           rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
+          pose proof Forall2_impl
                _ _ (fun v t => vdefault t = Some v) type_value
             as HF2impl; cbn in *; auto.
       + apply sequence_length in Heqxvs.
         rewrite map_length in Heqxvs.
         rewrite map_length; auto.
-    - unfold option_monad in *.
-      destruct
+    - destruct
         (sequence
            (map (fun '(x, t) => match vdefault t with
                              | Some a => Some (x, a)
@@ -324,26 +321,26 @@ Section Lemmas.
       apply repeat_Forall; simpl.
       constructor; auto; unfold Field.relfs, Field.relf; unravel.
       rewrite Forall_forall in H, H3.
-      pose proof Utils.reduce_inner_impl_forall_impl
+      pose proof reduce_inner_impl_forall_impl
            _ _ _ _ _
            (fun xv => proper_inside_header_nesting (snd xv))
            H H3 as H'; cbn in *.
-      apply Utils.forall_Forall2 with (bs := map snd xvs) in H'.
+      apply forall_Forall2 with (bs := map snd xvs) in H'.
       + apply sequence_Forall2 in Heqxvs.
         unfold Field.relfs, Field.relf; unravel.
-        rewrite Utils.map_pat_both in Heqxvs.
-        rewrite <- Utils.Forall2_map_l in Heqxvs.
-        rewrite Utils.Forall2_destr_pair_eq in Heqxvs.
+        rewrite map_pat_both in Heqxvs.
+        rewrite <- ForallMap.Forall2_map_l in Heqxvs.
+        rewrite Forall2_destr_pair_eq in Heqxvs.
         destruct Heqxvs as [Hfst Hsnd].
-        rewrite Utils.Forall2_conj; split; unfold Field.f.
-        * rewrite Utils.Forall2_map_both, Utils.Forall2_eq; auto.
-        * rewrite Utils.Forall2_map_both.
-          rewrite Utils.Forall2_flip in H', Hsnd.
-          pose proof Utils.Forall2_map_r _ _ _
+        rewrite Forall2_conj; split; unfold Field.f.
+        * rewrite Forall2_map_both, Forall2_eq; auto.
+        * rewrite Forall2_map_both.
+          rewrite Forall2_flip in H', Hsnd.
+          pose proof Forall2_map_r _ _ _
                (fun v t => vdefault t = Some v -> ∇ ⊢ v ∈ t)
                snd (map snd xvs) fields as H''; cbn in *.
           rewrite H'' in H'; clear H''.
-          pose proof Utils.Forall2_impl
+          pose proof Forall2_impl
                _ _ (fun v t => vdefault t = Some v) type_value
             as HF2impl; cbn in *; auto.
       + apply sequence_length in Heqxvs.

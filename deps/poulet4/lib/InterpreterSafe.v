@@ -9,6 +9,7 @@ Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Poulet4.Semantics.
 Require Poulet4.Interpreter.
+Require Import Poulet4.ForallMap.
 
 Ltac destruct_match H :=
   match goal with
@@ -101,7 +102,6 @@ Section InterpreterSafe.
       subst sv.
       constructor.
     - cbn in H.
-      unfold Option.option_ret in H.
       inversion H.
       subst sv.
       constructor.
@@ -718,7 +718,7 @@ Section InterpreterSafe.
     simpl in *.
     optbind_inv.
     econstructor.
-    - eapply Utils.Forall2_forall.
+    - eapply Forall2_forall.
       split.
       + eapply lift_option_length in Heqo.
         rewrite List.map_length in Heqo.
@@ -733,7 +733,7 @@ Section InterpreterSafe.
         eauto using interp_expr_safe.
     - unfold svals_to_vals.
       inversion H.
-      eapply Utils.Forall2_forall.
+      eapply Forall2_forall.
       split.
       + rewrite List.map_length.
         eauto.
@@ -1087,13 +1087,13 @@ Section InterpreterSafe.
              (argvs' := l);
         eauto.
       + unfold svals_to_vals.
-        eapply Utils.Forall2_forall; split; eauto using List.map_length.
+        eapply Forall2_forall; split; eauto using List.map_length.
         intros.
         eapply in_combine_f in H0.
         subst.
         eauto.
       + eapply Target.interp_extern_safe; eauto.
-      + eapply Utils.Forall2_forall; split; eauto using List.map_length.
+      + eapply Forall2_forall; split; eauto using List.map_length.
         * apply lift_option_length in Heqo0.
           rewrite <- Heqo0.
           rewrite List.map_length.

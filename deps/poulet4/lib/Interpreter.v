@@ -9,6 +9,7 @@ Require Import Poulet4.Semantics.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 From Equations Require Import Equations.
+Require Poulet4.AListUtil.
 
 Import List.ListNotations.
 
@@ -118,11 +119,11 @@ Section Interpreter.
     | ValBaseMatchKind m =>
       ValBaseMatchKind m
     | ValBaseStruct fields =>
-      ValBaseStruct (AList.map_values interp_sval_val fields)
+      ValBaseStruct (AListUtil.map_values interp_sval_val fields)
     | ValBaseHeader fields is_valid =>
-      ValBaseHeader (AList.map_values interp_sval_val fields) (bit_init is_valid)
+      ValBaseHeader (AListUtil.map_values interp_sval_val fields) (bit_init is_valid)
     | ValBaseUnion fields =>
-      ValBaseUnion (AList.map_values interp_sval_val fields)
+      ValBaseUnion (AListUtil.map_values interp_sval_val fields)
     | ValBaseStack headers next =>
       ValBaseStack (List.map interp_sval_val headers) next
     | ValBaseEnumField typ_name enum_name =>
@@ -168,7 +169,7 @@ Section Interpreter.
       let* svs := lift_option (List.map (interp_expr this st) es) in
       Some (ValBaseTuple svs)
     | ExpRecord entries =>
-      let* entries_svs := lift_option_kv (AList.map_values (interp_expr this st) entries) in
+      let* entries_svs := lift_option_kv (AListUtil.map_values (interp_expr this st) entries) in
       let entries' := List.map (fun '(k, v) => (str k, v)) entries_svs in
       Some (ValBaseStruct entries')
     | ExpUnaryOp op arg =>

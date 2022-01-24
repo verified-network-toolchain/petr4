@@ -2,7 +2,16 @@ Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
 
 (** * P4light Typing Rules of Inference *)
 
+(** Inference rules for the p4light types system
+    given as theorems for progress & preservation. *)
+
 Section Soundness.
+  Create HintDb option_monad.
+  Local Hint Unfold option_bind       : option_monad.
+  Local Hint Unfold option_monad_inst : option_monad.
+  Local Hint Unfold mret  : option_monad.
+  Local Hint Unfold mbind : option_monad.
+
   Context {tags_t : Type}.
 
   Notation typ := (@P4Type tags_t).
@@ -26,7 +35,8 @@ Section Soundness.
   Local Hint Resolve is_expr_typ_normᵗ_impl : core.
   Local Hint Resolve val_typ_is_expr_typ : core.
 
-  Variables (this : path) (Δ : list string).
+  Context `{T : @Target tags_t expr}.
+  Variables (ge : genv) (this : path) (Δ : list string).
   
   Section ExprTyping.
     Variable (Γ : @gamma_expr tags_t).
@@ -39,30 +49,34 @@ Section Soundness.
     
     Ltac soundtac :=
       autounfold with *;
-      intros Tgt rob ge st Hdlta Hrob Hg Hok Hise Hgrt;
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg;
+      inversion Hok; subst; inversion Hise; subst;
       split; eauto;
-      try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex).
+      try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex);
+      cbn in *.
   
-    Lemma bool_sound : forall tag b dir,
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpBool b) TypBool dir ≀ this.
+    Theorem bool_sound : forall tag b dir,
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBool b) TypBool dir.
     Proof.
       intros; soundtac.
     Qed.
   
-    Lemma arbitrary_int_sound : forall tag i z dir,
-        Δ ~ Γ ⊢ₑ
+    Theorem arbitrary_int_sound : forall tag i z dir,
+        (ge,this,Δ,Γ)
+          ⊢ₑ
           MkExpression
-          tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir ≀ this.
+          tag (ExpInt (P4Int.Build_t _ i z None)) TypInteger dir.
     Proof.
       intros; soundtac.
     Qed.
     
-    Lemma unsigned_int_sound : forall tag i z w dir,
-        Δ ~ Γ ⊢ₑ
+    Theorem unsigned_int_sound : forall tag i z w dir,
+        (ge,this,Δ,Γ)
+          ⊢ₑ
           MkExpression tag
           (ExpInt
              (P4Int.Build_t _ i z (Some (w,false))))
-          (TypBit w) dir ≀ this.
+          (TypBit w) dir.
     Proof.
       intros tag i z w dir; soundtac; split; auto.
       replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
@@ -70,12 +84,13 @@ Section Soundness.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
     
-    Lemma signed_int_sound : forall tag i z w dir,
-        Δ ~ Γ ⊢ₑ
+    Theorem signed_int_sound : forall tag i z w dir,
+        (ge,this,Δ,Γ)
+          ⊢ₑ
           MkExpression
           tag
           (ExpInt (P4Int.Build_t _ i z (Some (w,true))))
-          (TypInt w) dir ≀ this.
+          (TypInt w) dir.
     Proof.
       intros tag i z w dir; soundtac; split; auto.
       replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
@@ -83,16 +98,16 @@ Section Soundness.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
     
-    Lemma string_sound : forall tag s dir,
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpString s) TypString dir ≀ this.
+    Theorem string_sound : forall tag s dir,
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpString s) TypString dir.
     Proof.
       intros; soundtac.
     Qed.
     
-    Lemma name_sound : forall tag x loc t dir,
+    Theorem name_sound : forall tag x loc t dir,
         is_directional dir = true ->
         typ_of_loc_var loc Γ = Some t ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
     Proof.
       intros i x l t d Hd Hgt; soundtac.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_domain in Hg.
@@ -103,13 +118,13 @@ Section Soundness.
         destruct Hv; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
         destruct Hg as [[_ Hg] _]; eauto.
-      - rewrite Hd in H7; discriminate.
+      - rewrite Hd in H11; discriminate.
     Qed.
 
-    Lemma constant_sound : forall tag x loc t dir,
+    Theorem constant_sound : forall tag x loc t dir,
         is_directional dir = false ->
         typ_of_loc_const this loc Γ = Some t ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpName x loc) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
     Proof.
       intros i x l t d Hd Hgt; soundtac.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_domain in Hg.
@@ -118,48 +133,51 @@ Section Soundness.
         { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
           rewrite <- Hg, Hgt in Hv; discriminate. }
         destruct Hv; eauto.
-      - rewrite Hd in H7; discriminate.
+      - rewrite Hd in H11; discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
     
-    Lemma array_access_sound : forall tag arry idx ts dir n,
+    Theorem array_access_sound : forall tag arry idx ts dir n,
         0 < N.to_nat n ->
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
-        Δ ~ Γ ⊢ₑ arry ≀ this ->
-        Δ ~ Γ ⊢ₑ idx ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpArrayAccess arry idx) (TypHeader ts) dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ arry ->
+        (ge,this,Δ,Γ) ⊢ₑ idx ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
+          tag (ExpArrayAccess arry idx) (TypHeader ts) dir.
     Proof.
       intros i e1 e2 ts d n Hn Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros Tgt rob ge st Hdelta Hrob Hg Hok Hise Hgrt; simpl in *.
+      intros Hgrt Hdelta Hok Hise rob st Hrob Hg; simpl in *.
+      inversion Hok; subst. inversion H4; subst.
+      rename H1 into Hokts; rename H4 into Hoke1e2;
+        rename H2 into Hoke1; rename H3 into Hoke2.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hists; rename H4 into Hisacc;
+        rename H2 into Hise1; rename H3 into Hise2.
       rewrite Ht1, Ht2 in *.
-      pose proof He1 Tgt rob ge st Hdelta Hrob Hg as [[v1 Hev1] He1']; clear He1; auto.
-      pose proof He2 Tgt rob ge st Hdelta Hrob Hg as [[v2 Hev2] He2']; clear He2; auto.
+      pose proof He1 Hgrt Hdelta as [[v1 Hev1] He1']; clear He1; eauto.
+      pose proof He2 Hgrt Hdelta as [[v2 Hev2] He2']; clear He2; eauto.
       split.
       - assert (Hv2': exists v2', sval_to_val rob v2 v2')
           by eauto using exec_val_exists.
         pose proof He1' v1 Hev1 as (r1 & Hr1 & Hv1).
         pose proof He2' v2 Hev2 as (r2 & Hr2 & Hv2).
         clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2; cbn in *.
-        unfold option_bind, option_ret in *.
+        autounfold with option_monad in *.
         destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
           as [rs |] eqn:Hrs;
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst, option_monad in *;
-          unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst, option_monad in *;
+          autounfold with option_monad in *;
           rewrite Hrs in Hr1; try discriminate.
         inversion Hr1; subst; clear Hr1; cbn in *.
         assert (Hhrs: get_real_type ge (TypHeader ts) = Some (TypHeader rs)).
         { cbn in *.
           unfold ">>|",">>=" in *;
-          unfold option_monad_inst, option_monad in *;
-          unfold mret, mbind, option_bind, option_ret in *;
-          unfold option_monad_inst, option_monad in *;
-          rewrite Hrs; reflexivity. }
+            autounfold with option_monad in *;
+            rewrite Hrs; reflexivity. }
         destruct Hv2' as [v2' Hv2'].
         inversion Hv1; inversion Hv2; inversion Hv2';
           subst; try discriminate.
@@ -203,19 +221,25 @@ Section Soundness.
             inversion Hv1'; subst; auto.
     Qed.
 
-    Lemma bigstring_access_sound : forall tag bits lo hi dir w,
+    Theorem bigstring_access_sound : forall tag bits lo hi dir w,
         (lo <= hi < w)%N ->
         typ_of_expr bits = TypBit w ->
-        Δ ~ Γ ⊢ₑ bits ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression
+        (ge,this,Δ,Γ) ⊢ₑ bits ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
           tag (ExpBitStringAccess bits lo hi)
-          (TypBit (hi - lo + 1)%N) dir ≀ this.
+          (TypBit (hi - lo + 1)%N) dir.
     Proof.
       intros i e lo hi d w Hlwh Ht He.
       autounfold with * in *.
-      intros T rob ge st Hdlta Hrob Hg Hok Hise Hgrt.
+      intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
+      inversion Hok; subst; inversion H4; subst.
+      rename H1 into Hokbit; rename H4 into Hokacc; rename H0 into Hoke.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hisbit; rename H4 into Hisacc;
+        rename H0 into Hisee.
       rewrite Ht in *; cbn in *.
-      pose proof He T rob ge st Hdlta Hrob Hg as [[v Hev] He']; clear He; auto.
+      pose proof He Hgrt Hdelta as [[v Hev] He']; clear He; eauto.
       split.
       - apply He' in Hev as Hv';
           destruct Hv' as (rt & Hrt & Hv);
@@ -227,35 +251,41 @@ Section Soundness.
         solve_ex; split; auto.
         rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
         replace (hi - lo + 1)%N
-          with (N.of_nat (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
+          with (N.of_nat
+                  (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
         apply He' in He as (r & Hr & Hv); inversion Hr; subst; clear Hr; cbn in *.
         inversion Hv; subst; cbn in *.
         inversion Hsval; subst; clear Hsval.
         apply bitstring_slice_length in Hlhw; lia.
     Qed.
   
-    Lemma list_sound : forall tag es dir,
-        Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) es ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpList es)
-          (TypTuple (map typ_of_expr es)) dir ≀ this.
+    Theorem list_sound : forall tag es dir,
+        Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) es ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpList es)
+                      (TypTuple (map typ_of_expr es)) dir.
     Proof.
-      intros i es d Hes. autounfold with * in *.
-      intros Tgt rob ge st Hrob Hg Hok.
+      intros i es d Hes. autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok Hise rob st Hrob Hg.
       rewrite Forall_forall in Hes.
       specialize Hes with
-          (T := Tgt)
-          (read_one_bit:=rob) (ge:=ge) (st:=st).
-      pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
+          (read_one_bit:=rob) (st:=st).
+      pose proof reduce_inner_impl _ _ _ _ Hes Hgrt as Hes';
         simpl in Hes'; clear Hes.
-      pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
+      pose proof reduce_inner_impl _ _ _ _ Hes' Hged as Hes;
         simpl in Hes; clear Hes'.
-      simpl in *; inversion Hok;
-        rename H0 into Hτs; rename H into Hτs_eq.
-      rewrite <- Forall_forall in Hes.
-      (*rewrite Forall_map in Hτs.
+      pose proof (fun a inaes oka ise => Hes a inaes oka ise Hrob Hg) as Hduh; clear Hes.
+      rewrite <- Forall_forall in Hduh.
+      inversion Hok; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Hoktup; rename H4 into Hoklist;
+        rename H0 into Hoktoees; rename H2 into Hokes.
+      inversion Hise; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Hisettup; rename H4 into Hispees;
+        rename H0 into Hisetes; rename H2 into Hisees.
+      rewrite Forall_map in Hisetes.
       unfold Basics.compose in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
-      apply Forall_and_inv in Hq as [Hrnes Htyps]; split.
+      pose proof Forall_impl_Forall _ _ _ _ Hduh Hokes as Hq; clear Hduh Hokes; cbn in *.
+      pose proof Forall_impl_Forall _ _ _ _ Hq Hisees as Hp; clear Hq Hisees; cbn in *.
+      apply Forall_and_inv in Hp as [Hrnes Htyps]; split.
       - clear Htyps.
         rewrite Forall_exists_factor in Hrnes.
         destruct Hrnes as [vs Hvs]; eauto.
@@ -265,348 +295,403 @@ Section Soundness.
         rewrite Forall_forall in Htyps.
         apply forall_Forall2 with (bs := vs) in Htyps;
           eauto using Forall2_length.
-        apply Forall2_impl with
-            (R := run_expr ge rob this st)
-            (Q := fun e v => val_typ (ge_senum ge) v (typ_of_expr e)) in Htyps; auto.
-        rewrite Forall2_flip, Forall2_map_r in Htyps; auto.
-    Qed.*)
-    Admitted.
-
-    Lemma record_sound : forall tag es dir,
-        Forall (fun e => Δ ~ Γ ⊢ₑ e ≀ this) (map snd es) ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpRecord es)
-          (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir ≀ this.
-    Proof.
-      intros i es d Hes.
-      autounfold with * in *.
-      intros Tgt rob ge st Hrob Hg Hok.
-      rewrite Forall_forall in Hes.
-      specialize Hes with
-          (T := Tgt)
-          (read_one_bit:=rob) (ge:=ge) (st:=st).
-      pose proof reduce_inner_impl _ _ _ _ Hes Hrob as Hes';
-        simpl in Hes'; clear Hes.
-      pose proof reduce_inner_impl _ _ _ _ Hes' Hg as Hes;
-        simpl in Hes; clear Hes'.
-      simpl in *; inversion Hok;
-        rename H0 into Hτs; rename H into Hτs_eq.
-      rewrite <- Forall_forall in Hes.
-      pose proof Forall_map
-           (P4Type_ok Δ) snd
-           (map (fun '(x, e) => (x, typ_of_expr e)) es)
-        as Hfm.
-      unfold Basics.compose in Hfm.
-      (*rewrite <- Hfm in Hτs; clear Hfm.
-      rewrite map_snd_map in Hτs.
-      rewrite Forall_map in Hτs.
-      unfold Basics.compose in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hes Hτs as Hq.
-      apply Forall_and_inv in Hq as [Hrns Htyps]; split.
-      - clear Htyps.
-        rewrite Forall_exists_factor in Hrns.
-        destruct Hrns as [vs Hvs].
-        rewrite AList.Forall2_all_values
-          with (ks := map fst es) in Hvs.
-        + rewrite combine_map_fst_snd in Hvs; eauto. admit.
-        + repeat rewrite map_length; reflexivity.
-        + rewrite map_length, <- map_length with (f := snd).
-          eauto using Forall2_length.
-      - clear Hrns; intros v Hrns.
-        inversion Hrns; subst.
-        rename H6 into Heskvs.
-        rewrite <- combine_map_fst_snd with (l := es)   in Heskvs.
-        rewrite <- combine_map_fst_snd with (l := kvs') in Heskvs.
-        apply AList.all_values_keys_eq in Heskvs as Hmf.
-        repeat rewrite combine_map_fst_snd in Hmf.
-        rewrite <- Hmf in Heskvs.*)
-    (*rewrite <- AList.Forall2_all_values in Heskvs.
-      + constructor; unfold AList.all_values;
-        rewrite Forall2_conj; split.
-        * rewrite Forall2_map_both, Forall2_eq,
-          map_fst_map, map_id; auto.
-        * rewrite Forall2_map_both.
-          rewrite map_snd_map.
-          assert (Hl : length es = length kvs').
-          { rewrite <- map_length with (f := fst) (l := es).
-            rewrite <- map_length with (f := fst) (l := kvs'), Hmf.
-            reflexivity. }
-          rewrite <- map_length with (f := snd) (l := es) in Hl.
-          rewrite <- map_length with (f := snd) (l := kvs') in Hl.
-          pose proof forall_Forall2 _ _ _ _ Htyps (map snd kvs') Hl as Hff2.
-          apply Forall2_impl with
-              (R := run_expr ge rob this st)
-              (Q := fun e v => val_typ (ge_senum ge) v (typ_of_expr e)) in Hff2; auto.
-          rewrite Forall2_flip,Forall2_map_r in Hff2; assumption.
-      + repeat rewrite map_length; reflexivity.
-      + rewrite Hmf; repeat rewrite map_length; reflexivity.
-  Qed.*)
-    Admitted.
-
-    Local Hint Unfold read_detbit : core.
-    Local Hint Unfold sval_to_val : core.
-    Local Hint Unfold val_to_sval : core.
-    
-    Lemma val_to_sval_ex : forall v,
-        val_to_sval v (ValueBaseMap Some v).
-    Proof.
-      autounfold with *; intro v.
-      induction v using (custom_ValueBase_ind bool); simpl; eauto.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall, Forall_forall.
-        reflexivity.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        assumption.
-      - constructor. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor; auto. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor. unfold AList.all_values.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        rewrite Forall_snd in H.
-        apply Forall_and; rewrite Forall_forall in *;
-          intros [? ?]; firstorder.
-      - constructor.
-        rewrite <- Forall2_map_r, Forall2_Forall.
-        assumption.
+        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hesvs as H; clear Htyps Hesvs.
+        rewrite Forall2_flip in H.
+        rewrite Forall2_map_r with
+            (R := fun v t => exists r, get_real_type ge t = Some r /\ ⊢ᵥ v \: normᵗ r)
+            (f := typ_of_expr) in H.
+        apply Forall2_ex_factor in H as [rs Hrs].
+        rewrite Forall3_permute_12, Forall3_conj_sep in Hrs.
+        destruct Hrs as [Hesrs Hvsrs].
+        rewrite Forall2_map_l with
+            (R := fun ro r => ro = Some r) (f := get_real_type ge) in Hesrs.
+        rewrite Forall2_sequence_iff in Hesrs.
+        rewrite Forall2_map_r with (f:=normᵗ) in Hvsrs.
+        rewrite Hesrs; autounfold with option_monad; cbn;
+          solve_ex; split; auto.
     Qed.
 
-    Local Hint Resolve val_to_sval_ex : core.
+    Hint Rewrite map_length : core.
+    Local Hint Resolve Forall2_length : core.
     
-    Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
-        unary_type o t t' ->
-        Ops.eval_unary_op o v = Some v' ->
-        ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
+    Theorem record_sound : forall tag es dir,
+        Forall (fun e => (ge,this,Δ,Γ) ⊢ₑ e) (map snd es) ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
+          tag (ExpRecord es)
+          (TypRecord (map (fun '(x,e) => (x,typ_of_expr e)) es)) dir.
     Proof.
-      intros o v v' t t' Hut Heval Hvt;
-        inversion Hut; subst;
-          inversion Hvt; subst;
-            try (inversion Heval; subst; auto; assumption).
-      - unfold Ops.eval_unary_op in Heval.
-        destruct (P4Arith.BitArith.from_lbool v0)
-          as [w' n'] eqn:Heqfromlbool.
-        injection Heval as Hv'. rewrite <- Hv'.
-        inversion H; subst; clear H.
-    (** TODO: need helper lemma about
-        [P4Arith.to_lbool] and [P4Arith.BitArith.bit_not]. *)
-    Admitted.
-  
-    Lemma unary_op_sound : forall tag o e t dir,
+      intros i es d Hes.
+      autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok Hise rob st Hrob Hg.
+      inversion Hok; subst; inversion H1; subst; inversion H4; subst.
+      rename H1 into Htokrec; rename H4 into Heokrec;
+        rename H0 into Htokes; rename H2 into Heokes.
+      inversion Hise; subst; inversion H1; subst; inversion H4; subst.
+      unfold Basics.compose in *.
+      rename H1 into Hisetrec; rename H4 into Hispe;
+        rename H0 into Utoees; rename H2 into Hisetes;
+          rename H3 into Ues; rename H5 into Hisees.
+      rewrite Forall_forall in Hes.
+      specialize Hes with
+          (read_one_bit:=rob) (st:=st).
+      pose proof (fun e HInnes Hok Hise =>
+                    Hes e HInnes Hgrt Hged Hok Hise Hrob Hg)
+        as H; clear Hes; rename H into Hes.
+      rewrite <- Forall_forall,Forall_map in Hes.
+      unfold Basics.compose in Hes; cbn in Hes.
+      pose proof Forall_impl_Forall _ _ _ _ Hes Heokes as H; clear Hes Heokes.
+      pose proof Forall_impl_Forall _ _ _ _ H Hisees as Hes; clear H Hisees.
+      apply Forall_and_inv in Hes as [Hrnes Htyps]; split.
+      - clear Htyps.
+        rewrite Forall_exists_factor in Hrnes.
+        destruct Hrnes as [vs Hvs].
+        exists (ValBaseStruct (combine (map P4String.str (map fst es)) vs)).
+        constructor. unfold AList.all_values, P4String.clear_AList_tags.
+        rewrite Forall2_conj,
+        Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+        rewrite map_snd_combine by (autorewrite with core; eauto).
+        rewrite map_fst_combine by (autorewrite with core; eauto).
+        rewrite Forall2_eq,map_fst_map,map_snd_map,map_id;split;auto.
+        rewrite <- Forall2_map_l; assumption.
+      - clear Hrnes.
+        intros v Hev; inversion Hev; subst.
+        rename kvs' into xvs; rename H6 into Hxvs.
+        unfold AList.all_values,P4String.clear_AList_tags in Hxvs.
+        rewrite Forall2_conj in Hxvs.
+        destruct Hxvs as [Hfsteq Hxvs].
+        rewrite Forall2_map_both,Forall2_eq,map_fst_map in Hfsteq.
+        rewrite map_pat_both, <- Forall2_map_l in Hxvs; cbn in *.
+        rewrite Forall_forall in Htyps.
+        apply forall_Forall2 with (bs := map snd xvs) in Htyps;
+          autorewrite with core; eauto.
+        rewrite <- Forall2_map_r in Htyps.
+        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hxvs as H; clear Htyps Hxvs.
+        apply Forall2_ex_factor in H as [rs Hrs].
+        rewrite Forall3_conj_sep in Hrs.
+        destruct Hrs as [Hesrs Hxvsrs].
+        rewrite Forall2_map_l with
+            (R:=fun e t => get_real_type ge (typ_of_expr e) = Some t)
+            (f:=snd) in Hesrs.
+        rewrite Forall2_map_l with
+            (R:=fun t r => get_real_type ge t = Some r)
+            (f:=typ_of_expr) in Hesrs.
+        rewrite Forall2_map_l with
+            (R:=fun ro r => ro = Some r) (f:=get_real_type ge) in Hesrs.
+        rewrite Forall2_sequence_iff in Hesrs.
+        rewrite map_pat_combine,map_id.
+        pose proof @map_bind_pair _ option_monad_inst as Hmbp.
+        unfold ">>|",">>=",mbind,mret in Hmbp.
+        autounfold with option_monad in *.
+        rewrite Hmbp; clear Hmbp.
+        exists (TypRecord (combine (map fst es) rs)); cbn; split.
+        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob
+                Hg Htokrec Heokrec Htokes Hev Hfsteq Hxvsrs.
+          clear Hgrt Hisetrec Hispe Hisetes Utoees Ues.
+          generalize dependent rs.
+          induction es as [| [x e] es IHes];
+            intros [| r rs] Hrs; cbn in *; try discriminate;
+              try specialize IHes with rs;
+              repeat match_some_inv; some_inv; try reflexivity.
+          intuition; match_some_inv; some_inv; reflexivity.
+        + constructor.
+          * rewrite <- Forall2_sequence_iff in Hesrs.
+            repeat rewrite <- Forall2_map_l in Hesrs.
+            clear - Utoees Hesrs.
+            pose proof @AListUtil.key_unique_map_values as H'.
+            unfold AListUtil.map_values in H'.
+            rewrite H' in Utoees; rewrite H'; clear H'.
+            rewrite AListUtil.key_unique_combine
+              by eauto using Forall2_length.
+            assumption.
+          *  unfold AList.all_values,P4String.clear_AList_tags.
+             rewrite Forall2_conj,
+             Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+             repeat rewrite map_fst_map.
+             repeat rewrite map_snd_map.
+             repeat rewrite map_id.
+             rewrite map_fst_combine by
+                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+             rewrite map_snd_combine by
+                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+             rewrite Forall2_eq, <- Forall2_map_both; auto.
+    Qed.
+    
+    Local Hint Resolve val_to_sval_ex : core.
+    Local Hint Resolve exec_val_preserves_typ : core.
+    Local Hint Resolve eval_unary_op_preserves_typ : core.
+    
+    Theorem unary_op_sound : forall tag o e t dir,
         unary_type o (typ_of_expr e) t ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
     Proof.
-      intros i o e t d Hut He.
-      autounfold with * in *; intros Tgt rob ge st Hrob Hg Hok.
-      specialize He with Tgt rob ge st.
-      simpl in *.
-      apply unary_type_eq in Hut as Hut_eq.
-      rewrite Hut_eq in He.
-      (*pose proof He Hrob Hg Hok as [[v Hev] Hvt]; clear He; split.
-      - apply Hvt in Hev as Hv; clear Hvt.
-        assert (exists v', sval_to_val rob v v')
-          by eauto using exec_val_exists.
+      intros i o e t d Hut He; autounfold with * in *; cbn in *.
+      intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
+      inversion Hok; subst; inversion H4; subst.
+      rename H1 into Hokt; rename H4 into Hokuop; rename H0 into Hoke.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hiset; rename H4 into Hispe; rename H0 into Hisee.
+      pose proof He Hgrt Hdelta Hoke Hisee _ _ Hrob Hg as [[v Hev] Hvt].
+      apply unary_type_eq in Hut as Hut_eq; subst t.
+      clear He Hgrt Hdelta Hoke Hisee; split.
+      - assert (exists v', sval_to_val rob v v') by eauto using exec_val_exists.
         destruct H as [v' Hv'].
+        apply Hvt in Hev as Hev'.
+        destruct Hev' as (r & Hr & Hvr).
+        pose proof exec_val_preserves_typ _ _ _ Hv' _ Hvr as Hv'r.
+        assert (Hutr: unary_type o r r).
+        { inversion Hut; subst;
+            try inv_numeric; try inv_numeric_width;
+              try match goal with
+                  | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
+                  end; cbn in *; try some_inv; auto. }
+        assert (Hutr_normᵗ: unary_type o (normᵗ r) (normᵗ r)).
+        { inversion Hutr; subst;
+            try inv_numeric;
+            try inv_numeric_width;
+            cbn; auto. }
         assert (exists v''', Ops.eval_unary_op o v' = Some v''').
-        (* Maybe try to factor this out?
-           Lemma exists_eval_unary_op : forall o v,
-           exists v', Ops.eval_unary_op o v = Some v'. *)
         { destruct (Ops.eval_unary_op o v') as [v'' |] eqn:Heqop; eauto.
-          inversion Hut; subst; try inv_numeric; try inv_numeric_width;
-            match goal with
-            | H: _ = typ_of_expr ?e,
-                 Hv: val_typ _ ?v (typ_of_expr ?e),
-                     Hv': sval_to_val _ ?v _
-              |- _ => rewrite <- H in *; inversion Hv; inversion Hv'; subst
-            end; simpl in *; try discriminate. }
-        firstorder eauto. admit.
+          inversion Hutr_normᵗ; subst;
+            try inv_numeric; try inv_numeric_width;
+              inversion Hv'r; subst; cbn in *; try discriminate;
+                try match goal with
+                    | H1: _ = ?a, H2: _ = ?a |- _ => rewrite <- H1 in H2; clear H1
+                    end;
+                try discriminate. }
+        destruct H as [v'' Hv'']; eauto.
       - clear v Hev; intros v Hev.
         inversion Hev; subst; simpl in *.
-        pose proof Hvt _ H7 as Hargsv.
-        pose proof
-             (@exec_val_preserves_typ
-                tags_t _ _ _ _ _ H8 (ge_senum ge)) as Hevpt.
-        assert (Hgsb : exists gsb,
-                   FuncAsMap.related
-                     (AList.all_values (exec_val rob))
-                     (ge_senum ge) gsb).
-        { admit. }
-        destruct Hgsb as [gsb Hgsb].
-        pose proof Hevpt _ Hgsb _ Hargsv as Hargv.
-        assert (Hv0: val_typ gsb v0 (typ_of_expr e))
-          by eauto using eval_unary_op_preserves_typ.
-        assert (Hgsb' :
-                  FuncAsMap.related
-                    (AList.all_values val_to_sval)
-                    gsb (ge_senum ge)).
-        { (* TODO:
-             Need assumption
-             [read_one_bit_inverse rob read_detbit]. *)
-          admit. }
-        eauto using exec_val_preserves_typ.*)
-    Admitted.
+        pose proof Hvt _ H7 as (r & Hr & Hvr); clear Hvt H7.
+        pose proof exec_val_preserves_typ _ _ _ H8 _ Hvr as Hargvr; clear H8 Hvr.
+        assert (Hr_eq : typ_of_expr e = r /\ r = normᵗ r).
+        { inversion Hut; subst; try inv_numeric; try inv_numeric_width;
+            try match goal with
+                | H: _ = typ_of_expr _ |- _ => rewrite <- H in *
+                end; cbn in *; try some_inv; auto. }
+        destruct Hr_eq as [Het Hrr]; subst r.
+        rewrite Hrr in Hut; eauto.
+    Qed.
 
-    Lemma binary_op_sound : forall tag o t e1 e2 dir,
+    Local Hint Resolve eval_binary_op_preserves_typ : core.
+    Local Hint Resolve binary_type_get_real_type : core.
+    Local Hint Resolve binary_type_normᵗ : core.
+    
+    Theorem binary_op_sound : forall tag o t e1 e2 dir,
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
-        Δ ~ Γ ⊢ₑ e1 ≀ this ->
-        Δ ~ Γ ⊢ₑ e2 ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e1 ->
+        (ge,this,Δ,Γ) ⊢ₑ e2 ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir.
     Proof.
-    Admitted.
+      intros i o t e1 e2 d Hbt He1 He2.
+      autounfold with * in *; cbn in *.
+      intros Hgrt Hged Hok His rob st Hrob Hgst.
+      inversion Hok; subst; inversion H4; subst.
+      rename H1 into Hokt; rename H4 into Heokb;
+        rename H2 into Hoke1; rename H5 into Hoke2.
+      inversion His; subst; inversion H4; subst.
+      rename H1 into Hiset; rename H4 into Hispe;
+        rename H2 into Hisee1; rename H5 into Hisee2.
+      pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrob Hgst as [[v1 Hev1] Hvt1].
+      pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrob Hgst as [[v2 Hev2] Hvt2].
+      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst; split.
+      - apply Hvt1 in Hev1 as Hev1'; destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
+        apply Hvt2 in Hev2 as Hev2'; destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
+        assert (Hv1': exists v1', sval_to_val rob v1 v1') by eauto using exec_val_exists.
+        assert (Hv2': exists v2', sval_to_val rob v2 v2') by eauto using exec_val_exists.
+        destruct Hv1' as [v1' Hv1']; destruct Hv2' as [v2' Hv2'].
+        assert (Hvr1': ⊢ᵥ v1' \: normᵗ r1) by eauto.
+        assert (Hvr2': ⊢ᵥ v2' \: normᵗ r2) by eauto.
+        pose proof binary_type_get_real_type
+             _ _ _ _ _ _ _ Hbt Hr1 Hr2 as (r & Hr & Hbr).
+        apply binary_type_normᵗ in Hbr.
+        assert (Hv: exists v, Ops.eval_binary_op o v1' v2' = Some v)
+          by eauto using eval_binary_op_ex.
+        destruct Hv as [v Hv].
+        assert (Hv': exists v', val_to_sval v v') by eauto.
+        eauto.
+      - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
+        apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
+        apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
+        assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1) by eauto using exec_val_preserves_typ.
+        assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2) by eauto using exec_val_preserves_typ.
+        assert (Hr : exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r)
+          by eauto using binary_type_get_real_type.
+        destruct Hr as (r & Hr & Hbr); eauto 6.
+    Qed.
   
-    Lemma cast_sound : forall tag e t dir,
+    Theorem cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpCast t e) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
     Proof.
     Admitted.
 
-    Lemma enum_member_sound : forall tag tname member ename members dir,
-        (* TODO: need [ge] of [genv].
-           name_to_type ge tname = Some (TypEnum ename None members) ->*)
-        List.In member members ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpTypeMember tname member)
-          (TypEnum ename None members) dir ≀ this.
+    Theorem enum_member_sound : forall tag X M E mems dir,
+        IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E None mems) ->
+        List.In (P4String.str M) (List.map P4String.str mems) ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
+          tag (ExpTypeMember X M)
+          (TypEnum E None mems) dir.
     Proof.
-      intros tag X M E mems dir Hmem.
-      intros Tgt rob ge st Hdlta Hrob Hg Hok Hise Hgrt; cbn in *; split.
-      - exists (ValBaseEnumField (P4String.str E) (P4String.str M)).
-        econstructor; eauto.
-        (* Need [X] to be bound in [Δ], [In X Δ]. *)
-        inversion Hok; subst. inversion H0; clear H0; subst.
-        unfold delta_genv_prop in Hdlta.
-        rewrite Forall_forall in Hdlta.
-        (* It is not enough to know
-           whether or not [X] is bound in [Δ], [In X Δ].
-           applying [Hdlta] only gives that
-           [exists r', get X ge = Some r' /\ [] ⊢ok r'].
-           [r'] Must be further constrained somehow...
-           It would be helpful if [X] was just substitued with
-           [TypEnum E None mems] by this point in the evaluation.
-           If [ExpTypeMember : P4Type -> P4String -> ExpressionPreT],
-           then either I could require it in this lemma's statement,
-           or in the definition of typing in [Typing.v]
-           I could perform a substitution using [genv_type],
-           which I've been implicitly doing already. *)
-        unfold gamma_expr_prop in Hg.
-        admit. (* Need some assumption for this? *)
-        admit.
-      - intros v Hrn.
-        (*Search (exec_expr _ _ _ _ (MkExpression _ (ExpTypeMember _ _) _ _)). *)
-        inversion Hrn; subst; solve_ex; split; auto.
-        + admit.
-        + admit. (* this case should not exist...*)
-    Admitted.
+      intros tag X M E mems dir Hget Hmem.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *; split; eauto.
+      intros v Hrn.
+      inversion Hrn; subst; solve_ex; split; auto.
+      - rewrite Hget in H7; some_inv; auto.
+      - rewrite Hget in H7; some_inv.
+    Qed.
 
-    Lemma senum_member_sound : forall tag tname member ename t members dir,
-        (*name_to_type ge tname = Some (TypEnum ename (Some etyp) members) ->
-          IdentMap.get ename (ge_senum ge) = Some fields ->*)
-        List.In member members ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpTypeMember tname member)
-          (TypEnum ename (Some t) members) dir ≀ this.
+    (*Theorem senum_member_sound :
+      forall tag X M E t (mems : list (P4String.t tags_t * Sval)) dir,
+        IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E (Some t) (map fst mems)) ->
+        (*IdentMap.get (P4String.str E) (ge_senum ge) = Some mems ->*)
+        List.In M (map fst mems) ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
+          tag (ExpTypeMember X M)
+          (TypEnum E (Some t) (map fst mems)) dir.
     Proof.
-    Admitted.
+      intros i X M E t mems dir HM.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
+      inversion Hok; subst; inversion H1; subst;
+        inversion H4; subst; inversion H0; subst.
+      rename H1 into Hokenumt; rename H4 into HokXM;
+        rename H0 into Hoksomet; rename H2 into HinX; rename H3 into Hokt.
+      inversion Hise; subst; inversion H1; subst.
+      rename H1 into Hisetenum; rename H4 into Hispe; rename H0 into Hiset. split.
+      - 
+      Admitted.*)
 
-    Lemma error_member_sound : forall tag err dir,
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpErrorMember err) TypError dir ≀ this.
+    Theorem error_member_sound : forall tag err dir,
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression
+          tag (ExpErrorMember err) TypError dir.
     Proof.
-      soundtac.
+      intros tag err dir; soundtac.
     Qed.
 
     Local Hint Resolve member_get_member_ex : core.
     Local Hint Resolve get_member_types : core.
     
-    Lemma other_member_sound : forall tag e x ts t dir,
+    Theorem other_member_sound : forall tag e x ts t dir,
         member_type ts (typ_of_expr e) ->
         AList.get ts x = Some t ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpExpressionMember e x) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
-      (* TODO: maybe need an [⊢ok] for all syntax forms of p4light...yikes!
-         For now I may be able to get away with just these assumptions. *)
       intros i e x ts t dir Hmem Hts He.
-      assert (Htoeok : Δ ⊢ok typ_of_expr e) by admit.
-      assert (Htoeise : is_expr_typ (typ_of_expr e)) by admit.
-      intros Tgt rob ge st Hdlta Hrob Hg Hok Hise Hgrt.
-      pose proof He Tgt rob ge st Hdlta Hrob Hg Htoeok Htoeise Hgrt as [[v Hev] Hv].
-      cbn in *; split.
+      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
+      inversion Hok; subst; inversion H4; subst.
+      rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
+      inversion Hise; subst; inversion H4; subst.
+      rename H1 into Hist; rename H4 into Hismem; rename H0 into Hise'.
+      pose proof He Hgrt Hdlta as [[v Hev] Hv]; eauto.
+      split.
       - assert (Hget: exists v', get_member v (P4String.str x) v').
         { apply Hv in Hev as (r & Hr & Hvr).
           pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
-          (*assert (Hwah :
-                    sequence (map (fun '(x,t) => get_real_type ge t >>| pair x) ts)
-                    = Some rs) by admit.
-          rewrite <- Forall2_sequence_iff in Hwah.
-          unfold ">>|",">>=",
-          option_monad_inst,option_monad,
-          option_bind,option_ret,mret
-            in Hwah.*)
-          apply member_type_normᵗ in Hmemrs.
+          apply member_type_normᵗ in Hmemrs as Hmemrs_norm.
           assert (Hlem3' : exists r',
                      AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
-          { clear Hv Hdlta Hg Hgrt Hok Hrob st Hise v Hvr Htoeise Htoeok
-                  i Hmem He dir rob this Δ Γ.
-            remember (typ_of_expr e) as te eqn:Heqte; clear Heqte.
-            exists (normᵗ r). admit. }
+          { clear i dir Γ Δ He Hdlta Hok
+                  Hg Hokt Hokmem Htoeok v Hvr Hise
+                  rob Hrob Hgrt Hv st.
+            pose proof member_type_get_real_type
+                 _ _ _ _ _
+                 Hmem Hmemrs Hr as Hlem.
+            apply f_equal with
+                (f := option_map (map (fun '(x,t) => (x,normᵗ t)))) in Hlem.
+            cbn in Hlem.
+            rewrite option_map_lift_monad,sequence_map in Hlem.
+            repeat rewrite map_pat_both in Hlem.
+            rewrite map_map in Hlem.
+            clear e Hmem Hismem Hise' Hist Hr r Hmemrs Hmemrs_norm.
+            unfold option_map,option_bind in Hlem.
+            unfold ">>|",">>=",mbind,mret,option_monad_inst,
+            option_bind in *.
+            generalize dependent t; generalize dependent rs.
+            induction ts as [| [y t] ts IHts];
+              intros [| [z r] rs] Hrs t' Hxt';
+              cbn in *; try discriminate;
+                repeat match_some_inv; repeat some_inv.
+            inversion H0; subst.
+            pose proof P4String.equiv_reflect x z as Hxz.
+            inversion Hxz; subst.
+            + rewrite AList.get_eq_cons by assumption; eauto.
+            + rewrite AList.get_neq_cons in Hxt' by assumption.
+              rewrite AList.get_neq_cons by assumption; eauto. }
           destruct Hlem3' as [r' Hr']; eauto. }
         destruct Hget as [v' Hv'].
         exists v'; eapply exec_expr_other_member; eauto.
       - clear v Hev; intros v Hev. inversion Hev; subst.
-        apply Hv in H7 as (r & Hr & Hvr).
-        pose proof ok_get_real_type_ex _ _ Hok _ Hdlta as [r' Hr'].
+        apply Hv in H7 as (r & Hr & Hvr); clear Hv.
+        pose proof ok_get_real_type_ex _ _ Hokt _ Hdlta as [r' Hr'].
         exists r'; split; auto.
         pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
+        pose proof member_type_get_real_type
+               _ _ _ _ _
+               Hmem Hmemrs Hr as Hlem.
         apply member_type_normᵗ in Hmemrs.
+        apply f_equal with
+            (f := option_map (map (fun '(x,t) => (x,normᵗ t)))) in Hlem.
+        cbn in Hlem.
+        rewrite option_map_lift_monad,sequence_map in Hlem.
+        repeat rewrite map_pat_both in Hlem.
+        rewrite map_map in Hlem.
+        unfold option_map,option_bind in Hlem.
         assert (Hlem3' :
-                  AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')) by admit.
+                  AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
+        { clear H8 Hvr Hev v Hist Htoeok
+                Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
+                Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
+          unfold ">>|",">>=",mbind,mret,option_monad_inst,
+          option_bind in *.
+          generalize dependent r'; generalize dependent t.
+          generalize dependent rs.
+          induction ts as [| [y t] ts IHts];
+            intros [| [z r] rs] Hrs t' Hxt' r' Ht'r';
+            cbn in *; try discriminate;
+              repeat match_some_inv; repeat some_inv.
+          inversion H0; subst.
+          pose proof P4String.equiv_reflect x z as Hxz.
+          inversion Hxz; subst.
+          + rewrite AList.get_eq_cons in Hxt' by assumption; some_inv.
+            rewrite AList.get_eq_cons by assumption.
+            rewrite Heqo2 in Ht'r'; some_inv; reflexivity.
+          + rewrite AList.get_neq_cons in Hxt' by assumption.
+            rewrite AList.get_neq_cons by assumption; eauto. }
         eauto.
-    Admitted.
+    Qed.
 
-    Lemma array_size_sound : forall tag e x dir t w,
+    Theorem array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)
         (w < 2 ^ 32)%N ->
         typ_of_expr e = TypArray t w ->
         P4String.str x = "size"%string ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpExpressionMember e x) (TypBit 32) dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
     Admitted.
 
-    Lemma array_last_index_sound : forall tag e x dir t w,
+    Theorem array_last_index_sound : forall tag e x dir t w,
         typ_of_expr e = TypArray t w ->
         P4String.str x = "lastIndex"%string ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression
-          tag (ExpExpressionMember e x) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
     Admitted.
 
-    Lemma ternary_sound : forall tag e₁ e₂ e₃ t dir,
+    Theorem ternary_sound : forall tag e₁ e₂ e₃ t dir,
         typ_of_expr e₁ = TypBool ->
         typ_of_expr e₂ = typ_of_expr e₃ ->
         typ_of_expr e₂ = t ->
-        Δ ~ Γ ⊢ₑ e₁ ≀ this ->
-        Δ ~ Γ ⊢ₑ e₂ ≀ this ->
-        Δ ~ Γ ⊢ₑ e₃ ≀ this ->
-        Δ ~ Γ ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e₁ ->
+        (ge,this,Δ,Γ) ⊢ₑ e₂ ->
+        (ge,this,Δ,Γ) ⊢ₑ e₃ ->
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
     Proof.
     Admitted.
   End ExprTyping.
@@ -617,84 +702,91 @@ Section Soundness.
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
     
-    Lemma assign_sound : forall tag e₁ e₂,
+    Theorem assign_sound : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
-        Δ ~ Γ ⊢ₑ e₁ ≀ this ->
-        Δ ~ Γ ⊢ₑ e₂ ≀ this \/ Δ ~ Γ ⊢ᵪ e₂ ≀ this ->
-        Δ ~ Γ ⊢ₛ MkStatement
-          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ ≀ this.
+        (ge,this,Δ,Γ) ⊢ₑ e₁->
+        (ge,this,Δ,Γ) ⊢ₑ e₂ \/ (ge,this,Δ,Γ) ⊢ᵪ e₂ ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
+          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma cond_sound : forall tag e s₁ s₂ Γ₁,
+    Theorem cond_sound : forall tag e s₁ s₂ Γ₁,
         typ_of_expr e = TypBool ->
-        Δ ~ Γ ⊢ₑ e ≀ this ->
-        Δ ~ Γ ⊢ₛ s₁ ⊣ Γ₁ ≀ this ->
-        predopt (fun s₂ => exists Γ₂, Δ ~ Γ ⊢ₛ s₂ ⊣ Γ₂ ≀ this) s₂ ->
-        Δ ~ Γ ⊢ₛ MkStatement
+        (ge,this,Δ,Γ) ⊢ₑ e->
+        (ge,this,Δ,Γ) ⊢ₛ s₁ ⊣ Γ₁ ->
+        predop (fun s₂ => exists Γ₂, (ge,this,Δ,Γ) ⊢ₛ s₂ ⊣ Γ₂) s₂ ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
           tag (StatConditional e s₁ s₂)
           (match s₂ with
            | None    => typ_of_stmt s₁
            | Some s₂ => lub_StmType (typ_of_stmt s₁) (typ_of_stmt s₂)
-           end) ⊣ Γ ≀ this.
+           end) ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma exit_sound : forall tag,
-        Δ ~ Γ ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ ≀ this.
+    Theorem exit_sound : forall tag,
+        (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
 
-    Lemma return_sound : forall tag e,
-        predopt (fun e => Δ ~ Γ ⊢ₑ e ≀ this) e ->
-        Δ ~ Γ ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ ≀ this.
+    Theorem return_sound : forall tag e,
+        predop (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
+        (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma empty_sound : forall tag,
-        Δ ~ Γ ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ ≀ this.
+    Theorem empty_sound : forall tag,
+        (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.
     Proof.
       unfold stmt_types; intros; split; eauto.
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
     
-    Lemma block_sound : forall Γ' tag blk t,
+    Theorem block_sound : forall Γ' tag blk t,
         Block_StmTypes blk t ->
-        Δ ~ Γ ⊢ᵦ blk ⊣ Γ' ≀ this ->
-        Δ ~ Γ ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ ≀ this.
+        (ge,this,Δ,Γ) ⊢ᵦ blk ⊣ Γ' ->
+        (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
-        Δ ~ Γ ⊢ᵪ MkExpression dummy_tags
+    Theorem method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
+        (ge,this,Δ,Γ)
+          ⊢ᵪ MkExpression dummy_tags
           (ExpFunctionCall e τs es)
-          TypVoid Directionless ≀ this ->
-        Δ ~ Γ ⊢ₛ MkStatement tag
-          (StatMethodCall e τs es) StmUnit ⊣ Γ ≀ this.
+          TypVoid Directionless ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement tag
+          (StatMethodCall e τs es) StmUnit ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ es,
-        Δ ~ Γ ⊢ₑ MkExpression dummy_tags
+    Theorem direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ es,
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
              (direct_application_expression τ)
-             nil (map Some es)) TypVoid Directionless ≀ this ->
-        Δ ~ Γ ⊢ₛ MkStatement tag
-          (StatDirectApplication τ es) StmUnit ⊣ Γ ≀ this.
+             nil (map Some es)) TypVoid Directionless ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement tag
+          (StatDirectApplication τ es) StmUnit ⊣ Γ.
     Proof.
     Admitted.
 
-    Lemma stat_variable_sound : forall tag τ x e l,
-        predopt
+    Theorem stat_variable_sound : forall tag τ x e l,
+        predop
           (fun e =>
              typ_of_expr e = τ /\
-             (Δ ~ Γ ⊢ₑ e ≀ this \/ Δ ~ Γ ⊢ᵪ e ≀ this)) e ->
-        Δ ~ Γ ⊢ₛ MkStatement
+             ((ge,this,Δ,Γ) ⊢ₑ e \/ (ge,this,Δ,Γ) ⊢ᵪ e)) e ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
           tag (StatVariable τ x e l) StmUnit
-          ⊣ bind_typ_gamma_stmt l τ Γ ≀ this.
+          ⊣ bind_typ_gamma_stmt l τ Γ.
     Proof.
     Admitted.
   End StmtTyping.

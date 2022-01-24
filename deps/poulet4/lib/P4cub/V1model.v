@@ -78,10 +78,14 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
       t_arg i PAIn htype "hdr"] in
   cub_seq i [
         ST.SApply parser  ext_args pargs    i;
-        (* ST.SApply v_check ext_args vck_args i; *)
-        ST.SApply ingress ext_args ing_args i;
-        ST.SApply egress  ext_args egr_args i;
-        det_fwd_asst i
+          (* ST.SApply v_check ext_args vck_args i; *)
+          ST.SConditional
+            (E.EVar E.TBool ("_state$accept$next") i)
+            (cub_seq i [
+                       ST.SApply ingress ext_args ing_args i;
+                     ST.SApply egress  ext_args egr_args i;
+                     det_fwd_asst i])
+            (ST.SSkip i) i
         (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
         (* ST.SApply   deparser ext_args dep_args NoInfo *)
     ].

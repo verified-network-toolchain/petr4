@@ -435,11 +435,11 @@ Program Fixpoint translate_pat tags e pat { struct pat } : result (E.e tags_t)  
   | Parser.PATTuple pats =>
     let* es := elim_tuple_expr e in
     let+ matches :=
-       ListUtil.fold_righti
+       ListUtil.fold_lefti
        (fun i p acc => let* acc := acc in
                        let* e := ListUtil.ith es i in
                        let+ cond := translate_pat tags e p in
-                       and cond acc)
+                       and acc cond)
        (ok (E.EBool true tags)) pats
     in
     matches
@@ -649,7 +649,7 @@ with inline (gas : nat)
             let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
             let set_action_run :=
                 IAssign act_type
-                          (E.EVar act_type "_return$ethertype_match.action_run" tags)
+                          (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
                           (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
             in
             (ISeq set_action_run s' tags) :: acc
@@ -657,7 +657,7 @@ with inline (gas : nat)
             error "[ERROR] expecting action when `find`ing action, got something else"
           end
         in
-        let* acts := fold_righti act_to_gcl (ok []) actions in
+        let* acts := fold_lefti act_to_gcl (ok []) actions in
         let+ named_acts := zip actions acts in
         let (assumes, keys') := normalize_keys tbl_name keys i in
         let invocation := IInvoke tbl_name keys' named_acts i in

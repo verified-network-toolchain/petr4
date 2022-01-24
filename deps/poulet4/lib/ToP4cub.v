@@ -1130,11 +1130,11 @@ Section ToP4cub.
     end.
 
   Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
-    fold_right (fun s res_acc => let* cub_s := translate_statement ctx s in
+    fold_left (fun res_acc s => let* cub_s := translate_statement ctx s in
                                  let+ acc := res_acc in
                                  ST.SSeq cub_s acc tags)
-               (ok (ST.SSkip tags))
-               statements.
+              statements
+              (ok (ST.SSkip tags)).
 
   Definition translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
     let '(MkParserState tags name statements transition) := pstate in

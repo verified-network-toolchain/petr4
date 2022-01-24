@@ -45,7 +45,7 @@ Definition action_inner (table : string) (keys : list (nat * BV.t * E.matchkind)
 
 Definition actions_encoding (table : string) (keys : list (nat * BV.t * E.matchkind)) (actions : list (string * ToGCL.target)) : result ToGCL.target :=
   let w := bits_to_encode_list_index actions in
-  fold_lefti (action_inner table keys w) (ok (G.GSkip)) actions.
+  fold_lefti (action_inner table keys w) (ok (G.GAssume (F.LBool false))) actions.
 
 Definition instr (table : string) (i : Info) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
   (* let* matchcond := matchrow table keys in *)

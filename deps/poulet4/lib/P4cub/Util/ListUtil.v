@@ -240,7 +240,7 @@ Fixpoint ith { A : Type } (xs : list A) (i : nat) : result A :=
   | x::xs =>
     match i with
     | O => ok x
-    | S i =>  ith xs (i-1)
+    | S i =>  ith xs i
     end
   end.
 

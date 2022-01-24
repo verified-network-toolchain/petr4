@@ -2617,30 +2617,41 @@ Definition f_table_match := {|
 |}.
 
 Definition composites : list composite_definition :=
-(Composite __585 Struct
-   ((__mp_alloc, tint) :: (__mp_size, tint) :: (__mp_d, (tptr tulong)) ::
-    nil)
-   noattr ::
- Composite _BitVec Struct
-   ((_is_signed, tint) :: (_width, tint) ::
-    (_value, (tarray (Tstruct __585 noattr) 1)) :: nil)
-   noattr ::
- Composite _Pat Struct
-   ((_mask, (Tstruct _BitVec noattr)) :: (_val, (Tstruct _BitVec noattr)) ::
-    nil)
-   noattr ::
- Composite _ActionRef Struct
-   ((_action, tint) :: (_arguments, (tptr (Tstruct _BitVec noattr))) ::
-    (_num_args, tint) :: nil)
-   noattr ::
- Composite _Entry Struct
-   ((_pattern, (tptr (Tstruct _Pat noattr))) ::
-    (_action_ref, (Tstruct _ActionRef noattr)) :: nil)
-   noattr ::
- Composite _Table Struct
-   ((_num_keys, tint) :: (_num_entries, tint) :: (_capacity, tint) ::
-    (_entries, (tptr (Tstruct _Entry noattr))) :: nil)
-   noattr :: nil).
+  (Composite
+     __585 Struct
+     (Member_plain
+        __mp_alloc tint ::
+        Member_plain __mp_size tint ::
+        Member_plain __mp_d (tptr tulong) :: nil)
+     noattr ::
+     Composite
+     _BitVec Struct
+     (Member_plain _is_signed tint ::
+                   Member_plain _width tint ::
+                   Member_plain _value (tarray (Tstruct __585 noattr) 1) :: nil)
+     noattr ::
+     Composite
+     _Pat Struct
+     (Member_plain _mask (Tstruct _BitVec noattr) ::
+                   Member_plain _val (Tstruct _BitVec noattr) :: nil)
+     noattr ::
+     Composite _ActionRef Struct
+     (Member_plain _action tint ::
+                   Member_plain _arguments (tptr (Tstruct _BitVec noattr)) ::
+                   Member_plain _num_args tint :: nil)
+    noattr ::
+    Composite
+    _Entry Struct
+    (Member_plain _pattern (tptr (Tstruct _Pat noattr)) ::
+                  Member_plain _action_ref (Tstruct _ActionRef noattr) :: nil)
+    noattr ::
+    Composite
+    _Table Struct
+    (Member_plain _num_keys tint ::
+                  Member_plain _num_entries tint ::
+                  Member_plain _capacity tint ::
+                  Member_plain _entries (tptr (Tstruct _Entry noattr)) :: nil)
+    noattr :: nil).
 
 Definition global_definitions : list (ident * globdef fundef type) :=
 ((___stringlit_1, Gvar v___stringlit_1) ::
@@ -3123,5 +3134,3 @@ Definition public_idents : list ident :=
 
 Definition prog : Clight.program := 
   mkprogram composites global_definitions public_idents _main Logic.I.
-
-

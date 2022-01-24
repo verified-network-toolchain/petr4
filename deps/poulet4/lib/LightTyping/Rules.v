@@ -530,7 +530,7 @@ Section Soundness.
 
     Theorem enum_member_sound : forall tag X M E mems dir,
         IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E None mems) ->
-        List.In M mems ->
+        List.In (P4String.str M) (List.map P4String.str mems) ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpTypeMember X M)

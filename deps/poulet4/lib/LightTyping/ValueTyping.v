@@ -62,8 +62,8 @@ Inductive val_typ
     Forall (fun v => ⊢ᵥ v \: t) vs ->
     ⊢ᵥ ValBaseStack vs n \: TypArray t (N.of_nat (length vs))
 | typ_enumfield : forall ename member members,
-    List.In member members ->
-    ⊢ᵥ ValBaseEnumField (P4String.str ename) (P4String.str member)
+    List.In (P4String.str member) (List.map P4String.str members) ->
+    ⊢ᵥ ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member)
      \: TypEnum ename None members
 | typ_senumfield : forall ename v t fields,
     ⊢ᵥ v \: t ->
@@ -115,9 +115,9 @@ Section ValTypInd.
       Forall (fun v => P v t) vs ->
       P (ValBaseStack vs n) (TypArray t (N.of_nat (length vs))).
   Hypothesis HEnum : forall ename member members,
-      List.In member members ->
+      List.In (P4String.str member) (List.map P4String.str members) ->
       P
-        (ValBaseEnumField (P4String.str ename) (P4String.str member))
+        (ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member))
         (TypEnum ename None members).
   Hypothesis HSenum : forall ename v t fields,
       val_typ v t ->

@@ -4,7 +4,6 @@ Require Import Coq.NArith.NArith.
 Require Import Poulet4.Syntax.
 Require Import Poulet4.SyntaxUtil.
 Require Import Poulet4.ValueUtil.
-Require Import Poulet4.ExprInd.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 Require Poulet4.Semantics.
@@ -241,7 +240,7 @@ Section InterpreterSafe.
       try solve [simpl; intros; congruence].
     - intros.
       simpl.
-      inversion H; subst. 
+      inversion H; subst.
       constructor.
     - intros.
       cbn in H.
@@ -766,7 +765,7 @@ Section InterpreterSafe.
       optbind_inv.
       econstructor; eauto using interp_expr_det_safe.
   Qed.
-  
+
   Lemma interp_matches_safe:
     forall this st matches vsets,
       Interpreter.interp_matches ge this st matches = Some vsets ->
@@ -945,7 +944,7 @@ Section InterpreterSafe.
         econstructor.
         econstructor;
           eauto using sval_to_val_interp, interp_expr_safe.
-      + inversion H. 
+      + inversion H.
         subst.
         econstructor.
     - cbn in H.

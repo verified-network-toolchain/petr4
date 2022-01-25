@@ -1355,17 +1355,17 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     force_continue_signal sig = sig' ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatMethodCall func targs args) typ) st' sig'
-| exec_stmt_direct_application : forall this_path st tags typ' args typ st' sig sig',
+| exec_stmt_direct_application : forall this_path st tags typ' func_typ args typ st' sig sig',
       exec_call read_one_bit this_path st
                 (MkExpression
                    dummy_tags
                    (ExpFunctionCall
                       (direct_application_expression typ')
-                      nil (map Some args)) TypVoid Directionless)
+                      nil args) TypVoid Directionless)
                 st' sig ->
       force_continue_signal sig = sig' ->
       exec_stmt read_one_bit this_path st
-                (MkStatement tags (StatDirectApplication typ' args) typ) st' sig'
+                (MkStatement tags (StatDirectApplication typ' func_typ args) typ) st' sig'
 | exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
     exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
@@ -1756,7 +1756,7 @@ End instantiate_class_body.
 (* Currently, we only handle direct application but not StatInstantiation. *)
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
-  | MkStatement _ (StatDirectApplication typ _) _  =>
+  | MkStatement _ (StatDirectApplication typ _ _) _  =>
       [DeclInstantiation dummy_tags typ nil (P4String.Build_t tags_t inhabitant_tags_t (get_type_name typ)) []]
   | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
   | _ => []

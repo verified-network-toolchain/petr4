@@ -550,13 +550,13 @@ Section Interpreter.
         let* (st', sig) := interp_call this st fuel (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless) in
         let sig' := force_continue_signal sig in
         Some (st', sig')
-      | MkStatement tags (StatDirectApplication typ' args) typ =>
+      | MkStatement tags (StatDirectApplication typ' func_typ args) typ =>
         let* (st', sig) := interp_call this st fuel
                 (MkExpression
                    dummy_tags
                    (ExpFunctionCall
                       (direct_application_expression typ')
-                      nil (List.map Some args)) TypVoid Directionless) in
+                      nil args) TypVoid Directionless) in
         let sig' := force_continue_signal sig in
         Some (st', sig')
       | MkStatement tags (StatConditional cond tru (Some fls)) typ =>

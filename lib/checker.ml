@@ -2596,21 +2596,14 @@ and type_direct_application env ctx stmt_info typ args =
   let open Surface.Expression in
   let instance = NamelessInstantiation {typ = typ; args = []} in
   let apply = ExpressionMember {expr = Info.dummy, instance;
-                                name = {tags=Info.dummy; str="apply"}} in
-  let call = FunctionCall {func = Info.dummy, apply;
-                           type_args = [];
-                           args} in
-  let call_typed = type_expression env expr_ctx (Info.dummy, call) in
-  match preexpr_of_expr call_typed with
-  | ExpFunctionCall (func, [], args) ->
-    let args =
-      List.map args
-        ~f:(function
-            | Some a -> a
-            | None -> failwith "missing argument")
-    in
+                                name = {tags = Info.dummy; str="apply"}} in
+  let call, _, dir =
+    type_function_call env expr_ctx Info.dummy (Info.dummy, apply) [] args
+  in
+  match call with
+  | ExpFunctionCall (MkExpression (_, _, func_typ, _), type_args, args) ->
     let stmt: P4light.coq_StatementPreT =
-      StatDirectApplication (translate_type env typ, args)
+      StatDirectApplication (translate_type env typ, func_typ, args)
     in
     MkStatement (stmt_info, stmt, StmUnit),
     env

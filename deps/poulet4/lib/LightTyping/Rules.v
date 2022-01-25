@@ -766,15 +766,15 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Theorem direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ es,
+    Theorem direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ τ' es,
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
              (direct_application_expression τ)
-             nil (map Some es)) TypVoid Directionless ->
+             nil es) TypVoid Directionless ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement tag
-          (StatDirectApplication τ es) StmUnit ⊣ Γ.
+          (StatDirectApplication τ τ' es) StmUnit ⊣ Γ.
     Proof.
     Admitted.
 

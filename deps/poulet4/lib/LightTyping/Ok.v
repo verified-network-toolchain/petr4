@@ -227,10 +227,10 @@ with StatementPreT_ok
     Δ ⊢okᵉ e₁ ->
     Δ ⊢okᵉ e₂ ->
     Δ ⊢ok`ˢ StatAssignment e₁ e₂
-| StatDirectApplication_ok t es :
+| StatDirectApplication_ok t t' es :
     Δ ⊢ok t ->
-    Forall (Expression_ok Δ) es ->
-    Δ ⊢ok`ˢ StatDirectApplication t es
+    Forall (predop (Expression_ok Δ)) es ->
+    Δ ⊢ok`ˢ StatDirectApplication t t' es
 | StatConditional_ok e s₁ s₂ :
     Δ ⊢okᵉ e ->
     Δ ⊢okˢ s₁ ->

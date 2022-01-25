@@ -129,7 +129,8 @@ Section Syntax.
   | StatAssignment (lhs: Expression)
                    (rhs: Expression)
   | StatDirectApplication (typ: @P4Type tags_t)
-                          (args: list Expression)
+                          (func_typ: @P4Type tags_t)
+                          (args: list (option Expression))
   | StatConditional (cond: Expression)
                     (tru: Statement)
                     (fls: option Statement)
@@ -193,9 +194,9 @@ Section Syntax.
                         PStatementPreT (StatMethodCall func type_args args))
       (HStatAssignment: forall lhs rhs,
                         PStatementPreT (StatAssignment lhs rhs))
-      (HStatDirectApplication: forall typ args,
+      (HStatDirectApplication: forall typ func_typ args,
                                PStatementPreT
-                                (StatDirectApplication typ args))
+                                (StatDirectApplication typ func_typ args))
       (HStatConditional: forall cond tru fls,
                          PStatement tru ->
                          PStatementMaybe fls ->
@@ -255,8 +256,8 @@ Section Syntax.
         HStatMethodCall func type_args args
       | StatAssignment lhs rhs =>
         HStatAssignment lhs rhs
-      | StatDirectApplication typ args =>
-        HStatDirectApplication typ args
+      | StatDirectApplication typ func_typ args =>
+        HStatDirectApplication typ func_typ args
       | StatConditional cond tru fls =>
         HStatConditional cond tru fls
           (statement_rec tru)

@@ -305,9 +305,15 @@ Definition assume b tags :=
   let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
   IExternMethodCall "_" "assume" args tags.
 
-Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (tags : tags_t) :=
+Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
   let symb_key := E.EVar key_type symb_var tags in
-  (symb_key, E.EBop E.TBool E.Eq symb_key key tags).
+  let eq_cond := E.EBop E.TBool E.Eq symb_key key tags in
+  match mk with
+  | E.MKExact =>
+    (symb_key, eq_cond, E.EBool false tags)
+  | _ =>
+    (symb_key, eq_cond, E.EVar E.TBool (symb_var ++ "$DONTCARE") tags)
+  end.
 
 Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i tags :=
   let keyname := "_symb$" ++ t ++ "$match_" ++ string_of_nat i in
@@ -315,8 +321,9 @@ Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i t
   | [] => (ISkip tags, [])
   | ((key_type, key_expr, key_mk)::keys) =>
     let (assumes, new_keys) := normalize_keys_aux t keys (i+1) tags in
-    let (symb_key, eq) := realize_symbolic_key keyname key_type key_expr tags in
-    (ISeq (assume eq tags) assumes tags, (key_type, symb_key, key_mk)::new_keys)
+    let '(symb_key, eq, skip_eq) := realize_symbolic_key keyname key_type key_expr key_mk tags in
+    let new_assume := IConditional E.TBool skip_eq (ISkip tags) (assume eq tags) tags in
+    (ISeq new_assume assumes tags, (key_type, symb_key, key_mk)::new_keys)
   end.
 
 Definition normalize_keys t keys := normalize_keys_aux t keys 0.

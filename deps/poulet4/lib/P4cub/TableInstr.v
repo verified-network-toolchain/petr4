@@ -16,10 +16,6 @@ Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
   G.GAssume (F.bveq (BV.BVVar s w) r).
 
 Open Scope string_scope.
-(* Rewrite Plan *)
-(* ✓ 1. Add _.assume extern *)
-(* ✓ 2. Normalize tables with symbolic variables *)
-(* 3. Write p4cub->p4cub instrumentation pass to assert header validity *)
 Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * E.matchkind) (acc_res : result F.t) : result F.t :=
   let (te, mk) := elt in
   let (w, k) := te in

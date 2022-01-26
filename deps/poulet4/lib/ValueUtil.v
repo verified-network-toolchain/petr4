@@ -1,7 +1,8 @@
 Require Import Coq.Strings.String Coq.ZArith.ZArith Coq.Lists.List.
 Require Import Poulet4.Value Poulet4.Typed Poulet4.P4String
                Poulet4.SyntaxUtil Poulet4.AList VST.zlist.Zlist.
-Require Import Poulet4.P4Notations Poulet4.Monads.Monad Poulet4.Monads.Option.
+Require Import Poulet4.P4Notations Poulet4.Monads.Monad Poulet4.Monads.Option
+        Poulet4.ForallMap.
 Import ListNotations.
 
 Section ValueUtil.
@@ -216,35 +217,7 @@ Section ValueUtil.
   Definition vals_to_svals :=
     Forall2 val_to_sval.
 
-  Fixpoint eval_val_to_sval (val: Val): Sval :=
-    let fix eval_val_to_svals (vl: list Val): list Sval :=
-      match vl with
-      | [] => []
-      | s :: rest => eval_val_to_sval s :: eval_val_to_svals rest
-      end in
-    let fix val_to_avals (sl: StringAList Val): StringAList Sval :=
-      match sl with
-      | [] => []
-      | (k, s) :: rest => (k, eval_val_to_sval s) :: val_to_avals rest
-      end in
-    match val with
-    | ValBaseNull => ValBaseNull
-    | ValBaseBool b => ValBaseBool (Some b)
-    | ValBaseInteger z => ValBaseInteger z
-    | ValBaseBit vl => ValBaseBit (map Some vl)
-    | ValBaseInt vl => ValBaseInt (map Some vl)
-    | ValBaseVarbit m vl => ValBaseVarbit m (map Some vl)
-    | ValBaseString s => ValBaseString s
-    | ValBaseTuple vl => ValBaseTuple (eval_val_to_svals vl)
-    | ValBaseError s => ValBaseError s
-    | ValBaseMatchKind s => ValBaseMatchKind s
-    | ValBaseStruct rl => ValBaseStruct (val_to_avals rl)
-    | ValBaseHeader rl b => ValBaseHeader (val_to_avals rl) (Some b)
-    | ValBaseUnion rl => ValBaseUnion (val_to_avals rl)
-    | ValBaseStack vl n => ValBaseStack (eval_val_to_svals vl) n
-    | ValBaseEnumField t e => ValBaseEnumField t e
-    | ValBaseSenumField t v => ValBaseSenumField t (eval_val_to_sval v)
-    end.
+  Definition eval_val_to_sval : Val -> Sval := ValueBaseMap Some.
 
   Fixpoint uninit_sval_of_typ
            (hvalid : option bool) (typ : @P4Type tags_t): option Sval :=
@@ -338,62 +311,74 @@ Section ValueUtil.
 
 End ValueUtil.
 
+Local Hint Unfold read_detbit : core.
+Local Hint Unfold sval_to_val : core.
+Local Hint Unfold val_to_sval : core.
+Local Hint Constructors exec_val : core.
+    
+Lemma val_to_sval_ex : forall v,
+    val_to_sval v (ValueBaseMap Some v).
+Proof.
+  autounfold with *; intro v.
+  induction v using (custom_ValueBase_ind bool); simpl; eauto;
+    try (constructor; rewrite <- Forall2_map_r, Forall2_Forall;
+         (rewrite Forall_forall; reflexivity) || assumption);
+    try (constructor; auto; unfold AList.all_values;
+         rewrite <- Forall2_map_r, Forall2_Forall;
+         rewrite Forall_snd in H;
+         apply Forall_and; rewrite Forall_forall in *;
+         intros [? ?]; firstorder).
+Qed.
+
 Lemma val_to_sval_iff:
   forall v1 v2, val_to_sval v1 v2 <-> eval_val_to_sval v1 = v2.
 Proof.
-  remember (fix eval_val_to_svals (vl : list ValueBase) : list ValueBase :=
-              match vl with
-              | [] => []
-              | s :: rest => eval_val_to_sval s :: eval_val_to_svals rest
-              end) as eval_val_to_svals. rename Heqeval_val_to_svals into Hsvals.
-  remember (fix val_to_avals (sl : StringAList ValueBase) : StringAList ValueBase :=
-              match sl with
-              | [] => []
-              | (k, s) :: rest => (k, eval_val_to_sval s) :: val_to_avals rest
-              end) as val_to_avals. rename Heqval_to_avals into Havals.
-  intros. split. intros.
-  - revert v2 H.
-    induction v1 using custom_ValueBase_ind; intros; try (now inversion H).
-    + inversion H; subst. inversion H1. now simpl.
-    + inversion H; subst; clear H. simpl. induction H1; simpl; auto. inversion H.
-      now inversion IHForall2.
-    + inversion H; subst; clear H. simpl. induction H1; simpl; auto. inversion H.
-      now inversion IHForall2.
-    + inversion H; subst; clear H. simpl. induction H3; simpl; auto. inversion H.
-      now inversion IHForall2.
-    + inversion H0. subst lv v2. clear H0. simpl. rewrite <- Hsvals. revert lv' H2.
-      induction H; intros; rewrite Hsvals. 1: now inversion H2. rewrite <- Hsvals.
-      inversion H2. subst x0 l0 lv'. clear H2. apply H in H4. rewrite H4.
-      apply IHForall in H6. now inversion H6.
-    + inversion H0. subst kvs v2. clear H0. simpl. rewrite <- Havals. revert kvs' H2.
-      induction H; intros; rewrite Havals. 1: now inversion H2. rewrite <- Havals.
-      destruct x. inversion H2. subst x l0 kvs'. clear H2. destruct y. simpl fst in *.
-      simpl snd in *. destruct H4. subst s0. apply H in H2. subst v0.
-      apply IHForall in H6. now inversion H6.
-    + inversion H0. subst kvs v2 b0. clear H0. inversion H3. subst b'. clear H3.
-      simpl. rewrite <- Havals. revert kvs' H5. induction H; intros; rewrite Havals.
-      1: now inversion H5. rewrite <- Havals. destruct x. inversion H5.
-      subst x l0 kvs'. clear H5. destruct y. simpl fst in *. simpl snd in *.
-      destruct H3. subst s0. apply H in H2. subst v0. apply IHForall in H6.
-      now inversion H6.
-    + inversion H0. subst kvs v2. clear H0. simpl. rewrite <- Havals. revert kvs' H2.
-      induction H; intros; rewrite Havals. 1: now inversion H2. rewrite <- Havals.
-      destruct x. inversion H2. subst x l0 kvs'. clear H2. destruct y. simpl fst in *.
-      simpl snd in *. destruct H4. subst s0. apply H in H2. subst v0.
-      apply IHForall in H6. now inversion H6.
-    + inversion H0. subst lv next v2. clear H0. simpl. rewrite <- Hsvals.
-      revert lv' H4. induction H; intros; rewrite Hsvals. 1: now inversion H4.
-      rewrite <- Hsvals. inversion H4. subst x0 l0 lv'. clear H4. apply H in H3.
-      rewrite H3. apply IHForall in H6. now inversion H6.
-    + inversion H; subst; clear H. simpl. apply IHv1 in H3. now subst.
-  - intros. subst v2. induction v1 using Value.custom_ValueBase_ind;
-      try (now constructor); simpl.
-    1, 3: constructor; induction n; simpl; constructor; auto; easy.
-    1: constructor; induction z; simpl; constructor; auto; easy.
-    1, 5: rewrite <- Hsvals; constructor; induction H; rewrite Hsvals;
-    [constructor | rewrite <- Hsvals; constructor; auto].
-    1, 3: rewrite <- Havals; constructor; induction H; rewrite Havals;
-    [constructor | rewrite <- Havals; destruct x; constructor; simpl; auto].
-    rewrite <- Havals. constructor. 1: constructor. induction H; rewrite Havals.
-    1: constructor. rewrite <- Havals. destruct x. constructor; simpl; auto.
+  unfold eval_val_to_sval.
+  intros; split; intros H; subst; eauto using val_to_sval_ex.
+  unfold val_to_sval, read_detbit in H.
+  induction H using custom_exec_val_ind; cbn in *; subst;
+    try match goal with
+        | H:Forall2 (fun b b' => b' = Some b) ?l _
+          |- context [map Some ?l]
+          => rewrite Forall2_flip in H;
+              rewrite Forall2_map_r with
+                  (f:=Some) (R:=eq) in H;
+              rewrite Forall2_eq in H; subst
+        | H: Forall2 (fun _ _ => ValueBaseMap Some _ = _) ?l _
+          |- context [map (ValueBaseMap Some) ?l]
+          => rewrite Forall2_map_l,Forall2_eq in H; subst
+        | H:all_values (fun _ _ => ValueBaseMap Some _ = _) ?kvs _
+          |- context [map (fun '(x,v) => (x,ValueBaseMap Some v)) ?kvs]
+          => unfold all_values in H;
+              rewrite Forall2_conj in H;
+              destruct H as [Hfst Hsnd];
+              rewrite Forall2_map_both,Forall2_eq in Hfst,Hsnd;
+              rewrite <- map_map in Hsnd;
+              rewrite map_pat_combine,map_id,
+              Hfst,Hsnd,combine_map_fst_snd
+        end; reflexivity.
+Qed.
+
+Lemma sval_to_val_eval_val_to_sval : forall (rob : option bool -> bool -> Prop) v,
+    (forall b, rob (Some b) b) ->
+    sval_to_val rob (eval_val_to_sval v) v.
+Proof.
+  intros rob v H; autounfold with *; unfold eval_val_to_sval.
+  induction v using custom_ValueBase_ind; cbn; auto;
+    try (constructor;
+         rewrite <- Forall2_map_l,
+         Forall2_Forall;
+         assumption || (rewrite Forall_forall; auto); assumption);
+    try  match goal with
+         | H: Forall (fun '(_,v) => exec_val rob (ValueBaseMap Some v) v) ?vs
+           |- context [map (fun '(x,v) => (x, ValueBaseMap Some v)) ?vs]
+           => constructor; auto; unfold all_values;
+               rewrite Forall2_conj;
+               rewrite Forall2_map_both with (f:=fst) (g:=fst);
+               rewrite Forall2_map_both with (f:=snd) (g:=snd);
+               rewrite Forall2_eq,map_fst_map,map_snd_map,map_id,
+               <- Forall2_map_l,Forall2_Forall;
+               rewrite Forall_map; unfold Basics.compose;
+                 rewrite Forall_snd in H; split; reflexivity || assumption
+         end.
 Qed.

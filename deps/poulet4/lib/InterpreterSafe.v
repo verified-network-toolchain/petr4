@@ -24,28 +24,16 @@ Ltac destruct_optbind H :=
 Lemma val_to_sval_eval:
   forall v : Value.ValueBase, val_to_sval v (eval_val_to_sval v).
 Proof.
-  remember (fix eval_val_to_svals (vl : list Value.ValueBase) : list Value.ValueBase :=
-              match vl with
-              | nil => nil
-              | (s :: rest)%list => (eval_val_to_sval s :: eval_val_to_svals rest)%list
-              end) as eval_val_to_svals. rename Heqeval_val_to_svals into Hevals.
-  remember (fix val_to_avals (sl : AList.StringAList Value.ValueBase) :
-             AList.StringAList Value.ValueBase :=
-              match sl with
-              | nil => nil
-              | ((k, s) :: rest)%list =>
-                  ((k, eval_val_to_sval s) :: val_to_avals rest)%list
-              end) as val_to_avals. rename Heqval_to_avals into Havals.
   unfold val_to_sval.
   induction v using Value.custom_ValueBase_ind; try (now constructor); simpl.
   1, 3: constructor; induction n; simpl; constructor; auto; easy.
   1: constructor; induction z; simpl; constructor; auto; easy.
-  1,5: rewrite <- Hevals; constructor; induction H; rewrite Hevals;
-  [constructor | rewrite <- Hevals; constructor; auto].
-  1, 3: rewrite <- Havals; constructor; induction H; rewrite Havals;
-  [constructor | rewrite <- Havals; destruct x; constructor; simpl; auto].
-  rewrite <- Havals. constructor. 1: constructor. induction H; rewrite Havals.
-  1: constructor. rewrite <- Havals. destruct x. constructor; simpl; auto.
+  1,5: constructor; induction H;
+    [constructor | constructor; auto].
+  1, 3: constructor; induction H;
+  [constructor | destruct x; constructor; simpl; auto].
+  constructor. 1: constructor. induction H.
+  1: constructor. destruct x. constructor; simpl; auto.
 Qed.
 
 #[local] Hint Resolve val_to_sval_eval : core.

@@ -332,19 +332,19 @@ Definition loc_to_sval (loc : Locator) (s : state) : option Sval :=
   | LGlobal p =>
       None
   end.
-  
-Variable ge : genv.
 
-Definition loc_to_val_const (this : path) (loc : Locator) : option Val :=
+Definition loc_to_val_const
+           (gec : genv_const)
+           (this : path) (loc : Locator) : option Val :=
   match loc with
-  | LInstance p =>
-      PathMap.get (this ++ p) (ge_const ge)
-  | LGlobal p =>
-      PathMap.get p (ge_const ge)
+  | LInstance p => PathMap.get (this ++ p) gec
+  | LGlobal p   => PathMap.get p gec
   end.
 
+Variable ge : genv.
+
 Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
-  option_map eval_val_to_sval (loc_to_val_const this loc).
+  option_map eval_val_to_sval (loc_to_val_const (ge_const ge) this loc).
 
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->

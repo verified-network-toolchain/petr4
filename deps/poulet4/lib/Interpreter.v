@@ -555,7 +555,7 @@ Section Interpreter.
                 (MkExpression
                    dummy_tags
                    (ExpFunctionCall
-                      (direct_application_expression typ')
+                      (direct_application_expression typ' func_typ)
                       nil args) TypVoid Directionless) in
         let sig' := force_continue_signal sig in
         Some (st', sig')

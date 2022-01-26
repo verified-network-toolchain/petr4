@@ -824,7 +824,7 @@ Section Soundness.
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
-             (direct_application_expression τ)
+             (direct_application_expression τ τ')
              nil es) TypVoid Directionless ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement tag

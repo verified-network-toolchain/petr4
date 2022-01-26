@@ -1187,10 +1187,9 @@ Definition extract_invals (args : list argument) : list Sval :=
     end in
   flat_map f args.
 
-Definition direct_application_expression (typ : P4Type) : @Expression tags_t :=
+Definition direct_application_expression (typ : P4Type) (func_typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
-  MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) dummy_type (* TODO place the actual function type *)
-  Directionless.
+  MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) func_typ Directionless.
 
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
 Definition empty_block := (BlockEmpty dummy_tags).
@@ -1360,7 +1359,7 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
                 (MkExpression
                    dummy_tags
                    (ExpFunctionCall
-                      (direct_application_expression typ')
+                      (direct_application_expression typ' func_typ)
                       nil args) TypVoid Directionless)
                 st' sig ->
       force_continue_signal sig = sig' ->

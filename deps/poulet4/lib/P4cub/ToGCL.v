@@ -706,9 +706,10 @@ Section ToGCL.
 
     Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
       let* inline_stmt := Inline.inline _ gas unroll ctx s in
-      let* no_tup := Inline.elim_tuple _ inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
-      let* no_hdr := Inline.elaborate_headers _ no_stk in
+      let* no_stk := Inline.elaborate_header_stacks _ inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks _ no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
+      let* no_tup := Inline.elim_tuple _ no_stk in
+      let* no_hdr := Inline.elaborate_headers _ no_tup in
       let* no_structs := Inline.elaborate_structs _ no_hdr in
       let* no_slice := Inline.eliminate_slice_assignments _ no_structs in
       (* let* hdrs_valid := Inline.assert_headers_valid_before_use _ no_slice in *)

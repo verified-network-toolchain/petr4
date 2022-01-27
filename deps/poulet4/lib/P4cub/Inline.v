@@ -117,6 +117,10 @@ Inductive t : Type :=
 | IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i : tags_t)
 | IExternMethodCall (extn : string) (method : string) (args : E.arrowE tags_t) (i : tags_t).
 
+Definition assume b tags :=
+  let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
+  IExternMethodCall "_" "assume" args tags.
+
 Definition rename_string (table action x : string) (params : list string) :=
   if fold_right (fun y => orb (String.eqb x y)) false params
   then "_symb$" ++ table ++ "$" ++ action ++ "$arg$" ++ x
@@ -278,6 +282,8 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs str
           let param_i := index_array_str param i in
           let es := elaborate_arg_expression param_i e in
           List.app es acc) [] es
+  | E.EHeaderStackAccess fs stk idx tags =>
+    List.fold_right (loop tags) [is_valid tags] fs
   | _ => [(param, arg)]
   end.
 
@@ -301,9 +307,6 @@ Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
 
-Definition assume b tags :=
-  let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
-  IExternMethodCall "_" "assume" args tags.
 
 Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
   let symb_key := E.EVar key_type symb_var tags in
@@ -464,6 +467,13 @@ Definition lookup_parser_states (names : list string) states :=
         | Some s => (n,s) :: acc
         end) [] names.
 
+Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags : tags_t) :=
+  F.fold (fun f _ acc => if String.eqb f "start"
+                         then ISeq (set_state_flag f true tags) acc tags
+                         else ISeq (set_state_flag f false tags) acc tags)
+         states
+         (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
+
 Open Scope list_scope.
 Fixpoint inline_state
          (gas : nat)
@@ -600,8 +610,8 @@ with inline (gas : nat)
           match pdecl with
           | TD.TPParser _ _ _ _ start states tags =>
             let+ parser := inline_parser gas unroll tags ctx "start" start states in
-            ISeq (set_state_flag "start" true tags)
-                 parser tags
+            let init := init_parser states tags in
+            ISeq init  parser tags
           (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
           | _ =>
             error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
@@ -818,6 +828,47 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   | S n' => f n (ifold n' f init)
   end.
 
+Search (nat -> positive).
+
+Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : Inline.t :=
+  let t := E.THeader fields in
+  let extract arrow := IExternMethodCall extern "extract" arrow tags in
+  let hdr_elem idx := E.EHeaderStackAccess fields hs (BinIntDef.Z.of_nat idx) tags in
+  let valid i := E.EUop E.TBool E.IsValid (hdr_elem i) tags in
+  let invalid i := E.EUop E.TBool E.Not (valid i) tags in
+  let and a b := E.EBop E.TBool E.And a b tags in
+  let lst := E.EExprMember t "last" hs tags in
+  let arrow i := elaborate_arrowE ({| paramargs := [(hdr, PAOut (hdr_elem i))]; rtrns := None |}) in
+  let ift b c := IConditional E.TBool b c (ISkip tags) tags in
+  let next_and_last i :=
+      (ISeq (extract (arrow i))
+            (IAssign t lst (hdr_elem i) tags)
+            tags) in
+  ifold (BinPosDef.Pos.to_nat (BinPosDef.Pos.pred num))
+        (fun i acc => ISeq acc
+                           (ift (and (valid i) (invalid (i-1)))
+                                (next_and_last i))
+                           tags)
+        (ift (invalid 0) (next_and_last 0)).
+
+Definition elaborate_extract extern (arrow : E.arrowE tags_t) (tags : tags_t) : result Inline.t :=
+  match arrow.(paramargs) with
+  | [(hdr, (PAOut arg))] =>
+    match arg with
+    | E.EExprMember (E.THeaderStack fields num) mem header_stack tags =>
+      if String.eqb mem "next"
+      then ok (extract_next extern fields num hdr header_stack tags)
+      else let arrow := elaborate_arrowE arrow in
+           ok (IExternMethodCall extern "extract" arrow tags)
+    | _ =>
+      let arrow := elaborate_arrowE arrow in
+      ok (IExternMethodCall extern "extract" arrow tags)
+    end
+  | _ =>
+    let arrow := elaborate_arrowE arrow in
+    ok (IExternMethodCall extern "extract" arrow tags)
+  end.
+
 Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   match c with
   | ISkip _ => ok c
@@ -875,8 +926,10 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
     let+ actions' := fold_right rec_act_call (ok []) actions in
     IInvoke x keys actions' i
   | IExternMethodCall extern method arrow tags =>
-    let arrow := elaborate_arrowE arrow in
-    ok (IExternMethodCall extern method arrow tags)
+    if String.eqb method "extract"
+    then elaborate_extract extern arrow tags
+    else let arrow := elaborate_arrowE arrow in
+         ok (IExternMethodCall extern method arrow tags)
   | ISetValidity _ _ _ =>
     (* TODO Eliminate header stack literals from expressions *)
     ok c

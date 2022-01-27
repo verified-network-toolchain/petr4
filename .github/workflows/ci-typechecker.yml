@@ -15,6 +15,7 @@ jobs:
     container:
       image: pataei/petr4
     steps: 
+      - uses: actions/checkout@v2
       - name: typecheck test petr4 vs p4c
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash

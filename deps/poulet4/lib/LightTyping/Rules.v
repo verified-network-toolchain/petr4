@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops.
+Require Export Poulet4.LightTyping.Lemmas Poulet4.Ops Poulet4.LightTyping.CTK.
 
 (** * P4light Typing Rules of Inference *)
 
@@ -49,7 +49,7 @@ Section Soundness.
     
     Ltac soundtac :=
       autounfold with *;
-      intros Hgrt Hdlta Hok Hise rob st Hrob Hg;
+      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg;
       inversion Hok; subst; inversion Hise; subst;
       split; eauto;
       try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex);
@@ -139,7 +139,7 @@ Section Soundness.
     Qed.
     
     Theorem array_access_sound : forall tag arry idx ts dir n,
-        0 < N.to_nat n ->
+        (0 < N.to_nat n)%nat ->
         typ_of_expr arry = TypArray (TypHeader ts) n ->
         typ_of_expr idx  = TypBit n ->
         (ge,this,Δ,Γ) ⊢ₑ arry ->
@@ -150,7 +150,7 @@ Section Soundness.
     Proof.
       intros i e1 e2 ts d n Hn Ht1 Ht2 He1 He2;
         autounfold with * in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrob Hg; simpl in *.
+      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg; simpl in *.
       inversion Hok; subst. inversion H4; subst.
       rename H1 into Hokts; rename H4 into Hoke1e2;
         rename H2 into Hoke1; rename H3 into Hoke2.
@@ -232,7 +232,7 @@ Section Soundness.
     Proof.
       intros i e lo hi d w Hlwh Ht He.
       autounfold with * in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
+      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokbit; rename H4 into Hokacc; rename H0 into Hoke.
       inversion Hise; subst; inversion H4; subst.
@@ -265,7 +265,7 @@ Section Soundness.
                       (TypTuple (map typ_of_expr es)) dir.
     Proof.
       intros i es d Hes. autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok Hise rob st Hrob Hg.
+      intros Hgrt Hged Hok Hise rob st Hrobsome Hrob Hg.
       rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (st:=st).
@@ -273,7 +273,7 @@ Section Soundness.
         simpl in Hes'; clear Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes' Hged as Hes;
         simpl in Hes; clear Hes'.
-      pose proof (fun a inaes oka ise => Hes a inaes oka ise Hrob Hg) as Hduh; clear Hes.
+      pose proof (fun a inaes oka ise => Hes a inaes oka ise Hrobsome Hrob Hg) as Hduh; clear Hes.
       rewrite <- Forall_forall in Hduh.
       inversion Hok; subst; inversion H1; subst; inversion H4; subst.
       rename H1 into Hoktup; rename H4 into Hoklist;
@@ -323,7 +323,7 @@ Section Soundness.
     Proof.
       intros i es d Hes.
       autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok Hise rob st Hrob Hg.
+      intros Hgrt Hged Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H1; subst; inversion H4; subst.
       rename H1 into Htokrec; rename H4 into Heokrec;
         rename H0 into Htokes; rename H2 into Heokes.
@@ -336,7 +336,7 @@ Section Soundness.
       specialize Hes with
           (read_one_bit:=rob) (st:=st).
       pose proof (fun e HInnes Hok Hise =>
-                    Hes e HInnes Hgrt Hged Hok Hise Hrob Hg)
+                    Hes e HInnes Hgrt Hged Hok Hise Hrobsome Hrob Hg)
         as H; clear Hes; rename H into Hes.
       rewrite <- Forall_forall,Forall_map in Hes.
       unfold Basics.compose in Hes; cbn in Hes.
@@ -385,7 +385,7 @@ Section Soundness.
         autounfold with option_monad in *.
         rewrite Hmbp; clear Hmbp.
         exists (TypRecord (combine (map fst es) rs)); cbn; split.
-        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob
+        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob Hrobsome
                 Hg Htokrec Heokrec Htokes Hev Hfsteq Hxvsrs.
           clear Hgrt Hisetrec Hispe Hisetes Utoees Ues.
           generalize dependent rs.
@@ -406,7 +406,9 @@ Section Soundness.
             assumption.
           *  unfold AList.all_values,P4String.clear_AList_tags.
              rewrite Forall2_conj,
-             Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+             Forall2_map_both
+               with (f:=fst) (g:=fst),
+                    Forall2_map_both with (f:=snd) (g:=snd).
              repeat rewrite map_fst_map.
              repeat rewrite map_snd_map.
              repeat rewrite map_id.
@@ -427,12 +429,12 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
     Proof.
       intros i o e t d Hut He; autounfold with * in *; cbn in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrob Hg.
+      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokt; rename H4 into Hokuop; rename H0 into Hoke.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hiset; rename H4 into Hispe; rename H0 into Hisee.
-      pose proof He Hgrt Hdelta Hoke Hisee _ _ Hrob Hg as [[v Hev] Hvt].
+      pose proof He Hgrt Hdelta Hoke Hisee _ _ Hrobsome Hrob Hg as [[v Hev] Hvt].
       apply unary_type_eq in Hut as Hut_eq; subst t.
       clear He Hgrt Hdelta Hoke Hisee; split.
       - assert (exists v', sval_to_val rob v v') by eauto using exec_val_exists.
@@ -477,24 +479,43 @@ Section Soundness.
     Local Hint Resolve eval_binary_op_preserves_typ : core.
     Local Hint Resolve binary_type_get_real_type : core.
     Local Hint Resolve binary_type_normᵗ : core.
+
+    Definition binary_op_ctk_cases
+               (o : OpBin) (e₁ e₂ : @Expression tags_t) : Prop :=
+    match o with
+    | Div
+    | Mod => (exists bits, ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseBit bits /\
+                     (0 < snd (BitArith.from_lbool bits))%Z) \/
+            exists z₁ z₂, ⟨ this, ge_const ge, e₁ ⟩ ⇝ ValBaseInteger (Zpos z₁) /\
+                     ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseInteger (Zpos z₂)
+    | Shl
+    | Shr => exists v, ⟨ this, ge_const ge, e₂ ⟩ ⇝ v /\
+                 match v with
+                 | ValBaseBit _
+                 | ValBaseInteger (Z0 | Zpos _) => True
+                 | _ => False
+                 end
+    | _ => True
+    end.
     
     Theorem binary_op_sound : forall tag o t e1 e2 dir,
+        binary_op_ctk_cases o e1 e2 ->
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
         (ge,this,Δ,Γ) ⊢ₑ e1 ->
         (ge,this,Δ,Γ) ⊢ₑ e2 ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir.
     Proof.
-      intros i o t e1 e2 d Hbt He1 He2.
+      intros i o t e1 e2 d Hctk Hbt He1 He2.
       autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok His rob st Hrob Hgst.
+      intros Hgrt Hged Hok His rob st Hrobsome Hrob Hgst.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokt; rename H4 into Heokb;
         rename H2 into Hoke1; rename H5 into Hoke2.
       inversion His; subst; inversion H4; subst.
       rename H1 into Hiset; rename H4 into Hispe;
         rename H2 into Hisee1; rename H5 into Hisee2.
-      pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrob Hgst as [[v1 Hev1] Hvt1].
-      pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrob Hgst as [[v2 Hev2] Hvt2].
+      pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrobsome Hrob Hgst as [[v1 Hev1] Hvt1].
+      pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrobsome Hrob Hgst as [[v2 Hev2] Hvt2].
       clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst; split.
       - apply Hvt1 in Hev1 as Hev1'; destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in Hev2 as Hev2'; destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
@@ -506,11 +527,44 @@ Section Soundness.
         pose proof binary_type_get_real_type
              _ _ _ _ _ _ _ Hbt Hr1 Hr2 as (r & Hr & Hbr).
         apply binary_type_normᵗ in Hbr.
+        assert (Hctk': binary_op_ctk_cases' o v1' v2').
+        { unfold binary_op_ctk_cases in Hctk.
+          destruct ge as [gf gt gs gi Σ ee] eqn:Heqge; cbn in *.
+          clear d Hok His.
+          assert (Hrob' : forall b b', rob (Some b) b' -> b = b') by firstorder.
+          destruct o; cbn in *; trivial;
+            try (destruct Hctk as
+                    [(bits & He2 & Hbits) | (z1 & z2 & Hz1 & Hz2)];
+                 [ assert (Heqv2: v2 = ValueBaseMap Some (ValBaseBit bits))
+                   by eauto using CTK_exec_expr_agree; subst;
+                   inv Hv2'; cbn in *;
+                   match goal with
+                   | H: Forall2 rob (map Some _) _
+                     |- _ => rewrite <- Forall2_map_l,Forall2_forall in H;
+                           destruct H as [Hlen HF2];
+                           pose proof
+                                (conj
+                                   Hlen
+                                   (fun u v Huv => Hrob' u v (HF2 u v Huv))) as H';
+                           rewrite <- Forall2_forall,Forall2_eq in H';subst;
+                           destruct v1' as
+                               [| | [| |] | | | | | | | | | | | | |];
+                           try assumption
+                   end
+                 | assert (Heqv1: v1 = ValueBaseMap Some (ValBaseInteger (Z.pos z1)))
+                   by eauto using CTK_exec_expr_agree; subst;
+                   assert (Heqv2: v2 = ValueBaseMap Some (ValBaseInteger (Z.pos z2)))
+                     by eauto using CTK_exec_expr_agree; subst;
+                   inv Hv1'; inv Hv2'; trivial ]);
+            try (destruct Hctk as (v & Hctkv & Hv);
+                 assert (Heqv2: v2 = ValueBaseMap Some v)
+                   by eauto using CTK_exec_expr_agree; subst;
+                 rewrite sval_to_val_eval_val_to_sval_iff in Hv2';
+                 subst; assumption). }
         assert (Hv: exists v, Ops.eval_binary_op o v1' v2' = Some v)
           by eauto using eval_binary_op_ex.
         destruct Hv as [v Hv].
-        assert (Hv': exists v', val_to_sval v v') by eauto.
-        eauto.
+        assert (Hv': exists v', val_to_sval v v') by eauto; eauto.
       - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
         apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
@@ -537,7 +591,7 @@ Section Soundness.
           (TypEnum E None mems) dir.
     Proof.
       intros tag X M E mems dir Hget Hmem.
-      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *; split; eauto.
+      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *; split; eauto.
       intros v Hrn.
       inversion Hrn; subst; solve_ex; split; auto.
       - rewrite Hget in H7; some_inv; auto.
@@ -583,7 +637,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
       intros i e x ts t dir Hmem Hts He.
-      intros Hgrt Hdlta Hok Hise rob st Hrob Hg; cbn in *.
+      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
       inversion Hise; subst; inversion H4; subst.
@@ -596,7 +650,7 @@ Section Soundness.
           apply member_type_normᵗ in Hmemrs as Hmemrs_norm.
           assert (Hlem3' : exists r',
                      AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
-          { clear i dir Γ Δ He Hdlta Hok
+          { clear i dir Γ Δ He Hdlta Hok Hrobsome
                   Hg Hokt Hokmem Htoeok v Hvr Hise
                   rob Hrob Hgrt Hv st.
             pose proof member_type_get_real_type
@@ -644,7 +698,7 @@ Section Soundness.
         unfold option_map,option_bind in Hlem.
         assert (Hlem3' :
                   AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
-        { clear H8 Hvr Hev v Hist Htoeok
+        { clear H8 Hvr Hev v Hist Htoeok Hrobsome
                 Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
                 Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
           unfold ">>|",">>=",mbind,mret,option_monad_inst,

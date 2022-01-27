@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.Typing.
+Require Export Poulet4.LightTyping.Typing Poulet4.P4Arith Coq.ZArith.BinInt.
 
 (** * Helper Lemmas for [Rules.v]. *)
 
@@ -240,14 +240,36 @@ Section Lemmas.
   Qed.
 
   Local Hint Resolve eval_binary_op_eq_ex : core.
+
+  Definition binary_op_ctk_cases' (o : OpBin) (v₁ v₂ : @ValueBase bool) : Prop :=
+    match o with
+    | Div
+    | Mod
+      => match v₁, v₂ with
+        | _, ValBaseBit bits
+          => (0%Z < snd (BitArith.from_lbool bits))%Z
+        | ValBaseInteger (Zpos _), ValBaseInteger (Zpos _)
+          => True
+        | _, _ => False
+        end
+    | Shl
+    | Shr
+      => match v₂ with
+        | ValBaseBit _
+        | ValBaseInteger (Z0 | Zpos _) => True
+        | _ => False
+        end
+    | _ => True
+    end.
   
   Lemma eval_binary_op_ex : forall o (t t1 t2 : typ) v1 v2,
+      binary_op_ctk_cases' o v1 v2 ->
       binary_type o t1 t2 t ->
       ⊢ᵥ v1 \: t1 ->
       ⊢ᵥ v2 \: t2 ->
       exists v, Ops.eval_binary_op o v1 v2 = Some v.
   Proof.
-    intros o t t1 t2 v1 v2 Hbt Hv1 Hv2; inv Hbt; cbn;
+    intros o t t1 t2 v1 v2 Hctk Hbt Hv1 Hv2; inv Hbt; cbn in *;
       try match goal with
           | HE: Eq_type ?t, Hv1: ⊢ᵥ ?v1 \: ?t, Hv2: ⊢ᵥ ?v2 \: ?t
             |- context [Ops.eval_binary_op_eq ?v1 ?v2]
@@ -264,7 +286,14 @@ Section Lemmas.
             try match goal with
                 | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
                   => destruct trm as [? |] eqn:?;idtac; eauto
-                end; try if_destruct; eauto.
+                end; try if_destruct; eauto;
+              try match goal with
+                  | H: (0 <=? ?z)%Z = false
+                    |- _ => destruct z; cbn in *; discriminate || contradiction
+                  | H: (_ =? _)%Z = true |- _ => rewrite Z.eqb_eq in H; lia
+                  | H: (?z1 <? 0)%Z || (?z2 <=? 0)%Z = true
+                    |- _ => destruct z1; destruct z2; cbn in *; contradiction || discriminate      
+                  end.
   Qed.
   
   Notation ident := string.

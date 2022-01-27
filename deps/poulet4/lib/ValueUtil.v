@@ -382,3 +382,62 @@ Proof.
                  rewrite Forall_snd in H; split; reflexivity || assumption
          end.
 Qed.
+
+Lemma sval_to_val_eval_val_to_sval_eq : forall (rob : option bool -> bool -> Prop) v v',
+    (forall b b', rob (Some b) b' -> b = b') ->
+    sval_to_val rob (eval_val_to_sval v) v' -> v = v'.
+Proof.
+  intros rob v v' Hrob H.
+  remember (eval_val_to_sval v) as sv eqn:Heqsv.
+  generalize dependent v.
+  autounfold with * in *; unfold eval_val_to_sval.
+  induction H using custom_exec_val_ind;
+    intros [] Heqsv; cbn in *;
+      inversion Heqsv; clear Heqsv; subst;
+        try discriminate; try reflexivity; f_equal; auto;
+          try match goal with
+              | H: Forall2 rob (map Some _) _
+                |- _ => rewrite <- Forall2_map_l in H;
+                        assert (HF2: Forall2 (fun b b' => b = b') value lb)
+                        by (rewrite Forall2_forall in *; intuition);
+                        rewrite Forall2_eq in HF2; subst; reflexivity
+              | H: Forall2
+                     (fun sv v' => forall v, sv = ValueBaseMap Some v -> v = v')
+                     (map (ValueBaseMap Some) ?l1) ?l2 |- ?l1 = ?l2
+                => rewrite <- Forall2_map_l,Forall2_forall in H;
+                    destruct H as [Hlen H];
+                    pose proof
+                         (conj
+                            Hlen (fun u v Huv => H u v Huv u eq_refl))
+                      as H'; clear Hlen H;
+                      rewrite <- Forall2_forall,Forall2_eq in H';
+                      subst; reflexivity
+              | H: all_values
+                     (fun sv v' => forall v, sv = ValueBaseMap Some v -> v = v')
+                     (map (fun '(x,w) => (x, ValueBaseMap Some w)) ?l1) ?l2 |- ?l1 = ?l2
+                => unfold all_values in H; rewrite Forall2_conj in H;
+                    destruct H as [Hfst Hsnd];
+                    rewrite map_pat_both in Hfst,Hsnd;
+                    rewrite <- Forall2_map_l in Hfst,Hsnd; cbn in * ;
+                      rewrite Forall2_forall in Hsnd;
+                      destruct Hsnd as [Hlen Hsnd];
+                      pose proof (conj Hlen (fun u v Huv => Hsnd u v Huv (snd u) eq_refl))
+                        as H'; clear Hsnd Hlen;
+                        rewrite <- Forall2_forall in H';
+                        rewrite Forall2_map_both,Forall2_eq in Hfst,H';
+                        rewrite <- combine_map_fst_snd with (l:=l1);
+                        rewrite <- combine_map_fst_snd with (l:=l2);
+                        rewrite Hfst,H'; reflexivity
+              end.
+Qed.
+
+Lemma sval_to_val_eval_val_to_sval_iff : forall (rob : option bool -> bool -> Prop) v v',
+    (forall b b', rob (Some b) b' <-> b = b') ->
+    sval_to_val rob (eval_val_to_sval v) v' <-> v = v'.
+Proof.
+  intros rob v v' Hrob; split; intros H; subst.
+  - assert (forall b b', rob (Some b) b' -> b = b') by firstorder;
+      eauto using sval_to_val_eval_val_to_sval_eq.
+  - assert (forall b, rob (Some b) b) by firstorder;
+      auto using sval_to_val_eval_val_to_sval.
+Qed.

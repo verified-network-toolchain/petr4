@@ -96,12 +96,10 @@ Section Ops.
     | BitAnd    => Some (ValBaseBit (to_lbool w (BitArith.bit_and w n1 n2)))
     | BitXor    => Some (ValBaseBit (to_lbool w (BitArith.bit_xor w n1 n2)))
     | BitOr     => Some (ValBaseBit (to_lbool w (BitArith.bit_or  w n1 n2)))
-    | Div       => if n2 =? 0 then
-                    Some (ValBaseBit (to_lbool w n1)) (* default value for typing/progress proof *)
-                   else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
-    | Mod       => if n2 =? 0 then
-                    Some (ValBaseBit (to_lbool w n1)) (* default value for typing/progress proof *)
-                   else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) 
+    | Div       => if n2 =? 0 then None
+                  else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
+    | Mod       => if n2 =? 0 then None
+                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) 
     (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
     (* not allowed *)
@@ -139,14 +137,10 @@ Section Ops.
     | Plus      => Some (ValBaseInteger (n1 + n2))
     | Minus     => Some (ValBaseInteger (n1 - n2))
     | Mul       => Some (ValBaseInteger (n1 * n2))
-    | Div       => if (n1 <? 0) || (n2 <=? 0) then
-                    (* default value for typing/progress *)
-                    Some (ValBaseInteger n1)
-                   else Some (ValBaseInteger (n1 / n2))
-    | Mod       => if (n1 <? 0) || (n2 <=? 0) then
-                    (* default value for typing/progress *)
-                    Some (ValBaseInteger n1)
-                   else Some (ValBaseInteger (n1 mod n2))
+    | Div       => if (n1 <? 0) || (n2 <=? 0) then None
+                  else Some (ValBaseInteger (n1 / n2))
+    | Mod       => if (n1 <? 0) || (n2 <=? 0) then None
+                  else Some (ValBaseInteger (n1 mod n2))
     | Le        => Some (ValBaseBool (n1 <=? n2))
     | Ge        => Some (ValBaseBool (n1 >=? n2))
     | Lt        => Some (ValBaseBool (n1 <? n2))
@@ -214,7 +208,8 @@ Section Ops.
       end in
     match v2 with
     | ValBaseBit bits => arith_op (snd (BitArith.from_lbool bits))
-    | ValBaseInteger n2 => arith_op (Z.abs n2) (* adjusted for progress proof *)
+    | ValBaseInteger n2 => 
+      if 0 <=? n2 then arith_op n2 else None
     | _ => None
     end.
 

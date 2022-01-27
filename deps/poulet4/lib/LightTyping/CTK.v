@@ -89,12 +89,17 @@ Section CTKEval.
   Local Hint Unfold option_map : core.
   Local Hint Resolve val_to_sval_ex : core.
   Local Hint Resolve sval_to_val_eval_val_to_sval : core.
+
+  Variables
+    (T: @Target tags_t expr)
+    (gf: @genv_func tags_t)
+    (gt: @genv_typ tags_t)
+    (gs: genv_senum)
+    (gi: genv_inst)
+    (ee: @extern_env tags_t expr (@extern_sem tags_t expr T))
+    (rob: option bool -> bool -> Prop) (st: @state tags_t T).
   
-  Lemma CTK_exec_expr :
-    forall (T: Target) (gf: genv_func) (gt: genv_typ)
-      (gs: genv_senum) (gi: genv_inst) (ee: extern_env)
-      (rob : option bool -> bool -> Prop) (st : state)
-      (e : expr) (v : ValueBase),
+  Lemma CTK_exec_expr : forall e v,
       (forall b, rob (Some b) b) ->
       ⟨p,Σ,e⟩ ⇝ v ->
       @exec_expr
@@ -103,11 +108,40 @@ Section CTKEval.
            ge_inst:=gi; ge_const:=Σ; ge_ext:=ee |}
         rob p st e (ValueBaseMap Some v).
   Proof.
-    intros T gf gt gs gi ee rob st e v Hrob H;
-      induction H; cbn in *; eauto.
+    intros e v Hrob H; induction H; cbn in *; eauto.
     - constructor; destruct n as [i' z [[w []] |]]; cbn; try reflexivity.
     - apply exec_expr_name_const; cbn; try reflexivity.
       autounfold with core; cbn.
       rewrite H; reflexivity.
+  Qed.
+
+  Lemma CTK_exec_expr_agree : forall e v sv,
+      (forall b b', rob (Some b) b' -> b = b') ->
+      ⟨p,Σ,e⟩ ⇝ v ->
+      @exec_expr
+        _ T
+        {| ge_func:=gf; ge_typ:=gt; ge_senum:=gs;
+           ge_inst:=gi; ge_const:=Σ; ge_ext:=ee |}
+        rob p st e sv ->
+      sv = ValueBaseMap Some v.
+  Proof.
+    intros e v sv Hrob Hv; generalize dependent sv.
+    induction Hv; intros sv Hsv; inv Hsv;
+      cbn in *; autounfold with * in *;
+      try reflexivity; try discriminate.
+    - destruct n as [i' z [[w []] |]]; cbn; try reflexivity.
+    - match_some_inv; some_inv.
+      rewrite H in Heqo; some_inv; reflexivity.
+    - apply IHHv in H8; subst.
+      rewrite val_to_sval_iff in H11.
+      autounfold with * in *; subst.
+      apply sval_to_val_eval_val_to_sval_eq in H9; subst; auto.
+      rewrite H in H10; some_inv; reflexivity.
+    - apply IHHv1 in H8; subst.
+      apply IHHv2 in H10; subst.
+      rewrite val_to_sval_iff in H14.
+      autounfold with * in *; subst.
+      apply sval_to_val_eval_val_to_sval_eq in H11,H12; subst; auto.
+      rewrite H in H13; some_inv; reflexivity.
   Qed.
 End CTKEval.

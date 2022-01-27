@@ -206,6 +206,8 @@ Section TypingDefs.
       is_expr e ->                       (** Is a well-formed expression. *)
       forall (read_one_bit : option bool -> bool -> Prop) (** Interprets uninitialized bits. *)
         (st : state)                      (** Runtime environment. *),
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
         (** Progress. *)
@@ -275,6 +277,8 @@ Section TypingDefs.
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
         (** Progress. *)
@@ -295,6 +299,8 @@ Section TypingDefs.
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
@@ -313,6 +319,8 @@ Section TypingDefs.
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
         (** Progress. *)

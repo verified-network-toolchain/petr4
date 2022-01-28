@@ -50,7 +50,6 @@ Definition instrumented_simple_nat : result (Inline.t Info) :=
   let* isn := inline_simple_nat in
   Inline.assert_headers_valid_before_use _ isn.
 
-(* Compute p4cub_simple_nat. *)
 (* Compute instrumented_simple_nat. *)
 (* Compute inline_simple_nat. *)
 (* Compute simple_nat_test_case. *)

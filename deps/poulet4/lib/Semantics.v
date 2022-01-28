@@ -49,8 +49,8 @@ Definition get_loc_path (loc : Locator) : path :=
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
-  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
-  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseInt bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseBit bits => Some (snd (BitArith.from_lbool bits))
   | ValBaseInteger value => Some value
   (* added in v1.2.2 *)
   | ValBaseSenumField _ value => array_access_idx_to_z value

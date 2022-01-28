@@ -219,6 +219,9 @@ Section Util.
   (** May syntactically appear as an l-expression. *)
   Inductive lexpr_ok : expr -> Prop :=
   | lexpr_name tag x loc t dir :
+      match dir with
+      | Directionless => False | _ => True
+      end ->
       lexpr_ok (MkExpression tag (ExpName x loc) t dir)
   | lexpr_member tag e x t dir :
       lexpr_ok e ->

@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.ValueTyping
+Require Export Poulet4.LightTyping.LvalueTyping
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
@@ -31,14 +31,6 @@ Section TypingDefs.
   Record gamma_expr := {
     var_gamma :> gamma_var;
     const_gamma :> gamma_const }.
-
-  (** Typing analogue to [Semantics.loc_to_sval]. *)
-  Definition typ_of_loc_var
-             (l : Locator) (g : gamma_var) : option typ :=
-    match l with
-    | LInstance p => PathMap.get p g
-    | LGlobal   _ => None
-    end.
 
   (** Typing analogue to [Semantics.loc_to_sval_const].*)
   Definition typ_of_loc_const
@@ -105,6 +97,7 @@ Section TypingDefs.
     gamma_var_prop g st ge /\ gamma_const_prop this g ge.
   
   Notation run_expr := (@exec_expr tags_t).
+  Notation run_lexpr := (@exec_lexpr tags_t).
   Notation run_stmt := (@exec_stmt tags_t).
   Notation run_blk  := (@exec_block tags_t).
   Notation run_call := (@exec_call tags_t).
@@ -212,10 +205,15 @@ Section TypingDefs.
         gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
         (** Progress. *)
         (exists v, run_expr ge read_one_bit this st e v) /\
-        (* Preservation. *)
-        forall v, run_expr ge read_one_bit this st e v ->
-             exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                   ⊢ᵥ v \: normᵗ rt.
+        (** Preservation. *)
+        (forall v, run_expr ge read_one_bit this st e v ->
+              exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
+                    ⊢ᵥ v \: normᵗ rt) /\
+        (** L-expression progress & preservation. *)
+        (lexpr_ok e ->
+         (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\
+         forall lv s, run_lexpr ge read_one_bit this st e lv s ->
+                 (Δ, var_gamma Γ) ⊢ₗlv).
     (**[]*)
 
     Variant fundef_funtype_prop

@@ -283,6 +283,30 @@ Module BitArith.
     (Z.to_N (Zlength bits), lbool_to_val bits 1 0).
   (**[]*)
 
+  Lemma lbool_to_val_lower : forall bits order res,
+      0 <= order ->
+      0 <= res ->
+      0 <= lbool_to_val bits order res.
+  Proof.
+    intro bits; induction bits as [| [|] bits IHbits];
+      intros order res Horder Hres;
+      unfold lbool_to_val; fold lbool_to_val; try lia; auto.
+    - apply IHbits; try lia.
+      rewrite shiftl_mul_pow2 by lia; lia.
+    - apply IHbits; try lia.
+      rewrite shiftl_mul_pow2 by lia; lia.
+  Qed.
+  
+  Lemma from_lbool_bound : forall bits,
+      uncurry bound (from_lbool bits).
+  Proof.
+    intro bits; cbn. unfold bound; split.
+    - pose proof lbool_to_val_lower bits 1 0 as H; lia.
+    - unfold upper_bound.
+      rewrite Z2N.id by apply Zlength_nonneg.
+      (* TODO: idk what lemma to prove... *)
+  Admitted.
+  
 End BitArith.
 
 (** * Signed Integers *)

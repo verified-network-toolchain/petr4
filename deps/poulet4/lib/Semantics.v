@@ -727,7 +727,8 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
       end
   end.
 
-Axiom dummy_type : @P4Type tags_t.
+Definition dummy_type : @P4Type tags_t := TypBool.
+Opaque dummy_type.
 Context `{inhabitant_tags_t : Inhabitant tags_t}.
 Definition dummy_tags := @default tags_t _.
 
@@ -1189,7 +1190,9 @@ Definition extract_invals (args : list argument) : list Sval :=
 
 Definition direct_application_expression (typ : P4Type) (func_typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
-  MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) func_typ Directionless.
+  MkExpression dummy_tags (ExpExpressionMember
+    (MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) dummy_type Directionless)
+    !"apply") func_typ Directionless.
 
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
 Definition empty_block := (BlockEmpty dummy_tags).
@@ -1755,9 +1758,12 @@ End instantiate_class_body.
 (* Currently, we only handle direct application but not StatInstantiation. *)
 Fixpoint get_direct_applications_stmt (stmt : @Statement tags_t) : list (@Declaration tags_t) :=
   match stmt with
+  (* TODO More kinds of statements *)
   | MkStatement _ (StatDirectApplication typ _ _) _  =>
       [DeclInstantiation dummy_tags typ nil (P4String.Build_t tags_t inhabitant_tags_t (get_type_name typ)) []]
   | MkStatement _ (StatBlock block) _ => get_direct_applications_blk block
+  | MkStatement _ (StatConditional _ s1 s2) _ =>
+      get_direct_applications_stmt s1 ++ force [] (option_map get_direct_applications_stmt s2)
   | _ => []
   end
 with get_direct_applications_blk (block : @Block tags_t) : list (@Declaration tags_t) :=

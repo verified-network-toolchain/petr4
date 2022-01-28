@@ -26,19 +26,19 @@ set -x # Make command execution verbose
 #finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata -name '*.p4')
 do
+  # gets the result of type checking from petr4 and p4c, stores them in
+  # variables and compares them
+  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file")
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
   echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # gets the result of type checking from petr4 and p4c, stores them in
-  # variables and compares them
-  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file")
+  echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   # creates the expectation dir. 
   if [ $petr4_type == $p4c_type ]
   then 

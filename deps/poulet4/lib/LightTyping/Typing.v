@@ -213,7 +213,7 @@ Section TypingDefs.
         (lexpr_ok e ->
          (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\
          forall lv s, run_lexpr ge read_one_bit this st e lv s ->
-                 (Δ, var_gamma Γ) ⊢ₗlv).
+                       var_gamma Γ ᵗ⊢ₗlv \: typ_of_expr e).
     (**[]*)
 
     Variant fundef_funtype_prop
@@ -334,6 +334,9 @@ Notation "x '⊢ₑ' e"
         (fst (fst (fst x)))
         (snd (fst (fst x)))
         (snd (fst x)) (snd x) e)
+       (at level 80, no associativity) : type_scope.
+Notation "x 'ᵗ⊢ₑ' e \: t"
+  := (x ⊢ₑ e /\ t = typ_of_expr e)
        (at level 80, no associativity) : type_scope.
 Notation "x '⊢ₛ' s ⊣ Γ₂"
   := (stmt_types

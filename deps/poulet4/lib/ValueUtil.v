@@ -162,49 +162,6 @@ Section ValueUtil.
         end.
   End ExecValInd.
 
-  Section LvalueInd.
-    Notation LV := (@Value.ValueLvalue tags_t).
-    Notation PLV := (@Value.ValuePreLvalue tags_t).
-
-    Variables (PLval: LV -> Prop).
-    Variables (PPreLval: PLV -> Prop).
-
-    Hypothesis (HMkLval: forall plv typ,
-                   PPreLval plv ->
-                   PLval (Value.MkValueLvalue plv typ)).
-    Hypothesis (HName: forall name loc,
-                   PPreLval (Value.ValLeftName name loc)).
-    Hypothesis (HMember: forall lv fname,
-                   PLval lv ->
-                   PPreLval (Value.ValLeftMember lv fname)).
-    Hypothesis (HBitAccess: forall lv hi lo,
-                   PLval lv ->
-                   PPreLval (Value.ValLeftBitAccess lv hi lo)).
-    Hypothesis (HArrayAccess: forall lv idx,
-                   PLval lv ->
-                   PPreLval (Value.ValLeftArrayAccess lv idx)).
-
-    Hypothesis oops: forall A: Prop, A.
-
-    Fixpoint lvalue_mut_ind (lv: LV) : PLval lv :=
-      match lv with
-      | Value.MkValueLvalue plv _ =>
-        HMkLval _ _ (pre_lvalue_mut_ind plv)
-      end
-    with pre_lvalue_mut_ind (plv: PLV) : PPreLval plv :=
-      match plv with
-      | Value.ValLeftName _ _ =>
-        HName _ _
-      | Value.ValLeftMember lv _ =>
-        HMember _ _ (lvalue_mut_ind lv)
-      | Value.ValLeftBitAccess lv _ _ =>
-        HBitAccess _ _ _ (lvalue_mut_ind lv)
-      | Value.ValLeftArrayAccess lv _ =>
-        HArrayAccess _ _ (lvalue_mut_ind lv)
-      end.
-
-  End LvalueInd.
-
   Definition sval_to_val (read_one_bit : option bool -> bool -> Prop) :=
     exec_val read_one_bit.
 

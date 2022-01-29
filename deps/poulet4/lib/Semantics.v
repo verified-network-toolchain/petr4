@@ -94,7 +94,7 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
 Context {tags_t: Type}.
 
 Notation ValSet := (@ValueSet tags_t).
-Notation Lval := (@ValueLvalue tags_t).
+Notation Lval := ValueLvalue.
 Notation P4Int := (P4Int.t tags_t).
 
 Variant fundef :=
@@ -879,13 +879,13 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
   | exec_lexpr_name : forall name loc this st tag typ dir,
                       exec_lexpr read_one_bit this st
                       (MkExpression tag (ExpName name loc) typ dir)
-                      (MkValueLvalue (ValLeftName name loc) typ) SContinue
+                      (ValLeftName loc) SContinue
   | exec_lexpr_member : forall expr lv name this st tag typ dir sig,
                         String.eqb (P4String.str name) "next" = false ->
                         exec_lexpr read_one_bit this st expr lv sig ->
                         exec_lexpr read_one_bit this st
                         (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                        (MkValueLvalue (ValLeftMember lv (str name)) typ) sig
+                        (ValLeftMember lv (str name)) sig
   (* next < 0 is impossible by syntax. *)
   | exec_lexpr_member_next : forall expr lv name headers next this st tag typ dir sig ret_sig,
                              String.eqb (P4String.str name) "next" = true ->
@@ -894,7 +894,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                              (if (next <? N.of_nat (List.length headers))%N then ret_sig = sig else ret_sig = (SReject "StackOutOfBounds")) ->
                              exec_lexpr read_one_bit this st
                              (MkExpression tag (ExpExpressionMember expr name) typ dir)
-                             (MkValueLvalue (ValLeftArrayAccess lv (Z.of_N next)) typ) ret_sig
+                             (ValLeftArrayAccess lv (Z.of_N next)) ret_sig
   (* ATTN: lo and hi interchanged here *)
   | exec_lexpr_bitstring_access : forall bits lv lo hi wn bitsv bitsbl this st tag typ dir sig,
                                    exec_lexpr read_one_bit this st bits lv sig ->
@@ -903,7 +903,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                    (lo <= hi < N.of_nat wn)%N ->
                                    exec_lexpr read_one_bit this st
                                    (MkExpression tag (ExpBitStringAccess bits lo hi) typ dir)
-                                   (MkValueLvalue (ValLeftBitAccess lv hi lo) typ) sig
+                                   (ValLeftBitAccess lv hi lo) sig
   (* Make negative idxz equal to size to stay out of bound as a nat idx.
      Write to out-of-bound indices l-values is handled in exec_write *)
   | exec_lexpr_array_access : forall array lv idx idxv idxz this st tag typ dir sig headers next,
@@ -913,7 +913,7 @@ Inductive exec_lexpr (read_one_bit : option bool -> bool -> Prop) :
                                array_access_idx_to_z idxv = Some idxz ->
                                exec_lexpr read_one_bit this st
                                (MkExpression tag (ExpArrayAccess array idx) typ dir)
-                               (MkValueLvalue (ValLeftArrayAccess lv idxz) typ) sig.
+                               (ValLeftArrayAccess lv idxz) sig.
 
 Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   let p := get_loc_path loc in
@@ -923,14 +923,14 @@ Definition update_val_by_loc (s : state) (loc : Locator) (sv : Sval): state :=
   lvalues, they are converted to addressible lvalues. So they are not considered in exec_read and
   exec_write. *)
 
-Inductive exec_read : state -> Lval -> Sval -> Prop :=
+Inductive exec_read : state -> P4Type -> Lval -> Sval -> Prop :=
   | exec_read_name : forall name loc sv st typ,
                      loc_to_sval loc st = Some sv ->
-                     exec_read st (MkValueLvalue (ValLeftName name loc) typ) sv
+                     exec_read st typ (ValLeftName loc) sv
   | exec_read_by_member : forall lv name st sv typ sv',
                           exec_read st lv sv ->
                           get_member sv name sv' ->
-                          exec_read st (MkValueLvalue (ValLeftMember lv name) typ) sv'
+                          exec_read st (ValLeftMember lv name) sv'
   (* Since the conditions are already checked in exec_lexpr, they are perhaps not necessary here. *)
   | exec_read_bit_access : forall bitssv bitsbl wn lo lonat hi hinat lv st typ,
                            exec_read st lv bitssv ->
@@ -938,14 +938,14 @@ Inductive exec_read : state -> Lval -> Sval -> Prop :=
                            N.to_nat lo = lonat ->
                            N.to_nat hi = hinat ->
                            (lonat <= hinat < wn)%nat ->
-                           exec_read st (MkValueLvalue (ValLeftBitAccess lv hi lo) typ)
+                           exec_read st (ValLeftBitAccess lv hi lo)
                              (ValBaseBit (bitstring_slice bitsbl lonat hinat))
   | exec_read_array_access: forall lv headers next default_header header idx st typ rtyp,
                             exec_read st lv (ValBaseStack headers next) ->
                             get_real_type (ge_typ ge) typ = Some rtyp ->
                             uninit_sval_of_typ None rtyp = Some default_header ->
                             Znth (d := default_header) idx headers = header ->
-                            exec_read st (MkValueLvalue (ValLeftArrayAccess lv idx) typ) header.
+                            exec_read st (ValLeftArrayAccess lv idx) header.
 
 (* If any of these kinds of writes are performed:
     1. a write to a field in a currently invalid header, either a regular header or an element of

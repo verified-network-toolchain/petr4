@@ -27,6 +27,7 @@ Inductive lval_typ
     typ_of_loc_var l Γ = Some τ ->
     Γ ⊢ₗ MkValueLvalue (ValLeftName x l) τ
 | typ_left_member lv x τ τs :
+    (*(x =? "next")%string = false ->*)
     AList.get (P4String.clear_AList_tags τs) x = Some τ ->
     member_type τs (typ_of_lv lv) ->
     Γ ⊢ₗ lv ->

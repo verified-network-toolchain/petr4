@@ -766,12 +766,13 @@ Section Soundness.
     Local Hint Resolve get_member_types : core.
     
     Theorem other_member_sound : forall tag e x ts t dir,
+        (P4String.str x =? "next")%string = false ->
         member_type ts (typ_of_expr e) ->
         AList.get ts x = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
-      intros i e x ts t dir Hmem Hts He.
+      intros i e x ts t dir Hnxt Hmem Hts He.
       intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
@@ -860,34 +861,36 @@ Section Soundness.
             rewrite AList.get_neq_cons by assumption; eauto. }
         eauto.
       - intros Hlv; inv Hlv.
-    Admitted.
+        apply Helv in H0 as [(lv & s & Hlvs) Helv']; clear Helv; split; eauto.
+        clear lv v s Hlvs Hev.
+        intros lv s Hlvs; inv Hlvs;
+          try (rewrite H8 in Hnxt; discriminate).
+        apply Helv' in H9 as [Hlvt Hlvteq]; split; auto.
+        rewrite P4String.get_clear_AList_tags in Hts.
+        econstructor; eauto. rewrite <- Hlvteq; assumption.
+    Qed.
 
     Theorem array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)
         (w < 2 ^ 32)%N ->
-        typ_of_expr e = TypArray t w ->
         P4String.str x = "size"%string ->
-        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
     Admitted.
 
     Theorem array_last_index_sound : forall tag e x dir t w,
-        typ_of_expr e = TypArray t w ->
         P4String.str x = "lastIndex"%string ->
-        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
     Admitted.
 
     Theorem ternary_sound : forall tag e₁ e₂ e₃ t dir,
-        typ_of_expr e₁ = TypBool ->
-        typ_of_expr e₂ = typ_of_expr e₃ ->
-        typ_of_expr e₂ = t ->
-        (ge,this,Δ,Γ) ⊢ₑ e₁ ->
-        (ge,this,Δ,Γ) ⊢ₑ e₂ ->
-        (ge,this,Δ,Γ) ⊢ₑ e₃ ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₁ \: TypBool ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₂ \: t ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₃ \: t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
     Proof.
     Admitted.
@@ -911,8 +914,7 @@ Section Soundness.
     Admitted.
 
     Theorem cond_sound : forall tag e s₁ s₂ Γ₁,
-        typ_of_expr e = TypBool ->
-        (ge,this,Δ,Γ) ⊢ₑ e->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypBool ->
         (ge,this,Δ,Γ) ⊢ₛ s₁ ⊣ Γ₁ ->
         predop (fun s₂ => exists Γ₂, (ge,this,Δ,Γ) ⊢ₛ s₂ ⊣ Γ₂) s₂ ->
         (ge,this,Δ,Γ)

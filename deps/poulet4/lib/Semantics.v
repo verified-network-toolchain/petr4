@@ -1725,12 +1725,20 @@ Definition instantiate' :=
 Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl : @Declaration tags_t)
       (p : path) (m : inst_mem) (s : extern_state) : ienv * inst_mem * extern_state :=
   match decl with
+  (* A temporary solution for constants, may need improvement. *)
+  | DeclConstant _ typ name expr =>
+      match eval_expr_gen (eval_expr_ienv_hook e) expr with
+      | Some v =>
+          (IdentMap.set (str name) (inr v) e, set_inst_mem (p ++ [str name]) (inr v) m, s)
+      | None => (e, m, s) (* Should be impossible if eval_expr is complete. *)
+      end
   | DeclInstantiation _ typ args name init =>
       let '(inst, m, s) := instantiate' ce e typ args (p ++ clear_list [name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
         let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ clear_list [name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set (str name) inst e, m, s)
+  (* For externs' init blocks only. *)
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in

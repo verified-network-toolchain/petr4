@@ -286,43 +286,40 @@ Section InterpreterSafe.
   Qed.
 
   Theorem interp_read_safe:
-    forall lv ge st v,
-      Interpreter.interp_read ge st lv = Some v ->
-      Semantics.exec_read ge st lv v.
+    forall lv st v,
+      Interpreter.interp_read st lv = Some v ->
+      Semantics.exec_read st lv v.
   Proof.
     intro lv.
     pattern lv.
     match goal with
     | |- ?P lv => set (lval_ok := P)
     end.
-    set (pre_lval_ok plv := forall typ, lval_ok (Value.MkValueLvalue plv typ)).
-    eapply (ValueUtil.lvalue_mut_ind lval_ok pre_lval_ok); repeat (intros; unfold lval_ok, pre_lval_ok in *; simpl).
-    - eapply H; eauto.
-    - constructor.
-      assumption.
-    - simpl in H0.
+    induction lv; repeat (intros; unfold lval_ok; simpl).
+    - constructor; assumption.
+    - simpl in H.
       optbind_inv.
       econstructor; eauto using find_member_get.
-    - simpl in H0.
+    - simpl in H.
       optbind_inv.
       optbind_inv.
       destruct a0.
-      destruct (PeanoNat.Nat.leb (N.to_nat lo) (N.to_nat hi) && PeanoNat.Nat.ltb (N.to_nat hi) n)%bool
+      destruct (PeanoNat.Nat.leb (N.to_nat lsb) (N.to_nat msb) &&
+                PeanoNat.Nat.ltb (N.to_nat msb) n)%bool
                eqn:?;
                [|discriminate].
-      inversion H0; subst.
+      inversion H; subst.
       econstructor; eauto.
       apply andb_prop in Heqb.
       destruct Heqb.
       split.
+      + eapply Bool.reflect_iff in H0; eauto using PeanoNat.Nat.leb_spec0.
       + eapply Bool.reflect_iff in H1; eauto using PeanoNat.Nat.leb_spec0.
-      + eapply Bool.reflect_iff in H2; eauto using PeanoNat.Nat.leb_spec0.
-    - simpl in H0.
+    - simpl in H.
       optbind_inv.
       destruct a; try discriminate.
       optbind_inv.
-      optbind_inv.
-      inversion H0.
+      inversion H.
       subst.
       econstructor; eauto.
   Qed.
@@ -354,39 +351,28 @@ Section InterpreterSafe.
       econstructor; eauto.
   Qed.
 
-  Definition lval_safe lv :=
-    forall ge st v st',
-      Interpreter.interp_write ge st lv v = Some st' ->
-      Semantics.exec_write ge st lv v st'.
-
-  Definition pre_lval_safe plv :=
-    forall typ, lval_safe (Value.MkValueLvalue plv typ).
-
   Theorem interp_write_safe:
-    forall lv ge st v st',
-      Interpreter.interp_write ge st lv v = Some st' ->
-      Semantics.exec_write ge st lv v st'.
+    forall lv st v st',
+      Interpreter.interp_write st lv v = Some st' ->
+      Semantics.exec_write st lv v st'.
   Proof.
-    simpl.
-    eapply (ValueUtil.lvalue_mut_ind lval_safe pre_lval_safe);
-      unfold pre_lval_safe, lval_safe; intros.
-    - apply H; auto.
+    simpl; intro lv; induction lv; intros.
     - simpl in H.
       inversion H.
       subst.
       constructor.
       auto.
-    - simpl in H0.
+    - simpl in H.
       optbind_inv.
       optbind_inv.
-      apply H in H0.
+      apply IHlv in H.
       econstructor; eauto using interp_read_safe, set_member_safe.
-    - simpl in H0.
+    - simpl in H.
       optbind_inv.
       destruct v; try discriminate.
       destruct a; try discriminate.
-      + destruct (PeanoNat.Nat.leb (N.to_nat lo) (N.to_nat hi) &&
-                  PeanoNat.Nat.ltb (N.to_nat hi) (Datatypes.length value0))%bool
+      + destruct (PeanoNat.Nat.leb (N.to_nat lsb) (N.to_nat msb) &&
+                  PeanoNat.Nat.ltb (N.to_nat msb) (Datatypes.length value0))%bool
                  eqn:?;
                  [|discriminate].
         rewrite Bool.andb_true_iff in Heqb.
@@ -396,8 +382,8 @@ Section InterpreterSafe.
         rewrite <- Bool.reflect_iff in Hlt
           by eauto using PeanoNat.Nat.ltb_spec0.
         solve [econstructor; eauto using interp_read_safe].
-      + destruct (PeanoNat.Nat.leb (N.to_nat lo) (N.to_nat hi) &&
-                  PeanoNat.Nat.ltb (N.to_nat hi) (Datatypes.length value0))%bool
+      + destruct (PeanoNat.Nat.leb (N.to_nat lsb) (N.to_nat msb) &&
+                  PeanoNat.Nat.ltb (N.to_nat msb) (Datatypes.length value0))%bool
                  eqn:?;
                  [|discriminate].
         rewrite Bool.andb_true_iff in Heqb.
@@ -407,7 +393,7 @@ Section InterpreterSafe.
         rewrite <- Bool.reflect_iff in Hlt
           by eauto using PeanoNat.Nat.ltb_spec0.
         solve [econstructor; eauto using interp_read_safe].
-    - simpl in H0.
+    - simpl in H.
       optbind_inv.
       destruct a;
         try discriminate.
@@ -544,8 +530,8 @@ Section InterpreterSafe.
 
   Lemma interp_builtin_safe:
     forall this st lv name args st' sig,
-      Interpreter.interp_builtin ge this st lv name args = Some (st', sig) ->
-      Semantics.exec_builtin ge read_ndetbit this st lv name args st' sig.
+      Interpreter.interp_builtin this st lv name args = Some (st', sig) ->
+      Semantics.exec_builtin read_ndetbit this st lv name args st' sig.
   Proof.
     unfold Interpreter.interp_builtin.
     intros.
@@ -605,8 +591,8 @@ Section InterpreterSafe.
 
   Lemma interp_write_option_safe:
     forall st lv v st',
-      Interpreter.interp_write_option ge st lv v = Some st' ->
-      Semantics.exec_write_option ge st lv v st'.
+      Interpreter.interp_write_option st lv v = Some st' ->
+      Semantics.exec_write_option st lv v st'.
   Proof.
     intros.
     unfold Interpreter.interp_write_option in H.
@@ -619,8 +605,8 @@ Section InterpreterSafe.
 
   Lemma interp_call_copy_out_safe:
     forall outs vs st st',
-      Interpreter.interp_call_copy_out ge outs vs st = Some st' ->
-      Semantics.exec_call_copy_out ge outs vs st st'.
+      Interpreter.interp_call_copy_out outs vs st = Some st' ->
+      Semantics.exec_call_copy_out outs vs st st'.
   Proof.
     unfold Interpreter.interp_call_copy_out.
     unfold Semantics.exec_call_copy_out.

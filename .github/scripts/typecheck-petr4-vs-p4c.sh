@@ -56,7 +56,7 @@ do
 #   else 
 #   	cp $file /petr4/ci-test/type-checking/result/not-matched
 #   fi
-# done
+done
 # # compares result and expection 
 # expec_match_minus_res_match = $(find "$/petr4/ci-test/type-checking/expectation/matched/" "$/petr4/ci-test/type-checking/result/matched/" "$/petr4/ci-test/type-checking/result/matched/" -printf '%P\n' | sort | uniq -u)
 # expec_notmatch_minus_res_match = $(find "$/petr4/ci-test/type-checking/expectation/not-matched/" "$/petr4/ci-test/type-checking/result/not-matched/" "$/petr4/ci-test/type-checking/result/not-matched/" -printf '%P\n' | sort | uniq -u)

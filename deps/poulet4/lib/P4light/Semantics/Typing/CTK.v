@@ -1,8 +1,8 @@
-Require Import Poulet4.Ops Poulet4.Maps
-        Poulet4.Typed Poulet4.Value
-        Poulet4.Syntax Poulet4.Semantics
-        Poulet4.Monads.Monad Poulet4.Monads.Option
-        Poulet4.SyntaxUtil Poulet4.LightTyping.Utility.
+From Poulet4 Require Import P4light.Semantics.Ops
+     Utils.Maps P4light.Syntax.Typed P4light.Syntax.Value
+     P4light.Syntax.Syntax P4light.Semantics.Semantics
+     Monads.Option P4light.Syntax.SyntaxUtil
+     P4light.Semantics.Typing.Utility.
 
 Notation path := (list String.string).
 
@@ -30,7 +30,7 @@ Inductive CTK_eval
     eval_binary_op op v₁ v₂ = Some v ->
     ⟨ p, Σ, e₁ ⟩ ⇝ v₁ ->
     ⟨ p, Σ, e₂ ⟩ ⇝ v₂ ->
-    ⟨ p, Σ, MkExpression i (ExpBinaryOp op (e₁,e₂)) τ d ⟩ ⇝ v
+    ⟨ p, Σ, MkExpression i (ExpBinaryOp op e₁ e₂) τ d ⟩ ⇝ v
 where "'⟨' p ',' Σ ',' e '⟩' '⇝' v" := (CTK_eval p Σ e v) : type_scope.
 
 Section CTKEval.
@@ -48,7 +48,7 @@ Section CTKEval.
         _ (ExpName _ l) _ Directionless => loc_to_val_const Σ p l
     | MkExpression _ (ExpUnaryOp o e) _ _
       => ctk_eval e >>= eval_unary_op o
-    | MkExpression _ (ExpBinaryOp o (e₁,e₂)) _ _
+    | MkExpression _ (ExpBinaryOp o e₁ e₂) _ _
       => let* v₁ := ctk_eval e₁ in
         let* v₂ := ctk_eval e₂ in
         eval_binary_op o v₁ v₂
@@ -78,9 +78,7 @@ Section CTKEval.
       cbn in *; autounfold with core in *;
         try discriminate;
         repeat match_some_inv; try some_inv; eauto.
-    - destruct dir; cbn in *; inv Hev; auto.
-    - destruct args as [e₁ e₂]; cbn in *;
-        repeat match_some_inv; eauto.
+    destruct dir; cbn in *; inv Hev; auto.
   Qed.
 
   Local Hint Constructors exec_expr : core.

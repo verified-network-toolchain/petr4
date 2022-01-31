@@ -1,6 +1,5 @@
-Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
-        Poulet4.Value Coq.micromega.Lia Poulet4.ForallMap
-        Poulet4.Monads.Monad Poulet4.Monads.Option.
+From Poulet4 Require Export P4light.Semantics.Semantics
+     P4light.Semantics.Typing.Utility P4light.Syntax.Value.
 
 (** * Typing of p4light Values. *)
 
@@ -206,7 +205,7 @@ Section RelTyp.
                   by (rewrite map_length; reflexivity); auto; assumption
               end.
       - constructor; rewrite map_length; auto.
-      - rewrite Forall2_map_l in H0; auto.
+      - rewrite ForallMap.Forall2_map_l in H0; auto.
       - replace (length vs)
           with (length (map (ValueBaseMap f) vs)) in *
           by (rewrite map_length; reflexivity).
@@ -309,7 +308,7 @@ Section RelTyp.
         + rewrite Forall2_eq.
           rewrite map_fst_combine;
             autorewrite with core; eauto.
-        + rewrite Forall2_map_l in Hbs.
+        + rewrite ForallMap.Forall2_map_l in Hbs.
           rewrite map_snd_combine;
             autorewrite with core; eauto.
           apply Forall2_length in Hbs.
@@ -325,7 +324,7 @@ Section RelTyp.
         + rewrite Forall2_eq.
           rewrite map_fst_combine;
             autorewrite with core; eauto.
-        + rewrite Forall2_map_l in Hbs.
+        + rewrite ForallMap.Forall2_map_l in Hbs.
           rewrite map_snd_combine;
             autorewrite with core; eauto.
           apply Forall2_length in Hbs.
@@ -339,7 +338,7 @@ Section RelTyp.
         + rewrite Forall2_eq.
           rewrite map_fst_combine;
             autorewrite with core; eauto.
-        + rewrite Forall2_map_l in Hbs.
+        + rewrite ForallMap.Forall2_map_l in Hbs.
           rewrite map_snd_combine;
             autorewrite with core; eauto.
           apply Forall2_length in Hbs.
@@ -373,7 +372,7 @@ Section Lemmas.
     destruct (sequence (map (uninit_sval_of_typ b) ts))
       as [vs |] eqn:Hvs; cbn in *; try discriminate; some_inv.
     rewrite <- Forall2_sequence_iff,
-    <- Forall2_map_l, Forall2_flip in Hvs.
+    <- ForallMap.Forall2_map_l, Forall2_flip in Hvs.
     constructor.
     apply Forall2_impl
       with (R := fun v t => uninit_sval_of_typ b t = Some v)
@@ -389,7 +388,7 @@ Section Lemmas.
           epose proof uninit_sval_of_typ_norm as Husotn;
           unfold uninit_sval_of_typ_norm_def in Husotn;
           rewrite Husotn in Hun; clear Husotn; eauto ].
-    - pose proof Forall2_map_l
+    - pose proof ForallMap.Forall2_map_l
            _ _ _ (fun vo v => vo = Some v) (@uninit_sval_of_typ tags_t b) as H';
         cbn in H'; rewrite Forall2_flip, H';
           rewrite Forall2_flip, H' in Hvs; clear H';
@@ -449,7 +448,7 @@ Section Lemmas.
       do 2 rewrite map_fst_map;
       do 2 rewrite map_snd_map;
       repeat rewrite map_id;
-    rewrite <- Forall2_map_l in Hxvs;
+    rewrite <- ForallMap.Forall2_map_l in Hxvs;
     clear Hxts Uxts;
     generalize dependent xvs;
       induction xts as [| [[i x] t] xts IHxts'];

@@ -1,4 +1,4 @@
-Require Export Poulet4.AList Poulet4.ForallMap Coq.Classes.EquivDec.
+Require Export Poulet4.Utils.AList Poulet4.Utils.ForallMap Coq.Classes.EquivDec.
 
 Section Util.
   Context {K V: Type}

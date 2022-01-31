@@ -158,8 +158,8 @@ Section ExprInd.
       Forall (fun '(_,v) => P v) es -> P (MkExpression t (ExpRecord es) typ dir).
   Hypothesis HUnaryOp: forall t typ dir op arg,
       P arg -> P (MkExpression t (ExpUnaryOp op arg) typ dir).
-  Hypothesis HBinaryOp: forall t typ dir op args,
-      P (fst args) -> P (snd args) -> P (MkExpression t (ExpBinaryOp op args) typ dir).
+  Hypothesis HBinaryOp: forall t typ dir op arg1 arg2,
+      P arg1 -> P arg2 -> P (MkExpression t (ExpBinaryOp op arg1 arg2) typ dir).
   Hypothesis HCast: forall t typ1 dir typ expr,
       P expr -> P (MkExpression t (ExpCast typ expr) typ1 dir).
   Hypothesis HTypeMember: forall t typ1 dir typ name,
@@ -209,8 +209,8 @@ Section ExprInd.
         | ExpList vs => HList t typ1 dir vs (lind vs)
         | ExpRecord es => HRecord t typ1 dir es (alind es)
         | ExpUnaryOp op e => HUnaryOp t typ1 dir op e (expr_ind e)
-        | ExpBinaryOp op args =>
-            HBinaryOp t typ1 dir op args (expr_ind (fst args)) (expr_ind (snd args))
+        | ExpBinaryOp op arg1 arg2 =>
+          HBinaryOp t typ1 dir op arg1 arg2 (expr_ind arg1) (expr_ind arg2)
         | ExpCast typ exp => HCast t typ1 dir typ exp (expr_ind exp)
         | ExpTypeMember s1 s2 => HTypeMember t typ1 dir s1 s2
         | ExpErrorMember s => HErrorMember t typ1 dir s

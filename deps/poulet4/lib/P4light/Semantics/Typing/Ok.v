@@ -1,6 +1,6 @@
 From Coq Require Export Strings.String Lists.List.
-Require Export Poulet4.Typed Poulet4.Syntax
-        Poulet4.P4cub.Util.EquivUtil.
+From Poulet4 Require Export P4light.Syntax.Typed
+     P4light.Syntax.Syntax Utils.Util.EquivUtil.
 Export ListNotations.
 
 (** * Ok Type Names In Context. *)
@@ -179,7 +179,7 @@ with ExpressionPreT_ok
 | ExpBinaryOp_ok o e₁ e₂ :
     Δ ⊢okᵉ e₁ ->
     Δ ⊢okᵉ e₂ ->
-    Δ ⊢ok`ᵉ ExpBinaryOp o (e₁,e₂)
+    Δ ⊢ok`ᵉ ExpBinaryOp o e₁ e₂
 | ExpCast_ok t e :
     Δ ⊢ok t ->
     Δ ⊢okᵉ e ->

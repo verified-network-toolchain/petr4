@@ -1,8 +1,8 @@
 Require Import Coq.Strings.String
         Coq.ZArith.ZArith Coq.Lists.List
         VST.zlist.Zlist
-        Poulet4.P4light.Syntax.Value.
-From Poulet4.Utils Require Import AList Sublist ForallMap.
+        Poulet4.P4light.Syntax.Value Poulet4.Monads.Option.
+From Poulet4.Utils Require Import AList ForallMap.
 From Poulet4.P4light.Syntax Require Import
      Typed P4String SyntaxUtil P4Notations.
 Import ListNotations.

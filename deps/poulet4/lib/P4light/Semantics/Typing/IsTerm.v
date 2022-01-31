@@ -1,5 +1,6 @@
-Require Export Poulet4.Typed Poulet4.Syntax
-        NArith.BinNat Coq.Lists.List Poulet4.P4cub.Util.EquivUtil.
+From Poulet4 Require Export P4light.Syntax.Typed
+     P4light.Syntax.Syntax Utils.Util.EquivUtil.
+Require Export NArith.BinNat Coq.Lists.List.
 Export ListNotations.
 
 (** * Well-formed P4light Terms. *)
@@ -105,7 +106,7 @@ Section Is.
   | is_ExpBinaryOp o e1 e2 :
       is_expr e1 ->
       is_expr e2 ->
-      is_pre_expr (ExpBinaryOp o (e1,e2))
+      is_pre_expr (ExpBinaryOp o e1 e2)
   | is_ExpCast t e :
       is_expr_typ t ->
       is_expr e ->

@@ -1,4 +1,5 @@
-Require Export Poulet4.P4light.Semantics.Typing.Typing.
+From Poulet4.P4light.Semantics Require Export Typing.Typing P4Arith.
+Require Export Coq.ZArith.BinInt.
 
 (** * Helper Lemmas for [Rules.v]. *)
 
@@ -253,14 +254,15 @@ Section Lemmas.
                           unfold ">>|" at 2 in Hmsm;
                           unfold ">>=",option_monad_inst,option_bind in Hmsm;
                           rewrite Hmsm in H; clear Hmsm; cbn in H;
-                            rewrite <- Forall2_sequence_iff,<- Forall2_map_l in H;
+                            rewrite <- Forall2_sequence_iff,
+                            <- ForallMap.Forall2_map_l in H;
                             eauto using Forall2_Forall_impl_Forall; assumption
                 end.
     - inversion H0; subst; eauto.
-    - rewrite Forall_forall in H0;
-        specialize H0 with (ge:=ge);
-        rewrite <- Forall_forall in H0.
-      rewrite <- Forall2_sequence_iff, <- Forall2_map_l in Heqo.
+    - rewrite Forall_forall in H0.
+      specialize H0 with (ge:=ge).
+      rewrite <- Forall_forall in H0.
+      rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l in Heqo.
       eauto using Forall2_Forall_impl_Forall.
   Qed.
 
@@ -588,7 +590,7 @@ Section Lemmas.
     pose proof reduce_inner_impl _ _ _ _ IHts Hge as H; cbn in *.
     rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [ts' Hts'].
-    rewrite Forall2_map_l
+    rewrite ForallMap.Forall2_map_l
       with (R := fun a b => a = Some b) (f := get_real_type ge)
       in Hts'.
     rewrite Forall2_sequence_iff in Hts'; eauto.
@@ -629,16 +631,16 @@ Section Lemmas.
                 (fun a b => get_real_type ge a = Some b)
                 (map snd xts) (map snd (combine (map fst xts) ts'))).
     { rewrite map_snd_combine.
-      - rewrite <- Forall2_map_l. assumption.
+      - rewrite <- ForallMap.Forall2_map_l. assumption.
       - apply Forall2_length in Hts'.
         repeat rewrite map_length in *; assumption. }
-    rewrite Forall2_map_l
+    rewrite ForallMap.Forall2_map_l
       with (R := fun a b => a = Some b) (f := fun a => get_real_type ge (snd a))
       in Hts'.
     rewrite <- map_map with (f := snd) in Hts'.
     pose proof conj Hfst Hsnd as H.
     rewrite <- Forall2_destr_pair_eq in H.
-    rewrite Forall2_map_l
+    rewrite ForallMap.Forall2_map_l
       with
         (f :=
            fun uv =>
@@ -670,7 +672,7 @@ Section Lemmas.
     pose proof reduce_inner_impl _ _ _ _ IHps Hged as H; cbn in *.
     rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [ps' Hps'].
-    rewrite Forall2_map_l
+    rewrite ForallMap.Forall2_map_l
       with (R := fun a b => a = Some b) (f := get_real_param ge)
       in Hps'.
     rewrite Forall2_sequence_iff in Hps'; eauto.
@@ -862,7 +864,7 @@ Section Lemmas.
     rewrite Forall_forall in IHts.
     specialize IHts with (ge := ge).
     rewrite Forall_forall.
-    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hrs.
+    rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l, Forall2_forall in Hrs.
     destruct Hrs as [Hlen Htsl].
     intros x Hxl.
     apply In_nth_error in Hxl as [n Hn].
@@ -898,7 +900,7 @@ Section Lemmas.
     rewrite Forall_forall in IHxts.
     specialize IHxts with (ge := ge).
     rewrite Forall_forall.
-    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hxrs.
+    rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l, Forall2_forall in Hxrs.
     destruct Hxrs as [Hlen Htsl].
     intros [x r] Hxl.
     apply In_nth_error in Hxl as [n Hn].
@@ -931,7 +933,7 @@ Section Lemmas.
     rewrite Forall_forall in IHps.
     specialize IHps with (ge := ge).
     rewrite Forall_forall.
-    rewrite <- Forall2_sequence_iff, <- Forall2_map_l, Forall2_forall in Hrs.
+    rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l, Forall2_forall in Hrs.
     destruct Hrs as [Hlen Htsl].
     intros x Hxl.
     apply In_nth_error in Hxl as [n Hn].

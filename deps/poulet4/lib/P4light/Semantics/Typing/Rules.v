@@ -394,7 +394,7 @@ Section Soundness.
         apply Forall2_ex_factor in H as [rs Hrs].
         rewrite Forall3_permute_12, Forall3_conj_sep in Hrs.
         destruct Hrs as [Hesrs Hvsrs].
-        rewrite Forall2_map_l with
+        rewrite ForallMap.Forall2_map_l with
             (R := fun ro r => ro = Some r) (f := get_real_type ge) in Hesrs.
         rewrite Forall2_sequence_iff in Hesrs.
         rewrite Forall2_map_r with (f:=normᵗ) in Hvsrs.
@@ -449,7 +449,7 @@ Section Soundness.
         rewrite map_snd_combine by (autorewrite with core; eauto).
         rewrite map_fst_combine by (autorewrite with core; eauto).
         rewrite Forall2_eq,map_fst_map,map_snd_map,map_id;split;auto.
-        rewrite <- Forall2_map_l; assumption.
+        rewrite <- ForallMap.Forall2_map_l; assumption.
       - clear Hrnes.
         intros v Hev; inversion Hev; subst.
         rename kvs' into xvs; rename H6 into Hxvs.
@@ -457,7 +457,7 @@ Section Soundness.
         rewrite Forall2_conj in Hxvs.
         destruct Hxvs as [Hfsteq Hxvs].
         rewrite Forall2_map_both,Forall2_eq,map_fst_map in Hfsteq.
-        rewrite map_pat_both, <- Forall2_map_l in Hxvs; cbn in *.
+        rewrite map_pat_both, <- ForallMap.Forall2_map_l in Hxvs; cbn in *.
         rewrite Forall_forall in Htyps.
         apply forall_Forall2 with (bs := map snd xvs) in Htyps;
           autorewrite with core; eauto.
@@ -467,13 +467,13 @@ Section Soundness.
         apply Forall2_ex_factor in H as [rs Hrs].
         rewrite Forall3_conj_sep in Hrs.
         destruct Hrs as [Hesrs Hxvsrs].
-        rewrite Forall2_map_l with
+        rewrite ForallMap.Forall2_map_l with
             (R:=fun e t => get_real_type ge (typ_of_expr e) = Some t)
             (f:=snd) in Hesrs.
-        rewrite Forall2_map_l with
+        rewrite ForallMap.Forall2_map_l with
             (R:=fun t r => get_real_type ge t = Some r)
             (f:=typ_of_expr) in Hesrs.
-        rewrite Forall2_map_l with
+        rewrite ForallMap.Forall2_map_l with
             (R:=fun ro r => ro = Some r) (f:=get_real_type ge) in Hesrs.
         rewrite Forall2_sequence_iff in Hesrs.
         rewrite map_pat_combine,map_id.
@@ -493,7 +493,7 @@ Section Soundness.
           intuition; match_some_inv; some_inv; reflexivity.
         + constructor.
           * rewrite <- Forall2_sequence_iff in Hesrs.
-            repeat rewrite <- Forall2_map_l in Hesrs.
+            repeat rewrite <- ForallMap.Forall2_map_l in Hesrs.
             clear - Utoees Hesrs.
             pose proof @AListUtil.key_unique_map_values as H'.
             unfold AListUtil.map_values in H'.
@@ -611,7 +611,7 @@ Section Soundness.
         binary_type o (typ_of_expr e1) (typ_of_expr e2) t ->
         (ge,this,Δ,Γ) ⊢ₑ e1 ->
         (ge,this,Δ,Γ) ⊢ₑ e2 ->
-        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o (e1,e2)) t dir.
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpBinaryOp o e1 e2) t dir.
     Proof.
       intros i o t e1 e2 d Hctk Hbt He1 He2.
       autounfold with * in *; cbn in *.
@@ -657,7 +657,7 @@ Section Soundness.
                    inv Hv2'; cbn in *;
                    match goal with
                    | H: Forall2 rob (map Some _) _
-                     |- _ => rewrite <- Forall2_map_l,Forall2_forall in H;
+                     |- _ => rewrite <- ForallMap.Forall2_map_l,Forall2_forall in H;
                            destruct H as [Hlen HF2];
                            pose proof
                                 (conj

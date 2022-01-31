@@ -1,16 +1,11 @@
-Require Import Coq.Strings.String.
-Require Import Coq.NArith.NArith.
-Require Import Coq.ZArith.ZArith.
-Require Import Poulet4.Syntax.
-Require Import Poulet4.Typed.
-Require Import Poulet4.P4Arith.
-Require Import Poulet4.P4String.
-Require Import Poulet4.Semantics.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
+From Coq Require Import Strings.String
+     NArith.NArith ZArith.ZArith.
+From Poulet4 Require Import Utils.Utils
+     P4light.Syntax.Syntax P4light.Syntax.Typed
+     P4light.Semantics.P4Arith P4light.Syntax.P4String
+     P4light.Semantics.Semantics
+     Monads.Option Utils.AListUtil.
 From Equations Require Import Equations.
-Require Poulet4.AListUtil.
-
 Import List.ListNotations.
 
 Open Scope string_scope.
@@ -177,7 +172,7 @@ Section Interpreter.
       let argv := interp_sval_val argsv in
       let* v := Ops.eval_unary_op op argv in
       interp_val_sval v
-    | ExpBinaryOp op (larg, rarg) =>
+    | ExpBinaryOp op larg rarg =>
       let* largsv := interp_expr this st larg in
       let* rargsv := interp_expr this st rarg in
       let largv := interp_sval_val largsv in
@@ -477,7 +472,7 @@ Section Interpreter.
 
   Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option (argument * signal) :=
     match exp, dir with
-    | Some expr, In =>
+    | Some expr, Typed.In =>
       let* v := interp_expr_det this st expr in
       let* sv := interp_val_sval v in
       Some ((Some sv, None), SContinue)

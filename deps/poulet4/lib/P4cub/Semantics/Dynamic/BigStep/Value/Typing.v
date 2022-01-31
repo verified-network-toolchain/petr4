@@ -5,7 +5,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
-        Poulet4.ForallMap Coq.micromega.Lia.
+        Poulet4.Utils.ForallMap Coq.micromega.Lia.
 Import String ProperType Val ValueNotations
        LValueNotations AllCubNotations Clmt.Notations.
 

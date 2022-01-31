@@ -1,14 +1,8 @@
-Require Import Coq.micromega.Lia.
-Require Import Coq.Strings.String.
-Require Import Coq.NArith.NArith.
-Require Import Poulet4.Syntax.
-Require Import Poulet4.SyntaxUtil.
-Require Import Poulet4.ValueUtil.
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.Option.
-Require Poulet4.Semantics.
-Require Poulet4.Interpreter.
-Require Import Poulet4.ForallMap.
+From Coq Require Import micromega.Lia Strings.String NArith.NArith.
+From Poulet4 Require Import P4light.Syntax.Syntax
+     P4light.Syntax.SyntaxUtil P4light.Syntax.ValueUtil
+     Monads.Option P4light.Semantics.Semantics Utils.ForallMap.
+Require Poulet4.P4light.Semantics.Interpreter.
 
 Ltac destruct_match H :=
   match goal with
@@ -123,7 +117,7 @@ Section InterpreterSafe.
     - cbn in H. destruct_optbind H. 2: inversion H. destruct_match H. 2: inversion H.
       unfold Interpreter.interp_val_sval in H. inversion H; subst; clear H.
       econstructor; eauto.
-    - cbn in H. destruct args. destruct_optbind H. 2: inversion H.
+    - cbn in H. destruct_optbind H. 2: inversion H.
       do 2 (destruct_match H; [| inversion H]).
       unfold Interpreter.interp_val_sval in H. inversion H; subst; clear H.
       econstructor; eauto.
@@ -630,7 +624,7 @@ Section InterpreterSafe.
 
   Lemma lift_option_length:
     forall A (l: list (option A)) l',
-      lift_option l = Some l' ->
+      Utils.lift_option l = Some l' ->
       List.length l = List.length l'.
   Proof.
     induction l.
@@ -641,7 +635,7 @@ Section InterpreterSafe.
     - simpl.
       intros.
       destruct a; try discriminate.
-      destruct (lift_option l) eqn:?; try discriminate.
+      destruct (Utils.lift_option l) eqn:?; try discriminate.
       inversion H; subst.
       simpl.
       eauto.
@@ -649,7 +643,7 @@ Section InterpreterSafe.
 
   Lemma lift_option_some:
     forall A B (f: A -> option B) l l',
-      lift_option (List.map f l) = Some l' ->
+      Utils.lift_option (List.map f l) = Some l' ->
       forall x,
         List.In x l ->
         forall z,
@@ -660,7 +654,7 @@ Section InterpreterSafe.
     - tauto.
     - destruct l'; try solve [simpl in *; tauto].
       destruct (f a) eqn:?; try discriminate.
-      destruct (lift_option _) eqn:?; try discriminate.
+      destruct (Utils.lift_option _) eqn:?; try discriminate.
       destruct H1.
       + congruence.
       + inversion H; subst.

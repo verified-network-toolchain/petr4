@@ -1,8 +1,6 @@
-Require Import Coq.ZArith.BinInt Coq.Lists.List Poulet4.ForallMap.
-Require Import Coq.Strings.String.
-Require Import Coq.Init.Datatypes.
+From Coq Require Import ZArith.BinInt Lists.List Strings.String.
 Import ListNotations.
-Require Import Poulet4.Utils.AList Poulet4.P4light.Syntax.Syntax.
+From Poulet4 Require Import Utils.AList P4light.Syntax.Syntax Utils.ForallMap.
 From Poulet4.P4light.Syntax Require P4String P4Int Typed.
 
 Section Value.

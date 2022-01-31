@@ -1,15 +1,14 @@
 From Coq Require Export NArith.BinNat Strings.String
      Lists.List micromega.Lia.
-Require Export Poulet4.P4light.Syntax.Typed
-        Poulet4.P4light.Syntax.Syntax
-        Poulet4.Monads.Option
-        VST.zlist.sublist Poulet4.Utils.Utils
-        Poulet4.Syntax.ValueUtil Poulet4.ForallMap
-        Poulet4.P4light.Typing.Ok
-        Poulet4.P4light.Typing.IsTerm.
+Require Export VST.zlist.sublist.
+From Poulet4 Require Export P4light.Syntax.Typed
+     P4light.Syntax.Syntax Monads.Option
+     P4light.Syntax.ValueUtil
+     Utils.ForallMap P4light.Semantics.Typing.Ok
+     P4light.Semantics.Typing.IsTerm.
 Export ListNotations.
 Require Poulet4.P4light.Syntax.P4String
-        Poulet4.Utils.Util.EquivUtil.
+        Poulet4.Utils.AListUtil.
 
 (** * Utility Definitions & Lemmas for Type System. *)
 
@@ -460,7 +459,7 @@ Section Lemmas.
          _ _ _ _ IHts Hokts as H; cbn in H.
     rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [vs Hvs].
-    pose proof Forall2_map_l
+    pose proof ForallMap.Forall2_map_l
          _ _ _
          (fun ov v => ov = Some v)
          (uninit_sval_of_typ b) ts vs as H; cbn in H.
@@ -493,7 +492,7 @@ Section Lemmas.
          _ _ _ _ IHxts Hok as H; cbn in H.
     rewrite <- Forall_forall, Forall_exists_factor in H.
     destruct H as [vs Hvs].
-    pose proof Forall2_map_l
+    pose proof ForallMap.Forall2_map_l
          _ _ _
          (fun ov v => ov = Some v)
          (fun xt => uninit_sval_of_typ b (snd xt))

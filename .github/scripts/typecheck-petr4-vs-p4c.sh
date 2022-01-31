@@ -28,8 +28,8 @@ for file in $(find /petr4/ci-test/type-checking/testdata -name '*.p4')
 do
   # gets the result of type checking from petr4 and p4c, stores them in
   # variables and compares them
-  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file")
+  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" 2>&1)
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
   echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"

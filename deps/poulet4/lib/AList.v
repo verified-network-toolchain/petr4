@@ -73,7 +73,7 @@ Section AList.
         exists (S n), k'; auto.
   Qed.
 
-    
+
   Lemma get_some_in_fst : forall l k v,
       get l k = Some v -> exists k', k === k' /\ List.In k' (map fst l).
   Proof.
@@ -101,7 +101,7 @@ Section AList.
     apply nth_error_In in Hnth.
     eauto using in_fst_get_some.
   Qed.
-  
+
   Lemma get_neq_cons:
     forall (k' : K) (v' : V) (l : list (K * V)) (k : K),
       k =/= k' -> get ((k', v') :: l) k = get l k.
@@ -159,6 +159,18 @@ Section AList.
     - destruct a as [k' v']. simpl. destruct (KEqDec k k').
       + unfold get. simpl. destruct (KEqDec k k); auto. exfalso. now apply c.
       + rewrite get_neq_cons; auto.
+  Qed.
+
+  Lemma set_some_get_miss: forall l k1 k2 v,
+      k1 =/= k2 -> get (set_some l k1 v) k2 = get l k2.
+  Proof.
+    induction l; intros.
+    - simpl. rewrite get_neq_cons; auto. now symmetry.
+    - simpl. destruct a as [k' v']. destruct (KEqDec k1 k').
+      + rewrite !get_neq_cons; auto; [rewrite <- e|]; now symmetry.
+      + destruct (KEqDec k2 k').
+        * rewrite !get_eq_cons; auto.
+        * rewrite !get_neq_cons; auto.
   Qed.
 
   Fixpoint key_unique (l : AList K V R) : bool :=
@@ -326,7 +338,7 @@ Section AList.
   Lemma key_unique_true_filter: forall l f,
       key_unique l = true -> key_unique (filter l f) = true.
   Proof. intros. apply key_unique_sublist_true with l; auto. apply filter_sublist. Qed.
-  
+
   Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).

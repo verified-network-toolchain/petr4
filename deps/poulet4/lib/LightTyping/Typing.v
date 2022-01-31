@@ -213,7 +213,7 @@ Section TypingDefs.
         (lexpr_ok e ->
          (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\
          forall lv s, run_lexpr ge read_one_bit this st e lv s ->
-                       var_gamma Γ ᵗ⊢ₗlv \: typ_of_expr e).
+                 var_gamma Γ ⊢ₗlv \: typ_of_expr e).
     (**[]*)
 
     Variant fundef_funtype_prop

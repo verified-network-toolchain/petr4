@@ -271,11 +271,11 @@ Section Soundness.
           destruct Hz as [z Hz]; eauto.
         + clear lv1 s1 Hlv1; intros lv1 s1 Helv1; inv Helv1.
           apply Helv1' in H8 as Hlvt.
-          destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *; split; auto.
-          inv Hlvt. econstructor; eauto.
+          destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *.
+          econstructor; eauto.
           inv H10.
-          apply He2' in H1 as (r2 & Hr2 & Hvr2); some_inv; cbn in *.
-          inv Hvr2; inv H2; cbn in *; some_inv.
+          apply He2' in H as (r2 & Hr2 & Hvr2); some_inv; cbn in *.
+          inv Hvr2; inv H0; cbn in *; some_inv.
           apply BitArith.lbool_to_val_lower; lia.
     Qed.
 
@@ -328,8 +328,7 @@ Section Soundness.
             by eauto using exec_val_exists.
           destruct Hsv as [v Hsv].
           assert (Hxd: exec_expr_det ge rob this st e v) by eauto.
-          exists (MkValueLvalue (ValLeftBitAccess lv hi lo) (TypBit (hi - lo + 1))),s.
-          inv Hlvw.
+          exists (ValLeftBitAccess lv hi lo),s.
           apply He' in Hev as (r & Hr & Hvr); cbn in *.
           assert (Hbits: exists bits ws, sval_to_bits_width v = Some (bits,ws)).
           { inv Hr; cbn in *; inv Hvr.
@@ -337,15 +336,15 @@ Section Soundness.
           destruct Hbits as (bits & ws & Hbit).
           econstructor; eauto.
           inv Hr; cbn in *; inv Hvr.
-          inv Hsv; cbn in *. some_inv.
-          apply Forall2_length in H2; lia.
+          inv Hsv; cbn in *; some_inv.
+          apply Forall2_length in H0; lia.
         + clear v Hev lv s Hlvs; intros lv s Hlvs; inv Hlvs; inv H10.
           apply He' in H as (r & Hr & Hsvr); clear He'; cbn in *; some_inv.
           cbn in *; inv Hsvr; inv H0; cbn in *; some_inv.
-          apply Helv' in H9 as [Hlv0 Hlv0t].
+          apply Helv' in H9 as Hlvt.
           apply Forall2_length in H1.
-          split; auto. econstructor; eauto.
-          rewrite <- Hlv0t,H1. reflexivity.
+          rewrite H1 in Hlvt.
+          econstructor; eauto.
     Qed.
   
     Theorem list_sound : forall tag es dir,
@@ -865,9 +864,9 @@ Section Soundness.
         clear lv v s Hlvs Hev.
         intros lv s Hlvs; inv Hlvs;
           try (rewrite H8 in Hnxt; discriminate).
-        apply Helv' in H9 as [Hlvt Hlvteq]; split; auto.
+        apply Helv' in H9 as Hlvt.
         rewrite P4String.get_clear_AList_tags in Hts.
-        econstructor; eauto. rewrite <- Hlvteq; assumption.
+        econstructor; eauto.
     Qed.
 
     Theorem array_size_sound : forall tag e x dir t w,

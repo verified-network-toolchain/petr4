@@ -9,6 +9,11 @@ Section Is.
   Notation typ := (@P4Type tags_t).
   Notation expr := (@Expression tags_t).
   Notation pre_expr := (@ExpressionPreT tags_t).
+  Notation stmt := (@Statement tags_t).
+  Notation pre_stmt := (@StatementPreT tags_t).
+  Notation switch_case := (@StatementSwitchCase tags_t).
+  Notation blk := (@Block tags_t).
+  Notation init := (@Initializer tags_t).
   
   (** Allowed types for p4light expressions.
       Correlates to [uninit_sval_of_typ]. *)
@@ -117,6 +122,75 @@ Section Is.
       is_expr e2 ->
       is_expr e3 ->
       is_pre_expr (ExpTernary e1 e2 e3).
+
+  (** Well-formed P4light statements. *)
+  Inductive is_stmt : stmt -> Prop :=
+    is_MkStatement i s t :
+      is_pre_stmt s ->
+      is_stmt (MkStatement i s t)
+  with is_pre_stmt : pre_stmt -> Prop :=
+  | is_StatMethodCall e ts es :
+      is_expr e ->
+      Forall is_expr_typ ts ->
+      Forall (predop is_expr) es ->
+      is_pre_stmt (StatMethodCall e ts es)
+  | is_StatAssignment lhs rhs :
+      is_expr lhs -> is_expr rhs ->
+      is_pre_stmt (StatAssignment lhs rhs)
+  | is_StatDirectApplication t ft args :
+      (* TODO: what to require? *)
+      is_pre_stmt (StatDirectApplication t ft args)
+  | is_StatConditional e s1 s2 :
+      is_expr e -> is_stmt s1 -> predop is_stmt s2 ->
+      is_pre_stmt (StatConditional e s1 s2)
+  | is_StatBlock b :
+      is_block b ->
+      is_pre_stmt (StatBlock b)
+  | is_StatExit :
+      is_pre_stmt StatExit
+  | is_StatEmpty :
+      is_pre_stmt StatEmpty
+  | is_StatReturn e :
+      predop is_expr e ->
+      is_pre_stmt (StatReturn e)
+  | StatSwitch e sws :
+      is_expr e ->
+      Forall is_switch_case sws ->
+      is_pre_stmt (StatSwitch e sws)
+  | is_StatConstant t x e l :
+      is_expr_typ t -> is_expr e ->
+      is_pre_stmt (StatConstant t x e l)
+  | is_StatVariable t x e l :
+      is_expr_typ t -> predop is_expr e ->
+      is_pre_stmt (StatVariable t x e l)
+  | is_StatInstantiation t es x inits :
+      is_expr_typ t ->
+      Forall is_expr es ->
+      Forall is_init inits ->
+      is_pre_stmt (StatInstantiation t es x inits)
+  with is_block : blk -> Prop :=
+  | is_BlockEmpty i :
+      is_block (BlockEmpty i)
+  | is_BlockCons s b :
+      is_stmt s -> is_block b ->
+      is_block (BlockCons s b)
+  with is_switch_case : switch_case -> Prop :=
+  | is_StatSwCaseAction i l b :
+      is_block b ->
+      is_switch_case (StatSwCaseAction i l b)
+  | is_StatSwCaseFallThrough i l :
+      is_switch_case (StatSwCaseFallThrough i l)
+  with is_init : init -> Prop :=
+  | is_InitFunction i r x Xs ps b :
+      is_expr_typ r ->
+      Forall (fun '(MkParameter _ _ t _ _) => is_expr_typ t) ps ->
+      is_block b ->
+      is_init (InitFunction i r x Xs ps b)
+  | is_InitInstantiation i t es x inits :
+      is_expr_typ t ->
+      Forall is_expr es ->
+      Forall is_init inits ->
+      is_init (InitInstantiation i t es x inits).
 End Is.
 
 (** Custom induction principles. *)
@@ -228,4 +302,8 @@ Section IsInd.
   Section IsExprInd.
     (* TODO. *)
   End IsExprInd.
+
+  Section IsStmtInd.
+    (* TODO. *)
+  End IsStmtInd.
 End IsInd.

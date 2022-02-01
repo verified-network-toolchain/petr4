@@ -892,11 +892,34 @@ Section Soundness.
         (ge,this,Δ,Γ) ᵗ⊢ₑ e₃ \: t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
     Proof.
+      intros i e1 e2 e3 t d [He1 Ht1] [He2 Ht2] [He3 Ht3].
+      autounfold with * in *; cbn in *.
+      intros Hge Hged Hok Hise rob st Hrob Hreads Hgst.
+      inv Hok; inv Hise. inv H4; inv H6.
+      eapply He1 in H5 as [[sv1 Hesv1] [Hxe1 _]]; eauto; clear He1.
+      eapply He2 in H7 as [[sv2 Hesv2] [Hxe2 _]]; eauto; clear He2.
+      eapply He3 in H8 as [[sv3 Hesv3] [Hxe3 _]]; eauto; clear He3.
+      split; [| split].
+      - apply Hxe1 in Hesv1 as Hxe1'; clear Hxe1.
+        destruct Hxe1' as (r1 & Hr1 & Hvr1).
+        rewrite <- Ht1 in Hr1; cbn in *; some_inv.
+        cbn in *; inv Hvr1.
+        rename b into ob.
+        assert (Hv1: exists v1, sval_to_val rob (ValBaseBool ob) v1)
+          by eauto using exec_val_exists.
+        destruct Hv1 as [v1 Hv1]; inversion Hv1; subst; rename b' into b.
+        exists (if b then sv2 else sv3).
+        econstructor; eauto.
+        destruct b; auto.
+      - clear dependent sv1. clear dependent sv2.
+        clear dependent sv3.
+        intros v Hev; inv Hev; inv H14.
     Admitted.
   End ExprTyping.
 
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
+  Local Hint Unfold stmt_types : core.
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
@@ -910,6 +933,45 @@ Section Soundness.
           ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
     Proof.
+      cbn. intros i e1 e2 Hte1e2 Hlvoke1 He1 He2.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      unfold gamma_stmt_prop in Hgst.
+      destruct Hgst as [Hgste Hgstf].
+      inv Hoks; inv Hiss; inv H0; inv H1.
+      rename H3 into Hoke1; rename H4 into Hoke2;
+        rename H2 into Hise1; rename H5 into Hise2.
+      pose proof He1 Hge Hged Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
+      destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
+      pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
+      destruct He2 as [He2 | He2].
+      - pose proof He2 Hge Hged Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
+        destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
+        + assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
+            by eauto using exec_val_exists.
+          destruct Hsv2 as [v2 Hsv2].
+          assert (Hxd2: exec_expr_det ge rob this st e2 v2) by eauto. 
+          destruct (is_continue s1) eqn:Hiscont.
+          * assert (Hst': exists st', exec_write st lv1 (ValueBaseMap Some v2) st').
+            { (* TODO: lemma for exec_write. *) admit. }
+            destruct Hst' as [st' Hst']; exists st', s1.
+            eapply exec_stmt_assign; eauto using val_to_sval_ex.
+            rewrite Hiscont; assumption.
+          * exists st, s1; eapply exec_stmt_assign; eauto using val_to_sval_ex.
+            rewrite Hiscont; reflexivity.
+        + clear dependent sv1; clear dependent sv2;
+            clear dependent lv1; clear s1.
+          intros st' sig Hxs; inversion Hxs; subst.
+          * unfold gamma_stmt_prop; split; try assumption.
+            unfold gamma_expr_prop in *.
+            destruct Hgste as [Hgstvar Hgstconst];
+              split; try assumption.
+            admit. (* TODO: helper lemma for [gamma_var_prop Γ]. *)
+          * repeat if_destruct.
+            -- intuition; subst; split; auto.
+            -- intuition; subst. admit.
+            -- destruct H9 as (sv & Hsigsv & Hsv & Hsigcont); subst. admit.
+      - admit. (* TODO: may need more machinery for function calls... *)
     Admitted.
 
     Theorem cond_sound : forall tag e s₁ s₂ Γ₁,

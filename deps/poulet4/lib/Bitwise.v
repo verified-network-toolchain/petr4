@@ -37,12 +37,26 @@ Section Bitwise.
       end in
     of_N' (Z.to_N (BitArith.mod_bound (N.of_nat w) (Z.of_N n))) w.
 
-  Fixpoint to_N (bits : Bits) : N := 
-    match bits with 
+  Lemma of_N_length: forall n w, length (of_N n w) = w.
+  Proof.
+    intros. unfold of_N.
+    remember (fix of_N' (n0 : N) (w0 : nat) {struct w0} : list bool :=
+                match w0 with
+                | 0 => []
+                | S w' => N.odd n0 :: of_N' (N.div2 n0) w'
+                end) as of_N'. rename Heqof_N' into Hof.
+    cut (forall x y, length (of_N' x y) = y).
+    - intros. rewrite H. auto.
+    - clear -Hof. intros. revert x. induction y; intros; rewrite Hof; simpl; auto.
+      rewrite <- Hof. f_equal. apply IHy.
+  Qed.
+
+  Fixpoint to_N (bits : Bits) : N :=
+    match bits with
     | [] => 0
     | h :: t => N.add (if h then 1 else 0) (N.mul 2 (to_N t))
     end.
-  
+
   Definition of_nat (n: nat) (w: nat) := Nat.iter n incr (zero w).
 
   Fixpoint pow_two (w: nat) : nat :=
@@ -60,7 +74,7 @@ Section Bitwise.
 
   Definition to_nat (bits: Bits) : nat := fst (fold_left add_bit_carry bits (0,0)).
 
-  Lemma add_carry_zero : forall w k, 
+  Lemma add_carry_zero : forall w k,
     fst (fold_left add_bit_carry (zero w) (0, k)) = 0.
   Proof.
     intros w.
@@ -107,6 +121,12 @@ Section Bitwise.
     | _, []  => l1
     | h1 :: t1, h2 :: t2 => (f h1 h2) :: (map2 f t1 t2)
     end.
+
+  Lemma map2_length: forall {A: Type} f (l1 l2: list A),
+      length (map2 f l1 l2) = max (length l1) (length l2).
+  Proof.
+    intros. revert l1 l2. induction l1; simpl; intros; auto. destruct l2; simpl; auto.
+  Qed.
 
   Definition xor := map2 xorb.
 

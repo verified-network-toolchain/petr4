@@ -24,10 +24,10 @@
 open Util
 
 (** ['a info] types represents an IR nodes annotated with parsing information. *)
-type 'a info = Info.t * 'a [@@deriving sexp,show,yojson]
+type 'a info = P4info.t * 'a [@@deriving sexp,show,yojson]
 
 (** [info x] returns the parsing info associated with an IR node [x].*) 
-val info : 'a info -> Info.t
+val info : 'a info -> P4info.t
 
 (** [KeyValue.t] represents a key-value pair; the key is a [P4string.t] and the value is an [Expression.t]  *)
 module rec KeyValue : sig

@@ -49,22 +49,22 @@ and pre_P4Parameter =
            Bigint.t := Util.bigint;
            coq_P4Type := pre_P4Type]]
   [@@deriving sexp,show,yojson]
-type coq_P4Type = Info.t pre_P4Type
+type coq_P4Type = P4info.t pre_P4Type
 [@@deriving sexp,show,yojson]
 type coq_FieldType = P4string.t * coq_P4Type
 [@@deriving sexp,show,yojson]
-type coq_FunctionType = Info.t pre_FunctionType
+type coq_FunctionType = P4info.t pre_FunctionType
 [@@deriving sexp,show,yojson]
-type coq_ControlType = Info.t pre_ControlType
+type coq_ControlType = P4info.t pre_ControlType
 [@@deriving sexp,show,yojson]
-type coq_P4Parameter = Info.t pre_P4Parameter
+type coq_P4Parameter = P4info.t pre_P4Parameter
 [@@deriving sexp,show,yojson]
 
 type 'a pre_StmtContext =
   [%import:'a Poulet4.Typed.coq_StmtContext
     [@with coq_P4Type := pre_P4Type]]
   [@@deriving sexp,show,yojson]
-type coq_StmtContext = Info.t pre_StmtContext
+type coq_StmtContext = P4info.t pre_StmtContext
   [@@deriving sexp,show,yojson]
 
 type 'a pre_DeclContext =
@@ -72,7 +72,7 @@ type 'a pre_DeclContext =
           [@with coq_P4Type := pre_P4Type;
                  coq_StmtContext := pre_StmtContext]]
   [@@deriving sexp,show,yojson]
-type coq_DeclContext = Info.t pre_DeclContext
+type coq_DeclContext = P4info.t pre_DeclContext
   [@@deriving sexp,show,yojson]
 
 let eq_dir d1 d2 =
@@ -107,7 +107,7 @@ type 'a pre_MethodPrototype =
            Poulet4.Typed.coq_P4Type := pre_P4Type;
            Poulet4.Typed.coq_P4Parameter := pre_P4Parameter]]
   [@@deriving sexp,show,yojson]
-type coq_MethodPrototype = Info.t pre_MethodPrototype
+type coq_MethodPrototype = P4info.t pre_MethodPrototype
   [@@deriving sexp,show,yojson]
 type coq_OpUni = [%import:Poulet4.Syntax.coq_OpUni]
   [@@deriving sexp,show,yojson]
@@ -135,9 +135,9 @@ and 'a pre_Expression =
       Poulet4.Typed.direction := direction;
       Poulet4.Typed.coq_P4Type := pre_P4Type]]
   [@@deriving sexp,show,yojson]
-type coq_ExpressionPreT = Info.t pre_ExpressionPreT
+type coq_ExpressionPreT = P4info.t pre_ExpressionPreT
   [@@deriving sexp,show,yojson]
-type coq_Expression = Info.t pre_Expression
+type coq_Expression = P4info.t pre_Expression
   [@@deriving sexp,show,yojson]
 type 'a pre_MatchPreT =
   [%import:'a Poulet4.Syntax.coq_MatchPreT
@@ -275,46 +275,46 @@ type 'a pre_program =
   [%import:'a Poulet4.Syntax.program
     [@with coq_Declaration := pre_Declaration]]
   [@@deriving sexp,show,yojson]
-type coq_MatchPreT = Info.t pre_MatchPreT
+type coq_MatchPreT = P4info.t pre_MatchPreT
   [@@deriving sexp,show,yojson]
-type coq_Match = Info.t pre_Match
+type coq_Match = P4info.t pre_Match
   [@@deriving sexp,show,yojson]
-type coq_TablePreActionRef = Info.t pre_TablePreActionRef
+type coq_TablePreActionRef = P4info.t pre_TablePreActionRef
   [@@deriving sexp,show,yojson]
-type coq_TableActionRef = Info.t pre_TableActionRef
+type coq_TableActionRef = P4info.t pre_TableActionRef
   [@@deriving sexp,show,yojson]
-type coq_TableKey = Info.t pre_TableKey
+type coq_TableKey = P4info.t pre_TableKey
   [@@deriving sexp,show,yojson]
-type coq_TableEntry = Info.t pre_TableEntry
+type coq_TableEntry = P4info.t pre_TableEntry
   [@@deriving sexp,show,yojson]
-type coq_TableProperty = Info.t pre_TableProperty
+type coq_TableProperty = P4info.t pre_TableProperty
   [@@deriving sexp,show,yojson]
 
-type coq_StatementSwitchLabel = Info.t pre_StatementSwitchLabel
+type coq_StatementSwitchLabel = P4info.t pre_StatementSwitchLabel
   [@@deriving sexp,show,yojson]
-type coq_StatementSwitchCase = Info.t pre_StatementSwitchCase
+type coq_StatementSwitchCase = P4info.t pre_StatementSwitchCase
   [@@deriving sexp,show,yojson]
-type coq_StatementPreT = Info.t pre_StatementPreT
+type coq_StatementPreT = P4info.t pre_StatementPreT
   [@@deriving sexp,show,yojson]
-type coq_Statement = Info.t pre_Statement
+type coq_Statement = P4info.t pre_Statement
   [@@deriving sexp,show,yojson]
-type coq_Block = Info.t pre_Block
+type coq_Block = P4info.t pre_Block
   [@@deriving sexp,show,yojson]
-type coq_Initializer = Info.t pre_Initializer
+type coq_Initializer = P4info.t pre_Initializer
   [@@deriving sexp,show,yojson]
-type coq_ParserCase = Info.t pre_ParserCase
+type coq_ParserCase = P4info.t pre_ParserCase
   [@@deriving sexp,show,yojson]
-type coq_ParserTransition = Info.t pre_ParserTransition
+type coq_ParserTransition = P4info.t pre_ParserTransition
   [@@deriving sexp,show,yojson]
-type coq_ParserState = Info.t pre_ParserState
+type coq_ParserState = P4info.t pre_ParserState
   [@@deriving sexp,show,yojson]
-type coq_DeclarationField = Info.t pre_DeclarationField
+type coq_DeclarationField = P4info.t pre_DeclarationField
   [@@deriving sexp,show,yojson]
-type coq_Declaration = Info.t pre_Declaration
+type coq_Declaration = P4info.t pre_Declaration
   [@@deriving sexp,show,yojson]
-type coq_ExternMethod = Info.t pre_ExternMethod
+type coq_ExternMethod = P4info.t pre_ExternMethod
   [@@deriving sexp,show,yojson]
-type coq_ExternMethods = Info.t pre_ExternMethods
+type coq_ExternMethods = P4info.t pre_ExternMethods
   [@@deriving sexp,show,yojson]
 type 'a pre_Value =
   [%import:'a Poulet4.ConstValue.coq_Value
@@ -322,9 +322,9 @@ type 'a pre_Value =
                     Bigint.t := Util.bigint;
                     Poulet4.P4String.coq_AList := pre_AListString]]
   [@@deriving sexp,show,yojson]
-type coq_Value = Info.t pre_Value
+type coq_Value = P4info.t pre_Value
   [@@deriving sexp,show,yojson]
-type program = Info.t pre_program
+type program = P4info.t pre_program
   [@@deriving sexp,show,yojson]
 
 (* Everything below this comment is runtime data structures and not

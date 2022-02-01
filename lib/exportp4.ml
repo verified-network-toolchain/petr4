@@ -37,7 +37,7 @@ let print_list f p l =
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
-  fprintf p "NoInfo"
+  fprintf p "NoP4info"
 
 let p4string p (s : P4string.t) =
   fprintf p "{| @[<hov 0>stags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str

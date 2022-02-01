@@ -1,6 +1,6 @@
-module I = Info
+module I = P4info
 open Core_kernel
-module Info = I
+module P4info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
@@ -95,7 +95,7 @@ let update_in_scope name value scope =
 
 let insert_bare ?shadow:(shadow=true) name value env : 'a t =
   if not shadow && present_bare name env
-  then raise (mk_already_bound (BareName ({str=name; tags=Info.dummy})))
+  then raise (mk_already_bound (BareName ({str=name; tags=P4info.dummy})))
   else match env with
        | [] -> no_scopes ()
        | h :: t -> ((name, value) :: h) :: t
@@ -132,7 +132,7 @@ let opt_to_unbound name =
   Util.opt_to_exn (mk_unbound name)
 
 let find_bare (name: string) (env: 'a t) : 'a =
-  let bare_name: P4name.t = BareName {tags = Info.dummy; str = name} in
+  let bare_name: P4name.t = BareName {tags = P4info.dummy; str = name} in
   opt_to_unbound bare_name @@ find_bare_opt name env
 
 let find_toplevel (name: string) (env: 'a t) : 'a =

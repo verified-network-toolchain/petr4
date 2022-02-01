@@ -6,11 +6,9 @@ open P4string
 
 (* hack *)
 module Petr4Error = Error
-module Petr4Info = Info
 open Core_kernel
 open Petr4Error
 module Error = Petr4Error
-module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
@@ -124,7 +122,7 @@ let field_cmp ((name1, _): coq_FieldType) ((name2, _): coq_FieldType) =
 let sort_fields = List.sort ~compare:field_cmp
 
 let add_cast_unsafe (expr: P4light.coq_Expression) new_typ : P4light.coq_Expression =
-  MkExpression (Info.dummy, ExpCast (new_typ, expr), new_typ, dir_of_expr expr)
+  MkExpression (P4info.dummy, ExpCast (new_typ, expr), new_typ, dir_of_expr expr)
 
 let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
   let fs_to_literals fs: P4light.coq_Expression * (P4string.t * coq_P4Type) list =
@@ -132,35 +130,35 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
      let vs = List.map ~f:snd fs in
      let es = List.map ~f:val_to_literal vs in
      let typs = List.map ~f:type_of_expr es in
-     (MkExpression (Info.dummy, ExpList es, TypList typs, In), List.zip_exn names typs)
+     (MkExpression (P4info.dummy, ExpList es, TypList typs, In), List.zip_exn names typs)
   in
   match v with
   | ValBool b ->
-     MkExpression (Info.dummy, ExpBool b, TypBool, In)
+     MkExpression (P4info.dummy, ExpBool b, TypBool, In)
   | ValInteger v ->
-     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = None } in
-     MkExpression (Info.dummy, ExpInt i, TypInteger, In)
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = None } in
+     MkExpression (P4info.dummy, ExpInt i, TypInteger, In)
   | ValBit (width, v) ->
      let width = Bigint.of_int width in
-     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, false) } in
-     MkExpression (Info.dummy, ExpInt i, TypBit width, In)
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = Some (width, false) } in
+     MkExpression (P4info.dummy, ExpInt i, TypBit width, In)
   | ValInt (width, v) ->
      let width = Bigint.of_int width in
-     let i: P4int.t = {tags = Info.dummy; value = v; width_signed = Some (width, true) } in
-     MkExpression (Info.dummy, ExpInt i, TypInt width, In)
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = Some (width, true) } in
+     MkExpression (P4info.dummy, ExpInt i, TypInt width, In)
   | ValString s ->
-     MkExpression (Info.dummy, ExpString s, TypString, In)
+     MkExpression (P4info.dummy, ExpString s, TypString, In)
   | ValTuple vs ->
      let es = List.map ~f:val_to_literal vs in
      let typs = List.map ~f:type_of_expr es in
-     MkExpression (Info.dummy, ExpList es, TypTuple typs, In)
+     MkExpression (P4info.dummy, ExpList es, TypTuple typs, In)
   | ValRecord fs ->
      let e, t = fs_to_literals fs in
      add_cast_unsafe e (TypRecord t)
   | ValError e ->
-     MkExpression (Info.dummy, ExpErrorMember e, TypError, In)
+     MkExpression (P4info.dummy, ExpErrorMember e, TypError, In)
   | ValMatchKind mk ->
-     MkExpression (Info.dummy, ExpTypeMember ({str="match_kind"; tags=Info.dummy}, mk), TypMatchKind, In)
+     MkExpression (P4info.dummy, ExpTypeMember ({str="match_kind"; tags=P4info.dummy}, mk), TypMatchKind, In)
   | ValStruct fs ->
      let e, t = fs_to_literals fs in
      add_cast_unsafe e (TypStruct t)
@@ -170,7 +168,7 @@ let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
      add_cast_unsafe e (TypHeader t)
   | ValEnumField (typ, mem)
   | ValSenumField (typ, mem, _) ->
-     MkExpression (Info.dummy, ExpTypeMember (typ, mem), TypTypeName typ, In)
+     MkExpression (P4info.dummy, ExpTypeMember (typ, mem), TypTypeName typ, In)
   | ValSenum vs -> failwith "ValSenum unsupported"
 
 (* Checks if [t] is a specific p4 type as satisfied by [f] under [env] *)
@@ -200,7 +198,7 @@ let real_name_for_type_member env (typ_name: P4name.t) (name: P4string.t) : P4na
       BareName prefixed_name
   end
 
-let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
+let rec min_size_in_bits' env (info: P4info.t) (hdr_type: coq_P4Type) : int =
   match saturate_type env hdr_type with
   | TypBit width | TypInt width ->
     Bigint.to_int_exn width
@@ -225,7 +223,7 @@ let rec min_size_in_bits' env (info: Info.t) (hdr_type: coq_P4Type) : int =
 and field_width_bits env info ((_, typ): coq_FieldType) : int =
   min_size_in_bits' env info typ
 
-and min_size_in_bits env (info: Info.t) (hdr_type: coq_P4Type) : Bigint.t =
+and min_size_in_bits env (info: P4info.t) (hdr_type: coq_P4Type) : Bigint.t =
   Bigint.of_int (min_size_in_bits' env info hdr_type)
 
 and min_size_in_bytes env info hdr_type =
@@ -827,7 +825,7 @@ and type_equality env equiv_vars t1 t2 : bool =
 and assert_same_type env info1 info2 typ1 typ2 =
   if type_equality env [] typ1 typ2
   then (typ1, typ2)
-  else let info = Info.merge info1 info2 in
+  else let info = P4info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
 
 and assert_type_equality env info typ1 typ2 : unit =
@@ -1055,11 +1053,11 @@ and eval_to_positive_int env info expr =
   in
   if Bigint.(value > zero)
   then value
-  else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
+  else raise_s [%message "expected positive integer" ~info:(info: P4info.t)]
 
 and gen_wildcard env: P4string.t =
   let str = Renamer.freshen_name (Checker_env.renamer env) "__wild" in
-  {tags = Info.dummy; str}
+  {tags = P4info.dummy; str}
 
 and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Type.t) : coq_P4Type * P4string.t list =
   let open Surface.Type in
@@ -1097,7 +1095,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
     if gen_wildcards
     then let name = gen_wildcard env in
          TypTypeName ( name), [name]
-    else raise_s [%message"not generating wildcards" ~info:(fst typ: Info.t)] 
+    else raise_s [%message"not generating wildcards" ~info:(fst typ: P4info.t)] 
 
 and translate_type (env: Checker_env.t) (typ: Surface.Type.t) : coq_P4Type =
   fst (translate_type' env typ)
@@ -1357,9 +1355,9 @@ and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
   if not @@ is_well_formed_type env typ
   then raise_s [%message "Parameter type is not well-formed." ~typ:(typ:coq_P4Type)];
   if not @@ is_valid_param_type env ctx typ
-  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:Info.t)];
+  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:P4info.t)];
   if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
-  then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:Info.t)]
+  then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:P4info.t)]
 
 and type_param ?(gen_wildcards=false) env (ctx: P4light.coq_ParamContext) (param_info, param : Surface.Parameter.t) : coq_P4Parameter * P4string.t list =
   let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
@@ -1905,7 +1903,7 @@ and type_error_member env ctx (name: P4string.t) : P4light.coq_ExpressionPreT * 
 
 and header_methods typ =
   let fake_fields: coq_FieldType list =
-    [({tags=Info.dummy; str="isValid"},
+    [({tags=P4info.dummy; str="isValid"},
                   TypFunction (MkFunctionType ([], [], FunBuiltin, TypBool)))]
   in
   match typ with
@@ -1984,7 +1982,7 @@ and type_expression_member_function_builtin env info typ (name: P4string.t) : co
       | "push_front"
       | "pop_front" ->
         let parameters: coq_P4Parameter list =
-          [MkParameter (false, Directionless, TypInteger, None, {tags=Info.dummy; str="count"})]
+          [MkParameter (false, Directionless, TypInteger, None, {tags=P4info.dummy; str="count"})]
         in
         Some (TypFunction (MkFunctionType ([], parameters, FunBuiltin, TypVoid)))
       | _ -> None
@@ -2073,7 +2071,7 @@ and match_params_to_args env call_site_info params args : (coq_P4Parameter * Exp
       get_mode (Some `Named) args
     | m, [] -> m
     | _ -> raise_s [%message "mixed positional and named arguments at call site"
-               ~info:(call_site_info: Info.t)]
+               ~info:(call_site_info: P4info.t)]
   in
   let args = List.map ~f:snd args in
   match get_mode None args with
@@ -2103,12 +2101,12 @@ and match_positional_args_to_params env call_site_info params args =
           if opt_of_param param
           then conv param Missing :: go params args
           else raise_s [%message "missing argument for parameter"
-                ~info:(call_site_info: Info.t)
+                ~info:(call_site_info: P4info.t)
                 ~param:(param: coq_P4Parameter)]
       end
     | [], arg :: args ->
       raise_s [%message "too many arguments"
-          ~info:(call_site_info: Info.t)]
+          ~info:(call_site_info: P4info.t)]
     | [], [] -> []
   in
   go params args
@@ -2134,7 +2132,7 @@ and match_named_args_to_params env call_site_info (params: coq_P4Parameter list)
         if opt_of_param p
         then (p, None) :: match_named_args_to_params env call_site_info params other_args
         else raise_s [%message "parameter has no matching argument"
-              ~call_site:(call_site_info: Info.t)
+              ~call_site:(call_site_info: P4info.t)
               ~param:(p: coq_P4Parameter)]
     end
   | [] ->
@@ -2142,7 +2140,7 @@ and match_named_args_to_params env call_site_info (params: coq_P4Parameter list)
     | [] -> []
     | a :: rest ->
       raise_s [%message "too many arguments supplied at call site"
-          ~info:(call_site_info: Info.t)
+          ~info:(call_site_info: P4info.t)
           ~unused_args:(args : Surface.Argument.pre_t list)]
 
 and is_lvalue env (expr_typed: P4light.coq_Expression) =
@@ -2517,7 +2515,7 @@ and type_range env ctx lo hi =
       raise_mismatch (info hi) ("bit<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | TypInt width, hi_typ ->
       raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
-    | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
+    | lo_typ, _ -> raise_mismatch (P4info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
   P4light.MatchRange (lo_typed, hi_typed), typ
 
@@ -2595,10 +2593,10 @@ and type_direct_application env ctx stmt_info typ args =
   let expr_ctx = expr_ctxt_of_stmt_ctxt ctx in
   let open Surface.Expression in
   let instance = NamelessInstantiation {typ = typ; args = []} in
-  let apply = ExpressionMember {expr = Info.dummy, instance;
-                                name = {tags = Info.dummy; str="apply"}} in
+  let apply = ExpressionMember {expr = P4info.dummy, instance;
+                                name = {tags = P4info.dummy; str="apply"}} in
   let call, _, dir =
-    type_function_call env expr_ctx Info.dummy (Info.dummy, apply) [] args
+    type_function_call env expr_ctx P4info.dummy (P4info.dummy, apply) [] args
   in
   match call with
   | ExpFunctionCall (MkExpression (_, _, func_typ, _), type_args, args) ->
@@ -2772,7 +2770,7 @@ and stmt_of_decl_stmt (decl: P4light.coq_Declaration) : P4light.coq_Statement =
     | DeclInstantiation (info, typ, args, name, init) ->
       info, StatInstantiation (typ, args, name, inits_of_decls init)
     | _ ->
-      Info.dummy, StatEmpty
+      P4info.dummy, StatEmpty
   in
   MkStatement (info, stmt, StmUnit)
 
@@ -2848,7 +2846,7 @@ and type_initializer env env_top ctx (init: Surface.Statement.t) : P4light.coq_D
 
 and type_initializers env ctx instance_type (inits: Surface.Statement.t list): P4light.coq_Declaration list * int =
   let env_top = 
-    Checker_env.insert_type_of (BareName {tags=Info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
+    Checker_env.insert_type_of (BareName {tags=P4info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
   let extern_name, args =
     match instance_type with
     | TypExtern extern_name -> extern_name, []
@@ -2978,14 +2976,13 @@ and type_select_case env ctx state_names expr_types ((case_info, case): Surface.
   else raise_s [%message "state name unknown" ~name:(case.next.str: string)]
 
 and type_transition env ctx state_names transition : P4light.coq_ParserTransition =
-  let open Parser in
   let trans_info = fst transition in
   match snd transition with
-  | Direct {next} ->
+  | Surface.Parser.Direct {next} ->
     if List.mem ~equal:P4string.eq state_names next
     then ParserDirect (trans_info, next)
     else raise @@ Type (next.tags, (Error.Unbound next.str))
-  | Select {exprs; cases} ->
+  | Surface.Parser.Select {exprs; cases} ->
     let exprs_typed = List.map ~f:(type_expression env ctx) exprs in
     let expr_types = List.map ~f:type_of_expr exprs_typed in
     let cases_typed =
@@ -3006,12 +3003,11 @@ and check_state_names names =
   with
   | Some duplicated -> raise_s [%message "duplicate state name in parser" ~state:duplicated.str]
   | None ->
-    if List.mem ~equal:P4string.eq names {tags=Info.dummy; str="start"}
+    if List.mem ~equal:P4string.eq names {tags=P4info.dummy; str="start"}
     then ()
     else raise_s [%message "parser is missing start state"];
 
-and open_parser_scope env ctx params constructor_params locals states =
-  let open Parser in
+and open_parser_scope env ctx params constructor_params locals (states: Parser.state list) =
   let env = Checker_env.push_scope env in
   let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
   let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
@@ -3021,14 +3017,14 @@ and open_parser_scope env ctx params constructor_params locals states =
   let program_state_names = List.map ~f:(fun (_, state) -> state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
-  let accept: P4string.t = {tags=Info.dummy; str="accept"} in
-  let reject: P4string.t = {tags=Info.dummy; str="reject"} in
+  let accept: P4string.t = {tags=P4info.dummy; str="accept"} in
+  let reject: P4string.t = {tags=P4info.dummy; str="reject"} in
   let state_names = program_state_names @ [accept; reject] in
   check_state_names state_names;
   (env, state_names, constructor_params_typed, params_typed, locals_typed)
 
 (* Section 12.2 *)
-and type_parser env info name annotations type_params params constructor_params locals states =
+and type_parser env info name annotations type_params params constructor_params locals (states: Parser.state list) =
   if List.length type_params > 0
   then failwith "Parser declarations cannot have type parameters";
   let env', state_names, constructor_params_typed, params_typed, locals_typed =
@@ -3099,7 +3095,7 @@ and type_control env info name annotations type_params params constructor_params
 and add_direction (param: Surface.Parameter.t) : Surface.Parameter.t =
   let open Surface in 
   let p = snd param in
-  let direction: Direction.t option = Some (Info.dummy, In) in
+  let direction: Direction.t option = Some (P4info.dummy, In) in
   match p.direction with
   | None -> (fst param, {p with direction})
   | _ -> param
@@ -3250,7 +3246,7 @@ and type_value_set env ctx info annotations typ size name =
 (* Section 13.1 *)
 and type_action env info annotations name params body =
   let fn_typed, fn_env =
-    type_function ~add_dirs:true env StmtCxAction info (Info.dummy, Surface.Type.Void) name [] params body
+    type_function ~add_dirs:true env StmtCxAction info (P4info.dummy, Surface.Type.Void) name [] params body
   in
   let action_typed, action_type =
     match fn_typed with
@@ -3595,7 +3591,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                          else raise_s [%message "Table must have a non-empty actions property"] end
                        |> List.map ~f:fst
                        |> List.map ~f:P4name.name_only
-                       |> List.map ~f:(fun str -> {P4string.tags=Info.dummy; str})
+                       |> List.map ~f:(fun str -> {P4string.tags=P4info.dummy; str})
     in
     let action_enum_name = {name with str="action_list_" ^ name.str} in
     let action_enum_typ = TypEnum (action_enum_name, None, action_names) in
@@ -3610,10 +3606,10 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
       Checker_env.insert_type (BareName action_enum_name)
         action_enum_typ env
     in
-    let hit_field = ({P4string.tags=Info.dummy; str="hit"}, TypBool) in
-    let miss_field = ({P4string.tags=Info.dummy; str="miss"}, TypBool) in
+    let hit_field = ({P4string.tags=P4info.dummy; str="hit"}, TypBool) in
+    let miss_field = ({P4string.tags=P4info.dummy; str="miss"}, TypBool) in
     (* How to represent the type of an enum member *)
-    let run_field = ({P4string.tags=Info.dummy; str="action_run"}, action_enum_typ) in
+    let run_field = ({P4string.tags=P4info.dummy; str="action_run"}, action_enum_typ) in
     let apply_result_typ = TypStruct [hit_field; miss_field; run_field] in
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = {name with str = "apply_result_" ^ name.str} in

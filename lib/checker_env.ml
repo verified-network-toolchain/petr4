@@ -1,6 +1,6 @@
-module I = Info
+module I = P4info
 open Core_kernel
-module Info = I
+module P4info = I
 
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)

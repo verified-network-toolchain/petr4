@@ -1005,7 +1005,22 @@ Section Soundness.
         predop (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
     Proof.
-    Admitted.
+      cbn. intros i e He.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgst.
+      destruct e as [e |]; inv He; cbn in *.
+      - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
+        pose proof H0 Hge Hged H2 H3 _ _ Hrob Hreads (proj1 Hgst)
+          as [[sv Hesv] [He _]]; clear H0; split.
+        + eauto using exec_stmt_return_some.
+          assert (Hv: exists v, sval_to_val rob sv v)
+            by eauto using exec_val_exists.
+          destruct Hv as [v Hv]; eauto.
+        + clear dependent sv.
+          intros st' sig Hxs; inv Hxs; assumption.
+      - split; eauto.
+        intros st' sig Hxs; inv Hxs; assumption.
+    Qed.
 
     Theorem empty_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.

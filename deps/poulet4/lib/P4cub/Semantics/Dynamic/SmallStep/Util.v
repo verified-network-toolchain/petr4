@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Value
-        Poulet4.P4cub.Semantics.Climate Poulet4.P4light.Semantics.P4Arith
+        Poulet4.P4cub.Semantics.Climate Poulet4.Utils.P4Arith
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Semantics.Static.Static.

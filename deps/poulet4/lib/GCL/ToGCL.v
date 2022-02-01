@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
 From Poulet4 Require Export P4cub.Syntax.AST
-     P4light.Semantics.P4Arith Utils.Envn
+     Utils.P4Arith Utils.Envn
      P4cub.Semantics.Dynamic.BigStep.BigStep
      Monads.Result.
 Require Import Coq.Arith.EqNat String.

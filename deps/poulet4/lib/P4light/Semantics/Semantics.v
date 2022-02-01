@@ -5,12 +5,12 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Poulet4.P4light.Syntax.Typed
         Poulet4.P4light.Syntax.Syntax        
         Poulet4.Monads.Option.
-From Poulet4.Utils Require Import Utils Maps AList.
+From Poulet4.Utils Require Import Utils Maps AList P4Arith.
 Require Export Poulet4.P4light.Architecture.Target
         VST.zlist.Zlist Poulet4.P4light.Syntax.Value.
 From Poulet4.P4light.Syntax Require Export ValueUtil SyntaxUtil.
 From Poulet4.P4light.Syntax Require Import P4String P4Int P4Notations.
-From Poulet4.P4light.Semantics Require Import P4Arith Ops.
+From Poulet4.P4light.Semantics Require Import Ops.
 Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.

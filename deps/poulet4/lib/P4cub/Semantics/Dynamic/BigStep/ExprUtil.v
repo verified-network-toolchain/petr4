@@ -1,5 +1,5 @@
 Set Warnings "-custom-entry-overridden".
-Require Import Poulet4.P4light.Semantics.P4Arith
+Require Import Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia

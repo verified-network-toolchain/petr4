@@ -4,12 +4,10 @@ From Coq Require Import Strings.String Bool.Bool
 Require Import
         VST.zlist.Zlist
         Poulet4.P4light.Syntax.Value
-        Poulet4.P4light.Syntax.Syntax
-        Poulet4.P4light.Semantics.P4Arith.
+        Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
      Typed P4String SyntaxUtil.
-From Poulet4.Utils Require Import AList CoqLib.
-
+From Poulet4.Utils Require Import AList CoqLib P4Arith.
 Import ListNotations.
 
 Section BitStringSlice.

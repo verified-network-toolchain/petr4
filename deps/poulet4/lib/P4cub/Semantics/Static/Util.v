@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 From Coq Require Import PArith.BinPos ZArith.BinInt NArith.BinNat.
 From Poulet4 Require Export P4cub.Semantics.Climate
-     P4light.Semantics.P4Arith P4cub.Syntax.Syntax.
+     Utils.P4Arith P4cub.Syntax.Syntax.
 
 (** Notation entries. *)
 Declare Custom Entry p4signal.

@@ -1,7 +1,7 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.NArith.BinNat Coq.ZArith.BinInt
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
-        Poulet4.P4cub.Semantics.Climate Poulet4.P4light.Semantics.P4Arith
+        Poulet4.P4cub.Semantics.Climate Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.ExprUtil.
 Module V := Val.
 Import String V.ValueNotations V.LValueNotations Clmt.Notations.

@@ -3,7 +3,7 @@ Require Export Coq.Strings.String
         Poulet4.P4light.Syntax.Value
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
         Poulet4.Utils.ForallMap
-        Poulet4.Utils.Utils Poulet4.P4light.Semantics.P4Arith.
+        Poulet4.Utils.Utils Poulet4.Utils.P4Arith.
 Require Poulet4.P4light.Syntax.P4String.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Import AllCubNotations Val.ValueNotations.

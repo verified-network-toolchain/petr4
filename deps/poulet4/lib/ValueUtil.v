@@ -451,3 +451,10 @@ Proof.
   - assert (forall b, rob (Some b) b) by firstorder;
       auto using sval_to_val_eval_val_to_sval.
 Qed.
+
+Lemma Forall2_ndetbit: forall l1 l2,
+    Forall2 read_ndetbit (map Some l1) l2 -> l1 = l2.
+Proof.
+  induction l1; simpl; intros; inversion H; subst; clear H; auto.
+  inversion H2; subst; clear H2. f_equal. now apply IHl1.
+Qed.

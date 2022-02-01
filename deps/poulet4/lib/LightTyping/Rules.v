@@ -914,7 +914,13 @@ Section Soundness.
       - clear dependent sv1. clear dependent sv2.
         clear dependent sv3.
         intros v Hev; inv Hev; inv H14.
-    Admitted.
+        apply Hxe1 in H13 as (r1 & Hr1 & Hsvr1).
+        rewrite <- Ht1 in Hr1; cbn in *; some_inv; cbn in *.
+        destruct b.
+        + firstorder.
+        + rewrite Ht3; firstorder.
+      - intros Hlv; inv Hlv.
+    Qed.
   End ExprTyping.
 
   Local Hint Constructors exec_stmt : core.

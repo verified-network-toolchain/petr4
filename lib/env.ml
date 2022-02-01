@@ -1,6 +1,4 @@
-module I = P4info
 open Core_kernel
-module P4info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 

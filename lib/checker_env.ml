@@ -1,6 +1,4 @@
-module I = P4info
 open Core_kernel
-module P4info = I
 
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)

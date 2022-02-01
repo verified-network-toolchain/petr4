@@ -366,7 +366,7 @@ annotationToken:
 | NAME IDENTIFIER  { $1 }
 | NAME TYPENAME    { $1 }
 | STRING_LITERAL   { {tags=$1.tags; str = "\"" ^ $1.str ^ "\""} }
-| INTEGER          { let i, str = $1 in 
+| INTEGER          { let (i, str): P4int.t * string = $1 in 
                      {tags=i.tags; str} }
 | MASK             { {tags=$1; str="&&&"} }
 | RANGE            { {tags=$1; str=".."} }

@@ -1,7 +1,6 @@
 open Surface
 open P4light
 open Util
-open Checker_env
 open P4string
 
 (* hack *)

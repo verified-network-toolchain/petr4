@@ -6,5 +6,5 @@ type 'a pre_t =
     [@with Bigint.t := bigint]]
   [@@deriving sexp,show,yojson]
 
-type t = Info.t pre_t
+type t = P4info.t pre_t
   [@@deriving sexp,show,yojson]

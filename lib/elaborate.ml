@@ -1,9 +1,7 @@
-module I = Info
 open Core_kernel
 open Util
 open Surface
 open Checker_env
-module Info = I
 
 let subst_vars_name env type_name =
   begin match Checker_env.resolve_type_name_opt type_name env with

@@ -12,9 +12,9 @@
  * License for the specific language governing permissions and limitations
  * under the License.
 *)
-module P4Info = Info
+module P4P4info = P4info
 open Core_kernel
-module Info = P4Info
+module P4info = P4P4info
 
 module type Parse_config = sig
   val red: string -> string
@@ -112,11 +112,11 @@ module Make_parse (Conf: Parse_config) = struct
           let oc = Out_channel.create export_file in
           let prog' =
             if normalize then
-              Poulet4.SimplExpr.transform_prog Info.dummy typed_prog
+              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
             else typed_prog in
           let prog'' =
             if gen_loc then
-              match Poulet4.GenLoc.transform_prog Info.dummy prog' with
+              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
               | Coq_inl prog'' -> prog''
               | Coq_inr ex -> failwith "error occurred in GenLoc"
             else prog' in
@@ -131,11 +131,11 @@ module Make_parse (Conf: Parse_config) = struct
         Out_channel.close oc;
       end
     | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
+      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
     | `Error (info, Parser.Error) ->
-      Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
+      Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
     | `Error (info, err) ->
-      Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
+      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     failwith "eval_file removed"
@@ -182,7 +182,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `NoPacket -> "No packet out"
     | `Error(info, exn) ->
       let exn_msg = Exn.to_string exn in
-      let info_string = Info.to_string info in
+      let info_string = P4info.to_string info in
       info_string ^ "\n" ^ exn_msg
     *)
 

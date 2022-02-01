@@ -19,6 +19,16 @@ jobs:
       - name: typecheck test petr4 vs p4c
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash
+      - name: add result of type checking to git repo
+        run: |
+          git add .
+          git commit -m "add result of type checking"
+          git push origin
+#       - name: Push changes to git
+#         uses: ad-m/github-push-action@master
+#         with:
+#           github_token: ${{ secrets.GITHUB_TOKEN }}
+#           force: true
 
 
 # have a job that checkouts first and another to reuse a workflow like the following:

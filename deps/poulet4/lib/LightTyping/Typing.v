@@ -51,14 +51,13 @@ Section TypingDefs.
 
   Definition gamma_var_domain
              `{T : @Target tags_t expr}
-             (g : gamma_var) (st : state) : Prop :=
-    forall l : Locator, typ_of_loc_var l g = None <-> loc_to_sval l st = None.
+             (g : gamma_var) (st : state) : Prop := forall l t,
+      typ_of_loc_var l g = Some t -> exists sv, loc_to_sval l st = Some sv.
 
   Definition gamma_var_val_typ
              `{T : @Target tags_t expr}
              (g : gamma_var) (st : state)
-             (gt : genv_typ) : Prop :=
-    forall l t v,
+             (gt : genv_typ) : Prop := forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
       exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
@@ -72,9 +71,9 @@ Section TypingDefs.
   Definition gamma_const_domain
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_const)
-             (ge : genv) : Prop :=
-    forall l : Locator,
-      typ_of_loc_const this l g = None <-> loc_to_sval_const ge this l = None.
+             (ge : genv) : Prop := forall l t,
+      typ_of_loc_const this l g = Some t ->
+      exists v, loc_to_val_const ge this l = Some v.
 
   Definition gamma_const_val_typ
              `{T : @Target tags_t expr}
@@ -159,8 +158,9 @@ Section TypingDefs.
   Definition gamma_func_domain
              `{T : @Target tags_t expr}
              (this : path) (gf : gamma_func)
-             (ge : genv) : Prop := forall (e : expr),
-      lookup_func_typ this gf ge e = None <-> lookup_func ge this e = None.
+             (ge : genv) : Prop := forall e ft,
+      lookup_func_typ this gf ge e = Some ft ->
+      exists fd, lookup_func ge this e = Some fd.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -280,6 +280,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        FuncAsMap.submap Γ Γ' /\
         (** Progress. *)
         (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
         (** Preservation. *)
@@ -303,6 +304,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        FuncAsMap.submap Γ Γ' /\
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
         forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                    gamma_stmt_prop Γ' st'.

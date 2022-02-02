@@ -532,6 +532,10 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Instance V1Model : Target := Build_Target _ exec_prog.
+Definition interp_prog : (path -> extern_state -> list Val -> extern_state * list Val * signal) ->
+                         extern_state -> list bool -> extern_state * list bool.
+Admitted.
+
+Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
 
 End V1Model.

@@ -2138,7 +2138,6 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
 End WithGenv.
 
 Context `{inhabitant_tags_t : Inhabitant tags_t}.
-
 Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
@@ -2149,5 +2148,19 @@ Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_const := snd (fst inst_m) in
   let ge_ext := snd inst_m in
   MkGenv ge_func ge_typ ge_senum ge_inst ge_const ge_ext.
+
+Definition exec_module (ge: genv) (read_one_bit : option bool -> bool -> Prop) (this: path) (st: extern_state) (args: list Val) (st': extern_state) (rets: list Val) (sig: signal) : Prop :=
+  match PathMap.get this (ge_inst ge) with
+  | Some func_inst =>
+    match PathMap.get [func_inst.(iclass); "apply"] (ge_func ge) with
+    | Some func =>
+      exists mem': mem,
+              @exec_func ge inhabitant_tags_t read_one_bit [] (PathMap.empty, st) func [] (List.map eval_val_to_sval args) (mem', st') (List.map eval_val_to_sval rets) sig
+    | None => False end
+  | None => False end.
+
+Definition exec_prog (read_one_bit: option bool -> bool -> Prop) (prog: @program tags_t) :=
+  let ge := gen_ge prog in
+  exec_prog (exec_module ge read_one_bit).
 
 End Semantics.

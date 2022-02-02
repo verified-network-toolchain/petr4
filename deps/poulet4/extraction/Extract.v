@@ -84,8 +84,11 @@ Set Extraction Flag 716.
 Extraction Inline Interpreter.interp_isValid.
 Extraction NoInline Interpreter.interp_isValid_fields.
 
-Separate Extraction Poulet4.Syntax
-         Poulet4.Typed Poulet4.SimplExpr
+Separate Extraction
+         Poulet4.Syntax
+         Poulet4.Interpreter
+         Poulet4.Typed
+         Poulet4.SimplExpr
          Poulet4.GenLoc
          Poulet4.ConstValue
          Poulet4.Interpreter

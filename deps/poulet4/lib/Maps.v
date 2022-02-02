@@ -93,6 +93,11 @@ Module FuncAsMap.
         apply Hsub2 in Hm2k.
         rewrite Hm1k in Hm2k; discriminate.
     Qed.
+
+    Lemma submap_refl : forall m, submap m m.
+    Proof.
+      unfold submap; trivial.
+    Qed.
   End FuncAsMap.
 
   Section FuncMapMap.

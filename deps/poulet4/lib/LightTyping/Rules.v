@@ -120,10 +120,7 @@ Section Soundness.
       intros i x l t d Hd Hgt; soundtac.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_domain in Hg.
         destruct Hg as [[Hg _] _].
-        assert (Hv : exists v, loc_to_sval l st = Some v).
-        { destruct (loc_to_sval l st) as [v |] eqn:Hv; eauto.
-          rewrite <- Hg, Hgt in Hv; discriminate. }
-        destruct Hv; eauto.
+        apply Hg in Hgt as [sv Hsv]; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
         destruct Hg as [[_ Hg] _]; eauto.
       - rewrite Hd in H11; discriminate.
@@ -131,11 +128,10 @@ Section Soundness.
         unfold gamma_expr_prop, gamma_var_prop,
         gamma_var_val_typ,gamma_var_domain in Hg.
         destruct Hg as [[Hdg Hg] _].
-        assert (Hv': exists v', loc_to_sval l st = Some v').
-        { destruct (loc_to_sval l st) as [v' |] eqn:Hv'; eauto.
-          rewrite <- Hdg,Hgt in Hv'; discriminate. }
-        destruct Hv' as [v' Hv'].
+        apply Hdg in Hgt as Hsv.
+        destruct Hsv as [sv Hsv].
         intros lv s Helv; inv Helv.
+        pose proof Hg _ _ _ Hgt Hsv as (r & Hr & Hvr).
         destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *; auto.
     Qed.
 
@@ -147,10 +143,9 @@ Section Soundness.
       intros i x l t Hgt; soundtac; try discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_domain in Hg.
         destruct Hg as (_ & Hg & _).
-        assert (Hv : exists v, loc_to_sval_const ge this l = Some v).
-        { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
-          rewrite <- Hg, Hgt in Hv; discriminate. }
-        destruct Hv; eauto.
+        apply Hg in Hgt as [v Hv].
+        apply f_equal with (f:=option_map eval_val_to_sval) in Hv.
+        eauto.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
@@ -926,6 +921,7 @@ Section Soundness.
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
   Local Hint Unfold stmt_types : core.
+  Local Hint Resolve FuncAsMap.submap_refl : core.
 
   (* TODO: In general
      I am stuck when attempting to prove that
@@ -968,6 +964,7 @@ Section Soundness.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 He1 He2.
       autounfold with * in *.
       intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto.
       unfold gamma_stmt_prop in Hgst.
       destruct Hgst as [Hgste Hgstf].
       inv Hoks; inv Hiss; inv H0; inv H1.
@@ -976,7 +973,7 @@ Section Soundness.
       pose proof He1 Hge Hged Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
       destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
       pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
-      destruct He2 as [He2 | He2].
+      destruct He2 as [He2 | He2].      
       - pose proof He2 Hge Hged Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
         destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
         + assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
@@ -1021,11 +1018,12 @@ Section Soundness.
       cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
       autounfold with * in *.
       intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto.
       inv Hoks; inv Hiss. inv H0; inv H1.
       pose proof He Hge Hged H4 H3 _ _ Hrob Hread (proj1 Hgst)
         as [[sv Hesv] [He' _]]; clear He H4 H3.
       pose proof Hs1 Hge Hged H5 H7 _ _ _ Hrob Hread Hgst
-        as [(st1 & sig1 & Hxs1) Hs1']; clear Hs1 H5 H7.
+        as [HΓ₁ [(st1 & sig1 & Hxs1) Hs1']]; clear Hs1 H5 H7.
       assert (Hv: exists v, sval_to_val rob sv v)
         by eauto using exec_val_exists.
       destruct Hv as [v Hv].
@@ -1036,7 +1034,7 @@ Section Soundness.
       destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
       - destruct H1 as [Γ₂ Hs2].
         pose proof Hs2 Hge Hged H2 H3 _ _ st Hrob Hread Hgst
-          as [(st2 & sig2 & Hxs2) Hs2']; clear Hs2 H2 H3.
+          as [HΓ₂ [(st2 & sig2 & Hxs2) Hs2']]; clear Hs2 H2 H3.
         split.
         + destruct b'; eauto.
         + clear dependent st1. clear dependent st2.
@@ -1053,14 +1051,37 @@ Section Soundness.
           intros st' sig Hxs; inv Hxs.
           inv H7. inv H0. destruct b.
           * apply Hs1' in H8.
-            admit. (* Not sure how to proceed. *)
+            unfold gamma_stmt_prop in *.
+            destruct Hgst as [Hgste Hgstf].
+            destruct H8 as [HΓ₁' _].
+            split; try assumption.
+            unfold gamma_expr_prop in *.
+            destruct Hgste as [Hvar Hconst].
+            destruct HΓ₁' as [Hvar1 _].
+            split; try assumption.
+            unfold gamma_var_prop in *.
+            destruct Hvar as [Hvard Hvart].
+            destruct Hvar1 as [Hvard1 Hvart1].
+            split.
+            -- unfold gamma_var_domain in *.
+               intros l t Hlt.
+               enough (typ_of_loc_var l (var_gamma Γ₁) = Some t) by eauto.
+               unfold FuncAsMap.submap in *.
+               destruct l as [p | p]; cbn in *; try discriminate.
+               unfold PathMap.get in *; eauto.
+            -- unfold gamma_var_val_typ in *.
+               intros l t v Hlt Hlv.
+               enough (typ_of_loc_var l (var_gamma Γ₁) = Some t) by eauto.
+               unfold FuncAsMap.submap in *.
+               destruct l as [p | p]; cbn in *; try discriminate.
+               unfold PathMap.get in *; eauto.
           * inv H8; assumption.
     Admitted.
 
     Theorem exit_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.
     Proof.
-      unfold stmt_types; intros; split; eauto.
+      unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
 
@@ -1071,6 +1092,7 @@ Section Soundness.
       cbn. intros i e He.
       autounfold with * in *.
       intros Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgst.
+      split; auto.
       destruct e as [e |]; inv He; cbn in *.
       - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
         pose proof H0 Hge Hged H2 H3 _ _ Hrob Hreads (proj1 Hgst)
@@ -1088,7 +1110,7 @@ Section Soundness.
     Theorem empty_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.
     Proof.
-      unfold stmt_types; intros; split; eauto.
+      unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
     

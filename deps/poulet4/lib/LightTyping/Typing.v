@@ -280,7 +280,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
-        FuncAsMap.submap Γ Γ' /\
+        FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
         (** Progress. *)
         (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
         (** Preservation. *)
@@ -304,7 +304,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
-        FuncAsMap.submap Γ Γ' /\
+        FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
         forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                    gamma_stmt_prop Γ' st'.

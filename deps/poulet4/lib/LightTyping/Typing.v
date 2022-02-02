@@ -68,6 +68,9 @@ Section TypingDefs.
              (gt : genv_typ) : Prop :=
     gamma_var_domain g st /\ gamma_var_val_typ g st gt.
   
+  Definition sub_gamma_var (Γ Γ' : gamma_var) : Prop :=
+    FuncAsMap.submap (fun l => typ_of_loc_var l Γ) (fun l => typ_of_loc_var l Γ').
+  
   Definition gamma_const_domain
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_const)
@@ -90,10 +93,18 @@ Section TypingDefs.
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
     gamma_const_domain this g ge /\ gamma_const_val_typ this g ge.
   
+  Definition sub_gamma_const (this : path) (Γ Γ' : gamma_const) : Prop :=
+    FuncAsMap.submap
+      (fun l => typ_of_loc_const this l Γ)
+      (fun l => typ_of_loc_const this l Γ').
+  
   Definition gamma_expr_prop
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_var_prop g st ge /\ gamma_const_prop this g ge.
+
+  Definition sub_gamma_expr (this : path) (Γ Γ' : gamma_expr) : Prop :=
+    sub_gamma_var Γ Γ' /\ sub_gamma_const this Γ Γ'.
   
   Notation run_expr := (@exec_expr tags_t).
   Notation run_lexpr := (@exec_lexpr tags_t).
@@ -280,7 +291,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
-        FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
+        sub_gamma_expr this Γ Γ' /\
         (** Progress. *)
         (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
         (** Preservation. *)
@@ -303,7 +314,7 @@ Section TypingDefs.
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
-        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        sub_gamma_expr this Γ Γ' /\
         FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
         forall st' sig, run_blk ge read_one_bit this st blk st' sig ->

@@ -5,6 +5,118 @@ Require Export Poulet4.LightTyping.Typing Poulet4.P4Arith Coq.ZArith.BinInt.
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).
+  Notation expr := (@Expression tags_t).
+  Notation path := (list String.string).
+
+  Lemma sub_gamma_var_refl : forall (Γ : @gamma_var tags_t),
+      sub_gamma_var Γ Γ.
+  Proof.
+    intros g; unfold sub_gamma_var.
+    auto using FuncAsMap.submap_refl.
+  Qed.
+
+  Lemma sub_gamma_const_refl : forall p (Γ : @gamma_const tags_t),
+      sub_gamma_const p Γ Γ.
+  Proof.
+    intros p g; unfold sub_gamma_const.
+    auto using FuncAsMap.submap_refl.
+  Qed.
+
+  Local Hint Resolve sub_gamma_var_refl : core.
+  Local Hint Resolve sub_gamma_const_refl : core.
+  
+  Lemma sub_gamma_expr_refl : forall p (Γ : @gamma_expr tags_t),
+      sub_gamma_expr p Γ Γ.
+  Proof.
+    intros p g; unfold sub_gamma_expr; auto.
+  Qed.
+
+  Section SubGamma.
+    Context `{T: @Target tags_t expr}.
+
+    Lemma gamma_const_domain_sub_gamma :
+      forall p (ge : @genv _ T) (Γ Γ' : @gamma_const tags_t),
+        sub_gamma_const p Γ Γ' ->
+        gamma_const_domain p Γ' ge ->
+        gamma_const_domain p Γ ge.
+    Proof.
+      unfold sub_gamma_const,gamma_const_domain,FuncAsMap.submap; eauto.
+    Qed.
+
+    Lemma gamma_const_val_typ_sub_gamma :
+      forall p (ge : @genv _ T) (Γ Γ' : @gamma_const tags_t),
+        sub_gamma_const p Γ Γ' ->
+        gamma_const_val_typ p Γ' ge ->
+        gamma_const_val_typ p Γ ge.
+    Proof.
+      unfold sub_gamma_const,gamma_const_val_typ,FuncAsMap.submap; eauto.
+    Qed.
+
+    Local Hint Resolve gamma_const_domain_sub_gamma : core.
+    Local Hint Resolve gamma_const_val_typ_sub_gamma : core.
+  
+    Lemma gamma_const_prop_sub_gamma :
+      forall p (ge : @genv _ T) (Γ Γ' : @gamma_const tags_t),
+        sub_gamma_const p Γ Γ' ->
+        gamma_const_prop p Γ' ge ->
+        gamma_const_prop p Γ ge.
+    Proof.
+      unfold gamma_const_prop; firstorder eauto.
+    Qed.
+    
+    Variables st st' : @state _ T.
+    
+    Lemma gamma_var_domain_sub_gamma :
+      forall (Γ Γ' : @gamma_var tags_t),
+        sub_gamma_var Γ Γ' ->
+        gamma_var_domain Γ' st' ->
+        gamma_var_domain Γ st'.
+    Proof.
+      unfold sub_gamma_var, gamma_var_domain, FuncAsMap.submap; eauto.
+    Qed.
+  
+    Lemma gamma_var_val_typ_sub_gamma :
+      forall ge (Γ Γ' : @gamma_var tags_t),
+        sub_gamma_var Γ Γ' ->
+        gamma_var_val_typ Γ' st' ge ->
+        gamma_var_val_typ Γ st' ge.
+    Proof.
+      unfold sub_gamma_var,gamma_var_val_typ,FuncAsMap.submap; eauto.
+    Qed.
+
+    Local Hint Resolve gamma_var_domain_sub_gamma : core.
+    Local Hint Resolve gamma_var_val_typ_sub_gamma : core.
+    
+    Lemma gamma_var_prop_sub_gamma : forall ge (Γ Γ' : @gamma_var tags_t),
+      sub_gamma_var Γ Γ' ->
+      gamma_var_prop Γ' st' ge ->
+      gamma_var_prop Γ st' ge.
+    Proof.
+      unfold gamma_var_prop; firstorder eauto.
+    Qed.
+
+    Variables (p : path) (ge : @genv _ T).
+
+    Local Hint Resolve gamma_const_prop_sub_gamma : core.
+    Local Hint Resolve gamma_var_prop_sub_gamma : core.
+    
+    Lemma gamma_expr_prop_sub_gamma : forall (Γ Γ' : @gamma_expr tags_t),
+        sub_gamma_expr p Γ Γ' ->
+        gamma_expr_prop p Γ' st' ge ->
+        gamma_expr_prop p Γ st' ge.
+    Proof.
+      unfold sub_gamma_expr,gamma_expr_prop; firstorder eauto.
+    Qed.
+  
+    Lemma gamma_stmt_prop_sub_gamma : forall Δ (Γ Γ' : @gamma_stmt tags_t),
+        sub_gamma_expr p Γ Γ' ->
+        gamma_stmt_prop ge p Δ Γ st ->
+        gamma_stmt_prop ge p Δ Γ' st' ->
+        gamma_stmt_prop ge p Δ Γ st'.
+    Proof.
+      unfold gamma_stmt_prop; firstorder eauto.
+    Qed.
+  End SubGamma.
 
   Local Hint Constructors val_typ : core.
   Local Hint Resolve val_to_sval_ex : core.
@@ -297,7 +409,6 @@ Section Lemmas.
   Qed.
   
   Notation ident := string.
-  Notation path := (list ident).
 
   Lemma get_real_member_type : forall (t r : typ) ts ge,
       get_real_type ge t = Some r ->

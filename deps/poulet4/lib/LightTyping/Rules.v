@@ -921,33 +921,8 @@ Section Soundness.
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
   Local Hint Unfold stmt_types : core.
-  Local Hint Resolve FuncAsMap.submap_refl : core.
-
-  (* TODO: In general
-     I am stuck when attempting to prove that
-     [gamma_stmt_types Γ' st' -> gamma_stmt_types Γ st']
-     when [exec_stmt ge rob st s st sig]
-     and [(ge,this,Δ,Γ) ⊢ₛ s ⊣ Γ'].
-
-     Perhaps an assumption that [Γ ⊆ Γ']
-     from the definition of ⊢ₛ is necessary?
-
-     Bit even with that I'm unsure of
-     how to address the case of variables
-     declared in [s] added to [st'].
-
-     For instance consider the program:
-     [ if x { y:bit<1> := 0 }; ]
-     [y] will be in [st'] and [Γ']
-     but not in [Γ].
-
-     So [dom Γ <> dom st'].
-
-     Need an alternate condition,
-     perhaps [forall x, x ∈ Γ -> x ∈ st'].
-
-     This ensures provability
-     knowing [Γ ⊆ Γ']. *)
+  Local Hint Resolve sub_gamma_expr_refl : core.
+  Local Hint Resolve gamma_stmt_prop_sub_gamma : core.
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
@@ -1040,43 +1015,16 @@ Section Soundness.
         + clear dependent st1. clear dependent st2.
           clear dependent b'. clear b sig1 sig2.
           intros st' sig Hxs. inv Hxs.
-          destruct b.
-          * clear Hs2'; apply Hs1' in H9. admit. (* Stuck. *)
-          * clear Hs1'; apply Hs2' in H9. admit. (* Stuck. *)
+          destruct b; eauto.
       - split.
         + destruct b'; eauto.
           exists st,SContinue. econstructor; eauto; cbn.
           unfold empty_statement; auto.
         + clear dependent st1. clear dependent b'. clear b sig1.
           intros st' sig Hxs; inv Hxs.
-          inv H7. inv H0. destruct b.
-          * apply Hs1' in H8.
-            unfold gamma_stmt_prop in *.
-            destruct Hgst as [Hgste Hgstf].
-            destruct H8 as [HΓ₁' _].
-            split; try assumption.
-            unfold gamma_expr_prop in *.
-            destruct Hgste as [Hvar Hconst].
-            destruct HΓ₁' as [Hvar1 _].
-            split; try assumption.
-            unfold gamma_var_prop in *.
-            destruct Hvar as [Hvard Hvart].
-            destruct Hvar1 as [Hvard1 Hvart1].
-            split.
-            -- unfold gamma_var_domain in *.
-               intros l t Hlt.
-               enough (typ_of_loc_var l (var_gamma Γ₁) = Some t) by eauto.
-               unfold FuncAsMap.submap in *.
-               destruct l as [p | p]; cbn in *; try discriminate.
-               unfold PathMap.get in *; eauto.
-            -- unfold gamma_var_val_typ in *.
-               intros l t v Hlt Hlv.
-               enough (typ_of_loc_var l (var_gamma Γ₁) = Some t) by eauto.
-               unfold FuncAsMap.submap in *.
-               destruct l as [p | p]; cbn in *; try discriminate.
-               unfold PathMap.get in *; eauto.
-          * inv H8; assumption.
-    Admitted.
+          inv H7. inv H0. destruct b; eauto.
+          inv H8; assumption.
+    Qed.
 
     Theorem exit_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.

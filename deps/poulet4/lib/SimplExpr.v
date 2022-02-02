@@ -245,9 +245,22 @@ Section Transformer.
       let '(l1, e1, n1) := transform_exp_stmt nameIdx lhs in
       let '(l2, e2, n2) := transform_Expr_stmt n1 rhs in
       (l1 ++ l2 ++ [MkStatement tags (StatAssignment e1 e2) typ], n2)
-    | StatDirectApplication typ' args =>
-      let '(l1, e1, n1) := transform_list_stmt nameIdx args in
-      (l1 ++ [MkStatement tags (StatDirectApplication typ' e1) typ], n1)
+    | StatDirectApplication typ' func_type args =>
+      let '(l1, e1, n1) :=
+          ((fix transform_lopt (idx: N) (l: list (option (@Expression tags_t))):
+              (list (@Statement tags_t) *
+               (list (option (@Expression tags_t))) * N) :=
+              match l with
+              | nil => (nil, nil, idx)
+              | None :: rest =>
+                let '(l2, e2, n2) := transform_lopt idx rest in
+                (l2, None :: e2, n2)
+              | Some exp :: rest =>
+                let '(l2, e2, n2) := transform_exp_stmt idx exp in
+                let '(l3, e3, n3) := transform_lopt n2 rest in
+                (l2 ++ l3, Some e2 :: e3, n3)
+              end) nameIdx args) in
+      (l1 ++ [MkStatement tags (StatDirectApplication typ' func_type e1) typ], n1)
     | StatConditional cond tru fls =>
       let '(l1, e1, n1) := transform_exp_stmt nameIdx cond in
       let (stl2, n2) := transform_stmt n1 tru in

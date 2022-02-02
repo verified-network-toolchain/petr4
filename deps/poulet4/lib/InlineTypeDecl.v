@@ -1,12 +1,12 @@
 Require Import Coq.Lists.List Poulet4.Syntax.
 From Poulet4 Require Import Typed Maps Utils P4cub.Util.FunUtil.
-Require Poulet4.P4String.
+Require Poulet4.P4String Poulet4.AListUtil.
 Import List.ListNotations.
 
 (** * Inline type-declarations in p4light programs. *)
 
 Notation lmap := map.
-Notation almap := AList.map_values.
+Notation almap := AListUtil.map_values.
 Notation omap := option_map.
 
 Declare Scope sub_scope.
@@ -258,8 +258,9 @@ sub_typs_StatementPreT {tags_t}
   | StatConditional e s₁ s₂ => StatConditional (σ †e e) (σ †s s₁) (omap (σ †s) s₂)
   | StatInstantiation τ es x init
     => StatInstantiation (σ †t τ) (lmap (σ †e) es) x (lmap (σ †init) init)
-  | StatDirectApplication τ es
-    => StatDirectApplication (σ †t τ) (lmap (σ †e) es)
+  | StatDirectApplication τ τ' es
+    (* Qinshi: I just make it compile. *)
+    => StatDirectApplication (σ †t τ) τ' (lmap (omap (σ †e)) es)
   | StatMethodCall e τs es
     => StatMethodCall (σ †e e) (lmap (σ †t) τs) (lmap (omap (σ †e)) es)
   end

@@ -32,7 +32,7 @@ Section Transformer.
   Fixpoint summarize_stmtpt (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
         (list P4String) :=
     match stmt with
-    | StatDirectApplication typ' args => [get_type_name typ']
+    | StatDirectApplication typ' _ args => [get_type_name typ']
     | StatBlock block => summarize_blk block
     | StatSwitch expr cases => concat (map summarize_ssc cases)
     | StatInstantiation typ' args name init => [name]
@@ -187,8 +187,8 @@ Section Transformer.
         let lhs' := transform_expr e lhs in
         let rhs' := transform_expr e rhs in
         mret (MkStatement tags (StatAssignment lhs' rhs') typ, e)
-      | StatDirectApplication typ' args =>
-        mret (MkStatement tags (StatDirectApplication typ' (transform_exprs e args)) typ, e)
+      | StatDirectApplication typ' func_typ args =>
+        mret (MkStatement tags (StatDirectApplication typ' func_typ (transform_oexprs e args)) typ, e)
       | StatConditional cond tru fls =>
         let cond' := transform_expr e cond in
         let* (tru', _) := transform_stmt e ns tru in

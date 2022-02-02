@@ -37,7 +37,7 @@ let print_list f p l =
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
-  fprintf p "NoInfo"
+  fprintf p "NoP4info"
 
 let p4string p (s : P4string.t) =
   fprintf p "{| @[<hov 0>stags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str
@@ -496,10 +496,11 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
       fprintf p "(@[<hov 4>StatAssignment@ %a@ %a)@]"
           print_expr lhs
           print_expr rhs
-  | StatDirectApplication (typ, args) ->
-      fprintf p "(@[<hov 4>StatDirectApplication@ %a@ %a)@]"
+  | StatDirectApplication (typ, func_typ, args) ->
+      fprintf p "(@[<hov 4>StatDirectApplication@ %a@ %a@ %a)@]"
           print_type typ
-          print_exprs args
+          print_type func_typ
+          (print_list (print_option print_expr)) args
   | StatConditional (cond, tru, fls) ->
       fprintf p "(@[<hov 4>StatConditional@ %a@ %a@ %a)@]"
           print_expr cond

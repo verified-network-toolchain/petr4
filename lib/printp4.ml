@@ -457,10 +457,10 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
       fprintf p "@[<hov 4>%a =@ %a;@]"
           print_expr lhs
           print_expr rhs
-  | StatDirectApplication (typ, args) ->
+  | StatDirectApplication (typ, func_typ, args) ->
       fprintf p "@[<h>%a.apply(%a);@]"
           print_type typ
-          print_exprs args
+          print_args args
   | StatConditional (cond, tru, None) ->
       (match tru with 
       | MkStatement (_, (StatBlock _),_) ->

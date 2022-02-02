@@ -17,7 +17,7 @@ Section Properties.
   
   Context {tags_t : Type}.
   Local Hint Resolve Env.scope_shadow_sub_env : core.
-  Local Hint Resolve Utils.Forall2_dumb : core.
+  Local Hint Resolve ForallMap.Forall2_dumb : core.
   Local Hint Constructors expr_big_step : core.
   
   Lemma expr_big_step_sub_env : forall ϵ ϵ' (e : Expr.e tags_t) v,
@@ -26,7 +26,7 @@ Section Properties.
     intros eps eps' e v Heps Hev;
       induction Hev using custom_expr_big_step_ind; eauto;
         try (constructor; unfold F.relfs, F.relf in *; unravel in *;
-             rewrite Utils.Forall2_conj in *; firstorder eauto).
+             rewrite ForallMap.Forall2_conj in *; firstorder eauto).
   Qed.
 
   Local Hint Resolve expr_big_step_sub_env : core.

@@ -73,7 +73,7 @@ Section AList.
         exists (S n), k'; auto.
   Qed.
 
-    
+
   Lemma get_some_in_fst : forall l k v,
       get l k = Some v -> exists k', k === k' /\ List.In k' (map fst l).
   Proof.
@@ -101,7 +101,7 @@ Section AList.
     apply nth_error_In in Hnth.
     eauto using in_fst_get_some.
   Qed.
-  
+
   Lemma get_neq_cons:
     forall (k' : K) (v' : V) (l : list (K * V)) (k : K),
       k =/= k' -> get ((k', v') :: l) k = get l k.
@@ -159,6 +159,18 @@ Section AList.
     - destruct a as [k' v']. simpl. destruct (KEqDec k k').
       + unfold get. simpl. destruct (KEqDec k k); auto. exfalso. now apply c.
       + rewrite get_neq_cons; auto.
+  Qed.
+
+  Lemma set_some_get_miss: forall l k1 k2 v,
+      k1 =/= k2 -> get (set_some l k1 v) k2 = get l k2.
+  Proof.
+    induction l; intros.
+    - simpl. rewrite get_neq_cons; auto. now symmetry.
+    - simpl. destruct a as [k' v']. destruct (KEqDec k1 k').
+      + rewrite !get_neq_cons; auto; [rewrite <- e|]; now symmetry.
+      + destruct (KEqDec k2 k').
+        * rewrite !get_eq_cons; auto.
+        * rewrite !get_neq_cons; auto.
   Qed.
 
   Fixpoint key_unique (l : AList K V R) : bool :=
@@ -330,80 +342,6 @@ Section AList.
   Definition all_values {A B} (hold_one_value : A -> B -> Prop) :
     AList K A R -> AList K B R -> Prop :=
     Forall2 (fun a b => fst a = fst b /\ hold_one_value (snd a) (snd b)).
-
-  Lemma Forall2_all_values :
-    forall (U W : Type) (P : U -> W -> Prop) us ws ks,
-      length ks = length us -> length ks = length ws ->
-      Forall2 P us ws <->
-      all_values P (combine ks us) (combine ks ws).
-  Proof.
-    intros U W P us ws ks Hlku Hlkw; unfold all_values.
-    rewrite Forall2_conj.
-    rewrite Forall2_map_both with (f := fst) (g := fst).
-    rewrite Forall2_map_both with (f := snd) (g := snd).
-    repeat rewrite map_snd_combine by auto.
-    repeat rewrite map_fst_combine by auto.
-    rewrite Forall2_Forall, Forall_forall.
-    intuition.
-  Qed.
-
-  Lemma all_values_keys_eq : forall {U W} (P : U -> W -> Prop) us ws,
-      all_values P us ws -> map fst us = map fst ws.
-  Proof.
-    intros U W P us ws HPuws.
-    unfold all_values in HPuws.
-    rewrite Forall2_conj in HPuws.
-    destruct HPuws as [HPl _].
-    rewrite Forall2_map_both in HPl.
-    rewrite Forall2_eq in HPl.
-    assumption.
-  Qed.
 End AList.
 
 Definition StringAList V := AList String.string V eq.
-
-Section Rel.
-  Context {K A B : Type} {R: Relation_Definitions.relation K}
-          `{H: Equivalence K R} {KEqDec: EqDec K R}.
-  Section Map.
-    Variable (f : A -> B).
-
-    Definition map_values  : AList K A R -> AList K B R :=
-      List.map (fun '(k,a) => (k,f a)).
-
-    Lemma get_map_values : forall (l : AList K A R) (k : K),
-        get (map_values l) k = option_map f (get l k).
-    Proof.
-      unfold get.
-      induction l as [| [ky a] l IHl]; intros k; simpl; auto.
-      destruct (KEqDec k ky) as [Hkky | Hkky];
-        unfold equiv, complement in *; simpl in *; auto.
-    Qed.
-  End Map.
-
-  Section Relate.
-    Variable Q : A -> B -> Prop.
-
-    Lemma get_relate_values : forall al bl k (a : A) (b : B),
-        all_values Q al bl ->
-        get al k = Some a ->
-        get bl k = Some b ->
-        Q a b.
-    Proof.
-      unfold get, all_values.
-      intro al; induction al as [| [ka a'] al IHal];
-        intros [| [kb b'] bl] k a b Hall Hgetal Hgetbl; cbn in *;
-          inversion Hall; subst; try discriminate.
-      destruct (KEqDec k ka) as [Hka | Hka];
-        destruct (KEqDec k kb) as [Hkb | Hkb];
-        unfold equiv, complement in *; simpl in *; subst;
-          repeat match goal with
-                 | H: Some _ = Some _
-                   |- _ => inversion H; subst; clear H
-                 end;
-          match goal with
-          | H: _ /\ _ |- _ => destruct H; subst; eauto; try contradiction
-          end.
-    Qed.
-  End Relate.
-End Rel.

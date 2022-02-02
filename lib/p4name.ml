@@ -6,19 +6,19 @@ type 'a pre_t =
     [@with Poulet4.P4String.t := P4string.pre_t]]
   [@@deriving sexp,show,yojson]
 
-type t = Info.t pre_t
+type t = P4info.t pre_t
   [@@deriving sexp,show,yojson]
 
 let to_bare : t -> t = function
   | BareName n
   | QualifiedName (_, n) -> BareName n
 
-let name_info name : Info.t =
+let name_info name : P4info.t =
   match name with
   | BareName name -> name.tags
   | QualifiedName (prefix, name) ->
      let infos = List.map (fun x -> x.tags) prefix in
-     List.fold_right Info.merge infos name.tags
+     List.fold_right P4info.merge infos name.tags
 
 let name_eq n1 n2 =
   match n1, n2 with

@@ -4,6 +4,10 @@ Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
 (** * P4light Typing Definitions *)
 
+(** All well-typed p4light term is defined as
+    one satisfying progress & preservation,
+    rather than an [Inductive] rule. *)
+
 Section TypingDefs.
   Context {tags_t : Type}.
 
@@ -119,31 +123,6 @@ Section TypingDefs.
     forall t r, get_real_type ge t = Some r ->
            is_expr_typ t -> is_expr_typ r.
   
-  (** Expression typing. *)
-  Definition
-    expr_types
-    (this : path)     (** Local path. *)
-    (Δ : list string) (** Type variables in context. *)
-    (Γ : gamma_expr)  (** Typing environment. *)
-    (e : expr)        (** Expression to type. *)
-    : Prop :=
-    forall (T : @Target tags_t expr)
-      (read_one_bit : option bool -> bool -> Prop)
-      (ge : genv) (st : state),
-      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
-      gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
-      Δ ⊢ok typ_of_expr e ->             (** Type variables are bound. *)
-      is_expr_typ (typ_of_expr e) ->     (** Is a valid expression type. *)
-      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
-      (** Progress. *)
-      (exists v, run_expr ge read_one_bit this st e v) /\
-      (* Preservation. *)
-      forall v, run_expr ge read_one_bit this st e v ->
-           exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                 ⊢ᵥ v \: normᵗ rt.
-  (**[]*)
-  
   (* Function definition typing environment. TODO! *)
   Definition gamma_func := PathMap.t funtype.
 
@@ -154,16 +133,15 @@ Section TypingDefs.
   Record gamma_stmt : Type := {
     expr_gamma :> gamma_expr;
     func_gamma :> gamma_func;
-    inst_gamma :> genv_inst;
     ext_gamma :> gamma_ext }.
 
   Definition
     bind_typ_gamma_stmt
     (l : Locator) (τ : typ)
     '({| expr_gamma:=eg; func_gamma:=fg;
-         inst_gamma:=ig; ext_gamma:=exg |} : gamma_stmt) : gamma_stmt :=
+         ext_gamma:=exg |} : gamma_stmt) : gamma_stmt :=
     {| expr_gamma:=bind_var_typ_gamma_expr l τ eg;
-       func_gamma:=fg; inst_gamma:=ig; ext_gamma:=exg |}.
+       func_gamma:=fg; ext_gamma:=exg |}.
 
   (** Typing analogue to [lookup_func]. *)
   Definition lookup_func_typ
@@ -188,65 +166,8 @@ Section TypingDefs.
   Definition gamma_func_domain
              `{T : @Target tags_t expr}
              (this : path) (gf : gamma_func)
-             (gi : genv_inst) (ge : genv) : Prop := forall (e : expr),
-      lookup_func_typ this gf gi e = None <-> lookup_func ge this e = None.
-
-  Variant fundef_funtype_prop
-          (Δ : list string) (Γ : gamma_expr)
-          (Γext : gamma_ext) (this : path)
-    : @fundef tags_t -> funtype -> Prop :=
-  (* TODO : need to know [body] & [init] are well-typed. *)
-  | Internal_prop params body Xs params' rt :
-      Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
-      fundef_funtype_prop
-        Δ Γ Γext this
-        (FInternal params body)
-        (MkFunctionType Xs params' FunFunction rt)
-  | Table_match name keys actions dflt entries key_typs :
-      Forall2
-        (fun '(MkTableKey _ e mk) '(t,mk') =>
-           expr_types this Δ Γ e /\
-           typ_of_expr e = t /\ P4String.str mk = mk')
-        keys key_typs ->
-      fundef_funtype_prop
-        Δ Γ Γext this
-        (FTable name keys actions dflt entries)
-        (MkFunctionType [] [] FunTable TypVoid)
-  | External_match class name Xs params rt :
-      (* TODO: lookup [FExternal] by [class] or [name]. *)
-      fundef_funtype_prop
-        Δ Γ Γext this
-        (FExternal class name)
-        (MkFunctionType Xs params FunExtern rt).
-  
-  Definition gamma_func_types
-             `{T : @Target tags_t expr}
-             (this : path) (d : list string)
-             (g : gamma_expr) (gf : gamma_func)
-             (gi : genv_inst) (gext : gamma_ext) (ge : genv) : Prop :=
-    forall (e : expr) (p p' : option path) (fd : fundef) (ft : funtype),
-      lookup_func_typ this gf gi e = Some (p,ft) ->
-      lookup_func ge this e = Some (p',fd) ->
-      p = p' /\ fundef_funtype_prop d g gext this fd ft.
-
-  Definition gamma_func_prop
-             `{T : @Target tags_t expr}
-             (this : path) (d : list string)
-             (g : gamma_expr) (gf : gamma_func)
-             (gi : genv_inst) (gext : gamma_ext) (ge : genv) : Prop :=
-    gamma_func_domain this gf gi ge /\
-    gamma_func_types this d g gf gi gext ge.
-
-  (** TODO: externs... *)
-  Definition gamma_stmt_prop
-             `{T : @Target tags_t expr}
-             (this : path) (d : list string)
-             (g : gamma_stmt) (ge : genv) (st : state) : Prop :=
-    gamma_expr_prop this (expr_gamma g) st ge /\
-    gamma_func_prop
-      this d (expr_gamma g) (func_gamma g)
-      (inst_gamma g) (ext_gamma g) ge /\
-    inst_gamma g = ge_inst ge.
+             (ge : genv) : Prop := forall (e : expr),
+      lookup_func_typ this gf ge e = None <-> lookup_func ge this e = None.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -254,25 +175,6 @@ Section TypingDefs.
     | _, StmUnit => StmUnit
     | _, _       => StmVoid
     end.
-  
-  (** Statement typing. *)
-  Definition
-    stmt_types
-    (this : path)       (* Local path. *)
-    (Δ : list string)   (* Type names in context. *)
-    (Γ Γ' : gamma_stmt) (* Input & output typing environment. *)
-    (s : stmt)          (* Statement in question. *)
-    : Prop :=
-    forall (dummy : Inhabitant tags_t)
-      (T : @Target tags_t expr)
-      (read_one_bit : option bool -> bool -> Prop)
-      (ge : genv) (st : state),
-      delta_genv_prop ge Δ ->
-      read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this Δ Γ ge st ->
-      (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
-      forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
-                 gamma_stmt_prop this Δ Γ' ge st'.
 
   Inductive Block_StmTypes : block -> StmType -> Prop :=
   | Empty_StmType tag :
@@ -284,55 +186,174 @@ Section TypingDefs.
       typ_of_stmt s = StmUnit ->
       Block_StmTypes blk t ->
       Block_StmTypes (BlockCons s blk) t.
-      
-  (** Block typing. *)
-  Definition
-    block_types
-    (this : path)       (* Local path. *)
-    (Δ : list string)   (* Type variable names in context. *)
-    (Γ Γ' : gamma_stmt) (* Input & output typing environments. *)
-    (blk : block)       (* Statement block. *)
-    : Prop :=
-    forall (dummy : Inhabitant tags_t)
-      (T : @Target tags_t expr)
-      (read_one_bit : option bool -> bool -> Prop)
-      (ge : genv) (st : state),
-      delta_genv_prop ge Δ ->
-      read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this Δ Γ ge st ->
-      (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
-      forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
-                 gamma_stmt_prop this Δ Γ' ge st'.
+
+  Section Typing.
+    Context `{T : @Target tags_t expr} (** Architecture/target.*).
+    Variables
+      (ge : genv)       (** Statically determined global environment. *)
+      (this : path)     (** Local path. *)
+      (Δ : list string) (** Type variables in context. *).
+
+    (** Expression typing. *)
+    Definition
+      expr_types
+      (Γ : gamma_expr)  (** Typing environment. *)
+      (e : expr)        (** Expression to type. *)
+      : Prop :=
+      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
+      Δ ⊢okᵉ e ->                        (** Type variables are bound. *)
+      is_expr e ->                       (** Is a well-formed expression. *)
+      forall (read_one_bit : option bool -> bool -> Prop) (** Interprets uninitialized bits. *)
+        (st : state)                      (** Runtime environment. *),
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
+        (** Progress. *)
+        (exists v, run_expr ge read_one_bit this st e v) /\
+        (* Preservation. *)
+        forall v, run_expr ge read_one_bit this st e v ->
+             exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
+                   ⊢ᵥ v \: normᵗ rt.
+    (**[]*)
+
+    Variant fundef_funtype_prop
+            (Γ : gamma_expr) (Γext : gamma_ext)
+      : @fundef tags_t -> funtype -> Prop :=
+    (* TODO : need to know [body] & [init] are well-typed. *)
+    | Internal_prop params body Xs params' rt :
+        Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
+        fundef_funtype_prop
+          Γ Γext
+          (FInternal params body)
+          (MkFunctionType Xs params' FunFunction rt)
+    | Table_match name keys actions dflt entries key_typs :
+        Forall2
+          (fun '(MkTableKey _ e mk) '(t,mk') =>
+             expr_types Γ e /\
+             typ_of_expr e = t /\ P4String.str mk = mk')
+          keys key_typs ->
+        fundef_funtype_prop
+          Γ Γext
+          (FTable name keys actions dflt entries)
+          (MkFunctionType [] [] FunTable TypVoid)
+    | External_match class name Xs params rt :
+        (* TODO: lookup [FExternal] by [class] or [name]. *)
+        fundef_funtype_prop
+          Γ Γext
+          (FExternal class name)
+          (MkFunctionType Xs params FunExtern rt).
+    
+    Definition gamma_func_types
+               (g : gamma_expr) (gf : gamma_func)
+               (gext : gamma_ext) : Prop :=
+      forall (e : expr) (p p' : option path) (fd : fundef) (ft : funtype),
+        lookup_func_typ this gf ge e = Some (p,ft) ->
+        lookup_func ge this e = Some (p',fd) ->
+        p = p' /\ fundef_funtype_prop g gext fd ft.
+
+  Definition gamma_func_prop
+             (g : gamma_expr) (gf : gamma_func) (gext : gamma_ext) : Prop :=
+    gamma_func_domain this gf ge /\
+    gamma_func_types g gf gext.
+
+  (** TODO: externs... *)
+  Definition gamma_stmt_prop
+             (g : gamma_stmt) (st : state) : Prop :=
+    gamma_expr_prop this (expr_gamma g) st ge /\
+    gamma_func_prop
+      (expr_gamma g) (func_gamma g) (ext_gamma g).
+    
+    (** Statement typing. *)
+    Definition
+      stmt_types
+      (Γ Γ' : gamma_stmt) (* Input & output typing environment. *)
+      (s : stmt)          (* Statement in question. *)
+      : Prop :=
+      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
+      Δ ⊢okˢ s ->                        (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        (** Progress. *)
+        (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
+        (** Preservation. *)
+        forall st' sig, run_stmt ge read_one_bit this st s st' sig ->
+                   gamma_stmt_prop Γ' st'.
+
+    (** Block typing. *)
+    Definition
+      block_types
+      (Γ Γ' : gamma_stmt) (* Input & output typing environments. *)
+      (blk : block)       (* Statement block. *)
+      : Prop :=
+      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
+      Δ ⊢okᵇ blk ->                      (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
+        forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
+                   gamma_stmt_prop Γ' st'.
   
-  (** Call typing. *)
-  Definition
-    call_types
-    (this : path)     (* Local path. *)
-    (Δ : list string) (* Typing variables in context. *)
-    (Γ : gamma_stmt)  (* Typing environment. *)
-    (call : expr)     (* Call expression. *)
-    : Prop :=
-    forall (dummy : Inhabitant tags_t)
-      (T : @Target tags_t expr)
-      (read_one_bit : option bool -> bool -> Prop) (ge : genv) (st : state),
-      delta_genv_prop ge Δ ->
-      read_one_bit_reads read_one_bit ->
-      gamma_stmt_prop this Δ Γ ge st ->
-      Δ ⊢ok typ_of_expr call ->
-      (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
-      forall st' sig, run_call ge read_one_bit this st call st' sig ->
-                 gamma_stmt_prop this Δ Γ ge st'.
+    (** Call typing. *)
+    Definition
+      call_types
+      (Γ : gamma_stmt)  (* Typing environment. *)
+      (call : expr)     (* Call expression. *)
+      : Prop :=
+      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
+      Δ ⊢okᵉ call ->                     (** Free type variables are bound. *)
+      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
+        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+        (st : state),                     (** The evaluation environment. *)
+        (forall b b', read_one_bit (Some b) b'
+                 <-> b = b')             ->  (** Interprets initialized bits correctly. *)
+        read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        (** Progress. *)
+        (exists st' sig, run_call ge read_one_bit this st call st' sig) /\
+        (** Preservation. *)
+        forall st' sig, run_call ge read_one_bit this st call st' sig ->
+                   gamma_stmt_prop Γ st'.
+  End Typing.
 End TypingDefs.
 
-Notation "Δ '~' Γ '⊢ₑ' e ≀ this"
-  := (expr_types this Δ Γ e)
+Notation "x '⊢ₑ' e"
+  := (expr_types
+        (fst (fst (fst x)))
+        (snd (fst (fst x)))
+        (snd (fst x)) (snd x) e)
        (at level 80, no associativity) : type_scope.
-Notation "Δ '~' Γ₁ '⊢ₛ' s ⊣ Γ₂ ≀ this"
-  := (stmt_types this Δ Γ₁ Γ₂ s)
+Notation "x '⊢ₛ' s ⊣ Γ₂"
+  := (stmt_types
+        (fst (fst (fst x)))
+        (snd (fst (fst x)))
+        (snd (fst x)) (snd x)
+        Γ₂ s)
        (at level 80, no associativity) : type_scope.
-Notation "Δ '~' Γ₁ '⊢ᵦ' blk ⊣ Γ₂ ≀ this"
-  := (block_types this Δ Γ₁ Γ₂ blk)
+Notation "x '⊢ᵦ' blk ⊣ Γ₂"
+  := (block_types
+        (fst (fst (fst x)))
+        (snd (fst (fst x)))
+        (snd (fst x)) (snd x)
+        Γ₂ blk)
        (at level 80, no associativity) : type_scope.
-Notation "Δ '~' Γ '⊢ᵪ' e ≀ this"
-  := (call_types this Δ Γ e)
+Notation "x '⊢ᵪ' e"
+  := (call_types
+        (fst (fst (fst x)))
+        (snd (fst (fst x)))
+        (snd (fst x)) (snd x) e)
        (at level 80, no associativity) : type_scope.

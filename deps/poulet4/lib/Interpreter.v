@@ -9,6 +9,7 @@ Require Import Poulet4.Semantics.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Option.
 From Equations Require Import Equations.
+Require Poulet4.AListUtil.
 
 Import List.ListNotations.
 
@@ -19,7 +20,7 @@ Section Interpreter.
   Notation Val := (@ValueBase bool).
   Notation Sval := (@ValueBase (option bool)).
   Notation ValSet := (@ValueSet tags_t).
-  Notation Lval := (@ValueLvalue tags_t).
+  Notation Lval := ValueLvalue.
 
   Notation ident := string.
   Notation path := (list ident).
@@ -118,11 +119,11 @@ Section Interpreter.
     | ValBaseMatchKind m =>
       ValBaseMatchKind m
     | ValBaseStruct fields =>
-      ValBaseStruct (AList.map_values interp_sval_val fields)
+      ValBaseStruct (AListUtil.map_values interp_sval_val fields)
     | ValBaseHeader fields is_valid =>
-      ValBaseHeader (AList.map_values interp_sval_val fields) (bit_init is_valid)
+      ValBaseHeader (AListUtil.map_values interp_sval_val fields) (bit_init is_valid)
     | ValBaseUnion fields =>
-      ValBaseUnion (AList.map_values interp_sval_val fields)
+      ValBaseUnion (AListUtil.map_values interp_sval_val fields)
     | ValBaseStack headers next =>
       ValBaseStack (List.map interp_sval_val headers) next
     | ValBaseEnumField typ_name enum_name =>
@@ -168,7 +169,7 @@ Section Interpreter.
       let* svs := lift_option (List.map (interp_expr this st) es) in
       Some (ValBaseTuple svs)
     | ExpRecord entries =>
-      let* entries_svs := lift_option_kv (AList.map_values (interp_expr this st) entries) in
+      let* entries_svs := lift_option_kv (AListUtil.map_values (interp_expr this st) entries) in
       let entries' := List.map (fun '(k, v) => (str k, v)) entries_svs in
       Some (ValBaseStruct entries')
     | ExpUnaryOp op arg =>
@@ -236,8 +237,8 @@ Section Interpreter.
 
   Fixpoint interp_lexpr (this: path) (st: state) (expr: @Expression tags_t) : option (Lval * signal) :=
     match expr with
-    | MkExpression tag (ExpName name loc) typ dir =>
-      Some (MkValueLvalue (ValLeftName name loc) typ, SContinue)
+    | MkExpression tag (ExpName _ loc) typ dir =>
+      Some (ValLeftName loc, SContinue)
     | MkExpression tag (ExpExpressionMember expr name) typ dir =>
       let* (lv, sig) := interp_lexpr this st expr in
       if String.eqb (str name) "next"
@@ -247,16 +248,16 @@ Section Interpreter.
              let ret_sig := if (next <? N.of_nat (List.length headers))%N
                             then sig
                             else SReject "StackOutOfBounds" in
-             Some (MkValueLvalue (ValLeftArrayAccess lv (Z.of_N next)) typ, ret_sig)
+             Some (ValLeftArrayAccess lv (Z.of_N next), ret_sig)
            | _ => None
            end
-      else Some ((MkValueLvalue (ValLeftMember lv (str name)) typ), sig)
+      else Some (ValLeftMember lv (str name), sig)
     | MkExpression tag (ExpBitStringAccess bits lo hi) typ dir =>
       let* (lv, sig) := interp_lexpr this st bits in
       let* bitsv := interp_expr this st bits in
       let* (bitsbl, wn) := sval_to_bits_width bitsv in
       if ((lo <=? hi)%N && (hi <? N.of_nat wn)%N)%bool
-      then Some (MkValueLvalue (ValLeftBitAccess lv hi lo) typ, sig)
+      then Some (ValLeftBitAccess lv hi lo, sig)
       else None
     | MkExpression tag (ExpArrayAccess array idx) typ dir =>
       let* (lv, sig) := interp_lexpr this st array in
@@ -269,19 +270,18 @@ Section Interpreter.
          end in
       let* idxv := interp_expr_det this st idx in
       let* idxz := array_access_idx_to_z idxv in
-      Some (MkValueLvalue (ValLeftArrayAccess lv idxz) typ, sig)
+      Some (ValLeftArrayAccess lv idxz, sig)
     | _ => None
     end.
 
 
   Fixpoint interp_read (st: state) (lv: Lval) : option Sval :=
     match lv with
-    | MkValueLvalue (ValLeftName name loc) typ =>
-      loc_to_sval loc st
-    | MkValueLvalue (ValLeftMember lv fname) typ =>
+    |  ValLeftName loc => loc_to_sval loc st
+    |  ValLeftMember lv fname =>
       let* sv := interp_read st lv in
       find_member sv fname
-    | MkValueLvalue (ValLeftBitAccess lv hi lo) typ =>
+    |  ValLeftBitAccess lv hi lo =>
       let* bitssv := interp_read st lv in
       let* (bitsbl, wn) := sval_to_bits_width bitssv in
       let lonat := N.to_nat lo in
@@ -289,12 +289,11 @@ Section Interpreter.
       if ((lonat <=? hinat)%nat && (hinat <? wn)%nat)%bool
       then Some (ValBaseBit (Ops.bitstring_slice bitsbl lonat hinat))
       else None
-    | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>
+    |  ValLeftArrayAccess lv idx =>
       let* v := interp_read st lv in
       match v with
       | ValBaseStack headers next =>
-        let* rtyp := get_real_type ge typ in
-        let* default_header := uninit_sval_of_typ None rtyp in
+        let* default_header := List.hd_error headers in
         let header := @Znth _ default_header idx headers in
         Some header
       | _ => None
@@ -303,13 +302,13 @@ Section Interpreter.
 
   Fixpoint interp_write (st: state) (lv: Lval) (rhs: Sval) : option state :=
     match lv with
-    | MkValueLvalue (ValLeftName name loc) typ =>
+    |  ValLeftName loc =>
       Some (update_val_by_loc st loc rhs)
-    | MkValueLvalue (ValLeftMember lv fname) typ =>
+    |  ValLeftMember lv fname =>
       let* sv := interp_read st lv in
       let* sv' := set_member sv fname rhs in
       interp_write st lv sv'
-    | MkValueLvalue (ValLeftBitAccess lv hi lo) typ =>
+    |  ValLeftBitAccess lv hi lo =>
       let* sv := interp_read st lv in
       let lonat := N.to_nat lo in
       let hinat := N.to_nat hi in
@@ -330,7 +329,7 @@ Section Interpreter.
         end
       | _ => None
       end
-    | MkValueLvalue (ValLeftArrayAccess lv idx) typ =>
+    |  ValLeftArrayAccess lv idx =>
       let* sv := interp_read st lv in
       match sv with
       | ValBaseStack headers next =>
@@ -476,7 +475,7 @@ Section Interpreter.
                              end
                         else None.
 
-  Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option ((@argument tags_t) * signal) :=
+  Definition interp_arg (this: path) (st: state) (exp: option (@Expression tags_t)) (dir: direction) : option (argument * signal) :=
     match exp, dir with
     | Some expr, In =>
       let* v := interp_expr_det this st expr in
@@ -549,13 +548,13 @@ Section Interpreter.
         let* (st', sig) := interp_call this st fuel (MkExpression dummy_tags (ExpFunctionCall func targs args) TypVoid Directionless) in
         let sig' := force_continue_signal sig in
         Some (st', sig')
-      | MkStatement tags (StatDirectApplication typ' args) typ =>
+      | MkStatement tags (StatDirectApplication typ' func_typ args) typ =>
         let* (st', sig) := interp_call this st fuel
                 (MkExpression
                    dummy_tags
                    (ExpFunctionCall
-                      (direct_application_expression typ')
-                      nil (List.map Some args)) TypVoid Directionless) in
+                      (direct_application_expression typ' func_typ)
+                      nil args) TypVoid Directionless) in
         let sig' := force_continue_signal sig in
         Some (st', sig')
       | MkStatement tags (StatConditional cond tru (Some fls)) typ =>
@@ -598,19 +597,19 @@ Section Interpreter.
              match sig with
              | SReturn v =>
                let* sv := interp_val_sval v in
-               let* st'' := interp_write st' (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+               let* st'' := interp_write st' (ValLeftName loc) sv in
                Some (st'', SContinue)
              | _ => 
                Some (st', sig)
              end
         else let* v := interp_expr_det this st e in
              let* sv := interp_val_sval v in 
-             let* st' := interp_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+             let* st' := interp_write st (ValLeftName loc) sv in
              Some (st', SContinue)
       | MkStatement tags (StatVariable typ' name None loc) typ =>
         let* rtyp := get_real_type ge typ' in
         let* sv := uninit_sval_of_typ (Some false) rtyp in
-        let* st' := interp_write st (MkValueLvalue (ValLeftName (BareName name) loc) typ') sv in
+        let* st' := interp_write st (ValLeftName loc) sv in
         Some (st', SContinue)
       | MkStatement tags (StatConstant typ' name e loc) typ =>
         Some (st, SContinue)

@@ -97,9 +97,9 @@ Section Ops.
     | BitXor    => Some (ValBaseBit (to_lbool w (BitArith.bit_xor w n1 n2)))
     | BitOr     => Some (ValBaseBit (to_lbool w (BitArith.bit_or  w n1 n2)))
     | Div       => if n2 =? 0 then None
-                   else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
+                  else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
     | Mod       => if n2 =? 0 then None
-                   else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) 
+                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) 
     (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
     (* not allowed *)
@@ -138,9 +138,9 @@ Section Ops.
     | Minus     => Some (ValBaseInteger (n1 - n2))
     | Mul       => Some (ValBaseInteger (n1 * n2))
     | Div       => if (n1 <? 0) || (n2 <=? 0) then None
-                   else Some (ValBaseInteger (n1 / n2))
+                  else Some (ValBaseInteger (n1 / n2))
     | Mod       => if (n1 <? 0) || (n2 <=? 0) then None
-                   else Some (ValBaseInteger (n1 mod n2))
+                  else Some (ValBaseInteger (n1 mod n2))
     | Le        => Some (ValBaseBool (n1 <=? n2))
     | Ge        => Some (ValBaseBool (n1 >=? n2))
     | Lt        => Some (ValBaseBool (n1 <? n2))
@@ -208,32 +208,10 @@ Section Ops.
       end in
     match v2 with
     | ValBaseBit bits => arith_op (snd (BitArith.from_lbool bits))
-        (* match v1 with
-        | ValBaseInteger _ => None
-        | _ => arith_op n2
-        end *)
     | ValBaseInteger n2 => 
-        if n2 >=? 0 then arith_op n2
-        else None
+      if 0 <=? n2 then arith_op n2 else None
     | _ => None
     end.
-
-  (* Definition sort [A] (l : Fields A) :=
-    mergeSort (fun f1 f2 => string_leb (str (fst f1)) (str (fst f2))) l.
-
-  Fixpoint sort_by_key_val (v: Val) : Val :=
-    let fix sort_by_key_val' (ll : Fields Val) : Fields Val :=
-      match ll with
-      | nil => nil
-      | (k, v) :: l' => (k, sort_by_key_val v) :: sort_by_key_val' l'
-      end in
-    match v with
-    | ValBaseStruct l => ValBaseStruct (sort (sort_by_key_val' l))
-    | ValBaseRecord l => ValBaseRecord (sort (sort_by_key_val' l))
-    | ValBaseUnion l => ValBaseUnion (sort (sort_by_key_val' l))
-    | ValBaseHeader l b => ValBaseHeader (sort (sort_by_key_val' l)) b
-    | _ => v
-    end. *)
 
   Fixpoint eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     let fix eval_binary_op_eq_struct' (l1 l2 : Fields Val) : option bool :=
@@ -295,7 +273,7 @@ Section Ops.
     | ValBaseHeader l1 b1, ValBaseHeader l2 b2 =>
         match eval_binary_op_eq_struct l1 l2 with (* implicit type check *)
         | None => None
-        | Some b3 => Some ((b1 && b2 && b3) || ((negb b1) && (negb b1)))
+        | Some b3 => Some (eqb b1 b2 && b3)
         end
     | ValBaseStack vs1 n1, ValBaseStack vs2 n2 =>
         if negb (Zlength vs1 =? Zlength vs2)%Z then None

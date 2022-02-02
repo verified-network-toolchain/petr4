@@ -36,7 +36,7 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
         true
       with
       | Error.Type(info, err) ->
-        Format.eprintf "%s: %a" (Info.to_string info) Error.format_error err;
+        Format.eprintf "%s: %a" (P4info.to_string info) Error.format_error err;
         false
       | exn ->
         Format.eprintf "Unknown exception: %s" (Exn.to_string exn);

@@ -852,7 +852,7 @@ Section ToP4cub.
       let* cub_lhs := translate_expression lhs in
       let+ cub_rhs := translate_expression rhs in
       ST.SAssign cub_lhs cub_rhs i
-    | StatDirectApplication typ args =>
+    | StatDirectApplication typ func_typ args =>
       error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
     | StatConditional cond tru fls_opt =>
       let* cub_cond := translate_expression cond in

@@ -1,4 +1,4 @@
-Require Import Coq.ZArith.BinInt Coq.Lists.List Poulet4.Utils.
+Require Import Coq.ZArith.BinInt Coq.Lists.List Poulet4.ForallMap.
 Require Import Coq.Strings.String.
 Require Import Coq.Init.Datatypes.
 Import ListNotations.
@@ -26,6 +26,12 @@ Section Value.
   | ValBaseEnumField (typ_name: string) (enum_name: string)
   | ValBaseSenumField (typ_name: string) (value: (@ValueBase bit)).
 
+  Inductive ValueLvalue :=
+  | ValLeftName (loc: Syntax.Locator)
+  | ValLeftMember (expr: ValueLvalue) (name: string)
+  | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
+  | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
+  
   Context {tags_t : Type}.
 
   Inductive ValueSet:=
@@ -50,14 +56,6 @@ Section Value.
 
   Inductive Env_EvalEnv :=
   | MkEnv_EvalEnv (vs: Env_env ValueLoc) (typ: Env_env (@Typed.P4Type tags_t)) (namespace: string).
-
-  Inductive ValuePreLvalue :=
-  | ValLeftName (name: @Typed.name tags_t) (loc: (Syntax.Locator))
-  | ValLeftMember (expr: ValueLvalue) (name: string)
-  | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
-  | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z)
-  with ValueLvalue :=
-  | MkValueLvalue (lvalue: ValuePreLvalue) (typ: @Typed.P4Type tags_t).
 
   Inductive ValueFunctionImplementation :=
   | ValFuncImplUser (scope: Env_EvalEnv) (body: (@Syntax.Block tags_t))

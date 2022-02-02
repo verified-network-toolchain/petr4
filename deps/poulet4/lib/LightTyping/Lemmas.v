@@ -1,30 +1,303 @@
-Require Export Poulet4.LightTyping.Typing.
+Require Export Poulet4.LightTyping.Typing Poulet4.P4Arith Coq.ZArith.BinInt.
 
-Ltac some_inv :=
-  match goal with
-  | H: Some _ = Some _ |- _ => inversion H; subst; clear H
-  end.
-
-Ltac match_some_inv :=
-  match goal with
-  | H: match ?trm with Some _ => _ | None => _ end = Some _
-    |- _ => destruct trm as [? |] eqn:? ; cbn in *;
-          try discriminate
-  end.
+(** * Helper Lemmas for [Rules.v]. *)
 
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).
-  Notation ident := string.
-  Notation path := (list ident).
+
+  Local Hint Constructors val_typ : core.
+  Local Hint Resolve val_to_sval_ex : core.
+
+  Ltac bitint_length_rewrite :=
+    match goal with
+    | |- ⊢ᵥ ValBaseBit ?v \: TypBit (N.of_nat (length ?bs))
+      => replace (length bs) with (length v); auto
+    | |- ⊢ᵥ ValBaseInt ?v \: TypInt (N.of_nat (length ?bs))
+      => replace (length bs) with (length v); auto
+    end.
+  
+  Lemma eval_unary_op_preserves_typ : forall o v v' (t t' : typ),
+      unary_type o t t' ->
+      Ops.eval_unary_op o v = Some v' ->
+      ⊢ᵥ v \: t -> ⊢ᵥ v' \: t'.
+  Proof.
+    intros o v v' t t' Hut Heval Hvt;
+      inversion Hut; subst;
+        inversion Hvt; subst;
+          unfold Ops.eval_unary_op in Heval;
+          try discriminate; try some_inv; auto;
+            try match goal with
+                | H: context [let (_,_) := P4Arith.BitArith.from_lbool ?bs in _]
+                  |- _ => destruct (P4Arith.BitArith.from_lbool bs)
+                    as [w' n] eqn:Hbs; some_inv;
+                          try inv_numeric; try inv_numeric_width
+                end;
+            try bitint_length_rewrite; unfold P4Arith.to_lbool;
+              try rewrite rev_length,P4Arith.length_to_lbool'; cbn;
+                try (apply f_equal with (f:=fst) in Hbs; cbn in Hbs;
+                     apply f_equal with (f:=N.to_nat) in Hbs;
+                     rewrite <- Hbs,Znat.Z_N_nat,Zcomplements.Zlength_correct;
+                     lia).
+  Qed.
+
+  Lemma eval_binary_op_preserves_typ : forall o (t t1 t2 : typ) v v1 v2,
+      binary_type o t1 t2 t ->
+      Ops.eval_binary_op o v1 v2 = Some v ->
+      ⊢ᵥ v1 \: t1 -> ⊢ᵥ v2 \: t2 -> ⊢ᵥ v \: t.
+  Proof.
+    intros o t t1 t2 v v1 v2 Hbt Hebo Hvt1 Hvt2;
+      inversion Hbt; subst;
+        inversion Hvt1; subst; inversion Hvt2; subst;
+          cbn in *; try discriminate;
+            try inv_numeric; try inv_numeric_width;
+              try some_inv;
+              try rewrite <- Nnat.Nat2N.inj_add;
+              try match goal with
+                  | |- ⊢ᵥ ValBaseBit (?l ++ ?r) \: TypBit (N.of_nat (length ?r + length ?l))
+                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
+                  | |- ⊢ᵥ ValBaseInt (?l ++ ?r) \: TypInt (N.of_nat (length ?r + length ?l))
+                    => rewrite PeanoNat.Nat.add_comm; rewrite <- app_length
+                  end;
+              repeat if_destruct;
+              try match_some_inv; try some_inv; auto;
+                try bitint_length_rewrite;
+                unfold P4Arith.to_lbool;
+                try rewrite rev_length,P4Arith.length_to_lbool'; cbn;
+                  try rewrite Znat.Z_N_nat,Zcomplements.Zlength_correct; try lia.
+  Qed.
+
+  Local Hint Constructors binary_type : core.
+  Local Hint Constructors numeric_width : core.
+  Local Hint Constructors numeric : core.
+  Local Hint Constructors Eq_type : core.
 
   Create HintDb option_monad.
-  Local Hint Unfold option_ret : option_monad.
   Local Hint Unfold option_bind : option_monad.
-  Local Hint Unfold option_monad : option_monad.
   Local Hint Unfold option_monad_inst : option_monad.
-  Local Hint Constructors predopt : core.
+  Local Hint Constructors predop : core.
   Local Hint Constructors member_type : core.
+  
+  Lemma Eq_type_get_real_type : forall ge (t r : typ),
+      get_real_type ge t = Some r ->
+      Eq_type t -> Eq_type r.
+  Proof.
+    intros ge t r Hget Ht; generalize dependent r;
+      generalize dependent ge.
+    induction Ht using my_Eq_type_ind;
+      intros ge r Hget; cbn in *;
+        autounfold with option_monad in *; cbn in *;
+          repeat match_some_inv; some_inv; eauto;
+            try match goal with
+                | IH: Forall
+                        ((fun t => forall ge r,
+                              get_real_type ge t = Some r -> Eq_type r) ∘ snd)
+                        ?xts,
+                      H: sequence (map (fun '(_,_) => _) ?xts) = Some ?xrs
+                  |- _ => constructor; rewrite <- Forall_map in *;
+                          rewrite Forall_forall in IH;
+                          specialize IH with (ge:=ge);
+                          rewrite <- Forall_forall in IH;
+                          apply f_equal with (f := lift_monad (map snd)) in H;
+                          rewrite sequence_map in H;
+                          epose proof map_lift_monad_snd_map
+                                _ _ _ (get_real_type ge) as Hmsm;
+                          unfold ">>|" at 2 in Hmsm;
+                          unfold ">>=",option_monad_inst,option_bind in Hmsm;
+                          rewrite Hmsm in H; clear Hmsm; cbn in H;
+                            rewrite <- Forall2_sequence_iff,<- Forall2_map_l in H;
+                            eauto using Forall2_Forall_impl_Forall; assumption
+                end.
+    - inversion H0; subst; eauto.
+    - rewrite Forall_forall in H0;
+        specialize H0 with (ge:=ge);
+        rewrite <- Forall_forall in H0.
+      rewrite <- Forall2_sequence_iff, <- Forall2_map_l in Heqo.
+      eauto using Forall2_Forall_impl_Forall.
+  Qed.
+
+  Local Hint Resolve Eq_type_get_real_type : core.
+  
+  Lemma binary_type_get_real_type : forall ge o (t t1 t2 r1 r2 : typ),
+      binary_type o t1 t2 t ->
+      get_real_type ge t1 = Some r1 ->
+      get_real_type ge t2 = Some r2 ->
+      exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r.
+  Proof.
+    intros ge o t t1 t2 r1 r2 Hbt Hr1 Hr2.
+    inversion Hbt; subst;
+      try inv_numeric; try inv_numeric_width;
+        cbn in *; repeat some_inv; eauto;
+          try (rewrite Hr1 in Hr2; some_inv; eauto).
+  Qed.
+
+  Lemma eval_binary_op_eq_ex : forall (t : typ) v1 v2,
+      Eq_type t ->
+      ⊢ᵥ v1 \: t ->
+      ⊢ᵥ v2 \: t ->
+      exists b, Ops.eval_binary_op_eq v1 v2 = Some b.
+  Proof.
+    intros t v1 v2 Ht;
+      generalize dependent v2;
+      generalize dependent v1.
+    induction Ht using my_Eq_type_ind;
+      intros v1 v2 Hv1 Hv2;
+      inversion Hv1; subst;
+        inversion Hv2; subst; cbn in *;
+          repeat if_destruct; eauto;
+            repeat rewrite Zcomplements.Zlength_correct in *;
+            try rewrite negb_true_iff in *;
+            try match goal with
+                | H: (?x =? ?x)%string = false
+                  |- _ => rewrite String.eqb_refl in H; discriminate
+                | H: (_ =? _)%N = false
+                  |- _ => rewrite N.eqb_neq in H; lia
+                | H: BinInt.Z.eqb _ _ = false
+                  |- _ => rewrite BinInt.Z.eqb_neq in H; lia
+                end;
+            try match goal with
+                | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
+                  |- _ => rewrite andb_false_iff in U; destruct U as [U | U];
+                          match goal with
+                          | H: AList.all_values
+                                 _ ?vs (P4String.clear_AList_tags ?xts),
+                            Htrue: AList.key_unique ?xts = true, Hfls: AList.key_unique ?vs = false
+                            |- _ => apply AListUtil.all_values_keys_eq in H;
+                                    apply AListUtil.map_fst_key_unique in H;
+                                    rewrite H,P4String.key_unique_clear_AList_tags,Htrue in Hfls;
+                                    discriminate
+                          end
+                end;
+            try match goal with
+                | IH: Forall
+                        ((fun t => forall v1 v2,
+                              ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
+                                  Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
+                  Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
+                  Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
+                  Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
+                  |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
+                          rewrite <- Forall_map in IH;
+                          rewrite Forall2_conj in Hxv1s,Hxv2s;
+                          destruct Hxv1s as [Hfstv1s Hsndv1s];
+                          destruct Hxv2s as [Hfstv2s Hsndv2s];
+                          rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstv1s,Hfstv2s;
+                          rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndv1s,Hsndv2s;
+                          rewrite map_fst_map,Forall2_eq in Hfstv1s,Hfstv2s;
+                          rewrite map_snd_map,map_id,Forall2_flip in Hsndv1s,Hsndv2s;
+                          assert (Hlen_xts_v1s: length (map snd xts) = length (map snd xv1s))
+                            by eauto using Forall2_length;
+                          assert (Hlen_xts_v2s: length (map snd xts) = length (map snd xv2s))
+                            by eauto using Forall2_length;
+                          assert (Hlen_v1s_v2s: length (map snd xv1s) = length (map snd xv2s)) by lia;
+                          pose proof Forall_specialize_Forall2
+                               _ _ _ _ IH _ Hlen_xts_v1s as H'; clear IH Hlen_xts_v1s;
+                            pose proof Forall2_specialize_Forall3
+                                 _ _ _ _ _ _ H' _ Hlen_v1s_v2s as H'';
+                            clear H' Hlen_v1s_v2s Hlen_xts_v2s;
+                            pose proof Forall3_Forall2_Forall2_impl_Forall2
+                                 _ _ _ _ _ _ _ _ _ H'' Hsndv1s Hsndv2s as H';
+                            clear H'' Hsndv1s Hsndv2s;
+                            apply Forall2_ex_factor in H';
+                            destruct H' as [bs Hbs];
+                            rewrite <- Forall3_map_12 in Hbs;
+                            rewrite <- Hfstv2s in Hfstv1s;
+                            clear dependent tags_t;
+                            rewrite negb_false_iff in Heqb;
+                            apply andb_prop in Heqb as [U1 U2];
+                            induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
+                            cbn in *; eauto;
+                              destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
+                              destruct (AList.get xv2s y) as [v2' |] eqn:Hv2';
+                              cbn in *; try discriminate;
+                                injection Hfstv1s as Hxy Hfst; subst;
+                                  rewrite String.eqb_refl,Hvb; cbn; clear Hvb;
+                                    pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
+                                    rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
+                end.
+    - inversion H0; subst; eauto.
+    - rewrite Forall2_flip in H3,H4.
+      eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
+      assert (Hlenvsvs0 : length vs = length vs0)
+        by (apply Forall2_length in H3,H4; lia).
+      eapply Forall2_specialize_Forall3 with (ws:=vs0) in H0; try assumption.
+      eapply Forall3_Forall2_Forall2_impl_Forall2 in H0; eauto.
+      clear dependent tags_t; clear Hlenvsvs0.
+      apply Forall2_ex_factor in H0 as [bs Hbs].
+      induction Hbs as [| v1 v2 b v1s v2s bs Hvb Hvbs [b' IHvbs]]; cbn; eauto.
+      rewrite Hvb,IHvbs; clear Hvb IHvbs; eauto.
+    - assert (Hlen : length vs = length vs0) by lia.
+      clear Heqb H2 H4 Hv1 Hv2 n0 n Ht H0.
+      generalize dependent vs0.
+      induction vs as [| v1 vs1 IHvs1]; inv H3;
+        intros [| v2 vs2] Hvs2 Hlen; inv Hvs2;
+          cbn in *; try discriminate; eauto.
+      assert (Hb: exists b, Ops.eval_binary_op_eq v1 v2 = Some b) by eauto.
+      destruct Hb as [b Hb]; rewrite Hb; clear Hb.
+      assert (Hlen' : length vs1 = length vs2) by lia.
+      pose proof IHvs1 H2 _ H4 Hlen' as [b' Hb'];
+        rewrite Hb'; clear IHvs1 H2 H4 Hlen' Hb'; eauto.
+  Qed.
+
+  Local Hint Resolve eval_binary_op_eq_ex : core.
+
+  Definition binary_op_ctk_cases' (o : OpBin) (v₁ v₂ : @ValueBase bool) : Prop :=
+    match o with
+    | Div
+    | Mod
+      => match v₁, v₂ with
+        | _, ValBaseBit bits
+          => (0%Z < snd (BitArith.from_lbool bits))%Z
+        | ValBaseInteger (Zpos _), ValBaseInteger (Zpos _)
+          => True
+        | _, _ => False
+        end
+    | Shl
+    | Shr
+      => match v₂ with
+        | ValBaseBit _
+        | ValBaseInteger (Z0 | Zpos _) => True
+        | _ => False
+        end
+    | _ => True
+    end.
+  
+  Lemma eval_binary_op_ex : forall o (t t1 t2 : typ) v1 v2,
+      binary_op_ctk_cases' o v1 v2 ->
+      binary_type o t1 t2 t ->
+      ⊢ᵥ v1 \: t1 ->
+      ⊢ᵥ v2 \: t2 ->
+      exists v, Ops.eval_binary_op o v1 v2 = Some v.
+  Proof.
+    intros o t t1 t2 v1 v2 Hctk Hbt Hv1 Hv2; inv Hbt; cbn in *;
+      try match goal with
+          | HE: Eq_type ?t, Hv1: ⊢ᵥ ?v1 \: ?t, Hv2: ⊢ᵥ ?v2 \: ?t
+            |- context [Ops.eval_binary_op_eq ?v1 ?v2]
+            => pose proof eval_binary_op_eq_ex _ _ _ H Hv1 Hv2 as [b Hb];
+                rewrite Hb; eauto
+          end;
+      try inv_numeric; try inv_numeric_width;
+        inv Hv1; inv Hv2; subst; cbn; eauto;
+          try if_destruct; eauto;
+            repeat rewrite Zcomplements.Zlength_correct in *;
+            try match goal with
+                | H: (_ =? _)%N = false |- _ => rewrite N.eqb_neq in H; lia
+                end;
+            try match goal with
+                | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
+                  => destruct trm as [? |] eqn:?;idtac; eauto
+                end; try if_destruct; eauto;
+              try match goal with
+                  | H: (0 <=? ?z)%Z = false
+                    |- _ => destruct z; cbn in *; discriminate || contradiction
+                  | H: (_ =? _)%Z = true |- _ => rewrite Z.eqb_eq in H; lia
+                  | H: (?z1 <? 0)%Z || (?z2 <=? 0)%Z = true
+                    |- _ => destruct z1; destruct z2; cbn in *; contradiction || discriminate      
+                  end.
+  Qed.
+  
+  Notation ident := string.
+  Notation path := (list ident).
 
   Lemma get_real_member_type : forall (t r : typ) ts ge,
       get_real_type ge t = Some r ->
@@ -71,8 +344,6 @@ Section Lemmas.
               apply AList.in_fst_get_some in Hx' as [v Hv]; eauto
       end.  
   Qed.
-
-  Local Hint Constructors val_typ : core.
   
   Lemma get_member_types : forall x ts (t t' : typ) v v',
       member_type ts t ->
@@ -87,7 +358,7 @@ Section Lemmas.
         rewrite P4String.get_clear_AList_tags in Htsx;
         match goal with
         | H: AList.all_values _ _ _
-          |- _ => eapply AList.get_relate_values in H; eauto
+          |- _ => eapply AListUtil.get_relate_values in H; eauto
         end.
   Qed.
   

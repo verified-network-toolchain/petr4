@@ -54,7 +54,7 @@ let parse_command =
       | `Ok _ ->
          ()
       | `Error (info, exn) ->
-         Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
+         Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string exn))
 
 let check_command =
   let open Command.Spec in

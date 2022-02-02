@@ -1,6 +1,8 @@
 Require Export Poulet4.Semantics Poulet4.LightTyping.Utility
-        Poulet4.Value Coq.micromega.Lia Poulet4.Utils
+        Poulet4.Value Coq.micromega.Lia Poulet4.ForallMap
         Poulet4.Monads.Monad Poulet4.Monads.Option.
+
+(** * Typing of p4light Values. *)
 
 (** Predicate that a
     [read_one_bit] relation
@@ -20,6 +22,8 @@ Definition read_one_bit_inverse
 
 Reserved Notation "'⊢ᵥ' v '\:' t" (at level 80, no associativity).
 
+(** There's a 1-to-1 correspondence
+    between values & types. *)
 Inductive val_typ
           {A tags_t : Type}
   : @ValueBase A -> @P4Type tags_t -> Prop :=
@@ -42,12 +46,15 @@ Inductive val_typ
 | typ_error : forall err,
     ⊢ᵥ ValBaseError err \: TypError
 | typ_struct : forall vs ts,
+    AList.key_unique ts = true ->
     AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
     ⊢ᵥ ValBaseStruct vs \: TypStruct ts
 | typ_header : forall b vs ts,
+    AList.key_unique ts = true ->
     AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
     ⊢ᵥ ValBaseHeader vs b \: TypHeader ts
 | typ_union : forall vs ts,
+    AList.key_unique ts = true ->
     AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
     ⊢ᵥ ValBaseUnion vs \: TypHeaderUnion ts
 | typ_array : forall n vs t,
@@ -55,14 +62,15 @@ Inductive val_typ
     Forall (fun v => ⊢ᵥ v \: t) vs ->
     ⊢ᵥ ValBaseStack vs n \: TypArray t (N.of_nat (length vs))
 | typ_enumfield : forall ename member members,
-    List.In member members ->
-    ⊢ᵥ ValBaseEnumField (P4String.str ename) (P4String.str member)
+    List.In (P4String.str member) (List.map P4String.str members) ->
+    ⊢ᵥ ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member)
      \: TypEnum ename None members
 | typ_senumfield : forall ename v t fields,
     ⊢ᵥ v \: t ->
     ⊢ᵥ ValBaseSenumField (P4String.str ename) v \: TypEnum ename (Some t) fields
 where "'⊢ᵥ' v '\:' t" := (val_typ v t) : type_scope.
 
+(** Induction principle. *)
 Section ValTypInd.
   Variables (A tags_t : Type).
   Notation V := (@ValueBase A).
@@ -87,14 +95,17 @@ Section ValTypInd.
   Hypothesis HError : forall err,
       P (ValBaseError err) TypError.
   Hypothesis HStruct : forall vs ts,
+      AList.key_unique ts = true ->
       AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
       AList.all_values P vs (P4String.clear_AList_tags ts) ->
       P (ValBaseStruct vs) (TypStruct ts).
   Hypothesis HHeader : forall b vs ts,
+      AList.key_unique ts = true ->
       AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
       AList.all_values P vs (P4String.clear_AList_tags ts) ->
       P (ValBaseHeader vs b) (TypHeader ts).
   Hypothesis HUnion : forall vs ts,
+      AList.key_unique ts = true ->
       AList.all_values val_typ vs (P4String.clear_AList_tags ts) ->
       AList.all_values P vs (P4String.clear_AList_tags ts) ->
       P (ValBaseUnion vs) (TypHeaderUnion ts).
@@ -104,9 +115,9 @@ Section ValTypInd.
       Forall (fun v => P v t) vs ->
       P (ValBaseStack vs n) (TypArray t (N.of_nat (length vs))).
   Hypothesis HEnum : forall ename member members,
-      List.In member members ->
+      List.In (P4String.str member) (List.map P4String.str members) ->
       P
-        (ValBaseEnumField (P4String.str ename) (P4String.str member))
+        (ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member))
         (TypEnum ename None members).
   Hypothesis HSenum : forall ename v t fields,
       val_typ v t ->
@@ -153,9 +164,9 @@ Section ValTypInd.
       | typ_string s => HString s
       | typ_tuple _ _ H => HTuple _ _ H (lind H)
       | typ_error err => HError err
-      | typ_struct _ _ H => HStruct _ _ H (alind H)
-      | typ_header b _ _ H => HHeader b _ _ H (alind H)
-      | typ_union _ _ H => HUnion _ _ H (alind H)
+      | typ_struct _ _ U H => HStruct _ _ U H (alind H)
+      | typ_header b _ _ U H => HHeader b _ _ U H (alind H)
+      | typ_union _ _ U H => HUnion _ _ U H (alind H)
       | typ_array n _ _ l H => HArray n _ _ l H (same_typ_ind H)
       | typ_enumfield x _ _ H => HEnum x _ _ H
       | typ_senumfield X _ _ ms Hv =>
@@ -163,6 +174,7 @@ Section ValTypInd.
       end.
 End ValTypInd.
 
+(** Results for relations & mappings between values. *)
 Section RelTyp.
   Context {A B tags_t : Type}.
   Notation VA := (@ValueBase A).
@@ -179,51 +191,29 @@ Section RelTyp.
     Proof.
       intros v t Hv;
         induction Hv using custom_val_typ_ind;
-        simpl in *; auto.
-      - replace (length bits)
-          with (length (map f bits))
-          by (rewrite map_length; reflexivity); auto.
-      - replace (length bits)
-          with (length (map f bits))
-          by (rewrite map_length; reflexivity); auto.
+        simpl in *; auto;
+          try match goal with
+              | H: AList.all_values (fun v t => ⊢ᵥ ValueBaseMap f v \: t) ?vs _
+                |- context [map (fun '(x,v) => (x,ValueBaseMap f v)) ?vs]
+                => constructor; auto;
+                    unfold AList.all_values in *;
+                    rewrite Forall2_conj in *;
+                    destruct H1 as [Hnames Hvts]; split;
+                      [ clear Hvts;
+                        rewrite Forall2_map_both in *;
+                        rewrite map_fst_map, map_id
+                      | clear Hnames;
+                        rewrite Forall2_map_both, map_snd_map,
+                        map_map, <- Forall2_map_both ]; assumption
+              end;
+          try match goal with
+              | |- context [N.of_nat (length ?bits)]
+                => replace (length bits)
+                  with (length (map f bits))
+                  by (rewrite map_length; reflexivity); auto; assumption
+              end.
       - constructor; rewrite map_length; auto.
       - rewrite Forall2_map_l in H0; auto.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *;
-          destruct H0 as [Hnames Hvts]; split.
-        + clear Hvts.
-          rewrite Forall2_map_both in *.
-          rewrite map_fst_map, map_id.
-          assumption.
-        + clear Hnames.
-          rewrite Forall2_map_both, map_snd_map,
-          map_map, <- Forall2_map_both.
-          assumption.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *;
-          destruct H0 as [Hnames Hvts]; split.
-        + clear Hvts.
-          rewrite Forall2_map_both in *.
-          rewrite map_fst_map, map_id.
-          assumption.
-        + clear Hnames.
-          rewrite Forall2_map_both, map_snd_map,
-          map_map, <- Forall2_map_both.
-          assumption.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *;
-          destruct H0 as [Hnames Hvts]; split.
-        + clear Hvts.
-          rewrite Forall2_map_both in *.
-          rewrite map_fst_map, map_id.
-          assumption.
-        + clear Hnames.
-          rewrite Forall2_map_both, map_snd_map,
-          map_map, <- Forall2_map_both.
-          assumption.
       - replace (length vs)
           with (length (map (ValueBaseMap f) vs)) in *
           by (rewrite map_length; reflexivity).
@@ -250,46 +240,32 @@ Section RelTyp.
     Proof.
       intros va vb Hev.
       induction Hev using custom_exec_val_ind;
-        intros t Hvat; inversion Hvat; clear Hvat; subst; eauto.
-      - apply Forall2_length in H; rewrite H; auto.
-      - apply Forall2_length in H; rewrite H; auto.
+        intros t Hvat; inversion Hvat; clear Hvat; subst; eauto;
+          try match goal with
+              | H: AList.all_values val_typ ?kvas (P4String.clear_AList_tags ?ts),
+                   IH: AList.all_values
+                         (fun va vb => forall t, ⊢ᵥ va \: t -> ⊢ᵥ vb \: t)
+                         ?kvas ?kvbs
+                |- _ => constructor; auto;
+                        unfold AList.all_values in *;
+                        rewrite Forall2_conj in *;
+                        destruct IH as [Habkeys Habtyps];
+                        destruct H as [Hakeys Hatyps];
+                        rewrite Forall2_map_both in *;
+                        pose proof Forall2_map_both
+                             _ _ _ _ (fun va vb => forall t : typ, val_typ va t -> val_typ vb t)
+                             snd snd kvas kvbs as H';
+                        cbn in *; apply H' in Habtyps; clear H';
+                          rewrite Forall2_eq in *;
+                          rewrite <- Habkeys, Forall2_map_both;
+                          split; eauto; assumption
+              end;
+          try match goal with
+              | H: Forall2 _ ?la _
+                |- context [N.of_nat (Datatypes.length ?la)]
+                => apply Forall2_length in H; rewrite H; auto; assumption
+              end.
       - apply Forall2_length in H; rewrite H in H3; auto.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *.
-        destruct H0 as [Habkeys Habtyps].
-        destruct H2 as [Hakeys Hatyps].
-        rewrite Forall2_map_both in *.
-        pose proof Forall2_map_both
-             _ _ _ _ (fun va vb => forall t : typ, val_typ va t -> val_typ vb t)
-             snd snd kvas kvbs as H';
-          cbn in *; apply H' in Habtyps; clear H'.
-        rewrite Forall2_eq in *; rewrite <- Habkeys.
-        rewrite Forall2_map_both; split; eauto.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *.
-        destruct H1 as [Habkeys Habtyps].
-        destruct H5 as [Hakeys Hatyps].
-        rewrite Forall2_map_both in *.
-        pose proof Forall2_map_both
-             _ _ _ _ (fun va vb => forall t : typ, val_typ va t -> val_typ vb t)
-             snd snd kvas kvbs as H';
-          cbn in *; apply H' in Habtyps; clear H'.
-        rewrite Forall2_eq in *; rewrite <- Habkeys.
-        rewrite Forall2_map_both; split; eauto.
-      - constructor.
-        unfold AList.all_values in *.
-        rewrite Forall2_conj in *.
-        destruct H0 as [Habkeys Habtyps].
-        destruct H2 as [Hakeys Hatyps].
-        rewrite Forall2_map_both in *.
-        pose proof Forall2_map_both
-             _ _ _ _ (fun va vb => forall t : typ, val_typ va t -> val_typ vb t)
-             snd snd kvas kvbs as H';
-          cbn in *; apply H' in Habtyps; clear H'.
-        rewrite Forall2_eq in *; rewrite <- Habkeys.
-        rewrite Forall2_map_both; split; eauto.
       - apply Forall2_length in H.
         apply Forall2_length in H0 as Hlen; rewrite Hlen; clear Hlen.
         constructor; try lia.
@@ -382,17 +358,12 @@ Section RelTyp.
   End Rel.
 End RelTyp.
 
+(** Utility. *)
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).
                                  
   Local Hint Constructors val_typ : core.
-
-  Ltac some_inv :=
-    match goal with
-    | H: Some _ = Some _
-      |- _ => inversion H; subst; clear H
-    end.
     
   Lemma uninit_sval_of_typ_list_val_typ :
     forall b (ts : list typ) v,
@@ -405,7 +376,7 @@ Section Lemmas.
       val_typ v (TypTuple (map normᵗ ts)).
   Proof.
     intros b ts v Hts IHts Hob; cbn in *.
-    unfold option_bind, option_ret in *.
+    unfold option_bind in *.
     destruct (sequence (map (uninit_sval_of_typ b) ts))
       as [vs |] eqn:Hvs; cbn in *; try discriminate; some_inv.
     rewrite <- Forall2_sequence_iff,
@@ -443,6 +414,7 @@ Section Lemmas.
   Lemma uninit_sval_of_typ_alist_val_typ :
     forall b (xts : list (P4String.t tags_t * typ))
       (v : @ValueBase (option bool)),
+      AList.key_unique xts = true ->
       Forall (fun xt => is_expr_typ (snd xt)) xts ->
       Forall (fun xt => forall v,
                   uninit_sval_of_typ b (snd xt) = Some v ->
@@ -460,7 +432,7 @@ Section Lemmas.
                 >>| ValBaseUnion = Some v ->
        val_typ v (TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) xts))).
   Proof.
-    intros b xts v Hxts IHxts.
+    intros b xts v Uxts Hxts IHxts.
     repeat split; intro Hob;
       destruct
         (sequence
@@ -469,33 +441,34 @@ Section Lemmas.
                  uninit_sval_of_typ b t >>| pair x)
               xts))
       as [xvs |] eqn:Hxvs; cbn in *;
-        unfold option_bind, option_ret in *;
+        unfold option_bind in *;
         try discriminate; some_inv;
-          econstructor;
-          unfold AList.all_values;
-          rewrite <- Forall2_sequence_iff in Hxvs;
-          rewrite Forall2_conj;
-          rewrite Forall2_map_both with (f:=fst) (g:=fst);
-          rewrite Forall2_map_both with (f:=snd) (g:=snd);
-          rewrite Forall2_eq;
-          unfold P4String.clear_AList_tags;
-          do 2 rewrite map_fst_map;
-          do 2 rewrite map_snd_map;
-          repeat rewrite map_id;
-          rewrite <- Forall2_map_l in Hxvs;
-          clear Hxts;
-          generalize dependent xvs;
-          induction xts as [| [[i x] t] xts IHxts'];
-          intros [| [y v] yvs] H; cbn in *;
-            inversion H;
-            inversion IHxts; subst; auto;
-              specialize IHxts' with yvs;
-              destruct (uninit_sval_of_typ b t) as [v' |] eqn:Hv;
-              cbn in *; try discriminate; some_inv;
-                firstorder; f_equal; auto.
+    econstructor;
+      try (epose proof AListUtil.key_unique_map_values as Hmv;
+           unfold AListUtil.map_values in Hmv; rewrite Hmv; clear Hmv; assumption);
+    unfold AList.all_values;
+      rewrite <- Forall2_sequence_iff in Hxvs;
+      rewrite Forall2_conj;
+    rewrite Forall2_map_both with (f:=fst) (g:=fst);
+      rewrite Forall2_map_both with (f:=snd) (g:=snd);
+      rewrite Forall2_eq;
+    unfold P4String.clear_AList_tags;
+      do 2 rewrite map_fst_map;
+      do 2 rewrite map_snd_map;
+      repeat rewrite map_id;
+    rewrite <- Forall2_map_l in Hxvs;
+    clear Hxts Uxts;
+    generalize dependent xvs;
+      induction xts as [| [[i x] t] xts IHxts'];
+      intros [| [y v] yvs] H; cbn in *;
+        inversion H;
+        inversion IHxts; subst; auto;
+          specialize IHxts' with yvs;
+          match_some_inv; some_inv;
+            cbn in *; firstorder; f_equal; auto.
   Qed.
   Local Hint Resolve uninit_sval_of_typ_alist_val_typ : core.
-  Local Hint Resolve Forall_repeat : core.
+  Local Hint Resolve sublist.Forall_repeat : core.
 
   Ltac width_solve :=
     match goal with
@@ -516,19 +489,19 @@ Section Lemmas.
       intros v Huninit; cbn in *;
         try discriminate; try some_inv; eauto.
     - constructor; simpl; lia.
-    - unfold option_bind, option_ret in *.
+    - unfold option_bind in *.
       assert (H0n: (0 <? n)%N = true) by (rewrite N.ltb_lt; lia).
       rewrite H0n in *.
       destruct (uninit_sval_of_typ b t)
         as [v' |] eqn:Hv'; inversion Huninit; subst.
       width_solve. constructor; auto.
       rewrite repeat_length; auto.
-    - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
-    - eapply uninit_sval_of_typ_alist_val_typ in H;
-        cbn in *; unfold option_bind, option_ret in *; cbn in *;
+    - eapply uninit_sval_of_typ_alist_val_typ in H0; firstorder eauto.
+    - eapply uninit_sval_of_typ_alist_val_typ in H0;
+        cbn in *; unfold option_bind in *; cbn in *;
           firstorder eauto.
-    - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
-    - eapply uninit_sval_of_typ_alist_val_typ in H; firstorder eauto.
+    - eapply uninit_sval_of_typ_alist_val_typ in H0; firstorder eauto.
+    - eapply uninit_sval_of_typ_alist_val_typ in H0; firstorder eauto.
     - destruct X as [iX X'] eqn:HX;
         destruct mems as [| [iM M] mems];
         cbn in *; try lia.
@@ -541,7 +514,7 @@ Section Lemmas.
           (P4String.str {| P4String.tags:=iM; P4String.str:=M |}) at 1
         by reflexivity. constructor; cbn; auto.
     - destruct X as [iX X'] eqn:HX; cbn in *.
-      unfold option_map,option_bind, option_ret in *.
+      unfold option_map,option_bind in *.
       revert HX.
       destruct (uninit_sval_of_typ b t)
         as [v' |] eqn:Hut; cbn in *;
@@ -562,7 +535,7 @@ Section Lemmas.
   Hint Rewrite Forall2_conj : rw1.
   Hint Rewrite map_pat_both : rw1.
   Hint Rewrite <- Forall2_map_r : rw2.
-  Local Hint Constructors predopt : core.
+  Local Hint Constructors predop : core.
 
   Context {A : Type}.
   Notation VA := (@ValueBase A).

@@ -1367,12 +1367,12 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
       force_continue_signal sig = sig' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatDirectApplication typ' func_typ args) typ) st' sig'
-| exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
+| exec_stmt_conditional_some : forall cond tru fls b this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
     exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-| exec_stmt_conditional_none_fls : forall cond tru b this_path st tags typ st' sig,
+| exec_stmt_conditional_none : forall cond tru b this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
     exec_stmt
       read_one_bit this_path st (if b then tru else empty_statement) st' sig ->

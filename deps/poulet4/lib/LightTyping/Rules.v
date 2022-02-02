@@ -926,6 +926,32 @@ Section Soundness.
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
   Local Hint Unfold stmt_types : core.
+
+  (* TODO: In general
+     I am stuck when attempting to prove that
+     [gamma_stmt_types Γ' st' -> gamma_stmt_types Γ st']
+     when [exec_stmt ge rob st s st sig]
+     and [(ge,this,Δ,Γ) ⊢ₛ s ⊣ Γ'].
+
+     Perhaps an assumption that [Γ ⊆ Γ']
+     from the definition of ⊢ₛ is necessary?
+
+     Bit even with that I'm unsure of
+     how to address the case of variables
+     declared in [s] added to [st'].
+
+     For instance consider the program:
+     [ if x { y:bit<1> := 0 }; ]
+     [y] will be in [st'] and [Γ']
+     but not in [Γ].
+
+     So [dom Γ <> dom st'].
+
+     Need an alternate condition,
+     perhaps [forall x, x ∈ Γ -> x ∈ st'].
+
+     This ensures provability
+     knowing [Γ ⊆ Γ']. *)
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
@@ -992,6 +1018,43 @@ Section Soundness.
            | Some s₂ => lub_StmType (typ_of_stmt s₁) (typ_of_stmt s₂)
            end) ⊣ Γ.
     Proof.
+      cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      inv Hoks; inv Hiss. inv H0; inv H1.
+      pose proof He Hge Hged H4 H3 _ _ Hrob Hread (proj1 Hgst)
+        as [[sv Hesv] [He' _]]; clear He H4 H3.
+      pose proof Hs1 Hge Hged H5 H7 _ _ _ Hrob Hread Hgst
+        as [(st1 & sig1 & Hxs1) Hs1']; clear Hs1 H5 H7.
+      assert (Hv: exists v, sval_to_val rob sv v)
+        by eauto using exec_val_exists.
+      destruct Hv as [v Hv].
+      assert (Hxed: exec_expr_det ge rob this st e v) by eauto.
+      rewrite <- Het in He'; cbn in He'.
+      apply He' in Hesv as (r & Hr & Hsvr).
+      some_inv; cbn in Hsvr; inv Hsvr; inv Hv.
+      destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
+      - destruct H1 as [Γ₂ Hs2].
+        pose proof Hs2 Hge Hged H2 H3 _ _ st Hrob Hread Hgst
+          as [(st2 & sig2 & Hxs2) Hs2']; clear Hs2 H2 H3.
+        split.
+        + destruct b'; eauto.
+        + clear dependent st1. clear dependent st2.
+          clear dependent b'. clear b sig1 sig2.
+          intros st' sig Hxs. inv Hxs.
+          destruct b.
+          * clear Hs2'; apply Hs1' in H9. admit. (* Stuck. *)
+          * clear Hs1'; apply Hs2' in H9. admit. (* Stuck. *)
+      - split.
+        + destruct b'; eauto.
+          exists st,SContinue. econstructor; eauto; cbn.
+          unfold empty_statement; auto.
+        + clear dependent st1. clear dependent b'. clear b sig1.
+          intros st' sig Hxs; inv Hxs.
+          inv H7. inv H0. destruct b.
+          * apply Hs1' in H8.
+            admit. (* Not sure how to proceed. *)
+          * inv H8; assumption.
     Admitted.
 
     Theorem exit_sound : forall tag,

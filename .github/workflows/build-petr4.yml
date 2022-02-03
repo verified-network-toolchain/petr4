@@ -27,21 +27,21 @@ jobs:
         run: ./.github/scripts/build-petr4-ubuntu.sh
         shell: bash
 
-  # build-macos-latest:
-  #   runs-on: macos-latest
+  build-macos-latest:
+    runs-on: macos-latest
 
-  #   steps: 
-  #     - name: checkout-main
-  #       uses: actions/checkout@v1
+    steps: 
+      - name: checkout-main
+        uses: actions/checkout@v1
         
-  #     - name: setup-ocaml
-  #       uses: ocaml/setup-ocaml@v1
-  #       with: 
-  #         ocaml-version: '4.12.0'
+      - name: setup-ocaml
+        uses: ocaml/setup-ocaml@v1
+        with: 
+          ocaml-version: '4.12.0'
         
-  #     - name: build-macos
-  #       run: ./.github/scripts/build-petr4-macos.sh
-  #       shell: bash
+      - name: build-macos
+        run: ./.github/scripts/build-petr4-macos.sh
+        shell: bash
 
 
     

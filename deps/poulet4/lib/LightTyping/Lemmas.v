@@ -1001,4 +1001,13 @@ Section Lemmas.
         cbn in *; autounfold with option_monad in *;
           match_some_inv; some_inv; reflexivity.
   Qed.
+
+  Lemma exec_expr_call_False :
+    forall (T: @Target _ expr) (dummy: Inhabitant tags_t)
+      (ge : @genv _ T) rob p st st' e sv sig,
+      exec_expr ge rob p st e sv -> ~ exec_call ge rob p st e st' sig.
+  Proof.
+    intros T dummy ge rob p st st' e sv sig Hesv Hcall.
+    inv Hesv; inv Hcall.
+  Qed.
 End Lemmas.

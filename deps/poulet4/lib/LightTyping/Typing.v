@@ -125,9 +125,17 @@ Section TypingDefs.
   Definition genv_is_expr_typ (ge : @genv_typ tags_t) : Prop :=
     forall t r, get_real_type ge t = Some r ->
            is_expr_typ t -> is_expr_typ r.
+
+  (* Function-type closures.
+     TODO:
+     Probably needs to be defined
+     mutually with [gamma_stmt]. *)
+  Record closure := {
+    closure_gamma   : gamma_expr (* Typing context at definition. *); 
+    closure_funtype : funtype    (* Type signature of function. *)}.
   
-  (* Function definition typing environment. TODO! *)
-  Definition gamma_func := PathMap.t funtype.
+  (* Function definition typing environment. *)
+  Definition gamma_func := PathMap.t closure.
 
   (* Extern instance typing environment. TODO. *)
   Definition gamma_ext := PathMap.t unit.
@@ -150,7 +158,7 @@ Section TypingDefs.
   Definition lookup_func_typ
              (this : path) (gf : gamma_func) (gi : genv_inst)
              '(MkExpression _ func _ _ : expr)
-    : option (option path * funtype) :=
+    : option (option path * closure) :=
     match func with
     | ExpName _ (LGlobal p) =>
       option_map (fun funt => (Some nil, funt)) (PathMap.get p gf)
@@ -233,6 +241,7 @@ Section TypingDefs.
     (* TODO : need to know [body] & [init] are well-typed. *)
     | Internal_prop params body Xs params' rt :
         Forall2 (fun '(_,d) '(MkParameter _ d' _ _ _) => d = d') params params' ->
+        (** Should use a closure environment to type [body]. *)
         fundef_funtype_prop
           Γ Γext
           (FInternal params body)
@@ -253,26 +262,30 @@ Section TypingDefs.
           Γ Γext
           (FExternal class name)
           (MkFunctionType Xs params FunExtern rt).
-    
+
     Definition gamma_func_types
-               (g : gamma_expr) (gf : gamma_func)
+               (gf : gamma_func)
                (gext : gamma_ext) : Prop :=
-      forall (e : expr) (p p' : option path) (fd : fundef) (ft : funtype),
-        lookup_func_typ this gf ge e = Some (p,ft) ->
+      forall (e : expr) (p p' : option path)
+        (fd : fundef) (clos : closure),
+        lookup_func_typ this gf ge e = Some (p,clos) ->
         lookup_func ge this e = Some (p',fd) ->
-        p = p' /\ fundef_funtype_prop g gext fd ft.
+        p = p' /\
+        fundef_funtype_prop
+          (closure_gamma clos)
+          gext fd
+          (closure_funtype clos).
 
   Definition gamma_func_prop
-             (g : gamma_expr) (gf : gamma_func) (gext : gamma_ext) : Prop :=
+             (gf : gamma_func) (gext : gamma_ext) : Prop :=
     gamma_func_domain this gf ge /\
-    gamma_func_types g gf gext.
+    gamma_func_types gf gext.
 
   (** TODO: externs... *)
   Definition gamma_stmt_prop
              (g : gamma_stmt) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
-    gamma_func_prop
-      (expr_gamma g) (func_gamma g) (ext_gamma g).
+    gamma_func_prop (func_gamma g) (ext_gamma g).
     
     (** Statement typing. *)
     Definition
@@ -314,6 +327,7 @@ Section TypingDefs.
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
+        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
         sub_gamma_expr this Γ Γ' /\
         FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\

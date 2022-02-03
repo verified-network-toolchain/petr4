@@ -920,6 +920,8 @@ Section Soundness.
 
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
+  Local Hint Constructors exec_write : core.
+  Local Hint Constructors exec_read : core.
   Local Hint Unfold stmt_types : core.
   Local Hint Resolve sub_gamma_expr_refl : core.
   Local Hint Resolve gamma_stmt_prop_sub_gamma : core.
@@ -1094,6 +1096,7 @@ Section Soundness.
     Admitted.
 
     Theorem stat_variable_sound : forall tag τ x e l,
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         predop
           (fun e =>
              typ_of_expr e = τ /\
@@ -1103,6 +1106,66 @@ Section Soundness.
           tag (StatVariable τ x e l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
     Proof.
+      cbn. intros i t x oe l Hl Hoe.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto using bind_typ_gamma_stmt_sub_gamma.
+      inv Hoks; inv Hiss. inv H0; inv H1.
+      destruct oe as [e |]; inv Hoe; inv H6; inv H7.
+      - admit.
+      - split.
+        + assert (Hr: exists r, get_real_type ge t = Some r).
+          { epose proof ok_get_real_type_ex as Hogre.
+            unfold ok_get_real_type_ex_def in Hogre; eauto. }
+          destruct Hr as [r Hr].
+          assert (Huninit: exists sv, uninit_sval_of_typ (Some false) r = Some sv).
+          { apply is_expr_typ_uninit_sval_of_typ; eauto.
+            epose proof delta_genv_prop_ok_typ_nil as Hdgok.
+            unfold delta_genv_prop_ok_typ_nil_def in Hdgok; eauto. }
+          firstorder eauto.
+        + intros st' sig Hxs; inv Hxs; inv H12.
+          unfold gamma_stmt_prop in *.
+          destruct Γ as [Γₑ gf] eqn:HeqΓ; cbn in *; split.
+          * unfold gamma_expr_prop in *.
+            destruct Hgst as [[Hvar Hconst] _].
+            destruct Γₑ as [Γᵥ Γᵪ]; cbn in *; split; try assumption.
+            clear Hconst. unfold gamma_var_prop in *.
+            destruct Hvar as [Hdom Hvart]. split.
+            -- clear Hvart; unfold gamma_var_domain in *.
+               intros l' t' Hlt'.
+               unfold update_val_by_loc in *.
+               specialize Hdom with (l:=l') (t:=t').
+               destruct l' as [l' | l']; cbn in *; try discriminate.
+               destruct st as [st ext].
+               destruct l as [l | l];
+                 unfold update_memory,get_memory,get_loc_path,
+                 bind_var_typ in *; cbn in Hlt';
+                   pose proof list_eq_dec string_dec l' l as Hl'l;
+                   destruct Hl'l as [Hl'l | Hl'l]; subst;
+                     try (rewrite PathMap.get_set_same; eauto);
+                     try (rewrite PathMap.get_set_diff in Hlt' by assumption;
+                          rewrite PathMap.get_set_diff by assumption; eauto).
+            -- clear Hdom; unfold gamma_var_val_typ in *.
+               intros l' t' sv' Hlt' Hlsv'.
+               unfold update_val_by_loc in *.
+               specialize Hvart with (l:=l') (t:=t') (v:=sv').
+               destruct l' as [l' | l']; cbn in *; try discriminate.
+               destruct st as [st ext].
+               destruct l as [l | l];
+                 unfold update_memory,get_memory,get_loc_path,
+                 bind_var_typ in *; cbn in Hlt';
+                   pose proof list_eq_dec string_dec l' l as Hl'l;
+                   destruct Hl'l as [Hl'l | Hl'l]; subst;
+                     try rewrite PathMap.get_set_same in Hlt';
+                     try  rewrite PathMap.get_set_same in Hlsv';
+                     try rewrite PathMap.get_set_diff in Hlt' by assumption;
+                     try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+                     repeat some_inv;
+                     eauto 6 using uninit_sval_of_typ_val_typ.
+          * destruct Hgst as [HΓₑ [Hgfdom Hgft]].
+            unfold gamma_func_prop in *; split; auto.
+            unfold gamma_func_types in *.
+            admit. (* TODO: lemma for fundef_funtype_prop. *) 
     Admitted.
   End StmtTyping.
 End Soundness.

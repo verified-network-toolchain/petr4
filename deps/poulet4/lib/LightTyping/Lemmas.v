@@ -118,6 +118,42 @@ Section Lemmas.
     Qed.
   End SubGamma.
 
+  Section BindSub.
+    Variables (l : Locator) (t : typ).
+
+    Lemma bind_var_typ_sub_gamma_var : forall Γ : gamma_var,
+        PathMap.get (get_loc_path l) Γ = None ->
+        sub_gamma_var Γ (bind_var_typ l t Γ).
+    Proof.
+      unfold sub_gamma_var,FuncAsMap.submap,bind_var_typ.
+      intros g Hl l' t' Hlt'.
+      destruct l as [p | p]; destruct l' as [l' | l'];
+        cbn in *; try discriminate;
+          rewrite PathMap.get_set_diff;
+          assumption || intros H; subst; rewrite Hl in Hlt'; discriminate.
+    Qed.
+
+    Variable p : path.
+    
+    Lemma bind_var_typ_gamma_sub_gamma : forall Γ : gamma_expr,
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
+        sub_gamma_expr p Γ (bind_var_typ_gamma_expr l t Γ).
+    Proof.
+      unfold bind_var_typ_gamma_expr,sub_gamma_expr.
+      intros [gv gc] H; cbn in *.
+      split; auto using bind_var_typ_sub_gamma_var.
+    Qed.
+  
+    Lemma bind_typ_gamma_stmt_sub_gamma : forall (Γ : gamma_stmt),
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
+        sub_gamma_expr p Γ (bind_typ_gamma_stmt l t Γ).
+    Proof.
+      unfold bind_typ_gamma_stmt.
+      intros [ge gf] H; cbn in *.
+      auto using bind_var_typ_gamma_sub_gamma.
+    Qed.
+  End BindSub.
+  
   Local Hint Constructors val_typ : core.
   Local Hint Resolve val_to_sval_ex : core.
 

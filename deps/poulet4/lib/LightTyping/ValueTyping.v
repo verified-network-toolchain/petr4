@@ -12,14 +12,7 @@ Definition read_one_bit_reads
            (read_one_bit : U -> V -> Prop) : Prop :=
   forall u, exists v, read_one_bit u v.
 
-(** Relation that a
-    [read_one_bit] is an inverse
-    with respect to [f]. *)
-Definition read_one_bit_inverse
-           {U V : Type}
-           (read_one_bit : U -> V -> Prop) (f : V -> U -> Prop) : Prop :=
-  forall u v, read_one_bit u v <-> f v u.
-
+(** Value typing. *)
 Reserved Notation "'⊢ᵥ' v '\:' t" (at level 80, no associativity).
 
 (** There's a 1-to-1 correspondence

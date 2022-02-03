@@ -27,7 +27,10 @@ Section Soundness.
   
   Local Hint Unfold expr_types : core.
   Local Hint Constructors exec_expr : core.
+  Local Hint Constructors exec_expr_det : core.
+  Local Hint Constructors exec_lexpr : core.
   Local Hint Constructors val_typ : core.
+  Local Hint Constructors lval_typ : core.
   Local Hint Constructors exec_val : core.
   Local Hint Constructors P4Type_ok : core.
   Local Hint Constructors is_expr_typ : core.
@@ -48,10 +51,13 @@ Section Soundness.
       end.
     
     Ltac soundtac :=
-      autounfold with *;
+      autounfold with *; cbn in *;
       intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg;
       inversion Hok; subst; inversion Hise; subst;
-      split; eauto;
+      split; [| split]; eauto;
+      try match goal with
+          | |- lexpr_ok _ -> _ => intros Hlv; inv Hlv; contradiction
+          end;
       try (intros v Hrn; inversion Hrn; subst; cbn; try solve_ex);
       cbn in *.
   
@@ -79,7 +85,8 @@ Section Soundness.
           (TypBit w) dir.
     Proof.
       intros tag i z w dir; soundtac; split; auto.
-      replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
+      replace w
+        with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
       unfold P4Arith.to_loptbool, P4Arith.to_lbool.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
@@ -93,7 +100,8 @@ Section Soundness.
           (TypInt w) dir.
     Proof.
       intros tag i z w dir; soundtac; split; auto.
-      replace w with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
+      replace w
+        with (N.of_nat (length (P4Arith.to_loptbool w z))) at 2; auto.
       unfold P4Arith.to_loptbool, P4Arith.to_lbool.
       rewrite map_length, rev_length, P4Arith.length_to_lbool'; cbn; lia.
     Qed.
@@ -106,49 +114,51 @@ Section Soundness.
     
     Theorem name_sound : forall tag x loc t dir,
         is_directional dir = true ->
-        typ_of_loc_var loc Γ = Some t ->
+        typ_of_loc_var loc (var_gamma Γ) = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
     Proof.
       intros i x l t d Hd Hgt; soundtac.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_domain in Hg.
         destruct Hg as [[Hg _] _].
-        assert (Hv : exists v, loc_to_sval l st = Some v).
-        { destruct (loc_to_sval l st) as [v |] eqn:Hv; eauto.
-          rewrite <- Hg, Hgt in Hv; discriminate. }
-        destruct Hv; eauto.
+        apply Hg in Hgt as [sv Hsv]; eauto.
       - unfold gamma_expr_prop, gamma_var_prop, gamma_var_val_typ in Hg.
         destruct Hg as [[_ Hg] _]; eauto.
       - rewrite Hd in H11; discriminate.
+      - intros Hlv; split; eauto.
+        unfold gamma_expr_prop, gamma_var_prop,
+        gamma_var_val_typ,gamma_var_domain in Hg.
+        destruct Hg as [[Hdg Hg] _].
+        apply Hdg in Hgt as Hsv.
+        destruct Hsv as [sv Hsv].
+        intros lv s Helv; inv Helv.
+        pose proof Hg _ _ _ Hgt Hsv as (r & Hr & Hvr).
+        destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *; auto.
     Qed.
 
-    Theorem constant_sound : forall tag x loc t dir,
-        is_directional dir = false ->
+    Theorem constant_sound : forall tag x loc t,
         typ_of_loc_const this loc Γ = Some t ->
-        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpName x loc) t dir.
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression tag (ExpName x loc) t Directionless.
     Proof.
-      intros i x l t d Hd Hgt; soundtac.
+      intros i x l t Hgt; soundtac; try discriminate.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_domain in Hg.
         destruct Hg as (_ & Hg & _).
-        assert (Hv : exists v, loc_to_sval_const ge this l = Some v).
-        { destruct (loc_to_sval_const ge this l) as [v |] eqn:Hv; eauto.
-          rewrite <- Hg, Hgt in Hv; discriminate. }
-        destruct Hv; eauto.
-      - rewrite Hd in H11; discriminate.
+        apply Hg in Hgt as [v Hv].
+        apply f_equal with (f:=option_map eval_val_to_sval) in Hv.
+        eauto.
       - unfold gamma_expr_prop, gamma_const_prop, gamma_const_val_typ in Hg.
         destruct Hg as (_ & _ & Hg); eauto.
     Qed.
     
     Theorem array_access_sound : forall tag arry idx ts dir n,
         (0 < N.to_nat n)%nat ->
-        typ_of_expr arry = TypArray (TypHeader ts) n ->
-        typ_of_expr idx  = TypBit n ->
-        (ge,this,Δ,Γ) ⊢ₑ arry ->
-        (ge,this,Δ,Γ) ⊢ₑ idx ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ arry \: TypArray (TypHeader ts) n ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ idx  \: TypBit n ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpArrayAccess arry idx) (TypHeader ts) dir.
     Proof.
-      intros i e1 e2 ts d n Hn Ht1 Ht2 He1 He2;
+      intros i e1 e2 ts d n Hn [He1 Ht1] [He2 Ht2];
         autounfold with * in *.
       intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg; simpl in *.
       inversion Hok; subst. inversion H4; subst.
@@ -157,17 +167,23 @@ Section Soundness.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hists; rename H4 into Hisacc;
         rename H2 into Hise1; rename H3 into Hise2.
-      rewrite Ht1, Ht2 in *.
-      pose proof He1 Hgrt Hdelta as [[v1 Hev1] He1']; clear He1; eauto.
-      pose proof He2 Hgrt Hdelta as [[v2 Hev2] He2']; clear He2; eauto.
-      split.
-      - assert (Hv2': exists v2', sval_to_val rob v2 v2')
+      rewrite <- Ht1, <- Ht2 in *.
+      pose proof He1 Hgrt Hdelta
+        as [[v1 Hev1] [He1' Helv1]]; clear He1; eauto.
+      pose proof He2 Hgrt Hdelta
+        as [[v2 Hev2] [He2' _]]; clear He2; eauto.
+      split; [| split].
+      - clear Helv1.
+        assert (Hv2': exists v2', sval_to_val rob v2 v2')
           by eauto using exec_val_exists.
         pose proof He1' v1 Hev1 as (r1 & Hr1 & Hv1).
         pose proof He2' v2 Hev2 as (r2 & Hr2 & Hv2).
-        clear He1' He2'. cbn in *; inversion Hr2; subst; clear Hr2; cbn in *.
+        clear He1' He2'.
+        cbn in *; inversion Hr2; subst; clear Hr2; cbn in *.
         autounfold with option_monad in *.
-        destruct (sequence (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
+        destruct
+          (sequence
+             (map (fun '(x, t) => get_real_type ge t >>| pair x) ts))
           as [rs |] eqn:Hrs;
           unfold ">>|",">>=" in *;
           autounfold with option_monad in *;
@@ -188,10 +204,11 @@ Section Soundness.
         epose proof delta_genv_prop_ok_typ_nil as Hnil;
           unfold delta_genv_prop_ok_typ_nil_def in Hnil.
         assert (Hrtok : [] ⊢ok (TypHeader rs)) by eauto.
-        assert (Huninit : exists v, uninit_sval_of_typ None (TypHeader rs) = Some v)
+        assert (Huninit :
+                  exists v, uninit_sval_of_typ None (TypHeader rs) = Some v)
           by eauto using is_expr_typ_uninit_sval_of_typ.
         destruct Huninit as [v Hv]; eauto.
-      - clear v1 v2 Hev1 Hev2.
+      - clear v1 v2 Hev1 Hev2 Helv1.
         intros v Hev; inversion Hev; subst.
         apply He1' in H10 as (r1 & Hr1 & Hv1); clear He1'.
         apply He2' in H4 as (r2 & Hr2 & Hv2); clear He2'.
@@ -211,7 +228,9 @@ Section Soundness.
           inversion Hv1'; subst; auto.
         + rewrite <- nth_default_eq.
           unfold nth_default.
-          destruct (nth_error headers (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
+          destruct (nth_error
+                      headers
+                      (BinInt.Z.to_nat idxz)) as [v |] eqn:Hv.
           * inversion Hv1; subst.
             rewrite Forall_forall in H6.
             eauto using nth_error_In.
@@ -219,18 +238,51 @@ Section Soundness.
             eapply H; eauto.
             apply val_typ_is_expr_typ in Hv1 as Hv1'.
             inversion Hv1'; subst; auto.
+      - intros Hlv; inv Hlv; rename H0 into Hleoke1.
+        pose proof Helv1 Hleoke1 as [(lv1 & s1 & Hlv1) Helv1'];
+          clear Helv1 Hleoke1; split.
+        + apply He1' in Hev1 as Hev1'; clear He1'.
+          destruct Hev1' as (r1 & Hr1 & Hvr1).
+          cbn in Hr1. autounfold with option_monad in *.
+          repeat match_some_inv; repeat some_inv.
+          cbn in Hvr1; inversion Hvr1; subst.
+          assert (Hsv1: exists v1, sval_to_val rob (ValBaseStack vs n0) v1)
+            by eauto using exec_val_exists.
+          destruct Hsv1 as [v1 Hsv1].
+          inversion Hsv1; subst.
+          assert (Hxed1:
+                    exec_expr_det
+                      ge rob this st e1 (ValBaseStack lv' n0)) by eauto.
+          rename v2 into sv2.
+          assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
+            by eauto using exec_val_exists.
+          destruct Hsv2 as [v2 Hsv2].
+          assert (Hxed2: exec_expr_det ge rob this st e2 v2) by eauto.
+          apply He2' in Hev2 as (r2 & Hr2 & Hvr2);
+            clear He2'; cbn in *; some_inv; cbn in *; inv Hvr2.
+          inversion Hsv2; subst.
+          assert (Hz: exists z, array_access_idx_to_z (ValBaseBit lb') = Some z)
+            by (cbn; eauto).
+          destruct Hz as [z Hz]; eauto.
+        + clear lv1 s1 Hlv1; intros lv1 s1 Helv1; inv Helv1.
+          apply Helv1' in H8 as Hlvt.
+          destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *.
+          econstructor; eauto.
+          inv H10.
+          apply He2' in H as (r2 & Hr2 & Hvr2); some_inv; cbn in *.
+          inv Hvr2; inv H0; cbn in *; some_inv.
+          apply BitArith.lbool_to_val_lower; lia.
     Qed.
 
     Theorem bigstring_access_sound : forall tag bits lo hi dir w,
         (lo <= hi < w)%N ->
-        typ_of_expr bits = TypBit w ->
-        (ge,this,Δ,Γ) ⊢ₑ bits ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ bits \: TypBit w ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
           tag (ExpBitStringAccess bits lo hi)
           (TypBit (hi - lo + 1)%N) dir.
     Proof.
-      intros i e lo hi d w Hlwh Ht He.
+      intros i e lo hi d w Hlwh [He Ht].
       autounfold with * in *.
       intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
@@ -238,25 +290,56 @@ Section Soundness.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hisbit; rename H4 into Hisacc;
         rename H0 into Hisee.
-      rewrite Ht in *; cbn in *.
-      pose proof He Hgrt Hdelta as [[v Hev] He']; clear He; eauto.
-      split.
-      - apply He' in Hev as Hv';
+      rewrite <- Ht in *; cbn in *.
+      pose proof He Hgrt Hdelta as [[v Hev] [He' Helv]]; clear He; eauto.
+      split; [| split].
+      - clear Helv.
+        apply He' in Hev as Hv';
           destruct Hv' as (rt & Hrt & Hv);
-          inversion Hv; inversion Hrt; clear Hrt; subst; cbn in *; try discriminate.
+          inversion Hv; inversion Hrt; clear Hrt;
+            subst; cbn in *; try discriminate.
         rename v0 into bits. inversion H1; clear H1; subst.
         exists (ValBaseBit (bitstring_slice bits (N.to_nat lo) (N.to_nat hi))).
-        eapply exec_expr_bitstring_access with (wn := length bits); eauto; lia.
-      - clear v Hev; intros v Hrn; inversion Hrn; subst; simpl.
+        eapply exec_expr_bitstring_access with
+            (wn := length bits); eauto; lia.
+      - clear v Hev Helv; intros v Hrn; inversion Hrn; subst; simpl.
         solve_ex; split; auto.
         rename H8 into He; rename H9 into Hsval; rename H12 into Hlhw.
         replace (hi - lo + 1)%N
           with (N.of_nat
-                  (length (bitstring_slice bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
-        apply He' in He as (r & Hr & Hv); inversion Hr; subst; clear Hr; cbn in *.
+                  (length
+                     (bitstring_slice
+                        bitsbl (N.to_nat lo) (N.to_nat hi)))); auto.
+        apply He' in He as (r & Hr & Hv);
+          inversion Hr; subst; clear Hr; cbn in *.
         inversion Hv; subst; cbn in *.
         inversion Hsval; subst; clear Hsval.
         apply bitstring_slice_length in Hlhw; lia.
+      - intros Hlv; inv Hlv.
+        apply Helv in H0 as [(lv & s & Hlvs) Helv']; clear Helv; split.
+        + apply Helv' in Hlvs as Hlvw.
+          rename v into sv.
+          assert (Hsv: exists v, sval_to_val rob sv v)
+            by eauto using exec_val_exists.
+          destruct Hsv as [v Hsv].
+          assert (Hxd: exec_expr_det ge rob this st e v) by eauto.
+          exists (ValLeftBitAccess lv hi lo),s.
+          apply He' in Hev as (r & Hr & Hvr); cbn in *.
+          assert (Hbits: exists bits ws, sval_to_bits_width v = Some (bits,ws)).
+          { inv Hr; cbn in *; inv Hvr.
+            inv Hsv; cbn in *; eauto. }
+          destruct Hbits as (bits & ws & Hbit).
+          econstructor; eauto.
+          inv Hr; cbn in *; inv Hvr.
+          inv Hsv; cbn in *; some_inv.
+          apply Forall2_length in H0; lia.
+        + clear v Hev lv s Hlvs; intros lv s Hlvs; inv Hlvs; inv H10.
+          apply He' in H as (r & Hr & Hsvr); clear He'; cbn in *; some_inv.
+          cbn in *; inv Hsvr; inv H0; cbn in *; some_inv.
+          apply Helv' in H9 as Hlvt.
+          apply Forall2_length in H1.
+          rewrite H1 in Hlvt.
+          econstructor; eauto.
     Qed.
   
     Theorem list_sound : forall tag es dir,
@@ -273,7 +356,9 @@ Section Soundness.
         simpl in Hes'; clear Hes.
       pose proof reduce_inner_impl _ _ _ _ Hes' Hged as Hes;
         simpl in Hes; clear Hes'.
-      pose proof (fun a inaes oka ise => Hes a inaes oka ise Hrobsome Hrob Hg) as Hduh; clear Hes.
+      pose proof
+           (fun a inaes oka ise =>
+              Hes a inaes oka ise Hrobsome Hrob Hg) as Hduh; clear Hes.
       rewrite <- Forall_forall in Hduh.
       inversion Hok; subst; inversion H1; subst; inversion H4; subst.
       rename H1 into Hoktup; rename H4 into Hoklist;
@@ -283,9 +368,13 @@ Section Soundness.
         rename H0 into Hisetes; rename H2 into Hisees.
       rewrite Forall_map in Hisetes.
       unfold Basics.compose in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hduh Hokes as Hq; clear Hduh Hokes; cbn in *.
-      pose proof Forall_impl_Forall _ _ _ _ Hq Hisees as Hp; clear Hq Hisees; cbn in *.
-      apply Forall_and_inv in Hp as [Hrnes Htyps]; split.
+      pose proof Forall_impl_Forall
+           _ _ _ _ Hduh Hokes as Hq; clear Hduh Hokes; cbn in *.
+      pose proof Forall_impl_Forall
+           _ _ _ _ Hq Hisees as Hp; clear Hq Hisees; cbn in *.
+      apply Forall_and_inv in Hp as [Hrnes Htyps].
+      apply Forall_and_inv in Htyps as [Htyps _].
+      split; [| split].
       - clear Htyps.
         rewrite Forall_exists_factor in Hrnes.
         destruct Hrnes as [vs Hvs]; eauto.
@@ -295,7 +384,8 @@ Section Soundness.
         rewrite Forall_forall in Htyps.
         apply forall_Forall2 with (bs := vs) in Htyps;
           eauto using Forall2_length.
-        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hesvs as H; clear Htyps Hesvs.
+        pose proof Forall2_impl
+             _ _ _ _ _ _ Htyps Hesvs as H; clear Htyps Hesvs.
         rewrite Forall2_flip in H.
         rewrite Forall2_map_r with
             (R := fun v t => exists r, get_real_type ge t = Some r /\ ⊢ᵥ v \: normᵗ r)
@@ -309,6 +399,7 @@ Section Soundness.
         rewrite Forall2_map_r with (f:=normᵗ) in Hvsrs.
         rewrite Hesrs; autounfold with option_monad; cbn;
           solve_ex; split; auto.
+      - intros H; inv H.
     Qed.
 
     Hint Rewrite map_length : core.
@@ -340,16 +431,20 @@ Section Soundness.
         as H; clear Hes; rename H into Hes.
       rewrite <- Forall_forall,Forall_map in Hes.
       unfold Basics.compose in Hes; cbn in Hes.
-      pose proof Forall_impl_Forall _ _ _ _ Hes Heokes as H; clear Hes Heokes.
-      pose proof Forall_impl_Forall _ _ _ _ H Hisees as Hes; clear H Hisees.
-      apply Forall_and_inv in Hes as [Hrnes Htyps]; split.
+      pose proof Forall_impl_Forall
+           _ _ _ _ Hes Heokes as H; clear Hes Heokes.
+      pose proof Forall_impl_Forall
+           _ _ _ _ H Hisees as Hes; clear H Hisees.
+      apply Forall_and_inv in Hes as [Hrnes Htyps].
+      apply Forall_and_inv in Htyps as [Htyps _]; split; [| split].
       - clear Htyps.
         rewrite Forall_exists_factor in Hrnes.
         destruct Hrnes as [vs Hvs].
         exists (ValBaseStruct (combine (map P4String.str (map fst es)) vs)).
         constructor. unfold AList.all_values, P4String.clear_AList_tags.
         rewrite Forall2_conj,
-        Forall2_map_both with (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
+        Forall2_map_both with
+            (f:=fst) (g:=fst),Forall2_map_both with (f:=snd) (g:=snd).
         rewrite map_snd_combine by (autorewrite with core; eauto).
         rewrite map_fst_combine by (autorewrite with core; eauto).
         rewrite Forall2_eq,map_fst_map,map_snd_map,map_id;split;auto.
@@ -366,7 +461,8 @@ Section Soundness.
         apply forall_Forall2 with (bs := map snd xvs) in Htyps;
           autorewrite with core; eauto.
         rewrite <- Forall2_map_r in Htyps.
-        pose proof Forall2_impl _ _ _ _ _ _ Htyps Hxvs as H; clear Htyps Hxvs.
+        pose proof Forall2_impl
+             _ _ _ _ _ _ Htyps Hxvs as H; clear Htyps Hxvs.
         apply Forall2_ex_factor in H as [rs Hrs].
         rewrite Forall3_conj_sep in Hrs.
         destruct Hrs as [Hesrs Hxvsrs].
@@ -413,10 +509,13 @@ Section Soundness.
              repeat rewrite map_snd_map.
              repeat rewrite map_id.
              rewrite map_fst_combine by
-                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+                 (apply sequence_length in Hesrs;
+                  autorewrite with core in *; auto).
              rewrite map_snd_combine by
-                 (apply sequence_length in Hesrs; autorewrite with core in *; auto).
+                 (apply sequence_length in Hesrs;
+                  autorewrite with core in *; auto).
              rewrite Forall2_eq, <- Forall2_map_both; auto.
+      - intros H; inv H.
     Qed.
     
     Local Hint Resolve val_to_sval_ex : core.
@@ -434,9 +533,11 @@ Section Soundness.
       rename H1 into Hokt; rename H4 into Hokuop; rename H0 into Hoke.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hiset; rename H4 into Hispe; rename H0 into Hisee.
-      pose proof He Hgrt Hdelta Hoke Hisee _ _ Hrobsome Hrob Hg as [[v Hev] Hvt].
+      pose proof He
+           Hgrt Hdelta Hoke Hisee _ _ Hrobsome Hrob Hg
+        as [[v Hev] [Hvt _]].
       apply unary_type_eq in Hut as Hut_eq; subst t.
-      clear He Hgrt Hdelta Hoke Hisee; split.
+      clear He Hgrt Hdelta Hoke Hisee; split; [| split].
       - assert (exists v', sval_to_val rob v v') by eauto using exec_val_exists.
         destruct H as [v' Hv'].
         apply Hvt in Hev as Hev'.
@@ -459,14 +560,16 @@ Section Soundness.
             try inv_numeric; try inv_numeric_width;
               inversion Hv'r; subst; cbn in *; try discriminate;
                 try match goal with
-                    | H1: _ = ?a, H2: _ = ?a |- _ => rewrite <- H1 in H2; clear H1
+                    | H1: _ = ?a, H2: _ = ?a
+                      |- _ => rewrite <- H1 in H2; clear H1
                     end;
                 try discriminate. }
         destruct H as [v'' Hv'']; eauto.
       - clear v Hev; intros v Hev.
         inversion Hev; subst; simpl in *.
         pose proof Hvt _ H7 as (r & Hr & Hvr); clear Hvt H7.
-        pose proof exec_val_preserves_typ _ _ _ H8 _ Hvr as Hargvr; clear H8 Hvr.
+        pose proof exec_val_preserves_typ
+             _ _ _ H8 _ Hvr as Hargvr; clear H8 Hvr.
         assert (Hr_eq : typ_of_expr e = r /\ r = normᵗ r).
         { inversion Hut; subst; try inv_numeric; try inv_numeric_width;
             try match goal with
@@ -474,6 +577,7 @@ Section Soundness.
                 end; cbn in *; try some_inv; auto. }
         destruct Hr_eq as [Het Hrr]; subst r.
         rewrite Hrr in Hut; eauto.
+      - intro H; inv H.
     Qed.
 
     Local Hint Resolve eval_binary_op_preserves_typ : core.
@@ -484,17 +588,20 @@ Section Soundness.
                (o : OpBin) (e₁ e₂ : @Expression tags_t) : Prop :=
     match o with
     | Div
-    | Mod => (exists bits, ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseBit bits /\
-                     (0 < snd (BitArith.from_lbool bits))%Z) \/
-            exists z₁ z₂, ⟨ this, ge_const ge, e₁ ⟩ ⇝ ValBaseInteger (Zpos z₁) /\
-                     ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseInteger (Zpos z₂)
+    | Mod => (exists bits,
+                ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseBit bits /\
+                (0 < snd (BitArith.from_lbool bits))%Z) \/
+            exists z₁ z₂,
+              ⟨ this, ge_const ge, e₁ ⟩ ⇝ ValBaseInteger (Zpos z₁) /\
+              ⟨ this, ge_const ge, e₂ ⟩ ⇝ ValBaseInteger (Zpos z₂)
     | Shl
-    | Shr => exists v, ⟨ this, ge_const ge, e₂ ⟩ ⇝ v /\
-                 match v with
-                 | ValBaseBit _
-                 | ValBaseInteger (Z0 | Zpos _) => True
-                 | _ => False
-                 end
+    | Shr => exists v,
+            ⟨ this, ge_const ge, e₂ ⟩ ⇝ v /\
+            match v with
+            | ValBaseBit _
+            | ValBaseInteger (Z0 | Zpos _) => True
+            | _ => False
+            end
     | _ => True
     end.
     
@@ -514,13 +621,22 @@ Section Soundness.
       inversion His; subst; inversion H4; subst.
       rename H1 into Hiset; rename H4 into Hispe;
         rename H2 into Hisee1; rename H5 into Hisee2.
-      pose proof He1 Hgrt Hged Hoke1 Hisee1 _ _ Hrobsome Hrob Hgst as [[v1 Hev1] Hvt1].
-      pose proof He2 Hgrt Hged Hoke2 Hisee2 _ _ Hrobsome Hrob Hgst as [[v2 Hev2] Hvt2].
-      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst; split.
-      - apply Hvt1 in Hev1 as Hev1'; destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
-        apply Hvt2 in Hev2 as Hev2'; destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
-        assert (Hv1': exists v1', sval_to_val rob v1 v1') by eauto using exec_val_exists.
-        assert (Hv2': exists v2', sval_to_val rob v2 v2') by eauto using exec_val_exists.
+      pose proof He1
+           Hgrt Hged Hoke1 Hisee1 _ _ Hrobsome Hrob Hgst
+        as [[v1 Hev1] [Hvt1 _]].
+      pose proof He2
+           Hgrt Hged Hoke2 Hisee2 _ _ Hrobsome Hrob Hgst
+        as [[v2 Hev2] [Hvt2 _]].
+      clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst;
+        split; [| split].
+      - apply Hvt1 in Hev1 as Hev1';
+          destruct Hev1' as (r1 & Hr1 & Hvr1); clear Hvt1.
+        apply Hvt2 in Hev2 as Hev2';
+          destruct Hev2' as (r2 & Hr2 & Hvr2); clear Hvt2.
+        assert (Hv1': exists v1', sval_to_val rob v1 v1')
+          by eauto using exec_val_exists.
+        assert (Hv2': exists v2', sval_to_val rob v2 v2')
+          by eauto using exec_val_exists.
         destruct Hv1' as [v1' Hv1']; destruct Hv2' as [v2' Hv2'].
         assert (Hvr1': ⊢ᵥ v1' \: normᵗ r1) by eauto.
         assert (Hvr2': ⊢ᵥ v2' \: normᵗ r2) by eauto.
@@ -545,15 +661,24 @@ Section Soundness.
                            pose proof
                                 (conj
                                    Hlen
-                                   (fun u v Huv => Hrob' u v (HF2 u v Huv))) as H';
-                           rewrite <- Forall2_forall,Forall2_eq in H';subst;
+                                   (fun u v Huv =>
+                                      Hrob' u v (HF2 u v Huv))) as H';
+                           rewrite <- Forall2_forall,Forall2_eq in H';
+                           subst;
                            destruct v1' as
                                [| | [| |] | | | | | | | | | | | | |];
                            try assumption
                    end
-                 | assert (Heqv1: v1 = ValueBaseMap Some (ValBaseInteger (Z.pos z1)))
+                 | assert (Heqv1:
+                             v1 =
+                             ValueBaseMap
+                               Some
+                               (ValBaseInteger (Z.pos z1)))
                    by eauto using CTK_exec_expr_agree; subst;
-                   assert (Heqv2: v2 = ValueBaseMap Some (ValBaseInteger (Z.pos z2)))
+                   assert (Heqv2:
+                             v2 =
+                             ValueBaseMap
+                               Some (ValBaseInteger (Z.pos z2)))
                      by eauto using CTK_exec_expr_agree; subst;
                    inv Hv1'; inv Hv2'; trivial ]);
             try (destruct Hctk as (v & Hctkv & Hv);
@@ -568,11 +693,16 @@ Section Soundness.
       - clear v1 v2 Hev1 Hev2; intros v Hev; inversion Hev; subst.
         apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
-        assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1) by eauto using exec_val_preserves_typ.
-        assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2) by eauto using exec_val_preserves_typ.
-        assert (Hr : exists r, get_real_type ge t = Some r /\ binary_type o r1 r2 r)
+        assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1)
+          by eauto using exec_val_preserves_typ.
+        assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2)
+          by eauto using exec_val_preserves_typ.
+        assert (Hr :
+                  exists r, get_real_type ge t = Some r /\
+                       binary_type o r1 r2 r)
           by eauto using binary_type_get_real_type.
         destruct Hr as (r & Hr & Hbr); eauto 6.
+      - intros H; inv H.
     Qed.
   
     Theorem cast_sound : forall tag e t dir,
@@ -581,9 +711,10 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
     Proof.
     Admitted.
-
+    
     Theorem enum_member_sound : forall tag X M E mems dir,
-        IdentMap.get (P4String.str X) (ge_typ ge) = Some (TypEnum E None mems) ->
+        IdentMap.get (P4String.str X) (ge_typ ge) =
+        Some (TypEnum E None mems) ->
         List.In (P4String.str M) (List.map P4String.str mems) ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression
@@ -591,11 +722,9 @@ Section Soundness.
           (TypEnum E None mems) dir.
     Proof.
       intros tag X M E mems dir Hget Hmem.
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *; split; eauto.
-      intros v Hrn.
-      inversion Hrn; subst; solve_ex; split; auto.
+      soundtac; split; auto; inv Hrn.
       - rewrite Hget in H7; some_inv; auto.
-      - rewrite Hget in H7; some_inv.
+      - rewrite Hget in H11; some_inv.
     Qed.
 
     (*Theorem senum_member_sound :
@@ -631,25 +760,29 @@ Section Soundness.
     Local Hint Resolve get_member_types : core.
     
     Theorem other_member_sound : forall tag e x ts t dir,
+        (P4String.str x =? "next")%string = false ->
         member_type ts (typ_of_expr e) ->
         AList.get ts x = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
-      intros i e x ts t dir Hmem Hts He.
+      intros i e x ts t dir Hnxt Hmem Hts He.
       intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hist; rename H4 into Hismem; rename H0 into Hise'.
-      pose proof He Hgrt Hdlta as [[v Hev] Hv]; eauto.
-      split.
-      - assert (Hget: exists v', get_member v (P4String.str x) v').
+      pose proof He Hgrt Hdlta as [[v Hev] [Hv Helv]]; eauto.
+      split; [| split].
+      - clear Helv.
+        assert (Hget: exists v', get_member v (P4String.str x) v').
         { apply Hv in Hev as (r & Hr & Hvr).
           pose proof get_real_member_type _ _ _ _ Hr Hmem as [rs Hmemrs].
           apply member_type_normᵗ in Hmemrs as Hmemrs_norm.
           assert (Hlem3' : exists r',
-                     AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some r').
+                     AList.get
+                       (map (fun '(x, t) => (x, normᵗ t)) rs)
+                       x = Some r').
           { clear i dir Γ Δ He Hdlta Hok Hrobsome
                   Hg Hokt Hokmem Htoeok v Hvr Hise
                   rob Hrob Hgrt Hv st.
@@ -680,7 +813,7 @@ Section Soundness.
           destruct Hlem3' as [r' Hr']; eauto. }
         destruct Hget as [v' Hv'].
         exists v'; eapply exec_expr_other_member; eauto.
-      - clear v Hev; intros v Hev. inversion Hev; subst.
+      - clear v Hev Helv; intros v Hev. inversion Hev; subst.
         apply Hv in H7 as (r & Hr & Hvr); clear Hv.
         pose proof ok_get_real_type_ex _ _ Hokt _ Hdlta as [r' Hr'].
         exists r'; split; auto.
@@ -697,7 +830,10 @@ Section Soundness.
         rewrite map_map in Hlem.
         unfold option_map,option_bind in Hlem.
         assert (Hlem3' :
-                  AList.get (map (fun '(x, t) => (x, normᵗ t)) rs) x = Some (normᵗ r')).
+                  AList.get
+                    (map (fun '(x, t) => (x, normᵗ t)) rs)
+                    x =
+                  Some (normᵗ r')).
         { clear H8 Hvr Hev v Hist Htoeok Hrobsome
                 Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
                 Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
@@ -718,40 +854,77 @@ Section Soundness.
           + rewrite AList.get_neq_cons in Hxt' by assumption.
             rewrite AList.get_neq_cons by assumption; eauto. }
         eauto.
+      - intros Hlv; inv Hlv.
+        apply Helv in H0 as [(lv & s & Hlvs) Helv']; clear Helv; split; eauto.
+        clear lv v s Hlvs Hev.
+        intros lv s Hlvs; inv Hlvs;
+          try (rewrite H8 in Hnxt; discriminate).
+        apply Helv' in H9 as Hlvt.
+        rewrite P4String.get_clear_AList_tags in Hts.
+        econstructor; eauto.
     Qed.
 
     Theorem array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)
         (w < 2 ^ 32)%N ->
-        typ_of_expr e = TypArray t w ->
         P4String.str x = "size"%string ->
-        (ge,this,Δ,Γ) ⊢ₑ e ->
-        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
+        (ge,this,Δ,Γ)
+          ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
     Admitted.
 
     Theorem array_last_index_sound : forall tag e x dir t w,
-        typ_of_expr e = TypArray t w ->
         P4String.str x = "lastIndex"%string ->
-        (ge,this,Δ,Γ) ⊢ₑ e ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
     Admitted.
 
     Theorem ternary_sound : forall tag e₁ e₂ e₃ t dir,
-        typ_of_expr e₁ = TypBool ->
-        typ_of_expr e₂ = typ_of_expr e₃ ->
-        typ_of_expr e₂ = t ->
-        (ge,this,Δ,Γ) ⊢ₑ e₁ ->
-        (ge,this,Δ,Γ) ⊢ₑ e₂ ->
-        (ge,this,Δ,Γ) ⊢ₑ e₃ ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₁ \: TypBool ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₂ \: t ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e₃ \: t ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpTernary e₁ e₂ e₃) t dir.
     Proof.
-    Admitted.
+      intros i e1 e2 e3 t d [He1 Ht1] [He2 Ht2] [He3 Ht3].
+      autounfold with * in *; cbn in *.
+      intros Hge Hged Hok Hise rob st Hrob Hreads Hgst.
+      inv Hok; inv Hise. inv H4; inv H6.
+      eapply He1 in H5 as [[sv1 Hesv1] [Hxe1 _]]; eauto; clear He1.
+      eapply He2 in H7 as [[sv2 Hesv2] [Hxe2 _]]; eauto; clear He2.
+      eapply He3 in H8 as [[sv3 Hesv3] [Hxe3 _]]; eauto; clear He3.
+      split; [| split].
+      - apply Hxe1 in Hesv1 as Hxe1'; clear Hxe1.
+        destruct Hxe1' as (r1 & Hr1 & Hvr1).
+        rewrite <- Ht1 in Hr1; cbn in *; some_inv.
+        cbn in *; inv Hvr1.
+        rename b into ob.
+        assert (Hv1: exists v1, sval_to_val rob (ValBaseBool ob) v1)
+          by eauto using exec_val_exists.
+        destruct Hv1 as [v1 Hv1]; inversion Hv1; subst; rename b' into b.
+        exists (if b then sv2 else sv3).
+        econstructor; eauto.
+        destruct b; auto.
+      - clear dependent sv1. clear dependent sv2.
+        clear dependent sv3.
+        intros v Hev; inv Hev; inv H14.
+        apply Hxe1 in H13 as (r1 & Hr1 & Hsvr1).
+        rewrite <- Ht1 in Hr1; cbn in *; some_inv; cbn in *.
+        destruct b.
+        + firstorder.
+        + rewrite Ht3; firstorder.
+      - intros Hlv; inv Hlv.
+    Qed.
   End ExprTyping.
 
   Local Hint Constructors exec_stmt : core.
   Local Hint Constructors exec_block : core.
+  Local Hint Constructors exec_write : core.
+  Local Hint Constructors exec_read : core.
+  Local Hint Unfold stmt_types : core.
+  Local Hint Resolve sub_gamma_expr_refl : core.
+  Local Hint Resolve gamma_stmt_prop_sub_gamma : core.
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
@@ -765,11 +938,50 @@ Section Soundness.
           ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
     Proof.
+      cbn. intros i e1 e2 Hte1e2 Hlvoke1 He1 He2.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto.
+      unfold gamma_stmt_prop in Hgst.
+      destruct Hgst as [Hgste Hgstf].
+      inv Hoks; inv Hiss; inv H0; inv H1.
+      rename H3 into Hoke1; rename H4 into Hoke2;
+        rename H2 into Hise1; rename H5 into Hise2.
+      pose proof He1 Hge Hged Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
+      destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
+      pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
+      destruct He2 as [He2 | He2].      
+      - pose proof He2 Hge Hged Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
+        destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
+        + assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
+            by eauto using exec_val_exists.
+          destruct Hsv2 as [v2 Hsv2].
+          assert (Hxd2: exec_expr_det ge rob this st e2 v2) by eauto. 
+          destruct (is_continue s1) eqn:Hiscont.
+          * assert (Hst': exists st', exec_write st lv1 (ValueBaseMap Some v2) st').
+            { (* TODO: lemma for exec_write. *) admit. }
+            destruct Hst' as [st' Hst']; exists st', s1.
+            eapply exec_stmt_assign; eauto using val_to_sval_ex.
+            rewrite Hiscont; assumption.
+          * exists st, s1; eapply exec_stmt_assign; eauto using val_to_sval_ex.
+            rewrite Hiscont; reflexivity.
+        + clear dependent sv1; clear dependent sv2;
+            clear dependent lv1; clear s1.
+          intros st' sig Hxs; inversion Hxs; subst.
+          * unfold gamma_stmt_prop; split; try assumption.
+            unfold gamma_expr_prop in *.
+            destruct Hgste as [Hgstvar Hgstconst];
+              split; try assumption.
+            admit. (* TODO: helper lemma for [gamma_var_prop Γ]. *)
+          * repeat if_destruct.
+            -- intuition; subst; split; auto.
+            -- intuition; subst. admit.
+            -- destruct H9 as (sv & Hsigsv & Hsv & Hsigcont); subst. admit.
+      - admit. (* TODO: may need more machinery for function calls... *)
     Admitted.
 
     Theorem cond_sound : forall tag e s₁ s₂ Γ₁,
-        typ_of_expr e = TypBool ->
-        (ge,this,Δ,Γ) ⊢ₑ e->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypBool ->
         (ge,this,Δ,Γ) ⊢ₛ s₁ ⊣ Γ₁ ->
         predop (fun s₂ => exists Γ₂, (ge,this,Δ,Γ) ⊢ₛ s₂ ⊣ Γ₂) s₂ ->
         (ge,this,Δ,Γ)
@@ -780,12 +992,46 @@ Section Soundness.
            | Some s₂ => lub_StmType (typ_of_stmt s₁) (typ_of_stmt s₂)
            end) ⊣ Γ.
     Proof.
-    Admitted.
+      cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto.
+      inv Hoks; inv Hiss. inv H0; inv H1.
+      pose proof He Hge Hged H4 H3 _ _ Hrob Hread (proj1 Hgst)
+        as [[sv Hesv] [He' _]]; clear He H4 H3.
+      pose proof Hs1 Hge Hged H5 H7 _ _ _ Hrob Hread Hgst
+        as [HΓ₁ [(st1 & sig1 & Hxs1) Hs1']]; clear Hs1 H5 H7.
+      assert (Hv: exists v, sval_to_val rob sv v)
+        by eauto using exec_val_exists.
+      destruct Hv as [v Hv].
+      assert (Hxed: exec_expr_det ge rob this st e v) by eauto.
+      rewrite <- Het in He'; cbn in He'.
+      apply He' in Hesv as (r & Hr & Hsvr).
+      some_inv; cbn in Hsvr; inv Hsvr; inv Hv.
+      destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
+      - destruct H1 as [Γ₂ Hs2].
+        pose proof Hs2 Hge Hged H2 H3 _ _ st Hrob Hread Hgst
+          as [HΓ₂ [(st2 & sig2 & Hxs2) Hs2']]; clear Hs2 H2 H3.
+        split.
+        + destruct b'; eauto.
+        + clear dependent st1. clear dependent st2.
+          clear dependent b'. clear b sig1 sig2.
+          intros st' sig Hxs. inv Hxs.
+          destruct b; eauto.
+      - split.
+        + destruct b'; eauto.
+          exists st,SContinue. econstructor; eauto; cbn.
+          unfold empty_statement; auto.
+        + clear dependent st1. clear dependent b'. clear b sig1.
+          intros st' sig Hxs; inv Hxs.
+          inv H7. inv H0. destruct b; eauto.
+          inv H8; assumption.
+    Qed.
 
     Theorem exit_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatExit StmVoid ⊣ Γ.
     Proof.
-      unfold stmt_types; intros; split; eauto.
+      unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
 
@@ -793,12 +1039,28 @@ Section Soundness.
         predop (fun e => (ge,this,Δ,Γ) ⊢ₑ e) e ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatReturn e) StmVoid ⊣ Γ.
     Proof.
-    Admitted.
+      cbn. intros i e He.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgst.
+      split; auto.
+      destruct e as [e |]; inv He; cbn in *.
+      - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
+        pose proof H0 Hge Hged H2 H3 _ _ Hrob Hreads (proj1 Hgst)
+          as [[sv Hesv] [He _]]; clear H0; split.
+        + eauto using exec_stmt_return_some.
+          assert (Hv: exists v, sval_to_val rob sv v)
+            by eauto using exec_val_exists.
+          destruct Hv as [v Hv]; eauto.
+        + clear dependent sv.
+          intros st' sig Hxs; inv Hxs; assumption.
+      - split; eauto.
+        intros st' sig Hxs; inv Hxs; assumption.
+    Qed.
 
     Theorem empty_sound : forall tag,
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag StatEmpty StmUnit ⊣ Γ.
     Proof.
-      unfold stmt_types; intros; split; eauto.
+      unfold stmt_types; intros; repeat (split; [eauto; assumption |]).
       intros ? ? Hrn; inversion Hrn; subst; eauto.
     Qed.
     
@@ -820,7 +1082,8 @@ Section Soundness.
     Proof.
     Admitted.
 
-    Theorem direct_application_sound : forall `{dummy : Inhabitant tags_t} tag τ τ' es,
+    Theorem direct_application_sound :
+      forall `{dummy : Inhabitant tags_t} tag τ τ' es,
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression dummy_tags
           (ExpFunctionCall
@@ -833,6 +1096,7 @@ Section Soundness.
     Admitted.
 
     Theorem stat_variable_sound : forall tag τ x e l,
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         predop
           (fun e =>
              typ_of_expr e = τ /\
@@ -842,6 +1106,66 @@ Section Soundness.
           tag (StatVariable τ x e l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
     Proof.
+      cbn. intros i t x oe l Hl Hoe.
+      autounfold with * in *.
+      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto using bind_typ_gamma_stmt_sub_gamma.
+      inv Hoks; inv Hiss. inv H0; inv H1.
+      destruct oe as [e |]; inv Hoe; inv H6; inv H7.
+      - admit.
+      - split.
+        + assert (Hr: exists r, get_real_type ge t = Some r).
+          { epose proof ok_get_real_type_ex as Hogre.
+            unfold ok_get_real_type_ex_def in Hogre; eauto. }
+          destruct Hr as [r Hr].
+          assert (Huninit: exists sv, uninit_sval_of_typ (Some false) r = Some sv).
+          { apply is_expr_typ_uninit_sval_of_typ; eauto.
+            epose proof delta_genv_prop_ok_typ_nil as Hdgok.
+            unfold delta_genv_prop_ok_typ_nil_def in Hdgok; eauto. }
+          firstorder eauto.
+        + intros st' sig Hxs; inv Hxs; inv H12.
+          unfold gamma_stmt_prop in *.
+          destruct Γ as [Γₑ gf] eqn:HeqΓ; cbn in *; split.
+          * unfold gamma_expr_prop in *.
+            destruct Hgst as [[Hvar Hconst] _].
+            destruct Γₑ as [Γᵥ Γᵪ]; cbn in *; split; try assumption.
+            clear Hconst. unfold gamma_var_prop in *.
+            destruct Hvar as [Hdom Hvart]. split.
+            -- clear Hvart; unfold gamma_var_domain in *.
+               intros l' t' Hlt'.
+               unfold update_val_by_loc in *.
+               specialize Hdom with (l:=l') (t:=t').
+               destruct l' as [l' | l']; cbn in *; try discriminate.
+               destruct st as [st ext].
+               destruct l as [l | l];
+                 unfold update_memory,get_memory,get_loc_path,
+                 bind_var_typ in *; cbn in Hlt';
+                   pose proof list_eq_dec string_dec l' l as Hl'l;
+                   destruct Hl'l as [Hl'l | Hl'l]; subst;
+                     try (rewrite PathMap.get_set_same; eauto);
+                     try (rewrite PathMap.get_set_diff in Hlt' by assumption;
+                          rewrite PathMap.get_set_diff by assumption; eauto).
+            -- clear Hdom; unfold gamma_var_val_typ in *.
+               intros l' t' sv' Hlt' Hlsv'.
+               unfold update_val_by_loc in *.
+               specialize Hvart with (l:=l') (t:=t') (v:=sv').
+               destruct l' as [l' | l']; cbn in *; try discriminate.
+               destruct st as [st ext].
+               destruct l as [l | l];
+                 unfold update_memory,get_memory,get_loc_path,
+                 bind_var_typ in *; cbn in Hlt';
+                   pose proof list_eq_dec string_dec l' l as Hl'l;
+                   destruct Hl'l as [Hl'l | Hl'l]; subst;
+                     try rewrite PathMap.get_set_same in Hlt';
+                     try  rewrite PathMap.get_set_same in Hlsv';
+                     try rewrite PathMap.get_set_diff in Hlt' by assumption;
+                     try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+                     repeat some_inv;
+                     eauto 6 using uninit_sval_of_typ_val_typ.
+          * destruct Hgst as [HΓₑ [Hgfdom Hgft]].
+            unfold gamma_func_prop in *; split; auto.
+            unfold gamma_func_types in *.
+            admit. (* TODO: lemma for fundef_funtype_prop. *) 
     Admitted.
   End StmtTyping.
 End Soundness.

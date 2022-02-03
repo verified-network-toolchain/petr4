@@ -49,8 +49,8 @@ Definition get_loc_path (loc : Locator) : path :=
 
 Fixpoint array_access_idx_to_z (v : Val) : (option Z) :=
   match v with
-  | ValBaseInt bits => Some (snd (BitArith.from_lbool bits))
-  | ValBaseBit bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseInt bits => Some (snd (IntArith.from_lbool bits))
+  | ValBaseBit bits => Some (snd (BitArith.from_lbool bits))
   | ValBaseInteger value => Some value
   (* added in v1.2.2 *)
   | ValBaseSenumField _ value => array_access_idx_to_z value
@@ -1338,13 +1338,13 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
     (if is_continue sig then exec_write st lv sv st' else st' = st) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st' sig
-| exec_stmt_assign_func_call : forall lhs lv rhs sv this_path
+| exec_stmt_assign_func_call : forall lhs lv rhs this_path
                                  st tags typ st' st'' sig sig' ret_sig,
     exec_call read_one_bit this_path st rhs st' sig' ->
     exec_lexpr read_one_bit this_path st lhs lv sig ->
-    (if not_continue sig then st'' = st /\ ret_sig = sig /\ sv = Value.ValBaseNull
-     else if not_return sig' then st'' = st' /\ ret_sig = sig' /\ sv = Value.ValBaseNull
-          else get_return_sval sig' sv /\
+    (if not_continue sig then st'' = st /\ ret_sig = sig
+     else if not_return sig' then st'' = st' /\ ret_sig = sig'
+          else exists sv, get_return_sval sig' sv /\
                exec_write st' lv sv st'' /\ ret_sig = SContinue) ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatAssignment lhs rhs) typ) st'' ret_sig
@@ -1367,12 +1367,12 @@ Inductive exec_stmt (read_one_bit : option bool -> bool -> Prop) :
       force_continue_signal sig = sig' ->
       exec_stmt read_one_bit this_path st
                 (MkStatement tags (StatDirectApplication typ' func_typ args) typ) st' sig'
-| exec_stmt_conditional_some_fls : forall cond tru fls b this_path st tags typ st' sig,
+| exec_stmt_conditional_some : forall cond tru fls b this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
     exec_stmt read_one_bit this_path st (if b then tru else fls) st' sig ->
     exec_stmt read_one_bit this_path st
               (MkStatement tags (StatConditional cond tru (Some fls)) typ) st' sig
-| exec_stmt_conditional_none_fls : forall cond tru b this_path st tags typ st' sig,
+| exec_stmt_conditional_none : forall cond tru b this_path st tags typ st' sig,
     exec_expr_det read_one_bit this_path st cond (ValBaseBool b) ->
     exec_stmt
       read_one_bit this_path st (if b then tru else empty_statement) st' sig ->

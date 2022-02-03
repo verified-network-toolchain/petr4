@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.ValueTyping
+Require Export Poulet4.LightTyping.LvalueTyping
         Poulet4.Monads.Monad Poulet4.Monads.Option.
 Require Poulet4.P4String Poulet4.P4cub.Util.EquivUtil.
 
@@ -32,14 +32,6 @@ Section TypingDefs.
     var_gamma :> gamma_var;
     const_gamma :> gamma_const }.
 
-  (** Typing analogue to [Semantics.loc_to_sval]. *)
-  Definition typ_of_loc_var
-             (l : Locator) (g : gamma_var) : option typ :=
-    match l with
-    | LInstance p => PathMap.get p g
-    | LGlobal   _ => None
-    end.
-
   (** Typing analogue to [Semantics.loc_to_sval_const].*)
   Definition typ_of_loc_const
              (this : path) (l : Locator) (g : gamma_const) : option typ :=
@@ -59,14 +51,13 @@ Section TypingDefs.
 
   Definition gamma_var_domain
              `{T : @Target tags_t expr}
-             (g : gamma_var) (st : state) : Prop :=
-    forall l : Locator, typ_of_loc_var l g = None <-> loc_to_sval l st = None.
+             (g : gamma_var) (st : state) : Prop := forall l t,
+      typ_of_loc_var l g = Some t -> exists sv, loc_to_sval l st = Some sv.
 
   Definition gamma_var_val_typ
              `{T : @Target tags_t expr}
              (g : gamma_var) (st : state)
-             (gt : genv_typ) : Prop :=
-    forall l t v,
+             (gt : genv_typ) : Prop := forall l t v,
       typ_of_loc_var l g = Some t ->
       loc_to_sval l st = Some v ->
       exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
@@ -77,12 +68,15 @@ Section TypingDefs.
              (gt : genv_typ) : Prop :=
     gamma_var_domain g st /\ gamma_var_val_typ g st gt.
   
+  Definition sub_gamma_var (Γ Γ' : gamma_var) : Prop :=
+    FuncAsMap.submap (fun l => typ_of_loc_var l Γ) (fun l => typ_of_loc_var l Γ').
+  
   Definition gamma_const_domain
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_const)
-             (ge : genv) : Prop :=
-    forall l : Locator,
-      typ_of_loc_const this l g = None <-> loc_to_sval_const ge this l = None.
+             (ge : genv) : Prop := forall l t,
+      typ_of_loc_const this l g = Some t ->
+      exists v, loc_to_val_const ge this l = Some v.
 
   Definition gamma_const_val_typ
              `{T : @Target tags_t expr}
@@ -99,12 +93,21 @@ Section TypingDefs.
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
     gamma_const_domain this g ge /\ gamma_const_val_typ this g ge.
   
+  Definition sub_gamma_const (this : path) (Γ Γ' : gamma_const) : Prop :=
+    FuncAsMap.submap
+      (fun l => typ_of_loc_const this l Γ)
+      (fun l => typ_of_loc_const this l Γ').
+  
   Definition gamma_expr_prop
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_var_prop g st ge /\ gamma_const_prop this g ge.
+
+  Definition sub_gamma_expr (this : path) (Γ Γ' : gamma_expr) : Prop :=
+    sub_gamma_var Γ Γ' /\ sub_gamma_const this Γ Γ'.
   
   Notation run_expr := (@exec_expr tags_t).
+  Notation run_lexpr := (@exec_lexpr tags_t).
   Notation run_stmt := (@exec_stmt tags_t).
   Notation run_blk  := (@exec_block tags_t).
   Notation run_call := (@exec_call tags_t).
@@ -166,8 +169,9 @@ Section TypingDefs.
   Definition gamma_func_domain
              `{T : @Target tags_t expr}
              (this : path) (gf : gamma_func)
-             (ge : genv) : Prop := forall (e : expr),
-      lookup_func_typ this gf ge e = None <-> lookup_func ge this e = None.
+             (ge : genv) : Prop := forall e ft,
+      lookup_func_typ this gf ge e = Some ft ->
+      exists fd, lookup_func ge this e = Some fd.
   
   Definition lub_StmType (τ₁ τ₂ : StmType) : StmType :=
     match τ₁, τ₂ with
@@ -212,10 +216,15 @@ Section TypingDefs.
         gamma_expr_prop this Γ st ge ->    (** Static & dynamic environments agree. *)
         (** Progress. *)
         (exists v, run_expr ge read_one_bit this st e v) /\
-        (* Preservation. *)
-        forall v, run_expr ge read_one_bit this st e v ->
-             exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
-                   ⊢ᵥ v \: normᵗ rt.
+        (** Preservation. *)
+        (forall v, run_expr ge read_one_bit this st e v ->
+              exists rt, get_real_type ge (typ_of_expr e) = Some rt /\
+                    ⊢ᵥ v \: normᵗ rt) /\
+        (** L-expression progress & preservation. *)
+        (lexpr_ok e ->
+         (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\
+         forall lv s, run_lexpr ge read_one_bit this st e lv s ->
+                 var_gamma Γ ⊢ₗlv \: typ_of_expr e).
     (**[]*)
 
     Variant fundef_funtype_prop
@@ -274,6 +283,7 @@ Section TypingDefs.
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
       Δ ⊢okˢ s ->                        (** Free type variables are bound. *)
+      is_stmt s ->                       (** Is a well-formed statement. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
@@ -281,6 +291,7 @@ Section TypingDefs.
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
         gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        sub_gamma_expr this Γ Γ' /\
         (** Progress. *)
         (exists st' sig, run_stmt ge read_one_bit this st s st' sig) /\
         (** Preservation. *)
@@ -296,13 +307,15 @@ Section TypingDefs.
       genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
       delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
       Δ ⊢okᵇ blk ->                      (** Free type variables are bound. *)
+      is_block blk ->                    (** Is a well-formed block. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
         read_one_bit_reads read_one_bit -> (** [read_one_bit] is productive. *)
-        gamma_stmt_prop Γ st ->            (** [st] is well-typed. *)
+        sub_gamma_expr this Γ Γ' /\
+        FuncAsMap.submap (var_gamma Γ) (var_gamma Γ') /\
         (exists st' sig, run_blk ge read_one_bit this st blk st' sig) /\
         forall st' sig, run_blk ge read_one_bit this st blk st' sig ->
                    gamma_stmt_prop Γ' st'.
@@ -336,6 +349,9 @@ Notation "x '⊢ₑ' e"
         (fst (fst (fst x)))
         (snd (fst (fst x)))
         (snd (fst x)) (snd x) e)
+       (at level 80, no associativity) : type_scope.
+Notation "x 'ᵗ⊢ₑ' e \: t"
+  := (x ⊢ₑ e /\ t = typ_of_expr e)
        (at level 80, no associativity) : type_scope.
 Notation "x '⊢ₛ' s ⊣ Γ₂"
   := (stmt_types

@@ -870,7 +870,7 @@ Section InterpreterSafe.
              subst.
              destruct s1; try discriminate.
              eapply Semantics.exec_stmt_assign_func_call; eauto using interp_lexpr_safe.
-             rewrite Heqb0, Heqb1.
+             rewrite Heqb0, Heqb1. exists (eval_val_to_sval v0).
              repeat split; eauto using interp_write_safe.
       + optbind_inv.
         eapply interp_expr_det_safe in Heqo.

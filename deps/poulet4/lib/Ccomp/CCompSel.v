@@ -3,7 +3,8 @@ Require Import BinaryString
         Coq.PArith.BinPosDef Coq.PArith.BinPos
         List Coq.ZArith.BinIntDef String.
 Require Coq.PArith.BinPosDef.
-From Poulet4.P4cub Require Import Syntax.Syntax Envn.
+Require Import
+        Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Envn.
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
      Monads.Monad Monads.Option Monads.Error

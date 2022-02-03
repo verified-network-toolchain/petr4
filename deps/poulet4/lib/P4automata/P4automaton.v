@@ -2,7 +2,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.micromega.Lia.
 Require Import Compare_dec.
-Require Import Poulet4.Relations.
+Require Import Poulet4.Utils.Relations.
 
 Record p4automaton := MkP4Automaton {
   store: Type;

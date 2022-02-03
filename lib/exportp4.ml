@@ -342,10 +342,10 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
       fprintf p "(@[<hov 4>ExpUnaryOp@ %a@ %a)@]"
           print_op_uni op_uni
           print_expr expr
-  | ExpBinaryOp (op_bin, expr_pair) ->
+  | ExpBinaryOp (op_bin, e1, e2) ->
       fprintf p "(@[<hov 4>ExpBinaryOp@ %a@ %a)@]"
           print_op_bin op_bin
-          (print_pair print_expr print_expr) expr_pair
+          (print_pair print_expr print_expr) (e1, e2)
   | ExpCast (typ, expr) ->
       fprintf p "(@[<hov 4>ExpCast@ %a@ %a)@]"
           print_type typ

@@ -3,13 +3,13 @@ Import List.ListNotations.
 Require Coq.Logic.Eqdep_dec.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Program.Program.
-Require Import Poulet4.HAList.
-Require Import Poulet4.FinType.
-Require Poulet4.P4cub.Envn.
+Require Import Poulet4.Utils.HAList.
+Require Import Poulet4.Utils.FinType.
+Require Poulet4.Utils.Envn.
 Require Poulet4.P4automata.P4automaton.
 Module P4A := P4automaton.
 
-Module Env := Poulet4.P4cub.Envn.Env.
+Module Env := Poulet4.Utils.Envn.Env.
 
 Open Scope list_scope.
 

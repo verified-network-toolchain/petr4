@@ -1,6 +1,6 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Classes.EquivDec.
-Require Import Poulet4.FinType.
+Require Import Poulet4.Utils.FinType.
 Require Poulet4.P4automata.Syntax.
 Module P4A := Poulet4.P4automata.Syntax.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.

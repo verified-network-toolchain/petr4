@@ -3,8 +3,8 @@ Import List.ListNotations.
 Require Coq.Logic.Eqdep_dec.
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Program.Program.
-Require Import Poulet4.HAList.
-Require Import Poulet4.FinType.
+Require Import Poulet4.Utils.HAList.
+Require Import Poulet4.Utils.FinType.
 Require Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4automata.Syntax.
 Require Import Poulet4.P4automata.Sum.

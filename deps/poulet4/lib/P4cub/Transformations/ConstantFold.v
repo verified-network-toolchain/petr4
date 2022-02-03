@@ -1,5 +1,5 @@
 Require Import Poulet4.P4cub.Syntax.Syntax
-        Poulet4.P4cub.SmallStep.Util
+        Poulet4.P4cub.Semantics.Dynamic.SmallStep.Util
         Coq.ZArith.BinInt.
 Import AllCubNotations.
 

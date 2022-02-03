@@ -1,5 +1,5 @@
 Require Import Coq.Relations.Relations.
-Require Import Poulet4.FinType.
+Require Import Poulet4.Utils.FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
 Require Poulet4.P4automata.WP.

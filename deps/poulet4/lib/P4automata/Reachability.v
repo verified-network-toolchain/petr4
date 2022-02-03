@@ -1,7 +1,7 @@
 Require Import Coq.Classes.EquivDec.
 Require Import Coq.Relations.Relations.
 Require Import Coq.Program.Program.
-Require Import Poulet4.FinType.
+Require Import Poulet4.Utils.FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
 Require Poulet4.P4automata.WP.

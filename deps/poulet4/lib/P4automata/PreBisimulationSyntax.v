@@ -5,8 +5,7 @@ Require Import Coq.Program.Program.
 Require Import Coq.micromega.Lia.
 From Equations Require Import Equations.
 
-Require Import Poulet4.Relations.
-Require Import Poulet4.FinType.
+From Poulet4.Utils Require Import Relations FinType.
 Require Import Poulet4.P4automata.P4automaton.
 Require Poulet4.P4automata.Syntax.
 Module P4A := Poulet4.P4automata.Syntax.

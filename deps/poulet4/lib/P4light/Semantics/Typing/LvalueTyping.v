@@ -1,4 +1,4 @@
-Require Export Poulet4.LightTyping.ValueTyping Coq.ZArith.BinInt.
+Require Export Poulet4.P4light.Semantics.Typing.ValueTyping Coq.ZArith.BinInt.
 
 (** L-value typing. *)
 

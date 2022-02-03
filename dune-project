@@ -1,3 +1,3 @@
-(lang dune 1.2)
-(using menhir 1.0)
+(lang dune 2.8)
+(using menhir 2.0)
 (name petr4)

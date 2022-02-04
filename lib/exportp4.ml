@@ -37,7 +37,7 @@ let print_list f p l =
 
 (* print_info prints a unit now, because we do not have info in Coq in this version. *)
 let print_info p info =
-  fprintf p "NoP4info"
+  fprintf p "NoInfo"
 
 let p4string p (s : P4string.t) =
   fprintf p "{| @[<hov 0>stags := %a;@ str := \"%s\" |}@]" print_info s.tags s.str
@@ -343,9 +343,10 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
           print_op_uni op_uni
           print_expr expr
   | ExpBinaryOp (op_bin, e1, e2) ->
-      fprintf p "(@[<hov 4>ExpBinaryOp@ %a@ %a)@]"
+      fprintf p "(@[<hov 4>ExpBinaryOp@ %a@ %a@ %a)@]"
           print_op_bin op_bin
-          (print_pair print_expr print_expr) (e1, e2)
+          print_expr e1
+          print_expr e2
   | ExpCast (typ, expr) ->
       fprintf p "(@[<hov 4>ExpCast@ %a@ %a)@]"
           print_type typ
@@ -958,7 +959,7 @@ let print_env_env print_binding =
   print_list (print_list (print_pair p4string print_binding))
 
 let print_header p =
-  fprintf p "Require Import Poulet4.P4defs.@ ";
+  fprintf p "Require Import Poulet4.P4light.Syntax.P4defs.@ ";
   fprintf p "Open Scope string_scope.@ @ ";
   fprintf p "Import ListNotations.@ @ "
 

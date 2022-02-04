@@ -25,8 +25,6 @@ Section ValueInduction.
   
   Hypothesis HVError : forall err, P ~{ ERROR err }~.
   
-  Hypothesis HVMatchKind : forall mk, P ~{ MATCHKIND mk }~.
-  
   Hypothesis HVHeaderStack : forall ts hs ni,
       Forall (Field.predfs_data P ∘ snd) hs ->
       P ~{ STACK hs:ts NEXT:=ni }~.
@@ -61,7 +59,6 @@ Section ValueInduction.
       | ~{ STRUCT { vs } }~       => HVStruct vs (fields_ind vs)
       | ~{ HDR { vs } VALID:=b }~ => HVHeader vs b (fields_ind vs)
       | ~{ ERROR err }~    => HVError err
-      | ~{ MATCHKIND mk }~ => HVMatchKind mk
       | ~{ STACK hs:ts NEXT:=ni }~
         => HVHeaderStack ts hs ni (ffind hs)
       end.

@@ -35,8 +35,6 @@ Module TypeNotations.
   Notation "'error'" := TError
                           (in custom p4type at level 0,
                               no associativity).
-  Notation "'matchkind'"
-    := TMatchKind (in custom p4type at level 0, no associativity).
   Notation "'tuple' ts"
     := (TTuple ts) (in custom p4type at level 0, no associativity).
   Notation "'struct' { fields }"
@@ -172,9 +170,6 @@ Module ExprNotations.
              rt custom p4type, left associativity).
   Notation "'Error' x @ i"
     := (EError x i) (in custom p4expr at level 0, no associativity).
-  Notation "'Matchkind' mk @ i"
-    := (EMatchKind mk i)
-         (in custom p4expr at level 0, mk custom p4matchkind, no associativity).
   Notation "'Stack' hdrs : ts 'nextIndex' ':=' ni @ i"
     := (EHeaderStack ts hdrs ni i) (in custom p4expr at level 0).
   Notation "'Access' e1 [ e2 ] : ts @ i"
@@ -353,9 +348,6 @@ Module TopDeclNotations.
   Notation "'parser' p ( cparams ) ( eps ) ( params ) 'start' ':=' st { states } @ i"
     := (TPParser p cparams eps params st states i)
          (in custom p4topdecl at level 0, st custom p4prsrstateblock).
-  (*Notation "'package' p < tparams > ( cparams ) @ i"
-    := (TPPackage p tparams cparams i)
-         (in custom p4topdecl at level 0).*)
 End TopDeclNotations.
 
 Module AllCubNotations.

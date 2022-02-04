@@ -8,7 +8,6 @@ Import Val ValueNotations AllCubNotations.
 Fixpoint vdefault (τ : Expr.t) : option v :=
   match τ with
   | {{ error }}      => Some ~{ ERROR None }~
-  | {{ matchkind }}  => Some ~{ MATCHKIND exact }~
   | {{ Bool }}       => Some ~{ FALSE }~
   | {{ bit<w> }}     => Some $ VBit w 0%Z
   | {{ int<w> }}     => Some $ VInt w 0%Z
@@ -55,7 +54,6 @@ Fixpoint approx_type (V : v) : Expr.t :=
   | ~{ w VW _ }~ => {{ bit<w> }}
   | ~{ w VS _ }~ => {{ int<w> }}
   | ~{ ERROR _ }~ => {{ error }}
-  | ~{ MATCHKIND _ }~ => {{ matchkind }}
   | ~{ TUPLE vs }~ => Expr.TTuple $ List.map approx_type vs
   | ~{ STRUCT { vs } }~
     => Expr.TStruct $ F.map approx_type vs
@@ -76,7 +74,6 @@ Section Util.
     | ~{ w VW n }~ => <{ w W n @ i }>
     | ~{ w VS z }~ => <{ w S z @ i }>
     | ~{ ERROR err }~ => <{ Error err @ i }>
-    | ~{ MATCHKIND mk }~ => <{ Matchkind mk @ i }>
     | ~{ TUPLE vs }~
       => Expr.ETuple (List.map expr_of_value vs) i
     | ~{ STRUCT { vs } }~

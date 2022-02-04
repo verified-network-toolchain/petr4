@@ -39,13 +39,6 @@ Section Embed.
       | None     => "no error"%string
       end = er ->
       Embed ~{ ERROR eo }~ (ValBaseError er)
-  | Embed_matchkind mk mk' :
-      match mk with
-      | Expr.MKExact   => "exact"%string
-      | Expr.MKTernary => "ternary"%string
-      | Expr.MKLpm     => "lpm"%string
-      end = mk' ->
-      Embed ~{ MATCHKIND mk }~ (ValBaseMatchKind mk')
   | Embed_stack hs ts i hs' :
       Forall2
         (fun v v' =>
@@ -69,9 +62,6 @@ Section Embed.
         (map (fun '(x,v) => (x, embed v)) vs) b
     | Val.VError (Some err)   => ValBaseError $ err
     | ~{ ERROR  None       }~ => ValBaseError $ "no error"
-    | ~{ MATCHKIND exact   }~ => ValBaseMatchKind $ "exact"
-    | ~{ MATCHKIND ternary }~ => ValBaseMatchKind $ "ternary"
-    | ~{ MATCHKIND lpm     }~ => ValBaseMatchKind $ "lpm"
     | ~{ STACK hs:_ NEXT:=i }~ =>
       ValBaseStack
         (map
@@ -106,7 +96,6 @@ Section Embed.
       intros [x v] Hin; unravel in *.
       firstorder.
     - destruct err; auto.
-    - destruct mk; auto.
     - constructor.
       rewrite <- Forall2_map_r, Forall2_Forall.
       unfold F.predfs_data, F.predf_data in H.

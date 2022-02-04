@@ -81,7 +81,6 @@ Module Expr.
     | TBit (width : N)                 (* unsigned integers *)
     | TInt (width : positive)          (* signed integers *)
     | TError                           (* the error type *)
-    | TMatchKind                       (* the matchkind type *)
     | TTuple (types : list t)          (* tuple type *)
     | TStruct (fields : F.fs string t) (* the struct and struct type *)
     | THeader (fields : F.fs string t) (* the header type *)
@@ -184,7 +183,6 @@ Module Expr.
     | EExprMember (result_type : t) (mem : string)
                   (arg : e) (i : tags_t)             (* member-expressions *)
     | EError (err : option string) (i : tags_t)      (* error literals *)
-    | EMatchKind (mk : matchkind) (i : tags_t)       (* matchkind literals *)
     | EHeaderStack (fields : F.fs string t)
                    (headers : list e)                (* header stack literals *)
                    (next_index : Z) (i : tags_t)     (*unique to p4cub *)
@@ -225,7 +223,6 @@ Module Expr.
   Arguments EHeader {_}.
   Arguments EExprMember {tags_t}.
   Arguments EError {tags_t}.
-  Arguments EMatchKind {tags_t}.
   Arguments EHeaderStack {_}.
   Arguments EHeaderStackAccess {_}.
   Arguments CAExpr {_}.
@@ -398,10 +395,6 @@ Module TopDecl.
                  (type_params : list string)
                  (signature : Expr.arrowT) (body : Stmt.s tags_t)
                  (i : tags_t)(* function/method declaration *)
-    (*| TPPackage (package_name : string)
-                (type_params : list string)
-                (cparams : Expr.constructor_params) (* constructor params *)
-                (i : tags_t) (* package type declaration *)*)
     | TPSeq (d1 d2 : d) (i : tags_t).
     (**[]*)
   End TopDeclarations.
@@ -411,6 +404,5 @@ Module TopDecl.
   Arguments TPControl {_}.
   Arguments TPParser {_}.
   Arguments TPFunction {_}.
-  (*Arguments TPPackage {_}.*)
   Arguments TPSeq {_}.
 End TopDecl.

@@ -404,7 +404,8 @@ Section ToP4cub.
       (* Shows up in typechecking a select *)
       error "A set is not an expression type"
     | TypError => ok E.TError
-    | TypMatchKind => ok E.TMatchKind
+    | TypMatchKind =>
+      error "A matchkind is not an expression type"
     | TypVoid => error "[FIXME] void is not the type of any expression literal"
     | TypHeader fields =>
       let+ fields' := translate_fields fields in

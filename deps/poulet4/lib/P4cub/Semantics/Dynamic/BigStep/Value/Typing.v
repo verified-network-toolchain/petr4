@@ -38,8 +38,6 @@ Inductive type_value : v -> Expr.t -> Prop :=
     ∇ ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
 | typ_error (err : option string) :
     ∇ ⊢ ERROR err ∈ error
-| typ_matchkind (mk : Expr.matchkind) :
-    ∇ ⊢ MATCHKIND mk ∈ matchkind
 | typ_headerstack (ts : Field.fs string Expr.t)
                   (hs : list (bool * Field.fs string v)) (ni : Z) :
     let n := Pos.of_nat (List.length hs) in
@@ -69,8 +67,6 @@ Section ValueTypingInduction.
   Hypothesis HInt : forall w z,
       IntArith.bound w z ->
       P ~{ w VS z }~ {{ int<w> }}.
-  
-  Hypothesis HMatchkind : forall mk, P ~{ MATCHKIND mk }~ {{ matchkind }}.
 
   Hypothesis HError : forall err,
       P ~{ ERROR err }~ {{ error }}.
@@ -159,7 +155,6 @@ Section ValueTypingInduction.
       | typ_bool b => HBool b
       | typ_bit _ _ H => HBit _ _ H
       | typ_int _ _ H => HInt _ _ H
-      | typ_matchkind mk => HMatchkind mk
       | typ_error err => HError err
       | typ_tuple _ _ Hvs => HTuple _ _ Hvs (lind Hvs)
       | typ_struct _ _ Hfs => HStruct _ _ Hfs (fsind Hfs)
@@ -218,11 +213,10 @@ Section Lemmas.
       intros val HV; unravel in *;
         try invert_proper_nesting; inv HV; auto.
     - destruct (sequence (map vdefault ts)) as [vs |] eqn:Heqvs; inv H2.
-      constructor. apply Forall_and_inv in H1.
-      destruct H1 as [Hpt Hmk].
-      rewrite Forall_forall in H, Hpt.
+      constructor.
+      rewrite Forall_forall in H, H1.
       pose proof reduce_inner_impl_forall
-           _ _ _ _ H Hpt as H'; cbn in *.
+           _ _ _ _ H H1 as H'; cbn in *.
       apply forall_Forall2 with (bs := vs) in H'.
       + apply sequence_Forall2 in Heqvs.
         rewrite Forall2_flip.
@@ -240,11 +234,10 @@ Section Lemmas.
                              end) fields))
         as [xvs |] eqn:Heqxvs; inv H2.
       unfold F.predfs_data, F.predf_data in *; unravel in *.
-      constructor. apply Forall_and_inv in H1.
-      destruct H1 as [Hpt Hmk].
-      rewrite Forall_forall in H, Hpt.
+      constructor.
+      rewrite Forall_forall in H, H1.
       pose proof reduce_inner_impl_forall
-           _ _ _ _ H Hpt as H'; cbn in *.
+           _ _ _ _ H H1 as H'; cbn in *.
       apply forall_Forall2 with (bs := map snd xvs) in H'.
       + apply sequence_Forall2 in Heqxvs.
         unfold Field.relfs, Field.relf; unravel.

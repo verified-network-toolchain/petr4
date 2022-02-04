@@ -104,11 +104,9 @@ Inductive check_expr
     F.relfs (fun e τ => ⟦ Δ , Γ ⟧ ⊢ e ∈ τ) efs tfs ->
     ⟦ Δ, Γ ⟧ ⊢ b ∈ Bool ->
     ⟦ Δ , Γ ⟧ ⊢ hdr { efs } valid := b @ i ∈ hdr { tfs }
-  (* Errors and matchkinds. *)
+  (* Errors. *)
   | chk_error (err : option string) (i : tags_t) :
       ⟦ Δ , Γ ⟧ ⊢ Error err @ i ∈ error
-  | chk_matchkind (mkd : Expr.matchkind) (i : tags_t) :
-      ⟦ Δ , Γ ⟧ ⊢ Matchkind mkd @ i ∈ matchkind
   (* Header stacks. *)
   | chk_stack (ts : F.fs string Expr.t)
               (hs : list (Expr.e tags_t))

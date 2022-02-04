@@ -24,7 +24,6 @@ Fail Fixpoint denote_t (t : Expr.t) : Set :=
   | {{ bit<_> }} => Z
   | {{ int<_> }} => Z
   | {{ error }} => string
-  | {{ matchkind }} => string
   | {{ tuple ts }} => denote_ts ts
   | {{ struct { ts } }} => denote_fs ts
   | {{ hdr { ts } }} => (denote_fs ts * bool)%type

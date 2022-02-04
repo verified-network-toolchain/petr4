@@ -77,7 +77,6 @@ Section StepDefs.
     | {{ bit<w> }} => Expr.EBit w 0%Z i
     | {{ int<w> }} => Expr.EInt w 0%Z i
     | {{ error }} => <{ Error None @ i }>
-    | {{ matchkind }} => <{ Matchkind exact @ i }>
     | {{ tuple ts }} => Expr.ETuple (lstruct ts) i
     | {{ struct { fs } }} => Expr.EStruct (fstruct fs) i
     | {{ hdr { fs } }} => Expr.EHeader (fstruct fs) <{ BOOL false @ i }> i

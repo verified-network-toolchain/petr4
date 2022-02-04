@@ -50,7 +50,6 @@ Section ConstFold.
     | <{ _ W _ @ _ }>
     | <{ _ S _ @ _ }>
     | <{ Error _ @ _ }>
-    | <{ Matchkind _ @ _ }>
     | <{ Var _ : _ @ _ }> => e
     | <{ Slice e [hi:lo] @ i }> =>
       let e' := cf_e e in

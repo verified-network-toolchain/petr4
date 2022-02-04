@@ -132,8 +132,6 @@ Module Step.
       ⟨ ϵ, Cast e:τ @ i ⟩ ⇓ v'
   | ebs_error (err : option string) (i : tags_t) :
       ⟨ ϵ, Error err @ i ⟩ ⇓ ERROR err
-  | ebs_matchkind (mk : Expr.matchkind) (i : tags_t) :
-      ⟨ ϵ, Matchkind mk @ i ⟩ ⇓ MATCHKIND mk
   (* Unary Operations. *)
   | ebs_uop τ (op : Expr.uop) (e : Expr.e tags_t) (i : tags_t) (v v' : V.v) :
       eval_uop op v = Some v' ->

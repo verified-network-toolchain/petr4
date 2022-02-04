@@ -39,10 +39,6 @@ Section ExprEvalInduction.
   
   Hypothesis HError : forall ϵ err i, P ϵ <{ Error err @ i }> ~{ ERROR err }~.
   
-  Hypothesis HMatchkind : forall ϵ mk i,
-      P ϵ <{ Matchkind mk @ i }> ~{ MATCHKIND mk }~.
-  (**[]*)
-  
   Hypothesis HUop : forall ϵ τ op e i v v',
       eval_uop op v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
@@ -165,7 +161,6 @@ Section ExprEvalInduction.
       | ebs_cast _ _ _ i _ _ Hv He
         => HCast _ _ _ i _ _ Hv He (ebsind _ _ _ He)
       | ebs_error _ err i => HError _ err i
-      | ebs_matchkind _ mk i => HMatchkind _ mk i
       | ebs_uop _ t _ i _ _ Hu Hv He
         => HUop _ t _ i _ _ Hu Hv He (ebsind _ _ _ He)
       | ebs_bop _ t _ _ _ i _ _ _ Hv He1 He2

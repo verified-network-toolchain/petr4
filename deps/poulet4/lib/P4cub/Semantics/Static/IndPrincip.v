@@ -16,7 +16,6 @@ Section OkBoomerInduction.
   Hypothesis HBit : forall w, P Δ {{ bit<w> }}.
   Hypothesis HInt : forall w, P Δ {{ int<w> }}.
   Hypothesis HError : P Δ {{ error }}.
-  Hypothesis HMatchkind : P Δ {{ matchkind }}.
   Hypothesis HTuple : forall ts,
       Forall (t_ok Δ) ts ->
       Forall (P Δ) ts ->
@@ -58,7 +57,6 @@ Section OkBoomerInduction.
       | bit_ok _ w         => HBit w
       | int_ok _ w         => HInt w
       | error_ok _         => HError
-      | matchkind_ok _     => HMatchkind
       | tuple_ok _ _ Hts   => HTuple _ Hts (lind Hts)
       | struct_ok _ _ Hts  => HStruct _ Hts (find Hts)
       | header_ok _ _ Hts  => HHeader _ Hts (find Hts)
@@ -162,10 +160,6 @@ Section CheckExprInduction.
       P Δ Γ <{ Error err @ i }> {{ error }}.
   (**[]*)
   
-  Hypothesis HMatchKind : forall Δ Γ mkd i,
-      P Δ Γ <{ Matchkind mkd @ i }> {{ matchkind }}.
-  (**[]*)
-  
   Hypothesis HStack : forall Δ Γ ts hs n ni i,
       BitArith.bound 32%N (Zpos n) ->
       (0 <= ni < (Zpos n))%Z ->
@@ -239,7 +233,6 @@ Section CheckExprInduction.
       | chk_mem _ _ _ _ _ _ _ _ i Hok Hok' Hget He
         => HMem _ _ _ _ _ _ _ _ i Hok Hok' Hget He (chind _ _ _ _ He)
       | chk_error _ _ err i => HError Δ Γ err i
-      | chk_matchkind _ _ mk i  => HMatchKind Δ Γ mk i
       | chk_tuple _ _ _ i _ HR => HTuple _ _ _ i _ HR (lind HR)
       | chk_struct_lit _ _ _ _ i HRs
         => HStructLit _ _ _ _ i HRs (fields_ind HRs)

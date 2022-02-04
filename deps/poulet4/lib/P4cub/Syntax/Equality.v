@@ -5,7 +5,6 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
         Poulet4.P4cub.Syntax.CubNotations.
 
-
 Reserved Notation "∮ e1 ≡ e2"
          (at level 200, e1 custom p4expr, e2 custom p4expr, no associativity).
 
@@ -31,9 +30,7 @@ Module TypeEquivalence.
       match τ1, τ2 with
       | TVar X1, TVar X2 => String.eqb X1 X2
       | {{ Bool }}, {{ Bool }}
-      | {{ error }}, {{ error }}
-      (*| {{ Str }}, {{ Str }}*)
-      | {{ matchkind }}, {{ matchkind }} => true
+      | {{ error }}, {{ error }} => true
       | {{ bit<w1> }}, {{ bit<w2> }} => (w1 =? w2)%N
       | {{ int<w1> }}, {{ int<w2> }} => (w1 =? w2)%positive
       | {{ tuple ts1 }}, {{ tuple ts2 }} => lstruct ts1 ts2
@@ -41,8 +38,6 @@ Module TypeEquivalence.
       | {{ struct { ts1 } }}, {{ struct { ts2 } }} => fstruct ts1 ts2
       | {{ stack ts1[n1] }}, {{ stack ts2[n2] }}
         => (n1 =? n2)%positive && fstruct ts1 ts2
-      (*| {{ enum x { xs } }}, {{ enum y { ys } }}
-        => equiv_dec x y &&&& eqb_list xs ys*)
       | _, _ => false
       end.
     (**[]*)
@@ -212,8 +207,6 @@ Module ExprEquivalence.
       ∮ Mem e1 dot x : t @ i1 ≡ Mem e2 dot x : t @ i2
   | equive_error err i1 i2 :
       ∮ Error err @ i1 ≡ Error err @ i2
-  | equive_matchkind mk i1 i2 :
-      ∮ Matchkind mk @ i1 ≡ Matchkind mk @ i2
   | equive_header_stack ts hs1 hs2 ni i1 i2 :
       Forall2 equive hs1 hs2 ->
       ∮ Stack hs1:ts nextIndex:=ni @ i1 ≡ Stack hs2:ts nextIndex:=ni @ i2
@@ -284,9 +277,6 @@ Module ExprEquivalence.
     Hypothesis HError : forall err i1 i2,
         P <{ Error err @ i1 }> <{ Error err @ i2 }>.
     
-    Hypothesis HMatchkind : forall mk i1 i2,
-        P <{ Matchkind mk @ i1 }> <{ Matchkind mk @ i2 }>.
-    
     Hypothesis HHeaderStack : forall ts hs1 hs2 ni i1 i2,
         Forall2 equive hs1 hs2 ->
         Forall2 P hs1 hs2 ->
@@ -343,7 +333,6 @@ Module ExprEquivalence.
         | equive_member t x _ _ i1 i2 He
           => HMember t x _ _ i1 i2 He (eeind _ _ He)
         | equive_error err i1 i2 => HError err i1 i2
-        | equive_matchkind mk i1 i2 => HMatchkind mk i1 i2
         | equive_header_stack ts _ _ ni i1 i2 Hhs
           => HHeaderStack ts _ _ ni i1 i2 Hhs (lind Hhs)
         | equive_stack_access ts _ _ n i1 i2 He
@@ -470,8 +459,6 @@ Module ExprEquivalence.
         => equiv_dec x1 x2 &&&& eqbe e1 e2 && eqbt t1 t2
       | <{ Error err1 @ _ }>, <{ Error err2 @ _ }>
         => if equiv_dec err1 err2 then true else false
-      | <{ Matchkind mk1 @ _ }>, <{ Matchkind mk2 @ _ }>
-        => if equiv_dec mk1 mk2 then true else false
       | <{ Stack hs1:ts1 nextIndex:=ni1 @ _ }>,
         <{ Stack hs2:ts2 nextIndex:=ni2 @ _ }>
         => (ni1 =? ni2)%Z && F.eqb_fs eqbt ts1 ts2 && lstruct hs1 hs2

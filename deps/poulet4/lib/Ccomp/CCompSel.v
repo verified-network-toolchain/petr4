@@ -53,8 +53,7 @@ Section CCompSel.
     | Expr.TBit (w) => (bit_vec,env)
     | Expr.TInt (w) => (bit_vec, env)
     | Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
-    | Expr.TError => (int_unsigned, env) 
-    | Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
+    | Expr.TError => (int_unsigned, env)
 
     | Expr.TTuple (ts) => 
         match lookup_composite tags_t env p4t with
@@ -277,7 +276,7 @@ Section CCompSel.
       error_ret (ArrayAccess arr_var (Cint_of_Z index) val_typ, env)
 
     | Expr.EError x i => err "EError , todo : implement" (*TODO: implement*)
-    | Expr.EMatchKind mk i => err "EMatchKind, todo : implement" (*TODO : implement*)
+
     | _ => err "illegal expression, statementized failed" (*Not Allowed*)
     end.
 

@@ -25,8 +25,6 @@ Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
     value <{ hdr { fs } valid:=b @ i }>
 | value_error (err : option (string)) (i : tags_t) :
     value <{ Error err @ i }>
-| value_matchkind (mk : Expr.matchkind) (i : tags_t) :
-    value <{ Matchkind mk @ i }>
 | value_headerstack (fs : F.fs string (Expr.t))
                     (hs : list (Expr.e tags_t))
                     (ni : Z) (i : tags_t) :
@@ -64,8 +62,6 @@ Section IsValueInduction.
   
   Hypothesis HError : forall err i, P <{ Error err @ i }>.
   
-  Hypothesis HMatchkind : forall mk i, P <{ Matchkind mk @ i }>.
-  
   Hypothesis HStack : forall fs hs ni i,
       Forall value hs ->
       Forall P hs ->
@@ -96,7 +92,6 @@ Section IsValueInduction.
       | value_header _ _ i Hb Hfs
         => HHeader _ _ i Hb (vind _ Hb) Hfs (find Hfs)
       | value_error err i => HError err i
-      | value_matchkind mk i => HMatchkind mk i
       | value_headerstack fs _ ni i Hhs => HStack fs _ ni i Hhs (lind Hhs)
       end.
 End IsValueInduction.
@@ -197,11 +192,7 @@ Module CanonicalForms.
     Lemma canonical_forms_error :
       ⟦ Δ, Γ ⟧ ⊢ v ∈ error -> exists err i, v = <{ Error err @ i }>.
     Proof. crush_canonical. Qed.
-    
-    Lemma canonical_forms_matchkind :
-      ⟦ Δ, Γ ⟧ ⊢ v ∈ matchkind -> exists mk i, v = <{ Matchkind mk @ i }>.
-    Proof. crush_canonical. Qed.
-    
+        
     Lemma canonical_forms_headerstack : forall ts n,
         ⟦ Δ, Γ ⟧ ⊢ v ∈ stack ts[n] ->
         exists hs ni i, v = <{ Stack hs:ts nextIndex:= ni @ i }>.
@@ -244,9 +235,6 @@ Module CanonicalForms.
         inv Hcanon; inv Hv; inv Ht
     | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ error |- _
       => pose proof canonical_forms_error _ _ _ Hv Ht as [? [? Hcanon]];
-        inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ matchkind |- _
-      => pose proof canonical_forms_matchkind _ _ _ Hv Ht as [? [? Hcanon]];
         inv Hcanon; inv Hv; inv Ht
     | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
       => pose proof canonical_forms_headerstack

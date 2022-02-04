@@ -60,7 +60,6 @@ Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
   | E.EExprMember mem expr_type arg i =>
     E.EExprMember mem expr_type (subst_e η arg) i
   | E.EError _ _ => e
-  | E.EMatchKind _ _ => e
   | E.EHeaderStack fields headers ni i =>
     E.EHeaderStack fields (List.map (subst_e η) headers) ni i
   | E.EHeaderStackAccess fs stack idx i =>
@@ -119,7 +118,6 @@ Fixpoint action_param_renamer_expr (params : list string) (e : E.e tags_t) : E.e
   | E.EExprMember mem expr_type arg i =>
     E.EExprMember mem expr_type (action_param_renamer_expr params arg) i
   | E.EError _ _ => e
-  | E.EMatchKind _ _ => e
   | E.EHeaderStack fields headers ni i =>
     E.EHeaderStack fields (List.map (action_param_renamer_expr params) headers) ni i
   | E.EHeaderStackAccess fs stack idx i =>

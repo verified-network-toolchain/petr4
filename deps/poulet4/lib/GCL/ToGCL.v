@@ -155,7 +155,6 @@ Section ToGCL.
       | E.EExprMember mem expr_type arg i =>
         E.EExprMember mem expr_type (scopify ctx arg) i
       | E.EError _ _ => e
-      | E.EMatchKind _ _ => e
       | E.EHeaderStack fields headers next_index i =>
         E.EHeaderStack fields (List.map (scopify ctx) headers) next_index i
       | E.EHeaderStackAccess fs stack index i =>
@@ -203,7 +202,6 @@ Section ToGCL.
         let+ lv := to_lvalue arg in
         lv ++ "." ++ mem
       | E.EError _ _ => error "errors are not l-values"
-      | E.EMatchKind _ _ => error "Match Kinds are not l-values"
       | E.EHeaderStack _ _ _ _ => error "Header Stacks are not l-values"
       | E.EHeaderStackAccess _ stack index i =>
         let+ lv := to_lvalue stack in
@@ -218,7 +216,6 @@ Section ToGCL.
       | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TVar tx => error ("Cannot get the width of a typ variable " ++ tx ++ " for var " ++ x)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
-      | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" ++ x)
       | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
       | E.TStruct fields => error ("Cannot get the width of a Struct Type for var " ++ x)
       | E.THeader fields => error ("Cannot get the width of a Header Type for var" ++ x)
@@ -255,7 +252,6 @@ Section ToGCL.
         let+ str := to_header_string arg in
         str ++ "." ++ mem
       | E.EError _ _ => error "errors are not header strings"
-      | E.EMatchKind _ _ => error "MatchKinds are not header strings"
       | E.EHeaderStack _ _ _ _ =>
         error "Header stacks are not headers"
       | E.EHeaderStackAccess _ stack index i =>
@@ -373,7 +369,6 @@ Section ToGCL.
         let+ lv := to_lvalue arg in
         BV.BVVar (lv ++ "." ++ mem) w
       | E.EError _ _ => error "errors are not rvalues."
-      | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
       | E.EHeaderStack _ _ _ _ =>
         error "Header stacks in the rvalue position should have been factored out by previous passes"
       | E.EHeaderStackAccess _ stack index i =>
@@ -473,8 +468,6 @@ Section ToGCL.
         ok (GCL.isone (BV.BVVar lv w))
       | E.EError _ _ =>
         error "errors are not formulae"
-      | E.EMatchKind _ _ =>
-        error "Matchkinds are not formulae"
       | E.EHeaderStack _ _ _ _ =>
         error "HeaderStacks are not formulae"
       | E.EHeaderStackAccess _ stack index i =>

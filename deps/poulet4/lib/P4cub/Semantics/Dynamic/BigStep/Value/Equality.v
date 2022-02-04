@@ -37,9 +37,6 @@ Section VE.
                                        (z1 =? z2)%Z
     | VBit w1 n1,     VBit w2 n2     => (w1 =? w2)%N &&
                                        (n1 =? n2)%Z
-    | VMatchKind mk1, VMatchKind mk2 => if equiv_dec mk1 mk2
-                                       then true
-                                       else false
     | VError err1,    VError err2    => if equiv_dec err1 err2
                                        then true
                                        else false

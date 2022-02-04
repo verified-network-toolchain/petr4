@@ -149,8 +149,6 @@ Inductive t_ok (Δ : Delta) : Expr.t -> Prop :=
     t_ok Δ {{ int<w> }}
 | error_ok :
     t_ok Δ {{ error }}
-| matchkind_ok :
-    t_ok Δ {{ matchkind }}
 | tuple_ok ts :
     Forall (t_ok Δ) ts ->
     t_ok Δ {{ tuple ts }}

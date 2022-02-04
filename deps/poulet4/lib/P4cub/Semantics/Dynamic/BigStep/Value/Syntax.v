@@ -18,7 +18,6 @@ Inductive v : Type :=
 | VStruct (fs : F.fs string v)
 | VHeader (fs : F.fs string v) (validity : bool)
 | VError (err : option string)
-| VMatchKind (mk : Expr.matchkind)
 | VHeaderStack (ts : F.fs string Expr.t)
                (headers : list (bool * F.fs string v))
                (next_index : Z).
@@ -53,9 +52,6 @@ Module ValueNotations.
                                (in custom p4value at level 6,
                                    no associativity).
   Notation "'ERROR' x" := (VError x) (in custom p4value at level 0).
-  Notation "'MATCHKIND' mk"
-    := (VMatchKind mk)
-         (in custom p4value at level 0, mk custom p4matchkind).
   Notation "'STACK' vs : ts 'NEXT' ':=' ni"
     := (VHeaderStack ts vs ni)
          (in custom p4value at level 0, no associativity).

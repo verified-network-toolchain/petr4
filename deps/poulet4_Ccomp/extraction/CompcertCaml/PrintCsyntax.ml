@@ -23,11 +23,11 @@ open AST (*extract *)
 open! Ctypes (*extract *)
 open Cop (*extract *)
 open Csyntax (*extract *)
-open Clightdefs
+open Ctypesdefs
 
 (*pretty printer that converts id directly to string*)
-let name_of_ident (id: AST.ident) = Z.Zpos id |> Z.to_string
-
+let name_of_ident (id: AST.ident) = 
+    id |> string_of_ident |> List.to_seq |> String.of_seq
 let name_unop = function
   | Onotbool -> "!"
   | Onotint  -> "~"
@@ -522,10 +522,10 @@ let declare_composite p (Composite(id, su, m, a)) =
 
 let print_member p = function
   | Member_plain(id, ty) ->
-      fprintf p "@ %s;" (name_cdecl (extern_atom id) ty)
+      fprintf p "@ %s;" (name_cdecl (name_of_ident id) ty)
   | Member_bitfield(id, sz, sg, attr, w, _is_padding) ->
       fprintf p "@ %s : %s;"
-              (name_cdecl (extern_atom id) (Tint(sz, sg, attr)))
+              (name_cdecl (name_of_ident id) (Tint(sz, sg, attr)))
               (Z.to_string w)
 
 let define_composite p (Composite(id, su, m, a)) =

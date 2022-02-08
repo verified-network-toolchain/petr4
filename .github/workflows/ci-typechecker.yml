@@ -26,7 +26,6 @@ jobs:
       - name: typecheck test petr4 vs p4c
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash
-      - uses: actions/checkout@v2
       - name: add result of type checking to git repo
         run: |
           git config --local user.email "paris.ataei@gmail.com"

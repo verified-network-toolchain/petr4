@@ -29,7 +29,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: add result of type checking to git repo
         run: |
-          git config --local user.name  ${{ github.actor }}
+          git config --local user.email "paris.ataei@gmail.com"
           git add .
           git commit -m "add result of type checking"
 #          git push origin

@@ -7,12 +7,13 @@
 
 enum p4int {FIXBIT, FIXINT};
 
-struct packet_in {
+typedef struct packet_in {
   void *in;
-};
-struct packet_out{
+} packet_in;
+
+typedef struct packet_out{
   void *out;
-};
+} packet_out;
 
 typedef struct BitVec{
   //1 = signed, 0 = unsigned 

@@ -29,14 +29,15 @@ jobs:
       - uses: actions/checkout@v2
       - name: add result of type checking to git repo
         run: |
+          git config --local user.name  ${{ github.actor }}
           git add .
           git commit -m "add result of type checking"
-          git push origin
-#       - name: Push changes to git
-#         uses: ad-m/github-push-action@master
-#         with:
-#           github_token: ${{ secrets.GITHUB_TOKEN }}
-#           force: true
+#          git push origin
+      - name: Push changes to git
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          force: true
 
 
 # have a job that checkouts first and another to reuse a workflow like the following:

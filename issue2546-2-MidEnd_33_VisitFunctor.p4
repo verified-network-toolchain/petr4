@@ -1,0 +1,97 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+control ingress(inout bit<32> b) {
+    @name("ingress.tmp") bool tmp;
+    @name("ingress.tmp_0") bit<8> tmp_0;
+    @name("ingress.tmp_1") bool tmp_1;
+    @name("ingress.tmp_2") bit<8> tmp_2;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
+    }
+    @name("ingress.t0") table t0_0 {
+        key = {
+            b: exact @name("b") ;
+        }
+        actions = {
+            @defaultonly NoAction_1();
+        }
+        default_action = NoAction_1();
+    }
+    @name("ingress.t1") table t1_0 {
+        key = {
+            tmp_2: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_2();
+        }
+        default_action = NoAction_2();
+    }
+    @name("ingress.t2") table t2_0 {
+        key = {
+            tmp_0: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_3();
+        }
+        default_action = NoAction_3();
+    }
+    apply {
+        if (t0_0.apply().hit) {
+            tmp_1 = true;
+        } else {
+            tmp_1 = false;
+        }
+        if (tmp_1) {
+            tmp_2 = 8w1;
+        } else {
+            tmp_2 = 8w2;
+        }
+        if (t1_0.apply().hit) {
+            tmp = true;
+        } else {
+            tmp = false;
+        }
+        if (tmp) {
+            tmp_0 = 8w3;
+        } else {
+            tmp_0 = 8w4;
+        }
+        if (t2_0.apply().hit) {
+            b = 32w1;
+        }
+    }
+}
+
+control Ingress(inout bit<32> b);
+package top(Ingress ig);
+top(ingress()) main;
+

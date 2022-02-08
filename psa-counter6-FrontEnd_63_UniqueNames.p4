@@ -1,0 +1,117 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+#include <bmv2/psa.p4>
+
+struct EMPTY {
+}
+
+typedef bit<48> EthernetAddress;
+header ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
+}
+
+struct headers_t {
+    ethernet_t ethernet;
+}
+
+parser MyIP(packet_in buffer, out headers_t hdr, inout EMPTY b, in psa_ingress_parser_input_metadata_t c, in EMPTY d, in EMPTY e) {
+    state start {
+        buffer.extract<ethernet_t>(hdr.ethernet);
+        transition accept;
+    }
+}
+
+parser MyEP(packet_in buffer, out EMPTY a, inout EMPTY b, in psa_egress_parser_input_metadata_t c, in EMPTY d, in EMPTY e, in EMPTY f) {
+    state start {
+        transition accept;
+    }
+}
+
+control MyIC(inout headers_t hdr, inout EMPTY b, in psa_ingress_input_metadata_t c, inout psa_ingress_output_metadata_t d) {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
+    }
+    @name("counter0") DirectCounter<bit<12>>(PSA_CounterType_t.PACKETS) counter0_0;
+    @name("execute") action execute_1() {
+        counter0_0.count();
+    }
+    @name("execute") action execute_2() {
+        counter0_0.count();
+    }
+    @name("tbl") table tbl_0 {
+        key = {
+            hdr.ethernet.srcAddr: exact @name("hdr.ethernet.srcAddr") ;
+        }
+        actions = {
+            NoAction_1();
+            execute_1();
+        }
+        psa_direct_counter = counter0_0;
+        default_action = NoAction_1();
+    }
+    @name("tbl2") table tbl2_0 {
+        key = {
+            hdr.ethernet.srcAddr: exact @name("hdr.ethernet.srcAddr") ;
+        }
+        actions = {
+            NoAction_2();
+            execute_2();
+        }
+        psa_direct_counter = counter0_0;
+        default_action = NoAction_2();
+    }
+    apply {
+        tbl_0.apply();
+        tbl2_0.apply();
+    }
+}
+
+control MyEC(inout EMPTY a, inout EMPTY b, in psa_egress_input_metadata_t c, inout psa_egress_output_metadata_t d) {
+    apply {
+    }
+}
+
+control MyID(packet_out buffer, out EMPTY a, out EMPTY b, out EMPTY c, inout headers_t hdr, in EMPTY e, in psa_ingress_output_metadata_t f) {
+    apply {
+    }
+}
+
+control MyED(packet_out buffer, out EMPTY a, out EMPTY b, inout EMPTY c, in EMPTY d, in psa_egress_output_metadata_t e, in psa_egress_deparser_input_metadata_t f) {
+    apply {
+    }
+}
+
+IngressPipeline<headers_t, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY>(MyIP(), MyIC(), MyID()) ip;
+
+EgressPipeline<EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY>(MyEP(), MyEC(), MyED()) ep;
+
+PSA_Switch<headers_t, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY>(ip, PacketReplicationEngine(), ep, BufferingQueueingEngine()) main;
+

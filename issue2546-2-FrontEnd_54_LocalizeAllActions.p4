@@ -1,0 +1,93 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+control ingress(inout bit<32> b) {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
+    }
+    bit<8> key_1;
+    bit<8> key_0;
+    bool tmp;
+    bit<8> tmp_0;
+    bool tmp_1;
+    bit<8> tmp_2;
+    @name("t0") table t0_0 {
+        key = {
+            b: exact @name("b") ;
+        }
+        actions = {
+            @defaultonly NoAction_1();
+        }
+        default_action = NoAction_1();
+    }
+    @name("t1") table t1_0 {
+        key = {
+            key_1: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_2();
+        }
+        default_action = NoAction_2();
+    }
+    @name("t2") table t2_0 {
+        key = {
+            key_0: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_3();
+        }
+        default_action = NoAction_3();
+    }
+    apply {
+        tmp_1 = t0_0.apply().hit;
+        if (tmp_1) {
+            tmp_2 = 8w1;
+        } else {
+            tmp_2 = 8w2;
+        }
+        key_1 = tmp_2;
+        tmp = t1_0.apply().hit;
+        if (tmp) {
+            tmp_0 = 8w3;
+        } else {
+            tmp_0 = 8w4;
+        }
+        key_0 = tmp_0;
+        if (t2_0.apply().hit) {
+            b = 32w1;
+        }
+    }
+}
+
+control Ingress(inout bit<32> b);
+package top(Ingress ig);
+top(ingress()) main;
+

@@ -1,0 +1,121 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+header Mpls_h {
+    bit<20> label;
+    bit<3>  tc;
+    bit<1>  bos;
+    bit<8>  ttl;
+}
+
+header Tcp_option_end_h {
+    bit<8> kind;
+}
+
+header Tcp_option_nop_h {
+    bit<8> kind;
+}
+
+header Tcp_option_ss_h {
+    bit<8>  kind;
+    bit<32> maxSegmentSize;
+}
+
+header Tcp_option_s_h {
+    bit<8>  kind;
+    bit<24> scale;
+}
+
+header Tcp_option_sack_h {
+    bit<8>      kind;
+    bit<8>      length;
+    varbit<256> sack;
+}
+
+header_union Tcp_option_h {
+    Tcp_option_end_h  end;
+    Tcp_option_nop_h  nop;
+    Tcp_option_ss_h   ss;
+    Tcp_option_s_h    s;
+    Tcp_option_sack_h sack;
+}
+
+typedef Tcp_option_h[10] Tcp_option_stack;
+struct Tcp_option_sack_top {
+    bit<8> kind;
+    bit<8> length;
+}
+
+parser Tcp_option_parser(packet_in b, out Tcp_option_stack vec) {
+    @name("tmp") bit<8> tmp_5;
+    @name("tmp_0") bit<8> tmp_6;
+    @name("tmp_1") Tcp_option_sack_top tmp_7;
+    @name("tmp_2") bit<8> tmp_8;
+    @name("tmp_3") bit<8> tmp_9;
+    @name("tmp_4") bit<32> tmp_10;
+    state start {
+        tmp_6 = b.lookahead<bit<8>>();
+        tmp_5 = tmp_6;
+        transition select(tmp_5) {
+            8w0x0: parse_tcp_option_end;
+            8w0x1: parse_tcp_option_nop;
+            8w0x2: parse_tcp_option_ss;
+            8w0x3: parse_tcp_option_s;
+            8w0x5: parse_tcp_option_sack;
+        }
+    }
+    state parse_tcp_option_end {
+        b.extract<Tcp_option_end_h>(vec.next.end);
+        transition accept;
+    }
+    state parse_tcp_option_nop {
+        b.extract<Tcp_option_nop_h>(vec.next.nop);
+        transition start;
+    }
+    state parse_tcp_option_ss {
+        b.extract<Tcp_option_ss_h>(vec.next.ss);
+        transition start;
+    }
+    state parse_tcp_option_s {
+        b.extract<Tcp_option_s_h>(vec.next.s);
+        transition start;
+    }
+    state parse_tcp_option_sack {
+        tmp_7 = b.lookahead<Tcp_option_sack_top>();
+        tmp_8 = tmp_7.length << 3;
+        tmp_9 = tmp_8 + 8w240;
+        tmp_10 = (bit<32>)tmp_9;
+        b.extract<Tcp_option_sack_h>(vec.next.sack, tmp_10);
+        transition start;
+    }
+}
+
+parser pr<H>(packet_in b, out H h);
+package top<H>(pr<H> p);
+top<Tcp_option_h[10]>(Tcp_option_parser()) main;
+

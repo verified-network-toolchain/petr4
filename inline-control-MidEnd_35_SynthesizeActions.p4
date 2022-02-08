@@ -1,0 +1,19 @@
+extern Y {
+    Y(bit<32> b);
+    bit<32> get();
+}
+
+control d(out bit<32> x) {
+    @name("d.cinst.y") Y(32w16) cinst_y;
+    @hidden action inlinecontrol24() {
+        x = cinst_y.get();
+    }
+    apply {
+        inlinecontrol24();
+    }
+}
+
+control dproto(out bit<32> x);
+package top(dproto _d);
+top(d()) main;
+

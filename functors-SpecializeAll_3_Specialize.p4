@@ -1,0 +1,44 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+parser p()(bit<1> b, bit<1> c) {
+    state start {
+        transition accept;
+    }
+}
+
+parser nothing();
+package m(nothing n);
+parser p_0() {
+    state start {
+        transition accept;
+    }
+}
+
+m(p_0()) main;
+

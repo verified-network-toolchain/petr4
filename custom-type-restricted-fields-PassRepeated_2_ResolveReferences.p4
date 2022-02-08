@@ -1,0 +1,266 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+match_kind {
+    range,
+    optional,
+    selector
+}
+
+const bit<32> __v1model_version = 32w20180101;
+@metadata @name("standard_metadata") struct standard_metadata_t {
+    bit<9>  ingress_port;
+    bit<9>  egress_spec;
+    bit<9>  egress_port;
+    bit<32> instance_type;
+    bit<32> packet_length;
+    @alias("queueing_metadata.enq_timestamp") 
+    bit<32> enq_timestamp;
+    @alias("queueing_metadata.enq_qdepth") 
+    bit<19> enq_qdepth;
+    @alias("queueing_metadata.deq_timedelta") 
+    bit<32> deq_timedelta;
+    @alias("queueing_metadata.deq_qdepth") 
+    bit<19> deq_qdepth;
+    @alias("intrinsic_metadata.ingress_global_timestamp") 
+    bit<48> ingress_global_timestamp;
+    @alias("intrinsic_metadata.egress_global_timestamp") 
+    bit<48> egress_global_timestamp;
+    @alias("intrinsic_metadata.mcast_grp") 
+    bit<16> mcast_grp;
+    @alias("intrinsic_metadata.egress_rid") 
+    bit<16> egress_rid;
+    bit<1>  checksum_error;
+    error   parser_error;
+    @alias("intrinsic_metadata.priority") 
+    bit<3>  priority;
+}
+
+enum CounterType {
+    packets,
+    bytes,
+    packets_and_bytes
+}
+
+enum MeterType {
+    packets,
+    bytes
+}
+
+extern counter {
+    counter(bit<32> size, CounterType type);
+    void count(in bit<32> index);
+}
+
+extern direct_counter {
+    direct_counter(CounterType type);
+    void count();
+}
+
+extern meter {
+    meter(bit<32> size, MeterType type);
+    void execute_meter<T>(in bit<32> index, out T result);
+}
+
+extern direct_meter<T> {
+    direct_meter(MeterType type);
+    void read(out T result);
+}
+
+extern register<T> {
+    register(bit<32> size);
+    @noSideEffects void read(out T result, in bit<32> index);
+    void write(in bit<32> index, in T value);
+}
+
+extern action_profile {
+    action_profile(bit<32> size);
+}
+
+enum HashAlgorithm {
+    crc32,
+    crc32_custom,
+    crc16,
+    crc16_custom,
+    random,
+    identity,
+    csum16,
+    xor16
+}
+
+@pure extern void mark_to_drop(inout standard_metadata_t standard_metadata);
+extern action_selector {
+    action_selector(HashAlgorithm algorithm, bit<32> size, bit<32> outputWidth);
+}
+
+@deprecated("Please use verify_checksum/update_checksum instead.") extern Checksum16 {
+    Checksum16();
+    bit<16> get<D>(in D data);
+}
+
+parser Parser<H, M>(packet_in b, out H parsedHdr, inout M meta, inout standard_metadata_t standard_metadata);
+control VerifyChecksum<H, M>(inout H hdr, inout M meta);
+@pipeline control Ingress<H, M>(inout H hdr, inout M meta, inout standard_metadata_t standard_metadata);
+@pipeline control Egress<H, M>(inout H hdr, inout M meta, inout standard_metadata_t standard_metadata);
+control ComputeChecksum<H, M>(inout H hdr, inout M meta);
+@deparser control Deparser<H>(packet_out b, in H hdr);
+package V1Switch<H, M>(Parser<H, M> p, VerifyChecksum<H, M> vr, Ingress<H, M> ig, Egress<H, M> eg, ComputeChecksum<H, M> ck, Deparser<H> dep);
+@p4runtime_translation("com.fingerhutpress/andysp4arch/v1/EthernetAddr_t" , 32) type bit<48> EthernetAddr_t;
+@p4runtime_translation("com.fingerhutpress/andysp4arch/v1/IPv4Addr_t" , 32) type bit<32> IPv4Addr_t;
+@p4runtime_translation("com.fingerhutpress/andysp4arch/v1/CustomAddr_t" , 32) type bit<32> CustomAddr_t;
+header ethernet_t {
+    EthernetAddr_t dstAddr;
+    EthernetAddr_t srcAddr;
+    bit<16>        etherType;
+}
+
+@controller_header("packet_out") header packet_out_t {
+    bit<9>         egress_port;
+    bit<8>         queue_id;
+    EthernetAddr_t not_actually_useful;
+}
+
+header ipv4_t {
+    bit<4>     version;
+    bit<4>     ihl;
+    bit<8>     diffserv;
+    bit<16>    totalLen;
+    bit<16>    identification;
+    bit<3>     flags;
+    bit<13>    fragOffset;
+    bit<8>     ttl;
+    bit<8>     protocol;
+    bit<16>    hdrChecksum;
+    IPv4Addr_t srcAddr;
+    IPv4Addr_t dstAddr;
+}
+
+header andycustom_t {
+    bit<2>       version;
+    bit<6>       dscp;
+    bit<16>      totalLen;
+    bit<8>       ttl;
+    bit<8>       protocol;
+    bit<8>       l4Offset;
+    bit<8>       flags;
+    bit<8>       rsvd;
+    CustomAddr_t srcAddr;
+    CustomAddr_t dstAddr;
+}
+
+struct headers_t {
+    packet_out_t cpu;
+    ethernet_t   ethernet;
+    ipv4_t       ipv4;
+    andycustom_t andycustom;
+}
+
+struct metadata_t {
+}
+
+parser parserImpl(packet_in packet, out headers_t hdr, inout metadata_t meta, inout standard_metadata_t stdmeta) {
+    state start {
+        transition select(stdmeta.ingress_port) {
+            9w111: parse_cpu_hdr;
+            default: parse_ethernet;
+        }
+    }
+    state parse_cpu_hdr {
+        packet.extract<packet_out_t>(hdr.cpu);
+        transition parse_ethernet;
+    }
+    state parse_ethernet {
+        packet.extract<ethernet_t>(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            16w0x800: parse_ipv4;
+            16w0xd00d: parse_andycustom;
+            default: accept;
+        }
+    }
+    state parse_andycustom {
+        packet.extract<andycustom_t>(hdr.andycustom);
+        transition select(hdr.andycustom.protocol) {
+            8w4: parse_ipv4;
+            default: accept;
+        }
+    }
+    state parse_ipv4 {
+        packet.extract<ipv4_t>(hdr.ipv4);
+        transition accept;
+    }
+}
+
+control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply {
+    }
+}
+
+control ingressImpl(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t stdmeta) {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @name("my_drop") action my_drop() {
+        mark_to_drop(stdmeta);
+    }
+    @name("set_addr") action set_addr(@name("new_dstAddr") IPv4Addr_t new_dstAddr_0) {
+        hdr.ipv4.dstAddr = new_dstAddr_0;
+        stdmeta.egress_spec = stdmeta.ingress_port;
+    }
+    @name("t1") table t1_0 {
+        key = {
+            hdr.andycustom.srcAddr: exact @name("hdr.andycustom.srcAddr") ;
+        }
+        actions = {
+            set_addr();
+            my_drop();
+            NoAction_1();
+        }
+        const default_action = NoAction_1();
+    }
+    apply {
+        t1_0.apply();
+    }
+}
+
+control egressImpl(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control updateChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply {
+    }
+}
+
+control deparserImpl(packet_out packet, in headers_t hdr) {
+    apply {
+        packet.emit<ethernet_t>(hdr.ethernet);
+    }
+}
+
+V1Switch<headers_t, metadata_t>(parserImpl(), verifyChecksum(), ingressImpl(), egressImpl(), updateChecksum(), deparserImpl()) main;
+

@@ -4,11 +4,9 @@ open Util
 open Prog.Env
 (* hack *)
 module Petr4Error = Error
-module Petr4Info = Info
 open Core_kernel
 open Petr4Error
 module Error = Petr4Error
-module Info = Petr4Info
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)
 
@@ -96,12 +94,66 @@ let is_extern env (t:Typed.Type.t) : bool =
     | _         -> false
     end t
 
+<<<<<<< HEAD
 let is_function env (t:Typed.Type.t) : bool =
   is_some_type env
     begin function
     | Function _ -> true
     | _          -> false
     end t
+=======
+let sort_fields = List.sort ~compare:field_cmp
+
+let add_cast_unsafe (expr: P4light.coq_Expression) new_typ : P4light.coq_Expression =
+  MkExpression (P4info.dummy, ExpCast (new_typ, expr), new_typ, dir_of_expr expr)
+
+let rec val_to_literal (v: P4light.coq_Value) : P4light.coq_Expression =
+  let fs_to_literals fs: P4light.coq_Expression * (P4string.t * coq_P4Type) list =
+     let names = List.map ~f:fst fs in
+     let vs = List.map ~f:snd fs in
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     (MkExpression (P4info.dummy, ExpList es, TypList typs, In), List.zip_exn names typs)
+  in
+  match v with
+  | ValBool b ->
+     MkExpression (P4info.dummy, ExpBool b, TypBool, In)
+  | ValInteger v ->
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = None } in
+     MkExpression (P4info.dummy, ExpInt i, TypInteger, In)
+  | ValBit (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = Some (width, false) } in
+     MkExpression (P4info.dummy, ExpInt i, TypBit width, In)
+  | ValInt (width, v) ->
+     let width = Bigint.of_int width in
+     let i: P4int.t = {tags = P4info.dummy; value = v; width_signed = Some (width, true) } in
+     MkExpression (P4info.dummy, ExpInt i, TypInt width, In)
+  | ValString s ->
+     MkExpression (P4info.dummy, ExpString s, TypString, In)
+  | ValTuple vs ->
+     let es = List.map ~f:val_to_literal vs in
+     let typs = List.map ~f:type_of_expr es in
+     MkExpression (P4info.dummy, ExpList es, TypTuple typs, In)
+  | ValRecord fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypRecord t)
+  | ValError e ->
+     MkExpression (P4info.dummy, ExpErrorMember e, TypError, In)
+  | ValMatchKind mk ->
+     MkExpression (P4info.dummy, ExpTypeMember ({str="match_kind"; tags=P4info.dummy}, mk), TypMatchKind, In)
+  | ValStruct fs ->
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypStruct t)
+  | ValHeader (fs, valid) ->
+     if not valid then failwith "invalid header at compile time";
+     let e, t = fs_to_literals fs in
+     add_cast_unsafe e (TypHeader t)
+  | ValEnumField (typ, mem)
+  | ValSenumField (typ, mem, _) ->
+     MkExpression (P4info.dummy, ExpTypeMember (typ, mem), TypTypeName typ, In)
+  | ValSenum vs -> failwith "ValSenum unsupported"
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 let is_table env (t:Typed.Type.t) : bool =
   is_some_type env
@@ -121,7 +173,11 @@ let real_name_for_type_member env (typ_name: Types.name) name =
      BareName (fst name, prefixed_name)
   end
 
+<<<<<<< HEAD
 let rec min_size_in_bits' env (info: Info.t) (hdr_type: Typed.Type.t) : int =
+=======
+let rec min_size_in_bits' env (info: P4info.t) (hdr_type: coq_P4Type) : int =
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   match saturate_type env hdr_type with
   | Bit { width } | Int { width } ->
      width
@@ -149,7 +205,11 @@ let rec min_size_in_bits' env (info: Info.t) (hdr_type: Typed.Type.t) : int =
 and field_width_bits env info (field: Typed.RecordType.field) : int =
   min_size_in_bits' env info field.typ
 
+<<<<<<< HEAD
 and min_size_in_bits env (info: Info.t) (hdr_type: Typed.Type.t) : Bigint.t =
+=======
+and min_size_in_bits env (info: P4info.t) (hdr_type: coq_P4Type) : Bigint.t =
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   Bigint.of_int (min_size_in_bits' env info hdr_type)
 
 and min_size_in_bytes env info hdr_type =
@@ -804,7 +864,7 @@ and type_equality env equiv_vars t1 t2 : bool =
 and assert_same_type (env: CheckerEnv.t) info1 info2 (typ1: Type.t) (typ2: Type.t) =
   if type_equality env [] typ1 typ2
   then (typ1, typ2)
-  else let info = Info.merge info1 info2 in
+  else let info = P4info.merge info1 info2 in
     raise_type_error info (Type_Difference (typ1, typ2))
 
 and assert_type_equality env info (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
@@ -1070,10 +1130,16 @@ and eval_to_positive_int env info expr =
   in
   if value > 0
   then value
-  else raise_s [%message "expected positive integer" ~info:(info: Info.t)]
+  else raise_s [%message "expected positive integer" ~info:(info: P4info.t)]
 
+<<<<<<< HEAD
 and gen_wildcard env =
   Renamer.freshen_name (CheckerEnv.renamer env) "__wild"
+=======
+and gen_wildcard env: P4string.t =
+  let str = Renamer.freshen_name (Checker_env.renamer env) "__wild" in
+  {tags = P4info.dummy; str}
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 and translate_type' ?(gen_wildcards=false) (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t * string list =
   let open Types.Type in
@@ -1107,8 +1173,15 @@ and translate_type' ?(gen_wildcards=false) (env: CheckerEnv.t) (vars: string lis
      ret @@ Tuple {types = List.map ~f:(translate_type env vars) tlist}
   | Void -> ret Void
   | DontCare ->
+<<<<<<< HEAD
      let name = gen_wildcard env in
      TypeName (BareName (fst typ, name)), [name]
+=======
+    if gen_wildcards
+    then let name = gen_wildcard env in
+         TypTypeName ( name), [name]
+    else raise_s [%message"not generating wildcards" ~info:(fst typ: P4info.t)] 
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 and translate_type (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t =
   fst (translate_type' env vars typ)
@@ -1363,6 +1436,7 @@ and is_compile_time_only_type env typ =
   | _ -> false
 
 
+<<<<<<< HEAD
 and validate_param env ctx (typ: Typed.Type.t) dir info =
   if is_extern env typ && not (eq_dir dir Directionless)
   then raise_s [%message "Externs as parameters must be directionless"];
@@ -1376,6 +1450,23 @@ and validate_param env ctx (typ: Typed.Type.t) dir info =
 and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param_info, param : Types.Parameter.t) : Typed.Parameter.t * string list =
   let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
   let env = CheckerEnv.insert_type_vars wildcards env in
+=======
+and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
+  if is_extern env typ && not @@ eq_dir dir Directionless
+  then failwith "Externs as parameters must be directionless.";
+  if is_compile_time_only_type env typ && not @@ eq_dir dir Directionless
+  then failwith "Parameters of this type must be directionless.";
+  if not @@ is_well_formed_type env typ
+  then raise_s [%message "Parameter type is not well-formed." ~typ:(typ:coq_P4Type)];
+  if not @@ is_valid_param_type env ctx typ
+  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:P4info.t)];
+  if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
+  then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:P4info.t)]
+
+and type_param ?(gen_wildcards=false) env (ctx: P4light.coq_ParamContext) (param_info, param : Surface.Parameter.t) : coq_P4Parameter * P4string.t list =
+  let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
+  let env = Checker_env.insert_type_vars wildcards env in
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   let dir = translate_direction param.direction in
   validate_param env ctx typ dir param_info;
   let opt_value =
@@ -1968,9 +2059,15 @@ and type_error_member env ctx name : Prog.Expression.typed_t =
     dir = Directionless }
 
 and header_methods typ =
+<<<<<<< HEAD
   let fake_fields: RecordType.field list =
     [{name = "isValid";
       typ = Function {type_params = []; parameters = []; kind = Builtin; return = Bool}}]
+=======
+  let fake_fields: coq_FieldType list =
+    [({tags=P4info.dummy; str="isValid"},
+                  TypFunction (MkFunctionType ([], [], FunBuiltin, TypBool)))]
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   in
   match typ with
   | Type.Header { fields; _ } -> fake_fields
@@ -2001,6 +2098,7 @@ and type_expression_member_builtin env (ctx: Typed.ExprContext.t) info typ name 
 and type_expression_member_function_builtin env info typ name : Typed.Type.t option =
   let open Typed.Type in
   match typ with
+<<<<<<< HEAD
   | Control { type_params = []; parameters = ps; _ } ->
      begin match snd name with
      | "apply" ->
@@ -2063,6 +2161,58 @@ and type_expression_member_function_builtin env info typ name : Typed.Type.t opt
              direction = Directionless;
              opt_value = None;
              annotations = [] }]
+=======
+  | TypControl (MkControlType ([], ps)) ->
+    begin match name.str with
+      | "apply" ->
+        Some (TypFunction (MkFunctionType ([], ps, FunControl, TypVoid)))
+      | _ -> None
+    end
+  | TypParser (MkControlType ([], ps)) ->
+    begin match name.str with
+      | "apply" ->
+        Some (TypFunction (MkFunctionType ([], ps, FunParser, TypVoid)))
+      | _ -> None
+    end
+  | TypTable result_typ_name ->
+    begin match name.str with
+      | "apply" ->
+        let ret = TypTypeName ( result_typ_name) in
+        Some (TypFunction (MkFunctionType ([], [], FunTable, ret)))
+      | _ -> None
+    end
+  | TypStruct _ ->
+    begin match name.str with
+      | "minSizeInBits" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | "minSizeInBytes" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | _ -> None
+    end
+  | TypHeader _ ->
+    begin match name.str with
+      | "isValid" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypBool)))
+      | "setValid"
+      | "setInvalid" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypVoid)))
+      | "minSizeInBits" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | "minSizeInBytes" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | _ -> None
+    end
+  | TypArray (typ, _) ->
+    begin match name.str with
+      | "minSizeInBits" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | "minSizeInBytes" ->
+        Some (TypFunction (MkFunctionType ([], [], FunBuiltin, TypInteger)))
+      | "push_front"
+      | "pop_front" ->
+        let parameters: coq_P4Parameter list =
+          [MkParameter (false, Directionless, TypInteger, None, {tags=P4info.dummy; str="count"})]
+>>>>>>> 62cd2770 (wip fix menhir build errors)
         in
         Some (Function { type_params = []; kind = Builtin; parameters; return = Void })
      | _ -> None
@@ -2154,7 +2304,11 @@ and match_params_to_args call_site_info params args : (Typed.Parameter.t * Expre
        get_mode (Some `Named) args
     | m, [] -> m
     | _ -> raise_s [%message "mixed positional and named arguments at call site"
+<<<<<<< HEAD
                        ~info:(call_site_info: Info.t)]
+=======
+               ~info:(call_site_info: P4info.t)]
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   in
   let args = List.map ~f:snd args in
   match get_mode None args with
@@ -2184,12 +2338,21 @@ and match_positional_args_to_params call_site_info params args =
           if Parameter.is_optional param
           then conv param Missing :: go params args
           else raise_s [%message "missing argument for parameter"
+<<<<<<< HEAD
                            ~info:(call_site_info: Info.t)
                            ~param:(param: Typed.Parameter.t)]
        end
     | [], arg :: args ->
        raise_s [%message "too many arguments"
                    ~info:(call_site_info: Info.t)]
+=======
+                ~info:(call_site_info: P4info.t)
+                ~param:(param: coq_P4Parameter)]
+      end
+    | [], arg :: args ->
+      raise_s [%message "too many arguments"
+          ~info:(call_site_info: P4info.t)]
+>>>>>>> 62cd2770 (wip fix menhir build errors)
     | [], [] -> []
   in
   go params args
@@ -2217,6 +2380,7 @@ and match_named_args_to_params call_site_info (params: Typed.Parameter.t list) a
         if is_optional p
         then (p, None) :: match_named_args_to_params call_site_info params other_args
         else raise_s [%message "parameter has no matching argument"
+<<<<<<< HEAD
                          ~call_site:(call_site_info: Info.t)
                          ~param:(p: Typed.Parameter.t)]
      end
@@ -2240,6 +2404,32 @@ and is_lvalue env (expr_typed: Prog.Expression.t) =
      | _, Integer -> false
      | _, String -> false
      | _ ->
+=======
+              ~call_site:(call_site_info: P4info.t)
+              ~param:(p: coq_P4Parameter)]
+    end
+  | [] ->
+    match args with
+    | [] -> []
+    | a :: rest ->
+      raise_s [%message "too many arguments supplied at call site"
+          ~info:(call_site_info: P4info.t)
+          ~unused_args:(args : Surface.Argument.pre_t list)]
+
+and is_lvalue env (expr_typed: P4light.coq_Expression) =
+  let MkExpression (_, expr, expr_typ, expr_dir) = expr_typed in
+  match expr with
+  | ExpName (name, _) ->
+    let typ = reduce_type env expr_typ in
+    let const = Checker_env.find_const_opt name env in
+    begin match expr_dir, typ with
+      | In, _
+      | Directionless, _ -> false
+      | _, TypExtern _ -> false
+      | _, TypInteger -> false
+      | _, TypString -> false
+      | _ ->
+>>>>>>> 62cd2770 (wip fix menhir build errors)
         begin match const with
         | Some constant -> false
         | _ -> true
@@ -2608,6 +2798,7 @@ and type_mask env ctx expr mask : Prog.Expression.typed_t =
     dir = Directionless }
 
 (* Section 8.12.4 *)
+<<<<<<< HEAD
 and type_range env ctx lo hi : Prog.Expression.typed_t =
   let lo_typed = type_expression env ctx lo in
   let hi_typed = type_expression env ctx hi in
@@ -2624,6 +2815,23 @@ and type_range env ctx lo hi : Prog.Expression.typed_t =
     | Int { width }, hi_typ ->
        raise_mismatch (info hi) ("int<" ^ (string_of_int width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (Info.merge (info lo) (info hi)) "int or bit" lo_typ
+=======
+and type_range env ctx lo hi = 
+  let lo_typed, hi_typed = cast_to_same_type env ctx lo hi in
+  let typ : coq_P4Type =
+    match (type_of_expr lo_typed), (type_of_expr hi_typed) with
+    | TypBit l, TypBit r when l = r ->
+      TypBit l
+    | TypInt l, TypInt r when l = r ->
+      TypInt l
+    | TypInteger, TypInteger -> TypInteger
+    (* TODO: add pretty-printer and [to_string] for P4light module *)
+    | TypBit width, hi_typ ->
+      raise_mismatch (info hi) ("bit<" ^ (Bigint.to_string width) ^ ">") hi_typ
+    | TypInt width, hi_typ ->
+      raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
+    | lo_typ, _ -> raise_mismatch (P4info.merge (info lo) (info hi)) "int or bit" lo_typ
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   in
   { expr = Range { lo = lo_typed; hi = hi_typed };
     typ = Set typ;
@@ -2713,6 +2921,7 @@ and type_assignment env ctx lhs rhs =
     env
 
 (* This belongs in an elaboration pass, really. - Ryan *)
+<<<<<<< HEAD
 and type_direct_application env ctx typ args =
   let open Types.Expression in
   let expr_ctx = ExprContext.of_stmt_context ctx in
@@ -2734,6 +2943,25 @@ and type_direct_application env ctx typ args =
      env
   | _ -> raise_s [%message "function call not typed as FunctionCall?"
                      ~typed_expr:((snd call_typed).expr : Prog.Expression.pre_t)]
+=======
+and type_direct_application env ctx stmt_info typ args =
+  let expr_ctx = expr_ctxt_of_stmt_ctxt ctx in
+  let open Surface.Expression in
+  let instance = NamelessInstantiation {typ = typ; args = []} in
+  let apply = ExpressionMember {expr = P4info.dummy, instance;
+                                name = {tags = P4info.dummy; str="apply"}} in
+  let call, _, dir =
+    type_function_call env expr_ctx P4info.dummy (P4info.dummy, apply) [] args
+  in
+  match call with
+  | ExpFunctionCall (MkExpression (_, _, func_typ, _), type_args, args) ->
+    let stmt: P4light.coq_StatementPreT =
+      StatDirectApplication (translate_type env typ, func_typ, args)
+    in
+    MkStatement (stmt_info, stmt, StmUnit),
+    env
+  | _ -> failwith "function call not typed as FunctionCall?"
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 (* Question: Can Conditional statement update env? *)
 (* Section 11.6 The condition is required to be a Boolean
@@ -2876,9 +3104,38 @@ and type_switch env ctx info expr cases =
        cases_done @ [case_info, Prog.Statement.FallThrough { label = label_typed }]
   in
   let cases = List.fold ~init:[] ~f:case_checker cases in
+<<<<<<< HEAD
   { stmt = Switch { expr = expr_typed;
                     cases = cases };
     typ = StmType.Unit }, env
+=======
+  MkStatement (stmt_info, StatSwitch (expr_typed, cases), StmUnit), env
+
+and init_of_decl (decl: P4light.coq_Declaration) : P4light.coq_Initializer =
+  match decl with
+  | DeclInstantiation (info, typ, args, name, init) ->
+    InitInstantiation (info, typ, args, name, inits_of_decls init)
+  | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+    InitFunction (info, return_type, name, t_params, params_typed, body_typed)
+  | _ -> failwith "BUG: expected DeclInstantiation or DeclFunction."
+
+and inits_of_decls (decls: P4light.coq_Declaration list) : P4light.coq_Initializer list =
+  List.map ~f:init_of_decl decls
+
+and stmt_of_decl_stmt (decl: P4light.coq_Declaration) : P4light.coq_Statement =
+  let info, (stmt: P4light.coq_StatementPreT) =
+    match decl with
+    | DeclConstant (info, typ, name, value) ->
+      info, StatConstant (typ, name, value, P4light.noLocator)
+    | DeclVariable (info, typ, name, init) ->
+      info, StatVariable (typ, name, init, P4light.noLocator)
+    | DeclInstantiation (info, typ, args, name, init) ->
+      info, StatInstantiation (typ, args, name, inits_of_decls init)
+    | _ ->
+      P4info.dummy, StatEmpty
+  in
+  MkStatement (info, stmt, StmUnit)
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 (* Section 10.3 *)
 and type_declaration_statement env ctx (decl: Declaration.t) : Prog.Statement.typed_t * CheckerEnv.t =
@@ -2922,6 +3179,70 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
   in
   List.fold_left ~f:insert_param ~init:env params
 
+<<<<<<< HEAD
+=======
+and type_initializer env env_top ctx (init: Surface.Statement.t) : P4light.coq_Declaration * Checker_env.t  * Checker_env.t =
+  begin match snd init with
+  | DeclarationStatement { decl } ->
+    begin match snd decl with
+    | Function {return; name; type_params; params; body} ->
+      check_param_shadowing params [];
+      let ret_type = translate_type env_top return in
+      let ctx: coq_StmtContext = StmtCxMethod ret_type in
+      let typed_func, _ = type_function env_top ctx (fst decl) return name type_params params body in
+      begin match typed_func with
+      (* @synchronous allows access to other instantiations but not function declarations *)
+      | DeclFunction _ ->
+        typed_func, env, env_top
+      | _ -> failwith "BUG: expected DeclFunction."
+      end
+    (* More restrictions on instantiations? Variable declarations allowed? *)
+    | Instantiation { annotations; typ; args; name; init } ->
+      let typed_instance, instance_type =
+        type_instantiation env ctx (fst decl) annotations typ args name init in
+      begin match typed_instance with
+      | DeclInstantiation (info, typ, args, name, init_typed) ->
+        typed_instance,
+        Checker_env.insert_type_of (BareName name) instance_type env,
+        Checker_env.insert_type_of (BareName name) instance_type env_top
+      | _ -> failwith "BUG: expected DeclInstantiation."
+      end
+    | _ -> failwith "Unexpected declarations in the list of initializers."
+    end
+  | _ -> failwith "Unexpected statement as the initializer."
+  end
+
+and type_initializers env ctx instance_type (inits: Surface.Statement.t list): P4light.coq_Declaration list * int =
+  let env_top = 
+    Checker_env.insert_type_of (BareName {tags=P4info.dummy; str="this"}) instance_type (Checker_env.top_scope env) in
+  let extern_name, args =
+    match instance_type with
+    | TypExtern extern_name -> extern_name, []
+    | TypSpecializedType (TypExtern extern_name, args) -> extern_name, args
+    | _ -> raise_s [%message"Initializers are allowed only in the instantiation of an extern object."
+                    ~typ:(instance_type : P4light.coq_P4Type)]
+  in let ext = Checker_env.find_extern (BareName extern_name) env in 
+  let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
+  let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
+  let check_initializer (inits_typed, num_absts, env, env_top) decl =
+    let init_typed, env', env_top' = type_initializer env env_top ctx decl in
+    let num_absts' = 
+    begin match init_typed with
+    | DeclFunction (info, return_type, name, t_params, params_typed, body_typed) ->
+      begin match List.find ~f:(fun decl -> P4string.eq name (fst decl)) decls_abst with
+      | Some (name, decl_type) ->
+        let init_type = TypFunction (MkFunctionType (t_params, params_typed, FunExtern, return_type)) in
+          assert_type_equality env' name.tags decl_type init_type
+      | None -> ()
+      end;
+      num_absts + 1
+    | _ -> num_absts
+    end
+    in inits_typed @ [init_typed], num_absts', env', env_top'
+  in let inits_typed, num_absts, _, _ = List.fold_left ~f:check_initializer ~init:([], 0, env, env_top) inits in
+     inits_typed, num_absts
+
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 (* Section 10.3 *)
 and type_instantiation env ctx info annotations typ args name : Prog.Declaration.t * CheckerEnv.t =
   let expr_ctx = ExprContext.of_decl_context ctx in
@@ -3001,6 +3322,7 @@ and type_select_case env ctx state_names expr_types ((case_info, case): Types.Pa
   then case_info, { matches = matches_typed; next = case.next }
   else raise_s [%message "state name unknown" ~name:(snd case.next: string)]
 
+<<<<<<< HEAD
 and type_transition env ctx state_names transition : Prog.Parser.transition =
   let open Parser in
   fst transition,
@@ -3027,11 +3349,34 @@ and type_parser_state env state_names (state: Parser.state) : Prog.Parser.state 
       name = (snd state).name }
   in
   (fst state, pre_state)
+=======
+and type_transition env ctx state_names transition : P4light.coq_ParserTransition =
+  let trans_info = fst transition in
+  match snd transition with
+  | Surface.Parser.Direct {next} ->
+    if List.mem ~equal:P4string.eq state_names next
+    then ParserDirect (trans_info, next)
+    else raise @@ Type (next.tags, (Error.Unbound next.str))
+  | Surface.Parser.Select {exprs; cases} ->
+    let exprs_typed = List.map ~f:(type_expression env ctx) exprs in
+    let expr_types = List.map ~f:type_of_expr exprs_typed in
+    let cases_typed =
+      List.map ~f:(type_select_case env ctx state_names expr_types) cases
+    in
+    ParserSelect (trans_info, exprs_typed, cases_typed)
+
+and type_parser_state env state_names (state: Parser.state) : P4light.coq_ParserState =
+  let env = Checker_env.push_scope env in
+  let (_, stmts_typed, env) = type_statements env StmtCxParserState (snd state).statements in
+  let transition_typed = type_transition env ExprCxParserState state_names (snd state).transition in
+  MkParserState (fst state, (snd state).name, stmts_typed, transition_typed)
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 and check_state_names names =
   match List.find_a_dup ~compare:String.compare names with
   | Some duplicated -> raise_s [%message "duplicate state name in parser" ~state:duplicated]
   | None ->
+<<<<<<< HEAD
      if List.mem ~equal:(=) names "start"
      then ()
      else raise_s [%message "parser is missing start state"];
@@ -3040,21 +3385,45 @@ and open_parser_scope env ctx params constructor_params locals states =
   let open Parser in
   let constructor_params_typed = type_constructor_params env ctx constructor_params in
   let params_typed = type_params env (Runtime ctx) params in
+=======
+    if List.mem ~equal:P4string.eq names {tags=P4info.dummy; str="start"}
+    then ()
+    else raise_s [%message "parser is missing start state"];
+
+and open_parser_scope env ctx params constructor_params locals (states: Parser.state list) =
+  let env = Checker_env.push_scope env in
+  let constructor_params_typed, _ = type_constructor_params env ctx constructor_params in
+  let params_typed, _ = type_params env (ParamCxRuntime ctx) params in
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   let env = insert_params env constructor_params in
   let env = insert_params env params in
   let locals_typed, env = type_declarations env DeclContext.Nested locals in
   let program_state_names = List.map ~f:(fun (_, state) -> snd state.name) states in
   (* TODO: check that no program_state_names overlap w/ standard ones
    * and that there is some "start" state *)
+<<<<<<< HEAD
   let state_names = program_state_names @ ["accept"; "reject"] in
+=======
+  let accept: P4string.t = {tags=P4info.dummy; str="accept"} in
+  let reject: P4string.t = {tags=P4info.dummy; str="reject"} in
+  let state_names = program_state_names @ [accept; reject] in
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   check_state_names state_names;
   (env, state_names, constructor_params_typed, params_typed, locals_typed)
 
 (* Section 12.2 *)
+<<<<<<< HEAD
 and type_parser env info name annotations params constructor_params locals states =
   let (env', state_names,
        constructor_params_typed, params_typed, locals_typed) =
     open_parser_scope env Parser params constructor_params locals states
+=======
+and type_parser env info name annotations type_params params constructor_params locals (states: Parser.state list) =
+  if List.length type_params > 0
+  then failwith "Parser declarations cannot have type parameters";
+  let env', state_names, constructor_params_typed, params_typed, locals_typed =
+    open_parser_scope env ParamCxDeclParser params constructor_params locals states
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   in
   let states_typed = List.map ~f:(type_parser_state env' state_names) states in
   let parser_typed : Prog.Declaration.pre_t =
@@ -3090,6 +3459,7 @@ and open_control_scope env ctx params constructor_params locals =
 (* Section 13 *)
 and type_control env info name annotations type_params params constructor_params locals apply =
   if List.length type_params > 0
+<<<<<<< HEAD
   then raise_s [%message "Control declarations cannot have type parameters" ~name:(snd name)]
   else
     let env', params_typed, constructor_params_typed, locals_typed =
@@ -3122,6 +3492,41 @@ and type_control env info name annotations type_params params constructor_params
     in
     let env' = CheckerEnv.insert_type_of (BareName name) (Constructor ctor) env in
     (info, control), env'
+=======
+  then failwith "Control declarations cannot have type parameters";
+  let inner_env, params_typed, constructor_params_typed, locals_typed =
+    open_control_scope env ParamCxDeclControl params constructor_params locals
+  in
+  let block_typed, _ = type_block inner_env StmtCxApplyBlock (fst apply) apply in
+  let apply_typed =
+    match prestmt_of_stmt block_typed with
+    | StatBlock block -> block
+    | _ -> failwith "expected BlockStatement"
+  in
+  let control : P4light.coq_Declaration =
+    DeclControl (info,
+                 name,
+                 [],
+                 params_typed,
+                 constructor_params_typed,
+                 locals_typed,
+                 apply_typed)
+  in
+  let control_type =
+    P4light.MkControlType ([], params_typed)
+  in
+  let ctor_type = P4light.TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
+  let env = Checker_env.insert_type_of ~shadow:true (BareName name) ctor_type env in
+  control, env
+
+and add_direction (param: Surface.Parameter.t) : Surface.Parameter.t =
+  let open Surface in 
+  let p = snd param in
+  let direction: Direction.t option = Some (P4info.dummy, In) in
+  match p.direction with
+  | None -> (fst param, {p with direction})
+  | _ -> param
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 (* Section 9
 
@@ -3279,7 +3684,11 @@ and type_value_set env ctx info annotations typ size name =
 (* Section 13.1 *)
 and type_action env info annotations name params body =
   let fn_typed, fn_env =
+<<<<<<< HEAD
     type_function env Action info (Info.dummy, Types.Type.Void) name [] params body
+=======
+    type_function ~add_dirs:true env StmtCxAction info (P4info.dummy, Surface.Type.Void) name [] params body
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   in
   let action_typed, action_type =
     match snd fn_typed with
@@ -3638,6 +4047,7 @@ and type_table' env ctx info annotations name key_types action_map entries_typed
     let open RecordType in
     (* Aggregate table information. *)
     let action_names = action_map
+<<<<<<< HEAD
       |> begin fun l ->
          if keys_actions_ok key_types l
          then l
@@ -3649,6 +4059,15 @@ and type_table' env ctx info annotations name key_types action_map entries_typed
       Type.Enum { name=action_enum_name;
                   typ=None;
                   members=action_names }
+=======
+                       |> begin fun l ->
+                         if keys_actions_ok key_types l
+                         then l
+                         else raise_s [%message "Table must have a non-empty actions property"] end
+                       |> List.map ~f:fst
+                       |> List.map ~f:P4name.name_only
+                       |> List.map ~f:(fun str -> {P4string.tags=P4info.dummy; str})
+>>>>>>> 62cd2770 (wip fix menhir build errors)
     in
     let key = match key_types with
       | Some ks -> ks
@@ -3660,11 +4079,19 @@ and type_table' env ctx info annotations name key_types action_map entries_typed
       CheckerEnv.insert_type (BareName (Info.dummy, action_enum_name))
                 action_enum_typ env
     in
+<<<<<<< HEAD
     let hit_field = {name="hit"; typ=Type.Bool} in
     let miss_field = {name="miss"; typ=Type.Bool} in
     (* How to represent the type of an enum member *)
     let run_field = {name="action_run"; typ=action_enum_typ} in
     let apply_result_typ = Type.Struct {fields=[hit_field; miss_field; run_field]; } in
+=======
+    let hit_field = ({P4string.tags=P4info.dummy; str="hit"}, TypBool) in
+    let miss_field = ({P4string.tags=P4info.dummy; str="miss"}, TypBool) in
+    (* How to represent the type of an enum member *)
+    let run_field = ({P4string.tags=P4info.dummy; str="action_run"}, action_enum_typ) in
+    let apply_result_typ = TypStruct [hit_field; miss_field; run_field] in
+>>>>>>> 62cd2770 (wip fix menhir build errors)
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = name |> snd |> (^) "apply_result_" in
     let env = CheckerEnv.insert_type (BareName (fst name, result_typ_name)) apply_result_typ env in

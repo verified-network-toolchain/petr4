@@ -28,8 +28,13 @@ let format_error fmt = function
   | UnreachableBlock -> 
      Format.fprintf fmt "error: unreachable block"
      
+<<<<<<< HEAD
 exception Internal of string [@@deriving sexp]
 exception Type of (Info.t * error) [@@deriving sexp]
+=======
+exception Internal of string
+exception Type of (P4info.t * error)
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 exception V1AssertionError
 
 let raise_mismatch info expected found =

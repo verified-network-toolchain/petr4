@@ -1,9 +1,15 @@
-module I = Info
+module I = P4info
 open Core_kernel
 open Prog.Env
 open Util
+<<<<<<< HEAD
 open Types
 module Info = I
+=======
+open Surface
+open Checker_env
+module P4info = I
+>>>>>>> 62cd2770 (wip fix menhir build errors)
 
 let subst_vars_name env type_name =
   begin match CheckerEnv.resolve_type_name_opt type_name env with

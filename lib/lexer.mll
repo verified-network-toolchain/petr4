@@ -29,7 +29,7 @@ let line_start    = ref 1
 
 type lexer_state =
   | SRegular (* Nothing to recall from the previous tokens. *)
-  | SRangle of Info.t
+  | SRangle of P4info.t
   | SPragma
   | SIdent of Types.P4String.t * lexer_state
     (* We have seen an identifier: we have just
@@ -66,13 +66,13 @@ let newline lexbuf =
   current_line := line_number() + 1 ;
   set_start_of_line (lexeme_end lexbuf)
 
-let info lexbuf : Info.t =
+let info lexbuf : P4info.t =
   let f = filename () in
   let c1 = lexeme_start lexbuf in
   let c2 = lexeme_end lexbuf in
   let c = start_of_line () in
   let l = line_number() in
-  Info.I { filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c }
+  P4info.I { filename=f; line_start=l; line_end=None; col_start=c1-c; col_end=c2-c }
 
 let sanitize s =
   String.concat "" (String.split_on_char '_' s)
@@ -125,7 +125,11 @@ rule tokenize = parse
       { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
+<<<<<<< HEAD
         STRING_LITERAL (Info.merge (info lexbuf) end_info, str) }
+=======
+        STRING_LITERAL (P4string.{tags=P4info.merge (info lexbuf) end_info; str}) }
+>>>>>>> 62cd2770 (wip fix menhir build errors)
   | whitespace
       { tokenize lexbuf }
   | '#'
@@ -401,7 +405,7 @@ let rec lexer (lexbuf:lexbuf) : token =
     | SRangle info1 -> 
       begin 
         match tokenize lexbuf with
-        | R_ANGLE info2 when Info.follows info1 info2 -> 
+        | R_ANGLE info2 when P4info.follows info1 info2 -> 
           lexer_state := SRegular;
           R_ANGLE_SHIFT info2
         | PRAGMA _ as token ->

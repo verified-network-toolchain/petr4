@@ -1,5 +1,6 @@
 (menhir
   (flags --explain)
+  (infer true)
   (modules test_parser))
 
 (ocamllex (modules test_lexer))

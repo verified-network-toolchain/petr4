@@ -8,11 +8,11 @@
 enum p4int {FIXBIT, FIXINT};
 
 typedef struct packet_in {
-  void *in;
+  int *in;
 } packet_in;
 
 typedef struct packet_out{
-  void *out;
+  int *out;
 } packet_out;
 
 typedef struct BitVec{
@@ -76,8 +76,7 @@ enum operation{
 Functions: includes package processing, unary operations, and binary operations 
 **/
 
-//package processing
-void extract(struct packet_in pkt, void *data, int len);
+
 void emit(struct packet_out pkt, void *data, int len);
 
 /**
@@ -101,6 +100,26 @@ void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   dst->is_signed = sign;
   dst->width = w;
 }
+
+//package processing
+void extract_bool(packet_in *pkt, bool *data){
+  if(*(pkt->in) == 1){
+    *data = true;
+  } else {
+    *data = false;
+  }
+  pkt->in ++;
+}
+void extract_bitvec(packet_in *pkt, BitVec *data){
+  char val[data->width]; 
+  for(int i = 0; i < data->width; i++){
+    val[i] = (*(pkt->in)) + 48;
+    pkt->in ++;
+  }
+  init_bitvec(data, data->is_signed, data->width, val);
+  
+}
+
 
 //unary operators
 void eval_uminus(mpz_t v) {

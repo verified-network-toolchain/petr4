@@ -23,6 +23,10 @@ Definition empty_main :=
   (AST.mkcallconv None true true)
   [] [] [] Sskip.
 
+Definition typelist_extract_bool := 
+Definition typelist_extract_bitvec := 
+Definition extract := Evar $"extract" (Tfunction typelist_bop_bool tvoid cc_default) 
+
 (* The order is 
 Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
 Definition main_fn (env: ClightEnv tags_t ) (cargs: Expr.constructor_args tags_t): Clight.function

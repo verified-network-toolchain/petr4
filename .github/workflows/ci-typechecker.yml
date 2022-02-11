@@ -30,8 +30,8 @@ jobs:
       - name: add result of type checking to git repo
         run: |
           git config --local user.email "paris.ataei@gmail.com"
-          git add ci-test/type-checking/result/matched/*
-          git add ci-test/type-checking/result/non-matched/*
+          git add ci-test/type-checking/expectation/matched/*
+          git add ci-test/type-checking/expectation/non-matched/*
           git commit -m "add result of type checking"
 #          git push origin
       - name: Push changes to git

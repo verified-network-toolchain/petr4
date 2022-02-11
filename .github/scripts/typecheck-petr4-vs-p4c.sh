@@ -1,8 +1,9 @@
 #!/bin/bash
 
-set -e # Exit on error.
+# set -e # Exit on error.
 set -x # Make command execution verbose
 
+#############
 # typecheck all tests with petr4 and write results
 # petr4 typecheck -I <path to core and etc> <p4 file with full path>
 # p4test -I <path to core and etc> --top4 "" <p4 file with full path>
@@ -21,26 +22,34 @@ set -x # Make command execution verbose
 # find /petr4/examples/checker_tests/excluded -name "*.p4" -exec petr4 typecheck -I /petr4/examples {} \; -exec p4test -I /petr4/examples --top4 "" {} \; > /petr4/results/p4c-results.out
 
 # find /petr4/examples/checker_tests/good/ -name "*.p4" | xargs -t petr4 typecheck -I /petr4/examples/
-
+##########
 
 #finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
 do
+  #########
   # gets the result of type checking from petr4 and p4c, stores them in
   # variables and compares them
-  # petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
-  # p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" 2>&1)
+  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
+  petr4_type_stat=$?
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" 2>&1)
+  p4c_type_stat=$?
+  if [petr4_type_stat eq p4c_type_stat]
+  then cp $file /petr4/ci-test/type-checking/expectation/matched
+  else cp $file /petr4/ci-test/type-checking/expectation/not-matched
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
-  echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  #########
+  # echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  ## echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  ## echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  ##########
   #TODO: add the following later!
 #   # creates the expectation dir. 
 #   if [ $petr4_type == $p4c_type ]
@@ -56,7 +65,10 @@ do
 #   else 
 #   	cp $file /petr4/ci-test/type-checking/result/not-matched
 #   fi
+##########
 done
+
+##########
 # # compares result and expection 
 # expec_match_minus_res_match = $(find "$/petr4/ci-test/type-checking/expectation/matched/" "$/petr4/ci-test/type-checking/result/matched/" "$/petr4/ci-test/type-checking/result/matched/" -printf '%P\n' | sort | uniq -u)
 # expec_notmatch_minus_res_match = $(find "$/petr4/ci-test/type-checking/expectation/not-matched/" "$/petr4/ci-test/type-checking/result/not-matched/" "$/petr4/ci-test/type-checking/result/not-matched/" -printf '%P\n' | sort | uniq -u)
@@ -81,4 +93,4 @@ done
 # fi
 
 # #find "$/examples/checker_tests/bad/" "$/examples/checker_tests/good/" "$/examples/checker_tests/good/" -printf '%P\n' | sort | uniq -u
-
+##########

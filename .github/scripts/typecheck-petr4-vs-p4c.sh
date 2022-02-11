@@ -4,7 +4,7 @@
 set -x # Make command execution verbose
 
 mkdir /petr4/ci-test/type-checking/expectation/matched 
-mkdir /petr4/ci-test/type-checking/expectation/non-matched 
+mkdir /petr4/ci-test/type-checking/expectation/not-matched 
 
 #finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')

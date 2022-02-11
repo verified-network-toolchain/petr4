@@ -32,6 +32,7 @@ jobs:
           git config --local user.email "paris.ataei@gmail.com"
           git add ci-test/type-checking/expectation/matched/*
           git add ci-test/type-checking/expectation/not-matched/*
+          git status -uno
           git commit -m "add result of type checking"
 #          git push origin
       - name: Push changes to git

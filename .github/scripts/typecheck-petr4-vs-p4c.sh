@@ -16,9 +16,17 @@ do
   p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # 2>&1
   p4c_type_stat=$?
-  if [$petr4_type_stat eq $p4c_type_stat]
-  then cp "$file" /petr4/ci-test/type-checking/result/matched
-  else cp "$file" /petr4/ci-test/type-checking/result/not-matched
+  if [$petr4_type_stat eq 0]
+  then 
+    if [$p4c_type_stat eq 0]
+    then cp "$file" /petr4/ci-test/type-checking/result/matched/
+    else cp "$file" /petr4/ci-test/type-checking/result/not-matched/
+    fi
+  else 
+    if [$p4c_type_stat eq 0]
+    then cp "$file" /petr4/ci-test/type-checking/result/not-matched/
+    else cp "$file" /petr4/ci-test/type-checking/result/matched/
+    fi
   fi
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
@@ -33,3 +41,4 @@ do
   # p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
 done
 
+arith*.p4

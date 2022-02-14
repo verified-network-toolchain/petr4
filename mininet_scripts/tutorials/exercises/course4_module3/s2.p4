@@ -175,6 +175,8 @@ control MyIngress(inout headers hdr,
         }
     }
 
+    counter (6, CounterType.packets) port_cntr;
+
     apply {
         meta.ph_key = 1;
         active_fw_cnt.apply();
@@ -183,11 +185,13 @@ control MyIngress(inout headers hdr,
           if (standard_metadata.ingress_port == IN){
               do_lb();
               hdr.ipv4.diffserv = 1;
-              standard_metadata.egress_spec = (egressSpec_t) (meta.fw_id + 1);
+              standard_metadata.egress_spec = (egressSpec_t) (meta.fw_id + 2);
           }
           else if (standard_metadata.ingress_port != OUT){
               standard_metadata.egress_spec = OUT;
           }
+          
+          port_cntr.count((bit<32>)standard_metadata.egress_spec - 1);
         } 
     }
 }

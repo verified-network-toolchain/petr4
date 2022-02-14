@@ -256,7 +256,9 @@ control MyIngress(inout headers hdr,
             set_active_server_cnt;
         }
     }
-               
+              
+    counter (6, CounterType.packets) port_cntr;
+ 
     apply {
         meta.ph_key = 1;
         active_server_cnt.apply();
@@ -271,6 +273,8 @@ control MyIngress(inout headers hdr,
               set_src.apply();
               standard_metadata.egress_spec = OUT;
           }
+
+          port_cntr.count((bit<32>)standard_metadata.egress_spec - 1);
         } 
     }
 }

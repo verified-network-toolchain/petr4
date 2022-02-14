@@ -141,6 +141,8 @@ control MyIngress(inout headers hdr,
           else if (standard_metadata.ingress_port == IN){
               ipv4.apply();
           }
+
+          port_cntr.count((bit<32>)standard_metadata.egress_spec - 1);
         }
     }
 }

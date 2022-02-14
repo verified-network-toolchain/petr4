@@ -18,6 +18,9 @@ class MyApp(App):
     for i in range(1, 5):
       topo.add_host("w" + str(i))
 
+    for i in range(1, 5):
+      topo.add_host("fw" + str(i))
+
     self.host_map = { "h1" : { "ip" : "167772417", "mac" : "8796093022481" },
                       "h2" : { "ip" : "167772674", "mac" : "8796093022754" },
                       "h3" : { "ip" : "167772931", "mac" : "8796093023027" },
@@ -57,11 +60,42 @@ class MyApp(App):
 
     self.topo = topo
   
+  def init_counters(self):
+    self.cntrs = {}
+    self.port_cnt = {}
+    for switch in self.topo.switches():
+        self.cntrs[switch] = {}
+        ports = len(list(self.topo.neighbors(switch)))
+        self.port_cnt[switch] = ports 
+        for i in range(ports):
+            self.cntrs[switch][i] = 0
          
   def __init__(self, port=9000):
     super().__init__(port)
     self.init_topo()
+    self.init_counters()
+    self.up_switch_cnt = 0
 
+  def print_counters(self):
+    for switch in self.cntrs:
+        print(f"{switch} countrs:")
+        for port in self.cntrs[switch]:
+            print(f"{port + 1}: {self.cntrs[switch][port]}")
+        print("---------------")
+ 
+  def poll_counters(self):
+    def f():
+        self.print_counters()
+        for switch in self.cntrs:
+            for port in self.cntrs[switch]:
+                self.counter_request(switch, "port_cntr", port)
+        IOLoop.instance().call_later(delay=5, callback=f)
+
+    f()
+      
+  def counter_response(self, switch, name, index, count):
+    self.cntrs[switch][index] = count
+   
   def switch_up(self,switch,ports):
     print(f"{switch} is up!")
     
@@ -94,7 +128,10 @@ class MyApp(App):
 
             entry = Entry("set_src", [("hdr.ipv4.srcAddr", server_ip)], "set_vip", [("addr", self.public_web_server_ip)])
             self.insert(switch, entry)
- 
+
+    self.up_switch_cnt += 1
+    if (self.up_switch_cnt == 3):
+        self.poll_counters()
     return
 
 app = MyApp()

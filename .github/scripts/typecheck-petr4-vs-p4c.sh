@@ -13,7 +13,7 @@ do
   # variables and compares them
   petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
   petr4_type_stat=$?
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file")
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # 2>&1
   p4c_type_stat=$?
   if [$petr4_type_stat eq $p4c_type_stat]

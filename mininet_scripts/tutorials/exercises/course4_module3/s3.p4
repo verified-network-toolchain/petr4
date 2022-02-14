@@ -211,8 +211,9 @@ control MyIngress(inout headers hdr,
        }
     }
 
-    action fw(ip4Addr_t addr, egressSpec_t port){
-        hdr.ipv4.dstAddr = addr;
+    action fw(ip4Addr_t ip_addr, macAddr_t mac_addr, egressSpec_t port){
+        hdr.ethernet.dstAddr = mac_addr; 
+        hdr.ipv4.dstAddr = ip_addr;
         standard_metadata.egress_spec = port;
     }
 
@@ -259,7 +260,6 @@ control MyIngress(inout headers hdr,
     apply {
         meta.ph_key = 1;
         active_server_cnt.apply();
-        meta.active_server_cnt = 4;
 
         if (hdr.ipv4.isValid()) {
           if (standard_metadata.ingress_port == IN){

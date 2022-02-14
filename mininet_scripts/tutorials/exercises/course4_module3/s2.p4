@@ -171,14 +171,13 @@ control MyIngress(inout headers hdr,
             meta.fw_id[0:0] = flow_hash[0:0];
         }
         else {
-            meta.fw_id = 32w1;
+            meta.fw_id = 32w0;
         }
     }
 
     apply {
         meta.ph_key = 1;
         active_fw_cnt.apply();
-        meta.active_fw_cnt = 4;
 
         if (hdr.ipv4.isValid()) {
           if (standard_metadata.ingress_port == IN){

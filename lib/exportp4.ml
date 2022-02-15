@@ -143,12 +143,15 @@ let rec print_type p (typ : coq_P4Type) =
           (print_list print_field_type) fields
   | TypStruct fields ->
       fprintf p "(@[<hov 0>TypStruct@ %a)@]"
-          (print_list print_field_type) fields
-  | TypEnum (s, typ, members) ->
-      fprintf p "(@[<hov 4>TypEnum@ %a@ %a@ %a)@]"
-          p4string s
-          (print_option print_type) typ
-          p4strings members
+        (print_list print_field_type) fields
+  | TypEnum (s, Coq_inl typ) ->
+      fprintf p "(@[<hov 4>TypEnum@ %a@ %a)@]"
+        p4string s
+        print_type typ
+  | TypEnum (s, Coq_inr members) ->
+      fprintf p "(@[<hov 4>TypEnum@ %a@ %a)@]"
+        p4string s
+        p4strings members
   | TypTypeName name ->
       fprintf p "(@[<hov 0>TypTypeName@ %a)@]"
           p4string name

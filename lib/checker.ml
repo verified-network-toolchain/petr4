@@ -204,7 +204,7 @@ let rec min_size_in_bits' env (info: P4info.t) (hdr_type: coq_P4Type) : int =
   | TypVarBit _ ->
     0
   | TypNewType (_, typ)
-  | TypEnum (_, Some typ, _) ->
+  | TypEnum (_, Coq_inl typ) ->
     min_size_in_bits' env info typ
   | TypStruct fields
   | TypHeader fields ->
@@ -430,6 +430,7 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
   | TypBool | TypString | TypInteger
   | TypInt _ | TypBit _ | TypVarBit _
   | TypError | TypMatchKind | TypVoid
+  | TypEnum (_, Coq_inr _)
   | TypNewType _
   | TypTable _ ->
     typ
@@ -449,8 +450,8 @@ and saturate_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Type =
     TypHeaderUnion (saturate_rec env rec_typ)
   | TypStruct rec_typ ->
     TypStruct (saturate_rec env rec_typ)
-  | TypEnum (name, typ, members) ->
-    TypEnum (name, option_map (saturate_type env) typ, members)
+  | TypEnum (name, Coq_inl typ) ->
+    TypEnum (name, Coq_inl (saturate_type env typ))
   | TypSpecializedType (base, args) ->
     TypSpecializedType (saturate_type env base,
                         saturate_types env args)
@@ -504,7 +505,7 @@ and reduce_to_underlying_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Typ
   let typ = reduce_type env typ in
   match typ with
   | TypNewType (_, typ) -> reduce_to_underlying_type env typ
-  | TypEnum (_, Some typ, _) -> reduce_to_underlying_type env typ
+  | TypEnum (_, Coq_inl typ) -> reduce_to_underlying_type env typ
   | _ -> typ
 
 type var_constraint = P4string.t * coq_P4Type option [@@deriving sexp]
@@ -740,7 +741,7 @@ and solve_types
     | TypSet ty1, TypSet ty2 ->
       solve_types env equiv_vars unknowns ty1 ty2
     | TypExtern name1, TypExtern name2
-    | TypEnum (name1, _, _), TypEnum (name2, _, _) ->
+    | TypEnum (name1, _), TypEnum (name2, _) ->
       if P4string.eq name1 name2 then Some (empty_constraints unknowns) else None
     | TypPackage (type_params1, _, params1),
       TypPackage (type_params2, _, params2) ->
@@ -1137,6 +1138,7 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
   | TypInt _
   | TypBit _
   | TypVarBit _
+  | TypEnum (_, Coq_inr _)
   | TypError
   | TypMatchKind
   | TypVoid -> true
@@ -1150,11 +1152,7 @@ and is_well_formed_type env (typ: coq_P4Type) : bool =
     List.for_all ~f:(is_valid_nested_type env typ) types
   | TypSet typ ->
     is_well_formed_type env typ
-  | TypEnum (_, typ, _) ->
-    begin match typ with
-      | None -> true
-      | Some typ -> is_well_formed_type env typ
-    end
+  | TypEnum (_, Coq_inl typ) -> is_well_formed_type env typ
   | TypRecord fields
   | TypHeaderUnion fields
   | TypStruct fields ->
@@ -1297,7 +1295,7 @@ and is_valid_nested_type ?(in_header=false) (env: Checker_env.t) (outer_type: co
       | TypInt _
       | TypVarBit _
       | TypBool
-      | TypEnum (_, Some _, _) ->
+      | TypEnum (_, Coq_inl _) ->
         true
       | TypStruct fields ->
         List.for_all ~f:field_ok fields
@@ -1672,6 +1670,7 @@ and type_has_equality_tests env (typ: coq_P4Type) =
   | TypInt _
   | TypBit _
   | TypVarBit _
+  | TypEnum (_, Coq_inr _)
   | TypError
   | TypMatchKind ->
     true
@@ -1690,11 +1689,7 @@ and type_has_equality_tests env (typ: coq_P4Type) =
           type_has_equality_tests env field_typ)
   | TypNewType (_, typ) ->
     type_has_equality_tests env typ
-  | TypEnum (_, typ, _) ->
-    begin match typ with
-      | Some typ -> type_has_equality_tests env typ
-      | None -> true
-    end
+  | TypEnum (_, Coq_inl typ) -> type_has_equality_tests env typ
   | TypTypeName name ->
     failwith "type name in saturated type?"
   | _ ->
@@ -1851,9 +1846,9 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | TypInteger, TypBit _
   | TypInteger, TypInt _ ->
     true
-  | TypEnum (name, Some t, members), TypEnum (_, Some t', _)
-  | TypEnum (name, Some t, members), t'
-  | t', TypEnum (name, Some t, members) ->
+  | TypEnum (_, Coq_inl t), TypEnum (_, Coq_inl t')
+  | TypEnum (_, Coq_inl t), t'
+  | t', TypEnum (_, Coq_inl t) ->
     type_equality env [] t t'
   | TypNewType (name1, typ1),
     TypNewType (name2, typ2) ->
@@ -2703,7 +2698,7 @@ and type_switch env ctx stmt_info expr cases =
   let expr_typed = type_expression env expr_ctx expr in
   let action_typ_name, action_names =
     match reduce_type env (type_of_expr expr_typed) with
-    | TypEnum (name, _, names) -> name, names
+    | TypEnum (name, Coq_inr names) -> name, names
     | _ -> raise_mismatch stmt_info "table action enum" (type_of_expr expr_typed)
   in
   let lbl_seen cases_done lbl =
@@ -2920,11 +2915,11 @@ and infer_constructor_type_args env ctx type_params wildcard_params params_args 
 (* Terrible hack - Ryan *)
 and check_match_type_eq env info set_type element_type =
   match set_type with
-  | TypSet (TypEnum (_, Some carrier, _)) ->
+  | TypSet (TypEnum (_, Coq_inl carrier)) ->
     check_match_type_eq env info (TypSet carrier) element_type
   | _ ->
     match element_type with
-    | TypEnum (_, Some elt_carrier, _) ->
+    | TypEnum (_, Coq_inl elt_carrier) ->
       check_match_type_eq env info set_type elt_carrier
     | _ ->
       assert_type_equality env info set_type (TypSet element_type)
@@ -3593,7 +3588,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                        |> List.map ~f:(fun str -> {P4string.tags=P4info.dummy; str})
     in
     let action_enum_name = {name with str="action_list_" ^ name.str} in
-    let action_enum_typ = TypEnum (action_enum_name, None, action_names) in
+    let action_enum_typ = TypEnum (action_enum_name, Coq_inr action_names) in
     let key =
       match key_types with
       | Some ks -> ks
@@ -3717,7 +3712,7 @@ and type_match_kind env info members : P4light.coq_Declaration * Checker_env.t =
 (* Section 7.2.1 *)
 and type_enum env info annotations (name: P4string.t) members : P4light.coq_Declaration * Checker_env.t =
   let enum_typ =
-    TypEnum (name, None, members)
+    TypEnum (name, Coq_inr members)
   in
   let add_member env (member: P4string.t) =
     let member_name: P4name.t =
@@ -3747,9 +3742,11 @@ and type_serializable_enum env ctx info annotations underlying_type
     | TypInt _ | TypBit _ -> underlying_type
     | _ -> raise_mismatch info "fixed width numeric type for enum" underlying_type
   in
-  let member_names = List.map ~f:fst members in
+  (* TODO: what to do with [members]?
+     Is there a [genv] equivalent? *)
+  let _ = List.map ~f:fst members in
   let enum_type: coq_P4Type =
-    TypEnum (name, Some underlying_type, member_names)
+    TypEnum (name, Coq_inl underlying_type)
   in
   let add_member (env, members_typed) ((member: P4string.t), expr) =
     let member_name: P4name.t =

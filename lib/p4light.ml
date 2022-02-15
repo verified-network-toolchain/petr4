@@ -1,5 +1,9 @@
 open Sexplib.Conv
 
+type ('a,'b) coq_sum =
+  [%import: ('a,'b) Poulet4.Datatypes.sum]
+[@@deriving sexp,show,yojson]
+
 type direction = [%import:Poulet4.Typed.direction]
   [@@deriving sexp,show,yojson]
 
@@ -23,13 +27,14 @@ type coq_ExprContext = [%import:Poulet4.Typed.coq_ExprContext]
   [@@deriving sexp,show,yojson]
 type 'a pre_P4Type =
   [%import:'a Poulet4.Typed.coq_P4Type
-    [@with name := P4name.pre_t;
-           Bigint.t := Util.bigint;
-           Poulet4.P4String.t := P4string.pre_t;
-           coq_ControlType := pre_ControlType;
-           coq_P4Parameter := pre_P4Parameter;
-           coq_FunctionType := pre_FunctionType;
-           Poulet4.P4String.coq_AList := pre_AListString]]
+          [@with name := P4name.pre_t;
+            Bigint.t := Util.bigint;
+            Poulet4.P4String.t := P4string.pre_t;
+            coq_ControlType := pre_ControlType;
+            coq_P4Parameter := pre_P4Parameter;
+            coq_FunctionType := pre_FunctionType;
+            Poulet4.Datatypes.sum := coq_sum;
+            Poulet4.P4String.coq_AList := pre_AListString]]
   [@@deriving sexp,show,yojson]
 and 'a pre_FunctionType =
   [%import:'a Poulet4.Typed.coq_FunctionType

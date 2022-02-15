@@ -142,7 +142,7 @@ let rec print_type p (typ : coq_P4Type) =
       failwith "unimplemented: print_type TypHeaderUnion"
   | TypStruct fields ->
       failwith "unimplemented: print_type TypStruct"
-  | TypEnum (s, typ, members) ->
+  | TypEnum (s, _) ->
       failwith "unimplemented: print_type TypEnum"
   | TypTypeName name ->
       fprintf p "@[<h>%a@]" print_string name.str

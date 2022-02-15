@@ -33,7 +33,7 @@ jobs:
           git add ci-test/type-checking/result/matched/*
           git add ci-test/type-checking/result/not-matched/*
           git status -uno
-          git commit -m "add result of type checking"
+          git commit -am "add result of type checking"
 #          git push origin
       - name: Push changes to git
         uses: ad-m/github-push-action@master

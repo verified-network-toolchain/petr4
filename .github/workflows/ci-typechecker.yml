@@ -27,10 +27,15 @@ jobs:
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash
 #       - uses: actions/checkout@v2
-      - name: add result of type checking to git repo
-        run: |
-          git config --local user.email "paris.ataei@gmail.com"
-          git status
+      - uses: EndBug/add-and-commit@v8
+        with:
+          add: . 
+          message: "add result of type checking"
+          push: true
+      # - name: add result of type checking to git repo
+      #   run: |
+      #     git config --local user.email "paris.ataei@gmail.com"
+      #     git status
 #           git add .
 #           git status -uno
 #           git commit -am "add result of type checking"

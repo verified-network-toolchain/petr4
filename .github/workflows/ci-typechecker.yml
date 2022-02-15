@@ -38,9 +38,8 @@ jobs:
           git status
           cp /petr4/ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 /petr4/ci-test/type-checking/result/not-matched/
           git add .
-#           git status -uno
+          git status 
           git commit -am "testing"
-#          add result of type checking
           git push origin
 #       - name: Push changes to git
 #         uses: ad-m/github-push-action@master

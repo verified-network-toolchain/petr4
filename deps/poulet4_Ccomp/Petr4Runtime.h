@@ -110,14 +110,13 @@ void extract_bool(packet_in *pkt, bool *data){
   }
   pkt->in ++;
 }
-void extract_bitvec(packet_in *pkt, BitVec *data){
+void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
   char val[data->width]; 
   for(int i = 0; i < data->width; i++){
     val[i] = (*(pkt->in)) + 48;
     pkt->in ++;
   }
-  init_bitvec(data, data->is_signed, data->width, val);
-  
+  init_bitvec(data, is_signed, width, val);
 }
 
 

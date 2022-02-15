@@ -124,18 +124,17 @@ Section InterpreterSafe.
     - cbn in H. destruct_optbind H. 2: inversion H. destruct_match H; [| inversion H].
       destruct_match H; inversion H; subst. econstructor; eauto.
     - cbn in H. destruct_optbind H. 2: inversion H. destruct p; inversion H.
-      clear H2. destruct typ0.
-      + destruct_match H. 2: inversion H.
-        destruct_match H; inversion H; subst; clear H. econstructor; eauto.
-      + destruct_match H; inversion H. subst. clear H. econstructor; eauto.
-        apply List.find_some in H1.
-        intuition.
-        apply List.in_map_iff.
-        exists t0.
-        split; auto.
-        symmetry.
-        apply eqb_eq.
-        auto.
+      clear H2.
+      repeat destruct_match H; inversion H;
+        subst; clear H; econstructor; eauto.
+      apply List.find_some in H2.
+      intuition.
+      apply List.in_map_iff.
+      exists t0.
+      split; auto.
+      symmetry.
+      apply eqb_eq.
+      auto.
     - simpl in H. inversion H. subst. constructor.
     - cbn in H. destruct_optbind H. 2: inversion H.
       destruct_match H; inversion H; subst; clear H. econstructor; eauto.

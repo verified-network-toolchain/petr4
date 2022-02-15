@@ -188,11 +188,11 @@ Section Interpreter.
     | ExpTypeMember typ_name member =>
       let* typ := IdentMap.get (str typ_name) (ge_typ ge) in
       match typ with
-      | TypEnum ename None members =>
+      | TypEnum ename (inr members) =>
         if List.find (equivb member) members
         then Some (ValBaseEnumField (str ename) (str member))
         else None
-      | TypEnum ename (Some etyp) members =>
+      | TypEnum ename (inl etyp) =>
         let* fields := IdentMap.get (str ename) (ge_senum ge) in
         let* sv := AList.get fields (str member) in
         Some (ValBaseSenumField (str ename) sv)

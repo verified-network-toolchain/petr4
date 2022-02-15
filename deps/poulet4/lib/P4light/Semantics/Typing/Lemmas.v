@@ -259,7 +259,7 @@ Section Lemmas.
                             <- ForallMap.Forall2_map_l in H;
                             eauto using Forall2_Forall_impl_Forall; assumption
                 end.
-    - inversion H0; subst; eauto.
+    - inv Heqo; eauto.
     - rewrite Forall_forall in H0.
       specialize H0 with (ge:=ge).
       rewrite <- Forall_forall in H0.
@@ -366,7 +366,6 @@ Section Lemmas.
                                     pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
                                     rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
                 end.
-    - inversion H0; subst; eauto.
     - rewrite Forall2_flip in H3,H4.
       eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
       assert (Hlenvsvs0 : length vs = length vs0)
@@ -716,8 +715,7 @@ Section Lemmas.
       eapply alist_ok_get_real_type_ex in Hxts as [ts' Hts']; eauto.
       autounfold with option_monad in *.
       rewrite Hts'; eauto.
-    - intros d X ot mems H Hot ge Hdge.
-      inversion Hot as [| t Ht]; subst; eauto.
+    - intros d X t H Ht ge Hdge.
       specialize Ht with (ge := IdentMap.remove (P4String.str X) ge).
       assert (HdX :
                 delta_genv_prop
@@ -957,11 +955,9 @@ Section Lemmas.
         autounfold with option_monad;
         try (intros; repeat match_some_inv;
              some_inv; eauto; assumption).
-    - intros d X t mems Ht IHt ge r Hge Hr.
-      destruct t as [t |]; inversion IHt; subst;
-        try match_some_inv; some_inv; eauto.
-      constructor; constructor; cbn.
-      apply H0 in Heqo; eauto.
+    - intros d X t Ht IHt ge r Hge Hr.
+      repeat match_some_inv; repeat some_inv;
+        eauto using delta_genv_prop_remove.
     - intros d X HXd ge r Hge Hr.
       unfold delta_genv_prop in Hge.
       rewrite Forall_forall in Hge.

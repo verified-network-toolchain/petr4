@@ -52,7 +52,7 @@ Section Typed.
   | TypHeader (fields: P4String.AList tags_t P4Type)
   | TypHeaderUnion (fields: P4String.AList tags_t P4Type)
   | TypStruct (fields: P4String.AList tags_t P4Type)
-  | TypEnum (name: P4String) (typ: option P4Type) (members: list P4String)
+  | TypEnum (name: P4String) (members: P4Type + list P4String)
   | TypTypeName (name: P4String)
   | TypNewType (name: P4String) (typ: P4Type)
   | TypControl (_: ControlType)
@@ -151,8 +151,11 @@ Section P4TypeInd.
       Forall (fun xt => P (snd xt)) xts -> P (TypHeaderUnion xts).
   Hypothesis HStruct : forall xts,
       Forall (fun xt => P (snd xt)) xts -> P (TypStruct xts).
-  Hypothesis HEnum : forall X t ms,
-      EquivUtil.predop P t -> P (TypEnum X t ms).
+  Hypothesis HEnum : forall X ms,
+      match ms with
+      | inl t => P t
+      | inr _ => True
+      end -> P (TypEnum X ms).
   Hypothesis HName : forall X, P (TypTypeName X).
   Hypothesis HNew : forall X t,
       P t -> P (TypNewType X t).
@@ -216,7 +219,8 @@ Section P4TypeInd.
     | TypHeader      ts => HHeader ts (AL ts)
     | TypHeaderUnion ts => HUnion  ts (AL ts)
     | TypStruct      ts => HStruct ts (AL ts)
-    | TypEnum X t ms    => HEnum X t ms (PO t)
+    | TypEnum X (inl t) => HEnum X (inl t) (my_P4Type_ind t)
+    | TypEnum X (inr m) => HEnum X (inr m) I
     | TypTypeName X     => HName X
     | TypNewType  X t   => HNew X t (my_P4Type_ind t)
     | TypControl ct     => HControl ct (my_ControlType_ind ct)

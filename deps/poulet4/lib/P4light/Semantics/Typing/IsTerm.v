@@ -61,10 +61,10 @@ Section Is.
       is_expr_typ (TypStruct ts)
   | is_enum X mems :
       length mems > 0 ->
-      is_expr_typ (TypEnum X None mems)
-  | is_senum X t mems :
+      is_expr_typ (TypEnum X (inr mems))
+  | is_senum X t :
       is_expr_typ t ->
-      is_expr_typ (TypEnum X (Some t) mems)
+      is_expr_typ (TypEnum X (inl t))
   | is_name X :
       is_expr_typ (TypTypeName X)
   | is_newtype X t :
@@ -242,10 +242,10 @@ Section IsInd.
         P (TypStruct ts).
     Hypothesis HEnum : forall X mems,
         length mems > 0 ->
-        P (TypEnum X None mems).
-    Hypothesis HSenum : forall X t mems,
+        P (TypEnum X (inr mems)).
+    Hypothesis HSenum : forall X t,
         is_expr_typ t ->
-        P t -> P (TypEnum X (Some t) mems).
+        P t -> P (TypEnum X (inl t)).
     Hypothesis HName : forall X, P (TypTypeName X).
     Hypothesis HNewType : forall X t,
         is_expr_typ t -> P t -> P (TypNewType X t).
@@ -296,7 +296,7 @@ Section IsInd.
         | is_name X        => HName X
         | is_newtype X _ H => HNewType X _ H (I _ H)
         | is_enum X _   H  => HEnum X _ H
-        | is_senum X _ ms H => HSenum X _ ms H (I _ H)
+        | is_senum X _ H   => HSenum X _ H (I _ H)
         end.
   End IsExprTypInd.
 

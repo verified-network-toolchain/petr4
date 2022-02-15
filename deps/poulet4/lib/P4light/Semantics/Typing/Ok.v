@@ -79,9 +79,11 @@ Inductive
 | struct_ok τs :
     Forall (fun xτ => Δ ⊢ok snd xτ) τs ->
     Δ ⊢ok TypStruct τs
-| enum_ok X τ mems :
-    predop (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) τ ->
-    Δ ⊢ok TypEnum X τ mems
+| enum_ok X mems :
+    Δ ⊢ok TypEnum X (inr mems)
+| senum_ok X τ :
+    remove_str (P4String.str X) Δ ⊢ok τ ->
+    Δ ⊢ok TypEnum X (inl τ)
 | typeName_ok X :
     List.In (P4String.str X) Δ ->
     Δ ⊢ok TypTypeName X
@@ -358,11 +360,13 @@ Section OkBoomerInd.
         Forall (fun t => Δ ⊢ok snd t) ts ->
         Forall (fun t => P Δ (snd t)) ts ->
         P Δ (TypStruct ts).
+
+    Hypothesis HEnum : forall Δ X mems, P Δ (TypEnum X (inr mems)).
     
-    Hypothesis HEnum : forall Δ X t mems,
-        predop (fun τ => remove_str (P4String.str X) Δ ⊢ok τ) t ->
-        predop (P (remove_str (P4String.str X) Δ)) t ->
-        P Δ (TypEnum X t mems).
+    Hypothesis HSEnum : forall Δ X t,
+        remove_str (P4String.str X) Δ ⊢ok t ->
+        P (remove_str (P4String.str X) Δ) t ->
+        P Δ (TypEnum X (inl t)).
     
     Hypothesis HName : forall Δ X,
         List.In (P4String.str X) Δ ->
@@ -504,7 +508,8 @@ Section OkBoomerInd.
       | header_ok _ _ H => HHeader _ _ H (my_P4Type_alist_ok H)
       | union_ok _ _ H => HUnion _ _ H (my_P4Type_alist_ok H)
       | struct_ok _ _ H => HStruct _ _ H (my_P4Type_alist_ok H)
-      | enum_ok _ X _ mems H => HEnum _ X _ mems H (my_P4Type_predop_ok H)
+      | enum_ok _ X mems => HEnum _ X mems
+      | senum_ok _ X _ H => HSEnum _ X _ H (my_P4Type_ok_ind _ _ H)
       | typeName_ok _ _ H => HName _ _ H
       | newType_ok _ _ _ H => HNewType _ _ _ H (my_P4Type_ok_ind _ _ H)
       | control_ok _ _ H => HControl _ _ H (my_ControlType_ok_ind _ _ H)

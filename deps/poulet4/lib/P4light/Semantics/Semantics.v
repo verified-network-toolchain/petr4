@@ -157,9 +157,10 @@ Fixpoint
          (fun '(a,t) => get_real_type get t >>| pair a)
          fields)
       >>| TypStruct
-  | TypEnum X (Some atyp) members =>
-    let^ realt := get_real_type (IdentMap.remove (str X) get) atyp in
-    TypEnum X (Some realt) members
+  | TypEnum X (inl atyp) =>
+    get_real_type
+      (IdentMap.remove (str X) get) atyp
+      >>| inl >>| TypEnum X
   | TypNewType X atyp => get_real_type (IdentMap.remove (str X) get) atyp
   | TypControl ctrl => get_real_ctrl get ctrl >>| TypControl
   | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
@@ -192,18 +193,18 @@ Fixpoint
                   (List.map str Xs) get))
             params) in
     TypConstructor Xs wildcards rps realret
-  | TypBool => Some TypBool
-  | TypString => Some TypString
-  | TypInteger => Some TypInteger
-  | TypInt w => Some (TypInt w)
-  | TypBit w => Some (TypBit w)
-  | TypVarBit w => Some (TypVarBit w)
-  | TypError => Some TypError
-  | TypMatchKind => Some TypMatchKind
-  | TypVoid => Some TypVoid
-  | TypExtern e => Some (TypExtern e)
-  | TypEnum a None b => Some (TypEnum a None b)
-  | TypTable a => Some (TypTable a)
+  | TypBool
+  | TypString
+  | TypInteger
+  | TypInt _
+  | TypBit _
+  | TypVarBit _
+  | TypError
+  | TypMatchKind
+  | TypVoid
+  | TypExtern _
+  | TypEnum _ (inr _)
+  | TypTable _ => Some typ
   end
 with get_real_param
        (get : genv_typ) (param: P4Parameter): option P4Parameter :=
@@ -437,14 +438,14 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
                      newsv
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
-                            IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename None members) ->
+                            IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename (inr members)) ->
                             List.In (str member) (List.map str members) ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))
   (* We need rethink about how to handle senum lookup. *)
-  | exec_expr_senum_member : forall tname member ename etyp members fields sv this st tag typ dir,
-                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename (Some etyp) members) ->
+  | exec_expr_senum_member : forall tname member ename etyp fields sv this st tag typ dir,
+                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename (inl etyp)) ->
                              IdentMap.get (str ename) (ge_senum ge) = Some fields ->
                              AList.get fields (str member) = Some sv ->
                              exec_expr read_one_bit this st
@@ -2086,7 +2087,7 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
   | DeclPackageType tags name type_params params =>
     Some (IdentMap.set (str name) (TypPackage type_params nil params) ge_typ)
   | DeclEnum tags name members =>
-    Some (IdentMap.set (str name) (TypEnum name None members) ge_typ)
+    Some (IdentMap.set (str name) (TypEnum name (inr members)) ge_typ)
   (* TODO: Do we need to consider the difference between DeclTypeDef
      and DeclNewType? *)
   | DeclTypeDef tags name (inl typ)

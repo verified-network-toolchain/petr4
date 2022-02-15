@@ -56,10 +56,10 @@ Inductive val_typ
 | typ_enumfield : forall ename member members,
     List.In (P4String.str member) (List.map P4String.str members) ->
     ⊢ᵥ ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member)
-     \: TypEnum ename None members
-| typ_senumfield : forall ename v t fields,
+     \: TypEnum ename (inr members)
+| typ_senumfield : forall ename v t,
     ⊢ᵥ v \: t ->
-    ⊢ᵥ ValBaseSenumField (P4String.str ename) v \: TypEnum ename (Some t) fields
+    ⊢ᵥ ValBaseSenumField (P4String.str ename) v \: TypEnum ename (inl t)
 where "'⊢ᵥ' v '\:' t" := (val_typ v t) : type_scope.
 
 (** Induction principle. *)
@@ -110,13 +110,13 @@ Section ValTypInd.
       List.In (P4String.str member) (List.map P4String.str members) ->
       P
         (ValBaseEnumField (P4String.str ename) (@P4String.str tags_t member))
-        (TypEnum ename None members).
-  Hypothesis HSenum : forall ename v t fields,
+        (TypEnum ename (inr members)).
+  Hypothesis HSenum : forall ename v t,
       val_typ v t ->
       P v t ->
       P
         (ValBaseSenumField (P4String.str ename) v)
-        (TypEnum ename (Some t) fields).
+        (TypEnum ename (inl t)).
   
   Definition custom_val_typ_ind :
     forall (v : V) (t : typ), val_typ v t -> P v t :=
@@ -161,8 +161,8 @@ Section ValTypInd.
       | typ_union _ _ U H => HUnion _ _ U H (alind H)
       | typ_array n _ _ l H => HArray n _ _ l H (same_typ_ind H)
       | typ_enumfield x _ _ H => HEnum x _ _ H
-      | typ_senumfield X _ _ ms Hv =>
-        HSenum X _ _ ms Hv (vtind _ _ Hv)
+      | typ_senumfield X _ _ Hv =>
+        HSenum X _ _ Hv (vtind _ _ Hv)
       end.
 End ValTypInd.
 

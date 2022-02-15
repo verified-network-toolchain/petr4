@@ -4,6 +4,8 @@ From Poulet4 Require Import P4light.Syntax.P4defs
 
 Import Result Syntax List ListNotations.
 
+(* commented out until refactor is complete.
+
 (* The Test Programs*)
 
 (* Test Lemma For simple_nat.p4*)
@@ -35,3 +37,4 @@ Proof.
   compute.
   trivial.
 Qed.
+*)

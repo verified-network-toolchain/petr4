@@ -52,6 +52,7 @@ Fixpoint sub_typs_P4Type
   | TypInt _
   | TypBit _
   | TypVarBit _
+  | TypEnum _ (inr _)
   | TypError
   | TypMatchKind
   | TypVoid
@@ -64,7 +65,7 @@ Fixpoint sub_typs_P4Type
   | TypSet τ                => TypSet (σ †t τ)
   | TypHeader τs            => TypHeader (almap (σ †t) τs)
   | TypHeaderUnion τs       => TypHeaderUnion (almap (σ †t) τs)
-  | TypEnum x τ mems        => TypEnum x (omap (σ †t) τ) mems
+  | TypEnum x (inl τ)       => TypEnum x (inl (σ †t τ))
   | TypNewType x τ          => TypNewType x (σ †t τ)
   | TypControl ct           => TypControl (σ †ct ct)
   | TypParser  ct           => TypParser  (σ †ct ct)
@@ -410,10 +411,10 @@ Fixpoint
   | DeclStruct _ {| P4String.str := T |} dfs
     => (σ ∋ T |-> TypStruct (lmap (σ ‡df) dfs), None)
   (* TODO: are enum cases correct? *)
-  | DeclEnum _ ({| P4String.str := T |} as X) xs
-    => (σ ∋ T |-> TypEnum X None xs, None)
+  | DeclEnum _ ({| P4String.str := T |} as X) mems
+    => (σ ∋ T |-> TypEnum X (inr mems), None)
   | DeclSerializableEnum i τ ({| P4String.str := T |} as X) es
-    => (σ ∋ T |-> TypEnum X (Some (σ †t τ)) (lmap fst es),
+    => (σ ∋ T |-> TypEnum X (inl (σ †t τ)),
        Some (DeclSerializableEnum i τ X (almap (σ †e) es)))
   | DeclExternObject i x Xs mtds
     => let σ' := σ ∖ (lmap P4String.str Xs) in

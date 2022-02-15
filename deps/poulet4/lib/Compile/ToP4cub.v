@@ -415,7 +415,8 @@ Section ToP4cub.
     | TypStruct fields =>
       let+ fields' := translate_fields fields in
       E.TStruct fields'
-    | TypEnum name typ members =>
+    | TypEnum _ (inl t) => translate_exp_type i t
+    | TypEnum name (inr members) =>
       ok (cub_type_of_enum members)
     | TypTypeName name => ok (E.TVar (P4String.str name))
     | TypNewType name typ =>
@@ -477,7 +478,7 @@ Section ToP4cub.
     | TypHeader _ => error "cannot get type name from Header"
     | TypHeaderUnion _ => error "cannot get type name from Header Union"
     | TypStruct _ => error "cannot get type name from struct"
-    | TypEnum _ _ _ => error "cannot get type name from enum"
+    | TypEnum _ _ => error "cannot get type name from enum"
     | TypTypeName str => ok str
     | TypNewType str _ => ok str
     | TypControl c => error "[FIXME] get name from control type"
@@ -581,7 +582,9 @@ Section ToP4cub.
       E.ECast typ' expr' i
     | ExpTypeMember _ name =>
       match typ with
-      | TypEnum _ _ members =>
+      | TypEnum _ (inl t) =>
+        error "[FIXME]: how to compile this? Maybe need [genv]?"
+      | TypEnum _ (inr members) =>
         let w := width_of_enum members in
         let+ n := get_enum_id members name in
         E.EBit (Npos (pos w)) (BinIntDef.Z.of_nat n) i
@@ -787,10 +790,13 @@ Section ToP4cub.
       error ("[ERROR] Couldnt find label [" ++ P4String.str label ++ "] in enum")
     end.
 
-  Definition get_enum_type (expression : @Expression tags_t) : result (list (P4String.t tags_t)) :=
+  Definition get_enum_type
+             (expression : @Expression tags_t)
+    : result (list (P4String.t tags_t)) :=
     let '(MkExpression tags pre_expr type dir) := expression in
     match type with
-    | TypEnum _ _ variants =>
+    | TypEnum _ (inl _) => error "[FIXME] how should this be used here?"
+    | TypEnum _ (inr variants) =>
       ok variants
     | _ =>
       error "could not get enum type from non-enum variant"

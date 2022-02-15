@@ -377,17 +377,18 @@ Section Ops.
         from senum to its underlying type and then a explicit cast from the underlying type to
         the final senum type. However, since the implicit cast of senum is incorrect in the
         typechecker, the direct cast between senums are also implemented. *) 
-  Definition enum_of_val  (name: string) (typ: option (@P4Type tags_t))
-                          (members: list (P4String.t tags_t)) (oldv : Val) : option Val :=
-  match typ, oldv with
-  | None, _ => None
-  | Some (TypBit w), ValBaseBit bits
-  | Some (TypBit w), ValBaseSenumField _ (ValBaseBit bits) => 
+  Definition enum_of_val
+             (name: string)
+             (members: (@P4Type tags_t) + list (P4String.t tags_t))
+             (oldv : Val) : option Val :=
+  match members, oldv with
+  | inl (TypBit w), ValBaseBit bits
+  | inl (TypBit w), ValBaseSenumField _ (ValBaseBit bits) => 
       if (w =? Z.to_N (Zlength bits))%N 
       then Some (ValBaseSenumField name (ValBaseBit bits))
       else None
-  | Some (TypInt w), ValBaseInt bits
-  | Some (TypInt w), ValBaseSenumField _ (ValBaseInt bits) =>
+  | inl (TypInt w), ValBaseInt bits
+  | inl (TypInt w), ValBaseSenumField _ (ValBaseInt bits) =>
       if (Z.to_N (Zlength bits) =? w)%N 
       then Some (ValBaseSenumField name (ValBaseInt bits))
       else None
@@ -456,7 +457,7 @@ Section Ops.
        2. Need to define name_to_type such that no loop is possible. 
        eval_cast name_to_typ (name_to_typ name) oldv *)
     | TypTypeName name => None
-    | TypEnum n typ mems => enum_of_val (str n) typ mems oldv
+    | TypEnum n mems => enum_of_val (str n) mems oldv
     | TypStruct fields =>
         match fields_of_val fields oldv with
         | Some fields' => Some (ValBaseStruct fields')

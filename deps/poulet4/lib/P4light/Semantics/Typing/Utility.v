@@ -54,9 +54,11 @@ Section Util.
   Inductive Eq_type : typ -> Prop :=
   | Eq_Error :
       Eq_type TypError
-  | Eq_Enum E t mems :
-      predop Eq_type t ->
-      Eq_type (TypEnum E t mems)
+  | Eq_Enum E mems :
+      Eq_type (TypEnum E (inr mems))
+  | Eq_Senum E t :
+      Eq_type t ->
+      Eq_type (TypEnum E (inl t))
   | Eq_Bool :
       Eq_type TypBool
   | Eq_Bit w :
@@ -168,7 +170,7 @@ Section Util.
       | TypBit _
       | TypInt _
       | TypInteger
-      | TypEnum _ (Some (TypBit _)) _ => True
+      | TypEnum _ (inl (TypBit _)) => True
       | _ => False
       end ->
       cast_type t (TypBit w)
@@ -178,19 +180,19 @@ Section Util.
       | TypBit _
       | TypInt _
       | TypInteger
-      | TypEnum _ (Some (TypInt _)) _ => True
+      | TypEnum _ (inl (TypInt _)) => True
       | _ => False
       end ->
       cast_type t (TypInt w)
-  | CTEnum t1 t2 enum fields :
+  | CTEnum t1 t2 enum :
       match t1, t2 with
       | TypBit _, TypBit _
       | TypInt _, TypInt _
-      | TypEnum _ (Some (TypBit _)) _, TypBit _
-      | TypEnum _ (Some (TypInt _)) _, TypInt _ => True
+      | TypEnum _ (inl (TypBit _)), TypBit _
+      | TypEnum _ (inl (TypInt _)), TypInt _ => True
       | _, _ => False
       end ->
-      cast_type t1 (TypEnum enum (Some t2) fields)
+      cast_type t1 (TypEnum enum (inl t2))
   | CTNewType x t t' :
       cast_type t t' ->
       cast_type t (TypNewType x t')
@@ -250,6 +252,7 @@ Section Util.
     | TypInt _
     | TypBit _
     | TypVarBit _
+    | TypEnum _ (inr _)
     | TypError
     | TypMatchKind
     | TypVoid
@@ -264,7 +267,7 @@ Section Util.
     | TypSet    t  => TypSet (normᵗ t)
     | TypHeader ts => TypHeader (map (fun '(x,t) => (x, normᵗ t)) ts)
     | TypHeaderUnion ts => TypHeaderUnion (map (fun '(x,t) => (x, normᵗ t)) ts)
-    | TypEnum X t ms    => TypEnum X (option_map normᵗ t) ms
+    | TypEnum X (inl t) => TypEnum X (inl (normᵗ t))
     | TypNewType _ t    => normᵗ t
     | TypControl ct             => TypControl (normᶜ ct)
     | TypParser  ct             => TypParser  (normᶜ ct)
@@ -305,10 +308,10 @@ Section EqTypeInd.
   Variable P : typ -> Prop.
 
   Hypothesis HError : P TypError.
-  Hypothesis HEnum : forall E t mems,
-      predop Eq_type t ->
-      predop P t ->
-      P (TypEnum E t mems).
+  Hypothesis HEnum : forall E mems, P (TypEnum E (inr mems)).
+  Hypothesis HSEnum : forall E t,
+      Eq_type t -> P t ->
+      P (TypEnum E (inl t)).
   Hypothesis HBool : P TypBool.
   Hypothesis HBit : forall w, P (TypBit w).
   Hypothesis HInt : forall w, P (TypInt w).
@@ -338,11 +341,6 @@ Section EqTypeInd.
   Definition my_Eq_type_ind :
     forall t : typ, Eq_type t -> P t :=
     fix I t H :=
-      let PI {t} (H: predop Eq_type t) : predop P t :=
-          match H with
-          | predop_none _     => predop_none _
-          | predop_some _ _ H => predop_some _ _ (I _ H)
-          end in
       let fix LI {ts} (H: Forall Eq_type ts) : Forall P ts :=
           match H with
           | Forall_nil _        => Forall_nil _
@@ -356,7 +354,8 @@ Section EqTypeInd.
           end in
       match H with
       | Eq_Error        => HError
-      | Eq_Enum E _ m H => HEnum E _ m H (PI H)
+      | Eq_Enum E m     => HEnum E m
+      | Eq_Senum E _ H  => HSEnum E _ H (I _ H)
       | Eq_Bool         => HBool
       | Eq_Bit w        => HBit w
       | Eq_Int w        => HInt w
@@ -416,8 +415,7 @@ Section Lemmas.
                   rewrite <- Forall_map with (g:=snd) in *;
                   rewrite map_snd_map; rw_Forall_map H; assumption
             end.
-    - inversion H0; subst; cbn in *; auto.
-    - rw_Forall_map H0; auto.
+    rw_Forall_map H0; auto.
   Qed.
 
   Local Hint Resolve Eq_type_normᵗ : core.
@@ -562,7 +560,7 @@ Section Lemmas.
         | xts Uxts Hxts IHxts (* union *)
         | xts Uxts Hxts IHxts (* struct *)
         | X ms Hms       (* enum *)
-        | X t ms Ht IHt (* senum *)
+        | X t Ht IHt (* senum *)
         | X (* name *)
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind;
@@ -639,7 +637,8 @@ Section Lemmas.
       normᶠ_idem_def,normᵖ_idem_def; cbn in *;
         try (intros; f_equal; eauto; assumption);
         try list_idem; try alist_idem; eauto.
-    - intros X [t |] ms H; inversion H; subst; cbn; do 2 f_equal; auto.
+    - intros X [t | ms] H; inv H; cbn; do 2 f_equal; auto.
+      rewrite H1; assumption.
     - intros ds cs Hds Hcs.
       apply map_ext_Forall in Hds, Hcs.
       repeat rewrite map_map; f_equal; auto.
@@ -668,6 +667,11 @@ Section Lemmas.
       => apply (my_P4Type_ind
                  tags_t (fun t => ty = normᵗ t -> is_expr_typ t)
                  (fun _ => True) (fun _ => True) (fun _ => True)); cbn;
+        try (intros;
+             match goal with
+               H: context [match ?w with inl _ => _ | inr _ => _ end]
+               |- _ => destruct w; cbn in *; try discriminate
+             end);
         try discriminate; auto
     end.
 
@@ -724,23 +728,14 @@ Section Lemmas.
         | xts Uxts Hxts IHxts (* union *)
         | xts Uxts Hxts IHxts (* struct *)
         | X ms Hms       (* enum *)
-        | X t ms Ht IHt (* senum *)
+        | X t Ht IHt (* senum *)
         | X (* name *)
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind; auto 3.
     - bruh.
-      intros ty w IHty H.
-      inversion H; subst; auto.
-    - bruh.
-      intros Y t' l IHt' Ht'.
-      injection Ht' as ? ? ?; subst.
-      destruct t' as [t |]; cbn in *; try discriminate; auto.
-    - bruh.
-      intros Y t' l IHt' Ht'.
-      injection Ht' as ? ? ?; subst.
-      inversion IHt'; subst;
-        cbn in *; try discriminate; auto.
-      inversion H0; subst; auto.
+      intros ty w IHty H. inv H; auto.
+    - bruh. inv H0; auto.
+    - bruh. inv H0; auto.
   Qed.
 
   Definition uninit_sval_of_typ_norm_def (t : typ) :=
@@ -786,8 +781,7 @@ Section Lemmas.
         try list_uninit_norm; try alist_uninit_norm; auto.
     - intros t n IH b.
       destruct (0 <? n)%N eqn:H0n; f_equal; auto.
-    - intros [iX X] [t |] [| [iM M] ms] H b;
-        inversion H; subst; simpl in *; f_equal; eauto.
+    - intros [iX X] [t | [| [iM M] ms]] H b; cbn in *; f_equal; eauto.
   Qed.
 
   Local Hint Constructors member_type : core.
@@ -796,6 +790,6 @@ Section Lemmas.
       member_type ts t ->
       member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t).
   Proof.
-    intros ts t H; inversion H; subst; cbn; auto.
+    intros ts t H; inv H; cbn; auto.
   Qed.
 End Lemmas.

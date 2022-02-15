@@ -3,6 +3,8 @@ Open Scope string_scope.
 
 Import ListNotations.
 
+(* TODO: commented out until refactor is complete.
+
 Definition decl'1 := DeclError NoInfo
     [{| stags := NoInfo; str := "NoError" |};
      {| stags := NoInfo; str := "PacketTooShort" |};
@@ -4414,4 +4416,4 @@ Definition prog := Program
      ParserImpl; egress; ingress; DeparserImpl; verifyChecksum;
      computeChecksum; main].
 
-
+*)

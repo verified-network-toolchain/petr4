@@ -213,7 +213,7 @@ Section ValueUtil.
            (fun '({| P4String.str := x |}, t) =>
               uninit_sval_of_typ hvalid t >>| pair x)
            fields) >>| ValBaseStruct
-    | TypEnum tname None (mem :: _) =>
+    | TypEnum tname (inr (mem :: _)) =>
       Some (ValBaseEnumField (str tname) (str mem))
     | TypNewType _ typ' => uninit_sval_of_typ hvalid typ'
     (* TypTypeName should have been already resolved *)
@@ -227,7 +227,7 @@ Section ValueUtil.
        The current implementation follows the option 2.
        Rudy's note: attempt create a default [ValBaseSenumField]
        for type preservation proof. *)
-    | TypEnum {| P4String.str := X |} (Some typ') _ =>
+    | TypEnum {| P4String.str := X |} (inl typ') =>
       uninit_sval_of_typ hvalid typ' >>| ValBaseSenumField X
     (* The P4Spec does not specify the unintialized values for the following types,
        so we use the default values for now. (7.3.)

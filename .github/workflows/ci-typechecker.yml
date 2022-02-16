@@ -41,6 +41,7 @@ jobs:
           git status 
           git commit -am "testing"
           git status
+          pwd
           ls -la
           git push origin
 #       - name: Push changes to git

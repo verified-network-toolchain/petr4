@@ -31,33 +31,33 @@ for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.
 do
   # gets the result of type checking from petr4 and p4c, stores them in
   # variables and compares them
-  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
-  petr4_type_stat=$?
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
-  # 2>&1
-  p4c_type_stat=$?
-  # cp "$file" ci-test/type-checking/result/matched
-  if [$petr4_type_stat eq 0]
-  then 
-    if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/matched
-    else cp "$file" ci-test/type-checking/result/not-matched
-    fi
-  else 
-    if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/not-matched
-    else cp "$file" ci-test/type-checking/result/matched
-    fi
-  fi
+  # petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
+  # petr4_type_stat=$?
+  # p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
+  # # 2>&1
+  # p4c_type_stat=$?
+  # # cp "$file" ci-test/type-checking/result/matched
+  # if [$petr4_type_stat eq 0]
+  # then 
+  #   if [$p4c_type_stat eq 0]
+  #   then cp "$file" ci-test/type-checking/result/matched
+  #   else cp "$file" ci-test/type-checking/result/not-matched
+  #   fi
+  # else 
+  #   if [$p4c_type_stat eq 0]
+  #   then cp "$file" ci-test/type-checking/result/not-matched
+  #   else cp "$file" ci-test/type-checking/result/matched
+  #   fi
+  # fi
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
-  # echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   # echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
 done

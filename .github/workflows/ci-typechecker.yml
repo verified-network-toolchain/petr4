@@ -40,7 +40,7 @@ jobs:
           git status
           git add .
           git status
-          git commit -am "compare exit code of p4c and petr4 type checking"
+          git commit -am "look into type of progs gen by p4c and petr4"
           git status
           pwd
           ls -la

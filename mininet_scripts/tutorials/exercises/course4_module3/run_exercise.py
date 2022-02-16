@@ -182,8 +182,8 @@ class ExerciseRunner:
         # wait for that to finish. Not sure how to do this better
         sleep(1)
 
+        self.do_experiment()
         self.do_net_cli()
-        #self.do_experiment()
        
         # stop right after the CLI is exited
         self.net.stop()
@@ -193,104 +193,13 @@ class ExerciseRunner:
         hosts = []
         for i in range(4):
             hosts.append(self.net.get("h%d" % (i + 1)))
-           
-        unit = 15
+      
+        for i in range(4):
+            hosts[i].cmd("> stats/h%d.txt" % (i + 1))           
 
-        hosts[2].cmd("python tg_scripts/receive.py &") 
-        hosts[3].cmd("python tg_scripts/receive.py &")
- 
-        hosts[0].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (2 * unit))
-        hosts[1].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (2 * unit))
+        hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h1.txt &")
+        sleep(20)
         
-        hosts[1].cmd("python tg_scripts/send.py 10.0.4.4 %d &" % (unit))
-        hosts[0].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (unit))
-        hosts[3].cmd("python tg_scripts/send.py 10.0.3.3 %d &" % (unit))
-
-        sleep(40)
-
-        # show results
-        h3_flows = {}
-        f = open("tg_scripts/stats/receiver_10.0.3.3.txt", 'r')
-        for line in f.readlines():
-            parts = line.split()
-            srcip = parts[0]
-            last_pkt_time = float(parts[2])
-            pkt_cnt = int(parts[3])
-            
-            if srcip == "10.0.2.2" and pkt_cnt < 2 * unit:
-                print "pkt drops from 10.0.2.2 to 10.0.3.3"
-            elif (srcip == "10.0.1.1" or srcip == "10.0.4.4") and pkt_cnt < unit:
-                print 'pkt drops from %s to 10.0.3.3' % scrip
-
-            h3_flows[srcip] = last_pkt_time 
-            
-        f.close()
-
-        h4_flows = {}
-        f = open("tg_scripts/stats/receiver_10.0.4.4.txt", 'r')
-        for line in f.readlines():
-            parts = line.split()
-            srcip = parts[0]
-            last_pkt_time = float(parts[2])
-            pkt_cnt = int(parts[3])
-            
-            if srcip == "10.0.1.1" and pkt_cnt < 2 * unit:
-                print "pkt drops from 10.0.1.1 to 10.0.4.4"
-            elif srcip == "10.0.2.2" and pkt_cnt < unit:
-                print 'pkt drops from 10.0.2.2 to 10.0.4.4'
-
-            h4_flows[srcip] = last_pkt_time 
-            
-        f.close()
-
-        sum_fct = 0
-
-        # h1 to h3
-        f = open("tg_scripts/stats/sender_10.0.1.1_10.0.3.3.txt", 'r')
-        parts = f.readlines()[0].split()
-        first_pkt_time = float(parts[0])
-        fct = (h3_flows["10.0.1.1"] - first_pkt_time) 
-        print "h1 -> h3:", fct , "ms"
-        sum_fct += fct
-        f.close() 
-
-        # h2 to h3
-        f = open("tg_scripts/stats/sender_10.0.2.2_10.0.3.3.txt", 'r')
-        parts = f.readlines()[0].split()
-        first_pkt_time = float(parts[0])
-        fct = (h3_flows["10.0.2.2"] - first_pkt_time) 
-        print "h2 -> h3:", fct , "ms"
-        sum_fct += fct
-        f.close() 
-        
-        # h4 to h3
-        f = open("tg_scripts/stats/sender_10.0.4.4_10.0.3.3.txt", 'r')
-        parts = f.readlines()[0].split()
-        first_pkt_time = float(parts[0])
-        fct = (h3_flows["10.0.4.4"] - first_pkt_time) 
-        print "h4 -> h3:", fct , "ms"
-        sum_fct += fct
-        f.close() 
-
-        # h1 to h4
-        f = open("tg_scripts/stats/sender_10.0.1.1_10.0.4.4.txt", 'r')
-        parts = f.readlines()[0].split()
-        first_pkt_time = float(parts[0])
-        fct = (h4_flows["10.0.1.1"] - first_pkt_time) 
-        print "h1 -> h4:", fct , "ms"
-        sum_fct += fct
-        f.close() 
-
-        # h2 to h4
-        f = open("tg_scripts/stats/sender_10.0.2.2_10.0.4.4.txt", 'r')
-        parts = f.readlines()[0].split()
-        first_pkt_time = float(parts[0])
-        fct = (h4_flows["10.0.2.2"] - first_pkt_time) 
-        print "h2 -> h4:", fct , "ms"
-        sum_fct += fct
-        f.close() 
-
-        print "average fct:", (sum_fct/5)
 
     def parse_links(self, unparsed_links):
         """ Given a list of links descriptions of the form [node1, node2, latency, bandwidth]

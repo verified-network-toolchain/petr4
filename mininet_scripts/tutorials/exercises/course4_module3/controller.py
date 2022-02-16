@@ -4,6 +4,7 @@ from topo import *
 from petr4.runtime import *
 from tornado.ioloop import *
 import sys
+import signal
 
 class MyApp(App):
   def init_topo(self):
@@ -59,7 +60,46 @@ class MyApp(App):
     topo.add_link("s2", "s3", 6, 1, 1)
 
     self.topo = topo
-  
+
+  def change_server_cnt(self, cnt):
+    assert(isinstance(cnt, int))
+    
+    entry = Entry("active_server_cnt", [("meta.ph_key", "1")], "set_active_server_cnt", [("cnt", str(cnt))])
+    self.insert("s3", entry)
+
+    change_time = time.time()
+    elapsed = change_time - self.prev_server_bill_update
+    self.server_bill += elapsed * self.server_cnt 
+    
+    self.server_cnt = cnt
+    self.prev_server_bill_update = change_time
+
+  def change_fw_cnt(self, cnt):
+    assert(isinstance(cnt, int))
+
+    entry = Entry("active_fw_cnt", [("meta.ph_key", "1")], "set_active_fw_cnt", [("cnt", str(cnt))])
+    self.insert("s2", entry)
+
+    change_time = time.time()
+    elapsed = change_time - self.prev_fw_bill_update
+    self.fw_bill += elapsed * self.fw_cnt
+
+    self.fw_cnt = cnt
+    self.prev_fw_bill_update = change_time
+
+  def update_bills(self):
+    # servers
+    change_time = time.time()
+    elapsed = change_time - self.prev_server_bill_update
+    self.server_bill += elapsed * self.server_cnt 
+    self.prev_server_bill_update = change_time
+
+    # firewalls
+    change_time = time.time()
+    elapsed = change_time - self.prev_fw_bill_update
+    self.fw_bill += elapsed * self.fw_cnt
+    self.prev_fw_bill_update = change_time
+
   def init_counters(self):
     self.cntrs = {}
     self.port_cnt = {}
@@ -75,6 +115,14 @@ class MyApp(App):
     self.init_topo()
     self.init_counters()
     self.up_switch_cnt = 0
+    
+    self.server_cnt = 1
+    self.server_bill = 0
+    self.prev_server_bill_update = time.time()
+    
+    self.fw_cnt = 1
+    self.fw_bill = 0
+    self.prev_fw_bill_update = time.time()
 
   def print_counters(self):
     for switch in self.cntrs:
@@ -95,7 +143,7 @@ class MyApp(App):
       
   def counter_response(self, switch, name, index, count):
     self.cntrs[switch][index] = count
-   
+  
   def switch_up(self,switch,ports):
     print(f"{switch} is up!")
     
@@ -108,12 +156,12 @@ class MyApp(App):
             self.insert(switch, entry)
             
     if switch == "s2":
-        cnt = "4"
+        cnt = str(self.fw_cnt)
         entry = Entry("active_fw_cnt", [("meta.ph_key", "1")], "set_active_fw_cnt", [("cnt", cnt)])
         self.insert(switch, entry)
  
     if switch == "s3":
-        cnt = "4"
+        cnt = str(self.server_cnt)
         entry = Entry("active_server_cnt", [("meta.ph_key", "1")], "set_active_server_cnt", [("cnt", cnt)])
         self.insert(switch, entry)
 
@@ -132,8 +180,16 @@ class MyApp(App):
     self.up_switch_cnt += 1
     if (self.up_switch_cnt == 3):
         self.poll_counters()
+    
     return
 
 app = MyApp()
+def sigint_handler(sig, frame):
+    app.update_bills()
+    print(f"{app.server_bill} {app.fw_bill}") 
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, sigint_handler)
 app.start()
+
 

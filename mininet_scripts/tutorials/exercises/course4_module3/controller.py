@@ -61,6 +61,62 @@ class MyApp(App):
 
     self.topo = topo
 
+  
+  def init_counters(self):
+    self.cntrs = {}
+    self.port_cnt = {}
+    for switch in self.topo.switches():
+        self.cntrs[switch] = {}
+        ports = len(list(self.topo.neighbors(switch)))
+        self.port_cnt[switch] = ports 
+        for i in range(ports):
+            self.cntrs[switch][i] = 0
+         
+  def __init__(self, port=9000):
+    super().__init__(port)
+    self.init_topo()
+    self.init_counters()
+    self.up_switch_cnt = 0
+    
+    self.server_cnt = 1
+    self.server_bill = 0
+    self.prev_server_bill_update = time.time()
+    
+    self.fw_cnt = 1
+    self.fw_bill = 0
+    self.prev_fw_bill_update = time.time()
+
+    # clear stats files
+    for i in range(4):
+        f = open(f"stats/h{i + 1}.txt", "w")
+        f.close()
+
+    f = open("stats/bills.txt", "w")
+    f.close()
+
+  def get_latency_stats(self):
+    ok = 0.0
+    not_ok = 0.0
+    time_sum = 0.0
+
+    for i in range(4):
+        f = open(f"stats/h{i + 1}.txt", "r")
+        lines = f.readlines()
+        f.close()
+        for line in lines:
+          parts = [x.strip() for x in line.split()]
+          if len(parts) != 3:
+              continue
+
+          parts = [float(x) for x in parts]
+          time_sum += parts[0]
+          ok += parts[1]
+          not_ok += parts[2]          
+
+    average_time = time_sum/ok if ok > 0 else 0
+    fail_fraction = not_ok/(ok + not_ok) if (ok + not_ok) > 0 else 0
+    return (average_time, fail_fraction)
+    
   def change_server_cnt(self, cnt):
     assert(isinstance(cnt, int))
     
@@ -100,36 +156,19 @@ class MyApp(App):
     self.fw_bill += elapsed * self.fw_cnt
     self.prev_fw_bill_update = change_time
 
-  def init_counters(self):
-    self.cntrs = {}
-    self.port_cnt = {}
-    for switch in self.topo.switches():
-        self.cntrs[switch] = {}
-        ports = len(list(self.topo.neighbors(switch)))
-        self.port_cnt[switch] = ports 
-        for i in range(ports):
-            self.cntrs[switch][i] = 0
-         
-  def __init__(self, port=9000):
-    super().__init__(port)
-    self.init_topo()
-    self.init_counters()
-    self.up_switch_cnt = 0
-    
-    self.server_cnt = 1
-    self.server_bill = 0
-    self.prev_server_bill_update = time.time()
-    
-    self.fw_cnt = 1
-    self.fw_bill = 0
-    self.prev_fw_bill_update = time.time()
-
   def print_counters(self):
     for switch in self.cntrs:
         print(f"{switch} countrs:")
         for port in self.cntrs[switch]:
             print(f"{port + 1}: {self.cntrs[switch][port]}")
         print("---------------")
+
+  def elastic_scaling(self):
+    def f():
+      print(f"latency stats: {self.get_latency_stats()}")
+      IOLoop.instance().call_later(delay = 10, callback = f)
+      
+    f()
  
   def poll_counters(self):
     def f():
@@ -180,13 +219,16 @@ class MyApp(App):
     self.up_switch_cnt += 1
     if (self.up_switch_cnt == 3):
         self.poll_counters()
-    
+        self.elastic_scaling()
+ 
     return
 
 app = MyApp()
 def sigint_handler(sig, frame):
     app.update_bills()
-    print(f"{app.server_bill} {app.fw_bill}") 
+    f = open("stats/bills.txt", "w")
+    f.write(f"{app.server_bill} {app.fw_bill}")
+    f.close()
     sys.exit(0)
 
 signal.signal(signal.SIGINT, sigint_handler)

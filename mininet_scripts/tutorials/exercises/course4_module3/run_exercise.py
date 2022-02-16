@@ -183,7 +183,7 @@ class ExerciseRunner:
         sleep(1)
 
         self.do_experiment()
-        self.do_net_cli()
+        #self.do_net_cli()
        
         # stop right after the CLI is exited
         self.net.stop()
@@ -198,7 +198,9 @@ class ExerciseRunner:
             hosts[i].cmd("> stats/h%d.txt" % (i + 1))           
 
         hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h1.txt &")
-        sleep(20)
+        hosts[1].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h2.txt &")
+        hosts[2].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h3.txt &")
+        sleep(40)
         
 
     def parse_links(self, unparsed_links):

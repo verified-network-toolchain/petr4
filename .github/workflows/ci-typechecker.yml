@@ -36,14 +36,9 @@ jobs:
         run: |
           git config --local user.email "paris.ataei@gmail.com"
           git config --local user.name  "Github Action Bot GO!"
-          git --version
           git status
           git add .
-          git status 
-          git commit -am "testing"
-          git status
-          pwd
-          ls -la
+          git commit -am "compare exit code of p4c and petr4 type checking"
           git push origin
 #       - name: Push changes to git
 #         uses: ad-m/github-push-action@master

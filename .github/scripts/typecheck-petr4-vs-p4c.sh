@@ -33,7 +33,7 @@ do
   # fi
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
-  echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  echo "$file" > ci-test/type-checking/result/lookinto/"${file##*/}.out"
   # echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
   # cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
   # echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"

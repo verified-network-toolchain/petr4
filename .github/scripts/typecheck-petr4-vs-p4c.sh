@@ -9,7 +9,7 @@ set -x # Make command execution verbose
 # ls -la
 # echo "foo bar baz" > ci-test/type-checking/result/lookinto/tired
 
-cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test/type-checking/result/matched
+cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test/type-checking/result/matched/
 
 # if [2 eq 0]
 # then 

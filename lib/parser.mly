@@ -14,15 +14,13 @@
  *)
 
 %{
-module Petr4 = struct end
-open Surface
+module P4Info = Info
+
 open Core_kernel
 open Context
-<<<<<<< HEAD
 open Types
-=======
-open P4string
->>>>>>> 62cd2770 (wip fix menhir build errors)
+
+module Info = P4Info
 
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
@@ -32,15 +30,10 @@ let rec smash_annotations l tok2 =
   | [] ->
      [tok2]
   | [tok1] ->
-<<<<<<< HEAD
      let i1,str1 = tok1 in
      let i2,str2 = tok2 in
      if Info.follows i1 i2 then
        [(Info.merge i1 i2, str1 ^ str2)]
-=======
-     if P4info.follows tok1.tags tok2.tags then
-       [{tags = P4info.merge tok1.tags tok2.tags; str = tok1.str ^ tok2.str}]
->>>>>>> 62cd2770 (wip fix menhir build errors)
      else
        [tok1; tok2]
   | h::t -> h::smash_annotations t tok2
@@ -48,9 +41,8 @@ let rec smash_annotations l tok2 =
 %}
 
 (*************************** TOKENS *******************************)
-%token<P4info.t> END
+%token<Info.t> END
 %token TYPENAME IDENTIFIER
-<<<<<<< HEAD
 %token<Types.P4String.t> NAME STRING_LITERAL
 %token<Types.P4Int.t * string> INTEGER
 %token<Info.t> LE GE SHL AND OR NE EQ
@@ -68,25 +60,6 @@ let rec smash_annotations l tok2 =
 %token<Info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
 %token<Info.t> PRAGMA PRAGMA_END
 %token<Types.P4String.t> UNEXPECTED_TOKEN
-=======
-%token<P4string.t> NAME STRING_LITERAL
-%token<P4int.t * string> INTEGER
-%token<P4info.t> LE GE SHL AND OR NE EQ
-%token<P4info.t> PLUS MINUS PLUS_SAT MINUS_SAT MUL DIV MOD
-%token<P4info.t> BIT_OR BIT_AND BIT_XOR COMPLEMENT
-%token<P4info.t> L_BRACKET R_BRACKET L_BRACE R_BRACE L_ANGLE R_ANGLE R_ANGLE_SHIFT L_PAREN R_PAREN
-%token<P4info.t> ASSIGN COLON COMMA QUESTION DOT NOT SEMICOLON
-%token<P4info.t> AT PLUSPLUS
-%token<P4info.t> DONTCARE
-%token<P4info.t> MASK RANGE
-%token<P4info.t> TRUE FALSE
-%token<P4info.t> ABSTRACT ACTION ACTIONS APPLY BOOL BIT CONST CONTROL DEFAULT
-%token<P4info.t> ELSE ENTRIES ENUM ERROR EXIT EXTERN HEADER HEADER_UNION IF IN INOUT
-%token<P4info.t> INT KEY SELECT MATCH_KIND OUT PACKAGE PARSER RETURN STATE STRING STRUCT
-%token<P4info.t> SWITCH TABLE THEN TRANSITION TUPLE TYPE TYPEDEF VARBIT VALUESET VOID
-%token<P4info.t> PRAGMA PRAGMA_END
-%token<P4string.t> UNEXPECTED_TOKEN
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 (********************** PRIORITY AND ASSOCIATIVITY ************************)
 %right THEN ELSE   (* Precedence of THEN token is artificial *)
@@ -107,16 +80,9 @@ let rec smash_annotations l tok2 =
 %left DOT
 
 
-<<<<<<< HEAD
 %start <Types.program> p4program
 %start <Types.Declaration.t> variableDeclaration
 %start <Types.Declaration.t> typeDeclaration
-=======
-%type <Table.action_ref> actionRef
-%start <Surface.program> p4program
-%start <Surface.Declaration.t> variableDeclaration
-%start <Surface.Declaration.t> typeDeclaration
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 %%
 
@@ -238,11 +204,7 @@ list(X):
 
 (**************************** P4-16 GRAMMAR ******************************)
 
-<<<<<<< HEAD
 p4program : ds = topDeclarationList END { Program(ds) };
-=======
-p4program : ds = topDeclarationList END { Surface.P4lightram(ds) };
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 topDeclarationList:
 | (* empty *) { [] }
@@ -256,19 +218,19 @@ topDeclaration:
 | e = externDeclaration
     { e }
 | a = actionDeclaration
-    { declare_var (Surface.Declaration.name a);
+    { declare_var (Declaration.name a);
       a }
 | p = parserDeclaration
-    { declare_type (Surface.Declaration.name p);
+    { declare_type (Declaration.name p);
       p }
 | c = controlDeclaration
-    { declare_type (Surface.Declaration.name c);
+    { declare_type (Declaration.name c);
       c }
 | i = instantiation
-    { declare_var (Surface.Declaration.name i);
+    { declare_var (Declaration.name i);
       i }
 | t = typeDeclaration
-    { declare_type (Surface.Declaration.name t);
+    { declare_type (Declaration.name t);
       t }
 | e = errorDeclaration
     { (* declare_type (Declaration.name e); *)
@@ -276,7 +238,7 @@ topDeclaration:
 | m = matchKindDeclaration
     { m }
 | f = functionDeclaration
-    { declare_var (Surface.Declaration.name f);
+    { declare_var (Declaration.name f);
       f }
 ;
 
@@ -322,37 +284,30 @@ annotations:
 
 annotation:
 | info1 = AT name = name
-<<<<<<< HEAD
     { let info2 = info name in
       let body = (info2, Annotation.Empty) in 
       (Info.merge info1 info2,
        Annotation.{ name; body } ) }
-=======
-    { let info2 = name.tags in
-      let body = (info2, Surface.Annotation.Empty) in 
-      (P4info.merge info1 info2,
-       Surface.Annotation.{ name; body } ) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 | info1 = AT name = name info2 = L_PAREN body = annotationBody info3 = R_PAREN
-    { let body = (P4info.merge info2 info3, Surface.Annotation.Unparsed(body)) in
-      (P4info.merge info1 info3, 
-       Surface.Annotation.{ name; body }) }
+    { let body = (Info.merge info2 info3, Annotation.Unparsed(body)) in
+      (Info.merge info1 info3, 
+       Annotation.{ name; body }) }
 
 | info1 = AT name = name info2 = L_BRACKET body = expressionList info3 = R_BRACKET
-    { let body = (P4info.merge info2 info3, Surface.Annotation.Expression(body)) in
-      (P4info.merge info1 info3, 
-       Surface.Annotation.{ name; body }) }
+    { let body = (Info.merge info2 info3, Annotation.Expression(body)) in
+      (Info.merge info1 info3, 
+       Annotation.{ name; body }) }
 
 | info1 = AT name = name info2 = L_BRACKET body = kvList info3 = R_BRACKET
-    { let body = (P4info.merge info2 info3, Surface.Annotation.KeyValue(body)) in
-      (P4info.merge info1 info3,
-       Surface.Annotation.{ name; body }) }
+    { let body = (Info.merge info2 info3, Annotation.KeyValue(body)) in
+      (Info.merge info1 info3,
+       Annotation.{ name; body }) }
 
 | info1 = PRAGMA name = name body = annotationBody info2 = PRAGMA_END
-    { let body = (P4info.merge info2 info2, Surface.Annotation.Unparsed(body)) in
-       (P4info.merge info1 info2, 
-       Surface.Annotation.{ name; body }) }
+    { let body = (Info.merge info2 info2, Annotation.Unparsed(body)) in
+       (Info.merge info1 info2, 
+       Annotation.{ name; body }) }
 ;
 
 annotationBody:
@@ -456,7 +411,7 @@ annotationToken:
 
 parameterList:
 | params = separated_list(COMMA, parameter)
-    { let names = List.map ~f:(fun (_,p) -> p.Surface.Parameter.variable) params in
+    { let names = List.map ~f:(fun (_,p) -> p.Parameter.variable) params in
       declare_vars names; params }
 ;
 
@@ -464,36 +419,24 @@ parameter:
 | annotations = optAnnotations direction = direction typ = typeRef variable = name
     { let info1 =
         match direction with
-<<<<<<< HEAD
         | None -> info typ
         | Some dir -> info dir in
       (Info.merge info1 (info variable),
-=======
-        | None -> Surface.info typ
-        | Some dir -> Surface.info dir in
-      (P4info.merge info1 variable.tags,
->>>>>>> 62cd2770 (wip fix menhir build errors)
        Parameter.{ annotations; direction; typ; variable; opt_value = None }) }
 | annotations = optAnnotations direction = direction typ = typeRef variable = name
    ASSIGN value = expression
     { let info1 =
         match direction with
-<<<<<<< HEAD
         | None -> info typ
         | Some dir -> info dir in
       (Info.merge info1 (info variable),
-=======
-        | None -> Surface.info typ
-        | Some dir -> Surface.info dir in
-      (P4info.merge info1 variable.tags,
->>>>>>> 62cd2770 (wip fix menhir build errors)
        Parameter.{ annotations; direction; typ; variable; opt_value = Some value }) }
 ;
 
 direction:
-| info = IN      { Some (info, Surface.Direction.In) }
-| info = OUT     { Some (info, Surface.Direction.Out) }
-| info = INOUT   { Some (info, Surface.Direction.InOut) }
+| info = IN      { Some (info, Direction.In) }
+| info = OUT     { Some (info, Direction.Out) }
+| info = INOUT   { Some (info, Direction.InOut) }
 | (* empty *)    { None }
 ;
 
@@ -502,31 +445,31 @@ packageTypeDeclaration:
    name = push_name
      type_params = optTypeParameters
      L_PAREN params = parameterList info2 = R_PAREN
-     {  (P4info.merge info1 info2,
-        Surface.Declaration.PackageType { annotations; name; type_params; params }) }
+     {  (Info.merge info1 info2,
+        Declaration.PackageType { annotations; name; type_params; params }) }
 ;
 
 instantiation:
 | annotations = optAnnotations typ = typeRef
     L_PAREN args = argumentList R_PAREN name = name info2 = SEMICOLON
-    { (P4info.merge (Surface.info typ) info2,
-       Surface.Declaration.Instantiation { annotations; typ; args; name; init=None }) }
+    { (Info.merge (info typ) info2,
+       Declaration.Instantiation { annotations; typ; args; name; init=None }) }
 | annotations = optAnnotations typ = typeRef
     L_PAREN args = argumentList R_PAREN name = name ASSIGN init = objInitializer info2 = SEMICOLON
-    { (P4info.merge (Surface.info typ) info2,
-       Surface.Declaration.Instantiation { annotations; typ; args; name; init=Some init }) }
+    { (Info.merge (info typ) info2,
+       Declaration.Instantiation { annotations; typ; args; name; init=Some init }) }
 ;
 
 objInitializer:
 | L_BRACE statements = list(objDeclaration) R_BRACE 
-  { (P4info.merge $1 $3, Surface.Block.{ annotations = []; statements }) }
+  { (Info.merge $1 $3, Block.{ annotations = []; statements }) }
 ;
 
 objDeclaration:
 | decl = functionDeclaration
-  { (Surface.info decl, Surface.Statement.DeclarationStatement { decl }) }
+  { (info decl, Statement.DeclarationStatement { decl }) }
 | decl = instantiation 
-  { (Surface.info decl, Surface.Statement.DeclarationStatement { decl }) }
+  { (info decl, Statement.DeclarationStatement { decl }) }
 ;
 
 optConstructorParameters:
@@ -546,10 +489,11 @@ parserDeclaration:
     states = nonempty_list(parserState)
     info2 = R_BRACE
     pop_scope
-    { let (info1, annotations, name, type_params, params) = p_type in
-      let info = P4info.merge info1 info2 in
+    { let open Declaration in
+      let (info1, annotations, name, type_params, params) = p_type in
+      let info = Info.merge info1 info2 in
       let locals = List.rev locals in
-      (info, Surface.Declaration.Parser { annotations; name; type_params; params; constructor_params; locals; states }) }
+      (info, Parser { annotations; name; type_params; params; constructor_params; locals; states }) }
 ;
 
 parserLocalElement:
@@ -563,7 +507,7 @@ parserTypeDeclaration:
 | annotations = optAnnotations info1 = PARSER
     name = push_name
     type_params = optTypeParameters L_PAREN params = parameterList info2 = R_PAREN
-    { let info = P4info.merge info1 info2 in
+    { let info = Info.merge info1 info2 in
       (info, annotations, name, type_params, params) }
 ;
 
@@ -574,7 +518,7 @@ parserState:
        statements = list(parserStatement) transition = transitionStatement
        info2 = R_BRACE
      pop_scope
-     { (P4info.merge info1 info2, Surface.Parser.{ annotations; name; statements; transition }) }
+     { (Info.merge info1 info2, Parser.{ annotations; name; statements; transition }) }
 
 ;
 
@@ -586,41 +530,31 @@ parserStatement:
    { s }
 | decl = constantDeclaration
 | decl = variableDeclaration
-  { (Surface.info decl, Surface.Statement.DeclarationStatement { decl }) }
+  { (info decl, Statement.DeclarationStatement { decl }) }
 ;
 
 parserBlockStatement:
 |  annotations = optAnnotations
      info1 = L_BRACE statements = list(parserStatement) info2 = R_BRACE
-     { let info = P4info.merge info1 info2 in
-       let block = (info, Surface.Block.{ annotations; statements }) in
-       (info, Surface.Statement.BlockStatement { block = block }) }
+     { let info = Info.merge info1 info2 in
+       let block = (info, Block.{ annotations; statements }) in
+       (info, Statement.BlockStatement { block = block }) }
 ;
 
 transitionStatement:
 | (* empty *)
-<<<<<<< HEAD
   { let info = Info.M "Compiler-generated reject transition" in
     (info, Parser.Direct { next = (info, "reject") }) }
-=======
-  { let info = P4info.M "Compiler-generated reject transition" in
-    (info, Surface.Parser.Direct { next = {tags=info; str="reject"} }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 | info1 = TRANSITION transition = stateExpression
-    { (P4info.merge info1 (Surface.info transition),
+    { (Info.merge info1 (info transition),
        snd transition) }
 ;
 
 stateExpression:
 | next = name info2 = SEMICOLON
-<<<<<<< HEAD
     { (Info.merge (info next) info2,
        Parser.Direct { next = next }) }
-=======
-    { (P4info.merge next.tags info2,
-       Surface.Parser.Direct { next = next }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | select = selectExpression
     { select }
 ;
@@ -628,17 +562,17 @@ stateExpression:
 selectExpression:
 | info1 = SELECT L_PAREN exprs = expressionList R_PAREN
     L_BRACE cases = list(selectCase) info2 = R_BRACE
-    { (P4info.merge info1 info2,
-       Surface.Parser.Select { exprs; cases }) }
+    { (Info.merge info1 info2,
+       Parser.Select { exprs; cases }) }
 ;
 
 selectCase:
 | matches = keysetExpression COLON next = name info2 = SEMICOLON
   { let info1 = match matches with
-      | expr::_ -> Surface.info expr
+      | expr::_ -> info expr
       | _ -> assert false in
-    (P4info.merge info1 info2,
-     Surface.Parser.{ matches; next }) }
+    (Info.merge info1 info2,
+     Parser.{ matches; next }) }
 ;
 
 keysetExpression:
@@ -652,15 +586,15 @@ tupleKeysetExpression:
 ;
 
 simpleKeysetExpression:
-| expr = expression { (Surface.info expr, Surface.Match.Expression { expr }) }
-| info = DONTCARE { (info, Surface.Match.DontCare) }
-| info = DEFAULT { (info, Surface.Match.Default) }
+| expr = expression { (info expr, Match.Expression { expr }) }
+| info = DONTCARE { (info, Match.DontCare) }
+| info = DEFAULT { (info, Match.Default) }
 | expr = expression MASK mask = expression
-    { let info = P4info.merge (Surface.info expr) (Surface.info mask) in
-      (info, Surface.Match.Expression { expr = (info, Surface.Expression.Mask { expr; mask }) }) }
+    { let info = Info.merge (info expr) (info mask) in
+      (info, Match.Expression { expr = (info, Expression.Mask { expr; mask }) }) }
 | lo = expression RANGE hi = expression
-    { let info = P4info.merge (Surface.info lo) (Surface.info hi) in
-      (info, Surface.Match.Expression {expr = (info, Surface.Expression.Range { lo; hi })})}
+    { let info = Info.merge (info lo) (info hi) in
+      (info, Match.Expression {expr = (info, Expression.Range { lo; hi })})}
 ;
 
 valueSetDeclaration:
@@ -673,8 +607,8 @@ valueSetDeclaration:
 | annotations = optAnnotations
     info1 = VALUESET L_ANGLE typ = typeName r_angle
     L_PAREN size = expression R_PAREN name = name info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-      Surface.Declaration.ValueSet { annotations; typ; size; name } ) }
+    { (Info.merge info1 info2,
+      Declaration.ValueSet { annotations; typ; size; name } ) }
 ;
 
 (*************************** CONTROL ************************)
@@ -686,8 +620,8 @@ controlDeclaration:
     pop_scope
     {
       let info1, annotations, name, type_params, params = ct_decl in
-      (P4info.merge info1 info2,
-       Surface.Declaration.Control { annotations; name; type_params; params; constructor_params;
+      (Info.merge info1 info2,
+       Declaration.Control { annotations; name; type_params; params; constructor_params;
                              locals; apply } ) }
 ;
 
@@ -696,16 +630,16 @@ controlTypeDeclaration:
      name = push_name
      type_params = optTypeParameters
      L_PAREN params = parameterList info2 = R_PAREN
-     { (P4info.merge info1 info2, annotations, name, type_params, params) }
+     { (Info.merge info1 info2, annotations, name, type_params, params) }
 ;
 
 controlLocalDeclaration:
 | c = constantDeclaration
     { c }
 | a = actionDeclaration
-    { declare_var (Surface.Declaration.name a); a }
+    { declare_var (Declaration.name a); a }
 | t = tableDeclaration
-    { declare_var (Surface.Declaration.name t); t }
+    { declare_var (Declaration.name t); t }
 | i = instantiation
     { i }
 | v = variableDeclaration
@@ -725,17 +659,17 @@ externDeclaration:
        L_BRACE methods = list(methodPrototype) info2 = R_BRACE
      pop_scope
      { let type_decl =
-         (P4info.merge info1 info2,
-          (Surface.Declaration.ExternObject { annotations; name; type_params; methods })) in
-       declare_type (Surface.Declaration.name type_decl);
+         (Info.merge info1 info2,
+          (Declaration.ExternObject { annotations; name; type_params; methods })) in
+       declare_type (Declaration.name type_decl);
        type_decl }
 |  annotations = optAnnotations info1 = EXTERN
      func = functionPrototype pop_scope info2 = SEMICOLON
      { let (_, return, name, type_params, params) = func in
        let decl =
-         (P4info.merge info1 info2,
-          Surface.Declaration.ExternFunction { annotations; return; name; type_params; params }) in
-       declare_var (Surface.Declaration.name decl);
+         (Info.merge info1 info2,
+          Declaration.ExternFunction { annotations; return; name; type_params; params }) in
+       declare_var (Declaration.name decl);
        decl }
 ;
 
@@ -750,32 +684,27 @@ functionPrototype:
     push_scope
       type_params = optTypeParameters
       L_PAREN params = parameterList info2 = R_PAREN
-    { (P4info.merge (Surface.info typ) info2, typ, name, type_params, params) }
+    { (Info.merge (info typ) info2, typ, name, type_params, params) }
 ;
 
 methodPrototype:
 | annotations = optAnnotations
   func = functionPrototype pop_scope info2 = SEMICOLON
     { let (info1, return, name, type_params, params) = func in
-      (P4info.merge info1 info2,
-       Surface.MethodPrototype.Method { annotations; return; name; type_params; params }) }
+      (Info.merge info1 info2,
+       MethodPrototype.Method { annotations; return; name; type_params; params }) }
 
 | annotations = optAnnotations
   ABSTRACT
   func = functionPrototype pop_scope info2 = SEMICOLON
     { let (info1, return, name, type_params, params) = func in
-      (P4info.merge info1 info2,
-       Surface.MethodPrototype.AbstractMethod { annotations; return; name; type_params; params }) }
+      (Info.merge info1 info2,
+       MethodPrototype.AbstractMethod { annotations; return; name; type_params; params }) }
 | annotations = optAnnotations
   name = name (* NAME TYPENAME *)
     L_PAREN params = parameterList R_PAREN info2 = SEMICOLON
-<<<<<<< HEAD
     { (Info.merge (info name) info2,
       MethodPrototype.Constructor { annotations; name; params }) }
-=======
-    { (P4info.merge name.tags info2,
-      Surface.MethodPrototype.Constructor { annotations; name; params }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 (************************** TYPES ****************************)
@@ -797,18 +726,14 @@ namedType:
 
 prefixedTypeName:
 | name = NAME TYPENAME
-    { P4name.BareName name }
+    { BareName name }
 | dotPrefix go_toplevel name = NAME TYPENAME go_local
-    { P4name.QualifiedName ([], name) }
+    { QualifiedName ([], name) }
 ;
 
 prefixedType:
 | name = prefixedTypeName
-<<<<<<< HEAD
     { name_info name, Type.TypeName name }
-=======
-    { P4name.name_info name, Surface.Type.TypeName name }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 typeName:
 | typ = prefixedType
@@ -817,29 +742,28 @@ typeName:
 
 tupleType:
 | info1 = TUPLE L_ANGLE elements = typeArgumentList info_r = r_angle
-    { (P4info.merge info1 info_r,
-       Surface.Type.Tuple elements) }
+    { (Info.merge info1 info_r,
+       Type.Tuple elements) }
 ;
 
 headerStackType:
 | header = typeName L_BRACKET size = expression info2 = R_BRACKET
-    { (P4info.merge (Surface.info header) info2,
-       Surface.Type.HeaderStack { header; size }) }
+    { (Info.merge (info header) info2,
+       Type.HeaderStack { header; size }) }
 ;
 
 specializedType:
 | base = prefixedType L_ANGLE args = typeArgumentList info_r = r_angle
-    { (P4info.merge (Surface.info base) info_r,
-      Surface.Type.SpecializedType { base; args }) }
+    { (Info.merge (info base) info_r,
+      Type.SpecializedType { base; args }) }
 ;
 
 baseType:
 | info = BOOL
-    { (info, Surface.Type.Bool) }
+    { (info, Type.Bool) }
 | info = ERROR
-    { (info, Surface.Type.Error) }
+    { (info, Type.Error) }
 | info = BIT
-<<<<<<< HEAD
     { let width = (info, Expression.Int (info, { value = Bigint.of_int 1;
                                                  width_signed = None })) in
       (info, Type.BitType width) }
@@ -852,64 +776,38 @@ baseType:
 | info1 = INT L_ANGLE value = INTEGER info_r = r_angle
      { let value_int = fst value in 
        let value_info = fst value_int in 
-=======
-    { let width = (info, Surface.Expression.Int
-                           ({ tags = info;
-                              value = Bigint.of_int 1;
-                              width_signed = None })) in
-      (info, Surface.Type.BitType width): Type.t }
-| info1 = BIT L_ANGLE value = INTEGER info_r = r_angle
-    { let value_int: P4int.t = fst value in 
-      let value_info = value_int.tags in
-      let width: Expression.t =
-        (value_info, Expression.Int value_int) in
-      let info: P4info.t = P4info.merge info1 info_r in
-      (info, Type.BitType width): Surface.Type.t }
-| info1 = INT L_ANGLE value = INTEGER info_r = r_angle
-     { let value_int: P4int.t = fst value in 
-       let value_info = value_int.tags in 
->>>>>>> 62cd2770 (wip fix menhir build errors)
        let width = (value_info, Expression.Int value_int) in
-       let info = P4info.merge info1 info_r in
-      (info, Type.IntType width): Type.t }
+       let info = Info.merge info1 info_r in
+      (info, Type.IntType width) }
 
 | info1 = VARBIT L_ANGLE value = INTEGER info_r = r_angle
-<<<<<<< HEAD
      { let value_int = fst value in 
        let value_info = fst value_int in
-=======
-     { let value_int: P4int.t = fst value in 
-       let value_info = value_int.tags in
->>>>>>> 62cd2770 (wip fix menhir build errors)
        let max_width = (value_info, Expression.Int value_int) in
-       let info = P4info.merge info1 info_r in
-      (info, Surface.Type.VarBit max_width) }
+       let info = Info.merge info1 info_r in
+      (info, Type.VarBit max_width) }
 | info1 = BIT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
-    { (P4info.merge info1 info_r,
-       Surface.Type.BitType width) }
+    { (Info.merge info1 info_r,
+       Type.BitType width) }
 | info1 = INT L_ANGLE L_PAREN width = expression R_PAREN info_r = r_angle
-    { (P4info.merge info1 info_r,
-       Surface.Type.IntType width) }
+    { (Info.merge info1 info_r,
+       Type.IntType width) }
 | info1 = VARBIT L_ANGLE L_PAREN max_width = expression R_PAREN info_r = r_angle
-    { (P4info.merge info1 info_r,
-       Surface.Type.VarBit max_width) }
+    { (Info.merge info1 info_r,
+       Type.VarBit max_width) }
 | info = INT
-    { (info, Surface.Type.Integer) }
+    { (info, Type.Integer) }
 | info = STRING
-    { (info, Surface.Type.String) }
+    { (info, Type.String) }
 ;
 
 typeOrVoid:
 | t = typeRef
   { t }
 | info = VOID
-  { (info, Surface.Type.Void) }
+  { (info, Type.Void) }
 | name = varName
-<<<<<<< HEAD
   { (info name, Type.TypeName (BareName name)) }    (* may be a type variable *)
-=======
-  { (name.tags, Surface.Type.TypeName (BareName name)) }    (* may be a type variable *)
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 optTypeParameters:
@@ -925,21 +823,16 @@ typeParameter:
 
 realTypeArg:
 | info = DONTCARE
-  { (info, Surface.Type.DontCare) }
+  { (info, Type.DontCare) }
 | t = typeRef
   { t }
 ;
 
 typeArg:
-| info = DONTCARE { (info, Surface.Type.DontCare) }
+| info = DONTCARE { (info, Type.DontCare) }
 | typ = typeRef { typ }
-<<<<<<< HEAD
 | name = nonTypeName { (info name, Type.TypeName (BareName name)) }
 | info = VOID { (info, Type.Void) }
-=======
-| name = nonTypeName { (name.tags, Surface.Type.TypeName (BareName name)) }
-| info = VOID { (info, Surface.Type.Void) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 typeArgumentList:
@@ -955,16 +848,16 @@ typeDeclaration:
 | d = derivedTypeDeclaration
 | d = typedefDeclaration
 | d = packageTypeDeclaration pop_scope SEMICOLON
-  { declare_type (Surface.Declaration.name d);
+  { declare_type (Declaration.name d);
     d }
 | ctd = controlTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ctd in
     (info,
-     Surface.Declaration.ControlType { annotations; name; type_params; params } ) }
+     Declaration.ControlType { annotations; name; type_params; params } ) }
 | ptd = parserTypeDeclaration pop_scope SEMICOLON
   { let info, annotations, name, type_params, params = ptd in
     (info,
-     Surface.Declaration.ParserType { annotations; name; type_params; params } ) }
+     Declaration.ParserType { annotations; name; type_params; params } ) }
 ;
 
 derivedTypeDeclaration:
@@ -978,67 +871,54 @@ derivedTypeDeclaration:
 headerTypeDeclaration:
 |  annotations = optAnnotations info1 = HEADER name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { (P4info.merge info1 info2,
-        Surface.Declaration.Header { annotations; name; fields }) }
+     { (Info.merge info1 info2,
+        Declaration.Header { annotations; name; fields }) }
 ;
 
 headerUnionDeclaration:
 |  annotations = optAnnotations info1 = HEADER_UNION name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { (P4info.merge info1 info2,
-        Surface.Declaration.HeaderUnion { annotations; name; fields }) }
+     { (Info.merge info1 info2,
+        Declaration.HeaderUnion { annotations; name; fields }) }
 ;
 
 structTypeDeclaration:
 |  annotations = optAnnotations info1 = STRUCT name = name
      L_BRACE fields = list(structField) info2 = R_BRACE
-     { (P4info.merge info1 info2,
-        Surface.Declaration.Struct { annotations; name; fields }) }
+     { (Info.merge info1 info2,
+        Declaration.Struct { annotations; name; fields }) }
 ;
 
 structField:
 |  annotations = optAnnotations typ = typeRef name = name info2 = SEMICOLON
-     { (P4info.merge (Surface.info typ) info2,
-        { annotations; typ; name }) : Surface.Declaration.field }
+     { (Info.merge (info typ) info2,
+        { annotations; typ; name }) }
 ;
 
 (* TODO : add support for serializable enums *)
 enumDeclaration:
 | annotations = optAnnotations info1 = ENUM name = name
     L_BRACE members = identifierList info2 = R_BRACE
-<<<<<<< HEAD
     { (Info.merge info1 info2,
       Declaration.Enum { annotations; name; members }) }
 | annotations = optAnnotations info1 = ENUM typ = baseType
     name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
    { (Info.merge info1 (fst typ),
      Declaration.SerializableEnum { annotations; typ; name; members }) }
-=======
-    { (P4info.merge info1 info2,
-      Surface.Declaration.Enum { annotations; name; members }) }
-| annotations = optAnnotations info1 = ENUM info2 = BIT L_ANGLE value = INTEGER r_angle
-    name = name L_BRACE members = specifiedIdentifierList info4 = R_BRACE
-   { let value_int: P4info.t P4int.pre_t = (fst value) in 
-     let value_info: P4info.t = value_int.tags in 
-     let width = (value_info, Surface.Expression.Int value_int) in
-     let typ = (P4info.merge info2 info4, Surface.Type.BitType width) in
-     (P4info.merge info1 info4,
-      Surface.Declaration.SerializableEnum { annotations; typ; name; members }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 errorDeclaration:
 | info1 = ERROR L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
-      (P4info.merge info1 info2,
-       Surface.Declaration.Error { members }) }
+      (Info.merge info1 info2,
+       Declaration.Error { members }) }
 ;
 
 matchKindDeclaration:
 | info1 = MATCH_KIND L_BRACE members = identifierList info2 = R_BRACE
     { declare_vars members;
-      (P4info.merge info1 info2,
-       Surface.Declaration.MatchKind { members }) }
+      (Info.merge info1 info2,
+       Declaration.MatchKind { members }) }
 ;
 
 identifierList:
@@ -1056,20 +936,20 @@ specifiedIdentifierList:
 typedefDeclaration:
 | annotations = optAnnotations info1 = TYPEDEF
     typ = typeRef name = name info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Declaration.TypeDef { annotations; name; typ_or_decl = Left typ } ) }
+    { (Info.merge info1 info2,
+       Declaration.TypeDef { annotations; name; typ_or_decl = Left typ } ) }
 | annotations = optAnnotations info1 = TYPEDEF
     decl = derivedTypeDeclaration name = name info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Declaration.TypeDef { annotations; name; typ_or_decl = Right decl } ) }
+    { (Info.merge info1 info2,
+       Declaration.TypeDef { annotations; name; typ_or_decl = Right decl } ) }
 | annotations = optAnnotations info1 = TYPE
     typ = typeRef name = name info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Declaration.NewType { annotations; name; typ_or_decl = Left typ } ) }
+    { (Info.merge info1 info2,
+       Declaration.NewType { annotations; name; typ_or_decl = Left typ } ) }
 | annotations = optAnnotations info1 = TYPE
     decl = derivedTypeDeclaration name = name info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Declaration.NewType { annotations; name; typ_or_decl = Right decl } ) }
+    { (Info.merge info1 info2,
+       Declaration.NewType { annotations; name; typ_or_decl = Right decl } ) }
 ;
 
 (*************************** STATEMENTS *************************)
@@ -1077,53 +957,53 @@ typedefDeclaration:
 assignmentOrMethodCallStatement:
 | func = lvalue L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
     { let type_args = [] in
-      (P4info.merge (Surface.info func) info2,
-       Surface.Statement.MethodCall { func; type_args; args }) }
+      (Info.merge (info func) info2,
+       Statement.MethodCall { func; type_args; args }) }
 | func = lvalue L_ANGLE type_args = typeArgumentList r_angle
     L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
-    { (P4info.merge (Surface.info func) info2,
-       Surface.Statement.MethodCall { func; type_args; args }) }
+    { (Info.merge (info func) info2,
+       Statement.MethodCall { func; type_args; args }) }
 | lhs = lvalue ASSIGN rhs = expression info2 = SEMICOLON
-    { (P4info.merge (Surface.info lhs) info2,
-      Surface.Statement.Assignment { lhs; rhs }) }
+    { (Info.merge (info lhs) info2,
+      Statement.Assignment { lhs; rhs }) }
 ;
 
 emptyStatement:
-| info = SEMICOLON { (info, Surface.Statement.EmptyStatement) }
+| info = SEMICOLON { (info, Statement.EmptyStatement) }
 ;
 
 returnStatement:
 | info1 = RETURN info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Statement.Return { expr = None }) }
+    { (Info.merge info1 info2,
+       Statement.Return { expr = None }) }
 | info1 = RETURN expr = expression info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Statement.Return { expr = Some expr }) }
+    { (Info.merge info1 info2,
+       Statement.Return { expr = Some expr }) }
 ;
 
 exitStatement:
 | info1 = EXIT info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Statement.Exit) }
+    { (Info.merge info1 info2,
+       Statement.Exit) }
 ;
 
 conditionalStatement:
 | info1 = IF L_PAREN cond = expression R_PAREN tru = statement ELSE fls = statement
-    { let info2 = Surface.info fls in
+    { let info2 = info fls in
       let fls = Some fls in
-      (P4info.merge info1 info2,
-       Surface.Statement.Conditional { cond; tru; fls }) }
+      (Info.merge info1 info2,
+       Statement.Conditional { cond; tru; fls }) }
 | info1 = IF L_PAREN cond = expression R_PAREN tru = statement   %prec THEN
     { let fls = None in
-      (P4info.merge info1 (Surface.info tru),
-       Surface.Statement.Conditional { cond; tru; fls }) }
+      (Info.merge info1 (info tru),
+       Statement.Conditional { cond; tru; fls }) }
 ;
 
 (* To support direct invocation of a control or parser without instantiation *)
 directApplication:
 | typ = typeName DOT APPLY L_PAREN args = argumentList R_PAREN info2 = SEMICOLON
-    { (P4info.merge (Surface.info typ) info2,
-      Surface.Statement.DirectApplication { typ; args }) }
+    { (Info.merge (info typ) info2,
+      Statement.DirectApplication { typ; args }) }
 ;
 
 statement:
@@ -1136,7 +1016,7 @@ statement:
 | s = switchStatement
     { s }
 | block = blockStatement
-    { (Surface.info block, Surface.Statement.BlockStatement { block }) }
+    { (info block, Statement.BlockStatement { block }) }
 ;
 
 blockStatement:
@@ -1145,42 +1025,38 @@ blockStatement:
      push_scope
      statements = list(statementOrDeclaration) info2 = R_BRACE
      pop_scope
-     { (P4info.merge info1 info2,
-       Surface.Block.{ annotations; statements }) }
+     { (Info.merge info1 info2,
+       Block.{ annotations; statements }) }
 ;
 
 switchStatement:
 | info1 = SWITCH L_PAREN expr = expression R_PAREN L_BRACE cases = switchCases
   info2 = R_BRACE
-    { (P4info.merge info1 info2,
-       Surface.Statement.Switch { expr; cases }) }
+    { (Info.merge info1 info2,
+       Statement.Switch { expr; cases }) }
 ;
 
 switchCases : cases = list(switchCase) { cases } ;
 
 switchCase:
 | label = switchLabel COLON code = blockStatement
-    { (P4info.merge (Surface.info label) (Surface.info code), Surface.Statement.Action { label; code } ) }
+    { (Info.merge (info label) (info code), Statement.Action { label; code } ) }
 | label = switchLabel info2 = COLON
-    { (P4info.merge (Surface.info label) info2, Surface.Statement.FallThrough { label }) }
+    { (Info.merge (info label) info2, Statement.FallThrough { label }) }
 ;
 
 switchLabel:
 | name = name
-<<<<<<< HEAD
   { (info name, Statement.Name name) }
-=======
-  { (name.tags, Surface.Statement.Name name) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | info = DEFAULT
-  { (info, Surface.Statement.Default) }
+  { (info, Statement.Default) }
 ;
 
 statementOrDeclaration:
 | decl = variableDeclaration
 | decl = constantDeclaration
 | decl = instantiation
-  { (Surface.info decl, Surface.Statement.DeclarationStatement { decl = decl }) }
+  { (info decl, Statement.DeclarationStatement { decl = decl }) }
 | s = statement
   { s }
 ;
@@ -1190,8 +1066,8 @@ tableDeclaration:
 |  annotations = optAnnotations
      info1 = TABLE name = name L_BRACE properties = tablePropertyList
      info2 = R_BRACE
-     { (P4info.merge info1 info2,
-        Surface.Declaration.Table { annotations; name; properties }) }
+     { (Info.merge info1 info2,
+        Declaration.Table { annotations; name; properties }) }
 ;
 
 tablePropertyList:
@@ -1200,27 +1076,22 @@ tablePropertyList:
 
 tableProperty:
 | info1 = KEY ASSIGN L_BRACE elts = keyElementList info2 = R_BRACE
-    { (P4info.merge info1 info2,
-       Surface.Table.Key { keys = elts }) }
+    { (Info.merge info1 info2,
+       Table.Key { keys = elts }) }
 | info1 = ACTIONS ASSIGN L_BRACE acts = actionList info2 = R_BRACE
-    { (P4info.merge info1 info2,
-       Surface.Table.Actions { actions = acts }) }
+    { (Info.merge info1 info2,
+       Table.Actions { actions = acts }) }
 | info1 = CONST ENTRIES ASSIGN L_BRACE entries = entriesList info2 = R_BRACE
-    { (P4info.merge info1 info2,
-       Surface.Table.Entries { entries = entries }) }
+    { (Info.merge info1 info2,
+       Table.Entries { entries = entries }) }
 | annos = optAnnotations
     info1 = CONST n = nonTableKwName ASSIGN v = initialValue info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Table.Custom { annotations = annos; const = true; name = n; value = v }) }
+    { (Info.merge info1 info2,
+       Table.Custom { annotations = annos; const = true; name = n; value = v }) }
 | annos = optAnnotations
     n = nonTableKwName ASSIGN v = initialValue info2 = SEMICOLON
-<<<<<<< HEAD
     { (Info.merge (info n) info2,
        Table.Custom { annotations = annos; const = false; name = n; value = v }) }
-=======
-    { (P4info.merge n.tags info2,
-       Surface.Table.Custom { annotations = annos; const = false; name = n; value = v }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 keyElementList: elts = list(keyElement) { elts } ;
@@ -1228,8 +1099,8 @@ keyElementList: elts = list(keyElement) { elts } ;
 keyElement:
 | key = expression COLON match_kind = name annotations = optAnnotations
     info2 = SEMICOLON
-    { (P4info.merge (Surface.info key) info2,
-       Surface.Table.{ annotations; key; match_kind }) }
+    { (Info.merge (info key) info2,
+       Table.{ annotations; key; match_kind }) }
 ;
 
 actionList:
@@ -1246,13 +1117,12 @@ entriesList:
 entry:
 | matches = keysetExpression
     info1 = COLON act = actionRef annos = optAnnotations info2 = SEMICOLON
-    { let info = P4info.merge info1 info2 in
-      (info, Surface.Table.{ annotations = annos; matches = matches; action = act }) }
+    { let info = Info.merge info1 info2 in
+      (info, Table.{ annotations = annos; matches = matches; action = act }) }
 ;
 
 actionRef:
 |  annotations = optAnnotations name = name
-<<<<<<< HEAD
      { (info name, { annotations; name = BareName name; args = [] }) }
 |  annotations = optAnnotations name = name L_PAREN args = argumentList
      info2 = R_PAREN
@@ -1266,21 +1136,6 @@ actionRef:
    L_PAREN args = argumentList info2 = R_PAREN
      { (Info.merge (info name) info2,
         { annotations; name = QualifiedName ([], name); args }) }
-=======
-     { (name.tags, { annotations; name = BareName name; args = [] }) : Surface.Table.action_ref }
-|  annotations = optAnnotations name = name L_PAREN args = argumentList
-     info2 = R_PAREN
-     { (P4info.merge name.tags info2,
-        { annotations; name = BareName name; args }) : Surface.Table.action_ref }
-|  annotations = optAnnotations
-   info1 = dotPrefix go_toplevel name = nonTypeName go_local
-     { (name.tags, { annotations; name = QualifiedName ([], name); args = [] }) : Surface.Table.action_ref }
-|  annotations = optAnnotations 
-   info1 = dotPrefix go_toplevel name = nonTypeName go_local
-   L_PAREN args = argumentList info2 = R_PAREN
-     { (P4info.merge name.tags info2,
-        { annotations; name = QualifiedName ([], name); args }) : Surface.Table.action_ref }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 (************************* ACTION ********************************)
@@ -1289,8 +1144,8 @@ actionDeclaration:
 |  annotations = optAnnotations
      info1 = ACTION name = name L_PAREN params = parameterList R_PAREN
      body = blockStatement
-     { (P4info.merge info1 (Surface.info body),
-        Surface.Declaration.Action { annotations; name; params; body }) }
+     { (Info.merge info1 (info body),
+        Declaration.Action { annotations; name; params; body }) }
 ;
 
 (************************* VARIABLES *****************************)
@@ -1299,16 +1154,16 @@ variableDeclaration:
 | annotations = optAnnotations
     typ = typeRef name = name init = optInitialValue info2 = SEMICOLON
     { declare_var name;
-      (P4info.merge (Surface.info typ) info2,
-       Surface.Declaration.Variable { annotations; typ; name; init }) }
+      (Info.merge (info typ) info2,
+       Declaration.Variable { annotations; typ; name; init }) }
 ;
 
 constantDeclaration:
 | annotations = optAnnotations
     info1 = CONST typ = typeRef name = name ASSIGN value = initialValue
     info2 = SEMICOLON
-    { (P4info.merge info1 info2,
-       Surface.Declaration.Constant { annotations; typ; name; value }) }
+    { (Info.merge info1 info2,
+       Declaration.Constant { annotations; typ; name; value }) }
 ;
 
 optInitialValue:
@@ -1320,41 +1175,31 @@ initialValue:
 | v = expression { v }
 ;
 
-(************************* Surface.Expressions ****************************)
+(************************* Expressions ****************************)
 
 functionDeclaration:
 | func = functionPrototype body = blockStatement pop_scope
     { let (info1, return, name, type_params, params) = func in
-      (P4info.merge info1 (Surface.info body),
-       Surface.Declaration.Function { return; name; type_params; params; body }) }
+      (Info.merge info1 (info body),
+       Declaration.Function { return; name; type_params; params; body }) }
 ;
 
 argumentList: args = separated_list(COMMA, argument) { args } ;
 
 argument:
 | value = expression
-    { (Surface.info value, Surface.Argument.Expression { value }) }
+    { (info value, Argument.Expression { value }) }
 | key = name ASSIGN value = expression
-<<<<<<< HEAD
     { (Info.merge (info key) (info value),
        Argument.KeyValue { key; value }) }
-=======
-    { (P4info.merge key.tags (Surface.info value),
-       Surface.Argument.KeyValue { key; value }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | info = DONTCARE
-    { (info, Surface.Argument.Missing) }
+    { (info, Argument.Missing) }
 ;
 
 %inline kvPair:
 | key = name ASSIGN value = expression 
-<<<<<<< HEAD
   { (Info.merge (info key) (info value),
      KeyValue.{ key; value }) }
-=======
-  { (P4info.merge key.tags (Surface.info value),
-     Surface.KeyValue.{ key; value }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 kvList:
 | kvs = separated_nonempty_list(COMMA, kvPair)
@@ -1372,99 +1217,72 @@ member:
 
 prefixedNonTypeName:
 | name = nonTypeName
-<<<<<<< HEAD
   { (info name, Expression.Name (BareName name)) }
 | info1 = dotPrefix go_toplevel name = nonTypeName go_local
   { (Info.merge info1 (info name),
      Expression.Name (QualifiedName ([], name))) }
-=======
-  { (name.tags, Surface.Expression.Name (BareName name)) }
-| info1 = dotPrefix go_toplevel name = nonTypeName go_local
-  { (P4info.merge info1 name.tags,
-     Surface.Expression.Name (QualifiedName ([], name))) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 ;
 
 lvalue:
 | expr = prefixedNonTypeName { expr }
 | expr = lvalue DOT name = member
-<<<<<<< HEAD
   { (Info.merge (info expr) (info name),
      Expression.ExpressionMember { expr; name }) }
-=======
-    { (P4info.merge (Surface.info expr) name.tags,
-       Surface.Expression.ExpressionMember { expr; name }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | array = lvalue L_BRACKET index = expression info2 = R_BRACKET
-    { (P4info.merge (Surface.info array) info2,
-       Surface.Expression.ArrayAccess { array; index }) }
+    { (Info.merge (info array) info2,
+       Expression.ArrayAccess { array; index }) }
 | bits = lvalue L_BRACKET hi = expression COLON lo = expression
     info2 = R_BRACKET
-    { (P4info.merge (Surface.info bits) info2,
-       Surface.Expression.BitStringAccess { bits; lo; hi }) }
+    { (Info.merge (info bits) info2,
+       Expression.BitStringAccess { bits; lo; hi }) }
 ;
 
 expression:
 | value = INTEGER
-<<<<<<< HEAD
   { let value_int = fst value in 
     let info = fst value_int in 
     (info, Expression.Int value_int) }
-=======
-  { let value_int: P4int.t = fst value in 
-    let info = value_int.tags in 
-    (info, Surface.Expression.Int value_int) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | info1 = TRUE
-  { (info1, Surface.Expression.True) }
+  { (info1, Expression.True) }
 | info1 = FALSE
-  { (info1, Surface.Expression.False) }
+  { (info1, Expression.False) }
 | value = STRING_LITERAL
-<<<<<<< HEAD
   { (fst value, Expression.String value) }
 | name = nonTypeName
   { (info name, Expression.Name (BareName name)) }
 | info1 = dotPrefix go_toplevel name = nonTypeName go_local
   { (Info.merge info1 (fst name), Expression.Name (QualifiedName ([], name))) }
-=======
-  { (value.tags, Surface.Expression.String value) }
-| name = nonTypeName
-  { (name.tags, Surface.Expression.Name (BareName name)) }
-| info1 = dotPrefix go_toplevel name = nonTypeName go_local
-  { (P4info.merge info1 name.tags, Surface.Expression.Name (QualifiedName ([], name))) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | array = expression L_BRACKET index = expression info2 = R_BRACKET
-  { (P4info.merge (Surface.info array) info2,
-     Surface.Expression.ArrayAccess { array; index }) }
+  { (Info.merge (info array) info2,
+     Expression.ArrayAccess { array; index }) }
 | bits = expression L_BRACKET hi = expression COLON lo = expression
     info2 = R_BRACKET
-  { (P4info.merge (Surface.info bits) info2,
-     Surface.Expression.BitStringAccess { bits; lo; hi }) }
+  { (Info.merge (info bits) info2,
+     Expression.BitStringAccess { bits; lo; hi }) }
 | info1 = L_BRACE values = expressionList info2 = R_BRACE
-  { (P4info.merge info1 info2,
-     Surface.Expression.List { values }) }
+  { (Info.merge info1 info2,
+     Expression.List { values }) }
 | info1 = L_BRACE entries = kvList info2 = R_BRACE 
-  { (P4info.merge info1 info2, 
-     Surface.Expression.Record { entries }) }
+  { (Info.merge info1 info2, 
+     Expression.Record { entries }) }
 | L_PAREN exp = expression R_PAREN
   { exp }
 | info1 = NOT arg = expression %prec PREFIX
-  { (P4info.merge info1 (Surface.info arg),
-     Surface.Expression.UnaryOp { op = (info1, Surface.Op.Not); arg }) }
+  { (Info.merge info1 (info arg),
+     Expression.UnaryOp { op = (info1, Op.Not); arg }) }
 | info1 = COMPLEMENT arg = expression %prec PREFIX
-  { (P4info.merge info1 (Surface.info arg),
-     Surface.Expression.UnaryOp{op = (info1, Surface.Op.BitNot); arg }) }
+  { (Info.merge info1 (info arg),
+     Expression.UnaryOp{op = (info1, Op.BitNot); arg }) }
 | info1 = MINUS arg = expression %prec PREFIX
-  { (P4info.merge info1 (Surface.info arg),
-     Surface.Expression.UnaryOp{op = (info1, UMinus); arg }) }
+  { (Info.merge info1 (info arg),
+     Expression.UnaryOp{op = (info1, UMinus); arg }) }
 | info1 = PLUS exp = expression %prec PREFIX
   { let info2,exp = exp in
-    (P4info.merge info1 info2, exp) }
+    (Info.merge info1 info2, exp) }
 | info1 = L_PAREN typ = typeRef R_PAREN expr = expression %prec PREFIX
-  { (P4info.merge info1 (Surface.info expr),
-     Surface.Expression.Cast { typ; expr }) }
+  { (Info.merge info1 (info expr),
+     Expression.Cast { typ; expr }) }
 | typ = prefixedTypeName DOT name = member
-<<<<<<< HEAD
   { (info name,
      Expression.TypeMember { typ; name }) }
 | info1 = ERROR DOT name = member
@@ -1476,78 +1294,65 @@ expression:
 | arg1 = expression op = binop arg2 = expression
   { (Info.merge (Types.info arg1) (Types.info arg2),
      Expression.BinaryOp { op; args = (arg1, arg2) }) }
-=======
-  { (name.tags,
-     Surface.Expression.TypeMember { typ; name }) }
-| info1 = ERROR DOT name = member
-  { (P4info.merge info1 name.tags,
-     Surface.Expression.ErrorMember name) }
-| expr = expression DOT name = member
-  { (P4info.merge (Surface.info expr) name.tags,
-     Surface.Expression.ExpressionMember { expr; name }) }
-| arg1 = expression op = binop arg2 = expression
-  { (P4info.merge (Surface.info arg1) (Surface.info arg2),
-     Surface.Expression.BinaryOp { op; args = (arg1, arg2) }) }
->>>>>>> 62cd2770 (wip fix menhir build errors)
 | cond = expression QUESTION tru = expression COLON fls = expression
-   { (P4info.merge (Surface.info cond) (Surface.info fls),
-      Surface.Expression.Ternary { cond; tru; fls }) }
+   { (Info.merge (info cond) (info fls),
+      Expression.Ternary { cond; tru; fls }) }
 | func = expression L_ANGLE type_args = realTypeArgumentList r_angle
     L_PAREN args = argumentList info2 = R_PAREN
-   { (P4info.merge (Surface.info func) info2,
-      Surface.Expression.FunctionCall { func; type_args; args }) }
+   { (Info.merge (info func) info2,
+      Expression.FunctionCall { func; type_args; args }) }
 | func = expression L_PAREN args = argumentList info2 = R_PAREN
    { let type_args = [] in
-     (P4info.merge (Surface.info func) info2,
-      Surface.Expression.FunctionCall { func; type_args; args }) }
+     (Info.merge (info func) info2,
+      Expression.FunctionCall { func; type_args; args }) }
 | typ = namedType L_PAREN args = argumentList info2 = R_PAREN
-   { (P4info.merge (Surface.info typ) info2,
-      Surface.Expression.NamelessInstantiation { typ; args }) }
+   { (Info.merge (info typ) info2,
+      Expression.NamelessInstantiation { typ; args }) }
 ;
 
 %inline binop:
 | info = MUL
-    { (info, Surface.Op.Mul) }
+    { (info, Op.Mul) }
 | info = DIV
-    { (info, Surface.Op.Div) }
+    { (info, Op.Div) }
 | info = MOD
-    { (info, Surface.Op.Mod) }
+    { (info, Op.Mod) }
 | info = PLUS
-    { (info, Surface.Op.Plus) }
+    { (info, Op.Plus) }
 | info = PLUS_SAT
-    { (info, Surface.Op.PlusSat)}
+    { (info, Op.PlusSat)}
 | info = MINUS
-    { (info, Surface.Op.Minus) }
+    { (info, Op.Minus) }
 | info = MINUS_SAT
-    { (info, Surface.Op.MinusSat) }
+    { (info, Op.MinusSat) }
 | info = SHL
-    { (info, Surface.Op.Shl) }
+    { (info, Op.Shl) }
 | info_r = r_angle info2 = R_ANGLE_SHIFT
-    { (P4info.merge info_r info2, Surface.Op.Shr) }
+    { (Info.merge info_r info2, Op.Shr) }
 | info = LE
-    { (info, Surface.Op.Le) }
+    { (info, Op.Le) }
 | info = GE
-    { (info, Surface.Op.Ge) }
+    { (info, Op.Ge) }
 | info = L_ANGLE
-    { (info, Surface.Op.Lt) }
+    { (info, Op.Lt) }
 | info_r = r_angle
-    { (info_r, Surface.Op.Gt) }
+    { (info_r, Op.Gt) }
 | info = NE
-    { (info, Surface.Op.NotEq) }
+    { (info, Op.NotEq) }
 | info = EQ
-    { (info, Surface.Op.Eq) }
+    { (info, Op.Eq) }
 | info = BIT_AND
-    { (info, Surface.Op.BitAnd) }
+    { (info, Op.BitAnd) }
 | info = BIT_XOR
-    { (info, Surface.Op.BitXor) }
+    { (info, Op.BitXor) }
 | info = BIT_OR
-    { (info, Surface.Op.BitOr) }
+    { (info, Op.BitOr) }
 | info = PLUSPLUS
-    { (info, Surface.Op.PlusPlus) }
+    { (info, Op.PlusPlus) }
 | info = AND
-    { (info, Surface.Op.And) }
+    { (info, Op.And) }
 | info = OR
-    { (info, Surface.Op.Or) }
+    { (info, Op.Or) }
 ;
 
 %inline r_angle:

@@ -12,7 +12,6 @@
  * License for the specific language governing permissions and limitations
  * under the License.
 *)
-<<<<<<< HEAD
 
 module P4Info = Info
 open Core_kernel
@@ -22,11 +21,6 @@ module Env = Prog.Env
 let print pp = Format.printf "%a@." Pp.to_fmt pp
 
 let fmt_print s = Format.printf "%s" s
-=======
-module P4P4info = P4info
-open Core_kernel
-module P4info = P4P4info
->>>>>>> 62cd2770 (wip fix menhir build errors)
 
 module type Parse_config = sig
   val red: string -> string
@@ -98,7 +92,6 @@ module Make_parse (Conf: Parse_config) = struct
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog, renamer = Elaborate.elab prog in
-<<<<<<< HEAD
       `Ok (prog, Checker.check_program renamer prog)
     | `Error e -> `Error e
 
@@ -117,57 +110,12 @@ module Make_parse (Conf: Parse_config) = struct
       if show_json
       then parsed_prog |> Types.program_to_yojson |> print_json pretty_json
       else parsed_prog |> Pretty.format_program |> print
-=======
-      let _, typed_prog = Checker.check_program renamer prog in
-      begin
-        if print_json then
-          let json = Surface.program_to_yojson prog in
-          let to_string j =
-            if pretty_json then
-              Yojson.Safe.pretty_to_string j
-            else
-              Yojson.Safe.to_string j in
-          Format.printf "%s" (to_string json)
-        else
-          Format.printf "%a" pretty prog
-      end;
-      begin
-        if typed_json then
-          let json = P4light.program_to_yojson typed_prog in
-          Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string json)
-      end;
-      begin
-        if exportp4 then
-          (* let oc = open_out ofile in *)
-          (* let oc = Stdlib.open_out "out.v" in *)
-          let oc = Out_channel.create export_file in
-          let prog' =
-            if normalize then
-              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
-            else typed_prog in
-          let prog'' =
-            if gen_loc then
-              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
-              | Coq_inl prog'' -> prog''
-              | Coq_inr ex -> failwith "error occurred in GenLoc"
-            else prog' in
-          Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
-          begin
-            if printp4 then
-            let oc_p4 = Out_channel.create printp4_file in
-            Printp4.print_program (Format.formatter_of_out_channel oc_p4)
-              ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] prog'';
-            Out_channel.close oc_p4
-          end;
-        Out_channel.close oc;
-      end
->>>>>>> 62cd2770 (wip fix menhir build errors)
     | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
+      Format.eprintf "%s: %s@\n%!" (Info.to_string info) s
     | `Error (info, Parser.Error) ->
-      Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
+      Format.eprintf "%s: syntax error@\n%!" (Info.to_string info)
     | `Error (info, err) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+      Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     let port = Bigint.of_int port in
@@ -209,7 +157,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `NoPacket -> "No packet out"
     | `Error(info, exn) ->
       let exn_msg = Exn.to_string exn in
-      let info_string = P4info.to_string info in
+      let info_string = Info.to_string info in
       info_string ^ "\n" ^ exn_msg
 
 end

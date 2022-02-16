@@ -12,6 +12,7 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  *)
+
 %{
 open Petr4.Ast
 %}
@@ -22,6 +23,7 @@ open Petr4.Ast
 %token COLON COMMA DATA_TERN DOT
 %token<string> INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX INT_CONST_BIN DATA_DEC DATA_HEX
 %token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ LBRACKET RBRACKET
+
 
 %start <Petr4.Ast.statement list> statements
 
@@ -71,9 +73,9 @@ number:
 
 number_or_lpm:
   | number SLASH number
-    { Petr4.Ast.Slash($1, $3) }
+    { Slash($1, $3) }
   | number
-    { Petr4.Ast.Num($1) }
+    { Num($1) }
 
 match_list:
   | matcht
@@ -97,7 +99,7 @@ id_or_index:
   | ID
     { Id($1) }
   | number
-    { Index($1) }
+    { Num($1) }
 
 count_type:
   | BYTES

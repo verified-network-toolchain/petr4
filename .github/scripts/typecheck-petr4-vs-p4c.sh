@@ -1,7 +1,7 @@
 #!/bin/bash
 
-set -e # Exit on error.
-# set -x # Make command execution verbose
+# set -e # Exit on error.
+set -x # Make command execution verbose
 
 # mkdir /petr4/ci-test/type-checking/expectation/matched 
 # mkdir /petr4/ci-test/type-checking/expectation/not-matched 
@@ -19,13 +19,13 @@ do
   if [$petr4_type_stat eq 0]
   then 
     if [$p4c_type_stat eq 0]
-    then cp "$file" /petr4/ci-test/type-checking/result/matched/
-    else cp "$file" /petr4/ci-test/type-checking/result/not-matched/
+    then mv "$file" /petr4/ci-test/type-checking/result/matched/
+    else mv "$file" /petr4/ci-test/type-checking/result/not-matched/
     fi
   else 
     if [$p4c_type_stat eq 0]
-    then cp "$file" /petr4/ci-test/type-checking/result/not-matched/
-    else cp "$file" /petr4/ci-test/type-checking/result/matched/
+    then mv "$file" /petr4/ci-test/type-checking/result/not-matched/
+    else mv "$file" /petr4/ci-test/type-checking/result/matched/
     fi
   fi
   # writes the file name, result of petr4 type checking, and p4c type checking

@@ -34,7 +34,7 @@ do
   # p4c_type=$(p4test -I ci-test/type-checking/p4include "$file")
   # # 2>&1
   # p4c_type_stat=$?
-  cp "$file" ci-test/type-checking/result/matched/"$file"
+  cp "$file" ci-test/type-checking/result/matched/"${file##*/}"
   # if [$petr4_type_stat eq 0]
   # then 
   #   if [$p4c_type_stat eq 0]

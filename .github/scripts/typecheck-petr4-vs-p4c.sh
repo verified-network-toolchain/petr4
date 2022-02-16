@@ -3,12 +3,6 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
-# mkdir /petr4/ci-test/type-checking/expectation/matched 
-# mkdir /petr4/ci-test/type-checking/expectation/not-matched 
-# pwd
-# ls -la
-# echo "foo bar baz" > ci-test/type-checking/result/lookinto/tired
-
 # finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
 do
@@ -44,3 +38,7 @@ do
   p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}"
   # mv "ci-test/type-checking/result/lookinto/${file##*/}" "ci-test/type-checking/result/lookinto/${file##*/}.out"
 done
+
+# once the result has been inspected we can run petr4 and p4c again 
+# and compare the new files in matched and not-matched with the 
+# ones in expectation.

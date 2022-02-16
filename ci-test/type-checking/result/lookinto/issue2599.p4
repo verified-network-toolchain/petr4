@@ -1,0 +1,17 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2599.p4
+\n
+extern void __semaphore_write(in bit<32> data = 0);
+
+control c() {
+    apply {
+        __semaphore_write();
+        __semaphore_write();
+    }
+}
+
+
+control proto();
+package top(proto p);
+
+top(c()) main;
+************************\n******** petr4 type checking result: ********\n************************\n

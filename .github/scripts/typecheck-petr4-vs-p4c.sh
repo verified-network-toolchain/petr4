@@ -7,7 +7,7 @@ set -x # Make command execution verbose
 # mkdir /petr4/ci-test/type-checking/expectation/not-matched 
 # pwd
 # ls -la
-echo "foo bar baz" > ci-test/type-checking/result/lookinto/tired.out
+echo "foo bar baz" > ci-test/type-checking/result/lookinto/tired
 
 # cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test
 
@@ -20,7 +20,7 @@ then
 else
   if [3 eq 1]
   then echo "nope" > ci-test/type-checking/result/lookinto/nopeee
-  else echo "here" > ci-test/type-checking/result/lookinto/here
+  else cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test/type-checking/result/lookinto
   fi 
 fi 
 

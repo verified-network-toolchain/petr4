@@ -34,7 +34,12 @@ jobs:
       #     push: true
       - name: add result of type checking to git repo
         run: |
+          pwd
+          ls -la
+          echo "foo bar baz" > bigOOF
           git config --local user.email "paris.ataei@gmail.com"
+          git config --local user.name  "Github Action Bot GO!"
+          touch oof
           git --version
           git status
           git add .

@@ -35,10 +35,13 @@ jobs:
       - name: add result of type checking to git repo
         run: |
           git config --local user.email "paris.ataei@gmail.com"
+          git --version
           git status
           git add .
           git status 
           git commit -am "testing"
+          git status
+          ls -la
           git push origin
 #       - name: Push changes to git
 #         uses: ad-m/github-push-action@master

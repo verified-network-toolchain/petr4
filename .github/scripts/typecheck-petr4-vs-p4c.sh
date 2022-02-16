@@ -29,12 +29,12 @@ for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.
 do
 #   # gets the result of type checking from petr4 and p4c, stores them in
 #   # variables and compares them
-#   petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
-#   petr4_type_stat=$?
-#   p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
-#   # 2>&1
-#   p4c_type_stat=$?
-#   # cp "$file" ci-test/type-checking/result/matched
+  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
+  petr4_type_stat=$?
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
+  # 2>&1
+  p4c_type_stat=$?
+  # cp "$file" ci-test/type-checking/result/matched
   if [$petr4_type_stat eq 0]
   then 
     if [$p4c_type_stat eq 0]

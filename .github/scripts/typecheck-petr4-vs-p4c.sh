@@ -29,24 +29,24 @@ for file in $(find ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -
 do
 #   # gets the result of type checking from petr4 and p4c, stores them in
 #   # variables and compares them
-  petr4_type=$(petr4 typecheck -I ci-test/type-checking/p4include "$file")
-  petr4_type_stat=$?
-  p4c_type=$(p4test -I ci-test/type-checking/p4include "$file")
-  # 2>&1
-  p4c_type_stat=$?
-  # cp "$file" ci-test/type-checking/result/matched
-  if [$petr4_type_stat eq 0]
-  then 
-    if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/matched/"$file"
-    else cp "$file" ci-test/type-checking/result/not-matched/"$file"
-    fi
-  else 
-    if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/not-matched/"$file"
-    else cp "$file" ci-test/type-checking/result/matched/"$file"
-    fi
-  fi
+  # petr4_type=$(petr4 typecheck -I ci-test/type-checking/p4include "$file")
+  # petr4_type_stat=$?
+  # p4c_type=$(p4test -I ci-test/type-checking/p4include "$file")
+  # # 2>&1
+  # p4c_type_stat=$?
+  cp "$file" ci-test/type-checking/result/matched
+  # if [$petr4_type_stat eq 0]
+  # then 
+  #   if [$p4c_type_stat eq 0]
+  #   then cp "$file" ci-test/type-checking/result/matched
+  #   else cp "$file" ci-test/type-checking/result/not-matched
+  #   fi
+  # else 
+  #   if [$p4c_type_stat eq 0]
+  #   then cp "$file" ci-test/type-checking/result/not-matched
+  #   else cp "$file" ci-test/type-checking/result/matched
+  #   fi
+  # fi
 #   # # writes the file name, result of petr4 type checking, and p4c type checking
 #   # # to a new file in res directory. 
   # echo "$file" > ci-test/type-checking/result/lookinto/"${file##*/}.out"

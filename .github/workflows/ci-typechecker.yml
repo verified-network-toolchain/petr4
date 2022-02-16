@@ -16,16 +16,16 @@ jobs:
       image: pataei/petr4:main
     steps: 
       - name: update git version
-        run: | 
+        run: |
           sudo apt-get install -y software-properties-common 
           sudo apt-get update 
           sudo add-apt-repository -y ppa:git-core/ppa 
           sudo apt-get update 
           sudo apt-get install -y git
       - uses: actions/checkout@v2
-      # - name: typecheck test petr4 vs p4c
-      #   run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
-      #   shell: bash
+      - name: typecheck test petr4 vs p4c
+        run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
+        shell: bash
 #       - uses: actions/checkout@v2
       # - uses: EndBug/add-and-commit@v8
       #   with:
@@ -36,7 +36,6 @@ jobs:
         run: |
           git config --local user.email "paris.ataei@gmail.com"
           git status
-          cp /petr4/ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 /petr4
           git add .
           git status 
           git commit -am "testing"

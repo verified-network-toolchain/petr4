@@ -26,12 +26,6 @@ jobs:
       - name: typecheck test petr4 vs p4c
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash
-#       - uses: actions/checkout@v2
-      # - uses: EndBug/add-and-commit@v8
-      #   with:
-      #     add: . 
-      #     message: "add result of type checking"
-      #     push: true
       - name: add result of type checking to git repo
         run: |
           git config --local user.email "paris.ataei@gmail.com"
@@ -45,18 +39,3 @@ jobs:
           pwd
           ls -la
           git push origin
-# git commit -am "compare exit code of p4c and petr4 type checking"          
-#       - name: Push changes to git
-#         uses: ad-m/github-push-action@master
-#         with:
-#           github_token: ${{ secrets.GITHUB_TOKEN }}
-#           force: true
-
-
-# have a job that checkouts first and another to reuse a workflow like the following:
-#   checkout:
-#     runs-on: ubuntu-latest
-    # steps:
-    #   - uses: actions/checkout@main      
-#   reuse-build-petr4:
-#     uses: pataei/petr4/.github/workflows/build-petr4.yml@main

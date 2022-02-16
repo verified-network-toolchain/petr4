@@ -39,8 +39,8 @@ do
   echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/result/lookinto/${file##*/}"
   petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}"
   # # # echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/result/lookinto/${file##*/}"
+  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/result/lookinto/${file##*/}"
   # # # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}"
   # mv "ci-test/type-checking/result/lookinto/${file##*/}" "ci-test/type-checking/result/lookinto/${file##*/}.out"
 done

@@ -9,23 +9,6 @@ set -x # Make command execution verbose
 # ls -la
 # echo "foo bar baz" > ci-test/type-checking/result/lookinto/tired
 
-# cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test
-
-# cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test/type-checking/result/matched
-
-# if [2 eq 0]
-# then 
-#   if [3 eq 1]
-#   then echo "nope" > ci-test/type-checking/result/lookinto/nope
-#   else echo "still nope" > ci-test/type-checking/result/lookinto/nopee
-#   fi 
-# else
-#   if [3 eq 1]
-#   then echo "nope" > ci-test/type-checking/result/lookinto/nopeee
-#   else cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test/type-checking/result/lookinto
-#   fi 
-# fi 
-
 # finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
 do
@@ -36,7 +19,6 @@ do
   # p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # # 2>&1
   # p4c_type_stat=$?
-  # # cp "$file" ci-test/type-checking/result/matched
   # if [$petr4_type_stat eq 0]
   # then 
   #   if [$p4c_type_stat eq 0]
@@ -59,5 +41,5 @@ do
   # echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
   # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  p4test -I /petr4/ci-test/type-checking/p4include --top4 "" "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
 done

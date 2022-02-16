@@ -38,8 +38,9 @@ jobs:
           git config --local user.name  "Github Action Bot GO!"
           git status
           git add .
-          git commit -am "compare exit code of p4c and petr4 type checking"
+          git commit -am "testing"
           git push origin
+# git commit -am "compare exit code of p4c and petr4 type checking"          
 #       - name: Push changes to git
 #         uses: ad-m/github-push-action@master
 #         with:

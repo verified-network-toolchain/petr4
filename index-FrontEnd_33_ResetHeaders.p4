@@ -1,0 +1,62 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+header H {
+    bit<32> field;
+}
+
+parser P(packet_in p, out H[2] h) {
+    bit<32> x;
+    H tmp;
+    state start {
+        tmp.setInvalid();
+        p.extract<H>(tmp);
+        transition select(tmp.field) {
+            32w0: n1;
+            default: n2;
+        }
+    }
+    state n1 {
+        x = 32w1;
+        transition n3;
+    }
+    state n2 {
+        x = 32w2;
+        transition n3;
+    }
+    state n3 {
+        x = x + 32w4294967295;
+        p.extract<H>(h[x]);
+        transition accept;
+    }
+}
+
+parser Simple<T>(packet_in p, out T t);
+package top<T>(Simple<T> prs);
+top<H[2]>(P()) main;
+

@@ -1,0 +1,124 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+control ingress(inout bit<32> b) {
+    @name("ingress.tmp") bool tmp;
+    @name("ingress.tmp_0") bit<8> tmp_0;
+    @name("ingress.tmp_1") bool tmp_1;
+    @name("ingress.tmp_2") bit<8> tmp_2;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
+    }
+    @noWarn("unused") @name(".NoAction") action NoAction_3() {
+    }
+    @name("ingress.t0") table t0_0 {
+        key = {
+            b: exact @name("b") ;
+        }
+        actions = {
+            @defaultonly NoAction_1();
+        }
+        default_action = NoAction_1();
+    }
+    @name("ingress.t1") table t1_0 {
+        key = {
+            tmp_2: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_2();
+        }
+        default_action = NoAction_2();
+    }
+    @name("ingress.t2") table t2_0 {
+        key = {
+            tmp_0: exact @name("key") ;
+        }
+        actions = {
+            @defaultonly NoAction_3();
+        }
+        default_action = NoAction_3();
+    }
+    @hidden action act() {
+        tmp_1 = true;
+    }
+    @hidden action act_0() {
+        tmp_1 = false;
+    }
+    @hidden action issue25462l13() {
+        tmp_2 = 8w1;
+    }
+    @hidden action issue25462l13_0() {
+        tmp_2 = 8w2;
+    }
+    @hidden action act_1() {
+        tmp = true;
+    }
+    @hidden action act_2() {
+        tmp = false;
+    }
+    @hidden action issue25462l20() {
+        tmp_0 = 8w3;
+    }
+    @hidden action issue25462l20_0() {
+        tmp_0 = 8w4;
+    }
+    @hidden action issue25462l27() {
+        b = 32w1;
+    }
+    apply {
+        if (t0_0.apply().hit) {
+            act();
+        } else {
+            act_0();
+        }
+        if (tmp_1) {
+            issue25462l13();
+        } else {
+            issue25462l13_0();
+        }
+        if (t1_0.apply().hit) {
+            act_1();
+        } else {
+            act_2();
+        }
+        if (tmp) {
+            issue25462l20();
+        } else {
+            issue25462l20_0();
+        }
+        if (t2_0.apply().hit) {
+            issue25462l27();
+        }
+    }
+}
+
+control Ingress(inout bit<32> b);
+package top(Ingress ig);
+top(ingress()) main;
+

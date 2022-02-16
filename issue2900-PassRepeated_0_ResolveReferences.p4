@@ -1,0 +1,294 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+typedef bit<32> PortIdUint_t;
+typedef bit<8> ClassOfServiceUint_t;
+typedef bit<64> TimestampUint_t;
+typedef bit<3> PassNumberUint_t;
+typedef bit<32> SecurityAssocIdUint_t;
+@p4runtime_translation("p4.org/pna/v1/PortId_t" , 32) type PortIdUint_t PortId_t;
+@p4runtime_translation("p4.org/pna/v1/ClassOfService_t" , 8) type ClassOfServiceUint_t ClassOfService_t;
+@p4runtime_translation("p4.org/pna/v1/Timestamp_t" , 64) type TimestampUint_t Timestamp_t;
+@p4runtime_translation("p4.org/pna/v1/PassNumber_t" , 8) type PassNumberUint_t PassNumber_t;
+@p4runtime_translation("p4.org/pna/v1/SecurityAssocId_t" , 64) type SecurityAssocIdUint_t SecurityAssocId_t;
+typedef error ParserError_t;
+match_kind {
+    range,
+    selector
+}
+
+enum PNA_HashAlgorithm_t {
+    TARGET_DEFAULT
+}
+
+extern Hash<O> {
+    Hash(PNA_HashAlgorithm_t algo);
+    O get_hash<D>(in D data);
+    O get_hash<T, D>(in T base, in D data, in T max);
+}
+
+extern Checksum<W> {
+    Checksum(PNA_HashAlgorithm_t hash);
+    void clear();
+    void update<T>(in T data);
+    W get();
+}
+
+extern InternetChecksum {
+    InternetChecksum();
+    void clear();
+    void add<T>(in T data);
+    void subtract<T>(in T data);
+    bit<16> get();
+    bit<16> get_state();
+    void set_state(in bit<16> checksum_state);
+}
+
+enum PNA_CounterType_t {
+    PACKETS,
+    BYTES,
+    PACKETS_AND_BYTES
+}
+
+extern Counter<W, S> {
+    Counter(bit<32> n_counters, PNA_CounterType_t type);
+    void count(in S index);
+}
+
+extern DirectCounter<W> {
+    DirectCounter(PNA_CounterType_t type);
+    void count();
+}
+
+enum PNA_MeterType_t {
+    PACKETS,
+    BYTES
+}
+
+enum PNA_MeterColor_t {
+    RED,
+    GREEN,
+    YELLOW
+}
+
+extern Meter<S> {
+    Meter(bit<32> n_meters, PNA_MeterType_t type);
+    PNA_MeterColor_t execute(in S index, in PNA_MeterColor_t color);
+    PNA_MeterColor_t execute(in S index);
+}
+
+extern DirectMeter {
+    DirectMeter(PNA_MeterType_t type);
+    PNA_MeterColor_t execute(in PNA_MeterColor_t color);
+    PNA_MeterColor_t execute();
+}
+
+extern Register<T, S> {
+    Register(bit<32> size);
+    Register(bit<32> size, T initial_value);
+    T read(in S index);
+    void write(in S index, in T value);
+}
+
+extern Random<T> {
+    Random(T min, T max);
+    T read();
+}
+
+extern ActionProfile {
+    ActionProfile(bit<32> size);
+}
+
+extern ActionSelector {
+    ActionSelector(PNA_HashAlgorithm_t algo, bit<32> size, bit<32> outputWidth);
+}
+
+extern Digest<T> {
+    Digest();
+    void pack(in T data);
+}
+
+enum PNA_Direction_t {
+    NET_TO_HOST,
+    HOST_TO_NET
+}
+
+struct pna_pre_input_metadata_t {
+    PortId_t        input_port;
+    ParserError_t   parser_error;
+    PNA_Direction_t direction;
+    PassNumber_t    pass;
+    bool            loopedback;
+}
+
+struct pna_pre_output_metadata_t {
+    bool              decrypt;
+    SecurityAssocId_t said;
+    bit<16>           decrypt_start_offset;
+}
+
+struct pna_main_parser_input_metadata_t {
+    PNA_Direction_t direction;
+    PassNumber_t    pass;
+    bool            loopedback;
+    PortId_t        input_port;
+}
+
+struct pna_main_input_metadata_t {
+    PNA_Direction_t  direction;
+    PassNumber_t     pass;
+    bool             loopedback;
+    Timestamp_t      timestamp;
+    ParserError_t    parser_error;
+    ClassOfService_t class_of_service;
+    PortId_t         input_port;
+}
+
+struct pna_main_output_metadata_t {
+    ClassOfService_t class_of_service;
+}
+
+@pure extern T SelectByDirection<T>(in PNA_Direction_t direction, in T n2h_value, in T h2n_value);
+control PreControlT<PH, PM>(in PH pre_hdr, inout PM pre_user_meta, in pna_pre_input_metadata_t istd, inout pna_pre_output_metadata_t ostd);
+parser MainParserT<PM, MH, MM>(packet_in pkt, out MH main_hdr, inout MM main_user_meta, in pna_main_parser_input_metadata_t istd);
+control MainControlT<PM, MH, MM>(inout MH main_hdr, inout MM main_user_meta, in pna_main_input_metadata_t istd, inout pna_main_output_metadata_t ostd);
+control MainDeparserT<MH, MM>(packet_out pkt, in MH main_hdr, in MM main_user_meta, in pna_main_output_metadata_t ostd);
+package PNA_NIC<PH, PM, MH, MM>(MainParserT<PM, MH, MM> main_parser, PreControlT<PH, PM> pre_control, MainControlT<PM, MH, MM> main_control, MainDeparserT<MH, MM> main_deparser);
+typedef bit<48> EthernetAddress;
+header ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
+}
+
+header ipv4_t {
+    bit<4>  version;
+    bit<4>  ihl;
+    bit<8>  diffserv;
+    bit<16> totalLen;
+    bit<16> identification;
+    bit<3>  flags;
+    bit<13> fragOffset;
+    bit<8>  ttl;
+    bit<8>  protocol;
+    bit<16> hdrChecksum;
+    bit<32> srcAddr;
+    bit<32> dstAddr;
+}
+
+struct headers_t {
+    ethernet_t ethernet;
+    ipv4_t     ipv4;
+}
+
+struct main_metadata_t {
+    PortId_t dst_port;
+}
+
+bool TxPkt(in pna_main_input_metadata_t istd) {
+    @name("hasReturned") bool hasReturned_0;
+    @name("retval") bool retval_0;
+    hasReturned_0 = false;
+    {
+        hasReturned_0 = true;
+        retval_0 = istd.direction == PNA_Direction_t.HOST_TO_NET;
+    }
+    return retval_0;
+}
+control PreControlImpl(in headers_t hdr, inout main_metadata_t meta, in pna_pre_input_metadata_t istd, inout pna_pre_output_metadata_t ostd) {
+    apply {
+    }
+}
+
+parser MainParserImpl(packet_in pkt, out headers_t hdr, inout main_metadata_t main_meta, in pna_main_parser_input_metadata_t istd) {
+    state start {
+        pkt.extract<ethernet_t>(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            16w0x800: parse_ipv4;
+            default: accept;
+        }
+    }
+    state parse_ipv4 {
+        pkt.extract<ipv4_t>(hdr.ipv4);
+        transition accept;
+    }
+}
+
+control MainControlImpl(inout headers_t hdr, inout main_metadata_t meta, in pna_main_input_metadata_t istd, inout pna_main_output_metadata_t ostd) {
+    @name("key_0") bit<32> key_3;
+    @name("key_1") bit<32> key_4;
+    @name("key_2") bit<8> key_5;
+    @name("tmp") bool tmp_0;
+    @noWarn("unused") @name(".NoAction") action NoAction_0() {
+    }
+    @name("clb_pinned_flows") table clb_pinned_flows {
+        key = {
+            key_3: exact @name("ipv4_addr_0") ;
+            key_4: exact @name("ipv4_addr_1") ;
+            key_5: exact @name("hdr.ipv4.protocol") ;
+        }
+        actions = {
+            NoAction_0();
+        }
+        const default_action = NoAction_0();
+    }
+    apply {
+        {
+            pna_main_input_metadata_t istd_0 = istd;
+            @name("hasReturned") bool hasReturned_0;
+            @name("retval") bool retval_0;
+            hasReturned_0 = false;
+            {
+                hasReturned_0 = true;
+                retval_0 = istd_0.direction == PNA_Direction_t.HOST_TO_NET;
+            }
+            tmp_0 = retval_0;
+        }
+        if (tmp_0) {
+            key_3 = SelectByDirection<bit<32>>(istd.direction, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr);
+            key_4 = SelectByDirection<bit<32>>(istd.direction, hdr.ipv4.dstAddr, hdr.ipv4.srcAddr);
+            key_5 = hdr.ipv4.protocol;
+            clb_pinned_flows.apply();
+        } else {
+            key_3 = SelectByDirection<bit<32>>(istd.direction, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr);
+            key_4 = SelectByDirection<bit<32>>(istd.direction, hdr.ipv4.dstAddr, hdr.ipv4.srcAddr);
+            key_5 = hdr.ipv4.protocol;
+            clb_pinned_flows.apply();
+        }
+    }
+}
+
+control MainDeparserImpl(packet_out pkt, in headers_t hdr, in main_metadata_t user_meta, in pna_main_output_metadata_t ostd) {
+    apply {
+        pkt.emit<ethernet_t>(hdr.ethernet);
+        pkt.emit<ipv4_t>(hdr.ipv4);
+    }
+}
+
+PNA_NIC<headers_t, main_metadata_t, headers_t, main_metadata_t>(MainParserImpl(), PreControlImpl(), MainControlImpl(), MainDeparserImpl()) main;
+

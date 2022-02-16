@@ -1,0 +1,66 @@
+error {
+    NoError,
+    PacketTooShort,
+    NoMatch,
+    StackOutOfBounds,
+    HeaderTooShort,
+    ParserTimeout,
+    ParserInvalidArgument
+}
+
+extern packet_in {
+    void extract<T>(out T hdr);
+    void extract<T>(out T variableSizeHeader, in bit<32> variableFieldSizeInBits);
+    T lookahead<T>();
+    void advance(in bit<32> sizeInBits);
+    bit<32> length();
+}
+
+extern packet_out {
+    void emit<T>(in T hdr);
+}
+
+match_kind {
+    exact,
+    ternary,
+    lpm
+}
+
+struct intrinsic_metadata_t {
+    bit<8> f0;
+    bit<8> f1;
+}
+
+struct empty_t {
+}
+
+control C<H, M>(inout H hdr, inout M meta, in intrinsic_metadata_t intr_md);
+package P<H, M>(C<H, M> c);
+struct hdr_t {
+}
+
+struct meta_t {
+    bit<8> f0;
+    bit<8> f1;
+    bit<8> f2;
+}
+
+control MyC(inout hdr_t hdr, inout meta_t meta, in intrinsic_metadata_t intr_md) {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @name("MyC.c2.a") table c2_a {
+        key = {
+            ((meta_t){f0 = 8w0,f1 = 8w0,f2 = 8w0}).f0: exact @name("meta.f0") ;
+        }
+        actions = {
+            NoAction_1();
+        }
+        default_action = NoAction_1();
+    }
+    apply {
+        c2_a.apply();
+    }
+}
+
+P<hdr_t, meta_t>(MyC()) main;
+

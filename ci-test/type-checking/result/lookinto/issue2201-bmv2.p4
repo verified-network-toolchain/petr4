@@ -1,0 +1,490 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2201-bmv2.p4
+\n
+/*
+Copyright 2020 Cisco Systems, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+typedef bit<48>  EthernetAddress;
+
+header ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
+}
+
+struct headers_t {
+    ethernet_t    ethernet;
+}
+
+struct metadata_t {
+}
+
+parser parserImpl(packet_in packet,
+                  out headers_t hdr,
+                  inout metadata_t meta,
+                  inout standard_metadata_t stdmeta)
+{
+    state start {
+        packet.extract(hdr.ethernet);
+        transition accept;
+    }
+}
+
+control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
+}
+
+enum MyEnum_t {
+    VAL1,
+    VAL2,
+    VAL3
+}
+
+enum bit<10> MySerializableEnum_t {
+    VAL17 = 17,
+    VAL23 = 23,
+    VAL19 = 19
+}
+
+control ingressImpl(inout headers_t hdr,
+                    inout metadata_t meta,
+                    inout standard_metadata_t stdmeta)
+{
+    bool bool1;
+    bit<1> bit1;
+    MyEnum_t enum1;
+    MySerializableEnum_t serenum1;
+    int<8> signed1;
+    bit<8> unsigned1;
+
+    apply {
+        // bool
+        bool1 = (bool) hdr.ethernet.dstAddr[0:0];
+        // TBD: Currently gives no error/warning from p4c, but
+        // simple_switch gives error when trying to read the BMv2 JSON
+        // file.
+        log_msg("bool1={}", {bool1});
+
+        // Casting a bool to a bit<1> and logging that bit<1> value
+        // works fine, printing 1 for true, 0 for false.
+        log_msg("(bit<1>) bool1={}", {(bit<1>) bool1});
+        log_msg("(bit<1>) (!bool1)={}", {(bit<1>) (!bool1)});
+
+        // bit<1>
+        bit1 = hdr.ethernet.dstAddr[0:0];
+        log_msg("bit1={}", {bit1});
+
+        // signed int<W>
+        signed1 = 127;
+        signed1 = signed1 + 1;
+        // Should wrap around to -128 in 2's complement, for 8-bit value.
+        // Ideally should print that way, too, and it does in my
+        // testing with simple_switch.
+        log_msg("signed1={}", {signed1});
+
+        // unsigned int<W>
+        unsigned1 = 127;
+        unsigned1 = unsigned1 + 1;
+        // Should be unsigned 128, for unsigned int<8>, and it prints
+        // that way in my simple_switch testing.
+        log_msg("unsigned1={}", {unsigned1});
+
+        // infinite precision int, compile-time constant value
+        // p4c gives error "could not infer width"
+//        log_msg("infint1={}", {5});
+
+        // enum
+        if (hdr.ethernet.dstAddr[1:0] == 0) {
+            enum1 = MyEnum_t.VAL1;
+        } else if (hdr.ethernet.dstAddr[1:0] == 1) {
+            enum1 = MyEnum_t.VAL2;
+        } else {
+            enum1 = MyEnum_t.VAL3;
+        }
+        // In my testing, this prints the numeric code that p4c
+        // selected for the MyEnum_t values at compile time, which can
+        // change from run to run, although tends to be stable, I
+        // think.  I would recommend against anyone _relying_ on it
+        // being stable.
+        log_msg("enum1={}", {enum1});
+
+        // serializable enum
+        if (hdr.ethernet.dstAddr[1:0] == 0) {
+            serenum1 = MySerializableEnum_t.VAL17;
+        } else if (hdr.ethernet.dstAddr[1:0] == 1) {
+            serenum1 = MySerializableEnum_t.VAL23;
+        } else {
+            serenum1 = MySerializableEnum_t.VAL19;
+        }
+        // Prints the value of the underlying bit<10> value, as it
+        // should.
+        log_msg("serenum1={}", {serenum1});
+
+        // header
+
+        // TBD: Currently gives no error/warning from p4c, but
+        // simple_switch gives the run-time error below when
+        // attempting to execute this statement:
+
+        // Assertion 'Default switch case should not be reachable' failed, file '../../include/bm/bm_sim/actions.h' line '334'.
+        // Aborted
+
+        // If simple_switch does not support this, and if it does not
+        // seem worth the effort to enhance it for this, it seems
+        // better if p4c would give an error that this is not
+        // supported.
+
+        log_msg("hdr.ethernet={}", {hdr.ethernet});
+
+        // struct - as of this writing, v1model.p4 standard_metadata_t
+        // struct is defined such that all fields are of type bit<W>
+        // for varying widths W.
+
+        // TBD: Currently gives no error/warning from p4c, but
+        // simple_switch gives the run-time error below when
+        // attempting to execute this statement:
+
+        // Assertion 'Default switch case should not be reachable' failed, file '../../include/bm/bm_sim/actions.h' line '334'.
+        // Aborted
+
+        // Same comments for this as for header types above.
+
+        log_msg("stdmeta={}", {stdmeta});
+
+        // error
+
+        // No error/warning from p4c, and simple_switch prints out the
+        // numeric value that is assigned to the error code by p4c and
+        // stored in the BMv2 JSON file, which can change over
+        // different compilation runs of the same program, perhaps.
+        // Not sure.  I am pretty sure it has changed across different
+        // versions of p4c source code, occasionally.
+        log_msg("error.PacketTooShort={}", {error.PacketTooShort});
+    }
+}
+
+control egressImpl(inout headers_t hdr,
+                   inout metadata_t meta,
+                   inout standard_metadata_t stdmeta)
+{
+    apply { }
+}
+
+control updateChecksum(inout headers_t hdr, inout metadata_t meta) {
+    apply { }
+}
+
+control deparserImpl(packet_out packet,
+                     in headers_t hdr)
+{
+    apply {
+        packet.emit(hdr.ethernet);
+    }
+}
+
+V1Switch(parserImpl(),
+         verifyChecksum(),
+         ingressImpl(),
+         egressImpl(),
+         updateChecksum(),
+         deparserImpl()) main;
+************************\n******** petr4 type checking result: ********\n************************\n
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+@noWarn("unused")
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+match_kind {
+  range, optional, selector
+}
+const bit<32> __v1model_version = 20180101;
+@metadata
+@name("standard_metadata")
+struct standard_metadata_t {
+  bit<9> ingress_port;
+  bit<9> egress_spec;
+  bit<9> egress_port;
+  bit<32> instance_type;
+  bit<32> packet_length;
+  @alias("queueing_metadata.enq_timestamp")
+  bit<32> enq_timestamp;
+  @alias("queueing_metadata.enq_qdepth")
+  bit<19> enq_qdepth;
+  @alias("queueing_metadata.deq_timedelta")
+  bit<32> deq_timedelta;
+  @alias("queueing_metadata.deq_qdepth")
+  bit<19>
+  deq_qdepth;
+  @alias("intrinsic_metadata.ingress_global_timestamp")
+  bit<48>
+  ingress_global_timestamp;
+  @alias("intrinsic_metadata.egress_global_timestamp")
+  bit<48>
+  egress_global_timestamp;
+  @alias("intrinsic_metadata.mcast_grp")
+  bit<16> mcast_grp;
+  @alias("intrinsic_metadata.egress_rid")
+  bit<16> egress_rid;
+  bit<1> checksum_error;
+  error parser_error;
+  @alias("intrinsic_metadata.priority")
+  bit<3> priority;
+}
+enum CounterType {
+  packets, 
+  bytes, 
+  packets_and_bytes
+}
+enum MeterType {
+  packets, 
+  bytes
+}
+extern counter {
+  counter(bit<32> size, CounterType type);
+  void count(in bit<32> index);
+}
+
+extern direct_counter {
+  direct_counter(CounterType type);
+  void count();
+}
+
+extern meter {
+  meter(bit<32> size, MeterType type);
+  void execute_meter<T3>(in bit<32> index, out T3 result);
+}
+
+extern direct_meter<T4> {
+  direct_meter(MeterType type);
+  void read(out T4 result);
+}
+
+extern register<T5> {
+  register(bit<32> size);
+  @noSideEffects
+  void read(out T5 result, in bit<32> index);
+  void write(in bit<32> index, in T5 value);
+}
+
+extern action_profile {
+  action_profile(bit<32> size);
+}
+
+extern void random<T6>(out T6 result, in T6 lo, in T6 hi);
+extern void digest<T7>(in bit<32> receiver, in T7 data);
+enum HashAlgorithm {
+  crc32, 
+  crc32_custom, 
+  crc16, 
+  crc16_custom, 
+  random, 
+  identity, 
+  csum16, 
+  xor16
+}
+@deprecated("Please use mark_to_drop(standard_metadata) instead.")
+extern void mark_to_drop();
+@pure
+extern void mark_to_drop(inout standard_metadata_t standard_metadata);
+@pure
+extern void hash<O, T8, D, M>(out O result, in HashAlgorithm algo,
+                              in T8 base, in D data, in M max);
+extern action_selector {
+  action_selector(HashAlgorithm algorithm, bit<32> size, bit<32> outputWidth);
+}
+
+enum CloneType {
+  I2E, 
+  E2E
+}
+@deprecated("Please use verify_checksum/update_checksum instead.")
+extern Checksum16 {
+  Checksum16();
+  bit<16> get<D9>(in D9 data);
+}
+
+extern void verify_checksum<T10, O11>(in bool condition, in T10 data,
+                                      in O11 checksum, HashAlgorithm algo);
+@pure
+extern void update_checksum<T12, O13>(in bool condition, in T12 data,
+                                      inout O13 checksum,
+                                      HashAlgorithm algo);
+extern void verify_checksum_with_payload<T14, O15>(in bool condition,
+                                                   in T14 data,
+                                                   in O15 checksum,
+                                                   HashAlgorithm algo);
+@noSideEffects
+extern void update_checksum_with_payload<T16, O17>(in bool condition,
+                                                   in T16 data,
+                                                   inout O17 checksum,
+                                                   HashAlgorithm algo);
+extern void clone(in CloneType type, in bit<32> session);
+@deprecated("Please use 'resubmit_preserving_field_list' instead")
+extern void resubmit<T18>(in T18 data);
+extern void resubmit_preserving_field_list(bit<8> index);
+@deprecated("Please use 'recirculate_preserving_field_list' instead")
+extern void recirculate<T19>(in T19 data);
+extern void recirculate_preserving_field_list(bit<8> index);
+@deprecated("Please use 'clone_preserving_field_list' instead")
+extern void clone3<T20>(in CloneType type, in bit<32> session, in T20 data);
+extern void clone_preserving_field_list(in CloneType type,
+                                        in bit<32> session, bit<8> index);
+extern void truncate(in bit<32> length);
+extern void assert(in bool check);
+extern void assume(in bool check);
+extern void log_msg(string msg);
+extern void log_msg<T21>(string msg, in T21 data);
+parser Parser<H, M22>
+  (packet_in b,
+   out H parsedHdr,
+   inout M22 meta,
+   inout standard_metadata_t standard_metadata);
+control VerifyChecksum<H23, M24> (inout H23 hdr, inout M24 meta);
+@pipeline
+control Ingress<H25, M26>
+  (inout H25 hdr, inout M26 meta, inout standard_metadata_t standard_metadata);
+@pipeline
+control Egress<H27, M28>
+  (inout H27 hdr, inout M28 meta, inout standard_metadata_t standard_metadata);
+control ComputeChecksum<H29, M30> (inout H29 hdr, inout M30 meta);
+@deparser
+control Deparser<H31> (packet_out b, in H31 hdr);
+package V1Switch<H32, M33>
+  (Parser<H32, M33> p,
+   VerifyChecksum<H32, M33> vr,
+   Ingress<H32, M33> ig,
+   Egress<H32, M33> eg,
+   ComputeChecksum<H32, M33> ck,
+   Deparser<H32> dep);
+typedef bit<48> EthernetAddress;
+header ethernet_t {
+  EthernetAddress dstAddr;
+  EthernetAddress srcAddr;
+  bit<16> etherType;
+}
+struct headers_t {
+  ethernet_t ethernet;
+}
+struct metadata_t {
+  
+}
+parser parserImpl(packet_in packet, out headers_t hdr, inout metadata_t meta,
+                  inout standard_metadata_t stdmeta) {
+  state start {
+    packet.extract(hdr.ethernet);
+    transition accept;
+  }
+}
+control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
+  apply { 
+  }
+}
+enum MyEnum_t {
+  VAL1, 
+  VAL2, 
+  VAL3
+}
+enum bit<10> MySerializableEnum_t {
+  VAL17 = 17, 
+  VAL23 = 23, 
+  VAL19 = 19
+}
+control ingressImpl(inout headers_t hdr, inout metadata_t meta,
+                    inout standard_metadata_t stdmeta) {
+  bool bool1;
+  bit<1> bit1;
+  MyEnum_t enum1;
+  MySerializableEnum_t serenum1;
+  int<8> signed1;
+  bit<8> unsigned1;
+  apply
+    {
+    bool1 = (bool) hdr.ethernet.dstAddr[0:0];
+    log_msg("bool1={}", {bool1});
+    log_msg("(bit<1>) bool1={}", {(bit<1>) bool1});
+    log_msg("(bit<1>) (!bool1)={}", {(bit<1>) !bool1});
+    bit1 = hdr.ethernet.dstAddr[0:0];
+    log_msg("bit1={}", {bit1});
+    signed1 = 127;
+    signed1 = signed1+1;
+    log_msg("signed1={}", {signed1});
+    unsigned1 = 127;
+    unsigned1 = unsigned1+1;
+    log_msg("unsigned1={}", {unsigned1});
+    if (hdr.ethernet.dstAddr[1:0]==0) {
+      enum1 = MyEnum_t.VAL1;
+    }
+       else if (hdr.ethernet.dstAddr[1:0]==1) {
+              enum1 = MyEnum_t.VAL2;
+       }else {
+       enum1 = MyEnum_t.VAL3;
+       }
+    log_msg("enum1={}", {enum1});
+    if (hdr.ethernet.dstAddr[1:0]==0) {
+      serenum1 = MySerializableEnum_t.VAL17;
+    }
+       else
+       if (hdr.ethernet.dstAddr[1:0]==1)
+         {
+         serenum1 = MySerializableEnum_t.VAL23;
+       }else {
+       serenum1 = MySerializableEnum_t.VAL19;
+       }
+    log_msg("serenum1={}", {serenum1});
+    log_msg("hdr.ethernet={}", {hdr.ethernet});
+    log_msg("stdmeta={}", {stdmeta});
+    log_msg("error.PacketTooShort={}", {PacketTooShort});
+  }
+}
+control egressImpl(inout headers_t hdr, inout metadata_t meta,
+                   inout standard_metadata_t stdmeta) {
+  apply { 
+  }
+}
+control updateChecksum(inout headers_t hdr, inout metadata_t meta) {
+  apply { 
+  }
+}
+control deparserImpl(packet_out packet, in headers_t hdr) {
+  apply {
+    packet.emit(hdr.ethernet);
+  }
+}
+V1Switch(parserImpl(), verifyChecksum(), ingressImpl(), egressImpl(),
+           updateChecksum(), deparserImpl())
+  main;
+

@@ -1,0 +1,90 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/issue823.p4
+\n
+#include <core.p4>
+
+// Architecture
+parser P<H>(packet_in pkt, out H hdr);
+control C();
+package S<H>(P<H> p, C c);
+
+// User Program
+header data_h {
+    bit<32> da;
+}
+
+struct headers_t {
+    data_h data;
+}
+
+parser MyP2(packet_in pkt, out headers_t hdr) {
+    state start {
+        transition reject;
+    }
+}
+
+parser MyP1(packet_in pkt, out headers_t hdr) {
+    MyP2() subp;
+    state start {
+        subp.apply(pkt, hdr);
+        transition accept;
+    }
+}
+
+control MyC1() {
+    apply {
+    }
+}
+
+S(MyP1(), MyC1()) main;
+************************\n******** petr4 type checking result: ********\n************************\n
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+@noWarn("unused")
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+parser P<H> (packet_in pkt, out H hdr);
+control C ();
+package S<H3> (P<H3> p, C c);
+header data_h {
+  bit<32> da;
+}
+struct headers_t {
+  data_h data;
+}
+parser MyP2(packet_in pkt, out headers_t hdr) {
+  state start {
+    transition reject;
+  }
+}
+parser MyP1(packet_in pkt, out headers_t hdr) {
+  MyP2() subp;
+  state start {
+    subp.apply(pkt, hdr);
+    transition accept;
+  }
+}
+control MyC1() {
+  apply { 
+  }
+}
+S(MyP1(), MyC1()) main;
+

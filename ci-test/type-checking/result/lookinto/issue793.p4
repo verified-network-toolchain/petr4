@@ -1,0 +1,87 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/issue793.p4
+\n
+#include <core.p4>
+
+struct standard_metadata_t {}
+
+header data_h {
+    bit<32> da;
+    bit<32> db;
+}
+
+struct my_packet {
+    data_h data;
+}
+
+control c(in my_packet hdr) {
+    action nop() {
+    }
+    table t {
+        actions = { nop; }
+        key = { hdr.data.db : exact; }
+    }
+    apply {
+        if (hdr.data.da == 32w1)
+            t.apply();
+    }
+}
+
+control C(in my_packet hdr);
+package V1Switch(C vr);
+
+V1Switch(c()) main;
+************************\n******** petr4 type checking result: ********\n************************\n
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+@noWarn("unused")
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+struct standard_metadata_t {
+  
+}
+header data_h {
+  bit<32> da;
+  bit<32> db;
+}
+struct my_packet {
+  data_h data;
+}
+control c(in my_packet hdr) {
+  action nop() { 
+  }
+  table t {
+    actions = {
+      nop;
+    }
+    key = {
+      hdr.data.db: exact;
+    }
+  }
+  apply {
+    if (hdr.data.da==32w1) 
+      t.apply();
+  }
+}
+control C (in my_packet hdr);
+package V1Switch (C vr);
+V1Switch(c()) main;
+

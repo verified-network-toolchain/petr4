@@ -1,0 +1,452 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/issue-2123-3-bmv2.p4
+\n
+/*
+ * Copyright 2020, MNK Labs & Consulting
+ * http://mnkcg.com
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+#include <v1model.p4>
+
+header ethernet_t {
+    bit<48> dstAddr;
+    bit<48> srcAddr;
+    bit<16> etherType;
+}
+
+header h0_t {
+    bit<8>  f0;
+}
+
+header h1_t {
+    bit<8>  f1;
+}
+
+header h2_t {
+    bit<8>  f2;
+}
+
+header h3_t {
+    bit<8>  f3;
+}
+
+header h4_t {
+    bit<8>  f4;
+}
+
+struct metadata {
+}
+
+struct headers {
+    ethernet_t ethernet;
+    h0_t       h0;
+    h1_t       h1;
+    h2_t       h2;
+    h3_t       h3;
+    h4_t       h4;
+}
+
+parser ParserImpl(
+    packet_in packet,
+    out headers hdr,
+    inout metadata meta,
+    inout standard_metadata_t standard_metadata)
+{
+    state start {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.srcAddr[7:0], hdr.ethernet.etherType) {
+            (0x61 .. 0x67, 0x0800 .. 0x0806): parse_h0;
+            (0x61 .. 0x67, 0x0901 .. 0x0902): parse_h1;
+            (0x77 .. 0x7b, 0x0801 .. 0x0806): parse_h2;
+            (0x77 .. 0x7b, 0x0a00 .. 0x0aaa): parse_h3;
+            (           _, 0x0a00 .. 0x0aaa): parse_h4;
+            default: accept;
+        }
+    }
+    state parse_h0 {
+        packet.extract(hdr.h0);
+        transition accept;
+    }
+    state parse_h1 {
+        packet.extract(hdr.h1);
+        transition accept;
+    }
+    state parse_h2 {
+        packet.extract(hdr.h2);
+        transition accept;
+    }
+    state parse_h3 {
+        packet.extract(hdr.h3);
+        transition accept;
+    }
+    state parse_h4 {
+        packet.extract(hdr.h4);
+        transition accept;
+    }
+}
+
+control ingress(
+    inout headers hdr,
+    inout metadata meta,
+    inout standard_metadata_t standard_metadata)
+{
+    apply {
+        // Overwrite some bits of one of the header fields so that in
+        // the STF test we can match on the output packet contents and
+        // know which case was taken in the select expression in the
+        // parser.
+        hdr.ethernet.dstAddr[44:44] = hdr.h4.isValid() ? 1w1 : 0;
+        hdr.ethernet.dstAddr[43:43] = hdr.h3.isValid() ? 1w1 : 0;
+        hdr.ethernet.dstAddr[42:42] = hdr.h2.isValid() ? 1w1 : 0;
+        hdr.ethernet.dstAddr[41:41] = hdr.h1.isValid() ? 1w1 : 0;
+        hdr.ethernet.dstAddr[40:40] = hdr.h0.isValid() ? 1w1 : 0;
+
+        standard_metadata.egress_spec = 3;
+    }
+}
+
+control egress(
+    inout headers hdr,
+    inout metadata meta,
+    inout standard_metadata_t standard_metadata)
+{
+    apply {
+    }
+}
+
+control DeparserImpl(
+    packet_out packet,
+    in headers hdr)
+{
+    apply {
+        packet.emit(hdr.ethernet);
+        packet.emit(hdr.h0);
+        packet.emit(hdr.h1);
+        packet.emit(hdr.h2);
+        packet.emit(hdr.h3);
+        packet.emit(hdr.h4);
+    }
+}
+
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+V1Switch(
+    ParserImpl(),
+    verifyChecksum(),
+    ingress(),
+    egress(),
+    computeChecksum(),
+    DeparserImpl())
+main;
+************************\n******** petr4 type checking result: ********\n************************\n
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+@noWarn("unused")
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+match_kind {
+  range, optional, selector
+}
+const bit<32> __v1model_version = 20180101;
+@metadata
+@name("standard_metadata")
+struct standard_metadata_t {
+  bit<9> ingress_port;
+  bit<9> egress_spec;
+  bit<9> egress_port;
+  bit<32> instance_type;
+  bit<32> packet_length;
+  @alias("queueing_metadata.enq_timestamp")
+  bit<32> enq_timestamp;
+  @alias("queueing_metadata.enq_qdepth")
+  bit<19> enq_qdepth;
+  @alias("queueing_metadata.deq_timedelta")
+  bit<32> deq_timedelta;
+  @alias("queueing_metadata.deq_qdepth")
+  bit<19>
+  deq_qdepth;
+  @alias("intrinsic_metadata.ingress_global_timestamp")
+  bit<48>
+  ingress_global_timestamp;
+  @alias("intrinsic_metadata.egress_global_timestamp")
+  bit<48>
+  egress_global_timestamp;
+  @alias("intrinsic_metadata.mcast_grp")
+  bit<16> mcast_grp;
+  @alias("intrinsic_metadata.egress_rid")
+  bit<16> egress_rid;
+  bit<1> checksum_error;
+  error parser_error;
+  @alias("intrinsic_metadata.priority")
+  bit<3> priority;
+}
+enum CounterType {
+  packets, 
+  bytes, 
+  packets_and_bytes
+}
+enum MeterType {
+  packets, 
+  bytes
+}
+extern counter {
+  counter(bit<32> size, CounterType type);
+  void count(in bit<32> index);
+}
+
+extern direct_counter {
+  direct_counter(CounterType type);
+  void count();
+}
+
+extern meter {
+  meter(bit<32> size, MeterType type);
+  void execute_meter<T3>(in bit<32> index, out T3 result);
+}
+
+extern direct_meter<T4> {
+  direct_meter(MeterType type);
+  void read(out T4 result);
+}
+
+extern register<T5> {
+  register(bit<32> size);
+  @noSideEffects
+  void read(out T5 result, in bit<32> index);
+  void write(in bit<32> index, in T5 value);
+}
+
+extern action_profile {
+  action_profile(bit<32> size);
+}
+
+extern void random<T6>(out T6 result, in T6 lo, in T6 hi);
+extern void digest<T7>(in bit<32> receiver, in T7 data);
+enum HashAlgorithm {
+  crc32, 
+  crc32_custom, 
+  crc16, 
+  crc16_custom, 
+  random, 
+  identity, 
+  csum16, 
+  xor16
+}
+@deprecated("Please use mark_to_drop(standard_metadata) instead.")
+extern void mark_to_drop();
+@pure
+extern void mark_to_drop(inout standard_metadata_t standard_metadata);
+@pure
+extern void hash<O, T8, D, M>(out O result, in HashAlgorithm algo,
+                              in T8 base, in D data, in M max);
+extern action_selector {
+  action_selector(HashAlgorithm algorithm, bit<32> size, bit<32> outputWidth);
+}
+
+enum CloneType {
+  I2E, 
+  E2E
+}
+@deprecated("Please use verify_checksum/update_checksum instead.")
+extern Checksum16 {
+  Checksum16();
+  bit<16> get<D9>(in D9 data);
+}
+
+extern void verify_checksum<T10, O11>(in bool condition, in T10 data,
+                                      in O11 checksum, HashAlgorithm algo);
+@pure
+extern void update_checksum<T12, O13>(in bool condition, in T12 data,
+                                      inout O13 checksum,
+                                      HashAlgorithm algo);
+extern void verify_checksum_with_payload<T14, O15>(in bool condition,
+                                                   in T14 data,
+                                                   in O15 checksum,
+                                                   HashAlgorithm algo);
+@noSideEffects
+extern void update_checksum_with_payload<T16, O17>(in bool condition,
+                                                   in T16 data,
+                                                   inout O17 checksum,
+                                                   HashAlgorithm algo);
+extern void clone(in CloneType type, in bit<32> session);
+@deprecated("Please use 'resubmit_preserving_field_list' instead")
+extern void resubmit<T18>(in T18 data);
+extern void resubmit_preserving_field_list(bit<8> index);
+@deprecated("Please use 'recirculate_preserving_field_list' instead")
+extern void recirculate<T19>(in T19 data);
+extern void recirculate_preserving_field_list(bit<8> index);
+@deprecated("Please use 'clone_preserving_field_list' instead")
+extern void clone3<T20>(in CloneType type, in bit<32> session, in T20 data);
+extern void clone_preserving_field_list(in CloneType type,
+                                        in bit<32> session, bit<8> index);
+extern void truncate(in bit<32> length);
+extern void assert(in bool check);
+extern void assume(in bool check);
+extern void log_msg(string msg);
+extern void log_msg<T21>(string msg, in T21 data);
+parser Parser<H, M22>
+  (packet_in b,
+   out H parsedHdr,
+   inout M22 meta,
+   inout standard_metadata_t standard_metadata);
+control VerifyChecksum<H23, M24> (inout H23 hdr, inout M24 meta);
+@pipeline
+control Ingress<H25, M26>
+  (inout H25 hdr, inout M26 meta, inout standard_metadata_t standard_metadata);
+@pipeline
+control Egress<H27, M28>
+  (inout H27 hdr, inout M28 meta, inout standard_metadata_t standard_metadata);
+control ComputeChecksum<H29, M30> (inout H29 hdr, inout M30 meta);
+@deparser
+control Deparser<H31> (packet_out b, in H31 hdr);
+package V1Switch<H32, M33>
+  (Parser<H32, M33> p,
+   VerifyChecksum<H32, M33> vr,
+   Ingress<H32, M33> ig,
+   Egress<H32, M33> eg,
+   ComputeChecksum<H32, M33> ck,
+   Deparser<H32> dep);
+header ethernet_t {
+  bit<48> dstAddr;
+  bit<48> srcAddr;
+  bit<16> etherType;
+}
+header h0_t {
+  bit<8> f0;
+}
+header h1_t {
+  bit<8> f1;
+}
+header h2_t {
+  bit<8> f2;
+}
+header h3_t {
+  bit<8> f3;
+}
+header h4_t {
+  bit<8> f4;
+}
+struct metadata {
+  
+}
+struct headers {
+  ethernet_t ethernet;
+  h0_t h0;
+  h1_t h1;
+  h2_t h2;
+  h3_t h3;
+  h4_t h4;
+}
+parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta,
+                  inout standard_metadata_t standard_metadata) {
+  state start
+    {
+    packet.extract(hdr.ethernet);
+    transition select(hdr.ethernet.srcAddr[7:0], hdr.ethernet.etherType)
+      {
+      (97 .. 103, 2048 .. 2054): parse_h0;
+      (97 .. 103, 2305 .. 2306): parse_h1;
+      (119 .. 123, 2049 .. 2054): parse_h2;
+      (119 .. 123, 2560 .. 2730): parse_h3;
+      (_, 2560 .. 2730): parse_h4;
+      default: accept;
+    }
+  }
+  state parse_h0 {
+    packet.extract(hdr.h0);
+    transition accept;
+  }
+  state parse_h1 {
+    packet.extract(hdr.h1);
+    transition accept;
+  }
+  state parse_h2 {
+    packet.extract(hdr.h2);
+    transition accept;
+  }
+  state parse_h3 {
+    packet.extract(hdr.h3);
+    transition accept;
+  }
+  state parse_h4 {
+    packet.extract(hdr.h4);
+    transition accept;
+  }
+}
+control ingress(inout headers hdr, inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+  apply
+    {
+    hdr.ethernet.dstAddr[44:44] = (hdr.h4.isValid() ? 1w1 : 0);
+    hdr.ethernet.dstAddr[43:43] = (hdr.h3.isValid() ? 1w1 : 0);
+    hdr.ethernet.dstAddr[42:42] = (hdr.h2.isValid() ? 1w1 : 0);
+    hdr.ethernet.dstAddr[41:41] = (hdr.h1.isValid() ? 1w1 : 0);
+    hdr.ethernet.dstAddr[40:40] = (hdr.h0.isValid() ? 1w1 : 0);
+    standard_metadata.egress_spec = 3;
+  }
+}
+control egress(inout headers hdr, inout metadata meta,
+               inout standard_metadata_t standard_metadata) {
+  apply { 
+  }
+}
+control DeparserImpl(packet_out packet, in headers hdr) {
+  apply
+    {
+    packet.emit(hdr.ethernet);
+    packet.emit(hdr.h0);
+    packet.emit(hdr.h1);
+    packet.emit(hdr.h2);
+    packet.emit(hdr.h3);
+    packet.emit(hdr.h4);
+  }
+}
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+  apply { 
+  }
+}
+control computeChecksum(inout headers hdr, inout metadata meta) {
+  apply { 
+  }
+}
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(),
+           computeChecksum(), DeparserImpl())
+  main;
+

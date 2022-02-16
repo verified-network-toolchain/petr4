@@ -9,7 +9,7 @@ set -x # Make command execution verbose
 # ls -la
 # echo "foo bar baz" > bigOOF2
 
-cp /petr4/ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 /petr4/ci-test/type-checking/result/matched/
+cp ci-test/type-checking/testdata/p4_16_samples/arith-bmv2.p4 ci-test
 
 # finds all p4 files in the given directory and does stuff to them
 # for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')

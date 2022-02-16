@@ -34,12 +34,13 @@ do
   # writes the file name, result of petr4 type checking, and p4c type checking
   # to a new file in res directory. 
   echo "$file" > "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
-  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # echo "\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # cat $file >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # # echo "$petr4_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # echo "************************\n******** p4c type checking result: ********\n************************\n" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # # echo "$p4c_type" >> "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
+  # p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "/petr4/ci-test/type-checking/result/lookinto/${file##*/}"
+  # mv "/petr4/ci-test/type-checking/result/lookinto/${file##*/}" "/petr4/ci-test/type-checking/result/lookinto/${file##*/}.out"
 done

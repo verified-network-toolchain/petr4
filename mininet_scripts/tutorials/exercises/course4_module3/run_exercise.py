@@ -194,13 +194,15 @@ class ExerciseRunner:
         for i in range(4):
             hosts.append(self.net.get("h%d" % (i + 1)))
       
-        for i in range(4):
-            hosts[i].cmd("> stats/h%d.txt" % (i + 1))           
+        hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 3 20 > stats/h1.txt &")
+        sleep(10) 
+        hosts[1].cmd("python3.9 webserver/client.py 192.168.0.1 8000 5 2 20 > stats/h2.txt &")
 
-        hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h1.txt &")
-        hosts[1].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h2.txt &")
-        hosts[2].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 >> stats/h3.txt &")
-        sleep(40)
+        sleep(20)
+        hosts[2].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 1 10 > stats/h3.txt &")
+        hosts[3].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 1 10 > stats/h4.txt &")
+
+        sleep(400)
         
 
     def parse_links(self, unparsed_links):

@@ -94,24 +94,44 @@ class MyApp(App):
     f = open("stats/bills.txt", "w")
     f.close()
 
-  def get_latency_stats(self):
-    ok = 0.0
-    not_ok = 0.0
-    time_sum = 0.0
+    # scaling variables
+    self.ups = 0
+    self.downs = 0
+    self.last_avg_latency = 0
+    self.last_fail_fraction = 0
 
+  def get_latency_stats(self, cnt): 
+    stats = []
     for i in range(4):
         f = open(f"stats/h{i + 1}.txt", "r")
         lines = f.readlines()
         f.close()
+
+        lines.reverse()
+        valid_cnt = 0
         for line in lines:
           parts = [x.strip() for x in line.split()]
           if len(parts) != 3:
               continue
+          
+          (time_stamp, latency, success) = [float(x) for x in parts]
+          stats.append((time_stamp, latency, success))
+          valid_cnt += 1
+          if (valid_cnt == cnt):
+              break
+          
+    stats.sort(reverse = True)
+    stats = stats[:cnt]
 
-          parts = [float(x) for x in parts]
-          time_sum += parts[0]
-          ok += parts[1]
-          not_ok += parts[2]          
+    ok = 0.0
+    not_ok = 0.0
+    time_sum = 0.0
+    for (_, latency, success) in stats:
+        if success:
+            ok += 1
+            time_sum += latency
+        else:
+            not_ok += 1
 
     average_time = time_sum/ok if ok > 0 else 0
     fail_fraction = not_ok/(ok + not_ok) if (ok + not_ok) > 0 else 0
@@ -119,7 +139,8 @@ class MyApp(App):
     
   def change_server_cnt(self, cnt):
     assert(isinstance(cnt, int))
-    
+   
+    print(f"Changing server cnt to {cnt}") 
     entry = Entry("active_server_cnt", [("meta.ph_key", "1")], "set_active_server_cnt", [("cnt", str(cnt))])
     self.insert("s3", entry)
 
@@ -133,6 +154,7 @@ class MyApp(App):
   def change_fw_cnt(self, cnt):
     assert(isinstance(cnt, int))
 
+    print(f"Changing firewall cnt to {cnt}") 
     entry = Entry("active_fw_cnt", [("meta.ph_key", "1")], "set_active_fw_cnt", [("cnt", str(cnt))])
     self.insert("s2", entry)
 
@@ -163,10 +185,56 @@ class MyApp(App):
             print(f"{port + 1}: {self.cntrs[switch][port]}")
         print("---------------")
 
+  def get_server_cnt(self):
+    return self.server_cnt
+
+  def get_fw_cnt(self):
+    return self.fw_cnt
+
   def elastic_scaling(self):
     def f():
-      print(f"latency stats: {self.get_latency_stats()}")
-      IOLoop.instance().call_later(delay = 10, callback = f)
+      (avg_latency, fail_fraction) = self.get_latency_stats(20)
+      print(f"latency stats: {avg_latency}, {fail_fraction}")
+
+      if self.last_avg_latency == 0:
+          self.last_avg_latency = avg_latency
+          self.fail_fraction = fail_fraction
+
+      else:
+          if (avg_latency > self.last_avg_latency * (1.1) or
+              fail_fraction > self.last_fail_fraction):
+              self.downs = 0
+              self.ups += 1
+              if (self.ups >= 3):
+                  self.ups = 0
+                  cur_server_cnt = self.get_server_cnt()
+                  if (cur_server_cnt < 4):
+                    self.change_server_cnt(cur_server_cnt + 1)
+                    if (self.get_server_cnt() > 2):
+                        cur_fw_cnt = self.get_fw_cnt()
+                        if (cur_fw_cnt < 4):
+                            self.change_fw_cnt(cur_fw_cnt + 1)    
+
+          elif (avg_latency * 1.1 < self.last_avg_latency and
+                   fail_fraction == 0):
+              self.ups = 0
+              self.downs += 1
+
+              if (self.downs >= 3):
+                  self.downs = 0
+                  cur_server_cnt = self.get_server_cnt()
+                  if (cur_server_cnt > 1):
+                    self.change_server_cnt(cur_server_cnt - 1)
+                    if (self.get_server_cnt() <= 2):
+                        cur_fw_cnt = self.get_fw_cnt()
+                        if (cur_fw_cnt > 1):
+                            self.change_fw_cnt(cur_fw_cnt - 1)    
+
+          else:
+              self.ups = 0
+              self.downs = 0
+               
+      IOLoop.instance().call_later(delay = 5, callback = f)
       
     f()
  

@@ -194,7 +194,7 @@ class MyApp(App):
   def elastic_scaling(self):
     def f():
       (avg_latency, fail_fraction) = self.get_latency_stats(20)
-      print(f"latency stats: {avg_latency}, {fail_fraction}")
+      print(f"latency stats: {avg_latency}, {fail_fraction}, {avg_latency * 1.1}, {self.last_avg_latency * 1.1}")
 
       if self.last_avg_latency == 0:
           self.last_avg_latency = avg_latency
@@ -205,6 +205,7 @@ class MyApp(App):
               fail_fraction > self.last_fail_fraction):
               self.downs = 0
               self.ups += 1
+              print(f"performance is getting WORSE for the past {self.ups} times")
               if (self.ups >= 3):
                   self.ups = 0
                   cur_server_cnt = self.get_server_cnt()
@@ -220,6 +221,8 @@ class MyApp(App):
               self.ups = 0
               self.downs += 1
 
+              print(f"performance is getting BETTER for the past {self.downs} times")
+              
               if (self.downs >= 3):
                   self.downs = 0
                   cur_server_cnt = self.get_server_cnt()
@@ -233,7 +236,10 @@ class MyApp(App):
           else:
               self.ups = 0
               self.downs = 0
-               
+              
+          self.last_avg_latency = avg_latency
+          self.last_fail_fraction = fail_fraction
+ 
       IOLoop.instance().call_later(delay = 5, callback = f)
       
     f()

@@ -3,7 +3,7 @@ import time
 
 reqs = 0
 thresh = 10
-sleep_time = 0.05
+sleep_time = 0.1
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):

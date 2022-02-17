@@ -16,7 +16,7 @@ def get_if():
 
 pkts = 0
 thresh = 10
-sleep_time = 0.01
+sleep_time = 0.05
 
 def handle_pkt(pkt):
     global pkts

@@ -194,12 +194,12 @@ class ExerciseRunner:
         for i in range(4):
             hosts.append(self.net.get("h%d" % (i + 1)))
       
-        hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 5 20 > stats/h1.txt &")
+        hosts[0].cmd("python3.9 webserver/client.py 192.168.0.1 8000 5 5 20 > stats/h1.txt &")
         sleep(10) 
         hosts[1].cmd("python3.9 webserver/client.py 192.168.0.1 8000 5 5 20 > stats/h2.txt &")
 
         sleep(20)
-        hosts[2].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 5 10 > stats/h3.txt &")
+        hosts[2].cmd("python3.9 webserver/client.py 192.168.0.1 8000 5 5 10 > stats/h3.txt &")
         #hosts[3].cmd("python3.9 webserver/client.py 192.168.0.1 8000 10 1 10 > stats/h4.txt &")
 
         sleep(400)

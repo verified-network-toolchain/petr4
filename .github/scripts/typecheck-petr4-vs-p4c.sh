@@ -25,14 +25,14 @@ do
   p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # 2>&1
   p4c_type_stat=$?
-  if [$petr4_type_stat eq 0]
+  if [ $petr4_type_stat = 0 ]
   then 
-    if [$p4c_type_stat eq 0]
+    if [ $p4c_type_stat = 0 ]
     then cp "$file" ci-test/type-checking/expectation/typechecked
     else cp "$file" ci-test/type-checking/expectation/petr4TypeChecked
     fi
   else 
-    if [$p4c_type_stat eq 0]
+    if [ $p4c_type_stat = 0 ]
     then cp "$file" ci-test/type-checking/expectation/p4cTypeChecked
     else cp "$file" ci-test/type-checking/expectation/fails
     fi

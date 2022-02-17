@@ -3,6 +3,13 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
+
+mkdir ci-test/type-checking/expectation/petr4TypeChecked
+mkdir ci-test/type-checking/expectation/typechecked
+mkdir ci-test/type-checking/expectation/p4cTypeChecked
+mkdir ci-test/type-checking/expectation/fails
+
+
 echo "directory for petr4 typechecked but p4c didn't" > ci-test/type-checking/expectation/petr4TypeChecked/dummy
 echo "directory for both typechecked" > ci-test/type-checking/expectation/typechecked/dummy
 echo "directory for p4c typechecked but petr4 didn't" > ci-test/type-checking/expectation/p4cTypeChecked/dummy

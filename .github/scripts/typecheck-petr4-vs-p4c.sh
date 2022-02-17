@@ -21,13 +21,13 @@ do
   if [$petr4_type_stat eq 0]
   then 
     if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/matched
-    else cp "$file" ci-test/type-checking/result/not-matched
+    then cp "$file" ci-test/type-checking/expectation/typechecked
+    else cp "$file" ci-test/type-checking/expectation/petr4TypeChecked
     fi
   else 
     if [$p4c_type_stat eq 0]
-    then cp "$file" ci-test/type-checking/result/not-matched
-    else cp "$file" ci-test/type-checking/result/matched
+    then cp "$file" ci-test/type-checking/expectation/p4cTypeChecked
+    else cp "$file" ci-test/type-checking/expectation/fails
     fi
   fi
   # # writes the file name, result of petr4 type checking, and p4c type checking

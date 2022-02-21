@@ -32,8 +32,8 @@ opam install menhir.20211128
 # opam install menhir.20211230
 # install p4pp
 # opam switch create 4.09.1
-# opam pin add p4pp https://github.com/cornell-netlab/p4pp.git#
-opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
+opam pin add p4pp 0.1.7
+# opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 eval $(opam env)
 #export PATH="/usr/local/opt/dune/bin:$PATH"
 #dune external-lib-deps --missing @install

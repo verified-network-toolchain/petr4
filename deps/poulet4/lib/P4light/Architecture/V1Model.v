@@ -23,20 +23,21 @@ Context {tags_t: Type} (* {inhabitant_tags_t : Inhabitant tags_t} *).
 Context {Expression: Type}.
 Notation ident := string.
 Notation path := (list ident).
-Notation P4Type := (@P4Type tags_t).
-Notation Val := (@ValueBase bool).
+Context {P4Type: Type}.
+Context {Val: Type}.
 Notation ValSet := ValueSet.
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref Expression).
 
-Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
+Variable (bit_constructor : N -> Z -> Val).
+Variable (bit_destructor : Val -> option (N * Z)).
 
 Definition register_static : Type := N (* width *) * Z (* size *).
 
-Definition register := list Val.
 
-Definition new_register (size : Z) (w : N) : list Val :=
-  Zrepeat (ValBaseBit (to_lbool w 0)) size.
+Definition register := list Val.
+Definition new_register (size:Z) (w:N) : 
+  list Val := Zrepeat (bit_constructor w 0) size.
 
 Definition packet_in := list bool.
 
@@ -58,23 +59,16 @@ Definition extern_env := PathMap.t env_object.
 
 Definition extern_state := PathMap.t object.
 
-(* Definition dummy_tags := @default tags_t _. *)
-
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "register" then
     match args with
-    (* | [ValBaseInteger size] *)
-    | [inr (ValBaseBit bits)]
-    (* | [ValBaseInt _ size] *) =>
-        match targs with
-        | [TypBit w] =>
-            let (_, size) := BitArith.from_lbool bits in
-            (PathMap.set p (EnvRegister (w, size)) e,
-             PathMap.set p (ObjRegister (new_register size w)) s)
-        | _ => (e, s) (* fail *)
-        end
-    | _ => (e, s) (* fail *)
+    | [inr v] => match bit_destructor v with 
+        | Some(w,z) => (PathMap.set p (EnvRegister (w, z)) e, 
+                        PathMap.set p (ObjRegister (new_register z w)) s)
+        | None => (e,s)
     end
+    | _ => (e,s)
+      end 
   else
     (e, s).
 
@@ -98,6 +92,8 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
 
 Definition REG_INDEX_WIDTH := 32%N.
 
+Hypothesis Inhabitant_Val : Inhabitant Val. 
+
 Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall e s p content w size indexb index output,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
@@ -105,8 +101,8 @@ Inductive register_read_sem : extern_func_sem :=
       BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
       (if ((-1 <? index) && (index <? size))
        then output = Znth index content
-       else output = ValBaseBit (to_lbool w 0))(*uninit_sval_of_typ None (TypBit w)) = Some output)*) ->
-      register_read_sem e s p nil [ValBaseBit indexb] s [output] SReturnNull.
+       else output = bit_constructor w 0) ->
+      register_read_sem e s p nil [uncurry bit_constructor (BitArith.from_lbool indexb)] s [output] SReturnNull.
 
 Definition register_read : extern_func := {|
   ef_class := "register";
@@ -115,15 +111,14 @@ Definition register_read : extern_func := {|
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
-  | exec_register_write : forall e s s' p content w size indexb index valueb,
+  | exec_register_write : forall e s s' p content w size indexb index,
       PathMap.get p e = Some (EnvRegister (w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
-      N.of_nat (List.length valueb) = w ->
       BitArith.from_lbool indexb = (REG_INDEX_WIDTH, index) ->
       (if ((-1 <? index) && (index <? size))
-       then (PathMap.set p (ObjRegister (upd_Znth index content (ValBaseBit valueb))) s) = s'
+       then (PathMap.set p (ObjRegister (upd_Znth index content (bit_constructor w 0))) s) = s'
        else s = s') ->
-      register_write_sem e s p nil [ValBaseBit indexb; ValBaseBit valueb] s' [] SReturnNull.
+      register_write_sem e s p nil [uncurry bit_constructor (BitArith.from_lbool indexb); bit_constructor w 0] s' [] SReturnNull.
 
 Definition register_write : extern_func := {|
   ef_class := "register";
@@ -144,7 +139,7 @@ Inductive packet_in_extract_sem : extern_func_sem :=
   | exec_packet_in_extract2 : forall e s p pin typ len v pin',
       PathMap.get p s = Some (ObjPin pin) ->
       extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
+      packet_in_extract_sem e s p [typ] [bit_constructor 32 len]
             (PathMap.set p (ObjPin pin') s)
           [v] SReturnNull.
 

@@ -14,10 +14,11 @@ Section Target.
 Context {tags_t: Type}.
 Notation ident := string.
 Notation path := (list ident).
-Notation Val := (@ValueBase bool).
+Notation Val := Type.
 Notation ValSet := (@ValueSet tags_t).
 
-Fixpoint width_of_val (v: Val): N :=
+(* to move *)
+(* Fixpoint width_of_val (v: Val): N :=
   let fix fields_width (fields: StringAList ValueBase) : N :=
       match fields with
       | nil => N.of_nat O
@@ -34,7 +35,7 @@ Fixpoint width_of_val (v: Val): N :=
   | ValBaseHeader fields _ => fields_width fields
   | ValBaseSenumField _ v => width_of_val v
   | _ => N.of_nat O
-  end.
+  end. *)
 
 (* We want to share the notation of External between P4light and P4cub, so later we need to
   have a parameter `ActionRef`, while `Match` is just shared. *)

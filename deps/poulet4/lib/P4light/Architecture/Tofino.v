@@ -25,13 +25,15 @@ Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Context {Expression: Type}.
 Notation ident := string.
 Notation path := (list ident).
-Notation P4Type := (@P4Type tags_t).
-Notation Val := (@ValueBase bool).
+Context {P4Type: Type}. 
+(* Notation P4Type := (@P4Type tags_t). *)
+Context {Val: Type}.
+(* Notation Val := (@ValueBase bool). *)
 Notation ValSet := ValueSet.
 Notation table_entry := (@table_entry tags_t Expression).
 Notation action_ref := (@action_ref Expression).
 
-Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
+(* Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull. *)
 
 Definition register_static : Type := N (* width *) * Z (* size *).
 

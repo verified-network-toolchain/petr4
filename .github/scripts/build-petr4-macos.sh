@@ -26,7 +26,7 @@ brew install \
   ${PETR4_DEPS}
 opam update
 opam upgrade
-# opam uninstall menhir
+opam uninstall menhir
 opam install menhir.20211128
 # install p4pp
 # opam switch create 4.09.1

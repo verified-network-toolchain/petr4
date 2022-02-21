@@ -28,7 +28,7 @@ sudo apt-get install -y --no-install-recommends \
 opam update
 opam upgrade
 # opam uninstall menhir
-# opam install menhir.20211128
+opam install menhir.20211128
 # opam install menhir.20211230
 # install p4pp
 # opam switch create 4.09.1

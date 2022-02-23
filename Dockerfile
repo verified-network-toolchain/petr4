@@ -71,7 +71,7 @@ RUN apt-get update && \
 #pin p4pp and install its deps 
 RUN opam uninstall menhir && \
     opam install menhir.20211128 -y && \ 
-    opam pin add p4pp 0.1.7 && \
+    opam pin add p4pp 0.1.7 -y && \
     eval $(opam env)
 
 #opam pin -y add p4pp https://github.com/cornell-netlab/p4pp.git && \

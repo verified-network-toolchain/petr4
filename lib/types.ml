@@ -19,7 +19,7 @@ open Sexplib.Conv
 
 type 'a info = Info.t * 'a [@@deriving sexp,show,yojson]
 
-let info (i,_) = i
+(* let info (i,_) = i *)
 
 let info_to_yojson f (_,x) = f x
 
@@ -254,7 +254,7 @@ end
 
 and Type : sig
   type pre_t =
-      Bool
+      Bool of Info.t
     | Error
     | Integer
     | IntType of Expression.t

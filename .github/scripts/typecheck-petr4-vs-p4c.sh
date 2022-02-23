@@ -25,9 +25,9 @@ for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.
 do
   # gets the result of type checking from petr4 and p4c, stores them in
   # variables and compares them
-  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
+  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
   petr4_type_stat=$?
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
+  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # 2>&1
   p4c_type_stat=$?
   if [ $petr4_type_stat = 0 ]
@@ -48,11 +48,11 @@ do
   echo "\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
   cat $file >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
   echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
-  # petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}"
+  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}.out"
   echo "$petr4_type" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
-  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
+  # echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
   echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file##*/}.out"
-  # p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file##*/}.out"
   # # mv "ci-test/type-checking/result/lookinto/${file##*/}" "ci-test/type-checking/result/lookinto/${file##*/}.out"
 done
 

@@ -77,7 +77,7 @@ set -x # Make command execution verbose
 # done
 
 echo "dum dum" > ci-test/type-checking/expectation/lookinto/aaaaah
-# mv ci-test/type-checking/expectation/lookinto/aaaaah ci-test/type-checking/expectation/lookinto/aaaaah.out
+cp ci-test/type-checking/expectation/lookinto/aaaaah ci-test/type-checking/expectation/lookinto/aaaaah.out
 
 # rm -r ci-test/type-checking/expectation/lookinto
 

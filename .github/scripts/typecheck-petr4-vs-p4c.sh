@@ -15,10 +15,10 @@ rm -r ci-test/type-checking/expectation/typechecked/*.p4
 rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4
 
 
-# echo "directory for petr4 typechecked but p4c didn't" > ci-test/type-checking/expectation/petr4TypeChecked/dummy
-# echo "directory for both typechecked" > ci-test/type-checking/expectation/typechecked/dummy
-# echo "directory for p4c typechecked but petr4 didn't" > ci-test/type-checking/expectation/p4cTypeChecked/dummy
-# echo "directory for both failed" > ci-test/type-checking/expectation/fails/dummy
+echo "directory for petr4 typechecked but p4c didn't" > ci-test/type-checking/expectation/petr4TypeChecked/dummy
+echo "directory for both typechecked" > ci-test/type-checking/expectation/typechecked/dummy
+echo "directory for p4c typechecked but petr4 didn't" > ci-test/type-checking/expectation/p4cTypeChecked/dummy
+echo "directory for both failed" > ci-test/type-checking/expectation/fails/dummy
 
 # finds all p4 files in the given directory and does stuff to them
 for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
@@ -51,7 +51,7 @@ do
   echo "\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   cat $file >> "ci-test/type-checking/expectation/lookinto/${file3}"
   echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file3}"
+  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file3}"
   # echo "$petr4_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"

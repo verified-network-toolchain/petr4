@@ -9,8 +9,8 @@ set -x # Make command execution verbose
 # mkdir ci-test/type-checking/expectation/p4cTypeChecked
 # mkdir ci-test/type-checking/expectation/fails
 
-mkdir ci-test/type-checking/expectation/lookinto
-echo "create dir" > ci-test/type-checking/expectation/lookinto/dummy
+# mkdir ci-test/type-checking/expectation/lookinto
+# echo "create dir" > ci-test/type-checking/expectation/lookinto/dummy
 
 # rm -r ci-test/type-checking/expectation/fails/*.p4
 # rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4
@@ -36,30 +36,30 @@ do
   p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
   # 2>&1
   p4c_type_stat=$?
-  if [ $petr4_type_stat = 0 ]
-  then 
-    if [ $p4c_type_stat = 0 ]
-    then cp "$file" ci-test/type-checking/expectation/typechecked
-    else cp "$file" ci-test/type-checking/expectation/petr4TypeChecked
-    fi
-  else 
-    if [ $p4c_type_stat = 0 ]
-    then cp "$file" ci-test/type-checking/expectation/p4cTypeChecked
-    else cp "$file" ci-test/type-checking/expectation/fails
-    fi
-  fi
+  # if [ $petr4_type_stat = 0 ]
+  # then 
+  #   if [ $p4c_type_stat = 0 ]
+  #   then cp "$file" ci-test/type-checking/expectation/typechecked
+  #   else cp "$file" ci-test/type-checking/expectation/petr4TypeChecked
+  #   fi
+  # else 
+  #   if [ $p4c_type_stat = 0 ]
+  #   then cp "$file" ci-test/type-checking/expectation/p4cTypeChecked
+  #   else cp "$file" ci-test/type-checking/expectation/fails
+  #   fi
+  # fi
   # # writes the file name, result of petr4 type checking, and p4c type checking
   # # to a new file in res directory. 
-  echo "$file" > "ci-test/type-checking/expectation/lookinto/${file3}"
-  echo "\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  cat $file >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file3}"
+  echo "$file" > "ci-test/type-checking/expectation/lookinto/${file1}"
+  echo "\n" >> "ci-test/type-checking/expectation/lookinto/${file1}"
+  cat $file >> "ci-test/type-checking/expectation/lookinto/${file1}"
+  echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file1}"
+  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file1}"
   # echo "$petr4_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
+  echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file1}"
   # echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file3}"
-  # # mv "ci-test/type-checking/result/lookinto/${file##*/}" "ci-test/type-checking/result/lookinto/${file##*/}.out"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file1}"
+  mv "ci-test/type-checking/result/lookinto/${file1}" "ci-test/type-checking/result/lookinto/${file3}"
 done
 
 # # # moving look into files in the corresponding directory for investigation.

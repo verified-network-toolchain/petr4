@@ -17,6 +17,8 @@ set -x # Make command execution verbose
 # rm -r ci-test/type-checking/expectation/typechecked/*.p4
 # rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4
 
+rm -r ci-test/type-checking/expectation/lookinto/*
+echo "create dir" > ci-test/type-checking/expectation/lookinto/dummy
 
 # echo "directory for petr4 typechecked but p4c didn't" > ci-test/type-checking/expectation/petr4TypeChecked/dummy
 # echo "directory for both typechecked" > ci-test/type-checking/expectation/typechecked/dummy
@@ -28,14 +30,14 @@ for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.
 do
   # gets the result of type checking from petr4 and p4c, stores them in
   # variables and compares them
-  file1=${file##*/}
-  file2=${file1%'.p4'}
-  file3="${file2}.out"
-  petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
-  petr4_type_stat=$?
-  p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
-  # 2>&1
-  p4c_type_stat=$?
+  # file1=${file##*/}
+  # file2=${file1%'.p4'}
+  # file3="${file2}.out"
+  # petr4_type=$(petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file")
+  # petr4_type_stat=$?
+  # p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file")
+  # # 2>&1
+  # p4c_type_stat=$?
   # if [ $petr4_type_stat = 0 ]
   # then 
   #   if [ $p4c_type_stat = 0 ]
@@ -59,7 +61,7 @@ do
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}"
   # echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   p4test -I /petr4/ci-test/type-checking/p4include "$file" 2>&1 | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}"
-  mv "ci-test/type-checking/expectation/lookinto/${file##*/}" "ci-test/type-checking/expectation/lookinto/${file3}"
+  # mv "ci-test/type-checking/expectation/lookinto/${file##*/}" "ci-test/type-checking/expectation/lookinto/${file3}"
 done
 
 # # # moving look into files in the corresponding directory for investigation.

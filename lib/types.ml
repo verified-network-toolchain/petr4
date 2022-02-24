@@ -19,15 +19,27 @@ open Sexplib.Conv
 
 type 'a info = Info.t * 'a [@@deriving sexp,show,yojson]
 
+(* type 'a info = 
+  { info: Info.t;
+    typ: 'a}
+  [@@deriving sexp,show,yojson]
+ *)
 let info (i,_) = i
 
 let info_to_yojson f (_,x) = f x
+
+(* let info_to_yojson f ty = f (info ty) *)
 
 let info_of_yojson f json =
   match f json with
   | Ok pre -> Ok (Info.M "<yojson>", pre)
   | Error x -> Error x
 
+(* let info_of_yojson f json =
+  match f json with 
+  | Ok pre -> Ok {Info.M "<yojson"; pre}
+  | Error x -> Error x
+ *)
 module P4Int = struct
 
   type pre_t =

@@ -1,0 +1,177 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/int/int_header.p4
+\n
+/*
+ * Copyright 2017-present Open Networking Foundation
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef __INT_HEADER__
+#define __INT_HEADER__
+
+#include "../define.p4"
+
+struct int_metadata_t {
+    _BOOL   source;
+    _BOOL   transit;
+    _BOOL   sink;
+    bit<32> switch_id;
+    bit<8>  new_words;
+    bit<16> new_bytes;
+    bit<32> ig_tstamp;
+    bit<32> eg_tstamp;
+}
+
+// INT headers - 8 bytes
+header int_header_t {
+    bit<2>  ver;
+    bit<2>  rep;
+    bit<1>  c;
+    bit<1>  e;
+    bit<5>  rsvd1;
+    bit<5>  ins_cnt;
+    bit<8>  max_hop_cnt;
+    bit<8>  total_hop_cnt;
+    bit<4>  instruction_mask_0003; /* split the bits for lookup */
+    bit<4>  instruction_mask_0407;
+    bit<4>  instruction_mask_0811;
+    bit<4>  instruction_mask_1215;
+    bit<16> rsvd2;
+}
+
+// INT shim header for TCP/UDP - 4 bytes
+header intl4_shim_t {
+    bit<8> int_type;
+    bit<8> rsvd1;
+    bit<8> len_words; // 4-byte words.
+    bit<8> rsvd2;
+}
+// INT tail header for TCP/UDP - 4 bytes
+header intl4_tail_t {
+    bit<8> next_proto;
+    bit<16> dest_port;
+    bit<2> padding;
+    bit<6> dscp;
+}
+
+#ifdef WITH_INT_SINK
+header int_data_t {
+    // Maximum int metadata stack size in bits:
+    // (0xFF -4) * 32 (excluding INT shim header, tail header and INT header)
+    varbit<8032> data;
+}
+#endif // WITH_INT_SINK
+
+#ifdef WITH_INT_TRANSIT
+// INT meta-value headers - 4 bytes each
+// Different header for each value type
+header int_switch_id_t {
+    bit<32> switch_id;
+}
+header int_port_ids_t {
+    bit<16> ingress_port_id;
+    bit<16> egress_port_id;
+}
+header int_hop_latency_t {
+    bit<32> hop_latency;
+}
+header int_q_occupancy_t {
+    bit<8> q_id;
+    bit<24> q_occupancy;
+}
+header int_ingress_tstamp_t {
+    bit<32> ingress_tstamp;
+}
+header int_egress_tstamp_t {
+    bit<32> egress_tstamp;
+}
+header int_q_congestion_t {
+    bit<8> q_id;
+    bit<24> q_congestion;
+}
+header int_egress_port_tx_util_t {
+    bit<32> egress_port_tx_util;
+}
+#endif // WITH_INT_TRANSIT
+
+#ifdef WITH_INT_SINK
+// Report Telemetry Headers
+header report_fixed_header_t {
+    bit<4>  ver;
+    bit<4>  nproto;
+    bit<1>  d;
+    bit<1>  q;
+    bit<1>  f;
+    bit<15> rsvd;
+    bit<6>  hw_id;
+    bit<32> seq_no;
+    bit<32> ingress_tstamp;
+}
+
+// Telemetry drop report header
+header drop_report_header_t {
+    bit<32> switch_id;
+    bit<16> ingress_port_id;
+    bit<16> egress_port_id;
+    bit<8>  queue_id;
+    bit<8>  drop_reason;
+    bit<16> pad;
+}
+
+// Switch Local Report Header
+header local_report_header_t {
+    bit<32> switch_id;
+    bit<16> ingress_port_id;
+    bit<16> egress_port_id;
+    bit<8>  queue_id;
+    bit<24> queue_occupancy;
+    bit<32> egress_tstamp;
+}
+
+header_union local_report_t {
+    drop_report_header_t drop_report_header;
+    local_report_header_t local_report_header;
+}
+#endif // WITH_INT_SINK
+
+#endif
+************************\n******** petr4 type checking result: ********\n************************\n
+Uncaught exception:
+  
+  Petr4.Prog.Env.UnboundName("NoAction")
+
+Raised at Petr4__Prog.Env.raise_unbound in file "lib/prog.ml", line 1455, characters 4-32
+Called from Petr4__Checker.type_expression in file "lib/checker.ml", line 849, characters 22-54
+Called from Petr4__Checker.resolve_function_overload_by in file "lib/checker.ml", line 2478, characters 19-47
+Called from Petr4__Checker.type_function_call in file "lib/checker.ml", line 2311, characters 19-62
+Called from Petr4__Checker.type_method_call in file "lib/checker.ml", line 2678, characters 19-80
+Called from Petr4__Checker.type_statement in file "lib/checker.ml", line 2649, characters 7-61
+Called from Petr4__Checker.type_statements.fold in file "lib/checker.ml", line 2782, characters 26-58
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Petr4__Checker.type_block in file "lib/checker.ml", line 2794, characters 27-73
+Called from Petr4__Checker.type_function in file "lib/checker.ml", line 3148, characters 27-55
+Called from Petr4__Checker.type_action in file "lib/checker.ml", line 3282, characters 4-83
+Called from Petr4__Checker.type_declarations.f in file "lib/checker.ml", line 4118, characters 26-55
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Checker.type_declarations in file "lib/checker.ml", line 4121, characters 19-58
+Called from Petr4__Checker.check_program in file "lib/checker.ml", line 4128, characters 18-78
+Called from Petr4__Common.Make_parse.check_file' in file "lib/common.ml", line 95, characters 17-51
+Called from Petr4__Common.Make_parse.check_file in file "lib/common.ml", line 108, characters 10-50
+Called from Main.check_command.(fun) in file "bin/main.ml", line 70, characters 14-65
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c type checking result: ********\n************************\n
+/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/int/../define.p4(166): [--Werror=not-found] error: NoAction: declaration not found
+    NoAction();
+    ^^^^^^^^

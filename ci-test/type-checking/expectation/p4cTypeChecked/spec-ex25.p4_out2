@@ -1,0 +1,87 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/spec-ex25.p4
+\n
+/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+match_kind { exact }
+
+typedef bit<48> EthernetAddress;
+
+extern tbl { tbl(); }
+
+control c(bit<32> x)
+{
+    action Set_dmac(EthernetAddress dmac)
+    {}
+
+    action drop() {}
+
+    table unit {
+        key = { x : exact; }
+        actions = {
+            Set_dmac;
+            drop;
+        }
+
+        const entries = {
+            32w0x0A_00_00_01 : drop();
+            32w0x0A_00_00_02 : Set_dmac(dmac = (EthernetAddress)48w0x11_22_33_44_55_66);
+            32w0x0B_00_00_03 : Set_dmac(dmac = (EthernetAddress)48w0x11_22_33_44_55_77);
+            32w0x0B_00_00_00 &&& 32w0xFF_00_00_00 : drop();
+        }
+
+        default_action = Set_dmac((EthernetAddress)48w0xAA_BB_CC_DD_EE_FF);
+
+        implementation = tbl();
+    }
+
+    apply {}
+}
+************************\n******** petr4 type checking result: ********\n************************\n
+Uncaught exception:
+  
+  (Failure "Actions in entries only support positional arguments.")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from Stdlib__list.rev_map2.rmap2_f in file "list.ml", line 138, characters 35-42
+Called from Base__List0.rev_map2_ok in file "src/list0.ml" (inlined), line 31, characters 27-54
+Called from Base__List.map2_ok in file "src/list.ml" (inlined), line 440, characters 27-49
+Called from Base__List.map2_exn in file "src/list.ml" (inlined), line 445, characters 2-18
+Called from Petr4__Checker.type_table_entries.type_table_entry in file "lib/checker.ml", line 3384, characters 24-85
+Called from Base__List.count_map in file "src/list.ml", line 400, characters 13-17
+Called from Petr4__Checker.type_table' in file "lib/checker.ml", line 3578, characters 31-87
+Called from Petr4__Checker.type_table in file "lib/checker.ml", line 3314, characters 2-95
+Called from Petr4__Checker.type_declarations.f in file "lib/checker.ml", line 4118, characters 26-55
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Checker.type_declarations in file "lib/checker.ml", line 4121, characters 19-58
+Called from Petr4__Checker.open_control_scope in file "lib/checker.ml", line 3087, characters 26-73
+Called from Petr4__Checker.type_control in file "lib/checker.ml", line 3096, characters 6-69
+Called from Petr4__Checker.type_declarations.f in file "lib/checker.ml", line 4118, characters 26-55
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Checker.type_declarations in file "lib/checker.ml", line 4121, characters 19-58
+Called from Petr4__Checker.check_program in file "lib/checker.ml", line 4128, characters 18-78
+Called from Petr4__Common.Make_parse.check_file' in file "lib/common.ml", line 95, characters 17-51
+Called from Petr4__Common.Make_parse.check_file in file "lib/common.ml", line 108, characters 10-50
+Called from Main.check_command.(fun) in file "bin/main.ml", line 70, characters 14-65
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c type checking result: ********\n************************\n
+/petr4/ci-test/type-checking/testdata/p4_16_samples/spec-ex25.p4(31): [--Wwarn=ignore-prop] warning: KeyElement: constant key element
+        key = { x : exact; }
+                ^
+[--Wwarn=missing] warning: Program does not contain a `main' module

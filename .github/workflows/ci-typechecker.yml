@@ -13,17 +13,29 @@ jobs:
     runs-on: ubuntu-latest
     # if: ${{ github.event.workflow_run.conclusion == 'success' }}
     container:
-      image: pataei/petr4
+      image: pataei/petr4:main
     steps: 
+      - name: update git version
+        run: |
+          sudo apt-get install -y software-properties-common 
+          sudo apt-get update 
+          sudo add-apt-repository -y ppa:git-core/ppa 
+          sudo apt-get update 
+          sudo apt-get install -y git
+      - uses: actions/checkout@v2
       - name: typecheck test petr4 vs p4c
         run: ./.github/scripts/typecheck-petr4-vs-p4c.sh
         shell: bash
-
-
-# have a job that checkouts first and another to reuse a workflow like the following:
-#   checkout:
-#     runs-on: ubuntu-latest
-    # steps:
-    #   - uses: actions/checkout@main      
-#   reuse-build-petr4:
-#     uses: pataei/petr4/.github/workflows/build-petr4.yml@main
+      - name: add result of type checking to git repo
+        run: |
+          git config --local user.email "paris.ataei@gmail.com"
+          git config --local user.name  "Github Action Bot GO!"
+          git --version
+          git status
+          git add .
+          git status
+          git commit -am "write type to output files"
+          git status
+          pwd
+          ls -la
+          git push origin

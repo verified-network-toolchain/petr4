@@ -59,7 +59,7 @@ do
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file1}"
   # echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file1}"
-  mv "ci-test/type-checking/result/lookinto/${file1}" "ci-test/type-checking/result/lookinto/${file3}"
+  mv "ci-test/type-checking/expectation/lookinto/${file1}" "ci-test/type-checking/expectation/lookinto/${file3}"
 done
 
 # # # moving look into files in the corresponding directory for investigation.

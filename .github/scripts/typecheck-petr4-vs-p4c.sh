@@ -9,6 +9,8 @@ set -x # Make command execution verbose
 # mkdir ci-test/type-checking/expectation/p4cTypeChecked
 # mkdir ci-test/type-checking/expectation/fails
 
+echo "create dir" > ci-test/type-checking/expectation/lookinto/dummy
+
 rm -r ci-test/type-checking/expectation/fails/*.p4
 rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4
 rm -r ci-test/type-checking/expectation/typechecked/*.p4

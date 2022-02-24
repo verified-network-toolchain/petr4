@@ -34,7 +34,7 @@ jobs:
           git status
           git add .
           git status
-          git commit -am "organize exit codes of petr4 and p4c"
+          git commit -am "write type to output files"
           git status
           pwd
           ls -la

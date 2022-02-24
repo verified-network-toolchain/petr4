@@ -69,16 +69,16 @@ do
 done
 
 # # # moving look into files in the corresponding directory for investigation.
-for file in $(find ci-test/type-checking/expectation/lookinto -name 'issue*.p4_out2')
-do 
-  file1=${file##*/}
-  file2=${file1%'.p4_out2'}
-  file3="${file2}.p4"
-  test -f "ci-test/type-checking/expectation/fails/${file3}" && cp -v "$file" ci-test/type-checking/expectation/fails
-  test -f "ci-test/type-checking/expectation/typechecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/typechecked
-  test -f "ci-test/type-checking/expectation/p4cTypeChecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/p4cTypeChecked
-  test -f "ci-test/type-checking/expectation/petr4TypeChecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/petr4TypeChecked
-done
+# for file in $(find ci-test/type-checking/expectation/lookinto -name 'issue*.p4_out2')
+# do 
+#   file1=${file##*/}
+#   file2=${file1%'.p4_out2'}
+#   file3="${file2}.p4"
+#   test -f "ci-test/type-checking/expectation/fails/${file3}" && cp -v "$file" ci-test/type-checking/expectation/fails
+#   test -f "ci-test/type-checking/expectation/typechecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/typechecked
+#   test -f "ci-test/type-checking/expectation/p4cTypeChecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/p4cTypeChecked
+#   test -f "ci-test/type-checking/expectation/petr4TypeChecked/${file3}" && cp -v "$file" ci-test/type-checking/expectation/petr4TypeChecked
+# done
 
 # echo "dum dum" > ci-test/type-checking/expectation/lookinto/aaaaah
 # cp ci-test/type-checking/expectation/lookinto/aaaaah "ci-test/type-checking/expectation/lookinto/aaaaah.out"

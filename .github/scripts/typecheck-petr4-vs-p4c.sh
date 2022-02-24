@@ -71,9 +71,9 @@ do
   file2=${file1%'.p4'}
   file3="${file2}.out"
   test -f "ci-test/type-checking/expectation/fails/${file1}" && mv "$file" "ci-test/type-checking/expectation/fails/${file3}"
-  test -f "ci-test/type-checking/expectation/typechecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/typechecked/${file3}"
-  test -f "ci-test/type-checking/expectation/p4cTypeChecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/p4cTypeChecked/${file3}"
-  test -f "ci-test/type-checking/expectation/petr4TypeChecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/petr4TypeChecked/${file3}"
+  # test -f "ci-test/type-checking/expectation/typechecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/typechecked/${file3}"
+  # test -f "ci-test/type-checking/expectation/p4cTypeChecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/p4cTypeChecked/${file3}"
+  # test -f "ci-test/type-checking/expectation/petr4TypeChecked/${file1}" && mv "$file" "ci-test/type-checking/expectation/petr4TypeChecked/${file3}"
 done
 
 # rm -r ci-test/type-checking/expectation/lookinto

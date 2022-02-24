@@ -56,8 +56,8 @@ do
   petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file3}"
   # echo "$petr4_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  # p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/result/lookinto/${file3}"
+  # echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file3}"
   # # mv "ci-test/type-checking/result/lookinto/${file##*/}" "ci-test/type-checking/result/lookinto/${file##*/}.out"
 done
 

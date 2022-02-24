@@ -54,11 +54,11 @@ do
   echo "\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}"
   cat $file >> "ci-test/type-checking/expectation/lookinto/${file##*/}"
   echo "************************\n******** petr4 type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}"
-  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}"
+  petr4 typecheck -I /petr4/ci-test/type-checking/p4include "$file" 2>&1 | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}"
   # echo "$petr4_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
   echo "************************\n******** p4c type checking result: ********\n************************\n" >> "ci-test/type-checking/expectation/lookinto/${file##*/}"
   # echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file3}"
-  p4test -I /petr4/ci-test/type-checking/p4include "$file" | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}"
+  p4test -I /petr4/ci-test/type-checking/p4include "$file" 2>&1 | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}"
   mv "ci-test/type-checking/expectation/lookinto/${file##*/}" "ci-test/type-checking/expectation/lookinto/${file3}"
 done
 

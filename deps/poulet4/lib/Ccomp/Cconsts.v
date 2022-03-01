@@ -1,5 +1,15 @@
-From compcert Require Import Clight Ctypes Integers Cop Clightdefs.
+From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
 Require Import Poulet4.Ccomp.Petr4Runtime.
+Require Import BinaryString
+Coq.PArith.BinPosDef Coq.PArith.BinPos
+List Coq.ZArith.BinIntDef String.
+Require Coq.PArith.BinPosDef.
+Local Open Scope string_scope.
+Local Open Scope list_scope.
+Local Open Scope Z_scope.
+Local Open Scope N_scope.
+Local Open Scope clight_scope.
+Import Clightdefs.ClightNotations.
 Module RunTime := Petr4Runtime.
 Definition long_unsigned := Tlong Unsigned noattr.
 Definition long_signed := Tlong Signed noattr.
@@ -54,22 +64,7 @@ Definition typelist_slice :=
     (Ctypes.Tcons TpointerBool
     Ctypes.Tnil)).
 
-  Definition bop_function (op: ident) := 
-    if(op == _interp_beq) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bne) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bge) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bgt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_ble) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_blt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else
-      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
-    .
+  
 
   Definition typelist_cast_to_bool :=   
     Ctypes.Tcons TpointerBool

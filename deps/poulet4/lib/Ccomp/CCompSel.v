@@ -8,7 +8,7 @@ Require Import
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
      Monads.Monad Monads.Option Monads.Error
-     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model.
+     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model Ccomp.Cconsts.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
@@ -23,30 +23,7 @@ Section CCompSel.
   
   Context (tags_t: Type).
   (*common values*)
-  Definition long_unsigned := Tlong Unsigned noattr.
-  Definition long_signed := Tlong Signed noattr.
-  Definition int_unsigned := Tint I32 Unsigned noattr.
-  Definition int_signed := Tint I32 Signed noattr.
-  Definition char := Tint I8 Unsigned noattr.
-  Definition Cstring := Tpointer char noattr.
-  Definition Cfalse := Econst_int (Integers.Int.zero) (type_bool).
-  Definition Ctrue := Econst_int (Integers.Int.one) (type_bool).
-  Definition Cint_of_Z val:= Econst_int (Integers.Int.repr val) int_signed.
-  Definition Cuint_of_Z val:= Econst_int (Integers.Int.repr val) int_unsigned.
-  Definition Cint_one := Econst_int Integers.Int.one int_signed.
-  Definition Cint_zero := Econst_int Integers.Int.zero int_signed.
-  Definition Cuint_one := Econst_int Integers.Int.one int_unsigned.
-  Definition Cuint_zero := Econst_int Integers.Int.zero int_unsigned.
-  Definition bit_vec := 
-    (Tstruct (RunTime._BitVec) noattr).
-  Definition table_t := 
-    (Tstruct (RunTime._Table) noattr).
-  Definition action_ref := 
-    (Tstruct (RunTime._ActionRef) noattr).
-  Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
-  Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
-  Definition TpointerTable := Ctypes.Tpointer table_t noattr.
-  Definition TpointerActionRef := Ctypes.Tpointer action_ref noattr.
+ 
   Fixpoint CTranslateType (p4t : Expr.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | Expr.TBool => (Ctypes.type_bool, env)
@@ -386,6 +363,24 @@ Section CCompSel.
     | _ => err "Unsupported uop"  
     end.
 
+ 
+  Definition bop_function (op: ident) := 
+    if(op == _interp_beq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bne) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bge) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bgt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_ble) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_blt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else
+      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
+    .
+  
   Definition CTranslateBop 
     (dst_t: Expr.t)
     (op: Expr.bop)

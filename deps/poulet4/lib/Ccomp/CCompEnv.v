@@ -695,4 +695,17 @@ Section CEnv.
   := env.(globvars).
 
 
+  Definition composite_nth (comp: composite_definition) (n : nat)
+  : @error_monad string ident
+  := 
+  match comp with
+  | (Composite _ _ m _) =>
+    match List.nth_error m n with
+    | Some member => error_ret (name_member (member))
+    | None => err "composite field can't be found" 
+    end
+  end.
+
+
+
 End CEnv.

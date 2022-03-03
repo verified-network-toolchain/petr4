@@ -20,9 +20,12 @@ WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
 .PHONY: all deps build claims clean test test-stf web
 
-all: deps build
+all: build
 
-build:
+build: deps
+	dune build @install && echo
+
+fast: 
 	dune build @install && echo
 
 deps:

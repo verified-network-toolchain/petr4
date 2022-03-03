@@ -8,11 +8,11 @@
 enum p4int {FIXBIT, FIXINT};
 
 typedef struct packet_in {
-  int *in;
+  unsigned char *in;
 } packet_in;
 
 typedef struct packet_out{
-  int *out;
+  unsigned char *out;
 } packet_out;
 
 typedef struct BitVec{
@@ -101,8 +101,31 @@ void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   dst->width = w;
 }
 
+/**
+ * sign = 0 means unsigned, = 1 means signed
+ * w is the width
+ * val is the decimal string of the value.
+ * 
+ * */
+void init_bitvec_binary(struct BitVec *dst, int sign, int w, char *val){
+  mpz_t i;
+  int check;
+
+  mpz_init(i);
+  mpz_set_ui(i,0);
+
+  check = mpz_set_str(i,val, 2);
+  assert (check == 0); 
+
+  mpz_init(dst->value);
+  mpz_set(dst->value, i); 
+  dst->is_signed = sign;
+  dst->width = w;
+}
+
+
 //package processing
-void extract_bool(packet_in *pkt, bool *data){
+void extract_bool(packet_in *pkt, int *data){
   if(*(pkt->in) == 1){
     *data = true;
   } else {
@@ -113,10 +136,10 @@ void extract_bool(packet_in *pkt, bool *data){
 void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
   char val[data->width]; 
   for(int i = 0; i < data->width; i++){
-    val[i] = (*(pkt->in)) + 48;
+    val[i] = (*(pkt->in)) + 48; //this is to convert it into ascii 0 or 1, because gmp uses string to initialize the integer.
     pkt->in ++;
   }
-  init_bitvec(data, is_signed, width, val);
+  init_bitvec_binary(data, is_signed, width, val);
 }
 
 

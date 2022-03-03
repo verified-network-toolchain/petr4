@@ -71,10 +71,10 @@ let check_command =
      +> flag "-typed-json" no_arg ~doc:" Pretty-print typed AST JSON"
      +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> flag "-printp4" no_arg ~doc:" Print checked syntax in P4"
-     +> flag "-printp4cup" no_arg ~doc: "Print the p4cub AST"
+     +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
      +> flag "-printp4-file" (optional_with_default "out.p4" string) ~doc:"Path to print checked syntax in P4"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir json pretty exportp4 normalize export_file typed_json gen_loc printp4 printp4cup printp4_file p4file () ->
+    (fun verbose include_dir json pretty exportp4 normalize export_file typed_json gen_loc printp4 printp4cub printp4_file p4file () ->
        ignore (check_file include_dir p4file json pretty exportp4 normalize export_file typed_json gen_loc verbose printp4 printp4_file))
 
 let eval_command =

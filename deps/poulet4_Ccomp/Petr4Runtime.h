@@ -8,7 +8,7 @@
 enum p4int {FIXBIT, FIXINT};
 
 typedef struct packet_in {
-  unsigned char *in;
+  unsigned char *in; //currently, we just use the last bit of the 8 bits.
 } packet_in;
 
 typedef struct packet_out{

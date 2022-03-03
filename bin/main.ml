@@ -76,7 +76,7 @@ let check_command =
      +> flag "-printp4-file" (optional_with_default "out.p4" string) ~doc:"Path to print checked syntax in P4"
      +> anon ("p4file" %: string))
     (fun verbose include_dir json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc printp4 printp4cub printp4_file p4file () ->
-       ignore (check_file include_dir p4file json pretty exportp4 normalize export_file typed_json gen_loc verbose printp4 printp4_file))
+       ignore (check_file include_dir p4file json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc verbose printp4 printp4_file))
 
 let eval_command =
   let open Command.Spec in

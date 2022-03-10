@@ -1445,6 +1445,9 @@ Section ToP4cub.
 
   Definition translate_program' (tags : tags_t) (p : program) : result (TopDecl.d tags_t) :=
     let* ctx := translate_program tags p in 
-    flattenTopDecl ctx.(controls).
-
+    flattenTopDecl (ctx.(controls) ++ ctx.(parsers) ++ ctx.(functions) ++ ctx.(packages) ++ 
+    ctx.(externs))
+    
+    .
+    
 End ToP4cub.

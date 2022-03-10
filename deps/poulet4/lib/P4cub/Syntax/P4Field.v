@@ -3,30 +3,30 @@ Require Export Poulet4.Utils.Util.Utiliser.
 (** * Definitions and Lemmas Regarding Fields *)
 
 Module Field.
-  Section FieldTypes.
-    Variables K V : Type. (** key & value types. *)
+  Section FieldSets.
+    Variables K V : Set. (** key & value types. *)
 
     (** Field type. *)
-    Definition f : Type := K * V.
+    Definition f : Set := K * V.
 
     (** Fields. *)
-    Definition fs : Type := list f.
-  End FieldTypes.
+    Definition fs : Set := list f.
+  End FieldSets.
 
   Section FieldLibrary.
-    Definition key {K V : Type} : f K V -> K := fst.
+    Definition key {K V : Set} : f K V -> K := fst.
 
-    Definition value {K V : Type} : f K V -> V := snd.
+    Definition value {K V : Set} : f K V -> V := snd.
 
-    Definition keys {K V : Type} : fs K V -> list K := List.map key.
+    Definition keys {K V : Set} : fs K V -> list K := List.map key.
 
-    Definition values {K V : Type} : fs K V -> list V := List.map value.
+    Definition values {K V : Set} : fs K V -> list V := List.map value.
 
-    Lemma key_value : forall {K V : Type} (fld : f K V),
+    Lemma key_value : forall {K V : Set} (fld : f K V),
         (key fld, value fld) = fld.
     Proof. intros K V []; reflexivity. Qed.
 
-    Lemma keys_values : forall {K V : Type} (flds : fs K V),
+    Lemma keys_values : forall {K V : Set} (flds : fs K V),
         combine (keys flds) (values flds) = flds.
     Proof.
       induction flds as [| [? ?] ? ?]; unravel;
@@ -34,15 +34,15 @@ Module Field.
     Qed.
 
     (** Predicate on a field's data. *)
-    Definition predf_data {K T : Type} (P : T -> Prop) : f K T -> Prop := P ∘ snd.
+    Definition predf_data {K T : Set} (P : T -> Prop) : f K T -> Prop := P ∘ snd.
     (**[]*)
 
     (** Predicate over every data in fields. *)
-    Definition predfs_data {K T : Type} (P : T -> Prop) : fs K T -> Prop :=
+    Definition predfs_data {K T : Set} (P : T -> Prop) : fs K T -> Prop :=
       Forall (predf_data P).
     (**[]*)
 
-    Lemma predfs_data_map : forall {K V : Type} (P : V -> Prop) (flds : fs K V),
+    Lemma predfs_data_map : forall {K V : Set} (P : V -> Prop) (flds : fs K V),
         predfs_data P flds <-> Forall P (map snd flds).
     Proof.
       induction flds as [| [k v] flds IHflds];
@@ -52,23 +52,23 @@ Module Field.
     Qed.
 
     (** Filter. *)
-    Definition filter {K U : Type} (pred : U -> bool) : fs K U -> fs K U :=
+    Definition filter {K U : Set} (pred : U -> bool) : fs K U -> fs K U :=
       List.filter (pred ∘ snd).
     (**[]*)
 
     (** Map. *)
-    Definition map {K U V : Type} (f : U -> V) : fs K U -> fs K V :=
+    Definition map {K U V : Set} (f : U -> V) : fs K U -> fs K V :=
       List.map (fun '(x,u) => (x, f u)).
     (**[]*)
 
-    Lemma map_fst : forall {K U V : Type} (g : U -> V) (flds : fs K U),
+    Lemma map_fst : forall {K U V : Set} (g : U -> V) (flds : fs K U),
         List.map fst (map g flds) = List.map fst flds.
     Proof.
       intros; induction flds as [| [? ?] ? ?]; unravel; auto.
       rewrite IHflds; reflexivity.
     Qed.
 
-    Lemma map_snd : forall {K U V : Type} (g : U -> V) (flds : fs K U),
+    Lemma map_snd : forall {K U V : Set} (g : U -> V) (flds : fs K U),
         List.map snd (map g flds) = List.map (g ∘ snd) flds.
     Proof.
       intros; induction flds as [| [? ?] ? ?]; unravel in *; auto.
@@ -76,19 +76,19 @@ Module Field.
     Qed.
 
     (** Fold. *)
-    Definition fold {K U V : Type} (f : K -> U -> V -> V)
+    Definition fold {K U V : Set} (f : K -> U -> V -> V)
                (fds : fs K U) (init : V) : V :=
       List.fold_right (fun '(x,u) acc => f x u acc) init fds.
     (**[]*)
 
-    Fixpoint find_value {K V : Type} (f : K -> bool) (fds : fs K V) : option V :=
+    Fixpoint find_value {K V : Set} (f : K -> bool) (fds : fs K V) : option V :=
       match fds with
       | [] => None
       | (k, v) :: fds => if f k then Some v else find_value f fds
       end.
     
     Section GetUpdate.
-      Context {K U : Type}.
+      Context {K U : Set}.
       Context {keq : K -> K -> Prop}.
       Context `{Equivalence K keq}.
       Context `{EqDec K keq}.
@@ -120,7 +120,7 @@ Module Field.
     End GetUpdate.
 
     Section FieldRelations.
-      Context {K U V : Type}.
+      Context {K U V : Set}.
       Context {keq : K -> K -> Prop}.
       Context `{HK : Equivalence K keq}.
       Variable R : U -> V -> Prop.
@@ -266,7 +266,7 @@ Module Field.
 
     (** Decidable Equality *)
     Section DecEq.
-      Context {K U : Type}.
+      Context {K U : Set}.
       Context {keq : K -> K -> Prop}.
       Context `{Equivalence K keq}.
       Context `{EqDec K keq}.
@@ -306,7 +306,7 @@ Module Field.
 
   Module RelfEquiv.
     Instance RelfEquiv
-             (K U : Type)
+             (K U : Set)
              (keq : K -> K -> Prop) `{Equivalence K keq}
              (R : U -> U -> Prop) `{Equivalence U R}
       : Equivalence (@relf _ _ _ keq _ R) :=
@@ -314,7 +314,7 @@ Module Field.
     (**[]*)
 
     Instance RelfsEquiv
-             (K U : Type)
+             (K U : Set)
              (keq : K -> K -> Prop) `{Equivalence K keq}
              (R : U -> U -> Prop) `{Equivalence U R}
       : Equivalence (@relfs _ _ _ keq _ R) :=
@@ -322,7 +322,7 @@ Module Field.
     (**[]*)
 
     Section EqReflect.
-      Context {K U : Type}.
+      Context {K U : Set}.
       Context {keq : K -> K -> Prop}.
       Context `{EQkeq : Equivalence K keq}.
       Context `{EQDeckeq : EqDec K keq}.
@@ -385,7 +385,7 @@ Module Field.
 
     (** Syntactic Equality. *)
     Section RelfEq.
-      Context {K V : Type}.
+      Context {K V : Set}.
 
       Lemma eq_relf : forall f1 f2 : f K V, relf eq f1 f2 -> f1 = f2.
       Proof.

@@ -7,8 +7,9 @@ Require Import Coq.Program.Program.
 Require Import Coq.Init.Hexadecimal.
 Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
+From Poulet4.Utils Require Import Maps AList.
 From Poulet4.P4light.Syntax Require Import
-     Typed P4Int SyntaxUtil P4Notations ValueUtil.
+    P4Int SyntaxUtil P4Notations ValueUtil.
 From Poulet4.P4light.Semantics Require Import Ops Hash.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
@@ -31,6 +32,11 @@ Notation action_ref := (@action_ref Expression).
 
 Variable (bit_constructor : N -> Z -> Val).
 Variable (bit_destructor : Val -> option (N * Z)).
+Variable (string_constructor : string -> string -> Val).
+Variable (bool_constructor : list bool -> Val).
+Variable (typebit_constructor : N -> P4Type).
+Variable (width_of_val : Val -> N).
+
 
 Definition register_static : Type := N (* width *) * Z (* size *).
 
@@ -179,13 +185,11 @@ Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint
             (D0 Nil), 
             true, true)
   else None.
-
+  
 Definition val_to_bits (v : Val) : option (list bool) :=
-  match v with
-  | ValBaseBit value => Some value
-  | ValBaseInt value => Some value
-  | ValBaseVarbit _ value => Some value
-  | _ => None
+  match bit_destructor v with 
+  | Some(n,w) => Some(to_lbool n w)
+  | None => None
   end.
 
 Definition concat_tuple (vs : list Val) : option (list bool) :=
@@ -197,21 +201,21 @@ Definition bound_hash_output (outw: N) (base: list bool)
   let (w2, max) := BitArith.from_lbool max in
   let (w3, output) := BitArith.from_lbool output in
   let w4 := N.max (N.max w1 w2) w3 in
-    ValBaseBit (to_lbool outw
-                (BitArith.plus_mod w4 base 
-                (BitArith.modulo_mod w4 output max))).
-(*Check compute_crc.*)
+  bit_constructor outw (BitArith.plus_mod w4 base (BitArith.modulo_mod w4 output max)). 
+
 Inductive hash_sem : extern_func_sem :=
   | exec_hash : forall e s p outw typs hash_name base vs max hashw poly init xor_out refin refout input output,
       get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->
       concat_tuple vs = Some input ->
       bound_hash_output outw base max 
         (compute_crc hashw poly init xor_out refin refout input) = output ->
-      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name; 
-                           ValBaseBit base;
-                           ValBaseTuple vs;
-                           ValBaseBit max]
+      hash_sem e s p (typebit_constructor outw::typs) 
+        ([string_constructor "HashAlgorithm" hash_name;
+                                          bool_constructor base;
+                                          bool_constructor max])
         s [output] SReturnNull.
+(* have to add vs? *)
+(* CHECK *)
 
 Definition hash : extern_func := {|
   ef_class := "";
@@ -247,16 +251,19 @@ Inductive ValSetT :=
 | VSTLpm (nbits: N) (value: Val)
 | VSTValueSet (size: N) (members: list (list (@Match tags_t))) (sets: list ValSetT).
 
-Fixpoint valset_to_valsett (vs : ValSet) :=
+Search "VSTUniversal".
+
+(* CHECK *)
+(* Fixpoint valset_to_valsett (vs : ValSet) :=
   match vs with
-  | ValSetSingleton n => VSTSingleton n
   | ValSetUniversal => VSTUniversal
   | ValSetMask value mask => VSTMask value mask
   | ValSetRange lo hi => VSTMask lo hi
   | ValSetProd sets => VSTProd (List.map valset_to_valsett sets)
   | ValSetLpm nbits value => VSTLpm nbits value
   | ValSetValueSet size members sets => VSTValueSet size members (List.map valset_to_valsett sets)
-  end.
+  | ValSetSingleton n => VSTSingleton n
+  end. *)
 
 Definition extern_get_entries (es : extern_state) (p : path) : list table_entry :=
   match PathMap.get p es with
@@ -270,13 +277,6 @@ Definition check_lpm_count (mks: list ident): option bool :=
   then None
   else Some (num_lpm =? 1)%nat.
 
-Fixpoint assert_bit (v: Val): option (list bool) :=
-  match v with
-  | ValBaseBit bits => Some bits
-  | ValBaseSenumField _ val => assert_bit val
-  | _ => None
-  end.
-
 Fixpoint bits_to_lpm_nbits (acc: N) (b: bool) (v: list bool): option N :=
   match v with
   | [] => Some acc
@@ -284,8 +284,18 @@ Fixpoint bits_to_lpm_nbits (acc: N) (b: bool) (v: list bool): option N :=
   | false :: tl => if b then None else bits_to_lpm_nbits acc b tl
   end.
 
-(* Compute (bits_to_lpm_nbits 0 false (to_lbool 5 (-2))). *)
+Definition assert_bit (v: Val): option (Z) :=
+  match bit_destructor v with
+  | None => None
+  | Some(_, z) => Some(z)
+  end.
 
+Definition lbool_to_Z (l: list bool): Z := 
+  snd (IntArith.from_lbool l).
+
+Definition Z_to_lbool (n: N) (i: Z): list bool := 
+  P4Arith.to_lbool n i.
+            
 Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
   match vs with
   | VSTUniversal
@@ -298,7 +308,7 @@ Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
   | VSTMask v1 v2 =>
     match assert_bit v2 with
     | None => None
-    | Some v2' => match bits_to_lpm_nbits 0 false v2' with
+    | Some v2' => match bits_to_lpm_nbits 0 false (Z_to_lbool (width_of_val v2) v2') with
                   | None => None
                   | Some n => Some (VSTLpm n v2)
                   end
@@ -337,8 +347,9 @@ Definition sort_lpm (l: list (ValSetT * action_ref)): list (ValSetT * action_ref
 Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
   match vs with
   | [] => None
-  | h :: _ => Ops.eval_binary_op_eq h v
+  | h :: _ => Some true
   end.
+  (* need to fix WHEN COMPLETE OPS.V *)
 
 Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
   match bits0, bits1, bits2 with
@@ -354,11 +365,11 @@ Definition values_match_mask (vs: list Val) (v1 v2: Val): option bool :=
   | [] => None
   | v :: _ => match assert_bit v, assert_bit v1, assert_bit v2 with
               | Some bits0, Some bits1, Some bits2 =>
-                let w0 := List.length bits0 in
-                let w1 := List.length bits1 in
-                let w2 := List.length bits2 in
+                let w0 := Z.to_nat bits0 in
+                let w1 := Z.to_nat bits1 in
+                let w2 := Z.to_nat bits2 in
                 if negb ((w0 =? w1)%nat && (w1 =? w2)%nat) then None
-                else Some (vmm_help bits0 bits1 bits2)
+                else Some (vmm_help (Z_to_lbool (Z.to_N bits0) bits0) (Z_to_lbool (Z.to_N bits1) bits1) (Z_to_lbool (Z.to_N bits2) bits2))
               | _, _, _ => None
               end
   end.
@@ -371,23 +382,17 @@ Definition values_match_lpm (vs: list Val) (v1: Val) (w2: N): option bool :=
   | [] => None
   | v :: _ => match assert_bit v, assert_bit v1 with
               | Some bits0, Some bits1 =>
-                let w0 := List.length bits0 in
-                let w1 := List.length bits1 in
+                let w0 := Z.to_nat bits0 in
+                let w1 := Z.to_nat bits1 in
                 let w1n := N.of_nat w1 in
                 if negb ((w0 =? w1)%nat && (w2 <=? w1n)%N) then None
                 else let bits2 := lpm_nbits_to_mask w1n w2 in
-                  Some (vmm_help bits0 bits1 bits2)
+                  Some (vmm_help (Z_to_lbool (Z.to_N bits0) bits0) (Z_to_lbool (Z.to_N bits1) bits1) bits2)
               | _, _ => None
               end
   end.
 
-Fixpoint assert_int (v: Val): option (N * Z) :=
-  match v with
-  | ValBaseBit bits => Some (BitArith.from_lbool bits)
-  | ValBaseInt bits => Some (IntArith.from_lbool bits)
-  | ValBaseSenumField _ val => assert_int val
-  | _ => None
-  end.
+Definition assert_int (v: Val): option (N * Z) := bit_destructor v. 
 
 Definition values_match_range (vs: list Val) (v1 v2: Val): option bool :=
   match vs with

@@ -148,15 +148,14 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
- let gen_p4cub (include_dirs : string list) (p4_file : string) 
+ let compile_file (include_dirs : string list) (p4_file : string) 
       (normalize : bool)
-      (export_file : string)  (verbose : bool) (gen_loc : bool)
+      (export_file : string)  (verbose : bool) (gen_loc : bool) (print_p4cub: bool)
       (printp4_file: string) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog, renamer = Elaborate.elab prog in
       let _, typed_prog = Checker.check_program renamer prog in
-      begin
           (* let oc = open_out ofile in *)
           (* let oc = Stdlib.open_out "out.v" in *)
           let oc = Out_channel.create export_file in
@@ -174,16 +173,13 @@ module Make_parse (Conf: Parse_config) = struct
             match Poulet4.ToP4cub.translate_program' P4info.dummy prog'' with
             | Poulet4.Result.Result.Ok prog''' -> prog'''
             | _ -> failwith "error occurred in ToP4cub" in
-          Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
-
-          begin
-            let oc_p4 = Out_channel.create printp4_file in
-            Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4)
-              prog''';
-            Out_channel.close oc_p4
-          end;
-        Out_channel.close oc;
-      end
+          if(print_p4cub) then (
+              let oc_p4 = Out_channel.create printp4_file in
+              Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog''';
+              Out_channel.close oc_p4);
+           prog''' |> Compcertalize.topdecl_convert 
+           |> Poulet4_Ccomp.CCompSel.coq_Compile_print;
+          Out_channel.close oc
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
     | `Error (info, Parser.Error) ->
@@ -191,7 +187,7 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
-
+  
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     failwith "eval_file removed"

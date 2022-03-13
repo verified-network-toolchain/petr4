@@ -105,7 +105,9 @@ let rec name_cdecl id ty =
         | _                      -> sprintf "*%s%s" (attributes_space a) id in
       name_cdecl id' t
   | Tarray(t, n, a) ->
+      (* name_cdecl (sprintf "%s[%ld]" id (camlint_of_bigint n)) t *)
       name_cdecl (sprintf "%s[%ld]" id (camlint_of_coqint n)) t
+      (* name_cdecl (sprintf "%s[%a]" id (print_bigint n)) t *)
   | Tfunction(args, res, cconv) ->
       let b = Buffer.create 20 in
       if id = ""
@@ -180,17 +182,25 @@ let print_pointer_hook
 let print_typed_value p v ty =
   match v, ty with
   | Vint n, Ctypes.Tint(I32, Unsigned, _) ->
+      (* fprintf p "%luU" (camlint_of_bigint n) *)
       fprintf p "%luU" (camlint_of_coqint n)
+       (* fprintf p "%a" (print_bigint n) *)
   | Vint n, _ ->
+      (* fprintf p "%ld" (camlint_of_bigint n) *)
       fprintf p "%ld" (camlint_of_coqint n)
+      (* fprintf p "%a" (print_bigint n) *)
   | Vfloat f, _ ->
       fprintf p "%.15F" (camlfloat_of_coqfloat f)
   | Vsingle f, _ ->
       fprintf p "%.15Ff" (camlfloat_of_coqfloat32 f)
   | Vlong n, Ctypes.Tlong(Unsigned, _) ->
+      (* fprintf p "%LuLLU" (camlint64_of_bigint n) *)
       fprintf p "%LuLLU" (camlint64_of_coqint n)
+      (* fprintf p "%a" (print_bigint n) *)
   | Vlong n, _ ->
+      (* fprintf p "%LdLL" (camlint64_of_bigint n) *)
       fprintf p "%LdLL" (camlint64_of_coqint n)
+      (* fprintf p "%a" (print_bigint n) *)
   | Vptr(b, ofs), _ ->
       fprintf p "<ptr%a>" !print_pointer_hook (b, ofs)
   | Vundef, _ ->
@@ -255,9 +265,15 @@ let rec expr p (prec, e) =
   | Ecall(a1, al, _) ->
       fprintf p "%a@[<hov 1>(%a)@]" expr (prec', a1) exprlist (true, al)
   | Ebuiltin(EF_memcpy(sz, al), _, args, _) ->
-      fprintf p "__builtin_memcpy_aligned@[<hov 1>(%ld,@ %ld,@ %a)@]"
+      (* fprintf p "__builtin_memcpy_aligned@[<hov 1>(%ld,@ %ld,@ %a)@]"
+                (camlint_of_bigint sz) (camlint_of_bigint al)
+                exprlist (true, args) *)
+    fprintf p "__builtin_memcpy_aligned@[<hov 1>(%ld,@ %ld,@ %a)@]"
                 (camlint_of_coqint sz) (camlint_of_coqint al)
                 exprlist (true, args)
+      (* fprintf p "__builtin_memcpy_aligned@[<hov 1>(%a,@ %a,@ %a)@]"
+                (print_bigint sz) (print_bigint al)
+                exprlist (true, args) *)
   | Ebuiltin(EF_annot(_,txt, _), _, args, _) ->
       fprintf p "__builtin_annot@[<hov 1>(%S%a)@]"
                 (camlstring_of_coqstring txt) exprlist (false, args)
@@ -446,6 +462,7 @@ let string_of_init id =
   let b = Buffer.create (List.length id) in
   let add_init = function
   | Init_int8 n ->
+    (* let c = Int32.to_int (camlint_of_bigint n) in *)
       let c = Int32.to_int (camlint_of_coqint n) in
       if c >= 32 && c <= 126 && c <> Char.code '\"' && c <> Char.code '\\'
       then Buffer.add_char b (Char.chr c)
@@ -460,14 +477,23 @@ let chop_last_nul id =
   | _ -> id
 
 let print_init p = function
-  | Init_int8 n -> fprintf p "%ld" (camlint_of_coqint n)
-  | Init_int16 n -> fprintf p "%ld" (camlint_of_coqint n)
-  | Init_int32 n -> fprintf p "%ld" (camlint_of_coqint n)
-  | Init_int64 n -> fprintf p "%LdLL" (camlint64_of_coqint n)
+  | Init_int8 n -> 
+  (* fprintf p "%ld" (camlint_of_bigint n) *)
+  fprintf p "%ld" (camlint_of_coqint n)
+  | Init_int16 n -> 
+  (* fprintf p "%ld" (camlint_of_bigint n) *)
+  fprintf p "%ld" (camlint_of_coqint n)
+  | Init_int32 n -> 
+  (* fprintf p "%ld" (camlint_of_bigint n) *)
+  fprintf p "%ld" (camlint_of_coqint n)
+  | Init_int64 n -> 
+  (* fprintf p "%LdLL" (camlint64_of_bigint n) *)
+  fprintf p "%LdLL" (camlint64_of_coqint n)
   | Init_float32 n -> fprintf p "%.15F" (camlfloat_of_coqfloat n)
   | Init_float64 n -> fprintf p "%.15F" (camlfloat_of_coqfloat n)
   | Init_space n -> fprintf p "/* skip %s */@ " (Z.to_string n)
   | Init_addrof(symb, ofs) ->
+      (* let ofs = camlint_of_bigint ofs in *)
       let ofs = camlint_of_coqint ofs in
       if ofs = 0l
       then fprintf p "&%s" (name_of_ident symb)

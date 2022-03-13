@@ -11,7 +11,6 @@ typedef struct Register {
     void** vals;
 } Register;
 
-void read(out T result, in bit<32> index);
 
 
 typedef struct State {
@@ -40,4 +39,24 @@ typedef struct standard_metadata_t {
     BitVec  checksum_error;
     error parser_error;
     BitVec priority;
+}
+
+
+int main(void)
+{
+  struct packet_out _p_e_t_r_4_0b111011;
+  struct packet_in _p_e_t_r_4_0b111010;
+  struct _p_e_t_r_4_0b10010 _p_e_t_r_4_0b111001;
+  struct _p_e_t_r_4_0b1110 _p_e_t_r_4_0b111000;
+  struct _p_e_t_r_4_0b1010 _p_e_t_r_4_0b110111;
+  my_parser
+    (_p_e_t_r_4_0b111010, &_p_e_t_r_4_0b110111, &_p_e_t_r_4_0b111000,
+     &_p_e_t_r_4_0b111001);
+  my_verify(&_p_e_t_r_4_0b110111, &_p_e_t_r_4_0b111000);
+  my_ingress
+    (&_p_e_t_r_4_0b110111, &_p_e_t_r_4_0b111000, &_p_e_t_r_4_0b111001);
+  my_egress
+    (&_p_e_t_r_4_0b110111, &_p_e_t_r_4_0b111000, &_p_e_t_r_4_0b111001);
+  my_compute(&_p_e_t_r_4_0b110111, &_p_e_t_r_4_0b111000);
+  my_deparser(_p_e_t_r_4_0b111011, _p_e_t_r_4_0b110111);
 }

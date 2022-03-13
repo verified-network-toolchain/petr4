@@ -15,7 +15,7 @@
 (* *********************************************************************)
 
 (* Library of useful Caml <-> Coq conversions *)
-
+open Format
 open Datatypes (*standard coq lib *)
 open BinNums (*standard coq lib *)
 open BinNat (*standard coq lib *)
@@ -266,10 +266,12 @@ end
 
 
 (* Alternate names *)
-
+let string_of_bigint n = Bignum.to_string_accurate (Bignum.of_bigint n)
+let camlint_of_bigint n = Int32.of_string (string_of_bigint n)
 let camlint_of_coqint : Integers.Int.int -> int32 = Z.to_int32
 let coqint_of_camlint : int32 -> Integers.Int.int = Z.of_uint32
    (* interpret the int32 as unsigned so that result Z is in range for int *)
+let camlint64_of_bigint n = Int64.of_string (string_of_bigint n )
 let camlint64_of_coqint : Integers.Int64.int -> int64 = Z.to_int64
 let coqint_of_camlint64 : int64 -> Integers.Int64.int = Z.of_uint64
    (* interpret the int64 as unsigned so that result Z is in range for int *)
@@ -405,3 +407,7 @@ let coqfloat32_of_camlfloat f =
   Float32.of_bits(coqint_of_camlint(Int32.bits_of_float f))
 let camlfloat_of_coqfloat32 f =
   Int32.float_of_bits(camlint_of_coqint(Float32.to_bits f))
+
+
+let print_bigint p n =
+  fprintf p "%s" (Bignum.to_string_accurate (Bignum.of_bigint n))

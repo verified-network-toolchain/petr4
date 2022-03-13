@@ -1480,7 +1480,11 @@ Section CCompSel.
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
       let typ_decls := CCompEnv.get_composites tags_t env_all_declared in
-      
+      (* There's no easy way of deleting the main_decl completely *)
+      (* Mainly because clight expect a program to have a main function *)
+      (* if we don't have a main function, I'm not sure how to print the result out
+      as a c file. *)
+      (* But we need all definitions to be public now *)
       let main_decl :=
       AST.Gfun (Ctypes.Internal (main_fn tags_t env_all_declared (get_instantiate_cargs tags_t env_all_declared)))
       in 
@@ -1489,12 +1493,12 @@ Section CCompSel.
         (fun (x: AST.ident * globvar Ctypes.type)
         => let (id, v) := x in 
         (id, AST.Gvar(v))) gvars in
+      let globdecl := gvars ++ ((main_id, main_decl):: f_decls) in
+      let pubids := List.map (fun (x: ident * globdef (fundef Clight.function) type) =>
+                              let (id, _) := x in 
+                              id) globdecl in
       let res_prog : Errors.res (program function) := make_program 
-        (
-          (* RunTime.composites++  *)
-          typ_decls)
-        (gvars ++ ((main_id, main_decl):: f_decls))
-        [] main_id
+        typ_decls globdecl pubids main_id
       in
       res_prog
       end
@@ -1506,10 +1510,10 @@ Section CCompSel.
     | Errors.OK prog => print_Clight prog
     end.  
 End CCompSel.
-
+(* 
 Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 
   CCompSel.Compile nat helloworld_program_sel.
 
 Definition test := 
-  CCompSel.Compile_print nat helloworld_program_sel.
+  CCompSel.Compile_print nat helloworld_program_sel. *)

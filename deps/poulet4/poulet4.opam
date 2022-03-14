@@ -20,4 +20,5 @@ depends: [
   "coq-record-update" {build}
   "coq-compcert" {build}
   "coq-vst-zlist" {build}
+  "leapfrog" {build}
 ]

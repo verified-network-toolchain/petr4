@@ -266,11 +266,14 @@ Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) 
 Definition map_snd {A B C : Type} (f : B -> C) (ps : list (A * B)) : list (A * C) :=
   List.map (fun '(a, b) => (a, f b)) ps.
 
-Fixpoint intersect_string_list (xs ys : list string) : list string :=
+Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
   match xs with
-  | [] => []
+  | [] => acc
   | x::xs =>
     if string_member x ys
-    then x::(intersect_string_list xs ys)
-    else intersect_string_list xs ys
+    then intersect_string_list_aux xs ys (x::acc)
+    else intersect_string_list_aux xs ys acc
   end.
+
+Fixpoint intersect_string_list (xs ys : list string) : list string :=
+  rev' (intersect_string_list_aux xs ys []).

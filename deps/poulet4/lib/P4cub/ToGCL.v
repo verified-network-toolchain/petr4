@@ -11,7 +11,6 @@ Require Export Poulet4.P4cub.Util.Result.
 
 Require Import Coq.Arith.EqNat.
 Require Import String.
-Open Scope string_scope.
 
 Require Import Poulet4.P4cub.Inline.
 Require Import Poulet4.ToP4cub.
@@ -26,7 +25,6 @@ Import Poulet4.P4cub.Util.StringUtil.
 
 Require Import Poulet4.P4cub.GCL.
 
-
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.
@@ -34,6 +32,36 @@ Module E := Expr.
 Module F := F.
 Module BV := GCL.BitVec.
 
+Print List.rev_append.
+
+Fixpoint append {A : Type} (l : list A) (l' : list A) : list A :=
+  match l' with
+  | [] => l
+  | _ =>
+    List.rev_append (List.rev' l) l'
+  end.
+
+Fixpoint fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
+  List.fold_left (fun a b => f b a) (rev' bs) a0.
+
+(* Search (string -> string). *)
+(* Fixpoint rev_concat (s s' : string) : string := *)
+(*   match s with *)
+(*   | EmptyString => s' *)
+(*   | String c s => rev_concat s (String c s') *)
+(*   end. *)
+(* Fixpoint string_reverse (s : string) : string := *)
+(*   rev_concat s EmptyString. *)
+
+
+(* Fixpoint safe_concat (s s' : string) : string := *)
+(*   match s' with *)
+(*   | EmptyString => s *)
+(*   | _ => *)
+(*     rev_concat (string_reverse s) s' *)
+(*   end. *)
+
+Infix "@@" := String.append (right associativity, at level 60).
 
 Section ToGCL.
   Variable tags_t : Type.
@@ -56,7 +84,7 @@ Section ToGCL.
     |}.
 
   Definition incr (c : ctx) : ctx :=
-    let new_idx := S(list_max (c.(stack) ++ c.(used))) in
+    let new_idx := S(list_max (append c.(stack) c.(used))) in
     {| stack := new_idx :: c.(stack);
        used := c.(used);
        locals := [];
@@ -94,15 +122,17 @@ Section ToGCL.
   Definition join (tctx fctx : ctx) : result ctx :=
     if list_eq Nat.eqb tctx.(stack) fctx.(stack)
     then ok {| stack := tctx.(stack);
-               used := tctx.(used) ++ fctx.(used);
+               used := append tctx.(used) fctx.(used);
                locals := intersect_string_list tctx.(locals) fctx.(locals);
                may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
                may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
             |}
     else error "Tried to join two contexts with different context counters".
 
+
+
   Definition retvar_name (c : ctx) : string :=
-    fold_right (fun idx acc => acc ++ (string_of_nat idx)) "return" c.(stack).
+    fold_right (fun idx acc => acc @@ (string_of_nat idx)) "return" c.(stack).
 
   Definition retvar (c : ctx) (i : tags_t) : E.e tags_t :=
     E.EVar E.TBool (retvar_name c) i.
@@ -119,7 +149,7 @@ Section ToGCL.
     string_member v (c.(locals)).
 
   Definition scope_name (v : string) (idx : nat) : string :=
-    (* v ++ "__$__" ++ string_of_nat idx. *)
+    (* v @@ "__$__" @@ string_of_nat idx. *)
     v.
 
 
@@ -137,8 +167,8 @@ Section ToGCL.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
   Definition find (m : model) (e f : string) : result (GCL.t) :=
-    let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
-    let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern " ++ e in
+    let*~ ext := Env.find e m else "couldn't find extern " @@ e @@ " in model" in
+    let*~ fn := Env.find f ext else "couldn't find field " @@ f @@ " in extern " @@ e in
     ok fn.
   Definition empty : model := Env.empty string extern.
   Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result (ST.s tags_t).
@@ -199,7 +229,7 @@ Section ToGCL.
 
     Definition string_of_z (x : Z) :=
       if BinInt.Z.ltb x (Z0)
-      then "-" ++ string_of_nat (BinInt.Z.abs_nat x)
+      then "-" @@ string_of_nat (BinInt.Z.abs_nat x)
       else string_of_nat (BinInt.Z.abs_nat x).
 
     Definition string_of_pos (x : positive) :=
@@ -213,11 +243,11 @@ Section ToGCL.
       | E.EVar t x i => ok x
       | E.ESlice e hi lo pos =>
         (* TODO :: Allow assignment to slices *)
-        error ("[FIXME] Slices ["++ string_of_pos hi ++"," ++ string_of_pos lo ++ "] are not l-values")
+        error ("[FIXME] Slices ["@@ string_of_pos hi @@"," @@ string_of_pos lo @@ "] are not l-values")
       | E.ECast _ _ _ => error "Casts are not l-values"
       | E.EUop E.TBool E.IsValid e _ =>
         let+ lv := to_lvalue e in
-        lv ++ "." ++ "is_valid"
+        lv @@ "." @@ "is_valid"
       | E.EUop _ _ _ _ => error "Unary Operations (aside from is_valid) are not l-values"
       | E.EBop _ _ _ _ _ => error "Binary Operations are not l-values"
       | E.ETuple _ _ => error "Explicit Tuples are not l-values"
@@ -225,7 +255,7 @@ Section ToGCL.
       | E.EHeader _ _ _ => error "Explicit Headers are not l-values"
       | E.EExprMember expr_type mem arg i =>
         let+ lv := to_lvalue arg in
-        lv ++ "." ++ mem
+        lv @@ "." @@ mem
       | E.EError _ _ => error "errors are not l-values"
       | E.EMatchKind _ _ => error "Match Kinds are not l-values"
       | E.EHeaderStack _ _ _ _ => error "Header Stacks are not l-values"
@@ -240,15 +270,15 @@ Section ToGCL.
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
-      | E.TVar tx => error ("Cannot get the width of a typ variable " ++ tx ++ " for var " ++ x)
+      | E.TVar tx => error ("Cannot get the width of a typ variable " @@ tx @@ " for var " @@ x)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
-      | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" ++ x)
-      | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
+      | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x)
+      | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" @@ x)
       | E.TStruct fields =>
-        error ("Cannot get the width of a Struct Type with "++ string_of_nat (List.length fields) ++ " for var " ++ x)
+        error ("Cannot get the width of a Struct Type with "@@ string_of_nat (List.length fields) @@ " for var " @@ x)
       | E.THeader fields =>
-        error ("Cannot get the width of a Header Type for var " ++ x)
-      | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" ++ x)
+        error ("Cannot get the width of a Header Type for var " @@ x)
+      | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" @@ x)
       end.
 
     Definition get_header_of_stack (stack : E.e tags_t) : result E.t :=
@@ -267,7 +297,7 @@ Section ToGCL.
         match t with
         | E.THeader _ => ok x
         | E.TStruct _ => ok x
-        | _ => error ("While trying to construct a string from a header, got variable " ++ x ++ ", but the type wasnt a header or struct")
+        | _ => error ("While trying to construct a string from a header, got variable " @@ x @@ ", but the type wasnt a header or struct")
         end
       | E.ESlice _ _ _ _ => error "A Slice is not a header"
       | E.ECast _ _ _ => error "A Cast is not a header"
@@ -279,7 +309,7 @@ Section ToGCL.
         error "Header literals should not be keys"
       | E.EExprMember expr_type mem arg i =>
         let+ str := to_header_string arg in
-        str ++ "." ++ mem
+        str @@ "." @@ mem
       | E.EError _ _ => error "errors are not header strings"
       | E.EMatchKind _ _ => error "MatchKinds are not header strings"
       | E.EHeaderStack _ _ _ _ =>
@@ -291,7 +321,7 @@ Section ToGCL.
 
     Definition lookup_member_from_fields mem fields : result E.t :=
       match F.find_value (String.eqb mem) fields with
-      | None => error ("cannot find " ++ mem ++ "in type")
+      | None => error ("cannot find " @@ mem @@ "in type")
       | Some t => ok t
       end.
 
@@ -302,7 +332,7 @@ Section ToGCL.
       | E.THeader fields =>
         lookup_member_from_fields mem fields
       | E.TVar v =>
-        error ("Error :: Type variable " ++ v ++ "  should've been removed")
+        error ("Error :: Type variable " @@ v @@ "  should've been removed")
       | _ =>
         error "don't know how to extract member from type that has no members"
       end.
@@ -319,11 +349,13 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let* w := width_of_type x t in (* over ("couldn't get type-width of " ++ x ++ " while converting to rvalue") in*)
+        let* w := width_of_type x t in (* over ("couldn't get type-width of " @@ x @@ " while converting to rvalue") in*)
         ok (BV.BVVar x w)
       | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
-        BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e
+        (* Recall that in ToP4cub.translate_expression_pre_t we incremented the
+        indices because `positive` has no 0 value *)
+        BV.UnOp (BV.BVSlice ((BinPos.Pos.to_nat hi) - 1) ((BinPos.Pos.to_nat lo) - 1)) rv_e
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
         let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg) in
@@ -345,7 +377,7 @@ Section ToGCL.
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
           let+ header := to_lvalue arg in
-          let hvld := header ++ ".is_valid" in
+          let hvld := header @@ ".is_valid" in
           BV.BVVar hvld 1
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
           error "SetValid as an expression is deprecated"
@@ -451,9 +483,9 @@ Section ToGCL.
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.EExprMember ret_type mem arg i =>
-        let~ w := width_of_type mem ret_type over ("couldn't get width of ??." ++ mem ++ " while converting to_rvalue") in
+        let~ w := width_of_type mem ret_type over ("couldn't get width of ??." @@ mem @@ " while converting to_rvalue") in
         let+ lv := to_lvalue arg in
-        BV.BVVar (lv ++ "." ++ mem) w
+        BV.BVVar (lv @@ "." @@ mem) w
       | E.EError _ _ => error "errors are not rvalues."
       | E.EMatchKind _ _ => error "MatchKinds are not rvalues"
       | E.EHeaderStack _ _ _ _ =>
@@ -507,13 +539,15 @@ Section ToGCL.
       | E.EUop type op arg i =>
         match op with
         | E.Not =>
-          let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in
-          ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
+          (* let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in *)
+        (* ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg)) *)
+          let~ arg := to_form arg over "couldn't convert to formula under negation" in
+          ok (Form.LNot arg)
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
           let+ header := to_lvalue arg in
-          let hvld := header ++ ".is_valid" in
+          let hvld := header @@ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1)
         | E.SetValid =>
           error "SetValid is deprecated as an expression"
@@ -557,7 +591,7 @@ Section ToGCL.
         | E.BitAnd => error "Typeerror: (&) is not a boolean operator"
         | E.BitXor => error "Typeerror: (^) is not a boolean operator"
         | E.BitOr => error "Typeerror: (|) is not a boolean operator"
-        | E.PlusPlus => error "Typeerror: (++) is not a boolean operator"
+        | E.PlusPlus => error "Typeerror: (@@) is not a boolean operator"
         | E.And => lbin Form.LAnd
         | E.Or => lbin Form.LOr
         end
@@ -569,7 +603,7 @@ Section ToGCL.
         error "Headers are not formulae"
       | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
-        let~ w := (width_of_type mem expr_type) over ("failed getting type of " ++ mem) in
+        let~ w := (width_of_type mem expr_type) over ("failed getting type of " @@ mem) in
         ok (GCL.isone (BV.BVVar lv w))
       | E.EError _ _ =>
         error "errors are not formulae"
@@ -674,7 +708,7 @@ Section ToGCL.
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let~ w := width_of_type (tbl ++ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " ++ tbl ) in
+                                   let~ w := width_of_type (tbl @@ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
                                    let~ e' := to_rvalue e over "failed converting keys to rvalue" in
                                    ok (w, e', mk)) keys) in
         let+ g := instr tbl i keys' actions' in
@@ -683,16 +717,16 @@ Section ToGCL.
       | Inline.IExternMethodCall _  ext method args i =>
         (** TODO handle copy-in/copy-out) *)
         let* g := find arch ext method in
-        let~ gcl_args := arrowE_to_arglist args over "failed to convert arguments to " ++ ext ++ "." ++ method in
+        let~ gcl_args := arrowE_to_arglist args over "failed to convert arguments to " @@ ext @@ "." @@ method in
         let+ g' := subst_args g gcl_args in
         (g', c)
       | Inline.ISetValidity _ e v i =>
         let+ header := to_lvalue e in
-        let hvld := header ++ ".is_valid" in
+        let hvld := header @@ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
         (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec vld_bit (Some 1)), c)
       | Inline.IHeaderStackOp _ stck _ _ _ _ =>
-        error ("Tried to translate a header stack operation on " ++ stck ++ " to GCL. This should've been eliminated during the inlining phase.")
+        error ("Tried to translate a header stack operation on " @@ stck @@ " to GCL. This should've been eliminated during the inlining phase.")
       end.
 
     (* use externs to specify inter-pipeline behavior.*)
@@ -712,7 +746,6 @@ Section ToGCL.
       let* no_hdr := Inline.elaborate_headers _ no_tup in
       let* no_structs := Inline.elaborate_structs _ no_hdr in
       let* no_slice := Inline.eliminate_slice_assignments _ no_structs in
-      (* let* hdrs_valid := Inline.assert_headers_valid_before_use _ no_slice in *)
       ok no_slice.
 
     Definition inline_from_p4cub (gas unroll : nat)

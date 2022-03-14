@@ -35,7 +35,15 @@ Definition d := NoInfo.
  * as breaking the build.
  **)
 
+
+Compute SimpleNat.prog.
+Search (nat -> positive).
+Search (N -> N).
+Compute (BinPosDef.Pos.of_nat 0).
+
 Definition p4cub_simple_nat := ToP4cub.translate_program Info NoInfo SimpleNat.prog.
+
+Compute p4cub_simple_nat.
 
 Definition simple_nat_test_case :=
   let* sn := p4cub_simple_nat in

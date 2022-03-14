@@ -918,13 +918,13 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
   | IExit _ => ok c
   | IInvoke x keys actions i =>
     (* TODO: Do something with keys? *)
-    let rec_act_call := fun '(nm, act) acc_opt =>
+    let rec_act_call := fun acc_opt '(nm, act) =>
         let* acc := acc_opt in
         let+ act' := elaborate_header_stacks act in
         (nm, act') :: acc
     in
-    let+ actions' := fold_right rec_act_call (ok []) actions in
-    IInvoke x keys actions' i
+    let+ actions' := fold_left rec_act_call actions (ok []) in
+    IInvoke x keys (rev actions') i
   | IExternMethodCall extern method arrow tags =>
     if String.eqb method "extract"
     then elaborate_extract extern arrow tags

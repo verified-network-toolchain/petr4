@@ -23,6 +23,18 @@ Module ST := Stmt.
 Module E := Expr.
 Module Sub := Syntax.Substitution.
 
+
+Definition append {A : Type} (l : list A) (l' : list A) : list A :=
+  match l' with
+  | [] => l
+  | _ =>
+    List.rev_append (List.rev' l) l'
+  end.
+
+Fixpoint fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
+  List.fold_left (fun a b => f b a) (List.rev' bs) a0.
+
+
 Module NameGen.
   Definition t := list (string * nat).
   Fixpoint rep s n :=
@@ -215,7 +227,7 @@ Section ToP4cub.
     let decls := List.concat [decls.(controls); decls.(parsers); decls.(functions); decls.(packages); decls.(externs)] in
     let dummy_type := {| paramargs := []; rtrns := None |} in
     let dummy_function := TopDecl.TPFunction "$DUMMY" [] dummy_type (ST.SSkip tags) tags in
-    List.fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
+    fold_right (fun d1 d2 => TopDecl.TPSeq d1 d2 tags)
                     dummy_function
                     decls.
 
@@ -231,7 +243,7 @@ Section ToP4cub.
     end.
 
   Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
-    let combine {A : Type} (f : DeclCtx -> list A) := List.app (f hi_prio) (f lo_prio) in
+    let combine {A : Type} (f : DeclCtx -> list A) := append (f hi_prio) (f lo_prio) in
     {| controls := combine controls;
        parsers := combine parsers;
        tables := combine tables;
@@ -240,16 +252,16 @@ Section ToP4cub.
        package_types := combine package_types;
        packages := combine packages;
        externs := combine externs;
-       types := List.app hi_prio.(types) lo_prio.(types);
+       types := append hi_prio.(types) lo_prio.(types);
     |}.
 
   Definition to_ctrl_decl tags (c: DeclCtx) : Control.d tags_t :=
-    List.fold_right (fun d1 d2 => Control.CDSeq d1 d2 tags)
+    fold_right (fun d1 d2 => Control.CDSeq d1 d2 tags)
                     (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip tags) (tags))
-                    (List.app c.(actions) c.(tables)).
+                    (append c.(actions) c.(tables)).
 
   Definition find {A : Type} (f : A -> bool) : list A -> option A :=
-    List.fold_right (fun x found => match found with | None => if f x then Some x else None | Some _ => found end) None.
+    fold_right (fun x found => match found with | None => if f x then Some x else None | Some _ => found end) None.
 
   Definition decl_has_name (name : string) (d : TopDecl.d tags_t) :=
     let matches := String.eqb name in
@@ -365,12 +377,16 @@ Section ToP4cub.
   Definition cub_type_of_enum (members : list (P4String.t tags_t)) :=
     E.TBit (Npos (pos (width_of_enum members))).
 
+  Definition swap {A B C : Type} (f : A -> B -> C) (b : B) (a : A) : C :=
+    f a b.
+
   Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
-    let translate_fields :=
-        fold_right (fun '(name,typ) res_rst =>
-                      let* cub_typ := translate_exp_type i typ in
-                      let+ rst := res_rst in
-                      (P4String.str name, cub_typ) :: rst ) (ok [])
+    let translate_fields fs :=
+        let+ fs' := fold_left (fun res_rst '(name,typ) =>
+                                 let* cub_typ := translate_exp_type i typ in
+                                 let+ rst := res_rst in
+                                 (P4String.str name, cub_typ) :: rst ) fs (ok []) in
+        rev' fs'
     in
     match typ with
     | TypBool => ok E.TBool
@@ -398,10 +414,10 @@ Section ToP4cub.
       end
     | TypTuple types =>
       (* TODO ensure are cast-able *)
-      let+ cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
-      E.TTuple cub_types
+      let+ cub_types := fold_left (swap (cons_res ∘ (translate_exp_type i))) types (ok []) in
+      E.TTuple (rev' cub_types)
     | TypList types =>
-      let+ cub_types := fold_right (cons_res ∘ (translate_exp_type i)) (ok []) types in
+      let+ cub_types := fold_left (swap (cons_res ∘ translate_exp_type i)) types (ok []) in
       E.TTuple cub_types
     | TypRecord fields =>
       let+ cub_fields := translate_fields fields in
@@ -508,7 +524,8 @@ Section ToP4cub.
 
   Definition get_enum_id := get_enum_id_aux 0.
 
-  Fixpoint translate_expression_pre_t (i : tags_t) (typ : P4Type) (e_pre : @ExpressionPreT tags_t) : result (E.e tags_t) :=
+  Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result (E.e tags_t) :=
+    let '(MkExpression i e_pre typ dir) := e in
     match e_pre with
     | ExpBool b =>
       ok (E.EBool b i)
@@ -545,23 +562,25 @@ Section ToP4cub.
     | ExpBitStringAccess bits lo hi =>
       let* typ := translate_exp_type i (get_type_of_expr bits) in
       let+ e := translate_expression bits in
-      E.ESlice e (posN hi) (posN lo) i
+      (* Positive doesnt let you represent 0, so increase each by one*)
+      (* Make sure to check ToGCL.to_rvalue when changing *)
+      E.ESlice e (posN (BinNatDef.N.succ hi)) (posN (BinNatDef.N.succ lo)) i
     | ExpList values =>
-      let f := fun v res_rst =>
+      let f := fun res_rst v =>
                  let* cub_v := translate_expression v in
                  let+ rst := res_rst in
                  cub_v :: rst in
-      let+ cub_values := fold_right f (ok []) values in
-      E.ETuple cub_values i
+      let+ cub_values := fold_left f values (ok []) in
+      E.ETuple (rev' cub_values) i
     | ExpRecord entries =>
-      let f := fun kv res_rst =>
+      let f := fun res_rst kv =>
                  let '(nm,expr) := kv in
                  let* type := translate_exp_type i (get_type_of_expr expr) in
                  let* expr := translate_expression expr in
                  let+ rst := res_rst in
                  (P4String.str nm, expr) :: rst in
-      let+ cub_entries := fold_right f (ok []) entries  in
-      E.EStruct cub_entries i
+      let+ cub_entries := fold_left f entries (ok []) in
+      E.EStruct (rev' cub_entries) i
     | ExpUnaryOp op arg =>
       let eop := translate_op_uni op in
       let* typ := translate_exp_type i (get_type_of_expr arg) in
@@ -605,12 +624,8 @@ Section ToP4cub.
     (*   error "[FIXME] actually patterns (unimplemented)" *)
     (* | ExpRange lo hi => *)
     (*   error "[FIXME] actually patterns (unimplemented)" *)
-    end
-  with translate_expression (e : @Expression tags_t) : result (E.e tags_t) :=
-    match e with
-    | MkExpression tags expr typ dir =>
-      translate_expression_pre_t tags typ expr
     end.
+
 
   Definition get_name (e : Expression) : result (P4String.t tags_t) :=
     let '(MkExpression _ pre_e _ _ ) := e in
@@ -761,12 +776,12 @@ Section ToP4cub.
   Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args :=
     let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
     match extern_decl with
-    | None => error (String.append "ERROR expected an extern, but got " extern_str)
+    | None => error ("ERROR expected an extern, but got " ++ extern_str)
     | Some (TopDecl.TPExtern extn_name tparams cparams methods i) =>
       let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
       match called_method with
       | None =>
-        error (append "Couldn't find " (append (append extern_str ".") f_str))
+        error ("Couldn't find " ++ extern_str ++ "." ++ f_str)
       | Some (_, (targs, ar)) =>
         let params := paramargs ar in
         let* cub_args := translate_arglist args in
@@ -1287,7 +1302,7 @@ Section ToP4cub.
     let* cub_data_params := parameters_to_params tags data_params in
     let+ cub_ctrl_params := parameters_to_params tags ctrl_params in
     (* TODO ensure ctrl params are directionless? *)
-    List.app cub_data_params cub_ctrl_params.
+    append cub_data_params cub_ctrl_params.
 
   Definition translate_matchkind (matchkind : P4String.t tags_t) : result E.matchkind :=
     let mk_str := P4String.str matchkind in

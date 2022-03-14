@@ -16,7 +16,7 @@
     Bool String Nat
     BinNums BinInt Zpower
     Specif Basics PeanoNat
-    BinPosDef BinPos BinNat
+    BinPosDef BinPos BinNat BinNatDef
     Ascii BinIntDef Monad Option)
  (libraries zarith bignum)
  (theories Poulet4))

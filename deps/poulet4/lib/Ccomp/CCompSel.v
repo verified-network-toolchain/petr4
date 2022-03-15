@@ -1511,6 +1511,37 @@ Section CCompSel.
     : @error_monad string (ClightEnv tags_t * Clight.statement) :=
     F.fold InjectConstructorArg cargs (error_ret (env, Sskip)).
 
+  Check List.fold_left.
+  Fixpoint CCollectTypVar (d: TopDecl.d tags_t) (env: ClightEnv tags_t) : @error_monad string (ClightEnv tags_t)
+  := match d with 
+  | TopDecl.TPSeq d1 d2 i => 
+    let* env1 := CCollectTypVar d1 env in
+    CCollectTypVar d2 env1 
+
+  | TopDecl.TPInstantiate c x ts args i => 
+    if (x == "main") then 
+      let env' := List.fold_left (fun e t => snd (CTranslateType t e)) ts env in
+      match ts, F.get "p" args, F.get "vr" args, F.get "ig" args, F.get "eg" args, F.get "ck" args
+      , F.get "dep" args  with 
+      | H :: M :: [], Some (Expr.CAName p), Some (Expr.CAName vr),
+       Some (Expr.CAName ig), Some (Expr.CAName eg), Some (Expr.CAName ck), Some (Expr.CAName dep) => 
+        let* env_H := set_H tags_t env' H in 
+        let* env_M := set_M tags_t env_H M in
+        let env_p := add_expected_control tags_t env_M "parser" p  in 
+        let env_vr := add_expected_control tags_t env_p "verify" vr  in
+        let env_ig := add_expected_control tags_t env_vr "ingress" ig in
+        let env_eg := add_expected_control tags_t env_ig "egress" eg in
+        let env_ck := add_expected_control tags_t env_eg "compute" ck in
+        let env_dep := add_expected_control tags_t env_ck "deparser" dep in
+
+        error_ret env_dep
+      | _,_,_,_,_,_,_ => err "main instantiation not following V1model convention"
+      end
+    else error_ret env 
+ 
+  | _ => error_ret env
+  end.
+
   Fixpoint CTranslateTopDeclaration (d: TopDecl.d tags_t) (env: ClightEnv tags_t ) : @error_monad string (ClightEnv tags_t )
   := 
   match d with
@@ -1518,17 +1549,36 @@ Section CCompSel.
     let* env1 := CTranslateTopDeclaration d1 env in
     CTranslateTopDeclaration d2 env1 
 
-  | TopDecl.TPInstantiate c x _ args i => 
+  | TopDecl.TPInstantiate c x ts args i => 
     let env := add_tpdecl tags_t env x d in
     let env := if (x == "main") then set_instantiate_cargs tags_t env args else env in
     match lookup_topdecl tags_t env c with 
     | inl tpdecl => 
       match tpdecl with
-      | TopDecl.TPParser _ _ _ _ _ _ _  => 
+      | TopDecl.TPParser _ _ _ _ _ _ _  =>
+        let x := 
+          match lookup_expected_instance tags_t env "parser" with
+          | None => x
+          | Some name => if (x == name) then "parser" else x end in
         let* (env, init) := InjectConstructorArgs env args in
          CTranslateTopParser tpdecl env init x
 
       | TopDecl.TPControl _ _ _ _ _ _ _ =>
+        let x := 
+          match lookup_expected_instance tags_t env "verify",
+          lookup_expected_instance tags_t env "ingress", 
+          lookup_expected_instance tags_t env "egress",
+          lookup_expected_instance tags_t env "compute",
+          lookup_expected_instance tags_t env "deparser" with  
+          | Some vr, Some ig ,Some eg ,Some ck ,Some dep =>
+            if (x == vr) then "verify" else 
+            if (x == ig) then "ingress" else
+            if (x == eg) then "egress" else
+            if (x == ck) then "compute" else
+            if (x == dep) then "deparser" else
+            x 
+          | _,_,_,_,_ => x 
+          end in            
         let* (env, init) := InjectConstructorArgs env args in 
         CTranslateTopControl tpdecl env init x 
 
@@ -1546,6 +1596,9 @@ Section CCompSel.
 
   Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 
     let init_env := CCompEnv.newClightEnv tags_t in
+    match CCollectTypVar prog init_env with 
+    | inr m => Errors.Error (Errors.msg m)
+    | inl init_env  => 
     let main_id := $"main" in 
     match CTranslateTopDeclaration prog init_env with
     | inr m => Errors.Error (Errors.msg m)
@@ -1580,6 +1633,7 @@ Section CCompSel.
       in
       res_prog
       end
+    end
     end.
 
   Definition Compile_print (prog: TopDecl.d tags_t): unit := 

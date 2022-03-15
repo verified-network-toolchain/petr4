@@ -127,15 +127,15 @@ void init_bitvec_binary(struct BitVec *dst, int sign, int w, char *val){
 //package processing
 void extract_bool(packet_in *pkt, int *data){
   if(*(pkt->in) == 1){
-    *data = true;
+    *data = 1;
   } else {
-    *data = false;
+    *data = 0;
   }
   pkt->in ++;
 }
 void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
-  char val[data->width]; 
-  for(int i = 0; i < data->width; i++){
+  char* val = (char *) malloc(sizeof (char) * width); 
+  for(int i = 0; i < width; i++){
     val[i] = (*(pkt->in)) + 48; //this is to convert it into ascii 0 or 1, because gmp uses string to initialize the integer.
     pkt->in ++;
   }

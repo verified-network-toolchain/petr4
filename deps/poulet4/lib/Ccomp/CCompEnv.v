@@ -281,6 +281,27 @@ Section CEnv.
   extern_instances := Env.bind name type env.(extern_instances);
   |}.
 
+  Definition clear_extern_instance 
+  (env: ClightEnv) : ClightEnv
+  :=
+  {|
+  identMap := env.(identMap);
+  temps := env.(temps);
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
+  instantiationCarg := env.(instantiationCarg);
+  maininit := env.(maininit);
+  globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
+  top_args := env.(top_args);
+  extern_instances := Env.empty _ _;
+  |}.
+
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
     match dec with
     | Nil => (Init_int8(Int.repr 0)::[], 1)
@@ -665,6 +686,7 @@ Section CEnv.
     | Some type => error_ret type
     | _ => err "can't find extern name"
   end.
+
 
   Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
     env.(instantiationCarg).

@@ -680,6 +680,71 @@ Section CCompSel.
 
     error_ret (sequence, env) .
   
+  Fixpoint fold_nat {A} (f: A -> nat -> A) (n : nat) (init:A) : A:=
+    match n with
+    | O => init
+    | S n' => f (fold_nat f n' init) n' 
+    end.
+  
+  Fixpoint CTranslateExtract (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
+  : @error_monad string (Clight.statement * ClightEnv tags_t)
+  := 
+      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
+      match type with 
+      | Expr.TBool => 
+        let* (arg' , env') := CTranslateExpr arg env in 
+        let stmt := Scall None extract_bool_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TBit w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let is_signed := Cfalse in 
+        let width := Cint_of_Z (Z.of_N w) in 
+        let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
+        error_ret (stmt, env')
+      | Expr.TInt w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let is_signed := Ctrue in 
+        let width := Cint_of_Z (Zpos w) in 
+        let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
+        error_ret (stmt, env')
+      | Expr.TError => err "Can't extract to error"
+      | Expr.TTuple _ => err "Can't extract to tuple"
+      | Expr.TStruct fs => 
+        F.fold (fun fname ft cumulator => 
+          let* (prev_stmt, env') := cumulator in 
+          let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname arg info) ft pname env' info in
+          error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+      | Expr.THeader fs =>
+        F.fold (fun fname ft cumulator => 
+        let* (prev_stmt, env') := cumulator in 
+        let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname arg info) ft pname env' info in
+        error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+        (* TODO: set the validity *)
+      | Expr.THeaderStack fs size => 
+        let header_typ := Expr.THeader fs in
+        let nat_size := Pos.to_nat size in
+        fold_nat (
+          fun cumulator n =>
+          let* (old_stmt, env') := cumulator in 
+          let member := Expr.EHeaderStackAccess fs arg (Z.of_nat n) info in 
+          let* (new_stmt, env') := 
+            (
+              F.fold (fun fname ft cumulator => 
+              let* (prev_stmt, env') := cumulator in 
+              let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname member info) ft pname env' info in
+              error_ret (Ssequence stmt prev_stmt, env'')
+              ) fs (error_ret (Sskip, env))
+            )
+          in
+          error_ret (Ssequence old_stmt new_stmt, env')
+        ) nat_size (error_ret (Sskip, env))
+
+
+      | Expr.TVar _ => err "Can't extract to TVar"
+      end.
+
   Fixpoint CTranslateStatement (s: Stmt.s tags_t) (env: ClightEnv tags_t ) : @error_monad string (Clight.statement * ClightEnv tags_t ) :=
     match s with
     | Stmt.SSkip i => error_ret (Sskip, env)
@@ -823,7 +888,18 @@ Section CCompSel.
         (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
         (Sassign lvalue (Etempvar tempid ct) )), env')
     | Stmt.SExternMethodCall e f _ {|paramargs:=args; rtrns:=x|} i =>
+      let* t := find_extern_type tags_t env e in 
+      if (t =? "packet_in") then 
+        if (f =? "extract") then
+          match F.get "hdr" args with 
+          | Some (PAOut arg) => 
+            CTranslateExtract arg (t_of_e arg) e env i
+          | _ => err "no out argument named hdr"
+          end
+        else error_ret (Sskip, env)
+      else 
       error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
+
     | Stmt.SReturn (Some e) i =>
       let* (e', env') := CTranslateExpr e env in
       error_ret ((Sreturn (Some e')), env')
@@ -921,16 +997,18 @@ Section CCompSel.
   Definition CTranslateExternParams (eparams : F.fs string string) (env : ClightEnv tags_t)
     : list (AST.ident * Ctypes.type) * ClightEnv tags_t 
   := 
+    let env_empty := clear_extern_instance tags_t env in 
     List.fold_left 
       (fun (cumulator: (list (AST.ident * Ctypes.type)) * ClightEnv tags_t ) (p: string * string)
       =>let (l, env') := cumulator in
         let (env', new_id) := new_ident tags_t env' in
         let (pname , ptyp) := p in
-        let env' := bind tags_t env' pname new_id in 
+        let env' := bind tags_t env' pname new_id in
+        let env' := add_extern_instance tags_t env' pname ptyp in  
         let ct :=  Ctypes.Tstruct $ptyp noattr in
         (* don't do copy in copy out*)
         (l ++ [(new_id, ct)], env')) 
-    (eparams) ([],env) .
+    (eparams) ([],env_empty) .
   
   Definition CCopyIn (fn_params: Expr.params) (env: ClightEnv tags_t )
     : @error_monad string (Clight.statement * ClightEnv tags_t)

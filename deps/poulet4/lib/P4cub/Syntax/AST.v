@@ -150,8 +150,8 @@ Module Expr.
   | EBop (result_type : t) (op : bop)
          (lhs rhs : e)                 (** binary operations *)
   | EStruct (fields : list e) (valid : option e) (** struct literals *)
-  | EExprMember (result_type : t) (mem : nat)
-                (arg : e)              (** member-expressions *)
+  | EMember (result_type : t) (mem : nat)
+            (arg : e)              (** member-expressions *)
   | EError (err : option string)       (** error literals *).    
   
   (** Function call arguments. *)
@@ -172,8 +172,7 @@ End Expr.
 Module Stmt.
   Inductive s : Set :=
   | SSkip (** skip/no-op *)
-  | SVardecl
-      (x : nat) (expr : Expr.t + Expr.e) (** variable declaration. *)
+  | SVar (expr : Expr.t + Expr.e) (** variable declaration. *)
   | SAssign (lhs rhs : Expr.e) (** assignment *)
   | SConditional
       (guard : Expr.e)
@@ -216,7 +215,7 @@ Module Parser.
   | PATRange (p1 p2 : pat)              (** range pattern *)
   | PATBit (width : N) (val : Z)        (** unsigned-int pattern *)
   | PATInt (width : positive) (val : Z) (** signed-int pattern *)
-  | PATTuple (ps : list pat)            (** tuple pattern *).
+  | PATStruct (ps : list pat)           (** struct pattern *).
 
   (** Parser expressions, which evaluate to state names *)
   Inductive e : Set :=

@@ -188,7 +188,7 @@ Section ToGCL.
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t* E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -283,7 +283,7 @@ Section ToGCL.
       | E.TInt w => ok (BinPos.Pos.to_nat w)
       | E.TVar tx => error ("Cannot get the width of a typ variable " @@ tx @@ " for var " @@ x)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
-      | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x)
+      (* | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x) *)
       | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" @@ x)
       | E.TStruct fields =>
         error ("Cannot get the width of a Struct Type with "@@ string_of_nat (List.length fields) @@ " for var " @@ x)
@@ -509,7 +509,7 @@ Section ToGCL.
        | E.TInt _ => ok true
        | E.TBool => error "Typerror:: expected (signed?) bitvector; got boolean"
        | E.TError => error "Typerror:: expected (signed?) bitvector; got error type"
-       | E.TMatchKind => error "Typerror:: expected (signed?) bitvector; got matchkind type"
+       (* | E.TMatchKind => error "Typerror:: expected (signed?) bitvector; got matchkind type" *)
        | E.TTuple _ => error "Typerror:: expected (signed?) bitvector; got typle type"
        | E.TStruct _ => error "Typerror:: expected (signed?) bitvector; got struct type"
        | E.THeader _ => error "Typerror:: expected (signed?) bitvector; got header type"

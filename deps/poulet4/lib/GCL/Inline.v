@@ -1086,7 +1086,7 @@ Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
   match e with
   | E.EBool _ _ | E.EBit _ _ _
   | E.EInt _ _ _ | E.EVar _ _ _
-  | E.EError _ _ | E.EMatchKind _ _  =>  ok (ISkip tags)
+  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok (ISkip tags)
   | E.EExprMember type name e tags =>
     if String.eqb name "is_valid" then ok (ISkip tags) else
     match t_of_e e with

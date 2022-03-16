@@ -1,8 +1,8 @@
 Set Warnings "-custom-entry-overridden".
 From Poulet4 Require Import
-     P4light.Syntax.P4defs Monads.Result
-     Compile.ToP4cubTest GCL.GCL GCL.ToGCL.
+     Monads.Result GCL.GCL GCL.ToGCL.
 Import Result ResultNotations Syntax List ListNotations.
+Import String.
 
 Module G := GCL.GCL.
 Module F := GCL.Form.
@@ -41,7 +41,7 @@ Definition actions_encoding (table : string) (keys : list (nat * BV.t * E.matchk
   let w := bits_to_encode_list_index actions in
   fold_lefti (action_inner table keys w) (ok (G.GAssume (F.LBool false))) actions.
 
-Definition instr (table : string) (i : Info) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
+Definition instr {tags_t} (table : string) (i : tags_t) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
   (* let* matchcond := matchrow table keys in *)
   let+ acts := actions_encoding table keys actions in
   (* G.GSeq (G.GAssume matchcond) *)

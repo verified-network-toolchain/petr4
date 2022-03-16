@@ -6,13 +6,6 @@ Import List.ListNotations.
 
 (** * Inline type-declarations in p4light programs. *)
 
-(* <<<<<<< HEAD:deps/poulet4/lib/InlineTypeDecl.v *)
-(* Section InlineTypeDecl. *)
-(* Context {tags_t : Type}. *)
-(* Notation typ := (@P4Type tags_t). *)
-(* Notation parameter := (@P4Parameter tags_t). *)
-(* ======= *)
-(* >>>>>>> poulet4:deps/poulet4/lib/P4light/Transformations/InlineTypeDecl.v *)
 Notation lmap := map.
 Notation almap := AListUtil.map_values.
 Notation omap := option_map.
@@ -111,7 +104,8 @@ where "σ '†p'" := (sub_typs_P4Parameter σ) : sub_scope.
 
 (** [DeclarationField] substitution*)
 Definition sub_typs_DeclarationField
-  (σ : substitution) (df : DeclarationField)  : DeclarationField :=
+  {tags_t}
+  (σ : substitution tags_t) (df : DeclarationField)  : DeclarationField :=
   let '(MkDeclarationField tags typ fld) := df in
   let typ' := σ †t typ in
   MkDeclarationField tags typ' fld.
@@ -472,7 +466,8 @@ Definition
 
 Definition
   substitution_from_decl
-  (d : Declaration) : option (substitution) :=
+  {tags_t}
+  (d : Declaration) : option (substitution tags_t) :=
   let singleton :=
       fun n typ => Maps.IdentMap.set n typ Maps.IdentMap.empty
   in
@@ -511,7 +506,7 @@ Definition
 
 (** [Declaration] substitution. *)
 Reserved Notation "σ '†d'" (at level 11, right associativity).
-Fixpoint substitute_typ_Declaration (σ : substitution) (d : Declaration) :=
+Fixpoint substitute_typ_Declaration {tags_t} (σ : substitution tags_t) (d : Declaration) :=
   match d with
   | DeclError _ _
   | DeclMatchKind _ _    => d
@@ -611,58 +606,54 @@ Fixpoint substitute_typ_Declaration (σ : substitution) (d : Declaration) :=
   end
 where "σ '†d'" := (substitute_typ_Declaration σ).
 
-Variable NoInfo : tags_t.
-
 Import String.
 Open Scope string_scope.
 
-Definition overlay_t :=
-  DeclHeader NoInfo {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}
-             [MkDeclarationField NoInfo (TypBit (BinNat.N.of_nat 32)) {| P4String.tags := NoInfo; P4String.str := "swip" |}].
+(* Definition overlay_t := *)
+(*   DeclHeader NoInfo {| P4String.tags := NoInfo; P4String.str := "overlay_t" |} *)
+(*              [MkDeclarationField NoInfo (TypBit (BinNat.N.of_nat 32)) {| P4String.tags := NoInfo; P4String.str := "swip" |}]. *)
 
-Definition overlay_field :=
-  MkDeclarationField NoInfo
-                     (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
-                     {| P4String.tags := NoInfo; P4String.str := "overlay" |}.
+(* Definition overlay_field := *)
+(*   MkDeclarationField NoInfo *)
+(*                      (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                      {| P4String.tags := NoInfo; P4String.str := "overlay" |}. *)
 
-Definition headers_fields :=
-  [
-    MkDeclarationField NoInfo
-                       (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |})
-                       {| P4String.tags := NoInfo; P4String.str := "ethernet" |}
-    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |})
-                         {| P4String.tags := NoInfo; P4String.str := "ipv4" |}
-    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |})
-                         {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |}
-    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |})
-                         {| P4String.tags := NoInfo; P4String.str := "tcp" |}
-    ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |})
-                         {| P4String.tags := NoInfo; P4String.str := "udp" |}
-    ; MkDeclarationField NoInfo
-                         (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
-                         {| P4String.tags := NoInfo; P4String.str := "overlay" |}].
+(* Definition headers_fields := *)
+(*   [ *)
+(*     MkDeclarationField NoInfo *)
+(*                        (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |}) *)
+(*                        {| P4String.tags := NoInfo; P4String.str := "ethernet" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "ipv4" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "tcp" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "udp" |} *)
+(*     ; MkDeclarationField NoInfo *)
+(*                          (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "overlay" |}]. *)
 
-Definition headers :=
-  DeclStruct NoInfo {| P4String.tags := NoInfo; P4String.str := "headers" |}
-             [MkDeclarationField NoInfo
-                                 (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |})
-                                 {| P4String.tags := NoInfo; P4String.str := "ethernet" |};
-             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |})
-                                {| P4String.tags := NoInfo; P4String.str := "ipv4" |};
-             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |})
-                                {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |};
-             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |})
-                                {| P4String.tags := NoInfo; P4String.str := "tcp" |};
-             MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |})
-                                {| P4String.tags := NoInfo; P4String.str := "udp" |};
-             MkDeclarationField NoInfo
-                                (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10))
-                                {| P4String.tags := NoInfo; P4String.str := "overlay" |}].
+(* Definition headers := *)
+(*   DeclStruct NoInfo {| P4String.tags := NoInfo; P4String.str := "headers" |} *)
+(*              [MkDeclarationField NoInfo *)
+(*                                  (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |}) *)
+(*                                  {| P4String.tags := NoInfo; P4String.str := "ethernet" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "ipv4" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "tcp" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "udp" |}; *)
+(*              MkDeclarationField NoInfo *)
+(*                                 (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "overlay" |}]. *)
 
-Definition overlay_subst := (substitution_from_decl overlay_t).
+(* Definition overlay_subst := (substitution_from_decl overlay_t). *)
 
-Compute (let* σ := overlay_subst in Some (σ †d headers)).
-Compute (let* σ := overlay_subst in Some (lmap (σ †df) headers_fields)).
-Compute (let* σ := overlay_subst in Some (σ †df overlay_field)).
-
-End InlineTypeDecl.
+(* Compute (let* σ := overlay_subst in Some (σ †d headers)). *)
+(* Compute (let* σ := overlay_subst in Some (lmap (σ †df) headers_fields)). *)
+(* Compute (let* σ := overlay_subst in Some (σ †df overlay_field)). *)

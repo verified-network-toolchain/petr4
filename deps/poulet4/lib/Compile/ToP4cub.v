@@ -16,6 +16,7 @@ Set Warnings "-custom-entry-overridden".
 (* ======= *)
 From Poulet4 Require Import
      P4light.Transformations.SimplExpr
+     P4light.Transformations.InlineTypeDecl
      Utils.Util.ListUtil.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
@@ -44,7 +45,7 @@ Definition append {A : Type} (l : list A) (l' : list A) : list A :=
     List.rev_append (List.rev' l) l'
   end.
 
-Fixpoint fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
+Definition fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
   List.fold_left (fun a b => f b a) (List.rev' bs) a0.
 
 
@@ -1079,10 +1080,8 @@ Section ToP4cub.
               then Parser.STStart
               else Parser.STName s.
 
-  Fixpoint translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
-    let '(MkExpression tags pre_expr typ dir) := e in
-    translate_pre_expr tags pre_expr typ dir
-  with translate_pre_expr tags pre_expr typ dir : result (Parser.pat) :=
+  Definition translate_pre_expr (tags : tags_t) pre_expr : result (Parser.pat) :=
+    let value := @value tags_t in
     match pre_expr with
     | ExpDontCare => ok Parser.PATWild
     (* | ExpRange lo hi => *)
@@ -1112,6 +1111,10 @@ Section ToP4cub.
     | _ => error "unknown set variant"
     end.
 
+  Definition translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
+    let '(MkExpression tags pre_expr typ dir) := e in
+    @translate_pre_expr tags pre_expr.
+
   Definition translate_match (m : Match) : result (Parser.pat) :=
     let '(MkMatch tags pre_match typ) := m in
     match pre_match with
@@ -1125,7 +1128,7 @@ Section ToP4cub.
       let+ p_hi := translate_expression_to_pattern hi in
       Parser.PATMask p_lo p_hi
     | MatchCast typ m =>
-      translate_pre_expr tags (ExpCast typ m) typ Directionless
+      @translate_pre_expr tags (ExpCast typ m)
     end.
 
   Definition translate_matches (ms : list Match) : result (list Parser.pat) :=
@@ -1538,10 +1541,10 @@ Section ToP4cub.
     | [] => ok []
     | d::decls =>
       let+ decls' := inline_types_decls decls in
-      match InlineTypeDecl.substitution_from_decl d with
+      match substitution_from_decl d with
       | None => d::decls'
       | Some σ =>
-        let decls'' := List.map (@InlineTypeDecl.substitute_typ_Declaration tags_t σ) decls' in
+        let decls'' := List.map (@substitute_typ_Declaration tags_t σ) decls' in
         d :: decls''
       end
     end.

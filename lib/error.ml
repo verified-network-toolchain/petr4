@@ -28,7 +28,7 @@ let format_error fmt = function
      Format.fprintf fmt "error: unreachable block"
      
 exception Internal of string
-exception Type of (Info.t * error)
+exception Type of (P4info.t * error)
 exception V1AssertionError
 
 let raise_mismatch info expected found =

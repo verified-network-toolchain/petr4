@@ -23,12 +23,11 @@ open AST (*extract *)
 open! Ctypes (*extract *)
 open Cop (*extract *)
 open Csyntax (*extract *)
-open Clightdefs
+open Ctypesdefs
 
 (*pretty printer that converts id directly to string*)
-let name_of_ident (id: AST.ident) =
-  id |> string_of_ident |> List.to_seq |> String.of_seq
-
+let name_of_ident (id: AST.ident) = 
+    id |> string_of_ident |> List.to_seq |> String.of_seq
 let name_unop = function
   | Onotbool -> "!"
   | Onotint  -> "~"
@@ -209,7 +208,7 @@ let rec expr p (prec, e) =
   then fprintf p "@[<hov 2>("
   else fprintf p "@[<hov 2>";
   begin match e with
-  | Eloc(b, ofs, _) ->
+  | Eloc(b, ofs, _, _) ->
       fprintf p "<loc%a>" !print_pointer_hook (b, ofs)
   | Evar(id, _) ->
       fprintf p "%s" (name_of_ident id)
@@ -521,13 +520,18 @@ let struct_or_union = function Struct -> "struct" | Union -> "union"
 let declare_composite p (Composite(id, su, m, a)) =
   fprintf p "%s %s;@ " (struct_or_union su) (name_of_ident id)
 
+let print_member p = function
+  | Member_plain(id, ty) ->
+      fprintf p "@ %s;" (name_cdecl (name_of_ident id) ty)
+  | Member_bitfield(id, sz, sg, attr, w, _is_padding) ->
+      fprintf p "@ %s : %s;"
+              (name_cdecl (name_of_ident id) (Tint(sz, sg, attr)))
+              (Z.to_string w)
+
 let define_composite p (Composite(id, su, m, a)) =
   fprintf p "@[<v 2>%s %s%s {"
           (struct_or_union su) (name_of_ident id) (attributes a);
-  List.iter
-    (fun (fid, fty) ->
-      fprintf p "@ %s;" (name_cdecl (name_of_ident fid) fty))
-    m;
+  List.iter (print_member p) m;
   fprintf p "@;<0 -2>};@]@ @ "
 
 let print_program p prog =

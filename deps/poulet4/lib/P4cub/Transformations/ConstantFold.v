@@ -1,5 +1,5 @@
 Require Import Poulet4.P4cub.Syntax.Syntax
-        Poulet4.P4cub.SmallStep.Util
+        Poulet4.P4cub.Semantics.Dynamic.SmallStep.Util
         Coq.ZArith.BinInt.
 Import AllCubNotations.
 
@@ -50,7 +50,6 @@ Section ConstFold.
     | <{ _ W _ @ _ }>
     | <{ _ S _ @ _ }>
     | <{ Error _ @ _ }>
-    | <{ Matchkind _ @ _ }>
     | <{ Var _ : _ @ _ }> => e
     | <{ Slice e [hi:lo] @ i }> =>
       let e' := cf_e e in

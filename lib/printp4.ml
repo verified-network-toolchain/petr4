@@ -44,14 +44,9 @@ let print_type_params p (type_params: P4string.t list) =
   if (List.length type_params <> 0) then
     fprintf p "<%a>" (print_list ~sep:"," p4string) type_params
   else ()
-let print_nat p n =
-  fprintf p "%d" n
 
 let print_bigint p n =
   fprintf p "%s" (Bignum.to_string_accurate (Bignum.of_bigint n))
-
-let print_bignat p n =
-  fprintf p "%s%%N" (Bignum.to_string_accurate (Bignum.of_bigint n))
 
 let p4int p (n : P4int.t) =
   match n.width_signed with 
@@ -100,6 +95,8 @@ let rec printable_type (typ : coq_P4Type) : bool =
       List.for_all printable_type args
   | _ -> false
 
+(* Types like Enum, Struct and NewType will be
+   TypTypeName in the printable places of AST. *)
 let rec print_type p (typ : coq_P4Type) =
   match typ with
   | TypBool -> 
@@ -175,8 +172,7 @@ and print_param p (param: coq_P4Parameter) =
   match param with
   | MkParameter (opt, direction, typ, default_arg_id, variable) ->
       fprintf p "@[<h>";
-      if opt
-      then fprintf p "%@optional ";
+      (if opt then fprintf p "%@optional ");
       fprintf p "%a%a %a@]"
           print_direction direction
           print_type typ
@@ -273,8 +269,8 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
   | ExpBitStringAccess (bits, lo, hi) ->
       fprintf p "@[<h>%a[%a:%a]@]"
           print_expr bits
-          print_bigint lo
           print_bigint hi
+          print_bigint lo
   | ExpList exprs ->
       fprintf p "{@[<hv 0>%a@]}"
           (print_list ~sep:"," print_expr) exprs
@@ -285,11 +281,11 @@ and print_pre_expr p (pre_expr : coq_ExpressionPreT) =
       fprintf p "@[<h>(%a %a)@]"
           print_op_uni op_uni
           print_expr expr
-  | ExpBinaryOp (op_bin, expr_pair) ->
+  | ExpBinaryOp (op_bin, e1, e2) ->
       fprintf p "@[<h>(%a %a %a)@]"
-          print_expr (fst expr_pair)
+          print_expr e1
           print_op_bin op_bin
-          print_expr (snd expr_pair)
+          print_expr e2
   | ExpCast (typ, expr) ->
       if printable_type typ
       then fprintf p "@[<h>(%a)%a@]" 
@@ -379,7 +375,7 @@ let print_table_actions p (actions: coq_TableActionRef list)=
   else fprintf p "@[<h>actions = { }@]"
 
 let print_table_default_action p (action: coq_TableActionRef)=
-  fprintf p "@[<h>default_action = %a@]"
+  fprintf p "@,@[<h>default_action = %a@]"
       print_table_action_ref action
 
 let print_table_key p (key: coq_TableKey) =
@@ -393,11 +389,16 @@ let print_table_keys p (keys: coq_TableKey list) =
   if (List.length keys <> 0) then
     fprintf p "@[<v 4>key = {@,%a@]@,}"
         (print_list print_table_key) keys
+  else fprintf p "@[<h>key = { }@]"
 
 let print_table_entry p (entry: coq_TableEntry) =
   match entry with
   | MkTableEntry (info, matches, action) ->
-      if List.length matches <= 1
+      if List.length matches = 0
+      then 
+        fprintf p "@[<h>{ } : %a@]"
+            print_table_action_ref action
+      else if List.length matches = 1
       then 
         fprintf p "@[<h>%a : %a@]"
             print_matches matches
@@ -409,11 +410,11 @@ let print_table_entry p (entry: coq_TableEntry) =
 
 let print_table_entries p (entries: coq_TableEntry list)= 
   if (List.length entries <> 0) then
-    fprintf p "@[<v 4>const entries = {@,%a@]@,}"
+    fprintf p "@,@[<v 4>const entries = {@,%a@]@,}"
         (print_list print_table_entry) entries
 
 let print_table_size p size = 
-  fprintf p "@[<h>size = %a;@]"
+  fprintf p "@,@[<h>size = %a;@]"
       print_bigint size
 
 let print_table_property p (property: coq_TableProperty) =
@@ -457,10 +458,10 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
       fprintf p "@[<hov 4>%a =@ %a;@]"
           print_expr lhs
           print_expr rhs
-  | StatDirectApplication (typ, args) ->
+  | StatDirectApplication (typ, func_typ, args) ->
       fprintf p "@[<h>%a.apply(%a);@]"
           print_type typ
-          print_exprs args
+          print_args args
   | StatConditional (cond, tru, None) ->
       (match tru with 
       | MkStatement (_, (StatBlock _),_) ->
@@ -604,7 +605,7 @@ let print_parser_state p (state: coq_ParserState) =
   | MkParserState (info, s, stmts, transition) ->
       fprintf p "@[<v 4>state %a {%a@,%a@]@,}"
           p4string s
-          print_state_aux stmts
+          print_state_aux (List.rev stmts)
           print_parser_transition transition
 
 let print_parser_states =
@@ -646,9 +647,9 @@ let rec print_decl p (decl : coq_Declaration) =
           print_type_params type_params
           print_params params
           print_cstr_params constructor_params;
-      (if (List.length locals <> 0) then
+      (if (List.length locals <> 0) then ( 
         fprintf p "%a" (print_list print_decl) locals;
-        fprintf p "@,");
+        fprintf p "@,"));
       fprintf p "%a@]@,}@]" print_parser_states states
   | DeclControl (info, name, type_params, params, constructor_params, locals, apply) ->
       fprintf p "@[<v 0>@[<v 4>control %a%a@[<hov 0>(%a)@ %a@] {@,"
@@ -656,9 +657,9 @@ let rec print_decl p (decl : coq_Declaration) =
           print_type_params type_params
           print_params params
           print_cstr_params constructor_params;
-      (if (List.length locals <> 0) then
+      (if (List.length locals <> 0) then (
         fprintf p "%a" (print_list print_decl) locals;
-        fprintf p "@,");
+        fprintf p "@,"));
       fprintf p "@[<v 0>@[<v 4>apply %a@]@,}@]" print_block (OtherBlock, apply)
   | DeclFunction (info, ret_type, name, type_params, params, body) ->
       fprintf p "@[<v 0>@[<v 4>%a %a%a(%a) %a"
@@ -690,7 +691,7 @@ let rec print_decl p (decl : coq_Declaration) =
           print_block (OtherBlock, body)
   | DeclTable (info, name, keys, actions, entries, 
               default_action, size, custom_properties) ->
-      fprintf p "@[<v 4>table %a {@,%a@,%a@,%a@,%a@,%a"
+      fprintf p "@[<v 4>table %a {@,%a@,%a%a%a%a"
           p4string name
           print_table_keys keys
           print_table_actions actions
@@ -699,8 +700,7 @@ let rec print_decl p (decl : coq_Declaration) =
           (print_option print_table_size) size;
       (if (List.length custom_properties) <> 0
       then 
-        (fprintf p "@,";
-        fprintf p "%a@]@,}" (print_list print_table_property) custom_properties)
+        fprintf p "@,%a@]@,}" (print_list print_table_property) custom_properties
       else 
         fprintf p "@]@,}" )
   | DeclHeader (info, name, fields) ->
@@ -791,16 +791,19 @@ let rec print_decl p (decl : coq_Declaration) =
           print_params params
 
 let print_decls =
-  print_list print_decl
+  print_list (fun p decl -> fprintf p "%a@," print_decl decl)
 
 let print_header p imports =
   let _ = List.map (fprintf p "#include \"%s\"@,") imports in ()
 
-let print_program p (imports : string list) (program : P4light.program) =
+let print_pragma p pragmas =
+  let _ = List.map (fprintf p "%s@,") pragmas in ()
+
+let print_program p (imports : string list) (pragmas: string list) (program : P4light.program) =
   fprintf p "@[<v 0>";
-  print_header p imports;
-  let _, sub_program = List.fold_right 
-                    (fun decl (counter, agg) -> 
-                      if counter < 20 then (counter + 1, decl :: agg) else (counter, agg) ) program (0, []) in
-  print_decls p sub_program;
+  print_header p imports ;
+  fprintf p "@,";
+  print_pragma p pragmas;
+  fprintf p "@,";
+  print_decls p program;
   fprintf p "@]@."

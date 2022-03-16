@@ -7,15 +7,24 @@ Require Import Coq.NArith.BinNat.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.State.
 
-Require Import Poulet4.Environment.Environment.
-Require Import Poulet4.Utils.
-Require Import Poulet4.Value.
-Require Import Poulet4.Typed.
-Require Import Poulet4.Bitwise.
-Require Import Poulet4.AList.
+Require Import Poulet4.Utils.Utils.
+Require Import Poulet4.P4light.Syntax.Value.
+Require Import Poulet4.P4light.Syntax.Typed.
+Require Import Poulet4.P4light.Semantics.Bitwise.
+Require Import Poulet4.Utils.AList.
 
 Open Scope monad.
 Open Scope string_scope.
+
+Variant exception :=
+| PacketTooShort
+| Reject
+| Exit
+| Internal
+| TypeError (error_msg: string)
+| AssertError (error_msg: string)
+| SupportError (error_msg: string)
+.
 
 Section Packet.
   Context (bit: Type).
@@ -63,9 +72,10 @@ Section Packet.
     | TypInt width =>
       let* vec := read_first_bits (N.to_nat width) in
       mret (ValBaseInt (List.map inject_bit (Vector.to_list vec)))
+    | TypStruct field_types
     | TypRecord field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
-      mret (ValBaseRecord field_vals)
+      mret (ValBaseStruct field_vals)
     | TypHeader field_types =>
       let* field_vals := sequence (List.map eval_packet_extract_fixed_field field_types) in
       mret (ValBaseHeader field_vals (inject_bit true))

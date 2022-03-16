@@ -24,8 +24,7 @@ Section FV.
     | <{ BOOL _ @ _ }>
     | <{ _ W _ @ _ }>
     | <{ _ S _ @ _ }>
-    | <{ Error _ @ _ }>
-    | <{ Matchkind _ @ _ }>             => []
+    | <{ Error _ @ _ }>                 => []
     | <{ Var x:_ @ _ }>                 => [x]
     | <{ Slice e[_:_] @ _ }>
     | <{ Cast e:_ @ _ }>
@@ -188,7 +187,6 @@ Section Occurs.
           | es e i IHe IHes
           | t y e i IHe
           | err i
-          | mk i
           | ts es n i IHes
           | t e n i IHe
           ] using custom_e_ind
@@ -238,7 +236,6 @@ Section Occurs.
           | es e i IHe IHes
           | t y e i IHe
           | err i
-          | mk i
           | ts es n i IHes
           | t e n i IHe
           ] using custom_e_ind;

@@ -54,7 +54,7 @@ let parse_command =
       | `Ok _ ->
          ()
       | `Error (info, exn) ->
-         Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string exn))
+         Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string exn))
 
 let check_command =
   let open Command.Spec in
@@ -66,15 +66,17 @@ let check_command =
      +> flag "-json" no_arg ~doc:" Print parsed tree as JSON"
      +> flag "-pretty" no_arg ~doc:" Pretty-print JSON"
      +> flag "-exportp4" no_arg ~doc:" Export P4 syntax in Coq"
+     +> flag "-exportp4-ocaml" no_arg ~doc:" Export P4 syntax in Ocaml"
      +> flag "-normalize" no_arg ~doc:" Simplify expressions in P4"
      +> flag "-export-file" (optional_with_default "out.v" string) ~doc:"Path to export P4 syntax in Coq"
      +> flag "-typed-json" no_arg ~doc:" Pretty-print typed AST JSON"
      +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> flag "-printp4" no_arg ~doc:" Print checked syntax in P4"
+     +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
      +> flag "-printp4-file" (optional_with_default "out.p4" string) ~doc:"Path to print checked syntax in P4"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir json pretty exportp4 normalize export_file typed_json gen_loc printp4 printp4_file p4file () ->
-       ignore (check_file include_dir p4file json pretty exportp4 normalize export_file typed_json gen_loc verbose printp4 printp4_file))
+    (fun verbose include_dir json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc printp4 printp4cub printp4_file p4file () ->
+       ignore (check_file include_dir p4file json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc verbose printp4 printp4_file))
 
 let eval_command =
   let open Command.Spec in

@@ -5,14 +5,14 @@ Require Import Coq.Classes.EquivDec.
 Import List.ListNotations.
 
 Require Import Poulet4.P4automata.P4automaton.
-Require Import Poulet4.FinType.
+Require Import Poulet4.Utils.FinType.
 Require Import Poulet4.P4automata.PreBisimulationSyntax.
-Require Import Poulet4.Relations.
+Require Import Poulet4.Utils.Relations.
 Require Poulet4.P4automata.WP.
 Require Poulet4.P4automata.WPSymBit.
 Require Poulet4.P4automata.WPSymLeap.
 Require Poulet4.P4automata.Reachability.
-Require Poulet4.P4cub.Util.Utiliser.
+Require Poulet4.Utils.Util.Utiliser.
 
 Module SemBisim.
   Section SemBisim.

@@ -1,6 +1,4 @@
-module I = Info
 open Core_kernel
-module Info = I
 
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)

@@ -1,4 +1,4 @@
-Require Import Poulet4.Monads.Monad.
+Require Export Poulet4.Monads.Monad.
 
 Open Scope monad.
 

@@ -3,11 +3,11 @@ From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
-Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.Utils.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Error.
 Require Import Coq.Strings.String.
-Require Import Poulet4.P4cub.Util.Utiliser.
+Require Import Poulet4.Utils.Util.Utiliser.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.Init.Decimal.
 Require Import Field.
@@ -33,6 +33,7 @@ Section CEnv.
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
     tables : Env.t string ((list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
     top_args : (list Clight.expr);
+    extern_instances: Env.t string string; (*maps the name of extern obects to the name of their extern type*)
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -51,6 +52,7 @@ Section CEnv.
     topdecltypes := Env.empty _ _;
     tables := Env.empty _ _;
     top_args := [];
+    extern_instances := Env.empty _ _;
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -70,6 +72,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}.
 
 
@@ -91,6 +94,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -111,6 +115,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}.
 
 
@@ -133,6 +138,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}, new_ident).
 
 
@@ -155,6 +161,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}.
 
   Definition add_composite_typ 
@@ -176,6 +183,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}
     .
 
@@ -200,6 +208,7 @@ Section CEnv.
     topdecltypes := Env.bind name decl env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |}.
 
   Definition add_function 
@@ -223,6 +232,7 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
   |}.
 
   Definition update_function
@@ -245,6 +255,30 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
+  |}.
+
+  Definition add_extern_instance 
+  (env: ClightEnv)
+  (name: string)
+  (type: string) : ClightEnv
+  :=
+  {|
+  identMap := env.(identMap);
+  temps := env.(temps);
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
+  instantiationCarg := env.(instantiationCarg);
+  maininit := env.(maininit);
+  globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
+  top_args := env.(top_args);
+  extern_instances := Env.bind name type env.(extern_instances);
   |}.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
@@ -329,6 +363,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := Env.bind name (key, actions) env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
     |} in 
     env'
     .
@@ -353,6 +388,7 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -371,6 +407,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -389,6 +426,7 @@ Section CEnv.
     topdecltypes := to.(topdecltypes);
     tables := to.(tables);
     top_args := to.(top_args);
+    extern_instances := to.(extern_instances);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
@@ -407,6 +445,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
   |}.  
 
  
@@ -426,6 +465,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
   |}.  
 
 
@@ -445,6 +485,7 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := args;
+    extern_instances := env.(extern_instances);
   |}.  
 
   (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
@@ -602,6 +643,7 @@ Section CEnv.
       topdecltypes := env.(topdecltypes);
       tables := env.(tables);
       top_args := env.(top_args);
+      extern_instances := env.(extern_instances);
       |} in 
       (env', new_id)
     end.
@@ -617,6 +659,12 @@ Section CEnv.
     | _, _ => err "can't find table"
     end .
 
+  Definition find_extern_type (env: ClightEnv) (name: string)
+  : @error_monad string string
+  := match Env.find name env.(extern_instances) with
+    | Some type => error_ret type
+    | _ => err "can't find extern name"
+  end.
 
   Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
     env.(instantiationCarg).
@@ -645,6 +693,19 @@ Section CEnv.
 
   Definition get_globvars (env: ClightEnv) : list (AST.ident * globvar Ctypes.type)
   := env.(globvars).
+
+
+  Definition composite_nth (comp: composite_definition) (n : nat)
+  : @error_monad string ident
+  := 
+  match comp with
+  | (Composite _ _ m _) =>
+    match List.nth_error m n with
+    | Some member => error_ret (name_member (member))
+    | None => err "composite field can't be found" 
+    end
+  end.
+
 
 
 End CEnv.

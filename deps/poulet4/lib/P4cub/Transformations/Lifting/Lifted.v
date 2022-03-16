@@ -106,8 +106,6 @@ Section Lifted.
       lifted_expr <{ Mem e dot x : τ @ i }>
   | lifted_error err i :
       lifted_expr <{ Error err @ i }>
-  | lifted_matchkind mk i :
-      lifted_expr <{ Matchkind mk @ i }>
   | lifted_access ts e z i :
       lifted_expr e ->
       lifted_expr <{ Access e[z] : ts @ i }>.

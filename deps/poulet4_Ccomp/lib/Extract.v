@@ -42,8 +42,8 @@ Require Coq.extraction.Extraction.
 Require Import ExtrOcamlBasic.
 Require BinPosDef.
 Require Import ExtrOcamlString.
-Require Poulet4.SimplExpr.
-Require Poulet4.GenLoc.
+Require Poulet4.P4light.Transformations.SimplExpr.
+Require Poulet4.P4light.Transformations.GenLoc.
 Require Poulet4.Ccomp.CCompSel.
 
 Extract Inlined Constant Coqlib.proj_sumbool => "(fun x -> x)".
@@ -119,9 +119,10 @@ Extract Constant Compopts.thumb =>
   "fun _ -> !Clflags.option_mthumb".
 Extract Constant Compopts.debug =>
   "fun _ -> !Clflags.option_g". *)
+(*Require Import Coq.Numbers.BinNums.*)
 
 Extract Constant CCompSel.print_Clight => "PrintClight.print_if".
-(* Extract Inductive positive => "Bigint.t"
+(*Extract Inductive positive  => "Bigint.t"
   [ "(fun p -> Bigint.of_zarith_bigint (Big_int_Z.succ_big_int (Big_int_Z.mult_big_int (Big_int_Z.big_int_of_int 2) (Bigint.to_zarith_bigint p))))"
       "(fun p -> Bigint.of_zarith_bigint (Big_int_Z.mult_big_int (Big_int_Z.big_int_of_int 2) (Bigint.to_zarith_bigint p)))" "(Bigint.of_zarith_bigint Big_int_Z.unit_big_int)" ]
   "(fun f2p1 f2p f1 p -> if Big_int_Z.le_big_int (Bigint.to_zarith_bigint p) Big_int_Z.unit_big_int then f1 () else let (q,r) = Big_int_Z.quomod_big_int (Bigint.to_zarith_bigint p) (Big_int_Z.big_int_of_int 2) in if Big_int_Z.eq_big_int r Big_int_Z.zero_big_int then f2p (Bigint.of_zarith_bigint q) else f2p1 (Bigint.of_zarith_bigint q))".
@@ -146,5 +147,5 @@ Extract Inlined Constant Nat.add => "(+)". *)
 Extraction Blacklist List String Int.
 
 Cd "extraction/".
-Separate Extraction Poulet4.Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST compcert.exportclight.Clightdefs Clight.
+Separate Extraction Poulet4.Ccomp.CCompSel BinPos BinInt BinNat Integers Floats Values Csyntax String compcert.common.AST compcert.export.Ctypesdefs Clight.
 Cd "../".

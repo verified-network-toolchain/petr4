@@ -3,11 +3,12 @@ Require Import BinaryString
         Coq.PArith.BinPosDef Coq.PArith.BinPos
         List Coq.ZArith.BinIntDef String.
 Require Coq.PArith.BinPosDef.
-From Poulet4.P4cub Require Import Syntax.Syntax Envn.
+Require Import
+        Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Envn.
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
      Monads.Monad Monads.Option Monads.Error
-     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model.
+     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model Ccomp.Cconsts.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
@@ -22,38 +23,14 @@ Section CCompSel.
   
   Context (tags_t: Type).
   (*common values*)
-  Definition long_unsigned := Tlong Unsigned noattr.
-  Definition long_signed := Tlong Signed noattr.
-  Definition int_unsigned := Tint I32 Unsigned noattr.
-  Definition int_signed := Tint I32 Signed noattr.
-  Definition char := Tint I8 Unsigned noattr.
-  Definition Cstring := Tpointer char noattr.
-  Definition Cfalse := Econst_int (Integers.Int.zero) (type_bool).
-  Definition Ctrue := Econst_int (Integers.Int.one) (type_bool).
-  Definition Cint_of_Z val:= Econst_int (Integers.Int.repr val) int_signed.
-  Definition Cuint_of_Z val:= Econst_int (Integers.Int.repr val) int_unsigned.
-  Definition Cint_one := Econst_int Integers.Int.one int_signed.
-  Definition Cint_zero := Econst_int Integers.Int.zero int_signed.
-  Definition Cuint_one := Econst_int Integers.Int.one int_unsigned.
-  Definition Cuint_zero := Econst_int Integers.Int.zero int_unsigned.
-  Definition bit_vec := 
-    (Tstruct (RunTime._BitVec) noattr).
-  Definition table_t := 
-    (Tstruct (RunTime._Table) noattr).
-  Definition action_ref := 
-    (Tstruct (RunTime._ActionRef) noattr).
-  Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
-  Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
-  Definition TpointerTable := Ctypes.Tpointer table_t noattr.
-  Definition TpointerActionRef := Ctypes.Tpointer action_ref noattr.
+ 
   Fixpoint CTranslateType (p4t : Expr.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | Expr.TBool => (Ctypes.type_bool, env)
     | Expr.TBit (w) => (bit_vec,env)
     | Expr.TInt (w) => (bit_vec, env)
     | Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
-    | Expr.TError => (int_unsigned, env) 
-    | Expr.TMatchKind => (int_unsigned, env) (*I guess this should just be an enum, aka an int.*)
+    | Expr.TError => (int_unsigned, env)
 
     | Expr.TTuple (ts) => 
         match lookup_composite tags_t env p4t with
@@ -66,7 +43,7 @@ Section CCompSel.
         => let (members_prev, env_prev) := cumulator in 
            let (new_t, new_env):= CTranslateType field env_prev in
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev ++ [(new_id, new_t)], new_env))
+           (members_prev ++ [Member_plain new_id new_t], new_env))
         ts ([],env_top_id) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
@@ -88,7 +65,7 @@ Section CCompSel.
            | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev ++ [(new_id, new_t)], new_env))
+           (members_prev ++ [Member_plain new_id new_t], new_env))
         fields ([],env_top_id) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
@@ -112,8 +89,8 @@ Section CCompSel.
            | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev++[(new_id, new_t)], new_env))
-        fields ([(valid_id, type_bool)],env_valid) in
+           (members_prev++[Member_plain new_id new_t], new_env))
+        fields ([Member_plain valid_id type_bool],env_valid) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
         (Ctypes.Tstruct top_id noattr, env_comp_added)
@@ -140,8 +117,8 @@ Section CCompSel.
            | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
           let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-          (members_prev++[(new_id, new_t)], new_env))
-        fields ([(valid_id, type_bool)],env_valid) in
+          (members_prev++[Member_plain new_id new_t], new_env))
+        fields ([Member_plain valid_id type_bool],env_valid) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
         (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
@@ -150,7 +127,11 @@ Section CCompSel.
         let (env_size_id, size_id) := CCompEnv.new_ident tags_t env_ptr_id in
         let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_size_id in
         let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
-        let comp_def := Ctypes.Composite top_id Ctypes.Struct [(ptr_id, int_signed);(size_id, int_signed);(arr_id, hdarray)] noattr in
+        let comp_def := Ctypes.Composite
+                          top_id Ctypes.Struct
+                          [Member_plain ptr_id int_signed;
+                          Member_plain size_id int_signed;
+                          Member_plain arr_id hdarray] noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_top_id p4t comp_def in
         ((Ctypes.Tstruct top_id noattr), env_comp_added)      
       end
@@ -177,7 +158,10 @@ Section CCompSel.
     | Ctypes.Tstruct compid noattr =>
       let* comp := lookup_composite_id tags_t env compid in
       match comp with 
-      | Ctypes.Composite _ _ ((next_id, ti) :: (size_id, ts) :: (arr_id, ta)::[]) _ => 
+      | Ctypes.Composite
+          _ _ (Member_plain next_id ti ::
+                            Member_plain size_id ts ::
+                            Member_plain arr_id ta::[]) _ => 
         let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
         match ta with
         | Tarray val_typ _ _ =>
@@ -185,7 +169,9 @@ Section CCompSel.
           | Ctypes.Tstruct val_t_id noattr => 
             let* val_comp := lookup_composite_id tags_t env val_t_id in
             match val_comp with
-            | Ctypes.Composite _ _ ((val_typ_valid_index,type_bool)::_) _ =>
+            | Ctypes.Composite
+                _ _
+                (Member_plain val_typ_valid_index type_bool::_) _ =>
             error_ret (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index)
             |_ => err "not a stack of struct or header"
             end
@@ -267,7 +253,7 @@ Section CCompSel.
       error_ret (ArrayAccess arr_var (Cint_of_Z index) val_typ, env)
 
     | Expr.EError x i => err "EError , todo : implement" (*TODO: implement*)
-    | Expr.EMatchKind mk i => err "EMatchKind, todo : implement" (*TODO : implement*)
+
     | _ => err "illegal expression, statementized failed" (*Not Allowed*)
     end.
 
@@ -301,107 +287,7 @@ Section CCompSel.
     in 
     List.fold_left  (transformation) el (error_ret ([],env)).
   
-  Definition typelist_slice := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil))).
-
-  Definition slice_function := 
-    Evar $"eval_slice" (Tfunction typelist_slice tvoid cc_default).
-  
-  Definition typelist_uop := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil).
-  
-  Definition uop_function (op: ident) := 
-    Evar op (Tfunction typelist_uop tvoid cc_default).
-    
-  Definition typelist_bop_bitvec := 
-    let TpointerBitVec := Ctypes.Tpointer bit_vec noattr in 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBitVec
-    Ctypes.Tnil)).
-
-  Definition typelist_bop_bool := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBool
-    Ctypes.Tnil)).
-
-  Definition bop_function (op: ident) := 
-    if(op == _interp_beq) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bne) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bge) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bgt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_ble) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_blt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else
-      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
-    .
-
-  Definition typelist_cast_to_bool :=   
-    Ctypes.Tcons TpointerBool
-    (Ctypes.Tcons bit_vec
-    Ctypes.Tnil).
-
-  Definition cast_to_bool_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_to_bool tvoid cc_default). 
-
-
-  Definition typelist_cast_from_bool := 
-    Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons type_bool
-    Ctypes.Tnil).
-
-  Definition cast_from_bool_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_from_bool tvoid cc_default).
-
-  Definition typelist_cast_numbers :=
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons bit_vec
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons int_signed
-    Ctypes.Tnil))).
-
-  Definition cast_numbers_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_numbers tvoid cc_default).
-
-  Definition typelist_bitvec_init :=
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons type_bool
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons Cstring
-    Ctypes.Tnil))).
-
-  Definition bitvec_init_function := 
-    Evar _init_bitvec (Tfunction typelist_bitvec_init tvoid cc_default). 
-
-  Definition typelist_table_init := 
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons int_signed
-    Ctypes.Tnil)).
-
-  Definition table_init_function := 
-    Evar _init_table (Tfunction typelist_table_init TpointerTable cc_default).
-
-  Definition typelist_table_match length := 
-    (Ctypes.Tcons TpointerActionRef
-    (Ctypes.Tcons TpointerTable
-    (Ctypes.Tcons (Tarray bit_vec length noattr)
-    Ctypes.Tnil))).
-  
-  Definition table_match_function length := 
-    Evar _table_match (Tfunction (typelist_table_match length) tvoid cc_default)
-    .
-
+ 
 
   Definition ValidBitIndex (arg: Expr.e tags_t) (env: ClightEnv tags_t ) : @error_monad string AST.ident
   :=
@@ -410,7 +296,8 @@ Section CCompSel.
     | Ctypes.Composite _ Ctypes.Struct m _ =>
       match m with
       | [] => err "struct is empty"
-      | (id,t) :: _ => error_ret id
+      | Member_plain id t :: _ => error_ret id
+      | Member_bitfield _ _ _ _ _ _ :: _ => err "TODO"
       end
     | _ => err "composite looked up is not a composite"
     end.
@@ -423,7 +310,7 @@ Section CCompSel.
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _=>
       match m with
-        | (_,_) :: (id,t) :: _ => error_ret id
+      | Member_plain _ _ :: Member_plain id t :: _ => error_ret id
         | _ => err "struct too small"
       end
     | _ => err "composite looked up is not aa composite"
@@ -476,6 +363,24 @@ Section CCompSel.
     | _ => err "Unsupported uop"  
     end.
 
+ 
+  Definition bop_function (op: ident) := 
+    if(op == _interp_beq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bne) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bge) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_bgt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_ble) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op == _interp_blt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else
+      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
+    .
+  
   Definition CTranslateBop 
     (dst_t: Expr.t)
     (op: Expr.bop)
@@ -554,7 +459,7 @@ Section CCompSel.
 
   Fixpoint CTranslateFieldAssgn (m : members) (exps : F.fs string (Expr.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
-    |(id, typ) :: mtl, (fname, exp) :: etl => 
+    |Member_plain id typ :: mtl, (fname, exp) :: etl => 
       let* (exp, env') := CTranslateExpr exp env in 
       let* (nextAssgn, env') := CTranslateFieldAssgn mtl etl dst env' in
       let curAssgn := 
@@ -569,7 +474,7 @@ Section CCompSel.
   
   Fixpoint CTranslateListAssgn (m : members) (exps : list (Expr.e tags_t)) (dst : Clight.expr) (env: ClightEnv tags_t):= 
     match m, exps with 
-    |(id, typ) :: mtl, exp :: etl => 
+    | Member_plain id typ :: mtl, exp :: etl => 
       let* (exp, env') := CTranslateExpr exp env in
       let* (nextAssgn, env') := CTranslateListAssgn mtl etl dst env' in 
       error_ret (Ssequence (Sassign (Efield dst id typ) exp) nextAssgn , env')
@@ -592,7 +497,7 @@ Section CCompSel.
 
   Definition CTranslateHeaderAssgn (exps: F.fs string (Expr.e tags_t)) (composite: composite_definition) (dst : Clight.expr) (env: ClightEnv tags_t) (valid: Clight.expr):=
     match composite with 
-      | Composite id su ((valid_id, valid_typ) :: mtl) a =>
+    | Composite id su (Member_plain valid_id valid_typ :: mtl) a =>
         let assignValid := Sassign (Efield dst valid_id valid_typ) valid in
         let* (assigns, env') := CTranslateFieldAssgn mtl exps dst env in
         error_ret (Ssequence assignValid assigns , env')  

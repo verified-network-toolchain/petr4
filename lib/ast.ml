@@ -19,7 +19,7 @@ type match_ = qualified_name * number_or_lpm
 
 type id_or_index =
   | Id of string
-  | Num of number
+  | Index of number
 
 type logical_cond =
   | Eqeq

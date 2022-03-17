@@ -40,6 +40,12 @@ Ltac inv_eq :=
 
 (** * Utility Functions *)
 
+Fixpoint n_compose { A : Type } (n : nat) (f : A -> A) (x : A) : A :=
+  match n with
+  | O => x
+  | S n => n_compose n f (f x)
+  end.
+
 Definition curry3 {A B C D : Type}
            (f : A * B * C -> D) : A -> B -> C -> D :=
   fun a b c => f (a,b,c).

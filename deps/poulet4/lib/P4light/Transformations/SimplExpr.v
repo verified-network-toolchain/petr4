@@ -463,7 +463,7 @@ Section Transformer.
                 let (l3, n3) := transform_decl_list n2 rest in (l2 ++ l3, n3)
               end) nameIdx locals) in
       let '(l2, s2, n2) := transform_list transform_psrst n1 states in
-      (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n1)
+      (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n2)
     | DeclControl tags name type_params params cparams locals appl =>
       let (local', n1) :=
           ((fix transform_decl_list (idx: N) (l: list (@Declaration tags_t)):

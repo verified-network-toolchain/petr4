@@ -1,7 +1,7 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
-	AList Datatypes List
+	AList AListUtil Datatypes List
 	P4Int P4String Syntax P4Field
 	Typed Utils SimplExpr
         Maps Monad State
@@ -9,14 +9,14 @@
 	ConstValue
     AST EquivDec
     ToP4cub ToGCL GCL Inline
-    HoistNameless InferMemberTypes Substitution
+    HoistNameless InferMemberTypes Substitution InlineTypeDecl
     TableInstr V1model
     Auxilary Envn Result P4Arith
     EquivUtil StringUtil ListUtil FunUtil
     Bool String Nat
     BinNums BinInt Zpower
     Specif Basics PeanoNat
-    BinPosDef BinPos BinNat
+    BinPosDef BinPos BinNat BinNatDef
     Ascii BinIntDef Monad Option)
  (libraries zarith bignum)
  (theories Poulet4))

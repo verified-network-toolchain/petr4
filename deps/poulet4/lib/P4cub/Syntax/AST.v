@@ -263,8 +263,9 @@ Module TopDecl.
       (cparams : Expr.constructor_params)
       (methods : Field.fs
                    string (** method name *)
-                   (list string (** extern arguments *)
-                    * Expr.arrowT  (** parameters *) ))
+                   (nat             (** type parameters *)
+                    * list string (** extern parameters *)
+                    * Expr.arrowT (** parameters *)))
   (** extern declarations *)
   | Control
       (control_name : string)

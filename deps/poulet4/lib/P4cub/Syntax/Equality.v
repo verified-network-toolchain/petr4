@@ -152,26 +152,26 @@ Fixpoint eqbe (e1 e2 : e) : bool :=
     | _, _             => false
     end in
   match e1, e2 with
-  | EBool b1, EBool b2 => eqb b1 b2
+  | Bool b1, Bool b2 => eqb b1 b2
   | w1 `W n1, w2 `W n2
     => (w1 =? w2)%N && (n1 =? n2)%Z
   | w1 `S z1, w2 `S z2
     => (w1 =? w2)%positive && (z1 =? z2)%Z
-  | EVar τ1 x1, EVar τ2 x2
+  | Var τ1 x1, Var τ2 x2
     => PeanoNat.Nat.eqb x1 x2 && (τ1 =? τ2)%ty
-  | ESlice e1 h1 l1, ESlice e2 h2 l2
+  | Slice e1 h1 l1, Slice e2 h2 l2
     => (h1 =? h2)%positive && (l1 =? l2)%positive && (e1 =? e2)%expr
-  | ECast τ1 e1, ECast τ2 e2
+  | Cast τ1 e1, Cast τ2 e2
     => (τ1 =? τ2)%ty && (e1 =? e2)%expr
-  | EUop t2 u1 e1, EUop t1 u2 e2
+  | Uop t2 u1 e1, Uop t1 u2 e2
     => equiv_dec u1 u2 &&&& (e1 =? e2)%expr && (t1 =? t2)%ty
-  | EBop t1 o1 el1 er1, EBop t2 o2 el2 er2
+  | Bop t1 o1 el1 er1, Bop t2 o2 el2 er2
     => equiv_dec o1 o2 &&&& (el1 =? el2)%expr && (er1 =? er2)%expr && (t1 =? t2)%ty
-  | EStruct fs1 e1, EStruct fs2 e2
+  | Struct fs1 e1, Struct fs2 e2
     => opb e1 e2 && lstruct fs1 fs2
-  | EMember t1 x1 e1, EMember t2 x2 e2
+  | Member t1 x1 e1, Member t2 x2 e2
     => PeanoNat.Nat.eqb x1 x2 && (e1 =? e2)%expr && (t1 =? t2)%ty
-  | EError err1, EError err2
+  | Error err1, Error err2
     => if equiv_dec err1 err2 then true else false
   | _, _ => false
   end

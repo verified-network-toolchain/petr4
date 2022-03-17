@@ -45,40 +45,40 @@ Module ExprNotations.
 
   Declare Scope expr_scope.
   Delimit Scope expr_scope with expr.
-  Coercion EBool : bool >-> e.
-  Notation "w '`W' n" := (EBit w n) (at level 0): expr_scope.
-  Notation "w '`S' n" := (EInt w n) (at level 0): expr_scope.
+  Coercion Bool : bool >-> e.
+  Notation "w '`W' n" := (Bit w n) (at level 0): expr_scope.
+  Notation "w '`S' n" := (Int w n) (at level 0): expr_scope.
   Notation "x '`[' hi ':' lo ']'"
-    := (ESlice x hi lo) (at level 10, left associativity) : expr_scope.
+    := (Slice x hi lo) (at level 10, left associativity) : expr_scope.
 End ExprNotations.
 
 Module StmtNotations.
   Import Stmt.
 
-  Declare Scope s_scope.
-  Delimit Scope s_scope with s.
-  Notation "s1 ';' s2"
-    := (SSeq s1 s2)
-         (at level 49, right associativity): s_scope.
-  Notation "e1 ':=' e2"
-    := (SAssign e1 e2)
-         (at level 40, no associativity): s_scope.
-  Notation "'if' e 'then' s1 'else' s2"
-    := (SConditional e s1 s2)
-         (at level 60, no associativity): s_scope.
+  Declare Scope stmt_scope.
+  Delimit Scope stmt_scope with stmt.
+  Notation "s1 '`;' s2"
+    := (Seq s1 s2)
+         (at level 49, right associativity): stmt_scope.
+  Notation "e1 '`:=' e2"
+    := (Assign e1 e2)
+         (at level 40, no associativity): stmt_scope.
+  Notation "'If' e 'Then' s1 'Else' s2"
+    := (Conditional e s1 s2)
+         (at level 60, no associativity): stmt_scope.
 End StmtNotations.
 
 Module ParserNotations.
   Import Parser.
 
-  Coercion STName : nat >-> state.
+  Coercion Name : nat >-> state.
 
   Declare Scope pat_scope.
   Delimit Scope pat_scope with pat.
-  Notation "w 'PW' n" := (PATBit w n) (at level 0, no associativity) : pat_scope.
-  Notation "w 'PS' z" := (PATInt w z) (at level 0, no associativity) : pat_scope.
+  Notation "w 'PW' n" := (Bit w n) (at level 0, no associativity) : pat_scope.
+  Notation "w 'PS' z" := (Int w z) (at level 0, no associativity) : pat_scope.
   Notation "p1 '..' p2"
-    := (PATRange p1 p2)
+    := (Range p1 p2)
          (at level 12, right associativity) : pat_scope.
 End ParserNotations.
 
@@ -88,7 +88,7 @@ Module ControlNotations.
   Declare Scope ctrl_scope.
   Delimit Scope ctrl_scope with ctrl.
   Notation "d1 ';c;' d2"
-    := (CDSeq d1 d2)
+    := (Seq d1 d2)
          (at level 20, right associativity) : ctrl_scope.
 End ControlNotations.
 
@@ -98,7 +98,7 @@ Module TopDeclNotations.
   Declare Scope top_scope.
   Delimit Scope top_scope with top.
   Notation "d1 ';%;' d2"
-    := (TPSeq d1 d2)
+    := (Seq d1 d2)
          (at level 39, right associativity) : top_scope.
 End TopDeclNotations.
 

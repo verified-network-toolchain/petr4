@@ -3,8 +3,7 @@ Require Import Coq.PArith.BinPos
         Poulet4.Monads.Monad Poulet4.Monads.Option
         Coq.NArith.BinNatDef Coq.NArith.BinNat.
 From Poulet4 Require Import Utils.P4Arith
-     P4cub.Syntax.AST P4cub.Syntax.CubNotations
-     P4cub.Syntax.Equality.
+     P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 Import Expr ExprNotations.
 
 Fixpoint width_of_typ (τ : t) : option nat :=
@@ -22,18 +21,18 @@ Fixpoint width_of_typ (τ : t) : option nat :=
 (** Syntactic type of an expression. *)
 Fixpoint t_of_e (exp: e) : t := 
   match exp with
-  | EBool _  => TBool
-  | EError _ => TError
-  | EVar τ _
-  | ECast τ _
-  | EUop τ _ _
-  | EBop τ _ _ _
-  | EMember τ _ _       => τ
+  | Bool _  => TBool
+  | Error _ => TError
+  | Var τ _
+  | Cast τ _
+  | Uop τ _ _
+  | Bop τ _ _ _
+  | Member τ _ _       => τ
   | (w `W _)%expr       => TBit w
   | (w `S _)%expr       => TInt w
-  | ESlice _ hi lo      => TBit (Npos hi - Npos lo + 1)%N
-  | EStruct es None     => TStruct (List.map t_of_e es) false
-  | EStruct es (Some _) => TStruct (List.map t_of_e es) true
+  | Slice _ hi lo      => TBit (Npos hi - Npos lo + 1)%N
+  | Struct es None     => TStruct (List.map t_of_e es) false
+  | Struct es (Some _) => TStruct (List.map t_of_e es) true
   end.
 
 (** Restrictions on type-nesting. *)

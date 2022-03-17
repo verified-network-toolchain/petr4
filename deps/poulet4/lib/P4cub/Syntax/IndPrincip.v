@@ -2,10 +2,11 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
 Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
-Import String Expr ExprNotations.
+Import String.
 
 (** Custom induction principle for [t]. *)
 Section TypeInduction.
+  Import Expr ExprNotations.
   Local Open Scope ty_scope.
   
   (** An arbitrary property. *)
@@ -47,35 +48,36 @@ End TypeInduction.
 
 (** A custom induction principle for [e]. *)
 Section ExprInduction.
+  Import Expr ExprNotations.
   Local Open Scope expr_scope.
   
   (** An arbitrary predicate. *)
   Variable P : e -> Prop.
   
-  Hypothesis HEBool : forall b : bool, P b.
+  Hypothesis HBool : forall b : bool, P b.
   
-  Hypothesis HEBit : forall w n, P (w `W n).
+  Hypothesis HBit : forall w n, P (w `W n).
   
-  Hypothesis HEInt : forall w n, P (w `S n).
+  Hypothesis HInt : forall w n, P (w `S n).
   
-  Hypothesis HEVar : forall ty x, P (EVar ty x).
+  Hypothesis HVar : forall ty x, P (Var ty x).
   
-  Hypothesis HESlice : forall n hi lo, P n -> P (ESlice n hi lo).
+  Hypothesis HSlice : forall n hi lo, P n -> P (Slice n hi lo).
   
-  Hypothesis HECast : forall τ exp, P exp -> P (ECast τ exp).
+  Hypothesis HCast : forall τ exp, P exp -> P (Cast τ exp).
   
-  Hypothesis HEUop : forall rt op exp, P exp -> P (EUop rt op exp).
+  Hypothesis HUop : forall rt op exp, P exp -> P (Uop rt op exp).
   
-  Hypothesis HEBop : forall rt op lhs rhs,
-      P lhs -> P rhs -> P (EBop rt op lhs rhs).
+  Hypothesis HBop : forall rt op lhs rhs,
+      P lhs -> P rhs -> P (Bop rt op lhs rhs).
   
-  Hypothesis HEStruct : forall fields valid,
-      Forall P fields -> predop P valid -> P (EStruct fields valid).
+  Hypothesis HStruct : forall fields valid,
+      Forall P fields -> predop P valid -> P (Struct fields valid).
   
-  Hypothesis HEExprMember : forall rt x exp,
-      P exp -> P (EMember rt x exp).
+  Hypothesis HMember : forall rt x exp,
+      P exp -> P (Member rt x exp).
   
-  Hypothesis HEError : forall err, P (EError err).
+  Hypothesis HError : forall err, P (Error err).
     
   (** A custom induction principle.
       Do [induction ?e using custom_e_ind]. *)
@@ -92,45 +94,44 @@ Section ExprInduction.
         | None     => predop_none _
         end in
       match expr with
-      | EBool b       => HEBool b
-      | w `W n        => HEBit w n
-      | w `S n        => HEInt w n
-      | EVar ty x     => HEVar ty x
-      | ESlice n h l  => HESlice n h l (eind n)
-      | ECast τ exp   => HECast τ exp (eind exp)
-      | EUop τ op exp => HEUop τ op exp (eind exp)
-      | EBop τ op lhs rhs
-        => HEBop τ op lhs rhs (eind lhs) (eind rhs)
-      | EStruct fields valid
-        => HEStruct fields valid (list_ind fields) (opind valid)
-      | EMember rt x exp => HEExprMember rt x exp (eind exp)
-      | EError err       => HEError err
+      | Bool b       => HBool b
+      | w `W n       => HBit w n
+      | w `S n       => HInt w n
+      | Var ty x     => HVar ty x
+      | Slice n h l  => HSlice n h l (eind n)
+      | Cast τ exp   => HCast τ exp (eind exp)
+      | Uop τ op exp => HUop τ op exp (eind exp)
+      | Bop τ op lhs rhs
+        => HBop τ op lhs rhs (eind lhs) (eind rhs)
+      | Struct fields valid
+        => HStruct fields valid (list_ind fields) (opind valid)
+      | Member rt x exp => HMember rt x exp (eind exp)
+      | Error err       => HError err
       end.
   (**[]*)
 End ExprInduction.
 
-Import Parser ParserNotations.
-
 (** A custom induction principle for select patterns. *)
 Section PatternInduction.
+  Import Parser ParserNotations.
   Local Open Scope pat_scope.
   
   Variable P : pat -> Prop.
       
-  Hypothesis HWild : P PATWild.
+  Hypothesis HWild : P Wild.
   
   Hypothesis HMask : forall p1 p2,
-      P p1 -> P p2 -> P (PATMask p1 p2).
+      P p1 -> P p2 -> P (Mask p1 p2).
   
   Hypothesis HRange : forall p1 p2,
-      P p1 -> P p2 -> P (PATRange p1 p2).
+      P p1 -> P p2 -> P (Range p1 p2).
   
   Hypothesis HBit : forall w n, P (w PW n).
   
   Hypothesis HInt : forall w n, P (w PS n).
   
   Hypothesis HStruct : forall ps,
-      Forall P ps -> P (PATStruct ps).
+      Forall P ps -> P (Struct ps).
   
   (** A customnduction principle,
       do [induction ?H using custom_pat_ind]. *)
@@ -142,26 +143,28 @@ Section PatternInduction.
         | p::ps => Forall_cons p (pind p) (lind ps)
         end in
       match p with
-      | PATWild        => HWild
-      | PATMask p1 p2  => HMask p1 p2 (pind p1) (pind p2)
-      | PATRange p1 p2 => HRange p1 p2 (pind p1) (pind p2)
-      | w PW n         => HBit w n
-      | w PS z         => HInt w z
-      | PATStruct ps   => HStruct ps (lind ps)
+      | Wild        => HWild
+      | Mask p1 p2  => HMask p1 p2 (pind p1) (pind p2)
+      | Range p1 p2 => HRange p1 p2 (pind p1) (pind p2)
+      | w PW n      => HBit w n
+      | w PS z      => HInt w z
+      | Struct ps   => HStruct ps (lind ps)
       end.
   (**[]*)
 End PatternInduction.
 
 (** A customnduction principle for parser expressions. *)
 Section ParserExprInduction.
+  Import Parser.
+  
   (** An arbitrary predicate. *)
   Variable P : e -> Prop.
   
-  Hypothesis HState : forall st, P (PGoto st).
+  Hypothesis HState : forall st, P (Goto st).
   
   Hypothesis HSelect : forall exp st cases,
       Field.predfs_data P cases -> P st -> 
-      P (PSelect exp st cases).
+      P (Select exp st cases).
   
   (** A customnduction principle,
       do [induction ?H using pe_ind] *)
@@ -175,9 +178,8 @@ Section ParserExprInduction.
             Forall_cons epe (peind pe) (fsind es)
           end in
       match pe with
-      | PGoto st => HState st
-      | PSelect exp st cases
+      | Goto st => HState st
+      | Select exp st cases
         => HSelect exp st _ (fsind cases) (peind st)
       end.
-  (**[]*)
 End ParserExprInduction.

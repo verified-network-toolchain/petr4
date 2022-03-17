@@ -138,21 +138,21 @@ Module Expr.
       unless the type is obvious. *)
   
   Inductive e : Set :=
-  | EBool (b : bool)                      (** booleans *)
-  | EBit (width : N) (val : Z)         (** unsigned integers *)
-  | EInt (width : positive) (val : Z)  (** signed integers *)
-  | EVar (type : t) (x : nat)            (** variables *)
-  | ESlice (arg : e)
+  | Bool (b : bool)                      (** booleans *)
+  | Bit (width : N) (val : Z)         (** unsigned integers *)
+  | Int (width : positive) (val : Z)  (** signed integers *)
+  | Var (type : t) (x : nat)            (** variables *)
+  | Slice (arg : e)
            (hi lo : positive)          (** bit-slicing *)
-  | ECast (type : t) (arg : e)         (** explicit casts *)
-  | EUop (result_type : t) (op : uop)
+  | Cast (type : t) (arg : e)         (** explicit casts *)
+  | Uop (result_type : t) (op : uop)
          (arg : e)                     (** unary operations *)
-  | EBop (result_type : t) (op : bop)
+  | Bop (result_type : t) (op : bop)
          (lhs rhs : e)                 (** binary operations *)
-  | EStruct (fields : list e) (valid : option e) (** struct literals *)
-  | EMember (result_type : t) (mem : nat)
+  | Struct (fields : list e) (valid : option e) (** struct literals *)
+  | Member (result_type : t) (mem : nat)
             (arg : e)              (** member-expressions *)
-  | EError (err : option string)       (** error literals *).    
+  | Error (err : option string)       (** error literals *).    
   
   (** Function call arguments. *)
   Definition args : Set := list (paramarg e e).
@@ -171,29 +171,29 @@ End Expr.
 (** Statement Grammar *)
 Module Stmt.
   Inductive s : Set :=
-  | SSkip (** skip/no-op *)
-  | SVar (expr : Expr.t + Expr.e) (** variable declaration. *)
-  | SAssign (lhs rhs : Expr.e) (** assignment *)
-  | SConditional
+  | Skip (** skip/no-op *)
+  | Var (expr : Expr.t + Expr.e) (** variable declaration. *)
+  | Assign (lhs rhs : Expr.e) (** assignment *)
+  | Conditional
       (guard : Expr.e)
       (tru_blk fls_blk : s) (** conditionals *)
-  | SSeq (s1 s2 : s) (** sequences *)
-  | SBlock (blk : s) (** blocks *)
-  | SExternMethodCall
+  | Seq (s1 s2 : s) (** sequences *)
+  | Block (blk : s) (** blocks *)
+  | ExternMethodCall
       (extern_name method_name : string)
       (typ_args : list Expr.t)
       (args : Expr.arrowE ) (** extern method calls *)
-  | SFunCall
+  | FunCall
       (f : string)
       (typ_args : list Expr.t)
       (args : Expr.arrowE)  (** function call *)
-  | SActCall
+  | ActCall
       (action_name : string)
       (args : Expr.args) (** action call *)
-  | SReturn (e : option Expr.e) (** return statement *)
-  | SExit (** exit statement *)
-  | SInvoke (table_name : string) (** table invocation *)
-  | SApply (instance_name : string)
+  | Return (e : option Expr.e) (** return statement *)
+  | Exit (** exit statement *)
+  | Invoke (table_name : string) (** table invocation *)
+  | Apply (instance_name : string)
            (ext_args : list string)
            (args : Expr.args) (** apply statements *).
 End Stmt.
@@ -202,25 +202,25 @@ End Stmt.
 Module Parser.
   (** Labels for parser-states. *)
   Variant state : Set :=
-    | STStart         (** start state *)
-    | STAccept        (** accept state *)
-    | STReject        (** reject state *)
-    | STName (st : nat) (** user-defined state *).
+    | Start         (** start state *)
+    | Accept        (** accept state *)
+    | Reject        (** reject state *)
+    | Name (st : nat) (** user-defined state *).
 
   (** Select expression pattern.
       Corresponds to keySet expressions in p4. *)
   Inductive pat : Set :=
-  | PATWild                             (** wild-card/anything pattern *)
-  | PATMask (p1 p2 : pat)               (** mask pattern *)
-  | PATRange (p1 p2 : pat)              (** range pattern *)
-  | PATBit (width : N) (val : Z)        (** unsigned-int pattern *)
-  | PATInt (width : positive) (val : Z) (** signed-int pattern *)
-  | PATStruct (ps : list pat)           (** struct pattern *).
+  | Wild                             (** wild-card/anything pattern *)
+  | Mask (p1 p2 : pat)               (** mask pattern *)
+  | Range (p1 p2 : pat)              (** range pattern *)
+  | Bit (width : N) (val : Z)        (** unsigned-int pattern *)
+  | Int (width : positive) (val : Z) (** signed-int pattern *)
+  | Struct (ps : list pat)           (** struct pattern *).
 
   (** Parser expressions, which evaluate to state names *)
   Inductive e : Set :=
-  | PGoto (st : state)  (** goto state [st] *)
-  | PSelect (discriminee : Expr.e)
+  | Goto (st : state)  (** goto state [st] *)
+  | Select (discriminee : Expr.e)
             (default : e) (cases : Field.fs pat e)
                        (** select expressions,
                                        where "default" is
@@ -240,24 +240,24 @@ Module Control.
     
   (** Declarations that may occur within Controls. *)
   Inductive d : Set :=
-  | CDAction (action_name : string)
+  | Action (action_name : string)
              (signature : Expr.params) (body : Stmt.s )
   (** action declaration *)
-  | CDTable (table_name : string)
+  | Table (table_name : string)
             (body : table)  (** table declaration *)
-  | CDSeq (d1 d2 : d)       (** sequence of declarations *).
+  | Seq (d1 d2 : d)       (** sequence of declarations *).
 End Control.
 
 (** Top-Level Declarations *)
 Module TopDecl.
   (** Top-level declarations. *)
   Inductive d : Set :=
-  | TPInstantiate
+  | Instantiate
       (constructor_name instance_name : string)
       (type_args : list Expr.t)
       (cargs : Expr.constructor_args )
   (** instantiations *)
-  | TPExtern
+  | Extern
       (extern_name : string)
       (type_params : nat)
       (cparams : Expr.constructor_params)
@@ -266,14 +266,14 @@ Module TopDecl.
                    (list string (** extern arguments *)
                     * Expr.arrowT  (** parameters *) ))
   (** extern declarations *)
-  | TPControl
+  | Control
       (control_name : string)
       (cparams : Expr.constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
       (params : Expr.params)       (** apply block params *)
       (body : Control.d ) (apply_blk : Stmt.s )
   (** control declarations *)
-  | TPParser
+  | Parser
       (parser_name : string)
       (cparams : Expr.constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
@@ -281,10 +281,10 @@ Module TopDecl.
       (start : Parser.state_block ) (** start state *)
       (states : list (Parser.state_block )) (** parser states *)
   (** parser declaration *)
-  | TPFunction
+  | Funct
         (function_name : string)
         (type_params : nat)
         (signature : Expr.arrowT) (body : Stmt.s )
   (** function/method declaration *)
-  | TPSeq (d1 d2 : d) .
+  | Seq (d1 d2 : d) .
 End TopDecl.

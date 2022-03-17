@@ -16,156 +16,145 @@ Definition
   | None   => []
   end.
 
-Section FV.
-  Context {tags_t : Type}.
-  
-  Fixpoint FVₑ (e : Expr.e tags_t) : list String.string :=
-    match e with
-    | <{ BOOL _ @ _ }>
-    | <{ _ W _ @ _ }>
-    | <{ _ S _ @ _ }>
-    | <{ Error _ @ _ }>                 => []
-    | <{ Var x:_ @ _ }>                 => [x]
-    | <{ Slice e[_:_] @ _ }>
-    | <{ Cast e:_ @ _ }>
-    | <{ UOP _ e:_ @ _}>
-    | <{ Mem e dot _ : _ @ _ }>
-    | <{ Access e[_]: _ @ _ }>          => FVₑ e
-    | <{ BOP e₁ _ e₂ : _ @ _ }>         => FVₑ e₁ ++ FVₑ e₂
-    | <{ tup es @ _ }>
-    | <{ Stack es:_ nextIndex:=_ @ _ }> => flat_map FVₑ es
-    | <{ struct { es } @ _ }>           => flat_map (fun '(_,e) => FVₑ e) es
-    | <{ hdr { es } valid := e @ _ }>
-      => FVₑ e ++ flat_map (fun '(_,e) => FVₑ e) es
-    end.
+Fixpoint FVₑ (e : Expr.e) : list nat :=
+  match e with
+  | Expr.Bool _
+  | (_ `W _)%expr
+  | (_ `S _)%expr
+  | Expr.Error _ => []
+  | Expr.Var _ x => [x]
+  | Expr.Slice e _ _
+  | Expr.Cast _ e
+  | Expr.Uop _ _ e
+  | Expr.Member _ _ e  => FVₑ e
+  | Expr.Bop _ _ e₁ e₂ => FVₑ e₁ ++ FVₑ e₂
+  | Expr.Struct es e
+    => list_of_option FVₑ e ++ flat_map FVₑ es
+  end.
 
-  Definition
-    FV_paramarg
-    '((PAIn e
-      | PAOut e
-      | PAInOut e
-      | PADirLess e) : paramarg (Expr.e tags_t) (Expr.e tags_t))
-    : list String.string := FVₑ e.
-  
-  Definition
-    FV_arrowE
-    '({| paramargs := es; rtrns := e |} : Expr.arrowE tags_t)
-    : list String.string :=
-    list_of_option FVₑ e ++ flat_map (FV_paramarg ∘ snd) es.
-  
-  Fixpoint FVₛ (s : Stmt.s tags_t) : list String.string :=
-    match s with
-    | -{ skip @ _ }-
-    | -{ exit @ _ }-
-    | -{ invoke _ @ _ }-             => []
-    | -{ declare x : _ @ _ }-
-    | Stmt.SHeaderStackOp x _ _ _ _    => [x]
-    | -{ init x := e @ _ }-          => x :: FVₑ e
-    | -{ asgn e₁ := e₂ @ _ }-        => FVₑ e₁ ++ FVₑ e₂
-    | -{ if e then s₁ else s₂ @ _ }- => FVₑ e ++ FVₛ s₁ ++ FVₛ s₂
-    | -{ s₁; s₂ @ _ }-               => FVₛ s₁ ++ FVₛ s₂
-    | -{ b{ s }b }-                  => FVₛ s
-    | Stmt.SExternMethodCall _ _ _ arr _
-    | Stmt.SFunCall _ _ arr _        => FV_arrowE arr
-    | -{ calling _ with es @ _ }-
-    | -{ apply _ with _ & es @ _ }-  => flat_map (FV_paramarg ∘ snd) es
-    | -{ return e @ _ }-             => list_of_option FVₑ e
-    | Stmt.SSetValidity e _ _        => FVₑ e
-    end.
-End FV.
+Definition
+  FV_paramarg
+  '((PAIn e
+    | PAOut e
+    | PAInOut e
+    | PADirLess e) : paramarg Expr.e Expr.e)
+  : list nat := FVₑ e.
+
+Definition
+  FV_arrowE
+  '({| paramargs := es; rtrns := e |} : Expr.arrowE)
+  : list nat :=
+  list_of_option FVₑ e ++ flat_map FV_paramarg es.
+
+Fixpoint FVₛ (s : Stmt.s) : list nat :=
+  match s with
+  | Stmt.Skip
+  | Stmt.Exit
+  | Stmt.Invoke _
+  | Stmt.Return None
+  | Stmt.Var (inl _)            => []
+  | Stmt.Return (Some e)
+  | Stmt.Var (inr e)            => FVₑ e
+  | (e₁ `:= e₂)%stmt            => FVₑ e₁ ++ FVₑ e₂
+  | (If e Then s₁ Else s₂)%stmt => FVₑ e ++ FVₛ s₁ ++ FVₛ s₂
+  | (s₁ `; s₂)%stmt             => FVₛ s₁ ++ FVₛ s₂
+  | Stmt.Block s                => FVₛ s
+  | Stmt.ExternMethodCall _ _ _ arr
+  | Stmt.FunCall _ _ arr        => FV_arrowE arr
+  | Stmt.ActCall _ es
+  | Stmt.Apply _ _ es           => flat_map FV_paramarg es
+  end.
+
+Section OExists.
+  Context {A : Set}.
+  Variable P : A -> Prop.
+
+  Variant OExists : option A -> Prop :=
+    OExist_some a :
+      P a -> OExists (Some a).
+
+  Local Hint Constructors OExists : core.
+
+  Lemma OExists_exists : forall o : option A,
+      OExists o <-> exists a, P a /\ o = Some a.
+  Proof.
+    intros [a |]; split.
+    - intro h; inv h; eauto.
+    - intros (a' & H & h); inv h; auto.
+    - intro h; inv h.
+    - intros (a' & H & h); inv h.
+  Qed.
+End OExists.
 
 (* TODO: induction hypothesis. *)
-
 Section Occurs.
-  Context {tags_t : Type}.
-
-  Variable x : string.
+  Variable x : nat.
 
   (** A variable [x] Occurs in an expression. *)
-  Inductive Occursₑ : Expr.e tags_t -> Prop :=
-  | Occurs_var τ i :
-      Occursₑ <{ Var x:τ @ i }>
-  | Occurs_slice e hi lo i :
-      Occursₑ e ->
-      Occursₑ <{ Slice e [hi:lo] @ i }>
-  | Occurs_cast τ e i :
-      Occursₑ e ->
-      Occursₑ <{ Cast e:τ @ i }>
-  | Occurs_uop τ op e i :
-      Occursₑ e ->
-      Occursₑ <{ UOP op e:τ @ i }>
-  | Occurs_bop τ op e₁ e₂ i :
-      Occursₑ e₁ \/ Occursₑ e₂ ->
-      Occursₑ <{ BOP e₁ op e₂ : τ @ i }>
-  | Occurs_tuple es i :
-      Exists Occursₑ es ->
-      Occursₑ <{ tup es @ i }>
-  | Occurs_struct es i :
-      Exists (Occursₑ ∘ snd) es ->
-      Occursₑ <{ struct { es } @ i }>
-  | Occurs_header es e i :
-      Exists (Occursₑ ∘ snd) es \/ Occursₑ e ->
-      Occursₑ <{ hdr { es } valid:=e @ i }>
-  | Occurs_member τ e y i :
-      Occursₑ e ->
-      Occursₑ <{ Mem e dot y : τ @ i }>
-  | Occurs_stack τs es ni i :
-      Exists Occursₑ es ->
-      Occursₑ <{ Stack es:τs nextIndex:=ni @ i }>
-  | Occurs_access τs e n i :
-      Occursₑ e ->
-      Occursₑ <{ Access e[n]:τs @ i }>.
+  Inductive Occursₑ : Expr.e -> Prop :=
+  | Occurs_var τ :
+    Occursₑ (Expr.Var τ x)
+  | Occurs_slice e hi lo :
+    Occursₑ e ->
+    Occursₑ (Expr.Slice e hi lo)
+  | Occurs_cast τ e :
+    Occursₑ e ->
+    Occursₑ (Expr.Cast τ e)
+  | Occurs_uop τ op e :
+    Occursₑ e ->
+    Occursₑ (Expr.Uop τ op e)
+  | Occurs_bop τ op e₁ e₂ :
+    Occursₑ e₁ \/ Occursₑ e₂ ->
+    Occursₑ (Expr.Bop τ op e₁ e₂)
+  | Occurs_struct es e :
+    Exists Occursₑ es \/ OExists Occursₑ e ->
+    Occursₑ (Expr.Struct es e)
+  | Occurs_member τ e y :
+    Occursₑ e ->
+    Occursₑ (Expr.Member τ y e).
 
-  (** [x] occurs in call arguments. *)
+  (** [x] occursn call arguments. *)
   Definition
     Occurs_arrowE
-    '({| paramargs := es; rtrns := e |} : Expr.arrowE tags_t) : Prop :=
-    Exists (pred_paramarg_same Occursₑ ∘ snd) es \/
+    '({| paramargs := es; rtrns := e |} : Expr.arrowE) : Prop :=
+    Exists (pred_paramarg_same Occursₑ) es \/
     match e with
     | Some e => Occursₑ e
     | None   => False
     end.
   
-  (** A variable [x] Occurs in a statement. *)
-  Inductive Occursₛ : Stmt.s tags_t -> Prop :=
-  | Occurs_vardecl y et i :
-      match et with
-      | inl _ => x = y
-      | inr e => x = y \/ Occursₑ e
-      end ->
-      Occursₛ -{ var y with et @ i }-
-  | Occurs_assign e₁ e₂ i :
-      Occursₑ e₁ \/ Occursₑ e₂ ->
-      Occursₛ -{ asgn e₁ := e₂ @ i }-
-  | Occurs_cond e s₁ s₂ i :
-      Occursₑ e \/ Occursₛ s₁ \/ Occursₛ s₂ ->
-      Occursₛ -{ if e then s₁ else s₂ @ i }-
-  | Occursₛeq s₁ s₂ i :
-      Occursₛ s₁ \/ Occursₛ s₂ ->
-      Occursₛ -{ s₁; s₂ @ i }-
-  | Occurs_block s :
-      Occursₛ s ->
-      Occursₛ -{ b{ s }b }-
-  | Occurs_return e i :
-      Occursₑ e ->
-      Occursₛ (Stmt.SReturn (Some e) i)
-  | Occursₛet_validity e b i :
+  (** A variable [x] Occursn a statement. *)
+  Inductive Occursₛ : Stmt.s -> Prop :=
+  | Occurs_vardecl e :
     Occursₑ e ->
-    Occursₛ (Stmt.SSetValidity e b i)
-  | Occursₑxtern_method_call e m τs args i :
-      Occurs_arrowE args ->
-      Occursₛ (Stmt.SExternMethodCall e m τs args i)
-  | Occurs_fun_call f τs args i :
-      Occurs_arrowE args ->
-      Occursₛ (Stmt.SFunCall f τs args i)
-  | Occurs_act_call a es i :
-      Exists (pred_paramarg_same Occursₑ ∘ snd) es ->
-      Occursₛ (Stmt.SActCall a es i)
-  | Occurs_apply y exts es i :
-      Exists (pred_paramarg_same Occursₑ ∘ snd) es ->
-      Occursₛ (Stmt.SApply y exts es i)
-  | Occurs_stack_op t o n i :
-      Occursₛ (Stmt.SHeaderStackOp x t o n i).
+    Occursₛ (Stmt.Var (inr e))
+  | Occurs_assign e₁ e₂ :
+    Occursₑ e₁ \/ Occursₑ e₂ ->
+    Occursₛ (e₁ `:= e₂)%stmt
+  | Occurs_cond e s₁ s₂ :
+    Occursₑ e \/ Occursₛ s₁ \/ Occursₛ s₂ ->
+    Occursₛ (If e Then s₁ Else s₂)%stmt
+  | Occursₛ_seq s₁ s₂ :
+    Occursₛ s₁ \/ Occursₛ s₂ ->
+    Occursₛ (s₁ `; s₂ )%stmt
+  | Occurs_block s :
+    Occursₛ s ->
+    Occursₛ (Stmt.Block s)
+  | Occurs_return e :
+    Occursₑ e ->
+    Occursₛ(Stmt.Return (Some e))
+  | Occursₑ_extern_method_call e m τs args :
+    Occurs_arrowE args ->
+    Occursₛ (Stmt.ExternMethodCall e m τs args)
+  | Occurs_fun_call f τs args :
+    Occurs_arrowE args ->
+    Occursₛ (Stmt.FunCall f τs args)
+  | Occurs_act_call a es :
+    Exists (pred_paramarg_same Occursₑ) es ->
+    Occursₛ (Stmt.ActCall a es)
+  | Occurs_apply y exts es :
+    Exists (pred_paramarg_same Occursₑ) es ->
+    Occursₛ (Stmt.Apply y exts es).
 
   Section FV_Occurs.
     Hint Rewrite in_app_iff : core.
@@ -174,100 +163,53 @@ Section Occurs.
     Proof.
       intros e Hoe;
         induction e as
-          [ b i
-          | w n i
-          | w z i
-          | t y i
-          | e hi lo i IHe
-          | t e i IHe
-          | t o e IHe
-          | t op e1 e2 i IHe1 IHe2
-          | es i IHes
-          | es i IHes
-          | es e i IHe IHes
-          | t y e i IHe
-          | err i
-          | ts es n i IHes
-          | t e n i IHe
-          ] using custom_e_ind
-        ; inv Hoe; unravel in *;
-          autorewrite with core; intuition.
-      - rewrite Forall_forall in IHes.
-        rewrite Exists_exists in H0.
-        destruct H0 as (e & HInes & Hoe).
-        rewrite in_flat_map; eauto.
-      - unfold F.predfs_data, F.predf_data in IHes.
-        rewrite Forall_forall in IHes.
-        rewrite Exists_exists in H0.
-        destruct H0 as ((y & e) & HInes & Hoe).
-        rewrite in_flat_map. exists (y, e).
-        apply IHes in HInes as IH; clear IHes.
-        unravel in *. apply IH in Hoe. eauto.
-      - unfold F.predfs_data, F.predf_data in IHes.
-        rewrite Forall_forall in IHes.
+        [ b
+        | w n
+        | w z
+        | t y
+        | e hi lo He
+        | t e He
+        | t o e He
+        | t op e1 e2 He1 He2
+        | es e Hes He
+        | t y e He
+        | err] using custom_e_ind; inv Hoe; unravel in *;
+        autorewrite with core; intuition.
+      - rewrite Forall_forall in Hes.
         rewrite Exists_exists in H.
-        destruct H as ((y & e') & HInes & Hoe).
-        rewrite in_flat_map.
-        apply IHes in HInes as IH; clear IHes.
-        unravel in *. apply IH in Hoe; clear IH.
-        right. eauto.
-      - rewrite Forall_forall in IHes.
-        rewrite Exists_exists in H0.
-        destruct H0 as (e & HInes & Hoe).
+        destruct H as (e' & HInes & Hoe).
         rewrite in_flat_map; eauto.
+      - destruct e as [e |]; inv He; inv H; cbn; auto.
     Qed.
 
     Local Hint Constructors Occursₑ : core.
+    Local Hint Constructors OExists : core.
     
     Lemma FVₑ_Occursₑ : forall e, In x (FVₑ e) -> Occursₑ e.
     Proof.
       intros e Hoe;
         induction e as
-          [ b i
-          | w n i
-          | w z i
-          | t y i
-          | e hi lo i IHe
-          | t e i IHe
-          | t o e IHe
-          | t op e1 e2 i IHe1 IHe2
-          | es i IHes
-          | es i IHes
-          | es e i IHe IHes
-          | t y e i IHe
-          | err i
-          | ts es n i IHes
-          | t e n i IHe
-          ] using custom_e_ind;
+        [ b
+        | w n
+        | w z
+        | t y
+        | e hi lo He
+        | t e He
+        | t o e He
+        | t op e1 e2 He1 He2
+        | es e Hes He
+        | t y e He
+        | err] using custom_e_ind;
         unravel in *; autorewrite with core in *;
-          try contradiction; eauto;
-            intuition; subst; auto.
+        try contradiction; eauto;
+        intuition; subst; auto.
       - constructor.
-        rewrite Forall_forall in IHes.
-        rewrite in_flat_map_Exists in Hoe.
-        rewrite Exists_exists in *.
-        destruct Hoe as (e & Hines & Hine).
-        eauto.
-      - constructor.
-        unfold F.predfs_data, F.predf_data in IHes.
-        rewrite Forall_forall in IHes.
-        rewrite in_flat_map_Exists in Hoe.
-        rewrite Exists_exists in *.
-        destruct Hoe as ((y & e) & Hines & Hine).
-        unravel in *. eauto.
-      - constructor.
-        unfold F.predfs_data, F.predf_data in IHes.
-        rewrite Forall_forall in IHes.
-        rewrite in_flat_map_Exists in H.
-        rewrite Exists_exists in *.
-        destruct H as ((y & e') & Hines & Hine).
-        unravel in *. eauto.
-      - constructor.
-        rewrite Forall_forall in IHes.
-        rewrite in_flat_map_Exists in Hoe.
-        rewrite Exists_exists in *.
-        destruct Hoe as (e & Hines & Hine).
-        eauto.
+        destruct e as [e |]; inv He; cbn in *; auto || contradiction.
+      - constructor; left; clear dependent e.
+        rewrite Forall_forall in Hes.
+        rewrite Exists_exists.
+        rewrite in_flat_map in H.
+        destruct H as (e & ein & fvin); eauto.
     Qed.
 
     Local Hint Resolve Occursₑ_FVₑ : core.
@@ -288,8 +230,8 @@ Section Occurs.
       destruct H as [H | H].
       - right. rewrite in_flat_map_Exists.
         rewrite Exists_exists in *.
-        destruct H as ((y & pae) & Hines & Hopae).
-        exists (y, pae); simpl in *.
+        destruct H as (pae & Hines & Hopae).
+        exists pae; simpl in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
@@ -306,8 +248,8 @@ Section Occurs.
       - destruct e as [e |]; unravel in *; auto.
       - left. rewrite in_flat_map_Exists in H.
         rewrite Exists_exists in *.
-        destruct H as ((y & pae) & Hines & Hopae).
-        exists (y, pae); simpl in *.
+        destruct H as (pae & Hines & Hopae).
+        exists pae; simpl in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
@@ -326,33 +268,29 @@ Section Occurs.
     Proof.
       intros s Hos;
         induction s
-        as [ i
-           | z [t | e] i
-           | e1 e2 i
-           | e s1 IHs1 s2 IHs2
-           | s1 IHs1 s2 IHs2
-           | s IHs
-           | ext f ts arr i
-           | f ts arr i
-           | a es i
-           | [e |] i
-           | i
-           | t i
-           | z exts es i
-           | z o n i
-           | e v i ]; unravel in *; inv Hos;
-          auto; autorewrite with core; intuition.
+        as [ | [t | e]
+           | e1 e2
+           | e s1 Hs1 s2 Hs2
+           | s1 Hs1 s2 Hs2
+           | s Hs
+           | ext f ts arr
+           | f ts arr
+           | a es
+           | [e |] |
+           | t
+           | z exts es]; unravel in *; inv Hos;
+        auto; autorewrite with core; intuition.
       - rewrite in_flat_map_Exists.
         rewrite Exists_exists in *.
-        destruct H0 as ((y & pae) & Hines & Hopae).
-        exists (y, pae); simpl in *.
+        destruct H0 as (pae & Hines & Hopae).
+        exists pae; simpl in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
       - rewrite in_flat_map_Exists.
         rewrite Exists_exists in *.
-        destruct H0 as ((y & pae) & Hines & Hopae).
-        exists (y, pae); simpl in *.
+        destruct H0 as (pae & Hines & Hopae).
+        exists pae; simpl in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
@@ -364,37 +302,33 @@ Section Occurs.
     Proof.
       intros s Hin;
         induction s
-        as [ i
-           | z [t | e] i
-           | e1 e2 i
-           | e s1 IHs1 s2 IHs2
-           | s1 IHs1 s2 IHs2
-           | s IHs
-           | ext f ts arr i
-           | f ts arr i
-           | a es i
-           | [e |] i
-           | i
-           | t i
-           | z exts es i
-           | z o n i
-           | e v i ]; unravel in *;
-          autorewrite with core in *;
-          try contradiction;
-          intuition; subst; eauto.
+        as [ | [t | e]
+           | e1 e2
+           | e s1 Hs1 s2 Hs2
+           | s1 Hs1 s2 Hs2
+           | s Hs
+           | ext f ts arr
+           | f ts arr
+           | a es
+           | [e |] |
+           | t
+           | z exts es]; unravel in *;
+        autorewrite with core in *;
+        try contradiction;
+        intuition; subst; eauto.
       - constructor.
         rewrite in_flat_map_Exists in Hin.
         rewrite Exists_exists in *.
-        destruct Hin as ((y & pae) & Hines & Hopae).
-        exists (y, pae); unravel in *.
+        destruct Hin as (pae & Hines & Hopae).
+        exists pae; unravel in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
       - constructor.
         rewrite in_flat_map_Exists in Hin.
         rewrite Exists_exists in *.
-        destruct Hin as ((y & pae) & Hines & Hopae).
-        exists (y, pae); unravel in *.
+        destruct Hin as (pae & Hines & Hopae).
+        exists pae; unravel in *.
         destruct pae;
           unfold pred_paramarg_same,
           pred_paramarg, FV_paramarg in *; auto.
@@ -406,7 +340,7 @@ Section Occurs.
     Lemma Occursₛ_FVₛ_iff : forall s,
         Occursₛ s <-> In x (FVₛ s).
     Proof.
-      intuition.
+     intuition.
     Qed.
   End FV_Occurs.
 End Occurs.

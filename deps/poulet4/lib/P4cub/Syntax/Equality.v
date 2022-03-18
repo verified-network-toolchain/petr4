@@ -122,13 +122,10 @@ Instance TypeEqDec : EqDec t eq :=
 (** Decidable Expression Equivalence. *)
 Global Instance UopEqDec : EqDec uop eq.
 Proof.
-  intros [] []; unravel in *;
-    try match goal with
-        | n1 : positive, n2: positive
-          |- _ => destruct (Pos.eq_dec n1 n2) as [? | ?]; subst; auto
-        end; auto 2;
-    try (right; intros ?; try discriminate;
-         inv_eq; try contradiction).
+  intros [] []; unravel in *; firstorder;
+    try (right; intros ?; discriminate).
+  elim validity; elim validity0; auto;
+    try (right; intros ?; discriminate).
 Defined.
   
 Global Instance BopEqDec : EqDec bop eq.

@@ -104,10 +104,7 @@ Module Expr.
     | BitNot     (** bitwise negation *)
     | UMinus     (** integer negation *)
     | IsValid    (** check header validity *)
-    | SetValid   (** set a header valid *)
-    | SetInValid (** set a header invalid *)
-    | NextIndex  (** get element at [nextIndex] from a header stack *)
-    | Size       (** get a header stack's size *).  
+    | SetValidity (validity : bool) (** set a header's validity to [validity] *).
   
   (** Binary operations.
       The "Sat" suffix denotes

@@ -100,10 +100,10 @@ let compile_command =
      +> flag "-v" no_arg ~doc:" Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-normalize" no_arg ~doc:" Simplify expressions in P4"
-     +> flag "-export-file" (optional_with_default "out.v" string) ~doc:"Path to export P4 syntax in Coq"
+     +> flag "-export-file" (optional_with_default "compiled.c" string)~doc:"Path to export compiled c file"
      +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
-     +> flag "-printp4-file" (optional_with_default "out.p4" string) ~doc:"Path to print checked syntax in P4"
+     +> flag "-printp4-file" (optional_with_default "cubast.txt" string)~doc:"Path to print the p4cub syntax"
      +> anon ("p4file" %: string))
     (fun verbose include_dir normalize export_file gen_loc printp4cub printp4_file p4file () ->
        ignore (compile_file include_dir p4file normalize export_file verbose gen_loc printp4cub printp4_file))

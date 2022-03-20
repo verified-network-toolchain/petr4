@@ -335,6 +335,9 @@ let print_program ver p prog =
 
 let destination : string option ref = ref (Some "ccompiled.c")
 
+let change_destination dst = 
+  destination := (Some dst)
+
 let print_if_gen ver prog =
   match !destination with
   | None -> ()

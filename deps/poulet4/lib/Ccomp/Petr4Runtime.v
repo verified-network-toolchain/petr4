@@ -303,7 +303,7 @@ Definition f_init_bitvec := {|
                                    cc_default))
             ((Evar ___stringlit_2 (tarray tschar 11)) ::
              (Evar ___stringlit_1 (tarray tschar 15)) ::
-             (Econst_int (Int.repr 96) tint) ::
+             (Econst_int (Int.repr 119) tint) ::
              (Evar ___func__ (tarray tschar 12)) :: nil)))
         (Ssequence
           (Scall None
@@ -398,7 +398,7 @@ Definition f_init_bitvec_binary := {|
                                    cc_default))
             ((Evar ___stringlit_2 (tarray tschar 11)) ::
              (Evar ___stringlit_1 (tarray tschar 15)) ::
-             (Econst_int (Int.repr 118) tint) ::
+             (Econst_int (Int.repr 141) tint) ::
              (Evar ___func____1 (tarray tschar 19)) :: nil)))
         (Ssequence
           (Scall None

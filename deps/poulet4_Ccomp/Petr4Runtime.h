@@ -7,6 +7,8 @@
 
 enum p4int {FIXBIT, FIXINT};
 
+
+
 typedef struct packet_in {
   unsigned char *in; //currently, we just use the last bit of the 8 bits.
 } packet_in;
@@ -52,6 +54,7 @@ typedef struct Table{
   int capacity;//allocated
   struct Entry* entries;
 } Table;
+
 
 void reset_bitvec (mpz_t x) {
   mpz_clear(x);
@@ -595,3 +598,5 @@ void table_match(ActionRef* dst, struct Table* table, struct BitVec* keys){
     }
   }
 }
+
+

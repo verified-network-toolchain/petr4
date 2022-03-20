@@ -75,7 +75,7 @@ Section ToP4cub.
     | TopDecl.TPFunction _ _ _ _ i => i
     | TopDecl.TPSeq _ _ i => i
     end.
-
+  
   Definition flattenTopDecl (l: list (TopDecl.d tags_t)) :=
     match l with
     | [] => error "empty decllist"
@@ -1445,7 +1445,7 @@ Section ToP4cub.
 
   Definition translate_program' (tags : tags_t) (p : program) : result (TopDecl.d tags_t) :=
     let* ctx := translate_program tags p in 
-    flattenTopDecl (ctx.(controls) ++ ctx.(parsers) ++ ctx.(functions) ++ ctx.(packages) ++ 
+    flattenTopDecl ((List.rev ctx.(controls)) ++ (List.rev ctx.(parsers)) ++ ctx.(functions) ++ ctx.(packages) ++ 
     ctx.(externs))
     
     .

@@ -293,8 +293,8 @@ let rec stmt_convert (s: 'tags_t Prev.Stmt.s) =
         Stmt.SApply (string_charlist s,
         convert_Fields_poly fs string_charlist string_charlist,
         args_convert a, i)
-    | Prev.Stmt.SHeaderStackOp (s, h, n, i) ->
-        Stmt.SHeaderStackOp(string_charlist s,
+    | Prev.Stmt.SHeaderStackOp (s,t, h, n, i) ->
+        Stmt.SHeaderStackOp(string_charlist s, convert_type t,
         hsop_convert h, bigint_positive n, i)
     | Prev.Stmt.SSetValidity (e, b, i) ->
         SSetValidity (convert_expression e, 

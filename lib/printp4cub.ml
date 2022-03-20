@@ -294,9 +294,10 @@ let rec print_stmt p (s: 'a Stmt.s) =
     print_string_string_fields fs
     print_args arg
 
-  | Stmt.SHeaderStackOp (s, h, i, _) ->
-    fprintf p "SHeaderStackOp %s.%a(%a)"
+  | Stmt.SHeaderStackOp (s, t, h, i, _) ->
+    fprintf p "SHeaderStackOp %s<%a>.%a(%a)"
     s
+    print_type t
     print_hsop h 
     print_bigint i
 

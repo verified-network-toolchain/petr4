@@ -37,6 +37,7 @@ _Bool egress();
 _Bool ingress();
 _Bool verify();
 _Bool $DUMMY_ACTION();
+_Bool NoAction();
 void dummy_main(void)
 {
   /*skip*/;
@@ -71,6 +72,7 @@ _Bool deparser(struct packet_out *_p_e_t_r_4_0b100001, struct H _p_e_t_r_4_0b100
 {
   struct H _p_e_t_r_4_0b100100;
   struct packet_out _p_e_t_r_4_0b100010;
+  /*skip*/;
   _p_e_t_r_4_0b100010 = *_p_e_t_r_4_0b100001;
   _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100011;
   *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
@@ -82,6 +84,7 @@ _Bool compute(struct H *_p_e_t_r_4_0b11100, struct M *_p_e_t_r_4_0b11110)
 {
   struct M _p_e_t_r_4_0b11111;
   struct H _p_e_t_r_4_0b11101;
+  /*skip*/;
   _p_e_t_r_4_0b11101 = *_p_e_t_r_4_0b11100;
   _p_e_t_r_4_0b11111 = *_p_e_t_r_4_0b11110;
   *_p_e_t_r_4_0b11100 = _p_e_t_r_4_0b11101;
@@ -94,6 +97,7 @@ _Bool egress(struct H *_p_e_t_r_4_0b10101, struct M *_p_e_t_r_4_0b10111, struct 
   struct standard_metadata_t _p_e_t_r_4_0b11010;
   struct M _p_e_t_r_4_0b11000;
   struct H _p_e_t_r_4_0b10110;
+  /*skip*/;
   _p_e_t_r_4_0b10110 = *_p_e_t_r_4_0b10101;
   _p_e_t_r_4_0b11000 = *_p_e_t_r_4_0b10111;
   _p_e_t_r_4_0b11010 = *_p_e_t_r_4_0b11001;
@@ -108,6 +112,7 @@ _Bool ingress(struct H *_p_e_t_r_4_0b1110, struct M *_p_e_t_r_4_0b10000, struct 
   struct standard_metadata_t _p_e_t_r_4_0b10011;
   struct M _p_e_t_r_4_0b10001;
   struct H _p_e_t_r_4_0b1111;
+  /*skip*/;
   _p_e_t_r_4_0b1111 = *_p_e_t_r_4_0b1110;
   _p_e_t_r_4_0b10001 = *_p_e_t_r_4_0b10000;
   _p_e_t_r_4_0b10011 = *_p_e_t_r_4_0b10010;
@@ -121,6 +126,7 @@ _Bool verify(struct H *_p_e_t_r_4_0b1001, struct M *_p_e_t_r_4_0b1011)
 {
   struct M _p_e_t_r_4_0b1100;
   struct H _p_e_t_r_4_0b1010;
+  /*skip*/;
   _p_e_t_r_4_0b1010 = *_p_e_t_r_4_0b1001;
   _p_e_t_r_4_0b1100 = *_p_e_t_r_4_0b1011;
   *_p_e_t_r_4_0b1001 = _p_e_t_r_4_0b1010;
@@ -129,6 +135,16 @@ _Bool verify(struct H *_p_e_t_r_4_0b1001, struct M *_p_e_t_r_4_0b1011)
 }
 
 _Bool $DUMMY_ACTION(struct packet_out *_p_e_t_r_4_0b100001, struct H _p_e_t_r_4_0b100011)
+{
+  struct H _p_e_t_r_4_0b100100;
+  struct packet_out _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100010 = *_p_e_t_r_4_0b100001;
+  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100011;
+  *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100011 = _p_e_t_r_4_0b100100;
+}
+
+_Bool NoAction(struct packet_out *_p_e_t_r_4_0b100001, struct H _p_e_t_r_4_0b100011)
 {
   struct H _p_e_t_r_4_0b100100;
   struct packet_out _p_e_t_r_4_0b100010;

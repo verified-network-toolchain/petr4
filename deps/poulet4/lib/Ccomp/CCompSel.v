@@ -1652,7 +1652,23 @@ Section CCompSel.
     | Errors.Error e => tt
     | Errors.OK prog => print_Clight prog
     end.  
-End CCompSel. 
+End CCompSel.
+(* 
+Require Poulet4.Compile.ToP4cub.
+Require Poulet4.Monads.Result.
+Require Poulet4.P4light.Syntax.P4defs.
+Require Poulet4.Ccomp.Example.
+
+Definition helloworld_program := 
+  match ToP4cub.translate_program' P4defs.Info P4defs.Inhabitant_Info Example.prog with
+  | @Result.Error (_) e => Errors.Error (Errors.msg e)
+  | @Result.Ok (_) p =>
+    let sel := Statementize.TranslateProgram p in 
+    CCompSel.Compile P4defs.Info sel
+  end. 
+
+Compute helloworld_program. *)
+
 (* 
 Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 

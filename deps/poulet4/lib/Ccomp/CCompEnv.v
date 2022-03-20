@@ -40,6 +40,24 @@ Section CEnv.
     Member_plain $"checksum_error" (tptr (Tstruct _BitVec noattr)) ::
     Member_plain $"parser_error" tuint ::
     Member_plain $"priority" (tptr (Tstruct _BitVec noattr))::nil) noattr.
+  (* Definition standard_metadata_t :=
+    Composite $"standard_metadata_t" Struct
+   (Member_plain $"ingress_port" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_spec" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_port" (Tstruct _BitVec noattr) ::
+    Member_plain $"instance_type" (Tstruct _BitVec noattr) ::
+    Member_plain $"packet_length" (Tstruct _BitVec noattr) ::
+    Member_plain $"enq_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"enq_qdepth" (Tstruct _BitVec noattr) ::
+    Member_plain $"deq_timedelta" (Tstruct _BitVec noattr) ::
+    Member_plain $"deq_qdepth" (Tstruct _BitVec noattr) ::
+    Member_plain $"ingress_global_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_global_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"mcast_grp" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_rid" (Tstruct _BitVec noattr) ::
+    Member_plain $"checksum_error" (Tstruct _BitVec noattr) ::
+    Member_plain $"parser_error" tuint ::
+    Member_plain $"priority" (Tstruct _BitVec noattr)::nil) noattr. *)
   
   Definition standard_metadata_cub_fields :=
      ("ingress_port", Expr.TBit (Npos 9)) ::

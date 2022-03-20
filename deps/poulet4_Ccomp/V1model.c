@@ -39,22 +39,22 @@
 // };
 
 void init_standard_metada (struct standard_metadata_t* meta){
-    init_bitvec(meta->ingress_port, 0,9,"0");
-    init_bitvec(meta->egress_spec,0,9,"0");
-    init_bitvec(meta->egress_port,0,9,"0");
-    init_bitvec(meta->instance_type,0,32,"0");
-    init_bitvec(meta->packet_length,0,32,"0");
-    init_bitvec(meta->enq_timestamp,0,32,"0");
-    init_bitvec(meta->enq_qdepth,0,19,"0");
-    init_bitvec(meta->deq_timedelta,0,32,"0");
-    init_bitvec(meta->deq_qdepth,0,19,"0");
-    init_bitvec(meta->ingress_global_timestamp,0,48,"0");
-    init_bitvec(meta->egress_global_timestamp,0,48,"0");
-    init_bitvec(meta->mcast_grp,0,16,"0");
-    init_bitvec(meta->egress_rid,0,16,"0");
-    init_bitvec(meta->checksum_error,0,1,"0");
+    init_bitvec_ptr(&(meta->ingress_port), 0,9,"0");
+    init_bitvec_ptr(&(meta->egress_spec),0,9,"0");
+    init_bitvec_ptr(&(meta->egress_port),0,9,"0");
+    init_bitvec_ptr(&(meta->instance_type),0,32,"0");
+    init_bitvec_ptr(&(meta->packet_length),0,32,"0");
+    init_bitvec_ptr(&(meta->enq_timestamp),0,32,"0");
+    init_bitvec_ptr(&(meta->enq_qdepth),0,19,"0");
+    init_bitvec_ptr(&(meta->deq_timedelta),0,32,"0");
+    init_bitvec_ptr(&(meta->deq_qdepth),0,19,"0");
+    init_bitvec_ptr(&(meta->ingress_global_timestamp),0,48,"0");
+    init_bitvec_ptr(&(meta->egress_global_timestamp),0,48,"0");
+    init_bitvec_ptr(&(meta->mcast_grp),0,16,"0");
+    init_bitvec_ptr(&(meta->egress_rid),0,16,"0");
+    init_bitvec_ptr(&(meta->checksum_error),0,1,"0");
     meta->parser_error = 0;
-    init_bitvec(meta->priority,0,3,"0");
+    init_bitvec_ptr(&(meta->priority),0,3,"0");
 }
 
 
@@ -75,7 +75,7 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   struct M m;
   struct standard_metadata_t meta;
   init_standard_metada(&meta);
-  init_bitvec(meta.ingress_port, 0,9,argv[2]);
+  init_bitvec_ptr(&(meta.ingress_port), 0,9,argv[2]);
   int result;
   result = parser (&pin, &h , &m, &meta);
   if(!result){
@@ -108,4 +108,5 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   }
   }
   }
+  return 0;
 }

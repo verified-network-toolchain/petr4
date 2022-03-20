@@ -79,7 +79,8 @@ TPSeq
                                                                 hdr = PAInOut <TStruct <<
                                                                 i = TBool>>>,
                                                                 meta = PAInOut <TStruct <>>>) 
- (body = CDAction $DUMMY_ACTION(){SSkip}) 
+ (body = CDSeq (CDAction NoAction(){SSkip} 
+ CDAction $DUMMY_ACTION(){SSkip})) 
  (apply_blk = SSkip)  
  
                                                                 TPControl 
@@ -123,7 +124,8 @@ TPSeq
                                                                 parser_error = TError,
                                                                 priority = TBit: 
                                                                 3>>>>) 
- (body = CDAction $DUMMY_ACTION(){SSkip}) 
+ (body = CDSeq (CDAction NoAction(){SSkip} 
+ CDAction $DUMMY_ACTION(){SSkip})) 
  (apply_blk = SSkip)   
  
                                                                 TPControl 
@@ -167,7 +169,8 @@ TPSeq
                                                                 parser_error = TError,
                                                                 priority = TBit: 
                                                                 3>>>>) 
- (body = CDAction $DUMMY_ACTION(){SSkip}) 
+ (body = CDSeq (CDAction NoAction(){SSkip} 
+ CDAction $DUMMY_ACTION(){SSkip})) 
  (apply_blk = SSkip)   
  
                                                                 TPControl 
@@ -179,7 +182,8 @@ TPSeq
                                                                 packet = PAInOut <Tvar packet_out>,
                                                                 hdr = PAIn <TStruct <<
                                                                 i = TBool>>>>) 
- (body = CDAction $DUMMY_ACTION(){SSkip}) 
+ (body = CDSeq (CDAction NoAction(){SSkip} 
+ CDAction $DUMMY_ACTION(){SSkip})) 
  (apply_blk = SSkip)   
  
                                                                 TPInstantiate 

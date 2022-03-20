@@ -1,5 +1,32 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
+(* <<<<<<< HEAD:deps/poulet4/lib/P4cub/ToGCL.v *)
+(* Require Export Poulet4.P4cub.Syntax.AST. *)
+(* Require Export Poulet4.P4Arith. *)
+(* Require Export Poulet4.P4cub.Envn. *)
+(* Require Export Poulet4.P4cub.BigStep.InstUtil. *)
+(* Require Export Poulet4.P4cub.BigStep.BigStep. *)
+(* Require Export Poulet4.P4cub.BigStep.Semantics. *)
+(* Require Export Poulet4.P4cub.BigStep.Value.Value. *)
+(* Require Export Poulet4.P4cub.Util.Result. *)
+
+(* Require Import Coq.Arith.EqNat. *)
+(* Require Import String. *)
+
+(* Require Import Poulet4.P4cub.Inline. *)
+(* Require Import Poulet4.ToP4cub. *)
+
+(* Import Env.EnvNotations. *)
+
+(* Import Result. *)
+(* Import ResultNotations. *)
+
+(* Import Poulet4.P4cub.Util.ListUtil. *)
+(* Import Poulet4.P4cub.Util.StringUtil. *)
+
+(* Require Import Poulet4.P4cub.GCL. *)
+
+(* ======= *)
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
      P4cub.Semantics.Dynamic.BigStep.BigStep
@@ -10,6 +37,7 @@ Import Env.EnvNotations Result ResultNotations.
 From Poulet4.Utils.Util Require Import ListUtil StringUtil.
 
 Open Scope string_scope.
+(* >>>>>>> poulet4:deps/poulet4/lib/GCL/ToGCL.v *)
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.
@@ -17,6 +45,36 @@ Module E := Expr.
 Module F := F.
 Module BV := GCL.BitVec.
 
+Print List.rev_append.
+
+Fixpoint append {A : Type} (l : list A) (l' : list A) : list A :=
+  match l' with
+  | [] => l
+  | _ =>
+    List.rev_append (List.rev' l) l'
+  end.
+
+Fixpoint fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
+  List.fold_left (fun a b => f b a) (rev' bs) a0.
+
+(* Search (string -> string). *)
+(* Fixpoint rev_concat (s s' : string) : string := *)
+(*   match s with *)
+(*   | EmptyString => s' *)
+(*   | String c s => rev_concat s (String c s') *)
+(*   end. *)
+(* Fixpoint string_reverse (s : string) : string := *)
+(*   rev_concat s EmptyString. *)
+
+
+(* Fixpoint safe_concat (s s' : string) : string := *)
+(*   match s' with *)
+(*   | EmptyString => s *)
+(*   | _ => *)
+(*     rev_concat (string_reverse s) s' *)
+(*   end. *)
+
+Infix "@@" := String.append (right associativity, at level 60).
 
 Section ToGCL.
   Variable tags_t : Type.
@@ -39,7 +97,7 @@ Section ToGCL.
     |}.
 
   Definition incr (c : ctx) : ctx :=
-    let new_idx := S(list_max (c.(stack) ++ c.(used))) in
+    let new_idx := S(list_max (append c.(stack) c.(used))) in
     {| stack := new_idx :: c.(stack);
        used := c.(used);
        locals := [];
@@ -77,15 +135,17 @@ Section ToGCL.
   Definition join (tctx fctx : ctx) : result ctx :=
     if list_eq Nat.eqb tctx.(stack) fctx.(stack)
     then ok {| stack := tctx.(stack);
-               used := tctx.(used) ++ fctx.(used);
+               used := append tctx.(used) fctx.(used);
                locals := intersect_string_list tctx.(locals) fctx.(locals);
                may_have_exited := tctx.(may_have_exited) || fctx.(may_have_exited);
                may_have_returned := tctx.(may_have_returned) || fctx.(may_have_returned)
             |}
     else error "Tried to join two contexts with different context counters".
 
+
+
   Definition retvar_name (c : ctx) : string :=
-    fold_right (fun idx acc => acc ++ (string_of_nat idx)) "return" c.(stack).
+    fold_right (fun idx acc => acc @@ (string_of_nat idx)) "return" c.(stack).
 
   Definition retvar (c : ctx) (i : tags_t) : E.e tags_t :=
     E.EVar E.TBool (retvar_name c) i.
@@ -102,7 +162,8 @@ Section ToGCL.
     string_member v (c.(locals)).
 
   Definition scope_name (v : string) (idx : nat) : string :=
-    v ++ "__$__" ++ string_of_nat idx.
+    (* v @@ "__$__" @@ string_of_nat idx. *)
+    v.
 
 
   Definition relabel_for_scope (c : ctx) (v : string) : string :=
@@ -119,15 +180,15 @@ Section ToGCL.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
   Definition find (m : model) (e f : string) : result (GCL.t) :=
-    let*~ ext := Env.find e m else "couldn't find extern " ++ e ++ " in model" in
-    let*~ fn := Env.find f ext else "couldn't find field " ++ f ++ " in extern" in
+    let*~ ext := Env.find e m else "couldn't find extern " @@ e @@ " in model" in
+    let*~ fn := Env.find f ext else "couldn't find field " @@ f @@ " in extern " @@ e in
     ok fn.
   Definition empty : model := Env.empty string extern.
   Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result (ST.s tags_t).
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t* E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * target) -> result target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -180,8 +241,11 @@ Section ToGCL.
 
     Definition string_of_z (x : Z) :=
       if BinInt.Z.ltb x (Z0)
-      then "-" ++ string_of_nat (BinInt.Z.abs_nat x)
+      then "-" @@ string_of_nat (BinInt.Z.abs_nat x)
       else string_of_nat (BinInt.Z.abs_nat x).
+
+    Definition string_of_pos (x : positive) :=
+      string_of_nat (BinPosDef.Pos.to_nat x).
 
     Fixpoint to_lvalue (e : E.e tags_t) : result string :=
       match e with
@@ -191,22 +255,25 @@ Section ToGCL.
       | E.EVar t x i => ok x
       | E.ESlice e hi lo pos =>
         (* TODO :: Allow assignment to slices *)
-        error "[FIXME] Slices are not l-values "
+        error ("[FIXME] Slices ["@@ string_of_pos hi @@"," @@ string_of_pos lo @@ "] are not l-values")
       | E.ECast _ _ _ => error "Casts are not l-values"
-      | E.EUop _ _ _ _ => error "Unary Operations are not l-values"
+      | E.EUop E.TBool E.IsValid e _ =>
+        let+ lv := to_lvalue e in
+        lv @@ "." @@ "is_valid"
+      | E.EUop _ _ _ _ => error "Unary Operations (aside from is_valid) are not l-values"
       | E.EBop _ _ _ _ _ => error "Binary Operations are not l-values"
       | E.ETuple _ _ => error "Explicit Tuples are not l-values"
       | E.EStruct _ _ => error "Explicit Structs are not l-values"
       | E.EHeader _ _ _ => error "Explicit Headers are not l-values"
       | E.EExprMember expr_type mem arg i =>
         let+ lv := to_lvalue arg in
-        lv ++ "." ++ mem
+        lv @@ "." @@ mem
       | E.EError _ _ => error "errors are not l-values"
       | E.EHeaderStack _ _ _ _ => error "Header Stacks are not l-values"
       | E.EHeaderStackAccess _ stack index i =>
         let+ lv := to_lvalue stack in
         (** TODO How to handle negative indices? **)
-        lv ++ "["++ (string_of_z index) ++ "]"
+        Inline.index_array_str lv (BinInt.Z.to_nat index)
       end.
 
     Definition width_of_type (x:string) (t : E.t) : result nat :=
@@ -214,12 +281,15 @@ Section ToGCL.
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
       | E.TInt w => ok (BinPos.Pos.to_nat w)
-      | E.TVar tx => error ("Cannot get the width of a typ variable " ++ tx ++ " for var " ++ x)
+      | E.TVar tx => error ("Cannot get the width of a typ variable " @@ tx @@ " for var " @@ x)
       | E.TError => ok 3 (* FIXME:: core.p4 has only 7 error codes, but this should come from a static analysis*)
-      | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" ++ x)
-      | E.TStruct fields => error ("Cannot get the width of a Struct Type for var " ++ x)
-      | E.THeader fields => error ("Cannot get the width of a Header Type for var" ++ x)
-      | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" ++ x)
+      (* | E.TMatchKind => error ("Cannot get the width of a Match Kind Type for var" @@ x) *)
+      | E.TTuple types => error ("Cannot get the width of a Tuple Type for var" @@ x)
+      | E.TStruct fields =>
+        error ("Cannot get the width of a Struct Type with "@@ string_of_nat (List.length fields) @@ " for var " @@ x)
+      | E.THeader fields =>
+        error ("Cannot get the width of a Header Type for var " @@ x)
+      | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" @@ x)
       end.
 
     Definition get_header_of_stack (stack : E.e tags_t) : result E.t :=
@@ -238,7 +308,7 @@ Section ToGCL.
         match t with
         | E.THeader _ => ok x
         | E.TStruct _ => ok x
-        | _ => error ("While trying to construct a string from a header, got variable " ++ x ++ ", but the type wasnt a header or struct")
+        | _ => error ("While trying to construct a string from a header, got variable " @@ x @@ ", but the type wasnt a header or struct")
         end
       | E.ESlice _ _ _ _ => error "A Slice is not a header"
       | E.ECast _ _ _ => error "A Cast is not a header"
@@ -250,17 +320,18 @@ Section ToGCL.
         error "Header literals should not be keys"
       | E.EExprMember expr_type mem arg i =>
         let+ str := to_header_string arg in
-        str ++ "." ++ mem
+        str @@ "." @@ mem
       | E.EError _ _ => error "errors are not header strings"
       | E.EHeaderStack _ _ _ _ =>
         error "Header stacks are not headers"
       | E.EHeaderStackAccess _ stack index i =>
-        error "Header stack accesses as table keys should have been factored out in an earlier stage."
+        let+ stack_string := to_header_string stack in
+        Inline.index_array_str stack_string (BinInt.Z.to_nat index)
       end.
 
     Definition lookup_member_from_fields mem fields : result E.t :=
       match F.find_value (String.eqb mem) fields with
-      | None => error ("cannot find " ++ mem ++ "in type")
+      | None => error ("cannot find " @@ mem @@ "in type")
       | Some t => ok t
       end.
 
@@ -271,7 +342,7 @@ Section ToGCL.
       | E.THeader fields =>
         lookup_member_from_fields mem fields
       | E.TVar v =>
-        error ("Error :: Type variable " ++ v ++ "  should've been removed")
+        error ("Error :: Type variable " @@ v @@ "  should've been removed")
       | _ =>
         error "don't know how to extract member from type that has no members"
       end.
@@ -288,12 +359,13 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.EVar t x i =>
-        let+ w := width_of_type x t in
-        BV.BVVar x w
-
+        let* w := width_of_type x t in (* over ("couldn't get type-width of " @@ x @@ " while converting to rvalue") in*)
+        ok (BV.BVVar x w)
       | E.ESlice e hi lo i =>
         let+ rv_e := to_rvalue e in
-        BV.UnOp (BV.BVSlice (BinPos.Pos.to_nat hi) (BinPos.Pos.to_nat lo)) rv_e
+        (* Recall that in ToP4cub.translate_expression_pre_t we incremented the
+        indices because `positive` has no 0 value *)
+        BV.UnOp (BV.BVSlice ((BinPos.Pos.to_nat hi) - 1) ((BinPos.Pos.to_nat lo) - 1)) rv_e
       | E.ECast type arg i =>
         let* rvalue_arg := to_rvalue arg in
         let cast := fun w => ok (BV.UnOp (BV.BVCast w) rvalue_arg) in
@@ -314,8 +386,8 @@ Section ToGCL.
           BV.UnOp BV.BVNeg rv_arg
         | E.UMinus => error "[FIXME] Subtraction is unimplemented"
         | E.IsValid =>
-          let+ header := to_header_string arg in
-          let hvld := header ++ ".is_valid" in
+          let+ header := to_lvalue arg in
+          let hvld := header @@ ".is_valid" in
           BV.BVVar hvld 1
         | E.SetValid => (* TODO @Rudy isn't this a command? *)
           error "SetValid as an expression is deprecated"
@@ -330,21 +402,77 @@ Section ToGCL.
         let* l := to_rvalue lhs in
         let* r := to_rvalue rhs in
         let bin := fun o => ok (BV.BinOp o l r) in
-        let* signed :=
-           match typ with
-           | E.TBit _ => ok false
-           | E.TInt _ => ok true
-           | _ => error "Typeerror: exected (un)singed bitvec for binar expression"
-           end
-        in
+        (* let* signed := *)
+        (*    match typ with *)
+        (*    | E.TBit _ => ok false *)
+        (*    | E.TInt _ => ok true *)
+        (*    | _ => error "Typeerror: expected (un)signed bitvec for binary expression" *)
+        (*    end *)
+        (* in *)
         match op with
-        | E.Plus => bin (BV.BVPlus false signed)
-        | E.PlusSat => bin (BV.BVPlus true signed)
-        | E.Minus => bin (BV.BVMinus false signed)
-        | E.MinusSat => bin (BV.BVMinus true signed)
-        | E.Times => bin (BV.BVTimes signed)
-        | E.Shl => bin (BV.BVShl signed)
-        | E.Shr => bin (BV.BVShr signed)
+        | E.Plus =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVPlus false signed)
+        | E.PlusSat =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVPlus true signed)
+        | E.Minus =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVMinus false signed)
+        | E.MinusSat =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVMinus true signed)
+        | E.Times =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVTimes signed)
+        | E.Shl =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVShl signed)
+        | E.Shr =>
+          let* signed :=
+             match typ with
+             | E.TBit _ => ok false
+             | E.TInt _ => ok true
+             | _ => error "Typeerror: expected (un)signed bitvec for binary expression"
+             end
+          in
+          bin (BV.BVShr signed)
         | E.Le => error "Typeerror: (<=) is a boolean, expected BV expression"
         | E.Ge => error "Typeerror: (>=) is a boolean, expected BV expression"
         | E.Lt => error "Typeerror: (<) is a boolean, expected BV expression"
@@ -365,9 +493,9 @@ Section ToGCL.
       | E.EHeader _ _ _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.EExprMember ret_type mem arg i =>
-        let* w := width_of_type mem ret_type in
+        let~ w := width_of_type mem ret_type over ("couldn't get width of ??." @@ mem @@ " while converting to_rvalue") in
         let+ lv := to_lvalue arg in
-        BV.BVVar (lv ++ "." ++ mem) w
+        BV.BVVar (lv @@ "." @@ mem) w
       | E.EError _ _ => error "errors are not rvalues."
       | E.EHeaderStack _ _ _ _ =>
         error "Header stacks in the rvalue position should have been factored out by previous passes"
@@ -375,6 +503,21 @@ Section ToGCL.
         error "Header stack accesses in the rvalue position should have been factored out by previous passes."
       end.
 
+    Definition get_sign typ :=
+       match typ with
+       | E.TBit _ => ok false
+       | E.TInt _ => ok true
+       | E.TBool => error "Typerror:: expected (signed?) bitvector; got boolean"
+       | E.TError => error "Typerror:: expected (signed?) bitvector; got error type"
+       (* | E.TMatchKind => error "Typerror:: expected (signed?) bitvector; got matchkind type" *)
+       | E.TTuple _ => error "Typerror:: expected (signed?) bitvector; got typle type"
+       | E.TStruct _ => error "Typerror:: expected (signed?) bitvector; got struct type"
+       | E.THeader _ => error "Typerror:: expected (signed?) bitvector; got header type"
+       | E.THeaderStack _ _ => error "Typeerror:: expected (signed?) bitvector; got header stack type"
+       | E.TVar _ => error "Typeerror:: expected (signed?) bitvector; got type variable"
+       end.
+
+    
     Fixpoint to_form (e : (E.e tags_t)) : result Form.t :=
       match e with
       | E.EBool b i => ok (Form.LBool b)
@@ -393,7 +536,7 @@ Section ToGCL.
         error "Typeerror: BitVector Slices are not booleans (perhaps you want to insert a cast?)"
 
       | E.ECast type arg i =>
-        let* rvalue_arg := to_rvalue arg in
+        let~ rvalue_arg := to_rvalue arg over "couldn't convert to rvalue under cast" in
         let cast := fun w => ok (GCL.isone (BV.UnOp (BV.BVCast w) rvalue_arg)) in
         match type with
         | E.TBool => cast 1
@@ -403,14 +546,17 @@ Section ToGCL.
           error "Invalid Cast"
         end
       | E.EUop type op arg i =>
-        let* rv_arg := to_rvalue arg in
         match op with
-        | E.Not => ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg))
+        | E.Not =>
+          (* let~ rv_arg := to_rvalue arg over "couldn't convert to rvalue under unary operation" in *)
+        (* ok (GCL.isone (BV.UnOp BV.BVNeg rv_arg)) *)
+          let~ arg := to_form arg over "couldn't convert to formula under negation" in
+          ok (Form.LNot arg)
         | E.BitNot => error "Bitvector operations (!) are not booleans (perhaps you want to insert a cast?)"
         | E.UMinus => error "Saturating arithmetic (-) is not boolean (perhaps you want to insert a cast?)"
         | E.IsValid =>
           let+ header := to_lvalue arg in
-          let hvld := header ++ ".is_valid" in
+          let hvld := header @@ ".is_valid" in
           GCL.isone (BV.BVVar hvld 1)
         | E.SetValid =>
           error "SetValid is deprecated as an expression"
@@ -422,19 +568,21 @@ Section ToGCL.
           error "[FIXME] Size for stacks is unimplemented"
         end
       | E.EBop typ op lhs rhs i =>
-        let signed := match typ with
-                      | E.TBit _ => ok false
-                      | E.TInt _ => ok true
-                      | _ => error "Typerror:: expected (signed) bitvector as argument binary operator"
-                      end in
-        let lbin := fun o_res => let* l := to_form lhs in
-                                 let* r := to_form rhs in
-                                 let+ o := o_res in
-                                 Form.LBop o l r in
-        let cbin := fun o_res => let* l := to_rvalue lhs in
-                                 let* r := to_rvalue rhs in
-                                 let+ o := o_res in
-                                 Form.LComp o l r in
+        let lbin := fun o => let* l := to_form lhs in
+                             let* r := to_form rhs in
+                             ok (Form.LBop o l r) in
+        let cbin := fun o => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
+                             let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
+                             ok (Form.LComp o l r) in
+        let cbin_sign := fun o => let~ l := to_rvalue lhs over "couldn't convert left side of binary operator to rvalue " in
+                                  let~ r := to_rvalue rhs over "couldn't convert left side of binary operator to rvalue " in
+                                  let* lsign := get_sign (t_of_e lhs) in
+                                  let* rsign := get_sign (t_of_e rhs) in
+                                  if eqb lsign rsign then
+                                    ok (Form.LComp (o lsign) l r)
+                                  else
+                                    error "Signedness Mismatch in comparison operator"
+        in
         match op with
         | E.Plus => error "Typeerror: (+) is not a boolean operator"
         | E.PlusSat => error "Typeerror: (|+|) is not a boolean operator"
@@ -443,18 +591,18 @@ Section ToGCL.
         | E.Times => error "Typerror: (*) is not a boolean operator"
         | E.Shl => error "Typerror: (<<) is not a boolean operator"
         | E.Shr => error "TYperror: (>>) is not a boolean operator"
-        | E.Le => cbin (Form.LLe |=> signed)
-        | E.Ge => cbin (Form.LGe |=> signed)
-        | E.Lt => cbin (Form.LLt |=> signed)
-        | E.Gt => cbin (Form.LGt |=> signed)
-        | E.Eq => cbin (ok Form.LEq)
-        | E.NotEq => cbin (ok Form.LNeq)
+        | E.Le => cbin_sign Form.LLe
+        | E.Ge => cbin_sign Form.LGe
+        | E.Lt => cbin_sign Form.LLt
+        | E.Gt => cbin_sign Form.LGt
+        | E.Eq => cbin Form.LEq
+        | E.NotEq => cbin Form.LNeq
         | E.BitAnd => error "Typeerror: (&) is not a boolean operator"
         | E.BitXor => error "Typeerror: (^) is not a boolean operator"
         | E.BitOr => error "Typeerror: (|) is not a boolean operator"
-        | E.PlusPlus => error "Typeerror: (++) is not a boolean operator"
-        | E.And => lbin (ok Form.LAnd)
-        | E.Or => lbin (ok Form.LOr)
+        | E.PlusPlus => error "Typeerror: (@@) is not a boolean operator"
+        | E.And => lbin Form.LAnd
+        | E.Or => lbin Form.LOr
         end
       | E.ETuple _ _ =>
         error "Tuples are not formulae"
@@ -464,7 +612,7 @@ Section ToGCL.
         error "Headers are not formulae"
       | E.EExprMember expr_type mem arg i =>
         let* lv := to_lvalue arg in
-        let~ w := (width_of_type mem expr_type) over ("failed getting type of " ++ mem) in
+        let~ w := (width_of_type mem expr_type) over ("failed getting type of " @@ mem) in
         ok (GCL.isone (BV.BVVar lv w))
       | E.EError _ _ =>
         error "errors are not formulae"
@@ -489,25 +637,39 @@ Section ToGCL.
                          | PAOut e
                          | PAInOut e
                          | PADirLess e =>
-                           match to_form e with
-                           | Error _ _ =>
-                             let* e' := to_rvalue e in
-                             ok ((name, inr e') :: res)
-                           | Ok _ phi =>
+                           match t_of_e e with
+                           | E.TBool =>
+                             let~ phi := to_form e over "couldn't convert form in arrowE_to_arglist" in
                              ok ((name, inl phi) :: res)
+                           | _ =>
+                             let~ e' := to_rvalue e over "couldn't convert rvalue in arrowE_to_arglist" in
+                             ok ((name, inr e') :: res)
                            end
                          end)
                       (ok [])
                       arrow.(paramargs).
+
+
+    Definition lvalue_subst param new old :=
+          if String.eqb param old then
+            match new with
+            | BV.BVVar new_string w =>
+              new_string
+            | _ =>
+              (* Not sure how to substitute in anything else*)
+              old
+            end
+          else
+            old.
 
     Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result target :=
       List.fold_right (fun '(param, arg) g_res' =>
                 let+ g' := g_res' in
                 match arg with
                 | inl phi =>
-                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g
+                  GCL.subst_form (fun _ _ x => x) (fun _ _ bv => bv) Form.subst_form param phi g'
                 | inr bv_expr =>
-                  GCL.subst_rvalue (fun _ _ x => x) BV.subst_bv Form.subst_bv param bv_expr g
+                  GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_expr g'
                 end) (ok g) s.
 
     Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
@@ -519,10 +681,10 @@ Section ToGCL.
         ok (GCL.GSkip, add_to_scope c x)
 
       | Inline.IAssign _ type lhs rhs i =>
-        let* lhs' := to_lvalue (scopify c lhs) in
-        let+ rhs' := to_rvalue (scopify c rhs) in
+        let~ rhs' := to_rvalue (scopify c rhs) over "couldn't convert rhs of IAssign to rvalue" in
+        let~ lhs' := to_lvalue (scopify c lhs) over "couldn't convert lhs of IAssign to lvalue"  in
         let e := GCL.GAssign type lhs' rhs' in
-        (e, c)
+        ok (e, c)
 
       | Inline.IConditional _ guard_type guard tru_blk fls_blk i =>
         let* tru_blk' := inline_to_gcl c arch tru_blk in
@@ -553,35 +715,26 @@ Section ToGCL.
       | Inline.IInvoke _ tbl keys actions i =>
         let* actions' := union_map_snd (fst >>=> inline_to_gcl c arch) actions in
         let* keys' := rred (map (fun '(t,e,mk) =>
-                                   let* w := width_of_type (tbl ++ " key") t in
-                                   let+ e' := to_rvalue e in
-                                   (w, e', mk)) keys) in
+                                   let~ w := width_of_type (tbl @@ " key") t over ("[inline_to_gcl] failed getting width of table key. Table: " @@ tbl ) in
+                                   let~ e' := to_rvalue e over "failed converting keys to rvalue" in
+                                   ok (w, e', mk)) keys) in
         let+ g := instr tbl i keys' actions' in
         (g, c)
 
       | Inline.IExternMethodCall _  ext method args i =>
         (** TODO handle copy-in/copy-out) *)
         let* g := find arch ext method in
-        let* gcl_args := arrowE_to_arglist args in
+        let~ gcl_args := arrowE_to_arglist args over "failed to convert arguments to " @@ ext @@ "." @@ method in
         let+ g' := subst_args g gcl_args in
         (g', c)
       | Inline.ISetValidity _ e v i =>
         let+ header := to_lvalue e in
-        let hvld := header ++ ".is_valid" in
+        let hvld := header @@ ".is_valid" in
         let vld_bit := if v then 1 else 0 in
         (GCL.GAssign (E.TBit (BinNat.N.of_nat 1)) hvld (BV.BitVec vld_bit (Some 1)), c)
+      | Inline.IHeaderStackOp _ stck _ _ _ _ =>
+        error ("Tried to translate a header stack operation on " @@ stck @@ " to GCL. This should've been eliminated during the inlining phase.")
       end.
-
-    Definition p4cub_statement_to_gcl (gas : nat)
-               (ctx : ToP4cub.DeclCtx tags_t)
-               (arch : model) (s : ST.s tags_t) : result target :=
-      let* inline_stmt := Inline.inline _ gas ctx s in
-      let* no_tup := Inline.elim_tuple _ inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
-      let* no_hdr := Inline.elaborate_headers _ no_stk in
-      let* no_structs := Inline.elaborate_structs _ no_hdr in
-      let+ (gcl,_) := inline_to_gcl initial arch no_structs in
-      gcl.
 
     (* use externs to specify inter-pipeline behavior.*)
     Definition get_main ctx (pipe : pipeline) : result (ST.s tags_t) :=
@@ -590,25 +743,35 @@ Section ToGCL.
         pipe type_args args
       | _ =>
         error "expected package, got sth else"
-      end
-    .
+      end.
 
-    Definition from_p4cub (gas : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
-      let* stmt := get_main ctx pipe in
-      p4cub_statement_to_gcl gas ctx ext stmt.
+    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
+      let* inline_stmt := Inline.inline _ gas unroll ctx s in
+      let* no_stk := Inline.elaborate_header_stacks _ inline_stmt in
+      let* no_stk := Inline.elaborate_header_stacks _ no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
+      let* no_tup := Inline.elim_tuple _ no_stk in
+      let* no_hdr := Inline.elaborate_headers _ no_tup in
+      let* no_structs := Inline.elaborate_structs _ no_hdr in
+      let* no_slice := Inline.eliminate_slice_assignments _ no_structs in
+      ok no_slice.
 
-    Definition inline_from_p4cub (gas : nat)
+    Definition inline_from_p4cub (gas unroll : nat)
                (ext : model) (pipe : pipeline)
                (ctx : ToP4cub.DeclCtx tags_t)  : result (Inline.t tags_t) :=
       let* s := get_main ctx pipe in
-      let* inline_stmt := Inline.inline _ gas ctx s in
-      let* no_tup := Inline.elim_tuple _ inline_stmt in
-      let* no_stk := Inline.elaborate_header_stacks _ no_tup in
-      let* no_hdr := Inline.elaborate_headers _ no_stk in
-      let+ no_structs := Inline.elaborate_structs _ no_hdr in
-      no_structs.
+      inlining_passes gas unroll ext ctx s.
 
-    (* Definition from_p4cub_v1model gas ctx : result target := *)
-    (*   from_p4cub gas V1model.externs V1model.package ctx. *)
+    Definition p4cub_statement_to_gcl (gas unroll : nat)
+               (ctx : ToP4cub.DeclCtx tags_t)
+               (arch : model) (s : ST.s tags_t) : result target :=
+      let* inlined := inlining_passes gas unroll arch ctx s in
+      let* instred := Inline.assert_headers_valid_before_use _ inlined in
+      let+ (gcl,_) := inline_to_gcl initial arch instred in
+      gcl.
+
+    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+      let* stmt := get_main ctx pipe in
+      p4cub_statement_to_gcl gas unroll ctx ext stmt.
+
   End Instr.
 End ToGCL.

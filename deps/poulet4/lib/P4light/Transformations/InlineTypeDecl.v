@@ -42,7 +42,7 @@ Reserved Notation "σ '†ct'" (at level 11, right associativity).
 Reserved Notation "σ '†ft'" (at level 11, right associativity).
 (** [P4Parameter] substitution tags_t. *)
 Reserved Notation "σ '†p'" (at level 11, right associativity).
-  
+
 Fixpoint sub_typs_P4Type
          {tags_t} (σ : substitution tags_t) (τ : P4Type) : P4Type :=
   match τ with
@@ -101,6 +101,15 @@ sub_typs_P4Parameter {tags_t}
   | MkParameter b d τ def x => MkParameter b d (σ †t τ) def x
   end
 where "σ '†p'" := (sub_typs_P4Parameter σ) : sub_scope.
+
+(** [DeclarationField] substitution*)
+Definition sub_typs_DeclarationField
+  {tags_t}
+  (σ : substitution tags_t) (df : DeclarationField)  : DeclarationField :=
+  let '(MkDeclarationField tags typ fld) := df in
+  let typ' := σ †t typ in
+  MkDeclarationField tags typ' fld.
+Notation "σ '†df'" := (sub_typs_DeclarationField σ) (at level 11, right associativity).
 
 (** [Expression] substitution tags_t. *)
 Reserved Notation "σ '†e'" (at level 11, right associativity).
@@ -454,3 +463,197 @@ Definition
                end ++ ds')
             (σ ‡d d))
        ds (σ,[])).
+
+Definition
+  substitution_from_decl
+  {tags_t}
+  (d : Declaration) : option (substitution tags_t) :=
+  let singleton :=
+      fun n typ => Maps.IdentMap.set n typ Maps.IdentMap.empty
+  in
+  match d with
+  | DeclConstant _ _ _ _ => None
+  | DeclInstantiation _ _ _ _ _ => None
+  | DeclParser _ _ _ _ _ _ _ => None
+  | DeclControl _ _ _ _ _ _ _ => None
+  | DeclFunction _ _ _ _ _ _ => None
+  | DeclExternFunction _ _ _ _ _ => None
+  | DeclVariable _ _ _ _ => None
+  | DeclValueSet _ _ _ _ => None
+  | DeclAction _ _ _ _ _ => None
+  | DeclTable _ _ _ _ _ _ _ _ => None
+  | DeclHeader tags name fields  =>
+    let alist_fields := List.map (fun '(MkDeclarationField _ t name) => (name, t)) fields in
+    Some (singleton (P4String.str name) (TypHeader alist_fields))
+  | DeclStruct tags name fields =>
+    let alist_fields := List.map (fun '(MkDeclarationField _ t name) => (name, t)) fields in
+    Some (singleton (P4String.str name) (TypStruct alist_fields))
+  | DeclHeaderUnion _ _ _ => None
+  | DeclError _ _ => None
+  | DeclMatchKind _ _ => None
+  | DeclEnum _ _ _ => None
+  | DeclSerializableEnum _ _ _ _ => None
+  | DeclExternObject _ _ _ _ => None
+  | DeclTypeDef _ name (inl typ)
+  | DeclNewType _ name (inl typ) =>
+    Some (singleton (P4String.str name) typ)
+  | DeclTypeDef _ _ _
+  | DeclNewType _ _ _ => None
+  | DeclControlType _ _ _ _ => None
+  | DeclParserType _ _ _ _ => None
+  | DeclPackageType _ _ _ _ => None
+  end.
+
+(** [Declaration] substitution. *)
+Reserved Notation "σ '†d'" (at level 11, right associativity).
+Fixpoint substitute_typ_Declaration {tags_t} (σ : substitution tags_t) (d : Declaration) :=
+  match d with
+  | DeclError _ _
+  | DeclMatchKind _ _    => d
+  | DeclConstant i τ x e => DeclConstant i (σ †t τ) x (σ †e e)
+  | DeclInstantiation i τ es x ds
+    => (* TODO: Are type declarations in [ds] in scope? *)
+    let ds' := lmap (σ †d) ds in
+    DeclInstantiation i (σ †t τ) (lmap (σ †e) es) x ds'
+  | DeclParser i x Xs ps cps ds states =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let ds' := lmap (σ' †d) ds in
+    let ps' := lmap (σ' †p) ps in
+    let cps' := lmap (σ' †p) cps in
+    let states' := lmap (σ' †ps) states in
+    DeclParser i x Xs ps' cps' ds' states'
+  | DeclControl i x Xs ps cps ds blk =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let ds' := lmap (σ' †d) ds in
+    let ps' := lmap (σ' †p) ps in
+    let cps' := lmap (σ' †p) cps in
+    let blk' := σ' †blk blk in
+    DeclControl i x Xs ps' cps' ds' blk'
+  | DeclFunction i τ x Xs ps blk =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let τ' := σ' †t τ in
+    let ps' := lmap (σ' †p) ps in
+    let blk' := σ' †blk blk in
+    DeclFunction i τ' x Xs ps' blk'
+  | DeclExternFunction i τ x Xs ps =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let τ' := σ' †t τ in
+    let ps' := lmap (σ' †p) ps in
+    DeclExternFunction i τ' x Xs ps'
+  | DeclVariable i τ x e =>
+    let τ' := σ †t τ in
+    let e' := omap (σ †e) e in
+    DeclVariable i τ' x e'
+  | DeclValueSet i τ n x =>
+    let τ' := σ †t τ in
+    DeclValueSet i τ' n x
+  | DeclAction i x ps cps blk =>
+    let ps' := lmap (σ †p) ps in
+    let cps' := lmap (σ †p) cps in
+    let blk' := σ †blk blk in
+    DeclAction i x ps' cps' blk'
+  | DeclTable i x k tars tes dtar n tps =>
+    let k' := lmap (σ †tk) k in
+    let tars' := lmap (σ †tar) tars in
+    let tes' := omap (lmap (σ †te)) tes in
+    let dtars' := omap (σ †tar) dtar in
+    let tps' := lmap (σ †tp) tps in
+    DeclTable i x k' tars' tes' dtars' n tps'
+  | DeclHeader tags hdr dfs =>
+    let dfs' := lmap (σ †df) dfs in
+    DeclHeader tags hdr dfs'
+  | DeclHeaderUnion tags name dfs =>
+    let dfs' := lmap (σ †df) dfs in
+    DeclHeaderUnion tags name dfs'
+  | DeclStruct tags name dfs =>
+    let dfs' := lmap (σ †df) dfs in
+    DeclStruct tags name dfs'
+  | DeclEnum tags name variants =>
+    DeclEnum tags name variants
+  | DeclSerializableEnum i τ X es =>
+    let es' := almap (σ †e) es in
+    DeclSerializableEnum i τ X es'
+  | DeclExternObject i x Xs mtds =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let mtds' := lmap (σ †mp) mtds in
+    DeclExternObject i x Xs mtds'
+  | DeclTypeDef tags name (inl τ) =>
+    let τ' := σ †t τ in
+    DeclTypeDef tags name (inl τ')
+  | DeclNewType tags name (inl τ)  =>
+    let τ' := σ †t τ in
+    DeclNewType tags name (inl τ')
+  (* TODO: case analysis on [d]?
+     How to assign a type to [T]? *)
+  | DeclTypeDef tags name (inr d) =>
+    let d' := σ †d d in
+    DeclTypeDef tags name (inr d')
+  | DeclNewType tags name (inr d) =>
+    let d' := σ †d d in
+    DeclNewType tags name (inr d')
+  | DeclControlType tags name Xs ps =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let ps' := lmap (σ' †p) ps in
+    DeclControlType tags name Xs ps'
+  | DeclParserType tags name Xs ps =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let ps' := lmap (σ' †p) ps in
+    DeclParserType tags name Xs ps'
+  | DeclPackageType tags name Xs ps =>
+    let σ' := σ ∖ (lmap P4String.str Xs) in
+    let ps' := lmap (σ' †p) ps in
+    DeclPackageType tags name Xs ps
+  end
+where "σ '†d'" := (substitute_typ_Declaration σ).
+
+Import String.
+Open Scope string_scope.
+
+(* Definition overlay_t := *)
+(*   DeclHeader NoInfo {| P4String.tags := NoInfo; P4String.str := "overlay_t" |} *)
+(*              [MkDeclarationField NoInfo (TypBit (BinNat.N.of_nat 32)) {| P4String.tags := NoInfo; P4String.str := "swip" |}]. *)
+
+(* Definition overlay_field := *)
+(*   MkDeclarationField NoInfo *)
+(*                      (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                      {| P4String.tags := NoInfo; P4String.str := "overlay" |}. *)
+
+(* Definition headers_fields := *)
+(*   [ *)
+(*     MkDeclarationField NoInfo *)
+(*                        (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |}) *)
+(*                        {| P4String.tags := NoInfo; P4String.str := "ethernet" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "ipv4" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "tcp" |} *)
+(*     ; MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |}) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "udp" |} *)
+(*     ; MkDeclarationField NoInfo *)
+(*                          (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                          {| P4String.tags := NoInfo; P4String.str := "overlay" |}]. *)
+
+(* Definition headers := *)
+(*   DeclStruct NoInfo {| P4String.tags := NoInfo; P4String.str := "headers" |} *)
+(*              [MkDeclarationField NoInfo *)
+(*                                  (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ethernet_t" |}) *)
+(*                                  {| P4String.tags := NoInfo; P4String.str := "ethernet" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "ipv4_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "ipv4" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "nc_hdr_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "nc_hdr" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "tcp_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "tcp" |}; *)
+(*              MkDeclarationField NoInfo (TypTypeName {| P4String.tags := NoInfo; P4String.str := "udp_t" |}) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "udp" |}; *)
+(*              MkDeclarationField NoInfo *)
+(*                                 (TypArray (TypTypeName {| P4String.tags := NoInfo; P4String.str := "overlay_t" |}) (BinNat.N.of_nat 10)) *)
+(*                                 {| P4String.tags := NoInfo; P4String.str := "overlay" |}]. *)
+
+(* Definition overlay_subst := (substitution_from_decl overlay_t). *)
+
+(* Compute (let* σ := overlay_subst in Some (σ †d headers)). *)
+(* Compute (let* σ := overlay_subst in Some (lmap (σ †df) headers_fields)). *)
+(* Compute (let* σ := overlay_subst in Some (σ †df overlay_field)). *)

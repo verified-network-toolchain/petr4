@@ -932,7 +932,7 @@ Section CCompSel.
       error_ret (Sassign e1' e2', env2)
       
 
-    | Stmt.SHeaderStackOp stack Stmt.HSPush n i =>
+    | Stmt.SHeaderStackOp stack typ Stmt.HSPush n i =>
       let* stack_id := 
         match find_ident_temp_arg tags_t env stack with
         | inl (_, x) => error_ret x
@@ -941,7 +941,7 @@ Section CCompSel.
       in
       CTranslatePush stack_id n env
 
-    | Stmt.SHeaderStackOp stack Stmt.HSPop n i => 
+    | Stmt.SHeaderStackOp stack typ Stmt.HSPop n i =>
       let* stack_id := 
         match find_ident_temp_arg tags_t env stack with
         | inl (_, x) => error_ret x

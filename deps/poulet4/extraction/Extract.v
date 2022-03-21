@@ -47,7 +47,7 @@ Require Poulet4.Compile.ToP4cub.
 Require Poulet4.GCL.ToGCL.
 Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
-
+Require Poulet4.P4cub.ExportAll.
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
@@ -59,3 +59,4 @@ Separate Extraction
          Poulet4.GCL.ToGCL
          Poulet4.GCL.TableInstr
          Poulet4.GCL.V1model.
+         (* Poulet4.P4cub.Transformations.Lifting.Statementize. *)

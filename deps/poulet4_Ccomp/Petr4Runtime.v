@@ -106,6 +106,7 @@ Definition ___gmpz_ui_pow_ui : ident := $"__gmpz_ui_pow_ui".
 Definition ___gmpz_xor : ident := $"__gmpz_xor".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
 Definition ___stringlit_2 : ident := $"__stringlit_2".
+Definition ___stringlit_3 : ident := $"__stringlit_3".
 Definition __mp_alloc : ident := $"_mp_alloc".
 Definition __mp_d : ident := $"_mp_d".
 Definition __mp_size : ident := $"_mp_size".
@@ -116,10 +117,19 @@ Definition _add_entry : ident := $"add_entry".
 Definition _arguments : ident := $"arguments".
 Definition _capacity : ident := $"capacity".
 Definition _check : ident := $"check".
+Definition _checksum_error : ident := $"checksum_error".
 Definition _data : ident := $"data".
 Definition _default_action : ident := $"default_action".
+Definition _deq_qdepth : ident := $"deq_qdepth".
+Definition _deq_timedelta : ident := $"deq_timedelta".
 Definition _dst : ident := $"dst".
 Definition _dst_value : ident := $"dst_value".
+Definition _egress_global_timestamp : ident := $"egress_global_timestamp".
+Definition _egress_port : ident := $"egress_port".
+Definition _egress_rid : ident := $"egress_rid".
+Definition _egress_spec : ident := $"egress_spec".
+Definition _enq_qdepth : ident := $"enq_qdepth".
+Definition _enq_timestamp : ident := $"enq_timestamp".
 Definition _entries : ident := $"entries".
 Definition _entry : ident := $"entry".
 Definition _entry_match : ident := $"entry_match".
@@ -129,12 +139,16 @@ Definition _extract_bitvec : ident := $"extract_bitvec".
 Definition _extract_bool : ident := $"extract_bool".
 Definition _i : ident := $"i".
 Definition _in : ident := $"in".
+Definition _ingress_global_timestamp : ident := $"ingress_global_timestamp".
+Definition _ingress_port : ident := $"ingress_port".
 Definition _init_action : ident := $"init_action".
 Definition _init_bitvec : ident := $"init_bitvec".
 Definition _init_bitvec_binary : ident := $"init_bitvec_binary".
 Definition _init_entry : ident := $"init_entry".
 Definition _init_pattern : ident := $"init_pattern".
+Definition _init_standard_metada : ident := $"init_standard_metada".
 Definition _init_table : ident := $"init_table".
+Definition _instance_type : ident := $"instance_type".
 Definition _interp_beq : ident := $"interp_beq".
 Definition _interp_bge : ident := $"interp_bge".
 Definition _interp_bgt : ident := $"interp_bgt".
@@ -168,19 +182,25 @@ Definition _malloc : ident := $"malloc".
 Definition _mask : ident := $"mask".
 Definition _matched : ident := $"matched".
 Definition _max : ident := $"max".
+Definition _mcast_grp : ident := $"mcast_grp".
+Definition _meta : ident := $"meta".
 Definition _min : ident := $"min".
 Definition _num_args : ident := $"num_args".
 Definition _num_entries : ident := $"num_entries".
 Definition _num_keys : ident := $"num_keys".
 Definition _packet_in : ident := $"packet_in".
+Definition _packet_length : ident := $"packet_length".
+Definition _parser_error : ident := $"parser_error".
 Definition _pattern : ident := $"pattern".
 Definition _pattern_match : ident := $"pattern_match".
 Definition _pkt : ident := $"pkt".
+Definition _priority : ident := $"priority".
 Definition _r : ident := $"r".
 Definition _reset_bitvec : ident := $"reset_bitvec".
 Definition _sign : ident := $"sign".
 Definition _size : ident := $"size".
 Definition _src : ident := $"src".
+Definition _standard_metadata_t : ident := $"standard_metadata_t".
 Definition _t : ident := $"t".
 Definition _table : ident := $"table".
 Definition _table_match : ident := $"table_match".
@@ -221,6 +241,13 @@ Definition v___stringlit_2 := {|
                 Init_int8 (Int.repr 61) :: Init_int8 (Int.repr 61) ::
                 Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 48) ::
                 Init_int8 (Int.repr 0) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v___stringlit_3 := {|
+  gvar_info := (tarray tschar 2);
+  gvar_init := (Init_int8 (Int.repr 48) :: Init_int8 (Int.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
@@ -303,7 +330,7 @@ Definition f_init_bitvec := {|
                                    cc_default))
             ((Evar ___stringlit_2 (tarray tschar 11)) ::
              (Evar ___stringlit_1 (tarray tschar 15)) ::
-             (Econst_int (Int.repr 119) tint) ::
+             (Econst_int (Int.repr 117) tint) ::
              (Evar ___func__ (tarray tschar 12)) :: nil)))
         (Ssequence
           (Scall None
@@ -398,7 +425,7 @@ Definition f_init_bitvec_binary := {|
                                    cc_default))
             ((Evar ___stringlit_2 (tarray tschar 11)) ::
              (Evar ___stringlit_1 (tarray tschar 15)) ::
-             (Econst_int (Int.repr 141) tint) ::
+             (Econst_int (Int.repr 139) tint) ::
              (Evar ___func____1 (tarray tschar 19)) :: nil)))
         (Ssequence
           (Scall None
@@ -2791,8 +2818,294 @@ Definition f_table_match := {|
         (Ebinop Osub (Etempvar _i tint) (Econst_int (Int.repr 1) tint) tint)))))
 |}.
 
-
-
+Definition f_init_standard_metada := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_meta, (tptr (Tstruct _standard_metadata_t noattr))) :: nil);
+  fn_vars := nil;
+  fn_temps := nil;
+  fn_body :=
+(Ssequence
+  (Scall None
+    (Evar _init_bitvec (Tfunction
+                         (Tcons (tptr (Tstruct _BitVec noattr))
+                           (Tcons tint
+                             (Tcons tint (Tcons (tptr tschar) Tnil)))) tvoid
+                         cc_default))
+    ((Eaddrof
+       (Efield
+         (Ederef
+           (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+           (Tstruct _standard_metadata_t noattr)) _ingress_port
+         (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+     (Econst_int (Int.repr 0) tint) :: (Econst_int (Int.repr 9) tint) ::
+     (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+  (Ssequence
+    (Scall None
+      (Evar _init_bitvec (Tfunction
+                           (Tcons (tptr (Tstruct _BitVec noattr))
+                             (Tcons tint
+                               (Tcons tint (Tcons (tptr tschar) Tnil))))
+                           tvoid cc_default))
+      ((Eaddrof
+         (Efield
+           (Ederef
+             (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+             (Tstruct _standard_metadata_t noattr)) _egress_spec
+           (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+       (Econst_int (Int.repr 0) tint) :: (Econst_int (Int.repr 9) tint) ::
+       (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+    (Ssequence
+      (Scall None
+        (Evar _init_bitvec (Tfunction
+                             (Tcons (tptr (Tstruct _BitVec noattr))
+                               (Tcons tint
+                                 (Tcons tint (Tcons (tptr tschar) Tnil))))
+                             tvoid cc_default))
+        ((Eaddrof
+           (Efield
+             (Ederef
+               (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+               (Tstruct _standard_metadata_t noattr)) _egress_port
+             (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+         (Econst_int (Int.repr 0) tint) :: (Econst_int (Int.repr 9) tint) ::
+         (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+      (Ssequence
+        (Scall None
+          (Evar _init_bitvec (Tfunction
+                               (Tcons (tptr (Tstruct _BitVec noattr))
+                                 (Tcons tint
+                                   (Tcons tint (Tcons (tptr tschar) Tnil))))
+                               tvoid cc_default))
+          ((Eaddrof
+             (Efield
+               (Ederef
+                 (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                 (Tstruct _standard_metadata_t noattr)) _instance_type
+               (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+           (Econst_int (Int.repr 0) tint) ::
+           (Econst_int (Int.repr 32) tint) ::
+           (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+        (Ssequence
+          (Scall None
+            (Evar _init_bitvec (Tfunction
+                                 (Tcons (tptr (Tstruct _BitVec noattr))
+                                   (Tcons tint
+                                     (Tcons tint (Tcons (tptr tschar) Tnil))))
+                                 tvoid cc_default))
+            ((Eaddrof
+               (Efield
+                 (Ederef
+                   (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                   (Tstruct _standard_metadata_t noattr)) _packet_length
+                 (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+             (Econst_int (Int.repr 0) tint) ::
+             (Econst_int (Int.repr 32) tint) ::
+             (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+          (Ssequence
+            (Scall None
+              (Evar _init_bitvec (Tfunction
+                                   (Tcons (tptr (Tstruct _BitVec noattr))
+                                     (Tcons tint
+                                       (Tcons tint
+                                         (Tcons (tptr tschar) Tnil)))) tvoid
+                                   cc_default))
+              ((Eaddrof
+                 (Efield
+                   (Ederef
+                     (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                     (Tstruct _standard_metadata_t noattr)) _enq_timestamp
+                   (Tstruct _BitVec noattr)) (tptr (Tstruct _BitVec noattr))) ::
+               (Econst_int (Int.repr 0) tint) ::
+               (Econst_int (Int.repr 32) tint) ::
+               (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+            (Ssequence
+              (Scall None
+                (Evar _init_bitvec (Tfunction
+                                     (Tcons (tptr (Tstruct _BitVec noattr))
+                                       (Tcons tint
+                                         (Tcons tint
+                                           (Tcons (tptr tschar) Tnil))))
+                                     tvoid cc_default))
+                ((Eaddrof
+                   (Efield
+                     (Ederef
+                       (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                       (Tstruct _standard_metadata_t noattr)) _enq_qdepth
+                     (Tstruct _BitVec noattr))
+                   (tptr (Tstruct _BitVec noattr))) ::
+                 (Econst_int (Int.repr 0) tint) ::
+                 (Econst_int (Int.repr 19) tint) ::
+                 (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+              (Ssequence
+                (Scall None
+                  (Evar _init_bitvec (Tfunction
+                                       (Tcons (tptr (Tstruct _BitVec noattr))
+                                         (Tcons tint
+                                           (Tcons tint
+                                             (Tcons (tptr tschar) Tnil))))
+                                       tvoid cc_default))
+                  ((Eaddrof
+                     (Efield
+                       (Ederef
+                         (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                         (Tstruct _standard_metadata_t noattr))
+                       _deq_timedelta (Tstruct _BitVec noattr))
+                     (tptr (Tstruct _BitVec noattr))) ::
+                   (Econst_int (Int.repr 0) tint) ::
+                   (Econst_int (Int.repr 32) tint) ::
+                   (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                (Ssequence
+                  (Scall None
+                    (Evar _init_bitvec (Tfunction
+                                         (Tcons
+                                           (tptr (Tstruct _BitVec noattr))
+                                           (Tcons tint
+                                             (Tcons tint
+                                               (Tcons (tptr tschar) Tnil))))
+                                         tvoid cc_default))
+                    ((Eaddrof
+                       (Efield
+                         (Ederef
+                           (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                           (Tstruct _standard_metadata_t noattr)) _deq_qdepth
+                         (Tstruct _BitVec noattr))
+                       (tptr (Tstruct _BitVec noattr))) ::
+                     (Econst_int (Int.repr 0) tint) ::
+                     (Econst_int (Int.repr 19) tint) ::
+                     (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                  (Ssequence
+                    (Scall None
+                      (Evar _init_bitvec (Tfunction
+                                           (Tcons
+                                             (tptr (Tstruct _BitVec noattr))
+                                             (Tcons tint
+                                               (Tcons tint
+                                                 (Tcons (tptr tschar) Tnil))))
+                                           tvoid cc_default))
+                      ((Eaddrof
+                         (Efield
+                           (Ederef
+                             (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                             (Tstruct _standard_metadata_t noattr))
+                           _ingress_global_timestamp
+                           (Tstruct _BitVec noattr))
+                         (tptr (Tstruct _BitVec noattr))) ::
+                       (Econst_int (Int.repr 0) tint) ::
+                       (Econst_int (Int.repr 48) tint) ::
+                       (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                    (Ssequence
+                      (Scall None
+                        (Evar _init_bitvec (Tfunction
+                                             (Tcons
+                                               (tptr (Tstruct _BitVec noattr))
+                                               (Tcons tint
+                                                 (Tcons tint
+                                                   (Tcons (tptr tschar) Tnil))))
+                                             tvoid cc_default))
+                        ((Eaddrof
+                           (Efield
+                             (Ederef
+                               (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                               (Tstruct _standard_metadata_t noattr))
+                             _egress_global_timestamp
+                             (Tstruct _BitVec noattr))
+                           (tptr (Tstruct _BitVec noattr))) ::
+                         (Econst_int (Int.repr 0) tint) ::
+                         (Econst_int (Int.repr 48) tint) ::
+                         (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                      (Ssequence
+                        (Scall None
+                          (Evar _init_bitvec (Tfunction
+                                               (Tcons
+                                                 (tptr (Tstruct _BitVec noattr))
+                                                 (Tcons tint
+                                                   (Tcons tint
+                                                     (Tcons (tptr tschar)
+                                                       Tnil)))) tvoid
+                                               cc_default))
+                          ((Eaddrof
+                             (Efield
+                               (Ederef
+                                 (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                                 (Tstruct _standard_metadata_t noattr))
+                               _mcast_grp (Tstruct _BitVec noattr))
+                             (tptr (Tstruct _BitVec noattr))) ::
+                           (Econst_int (Int.repr 0) tint) ::
+                           (Econst_int (Int.repr 16) tint) ::
+                           (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                        (Ssequence
+                          (Scall None
+                            (Evar _init_bitvec (Tfunction
+                                                 (Tcons
+                                                   (tptr (Tstruct _BitVec noattr))
+                                                   (Tcons tint
+                                                     (Tcons tint
+                                                       (Tcons (tptr tschar)
+                                                         Tnil)))) tvoid
+                                                 cc_default))
+                            ((Eaddrof
+                               (Efield
+                                 (Ederef
+                                   (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                                   (Tstruct _standard_metadata_t noattr))
+                                 _egress_rid (Tstruct _BitVec noattr))
+                               (tptr (Tstruct _BitVec noattr))) ::
+                             (Econst_int (Int.repr 0) tint) ::
+                             (Econst_int (Int.repr 16) tint) ::
+                             (Evar ___stringlit_3 (tarray tschar 2)) :: nil))
+                          (Ssequence
+                            (Scall None
+                              (Evar _init_bitvec (Tfunction
+                                                   (Tcons
+                                                     (tptr (Tstruct _BitVec noattr))
+                                                     (Tcons tint
+                                                       (Tcons tint
+                                                         (Tcons (tptr tschar)
+                                                           Tnil)))) tvoid
+                                                   cc_default))
+                              ((Eaddrof
+                                 (Efield
+                                   (Ederef
+                                     (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                                     (Tstruct _standard_metadata_t noattr))
+                                   _checksum_error (Tstruct _BitVec noattr))
+                                 (tptr (Tstruct _BitVec noattr))) ::
+                               (Econst_int (Int.repr 0) tint) ::
+                               (Econst_int (Int.repr 1) tint) ::
+                               (Evar ___stringlit_3 (tarray tschar 2)) ::
+                               nil))
+                            (Ssequence
+                              (Sassign
+                                (Efield
+                                  (Ederef
+                                    (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                                    (Tstruct _standard_metadata_t noattr))
+                                  _parser_error tuint)
+                                (Econst_int (Int.repr 0) tint))
+                              (Scall None
+                                (Evar _init_bitvec (Tfunction
+                                                     (Tcons
+                                                       (tptr (Tstruct _BitVec noattr))
+                                                       (Tcons tint
+                                                         (Tcons tint
+                                                           (Tcons
+                                                             (tptr tschar)
+                                                             Tnil)))) tvoid
+                                                     cc_default))
+                                ((Eaddrof
+                                   (Efield
+                                     (Ederef
+                                       (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+                                       (Tstruct _standard_metadata_t noattr))
+                                     _priority
+                                     (tptr (Tstruct _BitVec noattr)))
+                                   (tptr (tptr (Tstruct _BitVec noattr)))) ::
+                                 (Econst_int (Int.repr 0) tint) ::
+                                 (Econst_int (Int.repr 3) tint) ::
+                                 (Evar ___stringlit_3 (tarray tschar 2)) ::
+                                 nil)))))))))))))))))
+|}.
 
 Definition composites : list composite_definition :=
 (Composite __537 Struct
@@ -2821,6 +3134,24 @@ Definition composites : list composite_definition :=
    (Member_plain _num_keys tint :: Member_plain _num_entries tint ::
     Member_plain _capacity tint ::
     Member_plain _entries (tptr (Tstruct _Entry noattr)) :: nil)
+   noattr ::
+ Composite _standard_metadata_t Struct
+   (Member_plain _ingress_port (Tstruct _BitVec noattr) ::
+    Member_plain _egress_spec (Tstruct _BitVec noattr) ::
+    Member_plain _egress_port (Tstruct _BitVec noattr) ::
+    Member_plain _instance_type (Tstruct _BitVec noattr) ::
+    Member_plain _packet_length (Tstruct _BitVec noattr) ::
+    Member_plain _enq_timestamp (Tstruct _BitVec noattr) ::
+    Member_plain _enq_qdepth (Tstruct _BitVec noattr) ::
+    Member_plain _deq_timedelta (Tstruct _BitVec noattr) ::
+    Member_plain _deq_qdepth (Tstruct _BitVec noattr) ::
+    Member_plain _ingress_global_timestamp (Tstruct _BitVec noattr) ::
+    Member_plain _egress_global_timestamp (Tstruct _BitVec noattr) ::
+    Member_plain _mcast_grp (Tstruct _BitVec noattr) ::
+    Member_plain _egress_rid (Tstruct _BitVec noattr) ::
+    Member_plain _checksum_error (Tstruct _BitVec noattr) ::
+    Member_plain _parser_error tuint ::
+    Member_plain _priority (tptr (Tstruct _BitVec noattr)) :: nil)
    noattr :: nil).
 
 Definition global_definitions : list (ident * globdef fundef type) :=
@@ -2911,6 +3242,7 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      cc_default)) (Tcons tulong (Tcons tulong Tnil)) tulong
      cc_default)) :: (___stringlit_1, Gvar v___stringlit_1) ::
  (___stringlit_2, Gvar v___stringlit_2) ::
+ (___stringlit_3, Gvar v___stringlit_3) ::
  (___builtin_ais_annot,
    Gfun(External (EF_builtin "__builtin_ais_annot"
                    (mksignature (AST.Tlong :: nil) AST.Tvoid
@@ -3267,11 +3599,12 @@ Definition global_definitions : list (ident * globdef fundef type) :=
  (_add_entry, Gfun(Internal f_add_entry)) ::
  (_pattern_match, Gfun(Internal f_pattern_match)) ::
  (_entry_match, Gfun(Internal f_entry_match)) ::
- (_table_match, Gfun(Internal f_table_match)) :: nil).
+ (_table_match, Gfun(Internal f_table_match)) ::
+ (_init_standard_metada, Gfun(Internal f_init_standard_metada)) :: nil).
 
 Definition public_idents : list ident :=
-(_table_match :: _entry_match :: _pattern_match :: _add_entry ::
- _init_table :: _init_entry :: _init_action :: _init_pattern ::
+(_init_standard_metada :: _table_match :: _entry_match :: _pattern_match ::
+ _add_entry :: _init_table :: _init_entry :: _init_action :: _init_pattern ::
  _interp_cast :: _interp_cast_from_bool :: _interp_cast_to_bool ::
  _interp_concat :: _interp_bitwise_or :: _interp_bitwise_xor ::
  _interp_bitwise_and :: _interp_bne :: _interp_beq :: _interp_bgt ::

@@ -35,6 +35,7 @@ Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
 Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
 Definition TpointerTable := Ctypes.Tpointer table_t noattr.
 Definition TpointerActionRef := Ctypes.Tpointer action_ref noattr.
+Definition TpointerPacketIn := Ctypes.Tpointer (Ctypes.Tstruct _packet_in noattr) noattr.
 Definition typelist_slice := 
     Ctypes.Tcons TpointerBitVec 
     (Ctypes.Tcons TpointerBitVec 
@@ -120,3 +121,28 @@ Definition typelist_slice :=
   Definition table_match_function length := 
     Evar _table_match (Tfunction (typelist_table_match length) tvoid cc_default)
     .
+
+  Definition typelist_extract_bitvec := 
+    (Ctypes.Tcons TpointerPacketIn
+    (Ctypes.Tcons TpointerBitVec
+    (Ctypes.Tcons type_bool
+    (Ctypes.Tcons int_signed
+    Ctypes.Tnil
+    )
+    )
+    )
+    ).
+  
+  Definition typelist_extract_bool := 
+    (Ctypes.Tcons TpointerPacketIn
+    (Ctypes.Tcons TpointerBool
+    Ctypes.Tnil
+    )
+    ).
+  
+  Definition extract_bitvec_function := 
+    Evar _extract_bitvec (Tfunction (typelist_extract_bitvec) tvoid cc_default).
+
+    
+  Definition extract_bool_function := 
+    Evar _extract_bool (Tfunction (typelist_extract_bool) tvoid cc_default).

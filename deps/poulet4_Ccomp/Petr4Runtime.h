@@ -7,6 +7,8 @@
 
 enum p4int {FIXBIT, FIXINT};
 
+
+
 typedef struct packet_in {
   unsigned char *in; //currently, we just use the last bit of the 8 bits.
 } packet_in;
@@ -52,6 +54,7 @@ typedef struct Table{
   int capacity;//allocated
   struct Entry* entries;
 } Table;
+
 
 void reset_bitvec (mpz_t x) {
   mpz_clear(x);
@@ -101,6 +104,24 @@ void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   dst->width = w;
 }
 
+void init_bitvec_ptr(struct BitVec **dst, int sign, int w, char *val){
+  BitVec * bv = malloc(sizeof(BitVec));
+  mpz_t i;
+  int check;
+
+  mpz_init(i);
+  mpz_set_ui(i,0);
+
+  check = mpz_set_str(i,val, 10);
+  assert (check == 0); 
+
+  mpz_init(bv->value);
+  mpz_set(bv->value, i); 
+  bv->is_signed = sign;
+  bv->width = w;
+  *dst = bv;
+}
+
 /**
  * sign = 0 means unsigned, = 1 means signed
  * w is the width
@@ -127,15 +148,15 @@ void init_bitvec_binary(struct BitVec *dst, int sign, int w, char *val){
 //package processing
 void extract_bool(packet_in *pkt, int *data){
   if(*(pkt->in) == 1){
-    *data = true;
+    *data = 1;
   } else {
-    *data = false;
+    *data = 0;
   }
   pkt->in ++;
 }
 void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
-  char val[data->width]; 
-  for(int i = 0; i < data->width; i++){
+  char* val = (char *) malloc(sizeof (char) * width); 
+  for(int i = 0; i < width; i++){
     val[i] = (*(pkt->in)) + 48; //this is to convert it into ascii 0 or 1, because gmp uses string to initialize the integer.
     pkt->in ++;
   }
@@ -595,3 +616,4 @@ void table_match(ActionRef* dst, struct Table* table, struct BitVec* keys){
     }
   }
 }
+

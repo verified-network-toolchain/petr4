@@ -4,40 +4,109 @@
 #include "gmp.h"
 #include <assert.h>
 #include <math.h> 
-#include "Petr4Runtime.h"
-
-typedef struct Register {
-    int size;
-    void** vals;
-} Register;
-
-void read(out T result, in bit<32> index);
+#include "compiled.c"
+// typedef struct Register {
+//     int size;
+//     void** vals;
+// } Register;
 
 
-typedef struct State {
-  HashMap<String,Table> tables;
-  HashMap<String,Register> registers;
-  packet_in pin; 
-  packet_out pout;
+
+// typedef struct State {
+//   HashMap<String,Table> tables;
+//   HashMap<String,Register> registers;
+//   packet_in pin; 
+//   packet_out pout;
+// }
+
+// struct standard_metadata_t {
+//   struct BitVec *ingress_port;
+//   struct BitVec *egress_spec;
+//   struct BitVec *egress_port;
+//   struct BitVec *instance_type;
+//   struct BitVec *packet_length;
+//   struct BitVec *enq_timestamp;
+//   struct BitVec *enq_qdepth;
+//   struct BitVec *deq_timedelta;
+//   struct BitVec *deq_qdepth;
+//   struct BitVec *ingress_global_timestamp;
+//   struct BitVec *egress_global_timestamp;
+//   struct BitVec *mcast_grp;
+//   struct BitVec *egress_rid;
+//   struct BitVec *checksum_error;
+//   unsigned int parser_error;
+//   struct BitVec *priority;
+// };
+
+void init_standard_metada (struct standard_metadata_t* meta){
+    init_bitvec_ptr(&(meta->ingress_port), 0,9,"0");
+    init_bitvec_ptr(&(meta->egress_spec),0,9,"0");
+    init_bitvec_ptr(&(meta->egress_port),0,9,"0");
+    init_bitvec_ptr(&(meta->instance_type),0,32,"0");
+    init_bitvec_ptr(&(meta->packet_length),0,32,"0");
+    init_bitvec_ptr(&(meta->enq_timestamp),0,32,"0");
+    init_bitvec_ptr(&(meta->enq_qdepth),0,19,"0");
+    init_bitvec_ptr(&(meta->deq_timedelta),0,32,"0");
+    init_bitvec_ptr(&(meta->deq_qdepth),0,19,"0");
+    init_bitvec_ptr(&(meta->ingress_global_timestamp),0,48,"0");
+    init_bitvec_ptr(&(meta->egress_global_timestamp),0,48,"0");
+    init_bitvec_ptr(&(meta->mcast_grp),0,16,"0");
+    init_bitvec_ptr(&(meta->egress_rid),0,16,"0");
+    init_bitvec_ptr(&(meta->checksum_error),0,1,"0");
+    meta->parser_error = 0;
+    init_bitvec_ptr(&(meta->priority),0,3,"0");
 }
 
-typedef struct standard_metadata_t {
-    BitVec      ingress_port;
-    BitVec      egress_spec;
-    BitVec     egress_port;
-    BitVec     instance_type;
-    BitVec     packet_length;
 
-    BitVec enq_timestamp;
-    BitVec enq_qdepth;
-    BitVec deq_timedelta;
-    BitVec deq_qdepth;
-
-    BitVec ingress_global_timestamp;
-    BitVec egress_global_timestamp;
-    BitVec mcast_grp;
-    BitVec egress_rid;
-    BitVec  checksum_error;
-    error parser_error;
-    BitVec priority;
+int main( int argc, char *argv[] ) //first argument is the location of the input packet, second argument is ingress_port
+{
+  if(argc != 3){
+    printf("wrong number of arguments");
+    return 2;
+  }
+  FILE *fp;
+  fp = fopen(argv[1], "r");
+  unsigned char buff [256]; //a temporary limit
+  packet_out pout;
+  packet_in pin;
+  fscanf(fp, "%s", buff);
+  pin.in = buff;
+  struct H h;
+  struct M m;
+  struct standard_metadata_t meta;
+  init_standard_metada(&meta);
+  init_bitvec_ptr(&(meta.ingress_port), 0,9,argv[2]);
+  int result;
+  result = parser (&pin, &h , &m, &meta);
+  if(!result){
+    printf("parser rejected the packet");
+  }else{
+  result = verify (&h, &m);
+  if(!result){
+    printf("verify failed");
+  }else{
+  result = ingress (&h, &m, &meta);
+  if(!result){
+    printf("ingress failed");
+  }else{
+  result = egress (&h, &m, &meta);
+  if(!result){
+    printf("egress failed");
+  }else{
+  result = compute(&h, &m);
+  if(!result){
+    printf("compute checksum failed");
+  }else{
+  result = deparser(&pout, h);
+  if(!result){
+    printf("deparser failed");
+  }else{
+    printf("packet successfully emitted");
+  }
+  }
+  }
+  }
+  }
+  }
+  return 0;
 }

@@ -66,19 +66,35 @@ let name_of_external = function
 
 let rec print_builtin_arg px oc = function
   | BA x -> px oc x
-  | BA_int n -> fprintf oc "int %ld" (camlint_of_coqint n)
-  | BA_long n -> fprintf oc "long %Ld" (camlint64_of_coqint n)
+  | BA_int n -> 
+  (* fprintf oc "int %ld" (camlint_of_bigint n) *)
+  fprintf oc "int %ld" (camlint_of_coqint n)
+                  (* fprintf oc "int %a" (print_bigint n) *)
+  | BA_long n -> 
+  (* fprintf oc "long %Ld" (camlint64_of_bigint n) *)
+  fprintf oc "long %Ld" (camlint64_of_coqint n)
+                  (* fprintf oc "Long %a" (print_bigint n) *)
   | BA_float n -> fprintf oc "float %.15F" (camlfloat_of_coqfloat n)
   | BA_single n -> fprintf oc "single %.15F" (camlfloat_of_coqfloat32 n)
   | BA_loadstack(chunk, ofs) ->
+      (* fprintf oc "%s[sp + %ld]" (name_of_chunk chunk) (camlint_of_bigint ofs) *)
       fprintf oc "%s[sp + %ld]" (name_of_chunk chunk) (camlint_of_coqint ofs)
+       (* fprintf oc "%s[sp + %a]" (name_of_chunk chunk) (print_bigint ofs)  *)
   | BA_addrstack(ofs) ->
+      (* fprintf oc "sp + %ld" (camlint_of_bigint ofs) *)
       fprintf oc "sp + %ld" (camlint_of_coqint ofs)
+       (* fprintf oc "sp + %a" (print_bigint ofs) *)
   | BA_loadglobal(chunk, id, ofs) ->
+      (* fprintf oc "%s[&%s + %ld]"
+              (name_of_chunk chunk) (extern_atom id) (camlint_of_bigint ofs) *)
       fprintf oc "%s[&%s + %ld]"
               (name_of_chunk chunk) (extern_atom id) (camlint_of_coqint ofs)
+      (* fprintf oc "%s[&%s + %a]"
+              (name_of_chunk chunk) (extern_atom id) (print_bigint ofs)  *)
   | BA_addrglobal(id, ofs) ->
+      (* fprintf oc "&%s + %ld" (extern_atom id) (camlint_of_bigint ofs) *)
       fprintf oc "&%s + %ld" (extern_atom id) (camlint_of_coqint ofs)
+      (* fprintf oc "&%s + %a" (extern_atom id) (print_bigint ofs) *)
   | BA_splitlong(hi, lo) ->
       fprintf oc "splitlong(%a, %a)"
                  (print_builtin_arg px) hi (print_builtin_arg px) lo

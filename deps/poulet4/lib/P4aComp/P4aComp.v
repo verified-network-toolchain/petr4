@@ -53,14 +53,14 @@ Check inl.
 
 Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : option (F.fs string nat) :=
   match st with 
-    | Stmt.SVardecl x expr _ => 
+  | Stmt.SVardecl x expr _ => 
       match expr with 
       | inl typ =>
           match type_size ctxt typ with
           | Some sz => Some [(x, sz)]
           | None => None
           end
-        | inr e => Some [(x, 0)]   (* Get type size from e *)
+      | inr e => Some [(x, 0)]   (* Get type size from e *)
       end
   | Stmt.SSeq s1 s2 _ =>
       match (collect_hdrs_stmt ctxt s1) with
@@ -126,6 +126,7 @@ Defined.
 Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
 Admitted. *)
 
+Search op.
 (* Fixpoint translate_st (s:Stmt.s tags_t): op _:= 
   match s with 
   | Stmt.SSkip i => OpNil _

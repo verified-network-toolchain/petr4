@@ -702,16 +702,19 @@ Section CCompSel.
       match type with 
       | Expr.TBool => 
         let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
         let stmt := Scall None extract_bool_function [packet;arg'] in
         error_ret (stmt, env')
       | Expr.TBit w => 
         let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
         let is_signed := Cfalse in 
         let width := Cint_of_Z (Z.of_N w) in 
         let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
         error_ret (stmt, env')
       | Expr.TInt w => 
         let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
         let is_signed := Ctrue in 
         let width := Cint_of_Z (Zpos w) in 
         let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
@@ -743,6 +746,69 @@ Section CCompSel.
               F.fold (fun fname ft cumulator => 
               let* (prev_stmt, env') := cumulator in 
               let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname member info) ft pname env' info in
+              error_ret (Ssequence stmt prev_stmt, env'')
+              ) fs (error_ret (Sskip, env))
+            )
+          in
+          error_ret (Ssequence old_stmt new_stmt, env')
+        ) nat_size (error_ret (Sskip, env))
+
+
+      | Expr.TVar _ => err "Can't extract to TVar"
+      end.
+
+
+  Fixpoint CTranslateEmit (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
+  : @error_monad string (Clight.statement * ClightEnv tags_t)
+  := 
+      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_out noattr)) TpointerPacketOut in
+      match type with 
+      | Expr.TBool => 
+        let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
+        let stmt := Scall None emit_bool_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TBit w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Cfalse in 
+        let width := Cint_of_Z (Z.of_N w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TInt w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Ctrue in 
+        let width := Cint_of_Z (Zpos w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TError => err "Can't extract to error"
+      | Expr.TTuple _ => err "Can't extract to tuple"
+      | Expr.TStruct fs => 
+        F.fold (fun fname ft cumulator => 
+          let* (prev_stmt, env') := cumulator in 
+          let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+          error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+      | Expr.THeader fs =>
+        F.fold (fun fname ft cumulator => 
+        let* (prev_stmt, env') := cumulator in 
+        let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+        error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+        (* TODO: check the validity and decide whether to emit *)
+      | Expr.THeaderStack fs size => 
+        let header_typ := Expr.THeader fs in
+        let nat_size := Pos.to_nat size in
+        fold_nat (
+          fun cumulator n =>
+          let* (old_stmt, env') := cumulator in 
+          let member := Expr.EHeaderStackAccess fs arg (Z.of_nat n) info in 
+          let* (new_stmt, env') := 
+            (
+              F.fold (fun fname ft cumulator => 
+              let* (prev_stmt, env') := cumulator in 
+              let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname member info) ft pname env' info in
               error_ret (Ssequence stmt prev_stmt, env'')
               ) fs (error_ret (Sskip, env))
             )
@@ -903,6 +969,15 @@ Section CCompSel.
           match F.get "hdr" args with 
           | Some (PAOut arg) => 
             CTranslateExtract arg (t_of_e arg) e env i
+          | _ => err "no out argument named hdr"
+          end
+        else error_ret (Sskip, env)
+      else 
+      if (String.eqb t "packet_out") then 
+        if (String.eqb f "emit") then
+          match F.get "hdr" args with 
+          | Some (PAIn arg) => 
+            CTranslateEmit arg (t_of_e arg) e env i
           | _ => err "no out argument named hdr"
           end
         else error_ret (Sskip, env)

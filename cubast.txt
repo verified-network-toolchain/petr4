@@ -265,7 +265,12 @@ TPSeq
                                                                 3>>>>) 
  (start = (Stateblock 
  
-              (stmt SSkip) 
+              (stmt SSeq 
+                                                                SExternMethodCall packet_in.extract <>(
+                                                                paramargs: <<
+                                                                hdr = PAOut <EVar : <TStruct <<
+                                                                i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
+ SSkip) 
 
               (trans PGoto ((STAccept))) 
 
@@ -273,7 +278,12 @@ TPSeq
  (states = <
                                                                 start = (Stateblock 
  
-              (stmt SSkip) 
+              (stmt SSeq 
+                                                                SExternMethodCall packet_in.extract <>(
+                                                                paramargs: <<
+                                                                hdr = PAOut <EVar : <TStruct <<
+                                                                i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
+ SSkip) 
 
               (trans PGoto ((STAccept))) 
 

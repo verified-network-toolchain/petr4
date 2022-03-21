@@ -56,7 +56,7 @@ Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : F.fs
     | Stmt.SVardecl x expr _ => 
       match expr with 
         | inl typ => [prod x (type_size typ)] 
-        | inr e => [prod x (0)] 
+        | inr e => [prod x (0)]   (* Get type size from e *)
       end
     | Stmt.SSeq s1 s2 _ => collect_hdrs_stmt (collect_hdrs_stmt ctxt s1) s2
     | _ => ctxt
@@ -73,6 +73,7 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : list (prod string nat) :=
 
 Definition mk_hdr_type (hdrs: list (prod string nat)) : Type := Fin.t (List.length hdrs).
 
+(*  *)
 
 
 

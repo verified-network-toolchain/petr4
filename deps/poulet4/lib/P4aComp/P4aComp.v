@@ -28,7 +28,8 @@ Variable (tags_t : Type).
     | TopDecl.TPSeq d1 d2 _ => collect_hdrs d1 ++ collect_hdrs d2
     | _ => []
   end. *)
-  Check String.eqb.
+
+
 Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
   match e with 
     | Expr.TBool => Some 1
@@ -48,11 +49,17 @@ Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
     | Expr.TVar var_name => Field.find_value (String.eqb var_name) ctxt
     | _ => None
   end.
+Check inl.
 
-Fixpoint collect_hdrs_stmt (st: P4c.Stmt.s tags_t) : list (prod string nat) :=
+Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : F.fs string nat :=
   match st with 
-    | Stmt.SSeq s1 s2 _ => collect_hdrs_stmt s1 ++ collect_hdrs_stmt s2
-    | _ => []
+    | Stmt.SVardecl x expr _ => 
+      match expr with 
+        | inl typ => [prod x (type_size typ)] 
+        | inr e => [prod x (0)] 
+      end
+    | Stmt.SSeq s1 s2 _ => collect_hdrs_stmt (collect_hdrs_stmt ctxt s1) s2
+    | _ => ctxt
   end.
 
 (* Fixpoitn collect_hdrs_state (state: ) :  *)
@@ -65,6 +72,8 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : list (prod string nat) :=
   end.
 
 Definition mk_hdr_type (hdrs: list (prod string nat)) : Type := Fin.t (List.length hdrs).
+
+
 
 
 

@@ -8,7 +8,7 @@
 	SyntaxUtil GenLoc
 	ConstValue
     AST EquivDec
-    ToP4cub ToGCL GCL Inline
+    ToP4cub ToGCL GCL Inline Statementize VarNameGen
     HoistNameless InferMemberTypes Substitution InlineTypeDecl
     TableInstr V1model
     Auxilary Envn Result P4Arith

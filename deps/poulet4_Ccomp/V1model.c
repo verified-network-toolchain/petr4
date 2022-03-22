@@ -67,10 +67,13 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   FILE *fp;
   fp = fopen(argv[1], "r");
   unsigned char buff [256]; //a temporary limit
+  unsigned char buff_out [256]; 
   packet_out pout;
   packet_in pin;
   fscanf(fp, "%s", buff);
   pin.in = buff;
+  pout.out = buff_out;
+  pout.index = buff_out; 
   struct H h;
   struct M m;
   struct standard_metadata_t meta;
@@ -101,7 +104,12 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   if(!result){
     printf("deparser failed");
   }else{
-    printf("packet successfully emitted");
+    BitVec eport = *(meta.egress_port);
+    int eport_size = mpz_sizeinbase (eport.value, 10) + 2;
+    char* eport_val = malloc(sizeof(char) * eport_size);
+    mpz_get_str(eport_val, 10, eport.value);
+    printf("packet successfully emitted at port [%s] \n content: %s \n",
+    eport_val, pout.out);
   }
   }
   }

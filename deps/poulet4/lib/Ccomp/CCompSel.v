@@ -220,7 +220,7 @@ Section CCompSel.
                         let(cty, env_ty):= CTranslateType ty env in
                         let* (x', env') := CTranslateExpr x env_ty in
 
-                        match ty with
+                        match (t_of_e x) with
                         | Expr.TStruct(f) =>
                           match F.get_index y f , F.get y f, lookup_composite tags_t env' (t_of_e x) with 
                           | Some n, Some t_member, inl comp =>
@@ -702,16 +702,19 @@ Section CCompSel.
       match type with 
       | Expr.TBool => 
         let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
         let stmt := Scall None extract_bool_function [packet;arg'] in
         error_ret (stmt, env')
       | Expr.TBit w => 
         let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
         let is_signed := Cfalse in 
         let width := Cint_of_Z (Z.of_N w) in 
         let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
         error_ret (stmt, env')
       | Expr.TInt w => 
         let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
         let is_signed := Ctrue in 
         let width := Cint_of_Z (Zpos w) in 
         let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
@@ -743,6 +746,69 @@ Section CCompSel.
               F.fold (fun fname ft cumulator => 
               let* (prev_stmt, env') := cumulator in 
               let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname member info) ft pname env' info in
+              error_ret (Ssequence stmt prev_stmt, env'')
+              ) fs (error_ret (Sskip, env))
+            )
+          in
+          error_ret (Ssequence old_stmt new_stmt, env')
+        ) nat_size (error_ret (Sskip, env))
+
+
+      | Expr.TVar _ => err "Can't extract to TVar"
+      end.
+
+
+  Fixpoint CTranslateEmit (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
+  : @error_monad string (Clight.statement * ClightEnv tags_t)
+  := 
+      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_out noattr)) TpointerPacketOut in
+      match type with 
+      | Expr.TBool => 
+        let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
+        let stmt := Scall None emit_bool_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TBit w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Cfalse in 
+        let width := Cint_of_Z (Z.of_N w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TInt w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Ctrue in 
+        let width := Cint_of_Z (Zpos w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TError => err "Can't extract to error"
+      | Expr.TTuple _ => err "Can't extract to tuple"
+      | Expr.TStruct fs => 
+        F.fold (fun fname ft cumulator => 
+          let* (prev_stmt, env') := cumulator in 
+          let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+          error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+      | Expr.THeader fs =>
+        F.fold (fun fname ft cumulator => 
+        let* (prev_stmt, env') := cumulator in 
+        let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+        error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+        (* TODO: check the validity and decide whether to emit *)
+      | Expr.THeaderStack fs size => 
+        let header_typ := Expr.THeader fs in
+        let nat_size := Pos.to_nat size in
+        fold_nat (
+          fun cumulator n =>
+          let* (old_stmt, env') := cumulator in 
+          let member := Expr.EHeaderStackAccess fs arg (Z.of_nat n) info in 
+          let* (new_stmt, env') := 
+            (
+              F.fold (fun fname ft cumulator => 
+              let* (prev_stmt, env') := cumulator in 
+              let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname member info) ft pname env' info in
               error_ret (Ssequence stmt prev_stmt, env'')
               ) fs (error_ret (Sskip, env))
             )
@@ -903,6 +969,15 @@ Section CCompSel.
           match F.get "hdr" args with 
           | Some (PAOut arg) => 
             CTranslateExtract arg (t_of_e arg) e env i
+          | _ => err "no out argument named hdr"
+          end
+        else error_ret (Sskip, env)
+      else 
+      if (String.eqb t "packet_out") then 
+        if (String.eqb f "emit") then
+          match F.get "hdr" args with 
+          | Some (PAIn arg) => 
+            CTranslateEmit arg (t_of_e arg) e env i
           | _ => err "no out argument named hdr"
           end
         else error_ret (Sskip, env)
@@ -1442,7 +1517,7 @@ Section CCompSel.
           (get_temps tags_t env_apply_block_translated)
           (Ssequence table_init body) in
       let env_top_fn_declared := 
-        CCompEnv.add_function tags_t env_local_decled instance_name top_fn in
+        CCompEnv.add_function tags_t env_apply_block_translated instance_name top_fn in
       error_ret (set_temp_vars tags_t env env_top_fn_declared) 
 
     | _ => err "not a top control"
@@ -1653,8 +1728,8 @@ Section CCompSel.
     | Errors.OK prog => print_Clight prog
     end.  
 End CCompSel.
-(* 
-Require Poulet4.Compile.ToP4cub.
+
+(* Require Poulet4.Compile.ToP4cub.
 Require Poulet4.Monads.Result.
 Require Poulet4.P4light.Syntax.P4defs.
 Require Poulet4.Ccomp.Example.
@@ -1663,14 +1738,13 @@ Definition helloworld_program :=
   match ToP4cub.translate_program' P4defs.Info P4defs.Inhabitant_Info Example.prog with
   | @Result.Error (_) e => Errors.Error (Errors.msg e)
   | @Result.Ok (_) p =>
-    let sel := Statementize.TranslateProgram p in 
-    CCompSel.Compile P4defs.Info sel
+    p
   end. 
 
 Compute helloworld_program. *)
 
-(* 
-Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
+
+(* Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 
   CCompSel.Compile nat helloworld_program_sel.
 

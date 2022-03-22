@@ -540,7 +540,45 @@ Definition MyIngress := DeclControl NoInfo
      (MkParameter false InOut
           (TypTypeName {| stags := NoInfo; str := "standard_metadata_t" |})
           None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
-    (BlockEmpty NoInfo).
+    (BlockCons
+         (MkStatement NoInfo
+              (StatAssignment
+                   (MkExpression NoInfo
+                        (ExpExpressionMember
+                             (MkExpression NoInfo
+                                  (ExpName
+                                   (BareName
+                                    {| stags := NoInfo; str := "hdr" |})
+                                   NoLocator)
+                                  (TypTypeName
+                                   {| stags := NoInfo; str := "headers" |})
+                                  InOut) {| stags := NoInfo; str := "i" |})
+                        TypBool Directionless)
+                   (MkExpression NoInfo (ExpBool true) TypBool Directionless))
+              StmUnit)
+         (BlockCons
+              (MkStatement NoInfo
+                   (StatAssignment
+                        (MkExpression NoInfo
+                             (ExpExpressionMember
+                                  (MkExpression NoInfo
+                                       (ExpName
+                                        (BareName
+                                         {| stags := NoInfo;
+                                            str := "standard_metadata" |})
+                                        NoLocator)
+                                       (TypTypeName
+                                        {| stags := NoInfo;
+                                           str := "standard_metadata_t" |})
+                                       InOut)
+                                  {| stags := NoInfo; str := "egress_spec" |})
+                             (TypBit 9%N) Directionless)
+                        (MkExpression NoInfo
+                             (ExpInt
+                              {| itags := NoInfo; value := 9;
+                                 width_signed := (Some ( 9%N, false )) |})
+                             (TypBit 9%N) Directionless)) StmUnit)
+              (BlockEmpty NoInfo))).
 
 Definition MyEgress := DeclControl NoInfo
     {| stags := NoInfo; str := "MyEgress" |} nil

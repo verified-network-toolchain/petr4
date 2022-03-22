@@ -38,7 +38,6 @@ Extract Inlined Constant SimplExpr.Nzero => "(Bigint.of_zarith_bigint (Zarith.Z.
 Extract Inlined Constant BinNat.N.eqb => "Bigint.(=)".
 Extract Inlined Constant BinNat.N.add => "Bigint.(+)".
 Extract Inlined Constant Nat.add => "(+)".
-
 Require Poulet4.P4light.Syntax.Syntax.
 Require Poulet4.P4light.Syntax.Typed.
 Require Poulet4.P4light.Syntax.ConstValue.
@@ -48,6 +47,8 @@ Require Poulet4.GCL.ToGCL.
 Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
+
+Extract Constant VarNameGen.string_of_nat => "Int.to_string".
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
@@ -58,5 +59,5 @@ Separate Extraction
          Poulet4.GCL.GCL
          Poulet4.GCL.ToGCL
          Poulet4.GCL.TableInstr
-         Poulet4.GCL.V1model.
-         (* Poulet4.P4cub.Transformations.Lifting.Statementize. *)
+         Poulet4.GCL.V1model
+         Poulet4.P4cub.Transformations.Lifting.Statementize.

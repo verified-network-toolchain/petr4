@@ -81,7 +81,11 @@ TPSeq
                                                                 meta = PAInOut <TStruct <>>>) 
  (body = CDSeq (CDAction NoAction(){SSkip} 
  CDAction $DUMMY_ACTION(){SSkip})) 
- (apply_blk = SSkip)  
+ (apply_blk = SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSkip 
+ SSkip)  
  
                                                                 TPControl 
  (control_name = MyIngress) 
@@ -126,7 +130,64 @@ TPSeq
                                                                 3>>>>) 
  (body = CDSeq (CDAction NoAction(){SSkip} 
  CDAction $DUMMY_ACTION(){SSkip})) 
- (apply_blk = SSkip)   
+ (apply_blk = SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSeq 
+                                                                SSkip 
+ SAssign 
+                                                                EExprMember <TBool> 
+                                                                EVar : <TStruct <<
+                                                                i = TBool>>> hdr.i := EBool true 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_0 
+                                                                Init: EBit <9> 9) 
+ SAssign 
+                                                                EExprMember <TBit: 
+                                                                9> EVar : <TStruct <<
+                                                                   ingress_port = TBit: 
+                                                                   9,
+                                                                   egress_spec = TBit: 
+                                                                   9,
+                                                                   egress_port = TBit: 
+                                                                   9,
+                                                                   instance_type = TBit: 
+                                                                   32,
+                                                                   packet_length = TBit: 
+                                                                   32,
+                                                                   enq_timestamp = TBit: 
+                                                                   32,
+                                                                   enq_qdepth = TBit: 
+                                                                   19,
+                                                                   deq_timedelta = TBit: 
+                                                                   32,
+                                                                   deq_qdepth = TBit: 
+                                                                   19,
+                                                                   ingress_global_timestamp = TBit: 
+                                                                   48,
+                                                                   egress_global_timestamp = TBit: 
+                                                                   48,
+                                                                   mcast_grp = TBit: 
+                                                                   16,
+                                                                   egress_rid = TBit: 
+                                                                   16,
+                                                                   checksum_error = TBit: 
+                                                                   1,
+                                                                   parser_error = TError,
+                                                                   priority = TBit: 
+                                                                   3>>> standard_metadata.egress_spec := EVar : <TBit: 
+                                                                9> _p_4_s_e_l_0 
+ SSkip)   
  
                                                                 TPControl 
  (control_name = MyEgress) 
@@ -171,7 +232,55 @@ TPSeq
                                                                 3>>>>) 
  (body = CDSeq (CDAction NoAction(){SSkip} 
  CDAction $DUMMY_ACTION(){SSkip})) 
- (apply_blk = SSkip)   
+ (apply_blk = SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_1 
+                                                                Init: EBit <9> 9) 
+ SAssign 
+                                                                EExprMember <TBit: 
+                                                                9> EVar : <TStruct <<
+                                                                   ingress_port = TBit: 
+                                                                   9,
+                                                                   egress_spec = TBit: 
+                                                                   9,
+                                                                   egress_port = TBit: 
+                                                                   9,
+                                                                   instance_type = TBit: 
+                                                                   32,
+                                                                   packet_length = TBit: 
+                                                                   32,
+                                                                   enq_timestamp = TBit: 
+                                                                   32,
+                                                                   enq_qdepth = TBit: 
+                                                                   19,
+                                                                   deq_timedelta = TBit: 
+                                                                   32,
+                                                                   deq_qdepth = TBit: 
+                                                                   19,
+                                                                   ingress_global_timestamp = TBit: 
+                                                                   48,
+                                                                   egress_global_timestamp = TBit: 
+                                                                   48,
+                                                                   mcast_grp = TBit: 
+                                                                   16,
+                                                                   egress_rid = TBit: 
+                                                                   16,
+                                                                   checksum_error = TBit: 
+                                                                   1,
+                                                                   parser_error = TError,
+                                                                   priority = TBit: 
+                                                                   3>>> standard_metadata.egress_port := EVar : <TBit: 
+                                                                9> _p_4_s_e_l_1 
+ SSkip)   
  
                                                                 TPControl 
  (control_name = MyDeparser) 
@@ -184,7 +293,11 @@ TPSeq
                                                                 i = TBool>>>>) 
  (body = CDSeq (CDAction NoAction(){SSkip} 
  CDAction $DUMMY_ACTION(){SSkip})) 
- (apply_blk = SSkip)   
+ (apply_blk = SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSkip 
+ SSkip)   
  
                                                                 TPInstantiate 
  (constructor_name = MyChecksum) 
@@ -266,10 +379,7 @@ TPSeq
  (start = (Stateblock 
  
               (stmt SSeq 
-                                                                SExternMethodCall packet_in.extract <>(
-                                                                paramargs: <<
-                                                                hdr = PAOut <EVar : <TStruct <<
-                                                                i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
+                                                                SSkip 
  SSkip) 
 
               (trans PGoto ((STAccept))) 
@@ -279,10 +389,7 @@ TPSeq
                                                                 start = (Stateblock 
  
               (stmt SSeq 
-                                                                SExternMethodCall packet_in.extract <>(
-                                                                paramargs: <<
-                                                                hdr = PAOut <EVar : <TStruct <<
-                                                                i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
+                                                                SSkip 
  SSkip) 
 
               (trans PGoto ((STAccept))) 

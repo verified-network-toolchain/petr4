@@ -166,12 +166,12 @@ module Make_parse (Conf: Parse_config) = struct
           let prog'' =
             if gen_loc then
               match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
-              | Coq_inl prog'' -> prog''
+              | Coq_inl prog'' -> prog'' 
               | Coq_inr ex -> failwith "error occurred in GenLoc"
             else prog' in
           let prog''' = 
             match Poulet4.ToP4cub.translate_program' P4info.dummy prog'' with
-            | Poulet4.Result.Result.Ok prog''' -> prog'''
+            | Poulet4.Result.Result.Ok prog''' -> (prog'''|> Poulet4.Statementize.coq_TranslateProgram) 
             | Poulet4.Result.Result.Error e -> failwith e in
           if(print_p4cub) then (
               let oc_p4 = Out_channel.create printp4_file in

@@ -24,14 +24,19 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        
+        hdr.i = true;
+        standard_metadata.egress_spec = 9w9;
     }
 }
 
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
-    apply { }
+    apply { 
+        //hdr.i = true;
+        
+        standard_metadata.egress_port = 9w9;
+        }
 }
 
 control MyDeparser(packet_out packet, in headers hdr) {

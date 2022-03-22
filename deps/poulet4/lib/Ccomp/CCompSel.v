@@ -220,7 +220,7 @@ Section CCompSel.
                         let(cty, env_ty):= CTranslateType ty env in
                         let* (x', env') := CTranslateExpr x env_ty in
 
-                        match ty with
+                        match (t_of_e x) with
                         | Expr.TStruct(f) =>
                           match F.get_index y f , F.get y f, lookup_composite tags_t env' (t_of_e x) with 
                           | Some n, Some t_member, inl comp =>
@@ -1517,7 +1517,7 @@ Section CCompSel.
           (get_temps tags_t env_apply_block_translated)
           (Ssequence table_init body) in
       let env_top_fn_declared := 
-        CCompEnv.add_function tags_t env_local_decled instance_name top_fn in
+        CCompEnv.add_function tags_t env_apply_block_translated instance_name top_fn in
       error_ret (set_temp_vars tags_t env env_top_fn_declared) 
 
     | _ => err "not a top control"
@@ -1728,8 +1728,8 @@ Section CCompSel.
     | Errors.OK prog => print_Clight prog
     end.  
 End CCompSel.
-(* 
-Require Poulet4.Compile.ToP4cub.
+
+(* Require Poulet4.Compile.ToP4cub.
 Require Poulet4.Monads.Result.
 Require Poulet4.P4light.Syntax.P4defs.
 Require Poulet4.Ccomp.Example.
@@ -1738,14 +1738,13 @@ Definition helloworld_program :=
   match ToP4cub.translate_program' P4defs.Info P4defs.Inhabitant_Info Example.prog with
   | @Result.Error (_) e => Errors.Error (Errors.msg e)
   | @Result.Ok (_) p =>
-    let sel := Statementize.TranslateProgram p in 
-    CCompSel.Compile P4defs.Info sel
+    p
   end. 
 
 Compute helloworld_program. *)
 
-(* 
-Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
+
+(* Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 
   CCompSel.Compile nat helloworld_program_sel.
 

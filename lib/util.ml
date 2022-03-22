@@ -112,3 +112,35 @@ let eq_opt ~f o1 o2 =
   | None, None -> true
   | Some v1, Some v2 -> f v1 v2
   | _ -> false
+
+let hex_of_nibble (i : int) : string =
+  match i with
+  | 0 -> "0"
+  | 1 -> "1"
+  | 2 -> "2"
+  | 3 -> "3"
+  | 4 -> "4"
+  | 5 -> "5"
+  | 6 -> "6"
+  | 7 -> "7"
+  | 8 -> "8"
+  | 9 -> "9"
+  | 10 -> "A"
+  | 11 -> "B"
+  | 12 -> "C"
+  | 13 -> "D"
+  | 14 -> "E"
+  | 15 -> "F"
+  | _ -> failwith ("hex_of_nibble: " ^ string_of_int i)
+       
+let hex_of_int (i : int) : string =
+  hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
+  
+let hex_of_char (c : char) : string =
+  c |> Char.to_int |> hex_of_int
+  
+let hex_of_string (s : string) : string =
+  s
+  |> String.to_list
+  |> List.map ~f:hex_of_char
+  |> List.fold_left ~init:"" ~f:(^)

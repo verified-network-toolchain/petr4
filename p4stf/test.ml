@@ -1,6 +1,5 @@
 open Petr4
 open Petr4.Ast
-open Common
 open Core
 
 let stmt_string s =
@@ -14,7 +13,7 @@ let stmt_string s =
 
 let colorize colors s = ANSITerminal.sprintf colors "%s" s
 
-module Conf: Parse_config =
+module Conf =
 struct
   open Core
   let red s = colorize [ANSITerminal.red] s
@@ -31,8 +30,6 @@ struct
     let _ = Unix.close_process_in in_chan in
     str
 end
-
-module Petr4_parse = Make_parse(Conf)
 
 let empty_ctrl =
 {|{
@@ -105,7 +102,7 @@ module MakeRunner (C : RunnerConfig) = struct
         let results' =
         begin match result with
         | Some (pkt, port) ->
-                let fixed = pkt |> Cstruct.to_string |> Petr4_parse.hex_of_string |> strip_spaces |> String.lowercase in
+                let fixed = pkt |> Cstruct.to_string |> Util.hex_of_string |> strip_spaces |> String.lowercase in
                 (Bigint.to_string port, fixed) :: results
         | None -> results
         end in
@@ -147,16 +144,15 @@ let get_stf_files path =
   Sys.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
-let run_stf include_dir stf_file p4_file =
+let run_stf stf_file p4prog =
     let ic = In_channel.create stf_file in
     let lexbuf = Lexing.from_channel ic in
     let stmts = Test_parser.statements Test_lexer.token lexbuf in
     let env, prog = 
-      Petr4_parse.parse_file include_dir p4_file false
-      |> (function `Ok p -> p | _ -> failwith "Petr4 parser error")
+      p4prog
       |> Elaborate.elab
       |> fun (prog, renamer) -> Checker.check_program renamer prog
-      |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
+      |> Tuple.T2.map_fst ~f:Prog.Env.CheckerEnv.eval_env_of_t in
     let target = match prog with Program l ->
       l
       |> List.rev |> List.hd_exn |> snd
@@ -171,9 +167,9 @@ let run_stf include_dir stf_file p4_file =
       Up4Runner.run_test prog stmts ([],[]) [] [] env Eval.Up4Interpreter.empty_state
     | _ -> failwith "architecture unsupported"
 
-let stf_alco_test include_dir stf_file p4_file =
+let stf_alco_test stf_file p4_file p4prog =
     let run_stf_alcotest () =
-      let expected, results = run_stf include_dir stf_file p4_file in
+      let expected, results = run_stf stf_file p4prog in
       List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
             Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
     in

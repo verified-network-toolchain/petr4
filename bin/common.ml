@@ -13,6 +13,7 @@
  * under the License.
 *)
 
+open Petr4
 module P4Info = Info
 open Core_kernel
 module Info = P4Info
@@ -56,38 +57,6 @@ module Make_parse (Conf: Parse_config) = struct
     let lexbuf = Lexing.from_string p4_string in
     Parser.p4program Lexer.lexer lexbuf 
 
-  let hex_of_nibble (i : int) : string =
-    match i with
-    | 0 -> "0"
-    | 1 -> "1"
-    | 2 -> "2"
-    | 3 -> "3"
-    | 4 -> "4"
-    | 5 -> "5"
-    | 6 -> "6"
-    | 7 -> "7"
-    | 8 -> "8"
-    | 9 -> "9"
-    | 10 -> "A"
-    | 11 -> "B"
-    | 12 -> "C"
-    | 13 -> "D"
-    | 14 -> "E"
-    | 15 -> "F"
-    | _ -> failwith "unreachable"
-
-  let hex_of_int (i : int) : string =
-    hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
-
-  let hex_of_char (c : char) : string =
-    c |> Char.to_int |> hex_of_int
-
-  let hex_of_string (s : string) : string =
-    s
-    |> String.to_list
-    |> List.map ~f:hex_of_char
-    |> List.fold_left ~init:"" ~f:(^)
-
   let check_file' (include_dirs : string list) (p4_file : string) (verbose : bool) =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
@@ -117,6 +86,29 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (Info.to_string info) (Exn.to_string err)
 
+  let do_stf include_dir stf_file p4_file =
+    let print_err (e_port, e_pkt) (a_port, a_pkt) =
+      Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
+        e_port e_pkt a_port a_pkt
+    in
+    let print_ok (a_port, a_pkt) =
+      Printf.printf "Packet matched the expected packet.\nPacket:   port %s pkt %s\n\n"
+        a_port a_pkt
+    in
+    let check_pkt (expected_pkt, actual_pkt) =
+      if not (P4stf.Test.packet_equal expected_pkt actual_pkt)
+      then print_err expected_pkt actual_pkt
+      else print_ok actual_pkt
+    in
+    let verbose = false in
+    match parse_file include_dir p4_file verbose with
+    | `Ok p4prog -> 
+       let expected, results = P4stf.Test.run_stf stf_file p4prog in
+       let pkts = List.zip_exn expected results in
+       List.iter ~f:check_pkt pkts
+    | `Error err -> 
+       ()
+       
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     let port = Bigint.of_int port in
     let pkt = Cstruct.of_hex pkt_str in
@@ -153,7 +145,7 @@ module Make_parse (Conf: Parse_config) = struct
   let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port target =
     match eval_file include_dirs p4_file verbose pkt_str ctrl_json port target with
     | `Ok (pkt, port) ->
-      (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
+      (pkt |> Cstruct.to_string |> Util.hex_of_string) ^ " port: " ^ Bigint.to_string port
     | `NoPacket -> "No packet out"
     | `Error(info, exn) ->
       let exn_msg = Exn.to_string exn in

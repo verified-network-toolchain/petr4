@@ -49,7 +49,6 @@ Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
     | Expr.TVar var_name => Field.find_value (String.eqb var_name) ctxt
     | _ => None
   end.
-Check inl.
 
 Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : option (F.fs string nat) :=
   match st with 
@@ -70,16 +69,29 @@ Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : opti
   | _ => Some ctxt
   end.
 
-(* Fixpoitn collect_hdrs_state (state: ) :  *)
+Definition collect_hdrs_state (ctxt:F.fs string nat) (state : Parser.state_block tags_t) : option (F.fs string nat) :=
+  collect_hdrs_stmt ctxt state.(Parser.stmt).
 
-Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : list (prod string nat) :=
+Definition collect_hdrs_states (states : F.fs string (Parser.state_block tags_t)) : option (F.fs string nat) :=
+  List.fold_left  (fun accum state =>  
+    match accum, state with 
+    | (Some ctxt'), (_, s1) => collect_hdrs_state ctxt' s1
+    | None, (_, s2) => collect_hdrs_state [] s2
+    end) states None.
+
+    (* Collect all headers from a program *)
+Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
   match prog with 
-    | TopDecl.TPParser p _ eps params st states i => [] ++ []
+    | TopDecl.TPParser p _ eps params st states i => 
+      match collect_hdrs_states states with
+      | Some ctxt => ctxt
+      | None => []
+      end
     | TopDecl.TPSeq d1 d2 _ => collect_hdrs d1 ++ collect_hdrs d2
     | _ => []
   end.
 
-Definition mk_hdr_type (hdrs: list (string * nat)) : Type := Fin.t (List.length hdrs).
+Definition mk_hdr_type (hdrs: F.fs string nat) : Type := Fin.t (List.length hdrs).
 
 Lemma findi_length_bound :
   forall {A: Type} pred (l: list A) i,

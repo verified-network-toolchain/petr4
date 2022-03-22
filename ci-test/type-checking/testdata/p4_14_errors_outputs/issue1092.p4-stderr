@@ -1,0 +1,2 @@
+[--Werror=insufficient] error: No transition from a parser to ingress pipeline found
+[--Werror=overlimit] error: 1 errors encountered, aborting compilation

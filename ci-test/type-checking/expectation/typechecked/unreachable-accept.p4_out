@@ -1,0 +1,107 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/unreachable-accept.p4
+\n
+/*
+Copyright 2016 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+// Test case for issue #199
+#include <core.p4>
+
+header ethernet_h {
+    bit<48> dst;
+    bit<48> src;
+    bit<16> type;
+}
+
+struct headers_t {
+    ethernet_h ethernet;
+}
+
+parser Parser(packet_in pkt_in, out headers_t hdr) {
+    state start {
+        pkt_in.extract(hdr.ethernet);
+    }
+}
+
+control Deparser(in headers_t hdr, packet_out pkt_out) {
+    apply {
+        pkt_out.emit(hdr.ethernet);
+    }
+}
+
+parser P<H>(packet_in pkt, out H hdr);
+control D<H>(in H hdr, packet_out pkt);
+
+package S<H>(P<H> p, D<H> d);
+S(Parser(), Deparser()) main;
+************************\n******** petr4 type checking result: ********\n************************\n
+error {
+  NoError, PacketTooShort, NoMatch, StackOutOfBounds, HeaderTooShort,
+  ParserTimeout, ParserInvalidArgument
+}
+extern packet_in {
+  void extract<T>(out T hdr);
+  void extract<T0>(out T0 variableSizeHeader,
+                   in bit<32> variableFieldSizeInBits);
+  T1 lookahead<T1>();
+  void advance(in bit<32> sizeInBits);
+  bit<32> length();
+}
+
+extern packet_out {
+  void emit<T2>(in T2 hdr);
+}
+
+extern void verify(in bool check, in error toSignal);
+@noWarn("unused")
+action NoAction() { 
+}
+match_kind {
+  exact, ternary, lpm
+}
+header ethernet_h {
+  bit<48> dst;
+  bit<48> src;
+  bit<16> type;
+}
+struct headers_t {
+  ethernet_h ethernet;
+}
+parser Parser(packet_in pkt_in, out headers_t hdr) {
+  state start {
+    pkt_in.extract(hdr.ethernet);
+    transition reject;
+  }
+}
+control Deparser(in headers_t hdr, packet_out pkt_out) {
+  apply {
+    pkt_out.emit(hdr.ethernet);
+  }
+}
+parser P<H> (packet_in pkt, out H hdr);
+control D<H3> (in H3 hdr, packet_out pkt);
+package S<H4> (P<H4> p, D<H4> d);
+S(Parser(), Deparser()) main;
+
+************************\n******** p4c type checking result: ********\n************************\n
+/petr4/ci-test/type-checking/testdata/p4_16_samples/unreachable-accept.p4(31): [--Wwarn=parser-transition] warning: start: implicit transition to `reject'
+    state start {
+          ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/unreachable-accept.p4(30): [--Wwarn=parser-transition] warning: accept state in parser Parser is unreachable
+parser Parser(packet_in pkt_in, out headers_t hdr) {
+       ^^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/unreachable-accept.p4(30): [--Wwarn=parser-transition] warning: accept state in parser Parser is unreachable
+parser Parser(packet_in pkt_in, out headers_t hdr) {
+       ^^^^^^

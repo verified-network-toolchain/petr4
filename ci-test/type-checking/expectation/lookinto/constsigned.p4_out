@@ -1,0 +1,143 @@
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4
+\n
+/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+const int<8> a = 0;
+const int<8> b = -1;
+const int<8> c = -2;
+const int<8> d = -127;
+const int<8> e = -128;
+const int<8> f = -129;
+const int<8> g = -255;
+const int<8> h = -256;
+const int<8> i = 1;
+const int<8> j = 2;
+const int<8> k = 127;
+const int<8> l = 128;
+const int<8> m = 129;
+const int<8> n = 255;
+const int<8> o = 256;
+
+const int<8> a0 = 8s0;
+const int<8> b0 = -8s1;
+const int<8> c0 = -8s2;
+const int<8> d0 = -8s127;
+const int<8> e0 = -8s128;
+const int<8> f0 = -8s129;
+const int<8> g0 = -8s255;
+const int<8> h0 = -8s256;
+const int<8> i0 = 8s1;
+const int<8> j0 = 8s2;
+const int<8> k0 = 8s127;
+const int<8> l0 = 8s128;
+const int<8> m0 = 8s129;
+const int<8> n0 = 8s255;
+const int<8> o0 = 8s256;
+
+const int<1> zz0 = 0;
+const int<1> zz1 = 1;
+const int<2> zz2 = 2;
+const int<1> zz3 = (int<1>) zz2[0:0];
+************************\n******** petr4 type checking result: ********\n************************\n
+const int<8> a = 0;
+const int<8> b = -1;
+const int<8> c = -2;
+const int<8> d = -127;
+const int<8> e = -128;
+const int<8> f = -129;
+const int<8> g = -255;
+const int<8> h = -256;
+const int<8> i = 1;
+const int<8> j = 2;
+const int<8> k = 127;
+const int<8> l = 128;
+const int<8> m = 129;
+const int<8> n = 255;
+const int<8> o = 256;
+const int<8> a0 = 8s0;
+const int<8> b0 = -8s1;
+const int<8> c0 = -8s2;
+const int<8> d0 = -8s127;
+const int<8> e0 = -8s128;
+const int<8> f0 = -8s129;
+const int<8> g0 = -8s255;
+const int<8> h0 = -8s256;
+const int<8> i0 = 8s1;
+const int<8> j0 = 8s2;
+const int<8> k0 = 8s127;
+const int<8> l0 = 8s128;
+const int<8> m0 = 8s129;
+const int<8> n0 = 8s255;
+const int<8> o0 = 8s256;
+const int<1> zz0 = 0;
+const int<1> zz1 = 1;
+const int<2> zz2 = 2;
+const int<1> zz3 = (int<1>) zz2[0:0];
+
+************************\n******** p4c type checking result: ********\n************************\n
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(37): [--Wwarn=overflow] warning: 8s128: signed value does not fit in 8 bits
+const int<8> e0 = -8s128
+                   ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(38): [--Wwarn=overflow] warning: 8s129: signed value does not fit in 8 bits
+const int<8> f0 = -8s129
+                   ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(39): [--Wwarn=overflow] warning: 8s255: signed value does not fit in 8 bits
+const int<8> g0 = -8s255
+                   ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(40): [--Wwarn=overflow] warning: 8s256: signed value does not fit in 8 bits
+const int<8> h0 = -8s256
+                   ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(44): [--Wwarn=overflow] warning: 8s128: signed value does not fit in 8 bits
+const int<8> l0 = 8s128
+                  ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(45): [--Wwarn=overflow] warning: 8s129: signed value does not fit in 8 bits
+const int<8> m0 = 8s129
+                  ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(46): [--Wwarn=overflow] warning: 8s255: signed value does not fit in 8 bits
+const int<8> n0 = 8s255
+                  ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(47): [--Wwarn=overflow] warning: 8s256: signed value does not fit in 8 bits
+const int<8> o0 = 8s256
+                  ^^^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(22): [--Wwarn=overflow] warning: -8s129: signed value does not fit in 8 bits
+const int<8> f = -129;
+                  ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(23): [--Wwarn=overflow] warning: -8s255: signed value does not fit in 8 bits
+const int<8> g = -255;
+                  ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(24): [--Wwarn=overflow] warning: -8s256: signed value does not fit in 8 bits
+const int<8> h = -256;
+                  ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(28): [--Wwarn=overflow] warning: 8s128: signed value does not fit in 8 bits
+const int<8> l = 128;
+                 ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(29): [--Wwarn=overflow] warning: 8s129: signed value does not fit in 8 bits
+const int<8> m = 129;
+                 ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(30): [--Wwarn=overflow] warning: 8s255: signed value does not fit in 8 bits
+const int<8> n = 255;
+                 ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(31): [--Wwarn=overflow] warning: 8s256: signed value does not fit in 8 bits
+const int<8> o = 256;
+                 ^^^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(50): [--Wwarn=overflow] warning: 1s1: signed value does not fit in 1 bits
+const int<1> zz1 = 1;
+                   ^
+/petr4/ci-test/type-checking/testdata/p4_16_samples/constsigned.p4(51): [--Wwarn=overflow] warning: 2s2: signed value does not fit in 2 bits
+const int<2> zz2 = 2;
+                   ^
+[--Wwarn=missing] warning: Program does not contain a `main' module

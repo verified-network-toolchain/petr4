@@ -84,20 +84,6 @@ Module Expr.
     
   (** Function types. *)
   Definition arrowT : Set := arrow t t.
-    
-  (** Constructor types. *)
-  Inductive ct : Set :=
-  | CTType (type : t)              (** expression types *)
-  | CTControl (cparams : list ct)
-              (runtime_extern_params : list string)
-              (parameters : params)(** control types *)
-  | CTParser (cparams : list ct)
-             (runtime_extern_params : list string)
-             (parameters : params) (** parser types *)
-  | CTPackage (cparams : list ct)  (** package types *)
-  | CTExtern (extern_name : string).  
-    
-  Definition constructor_params : Set := list ct.
   
   Variant uop : Set :=
     | Not        (** boolean negation *)
@@ -156,13 +142,6 @@ Module Expr.
     
   (** Function call. *)
   Definition arrowE : Set := arrow e e.
-    
-  (** Constructor arguments. *)
-  Variant constructor_arg : Set :=
-    | CAExpr (expr : e)   (** plain expression *)
-    | CAName (x : nat)      (** name of parser, control, package, or extern *).
-    
-  Definition constructor_args : Set := list constructor_arg.
 End Expr.
 
 (** Statement Grammar *)
@@ -177,7 +156,7 @@ Module Stmt.
   | Seq (s1 s2 : s) (** sequences *)
   | Block (blk : s) (** blocks *)
   | ExternMethodCall
-      (extern_name method_name : string)
+      (extern_name : nat) (method_name : string)
       (typ_args : list Expr.t)
       (args : Expr.arrowE ) (** extern method calls *)
   | FunCall
@@ -190,7 +169,7 @@ Module Stmt.
   | Return (e : option Expr.e) (** return statement *)
   | Exit (** exit statement *)
   | Invoke (table_name : string) (** table invocation *)
-  | Apply (instance_name : string)
+  | Apply (instance_name : nat)
            (ext_args : list string)
            (args : Expr.args) (** apply statements *).
 End Stmt.
@@ -247,17 +226,38 @@ End Control.
 
 (** Top-Level Declarations *)
 Module TopDecl.
+  (** Constructor Parameter types, for instantiations *)
+  Inductive it : Set :=
+  | EType (type : Expr.t)   (** expression types *)
+  | ControlInstType
+      (extern_params : list string)
+      (parameters : Expr.params) (** control instance types *)
+  | ParserInstType
+      (extern_params : list string)
+      (parameters : Expr.params) (** parser instance types *)
+  | PackageInstType (** package instance types *)
+  | ExternInstType (extern_name : string) (** extern instance types *).
+    
+  Definition constructor_params : Set := list it.
+
+  (** Constructor arguments. *)
+  Variant constructor_arg : Set :=
+    | CAExpr (expr : Expr.e)   (** plain expression *)
+    | CAName (x : nat)      (** name of parser, control, package, or extern *).
+    
+  Definition constructor_args : Set := list constructor_arg.
+  
   (** Top-level declarations. *)
   Inductive d : Set :=
   | Instantiate
       (constructor_name instance_name : string)
       (type_args : list Expr.t)
-      (cargs : Expr.constructor_args )
+      (cargs : constructor_args )
   (** instantiations *)
   | Extern
       (extern_name : string)
       (type_params : nat)
-      (cparams : Expr.constructor_params)
+      (cparams : constructor_params)
       (methods : Field.fs
                    string (** method name *)
                    (nat             (** type parameters *)
@@ -266,14 +266,14 @@ Module TopDecl.
   (** extern declarations *)
   | Control
       (control_name : string)
-      (cparams : Expr.constructor_params) (** constructor params *)
+      (cparams : constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
       (params : Expr.params)       (** apply block params *)
       (body : Control.d ) (apply_blk : Stmt.s )
   (** control declarations *)
   | Parser
       (parser_name : string)
-      (cparams : Expr.constructor_params) (** constructor params *)
+      (cparams : constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
       (params : Expr.params)              (** invocation params *)
       (start : Parser.state_block ) (** start state *)

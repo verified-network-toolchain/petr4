@@ -12,8 +12,7 @@ Module ExprNotations.
          (at level 0, no associativity) : ty_scope.
   Notation "'int' '<' w '>'"
     := (TInt w)
-         (at level 0, no associativity) : ty_scope.  
-  Coercion CTType : t >-> ct.
+         (at level 0, no associativity) : ty_scope.
 
   Declare Scope uop_scope.
   Delimit Scope uop_scope with uop.
@@ -95,6 +94,8 @@ End ControlNotations.
 Module TopDeclNotations.
   Import TopDecl.
 
+  Coercion EType : Expr.t >-> it.
+  Coercion CAExpr : Expr.e >-> constructor_arg.
   Declare Scope top_scope.
   Delimit Scope top_scope with top.
   Notation "d1 ';%;' d2"

@@ -99,24 +99,26 @@ Fixpoint tsub_s (σ : Env.t nat Expr.t) (s : Stmt.s) : Stmt.s :=
       Stmt.Apply ci ext_args $ map (tsub_arg σ) args
   end.
 
-Definition tsub_carg (σ : Env.t nat Expr.t) (carg : Expr.constructor_arg) :=
+Definition tsub_carg
+           (σ : Env.t nat Expr.t) (carg : TopDecl.constructor_arg)
+  : TopDecl.constructor_arg :=
   match carg with
-  | Expr.CAName _ => carg
-  | Expr.CAExpr e => Expr.CAExpr (tsub_e σ e)
+  | TopDecl.CAName _ => carg
+  | TopDecl.CAExpr e => tsub_e σ e
   end.
 
-Fixpoint tsub_cparam (σ : Env.t nat Expr.t) (ctor_type : Expr.ct) : Expr.ct :=
+Fixpoint tsub_cparam
+         (σ : Env.t nat Expr.t) (ctor_type : TopDecl.it) : TopDecl.it :=
   match ctor_type with
-  | Expr.CTControl cparams extern_params params =>
-      Expr.CTControl (map (tsub_cparam σ) cparams) extern_params
-                     (map (tsub_param σ) params)
-  | Expr.CTParser cparams extern_params params =>
-      Expr.CTParser (map (tsub_cparam σ) cparams) extern_params
-                    (map (tsub_param σ) params)
-  | Expr.CTPackage cparams =>
-      Expr.CTPackage (map (tsub_cparam σ) cparams)
-  | Expr.CTExtern e => Expr.CTExtern e
-  | Expr.CTType t => tsub_t σ t
+  | TopDecl.ControlInstType extern_params params =>
+      TopDecl.ControlInstType
+        extern_params (map (tsub_param σ) params)
+  | TopDecl.ParserInstType extern_params params =>
+      TopDecl.ParserInstType
+        extern_params (map (tsub_param σ) params)
+  | TopDecl.PackageInstType => TopDecl.PackageInstType
+  | TopDecl.ExternInstType e => TopDecl.ExternInstType e
+  | TopDecl.EType t => tsub_t σ t
   end.
 
 Definition tsub_arrowT

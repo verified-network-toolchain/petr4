@@ -244,7 +244,7 @@ Module TopDecl.
         (parameters : Expr.params) (** parser instance types *)
     | PackageInstType (** package instance types *)
     | ExternInstType (extern_name : string) (** extern instance types *).
-    
+  
   Definition constructor_params : Set := list it.
 
   (** Constructor arguments. *)

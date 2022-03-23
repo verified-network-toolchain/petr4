@@ -76,10 +76,12 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
       Stmt.Apply ci ext_args args
   end.
 
-Definition inf_carg  (carg : Expr.constructor_arg) :=
+Definition inf_carg
+           (carg : TopDecl.constructor_arg)
+  : TopDecl.constructor_arg :=
   match carg with
-  | Expr.CAName _ => carg
-  | Expr.CAExpr e => Expr.CAExpr (inf_e e)
+  | TopDecl.CAName _ => carg
+  | TopDecl.CAExpr e => inf_e e
   end.
 
 Definition inf_table  (tbl : Control.table) :=

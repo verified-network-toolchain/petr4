@@ -111,46 +111,43 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
 
 (*Import Clmt.Notations.*)
 
-(** Available functions. *)
-Definition fenv : Type := Clmt.t string Expr.arrowT.
+(** Function names to signatures. *)
+Definition fenv : Set := Clmt.t string Expr.arrowT.
 
-(** Available actions. *)
-Definition aenv : Type := Clmt.t string Expr.params.
+(** Action names to signatures. *)
+Definition aenv : Set := Clmt.t string Expr.params.
 
-(** Control Instance environment. *)
-Definition cienv : Type := Clmt.t string (F.fs string string * Expr.params).
+(** de Bruijn environment of instance type signatures. *)
+Definition ienv : Set :=
+  list (list string (** Types of extern arguments. *)
+        * Expr.params (** Types of expression arguments. *)).
 
-(** Parser Instance environment. *)
-Definition pienv : Type := Clmt.t string (F.fs string string * Expr.params).
-
-(** Available extern instances. *)
-Definition eienv : Type := Clmt.t string (F.fs string Expr.arrowT).
-
-(** Available table names. *)
-Definition tblenv : Type := list string.
+(** De Bruijn environment of extern instance type signatures. *)
+Definition eienv : Set :=
+  list (Field.fs
+          string (** Method name. *)
+          Expr.arrowT (** Method type signature. *)).
 
 (** Statement context. *)
-Variant ctx : Type :=
-| CAction (available_actions : aenv)
-          (available_externs : eienv) (* action block *)
-| CVoid (* void function *)
-| CFunction (return_type : Expr.t) (* fruitful function *)
-| CApplyBlock (tables : tblenv)
-              (available_actions : aenv)
-              (available_controls : cienv)
-              (available_externs : eienv) (* control apply block *)
-| CParserState (available_parsers : pienv)
-               (available_externs : eienv) (* parser state *).
-(**[]*)
+Variant ctx : Set :=
+  | CAction (available_actions : aenv)
+            (available_externs : eienv) (* action block *)
+  | CFunction (return_type : option Expr.t)
+  | CApplyBlock (tables : list string)
+                (available_actions : aenv)
+                (available_controls : ienv)
+                (available_externs : eienv) (* control apply block *)
+  | CParserState (available_parsers : ienv)
+                 (available_externs : eienv) (* parser state *).
 
 (** Evidence an extern method call context is ok. *)
 Variant extern_call_ok (eis : eienv) : ctx -> Prop :=
 | extern_action_ok {aa : aenv} :
-    extern_call_ok eis (CAction aa eis)
-| extern_apply_block_ok {tbls : tblenv} {aa : aenv} {cis : cienv} :
-    extern_call_ok eis (CApplyBlock tbls aa cis eis)
-| extern_parser_state_ok {pis : pienv} :
-    extern_call_ok eis (CParserState pis eis).
+  extern_call_ok eis (CAction aa eis)
+| extern_apply_block_ok {tbls : list string} {aa : aenv} {cis : ienv} :
+  extern_call_ok eis (CApplyBlock tbls aa cis eis)
+| extern_parser_state_ok {pis : ienv} :
+  extern_call_ok eis (CParserState pis eis).
 (**[]*)
 
 (** Evidence an action call context is ok. *)
@@ -158,7 +155,7 @@ Variant action_call_ok
           (aa : aenv) : ctx -> Prop :=
 | action_action_ok {eis : eienv} :
     action_call_ok aa (CAction aa eis)
-| action_apply_block_ok {tbls : tblenv} {cis : cienv} {eis : eienv} :
+| action_apply_block_ok {tbls : list string} {cis : ienv} {eis : eienv} :
     action_call_ok aa (CApplyBlock tbls aa cis eis).
 (**[]*)
 
@@ -166,8 +163,8 @@ Variant action_call_ok
 Variant exit_ctx_ok : ctx -> Prop :=
 | exit_action_ok {aa : aenv} {eis : eienv} :
     exit_ctx_ok (CAction aa eis)
-| exit_applyblk_ok {tbls : tblenv} {aa : aenv}
-                   {cis : cienv} {eis : eienv} :
+| exit_applyblk_ok {tbls : list string} {aa : aenv}
+                   {cis : ienv} {eis : eienv} :
     exit_ctx_ok (CApplyBlock tbls aa cis eis).
 (**[]*)
 
@@ -176,106 +173,90 @@ Variant return_void_ok : ctx -> Prop :=
 | return_void_action {aa : aenv} {eis : eienv} :
     return_void_ok (CAction aa eis)
 | return_void_void :
-    return_void_ok CVoid
-| return_void_applyblk {tbls : tblenv} {aa : aenv}
-                       {cis : cienv} {eis : eienv} :
+  return_void_ok (CFunction None)
+| return_void_applyblk {tbls : list string} {aa : aenv}
+                       {cis : ienv} {eis : eienv} :
     return_void_ok (CApplyBlock tbls aa cis eis).
 (**[]*)
 
-(** Available constructor signatures. *)
-Definition cenv : Type := Clmt.t string Expr.ct.
-
-(** Available Package Instances. *)
-Definition pkgienv : Type := Clmt.t string Expr.ct.
-
-(** Available Extern Constructors. *)
-Definition extenv : Type :=
-  Clmt.t string (Expr.constructor_params * F.fs string Expr.arrowT).
-(**[]*)
-
-Local Open Scope climate_scope.
-
 (** Put parameters into environment. *)
-
-Definition bind_all : Expr.params -> Gamma -> Gamma :=
-  F.fold
-    (fun x
+Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
+  map (fun 
        '(PADirLess τ
         | PAIn τ
         | PAOut τ
-        | PAInOut τ) Γ => x ↦ τ ,, Γ).
-(**[]*)
+        | PAInOut τ) => τ) ps ++ Γ.
 
-(** Put (constructor) parameters into environments. *)
-Definition cbind_all :
-  Expr.constructor_params  ->
-  Gamma * pkgienv * cienv * pienv * eienv ->
-  Gamma * pkgienv * cienv * pienv * eienv :=
-  F.fold (fun x c '((Γ, pkgis, cis, pis, eis) as p) =>
-            match c with
-            | {(VType τ)}
-              => ( x ↦ τ,, Γ , pkgis, cis, pis, eis)
-            | {(ControlType _ res pars)}
-              => (Γ, pkgis,  x ↦ (res,pars),, cis , pis, eis)
-            | {(ParserType _ res pars)}
-              => (Γ, pkgis, cis,  x ↦ (res,pars),, pis , eis)
-            | Expr.CTExtern _
-              => p (* TODO! (Γ, pkgis, cis, pis,  x ↦ mhds,, eis ) *)
-            | {(PackageType _)}
-              => p (* TODO! (Γ,  x ↦ tt,, pkgis , cis, pis, eis) *)
-            end).
-(**[]*)
+(** Constructor Parameter types, for instantiations *)
+Inductive constructor_type : Set :=
+| ControlType
+    (constructor_parameter : list TopDecl.it)
+    (extern_params : list string)
+    (parameters : Expr.params) (** control types *)
+| ParserType
+    (extern_params : list string)
+    (parameters : Expr.params) (** parser types *)
+| PackageType (** package types *)
+    (constructor_parameter : list TopDecl.it)
+| ExternType (** extern types *)
+    (constructor_parameter : list TopDecl.it)
+    (extern_name : string).
 
-(** Environment of user-defined parser states. *)
-Definition user_states : Type := list string.
+(** Available constructor signatures. *)
+Definition constructor_env : Set :=
+  Clmt.t string constructor_type.
+
+Import Clmt.Notations.
+Open Scope climate_scope.
+
+Record insts_env : Set :=
+  {parsers:ienv; controls:ienv; externs:eienv}.
+
+(** Put (constructor) parameters
+    into environments for typing
+    control or parser declarations. *)
+Check List.fold_right.
+Definition cbind_all (ie : insts_env) :
+  TopDecl.constructor_params ->
+  list Expr.t * insts_env :=
+  List.fold_right
+    (fun it '((Γ, {|parsers:=ps;controls:=cs;externs:=exts|} as i)) =>
+       match it with
+       | TopDecl.EType τ => (τ :: Γ , i)
+       | TopDecl.ControlInstType res pars
+         => (Γ, {|controls:=(res,pars)::cs;parsers:=ps;externs:=exts|})
+       | TopDecl.ParserInstType res pars
+         => (Γ, {|parsers:=(res,pars)::ps;controls:=ps;externs:=exts|})
+       | TopDecl.ExternInstType _ => (Γ, i) (* TODO *)
+       | TopDecl.PackageInstType => (Γ, i)
+       end) ([], ie).
 
 (** Valid parser states. *)
-Variant valid_state (us : user_states) : Parser.state -> Prop :=
-| start_valid :
-    valid_state us ={ start }=
-| accept_valid :
-    valid_state us ={ accept }=
-| reject_valid :
-    valid_state us ={ reject }=
-| name_valid (st : string) :
-    In st us ->
-    valid_state us ={ δ st }=.
-(**[]*)
+Variant valid_state (total : nat) : Parser.state -> Prop :=
+  | start_valid :
+    valid_state total Parser.Start
+  | accept_valid :
+    valid_state total Parser.Accept
+  | reject_valid :
+    valid_state total Parser.Reject
+  | name_valid (st : nat) :
+    (st < total)%nat ->
+    valid_state total st.
 
 (** Appropriate signal. *)
 Variant good_signal : Expr.arrowT -> signal -> Prop :=
 | good_signal_cont params :
     good_signal {|paramargs:=params; rtrns:=None|} SIG_Cont
 | good_signal_return params ret :
-    good_signal {|paramargs:=params; rtrns:=Some ret|} SIG_Return.
-(**[]*)
-
-Notation "x" := x (in custom p4context at level 0, x constr at level 0).
-Notation "'Action' aa eis"
-  := (CAction aa eis)
-       (in custom p4context at level 0).
-Notation "'Void'" := CVoid (in custom p4context at level 0).
-Notation "'Function' t"
-  := (CFunction t)
-       (in custom p4context at level 0, t custom p4type).
-Notation "'ApplyBlock' tbls aa cis eis"
-  := (CApplyBlock tbls aa cis eis)
-       (in custom p4context at level 0).
-Notation "'Parser' pis eis"
-  := (CParserState pis eis)
-       (in custom p4context at level 0).
+  good_signal {|paramargs:=params; rtrns:=Some ret|} SIG_Return.
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
-Inductive lvalue_ok {tags_t : Type} : Expr.e tags_t -> Prop :=
-| lvalue_var x τ i :
-    lvalue_ok <{ Var x:τ @ i }>
-| lvalue_bit_slice e h l i :
-    lvalue_ok e ->
-    lvalue_ok <{ Slice e [h:l] @ i }>
-| lvalue_member t e x i :
-    lvalue_ok e ->
-    lvalue_ok <{ Mem e dot x : t @ i }>
-| lvalue_access ts e idx i :
-    lvalue_ok e ->
-    lvalue_ok <{ Access e[idx] : ts @ i }>.
-(**[]*)
+Inductive lvalue_ok : Expr.e -> Prop :=
+| lvalue_var x τ :
+  lvalue_ok (Expr.Var τ x)
+| lvalue_bit_slice e h l :
+  lvalue_ok e ->
+  lvalue_ok (Expr.Slice e h l)
+| lvalue_member τ x e :
+  lvalue_ok e ->
+  lvalue_ok (Expr.Member τ x e).

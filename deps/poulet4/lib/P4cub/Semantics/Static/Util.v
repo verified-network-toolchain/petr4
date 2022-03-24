@@ -112,7 +112,11 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
 (*Import Clmt.Notations.*)
 
 (** Function names to signatures. *)
-Definition fenv : Set := Clmt.t string Expr.arrowT.
+Definition fenv : Set :=
+  Clmt.t
+    string (** function name. *)
+    (nat (** type parameters. *)
+     * Expr.arrowT (** signature. *)).
 
 (** Action names to signatures. *)
 Definition aenv : Set := Clmt.t string Expr.params.
@@ -259,3 +263,11 @@ Inductive lvalue_ok : Expr.e -> Prop :=
 | lvalue_member τ x e :
   lvalue_ok e ->
   lvalue_ok (Expr.Member τ x e).
+
+Fixpoint gen_tsub (τs : list Expr.t) (X : nat) : Expr.t :=
+  match τs, X with
+  | τ :: _, O => τ
+  | _ :: τs, S n => gen_tsub τs n
+  | [], O => O
+  | [], S n => n
+  end.

@@ -108,3 +108,27 @@ Section OExists.
     - intros (a' & H & h); inv h.
   Qed.
 End OExists.
+
+Reserved Infix "`^" (at level 10, left associativity).
+
+Fixpoint mapply {A : Set} (f : A -> A) (m : nat) (a : A) : A :=
+  match m with
+  | O => a
+  | S m => f $ f `^ m a
+  end
+where "f `^ m" := (mapply f m).
+
+Section mapply.
+  Context {A : Set}.
+  Variable f : A -> A.
+
+  Lemma mapply0 : forall a, f `^ 0 a = a.
+  Proof.
+    reflexivity.
+  Qed.
+
+  Lemma mapply1 : forall a, f `^ 1 a = f a.
+  Proof.
+    reflexivity.
+  Qed.
+End mapply.

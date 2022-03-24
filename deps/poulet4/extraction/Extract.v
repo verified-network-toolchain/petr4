@@ -48,7 +48,7 @@ Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
 
-Extract Constant VarNameGen.string_of_nat => "Int.to_string".
+(* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed

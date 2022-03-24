@@ -1680,7 +1680,7 @@ Section CCompSel.
    (* CTranslateTopParser d env *)
   end.
 
-  Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 
+  Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program*ident*ident) := 
     let init_env := CCompEnv.newClightEnv tags_t in
     match CCollectTypVar prog init_env with 
     | inr m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
@@ -1714,19 +1714,21 @@ Section CCompSel.
       let pubids := List.map (fun (x: ident * globdef (fundef Clight.function) type) =>
                               let (id, _) := x in 
                               id) globdecl in
-      let res_prog : Errors.res (program function) := make_program 
-        typ_decls globdecl pubids main_id
-      in
-      res_prog
+      let v1model_H := get_H tags_t env_all_declared in
+      let v1model_M := get_M tags_t env_all_declared in
+      match (make_program typ_decls globdecl pubids main_id) with
+      | @Errors.Error (_) em => Errors.Error em
+      | Errors.OK res_p => Errors.OK (res_p, v1model_H, v1model_M)
+      end
       end
     end
     end.
 
-  Definition Compile_print (prog: TopDecl.d tags_t): unit := 
+  (* Definition Compile_print (prog: TopDecl.d tags_t): unit := 
     match Compile prog with
     | Errors.Error e => tt
     | Errors.OK prog => print_Clight prog
-    end.  
+    end.   *)
 End CCompSel.
 
 (* Require Poulet4.Compile.ToP4cub.

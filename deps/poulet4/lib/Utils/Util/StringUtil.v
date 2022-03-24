@@ -117,3 +117,6 @@ Proof.
   - admit.
   - f_equal; apply IHm; clear IHm.
 Admitted.
+(* Oh wait we have string of nat!
+Do we have any lemmas about string_of_nat_inj?*)
+

@@ -16,6 +16,7 @@ module P4P4info = P4info
 open Core_kernel
 module P4info = P4P4info
 
+
 module type Parse_config = sig
   val red: string -> string
   val green: string -> string
@@ -148,6 +149,9 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
+ let print_type_def (oc) (struc : string) (typ : string) : unit = 
+    Printf.fprintf oc "typedef %s %s; \n" struc typ
+
  let compile_file (include_dirs : string list) (p4_file : string) 
       (normalize : bool)
       (export_file : string)  (verbose : bool) (gen_loc : bool) (print_p4cub: bool)
@@ -187,8 +191,14 @@ module Make_parse (Conf: Parse_config) = struct
                  | _ -> "unknown failure from p4cub" 
                 end in
               failwith m'
-           | Poulet4_Ccomp.Errors.OK prog -> Poulet4_Ccomp.CCompSel.print_Clight prog
-           end
+           | Poulet4_Ccomp.Errors.OK ((prog, hid), mid) -> 
+               Poulet4_Ccomp.CCompSel.print_Clight prog;
+               (let oc = Out_channel.create ~append:true  export_file in 
+               begin (
+                 print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident hid) "H";
+                 print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident mid) "M"
+               )end)
+          end
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
     | `Error (info, Parser.Error) ->

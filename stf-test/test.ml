@@ -159,15 +159,15 @@ let run_stf include_dir stf_file p4_file =
       |> Tuple.T2.map_fst ~f:Env.CheckerEnv.eval_env_of_t in
     let target = match prog with Program l ->
       l
-      |> List.rev |> List.hd_exn |> snd
+      |> List.rev |> List.hd_exn 
       |> function Prog.Declaration.Instantiation{typ;_} -> typ
          | _ -> failwith "unexpected main value" in
     match target with
-    | SpecializedType{base = TypeName (BareName(_, "V1Switch"));_} -> 
+    | SpecializedType{base = TypeName (BareName {name = {string = "V1Switch"; _}; _});_} -> 
       V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
-    | SpecializedType{base = TypeName (BareName(_, "ebpfFilter"));_} ->
+    | SpecializedType{base = TypeName (BareName {name = {string = "ebpfFilter"; _}; _});_} ->
       EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
-    | SpecializedType{base = TypeName (BareName(_, "uP4Switch"));_} ->
+    | SpecializedType{base = TypeName (BareName {name = {string = "uP4Switch"; _}; _});_} ->
       Up4Runner.run_test prog stmts ([],[]) [] [] env Eval.Up4Interpreter.empty_state
     | _ -> failwith "architecture unsupported"
 

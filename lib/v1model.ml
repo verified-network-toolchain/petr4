@@ -149,7 +149,7 @@ module PreV1Switch : Target = struct
       (* let read_val = State.find_heap read_loc st in *)
       let l = State.fresh_loc () in
       let st = State.insert_heap l read_val st in
-      let env = EvalEnv.insert_val (Types.BareName (Info.dummy, "result")) l env in 
+      let env = EvalEnv.insert_val (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="result"}}) l env in 
       env, st, SContinue, read_val
     | _ -> failwith "unexpected args for register read"
 
@@ -215,7 +215,7 @@ module PreV1Switch : Target = struct
     let random_val = VBit{w=width; v=Bigint.of_int random_int} in
     let l = State.fresh_loc () in
     let st = State.insert_heap l random_val st in
-    let env' = EvalEnv.insert_val (BareName (Info.dummy, "result")) l env in
+    let env' = EvalEnv.insert_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="result"}}) l env in
     env', st, SContinue, VNull
         
   let eval_digest : extern = fun env st ts args ->
@@ -228,8 +228,8 @@ module PreV1Switch : Target = struct
     let lv = {
       lvalue = LMember {
         expr = {
-          lvalue = LName {name = BareName (Info.dummy, "standard_metadata")};
-          typ = TypeName (BareName (Info.dummy, "standard_metadata_t"));
+          lvalue = LName {name = BareName {tags=Info.dummy; name={tags=Info.dummy; string="standard_metadata"}}};
+          typ = TypeName (BareName {tags=Info.dummy; name={tags=Info.dummy; string="standard_metadata_t"}});
         };
         name = "egress_spec";
       };
@@ -519,7 +519,7 @@ module PreV1Switch : Target = struct
     let in_port = State.find_heap "__INGRESS_PORT__" st
       |> assert_bit |> snd in
     (* let fst (a,b,_) = (a,b) in *)
-    let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
+    let main = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="main"}}) env) st in
     let vs = assert_package main |> snd in
     let parser =
       List.Assoc.find_exn vs "p"   ~equal:String.equal
@@ -564,33 +564,33 @@ module PreV1Switch : Target = struct
       |> State.insert_heap std_meta_loc std_meta in
     let env =
       EvalEnv.(env
-              |> insert_val (BareName (Info.dummy, "packet"  )) vpkt_loc
-              |> insert_val (BareName (Info.dummy, "hdr"     )) hdr_loc
-              |> insert_val (BareName (Info.dummy, "meta"    )) meta_loc
-              |> insert_val (BareName (Info.dummy, "std_meta")) std_meta_loc
-              |> insert_typ (BareName (Info.dummy, "packet"  )) (List.nth_exn params 0).typ
-              |> insert_typ (BareName (Info.dummy, "hdr"     )) (List.nth_exn params 1).typ
-              |> insert_typ (BareName (Info.dummy, "meta"    )) (List.nth_exn params 2).typ
-              |> insert_typ (BareName (Info.dummy, "std_meta")) (List.nth_exn params 3).typ) in
+              |> insert_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"  }}) vpkt_loc
+              |> insert_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="hdr"     }}) hdr_loc
+              |> insert_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="meta"    }}) meta_loc
+              |> insert_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}) std_meta_loc
+              |> insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"  }}) (List.nth_exn params 0).typ
+              |> insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="hdr"     }}) (List.nth_exn params 1).typ
+              |> insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="meta"    }}) (List.nth_exn params 2).typ
+              |> insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}) (List.nth_exn params 3).typ) in
     (* TODO: implement a more responsible way to generate variable names *)
     let nine = Bigint.((one + one + one) * (one + one + one)) in
     let (st, _) = 
       assign_lvalue
         st
         env
-        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}};typ = (List.nth_exn params 3).typ}; 
                 name="ingress_port"; }; typ = Bit {width = 9}}
         (VBit{w=nine;v=in_port})
         in
     let open Expression in
     let pkt_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "packet"))); dir = InOut; typ = (List.nth_exn params 0).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"}}}; dir = InOut; typ = (List.nth_exn params 0).typ; tags = Info.dummy} in
     let hdr_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "hdr"))); dir = InOut; typ = (List.nth_exn params 1).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=BareName {tags=Info.dummy; name={tags=Info.dummy; string="hdr"}}}; dir = InOut; typ = (List.nth_exn params 1).typ; tags = Info.dummy} in
     let meta_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "meta"))); dir = InOut; typ = (List.nth_exn params 2).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=BareName {tags=Info.dummy; name={tags=Info.dummy; string="meta"}}}; dir = InOut; typ = (List.nth_exn params 2).typ; tags = Info.dummy} in
     let std_meta_expr =
-      Some (Info.dummy, {expr = (Name (BareName (Info.dummy, "std_meta"))); dir = InOut; typ = (List.nth_exn params 3).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}}; dir = InOut; typ = (List.nth_exn params 3).typ; tags = Info.dummy} in
     let env = EvalEnv.set_namespace "p." env in
     let (st, state,_) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr; meta_expr; std_meta_expr] in
@@ -599,14 +599,14 @@ module PreV1Switch : Target = struct
       match state with 
       | SReject err -> 
         assign_lvalue st env
-          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")}; typ = (List.nth_exn params 3).typ;}; name="parser_error"}; typ = Error}
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}}; typ = (List.nth_exn params 3).typ;}; name="parser_error"}; typ = Error}
           (VError(err))
         |> fst
       | SContinue -> st
       | _ -> failwith "parser should not exit or return" in
     let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
     let st = State.insert_heap vpkt_loc vpkt' st in
-    let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) (List.nth_exn deparse_params 0).typ env in
+    let env = EvalEnv.insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"}}) (List.nth_exn deparse_params 0).typ env in
     let (st, s) = st
       |> eval_v1control ctrl env app "vr."  verify   [hdr_expr; meta_expr] in
     let st = 
@@ -615,13 +615,13 @@ module PreV1Switch : Target = struct
         assign_lvalue
           st
           env
-          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
+          {lvalue = LMember{expr={lvalue = LName{name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}};typ = (List.nth_exn params 3).typ}; 
                   name="checksum_error"; }; typ = Bit {width = 1}}
           (VBit{v=Bigint.one;w=Bigint.one}) |> fst
       | SContinue | SReturn _ | SExit | SReject _ -> st in
     let st = st
       |> eval_v1control ctrl env app "ig."  ingress  [hdr_expr; meta_expr; std_meta_expr] |> fst in
-    let struc = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st in
+    let struc = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}) env) st in
     let egress_spec_val = match struc with
       | VStruct {fields} ->
         List.Assoc.find_exn fields "egress_spec" ~equal:String.equal
@@ -631,7 +631,7 @@ module PreV1Switch : Target = struct
       assign_lvalue 
         st
         env
-        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName (Info.dummy, "std_meta")};typ = (List.nth_exn params 3).typ}; 
+        {lvalue = LMember{expr={lvalue = LName{name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}};typ = (List.nth_exn params 3).typ}; 
                 name="egress_port"; }; typ = Bit {width = 9}}
         egress_spec_val
         in
@@ -643,7 +643,7 @@ module PreV1Switch : Target = struct
     st, env, Some (State.get_packet st)
 
   let get_outport (st : state) (env : env) : Bigint.t =
-    match State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "std_meta")) env) st with
+    match State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="std_meta"}}) env) st with
     | VStruct {fields;_} ->
       List.Assoc.find_exn fields "egress_port" ~equal:String.equal |> bigint_of_val
     | _ -> drop_spec

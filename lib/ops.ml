@@ -303,35 +303,35 @@ let bitwise_op_of_signeds (op : Bigint.t -> Bigint.t -> Bigint.t)
   VBit{w;v=to_twos_complement n w}
 
 let interp_binary_op (op: Op.bin) (l: V.value) (r: V.value) =
-  match snd op with
-  | Plus     -> interp_bplus l r
-  | PlusSat  -> interp_bplus_sat l r
-  | Minus    -> interp_bminus l r
-  | MinusSat -> interp_bminus_sat l r
-  | Mul      -> interp_bmult l r
-  | Div      -> interp_bdiv l r
-  | Mod      -> interp_bmod l r
-  | Shl      -> interp_bshl l r
-  | Shr      -> interp_bshr l r
-  | Le       -> interp_ble l r
-  | Ge       -> interp_bge l r
-  | Lt       -> interp_blt l r
-  | Gt       -> interp_bgt l r
-  | Eq       -> interp_beq l r
-  | NotEq    -> interp_bne l r
-  | BitAnd   -> interp_bitwise_and l r
-  | BitXor   -> interp_bitwise_xor l r
-  | BitOr    -> interp_bitwise_or l r
-  | PlusPlus -> interp_concat l r
-  | And      -> interp_band l r
-  | Or       -> interp_bor l r
+  match op with
+  | Plus     _ -> interp_bplus l r
+  | PlusSat  _ -> interp_bplus_sat l r
+  | Minus    _ -> interp_bminus l r
+  | MinusSat _ -> interp_bminus_sat l r
+  | Mul      _ -> interp_bmult l r
+  | Div      _ -> interp_bdiv l r
+  | Mod      _ -> interp_bmod l r
+  | Shl      _ -> interp_bshl l r
+  | Shr      _ -> interp_bshr l r
+  | Le       _ -> interp_ble l r
+  | Ge       _ -> interp_bge l r
+  | Lt       _ -> interp_blt l r
+  | Gt       _ -> interp_bgt l r
+  | Eq       _ -> interp_beq l r
+  | NotEq    _ -> interp_bne l r
+  | BitAnd   _ -> interp_bitwise_and l r
+  | BitXor   _ -> interp_bitwise_xor l r
+  | BitOr    _ -> interp_bitwise_or l r
+  | PlusPlus _ -> interp_concat l r
+  | And      _ -> interp_band l r
+  | Or       _ -> interp_bor l r
 
 
 let interp_unary_op (op: Op.uni) (v: V.value) =
-  match snd op with
-  | Not    -> eval_not v
-  | BitNot -> eval_bitnot v
-  | UMinus -> eval_uminus v
+  match op with
+  | Not    _ -> eval_not v
+  | BitNot _ -> eval_bitnot v
+  | UMinus _ -> eval_uminus v
 
 (*----------------------------------------------------------------------------*)
 (* Cast evaluation                                                            *)

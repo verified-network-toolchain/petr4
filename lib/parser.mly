@@ -26,7 +26,6 @@ module Info = P4Info
 let declare_vars vars = List.iter vars ~f:declare_var
 let declare_types types = List.iter types ~f:declare_type
 
-(* QUESTION: how come tokens are also of (Info, 'a)?*)
 let rec smash_annotations l tok2 =
   match l with 
   | [] ->
@@ -782,20 +781,20 @@ baseType:
                                   tags = info} in
       Type.BitType {expr = width; tags = info} }
 | info1 = BIT L_ANGLE value = INTEGER info_r = r_angle
-    { let value_int = fst value in (* QUESTION: CONCRETE SYNTAX?*)
+    { let value_int = fst value in 
       let value_info = value_int.P4Int.tags in
       let width = Expression.Int {x = value_int; tags = value_info} in
       let tags = Info.merge info1 info_r in
       Type.BitType {tags; expr = width} }
 | info1 = INT L_ANGLE value = INTEGER info_r = r_angle
-     { let value_int = fst value in (*QUESTION: CONCRETE SYNTAX?*)
+     { let value_int = fst value in 
        let value_info = value_int.P4Int.tags in 
        let width = Expression.Int {tags = value_info; x = value_int} in
        let tags = Info.merge info1 info_r in
       Type.IntType {tags; expr = width} }
 
 | info1 = VARBIT L_ANGLE value = INTEGER info_r = r_angle 
-     { let value_int = fst value in (*QUESTION: where is the concret syntax??*)
+     { let value_int = fst value in 
        let value_info = value_int.P4Int.tags in
        let max_width = Expression.Int {tags = value_info; x = value_int} in
        let tags = Info.merge info1 info_r in
@@ -1264,7 +1263,7 @@ lvalue:
 
 expression:
 | value = INTEGER
-  { let value_int = fst value in (*QUESTION: CONCRETE SYNTAXT*) 
+  { let value_int = fst value in 
     let tags = value_int.P4Int.tags in 
     Expression.Int {x = value_int; tags} }
 | info1 = TRUE

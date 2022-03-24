@@ -950,7 +950,6 @@ and Value : sig
   type loc = string [@@deriving sexp, show,yojson]
 
   (* Runtime values. Note that they do  not carry tags anymore. *)
-  (* TODO: refactor the parameters by adding runtime data types and passing them instead of the data types that carry tags. *)
   type value =
     | VNull
     | VBool of bool
@@ -1192,14 +1191,14 @@ end = struct
     | VInteger of Util.bigint
     | VBit of
         { w : Util.bigint;
-          v : Util.bigint; }
+          v : Util.bigint }
     | VInt of
         { w : Util.bigint;
-          v : Util.bigint; }
+          v : Util.bigint }
     | VVarbit of
         { max : Util.bigint;
           w : Util.bigint;
-          v : Util.bigint; }
+          v : Util.bigint }
     | VString of string
     | VTuple of value list
     | VRecord of (string * value) list
@@ -1209,42 +1208,42 @@ end = struct
     | VFun of
         { scope : Env.EvalEnv.t;
           params : Typed.Parameter.t list;
-          body : Block.t; }
+          body : Block.t }
     | VBuiltinFun of
         { name : string;
           caller : lvalue; }
     | VAction of
         { scope : Env.EvalEnv.t;
           params : Typed.Parameter.t list;
-          body : Block.t; }
+          body : Block.t }
     | VStruct of
-        { fields : (string * value) list; }
+        { fields : (string * value) list }
     | VHeader of
         { fields : (string * value) list;
           is_valid : bool }
     | VUnion of
-        { fields : (string * value) list; }
+        { fields : (string * value) list }
     | VStack of
         { headers : value list;
           size : Util.bigint;
-          next : Util.bigint; }
+          next : Util.bigint }
     | VEnumField of
         { typ_name : string;
-          enum_name : string; }
+          enum_name : string }
     | VSenum of (string * value) list
     | VRuntime of
         { loc : loc;
-          obj_name : string; }
+          obj_name : string }
     | VParser of vparser
     | VControl of vcontrol
     | VPackage of
         { params : Parameter.t list;
-          args : (string * loc) list; }
+          args : (string * loc) list }
     | VTable of vtable
     | VExternFun of
         { name : string;
           caller : (loc * string) option;
-          params : Typed.Parameter.t list; }
+          params : Typed.Parameter.t list }
     | VExternObj of (string * Parameter.t list) list
   [@@deriving sexp, show,yojson]
 
@@ -1253,7 +1252,7 @@ end = struct
     pconstructor_params : Parameter.t list;
     pparams : Typed.Parameter.t list;
     plocals : Declaration.t list;
-    states : Parser.state list;
+    states : Parser.state list
   }
   [@@deriving sexp,show,yojson]
 
@@ -1262,18 +1261,45 @@ end = struct
     cconstructor_params : Parameter.t list;
     cparams : Typed.Parameter.t list;
     clocals : Declaration.t list;
-    apply : Block.t;
+    apply : Block.t
   }
   [@@deriving sexp,show,yojson]
 
+  (* DISCUSS: action_ref already had  tags in it. so?? which is also in pre_entry. aslo pre_key uses p4string. so should we omit all tags for runtime values? *)
+  (* and vtable = {
+     name : string;
+     keys : Table.pre_key list;
+     actions : Table.action_ref list;
+     default_action : Table.action_ref;
+     const_entries : Table.pre_entry list;
+     }
+     type pre_action_ref =
+        { annotations: Annotation.t list;
+          name: Types.name;
+          args: (Expression.t option) list }
+      [@@deriving sexp,show,yojson]
+
+      type typed_action_ref =
+        { action: pre_action_ref;
+          typ: Typed.Type.t }
+      [@@deriving sexp,show,yojson]
+
+      type action_ref = typed_action_ref info
+     type pre_key =
+        { annotations: Annotation.t list;
+          key: Expression.t;
+          match_kind: Types.P4String.t }
+     type pre_entry =
+        { annotations: Annotation.t list;
+          matches: Match.t list;
+          action: action_ref }
+  *)
   and vtable = {
     name : string;
     keys : Table.key list;
-    (* keys : Table.pre_key list; QUESTION: do we want to carry tags?? *)
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : Table.entry list;
-    (* const_entries : Table.pre_entry list; QUESTION: do we want to carry tags?? *)
+    const_entries : Table.entry list
   }
   [@@deriving sexp,show,yojson]
 
@@ -1726,7 +1752,7 @@ end = struct
     | Some v -> v
     | None -> raise_unbound name
 
-(* TODO: make sure setting tags to info.dummy works out. *)
+
   let find_bare (name: string) (env: 'a env) : 'a =
     opt_to_exn (Types.BareName {tags=Info.dummy; name={tags=Info.dummy;string=name}}) (find_bare_opt name env)
 
@@ -1799,21 +1825,18 @@ end = struct
     let insert_val name binding e =
       {e with vs = insert name binding e.vs}
 
-(* TODO: make sure info.dummy works here. *)
     let insert_val_bare name binding e =
       {e with vs = insert (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}}) binding e.vs}
 
     let insert_typ name binding e =
       {e with typ = insert name binding e.typ}
 
-(* TODO: make sure info.dummy works here. *)
     let insert_typ_bare name =
       insert_typ (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}})
 
     let insert_vals bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
-(* TODO: make sure info.dummy works here. *)
     let fix_bindings bindings =
       List.map bindings
         ~f:(fun (name, v) -> Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}}, v)

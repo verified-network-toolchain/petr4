@@ -1,4 +1,5 @@
-From Poulet4 Require Import Utils.Envn
+From Poulet4 Require Import
+     Utils.Util.FunUtil
      P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 Import AllCubNotations String.
 
@@ -12,24 +13,23 @@ Fixpoint tshift_t (n : nat) (τ : Expr.t) : Expr.t :=
   | Expr.TStruct ts b => Expr.TStruct (map (tshift_t n) ts) b
   end.
 
-Definition find_default (σ : Env.t nat Expr.t) (X : nat) (default : Expr.t) :=
-  match Env.find X σ with
-  | Some t => t
-  | None   => default
+Definition exts (σ : nat -> Expr.t) (X : nat) : Expr.t :=
+  match X with
+  | O => O
+  | S n => tshift_t 1 $ σ n
   end.
 
-Fixpoint tsub_t (σ : Env.t nat Expr.t) (t : Expr.t) : Expr.t :=
+Fixpoint tsub_t (σ : nat -> Expr.t) (t : Expr.t) : Expr.t :=
   match t with
   | Expr.TBool
   | Expr.TBit _
   | Expr.TInt _
   | Expr.TError       => t    
   | Expr.TStruct ts b => Expr.TStruct (List.map (tsub_t σ) ts) b
-  | Expr.TVar X => find_default σ X t
+  | Expr.TVar X       => σ X
   end.
-(**[]*)
 
-Fixpoint tsub_e (σ : Env.t nat Expr.t) (e : Expr.e) : Expr.e :=
+Fixpoint tsub_e (σ : nat -> Expr.t) (e : Expr.e) : Expr.e :=
   match e with
   | Expr.Bool _
   | Expr.Bit _ _
@@ -46,9 +46,8 @@ Fixpoint tsub_e (σ : Env.t nat Expr.t) (e : Expr.e) : Expr.e :=
   | Expr.Member rt mem arg =>
       Expr.Member (tsub_t σ rt) mem (tsub_e σ arg)
   end.
-(**[]*)
 
-Definition tsub_param (σ : Env.t nat Expr.t) (pa : paramarg Expr.t Expr.t) :=
+Definition tsub_param (σ : nat -> Expr.t) (pa : paramarg Expr.t Expr.t) :=
   match pa with
   | PAIn t => PAIn (tsub_t σ t)
   | PAOut t => PAOut (tsub_t σ t)
@@ -56,7 +55,7 @@ Definition tsub_param (σ : Env.t nat Expr.t) (pa : paramarg Expr.t Expr.t) :=
   | PADirLess t => PAInOut (tsub_t σ t)
   end.
 
-Definition tsub_arg (σ : Env.t nat Expr.t) (pa : paramarg Expr.e Expr.e) :=
+Definition tsub_arg (σ : nat -> Expr.t) (pa : paramarg Expr.e Expr.e) :=
   match pa with
   | PAIn e => PAIn (tsub_e σ e)
   | PAOut e => PAOut (tsub_e σ e)
@@ -65,11 +64,11 @@ Definition tsub_arg (σ : Env.t nat Expr.t) (pa : paramarg Expr.e Expr.e) :=
   end.
 
 Definition tsub_arrowE
-           (σ : Env.t nat Expr.t)
+           (σ : nat -> Expr.t)
            '({| paramargs:=args; rtrns:=ret |} : Expr.arrowE) :=
   {| paramargs:=map (tsub_arg σ) args; rtrns:=option_map (tsub_e σ) ret |}.
 
-Fixpoint tsub_s (σ : Env.t nat Expr.t) (s : Stmt.s) : Stmt.s :=
+Fixpoint tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
   | Stmt.Exit
@@ -100,7 +99,7 @@ Fixpoint tsub_s (σ : Env.t nat Expr.t) (s : Stmt.s) : Stmt.s :=
   end.
 
 Definition tsub_carg
-           (σ : Env.t nat Expr.t) (carg : TopDecl.constructor_arg)
+           (σ : nat -> Expr.t) (carg : TopDecl.constructor_arg)
   : TopDecl.constructor_arg :=
   match carg with
   | TopDecl.CAName _ => carg
@@ -108,7 +107,7 @@ Definition tsub_carg
   end.
 
 Definition tsub_cparam
-         (σ : Env.t nat Expr.t) (ctor_type : TopDecl.it) : TopDecl.it :=
+         (σ : nat -> Expr.t) (ctor_type : TopDecl.it) : TopDecl.it :=
   match ctor_type with
   | TopDecl.ControlInstType extern_params params =>
       TopDecl.ControlInstType
@@ -122,27 +121,24 @@ Definition tsub_cparam
   end.
 
 Definition tsub_arrowT
-           (σ : Env.t nat Expr.t)
+           (σ : nat -> Expr.t)
            '({| paramargs:=params; rtrns:=ret |} : Expr.arrowT) : Expr.arrowT :=
   {| paramargs := map (tsub_param σ) params
   ; rtrns := option_map (tsub_t σ) ret |}.
 
-Definition tshift_env (n : nat) : Env.t nat Expr.t -> Env.t nat Expr.t :=
-  map (fun '(X,τ) => (n + X, tshift_t n τ)).
-
 Definition tsub_method
-           (σ : Env.t nat Expr.t)
+           (σ : nat -> Expr.t)
            '((Δ,xs,arr) : nat * list string * Expr.arrowT) :=
-  (Δ,xs,tsub_arrowT (tshift_env Δ σ) arr).
+  (Δ,xs,tsub_arrowT (exts `^ Δ σ) arr).
 
 Definition tsub_table
-           (σ : Env.t nat Expr.t) (tbl : Control.table) :=
+           (σ : nat -> Expr.t) (tbl : Control.table) :=
   let tbl_keys := Control.table_key tbl in
   let tbl_acts := Control.table_actions tbl in
   let tbl_keys' := List.map (fun '(e,mk) => (tsub_e σ e, mk)) tbl_keys in
   {| Control.table_key := tbl_keys'; Control.table_actions := tbl_acts |}.
 
-Fixpoint tsub_Cd (σ : Env.t nat Expr.t) (d : Control.d) :=
+Fixpoint tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   match d with
   | Control.Action a sig body =>
       let sig' := map (tsub_param σ) sig in
@@ -154,7 +150,7 @@ Fixpoint tsub_Cd (σ : Env.t nat Expr.t) (d : Control.d) :=
       (tsub_Cd σ d1 ;c; tsub_Cd σ d2)%ctrl
   end.
 
-Fixpoint tsub_transition (σ : Env.t nat Expr.t) (transition : Parser.e) :=
+Fixpoint tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
   match transition with
   | Parser.Goto s =>
       Parser.Goto s
@@ -165,14 +161,14 @@ Fixpoint tsub_transition (σ : Env.t nat Expr.t) (transition : Parser.e) :=
       Parser.Select discriminee' default' cases'
   end.
 
-Definition tsub_state (σ : Env.t nat Expr.t) (st : Parser.state_block) :=
+Definition tsub_state (σ : nat -> Expr.t) (st : Parser.state_block) :=
   let s := Parser.stmt st in
   let e := Parser.trans st in
   let s' := tsub_s σ s in
   let e' := tsub_transition σ e in
   {| Parser.stmt := s'; Parser.trans := e' |}.
 
-Fixpoint tsub_d (σ : Env.t nat Expr.t) (d : TopDecl.d) : TopDecl.d :=
+Fixpoint tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
   match d with
   | TopDecl.Instantiate cname iname type_args cargs =>
       (* TODO theres something broken here, need to get type params for cname *)
@@ -180,7 +176,7 @@ Fixpoint tsub_d (σ : Env.t nat Expr.t) (d : TopDecl.d) : TopDecl.d :=
       let cargs' := map (tsub_carg σ) cargs in
       TopDecl.Instantiate cname iname type_args' cargs'
   | TopDecl.Extern ename tparams cparams methods =>
-      let σ' := tshift_env tparams σ in
+      let σ' := exts `^ tparams σ in
       let cparams' := map (tsub_cparam σ') cparams in
       let methods' := Field.map (tsub_method σ') methods in
       TopDecl.Extern ename tparams cparams' methods'
@@ -197,7 +193,7 @@ Fixpoint tsub_d (σ : Env.t nat Expr.t) (d : TopDecl.d) : TopDecl.d :=
       let states' := map (tsub_state σ) sts in
       TopDecl.Parser pn cparams' eps params' start' states'
   | TopDecl.Funct f tparams params body =>
-      let σ' := tshift_env tparams σ in
+      let σ' := exts `^ tparams σ in
       let cparams' := tsub_arrowT σ' params in
       let body' := tsub_s σ' body in
       TopDecl.Funct f tparams cparams' body'

@@ -117,7 +117,6 @@ module PreEbpfFilter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
-(* TODO: ensure use of info.dummy doesn't mess things up *)
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
     let main = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="main"}}) env) st in

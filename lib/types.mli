@@ -79,7 +79,6 @@ val insert_dummy_tags : P4String.t -> name
 val mk_barename_with_dummy : string -> name
 
 val to_bare : name -> name
-(* TODO: make sure you don't need name_info *)
 (* val name_info: name -> Info.t *)
 val name_eq : name -> name -> bool
 val name_only : name -> string

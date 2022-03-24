@@ -123,7 +123,6 @@ module PreUp4Filter : Target = struct
     let (st,s,_) = app ctrl env st SContinue control args in 
     (st,s)
 
-(* TODO: make sure info.dummy doesn't mess up stuff.  *)
   let helper (param_string : loc) (param_type : Type.t) (env : env) (st : state)
     : value * Types.name * loc * state * env =
     let param_value = init_val_of_typ env param_type in 
@@ -140,7 +139,6 @@ module PreUp4Filter : Target = struct
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
     (* Get main *)
-    (* TODO use of info.dummy *)
     let main = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="main"}}) env) st in
     (* Get arguments passed into main *)
     let vs = assert_package main |> snd in

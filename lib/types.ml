@@ -17,13 +17,7 @@ open Util
 
 open Sexplib.Conv
 
-(* type 'a info = Info.t * 'a [@@deriving sexp,show,yojson] *)
-
-(* let info (i,_) = i *)
-
-(* let info_to_yojson f (_,x) = f x *)
-
-(* TODO: you're missing info, info_to_yojson, and info_of_yojson!!! *)
+(* reminder: you're missing info, info_to_yojson, and info_of_yojson!!! *)
 
 (* this doesn't work. error: unbound record field info.
   let info_to_yojson f x = f (x.info) 
@@ -100,21 +94,9 @@ let mk_barename_with_dummy : string -> name =
   fun s -> mk_barename_from_string Info.dummy s
 
 let to_bare : name -> name = function
-  (* | BareName n *) (* QUESTION: 
-    The variable n on the left-hand side of this or-pattern has type
-         Info.t pname.BareName
-       but on the right-hand side it has type Info.t pname.QualifiedName *)
   | QualifiedName n -> BareName {tags = n.tags; name = n.name}
   | n -> n
 
-(* let name_info name : Info.t =
-  match name with
-  | BareName name -> name.info
-  | QualifiedName (prefix, name) ->
-    let infos = List.map (fun f -> f.info) prefix in
-    List.fold_right Info.merge infos (name.info)
-*)
-(* QUESTION: we don't need this anymore right? *)
 
 let name_eq n1 n2 =
   match n1, n2 with
@@ -125,8 +107,7 @@ let name_eq n1 n2 =
     QualifiedName {tags = _; prefix = ns2; name = s2} ->
     s1 = s2 && ns1 = ns2
   | _ -> false
-  (* | Qualified names should also be equal if their prefixes agree and names agree *)
-  (* QUESTION: how do prefixes agree? list =? or the order and repetition doesn't matter? *)
+  (* DISCUSS: how do prefixes agree? list =? or the order and repetition doesn't matter? *)
 
 and name_only n =
   match n with
@@ -150,7 +131,6 @@ end = struct
 
   type t = Info.t pt [@@deriving sexp,show,yojson]
 end
-(* remove name from pbody*)
 and Annotation : sig
   type 'a pbody =
     | Empty of 
@@ -158,15 +138,12 @@ and Annotation : sig
     | Unparsed of 
         { tags: 'a; 
           str: P4String.t list}
-          (* name: P4String.t} *)
     | Expression of 
         { tags: 'a; 
           exprs: Expression.t list}
-          (* name: P4String.t} *)
     | KeyValue of 
         { tags: 'a; 
           k_v: KeyValue.t list} 
-          (* name: P4String.t} *)
   [@@deriving sexp,show,yojson]
 
   type body = Info.t pbody [@@deriving sexp,show,yojson]

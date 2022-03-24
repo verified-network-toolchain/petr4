@@ -44,11 +44,11 @@ Inductive type_expr (Γ : expr_type_env)
     uop_type op τ τ' ->
     Γ ⊢ₑ e ∈ τ ->
     Γ ⊢ₑ Expr.Uop τ' op e ∈ τ'
-| type_bop op τ1 τ2 τ e1 e2 :
-    bop_type op τ1 τ2 τ ->
-    Γ ⊢ₑ e1 ∈ τ1 ->
-    Γ ⊢ₑ e2 ∈ τ2 ->
-    Γ ⊢ₑ Expr.Bop τ op e1 e2 ∈ τ
+| type_bop op τ₁ τ₂ τ e₁ e₂ :
+    bop_type op τ₁ τ₂ τ ->
+    Γ ⊢ₑ e₁ ∈ τ₁ ->
+    Γ ⊢ₑ e₂ ∈ τ₂ ->
+    Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ
 | type_member τ x e τs b :
   nth_error τs x = Some τ ->
   t_ok (type_vars Γ) τ ->
@@ -60,7 +60,7 @@ Inductive type_expr (Γ : expr_type_env)
   Γ ⊢ₑ Expr.Struct es oe ∈ Expr.TStruct τs b
 | type_error err :
   Γ ⊢ₑ Expr.Error err ∈ Expr.TError
-where "gm '⊢ₑ' e ∈ ty" := (type_expr gm e ty) : type_scope.
+where "Γ '⊢ₑ' e ∈ τ" := (type_expr Γ e τ) : type_scope.
 
 Local Close Scope expr_scope.
 Local Open Scope pat_scope.
@@ -68,14 +68,14 @@ Local Open Scope pat_scope.
 (** Select-pattern-typing. *)
 Inductive type_pat : Parser.pat -> Expr.t -> Prop :=
 | type_wild t : type_pat Parser.Wild t
-| type_mask p1 p2 w :
-  type_pat p1 (Expr.TBit w) ->
-  type_pat p2 (Expr.TBit w) ->
-  type_pat (Parser.Mask p1 p2) (Expr.TBit w)
-| type_range p1 p2 w :
-  type_pat p1 (Expr.TBit w) ->
-  type_pat p2 (Expr.TBit w) ->
-  type_pat (Parser.Range p1 p2) (Expr.TBit w)
+| type_mask p₁ p₂ w :
+  type_pat p₁ (Expr.TBit w) ->
+  type_pat p₂ (Expr.TBit w) ->
+  type_pat (Parser.Mask p₁ p₂) (Expr.TBit w)
+| type_range p₁ p₂ w :
+  type_pat p₁ (Expr.TBit w) ->
+  type_pat p₂ (Expr.TBit w) ->
+  type_pat (Parser.Range p₁ p₂) (Expr.TBit w)
 | type_pbit w n :
   type_pat (w PW n) (Expr.TBit w)
 | type_pint w z :
@@ -105,8 +105,8 @@ Inductive type_prsrexpr
 (** * Statement typing. *)
 
 Record stmt_type_env : Set :=
-  { functs := fenv
-  ; cntx := ctx
+  { functs : fenv
+  ; cntx   : ctx
   ; expr_env :> expr_type_env }.
 
 Reserved Notation "Γ₁ ⊢ₛ s ⊣ Γ₂ ↓ sig" (at level 80, no associativity).
@@ -117,46 +117,53 @@ Inductive type_stmt
   : stmt_type_env -> Stmt.s -> expr_type_env -> signal -> Prop :=
 | type_skip Γ :
   Γ ⊢ₛ Stmt.Skip ⊣ Γ ↓ Cont
-| type_seq_cont s1 s2 Δ Γ Γ' Γ'' sig con fns :
-  {|functs:=fns;cntx:=con;type_vars:=Δ;types:=Γ|} ⊢ₛ s1 ⊣ Γ' ↓ Cont ->
-  {|functs:=fns;cntx:=con;type_vars:=Δ;types:=Γ'|} ⊢ₛ s2 ⊣ Γ'' ↓ sig ->
-  {|functs:=fns;cntx:=con;type_vars:=Δ;types:=Γ|} ⊢ₛ s1 `; s2 ⊣ Γ'' ↓ sig
+| type_seq_cont s₁ s₂ Γ Γ' Γ'' sig con fns :
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ s₁ ⊣ Γ' ↓ Cont ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ'|}
+    ⊢ₛ s₂ ⊣ Γ'' ↓ sig ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ s₁ `; s₂ ⊣ Γ'' ↓ sig
 | type_block s Γ Γ' sig :
   Γ ⊢ₛ s ⊣ Γ' ↓ sig ->
   Γ ⊢ₛ Stmt.Block s ⊣ Γ ↓ Cont
-| type_vardecl τ eo :
+| type_vardecl Δ Γ con fns τ eo :
     match eo with
     | inr e => Γ ⊢ₑ e ∈ τ
     | inl τ => t_ok Δ τ
     end ->
-    Γ ⊢ₛ Stmt.Var eo ⊣ {| functs   := functs Γ
-                       ; cntx      := cntx Γ
-                       ; type_vars := type_vars Γ'
-                       ; types     := τ :: types Γ|} ↓ Cont
-| type_assign (τ : Expr.t) (e1 e2 : Expr.e)  (con : ctx) :
-    lvalue_ok e1 ->
-    ⟦ Δ, Γ ⟧ ⊢ e1 ∈ τ ->
-    ⟦ Δ, Γ ⟧ ⊢ e2 ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ asgn e1 := e2 ⊣ ⦃ Γ, C ⦄
-| type_cond (guard : Expr.e) (tru fls : Stmt.s)
-           (Γ1 Γ2 : Gamma)  (sgt sgf sg : signal) (con : ctx) :
-    lub sgt sgf = sg ->
-    ⟦ Δ, Γ ⟧ ⊢ guard ∈ Bool ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ tru ⊣ ⦃ Γ1, sgt ⦄ ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ fls ⊣ ⦃ Γ2, sgf ⦄ ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ if guard then tru else fls ⊣ ⦃ Γ, sg ⦄
-(* TODO: fix:
-| type_return_void  (con : ctx) :
-    return_void_ok con ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ returns None ⊣ ⦃ Γ, R ⦄
-| type_return_fruit (τ : Expr.t) (e : Expr.e) :
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄ Function τ ⊢ return (Some e) ⊣ ⦃ Γ, R ⦄*)
-| type_exit  (con : ctx) :
-    exit_ctx_ok con ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ exit ⊣ ⦃ Γ, R ⦄
-| type_void_call (params : Expr.params)
+    {|functs:=fns;cntx:=con;expr_env:=Γ|}
+      ⊢ₛ Stmt.Var eo
+      ⊣ {| functs  := fns
+        ; cntx     := con
+        ; expr_env :=
+          {| type_vars := type_vars Γ
+          ; types      := τ :: types Γ|}
+        |} ↓ Cont
+| type_assign (Γ : stmt_type_env) τ e₁ e₂ :
+  lvalue_ok e₁ ->
+  Γ ⊢ₑ e₁ ∈ τ ->
+  Γ ⊢ₑ e₂ ∈ τ ->
+  Γ ⊢ₛ e₁ `:= e₂ ⊣ Γ ↓ Cont
+| type_cond Γ Γ₁ Γ₂ e s₁ s₂  sig₁ sig₂ con fns :
+  Γ ⊢ₑ e ∈ Expr.TBool ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ s₁ ⊣ Γ₁ ↓ sig₁ ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ s₂ ⊣ Γ₂ ↓ sig₂ ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ If e Then s₁ Else s₂ ⊣ Γ ↓ lub sig₁ sig₂
+| type_return Γ eo :
+  match cntx Γ, eo with
+  | CFunction (Some τ), Some e => Γ ⊢ₑ e ∈ τ
+  | c, None => return_void_ok c
+  | _, _ => False
+  end ->
+  Γ ⊢ₛ Stmt.Return eo ⊣ Γ ↓ Return
+| type_exit Γ :
+  exit_ctx_ok (cntx Γ) ->
+  Γ ⊢ₛ Stmt.Exit ⊣ Γ ↓ Return
+(*| type_void_call (params : Expr.params)
                 (ts : list Expr.t)
                 (args : Expr.args)
                 (f : string)  (con : ctx) :
@@ -239,9 +246,9 @@ Inductive type_stmt
        args params ->
      let result := Some e in
      (⦃ fns, Δ, Γ ⦄
-        con ⊢ extern extrn calls f<ts>(args) gives result ⊣ ⦃ Γ, C ⦄))
-where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
-        := (type_stmt fe ers g1 con s g2 sg).
+        con ⊢ extern extrn calls f<ts>(args) gives result ⊣ ⦃ Γ, C ⦄)) *)
+where "Γ₁ '⊢ₛ' s '⊣' Γ₂ '↓' sig"
+        := (type_stmt Γ₁ s Γ₂ sig).
 (**[]*)
                      
 (** Parser State typing. *)

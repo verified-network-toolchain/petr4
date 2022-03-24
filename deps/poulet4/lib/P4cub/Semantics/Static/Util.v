@@ -215,7 +215,6 @@ Record insts_env : Set :=
 (** Put (constructor) parameters
     into environments for typing
     control or parser declarations. *)
-Check List.fold_right.
 Definition cbind_all (ie : insts_env) :
   TopDecl.constructor_params ->
   list Expr.t * insts_env :=
@@ -245,10 +244,10 @@ Variant valid_state (total : nat) : Parser.state -> Prop :=
 
 (** Appropriate signal. *)
 Variant good_signal : Expr.arrowT -> signal -> Prop :=
-| good_signal_cont params :
-    good_signal {|paramargs:=params; rtrns:=None|} SIG_Cont
-| good_signal_return params ret :
-  good_signal {|paramargs:=params; rtrns:=Some ret|} SIG_Return.
+  | good_signal_cont params :
+    good_signal {|paramargs:=params; rtrns:=None|} Cont
+  | good_signal_return params ret :
+    good_signal {|paramargs:=params; rtrns:=Some ret|} Return.
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lvalue_ok : Expr.e -> Prop :=

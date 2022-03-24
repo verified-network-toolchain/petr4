@@ -107,7 +107,7 @@ Definition tsub_carg
   | TopDecl.CAExpr e => tsub_e σ e
   end.
 
-Fixpoint tsub_cparam
+Definition tsub_cparam
          (σ : Env.t nat Expr.t) (ctor_type : TopDecl.it) : TopDecl.it :=
   match ctor_type with
   | TopDecl.ControlInstType extern_params params =>
@@ -134,7 +134,6 @@ Definition tsub_method
            (σ : Env.t nat Expr.t)
            '((Δ,xs,arr) : nat * list string * Expr.arrowT) :=
   (Δ,xs,tsub_arrowT (tshift_env Δ σ) arr).
-
 
 Definition tsub_table
            (σ : Env.t nat Expr.t) (tbl : Control.table) :=

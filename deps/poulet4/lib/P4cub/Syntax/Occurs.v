@@ -65,27 +65,6 @@ Fixpoint FVₛ (s : Stmt.s) : list nat :=
   | Stmt.Apply _ _ es           => flat_map FV_paramarg es
   end.
 
-Section OExists.
-  Context {A : Set}.
-  Variable P : A -> Prop.
-
-  Variant OExists : option A -> Prop :=
-    OExist_some a :
-      P a -> OExists (Some a).
-
-  Local Hint Constructors OExists : core.
-
-  Lemma OExists_exists : forall o : option A,
-      OExists o <-> exists a, P a /\ o = Some a.
-  Proof.
-    intros [a |]; split.
-    - intro h; inv h; eauto.
-    - intros (a' & H & h); inv h; auto.
-    - intro h; inv h.
-    - intros (a' & H & h); inv h.
-  Qed.
-End OExists.
-
 (* TODO: induction hypothesis. *)
 Section Occurs.
   Variable x : nat.

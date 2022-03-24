@@ -71,13 +71,13 @@ Arguments rtrns {_} {_}.
 Module Expr.
   (** Expression types. *)
   Inductive t : Set :=
-  | TBool                     (** bool *)
-  | TBit (width : N)          (** unsigned integers *)
-  | TInt (width : positive)   (** signed integers *)
-  | TError                    (** the error type *)
+  | TBool                  (** bool *)
+  | TBit (width : N)       (** unsigned integers *)
+  | TInt (width : N)       (** signed integers *)
+  | TError                 (** the error type *)
   | TStruct (fields : list t)
-            (isheader : bool)    (** struct types *)
-  | TVar (type_name : nat)      (** type variables *).  
+            (isheader : bool) (** struct types *)
+  | TVar (type_name : nat)   (** type variables *).  
     
   (** Function parameters. *)
   Definition params : Set := list (paramarg t t).
@@ -123,7 +123,7 @@ Module Expr.
   Inductive e : Set :=
   | Bool (b : bool)                      (** booleans *)
   | Bit (width : N) (val : Z)         (** unsigned integers *)
-  | Int (width : positive) (val : Z)  (** signed integers *)
+  | Int (width : N) (val : Z)         (** signed integers *)
   | Var (type : t) (x : nat)            (** variables *)
   | Slice (arg : e)
            (hi lo : positive)          (** bit-slicing *)
@@ -186,12 +186,12 @@ Module Parser.
   (** Select expression pattern.
       Corresponds to keySet expressions in p4. *)
   Inductive pat : Set :=
-  | Wild                             (** wild-card/anything pattern *)
-  | Mask (p1 p2 : pat)               (** mask pattern *)
-  | Range (p1 p2 : pat)              (** range pattern *)
-  | Bit (width : N) (val : Z)        (** unsigned-int pattern *)
-  | Int (width : positive) (val : Z) (** signed-int pattern *)
-  | Struct (ps : list pat)           (** struct pattern *).
+  | Wild                      (** wild-card/anything pattern *)
+  | Mask (p1 p2 : pat)        (** mask pattern *)
+  | Range (p1 p2 : pat)       (** range pattern *)
+  | Bit (width : N) (val : Z) (** unsigned-int pattern *)
+  | Int (width : N) (val : Z) (** signed-int pattern *)
+  | Struct (ps : list pat)    (** struct pattern *).
 
   (** Parser expressions, which evaluate to state names *)
   Inductive e : Set :=
@@ -227,16 +227,16 @@ End Control.
 (** Top-Level Declarations *)
 Module TopDecl.
   (** Constructor Parameter types, for instantiations *)
-  Inductive it : Set :=
-  | EType (type : Expr.t)   (** expression types *)
-  | ControlInstType
-      (extern_params : list string)
-      (parameters : Expr.params) (** control instance types *)
-  | ParserInstType
-      (extern_params : list string)
-      (parameters : Expr.params) (** parser instance types *)
-  | PackageInstType (** package instance types *)
-  | ExternInstType (extern_name : string) (** extern instance types *).
+  Variant it : Set :=
+    | EType (type : Expr.t)   (** expression types *)
+    | ControlInstType
+        (extern_params : list string)
+        (parameters : Expr.params) (** control instance types *)
+    | ParserInstType
+        (extern_params : list string)
+        (parameters : Expr.params) (** parser instance types *)
+    | PackageInstType (** package instance types *)
+    | ExternInstType (extern_name : string) (** extern instance types *).
     
   Definition constructor_params : Set := list it.
 

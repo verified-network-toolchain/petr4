@@ -5,21 +5,21 @@ Import String AllCubNotations.
 
 (** Statement signals. *)
 Variant signal : Set :=
-| SIG_Cont   (* continue *)
-| SIG_Return (* return *).
+| Cont   (** continue *)
+| Return (** return *).
 
 (** Least-upper bound on signals *)
 Definition lub (sg1 sg2 : signal) : signal :=
   match sg1, sg2 with
-  | SIG_Cont, _
-  | _, SIG_Cont => SIG_Cont
-  | _, _        => SIG_Return
+  | Cont, _
+  | _, Cont => Cont
+  | _, _    => Return
   end.
 
 (** Evidence for a type being a numeric of a given width. *)
 Variant numeric_width : N -> Expr.t -> Prop :=
 | numeric_width_bit : forall w, numeric_width w (Expr.TBit w)
-| numeric_width_int : forall w, numeric_width (Npos w) (Expr.TInt w).
+| numeric_width_int : forall w, numeric_width w (Expr.TInt w).
 
 Ltac inv_numeric_width :=
   match goal with
@@ -73,8 +73,8 @@ Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
     numeric_width w2 τ2 ->
     bop_type `++%bop (Expr.TBit w1) τ2 (Expr.TBit w)
 | BTPlusPlusInt w1 w2 w τ2 :
-    (w1 + w2)%positive = w ->
-    numeric_width (Npos w2) τ2 ->
+    (w1 + w2)%N = w ->
+    numeric_width w2 τ2 ->
     bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt w)
 | BTPlusPlusIntZero w1 τ2 :
     numeric_width N0 τ2 ->
@@ -82,13 +82,13 @@ Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 
 (** Evidence a cast is proper. *)
 Variant proper_cast : Expr.t -> Expr.t -> Prop :=
-| pc_bool_bit : proper_cast Expr.TBool (Expr.TBit 1)
-| pc_bit_bool : proper_cast (Expr.TBit 1) Expr.TBool
-| pc_bit_int (w : positive) : proper_cast (Expr.TBit (Npos w)) (Expr.TInt w)
-| pc_int_bit (w : positive) : proper_cast (Expr.TInt w) (Expr.TBit (Npos w))
-| pc_bit_bit (w1 w2 : N) : proper_cast (Expr.TBit w1) (Expr.TBit w2)
-| pc_int_int (w1 w2 : positive) : proper_cast (Expr.TInt w1) (Expr.TInt w2)
-| pc_tuple_hdr (ts : list Expr.t) :
+  | pc_bool_bit : proper_cast Expr.TBool (Expr.TBit 1)
+  | pc_bit_bool : proper_cast (Expr.TBit 1) Expr.TBool
+  | pc_bit_int w : proper_cast (Expr.TBit w) (Expr.TInt w)
+  | pc_int_bit w : proper_cast (Expr.TInt w) (Expr.TBit w)
+  | pc_bit_bit w1 w2 : proper_cast (Expr.TBit w1) (Expr.TBit w2)
+  | pc_int_int w1 w2 : proper_cast (Expr.TInt w1) (Expr.TInt w2)
+  | pc_tuple_hdr ts :
     Forall ProperType.proper_inside_header ts ->
     proper_cast (Expr.TStruct ts false) (Expr.TStruct ts true).
 

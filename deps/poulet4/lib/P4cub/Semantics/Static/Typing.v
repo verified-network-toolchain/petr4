@@ -163,44 +163,36 @@ Inductive type_stmt
 | type_exit Γ :
   exit_ctx_ok (cntx Γ) ->
   Γ ⊢ₛ Stmt.Exit ⊣ Γ ↓ Return
-(*| type_void_call (params : Expr.params)
-                (ts : list Expr.t)
-                (args : Expr.args)
-                (f : string)  (con : ctx) :
-    fns f = Some {|paramargs:=params; rtrns:=None|} ->
-    F.relfs
-      (rel_paramarg_same
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ call f<ts>(args) ⊣ ⦃ Γ, C ⦄
-| type_act_call (params : Expr.params)
-               (args : Expr.args)
-               (a : string) 
-               (aa : aenv) (con : ctx) :
-    action_call_ok aa con ->
-    aa a = Some params ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ con ⊢ calling a with args ⊣ ⦃ Γ, C ⦄
-| type_fun_call (τ : Expr.t) (e : Expr.e)
-               (params : Expr.params)
-               (ts : list Expr.t)
-               (args : Expr.args)
-               (f : string)  (con : ctx) :
-    t_ok Δ τ ->
-    fns f = Some {|paramargs:=params; rtrns:=Some τ|} ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ let e := call f<ts>(args) ⊣ ⦃ Γ, C ⦄
-| type_apply (eargs : F.fs string string) (args : Expr.args) (x : string)
+| type_void_call Γ params τs args f :
+  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
+  Forall (t_ok (type_vars Γ)) τs ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args (map (tsub_param (gen_tsub τs)) params) ->
+  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=None|} ⊣ Γ ↓ Cont
+| type_act_call Γ params args a aa :
+  action_call_ok aa (cntx Γ) ->
+  aa a = Some params ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args params ->
+  Γ ⊢ₛ Stmt.ActCall a args ⊣ Γ ↓ Cont
+| type_fun_call Γ params τs args f τ e :
+  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
+  Forall (t_ok (type_vars Γ)) (τ :: τs) ->
+  lvalue_ok e ->
+  Γ ⊢ₑ e ∈ τ ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args (map (tsub_param (gen_tsub τs)) params) ->
+  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
+(*| type_apply (eargs : F.fs string string) (args : Expr.args) (x : string)
              (eps : F.fs string string) (params : Expr.params)
             (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
     cis x = Some (eps,params) ->

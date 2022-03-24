@@ -27,8 +27,8 @@ let format_list_sep_nl f sep l =
 module P4Int = struct
   open P4.P4Int
   let format_bigint b = b |> Bigint.to_string |> text
-  let format_t e =
-    let i = snd e in
+  let format_t (i: P4.P4Int.t) =
+    (* let i = e. in *)
     (match i.width_signed with
      | None -> i.value |> format_bigint |> box
      | Some (width,signed) -> (width |> string_of_int |> text) ++
@@ -37,17 +37,18 @@ module P4Int = struct
 end
 
 module P4String = struct
-  let format_t e = ("\"" |> text) ++ (e |> snd |> text) ++ ("\"" |> text)
+  let format_t (e: P4.P4String.t) = ("\"" |> text) ++ (e.string |> text) ++ ("\"" |> text)
 end
 
 module P4Word = struct
-  let format_t e =  e |> snd |> text
+  let format_t (e: P4.P4String.t) =  e.string |> text
+(*   let format_t (e: P4.name) = e.name |> text *)
 end
 
-let name_format_t (name: Types.name) =
+let name_format_t (name: P4.name) =
   match name with
-  | BareName str -> P4Word.format_t str
-  | QualifiedName ([], str) -> (text ".") ++ (P4Word.format_t str)
+  | BareName n -> n.name.string |> text
+  | QualifiedName {prefix=[]; name; _} -> (text ".") ++ (name.string |> text)
   | _ -> failwith "illegal name"
 
 module rec Expression : sig
@@ -55,12 +56,12 @@ module rec Expression : sig
 end = struct
   open P4.Expression
   let rec format_t e =
-    match snd e with
-    | True ->  text "true"
-    | False -> text "false"
-    | Int i -> P4Int.format_t i
-    | String s -> P4String.format_t s
-    | Name name -> name_format_t name
+    match e with
+    | True _ ->  text "true"
+    | False _ -> text "false"
+    | Int {x; _} -> P4Int.format_t x
+    | String {str; _} -> P4String.format_t str
+    | Name {name; _} -> name_format_t name
     | ArrayAccess x ->
       (format_t x.array) ++ (text "[") ++ (format_t x.index) ++ (text "]")
       |> box ~indent:2
@@ -72,46 +73,46 @@ end = struct
     | Record x -> (text "{") ++ (format_list_sep KeyValue.format_t ", " x.entries) ++
                   (text "}") |> box ~indent:2
     | UnaryOp x ->
-      let uop = match (snd x.op) with
-        | Not -> "!"
-        | BitNot -> "~"
-        | UMinus -> "-"
+      let uop = match x.op with
+        | Not _ -> "!"
+        | BitNot _ -> "~"
+        | UMinus _ -> "-"
       in (uop |> text) ++ (format_t x.arg)
          |> box
     | BinaryOp x ->
-      let bop = match (snd x.op) with
-          Plus -> "+"
-        | PlusSat -> "|+|"
-        | Minus -> "-"
-        | MinusSat -> "|-|"
-        | Mul -> "*"
-        | Div -> "/"
-        | Mod -> "%"
-        | Shl -> "<<"
-        | Shr -> ">>"
-        | Le -> "<="
-        | Ge -> ">="
-        | Lt -> "<"
-        | Gt -> ">"
-        | Eq -> "=="
-        | NotEq -> "!="
-        | BitAnd -> " & "
-        | BitXor -> " ^ "
-        | BitOr -> " | "
-        | PlusPlus -> " ++ "
-        | And -> " && "
-        | Or -> " || "
+      let bop = match x.op with
+          Plus _ -> "+"
+        | PlusSat _ -> "|+|"
+        | Minus _ -> "-"
+        | MinusSat _ -> "|-|"
+        | Mul _ -> "*"
+        | Div _ -> "/"
+        | Mod _ -> "%"
+        | Shl _ -> "<<"
+        | Shr _ -> ">>"
+        | Le _ -> "<="
+        | Ge _ -> ">="
+        | Lt _ -> "<"
+        | Gt _ -> ">"
+        | Eq _  -> "=="
+        | NotEq _ -> "!="
+        | BitAnd _ -> " & "
+        | BitXor _ -> " ^ "
+        | BitOr _ -> " | "
+        | PlusPlus _ -> " ++ "
+        | And _ -> " && "
+        | Or _ -> " || "
       in (x.args |> fst |> format_t) ++ (bop |> text) ++
          (format_t (snd x.args)) |> hbox
     | Cast x ->
       ("(" |> text) ++ (Type.format_t x.typ) ++ (") " |> text) ++
       (format_t x.expr) |> hbox
     | TypeMember x ->
-      (name_format_t x.typ) ++ ("." |> text) ++ (x.name |> snd |> text)
+      (name_format_t x.typ) ++ ("." |> text) ++ (x.name.string |> text)
       |> box ~indent:2
-    | ErrorMember x -> x |> snd |> text
+    | ErrorMember x -> x.err.string |> text
     | ExpressionMember x -> (format_t x.expr) ++ ("." |> text) ++
-                            (x.name |> snd |> text) |> box ~indent:2
+                            (x.name.string |> text) |> box ~indent:2
     | Ternary x ->
       ("(" |> text) ++ (format_t x.cond) ++ space ++ ("?" |> text) ++
       space ++ (format_t x.tru) ++ space ++ (":" |> text) ++
@@ -139,21 +140,21 @@ end = struct
 
   let format_switch_label sl =
     match sl with
-    | Default -> text "default"
-    | Name(sl) -> sl |> P4Word.format_t |> box ~indent:2
+    | Default _ -> text "default"
+    | Name {name; _} -> P4Word.format_t name |> box ~indent:2
 
   let format_switch_case sc =
-    match snd sc with
-    | Action { label; code } ->
-      (format_switch_label (snd label)) ++ (": " |> text) ++
+    match sc with
+    | Action { label; code; _ } ->
+      (format_switch_label label) ++ (": " |> text) ++
       (Block.format_t code) ++ ("\n}" |> text)
-    | FallThrough { label } ->
-      (format_switch_label (snd label)) ++ (":" |> text)
+    | FallThrough { label; _ } ->
+      (format_switch_label label) ++ (":" |> text)
 
   let block_fls fls =
     match fls with
     | None -> nop
-    | Some (_, BlockStatement { block=fls_block }) ->
+    | Some (BlockStatement { block=fls_block; _ }) ->
       ("else " |> text) ++ (Block.format_t fls_block) ++ ("\n}" |> text)
     | Some sfls ->
       ("\nelse" |> text) ++ space ++ (Statement.format_t sfls)
@@ -162,7 +163,7 @@ end = struct
   let wc_fls fls =
     match fls with
     | None -> nop
-    | Some (_, BlockStatement { block=fls_block }) ->
+    | Some (BlockStatement { block=fls_block; _ }) ->
       ("\n" |> text) ++ (("else " |> text) ++ (Block.format_t fls_block) ++
                          ("\n}" |> text)) |> box ~indent:2
     | Some sfls ->
@@ -170,43 +171,43 @@ end = struct
                          (Statement.format_t sfls) |> box ~indent:2)
 
   let rec format_t (e:t) =
-    match snd e with
-    | MethodCall { func; type_args; args } ->
+    match e with
+    | MethodCall { func; type_args; args; _ } ->
       (Expression.format_t func) ++ (Type.format_typ_args type_args) ++
       ("(" |> text) ++ (box ((Argument.format_ts args) ++
                              (")" |> text) ++ (";" |> text))) |> hvbox
-    | Assignment { lhs; rhs } ->
+    | Assignment { lhs; rhs; _ } ->
       (Expression.format_t lhs) ++ space ++ ("=" |> text) ++ space ++
       (Expression.format_t rhs) ++ (";" |> text) |> box
-    | DirectApplication { typ; args } ->
+    | DirectApplication { typ; args; _ } ->
       (Type.format_t typ) ++ (".apply(" |> text) ++ (Argument.format_ts args) ++
       (");" |> text) |> hvbox
-    | Conditional { cond; tru; fls } ->
-      let close = match snd tru with
-        | BlockStatement { block=tru_block } ->
+    | Conditional { cond; tru; fls; _ } ->
+      let close = match tru with
+        | BlockStatement { block=tru_block; _ } ->
           ("\n}" |> text) ++ (block_fls fls)
         | _ ->  nop
-      in let remainder = match snd tru with
-          | BlockStatement { block=tru_block } ->
+      in let remainder = match tru with
+          | BlockStatement { block=tru_block; _ } ->
             (tru_block |> Block.format_t)
           | _ ->  ("\n" |> text) ++ (format_t tru) ++ (wc_fls fls)
       in (box ~indent: 2 (("if" |> text) ++ space ++  ("(" |> text) ++
                           (Expression.format_t cond) ++ (")" |> text) ++
                           space ++ remainder)) ++ close
-    | BlockStatement { block } ->
+    | BlockStatement { block; _ } ->
       (block |> Block.format_t |> box ~indent:2) ++ ("\n}" |> text)
-    | Exit -> text "exit;"
-    | EmptyStatement -> text ";"
-    | Return { expr = None } -> text "return;"
-    | Return { expr = Some sexpr } ->
+    | Exit _ -> text "exit;"
+    | EmptyStatement _ -> text ";"
+    | Return { expr = None; _ } -> text "return;"
+    | Return { expr = Some sexpr; _ } ->
       ("return" |> text) ++ (space ++ (Expression.format_t sexpr) ++
                              (";" |> text)) |> hvbox
-    | Switch { expr; cases } ->
+    | Switch { expr; cases; _ } ->
       (hvbox ("switch" |> text) ++ space ++ ("(" |> text) ++
        (box (Expression.format_t expr)) ++ (")" |> text) ++ space ++
        ("{\n" |> text) ++ (format_list_nl format_switch_case cases)) ++
       ("\n}" |> text)
-    | DeclarationStatement { decl } ->
+    | DeclarationStatement { decl; _ } ->
       Declaration.format_t decl
 end
 
@@ -215,9 +216,9 @@ and Block : sig
 end = struct
   open P4.Block
   let format_t e =
-    match snd e with
-    | { annotations=[]; statements=[] } -> "{ " |> text
-    | { annotations; statements } ->
+    match e with
+    | { annotations=[]; statements=[]; _ } -> "{ " |> text
+    | { annotations; statements; _ } ->
       (Annotation.format_ts annotations) ++ ("{\n" |> text) ++
       (format_list_nl Statement.format_t statements)
 end
@@ -228,13 +229,13 @@ and Argument : sig
 end = struct
   open P4.Argument
   let format_t e =
-    match snd e with
+    match e with
     | Expression x ->
       x.value |> Expression.format_t |> box ~indent:2
     | KeyValue x ->
-      (x.key |> snd |> text) ++ (("=" |> text) ++ (Expression.format_t x.value))
+      (P4Word.format_t x.key) ++ (("=" |> text) ++ (Expression.format_t x.value))
       |> box ~indent:2
-    | Missing -> text "_"
+    | Missing _ -> text "_"
   let format_ts l =
     format_list_sep format_t ", " l |> box ~indent:2
 end
@@ -246,28 +247,28 @@ and Type : sig
 end = struct
   open P4.Type
   let rec format_t e =
-    match snd e with
-    | Bool -> text "bool"
-    | Error -> text "error"
-    | Integer -> text "int"
+    match e with
+    | Bool _ -> text "bool"
+    | Error _ -> text "error"
+    | Integer _ -> text "int"
     | IntType x -> ("int" |> text) ++ ("<" |> text) ++
-                   ( Expression.format_t x) ++ (">" |> text) |> box
+                   ( Expression.format_t x.expr) ++ (">" |> text) |> box
     | BitType e ->
-      begin match snd e with
+      begin match e.expr with
         | P4.Expression.Int _  ->
-          ("bit<" |> text) ++ (Expression.format_t e) ++ (">" |> text)
+          ("bit<" |> text) ++ (Expression.format_t e.expr) ++ (">" |> text)
           |> box ~indent:2
         | _ ->
-          ("bit<(" |> text) ++ (Expression.format_t e) ++ (")>" |> text)
+          ("bit<(" |> text) ++ (Expression.format_t e.expr) ++ (")>" |> text)
           |> box ~indent:2
       end
     | VarBit x ->
-      ("varbit" |> text) ++ space ++ ("<" |> text) ++ ( Expression.format_t x) ++
+      ("varbit" |> text) ++ space ++ ("<" |> text) ++ ( Expression.format_t x.expr) ++
       (">" |> text) |> box ~indent:2
-    | TypeName (BareName x) -> x |> snd |> text |> box ~indent:2
-    | TypeName (QualifiedName ([], x)) ->
-      ("." |> text) ++ (x |> snd |> text) |> box ~indent:2
-    | TypeName _ -> failwith "unimplemented"
+    | TypeName x -> name_format_t x.name |> box ~indent:2
+    (* | TypeName (QualifiedName ([], x)) -> *)
+      (* ("." |> text) ++ (x |> snd |> text) |> box ~indent:2 *)
+    (* | TypeName _ -> failwith "unimplemented" *)
     | SpecializedType x ->
       (format_t x.base) ++ ("<" |> text) ++
       (format_list_sep format_t ", " x.args) ++
@@ -275,11 +276,11 @@ end = struct
     | HeaderStack x ->
       (format_t x.header) ++ ("[" |> text) ++
       (Expression.format_t x.size) ++ ("]" |> text) |> box ~indent:2
-    | Tuple x -> ("tuple<" |> text) ++ (format_list_sep format_t ", " x) ++
+    | Tuple x -> ("tuple<" |> text) ++ (format_list_sep format_t ", " x.xs) ++
                  (">" |> text) |> box ~indent:2
-    | String -> text "string"
-    | Void -> text "void"
-    | DontCare -> text "_"
+    | String _ -> text "string"
+    | Void _ -> text "void"
+    | DontCare _ -> text "_"
 
   let format_typ_args l =
     if List.length l = 0 then nop
@@ -297,8 +298,8 @@ and KeyValue : sig
 end = struct
   open P4.KeyValue
   let format_t kv =
-    match snd kv with
-    | { key; value } ->
+    match kv with
+    | { key; value; _ } ->
       (P4Word.format_t key) ++ space ++ ("=" |> text) ++ space ++ (Expression.format_t value) |> box ~indent:2
 end
 
@@ -308,21 +309,21 @@ and Annotation : sig
 end = struct
   open P4.Annotation
   let format_body body =
-    match snd body with
-    | Empty -> nop
+    match body with
+    | Empty _ -> nop
     | Unparsed strings ->
-      ("(" |> text) ++ (format_list_sep P4Word.format_t " " strings) ++
+      ("(" |> text) ++ (format_list_sep P4Word.format_t " " strings.str) ++
       (")" |> text)
     | Expression exprs ->
-      ("[" |> text) ++ (format_list_sep Expression.format_t ", " exprs) ++
+      ("[" |> text) ++ (format_list_sep Expression.format_t ", " exprs.exprs) ++
       ("]" |> text)
     | KeyValue kvs ->
-      ("[" |> text) ++ (format_list_sep KeyValue.format_t ", " kvs) ++
+      ("[" |> text) ++ (format_list_sep KeyValue.format_t ", " kvs.k_v) ++
       ("]" |> text) |> hovbox ~indent:2
 
   let format_t e =
-    match snd e with
-    | { name; body } ->
+    match e with
+    | { name; body; _ } ->
       ("@" |> text) ++ (P4Word.format_t name) ++ (format_body body) |> box
 
   let format_ts l =
@@ -336,10 +337,10 @@ and Direction : sig
 end = struct
   open P4.Direction
   let format_t e =
-    match snd e with
-    | In -> text "in"
-    | Out -> text "out"
-    | InOut -> text "inout"
+    match e with
+    | In _ -> text "in"
+    | Out _ -> text "out"
+    | InOut _ -> text "inout"
 end
 
 and Parameter : sig
@@ -358,7 +359,7 @@ end = struct
     | Some v -> text "=" ++ space ++ Expression.format_t v
     | None -> nop
 
-  let format_t (_, p) =
+  let format_t p =
     hovbox @@
     Annotation.format_ts p.annotations
     ++ format_dir p.direction
@@ -384,10 +385,10 @@ and Match: sig
 end = struct
   open P4.Match
   let format_t e =
-    match snd e with
-    | Default -> text "default"
-    | DontCare -> text "_"
-    | Expression { expr } ->
+    match e with
+    | Default _  -> text "default"
+    | DontCare _ -> text "_"
+    | Expression { expr; _ } ->
       Expression.format_t expr
 
   let format_ts  l =
@@ -405,16 +406,16 @@ end = struct
   open P4.Parser
 
   let format_case e =
-    match snd e with
-    | { matches; next } ->
+    match e with
+    | { matches; next; _ } ->
       (Match.format_ts matches) ++ (":" |> text) ++ space ++
       (P4Word.format_t next) ++ (";" |> text)
 
   let format_transition e =
-    match snd e with
-    | Direct { next } ->
+    match e with
+    | Direct { next; _ } ->
       ("transition" |> text) ++ space ++ (P4Word.format_t next) ++ (";" |> text)
-    | Select { exprs; cases } ->
+    | Select { exprs; cases; _ } ->
       (box ~indent:2
          (("transition" |> text) ++ space ++ ("select(" |> text) ++
           (format_list_sep Expression.format_t ", " exprs) ++
@@ -426,8 +427,8 @@ end = struct
       ("\n}" |> text)
 
   let format_state e =
-    match snd e with
-    | { annotations; name; statements; transition } ->
+    match e with
+    | { annotations; name; statements; transition; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("state" |> text) ++
                       space ++
@@ -451,37 +452,37 @@ end = struct
   open P4.Table
 
   let format_key e =
-    match snd e with
-    | { annotations; key; match_kind } ->
+    match e with
+    | { annotations; key; match_kind; _ } ->
       box ~indent:2 ((Expression.format_t key) ++ (":" |> text) ++ space ++
                      (P4Word.format_t match_kind) ++
                      (Annotation.format_ts annotations) ++ (";" |> text))
 
   let format_action_ref e =
-    match snd e with
-    | { annotations; name; args = [] } ->
+    match e with
+    | { annotations; name; args = []; _ } ->
       (Annotation.format_ts annotations) ++
       (name |> name_format_t |> box ~indent:2)
-    | { annotations; name; args } ->
+    | { annotations; name; args; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((name_format_t name) ++
                       ("(" |> text) ++ (box (Argument.format_ts args)) ++
                       (")" |> text)))
 
   let format_entry e =
-    match snd e with
-    | { annotations; matches; action } ->
+    match e with
+    | { annotations; matches; action; _ } ->
       (box ~indent:2 ((Match.format_ts matches) ++ (":" |> text) ++
                       space ++ (format_action_ref action))) ++
       ((Annotation.format_ts annotations) ++ (";" |> text))
 
   let format_property e =
-    match snd e with
-    | Key  { keys } ->
+    match e with
+    | Key  { keys; _ } ->
       (box ~indent:2 (("key" |> text) ++ space ++ ("=" |> text) ++ space ++
                       ("{\n" |> text) ++ (format_list_nl format_key keys))) ++
       ("\n}" |> text)
-    | Actions { actions } ->
+    | Actions { actions; _ } ->
       (box ~indent:2 (("actions" |> text) ++ space ++ ("=" |> text) ++ space ++
                       ("{\n" |> text) ++
                       (format_list_sep format_action_ref ";" actions) ++
@@ -489,12 +490,12 @@ end = struct
                          | [] -> nop
                          | _ -> ";" |> text end))) ++
       ("\n}" |> text)
-    | Entries { entries } ->
+    | Entries { entries; _ } ->
       (box ~indent:2 (("const entries" |> text) ++ space ++ ("=" |> text) ++
                       space ++ ("{\n" |> text) ++
                       (format_list_nl format_entry entries))) ++
       ("\n}" |> text)
-    | Custom { annotations; const; name; value } ->
+    | Custom { annotations; const; name; value; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (((if const then "const " else "") |> text) ++
                       (P4Word.format_t name) ++ space ++ ("=" |> text) ++
@@ -507,14 +508,14 @@ and MethodPrototype : sig
 end = struct
   open P4.MethodPrototype
   let format_t e =
-    match snd e with
-    | Constructor { annotations; name; params } ->
+    match e with
+    | Constructor { annotations; name; params; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((P4Word.format_t name) ++
                       ("(" |> text) ++
                       (hvbox (Parameter.format_params params)) ++
                       (");" |> text)))
-    | Method { annotations; return; name; type_params; params } ->
+    | Method { annotations; return; name; type_params; params; _ } ->
       Annotation.format_ts annotations
       ++ hbox (Type.format_t return
                ++ space
@@ -522,7 +523,7 @@ end = struct
                ++ Type.format_type_params type_params
                ++ text "(")
       ++ hvbox (Parameter.format_params params ++ text ");")
-    | AbstractMethod { annotations; return; name; type_params; params } ->
+    | AbstractMethod { annotations; return; name; type_params; params; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("abstract" |> text) ++ space ++ (Type.format_t return) ++
                       space ++ (P4Word.format_t name) ++
@@ -538,8 +539,8 @@ end = struct
   open P4.Declaration
 
   let format_field f =
-    match snd f with
-    | { annotations; typ; name } ->
+    match f with
+    | { annotations; typ; name; _ } ->
       (annotations |> Annotation.format_ts |> box) ++
       ((Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
                       (";" |> text))
@@ -558,30 +559,30 @@ end = struct
     else nop
 
   and format_t e =
-    match snd e with
-    | Constant { annotations; typ; name; value } ->
+    match e with
+    | Constant { annotations; typ; name; value; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("const" |> text) ++
                       space ++ (Type.format_t typ) ++
                       space ++
-                      (name |> snd |> text) ++
+                      (P4Word.format_t name) ++
                       space ++
                       ("=" |> text) ++
                       space ++
                       (Expression.format_t value) ++
                       (";" |> text)))
-    | Action { annotations; name; params; body } ->
+    | Action { annotations; name; params; body; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2
-         (("action" |> text) ++ space ++ (name |> snd |> text) ++ ("(" |> text) ++
+         (("action" |> text) ++ space ++ (P4Word.format_t name) ++ ("(" |> text) ++
           (hvbox (Parameter.format_params params)) ++ (") " |> text) ++
           (Block.format_t body))) ++ ("\n}" |> text)
-    | Control { annotations; name; type_params; params; constructor_params; locals; apply } ->
+    | Control { annotations; name; type_params; params; constructor_params; locals; apply; _ } ->
       box ~indent:2 begin
         Annotation.format_ts annotations
         ++ hbox (text "control"
                  ++ space
-                 ++ text (snd name)
+                 ++ P4Word.format_t name
                  ++ Type.format_type_params type_params
                  ++ text "(")
         ++ box (Parameter.format_params params)
@@ -594,12 +595,12 @@ end = struct
         ++ text "\n}"
       end
       ++ text "\n}"
-    | Parser { annotations; name; type_params; params; constructor_params; locals; states } ->
+    | Parser { annotations; name; type_params; params; constructor_params; locals; states; _ } ->
       box ~indent:2 begin
         Annotation.format_ts annotations
         ++ hbox (text "parser"
                  ++ space
-                 ++ text (snd name)
+                 ++ P4Word.format_t name
                  ++ Type.format_type_params type_params
                  ++ text "(")
         ++ box (Parameter.format_params params)
@@ -611,7 +612,7 @@ end = struct
         ++ Parser.format_states states
       end
       ++ text "\n}"
-    | Instantiation { annotations; typ; args; name; init=None } ->
+    | Instantiation { annotations; typ; args; name; init=None; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((Type.format_t typ) ++
                       ("(" |> text) ++
@@ -620,7 +621,7 @@ end = struct
                       space  ++
                       (P4Word.format_t name) ++
                       (";" |> text)))
-    | Instantiation { annotations; typ; args; name; init=Some block } ->
+    | Instantiation { annotations; typ; args; name; init=Some block; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent: 2
          (Type.format_t typ) ++
@@ -633,7 +634,7 @@ end = struct
        ("= " |> text) ++
        (Block.format_t block)) ++
       ("\n};" |> text)
-    | Table { annotations; name; properties } ->
+    | Table { annotations; name; properties; _ } ->
       (box ~indent:2 ((Annotation.format_ts annotations) ++
                       ("table" |> text) ++
                       space  ++
@@ -641,12 +642,12 @@ end = struct
                       (" {\n" |> text) ++
                       (format_list_nl Table.format_property properties))) ++
       ("\n}" |> text)
-    | Variable { annotations; typ; name; init = None } ->
+    | Variable { annotations; typ; name; init = None; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ( (Type.format_t typ) ++
                        space ++ (P4Word.format_t name) ++
                        (";" |> text)))
-    | Variable { annotations; typ; name; init = Some sinit } ->
+    | Variable { annotations; typ; name; init = Some sinit; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 ((Type.format_t typ) ++
                       space  ++
@@ -655,7 +656,7 @@ end = struct
                       ("=" |> text) ++
                       space ++ (Expression.format_t sinit) ++
                       (";" |> text)))
-    | ExternFunction { annotations; return; name; type_params; params } ->
+    | ExternFunction { annotations; return; name; type_params; params; _ } ->
       Annotation.format_ts annotations
       ++ hbox (text "extern"
                ++ space
@@ -665,7 +666,7 @@ end = struct
                ++ Type.format_type_params type_params
                ++ text "(")
       ++ box (Parameter.format_params params ++ text ");")
-    | Function { return; name; type_params; params; body } ->
+    | Function { return; name; type_params; params; body; _ } ->
       (box ~indent:2 ((Type.format_t return) ++
                       space  ++
                       (P4Word.format_t name) ++
@@ -675,77 +676,77 @@ end = struct
                       (") " |> text) ++
                       (Block.format_t body))) ++
       ("\n}" |> text)
-    | ValueSet { annotations; typ; size; name } ->
+    | ValueSet { annotations; typ; size; name; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("value_set<" |> text) ++ (Type.format_t typ) ++
                       (">(" |> text) ++ (box (Expression.format_t size)) ++
                       (")" |> text) ++ space ++ (P4Word.format_t name) ++
                       (";" |> text)))
-    | TypeDef { annotations; name; typ_or_decl } ->
+    | TypeDef { annotations; name; typ_or_decl; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("typedef" |> text) ++
                       space ++ (format_typ_or_decl typ_or_decl) ++ space ++
-                      (name |> snd |> text) ++ (";" |> text)))
-    | ControlType { annotations; name; type_params; params } ->
+                      (P4Word.format_t name) ++ (";" |> text)))
+    | ControlType { annotations; name; type_params; params; _ } ->
       (Annotation.format_ts annotations) ++
-      (box ~indent:2 (("control" |> text) ++ space ++ (name |> snd |> text) ++
+      (box ~indent:2 (("control" |> text) ++ space ++ (P4Word.format_t name) ++
                       (Type.format_type_params type_params) ++
                       (" (" |> text) ++
                       (hvbox (format_list_sep Parameter.format_t ", " params)) ++
                       (");" |> text)))
-    | ParserType { annotations; name; type_params; params } ->
+    | ParserType { annotations; name; type_params; params; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2
-         (("parser" |> text) ++ space ++ (name |> snd |> text) ++
+         (("parser" |> text) ++ space ++ (P4Word.format_t name) ++
           (Type.format_type_params type_params) ++ (" (" |> text) ++
           (hvbox (format_list_sep Parameter.format_t ", " params)) ++
           (");" |> text)))
-    | PackageType { annotations; name; type_params; params } ->
+    | PackageType { annotations; name; type_params; params; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2
          (("package" |> text) ++
           space ++
-          (name |> snd |> text) ++
+          (P4Word.format_t name) ++
           (Type.format_type_params type_params) ++
           (" (" |> text) ++
           (hvbox (format_list_sep Parameter.format_t ", " params)) ++
           (");" |> text)))
-    | Struct { annotations; name; fields } ->
+    | Struct { annotations; name; fields; _ } ->
       Annotation.format_ts annotations
       ++ box ~indent:2 (text "struct "
                         ++ P4Word.format_t name
                         ++ text " {" ++ newline
                         ++ format_list_nl format_field fields)
       ++ text "\n}"
-    | MatchKind { members=[] } ->
+    | MatchKind { members=[]; _ } ->
       "match_kind {\n}" |> text |> box
-    | MatchKind { members } ->
+    | MatchKind { members; _ } ->
       (box ~indent:2 (("match_kind" |> text) ++ space ++ ("{\n" |> text) ++
                       (format_list_sep P4Word.format_t ", " members))) ++
       ("\n}" |> text)
-    | Error { members=[] } ->
+    | Error { members=[]; _ } ->
       box ("error {\n}" |> text)
-    | Error { members } ->
+    | Error { members; _ } ->
       (box ~indent:2 (("error {" |> verbatim) ++
                       newline ++
                       (format_list_sep P4Word.format_t ", " members))) ++
       ("\n}" |> text)
-    | Enum { annotations; name; members=[] } ->
+    | Enum { annotations; name; members=[]; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("enum" |> text) ++ space ++  (P4Word.format_t name) ++
                       space ++ ("{\n}" |> text)))
-    | Enum { annotations; name; members } ->
+    | Enum { annotations; name; members; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2
          (("enum" |> text) ++ space ++ (P4Word.format_t name) ++ space ++
           ("{\n" |> text) ++ (format_list_sep P4Word.format_t ", \n" members))) ++
       ("\n}" |> text)
-    | SerializableEnum { annotations; typ; name; members=[] } ->
+    | SerializableEnum { annotations; typ; name; members=[]; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2 (("enum" |> text) ++
                       space  ++ (Type.format_t typ) ++ space ++ (P4Word.format_t name) ++
                       space  ++ ("{" |> text) ++ newline  ++ ("}" |> text)))
-    | SerializableEnum { annotations; typ; name; members } ->
+    | SerializableEnum { annotations; typ; name; members; _ } ->
       let format_member (field,init) =
         (P4Word.format_t field) ++ space ++ ("=" |> text) ++ space ++
         (Expression.format_t init) in
@@ -755,7 +756,7 @@ end = struct
           space ++ (P4Word.format_t name) ++ (" {\n" |> text) ++
           (format_list_sep format_member ", \n" members))) ++
       ("\n}" |> text)
-    | ExternObject { annotations; name; type_params; methods = [] } ->
+    | ExternObject { annotations; name; type_params; methods = []; _ } ->
       (Annotation.format_ts annotations) ++
       (box ~indent:2
          (("extern" |> text) ++
@@ -767,7 +768,7 @@ end = struct
           ("{" |> text) ++
           newline  ++
           ("}" |> text)))
-    | ExternObject { annotations; name; type_params; methods } ->
+    | ExternObject { annotations; name; type_params; methods; _ } ->
       seq (seq (Annotation.format_ts annotations)
              (box ~indent:2
                 (seq (hvbox ~indent:2 ((seq ("extern" |> text)
@@ -777,27 +778,27 @@ end = struct
                                                    (" {\n" |> text)))))))
                    (format_list_nl MethodPrototype.format_t methods))))
         ("\n}\n" |> text)
-    | Header { annotations; name; fields } ->
+    | Header { annotations; name; fields; _ } ->
       Annotation.format_ts annotations
       ++ box ~indent:2 (text "header "
                         ++ P4Word.format_t name
                         ++ text " {" ++ newline
                         ++ format_list_nl format_field fields)
       ++ text "\n}"
-    | HeaderUnion { annotations; name; fields } ->
+    | HeaderUnion { annotations; name; fields; _ } ->
       Annotation.format_ts annotations
       ++ box ~indent:2 (text "header_union "
                         ++ P4Word.format_t name
                         ++ text " {" ++ newline
                         ++ format_list_nl format_field fields)
       ++ text "\n}"
-    | NewType { annotations; name; typ_or_decl } ->
+    | NewType { annotations; name; typ_or_decl; _ } ->
       box ~indent:2 ((Annotation.format_ts annotations) ++
                      ("type" |> text) ++
                      space  ++
                      (format_typ_or_decl typ_or_decl) ++
                      space  ++
-                     (name |> snd |> text) ++
+                     (P4Word.format_t name) ++
                      (";" |> text))
 end
 

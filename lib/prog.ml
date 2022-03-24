@@ -10,481 +10,598 @@ module P4Int = Types.P4Int
 module P4String = Types.P4String
 
 module rec MethodPrototype : sig
-  type pre_t =
+  type 'a pt =
     Constructor of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         params: Typed.Parameter.t list }
   | AbstractMethod of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list}
   | Method of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list}
         [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end = struct
-  type pre_t =
+  type 'a pt =
     Constructor of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         params: Typed.Parameter.t list }
   | AbstractMethod of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list}
   | Method of
-      { annotations: Annotation.t list;
+      { tags:'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list}
     [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end
 
 and KeyValue : sig
-  type pre_t =
-    { key : P4String.t;
+  type 'a pt =
+    { tags: 'a;
+      key : P4String.t;
       value : Expression.t }
   [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end = struct
-  type pre_t =
-    { key : P4String.t;
+  type 'a pt =
+    { tags: 'a;
+      key : P4String.t;
       value : Expression.t }
   [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end
 
+
 and Expression : sig
-  type pre_t =
-    True
-  | False
-  | Int of P4Int.t
-  | String of Types.P4String.t
-  | Name of Types.name
+  type 'a pt =
+    True of {tags: 'a}
+  | False of {tags: 'a}
+  | Int of 
+      { tags: 'a;
+        x: P4Int.t }
+  | String of 
+      { tags: 'a;
+        str: Types.P4String.t }
+  | Name of 
+      { tags: 'a;
+        name: Types.name }
   | ArrayAccess of
-      { array: t;
+      { tags: 'a;
+        array: t;
         index: t }
   | BitStringAccess of
-      { bits: t;
+      { tags: 'a;
+        bits: t;
         lo: Util.bigint;
         hi: Util.bigint }
   | List of
-      { values: t list }
+      { tags: 'a;
+        values: t list }
   | Record of
-      { entries: KeyValue.t list }
+      { tags: 'a;
+        entries: KeyValue.t list }
   | UnaryOp of
-      { op: Op.uni;
+      { tags: 'a;
+        op: Op.uni;
         arg: t }
   | BinaryOp of
-      { op: Op.bin;
+      { tags: 'a;
+        op: Op.bin;
         args: (t * t) }
   | Cast of
-      { typ: Type.t;
+      { tags: 'a;
+        typ: Type.t;
         expr: t }
   | TypeMember of
-      { typ: Types.name;
+      { tags: 'a;
+        typ: Types.name;
         name: Types.P4String.t }
-  | ErrorMember of Types.P4String.t
+  | ErrorMember of 
+      { tags: 'a;
+        err: Types.P4String.t }
   | ExpressionMember of
-      { expr: t;
+      { tags: 'a;
+        expr: t;
         name: Types.P4String.t }
   | Ternary of
-      { cond: t;
+      { tags: 'a;
+        cond: t;
         tru: t;
         fls: t }
   | FunctionCall of
-      { func: t;
+      { tags: 'a;
+        func: t;
         type_args: Type.t list;
         args: (t option) list }
   | NamelessInstantiation of
-      { typ: Type.t [@key "type"];
+      { tags: 'a;
+        typ: Type.t [@key "type"];
         args: t list }
-  | DontCare
+  | DontCare of {tags: 'a}
   | Mask of
-      { expr: t;
+      { tags: 'a;
+        expr: t;
         mask: t }
   | Range of
-      { lo: t;
+      { tags: 'a;
+        lo: t;
         hi: t }
   [@@deriving sexp,show,yojson]
 
-  and typed_t = { expr: pre_t;
-                  typ: Type.t;
-                  dir: direction }
-  and t = typed_t info [@@deriving sexp,show,yojson]
+  and 'a ptyped_t = { tags: 'a;
+                     expr: 'a pt;
+                     typ: Type.t;
+                     dir: direction }
+
+  and t = Info.t ptyped_t [@@deriving sexp,show,yojson]
+
 end = struct
-  type pre_t =
-    True
-  | False
-  | Int of P4Int.t
-  | String of Types.P4String.t
-  | Name of Types.name
+  type 'a pt =
+    True of {tags: 'a}
+  | False of {tags: 'a}
+  | Int of 
+      { tags: 'a;
+        x: P4Int.t }
+  | String of 
+      { tags: 'a;
+        str: Types.P4String.t }
+  | Name of 
+      { tags: 'a;
+        name: Types.name }
   | ArrayAccess of
-      { array: t;
+      { tags: 'a;
+        array: t;
         index: t }
   | BitStringAccess of
-      { bits: t;
-        lo: bigint;
-        hi: bigint }
+      { tags: 'a;
+        bits: t;
+        lo: Util.bigint;
+        hi: Util.bigint }
   | List of
-      { values: t list }
+      { tags: 'a;
+        values: t list }
   | Record of
-      { entries: KeyValue.t list }
+      { tags: 'a;
+        entries: KeyValue.t list }
   | UnaryOp of
-      { op: Op.uni;
+      { tags: 'a;
+        op: Op.uni;
         arg: t }
   | BinaryOp of
-      { op: Op.bin;
+      { tags: 'a;
+        op: Op.bin;
         args: (t * t) }
   | Cast of
-      { typ: Type.t;
+      { tags: 'a;
+        typ: Type.t;
         expr: t }
   | TypeMember of
-      { typ: Types.name;
+      { tags: 'a;
+        typ: Types.name;
         name: Types.P4String.t }
-  | ErrorMember of Types.P4String.t
+  | ErrorMember of 
+      { tags: 'a;
+        err: Types.P4String.t }
   | ExpressionMember of
-      { expr: t;
+      { tags: 'a;
+        expr: t;
         name: Types.P4String.t }
   | Ternary of
-      { cond: t;
+      { tags: 'a;
+        cond: t;
         tru: t;
         fls: t }
   | FunctionCall of
-      { func: t;
+      { tags: 'a;
+        func: t;
         type_args: Type.t list;
         args: (t option) list }
   | NamelessInstantiation of
-      { typ: Type.t [@key "type"];
-        args: Expression.t list }
-  | DontCare
+      { tags: 'a;
+        typ: Type.t [@key "type"];
+        args: t list }
+  | DontCare of {tags: 'a}
   | Mask of
-      { expr: t;
+      { tags: 'a;
+        expr: t;
         mask: t }
   | Range of
-      { lo: t;
+      { tags: 'a;
+        lo: t;
         hi: t }
-        [@@deriving sexp,show,yojson]
+  [@@deriving sexp,show,yojson]
 
-  and typed_t = { expr: pre_t;
-                  typ: Type.t;
-                  dir: direction }
-  and t = typed_t info [@@deriving sexp,show,yojson]
+  and 'a ptyped_t = { tags : 'a;
+                     expr: 'a pt;
+                     typ: Type.t;
+                     dir: direction }
+
+  and t = Info.t ptyped_t [@@deriving sexp,show,yojson]
 end
+
 
 and Match : sig
-  type pre_t =
-    DontCare
+  type 'a pt =
+    DontCare of {tags: 'a}
   | Expression of
-      { expr: Expression.t }
+      { tags: 'a;
+        expr: Expression.t }
   [@@deriving sexp,show,yojson { exn = true }]
 
-  type typed_t = { expr: pre_t;
-                   typ: Type.t }
+  type 'a typed_t = { expr: 'a pt;
+                      typ: Type.t }
   [@@deriving sexp,show,yojson { exn = true }]
 
-  type t = typed_t info [@@deriving sexp,show,yojson { exn = true }]
+  type t = Info.t typed_t [@@deriving sexp,show,yojson { exn = true }]
 end = struct
-  type pre_t =
-    DontCare
+  type 'a pt =
+    DontCare of {tags: 'a}
   | Expression of
-      { expr: Expression.t }
+      { tags: 'a;
+        expr: Expression.t }
   [@@deriving sexp,show,yojson { exn = true }]
 
-  type typed_t = { expr: pre_t;
-                   typ: Type.t }
+  type 'a typed_t = { expr: 'a pt;
+                      typ: Type.t }
   [@@deriving sexp,show,yojson { exn = true }]
 
-  type t = typed_t info [@@deriving sexp,show,yojson { exn = true }]
+  type t = Info.t typed_t [@@deriving sexp,show,yojson { exn = true }]
 end
 
+
 and Table : sig
-      type pre_action_ref =
-        { annotations: Annotation.t list;
+      type 'a paction_ref =
+        { tags: 'a;
+          annotations: Annotation.t list;
           name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,show,yojson]
 
-      type typed_action_ref =
-        { action: pre_action_ref;
+      type 'a ptyped_action_ref =
+        { action: 'a paction_ref;
           typ: Typed.Type.t }
       [@@deriving sexp,show,yojson]
 
-      type action_ref = typed_action_ref info [@@deriving sexp,show,yojson]
+      type action_ref = Info.t ptyped_action_ref [@@deriving sexp,show,yojson]
 
-      type pre_key =
-        { annotations: Annotation.t list;
+      type 'a pkey =
+        { tags: 'a;
+          annotations: Annotation.t list;
           key: Expression.t;
           match_kind: Types.P4String.t }
       [@@deriving sexp,show,yojson]
 
-      type key = pre_key info [@@deriving sexp,show,yojson]
+      type key = Info.t pkey [@@deriving sexp,show,yojson]
 
-      type pre_entry =
-        { annotations: Annotation.t list;
+      type 'a pentry =
+        { tags: 'a;
+          annotations: Annotation.t list;
           matches: Match.t list;
           action: action_ref }
       [@@deriving sexp,show,yojson { exn = true }]
 
-      type entry = pre_entry info [@@deriving sexp,show,yojson]
+      type entry = Info.t pentry [@@deriving sexp,show,yojson]
 
-      type pre_property =
-        { annotations: Annotation.t list;
+      type 'a pproperty =
+        { tags: 'a;
+          annotations: Annotation.t list;
           const: bool;
           name: Types.P4String.t;
           value: Expression.t }
       [@@deriving sexp,show,yojson]
 
-      type property = pre_property info [@@deriving sexp,show,yojson]
+      type property = Info.t pproperty [@@deriving sexp,show,yojson]
 
       val name_of_property : property -> string
     end = struct
-      type pre_action_ref =
-        { annotations: Annotation.t list;
+      type 'a paction_ref =
+        { tags: 'a;
+          annotations: Annotation.t list;
           name: Types.name;
           args: (Expression.t option) list }
       [@@deriving sexp,show,yojson]
 
-      type typed_action_ref =
-        { action: pre_action_ref;
+      type 'a ptyped_action_ref =
+        { action: 'a paction_ref;
           typ: Typed.Type.t }
       [@@deriving sexp,show,yojson]
 
-      type action_ref = typed_action_ref info [@@deriving sexp,show,yojson]
+      type action_ref = Info.t ptyped_action_ref [@@deriving sexp,show,yojson]
 
-      type pre_key =
-        { annotations: Annotation.t list;
+      type 'a pkey =
+        { tags: 'a;
+          annotations: Annotation.t list;
           key: Expression.t;
           match_kind: Types.P4String.t }
       [@@deriving sexp,show,yojson]
 
-      type key = pre_key info [@@deriving sexp,show,yojson]
+      type key = Info.t pkey [@@deriving sexp,show,yojson]
 
-      type pre_entry =
-        { annotations: Annotation.t list;
+      type 'a pentry =
+        { tags: 'a;
+          annotations: Annotation.t list;
           matches: Match.t list;
           action: action_ref }
       [@@deriving sexp,show,yojson { exn = true }]
 
-      type entry = pre_entry info [@@deriving sexp,show,yojson]
+      type entry = Info.t pentry [@@deriving sexp,show,yojson]
 
-      type pre_property =
-        { annotations: Annotation.t list;
+      type 'a pproperty =
+        { tags: 'a;
+          annotations: Annotation.t list;
           const: bool;
           name: Types.P4String.t;
           value: Expression.t }
       [@@deriving sexp,show,yojson]
 
-      type property = pre_property info [@@deriving sexp,show,yojson]
+      type property = Info.t pproperty [@@deriving sexp,show,yojson]
 
-      let name_of_property (_, {name; _}) =
-        snd name
+      let name_of_property {name; _} = name.string
 end
 
+
 and Statement : sig
-      type pre_switch_label =
-          Default
-        | Name of Types.P4String.t
+      type 'a pswitch_label =
+          Default of {tags: 'a}
+        | Name of 
+            { tags: 'a;
+              name: Types.P4String.t }
       [@@deriving sexp,show,yojson]
 
-      type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
+      type switch_label = Info.t pswitch_label [@@deriving sexp,show,yojson]
 
-      type pre_switch_case =
+      type 'a pswitch_case =
           Action of
-            { label: switch_label;
+            { tags: 'a;
+              label: switch_label;
               code: Block.t }
         | FallThrough of
-            { label: switch_label }
+            { tags: 'a;
+              label: switch_label }
       [@@deriving sexp,show,yojson]
 
-      type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
+      type switch_case = Info.t pswitch_case [@@deriving sexp,show,yojson]
 
-      type pre_t =
+      (* val tags : 'a pswitch_case -> 'a *)
+
+      type 'a pt =
           MethodCall of
-            { func: Expression.t;
+            { tags: 'a;
+              func: Expression.t;
               type_args: Type.t list;
               args: (Expression.t option) list }
         | Assignment of
-            { lhs: Expression.t;
+            { tags: 'a;
+              lhs: Expression.t;
               rhs: Expression.t }
         | DirectApplication of
-            { typ: Type.t [@key "type"];
+            { tags: 'a;
+              typ: Type.t [@key "type"];
               args: Expression.t list }
         | Conditional of
-            { cond: Expression.t;
+            { tags: 'a;
+              cond: Expression.t;
               tru: t;
               fls: t option }
         | BlockStatement of
-            { block: Block.t }
-        | Exit
-        | EmptyStatement
+            { tags: 'a;
+              block: Block.t }
+        | Exit of {tags: 'a}
+        | EmptyStatement of {tags: 'a}
         | Return of
-            { expr: Expression.t option }
+            { tags: 'a;
+              expr: Expression.t option }
         | Switch of
-            { expr: Expression.t;
+            { tags: 'a;
+              expr: Expression.t;
               cases: switch_case list }
         | DeclarationStatement of
-            { decl: Declaration.t }
+            { tags: 'a;
+              decl: Declaration.t }
       [@@deriving sexp,show,yojson]
 
-      and typed_t =
-        { stmt: pre_t;
+      and 'a ptyped_t =
+        { stmt: 'a pt;
           typ: StmType.t }
 
-      and t = typed_t info [@@deriving sexp,show,yojson]
+      and t = Info.t ptyped_t [@@deriving sexp,show,yojson]
 end = struct
-  type pre_switch_label =
-      Default [@name "default"]
-    | Name of Types.P4String.t [@name "name"]
+  type 'a pswitch_label =
+      Default of {tags: 'a} [@name "default"]
+    | Name of 
+        { tags: 'a;
+          name: Types.P4String.t } [@name "name"]
   [@@deriving sexp,show,yojson]
 
-  type switch_label = pre_switch_label info [@@deriving sexp,show,yojson]
+  type switch_label = Info.t pswitch_label [@@deriving sexp,show,yojson]
 
-  type pre_switch_case =
+  let tags label =
+    match label with
+    | Default {tags}
+    | Name {tags; _}
+-> tags
+
+  type 'a pswitch_case =
       Action of
-        { label: switch_label;
+        { tags: 'a;
+          label: switch_label;
           code: Block.t }
     | FallThrough of
-        { label: switch_label }
+        { tags: 'a;
+          label: switch_label }
   [@@deriving sexp,show,yojson]
 
-  type switch_case = pre_switch_case info [@@deriving sexp,show,yojson]
+  type switch_case = Info.t pswitch_case [@@deriving sexp,show,yojson]
 
-  type pre_t =
+  type 'a pt =
       MethodCall of
-        { func: Expression.t;
+        { tags: 'a;
+          func: Expression.t;
           type_args: Type.t list;
           args: (Expression.t option) list } [@name "method_call"]
     | Assignment of
-        { lhs: Expression.t;
+        { tags: 'a;
+          lhs: Expression.t;
           rhs: Expression.t } [@name "assignment"]
     | DirectApplication of
-        { typ: Type.t [@key "type"];
+        { tags: 'a;
+          typ: Type.t [@key "type"];
           args: Expression.t list } [@name "direct_application"]
     | Conditional of
-        { cond: Expression.t;
+        { tags: 'a;
+          cond: Expression.t;
           tru: t;
           fls: t option } [@name "conditional"]
     | BlockStatement of
-        { block: Block.t } [@name "block"]
-    | Exit [@name "exit"]
-    | EmptyStatement [@name "empty_statement"]
+        { tags: 'a;
+          block: Block.t } [@name "block"]
+    | Exit of {tags: 'a} [@name "exit"]
+    | EmptyStatement of{tags: 'a} [@name "empty_statement"]
     | Return of
-        { expr: Expression.t option } [@name "return"]
+        { tags: 'a;
+          expr: Expression.t option } [@name "return"]
     | Switch of
-        { expr: Expression.t;
+        { tags: 'a;
+          expr: Expression.t;
           cases: switch_case list } [@name "switch"]
     | DeclarationStatement of
-        { decl: Declaration.t } [@name "declaration"]
+        { tags: 'a;
+          decl: Declaration.t } [@name "declaration"]
   [@@deriving sexp,show,yojson]
 
-  and typed_t =
-    { stmt: pre_t;
+  and 'a ptyped_t =
+    { stmt: 'a pt;
       typ: StmType.t }
 
-  and t = typed_t info [@@deriving sexp,show,yojson]
+  and t = Info.t ptyped_t [@@deriving sexp,show,yojson]
 end
 
+
 and Block : sig
-  type pre_t =
-    { annotations: Annotation.t list;
+  type 'a pt =
+    { tags: 'a;
+      annotations: Annotation.t list;
       statements: Statement.t list }
       [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end = struct
-  type pre_t =
-    { annotations: Annotation.t list;
+  type 'a pt =
+    { tags: 'a;
+      annotations: Annotation.t list;
       statements: Statement.t list }
       [@@deriving sexp,show,yojson]
 
-  type t = pre_t info [@@deriving sexp,show,yojson]
+  type t = Info.t pt [@@deriving sexp,show,yojson]
 end
 
 and Parser : sig
-      type pre_case =
-        { matches: Match.t list;
+      type 'a pcase =
+        { tags: 'a;
+          matches: Match.t list;
           next: Types.P4String.t }
       [@@deriving sexp,show,yojson { exn = true }]
 
-      type case = pre_case info [@@deriving sexp,show,yojson]
+      type case = Info.t pcase [@@deriving sexp,show,yojson]
 
-      type pre_transition =
+      type 'a ptransition =
           Direct of
-            { next: Types.P4String.t }
+            { tags: 'a;
+              next: Types.P4String.t }
         | Select of
-            { exprs: Expression.t list;
+            { tags: 'a;
+              exprs: Expression.t list;
               cases: case list }
       [@@deriving sexp,show,yojson]
 
-      type transition = pre_transition info [@@deriving sexp,show,yojson]
+      type transition = Info.t ptransition [@@deriving sexp,show,yojson]
 
-      type pre_state =
-        { annotations: Annotation.t list;
+      type 'a pstate =
+        { tags: 'a;
+          annotations: Annotation.t list;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
       [@@deriving sexp,show,yojson]
 
-      type state = pre_state info [@@deriving sexp,show,yojson]
+      type state = Info.t pstate [@@deriving sexp,show,yojson]
 end = struct
-      type pre_case =
-        { matches: Match.t list;
+      type 'a pcase =
+        { tags: 'a;
+          matches: Match.t list;
           next: Types.P4String.t }
       [@@deriving sexp,show,yojson { exn = true }]
 
-      type case = pre_case info [@@deriving sexp,show,yojson]
+      type case = Info.t pcase [@@deriving sexp,show,yojson]
 
-      type pre_transition =
+      type 'a ptransition =
           Direct of
-            { next: Types.P4String.t }
+            { tags: 'a;
+              next: Types.P4String.t }
         | Select of
-            { exprs: Expression.t list;
+            { tags: 'a;
+              exprs: Expression.t list;
               cases: case list }
       [@@deriving sexp,show,yojson]
 
-      type transition = pre_transition info [@@deriving sexp,show,yojson]
+      type transition = Info.t ptransition [@@deriving sexp,show,yojson]
 
-      type pre_state =
-        { annotations: Annotation.t list;
+      type 'a pstate =
+        { tags: 'a;
+          annotations: Annotation.t list;
           name: Types.P4String.t;
           statements: Statement.t list;
           transition: transition }
       [@@deriving sexp,show,yojson]
 
-      type state = pre_state info [@@deriving sexp,show,yojson]
+      type state = Info.t pstate [@@deriving sexp,show,yojson]
 end
 
+
 and Declaration : sig
-  type pre_t =
+  type 'a pt =
     Constant of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         value: Value.value }
   | Instantiation of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         args: Expression.t list;
         name: Types.P4String.t;
         init: Block.t option; }
   | Parser of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
@@ -492,7 +609,8 @@ and Declaration : sig
         locals: t list;
         states: Parser.state list }
   | Control of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
@@ -500,35 +618,41 @@ and Declaration : sig
         locals: t list;
         apply: Block.t }
   | Function of
-      { return: Type.t;
+      { tags: 'a;
+        return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
         body: Block.t }
   | ExternFunction of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | Variable of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         init: Expression.t option }
   | ValueSet of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: Typed.Parameter.t list;
         ctrl_params: Typed.Parameter.t list;
         body: Block.t }
   | Table of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         key: Table.key list;
         actions: Table.action_ref list;
@@ -537,88 +661,105 @@ and Declaration : sig
         size: P4Int.t option;
         custom_properties: Table.property list }
   | Header of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | HeaderUnion of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | Struct of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | Error of
-      { members: Types.P4String.t list }
+      { tags: 'a;
+        members: Types.P4String.t list }
   | MatchKind of
-      { members: Types.P4String.t list }
+      { tags: 'a;
+        members: Types.P4String.t list }
   | Enum of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         members: Types.P4String.t list }
   | SerializableEnum of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         members: (Types.P4String.t * Expression.t) list }
   | ExternObject of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         methods: MethodPrototype.t list }
   | TypeDef of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         typ_or_decl: (Type.t, t) alternative }
   | NewType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         typ_or_decl: (Type.t, t) alternative }
   | ControlType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | ParserType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | PackageType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
         [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,show,yojson]
+  and t = Info.t pt [@@deriving sexp,show,yojson]
 
-  and pre_field =
-    { annotations: Annotation.t list;
+  and 'a pfield =
+    { tags: 'a;
+      annotations: Annotation.t list;
       typ: Type.t [@key "type"];
       name: Types.P4String.t } [@@deriving sexp,show,yojson]
 
-  and field = pre_field info [@@deriving sexp,show,yojson]
+  and field = Info.t pfield [@@deriving sexp,show,yojson]
 
   val name : t -> Types.P4String.t
 
   val name_opt : t -> Types.P4String.t option
 
 end = struct
-  type pre_t =
+  type 'a pt =
     Constant of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         value: Value.value }
   | Instantiation of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         args: Expression.t list;
         name: Types.P4String.t;
         init: Block.t option; }
   | Parser of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
@@ -626,7 +767,8 @@ end = struct
         locals: t list;
         states: Parser.state list }
   | Control of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
@@ -634,35 +776,41 @@ end = struct
         locals: t list;
         apply: Block.t }
   | Function of
-      { return: Type.t;
+      { tags: 'a;
+        return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list;
         body: Block.t }
   | ExternFunction of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         return: Type.t;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | Variable of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         init: Expression.t option }
   | ValueSet of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         size: Expression.t;
         name: Types.P4String.t }
   | Action of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         data_params: Typed.Parameter.t list;
         ctrl_params: Typed.Parameter.t list;
         body: Block.t }
   | Table of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         key: Table.key list;
         actions: Table.action_ref list;
@@ -671,71 +819,85 @@ end = struct
         size: P4Int.t option;
         custom_properties: Table.property list }
   | Header of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | HeaderUnion of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | Struct of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         fields: field list }
   | Error of
-      { members: Types.P4String.t list }
+      { tags: 'a;
+        members: Types.P4String.t list }
   | MatchKind of
-      { members: Types.P4String.t list }
+      { tags: 'a;
+        members: Types.P4String.t list }
   | Enum of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         members: Types.P4String.t list }
   | SerializableEnum of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         typ: Type.t [@key "type"];
         name: Types.P4String.t;
         members: (Types.P4String.t * Expression.t) list }
   | ExternObject of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         methods: MethodPrototype.t list }
   | TypeDef of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         typ_or_decl: (Type.t, t) alternative }
   | NewType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         typ_or_decl: (Type.t, t) alternative }
   | ControlType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | ParserType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
   | PackageType of
-      { annotations: Annotation.t list;
+      { tags: 'a;
+        annotations: Annotation.t list;
         name: Types.P4String.t;
         type_params: Types.P4String.t list;
         params: Typed.Parameter.t list }
         [@@deriving sexp,show,yojson]
 
-  and t = pre_t info [@@deriving sexp,show,yojson]
+  and t = Info.t pt [@@deriving sexp,show,yojson]
 
-  and pre_field =
-    { annotations: Annotation.t list;
+  and 'a pfield =
+    { tags: 'a;
+      annotations: Annotation.t list;
       typ: Type.t [@key "type"];
       name: Types.P4String.t } [@@deriving sexp,show,yojson]
 
-  and field = pre_field info [@@deriving sexp,show,yojson]
+  and field = Info.t pfield [@@deriving sexp,show,yojson]
 
   let name_opt d =
-    match snd d with
+    match d with
     | Constant {name; _}
     | Instantiation {name; _}
     | Parser {name; _}
@@ -787,6 +949,8 @@ and Value : sig
 
   type loc = string [@@deriving sexp, show,yojson]
 
+  (* Runtime values. Note that they do  not carry tags anymore. *)
+  (* TODO: refactor the parameters by adding runtime data types and passing them instead of the data types that carry tags. *)
   type value =
     | VNull
     | VBool of bool
@@ -869,10 +1033,10 @@ and Value : sig
 
   and vtable = {
     name : string;
-    keys : Table.pre_key list;
+    keys : Table.key list;
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : Table.pre_entry list;
+    const_entries : Table.entry list;
   }
   [@@deriving sexp,show,yojson]
 
@@ -1104,10 +1268,12 @@ end = struct
 
   and vtable = {
     name : string;
-    keys : Table.pre_key list;
+    keys : Table.key list;
+    (* keys : Table.pre_key list; QUESTION: do we want to carry tags?? *)
     actions : Table.action_ref list;
     default_action : Table.action_ref;
-    const_entries : Table.pre_entry list;
+    const_entries : Table.entry list;
+    (* const_entries : Table.pre_entry list; QUESTION: do we want to carry tags?? *)
   }
   [@@deriving sexp,show,yojson]
 
@@ -1349,7 +1515,7 @@ end = struct
     | _ -> failwith "not a valueset"
 
   let assert_action_decl (d : Declaration.t) : Typed.Parameter.t list =
-    match snd d with
+    match d with
     | Action {data_params;ctrl_params;_} -> data_params @ ctrl_params
     | _ -> failwith "not an action declaration"
 
@@ -1445,12 +1611,12 @@ end = struct
   let raise_unbound (name: Types.name) =
     let str_name =
       match name with
-      | Types.QualifiedName (qs, name) ->
-         qs @ [name]
-         |> List.map ~f:snd
+      | Types.QualifiedName {prefix; name; _} ->
+         prefix @ [name]
+         |> List.map ~f:(fun {string;_} -> string)
          |> String.concat ~sep:"."
-      | Types.BareName name ->
-         snd name
+      | Types.BareName {name; _} ->
+         name.string
     in
     raise (UnboundName str_name)
 
@@ -1511,14 +1677,16 @@ end = struct
 
   let insert name value env =
     match name with
-    | Types.BareName (_, name) -> insert_bare name value env
-    | Types.QualifiedName ([], (_, name)) -> insert_toplevel name value env
+    | Types.BareName {name; _} -> insert_bare name.string value env
+    | Types.QualifiedName {name; prefix = []; _} 
+      -> insert_toplevel name.string value env
     | _ -> failwith "unimplemented"
 
   let update name value env =
     match name with
-    | Types.BareName (_, name) -> update_bare name value env
-    | Types.QualifiedName ([], (_, name)) -> update_toplevel name value env
+    | Types.BareName {name; _} -> update_bare name.string value env
+    | Types.QualifiedName {name; prefix = []; _}  
+      -> update_toplevel name.string value env
     | _ -> failwith "unimplemented"
 
   let rec find_bare_opt (name: string) : 'a env -> 'a option = function
@@ -1541,16 +1709,16 @@ end = struct
 
   let find_all name env =
     match name with
-    | Types.BareName (_, name) -> find_all_bare name env
-    | Types.QualifiedName ([], (_, n)) ->
+    | Types.BareName {name; _} -> find_all_bare name.string env
+    | Types.QualifiedName {name; prefix = []; _}  ->
        begin match List.last env with
-       | Some top -> find_all_bare n [top]
+       | Some top -> find_all_bare name.string [top]
        | None -> no_scopes ()
        end
     | _ -> failwith "unimplemented"
 
   let string_of_name = function
-    | Types.BareName (_, n) -> n
+    | Types.BareName {name; _} -> name.string
     | _ -> ""
 
   let opt_to_exn name v =
@@ -1558,8 +1726,9 @@ end = struct
     | Some v -> v
     | None -> raise_unbound name
 
+(* TODO: make sure setting tags to info.dummy works out. *)
   let find_bare (name: string) (env: 'a env) : 'a =
-    opt_to_exn (Types.BareName (Info.dummy, name)) (find_bare_opt name env)
+    opt_to_exn (Types.BareName {tags=Info.dummy; name={tags=Info.dummy;string=name}}) (find_bare_opt name env)
 
   let find_toplevel (name: string) (env: 'a env) : 'a =
     match List.rev env with
@@ -1573,14 +1742,16 @@ end = struct
 
   let find (name: Types.name) (env: 'a env) : 'a =
     match name with
-    | Types.BareName (_, n) -> find_bare n env
-    | Types.QualifiedName ([], (_, n)) -> find_toplevel n env
+    | Types.BareName {name; _} -> find_bare name.string env
+    | Types.QualifiedName {name; prefix = []; _} 
+      -> find_toplevel name.string env
     | _ -> failwith "unimplemented"
 
   let find_opt (name: Types.name) (env: 'a env) : 'a option =
     match name with
-    | Types.BareName (_, n) -> find_bare_opt n env
-    | Types.QualifiedName ([], (_, n)) -> find_toplevel_opt n env
+    | Types.BareName {name; _} -> find_bare_opt name.string env
+    | Types.QualifiedName {name; prefix = []; _} 
+      -> find_toplevel_opt name.string env
     | _ -> failwith "unimplemented"
 
   let empty_env : 'a env = [[]]
@@ -1628,21 +1799,24 @@ end = struct
     let insert_val name binding e =
       {e with vs = insert name binding e.vs}
 
+(* TODO: make sure info.dummy works here. *)
     let insert_val_bare name binding e =
-      {e with vs = insert (Types.BareName (Info.dummy, name)) binding e.vs}
+      {e with vs = insert (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}}) binding e.vs}
 
     let insert_typ name binding e =
       {e with typ = insert name binding e.typ}
 
+(* TODO: make sure info.dummy works here. *)
     let insert_typ_bare name =
-      insert_typ (Types.BareName (Info.dummy, name))
+      insert_typ (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}})
 
     let insert_vals bindings e =
       List.fold_left bindings ~init:e ~f:(fun a (b,c) -> insert_val b c a)
 
+(* TODO: make sure info.dummy works here. *)
     let fix_bindings bindings =
       List.map bindings
-        ~f:(fun (name, v) -> Types.BareName (Info.dummy, name), v)
+        ~f:(fun (name, v) -> Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}}, v)
 
     let insert_vals_bare bindings =
       insert_vals (fix_bindings bindings)
@@ -1830,7 +2004,7 @@ end = struct
 
     let insert_types names_types env =
       let go env (name, typ) =
-        insert_type (Types.BareName (Info.dummy, name)) typ env
+        insert_type (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=name}}) typ env
       in
       List.fold ~f:go ~init:env names_types
 
@@ -1839,7 +2013,7 @@ end = struct
 
     let insert_type_vars vars env =
       let go env var =
-        insert_type_var (Types.BareName (Info.dummy, var)) env
+        insert_type_var (Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=var}}) env
       in
       List.fold ~f:go ~init:env vars
 

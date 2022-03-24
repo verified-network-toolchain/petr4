@@ -5,6 +5,6 @@
 (ocamllex (modules test_lexer))
 
 (library
-  (name petr4test)
+  (name p4stf)
   (libraries core ANSITerminal alcotest petr4)
   (preprocess (pps ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show)))

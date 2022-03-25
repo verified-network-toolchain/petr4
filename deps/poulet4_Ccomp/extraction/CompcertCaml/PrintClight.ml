@@ -90,17 +90,25 @@ let rec expr p (prec, e) =
       fprintf p "%a.%s" expr (prec', a1) (name_of_ident
      f)
   | Econst_int(n, Tint(I32, Unsigned, _)) ->
+    (* print_bigint p n *)
       fprintf p "%luU" (camlint_of_coqint n)
+       (* fprintf p "%luU" (camlint_of_bigint n) *)
   | Econst_int(n, _) ->
+    (* print_bigint p n *)
       fprintf p "%ld" (camlint_of_coqint n)
+       (* fprintf p "%ld" (camlint_of_bigint n)  *)
   | Econst_float(f, _) ->
       fprintf p "%.18g" (camlfloat_of_coqfloat f)
   | Econst_single(f, _) ->
       fprintf p "%.18gf" (camlfloat_of_coqfloat32 f)
   | Econst_long(n, Tlong(Unsigned, _)) ->
+    (* print_bigint p n *)
       fprintf p "%LuLLU" (camlint64_of_coqint n)
+      (* fprintf p "%LuLLU" (camlint64_of_bigint n) *)
   | Econst_long(n, _) ->
+    (* print_bigint p n *)
       fprintf p "%LdLL" (camlint64_of_coqint n)
+       (* fprintf p "%LdLL" (camlint64_of_bigint n) *)
   | Eunop(Oabsfloat, a1, _) ->
       fprintf p "__builtin_fabs(%a)" expr (2, a1)
   | Eunop(op, a1, _) ->
@@ -326,6 +334,9 @@ let print_program ver p prog =
   fprintf p "@]@."
 
 let destination : string option ref = ref (Some "ccompiled.c")
+
+let change_destination dst = 
+  destination := (Some dst)
 
 let print_if_gen ver prog =
   match !destination with

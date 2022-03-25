@@ -72,9 +72,10 @@ let check_command =
      +> flag "-typed-json" no_arg ~doc:" Pretty-print typed AST JSON"
      +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> flag "-printp4" no_arg ~doc:" Print checked syntax in P4"
+     +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
      +> flag "-printp4-file" (optional_with_default "out.p4" string) ~doc:"Path to print checked syntax in P4"
      +> anon ("p4file" %: string))
-    (fun verbose include_dir json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc printp4 printp4_file p4file () ->
+    (fun verbose include_dir json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc printp4 printp4cub printp4_file p4file () ->
        ignore (check_file include_dir p4file json pretty exportp4 exportp4_ocaml normalize export_file typed_json gen_loc verbose printp4 printp4_file))
 
 let eval_command =
@@ -91,12 +92,21 @@ let eval_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir pkt_str ctrl_json port target p4file () ->
        print_string (eval_file_string include_dir p4file verbose pkt_str (Yojson.Safe.from_file ctrl_json) (int_of_string port) target))
-let c_command =
+let compile_command =
   let open Command.Spec in
   Command.basic_spec
     ~summary: "print the c file compiled using the HelloWorld.v file"
-    (empty)
-    (fun () -> Poulet4_Ccomp.CCompSel.test)
+     (empty
+     +> flag "-v" no_arg ~doc:" Enable verbose output"
+     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+     +> flag "-normalize" no_arg ~doc:" Simplify expressions in P4"
+     +> flag "-export-file" (optional_with_default "compiled.c" string)~doc:"Path to export compiled c file"
+     +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
+     +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
+     +> flag "-printp4-file" (optional_with_default "cubast.txt" string)~doc:"Path to print the p4cub syntax"
+     +> anon ("p4file" %: string))
+    (fun verbose include_dir normalize export_file gen_loc printp4cub printp4_file p4file () ->
+       ignore (compile_file include_dir p4file normalize export_file verbose gen_loc printp4cub printp4_file))
 let do_stf include_dir stf_file p4_file =
   failwith "do_stf removed"
   (* TODO restore stf
@@ -138,7 +148,7 @@ let command =
     ~summary: "Petr4: A reference implementation of the P4_16 language"
     [ "parse", parse_command;
       "typecheck", check_command;
-      "c", c_command;
+      "compile", compile_command;
       "run", eval_command;
       "stf", stf_command ]
 

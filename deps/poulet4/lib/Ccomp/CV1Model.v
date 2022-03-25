@@ -18,10 +18,20 @@ Definition packet_in :=
     (Tstruct $"packet_in" noattr).
 Definition packet_out :=
     (Tstruct $"packet_out" noattr).
+Definition ptr_pkt_in := Tpointer packet_in noattr.
+Definition ptr_pkt_out := Tpointer packet_out noattr.
 Definition empty_main := 
   Clight.mkfunction Ctypes.Tvoid 
   (AST.mkcallconv None true true)
   [] [] [] Sskip.
+(* 
+Definition typelist_extract_bool := Ctypes.Tcons ptr_pkt_in
+(Ctypes.Tcons (Tpointer type_bool noattr) Ctypes.Tnil).
+Definition typelist_extract_bitvec := Ctypes.Tcons ptr_pkt_in 
+(Ctypes.Tcons TpointerBitVec 
+(Ctypes.Tcons TpointerBitVec
+(Ctypes.Tcons TpointerBitVec Ctypes.Tnil))). *)
+(* Definition extract := Evar $"extract" (Tfunction typelist_bop_bool tvoid cc_default). *)
 
 (* The order is 
 Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)

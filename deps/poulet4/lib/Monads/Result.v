@@ -39,7 +39,13 @@ Module Result.
     | Some x => f x
     end.
 
-  Definition map {A B : Type} (f : A ->  B)  (r : result A) : result B :=
+  Definition from_opt {A} (r : option A) (msg : string) :=
+    match r with
+    | None => error msg
+    | Some a => ok a
+    end.
+
+  Definition map {A B : Type} (f : A -> B)  (r : result A) : result B :=
     match r with
     | Error _ s => error s
     | Ok _ x => ok (f x)
@@ -48,7 +54,7 @@ Module Result.
 
   Definition overwritebind {A B : Type} (r : result A) (str : string) (f : A -> result B) : result B :=
     match r with
-    | Error _ _ => error str
+    | Error _ s => error str (* ++ " because: \n" ++ s)*)
     | Ok _ x  => f x
     end.
 
@@ -58,12 +64,23 @@ Module Result.
   Definition rcomp {A B C : Type} (f : B -> result C) (g : A -> result B) (a : A) : result C :=
     bind (g a) f.
 
+  Fixpoint rred_aux {A : Type} (os : list (result A)) (acc : result (list A)) : result (list A) :=
+    match acc with
+    | Error _ s => error s
+    | Ok _ acc =>
+      match os with
+      | Error _ s::_ => error s
+      | Ok _ x :: os =>
+        rred_aux os (ok (x :: acc))
+      | _ => ok acc
+      end
+    end.
+
+
   Fixpoint rred {A : Type} (os : list (result A)) : result (list A) :=
-    match os with
-    | (Error _ s :: _) => error s
-    | ((Ok _ x) :: os) =>
-      map (cons x) (rred os)
-    | _ => ok nil
+    match rred_aux os (ok nil) with
+    | Error _ s => error s
+    | Ok _ xs => ok (List.rev' xs)
     end.
 
   Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
@@ -92,7 +109,6 @@ Module Result.
     Infix ">=>" := rcomp (at level 80, right associativity).
 
     Infix "|=>" := map (at level 80, right associativity).
-
 
 
   End ResultNotations.

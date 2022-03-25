@@ -25,6 +25,9 @@ all: build
 build: deps
 	dune build @install && echo
 
+fast: 
+	dune build @install && echo
+
 deps:
 	$(MAKE) -C deps
 

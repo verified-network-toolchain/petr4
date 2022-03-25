@@ -7,12 +7,16 @@
 
 enum p4int {FIXBIT, FIXINT};
 
-struct packet_in {
-  void *in;
-};
-struct packet_out{
-  void *out;
-};
+
+
+typedef struct packet_in {
+  unsigned char *in; //currently, we just use the last bit of the 8 bits.
+} packet_in;
+
+typedef struct packet_out{
+  unsigned char *out;
+  unsigned char *index;
+} packet_out;
 
 typedef struct BitVec{
   //1 = signed, 0 = unsigned 
@@ -52,6 +56,7 @@ typedef struct Table{
   struct Entry* entries;
 } Table;
 
+
 void reset_bitvec (mpz_t x) {
   mpz_clear(x);
 }
@@ -75,9 +80,7 @@ enum operation{
 Functions: includes package processing, unary operations, and binary operations 
 **/
 
-//package processing
-void extract(struct packet_in pkt, void *data, int len);
-void emit(struct packet_out pkt, void *data, int len);
+
 
 /**
  * sign = 0 means unsigned, = 1 means signed
@@ -100,6 +103,87 @@ void init_bitvec(struct BitVec *dst, int sign, int w, char *val){
   dst->is_signed = sign;
   dst->width = w;
 }
+
+void init_bitvec_ptr(struct BitVec **dst, int sign, int w, char *val){
+  BitVec * bv = malloc(sizeof(BitVec));
+  mpz_t i;
+  int check;
+
+  mpz_init(i);
+  mpz_set_ui(i,0);
+
+  check = mpz_set_str(i,val, 10);
+  assert (check == 0); 
+
+  mpz_init(bv->value);
+  mpz_set(bv->value, i); 
+  bv->is_signed = sign;
+  bv->width = w;
+  *dst = bv;
+}
+
+/**
+ * sign = 0 means unsigned, = 1 means signed
+ * w is the width
+ * val is the decimal string of the value.
+ * 
+ * */
+void init_bitvec_binary(struct BitVec *dst, int sign, int w, char *val){
+  mpz_t i;
+  int check;
+
+  mpz_init(i);
+  mpz_set_ui(i,0);
+
+  check = mpz_set_str(i,val, 2);
+  assert (check == 0); 
+
+  mpz_init(dst->value);
+  mpz_set(dst->value, i); 
+  dst->is_signed = sign;
+  dst->width = w;
+}
+
+
+//packet processing
+void extract_bool(packet_in *pkt, int *data){
+  if(*(pkt->in) - 48 == 1){//input is '0' or '1'
+    *data = 1;
+  } else {
+    *data = 0;
+  }
+  pkt->in ++;
+}
+
+void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
+  char* val = (char *) malloc(sizeof (char) * width); 
+  for(int i = 0; i < width; i++){
+    val[i] = (*(pkt->in)); //we expect the input to be '1' or '0', gmp uses string to initialize the integer.
+    pkt->in ++;
+  }
+  init_bitvec_binary(data, is_signed, width, val);
+}
+
+
+void emit_bool(packet_out *pkt, int *data){
+  *(pkt->index) = *data;
+  pkt->index ++;
+}
+
+void emit_bitvec(packet_out *pkt, BitVec *data){
+  int size = mpz_sizeinbase (data->value, 2) + 2;
+  char* val = malloc(sizeof(char) * size);
+  mpz_get_str(val, 2, data->value);
+  for(int i = 0; i< data->width; i++){
+    if(data->width - size > i){
+      *(pkt->index) = '0';
+    }else{
+      *(pkt->index) = val[i - (data->width - size)];
+    }
+    pkt->index ++;
+  }
+}
+
 
 //unary operators
 void eval_uminus(mpz_t v) {
@@ -553,3 +637,4 @@ void table_match(ActionRef* dst, struct Table* table, struct BitVec* keys){
     }
   }
 }
+

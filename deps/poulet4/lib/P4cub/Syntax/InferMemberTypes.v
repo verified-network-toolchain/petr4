@@ -116,10 +116,7 @@ Section Inference.
     | ST.SApply ci ext_args args i =>
       let args' := F.map inf_arg args in
       ST.SApply ci ext_args args i
-    (* | ST.PApply _ pi ext_args args i => *)
-    (*   let args' := F.map (inf_arg σ) args in *)
-    (*   ST.PApply _ pi ext_args args' i *)
-    | ST.SHeaderStackOp _ _ _ _ => s
+    | ST.SHeaderStackOp _ _ _ _ _ => s
     | ST.SSetValidity _ _ _ => s
     end.
 
@@ -189,8 +186,9 @@ Section Inference.
   Definition inf_state  (st : Parser.state_block tags_t) :=
     let s := Parser.stmt st in
     let e := Parser.trans st in
+    let s' := inf_s s in
     let e' := inf_transition e in
-    {| Parser.stmt := s; Parser.trans := e' |}.
+    {| Parser.stmt := s'; Parser.trans := e' |}.
 
   Fixpoint inf_d  (d : TD.d tags_t) : TD.d tags_t :=
     match d with

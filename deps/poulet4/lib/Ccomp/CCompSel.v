@@ -8,12 +8,13 @@ Require Import
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
      Monads.Monad Monads.Option Monads.Error
-     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model.
+     Ccomp.CCompEnv Ccomp.Helloworld Ccomp.CV1Model Ccomp.Cconsts.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
 Local Open Scope Z_scope.
 Local Open Scope N_scope.
 Local Open Scope clight_scope.
+Local Open Scope positive_scope.
 Import Clightdefs.ClightNotations.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Module RunTime := Petr4Runtime.
@@ -23,36 +24,18 @@ Section CCompSel.
   
   Context (tags_t: Type).
   (*common values*)
-  Definition long_unsigned := Tlong Unsigned noattr.
-  Definition long_signed := Tlong Signed noattr.
-  Definition int_unsigned := Tint I32 Unsigned noattr.
-  Definition int_signed := Tint I32 Signed noattr.
-  Definition char := Tint I8 Unsigned noattr.
-  Definition Cstring := Tpointer char noattr.
-  Definition Cfalse := Econst_int (Integers.Int.zero) (type_bool).
-  Definition Ctrue := Econst_int (Integers.Int.one) (type_bool).
-  Definition Cint_of_Z val:= Econst_int (Integers.Int.repr val) int_signed.
-  Definition Cuint_of_Z val:= Econst_int (Integers.Int.repr val) int_unsigned.
-  Definition Cint_one := Econst_int Integers.Int.one int_signed.
-  Definition Cint_zero := Econst_int Integers.Int.zero int_signed.
-  Definition Cuint_one := Econst_int Integers.Int.one int_unsigned.
-  Definition Cuint_zero := Econst_int Integers.Int.zero int_unsigned.
-  Definition bit_vec := 
-    (Tstruct (RunTime._BitVec) noattr).
-  Definition table_t := 
-    (Tstruct (RunTime._Table) noattr).
-  Definition action_ref := 
-    (Tstruct (RunTime._ActionRef) noattr).
-  Definition TpointerBitVec := Ctypes.Tpointer bit_vec noattr.
-  Definition TpointerBool := Ctypes.Tpointer type_bool noattr.  
-  Definition TpointerTable := Ctypes.Tpointer table_t noattr.
-  Definition TpointerActionRef := Ctypes.Tpointer action_ref noattr.
+ 
   Fixpoint CTranslateType (p4t : Expr.t) (env: ClightEnv tags_t) : Ctypes.type * ClightEnv tags_t:=
     match p4t with
     | Expr.TBool => (Ctypes.type_bool, env)
     | Expr.TBit (w) => (bit_vec,env)
     | Expr.TInt (w) => (bit_vec, env)
-    | Expr.TVar name => (Ctypes.Tvoid, env) (*TODO: implement, I'm really lost on this*)
+    | Expr.TVar name => 
+      if (String.eqb name "packet_in") then 
+      (packet_in,env) else 
+      if (String.eqb name "packet_out") then
+      (packet_out,env) else 
+      (tvoid, env) (*TODO: I don't think this is what we want to use it as*)
     | Expr.TError => (int_unsigned, env)
 
     | Expr.TTuple (ts) => 
@@ -66,7 +49,7 @@ Section CCompSel.
         => let (members_prev, env_prev) := cumulator in 
            let (new_t, new_env):= CTranslateType field env_prev in
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev ++ [Member_plain new_id new_t], new_env))
+           ((Member_plain new_id new_t) :: members_prev, new_env))
         ts ([],env_top_id) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
@@ -85,10 +68,10 @@ Section CCompSel.
            let (new_t, new_env):= CTranslateType field env_prev in
            let new_t := 
            match new_t with 
-           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev ++ [Member_plain new_id new_t], new_env))
+           ((Member_plain new_id new_t) :: members_prev, new_env))
         fields ([],env_top_id) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
@@ -109,10 +92,10 @@ Section CCompSel.
            let (new_t, new_env):= CTranslateType field env_prev in
            let new_t := 
            match new_t with 
-           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
            let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-           (members_prev++[Member_plain new_id new_t], new_env))
+           ((Member_plain new_id new_t) :: members_prev, new_env))
         fields ([Member_plain valid_id type_bool],env_valid) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared p4t comp_def in
@@ -137,10 +120,10 @@ Section CCompSel.
           let (new_t, new_env):= CTranslateType field env_prev in
           let new_t := 
            match new_t with 
-           | (Tstruct st noattr) => if(st == RunTime._BitVec) then Tpointer new_t noattr else new_t
+           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
            | _ => new_t end in 
           let (new_env, new_id):= CCompEnv.new_ident tags_t new_env in
-          (members_prev++[Member_plain new_id new_t], new_env))
+          ((Member_plain new_id new_t) :: members_prev, new_env))
         fields ([Member_plain valid_id type_bool],env_valid) in
         let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
@@ -236,34 +219,37 @@ Section CCompSel.
     | Expr.EExprMember ty y x i =>
                         let(cty, env_ty):= CTranslateType ty env in
                         let* (x', env') := CTranslateExpr x env_ty in
-                        match ty with
+
+                        match (t_of_e x) with
                         | Expr.TStruct(f) =>
-                          match F.get_index y f , F.get y f with 
-                          | Some n, Some t_member =>
+                          match F.get_index y f , F.get y f, lookup_composite tags_t env' (t_of_e x) with 
+                          | Some n, Some t_member, inl comp =>
                             let (ctm, env_ctm) := CTranslateType t_member env' in
+                            let* index := (composite_nth comp n) in
                             let em :=
                               match ctm with 
-                              | (Tstruct st _) => if(st == RunTime._BitVec) 
-                                                      then Ederef (Clight.Efield x' (Pos.of_nat n) (Tpointer ctm noattr)) (ctm)
-                                                      else (Clight.Efield x' (Pos.of_nat n) ctm)
-                              | _ => (Clight.Efield x' (Pos.of_nat n) ctm) end in 
+                              | (Tstruct st _) => if(st =? RunTime._BitVec) 
+                                                      then Ederef (Clight.Efield x' index (Tpointer ctm noattr)) (ctm)
+                                                      else (Clight.Efield x' index ctm)
+                              | _ => (Clight.Efield x' index ctm) end in 
                             error_ret (em, env_ctm)
-                          | _, _ => err "member is not in struct"
+                          | _, _, _ => err "member is not in struct"
                           end
                             
                         | Expr.THeader(f) => 
                         (* +1 for the valid bit *)
-                          match F.get_index y f , F.get y f with 
-                          | Some n, Some t_member =>
+                          match F.get_index y f , F.get y f, lookup_composite tags_t env' (t_of_e x)  with 
+                          | Some n, Some t_member, inl comp =>
                             let (ctm, env_ctm) := CTranslateType t_member env' in
+                            let* index := (composite_nth comp (n+1)) in
                             let em :=
                               match ctm with 
-                              | (Tstruct st _) => if(st == RunTime._BitVec) 
-                                                      then Ederef (Clight.Efield x' (Pos.of_nat (n+1)) (Tpointer ctm noattr)) (ctm)
-                                                      else (Clight.Efield x' (Pos.of_nat (n+1)) ctm)
-                              | _ => (Clight.Efield x' (Pos.of_nat (n+1)) ctm) end in 
+                              | (Tstruct st _) => if(st =? RunTime._BitVec) 
+                                                      then Ederef (Clight.Efield x' index (Tpointer ctm noattr)) (ctm)
+                                                      else (Clight.Efield x' index ctm)
+                              | _ => (Clight.Efield x' index ctm) end in 
                             error_ret (em, env_ctm)
-                          | _, _ => err "member is not in struct"
+                          | _, _, _ => err "member is not in struct"
                           end
                         | _ => err "member of an invalid type"
                         end
@@ -275,7 +261,7 @@ Section CCompSel.
         := findStackAttributes stack stack_t env in
       error_ret (ArrayAccess arr_var (Cint_of_Z index) val_typ, env)
 
-    | Expr.EError x i => err "EError , todo : implement" (*TODO: implement*)
+    | Expr.EError x i => error_ret (Ctrue, env) (*TODO: implement*)
 
     | _ => err "illegal expression, statementized failed" (*Not Allowed*)
     end.
@@ -310,107 +296,7 @@ Section CCompSel.
     in 
     List.fold_left  (transformation) el (error_ret ([],env)).
   
-  Definition typelist_slice := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil))).
-
-  Definition slice_function := 
-    Evar $"eval_slice" (Tfunction typelist_slice tvoid cc_default).
-  
-  Definition typelist_uop := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec Ctypes.Tnil).
-  
-  Definition uop_function (op: ident) := 
-    Evar op (Tfunction typelist_uop tvoid cc_default).
-    
-  Definition typelist_bop_bitvec := 
-    let TpointerBitVec := Ctypes.Tpointer bit_vec noattr in 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBitVec
-    Ctypes.Tnil)).
-
-  Definition typelist_bop_bool := 
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons TpointerBool
-    Ctypes.Tnil)).
-
-  Definition bop_function (op: ident) := 
-    if(op == _interp_beq) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bne) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bge) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_bgt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_ble) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else if(op == _interp_blt) then
-      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
-    else
-      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
-    .
-
-  Definition typelist_cast_to_bool :=   
-    Ctypes.Tcons TpointerBool
-    (Ctypes.Tcons bit_vec
-    Ctypes.Tnil).
-
-  Definition cast_to_bool_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_to_bool tvoid cc_default). 
-
-
-  Definition typelist_cast_from_bool := 
-    Ctypes.Tcons TpointerBitVec
-    (Ctypes.Tcons type_bool
-    Ctypes.Tnil).
-
-  Definition cast_from_bool_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_from_bool tvoid cc_default).
-
-  Definition typelist_cast_numbers :=
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons bit_vec
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons int_signed
-    Ctypes.Tnil))).
-
-  Definition cast_numbers_function := 
-    Evar _init_bitvec (Tfunction typelist_cast_numbers tvoid cc_default).
-
-  Definition typelist_bitvec_init :=
-    Ctypes.Tcons TpointerBitVec 
-    (Ctypes.Tcons type_bool
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons Cstring
-    Ctypes.Tnil))).
-
-  Definition bitvec_init_function := 
-    Evar _init_bitvec (Tfunction typelist_bitvec_init tvoid cc_default). 
-
-  Definition typelist_table_init := 
-    (Ctypes.Tcons int_signed
-    (Ctypes.Tcons int_signed
-    Ctypes.Tnil)).
-
-  Definition table_init_function := 
-    Evar _init_table (Tfunction typelist_table_init TpointerTable cc_default).
-
-  Definition typelist_table_match length := 
-    (Ctypes.Tcons TpointerActionRef
-    (Ctypes.Tcons TpointerTable
-    (Ctypes.Tcons (Tarray bit_vec length noattr)
-    Ctypes.Tnil))).
-  
-  Definition table_match_function length := 
-    Evar _table_match (Tfunction (typelist_table_match length) tvoid cc_default)
-    .
-
+ 
 
   Definition ValidBitIndex (arg: Expr.e tags_t) (env: ClightEnv tags_t ) : @error_monad string AST.ident
   :=
@@ -486,6 +372,24 @@ Section CCompSel.
     | _ => err "Unsupported uop"  
     end.
 
+ 
+  Definition bop_function (op: ident) := 
+    if(op =? _interp_beq) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op =? _interp_bne) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op =? _interp_bge) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op =? _interp_bgt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op =? _interp_ble) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else if(op =? _interp_blt) then
+      Evar op (Tfunction typelist_bop_bool tvoid cc_default) 
+    else
+      Evar op (Tfunction typelist_bop_bitvec tvoid cc_default) 
+    .
+  
   Definition CTranslateBop 
     (dst_t: Expr.t)
     (op: Expr.bop)
@@ -751,9 +655,9 @@ Section CCompSel.
           let (i, st) := x in 
           let index := Cint_of_Z (Z.of_nat i) in 
           let st' := Ssequence st (Sassign (ArrayAccess (Evar arrid t_keys) index bit_vec) (val)) in
-          let i' := i+1 in
+          let i' := Nat.add i (1%nat) in
           (i',st') 
-        ) elist (O, Sskip)) in 
+        ) elist (O%nat, Sskip)) in 
     let arg_list := [arg_action; arg_table; arg_keys] in
     let call := Scall (None) (table_match_function (Z.of_nat (List.length keys))) arg_list in
     let action_to_take_id := Efield (Evar action_id action_ref) _action int_signed in
@@ -770,14 +674,14 @@ Section CCompSel.
             let total_length := List.length (f'.(fn_params)) in
             let top_args := get_top_args tags_t env in
             let top_length := List.length top_args in 
-            let args_length := total_length - top_length in
+            let args_length := Nat.sub total_length top_length in
             let elist := getTableActionArgs action_to_take_args args_length in
             let elist := top_args ++ elist in 
             Scall None (Evar f'_id (Clight.type_of_function f')) elist
           )
           st
           in 
-          let i' := i-1 in 
+          let i' := Nat.sub i 1 in 
 
           error_ret (i',st')
         ) (error_ret ((List.length fn_names), Sskip)) fn_names in
@@ -785,6 +689,137 @@ Section CCompSel.
 
     error_ret (sequence, env) .
   
+  Fixpoint fold_nat {A} (f: A -> nat -> A) (n : nat) (init:A) : A:=
+    match n with
+    | O => init
+    | S n' => f (fold_nat f n' init) n' 
+    end.
+  
+  Fixpoint CTranslateExtract (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
+  : @error_monad string (Clight.statement * ClightEnv tags_t)
+  := 
+      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
+      match type with 
+      | Expr.TBool => 
+        let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
+        let stmt := Scall None extract_bool_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TBit w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Cfalse in 
+        let width := Cint_of_Z (Z.of_N w) in 
+        let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
+        error_ret (stmt, env')
+      | Expr.TInt w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Ctrue in 
+        let width := Cint_of_Z (Zpos w) in 
+        let stmt := Scall None extract_bitvec_function [packet;arg';is_signed; width] in
+        error_ret (stmt, env')
+      | Expr.TError => err "Can't extract to error"
+      | Expr.TTuple _ => err "Can't extract to tuple"
+      | Expr.TStruct fs => 
+        F.fold (fun fname ft cumulator => 
+          let* (prev_stmt, env') := cumulator in 
+          let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname arg info) ft pname env' info in
+          error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+      | Expr.THeader fs =>
+        F.fold (fun fname ft cumulator => 
+        let* (prev_stmt, env') := cumulator in 
+        let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname arg info) ft pname env' info in
+        error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+        (* TODO: set the validity *)
+      | Expr.THeaderStack fs size => 
+        let header_typ := Expr.THeader fs in
+        let nat_size := Pos.to_nat size in
+        fold_nat (
+          fun cumulator n =>
+          let* (old_stmt, env') := cumulator in 
+          let member := Expr.EHeaderStackAccess fs arg (Z.of_nat n) info in 
+          let* (new_stmt, env') := 
+            (
+              F.fold (fun fname ft cumulator => 
+              let* (prev_stmt, env') := cumulator in 
+              let* (stmt, env'') := CTranslateExtract (Expr.EExprMember ft fname member info) ft pname env' info in
+              error_ret (Ssequence stmt prev_stmt, env'')
+              ) fs (error_ret (Sskip, env))
+            )
+          in
+          error_ret (Ssequence old_stmt new_stmt, env')
+        ) nat_size (error_ret (Sskip, env))
+
+
+      | Expr.TVar _ => err "Can't extract to TVar"
+      end.
+
+
+  Fixpoint CTranslateEmit (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
+  : @error_monad string (Clight.statement * ClightEnv tags_t)
+  := 
+      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_out noattr)) TpointerPacketOut in
+      match type with 
+      | Expr.TBool => 
+        let* (arg' , env') := CTranslateExpr arg env in 
+        let arg' := Eaddrof arg' TpointerBool in
+        let stmt := Scall None emit_bool_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TBit w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Cfalse in 
+        let width := Cint_of_Z (Z.of_N w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TInt w => 
+        let* (arg' , env') := CTranslateExpr arg env in
+        let arg' := Eaddrof arg' TpointerBitVec in 
+        let is_signed := Ctrue in 
+        let width := Cint_of_Z (Zpos w) in 
+        let stmt := Scall None emit_bitvec_function [packet;arg'] in
+        error_ret (stmt, env')
+      | Expr.TError => err "Can't extract to error"
+      | Expr.TTuple _ => err "Can't extract to tuple"
+      | Expr.TStruct fs => 
+        F.fold (fun fname ft cumulator => 
+          let* (prev_stmt, env') := cumulator in 
+          let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+          error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+      | Expr.THeader fs =>
+        F.fold (fun fname ft cumulator => 
+        let* (prev_stmt, env') := cumulator in 
+        let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname arg info) ft pname env' info in
+        error_ret (Ssequence stmt prev_stmt, env'')
+        ) fs (error_ret (Sskip, env))
+        (* TODO: check the validity and decide whether to emit *)
+      | Expr.THeaderStack fs size => 
+        let header_typ := Expr.THeader fs in
+        let nat_size := Pos.to_nat size in
+        fold_nat (
+          fun cumulator n =>
+          let* (old_stmt, env') := cumulator in 
+          let member := Expr.EHeaderStackAccess fs arg (Z.of_nat n) info in 
+          let* (new_stmt, env') := 
+            (
+              F.fold (fun fname ft cumulator => 
+              let* (prev_stmt, env') := cumulator in 
+              let* (stmt, env'') := CTranslateEmit (Expr.EExprMember ft fname member info) ft pname env' info in
+              error_ret (Ssequence stmt prev_stmt, env'')
+              ) fs (error_ret (Sskip, env))
+            )
+          in
+          error_ret (Ssequence old_stmt new_stmt, env')
+        ) nat_size (error_ret (Sskip, env))
+
+
+      | Expr.TVar _ => err "Can't extract to TVar"
+      end.
+
   Fixpoint CTranslateStatement (s: Stmt.s tags_t) (env: ClightEnv tags_t ) : @error_monad string (Clight.statement * ClightEnv tags_t ) :=
     match s with
     | Stmt.SSkip i => error_ret (Sskip, env)
@@ -928,7 +963,27 @@ Section CCompSel.
         (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
         (Sassign lvalue (Etempvar tempid ct) )), env')
     | Stmt.SExternMethodCall e f _ {|paramargs:=args; rtrns:=x|} i =>
+      let* t := find_extern_type tags_t env e in 
+      if (String.eqb t "packet_in") then 
+        if (String.eqb f "extract") then
+          match F.get "hdr" args with 
+          | Some (PAOut arg) => 
+            CTranslateExtract arg (t_of_e arg) e env i
+          | _ => err "no out argument named hdr"
+          end
+        else error_ret (Sskip, env)
+      else 
+      if (String.eqb t "packet_out") then 
+        if (String.eqb f "emit") then
+          match F.get "hdr" args with 
+          | Some (PAIn arg) => 
+            CTranslateEmit arg (t_of_e arg) e env i
+          | _ => err "no out argument named hdr"
+          end
+        else error_ret (Sskip, env)
+      else 
       error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
+
     | Stmt.SReturn (Some e) i =>
       let* (e', env') := CTranslateExpr e env in
       error_ret ((Sreturn (Some e')), env')
@@ -952,7 +1007,7 @@ Section CCompSel.
       error_ret (Sassign e1' e2', env2)
       
 
-    | Stmt.SHeaderStackOp stack Stmt.HSPush n i =>
+    | Stmt.SHeaderStackOp stack typ Stmt.HSPush n i =>
       let* stack_id := 
         match find_ident_temp_arg tags_t env stack with
         | inl (_, x) => error_ret x
@@ -961,7 +1016,7 @@ Section CCompSel.
       in
       CTranslatePush stack_id n env
 
-    | Stmt.SHeaderStackOp stack Stmt.HSPop n i => 
+    | Stmt.SHeaderStackOp stack typ Stmt.HSPop n i =>
       let* stack_id := 
         match find_ident_temp_arg tags_t env stack with
         | inl (_, x) => error_ret x
@@ -1026,16 +1081,18 @@ Section CCompSel.
   Definition CTranslateExternParams (eparams : F.fs string string) (env : ClightEnv tags_t)
     : list (AST.ident * Ctypes.type) * ClightEnv tags_t 
   := 
+    let env_empty := clear_extern_instance tags_t env in 
     List.fold_left 
       (fun (cumulator: (list (AST.ident * Ctypes.type)) * ClightEnv tags_t ) (p: string * string)
       =>let (l, env') := cumulator in
         let (env', new_id) := new_ident tags_t env' in
         let (pname , ptyp) := p in
-        let env' := bind tags_t env' pname new_id in 
+        let env' := bind tags_t env' pname new_id in
+        let env' := add_extern_instance tags_t env' pname ptyp in  
         let ct :=  Ctypes.Tstruct $ptyp noattr in
         (* don't do copy in copy out*)
         (l ++ [(new_id, ct)], env')) 
-    (eparams) ([],env) .
+    (eparams) ([],env_empty) .
   
   Definition CCopyIn (fn_params: Expr.params) (env: ClightEnv tags_t )
     : @error_monad string (Clight.statement * ClightEnv tags_t)
@@ -1370,7 +1427,10 @@ Section CCompSel.
         (Ssequence copyin 
         (Ssequence 
         (Scall None (Evar start_id (Clight.type_of_function start_f)) call_args)
-        copyout)) in 
+        (Ssequence
+        copyout
+        (Sreturn (Some Ctrue))
+        ))) in 
       let top_function := 
         (Clight.mkfunction
         type_bool
@@ -1447,7 +1507,7 @@ Section CCompSel.
       let fn_params := fn_eparams ++ fn_params in 
       let* (table_init, env_local_decled) := CTranslateControlLocalDeclaration body env_copyout fn_params params in
       let* (apply_blk, env_apply_block_translated) := CTranslateStatement blk env_local_decled in
-      let body:= Ssequence init (Ssequence copyin (Ssequence apply_blk copyout)) in
+      let body:= Ssequence init (Ssequence copyin (Ssequence apply_blk (Ssequence copyout (Sreturn (Some Ctrue))))) in
       let top_fn := 
         Clight.mkfunction 
           type_bool 
@@ -1457,7 +1517,7 @@ Section CCompSel.
           (get_temps tags_t env_apply_block_translated)
           (Ssequence table_init body) in
       let env_top_fn_declared := 
-        CCompEnv.add_function tags_t env_local_decled instance_name top_fn in
+        CCompEnv.add_function tags_t env_apply_block_translated instance_name top_fn in
       error_ret (set_temp_vars tags_t env env_top_fn_declared) 
 
     | _ => err "not a top control"
@@ -1538,6 +1598,36 @@ Section CCompSel.
     : @error_monad string (ClightEnv tags_t * Clight.statement) :=
     F.fold InjectConstructorArg cargs (error_ret (env, Sskip)).
 
+  Fixpoint CCollectTypVar (d: TopDecl.d tags_t) (env: ClightEnv tags_t) : @error_monad string (ClightEnv tags_t)
+  := match d with 
+  | TopDecl.TPSeq d1 d2 i => 
+    let* env1 := CCollectTypVar d1 env in
+    CCollectTypVar d2 env1 
+
+  | TopDecl.TPInstantiate c x ts args i => 
+    if (String.eqb x "main") then 
+      let env' := List.fold_left (fun e t => snd (CTranslateType t e)) ts env in
+      match ts, F.get "p" args, F.get "vr" args, F.get "ig" args, F.get "eg" args, F.get "ck" args
+      , F.get "dep" args  with 
+      | H :: M :: [], Some (Expr.CAName p), Some (Expr.CAName vr),
+       Some (Expr.CAName ig), Some (Expr.CAName eg), Some (Expr.CAName ck), Some (Expr.CAName dep) => 
+        let* env_H := set_H tags_t env' H in 
+        let* env_M := set_M tags_t env_H M in
+        let env_p := add_expected_control tags_t env_M "parser" p  in 
+        let env_vr := add_expected_control tags_t env_p "verify" vr  in
+        let env_ig := add_expected_control tags_t env_vr "ingress" ig in
+        let env_eg := add_expected_control tags_t env_ig "egress" eg in
+        let env_ck := add_expected_control tags_t env_eg "compute" ck in
+        let env_dep := add_expected_control tags_t env_ck "deparser" dep in
+
+        error_ret env_dep
+      | _,_,_,_,_,_,_ => err "main instantiation not following V1model convention"
+      end
+    else error_ret env 
+ 
+  | _ => error_ret env
+  end.
+
   Fixpoint CTranslateTopDeclaration (d: TopDecl.d tags_t) (env: ClightEnv tags_t ) : @error_monad string (ClightEnv tags_t )
   := 
   match d with
@@ -1545,17 +1635,36 @@ Section CCompSel.
     let* env1 := CTranslateTopDeclaration d1 env in
     CTranslateTopDeclaration d2 env1 
 
-  | TopDecl.TPInstantiate c x _ args i => 
+  | TopDecl.TPInstantiate c x ts args i => 
     let env := add_tpdecl tags_t env x d in
-    let env := if (x == "main") then set_instantiate_cargs tags_t env args else env in
+    let env := if (String.eqb x "main") then set_instantiate_cargs tags_t env args else env in
     match lookup_topdecl tags_t env c with 
     | inl tpdecl => 
       match tpdecl with
-      | TopDecl.TPParser _ _ _ _ _ _ _  => 
+      | TopDecl.TPParser _ _ _ _ _ _ _  =>
+        let x := 
+          match lookup_expected_instance tags_t env "parser" with
+          | None => x
+          | Some name => if (String.eqb x name) then "parser" else x end in
         let* (env, init) := InjectConstructorArgs env args in
          CTranslateTopParser tpdecl env init x
 
       | TopDecl.TPControl _ _ _ _ _ _ _ =>
+        let x := 
+          match lookup_expected_instance tags_t env "verify",
+          lookup_expected_instance tags_t env "ingress", 
+          lookup_expected_instance tags_t env "egress",
+          lookup_expected_instance tags_t env "compute",
+          lookup_expected_instance tags_t env "deparser" with  
+          | Some vr, Some ig ,Some eg ,Some ck ,Some dep =>
+            if (String.eqb x vr) then "verify" else 
+            if (String.eqb x ig) then "ingress" else
+            if (String.eqb x eg) then "egress" else
+            if (String.eqb x ck) then "compute" else
+            if (String.eqb x dep) then "deparser" else
+            x 
+          | _,_,_,_,_ => x 
+          end in            
         let* (env, init) := InjectConstructorArgs env args in 
         CTranslateTopControl tpdecl env init x 
 
@@ -1564,7 +1673,7 @@ Section CCompSel.
     | _ => error_ret env
     end
   | TopDecl.TPFunction _ _ _ _ _ => CTranslateFunction d env
-  | TopDecl.TPExtern e _ cparams methods i => err "don't know how to handle extern" (*TODO: implement*)
+  | TopDecl.TPExtern e _ cparams methods i => error_ret env (*TODO: implement*)
   | TopDecl.TPControl name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
   (* CTranslateTopControl d env *)
   | TopDecl.TPParser name _ _ _ _ _ _ => error_ret (add_tpdecl tags_t env name d)
@@ -1573,9 +1682,12 @@ Section CCompSel.
 
   Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 
     let init_env := CCompEnv.newClightEnv tags_t in
-    let main_id := $"main" in 
+    match CCollectTypVar prog init_env with 
+    | inr m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
+    | inl init_env  => 
+    let main_id := $"dummy_main" in 
     match CTranslateTopDeclaration prog init_env with
-    | inr m => Errors.Error (Errors.msg m)
+    | inr m => Errors.Error (Errors.msg (m ++ "from TopDeclaration"))
     | inl env_all_declared => 
       match CCompEnv.get_functions tags_t env_all_declared with
       | inr _ => Errors.Error (Errors.msg "can't find all the declared functions")
@@ -1585,7 +1697,11 @@ Section CCompSel.
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
       let typ_decls := CCompEnv.get_composites tags_t env_all_declared in
-      
+      (* There's no easy way of deleting the main_decl completely *)
+      (* Mainly because clight expect a program to have a main function *)
+      (* if we don't have a main function, I'm not sure how to print the result out
+      as a c file. *)
+      (* But we need all definitions to be public now *)
       let main_decl :=
       AST.Gfun (Ctypes.Internal (main_fn tags_t env_all_declared (get_instantiate_cargs tags_t env_all_declared)))
       in 
@@ -1594,15 +1710,16 @@ Section CCompSel.
         (fun (x: AST.ident * globvar Ctypes.type)
         => let (id, v) := x in 
         (id, AST.Gvar(v))) gvars in
+      let globdecl := gvars ++ ((main_id, main_decl):: f_decls) in
+      let pubids := List.map (fun (x: ident * globdef (fundef Clight.function) type) =>
+                              let (id, _) := x in 
+                              id) globdecl in
       let res_prog : Errors.res (program function) := make_program 
-        (
-          (* RunTime.composites++  *)
-          typ_decls)
-        (gvars ++ ((main_id, main_decl):: f_decls))
-        [] main_id
+        typ_decls globdecl pubids main_id
       in
       res_prog
       end
+    end
     end.
 
   Definition Compile_print (prog: TopDecl.d tags_t): unit := 
@@ -1612,9 +1729,24 @@ Section CCompSel.
     end.  
 End CCompSel.
 
-Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
+(* Require Poulet4.Compile.ToP4cub.
+Require Poulet4.Monads.Result.
+Require Poulet4.P4light.Syntax.P4defs.
+Require Poulet4.Ccomp.Example.
+
+Definition helloworld_program := 
+  match ToP4cub.translate_program' P4defs.Info P4defs.Inhabitant_Info Example.prog with
+  | @Result.Error (_) e => Errors.Error (Errors.msg e)
+  | @Result.Ok (_) p =>
+    p
+  end. 
+
+Compute helloworld_program. *)
+
+
+(* Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
 Definition test_program_only := 
   CCompSel.Compile nat helloworld_program_sel.
 
 Definition test := 
-  CCompSel.Compile_print nat helloworld_program_sel.
+  CCompSel.Compile_print nat helloworld_program_sel. *)

@@ -263,7 +263,7 @@ Module Stmt.
              (ext_args : F.fs string string)
              (args : Expr.args tags_t)
              (i : tags_t) (* apply statements *)
-    | SHeaderStackOp (hdr_stk_name : string) (o : hsop)
+    | SHeaderStackOp (hdr_stk_name : string) (hdr_typ : Expr.t) (o : hsop)
                      (n : positive) (i : tags_t)  (* push/pop statements *)
     | SSetValidity (hdr : Expr.e tags_t) (validity : bool)
                    (i : tags_t)               (* set valid or set invalid *).

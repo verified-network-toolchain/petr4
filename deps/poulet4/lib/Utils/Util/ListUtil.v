@@ -1,5 +1,5 @@
 From Coq Require Export Lists.List micromega.Lia.
-From Poulet4 Require Export Utils.Util.FunUtil Monads.Result.
+From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
 Export ListNotations.
 
 (** * List Tactics *)
@@ -218,6 +218,16 @@ Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
     cons (x,y) xys
   end.
 
+Fixpoint ith { A : Type } (xs : list A) (i : nat) : result A :=
+  match xs with
+  | [] => error ("ListAccessFailure: list had " ++ StringUtil.string_of_nat i ++ " too few elements")
+  | x::xs =>
+    match i with
+    | O => ok x
+    | S i =>  ith xs i
+    end
+  end.
+
 Definition fold_righti {A B : Type} (f : nat -> A -> B -> B) (init : B) (xs : list A) : B :=
   snd (List.fold_right (fun a '(i, b) => (i + 1, f i a b )) (0, init) xs).
 
@@ -240,11 +250,14 @@ Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) 
 Definition map_snd {A B C : Type} (f : B -> C) (ps : list (A * B)) : list (A * C) :=
   List.map (fun '(a, b) => (a, f b)) ps.
 
-Fixpoint intersect_string_list (xs ys : list string) : list string :=
+Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
   match xs with
-  | [] => []
+  | [] => acc
   | x::xs =>
     if string_member x ys
-    then x::(intersect_string_list xs ys)
-    else intersect_string_list xs ys
+    then intersect_string_list_aux xs ys (x::acc)
+    else intersect_string_list_aux xs ys acc
   end.
+
+Fixpoint intersect_string_list (xs ys : list string) : list string :=
+  rev' (intersect_string_list_aux xs ys []).

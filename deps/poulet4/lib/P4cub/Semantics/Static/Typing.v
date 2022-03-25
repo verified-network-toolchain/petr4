@@ -192,17 +192,42 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
-(*| type_apply (eargs : F.fs string string) (args : Expr.args) (x : string)
-             (eps : F.fs string string) (params : Expr.params)
-            (tbls : tblenv) (aa : aenv) (cis : cienv) (eis : eienv) :
-    cis x = Some (eps,params) ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis
-                     ⊢ apply x with eargs & args ⊣ ⦃ Γ, C ⦄
+| type_apply_control
+    Γ fns extern_args args x extern_params params
+    tbls actions control_insts extern_insts :
+  nth_error control_insts x = Some (extern_params,params) ->
+  Forall2
+    (fun extern_instance extern_type
+     => True (* TODO: checking types of extern instances.*))
+    extern_args extern_params ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args params ->
+    {| expr_env := Γ
+    ; functs :=fns
+    ; cntx := CApplyBlock
+                tbls actions control_insts extern_insts |}
+      ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
+| type_apply_parser
+    Γ fns extern_args args x extern_params params
+    parser_insts extern_insts :
+  nth_error parser_insts x = Some (extern_params,params) ->
+  Forall2
+    (fun extern_instance extern_type
+     => True (* TODO: checking types of extern instances.*))
+    extern_args extern_params ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args params ->
+    {| expr_env := Γ
+    ; functs :=fns
+    ; cntx := CParserState
+                parser_insts extern_insts |}
+      ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont (*
 | type_invoke (tbl : string)  (tbls : tblenv)
              (aa : aenv) (cis : cienv) (eis : eienv) :
     In tbl tbls ->

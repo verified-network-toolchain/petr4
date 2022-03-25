@@ -93,8 +93,7 @@ Section ToP4cub.
       types : list (string * E.t);
     }.
 
-  Check List.fold_left.
-  Definition info_of_TopDecl (d: TopDecl.d tags_t) := 
+  Definition info_of_TopDecl (d: TopDecl.d tags_t) :=
     match d with 
     | TopDecl.TPInstantiate _ _ _ _ i => i
     | TopDecl.TPExtern _ _ _ _ i => i
@@ -110,6 +109,15 @@ Section ToP4cub.
     | h :: tl =>
     ok (List.fold_left (fun a b => (TopDecl.TPSeq a b (info_of_TopDecl a))) tl h )
     end.
+
+  Definition flatten_DeclCtx (ctx : DeclCtx) :=
+    flattenTopDecl
+      ((List.rev ctx.(controls))
+         ++ (List.rev ctx.(parsers))
+         ++ ctx.(functions)
+         ++ ctx.(packages)
+         ++ ctx.(externs)).
+
   Definition empty_declaration_context :=
     {| controls := [];
        parsers := [];
@@ -1596,9 +1604,6 @@ Section ToP4cub.
 
   Definition translate_program' (tags : tags_t) (p : program) : result (TopDecl.d tags_t) :=
     let* ctx := translate_program tags p in 
-    flattenTopDecl ((List.rev ctx.(controls)) ++ (List.rev ctx.(parsers)) ++ ctx.(functions) ++ ctx.(packages) ++ 
-    ctx.(externs))
-    
-    .
+    flatten_DeclCtx ctx.
     
 End ToP4cub.

@@ -148,55 +148,106 @@ module Make_parse (Conf: Parse_config) = struct
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
- let compile_file (include_dirs : string list) (p4_file : string) 
-      (normalize : bool)
-      (export_file : string)  (verbose : bool) (gen_loc : bool) (print_p4cub: bool)
-      (printp4_file: string) : unit =
-    match parse_file include_dirs p4_file verbose with
-    | `Ok prog ->
-      let prog, renamer = Elaborate.elab prog in
-      let _, typed_prog = Checker.check_program renamer prog in
-          (* let oc = open_out ofile in *)
-          (* let oc = Stdlib.open_out "out.v" in *)
-          Poulet4_Ccomp.PrintClight.change_destination export_file;
-          let prog' =
-            if normalize then
-              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
-            else typed_prog in
-          let prog'' =
-            if gen_loc then
-              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
-              | Coq_inl prog'' -> prog'' 
-              | Coq_inr ex -> failwith "error occurred in GenLoc"
-            else prog' in
-          let prog''' = 
-            match Poulet4.ToP4cub.translate_program' P4info.dummy prog'' with
-            | Poulet4.Result.Result.Ok prog''' -> (prog'''|> Poulet4.Statementize.coq_TranslateProgram) 
-            | Poulet4.Result.Result.Error e -> failwith e in
-          if(print_p4cub) then (
-              let oc_p4 = Out_channel.create printp4_file in
-              Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog''';
-              Out_channel.close oc_p4);
-          begin
-           match (prog''' |> Compcertalize.topdecl_convert |> Poulet4_Ccomp.CCompSel.coq_Compile) with
-           | Poulet4_Ccomp.Errors.Error (m) -> 
-                let m' =
-                 begin
-                 match m with
-                 | (Poulet4_Ccomp.Errors.MSG msg) ::[] -> Base.String.of_char_list msg
-                 | _ -> "unknown failure from p4cub" 
-                end in
-              failwith m'
-           | Poulet4_Ccomp.Errors.OK prog -> Poulet4_Ccomp.CCompSel.print_Clight prog
-           end
-    | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
-    | `Error (info, Parser.Error) ->
-      Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
-    | `Error (info, err) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+ let write_p4cub_to_file prog printp4_file =
+   let oc_p4 = Out_channel.create printp4_file in
+   Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog;
+   Out_channel.close oc_p4
 
-  
+ let to_p4cub light =
+   let open Poulet4 in
+   let open Result in
+   match ToP4cub.translate_program P4info.dummy light with
+   | Result.Ok cub -> cub
+   | Result.Error e -> failwith e
+
+ let gen_loc ~if_:do_gen_loc light =
+   if do_gen_loc then begin
+     match Poulet4.GenLoc.transform_prog P4info.dummy light with
+     | Coq_inl located_light -> located_light 
+     | Coq_inr ex -> failwith "error occurred in GenLoc"
+     end
+   else light
+
+ let simpl_expr ~if_:do_simpl_expr light =
+   if do_simpl_expr then
+     Poulet4.SimplExpr.transform_prog P4info.dummy light
+   else
+     light
+
+ let to_gcl (p4cub : P4info.t Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
+   let open Poulet4 in
+   let open Result in
+   let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) TableInstr.instr gas unroll p4cub in 
+   match coq_gcl with
+   | Result.Error msg -> failwith msg
+   | Result.Ok gcl -> gcl
+   
+ let handle_ccomp_result = function
+   | Poulet4_Ccomp.Errors.OK c ->     
+     c
+   | Poulet4_Ccomp.Errors.Error (m) ->
+     match m with
+     | (Poulet4_Ccomp.Errors.MSG msg) ::[] ->
+       failwith (Base.String.of_char_list msg)
+     | _ ->
+       failwith ("unknown failure from p4cub") 
+
+ let ccompile cub =
+   Poulet4_Ccomp.CCompSel.coq_Compile cub
+   |> handle_ccomp_result
+
+ let flatten cub =
+   let open Poulet4 in
+   let open Result in
+   match Poulet4.ToP4cub.flatten_DeclCtx cub with
+   | Result.Ok cub -> cub
+   | Result.Error e -> failwith e
+   
+ let to_c print file cub =  
+   (* the C compiler *)
+   let cub = flatten cub in
+   let stmtd = Poulet4.Statementize.coq_TranslateProgram cub in
+   if(print) then write_p4cub_to_file stmtd file;
+   let certd = Compcertalize.topdecl_convert cub in 
+   let c_res = Poulet4_Ccomp.CCompSel.coq_Compile certd in
+   handle_ccomp_result c_res
+   
+                    
+ let compile_file (include_dirs : string list) (p4_file : string) 
+     (normalize : bool) (export_file : string) (verbose : bool)
+     (do_gen_loc : bool) (print_p4cub : bool)
+     (printp4_file : string)
+     (gcl : int list)
+     : unit =
+   match parse_file include_dirs p4_file verbose with
+   | `Ok prog ->
+     let prog, renamer = Elaborate.elab prog in
+     let _, typ_light = Checker.check_program renamer prog in
+     Poulet4_Ccomp.PrintClight.change_destination export_file;
+     (* Preprocessing  *)
+     let nrm_light = simpl_expr ~if_:normalize  typ_light in
+     let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
+     (* p4cub compiler *)
+     let cub = to_p4cub loc_light in
+     begin match gcl with
+     | [gas; unroll] ->
+       (* GCL Compiler *)
+       let _ = to_gcl cub gas unroll in
+       Printf.printf "No Error converting to GCL\n%!"
+     | [] ->
+       (* the C compiler *)
+       let c = to_c print_p4cub printp4_file cub in
+       Poulet4_Ccomp.CCompSel.print_Clight c
+     | _ ->
+       failwith "unrecognized arguments to -gcl"
+     end
+   | `Error (info, Lexer.Error s) ->
+     Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
+   | `Error (info, Parser.Error) ->
+     Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
+   | `Error (info, err) ->
+     Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+       
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     failwith "eval_file removed"

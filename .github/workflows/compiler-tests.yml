@@ -1,0 +1,35 @@
+name: test-compilers
+on:
+  workflow_run:
+    workflows: [ "build-poulet4" ]
+    branches: [ poulet4 ]
+    types:
+      - completed
+
+jobs:
+  ubuntu-test-compilers:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout poulet4
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: ./.github/scripts/test-gcl-compiler.sh
+        shell: bash
+
+      # add more test scripts here as they arise
+
+  macos-test-compilers:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout poulet4
+        uses: actions/checkout@v2
+
+      - name: Run tests
+        run: ./.github/scripts/build-poulet4-macos.sh
+        shell: bash
+
+    # also add tests here

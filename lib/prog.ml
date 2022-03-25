@@ -1775,9 +1775,12 @@ end = struct
 
   let find_opt (name: Types.name) (env: 'a env) : 'a option =
     match name with
-    | Types.BareName {name; _} -> find_bare_opt name.string env
+    | Types.BareName {name; _}
+      -> Printf.printf "find opt bare name %s \n%!" name.string;
+      find_bare_opt name.string env
     | Types.QualifiedName {name; prefix = []; _} 
-      -> find_toplevel_opt name.string env
+      -> Printf.printf "find opt qualified name %s \n%!" name.string;
+         find_toplevel_opt name.string env
     | _ -> failwith "unimplemented"
 
   let empty_env : 'a env = [[]]
@@ -1992,13 +1995,14 @@ end = struct
     let resolve_type_name (name: Types.name) env =
       opt_to_exn name (resolve_type_name_opt name env)
 
-    let find_type_of_opt name env =
+    (* let find_type_of_opt name env = *)
+    (*   find_opt name env.typ_of *)
+
+    let find_type_of_opt (name: Types.name) env =
       find_opt name env.typ_of
 
-    let find_type_of_opt name env =
-      find_opt name env.typ_of
-
-    let find_type_of name env =
+    let find_type_of (name: Types.name) (env: t) =
+      (* Printf.printf "find typ eof : %s \n%!" (show env); *)
       opt_to_exn name (find_type_of_opt name env)
 
     let find_types_of name env =

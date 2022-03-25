@@ -2996,6 +2996,8 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
   let insert_param  e p =
     let typ = translate_type env [] p.typ in
     let dir = translate_direction p.direction in
+    Printf.printf "insert param  %s \n%!" p.variable.string;
+    (* Printf.printf "env is %s \n%!" (CheckerEnv.show env); *)
     CheckerEnv.insert_dir_type_of (insert_dummy_tags p.variable) typ dir env
   in
   List.fold_left ~f:insert_param ~init:env params
@@ -3119,7 +3121,9 @@ and open_parser_scope env ctx params constructor_params locals states =
   let open Parser in
   let constructor_params_typed = type_constructor_params env ctx constructor_params in
   let params_typed = type_params env (Runtime ctx) params in
+  (* Printf.printf "open parser scope %s \n%!" "blah"; *)
   let env = insert_params env constructor_params in
+  (* Printf.printf "open parser scope %s \n%!" "blah blha"; *)
   let env = insert_params env params in
   let locals_typed, env = type_declarations env DeclContext.Nested locals in
   let program_state_names = List.map ~f:(fun state -> state.name) states in

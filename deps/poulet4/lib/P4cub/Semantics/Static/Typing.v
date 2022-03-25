@@ -182,10 +182,10 @@ Inductive type_stmt
     args params ->
   Γ ⊢ₛ Stmt.ActCall a args ⊣ Γ ↓ Cont
 | type_fun_call Γ params τs args f τ e :
-  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
+  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
   Forall (t_ok (type_vars Γ)) (τ :: τs) ->
   lvalue_ok e ->
-  Γ ⊢ₑ e ∈ τ ->
+  Γ ⊢ₑ e ∈ tsub_t (gen_tsub τs) τ ->
   Forall2
     (rel_paramarg
        (type_expr Γ)
@@ -205,11 +205,11 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
-    {| expr_env := Γ
-    ; functs :=fns
-    ; cntx := CApplyBlock
-                tbls actions control_insts extern_insts |}
-      ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
+  {| expr_env := Γ
+  ; functs :=fns
+  ; cntx := CApplyBlock
+              tbls actions control_insts extern_insts |}
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
 | type_apply_parser
     Γ fns extern_args args x extern_params params
     parser_insts extern_insts :
@@ -223,50 +223,52 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
-    {| expr_env := Γ
-    ; functs :=fns
-    ; cntx := CParserState
-                parser_insts extern_insts |}
-      ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont (*
-| type_invoke (tbl : string)  (tbls : tblenv)
-             (aa : aenv) (cis : cienv) (eis : eienv) :
-    In tbl tbls ->
-    ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl ⊣ ⦃ Γ, C ⦄
-| type_extern_call_void (e : string) (f : string)
-                       (ts : list Expr.t)
-                       (args : Expr.args)  (con : ctx)
-                       (eis : eienv) (params : Expr.params)
-                       (mhds : F.fs string Expr.arrowT) :
-    eis e = Some mhds ->
-    F.get f mhds = Some {|paramargs:=params; rtrns:=None|} ->
-    extern_call_ok eis con ->
-    F.relfs
-      (rel_paramarg
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-         (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-      args params ->
-    ⦃ fns, Δ, Γ ⦄
-      con ⊢ extern e calls f<ts>(args) gives None ⊣ ⦃ Γ, C ⦄
-| type_extern_call_fruit (extrn : string) (f : string)
-                        (ts : list Expr.t)
-                        (args : Expr.args) (e : Expr.e)
-                         (con : ctx) (eis : eienv)
-                        (params: Expr.params) (τ : Expr.t)
-                        (mhds : F.fs string Expr.arrowT) :
-    (eis extrn = Some mhds ->
-     F.get f mhds = Some {|paramargs:=params; rtrns:=Some τ|} ->
-     extern_call_ok eis con ->
-     F.relfs
-       (rel_paramarg
-          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ)
-          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
-       args params ->
-     let result := Some e in
-     (⦃ fns, Δ, Γ ⦄
-        con ⊢ extern extrn calls f<ts>(args) gives result ⊣ ⦃ Γ, C ⦄)) *)
+  {| expr_env := Γ
+  ; functs :=fns
+  ; cntx := CParserState
+              parser_insts extern_insts |}
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
+| type_invoke
+    Γ fns tbl tbls actions
+    control_insts extern_insts :
+  In tbl tbls ->
+  {| expr_env := Γ
+  ; functs :=fns
+  ; cntx := CApplyBlock
+              tbls actions control_insts extern_insts |}
+    ⊢ₛ Stmt.Invoke tbl ⊣ Γ ↓ Cont
+| type_extern_call_void
+    Γ x f τs args fns con
+    methods extern_insts params :
+  nth_error extern_insts x = Some methods ->
+  Field.get f methods = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
+  extern_call_ok extern_insts con ->
+  Forall (t_ok (type_vars Γ)) τs ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args (map (tsub_param (gen_tsub τs)) params) ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ Γ ↓ Cont
+| type_extern_call_fruit
+    Γ x f τs args e τ fns con
+    methods extern_insts params :
+  nth_error extern_insts x = Some methods ->
+  Field.get f methods = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
+  extern_call_ok extern_insts con ->
+  Forall (t_ok (type_vars Γ)) (τ :: τs) ->
+  lvalue_ok e ->
+  Γ ⊢ₑ e ∈ tsub_t (gen_tsub τs) τ ->
+  Forall2
+    (rel_paramarg
+       (type_expr Γ)
+       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+    args (map (tsub_param (gen_tsub τs)) params) ->
+  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
 where "Γ₁ '⊢ₛ' s '⊣' Γ₂ '↓' sig"
         := (type_stmt Γ₁ s Γ₂ sig).
-(**[]*)
                      
 (** Parser State typing. *)
 Definition type_parser_state

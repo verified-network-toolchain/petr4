@@ -794,7 +794,7 @@ let print_decls =
   print_list (fun p decl -> fprintf p "%a@," print_decl decl)
 
 let print_header p imports =
-  let _ = List.map (fprintf p "#include \"%s\"@,") imports in ()
+  let _ = List.map (fprintf p "#include <%s>@,") imports in ()
 
 let print_pragma p pragmas =
   let _ = List.map (fprintf p "%s@,") pragmas in ()

@@ -123,14 +123,15 @@ Definition aenv : Set := Clmt.t string Expr.params.
 
 (** de Bruijn environment of instance type signatures. *)
 Definition ienv : Set :=
-  list (list string (** Types of extern arguments. *)
-        * Expr.params (** Types of expression arguments. *)).
+  list
+    (list string (** Types of extern arguments. *)
+     * Expr.params (** Types of expression arguments. *)).
 
 (** De Bruijn environment of extern instance type signatures. *)
 Definition eienv : Set :=
   list (Field.fs
           string (** Method name. *)
-          Expr.arrowT (** Method type signature. *)).
+          (nat * Expr.arrowT (** Method type signature. *))).
 
 (** Statement context. *)
 Variant ctx : Set :=

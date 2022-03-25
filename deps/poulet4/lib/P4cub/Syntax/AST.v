@@ -170,8 +170,8 @@ Module Stmt.
   | Exit (** exit statement *)
   | Invoke (table_name : string) (** table invocation *)
   | Apply (instance_name : nat)
-           (ext_args : list string)
-           (args : Expr.args) (** apply statements *).
+          (ext_args : list string)
+          (args : Expr.args) (** apply statements *).
 End Stmt.
 
 (** Parsers *)

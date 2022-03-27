@@ -1776,10 +1776,12 @@ end = struct
   let find_opt (name: Types.name) (env: 'a env) : 'a option =
     match name with
     | Types.BareName {name; _}
-      -> Printf.printf "find opt bare name %s \n%!" name.string;
+      ->
+      (* Printf.printf "find opt bare name %s \n%!" name.string; *)
       find_bare_opt name.string env
     | Types.QualifiedName {name; prefix = []; _} 
-      -> Printf.printf "find opt qualified name %s \n%!" name.string;
+      ->
+      (* Printf.printf "find opt qualified name %s \n%!" name.string; *)
          find_toplevel_opt name.string env
     | _ -> failwith "unimplemented"
 

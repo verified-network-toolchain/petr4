@@ -851,6 +851,9 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
        type_int x
     | Name {tags; name} ->
        let typ, dir = CheckerEnv.find_type_of name env in
+       let open Types in
+       (* Printf.printf "type expression--name %s \n%!" (name_only name); *)
+       (* Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env); *)
        { expr = E.Name {tags=tags; name=name};
          typ = typ;
          dir = dir;
@@ -3000,6 +3003,7 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
     (* Printf.printf "env is %s \n%!" (CheckerEnv.show env); *)
     CheckerEnv.insert_dir_type_of (insert_dummy_tags p.variable) typ dir env
   in
+  Printf.printf "insert params -- env %s \n%!" (CheckerEnv.show env);
   List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)

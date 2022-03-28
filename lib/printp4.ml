@@ -242,7 +242,7 @@ let print_op_bin p (op: coq_OpBin) =
     | NotEq -> "!="
     | BitAnd -> "&"
     | BitXor -> "^"
-    | BitOr -> "!"
+    | BitOr -> "|"
     | PlusPlus -> "++"
     | And -> "&&"
     | Or -> "||"
@@ -469,25 +469,25 @@ and print_pre_stmt p (pre_stmt: coq_StatementPreT) =
               print_expr cond
               print_stmt tru
       | _ -> 
-          fprintf p "@[<v 0>@[<v 4>if (%a)@,%a@]@,@]"
+          fprintf p "@[<v 0>@[<v 4>if (%a) {@,%a@]@,}@]"
               print_expr cond
               print_stmt tru)
   | StatConditional (cond, tru, Some fls) ->
       (match tru with 
       | MkStatement (_, (StatBlock _),_) ->
-          fprintf p "@[<v 0>if (%a)@,%a@]"
+          fprintf p "@[<v 0>@[<v 0>if (%a)@,%a@]"
               print_expr cond
               print_stmt tru
       | _ -> 
-          fprintf p "@[<v 0>@[<v 4>if (%a)@,%a@]@,@]"
+          fprintf p "@[<v 0>@[<v 0>@[<v 4>if (%a) {@,%a@]@,}@]"
               print_expr cond
               print_stmt tru);
       (match fls with 
       | MkStatement (_, (StatBlock _),_) ->
-          fprintf p "@[<v 0>else@,%a@]"
+          fprintf p "@,@[<v 0>else@,%a@]@]"
               print_stmt fls
       | _ -> 
-          fprintf p "@[<v 4>else@,%a@]"
+          fprintf p "@,@[<v 4>else {@,%a@]@,}@]"
               print_stmt fls);
   | StatBlock block ->
       fprintf p "@[<v 0>@[<v 4>%a"
@@ -794,7 +794,7 @@ let print_decls =
   print_list (fun p decl -> fprintf p "%a@," print_decl decl)
 
 let print_header p imports =
-  let _ = List.map (fprintf p "#include <%s>@,") imports in ()
+  let _ = List.map (fprintf p "#include %s@,") imports in ()
 
 let print_pragma p pragmas =
   let _ = List.map (fprintf p "%s@,") pragmas in ()

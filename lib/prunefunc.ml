@@ -95,7 +95,7 @@ let gen_p4tbl_call ?(args : string list list = []) (t : string) :
   let args = List.map (fun a -> Some (gen_p4expname a)) args in
   StatMethodCall (gen_p4expname [t; "apply"], [], args)
 
-let gen_p4ctrl (s : string) (ps : (direction * coq_P4Type * string) list)
+let gen_p4ctrl ?(cps : (direction * coq_P4Type * string) list = [])  (s : string) (ps : (direction * coq_P4Type * string) list)
     (ds : coq_Declaration list) (ss : coq_StatementPreT list) :
     coq_Declaration =
   DeclControl
@@ -103,6 +103,6 @@ let gen_p4ctrl (s : string) (ps : (direction * coq_P4Type * string) list)
     , to_p4str s
     , []
     , List.map (fun (d, t, v) -> gen_p4param d t v) ps
-    , []
+    , List.map (fun (d, t, v) -> gen_p4param d t v) cps
     , ds
     , prestmt_list_to_block ss )

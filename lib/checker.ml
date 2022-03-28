@@ -829,6 +829,7 @@ and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool
 (* copies the tag of expression in type as well. NOTE! *)
 and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Expression.t)
     : Prog.Expression.t =
+  Printf.printf "type expression -- exp is %s \n%!" (Expression.show exp);
   let module E = Prog.Expression in
   (* let pre_expr : Info.t E.typed_t = *)
     match exp with
@@ -851,6 +852,7 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
        type_int x
     | Name {tags; name} ->
        Printf.printf "type expression --name %s \n%!" (name_only name);
+       Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env);
        let typ, dir = CheckerEnv.find_type_of name env in
        (* let open Types in *)
        (* Printf.printf "type expression--name %s \n%!" (name_only name); *)
@@ -3006,7 +3008,7 @@ and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : Checker
     (* Printf.printf "env is %s \n%!" (CheckerEnv.show env); *)
     CheckerEnv.insert_dir_type_of (insert_dummy_tags p.variable) typ dir env
   in
-  Printf.printf "insert params -- env %s \n%!" (CheckerEnv.show env);
+  (* Printf.printf "insert params -- env %s \n%!" (CheckerEnv.show env); *)
   List.fold_left ~f:insert_param ~init:env params
 
 (* Section 10.3 *)

@@ -113,12 +113,12 @@ let is_table env (t:Typed.Type.t) : bool =
 (* Ugly hack *)
 let real_name_for_type_member env (typ_name: Types.name) (name': P4String.t) =
   begin match typ_name with
-    | QualifiedName {prefix; name; tags}(*(qs, typ_name)*) ->
-    let prefixed_name = name.string (*snd typ_name*) ^ "." ^ name'.string in
-    QualifiedName {tags; name={tags=name.tags; string=prefixed_name}; prefix} (*(qs, (fst name, prefixed_name))*)
+    | QualifiedName {prefix; name; tags} ->
+    let prefixed_name = name.string ^ "." ^ name'.string in
+    QualifiedName {tags; name={tags=name.tags; string=prefixed_name}; prefix}
   | BareName {name; tags} ->
      let prefixed_name = name.string ^ "." ^ name'.string in
-     BareName {tags; name={tags=name.tags; string=prefixed_name}} (*(fst name, prefixed_name)*)
+     BareName {tags; name={tags=name.tags; string=prefixed_name}}
   end
 
 let rec min_size_in_bits' env (tags: Info.t) (hdr_type: Typed.Type.t) : int =
@@ -850,8 +850,9 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
     | Int {tags; x}->
        type_int x
     | Name {tags; name} ->
+       Printf.printf "type expression --name %s \n%!" (name_only name);
        let typ, dir = CheckerEnv.find_type_of name env in
-       let open Types in
+       (* let open Types in *)
        (* Printf.printf "type expression--name %s \n%!" (name_only name); *)
        (* Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env); *)
        { expr = E.Name {tags=tags; name=name};
@@ -2362,6 +2363,7 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
 
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
+  Printf.printf "we're here!!!";
   let func_typed = resolve_function_overload env ctx func args in
   let func_type = func_typed.typ in
   let type_params, params, kind, return_type =
@@ -2534,6 +2536,7 @@ and resolve_function_overload_by ~f env ctx (func: Expression.t) : Prog.Expressi
      | _ -> type_expression env ctx func
      end
   | ExpressionMember { expr; name; tags } ->
+    Printf.printf "expression member is %s \n%!" (Types.Expression.show expr);
      let expr_typed = type_expression env ctx expr in
      let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
                                                           name = name;

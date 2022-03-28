@@ -47,3 +47,5 @@ val sorted_eq_strings: string list -> string list -> bool
 val eq_opt : f:('a -> 'a -> bool) -> 'a Option.t -> 'a Option.t -> bool
 
 type bigint = Bigint.t [@@deriving sexp,show,yojson]
+
+val hex_of_string : string -> string

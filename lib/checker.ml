@@ -826,10 +826,9 @@ and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool
      | Parser _ -> true
      | _ -> false
 
-(* copies the tag of expression in type as well. NOTE! *)
 and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Expression.t)
     : Prog.Expression.t =
-  Printf.printf "type expression -- exp is %s \n%!" (Expression.show exp);
+  (* Printf.printf "type expression -- exp is %s \n%!" (Expression.show exp); *)
   let module E = Prog.Expression in
   (* let pre_expr : Info.t E.typed_t = *)
     match exp with
@@ -851,8 +850,8 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
     | Int {tags; x}->
        type_int x
     | Name {tags; name} ->
-       Printf.printf "type expression --name %s \n%!" (name_only name);
-       Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env);
+       (* Printf.printf "type expression --name %s \n%!" (name_only name); *)
+       (* Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env); *)
        let typ, dir = CheckerEnv.find_type_of name env in
        (* let open Types in *)
        (* Printf.printf "type expression--name %s \n%!" (name_only name); *)
@@ -896,7 +895,6 @@ and add_cast env (expr: Prog.Expression.t) typ =
   let expr_casted: Prog.Expression.t =
     (* let etag = expr.tags in *)
     (* fst expr, *)
-    (*in places where there are multiple tags the inner most is correct. *)
     {expr = Cast { tags=expr.tags ; typ = typ; expr = expr};
      typ = typ;
      dir = expr.dir;
@@ -2365,7 +2363,7 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
 
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
-  Printf.printf "we're here!!!";
+  (* Printf.printf "we're here!!!"; *)
   let func_typed = resolve_function_overload env ctx func args in
   let func_type = func_typed.typ in
   let type_params, params, kind, return_type =
@@ -2538,7 +2536,7 @@ and resolve_function_overload_by ~f env ctx (func: Expression.t) : Prog.Expressi
      | _ -> type_expression env ctx func
      end
   | ExpressionMember { expr; name; tags } ->
-    Printf.printf "expression member is %s \n%!" (Types.Expression.show expr);
+    (* Printf.printf "expression member is %s \n%!" (Types.Expression.show expr); *)
      let expr_typed = type_expression env ctx expr in
      let prog_member = Prog.Expression.ExpressionMember { expr = expr_typed;
                                                           name = name;
@@ -3001,10 +2999,10 @@ and type_constant env ctx decl_tags annotations typ name expr : Prog.Declaration
 
 and insert_params (env: CheckerEnv.t) (params: Types.Parameter.t list) : CheckerEnv.t =
   let open Types.Parameter in
-  let insert_param  e p =
+  let insert_param env p =
     let typ = translate_type env [] p.typ in
     let dir = translate_direction p.direction in
-    Printf.printf "insert param  %s \n%!" p.variable.string;
+    (* Printf.printf "insert param  %s \n%!" p.variable.string; *)
     (* Printf.printf "env is %s \n%!" (CheckerEnv.show env); *)
     CheckerEnv.insert_dir_type_of (insert_dummy_tags p.variable) typ dir env
   in
@@ -3566,8 +3564,12 @@ and type_default_action
   let action_expr_typed = type_expression env expr_ctx action_expr in
   match action_expr_typed.expr with
   | FunctionCall { func = {expr = Name {name=action_name; _}; _}; type_args = []; args = args; tags = _} ->
+     (* Printf.printf "type default action --name %s \n%!" (show_name action_name); *)
+     (* let printitmotherfucker = List.to_string ~f:(fun (n,(a:Prog.Table.action_ref)) -> "(" ^ Types.name_only n ^ "," ^ (Prog.Table.show_action_ref a)) action_map in *)
+     (* Printf.printf "type default action --map %s \n%!" printitmotherfucker; *)
      begin match List.Assoc.find ~equal:name_eq action_map action_name with
      | None -> raise_s [%message "couldn't find default action in action_map"]
+                 (*potential problem*)
      | Some {action={args=prop_args; _}; _} ->
         (* compares the longest prefix that
          * the default args are equal to the property args, and then
@@ -3596,6 +3598,7 @@ and type_default_action
          else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
     end
   | Name {name = action_name; _} ->
+    (* Printf.printf "testing action name %s \n%!" (name_only action_name);  *)
      if List.Assoc.mem ~equal:name_eq action_map action_name
      || List.Assoc.mem
       ~equal:name_eq
@@ -3607,6 +3610,7 @@ and type_default_action
                        tags = Expression.tags action_expr};
             typ = action_expr_typed.typ }
      else failwith "couldn't find default action in action_map"
+         (*potential problem*)
   | e ->
      failwith "couldn't type default action as functioncall"
 

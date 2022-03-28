@@ -102,10 +102,10 @@ let name_eq n1 n2 =
   match n1, n2 with
   | BareName s1,
     BareName s2 ->
-    s1.name = s2.name
+    s1.name.string = s2.name.string
   | QualifiedName {tags = _; prefix = ns1; name = s1},
     QualifiedName {tags = _; prefix = ns2; name = s2} ->
-    s1 = s2 && ns1 = ns2
+    s1.string = s2.string && List.equal (fun x y -> x.P4String.string = y.string) ns1 ns2
   | _ -> false
   (* DISCUSS: how do prefixes agree? list =? or the order and repetition doesn't matter? *)
 

@@ -27,7 +27,7 @@ jobs:
       - name: setup-ocaml
         uses: ocaml/setup-ocaml@v1
         with:
-          ocaml-version: '4.12.0'
+          ocaml-version: '4.14.0'
 
       - name: build-ubuntu
         # Runs the script to build poulet4 on ubuntu

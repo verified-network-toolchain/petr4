@@ -34,7 +34,7 @@ export POULET4_CCOMP_DEPS="zarith"
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   ${PETR4_DEPS}
-opam switch create 4.14.0
+opam switch 4.14.0
 opam update
 # install p4pp
 eval $(opam env)

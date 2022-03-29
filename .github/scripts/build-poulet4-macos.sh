@@ -34,7 +34,7 @@ pwd
 brew update
 brew install \
   ${PETR4_DEPS}
-opam switch create 4.14.0
+opam switch 4.14.0
 opam update
 # install p4pp
 eval $(opam env)

@@ -163,6 +163,12 @@ struct standard_metadata_t {
   struct BitVec *priority;
 };
 
+//v1model externs
+BitVec drop_port; 
+void mark_to_drop(struct standard_metadata_t* meta){
+  init_bitvec(&drop_port, 0, 9, "511");
+  *(meta->egress_spec) = drop_port;
+}
 
 //packet processing
 void extract_bool(packet_in *pkt, int *data){

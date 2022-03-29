@@ -92,7 +92,14 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   if(!result){
     printf("ingress failed");
   }else{
-  meta.egress_port = meta.egress_spec;
+    int dropped;
+    interp_beq(&dropped, *meta.egress_spec, drop_port);
+    if(dropped){
+      printf("packet dropped");
+      return 1;
+    }else{
+      (*meta.egress_port) = *(meta.egress_spec);
+    }
   result = egress (&h, &m, &meta);
   if(!result){
     printf("egress failed");

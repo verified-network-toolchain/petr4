@@ -982,6 +982,14 @@ Section CCompSel.
           end
         else error_ret (Sskip, env)
       else 
+      if (String.eqb f "mark_to_drop") then
+        match F.get "standard_metadata" args with
+        | Some (PAInOut arg) =>
+          let* (elist, env') := CTranslateDirExprList args env in
+          error_ret (Scall None mark_to_drop_function elist, env')
+        | _ => err "no inout argument named standard_metadata"
+        end
+      else
       error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
 
     | Stmt.SReturn (Some e) i =>

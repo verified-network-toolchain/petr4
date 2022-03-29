@@ -170,3 +170,10 @@ Definition typelist_slice :=
     
   Definition emit_bool_function := 
     Evar _emit_bool (Tfunction (typelist_emit_bool) tvoid cc_default).
+
+  Definition typelist_mark_to_drop := 
+    (Ctypes.Tcons (tptr (Tstruct _standard_metadata_t noattr))
+    Ctypes.Tnil).
+  
+  Definition mark_to_drop_function :=
+    Evar _mark_to_drop (Tfunction (typelist_mark_to_drop) tvoid cc_default).

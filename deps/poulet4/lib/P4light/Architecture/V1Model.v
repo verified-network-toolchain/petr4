@@ -526,7 +526,7 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       exec_prog module_sem s0 pin s7 pout.
 
 Definition interp_prog : (path -> extern_state -> list Val -> extern_state * list Val * signal) ->
-                         extern_state -> list bool -> extern_state * list bool.
+                         extern_state -> Z -> list bool -> extern_state * Z * list bool.
 Admitted.
 
 Instance V1Model : Target := Build_Target _ exec_prog interp_prog.

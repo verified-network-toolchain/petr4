@@ -36,4 +36,4 @@
   (name poulet4)
   (public_name poulet4)
   (libraries bignum zarith)
-  (flags (:standard -w -33 -w -20)))
+  (flags (:standard -w -39 -w -33 -w -20 -w -27)))

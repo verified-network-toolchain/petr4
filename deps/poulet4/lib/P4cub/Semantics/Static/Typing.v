@@ -114,44 +114,43 @@ Reserved Notation "Γ₁ ⊢ₛ s ⊣ Γ₂ ↓ sig" (at level 80, no associativ
 Local Open Scope stmt_scope.
 
 Inductive type_stmt
-  : stmt_type_env -> Stmt.s -> expr_type_env -> signal -> Prop :=
+  : stmt_type_env -> Stmt.s -> list Expr.t -> signal -> Prop :=
 | type_skip Γ :
-  Γ ⊢ₛ Stmt.Skip ⊣ Γ ↓ Cont
-| type_seq_cont s₁ s₂ Γ Γ' Γ'' sig con fns :
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
+  Γ ⊢ₛ Stmt.Skip ⊣ types Γ ↓ Cont
+| type_seq_cont s₁ s₂ Δ Γ Γ' Γ'' sig con fns :
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ|}|}
     ⊢ₛ s₁ ⊣ Γ' ↓ Cont ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ'|}
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ'|}|}
     ⊢ₛ s₂ ⊣ Γ'' ↓ sig ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ|}|}
     ⊢ₛ s₁ `; s₂ ⊣ Γ'' ↓ sig
 | type_block s Γ Γ' sig :
   Γ ⊢ₛ s ⊣ Γ' ↓ sig ->
-  Γ ⊢ₛ Stmt.Block s ⊣ Γ ↓ Cont
+  Γ ⊢ₛ Stmt.Block s ⊣ types Γ ↓ Cont
 | type_vardecl Δ Γ con fns τ eo :
     match eo with
     | inr e => Γ ⊢ₑ e ∈ τ
     | inl τ => t_ok Δ τ
     end ->
-    {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-      ⊢ₛ Stmt.Var eo
-      ⊣ {| sfuncts  := fns
-        ; cntx     := con
-        ; expr_env :=
-          {| type_vars := type_vars Γ
-          ; types      := τ :: types Γ|}
-        |} ↓ Cont
+    {| sfuncts := fns
+    ; cntx := con
+    ; expr_env :=
+      {| type_vars := Δ
+      ; types := types Γ|}
+    |} ⊢ₛ Stmt.Var eo
+       ⊣ τ :: types Γ ↓ Cont
 | type_assign (Γ : stmt_type_env) τ e₁ e₂ :
   lvalue_ok e₁ ->
   Γ ⊢ₑ e₁ ∈ τ ->
   Γ ⊢ₑ e₂ ∈ τ ->
-  Γ ⊢ₛ e₁ `:= e₂ ⊣ Γ ↓ Cont
-| type_cond Γ Γ₁ Γ₂ e s₁ s₂  sig₁ sig₂ con fns :
-  Γ ⊢ₑ e ∈ Expr.TBool ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
+  Γ ⊢ₛ e₁ `:= e₂ ⊣ types Γ ↓ Cont
+| type_cond Δ Γ Γ₁ Γ₂ e s₁ s₂  sig₁ sig₂ con fns :
+  {|type_vars:=Δ;types:=Γ|} ⊢ₑ e ∈ Expr.TBool ->
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ|}|}
     ⊢ₛ s₁ ⊣ Γ₁ ↓ sig₁ ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ|}|}
     ⊢ₛ s₂ ⊣ Γ₂ ↓ sig₂ ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:={|type_vars:=Δ;types:=Γ|}|}
     ⊢ₛ If e Then s₁ Else s₂ ⊣ Γ ↓ lub sig₁ sig₂
 | type_return Γ eo :
   match cntx Γ, eo with
@@ -159,10 +158,10 @@ Inductive type_stmt
   | c, None => return_void_ok c
   | _, _ => False
   end ->
-  Γ ⊢ₛ Stmt.Return eo ⊣ Γ ↓ Return
+  Γ ⊢ₛ Stmt.Return eo ⊣ types Γ ↓ Return
 | type_exit Γ :
   exit_ctx_ok (cntx Γ) ->
-  Γ ⊢ₛ Stmt.Exit ⊣ Γ ↓ Return
+  Γ ⊢ₛ Stmt.Exit ⊣ types Γ ↓ Return
 | type_void_call Γ params τs args f :
   sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
   Forall (t_ok (type_vars Γ)) τs ->
@@ -171,7 +170,7 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
-  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=None|} ⊣ Γ ↓ Cont
+  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=None|} ⊣ types Γ ↓ Cont
 | type_act_call Γ params args a aa :
   action_call_ok aa (cntx Γ) ->
   aa a = Some params ->
@@ -180,7 +179,7 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
-  Γ ⊢ₛ Stmt.ActCall a args ⊣ Γ ↓ Cont
+  Γ ⊢ₛ Stmt.ActCall a args ⊣ types Γ ↓ Cont
 | type_fun_call Γ params τs args f τ e :
   sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
   Forall (t_ok (type_vars Γ)) (τ :: τs) ->
@@ -191,7 +190,7 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
-  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
+  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=Some e|} ⊣ types Γ ↓ Cont
 | type_apply_control
     Γ fns extern_args args x extern_params params
     tbls actions control_insts extern_insts :
@@ -209,7 +208,7 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ types Γ ↓ Cont
 | type_apply_parser
     Γ fns extern_args args x extern_params params
     parser_insts extern_insts :
@@ -227,7 +226,7 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CParserState
               parser_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ types Γ ↓ Cont
 | type_invoke
     Γ fns tbl tbls actions
     control_insts extern_insts :
@@ -236,7 +235,7 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Invoke tbl ⊣ Γ ↓ Cont
+    ⊢ₛ Stmt.Invoke tbl ⊣ types Γ ↓ Cont
 | type_extern_call_void
     Γ x f τs args fns con
     methods extern_insts params :
@@ -250,7 +249,7 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ Γ ↓ Cont
+    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ types Γ ↓ Cont
 | type_extern_call_fruit
     Γ x f τs args e τ fns con
     methods extern_insts params :
@@ -266,7 +265,7 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
+    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ types Γ ↓ Cont
 where "Γ₁ '⊢ₛ' s '⊣' Γ₂ '↓' sig"
         := (type_stmt Γ₁ s Γ₂ sig).
 
@@ -282,7 +281,7 @@ Definition type_parser_state
     {| sfuncts := fns
     ; cntx := CParserState parser_insts extern_insts
     ; expr_env := Γ|}
-      ⊢ₛ s ⊣ Γ' ↓ sig /\ type_prsrexpr total_states Γ' e.
+      ⊢ₛ s ⊣ types Γ' ↓ sig /\ type_prsrexpr total_states Γ' e.
 
 (** * Control-declaration typing. *)
 
@@ -303,13 +302,13 @@ Local Open Scope ctrl_scope.
 (** Control declaration typing. *)
 Inductive type_ctrldecl (Γ : ctrl_type_env)
   : Control.d -> aenv -> list string -> Prop :=
-| type_action action_name params body Γ' :
+| type_action action_name params body Γ' sig :
   {| sfuncts := cfuncts Γ
   ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
   ; expr_env :=
     {| type_vars := type_vars (cexpr_env Γ)
     ; types := bind_all params (types (cexpr_env Γ)) |}
-  |} ⊢ₛ body ⊣ Γ' ↓ Return ->
+  |} ⊢ₛ body ⊣ Γ' ↓ sig ->
   Γ ⊢ᵪ Control.Action action_name params body ⊣ actns Γ ∧ tbls Γ
 | type_table table_name key actions :
   (** Keys type. *)
@@ -335,6 +334,8 @@ Inductive type_ctrldecl (Γ : ctrl_type_env)
 where "Γ '⊢ᵪ' d '⊣' acts '∧' tbs"
   := (type_ctrldecl Γ d acts tbs) : type_scope.
 
+Local Close Scope ctrl_scope.
+
 (** * Toplevel-declaration typing. *)
 
 Record top_type_env : Set :=
@@ -346,6 +347,9 @@ Record top_type_env : Set :=
 
 Reserved Notation "Γ₁ '⊢ₜ' d ⊣ Γ₂"
          (at level 80, no associativity).
+
+Local Open Scope top_scope.
+Local Open Scope climate_scope.
 
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)
@@ -467,7 +471,7 @@ Inductive type_topdecl (Γ : top_type_env)
     let prsr := Expr.CTParser cparams extparams params in
     ⦗ cs, fns, pgis, cis, pis, eis ⦘
       ⊢ parser p (cparams)(extparams)(params) start:= start_state { states }
-      ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr,, cs ⦘
+      ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr,, cs ⦘*)
 (*| type_extern (e : string)
              (cparams : Expr.constructor_params)
              (mthds : F.fs string Expr.arrowT) :
@@ -482,37 +486,43 @@ Inductive type_topdecl (Γ : top_type_env)
     ⦗ cs, fns, pgis, cis, pis, eis ⦘
       ⊢ package pkg <TS> (cparams)
       ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge,, cs ⦘*)
-| type_fruit_function (f : string) (params : Expr.params)
-                     (Δ : list string)
-                     (τ : Expr.t) (body : Stmt.s) 
-                     (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all params ∅ = Γ' ->
-    ⦃ fns, Δ, Γ' ⦄ Function τ ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := {|paramargs:=params; rtrns:=Some τ|} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ fn f <Δ> (params) -> τ { body }
-      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func,,  fns, cs ⦘
-| type_void_function (f : string) (Δ : Delta)
-                    (params : Expr.params)
-                    (body : Stmt.s) 
-                    (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all params ∅ = Γ' ->
-    ⦃ fns, Δ, Γ' ⦄ Void ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    let func := {|paramargs:=params; rtrns:=None|} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ void f<Δ>(params) { body }
-      ⊣ ⦗ eis, pis, cis, pgis, f ↦ func,,  fns, cs ⦘
-| type_topdecl_seq (d1 d2 : TopDecl.d) 
-                  (eis' eis'' : eienv) (pgis' pgis'' : pkgienv)
-                  (pis' pis'' : pienv) (cis' cis'' : cienv)
-                  (fns' fns'' : fenv) (cs' cs'' : cenv) :
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘ ⊢ d1
-    ⊣ ⦗ eis', pis', cis', pgis', fns', cs' ⦘ ->
-    ⦗ cs', fns', pgis', cis', pis', eis' ⦘ ⊢ d2
-    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘ ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘ ⊢ d1 ;%; d2
-    ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘
-*)
+| type_function function_name type_params arrow body Γ' sig :
+  good_signal arrow sig ->
+  {| sfuncts := tfuncts Γ
+  ; cntx := CFunction (rtrns arrow)
+  ; expr_env :=
+    {| type_vars := type_params
+    ; types := bind_all (paramargs arrow) [] |}
+  |} ⊢ₛ body ⊣ Γ' ↓ sig ->
+  Γ ⊢ₜ TopDecl.Funct
+    function_name type_params arrow body
+    ⊣ {| tfuncts := function_name ↦ (type_params,arrow) ,, tfuncts Γ
+      ; cnstrs := cnstrs Γ
+      ; insts_envs := insts_envs Γ
+      ; package_insts := package_insts Γ |}
+| type_topdecl_seq
+    d₁ d₂ insts' insts''
+    package_insts' package_insts''
+    fns' fns'' cnstrs' cnstrs'' :
+  Γ ⊢ₜ d₁
+    ⊣ {| tfuncts := fns'
+      ; cnstrs := cnstrs'
+      ; insts_envs := insts'
+      ; package_insts := package_insts' |} ->
+  {| tfuncts := fns'
+  ; cnstrs := cnstrs'
+  ; insts_envs := insts'
+  ; package_insts := package_insts' |}
+    ⊢ₜ d₂
+    ⊣ {| tfuncts := fns''
+      ; cnstrs := cnstrs''
+      ; insts_envs := insts''
+      ; package_insts := package_insts' |} ->
+  Γ ⊢ₜ d₁ ;%; d₂
+    ⊣ {| tfuncts := fns''
+      ; cnstrs := cnstrs''
+      ; insts_envs := insts''
+      ; package_insts := package_insts'' |}
 where
 "Γ₁ '⊢ₜ' d ⊣ Γ₂"
   := (type_topdecl Γ₁ d Γ₂).

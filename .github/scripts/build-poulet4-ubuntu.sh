@@ -35,10 +35,10 @@ sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   ${PETR4_DEPS}
 opam update
-opam upgrade
 # install p4pp
-opam switch 4.12.0
+opam switch 4.14.0
 #opam install menhir.20211128
+opam pin add --no-action p4pp https://github.com/cornell-netlab/p4pp.git
 opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 eval $(opam env)
 

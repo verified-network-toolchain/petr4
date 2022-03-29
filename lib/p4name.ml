@@ -1,13 +1,9 @@
-open Sexplib.Conv
 open P4string
+open Poulet4.Typed
 
-type 'a pre_t =
-  [%import:'a Poulet4.Typed.name
-    [@with Poulet4.P4String.t := P4string.pre_t]]
-  [@@deriving sexp,show,yojson]
+type 'a pre_t = 'a Poulet4.Typed.name
 
 type t = P4info.t pre_t
-  [@@deriving sexp,show,yojson]
 
 let to_bare : t -> t = function
   | BareName n

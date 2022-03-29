@@ -15,15 +15,17 @@ export PETR4_DEPS_OPAM="ANSITerminal \
                         p4pp \
                         pp \
                         ppx_deriving \
+                        ppx_import \
                         ppx_deriving_yojson \
                         yojson \
                         js_of_ocaml \
                         js_of_ocaml-lwt \
                         js_of_ocaml-ppx"
 
-export POULET4_DEPS="coq-equations \
+export POULET4_DEPS="coq \
+                     coq-equations \
                      coq-record-update \
-                     coq-compcert "
+                     coq-compcert"
 
 export POULET4_CCOMP_DEPS="zarith"
 
@@ -36,12 +38,12 @@ opam update
 opam upgrade
 # install p4pp
 opam switch 4.12.0
-opam install menhir.20211128
+#opam install menhir.20211128
 opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 eval $(opam env)
 
 # install deps for poulet4
-opam pin add coq 8.13.2
+#opam pin add coq 8.13.2
 opam repo add coq-released https://coq.inria.fr/opam/released
 # install dependencies for petr4, poulet4, poulet4_ccomp
 opam install \
@@ -53,7 +55,7 @@ opam install \
 #opam install zarith
 
 #dune external-lib-deps --missing @install
-opam install ppx_import
+#opam install ppx_import
 
 make
 make install

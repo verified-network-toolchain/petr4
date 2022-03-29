@@ -711,14 +711,19 @@ Section Interpreter.
            end.
 
     (* Analogue of exec_module *)
-    Definition interp_module (this: path) (st: extern_state) (args: list Val) : extern_state * list Val * signal.
-    Admitted.
-    
+    Definition interp_module (fuel: nat) (this: path) (st: extern_state) (args: list Val)
+      : option (extern_state * list Val * signal) :=
+      let* func_inst := PathMap.get this (ge_inst ge) in
+      let* func := PathMap.get [func_inst.(iclass); "apply"] (ge_func ge) in
+      let st' : state := (PathMap.empty, st) in
+      let sargs := List.map eval_val_to_sval args in
+      let* (st, rets, sig) := interp_func this st' fuel func [] sargs in 
+      Some (snd st, List.map interp_sval_val rets, sig).
   End WithGE.
 
-  Definition interp_prog (prog: @program tags_t) (in_port: Z) (pkt: list bool) : extern_state * Z * (list bool) :=
+  Definition interp (fuel: nat) (prog: @program tags_t) (in_port: Z) (pkt: list bool) : option (extern_state * Z * (list bool)) :=
     let ge := gen_ge prog in
     let st := PathMap.empty in
-    interp_prog (interp_module ge) st in_port pkt.
+    interp_prog (interp_module ge fuel) st in_port pkt.
 
 End Interpreter.

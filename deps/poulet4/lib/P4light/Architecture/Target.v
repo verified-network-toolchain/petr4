@@ -123,8 +123,8 @@ Class Target := {
   extern_sem :> ExternSem;
   exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
       extern_state -> list bool -> extern_state -> list bool -> Prop;
-  interp_prog : (path -> extern_state -> list Val -> extern_state * list Val * signal) ->
-      extern_state -> Z -> list bool -> extern_state * Z * list bool;
+  interp_prog : (path -> extern_state -> list Val -> option (extern_state * list Val * signal)) ->
+      extern_state -> Z -> list bool -> option (extern_state * Z * list bool);
 }.
 
 End Target.

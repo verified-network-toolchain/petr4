@@ -39,7 +39,7 @@ opam upgrade
 # install p4pp
 opam switch 4.12.0
 #opam install menhir.20211128
-opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
+opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 eval $(opam env)
 
 # install deps for poulet4

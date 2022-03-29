@@ -81,7 +81,7 @@ module Make_parse (Conf: Parse_config) = struct
     |> List.fold_left ~init:"" ~f:(^)
 
   let check_file (include_dirs : string list) (p4_file : string) 
-      (print_json : bool) (pretty_json : bool) (exportp4 : bool) (normalize : bool)
+      (print_json : bool) (pretty_json : bool) (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
       (export_file : string) (typed_json : bool) (gen_loc : bool) (verbose : bool) 
       (printp4 : bool) (printp4_file: string) : unit =
     match parse_file include_dirs p4_file verbose with
@@ -106,10 +106,9 @@ module Make_parse (Conf: Parse_config) = struct
           Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string json)
       end;
       begin
-        if exportp4 then
+        if exportp4 || exportp4_ocaml || printp4 then
           (* let oc = open_out ofile in *)
           (* let oc = Stdlib.open_out "out.v" in *)
-          let oc = Out_channel.create export_file in
           let prog' =
             if normalize then
               Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
@@ -120,15 +119,27 @@ module Make_parse (Conf: Parse_config) = struct
               | Coq_inl prog'' -> prog''
               | Coq_inr ex -> failwith "error occurred in GenLoc"
             else prog' in
-          Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
+          begin 
+            if exportp4 then
+            let oc = Out_channel.create export_file in
+            Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
+            Out_channel.close oc
+          end;
+          begin 
+            if exportp4_ocaml then
+            let oc = Out_channel.create export_file in
+            Exportp4prune.print_program (Format.formatter_of_out_channel oc) prog'';
+            Out_channel.close oc
+          end;
           begin
             if printp4 then
             let oc_p4 = Out_channel.create printp4_file in
             Printp4.print_program (Format.formatter_of_out_channel oc_p4)
-              ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] prog'';
+              ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
+              ["@pragma pa_auto_init_metadata"]
+              prog'';
             Out_channel.close oc_p4
           end;
-        Out_channel.close oc;
       end
     | `Error (info, Lexer.Error s) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
@@ -136,6 +147,56 @@ module Make_parse (Conf: Parse_config) = struct
       Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
     | `Error (info, err) ->
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+
+ let compile_file (include_dirs : string list) (p4_file : string) 
+      (normalize : bool)
+      (export_file : string)  (verbose : bool) (gen_loc : bool) (print_p4cub: bool)
+      (printp4_file: string) : unit =
+    match parse_file include_dirs p4_file verbose with
+    | `Ok prog ->
+      let prog, renamer = Elaborate.elab prog in
+      let _, typed_prog = Checker.check_program renamer prog in
+          (* let oc = open_out ofile in *)
+          (* let oc = Stdlib.open_out "out.v" in *)
+          Poulet4_Ccomp.PrintClight.change_destination export_file;
+          let prog' =
+            if normalize then
+              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
+            else typed_prog in
+          let prog'' =
+            if gen_loc then
+              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
+              | Coq_inl prog'' -> prog'' 
+              | Coq_inr ex -> failwith "error occurred in GenLoc"
+            else prog' in
+          let prog''' = 
+            match Poulet4.ToP4cub.translate_program' P4info.dummy prog'' with
+            | Poulet4.Result.Result.Ok prog''' -> (prog'''|> Poulet4.Statementize.coq_TranslateProgram) 
+            | Poulet4.Result.Result.Error e -> failwith e in
+          if(print_p4cub) then (
+              let oc_p4 = Out_channel.create printp4_file in
+              Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog''';
+              Out_channel.close oc_p4);
+          begin
+           match (prog''' |> Compcertalize.topdecl_convert |> Poulet4_Ccomp.CCompSel.coq_Compile) with
+           | Poulet4_Ccomp.Errors.Error (m) -> 
+                let m' =
+                 begin
+                 match m with
+                 | (Poulet4_Ccomp.Errors.MSG msg) ::[] -> Base.String.of_char_list msg
+                 | _ -> "unknown failure from p4cub" 
+                end in
+              failwith m'
+           | Poulet4_Ccomp.Errors.OK prog -> Poulet4_Ccomp.CCompSel.print_Clight prog
+           end
+    | `Error (info, Lexer.Error s) ->
+      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
+    | `Error (info, Parser.Error) ->
+      Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
+    | `Error (info, err) ->
+      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
+
+  
 
   let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
     failwith "eval_file removed"

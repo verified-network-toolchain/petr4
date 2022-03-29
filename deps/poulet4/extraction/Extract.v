@@ -26,8 +26,8 @@ Extract Inductive Z => "Bigint.t" [ "(Bigint.of_zarith_bigint Zarith.Z.zero)" ""
 Extract Inductive N => "Bigint.t" [ "(Bigint.of_zarith_bigint Zarith.Z.zero)" "" ]
   "(fun fO fp n -> if Zarith.Z.sign (Bigint.to_zarith_bigint n) <= 0 then fO () else fp n)".
 
-Require Poulet4.SimplExpr.
-Require Poulet4.GenLoc.
+Require Poulet4.P4light.Transformations.SimplExpr.
+Require Poulet4.P4light.Transformations.GenLoc.
 
 Extract Constant SyntaxUtil.dummy_ident => "(fun () -> failwith ""unrealized dummy_ident reached"")".
 Extract Constant SimplExpr.to_digit => "(fun x -> Char.chr 20)".
@@ -39,19 +39,19 @@ Extract Inlined Constant BinNat.N.eqb => "Bigint.(=)".
 Extract Inlined Constant BinNat.N.add => "Bigint.(+)".
 Extract Inlined Constant Nat.add => "(+)".
 
-Require Poulet4.Syntax.
-Require Poulet4.Typed.
-Require Poulet4.ConstValue.
-Require Poulet4.Interpreter.
-Require Poulet4.P4cub.GCL.
-Require Poulet4.ToP4cub.
-Require Poulet4.P4cub.ToGCL.
-Require Poulet4.P4cub.TableInstr.
-Require Poulet4.P4cub.V1model.
+Require Poulet4.P4light.Semantics.Interpreter.
+Require Poulet4.P4light.Syntax.Syntax.
+Require Poulet4.P4light.Syntax.Typed.
+Require Poulet4.P4light.Syntax.ConstValue.
+Require Poulet4.GCL.GCL.
+Require Poulet4.Compile.ToP4cub.
+Require Poulet4.GCL.ToGCL.
+Require Poulet4.GCL.TableInstr.
+Require Poulet4.GCL.V1model.
+Require Poulet4.P4cub.ExportAll.
 
 (* The Set Extraction Flag 716 command below turns on the following
 extraction optimizations.
-
 
 See the refman for details: https://coq.inria.fr/refman/addendum/extraction.html#coq:flag.Extraction-Optimize
 
@@ -80,20 +80,23 @@ because it includes a nested fixpoint which OCaml normally rejects.
 
 The optimizations somehow optimize away the nested fixpoint and avoid this error message.
  *)
+
 Set Extraction Flag 716.
 Extraction Inline Interpreter.interp_isValid.
 Extraction NoInline Interpreter.interp_isValid_fields.
 
+Extract Constant VarNameGen.string_of_nat => "Int.to_string".
+
 Separate Extraction
-         Poulet4.Syntax
-         Poulet4.Interpreter
-         Poulet4.Typed
-         Poulet4.SimplExpr
-         Poulet4.GenLoc
-         Poulet4.ConstValue
-         Poulet4.Interpreter
-         Poulet4.ToP4cub
-         Poulet4.P4cub.GCL
-         Poulet4.P4cub.ToGCL
-         Poulet4.P4cub.TableInstr
-         Poulet4.P4cub.V1model.
+         Poulet4.P4light.Syntax.Syntax
+         Poulet4.P4light.Syntax.Typed
+         Poulet4.P4light.Semantics.Interpreter
+         Poulet4.P4light.Transformations.SimplExpr
+         Poulet4.P4light.Transformations.GenLoc
+         Poulet4.P4light.Syntax.ConstValue
+         Poulet4.Compile.ToP4cub
+         Poulet4.GCL.GCL
+         Poulet4.GCL.ToGCL
+         Poulet4.GCL.TableInstr
+         Poulet4.GCL.V1model
+         Poulet4.P4cub.Transformations.Lifting.Statementize.

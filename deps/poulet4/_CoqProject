@@ -1,9 +1,19 @@
 -Q _build/default/lib Poulet4
--Q _build/default/lib/Environment Poulet4.Environment
--Q _build/default/lib/Monads Poulet4.Monads
--Q _build/default/lib/P4cub Poulet4.P4cub
--Q _build/default/lib/P4Automata Poulet4.P4automata
--Q _build/default/lib/Platform Poulet4.Platform
--Q _build/default/lib/P4sel Poulet4.P4sel
+
+# Compilers.
 -Q _build/default/lib/Ccomp Poulet4.Ccomp
+-Q _build/default/Compile   Poulet4.Compile
+
+# Example Programs
 -Q _build/default/examples Poulet4.Examples
+
+# IRs.
+-Q _build/default/GCL            Poulet4.GCL
+-Q _build/default/lib/P4Automata Poulet4.P4automata
+-Q _build/default/lib/P4cub      Poulet4.P4cub
+-Q _build/default/lib/P4light    Poulet4.P4light
+
+# Utility modules.
+-Q _build/default/lib/Monads   Poulet4.Monads
+-Q _build/default/lib/Platform Poulet4.Platform
+-Q _build/default/lib/Utils    Poulet4.Utils

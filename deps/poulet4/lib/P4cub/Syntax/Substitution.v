@@ -1,7 +1,6 @@
-Require Import Poulet4.P4cub.Envn Poulet4.P4cub.Syntax.AST.
+Require Import Poulet4.Utils.Envn Poulet4.P4cub.Syntax.AST.
 Import String.
 
-(* Module P := P4cub. *)
 Module E := Expr.
 Module TD := TopDecl.
 Module ST := Stmt.
@@ -22,9 +21,8 @@ Section TypeSubstitution.
     | E.TBool
     | E.TBit _
     | E.TInt _
-    | E.TError
-    | E.TMatchKind     => t
-    | E.TTuple ts      => E.TTuple $ List.map (tsub_t σ) ts
+    | E.TError     => t    
+    | E.TTuple ts  => E.TTuple $ List.map (tsub_t σ) ts
     | E.TStruct ts => E.TStruct $ F.map (tsub_t σ) ts
     | E.THeader ts    => E.THeader $ F.map (tsub_t σ) ts
     | E.THeaderStack ts n   => E.THeaderStack (F.map (tsub_t σ) ts) n
@@ -39,8 +37,7 @@ Section TypeSubstitution.
     | E.EBool _ _
     | E.EBit _ _ _
     | E.EInt _ _ _
-    | E.EError _ _
-    | E.EMatchKind _ _ => e
+    | E.EError _ _ => e
     | E.EVar t x i =>
       E.EVar (tsub_t σ t) x i
     | E.ESlice e hi lo i =>
@@ -141,10 +138,9 @@ Section TypeSubstitution.
     (* | ST.PApply _ pi ext_args args i => *)
     (*   let args' := F.map (tsub_arg σ) args in *)
     (*   ST.PApply _ pi ext_args args' i *)
-    | ST.SHeaderStackOp _ _ _ _ => s
+    | ST.SHeaderStackOp _ _ _ _ _ => s
     | ST.SSetValidity _ _ _ => s
     end.
-
 
   Definition tsub_carg (σ : Env.t string E.t) (carg : E.constructor_arg tags_t) :=
     match carg with
@@ -251,10 +247,6 @@ Section TypeSubstitution.
       let cparams' := tsub_arrowT σ' params in
       let body' := tsub_s σ' body in
       TD.TPFunction f tparams cparams' body' i
-    (*| TD.TPPackage p tparams cparams i =>
-      let σ' := remove_types σ tparams in
-      let cparams' := F.map (tsub_cparam σ') cparams in
-      TD.TPPackage p tparams cparams' i*)
     | TD.TPSeq d1 d2 i =>
       TD.TPSeq (tsub_d σ d1) (tsub_d σ d2) i
     end.

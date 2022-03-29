@@ -1,7 +1,7 @@
 Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt.
-Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
+Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
 Import String.
 
@@ -21,8 +21,6 @@ Section TypeInduction.
   Hypothesis HTInt : forall w, P {{ int<w> }}.
   
   Hypothesis HTError : P {{ error }}.
-  
-  Hypothesis HTMatchKind : P {{ matchkind }}.
   
   Hypothesis HTTuple : forall ts,
       Forall P ts -> P {{ tuple ts }}.
@@ -59,7 +57,6 @@ Section TypeInduction.
       | {{ bit<w> }} => HTBit w
       | {{ int<w> }} => HTInt w
       | {{ error }} => HTError
-      | {{ matchkind }} => HTMatchKind
       | {{ tuple ts }}  => HTTuple ts (list_ind ts)
       | {{ struct { fields } }} => HTStruct fields (fields_ind fields)
       | {{ hdr { fields } }} => HTHeader fields (fields_ind fields)
@@ -75,7 +72,6 @@ Section ExprInduction.
   Import UopNotations.
   Import ExprNotations.
   Import BopNotations.
-  Import MatchkindNotations.
   
   (** An arbitrary predicate. *)
   Variable tags_t : Type.
@@ -118,8 +114,6 @@ Section ExprInduction.
   
   Hypothesis HEError : forall err i, P <{ Error err @ i }>.
   
-  Hypothesis HEMatchKind : forall mkd i, P <{ Matchkind mkd @ i }>.
-  
   Hypothesis HEStack : forall ts hs ni i,
       Forall P hs ->
       P <{ Stack hs:ts nextIndex:=ni @ i }>.
@@ -159,7 +153,6 @@ Section ExprInduction.
         => HEHeader fields b i (eind b) (fields_ind fields)
       | <{ Mem exp dot x : rt @ i }> => HEExprMember rt x exp i (eind exp)
       | <{ Error err @ i }> => HEError err i
-      | <{ Matchkind mkd @ i }> => HEMatchKind mkd i
       | <{ Stack hs:ts nextIndex:=ni @ i }>
         => HEStack ts hs ni i (list_ind hs)
       | <{ Access e[n] : rt @ i }> => HAccess rt e n i (eind e)

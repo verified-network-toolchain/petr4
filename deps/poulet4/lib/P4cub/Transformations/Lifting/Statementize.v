@@ -55,8 +55,7 @@ Section Statementize.
     match expr with
     | Expr.EBool      _ i
     | Expr.EVar     _ _ i
-    | Expr.EError     _ i
-    | Expr.EMatchKind _ i => (Stmt.SSkip i, expr, env)
+    | Expr.EError     _ i => (Stmt.SSkip i, expr, env)
     | Expr.EExprMember ty mem arg i => 
       let '(arg_stmts, sel_arg, env') := TransformExpr arg env in
       (arg_stmts, Expr.EExprMember ty mem sel_arg i, env')
@@ -146,7 +145,7 @@ Section Statementize.
   Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t) 
     : st * VarNameGen.t := 
     match stmt with
-    | Stmt.SHeaderStackOp _ _ _ _
+    | Stmt.SHeaderStackOp _ _ _ _ _
     | Stmt.SSkip _
     | Stmt.SExit _
     | Stmt.SInvoke _ _
@@ -311,9 +310,6 @@ Fixpoint TranslateTopDecl
     let (body', env_body) := TranslateStatement body env in 
     (TopDecl.TPFunction f tparams signature body' i, env_body)
               
-  (*| TopDecl.TPPackage p tparams cparams i => 
-    error_ret (TopDecl.TPPackage p tparams cparams i, env)*)
-
   | TopDecl.TPSeq d1 d2 i => 
     let (d1', env_d1) := TranslateTopDecl d1 env in
     let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 

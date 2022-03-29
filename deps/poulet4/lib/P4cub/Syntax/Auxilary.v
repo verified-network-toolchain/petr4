@@ -3,19 +3,18 @@ Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt
         Poulet4.Monads.Monad Poulet4.Monads.Option
         Coq.NArith.BinNatDef Coq.NArith.BinNat.
-
-Require Import Poulet4.P4Arith Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.CubNotations
-        Poulet4.P4cub.Syntax.Equality.
-Import Expr TypeNotations UopNotations BopNotations ExprNotations MatchkindNotations.
+From Poulet4 Require Import Utils.P4Arith
+     P4cub.Syntax.AST P4cub.Syntax.CubNotations
+     P4cub.Syntax.Equality.
+Import Expr TypeNotations UopNotations
+       BopNotations ExprNotations MatchkindNotations.
 
 Fixpoint width_of_typ (τ : t) : option nat :=
   match τ with
   | {{ Bool }} => Some 1%nat
   | {{ bit<w> }} => Some $ N.to_nat w
   | {{ int<w> }} => Some $ Pos.to_nat w
-  | {{ error }}
-  | {{ matchkind }} => Some 0%nat
+  | {{ error }}  => Some 0%nat
   | {{ tuple ts }} =>
     ns <<| sequence $ List.map width_of_typ ts ;;
     List.fold_left Nat.add ns 0%nat
@@ -99,7 +98,6 @@ Section TofE.
       THeader $ F.map t_of_e es
     | <{ Mem _ dot _ : ty @ _ }> => ty
     | <{ Error     _ @ _ }> => {{ error }}
-    | <{ Matchkind _ @ _ }> => {{ matchkind }}
     | <{ Stack hs:ts nextIndex:= _ @ _ }> => 
       THeaderStack ts $ Pos.of_nat $ length hs
     | <{ Access _[_] : ts @ _ }> => {{ hdr { ts } }}
@@ -131,14 +129,11 @@ Module ProperType.
     | pn_base (τ : t) :
         base_type τ -> proper_nesting τ
     | pn_error : proper_nesting {{ error }}
-    | pn_matchkind : proper_nesting {{ matchkind }}
     | pn_struct (ts : F.fs String.string t) :
-        F.predfs_data
-          (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
+        F.predfs_data proper_nesting ts ->
         proper_nesting {{ struct { ts } }}
     | pn_tuple (ts : list t) :
-        Forall
-          (fun τ => proper_nesting τ /\ τ <> {{ matchkind }}) ts ->
+        Forall proper_nesting ts ->
         proper_nesting {{ tuple ts }}
     | pn_header (ts : F.fs String.string t) :
         F.predfs_data proper_inside_header ts ->
@@ -159,8 +154,7 @@ Module ProperType.
       - inv H; repeat econstructor.
       - apply pn_struct.
         ind_predfs_data; constructor; auto; cbv.
-        inv H; split; try (repeat constructor; assumption);
-          try (intros H'; inv H'; contradiction).
+        inv H; try (repeat constructor; assumption).
     Qed.
   End ProperTypeNesting.
   

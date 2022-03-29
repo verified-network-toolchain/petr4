@@ -3,21 +3,83 @@ From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
-Require Import Poulet4.P4cub.Envn.
+Require Import Poulet4.Utils.Envn.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Error.
 Require Import Coq.Strings.String.
-Require Import Poulet4.P4cub.Util.Utiliser.
-Require Import Coq.ZArith.BinIntDef.
+Require Import Poulet4.Utils.Util.Utiliser.
+Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
+        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
+        Coq.Classes.EquivDec Coq.Program.Program.
 Require Import Coq.Init.Decimal.
 Require Import Field.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
+Open Scope N_scope.
 Open Scope string_scope.
 Local Open Scope Z_scope.
+Open Scope positive_scope.
 
 Section CEnv.
   Variable (tags_t: Type).
+  Definition standard_metadata_t :=
+    Composite $"standard_metadata_t" Struct
+   (Member_plain $"ingress_port" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"egress_spec" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"egress_port" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"instance_type" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"packet_length" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"enq_timestamp" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"enq_qdepth" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"deq_timedelta" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"deq_qdepth" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"ingress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"egress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"mcast_grp" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"egress_rid" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"checksum_error" (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain $"parser_error" tuint ::
+    Member_plain $"priority" (tptr (Tstruct _BitVec noattr))::nil) noattr.
+  (* Definition standard_metadata_t :=
+    Composite $"standard_metadata_t" Struct
+   (Member_plain $"ingress_port" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_spec" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_port" (Tstruct _BitVec noattr) ::
+    Member_plain $"instance_type" (Tstruct _BitVec noattr) ::
+    Member_plain $"packet_length" (Tstruct _BitVec noattr) ::
+    Member_plain $"enq_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"enq_qdepth" (Tstruct _BitVec noattr) ::
+    Member_plain $"deq_timedelta" (Tstruct _BitVec noattr) ::
+    Member_plain $"deq_qdepth" (Tstruct _BitVec noattr) ::
+    Member_plain $"ingress_global_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_global_timestamp" (Tstruct _BitVec noattr) ::
+    Member_plain $"mcast_grp" (Tstruct _BitVec noattr) ::
+    Member_plain $"egress_rid" (Tstruct _BitVec noattr) ::
+    Member_plain $"checksum_error" (Tstruct _BitVec noattr) ::
+    Member_plain $"parser_error" tuint ::
+    Member_plain $"priority" (Tstruct _BitVec noattr)::nil) noattr. *)
+  
+  Definition standard_metadata_cub_fields :=
+     ("ingress_port", Expr.TBit (Npos 9)) ::
+     ("egress_spec", Expr.TBit (Npos 9)) ::
+     ("egress_port", Expr.TBit (Npos 9)) ::
+     ("instance_type", Expr.TBit (Npos 32)) ::
+     ("packet_length", Expr.TBit (Npos 32)) ::
+     ("enq_timestamp", Expr.TBit (Npos 32)) ::
+     ("enq_qdepth", Expr.TBit (Npos 19)) ::
+     ("deq_timedelta", Expr.TBit (Npos 32)) ::
+     ("deq_qdepth", Expr.TBit (Npos 19)) ::
+     ("ingress_global_timestamp", Expr.TBit (Npos 48)) ::
+     ("egress_global_timestamp", Expr.TBit (Npos 48)) ::
+     ("mcast_grp", Expr.TBit (Npos 16)) ::
+     ("egress_rid", Expr.TBit (Npos 16)) ::
+     ("checksum_error", Expr.TBit (Npos 1)) ::
+     ("parser_error", Expr.TError) ::
+     ("priority", Expr.TBit (Npos 3)) :: [].
+
+  Definition standard_metadata_cub := 
+    Expr.TStruct standard_metadata_cub_fields.
+
   Inductive ClightEnv : Type := {
     identMap : Env.t string AST.ident; (*contains name and their original references*)
     temps : (list (AST.ident * Ctypes.type));
@@ -33,6 +95,8 @@ Section CEnv.
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
     tables : Env.t string ((list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
     top_args : (list Clight.expr);
+    extern_instances: Env.t string string; (*maps the name of extern obects to the name of their extern type*)
+    expected_controls: Env.t string string;
   }.
 
   Definition newClightEnv : ClightEnv :=
@@ -40,7 +104,7 @@ Section CEnv.
     identMap := Env.empty _ _;
     temps := [];
     vars := [];
-    composites := [];
+    composites := [(standard_metadata_cub,standard_metadata_t)];
     identGenerator := IdentGen.gen_init;
     fenv := Env.empty _ _;
     tempOfArg := Env.empty _ _;
@@ -51,6 +115,8 @@ Section CEnv.
     topdecltypes := Env.empty _ _;
     tables := Env.empty _ _;
     top_args := [];
+    extern_instances := Env.empty _ _;
+    expected_controls := Env.empty _ _;
     |}.
 
   Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
@@ -70,6 +136,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}.
 
 
@@ -91,6 +159,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}.
 
   Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
@@ -111,6 +181,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}.
 
 
@@ -133,6 +205,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}, new_ident).
 
 
@@ -155,6 +229,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}.
 
   Definition add_composite_typ 
@@ -176,6 +252,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}
     .
 
@@ -200,6 +278,8 @@ Section CEnv.
     topdecltypes := Env.bind name decl env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |}.
 
   Definition add_function 
@@ -223,6 +303,8 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
+  expected_controls := env.(expected_controls);
   |}.
 
   Definition update_function
@@ -245,11 +327,59 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
+  expected_controls := env.(expected_controls);
+  |}.
+
+  Definition add_extern_instance 
+  (env: ClightEnv)
+  (name: string)
+  (type: string) : ClightEnv
+  :=
+  {|
+  identMap := env.(identMap);
+  temps := env.(temps);
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
+  instantiationCarg := env.(instantiationCarg);
+  maininit := env.(maininit);
+  globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
+  top_args := env.(top_args);
+  extern_instances := Env.bind name type env.(extern_instances);
+  expected_controls := env.(expected_controls);
+  |}.
+
+  Definition clear_extern_instance 
+  (env: ClightEnv) : ClightEnv
+  :=
+  {|
+  identMap := env.(identMap);
+  temps := env.(temps);
+  vars := env.(vars);
+  composites := env.(composites);
+  identGenerator := env.(identGenerator);
+  fenv := env.(fenv);
+  tempOfArg := env.(tempOfArg);
+  instantiationCarg := env.(instantiationCarg);
+  maininit := env.(maininit);
+  globvars := env.(globvars);
+  numStrMap := env.(numStrMap);
+  topdecltypes := env.(topdecltypes);
+  tables := env.(tables);
+  top_args := env.(top_args);
+  extern_instances := Env.empty _ _;
+  expected_controls := env.(expected_controls);
   |}.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
     match dec with
-    | Nil => (Init_int8(Int.repr 0)::[], 1)
+    | Nil => (Init_int8(Int.repr 0)::[], 1%Z)
     | D0 d => 
         let (l,count) := to_C_dec_str_unsigned d in
         let digit := Init_int8 (Int.repr 48) in
@@ -329,10 +459,33 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := Env.bind name (key, actions) env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
     |} in 
     env'
     .
 
+  Definition add_expected_control 
+    (env: ClightEnv) (expected: string) (instance: string) : ClightEnv
+    :=
+    {|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites := env.(composites);
+    identGenerator := env.(identGenerator);
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
+    top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := Env.bind expected instance env.(expected_controls);
+    |}   . 
 
 
   Definition new_ident
@@ -353,6 +506,8 @@ Section CEnv.
   topdecltypes := env.(topdecltypes);
   tables := env.(tables);
   top_args := env.(top_args);
+  extern_instances := env.(extern_instances);
+  expected_controls := env.(expected_controls);
   |}, new_ident ).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
@@ -371,6 +526,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
   |}.
 
   Definition set_temp_vars (from: ClightEnv) (to: ClightEnv) : ClightEnv :=
@@ -389,6 +546,8 @@ Section CEnv.
     topdecltypes := to.(topdecltypes);
     tables := to.(tables);
     top_args := to.(top_args);
+    extern_instances := to.(extern_instances);
+    expected_controls := to.(expected_controls);
   |}.  
 
   Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
@@ -407,6 +566,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
   |}.  
 
  
@@ -426,6 +587,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
   |}.  
 
 
@@ -445,6 +608,8 @@ Section CEnv.
     topdecltypes := env.(topdecltypes);
     tables := env.(tables);
     top_args := args;
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
   |}.  
 
   (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
@@ -498,13 +663,90 @@ Section CEnv.
   Fixpoint  lookup_composite_id_rec (composites : list (Expr.t * composite_definition)) (id: ident): @error_monad string composite_definition :=
     match composites with
     | nil => err "can't find the composite by id"
-    | (head, comp) :: tl => if (name_composite_def comp == id)
+    | (head, comp) :: tl => if Pos.eqb (name_composite_def comp) id
                             then error_ret comp 
                             else lookup_composite_id_rec tl id
     end.
 
   Definition lookup_composite_id (env: ClightEnv) (id: ident) : @error_monad string composite_definition :=
     lookup_composite_id_rec env.(composites) id.
+
+  Fixpoint set_H_rec (composites :  list (Expr.t * composite_definition)) (p4t: Expr.t) : @error_monad string (list (Expr.t * composite_definition))
+  := 
+  match composites with
+    | nil => err "can't find the composite in Set_H"
+    | (head, comp) :: tl => if (head == p4t)  then 
+                                let new_comp :=
+                                  match comp with 
+                                  | Composite id su m a => 
+                                    (Composite $"H" su m a) end in
+                                error_ret ((head, new_comp) :: tl)
+                            else   
+                              let* tl_res := (set_H_rec tl p4t) in
+                              error_ret ((head, comp) :: tl_res)
+  end.
+
+  Definition set_H (env: ClightEnv) (p4t: Expr.t) : @error_monad string ClightEnv :=
+    let* new_comp := set_H_rec env.(composites) p4t in 
+    error_ret {|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites :=  new_comp;
+    identGenerator := env.(identGenerator);
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
+    top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
+    |}.
+
+    Fixpoint set_M_rec (composites :  list (Expr.t * composite_definition)) (p4t: Expr.t) : @error_monad string (list (Expr.t * composite_definition))
+  := 
+  match composites with
+    | nil => err "can't find the composite in Set_M"
+    | (head, comp) :: tl => if (head == p4t) then
+                                match comp with 
+                                | Composite id su m a => 
+                                  let new_comp := 
+                                  (Composite $"M" su m a) in
+                                  if(id =? $"H") then
+                                  error_ret ((head, new_comp) :: (head, comp) :: tl)
+                                  else  
+                                  error_ret ((head, new_comp) :: tl)
+                              end
+                            else  
+                            let* tl_res := (set_M_rec tl p4t) in
+                            error_ret ((head, comp) :: tl_res)
+  end.
+
+  Definition set_M (env: ClightEnv) (p4t: Expr.t) : @error_monad string ClightEnv :=
+    let* new_comp := set_M_rec env.(composites) p4t in 
+    error_ret {|
+    identMap := env.(identMap);
+    temps := env.(temps);
+    vars := env.(vars);
+    composites :=  new_comp;
+    identGenerator := env.(identGenerator);
+    fenv := env.(fenv);
+    tempOfArg := env.(tempOfArg);
+    instantiationCarg := env.(instantiationCarg);
+    maininit := env.(maininit);
+    globvars := env.(globvars);
+    numStrMap := env.(numStrMap);
+    topdecltypes := env.(topdecltypes);
+    tables := env.(tables);
+    top_args := env.(top_args);
+    extern_instances := env.(extern_instances);
+    expected_controls := env.(expected_controls);
+    |}.
+
 
   (* Fixpoint find_composite_from_list 
     (comp: Ctypes.composite_definition)
@@ -569,6 +811,8 @@ Section CEnv.
     lookup_type_rec env.(vars) id.
 
 
+  Definition lookup_expected_instance (env: ClightEnv) (name: string) :
+  option string := Env.find name env.(expected_controls). 
   
     Definition find_BitVec_String 
     (env: ClightEnv)
@@ -602,6 +846,8 @@ Section CEnv.
       topdecltypes := env.(topdecltypes);
       tables := env.(tables);
       top_args := env.(top_args);
+      extern_instances := env.(extern_instances);
+      expected_controls := env.(expected_controls);
       |} in 
       (env', new_id)
     end.
@@ -616,6 +862,13 @@ Section CEnv.
     | Some id, Some (keys, actions) => error_ret (id, keys, actions)
     | _, _ => err "can't find table"
     end .
+
+  Definition find_extern_type (env: ClightEnv) (name: string)
+  : @error_monad string string
+  := match Env.find name env.(extern_instances) with
+    | Some type => error_ret type
+    | _ => err "can't find extern name"
+  end.
 
 
   Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
@@ -645,6 +898,19 @@ Section CEnv.
 
   Definition get_globvars (env: ClightEnv) : list (AST.ident * globvar Ctypes.type)
   := env.(globvars).
+
+
+  Definition composite_nth (comp: composite_definition) (n : nat)
+  : @error_monad string ident
+  := 
+  match comp with
+  | (Composite _ _ m _) =>
+    match List.nth_error m n with
+    | Some member => error_ret (name_member (member))
+    | None => err "composite field can't be found" 
+    end
+  end.
+
 
 
 End CEnv.

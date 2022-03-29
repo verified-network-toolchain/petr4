@@ -144,6 +144,25 @@ void init_bitvec_binary(struct BitVec *dst, int sign, int w, char *val){
   dst->width = w;
 }
 
+struct standard_metadata_t {
+  struct BitVec *ingress_port;
+  struct BitVec *egress_spec;
+  struct BitVec *egress_port;
+  struct BitVec *instance_type;
+  struct BitVec *packet_length;
+  struct BitVec *enq_timestamp;
+  struct BitVec *enq_qdepth;
+  struct BitVec *deq_timedelta;
+  struct BitVec *deq_qdepth;
+  struct BitVec *ingress_global_timestamp;
+  struct BitVec *egress_global_timestamp;
+  struct BitVec *mcast_grp;
+  struct BitVec *egress_rid;
+  struct BitVec *checksum_error;
+  unsigned int parser_error;
+  struct BitVec *priority;
+};
+
 
 //packet processing
 void extract_bool(packet_in *pkt, int *data){

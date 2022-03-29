@@ -1,26 +1,6 @@
 #include "Petr4Runtime.h"
 struct _p_e_t_r_4_0b1;
-struct standard_metadata_t;
 struct _p_e_t_r_4_0b1 {
-};
-
-struct standard_metadata_t {
-  struct BitVec *ingress_port;
-  struct BitVec *egress_spec;
-  struct BitVec *egress_port;
-  struct BitVec *instance_type;
-  struct BitVec *packet_length;
-  struct BitVec *enq_timestamp;
-  struct BitVec *enq_qdepth;
-  struct BitVec *deq_timedelta;
-  struct BitVec *deq_qdepth;
-  struct BitVec *ingress_global_timestamp;
-  struct BitVec *egress_global_timestamp;
-  struct BitVec *mcast_grp;
-  struct BitVec *egress_rid;
-  struct BitVec *checksum_error;
-  unsigned int parser_error;
-  struct BitVec *priority;
 };
 
 void dummy_main();
@@ -164,5 +144,5 @@ _Bool NoAction(struct packet_out *_p_e_t_r_4_0b100010, struct _p_e_t_r_4_0b1 _p_
 }
 
 
-typedef _p_e_t_r_4_0b1 H 
-typedef _p_e_t_r_4_0b1 M 
+typedef struct _p_e_t_r_4_0b1 H; 
+typedef struct _p_e_t_r_4_0b1 M; 

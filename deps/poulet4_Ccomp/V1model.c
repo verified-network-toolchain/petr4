@@ -74,8 +74,8 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   pin.in = buff;
   pout.out = buff_out;
   pout.index = buff_out; 
-  struct H h;
-  struct M m;
+  H h;
+  M m;
   struct standard_metadata_t meta;
   init_standard_metada(&meta);
   init_bitvec_ptr(&(meta.ingress_port), 0,9,argv[2]);
@@ -92,6 +92,7 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   if(!result){
     printf("ingress failed");
   }else{
+  meta.egress_port = meta.egress_spec;
   result = egress (&h, &m, &meta);
   if(!result){
     printf("egress failed");

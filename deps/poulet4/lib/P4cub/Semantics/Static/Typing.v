@@ -105,7 +105,7 @@ Inductive type_prsrexpr
 (** * Statement typing. *)
 
 Record stmt_type_env : Set :=
-  { functs : fenv
+  { sfuncts : fenv
   ; cntx   : ctx
   ; expr_env :> expr_type_env }.
 
@@ -118,11 +118,11 @@ Inductive type_stmt
 | type_skip Γ :
   Γ ⊢ₛ Stmt.Skip ⊣ Γ ↓ Cont
 | type_seq_cont s₁ s₂ Γ Γ' Γ'' sig con fns :
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ s₁ ⊣ Γ' ↓ Cont ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ'|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ'|}
     ⊢ₛ s₂ ⊣ Γ'' ↓ sig ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ s₁ `; s₂ ⊣ Γ'' ↓ sig
 | type_block s Γ Γ' sig :
   Γ ⊢ₛ s ⊣ Γ' ↓ sig ->
@@ -132,9 +132,9 @@ Inductive type_stmt
     | inr e => Γ ⊢ₑ e ∈ τ
     | inl τ => t_ok Δ τ
     end ->
-    {|functs:=fns;cntx:=con;expr_env:=Γ|}
+    {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
       ⊢ₛ Stmt.Var eo
-      ⊣ {| functs  := fns
+      ⊣ {| sfuncts  := fns
         ; cntx     := con
         ; expr_env :=
           {| type_vars := type_vars Γ
@@ -147,11 +147,11 @@ Inductive type_stmt
   Γ ⊢ₛ e₁ `:= e₂ ⊣ Γ ↓ Cont
 | type_cond Γ Γ₁ Γ₂ e s₁ s₂  sig₁ sig₂ con fns :
   Γ ⊢ₑ e ∈ Expr.TBool ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ s₁ ⊣ Γ₁ ↓ sig₁ ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ s₂ ⊣ Γ₂ ↓ sig₂ ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ If e Then s₁ Else s₂ ⊣ Γ ↓ lub sig₁ sig₂
 | type_return Γ eo :
   match cntx Γ, eo with
@@ -164,7 +164,7 @@ Inductive type_stmt
   exit_ctx_ok (cntx Γ) ->
   Γ ⊢ₛ Stmt.Exit ⊣ Γ ↓ Return
 | type_void_call Γ params τs args f :
-  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
+  sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=None|}) ->
   Forall (t_ok (type_vars Γ)) τs ->
   Forall2
     (rel_paramarg
@@ -182,7 +182,7 @@ Inductive type_stmt
     args params ->
   Γ ⊢ₛ Stmt.ActCall a args ⊣ Γ ↓ Cont
 | type_fun_call Γ params τs args f τ e :
-  functs Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
+  sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
   Forall (t_ok (type_vars Γ)) (τ :: τs) ->
   lvalue_ok e ->
   Γ ⊢ₑ e ∈ tsub_t (gen_tsub τs) τ ->
@@ -206,7 +206,7 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
   {| expr_env := Γ
-  ; functs :=fns
+  ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
     ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
@@ -224,7 +224,7 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
   {| expr_env := Γ
-  ; functs :=fns
+  ; sfuncts :=fns
   ; cntx := CParserState
               parser_insts extern_insts |}
     ⊢ₛ Stmt.Apply x extern_args args ⊣ Γ ↓ Cont
@@ -233,7 +233,7 @@ Inductive type_stmt
     control_insts extern_insts :
   In tbl tbls ->
   {| expr_env := Γ
-  ; functs :=fns
+  ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
     ⊢ₛ Stmt.Invoke tbl ⊣ Γ ↓ Cont
@@ -249,7 +249,7 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ Γ ↓ Cont
 | type_extern_call_fruit
     Γ x f τs args e τ fns con
@@ -265,75 +265,92 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
-  {|functs:=fns;cntx:=con;expr_env:=Γ|}
+  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ Γ ↓ Cont
 where "Γ₁ '⊢ₛ' s '⊣' Γ₂ '↓' sig"
         := (type_stmt Γ₁ s Γ₂ sig).
-                     
+
+Local Close Scope stmt_scope.
+
 (** Parser State typing. *)
 Definition type_parser_state
-          (fns : fenv) (pis : pienv) (eis : eienv)
-          (sts : user_states) (Δ : Delta) (Γ : Gamma)
-          '(&{state { s } transition e}& : Parser.state_block) : Prop :=
-  exists (Γ' : Gamma) (sg : signal),
-    ⦃ fns, Δ, Γ ⦄ Parser pis eis ⊢ s ⊣ ⦃ Γ' , sg ⦄.
-(**[]*)
+           (fns : fenv) (parser_insts : ienv)
+           (extern_insts : eienv) (total_states : nat)
+           (Γ : expr_type_env)
+          '({|Parser.stmt:=s; Parser.trans:=e|} : Parser.state_block) : Prop :=
+  exists (Γ' : expr_type_env) (sig : signal),
+    {| sfuncts := fns
+    ; cntx := CParserState parser_insts extern_insts
+    ; expr_env := Γ|}
+      ⊢ₛ s ⊣ Γ' ↓ sig /\ type_prsrexpr total_states Γ' e.
 
-Notation "'⟅⟅' fns , pis , eis , sts , Δ , Γ '⟆⟆' ⊢ s"
-  := (type_parser_state fns pis eis sts Δ Γ s).
+(** * Control-declaration typing. *)
 
-(** Control-declaration typing. *)
-Reserved Notation
-         "⦅ ts1 , as1 , fs , ci , ei , g ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
-         (at level 60, d custom p4ctrldecl).
+(** Control-declaration typing context. *)
+Record ctrl_type_env : Set :=
+  { cexpr_env : expr_type_env
+  ; cfuncts : fenv       (** available functions. *)
+  ; ccntrl_insts : ienv  (** available control instances. *)
+  ; cextrn_insts : eienv (** available extern instances. *)
+  ; actns : aenv         (** available action signatures. *)
+  ; tbls : list string   (** available table names. *) }.
+
+Reserved Notation "Γ '⊢ᵪ' d '⊣' acts '∧' tbs"
+         (at level 80, no associativity).
+
+Local Open Scope ctrl_scope.
 
 (** Control declaration typing. *)
-Inductive type_ctrldecl 
-          (tbls : tblenv) (acts : aenv) (fns : fenv)
-          (cis : cienv) (eis : eienv) (Γ : Gamma)
-  : Control.d -> aenv -> tblenv -> Prop :=
-| type_action (a : string)
-             (signature : Expr.params)
-             (body : Stmt.s) 
-             (Γ' Γ'' : Gamma) (sg : signal) :
-    bind_all signature Γ = Γ' ->
-    ⦃ fns, [], Γ' ⦄ Action acts eis ⊢ body ⊣ ⦃ Γ'', sg ⦄ ->
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ action a ( signature ) { body }
-      ⊣ ⦅ a ↦ signature ,, acts, tbls ⦆
-| type_table (t : string)
-            (kys : list (Expr.e * Expr.mattypeind))
-            (actns : list string) :
-    (* Keys type. *)
-    Forall (fun '(e,_) => exists τ, ⟦ [], Γ ⟧ ⊢ e ∈ τ) kys ->
-    (* Actions available *)
-    Forall (fun a => exists pms, acts a = Some pms) actns ->
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ table t key:=kys actions:=actns ⊣ ⦅ acts, (t :: tbls) ⦆
-| type_ctrldecl_seq (d1 d2 : Control.d) 
-                   (acts' acts'' : aenv) (tbls' tbls'' : tblenv) :
-    ⦅ tbls, acts, fns, cis, eis, Γ ⦆
-      ⊢ d1 ⊣ ⦅ acts', tbls'  ⦆ ->
-    ⦅ tbls', acts', fns, cis, eis, Γ ⦆
-      ⊢ d2 ⊣ ⦅ acts'', tbls'' ⦆ ->
-    ⦅ tbls, acts, fns, cis, eis, Γ  ⦆
-      ⊢ d1 ;c; d2 ⊣ ⦅ acts'', tbls'' ⦆
-where
-"⦅ ts1 , as1 , fs , ci1 , ei1 , g1 ⦆ ⊢ d ⊣ ⦅ as2 , ts2 ⦆"
-  := (type_ctrldecl ts1 as1 fs ci1 ei1 g1 d as2 ts2).
-(**[]*)
+Inductive type_ctrldecl (Γ : ctrl_type_env)
+  : Control.d -> aenv -> list string -> Prop :=
+| type_action action_name params body Γ' :
+  {| sfuncts := cfuncts Γ
+  ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
+  ; expr_env :=
+    {| type_vars := type_vars (cexpr_env Γ)
+    ; types := bind_all params (types (cexpr_env Γ)) |}
+  |} ⊢ₛ body ⊣ Γ' ↓ Return ->
+  Γ ⊢ᵪ Control.Action action_name params body ⊣ actns Γ ∧ tbls Γ
+| type_table table_name key actions :
+  (** Keys type. *)
+  Forall
+    (fun '(e,_) => exists τ,
+         cexpr_env Γ ⊢ₑ e ∈ τ) key ->
+  (** Actions available *)
+  Forall (fun a => exists pms, actns Γ a = Some pms) actions ->
+  Γ ⊢ᵪ Control.Table
+    table_name {| Control.table_key:=key
+               ; Control.table_actions:=actions
+               |} ⊣  actns Γ ∧ table_name :: tbls Γ
+| type_ctrldecl_seq d₁ d₂ actions' actions'' tbls' tbls'' :
+  Γ ⊢ᵪ d₁ ⊣ actions' ∧ tbls' ->
+  {| cexpr_env := cexpr_env Γ
+  ; cfuncts := cfuncts Γ
+  ; ccntrl_insts := ccntrl_insts Γ
+  ; cextrn_insts := cextrn_insts Γ
+  ; actns := actions'
+  ; tbls := tbls'
+  |} ⊢ᵪ d₂ ⊣ actions'' ∧ tbls'' ->
+  Γ ⊢ᵪ d₁ ;c; d₂ ⊣ actions'' ∧ tbls''
+where "Γ '⊢ᵪ' d '⊣' acts '∧' tbs"
+  := (type_ctrldecl Γ d acts tbs) : type_scope.
 
-(** Toplevel-declaration typing. *)
-Reserved Notation
-         "⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
-         (at level 70, d custom p4topdecl).
+(** * Toplevel-declaration typing. *)
+
+Record top_type_env : Set :=
+  { tfuncts : fenv (** available function signatures. *)
+  ; cnstrs : constructor_env (** available constructors. *)
+  ; insts_envs
+      :> insts_env (** available instances for parsers, controls, externs. *)
+  ; package_insts : nat (** De Bruijn counter of package instance names. *) }.
+
+Reserved Notation "Γ₁ '⊢ₜ' d ⊣ Γ₂"
+         (at level 80, no associativity).
 
 (** Top-level declaration typing. *)
-(* TODO: type parameters and arguments! *)
-Inductive type_topdecl
-          (cs : cenv) (fns : fenv)
-          (pgis : pkgienv) (cis : cienv) (pis : pienv) (eis : eienv)
-  : TopDecl.d -> eienv -> pienv -> cienv -> pkgienv -> fenv -> cenv -> Prop :=
+Inductive type_topdecl (Γ : top_type_env)
+  : TopDecl.d -> top_type_env -> Prop :=
+(*
 | type_instantiate_control (c x : string)
                           (ts : list Expr.t)
                           (cparams : Expr.constructor_params)
@@ -495,7 +512,7 @@ Inductive type_topdecl
     ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘ ->
     ⦗ cs, fns, pgis, cis, pis, eis ⦘ ⊢ d1 ;%; d2
     ⊣ ⦗ eis'', pis'', cis'', pgis'', fns'', cs'' ⦘
+*)
 where
-"⦗ cs1 , fs1 , pgi1 , ci1 , pi1 , ei1 ⦘ ⊢ d ⊣ ⦗ ei2 , pi2 , ci2 , pgi2 , fs2 , cs2 ⦘"
-  := (type_topdecl cs1 fs1 pgi1 ci1 pi1 ei1 d ei2 pi2 ci2 pgi2 fs2 cs2).
-(**[]*)
+"Γ₁ '⊢ₜ' d ⊣ Γ₂"
+  := (type_topdecl Γ₁ d Γ₂).

@@ -34,9 +34,10 @@ export POULET4_CCOMP_DEPS="zarith"
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
   ${PETR4_DEPS}
+opam switch create 4.14.0
 opam update
 # install p4pp
-opam switch 4.14.0
+eval $(opam env)
 #opam install menhir.20211128
 opam pin add --no-action p4pp https://github.com/cornell-netlab/p4pp.git
 opam pin add --no-action coq-vst-zlist https://github.com/PrincetonUniversity/VST.git

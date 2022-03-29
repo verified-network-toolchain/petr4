@@ -13,6 +13,7 @@ export PETR4_DEPS_OPAM="ANSITerminal \
                         alcotest \
                         bignum \
                         cstruct-sexp \
+                        p4pp \
                         pp \
                         ppx_deriving \
                         ppx_deriving_yojson \
@@ -36,7 +37,6 @@ opam upgrade
 # install p4pp
 opam switch 4.12.0
 opam install menhir.20211128
-opam pin add p4pp https://github.com/cornell-netlab/p4pp.git
 opam pin add coq-vst-zlist https://github.com/PrincetonUniversity/VST.git
 eval $(opam env)
 

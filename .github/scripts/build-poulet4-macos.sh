@@ -46,10 +46,7 @@ eval $(opam env)
 #opam pin add coq 8.13.2
 opam repo add coq-released https://coq.inria.fr/opam/released
 # install dependencies for petr4, poulet4, poulet4_ccomp
-opam install \
-  ${PETR4_DEPS_OPAM} \
-  ${POULET4_DEPS} \
-  ${POULET4_CCOMP_DEPS}
+opam install . deps/poulet4 deps/poulet4_Ccomp/extraction --deps-only
 #opam install coq-equations coq-record-update coq-compcert 
 # install deps for poulet4_ccomp
 #opam install zarith

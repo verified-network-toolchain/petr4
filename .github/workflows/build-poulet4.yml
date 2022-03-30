@@ -34,6 +34,10 @@ jobs:
         run: ./.github/scripts/build-poulet4-ubuntu.sh
         shell: bash
 
+      - name: Run Tests
+        run: ./.github/scripts/test-gcl-compiler.sh
+        shell: bash
+
   build-macos-latest:
     runs-on: macos-latest
 
@@ -48,4 +52,8 @@ jobs:
         
       - name: build-macos
         run: ./.github/scripts/build-poulet4-macos.sh
+        shell: bash
+
+      - name: Run Tests
+        run: ./.github/scripts/test-gcl-compiler.sh
         shell: bash

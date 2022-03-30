@@ -1,4 +1,3 @@
-open P4string
 open Poulet4.Typed
 
 type 'a pre_t = 'a Poulet4.Typed.name
@@ -13,7 +12,7 @@ let name_info name : P4info.t =
   match name with
   | BareName name -> name.tags
   | QualifiedName (prefix, name) ->
-     let infos = List.map (fun x -> x.tags) prefix in
+     let infos = List.map (fun (x: P4string.t) -> x.tags) prefix in
      List.fold_right P4info.merge infos name.tags
 
 let name_eq n1 n2 =

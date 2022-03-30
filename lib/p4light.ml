@@ -1,4 +1,5 @@
-open Sexplib.Conv
+include Poulet4.Syntax
+include Poulet4.Typed
 
 type direction = Poulet4.Typed.direction
 
@@ -13,7 +14,7 @@ type coq_ExprContext = Poulet4.Typed.coq_ExprContext
 type 'a pre_P4Type = 'a Poulet4.Typed.coq_P4Type
 type 'a pre_FunctionType = 'a Poulet4.Typed.coq_FunctionType
 type 'a pre_ControlType = 'a Poulet4.Typed.coq_ControlType
-type pre_P4Parameter = 'a Poulet4.Typed.coq_P4Parameter
+type 'a pre_P4Parameter = 'a Poulet4.Typed.coq_P4Parameter
 type coq_P4Type = P4info.t pre_P4Type
 type coq_FieldType = P4string.t * coq_P4Type
 type coq_FunctionType = P4info.t pre_FunctionType
@@ -57,7 +58,7 @@ type coq_MethodPrototype = P4info.t pre_MethodPrototype
 type coq_OpUni = Poulet4.Syntax.coq_OpUni
 type coq_OpBin = Poulet4.Syntax.coq_OpBin
 type coq_Locator = Poulet4.Syntax.coq_Locator
-let noLocator = LGlobal []
+let noLocator = Poulet4.Syntax.LGlobal []
 type 'a pre_ExpressionPreT =
   'a Poulet4.Syntax.coq_ExpressionPreT
 type 'a pre_Expression =

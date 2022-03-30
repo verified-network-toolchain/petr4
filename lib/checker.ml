@@ -1,7 +1,9 @@
 open Surface
+open Poulet4.Typed
+open Poulet4.Syntax
+open Poulet4.P4String
 open P4light
 open Util
-open P4string
 
 (* hack *)
 module Petr4Error = Error
@@ -507,8 +509,8 @@ and reduce_to_underlying_type (env: Checker_env.t) (typ: coq_P4Type) : coq_P4Typ
   | TypEnum (_, Some typ, _) -> reduce_to_underlying_type env typ
   | _ -> typ
 
-type var_constraint = P4string.t * coq_P4Type option [@@deriving sexp]
-type var_constraints = var_constraint list [@@deriving sexp]
+type var_constraint = P4string.t * coq_P4Type option
+type var_constraints = var_constraint list
 type soln = var_constraints option
 
 let empty_constraints unknowns : var_constraints =
@@ -570,8 +572,8 @@ and gen_all_constraints (env: Checker_env.t) ctx unknowns (params_args: (coq_P4P
       | Some arg_constraints ->
         let constraints = merge_constraints env constraints arg_constraints in
         gen_all_constraints env ctx unknowns more constraints
-      | None -> raise_s [%message "Could not solve type equality."
-                         ~param:(param_type: coq_P4Type) ~arg_typ:(expr_typ: coq_P4Type)]
+      | None -> failwith "Could not solve type equality."
+                                  (*~param:(param_type: coq_P4Type) ~arg_typ:(expr_typ: coq_P4Type)]*)
     end
   | (param_type, None) :: more ->
     gen_all_constraints env ctx unknowns more constraints
@@ -696,7 +698,7 @@ and solve_types
       else None
     | TypSpecializedType (base, args), _
     | _, TypSpecializedType (base, args) ->
-      raise_s [%message "Stuck specialized type." ~t:(TypSpecializedType (base, args):coq_P4Type)]
+       failwith "Stuck specialized type." (*~t:(TypSpecializedType (base, args):coq_P4Type)]*)
     | TypTypeName ( tv1), TypTypeName ( tv2) ->
       if type_vars_equal_under equiv_vars tv1 tv2
       then Some (empty_constraints unknowns)
@@ -1052,7 +1054,7 @@ and eval_to_positive_int env info expr =
   in
   if Bigint.(value > zero)
   then value
-  else raise_s [%message "expected positive integer" ~info:(info: P4info.t)]
+  else failwith "expected positive integer" (*~info:(info: P4info.t)]*)
 
 and gen_wildcard env: P4string.t =
   let str = Renamer.freshen_name (Checker_env.renamer env) "__wild" in
@@ -1094,7 +1096,7 @@ and translate_type' ?(gen_wildcards=false) (env: Checker_env.t) (typ: Surface.Ty
     if gen_wildcards
     then let name = gen_wildcard env in
          TypTypeName ( name), [name]
-    else raise_s [%message"not generating wildcards" ~info:(fst typ: P4info.t)] 
+    else failwith "not generating wildcards" (*~info:(fst typ: P4info.t)] *)
 
 and translate_type (env: Checker_env.t) (typ: Surface.Type.t) : coq_P4Type =
   fst (translate_type' env typ)
@@ -1352,11 +1354,11 @@ and validate_param env ctx (typ: coq_P4Type) dir info opt_value =
   if is_compile_time_only_type env typ && not @@ eq_dir dir Directionless
   then failwith "Parameters of this type must be directionless.";
   if not @@ is_well_formed_type env typ
-  then raise_s [%message "Parameter type is not well-formed." ~typ:(typ:coq_P4Type)];
+  then failwith "Parameter type is not well-formed."; (*~typ:(typ:coq_P4Type)];*)
   if not @@ is_valid_param_type env ctx typ
-  then raise_s [%message "Type cannot be passed as a parameter." ~typ:(typ:coq_P4Type) ~info:(info:P4info.t)];
+  then failwith "Type cannot be passed as a parameter."; (* ~typ:(typ:coq_P4Type) ~info:(info:P4info.t)];*)
   if opt_value <> None && not (eq_dir dir Directionless) && not (eq_dir dir In)
-  then raise_s [%message "Only directionless and in parameters may have default arguments" ~info:(info:P4info.t)]
+  then failwith "Only directionless and in parameters may have default arguments" (*~info:(info:P4info.t)]*)
 
 and type_param ?(gen_wildcards=false) env (ctx: P4light.coq_ParamContext) (param_info, param : Surface.Parameter.t) : coq_P4Parameter * P4string.t list =
   let typ, wildcards = translate_type' ~gen_wildcards env param.typ in
@@ -1381,8 +1383,8 @@ and type_params ?(gen_wildcards=false) env ctx params =
 
 and type_constructor_param env decl_kind (param: Surface.Parameter.t) : coq_P4Parameter * P4string.t list =
   if (snd param).direction <> None
-  then raise_s [%message "Constructor parameters must be directionless"
-        ~param:(param: Surface.Parameter.t)];
+  then failwith "Constructor parameters must be directionless";
+         (*~param:(param: Surface.Parameter.t)];*)
   type_param env ~gen_wildcards:true (ParamCxConstructor decl_kind) param
 
 and type_constructor_params env decl_kind params =
@@ -2069,8 +2071,8 @@ and match_params_to_args env call_site_info params args : (coq_P4Parameter * Exp
     | Some `Named, KeyValue { key; value } :: args ->
       get_mode (Some `Named) args
     | m, [] -> m
-    | _ -> raise_s [%message "mixed positional and named arguments at call site"
-               ~info:(call_site_info: P4info.t)]
+    | _ -> failwith "mixed positional and named arguments at call site"
+                    (*~info:(call_site_info: P4info.t)]*)
   in
   let args = List.map ~f:snd args in
   match get_mode None args with
@@ -2099,13 +2101,13 @@ and match_positional_args_to_params env call_site_info params args =
         | None ->
           if opt_of_param param
           then conv param Missing :: go params args
-          else raise_s [%message "missing argument for parameter"
-                ~info:(call_site_info: P4info.t)
-                ~param:(param: coq_P4Parameter)]
+          else failwith "missing argument for parameter"
+                (*~info:(call_site_info: P4info.t)
+                ~param:(param: coq_P4Parameter)]*)
       end
     | [], arg :: args ->
-      raise_s [%message "too many arguments"
-          ~info:(call_site_info: P4info.t)]
+      failwith "too many arguments"
+    (*~info:(call_site_info: P4info.t)]*)
     | [], [] -> []
   in
   go params args
@@ -2130,17 +2132,17 @@ and match_named_args_to_params env call_site_info (params: coq_P4Parameter list)
       | None, None ->
         if opt_of_param p
         then (p, None) :: match_named_args_to_params env call_site_info params other_args
-        else raise_s [%message "parameter has no matching argument"
-              ~call_site:(call_site_info: P4info.t)
-              ~param:(p: coq_P4Parameter)]
+        else failwith "parameter has no matching argument"
+              (*~call_site:(call_site_info: P4info.t)
+              ~param:(p: coq_P4Parameter)]*)
     end
   | [] ->
     match args with
     | [] -> []
     | a :: rest ->
-      raise_s [%message "too many arguments supplied at call site"
-          ~info:(call_site_info: P4info.t)
-          ~unused_args:(args : Surface.Argument.pre_t list)]
+      failwith "too many arguments supplied at call site"
+          (*~info:(call_site_info: P4info.t)
+          ~unused_args:(args : Surface.Argument.pre_t list)]*)
 
 and is_lvalue env (expr_typed: P4light.coq_Expression) =
   let MkExpression (_, expr, expr_typ, expr_dir) = expr_typed in
@@ -2173,7 +2175,7 @@ and check_direction env dir (arg_typed: P4light.coq_Expression) =
   | In ->
     begin match arg_type with
       | TypExtern _ ->
-        raise_s [%message "externs should always be directionless"]
+        failwith "externs should always be directionless"
       | _ -> ()
     end
   | Out
@@ -2264,8 +2266,8 @@ and type_function_call env ctx call_info func type_args args =
   let call: P4light.coq_ExpressionPreT = ExpFunctionCall (func_typed, out_type_args, out_args) in
   if call_ok ctx kind
   then call, typ, Directionless
-  else raise_s [%message "Call not allowed in this context." 
-                ~ctx:(ctx: coq_ExprContext) ~kind:(kind: P4light.coq_FunctionKind)] 
+  else failwith "Call not allowed in this context." 
+            (*~ctx:(ctx: coq_ExprContext) ~kind:(kind: P4light.coq_FunctionKind)] *)
 
 and select_constructor_params env info methods args =
   let matching_constructor (proto: P4light.coq_MethodPrototype) =
@@ -2354,7 +2356,7 @@ and resolve_constructor_overload_by ~f:(f: coq_P4Parameter list -> bool) env typ
     |> List.map ~f:fst
     |> List.find ~f:ok
   with
-  | Some (P4light.TypConstructor (ts, ws, ps, ret)) -> ts, ws, ps, ret
+  | Some (TypConstructor (ts, ws, ps, ret)) -> ts, ws, ps, ret
   | ctor -> failwith "Bad constructor type or no matching constructor."
 
 and resolve_constructor_overload env type_name args =
@@ -2472,15 +2474,15 @@ and type_nameless_instantiation env ctx info typ args =
         out_typ,
         Directionless
       | _ ->
-        raise_s [%message "don't know how to instantiate this type"
-            ~typ:(typ: Surface.Type.t)]
+        failwith "don't know how to instantiate this type"
+                          (*~typ:(typ: Surface.Type.t)]*)
     end
   | TypeName tn ->
     let typ = fst typ, Surface.Type.SpecializedType { base = typ; args = [] } in
     type_nameless_instantiation env ctx info typ args
   | _ ->
-    raise_s [%message "don't know how to instantiate this type"
-        ~typ:(typ: Surface.Type.t)]
+    failwith "don't know how to instantiate this type"
+         (*~typ:(typ: Surface.Type.t)]*)
 
 (* Section 8.12.3 *)
 and type_mask env ctx expr mask =
@@ -2496,8 +2498,7 @@ and type_mask env ctx expr mask =
       TypInteger
     | l_typ, r_typ -> failwith "bad type for mask operation &&&"
   in
-  P4light.MatchMask (expr_typed, mask_typed),
-  res_typ
+  MatchMask (expr_typed, mask_typed), res_typ
 
 (* Section 8.12.4 *)
 and type_range env ctx lo hi = 
@@ -2516,7 +2517,7 @@ and type_range env ctx lo hi =
       raise_mismatch (info hi) ("int<" ^ (Bigint.to_string width) ^ ">") hi_typ
     | lo_typ, _ -> raise_mismatch (P4info.merge (info lo) (info hi)) "int or bit" lo_typ
   in
-  P4light.MatchRange (lo_typed, hi_typed), typ
+  MatchRange (lo_typed, hi_typed), typ
 
 and check_statement_legal_in (ctx: coq_StmtContext) (stmt: Surface.Statement.t) : unit =
   match ctx, snd stmt with
@@ -2578,8 +2579,8 @@ and type_assignment env ctx stmt_info lhs rhs =
   let expr_ctx = expr_ctxt_of_stmt_ctxt ctx in
   let lhs_typed = type_expression env expr_ctx lhs in
   if not @@ is_lvalue env lhs_typed
-  then raise_s [%message "Must be an lvalue"
-        ~lhs:(lhs:Surface.Expression.t)]
+  then failwith "Must be an lvalue"
+                         (*~lhs:(lhs:Surface.Expression.t)]*)
   else
     let rhs_typed = cast_expression env expr_ctx (type_of_expr lhs_typed) rhs in
     ignore (assert_same_type env (info lhs) (info rhs)
@@ -2781,7 +2782,7 @@ and type_declaration_statement env ctx stmt_info (decl: Declaration.t) : P4light
   | Variable _ ->
     let decl_typed, env' = type_declaration env (DeclCxStatement ctx) decl in
     stmt_of_decl_stmt decl_typed, env'
-  | _ -> raise_s [%message "declaration used as statement, but that's not allowed. Parser bug?" ~decl:(decl: Surface.Declaration.t)]
+  | _ -> failwith "declaration used as statement, but that's not allowed. Parser bug?"(* ~decl:(decl: Surface.Declaration.t)]*)
 
 (* Section 10.1
  *
@@ -2850,8 +2851,8 @@ and type_initializers env ctx instance_type (inits: Surface.Statement.t list): P
     match instance_type with
     | TypExtern extern_name -> extern_name, []
     | TypSpecializedType (TypExtern extern_name, args) -> extern_name, args
-    | _ -> raise_s [%message"Initializers are allowed only in the instantiation of an extern object."
-                    ~typ:(instance_type : P4light.coq_P4Type)]
+    | _ -> failwith "Initializers are allowed only in the instantiation of an extern object."
+                            (*~typ:(instance_type : P4light.coq_P4Type)]*)
   in let ext = Checker_env.find_extern (BareName extern_name) env in 
   let env_with_args = Checker_env.insert_types (List.zip_exn ext.type_params args) env in
   let decls_abst = List.map ~f:(fun m -> (m.name, reduce_type env_with_args (TypFunction m.typ))) ext.abst_methods in
@@ -2972,7 +2973,7 @@ and type_select_case env ctx state_names expr_types ((case_info, case): Surface.
   let matches_typed = check_match_product env ctx case.matches expr_types in
   if List.mem ~equal:P4string.eq state_names case.next
   then MkParserCase (case_info, matches_typed, case.next)
-  else raise_s [%message "state name unknown" ~name:(case.next.str: string)]
+  else failwith "state name unknown" (*~name:(case.next.str: string)]*)
 
 and type_transition env ctx state_names transition : P4light.coq_ParserTransition =
   let trans_info = fst transition in
@@ -3000,11 +3001,11 @@ and check_state_names names =
           ~compare:(fun (x: P4string.t) y ->
               String.compare x.str y.str)
   with
-  | Some duplicated -> raise_s [%message "duplicate state name in parser" ~state:duplicated.str]
+  | Some duplicated -> failwith "duplicate state name in parser" (*~state:duplicated.str]*)
   | None ->
     if List.mem ~equal:P4string.eq names {tags=P4info.dummy; str="start"}
     then ()
-    else raise_s [%message "parser is missing start state"];
+    else failwith "parser is missing start state"
 
 and open_parser_scope env ctx params constructor_params locals (states: Parser.state list) =
   let env = Checker_env.push_scope env in
@@ -3039,8 +3040,8 @@ and type_parser env info name annotations type_params params constructor_params 
                 locals_typed,
                 states_typed)
   in
-  let parser_type = P4light.MkControlType ([], params_typed) in
-  let ctor_type = P4light.TypConstructor ([], [], constructor_params_typed, TypParser parser_type) in
+  let parser_type = MkControlType ([], params_typed) in
+  let ctor_type = TypConstructor ([], [], constructor_params_typed, TypParser parser_type) in
   let env = Checker_env.insert_type_of (BareName name) ctor_type env in
   parser_typed, env
 
@@ -3061,7 +3062,7 @@ and type_control env info name annotations type_params params constructor_params
   | Some (t, _) ->
      match saturate_type env t with
      | TypConstructor (_, _, _, TypControl _) -> ()
-     | bad_type -> raise_s [%message "cannot shadow object with control" ~bad_type:(bad_type: coq_P4Type)]
+     | bad_type -> failwith "cannot shadow object with control" ~bad_type:(bad_type: coq_P4Type)]
   end;
    *)
   if List.length type_params > 0
@@ -3085,9 +3086,9 @@ and type_control env info name annotations type_params params constructor_params
                  apply_typed)
   in
   let control_type =
-    P4light.MkControlType ([], params_typed)
+    MkControlType ([], params_typed)
   in
-  let ctor_type = P4light.TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
+  let ctor_type = TypConstructor ([], [], constructor_params_typed, TypControl control_type) in
   let env = Checker_env.insert_type_of ~shadow:true (BareName name) ctor_type env in
   control, env
 
@@ -3269,8 +3270,7 @@ and type_action env info annotations name params body =
   begin match Checker_env.find_type_of_opt (BareName name) env with
   | None
   | Some (TypAction _, _) -> ()
-  | Some (other_type, _) ->
-     raise_s [%message "cannot shadow with action" ~other_type:(other_type:coq_P4Type)]
+  | Some (other_type, _) -> failwith "cannot shadow with action" (*~other_type:(other_type:coq_P4Type)]*)
   end;
   action_typed,
   Checker_env.insert_type_of ~shadow:true (BareName name) action_type env
@@ -3288,7 +3288,7 @@ and type_keys env ctx keys =
       let expr_typed = type_expression env expr_ctx key in
       MkTableKey (fst key, expr_typed, match_kind)
     | _ ->
-      raise_s [%message "invalid match_kind" ~match_kind:match_kind.str]
+     failwith "invalid match_kind" (*~match_kind:match_kind.str]*)
   in
   List.map ~f:type_key keys
 
@@ -3301,7 +3301,7 @@ and type_table_actions env ctx key_types actions =
       | Some (TypAction (data_params, _), _) ->
         data_params
       | _ ->
-        raise_s [%message "invalid action" ~action:(action.name: P4name.t)]
+       failwith "invalid action" (*~action:(action.name: P4name.t)]*)
     in
     (* Below should fail if there are control plane arguments *)
     let params_args = match_params_to_args env call_info data_params action.args in
@@ -3436,8 +3436,7 @@ and type_default_action
            |> List.for_all
              ~f:begin fun e ->
                match compile_time_eval_expr env e with
-               | None -> raise_s
-                           [%message "default action argument is not compile-time known"]
+               | None -> failwith "default action argument is not compile-time known"
                (* is there a way to convert from values to expressions?
                 * this seems wasteful... *)
                | Some _ -> true
@@ -3446,7 +3445,7 @@ and type_default_action
           MkTableActionRef (fst action_expr,
                             MkTablePreActionRef (action_name, args),
                             type_of_expr action_expr_typed)
-        else raise_s [%message "default action's prefix of arguments do not match those of that in table actions property"]
+        else failwith "default action's prefix of arguments do not match those of that in table actions property"
     end
   | ExpName (action_name, _) ->
      let acts = List.map ~f:(fun (n, a) -> P4name.name_only n, a) action_map in
@@ -3480,7 +3479,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
           default_typed
           rest
       | Some key_types ->
-        raise_s [%message "multiple key properties in table?" ~name:name.str]
+        failwith "multiple key properties in table?" (*~name:name.str]*)
     end
   | Actions { actions } :: rest ->
     begin match key_types with
@@ -3587,10 +3586,10 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
                        |> begin fun l ->
                          if keys_actions_ok key_types l
                          then l
-                         else raise_s [%message "Table must have a non-empty actions property"] end
+                         else failwith "Table must have a non-empty actions property" end
                        |> List.map ~f:fst
                        |> List.map ~f:P4name.name_only
-                       |> List.map ~f:(fun str -> {P4string.tags=P4info.dummy; str})
+                       |> List.map ~f:(fun str -> {tags=P4info.dummy; str})
     in
     let action_enum_name = {name with str="action_list_" ^ name.str} in
     let action_enum_typ = TypEnum (action_enum_name, None, action_names) in
@@ -3605,10 +3604,10 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
       Checker_env.insert_type (BareName action_enum_name)
         action_enum_typ env
     in
-    let hit_field = ({P4string.tags=P4info.dummy; str="hit"}, TypBool) in
-    let miss_field = ({P4string.tags=P4info.dummy; str="miss"}, TypBool) in
+    let hit_field = ({tags=P4info.dummy; str="hit"}, TypBool) in
+    let miss_field = ({tags=P4info.dummy; str="miss"}, TypBool) in
     (* How to represent the type of an enum member *)
-    let run_field = ({P4string.tags=P4info.dummy; str="action_run"}, action_enum_typ) in
+    let run_field = ({tags=P4info.dummy; str="action_run"}, action_enum_typ) in
     let apply_result_typ = TypStruct [hit_field; miss_field; run_field] in
     (* names of table apply results are "apply_result_<<table name>>" *)
     let result_typ_name = {name with str = "apply_result_" ^ name.str} in
@@ -3653,8 +3652,8 @@ and type_header_union_field env (field_info, field) =
   match saturate_type env typ with
   | TypHeader _ ->
     type_field env (field_info, field)
-  | _ -> raise_s [%message "header union fields must have header type"
-             ~field:((field_info, field): Surface.Declaration.field)]
+  | _ -> failwith "header union fields must have header type"
+(*~field:((field_info, field): Surface.Declaration.field)]*)
 
 (* Section 7.2.3 *)
 and type_header_union env info annotations name fields =
@@ -3790,8 +3789,7 @@ and type_extern_object env info annotations obj_name t_params methods =
     | MethodPrototype.Method { annotations; return; name; type_params = t_params; params }
     | MethodPrototype.AbstractMethod { annotations; return; name; type_params = t_params; params } ->
       if P4string.eq name obj_name
-      then raise_s [%message "extern method must have different name from extern"
-            ~m:(m: MethodPrototype.t)];
+      then failwith "extern method must have different name from extern"; (*~m:(m: MethodPrototype.t)];*)
       let env' = Checker_env.insert_type_vars t_params env' in
       let params_typed, param_wildcards =
         type_params ~gen_wildcards:true env' (ParamCxRuntime ParamCxDeclMethod) params in
@@ -3939,7 +3937,7 @@ and check_param_shadowing params constructor_params =
           ~compare:(fun (x:P4string.t) y ->
               String.compare x.str y.str)
   with
-  | Some dup -> raise_s [%message "duplicate parameter" ~dup:(dup.str)]
+  | Some dup -> failwith "duplicate parameter" (*~dup:(dup.str)]*)
   | None -> ()
 
 and type_declaration (env: Checker_env.t) (ctx: coq_DeclContext) (decl: Surface.Declaration.t) : P4light.coq_Declaration * Checker_env.t =
@@ -4017,7 +4015,7 @@ and type_declarations env ctx decls: P4light.coq_Declaration list * Checker_env.
 
 (* Entry point function for type checker *)
 let check_program renamer (program:Surface.program) : Checker_env.t * P4light.program =
-  let P4lightram top_decls = program in
+  let Program top_decls = program in
   let initial_env = Checker_env.empty_with_renamer renamer in
   let prog, env = type_declarations initial_env DeclCxTopLevel top_decls in
   env, prog

@@ -1,4 +1,5 @@
 open Sexplib.Conv
+include Poulet4.P4String
 
 type 'a pre_t = 'a Poulet4.P4String.t
 

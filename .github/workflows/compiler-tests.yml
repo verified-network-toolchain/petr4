@@ -1,7 +1,7 @@
 name: test-compilers
 on:
   workflow_run:
-    workflows: [ "build-poulet4" ]
+    workflows: [ build-poulet4 ]
     branches: [ poulet4 ]
     types:
       - completed

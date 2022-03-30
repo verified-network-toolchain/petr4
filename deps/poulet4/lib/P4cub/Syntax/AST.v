@@ -250,7 +250,7 @@ Module TopDecl.
   (** Top-level declarations. *)
   Inductive d : Set :=
   | Instantiate
-      (constructor_name instance_name : string)
+      (constructor_name : string)
       (type_args : list Expr.t)
       (cargs : constructor_args )
   (** instantiations *)
@@ -283,6 +283,6 @@ Module TopDecl.
         (function_name : string)
         (type_params : nat)
         (signature : Expr.arrowT) (body : Stmt.s )
-  (** function/method declaration *)
+  (** function declaration *)
   | Seq (d1 d2 : d) .
 End TopDecl.

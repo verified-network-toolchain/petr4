@@ -195,16 +195,17 @@ Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
 (** Constructor Parameter types, for instantiations *)
 Inductive constructor_type : Set :=
 | ControlType
-    (constructor_parameter : list TopDecl.it)
+    (constructor_parameters : list TopDecl.it)
     (extern_params : list string)
     (parameters : Expr.params) (** control types *)
 | ParserType
+    (constructor_parameters : list TopDecl.it)
     (extern_params : list string)
     (parameters : Expr.params) (** parser types *)
 | PackageType (** package types *)
-    (constructor_parameter : list TopDecl.it)
+    (constructor_parameters : list TopDecl.it)
 | ExternType (** extern types *)
-    (constructor_parameter : list TopDecl.it)
+    (constructor_parameters : list TopDecl.it)
     (extern_name : string).
 
 (** Available constructor signatures. *)

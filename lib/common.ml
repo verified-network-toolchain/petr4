@@ -182,7 +182,8 @@ module Make_parse (Conf: Parse_config) = struct
    | Result.Error msg -> failwith msg
    | Result.Ok gcl -> gcl
    
- let handle_ccomp_result = function
+ let ccompile cub =
+   match Poulet4_Ccomp.CCompSel.coq_Compile cub with
    | Poulet4_Ccomp.Errors.OK c ->     
      c
    | Poulet4_Ccomp.Errors.Error (m) ->
@@ -190,11 +191,8 @@ module Make_parse (Conf: Parse_config) = struct
      | (Poulet4_Ccomp.Errors.MSG msg) ::[] ->
        failwith (Base.String.of_char_list msg)
      | _ ->
-       failwith ("unknown failure from p4cub") 
-
- let ccompile cub =
-   Poulet4_Ccomp.CCompSel.coq_Compile cub
-   |> handle_ccomp_result
+       failwith ("unknown failure from Ccomp") 
+   
 
  let flatten cub =
    let open Poulet4 in
@@ -209,8 +207,7 @@ module Make_parse (Conf: Parse_config) = struct
    let stmtd = Poulet4.Statementize.coq_TranslateProgram cub in
    if(print) then write_p4cub_to_file stmtd file;
    let certd = Compcertalize.topdecl_convert cub in 
-   let c_res = Poulet4_Ccomp.CCompSel.coq_Compile certd in
-   handle_ccomp_result c_res
+   ccompile certd
    
                     
  let compile_file (include_dirs : string list) (p4_file : string) 
@@ -223,7 +220,6 @@ module Make_parse (Conf: Parse_config) = struct
    | `Ok prog ->
      let prog, renamer = Elaborate.elab prog in
      let _, typ_light = Checker.check_program renamer prog in
-     Poulet4_Ccomp.PrintClight.change_destination export_file;
      (* Preprocessing  *)
      let nrm_light = simpl_expr ~if_:normalize  typ_light in
      let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
@@ -236,6 +232,7 @@ module Make_parse (Conf: Parse_config) = struct
        Printf.printf "No Error converting to GCL\n%!"
      | [] ->
        (* the C compiler *)
+       Poulet4_Ccomp.PrintClight.change_destination export_file;       
        let c = to_c print_p4cub printp4_file cub in
        Poulet4_Ccomp.CCompSel.print_Clight c
      | _ ->

@@ -107,7 +107,7 @@ let name_eq n1 n2 =
     QualifiedName {tags = _; prefix = ns2; name = s2} ->
     s1.string = s2.string && List.equal (fun x y -> x.P4String.string = y.string) ns1 ns2
   | _ -> false
-  (* DISCUSS: how do prefixes agree? list =? or the order and repetition doesn't matter? *)
+
 
 and name_only n =
   match n with

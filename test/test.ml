@@ -1,8 +1,10 @@
 open Core
 open Petr4
-open Common
+(* open Common *)
 
-module Conf: Parse_config = struct
+let print pp = Format.printf "%a@." Pp.to_fmt pp
+
+(* module Conf: Parse_config = struct *)
   let red s = s
   let green s = s
 
@@ -16,12 +18,41 @@ module Conf: Parse_config = struct
     let str = In_channel.input_all in_chan in
     let _ = Unix.close_process_in in_chan in
     str
-end
+(* end *)
 
-module Parse = Make_parse(Conf)
+(* module Parse = Make_parse(Conf) *)
+
+let parse_file include_dirs p4_file verbose =
+  let () = Lexer.reset () in
+  let () = Lexer.set_filename p4_file in
+  let p4_string = preprocess include_dirs p4_file in
+  let lexbuf = Lexing.from_string p4_string in
+  try
+    let prog = Parser.p4program Lexer.lexer lexbuf in
+    if verbose then
+      begin
+        Format.eprintf "[%s] %s@\n%!" (green "Passed") p4_file;
+        prog |> Pretty.format_program |> print;
+        Format.print_string "@\n%!"; 
+        Format.printf "----------@\n";
+        Format.printf "%s@\n%!" (prog |> Types.program_to_yojson |> Yojson.Safe.pretty_to_string)
+      end;
+    `Ok prog
+  with
+  | err ->
+    if verbose then Format.eprintf "[%s] %s@\n%!" (red "Failed") p4_file;
+    `Error (Lexer.info lexbuf, err)
+
+let parse_string p4_string = 
+  let () = Lexer.reset () in
+  let () = Lexer.set_filename p4_string in
+  let lexbuf = Lexing.from_string p4_string in
+  Parser.p4program Lexer.lexer lexbuf 
+
+
 
 let parser_test include_dirs file =
-  match Parse.parse_file include_dirs file false with
+  match parse_file include_dirs file false with
   | `Ok _ -> true
   | `Error _ -> false
 
@@ -30,20 +61,20 @@ let to_string pp : string =
   Format.flush_str_formatter ()
 
 let get_name include_dirs file =
-  match Parse.parse_file include_dirs file false with 
+  match parse_file include_dirs file false with 
   | `Ok prog -> prog |> Pretty.format_program |> to_string 
   | `Error _ -> "121" 
 
 let pp_round_trip_test include_dirs file =
-  let way_there = match Parse.parse_file include_dirs file false with 
+  let way_there = match parse_file include_dirs file false with 
     | `Ok prog -> prog |> Pretty.format_program |> to_string 
     | `Error _ -> "" in 
-  let way_back = Parse.parse_string way_there in
+  let way_back = parse_string way_there in
   String.compare way_there (way_back |> Pretty.format_program |> to_string) = 0 
 
 let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   Printf.printf "Testing file %s...\n" p4_file;
-  match Parse.parse_file include_dirs p4_file false with
+  match parse_file include_dirs p4_file false with
   | `Ok prog ->
     begin
       try

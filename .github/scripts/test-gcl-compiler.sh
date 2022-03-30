@@ -10,6 +10,10 @@ INCLUDE_DIR="examples"
 
 PETR4="petr4 compile -I ${INCLUDE} -gcl 1000 -gcl 10"
 
+echo $PATH
+eval $(opam env)
+echo $PATH
+
 for TEST_FILE in ${EXPASS}/*; do
     echo "testing ${TEST_FILE}"
     ${PETR4} ${TEST_FILE} > /dev/null

@@ -21,13 +21,13 @@
     Zcomplements
     Ops
     Value
-    Sublist
+    sublist
     Sumbool
     Semantics
     ZArith_dec
     Target
     ValueUtil
-    Ssrbool
+    ssrbool
     Classes
     Ascii BinIntDef Monad Option)
  (libraries zarith bignum)

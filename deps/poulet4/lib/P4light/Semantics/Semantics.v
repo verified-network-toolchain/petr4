@@ -1189,10 +1189,10 @@ Definition extract_invals (args : list argument) : list Sval :=
     end in
   flat_map f args.
 
-Definition direct_application_expression (typ : P4Type) (func_typ : P4Type) : @Expression tags_t :=
+Definition direct_application_expression (typ : @P4Type tags_t) (func_typ : P4Type) : @Expression tags_t :=
   let name := get_type_name typ in
   MkExpression dummy_tags (ExpExpressionMember
-    (MkExpression dummy_tags (ExpName (BareName name) (LInstance [str name])) dummy_type Directionless)
+    (MkExpression dummy_tags (ExpName (BareName (P4String.Build_t tags_t dummy_tags name)) (LInstance [name])) dummy_type Directionless)
     !"apply") func_typ Directionless.
 
 Definition empty_statement := (MkStatement dummy_tags StatEmpty StmUnit).
@@ -1547,7 +1547,7 @@ Definition get_constructor_param_names (decl : @Declaration tags_t) : list ident
   | DeclParser _ _ _ _ constructor_params _ _
   | DeclControl _ _ _ _ constructor_params _ _
   | DeclPackageType _ _ _ constructor_params =>
-      (clear_list (map get_param_name constructor_params))
+      map get_param_name constructor_params
   | _ => nil
   end.
 
@@ -1743,10 +1743,9 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-        let iout_params := map (fun p => (str (fst p), snd p)) out_params in
-        let init := uninit_out_params iout_params in
+        let init := uninit_out_params out_params in
         let params := map get_param_name_dir params in
-        let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
+        let params := map (map_fst (fun param => LGlobal [str name; param])) params in
         let fd := FInternal (map (map_fst get_loc_path) params) (block_app init body) in
         let ee := extern_set_abstract_method (snd m) (p ++ [str name]) (exec_abstract_method p fd) in
         (e, (fst m, ee), s)
@@ -1815,9 +1814,9 @@ Definition is_packet_out (param : @P4Parameter tags_t) : bool :=
 
 Definition inline_packet_in_and_packet_out (p : path) (m : inst_mem) (param : @P4Parameter tags_t) : inst_mem :=
   if is_packet_in param then
-    set_inst_mem (p ++ [str (get_param_name param)]) packet_in_instance m
+    set_inst_mem (p ++ [get_param_name param]) packet_in_instance m
   else if is_packet_out param then
-    set_inst_mem (p ++ [str (get_param_name param)]) packet_out_instance m
+    set_inst_mem (p ++ [get_param_name param]) packet_out_instance m
   else
     m.
 
@@ -1988,7 +1987,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [str param])) params in
+      let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
@@ -2001,17 +2000,16 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LInstance [str param])) params in
+      let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
       let init := process_locals locals in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let iout_params := map (fun p => (str (fst p), snd p)) out_params in
-      let init := uninit_out_params iout_params in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal (clear_list [name; param]))) params in
+      let params := map (map_fst (fun param => LGlobal [str name; param])) params in
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
@@ -2025,15 +2023,14 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let iout_params := map (fun p => (str (fst p), snd p)) out_params in
-      let init := uninit_out_params iout_params in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
         if path_eqb p [] then
-          map (map_fst (fun param => LGlobal (clear_list [name; param]))) (params ++ ctrl_params)
+          map (map_fst (fun param => LGlobal [str name; param])) (params ++ ctrl_params)
         else
-          map (map_fst (fun param => LInstance (clear_list [name; param]))) (params ++ ctrl_params) in
+          map (map_fst (fun param => LInstance [str name; param])) (params ++ ctrl_params) in
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=

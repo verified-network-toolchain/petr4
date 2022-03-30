@@ -120,9 +120,9 @@ Definition inf_state  (st : Parser.state_block) :=
 Fixpoint inf_d  (d : TopDecl.d) : TopDecl.d :=
   match d with
     | TopDecl.Extern _ _ _ _ => d
-  | TopDecl.Instantiate cname iname type_args cargs =>
+  | TopDecl.Instantiate cname type_args cargs =>
       let cargs' := map inf_carg cargs in
-      TopDecl.Instantiate cname iname type_args cargs'
+      TopDecl.Instantiate cname type_args cargs'
   | TopDecl.Control cname cparams eparams params body apply_blk =>
       let body' := inf_Cd body in
       let apply_blk' := inf_s apply_blk in

@@ -170,11 +170,11 @@ Definition tsub_state (σ : nat -> Expr.t) (st : Parser.state_block) :=
 
 Fixpoint tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
   match d with
-  | TopDecl.Instantiate cname iname type_args cargs =>
+  | TopDecl.Instantiate cname type_args cargs =>
       (* TODO theres something broken here, need to get type params for cname *)
       let type_args' := map (tsub_t σ) type_args in
       let cargs' := map (tsub_carg σ) cargs in
-      TopDecl.Instantiate cname iname type_args' cargs'
+      TopDecl.Instantiate cname type_args' cargs'
   | TopDecl.Extern ename tparams cparams methods =>
       let σ' := exts `^ tparams σ in
       let cparams' := map (tsub_cparam σ') cparams in

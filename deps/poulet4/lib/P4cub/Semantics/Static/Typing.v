@@ -354,88 +354,110 @@ Local Open Scope climate_scope.
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)
   : TopDecl.d -> top_type_env -> Prop :=
-(*
-| type_instantiate_control (c x : string)
-                          (ts : list Expr.t)
-                          (cparams : Expr.constructor_params)
-                          (cargs : Expr.constructor_args) 
-                          (extparams : F.fs string string) (params : Expr.params) :
-    cs c = Some {(Expr.ControlType cparams extparams params)} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {(Expr.VType τ)}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName ctrl, {(Expr.ControlType cps eps ps)}
-           => cs ctrl = Some {(Expr.ControlType cps eps ps)}
-         (*| Expr.CAName extrn, {(Expr.Extern cps { mthds })}
-           => cs extrn = Some {(Expr.Extern cps { mthds })}*)
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ Instance x of c<ts>(cargs)
-      ⊣ ⦗ eis, pis, x ↦ (extparams,params) ,, cis, pgis, fns, cs ⦘
-| type_instantiate_parser (p x : string)
-                         (ts : list Expr.t)
-                         (cparams : Expr.constructor_params)
-                         (cargs : Expr.constructor_args) 
-                         (extparams : F.fs string string)
-                         (params : Expr.params) :
-    cs p = Some {(Expr.ParserType cparams extparams params)} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {(Expr.VType τ)}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName prsr, {(Expr.ParserType cps eps ps)}
-           => cs prsr = Some {(Expr.ParserType cps eps ps)}
-         (*| Expr.CAName extrn, {(Expr.Extern cps { mthds })}
-           => cs extrn = Some {(Expr.Extern cps { mthds })}*)
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ Instance x of p<ts>(cargs)
-      ⊣ ⦗ eis, x ↦ (extparams,params) ,, pis, cis, pgis, fns, cs ⦘
-(*| type_instantiate_extern (e x : string)
-                         (cparams : Expr.constructor_params)
-                         (cargs : Expr.constructor_args) 
-                         (mthds : F.fs string Expr.arrowT) :
-                         cs e = Some {(Expr.Extern cparams { mthds })} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {(Expr.VType τ)}
-           => ⟦ \Delta , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName extrn, {(Expr.Extern cps { mthds })}
-           => cs extrn = Some {(Expr.Extern cps { mthds })}
-         | _, _ => False
-         end) cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis, \Delta ⦘
-      ⊢ Instance x of e(cargs) ⊣ ⦗ x ↦ mthds ,, eis, pis, cis, pgis, fns, cs ⦘ *)
-| type_instantiate_package (pkg x : string)
-                          (ts : list Expr.t)
-                          (cparams : Expr.constructor_params)
-                          (cargs : Expr.constructor_args)
-                          :
-    cs pkg = Some {(Expr.PackageType cparams)} ->
-    F.relfs
-      (fun carg cparam =>
-         match carg, cparam with
-         | Expr.CAExpr e, {(Expr.VType τ)}
-           => ⟦ [] , ∅ ⟧ ⊢ e ∈ τ
-         | Expr.CAName ctrl, {(Expr.ControlType cps eps ps)}
-           => cs ctrl = Some {(Expr.ControlType cps eps ps)}
-         | Expr.CAName prsr, {(Expr.ParserType cps eps ps)}
-           => cs prsr = Some {(Expr.ParserType cps eps ps)}
-         (*| Expr.CAName extrn, {(Expr.Extern cps { mthds })}
-           => cs extrn = Some {(Expr.Extern cps { mthds })}*)
-         | _, _ => False
-         end)
-      cargs cparams ->
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      (* TODO: correctly update package instance env *)
-      ⊢ Instance x of pkg<ts>(cargs) ⊣ ⦗ eis, pis, cis, (*x ↦ tt ,,*) pgis, fns, cs ⦘
-| type_control (c : string) (cparams : Expr.constructor_params)
+| type_instantiate_control
+    control_decl_name cparams cargs extern_params params :
+  cnstrs Γ control_decl_name =
+    Some (ControlType cparams extern_params params) ->
+  Forall2
+    (fun carg cparam =>
+       match carg, cparam with
+       | TopDecl.CAExpr e, TopDecl.EType τ
+         => {|type_vars:=0;types:=[]|} ⊢ₑ e ∈ τ
+       | TopDecl.CAName ctrl, TopDecl.ControlInstType eps ps
+         => nth_error (controls (insts_envs Γ)) ctrl = Some (eps,ps)
+       | TopDecl.CAName extn, TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _, _ => False
+       end) cargs cparams ->
+  Γ ⊢ₜTopDecl.Instantiate control_decl_name [] cargs
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs := cnstrs Γ
+      ; insts_envs :=
+        {| parsers := parsers (insts_envs Γ)
+        ; controls := (extern_params,params) :: controls (insts_envs Γ)
+        ; externs := externs (insts_envs Γ) |}
+      ; package_insts := package_insts Γ |}
+| type_instantiate_parser
+    parser_decl_name cparams cargs extern_params params :
+  cnstrs Γ parser_decl_name =
+    Some (ParserType cparams extern_params params) ->
+  Forall2
+    (fun carg cparam =>
+       match carg, cparam with
+       | TopDecl.CAExpr e, TopDecl.EType τ
+         => {|type_vars:=0;types:=[]|} ⊢ₑ e ∈ τ
+       | TopDecl.CAName prsr, TopDecl.ParserInstType eps ps
+         => nth_error (parsers (insts_envs Γ)) prsr = Some (eps,ps)
+       | TopDecl.CAName extn, TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _, _ => False
+       end) cargs cparams ->
+  Γ ⊢ₜTopDecl.Instantiate parser_decl_name [] cargs
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs := cnstrs Γ
+      ; insts_envs :=
+        {| controls := controls (insts_envs Γ)
+        ; parsers := (extern_params,params) :: parsers (insts_envs Γ)
+        ; externs := externs (insts_envs Γ) |}
+      ; package_insts := package_insts Γ |}
+| type_instantiate_package
+    package_decl_name cparams cargs :
+  cnstrs Γ package_decl_name = Some (PackageType cparams) ->
+  Forall2
+    (fun carg cparam =>
+       match carg, cparam with
+       | TopDecl.CAExpr e, TopDecl.EType τ
+         => {|type_vars:=0;types:=[]|} ⊢ₑ e ∈ τ
+       | TopDecl.CAName prsr, TopDecl.ParserInstType eps ps
+         => nth_error (parsers (insts_envs Γ)) prsr = Some (eps,ps)
+       | TopDecl.CAName ctrl, TopDecl.ControlInstType eps ps
+         => nth_error (controls (insts_envs Γ)) ctrl = Some (eps,ps)
+       | TopDecl.CAName pkge, TopDecl.PackageInstType => True
+       | TopDecl.CAName extn, TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _, _ => False
+       end) cargs cparams ->
+  Γ ⊢ₜTopDecl.Instantiate package_decl_name [] cargs
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs := cnstrs Γ
+      ; insts_envs := insts_envs Γ
+      ; package_insts := S (package_insts Γ) |}
+| type_instantiate_extern
+    (* TODO: How to represent extern types & type instantiations? *)
+    extern_decl_name extern_name cparams τs cargs methods :
+  Forall (t_ok 0) τs ->
+  cnstrs Γ extern_decl_name = Some (ExternType cparams extern_name) ->
+  Forall2
+    (fun carg cparam =>
+       match carg, cparam with
+       | TopDecl.CAExpr e, TopDecl.EType τ
+         => {|type_vars:=0;types:=[]|} ⊢ₑ e ∈ τ
+       | TopDecl.CAName extn, TopDecl.ExternInstType extern_type
+         => (* TODO:
+              How to represent extern types?
+              [nth_error (externs (insts_envs Γ)) extn = extern_type] *)
+           False
+       | _, _ => False
+       end)
+    cargs (map (tsub_cparam (gen_tsub τs)) cparams) ->
+  Γ ⊢ₜ TopDecl.Instantiate extern_decl_name τs cargs
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs := cnstrs Γ
+      ; insts_envs :=
+        {| controls := controls (insts_envs Γ)
+        ; parsers := parsers (insts_envs Γ)
+        ; externs := methods :: externs (insts_envs Γ) |}
+      ; package_insts := package_insts Γ |}
+(*| type_control (c : string) (cparams : Expr.constructor_params)
               (extparams : F.fs string string)
               (params : Expr.params) (body : Control.d)
               (apply_blk : Stmt.s) 
@@ -526,3 +548,6 @@ Inductive type_topdecl (Γ : top_type_env)
 where
 "Γ₁ '⊢ₜ' d ⊣ Γ₂"
   := (type_topdecl Γ₁ d Γ₂).
+
+Local Close Scope top_scope.
+Local Close Scope climate_scope.

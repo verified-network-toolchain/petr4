@@ -38,8 +38,6 @@ module Make_parse (Conf: Parse_config) = struct
         begin
           Format.eprintf "[%s] %s@\n%!" (Conf.green "Passed") p4_file;
           Format.printf "%a@\n%!" pretty prog;
-          Format.printf "----------@\n";
-          Format.printf "%s@\n%!" (prog |> Surface.program_to_yojson |> Yojson.Safe.pretty_to_string)
         end;
       `Ok prog
 
@@ -81,30 +79,14 @@ module Make_parse (Conf: Parse_config) = struct
     |> List.fold_left ~init:"" ~f:(^)
 
   let check_file (include_dirs : string list) (p4_file : string) 
-      (print_json : bool) (pretty_json : bool) (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
-      (export_file : string) (typed_json : bool) (gen_loc : bool) (verbose : bool) 
+      (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
+      (export_file : string) (gen_loc : bool) (verbose : bool) 
       (printp4 : bool) (printp4_file: string) : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog, renamer = Elaborate.elab prog in
       let _, typed_prog = Checker.check_program renamer prog in
-      begin
-        if print_json then
-          let json = Surface.program_to_yojson prog in
-          let to_string j =
-            if pretty_json then
-              Yojson.Safe.pretty_to_string j
-            else
-              Yojson.Safe.to_string j in
-          Format.printf "%s" (to_string json)
-        else
-          Format.printf "%a" pretty prog
-      end;
-      begin
-        if typed_json then
-          let json = P4light.program_to_yojson typed_prog in
-          Format.printf "%s@\n%!" (Yojson.Safe.pretty_to_string json)
-      end;
+      Format.printf "%a" pretty prog;
       begin
         if exportp4 || exportp4_ocaml || printp4 then
           (* let oc = open_out ofile in *)

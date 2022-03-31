@@ -205,8 +205,9 @@ Inductive constructor_type : Set :=
 | PackageType (** package types *)
     (constructor_parameters : list TopDecl.it)
 | ExternType (** extern types *)
+    (type_params : nat)
     (constructor_parameters : list TopDecl.it)
-    (extern_name : string).
+    (extern_name : string) (* TODO: methods? *).
 
 (** Available constructor signatures. *)
 Definition constructor_env : Set :=

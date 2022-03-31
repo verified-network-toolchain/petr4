@@ -29,31 +29,31 @@ Section Transformer.
        }
   *)
   Fixpoint summarize_stmtpt (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
-        (list P4String) :=
+        (list string) :=
     match stmt with
     | StatDirectApplication typ' _ args => [get_type_name typ']
     | StatBlock block => summarize_blk block
     | StatSwitch expr cases => concat (map summarize_ssc cases)
-    | StatInstantiation typ' args name init => [name]
+    | StatInstantiation typ' args name init => [P4String.str name]
     | _ => nil
     end
   with summarize_stmt (stmt: @Statement tags_t):
-      (list P4String) :=
+      (list string) :=
     match stmt with
     | MkStatement tags stmt typ => summarize_stmtpt tags stmt typ
     end
-  with summarize_blk (blk: @Block tags_t): (list P4String) :=
+  with summarize_blk (blk: @Block tags_t): (list string) :=
     match blk with
     | BlockEmpty tag => nil
     | BlockCons stmt blk' => summarize_stmt stmt ++ summarize_blk blk'
     end
-  with summarize_ssc (ssc: @StatementSwitchCase tags_t): (list P4String) :=
+  with summarize_ssc (ssc: @StatementSwitchCase tags_t): (list string) :=
     match ssc with
     | StatSwCaseAction tags label code => summarize_blk code
     | StatSwCaseFallThrough _ _ => nil
     end.
 
-  Definition state := list P4String.
+  Definition state := list string.
   Definition exception := unit.
   Definition monad := @state_monad state exception.
 
@@ -62,17 +62,16 @@ Section Transformer.
   Definition has {T: Type} (eqb: T -> T -> bool) (x: T) (l: list T): bool :=
     existsb (eqb x) l.
 
-  Definition equivb: P4String -> P4String -> bool := @P4String.equivb tags_t.
+  Definition equivb: string -> string -> bool := String.eqb.
 
-  Definition is_used (n: P4String): monad bool :=
+  Definition is_used (n: string): monad bool :=
     let* used_list := get_state in
     mret (has equivb n used_list).
 
-  Definition var_name (n: P4String) (cnt: N): P4String :=
-    if cnt =? 0%N then n else
-      let str := P4String.str n in P4String.Build_t _ default_tag (str ++ (N_to_string cnt))%string.
+  Definition var_name (n: string) (cnt: N): string :=
+    if cnt =? 0%N then n else (n ++ (N_to_string cnt))%string.
 
-  Fixpoint fresh' (n: P4String) (cnt: N) (fuel: nat): monad P4String :=
+  Fixpoint fresh' (n: string) (cnt: N) (fuel: nat): monad string :=
     match fuel with
     | O => error
     | S fuel =>
@@ -81,11 +80,11 @@ Section Transformer.
         if b then fresh' n (cnt+1) fuel else mret n'
     end.
 
-  Definition use (n: P4String): monad unit :=
+  Definition use (n: string): monad unit :=
     put_state (fun l => n :: l).
 
   (* In case of preformance issue, we can extract this function into native OCaml. *)
-  Definition fresh (n: P4String): monad P4String :=
+  Definition fresh (n: string): monad string :=
     let* used_list := get_state in
     let* n' := fresh' n 0 (1 + length used_list)%nat in
     let* _ := use n' in
@@ -175,7 +174,7 @@ Section Transformer.
   Section transform_stmt.
   Variable (LCurScope: list string -> Locator). (* LGlobal or LInstance *)
 
-    Fixpoint transform_stmtpt (e: env) (ns: list P4String) (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
+    Fixpoint transform_stmtpt (e: env) (ns: list string) (tags: tags_t) (stmt: @StatementPreT tags_t) (typ: StmType):
         monad (@Statement tags_t * env) :=
       match stmt with
       | StatMethodCall func type_args args =>
@@ -210,14 +209,14 @@ Section Transformer.
         let* cases' := sequence (map (transform_ssc e ns) cases) in
         mret (MkStatement tags (StatSwitch expr' cases') typ, e)
       | StatConstant typ' name value _ =>
-        let* name' := fresh name in
-        let loc := LCurScope (clear_list (ns ++ [name'])) in
+        let* name' := fresh (P4String.str name) in
+        let loc := LCurScope (ns ++ [name']) in
         let e' := IdentMap.set (P4String.str name) loc e in
         mret (MkStatement tags (StatConstant typ' name value loc) typ, e')
       | StatVariable typ' name init _ =>
-        let* name' :=  fresh name in
+        let* name' :=  fresh (P4String.str name) in
         let init' := option_map (transform_expr e) init in
-        let loc := LCurScope (clear_list (ns ++ [name'])) in
+        let loc := LCurScope (ns ++ [name']) in
         let e' := IdentMap.set (P4String.str name) loc e in
         mret (MkStatement tags (StatVariable typ' name init' loc) typ, e')
       | StatInstantiation typ' args name init =>
@@ -225,12 +224,12 @@ Section Transformer.
         let args' := transform_exprs e args in
         mret (MkStatement tags (StatInstantiation typ' args' name []) typ, e)
       end
-    with transform_stmt (e: env) (ns: list P4String) (stmt: @Statement tags_t):
+    with transform_stmt (e: env) (ns: list string) (stmt: @Statement tags_t):
            monad (@Statement tags_t * env) :=
            match stmt with
            | MkStatement tags stmt typ => transform_stmtpt e ns tags stmt typ
            end
-    with transform_blk (e: env) (ns: list P4String) (blk: @Block tags_t): monad (@Block tags_t) :=
+    with transform_blk (e: env) (ns: list string) (blk: @Block tags_t): monad (@Block tags_t) :=
            match blk with
            | BlockEmpty tag => mret (BlockEmpty tag)
            | BlockCons stmt blk0 =>
@@ -238,7 +237,7 @@ Section Transformer.
              let* blk0' := transform_blk e' ns blk0 in
              mret (BlockCons stmt' blk0')
            end
-    with transform_ssc (e: env) (ns: list P4String) (ssc: @StatementSwitchCase tags_t):
+    with transform_ssc (e: env) (ns: list string) (ssc: @StatementSwitchCase tags_t):
            monad (@StatementSwitchCase tags_t) :=
            match ssc with
            | StatSwCaseAction tags label code =>
@@ -255,12 +254,12 @@ Section Transformer.
   Definition with_empty_state {T} (m: monad T): monad T :=
     with_state nil m.
 
-  Definition declare_params (LCurScope: list string -> Locator) (e: env) (ns: list P4String)
+  Definition declare_params (LCurScope: list string -> Locator) (e: env) (ns: list string)
                             (params: list (@P4Parameter tags_t)): monad env :=
     let names := map get_param_name params in
-    let env_add e name :=
-      let loc := LCurScope (clear_list (ns ++ [name])) in
-      IdentMap.set (P4String.str name) loc e in
+    let env_add e (name : string) :=
+      let loc := LCurScope (ns ++ [name]) in
+      IdentMap.set name loc e in
     let e' := fold_left env_add names e in
     let* _ := sequence (map use names) in
     mret e'.
@@ -357,14 +356,14 @@ Section Transformer.
       monad (@Declaration tags_t * env) :=
     match decl with
     | DeclConstant tags typ name value =>
-      let* _ := use name in
+      let* _ := use (P4String.str name) in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclConstant tags typ name value, e')
     | DeclFunction tags ret name type_params params body =>
       let inner_monad := (
-        let* e' := declare_params LCurScope e [name] params in
-        let* body' := transform_blk LCurScope e' [name] body in
+        let* e' := declare_params LCurScope e [P4String.str name] params in
+        let* body' := transform_blk LCurScope e' [P4String.str name] body in
         mret body'
       ) in
       let* body' := with_empty_state inner_monad in
@@ -372,26 +371,26 @@ Section Transformer.
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclFunction tags ret name type_params params body', e')
     | DeclExternFunction tags ret name type_params params =>
-      let* _ := use name in
+      let* _ := use (P4String.str name) in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (decl, e')
     | DeclVariable tags typ name init =>
       let init' := option_map (transform_expr e) init in
-      let* _ := use name in
+      let* _ := use (P4String.str name) in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclVariable tags typ name init', e')
     | DeclValueSet tags typ size name =>
-      let* _ := use name in
+      let* _ := use (P4String.str name) in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclValueSet tags typ size name, e')
     | DeclAction tags name data_params ctrl_params body =>
       let inner_monad := (
-        let* e' := declare_params LCurScope e [name] data_params in
-        let* e'' := declare_params LCurScope e [name] ctrl_params in
-        let* body' := transform_blk LCurScope e'' [name] body in
+        let* e' := declare_params LCurScope e [P4String.str name] data_params in
+        let* e'' := declare_params LCurScope e [P4String.str name] ctrl_params in
+        let* body' := transform_blk LCurScope e'' [P4String.str name] body in
         mret body'
       ) in
       let* body' := with_empty_state inner_monad in
@@ -474,7 +473,7 @@ Section Transformer.
       mret (DeclControl tags name type_params params cparams locals' apply', e')
     | DeclInstantiation tags typ args name init =>
       let* (init', _) := transform_decls LCurScope e init in
-      let* _ := use name in
+      let* _ := use (P4String.str name) in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in
       mret (DeclInstantiation tags typ args name init', e')

@@ -33,22 +33,22 @@ Inductive type_expr (Γ : expr_type_env)
   (Npos lo <= Npos hi < w)%N ->
   numeric_width w τ ->
   Γ ⊢ₑ e ∈ τ ->
-  Γ ⊢ₑ Expr.Slice e hi lo ∈ Expr.TBit (Npos (hi - lo + 1)%positive)
+  Γ ⊢ₑ Expr.Slice e hi lo ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
 | type_cast τ τ' e :
-    proper_cast τ' τ ->
-    t_ok (type_vars Γ) τ' ->
-    t_ok (type_vars Γ) τ ->
-    Γ ⊢ₑ e ∈ τ' ->
-    Γ ⊢ₑ Expr.Cast τ e ∈ τ
+  proper_cast τ' τ ->
+  t_ok (type_vars Γ) τ' ->
+  t_ok (type_vars Γ) τ ->
+  Γ ⊢ₑ e ∈ τ' ->
+  Γ ⊢ₑ Expr.Cast τ e ∈ τ
 | type_uop op τ τ' e :
-    uop_type op τ τ' ->
-    Γ ⊢ₑ e ∈ τ ->
-    Γ ⊢ₑ Expr.Uop τ' op e ∈ τ'
+  uop_type op τ τ' ->
+  Γ ⊢ₑ e ∈ τ ->
+  Γ ⊢ₑ Expr.Uop τ' op e ∈ τ'
 | type_bop op τ₁ τ₂ τ e₁ e₂ :
-    bop_type op τ₁ τ₂ τ ->
-    Γ ⊢ₑ e₁ ∈ τ₁ ->
-    Γ ⊢ₑ e₂ ∈ τ₂ ->
-    Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ
+  bop_type op τ₁ τ₂ τ ->
+  Γ ⊢ₑ e₁ ∈ τ₁ ->
+  Γ ⊢ₑ e₂ ∈ τ₂ ->
+  Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ
 | type_member τ x e τs b :
   nth_error τs x = Some τ ->
   t_ok (type_vars Γ) τ ->
@@ -80,7 +80,7 @@ Inductive type_pat : Parser.pat -> Expr.t -> Prop :=
   type_pat (w PW n) (Expr.TBit w)
 | type_pint w z :
   type_pat (w PS z) (Expr.TInt w)
-| type_ptup ps ts :
+| type_pstruct ps ts :
   Forall2 type_pat ps ts ->
   type_pat (Parser.Struct ps) (Expr.TStruct ts false).
 Local Close Scope pat_scope.

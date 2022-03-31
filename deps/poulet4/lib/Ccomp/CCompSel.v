@@ -982,6 +982,14 @@ Section CCompSel.
           end
         else error_ret (Sskip, env)
       else 
+      if (String.eqb f "mark_to_drop") then
+        match F.get "standard_metadata" args with
+        | Some (PAInOut arg) =>
+          let* (elist, env') := CTranslateDirExprList args env in
+          error_ret (Scall None mark_to_drop_function elist, env')
+        | _ => err "no inout argument named standard_metadata"
+        end
+      else
       error_ret (Sskip, env) (*TODO: implement, need to be target specific.*)
 
     | Stmt.SReturn (Some e) i =>
@@ -1680,7 +1688,31 @@ Section CCompSel.
    (* CTranslateTopParser d env *)
   end.
 
-  Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program) := 
+  Fixpoint remove_composite (comps: list Ctypes.composite_definition) (name : ident) :=
+    match comps with 
+    | [] => comps
+    | (Composite id su m a) :: tl => if (Pos.eqb id name) then 
+                                        tl
+                                     else (Composite id su m a) :: (remove_composite tl name)
+    end. 
+  (* Fixpoint remove_public (comps: list Ctypes.composite_definition) (name : ident) :=
+    match comps with 
+    | [] => comps
+    | (Composite id su m a) :: tl => if (Pos.eqb id name) then 
+                                        tl
+                                      else (Composite id su m a) :: (remove_composite tl name)
+    end.  *)
+  (* Definition RemoveStdMetaDecl (prog: Clight.program) : Clight.program :=
+    {|
+      prog_defs := prog.(prog_defs);
+      prog_public := prog.(prog_public);
+      prog_main := prog.(prog_main);
+      prog_types := remove_composite prog.(prog_types) ($"standard_metadata_t");
+      prog_comp_env := prog.(prog_comp_env);
+      prog_comp_env_eq := _
+    |}. *)
+
+  Definition Compile (prog: TopDecl.d tags_t) : Errors.res (Clight.program*ident*ident) := 
     let init_env := CCompEnv.newClightEnv tags_t in
     match CCollectTypVar prog init_env with 
     | inr m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
@@ -1697,6 +1729,7 @@ Section CCompSel.
         => let (id, f) := x in 
         (id, AST.Gfun(Ctypes.Internal f))) f_decls in
       let typ_decls := CCompEnv.get_composites tags_t env_all_declared in
+      let typ_decls := remove_composite typ_decls ($"standard_metadata_t") in
       (* There's no easy way of deleting the main_decl completely *)
       (* Mainly because clight expect a program to have a main function *)
       (* if we don't have a main function, I'm not sure how to print the result out
@@ -1714,19 +1747,22 @@ Section CCompSel.
       let pubids := List.map (fun (x: ident * globdef (fundef Clight.function) type) =>
                               let (id, _) := x in 
                               id) globdecl in
-      let res_prog : Errors.res (program function) := make_program 
-        typ_decls globdecl pubids main_id
-      in
-      res_prog
+      let v1model_H := get_H tags_t env_all_declared in
+      let v1model_M := get_M tags_t env_all_declared in
+      match (make_program typ_decls globdecl pubids main_id) with
+      | @Errors.Error (_) em => Errors.Error em
+      | Errors.OK res_p => 
+        Errors.OK (res_p, v1model_H, v1model_M)
+      end
       end
     end
     end.
 
-  Definition Compile_print (prog: TopDecl.d tags_t): unit := 
+  (* Definition Compile_print (prog: TopDecl.d tags_t): unit := 
     match Compile prog with
     | Errors.Error e => tt
     | Errors.OK prog => print_Clight prog
-    end.  
+    end.   *)
 End CCompSel.
 
 (* Require Poulet4.Compile.ToP4cub.

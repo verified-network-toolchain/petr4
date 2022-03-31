@@ -108,7 +108,7 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
   if(!result){
     printf("compute checksum failed");
   }else{
-  result = deparser(&pout, h);
+    result = deparser(&pout, h);
   if(!result){
     printf("deparser failed");
   }else{

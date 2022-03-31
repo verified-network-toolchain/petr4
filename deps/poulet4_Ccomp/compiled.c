@@ -20,61 +20,60 @@ void dummy_main(void)
   /*skip*/;
 }
 
-_Bool parser(struct packet_in *_p_e_t_r_4_0b101000, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101010, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101100, struct standard_metadata_t *_p_e_t_r_4_0b101110)
+_Bool parser(struct packet_in *_p_e_t_r_4_0b100111, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101001, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101011, struct standard_metadata_t *_p_e_t_r_4_0b101101)
 {
-  struct standard_metadata_t _p_e_t_r_4_0b101111;
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b101101;
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b101011;
-  struct packet_in _p_e_t_r_4_0b101001;
-  _p_e_t_r_4_0b101001 = *_p_e_t_r_4_0b101000;
-  _p_e_t_r_4_0b101011 = *_p_e_t_r_4_0b101010;
-  _p_e_t_r_4_0b101101 = *_p_e_t_r_4_0b101100;
-  _p_e_t_r_4_0b101111 = *_p_e_t_r_4_0b101110;
+  struct standard_metadata_t _p_e_t_r_4_0b101110;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b101100;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b101010;
+  struct packet_in _p_e_t_r_4_0b101000;
+  _p_e_t_r_4_0b101000 = *_p_e_t_r_4_0b100111;
+  _p_e_t_r_4_0b101010 = *_p_e_t_r_4_0b101001;
+  _p_e_t_r_4_0b101100 = *_p_e_t_r_4_0b101011;
+  _p_e_t_r_4_0b101110 = *_p_e_t_r_4_0b101101;
   start
-    (&_p_e_t_r_4_0b101001, &_p_e_t_r_4_0b101011, &_p_e_t_r_4_0b101101,
-     &_p_e_t_r_4_0b101111);
-  *_p_e_t_r_4_0b101000 = _p_e_t_r_4_0b101001;
-  *_p_e_t_r_4_0b101010 = _p_e_t_r_4_0b101011;
-  *_p_e_t_r_4_0b101100 = _p_e_t_r_4_0b101101;
-  *_p_e_t_r_4_0b101110 = _p_e_t_r_4_0b101111;
+    (&_p_e_t_r_4_0b101000, &_p_e_t_r_4_0b101010, &_p_e_t_r_4_0b101100,
+     &_p_e_t_r_4_0b101110);
+  *_p_e_t_r_4_0b100111 = _p_e_t_r_4_0b101000;
+  *_p_e_t_r_4_0b101001 = _p_e_t_r_4_0b101010;
+  *_p_e_t_r_4_0b101011 = _p_e_t_r_4_0b101100;
+  *_p_e_t_r_4_0b101101 = _p_e_t_r_4_0b101110;
   return 1;
 }
 
-_Bool start(struct packet_in *_p_e_t_r_4_0b101000, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101010, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101100, struct standard_metadata_t *_p_e_t_r_4_0b101110)
+_Bool start(struct packet_in *_p_e_t_r_4_0b100111, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101001, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b101011, struct standard_metadata_t *_p_e_t_r_4_0b101101)
 {
   /*skip*/;
   return 1;
 }
 
-_Bool deparser(struct packet_out *_p_e_t_r_4_0b100010, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100)
+_Bool deparser(struct packet_out *_p_e_t_r_4_0b100001, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100011)
 {
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100101;
-  struct packet_out _p_e_t_r_4_0b100011;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100;
+  struct packet_out _p_e_t_r_4_0b100010;
   /*skip*/;
-  _p_e_t_r_4_0b100011 = *_p_e_t_r_4_0b100010;
-  _p_e_t_r_4_0b100101 = _p_e_t_r_4_0b100100;
+  _p_e_t_r_4_0b100010 = *_p_e_t_r_4_0b100001;
+  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100011;
   /*skip*/;
-  *_p_e_t_r_4_0b100010 = _p_e_t_r_4_0b100011;
-  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100101;
+  *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100011 = _p_e_t_r_4_0b100100;
   return 1;
 }
 
-_Bool compute(struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b11101, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b11111)
+_Bool compute(struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b11100, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b11110)
 {
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100000;
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b11110;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b11111;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b11101;
   /*skip*/;
-  _p_e_t_r_4_0b11110 = *_p_e_t_r_4_0b11101;
-  _p_e_t_r_4_0b100000 = *_p_e_t_r_4_0b11111;
+  _p_e_t_r_4_0b11101 = *_p_e_t_r_4_0b11100;
+  _p_e_t_r_4_0b11111 = *_p_e_t_r_4_0b11110;
   /*skip*/;
-  *_p_e_t_r_4_0b11101 = _p_e_t_r_4_0b11110;
-  *_p_e_t_r_4_0b11111 = _p_e_t_r_4_0b100000;
+  *_p_e_t_r_4_0b11100 = _p_e_t_r_4_0b11101;
+  *_p_e_t_r_4_0b11110 = _p_e_t_r_4_0b11111;
   return 1;
 }
 
 _Bool egress(struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b10101, struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b10111, struct standard_metadata_t *_p_e_t_r_4_0b11001)
 {
-  struct BitVec _p_e_t_r_4_0b11011;
   struct standard_metadata_t _p_e_t_r_4_0b11010;
   struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b11000;
   struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b10110;
@@ -83,8 +82,6 @@ _Bool egress(struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b10101, struct _p_e_t_r_4_0b1 *_
   _p_e_t_r_4_0b11000 = *_p_e_t_r_4_0b10111;
   _p_e_t_r_4_0b11010 = *_p_e_t_r_4_0b11001;
   /*skip*/;
-  init_bitvec(&_p_e_t_r_4_0b11011, 0, 9, _p_e_t_r_4_0b10011);
-  *_p_e_t_r_4_0b11010.egress_port = _p_e_t_r_4_0b11011;
   *_p_e_t_r_4_0b10101 = _p_e_t_r_4_0b10110;
   *_p_e_t_r_4_0b10111 = _p_e_t_r_4_0b11000;
   *_p_e_t_r_4_0b11001 = _p_e_t_r_4_0b11010;
@@ -123,24 +120,24 @@ _Bool verify(struct _p_e_t_r_4_0b1 *_p_e_t_r_4_0b111, struct _p_e_t_r_4_0b1 *_p_
   return 1;
 }
 
-_Bool $DUMMY_ACTION(struct packet_out *_p_e_t_r_4_0b100010, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100)
+_Bool $DUMMY_ACTION(struct packet_out *_p_e_t_r_4_0b100001, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100011)
 {
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100101;
-  struct packet_out _p_e_t_r_4_0b100011;
-  _p_e_t_r_4_0b100011 = *_p_e_t_r_4_0b100010;
-  _p_e_t_r_4_0b100101 = _p_e_t_r_4_0b100100;
-  *_p_e_t_r_4_0b100010 = _p_e_t_r_4_0b100011;
-  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100101;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100;
+  struct packet_out _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100010 = *_p_e_t_r_4_0b100001;
+  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100011;
+  *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100011 = _p_e_t_r_4_0b100100;
 }
 
-_Bool NoAction(struct packet_out *_p_e_t_r_4_0b100010, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100)
+_Bool NoAction(struct packet_out *_p_e_t_r_4_0b100001, struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100011)
 {
-  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100101;
-  struct packet_out _p_e_t_r_4_0b100011;
-  _p_e_t_r_4_0b100011 = *_p_e_t_r_4_0b100010;
-  _p_e_t_r_4_0b100101 = _p_e_t_r_4_0b100100;
-  *_p_e_t_r_4_0b100010 = _p_e_t_r_4_0b100011;
-  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100101;
+  struct _p_e_t_r_4_0b1 _p_e_t_r_4_0b100100;
+  struct packet_out _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100010 = *_p_e_t_r_4_0b100001;
+  _p_e_t_r_4_0b100100 = _p_e_t_r_4_0b100011;
+  *_p_e_t_r_4_0b100001 = _p_e_t_r_4_0b100010;
+  _p_e_t_r_4_0b100011 = _p_e_t_r_4_0b100100;
 }
 
 

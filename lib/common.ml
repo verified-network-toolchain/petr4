@@ -150,7 +150,7 @@ module Make_parse (Conf: Parse_config) = struct
       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
 
  let print_type_def (oc) (struc : string) (typ : string) : unit = 
-    Printf.fprintf oc "typedef %s %s; \n" struc typ
+    Printf.fprintf oc "typedef struct %s %s; \n" struc typ
 
  let compile_file (include_dirs : string list) (p4_file : string) 
       (normalize : bool)

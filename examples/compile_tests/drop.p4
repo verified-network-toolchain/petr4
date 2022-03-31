@@ -26,7 +26,8 @@ control MyIngress(inout headers hdr,
         //headers h;
         //h.i = true;
         //hdr = h;
-        standard_metadata.egress_spec = 9w9;
+        //standard_metadata.egress_spec = 9w9;
+        mark_to_drop(standard_metadata);
     }
 }
 

@@ -435,7 +435,8 @@ Inductive type_topdecl (Γ : top_type_env)
     (* TODO: How to represent extern types & type instantiations? *)
     extern_decl_name extern_name cparams τs cargs methods :
   Forall (t_ok 0) τs ->
-  cnstrs Γ extern_decl_name = Some (ExternType cparams extern_name) ->
+  cnstrs Γ extern_decl_name =
+    Some (ExternType (List.length τs) cparams extern_name) ->
   Forall2
     (fun carg cparam =>
        match carg, cparam with
@@ -457,57 +458,58 @@ Inductive type_topdecl (Γ : top_type_env)
         ; parsers := parsers (insts_envs Γ)
         ; externs := methods :: externs (insts_envs Γ) |}
       ; package_insts := package_insts Γ |}
-(*| type_control (c : string) (cparams : Expr.constructor_params)
-              (extparams : F.fs string string)
-              (params : Expr.params) (body : Control.d)
-              (apply_blk : Stmt.s) 
-              (Γ' Γ'' Γ''' : Gamma) (sg : signal)
-              (cis' : cienv) (eis' : eienv)
-              (tbls : tblenv) (acts : aenv) :
-    cbind_all cparams (∅,pgis,cis,pis,eis) = (Γ',pgis,cis',pis,eis') ->
-    (* Control declarations. *)
-    ⦅ [], ∅, fns, cis', eis', Γ' ⦆
-      ⊢ body ⊣ ⦅ acts, tbls ⦆ ->
-    bind_all params Γ' = Γ'' ->
-    (* Apply block. *)
-    ⦃ fns, [], Γ'' ⦄
-      ApplyBlock tbls acts cis eis ⊢ apply_blk ⊣ ⦃ Γ''', sg ⦄ ->
-    let ctor := Expr.CTControl cparams extparams params in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ control c (cparams)(extparams)(params) apply { apply_blk } where { body }
-        ⊣ ⦗ eis, pis, cis, pgis, fns, c ↦ ctor,, cs ⦘
-| type_parser (p : string)
-             (cparams : Expr.constructor_params)
-             (extparams : F.fs string string)
-             (params : Expr.params) (start_state : Parser.state_block)
-             (states : F.fs string (Parser.state_block)) 
-             (pis' : pienv) (eis' : eienv)
-             (Γ' Γ'' : Gamma) :
-    let sts := F.fold
-                 (fun st _ acc => st :: acc) states [] in
-    cbind_all cparams (∅,pgis,cis,pis,eis) = (Γ',pgis,cis,pis',eis') ->
-    bind_all params Γ' = Γ'' ->
-    ⟅⟅ fns, pis', eis', sts, [], Γ'' ⟆⟆ ⊢ start_state ->
-    F.predfs_data
-      (fun pst => ⟅⟅ fns, pis', eis', sts, [], Γ'' ⟆⟆ ⊢ pst) states ->
-    let prsr := Expr.CTParser cparams extparams params in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ parser p (cparams)(extparams)(params) start:= start_state { states }
-      ⊣ ⦗ eis, pis, cis, pgis, fns, p ↦ prsr,, cs ⦘*)
-(*| type_extern (e : string)
-             (cparams : Expr.constructor_params)
-             (mthds : F.fs string Expr.arrowT) :
-    let extrn := {(Expr.Extern cparams { mthds })} in
-    ⦗ cs, fns, pgis, cis, pis, eis, \Delta ⦘
-      ⊢ extern e (cparams) { mthds }
-      ⊣ ⦗ eis, pis, cis, pgis, fns, e ↦ extrn,, cs ⦘ *)
-(*| type_package (pkg : string)
-              (TS : list string)
-              (cparams : Expr.constructor_params) :
-    let pkge := {(Expr.PackageType cparams)} in
-    ⦗ cs, fns, pgis, cis, pis, eis ⦘
-      ⊢ package pkg <TS> (cparams)
-      ⊣ ⦗ eis, pis, cis, pgis, fns, pkg ↦ pkge,, cs ⦘*)
+| type_control
+    control_name cparams extern_params params
+    control_decls apply_blk tables actions Γₑ Γ' sig insts :
+  (* TODO: check params are [t_ok []] *)
+  (Γₑ,insts) = cbind_all (insts_envs Γ) cparams ->
+  {| cexpr_env := {|type_vars:=0;types:=bind_all params Γₑ|}
+  ; cfuncts := tfuncts Γ
+  ; ccntrl_insts := controls insts
+  ; cextrn_insts := externs insts
+  ; actns := ∅ ; tbls := [] |}
+    ⊢ᵪ control_decls ⊣ actions ∧ tables ->
+  {| expr_env := {|type_vars:=0;types:=bind_all params Γₑ|}
+  ; sfuncts := tfuncts Γ
+  ; cntx := CApplyBlock tables actions (controls insts) (externs insts) |}
+    ⊢ₛ apply_blk ⊣ Γ' ↓ sig ->
+  Γ ⊢ₜ
+    TopDecl.Control
+    control_name cparams extern_params
+    params control_decls apply_blk
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs :=
+        control_name ↦ ControlType cparams extern_params params ,, cnstrs Γ
+      ; insts_envs := insts_envs Γ
+      ; package_insts := package_insts Γ |}
+| type_parser
+    parser_decl_name cparams extern_params params
+    start_state states Γₑ insts :
+  (* TODO: check params are [t_ok []] *)
+  (Γₑ,insts) = cbind_all (insts_envs Γ) cparams ->
+  Forall
+    (type_parser_state
+       (tfuncts Γ) (parsers insts)
+       (externs insts) (List.length states)
+       {|type_vars:=0;types:=bind_all params Γₑ|})
+    (start_state :: states) ->
+  Γ ⊢ₜ TopDecl.Parser
+    parser_decl_name cparams extern_params params
+    start_state states
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs :=
+        parser_decl_name ↦ ParserType cparams extern_params params ,, cnstrs Γ
+      ; insts_envs := insts_envs Γ
+      ; package_insts := package_insts Γ |}
+| type_extern
+    extern_name type_params cparams methods :
+  (* TODO: check types as [t_ok] *)
+  Γ ⊢ₜ TopDecl.Extern extern_name type_params cparams methods
+    ⊣ {| tfuncts := tfuncts Γ
+      ; cnstrs :=
+        extern_name ↦ ExternType type_params cparams extern_name ,, cnstrs Γ
+      ; insts_envs := insts_envs Γ
+      ; package_insts := package_insts Γ |}
 | type_function function_name type_params arrow body Γ' sig :
   good_signal arrow sig ->
   {| sfuncts := tfuncts Γ

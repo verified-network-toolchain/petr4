@@ -269,20 +269,20 @@ Module TopDecl.
       (cparams : constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
       (params : Expr.params)       (** apply block params *)
-      (body : Control.d ) (apply_blk : Stmt.s )
+      (body : Control.d) (apply_blk : Stmt.s )
   (** control declarations *)
   | Parser
       (parser_name : string)
       (cparams : constructor_params) (** constructor params *)
       (eparams : list string)      (** runtime extern params *)
       (params : Expr.params)              (** invocation params *)
-      (start : Parser.state_block ) (** start state *)
-      (states : list (Parser.state_block )) (** parser states *)
+      (start : Parser.state_block) (** start state *)
+      (states : list (Parser.state_block)) (** parser states *)
   (** parser declaration *)
   | Funct
         (function_name : string)
         (type_params : nat)
-        (signature : Expr.arrowT) (body : Stmt.s )
+        (signature : Expr.arrowT) (body : Stmt.s)
   (** function declaration *)
   | Seq (d1 d2 : d) .
 End TopDecl.

@@ -119,7 +119,7 @@ module PreEbpfFilter : Target = struct
 
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
-    let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
+    let main = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="main"}}) env) st in
     let vs = assert_package main |> snd in
     let parser = List.Assoc.find_exn vs "prs"  ~equal:String.equal |> fun x -> State.find_heap x st in
     let filter = List.Assoc.find_exn vs "filt" ~equal:String.equal |> fun x -> State.find_heap x st in
@@ -128,11 +128,11 @@ module PreEbpfFilter : Target = struct
       | VParser {pparams=ps;_} -> ps
       | _ -> failwith "parser is not a parser object" in
     let vpkt = VRuntime {loc = State.packet_location; obj_name = "packet_in"; } in
-    let pkt_name = Types.BareName (Info.dummy, "packet") in
+    let pkt_name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"}} in
     let hdr = init_val_of_typ env (List.nth_exn params 1).typ in
-    let hdr_name = Types.BareName (Info.dummy, "headers") in
+    let hdr_name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="headers"}} in
     let accept = VBool (false) in
-    let accept_name = Types.BareName (Info.dummy, "accept") in
+    let accept_name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="accept"}} in
     let vpkt_loc, hdr_loc, accept_loc = 
       State.fresh_loc (), State.fresh_loc (), State.fresh_loc () in
     let st = st
@@ -149,11 +149,11 @@ module PreEbpfFilter : Target = struct
               |> insert_typ accept_name Type.Bool) in
     let open Expression in
     let pkt_expr =
-      Some (Info.dummy, {expr = Name pkt_name; dir = InOut; typ = (List.nth_exn params 0).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=pkt_name}; dir = InOut; typ = (List.nth_exn params 0).typ; tags = Info.dummy} in
     let hdr_expr =
-      Some (Info.dummy, {expr = Name hdr_name; dir = InOut; typ = (List.nth_exn params 1).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=hdr_name}; dir = InOut; typ = (List.nth_exn params 1).typ; tags = Info.dummy} in
     let accept_expr =
-      Some (Info.dummy, {expr = Name accept_name; dir = InOut; typ = Bool}) in
+      Some {expr = Name {tags=Info.dummy; name=accept_name}; dir = InOut; typ = Bool; tags = Info.dummy} in
     let (st,state, _) =
       app ctrl env st SContinue parser [pkt_expr; hdr_expr] in
     match state with 

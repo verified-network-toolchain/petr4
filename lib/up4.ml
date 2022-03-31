@@ -126,7 +126,7 @@ module PreUp4Filter : Target = struct
   let helper (param_string : loc) (param_type : Type.t) (env : env) (st : state)
     : value * Types.name * loc * state * env =
     let param_value = init_val_of_typ env param_type in 
-    let param_name = Types.BareName (Info.dummy, param_string) in
+    let param_name = Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string=param_string}} in
     let param_loc = State.fresh_loc () in 
     let st = State.insert_heap param_loc param_value st in 
     let env = EvalEnv.insert_val param_name param_loc env in
@@ -139,7 +139,7 @@ module PreUp4Filter : Target = struct
   let eval_pipeline (ctrl : ctrl) (env : env) (st : state) (pkt : pkt)
       (app : state apply) : state * env * pkt option =
     (* Get main *)
-    let main = State.find_heap (EvalEnv.find_val (BareName (Info.dummy, "main")) env) st in
+    let main = State.find_heap (EvalEnv.find_val (BareName {tags=Info.dummy; name={tags=Info.dummy; string="main"}}) env) st in
     (* Get arguments passed into main *)
     let vs = assert_package main |> snd in
     (* Get Package parameters *)
@@ -154,10 +154,10 @@ module PreUp4Filter : Target = struct
     let deparse_params = (assert_control deparser).cparams in 
     ignore deparse_params;
     let vpkt, pkt_name, vpkt_loc = VRuntime {loc = State.packet_location; obj_name = "packet_in"; }, 
-                                   Types.BareName (Info.dummy, "packet"),
+                                   Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"}},
                                    State.fresh_loc() in 
     let im, im_name, im_loc = VRuntime {loc = im_t_location; obj_name = "im_t"; }, 
-                              Types.BareName (Info.dummy, "im"),
+                              Types.BareName {tags=Info.dummy; name={tags=Info.dummy; string="im"}},
                               State.fresh_loc() in
     let st = st
              |> State.insert_heap vpkt_loc vpkt
@@ -180,19 +180,19 @@ module PreUp4Filter : Target = struct
       helper "out_param" (List.nth_exn control_params 3).typ env st in
     let open Expression in
     let pkt_expr = 
-      Some (Info.dummy, {expr = Name pkt_name; dir = Directionless; typ = (List.nth_exn params 0).typ}) in
+      Some {expr = Name {tags=Info.dummy; name =pkt_name}; dir = Directionless; typ = (List.nth_exn params 0).typ; tags = Info.dummy} in
     let im_expr = 
-      Some (Info.dummy, {expr = Name im_name; dir = Directionless; typ = (List.nth_exn params 1).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=im_name}; dir = Directionless; typ = (List.nth_exn params 1).typ; tags = Info.dummy} in
     let hdrs_expr =
-      Some (Info.dummy, {expr = Name hdrs_name; dir = Out; typ = (List.nth_exn params 2).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=hdrs_name}; dir = Out; typ = (List.nth_exn params 2).typ; tags = Info.dummy} in
     let meta_expr =
-      Some (Info.dummy, {expr = Name meta_name; dir = InOut; typ = (List.nth_exn params 3).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=meta_name}; dir = InOut; typ = (List.nth_exn params 3).typ; tags = Info.dummy} in
     let in_expr =
-      Some (Info.dummy, {expr = Name in_p_name; dir = In; typ = (List.nth_exn params 4).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=in_p_name}; dir = In; typ = (List.nth_exn params 4).typ; tags = Info.dummy} in
     let inout_expr =
-      Some (Info.dummy, {expr = Name inout_p_name; dir = InOut; typ = (List.nth_exn params 5).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=inout_p_name}; dir = InOut; typ = (List.nth_exn params 5).typ; tags = Info.dummy} in
     let out_expr = 
-      Some (Info.dummy, {expr = Name out_p_name; dir = Out; typ = (List.nth_exn control_params 4).typ}) in
+      Some {expr = Name {tags=Info.dummy; name=out_p_name}; dir = Out; typ = (List.nth_exn control_params 4).typ; tags = Info.dummy} in
     (* Go through micro parser *)
     let (st,signal, _) =
       app ctrl env st SContinue parser [pkt_expr; im_expr; hdrs_expr; meta_expr; in_expr; inout_expr] in
@@ -215,7 +215,7 @@ module PreUp4Filter : Target = struct
         else
           let vpkt' = VRuntime { loc = State.packet_location; obj_name = "packet_out"; } in
           let st = State.insert_heap vpkt_loc vpkt' st in
-          let env = EvalEnv.insert_typ (BareName (Info.dummy, "packet")) 
+          let env = EvalEnv.insert_typ (BareName {tags=Info.dummy; name={tags=Info.dummy; string="packet"}}) 
               (List.nth_exn deparse_params 0).typ 
               env in
           (* Go through micro deparser *)

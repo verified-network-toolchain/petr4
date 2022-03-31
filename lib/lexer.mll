@@ -82,11 +82,11 @@ let strip_prefix s =
   assert (length > 2);
   String.sub s 2 (length - 2)
 
-let parse_int n info =
+let parse_int n tags =
   let value = Bigint.of_string (sanitize n) in
-  (info, P4Int.{ value; width_signed=None })
+  P4Int.{ value; width_signed=None; tags = tags }
 
-let parse_width_int s n info =
+let parse_width_int s n tags =
   let l_s = String.length s in
   let width = String.sub s 0 (l_s - 1) in
   let sign = String.sub s (l_s - 1) 1 in
@@ -101,7 +101,7 @@ let parse_width_int s n info =
     | _ -> 
       raise (Error "Illegal integer constant")
   in
-  (info, P4Int.{value; width_signed })
+  P4Int.{value; width_signed; tags = tags }
 }
 
 let name = ['A'-'Z' 'a'-'z' '_'] ['A'-'Z' 'a'-'z' '0'-'9' '_']*
@@ -118,14 +118,14 @@ rule tokenize = parse
   | "/*"
       { match multiline_comment None lexbuf with 
          | None -> tokenize lexbuf
-         | Some info -> PRAGMA_END (info) }
+         | Some tags -> PRAGMA_END (tags) }
   | "//"
       { singleline_comment lexbuf; tokenize lexbuf }
   | '\n'
       { newline lexbuf; PRAGMA_END(info lexbuf) }
   | '"'
       { let str, end_info = (string lexbuf) in
-        STRING_LITERAL (Info.merge (info lexbuf) end_info, str) }
+        STRING_LITERAL P4String.{tags = Info.merge (info lexbuf) end_info; string = str} }
   | whitespace
       { tokenize lexbuf }
   | '#'
@@ -241,7 +241,7 @@ rule tokenize = parse
   | "_"
       { DONTCARE (info lexbuf) }
   | name
-      { NAME (info lexbuf, Lexing.lexeme lexbuf) }
+      { NAME P4String.{ tags = info lexbuf; string = Lexing.lexeme lexbuf} }
   | "<="
       { LE (info lexbuf) }
   | ">="
@@ -319,7 +319,7 @@ rule tokenize = parse
   | eof
       { END (info lexbuf) }
   | _
-      { UNEXPECTED_TOKEN(info lexbuf, lexeme lexbuf) }
+      { UNEXPECTED_TOKEN P4String.{tags = info lexbuf; string = lexeme lexbuf} }
       
 and string = parse
   | eof

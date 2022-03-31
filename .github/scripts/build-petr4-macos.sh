@@ -40,5 +40,6 @@ opam install \
 # build petr4
 dune build --profile release
 dune install
+make ci-test
 
 

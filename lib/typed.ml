@@ -15,7 +15,7 @@ let eq_dir d1 d2 =
   | Directionless, Directionless -> true
   | _ -> false
 
-type 'a info = 'a Types.info [@@deriving sexp,show,yojson]
+(* type 'a info = 'a Types.info [@@deriving sexp,show,yojson] *)
 
 module Annotation = Types.Annotation
 
@@ -45,20 +45,20 @@ end = struct
     (* ignoring annotations for now... *)
     { direction=d1;
       typ=t1;
-      variable=_,s1; _ }
+      variable=s1; _ }
     { direction=d2;
       typ=t2;
-      variable=_,s2; _ } =
+      variable=s2; _ } =
       eq_dir d1 d2 &&
       Type.eq t1 t2 &&
-      Base.String.equal s1 s2
+      Base.String.equal s1.string s2.string
 
   let is_optional {annotations; _} =
     let open Annotation in
     let is_opt ann =
-      match snd ann with
-      | {name = _, name; body = _, Empty} ->
-         name = "optional"
+      match ann with
+      | {tags = _; name; body = Empty _} ->
+         name.string = "optional"
       | _ -> false
     in
     List.exists is_opt annotations

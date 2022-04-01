@@ -16,6 +16,7 @@ module P4P4info = P4info
 open Core_kernel
 module P4info = P4P4info
 
+
 module type Parse_config = sig
   val red: string -> string
   val green: string -> string
@@ -168,6 +169,9 @@ module Make_parse (Conf: Parse_config) = struct
      end
    else light
 
+ let print_type_def (oc) (struc : string) (typ : string) : unit = 
+    Printf.fprintf oc "typedef struct %s %s; \n" struc typ
+
  let simpl_expr ~if_:do_simpl_expr light =
    if do_simpl_expr then
      Poulet4.SimplExpr.transform_prog P4info.dummy light
@@ -233,8 +237,14 @@ module Make_parse (Conf: Parse_config) = struct
      | [] ->
        (* the C compiler *)
        Poulet4_Ccomp.PrintClight.change_destination export_file;       
-       let c = to_c print_p4cub printp4_file cub in
-       Poulet4_Ccomp.CCompSel.print_Clight c
+       let ((prog, hid), mid) = to_c print_p4cub printp4_file cub in
+       Poulet4_Ccomp.CCompSel.print_Clight prog;
+       (let oc = Out_channel.create ~append:true  export_file in 
+        begin (
+          print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident hid) "H";
+          print_type_def oc (Poulet4_Ccomp.PrintCsyntax.name_of_ident mid) "M"
+        )end)
+       
      | _ ->
        failwith "unrecognized arguments to -gcl"
      end

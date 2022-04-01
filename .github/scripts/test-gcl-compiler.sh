@@ -15,7 +15,7 @@ eval $(opam env)
 for TEST_FILE in ${EXPASS}/*; do
     echo "testing ${TEST_FILE}"
     ${PETR4} ${TEST_FILE} > /dev/null
-    code=$?; (( err |= ${code} ))
+    code=$?; (( err |= ${code} ));
     if [ ${code} -eq 0 ]; then
         echo "PASS"
     else

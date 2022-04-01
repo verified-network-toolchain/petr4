@@ -1,8 +1,7 @@
 
 Require Import Coq.Strings.String.
-
+Require Import Poulet4.Utils.Util.StringUtil.
 Open Scope string_scope.
-Parameter string_of_nat : nat -> string.
 Definition t : Type :=  nat.
 Definition new_env : t := 
   0.

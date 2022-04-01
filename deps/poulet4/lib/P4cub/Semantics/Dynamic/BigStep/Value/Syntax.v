@@ -1,7 +1,5 @@
 From Coq Require Import Bool.Bool ZArith.BinInt.
 Require Export Poulet4.P4cub.Syntax.AST.
-(*Require Import Poulet4.P4cub.Syntax.CubNotations.*)
-(*Import AllCubNotations String.*)
 Import String.
 
 Module Val.
@@ -9,17 +7,16 @@ Module Val.
   Inductive v : Type :=
   | Bool (b : bool)
   | Bit (width : N) (n : Z)
-  | Int (width : positive) (n : Z)
+  | Int (width : N) (n : Z)
   | Struct (fields : list v) (validity : option bool)
   | Error (err : option string).
 
   (** Lvalues. *)
   Inductive lv : Type :=
-  | Var (x : nat)                (** Local variables. *)
+  | Var (x : nat)               (** Local variables. *)
   | Slice (arg : lv)
-            (hi lo : positive) (** Slice. *)
-  | Member (arg : lv) (x : nat)  (** Member access. *).
-  (**[]*)
+          (hi lo : positive)  (** Slice. *)
+  | Member (arg : lv) (x : nat) (** Member access. *).
 
   (** Evaluated arguments. *)
   Definition argsv : Type := list (paramarg v lv).

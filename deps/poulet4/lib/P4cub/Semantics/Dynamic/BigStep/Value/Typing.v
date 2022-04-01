@@ -1,4 +1,3 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
         Poulet4.P4cub.Semantics.Static.Util
@@ -6,165 +5,90 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Auxilary
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.Utils.ForallMap Coq.micromega.Lia.
-Import String ProperType Val ValueNotations
-       LValueNotations AllCubNotations Clmt.Notations.
+Import (*String ProperType*) Val ValueNotations
+       LValueNotations.
 
-Reserved Notation "∇ ⊢ v ∈ τ"
-         (at level 40, v custom p4value, τ custom p4type).
+Reserved Notation "'⊢ᵥ' V ∈ τ"
+         (at level 80, no associativity).
 
-Reserved Notation "'LL' Δ , Γ ⊢ lval ∈ τ"
-         (at level 40, lval custom p4lvalue, τ custom p4type).
+Reserved Notation "Γ '⊢ₗ' LV ∈ τ"
+         (at level 80, no associativity).
+
+Local Open Scope value_scope.
 
 Inductive type_value : v -> Expr.t -> Prop :=
-| typ_bool (b : bool) : ∇ ⊢ VBOOL b ∈ Bool
-| typ_bit (w : N) (n : Z) :
-    BitArith.bound w n ->
-    ∇ ⊢ w VW n ∈ bit<w>
-| typ_int (w : positive) (z : Z) :
-    IntArith.bound w z ->
-    ∇ ⊢ w VS z ∈ int<w>
-| typ_tuple (vs : list v)
-            (ts : list Expr.t) :
-    Forall2 (fun v τ => ∇ ⊢ v ∈ τ) vs ts ->
-    ∇ ⊢ TUPLE vs ∈ tuple ts
-| typ_struct (vs : Field.fs string v)
-             (ts : Field.fs string Expr.t) :
-    Field.relfs (fun vl τ => ∇ ⊢ vl ∈ τ) vs ts ->
-    ∇ ⊢ STRUCT { vs } ∈ struct { ts }
-| typ_hdr (vs : Field.fs string v) (b : bool)
-          (ts : Field.fs string Expr.t) :
-    proper_nesting {{ hdr { ts } }} ->
-    Field.relfs (fun vl τ => ∇ ⊢ vl ∈ τ) vs ts ->
-    ∇ ⊢ HDR { vs } VALID:=b ∈ hdr { ts }
-| typ_error (err : option string) :
-    ∇ ⊢ ERROR err ∈ error
-| typ_headerstack (ts : Field.fs string Expr.t)
-                  (hs : list (bool * Field.fs string v)) (ni : Z) :
-    let n := Pos.of_nat (List.length hs) in
-    BitArith.bound 32%N (Zpos n) ->
-    (0 <= ni < (Zpos n))%Z ->
-    proper_nesting {{ stack ts[n] }} ->
-    (* t_ok Δ {{ stack ts[n] }} -> *)
-    Forall
-      (fun bvs =>
-         let b := fst bvs in
-         let vs := snd bvs in
-         ∇ ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
-    ∇ ⊢ STACK hs:ts NEXT:=ni ∈ stack ts[n]
-where "∇ ⊢ vl ∈ τ" := (type_value vl τ) : type_scope.
+| typ_bool (b : bool) :  ⊢ᵥ b ∈ Expr.TBool
+| typ_bit w n :
+  BitArith.bound w n ->
+  ⊢ᵥ w VW n ∈ Expr.TBit w
+| typ_int w z :
+  IntArith.bound w z ->
+  ⊢ᵥ (Npos w) VS z ∈ Expr.TInt (Npos w)
+| typ_struct vs ts ob b :
+  match ob, b with
+  | Some _, true
+  | None, false => True
+  | _, _ => False
+  end ->
+  Forall2 type_value vs ts ->
+  ⊢ᵥ Struct vs ob ∈ Expr.TStruct ts b
+| typ_error err :
+  ⊢ᵥ Error err ∈ Expr.TError
+where "'⊢ᵥ' V ∈ τ" := (type_value V τ) : type_scope.
 
 (** Custom induction for value typing. *)
 Section ValueTypingInduction.
   (** Arbitrary predicate. *)
   Variable P : v -> Expr.t -> Prop.
   
-  Hypothesis HBool : forall b, P ~{ VBOOL b }~ {{ Bool }}.
+  Hypothesis HBool : forall b, P (Bool b) Expr.TBool.
   
   Hypothesis HBit : forall w n,
       BitArith.bound w n ->
-      P ~{ w VW n }~ {{ bit<w> }}.
+      P (w VW n) (Expr.TBit w).
   
   Hypothesis HInt : forall w z,
       IntArith.bound w z ->
-      P ~{ w VS z }~ {{ int<w> }}.
+      P ((Npos w) VS z) (Expr.TInt (Npos w)).
 
   Hypothesis HError : forall err,
-      P ~{ ERROR err }~ {{ error }}.
-  
-  Hypothesis HTuple : forall  vs ts,
-      Forall2 (fun v τ => ∇  ⊢ v ∈ τ) vs ts ->
+      P (Error err) Expr.TError.
+    
+  Hypothesis HStruct : forall vs ts ob b,
+      match ob, b with
+      | Some _, true
+      | None, false => True
+      | _, _ => False
+      end ->
+      Forall2 type_value vs ts ->
       Forall2 P vs ts ->
-      P ~{ TUPLE vs }~ {{ tuple ts }}.
-  
-  Hypothesis HStruct : forall  vs ts,
-      Field.relfs (fun vl τ => ∇  ⊢ vl ∈ τ) vs ts ->
-      Field.relfs (fun vl τ => P  vl τ) vs ts ->
-      P  ~{ STRUCT { vs } }~ {{ struct { ts } }}.
-  
-  Hypothesis HHeader : forall  vs b ts,
-      proper_nesting {{ hdr { ts } }} ->
-      Field.relfs (fun vl τ => ∇  ⊢ vl ∈ τ) vs ts ->
-      Field.relfs (fun vl τ => P  vl τ) vs ts ->
-      P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}.
-  
-  Hypothesis HStack : forall ts hs n ni,
-      BitArith.bound 32%N (Zpos n) ->
-      (0 <= ni < (Zpos n))%Z ->
-      proper_nesting {{ stack ts[n] }} ->
-      Forall
-        (fun bvs =>
-           let b := fst bvs in
-           let vs := snd bvs in
-           ∇  ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs ->
-      Forall
-        (fun bvs =>
-           let b := fst bvs in
-           let vs := snd bvs in
-           P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}) hs ->
-      P  ~{ STACK hs:ts NEXT:=ni }~ {{ stack ts[n] }}.
-  
+      P (Struct vs ob) (Expr.TStruct ts b).
+
   (** Custom induction principle.
       Do [induction ?H using custom_type_value_ind]. *)
   Definition custom_type_value_ind :
-    forall (vl : v) (τ : Expr.t)
-      (Hy : ∇  ⊢ vl ∈ τ), P  vl τ :=
-    fix tvind  vl τ Hy :=
+    forall (V : v) (τ : Expr.t),
+      ⊢ᵥ V ∈ τ -> P V τ :=
+    fix tvind V τ Hy :=
       let fix lind {vs : list v}
               {ts : list Expr.t}
-              (HR : Forall2 (fun v τ => ∇  ⊢ v ∈ τ) vs ts)
-          : Forall2 (P ) vs ts :=
-          match HR with
-          | Forall2_nil _ => Forall2_nil _
-          | Forall2_cons _ _ Hh Ht => Forall2_cons
-                                       _ _
-                                       (tvind _ _ Hh)
-                                       (lind Ht)
-          end in
-      let fix fsind {vs : Field.fs string v}
-              {ts : Field.fs string Expr.t}
-              (HR : Field.relfs (fun vl τ => ∇  ⊢ vl ∈ τ) vs ts)
-          : Field.relfs (fun vl τ => P  vl τ) vs ts :=
-          match HR with
-          | Forall2_nil _ => Forall2_nil _
-          | Forall2_cons _ _ (conj Hname Hvt)
-                         Htail => Forall2_cons
-                                   _ _
-                                   (conj Hname (tvind _ _ Hvt))
-                                   (fsind Htail)
-          end in
-      let fix hsind {hs : list (bool * Field.fs string v)}
-              {ts : Field.fs string Expr.t}
-              (HR :
-                 Forall
-                   (fun bvs =>
-                      let b := fst bvs in
-                      let vs := snd bvs in
-                      ∇  ⊢ HDR { vs } VALID:=b ∈ hdr { ts }) hs)
-          : Forall
-              (fun bvs =>
-                 let b := fst bvs in
-                 let vs := snd bvs in
-                 P  ~{ HDR { vs } VALID:=b }~ {{ hdr { ts } }}) hs :=
-          match HR with
-          | Forall_nil _ => Forall_nil _
-          | Forall_cons _ Hhead Htail => Forall_cons
-                                          _ (tvind _ _ Hhead)
-                                          (hsind Htail)
-          end in
+              (HR : Forall2 type_value vs ts)
+        : Forall2 P vs ts :=
+        match HR with
+        | Forall2_nil _ => Forall2_nil _
+        | Forall2_cons _ _ Hh Ht
+          => Forall2_cons _ _ (tvind _ _ Hh) (lind Ht)
+        end in
       match Hy with
       | typ_bool b => HBool b
       | typ_bit _ _ H => HBit _ _ H
       | typ_int _ _ H => HInt _ _ H
       | typ_error err => HError err
-      | typ_tuple _ _ Hvs => HTuple _ _ Hvs (lind Hvs)
-      | typ_struct _ _ Hfs => HStruct _ _ Hfs (fsind Hfs)
-      | typ_hdr _ b _ HP Hfs => HHeader _ b _ HP Hfs (fsind Hfs)
-      | typ_headerstack _ _ _ Hn Hni HP Hhs =>
-        HStack _ _ _ _ Hn Hni HP Hhs (hsind Hhs)
+      | typ_struct _ _ _ _ H Hfs => HStruct _ _ _ _ H Hfs (lind Hfs)
       end.
 End ValueTypingInduction.
 
-Inductive type_lvalue (Δ : Delta) (Γ : Gamma) : lv -> Expr.t -> Prop :=
+Inductive type_lvalue (Γ : expr_type_env) : lv -> Expr.t -> Prop :=
 | typ_var (x : string) (τ : Expr.t) :
     Γ x = Some τ ->
     t_ok Δ τ ->
@@ -185,7 +109,7 @@ Inductive type_lvalue (Δ : Delta) (Γ : Gamma) : lv -> Expr.t -> Prop :=
 | typ_access (lval : lv) (idx : Z)
              (n : positive) (ts : F.fs string Expr.t) :
     (0 <= idx < Zpos n)%Z ->
-    t_ok Δ {{ stack ts[n] }} ->
+    t_ok Δ Expr.Tstack ts[n] }} ->
     LL Δ, Γ ⊢ lval ∈ stack ts[n] ->
     LL Δ, Γ ⊢ ACCESS lval[idx] ∈ hdr { ts }
 where "'LL' Δ , Γ ⊢ lval ∈ τ" := (type_lvalue Δ Γ lval τ).

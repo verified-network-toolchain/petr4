@@ -95,18 +95,19 @@ let eval_command =
 let compile_command =
   let open Command.Spec in
   Command.basic_spec
-    ~summary: "print the c file compiled using the HelloWorld.v file"
+    ~summary: "Compile a P4 program to C"
      (empty
      +> flag "-v" no_arg ~doc:" Enable verbose output"
      +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
      +> flag "-normalize" no_arg ~doc:" Simplify expressions in P4"
-     +> flag "-export-file" (optional_with_default "compiled.c" string)~doc:"Path to export compiled c file"
+     +> flag "-export-file" (optional_with_default "compiled.c" string) ~doc:"Path to export compiled c file"
      +> flag "-gen-loc" no_arg ~doc:" Generate locators in AST"
      +> flag "-printp4cub" no_arg ~doc: "Print the p4cub AST"
      +> flag "-printp4-file" (optional_with_default "cubast.txt" string)~doc:"Path to print the p4cub syntax"
+     +> flag "-gcl" (listed int)  ~doc:"G,P Compile to GCL using G to unroll the inliner and P to unroll the parser" 
      +> anon ("p4file" %: string))
-    (fun verbose include_dir normalize export_file gen_loc printp4cub printp4_file p4file () ->
-       ignore (compile_file include_dir p4file normalize export_file verbose gen_loc printp4cub printp4_file))
+    (fun verbose include_dir normalize export_file gen_loc printp4cub printp4_file gcl p4file () ->
+       ignore (compile_file include_dir p4file normalize export_file verbose gen_loc printp4cub printp4_file gcl))
 let do_stf include_dir stf_file p4_file =
   failwith "do_stf removed"
   (* TODO restore stf

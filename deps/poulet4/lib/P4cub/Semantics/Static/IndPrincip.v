@@ -57,8 +57,8 @@ Section TypeExprInduction.
       P Γ (w `W n) (Expr.TBit w).
   
   Hypothesis HInt : forall Γ w z,
-      IntArith.bound w z ->
-      P Γ ((Npos w) `S z) (Expr.TInt (Npos w)).
+      (*IntArith.bound w z ->*)
+      P Γ (w `S z) (Expr.TInt w).
   
   Hypothesis HVar : forall Γ x τ,
       nth_error (types Γ) x = Some τ ->
@@ -143,7 +143,7 @@ Section TypeExprInduction.
       match HY with
       | type_bool _ b     => HBool _ b
       | type_bit _ _ _ H => HBit _ _ _ H
-      | type_int _ _ _ H => HInt _ _ _ H
+      | type_int _ w n => HInt _ w n
       | type_var _ _ _ Hnth H => HVar _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ He)

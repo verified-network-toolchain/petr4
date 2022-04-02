@@ -1,13 +1,12 @@
-Require Import Coq.NArith.BinNat
-        Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
-        Coq.PArith.BinPos Coq.ZArith.BinInt
-        Poulet4.P4cub.Syntax.CubNotations
-        Poulet4.P4cub.Semantics.Static.Util
-        Poulet4.P4cub.Semantics.Static.IndPrincip
-        Poulet4.Utils.ForallMap
-        Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
-        (*Poulet4.P4cub.Syntax.IndPrincip*).
+From Coq Require Import PArith.BinPos
+     NArith.BinNat ZArith.BinInt.
+From Poulet4.P4cub.Semantics Require Import Static.Static
+     Dynamic.BigStep.Value.Typing
+     Dynamic.BigStep.Value.Syntax
+     Dynamic.BigStep.Value.IndPrincip.
 Import Val ValueNotations ExprNotations ParserNotations.
+From Poulet4 Require Import P4cub.Syntax.AST
+     P4cub.Syntax.CubNotations Utils.ForallMap.
 
 (* TODO: Also in [P4light/Semantics/Typing/Utility.v]
    Should be moved to somewhere in [Utils]. *)
@@ -137,6 +136,60 @@ Proof.
     rewrite map_map; assumption.
   - destruct ob; reflexivity.
 Qed.
+
+Section Lemmas.
+  Local Hint Resolve BitArith.bound0 : core.
+  Local Hint Resolve IntArith.bound0 : core.
+  Local Hint Constructors type_value : core.
+  Hint Rewrite repeat_length.
+  Hint Rewrite Pos2Nat.id : core.
+  
+  Lemma v_of_t_types : forall τ V,
+      v_of_t τ = Some V ->
+      ⊢ᵥ V ∈ τ.
+  Proof.
+    intro t; induction t using custom_t_ind;
+      intros V h; unravel in *; try discriminate;
+      try match_some_inv; try some_inv; auto.
+    constructor.
+    - elim b; trivial.
+    - generalize dependent l.
+      induction H as [| t ts ht hts ihts];
+        intros vs h; unravel in *;
+        repeat match_some_inv; some_inv; auto.
+  Qed.
+
+  Lemma t_of_v_typing : forall V τ,
+      ⊢ᵥ V ∈ τ -> t_of_v V = τ.
+  Proof.
+    intros V t h;
+      induction h using custom_type_value_ind;
+      unravel in *; try reflexivity.
+    f_equal.
+    - rewrite Forall2_map_l,
+        Forall2_eq in H1; assumption.
+    - destruct ob as [[|] |]; destruct b;
+        reflexivity || contradiction.
+  Qed.
+  
+  Local Hint Constructors type_expr : core.
+  Local Hint Constructors relop : core.
+  Local Hint Resolve t_of_v_typing : core.
+  Hint Rewrite map_length : core.
+  
+  Lemma expr_of_value_types : forall V τ,
+      ⊢ᵥ V ∈ τ ->
+      {|type_vars:=0;types:=[]|} ⊢ₑ e_of_v V ∈ τ.
+  Proof.
+    intros V t h;
+      induction h using custom_type_value_ind;
+      unravel; auto.
+    constructor.
+    - destruct ob; destruct b;
+        unravel; try contradiction; auto.
+    - rewrite Forall2_map_l in H1; assumption.
+  Qed.
+End Lemmas.
 
 Local Close Scope value_scope.
 Local Close Scope type_scope.

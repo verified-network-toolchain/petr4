@@ -19,7 +19,7 @@ Fixpoint eqbt (τ1 τ2 : t) {struct τ1} : bool :=
   | TError, TError                 => true
   | TVar X1, TVar X2               => Nat.eqb X1 X2
   | TBit w1, TBit w2               => (w1 =? w2)%N
-  | TInt w1, TInt w2               => (w1 =? w2)%N
+  | TInt w1, TInt w2               => (w1 =? w2)%positive
   | TStruct ts1 b1, TStruct ts2 b2 => (eqb b1 b2) && eqbl ts1 ts2
   | _, _ => false
   end
@@ -148,7 +148,7 @@ Fixpoint eqbe (e1 e2 : e) : bool :=
   | w1 `W n1, w2 `W n2
     => (w1 =? w2)%N && (n1 =? n2)%Z
   | w1 `S z1, w2 `S z2
-    => (w1 =? w2)%N && (z1 =? z2)%Z
+    => (w1 =? w2)%positive && (z1 =? z2)%Z
   | Var τ1 x1, Var τ2 x2
     => PeanoNat.Nat.eqb x1 x2 && (τ1 =? τ2)%ty
   | Slice e1 h1 l1, Slice e2 h2 l2

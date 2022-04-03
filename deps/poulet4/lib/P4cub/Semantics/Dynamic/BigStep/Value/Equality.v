@@ -14,9 +14,8 @@ Fixpoint eqbv (v1 v2 : v) : bool :=
     end in
   match v1, v2 with
   | Bool b1, Bool b2 => eqb b1 b2
-  | Int w1 n1, Int w2 n2
-  | Bit w1 n1, Bit w2 n2
-    => (w1 =? w2)%N && (n1 =? n2)%Z
+  | Int w1 n1, Int w2 n2 => (w1 =? w2)%positive && (n1 =? n2)%Z
+  | Bit w1 n1, Bit w2 n2 => (w1 =? w2)%N && (n1 =? n2)%Z
   | Error err1, Error err2
     => if equiv_dec err1 err2 then true else false
   | Struct vs1 b1, Struct vs2 b2
@@ -28,6 +27,7 @@ Lemma eqbv_refl : forall V : v, eqbv V V = true.
 Proof.
   Hint Rewrite eqb_reflx.
   Hint Rewrite equiv_dec_refl.
+  Hint Rewrite Pos.eqb_refl.
   Hint Rewrite Z.eqb_refl.
   Hint Rewrite N.eqb_refl.
   Hint Rewrite andb_true_r.
@@ -45,6 +45,8 @@ Ltac eq_true_terms :=
     => apply eqb_prop in H; subst
   | H: (_ =? _)%N = true |- _
     => apply N.eqb_eq in H; subst
+  | H: (_ =? _)%positive = true |- _
+    => apply Pos.eqb_eq in H; subst
   | H: (_ =? _)%Z = true |- _
     => apply Z.eqb_eq in H; subst
   | H: context [equiv_dec ?x1 ?x2 &&&& _] |- _

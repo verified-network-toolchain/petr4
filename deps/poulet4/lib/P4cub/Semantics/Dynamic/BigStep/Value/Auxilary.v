@@ -62,10 +62,10 @@ Fixpoint match_pattern (p : Parser.pat) (V : v) : bool :=
     => (Z.land a b =? Z.land c b)%Z
   | Parser.Range (w PW a) (_ PW b), _ VW c
     => (a <=? c)%Z && (c <=? b)%Z
-  | w1 PW n1, w2 VW n2 =>
-    (w1 =? w2)%N && (n1 =? n2)%Z
-  | w1 PS n1, w2 VS n2 =>
-    (w1 =? w2)%N && (n1 =? n2)%Z
+  | w1 PW n1, w2 VW n2
+    => (w1 =? w2)%N && (n1 =? n2)%Z
+  | w1 PS n1, w2 VS n2
+    => (w1 =? w2)%positive && (n1 =? n2)%Z
   | Parser.Struct ps, Struct vs None =>
     (fix F ps vs :=
        match ps, vs with

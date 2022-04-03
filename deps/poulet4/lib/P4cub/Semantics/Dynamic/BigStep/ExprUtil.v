@@ -1,110 +1,98 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxilary Poulet4.P4cub.Semantics.Climate.
 Require Poulet4.P4cub.Semantics.Static.Util.
-Import String Val.ValueNotations AllCubNotations Clmt.Notations.
+Import Val.ValueNotations ExprNotations.
+
+Local Open Scope value_scope.
 
 (** Bit-slicing. *)
 Definition eval_slice (hi lo : positive) (v : Val.v) : option Val.v :=
   match v with
-  | ~{ _ VW z }~
-  | ~{ _ VS z }~
+  | _ VW z
+  | _ VS z
     => let w' := (Npos hi - Npos lo + 1)%N in
-      Some $ Val.VBit w' $
+      Some $ Val.Bit w' $
            BitArith.mod_bound w' $
            BitArith.bitstring_slice z hi lo
   | _ => None
   end.
-(**[]*)
 
 (** Unary Operations. *)
 Definition eval_uop (op : Expr.uop) (v : Val.v) : option Val.v :=
   match op, v with
-  | _{ ! }_, ~{ VBOOL b }~ => Some $ Val.VBool  $ negb b
-  | _{ ~ }_, ~{ w VW n }~  => Some $ Val.VBit w $ BitArith.bit_not w n
-  | _{ ~ }_, ~{ w VS n }~  => Some $ Val.VInt w $ IntArith.bit_not w n
-  | _{ - }_, ~{ w VW z }~  => Some $ Val.VBit w $ BitArith.neg w z
-  | _{ - }_, ~{ w VS z }~  => Some $ Val.VInt w $ IntArith.neg w z
-  | _{ isValid }_, ~{ HDR { _ } VALID:=b }~ => Some ~{ VBOOL b }~
-  | _{ setValid }_, ~{ HDR { vs } VALID:=_ }~
-    => Some ~{ HDR { vs } VALID:=true }~
-  | _{ setInValid }_, ~{ HDR { vs } VALID:=_ }~
-    => Some ~{ HDR { vs } VALID:=false }~
-  | _{ Size }_, ~{ STACK _:_ NEXT:=_ }~ => Some $ Val.VBit 32%N $ 0%Z
-  | _{ Next }_, ~{ STACK hs:_ NEXT:=ni }~
-    => bvs <<| nth_error hs $ Z.to_nat ni ;;
-      match bvs with
-      | (b,vs) => ~{ HDR { vs } VALID:=b }~
-      end
+  | `!%uop, Val.Bool b => Some $ Val.Bool  $ negb b
+  | `~%uop, w VW n  => Some $ Val.Bit w $ BitArith.bit_not w n
+  | `~%uop, w VS n  => Some $ Val.Int w $ IntArith.bit_not w n
+  | `-%uop, w VW z  => Some $ Val.Bit w $ BitArith.neg w z
+  | `-%uop, w VS z  => Some $ Val.Int w $ IntArith.neg w z
   | _, _ => None
   end.
-(**[]*)
 
 (** Binary operations. *)
 Definition eval_bop (op : Expr.bop) (v1 v2 : Val.v) : option Val.v :=
   match op, v1, v2 with
-  | +{ + }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ + }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.plus_mod w n1 n2
-  | +{ + }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ + }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.plus_mod w z1 z2
-  | +{ |+| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ |+| }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.plus_sat w n1 n2
-  | +{ |+| }+,  ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ |+| }+,  Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.plus_sat w z1 z2
-  | +{ - }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ - }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.minus_mod w n1 n2
-  | +{ - }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ - }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.minus_mod w z1 z2
-  | +{ |-| }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ |-| }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.minus_sat w n1 n2
-  | +{ |-| }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ |-| }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.minus_sat w z1 z2
-  | +{ × }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ × }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.mult_mod w n1 n2
-  | +{ × }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ × }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.mult_mod w z1 z2
-  | +{ << }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ << }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.shift_left w n1 n2
-  | +{ << }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
+  | +{ << }+, Val.w VS z1, Val._ VW z2
     => Some $ Val.VInt w $ IntArith.shift_left w z1 z2
-  | +{ >> }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ >> }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.shift_right w n1 n2
-  | +{ >> }+, ~{ w VS z1 }~, ~{ _ VW z2 }~
+  | +{ >> }+, Val.w VS z1, Val._ VW z2
     => Some $ Val.VInt w $ IntArith.shift_right w z1 z2
-  | +{ & }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ & }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.bit_and w n1 n2
-  | +{ & }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ & }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.bit_and w z1 z2
-  | +{ ^ }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ ^ }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.bit_xor w n1 n2
-  | +{ ^ }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ ^ }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.bit_xor w z1 z2
-  | +{ | }+, ~{ w VW n1 }~, ~{ _ VW n2 }~
+  | +{ | }+, Val.w VW n1, Val._ VW n2
     => Some $ Val.VBit w $ BitArith.bit_or w n1 n2
-  | +{ | }+, ~{ w VS z1 }~, ~{ _ VS z2 }~
+  | +{ | }+, Val.w VS z1, Val._ VS z2
     => Some $ Val.VInt w $ IntArith.bit_or w z1 z2
-  | +{ <= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n1 <=? n2)%Z
-  | +{ <= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z1 <=? z2)%Z
-  | +{ < }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n1 <? n2)%Z
-  | +{ < }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z1 <? z2)%Z
-  | +{ >= }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n2 <=? n1)%Z
-  | +{ >= }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z2 <=? z1)%Z
-  | +{ > }+, ~{ w VW n1 }~, ~{ _ VW n2 }~ => Some $ Val.VBool (n2 <? n1)%Z
-  | +{ > }+, ~{ w VS z1 }~, ~{ _ VS z2 }~ => Some $ Val.VBool (z2 <? z1)%Z
-  | +{ && }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ Val.VBool (b1 && b2)
-  | +{ || }+, ~{ VBOOL b1 }~, ~{ VBOOL b2 }~ => Some $ Val.VBool (b1 || b2)
+  | +{ <= }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n1 <=? n2)%Z
+  | +{ <= }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z1 <=? z2)%Z
+  | +{ < }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n1 <? n2)%Z
+  | +{ < }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z1 <? z2)%Z
+  | +{ >= }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n2 <=? n1)%Z
+  | +{ >= }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z2 <=? z1)%Z
+  | +{ > }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n2 <? n1)%Z
+  | +{ > }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z2 <? z1)%Z
+  | +{ && }+, Val.VBOOL b1, Val.VBOOL b2 => Some $ Val.VBool (b1 && b2)
+  | +{ || }+, Val.VBOOL b1, Val.VBOOL b2 => Some $ Val.VBool (b1 || b2)
   | +{ == }+, _, _ => Some $ Val.VBool $ eqbv v1 v2
   | +{ != }+, _, _ => Some $ Val.VBool $ negb $ eqbv v1 v2
-  | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VW n2 }~
+  | +{ ++ }+, Val.w1 VW n1, Val.w2 VW n2
     => Some $ Val.VBit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
-  | +{ ++ }+, ~{ w1 VW n1 }~, ~{ w2 VS n2 }~
+  | +{ ++ }+, Val.w1 VW n1, Val.w2 VS n2
     => Some $ Val.VBit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
-  | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VS n2 }~
+  | +{ ++ }+, Val.w1 VS n1, Val.w2 VS n2
     => Some $ Val.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
-  | +{ ++ }+, ~{ w1 VS n1 }~, ~{ w2 VW n2 }~
+  | +{ ++ }+, Val.w1 VS n1, Val.w2 VW n2
     =>
     match w2 with
     | Npos w2 => Some $ Val.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
@@ -117,21 +105,21 @@ Definition eval_bop (op : Expr.bop) (v1 v2 : Val.v) : option Val.v :=
 Definition eval_cast
            (target : Expr.t) (v : Val.v) : option Val.v :=
   match target, v with
-  | (Expr.TBit (Npos xH)), ~{ TRUE }~         => Some (Val.VBit 1%N 1%Z)
-  | (Expr.TBit (Npos xH)), ~{ FALSE }~        => Some (Val.VBit 1%N 0%Z)
-  | {{ Bool }}, Val.VBit 1%N 1%Z => Some ~{ TRUE }~
-  | {{ Bool }}, Val.VBit 1%N 0%Z => Some ~{ FALSE }~
-  | {{ bit<w> }}, ~{ _ VS z }~ => let n := BitArith.mod_bound w z in
-                                 Some ~{ w VW n }~
-  | {{ int<w> }}, ~{ _ VW n }~ => let z := IntArith.mod_bound w n in
-                                 Some ~{ w VS z }~
-  | {{ bit<w> }}, ~{ _ VW n }~ => let n := BitArith.mod_bound w n in
-                                 Some ~{ w VW n }~
-  | {{ int<w> }}, ~{ _ VS z }~ => let z := IntArith.mod_bound w z in
-                                 Some ~{ w VS z }~
-  | {{ struct { fs } }}, ~{ TUPLE vs }~
+  | (Expr.TBit (Npos xH)), Val.TRUE         => Some (Val.VBit 1%N 1%Z)
+  | (Expr.TBit (Npos xH)), Val.FALSE        => Some (Val.VBit 1%N 0%Z)
+  | {{ Bool }}, Val.VBit 1%N 1%Z => Some Val.TRUE
+  | {{ Bool }}, Val.VBit 1%N 0%Z => Some Val.FALSE
+  | {{ bit<w> }}, Val._ VS z => let n := BitArith.mod_bound w z in
+                                 Some Val.w VW n
+  | {{ int<w> }}, Val._ VW n => let z := IntArith.mod_bound w n in
+                                 Some Val.w VS z
+  | {{ bit<w> }}, Val._ VW n => let n := BitArith.mod_bound w n in
+                                 Some Val.w VW n
+  | {{ int<w> }}, Val._ VS z => let z := IntArith.mod_bound w z in
+                                 Some Val.w VS z
+  | {{ struct { fs } }}, Val.TUPLE vs
     => Some $ Val.VStruct $ combine (F.keys fs) vs
-  | {{ hdr { fs } }}, ~{ TUPLE vs }~
+  | {{ hdr { fs } }}, Val.TUPLE vs
     => Some $ Val.VHeader (combine (F.keys fs) vs) true
   | _, _ => None
   end.
@@ -139,8 +127,8 @@ Definition eval_cast
 
 Definition eval_member (x : string) (v : Val.v) : option Val.v :=
   match v with
-  | ~{ STRUCT { vs } }~
-  | ~{ HDR { vs } VALID:=_ }~ => F.get x vs
+  | Val.STRUCT { vs }
+  | Val.HDR { vs } VALID:=_ => F.get x vs
   | _ => None
   end.
 (**[]*)

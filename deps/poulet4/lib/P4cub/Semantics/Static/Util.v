@@ -19,7 +19,7 @@ Definition lub (sg1 sg2 : signal) : signal :=
 (** Evidence for a type being a numeric of a given width. *)
 Variant numeric_width : N -> Expr.t -> Prop :=
 | numeric_width_bit : forall w, numeric_width w (Expr.TBit w)
-| numeric_width_int : forall w, numeric_width w (Expr.TInt w).
+| numeric_width_int : forall w, numeric_width (Npos w) (Expr.TInt w).
 
 Ltac inv_numeric_width :=
   match goal with
@@ -50,33 +50,31 @@ Variant uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
 Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
-| BTPlus τ : numeric τ -> bop_type `+%bop τ τ τ
-| BTPlusSat τ : numeric τ -> bop_type |+|%bop τ τ τ
-| BTMinus τ : numeric τ -> bop_type `-%bop τ τ τ
-| BTMinusSat τ : numeric τ -> bop_type |-|%bop τ τ τ
-| BTTimes τ : numeric τ -> bop_type ×%bop τ τ τ
-| BTShl τ1 w2 : numeric τ1 -> bop_type <<%bop τ1 (Expr.TBit w2) τ1
-| BTShr τ1 w2 : numeric τ1 -> bop_type >>%bop τ1 (Expr.TBit w2) τ1
-| BTBitAnd τ : numeric τ -> bop_type &%bop τ τ τ
-| BTBitXor τ : numeric τ -> bop_type ^%bop τ τ τ
-| BTBitOr τ : numeric τ -> bop_type Expr.BitOr τ τ τ
-| BTLe τ : numeric τ -> bop_type ≤%bop τ τ Expr.TBool
-| BTLt τ : numeric τ -> bop_type `<%bop τ τ Expr.TBool
-| BTGe τ : numeric τ -> bop_type ≥%bop τ τ Expr.TBool
-| BTGt τ : numeric τ -> bop_type `>%bop τ τ Expr.TBool
-| BTAnd : bop_type `&&%bop Expr.TBool Expr.TBool Expr.TBool
-| BTOr : bop_type `||%bop Expr.TBool Expr.TBool Expr.TBool
-| BTEq τ : bop_type `==%bop τ τ Expr.TBool
-| BTNotEq τ : bop_type !=%bop τ τ Expr.TBool
-| BTPlusPlusBit w1 w2 w τ2 :
-    (w1 + w2)%N = w ->
+  | BTPlus τ : numeric τ -> bop_type `+%bop τ τ τ
+  | BTPlusSat τ : numeric τ -> bop_type |+|%bop τ τ τ
+  | BTMinus τ : numeric τ -> bop_type `-%bop τ τ τ
+  | BTMinusSat τ : numeric τ -> bop_type |-|%bop τ τ τ
+  | BTTimes τ : numeric τ -> bop_type ×%bop τ τ τ
+  | BTShl τ1 w2 : numeric τ1 -> bop_type <<%bop τ1 (Expr.TBit w2) τ1
+  | BTShr τ1 w2 : numeric τ1 -> bop_type >>%bop τ1 (Expr.TBit w2) τ1
+  | BTBitAnd τ : numeric τ -> bop_type &%bop τ τ τ
+  | BTBitXor τ : numeric τ -> bop_type ^%bop τ τ τ
+  | BTBitOr τ : numeric τ -> bop_type Expr.BitOr τ τ τ
+  | BTLe τ : numeric τ -> bop_type ≤%bop τ τ Expr.TBool
+  | BTLt τ : numeric τ -> bop_type `<%bop τ τ Expr.TBool
+  | BTGe τ : numeric τ -> bop_type ≥%bop τ τ Expr.TBool
+  | BTGt τ : numeric τ -> bop_type `>%bop τ τ Expr.TBool
+  | BTAnd : bop_type `&&%bop Expr.TBool Expr.TBool Expr.TBool
+  | BTOr : bop_type `||%bop Expr.TBool Expr.TBool Expr.TBool
+  | BTEq τ : bop_type `==%bop τ τ Expr.TBool
+  | BTNotEq τ : bop_type !=%bop τ τ Expr.TBool
+  | BTPlusPlusBit w1 w2 τ2 :
     numeric_width w2 τ2 ->
-    bop_type `++%bop (Expr.TBit w1) τ2 (Expr.TBit w)
-| BTPlusPlusInt w1 w2 w τ2 :
-    (w1 + w2)%N = w ->
-    numeric_width w2 τ2 ->
-    bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt w)
-| BTPlusPlusIntZero w1 τ2 :
+    bop_type `++%bop (Expr.TBit w1) τ2 (Expr.TBit (w1 + w2)%N)
+  | BTPlusPlusInt w1 w2 τ2 :
+    numeric_width (Npos w2) τ2 ->
+    bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt (w1 + w2)%positive)
+  | BTPlusPlusIntZero w1 τ2 :
     numeric_width N0 τ2 ->
     bop_type `++%bop (Expr.TInt w1) τ2 (Expr.TInt w1).
 
@@ -84,8 +82,8 @@ Variant bop_type : Expr.bop -> Expr.t -> Expr.t -> Expr.t -> Prop :=
 Variant proper_cast : Expr.t -> Expr.t -> Prop :=
   | pc_bool_bit : proper_cast Expr.TBool (Expr.TBit 1)
   | pc_bit_bool : proper_cast (Expr.TBit 1) Expr.TBool
-  | pc_bit_int w : proper_cast (Expr.TBit w) (Expr.TInt w)
-  | pc_int_bit w : proper_cast (Expr.TInt w) (Expr.TBit w)
+  | pc_bit_int w : proper_cast (Expr.TBit (Npos w)) (Expr.TInt w)
+  | pc_int_bit w : proper_cast (Expr.TInt w) (Expr.TBit (Npos w))
   | pc_bit_bit w1 w2 : proper_cast (Expr.TBit w1) (Expr.TBit w2)
   | pc_int_int w1 w2 : proper_cast (Expr.TInt w1) (Expr.TInt w2)
   | pc_tuple_hdr ts :

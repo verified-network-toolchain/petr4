@@ -24,135 +24,122 @@ Definition eval_slice (hi lo : positive) (v : Val.v) : option Val.v :=
 Definition eval_uop (op : Expr.uop) (v : Val.v) : option Val.v :=
   match op, v with
   | `!%uop, Val.Bool b => Some $ Val.Bool  $ negb b
-  | `~%uop, w VW n  => Some $ Val.Bit w $ BitArith.bit_not w n
-  | `~%uop, w VS n  => Some $ Val.Int w $ IntArith.bit_not w n
-  | `-%uop, w VW z  => Some $ Val.Bit w $ BitArith.neg w z
-  | `-%uop, w VS z  => Some $ Val.Int w $ IntArith.neg w z
+  | `~%uop, w VW n => Some $ Val.Bit w $ BitArith.bit_not w n
+  | `~%uop, w VS n => Some $ Val.Int w $ IntArith.bit_not w n
+  | `-%uop, w VW z => Some $ Val.Bit w $ BitArith.neg w z
+  | `-%uop, w VS z => Some $ Val.Int w $ IntArith.neg w z
+  | Expr.IsValid, Val.Struct _ (Some b)
+    => Some (Val.Bool b)
+  | Expr.SetValidity b, Val.Struct vs _
+    => Some $ Val.Struct vs $ Some b
   | _, _ => None
   end.
 
 (** Binary operations. *)
 Definition eval_bop (op : Expr.bop) (v1 v2 : Val.v) : option Val.v :=
   match op, v1, v2 with
-  | +{ + }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.plus_mod w n1 n2
-  | +{ + }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.plus_mod w z1 z2
-  | +{ |+| }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.plus_sat w n1 n2
-  | +{ |+| }+,  Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.plus_sat w z1 z2
-  | +{ - }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.minus_mod w n1 n2
-  | +{ - }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.minus_mod w z1 z2
-  | +{ |-| }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.minus_sat w n1 n2
-  | +{ |-| }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.minus_sat w z1 z2
-  | +{ × }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.mult_mod w n1 n2
-  | +{ × }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.mult_mod w z1 z2
-  | +{ << }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.shift_left w n1 n2
-  | +{ << }+, Val.w VS z1, Val._ VW z2
-    => Some $ Val.VInt w $ IntArith.shift_left w z1 z2
-  | +{ >> }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.shift_right w n1 n2
-  | +{ >> }+, Val.w VS z1, Val._ VW z2
-    => Some $ Val.VInt w $ IntArith.shift_right w z1 z2
-  | +{ & }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.bit_and w n1 n2
-  | +{ & }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.bit_and w z1 z2
-  | +{ ^ }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.bit_xor w n1 n2
-  | +{ ^ }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.bit_xor w z1 z2
-  | +{ | }+, Val.w VW n1, Val._ VW n2
-    => Some $ Val.VBit w $ BitArith.bit_or w n1 n2
-  | +{ | }+, Val.w VS z1, Val._ VS z2
-    => Some $ Val.VInt w $ IntArith.bit_or w z1 z2
-  | +{ <= }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n1 <=? n2)%Z
-  | +{ <= }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z1 <=? z2)%Z
-  | +{ < }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n1 <? n2)%Z
-  | +{ < }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z1 <? z2)%Z
-  | +{ >= }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n2 <=? n1)%Z
-  | +{ >= }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z2 <=? z1)%Z
-  | +{ > }+, Val.w VW n1, Val._ VW n2 => Some $ Val.VBool (n2 <? n1)%Z
-  | +{ > }+, Val.w VS z1, Val._ VS z2 => Some $ Val.VBool (z2 <? z1)%Z
-  | +{ && }+, Val.VBOOL b1, Val.VBOOL b2 => Some $ Val.VBool (b1 && b2)
-  | +{ || }+, Val.VBOOL b1, Val.VBOOL b2 => Some $ Val.VBool (b1 || b2)
-  | +{ == }+, _, _ => Some $ Val.VBool $ eqbv v1 v2
-  | +{ != }+, _, _ => Some $ Val.VBool $ negb $ eqbv v1 v2
-  | +{ ++ }+, Val.w1 VW n1, Val.w2 VW n2
-    => Some $ Val.VBit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
-  | +{ ++ }+, Val.w1 VW n1, Val.w2 VS n2
-    => Some $ Val.VBit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
-  | +{ ++ }+, Val.w1 VS n1, Val.w2 VS n2
-    => Some $ Val.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
-  | +{ ++ }+, Val.w1 VS n1, Val.w2 VW n2
-    =>
-    match w2 with
-    | Npos w2 => Some $ Val.VInt (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
-    | N0 => Some $ Val.VInt w1 n1
-    end
+  | `+%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.plus_mod w n1 n2
+  | `+%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.plus_mod w z1 z2
+  | |+|%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.plus_sat w n1 n2
+  | |+|%bop,  w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.plus_sat w z1 z2
+  | `-%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.minus_mod w n1 n2
+  | `-%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.minus_mod w z1 z2
+  | |-|%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.minus_sat w n1 n2
+  | |-|%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.minus_sat w z1 z2
+  | ×%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.mult_mod w n1 n2
+  | ×%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.mult_mod w z1 z2
+  | <<%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.shift_left w n1 n2
+  | <<%bop, w VS z1, _ VW z2
+    => Some $ Val.Int w $ IntArith.shift_left w z1 z2
+  | >>%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.shift_right w n1 n2
+  | >>%bop, w VS z1, _ VW z2
+    => Some $ Val.Int w $ IntArith.shift_right w z1 z2
+  | &%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.bit_and w n1 n2
+  | &%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.bit_and w z1 z2
+  | ^%bop, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.bit_xor w n1 n2
+  | ^%bop, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.bit_xor w z1 z2
+  | Expr.BitOr, w VW n1, _ VW n2
+    => Some $ Val.Bit w $ BitArith.bit_or w n1 n2
+  | Expr.BitOr, w VS z1, _ VS z2
+    => Some $ Val.Int w $ IntArith.bit_or w z1 z2
+  | ≤%bop, w VW n1, _ VW n2 => Some $ Val.Bool (n1 <=? n2)%Z
+  | ≤%bop, w VS z1, _ VS z2 => Some $ Val.Bool (z1 <=? z2)%Z
+  | `<%bop, w VW n1, _ VW n2 => Some $ Val.Bool (n1 <? n2)%Z
+  | `<%bop, w VS z1, _ VS z2 => Some $ Val.Bool (z1 <? z2)%Z
+  | ≥%bop, w VW n1, _ VW n2 => Some $ Val.Bool (n2 <=? n1)%Z
+  | ≥%bop, w VS z1, _ VS z2 => Some $ Val.Bool (z2 <=? z1)%Z
+  | `>%bop, w VW n1, _ VW n2 => Some $ Val.Bool (n2 <? n1)%Z
+  | `>%bop, w VS z1, _ VS z2 => Some $ Val.Bool (z2 <? z1)%Z
+  | `&&%bop, Val.Bool b1, Val.Bool b2 => Some $ Val.Bool (b1 && b2)
+  | `||%bop, Val.Bool b1, Val.Bool b2 => Some $ Val.Bool (b1 || b2)
+  | `==%bop, _, _ => Some $ Val.Bool $ eqbv v1 v2
+  | !=%bop, _, _ => Some $ Val.Bool $ negb $ eqbv v1 v2
+  | `++%bop, w1 VW n1, w2 VW n2
+    => Some $ Val.Bit (w1 + w2)%N $ BitArith.concat w1 w2 n1 n2
+  | `++%bop, w1 VW n1, w2 VS n2
+    => Some $ Val.Bit (w1 + Npos w2)%N $ BitArith.concat w1 (Npos w2) n1 n2
+  | `++%bop, w1 VS n1, w2 VS n2
+    => Some $ Val.Int (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
+  | `++%bop, w1 VS n1, w2 VW n2
+    => match w2 with
+      | Npos w2 => Some $ Val.Int (w1 + w2)%positive $ IntArith.concat (Npos w1) (Npos w2) n1 n2
+      | N0 => Some $ Val.Int w1 n1
+      end
   | _, _, _ => None
   end.
-(**[]*)
 
 Definition eval_cast
            (target : Expr.t) (v : Val.v) : option Val.v :=
   match target, v with
-  | (Expr.TBit (Npos xH)), Val.TRUE         => Some (Val.VBit 1%N 1%Z)
-  | (Expr.TBit (Npos xH)), Val.FALSE        => Some (Val.VBit 1%N 0%Z)
-  | {{ Bool }}, Val.VBit 1%N 1%Z => Some Val.TRUE
-  | {{ Bool }}, Val.VBit 1%N 0%Z => Some Val.FALSE
-  | {{ bit<w> }}, Val._ VS z => let n := BitArith.mod_bound w z in
-                                 Some Val.w VW n
-  | {{ int<w> }}, Val._ VW n => let z := IntArith.mod_bound w n in
-                                 Some Val.w VS z
-  | {{ bit<w> }}, Val._ VW n => let n := BitArith.mod_bound w n in
-                                 Some Val.w VW n
-  | {{ int<w> }}, Val._ VS z => let z := IntArith.mod_bound w z in
-                                 Some Val.w VS z
-  | {{ struct { fs } }}, Val.TUPLE vs
-    => Some $ Val.VStruct $ combine (F.keys fs) vs
-  | {{ hdr { fs } }}, Val.TUPLE vs
-    => Some $ Val.VHeader (combine (F.keys fs) vs) true
+  | Expr.TBit 1%N, Val.Bool b
+    => Some $ Val.Bit 1%N $ if b then 1%Z else 0%Z
+  | Expr.TBool, Val.Bit 1%N n
+    => Some $ Val.Bool
+           match n with
+           | Z0 => false
+           | _  => true
+           end
+  | Expr.TBit w, _ VS z => Some $ w VW (BitArith.mod_bound w z)
+  | Expr.TInt w, _ VW n => Some $ w VS (IntArith.mod_bound w n)
+  | Expr.TBit w, _ VW n => Some $ w VW (BitArith.mod_bound w n)
+  | Expr.TInt w, _ VS z => Some $ w VS (IntArith.mod_bound w z)
+  | Expr.TStruct _ true, Val.Struct vs _
+    => Some $ Val.Struct vs (Some true)
   | _, _ => None
   end.
-(**[]*)
-
-Definition eval_member (x : string) (v : Val.v) : option Val.v :=
-  match v with
-  | Val.STRUCT { vs }
-  | Val.HDR { vs } VALID:=_ => F.get x vs
-  | _ => None
-  end.
-(**[]*)
 
 Section Lemmas.
-  Import P4ArithTactics ProperType
+  Import P4ArithTactics (*ProperType*)
          Poulet4.P4cub.Semantics.Static.Util.
   
   Section HelpersType.
     Local Hint Constructors type_value : core.
     
-    Lemma eval_member_types : forall x v v' ts τ τ',
-        eval_member x v = Some v' ->
-        member_type ts τ ->
-        F.get x ts = Some τ' ->
-        ∇  ⊢ v ∈ τ ->
-        ∇  ⊢ v' ∈ τ'.
+    Lemma eval_member_types : forall x vs v τs τ,
+        nth_error τs x = Some τ ->
+        nth_error vs x = Some v ->
+        Forall2 type_value vs τs ->
+        ⊢ᵥ v ∈ τ.
     Proof.
-      intros x v v' ts τ τ' Heval Hmem Hget Ht;
-        inv Hmem; inv Ht; unravel in *.
-      - eapply F.relfs_get_r in H1 as [? ?]; eauto.
-        intuition. rewrite Heval in H0; inv H0; eauto.
-      - eapply F.relfs_get_r in H2 as [? ?]; eauto.
-        intuition. rewrite Heval in H1; inv H1; eauto.
+      intros x vs v ts t ht hv h.
+      rewrite ForallMap.Forall2_forall_nth_error in h.
+      destruct h as [_ h]; eauto.
     Qed.
     
     Local Hint Extern 0 => bit_bounded : core.
@@ -162,17 +149,17 @@ Section Lemmas.
         eval_slice hi lo v = Some v' ->
         (Npos lo <= Npos hi < w)%N ->
         numeric_width w τ ->
-        ∇ ⊢ v ∈ τ ->
-        let w' := (Npos hi - Npos lo + 1)%N in
-        ∇ ⊢ v' ∈ bit<w'>.
+        ⊢ᵥ v ∈ τ ->
+        ⊢ᵥ v' ∈ Expr.TBit (Npos hi - Npos lo + 1)%N.
     Proof.
-      intros v v' τ hi lo w Heval Hw Hnum Hv w'; subst w'.
+      intros v v' τ hi lo w Heval Hw Hnum Hv.
       inv Hnum; inv Hv; unravel in *; inv Heval; auto 2.
     Qed.
     
     Lemma eval_bop_type : forall op τ1 τ2 τ v1 v2 v,
-        bop_type op τ1 τ2 τ -> eval_bop op v1 v2 = Some v ->
-        ∇ ⊢ v1 ∈ τ1 -> ∇  ⊢ v2 ∈ τ2 -> ∇ ⊢ v ∈ τ.
+        bop_type op τ1 τ2 τ ->
+        eval_bop op v1 v2 = Some v ->
+        ⊢ᵥ v1 ∈ τ1 -> ⊢ᵥ v2 ∈ τ2 -> ⊢ᵥ v ∈ τ.
     Proof.
       intros op τ1 τ2 τ v1 v2 v Hbop Heval Ht1 Ht2; inv Hbop;
         repeat match goal with
@@ -185,76 +172,55 @@ Section Lemmas.
                end; auto 2.
     Qed.
     
-    Local Hint Resolve proper_inside_header_nesting : core.
+    (*Local Hint Resolve proper_inside_header_nesting : core.*)
     
     Lemma eval_cast_types : forall v v' τ τ',
-        proper_cast τ τ' -> eval_cast τ' v = Some v' ->
-        ∇ ⊢ v ∈ τ -> ∇ ⊢ v' ∈ τ'.
+        proper_cast τ τ' ->
+        eval_cast τ' v = Some v' ->
+        ⊢ᵥ v ∈ τ -> ⊢ᵥ v' ∈ τ'.
     Proof.
       intros v v' τ τ' Hpc Heval Ht; inv Hpc; inv Ht;
-        unravel in *; try match goal with
-                          | H: Some _ = Some _ |- _ => inv H
-                          end; auto 2.
-      - destruct b; inv Heval; constructor; cbv; auto 2.
-      - destruct n; inv Heval; auto 1; destruct p; inv H0; auto 1.
+        unravel in *; try some_inv; auto 2.
+      - constructor; destruct b; cbv; auto 2.
       - destruct w; inv Heval; auto 2.
       - destruct w2; [|destruct p]; inv Heval; auto 2.
-      - constructor. generalize dependent fs.
-        induction vs as [| v vs IHvs]; intros [| [x τ] fs] H;
-          inv H; unravel; constructor; unfold F.relf in *;
-            unravel; try apply IHvs; auto 2.
-      - constructor; unfold F.values,F.value in *.
-        + apply pn_header; rewrite F.predfs_data_map; auto 1.
-        + clear H0. generalize dependent fs.
-          induction vs as [| v vs IHvs];
-            intros [| [x τ] fs] H; inv H; constructor;
-              try split; unravel; try apply IHvs; auto 2.
     Qed.
     
-    Local Hint Constructors proper_nesting : core.
-    Hint Rewrite repeat_length.
-    Hint Rewrite app_length.
-    Hint Rewrite firstn_length.
-    Hint Rewrite skipn_length.
-    Hint Rewrite Forall_app.
-    Hint Rewrite @F.map_snd.
-    Hint Rewrite @map_compose.
-    Hint Rewrite (@Forall2_map_l Expr.t).
-    Hint Rewrite (@Forall2_Forall Expr.t).
-    Hint Rewrite @F.predfs_data_map.
-    Hint Rewrite @F.relfs_split_map_iff.
-    Hint Rewrite @F.map_fst.
+    (*Local Hint Constructors proper_nesting : core.*)
+    (*Hint Rewrite repeat_length : core.
+    Hint Rewrite app_length : core.
+    Hint Rewrite firstn_length : core.
+    Hint Rewrite skipn_length : core.
+    Hint Rewrite Forall_app : core.
+    Hint Rewrite @map_compose : core.
+    Hint Rewrite (@Forall2_map_l Expr.t) : core.
+    Hint Rewrite (@Forall2_Forall Expr.t) : core.
     Local Hint Resolve Forall_impl : core.
-    Local Hint Resolve vdefault_types : core.
+    Local Hint Resolve v_of_t_types : core.
     Local Hint Resolve Forall_firstn : core.
-    Local Hint Resolve Forall_skipn : core.
+    Local Hint Resolve Forall_skipn : core.*)
     
     Lemma eval_uop_types : forall op τ τ' v v',
-        uop_type op τ τ' -> eval_uop op v = Some v' ->
-        ∇ ⊢ v ∈ τ -> ∇ ⊢ v' ∈ τ'.
-    (*Proof.
+        uop_type op τ τ' ->
+        eval_uop op v = Some v' ->
+        ⊢ᵥ v ∈ τ -> ⊢ᵥ v' ∈ τ'.
+    Proof.
       intros op τ τ' v v' Huop Heval Ht;
         inv Huop; inv Ht; unravel in *; inv Heval; auto 2;
-          invert_proper_nesting;
-          repeat match goal with
-                 | H: Some _ = Some _ |- _ => inv H
-                 | H: (if ?b then _ else _) = _ |- _ => destruct b as [? | ?]
-                 end; try constructor; try (destruct n; lia); auto 2;
-            autorewrite with core; try split; auto 2;
-              try (apply repeat_Forall; simpl; constructor; auto 2;
-                   autorewrite with core in *; split; [intuition | eauto 5]).
-      - destruct (nth_error hs (Z.to_nat ni))
-          as [[b vs] |] eqn:equack; inv H0; constructor; auto 2;
-          apply (Forall_nth_error _ hs (Z.to_nat ni) (b, vs)) in H6; inv H6; auto 1.
-    Qed. *)
-    Admitted.
+        repeat match goal with
+               | H: Some _ = Some _ |- _ => inv H
+               | H: (if ?b then _ else _) = _ |- _ => destruct b as [? | ?]
+               end; try constructor; try (destruct n; lia); auto 2;
+        autorewrite with core; try split; auto 2.
+      match_some_inv; some_inv; auto.
+    Qed.
   End HelpersType.
   
   Section HelpersExist.
     Lemma eval_slice_exists : forall v τ hi lo w,
       (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
-      ∇ ⊢ v ∈ τ ->
+      ⊢ᵥ v ∈ τ ->
       exists v', eval_slice hi lo v = Some v'.
     Proof.
       intros v τ hi lo w Hw Hnum Hv;
@@ -263,49 +229,45 @@ Section Lemmas.
     
     Lemma eval_bop_exists : forall op τ1 τ2 τ v1 v2,
         bop_type op τ1 τ2 τ ->
-        ∇ ⊢ v1 ∈ τ1 -> ∇ ⊢ v2 ∈ τ2 ->
+        ⊢ᵥ v1 ∈ τ1 -> ⊢ᵥ v2 ∈ τ2 ->
         exists v, eval_bop op v1 v2 = Some v.
     Proof.
       intros op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
-        repeat inv_numeric; inv Ht1; inv Ht2; unravel; eauto 2;
-          try inv_numeric_width.
-    Admitted.
+        repeat inv_numeric; inv Ht1; inv Ht2; unravel;
+          try inv_numeric_width; eauto 2.
+    Qed.
     
     Lemma eval_cast_exists : forall τ τ' v,
-        proper_cast τ τ' -> ∇ ⊢ v ∈ τ -> exists v', eval_cast τ' v = Some v'.
+        proper_cast τ τ' ->
+        ⊢ᵥ v ∈ τ ->
+        exists v', eval_cast τ' v = Some v'.
     Proof.
       intros τ τ' v Hpc Ht; inv Hpc; inv Ht; unravel; eauto 2.
-      - destruct b; eauto 2.
-      - destruct n; eauto 2; destruct p; eauto 2;
-          try (cbv in *; destruct H1; try destruct p; discriminate).
       - destruct w; eauto 2.
       - destruct w2; eauto 2.
-    Admitted.
+        destruct p; eauto 2.
+    Qed.
     
     Lemma eval_uop_exist : forall op τ τ' v,
-        uop_type op τ τ' -> ∇  ⊢ v ∈ τ -> exists v', eval_uop op v = Some v'.
-    (*Proof.
-      intros op τ τ' v Huop Ht; inv Huop; inv Ht;
-        unravel; repeat inv_numeric; eauto 2;
-          try (destruct (lt_dec (Pos.to_nat p) (Pos.to_nat n)) as [? | ?]; eauto 2).
-      - assert (Hnith : (Z.to_nat ni < length hs)%nat) by lia;
-          pose proof nth_error_exists _ _ Hnith as [[b vs] Hexists];
-          rewrite Hexists; eauto 2.
-    Qed. *)
-    Admitted.
-      
-    Lemma eval_member_exists : forall x v ts τ τ',
-        member_type ts τ ->
-        F.get x ts = Some τ' ->
-        ∇  ⊢ v ∈ τ ->
-        exists v', eval_member x v = Some v'.
+        uop_type op τ τ' ->
+        ⊢ᵥ v ∈ τ ->
+        exists v', eval_uop op v = Some v'.
     Proof.
-      intros x v ts τ τ' Hmem Hget Ht;
-        inv Hmem; inv Ht; unravel.
-      - eapply F.relfs_get_r in H1 as [? ?]; eauto 2;
-          intuition; eauto 2.
-      - eapply F.relfs_get_r in H2 as [? ?]; eauto 2;
-          intuition; eauto 2.
+      intros op τ τ' v Huop Ht; inv Huop; inv Ht;
+        unravel; repeat inv_numeric; eauto 2.
+      destruct ob as [b |]; eauto 2 || contradiction.
+    Qed.
+      
+    Lemma eval_member_exists : forall x τ τs vs,
+        nth_error τs x = Some τ ->
+        Forall2 type_value vs τs ->
+        exists v, nth_error vs x = Some v.
+    Proof.
+      intros x t ts vs hnth h.
+      apply nth_error_exists.
+      apply Forall2_length in h.
+      rewrite h.
+      eauto using ForallMap.nth_error_some_length.
     Qed.
   End HelpersExist.
 End Lemmas.

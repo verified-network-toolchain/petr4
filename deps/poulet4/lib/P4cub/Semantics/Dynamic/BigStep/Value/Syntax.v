@@ -7,7 +7,7 @@ Module Val.
   Inductive v : Type :=
   | Bool (b : bool)
   | Bit (width : N) (n : Z)
-  | Int (width : N) (n : Z)
+  | Int (width : positive) (n : Z)
   | Struct (fields : list v) (validity : option bool)
   | Error (err : option string).
 

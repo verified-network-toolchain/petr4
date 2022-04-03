@@ -18,7 +18,7 @@ Inductive type_value : v -> Expr.t -> Prop :=
   BitArith.bound w n ->
   ⊢ᵥ w VW n ∈ Expr.TBit w
 | typ_int w z :
-  (*IntArith.bound w z ->*)
+  IntArith.bound w z ->
   ⊢ᵥ w VS z ∈ Expr.TInt w
 | typ_struct vs ts ob b :
   match ob, b with
@@ -44,7 +44,7 @@ Section ValueTypingInduction.
       P (w VW n) (Expr.TBit w).
   
   Hypothesis HInt : forall w z,
-      (*IntArith.bound w z ->*)
+      IntArith.bound w z ->
       P (w VS z) (Expr.TInt w).
 
   Hypothesis HError : forall err,
@@ -78,7 +78,7 @@ Section ValueTypingInduction.
       match Hy with
       | typ_bool b => HBool b
       | typ_bit _ _ H => HBit _ _ H
-      | typ_int w z => HInt w z
+      | typ_int _ _ H => HInt _ _ H
       | typ_error err => HError err
       | typ_struct _ _ _ _ H Hfs => HStruct _ _ _ _ H Hfs (lind Hfs)
       end.

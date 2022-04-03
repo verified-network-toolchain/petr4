@@ -23,7 +23,7 @@ Inductive type_expr (Γ : expr_type_env)
   BitArith.bound w n ->
   Γ ⊢ₑ w `W n ∈ Expr.TBit w
 | type_int w n :
-  (*IntArith.bound w n ->*)
+  IntArith.bound w n ->
   Γ ⊢ₑ w `S n ∈ Expr.TInt w
 | type_var x τ :
   nth_error (types Γ) x = Some τ ->

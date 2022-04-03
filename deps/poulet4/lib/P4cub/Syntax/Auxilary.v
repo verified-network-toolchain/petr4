@@ -1,4 +1,3 @@
-Set Warnings "custom-entry-overridden,parsing".
 Require Import Coq.PArith.BinPos
         Poulet4.Monads.Monad Poulet4.Monads.Option
         Coq.NArith.BinNatDef Coq.NArith.BinNat.
@@ -9,8 +8,8 @@ Import Expr ExprNotations.
 Fixpoint width_of_typ (τ : t) : option nat :=
   match τ with
   | TBool  => Some 1%nat
-  | TBit w
-  | TInt w => Some $ N.to_nat w
+  | TBit w => Some $ N.to_nat w
+  | TInt w => Some $ Pos.to_nat w
   | TError => Some 0%nat
   | TVar _ => None
   | TStruct fs b =>

@@ -1,49 +1,37 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Coq.NArith.BinNat Coq.ZArith.BinInt
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Poulet4.P4cub.Semantics.Climate Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.ExprUtil.
-Module V := Val.
-Import String V.ValueNotations V.LValueNotations Clmt.Notations.
+Import String Val.ValueNotations Val.LValueNotations.
 
-(** Variable to Value mappings. *)
-Definition epsilon : Type := Clmt.t string V.v.
+Local Open Scope value_scope.
+Local Open Scope lvalue_scope.
+
+(** Environments for
+    evaluation are De Bruijn lists of values [Val.v].
+    Lookup is done via l-values [Val.lv]. *)
 
 (** Lookup an lvalue. *)
-Fixpoint lv_lookup (ϵ : epsilon) (lv : V.lv) : option V.v :=
+Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
   match lv with
-  | l{ VAR x }l => ϵ x
-  | l{ SLICE lv [hi:lo] }l=>
-    lv_lookup ϵ lv >>= eval_slice hi lo
-  | l{ lv DOT x }l =>
+  | Val.Var x => nth_error ϵ x
+  | Val.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
+  | lv DOT x =>
     match lv_lookup ϵ lv with
-    | None => None
-    | Some ~{ STRUCT { fs } }~
-    | Some ~{ HDR { fs } VALID:=_ }~ => F.get x fs
-    | Some _ => None
-    end
-  | l{ ACCESS lv[n] }l =>
-    match lv_lookup ϵ lv with
-    | None => None
-    | Some ~{ STACK vss:_ NEXT:=_ }~ =>
-      match nth_error vss (Z.to_nat n) with
-      | None => None
-      | Some (b,vs) => Some ~{ HDR { vs } VALID:=b }~
-      end
-    | Some _ => None
+    | Some (Val.Struct vs _) => nth_error vs x
+    | _ => None
     end
   end.
-(**[]*)
-
-Open Scope climate_scope.
 
 (** Updating an lvalue in an environment. *)
-Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
+Fixpoint lv_update
+         (lv : Val.lv) (v : Val.v)
+         (ϵ : list Val.v) : list Val.v :=
   match lv with
-  | l{ VAR x }l    => x ↦ v ,, ϵ
-  | l{ SLICE lv [hi:lo] }l =>
+  | Val.Var x => nth_update x v ϵ
+  | Val.Slice lv hi lo =>
     match v, lv_lookup ϵ lv with
-    | (~{ _ VW n }~ | ~{ _ VS n }~), Some ~{ w VW _ }~ =>
+    | (_ VW n | _ VS n), Some (w VW _) =>
       let rhs := N.shiftl (Z.to_N n) w in
       let mask :=
           Z.to_N
@@ -51,60 +39,52 @@ Fixpoint lv_update (lv : V.lv) (v : V.v) (ϵ : epsilon) : epsilon :=
                            (2 ^ (Npos hi + 1) - 1)
                            (2 ^ (Npos lo - 1))))) in
       let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
-      lv_update lv ~{ w VW new }~ ϵ
-    | _, Some _ | _, None => ϵ
+      lv_update lv (w VW new) ϵ
+    | _, _ => ϵ
     end
-  | l{ lv DOT x }l =>
+  | lv DOT x =>
     match lv_lookup ϵ lv with
-    | Some ~{ STRUCT { vs } }~ => lv_update lv (V.VStruct (F.update x v vs)) ϵ
-    | Some ~{ HDR { vs } VALID:=b }~ =>
-      lv_update lv (V.VHeader (F.update x v vs) b) ϵ
-    | Some _ | None => ϵ
-    end
-  | l{ ACCESS lv[n] }l =>
-    match v, lv_lookup ϵ lv with
-    | ~{ HDR { vs } VALID:=b }~ ,
-      Some ~{ STACK vss:ts NEXT:=ni }~ =>
-      let vss := nth_update (Z.to_nat n) (b,vs) vss in
-      lv_update lv ~{ STACK vss:ts NEXT:=ni }~ ϵ
-    | _, Some _ | _, None => ϵ
+    | Some (Val.Struct vs ob)
+      => lv_update lv (Val.Struct (nth_update x v vs) ob) ϵ
+    | _ => ϵ
     end
   end.
-(**[]*)
 
 (** Create a new environment
     from a closure environment where
-    values of [In] args are substituted
+    values of args are substituted
     into the function parameters. *)
 Definition copy_in
-           (argsv : V.argsv)
-           (ϵcall : epsilon) : epsilon -> epsilon :=
-  F.fold (fun x arg ϵ =>
-            match arg with
-            | PAIn v     => x ↦ v ,, ϵ
-            | PAInOut lv => match lv_lookup ϵcall lv with
-                             | None   => ϵ
-                             | Some v => x ↦ v ,, ϵ
-                             end
-            | PAOut _    => ϵ
-            | PADirLess _ => ϵ (*what to do with directionless param*)
-            end) argsv.
-(**[]*)
+           (argsv : Val.argsv)
+           (ϵcall : list Val.v) : option (list Val.v) :=
+  argsv
+    ▷ map (fun arg =>
+             match arg with
+             | PAIn v
+             | PADirLess v => Some v
+             | PAOut lv
+             | PAInOut lv => lv_lookup ϵcall lv
+             end)
+    ▷ sequence.
 
 (** Update call-site environment with
     out variables from function call evaluation. *)
+
 Definition copy_out
-           (argsv : V.argsv)
-           (ϵf : epsilon) : epsilon -> epsilon :=
-  F.fold (fun x arg ϵ =>
-            match arg with
-            | PAIn _ => ϵ
-            | PADirLess _ => ϵ (*what to do with directionless param*)
-            | PAOut lv
-            | PAInOut lv =>
-              match ϵf x with
-              | None   => ϵ
-              | Some v => lv_update lv v ϵ
-              end
-            end) argsv.
-(**[]*)
+           (argsv : Val.argsv)
+           (ϵ_func : list Val.v) (ϵ_call : list Val.v) : list Val.v :=
+  fold_right
+    (fun arg ϵ_call =>
+       match arg with
+       | PAIn _
+       | PADirLess _ => ϵ_call
+       | PAOut lv
+       | PAInOut lv
+         => match lv_lookup ϵ_func lv with
+           | None   => ϵ_call
+           | Some v => lv_update lv v ϵ_call
+           end
+       end) ϵ_call argsv.
+
+Local Close Scope value_scope.
+Local Close Scope lvalue_scope.

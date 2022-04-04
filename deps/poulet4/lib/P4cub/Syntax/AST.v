@@ -191,13 +191,13 @@ Module Parser.
   | Struct (ps : list pat)    (** struct pattern *).
 
   (** Parser expressions, which evaluate to state names *)
-  Inductive e : Set :=
+  Variant e : Set :=
   | Goto (st : state)  (** goto state [st] *)
   | Select (discriminee : Expr.e)
-            (default : e) (cases : Field.fs pat e)
-                       (** select expressions,
-                                       where "default" is
-                                       the catch-all case *).
+           (default : state) (cases : Field.fs pat state)
+  (** select expressions,
+      where "default" is
+      the catch-all case *).
   
   (** Parser State Blocks. *)
   Record state_block : Set :=

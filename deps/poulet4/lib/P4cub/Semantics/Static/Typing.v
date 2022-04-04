@@ -86,21 +86,19 @@ Inductive type_pat : Parser.pat -> Expr.t -> Prop :=
 Local Close Scope pat_scope.
 
 (** Parser-expression typing. *)
-Inductive type_prsrexpr 
-          (total_states : nat) (Γ : expr_type_env)
+Variant type_prsrexpr 
+        (total_states : nat) (Γ : expr_type_env)
   : Parser.e -> Prop :=
-| type_goto (st : Parser.state) :
-  valid_state total_states st ->
-  type_prsrexpr total_states Γ (Parser.Goto st)
-| type_select e default cases τ :
-  Γ ⊢ₑ e ∈ τ ->
-  type_prsrexpr total_states Γ default ->
-  Forall
-    (fun pe =>
-       let p := fst pe in
-       let e := snd pe in
-       type_pat p τ /\ type_prsrexpr total_states Γ e) cases ->
-  type_prsrexpr total_states Γ (Parser.Select e default cases).
+  | type_goto (st : Parser.state) :
+    valid_state total_states st ->
+    type_prsrexpr total_states Γ (Parser.Goto st)
+  | type_select e default cases τ :
+    valid_state total_states default ->
+    Γ ⊢ₑ e ∈ τ ->
+    Forall
+      (fun '(p,st) => type_pat p τ /\ valid_state total_states st)
+      cases ->
+    type_prsrexpr total_states Γ (Parser.Select e default cases).
 
 (** * Statement typing. *)
 

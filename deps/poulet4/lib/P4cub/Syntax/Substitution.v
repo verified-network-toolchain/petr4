@@ -150,15 +150,12 @@ Fixpoint tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
       (tsub_Cd σ d1 ;c; tsub_Cd σ d2)%ctrl
   end.
 
-Fixpoint tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
+Definition tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
   match transition with
   | Parser.Goto s =>
       Parser.Goto s
   | Parser.Select discriminee default cases =>
-      let discriminee' := tsub_e σ discriminee in
-      let default' := tsub_transition σ default in
-      let cases' := Field.map (tsub_transition σ) cases in
-      Parser.Select discriminee' default' cases'
+      Parser.Select (tsub_e σ discriminee) default cases
   end.
 
 Definition tsub_state (σ : nat -> Expr.t) (st : Parser.state_block) :=

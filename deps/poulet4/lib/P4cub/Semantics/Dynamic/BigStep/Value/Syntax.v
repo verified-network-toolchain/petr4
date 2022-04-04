@@ -4,7 +4,7 @@ Import String.
 
 Module Val.
   (** Values from expression evaluation. *)
-  Inductive v : Type :=
+  Inductive v : Set :=
   | Bool (b : bool)
   | Bit (width : N) (n : Z)
   | Int (width : positive) (n : Z)
@@ -12,14 +12,14 @@ Module Val.
   | Error (err : option string).
 
   (** Lvalues. *)
-  Inductive lv : Type :=
+  Inductive lv : Set :=
   | Var (x : nat)               (** Local variables. *)
   | Slice (arg : lv)
           (hi lo : positive)  (** Slice. *)
   | Member (arg : lv) (x : nat) (** Member access. *).
 
   (** Evaluated arguments. *)
-  Definition argsv : Type := list (paramarg v lv).
+  Definition argsv : Set := list (paramarg v lv).
 
   Module ValueNotations.
     Declare Scope value_scope.

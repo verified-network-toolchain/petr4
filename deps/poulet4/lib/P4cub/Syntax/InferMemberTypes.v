@@ -99,15 +99,14 @@ Fixpoint inf_Cd  (d : Control.d) :=
   | (d1 ;c; d2)%ctrl => (inf_Cd d1 ;c; inf_Cd d2)%ctrl
   end.
 
-Fixpoint inf_transition  (transition : Parser.e) :=
+Definition inf_transition  (transition : Parser.e) :=
   match transition with
   | Parser.Goto s =>
       Parser.Goto s
   | Parser.Select discriminee default cases =>
-      let discriminee' := inf_e discriminee in
-      let default' := inf_transition default in
-      let cases' := Field.map inf_transition cases in
-      Parser.Select discriminee' default' cases'
+      Parser.Select
+        (inf_e discriminee)
+        default cases
   end.
 
 Definition inf_state  (st : Parser.state_block) :=

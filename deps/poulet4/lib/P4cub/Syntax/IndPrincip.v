@@ -108,7 +108,6 @@ Section ExprInduction.
       | Member rt x exp => HMember rt x exp (eind exp)
       | Error err       => HError err
       end.
-  (**[]*)
 End ExprInduction.
 
 (** A custom induction principle for select patterns. *)
@@ -133,7 +132,7 @@ Section PatternInduction.
   Hypothesis HStruct : forall ps,
       Forall P ps -> P (Struct ps).
   
-  (** A customnduction principle,
+  (** A custom induction principle,
       do [induction ?H using custom_pat_ind]. *)
   Definition custom_pat_ind : forall (p : pat), P p :=
     fix pind (p : pat) : P p :=
@@ -150,36 +149,4 @@ Section PatternInduction.
       | w PS z      => HInt w z
       | Struct ps   => HStruct ps (lind ps)
       end.
-  (**[]*)
 End PatternInduction.
-
-(** A customnduction principle for parser expressions. *)
-Section ParserExprInduction.
-  Import Parser.
-  
-  (** An arbitrary predicate. *)
-  Variable P : e -> Prop.
-  
-  Hypothesis HState : forall st, P (Goto st).
-  
-  Hypothesis HSelect : forall exp st cases,
-      Field.predfs_data P cases -> P st -> 
-      P (Select exp st cases).
-  
-  (** A customnduction principle,
-      do [induction ?H using pe_ind] *)
-  Definition pe_ind : forall pe : e, P pe :=
-    fix peind pe : P pe :=
-      let fix fsind {A : Set} (es : Field.fs A e)
-        : Field.predfs_data P es :=
-          match es with
-          | [] => Forall_nil _
-          | (_,pe) as epe :: es =>
-            Forall_cons epe (peind pe) (fsind es)
-          end in
-      match pe with
-      | Goto st => HState st
-      | Select exp st cases
-        => HSelect exp st _ (fsind cases) (peind st)
-      end.
-End ParserExprInduction.

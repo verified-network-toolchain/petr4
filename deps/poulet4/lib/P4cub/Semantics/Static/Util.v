@@ -185,8 +185,7 @@ Variant return_void_ok : ctx -> Prop :=
 (** Put parameters into environment. *)
 Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
   map (fun 
-       '(PADirLess τ
-        | PAIn τ
+       '(PAIn τ
         | PAOut τ
         | PAInOut τ) => τ) ps ++ Γ.
 

@@ -52,7 +52,6 @@ Definition tsub_param (σ : nat -> Expr.t) (pa : paramarg Expr.t Expr.t) :=
   | PAIn t => PAIn (tsub_t σ t)
   | PAOut t => PAOut (tsub_t σ t)
   | PAInOut t => PAInOut (tsub_t σ t)
-  | PADirLess t => PAInOut (tsub_t σ t)
   end.
 
 Definition tsub_arg (σ : nat -> Expr.t) (pa : paramarg Expr.e Expr.e) :=
@@ -60,7 +59,6 @@ Definition tsub_arg (σ : nat -> Expr.t) (pa : paramarg Expr.e Expr.e) :=
   | PAIn e => PAIn (tsub_e σ e)
   | PAOut e => PAOut (tsub_e σ e)
   | PAInOut e => PAInOut (tsub_e σ e)
-  | PADirLess e => PAInOut (tsub_e σ e)
   end.
 
 Definition tsub_arrowE
@@ -90,8 +88,8 @@ Fixpoint tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
         tsub_arrowE σ args
   | Stmt.FunCall f typ_args args =>
       Stmt.FunCall f (map (tsub_t σ) typ_args) $ tsub_arrowE σ args
-  | Stmt.ActCall a args =>
-      Stmt.ActCall a $ map (tsub_arg σ) args
+  | Stmt.ActCall a cargs dargs => (* TODO: correctly handle case *)
+      Stmt.ActCall a cargs $ map (tsub_arg σ) dargs
   | Stmt.Return e =>
       Stmt.Return $ option_map (tsub_e σ) e 
   | Stmt.Apply ci ext_args args =>
@@ -140,10 +138,11 @@ Definition tsub_table
 
 Fixpoint tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   match d with
-  | Control.Action a sig body =>
-      let sig' := map (tsub_param σ) sig in
+  | Control.Action a cps dps body =>
+      (* TODO: correctly handle case *)
+      let sig' := map (tsub_param σ) dps in
       let body' := tsub_s σ body in
-      Control.Action a sig' body'
+      Control.Action a cps sig' body'
   | Control.Table t tbl =>
       Control.Table t (tsub_table σ tbl)
   | (d1 ;c; d2)%ctrl =>

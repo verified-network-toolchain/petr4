@@ -22,9 +22,9 @@ Definition ctrl: Set := Clmt.t string entries.
   
   (** Table environment. *)
 
-Definition tenv: Set := Clmt.t string (Control.table).
+Definition tenv: Set := Clmt.t string Control.table.
 
-Definition empty_tenv := Clmt.empty string (Control.table).
+Definition empty_tenv := Clmt.empty string Control.table.
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
@@ -47,23 +47,23 @@ Definition aenv: Set := Clmt.t string adecl.
 (** Control instances and environment. *)
 Inductive cinst: Set :=
 | CInst (fs : fenv) (** function closure *)
-        (cis : Clmt.t string cinst) (** control instance closure *)
+        (cis : list cinst) (** control instance closure *)
         (tbls : tenv) (** table closure *)
         (actions : aenv) (** action closure *)
         (* TODO: needs a De Bruijn extern instance closure environment. *)
         (apply_blk : Stmt.s)  (** control instance apply block *).
   
-Definition cienv: Set := Clmt.t string cinst.
+Definition cienv: Set := list cinst.
   
 (** Parser instances. *)
 Inductive pinst: Set :=
 | PInst (fs : fenv) (** function closure *)
-        (pis : Clmt.t string pinst) (** parser instance closure *)
+        (pis : list pinst) (** parser instance closure *)
         (* TOOD: needs a De Bruijn extern instance closure *)
         (strt : Parser.state_block) (** start state *)
         (states : list Parser.state_block) (** other states *).
   
-Definition pienv: Set := Clmt.t string pinst.
+Definition pienv: Set := list pinst.
 
 (** Closures for control,parser, & extern declarations.
     For instantiable declarations. *)

@@ -30,14 +30,12 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
       Expr.Member t mem (inf_e arg)
   | Expr.Member t mem arg => Expr.Member t mem (inf_e arg)
   end.
-(**[]*)
 
 Definition inf_arg (pa : paramarg Expr.e Expr.e) :=
   match pa with
   | PAIn e => PAIn (inf_e e)
   | PAOut e => PAOut (inf_e e)
-    | PAInOut e => PAInOut (inf_e e)
-  | PADirLess e => PAInOut (inf_e e)
+  | PAInOut e => PAInOut (inf_e e)
   end.
 
 Definition inf_arrowE  (ar : Expr.arrowE) :=
@@ -67,9 +65,8 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   | Stmt.FunCall f typ_args args =>
       let args' := inf_arrowE args in
       Stmt.FunCall f typ_args args'
-  | Stmt.ActCall a args =>
-      let args' := map inf_arg args in
-      Stmt.ActCall a args'
+  | Stmt.ActCall a cargs dargs =>
+      Stmt.ActCall a (map inf_e cargs) (map inf_arg dargs)
   | Stmt.Return e => Stmt.Return $ option_map inf_e e
   | Stmt.Apply ci ext_args args =>
       let args' := map inf_arg args in
@@ -92,8 +89,8 @@ Definition inf_table  (tbl : Control.table) :=
 
 Fixpoint inf_Cd  (d : Control.d) :=
   match d with
-  | Control.Action a sig body =>
-      Control.Action a sig $ inf_s body
+  | Control.Action a cps dps body =>
+      Control.Action a cps dps $ inf_s body
   | Control.Table t tbl =>
       Control.Table t (inf_table tbl)
   | (d1 ;c; d2)%ctrl => (inf_Cd d1 ;c; inf_Cd d2)%ctrl

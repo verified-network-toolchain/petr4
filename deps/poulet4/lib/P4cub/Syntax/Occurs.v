@@ -36,8 +36,7 @@ Definition
   FV_paramarg
   '((PAIn e
     | PAOut e
-    | PAInOut e
-    | PADirLess e) : paramarg Expr.e Expr.e)
+    | PAInOut e) : paramarg Expr.e Expr.e)
   : list nat := FVₑ e.
 
 Definition
@@ -61,8 +60,8 @@ Fixpoint FVₛ (s : Stmt.s) : list nat :=
   | Stmt.Block s                => FVₛ s
   | Stmt.ExternMethodCall _ _ _ arr
   | Stmt.FunCall _ _ arr        => FV_arrowE arr
-  | Stmt.ActCall _ es
   | Stmt.Apply _ _ es           => flat_map FV_paramarg es
+  | Stmt.ActCall _ cs ds        => flat_map FVₑ cs ++ flat_map FV_paramarg ds
   end.
 
 (* TODO: induction hypothesis. *)
@@ -128,9 +127,9 @@ Section Occurs.
   | Occurs_fun_call f τs args :
     Occurs_arrowE args ->
     Occursₛ (Stmt.FunCall f τs args)
-  | Occurs_act_call a es :
-    Exists (pred_paramarg_same Occursₑ) es ->
-    Occursₛ (Stmt.ActCall a es)
+  | Occurs_act_call a cs ds :
+    Exists Occursₑ cs \/ Exists (pred_paramarg_same Occursₑ) ds ->
+    Occursₛ (Stmt.ActCall a cs ds)
   | Occurs_apply y exts es :
     Exists (pred_paramarg_same Occursₑ) es ->
     Occursₛ (Stmt.Apply y exts es).
@@ -254,14 +253,18 @@ Section Occurs.
            | s Hs
            | ext f ts arr
            | f ts arr
-           | a es
+           | a cs ds
            | [e |] |
            | t
            | z exts es]; unravel in *; inv Hos;
         auto; autorewrite with core; intuition.
-      - rewrite in_flat_map_Exists.
+      - left; rewrite in_flat_map_Exists.
         rewrite Exists_exists in *.
-        destruct H0 as (pae & Hines & Hopae).
+        destruct H as (e & Hincs & Hoe).
+        exists e; simpl in *; auto.
+      - right; rewrite in_flat_map_Exists.
+        rewrite Exists_exists in *.
+        destruct H as (pae & Hines & Hopae).
         exists pae; simpl in *.
         destruct pae;
           unfold pred_paramarg_same,
@@ -288,17 +291,21 @@ Section Occurs.
            | s Hs
            | ext f ts arr
            | f ts arr
-           | a es
+           | a cs ds
            | [e |] |
            | t
            | z exts es]; unravel in *;
         autorewrite with core in *;
         try contradiction;
         intuition; subst; eauto.
-      - constructor.
-        rewrite in_flat_map_Exists in Hin.
+      - constructor; left.
+        rewrite in_flat_map_Exists in H.
         rewrite Exists_exists in *.
-        destruct Hin as (pae & Hines & Hopae).
+        destruct H as (e & Hincs & Hoe); eauto.
+      - constructor; right.
+        rewrite in_flat_map_Exists in H.
+        rewrite Exists_exists in *.
+        destruct H as (pae & Hines & Hopae).
         exists pae; unravel in *.
         destruct pae;
           unfold pred_paramarg_same,

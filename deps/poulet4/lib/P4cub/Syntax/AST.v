@@ -10,13 +10,11 @@ Import String.
 Variant paramarg (A B : Set) : Set :=
 | PAIn      (a : A) (** in-parameter. *)
 | PAOut     (b : B) (** out-parameter. *)
-| PAInOut   (b : B) (** inout-parameter. *)
-| PADirLess (a : A) (** direction-less parameter *).
+| PAInOut   (b : B) (** inout-parameter. *).
 
 Arguments PAIn {_} {_}.
 Arguments PAOut {_} {_}.
 Arguments PAInOut {_} {_}.
-Arguments PADirLess {_} {_}.
 
 Definition paramarg_map {A B C D : Set}
            (f : A -> C) (g : B -> D)
@@ -25,15 +23,14 @@ Definition paramarg_map {A B C D : Set}
   | PAIn      a => PAIn      (f a)
   | PAOut     b => PAOut     (g b)
   | PAInOut   b => PAInOut   (g b)
-  | PADirLess a => PADirLess (f a)
   end.
 
 (** A predicate on a [paramarg]. *)
 Definition pred_paramarg {A B : Set}
            (PA : A -> Prop) (PB : B -> Prop) (pa : paramarg A B) : Prop :=
   match pa with
-  | PAIn  a | PADirLess a => PA a
-  | PAOut b | PAInOut   b => PB b
+  | PAIn  a             => PA a
+  | PAOut b | PAInOut b => PB b
   end.
 
 Definition pred_paramarg_same {A : Set} (P : A -> Prop)
@@ -45,7 +42,6 @@ Definition rel_paramarg {A1 A2 B1 B2 : Set}
            (pa1 : paramarg A1 B1)
            (pa2 : paramarg A2 B2) : Prop :=
   match pa1, pa2 with
-  | PADirLess a1, PADirLess a2 
   | PAIn      a1, PAIn      a2 => RA a1 a2
   | PAOut     b1, PAOut     b2
   | PAInOut   b1, PAInOut   b2 => RB b1 b2
@@ -162,7 +158,8 @@ Module Stmt.
       (args : Expr.arrowE)  (** function call *)
   | ActCall
       (action_name : string)
-      (args : Expr.args) (** action call *)
+      (control_plane_args : list Expr.e)
+      (data_plane_args : Expr.args) (** action call *)
   | Return (e : option Expr.e) (** return statement *)
   | Exit (** exit statement *)
   | Invoke (table_name : string) (** table invocation *)
@@ -214,11 +211,12 @@ Module Control.
   (** Declarations that may occur within Controls. *)
   Inductive d : Set :=
   | Action (action_name : string)
-             (signature : Expr.params) (body : Stmt.s )
-  (** action declaration *)
+           (control_plane_params : list Expr.t)
+           (data_plane_params : Expr.params)
+           (body : Stmt.s) (** action declaration *)
   | Table (table_name : string)
-            (body : table)  (** table declaration *)
-  | Seq (d1 d2 : d)       (** sequence of declarations *).
+            (body : table) (** table declaration *)
+  | Seq (d1 d2 : d)        (** sequence of declarations *).
 End Control.
 
 (** Top-Level Declarations *)

@@ -1,7 +1,0 @@
-pr1363.p4(12): [--Wwarn=shadow] warning: 'implementation' shadows 'implementation'
-    implementation = ActionProfile(32);
-    ^^^^^^^^^^^^^^
-pr1363.p4(3)
-typedef bit implementation;
-            ^^^^^^^^^^^^^^
-[--Wwarn=missing] warning: Program does not contain a `main' module

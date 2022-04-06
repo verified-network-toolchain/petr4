@@ -148,7 +148,7 @@ Module Stmt.
       (tru_blk fls_blk : s) (** conditionals *)
   | Seq (s1 s2 : s) (** sequences *)
   | Block (blk : s) (** blocks *)
-  | ExternMethodCall
+  | MethodCall
       (extern_name : nat) (method_name : string)
       (typ_args : list Expr.t)
       (args : Expr.arrowE ) (** extern method calls *)

@@ -128,7 +128,7 @@ Variant ctx : Set :=
       (available_actions : aenv) (* TODO:
                                     needs a De Bruijn
                                     extern instance closure env. *)
-  | CFunction (return_type : option Expr.t)
+  | CFunction
   | CApplyBlock
       (control_plane_entries : ctrl) (* TODO: needs to be replaced with
                                         Target.v equivalent. *)
@@ -200,6 +200,14 @@ Definition get_state_block
 Local Open Scope climate_scope.
 Local Open Scope stmt_scope.
 
+Definition lv_update_signal
+           (olv : option Val.lv) (sig : signal)
+           (ϵ : list Val.v) : list Val.v :=
+  match olv, sig with
+  | Some lv, Rtrn (Some v) => lv_update lv v ϵ
+  | _ , _ => ϵ
+  end.
+
 Inductive stmt_big_step
   : stmt_eval_env -> list Val.v -> Stmt.s ->
     list Val.v -> signal -> extern_state -> Prop :=
@@ -236,7 +244,63 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, if b then s₁ else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, If e Then s₁ Else s₂ ⧽
     ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', sig, ψ ⧽
-(* TODO: other statements *)
+| sbs_block Ψ ϵ ϵ' s sig ψ :
+  ⧼ Ψ, ϵ, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ, Stmt.Block s ⧽
+    ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', Cont, ψ ⧽
+| sbs_fun_call
+    Ψ ψ ϵ ϵ' ϵ'' f τs args
+    eo vargs olv fun_clos body sig :
+  (** Lookup function. *)
+  functs Ψ f = Some (FDecl fun_clos body) ->
+  (** Evaluate l-expression. *)
+  relop lexpr_big_step eo olv ->
+  (** Evaluate arguments. *)
+  Forall2
+    (rel_paramarg
+       (expr_big_step ϵ)
+       lexpr_big_step)
+    args vargs ->
+  (** Copyin. *)
+  copy_in vargs ϵ = Some ϵ' ->
+  (** Evaluate the function body. *)
+  ⧼ {| functs := fun_clos
+    ;  cntx   := CFunction
+    ;  extrn  := extrn Ψ |},
+    ϵ', tsub_s (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ,
+    Stmt.FunCall
+      f τs {|paramargs:=args;rtrns:=eo|} ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽
+| sbs_act_call
+    Ψ ϵ ϵ' ϵ'' a cargs dargs vcargs vdargs
+    actions fun_clos act_clos body sig ψ :
+  (** Get avaialble action declarations. *)
+  match cntx Ψ with
+  | CAction actions
+  | CApplyBlock _ _ actions _ => Some actions
+  | _ => None
+  end = Some actions ->
+  (** Lookup action. *)
+  actions a = Some (ADecl fun_clos act_clos body) ->
+  (** Evaluate control-plane arguments. *)
+  Forall2
+    (expr_big_step ϵ)
+    cargs vcargs ->
+  (** Evaluate data-plane arguments. *)
+  Forall2
+    (rel_paramarg
+       (expr_big_step ϵ)
+       lexpr_big_step)
+    dargs vdargs ->
+  (** Copy-in data-plane arguments. *)
+  copy_in vdargs ϵ = Some ϵ' ->
+  (** Evaluate the action body. *)
+  ⧼ {| functs := fun_clos
+    ;  cntx   := CAction act_clos
+    ;  extrn  := extrn Ψ |},
+    vcargs ++ ϵ', body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ, Stmt.ActCall a cargs dargs ⧽ ⤋ ⧼ copy_out vdargs ϵ'' ϵ, Cont, ψ ⧽
 where "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
   := (stmt_big_step Ψ ϵ s ϵ' sig ψ) : type_scope.
 (*

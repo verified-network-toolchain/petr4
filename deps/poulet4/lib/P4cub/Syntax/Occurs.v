@@ -58,7 +58,7 @@ Fixpoint FVₛ (s : Stmt.s) : list nat :=
   | (If e Then s₁ Else s₂)%stmt => FVₑ e ++ FVₛ s₁ ++ FVₛ s₂
   | (s₁ `; s₂)%stmt             => FVₛ s₁ ++ FVₛ s₂
   | Stmt.Block s                => FVₛ s
-  | Stmt.ExternMethodCall _ _ _ arr
+  | Stmt.MethodCall _ _ _ arr
   | Stmt.FunCall _ _ arr        => FV_arrowE arr
   | Stmt.Apply _ _ es           => flat_map FV_paramarg es
   | Stmt.ActCall _ cs ds        => flat_map FVₑ cs ++ flat_map FV_paramarg ds
@@ -123,7 +123,7 @@ Section Occurs.
     Occursₛ(Stmt.Return (Some e))
   | Occursₑ_extern_method_call e m τs args :
     Occurs_arrowE args ->
-    Occursₛ (Stmt.ExternMethodCall e m τs args)
+    Occursₛ (Stmt.MethodCall e m τs args)
   | Occurs_fun_call f τs args :
     Occurs_arrowE args ->
     Occursₛ (Stmt.FunCall f τs args)

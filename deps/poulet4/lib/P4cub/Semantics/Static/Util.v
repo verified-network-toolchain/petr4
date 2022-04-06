@@ -107,8 +107,6 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
   (T < Δ)%nat ->
   t_ok Δ T.
 
-(*Import Clmt.Notations.*)
-
 (** Function names to signatures. *)
 Definition fenv : Set :=
   Clmt.t
@@ -117,7 +115,11 @@ Definition fenv : Set :=
      * Expr.arrowT (** signature. *)).
 
 (** Action names to signatures. *)
-Definition aenv : Set := Clmt.t string Expr.params.
+Definition aenv : Set :=
+  Clmt.t
+    string (** action name. *)
+    (list Expr.t (** control-plane parameters. *)
+     * Expr.params (** data-plane parameters *)).
 
 (** de Bruijn environment of instance type signatures. *)
 Definition ienv : Set :=
@@ -151,7 +153,6 @@ Variant extern_call_ok (eis : eienv) : ctx -> Prop :=
   extern_call_ok eis (CApplyBlock tbls aa cis eis)
 | extern_parser_state_ok {pis : ienv} :
   extern_call_ok eis (CParserState pis eis).
-(**[]*)
 
 (** Evidence an action call context is ok. *)
 Variant action_call_ok
@@ -160,7 +161,6 @@ Variant action_call_ok
     action_call_ok aa (CAction aa eis)
 | action_apply_block_ok {tbls : list string} {cis : ienv} {eis : eienv} :
     action_call_ok aa (CApplyBlock tbls aa cis eis).
-(**[]*)
 
 (** Evidence an exit context ok. *)
 Variant exit_ctx_ok : ctx -> Prop :=
@@ -169,7 +169,6 @@ Variant exit_ctx_ok : ctx -> Prop :=
 | exit_applyblk_ok {tbls : list string} {aa : aenv}
                    {cis : ienv} {eis : eienv} :
     exit_ctx_ok (CApplyBlock tbls aa cis eis).
-(**[]*)
 
 (** Evidence a void return is ok. *)
 Variant return_void_ok : ctx -> Prop :=
@@ -180,7 +179,6 @@ Variant return_void_ok : ctx -> Prop :=
 | return_void_applyblk {tbls : list string} {aa : aenv}
                        {cis : ienv} {eis : eienv} :
     return_void_ok (CApplyBlock tbls aa cis eis).
-(**[]*)
 
 (** Put parameters into environment. *)
 Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
@@ -263,11 +261,3 @@ Inductive lvalue_ok : Expr.e -> Prop :=
 | lvalue_member τ x e :
   lvalue_ok e ->
   lvalue_ok (Expr.Member τ x e).
-
-Fixpoint gen_tsub (τs : list Expr.t) (X : nat) : Expr.t :=
-  match τs, X with
-  | τ :: _, O => τ
-  | _ :: τs, S n => gen_tsub τs n
-  | [], O => O
-  | [], S n => n
-  end.

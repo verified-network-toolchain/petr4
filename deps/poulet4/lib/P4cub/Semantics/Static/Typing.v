@@ -169,15 +169,16 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=None|} ⊣ types Γ ↓ Cont
-| type_act_call Γ params args a aa :
+| type_act_call Γ cparams dparams cargs dargs a aa :
   action_call_ok aa (cntx Γ) ->
-  aa a = Some params ->
+  aa a = Some (cparams,dparams) ->
+  Forall2 (type_expr Γ) cargs cparams ->
   Forall2
     (rel_paramarg
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    args params ->
-  Γ ⊢ₛ Stmt.ActCall a args ⊣ types Γ ↓ Cont
+    dargs dparams ->
+  Γ ⊢ₛ Stmt.ActCall a cargs dargs ⊣ types Γ ↓ Cont
 | type_fun_call Γ params τs args f τ e :
   sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=Some τ|}) ->
   Forall (t_ok (type_vars Γ)) (τ :: τs) ->
@@ -234,7 +235,7 @@ Inductive type_stmt
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
     ⊢ₛ Stmt.Invoke tbl ⊣ types Γ ↓ Cont
-| type_extern_call_void
+| type_method_call_void
     Γ x f τs args fns con
     methods extern_insts params :
   nth_error extern_insts x = Some methods ->
@@ -247,8 +248,8 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ types Γ ↓ Cont
-| type_extern_call_fruit
+    ⊢ₛ Stmt.MethodCall x f τs {|paramargs:=args;rtrns:=None|} ⊣ types Γ ↓ Cont
+| type_method_call_fruit
     Γ x f τs args e τ fns con
     methods extern_insts params :
   nth_error extern_insts x = Some methods ->
@@ -263,7 +264,7 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-    ⊢ₛ Stmt.ExternMethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ types Γ ↓ Cont
+    ⊢ₛ Stmt.MethodCall x f τs {|paramargs:=args;rtrns:=Some e|} ⊣ types Γ ↓ Cont
 where "Γ₁ '⊢ₛ' s '⊣' Γ₂ '↓' sig"
         := (type_stmt Γ₁ s Γ₂ sig).
 
@@ -300,14 +301,14 @@ Local Open Scope ctrl_scope.
 (** Control declaration typing. *)
 Inductive type_ctrldecl (Γ : ctrl_type_env)
   : Control.d -> aenv -> list string -> Prop :=
-| type_action action_name params body Γ' sig :
+| type_action action_name cparams dparams body Γ' sig :
   {| sfuncts := cfuncts Γ
   ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
   ; expr_env :=
     {| type_vars := type_vars (cexpr_env Γ)
-    ; types := bind_all params (types (cexpr_env Γ)) |}
+    ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
   |} ⊢ₛ body ⊣ Γ' ↓ sig ->
-  Γ ⊢ᵪ Control.Action action_name params body ⊣ actns Γ ∧ tbls Γ
+  Γ ⊢ᵪ Control.Action action_name cparams dparams body ⊣ actns Γ ∧ tbls Γ
 | type_table table_name key actions :
   (** Keys type. *)
   Forall

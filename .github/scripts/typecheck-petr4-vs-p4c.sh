@@ -3,6 +3,7 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
+# reminder: testdata and p4include have been moved to ci-test.
 
 # mkdir ci-test/type-checking/expectation/petr4TypeChecked
 # mkdir ci-test/type-checking/expectation/typechecked

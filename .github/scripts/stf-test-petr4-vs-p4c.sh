@@ -8,8 +8,8 @@ set -x # Make command execution verbose
 # mkdir ci-test/stf-test/expectation/p4cPassed
 # mkdir ci-test/stf-test/expectation/fails
 
-mkdir ci-test/stf-test/expectation/lookinto
-echo "create dir" > ci-test/stf-test/expectation/lookinto/dummy
+# mkdir ci-test/stf-test/expectation/lookinto
+# echo "create dir" > ci-test/stf-test/expectation/lookinto/dummy
 
 # rm -r ci-test/type-checking/expectation/fails/*.p4
 # rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4
@@ -21,10 +21,10 @@ echo "create dir" > ci-test/stf-test/expectation/lookinto/dummy
 
 # rm -r ci-test/type-checking/expectation/lookinto/*.p4_out
 
-echo "directory for petr4 stf test passed but p4c didn't" > ci-test/stf-test/expectation/petr4Passed/dummy
-echo "directory for both passed" > ci-test/stf-test/expectation/passes/dummy
-echo "directory for p4c but petr4 didn't" > ci-test/stf-test/expectation/p4cPassed/dummy
-echo "directory for both failed" > ci-test/stf-test/expectation/fails/dummy
+# echo "directory for petr4 stf test passed but p4c didn't" > ci-test/stf-test/expectation/petr4Passed/dummy
+# echo "directory for both passed" > ci-test/stf-test/expectation/passes/dummy
+# echo "directory for p4c but petr4 didn't" > ci-test/stf-test/expectation/p4cPassed/dummy
+# echo "directory for both failed" > ci-test/stf-test/expectation/fails/dummy
 
 # echo "blah" | tee ci-test/type-checking/expectation/lookinto/blah.out
 

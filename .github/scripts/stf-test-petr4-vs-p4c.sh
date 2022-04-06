@@ -3,10 +3,10 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
-mkdir ci-test/stf-test/expectation/petr4Passed
-mkdir ci-test/stf-test/expectation/passes
-mkdir ci-test/stf-test/expectation/p4cPassed
-mkdir ci-test/stf-test/expectation/fails
+# mkdir ci-test/stf-test/expectation/petr4Passed
+# mkdir ci-test/stf-test/expectation/passes
+# mkdir ci-test/stf-test/expectation/p4cPassed
+# mkdir ci-test/stf-test/expectation/fails
 
 mkdir ci-test/stf-test/expectation/lookinto
 echo "create dir" > ci-test/stf-test/expectation/lookinto/dummy

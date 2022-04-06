@@ -60,8 +60,7 @@ Definition copy_in
   argsv
     ▷ map (fun arg =>
              match arg with
-             | PAIn v
-             | PADirLess v => Some v
+             | PAIn v     => Some v
              | PAOut lv
              | PAInOut lv => lv_lookup ϵcall lv
              end)
@@ -76,8 +75,7 @@ Definition copy_out
   fold_right
     (fun arg ϵ_call =>
        match arg with
-       | PAIn _
-       | PADirLess _ => ϵ_call
+       | PAIn _ => ϵ_call
        | PAOut lv
        | PAInOut lv
          => match lv_lookup ϵ_func lv with

@@ -81,15 +81,15 @@ Fixpoint tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
       Stmt.Seq (tsub_s σ s1) $ tsub_s σ s2
   | Stmt.Block b =>
       Stmt.Block $ tsub_s σ b
-  | Stmt.ExternMethodCall extern_name method_name typ_args args =>
-      Stmt.ExternMethodCall
+  | Stmt.MethodCall extern_name method_name typ_args args =>
+      Stmt.MethodCall
         extern_name method_name
         (map (tsub_t σ) typ_args) $
         tsub_arrowE σ args
   | Stmt.FunCall f typ_args args =>
       Stmt.FunCall f (map (tsub_t σ) typ_args) $ tsub_arrowE σ args
-  | Stmt.ActCall a cargs dargs => (* TODO: correctly handle case *)
-      Stmt.ActCall a cargs $ map (tsub_arg σ) dargs
+  | Stmt.ActCall a cargs dargs =>
+      Stmt.ActCall a (map (tsub_e σ) cargs) $ map (tsub_arg σ) dargs
   | Stmt.Return e =>
       Stmt.Return $ option_map (tsub_e σ) e 
   | Stmt.Apply ci ext_args args =>
@@ -139,10 +139,9 @@ Definition tsub_table
 Fixpoint tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
-      (* TODO: correctly handle case *)
-      let sig' := map (tsub_param σ) dps in
-      let body' := tsub_s σ body in
-      Control.Action a cps sig' body'
+      Control.Action
+        a (map (tsub_t σ) cps)
+        (map (tsub_param σ) dps) $ tsub_s σ body
   | Control.Table t tbl =>
       Control.Table t (tsub_table σ tbl)
   | (d1 ;c; d2)%ctrl =>
@@ -195,4 +194,13 @@ Fixpoint tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
       TopDecl.Funct f tparams cparams' body'
   | (d1 ;%; d2)%top =>
       (tsub_d σ d1 ;%; tsub_d σ d2)%top
+  end.
+
+(** Generate a substitution from type arguments. *)
+Fixpoint gen_tsub (τs : list Expr.t) (X : nat) : Expr.t :=
+  match τs, X with
+  | τ :: _, O => τ
+  | _ :: τs, S n => gen_tsub τs n
+  | [], O => O
+  | [], S n => n
   end.

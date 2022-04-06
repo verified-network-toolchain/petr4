@@ -59,9 +59,9 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   | (s1 `; s2)%stmt => (inf_s s1 `; inf_s s2)%stmt
   | Stmt.Block b =>
       Stmt.Block $ inf_s b
-  | Stmt.ExternMethodCall extern_name method_name typ_args args =>
+  | Stmt.MethodCall extern_name method_name typ_args args =>
       let args' := inf_arrowE args in
-      Stmt.ExternMethodCall extern_name method_name typ_args args'
+      Stmt.MethodCall extern_name method_name typ_args args'
   | Stmt.FunCall f typ_args args =>
       let args' := inf_arrowE args in
       Stmt.FunCall f typ_args args'

@@ -11,7 +11,10 @@ Import (*String*)
 
 (** * Big-step Semantics. *)
 
-(* TODO: needs to use [P4light/Architecture/Target.v]. *)
+(* TODOs:
+   - Needs to use [P4light/Architecture/Target.v].
+   - Handle exit signals correctly.
+*)
 
 (** Expression evaluation. *)
 
@@ -174,7 +177,7 @@ Reserved Notation "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
     a parser-state-machine starting from state [curr]
     evaluates to a new value environment [ϵ'],
     a final state [final], and an extern state [ψ]. *)
-Reserved Notation "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ ) "
+Reserved Notation "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
          (at level 80, no associativity).
 
 (** Parser-state-block evaluation :
@@ -273,7 +276,7 @@ Inductive stmt_big_step
       f τs {|paramargs:=args;rtrns:=eo|} ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽
 | sbs_act_call
-    Ψ ϵ ϵ' ϵ'' a cargs dargs vcargs vdargs
+    Ψ ϵ ϵ_clos ϵ' ϵ'' a cargs dargs vcargs vdargs
     actions fun_clos act_clos body sig ψ :
   (** Get avaialble action declarations. *)
   match cntx Ψ with
@@ -282,7 +285,7 @@ Inductive stmt_big_step
   | _ => None
   end = Some actions ->
   (** Lookup action. *)
-  actions a = Some (ADecl fun_clos act_clos body) ->
+  actions a = Some (ADecl ϵ_clos fun_clos act_clos body) ->
   (** Evaluate control-plane arguments. *)
   Forall2
     (expr_big_step ϵ)
@@ -299,12 +302,74 @@ Inductive stmt_big_step
   ⧼ {| functs := fun_clos
     ;  cntx   := CAction act_clos
     ;  extrn  := extrn Ψ |},
-    vcargs ++ ϵ', body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+    vcargs ++ ϵ' ++ ϵ_clos, body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, Stmt.ActCall a cargs dargs ⧽ ⤋ ⧼ copy_out vdargs ϵ'' ϵ, Cont, ψ ⧽
+| sbs_apply_control
+    fs entries tbls actions control_insts extrn_state
+    ϵ ϵ_clos ϵ' ϵ'' c ext_args args vargs sig ψ
+    fun_clos ctrl_clos tbl_clos action_clos apply_block :
+  (** Lookup control instance. *)
+  nth_error control_insts c
+  = Some (CInst
+            ϵ_clos fun_clos ctrl_clos tbl_clos
+            action_clos apply_block) ->
+  (** Evaluate arguments. *)
+  Forall2
+    (rel_paramarg
+       (expr_big_step ϵ)
+       lexpr_big_step)
+    args vargs ->
+  (** Copyin. *)
+  copy_in vargs ϵ = Some ϵ' ->
+  (** Evaluate control apply block. *)
+  ⧼ {| functs := fun_clos
+    ;  cntx   := CApplyBlock
+                   entries tbl_clos
+                   action_clos ctrl_clos
+    ;  extrn := extrn_state |},
+    ϵ' ++ ϵ_clos, apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  ⧼ {| functs := fs
+    ;  cntx   := CApplyBlock
+                   entries tbls actions control_insts
+    ;  extrn  := extrn_state |},
+    ϵ, Stmt.Apply c ext_args args ⧽
+    ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ ⧽
+| sbs_apply_parser
+    fs parser_insts ψ ψ' ϵ ϵ_clos ϵ' ϵ'' p
+    ext_args args vargs
+    fun_clos prsr_clos strt states final :
+  (** Lookup parser instance. *)
+  nth_error parser_insts p
+  = Some (PInst ϵ_clos fun_clos prsr_clos strt states) ->
+  (** Evaluate arguments. *)
+  Forall2
+    (rel_paramarg
+       (expr_big_step ϵ)
+       lexpr_big_step)
+    args vargs ->
+  (** Copyin. *)
+  copy_in vargs ϵ = Some ϵ' ->
+  (** Evaluate parser state machine. *)
+  Δ ( {| pextrn  := ψ
+      ;  pfuncts := fun_clos
+      ;  pstart  := strt
+      ;  pstates := states
+      ;  parsers := prsr_clos |},
+      ϵ' ++ ϵ_clos, Parser.Start ) ⇝ ( ϵ'', final, ψ' ) ->
+  ⧼ {| functs := fs
+    ;  cntx   := CParserState parser_insts
+    ;  extrn  := ψ |},
+    ϵ, Stmt.Apply p ext_args args ⧽
+    ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ' ⧽
 where "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
-  := (stmt_big_step Ψ ϵ s ϵ' sig ψ) : type_scope.
+  := (stmt_big_step Ψ ϵ s ϵ' sig ψ) : type_scope
+                                        
+with bigstep_state_machine
+  : parser_eval_env -> list Val.v -> Parser.state ->
+    list Val.v -> Parser.state -> extern_state -> Prop :=
+  where "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
+    := (bigstep_state_machine Φ ϵ curr ϵ' final ψ) : type_scope.
 (*
-  with bigstep_state_machine
          (pkt : Paquet.t) (fs : fenv) (ϵ : epsilon) :
          pienv -> ARCH.extern_env ->
          AST.Parser.state_block -> (F.fs string (AST.Parser.state_block)) ->

@@ -1,213 +1,130 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Coq.micromega.Lia.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value BigStep.Semantics BigStep.IndPrincip.
-Require Import Poulet4.P4cub.Semantics.Static.Static.
-
-Module V := Val.
-Import String AllCubNotations Step
-       V.ValueNotations V.LValueNotations
-       F.FieldTactics ProperType.
+Require Import Poulet4.P4cub.Semantics.Static.Static
+        Poulet4.Utils.ForallMap.
+Import AllCubNotations Val.ValueNotations Val.LValueNotations.
 
 Section BigStepTheorems.
-  (** Epsilon's values type's agree with Gamma. *)
-  Definition envs_type (Δ : Delta) (Γ : Gamma) (ϵ : epsilon) : Prop :=
-    forall (x : string) (τ : Expr.t) (v : V.v),
-      Γ x = Some τ -> ϵ x = Some v -> ∇ ⊢ v ∈ τ.
-  (**[]*)
-
-  (** Epsilon is a subset of Gamma. *)
-  Definition envs_subset (Γ : Gamma) (ϵ : epsilon) : Prop :=
-    forall (x : string) (τ : Expr.t),
-      Γ x = Some τ -> exists v, ϵ x = Some v.
-  (**[]*)
-
-  Definition envs_sound Γ ϵ Δ : Prop :=
-    envs_type Δ Γ ϵ /\ envs_subset Γ ϵ.
-  (**[]*)
-
-  Context {tags_t : Type}.
-
   Section ExprPreservation.
     Local Hint Resolve eval_slice_types : core.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_type : core.
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_member_types : core.
-    Local Hint Constructors ProperType.proper_nesting : core.
+    (*Local Hint Constructors ProperType.proper_nesting : core.*)
     Local Hint Constructors type_value : core.
 
-    Theorem expr_big_step_preservation :
-      forall (Δ : Delta) (Γ : Gamma) (e : Expr.e tags_t)
-        (τ : Expr.t) (ϵ : epsilon) (v : V.v),
-        envs_type Δ Γ ϵ ->
+    Theorem expr_big_step_preservation : forall ϵ e v Γ τ,
         ⟨ ϵ, e ⟩ ⇓ v ->
-        ⟦ Δ, Γ ⟧ ⊢ e ∈ τ ->
-        ∇ ⊢ v ∈ τ.
+        Forall2 type_value ϵ (types Γ) ->
+        Γ ⊢ₑ e ∈ τ ->
+        ⊢ᵥ v ∈ τ.
     Proof.
-      unfold envs_type; intros D Γ e τ ϵ v Het Hev.
-      generalize dependent τ.
-      induction Hev using custom_expr_big_step_ind; intros t Ht; inv Ht;
-      try constructor; eauto 4;
-        repeat match goal with
-               | w' := _ |- context [ ?w' ] => subst w'; eauto 3
-               | H: error_ok _ _ |- _ => inv H; auto 1
-               | IHHev: (?P -> forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> ∇ ⊢ _ ∈ _),
-                 HP : ?P, He: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
-                 |- _ => pose proof IHHev HP _ He as IH; clear IHHev; inv IH
-               end; eauto 2.
-      (*
-      - generalize dependent ts; induction H; intros [];
-        intros; repeat inv_Forall2_cons; intuition.
-      - generalize dependent tfs;
-        ind_relfs; intros [| [? ?] ?]; intros;
-        repeat invert_nil_cons_relate; repeat invert_cons_cons_relate;
-        constructor; unfold F.relf in *; unravel; intuition.
-        apply H2; auto 1.
-      - generalize dependent tfs;
-        ind_relfs; intros [| [? ?] ?]; intros;
-        repeat invert_nil_cons_relate; repeat invert_cons_cons_relate;
-        constructor; unfold F.relf in *; unravel; intuition;
-        invert_proper_nesting; invert_cons_predfs; apply H2; auto 2.
-      - apply Forall2_length in H; lia.
-      - clear n ni H6 H8 H9 H10; generalize dependent ts;
-        induction H; intros []; intros;
-        try inv_Forall2_cons; try inv_Forall_cons; intuition.
-      - invert_proper_nesting; auto 2.
-      - eapply Forall_nth_error in H12; simpl in *; eauto 1.
-        simpl in *; inv H12; auto.
-    Qed. *)
-    Admitted.
+      intros ϵ e v Γ τ hev henv;
+        generalize dependent τ;
+        induction hev using custom_expr_big_step_ind;
+        intros t het; inv het; eauto.
+      - pose proof IHhev henv _ H6 as hvt; inv hvt; eauto.
+      - constructor.
+        + destruct ob; destruct oe;
+            destruct b; inv H; inv H0; inv H5; eauto.
+        + clear dependent b.
+          clear dependent ob.
+          clear dependent oe.
+          rewrite Forall2_forall in H2.
+          pose proof
+               (conj
+                  (proj1 H2)
+                  (fun u v hin => (proj2 H2) u v hin henv)) as h; clear H2.
+          rewrite <- Forall2_forall in h.
+          pose proof Forall2_forall_impl_Forall2
+               _ _ _ _ _ _ _
+               h _ H7 as hvts; assumption.
+    Qed.
   End ExprPreservation.
 
   Section ExprProgress.
     Local Hint Constructors expr_big_step : core.
+    Local Hint Constructors relop : core.
 
-    Theorem expr_big_step_progress :
-      forall (D : Delta) (Γ : Gamma) (e : Expr.e tags_t)
-        (τ : Expr.t) (ϵ : epsilon),
-        envs_sound Γ ϵ D ->
-        ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
-        exists v : V.v, ⟨ ϵ, e ⟩ ⇓ v.
+    Theorem expr_big_step_progress : forall Γ e τ ϵ,
+        Forall2 type_value ϵ (types Γ) ->
+        Γ ⊢ₑ e ∈ τ ->
+        exists v : Val.v, ⟨ ϵ, e ⟩ ⇓ v.
     Proof.
-      intros D Γ τ e ϵ [Htyp Hsub] Ht;
-      unfold envs_subset, envs_type in *;
-      induction Ht using custom_check_expr_ind;
+      intros Γ e τ ϵ henv het;
+        induction het using custom_type_expr_ind;
         repeat match goal with
-               | IHHt: (?P -> ?Q -> exists _, ⟨ ϵ, ?e ⟩ ⇓ _),
-                 HP: ?P, HQ: ?Q, He: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
-                 |- _ => pose proof IHHt HP HQ as [? ?]; clear IHHt
+               | IHHt: (?P -> exists _, ⟨ ϵ, ?e ⟩ ⇓ _),
+                   HP: ?P, He: (Γ ⊢ₑ ?e ∈ _)
+                 |- _ => pose proof IHHt HP as [? ?]; clear IHHt
                | Hev : (⟨ ϵ, ?e ⟩ ⇓ _),
-                 Ht: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
+                   Ht: (Γ ⊢ₑ ?e ∈ _)
                  |- _ => pose proof expr_big_step_preservation
-                            _ _ _ _ _ _ Htyp Hev Ht; clear Ht
-               end; eauto 2. (*
-      - apply Hsub in H as [? ?]; eauto 3.
-      - (*pose proof eval_slice_exists _ _ _ _ _ _ H H0 H2 as [? ?]; eauto 3.*) admit.
-      - pose proof eval_cast_exists _ _ _ _ H H1 as [? ?]; eauto 3.
-      - (*pose proof eval_uop_exist _ _ _ _ _ H H1 as [? ?]; eauto 3.*) admit.
-      - pose proof eval_bop_exists _ _ _ _ _ _ _ H H3 H2 as [? ?]; eauto 3.
-      - pose proof eval_member_exists _ _ _ _ _ _ H0 H H2 as [? ?]; eauto 3.
-      - assert (Hvs: exists vs, Forall2 (fun e v => ⟨ ϵ, e ⟩ ⇓ v) es vs).
-        { induction H; repeat inv_Forall2_cons; eauto 2.
-          intuition. destruct H2; destruct H0; eauto 3. }
-        destruct Hvs; eauto 3.
-      - assert
-          (Hvs: exists vfs,
-              F.relfs (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs).
-        { ind_relfs; repeat invert_nil_cons_relate;
-          repeat invert_cons_cons_relate.
-          - exists []. constructor.
-          - intuition. destruct H2 as [v Hv]; destruct H0 as [vfs Hvfs].
-            exists ((s0, v) :: vfs). repeat constructor; eauto 3. }
-        destruct Hvs; eauto 3.
-      - assert
-          (Hvs: exists vfs,
-              F.relfs (fun te v => let e := snd te in ⟨ ϵ, e ⟩ ⇓ v) efs vfs).
-        { inv H; try match goal with
-                     | H: ProperType.base_type {{ hdr {_} }} |- _ => inv H
-                     end.
-          ind_relfs; repeat invert_nil_cons_relate;
-          repeat invert_cons_cons_relate; try invert_cons_predfs.
-          - exists []. constructor.
-          - intuition. destruct H4 as [v Hv]; destruct H7 as [vfs Hvfs].
-            exists ((s0, v) :: vfs). repeat constructor; eauto 3. }
-        inv H3. destruct Hvs; eauto.
-      - assert
-          (Hbvss : exists bvss,
-              Forall2
-                (fun e bvs =>
-                   let b := fst bvs in
-                   let vs := snd bvs in
-                   ⟨ ϵ, e ⟩ ⇓ HDR { vs } VALID:=b) hs bvss).
-        { clear n ni H H0 H1 H2.
-          induction H3; repeat inv_Forall_cons; eauto 2.
-          intuition. destruct H1 as [v Hv]; destruct H0 as [bvss Hbvss].
-          pose proof expr_big_step_preservation _ _ _ _ _ _ Htyp Hv H as IH; inv IH.
-          exists ((b,vs) :: bvss); eauto 2. }
-        destruct Hbvss; eauto 3.
-      - inv H1. assert (Hnihs : BinInt.Z.to_nat idx < length hs) by lia.
-        pose proof nth_error_exists _ _ Hnihs as [[? ?] ?]; eauto 3. *)
-    Admitted.
+                            _ _ _ _ _ Hev henv Ht; clear Ht
+               end; eauto 2.
+        eauto.
+      - apply Forall2_length in henv.
+        apply nth_error_some_length in H.
+        rewrite <- henv in H.
+        apply nth_error_exists in H as [v hv]; eauto.
+      - pose proof eval_slice_exists
+             _ _ _ _ _ H H0 H2 as [v' hv']; eauto.
+      - pose proof eval_cast_exists
+             _ _ _ H H3 as [v' hv']; eauto.
+      - pose proof eval_uop_exist
+             _ _ _ _ H H1 as [? ?]; eauto.
+      - pose proof eval_bop_exists
+             _ _ _ _ _ _ H H3 H2 as [? ?]; eauto.
+      - inv H2.
+        pose proof eval_member_exists
+             _ _ _ _ H H7 as [? ?]; eauto.
+      - rewrite Forall2_forall in H2.
+        pose proof conj
+             (proj1 H2)
+             (fun e t hin => proj2 H2 e t hin henv) as h; clear H2.
+        rewrite <- Forall2_forall in h.
+        apply Forall2_only_l_Forall in h.
+        rewrite Forall_exists_factor in h.
+        destruct h as [vs hvs].
+        destruct oe; destruct b; inv H; inv H0.
+        + pose proof H3 henv as [vb hvb].
+          pose proof expr_big_step_preservation
+               _ _ _ _ _ hvb henv H4 as hvbt;
+            inv hvbt.
+          exists (Val.Struct vs (Some b)); constructor; cbn; auto.
+        + exists (Val.Struct vs None); constructor; cbn; auto.
+    Qed.
   End ExprProgress.
 
   Section LVPreservation.
     Local Hint Constructors type_lvalue : core.
 
-    Theorem lvalue_preservation : forall D Γ (e : Expr.e tags_t) lv τ,
-        ⧠ e ⇓ lv -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> LL D, Γ ⊢ lv ∈ τ.
+    Theorem lvalue_preservation : forall e lv Γ τ,
+        e ⇓ₗ lv -> Γ ⊢ₑ e ∈ τ -> types Γ ⊢ₗ lv ∈ τ.
     Proof.
-      Unset Printing Notations.
-      intros D Γ e lv τ Hlv; generalize dependent τ;
-        induction Hlv; intros t Ht; inv Ht; eauto 3.
-      subst w'.
-      econstructor 2; eauto.
+      intros e lv Γ t helv;
+        generalize dependent t;
+        induction helv; intros t het; inv het; eauto.
     Qed.
   End LVPreservation.
 
   Section LVProgress.
-    Local Hint Constructors lvalue_big_step : core.
+    Local Hint Constructors lexpr_big_step : core.
 
-    Theorem lvalue_progress : forall D Γ (e : Expr.e tags_t) τ,
-        lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> exists lv, ⧠ e ⇓ lv.
+    Theorem lvalue_progress : forall Γ e τ,
+        lvalue_ok e -> Γ ⊢ₑ e ∈ τ -> exists lv, e ⇓ₗ lv.
     Proof.
-      intros D Γ e τ Hlv; generalize dependent τ;
-        induction Hlv; intros t' Ht; inv Ht;
-      try match goal with
-          | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> exists _, _),
-                H: (⟦ D, Γ ⟧ ⊢ ?e ∈ _)
-            |- _ => apply IH in H as [? ?]
-          end; eauto 3.
+      intros Γ e t hok; generalize dependent t;
+        induction hok; intros t het; inv het;
+        try match goal with
+            | IH: (forall _, Γ ⊢ₑ ?e ∈ _ -> exists _, _),
+                H: (Γ ⊢ₑ ?e ∈ _)
+              |- _ => apply IH in H as [? ?]
+            end; eauto 3.
     Qed.
   End LVProgress.
 
-  Section ParserExprProgress.
-    Hint Constructors parser_expr_big_step : core.
-
-    Theorem parser_expr_progress : forall sts D Γ ϵ (e : AST.Parser.e tags_t),
-      envs_sound Γ ϵ D -> ⟅ sts, D, Γ ⟆ ⊢ e -> exists st, ⦑ ϵ, e ⦒ ⇓ st.
-    Proof.
-      intros sts D Γ ϵ e Hsound He.
-      induction He using custom_check_prsrexpr_ind; eauto.
-      assert (Hvcases :
-                exists vcases, Forall2
-                            (fun pe pv =>
-                               let p := fst pe in
-                               let p' := fst pv in
-                               let e := snd pe in
-                               let s := snd pv in
-                               p = p' /\ ⦑ ϵ, e ⦒ ⇓ s)
-                            cases vcases).
-      { clear e def H He IHHe.
-        ind_list_Forall; repeat inv_Forall_cons;
-        try invert_cons_predfs; eauto 2; intuition.
-        (*eapply expr_big_step_progress in H0 as [v ?];
-        destruct H1 as [st ?]; destruct H3 as [vcases ?]; eauto 1.
-        exists ((v,st) :: vcases); auto 3. }
-      eapply expr_big_step_progress in H as [v ?]; eauto 1.
-      pose proof IHHe Hsound as [dst ?].
-      destruct Hvcases as [vcases ?].
-      exists (match F.get v vcases with None => dst | Some st => st end); auto 2.*)
-    Admitted.
-  End ParserExprProgress.
+  (* TODO: more! *)
 End BigStepTheorems.

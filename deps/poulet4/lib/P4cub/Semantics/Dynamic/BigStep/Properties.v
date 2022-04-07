@@ -1,25 +1,90 @@
-Set Warnings "-custom-entry-overridden".
-From Poulet4 Require Import P4cub.Syntax.Syntax P4cub.Semantics.Climate.
+From Poulet4 Require Import P4cub.Syntax.Syntax
+     P4cub.Semantics.Climate Utils.ForallMap.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
-     BigStep.Value.Syntax BigStep.Semantics BigStep.IndPrincip.
+     BigStep.Value.Syntax BigStep.Semantics BigStep.IndPrincip
+     BigStep.Value.Typing.
 Import AllCubNotations Val.ValueNotations
-       Val.LValueNotations F.FieldTactics Step.
+       Val.LValueNotations.
 
 Section Properties.
-  Lemma lv_update_sub_env : forall lv v ϵ,
-    ϵ ⊆ lv_update lv v ϵ.
+  (* TODO: move to utility module. *)
+  Lemma nth_update_length : forall (A : Set) (l : list A) n a,
+      length (nth_update n a l) = length l.
+  Proof.
+    intros A l; induction l as [| h t];
+      intros [| n] a; cbn; auto.
+  Qed.
+
+  Lemma nth_update_correct : forall (A : Set) (l : list A) n a,
+      n < length l ->
+      nth_error (nth_update n a l) n = Some a.
+  Proof.
+    intros A l; induction l as [| h t];
+      intros [| n] a H; cbn in *; try lia; auto.
+    assert (n < length t) by lia; auto.
+  Qed.
+  
+  Lemma lv_update_length : forall lv v ϵ,
+      length (lv_update lv v ϵ) = length ϵ.
   Proof.
     intro lv;
       induction lv; intros v eps; simpl.
-    - (* not generally true. *) admit.
-  Abort.
+    - rewrite nth_update_length; reflexivity.
+    - destruct v; auto;
+        destruct (lv_lookup eps lv) eqn:hlook; auto;
+        destruct v; auto.
+    - destruct (lv_lookup eps lv) eqn:hlook; auto.
+      destruct v0; auto.
+  Qed.
+
+  Lemma lv_lookup_types : forall lv τ v Γ ϵ,
+      Forall2 type_value ϵ Γ ->
+      Γ ⊢ₗ lv ∈ τ ->
+      lv_lookup ϵ lv = Some v ->
+      ⊢ᵥ v ∈ τ.
+  Proof.
+    intros lv t v g eps henv hlvt;
+      generalize dependent v.
+    induction hlvt; intros v hv; cbn in *.
+    - rewrite ForallMap.Forall2_forall_nth_error in henv.
+      firstorder.
+    - destruct (lv_lookup eps LV) as [V |] eqn:Veq;
+        cbn in *; try discriminate.
+      pose proof IHhlvt _ eq_refl as ihv; clear IHhlvt.
+      inv H0; inv ihv; unravel in *.
+      + inv hv. admit.
+      + inv hv. admit.
+    - destruct (lv_lookup eps LV) as [V |] eqn:Veq;
+        cbn in *; try discriminate.
+      destruct V; cbn in *; try discriminate.
+      pose proof IHhlvt _ eq_refl as ih; clear IHhlvt; inv ih.
+      eauto using ExprUtil.eval_member_types.
+  Admitted.
   
-  Context {tags_t : Type}.
+  Lemma lv_update_correct : forall lv v v' ϵ τ Γ,
+      Forall2 type_value ϵ Γ ->
+      Γ ⊢ₗ lv ∈ τ ->
+      ⊢ᵥ v ∈ τ ->
+      ⊢ᵥ v' ∈ τ ->
+      lv_lookup ϵ lv = Some v' ->
+      lv_lookup (lv_update lv v ϵ) lv = Some v.
+  Proof.
+    intros lv v v' eps t g h hlv;
+      generalize dependent v';
+      generalize dependent v;
+      generalize dependent eps.
+    induction hlv; intros eps henv v v' hv hv' h; cbn in *.
+    - apply nth_update_correct.
+      eauto using ForallMap.nth_error_some_length.
+    - inv hv; inv hv'.
+      destruct (lv_lookup eps LV) as [V |] eqn:hlook;
+        cbn in *; try discriminate.
+  Admitted.
+  
   Local Hint Resolve ForallMap.Forall2_dumb : core.
-  Local Hint Resolve Clmt.union_sub_env : core.
   Local Hint Constructors expr_big_step : core.
   
-  Lemma expr_big_step_sub_env : forall ϵ ϵ' (e : Expr.e tags_t) v,
+  (*Lemma expr_big_step_sub_env : forall ϵ ϵ' (e : Expr.e tags_t) v,
       ϵ ⊆ ϵ' -> ⟨ ϵ, e ⟩ ⇓ v -> ⟨ ϵ', e ⟩ ⇓ v.
   Proof.
     intros eps eps' e v Heps Hev;
@@ -78,5 +143,5 @@ Section Properties.
       apply IHHsbs2.
       (* Needs assumption that [disjoint ϵ' μ] *)
       admit.
-  Abort.
+      Abort.*)
 End Properties.

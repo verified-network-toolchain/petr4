@@ -35,6 +35,6 @@ Module Val.
     Coercion Var : nat >-> lv.
     Notation "lval 'DOT' x"
       := (Member lval x)
-           (at level 20, left associativity) : lvalue_scope.
+           (at level 22, left associativity) : lvalue_scope.
   End LValueNotations.
 End Val.

@@ -14,9 +14,9 @@ Import (*String*)
 (* TODOs:
    - Needs to use [P4light/Architecture/Target.v].
    - Handle exit signals correctly.
-*)
+   - Handle results of final parser states correctly. *)
 
-(** Expression evaluation. *)
+(** * Expression evaluation. *)
 
 Reserved Notation "⟨ ϵ , e ⟩ ⇓ v"
          (at level 80, no associativity).
@@ -121,6 +121,16 @@ Variant interrupt : signal -> Prop :=
 | interrupt_rtrn vo : interrupt (Rtrn vo)
 | interrupt_rjct    : interrupt Rjct.
 
+(** A final parser state. *)
+Variant final_state : Parser.state -> Prop :=
+  | final_accept : final_state Parser.Accept
+  | final_reject : final_state Parser.Reject.
+
+(** An intermediate parser state. *)
+Variant intermediate_state : Parser.state -> Prop :=
+  | intermediate_start  : intermediate_state Parser.Start
+  | intermediate_name x : intermediate_state (Parser.Name x).
+
 (** Context for statement evaluation,
     syntactically where a statement
     occurs within a program
@@ -215,7 +225,7 @@ Inductive stmt_big_step
   : stmt_eval_env -> list Val.v -> Stmt.s ->
     list Val.v -> signal -> extern_state -> Prop :=
 | sbs_skip Ψ ϵ :
-  ⧼ Ψ, ϵ, Stmt.Skip ⧽ ⤋ ⧼ ϵ, Cont, tt ⧽
+  ⧼ Ψ, ϵ, Stmt.Skip ⧽ ⤋ ⧼ ϵ, Cont, extrn Ψ ⧽
 | sbs_seq_cont Ψ ϵ ϵ' ϵ'' s₁ s₂ sig ψ₁ ψ₂ :
   ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', Cont, ψ₁ ⧽ ->
   ⧼ {| functs := functs Ψ
@@ -232,16 +242,16 @@ Inductive stmt_big_step
   | inr e => ⟨ ϵ, e ⟩ ⇓ v
   | inl τ => v_of_t τ = Some v
   end ->
-  ⧼ Ψ, ϵ, Stmt.Var eo ⧽ ⤋ ⧼ v :: ϵ, Cont, tt ⧽
+  ⧼ Ψ, ϵ, Stmt.Var eo ⧽ ⤋ ⧼ v :: ϵ, Cont, extrn Ψ ⧽
 | sbs_assign Ψ ϵ e₁ e₂ lv v :
   e₁ ⇓ₗ lv ->
   ⟨ ϵ, e₂ ⟩ ⇓ v ->
-  ⧼ Ψ, ϵ, e₁ `:= e₂ ⧽ ⤋ ⧼ lv_update lv v ϵ, Cont, tt ⧽
+  ⧼ Ψ, ϵ, e₁ `:= e₂ ⧽ ⤋ ⧼ lv_update lv v ϵ, Cont, extrn Ψ ⧽
 | sbs_exit Ψ ϵ :
-  ⧼ Ψ, ϵ, Stmt.Exit ⧽ ⤋ ⧼ ϵ, Exit, tt ⧽
+  ⧼ Ψ, ϵ, Stmt.Exit ⧽ ⤋ ⧼ ϵ, Exit, extrn Ψ ⧽
 | sbs_return Ψ ϵ eo vo :
   relop (expr_big_step ϵ) eo vo ->
-  ⧼ Ψ, ϵ, Stmt.Return eo ⧽ ⤋ ⧼ ϵ, Rtrn vo, tt ⧽
+  ⧼ Ψ, ϵ, Stmt.Return eo ⧽ ⤋ ⧼ ϵ, Rtrn vo, extrn Ψ ⧽
 | sbs_cond Ψ ϵ ϵ' e s₁ s₂ (b : bool) sig ψ :
   ⟨ ϵ, e ⟩ ⇓ b ->
   ⧼ Ψ, ϵ, if b then s₁ else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
@@ -367,57 +377,38 @@ where "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
 with bigstep_state_machine
   : parser_eval_env -> list Val.v -> Parser.state ->
     list Val.v -> Parser.state -> extern_state -> Prop :=
-  where "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
-    := (bigstep_state_machine Φ ϵ curr ϵ' final ψ) : type_scope.
-(*
-         (pkt : Paquet.t) (fs : fenv) (ϵ : epsilon) :
-         pienv -> ARCH.extern_env ->
-         AST.Parser.state_block -> (F.fs string (AST.Parser.state_block)) ->
-         AST.Parser.state -> epsilon -> AST.Parser.state -> Paquet.t -> Prop :=
-  | bsm_accept (strt : AST.Parser.state_block)
-               (states : F.fs string (AST.Parser.state_block))
-               (curr : AST.Parser.state) (currb : AST.Parser.state_block)
-               (ϵ' : epsilon) (pkt' : Paquet.t)
-               (pis : pienv) (eis : ARCH.extern_env) :
-      get_state_block strt states curr = Some currb ->
-      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', accept, pkt'⟩ ->
-      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', accept, pkt'⟩
-  | bsm_reject (strt : AST.Parser.state_block)
-               (states : F.fs string (AST.Parser.state_block))
-               (curr : AST.Parser.state) (currb : AST.Parser.state_block)
-               (ϵ' : epsilon) (pkt' : Paquet.t)
-               (pis : pienv) (eis : ARCH.extern_env) :
-      get_state_block strt states curr = Some currb ->
-      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', reject, pkt'⟩ ->
-      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ϵ', reject, pkt'⟩
-  | bsm_continue (strt : AST.Parser.state_block)
-                 (states : F.fs string (AST.Parser.state_block))
-                 (curr : AST.Parser.state) (currb : AST.Parser.state_block)
-                 (next : AST.Parser.state) (final : AST.Parser.state)
-                 (ϵ' ϵ'' : epsilon) (pkt' pkt'' : Paquet.t)
-                 (pis : pienv) (eis : ARCH.extern_env) :
-      get_state_block strt states curr = Some currb ->
-      SB (pkt, fs, ϵ, pis, eis, currb) ⇝ ⟨ϵ', next, pkt'⟩ ->
-      SM (pkt', fs, ϵ', pis, eis, strt, states, next) ⇝ ⟨ϵ'', final, pkt''⟩ ->
-      SM (pkt, fs, ϵ, pis, eis, strt, states, curr) ⇝ ⟨ ϵ'', final, pkt''⟩
-  where  "'SM' ( pkt1 , fenv , ϵ1 , pis , eis , strt , states , curr ) ⇝ ⟨ ϵ2 , final , pkt2 ⟩"
-           := (bigstep_state_machine
-                 pkt1 fenv ϵ1 pis eis strt states curr ϵ2 final pkt2)
+| bsm_final Φ ϵ curr :
+  final_state curr ->
+  Δ ( Φ, ϵ, curr ) ⇝ ( ϵ, curr, pextrn Φ )
+| bsm_intermediate Φ ϵ ϵ' ϵ'' curr next final block ψ ψ' :
+  intermediate_state curr ->
+  get_state_block (pstart Φ) (pstates Φ) curr = Some block ->
+  δ ( Φ, ϵ, block ) ⇝ ( ϵ', next, ψ ) ->
+  Δ ( {| pextrn  := ψ
+      ;  pfuncts := pfuncts Φ
+      ;  pstart  := pstart Φ
+      ;  pstates := pstates Φ
+      ;  parsers := parsers Φ |},
+      ϵ', next ) ⇝ ( ϵ'', final, ψ' ) ->
+  Δ ( Φ, ϵ', curr ) ⇝ ( ϵ'', final, ψ' )
+where "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
+  := (bigstep_state_machine Φ ϵ curr ϵ' final ψ) : type_scope
 
-  with bigstep_state_block
-         (pkt : Paquet.t) (fs : fenv) (ϵ : epsilon) :
-         @pienv -> ARCH.extern_env ->
-         AST.Parser.state_block -> epsilon -> AST.Parser.state -> Paquet.t -> Prop :=
-  | bsb_reject (s : Stmt.s) (e : AST.Parser.e)
-               (ϵ' : epsilon) (pkt' : Paquet.t)
-               (pis : pienv) (eis : ARCH.extern_env) :
-      ⟪ pkt, fs, ϵ, Parser pis eis, s ⟫ ⤋ ⟪ ϵ', SIG_Rjct, pkt' ⟫ ->
-      SB (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', reject, pkt'⟩
-  | bsb_cont (s : Stmt.s) (e : AST.Parser.e)
-             (st : AST.Parser.state) (ϵ' : epsilon) (pkt' : Paquet.t)
-             (pis : pienv) (eis : ARCH.extern_env) :
-      ⟪ pkt, fs, ϵ, Parser pis eis, s ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫ ->
-      ⦑ ϵ', e ⦒ ⇓ st ->
-      SB (pkt, fs, ϵ, pis, eis, &{ state{s} transition e }&) ⇝ ⟨ϵ', st, pkt'⟩
-  where "'SB' ( pkt1 , fenv , ϵ1 , pis , eis , currb ) ⇝ ⟨ ϵ2 , next , pkt2 ⟩"
-  := (bigstep_state_block pkt1 fenv ϵ1 pis eis currb ϵ2 next pkt2). *)
+with bigstep_state_block
+  : parser_eval_env -> list Val.v -> Parser.state_block ->
+    list Val.v -> Parser.state -> extern_state -> Prop :=
+| bsb_cont Φ ϵ ϵ' s e next ψ :
+    ⧼ {| functs := pfuncts Φ
+      ;  cntx   := CParserState (parsers Φ)
+      ;  extrn  := pextrn Φ |},
+      ϵ, s ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
+    p⟨ ϵ, e ⟩ ⇓ next ->
+    δ ( Φ, ϵ, {| Parser.stmt:=s; Parser.trans:=e |} ) ⇝ ( ϵ', next, ψ )
+| bsb_reject Φ ϵ ϵ' s e ψ :
+  ⧼ {| functs := pfuncts Φ
+    ;  cntx   := CParserState (parsers Φ)
+    ;  extrn  := pextrn Φ |},
+    ϵ, s ⧽ ⤋ ⧼ ϵ', Exit, ψ ⧽ ->
+  δ ( Φ, ϵ, {| Parser.stmt:=s; Parser.trans:=e |} ) ⇝ ( ϵ', Parser.Reject, ψ )
+where "'δ' ( Φ , ϵ , currb ) ⇝ ( ϵ' , next , ψ )"
+  := (bigstep_state_block Φ ϵ currb ϵ' next ψ) : type_scope.

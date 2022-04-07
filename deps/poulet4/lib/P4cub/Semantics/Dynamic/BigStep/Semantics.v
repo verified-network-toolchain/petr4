@@ -5,8 +5,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
 From Poulet4.P4cub.Semantics.Dynamic Require Export
      BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil.
-Import (*String*)
-  Val.ValueNotations ExprNotations
+Import Val.ValueNotations ExprNotations
   Val.LValueNotations StmtNotations.
 
 (** * Big-step Semantics. *)

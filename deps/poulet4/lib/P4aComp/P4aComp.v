@@ -19,21 +19,14 @@ Context `{S_finite: @Finite S _ S_eq_dec}.
 Variable (H: Type).
 Context `{H_eq_dec: EquivDec.EqDec H eq}.
 Context `{H_finite: @Finite H _ H_eq_dec}.
+Variable (Hdr_sz: H -> nat).
 
 Variable (tags_t : Type).
-(* Want to crash if untranslatable *)
-(* Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : list (H * nat) :=
-  match prog with 
-    | TopDecl.TPParser p _ eps params st states i => [] ++ []
-    | TopDecl.TPSeq d1 d2 _ => collect_hdrs d1 ++ collect_hdrs d2
-    | _ => []
-  end. *)
-
 
 Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
   match e with 
     | Expr.TBool => Some 1
-    | Expr.TBit n => Some (N.to_nat n)
+    | Expr.TBit w => Some (N.to_nat w)
     | Expr.TInt w => Some (Pos.to_nat w)
     | Expr.THeader fields => 
       List.fold_left (fun accum f => 
@@ -50,6 +43,25 @@ Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
     | _ => None
   end.
 
+Fixpoint type_size_e (ctxt:F.fs string nat) (e:Expr.e tags_t) : option nat :=
+  match e with 
+    | Expr.EBool b i => Some 1
+    | Expr.EBit w val i => Some (N.to_nat w)
+    | Expr.EInt w val i => Some (Pos.to_nat w)
+    | Expr.EVar t x i => type_size ctxt t
+    | Expr.EHeader fields valid i => 
+      List.fold_left (fun accum f => 
+        match accum, f with 
+          | (Some t1), (_, t2) => 
+            match type_size_e ctxt t2 with 
+              | Some field_size => Some (t1 + field_size)
+              | _ => None
+            end
+          | _, _ => None
+        end) fields (Some 0)
+    | _ => None
+  end.
+
 Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : option (F.fs string nat) :=
   match st with 
   | Stmt.SVardecl x expr _ => 
@@ -59,7 +71,11 @@ Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : opti
           | Some sz => Some [(x, sz)]
           | None => None
           end
-      | inr e => Some [(x, 0)]   (* Get type size from e *)
+      | inr e => 
+          match type_size_e ctxt e with
+          | Some sz => Some [(x, sz)]
+          | None => None
+          end
       end
   | Stmt.SSeq s1 s2 _ =>
       match (collect_hdrs_stmt ctxt s1) with
@@ -92,6 +108,7 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
   end.
 
 Definition mk_hdr_type (hdrs: F.fs string nat) : Type := Fin.t (List.length hdrs).
+
 
 Lemma findi_length_bound :
   forall {A: Type} pred (l: list A) i,
@@ -127,8 +144,36 @@ Proof.
   destruct (List.nth_error hdrs i) eqn:?.
   - exact (fst p).
   - apply nth_error_None in Heqo.
-    lia.
-Defined.
+    try lia. Admitted.
+(* Defined. *)
+
+Print expr.
+Check ESlice.
+Check Expr.ESlice.
+
+(* Doesn't work, is expr _ _ right? *)
+(* Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr _ _) := 
+  match e with 
+  | Expr.EHeader fields valid i => Some (expr )
+  | Expr.ESlice arg hi lo i => 
+      match translate_expr arg with
+        | Some e1 => Some (ESlice _ e1 (Pos.to_nat hi) (Pos.to_nat lo) )
+        | None => None
+      end
+  | _ => None
+  end. *)
+
+(* Need function for finding header associated with an expression *)
+Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): (op Hdr_sz):= 
+  match s with 
+  | Stmt.SSkip i => OpNil _
+  | Stmt.SSeq s1 s2 i => OpSeq (translate_st s1) (translate_st s2)
+  (* Find header associated with lhs *)
+  (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
+  | Stmt.SBlock s => translate_st s
+  | _ => OpNil _
+  end.
+
 
 (* Notes: F.fs is an association list *)
 (* Does not handle subparsers, for now consider only one parser *)
@@ -138,15 +183,6 @@ Defined.
 Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
 Admitted. *)
 
-Search op.
-(* Fixpoint translate_st (s:Stmt.s tags_t): op _:= 
-  match s with 
-  | Stmt.SSkip i => OpNil _
-  | Stmt.SSeq s1 s2 i => OpNil
-  | Stmt.SBlock s => OpNil
-  | _ => OpNil
-  end. *)
-(* Fixpoint translate_state () *)
 
 (* Fixpoint translate_trans (e:Parser.e) : transition
   match e with 
@@ -163,36 +199,8 @@ Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list (Parser.state_block tags
 
 End P4AComp.
 
-(* Fixpoint translate_parser (prog: P4c.TopDecl.d tags_t) :  *)
 
-(* Fixpoint collect_hdrs_prog (prog : P4c.TopDecl.d tags_t) : list (H * nat) :=
-  match prog with
-  | TopDecl.TPInstantiate c_name i_name type_args cargs i => 
-  | TopDecl.TPSeq d1 d2 _ => (collect_hdrs_prog d1) ++ (collect_hdrs_prog d2)
-  | _ => []
-  end.
-
-(* Function find_hdr_size () *)
-
-Function collect_hdrs (parser: P4c.Expr.ct) : list H * nat) := 
-  match parser with 
-  | _ => []
-  end. *)
-
-  (* Function collect_hdrs (parser: P4c.Expr.ct) : list (H * nat) :=
-    match parser with
-    | 
-    end. *)
-
-(* Axiom P4cubparser: Type.
-Axiom ident: Type.
-
-Definition collect_headers (parser: P4cubparser) : list (ident * nat).
-Admitted.
-Definition collect_states (parser: P4cubparser) : list ident.
-Admitted.
-
-Inductive mk_hdr_type (parser: P4cubparser) : Type :=
+(* Inductive mk_hdr_type (parser: P4cubparser) : Type :=
 | Hdr: forall id sz, List.In (id, sz) (collect_headers parser) -> mk_hdr_type parser.
 Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
 Admitted.

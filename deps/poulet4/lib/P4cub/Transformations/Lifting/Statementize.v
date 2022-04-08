@@ -1,33 +1,56 @@
 From Poulet4 Require Import
-     P4cub.Syntax.AST P4cub.Syntax.Auxilary.
-Require Poulet4.P4cub.Transformations.Lifting.VarNameGen.
+     P4cub.Syntax.AST P4cub.Syntax.Auxilary
+     P4cub.Syntax.CubNotations.
 
-Import String.
-Import ListNotations.
+Import String ListNotations AllCubNotations.
 
 Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
+(* TODO:
+   To "statementize"/lift the new
+   p4cub de Bruijn syntax, it will
+   look something like:
+   [TranformExpr : nat -> Expr.e -> list Expr.e * Expr.e].
+   [TransformExpr n e]
+   will shift all variables in [e] up by [n],
+   and return a list of expressions
+   that will be used to make
+   a sequence of variable declarations.
 
-Section Statementize.
-  Context {tags_t : Type}.
-  Notation t := Expr.t.
-  Notation ct := Expr.ct.
-  Notation e := (Expr.e tags_t).
-  Notation st := (Stmt.s tags_t).
-  Notation td := (TopDecl.d tags_t).
+   All lifted expressions like bitstrings
+   will be replaced with a variable
+   of index 0, which may need to
+   be shifted up later.
 
-  Definition TransformExprList' 
-             (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
-             (el : list e) (env: VarNameGen.t) (i: tags_t)
-    : st * list e * VarNameGen.t := 
-    List.fold_right
-      (fun (expr: e)
-         '((prev_stmt, prev_el, prev_env): (st * list e * VarNameGen.t))
-       => let '(new_stmt, new_e, new_env) := TransformExpr expr prev_env in
-         ((Stmt.SSeq new_stmt prev_stmt i, new_e :: prev_el), new_env))
-      ((Stmt.SSkip i, []), env) el.
+   In the case of binary operations such as addition,
+   it will look something like:
+   [[[
+   TransformExpr n (e1 + e2) =
+   let (l1,e1') := TransformExpr n e1 in
+   let (l2,e2') := TransformExpr (length l1 + n) e2 in
+   (l1 ++ l2, shift (length l2) e1 + e2)
+   ]]]
+   Variables occursing in [e2] also
+   need to be shifted up additionally
+   by the number of new variables
+   generated for [e1].
+   Furthermore, [e1']'s variables
+   will need to be shifted up
+   by the number of variables
+   generated for [e2]. *)
+
+Definition TransformExprList' 
+           (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
+           (el : list e) (env: VarNameGen.t) (i: tags_t)
+  : st * list e * VarNameGen.t := 
+  List.fold_right
+    (fun (expr: e)
+       '((prev_stmt, prev_el, prev_env): (st * list e * VarNameGen.t))
+     => let '(new_stmt, new_e, new_env) := TransformExpr expr prev_env in
+       ((Stmt.SSeq new_stmt prev_stmt i, new_e :: prev_el), new_env))
+    ((Stmt.SSkip i, []), env) el.
 
   Definition TransformFields'
              (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t))

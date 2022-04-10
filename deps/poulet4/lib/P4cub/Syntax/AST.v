@@ -8,9 +8,9 @@ Import String.
 
 (** Function call parameters/arguments. *)
 Variant paramarg (A B : Set) : Set :=
-| PAIn      (a : A) (** in-parameter. *)
-| PAOut     (b : B) (** out-parameter. *)
-| PAInOut   (b : B) (** inout-parameter. *).
+  | PAIn      (a : A) (** in-parameter. *)
+  | PAOut     (b : B) (** out-parameter. *)
+  | PAInOut   (b : B) (** inout-parameter. *).
 
 Arguments PAIn {_} {_}.
 Arguments PAOut {_} {_}.
@@ -24,6 +24,11 @@ Definition paramarg_map {A B C D : Set}
   | PAOut     b => PAOut     (g b)
   | PAInOut   b => PAInOut   (g b)
   end.
+
+Definition paramarg_map_same
+           {A B : Set} (f : A -> B)
+  : paramarg A A -> paramarg B B :=
+  paramarg_map f f.
 
 (** A predicate on a [paramarg]. *)
 Definition pred_paramarg {A B : Set}
@@ -137,38 +142,44 @@ Module Expr.
   Definition arrowE : Set := arrow e e.
 End Expr.
 
-(** Statement Grammar *)
+(** * Statement and Block Grammar *)
 Module Stmt.
-  Inductive s : Set :=
-  | Skip (** skip/no-op *)
-  | Var (expr : Expr.t + Expr.e) (** variable declaration. *)
-  | Assign (lhs rhs : Expr.e) (** assignment *)
+
+  (** Single statements. *)
+  Variant s : Set :=
+    | Assign (lhs rhs : Expr.e)    (** assignment *)
+    | FunCall
+        (f : string)
+        (typ_args : list Expr.t)
+        (args : Expr.arrowE)  (** function call *)
+    | ActCall
+        (action_name : string)
+        (control_plane_args : list Expr.e)
+        (data_plane_args : Expr.args) (** action call *)
+    | MethodCall
+        (extern_name : nat) (method_name : string)
+        (typ_args : list Expr.t)
+        (args : Expr.arrowE ) (** extern method calls *)
+    | Invoke (table_name : string) (** table invocation *)
+    | Apply (instance_name : nat)
+            (ext_args : list string)
+            (args : Expr.args) (** apply statements *).
+
+  (** Statement Blocks. *)
+  Inductive block : Set :=
+  | Skip                          (** skip/no-op *)
+  | Var (expr : Expr.t + Expr.e)
+        (tail : block)            (** variable declaration/initialization *)
+  | Seq (head : s) (tail : block) (** sequences *)
+  | Return (e : option Expr.e)    (** return *)
+  | Exit                          (** exit *)
   | Conditional
       (guard : Expr.e)
-      (tru_blk fls_blk : s) (** conditionals *)
-  | Seq (s1 s2 : s) (** sequences *)
-  | Block (blk : s) (** blocks *)
-  | MethodCall
-      (extern_name : nat) (method_name : string)
-      (typ_args : list Expr.t)
-      (args : Expr.arrowE ) (** extern method calls *)
-  | FunCall
-      (f : string)
-      (typ_args : list Expr.t)
-      (args : Expr.arrowE)  (** function call *)
-  | ActCall
-      (action_name : string)
-      (control_plane_args : list Expr.e)
-      (data_plane_args : Expr.args) (** action call *)
-  | Return (e : option Expr.e) (** return statement *)
-  | Exit (** exit statement *)
-  | Invoke (table_name : string) (** table invocation *)
-  | Apply (instance_name : nat)
-          (ext_args : list string)
-          (args : Expr.args) (** apply statements *).
+      (tru_blk fls_blk tail : block) (** conditionals *)
+  | Block (blk tail : block)         (** nested blocks *).
 End Stmt.
 
-(** Parsers *)
+(** * Parser Grammar *)
 Module Parser.
   (** Labels for parser-states. *)
   Variant state : Set :=
@@ -198,25 +209,20 @@ Module Parser.
   
   (** Parser State Blocks. *)
   Record state_block : Set :=
-    { stmt : Stmt.s ; trans : e }.
+    { state_blk : Stmt.block ; state_trans : e }.
 End Parser.
 
-(** Controls *)
+(** * Control Grammar *)
 Module Control.
-  (** Table. *)
-  Record table : Set :=
-    { table_key : list (Expr.e * string); 
-      table_actions : list string }.
-    
-  (** Declarations that may occur within Controls. *)
-  Inductive d : Set :=
-  | Action (action_name : string)
-           (control_plane_params : list Expr.t)
-           (data_plane_params : Expr.params)
-           (body : Stmt.s) (** action declaration *)
-  | Table (table_name : string)
-            (body : table) (** table declaration *)
-  | Seq (d1 d2 : d)        (** sequence of declarations *).
+  (** Declarations occuring within controls. *)
+  Variant d : Set :=
+    | Action (action_name : string)
+             (control_plane_params : list Expr.t)
+             (data_plane_params : Expr.params)
+             (body : Stmt.block) (** action declaration *)
+    | Table (table_name : string)
+            (key : list (Expr.e * string))
+            (actions : list string).
 End Control.
 
 (** Top-Level Declarations *)
@@ -243,41 +249,41 @@ Module TopDecl.
   Definition constructor_args : Set := list constructor_arg.
   
   (** Top-level declarations. *)
-  Inductive d : Set :=
-  | Instantiate
-      (constructor_name : string)
-      (type_args : list Expr.t)
-      (cargs : constructor_args )
-  (** instantiations *)
-  | Extern
-      (extern_name : string)
-      (type_params : nat)
-      (cparams : constructor_params)
-      (methods : Field.fs
-                   string (** method name *)
-                   (nat             (** type parameters *)
-                    * list string (** extern parameters *)
-                    * Expr.arrowT (** parameters *)))
-  (** extern declarations *)
-  | Control
-      (control_name : string)
-      (cparams : constructor_params) (** constructor params *)
-      (eparams : list string)      (** runtime extern params *)
-      (params : Expr.params)       (** apply block params *)
-      (body : Control.d) (apply_blk : Stmt.s )
-  (** control declarations *)
-  | Parser
-      (parser_name : string)
-      (cparams : constructor_params) (** constructor params *)
-      (eparams : list string)      (** runtime extern params *)
-      (params : Expr.params)              (** invocation params *)
-      (start : Parser.state_block) (** start state *)
-      (states : list (Parser.state_block)) (** parser states *)
-  (** parser declaration *)
-  | Funct
+  Variant d : Set :=
+    | Instantiate
+        (constructor_name : string)
+        (type_args : list Expr.t)
+        (cargs : constructor_args) (** instantiations *)
+    | Extern
+        (extern_name : string)
+        (type_params : nat)
+        (cparams : constructor_params)
+        (methods : Field.fs
+                     string (** method name *)
+                     (nat             (** type parameters *)
+                      * list string (** extern parameters *)
+                      * Expr.arrowT (** parameters *)))
+    (** extern declarations *)
+    | Control
+        (control_name : string)
+        (cparams : constructor_params) (** constructor params *)
+        (eparams : list string)      (** runtime extern params *)
+        (params : Expr.params)       (** apply block params *)
+        (body : list Control.d)
+        (apply_blk : Stmt.block) (** control declarations *)
+    | Parser
+        (parser_name : string)
+        (cparams : constructor_params) (** constructor params *)
+        (eparams : list string)      (** runtime extern params *)
+        (params : Expr.params)              (** invocation params *)
+        (start : Parser.state_block) (** start state *)
+        (states : list (Parser.state_block)) (** parser states *)
+    (** parser declaration *)
+    | Funct
         (function_name : string)
         (type_params : nat)
-        (signature : Expr.arrowT) (body : Stmt.s)
-  (** function declaration *)
-  | Seq (d1 d2 : d) .
+        (signature : Expr.arrowT)
+        (body : Stmt.block) (** function declaration *).
+
+  Definition prog : Set := list d.
 End TopDecl.

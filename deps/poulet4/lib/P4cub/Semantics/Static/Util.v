@@ -16,6 +16,14 @@ Definition lub (sg1 sg2 : signal) : signal :=
   | _, _    => Return
   end.
 
+(** Greatest-lower bound on signals. *)
+Definition glb (sg1 sg2 : signal) : signal :=
+  match sg1, sg2 with
+  | Return, _
+  | _, Return => Return
+  | _, _ => Cont
+  end.
+
 (** Evidence for a type being a numeric of a given width. *)
 Variant numeric_width : N -> Expr.t -> Prop :=
 | numeric_width_bit : forall w, numeric_width w (Expr.TBit w)

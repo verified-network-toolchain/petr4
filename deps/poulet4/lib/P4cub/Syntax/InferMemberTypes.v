@@ -45,20 +45,11 @@ Definition inf_arrowE  (ar : Expr.arrowE) :=
   let ret' := option_map inf_e ret in
   {| paramargs := args'; rtrns := ret' |}.
 
-Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
+Definition inf_s  (s : Stmt.s) : Stmt.s :=
   match s with
-  | Stmt.Skip
-  | Stmt.Exit
   | Stmt.Invoke _ => s
-  | Stmt.Var e =>
-      Stmt.Var $ map_sum id inf_e e
   | (lhs `:= rhs)%stmt =>
       (inf_e lhs `:= inf_e rhs)%stmt
-  | (If g Then tru Else fls)%stmt =>
-      (If inf_e g Then inf_s tru Else inf_s fls)%stmt
-  | (s1 `; s2)%stmt => (inf_s s1 `; inf_s s2)%stmt
-  | Stmt.Block b =>
-      Stmt.Block $ inf_s b
   | Stmt.MethodCall extern_name method_name typ_args args =>
       let args' := inf_arrowE args in
       Stmt.MethodCall extern_name method_name typ_args args'
@@ -67,10 +58,22 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
       Stmt.FunCall f typ_args args'
   | Stmt.ActCall a cargs dargs =>
       Stmt.ActCall a (map inf_e cargs) (map inf_arg dargs)
-  | Stmt.Return e => Stmt.Return $ option_map inf_e e
   | Stmt.Apply ci ext_args args =>
       let args' := map inf_arg args in
       Stmt.Apply ci ext_args args
+  end.
+
+Fixpoint inf_block (b : Stmt.block) : Stmt.block :=
+  match b with
+  | Stmt.Skip
+  | Stmt.Exit => b
+  | Stmt.Var e b => Stmt.Var (map_sum id inf_e e) b
+  | (If g {` tru `} Else {` fls `} `; b)%block =>
+      (If inf_e g {` inf_block tru `} Else {` inf_block fls `} `; inf_block b)%block
+  | (s1 `; s2)%block => (inf_s s1 `; inf_block s2)%block
+  | Stmt.Block b1 b2 =>
+      Stmt.Block (inf_block b1) $ inf_block b2
+  | Stmt.Return e => Stmt.Return $ option_map inf_e e
   end.
 
 Definition inf_carg
@@ -81,19 +84,13 @@ Definition inf_carg
   | TopDecl.CAExpr e => inf_e e
   end.
 
-Definition inf_table  (tbl : Control.table) :=
-  let tbl_keys := Control.table_key tbl in
-  let tbl_acts := Control.table_actions tbl in
-  let tbl_keys' := List.map (fun '(e,mk) => (inf_e e, mk)) tbl_keys in
-  {| Control.table_key := tbl_keys'; Control.table_actions := tbl_acts |}.
-
-Fixpoint inf_Cd  (d : Control.d) :=
+Definition inf_Cd  (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
-      Control.Action a cps dps $ inf_s body
-  | Control.Table t tbl =>
-      Control.Table t (inf_table tbl)
-  | (d1 ;c; d2)%ctrl => (inf_Cd d1 ;c; inf_Cd d2)%ctrl
+      Control.Action a cps dps $ inf_block body
+  | Control.Table t keys acts =>
+      Control.Table
+        t (List.map (fun '(e,mk) => (inf_e e, mk)) keys) acts
   end.
 
 Definition inf_transition  (transition : Parser.e) :=
@@ -107,28 +104,27 @@ Definition inf_transition  (transition : Parser.e) :=
   end.
 
 Definition inf_state  (st : Parser.state_block) :=
-  let s := Parser.stmt st in
-  let e := Parser.trans st in
-  let s' := inf_s s in
+  let s := Parser.state_blk st in
+  let e := Parser.state_trans st in
+  let s' := inf_block s in
   let e' := inf_transition e in
-  {| Parser.stmt := s'; Parser.trans := e' |}.
+  {| Parser.state_blk := s'; Parser.state_trans := e' |}.
 
-Fixpoint inf_d  (d : TopDecl.d) : TopDecl.d :=
+Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
   match d with
     | TopDecl.Extern _ _ _ _ => d
   | TopDecl.Instantiate cname type_args cargs =>
       let cargs' := map inf_carg cargs in
       TopDecl.Instantiate cname type_args cargs'
   | TopDecl.Control cname cparams eparams params body apply_blk =>
-      let body' := inf_Cd body in
-      let apply_blk' := inf_s apply_blk in
+      let body' := map inf_Cd body in
+      let apply_blk' := inf_block apply_blk in
       TopDecl.Control cname cparams eparams params body' apply_blk'
   | TopDecl.Parser pn cps eps ps strt sts =>
       let start' := inf_state strt in
       let states' := map inf_state sts in
       TopDecl.Parser pn cps eps ps start' states'
   | TopDecl.Funct f tparams params body =>
-      let body' := inf_s body in
+      let body' := inf_block body in
       TopDecl.Funct f tparams params body'
-  | (d1 ;%; d2)%top => (inf_d d1 ;%; inf_d d2)%top
   end.

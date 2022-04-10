@@ -56,15 +56,20 @@ Module StmtNotations.
 
   Declare Scope stmt_scope.
   Delimit Scope stmt_scope with stmt.
-  Notation "s1 '`;' s2"
-    := (Seq s1 s2)
-         (at level 49, right associativity): stmt_scope.
+
   Notation "e1 '`:=' e2"
     := (Assign e1 e2)
          (at level 40, no associativity): stmt_scope.
-  Notation "'If' e 'Then' s1 'Else' s2"
-    := (Conditional e s1 s2)
-         (at level 60, no associativity): stmt_scope.
+
+  Declare Scope block_scope.
+  Delimit Scope block_scope with block.
+  
+  Notation "s1 '`;' s2"
+    := (Seq s1 s2)
+         (at level 49, right associativity): block_scope.
+  Notation "'If' e '{`' s1 '`}' 'Else' '{`' s2 '`}' '`;' b"
+    := (Conditional e s1 s2 b)
+         (at level 60, no associativity): block_scope.
 End StmtNotations.
 
 Module ParserNotations.
@@ -81,29 +86,14 @@ Module ParserNotations.
          (at level 12, right associativity) : pat_scope.
 End ParserNotations.
 
-Module ControlNotations.
-  Import Control.
-
-  Declare Scope ctrl_scope.
-  Delimit Scope ctrl_scope with ctrl.
-  Notation "d1 ';c;' d2"
-    := (Seq d1 d2)
-         (at level 20, right associativity) : ctrl_scope.
-End ControlNotations.
-
 Module TopDeclNotations.
   Import TopDecl.
-
+  
   Coercion EType : Expr.t >-> it.
   Coercion CAExpr : Expr.e >-> constructor_arg.
-  Declare Scope top_scope.
-  Delimit Scope top_scope with top.
-  Notation "d1 ';%;' d2"
-    := (Seq d1 d2)
-         (at level 39, right associativity) : top_scope.
 End TopDeclNotations.
 
 Module AllCubNotations.
   Export ExprNotations StmtNotations
-         ParserNotations ControlNotations TopDeclNotations.
+         ParserNotations TopDeclNotations.
 End AllCubNotations.

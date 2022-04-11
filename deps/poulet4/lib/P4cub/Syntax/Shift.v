@@ -35,15 +35,15 @@ Fixpoint rename_e (ρ : nat -> nat) (e : Expr.e) : Expr.e :=
 
 Local Close Scope expr_scope.
 
+Definition rename_arg (ρ : nat -> nat)
+  : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
+  paramarg_map_same $ rename_e ρ.
+
 Definition rename_arrowE
            (ρ : nat -> nat)
            '({|paramargs:=args;rtrns:=oe|} : Expr.arrowE)
   : Expr.arrowE :=
-  {| paramargs := map
-                    (paramarg_map
-                       (rename_e ρ)
-                       $ rename_e ρ)
-                    args
+  {| paramargs := map (rename_arg ρ) args
   ;  rtrns     := oe >>| rename_e ρ |}.
 
 Local Open Scope stmt_scope.
@@ -59,15 +59,11 @@ Definition rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
   | Stmt.ActCall a cas das
     => Stmt.ActCall
         a (map (rename_e ρ) cas)
-        (map (paramarg_map
-                (rename_e ρ)
-                (rename_e ρ)) das)
+        (map (rename_arg ρ) das)
   | Stmt.Apply x eas args
     => Stmt.Apply
         x eas
-        $ map (paramarg_map
-                 (rename_e ρ)
-                 (rename_e ρ)) args
+        $ map (rename_arg ρ) args
   end.
 
 Local Close Scope stmt_scope.

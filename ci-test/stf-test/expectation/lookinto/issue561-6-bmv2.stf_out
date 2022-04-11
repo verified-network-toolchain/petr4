@@ -1,0 +1,157 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header S {
+    bit<8> t;
+}
+
+header O1 {
+    bit<8> data;
+}
+header O2 {
+    bit<16> data;
+}
+
+header_union U {
+    O1 byte;
+    O2 short;
+}
+
+struct headers {
+    S base;
+    U[2] u;
+}
+
+struct metadata {}
+
+parser ParserImpl(packet_in packet,
+                  out headers hdr,
+                  inout metadata meta,
+                  inout standard_metadata_t standard_metadata)
+{
+    state start {
+        packet.extract(hdr.base);
+        transition select(hdr.base.t) {
+            0: parseO1O1;
+            1: parseO1O2;
+            2: parseO2O1;
+            3: parseO2O2;
+            default: accept;
+        }
+    }
+    state parseO1O1 {
+        packet.extract(hdr.u.next.byte);
+        packet.extract(hdr.u.next.byte);
+        transition accept;
+    }
+    state parseO1O2 {
+        packet.extract(hdr.u.next.byte);
+        packet.extract(hdr.u.next.short);
+        transition accept;
+    }
+    state parseO2O1 {
+        packet.extract(hdr.u.next.short);
+        packet.extract(hdr.u.next.byte);
+        transition accept;
+    }
+    state parseO2O2 {
+        packet.extract(hdr.u.next.short);
+        packet.extract(hdr.u.next.short);
+        transition accept;
+    }
+}
+
+control ingress(inout headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t standard_metadata) {
+    table debug_hdr {
+        key = {
+            hdr.base.t: exact;
+            hdr.u[0].byte.isValid(): exact;
+            hdr.u[0].short.isValid(): exact;
+            hdr.u[1].byte.isValid(): exact;
+            hdr.u[1].short.isValid(): exact;
+        }
+        actions = { NoAction; }
+        const default_action = NoAction();
+    }
+    apply {
+        debug_hdr.apply();
+        if (hdr.u[0].short.isValid()) {
+            hdr.u[0].short.data = 0xFFFF;
+        }
+        if (hdr.u[0].byte.isValid()) {
+            hdr.u[0].byte.data = 0xAA;
+        }
+        if (hdr.u[1].short.isValid()) {
+            hdr.u[1].short.data = 0xFFFF;
+        }
+        if (hdr.u[1].byte.isValid()) {
+            hdr.u[1].byte.data = 0xAA;
+        }
+    }
+}
+
+control egress(inout headers hdr,
+               inout metadata meta,
+               inout standard_metadata_t standard_metadata)
+{ apply {} }
+
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr);
+    }
+}
+
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+V1Switch(ParserImpl(),
+         verifyChecksum(),
+         ingress(),
+         egress(),
+         computeChecksum(),
+         DeparserImpl()) main;
+\n
+\n
+packet 0 00 00 00 00 00
+packet 0 01 00 00 00 00
+packet 0 02 00 00 00 00
+packet 0 03 00 00 00 00
+
+expect 0 00 AA AA 00 00$
+expect 0 01 AA FF FF 00$
+expect 0 02 FF FF AA 00$
+expect 0 03 FF FF FF FF$
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue561-6-bmv2.p4 : 4")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Traceback (most recent call last):
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 404, in <module>
+    main(residual_argv)
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 324, in main
+    config = ConfigH(options.compilerBuildDir + "/config.h")
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 141, in __init__
+    with open(file) as a:
+FileNotFoundError: [Errno 2] No such file or directory: '/petr4/p4c/build/config.h'

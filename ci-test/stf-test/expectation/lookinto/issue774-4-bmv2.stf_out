@@ -1,0 +1,69 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header Header {
+    bit<32> data;
+}
+
+struct Headers {
+    Header h;
+}
+
+struct M {}
+
+parser prs(packet_in p, out Headers h, inout M meta, inout standard_metadata_t s) {
+    state start {
+        p.extract<Header>(_);
+        p.extract(h.h);
+        transition accept;
+    }
+}
+
+control vc(inout Headers hdr, inout M meta) { apply {} }
+control i(inout Headers hdr,
+          inout M meta,
+          inout standard_metadata_t standard_metadata) {
+    apply {}}
+control e(inout Headers hdr,
+          inout M meta,
+          inout standard_metadata_t standard_metadata) {
+    apply {}}
+control cc(inout Headers hdr, inout M meta) {
+    apply {}}
+control d(packet_out b, in Headers hdr) {
+    apply {
+        b.emit(hdr);
+    }
+}
+
+V1Switch(prs(), vc(), i(), e(), cc(), d()) main;\n
+\n
+packet 0 00000000 00000001
+expect 0 00000001
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue774-4-bmv2.p4 : 4")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Traceback (most recent call last):
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 404, in <module>
+    main(residual_argv)
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 324, in main
+    config = ConfigH(options.compilerBuildDir + "/config.h")
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 141, in __init__
+    with open(file) as a:
+FileNotFoundError: [Errno 2] No such file or directory: '/petr4/p4c/build/config.h'

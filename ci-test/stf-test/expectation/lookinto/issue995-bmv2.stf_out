@@ -1,0 +1,190 @@
+p4 program:
+\n
+/*
+Copyright 2017 Cisco Systems, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+#include <core.p4>
+#include <v1model.p4>
+
+header ethernet_t {
+    bit<48> dstAddr;
+    bit<48> srcAddr;
+    bit<16> etherType;
+}
+
+struct metadata {
+    bit<16> transition_taken;
+}
+
+struct headers {
+    ethernet_t ethernet;
+}
+
+parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    state start {
+        transition parse_ethernet;
+    }
+    state parse_ethernet {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.srcAddr, hdr.ethernet.dstAddr) {
+            (0x12f_0000                , 0x456             ): a1;
+            (0x12f_0000 &&& 0xffff_0000, 0x456             ): a2;
+            (0x12f_0000                , 0x456 &&& 0xfff   ): a3;
+            (0x12f_0000 &&& 0xffff_0000, 0x456 &&& 0xfff   ): a4;
+            default: a5;
+        }
+    }
+    state a1 {
+        meta.transition_taken = 1;
+        transition accept;
+    }
+    state a2 {
+        meta.transition_taken = 2;
+        transition accept;
+    }
+    state a3 {
+        meta.transition_taken = 3;
+        transition accept;
+    }
+    state a4 {
+        meta.transition_taken = 4;
+        transition accept;
+    }
+    state a5 {
+        meta.transition_taken = 5;
+        transition accept;
+    }
+}
+
+control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+    }
+}
+
+control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+        hdr.ethernet.etherType = meta.transition_taken;
+    }
+}
+
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr.ethernet);
+    }
+}
+
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
+\n
+\n
+# Goals for test cases:
+
+# (1) Include several cases where the current buggy version of the
+# compiler causes the wrong transition to occur.
+
+# (2) Include at least two cases that take each of the transitions in
+# the correct version of the code, one with all 0s in don't-care bit
+# positions of fields, the other with all 1s in don't-care bit
+# positions of fields.
+
+
+# Category (1) tests:
+
+# Confirmed: bug takes transition a2, fix takes a5
+packet 0 000000000456 0000022E0000 0000
+expect 0 000000000456 0000022E0000 0005
+
+# Confirmed: bug takes transition a3, fix takes a4
+packet 0 FFFFFFFFF456 FFFF012FFFFF 0000
+expect 0 FFFFFFFFF456 FFFF012FFFFF 0004
+
+# In the bug version, I believe it is impossible to take transition
+# a4, because with the bug, the value/mask of a4 matches only a subset
+# of packets matched by a3.
+
+# Category (2) tests:
+
+# transition a1
+# All bits are exact match in the src and dst, so cannot make two
+# different packets for this transition.
+packet 0 000000000456 0000012F0000 0000
+expect 0 000000000456 0000012F0000 0001
+
+# transition a2, as many 1 bits in fields as possible
+packet 0 000000000456 FFFF012FFFFF 0000
+expect 0 000000000456 FFFF012FFFFF 0002
+# We have to make at least one of the bits in the src non-0 to avoid
+# taking transition a1 in the correct code.
+packet 0 000000000456 8000012F0000 0000
+expect 0 000000000456 8000012F0000 0002
+
+# transition a3, as many 1 bits in fields as possible
+packet 0 FFFFFFFFF456 0000012F0000 0000
+expect 0 FFFFFFFFF456 0000012F0000 0003
+# transition a3, as many 0 bits in fields as possible
+# We have to make at least one of the bits in the dst non-0 to avoid
+# taking transition a1 in the correct code.
+packet 0 800000000456 0000012F0000 0000
+expect 0 800000000456 0000012F0000 0003
+
+# transition a4, as many 1 bits in fields as possible
+packet 0 FFFFFFFFF456 FFFF012FFFFF 0000
+expect 0 FFFFFFFFF456 FFFF012FFFFF 0004
+# transition a4, as many 0 bits in fields as possible
+# We have to make at least one of the bits in the src, and the dst,
+# non-0 to avoid taking transitions a1, a2, or a3 in the correct code.
+packet 0 040000000456 0200012F0000 0000
+expect 0 040000000456 0200012F0000 0004
+
+# transition a5, as many 1 bits in fields as possible
+packet 0 FFFFFFFFF456 FFFF012EFFFF 0000
+expect 0 FFFFFFFFF456 FFFF012EFFFF 0005
+# transition a5, as many 0 bits in fields as possible
+packet 0 000000000476 0000012F0000 0000
+expect 0 000000000476 0000012F0000 0005
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT( ) TEXT(
+) TEXT(#) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue995-bmv2.p4 : 2")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Traceback (most recent call last):
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 404, in <module>
+    main(residual_argv)
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 324, in main
+    config = ConfigH(options.compilerBuildDir + "/config.h")
+  File "/petr4/p4c/backends/bmv2/run-bmv2-test.py", line 141, in __init__
+    with open(file) as a:
+FileNotFoundError: [Errno 2] No such file or directory: '/petr4/p4c/build/config.h'

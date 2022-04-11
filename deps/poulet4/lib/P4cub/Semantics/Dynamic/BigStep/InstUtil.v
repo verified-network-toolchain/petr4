@@ -20,16 +20,17 @@ Definition entries: Set :=
 (** Control plane tables. *)
 Definition ctrl: Set := Clmt.t string entries.
   
-  (** Table environment. *)
-
-Definition tenv: Set := Clmt.t string Control.table.
-
-Definition empty_tenv := Clmt.empty string Control.table.
+(** Table environment. *)
+Definition tenv: Set :=
+  Clmt.t
+    string (** table name. *)
+    (list (Expr.e * string) (** table key *)
+     * list string) (** actions *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
 | FDecl (fs : Clmt.t string fdecl) (** function closure *)
-        (body : Stmt.s) (** function body *).
+        (body : Stmt.block) (** function body *).
 
 (** Function names to closures. *)
 Definition fenv: Set := Clmt.t string fdecl.
@@ -41,7 +42,7 @@ Inductive adecl: Set :=
     (fs : fenv) (** function closure *)
     (actions : Clmt.t string adecl) (** action closure *)
     (* TODO: needs De Bruijn extern instance closure env. *)
-    (body : Stmt.s) (** action body *).
+    (body : Stmt.block) (** action body *).
 
 (** Action names to closures. *)
 Definition aenv: Set := Clmt.t string adecl.
@@ -55,7 +56,7 @@ Inductive cinst: Set :=
     (tbls : tenv) (** table closure *)
     (actions : aenv) (** action closure *)
     (* TODO: needs a De Bruijn extern instance closure environment. *)
-    (apply_blk : Stmt.s)  (** control instance apply block *).
+    (apply_blk : Stmt.block)  (** control instance apply block *).
   
 Definition cienv: Set := list cinst.
   
@@ -80,7 +81,7 @@ Inductive top_decl_closure : Set :=
     (cis : cienv) (** control instance closure *)
     (* TODO: needs a De Bruijn extern instance closure *)
     (body : Control.d) (** declarations inside control *)
-    (apply_block : Stmt.s) (** apply block *)
+    (apply_block : Stmt.block) (** apply block *)
 | ParserDecl
     (ps : Clmt.t string top_decl_closure) (** parser declaration closure *)
     (fs : fenv) (** function closure *)

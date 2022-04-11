@@ -1,5 +1,4 @@
 Require Import Coq.ZArith.BinInt
-(*Poulet4.P4cub.Semantics.Climate*)
         Poulet4.P4cub.Syntax.CubNotations.
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
@@ -171,7 +170,16 @@ Record parser_eval_env : Set := {
     parsers : pienv (** parser instance closure. *);
     (* TODO: needs a DeBruijn env for extern instances. *)}.
 
-(** Statement evaluation :
+(** Single-statement evaluation:
+    Given a statement evaluation environment [Ψ]
+    and a De Bruijn value environment [ϵ],
+    a statement [s] is evaluated to
+    a new value environment [ϵ']
+    and a new extern state [ψ]. *)
+Reserved Notation "'`⧼' Ψ , ϵ , s '`⧽' '`⤋' '`⧼' ϵ' , ψ '`⧽'"
+         (at level 80, no associativity).
+
+(** Statement-block evaluation :
     Given a statement evaluation environment [Ψ]
     and a De Bruijn value environment [ϵ],
     a statement [s] is evaluated to
@@ -209,8 +217,8 @@ Definition get_state_block
   | _             => None
   end.
 
-Local Open Scope climate_scope.
 Local Open Scope stmt_scope.
+Local Open Scope block_scope.
 
 Definition lv_update_signal
            (olv : option Val.lv) (sig : signal)
@@ -222,44 +230,11 @@ Definition lv_update_signal
 
 Inductive stmt_big_step
   : stmt_eval_env -> list Val.v -> Stmt.s ->
-    list Val.v -> signal -> extern_state -> Prop :=
-| sbs_skip Ψ ϵ :
-  ⧼ Ψ, ϵ, Stmt.Skip ⧽ ⤋ ⧼ ϵ, Cont, extrn Ψ ⧽
-| sbs_seq_cont Ψ ϵ ϵ' ϵ'' s₁ s₂ sig ψ₁ ψ₂ :
-  ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', Cont, ψ₁ ⧽ ->
-  ⧼ {| functs := functs Ψ
-    ; cntx    := cntx Ψ
-    ; extrn   := ψ₁ |},
-    ϵ', s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ₂ ⧽ ->
-  ⧼ Ψ, ϵ, s₁ `; s₂ ⧽ ⤋ ⧼ ϵ'', sig, ψ₂ ⧽
-| sbs_seq_interrupt Ψ ϵ ϵ' s₁ s₂ sig ψ :
-  interrupt sig ->
-  ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, s₁ `; s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
-| sbs_vardecl Ψ ϵ eo v :
-  match eo with
-  | inr e => ⟨ ϵ, e ⟩ ⇓ v
-  | inl τ => v_of_t τ = Some v
-  end ->
-  ⧼ Ψ, ϵ, Stmt.Var eo ⧽ ⤋ ⧼ v :: ϵ, Cont, extrn Ψ ⧽
+    list Val.v -> extern_state -> Prop :=
 | sbs_assign Ψ ϵ e₁ e₂ lv v :
   e₁ ⇓ₗ lv ->
   ⟨ ϵ, e₂ ⟩ ⇓ v ->
-  ⧼ Ψ, ϵ, e₁ `:= e₂ ⧽ ⤋ ⧼ lv_update lv v ϵ, Cont, extrn Ψ ⧽
-| sbs_exit Ψ ϵ :
-  ⧼ Ψ, ϵ, Stmt.Exit ⧽ ⤋ ⧼ ϵ, Exit, extrn Ψ ⧽
-| sbs_return Ψ ϵ eo vo :
-  relop (expr_big_step ϵ) eo vo ->
-  ⧼ Ψ, ϵ, Stmt.Return eo ⧽ ⤋ ⧼ ϵ, Rtrn vo, extrn Ψ ⧽
-| sbs_cond Ψ ϵ ϵ' e s₁ s₂ (b : bool) sig ψ :
-  ⟨ ϵ, e ⟩ ⇓ b ->
-  ⧼ Ψ, ϵ, if b then s₁ else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, If e Then s₁ Else s₂ ⧽
-    ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', sig, ψ ⧽
-| sbs_block Ψ ϵ ϵ' s sig ψ :
-  ⧼ Ψ, ϵ, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, Stmt.Block s ⧽
-    ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', Cont, ψ ⧽
+  `⧼ Ψ, ϵ, e₁ `:= e₂ `⧽ `⤋ `⧼ lv_update lv v ϵ, extrn Ψ `⧽
 | sbs_fun_call
     Ψ ψ ϵ ϵ' ϵ'' f τs args
     eo vargs olv fun_clos body sig :
@@ -279,11 +254,11 @@ Inductive stmt_big_step
   ⧼ {| functs := fun_clos
     ;  cntx   := CFunction
     ;  extrn  := extrn Ψ |},
-    ϵ', tsub_s (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ,
-    Stmt.FunCall
-      f τs {|paramargs:=args;rtrns:=eo|} ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽
+    ϵ', tsub_block (gen_tsub τs) body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+  `⧼ Ψ, ϵ,
+     Stmt.FunCall
+       f τs {|paramargs:=args;rtrns:=eo|} `⧽
+     `⤋ `⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), ψ `⧽
 | sbs_act_call
     Ψ ϵ ϵ_clos ϵ' ϵ'' a cargs dargs vcargs vdargs
     actions fun_clos act_clos body sig ψ :
@@ -312,7 +287,7 @@ Inductive stmt_big_step
     ;  cntx   := CAction act_clos
     ;  extrn  := extrn Ψ |},
     vcargs ++ ϵ' ++ ϵ_clos, body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, Stmt.ActCall a cargs dargs ⧽ ⤋ ⧼ copy_out vdargs ϵ'' ϵ, Cont, ψ ⧽
+  `⧼ Ψ, ϵ, Stmt.ActCall a cargs dargs `⧽ `⤋ `⧼ copy_out vdargs ϵ'' ϵ, ψ `⧽
 | sbs_apply_control
     fs entries tbls actions control_insts extrn_state
     ϵ ϵ_clos ϵ' ϵ'' c ext_args args vargs sig ψ
@@ -337,12 +312,12 @@ Inductive stmt_big_step
                    action_clos ctrl_clos
     ;  extrn := extrn_state |},
     ϵ' ++ ϵ_clos, apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
-  ⧼ {| functs := fs
-    ;  cntx   := CApplyBlock
-                   entries tbls actions control_insts
-    ;  extrn  := extrn_state |},
-    ϵ, Stmt.Apply c ext_args args ⧽
-    ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ ⧽
+  `⧼ {| functs := fs
+     ;  cntx   := CApplyBlock
+                    entries tbls actions control_insts
+     ;  extrn  := extrn_state |},
+     ϵ, Stmt.Apply c ext_args args `⧽
+     `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ `⧽
 | sbs_apply_parser
     fs parser_insts ψ ψ' ϵ ϵ_clos ϵ' ϵ'' p
     ext_args args vargs
@@ -365,13 +340,56 @@ Inductive stmt_big_step
       ;  pstates := states
       ;  parsers := prsr_clos |},
       ϵ' ++ ϵ_clos, Parser.Start ) ⇝ ( ϵ'', final, ψ' ) ->
-  ⧼ {| functs := fs
-    ;  cntx   := CParserState parser_insts
-    ;  extrn  := ψ |},
-    ϵ, Stmt.Apply p ext_args args ⧽
-    ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ' ⧽
+  `⧼ {| functs := fs
+     ;  cntx   := CParserState parser_insts
+     ;  extrn  := ψ |},
+     ϵ, Stmt.Apply p ext_args args `⧽
+     `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ' `⧽
+where "'`⧼' Ψ , ϵ , s '`⧽' '`⤋' '`⧼' ϵ' , ψ '`⧽'"
+  := (stmt_big_step Ψ ϵ s ϵ' ψ)
+
+with block_big_step
+  : stmt_eval_env -> list Val.v -> Stmt.block ->
+    list Val.v -> signal -> extern_state -> Prop :=
+| sbs_skip Ψ ϵ :
+  ⧼ Ψ, ϵ, Stmt.Skip ⧽ ⤋ ⧼ ϵ, Cont, extrn Ψ ⧽
+| sbs_seq Ψ ϵ ϵ' ϵ'' s b sig ψ ψ' :
+  `⧼ Ψ, ϵ, s `⧽ `⤋ `⧼ ϵ', ψ `⧽ ->
+  ⧼ {| functs := functs Ψ
+    ; cntx    := cntx Ψ
+    ; extrn   := ψ |},
+    ϵ', b ⧽ ⤋ ⧼ ϵ', sig, ψ' ⧽ ->
+  ⧼ Ψ, ϵ, s `; b ⧽ ⤋ ⧼ ϵ'', sig, ψ' ⧽
+| sbs_vardecl Ψ ϵ ϵ' te v s sig ψ :
+  match te with
+  | inr e => ⟨ ϵ, e ⟩ ⇓ v
+  | inl τ => v_of_t τ = Some v
+  end ->
+  ⧼ Ψ, v :: ϵ, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ, Stmt.Var te s ⧽ ⤋ ⧼ List.tail ϵ', sig, extrn Ψ ⧽
+| sbs_exit Ψ ϵ :
+  ⧼ Ψ, ϵ, Stmt.Exit ⧽ ⤋ ⧼ ϵ, Exit, extrn Ψ ⧽
+| sbs_return Ψ ϵ eo vo :
+  relop (expr_big_step ϵ) eo vo ->
+  ⧼ Ψ, ϵ, Stmt.Return eo ⧽ ⤋ ⧼ ϵ, Rtrn vo, extrn Ψ ⧽
+| sbs_cond Ψ ϵ ϵ' ϵ'' e s₁ s₂ s (b : bool) sig ψ ψ' :
+  ⟨ ϵ, e ⟩ ⇓ b ->
+  ⧼ Ψ, ϵ, if b then s₁ else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
+  ⧼ {| functs := functs Ψ
+    ; cntx    := cntx Ψ
+    ; extrn   := ψ |},
+    ϵ', s ⧽ ⤋ ⧼ ϵ'', sig, ψ' ⧽ ->
+  ⧼ Ψ, ϵ, If e {` s₁ `} Else {` s₂ `} `; s ⧽ ⤋ ⧼ ϵ'', sig, ψ' ⧽
+| sbs_block Ψ ϵ ϵ' ϵ'' s₁ s₂ sig₁ sig₂ ψ ψ' :
+  ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', sig₁, ψ ⧽ ->
+  ⧼ {| functs := functs Ψ
+    ; cntx    := cntx Ψ
+    ; extrn   := ψ |},
+    ϵ', s₂ ⧽ ⤋ ⧼ ϵ'', sig₂, ψ' ⧽ ->
+  ⧼ Ψ, ϵ, Stmt.Block s₁ s₂ ⧽
+    ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', sig₂, ψ' ⧽
 where "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
-  := (stmt_big_step Ψ ϵ s ϵ' sig ψ) : type_scope
+  := (block_big_step Ψ ϵ s ϵ' sig ψ) : type_scope
                                         
 with bigstep_state_machine
   : parser_eval_env -> list Val.v -> Parser.state ->
@@ -402,12 +420,15 @@ with bigstep_state_block
       ;  extrn  := pextrn Φ |},
       ϵ, s ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
     p⟨ ϵ, e ⟩ ⇓ next ->
-    δ ( Φ, ϵ, {| Parser.stmt:=s; Parser.trans:=e |} ) ⇝ ( ϵ', next, ψ )
+    δ ( Φ, ϵ, {| Parser.state_blk:=s; Parser.state_trans:=e |} ) ⇝ ( ϵ', next, ψ )
 | bsb_reject Φ ϵ ϵ' s e ψ :
   ⧼ {| functs := pfuncts Φ
     ;  cntx   := CParserState (parsers Φ)
     ;  extrn  := pextrn Φ |},
     ϵ, s ⧽ ⤋ ⧼ ϵ', Exit, ψ ⧽ ->
-  δ ( Φ, ϵ, {| Parser.stmt:=s; Parser.trans:=e |} ) ⇝ ( ϵ', Parser.Reject, ψ )
+  δ ( Φ, ϵ, {| Parser.state_blk:=s; Parser.state_trans:=e |} ) ⇝ ( ϵ', Parser.Reject, ψ )
 where "'δ' ( Φ , ϵ , currb ) ⇝ ( ϵ' , next , ψ )"
   := (bigstep_state_block Φ ϵ currb ϵ' next ψ) : type_scope.
+
+Local Close Scope stmt_scope.
+Local Close Scope block_scope.

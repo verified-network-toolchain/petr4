@@ -40,25 +40,25 @@ do
   file1="${file%.*}"
   p4_file="${file1}.p4"
   petr4_res=$(petr4 stf -I /petr4/ci-test/p4include -stf "$file" "$p4_file" 2>&1)
-  # petr4_res_stat=$?
+  petr4_res_stat=$?
   p4c_res=$(/petr4/p4c/backends/bmv2/run-bmv2-test.py /petr4/p4c "$@" "$p4_file" 2>&1)
-  # p4c_res_stat=$?
-  # if [ $petr4_res_stat = 0 ]
-  # then 
-  #   if [ $p4c_res_stat = 0 ]
-  #   then cp "$p4_file" ci-test/stf-test/expectation/passes
-  #        cp "$file" ci-test/stf-test/expectation/passes
-  #   else cp "$p4_file" ci-test/stf-test/expectation/petr4Passed
-  #        cp "$file" ci-test/stf-test/expectation/petr4Passed
-  #   fi
-  # else 
-  #   if [ $p4c_res_stat = 0 ]
-  #   then cp "$p4_file" ci-test/stf-test/expectation/p4cPassed
-  #        cp "$file" ci-test/stf-test/expectation/p4cPassed
-  #   else cp "$p4_file" ci-test/stf-test/expectation/fails
-  #        cp "$file" ci-test/stf-test/expectation/fails
-  #   fi
-  # fi
+  p4c_res_stat=$?
+  if [ $petr4_res_stat = 0 ]
+  then 
+    if [ $p4c_res_stat = 0 ]
+    then cp "$p4_file" ci-test/stf-test/expectation/passes
+         cp "$file" ci-test/stf-test/expectation/passes
+    else cp "$p4_file" ci-test/stf-test/expectation/petr4Passed
+         cp "$file" ci-test/stf-test/expectation/petr4Passed
+    fi
+  else 
+    if [ $p4c_res_stat = 0 ]
+    then cp "$p4_file" ci-test/stf-test/expectation/p4cPassed
+         cp "$file" ci-test/stf-test/expectation/p4cPassed
+    else cp "$p4_file" ci-test/stf-test/expectation/fails
+         cp "$file" ci-test/stf-test/expectation/fails
+    fi
+  fi
 #   # # writes the file name, result of petr4 type checking, and p4c type checking
 #   # # to a new file in res directory. 
   echo "p4 program:" > "ci-test/stf-test/expectation/lookinto/${file##*/}_out"

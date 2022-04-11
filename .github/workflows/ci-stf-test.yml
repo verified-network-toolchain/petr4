@@ -34,7 +34,7 @@ jobs:
           git status
           git add ci-test/stf-test/*
           git status
-          git commit -am "write stf restult to output files"
+          git commit -am "write stf res...figuring out errors of stf"
           git status
           pwd
           ls -la

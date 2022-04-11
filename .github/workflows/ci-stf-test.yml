@@ -22,20 +22,22 @@ jobs:
           sudo add-apt-repository -y ppa:git-core/ppa 
           sudo apt-get update 
           sudo apt-get install -y git
-      - uses: actions/checkout@v2
-      - name: stf test petr4 vs p4c
-        run: ./.github/scripts/stf-test-petr4-vs-p4c.sh
-        shell: bash
-      - name: add result of stf test to git repo
-        run: |
-          git config --local user.email "paris.ataei@gmail.com"
-          git config --local user.name  "Github Action Bot GO!"
-          git --version
-          git status
-          git add ci-test/stf-test/*
-          git status
-          git commit -am "write stf res...figuring out errors of stf"
-          git status
           pwd
-          ls -la
-          git push origin
+          ls
+      # - uses: actions/checkout@v2
+      # - name: stf test petr4 vs p4c
+      #   run: ./.github/scripts/stf-test-petr4-vs-p4c.sh
+      #   shell: bash
+      # - name: add result of stf test to git repo
+      #   run: |
+      #     git config --local user.email "paris.ataei@gmail.com"
+      #     git config --local user.name  "Github Action Bot GO!"
+      #     git --version
+      #     git status
+      #     git add ci-test/stf-test/*
+      #     git status
+      #     git commit -am "write stf res...figuring out errors of stf"
+      #     git status
+      #     pwd
+      #     ls -la
+      #     git push origin

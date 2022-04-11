@@ -7,38 +7,8 @@ Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
-(* TODO:
-   To "statementize"/lift the new
-   p4cub de Bruijn syntax, it will
-   look something like:
-   [lift_e : nat -> Expr.e -> list Expr.e * Expr.e].
-   [lift_e n e]
-   will shift all variables in [e] up by [n],
-   and return a list of expressions
-   that will be used to make
-   a sequence of variable declarations.
-
-   All lifted expressions like bitstrings
-   will be replaced with a variable
-   of index 0, which may need to
-   be shifted up later.
-
-   In the case of binary operations such as addition,
-   it will look something like:
-   [[[
-   TransformExpr n (e1 + e2) =
-   let (l1,e1') := TransformExpr n e1 in
-   let (l2,e2') := TransformExpr (length l1 + n) e2 in
-   (l1 ++ l2, shift (length l2) e1 + e2)
-   ]]]
-   Variables occursing in [e2] also
-   need to be shifted up additionally
-   by the number of new variables
-   generated for [e1].
-   Furthermore, [e1']'s variables
-   will need to be shifted up
-   by the number of variables
-   generated for [e2]. *)
+(* TODO: I beleive I need a cutoff
+   to correctly shift variables, will fix soon. *)
 
 Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
   : list Expr.e * Expr.e :=
@@ -156,45 +126,42 @@ Definition lift_s (up : nat) (s : Stmt.s) : list Expr.e * Stmt.s :=
       (inits, Stmt.Apply x exts args)
   end.
 
-Definition unwind_vars (es : list Expr.e) (b : Stmt.block) : Stmt.block :=
-  List.fold_right (fun e => Stmt.Var $ inr e) b (List.rev es).
+Local Close Scope stmt_scope.
+
+Definition unwind_vars (es : list Expr.e) : Stmt.block -> Stmt.block :=
+  List.fold_left (fun b e => Stmt.Var (inr e) b) es.
+
+Local Open Scope block_scope.
 
 Fixpoint lift_block (up : nat) (b : Stmt.block) : Stmt.block :=
   match b with
   | Stmt.Skip
   | Stmt.Exit
-  | Stmt.Invoke _
   | Stmt.Return None => b
   | Stmt.Return (Some e) => 
       let '(le, e) := lift_e up e in
-      unwind_vars le $ Stmt.Return e
-    | Stmt.Vardecl _ (inl _) _ => (stmt, env)
-    | Stmt.Vardecl x (inr e) i =>
-      let '(s,e',env') := lift_e e env in
-      (Stmt.Seq s (Stmt.Vardecl x (inr e') i) i, env')
+      unwind_vars le $ Stmt.Return $ Some e
+  (* TODO: Need a cutoff here! *)
+  | Stmt.Var (inl t) b => Stmt.Var (inl t) (lift_block up b)
+  | Stmt.Var (inr e) b =>
+      let '(le,e) := lift_e up e in
+      unwind_vars
+        le $ Stmt.Var (inr e)
+        $ lift_block (length le + up) b
+  | If e {` b₁ `} Else {` b₂ `} `; b =>
+      let '(le,e) := lift_e up e in
+      unwind_vars
+        le $ If e {` lift_block (length le + up) b₁ `}
+        Else {` lift_block (length le + up) b₂ `}
+        `; lift_block (length le + up) b
+  | s `; b =>
+      let '(ls, s) := lift_s up s in
+      unwind_vars ls (s `; lift_block (length ls + up) b)
+  | Stmt.Block b₁ b₂
+    => Stmt.Block (lift_block up b₁) $ lift_block up b₂
+  end.
 
-      (new_stmt, env_rhs)
-    | Stmt.Conditional guard tru_blk fls_blk i =>
-      let '(guard_stmt, guard', env_guard) := lift_e guard env in
-      let (tru_blk', env_tru) := TranslateStatement tru_blk env_guard in 
-      let (fls_blk', env_fls) := TranslateStatement fls_blk env_tru in 
-      let new_stmt :=
-          Stmt.Seq
-            guard_stmt
-            (Stmt.Conditional guard' tru_blk' fls_blk' i) i in
-      (new_stmt, env) 
-    | Stmt.Seq s1 s2 i => 
-      let (s1', env_s1) := TranslateStatement s1 env in 
-      let (s2', env_s2) := TranslateStatement s2 env_s1 in 
-      (Stmt.Seq s1' s2' i, env_s2)
-    | Stmt.Block block => 
-      let (block', env_block) := TranslateStatement block env in
-      (Stmt.Block block' , env_block)
-
-    | Stmt.SetValidity hdr val i  => 
-      let '(hdr_stmt, hdr', env_hdr) := lift_e hdr env in 
-      (Stmt.Seq hdr_stmt (Stmt.SetValidity hdr' val i) i, env_hdr)
-    end.  
+Local Close Scope block_scope.
   
   Definition TranslateCases'
              (TranslateParserExpr : Parser.e tags_t -> VarNameGen.t -> st * Parser.e tags_t * VarNameGen.t)

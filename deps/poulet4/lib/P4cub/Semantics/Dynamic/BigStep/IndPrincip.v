@@ -115,5 +115,6 @@ End ExprEvalInduction.
 
 (** Mutual indution scheme for statement evaluation. *)
 Scheme stmt_big_step_ind_mut := Induction for stmt_big_step Sort Prop
-  with bigstep_state_machine_ind_mut := Induction for bigstep_state_machine Sort Prop
-  with bigstep_state_block_ind_mut := Induction for bigstep_state_block Sort Prop.
+    with block_big_step_ind_mut := Induction for block_big_step Sort Prop
+    with bigstep_state_machine_ind_mut := Induction for bigstep_state_machine Sort Prop
+    with bigstep_state_block_ind_mut := Induction for bigstep_state_block Sort Prop.

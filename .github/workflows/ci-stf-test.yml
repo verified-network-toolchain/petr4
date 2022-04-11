@@ -22,7 +22,6 @@ jobs:
           sudo add-apt-repository -y ppa:git-core/ppa 
           sudo apt-get update 
           sudo apt-get install -y git
-          pwd
           ls
       # - uses: actions/checkout@v2
       # - name: stf test petr4 vs p4c

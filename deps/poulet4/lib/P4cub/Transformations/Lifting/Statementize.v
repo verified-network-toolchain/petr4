@@ -1,8 +1,7 @@
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxilary
-     P4cub.Syntax.CubNotations.
-
-Import String ListNotations AllCubNotations.
+     P4cub.Syntax.CubNotations P4cub.Syntax.Shift.
+Import ListNotations AllCubNotations.
 
 Open Scope nat_scope.
 Open Scope string_scope.
@@ -12,8 +11,8 @@ Open Scope list_scope.
    To "statementize"/lift the new
    p4cub de Bruijn syntax, it will
    look something like:
-   [TranformExpr : nat -> Expr.e -> list Expr.e * Expr.e].
-   [TransformExpr n e]
+   [lift_e : nat -> Expr.e -> list Expr.e * Expr.e].
+   [lift_e n e]
    will shift all variables in [e] up by [n],
    and return a list of expressions
    that will be used to make
@@ -41,181 +40,160 @@ Open Scope list_scope.
    by the number of variables
    generated for [e2]. *)
 
-Definition TransformExprList' 
-           (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t)) 
-           (el : list e) (env: VarNameGen.t) (i: tags_t)
-  : st * list e * VarNameGen.t := 
-  List.fold_right
-    (fun (expr: e)
-       '((prev_stmt, prev_el, prev_env): (st * list e * VarNameGen.t))
-     => let '(new_stmt, new_e, new_env) := TransformExpr expr prev_env in
-       ((Stmt.SSeq new_stmt prev_stmt i, new_e :: prev_el), new_env))
-    ((Stmt.SSkip i, []), env) el.
+Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
+  : list Expr.e * Expr.e :=
+  let fix lift_e_list (up : nat) (es : list Expr.e)
+    : list Expr.e * list Expr.e :=
+    match es with
+    | [] => ([],[])
+    | e :: es
+      => let '(le,e') := lift_e up e in
+        let '(les,es') := lift_e_list (length le + up) es in
+        (le ++ les, rename_e (plus $ length les) e :: es')
+    end in
+  match e with
+  | Expr.Bool _
+  | Expr.Error _ => ([], e)
+  | Expr.Var t x => ([], Expr.Var t (up + x))
+  | Expr.Member t x e
+    => let '(inits, e) := lift_e up e in
+      (inits, Expr.Member t x e)
+  | Expr.Bit _ _
+  | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) 0)
+  | Expr.Slice eₛ hi lo =>
+      let '(inits, eₛ) := lift_e up eₛ in
+      (Expr.Slice eₛ hi lo :: inits, Expr.Var (t_of_e e) 0)
+  | Expr.Cast t e =>
+      let '(inits, e) := lift_e up e in
+      (Expr.Cast t e :: inits, Expr.Var t 0)
+  | Expr.Uop t op e =>
+      let '(inits, e) := lift_e up e in
+      (Expr.Uop t op e :: inits, Expr.Var t 0)
+  | Expr.Bop t op lhs rhs => 
+      let '(ll, lhs) := lift_e up lhs in
+      let '(lr, rhs) := lift_e (length ll + up) rhs in
+      (Expr.Bop
+         t op (rename_e (plus $ length lr) lhs) rhs
+         :: lr ++ ll, Expr.Var t 0)
+  | Expr.Struct es oe =>
+      let '(les, es) := lift_e_list up es in
+      match oe with
+      | None
+        => (Expr.Struct es None :: les, Expr.Var (t_of_e e) 0)
+      | Some eₕ
+        => let '(leₕ, eₕ) := lift_e (length les + up) eₕ in
+          (Expr.Struct
+             (map
+                (rename_e $ plus $ length leₕ)
+                es) $ Some eₕ
+             :: leₕ ++ les, Expr.Var (t_of_e e) 0 )
+      end
+  end.
 
-  Definition TransformFields'
-             (TransformExpr : e -> VarNameGen.t -> (st * e * VarNameGen.t))
-             (fs : Field.fs string e) (env: VarNameGen.t) (i: tags_t)
-    : st * Field.fs string e * VarNameGen.t :=
-    Field.fold 
-      (fun (name : string) 
-         '(expr : e)
-         '((prev_stmt, prev_fs, prev_env): st * Field.fs string e * VarNameGen.t)
-       => let '(new_stmt, new_expr, new_env):= TransformExpr expr prev_env in
-         (Stmt.SSeq new_stmt prev_stmt i, (name,new_expr) :: prev_fs, new_env)
-      ) fs ((Stmt.SSkip i, []), env).
-
-  Definition decl_var_env
-             (s : st) (expr : e) (env : VarNameGen.t) (i : tags_t)
-    : st * e * VarNameGen.t :=
-    let (var_name, env') := VarNameGen.new_var env in
-    (Stmt.SSeq s (Stmt.SVardecl var_name (inr expr) i) i,
-     Expr.EVar (t_of_e expr) var_name i, env').
-  
-  Fixpoint TransformExpr (expr : e) (env: VarNameGen.t) 
-    : st * e * VarNameGen.t := 
-    let TransformExprList := TransformExprList' TransformExpr in
-    let TransformFields := TransformFields' TransformExpr in
-    match expr with
-    | Expr.EBool      _ i
-    | Expr.EVar     _ _ i
-    | Expr.EError     _ i => (Stmt.SSkip i, expr, env)
-    | Expr.EExprMember ty mem arg i => 
-      let '(arg_stmts, sel_arg, env') := TransformExpr arg env in
-      (arg_stmts, Expr.EExprMember ty mem sel_arg i, env')
-    | Expr.EBit _ _ i
-    | Expr.EInt _ _ i =>
-      decl_var_env (Stmt.SSkip i) expr env i
-    | Expr.ESlice n hi lo i =>  
-      let '(n_stmt, n', env_n) := TransformExpr n env in
-      decl_var_env n_stmt (Expr.ESlice n' hi lo i) env_n i        
-    | Expr.ECast type arg i =>
-      let '(arg_stmt, arg', env_arg) := TransformExpr arg env in
-      decl_var_env arg_stmt (Expr.ECast type arg' i) env_arg i
-    | Expr.EUop rt op arg i => 
-      let '(arg_stmt, arg', env_arg) := TransformExpr arg env in
-      decl_var_env arg_stmt (Expr.EUop rt op arg' i) env_arg i
-    | Expr.EBop rt op lhs rhs i => 
-      let '(lhs_stmt, lhs', env_lhs) := TransformExpr lhs env in 
-      let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in
-      decl_var_env
-        (Stmt.SSeq lhs_stmt rhs_stmt i)
-        (Expr.EBop rt op lhs' rhs' i) env_rhs i
-    | Expr.ETuple es i => 
-      let '(es_stmt, es', env_es) := TransformExprList es env i in 
-      decl_var_env es_stmt (Expr.ETuple es' i) env_es i
-    | Expr.EStruct fields i =>
-      let '(fs_stmt, fs', env_fs) := TransformFields fields env i in 
-      decl_var_env fs_stmt (Expr.EStruct fs' i) env_fs i
-    | Expr.EHeader fields valid i =>
-      let '(fs_stmt, fs', env_fs) := TransformFields fields env i in 
-      let '(valid_stmt, valid', env_valid) := TransformExpr valid env_fs in
-      decl_var_env
-        (Stmt.SSeq fs_stmt valid_stmt i)
-        (Expr.EHeader fs' valid' i) env_valid i
-    | Expr.EHeaderStack fields headers next_index i => 
-      let '(hdrs_stmt, hdrs', env_hdrs) := TransformExprList headers env i in 
-      decl_var_env
-        hdrs_stmt
-        (Expr.EHeaderStack fields hdrs' next_index i)
-        env_hdrs i
-    | Expr.EHeaderStackAccess ts stack index i =>
-      let '(stack_stmt, stack', env_stack) := TransformExpr stack env in
-      let val := Expr.EHeaderStackAccess ts stack' index i in 
-      let stmt := stack_stmt in
-      (stmt, val, env_stack)
+Fixpoint lift_e_list (up : nat) (es : list Expr.e)
+  : list Expr.e * list Expr.e :=
+    match es with
+    | [] => ([],[])
+    | e :: es
+      => let '(le,e') := lift_e up e in
+        let '(les,es') := lift_e_list (length le + up) es in
+        (le ++ les, rename_e (plus $ length les) e :: es')
     end.
-  
-  Definition TranslateArgs (arguments : Expr.args tags_t) (env : VarNameGen.t) (i: tags_t)
-    : st * Expr.args tags_t * VarNameGen.t :=
-    Field.fold 
-      (fun (name : string) 
-         (arg: paramarg (Expr.e tags_t) (Expr.e tags_t))
-         (cumulator: ((Stmt.s tags_t * (Expr.args tags_t) * VarNameGen.t)))
-       =>  
-         let '((prev_stmt, prev_args), prev_env) := cumulator in 
-         let expr := match arg with
-                     | PADirLess e
-                     | PAIn e
-                     | PAOut e
-                     | PAInOut e => e
-                     end in
-         let '((new_stmt, new_expr), new_env):= TransformExpr expr prev_env in
-         let new_stmt := Stmt.SSeq prev_stmt new_stmt i in
-         let new_arg := match arg with 
-                        | PADirLess _ => PAIn new_expr
-                        | PAIn _ => PAIn new_expr
-                        | PAOut _ => PAOut new_expr
-                        | PAInOut _ => PAInOut new_expr
-                        end in
-         ((new_stmt, prev_args++[(name,new_arg)]), new_env)
-      ) arguments ((Stmt.SSkip i, []), env).
-  
-  
-  Definition TranslateArrowE
-             '({|paramargs:=pas; rtrns:=returns|} : Expr.arrowE tags_t)
-             (env : VarNameGen.t) (i: tags_t)
-    : st * Expr.arrowE tags_t * VarNameGen.t :=
-    let '(pas_stmt, pas', env_pas) := TranslateArgs pas env i in 
-    let '(returns_stmt, returns', env_returns):= 
-        match returns with
-        | None => ((pas_stmt, None), env_pas)
-        | Some expr => 
-          let '(expr_stmt, expr', env_expr) := TransformExpr expr env_pas in
-          (Stmt.SSeq pas_stmt expr_stmt i, Some expr', env_expr) 
-        end in
-    (returns_stmt, {|paramargs:=pas'; rtrns:=returns'|}, env_returns).
-  
-  Fixpoint TranslateStatement (stmt : st) (env: VarNameGen.t) 
-    : st * VarNameGen.t := 
-    match stmt with
-    | Stmt.SHeaderStackOp _ _ _ _ _
-    | Stmt.SSkip _
-    | Stmt.SExit _
-    | Stmt.SInvoke _ _
-    | Stmt.SReturn None _
-    | Stmt.SVardecl _ (inl _) _ => (stmt, env)
-    | Stmt.SVardecl x (inr e) i =>
-      let '(s,e',env') := TransformExpr e env in
-      (Stmt.SSeq s (Stmt.SVardecl x (inr e') i) i, env')
-    | Stmt.SAssign lhs rhs i => 
-      let '(lhs_stmt, lhs', env_lhs) := TransformExpr lhs env in 
-      let '(rhs_stmt, rhs', env_rhs) := TransformExpr rhs env_lhs in 
-      let new_stmt := Stmt.SSeq lhs_stmt (Stmt.SSeq rhs_stmt (Stmt.SAssign lhs' rhs' i) i) i in 
+
+Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
+  : list Expr.e * paramarg Expr.e Expr.e :=
+  match arg with
+  | PAIn e =>
+      let '(le, e) := lift_e up e in (le, PAIn e)
+  | PAOut e =>
+      let '(le, e) := lift_e up e in (le, PAOut e)
+  | PAInOut e =>
+      let '(le, e) := lift_e up e in (le, PAInOut e)
+  end.
+
+Fixpoint lift_args (up : nat) (es : Expr.args)
+  : list Expr.e * Expr.args :=
+    match es with
+    | [] => ([],[])
+    | e :: es
+      => let '(le,e') := lift_arg up e in
+        let '(les,es') := lift_args (length le + up) es in
+        (le ++ les, rename_arg (plus $ length les) e :: es')
+    end.
+
+Definition lift_arrowE (up : nat)
+           '({|paramargs:=args; rtrns:=oe|} : Expr.arrowE)
+  : list Expr.e * Expr.arrowE :=
+  let '(inits, args) := lift_args up args in
+  match oe with
+  | None => (inits, {|paramargs:=args;rtrns:=None|})
+  | Some e
+    => let '(le,e) := lift_e (length inits + up) e in
+      (le ++ inits, {|paramargs:=args;rtrns:=Some e|})
+  end.
+
+Local Open Scope stmt_scope.
+
+Definition lift_s (up : nat) (s : Stmt.s) : list Expr.e * Stmt.s :=
+  match s with
+  | Stmt.Invoke _ => ([],s)
+  | e₁ `:= e₂
+    => let '(le₁, e₁) := lift_e up e₁ in
+      let '(le₂, e₂) := lift_e (length le₁ + up) e₂ in
+      (le₂ ++ le₁, rename_e (plus $ length le₂) e₁ `:= e₂)
+  | Stmt.FunCall f ts args
+    => let '(inits, args) := lift_arrowE up args in
+      (inits, Stmt.FunCall f ts args)
+  | Stmt.ActCall f cargs dargs
+    => let '(cs,cargs) := lift_e_list up cargs in
+      let '(ds,dargs) := lift_args (length cs + up) dargs in
+      (ds ++ cs, Stmt.ActCall f cargs dargs)
+  | Stmt.MethodCall e f ts args
+    => let '(inits, args) := lift_arrowE up args in
+      (inits, Stmt.MethodCall e f ts args)  
+  | Stmt.Apply x exts args => 
+      let '(inits, args) := lift_args up args in
+      (inits, Stmt.Apply x exts args)
+  end.
+
+Definition unwind_vars (es : list Expr.e) (b : Stmt.block) : Stmt.block :=
+  List.fold_right (fun e => Stmt.Var $ inr e) b (List.rev es).
+
+Fixpoint lift_block (up : nat) (b : Stmt.block) : Stmt.block :=
+  match b with
+  | Stmt.Skip
+  | Stmt.Exit
+  | Stmt.Invoke _
+  | Stmt.Return None => b
+  | Stmt.Return (Some e) => 
+      let '(le, e) := lift_e up e in
+      unwind_vars le $ Stmt.Return e
+    | Stmt.Vardecl _ (inl _) _ => (stmt, env)
+    | Stmt.Vardecl x (inr e) i =>
+      let '(s,e',env') := lift_e e env in
+      (Stmt.Seq s (Stmt.Vardecl x (inr e') i) i, env')
+
       (new_stmt, env_rhs)
-    | Stmt.SConditional guard tru_blk fls_blk i =>
-      let '(guard_stmt, guard', env_guard) := TransformExpr guard env in
+    | Stmt.Conditional guard tru_blk fls_blk i =>
+      let '(guard_stmt, guard', env_guard) := lift_e guard env in
       let (tru_blk', env_tru) := TranslateStatement tru_blk env_guard in 
       let (fls_blk', env_fls) := TranslateStatement fls_blk env_tru in 
       let new_stmt :=
-          Stmt.SSeq
+          Stmt.Seq
             guard_stmt
-            (Stmt.SConditional guard' tru_blk' fls_blk' i) i in
+            (Stmt.Conditional guard' tru_blk' fls_blk' i) i in
       (new_stmt, env) 
-    | Stmt.SSeq s1 s2 i => 
+    | Stmt.Seq s1 s2 i => 
       let (s1', env_s1) := TranslateStatement s1 env in 
       let (s2', env_s2) := TranslateStatement s2 env_s1 in 
-      (Stmt.SSeq s1' s2' i, env_s2)
-    | Stmt.SBlock block => 
+      (Stmt.Seq s1' s2' i, env_s2)
+    | Stmt.Block block => 
       let (block', env_block) := TranslateStatement block env in
-      (Stmt.SBlock block' , env_block)
-    | Stmt.SExternMethodCall e f targs args i =>
-      let '(stmt_args, args', env_args) := TranslateArrowE args env i in 
-      (Stmt.SSeq stmt_args (Stmt.SExternMethodCall e f targs args' i) i, env_args)
-    | Stmt.SFunCall f targs args i => 
-      let '(stmt_args, args', env_args) := TranslateArrowE args env i in
-      (Stmt.SSeq stmt_args (Stmt.SFunCall f targs args' i) i, env_args)
-    | Stmt.SActCall f args i => 
-      let '(stmt_args, args', env_args) := TranslateArgs args env i in
-      (Stmt.SSeq stmt_args (Stmt.SActCall f args' i) i, env_args)
-    | Stmt.SReturn (Some e) i => 
-      let '(e_stmt, e', env_e) := TransformExpr e env in
-      (Stmt.SSeq e_stmt (Stmt.SReturn (Some e') i) i, env_e)
-    | Stmt.SApply x ext args i => 
-      let '(stmt_args, args', env_args) := TranslateArgs args env i in 
-      (Stmt.SSeq stmt_args (Stmt.SApply x ext args' i) i, env_args)
-    | Stmt.SSetValidity hdr val i  => 
-      let '(hdr_stmt, hdr', env_hdr) := TransformExpr hdr env in 
-      (Stmt.SSeq hdr_stmt (Stmt.SSetValidity hdr' val i) i, env_hdr)
+      (Stmt.Block block' , env_block)
+
+    | Stmt.SetValidity hdr val i  => 
+      let '(hdr_stmt, hdr', env_hdr) := lift_e hdr env in 
+      (Stmt.Seq hdr_stmt (Stmt.SetValidity hdr' val i) i, env_hdr)
     end.  
   
   Definition TranslateCases'
@@ -228,22 +206,22 @@ Definition TransformExprList'
          (cumulator: Stmt.s tags_t * Field.fs Parser.pat (Parser.e tags_t) * VarNameGen.t)
        => let '(prev_stmt, prev_cases, prev_env) := cumulator in 
          let '(stmt_e, e', env_e) := TranslateParserExpr e prev_env in
-         let new_stmt := Stmt.SSeq prev_stmt stmt_e i in 
+         let new_stmt := Stmt.Seq prev_stmt stmt_e i in 
          let new_cases := prev_cases ++ [(pattern, e')] in
          (new_stmt, new_cases, env_e) 
-      ) cases ((Stmt.SSkip i, []), env).
+      ) cases ((Stmt.Skip i, []), env).
   
   Fixpoint TranslateParserExpr (expr: Parser.e tags_t) (env : VarNameGen.t)
     : st * Parser.e tags_t * VarNameGen.t :=
     let TranslateCases := TranslateCases' TranslateParserExpr in 
     match expr with 
     | Parser.PGoto st i => 
-      ((Stmt.SSkip i, Parser.PGoto st i), env)
+      ((Stmt.Skip i, Parser.PGoto st i), env)
     | Parser.PSelect exp default cases i => 
-      let '(stmt_exp, exp', env_exp) := TransformExpr exp env in
+      let '(stmt_exp, exp', env_exp) := lift_e exp env in
       let '(stmt_default, default', env_default) := TranslateParserExpr default env_exp  in
       let '(stmt_cases, cases', env_cases) := TranslateCases cases env_default i in
-      let new_stmt := Stmt.SSeq stmt_exp (Stmt.SSeq stmt_default stmt_cases i ) i in
+      let new_stmt := Stmt.Seq stmt_exp (Stmt.Seq stmt_default stmt_cases i ) i in
       (new_stmt, Parser.PSelect exp' default' cases' i, env_cases)
     end.
   
@@ -260,7 +238,7 @@ Definition TransformExprList'
     let (stmt', env_stmt) := TranslateStatement stmt env in
     let '(stmt_transition, transition', env_transition) := TranslateParserExpr transition env_stmt in
     let i := ParserExprTags transition in  
-    let new_stmt := Stmt.SSeq stmt' stmt_transition i in 
+    let new_stmt := Stmt.Seq stmt' stmt_transition i in 
     ({|Parser.stmt:=new_stmt; Parser.trans:=transition'|}, env_transition).
   
   
@@ -287,9 +265,9 @@ Definition TransformExprList'
     let '(stmt_key, key', env_key) := 
         List.fold_right 
           (fun '(e,mk) '(s',ky',env) =>
-             let '(s, e', env') := TransformExpr e env in 
-             (Stmt.SSeq s s' i, (e',mk) :: ky', env'))
-          (Stmt.SSkip i, [], env) key in 
+             let '(s, e', env') := lift_e e env in 
+             (Stmt.Seq s s' i, (e',mk) :: ky', env'))
+          (Stmt.Skip i, [], env) key in 
     (stmt_key, {|Control.table_key:=key'; Control.table_actions:=actions|}, env_key).
   
   Fixpoint TranslateControlDecl 
@@ -298,14 +276,14 @@ Definition TransformExprList'
     match cd with
     | Control.CDAction a signature body i =>
       let (body', env_body) := TranslateStatement body env in 
-      (Stmt.SSkip i, Control.CDAction a signature body' i , env_body)
+      (Stmt.Skip i, Control.CDAction a signature body' i , env_body)
     | Control.CDTable t bdy i =>
       let '(table_init, bdy', env_bdy) := TranslateTable bdy env i in 
       (table_init, Control.CDTable t bdy' i, env_bdy)
     | Control.CDSeq d1 d2 i => 
       let '(st1, d1', env_d1) := TranslateControlDecl d1 env in 
       let '(st2, d2', env_d2) := TranslateControlDecl d2 env_d1 in 
-      (Stmt.SSeq st1 st2 i, Control.CDSeq d1' d2' i, env_d2)
+      (Stmt.Seq st1 st2 i, Control.CDSeq d1' d2' i, env_d2)
     end.
   
 
@@ -322,7 +300,7 @@ Fixpoint TranslateTopDecl
   | TopDecl.TPControl c cparams eps params body apply_blk i =>
     let '(init_blk, body', env_body) := TranslateControlDecl body env in
     let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
-    (TopDecl.TPControl c cparams eps params body' (Stmt.SSeq init_blk apply_blk' i) i, env_apply_blk)
+    (TopDecl.TPControl c cparams eps params body' (Stmt.Seq init_blk apply_blk' i) i, env_apply_blk)
               
   | TopDecl.TPParser p cparams eps params start states i =>
     let (start', env_start) := TranslateParserState start env in

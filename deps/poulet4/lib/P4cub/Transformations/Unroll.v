@@ -2,7 +2,7 @@ Require Import Coq.Strings.String
         Coq.Init.Nat Coq.Lists.List.
 Require Import Poulet4.P4cub.Syntax.AST
         Poulet4.P4cub.Syntax.CubNotations.
-Import Field ListNotations AllCubNotations.
+Import ListNotations AllCubNotations.
 
 Open Scope list_scope.
 Open Scope string_scope.
@@ -132,17 +132,17 @@ Section Unroll.
   (* Rudy: I changed AST.v, this code compiles
      but may not be correct now that the start state
      are separate from the list of states. *)
-  Fixpoint unroll_program (unrolls : nat) (d : tpdecl) : tpdecl :=
-    match d with
-    | TopDecl.Parser
-        p cparams eparams params start_state sts =>
-      let sts := unroll_parser unrolls sts in
-      TopDecl.Parser
-        p cparams eparams params start_state sts
-    | (d1 ;%; d2)%top =>
-        let d1 := unroll_program unrolls d1 in
-        let d2 := unroll_program unrolls d2 in
-        (d1 ;%; d2)%top
-    | _ => d
-    end.
+  
+  Definition unroll_program (unrolls : nat) (prog : TopDecl.prog) : TopDecl.prog :=
+    List.map
+      (fun d =>
+         match d with
+         | TopDecl.Parser
+             p cparams eparams params start_state sts =>
+             TopDecl.Parser
+               p cparams eparams params start_state
+               $ unroll_parser unrolls sts
+         | _ => d
+         end)
+      prog.
 End Unroll.

@@ -86,13 +86,23 @@ Definition tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
       Stmt.Apply ci ext_args $ map (tsub_arg σ) args
   end.
 
+Definition tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
+  match transition with
+  | Parser.Goto s =>
+      Parser.Goto s
+  | Parser.Select discriminee default cases =>
+      Parser.Select (tsub_e σ discriminee) default cases
+  end.
+
 Fixpoint tsub_block (σ : nat -> Expr.t) (b : Stmt.block) : Stmt.block :=
   match b with
   | Stmt.Skip
   | Stmt.Exit => b
   | Stmt.Var e b => Stmt.Var (map_sum (tsub_t σ) (tsub_e σ) e) b
   | Stmt.Return e =>
-      Stmt.Return $ option_map (tsub_e σ) e 
+      Stmt.Return $ option_map (tsub_e σ) e
+  | Stmt.Transition e =>
+      Stmt.Transition $ tsub_transition σ e
   | Stmt.Seq s1 s2 =>
       Stmt.Seq (tsub_s σ s1) $ tsub_block σ s2
   | Stmt.Conditional g tru fls b =>
@@ -147,21 +157,6 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
         t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key) acts
   end.
 
-Definition tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
-  match transition with
-  | Parser.Goto s =>
-      Parser.Goto s
-  | Parser.Select discriminee default cases =>
-      Parser.Select (tsub_e σ discriminee) default cases
-  end.
-
-Definition tsub_state (σ : nat -> Expr.t) (st : Parser.state_block) :=
-  let s := Parser.state_blk st in
-  let e := Parser.state_trans st in
-  let s' := tsub_block σ s in
-  let e' := tsub_transition σ e in
-  {| Parser.state_blk := s'; Parser.state_trans := e' |}.
-
 Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
   match d with
   | TopDecl.Instantiate cname type_args cargs =>
@@ -183,8 +178,8 @@ Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
   | TopDecl.Parser pn cps eps ps strt sts =>
       let cparams' := map (tsub_cparam σ) cps in
       let params' := map (tsub_param σ) ps in
-      let start' := tsub_state σ strt in
-      let states' := map (tsub_state σ) sts in
+      let start' := tsub_block σ strt in
+      let states' := map (tsub_block σ) sts in
       TopDecl.Parser pn cparams' eps params' start' states'
   | TopDecl.Funct f tparams params body =>
       let σ' := exts `^ tparams σ in

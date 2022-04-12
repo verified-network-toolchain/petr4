@@ -142,43 +142,6 @@ Module Expr.
   Definition arrowE : Set := arrow e e.
 End Expr.
 
-(** * Statement and Block Grammar *)
-Module Stmt.
-
-  (** Single statements. *)
-  Variant s : Set :=
-    | Assign (lhs rhs : Expr.e)    (** assignment *)
-    | FunCall
-        (f : string)
-        (typ_args : list Expr.t)
-        (args : Expr.arrowE)  (** function call *)
-    | ActCall
-        (action_name : string)
-        (control_plane_args : list Expr.e)
-        (data_plane_args : Expr.args) (** action call *)
-    | MethodCall
-        (extern_name : nat) (method_name : string)
-        (typ_args : list Expr.t)
-        (args : Expr.arrowE ) (** extern method calls *)
-    | Invoke (table_name : string) (** table invocation *)
-    | Apply (instance_name : nat)
-            (ext_args : list string)
-            (args : Expr.args) (** apply statements *).
-
-  (** Statement Blocks. *)
-  Inductive block : Set :=
-  | Skip                          (** skip/no-op *)
-  | Var (expr : Expr.t + Expr.e)
-        (tail : block)            (** variable declaration/initialization *)
-  | Seq (head : s) (tail : block) (** sequences *)
-  | Return (e : option Expr.e)    (** return *)
-  | Exit                          (** exit *)
-  | Conditional
-      (guard : Expr.e)
-      (tru_blk fls_blk tail : block) (** conditionals *)
-  | Block (blk tail : block)         (** nested blocks *).
-End Stmt.
-
 (** * Parser Grammar *)
 Module Parser.
   (** Labels for parser-states. *)
@@ -206,11 +169,46 @@ Module Parser.
   (** select expressions,
       where "default" is
       the catch-all case *).
-  
-  (** Parser State Blocks. *)
-  Record state_block : Set :=
-    { state_blk : Stmt.block ; state_trans : e }.
+
+  Definition trans := e.
 End Parser.
+
+(** * Statement and Block Grammar *)
+Module Stmt.
+  (** Single statements. *)
+  Variant s : Set :=
+    | Assign (lhs rhs : Expr.e)    (** assignment *)
+    | FunCall
+        (f : string)
+        (typ_args : list Expr.t)
+        (args : Expr.arrowE)  (** function call *)
+    | ActCall
+        (action_name : string)
+        (control_plane_args : list Expr.e)
+        (data_plane_args : Expr.args) (** action call *)
+    | MethodCall
+        (extern_name : nat) (method_name : string)
+        (typ_args : list Expr.t)
+        (args : Expr.arrowE ) (** extern method calls *)
+    | Invoke (table_name : string) (** table invocation *)
+    | Apply (instance_name : nat)
+            (ext_args : list string)
+            (args : Expr.args) (** apply statements *).
+
+  (** Statement Blocks. *)
+  Inductive block : Set :=
+  | Skip                          (** skip/no-op *)
+  | Return (e : option Expr.e)    (** return *)
+  | Exit                          (** exit *)
+  | Transition (e : Parser.e)     (** parser transition *)
+  | Var (expr : Expr.t + Expr.e)
+        (tail : block)            (** variable declaration/initialization *)
+  | Seq (head : s) (tail : block) (** sequences *)
+  | Conditional
+      (guard : Expr.e)
+      (tru_blk fls_blk tail : block) (** conditionals *)
+  | Block (blk tail : block)         (** nested blocks *).
+End Stmt.
 
 (** * Control Grammar *)
 Module Control.
@@ -276,8 +274,8 @@ Module TopDecl.
         (cparams : constructor_params) (** constructor params *)
         (eparams : list string)      (** runtime extern params *)
         (params : Expr.params)              (** invocation params *)
-        (start : Parser.state_block) (** start state *)
-        (states : list (Parser.state_block)) (** parser states *)
+        (start : Stmt.block) (** start state *)
+        (states : list Stmt.block) (** parser states *)
     (** parser declaration *)
     | Funct
         (function_name : string)

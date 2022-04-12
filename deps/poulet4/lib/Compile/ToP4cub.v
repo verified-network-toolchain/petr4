@@ -737,6 +737,19 @@ Section ToP4cub.
   Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result (F.fs string (paramarg E.t E.t)) :=
     rred (List.map (parameter_to_paramarg tags) parameters).
 
+  Definition split_externs_params (params : F.fs string (paramarg E.t E.t)) : (F.fs string (paramarg E.t E.t)) *  (F.fs string string) := 
+    F.fold 
+    (fun key value (cumulator: (F.fs string (paramarg E.t E.t)) *  (F.fs string string) ) => 
+     let (params' , eparams) := cumulator in
+     let t := 
+     match value with 
+     | PAIn t | PAOut t | PAInOut t | PADirLess t => t end in 
+     match t with 
+     | E.TVar name => (params', (key, name) :: eparams)
+     | _ => ((key, value):: params', eparams)
+     end
+     ) params ([],[]).
+
   Definition translate_expression_and_type tags e :=
     let* cub_t := translate_exp_type tags (get_type_of_expr e) in
     let+ cub_e := translate_expression e in
@@ -813,7 +826,7 @@ Section ToP4cub.
                      tags)
     end.
 
-  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args :=
+  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (instance_str extern_str f_str : string) args :=
     let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
     match extern_decl with
     | None => error ("ERROR expected an extern, but got " ++ extern_str)
@@ -828,7 +841,7 @@ Section ToP4cub.
         let+ paramargs := apply_args_to_params f_str params cub_args in
         (* TODO Currently assuming method calls return None*)
         let args : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
-        ST.SExternMethodCall extern_str f_str [] args tags
+        ST.SExternMethodCall instance_str f_str [] args tags
       end
     | Some _ =>
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
@@ -846,6 +859,17 @@ Section ToP4cub.
       error "ERROR :: Failed to compute string for header stack.. didnt recognize expresssion type"
     end.
 
+  Definition get_instance_string (callee: Expression) :=
+    let '(MkExpression i e_pre typ dir) := callee in
+    match e_pre with 
+      |ExpName name _ =>
+        match name with
+        | BareName str =>
+          ok (@P4String.str tags_t str)
+        | QualifiedName namespaces name =>
+          error "Qualified names should be eliminated"
+        end
+      | _ => error "not a variable" end.
     Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (tags : tags_t)
@@ -866,10 +890,13 @@ Section ToP4cub.
     else
       match get_type_of_expr callee with
       | TypTypeName extern_obj | TypExtern extern_obj =>
-        translate_extern_string tags ctx (P4String.str extern_obj) f_str args
+      (*I'm not quite sure what is happening here, but I think we want the extern instance name instead of the extern declaration name*)
+        let* instance_str := get_instance_string callee in 
+        translate_extern_string tags ctx instance_str (P4String.str extern_obj) f_str args
       | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
         (* [TODO] Something is weird here RE type arguments *)
-        translate_extern_string tags ctx (P4String.str extern_obj_type) f_str args
+        let* instance_str := get_instance_string callee in 
+        translate_extern_string tags ctx instance_str (P4String.str extern_obj_type) f_str args
       | TypArray typ n =>
         (* TODO need to unroll the number of pop_fronts/backs based on argument index *)
         let* op :=
@@ -1299,7 +1326,9 @@ Section ToP4cub.
     match typ with
     | TypExtern typname =>
       (* Translate to CTExtern or to extern list? *)
-      ok (inl (v_str, P4String.str typname))
+      (* I think when it is in constructor, we want to translate to CTExtern*)
+      (* ok (inl (v_str, P4String.str typname)) *)
+      ok (inr (v_str, E.CTExtern (P4String.str typname)))
     | TypControl _ =>
       error "[FIXME] translate control as constructor param"
     | TypParser _ =>
@@ -1424,8 +1453,9 @@ Section ToP4cub.
       add_to_context d
     | DeclParser tags name [] params constructor_params [] states =>
         let cub_name := P4String.str name in
-        let* (cub_eparams,cub_cparams) := partition_constructor_params tags constructor_params in
+        let* (_, cub_cparams) := partition_constructor_params tags constructor_params in
         let* cub_params := parameters_to_params tags params in
+        let (cub_params, cub_eparams) :=  split_externs_params cub_params in 
         let* (start_opt, cub_states) := translate_parser_states ctx states in
         let*~ cub_start := start_opt else "could not find a starting state for the parser" in
         let d := TopDecl.TPParser cub_name cub_cparams cub_eparams cub_params cub_start cub_states tags in
@@ -1433,8 +1463,9 @@ Section ToP4cub.
     | DeclParser _ _ _ _ _ _ _ => error "got type params or local declarations. these should be gone"
     | DeclControl tags name type_params params constructor_params locals apply_blk =>
       let cub_name := P4String.str name in
-      let* (cub_eparams, cub_cparams) := partition_constructor_params tags constructor_params in
+      let* (_, cub_cparams) := partition_constructor_params tags constructor_params in
       let* cub_params := parameters_to_params tags params in
+      let (cub_params, cub_eparams) :=  split_externs_params cub_params in 
       let* local_ctx :=
          let loop := fun acc decl => let* ctx := acc in
                                      translate_decl ctx decl in

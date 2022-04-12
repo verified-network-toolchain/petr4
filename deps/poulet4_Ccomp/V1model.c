@@ -93,6 +93,7 @@ int main( int argc, char *argv[] ) //first argument is the location of the input
     printf("ingress failed");
   }else{
     int dropped;
+    init_bitvec(&drop_port, 0, 9, "511");
     interp_beq(&dropped, *meta.egress_spec, drop_port);
     if(dropped){
       printf("packet dropped");

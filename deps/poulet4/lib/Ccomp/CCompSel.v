@@ -698,7 +698,8 @@ Section CCompSel.
   Fixpoint CTranslateExtract (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
   : @error_monad string (Clight.statement * ClightEnv tags_t)
   := 
-      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
+      let* pid :=  find_ident tags_t env pname in   
+      let packet := Evar pid TpointerPacketIn in
       match type with 
       | Expr.TBool => 
         let* (arg' , env') := CTranslateExpr arg env in 
@@ -760,8 +761,9 @@ Section CCompSel.
 
   Fixpoint CTranslateEmit (arg: Expr.e tags_t) (type : Expr.t) (pname : string) (env: ClightEnv tags_t) (info : tags_t)
   : @error_monad string (Clight.statement * ClightEnv tags_t)
-  := 
-      let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_out noattr)) TpointerPacketOut in
+  :=  
+      let* pid :=  find_ident tags_t env pname in   
+      let packet := Evar pid TpointerPacketOut in
       match type with 
       | Expr.TBool => 
         let* (arg' , env') := CTranslateExpr arg env in 
@@ -1097,7 +1099,7 @@ Section CCompSel.
         let (pname , ptyp) := p in
         let env' := bind tags_t env' pname new_id in
         let env' := add_extern_instance tags_t env' pname ptyp in  
-        let ct :=  Ctypes.Tstruct $ptyp noattr in
+        let ct :=  Tpointer (Ctypes.Tstruct $ptyp noattr) noattr in
         (* don't do copy in copy out*)
         (l ++ [(new_id, ct)], env')) 
     (eparams) ([],env_empty) .
@@ -1369,18 +1371,23 @@ Section CCompSel.
   Definition CTranslateParserState
              '({|Parser.stmt:=stmt; Parser.trans:=pe|} : Parser.state_block tags_t)
              (env: ClightEnv tags_t)
-             (params: list (AST.ident * Ctypes.type))
+             (eps : F.fs string string) 
+             (params : Expr.params)
     : @error_monad string (Clight.function * ClightEnv tags_t ) :=
-    let* (stmt', env') := CTranslateStatement stmt env in
-    let rec_call_args := get_top_args tags_t env' in
+    let (fn_eparams, env_eparams) := CTranslateExternParams eps env in 
+    let (fn_params, env_params):= CTranslateParams params env_eparams in 
+    let* (copyin, env_copyin) := CCopyIn params env_params in
+    let* (copyout, env_copyout) := CCopyOut params env_copyin in
+    let* (stmt', env') := CTranslateStatement stmt env_copyout in
     let* (estmt, env') := CTranslateParserExpression pe env' in
+    let fn_params := fn_eparams ++ fn_params in 
     error_ret (Clight.mkfunction
           Ctypes.type_bool
           (AST.mkcallconv None true true)
-          params
+          fn_params
           (CCompEnv.get_vars tags_t env')
           (CCompEnv.get_temps tags_t env')
-          (Ssequence stmt' estmt)
+          (Ssequence copyin (Ssequence stmt' (Ssequence estmt copyout)))
           , (set_temp_vars tags_t env env')).
 
   Definition CTranslateTopParser (parsr: TopDecl.d tags_t) (env: ClightEnv tags_t ) 
@@ -1420,13 +1427,13 @@ Section CCompSel.
           match Env.find state_name states with 
             | None => err "state name not in states"
             | Some sb =>
-            let* (f, env_f_translated) := CTranslateParserState sb env' fn_params in
+            let* (f, env_f_translated) := CTranslateParserState sb env' eps params in
             error_ret (CCompEnv.update_function tags_t env_f_translated state_name f)
           end
         ) state_names (error_ret (set_temp_vars tags_t env env_fn_sig_declared)) in
       
       (*finished declaring all the state blocks except start state*)
-      let* (f_start, env_start_translated) := CTranslateParserState st (set_temp_vars tags_t env env_fn_declared) fn_params in 
+      let* (f_start, env_start_translated) := CTranslateParserState st (set_temp_vars tags_t env env_fn_declared) eps params in 
       let env_start_declared := CCompEnv.update_function tags_t env_start_translated "start" f_start in
       let env_start_declared := set_temp_vars tags_t env_copyout env_start_declared in
       let* (start_f, start_id) := (lookup_function tags_t env_start_declared "start") in

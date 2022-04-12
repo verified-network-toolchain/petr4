@@ -912,7 +912,7 @@ Section CEnv.
   : @error_monad string string
   := match Env.find name env.(extern_instances) with
     | Some type => error_ret type
-    | _ => err "can't find extern name"
+    | _ => err ("can't find extern name: " ++ name)
   end.
 
 

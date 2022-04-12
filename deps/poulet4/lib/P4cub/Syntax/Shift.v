@@ -67,6 +67,14 @@ Definition rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
   end.
 
 Local Close Scope stmt_scope.
+
+Definition rename_transition (ρ : nat -> nat) (e : Parser.e) : Parser.e :=
+  match e with
+  | Parser.Goto _ => e
+  | Parser.Select e d cases
+    => Parser.Select (rename_e ρ e) d cases
+  end.
+
 Local Open Scope block_scope.
 
 Fixpoint rename_block (ρ : nat -> nat) (b : Stmt.block) : Stmt.block :=
@@ -79,6 +87,8 @@ Fixpoint rename_block (ρ : nat -> nat) (b : Stmt.block) : Stmt.block :=
         $ rename_block (ext ρ) b
   | Stmt.Return oe
     => Stmt.Return $ option_map (rename_e ρ) oe
+  | Stmt.Transition e
+    => Stmt.Transition $ rename_transition ρ e
   | h `; t => rename_s ρ h `; rename_block ρ t
   | Stmt.Block b1 b2
     => Stmt.Block (rename_block ρ b1) $ rename_block ρ b2

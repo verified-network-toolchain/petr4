@@ -63,6 +63,16 @@ Definition inf_s  (s : Stmt.s) : Stmt.s :=
       Stmt.Apply ci ext_args args
   end.
 
+Definition inf_transition  (transition : Parser.e) :=
+  match transition with
+  | Parser.Goto s =>
+      Parser.Goto s
+  | Parser.Select discriminee default cases =>
+      Parser.Select
+        (inf_e discriminee)
+        default cases
+  end.
+
 Fixpoint inf_block (b : Stmt.block) : Stmt.block :=
   match b with
   | Stmt.Skip
@@ -74,6 +84,7 @@ Fixpoint inf_block (b : Stmt.block) : Stmt.block :=
   | Stmt.Block b1 b2 =>
       Stmt.Block (inf_block b1) $ inf_block b2
   | Stmt.Return e => Stmt.Return $ option_map inf_e e
+  | Stmt.Transition e => Stmt.Transition $ inf_transition e
   end.
 
 Definition inf_carg
@@ -93,23 +104,6 @@ Definition inf_Cd  (d : Control.d) :=
         t (List.map (fun '(e,mk) => (inf_e e, mk)) keys) acts
   end.
 
-Definition inf_transition  (transition : Parser.e) :=
-  match transition with
-  | Parser.Goto s =>
-      Parser.Goto s
-  | Parser.Select discriminee default cases =>
-      Parser.Select
-        (inf_e discriminee)
-        default cases
-  end.
-
-Definition inf_state  (st : Parser.state_block) :=
-  let s := Parser.state_blk st in
-  let e := Parser.state_trans st in
-  let s' := inf_block s in
-  let e' := inf_transition e in
-  {| Parser.state_blk := s'; Parser.state_trans := e' |}.
-
 Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
   match d with
     | TopDecl.Extern _ _ _ _ => d
@@ -121,8 +115,8 @@ Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
       let apply_blk' := inf_block apply_blk in
       TopDecl.Control cname cparams eparams params body' apply_blk'
   | TopDecl.Parser pn cps eps ps strt sts =>
-      let start' := inf_state strt in
-      let states' := map inf_state sts in
+      let start' := inf_block strt in
+      let states' := map inf_block sts in
       TopDecl.Parser pn cps eps ps start' states'
   | TopDecl.Funct f tparams params body =>
       let body' := inf_block body in

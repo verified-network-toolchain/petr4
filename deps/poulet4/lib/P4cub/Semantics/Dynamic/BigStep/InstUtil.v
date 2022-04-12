@@ -67,8 +67,8 @@ Inductive pinst: Set :=
     (fs : fenv) (** function closure *)
     (pis : list pinst) (** parser instance closure *)
     (* TOOD: needs a De Bruijn extern instance closure *)
-    (strt : Parser.state_block) (** start state *)
-    (states : list Parser.state_block) (** other states *).
+    (strt : Stmt.block) (** start state *)
+    (states : list Stmt.block) (** other states *).
   
 Definition pienv: Set := list pinst.
 
@@ -87,8 +87,8 @@ Inductive top_decl_closure : Set :=
     (fs : fenv) (** function closure *)
     (pis : pienv) (** parser instance closure *)
     (* TOOD: needs a De Bruijn extern instance closure *)
-    (strt : AST.Parser.state_block) (** start state *)
-    (states : list AST.Parser.state_block) (** parser states *)
+    (strt : Stmt.block) (** start state *)
+    (states : list Stmt.block) (** parser states *)
 | ExternDecl
     (es : Clmt.t string top_decl_closure)
     (fs : fenv) (** function closure *)

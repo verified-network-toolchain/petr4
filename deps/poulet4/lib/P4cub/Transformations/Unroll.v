@@ -10,13 +10,12 @@ Open Scope nat_scope.
 
 Section Unroll.
   Notation tpdecl := TopDecl.d.
-  Notation ParserState := Parser.state_block.
 
   Definition CFG : Type :=
-    list ParserState
+    list Stmt.block
     * list (string * (list string)).
 
-  Definition cfg_states (cfg : CFG) : list ParserState :=
+  Definition cfg_states (cfg : CFG) : list Stmt.block :=
     fst cfg.
 
   Definition cfg_edges (cfg : CFG) : list (string * list string) :=
@@ -38,12 +37,12 @@ Section Unroll.
     snd (snd loop).
 
   (* TODO: implement CFG construction *)
-  Definition to_cfg (states : list ParserState) : CFG :=
+  Definition to_cfg (states : list Stmt.block) : CFG :=
     (states, []).
 
   (* TODO *)
-  Definition ParserWF (states : list ParserState) : Prop :=
-    forall (st : ParserState),
+  Definition ParserWF (states : list Stmt.block) : Prop :=
+    forall (st : Stmt.block),
       In st states ->
       False.
 
@@ -51,7 +50,7 @@ Section Unroll.
   Theorem ToCFGCorrect : False.
   Admitted.
 
-  Definition of_cfg (cfg : CFG) : list ParserState :=
+  Definition of_cfg (cfg : CFG) : list Stmt.block :=
     (cfg_states cfg).
 
   Definition pred_cond_from_cfg
@@ -109,8 +108,8 @@ Section Unroll.
   (* NOTE: punting on reducibility; for now, assume everything is reducible and later investigate
      irreducible -> reducible transformation. This also means that we dont need SCC checking anymore.*)
   Definition unroll_parser
-             (unrolls : nat) (sts : list ParserState)
-    : list ParserState :=
+             (unrolls : nat) (sts : list Stmt.block)
+    : list Stmt.block :=
     let cfg := to_cfg sts in
     let doms := get_dom_map cfg in
     let loops := get_sccs cfg in

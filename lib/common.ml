@@ -210,7 +210,7 @@ module Make_parse (Conf: Parse_config) = struct
    let cub = flatten cub in
    let stmtd = Poulet4.Statementize.coq_TranslateProgram cub in
    if(print) then write_p4cub_to_file stmtd file;
-   let certd = Compcertalize.topdecl_convert cub in 
+   let certd = Compcertalize.topdecl_convert stmtd in 
    ccompile certd
    
                     

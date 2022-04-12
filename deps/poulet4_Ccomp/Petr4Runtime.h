@@ -191,7 +191,7 @@ void extract_bitvec(packet_in *pkt, BitVec *data, int is_signed, int width){
 
 
 void emit_bool(packet_out *pkt, int *data){
-  *(pkt->index) = *data;
+  *(pkt->index) = *data + 48;
   pkt->index ++;
 }
 

@@ -1320,6 +1320,7 @@ Section CCompSel.
   Definition CTranslateParserExpressionVal
     (pe: Parser.e tags_t) 
     (env: ClightEnv tags_t)
+    (copyout: Clight.statement)
     : @error_monad string (Clight.statement * ClightEnv tags_t) :=
     let rec_call_args := get_top_args tags_t env in 
     match pe with 
@@ -1330,10 +1331,10 @@ Section CCompSel.
         error_ret (Scall None (Evar start_id (Clight.type_of_function start_f)) rec_call_args, env)
 
       | Parser.STAccept =>
-        error_ret ( Sreturn (Some Ctrue), env)
+        error_ret (Ssequence copyout ( Sreturn (Some Ctrue)), env)
          
       | Parser.STReject =>
-        error_ret ( Sreturn (Some Cfalse), env)
+        error_ret (Ssequence copyout ( Sreturn (Some Cfalse)), env)
       
       | Parser.STName x => 
         let*  (x_f, x_id) := lookup_function tags_t env x in
@@ -1348,24 +1349,25 @@ Section CCompSel.
   Definition CTranslateParserExpression 
     (pe: Parser.e tags_t) 
     (env: ClightEnv tags_t)
+    (copyout: Clight.statement)
     : @error_monad string (Clight.statement * ClightEnv tags_t) :=
     match pe with 
     | Parser.PSelect exp def cases i => 
       let* (input, env) := CTranslateExpr exp env in
-      let* (default_stmt, env) := CTranslateParserExpressionVal def env in
+      let* (default_stmt, env) := CTranslateParserExpressionVal def env copyout in
       let fold_function 
           (elt: Parser.pat * Parser.e tags_t) 
           (cumulator: @error_monad string (Clight.statement * ClightEnv tags_t)) :=
           let '(p, action) := elt in
           let* (fail_stmt, env') := cumulator in
           let* (match_statement, this_match, env') := CTranslatePatternMatch input p env' in
-          let* (success_statement, env') := CTranslateParserExpressionVal action env' in 
+          let* (success_statement, env') := CTranslateParserExpressionVal action env' copyout in 
           let new_stmt := Ssequence match_statement (Sifthenelse (Evar this_match type_bool) success_statement fail_stmt) in
           error_ret (new_stmt, env')
       in
       List.fold_right fold_function (error_ret (default_stmt, env)) cases
     
-    | _ => CTranslateParserExpressionVal pe env
+    | _ => CTranslateParserExpressionVal pe env copyout
     end.
 
   Definition CTranslateParserState
@@ -1379,8 +1381,9 @@ Section CCompSel.
     let* (copyin, env_copyin) := CCopyIn params env_params in
     let* (copyout, env_copyout) := CCopyOut params env_copyin in
     let* (stmt', env') := CTranslateStatement stmt env_copyout in
-    let* (estmt, env') := CTranslateParserExpression pe env' in
+    let* (estmt, env') := CTranslateParserExpression pe env' copyout in
     let fn_params := fn_eparams ++ fn_params in 
+  
     error_ret (Clight.mkfunction
           Ctypes.type_bool
           (AST.mkcallconv None true true)

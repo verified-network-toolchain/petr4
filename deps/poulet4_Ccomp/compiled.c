@@ -50,6 +50,12 @@ _Bool start(struct packet_in *_p_e_t_r_4_0b110100, struct _p_e_t_r_4_0b1 *_p_e_t
   _p_e_t_r_4_0b111010 = *_p_e_t_r_4_0b111001;
   /*skip*/;
   extract_bool(_p_e_t_r_4_0b110100, &_p_e_t_r_4_0b110110._p_e_t_r_4_0b10);
+  *_p_e_t_r_4_0b110101 = _p_e_t_r_4_0b110110;
+  *_p_e_t_r_4_0b110111 = _p_e_t_r_4_0b111000;
+  *_p_e_t_r_4_0b111001 = _p_e_t_r_4_0b111010;
+  *_p_e_t_r_4_0b110101 = _p_e_t_r_4_0b110110;
+  *_p_e_t_r_4_0b110111 = _p_e_t_r_4_0b111000;
+  *_p_e_t_r_4_0b111001 = _p_e_t_r_4_0b111010;
   return 1;
   *_p_e_t_r_4_0b110101 = _p_e_t_r_4_0b110110;
   *_p_e_t_r_4_0b110111 = _p_e_t_r_4_0b111000;

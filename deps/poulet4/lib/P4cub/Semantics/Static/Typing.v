@@ -222,6 +222,10 @@ Inductive type_block (Γ : stmt_type_env) : Stmt.block -> signal -> Prop :=
 | type_exit :
   exit_ctx_ok (cntx Γ) ->
   Γ ⊢ᵦ Stmt.Exit ⊣ Return
+| type_transition total_states e :
+  (* TODO: get total_states from context *)
+  type_prsrexpr total_states Γ e ->
+  Γ ⊢ᵦ Stmt.Transition e ⊣ Return
 | type_seq s b sig :
   Γ ⊢ₛ s ->
   Γ ⊢ᵦ b ⊣ sig ->
@@ -250,20 +254,6 @@ Inductive type_block (Γ : stmt_type_env) : Stmt.block -> signal -> Prop :=
 where "Γ '⊢ᵦ' blk ⊣ sig" := (type_block Γ blk sig) : type_scope.
 
 Local Close Scope block_scope.
-
-(** Parser State typing. *)
-Definition type_parser_state
-           (fns : fenv) (parser_insts : ienv)
-           (extern_insts : eienv) (total_states : nat)
-           (Γ : expr_type_env)
-           '({| Parser.state_blk   := b
-             ;  Parser.state_trans :=e |}
-              : Parser.state_block) : Prop :=
-  exists (sig : signal),
-    {| sfuncts := fns
-    ; cntx := CParserState parser_insts extern_insts
-    ; expr_env := Γ|}
-      ⊢ᵦ b ⊣ sig /\ type_prsrexpr total_states Γ e.
 
 (** * Control-declaration typing. *)
 
@@ -485,10 +475,11 @@ Inductive type_topdecl (Γ : top_type_env)
   (* TODO: check params are [t_ok []] *)
   (Γₑ,insts) = cbind_all (insts_envs Γ) cparams ->
   Forall
-    (type_parser_state
-       (tfuncts Γ) (parsers insts)
-       (externs insts) (List.length states)
-       {|type_vars:=0;types:=bind_all params Γₑ|})
+    (fun state =>
+       {| sfuncts := tfuncts Γ
+       ;  cntx := CParserState (parsers insts) (externs insts)
+       ;  expr_env := {|type_vars:=0;types:=bind_all params Γₑ|}
+       |} ⊢ᵦ state ⊣ Return)
     (start_state :: states) ->
   Γ ⊢ₜ TopDecl.Parser
     parser_decl_name cparams extern_params params

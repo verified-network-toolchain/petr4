@@ -12,7 +12,8 @@ Import Val.ValueNotations ExprNotations
 (* TODOs:
    - Needs to use [P4light/Architecture/Target.v].
    - Handle exit signals correctly.
-   - Handle results of final parser states correctly. *)
+   - Handle results of final parser states correctly.
+   - Fix parser evaluation. *)
 
 (** * Expression evaluation. *)
 
@@ -165,8 +166,8 @@ Record stmt_eval_env : Set := {
 Record parser_eval_env : Set := {
     pextrn  : extern_state;
     pfuncts : fenv;
-    pstart  : Parser.state_block      (** start state block. *);
-    pstates : list Parser.state_block (** user-defined states *);
+    pstart  : Stmt.block      (** start state block. *);
+    pstates : list Stmt.block (** user-defined states *);
     parsers : pienv (** parser instance closure. *);
     (* TODO: needs a DeBruijn env for extern instances. *)}.
 
@@ -197,20 +198,11 @@ Reserved Notation "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
 Reserved Notation "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
          (at level 80, no associativity).
 
-(** Parser-state-block evaluation :
-    Given a parser evaluation environment [Φ]
-    and a De Bruijn value environment [ϵ],
-    a single parser state block [currb]
-    evaluates to a new environment [ϵ'],
-    a state [next], and an extern state [ψ]. *)
-Reserved Notation "'δ' ( Φ , ϵ , currb ) ⇝ ( ϵ' , next , ψ )"
-         (at level 80, no associativity).
-
 (** Fetch the next state-block to evaluate. *)
 Definition get_state_block
-           (strt : Parser.state_block)
-           (states : list Parser.state_block)
-           (next : AST.Parser.state) : option Parser.state_block :=
+           (strt : Stmt.block)
+           (states : list Stmt.block)
+           (next : Parser.state) : option Stmt.block :=
   match next with
   | Parser.Start  => Some strt
   | Parser.Name x => nth_error states x
@@ -318,7 +310,7 @@ Inductive stmt_big_step
      ;  extrn  := extrn_state |},
      ϵ, Stmt.Apply c ext_args args `⧽
      `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ `⧽
-| sbs_apply_parser
+(*| sbs_apply_parser
     fs parser_insts ψ ψ' ϵ ϵ_clos ϵ' ϵ'' p
     ext_args args vargs
     fun_clos prsr_clos strt states final :
@@ -344,7 +336,7 @@ Inductive stmt_big_step
      ;  cntx   := CParserState parser_insts
      ;  extrn  := ψ |},
      ϵ, Stmt.Apply p ext_args args `⧽
-     `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ' `⧽
+     `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ' `⧽ *)
 where "'`⧼' Ψ , ϵ , s '`⧽' '`⤋' '`⧼' ϵ' , ψ '`⧽'"
   := (stmt_big_step Ψ ϵ s ϵ' ψ)
 
@@ -389,9 +381,9 @@ with block_big_step
   ⧼ Ψ, ϵ, Stmt.Block s₁ s₂ ⧽
     ⤋ ⧼ List.skipn (List.length ϵ' - List.length ϵ) ϵ', sig₂, ψ' ⧽
 where "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
-  := (block_big_step Ψ ϵ s ϵ' sig ψ) : type_scope
+  := (block_big_step Ψ ϵ s ϵ' sig ψ) : type_scope.
                                         
-with bigstep_state_machine
+(*with bigstep_state_machine
   : parser_eval_env -> list Val.v -> Parser.state ->
     list Val.v -> Parser.state -> extern_state -> Prop :=
 | bsm_final Φ ϵ curr :
@@ -400,7 +392,8 @@ with bigstep_state_machine
 | bsm_intermediate Φ ϵ ϵ' ϵ'' curr next final block ψ ψ' :
   intermediate_state curr ->
   get_state_block (pstart Φ) (pstates Φ) curr = Some block ->
-  δ ( Φ, ϵ, block ) ⇝ ( ϵ', next, ψ ) ->
+  (* TODO: fix parser eval *)
+  (*δ ( Φ, ϵ, block ) ⇝ ( ϵ', next, ψ ) ->*)
   Δ ( {| pextrn  := ψ
       ;  pfuncts := pfuncts Φ
       ;  pstart  := pstart Φ
@@ -409,26 +402,7 @@ with bigstep_state_machine
       ϵ', next ) ⇝ ( ϵ'', final, ψ' ) ->
   Δ ( Φ, ϵ', curr ) ⇝ ( ϵ'', final, ψ' )
 where "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
-  := (bigstep_state_machine Φ ϵ curr ϵ' final ψ) : type_scope
-
-with bigstep_state_block
-  : parser_eval_env -> list Val.v -> Parser.state_block ->
-    list Val.v -> Parser.state -> extern_state -> Prop :=
-| bsb_cont Φ ϵ ϵ' s e next ψ :
-    ⧼ {| functs := pfuncts Φ
-      ;  cntx   := CParserState (parsers Φ)
-      ;  extrn  := pextrn Φ |},
-      ϵ, s ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
-    p⟨ ϵ, e ⟩ ⇓ next ->
-    δ ( Φ, ϵ, {| Parser.state_blk:=s; Parser.state_trans:=e |} ) ⇝ ( ϵ', next, ψ )
-| bsb_reject Φ ϵ ϵ' s e ψ :
-  ⧼ {| functs := pfuncts Φ
-    ;  cntx   := CParserState (parsers Φ)
-    ;  extrn  := pextrn Φ |},
-    ϵ, s ⧽ ⤋ ⧼ ϵ', Exit, ψ ⧽ ->
-  δ ( Φ, ϵ, {| Parser.state_blk:=s; Parser.state_trans:=e |} ) ⇝ ( ϵ', Parser.Reject, ψ )
-where "'δ' ( Φ , ϵ , currb ) ⇝ ( ϵ' , next , ψ )"
-  := (bigstep_state_block Φ ϵ currb ϵ' next ψ) : type_scope.
+  := (bigstep_state_machine Φ ϵ curr ϵ' final ψ) : type_scope.*)
 
 Local Close Scope stmt_scope.
 Local Close Scope block_scope.

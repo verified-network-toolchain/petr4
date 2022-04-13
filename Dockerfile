@@ -1,4 +1,4 @@
-FROM p4lang/p4c:latest
+FROM p4lang/p4c:stable
 LABEL maintainer="Nate Foster <jnfoster@cs.cornell.edu>"
 LABEL description="This docker image extends p4c with petr4."
 

@@ -145,35 +145,51 @@ Proof.
   - exact (fst p).
   - apply nth_error_None in Heqo.
     try lia. Admitted.
-(* Defined. *)
+
+Locate F.fs.
+Check F.get.
+Definition hdr_map (hdrs: list (string * nat)) (h:mk_hdr_type hdrs) : nat := 
+  match F.get (extract_name hdrs h) hdrs with 
+    | Some n => n 
+    | None => 0   (* This hsouldn't be needed *)
+  end.
 
 Print expr.
-Check ESlice.
-Check Expr.ESlice.
 
-(* Doesn't work, is expr _ _ right? *)
-(* Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr _ _) := 
+Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat := 
   match e with 
-  | Expr.EHeader fields valid i => Some (expr )
+  (* | Expr.EHeader fields valid i => Some (expr ) *)
+  (* slice size not right *)
+  | Expr.ESlice arg hi lo i => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+  Pos.to_nat lo)
+  | _ => 0
+  end.
+
+Print ESlice.
+(* Doesn't work, is expr _ _ right? *)
+Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
+  match e with 
+  (* | Expr.EHeader fields valid i => Some (expr ) *)
   | Expr.ESlice arg hi lo i => 
-      match translate_expr arg with
+      match translate_expr hdrs arg with
         | Some e1 => Some (ESlice _ e1 (Pos.to_nat hi) (Pos.to_nat lo) )
         | None => None
       end
   | _ => None
-  end. *)
-
+  end.
+Print op.
 (* Need function for finding header associated with an expression *)
-Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): (op Hdr_sz):= 
+Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): (op (hdr_map hdrs)):= 
   match s with 
   | Stmt.SSkip i => OpNil _
-  | Stmt.SSeq s1 s2 i => OpSeq (translate_st s1) (translate_st s2)
+  | Stmt.SSeq s1 s2 i => OpSeq (translate_st hdrs s1) (translate_st hdrs s2)
   (* Find header associated with lhs *)
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
-  | Stmt.SBlock s => translate_st s
+  | Stmt.SBlock s => translate_st hdrs s
   | _ => OpNil _
   end.
-
+(* header passed into parser via params (Expr.params in TPParser)  *)
+Print Parser.
 
 (* Notes: F.fs is an association list *)
 (* Does not handle subparsers, for now consider only one parser *)

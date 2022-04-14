@@ -31,36 +31,14 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
   | Expr.Member t mem arg => Expr.Member t mem (inf_e arg)
   end.
 
-Definition inf_arg (pa : paramarg Expr.e Expr.e) :=
-  match pa with
-  | PAIn e => PAIn (inf_e e)
-  | PAOut e => PAOut (inf_e e)
-  | PAInOut e => PAInOut (inf_e e)
-  end.
+Definition inf_arg : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
+  paramarg_map_same inf_e.
 
-Definition inf_arrowE  (ar : Expr.arrowE) :=
-  let args := paramargs ar in
-  let ret := rtrns ar in
-  let args' := map inf_arg args in
-  let ret' := option_map inf_e ret in
-  {| paramargs := args'; rtrns := ret' |}.
-
-Definition inf_s  (s : Stmt.s) : Stmt.s :=
-  match s with
-  | Stmt.Invoke _ => s
-  | (lhs `:= rhs)%stmt =>
-      (inf_e lhs `:= inf_e rhs)%stmt
-  | Stmt.MethodCall extern_name method_name typ_args args =>
-      let args' := inf_arrowE args in
-      Stmt.MethodCall extern_name method_name typ_args args'
-  | Stmt.FunCall f typ_args args =>
-      let args' := inf_arrowE args in
-      Stmt.FunCall f typ_args args'
-  | Stmt.ActCall a cargs dargs =>
-      Stmt.ActCall a (map inf_e cargs) (map inf_arg dargs)
-  | Stmt.Apply ci ext_args args =>
-      let args' := map inf_arg args in
-      Stmt.Apply ci ext_args args
+Definition inf_fun_kind (fk : Stmt.fun_kind) : Stmt.fun_kind :=
+  match fk with
+  | Stmt.Funct f τs ret    => Stmt.Funct f τs $ option_map inf_e ret
+  | Stmt.Method e m τs ret => Stmt.Method e m τs $ option_map inf_e ret
+  | Stmt.Action a cargs    => Stmt.Action a $ map inf_e cargs
   end.
 
 Definition inf_transition  (transition : Parser.e) :=
@@ -73,18 +51,23 @@ Definition inf_transition  (transition : Parser.e) :=
         default cases
   end.
 
-Fixpoint inf_block (b : Stmt.block) : Stmt.block :=
-  match b with
+Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
+  match s with
   | Stmt.Skip
-  | Stmt.Exit => b
-  | Stmt.Var e b => Stmt.Var (map_sum id inf_e e) b
-  | (If g {` tru `} Else {` fls `} `; b)%block =>
-      (If inf_e g {` inf_block tru `} Else {` inf_block fls `} `; inf_block b)%block
-  | (s1 `; s2)%block => (inf_s s1 `; inf_block s2)%block
-  | Stmt.Block b1 b2 =>
-      Stmt.Block (inf_block b1) $ inf_block b2
-  | Stmt.Return e => Stmt.Return $ option_map inf_e e
-  | Stmt.Transition e => Stmt.Transition $ inf_transition e
+  | Stmt.Exit
+  | Stmt.Invoke _ => s
+  | Stmt.Return e      => Stmt.Return $ option_map inf_e e
+  | Stmt.Transition e  => Stmt.Transition $ inf_transition e
+  | (lhs `:= rhs)%stmt => (inf_e lhs `:= inf_e rhs)%stmt
+  | Stmt.Call fk args
+    => Stmt.Call (inf_fun_kind fk) $ map inf_arg args
+  | Stmt.Apply ci ext_args args =>
+      let args' := map inf_arg args in
+      Stmt.Apply ci ext_args args
+  | Stmt.Var e s => Stmt.Var (map_sum id inf_e e) $ inf_s s
+  | (s1 `; s2)%stmt => (inf_s s1 `; inf_s s2)%stmt
+  | (If g Then tru Else fls)%stmt
+    => (If inf_e g Then inf_s tru Else inf_s fls)%stmt
   end.
 
 Definition inf_carg
@@ -98,7 +81,7 @@ Definition inf_carg
 Definition inf_Cd  (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
-      Control.Action a cps dps $ inf_block body
+      Control.Action a cps dps $ inf_s body
   | Control.Table t keys acts =>
       Control.Table
         t (List.map (fun '(e,mk) => (inf_e e, mk)) keys) acts
@@ -112,13 +95,13 @@ Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
       TopDecl.Instantiate cname type_args cargs'
   | TopDecl.Control cname cparams eparams params body apply_blk =>
       let body' := map inf_Cd body in
-      let apply_blk' := inf_block apply_blk in
+      let apply_blk' := inf_s apply_blk in
       TopDecl.Control cname cparams eparams params body' apply_blk'
   | TopDecl.Parser pn cps eps ps strt sts =>
-      let start' := inf_block strt in
-      let states' := map inf_block sts in
+      let start' := inf_s strt in
+      let states' := map inf_s sts in
       TopDecl.Parser pn cps eps ps start' states'
   | TopDecl.Funct f tparams params body =>
-      let body' := inf_block body in
+      let body' := inf_s body in
       TopDecl.Funct f tparams params body'
   end.

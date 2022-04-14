@@ -175,39 +175,42 @@ End Parser.
 
 (** * Statement and Block Grammar *)
 Module Stmt.
-  (** Single statements. *)
-  Variant s : Set :=
-    | Assign (lhs rhs : Expr.e)    (** assignment *)
-    | FunCall
-        (f : string)
-        (typ_args : list Expr.t)
-        (args : Expr.arrowE)  (** function call *)
-    | ActCall
-        (action_name : string)
-        (control_plane_args : list Expr.e)
-        (data_plane_args : Expr.args) (** action call *)
-    | MethodCall
-        (extern_name : nat) (method_name : string)
-        (typ_args : list Expr.t)
-        (args : Expr.arrowE ) (** extern method calls *)
-    | Invoke (table_name : string) (** table invocation *)
-    | Apply (instance_name : nat)
-            (ext_args : list string)
-            (args : Expr.args) (** apply statements *).
-
-  (** Statement Blocks. *)
-  Inductive block : Set :=
-  | Skip                          (** skip/no-op *)
-  | Return (e : option Expr.e)    (** return *)
-  | Exit                          (** exit *)
-  | Transition (e : Parser.e)     (** parser transition *)
-  | Var (expr : Expr.t + Expr.e)
-        (tail : block)            (** variable declaration/initialization *)
-  | Seq (head : s) (tail : block) (** sequences *)
+  (** Function, action, extern method, or apply instance. *)
+  Variant fun_kind : Set :=
+    | Funct
+        (function_name : string) (type_args : list Expr.t) (returns : option Expr.e)
+    | Action
+        (action_name : string) (control_plane_args : list Expr.e)
+    | Method
+        (extern_instance_name : nat) (method_name : string)
+        (type_args : list Expr.t) (returns : option Expr.e).
+  
+  (** Statements. *)
+  Inductive s : Set :=
+  (** terminators to a statement block: *)
+  | Skip                         (** skip/no-op *)
+  | Return (e : option Expr.e)   (** return *)
+  | Exit                         (** exit *)
+  | Transition (e : Parser.e)    (** parser transition *)  
+  | Assign (lhs rhs : Expr.e)    (** assignment *)
+  | Call
+      (call : fun_kind)          (** kind of call *)
+      (args : Expr.args)         (** arguments *)
+  | Invoke (table_name : string) (** table invocation *)
+  | Apply
+      (instance_name : nat)
+      (ext_args : list string)
+      (args : Expr.args) (** apply statements *)
+  (** blocks of statements: *)
+  | Var (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
+        (tail : s) (** variable declaration/initialization
+                       a let-in operator. *)
+  | Seq (head tail : s) (** sequenced blocks,
+                            variables introduced in [head]
+                            do not occur in [tail] *)
   | Conditional
       (guard : Expr.e)
-      (tru_blk fls_blk tail : block) (** conditionals *)
-  | Block (blk tail : block)         (** nested blocks *).
+      (tru_blk fls_blk : s) (** conditionals *).
 End Stmt.
 
 (** * Control Grammar *)
@@ -217,7 +220,7 @@ Module Control.
     | Action (action_name : string)
              (control_plane_params : list Expr.t)
              (data_plane_params : Expr.params)
-             (body : Stmt.block) (** action declaration *)
+             (body : Stmt.s) (** action declaration *)
     | Table (table_name : string)
             (key : list (Expr.e * string))
             (actions : list string).
@@ -268,20 +271,21 @@ Module TopDecl.
         (eparams : list string)      (** runtime extern params *)
         (params : Expr.params)       (** apply block params *)
         (body : list Control.d)
-        (apply_blk : Stmt.block) (** control declarations *)
+        (apply_blk : Stmt.s) (** control declarations *)
     | Parser
         (parser_name : string)
         (cparams : constructor_params) (** constructor params *)
         (eparams : list string)      (** runtime extern params *)
         (params : Expr.params)              (** invocation params *)
-        (start : Stmt.block) (** start state *)
-        (states : list Stmt.block) (** parser states *)
+        (start : Stmt.s) (** start state *)
+        (states : list Stmt.s) (** parser states *)
     (** parser declaration *)
     | Funct
         (function_name : string)
         (type_params : nat)
         (signature : Expr.arrowT)
-        (body : Stmt.block) (** function declaration *).
+        (body : Stmt.s) (** function declaration *).
 
+  (** A p4cub program. *)
   Definition prog : Set := list d.
 End TopDecl.

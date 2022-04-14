@@ -60,16 +60,12 @@ Module StmtNotations.
   Notation "e1 '`:=' e2"
     := (Assign e1 e2)
          (at level 40, no associativity): stmt_scope.
-
-  Declare Scope block_scope.
-  Delimit Scope block_scope with block.
-  
   Notation "s1 '`;' s2"
     := (Seq s1 s2)
-         (at level 49, right associativity): block_scope.
-  Notation "'If' e '{`' s1 '`}' 'Else' '{`' s2 '`}' '`;' b"
-    := (Conditional e s1 s2 b)
-         (at level 60, no associativity): block_scope.
+         (at level 49, right associativity): stmt_scope.
+  Notation "'If' e 'Then' s1 'Else' s2"
+    := (Conditional e s1 s2)
+         (at level 60, no associativity): stmt_scope.
 End StmtNotations.
 
 Module ParserNotations.

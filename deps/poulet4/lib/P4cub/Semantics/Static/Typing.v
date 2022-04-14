@@ -107,12 +107,53 @@ Record stmt_type_env : Set :=
   ; cntx   : ctx
   ; expr_env :> expr_type_env }.
 
-Reserved Notation "Γ '⊢ₛ' s" (at level 80, no associativity).
+Reserved Notation "Γ '⊢ₛ' s ⊣ sig" (at level 80, no associativity).
 
 Local Open Scope stmt_scope.
 
 Inductive type_stmt
-  : stmt_type_env -> Stmt.s -> Prop :=
+  : stmt_type_env -> Stmt.s -> signal -> Prop :=
+| type_skip :
+  Γ ⊢ᵦ Stmt.Skip ⊣ Cont
+| type_return eo :
+  match cntx Γ, eo with
+  | CFunction (Some τ), Some e => Γ ⊢ₑ e ∈ τ
+  | c, None => return_void_ok c
+  | _, _ => False
+  end ->
+  Γ ⊢ᵦ Stmt.Return eo ⊣ Return
+| type_exit :
+  exit_ctx_ok (cntx Γ) ->
+  Γ ⊢ᵦ Stmt.Exit ⊣ Return
+| type_transition total_states e :
+  (* TODO: get total_states from context *)
+  type_prsrexpr total_states Γ e ->
+  Γ ⊢ᵦ Stmt.Transition e ⊣ Return
+| type_seq s b sig :
+  Γ ⊢ₛ s ->
+  Γ ⊢ᵦ b ⊣ sig ->
+  Γ ⊢ᵦ s `; b ⊣ sig
+| type_vardecl τ te b sig :
+    match te with
+    | inr e => Γ ⊢ₑ e ∈ τ
+    | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
+    end ->
+    {| sfuncts := sfuncts Γ
+    ; cntx := cntx Γ
+    ; expr_env :=
+      {| type_vars := type_vars Γ ; types := τ :: types Γ|}
+    |} ⊢ᵦ b ⊣ sig ->
+    Γ ⊢ᵦ Stmt.Var te b ⊣ sig
+| type_cond e b₁ b₂ b sig₁ sig₂ sig :
+  Γ ⊢ₑ e ∈ Expr.TBool ->
+  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
+  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
+  Γ ⊢ᵦ b ⊣ sig ->
+  Γ ⊢ᵦ If e {` b₁ `} Else {` b₂ `} `; b ⊣ sig
+| type_nested_block b₁ b₂ sig₁ sig₂ :
+  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
+  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
+  Γ ⊢ᵦ Stmt.Block b₁ b₂ ⊣ sig₂
 | type_assign (Γ : stmt_type_env) τ e₁ e₂ :
   lvalue_ok e₁ ->
   Γ ⊢ₑ e₁ ∈ τ ->
@@ -202,58 +243,9 @@ Inductive type_stmt
     args (map (tsub_param (gen_tsub τs)) params) ->
   {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
     ⊢ₛ Stmt.MethodCall x f τs {|paramargs:=args;rtrns:=oe|}
-where "Γ '⊢ₛ' s" := (type_stmt Γ s).
+where "Γ '⊢ₛ' s ⊣" := (type_stmt Γ s sig).
 
 Local Close Scope stmt_scope.
-Local Open Scope block_scope.
-
-Reserved Notation "Γ '⊢ᵦ' b ⊣ sig" (at level 80, no associativity).
-
-Inductive type_block (Γ : stmt_type_env) : Stmt.block -> signal -> Prop :=
-| type_skip :
-  Γ ⊢ᵦ Stmt.Skip ⊣ Cont
-| type_return eo :
-  match cntx Γ, eo with
-  | CFunction (Some τ), Some e => Γ ⊢ₑ e ∈ τ
-  | c, None => return_void_ok c
-  | _, _ => False
-  end ->
-  Γ ⊢ᵦ Stmt.Return eo ⊣ Return
-| type_exit :
-  exit_ctx_ok (cntx Γ) ->
-  Γ ⊢ᵦ Stmt.Exit ⊣ Return
-| type_transition total_states e :
-  (* TODO: get total_states from context *)
-  type_prsrexpr total_states Γ e ->
-  Γ ⊢ᵦ Stmt.Transition e ⊣ Return
-| type_seq s b sig :
-  Γ ⊢ₛ s ->
-  Γ ⊢ᵦ b ⊣ sig ->
-  Γ ⊢ᵦ s `; b ⊣ sig
-| type_vardecl τ te b sig :
-    match te with
-    | inr e => Γ ⊢ₑ e ∈ τ
-    | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
-    end ->
-    {| sfuncts := sfuncts Γ
-    ; cntx := cntx Γ
-    ; expr_env :=
-      {| type_vars := type_vars Γ ; types := τ :: types Γ|}
-    |} ⊢ᵦ b ⊣ sig ->
-    Γ ⊢ᵦ Stmt.Var te b ⊣ sig
-| type_cond e b₁ b₂ b sig₁ sig₂ sig :
-  Γ ⊢ₑ e ∈ Expr.TBool ->
-  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
-  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
-  Γ ⊢ᵦ b ⊣ sig ->
-  Γ ⊢ᵦ If e {` b₁ `} Else {` b₂ `} `; b ⊣ sig
-| type_nested_block b₁ b₂ sig₁ sig₂ :
-  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
-  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
-  Γ ⊢ᵦ Stmt.Block b₁ b₂ ⊣ sig₂
-where "Γ '⊢ᵦ' blk ⊣ sig" := (type_block Γ blk sig) : type_scope.
-
-Local Close Scope block_scope.
 
 (** * Control-declaration typing. *)
 

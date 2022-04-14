@@ -39,34 +39,16 @@ Definition rename_arg (ρ : nat -> nat)
   : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
   paramarg_map_same $ rename_e ρ.
 
-Definition rename_arrowE
-           (ρ : nat -> nat)
-           '({|paramargs:=args;rtrns:=oe|} : Expr.arrowE)
-  : Expr.arrowE :=
-  {| paramargs := map (rename_arg ρ) args
-  ;  rtrns     := oe >>| rename_e ρ |}.
-
-Local Open Scope stmt_scope.
-
-Definition rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
-  match s with
-  | Stmt.Invoke _ => s
-  | e1 `:= e2 => rename_e ρ e1 `:= rename_e ρ e2
-  | Stmt.MethodCall x m ts arr
-    => Stmt.MethodCall x m ts $ rename_arrowE ρ arr
-  | Stmt.FunCall f ts arr
-    => Stmt.FunCall f ts $ rename_arrowE ρ arr
-  | Stmt.ActCall a cas das
-    => Stmt.ActCall
-        a (map (rename_e ρ) cas)
-        (map (rename_arg ρ) das)
-  | Stmt.Apply x eas args
-    => Stmt.Apply
-        x eas
-        $ map (rename_arg ρ) args
+Definition rename_fun_kind (ρ : nat -> nat) (fk : Stmt.fun_kind)
+  : Stmt.fun_kind :=
+  match fk with
+  | Stmt.Funct f τs oe
+    => Stmt.Funct f τs $ option_map (rename_e ρ) oe
+  | Stmt.Action a cargs
+    => Stmt.Action a $ map (rename_e ρ) cargs
+  | Stmt.Method e m τs oe
+    => Stmt.Method e m τs $ option_map (rename_e ρ) oe
   end.
-
-Local Close Scope stmt_scope.
 
 Definition rename_transition (ρ : nat -> nat) (e : Parser.e) : Parser.e :=
   match e with
@@ -75,26 +57,31 @@ Definition rename_transition (ρ : nat -> nat) (e : Parser.e) : Parser.e :=
     => Parser.Select (rename_e ρ e) d cases
   end.
 
-Local Open Scope block_scope.
+Local Open Scope stmt_scope.
 
-Fixpoint rename_block (ρ : nat -> nat) (b : Stmt.block) : Stmt.block :=
-  match b with
+Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
+  match s with
   | Stmt.Skip
-  | Stmt.Exit => b
-  | Stmt.Var te b
-    => Stmt.Var
-        (map_sum id (rename_e ρ) te)
-        $ rename_block (ext ρ) b
+  | Stmt.Exit
+  | Stmt.Invoke _ => s
   | Stmt.Return oe
     => Stmt.Return $ option_map (rename_e ρ) oe
   | Stmt.Transition e
     => Stmt.Transition $ rename_transition ρ e
-  | h `; t => rename_s ρ h `; rename_block ρ t
-  | Stmt.Block b1 b2
-    => Stmt.Block (rename_block ρ b1) $ rename_block ρ b2
-  | If e {` s1 `} Else {` s2 `} `; b
-    => If rename_e ρ e {` rename_block ρ s1 `}
-         Else {` rename_block ρ s2 `} `; rename_block ρ b
+  | e1 `:= e2 => rename_e ρ e1 `:= rename_e ρ e2
+  | Stmt.Call fk args
+    => Stmt.Call fk $ map (rename_arg ρ) args
+  | Stmt.Apply x eas args
+    => Stmt.Apply
+        x eas
+        $ map (rename_arg ρ) args
+  | Stmt.Var te b
+    => Stmt.Var
+        (map_sum id (rename_e ρ) te)
+        $ rename_s (ext ρ) b
+  | s₁ `; s₂ => rename_s ρ s₁ `; rename_s ρ s₂
+  | If e Then s₁ Else s₂
+    => If rename_e ρ e Then rename_s ρ s₁ Else rename_s ρ s₂
   end.
 
-Local Close Scope block_scope.
+Local Close Scope stmt_scope.

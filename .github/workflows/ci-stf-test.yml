@@ -12,8 +12,8 @@ jobs:
   petr4-vs-p4c:
     runs-on: ubuntu-latest
     # if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    container:
-      image: pataei/petr4:main
+    # container:
+      # image: pataei/petr4:main
     steps: 
       - name: update git version
         run: |
@@ -23,6 +23,11 @@ jobs:
           sudo apt-get update 
           sudo apt-get install -y git
       - uses: actions/checkout@v2
+      - name: pull and run docker image
+        run: |
+          docker pull pataei/petr4:main
+          docker run --privileged -w /p4_diff_test -v $(pwd):/p4_diff_test -it pataei/petr4:main /bin/bash
+        shell: bash
       - name: stf test petr4 vs p4c
         run: ./.github/scripts/stf-test-petr4-vs-p4c.sh
         shell: bash

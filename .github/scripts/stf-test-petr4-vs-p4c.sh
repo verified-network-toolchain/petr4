@@ -28,6 +28,9 @@ set -x # Make command execution verbose
 
 # echo "blah" | tee ci-test/type-checking/expectation/lookinto/blah.out
 
+# make sure to copy config.h to /usr/local/bin/ for stf tests.
+# cp /p4c/build/config.h /usr/local/bin/config.h 
+
 # finds all p4 files in the given directory and does stuff to them. 
 for file in $(find /petr4/ci-test/testdata/p4_16_samples -name '*.stf')
 # ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
@@ -41,7 +44,7 @@ do
   p4_file="${file1}.p4"
   petr4_res=$(petr4 stf -I /petr4/ci-test/p4include -stf "$file" "$p4_file" 2>&1)
   petr4_res_stat=$?
-  p4c_res=$(/petr4/p4c/backends/bmv2/run-bmv2-test.py /petr4/p4c "$@" "$p4_file" 2>&1)
+  p4c_res=$(python3 /petr4/p4c/backends/bmv2/run-bmv2-test.py . -v -b -tf "$file" -bd /usr/local/bin/ "$p4_file" 2>&1)
   p4c_res_stat=$?
   if [ $petr4_res_stat = 0 ]
   then 

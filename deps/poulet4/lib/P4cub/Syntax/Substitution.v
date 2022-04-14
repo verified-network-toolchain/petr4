@@ -56,35 +56,9 @@ Definition tsub_param (σ : nat -> Expr.t) (pa : paramarg Expr.t Expr.t) :=
   | PAInOut t => PAInOut (tsub_t σ t)
   end.
 
-Definition tsub_arg (σ : nat -> Expr.t) (pa : paramarg Expr.e Expr.e) :=
-  match pa with
-  | PAIn e => PAIn (tsub_e σ e)
-  | PAOut e => PAOut (tsub_e σ e)
-  | PAInOut e => PAInOut (tsub_e σ e)
-  end.
-
-Definition tsub_arrowE
-           (σ : nat -> Expr.t)
-           '({| paramargs:=args; rtrns:=ret |} : Expr.arrowE) :=
-  {| paramargs:=map (tsub_arg σ) args; rtrns:=option_map (tsub_e σ) ret |}.
-
-Definition tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
-  match s with  
-  | Stmt.Invoke _ => s
-  | Stmt.Assign lhs rhs =>
-      Stmt.Assign (tsub_e σ lhs) $ tsub_e σ rhs
-  | Stmt.MethodCall extern_name method_name typ_args args =>
-      Stmt.MethodCall
-        extern_name method_name
-        (map (tsub_t σ) typ_args) $
-        tsub_arrowE σ args
-  | Stmt.FunCall f typ_args args =>
-      Stmt.FunCall f (map (tsub_t σ) typ_args) $ tsub_arrowE σ args
-  | Stmt.ActCall a cargs dargs =>
-      Stmt.ActCall a (map (tsub_e σ) cargs) $ map (tsub_arg σ) dargs
-  | Stmt.Apply ci ext_args args =>
-      Stmt.Apply ci ext_args $ map (tsub_arg σ) args
-  end.
+Definition tsub_arg (σ : nat -> Expr.t)
+  : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
+  paramarg_map_same $ tsub_e σ.
 
 Definition tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
   match transition with
@@ -94,23 +68,36 @@ Definition tsub_transition (σ : nat -> Expr.t) (transition : Parser.e) :=
       Parser.Select (tsub_e σ discriminee) default cases
   end.
 
-Fixpoint tsub_block (σ : nat -> Expr.t) (b : Stmt.block) : Stmt.block :=
-  match b with
+Definition tsub_fun_kind (σ : nat -> Expr.t) (fk : Stmt.fun_kind) : Stmt.fun_kind :=
+  match fk with
+  | Stmt.Funct f τs oe
+    => Stmt.Funct f (map (tsub_t σ) τs) $ option_map (tsub_e σ) oe
+  | Stmt.Action a cargs
+    => Stmt.Action a $ map (tsub_e σ) cargs
+  | Stmt.Method e m τs oe
+    => Stmt.Method e m (map (tsub_t σ) τs) $ option_map (tsub_e σ) oe
+  end.
+
+Fixpoint tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
+  match s with
   | Stmt.Skip
-  | Stmt.Exit => b
-  | Stmt.Var e b => Stmt.Var (map_sum (tsub_t σ) (tsub_e σ) e) b
-  | Stmt.Return e =>
-      Stmt.Return $ option_map (tsub_e σ) e
-  | Stmt.Transition e =>
-      Stmt.Transition $ tsub_transition σ e
-  | Stmt.Seq s1 s2 =>
-      Stmt.Seq (tsub_s σ s1) $ tsub_block σ s2
-  | Stmt.Conditional g tru fls b =>
-      Stmt.Conditional
-        (tsub_e σ g) (tsub_block σ tru)
-        (tsub_block σ fls) $ tsub_block σ b
-  | Stmt.Block b1 b2 =>
-      Stmt.Block (tsub_block σ b1) $ tsub_block σ b2
+  | Stmt.Exit
+  | Stmt.Invoke _ => s
+  | Stmt.Return e => Stmt.Return $ option_map (tsub_e σ) e
+  | Stmt.Transition e => Stmt.Transition $ tsub_transition σ e
+  | (lhs `:= rhs)%stmt
+    => (tsub_e σ lhs `:= tsub_e σ rhs)%stmt
+  | Stmt.Call fk args
+    => Stmt.Call (tsub_fun_kind σ fk) $ map (tsub_arg σ) args
+  | Stmt.Apply ci ext_args args =>
+      Stmt.Apply ci ext_args $ map (tsub_arg σ) args
+  | Stmt.Var e s
+    => Stmt.Var
+        (map_sum (tsub_t σ) (tsub_e σ) e)
+        $ tsub_s σ s
+  | (s₁ `; s₂)%stmt => (tsub_s σ s₁ `; tsub_s σ s₂)%stmt
+  | (If g Then tru Else fls)%stmt
+    => (If tsub_e σ g Then tsub_s σ tru Else tsub_s σ fls)%stmt
   end.
 
 Definition tsub_carg
@@ -151,7 +138,7 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   | Control.Action a cps dps body =>
       Control.Action
         a (map (tsub_t σ) cps)
-        (map (tsub_param σ) dps) $ tsub_block σ body
+        (map (tsub_param σ) dps) $ tsub_s σ body
   | Control.Table t key acts =>
       Control.Table
         t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key) acts
@@ -173,18 +160,18 @@ Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
       let cparams' := map (tsub_cparam σ) cparams in
       let params' := map (tsub_param σ) params in
       let body' := map (tsub_Cd σ) body in
-      let apply_blk' := tsub_block σ apply_blk in
+      let apply_blk' := tsub_s σ apply_blk in
       TopDecl.Control cname cparams' eparams params' body' apply_blk'
   | TopDecl.Parser pn cps eps ps strt sts =>
       let cparams' := map (tsub_cparam σ) cps in
       let params' := map (tsub_param σ) ps in
-      let start' := tsub_block σ strt in
-      let states' := map (tsub_block σ) sts in
+      let start' := tsub_s σ strt in
+      let states' := map (tsub_s σ) sts in
       TopDecl.Parser pn cparams' eps params' start' states'
   | TopDecl.Funct f tparams params body =>
       let σ' := exts `^ tparams σ in
       let cparams' := tsub_arrowT σ' params in
-      let body' := tsub_block σ' body in
+      let body' := tsub_s σ' body in
       TopDecl.Funct f tparams cparams' body'
   end.
 

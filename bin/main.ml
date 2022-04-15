@@ -21,10 +21,20 @@ module Conf: Parse_config = struct
   let red s = colorize [ANSITerminal.red] s
   let green s = colorize [ANSITerminal.green] s
   let preprocess include_dirs p4file =
-    let env = P4pp.Eval.empty "" include_dirs [] in
-    let p4file_contents = In_channel.(with_file p4file ~f:input_all) in
-    let str,_ = P4pp.Eval.FileSystem.preprocess env p4file p4file_contents in
+    let cmd =
+      String.concat ~sep:" "
+        (["cc"] @
+         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
+    let in_chan = Unix.open_process_in cmd in
+    let str = In_channel.input_all in_chan in
+    let _ = Unix.close_process_in in_chan in
     str
+
+    (* let env = P4pp.Eval.empty "" include_dirs [] in
+     * let p4file_contents = In_channel.(with_file p4file ~f:input_all) in
+     * let str,_ = P4pp.Eval.FileSystem.preprocess env p4file p4file_contents in
+     * str *)
 end
 
 open Make_parse(Conf)

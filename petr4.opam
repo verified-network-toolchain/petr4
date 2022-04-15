@@ -22,7 +22,7 @@ depends: [
   "dune" {>= "1.2"}
   "cstruct"
   "cstruct-sexp"
-  "menhir"
+  "menhir" {<= "20211128"}
   "ANSITerminal"
   "core" {>= "0.13.0"}
   "ppx_deriving_yojson"
@@ -32,7 +32,7 @@ depends: [
   "js_of_ocaml"
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
-  "p4pp" {>= "0.1.8"}
+  "p4pp" {<= "0.1.7"}
   "odoc"
   "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}

@@ -28,14 +28,14 @@ jobs:
         shell: bash
       - name: add result of stf test to git repo
         run: |
-          git config --local user.email "paris.ataei@gmail.com"
-          git config --local user.name  "Github Action Bot GO!"
-          git --version
-          git status
+          # git config --local user.email "paris.ataei@gmail.com"
+          # git config --local user.name  "Github Action Bot GO!"
+          # git --version
+          # git status
           git add ci-test/stf-test/*
-          git status
+          # git status
           git commit -am "write stf result...see if p4c is working"
-          git status
-          pwd
-          ls -la
+          # git status
+          # pwd
+          # ls -la
           git push origin

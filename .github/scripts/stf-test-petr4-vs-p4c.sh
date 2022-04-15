@@ -44,7 +44,7 @@ do
   p4_file="${file1}.p4"
   petr4_res=$(petr4 stf -I /petr4/ci-test/p4include -stf "$file" "$p4_file" 2>&1)
   petr4_res_stat=$?
-  p4c_res=$(python3 /petr4/p4c/backends/bmv2/run-bmv2-test.py . -v -b -tf "$file" -bd /usr/local/bin/ "$p4_file" 2>&1)
+  p4c_res=$(python3 /petr4/p4c_manual/backends/bmv2/run-bmv2-test.py . -v -b -tf "$file" -bd /usr/local/bin/ "$p4_file" 2>&1)
   p4c_res_stat=$?
   if [ $petr4_res_stat = 0 ]
   then 

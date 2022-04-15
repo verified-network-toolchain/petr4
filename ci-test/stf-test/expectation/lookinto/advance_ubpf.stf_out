@@ -1,0 +1,85 @@
+p4 program:
+\n
+#include <core.p4>
+#define UBPF_MODEL_VERSION 20200515
+#include <ubpf_model.p4>
+
+header test_header {
+    bit<8> bits_to_skip;
+}
+
+struct Headers_t {
+    test_header skip;
+}
+
+struct metadata {
+}
+
+parser prs(packet_in p, out Headers_t headers, inout metadata meta, inout standard_metadata std_meta) {
+    state start {
+        p.extract(headers.skip);
+        p.advance((bit<32>) headers.skip.bits_to_skip);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, inout metadata meta, inout standard_metadata std_meta) {
+    apply { }
+}
+
+control dprs(packet_out packet, in Headers_t headers) {
+    apply {
+        packet.emit(headers.skip);
+    }
+}
+
+ubpf(prs(), pipe(), dprs()) main;
+\n
+\n
+packet 0 00 0123456789abcdef
+expect 0 00 0123456789abcdef
+
+packet 0 10 0123456789abcdef
+expect 0 10 456789abcdef
+
+packet 0 30 0123456789abcdef
+expect 0 30 cdef
+
+packet 0 40 0123456789abcdef
+expect 0 40
+
+packet 0 48 0123456789abcdef
+expect 0 48 0123456789abcdef
+
+packet 0 ff 0123456789abcdef
+expect 0 ff 0123456789abcdef
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE DEFINE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/advance_ubpf.p4 : 5")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmp1b9uiadv
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp1b9uiadv/advance_ubpf.json /petr4/ci-test/testdata/p4_16_samples/advance_ubpf.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ubpf_model.p4(176): [--Wwarn=invalid] warning: ubpf: the main package should be called V1Switch; are you using the wrong architecture?
+package ubpf<H, M>(parse<H, M> prs,
+        ^^^^
+/petr4/ci-test/testdata/p4_16_samples/advance_ubpf.p4(34): [--Werror=Target model error] error: package ubpf: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ubpf(prs(), pipe(), dprs()) main;
+                            ^^^^
+
+*** Test failed

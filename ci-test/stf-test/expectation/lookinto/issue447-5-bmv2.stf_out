@@ -1,0 +1,107 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header S {
+    bit<32> size;
+}
+
+header H {
+    varbit<32> var;
+}
+
+struct Parsed_packet {
+    S s1;
+    H h1;
+    H h2;
+}
+
+struct Metadata {
+}
+
+parser parserI(packet_in pkt, out Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    state start {
+        pkt.extract(hdr.s1);
+        pkt.extract(hdr.h1, hdr.s1.size);
+        pkt.extract(hdr.h2, hdr.s1.size);
+        transition accept;
+    }
+}
+
+control DeparserI(packet_out packet, in Parsed_packet hdr) {
+    apply {
+        packet.emit(hdr.h1);
+        packet.emit(hdr.h2);
+    }
+}
+
+control ingress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    varbit<32> s;
+    apply {
+        // swap
+        s = hdr.h1.var;
+        hdr.h1.var = hdr.h2.var;
+        hdr.h2.var = s;
+    }
+}
+
+control egress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control vc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+control uc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+V1Switch<Parsed_packet, Metadata>(parserI(), vc(), ingress(), egress(), uc(), DeparserI()) main;
+\n
+\n
+#        size
+packet 0 00000008 12 34 56 78 90
+expect 0 34 12 56 78 90
+packet 0 00000010 12 34 56 78 90
+expect 0 56 78 12 34 90
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue447-5-bmv2.p4 : 4")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpkviau7sv
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpkviau7sv/issue447-5-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue447-5-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9558 --device-id 468 -i 0@pcap0 .././tmpkviau7sv/issue447-5-bmv2.json
+Running simple_switch_CLI --thrift-port 9558
+STF Command: packet 0 00000008 12 34 56 78 90
+STF Command: expect 0 34 12 56 78 90
+STF Command: packet 0 00000010 12 34 56 78 90
+STF Command: expect 0 56 78 12 34 90
+simple_switch exit code -15
+Execution completed
+Comparing outputs

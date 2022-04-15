@@ -1,0 +1,132 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header H {
+    bit<8>     s;
+    varbit<32> v;
+}
+
+header Same {
+    bit<8> same;
+}
+
+struct metadata {}
+
+struct headers {
+    H h;
+    H[2] a;
+    Same same;
+}
+
+parser p(packet_in b,
+         out headers hdr,
+         inout metadata meta,
+         inout standard_metadata_t stdmeta) {
+    state start {
+        b.extract(hdr.h, 32);
+        b.extract(hdr.a.next, 32);
+        b.extract(hdr.a.next, 32);
+        transition accept;
+    }
+}
+
+control ingress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t stdmeta) {
+    apply {
+        hdr.same.setValid();
+        hdr.same.same = 0;
+        stdmeta.egress_spec = 0;
+
+        if (hdr.h.s == hdr.a[0].s) {
+            hdr.same.same = hdr.same.same | 1;
+        }
+        if (hdr.h.v == hdr.a[0].v) {
+            hdr.same.same = hdr.same.same | 2;
+        }
+        if (hdr.h == hdr.a[0]) {
+            hdr.same.same = hdr.same.same | 4;
+        }
+
+        H[2] tmp;
+        tmp[0] = hdr.h;
+        tmp[1] = hdr.a[0];
+        if (tmp == hdr.a) {
+            hdr.same.same = hdr.same.same | 8;
+        }
+    }
+}
+
+control egress(inout headers hdr,
+               inout metadata meta,
+               inout standard_metadata_t stdmeta) {
+    apply {}
+}
+
+control vc(inout headers hdr,
+           inout metadata meta) {
+    apply {}
+}
+
+control uc(inout headers hdr,
+           inout metadata meta) {
+    apply {}
+}
+
+control deparser(packet_out packet,
+                 in headers hdr) {
+    apply {
+        packet.emit(hdr);
+    }
+}
+
+V1Switch<headers, metadata>(p(),
+                            vc(),
+                            ingress(),
+                            egress(),
+                            uc(),
+                            deparser()) main;
+\n
+\n
+packet 0 01 23456789 AB CDEFFEDC BA 98765432
+expect 0 01 23456789 AB CDEFFEDC BA 98765432 00
+packet 0 01 23456789 01 23456789 01 23456789
+expect 0 01 23456789 01 23456789 01 23456789 0F
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/equality-bmv2.p4 : 4")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpq2m6xos3
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpq2m6xos3/equality-bmv2.json /petr4/ci-test/testdata/p4_16_samples/equality-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9562 --device-id 472 -i 0@pcap0 .././tmpq2m6xos3/equality-bmv2.json
+Running simple_switch_CLI --thrift-port 9562
+STF Command: packet 0 01 23456789 AB CDEFFEDC BA 98765432
+STF Command: expect 0 01 23456789 AB CDEFFEDC BA 98765432 00
+STF Command: packet 0 01 23456789 01 23456789 01 23456789
+STF Command: expect 0 01 23456789 01 23456789 01 23456789 0F
+simple_switch exit code -15
+Execution completed
+Comparing outputs

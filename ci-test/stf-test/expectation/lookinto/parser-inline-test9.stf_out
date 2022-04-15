@@ -1,0 +1,162 @@
+p4 program:
+\n
+// Test of subparser inlining with following characteristics:
+// - one subparser instance
+// - two invocations of the same instance with the same arguments
+// - no statement after both invocations
+// - transition to the same state after both invocations
+// - another pair of invocations of the same instance with same
+//   characteristics as mentioned above
+
+#include <v1model.p4>
+
+struct metadata { }
+
+header data_t {
+    bit<8> f;
+}
+
+struct headers {
+    data_t h1;
+    data_t h2;
+    data_t h3;
+}
+
+parser Subparser(      packet_in packet,
+                 inout data_t    hdr) {
+    state start {
+        hdr.f = 42;
+        transition accept;
+    }
+}
+
+parser ParserImpl(      packet_in           packet,
+                  out   headers             hdr,
+                  inout metadata            meta,
+                  inout standard_metadata_t standard_metadata) {
+    Subparser() p;
+
+    state start {
+        packet.extract(hdr.h1);
+        packet.extract(hdr.h2);
+        transition select(standard_metadata.ingress_port) {
+            0: p0;
+            1: p1;
+            2: p2;
+            default: p3;
+        }
+    }
+
+    state p0 { p.apply(packet, hdr.h1); transition accept; }
+    state p1 { p.apply(packet, hdr.h1); transition accept; }
+    state p2 { p.apply(packet, hdr.h2); transition p4; }
+    state p3 { p.apply(packet, hdr.h2); transition p4; }
+    state p4 { packet.extract(hdr.h3); transition accept; }
+}
+
+control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+        if (hdr.h1.f == 42) {
+            standard_metadata.egress_spec = 1;
+        } else {
+            standard_metadata.egress_spec = 10;
+        }
+    }
+}
+
+control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+    }
+}
+
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr.h1);
+        packet.emit(hdr.h2);
+    }
+}
+
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;\n
+\n
+packet  0 01 23 45 67 89
+expect  1 2a 23 45 67 89
+
+packet  1 01 23 45 67 89
+expect  1 2a 23 45 67 89
+
+packet  2 01 23 45 67 89
+expect 10 01 2a 67 89
+
+packet  2 2a 23 45 67 89
+expect  1 2a 2a 67 89
+
+packet  3 01 23 45 67 89
+expect 10 01 2a 67 89
+
+packet  3 2a 23 45 67 89
+expect  1 2a 2a 67 89\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT(
+) TEXT(
+) TEXT(
+) TEXT(
+) TEXT(
+) TEXT(
+) TEXT(
+) TEXT(
+) INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/parser-inline/parser-inline-test9.p4 : 11")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap1 as port 1 (files)
+Adding interface pcap2 as port 2 (files)
+Adding interface pcap3 as port 3 (files)
+Adding interface pcap10 as port 10 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpydw4t4t4
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpydw4t4t4/parser-inline-test9.json /petr4/ci-test/testdata/p4_16_samples/parser-inline/parser-inline-test9.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9930 --device-id 840 -i 0@pcap0 -i 1@pcap1 -i 2@pcap2 -i 3@pcap3 -i 10@pcap10 .././tmpydw4t4t4/parser-inline-test9.json
+Running simple_switch_CLI --thrift-port 9930
+STF Command: packet  0 01 23 45 67 89
+STF Command: expect  1 2a 23 45 67 89
+STF Command: packet  1 01 23 45 67 89
+STF Command: expect  1 2a 23 45 67 89
+STF Command: packet  2 01 23 45 67 89
+STF Command: expect 10 01 2a 67 89
+STF Command: packet  2 2a 23 45 67 89
+STF Command: expect  1 2a 2a 67 89
+STF Command: packet  3 01 23 45 67 89
+STF Command: expect 10 01 2a 67 89
+STF Command: packet  3 2a 23 45 67 89
+STF Command: expect  1 2a 2a 67 89
+simple_switch exit code -15
+Execution completed
+Comparing outputs

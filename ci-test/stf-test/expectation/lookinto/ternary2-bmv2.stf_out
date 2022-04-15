@@ -1,0 +1,234 @@
+p4 program:
+\n
+/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include "v1model.p4"
+
+header data_h {
+    bit<32>     f1;
+    bit<32>     f2;
+    bit<16>     h1;
+    bit<8>      b1;
+    bit<8>      b2;
+}
+
+header extra_h {
+    bit<16>     h;
+    bit<8>      b1;
+    bit<8>      b2;
+}
+
+struct packet_t {
+    data_h      data;
+    extra_h[4]  extra;
+}
+
+struct Meta {}
+
+parser p(packet_in b, out packet_t hdrs, inout Meta m, inout standard_metadata_t meta)
+{
+    state start {
+        b.extract(hdrs.data);
+        transition extra;
+    }
+    state extra {
+        b.extract(hdrs.extra.next);
+        transition select(hdrs.extra.last.b2) {
+            8w0x80 &&& 8w0x80: extra;
+            default: accept;
+        }
+    }
+}
+control vrfy(inout packet_t h, inout Meta m) { apply {} }
+control update(inout packet_t h, inout Meta m) { apply {} }
+
+control ingress(inout packet_t hdrs, inout Meta m, inout standard_metadata_t meta) {
+    action setb1(bit<9> port, bit<8> val) {
+        hdrs.data.b1 = val;
+        meta.egress_spec = port;
+    }
+    action noop() { }
+    action setbyte(out bit<8> reg, bit<8> val) {
+        reg = val;
+    }
+    action act1(bit<8> val) { hdrs.extra[0].b1 = val; }
+    action act2(bit<8> val) { hdrs.extra[0].b1 = val; }
+    action act3(bit<8> val) { hdrs.extra[0].b1 = val; }
+
+    table test1 {
+        key = { hdrs.data.f1 : ternary; }
+        actions = {
+            setb1;
+            noop;
+        }
+        default_action = noop;
+    }
+    table ex1 {
+        key = { hdrs.extra[0].h : ternary; }
+        actions = {
+            setbyte(hdrs.extra[0].b1);
+            act1;
+            act2;
+            act3;
+            noop;
+        }
+        default_action = noop;
+    }
+    table tbl1 {
+        key = { hdrs.data.f2 : ternary; }
+        actions = { setbyte(hdrs.data.b2); noop; }
+        default_action = noop; }
+    table tbl2 {
+        key = { hdrs.data.f2 : ternary; }
+        actions = { setbyte(hdrs.extra[1].b1); noop; }
+        default_action = noop; }
+    table tbl3 {
+        key = { hdrs.data.f2 : ternary; }
+        actions = { setbyte(hdrs.extra[2].b2); noop; }
+        default_action = noop; }
+    apply {
+        test1.apply();
+        switch (ex1.apply().action_run) {
+            act1: { tbl1.apply(); }
+            act2: { tbl2.apply(); }
+            act3: { tbl3.apply(); }
+        }
+    }
+}
+
+control egress(inout packet_t hdrs, inout Meta m, inout standard_metadata_t meta) {
+    apply { }
+}
+
+control deparser(packet_out b, in packet_t hdrs) {
+    apply {
+        b.emit(hdrs.data);
+        b.emit(hdrs.extra);
+    }
+}
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+\n
+\n
+
+add test1 0 data.f1:0x****0101 ingress.setb1(val:0x7f, port:2)
+add test1 503 data.f1:0x****0202 ingress.setb1(val:7, port:3)
+
+#          f1       f2      h1  b1 b2  h   b1 b2
+expect 2 00000101 ******** **** 7f 66
+packet 0 00000101 00000202 0303 55 66 7777 88 00
+expect 3 00000202 ******** **** 07 66
+packet 2 00000202 00000303 0404 55 66 7777 88 00
+wait
+
+add ex1 100 extra$0.h:0x25** act1(val:0x25)
+add tbl1 100 data.f2:0x0202**** setbyte(val:0x26)
+add ex1 110 extra$0.h:0x2525 act2(val:0x27)
+add tbl2 100 data.f2:0x0202**** setbyte(val:0x28)
+
+#          f1       f2      h1  b1 b2  h   b1 b2 payload
+packet 0 01010101 02020202 0303 55 66 2500 ff 7f 01020304
+expect 2 01010101 02020202 0303 7f 26 2500 25 7f 01020304
+#          f1       f2      h1  b1 b2  h   b1 b2  h   b1 b2 payload
+packet 0 01010101 02020202 0303 55 66 2525 ff ff 3333 ff 7f 01020304
+expect 2 01010101 02020202 0303 7f 66 2525 27 ff 3333 28 7f 01020304
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT( ) TEXT(
+) TEXT(#) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/ternary2-bmv2.p4 : 2")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap2 as port 2 (files)
+Adding interface pcap3 as port 3 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to ternary match table ingress.test1
+match key:           TERNARY-00:00:01:01 &&& 00:00:ff:ff
+action:              ingress.setb1
+runtime data:        00:02	7f
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to ternary match table ingress.test1
+match key:           TERNARY-00:00:02:02 &&& 00:00:ff:ff
+action:              ingress.setb1
+runtime data:        00:03	07
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to ternary match table ingress.ex1
+match key:           TERNARY-25:00 &&& ff:00
+action:              ingress.act1
+runtime data:        25
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to ternary match table ingress.tbl1
+match key:           TERNARY-02:02:00:00 &&& ff:ff:00:00
+action:              ingress.setbyte
+runtime data:        26
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to ternary match table ingress.ex1
+match key:           TERNARY-25:25 &&& ff:ff
+action:              ingress.act2
+runtime data:        27
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to ternary match table ingress.tbl2
+match key:           TERNARY-02:02:00:00 &&& ff:ff:00:00
+action:              ingress.setbyte
+runtime data:        28
+Entry has been added with handle 0
+RuntimeCmd: 
+Writing temporary files into  ./tmp4tu64nkg
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp4tu64nkg/ternary2-bmv2.json /petr4/ci-test/testdata/p4_16_samples/ternary2-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9952 --device-id 862 -i 0@pcap0 -i 2@pcap2 -i 3@pcap3 .././tmp4tu64nkg/ternary2-bmv2.json
+Running simple_switch_CLI --thrift-port 9952
+STF Command: add test1 0 data.f1:0x****0101 ingress.setb1(val:0x7f, port:2)
+table_add ingress.test1 ingress.setb1 0x00000101&&&0x0000FFFF => 2 0x7f 10000
+STF Command: add test1 503 data.f1:0x****0202 ingress.setb1(val:7, port:3)
+table_add ingress.test1 ingress.setb1 0x00000202&&&0x0000FFFF => 3 7 9497
+STF Command: expect 2 00000101 ******** **** 7f 66
+STF Command: packet 0 00000101 00000202 0303 55 66 7777 88 00
+STF Command: expect 3 00000202 ******** **** 07 66
+STF Command: packet 2 00000202 00000303 0404 55 66 7777 88 00
+STF Command: wait
+ignoring stf command: wait 
+STF Command: add ex1 100 extra$0.h:0x25** act1(val:0x25)
+table_add ingress.ex1 ingress.act1 0x2500&&&0xFF00 => 0x25 9900
+STF Command: add tbl1 100 data.f2:0x0202**** setbyte(val:0x26)
+table_add ingress.tbl1 ingress.setbyte 0x02020000&&&0xFFFF0000 => 0x26 9900
+STF Command: add ex1 110 extra$0.h:0x2525 act2(val:0x27)
+table_add ingress.ex1 ingress.act2 0x2525&&&0xFFFF => 0x27 9890
+STF Command: add tbl2 100 data.f2:0x0202**** setbyte(val:0x28)
+table_add ingress.tbl2 ingress.setbyte 0x02020000&&&0xFFFF0000 => 0x28 9900
+STF Command: packet 0 01010101 02020202 0303 55 66 2500 ff 7f 01020304
+STF Command: expect 2 01010101 02020202 0303 7f 26 2500 25 7f 01020304
+STF Command: packet 0 01010101 02020202 0303 55 66 2525 ff ff 3333 ff 7f 01020304
+STF Command: expect 2 01010101 02020202 0303 7f 66 2525 27 ff 3333 28 7f 01020304
+simple_switch exit code -15
+Execution completed
+Comparing outputs

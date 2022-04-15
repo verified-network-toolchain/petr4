@@ -1,0 +1,307 @@
+p4 program:
+\n
+/*
+* Copyright 2019, MNK Consulting
+* http://mnkcg.com
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*    http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*
+*
+*    How to test this P4 code:
+* $ ./p4c-bm2-ss --std p4-16 ../testdata/p4_16_samples/ipv6-switch-ml-bmv2.p4 -o tmp.json
+*
+*/
+
+#include <v1model.p4>
+#include "ml-headers.p4"
+
+const bit<32> BMV2_V1MODEL_INSTANCE_TYPE_REPLICATION   = 5;
+#define IS_REPLICATED(std_meta) (std_meta.instance_type == BMV2_V1MODEL_INSTANCE_TYPE_REPLICATION)
+
+parser MyParser(packet_in packet, out headers hdr, inout metadata_t meta,
+                inout standard_metadata_t standard_metadata) {
+    state start {
+        packet.extract(hdr.ethernet);
+        transition select(hdr.ethernet.etherType) {
+            TYPE_IPV6: ipv6;
+            default: accept;
+        }
+    }
+    state ipv6 {
+        packet.extract(hdr.ipv6);
+        transition select(hdr.ipv6.nextHdr) {
+            PROTO_UDP: parse_udp;
+            PROTO_ICMP6: icmp6;
+            default: accept;
+        }
+    }
+    state icmp6 {
+        packet.extract(hdr.icmp6);
+        transition accept;
+    }
+    state parse_udp {
+        packet.extract(hdr.udp);
+        transition accept;	
+    }
+}
+
+// Our switch table comprises of IPv6 addresses vs. egress_port.
+// This is the table we setup here.
+control ingress(inout headers hdr, inout metadata_t meta,
+                inout standard_metadata_t standard_metadata) {
+    action set_mcast_grp(bit<16> mcast_grp, bit<9> port) {
+        standard_metadata.mcast_grp = mcast_grp;
+	meta.egress_port = port;
+    }
+    table ipv6_tbl {
+	key = {
+            (hdr.ipv6.dstAddr[127:120] == 8w0xff) : exact @name("mcast_key");
+	}
+	actions = {set_mcast_grp;}
+    }
+
+    apply {
+        if (hdr.ipv6.isValid()) {
+	    ipv6_tbl.apply();
+        }
+    }
+}
+
+control egress(inout headers hdr, inout metadata_t meta,
+               inout standard_metadata_t standard_metadata) {
+    action set_out_bd (bit<24> bd) {
+        meta.fwd.out_bd = bd;
+    }
+    table get_multicast_copy_out_bd {
+        key = {
+            standard_metadata.mcast_grp  : exact;
+            standard_metadata.egress_rid : exact;
+        }
+        actions = { set_out_bd; }
+    }
+
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
+    action rewrite_mac(bit<48> smac) {
+        hdr.ethernet.srcAddr = smac;
+    }
+    table send_frame {
+        key = {
+            meta.fwd.out_bd: exact;
+        }
+        actions = {rewrite_mac; drop;}
+        default_action = drop;
+    }
+
+    apply {
+        if (IS_REPLICATED(standard_metadata)) {
+            get_multicast_copy_out_bd.apply();
+	    send_frame.apply();
+	}
+    }
+}
+
+control MyDeparser(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr.ethernet);
+        packet.emit(hdr.ipv6);
+        packet.emit(hdr.icmp6);
+        packet.emit(hdr.udp);
+    }
+}
+
+control MyVerifyChecksum(inout headers hdr, inout metadata_t meta) {
+    apply {
+    }
+}
+
+control MyComputeChecksum(inout headers hdr, inout metadata_t meta) {
+    apply {
+    }
+}
+
+V1Switch(MyParser(), MyVerifyChecksum(), ingress(), egress(),
+MyComputeChecksum(), MyDeparser()) main;
+\n
+\n
+#
+# Copyright 2019, MNK Consulting
+# http://mnkcg.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ipv6-switch-ml-bmv2.stf
+#
+# Ether(src='00:ae:f3:52:aa:d1')/IPv6(src='fe80::2878:42c6:2586:65de', dst='FF02:0:0:0:0:0:1:8')/UDP()
+#
+### IPv6 Mcast-destined test ########################
+add ipv6_tbl mcast_key:0x1 ingress.set_mcast_grp(mcast_grp:1113, port:0x2)
+#
+mc_mgrp_create 1113
+#
+mc_node_create 400 6
+mc_node_create 401 7
+mc_node_create 402 8
+#
+mc_node_associate 1113 0
+mc_node_associate 1113 1
+mc_node_associate 1113 2
+#
+# first copy of packet through egress
+###    table_add get_multicast_copy_out_bd set_out_bd 1113 400 => 10
+add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:400 egress.set_out_bd(bd:10)
+###    table_add send_frame rewrite_mac 10 => 00:11:22:33:0a:55
+add send_frame fwd.out_bd:10 rewrite_mac(smac:0x001122330a55)
+
+# second copy of packet through egress
+###    table_add get_multicast_copy_out_bd set_out_bd 1113 401 => 11
+add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:401 egress.set_out_bd(bd:11)
+###    table_add send_frame rewrite_mac 11 => 00:11:22:33:0b:55
+add send_frame fwd.out_bd:11 rewrite_mac(smac:0x001122330b55)
+
+# third copy of packet through egress
+###    table_add get_multicast_copy_out_bd set_out_bd 1113 402 => 12
+add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:402 egress.set_out_bd(bd:12)
+###    table_add send_frame rewrite_mac 12 => 00:11:22:33:0c:55
+add send_frame fwd.out_bd:12 rewrite_mac(smac:0x001122330c55)
+#
+packet 0 33330001000800aef352aad186dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+#
+expect 6 333300010008001122330a5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+#
+expect 7 333300010008001122330b5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+#
+expect 8 333300010008001122330c5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT( ) TEXT(
+) TEXT(#) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/ipv6-switch-ml-bmv2.p4 : 2")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap6 as port 6 (files)
+Adding interface pcap7 as port 7 (files)
+Adding interface pcap8 as port 8 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to exact match table ingress.ipv6_tbl
+match key:           EXACT-01
+action:              ingress.set_mcast_grp
+runtime data:        04:59	00:02
+Entry has been added with handle 0
+RuntimeCmd: Creating multicast group 1113
+RuntimeCmd: Creating node with rid 400 , port map 1000000 and lag map 
+node was created with handle 0
+RuntimeCmd: Creating node with rid 401 , port map 10000000 and lag map 
+node was created with handle 1
+RuntimeCmd: Creating node with rid 402 , port map 100000000 and lag map 
+node was created with handle 2
+RuntimeCmd: Associating node 0 to multicast group 1113
+RuntimeCmd: Associating node 1 to multicast group 1113
+RuntimeCmd: Associating node 2 to multicast group 1113
+RuntimeCmd: Adding entry to exact match table egress.get_multicast_copy_out_bd
+match key:           EXACT-04:59	EXACT-01:90
+action:              egress.set_out_bd
+runtime data:        00:00:0a
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table egress.send_frame
+match key:           EXACT-00:00:0a
+action:              egress.rewrite_mac
+runtime data:        00:11:22:33:0a:55
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table egress.get_multicast_copy_out_bd
+match key:           EXACT-04:59	EXACT-01:91
+action:              egress.set_out_bd
+runtime data:        00:00:0b
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to exact match table egress.send_frame
+match key:           EXACT-00:00:0b
+action:              egress.rewrite_mac
+runtime data:        00:11:22:33:0b:55
+Entry has been added with handle 1
+RuntimeCmd: Adding entry to exact match table egress.get_multicast_copy_out_bd
+match key:           EXACT-04:59	EXACT-01:92
+action:              egress.set_out_bd
+runtime data:        00:00:0c
+Entry has been added with handle 2
+RuntimeCmd: Adding entry to exact match table egress.send_frame
+match key:           EXACT-00:00:0c
+action:              egress.rewrite_mac
+runtime data:        00:11:22:33:0c:55
+Entry has been added with handle 2
+RuntimeCmd: 
+Writing temporary files into  ./tmpt6j56twa
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpt6j56twa/ipv6-switch-ml-bmv2.json /petr4/ci-test/testdata/p4_16_samples/ipv6-switch-ml-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9521 --device-id 431 -i 0@pcap0 -i 6@pcap6 -i 7@pcap7 -i 8@pcap8 .././tmpt6j56twa/ipv6-switch-ml-bmv2.json
+Running simple_switch_CLI --thrift-port 9521
+STF Command: add ipv6_tbl mcast_key:0x1 ingress.set_mcast_grp(mcast_grp:1113, port:0x2)
+table_add ingress.ipv6_tbl ingress.set_mcast_grp 0x1 => 1113 0x2
+STF Command: mc_mgrp_create 1113
+mc_mgrp_create 1113
+STF Command: mc_node_create 400 6
+mc_node_create 400 6
+STF Command: mc_node_create 401 7
+mc_node_create 401 7
+STF Command: mc_node_create 402 8
+mc_node_create 402 8
+STF Command: mc_node_associate 1113 0
+mc_node_associate 1113 0
+STF Command: mc_node_associate 1113 1
+mc_node_associate 1113 1
+STF Command: mc_node_associate 1113 2
+mc_node_associate 1113 2
+STF Command: add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:400 egress.set_out_bd(bd:10)
+table_add egress.get_multicast_copy_out_bd egress.set_out_bd 1113 400 => 10
+STF Command: add send_frame fwd.out_bd:10 rewrite_mac(smac:0x001122330a55)
+table_add egress.send_frame egress.rewrite_mac 10 => 0x001122330a55
+STF Command: add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:401 egress.set_out_bd(bd:11)
+table_add egress.get_multicast_copy_out_bd egress.set_out_bd 1113 401 => 11
+STF Command: add send_frame fwd.out_bd:11 rewrite_mac(smac:0x001122330b55)
+table_add egress.send_frame egress.rewrite_mac 11 => 0x001122330b55
+STF Command: add get_multicast_copy_out_bd mcast_grp:1113 egress_rid:402 egress.set_out_bd(bd:12)
+table_add egress.get_multicast_copy_out_bd egress.set_out_bd 1113 402 => 12
+STF Command: add send_frame fwd.out_bd:12 rewrite_mac(smac:0x001122330c55)
+table_add egress.send_frame egress.rewrite_mac 12 => 0x001122330c55
+STF Command: packet 0 33330001000800aef352aad186dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+STF Command: expect 6 333300010008001122330a5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+STF Command: expect 7 333300010008001122330b5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+STF Command: expect 8 333300010008001122330c5586dd6000000000081140fe80000000000000287842c6258665deff0200000000000000000000000100080035003500080b45
+simple_switch exit code -15
+Execution completed
+Comparing outputs

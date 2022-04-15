@@ -1,0 +1,137 @@
+p4 program:
+\n
+/* -*- P4_16 -*- */
+#include <core.p4>
+#include <v1model.p4>
+
+struct headers { }
+
+struct metadata {
+    bool test;
+}
+
+
+parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    state start {
+        transition accept;
+    }
+}
+
+
+control IngressImpl(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    register<bit<1>>(1) testRegister;
+
+    action drop() {
+        mark_to_drop(standard_metadata);
+    }
+
+    action forward() {
+        standard_metadata.egress_spec = 1;
+    }
+
+    table debug_table {
+        key = {
+            meta.test: exact;
+        }
+        actions = {
+            drop;
+            forward;
+        }
+    }
+
+    apply {
+        bit<1> registerData;
+        testRegister.read(registerData, 0);
+
+        meta.test = (bool) registerData;    // does not work
+        // meta.test = registerData != 0;    // works
+
+        debug_table.apply();
+    }
+}
+
+
+control VerifyChecksumImpl(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+
+control EgressImpl(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply { }
+}
+
+
+control ComputeChecksumImpl(inout headers hdr, inout metadata meta) {
+    apply { }
+}
+
+
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply { }
+}
+
+
+V1Switch(
+    ParserImpl(),
+    VerifyChecksumImpl(),
+    IngressImpl(),
+    EgressImpl(),
+    ComputeChecksumImpl(),
+    DeparserImpl()
+) main;
+\n
+\n
+add IngressImpl.debug_table meta.test:0x0 IngressImpl.forward()
+add IngressImpl.debug_table meta.test:0x1 IngressImpl.drop()
+
+packet 1 01010101 01010101
+expect 1 01010101 01010101
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT( ) TEXT(
+) INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue1814-1-bmv2.p4 : 5")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap1 as port 1 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: Adding entry to exact match table IngressImpl.debug_table
+match key:           EXACT-00
+action:              IngressImpl.forward
+runtime data:        
+Entry has been added with handle 0
+RuntimeCmd: Adding entry to exact match table IngressImpl.debug_table
+match key:           EXACT-01
+action:              IngressImpl.drop
+runtime data:        
+Entry has been added with handle 1
+RuntimeCmd: 
+Writing temporary files into  ./tmpkerv6g5_
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpkerv6g5_/issue1814-1-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue1814-1-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9118 --device-id 28 -i 1@pcap1 .././tmpkerv6g5_/issue1814-1-bmv2.json
+Running simple_switch_CLI --thrift-port 9118
+STF Command: add IngressImpl.debug_table meta.test:0x0 IngressImpl.forward()
+table_add IngressImpl.debug_table IngressImpl.forward 0x0 => 
+STF Command: add IngressImpl.debug_table meta.test:0x1 IngressImpl.drop()
+table_add IngressImpl.debug_table IngressImpl.drop 0x1 => 
+STF Command: packet 1 01010101 01010101
+STF Command: expect 1 01010101 01010101
+simple_switch exit code -15
+Execution completed
+Comparing outputs

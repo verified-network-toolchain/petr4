@@ -1,0 +1,103 @@
+p4 program:
+\n
+#include <core.p4>
+#define UBPF_MODEL_VERSION 20200515
+#include <ubpf_model.p4>
+
+typedef bit<48> EthernetAddress;
+typedef bit<32>     IPv4Address;
+
+// IPv4 header without options
+header IPv4_h {
+    bit<4>       version;
+    bit<4>       ihl;
+    bit<8>       diffserv;
+    bit<16>      totalLen;
+    bit<16>      identification;
+    bit<3>       flags;
+    bit<13>      fragOffset;
+    bit<8>       ttl;
+    bit<8>       protocol;
+    bit<16>      hdrChecksum;
+    IPv4Address  srcAddr;
+    IPv4Address  dstAddr;
+}
+
+// standard Ethernet header
+header Ethernet_h
+{
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16> etherType;
+}
+
+struct Headers_t {
+    Ethernet_h ethernet;
+    IPv4_h     ipv4;
+}
+
+struct metadata { }
+
+extern bit<16> compute_hash(in bit<32> srcAddr, in bit<32> dstAddr);
+
+parser prs(packet_in p, out Headers_t headers, inout metadata meta, inout standard_metadata std_meta) {
+    state start {
+        p.extract(headers.ethernet);
+        p.extract(headers.ipv4);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, inout metadata meta, inout standard_metadata std_meta) {
+
+    apply {
+        // only for test purpose
+        headers.ipv4.hdrChecksum = compute_hash(headers.ipv4.srcAddr, headers.ipv4.dstAddr);
+    }
+
+}
+
+control dprs(packet_out packet, in Headers_t headers) {
+    apply {
+        packet.emit(headers.ethernet);
+        packet.emit(headers.ipv4);
+    }
+}
+
+ubpf(prs(), pipe(), dprs()) main;
+
+\n
+\n
+packet 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 53920a01 98463212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+expect 0 001b1700 0130b881 98b7aeb7 08004500 00344a6f 40004006 7D3F0a01 98463212 c86acf2c 01bbd0fa 585c4ccc b2ac8010 0353c314 00000101 080a0192 463911a0 c06f
+
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE DEFINE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/ubpf_hash_extern.p4 : 5")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmp838xsva1
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp838xsva1/ubpf_hash_extern.json /petr4/ci-test/testdata/p4_16_samples/ubpf_hash_extern.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ubpf_model.p4(176): [--Wwarn=invalid] warning: ubpf: the main package should be called V1Switch; are you using the wrong architecture?
+package ubpf<H, M>(parse<H, M> prs,
+        ^^^^
+/petr4/ci-test/testdata/p4_16_samples/ubpf_hash_extern.p4(65): [--Werror=Target model error] error: package ubpf: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ubpf(prs(), pipe(), dprs()) main;
+                            ^^^^
+
+*** Test failed

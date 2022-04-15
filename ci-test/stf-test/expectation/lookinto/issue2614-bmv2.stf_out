@@ -1,0 +1,88 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header ethernet_t {
+    bit<48> dst_addr;
+    bit<48> src_addr;
+    bit<16> eth_type;
+}
+
+header H {
+    bit<8> a;
+}
+
+struct Headers {
+    ethernet_t eth_hdr;
+    H     h;
+}
+
+struct Meta {
+}
+
+parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t sm) {
+    state start {
+        transition parse_hdrs;
+    }
+    state parse_hdrs {
+        pkt.extract(hdr.eth_hdr);
+        pkt.extract(hdr.h);
+        transition accept;
+    }
+}
+
+control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
+    bit<8> tmp1 = 8w1;
+    apply {
+        h.h.a = ((bit<9>)tmp1 << 8w8)[8:1];
+    }
+}
+
+control vrfy(inout Headers h, inout Meta m) { apply {} }
+
+control update(inout Headers h, inout Meta m) { apply {} }
+
+control egress(inout Headers h, inout Meta m, inout standard_metadata_t sm) { apply {} }
+
+control deparser(packet_out b, in Headers h) { apply {b.emit(h);} }
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+\n
+\n
+packet 0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 80
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+INCLUDE INCLUDE TEXT(
+) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/issue2614-bmv2.p4 : 4")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmp2mrog_fn
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp2mrog_fn/issue2614-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue2614-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9494 --device-id 404 -i 0@pcap0 .././tmp2mrog_fn/issue2614-bmv2.json
+Running simple_switch_CLI --thrift-port 9494
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 80
+simple_switch exit code -15
+Execution completed
+Comparing outputs

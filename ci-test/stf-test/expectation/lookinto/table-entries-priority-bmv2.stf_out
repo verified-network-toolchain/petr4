@@ -1,0 +1,147 @@
+p4 program:
+\n
+/*
+Copyright 2013-present Barefoot Networks, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include <core.p4>
+#include <v1model.p4>
+
+header hdr {
+    bit<8>  e;
+    bit<16> t;
+    bit<8>  l;
+    bit<8> r;
+    bit<8>  v;
+}
+
+struct Header_t {
+    hdr h;
+}
+struct Meta_t {}
+
+parser p(packet_in b, out Header_t h, inout Meta_t m, inout standard_metadata_t sm) {
+    state start {
+        b.extract(h.h);
+        transition accept;
+    }
+}
+
+control vrfy(inout Header_t h, inout Meta_t m) { apply {} }
+control update(inout Header_t h, inout Meta_t m) { apply {} }
+control egress(inout Header_t h, inout Meta_t m, inout standard_metadata_t sm) { apply {} }
+control deparser(packet_out b, in Header_t h) { apply { b.emit(h.h); } }
+
+control ingress(inout Header_t h, inout Meta_t m, inout standard_metadata_t standard_meta) {
+
+    action a() { standard_meta.egress_spec = 0; }
+    action a_with_control_params(bit<9> x) { standard_meta.egress_spec = x; }
+
+
+    table t_ternary {
+
+  	key = {
+            h.h.t : ternary;
+        }
+
+	actions = {
+            a;
+            a_with_control_params;
+        }
+
+	default_action = a;
+
+        // test for priority swap
+        // Note that here the matching entry with the _smallest_
+        // numerical priority will win over any other matching entry,
+        // so the 3rd entry in the list below will win over any
+        // others that the packet matches.
+
+        // Note that the @priority annotation was considered for
+        // inclusion in the P4_16 language specification, but it was
+        // decided against doing so, for simplicity.  It is a
+        // non-standard annotation, and at least as of 2019-Apr-23 it
+        // is implemented by p4c and used by BMv2 simple_switch to
+        // determine the winning entry.
+        const entries = {
+            0x1111 &&& 0xF    : a_with_control_params(1) @priority(3);
+            0x1181            : a_with_control_params(2);
+            0x1181 &&& 0xF00F : a_with_control_params(3) @priority(1);
+        }
+    }
+
+    apply {
+        t_ternary.apply();
+    }
+}
+
+
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+\n
+\n
+# header hdr { bit<8>  e; bit<16> t; bit<8>  l; bit<8> r; bit<1>  v; }
+
+# t_ternary tests: if packets come on port 0, we missed!
+
+expect 1 01 0001 ** ** ** $
+packet 0 01 0001 00 00 b0
+
+# should hit port 3, even though it matches the first entry
+expect 3 02 1001 ** ** ** $
+packet 0 02 1001 00 00 b0
+
+# should hit port 3, even though it matches the second entry
+expect 3 03 **** ** ** ** $
+packet 0 03 1181 00 00 b0
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+TEXT( ) TEXT(
+) TEXT(#) IDENT Uncaught exception:
+  
+  (Failure
+   "Error parsing /petr4/ci-test/testdata/p4_16_samples/table-entries-priority-bmv2.p4 : 2")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from P4pp__Eval.Make.preprocess in file "lib/eval.ml", line 205, characters 8-100
+Called from Main.Conf.preprocess in file "bin/main.ml", line 26, characters 16-74
+Called from Common.Make_parse.parse_file in file "bin/common.ml", line 36, characters 20-56
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 104, characters 10-48
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap1 as port 1 (files)
+Adding interface pcap3 as port 3 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmp_qtnlrj0
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp_qtnlrj0/table-entries-priority-bmv2.json /petr4/ci-test/testdata/p4_16_samples/table-entries-priority-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9808 --device-id 718 -i 0@pcap0 -i 1@pcap1 -i 3@pcap3 .././tmp_qtnlrj0/table-entries-priority-bmv2.json
+Running simple_switch_CLI --thrift-port 9808
+STF Command: expect 1 01 0001 ** ** ** $
+STF Command: packet 0 01 0001 00 00 b0
+STF Command: expect 3 02 1001 ** ** ** $
+STF Command: packet 0 02 1001 00 00 b0
+STF Command: expect 3 03 **** ** ** ** $
+STF Command: packet 0 03 1181 00 00 b0
+simple_switch exit code -15
+Execution completed
+Comparing outputs

@@ -10,7 +10,7 @@ Import AllCubNotations Clmt.Notations.
 
 Record expr_type_env : Set := { type_vars:nat; types:list Expr.t }.
 
-Reserved Notation "Γ '⊢ₑ' e ∈ t" (at level 80, no associativity).
+Reserved Notation "Γ '⊢ₑ' e ∈ τ" (at level 80, no associativity).
 
 Local Open Scope ty_scope.
 Local Open Scope expr_scope.
@@ -113,74 +113,54 @@ Local Open Scope stmt_scope.
 
 Inductive type_stmt
   : stmt_type_env -> Stmt.s -> signal -> Prop :=
-| type_skip :
-  Γ ⊢ᵦ Stmt.Skip ⊣ Cont
-| type_return eo :
+| type_skip Γ :
+  Γ ⊢ₛ Stmt.Skip ⊣ Cont
+| type_return Γ eo :
   match cntx Γ, eo with
   | CFunction (Some τ), Some e => Γ ⊢ₑ e ∈ τ
   | c, None => return_void_ok c
   | _, _ => False
   end ->
-  Γ ⊢ᵦ Stmt.Return eo ⊣ Return
-| type_exit :
+  Γ ⊢ₛ Stmt.Return eo ⊣ Return
+| type_exit Γ :
   exit_ctx_ok (cntx Γ) ->
-  Γ ⊢ᵦ Stmt.Exit ⊣ Return
-| type_transition total_states e :
+  Γ ⊢ₛ Stmt.Exit ⊣ Return
+| type_transition (Γ : stmt_type_env) total_states e :
   (* TODO: get total_states from context *)
   type_prsrexpr total_states Γ e ->
-  Γ ⊢ᵦ Stmt.Transition e ⊣ Return
-| type_seq s b sig :
-  Γ ⊢ₛ s ->
-  Γ ⊢ᵦ b ⊣ sig ->
-  Γ ⊢ᵦ s `; b ⊣ sig
-| type_vardecl τ te b sig :
-    match te with
-    | inr e => Γ ⊢ₑ e ∈ τ
-    | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
-    end ->
-    {| sfuncts := sfuncts Γ
-    ; cntx := cntx Γ
-    ; expr_env :=
-      {| type_vars := type_vars Γ ; types := τ :: types Γ|}
-    |} ⊢ᵦ b ⊣ sig ->
-    Γ ⊢ᵦ Stmt.Var te b ⊣ sig
-| type_cond e b₁ b₂ b sig₁ sig₂ sig :
-  Γ ⊢ₑ e ∈ Expr.TBool ->
-  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
-  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
-  Γ ⊢ᵦ b ⊣ sig ->
-  Γ ⊢ᵦ If e {` b₁ `} Else {` b₂ `} `; b ⊣ sig
-| type_nested_block b₁ b₂ sig₁ sig₂ :
-  Γ ⊢ᵦ b₁ ⊣ sig₁ ->
-  Γ ⊢ᵦ b₂ ⊣ sig₂ ->
-  Γ ⊢ᵦ Stmt.Block b₁ b₂ ⊣ sig₂
+  Γ ⊢ₛ Stmt.Transition e ⊣ Return
 | type_assign (Γ : stmt_type_env) τ e₁ e₂ :
   lvalue_ok e₁ ->
   Γ ⊢ₑ e₁ ∈ τ ->
   Γ ⊢ₑ e₂ ∈ τ ->
-  Γ ⊢ₛ e₁ `:= e₂
-| type_fun_call Γ params τs args f ot oe :
-  sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
-  predop (t_ok (type_vars Γ)) ot ->
-  predop lvalue_ok oe ->
-  relop (type_expr Γ) oe ot ->
+  Γ ⊢ₛ e₁ `:= e₂ ⊣ Cont
+| type_fun_call Γ params τs args fk :
+  match fk with
+  | Stmt.Funct f τs' oe
+    => τs = τs' /\ predop lvalue_ok oe /\ exists ot,
+        sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|})
+        /\ predop (t_ok (type_vars Γ)) ot      
+        /\ relop (type_expr Γ) oe ot
+  | Stmt.Action a cargs
+    => τs = [] /\ exists aa cparams,
+        action_call_ok aa (cntx Γ) 
+        /\ aa a = Some (cparams,params)
+        /\ Forall2 (type_expr Γ) cargs cparams
+  | Stmt.Method ei m τs' oe
+    => τs = τs' /\ predop lvalue_ok oe /\ exists extern_insts methods,
+        extern_call_ok extern_insts (cntx Γ)
+        /\ nth_error extern_insts ei = Some methods /\ exists ot,
+          Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|})
+          /\ predop (t_ok (type_vars Γ)) ot
+          /\ relop (type_expr Γ) oe ot
+  end ->  
   Forall (t_ok (type_vars Γ)) τs ->
   Forall2
     (rel_paramarg
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
-  Γ ⊢ₛ Stmt.FunCall f τs {|paramargs:=args;rtrns:=oe|}
-| type_act_call Γ cparams dparams cargs dargs a aa :
-  action_call_ok aa (cntx Γ) ->
-  aa a = Some (cparams,dparams) ->
-  Forall2 (type_expr Γ) cargs cparams ->
-  Forall2
-    (rel_paramarg
-       (type_expr Γ)
-       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    dargs dparams ->
-  Γ ⊢ₛ Stmt.ActCall a cargs dargs
+  Γ ⊢ₛ Stmt.Call fk args ⊣ Cont
 | type_apply_control
     Γ fns extern_args args x extern_params params
     tbls actions control_insts extern_insts :
@@ -198,7 +178,7 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_apply_parser
     Γ fns extern_args args x extern_params params
     parser_insts extern_insts :
@@ -216,7 +196,7 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CParserState
               parser_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args
+    ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke
     Γ fns tbl tbls actions
     control_insts extern_insts :
@@ -225,25 +205,28 @@ Inductive type_stmt
   ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Invoke tbl
-| type_method_call
-    Γ x f τs args fns con
-    methods extern_insts params oe ot :
-  nth_error extern_insts x = Some methods ->
-  Field.get f methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
-  extern_call_ok extern_insts con ->
-  predop (t_ok (type_vars Γ)) ot ->
-  predop lvalue_ok oe ->
-  relop (type_expr Γ) oe ot ->
-  Forall (t_ok (type_vars Γ)) τs ->
-  Forall2
-    (rel_paramarg
-       (type_expr Γ)
-       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    args (map (tsub_param (gen_tsub τs)) params) ->
-  {|sfuncts:=fns;cntx:=con;expr_env:=Γ|}
-    ⊢ₛ Stmt.MethodCall x f τs {|paramargs:=args;rtrns:=oe|}
-where "Γ '⊢ₛ' s ⊣" := (type_stmt Γ s sig).
+    ⊢ₛ Stmt.Invoke tbl ⊣ Cont
+| type_vardecl (Γ : stmt_type_env) τ te s sig :
+    match te with
+    | inr e => Γ ⊢ₑ e ∈ τ
+    | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
+    end ->
+    {| sfuncts := sfuncts Γ
+    ; cntx := cntx Γ
+    ; expr_env :=
+      {| type_vars := type_vars Γ ; types := τ :: types Γ|}
+    |} ⊢ₛ s ⊣ sig ->
+    Γ ⊢ₛ Stmt.Var te s ⊣ sig
+| type_seq Γ s₁ s₂ sig₁ sig₂ :
+  Γ ⊢ₛ s₁ ⊣ sig₁ ->
+  Γ ⊢ₛ s₂ ⊣ sig₂ ->
+  Γ ⊢ₛ s₁ `; s₂ ⊣ sig₂
+| type_cond (Γ : stmt_type_env) e s₁ s₂ sig₁ sig₂ :
+  Γ ⊢ₑ e ∈ Expr.TBool ->
+  Γ ⊢ₛ s₁ ⊣ sig₁ ->
+  Γ ⊢ₛ s₂ ⊣ sig₂ ->
+  Γ ⊢ₛ If e Then s₁ Else s₂ ⊣ lub sig₁ sig₂
+where "Γ '⊢ₛ' s ⊣ sig" := (type_stmt Γ s sig).
 
 Local Close Scope stmt_scope.
 
@@ -272,7 +255,7 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
   ; expr_env :=
     {| type_vars := type_vars (cexpr_env Γ)
     ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
-  |} ⊢ᵦ body ⊣ sig ->
+  |} ⊢ₛ body ⊣ sig ->
   Γ ⊢ᵪ Control.Action action_name cparams dparams body
     ⊣ inl (action_name,(cparams,dparams))
 | type_table table_name key actions :
@@ -451,7 +434,7 @@ Inductive type_topdecl (Γ : top_type_env)
   {| expr_env := {|type_vars:=0;types:=bind_all params Γₑ |}
   ; sfuncts := tfuncts Γ
   ; cntx := CApplyBlock (tbls Γ') (actns Γ') (controls insts) (externs insts) |}
-    ⊢ᵦ apply_blk ⊣ sig ->
+    ⊢ₛ apply_blk ⊣ sig ->
   Γ ⊢ₜ
     TopDecl.Control
     control_name cparams extern_params
@@ -471,7 +454,7 @@ Inductive type_topdecl (Γ : top_type_env)
        {| sfuncts := tfuncts Γ
        ;  cntx := CParserState (parsers insts) (externs insts)
        ;  expr_env := {|type_vars:=0;types:=bind_all params Γₑ|}
-       |} ⊢ᵦ state ⊣ Return)
+       |} ⊢ₛ state ⊣ Return)
     (start_state :: states) ->
   Γ ⊢ₜ TopDecl.Parser
     parser_decl_name cparams extern_params params
@@ -497,7 +480,7 @@ Inductive type_topdecl (Γ : top_type_env)
   ; expr_env :=
     {| type_vars := type_params
     ; types := bind_all (paramargs arrow) [] |}
-  |} ⊢ᵦ body ⊣ sig ->
+  |} ⊢ₛ body ⊣ sig ->
   Γ ⊢ₜ TopDecl.Funct
     function_name type_params arrow body
     ⊣ {| tfuncts := function_name ↦ (type_params,arrow) ,, tfuncts Γ

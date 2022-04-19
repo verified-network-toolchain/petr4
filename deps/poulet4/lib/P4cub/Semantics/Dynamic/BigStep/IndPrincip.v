@@ -112,11 +112,3 @@ Section ExprEvalInduction.
         => HStruct _ _ _ _ _ Ho (relopind Ho) Hes (lind Hes)
       end.
 End ExprEvalInduction.
-
-(** Mutual indution scheme for statement evaluation. *)
-(* TODO: plan on collapsing
-   statements to avoid mutual induction. *)
-(*Scheme stmt_big_step_ind_mut := Induction for stmt_big_step Sort Prop
-    with block_big_step_ind_mut := Induction for block_big_step Sort Prop
-    with bigstep_state_machine_ind_mut := Induction for bigstep_state_machine Sort Prop
-    with bigstep_state_block_ind_mut := Induction for bigstep_state_block Sort Prop.*)

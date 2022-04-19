@@ -30,7 +30,7 @@ Definition tenv: Set :=
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
 | FDecl (fs : Clmt.t string fdecl) (** function closure *)
-        (body : Stmt.block) (** function body *).
+        (body : Stmt.s) (** function body *).
 
 (** Function names to closures. *)
 Definition fenv: Set := Clmt.t string fdecl.
@@ -38,11 +38,10 @@ Definition fenv: Set := Clmt.t string fdecl.
 (** Action declarations and closures. *)
 Inductive adecl: Set :=
 | ADecl
-    (ϵ : list Val.v) (** value closure *)
     (fs : fenv) (** function closure *)
     (actions : Clmt.t string adecl) (** action closure *)
     (* TODO: needs De Bruijn extern instance closure env. *)
-    (body : Stmt.block) (** action body *).
+    (body : Stmt.s) (** action body *).
 
 (** Action names to closures. *)
 Definition aenv: Set := Clmt.t string adecl.
@@ -56,7 +55,7 @@ Inductive cinst: Set :=
     (tbls : tenv) (** table closure *)
     (actions : aenv) (** action closure *)
     (* TODO: needs a De Bruijn extern instance closure environment. *)
-    (apply_blk : Stmt.block)  (** control instance apply block *).
+    (apply_blk : Stmt.s)  (** control instance apply block *).
   
 Definition cienv: Set := list cinst.
   
@@ -67,8 +66,8 @@ Inductive pinst: Set :=
     (fs : fenv) (** function closure *)
     (pis : list pinst) (** parser instance closure *)
     (* TOOD: needs a De Bruijn extern instance closure *)
-    (strt : Stmt.block) (** start state *)
-    (states : list Stmt.block) (** other states *).
+    (strt : Stmt.s) (** start state *)
+    (states : list Stmt.s) (** other states *).
   
 Definition pienv: Set := list pinst.
 
@@ -81,14 +80,14 @@ Inductive top_decl_closure : Set :=
     (cis : cienv) (** control instance closure *)
     (* TODO: needs a De Bruijn extern instance closure *)
     (body : Control.d) (** declarations inside control *)
-    (apply_block : Stmt.block) (** apply block *)
+    (apply_block : Stmt.s) (** apply block *)
 | ParserDecl
     (ps : Clmt.t string top_decl_closure) (** parser declaration closure *)
     (fs : fenv) (** function closure *)
     (pis : pienv) (** parser instance closure *)
     (* TOOD: needs a De Bruijn extern instance closure *)
-    (strt : Stmt.block) (** start state *)
-    (states : list Stmt.block) (** parser states *)
+    (strt : Stmt.s) (** start state *)
+    (states : list Stmt.s) (** parser states *)
 | ExternDecl
     (es : Clmt.t string top_decl_closure)
     (fs : fenv) (** function closure *)

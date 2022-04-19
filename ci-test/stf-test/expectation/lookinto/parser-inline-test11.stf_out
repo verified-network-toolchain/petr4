@@ -1,0 +1,199 @@
+p4 program:
+\n
+// Test of subparser inlining with following characteristics:
+// - two subparser instances
+// - one invocation of each instance with the same arguments
+// - no statement after both invocations
+// - transition to the same state after both invocations
+
+#include <v1model.p4>
+
+struct metadata { }
+
+header data_t {
+    bit<8> f;
+}
+
+header data_t16 {
+    bit<16> f;
+}
+
+struct headers {
+    data_t   h1;
+    data_t16 h2;
+    data_t   h3;
+    data_t   h4;
+}
+
+struct headers2 {
+    data_t h1;
+}
+
+parser Subparser(      packet_in packet,
+                 out   headers   hdr,
+                 inout headers2  inout_hdr) {
+    headers2 shdr;
+
+    state start {
+        packet.extract(hdr.h1);
+        transition select(hdr.h1.f) {
+            1: sp1;
+            2: sp2;
+            default: accept;
+        }
+    }
+
+    state sp1 {
+        packet.extract(hdr.h3);
+        packet.extract(shdr.h1);
+        transition sp3;
+    }
+
+    state sp2 {
+        packet.extract(hdr.h2);
+        transition accept;
+    }
+
+    state sp3 {
+        inout_hdr.h1 = shdr.h1;
+        transition accept;
+    }
+}
+
+parser ParserImpl(      packet_in           packet,
+                  out   headers             hdr,
+                  inout metadata            meta,
+                  inout standard_metadata_t standard_metadata) {
+    Subparser() subp1;
+    Subparser() subp2;
+    headers2 phdr;
+
+    state start {
+        packet.extract(phdr.h1);
+        transition select(standard_metadata.ingress_port) {
+            0: p0;
+            1: p1;
+            default: accept;
+        }
+    }
+
+    state p0 { subp1.apply(packet, hdr, phdr); transition p2; }
+    state p1 { subp2.apply(packet, hdr, phdr); transition p2; }
+
+    state p2 {
+        hdr.h4 = phdr.h1;
+        transition accept;
+    }
+}
+
+control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+        if (hdr.h2.isValid()) {
+            standard_metadata.egress_spec = 2;
+        } else if (hdr.h3.isValid()) {
+            standard_metadata.egress_spec = 3;
+        } else {
+            standard_metadata.egress_spec = 10;
+        }
+    }
+}
+
+control egress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
+    apply {
+    }
+}
+
+control DeparserImpl(packet_out packet, in headers hdr) {
+    apply {
+        packet.emit(hdr);
+    }
+}
+
+control verifyChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+control computeChecksum(inout headers hdr, inout metadata meta) {
+    apply {
+    }
+}
+
+V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;\n
+\n
+packet  2 01 23 45 67 89
+expect 10 23 45 67 89
+
+packet  0 01 23 45 67 89
+expect 10 23 01 45 67 89
+
+packet  1 01 23 45 67 89
+expect 10 23 01 45 67 89
+
+packet  0 01 01 23 45 67
+expect  3 01 23 45 67
+
+packet  1 01 01 23 45 67
+expect  3 01 23 45 67
+
+packet  0 01 02 34 56 78
+expect  2 02 34 56 01 78
+
+packet  1 01 02 34 56 78
+expect  2 02 34 56 01 78\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 2 pkt 0234560178
+
+Packet matched the expected packet.
+Packet:   port 2 pkt 0234560178
+
+Packet matched the expected packet.
+Packet:   port 3 pkt 01234567
+
+Packet matched the expected packet.
+Packet:   port 3 pkt 01234567
+
+Packet matched the expected packet.
+Packet:   port 10 pkt 2301456789
+
+Packet matched the expected packet.
+Packet:   port 10 pkt 2301456789
+
+Packet matched the expected packet.
+Packet:   port 10 pkt 23456789
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Adding interface pcap1 as port 1 (files)
+Adding interface pcap2 as port 2 (files)
+Adding interface pcap3 as port 3 (files)
+Adding interface pcap10 as port 10 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmp5si6ws59
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmp5si6ws59/parser-inline-test11.json /petr4/ci-test/testdata/p4_16_samples/parser-inline/parser-inline-test11.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9377 --device-id 287 -i 0@pcap0 -i 1@pcap1 -i 2@pcap2 -i 3@pcap3 -i 10@pcap10 .././tmp5si6ws59/parser-inline-test11.json
+Running simple_switch_CLI --thrift-port 9377
+STF Command: packet  2 01 23 45 67 89
+STF Command: expect 10 23 45 67 89
+STF Command: packet  0 01 23 45 67 89
+STF Command: expect 10 23 01 45 67 89
+STF Command: packet  1 01 23 45 67 89
+STF Command: expect 10 23 01 45 67 89
+STF Command: packet  0 01 01 23 45 67
+STF Command: expect  3 01 23 45 67
+STF Command: packet  1 01 01 23 45 67
+STF Command: expect  3 01 23 45 67
+STF Command: packet  0 01 02 34 56 78
+STF Command: expect  2 02 34 56 01 78
+STF Command: packet  1 01 02 34 56 78
+STF Command: expect  2 02 34 56 01 78
+simple_switch exit code -15
+Execution completed
+Comparing outputs

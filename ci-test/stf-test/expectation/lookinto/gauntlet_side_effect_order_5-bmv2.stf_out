@@ -1,0 +1,200 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header ethernet_t {
+    bit<48> dst_addr;
+    bit<48> src_addr;
+    bit<16> eth_type;
+}
+
+struct Headers {
+    ethernet_t    eth_hdr;
+}
+
+struct Meta {}
+
+bit<48> do_thing(inout bit<48> val_0, out bit<48> val_1) {
+    if (val_0 <= 100) {
+        if (val_0 <= 50) {
+            val_1 = 48w3;
+            return 48w0;
+        } else {
+            val_1 = 48w12;
+        }
+        if (val_0 <= 25) {
+            val_1 = 48w1452;
+        }
+    }
+    return 48w0;
+}
+
+control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
+    apply {
+        do_thing(h.eth_hdr.src_addr, h.eth_hdr.src_addr);
+    }
+}
+
+parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t sm) {
+    state start {
+        transition parse_hdrs;
+    }
+    state parse_hdrs {
+        pkt.extract(hdr.eth_hdr);
+        transition accept;
+    }
+}
+
+control vrfy(inout Headers h, inout Meta m) { apply {} }
+
+control update(inout Headers h, inout Meta m) { apply {} }
+
+control egress(inout Headers h, inout Meta m, inout standard_metadata_t sm) { apply {} }
+
+control deparser(packet_out pkt, in Headers h) {
+    apply {
+        pkt.emit(h);
+    }
+}
+V1Switch(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
+
+\n
+\n
+packet 0 00 00 00 00 00 00 00 00 00 00 00 FF 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 7F 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 3F 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 1F 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 5F 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 3F 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 1F 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 77 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 67 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 77 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 67 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 37 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 80 00 00 00 00 27 00 00
+expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 47 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 37 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 27 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+packet 0 00 00 00 00 00 00 00 00 00 00 00 07 00 00
+expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000030000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000030000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000000000000000c0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000000000000000c0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000008000000000270000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000008000000000370000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000670000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000770000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000008000000000670000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000008000000000770000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000030000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000000000000000c0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000000000000000c0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000080000000001f0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000080000000003f0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 00000000000000000000007f0000
+
+Packet matched the expected packet.
+Packet:   port 0 pkt 0000000000000000000000ff0000
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpn2girldf
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpn2girldf/gauntlet_side_effect_order_5-bmv2.json /petr4/ci-test/testdata/p4_16_samples/gauntlet_side_effect_order_5-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9458 --device-id 368 -i 0@pcap0 .././tmpn2girldf/gauntlet_side_effect_order_5-bmv2.json
+Running simple_switch_CLI --thrift-port 9458
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 FF 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 7F 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 3F 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 1F 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 5F 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 3F 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 1F 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 77 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 67 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 77 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 67 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 37 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 80 00 00 00 00 27 00 00
+STF Command: expect 0 00 00 00 00 00 00 ** ** ** ** ** ** 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 47 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 37 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 0C 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 27 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+STF Command: packet 0 00 00 00 00 00 00 00 00 00 00 00 07 00 00
+STF Command: expect 0 00 00 00 00 00 00 00 00 00 00 00 03 00 00
+simple_switch exit code -15
+Execution completed
+Comparing outputs

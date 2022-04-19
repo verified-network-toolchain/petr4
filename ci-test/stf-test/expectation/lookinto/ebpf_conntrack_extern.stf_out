@@ -1,0 +1,150 @@
+p4 program:
+\n
+/*
+ * To compile example run (from ebpf/runtime):
+ * p4c-ebpf ../externs/stateful-firewall.p4 -o test.c
+ * clang -O2 -include ../externs/conntrack.c -I./  -target bpf -c test.c -o test.o
+ */
+
+#include <core.p4>
+#include <ebpf_model.p4>
+
+typedef bit<48> EthernetAddress;
+typedef bit<32>     IPv4Address;
+
+header Ethernet_t {
+    EthernetAddress dstAddr;
+    EthernetAddress srcAddr;
+    bit<16>         etherType;
+}
+
+header Ipv4_t {
+    bit<4>  version;
+    bit<4>  ihl;
+    bit<8>  diffserv;
+    bit<16> totalLen;
+    bit<16> identification;
+    bit<3>  flags;
+    bit<13> fragOffset;
+    bit<8>  ttl;
+    bit<8>  protocol;
+    bit<16> hdrChecksum;
+    bit<32> srcAddr;
+    bit<32> dstAddr;
+}
+
+header Tcp_t {
+    bit<16> srcPort;
+    bit<16> dstPort;
+    bit<32> seqNo;
+    bit<32> ackNo;
+    bit<4>  dataOffset;
+    bit<3>  res;
+    bit<3>  ecn;
+    bit<1> urgent;
+    bit<1> ack;
+    bit<1> psh;
+    bit<1> rst;
+    bit<1> syn;
+    bit<1> fin;
+    bit<16> window;
+    bit<16> checksum;
+    bit<16> urgentPtr;
+}
+
+struct Headers_t {
+    Ethernet_t       ethernet;
+    Ipv4_t           ipv4;
+    Tcp_t            tcp;
+}
+
+/** Declaration of the C extern function. */
+extern bool tcp_conntrack(in Headers_t hdrs);
+
+parser prs(packet_in p, out Headers_t headers) {
+    state start {
+        p.extract(headers.ethernet);
+        p.extract(headers.ipv4);
+        p.extract(headers.tcp);
+        transition accept;
+    }
+}
+
+control pipe(inout Headers_t headers, out bool pass) {
+    apply {
+        pass = false;
+        if (headers.tcp.isValid()) {
+            bool allow = tcp_conntrack(headers);
+            if (allow)
+                pass = true;
+        }
+    }
+}
+
+ebpfFilter(prs(), pipe()) main;
+
+\n
+\n
+# Send TCP SYN, enter SYNSENT state
+packet 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005002200062e10000
+expect 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005002200062e10000
+
+# Send TCP SYN again, should be rejected in SYNSENT state
+packet 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005002200062e10000
+
+# Reply with TCP SYN-ACK, enter SYNACKED state
+packet 0 080027018bbc5254001235020800 4500002800010000400664bf0a0100010a00020f 005016a100000000000000005012200062e10000
+expect 0 080027018bbc5254001235020800 4500002800010000400664bf0a0100010a00020f 005016a100000000000000005012200062e10000
+
+# Reply again with TCP SYN-ACK, should be rejected in SYNACKED state
+packet 0 080027018bbc5254001235020800 4500002800010000400664bf0a0100010a00020f 005016a100000000000000005012200062e10000
+
+# Send TCP ACK, enter ESTABLISHED state
+packet 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005010200062e10000
+expect 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005010200062e10000
+
+# Send TCP SYN when state is ESTABLISHED, should be rejected
+packet 0 525400123502080027018bbc0800 4500002800010000400664bf0a00020f0a010001 16a1005000000000000000005002200062e10000\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Uncaught exception:
+  
+  (Failure "extern unknown in ebpf")
+
+Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+Called from Petr4__Eval.MakeInterpreter.eval_extern_call in file "lib/eval.ml", line 1034, characters 30-68
+Called from Petr4__Eval.MakeInterpreter.eval_var_decl in file "lib/eval.ml", line 150, characters 33-61
+Called from Petr4__Eval.MakeInterpreter.eval_declaration in file "lib/eval.ml", line 68, characters 20-59
+Called from Petr4__Eval.MakeInterpreter.eval_declaration_stm in file "lib/eval.ml", line 626, characters 22-55
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Eval.MakeInterpreter.eval_block in file "lib/eval.ml", line 573, characters 4-86
+Called from Petr4__Eval.MakeInterpreter.eval_cond.eval_cond' in file "lib/eval.ml", line 549, characters 12-84
+Called from Stdlib__list.fold_left in file "list.ml", line 121, characters 24-34
+Called from Base__List0.fold in file "src/list0.ml" (inlined), line 21, characters 22-52
+Called from Petr4__Eval.MakeInterpreter.eval_block in file "lib/eval.ml", line 573, characters 4-86
+Called from Petr4__Eval.MakeInterpreter.eval_control in file "lib/eval.ml", line 1303, characters 27-65
+Called from Petr4__Eval.MakeInterpreter.eval_app in file "lib/eval.ml", line 419, characters 23-81
+Called from Petr4__Ebpf.PreEbpfFilter.eval_ebpf_ctrl in file "lib/ebpf.ml", line 117, characters 19-57
+Called from Petr4__Ebpf.PreEbpfFilter.eval_pipeline in file "lib/ebpf.ml", line 170, characters 8-72
+Called from Petr4__Eval.MakeInterpreter.eval in file "lib/eval.ml", line 1421, characters 25-66
+Called from Petr4__Eval.MakeInterpreter.eval_main in file "lib/eval.ml" (inlined), line 1426, characters 33-61
+Called from Petr4__Eval.MakeInterpreter.eval_program in file "lib/eval.ml", line 1440, characters 26-59
+Called from P4stf__Test.MakeRunner.run_test in file "p4stf/test.ml", line 101, characters 28-110
+Called from Common.Make_parse.do_stf in file "bin/common.ml", line 106, characters 31-65
+Called from Core_kernel__Command.For_unix.run.(fun) in file "src/command.ml", line 2453, characters 8-238
+Called from Base__Exn.handle_uncaught_aux in file "src/exn.ml", line 111, characters 6-10
+************************\n******** p4c stf result: ********\n************************\n
+Writing temporary files into  ./tmpwcgvyuwt
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpwcgvyuwt/ebpf_conntrack_extern.json /petr4/ci-test/testdata/p4_16_samples/ebpf_conntrack_extern.p4
+Exit code  1
+Error compiling
+/usr/local/share/p4c/p4include/ebpf_model.p4(69): [--Wwarn=invalid] warning: ebpfFilter: the main package should be called V1Switch; are you using the wrong architecture?
+package ebpfFilter<H>(parse<H> prs,
+        ^^^^^^^^^^
+/petr4/ci-test/testdata/p4_16_samples/ebpf_conntrack_extern.p4(82): [--Werror=Target model error] error: package ebpfFilter: main package  match the expected model
+Are you using an up-to-date v1model.p4?
+ebpfFilter(prs(), pipe()) main;
+                          ^^^^
+
+*** Test failed

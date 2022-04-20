@@ -6,7 +6,7 @@ Require Import Coq.ZArith.ZArith
         Coq.Bool.Bool.
 Import String.
 Module P4c := AST.
-Module P4a := Syntax.
+Module P4a := Poulet4.P4cub.Syntax.Syntax.
 (* Open Scope p4a. *)
 
 Section P4AComp. 
@@ -214,12 +214,18 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
       | Some (EHdr hdr), Some e1 => OpAsgn hdr e1
       |  
     end *)
-  | Stmt.SSeq s1 s2 i => OpSeq (translate_st hdrs s1) (translate_st hdrs s2)
+  | Stmt.SSeq s1 s2 i => 
+    match (translate_st hdrs s1), (translate_st hdrs s2) with 
+    | Some st1, Some st2 => Some (OpSeq st1 st2)
+    | _, _ => None
+    end
   (* Find header associated with lhs *)
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
   | Stmt.SBlock s => translate_st hdrs s
-  | _ => OpNil _
+  | _ => None
   end.
+
+  (* bin/main, lib/common *)
 (* header passed into parser via params (Expr.params in TPParser)  *)
 Print Parser.
 

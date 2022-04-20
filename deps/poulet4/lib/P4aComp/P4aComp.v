@@ -148,10 +148,11 @@ Proof.
 
 Locate F.fs.
 Check F.get.
+
 Definition hdr_map (hdrs: list (string * nat)) (h:mk_hdr_type hdrs) : nat := 
   match F.get (extract_name hdrs h) hdrs with 
     | Some n => n 
-    | None => 0   (* This hsouldn't be needed *)
+    | None => 0   (* This shouldn't be needed *)
   end.
 
 Print expr.
@@ -166,10 +167,10 @@ Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat :=
   end.
 
 Print ESlice.
-(* Doesn't work, is expr _ _ right? *)
+
 Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
   match e with 
-  (* | Expr.EHeader fields valid i => Some (expr ) *)
+  (* | Expr.EHeader fields valid i => Some (EHdr ) *)
   | Expr.ESlice arg hi lo i => 
       match translate_expr hdrs arg with
         | Some e1 => Some (ESlice _ e1 (Pos.to_nat hi) (Pos.to_nat lo) )
@@ -177,11 +178,42 @@ Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr 
       end
   | _ => None
   end.
-Print op.
+Print OpAsgn.
+Print hdr_map.
+
+Definition coerce_size {Hdr: Type} {H_sz: Hdr -> nat} {sz: nat} (e: Syntax.expr H_sz sz) (sz': nat) : option (Syntax.expr H_sz sz').
+Proof.
+  destruct (Nat.eq_dec sz sz').
+  - rewrite <- e0. apply Some. apply e.
+  - apply None.
+Defined. 
+Print hdr_map.
 (* Need function for finding header associated with an expression *)
-Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): (op (hdr_map hdrs)):= 
+Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr_map hdrs)):= 
   match s with 
-  | Stmt.SSkip i => OpNil _
+  | Stmt.SSkip i => Some (OpNil _)
+  | Stmt.SVardecl x expr _ =>
+    match inject_name hdrs x with 
+    | Some hdr => 
+      match expr with 
+      | inl typ => Some (OpNil _) 
+      | inr e => 
+        match translate_expr hdrs e with 
+        | Some e1 => 
+          match coerce_size e1 (hdr_map hdrs hdr) with 
+          | Some e2 => Some (OpAsgn hdr e2)
+          | None => None
+          end
+        | None => None
+        end
+      end
+    | None => None
+    end
+  (* | Stmt.SAssign lhs rhs _ => 
+    match (translate_expr hdrs lhs), (translate_expr hdrs rhs) with 
+      | Some (EHdr hdr), Some e1 => OpAsgn hdr e1
+      |  
+    end *)
   | Stmt.SSeq s1 s2 i => OpSeq (translate_st hdrs s1) (translate_st hdrs s2)
   (* Find header associated with lhs *)
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)

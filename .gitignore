@@ -8,6 +8,7 @@ html_build/p4
 docs/specification/build
 *.p4i
 testruns/
+*.lia.cache
 
 # LaTeX output
 *.aux

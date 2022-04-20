@@ -15,7 +15,7 @@ install: [
 depends: [
   "bignum"
   "dune" {build}
-  "coq" {build}
+  "coq" {< "8.14" & build}
   "coq-equations" {build}
   "coq-record-update" {build}
   "coq-compcert" {build}

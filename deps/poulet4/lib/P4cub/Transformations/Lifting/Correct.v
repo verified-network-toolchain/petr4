@@ -152,7 +152,7 @@ Section Correct.
         * apply Hee. lia.
         * intros Hwah.
           apply string_append_inj_l in Hwah.
-          apply string_of_unit_of_to_uint_inj in Hwah.
+          apply string_of_nat_inj in Hwah.
           lia.
     - solve_this_stuff_with eps ~{ w VS n }~.
       repeat split; eauto; unfold epsilon_env in *.
@@ -164,7 +164,7 @@ Section Correct.
         * apply Hee. lia.
         * intros Hwah.
           apply string_append_inj_l in Hwah.
-          apply string_of_unit_of_to_uint_inj in Hwah.
+          apply string_of_nat_inj in Hwah.
           lia.
     - exists eps. repeat split; auto. reflexivity.
     - admit.
@@ -197,9 +197,9 @@ Section Correct.
         * apply Henv2. lia.
         * intros Hwah.
           apply string_append_inj_l in Hwah.
-          apply string_of_unit_of_to_uint_inj in Hwah.
-          lia.
-          (*
+          apply string_of_nat_inj in Hwah.
+          lia. 
+           (*
     - pose proof IHev env pkt fe cx Hee as IH; clear IHev.
       transformExpr_destr_hyp; triplet_inv.
       destruct IH as (eps' & Hs & Hv & Hsub & Henv).
@@ -287,6 +287,6 @@ Section Correct.
     - admit.
     - pose proof IHevss env pkt fe cx Hee as IH; clear IHevss.
       transformExpr_destr_hyp; triplet_inv.
-      firstorder eauto. *)
+      firstorder eauto.*)
   Admitted.
 End Correct.

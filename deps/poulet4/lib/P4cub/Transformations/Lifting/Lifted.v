@@ -191,8 +191,8 @@ Section Lifted.
   | lifted_apply x ext_args args i :
       F.predfs_data (pred_paramarg_same lifted_expr) args ->
       lifted_stmt -{ apply x with ext_args & args @ i }-
-  | lifted_headerStackOp hdr_stk_name op n i : 
-      lifted_stmt (Stmt.SHeaderStackOp hdr_stk_name op n i)
+  | lifted_headerStackOp hdr_stk_name typ op n i :
+      lifted_stmt (Stmt.SHeaderStackOp hdr_stk_name typ op n i)
   | lifted_setValidity e validity i : 
       lifted_expr e -> lifted_stmt (Stmt.SSetValidity e validity i).
   

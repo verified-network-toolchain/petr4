@@ -115,12 +115,6 @@ Lemma findi_length_bound :
     findi pred l = Some i ->
     i < Datatypes.length l.
 Proof.
-  induction l.
-  - cbn.
-    congruence.
-  - intros.
-    unfold findi, fold_lefti in H0.
-    cbn in H0.
 Admitted.
 
 Definition inject_name (hdrs: list (string * nat)) (hdr: string) : option (mk_hdr_type hdrs).
@@ -144,18 +138,15 @@ Proof.
   destruct (List.nth_error hdrs i) eqn:?.
   - exact (fst p).
   - apply nth_error_None in Heqo.
-    try lia. Admitted.
-
-Locate F.fs.
-Check F.get.
+    unfold F.f in pf.
+    lia.
+Defined.
 
 Definition hdr_map (hdrs: list (string * nat)) (h:mk_hdr_type hdrs) : nat := 
   match F.get (extract_name hdrs h) hdrs with 
     | Some n => n 
     | None => 0   (* This shouldn't be needed *)
   end.
-
-Print expr.
 
 Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat := 
   match e with 
@@ -165,8 +156,6 @@ Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat :=
   Pos.to_nat lo)
   | _ => 0
   end.
-
-Print ESlice.
 
 Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
   match e with 
@@ -178,8 +167,6 @@ Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr 
       end
   | _ => None
   end.
-Print OpAsgn.
-Print hdr_map.
 
 Definition coerce_size {Hdr: Type} {H_sz: Hdr -> nat} {sz: nat} (e: Syntax.expr H_sz sz) (sz': nat) : option (Syntax.expr H_sz sz').
 Proof.
@@ -187,7 +174,7 @@ Proof.
   - rewrite <- e0. apply Some. apply e.
   - apply None.
 Defined. 
-Print hdr_map.
+
 (* Need function for finding header associated with an expression *)
 Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr_map hdrs)):= 
   match s with 
@@ -227,7 +214,6 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
 
   (* bin/main, lib/common *)
 (* header passed into parser via params (Expr.params in TPParser)  *)
-Print Parser.
 
 (* Notes: F.fs is an association list *)
 (* Does not handle subparsers, for now consider only one parser *)

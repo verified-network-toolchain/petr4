@@ -496,262 +496,79 @@ Definition V1Switch := DeclPackageType NoInfo
                [(TypTypeName {| stags := NoInfo; str := "H32" |})]) None
           {| stags := NoInfo; str := "dep" |})].
 
-Definition metadata := DeclStruct NoInfo
-    {| stags := NoInfo; str := "metadata" |} nil.
+Definition hdr := DeclHeader NoInfo {| stags := NoInfo; str := "hdr" |}
+    [(MkDeclarationField NoInfo (TypBit 8%N)
+          {| stags := NoInfo; str := "ignored" |});
+     (MkDeclarationField NoInfo (TypBit 8%N)
+          {| stags := NoInfo; str := "key" |})].
 
-Definition headers := DeclStruct NoInfo
-    {| stags := NoInfo; str := "headers" |} nil.
+Definition Header_t := DeclStruct NoInfo
+    {| stags := NoInfo; str := "Header_t" |}
+    [(MkDeclarationField NoInfo
+          (TypTypeName {| stags := NoInfo; str := "hdr" |})
+          {| stags := NoInfo; str := "h" |})].
 
-Definition MyParser := DeclParser NoInfo
-    {| stags := NoInfo; str := "MyParser" |} nil
+Definition Meta_t := DeclStruct NoInfo {| stags := NoInfo; str := "Meta_t" |}
+    nil.
+
+Definition p := DeclParser NoInfo {| stags := NoInfo; str := "p" |} nil
     [(MkParameter false Directionless
           (TypTypeName {| stags := NoInfo; str := "packet_in" |}) None
-          {| stags := NoInfo; str := "packet" |});
+          {| stags := NoInfo; str := "b" |});
      (MkParameter false Out
-          (TypTypeName {| stags := NoInfo; str := "headers" |}) None
-          {| stags := NoInfo; str := "hdr" |});
+          (TypTypeName {| stags := NoInfo; str := "Header_t" |}) None
+          {| stags := NoInfo; str := "h" |});
      (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "metadata" |}) None
-          {| stags := NoInfo; str := "meta" |});
+          (TypTypeName {| stags := NoInfo; str := "Meta_t" |}) None
+          {| stags := NoInfo; str := "m" |});
      (MkParameter false InOut
           (TypTypeName {| stags := NoInfo; str := "standard_metadata_t" |})
-          None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
-    [(MkParserState NoInfo {| stags := NoInfo; str := "start" |} nil
+          None {| stags := NoInfo; str := "sm" |})] nil nil
+    [(MkParserState NoInfo {| stags := NoInfo; str := "start" |}
+          [(MkStatement NoInfo
+                (StatMethodCall
+                     (MkExpression NoInfo
+                          (ExpExpressionMember
+                               (MkExpression NoInfo
+                                    (ExpName
+                                     (BareName
+                                      {| stags := NoInfo; str := "b" |})
+                                     NoLocator)
+                                    (TypTypeName
+                                     {| stags := NoInfo;
+                                        str := "packet_in" |}) Directionless)
+                               {| stags := NoInfo; str := "extract" |})
+                          (TypFunction
+                           (MkFunctionType
+                                [{| stags := NoInfo; str := "T" |}]
+                                [(MkParameter false Out
+                                      (TypTypeName
+                                       {| stags := NoInfo; str := "T" |})
+                                      None
+                                      {| stags := NoInfo; str := "hdr" |})]
+                                FunExtern TypVoid)) Directionless)
+                     [(TypHeader
+                       [( {| stags := NoInfo; str := "ignored" |},
+                          (TypBit 8%N) );
+                        ( {| stags := NoInfo; str := "key" |}, (TypBit 8%N) )])]
+                     [(Some
+                       (MkExpression NoInfo
+                            (ExpExpressionMember
+                                 (MkExpression NoInfo
+                                      (ExpName
+                                       (BareName
+                                        {| stags := NoInfo; str := "h" |})
+                                       NoLocator)
+                                      (TypTypeName
+                                       {| stags := NoInfo;
+                                          str := "Header_t" |}) Out)
+                                 {| stags := NoInfo; str := "h" |})
+                            (TypHeader
+                             [( {| stags := NoInfo; str := "ignored" |},
+                                (TypBit 8%N) );
+                              ( {| stags := NoInfo; str := "key" |},
+                                (TypBit 8%N) )]) Directionless))]) StmUnit)]
           (ParserDirect NoInfo {| stags := NoInfo; str := "accept" |}))].
-
-Definition MyChecksum := DeclControl NoInfo
-    {| stags := NoInfo; str := "MyChecksum" |} nil
-    [(MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "headers" |}) None
-          {| stags := NoInfo; str := "hdr" |});
-     (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "metadata" |}) None
-          {| stags := NoInfo; str := "meta" |})] nil nil (BlockEmpty NoInfo).
-
-Definition MyIngress := DeclControl NoInfo
-    {| stags := NoInfo; str := "MyIngress" |} nil
-    [(MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "headers" |}) None
-          {| stags := NoInfo; str := "hdr" |});
-     (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "metadata" |}) None
-          {| stags := NoInfo; str := "meta" |});
-     (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "standard_metadata_t" |})
-          None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
-    (BlockEmpty NoInfo).
-
-Definition MyEgress := DeclControl NoInfo
-    {| stags := NoInfo; str := "MyEgress" |} nil
-    [(MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "headers" |}) None
-          {| stags := NoInfo; str := "hdr" |});
-     (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "metadata" |}) None
-          {| stags := NoInfo; str := "meta" |});
-     (MkParameter false InOut
-          (TypTypeName {| stags := NoInfo; str := "standard_metadata_t" |})
-          None {| stags := NoInfo; str := "standard_metadata" |})] nil nil
-    (BlockEmpty NoInfo).
-
-Definition MyDeparser := DeclControl NoInfo
-    {| stags := NoInfo; str := "MyDeparser" |} nil
-    [(MkParameter false Directionless
-          (TypTypeName {| stags := NoInfo; str := "packet_out" |}) None
-          {| stags := NoInfo; str := "packet" |});
-     (MkParameter false In
-          (TypTypeName {| stags := NoInfo; str := "headers" |}) None
-          {| stags := NoInfo; str := "hdr" |})] nil nil (BlockEmpty NoInfo).
-
-Definition main := DeclInstantiation NoInfo
-    (TypSpecializedType
-         (TypTypeName {| stags := NoInfo; str := "V1Switch" |})
-         [(TypStruct nil); (TypStruct nil)])
-    [(MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyParser" |})
-                    nil) nil)
-          (TypParser
-           (MkControlType nil
-                [(MkParameter false Directionless
-                      (TypExtern {| stags := NoInfo; str := "packet_in" |})
-                      None {| stags := NoInfo; str := "packet" |});
-                 (MkParameter false Out (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |});
-                 (MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "meta" |});
-                 (MkParameter false InOut
-                      (TypStruct
-                       [( {| stags := NoInfo; str := "ingress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_spec" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "instance_type" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "packet_length" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_timestamp" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo; str := "deq_timedelta" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "deq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo;
-                             str := "ingress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo;
-                             str := "egress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo; str := "mcast_grp" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "egress_rid" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "checksum_error" |},
-                          (TypBit 1%N) );
-                        ( {| stags := NoInfo; str := "parser_error" |},
-                          TypError );
-                        ( {| stags := NoInfo; str := "priority" |},
-                          (TypBit 3%N) )]) None
-                      {| stags := NoInfo; str := "standard_metadata" |})]))
-          Directionless);
-     (MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyChecksum" |})
-                    nil) nil)
-          (TypControl
-           (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |});
-                 (MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "meta" |})])) Directionless);
-     (MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyIngress" |})
-                    nil) nil)
-          (TypControl
-           (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |});
-                 (MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "meta" |});
-                 (MkParameter false InOut
-                      (TypStruct
-                       [( {| stags := NoInfo; str := "ingress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_spec" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "instance_type" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "packet_length" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_timestamp" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo; str := "deq_timedelta" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "deq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo;
-                             str := "ingress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo;
-                             str := "egress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo; str := "mcast_grp" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "egress_rid" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "checksum_error" |},
-                          (TypBit 1%N) );
-                        ( {| stags := NoInfo; str := "parser_error" |},
-                          TypError );
-                        ( {| stags := NoInfo; str := "priority" |},
-                          (TypBit 3%N) )]) None
-                      {| stags := NoInfo; str := "standard_metadata" |})]))
-          Directionless);
-     (MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyEgress" |})
-                    nil) nil)
-          (TypControl
-           (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |});
-                 (MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "meta" |});
-                 (MkParameter false InOut
-                      (TypStruct
-                       [( {| stags := NoInfo; str := "ingress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_spec" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "egress_port" |},
-                          (TypBit 9%N) );
-                        ( {| stags := NoInfo; str := "instance_type" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "packet_length" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_timestamp" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "enq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo; str := "deq_timedelta" |},
-                          (TypBit 32%N) );
-                        ( {| stags := NoInfo; str := "deq_qdepth" |},
-                          (TypBit 19%N) );
-                        ( {| stags := NoInfo;
-                             str := "ingress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo;
-                             str := "egress_global_timestamp" |},
-                          (TypBit 48%N) );
-                        ( {| stags := NoInfo; str := "mcast_grp" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "egress_rid" |},
-                          (TypBit 16%N) );
-                        ( {| stags := NoInfo; str := "checksum_error" |},
-                          (TypBit 1%N) );
-                        ( {| stags := NoInfo; str := "parser_error" |},
-                          TypError );
-                        ( {| stags := NoInfo; str := "priority" |},
-                          (TypBit 3%N) )]) None
-                      {| stags := NoInfo; str := "standard_metadata" |})]))
-          Directionless);
-     (MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyChecksum" |})
-                    nil) nil)
-          (TypControl
-           (MkControlType nil
-                [(MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |});
-                 (MkParameter false InOut (TypStruct nil) None
-                      {| stags := NoInfo; str := "meta" |})])) Directionless);
-     (MkExpression NoInfo
-          (ExpNamelessInstantiation
-               (TypSpecializedType
-                    (TypTypeName {| stags := NoInfo; str := "MyDeparser" |})
-                    nil) nil)
-          (TypControl
-           (MkControlType nil
-                [(MkParameter false Directionless
-                      (TypExtern {| stags := NoInfo; str := "packet_out" |})
-                      None {| stags := NoInfo; str := "packet" |});
-                 (MkParameter false In (TypStruct nil) None
-                      {| stags := NoInfo; str := "hdr" |})])) Directionless)]
-    {| stags := NoInfo; str := "main" |} nil.
 
 Definition prog := Program
     [decl'1; packet_in; packet_out; verify'check'toSignal; NoAction; decl'2;
@@ -767,8 +584,9 @@ Definition prog := Program
      resubmit'data; recirculate'data; clone'type'session;
      clone3'type'session'data; truncate'length; assert'check; assume'check;
      log_msg'msg; log_msg'msg'data; Parser; VerifyChecksum; Ingress; Egress;
-     ComputeChecksum; Deparser; V1Switch; metadata; headers; MyParser;
-     MyChecksum; MyIngress; MyEgress; MyDeparser; main].
+     ComputeChecksum; Deparser; V1Switch; hdr; Header_t; Meta_t; p].
+
+
 
 
 Require Import Poulet4.Compile.ToP4cub.
@@ -778,95 +596,78 @@ Definition cub_prog0 :=
 Print cub_prog0.
 
 Definition cub_prog : DeclCtx Info :=
-  {|
-    controls :=
-      [TD.TPInstantiate "MyDeparser" "h'0" [] [] NoInfo;
-      TD.TPInstantiate "MyChecksum" "h'1" [] [] NoInfo;
-      TD.TPInstantiate "MyEgress" "h'2" [] [] NoInfo;
-      TD.TPInstantiate "MyIngress" "h'3" [] [] NoInfo;
-      TD.TPInstantiate "MyChecksum" "h'4" [] [] NoInfo;
-      TD.TPControl "MyDeparser" [] []
-        [("packet", PAInOut (E.TVar "packet_out"));
-        ("hdr", PAIn (Sub.E.TStruct []))]
-        (Control.CDSeq
-           (Control.CDAction "NoAction" [] (ST.SSkip NoInfo) NoInfo)
-           (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip NoInfo) NoInfo)
-           NoInfo) (ST.SSkip NoInfo) NoInfo;
-      TD.TPControl "MyEgress" [] []
-        [("hdr", PAInOut (Sub.E.TStruct []));
-        ("meta", PAInOut (Sub.E.TStruct []));
-        ("standard_metadata",
-        PAInOut
-          (Sub.E.TStruct
-             [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
-             ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
-             ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
-             ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
-             ("deq_qdepth", E.TBit 19);
-             ("ingress_global_timestamp", E.TBit 48);
-             ("egress_global_timestamp", E.TBit 48);
-             ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
-             ("checksum_error", E.TBit 1); ("parser_error", E.TError);
-             ("priority", E.TBit 3)]))]
-        (Control.CDSeq
-           (Control.CDAction "NoAction" [] (ST.SSkip NoInfo) NoInfo)
-           (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip NoInfo) NoInfo)
-           NoInfo) (ST.SSkip NoInfo) NoInfo;
-      TD.TPControl "MyIngress" [] []
-        [("hdr", PAInOut (Sub.E.TStruct []));
-        ("meta", PAInOut (Sub.E.TStruct []));
-        ("standard_metadata",
-        PAInOut
-          (Sub.E.TStruct
-             [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
-             ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
-             ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
-             ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
-             ("deq_qdepth", E.TBit 19);
-             ("ingress_global_timestamp", E.TBit 48);
-             ("egress_global_timestamp", E.TBit 48);
-             ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
-             ("checksum_error", E.TBit 1); ("parser_error", E.TError);
-             ("priority", E.TBit 3)]))]
-        (Control.CDSeq
-           (Control.CDAction "NoAction" [] (ST.SSkip NoInfo) NoInfo)
-           (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip NoInfo) NoInfo)
-           NoInfo) (ST.SSkip NoInfo) NoInfo;
-      TD.TPControl "MyChecksum" [] []
-        [("hdr", PAInOut (Sub.E.TStruct []));
-        ("meta", PAInOut (Sub.E.TStruct []))]
-        (Control.CDSeq
-           (Control.CDAction "NoAction" [] (ST.SSkip NoInfo) NoInfo)
-           (Control.CDAction "$DUMMY_ACTION" [] (ST.SSkip NoInfo) NoInfo)
-           NoInfo) (ST.SSkip NoInfo) NoInfo];
+{|
+    controls := [];
     parsers :=
-      [TD.TPInstantiate "MyParser" "h'5" [] [] NoInfo;
-      TD.TPParser "MyParser" [] []
-        [("packet", PAInOut (E.TVar "packet_in"));
-        ("hdr", PAOut (Sub.E.TStruct []));
-        ("meta", PAInOut (Sub.E.TStruct []));
-        ("standard_metadata",
-        PAInOut
-          (Sub.E.TStruct
-             [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
-             ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
-             ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
-             ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
-             ("deq_qdepth", E.TBit 19);
-             ("ingress_global_timestamp", E.TBit 48);
-             ("egress_global_timestamp", E.TBit 48);
-             ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
-             ("checksum_error", E.TBit 1); ("parser_error", E.TError);
-             ("priority", E.TBit 3)]))]
-        {|
-          Parser.stmt := ST.SSkip NoInfo;
-          Parser.trans := Parser.PGoto Parser.STAccept NoInfo
-        |}
-        [("start",
+      [TD.TPParser "p" [] []
+         [("b", PAInOut (E.TVar "packet_in"));
+         ("h",
+         PAOut
+           (Sub.E.TStruct
+              [("h",
+               Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)])]));
+         ("m", PAInOut (Sub.E.TStruct []));
+         ("sm",
+         PAInOut
+           (Sub.E.TStruct
+              [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
+              ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
+              ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
+              ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
+              ("deq_qdepth", E.TBit 19);
+              ("ingress_global_timestamp", E.TBit 48);
+              ("egress_global_timestamp", E.TBit 48);
+              ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
+              ("checksum_error", E.TBit 1); ("parser_error", E.TError);
+              ("priority", E.TBit 3)]))]
          {|
-           Parser.stmt := ST.SSkip NoInfo;
+           Parser.stmt :=
+             InferMemberTypes.ST.SSeq
+               (InferMemberTypes.ST.SExternMethodCall "packet_in" "extract"
+                  []
+                  {|
+                    paramargs :=
+                      [("hdr",
+                       PAOut
+                         (InferMemberTypes.E.EExprMember
+                            (E.THeader
+                               [("ignored", E.TBit 8); ("key", E.TBit 8)])
+                            "h"
+                            (E.EVar
+                               (E.TStruct
+                                  [("h",
+                                   E.THeader
+                                     [("ignored", E.TBit 8);
+                                     ("key", E.TBit 8)])]) "h" NoInfo) NoInfo))];
+                    rtrns := None
+                  |} NoInfo) (ST.SSkip NoInfo) NoInfo;
            Parser.trans := Parser.PGoto Parser.STAccept NoInfo
-         |})] NoInfo];
+         |}
+         [("start",
+          {|
+            Parser.stmt :=
+              InferMemberTypes.ST.SSeq
+                (InferMemberTypes.ST.SExternMethodCall "packet_in" "extract"
+                   []
+                   {|
+                     paramargs :=
+                       [("hdr",
+                        PAOut
+                          (InferMemberTypes.E.EExprMember
+                             (E.THeader
+                                [("ignored", E.TBit 8); ("key", E.TBit 8)])
+                             "h"
+                             (E.EVar
+                                (E.TStruct
+                                   [("h",
+                                    E.THeader
+                                      [("ignored", E.TBit 8);
+                                      ("key", E.TBit 8)])]) "h" NoInfo)
+                             NoInfo))];
+                     rtrns := None
+                   |} NoInfo) (ST.SSkip NoInfo) NoInfo;
+            Parser.trans := Parser.PGoto Parser.STAccept NoInfo
+          |})] NoInfo];
     tables := [];
     actions := [Control.CDAction "NoAction" [] (ST.SSkip NoInfo) NoInfo];
     functions := [];
@@ -879,12 +680,7 @@ Definition cub_prog : DeclCtx Info :=
        ("eg", Sub.E.CTType (E.TVar "Egress"));
        ("ck", Sub.E.CTType (E.TVar "ComputeChecksum"));
        ("dep", Sub.E.CTType (E.TVar "Deparser"))], NoInfo))];
-    packages :=
-      [TD.TPInstantiate "V1Switch" "main"
-         [Sub.E.TStruct []; Sub.E.TStruct []]
-         [("p", E.CAName "h'5"); ("vr", E.CAName "h'4");
-         ("ig", E.CAName "h'3"); ("eg", E.CAName "h'2");
-         ("ck", E.CAName "h'1"); ("dep", E.CAName "h'0")] NoInfo];
+    packages := [];
     externs :=
       [TD.TPExtern "_" [] []
          [("log_msg",
@@ -1173,8 +969,15 @@ Definition cub_prog : DeclCtx Info :=
          ("egress_global_timestamp", E.TBit 48); ("mcast_grp", E.TBit 16);
          ("egress_rid", E.TBit 16); ("checksum_error", E.TBit 1);
          ("parser_error", E.TError); ("priority", E.TBit 3)]);
-      ("metadata", Sub.E.TStruct []); ("headers", Sub.E.TStruct []);
-      ("headers", Sub.E.TStruct []); ("metadata", Sub.E.TStruct []);
+      ("hdr", Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)]);
+      ("Header_t",
+      Sub.E.TStruct
+        [("h", Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)])]);
+      ("Meta_t", Sub.E.TStruct []); ("Meta_t", Sub.E.TStruct []);
+      ("Header_t",
+      Sub.E.TStruct
+        [("h", Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)])]);
+      ("hdr", Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)]);
       ("standard_metadata_t",
       Sub.E.TStruct
         [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
@@ -1188,29 +991,76 @@ Definition cub_prog : DeclCtx Info :=
   |}.
 
 Definition parser :=
-  TD.TPParser "MyParser" [] []
-              [("packet", PAInOut (E.TVar "packet_in"));
-              ("hdr", PAOut (Sub.E.TStruct []));
-              ("meta", PAInOut (Sub.E.TStruct []));
-              ("standard_metadata",
-               PAInOut
-                 (Sub.E.TStruct
-                    [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
-                    ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
-                    ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
-                    ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
-                    ("deq_qdepth", E.TBit 19);
-                    ("ingress_global_timestamp", E.TBit 48);
-                    ("egress_global_timestamp", E.TBit 48);
-                    ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
-                    ("checksum_error", E.TBit 1); ("parser_error", E.TError);
-                    ("priority", E.TBit 3)]))]
-              {| Parser.stmt := ST.SSkip NoInfo;
-                 Parser.trans := Parser.PGoto Parser.STAccept NoInfo |}
-              [("start",
-                {| Parser.stmt := ST.SSkip NoInfo;
-                   Parser.trans := Parser.PGoto Parser.STAccept NoInfo |})]
-              NoInfo.
+  TD.TPParser "p" [] []
+         [("b", PAInOut (E.TVar "packet_in"));
+         ("h",
+         PAOut
+           (Sub.E.TStruct
+              [("h",
+               Sub.E.THeader [("ignored", E.TBit 8); ("key", E.TBit 8)])]));
+         ("m", PAInOut (Sub.E.TStruct []));
+         ("sm",
+         PAInOut
+           (Sub.E.TStruct
+              [("ingress_port", E.TBit 9); ("egress_spec", E.TBit 9);
+              ("egress_port", E.TBit 9); ("instance_type", E.TBit 32);
+              ("packet_length", E.TBit 32); ("enq_timestamp", E.TBit 32);
+              ("enq_qdepth", E.TBit 19); ("deq_timedelta", E.TBit 32);
+              ("deq_qdepth", E.TBit 19);
+              ("ingress_global_timestamp", E.TBit 48);
+              ("egress_global_timestamp", E.TBit 48);
+              ("mcast_grp", E.TBit 16); ("egress_rid", E.TBit 16);
+              ("checksum_error", E.TBit 1); ("parser_error", E.TError);
+              ("priority", E.TBit 3)]))]
+         {|
+           Parser.stmt :=
+             InferMemberTypes.ST.SSeq
+               (InferMemberTypes.ST.SExternMethodCall "packet_in" "extract"
+                  []
+                  {|
+                    paramargs :=
+                      [("hdr",
+                       PAOut
+                         (InferMemberTypes.E.EExprMember
+                            (E.THeader
+                               [("ignored", E.TBit 8); ("key", E.TBit 8)])
+                            "h"
+                            (E.EVar
+                               (E.TStruct
+                                  [("h",
+                                   E.THeader
+                                     [("ignored", E.TBit 8);
+                                     ("key", E.TBit 8)])]) "h" NoInfo) NoInfo))];
+                    rtrns := None
+                  |} NoInfo) (ST.SSkip NoInfo) NoInfo;
+           Parser.trans := Parser.PGoto Parser.STAccept NoInfo
+         |}
+         [("start",
+          {|
+            Parser.stmt :=
+              InferMemberTypes.ST.SSeq
+                (InferMemberTypes.ST.SExternMethodCall "packet_in" "extract"
+                   []
+                   {|
+                     paramargs :=
+                       [("hdr",
+                        PAOut
+                          (InferMemberTypes.E.EExprMember
+                             (E.THeader
+                                [("ignored", E.TBit 8); ("key", E.TBit 8)])
+                             "h"
+                             (E.EVar
+                                (E.TStruct
+                                   [("h",
+                                    E.THeader
+                                      [("ignored", E.TBit 8);
+                                      ("key", E.TBit 8)])]) "h" NoInfo)
+                             NoInfo))];
+                     rtrns := None
+                   |} NoInfo) (ST.SSkip NoInfo) NoInfo;
+            Parser.trans := Parser.PGoto Parser.STAccept NoInfo
+          |})] NoInfo.
 
 Require Import Poulet4.P4aComp.P4aComp.
 Eval compute in (get_parser _ parser).
+(* MISSING: function to convert a list of state blocks, as returned by get_parser, into a full p4 automaton. *)

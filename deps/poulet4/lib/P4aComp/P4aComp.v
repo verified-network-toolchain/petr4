@@ -212,6 +212,33 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
   | _ => None
   end.
 
+Print Parser.state.
+Check Parser.state.
+Print op.
+Print P4A.states.
+Print Parser.state_block.
+Print P4c.Parser.
+Definition translate_trans {Hdr: Type} {H_sz: Hdr -> nat} (hdrs: F.fs string nat)  (e:Parser.e tags_t) : option (transition Hdr H_sz) :=
+  match e with 
+    | Parser.PGoto st i => None (* TGoto (translate_state st) *)
+    | Parser.PSelect discriminee default cases i => None
+  end.
+Definition translate_state (hdrs: F.fs string nat) '({|Parser.stmt:=stmt; Parser.trans:=pe|} : Parser.state_block tags_t) : option (state (mk_hdr_type hdrs) (hdr_map hdrs)) :=
+  match translate_st hdrs stmt, translate_trans hdrs pe with 
+    | Some t_stmt, Some transition => Some {| st_op := t_stmt; st_trans := transition|}
+    | _, _ => None
+  end.
+  (* Proof. destruct s. apply translate_st hdrs stmt.  *)
+
+Definition translate_states (hdrs: F.fs string nat) (states:list (Parser.state_block tags_t)) : option (list (state  (mk_hdr_type hdrs) (hdr_map hdrs))) :=
+let new_states := List.map (translate_state hdrs) states in 
+List.fold_left (fun (accum: option (list (state (mk_hdr_type hdrs) (hdr_map hdrs)))) state => 
+    match accum, state with 
+        | (Some translated_states), Some state => Some (state::translated_states)
+        | _, None => None
+        | None, _ => None
+        end) new_states (Some []).
+        
   (* bin/main, lib/common *)
 (* header passed into parser via params (Expr.params in TPParser)  *)
 
@@ -222,13 +249,6 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
 | Hdr: forall id sz, List.In (id, sz) (collect_headers parser) -> mk_hdr_type parser.
 Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
 Admitted. *)
-
-
-(* Fixpoint translate_trans (e:Parser.e) : transition
-  match e with 
-    | PGoto st i => TGoto (translate_state st)
-    | PSelet discriminee default cases i =?>
-  end. *)
 
 Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list (Parser.state_block tags_t) :=
   match prog with 

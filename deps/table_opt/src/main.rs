@@ -2,18 +2,25 @@ use egg::{*, rewrite as rw};
 
 fn main() {
     let rules: &[Rewrite<SymbolLang, ()>] = &[
-        rw!("commute-add"; "(+ ?x ?y)" => "(+ ?y ?x)"),
-        rw!("commute-mul"; "(* ?x ?y)" => "(* ?y ?x)"),
-
-        rw!("add-0"; "(+ ?x 0)" => "?x"),
-        rw!("mul-0"; "(* ?x 0)" => "0"),
-        rw!("mul-1"; "(* ?x 1)" => "?x"),
+        rw!("distr-seq-if"; "(seq (if ?b ?x ?y) ?z)" => "(if ?b (seq ?x ?z) (seq ?y ?z))"),
+        rw!("set-test"; "(seq (set ?x ?e) (if (eq ?x ?e) ?t ?f))" => "?t"),
+        rw!("test-comm"; "(eq ?x ?y)" => "(eq ?y ?x)"),
+        rw!("nop-id-l"; "(seq nop ?x)" => "?x"),
     ];
 
     // While it may look like we are working with numbers,
     // SymbolLang stores everything as strings.
     // We can make our own Language later to work with other types.
-    let start = "(+ 0 (* 1 a))".parse().unwrap();
+    let start =
+"
+(seq
+  (if (eq ip 10.0.0.1)
+      (set eth aa:bb:cc:dd:ee:ff)
+      nop)
+  (if (eq eth aa:bb:cc:dd:ee:ff)
+      (set port 2)
+      (set port 1)))
+".parse().unwrap();
 
     // That's it! We can run equality saturation now.
     let runner = Runner::default().with_expr(&start).run(rules);
@@ -27,7 +34,5 @@ fn main() {
     // Luckily the runner stores the eclass Id where we put the initial expression.
     let (best_cost, best_expr) = extractor.find_best(runner.roots[0]);
 
-    // we found the best thing, which is just "a" in this case
-    assert_eq!(best_expr, "a".parse().unwrap());
-    assert_eq!(best_cost, 1);
+    println!("best expression: {}\ncost: {}", best_expr, best_cost);
 }

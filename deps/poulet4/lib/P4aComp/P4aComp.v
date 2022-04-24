@@ -5,6 +5,7 @@ Require Import Coq.ZArith.ZArith
         Coq.micromega.Lia
         Coq.Bool.Bool.
 Import String.
+Open Scope string_scope.
 Module P4c := AST.
 Module P4a := Poulet4.P4cub.Syntax.Syntax.
 (* Open Scope p4a. *)
@@ -62,21 +63,52 @@ Fixpoint type_size_e (ctxt:F.fs string nat) (e:Expr.e tags_t) : option nat :=
     | _ => None
   end.
 
+Definition digit2string(d:nat) : string :=
+  match d with
+    | 0 => "0" | 1 => "1" | 2 => "2" | 3 => "3"
+    | 4 => "4" | 5 => "5" | 6 => "6" | 7 => "7"
+    | 8 => "8" | _ => "9"
+  end %string.
+  
+Definition thdr_to_str (e:Expr.t) : option string :=
+  let helper (accum:option string) (field:(string * Expr.t)) :=
+    let (name, t) := field in  
+    match accum, type_size [] t with 
+    | Some acc, Some n => Some (acc ++ name ++ (digit2string n))
+    | _, _ => None
+    end in 
+  match e with 
+  | Expr.THeader fields => 
+    List.fold_left helper fields (Some "")
+  | _ => None
+  end.
+  Check (List.length []) == 1.
+(* Definition collect_hdrs_expr (ctxt: F.fs string nat) (e:Expr.e tags_t) :  *)
+
 Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : option (F.fs string nat) :=
   match st with 
   | Stmt.SVardecl x expr _ => 
       match expr with 
       | inl typ =>
           match type_size ctxt typ with
-          | Some sz => Some [(x, sz)]
+          | Some sz => Some ((x, sz)::ctxt)
           | None => None
           end
       | inr e => 
           match type_size_e ctxt e with
-          | Some sz => Some [(x, sz)]
+          | Some sz => Some ((x, sz)::ctxt)
           | None => None
           end
       end
+  | Stmt.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
+      match params with 
+      | (_, PAOut (Expr.EExprMember header _ _ _))::[] => (* extract only returns PAOut?*)
+            match thdr_to_str header, type_size ctxt header with
+            | Some x, Some sz => Some ((x,sz)::ctxt)
+            | _, _ => None 
+            end
+      | _ => None
+      end 
   | Stmt.SSeq s1 s2 _ =>
       match (collect_hdrs_stmt ctxt s1) with
       | Some ctxt' => collect_hdrs_stmt ctxt' s2
@@ -95,6 +127,7 @@ Definition collect_hdrs_states (states : F.fs string (Parser.state_block tags_t)
     | None, (_, s2) => collect_hdrs_state [] s2
     end) states None.
 
+
     (* Collect all headers from a program *)
 Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
   match prog with 
@@ -103,11 +136,14 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
       | Some ctxt => ctxt
       | None => []
       end
-    | TopDecl.TPSeq d1 d2 _ => collect_hdrs d1 ++ collect_hdrs d2
+    | TopDecl.TPSeq d1 d2 _ => List.app (collect_hdrs d1) (collect_hdrs d2)
     | _ => []
   end.
 
 Definition mk_hdr_type (hdrs: F.fs string nat) : Type := Fin.t (List.length hdrs).
+
+Definition mk_st_type (states: list (Parser.state_block tags_t)) : Type := Fin.t (List.length states).
+
 
 
 Lemma findi_length_bound :
@@ -175,6 +211,8 @@ Proof.
   - apply None.
 Defined. 
 
+Check OpAsgn.
+Check OpExtract.
 (* Need function for finding header associated with an expression *)
 Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr_map hdrs)):= 
   match s with 
@@ -206,29 +244,40 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
     | Some st1, Some st2 => Some (OpSeq st1 st2)
     | _, _ => None
     end
+    | Stmt.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
+    match params with 
+    | (_, PAOut (Expr.EExprMember h _ _ _))::[] => (* extract only returns PAOut?*)
+      match thdr_to_str h with 
+      | Some hdr_name => 
+        match inject_name hdrs hdr_name with 
+        | Some header => Some (OpExtract hdr_map)
+        | None => None
+        end
+      | None => None
+      end
+    | _ => None
+    end 
   (* Find header associated with lhs *)
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
   | Stmt.SBlock s => translate_st hdrs s
   | _ => None
   end.
 
-Print Parser.state.
-Check Parser.state.
-Print op.
-Print P4A.states.
-Print Parser.state_block.
-Print P4c.Parser.
-Definition translate_trans {Hdr: Type} {H_sz: Hdr -> nat} (hdrs: F.fs string nat)  (e:Parser.e tags_t) : option (transition Hdr H_sz) :=
+(* Need to make states finite as well *)
+Fixpoint translate_state (hdrs: F.fs string nat) (st: Parser.state_block tags_t) : option (state (mk_hdr_type hdrs) (hdr_map hdrs)) :=
+  match st with 
+  | {|Parser.stmt:=stmt; Parser.trans:=pe|} =>   
+    match translate_st hdrs stmt, translate_trans hdrs pe with 
+      | Some t_stmt, Some transition => Some {| st_op := t_stmt; st_trans := transition|}
+      | _, _ => None
+    end
+  end
+
+with translate_trans {Hdr: Type} {H_sz: Hdr -> nat} (hdrs: F.fs string nat)  (e:Parser.e tags_t) : option (transition Hdr H_sz) :=
   match e with 
     | Parser.PGoto st i => None (* TGoto (translate_state st) *)
     | Parser.PSelect discriminee default cases i => None
   end.
-Definition translate_state (hdrs: F.fs string nat) '({|Parser.stmt:=stmt; Parser.trans:=pe|} : Parser.state_block tags_t) : option (state (mk_hdr_type hdrs) (hdr_map hdrs)) :=
-  match translate_st hdrs stmt, translate_trans hdrs pe with 
-    | Some t_stmt, Some transition => Some {| st_op := t_stmt; st_trans := transition|}
-    | _, _ => None
-  end.
-  (* Proof. destruct s. apply translate_st hdrs stmt.  *)
 
 Definition translate_states (hdrs: F.fs string nat) (states:list (Parser.state_block tags_t)) : option (list (state  (mk_hdr_type hdrs) (hdr_map hdrs))) :=
 let new_states := List.map (translate_state hdrs) states in 
@@ -258,14 +307,3 @@ Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list (Parser.state_block tags
   end.
 
 End P4AComp.
-
-
-(* Inductive mk_hdr_type (parser: P4cubparser) : Type :=
-| Hdr: forall id sz, List.In (id, sz) (collect_headers parser) -> mk_hdr_type parser.
-Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
-Admitted.
-Definition mk_st (parser: P4cubparser) : Type.
-Admitted.
-
-Definition mk_states (parser: P4cubparser): mk_st parser -> state (mk_st parser) (mk_hdr_sz parser).
-Admitted. *)

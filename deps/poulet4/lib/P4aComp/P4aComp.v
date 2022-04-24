@@ -142,9 +142,7 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
 
 Definition mk_hdr_type (hdrs: F.fs string nat) : Type := Fin.t (List.length hdrs).
 
-Definition mk_st_type (states: list (Parser.state_block tags_t)) : Type := Fin.t (List.length states).
-
-
+Definition mk_st_type (states: F.fs string (Parser.state_block tags_t)) : Type := Fin.t (List.length states).
 
 Lemma findi_length_bound :
   forall {A: Type} pred (l: list A) i,
@@ -183,6 +181,31 @@ Definition hdr_map (hdrs: list (string * nat)) (h:mk_hdr_type hdrs) : nat :=
     | Some n => n 
     | None => 0   (* This shouldn't be needed *)
   end.
+
+Definition inject_name_st (states: list (string * (Parser.state_block tags_t))) (st: string) : option (mk_st_type states).
+Proof.
+  destruct (findi (fun kv => String.eqb st (fst kv)) states) eqn:?.
+  - apply Some.
+    destruct states.
+    + cbv in Heqo. 
+      congruence.
+    + unfold mk_hdr_type.
+      apply @Fin.of_nat_lt with (p := n).
+      eapply findi_length_bound.
+      apply Heqo.
+  - exact None.
+Defined.
+
+Definition extract_name_st (states: list (string * (Parser.state_block tags_t))) (st:mk_st_type states) : string.
+Proof.
+  pose (Fin.to_nat st).
+  destruct s as [i pf].
+  destruct (List.nth_error states i) eqn:?.
+  - exact (fst p).
+  - apply nth_error_None in Heqo.
+    unfold F.f in pf.
+    lia.
+Defined.  
 
 Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat := 
   match e with 
@@ -250,7 +273,7 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
       match thdr_to_str h with 
       | Some hdr_name => 
         match inject_name hdrs hdr_name with 
-        | Some header => Some (OpExtract hdr_map)
+        | Some header => Some (OpExtract (hdr_map hdrs) header)
         | None => None
         end
       | None => None
@@ -263,47 +286,77 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
   | _ => None
   end.
 
+  Print nat.
+  Check Parser.PGoto.
+  Print Parser.state. 
+Definition state_holder (A:F.fs string nat): Type := string * (state (mk_hdr_type A) (hdr_map A)).
 (* Need to make states finite as well *)
-Fixpoint translate_state (hdrs: F.fs string nat) (st: Parser.state_block tags_t) : option (state (mk_hdr_type hdrs) (hdr_map hdrs)) :=
-  match st with 
-  | {|Parser.stmt:=stmt; Parser.trans:=pe|} =>   
-    match translate_st hdrs stmt, translate_trans hdrs pe with 
-      | Some t_stmt, Some transition => Some {| st_op := t_stmt; st_trans := transition|}
-      | _, _ => None
+ Fixpoint translate_states (num_states: nat) (state_name:string)
+ (hdrs: F.fs string nat) (states:F.fs string (Parser.state_block tags_t)) (st: Parser.state_block tags_t) : option (state (mk_hdr_type hdrs) (hdr_map hdrs)) :=
+  match num_states with 
+    | O => None 
+    | Datatypes.S num_states =>
+      match st with 
+      | {|Parser.stmt:=stmt; Parser.trans:=pe|} =>   
+        match translate_st hdrs stmt, translate_trans num_states hdrs pe with 
+          | Some t_stmt, Some transition => Some ({| st_op := t_stmt; st_trans := transition|})
+          | _, _ => None
+        end
+      end
     end
-  end
 
-with translate_trans {Hdr: Type} {H_sz: Hdr -> nat} (hdrs: F.fs string nat)  (e:Parser.e tags_t) : option (transition Hdr H_sz) :=
-  match e with 
-    | Parser.PGoto st i => None (* TGoto (translate_state st) *)
-    | Parser.PSelect discriminee default cases i => None
-  end.
-
-Definition translate_states (hdrs: F.fs string nat) (states:list (Parser.state_block tags_t)) : option (list (state  (mk_hdr_type hdrs) (hdr_map hdrs))) :=
-let new_states := List.map (translate_state hdrs) states in 
-List.fold_left (fun (accum: option (list (state (mk_hdr_type hdrs) (hdr_map hdrs)))) state => 
-    match accum, state with 
-        | (Some translated_states), Some state => Some (state::translated_states)
-        | _, None => None
-        | None, _ => None
-        end) new_states (Some []).
+  with translate_trans  (num_states:nat) (hdrs: F.fs string nat) (e:Parser.e tags_t) : option (transition (mk_hdr_type hdrs) (hdr_map hdrs)) :=
+    match e with 
+      | Parser.PGoto st _ => 
+        match (st:Parser.state) with 
+        | Parser.STAccept => Some (TGoto (hdr_map hdrs) (inr true))
+        | Parser.STReject => Some (TGoto (hdr_map hdrs) (inr false))
+        (* What if parser loops to self? how to compile? *)
+        | Parser.STStart => None
+        | Parser.STName st_name => None
+        end
+          (* match translate_states num_states hdrs st with 
+          | Some new_st =>Some (TGoto (hdr_map hdrs) new_st)
+          | None => None
+          end *)
+      | Parser.PSelect discriminee default cases i => None
+    end.
         
-  (* bin/main, lib/common *)
+ (* bin/main, lib/common *)
 (* header passed into parser via params (Expr.params in TPParser)  *)
 
 (* Notes: F.fs is an association list *)
 (* Does not handle subparsers, for now consider only one parser *)
 
-(* Inductive mk_hdr_type (parser: P4cubparser) : Type :=
-| Hdr: forall id sz, List.In (id, sz) (collect_headers parser) -> mk_hdr_type parser.
-Definition mk_hdr_sz (parser: P4cubparser) : mk_hdr_type parser -> nat.
-Admitted. *)
+(* Get all parser declarations from the program *)
+Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list(P4c.TopDecl.d tags_t) :=
+match prog with 
+  | TopDecl.TPParser p _ eps params st states i => [prog]
+  | TopDecl.TPSeq d1 d2 _ => get_parser d1 ++ get_parser d2
+  | _ => []
+end.
 
-Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list (Parser.state_block tags_t) :=
-  match prog with 
-    | TopDecl.TPParser p _ eps params st states i => [st] ++ []
-    | TopDecl.TPSeq d1 d2 _ => get_parser d1 ++ get_parser d2
-    | _ => []
-  end.
+Definition translate_parser {Hdr: Type} {H_sz: Hdr -> nat} {hdrs':F.fs string nat} (prog:P4c.TopDecl.d tags_t) : option (list (state (mk_hdr_type _) (hdr_map _))) :=
+  let parsers := get_parser prog in   
+  (* Assume only one parser for now *)
+  let main_parser := List.hd prog parsers in 
+  let hdrs := collect_hdrs main_parser in 
+  match main_parser with 
+    | TopDecl.TPParser p _ _ params start states i => 
+    let states' := mk_st_type states in 
+    let all_states := ("start", start)::states in 
+    let start := translate_states (List.length all_states) "start" hdrs all_states start in
+    let translate '(name, st) := (translate_states (List.length all_states) name hdrs all_states st) in
+    let state_collect accum translated_state := 
+      match accum, translated_state with 
+      | Some acc, Some st' => Some (st'::acc)
+      | _,_ => None
+      end in 
+    let temp := (List.map translate states) in 
+    List.fold_left state_collect (List.map translate states) (Some []) 
+  (* Some (List.map (fun x => let (name, st) = x in 
+       (translate_states (List.length all_states) name hdrs all_states hdrs)) states) *)
+    | _ => None
+    end.
 
 End P4AComp.

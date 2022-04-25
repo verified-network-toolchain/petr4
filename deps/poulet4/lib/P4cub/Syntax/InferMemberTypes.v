@@ -99,9 +99,9 @@ Section Inference.
       ST.SSeq s1' s2' i
     | ST.SBlock b =>
       ST.SBlock (inf_s b)
-    | ST.SExternMethodCall extern_name method_name typ_args args i =>
+    | ST.SExternMethodCall extern_type extern_name method_name typ_args args i =>
       let args' := inf_arrowE args in
-      ST.SExternMethodCall extern_name method_name typ_args args' i
+      ST.SExternMethodCall extern_type extern_name method_name typ_args args' i
     | ST.SFunCall f typ_args args i =>
       let args' := inf_arrowE args in
       ST.SFunCall f typ_args args' i

@@ -270,8 +270,9 @@ let rec stmt_convert (s: 'tags_t Prev.Stmt.s) =
         Stmt.SBlock (
             stmt_convert s
         )
-    | Prev.Stmt.SExternMethodCall (n,m,l,a,i) ->
-        Stmt.SExternMethodCall (string_charlist n,
+    | Prev.Stmt.SExternMethodCall (t,n,m,l,a,i) ->
+        Stmt.SExternMethodCall (string_charlist t, 
+        string_charlist n,
         string_charlist m, 
         List.map convert_type l, 
         arrowE_convert a, i)

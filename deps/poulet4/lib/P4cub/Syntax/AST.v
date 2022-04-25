@@ -246,7 +246,7 @@ Module Stmt.
                    (tru_blk fls_blk : s) (i : tags_t) (* conditionals *)
     | SSeq (s1 s2 : s) (i : tags_t)                   (* sequences *)
     | SBlock (blk : s)                                (* blocks *)
-    | SExternMethodCall (extern_name method_name : string)
+    | SExternMethodCall (extern_type extern_name method_name : string)
                         (typ_args : list Expr.t)
                         (args : Expr.arrowE tags_t)
                         (i : tags_t)             (* extern method calls *)

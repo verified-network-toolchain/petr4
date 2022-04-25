@@ -264,7 +264,7 @@ Inductive check_stmt
              (aa : aenv) (cis : cienv) (eis : eienv) :
     In tbl tbls ->
     ⦃ fns, Δ, Γ ⦄ ApplyBlock tbls aa cis eis ⊢ invoke tbl @ i ⊣ ⦃ Γ, C ⦄
-| chk_extern_call_void (e : string) (f : string)
+| chk_extern_call_void (t: string) (e : string) (f : string)
                        (ts : list Expr.t)
                        (args : Expr.args tags_t) (i : tags_t) (con : ctx)
                        (eis : eienv) (params : Expr.params)
@@ -278,8 +278,8 @@ Inductive check_stmt
          (fun e τ => ⟦ Δ, Γ ⟧ ⊢ e ∈ τ /\ lvalue_ok e))
       args params ->
     ⦃ fns, Δ, Γ ⦄
-      con ⊢ extern e calls f<ts>(args) gives None @ i ⊣ ⦃ Γ, C ⦄
-| chk_extern_call_fruit (extrn : string) (f : string)
+      con ⊢ extern e <t> calls f<ts>(args) gives None @ i ⊣ ⦃ Γ, C ⦄
+| chk_extern_call_fruit (t:string) (extrn : string) (f : string)
                         (ts : list Expr.t)
                         (args : Expr.args tags_t) (e : Expr.e tags_t)
                         (i : tags_t) (con : ctx) (eis : eienv)
@@ -295,7 +295,7 @@ Inductive check_stmt
        args params ->
      let result := Some e in
      (⦃ fns, Δ, Γ ⦄
-        con ⊢ extern extrn calls f<ts>(args) gives result @ i ⊣ ⦃ Γ, C ⦄))
+        con ⊢ extern extrn <t> calls f<ts>(args) gives result @ i ⊣ ⦃ Γ, C ⦄))
 where "⦃ fe , ers , g1 ⦄ con ⊢ s ⊣ ⦃ g2 , sg ⦄"
         := (check_stmt fe ers g1 con s g2 sg).
 (**[]*)

@@ -687,7 +687,7 @@ with inline (gas : nat)
         error "[ERROR] expecting table when getting table, got something else"
       end
 
-    | ST.SExternMethodCall ext method _ args i =>
+    | ST.SExternMethodCall ext _ method _ args i =>
       ok (IExternMethodCall ext method args i)
 
     | ST.SSetValidity e b i =>

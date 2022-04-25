@@ -42,7 +42,7 @@ Definition det_fwd_asst {tags_t : Type} (i : tags_t) :=
   in
   let paramargs := [("check", PAIn assertion)] in
   let arrowE := {| paramargs := paramargs ; rtrns := None |} in
-  ST.SExternMethodCall "_" "assert" [] arrowE i.
+  ST.SExternMethodCall "_" "_" "assert" [] arrowE i.
 
 Definition t_arg {tags_t : Type} (i : tags_t) (dir : (E.e tags_t) -> paramarg (E.e tags_t) (E.e tags_t)) typ var :=
   (var, dir (E.EVar typ var i)).

@@ -233,8 +233,8 @@ Module StmtNotations.
          (in custom p4stmt at level 0, no associativity).
   Notation "'calling' a 'with' args @ i"
     := (SActCall a args i) (in custom p4stmt at level 0).
-  Notation "'extern' e 'calls' f < targs > ( args ) 'gives' x @ i"
-    := (SExternMethodCall e f targs {| paramargs:=args; rtrns:=x |} i)
+  Notation "'extern' e < t > 'calls' f < targs > ( args ) 'gives' x @ i"
+    := (SExternMethodCall t e f targs {| paramargs:=args; rtrns:=x |} i)
          (in custom p4stmt at level 0, no associativity).
   Notation "'return' e @ i"
     := (SReturn e i) (in custom p4stmt at level 30, no associativity).

@@ -475,7 +475,7 @@ Module Step.
       ⟪ pkt, fs, ϵ, ApplyBlock cp ts aa cis eis, calling a with args @ i ⟫
         ⤋ ⟪ ϵ', sig, pkt ⟫ ->
       ⟪ pkt, fs, ϵ, ApplyBlock cp ts aa cis eis, invoke x @ i ⟫ ⤋ ⟪ ϵ', sig, pkt ⟫
-  | sbs_extern_method_call (x mthd : string) (i : tags_t)
+  | sbs_extern_method_call (t x mthd : string) (i : tags_t)
                            (args : Expr.args tags_t)
                            (eo : option (Expr.e tags_t)) (lvo : option V.lv)
                            (argsv : F.fs string (paramarg V.v V.lv))
@@ -507,7 +507,7 @@ Module Step.
       (* Copy-out. *)
       let ϵ' := copy_out argsv cls'' ϵ in
       ⟪ pkt, fs, ϵ, c,
-        extern x calls mthd <[]> (args) gives eo @ i ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
+        extern x <t> calls mthd <[]> (args) gives eo @ i ⟫ ⤋ ⟪ ϵ', C, pkt' ⟫
   where "⟪ pkt1 , fs , ϵ1 , ctx , s ⟫ ⤋ ⟪ ϵ2 , sig , pkt2 ⟫"
           := (stmt_big_step pkt1 fs ϵ1 ctx s ϵ2 sig pkt2)
 

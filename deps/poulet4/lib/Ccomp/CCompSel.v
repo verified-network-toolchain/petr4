@@ -964,7 +964,7 @@ Section CCompSel.
         (Ssequence 
         (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
         (Sassign lvalue (Etempvar tempid ct) )), env')
-    | Stmt.SExternMethodCall e f _ {|paramargs:=args; rtrns:=x|} i =>
+    | Stmt.SExternMethodCall _ e f _ {|paramargs:=args; rtrns:=x|} i =>
       let* t := find_extern_type tags_t env e in 
       if (String.eqb t "packet_in") then 
         if (String.eqb f "extract") then

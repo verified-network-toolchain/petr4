@@ -175,9 +175,9 @@ Section Statementize.
     | Stmt.SBlock block => 
       let (block', env_block) := TranslateStatement block env in
       (Stmt.SBlock block' , env_block)
-    | Stmt.SExternMethodCall e f targs args i =>
+    | Stmt.SExternMethodCall t e f targs args i =>
       let '(stmt_args, args', env_args) := TranslateArrowE args env i in 
-      (Stmt.SSeq stmt_args (Stmt.SExternMethodCall e f targs args' i) i, env_args)
+      (Stmt.SSeq stmt_args (Stmt.SExternMethodCall t e f targs args' i) i, env_args)
     | Stmt.SFunCall f targs args i => 
       let '(stmt_args, args', env_args) := TranslateArrowE args env i in
       (Stmt.SSeq stmt_args (Stmt.SFunCall f targs args' i) i, env_args)

@@ -114,11 +114,11 @@ Section TypeSubstitution.
       ST.SSeq s1' s2' i
     | ST.SBlock b =>
       ST.SBlock (tsub_s σ b)
-    | ST.SExternMethodCall extern_name method_name typ_args args i =>
+    | ST.SExternMethodCall extern_type extern_name method_name typ_args args i =>
       (*TODO Is there something more complicated we need to do with typ_args? *)
       let typ_args' := List.map (tsub_t σ) typ_args in
       let args' := tsub_arrowE σ args in
-      ST.SExternMethodCall extern_name method_name typ_args' args' i
+      ST.SExternMethodCall extern_type extern_name method_name typ_args' args' i
     | ST.SFunCall f typ_args args i =>
       (*TODO Is there something more complicated we need to do with typ_args? *)
       let typ_args' := List.map (tsub_t σ) typ_args in

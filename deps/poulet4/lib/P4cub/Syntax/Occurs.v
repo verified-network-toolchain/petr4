@@ -65,7 +65,7 @@ Section FV.
     | -{ if e then s₁ else s₂ @ _ }- => FVₑ e ++ FVₛ s₁ ++ FVₛ s₂
     | -{ s₁; s₂ @ _ }-               => FVₛ s₁ ++ FVₛ s₂
     | -{ b{ s }b }-                  => FVₛ s
-    | Stmt.SExternMethodCall _ _ _ arr _
+    | Stmt.SExternMethodCall _ _ _ _ arr _
     | Stmt.SFunCall _ _ arr _        => FV_arrowE arr
     | -{ calling _ with es @ _ }-
     | -{ apply _ with _ & es @ _ }-  => flat_map (FV_paramarg ∘ snd) es
@@ -152,9 +152,9 @@ Section Occurs.
   | Occursₛet_validity e b i :
     Occursₑ e ->
     Occursₛ (Stmt.SSetValidity e b i)
-  | Occursₑxtern_method_call e m τs args i :
+  | Occursₑxtern_method_call t e m τs args i :
       Occurs_arrowE args ->
-      Occursₛ (Stmt.SExternMethodCall e m τs args i)
+      Occursₛ (Stmt.SExternMethodCall t e m τs args i)
   | Occurs_fun_call f τs args i :
       Occurs_arrowE args ->
       Occursₛ (Stmt.SFunCall f τs args i)

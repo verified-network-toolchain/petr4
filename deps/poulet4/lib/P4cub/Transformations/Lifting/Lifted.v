@@ -169,9 +169,9 @@ Section Lifted.
   | lifted_block s :
       lifted_stmt s ->
       lifted_stmt -{ b{ s }b }-
-  | lifted_extern_method_call e f targs args i :
+  | lifted_extern_method_call t e f targs args i :
       lifted_args args ->
-      lifted_stmt (Stmt.SExternMethodCall e f targs args i)
+      lifted_stmt (Stmt.SExternMethodCall t e f targs args i)
   | lifted_fun_call f targs args i :
       lifted_args args ->
       lifted_stmt (Stmt.SFunCall f targs args i)

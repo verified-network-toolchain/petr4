@@ -841,7 +841,7 @@ Section ToP4cub.
         let+ paramargs := apply_args_to_params f_str params cub_args in
         (* TODO Currently assuming method calls return None*)
         let args : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
-        ST.SExternMethodCall instance_str f_str [] args tags
+        ST.SExternMethodCall extern_str instance_str f_str [] args tags
       end
     | Some _ =>
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."

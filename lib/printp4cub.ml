@@ -260,8 +260,9 @@ let rec print_stmt p (s: 'a Stmt.s) =
   | Stmt.SBlock (s) -> 
     fprintf p "SBlock %a"
     print_stmt s
-  | Stmt.SExternMethodCall (name, meth, tl, arr, _) ->
-    fprintf p "SExternMethodCall %s.%s <%a>(%a)"
+  | Stmt.SExternMethodCall (typ, name, meth, tl, arr, _) ->
+    fprintf p "SExternMethodCall <%s>%s.%s <%a>(%a)"
+    typ
     name 
     meth
     ((print_list ~sep:"," print_type)) tl

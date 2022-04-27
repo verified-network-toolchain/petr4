@@ -51,7 +51,7 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
     | e :: es
       => let '(le,e') := lift_e up e in
         let '(les,es') := lift_e_list (length le + up) es in
-        (le ++ les, rename_e (plus $ length les) e :: es')
+        (les ++ le, rename_e (plus $ length les) e' :: es')
     end in
   match e with
   | Expr.Bool _
@@ -79,7 +79,7 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
          :: lr ++ ll, Expr.Var t 0)
   | Expr.Struct es ob =>
       let '(les, es) := lift_e_list up es in
-      (Expr.Struct es None :: les, Expr.Var (t_of_e e) 0)
+      (Expr.Struct es ob :: les, Expr.Var (t_of_e e) 0)
   end.
 
 (*

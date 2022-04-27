@@ -41,6 +41,14 @@ Section Embed.
     | Some s => s
     end.
 
+  Fixpoint string_of_index (n : nat) : string := "".
+  
+  Fixpoint make_assoc_list {A : Type} (index : nat) (l : list A) : list (string * A) := 
+  match l with 
+    | [] => []
+    | h::t => (string_of_index index, h) :: make_assoc_list (S index) t
+  end.
+
   Inductive P4Cub_to_P4Light : C_P4Type -> P_P4Type -> Prop := 
   | TBool : P4Cub_to_P4Light Expr.TBool TypBool      
   | TBit (width : N) : P4Cub_to_P4Light (Expr.TBit width) (TypBit width)
@@ -64,8 +72,9 @@ Section Embed.
     | Expr.TBit (width) => TypBit width
     | Expr.TInt (width) => TypInt (Npos width)
     | Expr.TError => TypError   
-    | Expr.TStruct (types) _ => TypList (List.map P4Cub_to_P4Light_fun types)
+    | Expr.TStruct (types) => TypList (List.map P4Cub_to_P4Light_fun types)
     | Expr.TVar (type_name) => TypTypeName (emb_string (nth type_name string_list ""))
+    | Expr.TTuple (v) => TypError
     end.
 
 

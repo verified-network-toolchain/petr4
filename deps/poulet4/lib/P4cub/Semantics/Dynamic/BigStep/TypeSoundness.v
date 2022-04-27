@@ -27,20 +27,18 @@ Section BigStepTheorems.
         intros t het; inv het; eauto.
       - pose proof IHhev henv _ H6 as hvt; inv hvt; eauto.
       - constructor.
-        + destruct ob; destruct oe;
-            destruct b; inv H; inv H0; inv H5; eauto.
+        + destruct ob; destruct b; eauto.
         + clear dependent b.
           clear dependent ob.
-          clear dependent oe.
-          rewrite Forall2_forall in H2.
+          rewrite Forall2_forall in H0.
           pose proof
                (conj
-                  (proj1 H2)
-                  (fun u v hin => (proj2 H2) u v hin henv)) as h; clear H2.
+                  (proj1 H0)
+                  (fun u v hin => (proj2 H0) u v hin henv)) as h; clear H0.
           rewrite <- Forall2_forall in h.
           pose proof Forall2_forall_impl_Forall2
                _ _ _ _ _ _ _
-               h _ H7 as hvts; assumption.
+               h _ H5 as hvts; assumption.
     Qed.
   End ExprPreservation.
 
@@ -80,21 +78,15 @@ Section BigStepTheorems.
       - inv H2.
         pose proof eval_member_exists
              _ _ _ _ H H7 as [? ?]; eauto.
-      - rewrite Forall2_forall in H2.
+      - rewrite Forall2_forall in H1.
         pose proof conj
-             (proj1 H2)
-             (fun e t hin => proj2 H2 e t hin henv) as h; clear H2.
+             (proj1 H1)
+             (fun e t hin => proj2 H1 e t hin henv) as h; clear H1.
         rewrite <- Forall2_forall in h.
         apply Forall2_only_l_Forall in h.
         rewrite Forall_exists_factor in h.
         destruct h as [vs hvs].
-        destruct oe; destruct b; inv H; inv H0.
-        + pose proof H3 henv as [vb hvb].
-          pose proof expr_big_step_preservation
-               _ _ _ _ _ hvb henv H4 as hvbt;
-            inv hvbt.
-          exists (Val.Struct vs (Some b)); constructor; cbn; auto.
-        + exists (Val.Struct vs None); constructor; cbn; auto.
+        destruct ob; destruct b; try contradiction; eauto.
     Qed.
   End ExprProgress.
 

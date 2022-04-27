@@ -27,10 +27,8 @@ Fixpoint rename_e (ρ : nat -> nat) (e : Expr.e) : Expr.e :=
     => Expr.Member t x $ rename_e ρ e
   | Expr.Bop t op e1 e2
     => Expr.Bop t op (rename_e ρ e1) (rename_e ρ e2)
-  | Expr.Struct es oe
-    => Expr.Struct
-        (map (rename_e ρ) es)
-        (option_map (rename_e ρ) oe)
+  | Expr.Struct es ob
+    => Expr.Struct (map (rename_e ρ) es) ob
   end.
 
 Local Close Scope expr_scope.

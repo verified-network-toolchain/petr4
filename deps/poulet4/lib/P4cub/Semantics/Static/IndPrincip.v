@@ -102,8 +102,11 @@ Section TypeExprInduction.
       P Γ (Expr.Member τ x e) τ.
   
   Hypothesis HStruct : forall Γ es oe τs (b : bool),
-      relop (type_expr Γ) oe (if b then Some Expr.TBool else None) ->
-      relop (P Γ) oe (if b then Some Expr.TBool else None) ->
+      match ob, b with
+      | Some _, true
+      | None, false => True
+      | _, _ => False
+      end ->
       Forall2 (type_expr Γ) es τs ->
       Forall2 (P Γ) es τs ->
       P Γ (Expr.Struct es oe) (Expr.TStruct τs b).
@@ -116,20 +119,6 @@ Section TypeExprInduction.
   Definition custom_type_expr_ind :
     forall Γ (e : Expr.e) (τ : Expr.t), Γ ⊢ₑ e ∈ τ -> P Γ e τ :=
     fix teind Γ e τ HY :=
-      let relopind
-            (oe : option Expr.e) (b : bool)
-            (HR : relop (type_expr Γ) oe (if b then Some Expr.TBool else None))
-        : relop (P Γ) oe (if b then Some Expr.TBool else None) :=
-        if b then
-          match HR with
-          | relop_some _ _ _ He => relop_some _ _ _ (teind _ _ _ He)
-          | relop_none _ => relop_none _
-          end
-        else
-          match HR with
-          | relop_some _ _ _ He => relop_some _ _ _ (teind _ _ _ He)
-          | relop_none _ => relop_none _
-          end in
       let fix lind
               {es : list Expr.e}
               {ts : list Expr.t}
@@ -158,8 +147,8 @@ Section TypeExprInduction.
       | type_member _ _ _ _ _ _ Hnth Hok He
         => HMem _ _ _ _ _ _ Hnth Hok He (teind _ _ _ He)
       | type_error _ err => HError _ err
-      | type_struct _ _ oe _ b Hoe Hes
-        => HStruct _ _ oe _ b Hoe (relopind oe b Hoe) Hes (lind Hes)
+      | type_struct _ _ _ _ _ Hob Hes
+        => HStruct _ _ _ _ _ Hob Hes (lind Hes)
       end.
 End TypeExprInduction.
 

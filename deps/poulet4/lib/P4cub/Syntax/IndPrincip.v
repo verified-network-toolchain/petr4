@@ -72,7 +72,7 @@ Section ExprInduction.
       P lhs -> P rhs -> P (Bop rt op lhs rhs).
   
   Hypothesis HStruct : forall fields valid,
-      Forall P fields -> predop P valid -> P (Struct fields valid).
+      Forall P fields -> P (Struct fields valid).
   
   Hypothesis HMember : forall rt x exp,
       P exp -> P (Member rt x exp).
@@ -88,11 +88,6 @@ Section ExprInduction.
           | []        => Forall_nil P
           | exp :: ees => Forall_cons exp (eind exp) (list_ind ees)
           end in
-      let opind (o : option e) : predop P o :=
-        match o with
-        | Some exp => predop_some _ _ (eind exp)
-        | None     => predop_none _
-        end in
       match expr with
       | Bool b       => HBool b
       | w `W n       => HBit w n
@@ -104,7 +99,7 @@ Section ExprInduction.
       | Bop τ op lhs rhs
         => HBop τ op lhs rhs (eind lhs) (eind rhs)
       | Struct fields valid
-        => HStruct fields valid (list_ind fields) (opind valid)
+        => HStruct fields valid (list_ind fields)
       | Member rt x exp => HMember rt x exp (eind exp)
       | Error err       => HError err
       end.

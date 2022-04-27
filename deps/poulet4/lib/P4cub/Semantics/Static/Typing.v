@@ -54,10 +54,14 @@ Inductive type_expr (Γ : expr_type_env)
   t_ok (type_vars Γ) τ ->
   Γ ⊢ₑ e ∈ Expr.TStruct τs b ->
   Γ ⊢ₑ Expr.Member τ x e ∈ τ
-| type_struct es oe τs (b : bool) :
-  relop (type_expr Γ) oe (if b then Some Expr.TBool else None) ->
+| type_struct es ob τs (b : bool) :
+  match ob, b with
+  | Some _, true
+  | None, false => True
+  | _, _ => False
+  end ->
   Forall2 (type_expr Γ) es τs ->
-  Γ ⊢ₑ Expr.Struct es oe ∈ Expr.TStruct τs b
+  Γ ⊢ₑ Expr.Struct es ob ∈ Expr.TStruct τs b
 | type_error err :
   Γ ⊢ₑ Expr.Error err ∈ Expr.TError
 where "Γ '⊢ₑ' e ∈ τ" := (type_expr Γ e τ) : type_scope.

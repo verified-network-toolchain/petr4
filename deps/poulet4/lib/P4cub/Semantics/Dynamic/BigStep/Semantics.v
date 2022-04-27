@@ -57,10 +57,9 @@ Inductive expr_big_step (ϵ : list Val.v)
   nth_error vs x = Some v ->
   ⟨ ϵ, e ⟩ ⇓ Val.Struct vs ob ->
   ⟨ ϵ, Expr.Member τ x e ⟩ ⇓ v
-| ebs_struct es oe vs ob :
-  relop (expr_big_step ϵ) oe (option_map Val.Bool ob) ->
+| ebs_struct es vs ob :
   Forall2 (expr_big_step ϵ) es vs ->
-  ⟨ ϵ, Expr.Struct es oe ⟩ ⇓ Val.Struct vs ob
+  ⟨ ϵ, Expr.Struct es ob ⟩ ⇓ Val.Struct vs ob
 where "⟨ ϵ , e ⟩ ⇓ v"
   := (expr_big_step ϵ e v) : type_scope.
 

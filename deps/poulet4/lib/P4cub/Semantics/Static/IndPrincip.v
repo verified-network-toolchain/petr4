@@ -101,7 +101,7 @@ Section TypeExprInduction.
       P Γ e (Expr.TStruct τs b) ->
       P Γ (Expr.Member τ x e) τ.
   
-  Hypothesis HStruct : forall Γ es oe τs (b : bool),
+  Hypothesis HStruct : forall Γ es ob τs (b : bool),
       match ob, b with
       | Some _, true
       | None, false => True
@@ -109,7 +109,7 @@ Section TypeExprInduction.
       end ->
       Forall2 (type_expr Γ) es τs ->
       Forall2 (P Γ) es τs ->
-      P Γ (Expr.Struct es oe) (Expr.TStruct τs b).
+      P Γ (Expr.Struct es ob) (Expr.TStruct τs b).
   
   Hypothesis HError : forall Γ err,
       P Γ (Expr.Error err) (Expr.TError).
@@ -163,9 +163,9 @@ Proof.
   - (* Require Poulet4.Utils.ForallMap.
        rewrite ForallMap.Forall2_map_l,
        ForallMap.Forall2_eq in H2; subst. *)
-    clear dependent Γ. clear dependent b. clear oe.
-    induction H2; cbn in *; f_equal; auto.
-  - destruct oe as [e |]; destruct b; cbn in *;
+    clear dependent Γ. clear dependent b.
+    induction H1; cbn in *; f_equal; auto.
+  - destruct ob as [e |]; destruct b; cbn in *;
       inv H; inv H0; reflexivity.
 Qed.
 

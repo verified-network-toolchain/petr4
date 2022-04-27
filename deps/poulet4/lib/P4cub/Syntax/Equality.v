@@ -135,16 +135,16 @@ Proof.
 Defined.
     
 (** Decidable Expression Equivalence. *)
-Fixpoint eqbe (e1 e2 : e) : bool :=
+Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
   let fix lstruct (es1 es2 : list e) : bool :=
     match es1, es2 with
     | [], _::_ | _::_, [] => false
     | [], [] => true
     | e1::es1, e2::es2 => (e1 =? e2)%expr && lstruct es1 es2
     end in
-  let opb (o1 o2 : option e) : bool :=
+  let opb (o1 o2 : option bool) : bool :=
     match o1, o2 with
-    | Some e1, Some e2 => (e1 =? e2)%expr
+    | Some b1, Some b2 => eqb b1 b2
     | None,    None    => true
     | _, _             => false
     end in
@@ -184,7 +184,7 @@ Section ExprEquivalenceDefs.
   Hint Rewrite @eqb_list_refl : core.
   Hint Rewrite @equiv_dec_refl : core.
   Hint Rewrite N.eqb_refl : core.
-  Hint Rewrite eqb_reflx : core.
+  Hint Resolve eqb_reflx : core.
 
   Lemma eqbe_refl : forall exp : e, (exp =? exp)%expr = true.
 >>>>>>> 9252317b9 (fixed equality & syntax auxlilary defs)
@@ -198,7 +198,7 @@ Section ExprEquivalenceDefs.
       repeat match goal with
              | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
              end; cbn in *; auto.
-    intuition; apply andb_prop in H as [H1 H2]; auto.
+    rewrite andb_true_r. destruct valid; auto.
   Qed.
 
   Local Hint Resolve eqb_prop : core.
@@ -271,7 +271,7 @@ Section ExprEquivalenceDefs.
       clear dependent valid; clear valid0.
       ind_list_Forall; intros [| h2 l2] He; try discriminate; auto.
       apply andb_prop in He as [He1 He2]; f_equal; eauto.
-    - inv H0; destruct valid0; cbn in *; try discriminate; f_equal; auto.
+    - destruct valid; destruct valid0; cbn in *; try discriminate; f_equal; auto.
     - rewrite relop_eq in e0; assumption.
   Qed.
   

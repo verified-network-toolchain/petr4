@@ -25,18 +25,18 @@ Local Hint Resolve Clmt.bind_sound : core.
 Local Hint Constructors eval_decl_list : core.
 Local Hint Constructors relop : core.
 
-Lemma eval_decl_list : forall l1 l2 vs1 vs2 ϵ,
+Lemma eval_decl_list_append : forall ϵ vs1 vs2 l1 l2,
     eval_decl_list ϵ l1 vs1 ->
-    eval_decl_list ϵ l2 vs2 ->
-    eval_decl_list ϵ (l1 ++ l2) (vs1 ++ vs2).
+    eval_decl_list (vs1 ++ ϵ) l2 vs2 ->
+    eval_decl_list ϵ (l2 ++ l1) (vs2 ++ vs1).
 Proof.
-  intros l1 l2 vs1 vs2 ϵ h1.
-  generalize dependent vs2.
-  generalize dependent l2.
-  induction h1; intros l2 vs2 h2; cbn; auto.
+  intros ϵ vs1 vs2.
+  generalize dependent vs1.
+  induction vs2 as [| v2 vs2 ih];
+    intros vs1 l1 [| e2 l2] h1 h2; inv h2; cbn; auto.
   constructor; eauto.
-  admit (* uh oh *).
-Abort.
+  rewrite <- app_assoc; assumption.
+Qed.
 
 Lemma shift_eval : forall vs vs' ϵ e v,
     ⟨ vs ++ ϵ, e ⟩ ⇓ v ->
@@ -48,11 +48,7 @@ Proof.
     rewrite nth_error_app2 by lia.
     rewrite Minus.minus_plus; assumption.
   - constructor.
-    + clear H1 H2. inv H; inv H0; unravel in *; auto.
-      constructor.
-      destruct ob; cbn in *; repeat some_inv;
-        try discriminate; auto.
-    + rewrite <- ForallMap.Forall2_map_l; assumption.
+    rewrite <- ForallMap.Forall2_map_l; assumption.
 Qed.
 
 Lemma eval_decl_list_length : forall ϵ l vs,
@@ -63,37 +59,43 @@ Qed.
 
 Goal forall e ϵ v,
     ⟨ ϵ, e ⟩ ⇓ v ->
-    forall l e',
-      lift_e e = (l, e') ->
-      exists vs, eval_decl_list ϵ l vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
+    forall us l e',
+      lift_e (length us) e = (l, e') ->
+      exists vs, eval_decl_list (us ++ ϵ) l vs /\ ⟨ vs ++ us ++ ϵ, e' ⟩ ⇓ v.
 Proof.
   intros e ϵ v h; induction h using custom_expr_big_step_ind;
-    intros l e' heq; cbn in *; inv heq; eauto.
-  - destruct (lift_e e) as [l' e'']. inv H1.
-    pose proof IHh _ _ eq_refl as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e e) as [l' e'']. inv H1.
-    pose proof IHh _ _ eq_refl as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e e) as [l' e'']. inv H1.
-    pose proof IHh _ _ eq_refl as (vs & ih & ihv); clear IHh.
-    eexists; eauto.
-  - destruct (lift_e e1) as [l₁ e₁].
-    destruct (lift_e e2) as [l₂ e₂].
-    inv H1.
-    pose proof IHh1 _ _ eq_refl as (vs1 & ih1 & ihv1); clear IHh1.
-    pose proof IHh2 _ _ eq_refl as (vs2 & ih2 & ihv2); clear IHh2.
-    exists (v :: vs2 ++ vs1); split; eauto.
+    intros us l e' heq; cbn in *; inv heq; eauto.
+  - eexists; split; eauto; cbn.
     constructor.
-    + econstructor; eauto.
-      * rewrite <- app_assoc.
-        apply eval_decl_list_length in ih2.
-        rewrite ih2.
-        auto using shift_eval.
-      * admit (* sketcky case. *).
-    + admit (*not true, need to shift a list?.*).
-  - destruct (lift_e e) as [l' e'']; inv H1.
-    pose proof IHh _ _ eq_refl as (vs' & ih & ihv); clear IHh.
+    rewrite nth_error_app2 by lia.
+    replace (length us + x - length us) with x by lia;
+      assumption.
+  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
+    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
+    eexists; eauto.
+  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
+    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
+    eexists; eauto.
+  - destruct (lift_e (length us) e) as [l' e''] eqn:eql. inv H1.
+    pose proof IHh _ _ _ eql as (vs & ih & ihv); clear IHh.
+    eexists; eauto.
+  - destruct (lift_e (length us) e1) as [l₁ e₁] eqn:eql1.
+    destruct (lift_e (length l₁ + length us) e2) as [l₂ e₂] eqn:eql2; inv H1.
+    pose proof IHh1 _ _ _ eql1 as (vs1 & ih1 & ihv1); clear IHh1.
+    assert (Hl1: length l₁ = length vs1) by eauto using eval_decl_list_length.
+    rewrite Hl1, <- app_length in eql2.
+    pose proof IHh2 _ _ _ eql2 as (vs2 & ih2 & ihv2); clear IHh2.
+    exists (v :: vs2 ++ vs1); split; eauto.
+    rewrite <- app_assoc in ihv2.
+    rewrite <- app_assoc in ih2.
+    constructor; eauto using eval_decl_list_append.
+    econstructor; eauto;
+      rewrite <- app_assoc; auto.
+    apply eval_decl_list_length in ih2.
+    rewrite ih2.
+    auto using shift_eval.
+  - destruct (lift_e (length us) e) as [l' e''] eqn:eql; inv H1.
+    pose proof IHh _ _ _ eql as (vs' & ih & ihv); clear IHh.
     eexists; eauto.
   - (* generalization of [Bop] case. *)
 Abort.

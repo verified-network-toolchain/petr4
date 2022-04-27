@@ -24,13 +24,9 @@ Section Determinism.
       intros ϵ e v1 v2 Hv1; generalize dependent v2;
         induction Hv1 using custom_expr_big_step_ind;
         intros v2' Hv2'; inv Hv2'; f_equal; auto 4.
-      - pose proof Forall2_forall_impl_Forall2
-             _ _ _ _ _ _ _ H2 _ H7 as H'.
-        rewrite Forall2_eq in H'; assumption.
-      - destruct oe as [e |];
-          destruct ob as [b |];
-          destruct ob0 as [b0 |];
-          cbn in *; inv H; inv H0; inv H5; eauto.
+      pose proof Forall2_forall_impl_Forall2
+           _ _ _ _ _ _ _ H0 _ H4 as H'.
+      rewrite Forall2_eq in H'; assumption.
     Qed.
   End ExpressionDeterminism.
 

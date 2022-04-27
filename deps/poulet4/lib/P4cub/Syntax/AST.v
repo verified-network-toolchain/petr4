@@ -130,7 +130,7 @@ Module Expr.
          (arg : e)                     (** unary operations *)
   | Bop (result_type : t) (op : bop)
          (lhs rhs : e)                 (** binary operations *)
-  | Struct (fields : list e) (valid : option e) (** struct literals *)
+  | Struct (fields : list e) (valid : option bool) (** struct literals *)
   | Member (result_type : t) (mem : nat)
             (arg : e)              (** member-expressions *)
   | Error (err : option string)       (** error literals *).    

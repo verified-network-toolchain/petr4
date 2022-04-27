@@ -133,7 +133,6 @@ Proof.
     unravel; try reflexivity; f_equal.
   - apply map_ext_Forall in H.
     rewrite map_map; assumption.
-  - destruct ob; reflexivity.
 Qed.
 
 Section Lemmas.

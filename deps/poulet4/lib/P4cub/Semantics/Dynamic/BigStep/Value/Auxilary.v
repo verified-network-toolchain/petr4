@@ -123,8 +123,7 @@ Fixpoint e_of_v (V : v) : Expr.e :=
   | w VW n => w `W n
   | w VS z => w `S z
   | Error err => Expr.Error err
-  | Struct vs ob
-    => Expr.Struct (map e_of_v vs) (option_map Expr.Bool ob)
+  | Struct vs ob => Expr.Struct (map e_of_v vs) ob
   end.
 
 Lemma t_of_e_of_v : forall V,

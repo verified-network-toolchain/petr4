@@ -4,6 +4,14 @@ From Poulet4.P4cub Require Export Semantics.Dynamic.BigStep.BigStep
      (*Transformations.Lifting.Lifted*).
 Import AllCubNotations Clmt.Notations Val.ValueNotations.
 
+Inductive eval_decl_list (ϵ : list Val.v) : list Expr.e -> list Val.v -> Prop :=
+| eval_decl_nil :
+  eval_decl_list ϵ [] []
+| eval_decl_cons h hv t tv :
+  ⟨ tv ++ ϵ, h ⟩ ⇓ hv ->
+  eval_decl_list ϵ t tv ->
+  eval_decl_list ϵ (h :: t) (hv :: tv).
+
 Ltac if_destr :=
   match goal with
     |- context [if ?trm then _ else _]

@@ -23,8 +23,7 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
       Expr.Uop rt op (inf_e e)
   | Expr.Bop rt op e1 e2 =>
       Expr.Bop rt op (inf_e e1) (inf_e e2)
-  | Expr.Struct es e =>
-      Expr.Struct (map inf_e es) (option_map inf_e e)
+  | Expr.Struct es ob => Expr.Struct (map inf_e es) ob
   | Expr.Member (Expr.TStruct fs _ as argtype) mem arg =>
       let t := infer_or_nop fs mem argtype in
       Expr.Member t mem (inf_e arg)

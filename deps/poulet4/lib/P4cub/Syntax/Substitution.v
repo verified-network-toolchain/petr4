@@ -43,8 +43,8 @@ Fixpoint tsub_e (σ : nat -> Expr.t) (e : Expr.e) : Expr.e :=
   | Expr.Uop rt op e => Expr.Uop (tsub_t σ rt) op (tsub_e σ e)
   | Expr.Bop rt op e1 e2 =>
       Expr.Bop (tsub_t σ rt) op (tsub_e σ e1) (tsub_e σ e2)
-  | Expr.Struct es e =>
-      Expr.Struct (map (tsub_e σ) es) (option_map (tsub_e σ) e)
+  | Expr.Struct es ob =>
+      Expr.Struct (map (tsub_e σ) es) ob
   | Expr.Member rt mem arg =>
       Expr.Member (tsub_t σ rt) mem (tsub_e σ arg)
   end.

@@ -164,8 +164,8 @@ Fixpoint eqbe (e1 e2 : e) : bool :=
     => equiv_dec u1 u2 &&&& (e1 =? e2)%expr && (t1 =? t2)%ty
   | Bop t1 o1 el1 er1, Bop t2 o2 el2 er2
     => equiv_dec o1 o2 &&&& (el1 =? el2)%expr && (er1 =? er2)%expr && (t1 =? t2)%ty
-  | Struct fs1 e1, Struct fs2 e2
-    => opb e1 e2 && lstruct fs1 fs2
+  | Struct fs1 b1, Struct fs2 b2
+    => opb b1 b2 && lstruct fs1 fs2
   | Member t1 x1 e1, Member t2 x2 e2
     => PeanoNat.Nat.eqb x1 x2 && (e1 =? e2)%expr && (t1 =? t2)%ty
   | Error err1, Error err2

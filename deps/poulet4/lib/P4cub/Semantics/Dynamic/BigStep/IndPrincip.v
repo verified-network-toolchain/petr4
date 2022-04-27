@@ -56,12 +56,10 @@ Section ExprEvalInduction.
       P ϵ e (Val.Struct vs ob) ->
       P ϵ (Expr.Member τ x e) v.
 
-  Hypothesis HStruct : forall ϵ es oe vs ob,
-      relop (expr_big_step ϵ) oe (option_map Val.Bool ob) ->
-      relop (P ϵ) oe (option_map Val.Bool ob) ->
+  Hypothesis HStruct : forall ϵ es vs ob,
       Forall2 (expr_big_step ϵ) es vs ->
       Forall2 (P ϵ) es vs ->
-      P ϵ (Expr.Struct es oe) (Val.Struct vs ob).
+      P ϵ (Expr.Struct es ob) (Val.Struct vs ob).
   
   (** Custom induction principle for
       the expression big-step relation.
@@ -70,14 +68,6 @@ Section ExprEvalInduction.
     forall (ϵ : list Val.v) (e : Expr.e)
       (v : Val.v), ⟨ ϵ, e ⟩ ⇓ v -> P ϵ e v :=
     fix ebsind ϵ e v Hy :=
-      let relopind
-            {oe : option Expr.e} {ob : option bool}
-            (H : relop (expr_big_step ϵ) oe (option_map Val.Bool ob))
-        : relop (P ϵ) oe (option_map Val.Bool ob) :=
-        match H with
-        | relop_some _ _ _ He => relop_some _ _ _ (ebsind _ _ _ He)
-        | relop_none _ => relop_none _
-        end in
       let fix lind
               {es : list Expr.e} {vs : list Val.v}
               (HR : Forall2 (expr_big_step ϵ) es vs)
@@ -108,7 +98,7 @@ Section ExprEvalInduction.
         => HMember
             _ t _ _ _ _ _ Hnth
             He (ebsind _ _ _ He)
-      | ebs_struct _ _ _ _ _ Ho Hes
-        => HStruct _ _ _ _ _ Ho (relopind Ho) Hes (lind Hes)
+      | ebs_struct _ _ _ _ Hes
+        => HStruct _ _ _ _ Hes (lind Hes)
       end.
 End ExprEvalInduction.

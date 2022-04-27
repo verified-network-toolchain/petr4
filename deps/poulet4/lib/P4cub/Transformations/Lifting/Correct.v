@@ -97,5 +97,45 @@ Proof.
   - destruct (lift_e (length us) e) as [l' e''] eqn:eql; inv H1.
     pose proof IHh _ _ _ eql as (vs' & ih & ihv); clear IHh.
     eexists; eauto.
-  - (* generalization of [Bop] case. *)
-Abort.
+  - destruct ((fix lift_e_list (up : nat) (es : list Expr.e)
+                : list Expr.e * list Expr.e :=
+                 match es with
+                 | [] => ([], [])
+                 | e :: es0 =>
+                     let '(le, e') := lift_e up e in
+                     let '(les, es') := lift_e_list (length le + up) es0 in
+                     (les ++ le, Shift.rename_e (Nat.add $ length les) e' :: es')
+                 end) (length us) es)
+      as [les es'] eqn:eql; inv H2.
+    assert (help: exists vs',
+               eval_decl_list (us ++ ϵ) les vs'
+               /\ Forall2 (expr_big_step (vs' ++ us ++ ϵ)) es' vs).
+    { generalize dependent les;
+      generalize dependent es';
+        generalize dependent us.
+      induction H as [| e v es vs hev hesvs ihesvs]; inv H0;
+        intros us ES l h; cbn.
+      + inv h; cbn; eexists; eauto.
+      + destruct (lift_e (length us) e) as [le E] eqn:eqle.
+        destruct ((fix lift_e_list (up : nat) (es : list Expr.e) {struct es}
+                    : list Expr.e * list Expr.e :=
+                     match es with
+                     | [] => ([], [])
+                     | e :: es0 =>
+                         let '(le, e') := lift_e up e in
+                         let '(les, es') := lift_e_list (length le + up) es0 in
+                         (les ++ le, Shift.rename_e (Nat.add $ length les) e' :: es')
+                     end) (length le + length us) es)
+          as [les Es] eqn:eqles; inv h.
+        pose proof H3 _ _ _ eqle as (levs & hlevs & ihE); clear H3.
+        assert (hlen: length le = length levs)
+          by eauto using eval_decl_list_length.
+        rewrite hlen, <- app_length in eqles.
+        pose proof ihesvs H5 _ _ _ eqles as (lesvs & hlesvs & ihEs); clear ihesvs.
+        rewrite <- app_assoc in hlesvs, ihEs.
+        exists (lesvs ++ levs); split; auto using eval_decl_list_append.
+        apply eval_decl_list_length in hlesvs.
+        rewrite hlesvs.
+        constructor; rewrite <- app_assoc; auto using shift_eval. }
+    destruct help as (vs' & hvs' & h); eexists; eauto.
+Qed.

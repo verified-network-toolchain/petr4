@@ -63,4 +63,12 @@ fn main() {
                    (if (eq eth A)
                        (set port 1)
                        (set port 2)))");
+
+    let bad_rules: &[Rewrite<SymbolLang, ()>] = &[
+        rw!("expand"; "(f ?x)" =>
+                      "(+ (f ?x) (f ?x))"),
+    ];
+
+    run(bad_rules, "(f a)");
+
 }

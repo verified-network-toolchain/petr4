@@ -7,14 +7,19 @@ Require Export Coq.Strings.String
         Poulet4.Monads.Monad.
 Require Poulet4.P4light.Syntax.P4String.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
+Require Export Arith_base.
+Require Import BinPos BinInt BinNat Pnat Nnat.
 Import AllCubNotations Val.ValueNotations.
 Import Poulet4.P4light.Syntax.Typed.
 Local Open Scope string_scope.
+
+(* TOASK RUDY: E2E version of these functions *)
 
 (** Embeding [p4cub] values in [p4light] values. *)
 Section Embed.
   Context {tags_t: Type}. 
   Context {dummy_tags: tags_t}. 
+  Context {string_list: list string}.
   Notation VAL := (@ValueBase bool).
   Notation C_P4Type := Expr.t. 
   Notation P_P4Type := (@P4Type tags_t). 
@@ -22,19 +27,47 @@ Section Embed.
   Definition emb_string (s : string) : P4String.t tags_t := 
   {| P4String.str := s; P4String.tags := dummy_tags |}. 
 
-  (* not needed for now *)
-  (* Inductive emb_kv : string * C_P4Type -> P4String.t tags_t * P_P4Type -> Prop := *) 
+  Fixpoint string_to_int (s: string) (index : nat) (s_l: list string): option nat := 
+    match s_l with 
+    | [] => None
+    | h::t => 
+      if h == s then Some index 
+      else (string_to_int s (index+1) t)
+    end. 
+
+  Definition get_int (o : option nat) : nat := 
+    match o with 
+    | None => 0
+    | Some s => s
+    end.
+
+  Fixpoint string_of_index (n : nat) : string := 
+    match n with 
+    | 0%nat => "0"
+    | S n => "0" ++ string_of_index (n)
+    end. 
+  
+  Fixpoint make_assoc_list {A : Type} (index : nat) (l : list A) : list (string * A) := 
+  match l with 
+    | [] => []
+    | h::t => ((string_of_index index), h) :: make_assoc_list index t
+  end.
 
   Inductive P4Cub_to_P4Light : C_P4Type -> P_P4Type -> Prop := 
   | TBool : P4Cub_to_P4Light Expr.TBool TypBool      
   | TBit (width : N) : P4Cub_to_P4Light (Expr.TBit width) (TypBit width)
   | TInt (width : positive) : P4Cub_to_P4Light (Expr.TInt width) (TypInt (Npos width))
   | TError : P4Cub_to_P4Light Expr.TError TypError   
-  | TTuple (types : list Expr.t) (light_types : list P_P4Type) : 
+  | TStruct_not_header (types : list Expr.t) (light_types : list P_P4Type) : 
     Forall2 P4Cub_to_P4Light (types) (light_types) -> 
-    P4Cub_to_P4Light (Expr.TTuple types) (TypTuple (light_types))
+    P4Cub_to_P4Light (Expr.TStruct types false) (TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
+  | TStruct_header (types : list Expr.t) (light_types : list P_P4Type) : 
+    Forall2 P4Cub_to_P4Light types light_types -> 
+    P4Cub_to_P4Light (Expr.TStruct types true) (TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types))) 
   | TVar (type_name : string) :
-    P4Cub_to_P4Light (Expr.TVar type_name) (TypTypeName (emb_string type_name)). 
+    (* if (string_to_int type_name 0 string_list) == None then P4Cub_to_P4Light Expr.TError TypError
+    else  *)
+    P4Cub_to_P4Light (Expr.TVar (get_int (string_to_int type_name 0 string_list))) (TypTypeName (emb_string type_name)). 
 
     (* embed *)
   Fixpoint P4Cub_to_P4Light_fun (c : C_P4Type) : P_P4Type:= 
@@ -43,10 +76,11 @@ Section Embed.
     | Expr.TBit (width) => TypBit width
     | Expr.TInt (width) => TypInt (Npos width)
     | Expr.TError => TypError   
-    | Expr.TTuple (types) => TypTuple (List.map P4Cub_to_P4Light_fun types)
-    | Expr.TVar (type_name) => TypTypeName (emb_string type_name)
-    | _ => TypBool 
+    | Expr.TStruct types true => TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
+    | Expr.TStruct types false => TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
+    | Expr.TVar (type_name) => TypTypeName (emb_string (nth type_name string_list ""))
     end.
+
 
     (* project *)
   Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : Result.result C_P4Type := 
@@ -59,8 +93,8 @@ Section Embed.
     | TypVarBit (width) => Result.error "TypVarBit has no mapping in C_P4Type"
     | TypArray (typ) (size) => Result.error "TypArray has no mapping in C_P4Type"
     | TypTuple (types) => 
-        let lst := sequence (List.map P4Light_to_P4Cub_fun types) in 
-        Result.map Expr.TTuple lst
+        let^ lst := sequence (List.map P4Light_to_P4Cub_fun types) in 
+        Expr.TStruct lst false
     | TypList (types) => Result.error "TypList has no mapping in C_P4Type"
     | TypRecord (fields) => Result.error "TypRecord has no mapping in C_P4Type"
     | TypSet (elt_type) => Result.error "TypSet has no mapping in C_P4Type"
@@ -71,7 +105,7 @@ Section Embed.
     | TypHeaderUnion (fields) => Result.error "TypHeaderUnion to be removed"
     | TypStruct (fields) => Result.error "TypStruct to be removed"
     | TypEnum (name) (typ) (members) => Result.error "TypEnum has no mapping in C_P4Type"
-    | TypTypeName (name) => Result.ok (Expr.TVar (P4String.str name))
+    | TypTypeName (name) => Result.ok (Expr.TVar (get_int (string_to_int (P4String.str name) 0 string_list))) 
     | TypNewType (name) (typ) => Result.error "TypNewType has no mapping in C_P4Type"
     | TypControl (c) => Result.error "TypControl has no mapping in C_P4Type"
     | TypParser (c) => Result.error "TypParser has no mapping in C_P4Type"
@@ -86,60 +120,33 @@ Section Embed.
 
   Inductive Embed : Val.v -> VAL -> Prop :=
   | Embed_bool b :
-      Embed ~{ VBOOL b }~ (ValBaseBool b)
+      Embed (Val.Bool b) (ValBaseBool b)
   | Embed_bit w n :
-      Embed ~{ w VW n }~ (ValBaseBit (to_lbool w n))
+      Embed (Val.Bit w n) (ValBaseBit (to_lbool w n))
   | Embed_int w z :
-      Embed ~{ w VS z }~ (ValBaseInt (to_lbool (Npos w) z))
+      Embed (Val.Int w z) (ValBaseInt (to_lbool (Npos w) z))
   | Embed_tuple vs vs' :
       Forall2 Embed vs vs' ->
-      Embed ~{ TUPLE vs }~ (ValBaseTuple vs')
-  | Embed_struct vs vs' :
-      Forall2 (fun xv xv' =>
-                 fst xv = fst xv' /\
-                 Embed (snd xv) (snd xv')) vs vs' ->
-      Embed ~{ STRUCT { vs } }~ (ValBaseStruct vs')
+      Embed (Val.Struct vs None) (ValBaseTuple vs')
   | Embed_header vs vs' b :
-      Forall2 (fun xv xv' =>
-                 fst xv = fst xv' /\
-                 Embed (snd xv) (snd xv')) vs vs' ->
-      Embed ~{ HDR { vs } VALID:=b }~ (ValBaseHeader vs' b)
+      Forall2 Embed vs (map snd vs') ->
+      Embed (Val.Struct (vs) (Some b)) (ValBaseHeader vs' b)
   | Embed_error eo er :
       match eo with
       | Some err => err 
       | None     => "no error"%string
       end = er ->
-      Embed ~{ ERROR eo }~ (ValBaseError er)
-  | Embed_stack hs ts i hs' :
-      Forall2
-        (fun v v' =>
-           Embed (Val.VHeader (snd v) (fst v)) v')
-        hs hs' ->
-      Embed
-        ~{ STACK hs:ts NEXT:=i }~
-        (ValBaseStack hs' (BinInt.Z.to_N i)).
+      Embed (Val.Error eo) (ValBaseError er).
 
   Fixpoint embed (v : Val.v) : VAL :=
     match v with
-    | ~{ VBOOL b }~ => ValBaseBool b
-    | ~{ w VW n }~  => ValBaseBit $ to_lbool w n
-    | ~{ w VS z }~  => ValBaseInt $ to_lbool (Npos w) z
-    | ~{ TUPLE vs }~      => ValBaseTuple $ map embed vs
-    | ~{ STRUCT { vs } }~ =>
-      ValBaseStruct
-        $ map (fun '(x,v) => (x, embed v)) vs
-    | ~{ HDR { vs } VALID:=b }~ =>
-      ValBaseHeader
-        (map (fun '(x,v) => (x, embed v)) vs) b
-    | Val.VError (Some err)   => ValBaseError $ err
-    | ~{ ERROR  None       }~ => ValBaseError $ "no error"
-    | ~{ STACK hs:_ NEXT:=i }~ =>
-      ValBaseStack
-        (map
-           (fun '(b,vs) =>
-              ValBaseHeader
-                (map (fun '(x,v) => (x, embed v)) vs) b) hs)
-        (BinInt.Z.to_N i)
+    | Val.Bool b => ValBaseBool b
+    | Val.Bit w n => ValBaseBit $ to_lbool w n
+    | Val.Int w z  => ValBaseInt $ to_lbool (Npos w) z
+    | Val.Struct (vs) (Some b)     => ValBaseHeader (make_assoc_list 0 (List.map embed vs)) b
+    | Val.Struct (vs) (None)     => ValBaseStruct (make_assoc_list 0 (List.map embed vs))
+    | Val.Error (Some v)  => ValBaseError v
+    | Val.Error (None) => ValBaseError "no error"
     end.
 
   Local Hint Constructors Embed : core.
@@ -183,3 +190,11 @@ Section Embed.
       firstorder.
   Qed.
 End Embed.
+
+(* E2E proof for types 
+Forall (t : p4cub_type), p4light_to_p4cub (p4cub_to_p4light t) = Some t. 
+
+E2E proof for values  *)
+
+(* In Semantics.v In bigstep, we will use these functions *)
+

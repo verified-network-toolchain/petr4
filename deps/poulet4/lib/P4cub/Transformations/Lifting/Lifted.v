@@ -1,4 +1,5 @@
 Require Export Poulet4.P4cub.Syntax.Syntax
+        Poulet4.P4cub.Syntax.Shift
         Poulet4.P4cub.Transformations.Lifting.Statementize
         Coq.Numbers.DecimalString
         Coq.Strings.Ascii Coq.Strings.String.
@@ -117,7 +118,7 @@ Variant lifted_lexpr : Expr.e -> Prop :=
     lifted_expr e₁ ->
     lifted_expr e₂ ->
     lifted_lexpr (Expr.Bop τ op e₁ e₂)
-  | lift_struct es ob :
+  | lifted_struct es ob :
     Forall lifted_expr es ->
     lifted_lexpr (Expr.Struct es ob).
 
@@ -208,7 +209,26 @@ Inductive lifted_top_Decl : TopDecl.d -> Prop :=
 Local Hint Constructors lifted_expr : core.
 Local Hint Constructors lifted_lexpr : core.
 Local Hint Constructors lifted_parser_expr : core.
-  
+
+Lemma rename_e_lifted_expr : forall ρ e,
+    lifted_expr e -> lifted_expr (rename_e ρ e).
+Proof.
+  intros ρ e h; induction h; unravel; auto.
+Qed.
+
+Local Hint Resolve rename_e_lifted_expr : core.
+
+Lemma rename_e_lifted_lexpr : forall ρ e,
+    lifted_lexpr e -> lifted_lexpr (rename_e ρ e).
+Proof.
+  intros ρ e h; inv h; unravel; auto.
+  apply lifted_struct.
+  rewrite sublist.Forall_map.
+  rewrite Forall_forall in *; unravel; auto.
+Qed.
+
+Local Hint Resolve rename_e_lifted_lexpr : core.
+
 Lemma lift_e_lifted_expr : forall e E l up,
     lift_e up e = (l, E) ->
     Forall lifted_lexpr l /\ lifted_expr E.
@@ -228,10 +248,39 @@ Proof.
     split; auto.
     constructor.
     + apply lifted_bop; auto.
-      admit (* TODO: prove shifting preserves lifting. *).
     + rewrite Forall_app; auto.
-  - (* TODO *)
-Admitted.
+  - destruct ((fix lift_e_list up es :=
+                 match es with
+                 | [] => ([], [])
+                 | e :: es0 =>
+                     let '(le, e') := lift_e up e in
+                     let '(les, es') := lift_e_list (Datatypes.length le + up) es0 in
+                     (les ++ le, rename_e (Nat.add (Datatypes.length les)) e' :: es')
+                 end) up fields)
+      as [l' E'] eqn:eql; inv h.
+    split; auto.
+    assert (yes: Forall lifted_lexpr l' /\ Forall lifted_expr E').
+    { generalize dependent l';
+        generalize dependent E';
+        generalize dependent up; clear valid.
+      induction H as [| e es he hes ihes]; intros up E l H.
+      - inv H; auto.
+      - lift_e_destr_hyp.
+        destruct ((fix lift_e_list up es :=
+                     match es with
+                     | [] => ([], [])
+                     | e :: es0 =>
+                         let '(le, e') := lift_e up e in
+                         let '(les, es') := lift_e_list (Datatypes.length le + up) es0 in
+                         (les ++ le, rename_e (Nat.add (Datatypes.length les)) e' :: es')
+                     end) (Datatypes.length l0 + up))
+          as [L' Es'] eqn:eqes; inv H.
+        apply he in Heqp as [? ?]; clear he.
+        apply ihes in eqes as [? ?]; clear ihes.
+        split; auto. rewrite Forall_app; auto. }
+    destruct yes; auto.
+  - apply IHe in Heqp as [? ?]; auto.
+Qed.
 
 Local Hint Constructors lifted_stmt : core.
 

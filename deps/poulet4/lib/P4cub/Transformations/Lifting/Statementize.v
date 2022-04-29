@@ -7,38 +7,6 @@ Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
-(** Idea for lift_e:
-lift_e e = (l, e'), where e' is a lifted expression,
-& l is a list of generated expressions.
-
-Will want to show that
-⟨ ϵ, e ⟩ ⇓ v →
-lift_e e = (l, e') →
-∃ vs, eval_decl_list ϵ l vs ∧ ⟨ vs ++ ϵ, e' ⟩ ⇓ v
-
-lift up wWn = [wWn], `0
-lift up true = [], true
-lift up `n = [], `(up + n)
-lift up e.x = l, e'.x
-     lift up e = l, e'
-lift up ~e = ~e' :: l, `0
-     lift up e = l, e'
-lift up e₁ + e₂ = shift (length l₂) e₁' + e₂' :: l₂ ++ l₁, `0
-     lift up e₁ = l₁, e₁'
-     lift up e₂ = l₂, e₂'
-
-
-lift ~`5 + `6.x = [`0 + `6.x;~`5],`0 maybe `6 is messed up, needs to be up shifted?
-lift ~`6.x = [], ~`6.x
-lift ~`5 = [~`5],`0
-lift `5 = [],`5
-
-lift ~`1 + `0.x = [`0 + `0.x;~`1],`0   `0.x is messed up
-lift ~`1 = [~`1],`0
-want lift ~`1 + `0.x = [`0 + `1.x; ~`1], `0
-
-*)
-
 (** [lift_e up e = (l, e')],
     where e' is a lifted expression,
     & l is a list of lifted expressions. *)

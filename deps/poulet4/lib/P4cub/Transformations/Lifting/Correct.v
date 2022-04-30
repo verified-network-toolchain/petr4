@@ -57,7 +57,7 @@ Proof.
   intros ϵ l vs h; induction h; cbn; auto.
 Qed.
 
-Goal forall e ϵ v,
+Theorem lift_e_correct : forall e ϵ v,
     ⟨ ϵ, e ⟩ ⇓ v ->
     forall us l e',
       lift_e (length us) e = (l, e') ->

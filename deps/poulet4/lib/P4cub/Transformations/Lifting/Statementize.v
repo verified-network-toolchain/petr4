@@ -50,16 +50,15 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
       (Expr.Struct es ob :: les, Expr.Var (t_of_e e) 0)
   end.
 
-(*
 Fixpoint lift_e_list (up : nat) (es : list Expr.e)
   : list Expr.e * list Expr.e :=
-    match es with
-    | [] => ([],[])
-    | e :: es
-      => let '(le,e') := lift_e up e in
-        let '(les,es') := lift_e_list (length le + up) es in
-        (le ++ les, rename_e (plus $ length les) e :: es')
-    end.
+  match es with
+  | [] => ([],[])
+  | e :: es
+    => let '(le,e') := lift_e up e in
+      let '(les,es') := lift_e_list (length le + up) es in
+      (les ++ le, rename_e (plus $ length les) e' :: es')
+  end.
 
 Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
   : list Expr.e * paramarg Expr.e Expr.e :=
@@ -74,50 +73,17 @@ Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
 
 Fixpoint lift_args (up : nat) (es : Expr.args)
   : list Expr.e * Expr.args :=
-    match es with
-    | [] => ([],[])
-    | e :: es
-      => let '(le,e') := lift_arg up e in
-        let '(les,es') := lift_args (length le + up) es in
-        (le ++ les, rename_arg (plus $ length les) e :: es')
-    end.
-
-Definition lift_arrowE (up : nat)
-           '({|paramargs:=args; rtrns:=oe|} : Expr.arrowE)
-  : list Expr.e * Expr.arrowE :=
-  let '(inits, args) := lift_args up args in
-  match oe with
-  | None => (inits, {|paramargs:=args;rtrns:=None|})
-  | Some e
-    => let '(le,e) := lift_e (length inits + up) e in
-      (le ++ inits, {|paramargs:=args;rtrns:=Some e|})
+  match es with
+  | [] => ([],[])
+  | e :: es
+    => let '(le,e') := lift_arg up e in
+      let '(les,es') := lift_args (length le + up) es in
+      (les ++ le, rename_arg (plus $ length les) e' :: es')
   end.
 
-Local Open Scope stmt_scope.
-
-Definition lift_s (up : nat) (s : Stmt.s) : list Expr.e * Stmt.s :=
-  match s with
-  | Stmt.Invoke _ => ([],s)
-  | e₁ `:= e₂
-    => let '(le₁, e₁) := lift_e up e₁ in
-      let '(le₂, e₂) := lift_e (length le₁ + up) e₂ in
-      (le₂ ++ le₁, rename_e (plus $ length le₂) e₁ `:= e₂)
-  | Stmt.FunCall f ts args
-    => let '(inits, args) := lift_arrowE up args in
-      (inits, Stmt.FunCall f ts args)
-  | Stmt.ActCall f cargs dargs
-    => let '(cs,cargs) := lift_e_list up cargs in
-      let '(ds,dargs) := lift_args (length cs + up) dargs in
-      (ds ++ cs, Stmt.ActCall f cargs dargs)
-  | Stmt.MethodCall e f ts args
-    => let '(inits, args) := lift_arrowE up args in
-      (inits, Stmt.MethodCall e f ts args)  
-  | Stmt.Apply x exts args => 
-      let '(inits, args) := lift_args up args in
-      (inits, Stmt.Apply x exts args)
-  end.
-
-Local Close Scope stmt_scope.
+(** [unwind_vars [e₁;...;eₙ] s = Stmt.Var eₙ (...(Stmt.Var e₁ s )...)]. *)
+Definition unwind_vars (es : list Expr.e) : Stmt.s -> Stmt.s :=
+  List.fold_left (fun b e => Stmt.Var (inr e) b) es.
 
 Definition lift_trans (up : nat) (e : Parser.e)
   : list Expr.e * Parser.e :=
@@ -128,92 +94,86 @@ Definition lift_trans (up : nat) (e : Parser.e)
       (le, Parser.Select e d cases)
   end.
 
-Definition unwind_vars (es : list Expr.e) : Stmt.block -> Stmt.block :=
-  List.fold_left (fun b e => Stmt.Var (inr e) b) es.
+Definition lift_fun_kind (up : nat) (fk : Stmt.fun_kind)
+  : list Expr.e * Stmt.fun_kind :=
+  match fk with
+  | Stmt.Funct _ _ None
+  | Stmt.Method _ _ _ None => ([],fk)
+  | Stmt.Funct f τs (Some e)
+    => let '(le,e) := lift_e up e in (le, Stmt.Funct f τs (Some e))
+  | Stmt.Method x m τs (Some e)
+    => let '(le,e) := lift_e up e in (le, Stmt.Method x m τs (Some e))
+  | Stmt.Action a es
+    => let '(les,es) := lift_e_list up es in (les, Stmt.Action a es)
+  end.
 
-Local Open Scope block_scope.
+Local Open Scope stmt_scope.
 
-Fixpoint lift_block (up : nat) (b : Stmt.block) : Stmt.block :=
-  match b with
+Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
+  match s with
   | Stmt.Skip
   | Stmt.Exit
-  | Stmt.Return None => b
-  | Stmt.Return (Some e) => 
-      let '(le, e) := lift_e up e in
+  | Stmt.Return None
+  | Stmt.Invoke _ => s
+  | Stmt.Return (Some e)
+    => let '(le, e) := lift_e up e in
       unwind_vars le $ Stmt.Return $ Some e
   | Stmt.Transition e =>
       let '(le, e) := lift_trans up e in
       unwind_vars le $ Stmt.Transition $ e
-  | Stmt.Var (inl t) b => Stmt.Var (inl t) (lift_block up b)
-  | Stmt.Var (inr e) b =>
+  | e₁ `:= e₂
+    => let '(le₁, e₁) := lift_e up e₁ in
+      let '(le₂, e₂) := lift_e (length le₁ + up) e₂ in
+      unwind_vars (le₂ ++ le₁) $ rename_e (plus $ length le₂) e₁ `:= e₂
+  | Stmt.Call fk args
+    => let '(lfk,fk) := lift_fun_kind up fk in
+      let '(largs,args) := lift_args (length lfk + up) args in
+      unwind_vars
+        (largs ++ lfk) $
+        Stmt.Call (rename_fun_kind (plus $ length args) fk) args
+  | Stmt.Apply x exts args
+    => let '(inits, args) := lift_args up args in
+      unwind_vars inits $ Stmt.Apply x exts args
+  | Stmt.Var (inl t) s => Stmt.Var (inl t) (lift_s up s)
+  | Stmt.Var (inr e) s =>
       let '(le,e) := lift_e up e in
       unwind_vars
         le $ Stmt.Var (inr e)
-        $ lift_block (length le + up) b
-  | If e {` b₁ `} Else {` b₂ `} `; b =>
+        $ lift_s (length le + up) s
+  | s₁ `; s₂ => lift_s up s₁ `; lift_s up s₂
+  | If e Then s₁ Else s₂ =>
       let '(le,e) := lift_e up e in
       unwind_vars
-        le $ If e {` lift_block (length le + up) b₁ `}
-        Else {` lift_block (length le + up) b₂ `}
-        `; lift_block (length le + up) b
-  | s `; b =>
-      let '(ls, s) := lift_s up s in
-      unwind_vars ls (s `; lift_block (length ls + up) b)
-  | Stmt.Block b₁ b₂
-    => Stmt.Block (lift_block up b₁) $ lift_block up b₂
+        le $ If e Then lift_s (length le + up) s₁
+        Else lift_s (length le + up) s₂
   end.
 
-Local Close Scope block_scope.
-*)
-(* TODO: lifting controls & topdecls
-   is only a total function
-   starting with an up shift of [0].
+Local Close Scope stmt_scope.
 
 Definition lift_control_decl (cd : Control.d) : Control.d :=
     match cd with
-    | Control.Action a signature body i =>
-      let (body', env_body) := TranslateStatement body env in 
-      (Stmt.Skip i, Control.CDAction a signature body' i , env_body)
-    | Control.CDTable t bdy i =>
-      let '(table_init, bdy', env_bdy) := TranslateTable bdy env i in 
-      (table_init, Control.CDTable t bdy' i, env_bdy)
-    | Control.CDSeq d1 d2 i => 
-      let '(st1, d1', env_d1) := TranslateControlDecl d1 env in 
-      let '(st2, d2', env_d2) := TranslateControlDecl d2 env_d1 in 
-      (Stmt.Seq st1 st2 i, Control.CDSeq d1' d2' i, env_d2)
+    | Control.Action a cps dps body
+      => Control.Action a cps dps $ lift_s 0 body
+    | Control.Table t key actions
+      => (* TODO: lift key! *) Control.Table t key actions
     end.
-  
 
-Fixpoint TranslateTopDecl
-         (td : TopDecl.d tags_t) (env : VarNameGen.t)
-  : TopDecl.d tags_t * VarNameGen.t := 
+Definition lift_top_decl (td : TopDecl.d) : TopDecl.d := 
   match td with 
-  | TopDecl.TPInstantiate C x targs cargs i =>
-    (TopDecl.TPInstantiate C x targs cargs i, env)
-
-  | TopDecl.TPExtern e tparams cparams methods i => 
-    (TopDecl.TPExtern e tparams cparams methods i, env)
-              
-  | TopDecl.TPControl c cparams eps params body apply_blk i =>
-    let '(init_blk, body', env_body) := TranslateControlDecl body env in
-    let (apply_blk', env_apply_blk) := TranslateStatement apply_blk env_body in
-    (TopDecl.TPControl c cparams eps params body' (Stmt.Seq init_blk apply_blk' i) i, env_apply_blk)
-              
-  | TopDecl.TPParser p cparams eps params start states i =>
-    let (start', env_start) := TranslateParserState start env in
-    let (states', env_states) := TranslateParserStates states env_start in
-    (TopDecl.TPParser p cparams eps params start' states' i, env_states)
-              
-  | TopDecl.TPFunction f tparams signature body i =>
-    let (body', env_body) := TranslateStatement body env in 
-    (TopDecl.TPFunction f tparams signature body' i, env_body)
-              
-  | TopDecl.TPSeq d1 d2 i => 
-    let (d1', env_d1) := TranslateTopDecl d1 env in
-    let (d2', env_d2) := TranslateTopDecl d2 env_d1 in 
-    (TopDecl.TPSeq d1' d2' i, env_d2)
+  | TopDecl.Instantiate _ _ _
+  | TopDecl.Extern _ _ _ _ => td
+  | TopDecl.Control c cparams eps params body apply_blk =>
+      TopDecl.Control
+        c cparams eps params
+        (map lift_control_decl body)
+        $ lift_s 0 apply_blk  
+  | TopDecl.Parser p cparams eps params start states =>
+      TopDecl.Parser
+        p cparams eps params
+        (lift_s 0 start) $ map (lift_s 0) states
+  | TopDecl.Funct f tparams signature body =>
+      TopDecl.Funct f tparams signature $ lift_s 0 body
   end.
 
-Definition TranslateProgram (program: TopDecl.d tags_t) : TopDecl.d tags_t :=
-  fst (TranslateTopDecl program VarNameGen.new_env)
-. *)
+Definition lift_program : list TopDecl.d -> list TopDecl.d :=
+  map lift_top_decl.

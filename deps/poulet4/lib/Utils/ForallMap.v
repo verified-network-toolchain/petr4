@@ -3,6 +3,15 @@ Export ListNotations.
 
 (** * Utility Lemmas & Definitions for Lists. *)
 
+Lemma nth_error_app3 : forall {U : Type} (l us : list U) n,
+    nth_error (l ++ us) (length l + n) = nth_error us n.
+Proof.
+  intros U l us; induction l as [| h t ih];
+    intros [| n]; cbn; auto.
+  - rewrite ih; reflexivity.
+  - rewrite ih; reflexivity.
+Qed.
+
 Lemma length_nth_error_some : forall (U : Type) n us,
     n < List.length us -> exists u : U, nth_error us n = Some u.
 Proof.

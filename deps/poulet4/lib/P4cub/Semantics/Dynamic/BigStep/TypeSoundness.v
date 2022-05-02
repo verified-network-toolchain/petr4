@@ -70,11 +70,11 @@ Section BigStepTheorems.
       - pose proof eval_slice_exists
              _ _ _ _ _ H H0 H2 as [v' hv']; eauto.
       - pose proof eval_cast_exists
-             _ _ _ H H3 as [v' hv']; eauto.
+             _ _ _ H H2 as [v' hv']; eauto.
       - pose proof eval_uop_exist
-             _ _ _ _ H H1 as [? ?]; eauto.
+             _ _ _ _ H H2 as [? ?]; eauto.
       - pose proof eval_bop_exists
-             _ _ _ _ _ _ H H3 H2 as [? ?]; eauto.
+             _ _ _ _ _ _ H H4 H3 as [? ?]; eauto.
       - inv H2.
         pose proof eval_member_exists
              _ _ _ _ H H7 as [? ?]; eauto.

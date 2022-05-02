@@ -1,7 +1,6 @@
 Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax.
 From Poulet4.P4cub Require Export Semantics.Dynamic.BigStep.BigStep
-     Transformations.Lifting.Statementize
-     (*Transformations.Lifting.Lifted*).
+     Transformations.Lifting.Statementize.
 Import AllCubNotations Clmt.Notations Val.ValueNotations.
 
 (** Big-step evaluation specification for lifting in [Statementize.v] *)
@@ -36,15 +35,23 @@ Qed.
 
 Local Hint Resolve eval_decl_list_append : core.
 
-Lemma shift_eval : forall vs vs' ϵ e v,
-    ⟨ vs ++ ϵ, e ⟩ ⇓ v ->
-    ⟨ vs' ++ vs ++ ϵ, Shift.rename_e (Nat.add $ length vs') e ⟩ ⇓ v.
+Lemma rename_e_id : forall e, Shift.rename_e id e = e.
 Proof.
-  intros vs vs' ϵ e v h; induction h using custom_expr_big_step_ind;
+  unfold id.
+  induction e using custom_e_ind; unravel;
+    f_equal; auto.
+  apply map_ext_Forall in H.
+  rewrite H,map_id; reflexivity.
+Qed.
+
+Lemma shift_eval : forall vs ϵ e v,
+    ⟨ ϵ, e ⟩ ⇓ v ->
+    ⟨ vs ++ ϵ, Shift.rename_e (Nat.add $ length vs) e ⟩ ⇓ v.
+Proof.
+  intros vs ϵ e v h; induction h using custom_expr_big_step_ind;
     unravel; eauto.
   - constructor.
-    rewrite nth_error_app2 by lia.
-    rewrite Minus.minus_plus; assumption.
+    rewrite ForallMap.nth_error_app3; assumption.
   - constructor.
     rewrite <- ForallMap.Forall2_map_l; assumption.
 Qed.

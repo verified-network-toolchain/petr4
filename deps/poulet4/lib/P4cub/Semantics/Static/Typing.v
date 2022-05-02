@@ -36,16 +36,17 @@ Inductive type_expr (Γ : expr_type_env)
   Γ ⊢ₑ Expr.Slice e hi lo ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
 | type_cast τ τ' e :
   proper_cast τ' τ ->
-  t_ok (type_vars Γ) τ' ->
   t_ok (type_vars Γ) τ ->
   Γ ⊢ₑ e ∈ τ' ->
   Γ ⊢ₑ Expr.Cast τ e ∈ τ
 | type_uop op τ τ' e :
   uop_type op τ τ' ->
+  t_ok (type_vars Γ) τ' ->
   Γ ⊢ₑ e ∈ τ ->
   Γ ⊢ₑ Expr.Uop τ' op e ∈ τ'
 | type_bop op τ₁ τ₂ τ e₁ e₂ :
   bop_type op τ₁ τ₂ τ ->
+  t_ok (type_vars Γ) τ ->
   Γ ⊢ₑ e₁ ∈ τ₁ ->
   Γ ⊢ₑ e₂ ∈ τ₂ ->
   Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ

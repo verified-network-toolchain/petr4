@@ -74,7 +74,6 @@ Section TypeExprInduction.
   
   Hypothesis HCast : forall Γ τ τ' e,
       proper_cast τ' τ ->
-      t_ok (type_vars Γ) τ' ->
       t_ok (type_vars Γ) τ ->
       Γ ⊢ₑ e ∈ τ' ->
       P Γ e τ' ->
@@ -82,12 +81,14 @@ Section TypeExprInduction.
   
   Hypothesis HUop : forall Γ op τ τ' e,
       uop_type op τ τ' ->
+      t_ok (type_vars Γ) τ' ->
       Γ ⊢ₑ e ∈ τ ->
       P Γ e τ ->
       P Γ (Expr.Uop τ' op e) τ'.
   
   Hypothesis HBop : forall Γ op τ₁ τ₂ τ e₁ e₂,
       bop_type op τ₁ τ₂ τ ->
+      t_ok (type_vars Γ) τ ->
       Γ ⊢ₑ e₁ ∈ τ₁ ->
       P Γ e₁ τ₁ ->
       Γ ⊢ₑ e₂ ∈ τ₂ ->
@@ -136,12 +137,12 @@ Section TypeExprInduction.
       | type_var _ _ _ Hnth H => HVar _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ He)
-      | type_cast _ _ _ _ HPC Hok Hok' He
-        => HCast _ _ _ _ HPC Hok Hok' He (teind _ _ _ He)
-      | type_uop _ _ _ _ _ Huop He
-        => HUop _ _ _ _ _ Huop He (teind _ _ _ He)
-      | type_bop _ _ _ _ _ _ _ Hbop He1 He2
-        => HBop _ _ _ _ _ _ _ Hbop
+      | type_cast _ _ _ _ HPC Hok He
+        => HCast _ _ _ _ HPC Hok He (teind _ _ _ He)
+      | type_uop _ _ _ _ _ Huop Hok He
+        => HUop _ _ _ _ _ Huop Hok He (teind _ _ _ He)
+      | type_bop _ _ _ _ _ _ _ Hbop Hok He1 He2
+        => HBop _ _ _ _ _ _ _ Hbop Hok
                He1 (teind _ _ _ He1)
                He2 (teind _ _ _ He2)
       | type_member _ _ _ _ _ _ Hnth Hok He

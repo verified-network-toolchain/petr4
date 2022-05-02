@@ -327,13 +327,13 @@ Inductive stmt_big_step
      ;  extrn  := ψ |},
      ϵ, Stmt.Apply p ext_args args `⧽
      `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ' `⧽ *)
-| sbs_var Ψ ϵ ϵ' te v s sig ψ :
+| sbs_var Ψ ϵ ϵ' te v v' s sig ψ :
   match te with
   | inr e => ⟨ ϵ, e ⟩ ⇓ v
   | inl τ => v_of_t τ = Some v
   end ->
-  ⧼ Ψ, v :: ϵ, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, Stmt.Var te s ⧽ ⤋ ⧼ List.tail ϵ', sig, extrn Ψ ⧽
+  ⧼ Ψ, v :: ϵ, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ, Stmt.Var te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 | sbs_seq Ψ ϵ ϵ' ϵ'' s₁ s₂ sig₁ sig₂ ψ ψ' :
   (* TODO: handle signals *)
   ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', sig₁, ψ ⧽ ->

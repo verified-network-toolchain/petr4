@@ -4,6 +4,8 @@ From Poulet4.P4cub Require Export Semantics.Dynamic.BigStep.BigStep
      (*Transformations.Lifting.Lifted*).
 Import AllCubNotations Clmt.Notations Val.ValueNotations.
 
+(** Big-step evaluation specification for lifting in [Statementize.v] *)
+
 Inductive eval_decl_list (ϵ : list Val.v) : list Expr.e -> list Val.v -> Prop :=
 | eval_decl_nil :
   eval_decl_list ϵ [] []
@@ -168,13 +170,14 @@ Proof.
     rewrite hles'esvs; split; eauto.
 Qed.
 
+(* TODO: need better lemma for l-expressions. *)
 Theorem lift_e_lexpr_big_step : forall e lv,
     e ⇓ₗ lv ->
     forall us l e',
       lift_e (length us) e = (l, e') ->
       exists lv', e' ⇓ₗ lv' /\ forall ϵ, exists vs,
           eval_decl_list (us ++ ϵ) l vs /\
-            lv_lookup (vs ++ us ++ ϵ) lv' = lv_lookup ϵ lv.
+            lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv'.
 Proof.
   intros e lv helv; induction helv;
     intros us l e' h; unravel in *.
@@ -199,8 +202,9 @@ Proof.
     destruct ih as (vs & hvs & ih).
     eexists; split; eauto; unravel.
     rewrite ih; reflexivity.
-Admitted.
+Abort.
 
+(* TODO: need better lemma for l-expressions. *)
 Lemma lift_arg_big_step : forall arg varg ϵ,
     rel_paramarg (expr_big_step ϵ) lexpr_big_step arg varg ->
     forall us l arg',
@@ -210,7 +214,8 @@ Lemma lift_arg_big_step : forall arg varg ϵ,
             (expr_big_step (vs ++ us ++ ϵ))
             lexpr_big_step arg' varg' /\
             rel_paramarg
-              eq (fun lv lv' => lv_lookup (vs ++ us ++ ϵ) lv' = lv_lookup ϵ lv)
+              eq (fun lv lv' =>
+                    lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv')
               varg varg'.
 Proof.
   intros [e | e | e] [v | lv | lv] ϵ heval us l [e' | e' | e'] h;
@@ -218,5 +223,125 @@ Proof.
     destruct (lift_e (length us) e) as [le ?] eqn:eqle; inv h.
   - eapply lift_e_expr_big_step in eqle as (vs & hvs & ih); eauto.
     eexists; split; eauto. exists (PAIn v); auto.
-  -
+  - Fail eapply lift_e_lexpr_big_step in eqle; eauto.
+  (* destruct eqle as (lv' & he'lv' & ih).
+    specialize ih with ϵ.
+    destruct ih as (vs & hvs & ih).
+    eexists; split; eauto.
+    exists (PAOut lv'); auto. *) admit.
+  - Fail eapply lift_e_lexpr_big_step in eqle; eauto.
+  (* destruct eqle as (lv' & he'lv' & ih).
+    specialize ih with ϵ.
+    destruct ih as (vs & hvs & ih).
+    eexists; split; eauto.
+    exists (PAInOut lv'); auto. *) admit.
+Abort.
+
+(* TODO: need better lemma for l-expressions. *)
+Lemma lift_args_big_step : forall args vargs ϵ,
+    Forall2
+      (rel_paramarg
+         (expr_big_step ϵ)
+         lexpr_big_step)
+      args vargs ->
+    forall us largs args',
+      lift_args (length us) args = (largs, args') ->
+      exists vs,
+        eval_decl_list (us ++ ϵ) largs vs /\ exists vargs',
+          Forall2
+            (rel_paramarg
+               (expr_big_step (vs ++ us ++ ϵ))
+               lexpr_big_step) args' vargs'
+          /\ Forall2
+              (rel_paramarg
+                 eq (fun lv lv' =>
+                       lv_lookup ϵ lv = lv_lookup (vs ++ us ++ ϵ) lv'))
+              vargs vargs'.
+Proof.
+  intros args vargs ϵ h;
+    induction h as [| arg varg args vargs harg hargs ih];
+    intros us largs args' h; unravel in h.
+  - inv h; eexists; split; eauto.
+  - destruct (lift_arg (length us) arg) as [larg arg'] eqn:eqlarg.
+    destruct (lift_args (length larg + length us) args)
+      as [largs'' args''] eqn:eqlargs; inv h.
+    rename largs'' into largs; rename args'' into args'.
+    Fail eapply lift_arg_big_step in eqlarg; eauto.
+  (* destruct eqlarg as (argvs & hargvs & varg' & hvarg' & ihvarg').
+    assert (hlargargvs : length larg = length argvs) by eauto.
+    rewrite hlargargvs, <- app_length in eqlargs.
+    apply ih in eqlargs as (argsvs & hargsvs & vargs' & hvargs' & ihvargs').
+    assert (hlargsargsvs : length largs = length argsvs) by eauto.
+    rewrite <- app_assoc in *; eexists; split; eauto.
+    rewrite <- app_assoc. rewrite hlargsargsvs.
+    exists (varg' :: vargs'); split.
+    + constructor; auto. (* TODO: helper lemma. *) admit.
+    + constructor; auto. *)
+Abort.
+
+Local Hint Constructors parser_expr_big_step : core.
+
+Lemma lift_trans_parser_expr_big_step : forall ϵ e st,
+    p⟨ ϵ, e ⟩ ⇓ st ->
+    forall us l e',
+      lift_trans (length us) e = (l, e') ->
+      exists vs, eval_decl_list (us ++ ϵ) l vs /\ p⟨ vs ++ us ++ ϵ, e' ⟩ ⇓ st.
+Proof.
+  intros ϵ e st hp us l e' h; inv hp; unravel in *.
+  - inv h; eexists; split; eauto.
+  - rename e0 into e.
+    destruct (lift_e (length us) e) as [le ee'] eqn:eqle.
+    eapply lift_e_expr_big_step in eqle as (vs & hvs & ihvs); eauto; inv h.
+    eexists; split; eauto.
+Qed.
+
+(** Specification of [unwind_vars]. *)
+Lemma eval_decl_list_unwind_vars : forall es vs ϵ,
+    eval_decl_list ϵ es vs ->
+    forall vs' ϵ' Ψ s sig ψ,
+      length vs = length vs' ->
+      ⧼ Ψ, vs ++ ϵ, s ⧽ ⤋ ⧼ vs' ++ ϵ', sig, ψ ⧽ ->
+      ⧼ Ψ, ϵ, unwind_vars es s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
+Proof.
+  unfold unwind_vars.
+  intros es vs ϵ hedl; induction hedl;
+    intros [| v' vs'] ϵ' Ψ s sig ψ hvs hs;
+    cbn in *; try discriminate; auto.
+  inv hvs; eapply IHhedl; eauto.
+Qed.
+
+Local Hint Resolve eval_decl_list_unwind_vars : core.
+
+Lemma lift_s_stmt_big_step : forall Ψ ϵ ϵ' s sig ψ,
+    ⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽ -> forall us,
+      ⧼ Ψ , us ++ ϵ , lift_s (length us) s ⧽ ⤋ ⧼ us ++ ϵ' , sig , ψ ⧽.
+Proof.
+  intros Ψ ϵ ϵ' s sig ψ hs; induction hs;
+    intro us; unravel; eauto.
+  - destruct eo as [e |]; inv H; auto.
+    destruct (lift_e (length us) e) as [le e'] eqn:eqle.
+    eapply lift_e_expr_big_step in eqle as (levs & hlevs & ihlevs); eauto.
+  - destruct (lift_e (length us) e₁) as [l₁ e₁'] eqn:eql1.
+    destruct (lift_e (length l₁ + length us) e₂) as [l₂ e₂'] eqn:eql2.
+    (* TODO: need l-expression lemma for lifting. *) admit.
+  - (* TODO: lemma for fun kind. *) admit.
+  - (* TODO: need l-expression lemma for lifting. *) admit.
+  - destruct te as [τ | e].
+    + specialize IHhs with us.
+      (* TODO: lemma for stmt evaluation
+         that [length ϵ = length ϵ']. *) admit.
+    + destruct (lift_e (length us) e) as [le e'] eqn:eqle.
+      eapply lift_e_expr_big_step in eqle
+          as (vs & hvs & he'); eauto.
+      (* TODO: lemma for stmt evaluation
+         that [length ϵ = length ϵ']. *) admit.
+  - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
+      eapply lift_e_expr_big_step in eqle
+          as (vs & hvs & he'); eauto.
+      assert (hlevs : length le = length vs) by eauto.
+      rewrite hlevs, <- app_length.
+      specialize IHhs with (us := vs ++ us).
+      do 2 rewrite <- app_assoc in IHhs.
+      rewrite ssrbool.fun_if in IHhs.
+      eapply eval_decl_list_unwind_vars; eauto.
 Admitted.

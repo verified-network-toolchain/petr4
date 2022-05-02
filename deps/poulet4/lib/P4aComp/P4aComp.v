@@ -7,7 +7,7 @@ Require Import Coq.ZArith.ZArith
 Import String.
 Open Scope string_scope.
 Module P4c := AST.
-Module P4a := Poulet4.P4cub.Syntax.Syntax.
+Module P4a := Leapfrog.Syntax.
 (* Open Scope p4a. *)
 
 Section P4AComp. 
@@ -75,10 +75,6 @@ Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : opti
             | Some sz => Some ((mem,sz)::ctxt)
             | None => None
           end
-        (* match thdr_to_str header, type_size ctxt header with
-            | Some x, Some sz => Some ((x,sz)::ctxt)
-            | _, _ => None 
-            end *)
       | _ => None
       end 
   | Stmt.SSeq s1 s2 _ =>
@@ -273,6 +269,10 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
   | Stmt.SBlock s => translate_st hdrs s
   | _ => None
   end.
+Print P4a.state_ref.
+Check inl true.
+Check state_ref (mk_st_type _).
+Check TGoto (hdr_map _) (inl true).
 
 Definition translate_trans (hdrs: F.fs string nat) (states:F.fs string (Parser.state_block tags_t)) 
 (e:Parser.e tags_t) : option (transition (mk_st_type states) (hdr_map hdrs)) :=
@@ -307,11 +307,6 @@ match st with
   end
 end.
 
-
-        
- (* bin/main, lib/common *)
-(* header passed into parser via params (Expr.params in TPParser)  *)
-
 (* Get all parser declarations from the program *)
 Fixpoint get_parser (prog: P4c.TopDecl.d tags_t) : list(P4c.TopDecl.d tags_t) :=
 match prog with 
@@ -320,17 +315,42 @@ match prog with
   | _ => []
 end.
 
-(* (collect_hdrs (List.hd prog (get_parser prog))) *)
-Definition translate_parser (prog:P4c.TopDecl.d tags_t) : option (list 
-(state (mk_st_type _) (hdr_map _))) :=
-  let parsers := get_parser prog in   
-  (* Assume only one parser for now *)
-  let main_parser := List.hd prog parsers in 
-  let hdrs := collect_hdrs main_parser in 
+(* Assume one parser only *)
+Fixpoint find_main_parser (prog: P4c.TopDecl.d tags_t) : option (P4c.TopDecl.d tags_t) := 
+  match prog with 
+  | TopDecl.TPParser p _ _ params start states i => Some prog
+  | TopDecl.TPSeq d1 d2 _ => 
+    match find_main_parser d1 with 
+    | Some p => Some p 
+    | None => 
+      match find_main_parser d2 with 
+      | Some p => Some p 
+      | None => None
+      end
+    end
+  | _ => None
+  end.
+
+Definition find_states (prog:P4c.TopDecl.d tags_t) : list (string * P4c.Parser.state_block tags_t) :=
+  match find_main_parser prog with 
+  | Some (TopDecl.TPParser p _ _ params start states i) => 
+    ("start", start)::states
+  | _ => []
+  end.
+
+Definition find_hdrs (prog:P4c.TopDecl.d tags_t) : F.fs string nat :=
+  match find_main_parser prog with 
+  | Some (parser) => 
+    collect_hdrs parser
+  | _ => []
+  end.
+
+Definition translate_parser (prog:P4c.TopDecl.d tags_t) : option (list (state (mk_st_type (find_states prog)) (hdr_map (find_hdrs prog)))) :=
+  let main_parser := find_main_parser prog in 
+  let hdrs := find_hdrs prog in 
+  let all_states := find_states prog in 
   match main_parser with 
-    | TopDecl.TPParser p _ _ params start states i => 
-      let states' := mk_st_type states in 
-      let all_states := ("start", start)::states in 
+    | Some (TopDecl.TPParser p _ _ params start states i) => 
       let translate_all := List.map (fun '(name, st) => translate_state name hdrs all_states st) in 
       let state_collect accum translated_state := 
         match accum, translated_state with 
@@ -339,16 +359,7 @@ Definition translate_parser (prog:P4c.TopDecl.d tags_t) : option (list
         end in
         List.fold_left state_collect (translate_all all_states) (Some []) 
     | _ => None
-    end.
-
-    (* let start := translate_states "start" hdrs all_states start in *)
-
-    (* let translate '(name, st) := (translate_states name hdrs all_states st) in *)
-    
-  (* Some (List.map (fun x => let (name, st) = x in 
-       (translate_states (List.length all_states) name hdrs all_states hdrs)) states) *)
-    
-Check translate_parser.
+    end. 
 End P4AComp.
 
 (* TODO: 

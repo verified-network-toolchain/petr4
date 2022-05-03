@@ -2,6 +2,7 @@ Require Export Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.Utils.ForallMap.
 From Poulet4.P4cub Require Export Semantics.Static.Static
+     Semantics.Static.Auxiliary
      Transformations.Lifting.Statementize.
 Import AllCubNotations.
 
@@ -53,7 +54,7 @@ Proof.
     rewrite nth_error_app3; assumption.
   - econstructor; eauto.
   - constructor; auto.
-    rewrite Forall2_map_l; unravel; assumption.
+    rewrite <- Forall2_map_l; unravel; assumption.
 Qed.
 
 Local Hint Resolve shift_type : core.
@@ -71,6 +72,7 @@ Local Hint Constructors relop : core.
 Local Hint Constructors t_ok : core.
 
 Theorem lift_e_type_expr : forall Γ e τ,
+    Forall (t_ok (type_vars Γ)) (types Γ) ->
     Γ ⊢ₑ e ∈ τ -> forall us l e',
       lift_e (length us) e = (l, e') -> exists τs,
         type_decl_list (type_vars Γ) (us ++ types Γ) l τs
@@ -78,7 +80,7 @@ Theorem lift_e_type_expr : forall Γ e τ,
           ;  types     := τs ++ us ++ types Γ
           |} ⊢ₑ e' ∈ τ.
 Proof.
-  intros Γ e t het;
+  intros Γ e t hΓ het;
     induction het using custom_type_expr_ind;
     intros us l e' h; unravel in *.
   - inv h; eauto.
@@ -89,27 +91,27 @@ Proof.
     constructor; unravel; auto.
     rewrite nth_error_app3; assumption.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); clear IHhet.
+    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); clear IHhet.
+    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); clear IHhet.
+    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
   - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
     destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv h.
-    apply IHhet1 in eql1 as (ts1 & hts1 & ih1); clear IHhet1.
+    apply IHhet1 in eql1 as (ts1 & hts1 & ih1); auto; clear IHhet1.
     assert (hl1ts1 : length l1 = length ts1) by eauto.
     rewrite hl1ts1, <- app_length in eql2.
-    apply IHhet2 in eql2 as (ts2 & hts2 & ih2); clear IHhet2.
+    apply IHhet2 in eql2 as (ts2 & hts2 & ih2); auto; clear IHhet2.
     rewrite <- app_assoc in *.
     assert (hl2ts2 : length l2 = length ts2) by eauto.
     rewrite hl2ts2.
     exists (τ :: ts2 ++ ts1); split; auto.
     constructor; eauto; rewrite <- app_assoc; eauto.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
-    apply IHhet in eqle as (ts & hts & ih); clear IHhet.
+    apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
   - destruct
       ((fix lift_e_list up es :=
@@ -147,7 +149,7 @@ Proof.
               end) (length le + length us) es)
           as [les' es''] eqn:eqles; inv h.
         rename les' into les. rename es'' into es'.
-        apply H3 in eqle as (ets & hets & ihets); clear H3.
+        apply H3 in eqle as (ets & hets & ihets); auto; clear H3.
         assert (hleets : length le = length ets) by eauto.
         rewrite hleets, <- app_length in eqles.
         eapply ihesτs in eqles as (ts' & hts' & ih); eauto; clear ihesτs.
@@ -158,6 +160,8 @@ Proof.
         constructor; rewrite <- app_assoc; eauto. }
     destruct bruh as (τs' & htτs' & ih).
     eexists; split; eauto; unravel.
+    assert (hok: t_ok (type_vars Γ) (Expr.TStruct τs b))
+      by eauto using type_expr_t_ok; inv hok.
     assert (bruh : map t_of_e es = τs).
     { rewrite Forall2_forall in H0.
       pose proof conj
@@ -166,13 +170,12 @@ Proof.
       rewrite <- Forall2_forall in duh; clear H0.
       rewrite ForallMap.Forall2_map_l,Forall2_eq in duh; assumption. }
     rewrite bruh.
-    destruct b; destruct ob; unravel in *; try contradiction; eauto;
-      econstructor; unravel; auto.
-    (* TODO: t_ok lemma for type_expr, or remove from type_var? *) admit. admit.
+    destruct b; destruct ob; unravel in *; try contradiction; eauto.
   - inv h; eauto.
-Admitted.
+Qed.
 
 Lemma lift_e_list_type_expr : forall Γ es τs,
+    Forall (t_ok (type_vars Γ)) (types Γ) ->
     Forall2 (type_expr Γ) es τs -> forall us les es',
       lift_e_list (length us) es = (les, es') -> exists τs',
         type_decl_list (type_vars Γ) (us ++ types Γ) les τs'
@@ -182,7 +185,7 @@ Lemma lift_e_list_type_expr : forall Γ es τs,
                ;  types := (τs' ++ us ++ types Γ) |})
             es' τs.
 Proof.
-  intros G es ts hets;
+  intros G es ts hG hets;
     induction hets as [| e t es ts het hests ih];
     intros us les es' h; unravel in *.
   - inv h; eauto.

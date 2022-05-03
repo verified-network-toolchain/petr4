@@ -70,7 +70,7 @@ Local Hint Resolve shift_type' : core.
 Local Hint Constructors relop : core.
 Local Hint Constructors t_ok : core.
 
-Theorem lift_e_expr_big_step : forall Γ e τ,
+Theorem lift_e_type_expr : forall Γ e τ,
     Γ ⊢ₑ e ∈ τ -> forall us l e',
       lift_e (length us) e = (l, e') -> exists τs,
         type_decl_list (type_vars Γ) (us ++ types Γ) l τs
@@ -111,6 +111,92 @@ Proof.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
     apply IHhet in eqle as (ts & hts & ih); clear IHhet.
     eexists; split; eauto.
-  - (* TODO. *) admit.
+  - destruct
+      ((fix lift_e_list up es :=
+          match es with
+          | [] => ([], [])
+          | e :: es =>
+              let '(le, e') := lift_e up e in
+              let '(les, es') := lift_e_list (length le + up) es in
+              (les ++ le, Shift.rename_e (Nat.add (length les)) e' :: es')
+          end) (length us) es)
+      as [les es'] eqn:eqles; inv h.
+    assert (bruh : exists τs',
+               type_decl_list (type_vars Γ) (us ++ types Γ) les τs'
+               /\ Forall2
+                   (type_expr
+               {| type_vars:=type_vars Γ
+               ;  types := (τs' ++ us ++ types Γ) |})
+                   es' τs).
+    { clear dependent ob. clear b.
+      generalize dependent es';
+        generalize dependent les;
+        generalize dependent us.
+      induction H0 as [| e τ es τs heτ hesτs ihesτs];
+        inv H1; intros us les es' h.
+      - inv h; eauto.
+      - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
+        destruct
+          ((fix lift_e_list up es :=
+              match es with
+              | [] => ([], [])
+              | e :: es =>
+                  let '(le, e') := lift_e up e in
+                  let '(les, es') := lift_e_list (length le + up) es in
+                  (les ++ le, Shift.rename_e (Nat.add (length les)) e' :: es')
+              end) (length le + length us) es)
+          as [les' es''] eqn:eqles; inv h.
+        rename les' into les. rename es'' into es'.
+        apply H3 in eqle as (ets & hets & ihets); clear H3.
+        assert (hleets : length le = length ets) by eauto.
+        rewrite hleets, <- app_length in eqles.
+        eapply ihesτs in eqles as (ts' & hts' & ih); eauto; clear ihesτs.
+        rewrite <- app_assoc in *.
+        exists (ts' ++ ets); split; eauto.
+        assert (hlests' : length les = length ts') by eauto.
+        rewrite hlests'.
+        constructor; rewrite <- app_assoc; eauto. }
+    destruct bruh as (τs' & htτs' & ih).
+    eexists; split; eauto; unravel.
+    assert (bruh : map t_of_e es = τs).
+    { rewrite Forall2_forall in H0.
+      pose proof conj
+           (proj1 H0)
+           (fun e τ hin => t_of_e_correct Γ e τ (proj2 H0 e τ hin)) as duh.
+      rewrite <- Forall2_forall in duh; clear H0.
+      rewrite ForallMap.Forall2_map_l,Forall2_eq in duh; assumption. }
+    rewrite bruh.
+    destruct b; destruct ob; unravel in *; try contradiction; eauto;
+      econstructor; unravel; auto.
+    (* TODO: t_ok lemma for type_expr, or remove from type_var? *) admit. admit.
   - inv h; eauto.
 Admitted.
+
+Lemma lift_e_list_type_expr : forall Γ es τs,
+    Forall2 (type_expr Γ) es τs -> forall us les es',
+      lift_e_list (length us) es = (les, es') -> exists τs',
+        type_decl_list (type_vars Γ) (us ++ types Γ) les τs'
+        /\ Forall2
+            (type_expr
+               {| type_vars:=type_vars Γ
+               ;  types := (τs' ++ us ++ types Γ) |})
+            es' τs.
+Proof.
+  intros G es ts hets;
+    induction hets as [| e t es ts het hests ih];
+    intros us les es' h; unravel in *.
+  - inv h; eauto.
+  - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
+    destruct (lift_e_list (length le + length us) es)
+      as [les'' es''] eqn:eqles; inv h.
+    rename les'' into les; rename es'' into es'.
+    eapply lift_e_type_expr in eqle as (ets & hets & he); eauto.
+    assert (hleets : length le = length ets) by eauto.
+    rewrite hleets, <- app_length in eqles.
+    apply ih in eqles as (τs & hτs & ihτs); clear ih.
+    rewrite <- app_assoc in *.
+    exists (τs ++ ets); split; eauto.
+    assert (hlesτs : length les = length τs) by eauto.
+    rewrite hlesτs.
+    constructor; rewrite <- app_assoc; eauto.
+Qed.

@@ -2,6 +2,7 @@ Require Export Coq.Strings.String
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
         Poulet4.P4light.Syntax.Value
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
+        Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Poulet4.Utils.ForallMap
         Poulet4.Utils.Utils Poulet4.Utils.P4Arith
         Poulet4.Monads.Monad.
@@ -12,8 +13,6 @@ Require Import BinPos BinInt BinNat Pnat Nnat.
 Import AllCubNotations Val.ValueNotations.
 Import Poulet4.P4light.Syntax.Typed.
 Local Open Scope string_scope.
-
-(* TOASK RUDY: E2E version of these functions *)
 
 (** Embeding [p4cub] values in [p4light] values. *)
 Section Embed.
@@ -51,6 +50,12 @@ Section Embed.
   match l with 
     | [] => []
     | h::t => ((string_of_index index), h) :: make_assoc_list index t
+  end.
+
+  Fixpoint make_list_from_assoc_list {A : Type} (l : list (string * A)) : list A := 
+  match l with 
+    | [] => []
+    | (_, h) ::t => h :: make_list_from_assoc_list t
   end.
 
   Inductive P4Cub_to_P4Light : C_P4Type -> P_P4Type -> Prop := 
@@ -147,15 +152,45 @@ Section Embed.
     | Val.Struct (vs) (None)     => ValBaseStruct (make_assoc_list 0 (List.map embed vs))
     | Val.Error (Some v)  => ValBaseError v
     | Val.Error (None) => ValBaseError "no error"
+    (* why does val error have an option - why None option? *)
     end.
+
+    Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
+      match l with 
+      | [] => []
+      | (_, h)::t => func h :: snd_map func t
+      end.
+
+    Fixpoint proj (v : VAL) : Val.v :=
+      match v with
+      | ValBaseBool b => Val.Bool b
+      | ValBaseInt lb => let (w, n) := IntArith.from_lbool lb in 
+        Val.Int (Z.to_pos n) (Z.of_N w) 
+      | ValBaseNull => Val.Error (None)
+      | ValBaseBit lb => let (w, n) := IntArith.from_lbool lb in 
+        Val.Bit w n 
+      | ValBaseStruct s => Val.Struct (map (fun '(_,v) => proj v) s) None
+      | ValBaseHeader s b => Val.Struct (map (fun '(_,v) => proj v) s) (Some b)
+      | ValBaseError e => Val.Error (Some e)
+      | ValBaseInteger _ => Val.Error (Some ("No mapping for ValBaseInteger exists"))
+      | ValBaseVarbit _ _ => Val.Error (Some ("No mapping for ValBaseVarbit exists"))
+      | ValBaseString _ => Val.Error (Some ("No mapping for ValBaseString exists"))
+      | ValBaseTuple _ => Val.Error (Some ("No mapping for ValBaseTuple exists"))
+      | ValBaseMatchKind _ => Val.Error (Some ("No mapping for ValBaseMatchKind exists"))
+      | ValBaseUnion _ => Val.Error (Some ("No mapping for ValBaseUnion exists"))
+      | ValBaseStack _ _ => Val.Error (Some ("No mapping for ValBaseStack exists"))
+      | ValBaseEnumField _ _ => Val.Error (Some ("No mapping for ValBaseEnumField exists"))
+      | ValBaseSenumField _ _ => Val.Error (Some ("No mapping for ValBaseSenumField exists"))
+      end.
+      (* add back result.ok and result.errro *)
 
   Local Hint Constructors Embed : core.
   
   Lemma embed_Embed : forall v, Embed v (embed v).
   Proof.
-    intro v; induction v using custom_value_ind;
+    intro v; induction v using custom_v_ind;
       unravel in *; auto.
-    - constructor.
+    - destruct ob. 
       rewrite <- Forall2_map_r, Forall2_Forall; auto.
     - constructor.
       rewrite <- Forall2_map_r, Forall2_Forall.
@@ -198,3 +233,10 @@ E2E proof for values  *)
 
 (* In Semantics.v In bigstep, we will use these functions *)
 
+(* proof for embed -> project you get OK and it's the identity *)
+
+(* project -> embed 
+projectable v ==> proj v = ok c and embed c = v *)
+
+(* issueL project embed proof fails because of the picture -- needs to sort to fix this issue. 
+can prove project embed is ok, but can't't prove that it is identity  *)

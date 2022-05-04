@@ -95,7 +95,7 @@ Variant proper_cast : Expr.t -> Expr.t -> Prop :=
   | pc_bit_bit w1 w2 : proper_cast (Expr.TBit w1) (Expr.TBit w2)
   | pc_int_int w1 w2 : proper_cast (Expr.TInt w1) (Expr.TInt w2)
   | pc_tuple_hdr ts :
-    Forall ProperType.proper_inside_header ts ->
+    (*Forall ProperType.proper_inside_header ts ->*)
     proper_cast (Expr.TStruct ts false) (Expr.TStruct ts true).
 
 (** Ok types. *)

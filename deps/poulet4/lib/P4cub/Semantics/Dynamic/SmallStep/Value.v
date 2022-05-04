@@ -1,245 +1,146 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Poulet4.P4cub.Semantics.Static.Static.
 
 (** * Small-Step Values *)
 Import String AllCubNotations.
 
-Inductive value {tags_t : Type} : Expr.e tags_t -> Prop :=
-| value_bool (b : bool) (i : tags_t) :
-    value <{ BOOL b @ i }>
-| value_bit (w : N) (n : Z) (i : tags_t) :
-    value <{ w W n @ i }>
-| value_int (w : positive) (z : Z) (i : tags_t) :
-    value <{ w S z @ i }>
-| value_tuple (es : list (Expr.e tags_t)) (i : tags_t) :
-    Forall value es ->
-    value <{ tup es @ i }>
-| value_struct (fs : F.fs string (Expr.e tags_t))
-               (i : tags_t) :
-    F.predfs_data value fs ->
-    value <{ struct { fs } @ i }>
-| value_header (fs : F.fs string (Expr.e tags_t))
-               (b : Expr.e tags_t) (i : tags_t) :
-    value b ->
-    F.predfs_data value fs ->
-    value <{ hdr { fs } valid:=b @ i }>
-| value_error (err : option (string)) (i : tags_t) :
-    value <{ Error err @ i }>
-| value_headerstack (fs : F.fs string (Expr.t))
-                    (hs : list (Expr.e tags_t))
-                    (ni : Z) (i : tags_t) :
-    Forall value hs ->
-    value <{ Stack hs:fs nextIndex:=ni @ i }>.
-(**[]*)
+Inductive value : Expr.e -> Prop :=
+| value_bool (b : bool) :
+  value b
+| value_bit (w : N) (n : Z) :
+  value (w `W n)%expr
+| value_int (w : positive) (z : Z) :
+  value (w `S z)%expr
+| value_struct (es : list Expr.e) ob :
+  Forall value es ->
+  value (Expr.Struct es ob)
+| value_error (err : option (string)) :
+  value (Expr.Error err).
 
 Section IsValueInduction.
-  Variable tags_t : Type.
+  Variable P : Expr.e -> Prop.
   
-  Variable P : Expr.e tags_t -> Prop.
+  Hypothesis HBool : forall b : bool, P b.
   
-  Hypothesis HBool : forall b i, P <{ BOOL b @ i }>.
+  Hypothesis HBit : forall w n, P (w `W n)%expr.
   
-  Hypothesis HBit : forall w n i, P <{ w W n @ i }>.
+  Hypothesis HInt : forall w z, P (w `S z)%expr.
   
-  Hypothesis HInt : forall w z i, P <{ w S z @ i }>.
-  
-  Hypothesis HTuple : forall es i,
+  Hypothesis HStruct : forall es ob,
       Forall value es ->
       Forall P es ->
-      P <{ tup es @ i }>.
+      P (Expr.Struct es ob).
   
-  Hypothesis HStruct : forall fs i,
-      F.predfs_data value fs ->
-      F.predfs_data P fs ->
-      P <{ struct { fs } @ i }>.
+  Hypothesis HError : forall err, P (Expr.Error err).
   
-  Hypothesis HHeader : forall fs b i,
-      value b ->
-      P b ->
-      F.predfs_data value fs ->
-      F.predfs_data P fs ->
-      P <{ hdr { fs } valid:=b @ i }>.
-  
-  Hypothesis HError : forall err i, P <{ Error err @ i }>.
-  
-  Hypothesis HStack : forall fs hs ni i,
-      Forall value hs ->
-      Forall P hs ->
-      P <{ Stack hs:fs nextIndex:=ni @ i }>.
-  
-  Definition custom_value_ind : forall (e : Expr.e tags_t),
-      value e -> P e :=
-    fix vind (e : Expr.e tags_t) (H : value e) : P e :=
-      let fix lind {es : list (Expr.e tags_t)}
+  Definition custom_value_ind : forall e : Expr.e, value e -> P e :=
+    fix vind e H : P e :=
+      let fix lind {es : list Expr.e}
               (Hes : Forall value es) : Forall P es :=
           match Hes with
           | Forall_nil _ => Forall_nil _
           | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (lind Ht)
           end in
-      let fix find {fs : F.fs string (Expr.e tags_t)}
-              (Hfs : F.predfs_data value fs) :
-            F.predfs_data P fs :=
-          match Hfs with
-          | Forall_nil _ => Forall_nil _
-          | Forall_cons _ Hh Ht => Forall_cons _ (vind _ Hh) (find Ht)
-          end in
       match H with
-      | value_bool b i => HBool b i
-      | value_bit w n i => HBit w n i
-      | value_int w z i => HInt w z i
-      | value_tuple _ i Hes => HTuple _ i Hes (lind Hes)
-      | value_struct _ i Hfs => HStruct _ i Hfs (find Hfs)
-      | value_header _ _ i Hb Hfs
-        => HHeader _ _ i Hb (vind _ Hb) Hfs (find Hfs)
-      | value_error err i => HError err i
-      | value_headerstack fs _ ni i Hhs => HStack fs _ ni i Hhs (lind Hhs)
+      | value_bool b => HBool b
+      | value_bit w n => HBit w n
+      | value_int w z => HInt w z
+      | value_struct _ ob Hes => HStruct _ ob Hes (lind Hes)
+      | value_error err => HError err
       end.
 End IsValueInduction.
 
 Section Lemmas.
-  Import F.FieldTactics.
+  Local Hint Constructors value : core.
+  Local Hint Extern 0 => inv_Forall_cons : core.
   
-  Hint Constructors value : core.
-  Hint Extern 0 => inv_Forall_cons : core.
-  
-  Lemma value_exm : forall {tags_t : Type} (e : Expr.e tags_t), value e \/ ~ value e.
+  Lemma value_exm : forall e, value e \/ ~ value e.
   Proof.
     induction e using custom_e_ind; auto 2;
       try (right; intros H'; inv H'; contradiction).
-    - assert (Forall value es \/ ~ Forall value es).
-      { ind_list_Forall; intuition. }
-      intuition. right; intros H'; inv H'. contradiction.
-    - assert (F.predfs_data value fields \/
-              ~ F.predfs_data value fields).
-      { ind_list_predfs; unfold F.predfs_data in *; intuition. }
-      intuition. right; intros H'; inv H'. contradiction.
-    - assert (F.predfs_data value fields \/
-              ~ F.predfs_data value fields).
-      { ind_list_predfs; unfold F.predfs_data in *; intuition. }
-      intuition; right; intros H'; inv H'; contradiction.
-    - assert (Forall value hs \/ ~ Forall value hs).
+    - assert (Forall value fields \/ ~ Forall value fields).
       { ind_list_Forall; intuition. }
       intuition. right; intros H'; inv H'. contradiction.
   Qed.
 End Lemmas.
 
-Inductive lvalue {tags_t : Type} : Expr.e tags_t -> Prop :=
-| lvalue_var x τ i :
-    lvalue <{ Var x:τ @ i }>
-| lvalue_slice lv hi lo i :
+Inductive lvalue : Expr.e -> Prop :=
+| lvalue_var x τ :
+    lvalue (Expr.Var τ x)
+| lvalue_slice lv hi lo :
     lvalue lv ->
-    lvalue <{ Slice lv [hi:lo] @ i }>
-| lvalue_member τ lv x i :
+    lvalue (Expr.Slice lv hi lo)
+| lvalue_member τ lv x :
     lvalue lv ->
-    lvalue <{ Mem lv dot x : τ @ i }>
-| lvalue_access ts lv idx i :
-    lvalue lv ->
-    lvalue <{ Access lv[idx] : ts @ i }>.
-(**[]*)
+    lvalue (Expr.Member τ x lv).
 
 Module CanonicalForms.
   Ltac invert_value :=
     match goal with
     | H: value _ |- _ => inv H
     end.
-  (**[]*)
   
   Ltac invert_expr_check :=
     match goal with
-    | H: ⟦ _, _ ⟧ ⊢ _ ∈ _ |- _ => inv H
+    | H: _ ⊢ₑ _ ∈ _ |- _ => inv H
     end.
-  (**[]*)
   
   Ltac invert_canonical := invert_value; invert_expr_check.
   
   Ltac crush_canonical := intros; invert_canonical; eauto 4.
   
   Section CanonicalForms.
-    Variable Δ : Delta.
+    Variable Γ : expr_type_env.
     
-    Variable Γ : Gamma.
-    
-    Context {tags_t : Type}.
-    
-    Variable v : Expr.e tags_t.
+    Variable v : Expr.e.
     
     Hypothesis Hv : value v.
     
     Lemma canonical_forms_bool :
-      ⟦ Δ, Γ ⟧ ⊢ v ∈ Bool -> exists b i, v = <{ BOOL b @ i }>.
+      Γ ⊢ₑ v ∈ Expr.TBool -> exists b : bool, v = b.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_bit : forall w,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ bit<w> -> exists n i, v = <{ w W n @ i }>.
+        Γ ⊢ₑ v ∈ Expr.TBit w -> exists n, v = (w `W n)%expr.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_int : forall w,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ int<w> -> exists z i, v = <{ w S z @ i }>.
+        Γ ⊢ₑ v ∈ Expr.TInt w -> exists z, v = (w `S z)%expr.
     Proof. crush_canonical. Qed.
     
-    Lemma canonical_forms_tuple : forall ts,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ tuple ts -> exists es i, v = <{ tup es @ i }>.
-    Proof. crush_canonical. Qed.
-    
-    Lemma canonical_forms_struct : forall ts,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ struct { ts } -> exists fs i, v = <{ struct { fs } @ i }>.
-    Proof. crush_canonical. Qed.
-    
-    Lemma canonical_forms_header : forall ts,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ hdr { ts } -> exists fs b i, v = <{ hdr { fs } valid:=b @ i }>.
+    Lemma canonical_forms_struct : forall ts b,
+        Γ ⊢ₑ v ∈ Expr.TStruct ts b -> exists es ob, v = Expr.Struct es ob.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_error :
-      ⟦ Δ, Γ ⟧ ⊢ v ∈ error -> exists err i, v = <{ Error err @ i }>.
-    Proof. crush_canonical. Qed.
-        
-    Lemma canonical_forms_headerstack : forall ts n,
-        ⟦ Δ, Γ ⟧ ⊢ v ∈ stack ts[n] ->
-        exists hs ni i, v = <{ Stack hs:ts nextIndex:= ni @ i }>.
+      Γ ⊢ₑ v ∈ Expr.TError -> exists err, v = (Expr.Error err).
     Proof. crush_canonical. Qed.
   End CanonicalForms.
   
   Ltac inv_eq_val_expr :=
     match goal with
-    | H: <{ BOOL _ @ _ }> = <{ BOOL _ @ _ }> |- _ => inv H
-    | H: <{ _ W _ @ _ }> = <{ _ W _ @ _ }> |- _ => inv H
-    | H: <{ _ S _ @ _ }> = <{ _ S _ @ _ }> |- _ => inv H
-    | H: <{ tup _ @ _ }> = <{ tup _ @ _ }> |- _ => inv H
-    | H: <{ struct { _ } @ _ }> = <{ struct { _ } @ _ }> |- _ => inv H
-    | H: <{ hdr { _ } valid:=_ @ _ }> = <{ hdr { _ } valid:=_ @ _ }>
-      |- _ => inv H
-    | H: <{ Stack _:_ nextIndex:=_ @ _ }> = <{ Stack _:_ nextIndex:=_ @ _ }>
-      |- _ => inv H
+    | H: Expr.Bool _ = Expr.Bool _ |- _ => inv H
+    | H: (_ `W _)%expr = (_ `W _)%expr |- _ => inv H
+    | H: (_ `S _)%expr = (_ `S _)%expr |- _ => inv H
+    | H: Expr.Struct _ _ = Expr.Struct _ |- _ => inv H
+    | H: Expr.Error _ = Expr.Error _ |- _ => inv H
     end.
-  (**[]*)
   
   Ltac assert_canonical_forms :=
     match goal with
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ Bool |- _
-      => pose proof canonical_forms_bool _ _ _ Hv Ht as [? [? Hcanon]];
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TBool |- _
+      => pose proof canonical_forms_bool _ _ Hv Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ bit<_> |- _
-      => pose proof canonical_forms_bit _ _ _ Hv _ Ht as [? [? Hcanon]];
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TBit _ |- _
+      => pose proof canonical_forms_bit _ _ Hv _ Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ int<_> |- _
-      => pose proof canonical_forms_int _ _ _ Hv _ Ht as [? [? Hcanon]];
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TInt _ |- _
+      => pose proof canonical_forms_int _ _ Hv _ Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ tuple _ |- _
-      => pose proof canonical_forms_tuple _ _ _ Hv _ Ht as [? [? Hcanon]];
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TStruct _ _ |- _
+      => pose proof canonical_forms_struct _ _ Hv _ _ Ht as (? & ? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ struct { _ } |- _
-      => pose proof canonical_forms_struct _ _ _ Hv _ Ht as [? [? Hcanon]];
-        inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ hdr { _ } |- _
-      => pose proof canonical_forms_header _ _ _ Hv _ Ht as [? [? [? Hcanon]]];
-        inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ error |- _
-      => pose proof canonical_forms_error _ _ _ Hv Ht as [? [? Hcanon]];
-        inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: ⟦ _, _ ⟧ ⊢ ?v ∈ stack _[_] |- _
-      => pose proof canonical_forms_headerstack
-             _ _ _ Hv _ _ Ht as [? [? [? Hcanon]]];
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TError |- _
+      => pose proof canonical_forms_error _ _ Hv Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
     end.
-  (**[]*)
 End CanonicalForms.

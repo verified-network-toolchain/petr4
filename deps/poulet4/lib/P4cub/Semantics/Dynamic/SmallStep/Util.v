@@ -4,7 +4,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Semantics.Static.Static
-        Poulet4.Utils.ForallMap.
+        Poulet4.Utils.ForallMap Poulet4.Monads.Option.
 
 Section StepDefs.
   Import P4ArithTactics AllCubNotations.
@@ -351,156 +351,77 @@ Section StepDefs.
       eauto using ForallMap.nth_error_some_length.
     Qed.
   End HelpersExist.
-  
-  (** Lookup an lvalue. *)
-  Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
-    match lv with
-    | Expr.Var _ x => nth_error ϵ x
-    | Expr.Member _ x lv
-      => match lv_lookup ϵ lv with
-        | Some (Expr.Struct fs _) => nth_error fs x
-        | _ => None
-        end
-    | Expr.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
-    | _ => None
-    end.
-  
-  (** Updating an lvalue in an environment. *)
-  Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
-    match lv with
-    | Expr.Var _ x => nth_update x v ϵ
-    | Expr.Member _ x lv
-      => match lv_lookup ϵ lv with
-        | Some (Expr.Struct vs ob)
-          => lv_update lv (Expr.Struct (nth_update x v vs) ob) ϵ
-        | _ => ϵ
-        end
-    | Expr.Slice lv hi lo
-      => match v, lv_lookup ϵ lv with
-        | (Expr.Bit _ n | Expr.Int _ n), Some (w `W _)%expr =>
-            let rhs := N.shiftl (Z.to_N n) w in
-            let mask :=
-              Z.to_N
-                (-1 -
-                   (Z.of_N (N.lxor
-                              (N.pow 2 (Npos hi + 1) - 1)
-                              (N.pow 2 (Npos lo - 1))))) in
-            let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
-            lv_update lv (w `W new) ϵ
-        | _, _ => ϵ
-        end
-    | _ => ϵ
-    end.
-  
-  (** Create a new environment
-      from a closure environment where
-      values of [In] args are substituted
-      into the function parameters. *)
-  Definition copy_in
-             (argsv : Expr.args tags_t)
-             (ϵcall : (list Expr.e)) : (list Expr.e) -> (list Expr.e) :=
-    F.fold (fun x arg ϵ =>
-              match arg with
-              | PAIn v     => ( x ↦ v ,, ϵ )
-              | PAInOut lv => match lv_lookup ϵcall lv with
-                                   | None   => ϵ
-                                   | Some v => ( x ↦ v ,, ϵ )
-                                   end
-              | PAOut _    => ϵ
-              | PADirLess _ => ϵ (*what to do with directionless param*)
-              end) argsv.
-  (**[]*)
-  
-  (** Update call-site environment with
-      out variables from function call evaluation. *)
-  Definition copy_out
-             (argsv : Expr.args tags_t)
-             (ϵf : (list Expr.e)) : (list Expr.e) -> (list Expr.e) :=
-    F.fold (fun x arg ϵ =>
-              match arg with
-              | PADirLess _ => ϵ (*what to do with directionless param*)
-              | PAIn _ => ϵ
-              | PAOut lv
-              | PAInOut lv =>
-                match ϵf x with
-                | None   => ϵ
-                | Some v => lv_update lv v ϵ
-                end
-              end) argsv.
-  (**[]*)
-  
-  (** Table environment. *)
-  Definition tenv : Type := Clmt.t string (Control.table tags_t).
-  
-  (** Function declarations and closures. *)
-  Inductive fdecl : Type :=
-  | FDecl (closure : (list Expr.e)) (fs : fenv) (ins : ienv) (body : Stmt.s tags_t)
-  with fenv : Type :=
-  | FClmt (fs : Clmt.t string fdecl)
-  (** Action declarations and closures *)
-  with adecl : Type :=
-  | ADecl (closure : (list Expr.e)) (fs : fenv) (ins : ienv) (aa : aenv) (body : Stmt.s tags_t)
-  with aenv : Type :=
-  | AClmt (aa : Clmt.t string adecl)
-  (** Instances and Clmtironment. *)
-  with inst : Type :=
-  | CInst (closure : (list Expr.e)) (fs : fenv) (ins : ienv)
-          (tbls : tenv) (aa : aenv)
-          (apply_blk : Stmt.s tags_t)  (* control instance *)
-  | PInst (* TODO: parser instance *)
-  | EInst (* TODO: extern object instance *)
-  with ienv : Type :=
-  | IClmt (ins : Clmt.t string inst).
-  (**[]*)
-  
-  (** Function lookup. *)
-  Definition lookup '(FClmt fs : fenv) : string -> option fdecl := fs.
-  
-  (** Bind a function declaration to an environment. *)
-  Definition update '(FClmt fs : fenv) (x : string) (d : fdecl) : fenv :=
-    FClmt ( x ↦ d ,, fs ).
-  (**[]*)
-  
-  (** Instance lookup. *)
-  Definition ilookup '(IClmt fs : ienv) : string -> option inst := fs.
-  
-  (** Bind an instance to an environment. *)
-  Definition iupdate '(IClmt fs : ienv) (x : string) (d : inst) : ienv :=
-    IClmt ( x ↦ d ,, fs ).
-  (**[]*)
-  
-  (** Action lookup. *)
-  Definition alookup '(AClmt aa : aenv) : string -> option adecl := aa.
-  
-  (** Bind a function declaration to an environment. *)
-  Definition aupdate '(AClmt aa : aenv) (x : string) (d : adecl) : aenv :=
-    AClmt ( x ↦ d ,, aa ).
-  (**[]*)
-  
-  (** Control plane table entries,
-      essentially mapping tables to an action call. *)
-  Definition entries : Type :=
-    list (Expr.e * Expr.matchkind) ->
-    list string ->
-    string * Expr.args tags_t.
-  (**[]*)
-  
-  (** Control plane configuration. *)
-  Definition ctrl : Type := Clmt.t string entries.
-  
-  (** Control declarations and closures. *)
-  Inductive cdecl : Type :=
-  | CDecl (cs : cenv) (closure : (list Expr.e)) (fs : fenv) (ins : ienv)
-          (body : Control.d tags_t) (apply_block : Stmt.s tags_t)
-  with cenv : Type :=
-  | CClmt (cs : Clmt.t string cdecl).
-  (**[]*)
-  
-  (** Control lookup. *)
-  Definition clookup '(CClmt cs : cenv) : string -> option cdecl := cs.
-  
-  (** Bind an instance to an environment. *)
-  Definition cupdate '(CClmt cs : cenv) (x : string) (d : cdecl) : cenv :=
-    CClmt ( x ↦ d ,, cs ).
-  (**[]*)
 End StepDefs.
+  
+(** Lookup an lvalue. *)
+Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
+  match lv with
+  | Expr.Var _ x => nth_error ϵ x
+  | Expr.Member _ x lv
+    => match lv_lookup ϵ lv with
+      | Some (Expr.Struct fs _) => nth_error fs x
+      | _ => None
+      end
+  | Expr.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
+  | _ => None
+  end.
+  
+(** Updating an lvalue in an environment. *)
+Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
+  match lv with
+  | Expr.Var _ x => nth_update x v ϵ
+  | Expr.Member _ x lv
+    => match lv_lookup ϵ lv with
+      | Some (Expr.Struct vs ob)
+        => lv_update lv (Expr.Struct (nth_update x v vs) ob) ϵ
+      | _ => ϵ
+      end
+  | Expr.Slice lv hi lo
+    => match v, lv_lookup ϵ lv with
+      | (Expr.Bit _ n | Expr.Int _ n), Some (Expr.Bit w _) =>
+          let rhs := N.shiftl (Z.to_N n) w in
+          let mask :=
+            Z.to_N
+              (-1 -
+                 (Z.of_N (N.lxor
+                            (N.pow 2 (Npos hi + 1) - 1)
+                            (N.pow 2 (Npos lo - 1))))) in
+          let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
+          lv_update lv (Expr.Bit w new) ϵ
+      | _, _ => ϵ
+      end
+  | _ => ϵ
+  end.
+
+(** Create a new environment
+    from a closure environment where
+    values of [In] args are substituted
+    into the function parameters. *)
+Definition copy_in
+           (argsv : Expr.args)
+           (ϵcall : list Expr.e) : option (list Expr.e) :=
+  argsv
+    ▷ map (fun arg =>
+             match arg with
+             | PAIn v     => Some v
+             | PAOut lv
+             | PAInOut lv => lv_lookup ϵcall lv
+             end)
+    ▷ sequence.
+
+(** Update call-site environment with
+    out variables from function call evaluation. *)
+Definition copy_out
+           (argsv : Expr.args) (ϵ_func : list Expr.e)
+           (ϵ_call : list Expr.e) : list Expr.e :=
+  fold_right
+    (fun arg ϵ_call =>
+       match arg with
+       | PAIn _ => ϵ_call
+       | PAOut lv
+       | PAInOut lv
+         => match lv_lookup ϵ_func lv with
+           | None   => ϵ_call
+           | Some v => lv_update lv v ϵ_call
+           end
+       end) ϵ_call argsv.

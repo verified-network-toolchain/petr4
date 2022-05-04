@@ -1,11 +1,9 @@
 From Poulet4 Require Import
      P4light.Syntax.Syntax P4light.Transformations.SimplExpr.
 From Poulet4 Require Export
-     P4cub.Syntax.Syntax Monads.Result
-     Utils.Util.StringUtil
-     P4cub.Semantics.Dynamic.BigStep.InstUtil.
-
-Import StringUtil.
+     Monads.Result Utils.Util.StringUtil.
+Require Import Coq.Lists.List.
+Import StringUtil ListNotations.
 
 Require Import String.
 Open Scope string_scope.

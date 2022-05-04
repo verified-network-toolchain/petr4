@@ -132,10 +132,10 @@ Section Embed.
       Embed (Val.Int w z) (ValBaseInt (to_lbool (Npos w) z))
   | Embed_tuple vs vs' :
       Forall2 Embed vs vs' ->
-      Embed (Val.Struct vs None) (ValBaseTuple vs')
+      Embed (Val.Struct vs None) (ValBaseStruct (make_assoc_list 0 vs'))
   | Embed_header vs vs' b :
-      Forall2 Embed vs (map snd vs') ->
-      Embed (Val.Struct (vs) (Some b)) (ValBaseHeader vs' b)
+      Forall2 Embed vs vs' ->
+      Embed (Val.Struct (vs) (Some b)) (ValBaseHeader (make_assoc_list 0 vs') b)
   | Embed_error eo er :
       match eo with
       | Some err => err 
@@ -152,7 +152,6 @@ Section Embed.
     | Val.Struct (vs) (None)     => ValBaseStruct (make_assoc_list 0 (List.map embed vs))
     | Val.Error (Some v)  => ValBaseError v
     | Val.Error (None) => ValBaseError "no error"
-    (* why does val error have an option - why None option? *)
     end.
 
     Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
@@ -161,82 +160,104 @@ Section Embed.
       | (_, h)::t => func h :: snd_map func t
       end.
 
-    Fixpoint proj (v : VAL) : Val.v :=
+    Fixpoint proj (v : VAL) : Result.result Val.v :=
       match v with
-      | ValBaseBool b => Val.Bool b
+      | ValBaseBool b => Result.ok (Val.Bool b)
       | ValBaseInt lb => let (w, n) := IntArith.from_lbool lb in 
-        Val.Int (Z.to_pos n) (Z.of_N w) 
-      | ValBaseNull => Val.Error (None)
-      | ValBaseBit lb => let (w, n) := IntArith.from_lbool lb in 
-        Val.Bit w n 
-      | ValBaseStruct s => Val.Struct (map (fun '(_,v) => proj v) s) None
-      | ValBaseHeader s b => Val.Struct (map (fun '(_,v) => proj v) s) (Some b)
-      | ValBaseError e => Val.Error (Some e)
-      | ValBaseInteger _ => Val.Error (Some ("No mapping for ValBaseInteger exists"))
-      | ValBaseVarbit _ _ => Val.Error (Some ("No mapping for ValBaseVarbit exists"))
-      | ValBaseString _ => Val.Error (Some ("No mapping for ValBaseString exists"))
-      | ValBaseTuple _ => Val.Error (Some ("No mapping for ValBaseTuple exists"))
-      | ValBaseMatchKind _ => Val.Error (Some ("No mapping for ValBaseMatchKind exists"))
-      | ValBaseUnion _ => Val.Error (Some ("No mapping for ValBaseUnion exists"))
-      | ValBaseStack _ _ => Val.Error (Some ("No mapping for ValBaseStack exists"))
-      | ValBaseEnumField _ _ => Val.Error (Some ("No mapping for ValBaseEnumField exists"))
-      | ValBaseSenumField _ _ => Val.Error (Some ("No mapping for ValBaseSenumField exists"))
+        Result.ok (Val.Int (SyntaxUtil.pos_of_N w) n) 
+      | ValBaseNull => Result.error ("no null")
+      | ValBaseBit lb => let (w, n) := BitArith.from_lbool lb in 
+        Result.ok(Val.Bit w n) 
+      | ValBaseStruct s => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs None
+      | ValBaseHeader s b => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs (Some b)
+      | ValBaseError e => Result.ok(Val.Error (Some e))
+      | ValBaseInteger _ => Result.error("No mapping for ValBaseInteger exists")
+      | ValBaseVarbit _ _ => Result.error("No mapping for ValBaseVarbit exists")
+      | ValBaseString _ => Result.error("No mapping for ValBaseString exists")
+      | ValBaseTuple _ => Result.error("No mapping for ValBaseTuple exists")
+      | ValBaseMatchKind _ => Result.error("No mapping for ValBaseMatchKind exists")
+      | ValBaseUnion _ => Result.error("No mapping for ValBaseUnion exists")
+      | ValBaseStack _ _ => Result.error("No mapping for ValBaseStack exists")
+      | ValBaseEnumField _ _ => Result.error("No mapping for ValBaseEnumField exists")
+      | ValBaseSenumField _ _ => Result.error("No mapping for ValBaseSenumField exists")
       end.
-      (* add back result.ok and result.errro *)
 
   Local Hint Constructors Embed : core.
-  
+
   Lemma embed_Embed : forall v, Embed v (embed v).
   Proof.
     intro v; induction v using custom_v_ind;
       unravel in *; auto.
     - destruct ob. 
-      rewrite <- Forall2_map_r, Forall2_Forall; auto.
-    - constructor.
-      rewrite <- Forall2_map_r, Forall2_Forall.
-      unfold F.predfs_data, F.predf_data in H.
-      unravel in *.
-      rewrite Forall_forall in H.
-      rewrite Forall_forall.
-      intros [x v] Hin; unravel in *.
-      firstorder.
-    - constructor.
-      rewrite <- Forall2_map_r, Forall2_Forall.
-      unfold F.predfs_data, F.predf_data in H.
-      unravel in *.
-      rewrite Forall_forall in H.
-      rewrite Forall_forall.
-      intros [x v] Hin; unravel in *.
-      firstorder.
-    - destruct err; auto.
-    - constructor.
-      rewrite <- Forall2_map_r, Forall2_Forall.
-      unfold F.predfs_data, F.predf_data in H.
-      unravel in *.
-      rewrite Forall_forall in H.
-      rewrite Forall_forall.
-      intros [b h] Hin; unravel in *.
-      constructor.
-      rewrite <- Forall2_map_r, Forall2_Forall.
-      apply H in Hin; auto; simpl in *.
-      rewrite Forall_forall in Hin.
-      rewrite Forall_forall.
-      intros [x v] Hin'; unravel in *.
-      firstorder.
-  Qed.
+      + constructor. induction vs.
+        * simpl.  constructor.
+        * simpl. constructor.
+           -- inv H. assumption.
+           -- inv H. auto.
+      + constructor. induction vs.
+        * simpl.  constructor.
+        * simpl. constructor.
+          -- inv H. assumption.
+          -- inv H. auto.
+    - destruct err. constructor. auto. admit. 
+    (* will change all errors to strings instead of option strings *)
+  Admitted.
+
+  Lemma embed_project_ok : forall v t, type_value v t -> proj (embed v) = Result.ok v.
+  Proof.
+    intro v; intro t; intro H; induction H using custom_type_value_ind; 
+      unravel in *; auto.
+    - rewrite -> Zlength_to_lbool. 
+      rewrite -> Znat.N2Z.id.
+      rewrite -> bit_to_lbool_back.
+      unfold BitArith.bound in H. 
+      admit.
+    - rewrite -> Zlength_to_lbool. 
+      rewrite -> Znat.N2Z.id.
+      rewrite -> int_to_lbool_back.
+      simpl.
+      admit.
+    - destruct err; try reflexivity.
+      admit. (* will change all errors to strings instead of option strings *) 
+    - destruct ob.
+        * simpl. destruct (sequence
+          (map (fun '(_, v) => proj v)
+            (make_assoc_list 0 (map embed vs)))) eqn : seqeq.
+            + simpl. f_equal. f_equal. generalize dependent l. 
+              induction H0; inv H1; simpl in *. 
+                -- intros l J. inv J. auto.
+                -- intros l0 J. rewrite -> H6 in J. simpl in J.
+                    destruct (sequence
+                    (map (fun '(_, v) => proj v)
+                       (make_assoc_list 0 (map embed l)))) eqn : seq.
+                       ** simpl in J. inv J. f_equal. apply IHForall2; auto.
+                       ** simpl in J. inv J.
+            + simpl. exfalso. induction H1; simpl in *. inv seqeq.
+              rewrite H1 in seqeq. simpl in seqeq. 
+              destruct (sequence
+              (map (fun '(_, v) => proj v)
+                 (make_assoc_list 0 (map embed l)))) eqn : seq.      
+                 -- inv seqeq.
+                 -- simpl in seqeq. inv H0. auto.
+        * simpl. destruct (sequence
+        (map (fun '(_, v) => proj v)
+          (make_assoc_list 0 (map embed vs)))) eqn : seqeq.
+          + simpl. f_equal. f_equal. generalize dependent l. 
+            induction H0; inv H1; simpl in *. 
+              -- intros l J. inv J. auto.
+              -- intros l0 J. rewrite -> H6 in J. simpl in J.
+                  destruct (sequence
+                  (map (fun '(_, v) => proj v)
+                    (make_assoc_list 0 (map embed l)))) eqn : seq.
+                    ** simpl in J. inv J. f_equal. apply IHForall2; auto.
+                    ** simpl in J. inv J.
+          + simpl. exfalso. induction H1; simpl in *. inv seqeq.
+            rewrite H1 in seqeq. simpl in seqeq. 
+            destruct (sequence
+            (map (fun '(_, v) => proj v)
+              (make_assoc_list 0 (map embed l)))) eqn : seq.      
+              -- inv seqeq.
+              -- simpl in seqeq. inv H0. auto.
+  Admitted.
+
 End Embed.
-
-(* E2E proof for types 
-Forall (t : p4cub_type), p4light_to_p4cub (p4cub_to_p4light t) = Some t. 
-
-E2E proof for values  *)
-
-(* In Semantics.v In bigstep, we will use these functions *)
-
-(* proof for embed -> project you get OK and it's the identity *)
-
-(* project -> embed 
-projectable v ==> proj v = ok c and embed c = v *)
-
-(* issueL project embed proof fails because of the picture -- needs to sort to fix this issue. 
-can prove project embed is ok, but can't't prove that it is identity  *)

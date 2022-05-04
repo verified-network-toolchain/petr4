@@ -223,7 +223,12 @@ Module Control.
              (body : Stmt.s) (** action declaration *)
     | Table (table_name : string)
             (key : list (Expr.e * string))
-            (actions : list string).
+            (actions : list string)
+            (* try making table function of key.
+               problematic for compileing to
+               hardware b/c table
+               invocations (of the same table) should all
+               have the same key... *).
 End Control.
 
 (** Top-Level Declarations *)

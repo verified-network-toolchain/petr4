@@ -30,18 +30,18 @@ Fixpoint lv_update
   match lv with
   | Val.Var x => nth_update x v ϵ
   | Val.Slice lv hi lo =>
-    match v, lv_lookup ϵ lv with
-    | (_ VW n | _ VS n), Some (w VW _) =>
-      let rhs := N.shiftl (Z.to_N n) w in
-      let mask :=
-          Z.to_N
-          (-1 - (Z.of_N (N.lxor
-                           (2 ^ (Npos hi + 1) - 1)
-                           (2 ^ (Npos lo - 1))))) in
-      let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
-      lv_update lv (w VW new) ϵ
-    | _, _ => ϵ
-    end
+      match v, lv_lookup ϵ lv with
+      | (_ VW n | _ VS n), Some (w VW _) =>
+          let rhs := N.shiftl (Z.to_N n) w in
+          let mask :=
+            Z.to_N
+              (-1 - (Z.of_N (N.lxor
+                               (2 ^ (Npos hi + 1) - 1)
+                               (2 ^ (Npos lo - 1))))) in
+          let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
+          lv_update lv (w VW new) ϵ
+      | _, _ => ϵ
+      end
   | lv DOT x =>
     match lv_lookup ϵ lv with
     | Some (Val.Struct vs ob)

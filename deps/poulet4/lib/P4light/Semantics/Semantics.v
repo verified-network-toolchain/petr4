@@ -1935,28 +1935,13 @@ Definition action_param_to_p4param (param : path * direction) : P4Parameter :=
 
 Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) : Expression :=
   match ref with
-  | MkTableActionRef _ ref _ =>
+  | MkTableActionRef _ ref typ =>
       match ref with
       | MkTablePreActionRef name args =>
           let loc :=
             match name with
-            | BareName id =>
-                match PathMap.get (p ++ [str id]) ge with
-                | Some _ => LInstance [str id]
-                | None => LGlobal [str id]
-                end
+            | BareName id => LInstance [str id]
             | QualifiedName p id => LGlobal (clear_list (p ++ [id]))
-            end in
-          let typ :=
-            let ofd :=
-              match loc with
-              | LInstance p' => PathMap.get (p ++ p') ge
-              | LGlobal p' => PathMap.get p' ge
-              end in
-            match ofd with
-            | Some (FInternal params _) =>
-                TypFunction (MkFunctionType nil (map action_param_to_p4param params) FunAction TypVoid)
-            | _ => dummy_type (* impossible *)
             end in
           let func := MkExpression dummy_tags (ExpName name loc) typ Directionless in
           MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless

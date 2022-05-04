@@ -15,10 +15,10 @@ Module Step.
   Open Scope climate_scope.
 
   (** Continuation statements. *)
-  Inductive kstmt {tags_t : Type} : Type :=
+  Inductive kstmt : Set :=
   | KStop                              (* end of continuation *)
   | KSeq (s : Stmt.s tags_t) (k : kstmt) (* sequencing/composition *)
-  | KBlock (ϵ : @eenv tags_t) (k : kstmt) (* block: enclosing environment & continuation *)
+  | KBlock (ϵ : lis) (k : kstmt) (* block: enclosing environment & continuation *)
   | KCall (args : Expr.arrowE tags_t)
           (ϵ : @eenv tags_t) (k : kstmt) (* function/procedure
                                           call-site with arguments,

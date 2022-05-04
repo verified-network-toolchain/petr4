@@ -3,7 +3,7 @@ Require Import Coq.ZArith.BinInt
 From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.Value.Value.
 From Poulet4.P4cub.Semantics.Dynamic Require Export
-     BigStep.ExprUtil BigStep.ValEnvUtil BigStep.InstUtil.
+     BigStep.ExprUtil BigStep.ValEnvUtil InstUtil.
 Import Val.ValueNotations ExprNotations
   Val.LValueNotations StmtNotations.
 
@@ -141,15 +141,15 @@ Variant ctx : Set :=
                                     extern instance closure env. *)
   | CFunction
   | CApplyBlock
-      (control_plane_entries : ctrl) (* TODO: needs to be replaced with
+      (control_plane_entries : ctrl Val.v) (* TODO: needs to be replaced with
                                         Target.v equivalent. *)
       (tables : tenv)
       (available_actions : aenv)
-      (available_controls : cienv) (* TODO:
+      (available_controls : cienv Val.v) (* TODO:
                                       needs a De Bruijn
                                       extern instance closure env. *)
   | CParserState
-      (available_parsers : pienv) (* TODO:
+      (available_parsers : pienv Val.v) (* TODO:
                                      needs a De Bruijn
                                      extern instance closure env. *).
 

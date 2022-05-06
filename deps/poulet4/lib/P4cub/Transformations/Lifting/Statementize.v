@@ -113,8 +113,10 @@ Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
   | Stmt.Exit
-  | Stmt.Return None
-  | Stmt.Invoke _ => s
+  | Stmt.Return None => s
+  | Stmt.Invoke t es =>
+      let '(le, es) := lift_e_list up es in
+      unwind_vars le $ Stmt.Invoke t es
   | Stmt.Return (Some e)
     => let '(le, e) := lift_e up e in
       unwind_vars le $ Stmt.Return $ Some e
@@ -154,8 +156,7 @@ Definition lift_control_decl (cd : Control.d) : Control.d :=
     match cd with
     | Control.Action a cps dps body
       => Control.Action a cps dps $ lift_s 0 body
-    | Control.Table t key actions
-      => (* TODO: lift key! *) Control.Table t key actions
+    | Control.Table _ _ _ => cd
     end.
 
 Definition lift_top_decl (td : TopDecl.d) : TopDecl.d := 

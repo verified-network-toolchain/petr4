@@ -123,8 +123,9 @@ Inductive lifted_stmt : Stmt.s -> Prop :=
 | lifted_transition e :
   lifted_parser_expr e ->
   lifted_stmt (Stmt.Transition e)
-| lifted_invoke t :
-  lifted_stmt (Stmt.Invoke t)
+| lifted_invoke t es :
+  Forall lifted_expr es ->
+  lifted_stmt (Stmt.Invoke t es)
 | lifted_apply x ext_args args :
   Forall lifted_arg args ->
   lifted_stmt (Stmt.Apply x ext_args args).
@@ -134,7 +135,6 @@ Variant lifted_control_Decl : Control.d -> Prop :=
     lifted_stmt body ->
     lifted_control_Decl (Control.Action act cps dps body)
   | lifted_Table table_name key actions :
-    Forall lifted_expr (map fst key) ->
     lifted_control_Decl (Control.Table table_name key actions).
 
 Inductive lifted_top_Decl : TopDecl.d -> Prop :=
@@ -354,6 +354,8 @@ Proof.
     apply lift_args_lifted_args in eqargs as [? ?].
     apply unwind_vars_lifted; auto.
     rewrite Forall_app; auto.
+  - destruct (lift_e_list up key) as [le es] eqn:eqle.
+    apply lift_e_list_lifted_expr in eqle as [hle hes]; eauto.
   - destruct (lift_args up args) as [largs args'] eqn:eqargs.
     apply lift_args_lifted_args in eqargs as [? ?]; auto.
   - destruct expr as [t | e]; auto.
@@ -381,17 +383,21 @@ Lemma lift_control_decl_lifted_control_Decl : forall cd,
     lifted_control_Decl (lift_control_decl cd).
 Proof.
   intros cd; destruct cd; unravel; auto.
-  constructor. (* TODO: table keys are sad *)
-Abort.
+Qed.
 
+Local Hint Resolve lift_control_decl_lifted_control_Decl : core.
 Local Hint Constructors lifted_top_Decl : core.
 
 Lemma lift_top_decl_lifted_top_Decl : forall td,
     lifted_top_Decl (lift_top_decl td).
 Proof.
   intro td; destruct td; unravel in *; auto.
-  - constructor; auto. (* TODO: tables?? *) admit.
+  - constructor; auto.
+    rewrite Forall_forall.
+    intros cd hcd.
+    rewrite in_map_iff in hcd.
+    destruct hcd as (d & hd & hin); subst; auto.
   - constructor; auto.
     rewrite sublist.Forall_map; unravel.
     rewrite Forall_forall in *; eauto.
-Abort.
+Qed.

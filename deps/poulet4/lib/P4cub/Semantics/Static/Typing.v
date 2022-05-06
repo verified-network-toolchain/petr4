@@ -203,14 +203,15 @@ Inductive type_stmt
               parser_insts extern_insts |}
     ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke
-    Γ fns tbl tbls actions
+    Γ fns tbl es tbls τs actions
     control_insts extern_insts :
-  In tbl tbls ->
+  tbls tbl = Some τs ->
+  Forall2 (type_expr Γ) es τs ->
   {| expr_env := Γ
   ; sfuncts :=fns
   ; cntx := CApplyBlock
               tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Invoke tbl ⊣ Cont
+    ⊢ₛ Stmt.Invoke tbl es ⊣ Cont
 | type_vardecl (Γ : stmt_type_env) τ te s sig :
     match te with
     | inr e => Γ ⊢ₑ e ∈ τ
@@ -244,7 +245,7 @@ Record ctrl_type_env : Set :=
   ; ccntrl_insts : ienv  (** available control instances. *)
   ; cextrn_insts : eienv (** available extern instances. *)
   ; actns : aenv         (** available action signatures. *)
-  ; tbls : list string   (** available table names. *) }.
+  ; tbls : tbl_env   (** available table names. *) }.
     
 Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
          (at level 80, no associativity).
@@ -253,25 +254,28 @@ Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
     Producing either a new action or table. *)
 Variant type_ctrldecl (Γ : ctrl_type_env)
   : Control.d ->
-    (string * (list Expr.t * Expr.params)) + string -> Prop :=
+    (string * (list Expr.t * Expr.params))
+    + (string * list Expr.t) -> Prop :=
   | type_action action_name cparams dparams body sig :
-  {| sfuncts := cfuncts Γ
-  ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
-  ; expr_env :=
-    {| type_vars := type_vars (cexpr_env Γ)
-    ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
-  |} ⊢ₛ body ⊣ sig ->
-  Γ ⊢ᵪ Control.Action action_name cparams dparams body
-    ⊣ inl (action_name,(cparams,dparams))
-| type_table table_name key actions :
-  (** Keys type. *)
-  Forall
-    (fun '(e,_) => exists τ,
-         cexpr_env Γ ⊢ₑ e ∈ τ) key ->
+    {| sfuncts := cfuncts Γ
+    ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
+    ; expr_env :=
+      {| type_vars := type_vars (cexpr_env Γ)
+      ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
+    |} ⊢ₛ body ⊣ sig ->
+    Γ ⊢ᵪ Control.Action action_name cparams dparams body
+      ⊣ inl (action_name,(cparams,dparams))
+  | type_table table_name key_sig actions :
+    (*
+      (** Keys type. *)
+      Forall
+      (fun '(e,_) => exists τ,
+      cexpr_env Γ ⊢ₑ e ∈ τ) key ->
+     *)
   (** Actions available *)
-  Forall (fun a => exists pms, actns Γ a = Some pms) actions ->
-  Γ ⊢ᵪ Control.Table
-    table_name key actions ⊣  inr table_name
+    Forall (fun a => exists pms, actns Γ a = Some pms) actions ->
+    Γ ⊢ᵪ Control.Table
+      table_name key_sig actions ⊣  inr (table_name, map fst key_sig)
 where "Γ '⊢ᵪ' d '⊣' result"
   := (type_ctrldecl Γ d result) : type_scope.
 
@@ -308,20 +312,20 @@ Definition type_ctrl
                     ; cextrn_insts := cextrn_insts Γ
                     ; actns := an ↦ cdps ,, actns Γ
                     ; tbls := tbls Γ |}
-           | inr tn =>
+           | inr (tn,key_sig) =>
                Γ' = {| cexpr_env := cexpr_env Γ
                     ; cfuncts := cfuncts Γ
                     ; ccntrl_insts := ccntrl_insts Γ
                     ; cextrn_insts := cextrn_insts Γ
                     ; actns := actns Γ
-                    ; tbls := tn :: tbls Γ |}
+                    ; tbls := tn ↦ key_sig ,, tbls Γ |}
            end)
     ctrl
     {| cexpr_env := {|type_vars:=0;types:=bind_all params Γ|}
     ; cfuncts := fs
     ; ccntrl_insts := cis
     ; cextrn_insts := eis
-    ; actns := ∅ ; tbls := [] |}.
+    ; actns := ∅ ; tbls := ∅ |}.
 
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)

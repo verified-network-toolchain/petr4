@@ -53,8 +53,8 @@ Definition inf_transition  (transition : Parser.e) :=
 Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Exit
-  | Stmt.Invoke _ => s
+  | Stmt.Exit => s
+  | Stmt.Invoke t es => Stmt.Invoke t $ map inf_e es
   | Stmt.Return e      => Stmt.Return $ option_map inf_e e
   | Stmt.Transition e  => Stmt.Transition $ inf_transition e
   | (lhs `:= rhs)%stmt => (inf_e lhs `:= inf_e rhs)%stmt
@@ -81,9 +81,7 @@ Definition inf_Cd  (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
       Control.Action a cps dps $ inf_s body
-  | Control.Table t keys acts =>
-      Control.Table
-        t (List.map (fun '(e,mk) => (inf_e e, mk)) keys) acts
+  | Control.Table _ _ _ => d
   end.
 
 Definition inf_d  (d : TopDecl.d) : TopDecl.d :=

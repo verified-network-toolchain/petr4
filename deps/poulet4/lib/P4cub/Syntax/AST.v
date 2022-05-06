@@ -196,7 +196,7 @@ Module Stmt.
   | Call
       (call : fun_kind)          (** kind of call *)
       (args : Expr.args)         (** arguments *)
-  | Invoke (table_name : string) (** table invocation *)
+  | Invoke (table_name : string) (key : list Expr.e) (** table invocation *)
   | Apply
       (instance_name : nat)
       (ext_args : list string)
@@ -222,7 +222,7 @@ Module Control.
              (data_plane_params : Expr.params)
              (body : Stmt.s) (** action declaration *)
     | Table (table_name : string)
-            (key : list (Expr.e * string))
+            (key : list (Expr.t * string))
             (actions : list string)
             (* try making table function of key.
                problematic for compileing to

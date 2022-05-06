@@ -141,51 +141,53 @@ Definition eienv : Set :=
           string (** Method name. *)
           (nat * Expr.arrowT (** Method type signature. *))).
 
+(** Table signature environment. *)
+Definition tbl_env : Set := Clmt.t string (list Expr.t).
+
 (** Statement context. *)
 Variant ctx : Set :=
-  | CAction (available_actions : aenv)
-            (available_externs : eienv) (* action block *)
-  | CFunction (return_type : option Expr.t)
-  | CApplyBlock (tables : list string)
-                (available_actions : aenv)
-                (available_controls : ienv)
-                (available_externs : eienv) (* control apply block *)
-  | CParserState (available_parsers : ienv)
-                 (available_externs : eienv) (* parser state *).
+| CAction (available_actions : aenv)
+          (available_externs : eienv) (* action block *)
+| CFunction (return_type : option Expr.t)
+| CApplyBlock (tables : tbl_env)
+              (available_actions : aenv)
+              (available_controls : ienv)
+              (available_externs : eienv) (* control apply block *)
+| CParserState (available_parsers : ienv)
+               (available_externs : eienv) (* parser state *).
 
 (** Evidence an extern method call context is ok. *)
 Variant extern_call_ok (eis : eienv) : ctx -> Prop :=
-| extern_action_ok {aa : aenv} :
+| extern_action_ok {aa} :
   extern_call_ok eis (CAction aa eis)
-| extern_apply_block_ok {tbls : list string} {aa : aenv} {cis : ienv} :
+| extern_apply_block_ok {tbls} {aa} {cis} :
   extern_call_ok eis (CApplyBlock tbls aa cis eis)
-| extern_parser_state_ok {pis : ienv} :
+| extern_parser_state_ok {pis} :
   extern_call_ok eis (CParserState pis eis).
 
 (** Evidence an action call context is ok. *)
 Variant action_call_ok
-          (aa : aenv) : ctx -> Prop :=
-| action_action_ok {eis : eienv} :
+        (aa : aenv) : ctx -> Prop :=
+  | action_action_ok {eis} :
     action_call_ok aa (CAction aa eis)
-| action_apply_block_ok {tbls : list string} {cis : ienv} {eis : eienv} :
+  | action_apply_block_ok {tbls} {cis} {eis} :
     action_call_ok aa (CApplyBlock tbls aa cis eis).
 
 (** Evidence an exit context ok. *)
 Variant exit_ctx_ok : ctx -> Prop :=
-| exit_action_ok {aa : aenv} {eis : eienv} :
+  | exit_action_ok {aa} {eis} :
     exit_ctx_ok (CAction aa eis)
-| exit_applyblk_ok {tbls : list string} {aa : aenv}
-                   {cis : ienv} {eis : eienv} :
+  | exit_applyblk_ok {tbls} {aa} {cis} {eis} :
     exit_ctx_ok (CApplyBlock tbls aa cis eis).
 
 (** Evidence a void return is ok. *)
 Variant return_void_ok : ctx -> Prop :=
-| return_void_action {aa : aenv} {eis : eienv} :
+  | return_void_action {aa} {eis} :
     return_void_ok (CAction aa eis)
-| return_void_void :
-  return_void_ok (CFunction None)
-| return_void_applyblk {tbls : list string} {aa : aenv}
-                       {cis : ienv} {eis : eienv} :
+  | return_void_void :
+    return_void_ok (CFunction None)
+  | return_void_applyblk
+      {tbls} {aa} {cis} {eis} :
     return_void_ok (CApplyBlock tbls aa cis eis).
 
 (** Put parameters into environment. *)

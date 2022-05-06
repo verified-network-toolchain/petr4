@@ -60,8 +60,8 @@ Local Open Scope stmt_scope.
 Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Exit
-  | Stmt.Invoke _ => s
+  | Stmt.Exit => s
+  | Stmt.Invoke t es => Stmt.Invoke t $ map (rename_e ρ) es
   | Stmt.Return oe
     => Stmt.Return $ option_map (rename_e ρ) oe
   | Stmt.Transition e

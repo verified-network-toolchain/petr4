@@ -81,8 +81,8 @@ Definition tsub_fun_kind (σ : nat -> Expr.t) (fk : Stmt.fun_kind) : Stmt.fun_ki
 Fixpoint tsub_s (σ : nat -> Expr.t) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
-  | Stmt.Exit
-  | Stmt.Invoke _ => s
+  | Stmt.Exit => s
+  | Stmt.Invoke t es => Stmt.Invoke t $ map (tsub_e σ) es
   | Stmt.Return e => Stmt.Return $ option_map (tsub_e σ) e
   | Stmt.Transition e => Stmt.Transition $ tsub_transition σ e
   | (lhs `:= rhs)%stmt
@@ -141,7 +141,7 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
         (map (tsub_param σ) dps) $ tsub_s σ body
   | Control.Table t key acts =>
       Control.Table
-        t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key) acts
+        t (List.map (fun '(t,mk) => (tsub_t σ t, mk)) key) acts
   end.
 
 Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=

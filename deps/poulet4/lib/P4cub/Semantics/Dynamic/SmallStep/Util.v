@@ -7,7 +7,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax
         Poulet4.Utils.ForallMap Poulet4.Monads.Option.
 
 Section StepDefs.
-  Import P4ArithTactics AllCubNotations.
+  Import String P4ArithTactics AllCubNotations.
   
   (** Bit-slicing. *)
   Definition eval_slice (hi lo : positive) (v : Expr.e) : option Expr.e :=
@@ -47,7 +47,7 @@ Section StepDefs.
     | Expr.TBool => Some $ Expr.Bool false
     | Expr.TBit w => Some $ Expr.Bit w 0%Z
     | Expr.TInt w => Some $ Expr.Int w 0%Z
-    | Expr.TError => Some $ Expr.Error None
+    | Expr.TError => Some $ Expr.Error "no error"%string
     | Expr.TStruct τs b =>
         let^ es := sequence $ List.map e_of_t τs in
         Expr.Struct es (if b then Some false else None)
@@ -256,7 +256,7 @@ Section StepDefs.
         constructor;
           eauto using Forall2_Forall_impl_Forall.
         + destruct b; auto.
-        + assert (hlen: length ts = length es)
+        + assert (hlen: List.length ts = List.length es)
             by eauto using Forall2_length.
           pose proof Forall_specialize_Forall2
                _ _ _ _ H _ hlen as h; clear H hlen.

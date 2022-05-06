@@ -4,7 +4,7 @@ From Poulet4.P4cub.Semantics Require Import Static.Static
      Dynamic.BigStep.Value.Typing
      Dynamic.BigStep.Value.Syntax
      Dynamic.BigStep.Value.IndPrincip.
-Import Val ValueNotations ExprNotations ParserNotations.
+Import String Val ValueNotations ExprNotations ParserNotations.
 From Poulet4 Require Import P4cub.Syntax.AST
      P4cub.Syntax.CubNotations Utils.ForallMap.
 
@@ -28,7 +28,7 @@ Local Open Scope type_scope.
 (** Intial/Default value from a type. *)
 Fixpoint v_of_t (τ : Expr.t) : option v :=
   match τ with
-  | Expr.TError => Some $ Error None
+  | Expr.TError => Some $ Error "no error"%string
   | Expr.TBool  => Some $ Bool false
   | Expr.TBit w => Some $ Bit w 0%Z
   | Expr.TInt w => Some $ Int w 0%Z

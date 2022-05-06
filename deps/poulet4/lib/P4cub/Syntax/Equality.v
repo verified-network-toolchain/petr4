@@ -265,8 +265,8 @@ Section ExprEquivalenceDefs.
       clear dependent valid; clear valid0.
       ind_list_Forall; intros [| h2 l2] He; try discriminate; auto.
       apply andb_prop in He as [He1 He2]; f_equal; eauto.
-    - destruct valid; destruct valid0; cbn in *; try discriminate; f_equal; auto.
-    - rewrite relop_eq in e0; assumption.
+    - destruct valid; destruct valid0;
+        cbn in *; try discriminate; f_equal; auto.
   Qed.
   
   Local Hint Resolve eqbe_refl : core.

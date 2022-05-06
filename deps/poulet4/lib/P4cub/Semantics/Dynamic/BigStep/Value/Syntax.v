@@ -9,7 +9,7 @@ Module Val.
   | Bit (width : N) (n : Z)
   | Int (width : positive) (n : Z)
   | Struct (fields : list v) (validity : option bool)
-  | Error (err : option string).
+  | Error (err : string).
 
   (** Lvalues. *)
   Inductive lv : Set :=

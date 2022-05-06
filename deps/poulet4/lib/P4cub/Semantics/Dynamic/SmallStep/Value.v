@@ -6,14 +6,14 @@ Import String AllCubNotations.
 Inductive value : Expr.e -> Prop :=
 | value_bool (b : bool) :
   value b
-| value_bit (w : N) (n : Z) :
+| value_bit w n :
   value (w `W n)%expr
-| value_int (w : positive) (z : Z) :
+| value_int w z :
   value (w `S z)%expr
-| value_struct (es : list Expr.e) ob :
+| value_struct es ob :
   Forall value es ->
   value (Expr.Struct es ob)
-| value_error (err : option (string)) :
+| value_error err :
   value (Expr.Error err).
 
 Section IsValueInduction.

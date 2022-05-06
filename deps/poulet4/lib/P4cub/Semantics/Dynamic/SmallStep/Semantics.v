@@ -77,18 +77,14 @@ Module Step.
     ⟨ ϵ, Expr.Struct (prefix ++ e :: suffix) ob ⟩
       -->  Expr.Struct (prefix ++ e' :: suffix) ob
   where "⟨ ϵ , e1 ⟩ '-->' e2" := (expr_step ϵ e1 e2) : type_scope.
-
-  Reserved Notation "e1 '-->l' e2"
-           (at level 80, no associativity).
   
   Inductive lvalue_step : Expr.e -> Expr.e -> Prop :=
   | lstep_slice e e' hi lo :
-    e --> l e' ->
-    Expr.Slice e hi lo --> l Expr.Slice e' hi lo
+    lvalue_step e e' ->
+    lvalue_step (Expr.Slice e hi lo) (Expr.Slice e' hi lo)
   | lstep_member τ x e e' :
-    e --> l e' ->
-    Expr.Member τ x e --> l Expr.Member τ x e'
-  where "e1 '-->l' e2" := (lvalue_step e1 e2) : type_scope.
+    lvalue_step e e' ->
+    lvalue_step (Expr.Member τ x e) (Expr.Member τ x e').
   
   Reserved Notation "'π' envn , pe1 '-->' pe2"
            (at level 40, pe1 custom p4prsrexpr, pe2 custom p4prsrexpr).

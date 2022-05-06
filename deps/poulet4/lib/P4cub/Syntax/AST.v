@@ -133,7 +133,7 @@ Module Expr.
   | Struct (fields : list e) (valid : option bool) (** struct literals *)
   | Member (result_type : t) (mem : nat)
             (arg : e)              (** member-expressions *)
-  | Error (err : option string)       (** error literals *).    
+  | Error (err : string)       (** error literals *).    
   
   (** Function call arguments. *)
   Definition args : Set := list (paramarg e e).

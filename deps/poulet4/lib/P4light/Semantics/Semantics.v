@@ -93,7 +93,11 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers next) "lastIndex" sv.
 
-Context {tags_t: Type}.
+Context {tags_t : Type}.
+Context {inhabitant_tags_t : Inhabitant tags_t}.
+Definition dummy_type : @P4Type tags_t := TypBool.
+Opaque dummy_type.
+Definition dummy_tags := @default tags_t _.
 
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := ValueLvalue.
@@ -348,6 +352,7 @@ Variable ge : genv.
 Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
   option_map eval_val_to_sval (loc_to_val_const (ge_const ge) this loc).
 
+(* Execution relation for side-effectless expressions. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
     (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
@@ -630,6 +635,8 @@ Qed. *)
   exec_expr this st expr v ->
   eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
 
+(* Auxiliary functions dealing with parameters and signals. *)
+
 Definition is_in (dir : direction) : bool :=
   match dir with
   | In | InOut => true
@@ -728,11 +735,6 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
       | _ => get_action actions' name
       end
   end.
-
-Definition dummy_type : @P4Type tags_t := TypBool.
-Opaque dummy_type.
-Context `{inhabitant_tags_t : Inhabitant tags_t}.
-Definition dummy_tags := @default tags_t _.
 
 Definition add_ctrl_args (oaction : option (@Expression tags_t))
                          (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
@@ -836,7 +838,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
   let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
   match func with
-  (* function/action/parser transition *)
+  (* Function expression without a dot. It can be a narrow-sense function/action/parser transition. *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
       | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
@@ -847,9 +849,21 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
           | _ => None
           end
       end
-  (* apply/extern *)
+  (* Function expression with a dot. It can be an apply of parser/control/table, or an extern method. *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
       match expr with
+      (* If it is a table *)
+      | MkExpression _ (ExpName _ loc) (TypTable _) _ =>
+          match loc with
+          | LInstance p =>
+              match PathMap.get this_path ge_inst with
+              | Some {| iclass:=class_name; |} =>
+                  option_map (fun fd => (None, fd)) (PathMap.get (class_name :: p ++ [str name]) ge_func)
+              | _ => None
+              end
+          | _ => None (* impossible *)
+          end
+      (* If it is not a table *)
       | MkExpression _ (ExpName _ loc) _ _ =>
           match loc with
           | LGlobal p =>
@@ -1243,6 +1257,17 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => ""
   end.
 
+(* Construct a call expression from the actionref. *)
+Inductive get_table_call : list Expression -> Expression -> option action_ref ->
+    Expression -> Val -> Prop :=
+  | get_table_call_match : forall actions default_action action_name ctrl_args action retv,
+      add_ctrl_args (get_action actions action_name) ctrl_args = Some action ->
+      retv = table_retv true "" (get_expr_func_name action) ->
+      get_table_call actions default_action (Some (mk_action_ref action_name ctrl_args)) action retv
+  | get_table_call_default : forall actions default_action retv,
+      retv = table_retv false "" (get_expr_func_name default_action) ->
+      get_table_call actions default_action None default_action retv.
+
 (* isValid() is supported by headers and header unions. If u is a header union, u.isValid() returns true
   if any member of the header union u is valid, otherwise it returns false. *)
 Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bool -> Prop :=
@@ -1493,18 +1518,12 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_func_copy_out params s'' = Some args'->
       exec_func read_one_bit obj_path s (FInternal params body) nil args s'' args' sig'
 
-  | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
+  | exec_func_table_match : forall obj_path name keys actions actionref retv action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name keys const_entries actionref ->
-      (if is_some actionref
-       then actionref = (Some (mk_action_ref action_name ctrl_args))
-            /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
-            /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
-       else action = default_action
-            /\ actionref = None
-            /\ retv = (SReturn (table_retv false "" (get_expr_func_name default_action)))) ->
+      get_table_call actions default_action actionref action retv ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
-        nil nil s' nil retv
+        nil nil s' nil (SReturn retv)
 
   (* This will not happen in the latest spec. *)
   (* | exec_func_table_noaction : forall obj_path name keys actions const_entries s,
@@ -2021,7 +2040,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let table :=
         FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
             (option_map (map unwrap_table_entry) entries) in
-      PathMap.set (p ++ [str name]) table ge
+      PathMap.set (p ++ [str name; "apply"]) table ge
   | _ => ge
   end.
 
@@ -2120,8 +2139,6 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   end.
 
 End WithGenv.
-
-Context `{inhabitant_tags_t : Inhabitant tags_t}.
 
 Definition gen_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in

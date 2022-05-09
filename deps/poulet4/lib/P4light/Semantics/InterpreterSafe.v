@@ -1031,17 +1031,19 @@ Section InterpreterSafe.
           destruct v; try discriminate.
           inversion H.
           inversion Heqo.
+          inversion Heqo0.
           subst.
           econstructor; eauto using interp_table_match_safe.
           simpl.
-          intuition eauto; congruence.
+          econstructor; intuition eauto; congruence.
         * destruct v; try discriminate.
           inversion H.
           eapply IHcall in Heqo1.
+          inversion Heqo0.
           subst.
           econstructor; eauto using interp_table_match_safe.
           simpl.
-          intuition eauto; congruence.
+          econstructor; intuition eauto; congruence.
     - cbn in H.
       destruct st.
       optbind_inv.
@@ -1071,9 +1073,6 @@ Section InterpreterSafe.
           unfold Interpreter.interp_val_sval in Heqo0.
           inversion Heqo0.
           apply val_to_sval_eval.
-  Unshelve.
-  exact ""%string.
-  exact nil.
   Qed.
 
   Theorem interp_call_safe:

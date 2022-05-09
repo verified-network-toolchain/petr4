@@ -203,20 +203,51 @@ Section Embed.
     (* will change all errors to strings instead of option strings *)
   Admitted.
 
+  Require Import PeanoNat.
+  Infix "^" := Z.pow.
+
   Lemma embed_project_ok : forall v t, type_value v t -> proj (embed v) = Result.ok v.
   Proof.
     intro v; intro t; intro H; induction H using custom_type_value_ind; 
       unravel in *; auto.
     - rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.
-      rewrite -> bit_to_lbool_back.
-      unfold BitArith.bound in H. 
-      admit.
+      rewrite -> bit_to_lbool_back. 
+      unfold BitArith.bound in H.
+      destruct H. f_equal. f_equal.
+      unfold BitArith.mod_bound.
+      remember (BitArith.upper_bound w).
+      rewrite -> Zdiv.Zmod_small.
+      + reflexivity.
+      + lia.
     - rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.
       rewrite -> int_to_lbool_back.
-      simpl.
-      admit.
+      unfold BitArith.bound in H.
+      destruct H. f_equal. f_equal.
+      simpl. unfold IntArith.mod_bound. 
+      remember (IntArith.mod_amt w).
+      remember (IntArith.upper_bound w).
+      rewrite -> Zdiv.Zmod_small.
+      unfold IntArith.maxZ in H0.
+      rewrite <- Heqz1 in H0.
+      assert (z < z1). 
+        * lia.
+        * destruct_with_eqn (z <? z1) . 
+          -- auto.
+          -- lia.
+        * unfold IntArith.maxZ in H0.
+        unfold IntArith.upper_bound in H0.
+        unfold IntArith.mod_amt in Heqz0.
+        assert (IntArith.minZ w <= 0).
+          -- unfold IntArith.minZ. 
+            unfold IntArith.upper_bound. 
+            remember (Z.pow 2 (Z.pos w - 1)).
+            induction z2.
+              ** reflexivity.
+              ** lia.
+              ** rewrite Heqz2. exfalso. 
+          -- admit.
     - destruct err; try reflexivity.
       admit. (* will change all errors to strings instead of option strings *) 
     - destruct ob.

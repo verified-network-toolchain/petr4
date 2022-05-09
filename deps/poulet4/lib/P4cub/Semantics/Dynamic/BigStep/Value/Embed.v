@@ -246,7 +246,7 @@ Section Embed.
             induction z2.
               ** reflexivity.
               ** lia.
-              ** rewrite Heqz2. exfalso. 
+              ** admit.
           -- admit.
     - destruct err; try reflexivity.
       admit. (* will change all errors to strings instead of option strings *) 

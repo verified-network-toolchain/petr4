@@ -1258,15 +1258,17 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   end.
 
 (* Construct a call expression from the actionref. *)
-Inductive get_table_call : list Expression -> Expression -> option action_ref ->
-    Expression -> Val -> Prop :=
-  | get_table_call_match : forall actions default_action action_name ctrl_args action retv,
-      add_ctrl_args (get_action actions action_name) ctrl_args = Some action ->
-      retv = table_retv true "" (get_expr_func_name action) ->
-      get_table_call actions default_action (Some (mk_action_ref action_name ctrl_args)) action retv
-  | get_table_call_default : forall actions default_action retv,
-      retv = table_retv false "" (get_expr_func_name default_action) ->
-      get_table_call actions default_action None default_action retv.
+Definition get_table_call (actions : list Expression) (default_action : Expression)
+      (matched_action : option action_ref) : option (Expression * Val) :=
+  match matched_action with
+  | Some (mk_action_ref action_name ctrl_args) =>
+      match add_ctrl_args (get_action actions action_name) ctrl_args with
+      | Some action => Some (action, table_retv true "" (get_expr_func_name action))
+      | None => None
+      end
+  | None =>
+      Some (default_action, table_retv false "" (get_expr_func_name default_action))
+  end.
 
 (* isValid() is supported by headers and header unions. If u is a header union, u.isValid() returns true
   if any member of the header union u is valid, otherwise it returns false. *)
@@ -1520,7 +1522,7 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
 
   | exec_func_table_match : forall obj_path name keys actions actionref retv action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name keys const_entries actionref ->
-      get_table_call actions default_action actionref action retv ->
+      get_table_call actions default_action actionref = Some (action, retv) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
         nil nil s' nil (SReturn retv)

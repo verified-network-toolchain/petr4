@@ -1034,16 +1034,14 @@ Section InterpreterSafe.
           inversion Heqo0.
           subst.
           econstructor; eauto using interp_table_match_safe.
-          simpl.
-          econstructor; intuition eauto; congruence.
+          simpl; rewrite Heqo2. auto.
         * destruct v; try discriminate.
           inversion H.
           eapply IHcall in Heqo1.
           inversion Heqo0.
           subst.
           econstructor; eauto using interp_table_match_safe.
-          simpl.
-          econstructor; intuition eauto; congruence.
+          simpl. auto.
     - cbn in H.
       destruct st.
       optbind_inv.

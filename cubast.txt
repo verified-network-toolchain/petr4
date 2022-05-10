@@ -134,6 +134,59 @@ TPSeq
                                                                 SSeq 
                                                                 SSkip 
  SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SVardecl 
+                                                                Name: s 
+                                                                Init: TBool) 
+ SSeq 
+                                                                SSkip 
+ SSeq 
+                                                                SSeq 
+                                                                SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_0 
+                                                                Init: EInt <8> 42) 
+ SSeq 
+                                                                SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_1 
+                                                                Init: EInt <8> 117) 
+ SSeq 
+                                                                SSkip 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_2 
+                                                                Init: EInt <8> 75) 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_3 
+                                                                Init: EBop <TInt: 
+                                                                8> MinusSat (
+                                                                EVar : <TInt: 
+                                                                8> _p_4_s_e_l_1 
+                                                                EVar : <TInt: 
+                                                                8> _p_4_s_e_l_2)) 
+ SVardecl 
+                                                                Name: _p_4_s_e_l_4 
+                                                                Init: EBop <TBool> Eq (
+                                                                EVar : <TInt: 
+                                                                8> _p_4_s_e_l_0 
+                                                                EVar : <TInt: 
+                                                                8> _p_4_s_e_l_3)) 
+ SAssign 
+                                                                EVar : <TBool> s := EVar : <TBool> _p_4_s_e_l_4 
+ SSeq 
+                                                                SSeq 
+                                                                SSkip 
+ SSeq 
+                                                                SSkip 
+ SAssign 
+                                                                EExprMember <TBool> 
+                                                                EVar : <TStruct <<
+                                                                i = TBool>>> hdr.i := EVar : <TBool> s 
  SSkip)   
  
                                                                 TPControl 
@@ -205,7 +258,7 @@ TPSeq
                                                                 SSeq 
                                                                 SSkip 
  SSkip 
- SExternMethodCall packet.emit <>(
+ SExternMethodCall <packet_out>packet.emit <>(
                                                                 paramargs: <<
                                                                 hdr = PAIn <EVar : <TStruct <<
                                                                 i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
@@ -296,7 +349,7 @@ TPSeq
                                                                 SSeq 
                                                                 SSkip 
  SSkip 
- SExternMethodCall packet.extract <>(
+ SExternMethodCall <packet_in>packet.extract <>(
                                                                 paramargs: <<
                                                                 hdr = PAOut <EVar : <TStruct <<
                                                                 i = TBool>>> hdr>>>, rtrns: <Option<None>>) 
@@ -315,7 +368,7 @@ TPSeq
                                                                 SSeq 
                                                                 SSkip 
  SSkip 
- SExternMethodCall packet.extract <>(
+ SExternMethodCall <packet_in>packet.extract <>(
                                                                 paramargs: <<
                                                                 hdr = PAOut <EVar : <TStruct <<
                                                                 i = TBool>>> hdr>>>, rtrns: <Option<None>>) 

@@ -348,7 +348,7 @@ Section CCompSel.
       error_ret (Scall None (uop_function _interp_bitwise_and) [arg_ref; dst_ref], env_arg)
 
     | Expr.UMinus => 
-      error_ret (Scall None (uop_function _eval_uminus)  [arg_ref; dst_ref], env_arg)
+      error_ret (Scall None (uop_function _interp_uminus)  [dst_ref; arg'], env_arg)
 
     | Expr.IsValid =>
       let* index := ValidBitIndex arg env_arg in

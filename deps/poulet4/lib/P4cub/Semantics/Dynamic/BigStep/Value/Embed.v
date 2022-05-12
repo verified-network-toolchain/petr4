@@ -223,14 +223,65 @@ Section Embed.
     - f_equal.
       rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.
-      simpl. f_equal. 
-      (* unfold IntArith.lbool_to_val. 
-      unfold IntArith.lbool_to_val. *)
+      simpl. f_equal.
       rewrite -> int_to_lbool_back.
       simpl. 
       unfold IntArith.bound in H.
       destruct H. 
-      unfold IntArith.mod_bound. 
+      unfold IntArith.mod_bound.
+      destruct (list_solver.Z_le_lt_dec 0 z) as [hz0 | hz0].
+      + unfold IntArith.maxZ in H0.
+        unfold IntArith.mod_amt.
+        unfold IntArith.upper_bound in H0.
+        rewrite Zdiv.Zmod_small.
+        * unfold IntArith.upper_bound.
+          assert (hz: z <? Z.pow 2 (Z.pos w - 1) = true).
+          { rewrite <- Zbool.Zlt_is_lt_bool. lia. }
+          rewrite hz; reflexivity.
+        * split; try lia.
+          enough (hduh : Z.pow 2 (Z.pos w - 1) < Z.pow 2 (Z.pos w)) by lia.
+          apply Z.pow_lt_mono_r; lia.
+      + (* TODO: stuck :(.
+      Check Zdiv.Zmod_small.
+        Search (_ <  -> _ mod _ = _).
+        Search (_ mod _).
+          Search (_ <= _ - _).
+          rewrite <- Z.le_add_le_sub_l in H0.
+          
+      rewrite IntArith.mod_amt_2_upper_bound.
+      unfold IntArith.minZ,IntArith.maxZ in *.
+      unfold IntArith.upper_bound at 1 2.
+      Search (_ mod _).
+      Locate "mod". Print Z.modulo.
+      Search (_ mod _ < _).
+      Search (_ mod (2 * _)).
+      rewrite <- div_2_mod_2_pow by lia.
+      Search ((_ / _) mod _).
+      pose proof Zdiv.Z_mod_lt z _ (IntArith.mod_amt_gt_0 w) as h.
+      destruct h as [h1 h2].
+      Print IntArith.mod_amt.
+      Print IntArith.upper_bound.
+      Search (?x < ?y <-> ?x <? ?y = true).
+      rewrite Zbool.Zlt_is_lt_bool in h2.
+      unfold IntArith.mod_amt, IntArith.upper_bound in *.
+      Search IntArith.mod_amt.
+      destruct (z mod IntArith.mod_amt w <? IntArith.upper_bound w)
+               eqn:eqz.
+      + Search (_ <? _ = true).
+        rewrite Z.ltb_lt in eqz.
+        
+        unfold IntArith.mod_amt in *.
+        unfold IntArith.upper_bound in eqz.
+        Search (_ mod _).
+      Search (_ mod _ - _).
+      
+      unfold IntArith.minZ, IntArith.maxZ in *.
+      unfold IntArith.mod_amt.
+      unfold IntArith.upper_bound in *.
+      Locate "_ ^ _".
+      Search (_ mod (Z.pow _ _)%Z).
+      rewrite <- Z.land_ones at 1 by lia.
+      Search (Z.land _ (Z.ones
       remember (IntArith.mod_amt w).
       remember (IntArith.upper_bound w).
       unfold IntArith.mod_amt in Heqz0.
@@ -259,7 +310,7 @@ Section Embed.
               ** reflexivity.
               ** lia.
               ** admit.
-          -- admit.
+          -- admit. *) admit.
     - destruct err; try reflexivity.
       admit. (* will change all errors to strings instead of option strings *) 
     - destruct ob.

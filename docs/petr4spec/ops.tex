@@ -1,0 +1,66 @@
+%stuff here and there:
+\renewcommand{\or}{\ | \ }
+\newcommand{\whereBulletIs}{,\textit{ where } \bullet \textit{ is }}
+\newcommand{\whereIs}[1]{,\textit{ where } {#1} \textit{ is }}
+\newcommand{\where}[1]{,\textit{ where } {#1}}
+\newcommand{\textOr}{\textit{ or }}
+\newcommand{\numeric}[1]{\mathit{numeric}({#1})}
+\newcommand{\error}{\mathit{error}}
+\newcommand{\cond}{\mathit{cond}}
+\newcommand{\prim}[1]{{#1}^\prime}
+\newcommand{\pprim}[1]{{#1}^{\prime\prime}}
+
+%typing judgments:
+\newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
+\newcommand{\expenv}[4]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\expenvWithCtxt}[5]{\env, {#1} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow {#2} {#3}}
+\newcommand{\binOpEnv}[4]{\env \vdash {#1} \hookrightarrow {#2} {#3} {#4}}
+
+%contexts:
+\newcommand{\cte}{\mathit{CONSTANT}}
+
+%metavariables:
+\newcommand{\env}{e}
+\newcommand{\typ}{t}
+\newcommand{\ctxt}{c}
+\newcommand{\bool}{b}
+\newcommand{\str}{s}
+\newcommand{\width}{w}
+\newcommand{\val}{v}
+\newcommand{\bit}{\mathit{bit}}
+\renewcommand{\int}{n}
+\newcommand{\bitWidth}[2]{{#1}_{#2}}
+\newcommand{\intWidth}[2]{{#1}_{#2}}
+\newcommand{\name}{\mathit{name}}
+\renewcommand{\array}{a}
+\renewcommand{\index}{i}
+\newcommand{\arrayAccess}[2]{{#1}[{#2}]}
+\newcommand{\size}{n}
+\newcommand{\high}{h}
+\newcommand{\low}{l}
+\newcommand{\bitString}{bs}
+\newcommand{\bitStringAccess}[3]{{#1}[{#2}:{#3}]}
+\renewcommand{\exp}{\mathit{exp}}
+\newcommand{\field}{f}
+
+%function helpers
+\newcommand{\isNumeric}[1]{\mathit{is\_numeric}({#1})}
+\newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
+\newcommand{\compileTimeEval}[1]{[[{#1}]]_\env}
+
+%types:
+\newcommand{\bitWidthTyp}[1]{\mathit{bit}<\!{#1}\!>}
+\newcommand{\intWidthTyp}[1]{\mathit{int}<\!{#1}\!>}
+\newcommand{\boolTyp}{\mathit{bool}}
+\newcommand{\stringTyp}{\mathit{string}}
+\newcommand{\integerTyp}{\mathit{integer}}
+\newcommand{\bitStringTyp}[2]{\mathit{bit[{#1}-{#2}]}}
+\newcommand{\intTyp}{\mathit{int}}
+
+%directions:
+\newcommand{\less}{\mathit{directionless}}
+\newcommand{\dir}{d}
+\renewcommand{\in}{\mathit{in}}
+\newcommand{\out}{\mathit{out}}
+

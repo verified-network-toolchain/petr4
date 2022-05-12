@@ -1,0 +1,329 @@
+Title : Petr4 Type System Formalization
+Title Footer: &date;
+Author: Parisa Ataei, Ryan Doenges, Nate Foster
+Affiliation: Cornell University
+Heading depth: 5
+Pdf Latex: xelatex
+Math Latex Full: pdflatex
+Document Class: [11pt]article
+Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
+Package: fancyhdr
+Package: mathpartir
+
+Tex Header:
+  \setlength{\headheight}{30pt}
+  \renewcommand{\footrulewidth}{0.5pt}
+
+@if html {
+body.madoko {
+  font-family: utopia-std, serif;
+}
+title,titlenote,titlefooter,authors,h1,h2,h3,h4,h5 {
+  font-family: helvetica, sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: monospace;
+  font-size: 10pt;
+}
+}
+
+@if tex {
+body.madoko {
+  font-family: UtopiaStd-Regular;
+}
+title,titlenote,titlefooter,authors {
+  font-family: sans-serif;
+  font-weight: bold;
+}
+pre, code {
+  language: p4;
+  font-family: LuxiMono;
+  font-size: 75%;
+}
+}
+
+Colorizer: p4
+.token.keyword    {
+    font-weight: bold;
+}
+
+@if html {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  padding:6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4example {
+  replace: "~ Begin P4ExampleBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4ExampleBlock";
+  breakable: true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #ffffdd;
+  border-width: 0.5pt;
+}
+}
+
+
+@if html {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  border: solid;
+  background-color: #e9fce9;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4pseudo {
+  replace: "~ Begin P4PseudoBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4PseudoBlock";
+  breakable : true;
+  padding: 6pt;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  background-color: #e9fce9;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+@if html {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4grammar {
+  replace: "~ Begin P4GrammarBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4GrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+[TITLE]
+
+~ Begin Abstract
+P4 is a language for programming the data plane of network
+devices. Petr4 provides a clean-slate definitional interpreter
+and a core calculus that models a fragment of P4. This document
+provides a definition of Petr4's type system that is consistent
+with its implementation. The target audience of this document
+includes developers and debuggers who work on P4 implementations
+such as Petr4 and P4C. In essence, this document may be of
+interest to programmers who are interested in understanding
+the implementation of Petr4 deeply.
+~ End Abstract
+
+~ MathDefs
+[INCLUDE="ops.tex"]
+~
+
+[TOC]
+
+# Overview { #sec-overview }
+
+This document defines the type system of Petr4. The type system
+conducts three tasks simultaneously:
+
+1. It type checks P4 programs.
+2. It conducts type inference.
+3. It does a pass from the surface syntax to the first IR. 
+
+
+## Connecting To The Implementation { #sec-conn }
+
+The following locates each data type in the implementation
+(<https://github.com/verified-network-toolchain/petr4>):
+
+- The surface AST is _types.program_
+- The type of programs of the surface syntax is _types.type.t_
+- The first IR is _prog.program_
+- The type of the first IR is _prog.type.t_
+
+For simplicity, we have removed the information that is needed to report when an error
+happens. Such information is passed around in the surface syntax as a field (called
+`tags`) of record for all data types.
+
+## Architecture { #sec-arch }
+
+Figure [#fig-arch] depicts part of Petr4's architecture that contains the type system.
+After lexing and parsing a P4 program we get a program in our surface syntax. This
+program is then passed through the _elaborator_ where type variables are introduced
+instead of underscore and new type variable names are generated for variables with the
+same name but in different scopes. This document does not discuss the innerworkings of
+`elaborate`. Then, the program is passed through the type system (encoded in `checker`).
+This document discusses the innerworking of the type system extensively. Finally, the
+program is evaluated.
+
+~ Figure { #fig-arch; caption: "Part of Petr4's achitecture." }
+![arch]
+~
+[arch]: figs/petr4/arch.png { width: 100%; page-align: forcehere }
+
+# Type System
+
+some general explanation of the type system and the judgments.
+
+## Expression's Typing Rules
+
+
+~ Center  {padding:1ex} 
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Bool]
+     {}
+     {\expenv \bool \bool \boolTyp \less}
+
+  \inferrule[String]
+     {}
+     {\expenv \str \str \stringTyp \less}
+
+  \inferrule[Integer]
+     {}
+     {\expenv \int \int \integerTyp \less}
+
+  \inferrule[Bit]
+     {}
+     {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
+
+  \inferrule[Int]
+     {}
+     {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
+
+  \inferrule[Name]
+     {\env (\name) = (\typ, \dir)}
+     {\expenv \name \name \typ \dir}
+
+  \inferrule[ArrayAccess]
+     {\expenv {\arrayAccess \array \index} {\prim \array} {\arrayAccess \typ \size} \dir \\
+      \expenv \index {\prim \index} {\prim \typ} {\prim \dir} \\
+      \isArray {\typ[\size]} \\
+      \isNumeric {\prim \typ}}
+     {\expenv {\arrayAccess \array \index} {\arrayAccess {\prim \array} {\prim \index}} \typ \dir }
+
+  \inferrule[BitStringAccess]
+     {\expenvWithCtxt \cte \high {\prim \high} {\typ_\high} {\dir_\high} \\
+      \isNumeric {\typ_\high} \\
+      \pprim \high = \compileTimeEval {\prim \high} \\
+      \expenvWithCtxt \cte \low {\prim \low} {\typ_\low} {\dir_\low} \\
+      \isNumeric {\typ_\low} \\
+      \pprim \low = \compileTimeEval {\prim \low} \\
+      0 \leq \pprim \low < \width \\
+      \pprim l \leq \pprim h < \width \\
+      \expenv \bitString {\prim \bitString} \typ \dir \\
+      \typ = \intWidthTyp \width \textOr \bitWidthTyp \width}
+     {\expenv {\bitStringAccess \bitString \low \high} {\bitStringAccess \bitString {\pprim \low} {\pprim \high}} {\bitStringTyp {\pprim \low} {\pprim \high}} \dir }
+
+  \inferrule[List]
+     {1 \leq i \leq n; \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}}
+     {\expenv {[\exp_1, \ldots, \exp_n]} {[\exp_1, \ldots, \exp_n]} {[\typ_1, \ldots, \typ_n]} \less }
+
+  \inferrule[Record]
+     {1 \leq i \leq n; \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}  }
+     {\expenv {\{\field_1 = \exp_1, \ldots, \field_n = \exp_n \}} {\{\field_1 = \prim {\exp_1}, \ldots, \field_n = \prim {\exp_n} \}} {\{\field_1 : \typ_1, \ldots, \field_n : \typ_n \}} \less  }
+
+  \inferrule[LogicalNegation]
+     { \expenv \exp {\prim \exp} \boolTyp \dir }
+     { \expenv {!\exp} {!\prim \exp} \boolTyp \dir }
+
+  \inferrule[BitwiseComplement]
+     { \expenv \exp {\prim \exp} {\bitWidthTyp \width} \dir }
+     { \expenv {\sim\!\exp} {\sim\!\prim \exp} {\bitWidthTyp \width} \dir }
+
+  \inferrule[UnaryMinusCTK]
+     { \expenv \exp {\prim \exp} \intTyp \dir }
+     { \expenv {-\exp} {-\prim \exp} \intTyp \dir }
+
+  \inferrule[UnaryMinus]
+     { \expenv \exp {\prim \exp} {\intWidthTyp \width} \dir }
+     { \expenv {-\exp} {-\prim \exp} {\intWidthTyp \width} \dir }
+
+  \inferrule[BinaryOps]
+     {\coerceBinArgsEnv {\exp_1 \oplus \exp_2} {\prim {\exp_1}} {\prim {\exp_2}} \\
+      \binOpEnv {\prim {\exp_1} \oplus \prim {\exp_2}} {\pprim {\exp_1} \oplus \pprim {\exp_2}} \typ \dir }
+     { \expenv {\exp_1 \oplus \exp_2} {\prim {\exp_1} \oplus \prim {\exp_2}} \typ \dir }
+
+  % \inferrule[Cast]
+
+  % \inferrule[TypeMember]
+
+  % \inferrule[ErrorMember]
+
+  % \inferrule[ExpressionMember]
+
+  % \inferrule[Ternary]
+
+  % \inferrule[FunctionCall]
+
+  % \inferrule[NamelessIinstantiation]
+
+  % \inferrule[Mask]
+
+  % \inferrule[Range]
+
+
+\end{mathpar}
+~~
+~
+
+### Coerce Binary Operation Arguments Judgment Helper
+~ Center  {padding:1ex} 
+~~ Snippet
+\begin{mathpar}
+  \small
+
+\end{mathpar}
+~~
+~
+
+### Check Binary Operation Judgment Helper
+~ Center  {padding:1ex} 
+~~ Snippet
+\begin{mathpar}
+  \small
+
+\end{mathpar}
+~~
+~
+
+
+

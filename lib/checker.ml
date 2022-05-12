@@ -437,6 +437,7 @@ and reduce_to_underlying_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Ty
   | Enum {typ = Some typ; _} -> reduce_to_underlying_type env typ
   | _ -> typ
 
+(* removes all the enums recursively after reducing a type. *)
 and reduce_enums_in_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = reduce_type env typ in
   match typ with
@@ -814,6 +815,7 @@ and assert_type_equality env tags (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
   then ()
   else raise @@ Error.Type (tags, Type_Difference (t1, t2))
 
+(* TODO: what the fuck does it do. *)
 and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
@@ -826,29 +828,60 @@ and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool
      | Parser _ -> true
      | _ -> false
 
+(*
+  judgment rule is as follows. it type check exp under environment e and context c.
+  it also infers type as well as doing a pass from types to prog. 
+
+   e, c |- exp ~~> prog_exp
+
+   Note: prog_exp is a record with three fields: expr, typ, dir.
+   For simplicity, I omitted the name of the fields but the order is kept.
+   Also, for simplicity, I omitted tags.
+   Data constructors start with a capital letter.
+   Where possible data constructors are omitted and instead the name of the
+   expression implies the data constructor, e.g., str indicates an expression
+   that is a string.
+
+   e, c |- True {tags} ~~> {True {tags}; Bool; Directionless; tags}
+
+*)
+
 and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Expression.t)
     : Prog.Expression.t =
   (* Printf.printf "type expression -- exp is %s \n%!" (Expression.show exp); *)
   let module E = Prog.Expression in
-  (* let pre_expr : Info.t E.typed_t = *)
     match exp with
+    (* e, c |- True ~~> {True; Bool; Directionless} *)
     | True {tags} ->
        { expr = E.True {tags=tags} ;
          typ = Bool;
          dir = Directionless;
          tags = tags }
+    (* e, c |- False ~~> {False; Bool; Directionless} *)
     | False {tags} ->
        { expr = E.False {tags=tags} ;
          typ = Bool;
          dir = Directionless;
          tags = tags }
+    (* e, c |- str ~~> {str; String; Directionless} *)
     | String {tags; str} ->
        { expr = E.String {tags=tags;str=str};
          typ = String;
          dir = Directionless;
          tags = tags}
+    (* P4Int = { value : bigint; width_signed: (int * bool) option}*)
+    (* e, c |- {value; Some (width, True)} ~~> {value; Bit {width}; Directionless} *)
+    (* e, c |- {value; Some (width, False)} ~~> {value; Int {width}; Directionless} *)
+    (* e, c |- {value; None} ~~> {value; Integer; Directionless} *)
     | Int {tags; x}->
        type_int x
+    (*
+     Note: e(name) looks up name in e and returns the pair (typ, dir).
+
+           e(name) = (t,d)
+       --------------------------
+       e, c |- name ~~> {name; t; d}
+    *)
     | Name {tags; name} ->
        (* Printf.printf "type expression --name %s \n%!" (name_only name); *)
        (* Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env); *)
@@ -860,34 +893,162 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
          typ = typ;
          dir = dir;
          tags = tags }
+    (*
+     Note: * ArrayType = {typ: Type.t; size: int} which is captured as t[size] where
+             t is the typ and size is size.
+           * is_something(t) checks that the type t is actually the type something.
+           * a[i] is accessing element i from array a where both array and index
+             are expressions themselves. 
+
+          e, c |- a ~~> {a', t[size], d}            e, c |- i ~~> {i', t', d'}
+          is_array(t[size])                         is_numeric(t')
+          ------------------------------------------------------------
+          e, c |- a[i] ~~> {a'[i'], t, d}
+    *)
     | ArrayAccess { array; index; tags } ->
        type_array_access env ctx array index
+    (*
+     Note: ctx determines the nature of the scope we're working in.
+       ctx :: Typed. ExprContext.t
+       ExprContext = ParserState
+                   | ApplyBlock
+                   | DeclLocals
+                   | TableAction
+                   | Action
+                   | Function
+                   | Constant
+
+       [[blah]]_env is compile time evaluation of expression blah under env.
+       sth ?= sth_els check if sth matches sth_els.
+
+       all infered types are assumed to be saturated, for simplicity of formalization. Check!! 
+
+       e, Constant |- h ~~> {h', t'', d''}
+       is_numeric(t'')
+       h'' = [[h']]_e
+       e, Constant |- l ~~> {l', t', d'}
+       is_nuimeric(t')
+       l'' = [[l]]_e
+       0 <= l'' < w
+       l'' <= h'' < w
+       e, c | b ~~> {b', t, d}
+       t ?= Int{w} or t ?= Bit{w}
+       --------------------------------
+       e, c |- b[l:h] ~~> {b[l'':h''], Bit{h''-l''}, d}
+    *)
     | BitStringAccess { bits; lo; hi ; tags} ->
        type_bit_string_access env ctx bits lo hi
+    (*
+     Note: [x,..,x] denotes a list.
+
+       1 <= i <= n; e, c |- xi ~~> {xi', ti, di}
+       --------------------------------------------------------------------
+       e, c |- [x1, .., xn] ~~> {[x1', .., xn'], [t1, .. tn], Directionless}
+    *)
     | List { values; tags } ->
        type_list env ctx values
+    (*
+     Note: {(key,val), .., (_,_)} denotes a record.
+           type of a record is {(key,val.typ), ...}.
+
+       1 <= i <= n; e, c |- vi ~~> {vi', ti, di}
+       ------------------------------------------------------------------------------
+       e, c |- {(k1,v1), ..,(kn,vn)} ~~> {{(k1,v1'), ..,(kn,vn')}, {(k1,t1), .., (kn,tn)}, Directionless} 
+    
+*)
     | Record { entries; tags } ->
        type_record env ctx entries
+    (*
+        Logical negation:
+
+        e, c |-  e ~~> {e', Bool, d}
+        ---------------------------------
+        e, c |- !e ~~> {!e', Bool, d}
+
+        Bitwise complement:
+
+        e, c |-  e ~~> {e', Bin<n>, d}
+        ---------------------------------
+        e, c |- ~e ~~> {~e', Bit<n>, d}
+
+        Unary minus:
+
+        e, c |-  e ~~> {e', Int, d}
+        ---------------------------------
+        e, c |- -e ~~> {-e', Int, d}
+
+        e, c |-  e ~~> {e', Int<n>, d}
+        ---------------------------------
+        e, c |- -e ~~> {-e', Int<n>, d}
+    *)
     | UnaryOp { op; arg; tags } ->
        type_unary_op env ctx op arg
+    (*
+     Note: e, c |- _ _ _ ==> (_,_) is the judgment rule for coerce_binary_op_args.
+           e |- _ _ _ --> {_, _, _} is the judgment rule for check_binary_op.
+
+        e, c |- l ?.? r ==> (l', r')
+        e |- l' ?.? r' --> {l'' ?.? r'', t, d}
+        ------------------------------------------------------
+        e, c |- l ?.? r ~~> {l'' ?.? r'', t, d}
+    *)
     | BinaryOp { op; args; tags } ->
        type_binary_op env ctx op args
+    (*  *)
     | Cast { typ; expr; tags } ->
        type_cast env ctx typ expr
+    (*
+      e(typ.name) = (t, d)
+      ---------------------------------------------
+      e, c |- typ.name ~~> {typ.name, t, d} 
+    *)
     | TypeMember { typ; name; tags } ->
        type_type_member env ctx typ name
+    (*
+       e(error.name)=(Error, d)
+       ----------------------------
+        e, c |- error.name ~~> {error.name, Error, Directionless}
+    *)
     | ErrorMember {tags; err} ->
        type_error_member env ctx err
+    (*  *)
     | ExpressionMember { expr; name; tags } ->
        type_expression_member env ctx expr name
+    (*
+
+       e, c |- cond ~~> {cond', Bool, d}
+       e, c |- tru ~~> {tru', t', d'}
+       e, c |- fls ~~> {fls', t'', d''}
+       t' ?= t'' and t' ?<> Integer
+       ----------------------------------------------------------------------
+       e, c |- cond ? tru : fls ~~> {cond' ? tru' : fls', t', Directionless}
+    *)
     | Ternary { cond; tru; fls; tags } ->
        type_ternary env ctx cond tru fls
+    (*  *)
     | FunctionCall { func; type_args; args; tags } ->
        type_function_call env ctx tags func type_args args
+    (*  *)
     | NamelessInstantiation { typ; args; tags } ->
        type_nameless_instantiation env ctx tags typ args
+    (*
+       e, c |- msk ~~> {msk', t', d'}
+       e, c |- expr ~~> {expr', t'', d''}
+       (t ?= t' ?= Bit<n>; t = Bit<n>) or (t ?= t' ?= Integer; t = Integer)
+       or (t ?= Bit<n> and t' ?= Integer; t = Bit<n>)
+       or (t' ?= Bit<n> and t ?= Integer; t = Bit<n>)
+       -----------------------------------------------------------
+       e, c |- msk @ expr ~~> {msk' @ expr', Set t, Directionless}
+    *)
     | Mask { expr; mask; tags } ->
        type_mask env ctx expr mask
+    (*
+       e, c |- l ~~> {l', t, d}
+       e, c |- h ~~> {h', t', d'}
+       t ?= t' ?= Bit<n> or t ?= t' ?= Int<n> or t ?= t' ?= Integer 
+       -------------------------------------------------------------
+       e, c |- <l:h> ~~> {<l':h'>, Set t, Directionless}
+    *)
     | Range { lo; hi; tags } ->
        type_range env ctx lo hi
 
@@ -1095,6 +1256,10 @@ and eval_to_positive_int env tags expr =
 and gen_wildcard env =
   Renamer.freshen_name (CheckerEnv.renamer env) "__wild"
 
+(* It translates types.type.t to typed.type.t
+
+   It also returns the list of variable names generated.
+*)
 and translate_type' ?(gen_wildcards=false) (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t * string list =
   let open Types.Type in
   let ret (t: Typed.Type.t) = t, [] in
@@ -1133,6 +1298,8 @@ and translate_type' ?(gen_wildcards=false) (env: CheckerEnv.t) (vars: string lis
 and translate_type (env: CheckerEnv.t) (vars: string list) (typ: Types.Type.t) : Typed.Type.t =
   fst (translate_type' env vars typ)
 
+
+(* determines if type is dontcare after translating it.*)
 and translate_type_opt (env: CheckerEnv.t) (vars : string list) (typ: Types.Type.t) : Typed.Type.t option =
   match typ with
   | DontCare _ -> None
@@ -1159,6 +1326,105 @@ and expr_of_arg (arg: Argument.t): Expression.t option =
 and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
   String.compare f1.name f2.name
 
+
+(*
+   has the judgment (stating that the type t is well-formed under environment e)
+   e |- t
+
+   e |- Bool
+
+   e |- String
+
+   e |- Integer
+
+   e |- Int<n>
+
+   e |- Bit<n>
+
+   e |- VarBit<n>
+
+   e |- Error
+
+   e |- MatchKind
+
+   e |- Void
+
+* Array type:
+   e |- t
+   ???
+   ----------------------------------
+   e |- t[n]
+
+* Tuple type:
+   1 <= i <= n; e |- ti
+   1 <= i <= n; ???
+   ----------------------------------
+   e |- (t1, ..., tn)
+
+* List type
+   1 <= i <= n; e |- ti
+   1 <= i <= n; ???
+   ----------------------------------
+   e |- [t1, ..., tn]
+
+* Set type:
+   e |- t
+   ----------------------------------
+   e |- set<t>
+
+* Enum type:
+   ** the case where typ is Some typ.
+
+   e |- t
+   -----------------------------------
+   e |- X : t {l1, ..., ln}
+
+   ** the case where type is None.
+
+   e |- X {l1, ..., ln}
+
+* Record and struct and header union ({l1:h1, ..., ln:hn}) type:
+   1 <= i <= n; e |- ti
+   1 <= i <= n; ???
+   1 <= i < j <= n; li != lj
+   ------------------------------------
+   e |- {l1 : t1, ..., ln : tn}
+
+* header: 
+   1 <= i <= n; e |- ti
+   1 <= i <= n; ???
+   1 <= i < j <= n; li != lj
+   ------------------------------------
+   e |- {l1 : t1, ..., ln : tn}
+
+   TODO: complete!
+* new type (name = typ):
+   e |- t
+   ----------------------------------
+   e |- n = t
+
+* specialized type:
+
+* package type:
+
+* control type:
+
+* parser type:
+
+* extern type:
+
+* function type (<return type> <function name> (x1, ..., xn) {...}):
+   ----------------------------------------------------
+   e |- 
+
+* action type:
+   --------------------------------------------
+   e |- 
+
+* constructor type:
+
+* table type:
+*)
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
   match saturate_type env typ with
@@ -1437,6 +1703,9 @@ and type_constructor_param env decl_kind (param: Types.Parameter.t) : Typed.Para
 and type_constructor_params env ctx params =
   List.map ~f:(type_constructor_param env ctx) params
 
+(* e, c, {value; Some (width, True)} |- {value; Bit {width}; Directionless} *)
+(* e, c, {value; Some (width, False)} |- {value; Int {width}; Directionless} *)
+(* e, c, {value; None} |- {value; Integer; Directionless} *)
 and type_int value : Prog.Expression.t =
   let open P4Int in
   { expr = Int {tags=value.tags; x=value};
@@ -1455,6 +1724,12 @@ and type_int value : Prog.Expression.t =
  *                Δ, T, Γ |- a[i] : t
  *
  * Some architectures may further require ctk(i).
+
+   e, c, a |- {a', t[size], d}            e, c, i |- {i', t', d'}
+     is_array(t[size])                         is_numeric(t')
+   ------------------------------------------------------------
+   e, c, a[i] |- {a'[i'], t, d}
+
  *)
 and type_array_access env ctx (array: Types.Expression.t) index : Prog.Expression.t =
   let array_typed = type_expression env ctx array in
@@ -1485,6 +1760,23 @@ and is_numeric (typ: Typed.Type.t) : bool =
  * ctk(m) /\ l <= m < width
  * -------------------------------
  * Δ, T, Γ |- b[m:l] : bit<m - l>
+
+
+
+   e, Constant |- h ~~> {h', t'', d''}
+   is_numeric(t'')
+   h'' = [[h']]_e
+   e, Constant |- l ~~> {l', t', d'}
+   is_nuimeric(t')
+   l'' = [[l]]_e
+   0 <= l'' < w
+   l'' <= h'' < w
+   e, c | b ~~> {b', t, d}
+   t ?= Int{w} or t ?= Bit{w}
+   --------------------------------
+   e, c |- b[l:h] ~~> {b[l'':h''], Bit{h''-l''}, d}
+
+
  *)
 and type_bit_string_access env ctx bits lo hi : Prog.Expression.t =
   let bits_typed = type_expression env ctx bits in
@@ -1525,6 +1817,11 @@ and type_bit_string_access env ctx bits lo hi : Prog.Expression.t =
  * ------------------------------------------
  * Δ, T, Γ |- { x1, ..., xn } : (t1, ..., tn)
  *
+
+   1 <= i <= n; e, c |- xi ~~> {xi', ti, di}
+   --------------------------------------------------------------------
+   e, c |- [x1, .., xn] ~~> {[x1', .., xn'], [t1, .. tn], Directionless}
+
  *)
 and type_list env ctx values : Prog.Expression.t =
   let typed_exprs = List.map ~f:(type_expression env ctx) values in
@@ -1537,6 +1834,12 @@ and type_list env ctx values : Prog.Expression.t =
 and type_key_val env ctx ({tags; key; value}: Types.KeyValue.t) : Prog.KeyValue.t =
   {tags; key; value = type_expression env ctx value }
 
+(*
+
+   1 <= i <= n; e, c |- vi ~~> {vi', ti, di}
+   --------------------------------------------------------
+   e, c |- {(k1,v1), ..,(kn,vn)} ~~> {{(k1,v1'), ..,(kn,vn')}, {(k1,t1), .., (kn,tn)}, Directionless} 
+*)
 and type_record env ctx entries : Prog.Expression.t =
   let entries_typed = List.map ~f:(type_key_val env ctx) entries in
   let rec_typed = Prog.Expression.Record { entries = entries_typed; tags = Info.dummy } in
@@ -1573,6 +1876,29 @@ and type_record env ctx entries : Prog.Expression.t =
  * Δ, T, Γ |- e : int<n>
  * ----------------------
  * Δ, T, Γ |- -e : int<n>
+
+   Logical negation:
+
+   e, c |-  e ~~> {e', Bool, d}
+   ---------------------------------
+   e, c |- !e ~~> {!e', Bool, d}
+
+   Bitwise complement:
+
+   e, c |-  e ~~> {e', Bin<n>, d}
+   ---------------------------------
+   e, c |- ~e ~~> {~e', Bit<n>, d}
+
+   Unary minus:
+
+   e, c |-  e ~~> {e', Int, d}
+   ---------------------------------
+   e, c |- -e ~~> {-e', Int, d}
+
+   e, c |-  e ~~> {e', Int<n>, d}
+   ---------------------------------
+   e, c |- -e ~~> {-e', Int<n>, d}
+
  *)
 and type_unary_op env ctx op arg =
   let arg_typed = type_expression env ctx arg in
@@ -1614,7 +1940,7 @@ and type_unary_op env ctx op arg =
  * Δ, T, Γ |- e1 : t1      Δ, T, Γ |- e2 : t2
  * t1 = t2 = t or t = implicit_cast(t1,t2)
  * ------------------------------------------------
- * Δ, T, Γ |- e1 bool_bop e2 : t
+ * Δ, T, Γ |- e1 eq_bop e2 : t
  *
  * Binary Boolean operations:
  * Δ, T, Γ |- e1 : bool       Δ, T, Γ |- e2 : bool
@@ -1669,6 +1995,18 @@ and type_unary_op env ctx op arg =
 * Δ, T, Γ |- e1 ++ e2 : bit<w1 + w2>
 *
 *)
+(* Implicit integer casts as per section 8.9.2
+ *
+ * Let implicit_cast(t1,t2) be defined as follows to describe
+ * p4's impliciting casting behavior on operands in binary expressions:
+ *
+ * implicit_cast(bit<w>, int CTK)   = bit<w>                 (cast RHS)
+ * implicit_cast(int CTK, bit<w>)   = bit<w>                 (cast LHS)
+ * implicit_cast(int<w>, int CTK)   = int<w>                 (cast RHS)
+ * implicit_cast(int CTK, int<w>)   = int<w>                 (cast LHS)
+ * implicit_cast(_, _)              = None                    (no cast)
+ *
+*)
 and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
   let open Prog.Expression in
   match saturate_type env l.typ, saturate_type env r.typ with
@@ -1683,19 +2021,31 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
   | _, _ ->
      None, None
 
+(*
+   TODO: complete. 
+
+   NOTE: implicit_cast(t1,t2)_e is defined above. Note that it casts args
+         after saturating them, i.e., replacing all type references with
+         the type they're refering to. int CTK is Integer.
+   NOTE: cast(typ,expr) generataes a cast expr instead of expr in the triple
+         of Prog.Expression, i.e., Cast {typ,expr}, typ, expr.dir.
+
+* for binary ops except shifts and bit concatenation:   
+   e, c |- l ~~> l', t', d'
+   e, c |- r ~~> r', t'', d''
+   t = implicit_cast(t',t'')_e
+   l'' = cast(t, l')
+   r'' = cast(t, r')
+   --------------------------------------------------
+   e, c |- l ?.? r ==> (l'', r'') 
+
+* for shift ops and bit concatentation (>>, <<, ++):
+   e, c |- l ~~> l', t', d'
+   e, c |- r ~~> r', t'', d''
+   --------------------------------------------------
+   e, c |- l ?.? r ==> (l', r') 
+*)
 and coerce_binary_op_args env ctx op l r =
-  (* Implicit integer casts as per section 8.9.2
-   *
-   * Let implicit_cast(t1,t2) be defined as follows to describe
-   * p4's impliciting casting behavior on operands in binary expressions:
-   *
-   * implicit_cast(bit<w>, int CTK)   = bit<w>                 (cast RHS)
-   * implicit_cast(int CTK, bit<w>)   = bit<w>                 (cast LHS)
-   * implicit_cast(int<w>, int CTK)   = int<w>                 (cast RHS)
-   * implicit_cast(int CTK, int<w>)   = int<w>                 (cast LHS)
-   * implicit_cast(_, _)              = None                    (no cast)
-   *
-   *)
   let l_typed = type_expression env ctx l in
   let r_typed = type_expression env ctx r in
   let cast typ (expr : Prog.Expression.t) : Prog.Expression.t =
@@ -1799,10 +2149,114 @@ and check_div_args env left_arg right_arg =
                    ~divisor:(right_arg:Prog.Expression.t)
                    ~dividend:(left_arg:Prog.Expression.t)];
 
-and type_binary_op env ctx (op: Op.bin) (l, r) : Prog.Expression.t =
+(*
+
+   e, c |- l ?.? r ==> (l', r')
+   e |- l' ?.? r' --> {l'' ?.? r'', t, d}
+   ------------------------------------------------------
+   e, c |- l ?.? r ~~> {l'' ?.? r'', t, d}
+*)
+and type_binary_op (env : CheckerEnv.t) (ctx : ExprContext.t) (op: Op.bin) ((l, r) : (Expression.t * Expression.t)) : Prog.Expression.t =
   let typed_l, typed_r = coerce_binary_op_args env ctx op l r in
   check_binary_op env op typed_l typed_r
 
+
+(*
+TODO: complete.
+
+   Note: in_or_dirless(typ1, typ2) retunrs direction of In if both typ1 and typ2
+         have In direction, o.w., it returns a directionless direction. 
+
+* logical ops: And (&), Or (|):
+
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+   lt ?= rt ?= Bool
+   ----------------------------------------------
+   e |- l & r --> {l & r, Bool, d}
+
+* basic numeric ops: +, -, *:
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+        lt ?= rt ?= Bit<n>; t = Bit<n>
+     or lt ?= rt ?= Integer; t = Integer
+     or lt ?= rt ?= Int <n>; t = Int<n>
+   --------------------------------------------
+   e |- l + r --> {l + r, t, d}
+
+* equality checks (==, !=):
+
+   Note: typ1 ==e,c typ2 is type_equality.
+         has_eq(typ)e is type_has_equality_tests.
+
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+   lt ==e,[] rt
+   has_eq(lt)_e
+   ---------------------------------------------
+   e |- l == r --> l == r, Bool, d
+
+* plusSat, MinusSat:
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+      lt ?= rt ?= Bit<n>; t = Bit<n>
+   or lt ?= rt ?= Int<n>; t = Int<n>
+   ---------------------------------------------
+   e |- l + r --> l + r, t, d
+
+* bitwise ops (&, |, X):
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+      lt ?= rt ?= Bit<n>; t = Bit<n>
+   or lt ?= rt ?= Int<n>; t = Int<n>
+   ---------------------------------------------
+   e |- l & r --> l & r, t, d
+
+* Bitstring concatenation (++):
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+      lt ?= Bit<n>, rt ?= Bit<m> or Int<m>; t = Bit<n+m>
+   or lt ?= Int<n>, rt ?= Int<m> or Bit<m>; t = Int<n+m>
+   ------------------------------------------------------
+   e |- l ++ r --> l ++ r, t, d
+
+* comparison ops (<, <=, >, >=):
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+      lt ?= rt ?= Integer
+   or lt ?= rt ?= Bit<n>
+   or lt ?= rt ?= Int<n>
+   ---------------------------------------------
+   e |- l < r --> l < r, Bool, d
+
+* div and mod (/, %):
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+      lt ?= rt ?= Integer, nonneg(l)_e, pos(r)_e; t = Integer
+   or lt ?= rt ?= Bit<n>, nonneg(l)_e, pos(r)_e; t = Bit<n>
+   ---------------------------------------------------------
+   e |- l / r --> l / r, t, d
+
+* shift ops (>>, <<):
+  **NOTE: compile_time_known(expr)_env is TODO. 
+   lt = reduce_enums(l.t)_e
+   rt = reduce_enums(r.t)_e
+   d = in_or_dirless(lt, rt)
+   nonneg(r)_e
+      lt ?= Bit or Int
+   or lt ?= Integer, compile_time_known(lt)_e
+   ------------------------------------------------------
+   e |- l >> r --> l >> r, lt, d
+
+*)
 and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
   let open Op in
   let open Prog.Expression in
@@ -1973,6 +2427,17 @@ and casts_ok ?(explicit = false) env original_types new_types =
      false
 
 (* Section 8.9 *)
+(*
+   NOTE: trans(t)_e,[vars] translate Types.type.t to Typed.type.t.
+         I haven't decided if we want to mention that these are
+         even different. [CAN ASK NATE IN REPORT!] 
+
+   e, c | exp ~~> exp', t, d
+   t' = saturate(t)_e
+   t'' = saturate(trans(t')_e,[])_e
+   ------------------------------------------------------
+   e, c | typ (c) exp ~~> 
+*)
 and type_cast env ctx typ expr : Prog.Expression.t =
   let expr_typed = type_expression env ctx expr in
   let expr_type = saturate_type env expr_typed.typ in
@@ -1987,6 +2452,12 @@ and type_cast env ctx typ expr : Prog.Expression.t =
                    ~new_type:(new_type_sat: Typed.Type.t)]
 
 (* ? *)
+(*
+  Note: example of implementation detail not matter.
+   e(typ.name) = (t, d)
+   ---------------------------------------------
+   e, c |- typ.name ~~> {typ.name, t, d} 
+*)
 and type_type_member env ctx typ (name: P4String.t) : Prog.Expression.t =
    let real_name = real_name_for_type_member env typ name in
    let full_type, dir = CheckerEnv.find_type_of real_name env in
@@ -2004,6 +2475,10 @@ and type_type_member env ctx typ (name: P4String.t) : Prog.Expression.t =
  * --------------------------
  * Δ, T, Γ |- error.e : error
  *
+
+   e(error.name) = (Error, d)
+   ---------------------------------------------------------
+   e, c |- error.name ~~> {error.name, Error, Directionless}
  *)
 and type_error_member env ctx (name: P4String.t) : Prog.Expression.t =
   let (e, _) = CheckerEnv.find_type_of (mk_barename_from_string name.tags ("error." ^ name.string)) env in
@@ -2166,10 +2641,10 @@ and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
   let open Expression in
   { expr = ExpressionMember { expr = typed_expr;
                               name = name;
-                              tags = tags expr}; (* tags set correctly??*)
+                              tags = tags expr}; 
     typ = typ;
     dir = Directionless;
-    tags = tags expr} (*tags set correctly??*)
+    tags = tags expr} 
 
 (* Section 8.4.1
  * -------------
@@ -2177,6 +2652,13 @@ and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
  * Δ, T, Γ |- cond : bool    Δ, T, Γ |- tru : t    Δ, T, Γ |- fls : t;
  * -------------------------------------------------------------------
  *              Δ, T, Γ |- cond ? tru : fls : t
+
+   e, c |- cond ~~> {cond', Bool, d}
+   e, c |- tru ~~> {tru', t', d'}
+   e, c |- fls ~~> {fls', t'', d''}
+   t' ?= t'' and t' ?<> Integer
+   -------------------------------------
+   e, c |- cond ? tru : fls ~~> {cond' ? tru' : fls', t', Directionless}
  *)
 and type_ternary env ctx cond tru fls : Prog.Expression.t =
   let cond_typed = type_expression env ctx cond in
@@ -2519,7 +3001,6 @@ and resolve_constructor_overload env type_name args : ConstructorType.t =
 
 and resolve_function_overload_by ~f env ctx (func: Expression.t) : Prog.Expression.t =
   let open Types.Expression in
-  (* fst func, *)
   match func with
   | Name {tags; name=func_name} ->
      let ok : Typed.Type.t -> bool =
@@ -2603,7 +3084,7 @@ and resolve_function_overload env ctx type_name args =
 
 and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
-  let type_args = List.map ~f:(translate_type_opt env []) type_args in
+  let type_args = List.map ~f:(translate_type_opt env []) type_args in(* determines if type is dontcare.*)
   let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
   let w_params = constructor_type.wildcard_params in
@@ -2629,6 +3110,17 @@ and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Exp
   args_typed, ret
 
 (* Section 14.1 *)
+(*
+
+   base ?= TypeName t
+   ----------------------------------------
+   e, c |- SpecializedType {base, args} @ [arg1, .., argn] ~~> { @ [], Directionless}
+
+   typ = SpecializedType {t, []}
+   e, c |- typ @ [arg1, .., argn] ~~> {e, t, d}
+   --------------------------------------------------------
+   e, c |- TypeName t @ [arg1, .., argn] ~~> {e, t, d}
+*)
 and type_nameless_instantiation env ctx tags (typ : Types.Type.t) args =
   let open Prog.Expression in
   match typ with
@@ -2656,6 +3148,16 @@ and type_nameless_instantiation env ctx tags (typ : Types.Type.t) args =
                  ~typ:(typ: Types.Type.t)]
 
 (* Section 8.12.3 *)
+(*
+
+   e, c |- msk ~~> {msk', t', d'}
+   e, c |- expr ~~> {expr', t'', d''}
+   (t ?= t' ?= Bit<n>; t = Bit<n>) or (t ?= t' ?= Integer; t = Integer)
+   or (t ?= Bit<n> and t' ?= Integer; t = Bit<n>)
+   or (t' ?= Bit<n> and t ?= Integer; t = Bit<n>)
+   -----------------------------------------------------------
+   e, c |- msk ^ expr ~~> {msk' @ expr', Set t, Directionless}
+*)
 and type_mask env ctx expr mask : Prog.Expression.t =
   let open Expression in
   let expr_typed = type_expression env ctx expr in
@@ -2677,6 +3179,15 @@ and type_mask env ctx expr mask : Prog.Expression.t =
     tags = tags expr} 
 
 (* Section 8.12.4 *)
+(*
+
+   e, c |- l ~~> {l', t, d}
+   e, c |- h ~~> {h', t', d'}
+   t ?= t' ?= Bit<n> or t ?= t' ?= Int<n> or t ?= t' ?= Integer 
+   -------------------------------------------------------------
+   e, c |- <l:h> ~~> {<l':h'>, Set t, Directionless}
+
+*)
 and type_range env ctx lo hi : Prog.Expression.t =
   let open Expression in 
   let lo_typed = type_expression env ctx lo in
@@ -3324,7 +3835,7 @@ and is_variable_type env (typ: Typed.Type.t) =
      false
 
 (* Section 10.2
- *
+ * NOTE: refers to p4 spec
  *          Δ, T, Γ |- e : t' = t
  * ---------------------------------------------
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]

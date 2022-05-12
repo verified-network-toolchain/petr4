@@ -1,3 +1,5 @@
+(* adds type variable at various places. check with Ryan. *)
+
 module I = Info
 open Core_kernel
 open Prog.Env

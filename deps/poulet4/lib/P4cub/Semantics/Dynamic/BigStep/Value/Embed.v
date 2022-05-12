@@ -220,21 +220,33 @@ Section Embed.
       rewrite -> Zdiv.Zmod_small.
       + reflexivity.
       + lia.
-    - rewrite -> Zlength_to_lbool. 
+    - f_equal.
+      rewrite -> Zlength_to_lbool. 
       rewrite -> Znat.N2Z.id.
+      simpl. f_equal. 
+      (* unfold IntArith.lbool_to_val. 
+      unfold IntArith.lbool_to_val. *)
       rewrite -> int_to_lbool_back.
-      unfold BitArith.bound in H.
-      destruct H. f_equal. f_equal.
-      simpl. unfold IntArith.mod_bound. 
+      simpl. 
+      unfold IntArith.bound in H.
+      destruct H. 
+      unfold IntArith.mod_bound. 
       remember (IntArith.mod_amt w).
       remember (IntArith.upper_bound w).
+      unfold IntArith.mod_amt in Heqz0.
+      unfold IntArith.upper_bound in Heqz1.
+      unfold IntArith.maxZ in H0.
+      unfold IntArith.upper_bound in H0.
       rewrite -> Zdiv.Zmod_small.
       unfold IntArith.maxZ in H0.
       rewrite <- Heqz1 in H0.
       assert (z < z1). 
         * lia.
-        * destruct_with_eqn (z <? z1) . 
-          -- auto.
+        * unfold IntArith.mod_amt in Heqz0.
+        unfold IntArith.upper_bound in Heqz1. 
+        
+        (* destruct_with_eqn (z <? z1) . 
+          -- auto. *)
           -- lia.
         * unfold IntArith.maxZ in H0.
         unfold IntArith.upper_bound in H0.

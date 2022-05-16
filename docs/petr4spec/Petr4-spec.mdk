@@ -3,12 +3,17 @@ Title Footer: &date;
 Author: Parisa Ataei, Ryan Doenges, Nate Foster
 Affiliation: Cornell University
 Heading depth: 5
+Math Dpi    : 299
 Pdf Latex: xelatex
 Math Latex Full: pdflatex
 Document Class: [11pt]article
 Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
 Package: fancyhdr
 Package: mathpartir
+MathJax Ext: AMScd
+Package: amscd
+MathJax Ext : mhchem
+Package     : [version=3]mhchem
 
 Tex Header:
   \setlength{\headheight}{30pt}
@@ -137,7 +142,15 @@ p4grammar {
 }
 }
 
+~Aligned : replace:"~Math&nl;\begin{aligned}&nl;&source;&nl;\end{aligned}&nl;~" 
+
+
 [TITLE]
+
+~ TexRaw
+\mdDefineUnicode{10214}{\ensuremath{\llbracket}}
+\mdDefineUnicode{10215}{\ensuremath{\rrbracket}}
+~
 
 ~ Begin Abstract
 P4 is a language for programming the data plane of network
@@ -202,7 +215,14 @@ program is evaluated.
 some general explanation of the type system and the judgments.
 
 ## Expression's Typing Rules
-
+translate typ translate a surface type to the IR's type. we don't present these types
+since their difference isn't much.
+saturate typ saturates a type. Eliminate all type references in typ and replace them with the type they refer to. The result of saturation will contain no TypeName constructors anywhere. It may contain TypeName constructors.
+e(name) looks up name in the environment and returns its type and direction.
+is array determines whether a type is an array type.
+is numberic determines whether a type is numeric.
+compile time evaluation evaluates the expression expr at compile time.
+explicit cast ok checks whether typ1 can be converted to typ2 under e based on P4's specification of 8.9.1. Explicit casts. 
 
 ~ Center  {padding:1ex} 
 ~~ Snippet
@@ -226,17 +246,17 @@ some general explanation of the type system and the judgments.
      {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
 
   \inferrule[Int]
-     {}
+     {  }
      {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
 
   \inferrule[Name]
-     {\env (\name) = (\typ, \dir)}
+     {\lookupEnv \name = (\typ, \dir)}
      {\expenv \name \name \typ \dir}
 
   \inferrule[ArrayAccess]
-     {\expenv {\arrayAccess \array \index} {\prim \array} {\arrayAccess \typ \size} \dir \\
+     {\expenv {\array} {\prim \array} {\arrayTyp \typ \size} \dir \\
       \expenv \index {\prim \index} {\prim \typ} {\prim \dir} \\
-      \isArray {\typ[\size]} \\
+      \isArray {\arrayTyp \typ \size} \\
       \isNumeric {\prim \typ}}
      {\expenv {\arrayAccess \array \index} {\arrayAccess {\prim \array} {\prim \index}} \typ \dir }
 
@@ -267,7 +287,7 @@ some general explanation of the type system and the judgments.
 
   \inferrule[BitwiseComplement]
      { \expenv \exp {\prim \exp} {\bitWidthTyp \width} \dir }
-     { \expenv {\sim\!\exp} {\sim\!\prim \exp} {\bitWidthTyp \width} \dir }
+     { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\bitWidthTyp \width} \dir }
 
   \inferrule[UnaryMinusCTK]
      { \expenv \exp {\prim \exp} \intTyp \dir }
@@ -282,48 +302,349 @@ some general explanation of the type system and the judgments.
       \binOpEnv {\prim {\exp_1} \oplus \prim {\exp_2}} {\pprim {\exp_1} \oplus \pprim {\exp_2}} \typ \dir }
      { \expenv {\exp_1 \oplus \exp_2} {\prim {\exp_1} \oplus \prim {\exp_2}} \typ \dir }
 
-  % \inferrule[Cast]
-
-  % \inferrule[TypeMember]
-
-  % \inferrule[ErrorMember]
-
-  % \inferrule[ExpressionMember]
-
-  % \inferrule[Ternary]
-
-  % \inferrule[FunctionCall]
-
-  % \inferrule[NamelessIinstantiation]
-
-  % \inferrule[Mask]
-
-  % \inferrule[Range]
-
-
 \end{mathpar}
 ~~
 ~
 
-### Coerce Binary Operation Arguments Judgment Helper
 ~ Center  {padding:1ex} 
 ~~ Snippet
 \begin{mathpar}
   \small
 
+  \inferrule[Cast]
+     { \expenv \exp {\exp_1} {\typ_1} \dir \\
+       \typ_2 = \sat {\typ_1} \\
+       \typ_3 = \trans {\typ_2} {\emp} \\
+       \typ_4 = \sat {\typ_3} \\
+       \typWellFormed {\typ_3} \\
+       \explicitCastOK {\typ_1} {\typ_3}}
+     { \expenv {\cast \typ \exp} {\cast {\typ_1} {\exp_1}} {\typ_3} \less  }
+
+  \inferrule[TypeMember]
+     {\lookupEnv {\typMem \typ \name} = (\typ, \dir)  }
+     {\expenv {\typMem \typ \name} {\typMem \typ \name} \typ \less  }
+
+  \inferrule[ErrorMember]
+     {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
+     {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
+
+  \inferrule[ExpressionMember]
+     { blah }
+     { blah}
+
+  \inferrule[Ternary]
+     {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\typ_1} {\dir_2} \\
+      \expenv {\exp_3} {\prim {\exp_3}} {\typ_2} {\dir_3}\\
+      \typ_1 = \typ_2 \\
+      \typ_1 \neq \integerTyp}
+     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
+
+  \inferrule[FunctionCall]
+     { blah }
+     { blah }
+     % { \expenv {\exp (\typ_1 \arg_1, \ldots, \typ_n \arg_n)}  }
+
+% function type: <return type> <function name>(x1,...,xn) {...}
+
+  \inferrule[NamelessIinstantiation]
+     { blah }
+     { blah }
+
+  \inferrule[Mask]
+     {\expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+      \left( \so {\typ_1 = \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \typ_2 = \integerTyp} {\typ = \integerTyp}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp} {\typ = \bitWidthTyp \width}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \integerTyp, \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right)
+      }
+     {\expenv {\mask {\exp_1} {\exp_2}} {\mask {\prim \exp_1} {\prim \exp_2}} {\setTyp \typ} \less  }
+
+  \inferrule[Range]
+     { \expenv \low {\prim \low} \typ {\dir_\low} \\
+       \expenv \high {\prim \high} \typ {\dir_\high} \\
+       \typ_\low = \typ_\high = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
+     { \expenv {\range \low \high} {\range {\prim \low} {\prim \high}} {\setTyp \typ} \dir }
+
+
 \end{mathpar}
 ~~
 ~
 
-### Check Binary Operation Judgment Helper
+### Coerce Binary Operation Arguments Auxiliary Judgment
+Let implicitCast typ1 typ2 be defined as follows to describe P4's implicit
+casting behavior on operands in binary expressions:
+        
+cast typ exp produces a cast expression if the type of exp is different from the
+type typ.
+
+The restJ rule stands for all other binary operations. 
+
 ~ Center  {padding:1ex} 
 ~~ Snippet
 \begin{mathpar}
   \small
 
+  \inferrule[ShiftRight]
+     { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
+     { \coerceBinArgsEnv {\exp_1 \shiftR \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}}  }
+
+  \inferrule[ShiftLeft]
+     { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
+     { \coerceBinArgsEnv {\exp_1 \shiftL \exp_2} {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
+
+  \inferrule[BitConcatenation]
+     { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
+     { \coerceBinArgsEnv {\exp_1 \concat \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
+
+  \inferrule[Rest]
+     { \expenv  {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+       t = \implicitCast {\typ_1} {\typ_2} \\
+       {\pprim {\exp_1}} = \cast \typ {\prim {\exp_1}}, {\typ_1}, {\dir_1} \\
+       {\pprim {\exp_2}} = \cast \typ {\prim {\exp_2}}, {\typ_2}, {\dir_2}}
+     { \coerceBinArgsEnv {\exp_1 \restOps \exp_2} {\pprim {\exp_1}} {\pprim {\exp_2}} }
+
 \end{mathpar}
 ~~
 ~
 
+### Check Binary Operation Auxiliary Judgment 
+reduce enums removes all the enums recursively after reducing a type.
+in_or_dirless(typ1, typ2) retunrs direction of In if both typ1 and typ2 have In direction, o.w., it returns a directionless direction. 
+is true if and only if expression type t1 is equivalent to expression type t2 under environment env. Alpha equivalent types are equal. it takes the list of variables of the two types.
+is nonneg and is pos evaluate an expression at compile time and check if it's a nonneg or pos numeric.
+compile time known determinez if the value of an expression can be known at compile time.
+   it returns true for externs, packages, controls, and parsers..
 
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[LogicalOps($\ops=\&,\vert$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \typ_1 = \typ_2 = \boolTyp}
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} \boolTyp \dir }
+
+  \inferrule[NumericOps($+, -, *$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \integerTyp \textOr \intWidthTyp \width }
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} {\typ_1} \dir }
+
+  \inferrule[EqualityChecks($==, !=$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \typEq {\emp} {\typ_1} {\typ_2} \\
+       \typHasEq {\typ_1} }
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} \boolTyp \dir }
+
+  \inferrule[OpSat($\plusSat,\subSat$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width}
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} {\typ_1} \dir }
+
+  \inferrule[BitwiseOps($\bitAnd, \bitOr, \bitXor, \bitComplement$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width}
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} {\typ_1} \dir }
+
+  \inferrule[BitstringConcatenation]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \left( \so {\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2} \textOr \intWidthTyp {\width_2}} {\typ = \bitWidthTyp {\width_1 + \width_2}} \right) \\
+       \textOr \left( \so {\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2} \textOr \intWidthTyp {\width_2}} {\typ = \intWidthTyp {\width_1 + \width_2}} \right) }
+     { \binOpEnv {\exp_1 \concat \exp_2} {\exp_1 \concat \exp_2} {\typ} \dir }
+
+  \inferrule[ComparisonOps($<, \leq, >, \geq$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \left( \typ_1 = \typ_2 = \integerTyp \right) \\
+       \textOr \left( \typ_1 = \typ_2 = \bitWidthTyp \width \right) \\
+       \textOr \left( \typ_1 = \typ_2 = \intWidthTyp \width \right)}
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} \boolTyp \dir }
+
+  \inferrule[DivOps($\div, \mod$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \left( \so {\typ_1 = \typ_2 = \integerTyp, \nonNeg {\exp_1}, \pos {\exp_2}}  {\typ = \integerTyp} \right) \\
+       \textOr \left( \so {\typ_1 = \typ_2 = \bitWidthTyp \width, \nonNeg {\exp_1}, \pos {\exp_2}}  {\typ = \bitWidthTyp \width} \right) }
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} \typ \dir }
+
+  \inferrule[ShiftOps($\shiftL,\shiftR$)]
+     { \typ_1 = \reduceEnums {\exp_1} \\
+       \typ_2 = \reduceEnums {\exp_2} \\
+       \dir = \inOrLess {\typ_1} {\typ_2} \\
+       \nonNeg {\exp_2} \\
+       \left( \typ_1 = \bitWidthTyp \width \textOr \intWidthTyp \width \right) \\
+       \textOr \left( \typ_1 = \integerTyp, \compTimeKnown {\exp_2} \right) }
+     { \binOpEnv {\exp_1 \restOps \exp_2} {\exp_1 \restOps \exp_2} {\typ_1} \dir }
+
+\end{mathpar}
+~~
+~
+
+### Type Well-Formed Auxiliary Judgment
+it saturates all types first and then checks well-formedness. for breviety, we don't
+include the saturation in rules.
+is valid nested type outer inner checks whether the nested type is taking valid types in its inner and outer type based on P4's description of type nesting rules section 7.2.7 (provide link). 
+no duplicate determines if there are duplicate fields in a structure/type.
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Bool]
+     { }
+     { \typWellFormed \boolTyp }
+
+  \inferrule[String]
+     { }
+     { \typWellFormed \stringTyp }
+
+  \inferrule[Integer]
+     { }
+     { \typWellFormed \integerTyp }
+
+  \inferrule[Int]
+     { }
+     { \typWellFormed {\intWidthTyp \width} }
+
+  \inferrule[Bit]
+     { }
+     { \typWellFormed {\bitWidthTyp \width} }
+
+  \inferrule[VarBit]
+     { }
+     { \typWellFormed {\varBitTyp \width} }
+
+  \inferrule[Error]
+     { }
+     { \typWellFormed \errTyp}
+
+  \inferrule[Void]
+     { }
+     { \typWellFormed \voidTyp}
+
+  \inferrule[MatchKind]
+     { }
+     { \typWellFormed \matchKindTyp}
+
+  \inferrule[Array]
+     { \typWellFormed \typ \\
+       \isValidNestedTyp {\arrayTyp \typ \size} {\typ}}
+     { \typWellFormed {\arrayTyp \typ \size} }
+
+  \inferrule[Tuple]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp {\tupleTyp {\typ_1} {\typ_n}} {\typ_i}}
+     { \typWellFormed {\tupleTyp {\typ_1} {\typ_n}} }
+
+  \inferrule[List]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
+     { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
+
+  \inferrule[Set]
+     { \typWellFormed \typ }
+     { \typWellFormed {\setTyp \typ} }
+
+  \inferrule[EnumWithType]
+     { \typWellFormed \typ }
+     { \typWellFormed \enumTyp }
+
+  \inferrule[EnumWithoutType]
+     {  }
+     { \typWellFormed \enumTypNoTyp }
+
+  \inferrule[Record]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp \recordTyp {\typ_i} \\
+       \noDup {\field_1, \ldots, \field_n}}
+     { \typWellFormed \recordTyp }
+
+  \inferrule[HeaderUnion]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp \headerUnionTyp {\typ_i} \\
+       \noDup {\field_1, \ldots, \field_n}}
+     { \typWellFormed \headerUnionTyp }
+
+  \inferrule[Struct]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp \structTyp {\typ_i} \\
+       \noDup {\field_1, \ldots, \field_n}}
+     { \typWellFormed \structTyp }
+
+  \inferrule[Header]
+     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
+       1 \leq i \leq; \isValidNestedTyp \headerTyp {\typ_i} \\
+       \noDup {\field_1, \ldots, \field_n}}
+     { \typWellFormed \headerTyp }
+
+  \inferrule[NewType]
+     { \typWellFormed \typ }
+     { \typWellFormed {\newTypeTyp \typ \name} }
+
+  \inferrule[Specialized]
+     { blah }
+     { blah }
+
+  \inferrule[Package]
+     { blah }
+     { blah }
+
+  \inferrule[Control]
+     { blah }
+     { blah }
+
+  \inferrule[Parser]
+     { blah }
+     { blah }
+
+  \inferrule[Extern]
+     { blah }
+     { blah }
+
+  \inferrule[Function]
+     { blah }
+     { blah }
+
+  \inferrule[Action]
+     { blah }
+     { blah }
+
+  \inferrule[Constructor]
+     { blah }
+     { blah }
+
+  \inferrule[Table]
+     { blah }
+     { blah }
+
+  \inferrule[TypeName]
+     { blah }
+     { blah }
+
+% is_well_formed_type
+\end{mathpar}
+~~
+~
 

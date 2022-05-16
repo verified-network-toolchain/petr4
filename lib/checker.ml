@@ -815,7 +815,8 @@ and assert_type_equality env tags (t1: Typed.Type.t) (t2: Typed.Type.t) : unit =
   then ()
   else raise @@ Error.Type (tags, Type_Difference (t1, t2))
 
-(* TODO: what the fuck does it do. *)
+(* determinez if the value of an expression can be known at compile time.
+   it returns true for externs, packages, controls, and parsers.*)
 and compile_time_known_expr (env: CheckerEnv.t) (expr: Prog.Expression.t) : bool =
   match compile_time_eval_expr env expr with
   | Some _ -> true
@@ -870,18 +871,8 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
          dir = Directionless;
          tags = tags}
     (* P4Int = { value : bigint; width_signed: (int * bool) option}*)
-    (* e, c |- {value; Some (width, True)} ~~> {value; Bit {width}; Directionless} *)
-    (* e, c |- {value; Some (width, False)} ~~> {value; Int {width}; Directionless} *)
-    (* e, c |- {value; None} ~~> {value; Integer; Directionless} *)
     | Int {tags; x}->
        type_int x
-    (*
-     Note: e(name) looks up name in e and returns the pair (typ, dir).
-
-           e(name) = (t,d)
-       --------------------------
-       e, c |- name ~~> {name; t; d}
-    *)
     | Name {tags; name} ->
        (* Printf.printf "type expression --name %s \n%!" (name_only name); *)
        (* Printf.printf "type expression--env %s \n%!" (CheckerEnv.show env); *)
@@ -893,18 +884,6 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
          typ = typ;
          dir = dir;
          tags = tags }
-    (*
-     Note: * ArrayType = {typ: Type.t; size: int} which is captured as t[size] where
-             t is the typ and size is size.
-           * is_something(t) checks that the type t is actually the type something.
-           * a[i] is accessing element i from array a where both array and index
-             are expressions themselves. 
-
-          e, c |- a ~~> {a', t[size], d}            e, c |- i ~~> {i', t', d'}
-          is_array(t[size])                         is_numeric(t')
-          ------------------------------------------------------------
-          e, c |- a[i] ~~> {a'[i'], t, d}
-    *)
     | ArrayAccess { array; index; tags } ->
        type_array_access env ctx array index
     (*
@@ -917,112 +896,27 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
                    | Action
                    | Function
                    | Constant
-
-       [[blah]]_env is compile time evaluation of expression blah under env.
-       sth ?= sth_els check if sth matches sth_els.
-
-       all infered types are assumed to be saturated, for simplicity of formalization. Check!! 
-
-       e, Constant |- h ~~> {h', t'', d''}
-       is_numeric(t'')
-       h'' = [[h']]_e
-       e, Constant |- l ~~> {l', t', d'}
-       is_nuimeric(t')
-       l'' = [[l]]_e
-       0 <= l'' < w
-       l'' <= h'' < w
-       e, c | b ~~> {b', t, d}
-       t ?= Int{w} or t ?= Bit{w}
-       --------------------------------
-       e, c |- b[l:h] ~~> {b[l'':h''], Bit{h''-l''}, d}
     *)
     | BitStringAccess { bits; lo; hi ; tags} ->
        type_bit_string_access env ctx bits lo hi
-    (*
-     Note: [x,..,x] denotes a list.
-
-       1 <= i <= n; e, c |- xi ~~> {xi', ti, di}
-       --------------------------------------------------------------------
-       e, c |- [x1, .., xn] ~~> {[x1', .., xn'], [t1, .. tn], Directionless}
-    *)
     | List { values; tags } ->
        type_list env ctx values
-    (*
-     Note: {(key,val), .., (_,_)} denotes a record.
-           type of a record is {(key,val.typ), ...}.
-
-       1 <= i <= n; e, c |- vi ~~> {vi', ti, di}
-       ------------------------------------------------------------------------------
-       e, c |- {(k1,v1), ..,(kn,vn)} ~~> {{(k1,v1'), ..,(kn,vn')}, {(k1,t1), .., (kn,tn)}, Directionless} 
-    
-*)
     | Record { entries; tags } ->
        type_record env ctx entries
-    (*
-        Logical negation:
-
-        e, c |-  e ~~> {e', Bool, d}
-        ---------------------------------
-        e, c |- !e ~~> {!e', Bool, d}
-
-        Bitwise complement:
-
-        e, c |-  e ~~> {e', Bin<n>, d}
-        ---------------------------------
-        e, c |- ~e ~~> {~e', Bit<n>, d}
-
-        Unary minus:
-
-        e, c |-  e ~~> {e', Int, d}
-        ---------------------------------
-        e, c |- -e ~~> {-e', Int, d}
-
-        e, c |-  e ~~> {e', Int<n>, d}
-        ---------------------------------
-        e, c |- -e ~~> {-e', Int<n>, d}
-    *)
     | UnaryOp { op; arg; tags } ->
        type_unary_op env ctx op arg
-    (*
-     Note: e, c |- _ _ _ ==> (_,_) is the judgment rule for coerce_binary_op_args.
-           e |- _ _ _ --> {_, _, _} is the judgment rule for check_binary_op.
-
-        e, c |- l ?.? r ==> (l', r')
-        e |- l' ?.? r' --> {l'' ?.? r'', t, d}
-        ------------------------------------------------------
-        e, c |- l ?.? r ~~> {l'' ?.? r'', t, d}
-    *)
     | BinaryOp { op; args; tags } ->
        type_binary_op env ctx op args
     (*  *)
     | Cast { typ; expr; tags } ->
        type_cast env ctx typ expr
-    (*
-      e(typ.name) = (t, d)
-      ---------------------------------------------
-      e, c |- typ.name ~~> {typ.name, t, d} 
-    *)
     | TypeMember { typ; name; tags } ->
        type_type_member env ctx typ name
-    (*
-       e(error.name)=(Error, d)
-       ----------------------------
-        e, c |- error.name ~~> {error.name, Error, Directionless}
-    *)
     | ErrorMember {tags; err} ->
        type_error_member env ctx err
     (*  *)
     | ExpressionMember { expr; name; tags } ->
        type_expression_member env ctx expr name
-    (*
-
-       e, c |- cond ~~> {cond', Bool, d}
-       e, c |- tru ~~> {tru', t', d'}
-       e, c |- fls ~~> {fls', t'', d''}
-       t' ?= t'' and t' ?<> Integer
-       ----------------------------------------------------------------------
-       e, c |- cond ? tru : fls ~~> {cond' ? tru' : fls', t', Directionless}
-    *)
     | Ternary { cond; tru; fls; tags } ->
        type_ternary env ctx cond tru fls
     (*  *)
@@ -1031,24 +925,8 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
     (*  *)
     | NamelessInstantiation { typ; args; tags } ->
        type_nameless_instantiation env ctx tags typ args
-    (*
-       e, c |- msk ~~> {msk', t', d'}
-       e, c |- expr ~~> {expr', t'', d''}
-       (t ?= t' ?= Bit<n>; t = Bit<n>) or (t ?= t' ?= Integer; t = Integer)
-       or (t ?= Bit<n> and t' ?= Integer; t = Bit<n>)
-       or (t' ?= Bit<n> and t ?= Integer; t = Bit<n>)
-       -----------------------------------------------------------
-       e, c |- msk @ expr ~~> {msk' @ expr', Set t, Directionless}
-    *)
     | Mask { expr; mask; tags } ->
        type_mask env ctx expr mask
-    (*
-       e, c |- l ~~> {l', t, d}
-       e, c |- h ~~> {h', t', d'}
-       t ?= t' ?= Bit<n> or t ?= t' ?= Int<n> or t ?= t' ?= Integer 
-       -------------------------------------------------------------
-       e, c |- <l:h> ~~> {<l':h'>, Set t, Directionless}
-    *)
     | Range { lo; hi; tags } ->
        type_range env ctx lo hi
 
@@ -1351,7 +1229,7 @@ and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
 
 * Array type:
    e |- t
-   ???
+   isValidNested (t[n],t)
    ----------------------------------
    e |- t[n]
 
@@ -2022,7 +1900,6 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
      None, None
 
 (*
-   TODO: complete. 
 
    NOTE: implicit_cast(t1,t2)_e is defined above. Note that it casts args
          after saturating them, i.e., replacing all type references with
@@ -2034,8 +1911,8 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
    e, c |- l ~~> l', t', d'
    e, c |- r ~~> r', t'', d''
    t = implicit_cast(t',t'')_e
-   l'' = cast(t, l')
-   r'' = cast(t, r')
+   l'' = cast(t, l'), t, d'
+   r'' = cast(t, r'), t, d''
    --------------------------------------------------
    e, c |- l ?.? r ==> (l'', r'') 
 
@@ -2043,7 +1920,7 @@ and implicit_cast env l r : Typed.Type.t option * Typed.Type.t option =
    e, c |- l ~~> l', t', d'
    e, c |- r ~~> r', t'', d''
    --------------------------------------------------
-   e, c |- l ?.? r ==> (l', r') 
+   e, c |- l ?.? r ==> (l', t', d'; r', t'', d'') 
 *)
 and coerce_binary_op_args env ctx op l r =
   let l_typed = type_expression env ctx l in
@@ -2162,7 +2039,6 @@ and type_binary_op (env : CheckerEnv.t) (ctx : ExprContext.t) (op: Op.bin) ((l, 
 
 
 (*
-TODO: complete.
 
    Note: in_or_dirless(typ1, typ2) retunrs direction of In if both typ1 and typ2
          have In direction, o.w., it returns a directionless direction. 
@@ -2206,7 +2082,7 @@ TODO: complete.
       lt ?= rt ?= Bit<n>; t = Bit<n>
    or lt ?= rt ?= Int<n>; t = Int<n>
    ---------------------------------------------
-   e |- l + r --> l + r, t, d
+   e |- l |+| r --> l |+| r, t, d
 
 * bitwise ops (&, |, X):
    lt = reduce_enums(l.t)_e
@@ -2246,13 +2122,12 @@ TODO: complete.
    e |- l / r --> l / r, t, d
 
 * shift ops (>>, <<):
-  **NOTE: compile_time_known(expr)_env is TODO. 
    lt = reduce_enums(l.t)_e
    rt = reduce_enums(r.t)_e
    d = in_or_dirless(lt, rt)
    nonneg(r)_e
       lt ?= Bit or Int
-   or lt ?= Integer, compile_time_known(lt)_e
+   or lt ?= Integer, compile_time_known(r)_e
    ------------------------------------------------------
    e |- l >> r --> l >> r, lt, d
 
@@ -2430,13 +2305,22 @@ and casts_ok ?(explicit = false) env original_types new_types =
 (*
    NOTE: trans(t)_e,[vars] translate Types.type.t to Typed.type.t.
          I haven't decided if we want to mention that these are
-         even different. [CAN ASK NATE IN REPORT!] 
+         even different. [CAN ASK NATE IN REPORT!]
+         e |- typ is type_well_formed judgement.
+         e |- typ1, typ2 is judgment form for explicit cast ok.
 
-   e, c | exp ~~> exp', t, d
-   t' = saturate(t)_e
-   t'' = saturate(trans(t')_e,[])_e
+   DISCUSS: saturating types twice. once in this function and another
+            time in the cast_ok but this function doesn't reaLLY need them
+            to be sat except for cast_ok. TODO after doc. 
+
+   e, c | exp ~~> exp', t', d
+   t'' = saturate(t')_e
+   t''' = trans(t'')_e,[]
+   t'''' = saturate(t''')_e
+   e |- t'''
+   e |- t', t'''
    ------------------------------------------------------
-   e, c | typ (c) exp ~~> 
+   e, c | (t) exp ~~>  (t''') exp', t''', directionless
 *)
 and type_cast env ctx typ expr : Prog.Expression.t =
   let expr_typed = type_expression env ctx expr in
@@ -2601,6 +2485,11 @@ and type_expression_member_function_builtin env typ (name: P4String.t) : Typed.T
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
+(*
+
+   ----------------------------------------------------------------
+
+*)
 and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
   let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env typed_expr.typ in
@@ -2843,6 +2732,12 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | _, Builtin -> true
   end
 
+(*
+
+   --------------------------------------------------------
+   e, c |- exp (t1 a1, ..., tn an) ~~> 
+
+*)
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
   (* Printf.printf "we're here!!!"; *)

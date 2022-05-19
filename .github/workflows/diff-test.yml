@@ -1,4 +1,4 @@
-name: ci-typechecker
+name: differntial-testing
 
 on:
   workflow_dispatch:

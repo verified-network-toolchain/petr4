@@ -22,7 +22,7 @@ do
   echo "type checking ${file} with p4c"
   p4c_type=$(p4test -I /petr4/ci-test/type-checking/p4include "$file" 2>&1)
   p4c_type_stat=$?
-  if [ $petr4_type_stat != 0 && $p4c_type_stat != 0 ]
+  if [ $petr4_type_stat != 0 -a $p4c_type_stat != 0 ]
   then echo "lable didn't mismatch for ${file}! label was fails originally."
        err=1
   fi

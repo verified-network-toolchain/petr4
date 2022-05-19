@@ -2142,15 +2142,23 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
 
 End WithGenv.
 
-Definition gen_ge (prog : @program tags_t) : genv :=
+Definition gen_am_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty in
-  let inst_m := fst (instantiate_prog partial_ge prog) in
+  MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty.
+
+Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : genv :=
+  let ge_func := load_prog prog in
+  let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
+  let ge_senum := gen_ge_senum prog in
+  let inst_m := fst (instantiate_prog am_ge prog) in
   let ge_inst := fst (fst inst_m) in
   let ge_const := snd (fst inst_m) in
   let ge_ext := snd inst_m in
   MkGenv ge_func ge_typ ge_senum ge_inst ge_const ge_ext.
+
+Definition gen_ge (prog : @program tags_t) : genv :=
+  gen_ge' (gen_am_ge prog) prog.
 
 End Semantics.

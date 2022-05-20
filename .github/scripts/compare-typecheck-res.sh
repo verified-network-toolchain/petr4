@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x # Make command execution verbose
+# set -x # Make command execution verbose
 
 err=0
 

@@ -3,10 +3,10 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
-rm -r ci-test/type-checking/expectation/fails/*.p4
-rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4
-rm -r ci-test/type-checking/expectation/typechecked/*.p4
-rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4
+rm -r ci-test/type-checking/expectation/fails/*.p4*
+rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4*
+rm -r ci-test/type-checking/expectation/typechecked/*.p4*
+rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4*
 
 rm -r ci-test/type-checking/expectation/lookinto/*.p4*
 

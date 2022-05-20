@@ -19,7 +19,7 @@ do
   fi
 done
 
-for file in $(find /petr4/ci-test/stf-test/expectation/p4cPassed -name '*.p4')
+for file in $(find /petr4/ci-test/stf-test/expectation/p4cPassed -name '*.p4' ! -name 'ipv6-switch-ml-bmv2.p4' ! -name 'count_ebpf.p4' ! -name 'valid_ebpf.p4')
 do
     file1="${file%.*}"
     stf_file="${file1}.stf"
@@ -53,7 +53,7 @@ do
     fi
 done
 
-for file in $(find /petr4/ci-test/stf-test/expectation/passes -name '*.p4')
+for file in $(find /petr4/ci-test/stf-test/expectation/passes -name '*.p4' ! -name 'arith5-bmv2.p4' ! -name 'default_action-bmv2.p4' ! -name 'arith-bmv2.p4' ! -name 'constant-in-calculation-bmv2.p4' ! -name 'arith1-bmv2.p4' ! -name 'arith-inline-bmv2.p4' ! -name 'enum-bmv2.p4' ! -name 'arith2-bmv2.p4' ! -name 'arith2-inline-bmv2.p4' ! -name 'key-bmv2.p4' ! -name 'arith3-bmv2.p4' ! -name 'arith4-bmv2.p4')
 do
     file1="${file%.*}"
     stf_file="${file1}.stf"

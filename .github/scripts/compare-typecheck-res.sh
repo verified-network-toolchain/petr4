@@ -4,7 +4,7 @@
 
 err=0
 
-for file in $(find /petr4/ci-test/type-checking/expectation/fails -name '*.p4')
+for file in $(find /petr4/ci-test/type-checking/expectation/fails -name '*.p4' ! -name 'next.p4' ! -name 'filtering.p4' ! -name 'forwarding.p4' ! -name 'int_header.p4' ! name 'acl.p4')
 do
   petr4_type=$(petr4 typecheck -I /petr4/ci-test/p4include "$file" 2>&1)
   petr4_type_stat=$?

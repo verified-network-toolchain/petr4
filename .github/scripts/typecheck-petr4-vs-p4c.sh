@@ -46,7 +46,7 @@ do
   echo "$p4c_type" >> "ci-test/type-checking/expectation/lookinto/${file##*/}_out"
 #   # p4test -I /petr4/ci-test/type-checking/p4include "$file" 2>&1 | tee -a -i "ci-test/type-checking/expectation/lookinto/${file##*/}_out"
 #   # cp "ci-test/type-checking/expectation/lookinto/${file##*/}" "ci-test/type-checking/expectation/lookinto/${file3}"
-# done
+done
 
 # moving look into files in the corresponding directory for investigation.
 for file in $(find ci-test/type-checking/expectation/lookinto -name '*.p4_out')

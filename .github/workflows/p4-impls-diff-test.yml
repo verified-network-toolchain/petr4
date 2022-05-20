@@ -23,9 +23,9 @@ jobs:
           sudo apt-get update 
           sudo apt-get install -y git
       - uses: actions/checkout@v2
-      - name: check typechecking labels
-        run: ./.github/scripts/compare-typecheck-res.sh
-        shell: bash
+      # - name: check typechecking labels
+      #   run: ./.github/scripts/compare-typecheck-res.sh
+      #   shell: bash
       - name: check stf test labels
         run: ./.github/scripts/compare-stf-res.sh
         shell: bash

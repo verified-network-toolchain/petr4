@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/generic-struct.p4
+/petr4/ci-test/testdata/p4_16_samples/generic-struct.p4
 \n
 struct Header<St> {
     St data;
@@ -106,5 +106,6 @@ control ctrl(out bit x);
 package top(ctrl _c);
 top(c()) main;
 ************************\n******** petr4 type checking result: ********\n************************\n
-File /petr4/ci-test/type-checking/testdata/p4_16_samples/generic-struct.p4, line 1, characters 13-14: syntax error
+File /petr4/ci-test/testdata/p4_16_samples/generic-struct.p4, line 1, characters 13-14: syntax error
 ************************\n******** p4c type checking result: ********\n************************\n
+

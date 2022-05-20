@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/nested-tuple.p4
+/petr4/ci-test/testdata/p4_16_samples/nested-tuple.p4
 \n
 /*
 Copyright 2016 VMware, Inc.
@@ -69,11 +69,10 @@ control c(inout bit<1> r) {
 control simple (inout bit<1> r);
 package top (simple e);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/nested-tuple.p4(30): [--Wwarn=shadow] warning: 'T' shadows 'struct T'
+/petr4/ci-test/testdata/p4_16_samples/nested-tuple.p4(30): [--Wwarn=shadow] warning: 'T' shadows 'struct T'
 extern void f<T>(in T data);
               ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/nested-tuple.p4(17)
+/petr4/ci-test/testdata/p4_16_samples/nested-tuple.p4(17)
 struct T { bit f; }
        ^

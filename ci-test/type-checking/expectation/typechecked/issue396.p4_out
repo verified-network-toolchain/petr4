@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue396.p4
+/petr4/ci-test/testdata/p4_16_samples/issue396.p4
 \n
 /*
 Copyright 2017 VMware, Inc.
@@ -88,5 +88,5 @@ control d(out bool b) {
   }
 }
 top(d()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

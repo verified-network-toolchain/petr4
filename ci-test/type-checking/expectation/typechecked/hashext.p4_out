@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/hashext.p4
+/petr4/ci-test/testdata/p4_16_samples/hashext.p4
 \n
 /*
 Copyright 2018 Barefoot Networks, Inc.
@@ -60,6 +60,5 @@ control test(inout hdrs hdr) {
     hdr.crc = crc_poly<bit<16>, h1_t>(16w32794).hash(hdr.h1);
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

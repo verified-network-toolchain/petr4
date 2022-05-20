@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl2.p4
+/petr4/ci-test/testdata/p4_16_samples/decl2.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -62,5 +62,5 @@ control p() {
 control simple ();
 package m (simple pipe);
 .m(.p()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

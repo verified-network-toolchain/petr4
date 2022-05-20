@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4
 \n
 /*
  * Copyright 2017-present Open Networking Foundation
@@ -86,9 +86,9 @@ control process_int_source (
 }
 #endif
 ************************\n******** petr4 type checking result: ********\n************************\n
-File /petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4, line 23, characters 10-26: syntax error
+File /petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4, line 23, characters 10-26: syntax error
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4(23):syntax error, unexpected IDENTIFIER "parsed_headers_t"
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/int/int_source.p4(23):syntax error, unexpected IDENTIFIER "parsed_headers_t"
     inout parsed_headers_t
           ^^^^^^^^^^^^^^^^
 [--Werror=overlimit] error: 1 errors encountered, aborting compilation

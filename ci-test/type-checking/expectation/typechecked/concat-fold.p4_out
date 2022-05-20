@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/concat-fold.p4
+/petr4/ci-test/testdata/p4_16_samples/concat-fold.p4
 \n
 /*
 Copyright 2017 VMware, Inc.
@@ -19,6 +19,5 @@ limitations under the License.
 const bit<24> a = 16w0 ++ 8w1;
 ************************\n******** petr4 type checking result: ********\n************************\n
 const bit<24> a = 16w0 ++ 8w1;
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

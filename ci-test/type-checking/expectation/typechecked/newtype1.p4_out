@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/newtype1.p4
+/petr4/ci-test/testdata/p4_16_samples/newtype1.p4
 \n
 typedef bit<9> Narrow_t;
 type Narrow_t Narrow;
@@ -36,5 +36,5 @@ control c(out bool b) {
 control ctrl (out bool b);
 package top (ctrl _c);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

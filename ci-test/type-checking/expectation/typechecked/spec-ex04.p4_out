@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/spec-ex04.p4
+/petr4/ci-test/testdata/p4_16_samples/spec-ex04.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -33,9 +33,8 @@ const bit<8> b5 = 8w170;
 const bit<8> b6 = 8w170;
 const bit<8> b7 = 8w170;
 const int<8> b8 = 8s170;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/spec-ex04.p4(24): [--Wwarn=overflow] warning: 8s0b10101010: signed value does not fit in 8 bits
+/petr4/ci-test/testdata/p4_16_samples/spec-ex04.p4(24): [--Wwarn=overflow] warning: 8s0b10101010: signed value does not fit in 8 bits
 const int<8> b8 = 8s0b1010_1010
                   ^^^^^^^^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4
 \n
 /*
  * Copyright 2017-present Open Networking Foundation
@@ -39,9 +39,9 @@ control PortCountersControl(inout parsed_headers_t hdr,
 }
 #endif
 ************************\n******** petr4 type checking result: ********\n************************\n
-File /petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4, line 24, characters 34-53: syntax error
+File /petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4, line 24, characters 34-53: syntax error
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4(24):syntax error, unexpected IDENTIFIER "standard_metadata_t"
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/control/port_counter.p4(24):syntax error, unexpected IDENTIFIER "standard_metadata_t"
                             inout standard_metadata_t
                                   ^^^^^^^^^^^^^^^^^^^
 [--Werror=overlimit] error: 1 errors encountered, aborting compilation

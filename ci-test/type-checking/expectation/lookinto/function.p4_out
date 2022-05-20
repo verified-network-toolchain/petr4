@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/function.p4
+/petr4/ci-test/testdata/p4_16_samples/function.p4
 \n
 bit<16> max(in bit<16> left, in bit<16> right) {
     if (left > right)
@@ -31,5 +31,5 @@ control c(out bit<16> b) {
 control ctr (out bit<16> b);
 package top (ctr _c);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

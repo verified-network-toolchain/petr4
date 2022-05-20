@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/spec-ex01.p4
+/petr4/ci-test/testdata/p4_16_samples/spec-ex01.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -22,6 +22,5 @@ control pipe<H>(in bit<4> inputPort,
 ************************\n******** petr4 type checking result: ********\n************************\n
 control pipe<H>
   (in bit<4> inputPort, inout H parsedHeaders, out bit<4> outputPort);
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

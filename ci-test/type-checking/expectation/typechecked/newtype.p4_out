@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/newtype.p4
+/petr4/ci-test/testdata/p4_16_samples/newtype.p4
 \n
 #include <core.p4>
 
@@ -120,5 +120,5 @@ control c(out B32 x) {
 control e (out B32 x);
 package top (e _e);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

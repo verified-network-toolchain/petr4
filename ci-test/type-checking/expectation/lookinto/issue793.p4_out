@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue793.p4
+/petr4/ci-test/testdata/p4_16_samples/issue793.p4
 \n
 #include <core.p4>
 
@@ -84,5 +84,5 @@ control c(in my_packet hdr) {
 control C (in my_packet hdr);
 package V1Switch (C vr);
 V1Switch(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

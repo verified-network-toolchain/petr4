@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/ml-headers.p4
+/petr4/ci-test/testdata/p4_16_samples/ml-headers.p4
 \n
 /*
 * Copyright 2019, MNK Consulting
@@ -356,6 +356,5 @@ struct metadata_t {
   tunnel_metadata_t tunnel_metadata;
   fwd_meta_t fwd;
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

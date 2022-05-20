@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/large.p4
+/petr4/ci-test/testdata/p4_16_samples/large.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -19,9 +19,8 @@ limitations under the License.
 const bit<128> large = 0x1234567890123456789012345678901234567890;
 ************************\n******** petr4 type checking result: ********\n************************\n
 const bit<128> large = 103929005307130220006098923584552504982110632080;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/large.p4(17): [--Wwarn=mismatch] warning: 128w0x1234567890123456789012345678901234567890: value does not fit in 128 bits
+/petr4/ci-test/testdata/p4_16_samples/large.p4(17): [--Wwarn=mismatch] warning: 128w0x1234567890123456789012345678901234567890: value does not fit in 128 bits
 const bit<128> large = 0x1234567890123456789012345678901234567890;
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

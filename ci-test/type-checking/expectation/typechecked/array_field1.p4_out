@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4
+/petr4/ci-test/testdata/p4_16_samples/array_field1.p4
 \n
 header H {
     bit<1> z;
@@ -94,23 +94,5 @@ control my(out H[2] s) {
   }
 }
 top(my()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(22): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_8]
-        s[tmp_8].z = 1w1;
-        ^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(25): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_10]
-        s[tmp_10].z = 1w0;
-        ^^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(27): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_11]
-        tmp_12 = s[tmp_11].z;
-                 ^^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(29): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_11]
-        s[tmp_11].z = tmp_12;
-        ^^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(32): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_14]
-        tmp_15 = s[tmp_14].z;
-                 ^^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/array_field1.p4(34): [--Wwarn=invalid_header] warning: accessing a field of an invalid header s[tmp_14]
-        s[tmp_14].z = tmp_15;
-        ^^^^^^^^^
+

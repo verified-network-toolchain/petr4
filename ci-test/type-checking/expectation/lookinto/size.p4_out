@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/size.p4
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/size.p4
 \n
 #ifndef __TABLE_SIZE__
 #define __TABLE_SIZE__
@@ -23,7 +23,6 @@
 
 #endif
 ************************\n******** petr4 type checking result: ********\n************************\n
-
 
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

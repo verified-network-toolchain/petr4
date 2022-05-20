@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/arch1.p4
+/petr4/ci-test/testdata/p4_16_samples/arch1.p4
 \n
 #include <core.p4>
     
@@ -86,6 +86,5 @@ package Ingress<T9, IH10, OH11>
 package Egress<T12, IH13, OH14>
   (Parser<IH13> p, EPipe<T12, IH13, OH14> map, Deparser<OH14> d);
 package Switch<T15> (Ingress<T15, _, _> ingress, Egress<T15, _, _> egress);
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

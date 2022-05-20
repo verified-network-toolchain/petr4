@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/side_effects.p4
+/petr4/ci-test/testdata/p4_16_samples/side_effects.p4
 \n
 /*
 Copyright 2016 VMware, Inc.
@@ -59,17 +59,16 @@ control my(inout H[2] s) {
   }
 }
 top(my()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/side_effects.p4(29): [--Wwarn=ordering] warning: a: 'out' argument has fields in common with a
+/petr4/ci-test/testdata/p4_16_samples/side_effects.p4(29): [--Wwarn=ordering] warning: a: 'out' argument has fields in common with a
         a = f(a, g(a));
               ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/side_effects.p4(29)
+/petr4/ci-test/testdata/p4_16_samples/side_effects.p4(29)
         a = f(a, g(a));
                    ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/side_effects.p4(30): [--Wwarn=ordering] warning: s[a].z: 'out' argument has fields in common with a
+/petr4/ci-test/testdata/p4_16_samples/side_effects.p4(30): [--Wwarn=ordering] warning: s[a].z: 'out' argument has fields in common with a
         a = f(s[a].z, g(a));
               ^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/side_effects.p4(30)
+/petr4/ci-test/testdata/p4_16_samples/side_effects.p4(30)
         a = f(s[a].z, g(a));
                         ^

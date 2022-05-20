@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/direct-call.p4
+/petr4/ci-test/testdata/p4_16_samples/direct-call.p4
 \n
 /*
 Copyright 2017 VMware, Inc.
@@ -32,6 +32,5 @@ control d() {
     c.apply();
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

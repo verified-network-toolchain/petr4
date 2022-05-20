@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/initializer.p4
+/petr4/ci-test/testdata/p4_16_samples/initializer.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -41,6 +41,5 @@ control ingress(out bit<32> field_d_32) {
   apply { 
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

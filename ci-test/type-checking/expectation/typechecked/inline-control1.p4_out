@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/inline-control1.p4
+/petr4/ci-test/testdata/p4_16_samples/inline-control1.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -67,5 +67,5 @@ control d(out bit<32> x) {
 control dproto (out bit<32> x);
 package top (dproto _d);
 top(d()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

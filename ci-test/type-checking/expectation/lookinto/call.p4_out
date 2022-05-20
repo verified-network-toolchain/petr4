@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/call.p4
+/petr4/ci-test/testdata/p4_16_samples/call.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -88,6 +88,5 @@ control p() {
     b(32w0);
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

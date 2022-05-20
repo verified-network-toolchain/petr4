@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/global-action.p4
+/petr4/ci-test/testdata/p4_16_samples/global-action.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -49,5 +49,5 @@ control c() {
 control none ();
 package top (none n);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

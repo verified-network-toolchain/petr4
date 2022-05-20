@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2279_4.p4
+/petr4/ci-test/testdata/p4_16_samples/issue2279_4.p4
 \n
 header ethernet_t {
     bit<48> dst_addr;
@@ -53,5 +53,5 @@ control c(inout Headers hdr) {
 control proto (inout Headers hdr);
 package top (proto _p);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

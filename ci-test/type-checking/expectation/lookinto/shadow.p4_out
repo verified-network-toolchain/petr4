@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow.p4
+/petr4/ci-test/testdata/p4_16_samples/shadow.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -38,12 +38,11 @@ control c() {
     }
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow.p4(22): [--Wwarn=shadow] warning: 'x' shadows 'x'
+/petr4/ci-test/testdata/p4_16_samples/shadow.p4(22): [--Wwarn=shadow] warning: 'x' shadows 'x'
             bit x;
             ^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow.p4(20)
+/petr4/ci-test/testdata/p4_16_samples/shadow.p4(20)
         bit x;
         ^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

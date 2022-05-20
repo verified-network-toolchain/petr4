@@ -17,17 +17,6 @@ open Util
 
 open Sexplib.Conv
 
-(* reminder: you're missing info, info_to_yojson, and info_of_yojson!!! *)
-
-(* this doesn't work. error: unbound record field info.
-  let info_to_yojson f x = f (x.info) 
- *)
-
-(* let info_of_yojson f json =
-  match f json with
-  | Ok pre -> Ok (Info.M "<yojson>", pre)
-  | Error x -> Error x
- *)
 
 module P4Int = struct
 

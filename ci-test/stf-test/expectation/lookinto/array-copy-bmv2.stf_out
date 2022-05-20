@@ -1,0 +1,67 @@
+p4 program:
+\n
+#include <v1model.p4>
+
+header Hdr {
+    bit<8> x;
+}
+
+struct Headers {
+    Hdr[2] h1;
+    Hdr[2] h2;
+}
+
+struct Meta {}
+
+parser P(packet_in p, out Headers h, inout Meta m, inout standard_metadata_t sm) {
+    state start {
+        p.extract(h.h1.next);
+        p.extract(h.h1.next);
+        h.h2 = h.h1;
+        transition accept;
+    }
+}
+
+control vrfy(inout Headers h, inout Meta m) { apply {} }
+control update(inout Headers h, inout Meta m) { apply {} }
+
+control egress(inout Headers h, inout Meta m, inout standard_metadata_t sm) { apply {} }
+
+control deparser(packet_out b, in Headers h) {
+    apply { b.emit(h); }
+}
+
+control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
+    apply {
+        sm.egress_spec = 0;
+    }
+}
+
+V1Switch(P(), vrfy(), ingress(), egress(), update(), deparser()) main;
+\n
+\n
+packet 0 12 12
+expect 0 12 12 12 12
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 12121212
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpit9mqn8x
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpit9mqn8x/array-copy-bmv2.json /petr4/ci-test/testdata/p4_16_samples/array-copy-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9851 --device-id 761 -i 0@pcap0 .././tmpit9mqn8x/array-copy-bmv2.json
+Running simple_switch_CLI --thrift-port 9851
+STF Command: packet 0 12 12
+STF Command: expect 0 12 12 12 12
+simple_switch exit code -15
+Execution completed
+Comparing outputs

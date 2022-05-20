@@ -3,37 +3,19 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
-# mkdir ci-test/stf-test/expectation/petr4Passed
-# mkdir ci-test/stf-test/expectation/passes
-# mkdir ci-test/stf-test/expectation/p4cPassed
-# mkdir ci-test/stf-test/expectation/fails
-
-# mkdir ci-test/stf-test/expectation/lookinto
-# echo "create dir" > ci-test/stf-test/expectation/lookinto/dummy
-
-# rm -r ci-test/type-checking/expectation/fails/*.p4
-# rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4
-# rm -r ci-test/type-checking/expectation/typechecked/*.p4
-# rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4
-
-# rm -r ci-test/type-checking/expectation/lookinto/*
-# echo "create dir" > ci-test/type-checking/expectation/lookinto/dummy
+# rm -r ci-test/stf-test/expectation/fails/*.p4
+# rm -r ci-test/stf-test/expectation/fails/*.stf
+# rm -r ci-test/stf-test/expectation/petr4Passed/*.p4
+# rm -r ci-test/stf-test/expectation/petr4Passed/*.stf
+# rm -r ci-test/stf-test/expectation/passes/*.p4
+# rm -r ci-test/stf-test/expectation/passes/*.stf
+# rm -r ci-test/stf-test/expectation/p4cPassed/*.p4
+# rm -r ci-test/stf-test/expectation/p4cPassed/*.stf
 
 # rm -r ci-test/type-checking/expectation/lookinto/*.p4_out
 
-# echo "directory for petr4 stf test passed but p4c didn't" > ci-test/stf-test/expectation/petr4Passed/dummy
-# echo "directory for both passed" > ci-test/stf-test/expectation/passes/dummy
-# echo "directory for p4c but petr4 didn't" > ci-test/stf-test/expectation/p4cPassed/dummy
-# echo "directory for both failed" > ci-test/stf-test/expectation/fails/dummy
-
-# echo "blah" | tee ci-test/type-checking/expectation/lookinto/blah.out
-
-# make sure to copy config.h to /usr/local/bin/ for stf tests.
-# cp /p4c/build/config.h /usr/local/bin/config.h 
-
 # finds all p4 files in the given directory and does stuff to them. 
 for file in $(find /petr4/ci-test/testdata/p4_16_samples -name '*.stf')
-# ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
 do
 #   # gets the result of type checking from petr4 and p4c, stores them in
 #   # variables and compares them

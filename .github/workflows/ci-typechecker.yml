@@ -28,14 +28,9 @@ jobs:
         shell: bash
       - name: add result of type checking to git repo
         run: |
-          git config --local user.email "paris.ataei@gmail.com"
-          git config --local user.name  "Github Action Bot GO!"
-          git --version
-          git status
-          git add .
-          git status
+          git config --global user.email "paris.ataei@gmail.com"
+          git config --global user.name  "Github Action Bot GO!"
+          git config --global --add safe.directory /__w/petr4/petr4
+          git add ci-test/type-checking/*
           git commit -am "write type to output files"
-          git status
-          pwd
-          ls -la
           git push origin

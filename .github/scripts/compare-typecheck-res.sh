@@ -13,7 +13,8 @@ do
   p4c_type=$(p4test -I /petr4/ci-test/testdata/p4include "$file" 2>&1)
   p4c_type_stat=$?
   if [ $petr4_type_stat != 0 -a $p4c_type_stat != 0 ]
-  then echo "lable didn't match for ${file}! label was fails originally."
+  then echo "PASSED!"
+  else echo "lable didn't match for ${file}! label was fails originally."
        err=1
   fi
 done
@@ -27,7 +28,8 @@ do
     p4c_type=$(p4test -I /petr4/ci-test/testdata/p4include "$file" 2>&1)
     p4c_type_stat=$?
     if [ $petr4_type_stat != 0 -a $p4c_type_stat = 0 ]
-    then echo "lable didn't match for ${file}! label was p4cTypeChecked originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was p4cTypeChecked originally."
          err=1
     fi
 done
@@ -41,7 +43,8 @@ do
     p4c_type=$(p4test -I /petr4/ci-test/testdata/p4include "$file" 2>&1)
     p4c_type_stat=$?
     if [ $petr4_type_stat = 0 -a $p4c_type_stat != 0 ]
-    then echo "lable didn't match for ${file}! label was petr4TypeChecked originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was petr4TypeChecked originally."
          err=1
     fi
 done
@@ -55,7 +58,8 @@ do
     p4c_type=$(p4test -I /petr4/ci-test/testdata/p4include "$file" 2>&1)
     p4c_type_stat=$?
     if [ $petr4_type_stat = 0 -a $p4c_type_stat = 0 ]
-    then echo "lable didn't match for ${file}! label was typechecked originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was typechecked originally."
          err=1
     fi
 done

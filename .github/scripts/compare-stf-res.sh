@@ -13,7 +13,8 @@ do
   p4c_res=$(python3 /petr4/p4c_manual/backends/bmv2/run-bmv2-test.py . -v -b -tf "$stf_file" -bd /usr/local/bin/ "$file" 2>&1)
   p4c_res_stat=$?
   if [ $petr4_res_stat != 0 -a $p4c_res_stat != 0 ]
-  then echo "lable didn't match for ${file}! label was fails originally."
+  then echo "PASSED!"
+  else echo "lable didn't match for ${file}! label was fails originally."
        err=1
   fi
 done
@@ -29,7 +30,8 @@ do
     p4c_res=$(python3 /petr4/p4c_manual/backends/bmv2/run-bmv2-test.py . -v -b -tf "$stf_file" -bd /usr/local/bin/ "$file" 2>&1)
     p4c_res_stat=$?
     if [ $petr4_res_stat != 0 -a $p4c_res_stat = 0 ]
-    then echo "lable didn't match for ${file}! label was p4cPassed originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was p4cPassed originally."
          err=1
     fi
 done
@@ -45,7 +47,8 @@ do
     p4c_res=$(python3 /petr4/p4c_manual/backends/bmv2/run-bmv2-test.py . -v -b -tf "$stf_file" -bd /usr/local/bin/ "$file" 2>&1)
     p4c_res_stat=$?
     if [ $petr4_res_stat = 0 -a $p4c_res_stat != 0 ]
-    then echo "lable didn't match for ${file}! label was petr4Passed originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was petr4Passed originally."
          err=1
     fi
 done
@@ -61,7 +64,8 @@ do
     p4c_res=$(python3 /petr4/p4c_manual/backends/bmv2/run-bmv2-test.py . -v -b -tf "$stf_file" -bd /usr/local/bin/ "$file" 2>&1)
     p4c_res_stat=$?
     if [ $petr4_res_stat = 0 -a $p4c_res_stat = 0 ]
-    then echo "lable didn't match for ${file}! label was passes originally."
+    then echo "PASSED!"
+    else echo "lable didn't match for ${file}! label was passes originally."
          err=1
     fi
 done

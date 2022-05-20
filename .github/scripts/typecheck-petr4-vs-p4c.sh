@@ -3,15 +3,15 @@
 # set -e # Exit on error.
 set -x # Make command execution verbose
 
-rm -r ci-test/type-checking/expectation/fails/*.p4*
-rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4*
-rm -r ci-test/type-checking/expectation/typechecked/*.p4*
-rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4*
+# rm -r ci-test/type-checking/expectation/fails/*.p4*
+# rm -r ci-test/type-checking/expectation/petr4TypeChecked/*.p4*
+# rm -r ci-test/type-checking/expectation/typechecked/*.p4*
+# rm -r ci-test/type-checking/expectation/p4cTypeChecked/*.p4*
 
-rm -r ci-test/type-checking/expectation/lookinto/*.p4*
+# rm -r ci-test/type-checking/expectation/lookinto/*.p4*
 
 # finds all p4 files in the given directory and does stuff to them
-for file in $(find /petr4/ci-test/type-checking/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
+for file in $(find /petr4/ci-test/testdata/p4_16_samples -name '*.p4' ! -name 'ipv*' ! -name 'tunneling_ubpf.p4' ! -name 'simple-actions_ubpf.p4' ! -name 'simple-firewall_ubpf.p4')
 do
 #   # gets the result of type checking from petr4 and p4c, stores them in
 #   # variables and compares them

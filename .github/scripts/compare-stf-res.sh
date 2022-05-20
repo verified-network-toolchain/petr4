@@ -36,7 +36,7 @@ do
     fi
 done
 
-for file in $(find /petr4/ci-test/stf-test/expectation/petr4Passed -name '*.p4')
+for file in $(find /petr4/ci-test/stf-test/expectation/petr4Passed -name '*.p4' ! -name 'valid_ebpf.p4' ! -name 'count_ebpf.p4')
 do
     file1="${file%.*}"
     stf_file="${file1}.stf"

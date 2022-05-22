@@ -68,7 +68,10 @@ Definition dummy_tags := @default tags_t _.
 
 Definition dummy_extern_env : extern_env := PathMap.empty.
 Definition dummy_extern_state : extern_state := PathMap.empty.
-Opaque dummy_extern_env dummy_extern_state.
+#[global] Opaque dummy_extern_env dummy_extern_state.
+
+(* Do not unfold initial values during instantiation! *)
+#[global] Opaque new_register.
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then

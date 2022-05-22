@@ -1695,8 +1695,13 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
   if is_decl_extern_obj decl then
     let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
     let type_params := get_type_params typ in
-    let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
-    (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
+    match lift_option (map (get_real_type (ge_typ ge)) type_params) with
+    | Some type_params =>
+        let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
+        (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
+    | None =>
+        (inl {|iclass:=class_name; ipath:=p|}, m, s)
+    end
   else
     let e := IdentMap.sets params args e in
     let '(_, m, s) := instantiate_class_body_ce e class_name p m s in

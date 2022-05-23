@@ -492,149 +492,6 @@ Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                            svals_to_vals read_one_bit svs vs ->
                            exec_exprs_det read_one_bit this st exprs vs.
 
-(* A generic function for evaluating pure expressions. *)
-Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
-  match hook expr with
-  | Some val => Some val
-  | None =>
-      match expr with
-      | MkExpression _ expr _ _ =>
-          match expr with
-          | ExpInt i => Some (eval_p4int_val i)
-          | ExpUnaryOp op arg =>
-              match eval_expr_gen hook arg with
-              | Some argv => Ops.eval_unary_op op argv
-              | None => None
-              end
-          | ExpBinaryOp op larg rarg =>
-              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
-              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
-              | _, _ => None
-              end
-          | ExpCast newtyp arg =>
-              match eval_expr_gen hook arg, get_real_type (ge_typ ge) newtyp with
-              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
-              | _, _ => None
-              end
-          | ExpExpressionMember expr name =>
-              match eval_expr_gen hook expr with
-              | Some (ValBaseStruct fields) =>
-                  AList.get fields (str name)
-              | Some (ValBaseHeader fields true) =>
-                  AList.get fields (str name)
-              | _ => None
-              end
-          | _ => None
-          end
-      end
-  end.
-
-Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          exec_expr_det read_one_bit this st expr v),
-  eval_expr_gen hook expr = Some v ->
-  exec_expr_det read_one_bit this st expr v.
-
-(* Lemma eval_expr_gen_sound_1 : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_1_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
-  - unfold eval_expr_gen_sound_1_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
-    1 : apply H_hook. congruence.
-    destruct expr; inversion H0.
-    + repeat constructor.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 2-3 : inversion H2.
-      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
-      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-      * destruct is_valid; only 2 : discriminate.
-        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
-        constructor; constructor; assumption.
-Qed. *)
-
-Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          forall v', exec_expr_det read_one_bit this st expr v' ->
-          v' = v),
-  eval_expr_gen hook expr = Some v ->
-  forall v', exec_expr_det read_one_bit this st expr v' ->
-    v' = v.
-
-(* Lemma eval_expr_gen_sound : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_preT.
-  - unfold eval_expr_gen_sound_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
-    1 : eapply H_hook; only 2 : eassumption; congruence.
-    destruct expr; inversion H0.
-    + inversion H1; subst. reflexivity.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 2-3 : inversion H3.
-      inversion H1; subst.
-      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
-      congruence.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        congruence.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        destruct is_valid; only 2 : inversion H3.
-        inversion H9; subst.
-        congruence.
-Qed. *)
-
-(* We might want to prove this lemma in future. *)
-(* Lemma eval_expr_gen_complete : forall st this expr v,
-  exec_expr this st expr v ->
-  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
-
 (* Auxiliary functions dealing with parameters and signals. *)
 
 Definition is_in (dir : direction) : bool :=
@@ -1539,6 +1396,13 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       vals_to_svals argvs' args' ->
       exec_func read_one_bit obj_path (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
 
+End WithGenv.
+
+Section Instantiation.
+
+Variable am_ge : genv.
+Variable ge_typ : genv_typ.
+
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=
   match rev_decls with
@@ -1647,7 +1511,7 @@ Coercion unfold_cenv : cenv >-> IdentMap.t.
 Inductive exec_abstract_method : path -> fundef -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_abstract_method_intro : forall p fd es args es' args' sargs sargs' sig m',
       vals_to_svals args sargs ->
-      exec_func read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
+      exec_func am_ge read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
       svals_to_vals read_ndetbit sargs' args' ->
       exec_abstract_method p fd es args es' args' sig.
 
@@ -1695,7 +1559,7 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
   if is_decl_extern_obj decl then
     let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
     let type_params := get_type_params typ in
-    match lift_option (map (get_real_type (ge_typ ge)) type_params) with
+    match lift_option (map (get_real_type ge_typ) type_params) with
     | Some type_params =>
         let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
         (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
@@ -1724,6 +1588,149 @@ Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option V
   | MkExpression _ (ExpName name _) _ _ => get_val_ienv e name
   | _ => None
   end.
+
+(* A generic function for evaluating pure expressions. *)
+Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
+  match hook expr with
+  | Some val => Some val
+  | None =>
+      match expr with
+      | MkExpression _ expr _ _ =>
+          match expr with
+          | ExpInt i => Some (eval_p4int_val i)
+          | ExpUnaryOp op arg =>
+              match eval_expr_gen hook arg with
+              | Some argv => Ops.eval_unary_op op argv
+              | None => None
+              end
+          | ExpBinaryOp op larg rarg =>
+              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
+              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
+              | _, _ => None
+              end
+          | ExpCast newtyp arg =>
+              match eval_expr_gen hook arg, get_real_type ge_typ newtyp with
+              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
+              | _, _ => None
+              end
+          | ExpExpressionMember expr name =>
+              match eval_expr_gen hook expr with
+              | Some (ValBaseStruct fields) =>
+                  AList.get fields (str name)
+              | Some (ValBaseHeader fields true) =>
+                  AList.get fields (str name)
+              | _ => None
+              end
+          | _ => None
+          end
+      end
+  end.
+
+(* Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          exec_expr_det read_one_bit this st expr v),
+  eval_expr_gen hook expr = Some v ->
+  exec_expr_det read_one_bit this st expr v. *)
+
+(* Lemma eval_expr_gen_sound_1 : forall read_one_bit st this hook expr v,
+  eval_expr_gen_sound_1_statement read_one_bit st this hook expr v
+with eval_expr_gen_sound_1_preT : forall read_one_bit st this hook tags expr typ dir v,
+  eval_expr_gen_sound_1_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
+  - unfold eval_expr_gen_sound_1_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
+    1 : apply H_hook. congruence.
+    destruct expr; inversion H0.
+    + repeat constructor.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 2-3 : inversion H2.
+      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
+      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+      * destruct is_valid; only 2 : discriminate.
+        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
+        constructor; constructor; assumption.
+Qed. *)
+
+(* Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          forall v', exec_expr_det read_one_bit this st expr v' ->
+          v' = v),
+  eval_expr_gen hook expr = Some v ->
+  forall v', exec_expr_det read_one_bit this st expr v' ->
+    v' = v. *)
+
+(* Lemma eval_expr_gen_sound : forall read_one_bit st this hook expr v,
+  eval_expr_gen_sound_statement read_one_bit st this hook expr v
+with eval_expr_gen_sound_preT : forall read_one_bit st this hook tags expr typ dir v,
+  eval_expr_gen_sound_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_preT.
+  - unfold eval_expr_gen_sound_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
+    1 : eapply H_hook; only 2 : eassumption; congruence.
+    destruct expr; inversion H0.
+    + inversion H1; subst. reflexivity.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 2-3 : inversion H3.
+      inversion H1; subst.
+      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
+      congruence.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
+          end.
+        congruence.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
+          end.
+        destruct is_valid; only 2 : inversion H3.
+        inversion H9; subst.
+        congruence.
+Qed. *)
+
+(* We might want to prove this lemma in future. *)
+(* Lemma eval_expr_gen_complete : forall st this expr v,
+  exec_expr this st expr v ->
+  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
 
@@ -2145,7 +2152,7 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   | Program l => IdentMap.empty
   end.
 
-End WithGenv.
+End Instantiation.
 
 Definition gen_am_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
@@ -2157,7 +2164,7 @@ Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let inst_m := fst (instantiate_prog am_ge prog) in
+  let inst_m := fst (instantiate_prog am_ge ge_typ prog) in
   let ge_inst := fst (fst inst_m) in
   let ge_const := snd (fst inst_m) in
   let ge_ext := snd inst_m in

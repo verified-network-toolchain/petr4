@@ -14,6 +14,7 @@ Section P4AComp.
 
 Variable (tags_t : Type).
 
+(* Find size of P4cub Expr.t *)
 Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
   match e with 
     | Expr.TBool => Some 1
@@ -34,6 +35,7 @@ Fixpoint type_size (ctxt:F.fs string nat) (e:Expr.t) : option nat:=
     | _ => None
   end.
 
+  (* Find size of P4Cub Expr.e *)
 Fixpoint type_size_e (ctxt:F.fs string nat) (e:Expr.e tags_t) : option nat :=
   match e with 
     | Expr.EBool b i => Some 1
@@ -50,9 +52,21 @@ Fixpoint type_size_e (ctxt:F.fs string nat) (e:Expr.e tags_t) : option nat :=
             end
           | _, _ => None
         end) fields (Some 0)
+    | Expr.ESlice arg hi lo i => 
+      match type_size_e ctxt arg with 
+        | Some n1 => Some (Init.Nat.min (1 + Pos.to_nat hi) n1 -
+        Pos.to_nat lo)
+        | None => None
+      end
+    | Expr.EExprMember result_type mem arg i => 
+      match type_size ctxt result_type with
+        | Some field_size => Some field_size
+        | _ => None
+      end
     | _ => None
   end.
 
+(* Get the headers from paramargs *)
 Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : option (F.fs string nat) :=
   match st with 
   | Stmt.SVardecl x expr _ => 
@@ -85,9 +99,11 @@ Fixpoint collect_hdrs_stmt (ctxt:F.fs string nat) (st: P4c.Stmt.s tags_t) : opti
   | _ => Some ctxt
   end.
 
+(* Collect headers from a state *)
 Definition collect_hdrs_state (ctxt:F.fs string nat) (state : Parser.state_block tags_t) : option (F.fs string nat) :=
   collect_hdrs_stmt ctxt state.(Parser.stmt).
 
+(* Collect all headers from a list of states, mapping each header to its size *)
 Definition collect_hdrs_states (states : F.fs string (Parser.state_block tags_t)) : option (F.fs string nat) :=
   List.fold_left  (fun accum state =>  
     match accum, state with 
@@ -96,7 +112,7 @@ Definition collect_hdrs_states (states : F.fs string (Parser.state_block tags_t)
     end) states None.
 
 
-    (* Collect all headers from a program *)
+(* Collect all headers from a program *)
 Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
   match prog with 
     | TopDecl.TPParser p _ eps params st states i => 
@@ -108,8 +124,10 @@ Fixpoint collect_hdrs (prog: P4c.TopDecl.d tags_t) : (F.fs string nat):=
     | _ => []
   end.
 
+(* Create Fin type headers *)
 Definition mk_hdr_type (hdrs: F.fs string nat) : Type := Fin.t (List.length hdrs).
 
+(* Create Fin type states *)
 Definition mk_st_type (states: F.fs string (Parser.state_block tags_t)) : Type := Fin.t (List.length states).
 
 Lemma findi_length_bound :
@@ -120,6 +138,7 @@ Proof.
   unfold findi. unfold fold_lefti.
 Admitted.
 
+(* Get Fin type headers from list of headers and header name*)
 Definition inject_name (hdrs: list (string * nat)) (hdr: string) : option (mk_hdr_type hdrs).
 Proof.
   destruct (findi (fun kv => String.eqb hdr (fst kv)) hdrs) eqn:?.
@@ -134,6 +153,7 @@ Proof.
   - exact None.
 Defined.
 
+(* Get header name from Fin header and list of headers *)
 Definition extract_name (hdrs: list (string * nat)) (h: mk_hdr_type hdrs) : string.
 Proof.
   pose (Fin.to_nat h).
@@ -145,13 +165,14 @@ Proof.
     lia.
 Defined.
 
+(* Get size of header *)
 Definition hdr_map (hdrs: list (string * nat)) (h:mk_hdr_type hdrs) : nat := 
   match F.get (extract_name hdrs h) hdrs with 
     | Some n => n 
     | None => 0   (* This shouldn't be needed *)
   end.
 
-  
+(* Get Fin type headers from list of states and state name*)
 Definition inject_name_st (states: list (string * (Parser.state_block tags_t))) (st: string) : option (mk_st_type states).
 Proof.
   destruct (findi (fun kv => String.eqb st (fst kv)) states) eqn:?.
@@ -166,6 +187,7 @@ Proof.
   - exact None.
 Defined.
 
+(* Get state name from Fin state and list of states *)
 Definition extract_name_st (states: list (string * (Parser.state_block tags_t))) (st:mk_st_type states) : string.
 Proof.
   pose (Fin.to_nat st).
@@ -177,6 +199,7 @@ Proof.
     lia.
 Defined.  
 
+(* Find the size of a P4cub state_block *)
 Definition state_block_sz '({|Parser.stmt:=statements; Parser.trans:=_ |}: (Parser.state_block tags_t)) : nat := 
   match statements with 
   | Stmt.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
@@ -191,21 +214,47 @@ Definition state_block_sz '({|Parser.stmt:=statements; Parser.trans:=_ |}: (Pars
   | _ => 0
   end.
 
+(* Maps a P4cub state to its size using state_block_sz. (Might not need this definition) *)
 Definition st_map (states: list (string * (Parser.state_block tags_t))) (st:mk_st_type states) : nat := 
   match F.get (extract_name_st states st) states with 
   | Some st => state_block_sz st
   | None => 0
   end.
 
+  Check List.fold_left.
+(* Return size of an expression. Duplicate of type_size_e without returning the option *)
 Fixpoint expr_size (hdrs: F.fs string nat) (e:Expr.e tags_t) : nat := 
   match e with 
+    | Expr.EBool b i => 1
+    | Expr.EBit w val i => N.to_nat w
+    | Expr.EInt w val i => Pos.to_nat w
+    | Expr.EVar t x i => 
+      match type_size hdrs t with 
+      | Some size => size
+      | None => 0
+      end
+    | Expr.EHeader fields valid i => 
+      List.fold_left (fun accum f => 
+        match f with 
+          | (_, t2) => accum + (expr_size hdrs t2)
+        end) fields 0
+    | Expr.ESlice arg hi lo i => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+    Pos.to_nat lo)
+    | Expr.EExprMember result_type mem arg i => 
+      match type_size hdrs result_type with
+        | Some field_size => field_size
+        | None => 0
+      end
+    | _ => 0
+    end.
   (* | Expr.EHeader fields valid i => Some (expr ) *)
   (* slice size not right *)
-  | Expr.ESlice arg hi lo i => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
+  (* | Expr.ESlice arg hi lo i => (Init.Nat.min (1 + Pos.to_nat hi) (expr_size hdrs arg) -
   Pos.to_nat lo)
   | _ => 0
-  end.
+  end. *)
 
+(* Translate P4cub expression to P4a *)
 Fixpoint translate_expr (hdrs: F.fs string nat) (e:Expr.e tags_t): option (expr (hdr_map hdrs) (expr_size hdrs e)) := 
   match e with 
   (* | Expr.EHeader fields valid i => Some (EHdr ) *)
@@ -256,14 +305,14 @@ Fixpoint translate_st (hdrs: F.fs string nat) (s:Stmt.s tags_t): option (op (hdr
     | _, _ => None
     end
     | Stmt.SExternMethodCall "packet_in" "extract" _ {|paramargs := params; rtrns := _|} _ => (* Packet extract calls *) 
-    match params with 
-    | (_, PAOut (Expr.EExprMember _ h _ _))::[] => (* extract only returns PAOut?*)
-      match inject_name hdrs h with 
-        | Some header => Some (OpExtract (hdr_map hdrs) header)
-        | None => None
-      end
-    | _ => None
-    end 
+      match params with 
+      | (_, PAOut (Expr.EExprMember _ h _ _))::[] => (* extract only returns PAOut?*)
+        match inject_name hdrs h with 
+          | Some header => Some (OpExtract (hdr_map hdrs) header)
+          | None => None
+        end
+      | _ => None
+      end 
   (* Find header associated with lhs *)
   (* | Stmt.SAssign lhs rhs i => translate_expr hdrs  *)
   | Stmt.SBlock s => translate_st hdrs s
@@ -274,6 +323,7 @@ Check inl true.
 Check state_ref (mk_st_type _).
 Check TGoto (hdr_map _) (inl true).
 
+(* Translate transition statements *)
 Definition translate_trans (hdrs: F.fs string nat) (states:F.fs string (Parser.state_block tags_t)) 
 (e:Parser.e tags_t) : option (transition (mk_st_type states) (hdr_map hdrs)) :=
   match e with 
@@ -281,7 +331,6 @@ Definition translate_trans (hdrs: F.fs string nat) (states:F.fs string (Parser.s
       match (st:Parser.state) with 
       | Parser.STAccept => Some (TGoto (hdr_map hdrs) (inr true))
       | Parser.STReject => Some (TGoto (hdr_map hdrs) (inr false))
-      (* What if parser loops to self? how to compile? *)
       | Parser.STStart => 
         match inject_name_st states "start" with
         | Some start_st => Some (TGoto (hdr_map hdrs) (inl start_st))
@@ -333,17 +382,16 @@ Fixpoint find_main_parser (prog: P4c.TopDecl.d tags_t) : option (P4c.TopDecl.d t
 
 Definition find_states (prog:P4c.TopDecl.d tags_t) : list (string * P4c.Parser.state_block tags_t) :=
   match find_main_parser prog with 
-  | Some (TopDecl.TPParser p _ _ params start states i) => 
-    ("start", start)::states
+  | Some (TopDecl.TPParser p _ _ params start states i) => states
   | _ => []
   end.
 
 Definition find_hdrs (prog:P4c.TopDecl.d tags_t) : F.fs string nat :=
   match find_main_parser prog with 
-  | Some (parser) => 
-    collect_hdrs parser
+  | Some (parser) => collect_hdrs parser
   | _ => []
   end.
+
 
 Definition translate_parser (prog:P4c.TopDecl.d tags_t) : option (list (state (mk_st_type (find_states prog)) (hdr_map (find_hdrs prog)))) :=
   let main_parser := find_main_parser prog in 
@@ -371,5 +419,8 @@ Expr.param ->
 petr4 typecheck -exportp4 _.p4 
 poulet4 compile
 
-change inject to str list for states
+header field accesses => ESlice
+
+convert Z => list of bools for cases selection
+Z_to_binary
 *)

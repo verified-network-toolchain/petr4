@@ -1062,7 +1062,7 @@ Definition parser :=
           |})] NoInfo.
 
 Require Import Poulet4.P4aComp.P4aComp.
-Print translate_parser.
-Eval cbn in (translate_parser _ parser ).
+Print find_states.
+Eval vm_compute in (translate_parser _ parser ).
 
 (* MISSING: function to convert a list of state blocks, as returned by get_parser, into a full p4 automaton. *)

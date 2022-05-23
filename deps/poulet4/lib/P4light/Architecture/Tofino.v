@@ -158,7 +158,7 @@ Inductive regaction_execute_sem : extern_func_sem :=
        apply_sem s [old_value] s' [new_value; retv] SReturnNull ->
        (if ((-1 <? index) && (index <? size))
        then PathMap.get reg s' = Some (ObjRegister content')
-            /\ s'' = PathMap.set p (ObjRegister (upd_Znth index content' new_value)) s'
+            /\ s'' = PathMap.set reg (ObjRegister (upd_Znth index content' new_value)) s'
        else s'' = s /\ content = content') ->
       regaction_execute_sem e s p nil [ValBaseBit indexb] s'' [] (SReturn retv).
 

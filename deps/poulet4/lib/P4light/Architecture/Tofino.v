@@ -58,7 +58,7 @@ Inductive env_object :=
   | EnvTable
   | EnvRegister (reg_sta : register_static)
   | EnvRegAction (ra_sta : reg_action_static)
-  | EnvAbsMet (abs_met_sem : @AbsMet extern_state)
+  | EnvAbsMet (abs_met_sem : extern_state -> list Val -> extern_state -> list Val -> signal -> Prop)
   | EnvPin
   | EnvPout.
 
@@ -91,7 +91,7 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
   else
     (dummy_extern_env, dummy_extern_state). (* fail *)
 
-Definition extern_set_abstract_method (e : extern_env) (p : path) (abs_met_sem : AbsMet extern_state) :=
+Definition extern_set_abstract_method (e : extern_env) (p : path) abs_met_sem :=
   PathMap.set p (EnvAbsMet abs_met_sem) e.
 
 Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.

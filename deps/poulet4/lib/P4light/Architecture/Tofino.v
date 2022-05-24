@@ -68,7 +68,10 @@ Definition dummy_tags := @default tags_t _.
 
 Definition dummy_extern_env : extern_env := PathMap.empty.
 Definition dummy_extern_state : extern_state := PathMap.empty.
-Opaque dummy_extern_env dummy_extern_state.
+#[global] Opaque dummy_extern_env dummy_extern_state.
+
+(* Do not unfold initial values during instantiation! *)
+#[global] Opaque new_register.
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then
@@ -155,7 +158,7 @@ Inductive regaction_execute_sem : extern_func_sem :=
        apply_sem s [old_value] s' [new_value; retv] SReturnNull ->
        (if ((-1 <? index) && (index <? size))
        then PathMap.get reg s' = Some (ObjRegister content')
-            /\ s'' = PathMap.set p (ObjRegister (upd_Znth index content' new_value)) s'
+            /\ s'' = PathMap.set reg (ObjRegister (upd_Znth index content' new_value)) s'
        else s'' = s /\ content = content') ->
       regaction_execute_sem e s p nil [ValBaseBit indexb] s'' [] (SReturn retv).
 

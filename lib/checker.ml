@@ -1235,13 +1235,13 @@ and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
 
 * Tuple type:
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
+   1 <= i <= n; is_valid_nested_type(<t1,...,tn>, ti)_e
    ----------------------------------
-   e |- (t1, ..., tn)
+   e |- tuple <t1, ..., tn>
 
 * List type
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
+   1 <= i <= n; is_valid_nested_type([t1,...,tn], ti)_e
    ----------------------------------
    e |- [t1, ..., tn]
 
@@ -1252,56 +1252,65 @@ and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
 
 * Enum type:
    ** the case where typ is Some typ.
+   * X is the name of the enum.
+   * li is the name of the field.
 
    e |- t
    -----------------------------------
-   e |- X : t {l1, ..., ln}
+   e |- enum t X {l1, ..., ln}
 
    ** the case where type is None.
 
-   e |- X {l1, ..., ln}
+   e |- enum X {l1, ..., ln}
 
 * Record and struct and header union ({l1:h1, ..., ln:hn}) type:
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
-   1 <= i < j <= n; li != lj
+   1 <= i <= n; is_valid_nested_type(record {f1 : t1, ..., fn : tn}, ti)_e
+   1 <= i < j <= n; fi != fj
    ------------------------------------
-   e |- {l1 : t1, ..., ln : tn}
+   e |- record {f1 : t1, ..., fn : tn}
 
 * header: 
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
-   1 <= i < j <= n; li != lj
+   1 <= i <= n; is_valid_nested_type(header {f1 : t1, ..., fn : tn}, ti)_e
+   1 <= i < j <= n; fi != fj
    ------------------------------------
-   e |- {l1 : t1, ..., ln : tn}
+   e |- header {l1 : t1, ..., ln : tn}
 
-   TODO: complete!
 * new type (name = typ):
    e |- t
    ----------------------------------
-   e |- n = t
+   e |- type t n 
 
 * specialized type:
+   look at spec
 
 * package type:
+   look at spec
 
 * control type:
+   look at spec
 
 * parser type:
+   look at spec
 
 * extern type:
+   look at spec
 
 * function type (<return type> <function name> (x1, ..., xn) {...}):
-   ----------------------------------------------------
-   e |- 
+   look at spec
 
 * action type:
-   --------------------------------------------
-   e |- 
+   look at spec
 
 * constructor type:
+   look at spec
 
 * table type:
+   look at spec
+
+* type name:
+   look at spec
 *)
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
@@ -1351,7 +1360,6 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     let res1 : bool = (are_param_types_well_formed env data_params) in
     let res2 : bool = (are_construct_params_types_well_formed env ctrl_params) in
     res1 && res2
-  (* Type names *)
   | TypeName name ->
     CheckerEnv.resolve_type_name_opt name env <> None
   | Table {result_typ_name=name} ->
@@ -1371,6 +1379,9 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     | Some {type_params = []; _} -> true
     | _ -> false
     end
+    (*TODO: discuss! according to p4 spec parser, control, and package cannot be
+                     type args to methods, parsers, controls, tables, and actions.
+                     but we're not checking this.*)
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1468,6 +1479,8 @@ and is_valid_param_type_kind env (kind: FunctionType.kind) (typ: Typed.Type.t) =
   | Function -> is_valid_param_type env (Runtime Function) typ
   | Builtin -> is_valid_param_type env (Runtime Method) typ
 
+(*  TODO: discuss with Ryan. doesn't match p4 spec for outer header.
+          also, role of in_header. *)
 and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typed.Type.t) (inner_type: Typed.Type.t) =
   let inner_type = reduce_to_underlying_type env inner_type in
   match reduce_to_underlying_type env outer_type with

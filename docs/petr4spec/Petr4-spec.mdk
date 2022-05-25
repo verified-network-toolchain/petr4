@@ -271,7 +271,7 @@ explicit cast ok checks whether typ1 can be converted to typ2 under e based on P
       \pprim l \leq \pprim h < \width \\
       \expenv \bitString {\prim \bitString} \typ \dir \\
       \typ = \intWidthTyp \width \textOr \bitWidthTyp \width}
-     {\expenv {\bitStringAccess \bitString \low \high} {\bitStringAccess \bitString {\pprim \low} {\pprim \high}} {\bitStringTyp {\pprim \low} {\pprim \high}} \dir }
+     {\expenv {\bitStringAccess \bitString \low \high} {\bitStringAccess \bitString {\pprim \low} {\pprim \high}} {\bitStringTyp {\pprim \high - \pprim \low}} \dir }
 
   \inferrule[List]
      {1 \leq i \leq n; \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}}
@@ -290,8 +290,8 @@ explicit cast ok checks whether typ1 can be converted to typ2 under e based on P
      { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\bitWidthTyp \width} \dir }
 
   \inferrule[UnaryMinusCTK]
-     { \expenv \exp {\prim \exp} \intTyp \dir }
-     { \expenv {-\exp} {-\prim \exp} \intTyp \dir }
+     { \expenv \exp {\prim \exp} \integerTyp \dir }
+     { \expenv {-\exp} {-\prim \exp} \integerTyp \dir }
 
   \inferrule[UnaryMinus]
      { \expenv \exp {\prim \exp} {\intWidthTyp \width} \dir }
@@ -376,7 +376,7 @@ explicit cast ok checks whether typ1 can be converted to typ2 under e based on P
 ~
 
 ### Coerce Binary Operation Arguments Auxiliary Judgment
-Let implicitCast typ1 typ2 be defined as follows to describe P4's implicit
+Let implicitCast typ typ be defined as follows to describe P4's implicit
 casting behavior on operands in binary expressions:
         
 cast typ exp produces a cast expression if the type of exp is different from the
@@ -505,8 +505,13 @@ compile time known determinez if the value of an expression can be known at comp
 ### Type Well-Formed Auxiliary Judgment
 it saturates all types first and then checks well-formedness. for breviety, we don't
 include the saturation in rules.
-is valid nested type outer inner checks whether the nested type is taking valid types in its inner and outer type based on P4's description of type nesting rules section 7.2.7 (provide link). 
-no duplicate determines if there are duplicate fields in a structure/type.
+is valid nested type outer inner checks whether the nested type is taking valid types in its inner and outer type based on P4's description of type nesting rules section 7.2.7 (provide link).
+insert type var adds a type variable to the env.
+lookup extern in env returns an externMethods type which includes a list of strings as
+type parameters which must be empty for it to be well-typed and a function type which doesn't care for function type.
+getTypeParams get type parameters from types that have type parameters including package, control, parser, function, and it's equivalent to look up for extern.
+
+names to type env. 
 ~ Center  {padding:1ex}
 ~~ Snippet
 \begin{mathpar}
@@ -520,19 +525,19 @@ no duplicate determines if there are duplicate fields in a structure/type.
      { }
      { \typWellFormed \stringTyp }
 
-  \inferrule[Integer]
+  \inferrule[(InfinitPrecision)Integer]
      { }
      { \typWellFormed \integerTyp }
 
-  \inferrule[Int]
-     { }
+  \inferrule[SignedInteger]
+     { 1 < \width}
      { \typWellFormed {\intWidthTyp \width} }
 
-  \inferrule[Bit]
-     { }
+  \inferrule[BitString(UnsignedInteger)]
+     { 0 \leq \width}
      { \typWellFormed {\bitWidthTyp \width} }
 
-  \inferrule[VarBit]
+  \inferrule[VarBit(DynamicallySizedBitString)]
      { }
      { \typWellFormed {\varBitTyp \width} }
 
@@ -576,75 +581,95 @@ no duplicate determines if there are duplicate fields in a structure/type.
      { \typWellFormed \enumTypNoTyp }
 
   \inferrule[Record]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp \recordTyp {\typ_i} \\
-       \noDup {\field_1, \ldots, \field_n}}
+     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \recordTyp {\typ_i} \\
+       1 \leq i < j \leq n; \field_i \neq \field_j}
      { \typWellFormed \recordTyp }
 
   \inferrule[HeaderUnion]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp \headerUnionTyp {\typ_i} \\
-       \noDup {\field_1, \ldots, \field_n}}
+     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \headerUnionTyp {\typ_i} \\
+       % \noDup {\field_1, \ldots, \field_n}\\
+       1 \leq i < j \leq n; \field_i \neq \field_j}
      { \typWellFormed \headerUnionTyp }
 
   \inferrule[Struct]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp \structTyp {\typ_i} \\
-       \noDup {\field_1, \ldots, \field_n}}
+     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \structTyp {\typ_i} \\
+       1 \leq i < j \leq n; \field_i \neq \field_j}
      { \typWellFormed \structTyp }
 
   \inferrule[Header]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp \headerTyp {\typ_i} \\
-       \noDup {\field_1, \ldots, \field_n}}
+     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \headerTyp {\typ_i} \\
+       1 \leq i < j \leq n; \field_i \neq \field_j}
      { \typWellFormed \headerTyp }
 
-  \inferrule[NewType]
+  \inferrule[NewType(typedef)]
      { \typWellFormed \typ }
      { \typWellFormed {\newTypeTyp \typ \name} }
 
-  \inferrule[Specialized]
-     { blah }
-     { blah }
+  \inferrule[SpecializedType]
+     { \prim \typ = \sat \typ \\
+       \{\param_1, \ldots, \param_m \} = \getTypeParams {\prim \typ} \\
+       % \prim \typ = \externTyp \name \\
+       %  ([\param_1, \ldots, \param_m], _)= \lookup \name \\
+        1 \leq i \leq n; \typWellFormed {\typ_i} \\
+        n = m}
+     { \typWellFormed {\spcTyp \typ {\typ_1, \ldots, \typ_n}} }
 
   \inferrule[Package]
-     { blah }
-     { blah }
+     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
+       1 \leq i \leq n; \dir_i = \less \\
+       1 \leq i \leq n; \typWellFormed {\typ_i}}
+     { \typWellFormed {\packageTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} {\wildcardParam_1, \ldots, \wildcardParam_p}} }
 
   \inferrule[Control]
-     { blah }
-     { blah }
+     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
+       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
+     { \typWellFormed {\controlTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} } }
 
   \inferrule[Parser]
-     { blah }
-     { blah }
+     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
+       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
+     { \typWellFormed {\parserTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} } }
 
   \inferrule[Extern]
-     { blah }
-     { blah }
+     { ([], {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n}} ) =\lookupEnv \name }
+     { \typWellFormed {\externTyp \name} }
 
   \inferrule[Function]
-     { blah }
-     { blah }
+     { \typWellFormed \typ \\
+       \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
+       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
+     % <return type> <function name>(x1,...,xn) {...}
+     { \typWellFormed {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n}} }
 
   \inferrule[Action]
-     { blah }
-     { blah }
+     { i < j \\
+       1 \leq k \leq n; \typWellFormed {\typ_k} \\
+       j \leq k \leq n; \dir_k = \less }
+     { \typWellFormed {\actionTyp {\parDef 1, \ldots, \parDef i} {\parDef j, \ldots, \parDef n}} }
 
   \inferrule[Constructor]
-     { blah }
-     { blah }
+     { \typWellFormed \typ \\
+       \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
+       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
+     { \typWellFormed {\constructorTyp \typ \name {\parDef 1, \ldots, \parDef n}} }
 
   \inferrule[Table]
-     { blah }
-     { blah }
+     { \typ = \lookupEnv \name }
+     { \typWellFormed {\tableTyp \name} }
 
   \inferrule[TypeName]
-     { blah }
-     { blah }
+     { \typ = \lookupEnv \name }
+     { \typWellFormed {\typNameTyp \name} }
 
 % is_well_formed_type
 \end{mathpar}
 ~~
 ~
 
+## Statement's Typing Rules
+
+## Declaration's Typing Rules

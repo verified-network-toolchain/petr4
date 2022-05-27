@@ -76,7 +76,7 @@ Definition dummy_extern_state : extern_state := PathMap.empty.
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then
     match targs, args with
-    | [TypBit iw; TypBit w], [inr (ValBaseBit bits); inr init_val] =>
+    | [TypBit w; TypBit iw], [inr (ValBaseBit bits); inr init_val] =>
         let (_, size) := BitArith.from_lbool bits in
         (PathMap.set p (EnvRegister (w, size)) e,
          PathMap.set p (ObjRegister (new_register size w init_val)) s)

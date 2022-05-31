@@ -222,7 +222,14 @@ e(name) looks up name in the environment and returns its type and direction.
 is array determines whether a type is an array type.
 is numberic determines whether a type is numeric.
 compile time evaluation evaluates the expression expr at compile time.
-explicit cast ok checks whether typ1 can be converted to typ2 under e based on P4's specification of 8.9.1. Explicit casts. 
+explicit cast ok checks whether typ1 can be converted to typ2 under e based on P4's specification of 8.9.1. Explicit casts.
+reduce takes a type and saturates the type first and returns the base of a specialized type by removing all its type parameters as long as the number of type params and type args match..
+fieldOrMethodTyp checks if the type is
+1) header, headerunion, or struct. if so checks the name of each field with the name of exprmem and if they're the same returns the field's type. if no field matches (passes to type_expression_member_builtin) takes the type, name, context. if type is an array and name is either size or lastindex it returns the type Bit<32>. if type is an array and name is next or last and context is parser state it returns the initial type passed in. ow. error.
+2) if type is specialized with base as an extern, checks the env for the extern name, if it exists, finds the extern method with the name same as expmem name and returns a reduced type of function with that method type. if it doesn't find a method with the same name as expmem uses type_expression_member_builtin. 
+3) if type is an extern, converts it to specialized with base as extern and empty args.
+4) any other type uses type_epxression_member_builtin.
+arg can be exp, key value, or missing. 
 
 ~ Center  {padding:1ex} 
 ~~ Snippet
@@ -329,8 +336,10 @@ explicit cast ok checks whether typ1 can be converted to typ2 under e based on P
      {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
 
   \inferrule[ExpressionMember]
-     { blah }
-     { blah}
+     { \expenv \exp {\prim \exp} \typ \dir \\
+       \prim \typ = \reduce \typ \\
+       \pprim \typ = \fieldOrMethodTyp {\prim \typ}}
+     { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
 
   \inferrule[Ternary]
      {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
@@ -347,9 +356,13 @@ explicit cast ok checks whether typ1 can be converted to typ2 under e based on P
 
 % function type: <return type> <function name>(x1,...,xn) {...}
 
-  \inferrule[NamelessIinstantiation]
-     { blah }
-     { blah }
+  \inferrule[AnonymousInstantiation]
+     { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
+     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
+
+  \inferrule[AnonymousInstatnt2]
+     { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
+     { \expenv {\instantiation {\name} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir }
 
   \inferrule[Mask]
      {\expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
@@ -397,7 +410,7 @@ The restJ rule stands for all other binary operations.
   \inferrule[ShiftLeft]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
-     { \coerceBinArgsEnv {\exp_1 \shiftL \exp_2} {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
+     { \coerceBinArgsEnv {\exp_1 \shiftL \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
 
   \inferrule[BitConcatenation]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
@@ -671,5 +684,97 @@ names to type env.
 ~
 
 ## Statement's Typing Rules
+this judgment type checks a statment written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
+is_lvalue checks if an IR expression is lvalue. 
+cast_expr takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.
+if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type. 
+
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Assignment]
+     { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+       \isLval {{\prim {\exp_1}}, {\typ_1}, {\dir_1}} \\ 
+       ({\prim {\exp_2}}, {\typ_2}, {\dir_2}) = \castExpression {\typ_1} {\exp_2}\\
+       % \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+       % \typ_1 = \typ_2 \\
+       }
+     { \stmtenv {\assign {\exp_1} {\exp_2}} {\assign {\prim {\exp_1}} {\prim {\exp_2}}} {\unitTyp} }
+
+
+  \inferrule[Empty]
+     { }
+     { \stmtenv {\noop} {\noop} {\unitTyp}}
+
+  \inferrule[Block]
+     { \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 \\
+       \prim \typ = \ifVoidTyp {\typ_1} \\
+       \stmtenvv 2 {\stmts} {\prim \stmts} {\prim \typ} 3 }
+     { \stmtenvv 1 {\block {\stmt_1; \stmts} } {\block {\prim {\stmt_1}; {\prim \stmts}} } {\prim \typ} 3 }
+
+  \inferrule[Return(inApplyBlockOrAction)]
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \applyBlockCtxt \textOr \actionCtxt \\
+       ({\prim {\exp}}, {\typ}, {\dir}) = \castExpression {\voidTyp} {\exp}\\
+       }
+     { \stmtenv {\return \exp} {\return {({\prim {\exp}}, {\typ}, {\dir})}} \voidTyp  }
+
+  \inferrule[ReturnEmpty]
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \applyBlockCtxt \textOr \actionCtxt \textOr \funcCtxt \typ \\
+       }
+     { \stmtenv {\return {}} {\return {}} \voidTyp  }
+
+  \inferrule[Return(inFunction)]
+     {
+     % \expenv \exp {\prim \exp} \typ \dir \\
+       \ctxt = \funcCtxt \typ \\
+       ({\prim {\exp}}, {\prim \typ}, {\dir}) = \castExpression {\typ} {\exp}\\
+       }
+     { \stmtenv {\return \exp} {\return {({\prim {\exp}}, {\prim \typ}, {\dir})}} \voidTyp  }
+
+  \inferrule[Exit]
+     { \ctxt \neq \parserCtxt }
+     { \stmtenv \exit \exit \voidTyp}
+
+  \inferrule[IfThen]
+     { \ctxt \neq \parserCtxt \\
+       (\prim \exp, \boolTyp, \dir) = \castExpression \boolTyp \exp \\
+       \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 }
+     { \stmtenvv 1 {\ifthen \exp {\stmt}} {\ifthen {\prim \exp} {\prim \stmt} } {\unitTyp} 1 }
+
+  \inferrule[IfThenElse]
+     { \ctxt \neq \parserCtxt \\
+       (\prim \exp, \boolTyp, \dir) = \castExpression \boolTyp \exp \\
+       \stmtenvv 1 {\stmt_1} {\prim {\stmt_1}} {\typ_1} 2 \\
+       \stmtenvv 1 {\stmt_2} {\prim {\stmt_2}} {\typ_2} 3 \\
+       \prim \typ = \ifVoidTyp {\typ_1, \typ_2}}
+     { \stmtenvv 1 {\ifthenelse \exp {\stmt_1} {\stmt_2}} {\ifthenelse {\prim \exp} {\prim {\stmt_1}} {\prim {\stmt_2}} } {\prim \typ} 1 }
+
+  \inferrule[Switch]
+     { \ctxt_0 = \applyBlockCtxt \\
+       \expenvv \exp {\prim \exp} \typ \dir 0 \\
+       \prim \typ = \reduce \typ \\
+       \name_1, \ldots, \name_m = \getEnum {\prim \typ} \\
+       \lbl \notin \overline \lbl \\
+       \lbl \in \{\name_1, \ldots, \name_m \}\\
+       \stmtenvv 0 {\block {\stmts}} {\block {\prim {\stmts}}} {\typ_0} 1 \\
+       \stmtenvv 1 {\switch \exp {\overline {\actionCase \stmt}}} {\switch {\prim \exp} {\overline {\actionCase {\pprim \stmt} }}} \unitTyp 2
+       }
+     { \stmtenvv 0 {\switch \exp {\actionCase \stmts, \overline {\actionCase \stmt}} } {\switch {\prim \exp} {\actionCase {\prim \stmts}, {\overline {\actionCase {\pprim \stmt} }} } } \unitTyp 2 }
+
+  \inferrule[Declaration]
+     { \isConstant \dcl \textOr \isInstantiation \dcl \textOr \isVariable \dcl \\
+       \dclenvv 0 \dcl {\prim \dcl} 1}
+     { \stmtenvv 0 \dcl {\prim \dcl} \unitTyp 1 }
+
+\end{mathpar}
+~~
+~
+
 
 ## Declaration's Typing Rules

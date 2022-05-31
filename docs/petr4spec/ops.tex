@@ -23,15 +23,24 @@
 %typing judgments:
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenv}[4]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\expenvv}[5]{\env_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvWithCtxt}[5]{\env, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}; {#3})}
 \newcommand{\binOpEnv}[4]{\env \vdash {#1} \hookrightarrow {#2}, {#3}, {#4}}
 \newcommand{\typWellFormed}[1]{\env \vdash {#1}}
 \newcommand{\typWellFormedWithEnv}[2]{{#1} \vdash {#2}}
+\newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
+\newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
+\newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
+\newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 
 
 %contexts:
 \newcommand{\cte}{\mathit{CONSTANT}}
+\newcommand{\applyBlockCtxt}{\mathit{APPLYBLOCK}}
+\newcommand{\actionCtxt}{\mathit{ACTION}}
+\newcommand{\funcCtxt}[1]{\mathit{FUNCTION}\ {#1}}
+\newcommand{\parserCtxt}{\mathit{PARSER}}
 
 %operators:
 \newcommand{\mask}[2]{{#1} \&\&\& {#2}}
@@ -53,7 +62,16 @@
 \newcommand{\bitComplement}{\sim}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-\newcommand{\funcCall}[]{}
+%% \newcommand{\funcCall}[]{}
+\newcommand{\expMem}[2]{{#1}.{#2}}
+\newcommand{\instantiation}[2]{{#1}({#2})}
+\newcommand{\assign}[2]{{#1}={#2}}
+\newcommand{\noop}{;}
+\newcommand{\return}[1]{\mathit{return}\ {#1}}
+\newcommand{\exit}{\mathit{exit}}
+\newcommand{\switch}[2]{\mathit{switch}\ ({#1}) \{{#2}\}}
+\newcommand{\lbl}{l}
+\newcommand{\actionCase}[1]{\lbl : \block {#1}} 
 
 %metavariables:
 \newcommand{\env}{e}
@@ -82,11 +100,21 @@
 \newcommand{\parDef}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
 \newcommand{\typParam}{X}
 \newcommand{\wildcardParam}{w}
-
+\renewcommand{\arg}{\mathit{arg}}
+\newcommand{\stmt}{\mathit{stmt}}
+\newcommand{\stmts}{\overline \stmt}
+\newcommand{\block}[1]{\{ {#1} \}}
+\newcommand{\ifthen}[2]{\mathit{if}\ {#1} \mathit{then}\ {#2}}
+\newcommand{\ifthenelse}[3]{\mathit{if}\ {#1} \mathit{then}\ {#2} \mathit{else}\ {#3}}
+\newcommand{\dcl}{\mathit{dcl}}
 
 %function helpers
 \newcommand{\isNumeric}[1]{\mathit{is\_numeric}({#1})}
 \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
+\newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
+\newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
+\newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
+\newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
 \newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_\env}
 \newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})_\env}
 \newcommand{\reduceEnums}[1]{\mathit{reduce\_enums}({#1}.\typ)_\env} 
@@ -104,6 +132,11 @@
 \newcommand{\explicitCastOK}[2]{\mathit{explicit\_cast\_ok} ({#1}, {#2})_\env}
 \newcommand{\insertTypVars}[1]{\mathit{insert\_type\_vars}({#1}, \env)}
 \newcommand{\getTypeParams}[1]{\mathit{get\_type\_params}({#1})}
+\newcommand{\reduce}[1]{\mathit{reduce}({#1})}
+\newcommand{\fieldOrMethodTyp}[1]{\mathit{field\_or\_method\_type}({#1})}
+\newcommand{\isLval}[1]{\mathit{is\_lvalue}({#1})}
+\newcommand{\castExpression}[2]{\mathit{cast\_expression}({#1},{#2})}
+\newcommand{\ifVoidTyp}[1]{\mathit{if\_void\_type}({#1})}
 
 %types:
 \newcommand{\bitWidthTyp}[1]{\mathit{bit}<\!{#1}\!>}
@@ -137,6 +170,7 @@
 \newcommand{\actionTyp}[2]{\mathit{action}(\mathit{data:}{#1},\mathit{control:}{#2})}
 \newcommand{\tableTyp}[1]{\mathit{table}\ {#1}}
 \newcommand{\typNameTyp}[1]{\mathit{type\_name}\ {#1}}
+\newcommand{\unitTyp}{()}
 
 %directions:
 \newcommand{\less}{\mathit{directionless}}

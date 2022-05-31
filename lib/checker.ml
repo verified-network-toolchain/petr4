@@ -632,7 +632,8 @@ and type_vars_equal_under equiv_vars tv1 tv2 =
       else type_vars_equal_under rest tv1 tv2
   | [] ->
       tv1 = tv2
-
+(* saturates the type first and returns the base of a specialized type by removing all
+   its type parameters as long as the number of type params and type args match. *)
 and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
   fun env typ ->
   let typ = saturate_type env typ in
@@ -907,14 +908,12 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
        type_unary_op env ctx op arg
     | BinaryOp { op; args; tags } ->
        type_binary_op env ctx op args
-    (*  *)
     | Cast { typ; expr; tags } ->
        type_cast env ctx typ expr
     | TypeMember { typ; name; tags } ->
        type_type_member env ctx typ name
     | ErrorMember {tags; err} ->
        type_error_member env ctx err
-    (*  *)
     | ExpressionMember { expr; name; tags } ->
        type_expression_member env ctx expr name
     | Ternary { cond; tru; fls; tags } ->
@@ -963,6 +962,7 @@ and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expr
   then exp1, add_cast env exp2 typ1
   else failwith "cannot cast types so that they agree"
 
+(* takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.  *)
 and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp: Expression.t) =
   let module E = Prog.Expression in
   let typ = reduce_type env typ in
@@ -2385,6 +2385,8 @@ and type_error_member env ctx (name: P4String.t) : Prog.Expression.t =
     dir = Directionless;
     tags = Info.dummy }
 
+(* takes a type and if it's a header it returns a list of record type that has
+   isValid as a built in function. ow. returns an empty list.*)
 and header_methods typ =
   let fake_fields: RecordType.field list =
     [{name = "isValid";
@@ -2394,6 +2396,9 @@ and header_methods typ =
   | Type.Header { fields; _ } -> fake_fields
   | _ -> []
 
+(* takes a type, name, context. if type is an array and name is either size or lastindex
+   it returns the type Bit<32>. if type is an array and name is next or last and
+   context is parser state it returns the initial type passed in. ow. error.*)
 and type_expression_member_builtin env (ctx: Typed.ExprContext.t) tags typ (name: P4String.t) : Typed.Type.t =
   let open Typed.Type in
   let fail () =
@@ -2498,11 +2503,7 @@ and type_expression_member_function_builtin env typ (name: P4String.t) : Typed.T
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
-(*
-
-   ----------------------------------------------------------------
-
-*)
+(* look at spec. it uses a helper with a whole bunch of explanation. Disuss: any ideas to improve it. TODO*)
 and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
   let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env typed_expr.typ in
@@ -2745,7 +2746,7 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | _, Builtin -> true
   end
 
-(*
+(* TODO
 
    --------------------------------------------------------
    e, c |- exp (t1 a1, ..., tn an) ~~> 
@@ -2990,6 +2991,8 @@ and resolve_function_overload env ctx type_name args =
   | None ->
      resolve_function_overload_by ~f:(overload_param_count_ok args) env ctx type_name
 
+(*TODO
+  *)
 and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in(* determines if type is dontcare.*)
@@ -3019,15 +3022,7 @@ and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Exp
 
 (* Section 14.1 *)
 (*
-
-   base ?= TypeName t
-   ----------------------------------------
-   e, c |- SpecializedType {base, args} @ [arg1, .., argn] ~~> { @ [], Directionless}
-
-   typ = SpecializedType {t, []}
-   e, c |- typ @ [arg1, .., argn] ~~> {e, t, d}
-   --------------------------------------------------------
-   e, c |- TypeName t @ [arg1, .., argn] ~~> {e, t, d}
+   look at spec
 *)
 and type_nameless_instantiation env ctx tags (typ : Types.Type.t) args =
   let open Prog.Expression in
@@ -3137,26 +3132,34 @@ and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) :
     match stm with
     | MethodCall { func; type_args; args; tags } ->
        type_method_call env ctx tags func type_args args
+      (*10.1 ipad version.*)
     | Assignment { lhs; rhs; tags } ->
        type_assignment env ctx lhs rhs
     | DirectApplication { typ; args; tags } ->
        type_direct_application env ctx typ args
+      (* 10.6 *)
     | Conditional { cond; tru; fls; tags } ->
        type_conditional env ctx cond tru fls
+      (* 10.3 *)
     | BlockStatement { block; tags } ->
        type_block env ctx block
+      (* 10.5*)
     | Exit {tags} ->
        { stmt = Exit {tags};
          typ = StmType.Void },
        env
+      (* 10.2 *)
     | EmptyStatement {tags} ->
        { stmt = EmptyStatement {tags};
          typ = StmType.Unit },
        env
+      (* 10.4 *)
     | Return { expr; tags } ->
        type_return env ctx tags expr
+      (* 10.7 *)
     | Switch { expr; cases; tags } ->
        type_switch env ctx tags expr cases
+      (* 9 *)
     | DeclarationStatement { decl; tags } ->
        type_declaration_statement env ctx decl
   in

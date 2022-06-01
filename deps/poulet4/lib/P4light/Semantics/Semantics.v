@@ -2004,11 +2004,13 @@ Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
+      let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
-      let init := process_locals locals in
+      let init := block_app init (process_locals locals) in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
       let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
       let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
@@ -2017,11 +2019,13 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
+      let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+      let init := uninit_out_params out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
-      let init := process_locals locals in
+      let init := block_app init (process_locals locals) in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in

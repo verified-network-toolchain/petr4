@@ -240,7 +240,7 @@ Fixpoint valset_to_valsett (vs : ValSet) :=
   | ValSetSingleton n => VSTSingleton n
   | ValSetUniversal => VSTUniversal
   | ValSetMask value mask => VSTMask value mask
-  | ValSetRange lo hi => VSTMask lo hi
+  | ValSetRange lo hi => VSTRange lo hi
   | ValSetProd sets => VSTProd (List.map valset_to_valsett sets)
   | ValSetLpm nbits value => VSTLpm nbits value
   | ValSetValueSet size members sets => VSTValueSet size members (List.map valset_to_valsett sets)
@@ -252,11 +252,14 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
-Definition check_lpm_count (mks: list ident): option bool :=
-  let num_lpm := List.length (List.filter (String.eqb "lpm") mks) in
-  if (1 <? num_lpm)%nat
-  then None
-  else Some (num_lpm =? 1)%nat.
+Definition check_lpm_count (mks: list ident): option nat :=
+  match findi (String.eqb "lpm") mks with
+  | None => Some (List.length mks)
+  | Some (index, _) =>
+        let num_lpm := List.length (List.filter (String.eqb "lpm") mks) in
+        if (1 <? num_lpm)%nat then None
+        else Some index
+  end.
 
 Fixpoint assert_bit (v: Val): option (list bool) :=
   match v with
@@ -273,52 +276,51 @@ Fixpoint bits_to_lpm_nbits (acc: N) (b: bool) (v: list bool): option N :=
   end.
 
 (* Compute (bits_to_lpm_nbits 0 false (to_lbool 5 (-2))). *)
-Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
-  match vs with
-  | VSTUniversal
-  | VSTLpm _ _ => Some vs
-  | VSTProd l => match lift_option (List.map lpm_set_of_set l) with
-                  | Some l' => Some (VSTProd l')
-                  | None => None
-                  end 
-  | VSTSingleton v => Some (VSTLpm (width_of_val v) v)
-  | VSTMask v1 v2 =>
-    match assert_bit v2 with
-    | None => None
-    | Some v2' => match bits_to_lpm_nbits 0 false v2' with
-                  | None => None
-                  | Some n => Some (VSTLpm n v2)
-                  end
+Definition lpm_set_of_set (lpm_idx: nat) (vs: ValSetT): option (ValSetT * N) :=
+  let lpm_set_of_set' (vs: ValSetT) :=
+    match vs with
+    | VSTUniversal => Some (vs, 0%N) 
+    | VSTLpm nbits _ =>  Some (vs, nbits)
+    | VSTSingleton v => Some (vs, (width_of_val v))
+    | VSTMask v1 v2 =>
+        match assert_bit v2 with
+        | None => None
+        | Some v2' => match bits_to_lpm_nbits 0 false v2' with
+                      | None => None
+                      | Some n => Some (vs, n)
+                      end
+        end
+    | _ => None
     end
-  | _ => None
+  in match vs with 
+  | VSTProd l => 
+      match list_slice_nat l 0 lpm_idx, 
+            nth_error l lpm_idx, 
+            list_slice_nat l (lpm_idx + 1) (List.length l) with 
+      | Some hd, Some md, Some tl =>
+          match lpm_set_of_set' md with 
+          | None => None 
+          | Some (md', rank) => Some (VSTProd (hd ++ [md'] ++ tl), rank)
+          end
+      | _, _, _ => None
+      end
+  | _ => 
+      lpm_set_of_set' vs
   end.
 
-Fixpoint get_before_uni (l: list (ValSetT * action_ref)):
-  (list (ValSetT * action_ref)) * option (ValSetT * action_ref) :=
-  match l with
-  | nil => (nil, None)
-  | (VSTUniversal, act) as x :: rest => (nil, Some x)
-  | y :: rest => let (l', o) := get_before_uni rest in (y :: l', o)
-  end.
+Definition lpm_compare (va1 va2: ((ValSetT * action_ref) * N)): bool :=
+  N.leb (snd va2) (snd va1).
 
-Definition lpm_compare (va1 va2: (ValSetT * action_ref)): bool :=
-  match (fst va1), (fst va2) with
-  | VSTLpm n1 _, VSTLpm n2 _ => N.leb n2 n1
-  | _, _ => false
-  end.
-
-Definition sort_lpm (l: list (ValSetT * action_ref)): list (ValSetT * action_ref) :=
+Definition sort_lpm (l: list (ValSetT * action_ref)) (lpm_idx: nat): list (ValSetT * action_ref) :=
   let (vl, actL) := List.split l in
-  match lift_option (List.map lpm_set_of_set vl) with
+  match lift_option (List.map (lpm_set_of_set lpm_idx) vl ) with
   | None => nil
-  | Some entries =>
-    let entries' := List.combine entries actL in
-    let (entries'', uni) := get_before_uni entries' in
-    let sorted := mergeSort lpm_compare entries'' in
-    match uni with
-    | None => sorted
-    | Some a => sorted ++ [a]
-    end
+  | Some vs_rank =>
+    let (vs, rank) := List.split vs_rank in 
+    let entries := List.combine vs actL in
+    let entries_rank := List.combine entries rank in 
+    let sorted := mergeSort lpm_compare entries_rank in
+    fst (List.split sorted)
   end.
 
 Definition values_match_singleton (vs: list Val) (v: Val): option bool :=
@@ -429,47 +431,26 @@ Definition is_some_true (b: option bool): bool :=
   | _ => false
   end.
 
-Definition filter_lpm_prod (ids: list ident) (vals: list Val)
-           (entries: list (ValSetT * action_ref)): list (ValSetT * action_ref) * list Val :=
-  match findi (String.eqb "lpm") ids with
-  | None => ([], [])
-  | Some (index, _) =>
-    let f (es: ValSetT * action_ref): option (ValSetT * action_ref) :=
-        match es with
-        | (VSTProd l, a) => match nth_error l index with
-                             | None => None
-                             | Some vs => Some (vs, a)
-                             end
-        | _ => None
-        end in
-    match lift_option (map f (filter (fun s => is_some_true (values_match_set vals (fst s))) entries)) with
-    | None => ([], [])
-    | Some entries' => match nth_error vals index with
-                       | None => ([], [])
-                       | Some ks => (sort_lpm entries', [ks])
-                       end
-    end
-  end.
-
-Definition extern_match (key: list (Val * ident)) (entries: list table_entry_valset): option action_ref :=
+Definition extern_matches (key: list (Val * ident)) (entries: list table_entry_valset) : list (bool * action_ref) :=
   let ks := List.map fst key in
   let mks := List.map snd key in
   match check_lpm_count mks with
-  | None => None
-  | Some sort_mks =>
+  | None => []
+  | Some lpm_idx =>
     let entries' := List.map (fun p => (valset_to_valsett (fst p), snd p)) entries in
-        let (entries'', ks') :=
-            if list_eqb String.eqb mks ["lpm"]
-            then (sort_lpm entries', ks)
-            else if sort_mks
-                 then filter_lpm_prod mks ks entries'
-                 else (entries', ks) in
-    let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
-                          entries'' in
-    match l with
-    | nil => None
-    | sa :: _ => Some (snd sa)
-    end
+    let entries'' :=
+      if (lpm_idx <? List.length mks)%nat
+      then sort_lpm entries' lpm_idx
+      else entries' in
+    List.map (fun s => (is_some_true (values_match_set ks (fst s)), snd s)) entries''
+  end.
+
+
+Definition extern_match (key: list (Val * ident)) (entries: list table_entry_valset): option action_ref :=
+  let match_res := List.filter fst (extern_matches key entries) in 
+  match match_res with
+  | nil => None
+  | sa :: _ => Some (snd sa)
   end.
 
 Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).

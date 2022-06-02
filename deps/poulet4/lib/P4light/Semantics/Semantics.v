@@ -2001,6 +2001,11 @@ Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
       mk_table_entry matches (unwrap_action_ref2 action)
   end.
 
+(* When loading function definitions into function environment, we add initializer for
+  out parameters. (And we do the same thing for abstract methods during instantiation.)
+  This initialization should better be defined in the execution phase. But we decided not
+  to do this refactor for now. *)
+
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>

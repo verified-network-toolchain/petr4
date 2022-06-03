@@ -621,58 +621,47 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | None => extern_get_entries (get_external_state s) table
   end.
 
+Definition empty_state : state := (PathMap.empty, PathMap.empty).
+
 Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
-                     path -> state -> @Match tags_t -> ValSet -> Prop :=
-  | exec_match_dont_care : forall this st tag typ,
-      exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_mask : forall expr exprv mask maskv this st tag typ,
-                      exec_expr_det read_one_bit this st expr exprv ->
-                      exec_expr_det read_one_bit this st mask maskv ->
-                      exec_match read_one_bit this st
+                     path -> @Match tags_t -> ValSet -> Prop :=
+  | exec_match_dont_care : forall this tag typ,
+      exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
+  | exec_match_mask : forall expr exprv mask maskv this tag typ,
+                      exec_expr_det read_one_bit this empty_state expr exprv ->
+                      exec_expr_det read_one_bit this empty_state mask maskv ->
+                      exec_match read_one_bit this
                       (MkMatch tag (MatchMask expr mask) typ)
                       (ValSetMask exprv maskv)
-  | exec_match_range : forall lo lov hi hiv this st tag typ,
-                        exec_expr_det read_one_bit this st lo lov ->
-                        exec_expr_det read_one_bit this st hi hiv ->
-                        exec_match read_one_bit this st
+  | exec_match_range : forall lo lov hi hiv this tag typ,
+                        exec_expr_det read_one_bit this empty_state lo lov ->
+                        exec_expr_det read_one_bit this empty_state hi hiv ->
+                        exec_match read_one_bit this
                         (MkMatch tag (MatchRange lo hi) typ)
                         (ValSetRange lov hiv)
-  | exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
-                      exec_expr_det read_one_bit this st expr oldv ->
+  | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
+                      exec_expr_det read_one_bit this empty_state expr oldv ->
                       get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->
-                      exec_match read_one_bit this st
+                      exec_match read_one_bit this
                       (MkMatch tag (MatchCast newtyp expr) typ)
                       newv.
 
-Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
-                       path -> state -> list (@Match tags_t) -> list ValSet -> Prop :=
-  | exec_matches_nil : forall this st,
-                       exec_matches read_one_bit this st nil nil
-  | exec_matches_cons : forall this st m ms sv svs,
-                       exec_match read_one_bit this st m sv ->
-                       exec_matches read_one_bit this st ms svs ->
-                       exec_matches read_one_bit this st (m :: ms) (sv :: svs).
+Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : path) :=
+  Forall2 (exec_match read_one_bit this).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> state -> table_entry ->
+                           path -> table_entry ->
                            (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
-  | exec_table_entry_intro : forall this st ms svs action entryvs,
-                             exec_matches read_one_bit this st ms svs ->
+  | exec_table_entry_intro : forall this ms svs action entryvs,
+                             exec_matches read_one_bit this ms svs ->
                              (if (List.length svs =? 1)%nat
                               then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
-                             exec_table_entry read_one_bit this st (mk_table_entry ms action) entryvs.
+                             exec_table_entry read_one_bit this (mk_table_entry ms action) entryvs.
 
-Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
-                             path -> state -> list table_entry ->
-                             list (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
-  | exec_table_entries_nil : forall this st,
-                       exec_table_entries read_one_bit this st nil nil
-  | exec_table_entries_cons : forall this st te tes tev tevs,
-                       exec_table_entry read_one_bit this st te tev ->
-                       exec_table_entries read_one_bit this st tes tevs ->
-                       exec_table_entries read_one_bit this st (te :: tes) (tev :: tevs).
+Definition exec_table_entries (read_one_bit : option bool -> bool -> Prop) (this : path) :=
+  Forall2 (exec_table_entry read_one_bit this).
 
 Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
                            path -> state -> ident -> list TableKey -> option (list table_entry) -> option action_ref -> Prop :=
@@ -680,7 +669,7 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       let entries := get_entries s (this_path ++ [name]) const_entries in
       let match_kinds := map table_key_matchkind keys in
       exec_exprs_det read_one_bit this_path s (map table_key_key keys) keyvals ->
-      exec_table_entries read_one_bit this_path s entries entryvs ->
+      exec_table_entries read_one_bit this_path entries entryvs ->
       extern_match (combine keyvals match_kinds) entryvs = matched_action ->
       exec_table_match read_one_bit this_path s name keys const_entries matched_action.
 

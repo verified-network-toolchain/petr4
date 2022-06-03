@@ -348,46 +348,46 @@ Section Interpreter.
     | _ => false
     end.
 
-  Definition interp_match (this: path) (st: state) (m: @Match tags_t) : option ValSet :=
+  Definition interp_match (this: path) (m: @Match tags_t) : option ValSet :=
     match m with
     | MkMatch _ MatchDontCare _ =>
       Some ValSetUniversal
     | MkMatch  _ (MatchMask expr mask) typ =>
-      let* exprv := interp_expr_det this st expr in
-      let* maskv := interp_expr_det this st mask in
+      let* exprv := interp_expr_det this empty_state expr in
+      let* maskv := interp_expr_det this empty_state mask in
       Some (ValSetMask exprv maskv)
     | MkMatch _ (MatchRange lo hi) _ =>
-      let* lov := interp_expr_det this st lo in
-      let* hiv := interp_expr_det this st hi in
+      let* lov := interp_expr_det this empty_state lo in
+      let* hiv := interp_expr_det this empty_state hi in
       Some (ValSetRange lov hiv)
     | MkMatch _ (MatchCast newtyp expr) _ =>
-      let* oldv := interp_expr_det this st expr in
+      let* oldv := interp_expr_det this empty_state expr in
       let* real_typ := get_real_type ge newtyp in
       Ops.eval_cast_set real_typ oldv
     end.
 
-  Fixpoint interp_matches (this: path) (st: state) (matches: list (@Match tags_t)) : option (list ValSet) :=
+  Fixpoint interp_matches (this: path) (matches: list (@Match tags_t)) : option (list ValSet) :=
     match matches with
     | nil => Some nil
     | m :: ms =>
-      let* sv := interp_match this st m in
-      let* svs := interp_matches this st ms in
+      let* sv := interp_match this m in
+      let* svs := interp_matches this ms in
       Some (sv :: svs)
     end.
 
-  Definition interp_table_entry (this: path) (st: state) (entry: table_entry) : option (@table_entry_valset tags_t (@Expression tags_t)) :=
+  Definition interp_table_entry (this: path) (entry: table_entry) : option (@table_entry_valset tags_t (@Expression tags_t)) :=
     let 'mk_table_entry ms action := entry in
-    let* svs := interp_matches this st ms in
+    let* svs := interp_matches this ms in
     if (List.length svs =? 1)%nat
     then Some (List.hd ValSetUniversal svs, action)
     else Some (ValSetProd svs, action).
 
-  Fixpoint interp_table_entries (this: path) (st: state) (entries: list table_entry) : option (list (@table_entry_valset tags_t (@Expression tags_t))) :=
+  Fixpoint interp_table_entries (this: path) (entries: list table_entry) : option (list (@table_entry_valset tags_t (@Expression tags_t))) :=
     match entries with
     | nil => Some nil 
     | te :: tes =>
-      let* tev := interp_table_entry this st te in
-      let* tevs := interp_table_entries this st tes in
+      let* tev := interp_table_entry this te in
+      let* tevs := interp_table_entries this tes in
       Some (tev :: tevs)
     end.
 
@@ -395,7 +395,7 @@ Section Interpreter.
     let entries := get_entries st (this ++ [name]) const_entries in
     let match_kinds := List.map table_key_matchkind keys in
     let* keyvals := interp_exprs this st (List.map table_key_key keys) in
-    let* entryvs := interp_table_entries this st entries in
+    let* entryvs := interp_table_entries this entries in
     Some (extern_match (List.combine keyvals match_kinds) entryvs).
 
   Equations interp_isValid (sv: Sval) : option bool :=

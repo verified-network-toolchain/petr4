@@ -711,9 +711,9 @@ Section InterpreterSafe.
   Qed.
 
   Lemma interp_match_safe:
-    forall this st m vset,
-      Interpreter.interp_match ge this st m = Some vset ->
-      Semantics.exec_match ge read_ndetbit this st m vset.
+    forall this m vset,
+      Interpreter.interp_match ge this m = Some vset ->
+      Semantics.exec_match ge read_ndetbit this m vset.
   Proof.
     destruct m.
     intros.
@@ -735,10 +735,11 @@ Section InterpreterSafe.
   Qed.
 
   Lemma interp_matches_safe:
-    forall this st matches vsets,
-      Interpreter.interp_matches ge this st matches = Some vsets ->
-      Semantics.exec_matches ge read_ndetbit this st matches vsets.
+    forall this matches vsets,
+      Interpreter.interp_matches ge this matches = Some vsets ->
+      Semantics.exec_matches ge read_ndetbit this matches vsets.
   Proof.
+    unfold Semantics.exec_matches.
     induction matches; simpl.
     intros.
     - inversion H.
@@ -753,9 +754,9 @@ Section InterpreterSafe.
   Qed.
 
   Lemma interp_table_entry_safe:
-    forall this st entries vset,
-      Interpreter.interp_table_entry ge this st entries = Some vset ->
-      Semantics.exec_table_entry ge read_ndetbit this st entries vset.
+    forall this entries vset,
+      Interpreter.interp_table_entry ge this entries = Some vset ->
+      Semantics.exec_table_entry ge read_ndetbit this entries vset.
   Proof.
     unfold Interpreter.interp_table_entry.
     intros.
@@ -767,10 +768,11 @@ Section InterpreterSafe.
   Qed.
 
   Lemma interp_table_entries_safe:
-    forall entries this st vsets,
-      Interpreter.interp_table_entries ge this st entries = Some vsets ->
-      Semantics.exec_table_entries ge read_ndetbit this st entries vsets.
+    forall entries this vsets,
+      Interpreter.interp_table_entries ge this entries = Some vsets ->
+      Semantics.exec_table_entries ge read_ndetbit this entries vsets.
   Proof.
+    unfold Semantics.exec_table_entries.
     induction entries; intros.
     - simpl in H.
       inversion H.

@@ -2265,28 +2265,37 @@ and cast_ok ?(explicit = false) env original_type new_type =
   | t1, Set t2 ->
      not explicit &&
      type_equality env [] t1 t2
+  (* done *)
   | Bit { width = 1 }, Bool
   | Bool, Bit { width = 1 } ->
      explicit
+  (* done *)
   | Int {width = width1}, Bit {width = width2}
   | Bit {width = width1}, Int {width = width2} ->
      explicit && width1 = width2
+  (* done *)
   | Bit { width = width1 }, Bit { width = width2 }
   | Int { width = width1 }, Int { width = width2 } ->
      width1 = width2 || explicit
+  (* done *)
   | Integer, Bit { width = _ }
   | Integer, Int { width = _ } ->
      true
+  (* done *)
   | Enum { name; typ = Some t; members }, Enum {typ = Some t'; _}
   | Enum { name; typ = Some t; members }, t'
+  (* done *)
   | t', Enum { name; typ = Some t; members } ->
      type_equality env [] t t'
+  (* done *)
   | NewType { name = name1; typ = typ1 },
     NewType { name = name2; typ = typ2 } ->
      type_equality env [] typ1 new_type
      || type_equality env [] original_type typ2
+  (* done *)
   | NewType { name; typ }, t ->
      cast_ok ~explicit env typ t
+  (* done *)
   | t, NewType { name; typ } ->
      cast_ok ~explicit env t typ
   | List types1, Tuple types2 ->

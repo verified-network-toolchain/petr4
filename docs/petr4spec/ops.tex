@@ -34,6 +34,10 @@
 \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
 \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
 \newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
+\newcommand{\explCast}[2]{\castenv {e} {#1} {#2}}
+\newcommand{\castenv}[3]{\env \vdash {#2} \rightarrow_{#1} {#3}}
+\newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
+
 
 
 %contexts:
@@ -131,6 +135,7 @@
 \newcommand{\argkv}{\var = \exp}
 \newcommand{\argkvs}{\overline \argkv}
 \newcommand{\argkvss}[1]{\var_{#1}=\exp_{#1}}
+\newcommand{\names}{\overline \name}
 
 %function helpers
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
@@ -142,7 +147,7 @@
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
 \newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_\env}
-\newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})_\env}
+\newcommand{\implicitCast}[2]{\implCast {#1} {#2}}
 \newcommand{\reduceEnums}[1]{\mathit{reduce\_enums}({#1}.\typ)_\env} 
 \newcommand{\inOrLess}[2]{\mathit{in\_or\_directionless}({#1},{#2})}
 \newcommand{\typEq}[3]{{#2} ==_{\env,{#1}} {#3}}
@@ -155,7 +160,7 @@
 \newcommand{\isValidNestedTyp}[2]{\mathit{is\_valid\_nested\_type}({#1},{#2})_\env}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
-\newcommand{\explicitCastOK}[2]{\mathit{explicit\_cast\_ok} ({#1}, {#2})_\env}
+\newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
 \newcommand{\insertTypVars}[1]{\mathit{insert\_type\_vars}({#1}, \env)}
 \newcommand{\getTypeParams}[1]{\mathit{get\_type\_params}({#1})}
 \newcommand{\reduce}[1]{\mathit{reduce}({#1})}

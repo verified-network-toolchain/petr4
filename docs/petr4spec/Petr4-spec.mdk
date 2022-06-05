@@ -411,6 +411,96 @@ arg can be exp, key value, or missing.
 conditional operatior (ternary exp). petr4 doesn't support the case where both tru and fls expression have the infinite precision integer type when the condition can be evaluated at compilation time. This is allowed by P4 spec.
 
 ### Petr4 Discrepencies with P4 Spec
+P4 spec defines bitwise operations and concatenation for bit<w> but Petr4 also allows them for int<w>. bitwiseops and bitstringconcatenation rules. section 8.5. check_binary_op impl. 
+p4 spec defines division and modulo only for arbitrary-precision integers but petr4 allows them for bit<w> too. divops rule. section 8.7. check_binary_op impl.
+p4 spec defines bitwise complement only for bit<w> but petr4 also allows it for int<w>. type_unary_op bitnot impl. section 8.5 spec. bitwisecomplement rule.
+p4 spec states during the cast between int and bit<w> or int<w> the compiler would complain about overflow (or conversion of negative value for bit<w>) but petr4's type system doesn't check this. I'm not sure if any other part of petr4 takes care of this. section 8.9.1 spec. cast_ok impl. explicit cast judgment.
+p4 spec states that all expression of type int MUST be compile-time known values but petr4 doesn't always check this. section 8.7 spec. e.g., unaryminus or binaryops rules. 
+
+### Cast Auxiliary Judgment
+The cast first saturates both types and then check if they can be explicitly casted. For simplicity, we omited the saturation from rules.
+we use subscription of e or i to indicate if a rule only applies for explicit or implicit cast only, respecctively. o.w., the arrow doesn't have a subscription. 
+
+~ Center  {padding:1ex} 
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Bit<1>ToBool]
+     {  }
+     { \explCast {\bitWidthTyp 1} \boolTyp }
+
+  \inferrule[BoolToBit<1>]
+     {  }
+     { \explCast \boolTyp {\bitWidthTyp 1} }
+
+  \inferrule[UnsignedIntToSigned]
+     { \width_1 = \width_2 }
+     { \explCast {\bitWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
+
+  \inferrule[SignedIntToUnsigned]
+     { \width_1 = \width_2 }
+     { \explCast {\intWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
+
+  \inferrule[UnsignedIntToUnsignedInt-Explicit]
+     { }
+     { \explCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
+
+  \inferrule[UnsignedIntToUnsignedInt-Implicit]
+     { \width_1 = \width_2}
+     { \implCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
+
+  \inferrule[SignedIntToSignedInt-Explicit]
+     { }
+     { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
+
+  \inferrule[SignedIntToSignedInt-Implicit]
+     { \width_1 = \width_2}
+     { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
+
+  \inferrule[ArbitraryPrecisionIntToUnsignedInt]
+     {}
+     { \castenv \  \integerTyp {\bitWidthTyp \width}}
+
+  \inferrule[ArbitraryPrecisionIntToSignedInt]
+     {}
+     { \castenv \  \integerTyp {\intWidthTyp \width}}
+
+  \inferrule[TypeDefs]
+     { (\typEq \emp {\typ_1} {\newTypeTyp \name {\typ_2}}) \textOr (\typEq \emp {\typ_2} {\newTypeTyp \name {\typ_1}})}
+     { \castenv \  {\newTypeTyp \name {\typ_1}} {\newTypeTyp \name {\typ_2}}}
+
+  \inferrule[TypeDefToType-Explicit]
+     { \explCast {\typ_1} {\typ_2}}
+     { \explCast {\newTypeTyp \name {\typ_1}} {\typ_2}}
+
+  \inferrule[TypeDefToType-Implicit]
+     { \implCast {\typ_1} {\typ_2}}
+     { \implCast {\newTypeTyp \name {\typ_1}} {\typ_2}}
+
+  \inferrule[TypeToTypeDef-Explicit]
+     { \explCast {\typ_1} {\typ_2}}
+     { \explCast {\typ_1} {\newTypeTyp \name {\typ_2}}}
+
+  \inferrule[TypeToTypeDef-Implicit]
+     { \implCast {\typ_1} {\typ_2}}
+     { \implCast {\typ_1} {\newTypeTyp \name {\typ_2}}}
+
+  \inferrule[Enums]
+     { \typEq \emp {\typ_1} {\typ_2}}
+     { \castenv \ {\enumTyp {\typ_1} {\name_1} {\names_1}} {\enumTyp {\typ_2} {\name_2} {\names_2}}}
+
+  \inferrule[EnumToUnderlyingType]
+     { \typEq \emp {\typ_1} {\typ_2}}
+     { \castenv \ {\enumTyp {\typ_1} {\name_1} {\names_1}} {\typ_2}}
+
+  \inferrule[TypeToEnumWithUndrlyingType]
+     { \typEq \emp {\typ_1} {\typ_2}}
+     { \castenv \ {\typ_1} {\enumTyp {\typ_2} {\name_2} {\names_2}}}
+
+\end{mathpar}
+~~
+~
 
 
 ### Coerce Binary Operation Arguments Auxiliary Judgment

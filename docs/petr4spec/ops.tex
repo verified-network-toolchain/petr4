@@ -33,6 +33,7 @@
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
 \newcommand{\dclenvv}[4]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3} \dashv \env_{#4}}
+\newcommand{\dclenvvv}[4]{\constEnv, \typEnv \vdash {#1} \leadsto {#2} \dashv {#3}, {#4}}
 
 
 %contexts:
@@ -41,6 +42,7 @@
 \newcommand{\actionCtxt}{\mathit{ACTION}}
 \newcommand{\funcCtxt}[1]{\mathit{FUNCTION}\ {#1}}
 \newcommand{\parserCtxt}{\mathit{PARSER}}
+\newcommand{\toplevel}{\mathit{TOPLEVEL}}
 
 %operators:
 \newcommand{\mask}[2]{{#1} \&\&\& {#2}}
@@ -62,7 +64,7 @@
 \newcommand{\bitComplement}{\sim}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-%% \newcommand{\funcCall}[]{}
+\newcommand{\funcCall}[3]{{#1}<{#2}>({#3})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
 \newcommand{\instantiation}[2]{{#1}({#2})}
 \newcommand{\assign}[2]{{#1}={#2}}
@@ -71,11 +73,20 @@
 \newcommand{\exit}{\mathit{exit}}
 \newcommand{\switch}[2]{\mathit{switch}\ ({#1}) \{{#2}\}}
 \newcommand{\lbl}{l}
-\newcommand{\actionCase}[1]{\lbl : \block {#1}} 
+\newcommand{\actionCase}[1]{\lbl : \block {#1}}
+\newcommand{\const}[3]{\mathit{const}\ {#1}\ {#2} := {#3}}
+\newcommand{\inst}[4]{{#1} ({#2}) {#3} \{{#4}\}}
+\newcommand{\varDecl}[2]{{#1}\ {#2}}
+\newcommand{\varInit}[3]{{#1}\ {#2} := {#3}}
+%name.
+%% \newcommand{\parserDecl}[]{\mathit{parser}\ {#1} (type_param param) {const_param locals states} 
 
 %metavariables:
-\newcommand{\env}{e}
-\newcommand{\typ}{t}
+\newcommand{\env}{\Gamma}
+\newcommand{\typEnv}{\Gamma}
+\newcommand{\constEnv}{\Sigma}
+\newcommand{\typ}{\tau}
+\newcommand{\typs}{\overline \typ}
 \newcommand{\ctxt}{c}
 \newcommand{\bool}{b}
 \newcommand{\str}{s}
@@ -86,6 +97,9 @@
 \newcommand{\bitWidth}[2]{{#1}_{#2}}
 \newcommand{\intWidth}[2]{{#1}_{#2}}
 \newcommand{\name}{\mathit{name}}
+\newcommand{\var}{x}
+\newcommand{\typVar}{X}
+\newcommand{\typVars}{\overline \typVar}
 \renewcommand{\array}{a}
 \renewcommand{\index}{i}
 \newcommand{\arrayAccess}[2]{{#1}[{#2}]}
@@ -97,18 +111,30 @@
 \renewcommand{\exp}{\mathit{exp}}
 \newcommand{\field}{f}
 \newcommand{\param}{x}
-\newcommand{\parDef}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
+\newcommand{\params}{\overline x}
+\newcommand{\prm}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
 \newcommand{\typParam}{X}
 \newcommand{\wildcardParam}{w}
 \renewcommand{\arg}{\mathit{arg}}
+\newcommand{\args}{\overline \arg}
 \newcommand{\stmt}{\mathit{stmt}}
 \newcommand{\stmts}{\overline \stmt}
 \newcommand{\block}[1]{\{ {#1} \}}
-\newcommand{\ifthen}[2]{\mathit{if}\ {#1} \mathit{then}\ {#2}}
-\newcommand{\ifthenelse}[3]{\mathit{if}\ {#1} \mathit{then}\ {#2} \mathit{else}\ {#3}}
+\newcommand{\ifthen}[2]{\mathit{if}\ {#1}\ \mathit{then}\ {#2}}
+\newcommand{\ifthenelse}[3]{\mathit{if}\ {#1}\ \mathit{then}\ {#2}\ \mathit{else}\ {#3}}
 \newcommand{\dcl}{\mathit{dcl}}
+\newcommand{\kind}{k}
+\newcommand{\ret}{\mathit{return}}
+\newcommand{\argexp}{\exp}
+\newcommand{\argexps}{\overline \argexp}
+\newcommand{\argexpss}[1]{\argexp_{#1}}
+\newcommand{\argkv}{\var = \exp}
+\newcommand{\argkvs}{\overline \argkv}
+\newcommand{\argkvss}[1]{\var_{#1}=\exp_{#1}}
 
 %function helpers
+\newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
+\newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
 \newcommand{\isNumeric}[1]{\mathit{is\_numeric}({#1})}
 \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
@@ -137,6 +163,10 @@
 \newcommand{\isLval}[1]{\mathit{is\_lvalue}({#1})}
 \newcommand{\castExpression}[2]{\mathit{cast\_expression}({#1},{#2})}
 \newcommand{\ifVoidTyp}[1]{\mathit{if\_void\_type}({#1})}
+\newcommand{\allowedTypeForVar}[1]{\mathit{is\_allowed\_type\_for\_variable}({#1})}
+\newcommand{\checkParamShadow}[2]{\mathit{check\_parameter\_shadowing}({#1}, {#2})}
+%% \newcommand{\resolveFuncOverload}[2]{\mathit{resolve\_function\_overload}({#1},{#2})}
+\newcommand{\match}[2]{\mathit{match}({#1},{#2})}
 
 %types:
 \newcommand{\bitWidthTyp}[1]{\mathit{bit}<\!{#1}\!>}
@@ -161,6 +191,8 @@
 \newcommand{\structTyp}{\mathit{struct}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 \newcommand{\newTypeTyp}[2]{\mathit{type}\ {#1}\ {#2}}
 \newcommand{\funcTyp}[3]{\mathit{function}\ {#1}<{#2}> ({#3})}
+%kind.type param. param. return type. 
+\newcommand{\funcType}[4]{\mathit{function}\ {#1}<{#2}> ({#3})\rightarrow {#4}}
 \newcommand{\constructorTyp}[3]{{#1}\  {#2}\  ({#3}, \_)}
 \newcommand{\externTyp}[1]{\mathit{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}<{#2}>}
@@ -177,4 +209,4 @@
 \newcommand{\dir}{d}
 \renewcommand{\in}{\mathit{in}}
 \newcommand{\out}{\mathit{out}}
-
+\newcommand{\inout}{\mathit{in\_out}}

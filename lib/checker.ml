@@ -2195,6 +2195,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
           raise_mismatch (tags) "Operand must have type int<w> or bit<w>" l
        end
     (* Bitwise operators are only defined on bitstrings of the same width *)
+       (* TODO: discuss with Ryan. discrepency with spec. *)
     | BitAnd {tags} | BitXor {tags} | BitOr {tags} ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
@@ -2203,6 +2204,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | _, _ -> raise_mismatch (typed_l.tags) "unsigned int" l_typ
        end
     (* Bitstring concatentation is defined on any two bitstrings *)
+    (* TODO: discuss with Ryan. discrepency with spec. *)
     | PlusPlus {tags} ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r }
@@ -2222,6 +2224,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | _, _ -> raise_type_error tags (Type_Difference (l_typ, r_typ))
        end
     (* Division is only defined on compile-time known arbitrary-precision positive integers *)
+       (* TODO: discuss with Ryan. then why do we allow it for bit<w> too?*)
     | Div {tags} | Mod {tags} ->
        begin match l_typ, r_typ with
        | Integer, Integer ->
@@ -2233,6 +2236,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | Integer, _ -> raise_mismatch (typed_r.tags) "arbitrary precision integer" r_typ
        | _, _ -> raise_mismatch (typed_l.tags) "arbitrary precision integer" l_typ
        end
+       (* TODO: check this with Ryan. section 8.5 of spec.  *)
     | Shl {tags} | Shr {tags} ->
        begin match l_typ, is_nonnegative_numeric env typed_r with
        | Bit _, true
@@ -2748,8 +2752,6 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
 
 (* TODO
 
-   --------------------------------------------------------
-   e, c |- exp (t1 a1, ..., tn an) ~~> 
 
 *)
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
@@ -3746,7 +3748,6 @@ and is_variable_type env (typ: Typed.Type.t) =
      false
 
 (* Section 10.2
- * NOTE: refers to p4 spec
  *          Δ, T, Γ |- e : t' = t
  * ---------------------------------------------
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]
@@ -4593,8 +4594,10 @@ and check_param_shadowing params constructor_params =
 
 and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match decl with
+    (* look into spec *)
   | Constant { annotations; typ; name; value; tags } ->
      type_constant env ctx tags annotations typ name value
+    (* look into spec *)
   | Instantiation { annotations; typ; args; name; init; tags } ->
      begin match init with
      | Some init -> failwith "initializer block in instantiation unsupported"
@@ -4616,6 +4619,7 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | ExternFunction { annotations; return; name; type_params; params; tags } ->
      check_param_shadowing params [];
      type_extern_function env tags annotations return name type_params params
+    (* look into spec *)
   | Variable { annotations; typ; name; init; tags } ->
      type_variable env ctx tags annotations typ name init
   | ValueSet { annotations; typ; size; name; tags } ->

@@ -293,15 +293,13 @@ arg can be exp, key value, or missing.
      { \expenv {!\exp} {!\prim \exp} \boolTyp \dir }
 
   \inferrule[BitwiseComplement]
-     { \expenv \exp {\prim \exp} {\bitWidthTyp \width} \dir }
-     { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\bitWidthTyp \width} \dir }
-
-  \inferrule[UnaryMinusCTK]
-     { \expenv \exp {\prim \exp} \integerTyp \dir }
-     { \expenv {-\exp} {-\prim \exp} \integerTyp \dir }
+     { \expenv \exp {\prim \exp} \typ  \dir \\
+       \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width}
+     { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\typ} \dir }
 
   \inferrule[UnaryMinus]
-     { \expenv \exp {\prim \exp} {\intWidthTyp \width} \dir }
+     { \expenv \exp {\prim \exp} \typ  \dir \\
+       \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width \textOr \integerTyp}
      { \expenv {-\exp} {-\prim \exp} {\intWidthTyp \width} \dir }
 
   \inferrule[BinaryOps]
@@ -349,10 +347,31 @@ arg can be exp, key value, or missing.
       \typ_1 \neq \integerTyp}
      {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
 
-  \inferrule[FunctionCall]
+  \inferrule[Ternary(AllowedInP4ButNotePetr4)]
+     {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\integerTyp} {\dir_2} \\
+      \expenv {\exp_3} {\prim {\exp_3}} {\integerTyp} {\dir_3}\\
+      % \typ_1 = \typ_2 \\
+      % \typ_1 \eq \integerTyp \\
+      \compTimeKnown {\exp_1}}
+     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
+
+
+  \inferrule[FunctionCall-Function]
+     { \expenv \exp {\prim \exp} {\funcType \kind \typVars {\prm 1, \ldots, \prm n} {\typ_\ret}} \dir\\
+       % (\exp', \funcType \kind {\typVars} \params {\prim \typ}, \dir) = \resolveFuncOverload \exp \args \\
+       % 1 \leq i \leq n; \prim {\typ_i} = \trans {\typ_i} \emp\\
+       \prim \typs = \trans \typs \emp \\
+       % \match \params \args\\
+       |\typs| = |\typVars| \\
+       \prim \typ = \sat {\typ_\ret}\\
+       infer
+       }
+     { \expenv {\funcCall \exp \typs {\argkvss 1, \ldots, \argkvss n}} {} {\prim \typ} \less }
+
+  \inferrule[FunctionCall-Action]
+     {  }
      { blah }
-     { blah }
-     % { \expenv {\exp (\typ_1 \arg_1, \ldots, \typ_n \arg_n)}  }
 
 % function type: <return type> <function name>(x1,...,xn) {...}
 
@@ -388,6 +407,12 @@ arg can be exp, key value, or missing.
 ~~
 ~
 
+### Petr4 Restrictions Compared to P4 Spec
+conditional operatior (ternary exp). petr4 doesn't support the case where both tru and fls expression have the infinite precision integer type when the condition can be evaluated at compilation time. This is allowed by P4 spec.
+
+### Petr4 Discrepencies with P4 Spec
+
+
 ### Coerce Binary Operation Arguments Auxiliary Judgment
 Let implicitCast typ typ be defined as follows to describe P4's implicit
 casting behavior on operands in binary expressions:
@@ -420,10 +445,10 @@ The restJ rule stands for all other binary operations.
   \inferrule[Rest]
      { \expenv  {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
-       t = \implicitCast {\typ_1} {\typ_2} \\
-       {\pprim {\exp_1}} = \cast \typ {\prim {\exp_1}}, {\typ_1}, {\dir_1} \\
-       {\pprim {\exp_2}} = \cast \typ {\prim {\exp_2}}, {\typ_2}, {\dir_2}}
-     { \coerceBinArgsEnv {\exp_1 \restOps \exp_2} {\pprim {\exp_1}} {\pprim {\exp_2}} }
+       \typ = \implicitCast {\typ_1} {\typ_2} \\
+       \pprim {\exp_1} = \cast \typ {\prim {\exp_1}} \\
+       \pprim {\exp_2} = \cast \typ {\prim {\exp_2}}}
+     { \coerceBinArgsEnv {\exp_1 \restOps \exp_2} {\pprim {\exp_1}, {\typ_1}, {\dir_1}} {\pprim {\exp_2}, {\typ_2}, {\dir_2}} }
 
 \end{mathpar}
 ~~
@@ -442,7 +467,7 @@ compile time known determinez if the value of an expression can be known at comp
 \begin{mathpar}
   \small
 
-  \inferrule[LogicalOps($\ops=\&,\vert$)]
+  \inferrule[LogicalOps($\ops=\&\&,\vert\vert$)]
      { \typ_1 = \reduceEnums {\exp_1} \\
        \typ_2 = \reduceEnums {\exp_2} \\
        \dir = \inOrLess {\typ_1} {\typ_2} \\
@@ -635,20 +660,20 @@ names to type env.
      { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
        1 \leq i \leq n; \dir_i = \less \\
        1 \leq i \leq n; \typWellFormed {\typ_i}}
-     { \typWellFormed {\packageTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} {\wildcardParam_1, \ldots, \wildcardParam_p}} }
+     { \typWellFormed {\packageTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} {\wildcardParam_1, \ldots, \wildcardParam_p}} }
 
   \inferrule[Control]
      { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
        1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
-     { \typWellFormed {\controlTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} } }
+     { \typWellFormed {\controlTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} } }
 
   \inferrule[Parser]
      { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
        1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
-     { \typWellFormed {\parserTyp {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n} } }
+     { \typWellFormed {\parserTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} } }
 
   \inferrule[Extern]
-     { ([], {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n}} ) =\lookupEnv \name }
+     { ([], {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n}} ) =\lookupEnv \name }
      { \typWellFormed {\externTyp \name} }
 
   \inferrule[Function]
@@ -656,19 +681,19 @@ names to type env.
        \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
        1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
      % <return type> <function name>(x1,...,xn) {...}
-     { \typWellFormed {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\parDef 1, \ldots, \parDef n}} }
+     { \typWellFormed {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n}} }
 
   \inferrule[Action]
      { i < j \\
        1 \leq k \leq n; \typWellFormed {\typ_k} \\
        j \leq k \leq n; \dir_k = \less }
-     { \typWellFormed {\actionTyp {\parDef 1, \ldots, \parDef i} {\parDef j, \ldots, \parDef n}} }
+     { \typWellFormed {\actionTyp {\prm 1, \ldots, \prm i} {\prm j, \ldots, \prm n}} }
 
   \inferrule[Constructor]
      { \typWellFormed \typ \\
        \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
        1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
-     { \typWellFormed {\constructorTyp \typ \name {\parDef 1, \ldots, \parDef n}} }
+     { \typWellFormed {\constructorTyp \typ \name {\prm 1, \ldots, \prm n}} }
 
   \inferrule[Table]
      { \typ = \lookupEnv \name }
@@ -687,7 +712,8 @@ names to type env.
 this judgment type checks a statment written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
 is_lvalue checks if an IR expression is lvalue. 
 cast_expr takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.
-if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type. 
+if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type.
+get enum typ takes a type and checks if it's an enum. if so it returns the enums of it. 
 
 ~ Center  {padding:1ex}
 ~~ Snippet
@@ -778,3 +804,171 @@ if void type  returns a void type if a (or two) type is (are) void and otherwise
 
 
 ## Declaration's Typing Rules
+is allowed type for variable checks if a type is allowed for declaring a variable. it includes all types after saturation except for string, integer, list, set, void, specialized type, package, control, parser, extern, function, action, constructor, and table.
+check parameter shadowing takes two lists of paramets and checks if there is any duplicate in them. 
+
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Constant]
+     { \prim \typ = \trans \typ \emp \\
+       (\prim \exp, \pprim \typ, \dir) = \castExpression \exp {\prim \typ}\\
+       \val = \compileTimeEval {\prim \exp} }
+     { \dclenvvv {\const \typ \var \exp} {\const {\prim \typ} \var \val} {\addConstEnv \var \val} {\addTypeEnv \var {(\prim \typ, \less)}}}
+
+  \inferrule[Instantiation]
+     { \expenv {\instantiation {\var} \args} {\instantiation {\var} {\prim \args}} {\prim \typ} \dir \\
+       \ctxt \neq \toplevel \textOr \ctxt = \toplevel, ({\prim \typ} \neq \controlTyp {\_} {\_} \textOr \parserTyp {\_} {\_} )}
+     { \dclenvvv {\inst \typVar \args \var {\ } } {\inst \typVar \args \var {\ }} \constEnv {\addTypeEnv \var {(\prim \typ, \less)}} }
+
+  \inferrule[Parser]
+    {}
+    {blah}
+     % { \checkParamShadow param constructorparam \\
+     %   }
+     % { \dclenvvv {} {} {} {} }
+
+  \inferrule[Control]
+     { blah }
+     { blah }
+
+  \inferrule[Function]
+     { blah }
+     { blah }
+
+  \inferrule[Action]
+     { blah }
+     { blah }
+
+  \inferrule[ExternFunction]
+     { blah }
+     { blah }
+
+  \inferrule[Variable]
+     { \ctxt \neq \toplevel \\
+       \prim \typ = \trans \typ \emp \\
+       \allowedTypeForVar {\prim \typ} \\
+       \typWellFormed {\prim \typ}}
+     { \dclenvvv {\varDecl \typ \var } {\varDecl {\prim \typ} \var} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+
+  \inferrule[VariableInit]
+     { \ctxt \neq \toplevel \\
+       \prim \typ = \trans \typ \emp \\
+       \allowedTypeForVar {\prim \typ} \\
+       \typWellFormed {\prim \typ} \\
+       (\prim \exp, \prim \typ, \dir) = \castExpression  {\prim \typ} \exp}
+     { \dclenvvv {\varInit \typ \var \exp} {\varInit {\prim \typ} \var {(\prim \exp, \prim \typ, \dir)}} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+
+  \inferrule[ValueSet]
+     { blah }
+     { blah }
+
+  \inferrule[Table]
+     { blah }
+     { blah }
+
+\end{mathpar}
+~~
+~
+
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[Header]
+     { blah }
+     { blah }
+
+  \inferrule[HeaderUnion]
+     { blah }
+     { blah }
+
+  \inferrule[Struct]
+     { blah }
+     { blah }
+
+  \inferrule[Error]
+     { blah }
+     { blah }
+
+  \inferrule[MatchKind]
+     { blah }
+     { blah }
+
+  \inferrule[Enum]
+     { blah }
+     { blah }
+
+  \inferrule[SerializableEnum]
+     { blah }
+     { blah }
+
+  \inferrule[ExternObject]
+     { blah }
+     { blah }
+
+  \inferrule[TypeDef]
+     { blah }
+     { blah }
+
+  \inferrule[NewType]
+     { blah }
+     { blah }
+
+\end{mathpar}
+~~
+~
+
+~ Center  {padding:1ex}
+~~ Snippet
+\begin{mathpar}
+  \small
+
+  \inferrule[ControlType]
+     { blah }
+     { blah }
+
+  \inferrule[ParserType]
+     { blah }
+     { blah }
+
+  \inferrule[PackageType]
+     { blah }
+     { blah }
+
+  % \inferrule[ ]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+  % \inferrule[]
+  %    {  }
+  %    {  }
+
+\end{mathpar}
+~~
+~
+
+

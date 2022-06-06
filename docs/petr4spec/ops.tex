@@ -187,13 +187,21 @@
 \newcommand{\voidTyp}{\mathit{void}}
 \newcommand{\arrayTyp}[2]{{#1}[{#2}]}
 \newcommand{\tupleTyp}[2]{\mathit{tuple}<{#1},\ldots,{#2}>}
+\newcommand{\tupleTyps}[1]{\mathit{tuple}<{#1}>}
 \newcommand{\listTyp}[2]{[{#1},\ldots,{#2}]}
+\newcommand{\listTyps}[1]{[{#1}]}
 \newcommand{\enumTyp}{\mathit{enum}\ {\typ}\ {\name}\{\name_1,\ldots,\name_n\}}
 \newcommand{\enumTypNoTyp}{\mathit{enum} \ {\name}\{\name_1,\ldots,\name_n\}}
-\newcommand{\recordTyp}{\mathit{record}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
+\newcommand{\recordTypDef}{\recordTyp 1 n}
+\newcommand{\recordTyp}[2]{\mathit{record}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\recordTypp}[2]{\mathit{record}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
 \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
-\newcommand{\headerTyp}{\mathit{header}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
-\newcommand{\structTyp}{\mathit{struct}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
+\newcommand{\headerTypDef}{\headerTyp 1 n}
+\newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\headerTypp}[2]{\mathit{header}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
+\newcommand{\structTypDef}{\structTyp 1 n}
+\newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\structTypp}[2]{\mathit{struct}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
 \newcommand{\newTypeTyp}[2]{\mathit{type}\ {#1}\ {#2}}
 \newcommand{\funcTyp}[3]{\mathit{function}\ {#1}<{#2}> ({#3})}
 %kind.type param. param. return type. 

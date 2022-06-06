@@ -421,6 +421,9 @@ p4 spec states that all expression of type int MUST be compile-time known values
 The cast first saturates both types and then check if they can be explicitly casted. For simplicity, we omited the saturation from rules.
 we use subscription of e or i to indicate if a rule only applies for explicit or implicit cast only, respecctively. o.w., the arrow doesn't have a subscription. 
 
+
+P4 spec specifies casts up to Sets rule. The rest might be stated throughout the spec but I haven't found them yet.
+
 ~ Center  {padding:1ex} 
 ~~ Snippet
 \begin{mathpar}
@@ -497,6 +500,82 @@ we use subscription of e or i to indicate if a rule only applies for explicit or
   \inferrule[TypeToEnumWithUndrlyingType]
      { \typEq \emp {\typ_1} {\typ_2}}
      { \castenv \ {\typ_1} {\enumTyp {\typ_2} {\name_2} {\names_2}}}
+
+  \inferrule[Sets]
+     { \typEq \emp {\typ_1} {\typ_2}}
+     { \castenv \ {\setTyp {\typ_1}} {\setTyp {\typ_2}} }
+
+  \inferrule[TypeToSet]
+     { \typEq \emp {\typ_1} {\typ_2}}
+     { \implCast {\typ_1} {\setTyp {\typ_2}}}
+
+  \inferrule[ListToTuple]
+     { \typEq \emp {\tupleTyps {\typs_1}} {\tupleTyps {\typs_2}}}
+     { \castenv \  {\listTyps {\typs_1} } {\tupleTyps {\typs_2}}}
+
+  \inferrule[ListToHeader-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
+     {\explCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
+
+  \inferrule[ListToHeader-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
+     {\implCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
+
+  \inferrule[ListToStruct-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
+     {\explCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
+
+  \inferrule[ListToStruct-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
+     {\implCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
+
+  \inferrule[RecordToHeader-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
+     {\explCast {\recordTyp 1 n } {\headerTypp 1 n}}
+
+  \inferrule[RecordToHeader-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
+     {\implCast {\recordTyp 1 n } {\headerTypp 1 n}}
+
+  \inferrule[RecordToStruct-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
+     {\explCast {\recordTyp 1 n } {\structTypp 1 n}}
+
+  \inferrule[RecordToStruct-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
+     {\implCast {\recordTyp 1 n } {\structTypp 1 n}}
+
+  \inferrule[HeaderToHeader-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\headerTyp 1 n} {\headerTypp 1 n})}
+     {\explCast {\headerTyp 1 n } {\headerTypp 1 n}}
+
+  \inferrule[HeaderToHeader-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\headerTyp 1 n} {\headerTypp 1 n})}
+     {\implCast {\headerTyp 1 n } {\headerTypp 1 n}}
+
+  \inferrule[StructToStruct-Explicit]
+     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\structTyp 1 n} {\structTypp 1 n})}
+     {\explCast {\structTyp 1 n } {\structTypp 1 n}}
+
+  \inferrule[StructToStruct-Implicit]
+     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+      (\typEq \emp {\structTyp 1 n} {\structTypp 1 n})}
+     {\implCast {\structTyp 1 n } {\structTypp 1 n}}
+
+  \inferrule[ID]
+    { \typ_1 == \typ_2}
+    {\implCast {\typ_1} {\typ_2}}
 
 \end{mathpar}
 ~~
@@ -710,9 +789,9 @@ names to type env.
 
   \inferrule[Record]
      { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \recordTyp {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \recordTypDef {\typ_i} \\
        1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \recordTyp }
+     { \typWellFormed \recordTypDef }
 
   \inferrule[HeaderUnion]
      { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
@@ -723,15 +802,15 @@ names to type env.
 
   \inferrule[Struct]
      { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \structTyp {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \structTypDef {\typ_i} \\
        1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \structTyp }
+     { \typWellFormed \structTypDef }
 
   \inferrule[Header]
      { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \headerTyp {\typ_i} \\
+       1 \leq i \leq n; \isValidNestedTyp \headerTypDef {\typ_i} \\
        1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \headerTyp }
+     { \typWellFormed \headerTypDef }
 
   \inferrule[NewType(typedef)]
      { \typWellFormed \typ }

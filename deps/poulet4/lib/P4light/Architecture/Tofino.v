@@ -33,7 +33,7 @@ Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
 
-Definition register_static : Type := N (* width *) * Z (* size *).
+Definition register_static : Type := N (* index width *) * N (* width *) * Z (* size *).
 
 Definition register := list Val.
 
@@ -81,7 +81,7 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
     match targs, args with
     | [TypBit w; TypBit iw], [inr (ValBaseBit bits); inr init_val] =>
         let (_, size) := BitArith.from_lbool bits in
-        (PathMap.set p (EnvRegister (w, size)) e,
+        (PathMap.set p (EnvRegister (iw, w, size)) e,
          PathMap.set p (ObjRegister (new_register size w init_val)) s)
     | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
     end
@@ -117,7 +117,7 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
 
 Inductive register_read_sem : extern_func_sem :=
   | exec_register_read : forall e s p content w size index_w indexb index output,
-      PathMap.get p e = Some (EnvRegister (w, size)) ->
+      PathMap.get p e = Some (EnvRegister (index_w, w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
@@ -133,7 +133,7 @@ Definition register_read : extern_func := {|
 
 Inductive register_write_sem : extern_func_sem :=
   | exec_register_write : forall e s s' p content w size index_w indexb index valueb,
-      PathMap.get p e = Some (EnvRegister (w, size)) ->
+      PathMap.get p e = Some (EnvRegister (index_w, w, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
       N.of_nat (List.length valueb) = w ->
       BitArith.from_lbool indexb = (index_w, index) ->
@@ -152,7 +152,7 @@ Inductive regaction_execute_sem : extern_func_sem :=
   | exec_regaction_execute : forall e s p content w size content' index_w indexb index reg apply_sem s' s'' old_value new_value retv,
       PathMap.get p e = Some (EnvRegAction reg) ->
       PathMap.get (p ++ ["apply"]) e = Some (EnvAbsMet apply_sem) ->
-      PathMap.get reg e = Some (EnvRegister (w, size)) ->
+      PathMap.get reg e = Some (EnvRegister (index_w, w, size)) ->
       PathMap.get reg s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))

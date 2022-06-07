@@ -1586,6 +1586,7 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
       match expr with
       | MkExpression _ expr _ _ =>
           match expr with
+          | ExpBool b => Some (ValBaseBool b)
           | ExpInt i => Some (eval_p4int_val i)
           | ExpUnaryOp op arg =>
               match eval_expr_gen hook arg with
@@ -1601,6 +1602,11 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
               match eval_expr_gen hook arg, get_real_type ge_typ newtyp with
               | Some argv, Some real_typ => Ops.eval_cast real_typ argv
               | _, _ => None
+              end
+          | ExpTypeMember tname member =>
+              match IdentMap.get (str tname) ge_typ with
+              | Some (TypEnum ename None _) => Some (ValBaseEnumField (str ename) (str member))
+              | _ => None
               end
           | ExpExpressionMember expr name =>
               match eval_expr_gen hook expr with
@@ -1756,9 +1762,9 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       | None => (e, m, s) (* Should be impossible if eval_expr is complete. *)
       end
   | DeclInstantiation _ typ args name init =>
-      let '(inst, m, s) := instantiate' ce e typ args (p ++ clear_list [name]) m s in
+      let '(inst, m, s) := instantiate' ce e typ args (p ++ [str name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ clear_list [name]) m s in
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [str name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set (str name) inst e, m, s)
   (* For externs' init blocks only. *)

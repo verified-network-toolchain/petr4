@@ -48,9 +48,28 @@ Definition register := list Val.
 Definition new_register (size : Z) (w : N) (init_val : Val) : list Val :=
   Zrepeat init_val size.
 
+(* Do not unfold initial values during instantiation! *)
+#[global] Opaque new_register.
+
 (* RegisterAction *)
 
 Definition reg_action_static : Type := path (* register *).
+
+(* CRCPolynomial *)
+
+Record CRC_polynomial := mk_CRC_polynomial {
+  CRCP_width : N;
+  CRCP_coeff : list bool;
+  CRCP_reversed : bool;
+  CRCP_msb : bool;
+  CRCP_extended : bool;
+  CRCP_init : list bool;
+  CRCP_xor : list bool
+}.
+
+(* Hash *)
+
+Definition hash_static : Type := N (* width *) * CRC_polynomial.
 
 Inductive object :=
   | ObjTable (entries : list table_entry)
@@ -64,6 +83,8 @@ Inductive env_object :=
   | EnvTable
   | EnvRegister (reg_sta : register_static)
   | EnvRegAction (ra_sta : reg_action_static)
+  | EnvCRCPolynomial (crcp_sta : CRC_polynomial)
+  | EnvHash (hash_sta : hash_static)
   | EnvAbsMet (abs_met_sem : extern_state -> list Val -> extern_state -> list Val -> signal -> Prop)
   | EnvPin
   | EnvPout.
@@ -81,8 +102,10 @@ Proof. exact EnvPin. Qed.
 Definition dummy_bool : bool.
 Proof. exact false. Qed.
 
-(* Do not unfold initial values during instantiation! *)
-#[global] Opaque new_register.
+Definition dummy_CRC_polynomial : CRC_polynomial.
+Proof. constructor; first [exact 0%N | exact [] | exact false]. Qed.
+
+From ReductionEffect Require Import PrintingEffect.
 
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then
@@ -93,12 +116,43 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
          PathMap.set p (ObjRegister (new_register size w init_val)) s)
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
+
   else if String.eqb class "RegisterAction" then
     match targs, args with
     | [_; _; _], [inl reg] =>
         (PathMap.set p (EnvRegAction reg) e, s)
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
+
+  else if String.eqb class "CRCPolynomial" then
+    match targs, args with
+    | [TypBit w],
+          [inr (ValBaseBit coeff);
+           inr (ValBaseBool reversed);
+           inr (ValBaseBool msb);
+           inr (ValBaseBool extended);
+           inr (ValBaseBit init);
+           inr (ValBaseBit xor)
+          ] =>
+        (PathMap.set p (EnvCRCPolynomial
+          (mk_CRC_polynomial w coeff reversed msb extended init xor)) e, s)
+    | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
+    end
+
+  else if String.eqb class "Hash" then
+    match targs, args with
+    (* This is not very good, because it means to destruct the strings all the way. *)
+    | [TypBit w; TypBit pw], [inr (ValBaseEnumField "HashAlgorithm_t" "CUSTOM"); inl poly_path] =>
+        let poly :=
+          match PathMap.get poly_path e with
+          | Some (EnvCRCPolynomial poly) => poly
+          | _ => dummy_CRC_polynomial
+          end in
+        (PathMap.set p (EnvHash (w, poly)) e, s)
+    (* For other kinds of HashAlgorithm_t, we only need to fill in corresponding polynomials. *)
+    | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
+    end
+
   else
     (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s). (* fail *)
 

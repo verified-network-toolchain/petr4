@@ -33,6 +33,14 @@ Notation action_ref := (@action_ref Expression).
 
 Global Instance Inhabitant_Val : Inhabitant Val := ValBaseNull.
 
+(* packet_in and packet_out. Most are placeholders. *)
+
+Definition packet_in := list bool.
+
+Definition packet_out := list bool.
+
+(* Register *)
+
 Definition register_static : Type := N (* index width *) * N (* width *) * Z (* size *).
 
 Definition register := list Val.
@@ -40,9 +48,9 @@ Definition register := list Val.
 Definition new_register (size : Z) (w : N) (init_val : Val) : list Val :=
   Zrepeat init_val size.
 
-Definition packet_in := list bool.
+(* RegisterAction *)
 
-Definition packet_out := list bool.
+Definition reg_action_static : Type := path (* register *).
 
 Inductive object :=
   | ObjTable (entries : list table_entry)
@@ -51,8 +59,6 @@ Inductive object :=
   | ObjPout (pout : packet_out).
 
 Definition extern_state := PathMap.t object.
-
-Definition reg_action_static : Type := path (* register *).
 
 Inductive env_object :=
   | EnvTable
@@ -66,9 +72,11 @@ Definition extern_env := PathMap.t env_object.
 
 Definition dummy_tags := @default tags_t _.
 
-Definition dummy_extern_env : extern_env := PathMap.empty.
-Definition dummy_extern_state : extern_state := PathMap.empty.
-#[global] Opaque dummy_extern_env dummy_extern_state.
+Definition dummy_object : object.
+Proof. exact (ObjPin []). Qed.
+
+Definition dummy_env_object : env_object.
+Proof. exact EnvPin. Qed.
 
 Definition dummy_bool : bool.
 Proof. exact false. Qed.
@@ -83,16 +91,16 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
         let (_, size) := BitArith.from_lbool bits in
         (PathMap.set p (EnvRegister (iw, w, size)) e,
          PathMap.set p (ObjRegister (new_register size w init_val)) s)
-    | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
+    | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
   else if String.eqb class "RegisterAction" then
     match targs, args with
     | [_; _; _], [inl reg] =>
         (PathMap.set p (EnvRegAction reg) e, s)
-    | _, _ => (dummy_extern_env, dummy_extern_state) (* fail *)
+    | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
   else
-    (dummy_extern_env, dummy_extern_state). (* fail *)
+    (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s). (* fail *)
 
 Definition extern_set_abstract_method (e : extern_env) (p : path) abs_met_sem :=
   PathMap.set p (EnvAbsMet abs_met_sem) e.

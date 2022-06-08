@@ -105,8 +105,6 @@ Proof. exact false. Qed.
 Definition dummy_CRC_polynomial : CRC_polynomial.
 Proof. constructor; first [exact 0%N | exact [] | exact false]. Qed.
 
-From ReductionEffect Require Import PrintingEffect.
-
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then
     match targs, args with

@@ -1,19 +1,18 @@
-Title : Petr4 Type System Formalization
-Title Footer: &date;
-Author: Parisa Ataei, Ryan Doenges, Nate Foster
-Affiliation: Cornell University
-Heading depth: 5
-Math Dpi    : 299
-Pdf Latex: xelatex
-Math Latex Full: pdflatex
-Document Class: [11pt]article
-Package: [top=1in, bottom=1.25in, left=1in, right=1in]geometry
-Package: fancyhdr
-Package: mathpartir
-MathJax Ext: AMScd
-Package: amscd
-MathJax Ext : mhchem
-Package     : [version=3]mhchem
+Title         : Petr4 Type System Formalization
+Title Footer  : &date;
+Author        : Petr4 Team
+Affiliation   : Cornell University
+Heading depth : 5
+
+Math Mode       : static
+
+Document Class : [11pt]article
+
+Package : amssymb
+Package : amscd
+Package : fancyhdr
+Package : mathpartir
+
 
 Tex Header:
   \setlength{\headheight}{30pt}
@@ -171,6 +170,10 @@ the implementation of Petr4 deeply.
 [TOC]
 
 # Overview { #sec-overview }
+
+test $a \leq b$.
+
+test2 $ \var$.
 
 This document defines the type system of Petr4. The type system
 conducts three tasks simultaneously:

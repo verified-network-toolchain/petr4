@@ -1,5 +1,5 @@
-(* Sample semantics for the Tofino target. *)
-(* Currently, it is only as complete as being able to test abstract methods' semantics. *)
+(* Semantics for the Tofino target. *)
+(* It is incomplete. Expand it to fit your needs. *)
 Require Import Strings.String.
 Require Import Coq.Bool.Bool.
 Require Import Coq.ZArith.BinInt.
@@ -7,6 +7,7 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.Lists.List.
 Require Import Coq.Program.Program.
 Require Import Poulet4.P4light.Syntax.Value.
+Require Import Poulet4.P4light.Syntax.ValueUtil.
 Require Import Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
      Typed P4Int SyntaxUtil P4Notations.
@@ -41,11 +42,11 @@ Definition packet_out := list bool.
 
 (* Register *)
 
-Definition register_static : Type := N (* index width *) * N (* width *) * Z (* size *).
+Definition register_static : Type := N (* index width *) * P4Type * Z (* size *).
 
 Definition register := list Val.
 
-Definition new_register (size : Z) (w : N) (init_val : Val) : list Val :=
+Definition new_register (size : Z) (init_val : Val) : list Val :=
   Zrepeat init_val size.
 
 (* Do not unfold initial values during instantiation! *)
@@ -108,10 +109,10 @@ Proof. constructor; first [exact 0%N | exact [] | exact false]. Qed.
 Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) (targs : list P4Type) (p : path) (args : list (path + Val)) :=
   if String.eqb class "Register" then
     match targs, args with
-    | [TypBit w; TypBit iw], [inr (ValBaseBit bits); inr init_val] =>
+    | [typ; TypBit iw], [inr (ValBaseBit bits); inr init_val] =>
         let (_, size) := BitArith.from_lbool bits in
-        (PathMap.set p (EnvRegister (iw, w, size)) e,
-         PathMap.set p (ObjRegister (new_register size w init_val)) s)
+        (PathMap.set p (EnvRegister (iw, typ, size)) e,
+         PathMap.set p (ObjRegister (new_register size init_val)) s)
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
 
@@ -176,13 +177,17 @@ Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_sta
   end.
 
 Inductive register_read_sem : extern_func_sem :=
-  | exec_register_read : forall e s p content w size index_w indexb index output,
-      PathMap.get p e = Some (EnvRegister (index_w, w, size)) ->
+  | exec_register_read : forall e s p content typ size index_w indexb index output,
+      PathMap.get p e = Some (EnvRegister (index_w, typ, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
        then output = Znth index content
-       else output = ValBaseBit (to_lbool w 0))(*uninit_sval_of_typ None (TypBit w)) = Some output)*) ->
+       else
+        match uninit_sval_of_typ None typ with
+        | Some output' => sval_to_val read_ndetbit output' output
+        | None => False
+        end) ->
       register_read_sem e s p nil [ValBaseBit indexb] s [] (SReturn output).
 
 Definition register_read : extern_func := {|
@@ -192,15 +197,14 @@ Definition register_read : extern_func := {|
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
-  | exec_register_write : forall e s s' p content w size index_w indexb index valueb,
-      PathMap.get p e = Some (EnvRegister (index_w, w, size)) ->
+  | exec_register_write : forall e s s' p content typ size index_w indexb index new_value,
+      PathMap.get p e = Some (EnvRegister (index_w, typ, size)) ->
       PathMap.get p s = Some (ObjRegister content) ->
-      N.of_nat (List.length valueb) = w ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
-       then (PathMap.set p (ObjRegister (upd_Znth index content (ValBaseBit valueb))) s) = s'
+       then (PathMap.set p (ObjRegister (upd_Znth index content new_value)) s) = s'
        else s = s') ->
-      register_write_sem e s p nil [ValBaseBit indexb; ValBaseBit valueb] s' [] SReturnNull.
+      register_write_sem e s p nil [ValBaseBit indexb; new_value] s' [] SReturnNull.
 
 Definition register_write : extern_func := {|
   ef_class := "Register";
@@ -209,17 +213,21 @@ Definition register_write : extern_func := {|
 |}.
 
 Inductive regaction_execute_sem : extern_func_sem :=
-  | exec_regaction_execute : forall e s p content w size content' index_w indexb index reg apply_sem s' s'' old_value new_value retv,
+  | exec_regaction_execute : forall e s p content typ size content' index_w indexb index reg apply_sem s' s'' old_value new_value retv,
       PathMap.get p e = Some (EnvRegAction reg) ->
       PathMap.get (p ++ ["apply"]) e = Some (EnvAbsMet apply_sem) ->
-      PathMap.get reg e = Some (EnvRegister (index_w, w, size)) ->
+      PathMap.get reg e = Some (EnvRegister (index_w, typ, size)) ->
       PathMap.get reg s = Some (ObjRegister content) ->
       BitArith.from_lbool indexb = (index_w, index) ->
       (if ((-1 <? index) && (index <? size))
        then old_value = Znth index content
-       else old_value = ValBaseBit (to_lbool w 0)) ->
-       apply_sem s [old_value] s' [new_value; retv] SReturnNull ->
-       (if ((-1 <? index) && (index <? size))
+       else
+        match uninit_sval_of_typ None typ with
+        | Some old_value' => sval_to_val read_ndetbit old_value' old_value
+        | None => False
+        end) ->
+      apply_sem s [old_value] s' [new_value; retv] SReturnNull ->
+      (if ((-1 <? index) && (index <? size))
        then PathMap.get reg s' = Some (ObjRegister content')
             /\ s'' = PathMap.set reg (ObjRegister (upd_Znth index content' new_value)) s'
        else s'' = s /\ content = content') ->

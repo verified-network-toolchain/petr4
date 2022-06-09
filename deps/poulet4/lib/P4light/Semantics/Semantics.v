@@ -3,7 +3,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.Lists.List Coq.Program.Program
         Coq.ssr.ssrbool
         Poulet4.P4light.Syntax.Typed
-        Poulet4.P4light.Syntax.Syntax        
+        Poulet4.P4light.Syntax.Syntax
         Poulet4.Monads.Option.
 From Poulet4.Utils Require Import Utils Maps AList P4Arith.
 Require Export Poulet4.P4light.Architecture.Target
@@ -1588,6 +1588,8 @@ Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tag
           match expr with
           | ExpBool b => Some (ValBaseBool b)
           | ExpInt i => Some (eval_p4int_val i)
+          | ExpList exprs =>
+              option_map ValBaseTuple (lift_option (map (eval_expr_gen hook) exprs))
           | ExpUnaryOp op arg =>
               match eval_expr_gen hook arg with
               | Some argv => Ops.eval_unary_op op argv

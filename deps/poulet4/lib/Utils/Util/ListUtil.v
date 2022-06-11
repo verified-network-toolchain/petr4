@@ -146,6 +146,12 @@ Proof.
   try inv_Forall_cons;  try inv_Forall2_cons; intuition.
 Qed.
 
+Lemma Forall2_rev : forall {A B: Type} (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> Forall2 R (rev l1) (rev l2).
+Proof.
+  intros. induction H; simpl; auto. apply Forall2_app; auto.
+Qed.
+
 Lemma Forall_duh : forall {A : Type} (P : A -> Prop),
     (forall a, P a) -> forall l, Forall P l.
 Proof.
@@ -259,5 +265,5 @@ Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
     else intersect_string_list_aux xs ys acc
   end.
 
-Fixpoint intersect_string_list (xs ys : list string) : list string :=
+Definition intersect_string_list (xs ys : list string) : list string :=
   rev' (intersect_string_list_aux xs ys []).

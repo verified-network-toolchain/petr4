@@ -2069,12 +2069,12 @@ Definition load_prog (prog : @program tags_t) : genv_func :=
   | Program decls => fold_left (load_decl nil) decls PathMap.empty
   end.
 
-Definition conv_decl_field (fild: DeclarationField):
+Definition conv_decl_field (ge_typ : genv_typ) (fild: DeclarationField):
     (P4String.t tags_t * @P4Type tags_t) :=
-  match fild with | MkDeclarationField tags typ name => (name, typ) end.
+  match fild with | MkDeclarationField tags typ name => (name, force dummy_type (get_real_type ge_typ typ)) end.
 
-Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
-  fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
+Definition conv_decl_fields (ge_typ : genv_typ) (l: list DeclarationField): P4String.AList tags_t P4Type :=
+  fold_right (fun fild l' => cons (conv_decl_field ge_typ fild) l') nil l.
 
 Definition get_decl_typ_name (decl: @Declaration tags_t): option ident :=
   match decl with
@@ -2094,11 +2094,11 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
          (decl: @Declaration tags_t): option genv_typ :=
   match decl with
   | DeclHeader tags name fields =>
-    Some (IdentMap.set (str name) (TypHeader (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeader (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set (str name) (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeaderUnion (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclStruct tags name fields =>
-    Some (IdentMap.set (str name) (TypStruct (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypStruct (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclControlType tags name type_params params =>
     Some (IdentMap.set (str name) (TypControl (MkControlType type_params params)) ge_typ)
   | DeclParserType tags name type_params params =>

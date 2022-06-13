@@ -466,21 +466,19 @@ Definition values_match_set (keys: list Val) (valset: ValSetT): bool :=
     | VSTProd l => 
         if negb (List.length l =? List.length keys)%nat then dummy_bool
         else
-          let res := List.map values_match_set'' (List.combine keys l) in 
-          match count_bool res dummy_bool, count_bool res false with 
-          | O, O => true 
-          | O, _ => false 
-          | _, _ => dummy_bool
+          let res := List.map values_match_set'' (List.combine keys l) in
+          match count_bool res false with
+          | O => true
+          | _ => false
           end
     | _ => values_match_set'' (List.hd ValBaseNull keys, valset)
     end in
-  match valset with 
-  | VSTValueSet _ _ sets => 
+  match valset with
+  | VSTValueSet _ _ sets =>
       let res := List.map (values_match_set' keys) sets in 
-      match count_bool res dummy_bool, count_bool res true with 
-      | O, O => false 
-      | O, _ => true
-      | _, _ => dummy_bool
+      match count_bool res true with 
+      | O => false
+      | _ => true
       end
   | _ => values_match_set' keys valset
   end.

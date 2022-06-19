@@ -14,7 +14,7 @@ From Poulet4.P4light.Syntax Require Import
 From Poulet4.P4light.Semantics Require Import Ops.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
-From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith.
+From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith Hash.
 
 Import ListNotations.
 Open Scope Z_scope.
@@ -123,6 +123,8 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
 
+  (* CRCPolynomial and Hash also accept ints (already confirmed in Tofino) 
+     To implement this, need to save the output type in Hash. *)
   else if String.eqb class "CRCPolynomial" then
     match targs, args with
     | [TypBit w],
@@ -133,8 +135,14 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
            inr (ValBaseBit init);
            inr (ValBaseBit xor)
           ] =>
-        (PathMap.set p (EnvCRCPolynomial
-          (mk_CRC_polynomial w coeff reversed msb extended init xor)) e, s)
+        if (N.eqb w (N.of_nat (List.length coeff))) &&
+           (N.eqb w (N.of_nat (List.length init))) &&
+           (N.eqb w (N.of_nat (List.length xor))) 
+        then
+          (PathMap.set p (EnvCRCPolynomial
+            (mk_CRC_polynomial w coeff reversed msb extended init xor)) e, s)
+        else
+          (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     | _, _ => (PathMap.set p dummy_env_object e, PathMap.set p dummy_object s) (* fail *)
     end
 
@@ -144,8 +152,11 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
     | [TypBit w; TypBit pw], [inr (ValBaseEnumField "HashAlgorithm_t" "CUSTOM"); inl poly_path] =>
         let poly :=
           match PathMap.get poly_path e with
-          | Some (EnvCRCPolynomial poly) => poly
-          | _ => dummy_CRC_polynomial
+          | Some (EnvCRCPolynomial poly) => 
+            if N.eqb (CRCP_width poly) pw 
+            then poly 
+            else dummy_CRC_polynomial (* fail *)
+          | _ => dummy_CRC_polynomial (* fail *)
           end in
         (PathMap.set p (EnvHash (w, poly)) e, s)
     (* For other kinds of HashAlgorithm_t, we only need to fill in corresponding polynomials. *)
@@ -276,6 +287,70 @@ Definition packet_out_emit : extern_func := {|
   ef_class := "packet_out";
   ef_func := "emit";
   ef_sem := packet_out_emit_sem
+|}.
+
+Definition val_to_bits (v : Val) : option (list bool) :=
+  match v with
+  | ValBaseBool b => Some [b]
+  | ValBaseBit value => Some value
+  | ValBaseInt value => Some value
+  | ValBaseVarbit _ value => Some value
+  | _ => None
+  end.
+
+Definition concat_tuple (vs : list Val) : option (list bool) :=
+  option_map (@concat bool) (lift_option (map val_to_bits vs)).
+
+(* The following values are likely also accepted as arguments, 
+   need preprocessing to work:
+     ValBaseStruct (tested)
+     ValBaseHeader
+     ValBaseUnion
+     ValBaseStack 
+     ValBaseSenumField (tested) *)
+Definition convert_to_bits (v: Val) : option (list bool) :=
+  match v with
+  | ValBaseBool _ 
+  | ValBaseBit _ 
+  | ValBaseInt _ 
+  | ValBaseVarbit _ _ => val_to_bits v
+  | ValBaseTuple values => concat_tuple values
+  | _ => None
+  end.
+
+Definition repeat_concat_list {A} (num: nat) (l: list A) : list A :=
+  let fix repeat_concat_list' num (l res: list A) :=
+    match num with 
+    | O => res
+    | S num' => repeat_concat_list' num' l (app l res)
+    end in 
+  repeat_concat_list' num l [].
+
+Definition extend_hash_output (hash_w: N) (output: list bool) : Val :=
+  let output_w := N.of_nat (List.length output) in 
+  let num_copies := N.div hash_w output_w in 
+  let num_remainder := Z.of_N (N.modulo hash_w output_w) in
+  let lsbs := repeat_concat_list (N.to_nat num_copies) output in 
+  let msbs := sublist (Z.of_N output_w - num_remainder) (Z.of_N output_w) output in 
+  ValBaseBit (app msbs lsbs).
+
+Definition lbool_to_hex (input: list bool) :=
+  N.to_hex_uint (Z.to_N (snd (BitArith.from_lbool input))).
+
+Inductive hash_get_sem : extern_func_sem :=
+  | exec_hash_get_sem : forall  e s p hash_w poly typs v input output,
+    PathMap.get p e = Some (EnvHash (hash_w, poly)) ->
+    convert_to_bits v = Some input ->
+    extend_hash_output hash_w (compute_crc (N.to_nat (CRCP_width poly)) (lbool_to_hex (CRCP_coeff poly)) 
+      (lbool_to_hex (CRCP_init poly)) (lbool_to_hex (CRCP_xor poly))
+      (CRCP_reversed poly) (CRCP_reversed poly) input) = output ->
+    (* CRCP_msb, CRCP_extended: behavior waiting for response *)
+    hash_get_sem e s p typs [v] s [output] SReturnNull.
+
+Definition hash_get : extern_func := {|
+  ef_class := "Hash";
+  ef_func := "get";
+  ef_sem := hash_get_sem
 |}.
 
 (* This only works when tags_t is a unit type. *)

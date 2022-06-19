@@ -12,7 +12,7 @@ From Poulet4.P4light.Syntax Require Import
 From Poulet4.P4light.Semantics Require Import Ops Hash.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
-From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith.
+From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith Hash.
 Import ListNotations.
 Open Scope Z_scope.
 Open Scope string_scope.

@@ -2524,6 +2524,10 @@ and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
        let open Expression in
        begin match List.find ~f:matches fs with
        | Some field -> field.typ
+                         (* TODO: DISCUSSION. THIS WILL ALWAYS FAIL. expr_typ is either
+                         header, header_union or struct. so it will never be array.
+                         while type_expression_member_builtin only returns non-fail
+                         for array. *)
        | None -> type_expression_member_builtin env ctx (tags expr) expr_typ name
        end
     | SpecializedType { base = Extern { name = extern_name }; args } ->
@@ -2610,6 +2614,12 @@ and match_params_to_args call_site_tags params (args: Argument.t list) : (Typed.
   | Some `Named ->
      match_named_args_to_params call_site_tags params args
 
+(* matches arguments to parameters based on position and returns [(parameter, option expression)].
+   if an argument is missing, it bundles up the parameter to none.
+   if the argument list becomes empty but there are still parameters, it checks if
+   the parameter has opt_value, if so it bundles the parameter with an expression that has the
+   value of opt_value. if the parameter doesn't have opt_value, it checks if the parameter is
+   optional, if so, it bundles up the parameter with a missing argument. ow., it raises an error.*)
 and match_positional_args_to_params call_site_tags params args =
   let conv param arg =
     let open Types.Argument in
@@ -2639,6 +2649,13 @@ and match_positional_args_to_params call_site_tags params args =
   in
   go params args
 
+(* matches the arguments to parameters based on parameter names.
+   if the parameter and argument have the same name it bundles up the parameter name and the
+   argument value.
+   if the parameter has opt_value and there is no argument with the name of parameter it
+   bundles up the parameter name with its opt_value. but if the paremeter doesn't have
+   opt_value and is optional, it bundles up the parameter name with none. ow., it raises a
+   mismatch error. *)
 and match_named_args_to_params call_site_tags (params: Typed.Parameter.t list) args =
   let open Types.Argument in
   let open Typed.Parameter in
@@ -2751,10 +2768,7 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | _, Builtin -> true
   end
 
-(* TODO
-
-
-*)
+(* TODO *)
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
   (* Printf.printf "we're here!!!"; *)

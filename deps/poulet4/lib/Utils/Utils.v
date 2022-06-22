@@ -74,6 +74,8 @@ Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list
     end
   end.
 
+Compute list_slice_nat [1;2;3] 0 (3)%nat.
+
 Definition index_z_error {A} (xs: list A) (i: Z) : option A.
 Admitted.
 
@@ -234,3 +236,9 @@ Proof.
       * inversion H.
     + inversion H.
 Qed.
+
+Definition fold_andb (l : list bool) :=
+  fold_left andb l true.
+
+Definition fold_orb (l : list bool) :=
+  fold_left orb l false.

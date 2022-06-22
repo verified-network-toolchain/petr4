@@ -522,9 +522,6 @@ Definition values_match_range (key: Val) (lo hi: Val): bool :=
   | _, _, _ => dummy_bool
   end.
 
-Definition count_bool (l: list bool) (a: bool) : nat :=
-  List.length (List.filter (fun elem => Bool.eqb a elem) l).
-
 Definition values_match_set (keys: list Val) (valset: ValSetT): bool :=
   let values_match_set'' (key_valset: Val * ValSetT) := 
     let (key, valset) := key_valset in 
@@ -540,28 +537,13 @@ Definition values_match_set (keys: list Val) (valset: ValSetT): bool :=
     match valset with 
     | VSTProd l => 
         if negb (List.length l =? List.length keys)%nat then dummy_bool
-        else
-          let res := List.map values_match_set'' (List.combine keys l) in
-          match count_bool res false with
-          | O => true
-          | _ => false
-          end
+        else fold_andb (List.map values_match_set'' (List.combine keys l)) 
     | _ => values_match_set'' (List.hd ValBaseNull keys, valset)
     end in
   match valset with
   | VSTValueSet _ _ sets =>
-      let res := List.map (values_match_set' keys) sets in 
-      match count_bool res true with 
-      | O => false
-      | _ => true
-      end
+      fold_orb (List.map (values_match_set' keys) sets)
   | _ => values_match_set' keys valset
-  end.
-
-Definition is_true (b: bool): bool :=
-  match b with
-  | true => true
-  | _ => false
   end.
 
 Definition extern_matches (key: list (Val * ident)) (entries: list table_entry_valset) : list (bool * action_ref) :=
@@ -575,7 +557,7 @@ Definition extern_matches (key: list (Val * ident)) (entries: list table_entry_v
       if (lpm_idx <? List.length mks)%nat
       then sort_lpm entries' lpm_idx
       else entries' in
-    List.map (fun s => (is_true (values_match_set ks (fst s)), snd s)) entries''
+    List.map (fun s => (values_match_set ks (fst s), snd s)) entries''
   end.
 
 

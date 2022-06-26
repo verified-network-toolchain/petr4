@@ -14,8 +14,8 @@ Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
 From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith Hash.
 Import ListNotations.
-Open Scope Z_scope.
 Open Scope string_scope.
+Open Scope Z_scope.
 
 Section V1Model.
 

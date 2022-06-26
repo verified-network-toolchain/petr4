@@ -677,7 +677,6 @@ Lemma Z_odd_pow_2_S:
   forall (n : nat) (v : Z), Z.odd (v mod 2 ^ Z.of_nat (S n)) = Z.odd v.
 Proof.
   intros n v. rewrite !Zodd_mod. f_equal. rewrite <- Znumtheory.Zmod_div_mod; try lia.
-  - apply Z.pow_pos_nonneg; lia.
   - exists (2 ^ Z.of_nat n). rewrite Nat2Z.inj_succ. rewrite Z.pow_succ_r; lia.
 Qed.
 
@@ -690,7 +689,7 @@ Proof.
   rewrite nil_to_lbool'. rewrite (nil_to_lbool' _ _ [Z.odd v]). f_equal.
   - rewrite <- (IHn (v / 2)). f_equal. rewrite Nat2Z.inj_succ.
     rewrite Z.pow_succ_r by lia. rewrite Z.rem_mul_r; try lia.
-    2: apply Z.pow_pos_nonneg; lia. rewrite Z.mul_comm. rewrite Z.div_add by lia.
+    rewrite Z.mul_comm. rewrite Z.div_add by lia.
     rewrite Zmod_div. lia.
   - f_equal. apply Z_odd_pow_2_S.
 

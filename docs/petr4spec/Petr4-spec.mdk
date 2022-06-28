@@ -3,6 +3,8 @@ Title Footer  : &date;
 Author        : Petr4 Team
 Affiliation   : Cornell University
 Heading depth : 5
+Cite Style    : numeric
+BibTex        : False
 
 Math Mode       : static
 Pdf Latex       : xelatex
@@ -10,8 +12,7 @@ Math Latex Full : pdflatex
 
 Document Class : [11pt]article
 
-Package : amssymb
-Package : amscd
+Package : mathtools
 Package : fancyhdr
 Package : mathpartir
 
@@ -19,6 +20,10 @@ Package : mathpartir
 Tex Header:
   \setlength{\headheight}{30pt}
   \renewcommand{\footrulewidth}{0.5pt}
+
+.code: background-color=Gainsboro
+.code2: background-color=LightCoral
+.code3: background-color=Fuchsia
 
 @if html {
 body.madoko {
@@ -143,15 +148,98 @@ p4grammar {
 }
 }
 
+@if html {
+infrule {
+  replace: "~ Begin InfRuleBlock&nl;\
+              ~~ Center {padding:1ex}&nl;\
+              ~~~ Snippet&nl;\
+              \begin{mathpar}&nl;\
+              \small&nl;\
+              &source;&nl;\
+              \end{mathpar}&nl;\
+              ~~~&nl;\
+              ~~&nl;\
+              ~ End InfRuleBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #fffaf0;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+infrule {
+  replace: "~ Begin InfRuleBlock&nl;\
+              ~~ Center {padding:1ex}&nl;\
+              ~~~ Snippet&nl;\
+              \begin{mathpar}&nl;\
+              \small&nl;\
+              &source;&nl;\
+              \end{mathpar}&nl;\
+              ~~~&nl;\
+              ~~&nl;\
+              ~ End InfRuleBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #fffaf0;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+@if html {
+infrulehelper {
+  replace: "~ Begin InfRuleHelperBlock&nl;\
+              ~~ Center {padding:1ex}&nl;\
+              ~~~ Snippet&nl;\
+              \begin{mathpar}&nl;\
+              \small&nl;\
+              &source;&nl;\
+              \end{mathpar}&nl;\
+              ~~~&nl;\
+              ~~&nl;\
+              ~ End InfRuleHelperBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #ECE1FB;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+infrulehelper {
+  replace: "~ Begin InfRuleHelperBlock&nl;\
+              ~~ Center {padding:1ex}&nl;\
+              ~~~ Snippet&nl;\
+              \begin{mathpar}&nl;\
+              \small&nl;\
+              &source;&nl;\
+              \end{mathpar}&nl;\
+              ~~~&nl;\
+              ~~&nl;\
+              ~ End InfRuleHelperBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #ECE1FB;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+
 ~Aligned : replace:"~Math&nl;\begin{aligned}&nl;&source;&nl;\end{aligned}&nl;~" 
 
 
 [TITLE]
 
-~ TexRaw
-\mdDefineUnicode{10214}{\ensuremath{\llbracket}}
-\mdDefineUnicode{10215}{\ensuremath{\rrbracket}}
-~
 
 ~ Begin Abstract
 P4 is a language for programming the data plane of network
@@ -171,32 +259,62 @@ limitations.
 [INCLUDE="ops.tex"]
 ~
 
+~ Bibliography { caption:"00" }
+~~Bibitem {#harper-types-PL}
+Rober Harper.
+Types and Prgarmming Languages.
+<http://www.cs.cmu.edu/~rwh/courses/typesys/>
+~~
+~~Bibitem {#wiki-type-sys}
+Type System.
+<https://en.wikipedia.org/wiki/Type_system>
+~~
+~
+
 [TOC]
 
 # Overview { #sec-overview }
 
-This document defines the type system of Petr4. The type system
-conducts three tasks simultaneously:
+This document recognizes the need for having a formal type system for Petr4 and
+defines such type system. It is organized as follows:
 
-1. It type checks P4 programs.
-2. It conducts type inference.
-3. It does a pass from the surface syntax to the first IR. 
+- It first expresses the need to have a formal type system for P4 and familiarizes the
+reader with the concept of a type system, its role in language design, and how to read
+and understand a type system (Section [#sec-note-type-sys]).
+- It then focuses on the architecture of Petr4 and points out the part that this document focues on (Section [#sec-arch]).
+- It also describes the structure of Petr4's type system (Section [#sec-petr4-type-sys]) and defines the metavariables used throughout this document (Section [#sec-metavar]).
+- For those interested, it connects the formalziation in this document to the impelemntation of Petr4 (Section [#sec-conn]).
 
+## Brief Notes on Type System { #sec-note-type-sys }
 
-## Connecting To The Implementation { #sec-conn }
+It is important that the reader understands the reason for having a type system and what its role is.
+You can simply think of types as a set of language elements that share some features.
+For example, the type natural number is the set of numbers that is either zero or an increment of zero for multiple repetitions.
+Grouping language elements into a set (called type) abstracts out some unncessary details when reasoning about programs.
+That is why [@harper-types-PL] states: "The central organizing principle of language desing is the dientitfication of language features with types."
 
-The following locates each data type in the implementation
-(<https://github.com/verified-network-toolchain/petr4>):
+A simple reasoning about programs of a language can be done by a _type system_. 
+A _type system_ is a collection of rules that assign a property called type to the various language constructs, such as variables, functions, expression, etc[@wiki-type-sys].
+A type system formally defines many aspects of a programming language. 
+Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain errors in well-typed programs. 
 
-- The surface AST is _types.program_
-- The type of programs of the surface syntax is _types.type.t_
-- The first IR is _prog.program_
-- The type of the first IR is _prog.type.t_
-- The type system is implemented in _checker.ml_ file. 
+Additionally, it is important for the reader to be able to read and understand inference rules.
+A type system is made up of typing _rules_ that each has a specific _judgment form_.
+A typing rule, in essence, is an _inference rule_.
+An inference rule contains zero or more _premises_ above the line
+and one _conclusion_ below the line
+with the name of the rule on top or next to the line.
+For example, the rule $\ruleName$ below reads as
+$C$ is concluded if premises $A$ and $B$ hold.
 
-For simplicity, we have removed the information that is needed to report when an error
-happens. Such information is passed around in the surface syntax as a field (called
-`tags`) of record for all data types.
+~ Begin InfRule
+  \inferrule[\ruleName]
+    {A \\ B}
+    {C}
+~ End InfRule
+
+A rule without the line and premises above it is called an _axiom_ and it states that
+the conclusion holds uncoditionally.
 
 ## Architecture { #sec-arch }
 
@@ -214,345 +332,582 @@ program is evaluated.
 ~
 [arch]: figs/petr4/arch.png { width: 100%; page-align: forcehere }
 
-# Type System
 
-A P4 program is mainly a list of declarations. A declaration could be declaring a
+## Petr4's Type System { #sec-petr4-type-sys }
+
+A P4 program is mainly a list of declarations and a declaration could be declaring a
 parser or control plane, instantiating an object, calling a (extern) function or method,
 and defining a type or an object. Each declaration may contain multiple statements and
-expressions within it. Thus, Petr4's type system contains multiple typing judgments for
-three main categories:
+expressions within it.
+ Thus, Petr4's type system contains multiple typing judgments for
+four main categories:
+[types][#sec-types-typing],
 [expressions][#sec-exp-typing],
 [statements][#sec-stmt-typing],
 and [declarations][#sec-decl-typing].
-In addition, types themselves have judgments for checking their [well-formness][#sec-type-well-formed] and [equality][#sec-type-eq].
+
 Each typing judgment may use auxiliary judgment and helper functions. The auxiliary
 judgments are included in this document while the helper functions are just explained
 in plain English.
 
-**PL Note:**
-A _type system_ is made up of typing _judgments_
-and each typing judgment contains multiple
-_typing rules_. A typing rule, in essence, is an _inference rule_.
-An inference rule contains zero or more _propositions_ above the line
-and one _conclusion_ below the line
-with the name of the rule on top or next to the line.
-For example, the rule $RuleName$ below reads as
-$C$ is concluded if propositions $A$ and $B$ hold.
+Conventionally, in this document we accompany rule names with four possible suffixes:
 
-~ Center  {padding:1ex} 
-~~ Snippet
-\begin{mathpar}
+- $\ruleNameT$ indicates that the rule is describing a rule for a type
+- $\ruleNameE$ and $\ruleNameAE$ indicate that the rules are for an expression and an auxiliary judgment for an expression
+- $\ruleNameS$ indicates that the rule is describing a rule for a statement
+- $\ruleNameD$ indicates that the rule is describing a rule for a declaration
 
-  \inferrule[RuleName]
-    {A \\ B}
-    {C}
+The type system conducts three tasks simultaneously:
 
-\end{mathpar}
-~~
+1. It type checks P4 programs.
+2. It conducts type inference.
+3. It does a pass from the surface syntax to the first IR.
+
+```**TODO** maybe have more explanation on IR.```
+
+
+### Metavariables { #sec-metavar }
+
+Metavariables are place holders for values of a type. For example, $\bool$ stands for expressions $true$ or $false$. Keep in mind that $true$ and $false$ both are expressions that have the type $\boolTyp$. As another example, in most programming references $foo$, $bar$, and $baz$ are used as metavariables, often for functions. 
+
+We use the notation of $\overline {\mathit{something}}$ to denote a list of $\mathit{something}$s.
+
+The following describes the metavariables used in this document:
+
+~ Center
+| **metavariable**   |   **type represented** |
+|:----------------:|:------------------|
+| $\bool$ | booleans |
+| $\str$ | strings |
+| $\int$ | arbitrary length integer |
+| $\bitWidth \bit \width$ | fixed length integer |
+| $\intWidth \int \width$ | signed integer |
+| $\name$ | strings represing any kinds of names |
+| $\typ$ | types |
+| $\dir$ | directions |
+| $\typVar$ | type variables |
+| $\field$ | field names |
+| $\env$ | environments |
+| $\emp$ | empty list of elements |
 ~
 
-## Expression's Typing Rules { #sec-exp-typing }
+## Connecting To The Implementation { #sec-conn }
 
-The judgment $\expenv {\exp} {\prim \exp} \typ \dir $ states that expression $\exp$
+The following locates each data type in the implementation
+(<https://github.com/verified-network-toolchain/petr4>):
+
+- The surface AST is _types.program_
+- The type of programs of the surface syntax is _types.type.t_
+- The first IR is _prog.program_
+- The type of the first IR is _prog.type.t_
+- The type system is implemented in _checker.ml_ file. 
+
+For simplicity, we have removed the information that is needed to report when an error
+happens. Such information is passed around in the surface syntax as a field (called
+`tags`) of record for all data types.
+
+# Type Related Judgments { #sec-types-typing }
+
+Types themselves are elements of a language and it is often needed to ensure the lack of specific errors in types, such a type is called _well-formed type_.
+Additionally, it is sometimes required to check two types for equality. Petr4's type equality considers alpha equivalent[^alpha-equiv-wiki] types equal. 
+
+[^alpha-equiv-wiki]: <<https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence>>
+
+
+## Type Well-Formed Judgment { #sec-type-well-formed }
+
+This judgment checks if a type is well-formed. Note that this judgment is defined over the types defined in the IR and not the surface syntax.
+It has the form $\typWellFormed \typ$ which states that the type $\typ$
+is well-formed under the environment $\env$, that is, the type is syntactically correct.
+
+All typing rules first saturate all types and then checks well-formedness.
+For breviety, we don't include the saturation in rules.
+
+### Base Types { #sec-base-t }
+
+The following base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any arguement so there is no room to construct a value incorrectly.
+
+~ Begin InfRule
+
+  \inferrule[\boolT]
+     {}
+     { \typWellFormed \boolTyp }
+
+  \inferrule[\stringT]
+     {}
+     { \typWellFormed \stringTyp }
+
+  \inferrule[\intT]
+     {}
+     { \typWellFormed \integerTyp }
+
+  \inferrule[\varbitT]
+     {}
+     { \typWellFormed {\varBitTyp \width} }
+
+  \inferrule[\errT]
+     {}
+     { \typWellFormed \errTyp}
+
+  \inferrule[\voidT]
+     {}
+     { \typWellFormed \voidTyp}
+
+  \inferrule[\matchKindT]
+     {}
+     { \typWellFormed \matchKindTyp}
+
+~ End InfRule
+
+``**DISCUSSION**
+Petr4 doesn't check the length of a fixed-length integer, either signed or unsigned. However, P4 spec specifies that for signed integers the length must be more than 1 and for unsigned integers the length must be equal or more than zero.``
+
+~ Begin InfRule
+
+  \inferrule[\intWidthT]
+     % { 1 < \width} % p4 spec has this
+     {}
+     { \typWellFormed {\intWidthTyp \width} }
+
+  \inferrule[\bitWidthT]
+     % { 0 \leq \width} % p4 spec has this
+     {}
+     { \typWellFormed {\bitWidthTyp \width} }
+
+~ End InfRule
+
+### Array Type { #sec-array-t }
+
+An array type has a specific type and size.
+The rule $\arrayT$ states that under environment $\env$ an array is well-formed if its
+type is well-formed and it follows the nesting rules of P4.
+
+- $\isValidNestedTyp {\typ_1} {\typ_2}$ outer inner checks whether a nested type is taking valid types as its outer ($\typ_1$) and outer ($\typ_2$) types based on [P4's description of type nesting rules][sec7-2-7].
+
+[sec7-2-7]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-type-nesting 
+
+~ Begin InfRule
+
+  \inferrule[\arrayT]
+     { \typWellFormed \typ \\
+       \isValidNestedTyp {\arrayTyp \typ \size} {\typ}}
+     { \typWellFormed {\arrayTyp \typ \size} }
+
+~ End InfRule
+
+### Tuple Type { #sec-tuple-t }
+
+Each element of a tuple can have a distinct type so a tuple type is simply a list of types. Note that lists also have a tuple type. The rule $\tupleT$ states that under
+environment $\env$ a tuple type is well-formed if all its types are well-formed and it
+follows the nesting typing rules of P4. 
+
+~ Begin InfRule
+
+  \inferrule[\tupleT]
+     { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+       1 \leq i \leq n.  \isValidNestedTyp {\tupleTyp {\typ_1} {\typ_n}} {\typ_i}}
+     { \typWellFormed {\tupleTyp {\typ_1} {\typ_n}} }
+
+  % \inferrule[List]
+  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+  %      1 \leq i \leq n.  \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
+  %    { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
+
+~ End InfRule
+
+### Set Type { #sec-set-t }
+
+In P4, unlike tuples, elements of a set must all have the same type and the set type is well-formed if the type of its elements is well-formed, which is stated by the $\setT$ rule.
+
+~ Begin InfRule
+
+  \inferrule[\setT]
+     { \typWellFormed \typ }
+     { \typWellFormed {\setTyp \typ} }
+
+~ End InfRule
+
+### Enumeration Type { #sec-enum-t }
+
+An enumeration type contains a number of constants of string type and its declaration introduces a new identifier in the current naming scope. It could also have an underlying representation which states what is the type of its constants.
+The rules below state that an enum type is well-formed if the underlying representation is well-formed, if it has one. 
+
+
+``**DISCREPENCY**``
+Petr4 doesn't allow for an enum to have default values for constants, however, P4 spec does. Here's an [example][enum-ex].
+
+[enum-ex]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-enum-types
+
+
+~ Begin InfRule
+
+  \inferrule[\enumOneT]
+     {}
+     { \typWellFormed \enumTypNoTyp }
+
+  \inferrule[\enumTwoT]
+     { \typWellFormed \typ }
+     { \typWellFormed \enumTyp }
+
+~ End InfRule
+
+### Record Type { #sec-record-t }
+
+A record has zero or more fields, which each field has a name and a type.
+The rule $\recordT$ states that a record type is well-formed if all its fields have well-formed types, all fields have types that can be nested in a record, and fields have distinct names. 
+
+Note that headers, header unions, and struct also have a record type.
+
+~ Begin InfRule
+  \inferrule[\recordT]
+     { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+       1 \leq i \leq n. \isValidNestedTyp \recordTypDef {\typ_i} \\
+       1 \leq i < j \leq n. \field_i \neq \field_j}
+     { \typWellFormed \recordTypDef }
+
+  % \inferrule[HeaderUnion]
+  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+  %      1 \leq i \leq n. \isValidNestedTyp \headerUnionTyp {\typ_i} \\
+  %      % \noDup {\field_1, \ldots, \field_n}\\
+  %      1 \leq i < j \leq n. \field_i \neq \field_j}
+  %    { \typWellFormed \headerUnionTyp }
+
+  % \inferrule[Struct]
+  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+  %      1 \leq i \leq n. \isValidNestedTyp \structTypDef {\typ_i} \\
+  %      1 \leq i < j \leq n. \field_i \neq \field_j}
+  %    { \typWellFormed \structTypDef }
+
+  % \inferrule[Header]
+  %    { 1 \leq i \leq n. \typWellFormed {\typ_i} \\
+  %      1 \leq i \leq n. \isValidNestedTyp \headerTypDef {\typ_i} \\
+  %      1 \leq i < j \leq n. \field_i \neq \field_j}
+  %    { \typWellFormed \headerTypDef }
+
+~ End InfRule
+
+### New Type Type { #sec-newtype-t }
+
+New type assings a name to a type. So the $\newTypeT$ checks if the assignee type $\typ$ is well-formed.
+
+~ Begin InfRule
+
+  \inferrule[\newTypeT]
+     { \typWellFormed \typ }
+     { \typWellFormed {\newTypeTyp \typ \name} }
+
+~ End InfRule
+
+### Specialized Type { #sec-specialized-t }
+
+An specialized type specifies the types of parameters in a generic type, the underlying generic type in an specialized type is called the base type. An specialized type is necessary when the compiler cannot infer type arguments.
+
+The rule $\specializedExternT$ states that the specialization of an extern type is well-formed if the extern $\name$ exists in the environment $\env$ and the specialization specifies the type of all its type parameters. Similarly, the rule $\specializedRestT$ states that the specialization of a package/control/parser/function is well-formed if it specifies the type of all its type parameters.
+
+- Looking up an extern in the environment (that is, $\lookupEnv \name$) returns its type parameters and methods. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
+
+- $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
+
+~ Begin InfRule
+
+  \inferrule[\specializedExternT]
+     { ([\param_1, \ldots, \param_m], _)= \lookupEnv \name \\
+        1 \leq i \leq n. \typWellFormed {\typ_i} \\
+        n = m}
+     { \typWellFormed {\spcTyp {\externTyp \name} {\typ_1, \ldots, \typ_n}} }
+
+
+  \inferrule[\specializedRestT]
+     { \{\param_1, \ldots, \param_m \} = \getTypeParams \typ \\
+        1 \leq i \leq n. \typWellFormed {\typ_i} \\
+        n = m}
+     { \typWellFormed {\spcTyp \typ {\typ_1, \ldots, \typ_n}} }
+
+~ End InfRule
+
+### Package Type { #sec-package-t }
+
+A package type describes the signature of a package and it defines the type parameters and parameters of a package. It may also have wildcard parameters. ```TODO: question for Ryan, what's the purpose of them?```
+The rule $\packageT$ states that a package type is well-formed under the environment $\env$ extended with the package's type parameters if all its parameters are directionless and their types are well-formed. 
+
+- A parameter $\prm \ $ has direction $\dir$, type $\typ$, and name $\name$. 
+- $\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}$ extends the environment $\env$ with type variables $\typParams$. Note that the type inserted in the environement for type variables is a type name. 
+
+~ Begin InfRule
+
+  \inferrule[\packageT]
+     { 1 \leq i \leq n. \dir_i = \less \\
+       1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i}}
+     { \typWellFormed {\packageTyp {\typParams} {\prm 1, \ldots, \prm n} {\wildcardParams}} }
+
+~ End InfRule
+
+### Control Type { #sec-control-t }
+
+A control type is similar to a type signature of a function in that it defines the type parameters used in the control and its parameters, however, it does not have a return type. The rule $\controlT$ states that the control type is well-formed under the environment $\env$ extended with type variables $\typParams$ if all the types of its parameters are well-formed.
+
+Parsers also have a control type.
+
+``**DISCREPENCY**
+P4 spec states that "The types parser, control, and package cannot be used as types of arguments for methods, parsers, controls, tables, actions. They can be used as types for the arguments passed to constructors." We could check this in the well-formedness of types or even when we're declaring a method, parser, control, table, or action, instead of when we're defining their type (make sure we're not checking it then).`` ([p4 spec ref][parser-type])
+
+[parser-type]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-parser-control-types
+
+~ Begin InfRule
+
+  \inferrule[\controlT]
+     { 1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i}}
+       { \typWellFormed {\controlTyp {\typParams} {\prm 1, \ldots, \prm n} } }
+
+  % \inferrule[Parser]
+  %    { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
+  %      1 \leq i \leq n. \typWellFormedWithEnv {\prim \env} {\typ_i}}
+  %    { \typWellFormed {\parserTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} } }
+
+~ End InfRule
+
+### Extern Type { #sec-extern-t }
+
+The rule $\externT$ states that an extern type is well-formed if it has no type parameter in the environment. 
+lookup extern in env returns an externMethods type which includes a list of strings as
+type parameters which must be empty for it to be well-typed and a function type which doesn't care for function type.
+
+```**DISCUSSION**
+This seems way too simple and loose.```
+
+~ Begin InfRule
+
+  \inferrule[\externT]
+     { ([], _ ) =\lookupEnv \name }
+     { \typWellFormed {\externTyp \name} }
+
+~ End InfRule
+
+### Function Type { #sec-func-t }
+
+A function type describes the return type of the function, its type parameters, and its parameters. The rule $\functionT$ states that the function type is well-formed if its return type is well-formed and the types of its parameters are well-formed under environment $\env$ extended with function's type parameters. 
+
+~ Begin InfRule
+
+  \inferrule[\functionT]
+     { \typWellFormed \typ \\
+       1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i} }
+     % <return type> <function name>(x1,...,xn) {...}
+     { \typWellFormed {\funcTyp \typ {\typParams} {\prm 1, \ldots, \prm n}} }
+
+~ End InfRule
+
+### Action Type { #sec-action-t }
+
+An action type defines data and control parameters and it is well-formed if the types of all parameters are well-formed and the control parameters are directionless.
+
+~ Begin InfRule
+
+  \inferrule[\actionT]
+     { 1 \leq k \leq n. \typWellFormed {\typ_k} \\
+       i < k \leq n. \dir_k = \less }
+     { \typWellFormed {\actionTyp {\prm 1, \ldots, \prm i} {\prm {i+1}, \ldots, \prm n}} }
+
+~ End InfRule
+
+### Constructor Type { #sec-constructor-t }
+
+The rule $\constructorT$ states that a constructor type is well-formed if its return type $\typ$ is well formed and the types of its parameters are well-formed under the environment $\env$ extended with the constructor's type parameters. Note that \_ indicates the wildcard parameters. 
+
+~ Begin InfRule
+
+  \inferrule[\constructorT]
+     { \typWellFormed \typ \\
+       % \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
+       1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_n} }
+     { \typWellFormed {\constructorTyp \typ \name \typParams {\prm 1, \ldots, \prm n}} }
+
+~ End InfRule
+
+### Table Type { #sec-table-t }
+
+A table type is well-formed under an environment if it exists in the environment.
+
+~ Begin InfRule
+
+  \inferrule[\tableT]
+     { \typ = \lookupEnv \name }
+     { \typWellFormed {\tableTyp \name} }
+
+~ End InfRule
+
+### Typename Type { #sec-typename-t }
+
+The rule $\typeNameT$ states that the type name $\name$ is well-formed under the environment $\env$ if it exists in the environment.
+
+~ Begin InfRule
+
+  \inferrule[\typeNameT]
+     { \typ = \lookupEnv \name }
+     { \typWellFormed {\typNameTyp \name} }
+
+~ End InfRule
+
+## Type Equality Judgment { #sec-type-eq }
+```**TODO**: refer to type_equality and solve_types functions in impl. For type equality of p4 spec refer to to section 8, under each operation there's a one liner that talks about when two types are equal for the type it's covering. ```
+
+- The [type equality judgment][#sec-type-eq] checks the equality of two types. It has
+the form $\typEqEnv {\typ_1} {\typ_2}$ which states that the types $\typ_1$ and $\typ_2$ are equaivalent under the environment $\env$.
+
+# Expression's Typing Rules { #sec-exp-typing }
+
+The judgment form
+$\expenv {\exp} {\prim \exp} \typ \dir $ states that expression $\exp$
 written in surface syntax translates to expression $\prim \exp$ in the IR syntax with
-the type $\typ$ and direction $\dir$ under enviornment $\env$. For now, we do not
+the type $\typ$ and direction $\dir$ under environment $\env$. For now, we do not
 present the syntax of the surface syntax and IR. Note that there is not much difference
-between the two. **TODO** We plan to add the abstract syntax of them in appendix later.
+between the two.
 
-Note the following notes:
+```**TODO** We plan to add the abstract syntax of them in appendix later.```
 
-- We use $\overline x$ to denote a list of $x$.
-- For simplicity, we omit mapping a function on a list of elements. Instead, we just apply the function to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list. 
+## Boolean, String, and Integer Constructor Rules
+The rule $\boolE$ states that a boolean expression in surface syntax has the type $\boolTyp$, it translates to the same boolean expression in the IR syntax, and has the $\less$ direction.
+The rules $\stringE$, $\integerE$, $\bitStringE$, and $\signedIntE$ are similar to $\boolE$. 
 
-There are multiple helper functions used in judgements that are explained below:
+~ Begin InfRule
+
+  \inferrule[\boolE]
+     {}
+     {\expenv \bool \bool \boolTyp \less}
+
+  \inferrule[\stringE]
+     {}
+     {\expenv \str \str \stringTyp \less}
+
+  \inferrule[\integerE]
+     {}
+     {\expenv \int \int \integerTyp \less}
+
+  \inferrule[\bitStringE]
+     {}
+     {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
+
+  \inferrule[\signedIntE]
+     {}
+     {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
+
+~ End InfRule
+
+## Name Rule
+
+The rule $\nameE$ looks up the name of a variable from the environment and returns its type and direction. Note that if the environment doesn't contain the name the rule will fail.
+
+- $\lookupEnv \name$ looks up a name in the environment and it returns its type and direction. When we only need the
+type or the direction of the variable we simply ignore the other one. So you could see
+formalization such as $\lookupEnv \name = \typ$ which states that we looked up variable
+$\name$ from the environment and we found out that its type is $\typ$. Similarly, the
+formalization $\lookupEnv \name = (\typ, \dir)$ states that we looked up variable
+$\name$ in the environment $\env$ and it has the type $\typ$ and direction $\dir$.
+
+~ Begin InfRule
+
+  \inferrule[\nameE]
+     {\lookupEnv \name = (\typ, \dir)}
+     {\expenv \name \name \typ \dir}
+
+~ End InfRule
+
+## Array Access Rule
+
+The rule $\arrayAccessE$ states that expression $\arrayAccess {\exp_1} {\exp_2}$
+translates to $\arrayAccess {\prim {\exp_1}} {\prim {\exp_2}}$
+when $\exp_1$ has the array type $\arrayTyp \typ \size$ and $\exp_2$ has a numeric type. 
+
+- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind/type/structure $X$.
+For example, $\isNumeric \typ$
+checks that the type $\typ$ is of numeric nature, that is, if it is fixed length signed or
+unsigned integer or arbitrary precision integer.
+
+~ Begin InfRule
+
+  \inferrule[\arrayAccessE]
+     {\expenv {\exp_1} {\prim {\exp_1}} {\arrayTyp \typ \size} \dir \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\prim \typ} {\prim \dir} \\
+      % \isArray {\arrayTyp \typ \size} \\
+      \isNumeric {\prim \typ}}
+     {\expenv {\arrayAccess {\exp_1} {\exp_2}} {\arrayAccess {\prim {\exp_1}} {\prim {\exp_2}}} \typ \dir }
+
+~ End InfRule
+
+## Bit String Access (Slice) Rule
+
+The rule $\bitStringAccessE$ states that accessing $\exp_2$ to $\exp_1$ from the bit string $\exp_1$ translates to accessing $\int_1$ to $\int_2$ from the bit string $\prim {\exp_1}$ which has the type bit string of length $\int_2 - \int_1$ if $\exp_1$ either has the type $\bitWidthTyp \width$ or $\intWidthTyp \width$ and both expressions $\exp_2$ and $\exp_3$ are of numeric types under the $\cte$ context and their values can be known at the compile time and the values respectively are $\int_1$ and $\int_2$. It only makes sense that when slicing (accessing) a bit string, the start $\int_1$ must be smaller than or equal to the end of access $\int_2$ and both must be smaller than the length of the bit string $\width$. 
 
 - $\sat \typ$ satuarates a type, that is, it eliminates all type references in type
 $\typ$ and replaces them with the type they refer to. Thus, the result of saturation
 contains no _TypeName_ constructors that are used to give a name to a new type.
-- $\lookupEnv \name$ looks up a variable (indicated with $\name$ which is the variable
-name) in the enviornment and it returns its type and direction. When we only need the
-type or the direction of the variable we simply ignore the other one. So you could see
-formalization such as $\typ = \lookupEnv \name$ which states that we looked up variable
-$\name$ from the enviornment and we found out that its type is $\typ$. Similarly, the
-formalization $(\typ, \dir) = \lookupEnv \name$ states that we looked up variable
-$\name$ in the enviornment $\env$ and it has the type $\typ$ and direction $\dir$.
-- $\mathit{is\_X} (\typ)$ checks if the type $\typ$ is of the specific kind of type $X$.
-For example, $\isArray \typ$ checks if the type $\typ$ is an array. Or $\isNumeric \typ$
-check is the type $\typ$ is of numeric nature, that is, if it is fixed length signed or
-unsigned integer or arbitrary precision integer.
-- $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
-compilation. It does so by evaluating the expression $\exp$ at compile time, if that is
-possible then we know the value at compile time. Otherwise, if the expression $\exp$ is
-a specialized type, extern, package, control, or parser but we cannot evaluate it at
-compile time we still consider it known at compile time.
-- $\reduce \typ $ saturates the type $\typ$ ... **TODO** (reduce takes a type and saturates the type first and returns the base of a specialized type by removing all its type parameters as long as the number of type params and type args match..)
-- The notation $\maybe x$ denotes an optional type, that is, the type of $x$ has been extended with bottom (maybe type in Haskell, or option type in Ocaml). So if $x$ denotes an integer $\maybe x$ could either be an integer number or bottom. 
-- $\matchParArg \params \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
-- $\validatePars \params \env \kind$ validates parameters $\params$ under the enviornment $\env$, context $\ctxt$ and the function kind $\kind$, after saturating their types. For example, it ensures that parameters of type extern are directionless, or parameters that must be compile time known are directionless. It also checks that the parameter type is well-formed and that it is a valid parameter type under a certain context (refer to the function _is\_valid\_param\_type_ to see exactly when a type is valid for a parameter).
-- $\castParArg {\overline {\param = \maybe \exp}}$ bundles up the parameter with the expression's IR representation if possible: if $\maybe \exp \neq \bot$, it bundles up the parameter with $\castExpression \typ \exp$ if the direction of the parameter is correct (refer to _check\_direction_ function). Otherwise, if the parameter type isn't void and the direction is out or parameter is optional, it bundles up the parameter with bottom.
-- $\callOK \ctxt \kind$ checks if the function kind is valid in a context (refer to _call\_ok_ function). 
-- Did I miss anything else? 
+- ```$\reduce \typ $ saturates the type $\typ$ ... **TODO** (reduce takes a type and saturates the type first and returns the base of a specialized type by removing all its type parameters as long as the number of type params and type args match..)```
+- ```$\compileTimeEval \exp$ **TODO**```
 
-Additionally, some of the typing rules use auxiliary judgments. The following is a brief
-explanatin of auxiliary judgments that are used in expression's typing rules:
+~ Begin InfRule
 
-- The [casting auxiliary judgment][#sec-cast] defines rules for implicitly
-and/or explicitly casting one type to another. Sepcifically, the judgment
-$\castenv \ {\typ_1} {\typ_2}$ states that under enviornment $\env$
-the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
-However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
-done implicitly or explicitly, respectively. 
-- The [coerce binary operation's arguments auxiliary judgment][#sec-coerce-bin-args]
-allows the operands of a binary operation to be casted to another type when applicable.
-It has the judgment form
-$\coerceBinArgsEnv {\exp} {\exp_1, \typ_1, \dir_1} {\exp_2, \typ_2, \dir_2}$
-which statees that under enviornment $\env$ and context $\ctxt$
-the expression $\exp$ written in the surface syntax has
-two operands $\exp_1$ and $\exp_2$ in the IR with types and directions
-$\typ_1$, $\typ_2$, $\dir_1$, $\dir_2$ where the types and expressions might have
-resulted from casting. 
-- The [binary operation judgment][#sec-bin-op] confirms that an expression using a
-binary operation follows the constraints of that binary operation. For example, if
-an expression is checking the equality of two subexpression it checks that both
-subexpression are of a type that equality is meaningful for it. It has the judgment
-form $\binOpEnv \exp \typ \dir $ which states that the expression $\exp$
-written in the IR is well-typed (that is, it follows all the restrictions applied to the
-binary operation $\exp$ is using) and it has the type $\typ$ and direction $\dir$.
-- The [expression memeber builtin judgment][#sec-exp-mem-builtin] is a helper judgment
-for expression member (field access) rule.
-It has the form $\fieldAccessEnv \ctxt \exp \typ {\prim \typ}$
-which states that under enviornment $\env$ and context $\ctxt$, the field $\name$
-has the type $\prim \typ$ in the expression $\exp$ of type $\typ$.
-Note that $\exp$ has to be an expression
-that contains fields, such as a struct or a header. 
-- The [type well-formedness judgment][#sec-type-well-formed] checks if a type is
-well-formed. It has the form $\typWellFormed \typ$ which states that the type $\typ$
-is well-formed under the enviornment $\env$, that is, the type is syntactically correct.
-- The [type equality judgment][#sec-type-eq] checks the equality of two types. It has
-the form $\typEqEnv {\typ_1} {\typ_2}$ which states that the types $\typ_1$ and $\typ_2$ are equaivalent under the enviornment $\env$.
-- The [function call auxiliary judgment][#sec-func-call] carries out multiple roles: 1) it checks
-if the expression $\exp$ called from the function call is a ...;
-2) it checks if the expression $\exp$ either has a function type or an action typ, and if so it returns the type parameteres, parameters, kind, and return type;
-and 3) it resolves function overload.
-It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \params \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function call with arguments $\args$ under enviornment $\env$ and context $\ctxt$ translates to expressio $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\params$, kind $\kind$, and the return type $\typ_\ret$.
-- The [infer type arguments auxiliary judgment][#sec-infer-type-args] infers the type of type parameters of a function. It has the judgment form $\inferTypParArg {\typ_\ret} {\overline {\typVar : \typ}} {\overline {\param = {\maybe \exp}}} {\overline {\prim \typVar : \prim \typ}} {\overline {\typVar : \pprim \typ}}$ which states that the type parameters $\typVars$ have the type $\pprim \typ$ under enviornment $\env$ and context $\ctxt$ with the return type of $\typ_\ret$, the assignment of type parameters $\typVars$ to types $\typs$, the assignment of parameters $\params$ to optional expressions $\maybe \exp$, and constraints $fill\ later$.
+  \inferrule[\bitStringAccessE]
+     {\expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+      \reduce {\typ_1} = \intWidthTyp \width \textOr \bitWidthTyp \width\\
+      \expenvWithCtxt \cte {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+      \isNumeric {\sat {\typ_2}} \\
+      \int_1 = \compileTimeEval {\prim {\exp_2}} \\
+      \expenvWithCtxt \cte {\exp_2} {\prim {\exp_3}} {\typ_3} {\dir_3} \\
+      \isNumeric {\sat {\typ_3}} \\
+      \int_2  = \compileTimeEval {\prim {\exp_3}} \\
+      0 \leq \int_1 < \width \\
+      \int_1 \leq \int_2 < \width
+      }
+     {\expenv {\bitStringAccess {\exp_1} {\exp_2} {\exp_3}} {\bitStringAccess {\prim {\exp_1}} {\pprim {\exp_2}} {\pprim {\exp_3}}} {\bitStringTyp {\int_2 - \int_1}} {\dir_1} }
 
-**NOTE**: I couldn't find the followings in section 8 of p4 spec:
-array access, bist string access, type member, anonymous instant (this is probably method invocation or sth).
+~ End InfRule
 
-**TODO** explanation of some of the rules. start with a couple of simple ones (bool and name), then
-intermediate (biststringaccess, record, cast) and then complicated (function call, exp mem, instantiation). 
+## List Constructor Rule
 
+The rule $\listE$ ...
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+~ Begin InfRule
 
-  \inferrule[Bool]
-     {}
-     {\expenv \bool \bool \boolTyp \less}
-
-  \inferrule[String]
-     {}
-     {\expenv \str \str \stringTyp \less}
-
-  \inferrule[Integer]
-     {}
-     {\expenv \int \int \integerTyp \less}
-
-  \inferrule[Bit]
-     {}
-     {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
-
-  \inferrule[Int]
-     {}
-     {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
-
-  \inferrule[Name]
-     {\lookupEnv \name = (\typ, \dir)}
-     {\expenv \name \name \typ \dir}
-
-  \inferrule[ArrayAccess]
-     {\expenv {\array} {\prim \array} {\arrayTyp \typ \size} \dir \\
-      \expenv \index {\prim \index} {\prim \typ} {\prim \dir} \\
-      \isArray {\arrayTyp \typ \size} \\
-      \isNumeric {\prim \typ}}
-     {\expenv {\arrayAccess \array \index} {\arrayAccess {\prim \array} {\prim \index}} \typ \dir }
-
-  \inferrule[BitStringAccess]
-     {\expenvWithCtxt \cte \high {\prim \high} {\typ_\high} {\dir_\high} \\
-      \isNumeric {\typ_\high} \\
-      \pprim \high = \compileTimeEval {\prim \high} \\
-      \expenvWithCtxt \cte \low {\prim \low} {\typ_\low} {\dir_\low} \\
-      \isNumeric {\typ_\low} \\
-      \pprim \low = \compileTimeEval {\prim \low} \\
-      0 \leq \pprim \low < \width \\
-      \pprim l \leq \pprim h < \width \\
-      \expenv \bitString {\prim \bitString} \typ \dir \\
-      \typ = \intWidthTyp \width \textOr \bitWidthTyp \width}
-     {\expenv {\bitStringAccess \bitString \low \high} {\bitStringAccess \bitString {\pprim \low} {\pprim \high}} {\bitStringTyp {\pprim \high - \pprim \low}} \dir }
-
-  \inferrule[List]
-     {1 \leq i \leq n; \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}}
+  \inferrule[\listE]
+     {1 \leq i \leq n. \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}}
      {\expenv {\list {\exp_1, \ldots, \exp_n}} {\list {\exp_1, \ldots, \exp_n}} {\listTyp {\typ_1} {\typ_n}} \less }
 
-  \inferrule[Record]
-     {1 \leq i \leq n; \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}  }
+  \inferrule[\recordE]
+     {1 \leq i \leq n. \expenv {\exp_i} {\prim {\exp_i}} {\typ_i} {\dir_i}  }
      {\expenv {\record 1 n} {\recordd 1 n {\prim \exp}} {\recordTypDef} \less  }
 
-  \inferrule[LogicalNegation]
+~ End InfRule
+
+## Unary Operations Rules
+
+~ Begin InfRule
+
+  \inferrule[\logicalNegE]
      { \expenv \exp {\prim \exp} \boolTyp \dir }
      { \expenv {!\exp} {!\prim \exp} \boolTyp \dir }
 
-  \inferrule[BitwiseComplement]
+  \inferrule[\bitwiseComplementE]
      { \expenv \exp {\prim \exp} \typ  \dir \\
        \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width}
      { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\typ} \dir }
 
-  \inferrule[UnaryMinus]
+  \inferrule[\unaryMinusE]
      { \expenv \exp {\prim \exp} \typ  \dir \\
        \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width \textOr \integerTyp}
      { \expenv {-\exp} {-\prim \exp} {\intWidthTyp \width} \dir }
 
-  \inferrule[BinaryOps]
+~ End InfRule
+
+## Binary Operations Rules
+
+~ Begin InfRule
+
+  \inferrule[\binaryOpsE]
      {\coerceBinArgsEnv {\exp_1 \oplus \exp_2} {\prim {\exp_1}} {\prim {\exp_2}} \\
       \binOpEnv {\prim {\exp_1} \oplus \prim {\exp_2}} \typ \dir }
      { \expenv {\exp_1 \oplus \exp_2} {\prim {\exp_1} \oplus \prim {\exp_2}} \typ \dir }
 
-\end{mathpar}
-~~
-~
-
-~ Center  {padding:1ex} 
-~~ Snippet
-\begin{mathpar}
-  \small
-
-  \inferrule[Cast]
-     { \expenv \exp {\exp_1} {\typ_1} \dir \\
-       \typ_2 = \sat {\typ_1} \\
-       \typ_3 = \trans {\typ_2} {\emp} \\
-       \typ_4 = \sat {\typ_3} \\
-       \typWellFormed {\typ_3} \\
-       \explicitCastOK {\typ_1} {\typ_3}}
-     { \expenv {\cast \typ \exp} {\cast {\typ_1} {\exp_1}} {\typ_3} \less  }
-
-  \inferrule[TypeMember]
-     {\lookupEnv {\typMem \typ \name} = (\typ, \dir)  }
-     {\expenv {\typMem \typ \name} {\typMem \typ \name} \typ \less  }
-
-  \inferrule[ErrorMember]
-     {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
-     {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
-
-  \inferrule[ExpressionMember]
-     { \expenv \exp {\prim \exp} {\typ} \dir \\
-       \prim \typ = \reduce \typ \\
-       % \structTypDef = \prim \typ\\
-       \fieldAccessEnv \ctxt {\prim \typ} {\pprim \typ}
-       }
-     { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
-
-  \inferrule[Ternary]
-     {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
-      \expenv {\exp_2} {\prim {\exp_2}} {\typ_1} {\dir_2} \\
-      \expenv {\exp_3} {\prim {\exp_3}} {\typ_2} {\dir_3}\\
-      \typ_1 = \typ_2 \\
-      \typ_1 \neq \integerTyp}
-     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
-
-  % \inferrule[ Ternary(AllowedInP4ButNotePetr4)]
-     % {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
-     %  \expenv {\exp_2} {\prim {\exp_2}} {\integerTyp} {\dir_2} \\
-     %  \expenv {\exp_3} {\prim {\exp_3}} {\integerTyp} {\dir_3}\\
-     %  % \typ_1 = \typ_2 \\
-     %  % \typ_1 \eq \integerTyp \\
-     %  \compTimeKnown {\exp_1}}
-     % {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
-
-
-  \inferrule[FunctionCall]
-     {
-       \resolveFuncOver \exp \args {\prim \exp} \typVars \params \kind {\typ_\ret} \\
-       % \expenv \exp {\prim \exp} {\funcType \kind \typVars {\prm 1, \ldots, \prm n} {\typ_\ret}}\\
-       \overline {\prim \typ} = \trans \typs \emp \\
-       % \match \params \args\\
-       |\typs| = |\typVars|\\
-       \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
-       {\prim \typ}_{\ret} = \sat {\typ_\ret} \\
-       \overline {\param = \pprim {\maybe \exp}} = \matchParArg \params \args\\
-       \inferTypParArg {\typ_\ret} {\overline {\typVar : \prim \typ}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar : \prim \typ}} {\overline {\typVar : \pprim \typ}}\\
-       \validatePars {\params} {\addTypEnvv {\overline {\typVar : \pprim \typ}} } \kind \\
-       \overline {\param = \maybe {(\ppprim \exp, \ppprim \typ, \dir)}} = \castParArg {\overline {\param = \pprim {\maybe \exp}}}\\ 
-       \callOK \ctxt \kind 
-       }
-     { \expenv {\funcCall \exp \typs \args} {\funcCall {\prim \exp} {\overline {\pprim \typ}} {\overline{\maybe {(\ppprim \exp, \ppprim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
-
-  \inferrule[AnonymousInstantiation]
-     { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
-     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
-
-  \inferrule[AnonymousInstatnt2]
-     { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
-     { \expenv {\instantiation {\name} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir }
-
-  \inferrule[Mask]
-     {\expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
-      \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
-      \left( \so {\typ_1 = \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right) \\
-      \textOr
-      \left( \so {\typ_1 = \typ_2 = \integerTyp} {\typ = \integerTyp}\right) \\
-      \textOr
-      \left( \so {\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp} {\typ = \bitWidthTyp \width}\right) \\
-      \textOr
-      \left( \so {\typ_1 = \integerTyp, \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right)
-      }
-     {\expenv {\mask {\exp_1} {\exp_2}} {\mask {\prim \exp_1} {\prim \exp_2}} {\setTyp \typ} \less  }
-
-  \inferrule[Range]
-     { \expenv \low {\prim \low} \typ {\dir_\low} \\
-       \expenv \high {\prim \high} \typ {\dir_\high} \\
-       \typ_\low = \typ_\high = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
-     { \expenv {\range \low \high} {\range {\prim \low} {\prim \high}} {\setTyp \typ} \dir }
-
-
-\end{mathpar}
-~~
-~
-
-### Petr4 Restrictions Compared to P4 Spec { #sec-exp-restrictions }
-Petr4 does not support all features of P4. This section gathers Petr4's restriction for
-expressions:
-
-- Petr4 doesn't support the case where both the
-true and the false expressions have the infinite precision integer type when the
-condition can be evaluated at compilation time. However, this is allowed by P4 spec.
-- Petr4 doesn't have the product operation where multiple sets can be combined using
-cartesian product and the type of a product of sets is a set of tuples. (refer to
-section 8.12.5. of P4 spec (**DISCUSS**))
-
-
-### Petr4 Discrepencies with P4 Spec { #sec-exp-discrepencies }
-This section documents the discrepencies of Petr4 with P4 spec:
-
-- P4 spec defines bitwise operations and concatenation for bit<w> but Petr4 also allows them for int<w>. (ref: bitwiseops and bitstringconcatenation rules. section 8.5. check_binary_op impl. )
-- P4 spec defines division and modulo only for arbitrary-precision integers but petr4 allows them for bit<w> too. (ref: divops rule. section 8.7. check_binary_op impl.)
-- P4 spec defines bitwise complement only for bit<w> but Petr4 also allows it for int<w>. (ref: type_unary_op bitnot impl. section 8.5 spec. bitwisecomplement rule.)
-- P4 spec states during the cast between int and bit<w> or int<w> the compiler would complain about overflow (or conversion of negative value for bit<w>) but Petr4's type system doesn't check this. (ref: I'm not sure if any other part of petr4 takes care of this. section 8.9.1 spec. cast_ok impl. explicit cast judgment.)
-- P4 spec states that all expressions of type int MUST be compile-time known values but
-Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or binaryops rules.)
-
-### Side Notes { #sec-exp-note }
-There are also small differencies between P4 and Petr4's terminologies:
-
-- Petr4 calls field access for structs _expression member_.
-
-For ease of understanding, we provide notes that help the reader understand some of
-the differences of Petr4 and P4 spec that may seem as discrepencies in the first glance:
-
-- It might seem that petr4 allows mask operation to also operate on arbitrary precision integers while P4 spec doesn't. However, note that int can be implicitly casted to bit<w>. so the mask operation can also operate on int or combination of int and bit<w>. similarly this applies to the range operation. 
-
+~ End InfRule
 
 ### Coerce Binary Operation Arguments Auxiliary Judgment { #sec-coerce-bin-args }
 Let implicitCast typ typ be defined as follows to describe P4's implicit
@@ -561,29 +916,36 @@ casting behavior on operands in binary expressions:
 cast typ exp produces a cast expression if the type of exp is different from the
 type typ.
 
-The restJ rule stands for all other binary operations. 
+The restJ rule stands for all other binary operations.
 
-~ Center  {padding:1ex} 
-~~ Snippet
-\begin{mathpar}
-  \small
+- The [coerce binary operation's arguments auxiliary judgment][#sec-coerce-bin-args]
+allows the operands of a binary operation to be casted to another type when applicable.
+It has the judgment form
+$\coerceBinArgsEnv {\exp} {\exp_1, \typ_1, \dir_1} {\exp_2, \typ_2, \dir_2}$
+which statees that under environment $\env$ and context $\ctxt$
+the expression $\exp$ written in the surface syntax has
+two operands $\exp_1$ and $\exp_2$ in the IR with types and directions
+$\typ_1$, $\typ_2$, $\dir_1$, $\dir_2$ where the types and expressions might have
+resulted from casting. 
 
-  \inferrule[ShiftRight]
+~ Begin InfRuleHelper
+
+  \inferrule[\shiftRAE]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
      { \coerceBinArgsEnv {\exp_1 \shiftR \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}}  }
 
-  \inferrule[ShiftLeft]
+  \inferrule[\shiftLAE]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
      { \coerceBinArgsEnv {\exp_1 \shiftL \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
 
-  \inferrule[BitConcatenation]
+  \inferrule[\bitConcatAE]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2}}
      { \coerceBinArgsEnv {\exp_1 \concat \exp_2} {\prim {\exp_1}, {\typ_1}, {\dir_1}} {\prim {\exp_2}, {\typ_2}, {\dir_2}} }
 
-  \inferrule[Rest]
+  \inferrule[\restAE]
      { \expenv  {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
        \typ = \implicitCast {\typ_1} {\typ_2} \\
@@ -591,9 +953,7 @@ The restJ rule stands for all other binary operations.
        \pprim {\exp_2} = \cast \typ {\prim {\exp_2}}}
      { \coerceBinArgsEnv {\exp_1 \restOps \exp_2} {\pprim {\exp_1}, {\typ_1}, {\dir_1}} {\pprim {\exp_2}, {\typ_2}, {\dir_2}} }
 
-\end{mathpar}
-~~
-~
+~ End InfRuleHelper
 
 ### Binary Operation Auxiliary Judgment { #sec-bin-op }
 reduce enums removes all the enums recursively after reducing a type.
@@ -603,10 +963,15 @@ is nonneg and is pos evaluate an expression at compile time and check if it's a 
 compile time known determinez if the value of an expression can be known at compile time.
    it returns true for externs, packages, controls, and parsers..
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+- The [binary operation judgment][#sec-bin-op] confirms that an expression using a
+binary operation follows the constraints of that binary operation. For example, if
+an expression is checking the equality of two subexpression it checks that both
+subexpression are of a type that equality is meaningful for it. It has the judgment
+form $\binOpEnv \exp \typ \dir $ which states that the expression $\exp$
+written in the IR is well-typed (that is, it follows all the restrictions applied to the
+binary operation $\exp$ is using) and it has the type $\typ$ and direction $\dir$.
+
+~ Begin InfRuleHelper
 
   \inferrule[LogicalOps($\ops=\&\&,\vert\vert$)]
      { \typ_1 = \reduceEnums {\exp_1} \\
@@ -677,9 +1042,22 @@ compile time known determinez if the value of an expression can be known at comp
        \textOr \left( \typ_1 = \integerTyp, \compTimeKnown {\exp_2} \right) }
      { \binOpEnv {\exp_1 \restOps \exp_2} {\typ_1} \dir }
 
-\end{mathpar}
-~~
-~
+~ End InfRuleHelper
+
+## Cast Rule
+
+~ Begin InfRule
+
+  \inferrule[\castE]
+     { \expenv \exp {\exp_1} {\typ_1} \dir \\
+       \typ_2 = \sat {\typ_1} \\
+       \typ_3 = \trans {\typ_2} {\emp} \\
+       \typ_4 = \sat {\typ_3} \\
+       \typWellFormed {\typ_3} \\
+       \explicitCastOK {\typ_1} {\typ_3}}
+     { \expenv {\cast \typ \exp} {\cast {\typ_1} {\exp_1}} {\typ_3} \less  }
+
+~ End InfRule
 
 ### Cast Auxiliary Judgment { #sec-cast }
 The cast first saturates both types and then check if they can be explicitly casted. For simplicity, we omited the saturation from rules.
@@ -688,17 +1066,21 @@ we use subscription of e or i to indicate if a rule only applies for explicit or
 
 P4 spec specifies casts up to Sets rule. The rest might be stated throughout the spec but I haven't found them yet.
 
-~ Center  {padding:1ex} 
-~~ Snippet
-\begin{mathpar}
-  \small
+- The [casting auxiliary judgment][#sec-cast] defines rules for implicitly
+and/or explicitly casting one type to another. Sepcifically, the judgment
+$\castenv \ {\typ_1} {\typ_2}$ states that under environment $\env$
+the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
+However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
+done implicitly or explicitly, respectively. 
+
+~ Begin InfRuleHelper
 
   \inferrule[Bit<1>ToBool]
-     {  }
+     {}
      { \explCast {\bitWidthTyp 1} \boolTyp }
 
   \inferrule[BoolToBit<1>]
-     {  }
+     {}
      { \explCast \boolTyp {\bitWidthTyp 1} }
 
   \inferrule[UnsignedIntToSigned]
@@ -710,7 +1092,7 @@ P4 spec specifies casts up to Sets rule. The rest might be stated throughout the
      { \explCast {\intWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[UnsignedIntToUnsignedInt-Explicit]
-     { }
+     {}
      { \explCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[UnsignedIntToUnsignedInt-Implicit]
@@ -718,7 +1100,7 @@ P4 spec specifies casts up to Sets rule. The rest might be stated throughout the
      { \implCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[SignedIntToSignedInt-Explicit]
-     { }
+     {}
      { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
   \inferrule[SignedIntToSignedInt-Implicit]
@@ -778,62 +1160,62 @@ P4 spec specifies casts up to Sets rule. The rest might be stated throughout the
      { \castenv \  {\listTyps {\typs_1} } {\tupleTyps {\typs_2}}}
 
   \inferrule[ListToHeader-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\explCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
 
   \inferrule[ListToHeader-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\implCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
 
   \inferrule[ListToStruct-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\explCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
 
   \inferrule[ListToStruct-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\implCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
 
   \inferrule[RecordToHeader-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\explCast {\recordTyp 1 n } {\headerTypp 1 n}}
 
   \inferrule[RecordToHeader-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\implCast {\recordTyp 1 n } {\headerTypp 1 n}}
 
   \inferrule[RecordToStruct-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\explCast {\recordTyp 1 n } {\structTypp 1 n}}
 
   \inferrule[RecordToStruct-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\implCast {\recordTyp 1 n } {\structTypp 1 n}}
 
   \inferrule[HeaderToHeader-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\headerTyp 1 n} {\headerTypp 1 n})}
      {\explCast {\headerTyp 1 n } {\headerTypp 1 n}}
 
   \inferrule[HeaderToHeader-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\headerTyp 1 n} {\headerTypp 1 n})}
      {\implCast {\headerTyp 1 n } {\headerTypp 1 n}}
 
   \inferrule[StructToStruct-Explicit]
-     {(1 \leq i \leq n; \explCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\structTyp 1 n} {\structTypp 1 n})}
      {\explCast {\structTyp 1 n } {\structTypp 1 n}}
 
   \inferrule[StructToStruct-Implicit]
-     {(1 \leq i \leq n; \implCast {\typ_i} {\prim {\typ_i}}) \textOr
+     {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEq \emp {\structTyp 1 n} {\structTypp 1 n})}
      {\implCast {\structTyp 1 n } {\structTypp 1 n}}
 
@@ -841,10 +1223,29 @@ P4 spec specifies casts up to Sets rule. The rest might be stated throughout the
     { \typ_1 == \typ_2}
     {\implCast {\typ_1} {\typ_2}}
 
-\end{mathpar}
-~~
-~
+~ End InfRuleHelper
 
+## Membership Rules
+
+~ Begin InfRule
+
+  \inferrule[\typeMemE]
+     {\lookupEnv {\typMem \typ \name} = (\typ, \dir)  }
+     {\expenv {\typMem \typ \name} {\typMem \typ \name} \typ \less  }
+
+  \inferrule[\errMemE]
+     {\lookupEnv {\errMem \name} = (\errTyp, \dir)  }
+     {\expenv {\errMem \name} {\errMem \name} \errTyp \less  }
+
+  \inferrule[\expMemE]
+     { \expenv \exp {\prim \exp} {\typ} \dir \\
+       \prim \typ = \reduce \typ \\
+       % \structTypDef = \prim \typ\\
+       \fieldAccessEnv \ctxt {\prim \typ} {\pprim \typ}
+       }
+     { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
+
+~ End InfRule
 
 ### Field Access Builtin Methods Auxiliary Judgment { #sec-exp-mem-builtin }
 
@@ -855,10 +1256,15 @@ array but it has already patterned matched on the type of the expression to be e
 struct, header, header union, specilaized, or extern. Thus, the _None_ case would always
 fail. what's the correct expected behavior here?
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+- The [expression memeber builtin judgment][#sec-exp-mem-builtin] is a helper judgment
+for expression member (field access) rule.
+It has the form $\fieldAccessEnv \ctxt \exp \typ {\prim \typ}$
+which states that under environment $\env$ and context $\ctxt$, the field $\name$
+has the type $\prim \typ$ in the expression $\exp$ of type $\typ$.
+Note that $\exp$ has to be an expression
+that contains fields, such as a struct or a header. 
+
+~ Begin InfRuleHelper
 
   \inferrule[ExpressionMember-StructOrHeaderOrHeaderUnion]
      {
@@ -866,7 +1272,7 @@ fail. what's the correct expected behavior here?
        % \structTypDef = \reduce \typ \\
        % \structTypDef = \prim \typ\\
        (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       \exists 1 \leq i \leq n+1; \field_i = \name
+       \exists 1 \leq i \leq n+1. \field_i = \name
        }
      { \fieldAccessEnv \ctxt \structTypDef {\typ_i} }
 
@@ -878,7 +1284,7 @@ fail. what's the correct expected behavior here?
        % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
        % \isArray \typ \\
        \name = \sizeFlag \textOr \lastIndex\\
-       \nexists 1 \leq i \leq n; \field_i = \name
+       \nexists 1 \leq i \leq n. \field_i = \name
        }
      { \fieldAccessEnv \ctxt {\arrayTyp \typ \size AND \ \structTypDef} {\bitWidthTyp {32}} }
 
@@ -891,7 +1297,7 @@ fail. what's the correct expected behavior here?
        % \isArray {\reduce \typ} \\
        % \arrayTyp {\prim \typ} \size = \typ\\
        \name = \sizeFlag \textOr \lastIndex \\
-       \nexists 1 \leq i \leq n; \field_i = \name
+       \nexists 1 \leq i \leq n. \field_i = \name
        }
      { \fieldAccessEnv \parserCtxt {\arrayTyp \typ \size AND \ \structTypDef} \typ }
 
@@ -952,208 +1358,239 @@ fail. what's the correct expected behavior here?
   %    { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
 
 
-\end{mathpar}
-~~
-~
+~ End InfRuleHelper
 
+## Ternary Rule
+
+~ Begin InfRule
+
+  \inferrule[\ternaryE]
+     {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\typ_1} {\dir_2} \\
+      \expenv {\exp_3} {\prim {\exp_3}} {\typ_2} {\dir_3}\\
+      \typ_1 = \typ_2 \\
+      \typ_1 \neq \integerTyp}
+     {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
+
+  % \inferrule[ Ternary(AllowedInP4ButNotePetr4)]
+     % {\expenv {\exp_1} {\prim {\exp_1}} \boolTyp {\dir_1} \\
+     %  \expenv {\exp_2} {\prim {\exp_2}} {\integerTyp} {\dir_2} \\
+     %  \expenv {\exp_3} {\prim {\exp_3}} {\integerTyp} {\dir_3}\\
+     %  % \typ_1 = \typ_2 \\
+     %  % \typ_1 \eq \integerTyp \\
+     %  \compTimeKnown {\exp_1}}
+     % {\expenv {\ternary {\exp_1} {\exp_2} {\exp_3}} {\ternary {\prim {\exp_1}} {\prim {\exp_2}} {\prim {\exp_3}}} {\typ_1} \less }
+
+~ End InfRule
+
+## Function Call Rule
+
+~ Begin InfRule
+
+  \inferrule[\funcCallE]
+     {
+       \resolveFuncOver \exp \args {\prim \exp} \typVars \params \kind {\typ_\ret} \\
+       % \expenv \exp {\prim \exp} {\funcType \kind \typVars {\prm 1, \ldots, \prm n} {\typ_\ret}}\\
+       \overline {\prim \typ} = \trans \typs \emp \\
+       % \match \params \args\\
+       |\typs| = |\typVars|\\
+       \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
+       {\prim \typ}_{\ret} = \sat {\typ_\ret} \\
+       \overline {\param = \pprim {\maybe \exp}} = \matchParArg \params \args\\
+       \inferTypParArg {\typ_\ret} {\overline {\typVar : \prim \typ}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar : \prim \typ}} {\overline {\typVar : \pprim \typ}}\\
+       \validatePars {\params} {\addTypEnvv {\overline {\typVar : \pprim \typ}} } \kind \\
+       \overline {\param = \maybe {(\ppprim \exp, \ppprim \typ, \dir)}} = \castParArg {\overline {\param = \pprim {\maybe \exp}}}\\ 
+       \callOK \ctxt \kind 
+       }
+     { \expenv {\funcCall \exp \typs \args} {\funcCall {\prim \exp} {\overline {\pprim \typ}} {\overline{\maybe {(\ppprim \exp, \ppprim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+
+~ End InfRule
 
 ### Function Call Auxiliary Judgment { #sec-func-call }
 
+This judgment carries out the main details of the $\funcCallE$ rule.  
+
+The helpers used are:
+
+- Remember that parameters could be optional or have some default expression set as their expression. $\removeOptionalPars \params$ removes those parameters.
+- $\concatList$ denotes concatenating two lists, in this case two lists of parameters. 
+
+Concerns/questions:
+
+- when does the expression typing returns an expression of type action (the $\nameActionE$ rule may never be trigured)?
+
+- The [function call auxiliary judgment][#sec-func-call] carries out multiple roles: 1) it checks
+if the expression $\exp$ called from the function call is a ...;
+2) it checks if the expression $\exp$ either has a function type or an action typ, and if so it returns the type parameteres, parameters, kind, and return type;
+and 3) it resolves function overload.
+It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \params \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function call with arguments $\args$ under environment $\env$ and context $\ctxt$ translates to expressio $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\params$, kind $\kind$, and the return type $\typ_\ret$.
+
+~ Begin InfRuleHelper
+
+  \inferrule[\nameFuncNameE]
+     { (\overline {\typ, \dir}) = \lookupEnv \name \\
+       \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams {\pars 1 n} {\typ_\ret} }
+     { \resolveFuncOver \name {\argkvss 1 n} \typParams {\pars 1 n} \kind {\typ_\ret} \dir }
+
+  \inferrule[\nameFuncCountE]
+     { (\overline {\typ, \dir}) = \lookupEnv \name \\
+       \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams \params {\typ_\ret}\\
+       |\removeOptionalPars \params| = n}
+  { \resolveFuncOver \name {\argexpss 1 n} \typParams \params \kind {\typ_\ret} \dir}
+
+  \inferrule[\nameActionE]
+     { \expenv \name \exp {\actionTyp {\params_1} {\params_2}} \dir \\
+       \params = \params_1 \concatList \params_2}
+     {\resolveFuncOver \name {\argkvss 1 n} \emp {\pars 1 n} \actionKind \voidTyp \dir}
+     % { (\overline {\typ, \dir}) = \lookupEnv \name \\
+     %   \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \actionTyp {\pars 1 k} {\pars {k+1} n} }
+     % { \resolveFuncOver \name {\argkvss 1 n} \emp \params \actionKind \voidTyp \dir }
+
+  % \inferrule[\nameActionCountE]
+  %    { (\overline {\typ, \dir}) = \lookupEnv \name \\
+  %      \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \actionTyp {\params_1} {\params_2}\\
+  %      \params = \params_1 \concatList \params_2
+  %      |\removeOptionalPars \params| = n}
+  % { \resolveFuncOver \name {\argexpss 1 n} \emp \params \actionKind \voidTyp \dir}
+
+  \inferrule[\expMemFuncNameE]
+     { \expenv {\expMem \name \exp} {\prim \exp} {\typ} \dir\\
+       \prim \typ = \reduce \typ \\
+       }
+  {blah}
+
+  \inferrule[\expMemFuncCountE]
+  {}
+  {blah}
+
+  \inferrule[\expMemActionNameE]
+  {}
+  {blah}
+
+  \inferrule[\expMemActionCountE]
+  {}
+  {blah}
+
+~ End InfRuleHelper
+
 ### Infer Type Arguments Auxiliary Judgment { #sec-infer-type-args }
 
-## Type Related Judgments { #sec-types-typing }
 
-### Type Well-Formed Auxiliary Judgment { #sec-type-well-formed }
-it saturates all types first and then checks well-formedness. for breviety, we don't
-include the saturation in rules.
-is valid nested type outer inner checks whether the nested type is taking valid types in its inner and outer type based on P4's description of type nesting rules section 7.2.7 (provide link).
-insert type var adds a type variable to the env.
-lookup extern in env returns an externMethods type which includes a list of strings as
-type parameters which must be empty for it to be well-typed and a function type which doesn't care for function type.
-getTypeParams get type parameters from types that have type parameters including package, control, parser, function, and it's equivalent to look up for extern.
+- The [infer type arguments auxiliary judgment][#sec-infer-type-args] infers the type of type parameters of a function. It has the judgment form $\inferTypParArg {\typ_\ret} {\overline {\typVar : \typ}} {\overline {\param = {\maybe \exp}}} {\overline {\prim \typVar : \prim \typ}} {\overline {\typVar : \pprim \typ}}$ which states that the type parameters $\typVars$ have the type $\pprim \typ$ under environment $\env$ and context $\ctxt$ with the return type of $\typ_\ret$, the assignment of type parameters $\typVars$ to types $\typs$, the assignment of parameters $\params$ to optional expressions $\maybe \exp$, and constraints $fill\ later$.
 
-names to type env. 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+## Anonymous Instantiation Rule
 
-  \inferrule[Bool]
-     { }
-     { \typWellFormed \boolTyp }
+~ Begin InfRule
 
-  \inferrule[String]
-     { }
-     { \typWellFormed \stringTyp }
+  \inferrule[\instE]
+     { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
+     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
 
-  \inferrule[(InfinitPrecision)Integer]
-     { }
-     { \typWellFormed \integerTyp }
+  \inferrule[\instE-2]
+     { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
+     { \expenv {\instantiation {\name} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir }
 
-  \inferrule[SignedInteger]
-     { 1 < \width}
-     { \typWellFormed {\intWidthTyp \width} }
+~ End InfRule
 
-  \inferrule[BitString(UnsignedInteger)]
-     { 0 \leq \width}
-     { \typWellFormed {\bitWidthTyp \width} }
+## Mask Rule
 
-  \inferrule[VarBit(DynamicallySizedBitString)]
-     { }
-     { \typWellFormed {\varBitTyp \width} }
+~ Begin InfRule
 
-  \inferrule[Error]
-     { }
-     { \typWellFormed \errTyp}
+  \inferrule[\maskE]
+     {\expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
+      \expenv {\exp_2} {\prim {\exp_2}} {\typ_2} {\dir_2} \\
+      \left( \so {\typ_1 = \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \typ_2 = \integerTyp} {\typ = \integerTyp}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \bitWidthTyp \width, \typ_2 = \integerTyp} {\typ = \bitWidthTyp \width}\right) \\
+      \textOr
+      \left( \so {\typ_1 = \integerTyp, \typ_2 = \bitWidthTyp \width} {\typ = \bitWidthTyp \width}\right)
+      }
+     {\expenv {\mask {\exp_1} {\exp_2}} {\mask {\prim \exp_1} {\prim \exp_2}} {\setTyp \typ} \less  }
 
-  \inferrule[Void]
-     { }
-     { \typWellFormed \voidTyp}
+~ End InfRule
 
-  \inferrule[MatchKind]
-     { }
-     { \typWellFormed \matchKindTyp}
+## Range Rule
 
-  \inferrule[Array]
-     { \typWellFormed \typ \\
-       \isValidNestedTyp {\arrayTyp \typ \size} {\typ}}
-     { \typWellFormed {\arrayTyp \typ \size} }
+~ Begin InfRule
 
-  \inferrule[Tuple]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp {\tupleTyp {\typ_1} {\typ_n}} {\typ_i}}
-     { \typWellFormed {\tupleTyp {\typ_1} {\typ_n}} }
+  \inferrule[\rangeE]
+     { \expenv \low {\prim \low} \typ {\dir_\low} \\
+       \expenv \high {\prim \high} \typ {\dir_\high} \\
+       \typ_\low = \typ_\high = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
+     { \expenv {\range \low \high} {\range {\prim \low} {\prim \high}} {\setTyp \typ} \dir }
 
-  \inferrule[List]
-     { 1 \leq i \leq; \typWellFormed {\typ_i} \\
-       1 \leq i \leq; \isValidNestedTyp {\listTyp {\typ_1} {\typ_n}} {\typ_i}}
-     { \typWellFormed {\listTyp {\typ_1} {\typ_n}} }
+~ End InfRule
 
-  \inferrule[Set]
-     { \typWellFormed \typ }
-     { \typWellFormed {\setTyp \typ} }
 
-  \inferrule[EnumWithType]
-     { \typWellFormed \typ }
-     { \typWellFormed \enumTyp }
+Note the following notes:
 
-  \inferrule[EnumWithoutType]
-     {  }
-     { \typWellFormed \enumTypNoTyp }
+- We use $\overline x$ to denote a list of $x$.
+- For simplicity, we omit mapping a function on a list of elements. Instead, we just apply the function to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list. 
 
-  \inferrule[Record]
-     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \recordTypDef {\typ_i} \\
-       1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \recordTypDef }
+There are multiple helper functions used in judgements that are explained below:
 
-  \inferrule[HeaderUnion]
-     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \headerUnionTyp {\typ_i} \\
-       % \noDup {\field_1, \ldots, \field_n}\\
-       1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \headerUnionTyp }
+- $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
+compilation. It does so by evaluating the expression $\exp$ at compile time, if that is
+possible then we know the value at compile time. Otherwise, if the expression $\exp$ is
+a specialized type, extern, package, control, or parser but we cannot evaluate it at
+compile time we still consider it known at compile time.
+- The notation $\maybe x$ denotes an optional type, that is, the type of $x$ has been extended with bottom (maybe type in Haskell, or option type in Ocaml). So if $x$ denotes an integer $\maybe x$ could either be an integer number or bottom. 
+- $\matchParArg \params \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
+- $\validatePars \params \env \kind$ validates parameters $\params$ under the environment $\env$, context $\ctxt$ and the function kind $\kind$, after saturating their types. For example, it ensures that parameters of type extern are directionless, or parameters that must be compile time known are directionless. It also checks that the parameter type is well-formed and that it is a valid parameter type under a certain context (refer to the function _is\_valid\_param\_type_ to see exactly when a type is valid for a parameter).
+- $\castParArg {\overline {\param = \maybe \exp}}$ bundles up the parameter with the expression's IR representation if possible: if $\maybe \exp \neq \bot$, it bundles up the parameter with $\castExpression \typ \exp$ if the direction of the parameter is correct (refer to _check\_direction_ function). Otherwise, if the parameter type isn't void and the direction is out or parameter is optional, it bundles up the parameter with bottom.
+- $\callOK \ctxt \kind$ checks if the function kind is valid in a context (refer to _call\_ok_ function). 
+- Did I miss anything else? 
 
-  \inferrule[Struct]
-     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \structTypDef {\typ_i} \\
-       1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \structTypDef }
 
-  \inferrule[Header]
-     { 1 \leq i \leq n; \typWellFormed {\typ_i} \\
-       1 \leq i \leq n; \isValidNestedTyp \headerTypDef {\typ_i} \\
-       1 \leq i < j \leq n; \field_i \neq \field_j}
-     { \typWellFormed \headerTypDef }
+**NOTE**: I couldn't find the followings in section 8 of p4 spec:
+array access, bist string access, type member, anonymous instant (this is probably method invocation or sth).
 
-  \inferrule[NewType(typedef)]
-     { \typWellFormed \typ }
-     { \typWellFormed {\newTypeTyp \typ \name} }
+```**TODO** explanation of some of the rules. start with a couple of simple ones (bool and name), then intermediate (biststringaccess, record, cast) and then complicated (function call, exp mem, instantiation). ```
 
-\end{mathpar}
-~~
-~
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+### Petr4 Restrictions Compared to P4 Spec { #sec-exp-restrictions }
+Petr4 does not support all features of P4. This section gathers Petr4's restriction for
+expressions:
 
-  \inferrule[SpecializedType]
-     { \prim \typ = \sat \typ \\
-       \{\param_1, \ldots, \param_m \} = \getTypeParams {\prim \typ} \\
-       % \prim \typ = \externTyp \name \\
-       %  ([\param_1, \ldots, \param_m], _)= \lookup \name \\
-        1 \leq i \leq n; \typWellFormed {\typ_i} \\
-        n = m}
-     { \typWellFormed {\spcTyp \typ {\typ_1, \ldots, \typ_n}} }
+- Petr4 doesn't support the case where both the
+true and the false expressions have the infinite precision integer type when the
+condition can be evaluated at compilation time. However, this is allowed by P4 spec.
+- Petr4 doesn't have the product operation where multiple sets can be combined using
+cartesian product and the type of a product of sets is a set of tuples. (refer to
+section 8.12.5. of P4 spec (**DISCUSS**))
 
-  \inferrule[Package]
-     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
-       1 \leq i \leq n; \dir_i = \less \\
-       1 \leq i \leq n; \typWellFormed {\typ_i}}
-     { \typWellFormed {\packageTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} {\wildcardParam_1, \ldots, \wildcardParam_p}} }
 
-  \inferrule[Control]
-     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
-       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
-     { \typWellFormed {\controlTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} } }
+### Petr4 Discrepencies with P4 Spec { #sec-exp-discrepencies }
+This section documents the discrepencies of Petr4 with P4 spec:
 
-  \inferrule[Parser]
-     { \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
-       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_i}}
-     { \typWellFormed {\parserTyp {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n} } }
+- P4 spec defines bitwise operations and concatenation for bit<w> but Petr4 also allows them for int<w>. (ref: bitwiseops and bitstringconcatenation rules. section 8.5. check_binary_op impl. )
+- P4 spec defines division and modulo only for arbitrary-precision integers but petr4 allows them for bit<w> too. (ref: divops rule. section 8.7. check_binary_op impl.)
+- P4 spec defines bitwise complement only for bit<w> but Petr4 also allows it for int<w>. (ref: type_unary_op bitnot impl. section 8.5 spec. bitwisecomplement rule.)
+- P4 spec states during the cast between int and bit<w> or int<w> the compiler would complain about overflow (or conversion of negative value for bit<w>) but Petr4's type system doesn't check this. (ref: I'm not sure if any other part of petr4 takes care of this. section 8.9.1 spec. cast_ok impl. explicit cast judgment.)
+- P4 spec states that all expressions of type int MUST be compile-time known values but
+Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or binaryops rules.)
 
-  \inferrule[Extern]
-     { ([], {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n}} ) =\lookupEnv \name }
-     { \typWellFormed {\externTyp \name} }
+### Side Notes { #sec-exp-note }
+There are also small differencies between P4 and Petr4's terminologies:
 
-  \inferrule[Function]
-     { \typWellFormed \typ \\
-       \prim \env = \insertTypVars {\typParam_1, \ldots, \typParam_m} \\
-       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
-     % <return type> <function name>(x1,...,xn) {...}
-     { \typWellFormed {\funcTyp \typ {\typParam_1, \ldots, \typParam_m} {\prm 1, \ldots, \prm n}} }
+- Petr4 calls field access for structs _expression member_.
 
-  \inferrule[Action]
-     { i < j \\
-       1 \leq k \leq n; \typWellFormed {\typ_k} \\
-       j \leq k \leq n; \dir_k = \less }
-     { \typWellFormed {\actionTyp {\prm 1, \ldots, \prm i} {\prm j, \ldots, \prm n}} }
+For ease of understanding, we provide notes that help the reader understand some of
+the differences of Petr4 and P4 spec that may seem as discrepencies in the first glance:
 
-  \inferrule[Constructor]
-     { \typWellFormed \typ \\
-       \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
-       1 \leq i \leq n; \typWellFormedWithEnv {\prim \env} {\typ_n} }
-     { \typWellFormed {\constructorTyp \typ \name {\prm 1, \ldots, \prm n}} }
+- It might seem that petr4 allows mask operation to also operate on arbitrary precision integers while P4 spec doesn't. However, note that int can be implicitly casted to bit<w>. so the mask operation can also operate on int or combination of int and bit<w>. similarly this applies to the range operation. 
 
-  \inferrule[Table]
-     { \typ = \lookupEnv \name }
-     { \typWellFormed {\tableTyp \name} }
 
-  \inferrule[TypeName]
-     { \typ = \lookupEnv \name }
-     { \typWellFormed {\typNameTyp \name} }
-
-% is_well_formed_type
-\end{mathpar}
-~~
-~
-
-### Type Equality Judgment { #sec-type-eq }
-**TODO**: refer to type_equality and solve_types functions in impl. For type equality of p4 spec refer to to section 8, under each operation there's a one liner that talks about when two types are equal for the type it's covering. 
-
-## Statement's Typing Rules { #sec-stmt-typing }
+# Statement's Typing Rules { #sec-stmt-typing }
 this judgment type checks a statment written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
 is_lvalue checks if an IR expression is lvalue. 
 cast_expr takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.
 if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type.
 get enum typ takes a type and checks if it's an enum. if so it returns the enums of it. 
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+~ Begin InfRule
 
   \inferrule[Assignment]
      { \expenv {\exp_1} {\prim {\exp_1}} {\typ_1} {\dir_1} \\
@@ -1233,19 +1670,14 @@ get enum typ takes a type and checks if it's an enum. if so it returns the enums
        \dclenvv 0 \dcl {\prim \dcl} 1}
      { \stmtenvv 0 \dcl {\prim \dcl} \unitTyp 1 }
 
-\end{mathpar}
-~~
-~
+~ End InfRule
 
 
-## Declaration's Typing Rules { #sec-decl-typing }
+# Declaration's Typing Rules { #sec-decl-typing }
 is allowed type for variable checks if a type is allowed for declaring a variable. it includes all types after saturation except for string, integer, list, set, void, specialized type, package, control, parser, extern, function, action, constructor, and table.
 check parameter shadowing takes two lists of paramets and checks if there is any duplicate in them. 
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+~ Begin InfRule
 
   \inferrule[Constant]
      { \prim \typ = \trans \typ \emp \\
@@ -1304,14 +1736,9 @@ check parameter shadowing takes two lists of paramets and checks if there is any
      { blah }
      { blah }
 
-\end{mathpar}
-~~
-~
+~ End InfRule
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+~ Begin InfRule
 
   \inferrule[Header]
      { blah }
@@ -1353,14 +1780,9 @@ check parameter shadowing takes two lists of paramets and checks if there is any
      { blah }
      { blah }
 
-\end{mathpar}
-~~
-~
+~ End InfRule
 
-~ Center  {padding:1ex}
-~~ Snippet
-\begin{mathpar}
-  \small
+~ Begin InfRule
 
   \inferrule[ControlType]
      { blah }
@@ -1402,8 +1824,7 @@ check parameter shadowing takes two lists of paramets and checks if there is any
   %    {  }
   %    {  }
 
-\end{mathpar}
-~~
-~
+~ End InfRule
+
 
 

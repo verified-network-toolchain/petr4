@@ -1,3 +1,89 @@
+%rule names:
+\newcommand{\rn}[1]{\TirName{#1}}
+\newcommand{\rSep}{\rn{-}}
+\newcommand*{\rE}{\rSep\rn{E}}
+\newcommand*{\rAE}{\rSep\rn{AE}}
+\newcommand*{\rT}{\rSep\rn{T}}
+\newcommand*{\rS}{\rSep\rn{S}}
+\newcommand*{\rAS}{\rSep\rn{AS}}
+\newcommand*{\rD}{\rSep\rn{D}}
+\newcommand*{\rAD}{\rSep\rn{AD}}
+
+\newcommand*{\ruleName}{\rn{RuleName}}
+\newcommand*{\ruleNameE}{\ruleName\rE}
+\newcommand*{\ruleNameAE}{\ruleName\rAE}
+\newcommand*{\ruleNameT}{\ruleName\rT}
+\newcommand*{\ruleNameS}{\ruleName\rS}
+\newcommand*{\ruleNameD}{\ruleName\rD}
+
+\newcommand*{\boolT}{\rn{Bool}\rT}
+\newcommand*{\stringT}{\rn{String}\rT}
+\newcommand*{\intT}{\rn{(InfinitPrecision)Integer}\rT}
+\newcommand*{\varbitT}{\rn{Varbit}\rT}
+\newcommand*{\errT}{\rn{Error}\rT}
+\newcommand*{\voidT}{\rn{Void}\rT}
+\newcommand*{\matchKindT}{\rn{MatchKind}\rT}
+\newcommand*{\enumOneT}{\rn{Enum}\rT}
+\newcommand*{\intWidthT}{\rn{SignedInt}\rT}
+\newcommand*{\bitWidthT}{\rn{BitString(UnsignedInteger)}\rT}
+\newcommand*{\arrayT}{\rn{Array}\rT}
+\newcommand*{\tupleT}{\rn{Tuple}\rT}
+\newcommand*{\setT}{\rn{Set}\rT}
+\newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
+\newcommand*{\recordT}{\rn{Record}\rT}
+\newcommand*{\newTypeT}{\rn{NewType(typedef)}\rT}
+\newcommand*{\specializedExternT}{\rn{SpecializedType}\rSep\rn{ExternBase}\rT}
+\newcommand*{\specializedRestT}{\rn{SpecializedType}\rSep\rn{Rest}\rT}
+\newcommand*{\packageT}{\rn{Package}\rT}
+\newcommand*{\controlT}{\rn{Control}\rT}
+\newcommand*{\externT}{\rn{Extern}\rT}
+\newcommand*{\functionT}{\rn{Function}\rT}
+\newcommand*{\actionT}{\rn{Action}\rT}
+\newcommand*{\constructorT}{\rn{Constructor}\rT}
+\newcommand*{\tableT}{\rn{Table}\rT}
+\newcommand*{\typeNameT}{\rn{TypeName}\rT}
+
+\newcommand*{\boolE}{\rn{Bool}\rE}
+\newcommand*{\stringE}{\rn{String}\rE}
+\newcommand*{\integerE}{\rn{Integer}\rE}
+\newcommand*{\bitStringE}{\rn{FixedLengthInt}\rE}
+\newcommand*{\signedIntE}{\rn{SignedInt}\rE}
+\newcommand*{\nameE}{\rn{Name}\rE}
+\newcommand*{\arrayAccessE}{\rn{ArrayAccess}\rE}
+\newcommand*{\bitStringAccessE}{\rn{BitStringAccess}\rE}
+\newcommand*{\listE}{\rn{List}\rE}
+\newcommand*{\recordE}{\rn{Record}\rE}
+\newcommand*{\logicalNegE}{\rn{LogicalNegation}\rE}
+\newcommand*{\bitwiseComplementE}{\rn{BitwiseComplement}\rE}
+\newcommand*{\unaryMinusE}{\rn{UnaryMinus}\rE}
+\newcommand*{\binaryOpsE}{\rn{BinaryOps}\rE}
+\newcommand*{\castE}{\rn{cast}\rE}
+\newcommand*{\typeMemE}{\rn{TypeMember}\rE}
+\newcommand*{\errMemE}{\rn{ErrorMember}\rE}
+\newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
+\newcommand*{\ternaryE}{\rn{Ternary}\rE}
+\newcommand*{\funcCallE}{\rn{FunctionCall}\rE}
+\newcommand*{\instE}{\rn{Instantiation}\rE}
+\newcommand*{\maskE}{\rn{Mask}\rE}
+\newcommand*{\rangeE}{\rn{Range}\rE}
+
+\newcommand*{\shiftRAE}{\rn{ShiftRight}\rAE}
+\newcommand*{\shiftLAE}{\rn{ShiftLeft}\rAE}
+\newcommand*{\bitConcatAE}{\rn{BitConcatenation}\rAE}
+\newcommand*{\restAE}{\rn{Rest}\rAE}
+
+
+%function call helper
+\newcommand*{\nameFuncNameE}{\rn{NameExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByName}\rE}
+\newcommand*{\nameFuncCountE}{\rn{NameExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByCount}\rE}
+\newcommand*{\nameActionE}{\rn{NameExpression}\rSep\rn{ActionType}\rE}
+%% \newcommand*{\nameActionNameE}{\rn{NameExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByName}\rE}
+%% \newcommand*{\nameActionCountE}{\rn{NameExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByCount}\rE}
+\newcommand*{\expMemFuncNameE}{\rn{ExpMemExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByName}\rE}
+\newcommand*{\expMemFuncCountE}{\rn{ExpMemExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByCount}\rE}
+\newcommand*{\expMemActionNameE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByName}\rE}
+\newcommand*{\expMemActionCountE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByCount}\rE}
+
 %stuff here and there:
 \renewcommand{\or}{\ | \ }
 \newcommand{\whereBulletIs}{,\textit{ where } \bullet \textit{ is }}
@@ -14,12 +100,7 @@
 \newcommand{\lookupEnv}[1]{\env({#1})}
 \newcommand{\emp}{[\ ]}
 \newcommand{\insertToEnv}[2]{\env, [{#1} : {#2} ]}
-% separator
-\newcommand{\rn}[1]{\TirName{#1}}
-\newcommand{\rSep}{\rn{-}}
-
-\newcommand*{\rE}{\rSep\rn{E}}
-\newcommand*{\restJ}{\rn{Rest}}
+\newcommand{\insertToEnvv}[1]{\env, [{#1}]}
 
 %typing judgments:
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
@@ -110,16 +191,16 @@
 \newcommand{\str}{s}
 \newcommand{\width}{w}
 \newcommand{\val}{v}
-\newcommand{\bit}{\mathit{bit}}
+\newcommand{\bit}{b}
 \renewcommand{\int}{n}
 \newcommand{\bitWidth}[2]{{#1}_{#2}}
 \newcommand{\intWidth}[2]{{#1}_{#2}}
-\newcommand{\name}{\mathit{name}}
+\newcommand{\name}{x}
 \newcommand{\var}{x}
 \newcommand{\typVar}{X}
 \newcommand{\typVars}{\overline \typVar}
-\renewcommand{\array}{a}
-\renewcommand{\index}{i}
+%% \renewcommand{\array}{a}
+%% \renewcommand{\index}{i}
 \newcommand{\arrayAccess}[2]{{#1}[{#2}]}
 \newcommand{\size}{n}
 \newcommand{\high}{h}
@@ -131,9 +212,12 @@
 \newcommand{\param}{x}
 \newcommand{\params}{\overline x}
 \newcommand{\prm}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
-\newcommand{\typParam}{X}
+\newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
+\newcommand{\pari}[1]{\dir_{#1} \typ_{#1} \typParam_{#1}}
+\newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
 \newcommand{\wildcardParam}{w}
+\newcommand{\wildcardParams}{\overline \wildcardParam}
 \renewcommand{\arg}{\mathit{arg}}
 \newcommand{\args}{\overline \arg}
 \newcommand{\stmt}{\mathit{stmt}}
@@ -146,10 +230,12 @@
 \newcommand{\ret}{\mathit{return}}
 \newcommand{\argexp}{\exp}
 \newcommand{\argexps}{\overline \argexp}
-\newcommand{\argexpss}[1]{\argexp_{#1}}
+\newcommand{\argexpi}[1]{\argexp_{#1}}
+\newcommand{\argexpss}[2]{\argexpi {#1}, \ldots, \argexpi {#2}}
 \newcommand{\argkv}{\var = \exp}
+\newcommand{\argkvi}[1]{\var_{#1}=\exp_{#1}}
 \newcommand{\argkvs}{\overline \argkv}
-\newcommand{\argkvss}[1]{\var_{#1}=\exp_{#1}}
+\newcommand{\argkvss}[2]{\argkvi {#1}, \ldots, \argkvi {#2}}
 \newcommand{\names}{\overline \name}
 
 %function helpers
@@ -157,7 +243,7 @@
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
 \newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
 \newcommand{\isNumeric}[1]{\mathit{is\_numeric}({#1})}
-\newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
+%% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
 \newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
@@ -195,6 +281,8 @@
 \newcommand{\maybe}[1]{{#1}_{\bot}}
 \newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
 \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
+\newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
+\newcommand{\concatList}{++}
 
 %fields 
 \newcommand{\isValid}{\mathit{isValid}}
@@ -213,6 +301,7 @@
 
 %kinds
 \newcommand{\builtin}{\mathit{builtin}}
+\newcommand{\actionKind}{\mathit{action}}
 
 %types:
 \newcommand{\bitWidthTyp}[1]{\mathit{bit}<\!{#1}\!>}
@@ -234,20 +323,26 @@
 \newcommand{\enumTyp}{\mathit{enum}\ {\typ}\ {\name}\{\name_1,\ldots,\name_n\}}
 \newcommand{\enumTypNoTyp}{\mathit{enum} \ {\name}\{\name_1,\ldots,\name_n\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
-\newcommand{\recordTyp}[2]{\mathit{record}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\recordTypp}[2]{\mathit{record}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
-\newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
-\newcommand{\headerTypDef}{\headerTyp 1 n}
-\newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\headerTypp}[2]{\mathit{header}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
-\newcommand{\structTypDef}{\structTyp 1 n}
-\newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\structTypp}[2]{\mathit{struct}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
-\newcommand{\newTypeTyp}[2]{\mathit{type}\ {#1}\ {#2}}
+\newcommand{\recordTyp}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\recordTypp}[2]{\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
+\newcommand{\headerUnionTyp}[2]{\recordTyp {#1} {#2}}
+\newcommand{\headerTyp}[2]{\recordTyp {#1} {#2}}
+\newcommand{\structTyp}[2]{\recordTyp {#1} {#2}}
+\newcommand{\headerTypp}[2]{\recordTypp {#1} {#2}}
+\newcommand{\structTypp}[2]{\recordTypp {#1} {#2}}
+\newcommand{\structTypDef}{\recordTypDef}
+%% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
+%% \newcommand{\headerTypDef}{\headerTyp 1 n}
+%% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+%% \newcommand{\headerTypp}[2]{\mathit{header}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
+%% \newcommand{\structTypDef}{\structTyp 1 n}
+%% \newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+%% \newcommand{\structTypp}[2]{\mathit{struct}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
+\newcommand{\newTypeTyp}[2]{{#1}\ {#2}}
 \newcommand{\funcTyp}[3]{\mathit{function}\ {#1}<{#2}> ({#3})}
 %kind.type param. param. return type. 
 \newcommand{\funcType}[4]{\mathit{function}\ {#1}<{#2}> ({#3})\rightarrow {#4}}
-\newcommand{\constructorTyp}[3]{{#1}\  {#2}\  ({#3}, \_)}
+\newcommand{\constructorTyp}[4]{{#1}\  {#2}\ <{#3}>\ ({#4}, \_)}
 \newcommand{\externTyp}[1]{\mathit{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}<{#2}>}
 \newcommand{\parserTyp}[2]{\mathit{parser}<{#1}>({#2})}
@@ -261,6 +356,6 @@
 %directions:
 \newcommand{\less}{\mathit{directionless}}
 \newcommand{\dir}{d}
-\renewcommand{\in}{\mathit{in}}
+\newcommand{\inDir}{\mathit{in}}
 \newcommand{\out}{\mathit{out}}
 \newcommand{\inout}{\mathit{in\_out}}

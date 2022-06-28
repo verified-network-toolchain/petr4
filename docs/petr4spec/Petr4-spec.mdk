@@ -371,6 +371,7 @@ The type system conducts three tasks simultaneously:
 Metavariables are place holders for values of a type. For example, $\bool$ stands for expressions $true$ or $false$. Keep in mind that $true$ and $false$ both are expressions that have the type $\boolTyp$. As another example, in most programming references $foo$, $bar$, and $baz$ are used as metavariables, often for functions. 
 
 We use the notation of $\overline {\mathit{something}}$ to denote a list of $\mathit{something}$s.
+We also use an underscore (that is, $\_$) when we do not need to use some specific information returned by some helper in judgements. 
 
 The following describes the metavariables used in this document:
 
@@ -606,12 +607,14 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 
 - Looking up an extern in the environment (that is, $\lookupEnv \name$) returns its type parameters and methods. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
 
+
+- $\lookupEnv \name$ looks up a variable $\name$ in environment $\env$ and depending on what $\name$ represents returns what is assigned to the variable in the environments. In case of an extern, it returns the type parameters and methods of the extern. 
 - $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
 
 ~ Begin InfRule
 
   \inferrule[\specializedExternT]
-     { ([\param_1, \ldots, \param_m], _)= \lookupEnv \name \\
+     { ([\param_1, \ldots, \param_m], \_ )= \lookupEnv \name \\
         1 \leq i \leq n. \typWellFormed {\typ_i} \\
         n = m}
      { \typWellFormed {\spcTyp {\externTyp \name} {\typ_1, \ldots, \typ_n}} }
@@ -678,7 +681,7 @@ This seems way too simple and loose.```
 ~ Begin InfRule
 
   \inferrule[\externT]
-     { ([], _ ) =\lookupEnv \name }
+     { (\emp, \_ ) =\lookupEnv \name }
      { \typWellFormed {\externTyp \name} }
 
 ~ End InfRule
@@ -727,6 +730,8 @@ The rule $\constructorT$ states that a constructor type is well-formed if its re
 ### Table Type { #sec-table-t }
 
 A table type is well-formed under an environment if it exists in the environment.
+
+- Looking up type variables returns the type assigned to it.
 
 ~ Begin InfRule
 

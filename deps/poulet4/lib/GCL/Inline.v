@@ -335,10 +335,6 @@ Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i t
 
 Definition normalize_keys t keys := normalize_keys_aux t keys 0.
 
-Print Parser.state_block.
-Print Parser.state.
-Print Parser.e.
-
 Definition get_state_name state :=
   match state with
   | Parser.STStart => "start"
@@ -831,8 +827,6 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   | O => init
   | S n' => f n (ifold n' f init)
   end.
-
-Search (nat -> positive).
 
 Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : Inline.t :=
   let t := E.THeader fields in

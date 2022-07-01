@@ -74,8 +74,6 @@ Fixpoint list_slice_nat {A: Type} (l: list A) (lo: nat) (hi: nat) : option (list
     end
   end.
 
-Compute list_slice_nat [1;2;3] 0 (3)%nat.
-
 Definition index_z_error {A} (xs: list A) (i: Z) : option A.
 Admitted.
 

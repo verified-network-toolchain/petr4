@@ -84,21 +84,35 @@ Section CEnv.
     identMap : Env.t string AST.ident; (*contains name and their original references*)
     temps : (list (AST.ident * Ctypes.type));
     vars : (list (AST.ident * Ctypes.type));
-    composites : (list (Expr.t * Ctypes.composite_definition));
-    identGenerator : IdentGen.generator;
-    fenv: Env.t string Clight.function;
-    tempOfArg : Env.t string (AST.ident* AST.ident); (*contains arguments and their temps used for copy in copy out*)
-    instantiationCarg : Expr.constructor_args tags_t;
-    maininit: Clight.statement;
-    globvars: (list (AST.ident * globvar Ctypes.type));
-    numStrMap : Env.t Z AST.ident;
+    composites : (list (Expr.t * Ctypes.composite_definition)); (* clight type defs (headrrs, structs) *)
+    identGenerator : IdentGen.generator; (* counter *)
+    fenv: Env.t string Clight.function; (* functions *)
+      tempOfArg :
+      (* used for copy-in-out *)
+      Env.t
+        string (* param name in p4cub *)
+        (AST.ident (* clight param *)
+         * AST.ident (* temp variable assigned to first ident *)); (*contains arguments and their temps used for copy in copy out*)
+    instantiationCarg : Expr.constructor_args tags_t; (* maybe remove, not needed, unused *)
+    maininit: Clight.statement; (* used for main instantiation,
+                                   now main function explicitly written,
+                                   may still be used,
+                                   a dummy function clight needs*)
+    globvars: (list (AST.ident * globvar Ctypes.type)); (* global variables. *)
+      numStrMap : Env.t Z AST.ident;
+      (* maps literal ints in p4cub to global variable name of string *)
     topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
-    tables : Env.t string ((list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string));
-    top_args : (list Clight.expr);
+    tables : Env.t string ((list (AST.Expr.e (* will be types *) tags_t * AST.Expr.matchkind))*(list string) (* actions *));
+    top_args : (list Clight.expr) (* parser states are functions
+                                   these are parser's args,
+                                   each state function takes these args. *);
     extern_instances: Env.t string string; (*maps the name of extern obects to the name of their extern type*)
-    expected_controls: Env.t string string;
-    v1model_H : ident;
-    v1model_M : ident;
+      expected_controls:
+      Env.t string (* instance name in p4cub/clight *)
+            string (* instance name in architecture file written in C *); (* for v1 model, expected name 
+                                             to be printed in C *)
+    v1model_H : ident; (* v1 model needs to know type of header *)
+    v1model_M : ident; (* v1 model needs to know type of meta data *)
   }.
 
   Definition newClightEnv : ClightEnv :=

@@ -56,12 +56,14 @@ Section CCompSel.
         (Ctypes.Tstruct top_id noattr, env_comp_added)
         end
 
-    | Expr.TStruct (fields) => 
+    | Expr.TStruct (fields) =>
+        (* Checks if there's an identifier for [TStruct fields] *)
         match lookup_composite tags_t env p4t with
-        | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
-        | _ => 
-        let (env_top_id, top_id) := CCompEnv.new_ident tags_t env in
-        let (members ,env_fields_declared):= 
+        | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env) (* found identifier *)
+        | _ => (* need to generate identifier *) 
+        let (env_top_id, top_id) := CCompEnv.new_ident tags_t env (* new identifier *) in
+        let (members ,env_fields_declared):=
+          (* translate fields *)
         F.fold 
         (fun (k: string) (field: Expr.t) (cumulator: Ctypes.members*ClightEnv tags_t) 
         => let (members_prev, env_prev) := cumulator in 
@@ -129,7 +131,8 @@ Section CCompSel.
         let env_comp_added := CCompEnv.add_composite_typ tags_t env_fields_declared header comp_def in
         (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
         end in
-        let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray in
+        (* pointer helps for push and pop *)
+        let (env_ptr_id, ptr_id) := CCompEnv.new_ident tags_t env_hdarray (* pointer to place in stack *) in
         let (env_size_id, size_id) := CCompEnv.new_ident tags_t env_ptr_id in
         let (env_arr_id, arr_id) := CCompEnv.new_ident tags_t env_size_id in
         let (env_top_id, top_id) := CCompEnv.new_ident tags_t env_arr_id in
@@ -158,6 +161,9 @@ Section CCompSel.
     end
   end. *)
   
+
+  (* for header stack variable,
+     get size of stack, pointer to stack, etc. *)
   Definition findStackAttributes (stack_var: Clight.expr) (stack_t : Ctypes.type) (env: ClightEnv tags_t)
   :=
     match stack_t with
@@ -170,7 +176,7 @@ Section CCompSel.
                             Member_plain arr_id ta::[]) _ => 
         let '(size_var, next_var, arr_var) := (Efield stack_var size_id ts, Efield stack_var next_id ti, Efield stack_var arr_id ta) in
         match ta with
-        | Tarray val_typ _ _ =>
+        | Tarray val_typ (* type of headers in stack *) _ _ =>
           match val_typ with
           | Ctypes.Tstruct val_t_id noattr => 
             let* val_comp := lookup_composite_id tags_t env val_t_id in

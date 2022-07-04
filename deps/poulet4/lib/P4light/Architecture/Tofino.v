@@ -355,6 +355,8 @@ Definition hash_get : extern_func := {|
 
 (* This only works when tags_t is a unit type. *)
 
+(* TODO (ef_class hash_get) and (ef_func hash_get) are redendant information here. See how to remove them. *)
+
 Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_extern_register_read : forall e s p targs args s' args' vret,
       apply_extern_func_sem register_read e s (ef_class register_read) (ef_func register_read) p targs args s' args' vret ->
@@ -365,6 +367,9 @@ Inductive exec_extern : extern_env -> extern_state -> ident (* class *) -> ident
   | exec_extern_regaction_execute : forall e s p targs args s' args' vret,
       apply_extern_func_sem regaction_execute e s (ef_class regaction_execute) (ef_func regaction_execute) p targs args s' args' vret ->
       exec_extern e s (ef_class regaction_execute) (ef_func regaction_execute) p targs args s' args' vret
+  | exec_extern_hash_get : forall e s p targs args s' args' vret,
+      apply_extern_func_sem hash_get e s (ef_class hash_get) (ef_func hash_get) p targs args s' args' vret ->
+      exec_extern e s (ef_class hash_get) (ef_func hash_get) p targs args s' args' vret
   | exec_extern_packet_in_extract : forall e s p targs args s' args' vret,
       apply_extern_func_sem packet_in_extract e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret ->
       exec_extern e s (ef_class packet_in_extract) (ef_func packet_in_extract) p targs args s' args' vret

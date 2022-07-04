@@ -338,14 +338,14 @@ Definition lbool_to_hex (input: list bool) :=
   N.to_hex_uint (Z.to_N (snd (BitArith.from_lbool input))).
 
 Inductive hash_get_sem : extern_func_sem :=
-  | exec_hash_get_sem : forall  e s p hash_w poly typs v input output,
+  | exec_hash_get_sem : forall e s p hash_w poly typs v input output,
     PathMap.get p e = Some (EnvHash (hash_w, poly)) ->
     convert_to_bits v = Some input ->
-    extend_hash_output hash_w (compute_crc (N.to_nat (CRCP_width poly)) (lbool_to_hex (CRCP_coeff poly)) 
+    extend_hash_output hash_w (compute_crc (N.to_nat (CRCP_width poly)) (lbool_to_hex (CRCP_coeff poly))
       (lbool_to_hex (CRCP_init poly)) (lbool_to_hex (CRCP_xor poly))
       (CRCP_reversed poly) (CRCP_reversed poly) input) = output ->
     (* CRCP_msb, CRCP_extended: behavior waiting for response *)
-    hash_get_sem e s p typs [v] s [output] SReturnNull.
+    hash_get_sem e s p typs [v] s [] (SReturn output).
 
 Definition hash_get : extern_func := {|
   ef_class := "Hash";

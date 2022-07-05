@@ -136,12 +136,8 @@ Section Embed.
   | Embed_header vs vs' b :
       Forall2 Embed vs vs' ->
       Embed (Val.Struct (vs) (Some b)) (ValBaseHeader (make_assoc_list 0 vs') b)
-  | Embed_error eo er :
-      match eo with
-      | Some err => err 
-      | None     => "no error"%string
-      end = er ->
-      Embed (Val.Error eo) (ValBaseError er).
+  | Embed_error er :
+    Embed (Val.Error er) (ValBaseError er).
 
   Fixpoint embed (v : Val.v) : VAL :=
     match v with
@@ -150,8 +146,7 @@ Section Embed.
     | Val.Int w z  => ValBaseInt $ to_lbool (Npos w) z
     | Val.Struct (vs) (Some b)     => ValBaseHeader (make_assoc_list 0 (List.map embed vs)) b
     | Val.Struct (vs) (None)     => ValBaseStruct (make_assoc_list 0 (List.map embed vs))
-    | Val.Error (Some v)  => ValBaseError v
-    | Val.Error (None) => ValBaseError "no error"
+    | Val.Error v  => ValBaseError v
     end.
 
     Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
@@ -170,7 +165,7 @@ Section Embed.
         Result.ok(Val.Bit w n) 
       | ValBaseStruct s => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs None
       | ValBaseHeader s b => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs (Some b)
-      | ValBaseError e => Result.ok(Val.Error (Some e))
+      | ValBaseError e => Result.ok (Val.Error e)
       | ValBaseInteger _ => Result.error("No mapping for ValBaseInteger exists")
       | ValBaseVarbit _ _ => Result.error("No mapping for ValBaseVarbit exists")
       | ValBaseString _ => Result.error("No mapping for ValBaseString exists")
@@ -199,9 +194,7 @@ Section Embed.
         * simpl. constructor.
           -- inv H. assumption.
           -- inv H. auto.
-    - destruct err. constructor. auto. admit. 
-    (* will change all errors to strings instead of option strings *)
-  Admitted.
+  Qed.
 
   Require Import PeanoNat.
   Infix "^" := Z.pow.
@@ -310,9 +303,7 @@ Section Embed.
               ** reflexivity.
               ** lia.
               ** admit.
-          -- admit. *) admit.
-    - destruct err; try reflexivity.
-      admit. (* will change all errors to strings instead of option strings *) 
+          -- admit. *) admit.   
     - destruct ob.
         * simpl. destruct (sequence
           (map (fun '(_, v) => proj v)

@@ -86,26 +86,24 @@ Module Step.
     lvalue_step e e' ->
     lvalue_step (Expr.Member τ x e) (Expr.Member τ x e').
   
-  Reserved Notation "'π' envn , pe1 '-->' pe2"
-           (at level 40, pe1 custom p4prsrexpr, pe2 custom p4prsrexpr).
+  Reserved Notation "'π' envn , pe1 '-->' pe2" (at level 80, no associativity).
   
-  Inductive step_parser_expr {tags_t : Type} (ϵ : @eenv tags_t)
-    : AST.Parser.e tags_t -> AST.Parser.e tags_t -> Prop :=
-  | step_select_discriminee (e e' : Expr.e) (d : AST.Parser.e tags_t)
-                            (cases : F.fs AST.Parser.pat (AST.Parser.e tags_t)) (i : tags_t) :
-      ℵ ϵ, e -->  e' ->
-           π ϵ, select e { cases } default:=d @ i-->  select e' { cases } default:=d @ i
-  | step_select_resolve (v : Expr.e) (d : AST.Parser.e tags_t)
-                        (cases : F.fs AST.Parser.pat (AST.Parser.e tags_t)) (i : tags_t) :
+  Inductive step_parser_expr (ϵ : list Expr.e)
+    : Parser.e -> Parser.e -> Prop :=
+  | step_select_discriminee e e' d cases :
+    ⟨ ϵ, e ⟩ -->  e' ->
+    π ϵ, Parser.Select e d cases -->  Parser.Select e' d cases
+  | step_select_resolve v d cases :
       value v ->
-      let pe := match F.find_value (fun _ => false) cases with (** TODO!! *)
+      let pe := match Field.find_value (fun _ => false) cases with (** TODO!! *)
                 | None => d
                 | Some pe => pe
                 end in
-      π ϵ, select v { cases } default:=d @ i-->  pe
+      π ϵ, Parser.Select v d cases -->  Parser.Goto pe
   where "'π' envn , pe1 '-->' pe2"
-          := (step_parser_expr envn pe1 pe2).
+    := (step_parser_expr envn pe1 pe2).
 
+  (*
   Reserved Notation "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
            (at level 40, k1 custom p4kstmt, k2 custom p4kstmt).
   (** TODO: Architecture & Target Issues:
@@ -141,74 +139,74 @@ Module Step.
       semantics for Cminor.
       [https://www.cs.princeton.edu/~appel/papers/seplogCminor.pdf] *)
   Variant kstmt_step {tags_t : Type}
-            (cfg : @ctrl tags_t) (tbls : @tenv tags_t) (aa : @aenv tags_t)
-            (fns : fenv) (ins : @ienv tags_t) (ϵ : eenv) :
+            (cfg : @ctrl) (tbls : @tenv) (aa : @aenv)
+            (fns : fenv) (ins : @ienv) (ϵ : eenv) :
     kstmt -> kstmt -> eenv -> Prop :=
-  | step_seq (s1 s2 : Stmt.s tags_t) (i : tags_t) (k : kstmt) :
+  | step_seq (s1 s2 : Stmt.s)  (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ s1; s2 @ i ⋅ k -->  κ s1 ⋅ κ s2 ⋅ k, ϵ
-  | step_skip (i : tags_t) (k : kstmt) :
+  | step_skip  (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ skip @ i ⋅ k -->  k, ϵ
-  | step_block (s : Stmt.s tags_t) (k : kstmt) :
+  | step_block (s : Stmt.s) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ b{ s }b ⋅ k -->  κ s ⋅ ∫ ϵ ⊗ k, ϵ
   | step_kblock (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, ∫ ϵk ⊗ k -->  k, (ϵk ≪ ϵ)
-  (*| step_vardecl (τ : Expr.t) (x : string) (i : tags_t) (k : kstmt) :
+  (*| step_vardecl (τ : Expr.t) (x : string)  (k : kstmt) :
       let v := edefault i τ in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ var x : τ @ i ⋅ k -->   k, x ↦ v;; ϵ *)
-  | step_asgn_r (e1 e2 e2' : Expr.e) (i : tags_t) (k : kstmt) :
+  | step_asgn_r (e1 e2 e2' : Expr.e)  (k : kstmt) :
       ℵ ϵ, e2 -->  e2' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ asgn e1 := e2 @ i ⋅ k -->  κ asgn e1 := e2' @ i ⋅ k, ϵ
-  | step_asgn_l (e1 e1' v2 : Expr.e) (i : tags_t) (k : kstmt) :
+  | step_asgn_l (e1 e1' v2 : Expr.e)  (k : kstmt) :
       value v2 ->
       ℶ e1 -->  e1' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ asgn e1 := v2 @ i ⋅ k -->  κ asgn e1' := v2 @ i ⋅ k, ϵ
-  | step_asgn (v1 v2 : Expr.e) (i : tags_t) (k : kstmt) :
+  | step_asgn (v1 v2 : Expr.e)  (k : kstmt) :
       lvalue v1 ->
       value v2 ->
       let ϵ' := lv_update v1 v2 ϵ in
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ asgn v1 := v2 @ i ⋅ k -->  k, ϵ'
-  | step_exit (i : tags_t) (k : kstmt) :
+  | step_exit  (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ exit @ i ⋅ k -->   EXIT k, ϵ
-  | step_kexit_kseq (s : Stmt.s tags_t) (k : kstmt) :
+  | step_kexit_kseq (s : Stmt.s) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT κ s ⋅ k -->  EXIT k, ϵ
   | step_kexit_kblock (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, (ϵk ≪ ϵ)
-  | step_return_void (i : tags_t) (k : kstmt) :
+  | step_return_void  (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, κ return None @ i ⋅ k -->  VOID k, ϵ
-  | step_return_fruit (e e' : Expr.e) (τ : Expr.t) (i : tags_t) (k : kstmt) :
+  | step_return_fruit (e e' : Expr.e) (τ : Expr.t)  (k : kstmt) :
       ℵ ϵ, e -->  e' ->
            let eo := Some e in
            let eo' := Some e' in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ return eo @ i ⋅ k -->  κ return eo' @ i ⋅ k, ϵ
-  | step_return_value (v : Expr.e) (τ : Expr.t) (i : tags_t) (k : kstmt) :
+  | step_return_value (v : Expr.e) (τ : Expr.t)  (k : kstmt) :
       value v ->
       let eo := Some v in
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ return eo @ i ⋅ k -->  FRUIT v k, ϵ
-  | step_kreturn_kseq (o : option (Expr.e)) (s : Stmt.s tags_t) (k : kstmt) :
+  | step_kreturn_kseq (o : option (Expr.e)) (s : Stmt.s) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, RETURN o κ s ⋅ k -->  RETURN o k, ϵ
   | step_kreturn_kblock (o : option (Expr.e)) (ϵk : eenv) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT ∫ ϵk ⊗ k -->  EXIT k, (ϵk ≪ ϵ)
-  | step_cond (e e' : Expr.e) (s1 s2 : Stmt.s tags_t) (i : tags_t) (k : kstmt) :
+  | step_cond (e e' : Expr.e) (s1 s2 : Stmt.s)  (k : kstmt) :
       ℵ ϵ, e -->  e' ->
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ if e then s1 else s2 @ i ⋅ k -->
       κ if e then s1 else s2 @ i ⋅ k, ϵ
-  | step_cond_true (s1 s2 : Stmt.s tags_t) (i' i : tags_t) (k : kstmt) :
+  | step_cond_true (s1 s2 : Stmt.s) (i' i :) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ if TRUE @ i' then s1 else s2 @ i ⋅ k -->  κ s1 ⋅ k, ϵ
-  | step_cond_false (s1 s2 : Stmt.s tags_t) (i' i : tags_t) (k : kstmt) :
+  | step_cond_false (s1 s2 : Stmt.s) (i' i :) (k : kstmt) :
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ if FALSE @ i' then s1 else s2 @ i ⋅ k -->  κ s2 ⋅ k, ϵ
-  | step_funcall_in_arg (prefix suffix : Expr.args tags_t) (f x : string)
+  | step_funcall_in_arg (prefix suffix : Expr.args) (f x : string)
                         (e e' : Expr.e)
                         (o : option (Expr.e))
-                        (i : tags_t) (k : kstmt) :
+                         (k : kstmt) :
       F.predfs_data (pred_paramarg value lvalue) prefix ->
       ℵ ϵ, e -->  e' ->
       let args  := prefix ++ (x, PAIn e)  :: suffix in
@@ -216,17 +214,17 @@ Module Step.
       ℸ cfg, tbls, aa, fns, ins, ϵ,
       κ funcall f <[]> (args)  into o @ i ⋅ k -->
       κ funcall f <[]> (args') into o @ i ⋅ k, ϵ
-   | step_funcall_lvalue (args : Expr.args tags_t) (f : string)
-                         (e e' : Expr.e) (i : tags_t) (k : kstmt) :
+   | step_funcall_lvalue (args : Expr.args) (f : string)
+                         (e e' : Expr.e)  (k : kstmt) :
        F.predfs_data (pred_paramarg value lvalue) args ->
        ℶ e -->  e' ->
        ℸ cfg, tbls, aa, fns, ins, ϵ,
        κ let e  := call f <[]> (args) @ i ⋅ k -->
        κ let e' := call f <[]> (args) @ i ⋅ k, ϵ
-   | step_funcall (args : Expr.args tags_t) (f : string)
+   | step_funcall (args : Expr.args) (f : string)
                   (o : option (Expr.e))
-                  (i : tags_t) (k : kstmt)
-                  (body : Stmt.s tags_t) (fϵ : eenv)
+                   (k : kstmt)
+                  (body : Stmt.s) (fϵ : eenv)
                   (fclosure : fenv) (fins : ienv) :
        lookup fns f = Some (FDecl fϵ fclosure fins body) ->
        predop lvalue o ->
@@ -236,20 +234,21 @@ Module Step.
        ℸ cfg, tbls, aa, fns, ins, ϵ,
        κ funcall f <[]> (args) into o @ i ⋅ k -->
        κ body ⋅ Λ (arrow, ϵ) k, fϵ'
-   | step_kexit_kcall (ϵk : eenv) (args : Expr.args tags_t) (k : kstmt) :
+   | step_kexit_kcall (ϵk : eenv) (args : Expr.args) (k : kstmt) :
        let ϵ' := copy_out args ϵ ϵk in
        let arrow := {|paramargs:=args; rtrns:=None|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, EXIT Λ (arrow, ϵk) k -->  k, ϵ'
-   | step_void_kcall (ϵk : eenv) (args : Expr.args tags_t) (k : kstmt) :
+   | step_void_kcall (ϵk : eenv) (args : Expr.args) (k : kstmt) :
        let ϵ' := copy_out args ϵ ϵk in
        let arrow := {|paramargs:=args; rtrns:=None|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, VOID Λ (arrow, ϵk) k -->  k, ϵ'
    | step_fruit_kcall (v lv : Expr.e) (ϵk : eenv)
-                      (args : Expr.args tags_t) (k : kstmt) :
+                      (args : Expr.args) (k : kstmt) :
        let ϵ' := ϵk ▷ copy_out args ϵ ▷ lv_update lv v in
        let arrow := {|paramargs:=args; rtrns:=Some lv|} in
        ℸ cfg, tbls, aa, fns, ins, ϵ, FRUIT v Λ (arrow, ϵk) k -->  k, ϵ'
   where "'ℸ' cfg , tbls , aa , fns , ins , ϵ1 , k1 '-->' k2 , ϵ2"
           := (kstmt_step cfg tbls aa fns ins ϵ1 k1 k2 ϵ2).
   (**[]*)
+   *)
 End Step.

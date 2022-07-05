@@ -5,26 +5,20 @@ Require Import Coq.micromega.Lia
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Value
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Util
         Poulet4.P4cub.Semantics.Dynamic.SmallStep.Semantics.
-Import String.
 Import CanonicalForms Step.
-Import AllCubNotations TypeEquivalence
-       ProperType F.FieldTactics Clmt.Notations.
+Import AllCubNotations Field.FieldTactics.
 
 Section LValueTheorems.
-  Variable D : Delta.
-  Variable Γ : Gamma.
-
-  Context {tags_t : Type}.
+  Variable Γ : expr_type_env.
 
   Section LValuePreservation.
-    Local Hint Constructors check_expr : core.
+    Local Hint Constructors type_expr : core.
 
-    Theorem lvalue_preservation : forall (e e' : Expr.e tags_t) τ,
-      ℶ e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
+    Theorem lvalue_preservation : forall e e' τ,
+      lvalue_step e e' -> Γ ⊢ₑ e ∈ τ -> Γ ⊢ₑ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
         induction He; intros t Ht; inv Ht; eauto 3.
-      econstructor; eauto.
     Qed.
   End LValuePreservation.
 
@@ -32,15 +26,15 @@ Section LValueTheorems.
     Hint Constructors lvalue : core.
     Hint Constructors lvalue_step : core.
 
-    Theorem lvalue_progress : forall (e : Expr.e tags_t) τ,
-        lvalue_ok e -> ⟦ D, Γ ⟧ ⊢ e ∈ τ ->
-        lvalue e \/ exists e', ℶ e -->  e'.
+    Theorem lvalue_progress : forall e τ,
+        lvalue_ok e -> Γ ⊢ₑ e ∈ τ ->
+        lvalue e \/ exists e', lvalue_step e e'.
     Proof.
       intros e τ Hlv; generalize dependent τ;
         induction Hlv; intros t' Ht; inv Ht;
       try match goal with
-          | IH: (forall _, ⟦ D, Γ ⟧ ⊢ ?e ∈ _ -> _ \/ exists _, _),
-                H: ⟦ D, Γ ⟧ ⊢ ?e ∈ _
+          | IH: (forall _, Γ ⊢ₑ ?e ∈ _ -> _ \/ exists _, _),
+                H: Γ ⊢ₑ ?e ∈ _
             |- _ => apply IH in H as [? | [? ?]]
           end; eauto 4.
     Qed.
@@ -48,31 +42,18 @@ Section LValueTheorems.
 End LValueTheorems.
 
 Section ExprTheorems.
-  Variable Γ : Gamma.
+  Variable Γ : expr_type_env.
+  Variable ϵ : list Expr.e.
 
-  Context {tags_t : Type}.
-
-  Variable ϵ : @eenv tags_t.
-
-  (** Epsilon is a subset of Gamma. *)
-  Definition envs_subset : Prop :=
-    forall (x : string) (τ : Expr.t),
-      Γ x = Some τ -> exists v, ϵ x = Some v.
-  (**[]*)
-
-  Variable D : Delta.
-
-  (** Epsilon's values type's agree with Gamma. *)
-  Definition envs_type : Prop :=
-    forall (x : string) (τ : Expr.t) (v : Expr.e tags_t),
-      Γ x = Some τ -> ϵ x = Some v -> ⟦ D , Γ ⟧ ⊢ v ∈ τ.
-  (**[]*)
-
-  Definition envs_sound : Prop := envs_type /\ envs_subset.
-
+  Hypothesis Henvs_type :
+      Forall2
+        (type_expr
+           Γ
+           (*{| type_vars := type_vars Γ
+           ;     types := [] |}*))
+        ϵ (types Γ).
+  
   Section Preservation.
-    Hypothesis Henvs_type : envs_type.
-
     Local Hint Resolve eval_cast_types : core.
     Local Hint Resolve eval_slice_types : core.
     Local Hint Resolve eval_uop_types : core.
@@ -82,22 +63,20 @@ Section ExprTheorems.
     Hint Rewrite Forall_app : core.
     Hint Rewrite app_length : core.
     Local Hint Resolve Forall2_app : core.
-    Local Hint Constructors check_expr : core.
-    Local Hint Constructors ProperType.proper_nesting : core.
+    Local Hint Constructors type_expr : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
-        ℵ ϵ, e -->  e' -> ⟦ D, Γ ⟧ ⊢ e ∈ τ -> ⟦ D, Γ ⟧ ⊢ e' ∈ τ.
+        ⟨ ϵ, e ⟩ -->  e' -> Γ ⊢ₑ e ∈ τ -> Γ ⊢ₑ e' ∈ τ.
     Proof.
-      unfold envs_type in Henvs_type; intros;
+      intros;
       generalize dependent τ;
       match goal with
-      | H: ℵ ϵ, _ -->  _ |- _ => induction H; intros
+      | H: ⟨ϵ, _ ⟩ -->  _ |- _ => induction H; intros
       end; try invert_expr_check; unravel in *; try subst w';
       repeat assert_canonical_forms; unravel in *;
       try match goal with
           | H: Some _ = Some _ |- _ => inv H
-          end;
-      try invert_proper_nesting; eauto 4.
+          end; eauto 4.
       (*
       - eapply Forall_nth_error in H12; eauto 1.
       - subst es; subst es';
@@ -122,15 +101,13 @@ Section ExprTheorems.
   End Preservation.
 
   Section Progress.
-    Hypothesis Henvs_sound : envs_sound.
-
     Ltac progress_simpl :=
       match goal with
-      | H: value _ \/ (exists _, ℵ ϵ, _ -->  _)
+      | H: value _ \/ (exists _, ⟨ ϵ, _ ⟩ -->  _)
         |- _ => destruct H as [? | ?]
-      | H: exists _, ℵ ϵ, _ -->  _ |- _ => destruct H as [? ?]
+      | H: exists _, ⟨ ϵ, _ ⟩ -->  _ |- _ => destruct H as [? ?]
       | |- _ => assert_canonical_forms
-      | IH: (?P -> ?Q -> value _ \/ exists _, ℵ ϵ, _ -->  _),
+      | IH: (?P -> ?Q -> value _ \/ exists _, ⟨ ϵ, _ ⟩ -->  _),
             HP: ?P, HQ: ?Q |- _ => pose proof IH HP HQ as [? | ?]; clear IH
       end.
     (**[]*)
@@ -139,20 +116,15 @@ Section ExprTheorems.
     Local Hint Constructors expr_step : core.
 
     Theorem expr_small_step_progress : forall e τ,
-        ⟦ D, Γ ⟧ ⊢ e ∈ τ -> value e \/ exists e', ℵ ϵ, e -->  e'.
+        Γ ⊢ₑ e ∈ τ -> value e \/ exists e', ⟨ ϵ, e ⟩ -->  e'.
     Proof.
-      destruct Henvs_sound as [Henvs_type Henvs_subset];
-      clear Henvs_sound; unfold envs_type, envs_subset in *; intros.
-      match goal with
-      | H: ⟦ D, Γ ⟧ ⊢ _ ∈ _
-        |- _ => induction H using custom_check_expr_ind
-      end;
-      try match goal with
-          | |- value ?e \/ _ =>
-            assert (value e); [ repeat constructor; eassumption
-                          | left; assumption ]
-          end;
-      repeat progress_simpl; eauto 4. (*
+      intros e t H; induction H using custom_type_expr_ind;
+        try match goal with
+            | |- value ?e \/ _ =>
+                assert (value e); [ repeat constructor; eassumption
+                                  | left; assumption ]
+            end;
+        repeat progress_simpl; eauto 4. (*
       - right; apply Henvs_subset in H as [? ?]; eauto 3.
       - right; pose proof eval_slice_exists
                     _ _ _ _ _ _ _ H2 H H0 H1 as [? ?]; eauto 3.
@@ -222,6 +194,7 @@ Section ExprTheorems.
   End Progress.
 End ExprTheorems.
 
+(*
 Section ParserExprTheorems.
   Variable sts : user_states.
 
@@ -278,3 +251,4 @@ Section ParserExprTheorems.
     Qed.
   End Progress.
 End ParserExprTheorems.
+*)

@@ -1,5 +1,5 @@
-Set Warnings "-custom-entry-overridden".
 From compcert Require Import Clight Ctypes Integers Cop AST Clightdefs.
+From RecordUpdate Require Import RecordSet.
 Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
@@ -21,285 +21,202 @@ Local Open Scope Z_scope.
 Open Scope positive_scope.
 
 Section CEnv.
-  Variable (tags_t: Type).
   Definition standard_metadata_t :=
-    Composite $"standard_metadata_t" Struct
-   (Member_plain $"ingress_port" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"egress_spec" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"egress_port" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"instance_type" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"packet_length" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"enq_timestamp" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"enq_qdepth" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"deq_timedelta" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"deq_qdepth" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"ingress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"egress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"mcast_grp" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"egress_rid" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"checksum_error" (tptr (Tstruct _BitVec noattr)) ::
-    Member_plain $"parser_error" tuint ::
-    Member_plain $"priority" (tptr (Tstruct _BitVec noattr))::nil) noattr.
-  (* Definition standard_metadata_t :=
-    Composite $"standard_metadata_t" Struct
-   (Member_plain $"ingress_port" (Tstruct _BitVec noattr) ::
-    Member_plain $"egress_spec" (Tstruct _BitVec noattr) ::
-    Member_plain $"egress_port" (Tstruct _BitVec noattr) ::
-    Member_plain $"instance_type" (Tstruct _BitVec noattr) ::
-    Member_plain $"packet_length" (Tstruct _BitVec noattr) ::
-    Member_plain $"enq_timestamp" (Tstruct _BitVec noattr) ::
-    Member_plain $"enq_qdepth" (Tstruct _BitVec noattr) ::
-    Member_plain $"deq_timedelta" (Tstruct _BitVec noattr) ::
-    Member_plain $"deq_qdepth" (Tstruct _BitVec noattr) ::
-    Member_plain $"ingress_global_timestamp" (Tstruct _BitVec noattr) ::
-    Member_plain $"egress_global_timestamp" (Tstruct _BitVec noattr) ::
-    Member_plain $"mcast_grp" (Tstruct _BitVec noattr) ::
-    Member_plain $"egress_rid" (Tstruct _BitVec noattr) ::
-    Member_plain $"checksum_error" (Tstruct _BitVec noattr) ::
-    Member_plain $"parser_error" tuint ::
-    Member_plain $"priority" (Tstruct _BitVec noattr)::nil) noattr. *)
+    Composite
+      $"standard_metadata_t" Struct
+      [ Member_plain $"ingress_port" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"egress_spec" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"egress_port" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"instance_type" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"packet_length" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"enq_timestamp" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"enq_qdepth" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"deq_timedelta" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"deq_qdepth" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"ingress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"egress_global_timestamp" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"mcast_grp" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"egress_rid" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"checksum_error" (tptr (Tstruct _BitVec noattr)) ;
+        Member_plain $"parser_error" tuint ;
+        Member_plain $"priority" (tptr (Tstruct _BitVec noattr))] noattr.
   
-  Definition standard_metadata_cub_fields :=
-     ("ingress_port", Expr.TBit (Npos 9)) ::
-     ("egress_spec", Expr.TBit (Npos 9)) ::
-     ("egress_port", Expr.TBit (Npos 9)) ::
-     ("instance_type", Expr.TBit (Npos 32)) ::
-     ("packet_length", Expr.TBit (Npos 32)) ::
-     ("enq_timestamp", Expr.TBit (Npos 32)) ::
-     ("enq_qdepth", Expr.TBit (Npos 19)) ::
-     ("deq_timedelta", Expr.TBit (Npos 32)) ::
-     ("deq_qdepth", Expr.TBit (Npos 19)) ::
-     ("ingress_global_timestamp", Expr.TBit (Npos 48)) ::
-     ("egress_global_timestamp", Expr.TBit (Npos 48)) ::
-     ("mcast_grp", Expr.TBit (Npos 16)) ::
-     ("egress_rid", Expr.TBit (Npos 16)) ::
-     ("checksum_error", Expr.TBit (Npos 1)) ::
-     ("parser_error", Expr.TError) ::
-     ("priority", Expr.TBit (Npos 3)) :: [].
+  Definition standard_metadata_cub_fields := [
+      (*ingress_port:*) Expr.TBit (Npos 9) ;
+      (*egress_spec:*) Expr.TBit (Npos 9) ;
+      (*egress_port:*) Expr.TBit (Npos 9) ;
+      (*instance_type:*) Expr.TBit (Npos 32) ;
+      (*packet_length:*) Expr.TBit (Npos 32) ;
+      (*enq_timestamp*) Expr.TBit (Npos 32) ;
+      (*enq_qdepth*) Expr.TBit (Npos 19) ;
+      (*deq_timedelta*) Expr.TBit (Npos 32) ;
+      (*deq_qdepth*) Expr.TBit (Npos 19) ;
+      (*ingress_global_timestamp*) Expr.TBit (Npos 48) ;
+      (*egress_global_timestamp*) Expr.TBit (Npos 48) ;
+      (*mcast_grp*) Expr.TBit (Npos 16) ;
+      (*egress_rid*) Expr.TBit (Npos 16) ;
+      (*checksum_error*) Expr.TBit (Npos 1) ;
+      (*parser_error*) Expr.TError ;
+      (*priority*) Expr.TBit (Npos 3) ].
 
   Definition standard_metadata_cub := 
-    Expr.TStruct standard_metadata_cub_fields.
+    Expr.TStruct standard_metadata_cub_fields false.
 
-  Inductive ClightEnv : Type := {
-    identMap : Env.t string AST.ident; (*contains name and their original references*)
-    temps : (list (AST.ident * Ctypes.type));
-    vars : (list (AST.ident * Ctypes.type));
-    composites : (list (Expr.t * Ctypes.composite_definition)); (* clight type defs (headrrs, structs) *)
-    identGenerator : IdentGen.generator; (* counter *)
-    fenv: Env.t string Clight.function; (* functions *)
-      tempOfArg :
-      (* used for copy-in-out *)
-      Env.t
-        string (* param name in p4cub *)
-        (AST.ident (* clight param *)
-         * AST.ident (* temp variable assigned to first ident *)); (*contains arguments and their temps used for copy in copy out*)
-    instantiationCarg : Expr.constructor_args tags_t; (* maybe remove, not needed, unused *)
-    maininit: Clight.statement; (* used for main instantiation,
-                                   now main function explicitly written,
-                                   may still be used,
-                                   a dummy function clight needs*)
-    globvars: (list (AST.ident * globvar Ctypes.type)); (* global variables. *)
-      numStrMap : Env.t Z AST.ident;
-      (* maps literal ints in p4cub to global variable name of string *)
-    topdecltypes : Env.t string (TopDecl.d tags_t);(*maps the name to their corresponding top declarations like parser or control*)
-    tables : Env.t string ((list (AST.Expr.e (* will be types *) tags_t * AST.Expr.matchkind))*(list string) (* actions *));
-    top_args : (list Clight.expr) (* parser states are functions
-                                   these are parser's args,
-                                   each state function takes these args. *);
-    extern_instances: Env.t string string; (*maps the name of extern obects to the name of their extern type*)
-      expected_controls:
-      Env.t string (* instance name in p4cub/clight *)
-            string (* instance name in architecture file written in C *); (* for v1 model, expected name 
-                                             to be printed in C *)
-    v1model_H : ident; (* v1 model needs to know type of header *)
-    v1model_M : ident; (* v1 model needs to know type of meta data *)
-  }.
+  (* TODO: how to address De Bruijn indices. *)
+  
+  Inductive ClightEnv : Type :=
+    mkClightEnv
+      { (** P4cub identifiers to clight identifiers. *)
+        identMap : list AST.ident
+                        
+      ; (** Available temps and their types. *)
+        temps : (list (AST.ident * Ctypes.type))
+                  
+      ; (** Available variables and their types. *)    
+        vars : (list (AST.ident * Ctypes.type))
+                 
+      ; (** P4cub types associated with clight type defs (headers, structs) *)
+        composites : (list (Expr.t * Ctypes.composite_definition))
+                       
+      ; (** Name generator counter. *) (* TODO maybe use state monad instead? *)
+        identGenerator : IdentGen.generator
+                           
+      ; (** P4cub function names to clight functions. *)
+        fenv : Env.t string Clight.function
+                     
+      ; (** Clight instance names to clight functions. *)
+        ienv : Env.t string Clight.function
+                     
+      ; (** Contains arguments and their temps used for copy in copy out. *)
+        tempOfArg :
+        Env.t
+          string (** Param name in p4cub. *)
+          (AST.ident (** Clight param. *)
+           * AST.ident (** Temp variable assigned to first ident *))
+          
+      ; (* TODO: maybe remove, not needed, unused? *)
+        instantiationCarg : TopDecl.constructor_args
+                              
+      ; (** Used for main instantiation,
+            now main function explicitly written,
+            may still be used,
+            a dummy function clight needs. *)
+        maininit: Clight.statement
+                    
+      ; (** Global variables and their types. *)
+        globvars: (list (AST.ident * globvar Ctypes.type))
+
+      ; (** Maps literal ints in p4cub to global variable name of string in clight. *)
+        numStrMap : Env.t Z AST.ident
+                          
+      ; (** Maps the name to their corresponding top declarations like parser or control. *)
+        topdecltypes : Env.t string TopDecl.d
+
+      ; (** Table names to tables. *)
+        tables :
+        Env.t
+          string
+          ((list (Expr.e (* TODO: will be types *) * string)) * (list string) (** actions *))
+
+      ; (** Parser states are functions.
+            These are parser's args.
+            Each state function takes these args. *)
+        top_args : (list Clight.expr)
+
+      ; (** Maps the name of extern obects to the name of their extern type. *)
+        extern_instances: list string
+
+      ; (** Instance name in p4cub/clight to
+            Instance name in architecture file written in C. *)
+        expected_instances : list string
+
+      ; (** For v1 model, expected name to be printed in C.
+            V1 model needs to know type of header. *)
+        v1model_H : ident
+
+      ; (** V1 model needs to know type of meta data *)
+        v1model_M : ident }.
+
+  (** Record-update boiler-plate. *)
+  Instance etaClightEnv : Settable _ :=
+    settable! mkClightEnv
+    < identMap ; temps ; vars ; composites
+  ; identGenerator ; fenv ; ienv ; tempOfArg
+  ; instantiationCarg ; maininit ; globvars
+  ; numStrMap ; topdecltypes ; tables ; top_args
+  ; extern_instances ; expected_instances
+  ; v1model_H ; v1model_M >.
 
   Definition newClightEnv : ClightEnv :=
-    {|
-    identMap := Env.empty _ _;
-    temps := [];
-    vars := [];
-    composites := [(standard_metadata_cub,standard_metadata_t)];
-    identGenerator := IdentGen.gen_init;
-    fenv := Env.empty _ _;
-    tempOfArg := Env.empty _ _;
-    instantiationCarg := [];
-    maininit := Clight.Sskip;
-    globvars := [];
-    numStrMap :=  Env.empty _ _;
-    topdecltypes := Env.empty _ _;
-    tables := Env.empty _ _;
-    top_args := [];
-    extern_instances := Env.empty _ _;
-    expected_controls := Env.empty _ _;
-    v1model_H := xH;
-    v1model_M := xH;
-    |}.
+    {| identMap := []
+    ; temps := []
+    ; vars := []
+    ; composites := [(standard_metadata_cub,standard_metadata_t)]
+    ; identGenerator := IdentGen.gen_init
+    ; fenv := Env.empty _ _
+    ; ienv := Env.empty _ _
+    ; tempOfArg := Env.empty _ _
+    ; instantiationCarg := []
+    ; maininit := Clight.Sskip
+    ; globvars := []
+    ; numStrMap :=  Env.empty _ _
+    ; topdecltypes := Env.empty _ _
+    ; tables := Env.empty _ _
+    ; top_args := []
+    ; extern_instances := []
+    ; expected_instances := []
+    ; v1model_H := xH
+    ; v1model_M := xH |}.
 
-  Definition bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
-  := 
-    {|
-    identMap := Env.bind name id env.(identMap);
-    temps := (env.(temps));
-    vars := env.(vars);
-    composites := env.(composites);
-    identGenerator := env.(identGenerator);
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}.
+  Import RecordSetNotations.
+  
+  Definition bind (env: ClightEnv) (id: ident) : ClightEnv 
+    := env <| identMap := id  :: env.(identMap) |>.
 
-
-  Definition add_temp (env: ClightEnv) (temp: string) (t: Ctypes.type)
-  : ClightEnv := 
+  Definition add_temp (env: ClightEnv) (t: Ctypes.type) : ClightEnv :=
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    {|
-    identMap := Env.bind temp new_ident env.(identMap);
-    temps := (new_ident, t)::(env.(temps));
-    vars := env.(vars);
-    composites := env.(composites);
-    identGenerator := gen';
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}.
+    env <| identMap := new_ident :: env.(identMap) |>
+    <| temps := (new_ident, t) :: env.(temps) |>
+    <| identGenerator := gen' |>.
 
-  Definition add_temp_arg (env: ClightEnv) (temp: string) (t: Ctypes.type) (oldid : AST.ident)
-  : ClightEnv := 
+  Definition
+    add_temp_arg
+    (env: ClightEnv) (temp: string)
+    (t: Ctypes.type) (oldid : AST.ident) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    {|
-    identMap := env.(identMap);
-    temps := (env.(temps));
-    vars := (new_ident, t)::env.(vars);
-    composites := env.(composites);
-    identGenerator := gen';
-    fenv := env.(fenv);
-    tempOfArg := Env.bind temp (oldid,new_ident) env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}.
+    env <| vars := (new_ident, t)::env.(vars) |>
+    <| tempOfArg := Env.bind temp (oldid,new_ident) env.(tempOfArg) |>
+    <| identGenerator := gen' |>.
 
-
-
-  Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type)
-  : ClightEnv * ident := 
+  Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type) : ClightEnv * ident := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    ({|
-    identMap := env.(identMap);
-    temps := (new_ident, t)::(env.(temps));
-    vars := env.(vars);
-    composites := env.(composites);
-    identGenerator := gen';
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}, new_ident).
+    (env <| temps := (new_ident, t)::(env.(temps)) |> <| identGenerator := gen' |>, new_ident).
 
-
-
-  Definition add_var (env: ClightEnv) (var: string) (t: Ctypes.type)
-  : ClightEnv := 
+  Definition add_var (env: ClightEnv) (t: Ctypes.type) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    {|
-    identMap := Env.bind var new_ident env.(identMap);
-    temps := env.(temps);
-    vars := (new_ident, t)::(env.(vars));
-    composites := env.(composites);
-    identGenerator := gen';
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}.
-
+    env <|identMap := new_ident :: env.(identMap)|> <|identGenerator := gen'|>.
+  
   Definition add_composite_typ 
     (env: ClightEnv)
     (p4t : Expr.t)
     (composite_def : Ctypes.composite_definition): ClightEnv := 
-    {|
-    identMap := env.(identMap);
-    temps := env.(temps);
-    vars := env.(vars);
-    composites := (p4t, composite_def) :: env.(composites);
-    identGenerator := env.(identGenerator);
-    fenv := env.(fenv);
-    tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
-    maininit := env.(maininit);
-    globvars := env.(globvars);
-    numStrMap := env.(numStrMap);
-    topdecltypes := env.(topdecltypes);
-    tables := env.(tables);
-    top_args := env.(top_args);
-    extern_instances := env.(extern_instances);
-    expected_controls := env.(expected_controls);
-    v1model_H := env.(v1model_H);
-    v1model_M := env.(v1model_M);
-    |}
-    .
+    env <| composites := (p4t, composite_def) :: env.(composites) |>.
 
+  (* TODO: maybe we do need original identMap. *)
   Definition add_tpdecl 
     (env: ClightEnv) 
     (name: string)
-    (decl: TopDecl.d tags_t): ClightEnv
-    := 
+    (decl: TopDecl.d) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    env <| |>
     {|
     identMap := Env.bind name new_ident env.(identMap);
     temps := env.(temps);
     vars := env.(vars);
     composites := env.(composites);
     identGenerator := gen';
-    fenv := env.(fenv);
+      fenv := env.(fenv);
+      ienv := env.(ienv);
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
@@ -326,7 +243,8 @@ Section CEnv.
   vars := env.(vars);
   composites := env.(composites);
   identGenerator := env.(identGenerator);
-  fenv := Env.bind name f env.(fenv);
+    fenv := Env.bind name f env.(fenv);
+    ienv := env.(ienv);
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
@@ -352,7 +270,8 @@ Section CEnv.
   vars := env.(vars);
   composites := env.(composites);
   identGenerator := env.(identGenerator);
-  fenv := Env.bind name f env.(fenv);
+    fenv := Env.bind name f env.(fenv);
+    ienv := env.(ienv);
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
@@ -378,7 +297,8 @@ Section CEnv.
   vars := env.(vars);
   composites := env.(composites);
   identGenerator := env.(identGenerator);
-  fenv := env.(fenv);
+    fenv := env.(fenv);
+    ienv := env.(ienv);
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
@@ -402,7 +322,8 @@ Section CEnv.
   vars := env.(vars);
   composites := env.(composites);
   identGenerator := env.(identGenerator);
-  fenv := env.(fenv);
+    fenv := env.(fenv);
+    ienv := env.(ienv);
   tempOfArg := env.(tempOfArg);
   instantiationCarg := env.(instantiationCarg);
   maininit := env.(maininit);
@@ -473,7 +394,7 @@ Section CEnv.
   Definition add_Table
     (env : ClightEnv)
     (name : string)
-    (key : list (AST.Expr.e tags_t * AST.Expr.matchkind))
+    (key : list (Expr.e * string))
     (actions : list string) 
     : ClightEnv :=
     let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
@@ -490,9 +411,10 @@ Section CEnv.
     vars := env.(vars);
     composites := env.(composites);
     identGenerator := gen';
-    fenv := env.(fenv);
+      fenv := env.(fenv);
+      ienv := env.(ienv);
     tempOfArg := env.(tempOfArg);
-    instantiationCarg := env.(instantiationCarg);
+      instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
     globvars := (new_id, gvar) :: env.(globvars);
     numStrMap := env.(numStrMap);
@@ -516,7 +438,8 @@ Section CEnv.
     vars := env.(vars);
     composites := env.(composites);
     identGenerator := env.(identGenerator);
-    fenv := env.(fenv);
+      fenv := env.(fenv);
+      ienv := env.(ienv);
     tempOfArg := env.(tempOfArg);
     instantiationCarg := env.(instantiationCarg);
     maininit := env.(maininit);
@@ -529,8 +452,7 @@ Section CEnv.
     expected_controls := Env.bind expected instance env.(expected_controls);
     v1model_H := env.(v1model_H);
     v1model_M := env.(v1model_M);
-    |}   . 
-
+    |}.
 
   Definition new_ident
   (env: ClightEnv) : ClightEnv * ident := 
@@ -600,7 +522,7 @@ Section CEnv.
     v1model_M := to.(v1model_M);
   |}.  
 
-  Definition set_instantiate_cargs (env: ClightEnv) (cargs: Expr.constructor_args tags_t) : ClightEnv :=
+  Definition set_instantiate_cargs (env: ClightEnv) (cargs: TopDecl.constructor_args) : ClightEnv :=
   {|
     identMap := env.(identMap);
     temps := env.(temps);
@@ -620,7 +542,7 @@ Section CEnv.
     expected_controls := env.(expected_controls);
     v1model_H := env.(v1model_H);
     v1model_M := env.(v1model_M);
-  |}.  
+  |}.
 
  
   Definition set_main_init (env: ClightEnv) (init: Clight.statement) : ClightEnv :=
@@ -643,7 +565,7 @@ Section CEnv.
     expected_controls := env.(expected_controls);
     v1model_H := env.(v1model_H);
     v1model_M := env.(v1model_M);
-  |}.  
+  |}.
 
 
   Definition set_top_args (env: ClightEnv) (args: list Clight.expr) : ClightEnv := 
@@ -666,7 +588,7 @@ Section CEnv.
     expected_controls := env.(expected_controls);
     v1model_H := env.(v1model_H);
     v1model_M := env.(v1model_M);
-  |}.  
+  |}.
 
   (* Definition get_main_init (env: ClightEnv) : Clight.statement := 
     env.(maininit). *)
@@ -846,7 +768,7 @@ Section CEnv.
     | _, _ => err "failed to lookup the function"
     end.
 
-  Definition lookup_topdecl (env: ClightEnv) (name: string) : @error_monad string (TopDecl.d tags_t) := 
+  Definition lookup_topdecl (env: ClightEnv) (name: string) : @error_monad string TopDecl.d := 
     match Env.find name env.(topdecltypes) with
     | None => err "failed to lookup the top declaration"
     | Some decl => error_ret decl
@@ -915,7 +837,7 @@ Section CEnv.
   Definition find_table (env: ClightEnv) (name: string) 
     : @error_monad
         string
-        (AST.ident * (list (AST.Expr.e tags_t * AST.Expr.matchkind))*(list string)) 
+        (ident * (list (Expr.e * string))*(list string)) 
     := 
     match Env.find name env.(identMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => error_ret (id, keys, actions)
@@ -929,8 +851,7 @@ Section CEnv.
     | _ => err "can't find extern name"
   end.
 
-
-  Definition get_instantiate_cargs (env: ClightEnv) : Expr.constructor_args tags_t := 
+  Definition get_instantiate_cargs (env: ClightEnv) : TopDecl.constructor_args := 
     env.(instantiationCarg).
 
   Definition get_top_args (env: ClightEnv) : list (Clight.expr) :=

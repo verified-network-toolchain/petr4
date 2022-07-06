@@ -412,10 +412,11 @@ Definition check_lpm_count (mks: list ident): option nat :=
         else Some index
   end.
 
-Fixpoint assert_bit (v: Val): option (list bool) :=
+Fixpoint assert_int (v: Val): option (N * Z * list bool )  :=
   match v with
-  | ValBaseBit bits => Some bits
-  | ValBaseSenumField _ val => assert_bit val
+  | ValBaseBit bits => Some ((BitArith.from_lbool bits), bits)
+  | ValBaseInt bits => Some ((IntArith.from_lbool bits), bits)
+  | ValBaseSenumField _ val => assert_int val
   | _ => None
   end.
 
@@ -434,12 +435,12 @@ Definition lpm_rank(lpm_idx: nat) (vs: ValSetT): option N :=
     | VSTLpm nbits _ =>  Some nbits
     | VSTSingleton v => Some (width_of_val v)
     | VSTMask v1 v2 =>
-        match assert_bit v2 with
+        match assert_int v2 with
         | None => None
-        | Some v2' => match bits_to_lpm_nbits 0 false v2' with
-                      | None => None
-                      | Some n => Some n
-                      end
+        | Some (_, _, v2') => match bits_to_lpm_nbits 0 false v2' with
+                              | None => None
+                              | Some n => Some n
+                              end
         end
     | _ => None
     end
@@ -477,51 +478,61 @@ Definition values_match_singleton (key: Val) (val: Val): bool :=
   end.
 
 Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
-  match bits0, bits1, bits2 with
+  match bits2, bits1, bits0 with
   | [], [], [] => true
-  | _::tl0, _::tl1, false::tl2 => vmm_help tl0 tl1 tl2
-  | hd0::tl0, hd1::tl1, true::tl2 => if (Bool.eqb hd0 hd1) then (vmm_help tl0 tl1 tl2) else false
+  | false::tl2, _::tl1, _::tl0 => vmm_help tl0 tl1 tl2
+  | true::tl2, hd1::tl1, hd0::tl0 => 
+      if (Bool.eqb hd0 hd1) 
+      then (vmm_help tl0 tl1 tl2) 
+      else false
   (* should never hit *)
   | _, _, _ => dummy_bool
   end.
 
 Definition values_match_mask (key: Val) (val mask: Val): bool :=
-  match assert_bit key, assert_bit val, assert_bit mask with
-  | Some bits0, Some bits1, Some bits2 =>
-    let w0 := List.length bits0 in
-    let w1 := List.length bits1 in
-    let w2 := List.length bits2 in
-    if negb ((w0 =? w1)%nat && (w1 =? w2)%nat) then dummy_bool
+  match assert_int key, assert_int val, assert_int mask with
+  | Some (w0, _, bits0), Some (w1, _, bits1), Some (w2, _, bits2) =>
+    if negb ((w0 =? w1)%N && (w1 =? w2)%N) then dummy_bool
     else vmm_help bits0 bits1 bits2
   | _, _, _ => dummy_bool
   end.
 
+Fixpoint vmm_help_z (v : Z) (bits1 bits2: list bool) :=
+  match bits2, bits1 with
+  | [], [] => true
+  | false::tl2, _::tl1 => vmm_help_z (v / 2) tl1 tl2
+  | true::tl2, hd1::tl1 => 
+      if Bool.eqb (Z.odd v) hd1
+      then (vmm_help_z (v / 2) tl1 tl2)
+      else false
+  | _, _ => dummy_bool
+  end.
+
+(* Fixpoint vmm_help_z' (v : Z) (bits1 bits2: list bool) :=
+  match bits2, bits1 with
+  | [], [] => true
+  | false::tl2, _::tl1 => vmm_help_z' (v / 2) tl1 tl2
+  | true::tl2, hd1::tl1 => 
+      andb (Bool.eqb (Z.odd v) hd1) (vmm_help_z' (v / 2) tl1 tl2)
+  | _, _ => Tofino.dummy_bool
+  end. *)
+
+
 Definition lpm_nbits_to_mask (w1 w2 : N) : list bool :=
-  (Zrepeat false (Z.of_N (w1 - w2))) ++ (Zrepeat true (Z.of_N w2)).
+(Zrepeat false (Z.of_N (w1 - w2))) ++ (Zrepeat true (Z.of_N w2)).
 
 Definition values_match_lpm (key: Val) (val: Val) (lpm_num_bits: N): bool :=
-  match assert_bit key, assert_bit val with
-  | Some bits0, Some bits1 =>
-    let w0 := List.length bits0 in
-    let w1 := List.length bits1 in
-    let w1n := N.of_nat w1 in
-    if negb ((w0 =? w1)%nat && (lpm_num_bits <=? w1n)%N) then dummy_bool
-    else let bits2 := lpm_nbits_to_mask w1n lpm_num_bits in
+  match assert_int key, assert_int val with
+  | Some (w0, _, bits0), Some (w1, _, bits1) =>
+    if negb ((w0 =? w1)%N && (lpm_num_bits <=? w1)%N) then dummy_bool
+    else let bits2 := lpm_nbits_to_mask w1 lpm_num_bits in
      vmm_help bits0 bits1 bits2
   | _, _ => dummy_bool
   end.
 
-Fixpoint assert_int (v: Val): option (N * Z) :=
-  match v with
-  | ValBaseBit bits => Some (BitArith.from_lbool bits)
-  | ValBaseInt bits => Some (IntArith.from_lbool bits)
-  | ValBaseSenumField _ val => assert_int val
-  | _ => None
-  end.
-
 Definition values_match_range (key: Val) (lo hi: Val): bool :=
   match assert_int key, assert_int lo, assert_int hi with
-  | Some (w0, z0), Some (w1, z1), Some (w2, z2) => 
+  | Some (w0, z0, _), Some (w1, z1, _), Some (w2, z2, _) => 
       if negb ((w0 =? w1)%N && (w1 =? w2)%N) then dummy_bool
       else ((z1 <=? z0) && (z0 <=? z2))
   | _, _, _ => dummy_bool

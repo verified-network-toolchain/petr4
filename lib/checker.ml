@@ -408,6 +408,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   | Constructor ctor ->
      Constructor (saturate_constructor env ctor)
 
+(* applies the arguments to the parameters of a specialized type that its base has parameters. *)
 and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = saturate_type env typ in
   match typ with

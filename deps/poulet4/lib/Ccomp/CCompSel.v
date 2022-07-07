@@ -7,142 +7,75 @@ Require Import
         Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Envn.
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
-     Monads.Monad Monads.Option Monads.Error
+     Monads.Monad Monads.Option Monads.Error Monads.Stat
      Ccomp.CCompEnv (*Ccomp.Helloworld Ccomp.CV1Model*) Ccomp.Cconsts.
-Local Open Scope string_scope.
-Local Open Scope list_scope.
-Local Open Scope Z_scope.
-Local Open Scope N_scope.
-Local Open Scope clight_scope.
-Local Open Scope positive_scope.
 Import Clightdefs.ClightNotations.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Module RunTime := Petr4Runtime.
-Parameter print_Clight: Clight.program -> unit.
 (** P4Sel -> Clight **)
 Section CCompSel.
-  (*common values*)
- 
-  Fixpoint CTranslateType (p4t : Expr.t) (env: ClightEnv ) : Ctypes.type * ClightEnv :=
+  Local Open Scope string_scope.
+  Local Open Scope list_scope.
+  Local Open Scope Z_scope.
+  Local Open Scope N_scope.
+  Local Open Scope clight_scope.
+  Local Open Scope positive_scope.
+  Local Open Scope monad_scope.
+  
+  Parameter print_Clight: Clight.program -> unit.
+  Check List.fold_right.
+  Fixpoint
+    CTranslateType
+    (p4t : Expr.t) : State ClightEnv Ctypes.type :=
     match p4t with
-    | Expr.TBool => (Ctypes.type_bool, env)
-    | Expr.TBit (w) => (bit_vec,env)
-    | Expr.TInt (w) => (bit_vec, env)
-    | Expr.TVar name => 
-      if (String.eqb name "packet_in") then 
-      (packet_in,env) else 
-      if (String.eqb name "packet_out") then
-      (packet_out,env) else 
-      (tvoid, env) (*TODO: I don't think this is what we want to use it as*)
-    | Expr.TError => (int_unsigned, env)
-
-    | Expr.TTuple (ts) => 
-        match lookup_composite  env p4t with
-        | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
-        | _ => 
-        let (env_top_id, top_id) := CCompEnv.new_ident  env in
-        let (members ,env_fields_declared):= 
-        List.fold_left 
-        (fun (cumulator: Ctypes.members*ClightEnv )  (field: Expr.t) 
-        => let (members_prev, env_prev) := cumulator in 
-           let (new_t, new_env):= CTranslateType field env_prev in
-           let (new_env, new_id):= CCompEnv.new_ident  new_env in
-           ((Member_plain new_id new_t) :: members_prev, new_env))
-        ts ([],env_top_id) in
-        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-        let env_comp_added := CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
-        (Ctypes.Tstruct top_id noattr, env_comp_added)
-        end
-
-    | Expr.TStruct (fields) =>
-        (* Checks if there's an identifier for [TStruct fields] *)
-        match lookup_composite  env p4t with
-        | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env) (* found identifier *)
-        | _ => (* need to generate identifier *) 
-        let (env_top_id, top_id) := CCompEnv.new_ident  env (* new identifier *) in
-        let (members ,env_fields_declared):=
-          (* translate fields *)
-        F.fold 
-        (fun (k: string) (field: Expr.t) (cumulator: Ctypes.members*ClightEnv ) 
-        => let (members_prev, env_prev) := cumulator in 
-           let (new_t, new_env):= CTranslateType field env_prev in
-           let new_t := 
-           match new_t with 
-           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
-           | _ => new_t end in 
-           let (new_env, new_id):= CCompEnv.new_ident  new_env in
-           ((Member_plain new_id new_t) :: members_prev, new_env))
-        fields ([],env_top_id) in
-        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-        let env_comp_added := CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
-        (Ctypes.Tstruct top_id noattr, env_comp_added)
-        end
-
-    | Expr.THeader (fields) => 
-    (* struct plus a validity boolean value *)
-        match lookup_composite  env p4t with
-        | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
-        | _ => 
-        let (env_top_id, top_id) := CCompEnv.new_ident  env in
-        let (env_valid, valid_id) := new_ident  env_top_id in 
-        let (members ,env_fields_declared):= 
-        F.fold 
-        (fun (k: string) (field: Expr.t) (cumulator: Ctypes.members*ClightEnv  ) 
-        => let (members_prev, env_prev) := cumulator in 
-           let (new_t, new_env):= CTranslateType field env_prev in
-           let new_t := 
-           match new_t with 
-           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
-           | _ => new_t end in 
-           let (new_env, new_id):= CCompEnv.new_ident  new_env in
-           ((Member_plain new_id new_t) :: members_prev, new_env))
-        fields ([Member_plain valid_id type_bool],env_valid) in
-        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-        let env_comp_added := CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
-        (Ctypes.Tstruct top_id noattr, env_comp_added)
-        end
-
-    | Expr.THeaderStack fields n=> 
-      match lookup_composite  env p4t with
-      | inl comp => (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
-      | _ =>
-        let header := Expr.THeader fields in
-        let (hdarray, env_hdarray) := 
-        match lookup_composite  env header with
-        | inl comp => (Ctypes.Tarray (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr) (Zpos n) noattr, env)
-        | _ => 
-        let (env_top_id, top_id) := CCompEnv.new_ident  env in
-        let (env_valid, valid_id) := new_ident  env_top_id in 
-        let (members ,env_fields_declared):= 
-        F.fold 
-        (fun (k: string) (field: Expr.t) (cumulator: Ctypes.members*ClightEnv  ) 
-        => let (members_prev, env_prev) := cumulator in 
-          let (new_t, new_env):= CTranslateType field env_prev in
-          let new_t := 
-           match new_t with 
-           | (Tstruct st noattr) => if(st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
-           | _ => new_t end in 
-          let (new_env, new_id):= CCompEnv.new_ident  new_env in
-          ((Member_plain new_id new_t) :: members_prev, new_env))
-        fields ([Member_plain valid_id type_bool],env_valid) in
-        let comp_def := Ctypes.Composite top_id Ctypes.Struct members Ctypes.noattr in
-        let env_comp_added := CCompEnv.add_composite_typ  env_fields_declared header comp_def in
-        (Tarray (Ctypes.Tstruct top_id noattr) (Zpos n) noattr, env_comp_added)
-        end in
-        (* pointer helps for push and pop *)
-        let (env_ptr_id, ptr_id) := CCompEnv.new_ident  env_hdarray (* pointer to place in stack *) in
-        let (env_size_id, size_id) := CCompEnv.new_ident  env_ptr_id in
-        let (env_arr_id, arr_id) := CCompEnv.new_ident  env_size_id in
-        let (env_top_id, top_id) := CCompEnv.new_ident  env_arr_id in
-        let comp_def := Ctypes.Composite
-                          top_id Ctypes.Struct
-                          [Member_plain ptr_id int_signed;
-                          Member_plain size_id int_signed;
-                          Member_plain arr_id hdarray] noattr in
-        let env_comp_added := CCompEnv.add_composite_typ  env_top_id p4t comp_def in
-        ((Ctypes.Tstruct top_id noattr), env_comp_added)      
-      end
-  end.
+    | Expr.TBool => mret Ctypes.type_bool
+    | Expr.TBit _
+    | Expr.TInt _ => mret bit_vec
+    | Expr.TVar _ => mret tvoid
+    | Expr.TError => mret int_unsigned
+    | Expr.TStruct fields is_header =>
+        fun env =>
+          (* Checks if there's an identifier for [TStruct fields] *)
+          match lookup_composite env p4t with
+          | inl comp =>
+              (* found identifier *)
+              (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr, env)
+          | _ => (* need to generate identifier *)
+              (* new identifier *)
+              let (env_top_id, top_id) := CCompEnv.new_ident env in
+              let (env_valid, init) :=
+                if is_header then
+                  let (env_valid, valid_id) :=
+                    new_ident env_top_id in
+                  (env_valid, [Member_plain valid_id type_bool])
+                else
+                  (env_top_id, []) in
+              let (members, env_fields_declared) :=
+                (* translate fields *)
+                List.fold_right
+                  (fun (field: Expr.t)
+                     '((members_prev, env_prev) : Ctypes.members * ClightEnv) =>
+                     let (new_t, new_env) :=
+                       CTranslateType field env_prev in
+                     let new_t :=
+                       match new_t with 
+                       | (Tstruct st noattr) =>
+                           if (st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
+                       | _ => new_t end in 
+                     let (new_env, new_id) := CCompEnv.new_ident new_env in
+                     ((Member_plain new_id new_t) :: members_prev, new_env))
+                  ([], env_valid) fields in
+              let comp_def :=
+                Ctypes.Composite
+                  top_id
+                  Ctypes.Struct
+                  (init ++ members)
+                  Ctypes.noattr in
+              let env_comp_added :=
+                CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
+              (Ctypes.Tstruct top_id noattr, env_comp_added)
+          end
+    end.
 
   (* Definition CTranslateConstructorType (ct: Expr.ct) (env: ClightEnv ) : Ctypes.type * ClightEnv  :=
   match ct with 

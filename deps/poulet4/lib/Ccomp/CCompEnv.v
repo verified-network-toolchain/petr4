@@ -69,6 +69,10 @@ Section CEnv.
   Instance eta_globvar (V : Type) : Settable (globvar V) :=
     settable! (@mkglobvar V)
     < gvar_info ; gvar_init ; gvar_readonly ; gvar_volatile >.
+
+  (* TODO: Hence forth controls parsers & externs are in the same
+     namespace, and their instances share a namespace.
+     Need to go over p4cub static and dynamic semantics. *)
   
   (* TODO: how to address De Bruijn indices. *)
   Record ClightEnv : Type :=

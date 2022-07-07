@@ -32,33 +32,23 @@ Definition typelist_extract_bitvec := Ctypes.Tcons ptr_pkt_in
 (Ctypes.Tcons TpointerBitVec Ctypes.Tnil))). *)
 (* Definition extract := Evar $"extract" (Tfunction typelist_bop_bool tvoid cc_default). *)
 
-(* The order is 
-Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
+(** The order is 
+    Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
 Definition main_fn (env: ClightEnv) (cargs: TopDecl.constructor_args): Clight.function
 := 
-(* this is sketchy because I'm not sure how many instantiations will there be
-and I'm not sure if the name works as I thought they would*)
-(*let p := Field.get "p" cargs in
-let vr := Field.get "vr" cargs in
-let ig := Field.get "ig" cargs in
-let eg := Field.get "eg" cargs in
-let ck := Field.get "ck" cargs in
-let dep := Field.get "dep" cargs in*)
+(* TODO: this is sketchy because I'm not sure how many instantiations will there be
+   and I'm not sure if the name works as I thought they would*)
 match cargs (*p, vr, ig, eg, ck , dep*) with
-| [ TopDecl.CAName p;
-    TopDecl.CAName vr;
-    TopDecl.CAName ig;
-    TopDecl.CAName eg;
-    TopDecl.CAName ck;
-    TopDecl.CAName dep] =>
-
+| [ TopDecl.CAName p; TopDecl.CAName vr; TopDecl.CAName ig;
+    TopDecl.CAName eg; TopDecl.CAName ck; TopDecl.CAName dep] =>
     match
-      lookup_function  env p,
-      lookup_function  env vr,
-      lookup_function  env ig,
-      lookup_function  env eg,
-      lookup_function  env ck,
-      lookup_function  env dep with
+      env.(expected_instances)
+      lookup_function env p,
+      lookup_function env vr,
+      lookup_function env ig,
+      lookup_function env eg,
+      lookup_function env ck,
+      lookup_function env dep with
     | inl (pf,pid),
       inl (vrf,vrid),
       inl (igf,igid),

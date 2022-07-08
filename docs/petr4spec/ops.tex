@@ -123,7 +123,7 @@
 \newcommand{\typWellFormedWithEnv}[2]{{#1} \vdash {#2}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}}
 %context. type of expression. type of returned name.exp
-\newcommand{\fieldAccessEnv}[3]{\env, {#1} \vdash \name, {#2} : {#3}}
+\newcommand{\fieldAccessEnv}[3]{\env, {#1} \vdash \field, {#2} : {#3}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}

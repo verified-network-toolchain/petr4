@@ -890,7 +890,7 @@ contains no type synonym (_TypeName_ in Petr4) constructors that are used to giv
 
 ~ End InfRule
 
-## List Constructor Rule
+## List Constructor Rule { #sec-list-e }
 
 $\list {\exp_1, \ldots, \exp_n}$ constructs a list of expressions.
 The rule $\listE$ states that under environment $\env$ and context $\ctxt$
@@ -912,7 +912,7 @@ The rule $\listAltE$ uses the notation of $\overline \exp$ instead of expanding 
 
 ~ End InfRule
 
-## Record Constructor Rule
+## Record Constructor Rule { #sec-record-e }
 
 ${\record 1 n}$ denotes a record where $\exp_i$ is assigned to $\field_i$ for $1 \leq i \leq n$.
 The rule $\recordE$ is similar to $\listE$ rule. 
@@ -929,7 +929,7 @@ The rule $\recordE$ is similar to $\listE$ rule.
 
 ~ End InfRule
 
-## Unary Operations Rules
+## Unary Operations Rules { #sec-unary-ops-e }
 
 The rule $\logicalNegE$ states that under the environment $\env$ and context $\ctxt$
 the expression $!\exp$ translates to the expression $!\prim\exp$ with the type $\boolTyp$ and direction $\dir$ if expression $\exp$ translates to $\prim\exp$ with type $\boolTyp$ and direction $\dir$ under the same environment and context.
@@ -963,7 +963,7 @@ Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or bin
 
 - P4 spec defines bitwise complement only for bit<w> but Petr4 also allows it for int<w>. (ref: type_unary_op bitnot impl. section 8.5 spec. bitwisecomplement rule.)
 
-## Binary Operations Rules
+## Binary Operations Rules { #sec-bin-ops-e }
 
 - The operation $\oplus$ stands for all possible binary operations.
 
@@ -1068,13 +1068,13 @@ compile time we still consider it known at compile time.
 
 ~ Begin InfRuleHelper
 
-  \inferrule[LogicalOps($\ops=\&\&,\vert\vert$)]
+  \inferrule[LogicalOps\rAE($\ops=\&\&,\vert\vert$)]
      {  \reduceEnums {\typ_1} = \boolTyp  \\
        \reduceEnums {\typ_2} = \boolTyp \\
        \dir = \inOrLess {\dir_1} {\dir_2} }
      { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-  \inferrule[NumericOps($\ops=+, -, *$)]
+  \inferrule[NumericOps\rAE($\ops=+, -, *$)]
      { \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\
        \typ = \bitWidthTyp \width \textOr \integerTyp \textOr \intWidthTyp \width \\
        % \reduceEnums {\typ_2} = \bitWidthTyp \width \textOr \integerTyp \textOr \intWidthTyp \width \\
@@ -1083,25 +1083,25 @@ compile time we still consider it known at compile time.
        }
      { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[EqualityChecks($\ops=\ ==, !=$)]
+  \inferrule[EqualityChecks\rAE($\ops=\ ==, !=$)]
      { \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\
        % \typEq {\emp} {\typ_1} {\typ_2} \\
        \typHasEq {\typ_1} }
      { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-  \inferrule[OpSat($\ops = \plusSat,\subSat$)]
+  \inferrule[OpSat\rAE($\ops = \plusSat,\subSat$)]
      { \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\
        \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
        \dir = \inOrLess {\dir_1} {\dir_2}}
        { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[BitwiseOps($\ops=\bitAnd, \bitOr, \bitXor, \bitComplement$)]
+  \inferrule[BitwiseOps\rAE($\ops=\bitAnd, \bitOr, \bitXor, \bitComplement$)]
      { \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ\\
        \typ = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
        \dir = \inOrLess {\dir_1} {\dir_2}}
        { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[BitstringConcatenation]
+  \inferrule[BitstringConcatenation\rAE]
      { \reduceEnums {\typ_1} = \prim {\typ_1} \\
        \reduceEnums {\typ_2} = \prim {\typ_2} \\
        \left( \so {\prim {\typ_1} = \bitWidthTyp {\width_1}, \prim {\typ_2} = \bitWidthTyp {\width_2} \textOr \intWidthTyp {\width_2}} {\typ = \bitWidthTyp {\width_1 + \width_2}} \right) \\
@@ -1109,7 +1109,7 @@ compile time we still consider it known at compile time.
        \dir = \inOrLess {\dir_1} {\dir_2}}
      { \binOpEnv {\exp_1 \concat \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[ComparisonOps($\ops= <, \leq, >, \geq$)]
+  \inferrule[ComparisonOps\rAE($\ops= <, \leq, >, \geq$)]
      { \reduceEnums {\typ_1} = \prim {\typ_1} \\
        \reduceEnums {\typ_2} = \prim {\typ_2} \\
        \dir = \inOrLess {\dir_1} {\dir_2}\\
@@ -1119,7 +1119,7 @@ compile time we still consider it known at compile time.
 }
      { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[DivOps($\ops=\div, \mod$)]
+  \inferrule[DivOps\rAE($\ops=\div, \mod$)]
      {  \reduceEnums {\typ_1} = \prim {\typ_1}\\
        \reduceEnums {\typ_2} = \prim {\typ_2}\\
        \left( \so {\prim {\typ_1} = \prim {\typ_2} = \integerTyp, \nonNeg {\exp_1}, \pos {\exp_2}}  {\typ = \integerTyp} \right) \textOr \\
@@ -1127,7 +1127,7 @@ compile time we still consider it known at compile time.
        \dir = \inOrLess {\dir_1} {\dir_2}}
      { \binOpEnv {\exp_1 \restOps \exp_2} \typ \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[ShiftOps($\ops=\shiftL,\shiftR$)]
+  \inferrule[ShiftOps\rAE($\ops=\shiftL,\shiftR$)]
      {
        % \typ_1 = \reduceEnums {\typ_1} \\
        % \typ_2 = \reduceEnums {\typ_2} \\
@@ -1198,151 +1198,151 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
 
 ~ Begin InfRuleHelper
 
-  \inferrule[Bit<1>ToBool]
+  \inferrule[Bit<1>ToBool\rAE]
      {}
      { \explCast {\bitWidthTyp 1} \boolTyp }
 
-  \inferrule[BoolToBit<1>]
+  \inferrule[BoolToBit<1>\rAE]
      {}
      { \explCast \boolTyp {\bitWidthTyp 1} }
 
-  \inferrule[UnsignedIntToSigned]
+  \inferrule[UnsignedIntToSigned\rAE]
      { \width_1 = \width_2 }
      { \explCast {\bitWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
-  \inferrule[SignedIntToUnsigned]
+  \inferrule[SignedIntToUnsigned\rAE]
      { \width_1 = \width_2 }
      { \explCast {\intWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
-  \inferrule[UnsignedIntToUnsignedInt-Explicit]
+  \inferrule[UnsignedIntToUnsignedInt-Explicit\rAE]
      {}
      { \explCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
-  \inferrule[UnsignedIntToUnsignedInt-Implicit]
+  \inferrule[UnsignedIntToUnsignedInt-Implicit\rAE]
      { \width_1 = \width_2}
      { \implCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
-  \inferrule[SignedIntToSignedInt-Explicit]
+  \inferrule[SignedIntToSignedInt-Explicit\rAE]
      {}
      { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
-  \inferrule[SignedIntToSignedInt-Implicit]
+  \inferrule[SignedIntToSignedInt-Implicit\rAE]
      { \width_1 = \width_2}
      { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
-  \inferrule[ArbitraryPrecisionIntToUnsignedInt]
+  \inferrule[ArbitraryPrecisionIntToUnsignedInt\rAE]
      {}
      { \castenv \  \integerTyp {\bitWidthTyp \width}}
 
-  \inferrule[ArbitraryPrecisionIntToSignedInt]
+  \inferrule[ArbitraryPrecisionIntToSignedInt\rAE]
      {}
      { \castenv \  \integerTyp {\intWidthTyp \width}}
 
-  \inferrule[TypeDefs]
+  \inferrule[TypeDefs\rAE]
      { (\typEqEnv \emp {\typ_1} {\newTypeTyp \name {\typ_2}}) \textOr (\typEqEnv \emp {\typ_2} {\newTypeTyp \name {\typ_1}})}
      { \castenv \  {\newTypeTyp \name {\typ_1}} {\newTypeTyp \name {\typ_2}}}
 
-  \inferrule[TypeDefToType-Explicit]
+  \inferrule[TypeDefToType-Explicit\rAE]
      { \explCast {\typ_1} {\typ_2}}
      { \explCast {\newTypeTyp \name {\typ_1}} {\typ_2}}
 
-  \inferrule[TypeDefToType-Implicit]
+  \inferrule[TypeDefToType-Implicit\rAE]
      { \implCast {\typ_1} {\typ_2}}
      { \implCast {\newTypeTyp \name {\typ_1}} {\typ_2}}
 
-  \inferrule[TypeToTypeDef-Explicit]
+  \inferrule[TypeToTypeDef-Explicit\rAE]
      { \explCast {\typ_1} {\typ_2}}
      { \explCast {\typ_1} {\newTypeTyp \name {\typ_2}}}
 
-  \inferrule[TypeToTypeDef-Implicit]
+  \inferrule[TypeToTypeDef-Implicit\rAE]
      { \implCast {\typ_1} {\typ_2}}
      { \implCast {\typ_1} {\newTypeTyp \name {\typ_2}}}
 
-  \inferrule[Enums]
+  \inferrule[Enums\rAE]
      { \typEqEnv \emp {\typ_1} {\typ_2}}
      { \castenv \ {\enumTyp {\typ_1} {\name_1} {\names_1}} {\enumTyp {\typ_2} {\name_2} {\names_2}}}
 
-  \inferrule[EnumToUnderlyingType]
+  \inferrule[EnumToUnderlyingType\rAE]
      { \typEqEnv \emp {\typ_1} {\typ_2}}
      { \castenv \ {\enumTyp {\typ_1} {\name_1} {\names_1}} {\typ_2}}
 
-  \inferrule[TypeToEnumWithUndrlyingType]
+  \inferrule[TypeToEnumWithUndrlyingType\rAE]
      { \typEqEnv \emp {\typ_1} {\typ_2}}
      { \castenv \ {\typ_1} {\enumTyp {\typ_2} {\name_2} {\names_2}}}
 
-  \inferrule[Sets]
+  \inferrule[Sets\rAE]
      { \typEqEnv \emp {\typ_1} {\typ_2}}
      { \castenv \ {\setTyp {\typ_1}} {\setTyp {\typ_2}} }
 
-  \inferrule[TypeToSet]
+  \inferrule[TypeToSet\rAE]
      { \typEqEnv \emp {\typ_1} {\typ_2}}
      { \implCast {\typ_1} {\setTyp {\typ_2}}}
 
-  \inferrule[ListToTuple]
+  \inferrule[ListToTuple\rAE]
      { \typEqEnv \emp {\tupleTyps {\typs_1}} {\tupleTyps {\typs_2}}}
      { \castenv \  {\listTyps {\typs_1} } {\tupleTyps {\typs_2}}}
 
-  \inferrule[ListToHeader-Explicit]
+  \inferrule[ListToHeader-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\explCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
 
-  \inferrule[ListToHeader-Implicit]
+  \inferrule[ListToHeader-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\implCast {\listTyp {\typ_1} {\typ_n}} {\headerTypp 1 n }}
 
-  \inferrule[ListToStruct-Explicit]
+  \inferrule[ListToStruct-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\explCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
 
-  \inferrule[ListToStruct-Implicit]
+  \inferrule[ListToStruct-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\tupleTyp {\typ_1} {\typ_n}} {\tupleTyp {\prim {\typ_1}} {\prim {\typ_n}}})}
      {\implCast {\listTyp {\typ_1} {\typ_n}} {\structTypp 1 n }}
 
-  \inferrule[RecordToHeader-Explicit]
+  \inferrule[RecordToHeader-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\explCast {\recordTyp 1 n } {\headerTypp 1 n}}
 
-  \inferrule[RecordToHeader-Implicit]
+  \inferrule[RecordToHeader-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\implCast {\recordTyp 1 n } {\headerTypp 1 n}}
 
-  \inferrule[RecordToStruct-Explicit]
+  \inferrule[RecordToStruct-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\explCast {\recordTyp 1 n } {\structTypp 1 n}}
 
-  \inferrule[RecordToStruct-Implicit]
+  \inferrule[RecordToStruct-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\recordTyp 1 n} {\recordTypp 1 n})}
      {\implCast {\recordTyp 1 n } {\structTypp 1 n}}
 
-  \inferrule[HeaderToHeader-Explicit]
+  \inferrule[HeaderToHeader-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\headerTyp 1 n} {\headerTypp 1 n})}
      {\explCast {\headerTyp 1 n } {\headerTypp 1 n}}
 
-  \inferrule[HeaderToHeader-Implicit]
+  \inferrule[HeaderToHeader-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\headerTyp 1 n} {\headerTypp 1 n})}
      {\implCast {\headerTyp 1 n } {\headerTypp 1 n}}
 
-  \inferrule[StructToStruct-Explicit]
+  \inferrule[StructToStruct-Explicit\rAE]
      {(1 \leq i \leq n. \explCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\structTyp 1 n} {\structTypp 1 n})}
      {\explCast {\structTyp 1 n } {\structTypp 1 n}}
 
-  \inferrule[StructToStruct-Implicit]
+  \inferrule[StructToStruct-Implicit\rAE]
      {(1 \leq i \leq n. \implCast {\typ_i} {\prim {\typ_i}}) \textOr
       (\typEqEnv \emp {\structTyp 1 n} {\structTypp 1 n})}
      {\implCast {\structTyp 1 n } {\structTypp 1 n}}
 
-  \inferrule[ID]
+  \inferrule[ID\rAE]
     { \typ_1 = \typ_2}
     {\implCast {\typ_1} {\typ_2}}
 
@@ -1350,7 +1350,22 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
 
 ## Membership Rules { #sec-mem-e }
 
-- Petr4 calls field access for structs _expression member_.
+A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
+Petr4's _expression member_ is P4's _field access_.
+
+The rules $\typeMemE$ and $\errMemE$ are rather simple.
+They just look up $\name$ extended with the type or error, respectively, in the environment. For example, the $\typeMemE$ states that under the environment $\env$ and context $\ctxt$, the expression $\typMem \typ \name$ is the same in the IR and has the type $\typ$ and direction $\less$ if $\typMem \typ \name$ exists in $\env$.
+
+The rule $\expMemE$ states that under the environment $\env$ and context $\ctxt$, the
+expression $\expMem \exp \field$ translates to the expression $\expMem {\prim \exp} \field$ with type $\pprim \typ$ and direction $\less$ where $\prim \exp$ is the translation of the expression $\exp$ and $\pprim \typ$ is the type of the field $\field$ from the reduced type of expression $\exp$ (that is, $\reduce \typ$) which is returned by the expression member auxiliary judgment. 
+
+- The [expression member auxiliary judgment][#sec-exp-mem-helper] is a helper judgment
+for the $\expMemE$ rule.
+It has the form $\fieldAccessEnv \ctxt \typ {\prim \typ}$
+which states that under environment $\env$ and context $\ctxt$, the field $\field$
+has the type $\prim \typ$ in an expression of type $\typ$.
+Simply stated, it looks up the type of the field from the expression member passed from the $\expMemE$ rule. 
+Note that the expression has to be of a type that contains fields, such as a struct or a header. 
 
 ~ Begin InfRule
 
@@ -1368,40 +1383,27 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
        % \structTypDef = \prim \typ\\
        \fieldAccessEnv \ctxt {\prim \typ} {\pprim \typ}
        }
-     { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
+     { \expenv {\expMem \exp \field} {\expMem {\prim \exp} \field} {\pprim \typ} {\less} }
 
 ~ End InfRule
 
-### Field Access Builtin Methods Auxiliary Judgment { #sec-exp-mem-builtin }
+### Expression Member Auxiliary Judgment { #sec-exp-mem-helper }
 
-**DISCUSSION** there is some dead code in the implementation of this judgment.
-The function _type\_expression\_member_ calls the helper _type\_expression\_member\_builtin_ when it doesn't find the name of field that is to be accessed (that is, for size,
-last index, next, or last) and there it checks if the type of the expression is an
-array but it has already patterned matched on the type of the expression to be either
-struct, header, header union, specilaized, or extern. Thus, the _None_ case would always
-fail. what's the correct expected behavior here?
 
-- The [expression memeber builtin judgment][#sec-exp-mem-builtin] is a helper judgment
-for expression member (field access) rule.
-It has the form $\fieldAccessEnv \ctxt \exp \typ {\prim \typ}$
-which states that under environment $\env$ and context $\ctxt$, the field $\name$
-has the type $\prim \typ$ in the expression $\exp$ of type $\typ$.
-Note that $\exp$ has to be an expression
-that contains fields, such as a struct or a header. 
 
 ~ Begin InfRuleHelper
 
-  \inferrule[ExpressionMember-StructOrHeaderOrHeaderUnion]
+  \inferrule[Type:StructOrHeaderOrHeaderUnion\rAE]
      {
        % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \structTypDef = \reduce \typ \\
        % \structTypDef = \prim \typ\\
        (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       \exists 1 \leq i \leq n+1. \field_i = \name
+       \exists 1 \leq i \leq n+1. \field_i = \field
        }
      { \fieldAccessEnv \ctxt \structTypDef {\typ_i} }
 
-  \inferrule[ExpressionMember-StructOrHeaderOrHeaderUnion-SizeOrLastIndex]
+  \inferrule[Type:StructOrHeaderOrHeaderUnion-Field:SizeOrLastIndex\rAE]
      {
        % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \structTypDef = \reduce \typ \\
@@ -1409,11 +1411,11 @@ that contains fields, such as a struct or a header.
        % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
        % \isArray \typ \\
        \name = \sizeFlag \textOr \lastIndex\\
-       \nexists 1 \leq i \leq n. \field_i = \name
+       \nexists 1 \leq i \leq n. \field_i = \field
        }
      { \fieldAccessEnv \ctxt {\arrayTyp \typ \size AND \ \structTypDef} {\bitWidthTyp {32}} }
 
-  \inferrule[ExpressionMember-StructOrHeaderOrHeaderUnion-NextOrLast]
+  \inferrule[Type:StructOrHeaderOrHeaderUnion-Field:NextOrLast\rAE]
      {
        % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \structTypDef = \reduce \typ \\
@@ -1422,70 +1424,83 @@ that contains fields, such as a struct or a header.
        % \isArray {\reduce \typ} \\
        % \arrayTyp {\prim \typ} \size = \typ\\
        \name = \sizeFlag \textOr \lastIndex \\
-       \nexists 1 \leq i \leq n. \field_i = \name
+       \nexists 1 \leq i \leq n. \field_i = \field
        }
      { \fieldAccessEnv \parserCtxt {\arrayTyp \typ \size AND \ \structTypDef} \typ }
 
-  \inferrule[ExpressionMember-Specialized]
+  \inferrule[Type:Specialized\rAE]
      {
        % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \spcTyp {\externTyp {\prim \name}} {\typs} = \reduce \typ \\
        % names in the following are actually methods. have to see what they contain.
        \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
        % \prim \env = \insertToEnv  \typParams \typs \\
-       \exists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \name \\
+       \exists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \field \\
        \pprim {\typ_i} = \reduceWithEnv {\insertToEnv  \typParams \typs} {\prim {\typ_i}}}
      { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \name}} {\typs}} {\pprim {\typ_i}}}
 
 
-  \inferrule[ExpressionMember-Specialized-SizeOrLastIndex]
+  \inferrule[Type:Specialized-Field:SizeOrLastIndex\rAE]
+     {
+     % \expenv \exp {\prim \exp} {\typ} \dir \\
+       % \spcTyp {\externTyp {\prim \name}} {\typ} = \reduce \typ \\
+       % names in the following are actually methods. have to see what they contain.
+       % \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
+       \name = \sizeFlag \textOr \lastIndex\\
+       \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
+       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \field_i = \field 
+       }
+     { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \field}} {\typs} AND \ \arrayTyp \typ \size} {\bitWidthTyp {32}}}
+
+  \inferrule[Type:Specialized-Field:NextOrLast\rAE]
      {
      % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \spcTyp {\externTyp {\prim \name}} {\typs} = \reduce \typ \\
        % names in the following are actually methods. have to see what they contain.
-       % \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
+       % \lookupEnv {\prim \field} = (\typParams,\overline {\name:\prim \typ}) \\
        \name = \sizeFlag \textOr \lastIndex\\
-       \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \name 
+       \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
+       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \field_i = \field 
        }
-     { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \name}} {\typs} AND \ \arrayTyp \typ \size} {\bitWidthTyp {32}}}
+     { \fieldAccessEnv \parserCtxt {\spcTyp {\externTyp {\prim \field}} {\typs} AND \ \arrayTyp \typ \size} {\typ}}
 
-  \inferrule[ExpressionMember-Specialized-NextOrLast]
-     {
-     % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \spcTyp {\externTyp {\prim \name}} {\typs} = \reduce \typ \\
-       % names in the following are actually methods. have to see what they contain.
-       % \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-       \name = \sizeFlag \textOr \lastIndex\\
-       \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \name 
-       }
-     { \fieldAccessEnv \parserCtxt {\spcTyp {\externTyp {\prim \name}} {\typs} AND \ \arrayTyp \typ \size} {\typ}}
-
-  \inferrule[ExpressionMember-Extern]
+  \inferrule[Type:Extern\rAE]
      { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \name}} \ } {\pprim \typ} }
      { \fieldAccessEnv \ctxt  {\externTyp {\prim \name}}  {\pprim \typ}}
 
-  % \inferrule[ExpressionMember-Extern-SizeOrLastIndex]
+  % \inferrule[Type:Extern-Field:SizeOrLastIndex\rAE]
   %    { \name = \sizeFlag \textOr \lastIndex\\
   %      \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
   %      \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \name \\
   %    % \expenv \exp {\prim \exp} {\typ} \dir \\
-  %    %   \externTyp {\prim \name} = \reduce \typ \\
-  %      % \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-  %      % \fieldAccessEnv \ {\spcTyp {\externTyp {\prim \name}} {\ }} \name {\prim \typ}}
-  %    { \fieldAccessEnv \ctxt  {\externTyp {\prim \name} AND \ \arrayTyp \typ \size} }
+  %    %   \externTyp {\prim \field} = \reduce \typ \\
+  %      % \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
+  %      % \fieldAccessEnv \ {\spcTyp {\externTyp {\prim \field}} {\ }} \field {\prim \typ}}
+  %    { \fieldAccessEnv \ctxt  {\externTyp {\prim \field} AND \ \arrayTyp \typ \size} }
 
-  % \inferrule[ExpressionMember-Rest]
+  % \inferrule[Rest\rAE]
   %    {\expenv \exp {\prim \exp} {\typ} \dir \\
   %      \prim \typ = \reduce \typ \\
   %      \fieldAccessEnv {\prim \typ} \name {\pprim \typ}}
-  %    { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
+  %    { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \field} {\pprim \typ} {\less} }
 
 
 ~ End InfRuleHelper
 
-## Ternary Rule
+``**DISCUSSION**``
+There is some dead code in the implementation of this judgment.
+The function _type\_expression\_member_ calls the helper _type\_expression\_member\_builtin_ when it doesn't find the name of field that is to be accessed (that is, for size,
+last index, next, or last) and there it checks if the type of the expression is an
+array but it has already patterned matched on the type of the expression to be either
+struct, header, header union, specilaized, or extern. Thus, the _None_ case would always
+fail. what's the correct expected behavior here?
+
+## Ternary Rule { #sec-ternary-e }
+
+The expression $\ternary {\exp_1} {\exp_2} {\exp_3}$ is a conditional expression.
+The rule $\ternaryE$ states that $\exp_1$ must be a boolean and expressions $\exp_2$
+and $\exp_3$ must have the same type but they cannot have the $\integerTyp$ type. In
+that case it translates the conditional expression by translating all its subexpressions. 
 
 ~ Begin InfRule
 
@@ -1623,7 +1638,7 @@ It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \par
 
 ~ End InfRule
 
-## Mask Rule
+## Mask Rule { #sec-mask-e }
 
 The expression $\mask {\exp_1} {\exp_2}$ denotes a masking expression where every 0 bit in $\exp_2$ is turned into don't care and the rest of the bits of expressions $\exp_1$ and $\exp_2$ are conjuncted. Thus, it returns a set of expressions:
 $\mask {\exp_1} {\exp_2} = \{\exp_3 | \exp_1\ \&\ \exp_2 = \exp_3\ \&\ \exp_2 \}$. Thus, as

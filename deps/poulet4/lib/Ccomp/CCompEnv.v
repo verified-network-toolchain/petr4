@@ -217,10 +217,11 @@ Section CEnv.
      ; tempOfArg := Env.bind temp (oldid,new_ident) env.(tempOfArg)
      ; identGenerator := gen' }}.
 
-  Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type) : ClightEnv * ident := 
+  Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type) : ident * ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    ({{ env with temps := (new_ident, t)::(env.(temps))
-      ; identGenerator := gen' }}, new_ident).
+    (new_ident,
+      {{ env with temps := (new_ident, t)::(env.(temps))
+       ; identGenerator := gen' }}).
 
   Definition add_var (env: ClightEnv) (t: Ctypes.type) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
@@ -339,9 +340,9 @@ Section CEnv.
     env <| expected_instances := instance :: env.(expected_instances) |>.
   
   Definition
-    new_ident (env: ClightEnv) : ClightEnv * ident := 
+    new_ident (env: ClightEnv) : ident * ClightEnv := 
   let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-  (env <| identGenerator := gen' |>, new_ident ).
+  (new_ident, env <| identGenerator := gen' |>).
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
     {{ env with temps := []; vars := [] }}.

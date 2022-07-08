@@ -13,14 +13,15 @@ Section State.
 
   Definition State_ret {A : Type} (a : A) : State St A := fun st => (a, st).
 
-  Definition State_bind {A B : Type} (m : State St A) (f : A -> State St B) : State St B :=
+  Definition
+    State_bind
+    {A B : Type} (m : State St A)
+    (f : A -> State St B) : State St B :=
     fun st => let '(a, st') := m st in f a st'.
 
   Definition State_get : State St St := fun st => (st, st).
 
   Definition State_put (st : St) : State St unit := fun _ => (tt, st).
-
-  Check List.fold_right.
 
   Definition
     State_fold_right

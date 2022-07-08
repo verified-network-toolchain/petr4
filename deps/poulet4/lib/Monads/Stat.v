@@ -1,4 +1,4 @@
-Require Export Poulet4.Monads.Monad.
+Require Export Poulet4.Monads.State.
 
 (** A more general version of [Monads.Statee]. *)
 (* TODO: change [Monads.State] to this
@@ -29,6 +29,10 @@ Section State.
     (f : B -> A -> State St A)
     (a : A) (l : list B) : State St A :=
     fun st => List.fold_right (fun b '(a,st) => f b a st) (a, st) l.
+
+  Definition State_lift {A E : Type} (m : State St A)
+    : @state_monad St E A :=
+    fun st => let '(a, st) := m st in (inl a, st).
 End State.
 
 Global Instance State_monad_inst (St : Type) : Monad (State St) :=

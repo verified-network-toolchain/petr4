@@ -39,38 +39,42 @@ Section CCompSel.
         | inl comp =>
             (* found identifier *)
             State_ret (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr)
-        | _ => (* need to generate identifier *)
-            let* top_id := CCompEnv.new_ident env in
+        | _ =>
+            (* need to generate identifiers *)
+            let* top_id := CCompEnv.new_ident in
+            let* env_top_id := State_get in
             let* init :=
               if is_header then
-                let* env_top_id := State_get in
-                let* valid_id := new_ident env_top_id in
+                let* valid_id := new_ident in
                 State_ret [Member_plain valid_id type_bool]
               else State_ret [] in
-            let members :=
-              (* translate fields *)
-              List.fold_right
-                (fun (field: Expr.t)
-                   '((members_prev, env_prev) : Ctypes.members * ClightEnv) =>
-                   let (new_t, new_env) :=
-                     CTranslateType field env_prev in
+            (* translate fields *)
+            let* members :=
+              State_fold_right
+                (fun (t : Expr.t)
+                   (members_prev : Ctypes.members) =>
+                   let* new_t := CTranslateType t in
                    let new_t :=
-                     match new_t with 
-                     | (Tstruct st noattr) =>
-                         if (st =? RunTime._BitVec) then Tpointer new_t noattr else new_t
-                     | _ => new_t end in 
-                   let (new_env, new_id) := CCompEnv.new_ident new_env in
-                   ((Member_plain new_id new_t) :: members_prev, new_env))
-                ([], env_valid) fields in
+                     match new_t with
+                     | Tstruct st noattr =>
+                         if (st =? RunTime._BitVec) then
+                           Tpointer new_t noattr else new_t
+                     | _ => new_t
+                     end in
+                   let^ new_id := CCompEnv.new_ident in
+                   Member_plain new_id new_t :: members_prev)
+                [] fields in
             let comp_def :=
               Ctypes.Composite
                 top_id
                 Ctypes.Struct
                 (init ++ members)
                 Ctypes.noattr in
+            let* env_fields_declared := State_get in
             let env_comp_added :=
               CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
-            State_put env_comp_added ;; Ctypes.Tstruct top_id noattr
+            State_put env_comp_added ;;
+            State_ret (Ctypes.Tstruct top_id noattr)
         end
     end.
 

@@ -1460,14 +1460,14 @@ Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
          not initialize it to any predictable value.
 *)
 
-Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
+Fixpoint uninit_out_params (prefix : path) (params: list (ident * P4Type)) : Block :=
   match params with
   | [] => BlockNil
   | param :: params' =>
-      let block := uninit_out_params params' in
+      let block := uninit_out_params prefix params' in
       let (name, typ) := param in
       let p4name := P4String.Build_t tags_t inhabitant_tags_t name in
-      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance [str p4name])) StmUnit in
+      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance (prefix ++ [str p4name]))) StmUnit in
       BlockCons stmt block
   end.
 
@@ -1773,7 +1773,7 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-        let init := uninit_out_params out_params in
+        let init := uninit_out_params [str name] out_params in
         let params := map get_param_name_dir params in
         let params := map (map_fst (fun param => LGlobal [str name; param])) params in
         let fd := FInternal (map (map_fst get_loc_path) params) (block_app init body) in
@@ -2000,14 +2000,15 @@ Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
 
 (* When loading function definitions into function environment, we add initializer for
   out parameters. (And we do the same thing for abstract methods during instantiation.)
-  This initialization should better be defined in the execution phase. But we decided not
-  to do this refactor for now. *)
+  This is not ideal as it is mixing instantiation with preprocessing. But puting it into
+  execution needs a lot of changes, because we need to know the types of out parameters,
+  which is currently not kept in fundef. *)
 
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
@@ -2022,7 +2023,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
@@ -2031,9 +2032,9 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal [str name; param])) params in
+      let params := map (map_fst (fun param => LInstance [str name; param])) params in
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
@@ -2047,7 +2048,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=

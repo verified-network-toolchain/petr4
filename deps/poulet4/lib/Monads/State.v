@@ -39,6 +39,15 @@ Global Instance
   { mret := @state_return ST _ M_Monad
   ; mbind := @state_bind ST _ M_Monad }.
 
+Definition
+  state_list_map
+  {ST : Type} {M : Type -> Type} `{M_Monad : Monad M}
+  {A B : Type} (f : A -> StateT ST M B)
+  : list A -> StateT ST M (list B) :=
+  state_fold_right
+    (fun (a : A) (bs : list B) =>
+       let^ b := f a in (b :: bs)%list) (@nil B).
+
 Global Instance identity_monad : Monad (fun A => A) :=
   { mret := fun _ a => a
   ; mbind := fun _ _ a f => f a }.

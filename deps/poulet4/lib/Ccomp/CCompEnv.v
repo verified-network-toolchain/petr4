@@ -361,6 +361,12 @@ Section CEnv.
     set_top_args (env: ClightEnv) (args: list Clight.expr) : ClightEnv := 
     env <| top_args := args |>.
 
+  Definition find_var (env: ClightEnv) (x : nat) : Result.result AST.ident :=
+    match nth_error env.(varMap) x with
+    | Some x => Result.ok x
+    | None   => Result.error "unbound p4cub variable"
+    end.
+  
   Definition find_ident (env: ClightEnv) (name: string)
     : Result.result AST.ident :=
     match Env.find name env.(identMap) with 

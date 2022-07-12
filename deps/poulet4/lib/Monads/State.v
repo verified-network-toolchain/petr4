@@ -2,47 +2,51 @@ Require Export Poulet4.Monads.Monad.
 
 Open Scope monad.
 
-Definition state_monad {State Exception Result: Type} :=
-  State -> (Result + Exception) * State.
+Definition StateT (ST : Type) (M : Type -> Type) (A : Type) : Type :=
+  ST -> M (A * ST)%type.
 
-Definition state_return {State Exception Result: Type} (res: Result) : @state_monad State Exception Result :=
-  fun env => (inl res, env).
+Section StateT.
+  Context {ST : Type} {M : Type -> Type} `{M_Monad : Monad M}.
 
-Definition state_fail {State Exception Result: Type} (exc: Exception) : @state_monad State Exception Result :=
-  fun env => (inr exc, env).
+  Definition state_return {A : Type} (a : A) : StateT ST M A :=
+    fun st => mret (a, st).
 
-Definition get_state {State Exception : Type} : @state_monad State Exception State :=
-  fun env => (inl env, env).
+  Definition get_state : StateT ST M ST :=
+    fun st => mret (st, st).
 
-Definition put_state {State Exception : Type} (f: State -> State) : @state_monad State Exception unit :=
-  fun env => (inl tt, f env).
+  Definition put_state (st : ST) : StateT ST M unit :=
+    fun _ => mret (tt, st).
 
+  Definition
+    state_bind {A B : Type} (m : StateT ST M A)
+    (f : A -> StateT ST M B) : StateT ST M B :=
+    fun st => let* '(a, st) := m st in f a st.
 
-Definition state_bind
-  {State Exception Result Result': Type}
-  (c: @state_monad State Exception Result)
-  (f: Result -> @state_monad State Exception Result')
-  : @state_monad State Exception Result' :=
-  fun env =>
-    let (ret, env') := c env in
-    match ret with
-    | inl result => f result env'
-    | inr exc => (inr exc, env')
-    end.
+  Definition state_lift {A : Type} (m : M A) : StateT ST M A :=
+    fun st => let^ a := m in (a, st).
 
-Global Instance state_monad_inst {State Exception: Type} : Monad (@state_monad State Exception) :=
-  { mret := @state_return State Exception;
-    mbind := @state_bind State Exception
-  }.
+  Definition
+    state_fold_right
+    {A B : Type}
+    (f : B -> A -> StateT ST M A)
+    (a : A) (l : list B) : StateT ST M A :=
+    fun st => List.fold_right (fun b m => let* '(a, st) := m in f b a st) (mret (a, st)) l.
+End StateT.
+  
+Global Instance
+       StateT_monad (ST : Type) (M : Type -> Type)
+       `{M_Monad : Monad M} : Monad (StateT ST M) :=
+  { mret := @state_return ST _ M_Monad
+  ; mbind := @state_bind ST _ M_Monad }.
 
-Definition run_with_state
-  {State Exception Result : Type}
-  (st: State)
-  (act: @state_monad State Exception Result)
-  : (Result + Exception) * State := act st.
+Global Instance identity_monad : Monad (fun A => A) :=
+  { mret := fun _ a => a
+  ; mbind := fun _ _ a f => f a }.
 
-Definition skip {State Exception: Type}: @state_monad State Exception unit := state_return tt.
+Definition State (ST : Type) := StateT ST (fun x => x).
 
-
-Global Hint Unfold state_bind run_with_state state_fail state_return : core.
-Global Hint Extern 3 => unfold state_bind : core.
+Definition
+  State_lift {ST : Type} {M : Type -> Type}
+  `{M_Monad : Monad M} {A : Type}
+  (m : State ST A) : StateT ST M A :=
+  fun st => mret (m st).

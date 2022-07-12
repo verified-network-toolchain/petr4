@@ -1563,13 +1563,14 @@ It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \par
 
 ~ Begin InfRule
 
-  \inferrule[\instE:SpecializedType]
-     { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
-     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typArg_1, \ldots, \typArg_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
+  % \inferrule[\instE:SpecializedType]
+  %    { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
+  %    { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typArg_1, \ldots, \typArg_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
 
   \inferrule[\instE-2]
      { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
-     { \expenv {\instantiation {\typName} {\args}} {\prim \exp} \typ \dir }
+     %name in the following is typename
+     { \expenv {\instantiation {\name} {\args}} {\prim \exp} \typ \dir }
 
 ~ End InfRule
 

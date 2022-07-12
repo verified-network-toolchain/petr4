@@ -50,9 +50,8 @@ Section CCompSel.
               else mret [] in
             (* translate fields *)
             let* members :=
-              state_fold_right
-                (fun (t : Expr.t)
-                   (members_prev : Ctypes.members) =>
+              state_list_map
+                (fun (t : Expr.t) =>
                    let* new_t := CTranslateType t in
                    let new_t :=
                      match new_t with
@@ -62,8 +61,8 @@ Section CCompSel.
                      | _ => new_t
                      end in
                    let^ new_id := CCompEnv.new_ident in
-                   Member_plain new_id new_t :: members_prev)
-                [] fields in
+                   Member_plain new_id new_t)
+                fields in
             let comp_def :=
               Ctypes.Composite
                 top_id
@@ -110,7 +109,8 @@ Section CCompSel.
               | _ =>
                   let env' := add_var env_ty cty in
                   put_state env' ;;
-                  let^ id' := nth_error env'.(varMap) x in Evar id' cty
+                  let^ id' := state_lift (find_var env' x) in
+                  Evar id' cty
               end
         end
     | Expr.Member ty y x =>
@@ -120,131 +120,83 @@ Section CCompSel.
         match t_of_e x with
         | Expr.TStruct f is_header =>
             match nth_error f y, lookup_composite env' (t_of_e x) with 
-            | Some t_member, inl comp =>
+            | Some t_member, Result.Ok _ comp =>
                 let* ctm := State_lift (CTranslateType t_member) in
                 let* index :=
-                  composite_nth
-                    comp
-                    ((if is_header then 1 else 0) + y) in
+                  state_lift (composite_nth
+                                comp
+                                ((if is_header then 1 else 0) + y)) in
                 let em :=
                   match ctm with
                   | Tstruct st _ =>
                       if st =? RunTime._BitVec
-                      then Ederef Clight.Efield x' index (Tpointer ctm noattr) ctm
+                      then Ederef (Clight.Efield x' index (Tpointer ctm noattr)) ctm
                       else (Clight.Efield x' index ctm)
                   | _ => Clight.Efield x' index ctm
                   end in mret em
             | _, _ => state_lift (Result.error "member is not in struct")
             end
+        | _ => state_lift (Result.error "member of an invalid type")
         end
     | Expr.Error x => mret Ctrue(*TODO: implement*)
     | _ => state_lift (Result.error "illegal expression, statementized failed" (*Not Allowed*))
     end.
 
-  Definition CTranslateExprList (el : list (Expr.e )) (env: ClightEnv  ): @error_monad string ((list Clight.expr) * ClightEnv  ) :=
-    let Cumulator: Type := @error_monad string (list Clight.expr * ClightEnv  ) in 
-    let transformation (A: Cumulator) (B: Expr.e ) : Cumulator := 
-      let* (el', env') := A in 
-      let* (B', env'') := CTranslateExpr B env' in
-      mret (el' ++ [B'], env'') in
-    List.fold_left  (transformation) el (mret ([],env)).
+  Definition CTranslateExprList
+    : list Expr.e -> StateT ClightEnv Result.result (list Clight.expr) :=
+    state_list_map CTranslateExpr.
   
-  Definition CTranslateDirExprList (el: Expr.args ) (env: ClightEnv  ) : @error_monad string ((list Clight.expr) * ClightEnv  ) := 
-    let Cumulator : Type := @error_monad string (list Clight.expr * ClightEnv  ) in 
-    let transformation
-          (A: Cumulator)
-          (B: string * (paramarg (Expr.e ) (Expr.e ))) : Cumulator := 
-      let* (el', env') := A in
-      match B with 
-      | (_, PAIn e)
-      | (_, PADirLess e) =>
-        let* (e', env'') := CTranslateExpr e env' in
-        mret (el' ++ [e'], env'')
-      | (_, PAOut e)
-      | (_, PAInOut e) =>
-        let t := t_of_e e in
-        let (ct, env_ct):= CTranslateType t env' in 
-        let*  (e', env'') := CTranslateExpr e env_ct in
-        let e' := Eaddrof e' (Tpointer ct noattr) in 
-        mret (el' ++ [e'], env'')
-      end
-    in 
-    List.fold_left  (transformation) el (mret ([],env)).
+  Definition CTranslateArgs
+    : Expr.args -> StateT ClightEnv Result.result (list Clight.expr) :=
+    state_list_map
+      (fun (arg : paramarg Expr.e Expr.e) =>
+         match arg with
+         | PAIn e => CTranslateExpr e
+         | PAOut e
+         | PAInOut e =>
+             let* ct := State_lift (CTranslateType (t_of_e e)) in
+             let^ ce := CTranslateExpr e in
+             Eaddrof ce (Tpointer ct noattr)
+         end).
   
- 
-
-  Definition ValidBitIndex (arg: Expr.e ) (env: ClightEnv  ) : @error_monad string AST.ident
-  :=
-    let* comp:= lookup_composite  env (t_of_e arg) in
+  Definition ValidBitIndex (arg: Expr.e) (env: ClightEnv)
+    : Result.result AST.ident :=
+    let* comp:= lookup_composite env (t_of_e arg) in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _ =>
-      match m with
-      | [] => Result.error "struct is empty"
-      | Member_plain id t :: _ => mret id
-      | Member_bitfield _ _ _ _ _ _ :: _ => Result.error "TODO"
-      end
+        match m with
+        | [] => Result.error "struct is empty"
+        | Member_plain id t :: _ => mret id
+        | Member_bitfield _ _ _ _ _ _ :: _ => Result.error "TODO"
+        end
     | _ => Result.error "composite looked up is not a composite"
     end.
-  
-  Definition HeaderStackIndex := ValidBitIndex.
-  
-  Definition HeaderStackSize (arg: Expr.e ) (env: ClightEnv  ) : @error_monad string AST.ident
-  :=
-    let* comp := lookup_composite  env (t_of_e arg) in
-    match comp with
-    | Ctypes.Composite _ Ctypes.Struct m _=>
-      match m with
-      | Member_plain _ _ :: Member_plain id t :: _ => mret id
-        | _ => Result.error "struct too small"
-      end
-    | _ => Result.error "composite looked up is not aa composite"
-    end.
 
-  Definition CTranslateUop 
-    (dst_t: Expr.t)
-    (op: Expr.uop)
-    (arg: Expr.e )
-    (dst: string)
-    (env: ClightEnv  ): @error_monad string (Clight.statement * ClightEnv  ) 
-  := 
-    let* dst' :=  find_ident  env dst in 
-    let (dst_t', env') := CTranslateType dst_t env in 
+  (* TODO: set validity ops compilation needs to be here. *)
+  Definition
+    CTranslateUop 
+    (dst_t: Expr.t) (op: Expr.uop) (arg: Expr.e) (dst: nat)
+    : StateT ClightEnv Result.result Clight.statement :=
+    let* dst_t' := State_lift (CTranslateType dst_t) in
+    let* env := get_state in
+    let* dst' := find_var env dst in 
     let dst' := Evar dst' dst_t' in
-    let* (arg', env_arg) := CTranslateExpr arg env' in
+    let* arg' := CTranslateExpr arg in
     let arg_ref := Eaddrof arg' (Tpointer (Clight.typeof arg') noattr) in
     let dst_ref := Eaddrof dst' (Tpointer dst_t' noattr) in  
     match op with
     | Expr.Not => 
-      let not_expr := Eunop Onotbool arg' Ctypes.type_bool in 
-      mret (Sassign dst' not_expr, env_arg)
-
+        let not_expr := Eunop Onotbool arg' Ctypes.type_bool in 
+        mret (Sassign dst' not_expr)
     | Expr.BitNot => 
-      (*need implementation in runtime*)
-      mret (Scall None (uop_function _interp_bitwise_and) [arg_ref; dst_ref], env_arg)
-
+        (*need implementation in runtime*)
+        mret (Scall None (uop_function _interp_bitwise_and) [arg_ref; dst_ref])
     | Expr.UMinus => 
-      mret (Scall None (uop_function _eval_uminus)  [arg_ref; dst_ref], env_arg)
-
+        mret (Scall None (uop_function _eval_uminus)  [arg_ref; dst_ref])
     | Expr.IsValid =>
-      let* index := ValidBitIndex arg env_arg in
-      let member :=  Efield arg' index type_bool in
-      mret (Sassign dst' member, env_arg)
-
-    | Expr.NextIndex =>
-      let* index := HeaderStackIndex arg env_arg in
-      let member := Efield arg' index int_signed in
-      let increment := Ebinop Oadd member (Cint_one) int_signed in
-      let assign := Sassign member increment in 
-      let to_dst := Sassign dst' arg' in
-      mret (Ssequence assign to_dst, env_arg) 
-
-    | Expr.Size => 
-      let* index := HeaderStackSize arg env_arg in
-      let member := Efield arg' index int_signed in
-      let to_dst := Sassign dst' member in
-      mret (to_dst, env_arg) 
-
-    | _ => Result.error "Unsupported uop"  
+        let^ index := ValidBitIndex arg in
+        Sassign dst' (Efield arg' index type_bool)
+    | _ => state_lift (Result.error "Unsupported uop")
     end.
 
  

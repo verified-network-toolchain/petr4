@@ -1,3 +1,19 @@
+Require Export Coq.Lists.List.
+Import ListNotations.
+
+Section FoldRightIndex.
+  Context {A B : Type}.
+  Variables (f : nat -> B -> A -> A) (init : A).
+
+  Fixpoint fold_righti_help (n : nat) (bs : list B) : A :=
+    match bs with
+    | [] => init
+    | b :: bs => f n b (fold_righti_help (S n) bs)
+    end.
+
+  Definition fold_righti : list B -> A := fold_righti_help 0.
+End FoldRightIndex.
+
 Require Export Poulet4.Monads.Monad.
 
 Open Scope monad.
@@ -31,6 +47,13 @@ Section StateT.
     (f : B -> A -> StateT ST M A)
     (a : A) (l : list B) : StateT ST M A :=
     fun st => List.fold_right (fun b m => let* '(a, st) := m in f b a st) (mret (a, st)) l.
+
+  Definition
+    state_fold_righti
+    {A B : Type}
+    (f : nat -> B -> A -> StateT ST M A)
+    (a : A) (l : list B) : StateT ST M A :=
+    fun st => fold_righti (fun i b m => let* '(a, st) := m in f i b a st) (mret (a, st)) l.
 End StateT.
   
 Global Instance

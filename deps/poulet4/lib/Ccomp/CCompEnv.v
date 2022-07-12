@@ -4,7 +4,7 @@ Require Import Poulet4.P4cub.Syntax.Syntax.
 Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.Utils.Envn.
-Require Import Poulet4.Monads.Result.
+Require Import Poulet4.Monads.Result Poulet4.Monads.State.
 Require Import Coq.Strings.String.
 Require Import Poulet4.Utils.Util.Utiliser.
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
@@ -215,11 +215,12 @@ Section CEnv.
      ; tempOfArg := (oldid,new_ident) :: env.(tempOfArg)
      ; identGenerator := gen' }}.
 
-  Definition add_temp_nameless (env: ClightEnv) (t: Ctypes.type) : ident * ClightEnv := 
+  Definition add_temp_nameless (t: Ctypes.type) : State ClightEnv ident :=
+    let* env := get_state in
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    (new_ident,
-      {{ env with temps := (new_ident, t)::(env.(temps))
-       ; identGenerator := gen' }}).
+    put_state {{ env with temps := (new_ident, t)::(env.(temps))
+               ; identGenerator := gen' }};;
+    mret new_ident.
 
   Definition add_var (env: ClightEnv) (t: Ctypes.type) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
@@ -489,9 +490,10 @@ Section CEnv.
   
   Definition
     find_BitVec_String
-    (env: ClightEnv) (val: Z) : ClightEnv * ident :=
+    (val: Z) : State ClightEnv ident :=
+    let* env := get_state in
     match Env.find val env.(numStrMap) with 
-    | Some id => (env, id)
+    | Some id => mret id
     | None =>
         let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
         let dec := Z.to_int val in
@@ -501,10 +503,9 @@ Section CEnv.
             gvar_init := inits;
             gvar_readonly := false;
             gvar_volatile := false |} in
-        let env' :=
-          {{ env with globvars := (new_id, gvar) :: env.(globvars)
-           ; numStrMap := Env.bind val new_id env.(numStrMap) }} in
-        (env', new_id)
+        put_state {{ env with globvars := (new_id, gvar) :: env.(globvars)
+                   ; numStrMap := Env.bind val new_id env.(numStrMap) }} ;;
+        mret new_id
     end.
   
   Definition find_table (env: ClightEnv) (name: string) 

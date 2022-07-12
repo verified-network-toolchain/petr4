@@ -2510,6 +2510,9 @@ and type_expression_member_function_builtin env typ (name: P4String.t) : Typed.T
 
 (* Sections 6.6, 8.14 *)
 (* look at spec. *)
+(* In cases where the field is being looked up and it is not found (i.e., None)
+   the builtin helper is called for ease maintanance of the code in case we
+   need to extend builtin fields. *)
 and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
   let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env typed_expr.typ in
@@ -2525,10 +2528,6 @@ and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
        let open Expression in
        begin match List.find ~f:matches fs with
        | Some field -> field.typ
-                         (* TODO: DISCUSSION. THIS WILL ALWAYS FAIL. expr_typ is either
-                         header, header_union or struct. so it will never be array.
-                         while type_expression_member_builtin only returns non-fail
-                         for array. *)
        | None -> type_expression_member_builtin env ctx (tags expr) expr_typ name
        end
     | SpecializedType { base = Extern { name = extern_name }; args } ->
@@ -3013,8 +3012,8 @@ and resolve_function_overload env ctx type_name args =
   *)
 and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
-  let type_args = List.map ~f:(translate_type_opt env []) type_args in(* determines if type is dontcare.*)
-  let constructor_type = resolve_constructor_overload env decl_name args in
+  let type_args = List.map ~f:(translate_type_opt env []) type_args in(* translates types.type to typed.type if it's not dontcare.*)
+  let constructor_type = resolve_constructor_overload env decl_name args in (* gets the type of the constructor from the env by resolving params *)
   let t_params = constructor_type.type_params in
   let w_params = constructor_type.wildcard_params in
   let params_args = match_params_to_args tags constructor_type.parameters args in

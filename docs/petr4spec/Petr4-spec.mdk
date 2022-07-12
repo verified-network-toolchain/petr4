@@ -438,31 +438,31 @@ The following base types are well-formed unconditionally since there is not any 
 ~ Begin InfRule
 
   \inferrule[\boolT]
-     {}
+     { }
      { \typWellFormed \boolTyp }
 
   \inferrule[\stringT]
-     {}
+     { }
      { \typWellFormed \stringTyp }
 
   \inferrule[\intT]
-     {}
+     { }
      { \typWellFormed \integerTyp }
 
   \inferrule[\varbitT]
-     {}
+     { }
      { \typWellFormed {\varBitTyp \width} }
 
   \inferrule[\errT]
-     {}
+     { }
      { \typWellFormed \errTyp}
 
   \inferrule[\voidT]
-     {}
+     { }
      { \typWellFormed \voidTyp}
 
   \inferrule[\matchKindT]
-     {}
+     { }
      { \typWellFormed \matchKindTyp}
 
 ~ End InfRule
@@ -474,12 +474,12 @@ Petr4 doesn't check the length of a fixed-length integer, either signed or unsig
 
   \inferrule[\intWidthT]
      % { 1 < \width} % p4 spec has this
-     {}
+     { }
      { \typWellFormed {\intWidthTyp \width} }
 
   \inferrule[\bitWidthT]
      % { 0 \leq \width} % p4 spec has this
-     {}
+     { }
      { \typWellFormed {\bitWidthTyp \width} }
 
 ~ End InfRule
@@ -550,7 +550,7 @@ Petr4 doesn't allow for an enum to have default values for constants, however, P
 ~ Begin InfRule
 
   \inferrule[\enumOneT]
-     {}
+     { }
      { \typWellFormed \enumTypNoTyp }
 
   \inferrule[\enumTwoT]
@@ -621,7 +621,7 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 ~ Begin InfRule
 
   \inferrule[\specializedExternT]
-     { ([\param_1, \ldots, \param_m], \_ )= \lookupEnv \name \\
+     { \lookupEnv \name = ([\param_1, \ldots, \param_m], \_ ) \\
         1 \leq i \leq n. \typWellFormed {\typ_i} \\
         n = m}
      { \typWellFormed {\spcTyp {\externTyp \name} {\typ_1, \ldots, \typ_n}} }
@@ -688,7 +688,7 @@ This seems way too simple and loose.```
 ~ Begin InfRule
 
   \inferrule[\externT]
-     { (\emp, \_ ) =\lookupEnv \name }
+     { \lookupEnv \name = (\emp, \_ )}
      { \typWellFormed {\externTyp \name} }
 
 ~ End InfRule
@@ -743,7 +743,7 @@ A table type is well-formed under an environment if it exists in the environment
 ~ Begin InfRule
 
   \inferrule[\tableT]
-     { \typ = \lookupEnv \name }
+     { \lookupEnv \name = \typ}
      { \typWellFormed {\tableTyp \name} }
 
 ~ End InfRule
@@ -755,7 +755,7 @@ The rule $\typeNameT$ states that the type name $\name$ is well-formed under the
 ~ Begin InfRule
 
   \inferrule[\typeNameT]
-     { \typ = \lookupEnv \name }
+     { \lookupEnv \name = \typ}
      { \typWellFormed {\typNameTyp \name} }
 
 ~ End InfRule
@@ -797,23 +797,23 @@ The rules $\stringE$, $\integerE$, $\bitStringE$, and $\signedIntE$ are similar 
 ~ Begin InfRule
 
   \inferrule[\boolE]
-     {}
+     { }
      {\expenv \bool \bool \boolTyp \less}
 
   \inferrule[\stringE]
-     {}
+     { }
      {\expenv \str \str \stringTyp \less}
 
   \inferrule[\integerE]
-     {}
+     { }
      {\expenv \int \int \integerTyp \less}
 
   \inferrule[\bitStringE]
-     {}
+     { }
      {\expenv {\bitWidth \bit \width} {\bitWidth \bit \width} {\bitWidthTyp \width} \less}
 
   \inferrule[\signedIntE]
-     {}
+     { }
      {\expenv {\intWidth \int \width} {\intWidth \int \width} {\intWidthTyp \width} {\less}}
 
 ~ End InfRule
@@ -1199,11 +1199,11 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
 ~ Begin InfRuleHelper
 
   \inferrule[Bit<1>ToBool\rAE]
-     {}
+     { }
      { \explCast {\bitWidthTyp 1} \boolTyp }
 
   \inferrule[BoolToBit<1>\rAE]
-     {}
+     { }
      { \explCast \boolTyp {\bitWidthTyp 1} }
 
   \inferrule[UnsignedIntToSigned\rAE]
@@ -1215,7 +1215,7 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
      { \explCast {\intWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[UnsignedIntToUnsignedInt-Explicit\rAE]
-     {}
+     { }
      { \explCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[UnsignedIntToUnsignedInt-Implicit\rAE]
@@ -1223,7 +1223,7 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
      { \implCast {\bitWidthTyp {\width_1}} {\bitWidthTyp {\width_2}}}
 
   \inferrule[SignedIntToSignedInt-Explicit\rAE]
-     {}
+     { }
      { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
   \inferrule[SignedIntToSignedInt-Implicit\rAE]
@@ -1231,11 +1231,11 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
      { \explCast {\intWidthTyp {\width_1}} {\intWidthTyp {\width_2}}}
 
   \inferrule[ArbitraryPrecisionIntToUnsignedInt\rAE]
-     {}
+     { }
      { \castenv \  \integerTyp {\bitWidthTyp \width}}
 
   \inferrule[ArbitraryPrecisionIntToSignedInt\rAE]
-     {}
+     { }
      { \castenv \  \integerTyp {\intWidthTyp \width}}
 
   \inferrule[TypeDefs\rAE]
@@ -1351,21 +1351,24 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
 ## Membership Rules { #sec-mem-e }
 
 A membership expression denoted by a dot, that is, $a.\name$ looks if $\name$ exists in $a$. And it can be a type, error, or expression membership depending on what $a$ is.
-Petr4's _expression member_ is P4's _field access_.
+An expression member looks up a _member_ in an expression.
+The member could be a field in
+a record type such as struct and header, or it could be a method in an extern or specialized type, or a special look up of an element of an array such as next, last, size, and last index.  
+
 
 The rules $\typeMemE$ and $\errMemE$ are rather simple.
 They just look up $\name$ extended with the type or error, respectively, in the environment. For example, the $\typeMemE$ states that under the environment $\env$ and context $\ctxt$, the expression $\typMem \typ \name$ is the same in the IR and has the type $\typ$ and direction $\less$ if $\typMem \typ \name$ exists in $\env$.
 
 The rule $\expMemE$ states that under the environment $\env$ and context $\ctxt$, the
-expression $\expMem \exp \field$ translates to the expression $\expMem {\prim \exp} \field$ with type $\pprim \typ$ and direction $\less$ where $\prim \exp$ is the translation of the expression $\exp$ and $\pprim \typ$ is the type of the field $\field$ from the reduced type of expression $\exp$ (that is, $\reduce \typ$) which is returned by the expression member auxiliary judgment. 
+expression $\expMem \exp \name$ translates to the expression $\expMem {\prim \exp} \name$ with type $\pprim \typ$ and direction $\less$ where $\prim \exp$ is the translation of the expression $\exp$ and $\pprim \typ$ is the type of the member $\name$ from the reduced type of expression $\exp$ (that is, $\reduce \typ$) which is returned by the expression member auxiliary judgment. 
 
 - The [expression member auxiliary judgment][#sec-exp-mem-helper] is a helper judgment
 for the $\expMemE$ rule.
-It has the form $\fieldAccessEnv \ctxt \typ {\prim \typ}$
-which states that under environment $\env$ and context $\ctxt$, the field $\field$
+It has the form $\fieldAccessEnv \ctxt \name \typ {\prim \typ}$
+which states that under environment $\env$ and context $\ctxt$, the member $\name$
 has the type $\prim \typ$ in an expression of type $\typ$.
-Simply stated, it looks up the type of the field from the expression member passed from the $\expMemE$ rule. 
-Note that the expression has to be of a type that contains fields, such as a struct or a header. 
+Simply stated, it looks up the type of the member from the expression passed from the $\expMemE$ rule. 
+Note that the expression has to be of a one of the types: record, extern, speciliazed, or arry.
 
 ~ Begin InfRule
 
@@ -1381,19 +1384,20 @@ Note that the expression has to be of a type that contains fields, such as a str
      { \expenv \exp {\prim \exp} {\typ} \dir \\
        \prim \typ = \reduce \typ \\
        % \structTypDef = \prim \typ\\
-       \fieldAccessEnv \ctxt {\prim \typ} {\pprim \typ}
+       \fieldAccessEnv \ctxt \name {\prim \typ} {\pprim \typ}
        }
-     { \expenv {\expMem \exp \field} {\expMem {\prim \exp} \field} {\pprim \typ} {\less} }
+     { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \name} {\pprim \typ} {\less} }
 
 ~ End InfRule
 
 ### Expression Member Auxiliary Judgment { #sec-exp-mem-helper }
 
-
+This judgment ensures that the type of an expression in an expression member is either
+a record type, a specialized type, an extern type, or an array. Then, it looks up the member that is being accessed by the expression member. 
 
 ~ Begin InfRuleHelper
 
-  \inferrule[Type:StructOrHeaderOrHeaderUnion\rAE]
+  \inferrule[\rn{Type:StructOrHeaderOrHeaderUnion}\rAE]
      {
        % \expenv \exp {\prim \exp} {\typ} \dir \\
        % \structTypDef = \reduce \typ \\
@@ -1401,99 +1405,30 @@ Note that the expression has to be of a type that contains fields, such as a str
        (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
        \exists 1 \leq i \leq n+1. \field_i = \field
        }
-     { \fieldAccessEnv \ctxt \structTypDef {\typ_i} }
+     { \fieldAccessEnv \ctxt \field \structTypDef {\typ_i} }
 
-  \inferrule[Type:StructOrHeaderOrHeaderUnion-Field:SizeOrLastIndex\rAE]
+  \inferrule[\rn{Type:Specialized}\rAE]
      {
-       % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \structTypDef = \reduce \typ \\
-        % = \prim \typ\\
-       % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       % \isArray \typ \\
-       \name = \sizeFlag \textOr \lastIndex\\
-       \nexists 1 \leq i \leq n. \field_i = \field
-       }
-     { \fieldAccessEnv \ctxt {\arrayTyp \typ \size AND \ \structTypDef} {\bitWidthTyp {32}} }
-
-  \inferrule[Type:StructOrHeaderOrHeaderUnion-Field:NextOrLast\rAE]
-     {
-       % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \structTypDef = \reduce \typ \\
-        % = \prim \typ\\
-       % (\field_{n+1},\typ_{n+1}) = (\isValid, \funcTyp \builtin \ \ \boolTyp )\\
-       % \isArray {\reduce \typ} \\
-       % \arrayTyp {\prim \typ} \size = \typ\\
-       \name = \sizeFlag \textOr \lastIndex \\
-       \nexists 1 \leq i \leq n. \field_i = \field
-       }
-     { \fieldAccessEnv \parserCtxt {\arrayTyp \typ \size AND \ \structTypDef} \typ }
-
-  \inferrule[Type:Specialized\rAE]
-     {
-       % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \spcTyp {\externTyp {\prim \name}} {\typs} = \reduce \typ \\
        % names in the following are actually methods. have to see what they contain.
-       \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
+       \lookupEnv {\prim \name} = (\typParams,\overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}) \\
        % \prim \env = \insertToEnv  \typParams \typs \\
-       \exists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \field \\
+       \exists \name_i: \prim {\typ_i} \in \overline {\name:\simpFuncTyp {\typ_{\mathit{in}}} {\typ_{\mathit{out}}}}. \name_i = \name \\
        \pprim {\typ_i} = \reduceWithEnv {\insertToEnv  \typParams \typs} {\prim {\typ_i}}}
-     { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \name}} {\typs}} {\pprim {\typ_i}}}
+     { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\prim \name}} {\typs}} {\pprim {\typ_i}}}
 
+  \inferrule[\rn{Type:Extern}\rAE]
+     { \fieldAccessEnv \ctxt \name {\spcTyp {\externTyp {\prim \name}} \ } {\pprim \typ} }
+     { \fieldAccessEnv \ctxt  \name {\externTyp {\prim \name}}  {\pprim \typ}}
 
-  \inferrule[Type:Specialized-Field:SizeOrLastIndex\rAE]
-     {
-     % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \spcTyp {\externTyp {\prim \name}} {\typ} = \reduce \typ \\
-       % names in the following are actually methods. have to see what they contain.
-       % \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-       \name = \sizeFlag \textOr \lastIndex\\
-       \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
-       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \field_i = \field 
-       }
-     { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \field}} {\typs} AND \ \arrayTyp \typ \size} {\bitWidthTyp {32}}}
+  \inferrule[\rn{Type:Array}\rSep\rn{Member:SizeOrLastIndex}\rAE]
+     { \name = \sizeFlag \textOr \lastIndex}
+     { \fieldAccessEnv \ctxt \name {\arrayTyp \typ \size} {\bitWidthTyp {32}}}
 
-  \inferrule[Type:Specialized-Field:NextOrLast\rAE]
-     {
-     % \expenv \exp {\prim \exp} {\typ} \dir \\
-       % \spcTyp {\externTyp {\prim \name}} {\typs} = \reduce \typ \\
-       % names in the following are actually methods. have to see what they contain.
-       % \lookupEnv {\prim \field} = (\typParams,\overline {\name:\prim \typ}) \\
-       \name = \sizeFlag \textOr \lastIndex\\
-       \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
-       \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \field_i = \field 
-       }
-     { \fieldAccessEnv \parserCtxt {\spcTyp {\externTyp {\prim \field}} {\typs} AND \ \arrayTyp \typ \size} {\typ}}
-
-  \inferrule[Type:Extern\rAE]
-     { \fieldAccessEnv \ctxt {\spcTyp {\externTyp {\prim \name}} \ } {\pprim \typ} }
-     { \fieldAccessEnv \ctxt  {\externTyp {\prim \name}}  {\pprim \typ}}
-
-  % \inferrule[Type:Extern-Field:SizeOrLastIndex\rAE]
-  %    { \name = \sizeFlag \textOr \lastIndex\\
-  %      \lookupEnv {\prim \name} = (\typParams,\overline {\name:\prim \typ}) \\
-  %      \nexists \name_i: \typ_i \in \overline {\name:\prim \typ}; \name_i = \name \\
-  %    % \expenv \exp {\prim \exp} {\typ} \dir \\
-  %    %   \externTyp {\prim \field} = \reduce \typ \\
-  %      % \lookupEnv {\prim \field} = (\typParams,\overline {\field:\prim \typ}) \\
-  %      % \fieldAccessEnv \ {\spcTyp {\externTyp {\prim \field}} {\ }} \field {\prim \typ}}
-  %    { \fieldAccessEnv \ctxt  {\externTyp {\prim \field} AND \ \arrayTyp \typ \size} }
-
-  % \inferrule[Rest\rAE]
-  %    {\expenv \exp {\prim \exp} {\typ} \dir \\
-  %      \prim \typ = \reduce \typ \\
-  %      \fieldAccessEnv {\prim \typ} \name {\pprim \typ}}
-  %    { \expenv {\expMem \exp \name} {\expMem {\prim \exp} \field} {\pprim \typ} {\less} }
-
+  \inferrule[\rn{Type:Array}\rSep\rn{Member:}\rn{Field:NextOrLast}\rAE]
+     { \name = \sizeFlag \textOr \lastIndex}
+     { \fieldAccessEnv \parserCtxt \name {\arrayTyp \typ \size} {\typ}}
 
 ~ End InfRuleHelper
-
-``**DISCUSSION**``
-There is some dead code in the implementation of this judgment.
-The function _type\_expression\_member_ calls the helper _type\_expression\_member\_builtin_ when it doesn't find the name of field that is to be accessed (that is, for size,
-last index, next, or last) and there it checks if the type of the expression is an
-array but it has already patterned matched on the type of the expression to be either
-struct, header, header union, specilaized, or extern. Thus, the _None_ case would always
-fail. what's the correct expected behavior here?
 
 ## Ternary Rule { #sec-ternary-e }
 
@@ -1574,12 +1509,12 @@ It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \par
 ~ Begin InfRuleHelper
 
   \inferrule[\nameFuncNameE]
-     { (\overline {\typ, \dir}) = \lookupEnv \name \\
+     { \lookupEnv \name = (\overline {\typ, \dir})\\
        \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams {\pars 1 n} {\typ_\ret} }
      { \resolveFuncOver \name {\argkvss 1 n} \typParams {\pars 1 n} \kind {\typ_\ret} \dir }
 
   \inferrule[\nameFuncCountE]
-     { (\overline {\typ, \dir}) = \lookupEnv \name \\
+     { \lookupEnv \name = (\overline {\typ, \dir})\\
        \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams \params {\typ_\ret}\\
        |\removeOptionalPars \params| = n}
   { \resolveFuncOver \name {\argexpss 1 n} \typParams \params \kind {\typ_\ret} \dir}
@@ -1624,17 +1559,17 @@ It has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \par
 
 - The [infer type arguments auxiliary judgment][#sec-infer-type-args] infers the type of type parameters of a function. It has the judgment form $\inferTypParArg {\typ_\ret} {\overline {\typVar : \typ}} {\overline {\param = {\maybe \exp}}} {\overline {\prim \typVar : \prim \typ}} {\overline {\typVar : \pprim \typ}}$ which states that the type parameters $\typVars$ have the type $\pprim \typ$ under environment $\env$ and context $\ctxt$ with the return type of $\typ_\ret$, the assignment of type parameters $\typVars$ to types $\typs$, the assignment of parameters $\params$ to optional expressions $\maybe \exp$, and constraints $fill\ later$.
 
-## Anonymous Instantiation Rule
+## Instantiation Rule { #sec-inst-e }
 
 ~ Begin InfRule
 
-  \inferrule[\instE]
+  \inferrule[\instE:SpecializedType]
      { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
-     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
+     { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typArg_1, \ldots, \typArg_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
 
   \inferrule[\instE-2]
      { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
-     { \expenv {\instantiation {\name} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir }
+     { \expenv {\instantiation {\typName} {\args}} {\prim \exp} \typ \dir }
 
 ~ End InfRule
 

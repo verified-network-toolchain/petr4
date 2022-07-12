@@ -123,7 +123,7 @@
 \newcommand{\typWellFormedWithEnv}[2]{{#1} \vdash {#2}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}}
 %context. type of expression. type of returned name.exp
-\newcommand{\fieldAccessEnv}[3]{\env, {#1} \vdash \field, {#2} : {#3}}
+\newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
 \newcommand{\stmtenvv}[5]{\env_{#1}, \ctxt_{#1} \vdash {#2} \leadsto {#3}, {#4} \dashv \env_{#5}}
 \newcommand{\dclenv}[2]{\env, \ctxt \vdash {#1} \leadsto {#2} \dashv \env}
@@ -168,7 +168,7 @@
 \newcommand{\bitComplement}{\sim}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-\newcommand{\funcCall}[3]{{#1}<{#2}>({#3})}
+\newcommand{\funcCall}[3]{{#1}\langle{#2}\rangle({#3})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
 \newcommand{\instantiation}[2]{{#1}({#2})}
 \newcommand{\assign}[2]{{#1}={#2}}
@@ -316,24 +316,24 @@
 \newcommand{\actionKind}{\mathit{action}}
 
 %types:
-\newcommand{\bitWidthTyp}[1]{\mathit{bit}<\!{#1}\!>}
-\newcommand{\intWidthTyp}[1]{\mathit{int}<\!{#1}\!>}
-\newcommand{\boolTyp}{\mathit{bool}}
-\newcommand{\stringTyp}{\mathit{string}}
-\newcommand{\integerTyp}{\mathit{int}}
+\newcommand{\bitWidthTyp}[1]{\mathsf{bit}\langle{#1}\rangle}
+\newcommand{\intWidthTyp}[1]{\mathsf{int}\langle{#1}\rangle}
+\newcommand{\boolTyp}{\mathsf{bool}}
+\newcommand{\stringTyp}{\mathsf{string}}
+\newcommand{\integerTyp}{\mathsf{int}}
 \newcommand{\bitStringTyp}[1]{\bitWidthTyp {#1}}
-\newcommand{\setTyp}[1]{\mathit{set}<\!{#1}\!>}
-\newcommand{\errTyp}{\mathit{error}}
-\newcommand{\varBitTyp}[1]{\mathit{varbit}<{#1}>}
-\newcommand{\matchKindTyp}{\mathit{match\_kind}}
-\newcommand{\voidTyp}{\mathit{void}}
+\newcommand{\setTyp}[1]{\mathsf{set}\langle{#1}\rangle}
+\newcommand{\errTyp}{\mathsf{error}}
+\newcommand{\varBitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}
+\newcommand{\matchKindTyp}{\mathsf{match\_kind}}
+\newcommand{\voidTyp}{\mathsf{void}}
 \newcommand{\arrayTyp}[2]{{#1}[{#2}]}
-\newcommand{\tupleTyp}[2]{\mathit{tuple}<{#1},\ldots,{#2}>}
-\newcommand{\tupleTyps}[1]{\mathit{tuple}<{#1}>}
+\newcommand{\tupleTyp}[2]{\mathsf{tuple}\langle{#1},\ldots,{#2}\rangle}
+\newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTyp}{\mathit{enum}\ {\typ}\ {\name}\{\name_1,\ldots,\name_n\}}
-\newcommand{\enumTypNoTyp}{\mathit{enum} \ {\name}\{\name_1,\ldots,\name_n\}}
+\newcommand{\enumTyp}{\mathsf{enum}\ {\typ}\ {\name}\{\name_1,\ldots,\name_n\}}
+\newcommand{\enumTypNoTyp}{\mathsf{enum} \ {\name}\{\name_1,\ldots,\name_n\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTyp}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 \newcommand{\recordTypp}[2]{\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
@@ -352,18 +352,19 @@
 %% \newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 %% \newcommand{\structTypp}[2]{\mathit{struct}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
 \newcommand{\newTypeTyp}[2]{{#1}\ {#2}}
-\newcommand{\funcTyp}[3]{\mathit{function}\ {#1}<{#2}> ({#3})}
+\newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\langle{#2}\rangle ({#3})}
+\newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
-\newcommand{\funcType}[4]{\mathit{function}\ {#1}<{#2}> ({#3})\rightarrow {#4}}
-\newcommand{\constructorTyp}[4]{{#1}\  {#2}\ <{#3}>\ ({#4}, \_)}
-\newcommand{\externTyp}[1]{\mathit{extern} \  {#1}}
-\newcommand{\spcTyp}[2]{{#1}<{#2}>}
-\newcommand{\parserTyp}[2]{\mathit{parser}<{#1}>({#2})}
-\newcommand{\controlTyp}[2]{\mathit{control}<{#1}>({#2})}
-\newcommand{\packageTyp}[3]{\mathit{package}<{#1}>({#2},{#3})}
-\newcommand{\actionTyp}[2]{\mathit{action}(\mathit{data:}{#1},\mathit{control:}{#2})}
-\newcommand{\tableTyp}[1]{\mathit{table}\ {#1}}
-\newcommand{\typNameTyp}[1]{\mathit{type\_name}\ {#1}}
+\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\langle{#2}\rangle ({#3})\rightarrow {#4}}
+\newcommand{\constructorTyp}[4]{{#1}\  {#2}\ \langle{#3}\rangle\ ({#4}, \_)}
+\newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
+\newcommand{\spcTyp}[2]{{#1}\langle{#2}\rangle}
+\newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
+\newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
+\newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
+\newcommand{\actionTyp}[2]{\mathsf{action}(\mathit{data:}{#1},\mathit{control:}{#2})}
+\newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
+\newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
 
 %directions:

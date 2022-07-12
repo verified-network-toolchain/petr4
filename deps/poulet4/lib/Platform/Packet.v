@@ -4,8 +4,7 @@ Require Import Coq.Lists.List.
 Require Import Coq.ZArith.BinIntDef.
 Require Import Coq.NArith.BinNat.
 
-Require Import Poulet4.Monads.Monad.
-Require Import Poulet4.Monads.State.
+Require Import Poulet4.Monads.ExceptionState.
 
 Require Import Poulet4.Utils.Utils.
 Require Import Poulet4.P4light.Syntax.Value.

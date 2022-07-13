@@ -379,9 +379,15 @@ Section CCompSel.
     end.
   
   Fixpoint CTranslateExtract
-           (arg: Expr.e ) (type : Expr.t) (pname : string)
+           (arg: Expr.e ) (type : Expr.t) (pname : nat)
     : StateT ClightEnv Result.result Clight.statement :=
-    let packet := Eaddrof (Evar $pname (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
+    let* env := get_state in
+    (* TODO: need a way in CCompEnv
+       to associate instance names in p4cub
+       to idents in Clight. *)
+    let extern_name := "" in
+    let packet :=
+      Eaddrof (Evar $extern_name (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
     match type with 
     | Expr.TBool => 
         let^ arg' := CTranslateExpr arg in
@@ -411,11 +417,15 @@ Section CCompSel.
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
 
-  Fixpoint CTranslateEmit (arg: Expr.e) (type : Expr.t) (pname : string)
+  Fixpoint CTranslateEmit (arg: Expr.e) (type : Expr.t) (pname : nat)
     : StateT ClightEnv Result.result Clight.statement :=
+    (* TODO: need a way in CCompEnv
+       to associate instance names in p4cub
+       to idents in Clight. *)
+    let extern_name := "" in
     let packet :=
       Eaddrof
-        (Evar $pname (Ctypes.Tstruct _packet_out noattr))
+        (Evar $extern_name (Ctypes.Tstruct _packet_out noattr))
         TpointerPacketOut in
     match type with 
     | Expr.TBool =>
@@ -448,233 +458,215 @@ Section CCompSel.
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
   
-  Fixpoint CTranslateStatement (s: Stmt.s ) (env: ClightEnv  ) : @error_monad string (Clight.statement * ClightEnv  ) :=
+  Fixpoint CTranslateStatement (s: Stmt.s)
+    : StateT ClightEnv Result.result Clight.statement :=
     match s with
-    | Stmt.SSkip => mret (Sskip, env)
-    | Stmt.SSeq s1 s2 => 
-      let* (s1', env1) := CTranslateStatement s1 env in
-      let* (s2', env2) := CTranslateStatement s2 env1 in
-      mret (Ssequence s1' s2', env2)
-
-    | Stmt.SBlock s => CTranslateStatement s env
-
-    | Stmt.SVardecl x (inl t) => 
-      let (cty, env_cty):= CTranslateType t env in
-      mret (Sskip, CCompEnv.add_var  env_cty x cty)
-
-    | Stmt.SVardecl x (inr e) => 
+    | Stmt.Skip => mret Sskip
+    | Stmt.Seq s1 s2 =>
+        (* TODO: need to correctly consider de bruijn stuff here *)
+        let* s1' := CTranslateStatement s1 in
+        let^ s2' := CTranslateStatement s2 in
+        Ssequence s1' s2'
+    | Stmt.Var (inl t) s =>
+        (* TODO: why skip returned? *)
+        let* cty := State_lift (CTranslateType t) in
+        let* env := get_state in
+        put_state (CCompEnv.add_var env cty) ;;
+        CTranslateStatement s
+    | Stmt.Var (inr e) s =>
+        (* TODO: need to double check
+           that I update env at the correct place. *)
       let t := t_of_e e in
-      let dst_t := t in 
-      let dst := x in
-      let (cty, env) := CTranslateType t env in
-      let env :=  CCompEnv.add_var  env x cty in
-      let* dst' := find_ident  env dst in
+      let* cty := State_lift (CTranslateType t) in
+      let* env := get_state in
+      put_state (CCompEnv.add_var env cty) ;;
+      let* env := get_state in
+      let* dst' := state_lift (find_var env 0) in
       match e with
-      | Expr.Bit width val => 
-        let (env', val_id) := find_BitVec_String  env val in 
-        let w := Cint_of_Z (Z.of_N width) in
-        let signed := Cfalse in 
-        let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-        mret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-      
-      | Expr.Int width val => 
-        let (env', val_id) := find_BitVec_String  env val in 
-        let w := Cint_of_Z (Zpos width) in
-        let signed := Ctrue in 
-        let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-        mret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-
+      | Expr.Bit width val =>
+          let* val_id := State_lift (find_BitVec_String val) in
+          let w := Cint_of_Z (Z.of_N width) in
+          let signed := Cfalse in 
+          let val' := Evar val_id Cstring in
+          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+          let^ s' := CTranslateStatement s in
+          Ssequence
+            (Scall None bitvec_init_function [dst'; signed; w; val'])
+            s'
+      | Expr.Int width val =>
+          let* val_id := State_lift (find_BitVec_String val) in
+          let w := Cint_of_Z (Zpos width) in
+          let signed := Ctrue in 
+          let val' := Evar val_id Cstring in
+          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+          let^ s' := CTranslateStatement s in
+          Ssequence
+            (Scall None bitvec_init_function [dst'; signed; w; val'])
+            s'
       | Expr.Slice n hi lo =>
-        let τ := t_of_e n in
-        let* (n', env') := CTranslateExpr n env in
-        let hi' := Cuint_of_Z (Zpos hi) in
-        let lo' := Cuint_of_Z (Zpos lo) in
-        let (tau', env') := CTranslateType τ env' in 
-        let dst' := Evar dst' tau' in
-        mret (Scall None slice_function [n'; hi'; lo'; dst'], env')
-
-      | Expr.Cast τ e => 
-        let* (e', env') := CTranslateExpr e env in 
-        let (tau', env') := CTranslateType τ env' in 
-        let dst' := Evar dst' tau' in
-        match τ, t_of_e e with 
-        | Expr.TBool, Expr.TBit (w) => 
-          mret (Scall None cast_to_bool_function [dst'; e'], env')
-        | Expr.TBit (w), Expr.TBool => 
-          mret (Scall None cast_from_bool_function [dst'; e'], env')
-        | Expr.TBit (w), Expr.TInt (_)
-        | Expr.TBit (w), Expr.TBit (_) =>
-          let t := Cuint_zero in
-          let width := Cuint_of_Z (Z.of_N w) in
-          mret (Scall None cast_numbers_function [dst'; e'; t; width], env')
-        | Expr.TInt (w), Expr.TBit (_)
-        | Expr.TInt (w), Expr.TInt (_) =>
-          let t := Cuint_zero in
-          let width := Cuint_of_Z (Zpos w) in
-          mret (Scall None cast_numbers_function [dst'; e'; t; width], env')
-        | _, _ => mret (Sskip, env)
-        end
-
-      | Expr.Uop dst_t op x => CTranslateUop dst_t op x dst env
-
-      | Expr.Bop dst_t op x y => CTranslateBop dst_t op x y dst env
-                      
-      | Expr.Tuple es =>  (*first create a temp of this tuple. then assign all the values to it. then return this temp  *) 
-        let tuple := Expr.TTuple (CTranslateListType es) in
-        let (typ, env) := CTranslateType tuple env in
-        let* composite := lookup_composite  env tuple in
-        CTranslateTupleAssgn es composite (Evar dst' typ) env
-
-      | Expr.Struct fields => (*first create a temp of this struct. then assign all the values to it. then return this temp *)
-        let struct := Expr.TStruct (CTranslateFieldType fields) in
-        let (typ, env) := CTranslateType struct env in
-        let* composite := lookup_composite  env struct in
-        CTranslateStructAssgn fields composite (Evar dst' typ) env
-
-      | Expr.Header fields b => (*first create a temp of this header. then assign all the values to it. then return this temp*)
-        let hdr := Expr.THeader (CTranslateFieldType fields) in
-        let (typ, env) := CTranslateType hdr env in
-        let* (valid, env) := CTranslateExpr b env in
-        let* composite := lookup_composite  env hdr in
-        CTranslateHeaderAssgn fields composite (Evar dst' typ) env valid
-
-      | Expr.HeaderStack fields headers next_index =>
-        let size := Pos.of_nat (length headers) in
-        let top_typ := Expr.THeaderStack fields size in
-        let (top_typ, env) := CTranslateType top_typ env in
-        let* stack := find_ident  env dst in
-        let stack_var := Evar stack top_typ in
-        let* (next_var,ti,size_var,ts,arr_var,ta, val_typ, val_typ_valid_index) :=
-            findStackAttributes stack_var top_typ env in
-        let int_size := Cint_of_Z (Zpos size) in
-        let int_next := Cint_of_Z (next_index) in
-        let assignSize := Sassign size_var int_size in
-        let assignNext := Sassign next_var int_next in
-        let env := add_temp  env "i" int_signed in
-        let* i := find_ident  env "i" in 
-        let i_var := Etempvar i int_signed in
-        HeaderStackAssignLoop env arr_var i_var fields headers val_typ
-
-      | _ => 
-        let* (e2', env2) := CTranslateExpr e env in
-        mret (Sassign (Evar dst' cty)  e2', env2)
+          let τ := t_of_e n in
+          let* n' := CTranslateExpr n in
+          let hi' := Cuint_of_Z (Zpos hi) in
+          let lo' := Cuint_of_Z (Zpos lo) in
+          let* tau' := State_lift (CTranslateType τ) in
+          let dst' := Evar dst' tau' in
+          let^ s' := CTranslateStatement s in
+          Ssequence
+            (Scall None slice_function [n'; hi'; lo'; dst'])
+            s'
+      | Expr.Cast τ e =>
+          let* e' := CTranslateExpr e in
+          let* tau' := State_lift (CTranslateType τ) in
+          let dst' := Evar dst' tau' in
+          let s1 :=
+            match τ, t_of_e e with
+            | Expr.TBool, Expr.TBit _ =>
+                Scall None cast_to_bool_function [dst'; e']
+            | Expr.TBit _, Expr.TBool =>
+                Scall None cast_from_bool_function [dst'; e']
+            | Expr.TBit w, Expr.TInt _
+            | Expr.TBit w, Expr.TBit _ =>
+                let t := Cuint_zero in
+                let width := Cuint_of_Z (Z.of_N w) in
+                Scall None cast_numbers_function [dst'; e'; t; width]
+            | Expr.TInt w, Expr.TBit _
+            | Expr.TInt w, Expr.TInt _ =>
+                let t := Cuint_zero in
+                let width := Cuint_of_Z (Zpos w) in
+                Scall None cast_numbers_function [dst'; e'; t; width]
+            | _, _ => Sskip
+            end in
+          let^ s2 := CTranslateStatement s in
+          Ssequence s1 s2
+      | Expr.Uop dst_t op x =>
+          let* s1 := CTranslateUop dst_t op x 0 in
+          let^ s2 := CTranslateStatement s in
+          Ssequence s1 s2
+      | Expr.Bop dst_t op x y =>
+          let* s1 := CTranslateBop dst_t op x y 0 in
+          let^ s2 := CTranslateStatement s in
+          Ssequence s1 s2
+      | Expr.Struct fields None =>
+          (*first create a temp of this struct.
+            then assign all the values to it. then return this temp *)
+          let strct := t_of_e e in
+          let* typ := State_lift (CTranslateType strct) in
+          let* env := get_state in
+          let* composite := state_lift (lookup_composite env strct) in
+          let* s1 :=
+            CTranslateStructAssgn
+              fields composite (Evar dst' typ) in
+          let^ s2 := CTranslateStatement s in
+          Ssequence s1 s2
+      | Expr.Struct fields (Some b) =>
+          (*first create a temp of this header.
+            then assign all the values to it. then return this temp*)
+          let hdr := t_of_e e in
+          let* typ := State_lift (CTranslateType hdr) in
+          let valid := if b then Ctrue else Cfalse in
+          let* env := get_state in
+          let* composite := state_lift (lookup_composite env hdr) in
+          let* s1 :=
+            CTranslateHeaderAssgn
+              fields composite (Evar dst' typ) valid in
+          let^ s2 := CTranslateStatement s in
+          Ssequence s1 s2
+      | _ =>
+          let* e' := CTranslateExpr e in
+          let^ s' := CTranslateStatement s in
+          Ssequence (Sassign (Evar dst' (typeof e'))  e') s'
       end
-      
-    | Stmt.SConditional e s1 s2 => 
-      let* (e', env1) := CTranslateExpr e env in
-      let* (s1', env2) := CTranslateStatement s1 env1 in
-      let* (s2', env3) := CTranslateStatement s2 env2 in                 
-      mret (Sifthenelse e' s1' s2', env3)
-
-    | Stmt.SFunCall f _ {|paramargs:=args; rtrns:=None|} =>
-      let* (f', id) := CCompEnv.lookup_function  env f in
-      let* (elist, env') := CTranslateDirExprList args env in 
-      mret (Scall None (Evar id (Clight.type_of_function f')) elist, env') 
-    
-    | Stmt.SActCall f args => 
-      let* (f', id) := CCompEnv.lookup_function  env f in
-      let* (elist, env') := CTranslateDirExprList args env in
-      let elist := (get_top_args  env') ++ elist in 
-      mret (Scall None (Evar id (Clight.type_of_function f')) elist, env')                              
-
-    | Stmt.SFunCall f _ {|paramargs:=args; rtrns:=Some e|} =>
-      let t := t_of_e e in
-      let (ct, env_ct) := CTranslateType t env in
-      let* (f', id) := CCompEnv.lookup_function  env_ct f in
-      let* (elist, env') := CTranslateDirExprList args env_ct in
-      let (env', tempid) := CCompEnv.add_temp_nameless  env' ct in
-      let* (lvalue, env') := CTranslateExpr e env' in 
-      mret (
-        (Ssequence 
-        (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
-        (Sassign lvalue (Etempvar tempid ct) )), env')
-    | Stmt.SExternMethodCall e f _ {|paramargs:=args; rtrns:=x|} =>
-      let* t := find_extern_type  env e in 
-      if (String.eqb t "packet_in") then 
-        if (String.eqb f "extract") then
-          match F.get "hdr" args with 
-          | Some (PAOut arg) => 
-            CTranslateExtract arg (t_of_e arg) e env i
-          | _ => Result.error "no out argument named hdr"
-          end
-        else mret (Sskip, env)
-      else 
-      if (String.eqb t "packet_out") then 
-        if (String.eqb f "emit") then
-          match F.get "hdr" args with 
-          | Some (PAIn arg) => 
-            CTranslateEmit arg (t_of_e arg) e env i
-          | _ => Result.error "no out argument named hdr"
-          end
-        else mret (Sskip, env)
-      else 
-      if (String.eqb f "mark_to_drop") then
-        match F.get "standard_metadata" args with
-        | Some (PAInOut arg) =>
-          let* (elist, env') := CTranslateDirExprList args env in
-          mret (Scall None mark_to_drop_function elist, env')
-        | _ => Result.error "no inout argument named standard_metadata"
-        end
-      else
-      mret (Sskip, env) (*TODO: implement, need to be target specific.*)
-
-    | Stmt.SReturn (Some e) =>
-      let* (e', env') := CTranslateExpr e env in
-      mret ((Sreturn (Some e')), env')
-    | Stmt.SReturn None => mret (Sreturn None, env)
-    | Stmt.SExit => mret (Sreturn (Some Cfalse), env)
-    | Stmt.SApply x ext args => 
-      let* (f', id) := CCompEnv.lookup_function  env x in
-      let* (elist, env') := CTranslateDirExprList args env in 
-      let (env', resultid) := CCompEnv.add_temp_nameless  env' type_bool in
-      let result := (Etempvar resultid type_bool) in 
-      let compute := Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
-      let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
-      mret (Ssequence compute judge, env')
-
-    | Stmt.SInvoke tbl =>
-      CTranslateTableInvoke tbl env  
-
-    | Stmt.SAssign e1 e2 =>
-      let* (e1', env1) := CTranslateExpr e1 env in
-      let* (e2', env2) := CTranslateExpr e2 env1 in
-      mret (Sassign e1' e2', env2)
-      
-
-    | Stmt.SHeaderStackOp stack typ Stmt.HSPush n =>
-      let* stack_id := 
-        match find_ident_temp_arg  env stack with
-        | inl (_, x) => mret x
-        | _ => find_ident  env stack 
-        end
-      in
-      CTranslatePush stack_id n env
-
-    | Stmt.SHeaderStackOp stack typ Stmt.HSPop n =>
-      let* stack_id := 
-        match find_ident_temp_arg  env stack with
-        | inl (_, x) => mret x
-        | _ => find_ident  env stack 
-        end
-      in 
-      CTranslatePop stack_id n env
-    
-    (*  *)
-
-    | Stmt.SSetValidity arg val =>
-      let* (arg', env) := CTranslateExpr arg env in 
-      let* index := ValidBitIndex arg env in
-      let member :=  Efield arg' index type_bool in
-      let val := 
-        match val with
-        | true => Ctrue
-        | false => Cfalse
-        end in
-      let assign := Sassign member val in
-      mret (assign , env)  
-
+    | Stmt.Conditional e s1 s2 => 
+        let* e' := CTranslateExpr e in
+        let* s1' := CTranslateStatement s1 in
+        let^ s2' := CTranslateStatement s2 in                 
+        Sifthenelse e' s1' s2'
+    | Stmt.Call (Stmt.Funct f _ None) args =>
+        let* env := get_state in
+        let* (f', id) := state_lift (CCompEnv.lookup_function env f) in
+        let^ elist := CTranslateArgs args in
+        Scall None (Evar id (Clight.type_of_function f')) elist
+    | Stmt.Call (Stmt.Action f ctrl_args) data_args =>
+        let* env := get_state in
+        let* (f', id) := state_lift (CCompEnv.lookup_function env f) in
+        let* ctrl_list := CTranslateExprList ctrl_args in
+        let* data_list := CTranslateArgs data_args in
+        let^ env' := get_state in 
+        let elist := (get_top_args env') ++ ctrl_list ++ data_list in
+        Scall None (Evar id (Clight.type_of_function f')) elist
+    | Stmt.Call (Stmt.Funct f _ (Some e)) args =>
+        let t := t_of_e e in
+        let* ct := State_lift (CTranslateType t) in
+        let* env_ct := get_state in
+        let* (f', id) := state_lift (CCompEnv.lookup_function env_ct f) in
+        let* elist := CTranslateArgs args in
+        let* env' := get_state in
+        let* tempid := State_lift (CCompEnv.add_temp_nameless ct) in
+        let^ lvalue := CTranslateExpr e in 
+        Ssequence
+          (Scall (Some tempid) (Evar id (Clight.type_of_function f')) elist)
+          (Sassign lvalue (Etempvar tempid ct))
+    | Stmt.Call (Stmt.Method e f _ x) args =>
+        let* env := get_state in
+        let* t := state_lift (find_extern_type env e) in
+        (* TODO: what to do about expecting specific
+           architectures? *)
+        if String.eqb t "packet_in" then
+          if String.eqb f "extract" then
+            match nth_error args 0 with
+            | Some (PAOut arg) =>
+                CTranslateExtract arg (t_of_e arg) e
+            | _ => state_lift (Result.error "no out argument named hdr")
+            end
+          else mret Sskip
+        else 
+          if String.eqb t "packet_out" then
+            if String.eqb f "emit" then
+              match nth_error args 0 with 
+              | Some (PAIn arg) => 
+                  CTranslateEmit arg (t_of_e arg) e
+              | _ => state_lift (Result.error "no out argument named hdr")
+              end
+            else mret Sskip
+          else
+            if String.eqb f "mark_to_drop" then
+              match nth_error args 0 with
+              | Some (PAInOut arg) =>
+                  let^ elist := CTranslateArgs args in
+                  Scall None mark_to_drop_function elist
+              | _ => state_lift
+                      (Result.error "no inout argument named standard_metadata")
+              end
+            else
+              mret Sskip (*TODO: implement, need to be target specific.*)
+    | Stmt.Return (Some e) =>
+      let^ e' := CTranslateExpr e in Sreturn (Some e')
+    | Stmt.Return None => mret (Sreturn None)
+    | Stmt.Exit => mret (Sreturn (Some Cfalse))
+    | Stmt.Apply x ext args =>
+        let* env := get_state in
+        (* TODO: need to make instance (De Bruijn) names
+           to Clight idents. *)
+        let x' := (*$*)"" in
+        let* (f', id) :=
+          state_lift
+            (match Env.find x' env.(ienv) with
+             | Some y => Result.ok (y, $"")
+             | None => Result.error "TODO!"
+             end) in
+        let* elist := CTranslateArgs args in
+        let* resultid := State_lift (CCompEnv.add_temp_nameless type_bool) in
+        let result := (Etempvar resultid type_bool) in 
+        let kompute :=
+          Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
+        let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
+        mret (Ssequence kompute judge)
+    | Stmt.Invoke tbl _ => (* TOOD compile key argument *) CTranslateTableInvoke tbl
+    | Stmt.Assign e1 e2 =>
+      let* e1' := CTranslateExpr e1 in
+      let^ e2' := CTranslateExpr e2 in
+      Sassign e1' e2'
+    | _ => state_lift (Result.error "TODO!!")
     end.
 
   Definition CTranslateParams (params : Expr.params) (env : ClightEnv  ) 

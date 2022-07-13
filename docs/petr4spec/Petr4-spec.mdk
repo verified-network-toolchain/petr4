@@ -259,17 +259,6 @@ limitations.
 [INCLUDE="ops.tex"]
 ~
 
-~ Bibliography { caption:"00" }
-~~Bibitem {#harper-types-PL}
-Rober Harper.
-Types and Prgarmming Languages.
-<http://www.cs.cmu.edu/~rwh/courses/typesys/>
-~~
-~~Bibitem {#wiki-type-sys}
-Type System.
-<https://en.wikipedia.org/wiki/Type_system>
-~~
-~
 
 [TOC]
 
@@ -280,25 +269,40 @@ defines such type system. It is organized as follows:
 
 - It first expresses the need to have a formal type system for P4 and familiarizes the
 reader with the concept of a type system, its role in language design, and how to read
-and understand a type system (Section [#sec-note-type-sys]).
+and understand a type system (Section [#sec-note]).
 - It then focuses on the architecture of Petr4 and points out the part that this document focues on (Section [#sec-arch]).
 - It also describes the structure of Petr4's type system (Section [#sec-petr4-type-sys]) and defines the metavariables used throughout this document (Section [#sec-metavar]).
 - For those interested, it connects the formalziation in this document to the impelemntation of Petr4 (Section [#sec-conn]).
 
-## Brief Notes on Type System { #sec-note-type-sys }
+## Brief Terminology Note  { #sec-note }
 
-It is important that the reader understands the reason for having a type system and what its role is.
+It is important that the reader is familiar with the basic programming languages terminology. And more importantly, it is crucial for them to understand the reason for having a type system and what its role is. To this end, we introduce the main programming languages' terminology used in this document.
+
+**First, what is a type?**
 You can simply think of types as a set of language elements that share some features.
 For example, the type natural number is the set of numbers that is either zero or an increment of zero for multiple repetitions.
 Grouping language elements into a set (called type) abstracts out some unncessary details when reasoning about programs.
 That is why [@harper-types-PL] states: "The central organizing principle of language desing is the dientitfication of language features with types."
 
-A simple reasoning about programs of a language can be done by a _type system_. 
+**Second, what is a type system?**
 A _type system_ is a collection of rules that assign a property called type to the various language constructs, such as variables, functions, expression, etc[@wiki-type-sys].
-A type system formally defines many aspects of a programming language. 
-Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain errors in well-typed programs. 
+Thus, a type system can be used as a simple reasoning tool for programs of a language.
+A type system formally defines many aspects of a programming language.
+Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain errors in well-typed programs.
 
-Additionally, it is important for the reader to be able to read and understand inference rules.
+**Third, what is surface syntax and intermediate representation (IR)?**
+The _surface syntax_ is the syntax used to write the source program by the developer
+which eventually will be passed to the compiler. 
+The compiler does multiple _passes_ between different representations to add or omit
+information that it may or may not need. Each of these representations is called an
+_intermediate representation_. 
+
+Additionally, it is important for the reader to be able to read and understand typing
+rules which in essence are _inference rules_. Thus, we introduce inference rules by
+building a toy language gradually
+and providing its various typing rules at each step (Section [#sec-guide]).
+
+## A Developer's Guide to Reading Inference Rules { #sec-guide }
 A type system is made up of typing _rules_ that each has a specific _judgment form_.
 A typing rule, in essence, is an _inference rule_.
 An inference rule contains zero or more _premises_ above the line
@@ -313,8 +317,278 @@ $C$ is concluded if premises $A$ and $B$ hold.
     {C}
 ~ End InfRule
 
-A rule without the line and premises above it is called an _axiom_ and it states that
+A rule without any premises is called an _axiom_ and it states that
 the conclusion holds uncoditionally.
+
+Consider the simple toy expression language below that only consists of integers. Note
+that $i$ is a _metavariable_ that represents any possible integer values. 
+
+~ Begin P4Grammar
+i := (any integer) 
+e := i
+~ End P4Grammar
+
+We can have different typing systems for a language. For example, for the toy language we present two type systems.
+The first one has the judgment form $e$ which states that the expression $e$ is well-typed.
+For example, the rule $\rn{Integer1}\rE$ states that the expression $i$ is well-typed. Note that it does not 
+state what its type is. 
+
+~ Begin InfRule
+  \inferrule[\rn{Integer1}\rE]
+     {\ \ \ \ }
+     {i}
+~ End InfRule
+
+We can a more detailed type system for our langauge.
+The second type system has the judgment form $e:t$ which states that the expression $e$
+is well-typed and it has the type $t$. Note that $t$ is a metavariable for all possible types of expressions. 
+The rule $\rn{Integer2}\rE$ states that the
+expression $i$ is well-typed and it has the type $\mathsf{int}$.
+
+~ Begin InfRule
+  \inferrule[\rn{Integer2}\rE]
+     { }
+     {i:\mathsf{int}}
+~ End InfRule
+
+We now extend the toy language by adding variable reference to expression which are
+simply strings. 
+
+~ Begin P4Grammar
+i := (any integer) 
+v := (any string)
+e := i
+   | v
+~ End P4Grammar
+
+Now our type systems have to include an environment.
+The environment $\Sigma$ is needed to keep track of variables that have been declared and assigned a value/expression. The environment is a mapping of variables to a feature about the variable. This feature can be the type of the variable, the expression it has been assigned, or the value of evaluating the expression it has been assigned.
+
+Here, we consider the environment to be a mapping of variables to their assigned expressions, that is, $\Sigma : v \rightarrow e$. Note that assigning expressions to variables is done in statements and not expressions and that is where the environment is built up.We only focus on expression's typing here.
+
+The judgment form of our first type systems changes to $\Sigma \vdash e$ which states that under the environment $\Sigma$, the expression $e$ is well-typed.
+The rule $\rn{Integer1}\rE$ states that under environment $\Sigma$ the expression $i$ is well-typed.
+The typing system is also extended by a rule for variable reference.
+The rule $\rn{Variable1}\rE$ states that under environment $\Sigma$ the expression $v$ is
+well-typed if it exists in the environment. Note that $\Sigma(v)$ looks up variable $v$ from the environment $\Sigma$ and returns the expression assigned to it but since the rule does not need to do anything with that expression we use \_ to denote that the variable $v$ exists in the environment $\Sigma$ but we don't care about its asignee expression.
+Note that in rule $\rn{Integer1}\rE$ we do not need to check the type of $i$ since $i$ only stands for integers and can only be constructed by integer values.
+
+~ Begin InfRule
+  \inferrule[\rn{Integer1}\rE]
+     { }
+     {\Sigma \vdash i}
+
+  \inferrule[\rn{Variable1}\rE]
+     {\Sigma(v)=\_}
+     {\Sigma \vdash v}
+~ End InfRule
+
+The judgment form of our second type system also changes to $\Sigma \vdash e:t$ which states that under the environment $\Sigma$, the expression $e$ has the type $t$.
+The rule $\rn{Integer2}\rE$ states that under environment $\Sigma$ the expression $i$ has the type $\mathsf{int}$.
+The rule $\rn{Variable2}\rE$ states that under environment $\Sigma$ the expression $v$ has the type $\mathsf{int}$ if it exists in the environment $\Sigma$.
+
+~ Begin InfRule
+  \inferrule[\rn{Integer2}\rE]
+     { }
+     {\Sigma \vdash i:\mathsf{int}}
+
+  \inferrule[\rn{Variable2}\rE]
+     {\Sigma(v)=\_}
+     {\Sigma \vdash v:\mathsf{int}}
+~ End InfRule
+
+Now we add booleans to our language.
+
+~ Begin P4Grammar
+i := (any integer)
+v := (any string)
+b := (any boolean)
+e := i
+   | v
+   | b
+~ End P4Grammar
+
+The $\rn{Integer1}\rE$ and $\rn{Variable1}\rE$ rules do not change.
+The rule $\rn{Boolean1}\rE$ states that under environment $\Sigma$ the expression $b$ is
+well-typed.
+
+~ Begin InfRule
+  \inferrule[\rn{Integer1}\rE]
+     { }
+     {\Sigma \vdash i}
+
+  \inferrule[\rn{Variable1}\rE]
+     {\Sigma(v)=\_}
+     {\Sigma \vdash v}
+
+\inferrule[\rn{Boolean1}\rE]
+     {\ \ \ \ }
+     {\Sigma \vdash b}
+~ End InfRule
+
+The $\rn{Integer2}\rE$ stays the same. However, the type of the expression assigned to
+a variable now matters. This is stated in the $\rn{Variable2}\rE$. It particularly states that under the environment $\Sigma$, the expression $v$ has the type $t$ if the type of the expression $e$ assigned to the variable $v$ is $t$. Note that in this rule, we can no longer ignore the expression assigned to variable $v$ and returned by looking up the environment since we need to know its type. 
+The $\rn{Boolean2}\rE$ simply states that under the environment $\Sigma$, the expression $b$ has the type $\mathsf{bool}$.
+
+~ Begin InfRule
+  \inferrule[\rn{Integer2}\rE]
+     { }
+     {\Sigma \vdash i:\mathsf{int}}
+
+  \inferrule[\rn{Variable2}\rE]
+     {\Sigma(v)=e \\
+      \Sigma \vdash e:t}
+     {\Sigma \vdash v:t}
+
+  \inferrule[\rn{Boolean2}\rE]
+     { }
+     {\Sigma \vdash b:\mathsf{bool}}
+~ End InfRule
+
+Now we extend our language by adding the integer addition operation.
+
+~ Begin P4Grammar
+i := (any integer)
+v := (any string)
+b := (any boolean)
+e := i
+   | v
+   | b
+   | e + e
+~ End P4Grammar
+
+The first type system (that consists of rules $\rn{Integer1}\rE$, $\rn{Variable1}\rE$, and $\rn{Boolean1}\rE$ is no longer sufficient because the addition operator requires both operands not only to be well-typed but also to be an integer.
+
+The typing rules of the second type system stay the same.
+The rule $\rn{Addition2}\rE$ states that under the environment $\Sigma$, the expression
+$e_1 + e_2$ has the type $\mathsf{int}$ if both expressions $e_1$ and $e_2$ have the type $\mathsf{int}$. 
+
+~ Begin InfRule
+  \inferrule[\rn{Integer2}\rE]
+     { }
+     {\Sigma \vdash i:\mathsf{int}}
+
+  \inferrule[\rn{Variable2}\rE]
+     {\Sigma(v)=e\\
+     \Sigma \vdash e:t}
+     {\Sigma \vdash v:t}
+
+  \inferrule[\rn{Boolean2}\rE]
+     { }
+     {\Sigma \vdash b:\mathsf{bool}}
+
+  \inferrule[\rn{Addition2}\rE]
+     {\Sigma \vdash e_1:\mathsf{int} \\
+      \Sigma \vdash e_2:\mathsf{int} }
+     {\Sigma \vdash e_1 + e_2 : \mathsf{int}}
+~ End InfRule
+
+We could have restrictions on the types of subexpression. For example, assume we extend
+our toy language with equality checking which checks the equality of two subexpressions of the same type. 
+
+~ Begin P4Grammar
+i := (any integer)
+v := (any string)
+b := (any boolean)
+e := i
+   | v
+   | b
+   | e + e
+   | e == e
+~ End P4Grammar
+
+The $\rn{Equality2}\rE$ rule states that under the environment $\Sigma$, the expression
+$e_1 == e_2$ has the $\mathsf{bool}$ type if expressions $e_1$ and $e_2$ both have the same type. 
+
+~ Begin InfRule
+  \inferrule[\rn{Integer2}\rE]
+     { }
+     {\Sigma \vdash i:\mathsf{int}}
+
+  \inferrule[\rn{Variable2}\rE]
+     {\Sigma(v)=e\\
+     \Sigma \vdash e:t}
+     {\Sigma \vdash v:t}
+
+  \inferrule[\rn{Boolean2}\rE]
+     { }
+     {\Sigma \vdash b:\mathsf{bool}}
+
+  \inferrule[\rn{Addition2}\rE]
+     {\Sigma \vdash e_1:\mathsf{int} \\
+      \Sigma \vdash e_2:\mathsf{int} }
+     {\Sigma \vdash e_1 + e_2 : \mathsf{int}}
+
+  \inferrule[\rn{Equality2}\rE]
+     {\Sigma \vdash e_1:t_1 \\
+      \Sigma \vdash e_2:t_2 \\
+      t_1 = t_2}
+     {\Sigma \vdash e_1 == e_2 : \mathsf{bool}}
+~ End InfRule
+
+An inference rule is not only used for specifying types of programs. In fact, inference
+rules are used to write translation of programs from one representation to another,
+program syntesis, type inference, program semantics, etc.
+For example, the rules below rewrite expressions in our toy language (which uses infix ordering of operators) to one that uses prefix ordering of operators
+and they have the judgment form $\Sigma \vdash e \rightarrow \prim e$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to expression $\prim e$ written in the prefix ordering.
+
+The rules $\rn{Integer3}\rE$, $\rn{Variable3}\rE$, and $\rn{Boolean3}\rE$ are rather simple. For example, the $\rn{Integer3}\rE$ rule states that under the environment $\Sigma$, the expression $i$ translates to $i$.
+The rules $\rn{Addition3}\rE$ and $\rn{Equality3}\rE$ recursively translate their subexpressions and reorder their operator.
+For example, the $\rn{Addition3}\rE$ rule states that the expression $e_1 + e_2$ translates to the expression $+ \ \prim {e_1} \ \prim {e_2}$ where expressions $\prim {e_1}$ and $\prim {e_2}$ are the translation of expressions $e_1$ and $e_2$, respectively. 
+
+~ Begin InfRule
+  \inferrule[\rn{Integer3}\rE]
+     { }
+     {\Sigma \vdash i \rightarrow i}
+
+  \inferrule[\rn{Variable3}\rE]
+     {\Sigma(v)=\_}
+     {\Sigma \vdash v \rightarrow v}
+
+  \inferrule[\rn{Boolean3}\rE]
+     { }
+     {\Sigma \vdash b \rightarrow b}
+
+  \inferrule[\rn{Addition3}\rE]
+     {\Sigma \vdash e_1 \rightarrow \prim {e_1} \\
+      \Sigma \vdash e_2 \rightarrow \prim {e_2}}
+     {\Sigma \vdash e_1 + e_2 \rightarrow \ + \ \prim {e_1} \ \prim {e_2}}
+
+  \inferrule[\rn{Equality3}\rE]
+     {\Sigma \vdash e_1 \rightarrow \prim {e_1}\\
+      \Sigma \vdash e_2 \rightarrow \prim {e_2} }
+     {\Sigma \vdash e_1 == e_2 \rightarrow \ == \prim {e_1} \ \prim {e_2}}
+~ End InfRule
+
+An inference rule can conduct multiple tasks at the same time. In other words, an inference rule can be a combination of two inference rules. For example, the typing rules below combine the typing and rewritting rules shown above and they have the judgment form
+$\Sigma \vdash e \rightarrow \prim e, t$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to the expression $\prim e$ written in the prefix ordering and has the type $t$. 
+As an example , the $\rn{Variable4}\rE$ rule reads as under the environment $\Sigma$, the expression $v$ translates to itself and has the type $t$ if the variable $v$ exists in environment $\Sigma$ and expression $e$ is assigned to it which has the type $t$. 
+
+~ Begin InfRule
+  \inferrule[\rn{Integer4}\rE]
+     { }
+     {\Sigma \vdash i \rightarrow i, \mathsf{int}}
+
+  \inferrule[\rn{Variable4}\rE]
+     {\Sigma(v)=e\\
+     \Sigma \vdash e \rightarrow \_, t}
+     {\Sigma \vdash v \rightarrow v, t}
+
+  \inferrule[\rn{Boolean4}\rE]
+     { }
+     {\Sigma \vdash b \rightarrow b, \mathsf{bool}}
+
+  \inferrule[\rn{Addition4}\rE]
+     {\Sigma \vdash e_1 \rightarrow \prim {e_1}, \mathsf{int} \\
+      \Sigma \vdash e_2 \rightarrow \prim {e_2}, \mathsf{int} }
+     {\Sigma \vdash e_1 + e_2 \rightarrow + \ \prim {e_1} \ \prim {e_2}, \mathsf{int}}
+
+  \inferrule[\rn{Equality4}\rE]
+     {\Sigma \vdash e_1 \rightarrow \prim {e_1}, t_1 \\
+      \Sigma \vdash e_2 \rightarrow \prim {e_2}, t_2 \\
+      t_1 = t_2}
+     {\Sigma \vdash e_1 == e_2 \rightarrow \ == \ \prim {e_1} \ \prim {e_2}, \mathsf{bool}}
+~ End InfRule
 
 ## Architecture { #sec-arch }
 
@@ -1869,5 +2143,16 @@ check parameter shadowing takes two lists of paramets and checks if there is any
 
 ~ End InfRule
 
+~ Bibliography { caption:"00" }
+~~Bibitem {#harper-types-PL}
+Rober Harper.
+Types and Prgarmming Languages.
+<http://www.cs.cmu.edu/~rwh/courses/typesys/>
+~~
+~~Bibitem {#wiki-type-sys}
+Type System.
+<https://en.wikipedia.org/wiki/Type_system>
+~~
+~
 
 

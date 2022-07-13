@@ -74,6 +74,9 @@ Section CEnv.
      Need to go over p4cub static and dynamic semantics. *)
   
   (* TODO: how to address De Bruijn indices. *)
+
+  (* TODO: need to make instance (De Bruijn) names
+     to Clight idents. *)
   Record ClightEnv : Type :=
     mkClightEnv
       { (** P4cub string identifiers to clight identifiers. *)
@@ -98,7 +101,7 @@ Section CEnv.
         fenv : Env.t string Clight.function
                      
       ; (** Clight instance names to clight functions. *)
-        ienv : Env.t string Clight.function
+        ienv : Env.t AST.ident Clight.function
                      
       ; (** Contains arguments and their temps used for copy in copy out. *)
         tempOfArg :

@@ -367,9 +367,9 @@ The environment $\Sigma$ is needed to keep track of variables that have been dec
 Here, we consider the environment to be a mapping of variables to their assigned expressions, that is, $\Sigma : v \rightarrow e$. Note that assigning expressions to variables is done in statements and not expressions and that is where the environment is built up.We only focus on expression's typing here.
 
 The judgment form of our first type systems changes to $\Sigma \vdash e$ which states that under the environment $\Sigma$, the expression $e$ is well-typed.
-The rule $\rn{Integer1}\rE$ states that under environment $\Sigma$ the expression $i$ is well-typed.
+The rule $\rn{Integer1}\rE$ states that under environment $\Sigma$, the expression $i$ is well-typed.
 The typing system is also extended by a rule for variable reference.
-The rule $\rn{Variable1}\rE$ states that under environment $\Sigma$ the expression $v$ is
+The rule $\rn{Variable1}\rE$ states that under environment $\Sigma$, the expression $v$ is
 well-typed if it exists in the environment. Note that $\Sigma(v)$ looks up variable $v$ from the environment $\Sigma$ and returns the expression assigned to it but since the rule does not need to do anything with that expression we use \_ to denote that the variable $v$ exists in the environment $\Sigma$ but we don't care about its asignee expression.
 Note that in rule $\rn{Integer1}\rE$ we do not need to check the type of $i$ since $i$ only stands for integers and can only be constructed by integer values.
 
@@ -384,8 +384,8 @@ Note that in rule $\rn{Integer1}\rE$ we do not need to check the type of $i$ sin
 ~ End InfRule
 
 The judgment form of our second type system also changes to $\Sigma \vdash e:t$ which states that under the environment $\Sigma$, the expression $e$ has the type $t$.
-The rule $\rn{Integer2}\rE$ states that under environment $\Sigma$ the expression $i$ has the type $\mathsf{int}$.
-The rule $\rn{Variable2}\rE$ states that under environment $\Sigma$ the expression $v$ has the type $\mathsf{int}$ if it exists in the environment $\Sigma$.
+The rule $\rn{Integer2}\rE$ states that under environment $\Sigma$, the expression $i$ has the type $\mathsf{int}$.
+The rule $\rn{Variable2}\rE$ states that under environment $\Sigma$, the expression $v$ has the type $\mathsf{int}$ if it exists in the environment $\Sigma$.
 
 ~ Begin InfRule
   \inferrule[\rn{Integer2}\rE]
@@ -409,7 +409,7 @@ e := i
 ~ End P4Grammar
 
 The $\rn{Integer1}\rE$ and $\rn{Variable1}\rE$ rules do not change.
-The rule $\rn{Boolean1}\rE$ states that under environment $\Sigma$ the expression $b$ is
+The rule $\rn{Boolean1}\rE$ states that under environment $\Sigma$, the expression $b$ is
 well-typed.
 
 ~ Begin InfRule
@@ -761,7 +761,7 @@ Petr4 doesn't check the length of a fixed-length integer, either signed or unsig
 ### Array Type { #sec-array-t }
 
 An array type has a specific type and size.
-The rule $\arrayT$ states that under environment $\env$ an array is well-formed if its
+The rule $\arrayT$ states that under environment $\env$, an array is well-formed if its
 type is well-formed and it follows the nesting rules of P4.
 
 - $\isValidNestedTyp {\typ_1} {\typ_2}$ outer inner checks whether a nested type is taking valid types as its outer ($\typ_1$) and outer ($\typ_2$) types based on [P4's description of type nesting rules][sec7-2-7].
@@ -969,7 +969,7 @@ This seems way too simple and loose.```
 
 ### Function Type { #sec-func-t }
 
-A function type describes the return type of the function, its type parameters, and its parameters. The rule $\functionT$ states that the function type is well-formed if its return type is well-formed and the types of its parameters are well-formed under environment $\env$ extended with function's type parameters. 
+A function type describes the return type of the function, its type parameters, and its parameters. The rule $\functionT$ states that the function type is well-formed if its return type is well-formed and the types of its parameters are well-formed under environment $\env$, extended with function's type parameters. 
 
 ~ Begin InfRule
 
@@ -1167,7 +1167,7 @@ contains no type synonym (_TypeName_ in Petr4) constructors that are used to giv
 ## List Constructor Rule { #sec-list-e }
 
 $\list {\exp_1, \ldots, \exp_n}$ constructs a list of expressions.
-The rule $\listE$ states that under environment $\env$ and context $\ctxt$
+The rule $\listE$ states that under environment $\env$ and context $\ctxt$,
 the list $\list {\exp_1, \ldots, \exp_n}$ translates to
 $\list {\prim {\exp_1}, \ldots, \prim {\exp_n}}$ in the IR and has the tuple type
 ${\listTyp {\typ_1} {\typ_n}}$ with direction $\less$ if each of its expressions $\exp_i \in \exps$ translate to $\prim {\exp_i}$ with type $\typ_i$ and direction $\dir_i$ under the same enviroment and context. 
@@ -1247,7 +1247,7 @@ The rule $\binaryOpsE$ uses two auxiliary judgments:
 translates the operands from the surface syntax to the IR and when applicable, it allows the operands of a binary operation to be casted to another type.
 It has the judgment form
 $\coerceBinArgsEnv {\exp} {\exp_1, \typ_1, \dir_1} {\exp_2, \typ_2, \dir_2}$
-which statees that under environment $\env$ and context $\ctxt$
+which statees that under environment $\env$ and context $\ctxt$,
 the expression $\exp$ written in the surface syntax has
 two operands $\exp_1$ and $\exp_2$ in the IR with types and directions
 $\typ_1$, $\typ_2$, $\dir_1$, $\dir_2$ where the types and expressions might have
@@ -1433,7 +1433,7 @@ translated type of casting type $\typ$ (that is, $\prim \typ$) is valid.
 of types.
 The [casting auxiliary judgment][#sec-cast-helper] defines rules for implicitly
 and/or explicitly casting one type to another. Sepcifically, the judgment
-$\castenv \ {\typ_1} {\typ_2}$ states that under environment $\env$
+$\castenv \ {\typ_1} {\typ_2}$ states that under environment $\env$,
 the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
 However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
 done implicitly or explicitly, respectively.

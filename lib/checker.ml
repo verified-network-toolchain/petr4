@@ -3599,6 +3599,12 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
       | Some ks -> ks
       | None -> failwith "no key property in table?"
     in
+    (* If the key property is empty or missing, there's no look up table. *)
+    let entries_typed =
+      match key with
+      | [] -> Some []
+      | _ -> entries_typed
+    in
     (* Populate environment with action_enum *)
     (* names of action list enums are "action_list_<<table name>>" *)
     let env =

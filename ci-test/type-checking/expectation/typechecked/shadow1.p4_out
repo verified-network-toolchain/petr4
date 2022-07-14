@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow1.p4
+/petr4/ci-test/testdata/p4_16_samples/shadow1.p4
 \n
 /*
 Copyright 2016 VMware, Inc.
@@ -35,12 +35,11 @@ parser p() {
     transition accept;
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow1.p4(20): [--Wwarn=shadow] warning: 'counter' shadows 'counter'
+/petr4/ci-test/testdata/p4_16_samples/shadow1.p4(20): [--Wwarn=shadow] warning: 'counter' shadows 'counter'
   bit<16> counter;
   ^^^^^^^^^^^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/shadow1.p4(17)
+/petr4/ci-test/testdata/p4_16_samples/shadow1.p4(17)
 extern counter {}
        ^^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

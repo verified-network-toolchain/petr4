@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl.p4
+/petr4/ci-test/testdata/p4_16_samples/decl.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -65,18 +65,17 @@ control p(in bit<1> y_0) {
     }
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl.p4(33): [--Wwarn=shadow] warning: 'y' shadows 'y'
+/petr4/ci-test/testdata/p4_16_samples/decl.p4(33): [--Wwarn=shadow] warning: 'y' shadows 'y'
                 bit y;
                 ^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl.p4(30)
+/petr4/ci-test/testdata/p4_16_samples/decl.p4(30)
             bit y;
             ^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl.p4(37): [--Wwarn=shadow] warning: 'y' shadows 'y'
+/petr4/ci-test/testdata/p4_16_samples/decl.p4(37): [--Wwarn=shadow] warning: 'y' shadows 'y'
                     bit y;
                     ^^^^^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/decl.p4(33)
+/petr4/ci-test/testdata/p4_16_samples/decl.p4(33)
                 bit y;
                 ^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/nested-struct.p4
+/petr4/ci-test/testdata/p4_16_samples/nested-struct.p4
 \n
 struct S {
     bit<32> b;
@@ -58,5 +58,5 @@ control c(out bit<1> x) {
 control ctrl (out bit<1> x);
 package top (ctrl _c);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

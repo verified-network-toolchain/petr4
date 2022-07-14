@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/psa-example-parser-checksum.p4
+/petr4/ci-test/testdata/p4_16_samples/psa-example-parser-checksum.p4
 \n
 /*
 Copyright 2017 Cisco Systems, Inc.
@@ -851,11 +851,5 @@ IngressPipeline(IngressParserImpl(), ingress(), IngressDeparserImpl()) ip;
 EgressPipeline(EgressParserImpl(), egress(), EgressDeparserImpl()) ep;
 PSA_Switch(ip, PacketReplicationEngine(), ep, BufferingQueueingEngine())
   main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/p4include/bmv2/psa.p4(546): [--Wwarn=unused] warning: 'W' is unused
-extern Counter<W, S> {
-               ^
-/petr4/ci-test/type-checking/p4include/bmv2/psa.p4(575): [--Wwarn=unused] warning: 'W' is unused
-extern DirectCounter<W> {
-                     ^
+

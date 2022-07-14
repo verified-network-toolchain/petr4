@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/spgw.p4
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/spgw.p4
 \n
 /*
  * Copyright 2017-present Open Networking Foundation
@@ -288,9 +288,9 @@ control update_gtpu_checksum(
 
 #endif
 ************************\n******** petr4 type checking result: ********\n************************\n
-File /petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/spgw.p4, line 22, characters 12-18: syntax error
+File /petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/spgw.p4, line 22, characters 12-18: syntax error
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/fabric_20190420/include/spgw.p4(22):syntax error, unexpected IDENTIFIER "ipv4_t"
+/petr4/ci-test/testdata/p4_16_samples/fabric_20190420/include/spgw.p4(22):syntax error, unexpected IDENTIFIER "ipv4_t"
         out ipv4_t
             ^^^^^^
 [--Werror=overlimit] error: 1 errors encountered, aborting compilation

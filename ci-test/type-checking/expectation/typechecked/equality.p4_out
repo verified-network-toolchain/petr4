@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4
+/petr4/ci-test/testdata/p4_16_samples/equality.p4
 \n
 header H {
     bit<32> a;
@@ -79,29 +79,28 @@ control c(out bit<1> x) {
 control ctrl (out bit<1> x);
 package top (ctrl _c);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(22): [--Wwarn=uninitialized_use] warning: a may be uninitialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(22): [--Wwarn=uninitialized_use] warning: a may be uninitialized
         if (a == b) {
             ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(22): [--Wwarn=uninitialized_use] warning: b may be uninitialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(22): [--Wwarn=uninitialized_use] warning: b may be uninitialized
         if (a == b) {
                  ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(24): [--Wwarn=uninitialized_use] warning: h1 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(24): [--Wwarn=uninitialized_use] warning: h1 may not be completely initialized
         } else if (h1 == h2) {
                    ^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(24): [--Wwarn=uninitialized_use] warning: h2 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(24): [--Wwarn=uninitialized_use] warning: h2 may not be completely initialized
         } else if (h1 == h2) {
                          ^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(26): [--Wwarn=uninitialized_use] warning: s1 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(26): [--Wwarn=uninitialized_use] warning: s1 may not be completely initialized
         } else if (s1 == s2) {
                    ^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(26): [--Wwarn=uninitialized_use] warning: s2 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(26): [--Wwarn=uninitialized_use] warning: s2 may not be completely initialized
         } else if (s1 == s2) {
                          ^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(28): [--Wwarn=uninitialized_use] warning: a1 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(28): [--Wwarn=uninitialized_use] warning: a1 may not be completely initialized
         } else if (a1 == a2) {
                    ^^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/equality.p4(28): [--Wwarn=uninitialized_use] warning: a2 may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/equality.p4(28): [--Wwarn=uninitialized_use] warning: a2 may not be completely initialized
         } else if (a1 == a2) {
                          ^^

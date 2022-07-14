@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/struct.p4
+/petr4/ci-test/testdata/p4_16_samples/struct.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -66,6 +66,5 @@ const int<32> y = s.s1.t2;
 const int<32> w = .t.t1;
 const T t1 = s.s1;
 const Empty e = {};
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

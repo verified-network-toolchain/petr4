@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2445.p4
+/petr4/ci-test/testdata/p4_16_samples/issue2445.p4
 \n
 header H {
     varbit <120> x;
@@ -8,6 +8,5 @@ header H {
   varbit <120> x;
   varbit <120> u;
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

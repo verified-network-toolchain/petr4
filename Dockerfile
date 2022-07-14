@@ -1,4 +1,4 @@
-FROM p4lang/p4c:latest
+FROM p4lang/p4c:stable
 LABEL maintainer="Nate Foster <jnfoster@cs.cornell.edu>"
 LABEL description="This docker image extends p4c with petr4."
 
@@ -45,6 +45,8 @@ ENV PETR4_DEPS_OPAM ANSITerminal \
 
 COPY . /petr4/
 WORKDIR /petr4/
+
+COPY p4c_manual/config.h /usr/local/bin/config.h
 
 ##note on opam init:##
 #Sandboxing is a security mechanism to prevent source builds from doing writes outside of their build areas. We use bubblewrap (cgroups) for this on Linux, but it doesn't nest cleanly. You can either run your container as --privileged, in which case you can create namespaces and sandboxing will work.

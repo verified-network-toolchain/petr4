@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/simplify_method_calls.p4
+/petr4/ci-test/testdata/p4_16_samples/simplify_method_calls.p4
 \n
 /*
 Copyright 2017 VMware, Inc.
@@ -116,5 +116,5 @@ control c(out bit<32> x, out bit<32> y) {
   }
 }
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

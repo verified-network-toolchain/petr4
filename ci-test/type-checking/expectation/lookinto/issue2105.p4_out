@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2105.p4
+/petr4/ci-test/testdata/p4_16_samples/issue2105.p4
 \n
 #include <core.p4>
 #include <v1model.p4>
@@ -228,8 +228,5 @@ control c() {
 control e<T35> ();
 package top<T36> (e<T36> e);
 top<_>(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2105.p4(22): [--Wwarn=unused] warning: 'T' is unused
-control e<T>();
-          ^
+

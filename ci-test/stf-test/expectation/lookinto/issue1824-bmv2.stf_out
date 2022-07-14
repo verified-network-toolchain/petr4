@@ -1,0 +1,118 @@
+p4 program:
+\n
+/* Intended to test the fix for the issue1824 when
+ * exists more than 9 error values in p4 program.
+ * values should be represented as hex values. */
+
+#include <core.p4>
+#include <v1model.p4>
+
+header test_header {
+    bit<48> dstAddr;
+    bit<48> srcAddr;
+}
+
+struct headers {
+    test_header h1;
+}
+
+struct mystruct1_t {
+    bit<4>  a;
+    bit<4>  b;
+}
+
+struct metadata {
+    mystruct1_t mystruct1;
+}
+
+error {
+    IPv4OptionsNotSupported,
+    IPv4ChecksumError,
+    IPv4HeaderTooShort,
+    IPv4BadPacket
+}
+
+parser MyParser(packet_in pkt,
+               out headers hdr,
+               inout metadata meta,
+               inout standard_metadata_t stdmeta)
+{
+   state start {
+        pkt.extract(hdr.h1);
+        verify(false, error.IPv4BadPacket);
+        verify(false, error.IPv4HeaderTooShort);
+        transition accept;
+    }
+}
+
+control MyIngress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t stdmeta)
+{
+    apply {
+        if (stdmeta.parser_error != error.NoError) {
+            hdr.h1.dstAddr = 0xbad;
+        }
+    }
+}
+
+control MyEgress(inout headers hdr,
+                inout metadata meta,
+                inout standard_metadata_t stdmeta)
+{
+    apply { }
+}
+
+control MyVerifyChecksum(inout headers hdr,
+           inout metadata meta)
+{
+    apply { }
+}
+
+control MyComputeChecksum(inout headers hdr,
+           inout metadata meta)
+{
+    apply { }
+}
+
+control MyDeparser(packet_out packet,
+                  in headers hdr)
+{
+    apply {
+        packet.emit(hdr.h1);
+    }
+}
+
+V1Switch(MyParser(),
+        MyVerifyChecksum(),
+        MyIngress(),
+        MyEgress(),
+        MyComputeChecksum(),
+        MyDeparser()) main;
+\n
+\n
+packet 0 112233445566 778899aabbcc
+expect 0 000000000BAD 778899aabbcc
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 000000000bad778899aabbcc
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmptsh2bme_
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmptsh2bme_/issue1824-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue1824-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9224 --device-id 134 -i 0@pcap0 .././tmptsh2bme_/issue1824-bmv2.json
+Running simple_switch_CLI --thrift-port 9224
+STF Command: packet 0 112233445566 778899aabbcc
+STF Command: expect 0 000000000BAD 778899aabbcc
+simple_switch exit code -15
+Execution completed
+Comparing outputs

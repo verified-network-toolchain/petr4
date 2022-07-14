@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/annotation-bug.p4
+/petr4/ci-test/testdata/p4_16_samples/annotation-bug.p4
 \n
 #include <core.p4>
 
@@ -80,8 +80,7 @@ control cc() {
 control C ();
 package top (C ck);
 top(cc()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/annotation-bug.p4(24): [--Wwarn=uninitialized_use] warning: hdr.ipv4_option_timestamp may not be completely initialized
+/petr4/ci-test/testdata/p4_16_samples/annotation-bug.p4(24): [--Wwarn=uninitialized_use] warning: hdr.ipv4_option_timestamp may not be completely initialized
         get<headers>({ hdr.ipv4_option_timestamp });
                        ^^^^^^^^^^^^^^^^^^^^^^^^^

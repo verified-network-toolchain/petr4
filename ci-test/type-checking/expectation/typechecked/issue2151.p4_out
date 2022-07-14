@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2151.p4
+/petr4/ci-test/testdata/p4_16_samples/issue2151.p4
 \n
 control c() {
     bit<16> f = 0;
@@ -32,5 +32,5 @@ control c() {
 control e ();
 package top (e e);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

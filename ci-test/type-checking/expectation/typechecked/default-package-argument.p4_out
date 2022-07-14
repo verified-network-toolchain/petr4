@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/default-package-argument.p4
+/petr4/ci-test/testdata/p4_16_samples/default-package-argument.p4
 \n
  struct intrinsic_metadata_t {
     bit<8> f0;
@@ -43,5 +43,5 @@ struct meta_t {
   
 }
 P<_, _>() main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

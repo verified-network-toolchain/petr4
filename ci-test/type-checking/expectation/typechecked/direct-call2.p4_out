@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/direct-call2.p4
+/petr4/ci-test/testdata/p4_16_samples/direct-call2.p4
 \n
 parser p() {
     state start {
@@ -26,6 +26,5 @@ parser q() {
     transition accept;
   }
 }
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/type-params.p4
+/petr4/ci-test/testdata/p4_16_samples/type-params.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -24,6 +24,5 @@ package m2<D>(p<_> m);
 parser p<T> (in T i);
 package m1<D> (p<D> m);
 package m2<D0> (p<_> m);
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

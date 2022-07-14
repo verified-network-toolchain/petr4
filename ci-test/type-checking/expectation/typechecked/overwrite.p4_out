@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/overwrite.p4
+/petr4/ci-test/testdata/p4_16_samples/overwrite.p4
 \n
 /*
 Copyright 2016 VMware, Inc.
@@ -38,5 +38,5 @@ control my(out bit<32> x) {
   }
 }
 top(my()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

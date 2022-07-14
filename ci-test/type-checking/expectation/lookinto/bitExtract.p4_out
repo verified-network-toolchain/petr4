@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/bitExtract.p4
+/petr4/ci-test/testdata/p4_16_samples/bitExtract.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc. 
@@ -21,6 +21,5 @@ const bit<2> c = b[3:2];
 ************************\n******** petr4 type checking result: ********\n************************\n
 const bit<32> b = 32w699050;
 const bit<2> c = b[3:2];
-
 ************************\n******** p4c type checking result: ********\n************************\n
 [--Wwarn=missing] warning: Program does not contain a `main' module

@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/type-shadow.p4
+/petr4/ci-test/testdata/p4_16_samples/type-shadow.p4
 \n
 /*
 Copyright 2016 VMware, Inc.
@@ -23,16 +23,11 @@ extern X<D>
 extern X<D> {
   void f<D0>(in D0 d);
 }
-
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/type-shadow.p4(18): [--Wwarn=shadow] warning: 'D' shadows 'D'
+/petr4/ci-test/testdata/p4_16_samples/type-shadow.p4(18): [--Wwarn=shadow] warning: 'D' shadows 'D'
    void f<D>(in D d); // D shadows D
           ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/type-shadow.p4(16)
-extern X<D>
-         ^
-/petr4/ci-test/type-checking/testdata/p4_16_samples/type-shadow.p4(16): [--Wwarn=unused] warning: 'D' is unused
+/petr4/ci-test/testdata/p4_16_samples/type-shadow.p4(16)
 extern X<D>
          ^
 [--Wwarn=missing] warning: Program does not contain a `main' module

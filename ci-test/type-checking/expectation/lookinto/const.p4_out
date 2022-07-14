@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/const.p4
+/petr4/ci-test/testdata/p4_16_samples/const.p4
 \n
 /*
 Copyright 2013-present Barefoot Networks, Inc.
@@ -77,9 +77,8 @@ const bit<32> x = 32w0;
 const bit<32> x1 = ~32w0;
 typedef int<32> int32;
 const int32 izero = (int32) 32w0;
-
 ************************\n******** p4c type checking result: ********\n************************\n
-/petr4/ci-test/type-checking/testdata/p4_16_samples/const.p4(19): [--Wwarn=mismatch] warning: 48w0xaabbccddeeff00: value does not fit in 48 bits
+/petr4/ci-test/testdata/p4_16_samples/const.p4(19): [--Wwarn=mismatch] warning: 48w0xaabbccddeeff00: value does not fit in 48 bits
 const bit<48> tooLarge = 48w0xAA_BB_CC_DD_EE_FF_00
                          ^^^^^^^^^^^^^^^^^^^^^^^^^
 [--Wwarn=missing] warning: Program does not contain a `main' module

@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue2102.p4
+/petr4/ci-test/testdata/p4_16_samples/issue2102.p4
 \n
 #include <core.p4>
 
@@ -63,5 +63,5 @@ control c(inout headers hdr) {
 control e<T3> (inout T3 t);
 package top<T4> (e<T4> e);
 top(c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

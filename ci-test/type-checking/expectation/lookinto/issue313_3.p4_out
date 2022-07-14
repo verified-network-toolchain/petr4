@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue313_3.p4
+/petr4/ci-test/testdata/p4_16_samples/issue313_3.p4
 \n
 /*
 Copyright 2017 Xilinx, Inc.
@@ -78,5 +78,5 @@ control ctrl(inout struct_t input, out bit<8> out1, out header_h out2) {
 control MyControl<S, H> (inout S i, out bit<8> o1, out H o2);
 package MyPackage<S0, H1> (MyControl<S0, H1> c);
 MyPackage(ctrl()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

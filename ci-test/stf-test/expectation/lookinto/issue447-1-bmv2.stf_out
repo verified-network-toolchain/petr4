@@ -1,0 +1,80 @@
+p4 program:
+\n
+#include <core.p4>
+#include <v1model.p4>
+
+header H {
+    varbit<32> var;
+}
+
+struct Parsed_packet {
+    H h1;
+    H h2;
+}
+
+struct Metadata {
+}
+
+control DeparserI(packet_out packet, in Parsed_packet hdr) {
+    apply {
+        packet.emit(hdr.h2);
+        packet.emit(hdr.h1);
+    }
+}
+
+parser parserI(packet_in pkt, out Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    state start {
+        pkt.extract<H>(hdr.h1, 32w16);
+        pkt.extract<H>(hdr.h2, 32w16);
+        transition accept;
+    }
+}
+
+control ingress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control egress(inout Parsed_packet hdr, inout Metadata meta, inout standard_metadata_t stdmeta) {
+    apply {
+    }
+}
+
+control vc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+control uc(inout Parsed_packet hdr, inout Metadata meta) {
+    apply {
+    }
+}
+
+V1Switch<Parsed_packet, Metadata>(parserI(), vc(), ingress(), egress(), uc(), DeparserI()) main;
+\n
+\n
+packet 0 12 34 56 78 90
+expect 0 56 78 12 34 90
+\n
+\n
+************************\n******** petr4 stf result: ********\n************************\n
+Packet matched the expected packet.
+Packet:   port 0 pkt 5678123490
+************************\n******** p4c stf result: ********\n************************\n
+Calling target program-options parser
+Adding interface pcap0 as port 0 (files)
+Obtaining JSON from switch...
+Done
+Control utility for runtime P4 table manipulation
+RuntimeCmd: 
+Writing temporary files into  ./tmpte8v4ui3
+Executing  /usr/local/bin//p4c-bm2-ss -o ./tmpte8v4ui3/issue447-1-bmv2.json /petr4/ci-test/testdata/p4_16_samples/issue447-1-bmv2.p4
+Exit code  0
+Running model
+Running simple_switch --log-file switch.log --log-flush --use-files 0 --thrift-port 9482 --device-id 392 -i 0@pcap0 .././tmpte8v4ui3/issue447-1-bmv2.json
+Running simple_switch_CLI --thrift-port 9482
+STF Command: packet 0 12 34 56 78 90
+STF Command: expect 0 56 78 12 34 90
+simple_switch exit code -15
+Execution completed
+Comparing outputs

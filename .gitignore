@@ -1,3 +1,7 @@
+# docs build
+docs/petr4spec/build
+
+
 # Build artifacts
 _build/
 *.exe

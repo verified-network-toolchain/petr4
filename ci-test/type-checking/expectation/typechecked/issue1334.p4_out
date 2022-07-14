@@ -1,4 +1,4 @@
-/petr4/ci-test/type-checking/testdata/p4_16_samples/issue1334.p4
+/petr4/ci-test/testdata/p4_16_samples/issue1334.p4
 \n
 extern void f();
 extern void f(bit<32> a);
@@ -98,5 +98,5 @@ control proto ();
 package top (proto p);
 package top (proto p1, proto p2);
 top(p=c()) main;
-
 ************************\n******** p4c type checking result: ********\n************************\n
+

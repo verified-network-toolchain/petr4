@@ -13,7 +13,7 @@
  * under the License.
  *)
 
-module StringMap : Core_kernel.Map.S with type Key.t = string
+module StringMap : Core.Map.S with type Key.t = string
 
 type ('a,'b) alternative =
     Left of 'a

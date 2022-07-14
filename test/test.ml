@@ -96,7 +96,7 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
 let get_files path =
   Sys.ls_dir path
   |> List.filter ~f:(fun name ->
-      Core_kernel.Filename.check_suffix name ".p4")
+      Core.Filename.check_suffix name ".p4")
 
 let example_path l =
   let root = Filename.concat ".." "examples" in

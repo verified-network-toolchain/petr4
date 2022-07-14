@@ -24,9 +24,9 @@ depends: [
   "cstruct-sexp"
   "menhir" {<= "20211128"}
   "ANSITerminal"
-  "core" {>= "0.14.0"}
+  "core" {>= "0.15.0"}
   "ppx_deriving_yojson"
-  "ppx_jane" {>= "0.14.0" }
+  "ppx_jane" {>= "0.15.0" }
   "ppx_js_style" {>= "0.14444.0" }
   "yojson" {>= "1.7.0"}
   "js_of_ocaml"
@@ -34,7 +34,7 @@ depends: [
   "js_of_ocaml-ppx"
   "p4pp" {>= "0.1.12"}
   "odoc"
-  "ppx_expect" {>= "0.14.0"}
+  "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}
   "zarith" {= "1.12"}
 ]

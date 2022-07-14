@@ -15,7 +15,7 @@
 
 open Petr4
 module P4Info = Info
-open Core_kernel
+open Core
 module Info = P4Info
 module Env = Prog.Env
 

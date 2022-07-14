@@ -5,7 +5,7 @@ open Prog.Env
 (* hack *)
 module Petr4Error = Error
 module Petr4Info = Info
-open Core_kernel
+open Core
 open Petr4Error
 module Error = Petr4Error
 module Info = Petr4Info

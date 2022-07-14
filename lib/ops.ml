@@ -1,5 +1,5 @@
 module I = Info
-open Core_kernel
+open Core
 module V = Prog.Value
 module Op = Typed.Op
 open Bitstring

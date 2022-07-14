@@ -25,9 +25,9 @@ struct
         (["cc"] @
         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
           ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Unix.open_process_in cmd in
+    let in_chan = Core_unix.open_process_in cmd in
     let str = In_channel.input_all in_chan in
-    let _ = Unix.close_process_in in_chan in
+    let _ = Core_unix.close_process_in in_chan in
     str
 end
 
@@ -113,7 +113,7 @@ module MakeRunner (C : RunnerConfig) = struct
         let action_name' = convert_qualified action_name in
         let add' = update add tbl_name' (priority, match_list, (action_name', args), id) in 
         run_test prog tl (add',set_def) results expected env st
-      | Wait -> Unix.sleep 1; run_test prog tl (add,set_def) results expected env st
+      | Wait -> Core_unix.sleep 1; run_test prog tl (add,set_def) results expected env st
       | Set_default (tbl_name, (action_name, args)) ->
         let tbl_name' = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
@@ -141,7 +141,7 @@ module Up4RunnerConfig = MakeConfig(Eval.Up4Interpreter)
 module Up4Runner = MakeRunner(Up4RunnerConfig)
 
 let get_stf_files path =
-  Sys.ls_dir path |> Base.List.to_list |>
+  Sys_unix.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
 let run_stf stf_file p4prog =

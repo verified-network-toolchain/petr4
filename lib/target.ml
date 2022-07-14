@@ -4,7 +4,7 @@ open Prog
 open Value
 open Env
 open Bitstring
-open Core_kernel
+open Core
 open Util
 module Info = I
 let (=) = Stdlib.(=)

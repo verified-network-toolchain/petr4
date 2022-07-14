@@ -1,5 +1,5 @@
 module I = Info
-open Core_kernel
+open Core
 open Prog
 open Env
 open Typed
@@ -779,7 +779,7 @@ module MakeInterpreter (T : Target) = struct
         else eval_expr env st SContinue r in
     match op with
     | And _ -> shortcircuit env st l r not
-    | Or _ -> shortcircuit env st l r ident
+    | Or _ -> shortcircuit env st l r Fn.id
     | _ ->
       let (st',s,l) = eval_expr env st SContinue l in
       let (st'',s',r) = eval_expr env st' SContinue r in

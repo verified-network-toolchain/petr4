@@ -19,6 +19,19 @@ Open Scope string_scope.
 Local Open Scope Z_scope.
 Open Scope positive_scope.
 
+Import RecordSetNotations.
+
+Notation "'{{' x 'with' y ':=' z '}}'" := (x <| y := z |>).
+
+Fail Notation "'{{' x 'with' y ':=' z ; .. ; v ':=' w '}}'"
+  := (.. (x <| y := z |>) .. <| v := w |>).
+  
+Notation "'{{' x 'with' y ':=' z ; v ':=' w '}}'"
+  := (x <| y := z |> <| v := w |>).
+
+Notation "'{{' x 'with' y ':=' z ; v ':=' w ; t ':=' u '}}'"
+  := (x <| y := z |> <| v := w |> <| t := u |>).
+
 Section CEnv.
   Definition standard_metadata_t :=
     Composite
@@ -69,22 +82,53 @@ Section CEnv.
     settable! (@mkglobvar V)
     < gvar_info ; gvar_init ; gvar_readonly ; gvar_volatile >.
 
-  (* TODO: Hence forth controls parsers & externs are in the same
-     namespace, and their instances share a namespace.
-     Need to go over p4cub static and dynamic semantics. *)
-  
-  (* TODO: how to address De Bruijn indices. *)
+  (* TODO: how to address De Bruijn indices? *)
 
   (* TODO: need to make instance (De Bruijn) names
      to Clight idents. *)
+
+  (** In P4cub there are several different namespaces:
+      - (expression) types.
+      - expressions.
+      - functions.
+      - actions.
+      - tables.
+      - parser states.
+      - top-level declarations of parsers, controls, & externs.
+      - parser instances.
+      - control instances.
+      - extern instances.
+      In clight all of these become members
+      of the same namespace. Many p4cub constructs
+      such as instances and actions get compiled
+      to functions. In clight, expressions and functions
+      share the same namespace. *)
   Record ClightEnv : Type :=
     mkClightEnv
-      { (** P4cub string identifiers to clight identifiers. *)
-        identMap : Env.t string AST.ident
-
-      ; (** P4cub term identifiers to clight identifiers. *)
+      { (** P4cub term identifiers to clight identifiers. *)
         varMap : list AST.ident
-                        
+
+      ; (** P4cub function names to clight idents. *)
+        funMap : Env.t string AST.ident
+
+      ; (** P4cub action names to clight idents. *)
+        actMap : Env.t string AST.ident
+
+      ; (** P4cun table names to clight idents. *)
+        tblMap : Env.t string AST.ident
+
+      ; (** P4cub string identifiers to clight identifiers. *)
+        topMap : Env.t string AST.ident
+                       
+      ; (** P4cub control instance names to clight identifiers. *)
+        control_instanceMap : list AST.ident
+
+      ; (** P4cub parser instance names to clight identifiers. *)
+        parser_instanceMap : list AST.ident
+
+      ; (** P4cub extern instance names to clight identifiers. *)
+        extern_instanceMap : list AST.ident
+                                 
       ; (** Available temps and their types. *)
         temps : (list (AST.ident * Ctypes.type))
                   
@@ -97,11 +141,8 @@ Section CEnv.
       ; (** Name generator counter. *) (* TODO maybe use state monad instead? *)
         identGenerator : IdentGen.generator
                            
-      ; (** P4cub function names to clight functions. *)
-        fenv : Env.t string Clight.function
-                     
-      ; (** Clight instance names to clight functions. *)
-        ienv : Env.t AST.ident Clight.function
+      ; (** Clight idents to clight functions. *)
+        fenv : Env.t AST.ident Clight.function
                      
       ; (** Contains arguments and their temps used for copy in copy out. *)
         tempOfArg :
@@ -131,7 +172,7 @@ Section CEnv.
         tables :
         Env.t
           string
-          ((list (Expr.e (* TODO: will be types *) * string)) * (list string) (** actions *))
+          ((list (Expr.t * string)) * (list string) (** actions *))
 
       ; (** Parser states are functions.
             These are parser's args.
@@ -139,11 +180,7 @@ Section CEnv.
         top_args : (list Clight.expr)
 
       ; (** Maps the name of extern obects to the name of their extern type. *)
-        extern_instances: list string
-
-      ; (** Instance name in p4cub/clight to
-            Instance name in architecture file written in C. *)
-        expected_instances : list string
+        extern_instance_types : list string
 
       ; (** For v1 model, expected name to be printed in C.
             V1 model needs to know type of header. *)
@@ -155,22 +192,29 @@ Section CEnv.
   (** Record-update boiler-plate. *)
   Instance etaClightEnv : Settable _ :=
     settable! mkClightEnv
-    < identMap ; varMap ; temps ; vars ; composites
-  ; identGenerator ; fenv ; ienv ; tempOfArg
+    < varMap ; funMap ; actMap ; tblMap
+  ; topMap ; control_instanceMap
+  ; parser_instanceMap ; extern_instanceMap
+  ; temps ; vars ; composites
+  ; identGenerator ; fenv ; tempOfArg
   ; instantiationCarg ; maininit ; globvars
   ; numStrMap ; topdecltypes ; tables ; top_args
-  ; extern_instances ; expected_instances
-  ; v1model_H ; v1model_M >.
+  ; extern_instance_types ; v1model_H ; v1model_M >.
 
   Definition newClightEnv : ClightEnv :=
-    {| identMap := Env.empty _ _
-    ; varMap := []
+    {| varMap := []
+    ; funMap := Env.empty _ _
+    ; actMap := Env.empty _ _
+    ; tblMap := Env.empty _ _
+    ; topMap := Env.empty _ _
+    ; control_instanceMap := []
+    ; parser_instanceMap := []
+    ; extern_instanceMap := []
     ; temps := []
     ; vars := []
     ; composites := [(standard_metadata_cub,standard_metadata_t)]
     ; identGenerator := IdentGen.gen_init
     ; fenv := Env.empty _ _
-    ; ienv := Env.empty _ _
     ; tempOfArg := Env.empty _ _
     ; instantiationCarg := []
     ; maininit := Clight.Sskip
@@ -179,26 +223,12 @@ Section CEnv.
     ; topdecltypes := Env.empty _ _
     ; tables := Env.empty _ _
     ; top_args := []
-    ; extern_instances := []
-    ; expected_instances := []
+    ; extern_instance_types := []
     ; v1model_H := xH
     ; v1model_M := xH |}.
 
-  Import RecordSetNotations.
-
-  Notation "'{{' x 'with' y ':=' z '}}'" := (x <| y := z |>).
-
-  Fail Notation "'{{' x 'with' y ':=' z ; .. ; v ':=' w '}}'"
-    := (.. (x <| y := z |>) .. <| v := w |>).
-  
-  Notation "'{{' x 'with' y ':=' z ; v ':=' w '}}'"
-    := (x <| y := z |> <| v := w |>).
-
-  Notation "'{{' x 'with' y ':=' z ; v ':=' w ; t ':=' u '}}'"
-    := (x <| y := z |> <| v := w |> <| t := u |>).
-
-  Definition ident_bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
-    := {{ env with identMap := Env.bind name id env.(identMap) }}.
+  Definition top_bind (env: ClightEnv) (name: string) (id: ident) : ClightEnv 
+    := {{ env with topMap := Env.bind name id env.(topMap) }}.
   
   Definition var_bind (env: ClightEnv) (id: ident) : ClightEnv 
     := {{ env with varMap := id :: env.(varMap) }}.
@@ -208,7 +238,8 @@ Section CEnv.
     {{ env with varMap := new_ident :: env.(varMap)
      ; temps := (new_ident, t) :: env.(temps)
      ; identGenerator := gen' }}.
-  
+
+  (** TODO: maybe incorrect :(. *)
   Definition
     add_temp_arg
     (env: ClightEnv)
@@ -241,7 +272,7 @@ Section CEnv.
     (name: string)
     (decl: TopDecl.d) : ClightEnv := 
     let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-    {{ env with identMap := Env.bind name new_ident env.(identMap)
+    {{ env with topMap := Env.bind name new_ident env.(topMap)
      ; identGenerator := gen' }}.
 
   Definition
@@ -249,25 +280,29 @@ Section CEnv.
     (env: ClightEnv) 
     (name: string) 
     (f: Clight.function): ClightEnv :=
+    (* TODO: why isn't ident generator used here. *)
   let new_ident := $name in
-  {{ env with identMap := Env.bind name new_ident env.(identMap)
-   ; fenv := Env.bind name f env.(fenv) }}.
+  {{ env with funMap := Env.bind name new_ident env.(funMap)
+   ; fenv := Env.bind new_ident f env.(fenv) }}.
 
   Definition
     update_function
     (env: ClightEnv)
     (name: string)
     (f: Clight.function) : ClightEnv :=
-    env <| fenv := Env.bind name f env.(fenv) |>.
+    match Env.find name env.(funMap) with
+    | None => env
+    | Some idt => env <| fenv := Env.bind idt f env.(fenv) |>
+    end.                     
   
   Definition
-    add_extern_instance 
+    add_extern_instance_type
     (env: ClightEnv)
     (type: string) : ClightEnv :=
-    env <| extern_instances := type :: env.(extern_instances) |>.
+    env <| extern_instance_types := type :: env.(extern_instance_types) |>.
   
-  Definition clear_extern_instance (env: ClightEnv) : ClightEnv :=
-    env <| extern_instances := [] |>.
+  Definition clear_extern_instance_types (env: ClightEnv) : ClightEnv :=
+    env <| extern_instance_types := [] |>.
 
   Fixpoint to_C_dec_str_unsigned (dec: uint): list init_data * Z :=
     match dec with
@@ -325,7 +360,7 @@ Section CEnv.
   Definition add_Table
     (env : ClightEnv)
     (name : string)
-    (key : list (Expr.e * string))
+    (key : list (Expr.t * string))
     (actions : list string) : ClightEnv :=
     let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
     let gvar :=
@@ -333,13 +368,14 @@ Section CEnv.
       ; gvar_init := []
       ; gvar_readonly := false
       ; gvar_volatile := false |} in
-    {{ env with identMap := Env.bind name new_id env.(identMap)
+    {{ env with tblMap := Env.bind name new_id env.(tblMap)
      ; identGenerator := gen' ; globvars := (new_id, gvar) :: env.(globvars) }}.
-  
+
+  (* FIXME!
   Definition
-    add_expected_control 
+    add_control_instance
     (env: ClightEnv) (instance: string) : ClightEnv :=
-    env <| expected_instances := instance :: env.(expected_instances) |>.
+    env <| expected_instances := instance :: env.(expected_instances) |>. *)
   
   Definition
     new_ident (env: ClightEnv) : ident * ClightEnv := 
@@ -370,13 +406,14 @@ Section CEnv.
     | Some x => Result.ok x
     | None   => Result.error "unbound p4cub variable"
     end.
-  
+
+  (* FIXME!
   Definition find_ident (env: ClightEnv) (name: string)
     : Result.result AST.ident :=
     match Env.find name env.(identMap) with 
     | None => Result.error "name does not exist in env"
     | Some id => Result.ok id
-    end.
+    end. *)
   
   Definition find_ident_temp_arg (env: ClightEnv) (name: nat)
     : Result.result (AST.ident*AST.ident) :=
@@ -458,20 +495,56 @@ Section CEnv.
     let^ M_id := set_M_rec env.(composites) p4t in
     env <| v1model_M := M_id |>.
 
-  Definition get_M (env: ClightEnv) := env.(v1model_M).  
+  Definition get_M (env: ClightEnv) := env.(v1model_M).
 
   Definition lookup_function (env: ClightEnv) (name: string)
-    : Result.result (Clight.function*ident) := 
-    match Env.find name env.(fenv) , Env.find name env.(identMap) with
-    | Some f, Some fid => Result.ok (f,fid)
-    | _, _ => Result.error "failed to lookup the function"
-    end.
+    : Result.result (ident * Clight.function) :=
+    let* fid :=
+      Result.from_opt
+        (Env.find name env.(funMap))
+        "failed to lookup the function id" in
+    let^ f :=
+      Result.from_opt
+        (Env.find fid env.(fenv))
+        "failed to lookup the function" in (fid, f).
+
+  Definition lookup_action_function (env: ClightEnv) (name: string)
+    : Result.result (ident * Clight.function) :=
+    let* fid :=
+      Result.from_opt
+        (Env.find name env.(actMap))
+        "failed to lookup the function id" in
+    let^ f :=
+      Result.from_opt
+        (Env.find fid env.(fenv))
+        "failed to lookup the function" in (fid, f).
+  
+  Definition lookup_parser_instance_function (env : ClightEnv) (name: nat)
+    : Result.result (ident * Clight.function) :=
+    let* pid :=
+      Result.from_opt
+        (nth_error env.(parser_instanceMap) name)
+        "failed to lookup the parser instance id" in
+    let^ f :=
+      Result.from_opt
+        (Env.find pid env.(fenv))
+        "failed to lookup the function" in (pid, f).
+
+  Definition lookup_control_instance_function (env : ClightEnv) (name: nat)
+    : Result.result (ident * Clight.function) :=
+    let* cid :=
+      Result.from_opt
+        (nth_error env.(control_instanceMap) name)
+        "failed to lookup the parser instance id" in
+    let^ f :=
+      Result.from_opt
+        (Env.find cid env.(fenv))
+        "failed to lookup the function" in (cid, f).
 
   Definition lookup_topdecl (env: ClightEnv) (name: string) : Result.result TopDecl.d := 
-    match Env.find name env.(topdecltypes) with
-    | None => Result.error "failed to lookup the top declaration"
-    | Some decl => Result.ok decl
-    end.
+    Result.from_opt
+      (Env.find name env.(topdecltypes))
+      "failed to lookup the top declaration".
 
   Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident)
     : Result.result Ctypes.type :=
@@ -488,8 +561,9 @@ Section CEnv.
   Definition lookup_var_type (env: ClightEnv) (id : AST.ident)
     : Result.result Ctypes.type := lookup_type_rec env.(vars) id.
 
-  Definition lookup_expected_instance (env: ClightEnv) (name: nat)
-    : option string := nth_error env.(expected_instances) 0.
+  (* FIXME!
+  Definition lookup_expected_instance_types (env: ClightEnv) (name: nat)
+    : option string := nth_error env.(expected_instance_types) 0. *)
   
   Definition
     find_BitVec_String
@@ -513,18 +587,17 @@ Section CEnv.
   
   Definition find_table (env: ClightEnv) (name: string) 
     : Result.result
-        (ident * (list (Expr.e * string))*(list string)) := 
-    match Env.find name env.(identMap), Env.find name env.(tables) with
+        (ident * list (Expr.t * string) * list string) := 
+    match Env.find name env.(tblMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => Result.ok (id, keys, actions)
     | _, _ => Result.error "can't find table"
     end .
 
   Definition find_extern_type (env: ClightEnv) (name: nat)
     : Result.result string :=
-    match nth_error env.(extern_instances) 0 with
-    | Some type => Result.ok type
-    | _ => Result.error "can't find extern name"
-    end.
+      Result.from_opt
+        (nth_error env.(extern_instance_types) name)
+        "can't find extern name".
 
   Definition get_instantiate_cargs (env: ClightEnv) : TopDecl.constructor_args := 
     env.(instantiationCarg).
@@ -535,15 +608,11 @@ Section CEnv.
   
   Definition get_temps (env: ClightEnv) : list (AST.ident * Ctypes.type) := env.(temps).
 
+  (* TODO: correct? *)
   Definition get_functions (env: ClightEnv)
     : Result.result (list (AST.ident * Clight.function)) := 
-    let keys := Env.keys env.(fenv) in 
-    List.fold_right 
-      (fun (key : string)
-         (accumulator: Result.result (list (AST.ident * Clight.function))) => 
-         let* l := accumulator in
-         let^ '(f,fid) := lookup_function env key in ((fid,f)::l))
-      (Result.ok []) keys.
+    sequence
+      (List.map (lookup_function env) (Env.keys env.(funMap))).
   
   Definition get_composites (env: ClightEnv) : list (Ctypes.composite_definition):= 
     List.map snd env.(composites).

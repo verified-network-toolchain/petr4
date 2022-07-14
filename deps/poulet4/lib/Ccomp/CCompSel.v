@@ -318,23 +318,25 @@ Section CCompSel.
     [(ArrayAccess args (Cint_of_Z (Z.of_nat length)) bit_vec)]
     end.
 
-  Definition CTranslateTableInvoke (tbl : string)
+  Definition
+    CTranslateTableInvoke
+    (tbl : string) (key : list Expr.e)
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
-    let* '(table_id, keys, fn_names) :=
+    let* '(table_id, key_typ, fn_names) :=
       state_lift (find_table env tbl) in 
     let* action_id :=
       State_lift (CCompEnv.add_temp_nameless action_ref) in
-    let elist := List.map (fun x => match x with | (b, _) => b end) keys in 
-    let* elist := CTranslateExprList elist in
-    let key_length := Z.of_nat (List.length keys) in 
+    (* TODO: are matchkinds important? *)
+    let* elist := CTranslateExprList key in
+    let key_length := Z.of_nat (List.length key_typ) in 
     let t_keys := Tarray bit_vec key_length noattr in
     let* arrid :=
       State_lift (CCompEnv.add_temp_nameless t_keys) in
     let arg_action := Eaddrof (Evar action_id action_ref) TpointerActionRef in
     let arg_table := Eaddrof (Evar table_id table_t) TpointerTable in
     let arg_keys := Evar arrid t_keys in
-    let assignArray := snd (
+    let '(_,assignArray) :=
       List.fold_left 
         (fun '((i, st) : nat * Clight.statement) val =>
            let index := Cint_of_Z (Z.of_nat i) in
@@ -344,17 +346,21 @@ Section CCompSel.
                (Sassign
                   (ArrayAccess (Evar arrid t_keys) index bit_vec)
                   val) in
-           (Nat.add i (1%nat), st')) elist (O%nat, Sskip)) in 
+           (Nat.add i (1%nat), st')) elist (O%nat, Sskip) in 
     let arg_list := [arg_action; arg_table; arg_keys] in
-    let call := Scall (None) (table_match_function (Z.of_nat (List.length keys))) arg_list in
+    let call :=
+      Scall
+        None
+        (table_match_function (Z.of_nat (List.length key_typ)))
+        arg_list in
     let action_to_take_id := Efield (Evar action_id action_ref) _action int_signed in
     let action_to_take_args := Efield (Evar action_id action_ref) _arguments TpointerBitVec in
     let^ '(_,application) :=
       state_lift
         (List.fold_right
-           (fun f_name (x: Result.result (nat*Clight.statement)) =>
-              let* (f', f'_id) := CCompEnv.lookup_function  env f_name in
-              let* (i, st) := x in 
+           (fun f_name (x: Result.result (nat * Clight.statement)) =>
+              let* '(f'_id, f') := CCompEnv.lookup_function env f_name in
+              let^ '(i, st) := x in 
               let index := Cint_of_Z (Z.of_nat i) in
               let st' :=
                 Sifthenelse
@@ -367,10 +373,9 @@ Section CCompSel.
                    let elist := top_args ++ elist in 
                    Scall None (Evar f'_id (Clight.type_of_function f')) elist) st in
               let i' := Nat.sub i 1 in
-              mret (i',st'))
+              (i',st'))
            (mret ((List.length fn_names), Sskip)) fn_names) in
-    let sequence := Ssequence assignArray (Ssequence call application) in
-    sequence.
+    Ssequence assignArray (Ssequence call application).
   
   Fixpoint fold_nat {A} (f: A -> nat -> A) (n : nat) (init:A) : A:=
     match n with
@@ -379,15 +384,16 @@ Section CCompSel.
     end.
   
   Fixpoint CTranslateExtract
-           (arg: Expr.e ) (type : Expr.t) (pname : nat)
+           (arg: Expr.e) (type : Expr.t) (pname : nat)
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
-    (* TODO: need a way in CCompEnv
-       to associate instance names in p4cub
-       to idents in Clight. *)
-    let extern_name := "" in
+    let* extern_name :=
+      state_lift
+        (Result.from_opt
+           (nth_error env.(extern_instanceMap) pname)
+           "extern name not found") in
     let packet :=
-      Eaddrof (Evar $extern_name (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
+      Eaddrof (Evar extern_name (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
     match type with 
     | Expr.TBool => 
         let^ arg' := CTranslateExpr arg in
@@ -419,13 +425,15 @@ Section CCompSel.
 
   Fixpoint CTranslateEmit (arg: Expr.e) (type : Expr.t) (pname : nat)
     : StateT ClightEnv Result.result Clight.statement :=
-    (* TODO: need a way in CCompEnv
-       to associate instance names in p4cub
-       to idents in Clight. *)
-    let extern_name := "" in
+    let* env := get_state in
+    let* extern_name :=
+      state_lift
+        (Result.from_opt
+           (nth_error env.(extern_instanceMap) pname)
+           "extern name not found") in
     let packet :=
       Eaddrof
-        (Evar $extern_name (Ctypes.Tstruct _packet_out noattr))
+        (Evar extern_name (Ctypes.Tstruct _packet_out noattr))
         TpointerPacketOut in
     match type with 
     | Expr.TBool =>
@@ -583,12 +591,12 @@ Section CCompSel.
         Sifthenelse e' s1' s2'
     | Stmt.Call (Stmt.Funct f _ None) args =>
         let* env := get_state in
-        let* (f', id) := state_lift (CCompEnv.lookup_function env f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_function env f) in
         let^ elist := CTranslateArgs args in
         Scall None (Evar id (Clight.type_of_function f')) elist
     | Stmt.Call (Stmt.Action f ctrl_args) data_args =>
         let* env := get_state in
-        let* (f', id) := state_lift (CCompEnv.lookup_function env f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_action_function env f) in
         let* ctrl_list := CTranslateExprList ctrl_args in
         let* data_list := CTranslateArgs data_args in
         let^ env' := get_state in 
@@ -598,7 +606,7 @@ Section CCompSel.
         let t := t_of_e e in
         let* ct := State_lift (CTranslateType t) in
         let* env_ct := get_state in
-        let* (f', id) := state_lift (CCompEnv.lookup_function env_ct f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_function env_ct f) in
         let* elist := CTranslateArgs args in
         let* env' := get_state in
         let* tempid := State_lift (CCompEnv.add_temp_nameless ct) in
@@ -645,15 +653,8 @@ Section CCompSel.
     | Stmt.Exit => mret (Sreturn (Some Cfalse))
     | Stmt.Apply x ext args =>
         let* env := get_state in
-        (* TODO: need to make instance (De Bruijn) names
-           to Clight idents. *)
-        let x' := (*$*)"" in
-        let* (f', id) :=
-          state_lift
-            (match Env.find x' env.(ienv) with
-             | Some y => Result.ok (y, $"")
-             | None => Result.error "TODO!"
-             end) in
+        (* TODO: need to know context [apply block, function, etc.]. *)
+        let* (id, f') := state_lift (lookup_control_instance_function env x) in
         let* elist := CTranslateArgs args in
         let* resultid := State_lift (CCompEnv.add_temp_nameless type_bool) in
         let result := (Etempvar resultid type_bool) in 
@@ -661,7 +662,7 @@ Section CCompSel.
           Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
         let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
         mret (Ssequence kompute judge)
-    | Stmt.Invoke tbl _ => (* TOOD compile key argument *) CTranslateTableInvoke tbl
+    | Stmt.Invoke tbl key => CTranslateTableInvoke tbl key
     | Stmt.Assign e1 e2 =>
       let* e1' := CTranslateExpr e1 in
       let^ e2' := CTranslateExpr e2 in
@@ -669,29 +670,22 @@ Section CCompSel.
     | _ => state_lift (Result.error "TODO!!")
     end.
 
-  Definition CTranslateParams (params : Expr.params) (env : ClightEnv  ) 
-    : list (AST.ident * Ctypes.type) * ClightEnv   
-  :=
-    List.fold_left 
-      (fun (cumulator: (list (AST.ident * Ctypes.type))*ClightEnv  ) (p: string * paramarg Expr.t Expr.t)
-      =>let (l, env') := cumulator in
-        let (env', new_id) := new_ident  env' in
-        let (ct,env_ct) := match p with 
-          | (_, PAIn x) 
-          | (_, PADirLess x)
-          | (_, PAOut x)
-          | (_, PAInOut x) => (CTranslateType x env')
-        end in
-        let ct_param := match p with 
-        | (_, PADirLess _)
-        | (_, PAIn _) => ct
-        | (_, PAOut x)
-        | (_, PAInOut x) => Ctypes.Tpointer ct noattr
-        end in
-        let s := fst p in
-        let env_temp_added := add_temp_arg  env_ct s ct new_id in  (*the temps here are for copy in copy out purpose*)
-        (l ++ [(new_id, ct_param)], env_temp_added)) 
-    (params) ([],env) . 
+  Definition CTranslateParams
+    : Expr.params -> State ClightEnv (list (AST.ident * Ctypes.type)) :=
+    state_list_map
+      (fun param =>
+         let* new_id := new_ident in
+         let* '(ct, cparam) :=
+           match param with
+           | PAIn t =>
+               let^ ct := CTranslateType t in (ct, ct)
+           | PAOut t
+           | PAInOut t =>
+               let^ ct := CTranslateType t in (ct, Ctypes.Tpointer ct noattr)
+           end in
+         let* env := get_state in
+         put_state (add_temp_arg env ct new_id) ;;
+         mret (new_id, cparam)).
 
   (* Definition CTranslateConstructorParams (cparams : Expr.constructor_params) (env : ClightEnv )
     : list (AST.ident * Ctypes.type) * ClightEnv  
@@ -705,22 +699,23 @@ Section CCompSel.
         (*don't do copy in copy out*)
         (l ++ [(new_id, ct)], env_ct)) 
     (cparams) ([],env) . *)
-  
-  Definition CTranslateExternParams (eparams : F.fs string string) (env : ClightEnv )
-    : list (AST.ident * Ctypes.type) * ClightEnv  
-  := 
-    let env_empty := clear_extern_instance  env in 
-    List.fold_left 
-      (fun (cumulator: (list (AST.ident * Ctypes.type)) * ClightEnv  ) (p: string * string)
-      =>let (l, env') := cumulator in
-        let (env', new_id) := new_ident  env' in
-        let (pname , ptyp) := p in
-        let env' := bind  env' pname new_id in
-        let env' := add_extern_instance  env' pname ptyp in  
-        let ct :=  Ctypes.Tstruct $ptyp noattr in
-        (* don't do copy in copy out*)
-        (l ++ [(new_id, ct)], env')) 
-    (eparams) ([],env_empty) .
+
+  Definition CTranslateExternParams
+    : list string ->
+      State ClightEnv (list (AST.ident * Ctypes.type)) :=
+    let* env := get_state in
+    put_state (clear_extern_instance_types env) ;;
+    state_list_map
+      (fun extern_param_type =>
+         let* new_id := new_ident in
+         let* env := get_state in
+         (* TODO: is this correct? *)
+         put_state
+           (add_extern_instance_type
+              {{ env with extern_instanceMap := new_id :: env.(extern_instanceMap) }}
+              extern_param_type ;;
+          let ct := Ctypes.Tstruct $extern_param_type noattr in
+          mret (new_id, ct))).
   
   Definition CCopyIn (fn_params: Expr.params) (env: ClightEnv  )
     : @error_monad string (Clight.statement * ClightEnv )

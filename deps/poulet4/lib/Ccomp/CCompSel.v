@@ -1,4 +1,6 @@
 From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
 Require Import BinaryString
         Coq.PArith.BinPosDef Coq.PArith.BinPos
         List Coq.ZArith.BinIntDef String.
@@ -172,6 +174,10 @@ Section CCompSel.
     | _ => Result.error "composite looked up is not a composite"
     end.
 
+  Definition statement_of_list
+    : list Clight.statement -> Clight.statement :=
+    List.fold_right Ssequence Sskip.
+  
   (* TODO: set validity ops compilation needs to be here. *)
   Definition
     CTranslateUop 
@@ -414,12 +420,10 @@ Section CCompSel.
     | Expr.TError => state_lift (Result.error "Can't extract to error")
     | Expr.TStruct fs _ =>
         (* TODO: set the validity if header *)
-        state_fold_righti
-          (fun i ft prev_stmt =>
-             let^ stmt :=
-               CTranslateExtract
-                 (Expr.Member ft i arg) ft pname in
-             Ssequence stmt prev_stmt) Sskip fs
+        state_list_mapi
+          (fun i ft =>
+             CTranslateExtract (Expr.Member ft i arg) ft pname) fs
+          >>| statement_of_list
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
 
@@ -457,12 +461,10 @@ Section CCompSel.
     | Expr.TError => state_lift (Result.error "Can't extract to error")
     | Expr.TStruct fs _ =>
         (* TODO: check the validity and decide whether to emit *)
-        state_fold_righti
-          (fun i ft prev_stmt =>
-             let^ stmt :=
-               CTranslateEmit
-                 (Expr.Member ft i arg) ft pname in
-             Ssequence stmt prev_stmt) Sskip fs
+        state_list_mapi
+          (fun i ft =>
+             CTranslateEmit (Expr.Member ft i arg) ft pname) fs
+          >>| statement_of_list
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
   
@@ -699,130 +701,115 @@ Section CCompSel.
         (*don't do copy in copy out*)
         (l ++ [(new_id, ct)], env_ct)) 
     (cparams) ([],env) . *)
-
-  Definition CTranslateExternParams
-    : list string ->
-      State ClightEnv (list (AST.ident * Ctypes.type)) :=
-    let* env := get_state in
+  
+  Definition CTranslateExternParams (extern_params : list string)
+    : State ClightEnv (list (AST.ident * Ctypes.type)) :=
+    let* (env : ClightEnv) := get_state in
     put_state (clear_extern_instance_types env) ;;
-    state_list_map
+    state_list_map (M_Monad := identity_monad)
       (fun extern_param_type =>
-         let* new_id := new_ident in
-         let* env := get_state in
+         let* env := get_state (M_Monad := identity_monad) in
+         let* (new_id : ident) := new_ident in
          (* TODO: is this correct? *)
          put_state
            (add_extern_instance_type
-              {{ env with extern_instanceMap := new_id :: env.(extern_instanceMap) }}
-              extern_param_type ;;
-          let ct := Ctypes.Tstruct $extern_param_type noattr in
-          mret (new_id, ct))).
+              (env <| extern_instanceMap := new_id :: env.(extern_instanceMap) |>)
+              extern_param_type) ;;
+         let ct := Ctypes.Tstruct $extern_param_type noattr in
+         state_return (M_Monad := identity_monad) (new_id, ct))
+      extern_params.
   
-  Definition CCopyIn (fn_params: Expr.params) (env: ClightEnv  )
-    : @error_monad string (Clight.statement * ClightEnv )
-  := 
-    List.fold_left 
-      (fun (cumulator: @error_monad string (Clight.statement * ClightEnv )) (fn_param: string * (paramarg Expr.t Expr.t))
-      =>let (name, t) := fn_param in 
-        let* (prev_stmt, prev_env) := cumulator in
-        let* (oldid, tempid) := find_ident_temp_arg  env name in
-        match t with
-          | PAIn t
-          | PADirLess t => 
-            let (ct, env_ct) := CTranslateType t prev_env in
-            let new_stmt := Sassign (Evar tempid ct) (Evar oldid ct) in
-            mret (Ssequence prev_stmt new_stmt, env_ct)
-          | PAOut t
-          | PAInOut t => 
-            let (ct, env_ct) := CTranslateType t prev_env in
-            let new_stmt := Sassign (Evar tempid ct) (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct) in
-            mret (Ssequence prev_stmt new_stmt, env_ct)
-        end
-      ) fn_params (mret (Sskip, env)).
+  Definition CCopyIn
+    : Expr.params -> StateT ClightEnv Result.result Clight.statement :=
+    (lift_monad statement_of_list)
+      ∘ (state_list_mapi
+           (fun (name : nat) (fn_param: paramarg Expr.t Expr.t) =>
+              let* env := get_state in
+              let* '(oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+              match fn_param with
+              | PAIn t =>
+                  let^ ct := State_lift (CTranslateType t) in
+                  Sassign (Evar tempid ct) (Evar oldid ct)
+              | PAOut t
+              | PAInOut t => 
+                  let^ ct := State_lift (CTranslateType t) in
+                  Sassign
+                    (Evar tempid ct)
+                    (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct)
+              end)).
+  
+  Definition CCopyOut
+    : Expr.params ->
+      StateT ClightEnv Result.result Clight.statement :=
+    (lift_monad statement_of_list)
+      ∘ (state_list_mapi
+           (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
+              let* env := get_state in
+              let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+              match fn_param with
+              | PAIn t => 
+                  let^ ct := State_lift (CTranslateType t) in
+                  Sassign (Evar oldid ct) (Evar tempid ct)
+              | PAOut t
+              | PAInOut t =>
+                  let^ ct := State_lift (CTranslateType t) in
+                  Sassign
+                    (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct)
+                    (Evar tempid ct)
+              end)).
 
-  Definition CCopyOut (fn_params: Expr.params) (env: ClightEnv  )
-    : @error_monad string (Clight.statement * ClightEnv ) 
-  := 
-    List.fold_left 
-      (fun (cumulator: @error_monad string (Clight.statement * ClightEnv )) (fn_param: string * (paramarg Expr.t Expr.t))
-      =>let (name, t) := fn_param in 
-        let* (prev_stmt, prev_env) := cumulator in
-        let* (oldid, tempid) := find_ident_temp_arg  env name in 
-        match t with
-        | PADirLess t
-        | PAIn t => 
-          let (ct, env_ct) := CTranslateType t prev_env in
-          let new_stmt := Sassign (Evar oldid ct) (Evar tempid ct) in
-          mret (Ssequence prev_stmt new_stmt, env_ct)
-        | PAOut t
-        | PAInOut t => 
-          let (ct, env_ct) := CTranslateType t prev_env in
-          let new_stmt := Sassign (Ederef (Evar oldid (Ctypes.Tpointer ct noattr)) ct) (Evar tempid ct) in
-          mret (Ssequence prev_stmt new_stmt, env_ct)
-        end
-      ) fn_params (mret (Sskip, env)).
+  (** Return the list of args for the params. *)
+  Definition CFindTempArgs
+    : Expr.params ->
+      StateT ClightEnv Result.result (list Clight.expr) :=
+    state_list_mapi
+      (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
+         let* env := get_state in
+         let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+         match fn_param with 
+         | PAIn t
+         | PAOut t
+         | PAInOut t =>
+             State_lift (CTranslateType t >>| Evar tempid)
+         end).
 
-  (*return the list of args for the params*)
-  Definition CFindTempArgs (fn_params: Expr.params) (env: ClightEnv  )
-    : @error_monad string (list Clight.expr) 
-  := 
-    List.fold_left 
-      (fun (cumulator: @error_monad string (list Clight.expr)) (fn_param: string * (paramarg Expr.t Expr.t))
-        =>let (name, t) := fn_param in
-          let* (oldid, tempid) := find_ident_temp_arg  env name in
-          let* cumulator := cumulator in
-          match t with 
-          | PADirLess t
-          | PAIn t
-          | PAOut t
-          | PAInOut t =>
-            let (ct, _) := CTranslateType t env in
-            mret (cumulator ++ [Evar tempid ct])
-          end
-      ) fn_params (mret []).
+  (** Return the list of args for the params but adding directions.
+      change the temp to ref temp if it is a out parameter. *)
+  (* TODO: originally this function
+     dropped state, should it do that? *)
+  Definition CFindTempArgsForCallingSubFunctions
+    : Expr.params
+      -> StateT ClightEnv Result.result (list Clight.expr) :=
+    state_list_mapi
+      (fun (name: nat) (fn_param: (paramarg Expr.t Expr.t)) =>
+         let* env := get_state in
+         let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+         match fn_param with
+         | PAIn t => State_lift (CTranslateType t >>| Evar tempid)
+         | PAOut t
+         | PAInOut t =>
+             let^ ct := State_lift (CTranslateType t) in
+             Eaddrof (Evar tempid ct) (Tpointer ct noattr)
+         end).
 
-  (*return the list of args for the params but adding directions.
-  change the temp to ref temp if it is a out parameter.
-  *)
-  Definition CFindTempArgsForCallingSubFunctions (fn_params: Expr.params) (env: ClightEnv  )
-    : @error_monad string (list Clight.expr) 
-  := 
-    List.fold_left 
-      (fun (cumulator: @error_monad string (list Clight.expr)) (fn_param: string * (paramarg Expr.t Expr.t))
-      =>let (name, t) := fn_param in
-        let* (oldid, tempid) := find_ident_temp_arg  env name in
-        let* cumulator := cumulator in 
-        let (ct, _) := 
-          match t with 
-          | PADirLess t
-          | PAIn t
-          | PAOut t
-          | PAInOut t => CTranslateType t env 
-          end in 
-        let var := 
-          match t with
-          | PADirLess t
-          | PAIn t => Evar tempid ct
-          | PAOut t
-          | PAInOut t => Eaddrof (Evar tempid ct) (Tpointer ct noattr)
-          end in
-        mret (cumulator ++ [var])
-      ) fn_params (mret []).
+  Definition
+    CFindTempArgsForSubCallsWithExtern
+    (fn_params: Expr.params)
+    (fn_eparams: list (AST.ident * Ctypes.type))
+    : StateT ClightEnv Result.result (list Clight.expr) :=
+    let^ call_args := CFindTempArgsForCallingSubFunctions fn_params in
+    let e_call_args :=
+      List.map (fun '(x,t) => Etempvar x t) fn_eparams in
+    e_call_args ++ call_args.
 
-  Definition CFindTempArgsForSubCallsWithExtern (fn_params: Expr.params) (fn_eparams: list (AST.ident * Ctypes.type)) (env: ClightEnv )
-  :=
-    let* call_args := CFindTempArgsForCallingSubFunctions fn_params env in
-    let e_call_args := List.map (fun (x: AST.ident * Ctypes.type) => Etempvar (fst x) (snd x)) fn_eparams in
-    mret (e_call_args ++ call_args).
-
-  Definition CTranslateArrow '({|paramargs:=pas; rtrns:=ret|} : Expr.arrowT) (env : ClightEnv  )
-    : (list (AST.ident * Ctypes.type)) * Ctypes.type * ClightEnv   
-  := let (fn_params, env_params_created) := CTranslateParams pas env in 
-     match ret with 
-     | None => (fn_params, Ctypes.Tvoid, env_params_created)
-     | Some return_t => 
-       let (ct, env_ct):= CTranslateType return_t env_params_created in 
-       (fn_params, ct , env_ct)
-     end.
+  Definition CTranslateArrow '({|paramargs:=pas; rtrns:=ret|} : Expr.arrowT)
+    : State ClightEnv (list (AST.ident * Ctypes.type) * Ctypes.type) :=
+    let* fn_params := CTranslateParams pas in
+    match ret with 
+    | None => mret (fn_params, Ctypes.Tvoid)
+    | Some return_t => 
+        CTranslateType return_t >>| pair fn_params
+    end.
 
   Definition CTranslatePatternVal (p : Parser.pat) (env: ClightEnv )
     : @error_monad string (Clight.statement * ident * ClightEnv ) := 

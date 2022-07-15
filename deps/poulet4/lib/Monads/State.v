@@ -69,7 +69,16 @@ Definition
   : list A -> StateT ST M (list B) :=
   state_fold_right
     (fun (a : A) (bs : list B) =>
-       let^ b := f a in (b :: bs)%list) (@nil B).
+       let^ b := f a in b :: bs) [].
+
+Definition
+  state_list_mapi
+  {ST : Type} {M : Type -> Type} `{M_Monad : Monad M}
+  {A B : Type} (f : nat -> A -> StateT ST M B)
+  : list A -> StateT ST M (list B) :=
+  state_fold_righti
+    (fun (i : nat) (a : A) (bs : list B) =>
+       let^ b := f i a in b :: bs) [].
 
 Global Instance identity_monad : Monad (fun A => A) :=
   { mret := fun _ a => a

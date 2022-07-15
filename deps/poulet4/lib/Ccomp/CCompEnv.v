@@ -78,7 +78,7 @@ Section CEnv.
   Arguments gvar_init {_}.
   Arguments gvar_readonly {_}.
   Arguments gvar_volatile {_}.
-  Instance eta_globvar (V : Type) : Settable (globvar V) :=
+  Global Instance eta_globvar (V : Type) : Settable (globvar V) :=
     settable! (@mkglobvar V)
     < gvar_info ; gvar_init ; gvar_readonly ; gvar_volatile >.
 
@@ -190,7 +190,7 @@ Section CEnv.
         v1model_M : ident }.
 
   (** Record-update boiler-plate. *)
-  Instance etaClightEnv : Settable _ :=
+  Global Instance etaClightEnv : Settable _ :=
     settable! mkClightEnv
     < varMap ; funMap ; actMap ; tblMap
   ; topMap ; control_instanceMap
@@ -377,10 +377,10 @@ Section CEnv.
     (env: ClightEnv) (instance: string) : ClightEnv :=
     env <| expected_instances := instance :: env.(expected_instances) |>. *)
   
-  Definition
-    new_ident (env: ClightEnv) : ident * ClightEnv := 
-  let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
-  (new_ident, env <| identGenerator := gen' |>).
+  Definition new_ident : State ClightEnv ident :=
+    let* env := get_state in
+    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    put_state (env <| identGenerator := gen' |>) ;; mret new_ident.
 
   Definition clear_temp_vars (env: ClightEnv) : ClightEnv :=
     {{ env with temps := []; vars := [] }}.

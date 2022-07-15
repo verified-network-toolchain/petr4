@@ -811,161 +811,185 @@ Section CCompSel.
         CTranslateType return_t >>| pair fn_params
     end.
 
-  Definition CTranslatePatternVal (p : Parser.pat) (env: ClightEnv )
-    : @error_monad string (Clight.statement * ident * ClightEnv ) := 
-    match p with 
-    | Parser.PATBit width val =>
-        let (env, fresh_id) := new_ident  env in 
-        let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
-        let env := add_var  env fresh_name bit_vec in 
-        let* dst := find_ident  env fresh_name in
-        let (env', val_id) := find_BitVec_String  env val in 
+  Definition CTranslatePatternVal (p : Parser.pat)
+    : StateT ClightEnv Result.result (Clight.statement * ident) :=
+    match p with
+    | Parser.Bit width val =>
+        let* fresh_id := State_lift new_ident in
+        (* TODO: is fresh name necessary?
+        let fresh_name :=
+          String.append
+            "_p_e_t_r_4_"
+            (BinaryString.of_pos fresh_id) in
+        put_state (add_var env fresh_name bit_vec) in
+        let* dst := find_ident env fresh_name in *)
+        let^ val_id := State_lift (find_BitVec_String val) in
         let w := Cint_of_Z (Z.of_N width) in
-        let signed := Cfalse in 
         let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-        mret ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
-        
-    | Parser.PATInt width val => 
-        let (env, fresh_id) := new_ident  env in 
-        let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+        let dst' := Eaddrof (Evar fresh_id bit_vec) TpointerBitVec in
+        (Scall None bitvec_init_function [dst'; Cfalse; w; val'], fresh_id)
+    | Parser.Int width val => 
+        let* fresh_id := State_lift new_ident in
+        (*let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
         let env := add_var  env fresh_name bit_vec in 
-        let* dst := find_ident  env fresh_name in
-        let (env', val_id) := find_BitVec_String  env val in 
+        let* dst := find_ident  env fresh_name in*)
+        let^ val_id := State_lift (find_BitVec_String val) in 
         let w := Cint_of_Z (Zpos width) in
-        let signed := Ctrue in 
         let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-        mret ((Scall None bitvec_init_function [dst'; signed; w; val']), dst, env')
-
-    | _ => Result.error "not a pattern value"
+        let dst' := Eaddrof (Evar fresh_id bit_vec) TpointerBitVec in
+        (Scall None bitvec_init_function [dst'; Ctrue; w; val'], fresh_id)
+    | _ => state_lift (Result.error "not a pattern value")
     end.
 
-  Definition CTranslatePatternMatch (input: Clight.expr) (p: Parser.pat) (env: ClightEnv )
-    : @error_monad string (Clight.statement * ident * ClightEnv ) :=
-    let (env, fresh_id) := new_ident  env in 
+  Definition CTranslatePatternMatch (input: Clight.expr) (p: Parser.pat)
+    : StateT ClightEnv Result.result (Clight.statement * ident) :=
+    let* dst := State_lift new_ident in
+    (* TODO: is fresh_name needed?
     let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
     let env := add_var  env fresh_name type_bool in 
-    let* dst := find_ident  env fresh_name in
+    let* dst := find_ident  env fresh_name in *)
     let dst' := Eaddrof (Evar dst type_bool) TpointerBool in
     match p with
-    | Parser.PATWild => 
-      let assign := Sassign dst' Ctrue in 
-      mret (assign, dst, env)
-      
-    | Parser.PATMask  p1 p2 => 
-      let* (init1, var_left, env) := CTranslatePatternVal p1 env in
-      let* (init2, var_right, env) := CTranslatePatternVal p2 env in
-      let (env, fresh_id) := new_ident  env in 
+    | Parser.Wild => mret (Sassign dst' Ctrue, dst)
+    | Parser.Mask p1 p2 => 
+      let* (init1, var_left) := CTranslatePatternVal p1 in
+      let* (init2, var_right) := CTranslatePatternVal p2 in
+      let* inputand := State_lift new_ident in
+      (* TODO: is fresh_name needed?
       let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
       let env := add_var  env fresh_name bit_vec in 
-      let* inputand := find_ident  env fresh_name in
-      let (env, fresh_id) := new_ident  env in 
+      let* inputand := find_ident  env fresh_name in *)
+      let^ valueand := State_lift new_ident in
+      (* TODO: is fresh_name needed?
       let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
       let env := add_var  env fresh_name bit_vec in 
-      let* valueand := find_ident  env fresh_name in
+      let* valueand := find_ident  env fresh_name in *)
       let inand' := Eaddrof (Evar inputand bit_vec) TpointerBitVec in
       let valand' := Eaddrof (Evar valueand bit_vec) TpointerBitVec in
-      let assign_in := Scall None (bop_function _interp_bitwise_and) [inand'; input; (Evar var_right bit_vec)] in
-      let assign_val := Scall None (bop_function _interp_bitwise_and) [valand'; (Evar var_left bit_vec); (Evar var_right bit_vec)] in
-      let assign := Scall None (bop_function _interp_beq) [dst'; (Evar inputand bit_vec); (Evar valueand bit_vec)] in
-      let stmts := 
-        (Ssequence init1
-        (Ssequence init2
-        (Ssequence assign_in
-        (Ssequence assign_val
-        assign
-        ))))  in
-      mret (stmts, dst, env)
-
-    | Parser.PATRange p1 p2 => 
-      let* (init1, var_left, env) := CTranslatePatternVal p1 env in
-      let* (init2, var_right, env) := CTranslatePatternVal p2 env in
-      let (env, fresh_id) := new_ident  env in 
+      let assign_in :=
+        Scall
+          None (bop_function _interp_bitwise_and)
+          [inand'; input; (Evar var_right bit_vec)] in
+      let assign_val :=
+        Scall
+          None (bop_function _interp_bitwise_and)
+          [valand'; (Evar var_left bit_vec); (Evar var_right bit_vec)] in
+      let assign :=
+        Scall
+          None (bop_function _interp_beq)
+          [dst'; (Evar inputand bit_vec); (Evar valueand bit_vec)] in
+      let stmts :=
+        (Ssequence
+           init1
+           (Ssequence
+              init2
+              (Ssequence
+                 assign_in
+                 (Ssequence
+                    assign_val
+                    assign)))) in
+      (stmts, dst)
+    | Parser.Range p1 p2 =>
+      let* (init1, var_left) := CTranslatePatternVal p1 in
+      let* (init2, var_right) := CTranslatePatternVal p2 in
+      let* lefttrue := State_lift new_ident in
+      (* TODO: is fresh name needed?
+      let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
+      let env := add_var  env fresh_name type_bool in
+      let* lefttrue := find_ident  env fresh_name in *)
+      let^ righttrue := State_lift new_ident in
+      (* TODO: is fresh name needed?
       let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
       let env := add_var  env fresh_name type_bool in 
-      let* lefttrue := find_ident  env fresh_name in
-      let (env, fresh_id) := new_ident  env in 
-      let fresh_name := String.append "_p_e_t_r_4_" (BinaryString.of_pos fresh_id) in
-      let env := add_var  env fresh_name type_bool in 
-      let* righttrue := find_ident  env fresh_name in
+      let* righttrue := find_ident  env fresh_name in *)
       let lefttrue' := Eaddrof (Evar lefttrue type_bool) TpointerBool in
       let righttrue' := Eaddrof (Evar righttrue type_bool) TpointerBool in
-      let assign_left := Scall None (bop_function _interp_bge) [lefttrue'; input; (Evar var_left bit_vec)] in
-      let assign_right := Scall None (bop_function _interp_ble) [righttrue'; input; (Evar var_right bit_vec)] in
-      let and_expr :=  Ebinop Oand (Evar lefttrue type_bool) (Evar righttrue type_bool) type_bool in
+      let assign_left :=
+        Scall
+          None (bop_function _interp_bge)
+          [lefttrue'; input; (Evar var_left bit_vec)] in
+      let assign_right :=
+        Scall
+          None (bop_function _interp_ble)
+          [righttrue'; input; (Evar var_right bit_vec)] in
+      let and_expr :=
+        Ebinop
+          Oand (Evar lefttrue type_bool)
+          (Evar righttrue type_bool) type_bool in
       let assign := Sassign dst' and_expr in 
       let stmts := 
-        (Ssequence init1
-        (Ssequence init2
-        (Ssequence assign_left
-        (Ssequence assign_right
-        assign
-        ))))  in
-      mret (stmts, dst, env)
-
-    | Parser.PATInt width val
-    | Parser.PATBit width val => 
-      let*  (init, var, env) := CTranslatePatternVal p env in
-      let assign := 
-        Scall None (bop_function _interp_beq) [dst'; input; (Evar var bit_vec)] in
-      let stmts := Ssequence init assign in
-      mret (stmts, dst, env)
-
-    | Parser.PATTuple ps => 
-      Result.error "not a simple pattern match"
+        (Ssequence
+           init1
+           (Ssequence
+              init2
+              (Ssequence
+                 assign_left
+                 (Ssequence
+                    assign_right
+                    assign)))) in
+      (stmts, dst)
+    | Parser.Int _ _
+    | Parser.Bit _ _ => 
+        let^ (init, var) := CTranslatePatternVal p in
+        let assign := 
+          Scall None (bop_function _interp_beq) [dst'; input; (Evar var bit_vec)] in
+        (Ssequence init assign, dst)
+    | Parser.Struct ps =>
+        state_lift (Result.error "not a simple pattern match")
     end.
 
-
-  Definition CTranslateParserExpressionVal
-    (pe: Parser.e ) 
-    (env: ClightEnv )
-    : @error_monad string (Clight.statement * ClightEnv ) :=
-    let rec_call_args := get_top_args  env in 
+  Definition CTranslateParserExpressionVal (pe: Parser.e)
+    : StateT ClightEnv Result.result Clight.statement :=
+    let* env := get_state in
+    let rec_call_args := get_top_args env in
+    match pe with
+    | Parser.Goto st =>
+        match st with
+        | Parser.Start =>
+            let^ (start_id, start_f) :=
+              state_lift (lookup_function env "start") in
+            Scall
+              None (Evar start_id (Clight.type_of_function start_f))
+              rec_call_args
+        | Parser.Accept => state_return (Sreturn (Some Ctrue))
+        | Parser.Reject => state_return (Sreturn (Some Cfalse))
+        | Parser.Name x =>
+            let* x_id :=
+              state_lift
+                (Result.from_opt
+                   (nth_error env.(parser_stateMap) x)
+                   "TODO: need helper for this") in
+            let^ x_f :=
+              state_lift
+                (Result.from_opt
+                   (Env.find x_id env.(fenv))
+                   "TODO: need helper for this") in
+            Scall
+              None (Evar x_id (Clight.type_of_function x_f))
+              rec_call_args
+        end
+    | Parser.Select exp def cases =>
+        state_lift
+          (Result.error "nested select expression, currently unsupported")
+    end.    
+  
+  Definition CTranslateParserExpression (pe: Parser.e)
+    : StateT ClightEnv Result.result Clight.statement :=
     match pe with 
-    | Parser.PGoto st => 
-      match st with
-      | Parser.STStart =>
-        let* (start_f, start_id) := (lookup_function  env "start") in
-        mret (Scall None (Evar start_id (Clight.type_of_function start_f)) rec_call_args, env)
-
-      | Parser.STAccept =>
-        mret ( Sreturn (Some Ctrue), env)
-         
-      | Parser.STReject =>
-        mret ( Sreturn (Some Cfalse), env)
-      
-      | Parser.STName x => 
-        let*  (x_f, x_id) := lookup_function  env x in
-        mret (Scall None (Evar x_id (Clight.type_of_function x_f)) rec_call_args, env)
-      end
-
-    | Parser.PSelect exp def cases => 
-      Result.error "nested select expression, currently unsupported"
-    end.
-    
-
-  Definition CTranslateParserExpression 
-    (pe: Parser.e ) 
-    (env: ClightEnv )
-    : @error_monad string (Clight.statement * ClightEnv ) :=
-    match pe with 
-    | Parser.PSelect exp def cases => 
-      let* (input, env) := CTranslateExpr exp env in
-      let* (default_stmt, env) := CTranslateParserExpressionVal def env in
-      let fold_function 
-          (elt: Parser.pat * Parser.e ) 
-          (cumulator: @error_monad string (Clight.statement * ClightEnv )) :=
-          let '(p, action) := elt in
-          let* (fail_stmt, env') := cumulator in
-          let* (match_statement, this_match, env') := CTranslatePatternMatch input p env' in
-          let* (success_statement, env') := CTranslateParserExpressionVal action env' in 
-          let new_stmt := Ssequence match_statement (Sifthenelse (Evar this_match type_bool) success_statement fail_stmt) in
-          mret (new_stmt, env')
-      in
-      List.fold_right fold_function (mret (default_stmt, env)) cases
-    
-    | _ => CTranslateParserExpressionVal pe env
+    | Parser.Select exp def cases => 
+        let* input := CTranslateExpr exp in
+        let* default_stmt := CTranslateParserExpressionVal (Parser.Goto def) in
+        let fold_function
+              '((p, action): Parser.pat * Parser.state) fail_stmt :=
+          let* (match_statement, this_match) :=
+            CTranslatePatternMatch input p in
+          let^ success_statement :=
+            CTranslateParserExpressionVal (Parser.Goto action) in
+          Ssequence
+            match_statement
+            (Sifthenelse (Evar this_match type_bool) success_statement fail_stmt) in
+        state_fold_right fold_function default_stmt cases
+    | _ => CTranslateParserExpressionVal pe
     end.
 
   Definition CTranslateParserState

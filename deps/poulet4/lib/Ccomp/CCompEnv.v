@@ -114,9 +114,13 @@ Section CEnv.
       ; (** P4cub action names to clight idents. *)
         actMap : Env.t string AST.ident
 
-      ; (** P4cun table names to clight idents. *)
+      ; (** P4cub table names to clight idents. *)
         tblMap : Env.t string AST.ident
 
+      ; (** P4cub parser state names to clight ident. *)
+      (* TODO: need to be cleared after each parser is compiled *)
+        parser_stateMap : list AST.ident
+                       
       ; (** P4cub string identifiers to clight identifiers. *)
         topMap : Env.t string AST.ident
                        
@@ -193,7 +197,7 @@ Section CEnv.
   Global Instance etaClightEnv : Settable _ :=
     settable! mkClightEnv
     < varMap ; funMap ; actMap ; tblMap
-  ; topMap ; control_instanceMap
+  ; parser_stateMap ; topMap ; control_instanceMap
   ; parser_instanceMap ; extern_instanceMap
   ; temps ; vars ; composites
   ; identGenerator ; fenv ; tempOfArg
@@ -206,6 +210,7 @@ Section CEnv.
     ; funMap := Env.empty _ _
     ; actMap := Env.empty _ _
     ; tblMap := Env.empty _ _
+    ; parser_stateMap := []
     ; topMap := Env.empty _ _
     ; control_instanceMap := []
     ; parser_instanceMap := []

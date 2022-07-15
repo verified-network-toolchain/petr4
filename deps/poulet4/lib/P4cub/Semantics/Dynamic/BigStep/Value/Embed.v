@@ -10,6 +10,7 @@ Require Poulet4.P4light.Syntax.P4String.
 Require Import Poulet4.P4cub.Syntax.CubNotations.
 Require Export Arith_base.
 Require Import BinPos BinInt BinNat Pnat Nnat.
+Require Import PeanoNat.
 Import AllCubNotations Val.ValueNotations.
 Import Poulet4.P4light.Syntax.Typed.
 Local Open Scope string_scope.
@@ -196,7 +197,6 @@ Section Embed.
           -- inv H. auto.
   Qed.
 
-  Require Import PeanoNat.
   Infix "^" := Z.pow.
 
   Lemma embed_project_ok : forall v t, type_value v t -> proj (embed v) = Result.ok v.

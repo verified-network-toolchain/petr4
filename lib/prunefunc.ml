@@ -87,7 +87,7 @@ let gen_p4tbl (s : string) (a : string) : coq_Declaration =
     , []
     , [gen_p4actref_na a]
     , None
-    , Some (gen_p4actref_na a)
+    , Some (true, gen_p4actref_na a)
     , Some Bigint.one
     , [] )
 let gen_p4tbl_call ?(args : string list list = []) (t : string) :

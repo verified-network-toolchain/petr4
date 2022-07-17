@@ -111,7 +111,7 @@ Variant fundef :=
       (name : ident)
       (keys : list (@TableKey tags_t))
       (actions : list (@Expression tags_t))
-      (default_action : option (@Expression tags_t))
+      (default_action : option (bool * @Expression tags_t))
       (entries : option (list (@table_entry tags_t (@Expression tags_t))))
   | FExternal
       (class : ident)
@@ -1366,11 +1366,11 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_func_copy_out params s'' = Some args'->
       exec_func read_one_bit obj_path s (FInternal params body) nil args s'' args' sig'
 
-  | exec_func_table_match : forall obj_path name keys actions actionref retv action default_action const_entries s s',
+  | exec_func_table_match : forall obj_path name keys actions actionref retv action is_const_default default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name keys const_entries actionref ->
       get_table_call actions default_action actionref = Some (action, retv) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
-      exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
+      exec_func read_one_bit obj_path s (FTable name keys actions (Some (is_const_default, default_action)) const_entries)
         nil nil s' nil (SReturn retv)
 
   (* This will not happen in the latest spec. *)
@@ -2058,7 +2058,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) combined_params) (block_app init body)) ge
   | DeclTable _ name keys actions entries default_action _ _ =>
       let table :=
-        FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
+        FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (map_snd (unwrap_action_ref p ge)) default_action)
             (option_map (map unwrap_table_entry) entries) in
       PathMap.set (p ++ [str name; "apply"]) table ge
   | _ => ge

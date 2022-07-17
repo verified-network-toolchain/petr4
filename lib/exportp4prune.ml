@@ -845,7 +845,7 @@ let rec print_decl ?(pruned=false) (decl_name : string option) p (decl : coq_Dec
   | false, DeclTable ( _, name, [], 
       [ MkTableActionRef (_, MkTablePreActionRef (BareName aname, []), _) ]
       , _
-      , Some (MkTableActionRef (_, MkTablePreActionRef (BareName aname', []), _))
+      , Some (_, MkTableActionRef (_, MkTablePreActionRef (BareName aname', []), _))
       , _
       , [] ) ->
       if aname.str = aname'.str
@@ -871,7 +871,7 @@ let rec print_decl ?(pruned=false) (decl_name : string option) p (decl : coq_Dec
           print_table_keys keys
           print_table_actions actions
           (print_option print_table_entries) entries
-          (print_option print_table_action_ref) default_action
+          (print_option (print_pair print_bool print_table_action_ref)) default_action
           (print_option print_bignat) size
           (print_list print_table_property) custom_properties
   | _, DeclHeader (info, name, fields) ->

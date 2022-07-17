@@ -405,7 +405,7 @@ Section Transformer.
       let key' := map (transform_tblkey e) key in
       let actions' := map (transform_tar e) actions in
       let entries' := option_map (map (transform_tblenty e)) entries in
-      let default_action' := option_map (transform_tar e) default_action in
+      let default_action' := option_map ((map_snd (transform_tar e))) default_action in
       let custom_properties' := map (transform_tblprop e) custom_properties in
       let loc := LCurScope [P4String.str name] in
       let e' := IdentMap.set (P4String.str name) loc e in

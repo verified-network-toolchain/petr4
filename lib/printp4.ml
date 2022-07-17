@@ -374,9 +374,9 @@ let print_table_actions p (actions: coq_TableActionRef list)=
           (print_list print_table_action_ref) actions
   else fprintf p "@[<h>actions = { }@]"
 
-let print_table_default_action p (action: coq_TableActionRef)=
+let print_table_default_action p (action: 'a * coq_TableActionRef)=
   fprintf p "@,@[<h>default_action = %a@]"
-      print_table_action_ref action
+      print_table_action_ref (snd action)
 
 let print_table_key p (key: coq_TableKey) =
   match key with
@@ -696,7 +696,7 @@ let rec print_decl p (decl : coq_Declaration) =
           print_table_keys keys
           print_table_actions actions
           (print_option print_table_entries) entries
-          (print_option print_table_default_action) default_action
+          (print_option (print_table_default_action)) default_action
           (print_option print_table_size) size;
       (if (List.length custom_properties) <> 0
       then 

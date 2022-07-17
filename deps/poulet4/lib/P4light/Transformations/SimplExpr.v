@@ -502,9 +502,9 @@ Section Transformer.
              (l4, Some e4, n4) end) in
       let '(l5, e5, n5) := (match default_action with
                          | None => (nil, None, n3)
-                         | Some da =>
+                         | Some (is_const, da) =>
                            let '(l6, e6, n6) := transform_tar n3 da in
-                           (l6, Some e6, n6)
+                           (l6, Some (is_const, e6), n6)
                          end) in
       let '(l6, e6, n6) :=
           transform_list transform_tblprop n5 custom_properties in

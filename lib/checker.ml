@@ -3541,7 +3541,7 @@ and type_table' env ctx info annotations (name: P4string.t) key_types action_map
           action_map
           entries_typed
           size
-          (Some default_typed)
+          (Some (false, default_typed))
           rest
       | Some _ -> failwith "multiple default_action properties in table"
     end

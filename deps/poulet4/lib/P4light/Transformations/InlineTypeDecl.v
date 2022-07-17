@@ -1,7 +1,7 @@
 Require Import Poulet4.P4light.Syntax.Typed
-        Coq.Lists.List Poulet4.P4light.Syntax.Syntax.
+        Coq.Lists.List Poulet4.P4light.Syntax.Syntax Poulet4.P4light.Syntax.SyntaxUtil.
 From Poulet4.Utils Require Import Maps Utils Util.FunUtil.
-Require Poulet4.P4light.Syntax.P4String Poulet4.Utils.AListUtil.
+Require  Poulet4.P4light.Syntax.P4String Poulet4.Utils.AListUtil.
 Import List.ListNotations.
 
 (** * Inline type-declarations in p4light programs. *)
@@ -411,7 +411,7 @@ Fixpoint
          (DeclTable
             i x (lmap (σ †tk) k) (lmap (σ †tar) tars)
             (omap (lmap (σ †te)) tes)
-            (omap (σ †tar) dtar) n (lmap (σ †tp) tps)))
+            (omap (map_snd (σ †tar)) dtar) n (lmap (σ †tp) tps)))
   | DeclHeader _ {| P4String.str := T |} dfs
     => (σ ∋ T |-> TypHeader (lmap (σ ‡df) dfs), None)
   | DeclHeaderUnion _ {| P4String.str := T |} dfs
@@ -556,7 +556,7 @@ Fixpoint substitute_typ_Declaration {tags_t} (σ : substitution tags_t) (d : Dec
     let k' := lmap (σ †tk) k in
     let tars' := lmap (σ †tar) tars in
     let tes' := omap (lmap (σ †te)) tes in
-    let dtars' := omap (σ †tar) dtar in
+    let dtars' := omap (map_snd (σ †tar)) dtar in
     let tps' := lmap (σ †tp) tps in
     DeclTable i x k' tars' tes' dtars' n tps'
   | DeclHeader tags hdr dfs =>

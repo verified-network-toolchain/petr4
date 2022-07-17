@@ -674,7 +674,7 @@ Section Interpreter.
                Some (s'', args', sig')
              | _ :: _ => None
              end
-           | FTable name keys actions (Some default_action) const_entries =>
+           | FTable name keys actions (Some (_, default_action)) const_entries =>
              match typ_args, args with
              | nil, nil =>
                let* action_ref := interp_table_match obj_path s name keys const_entries in
@@ -708,5 +708,5 @@ Section Interpreter.
            end
          | O => None
          end.
-  
+
 End Interpreter.

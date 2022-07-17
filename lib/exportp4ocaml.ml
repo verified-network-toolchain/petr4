@@ -743,7 +743,7 @@ let rec print_decl (decl_name : string option) p (decl : coq_Declaration) =
           print_table_keys keys
           print_table_actions actions
           (print_option print_table_entries) entries
-          (print_option print_table_action_ref) default_action
+          (print_option (print_pair print_bool print_table_action_ref)) default_action
           (print_option print_bignat) size
           (print_list print_table_property) custom_properties
   | DeclHeader (info, name, fields) ->

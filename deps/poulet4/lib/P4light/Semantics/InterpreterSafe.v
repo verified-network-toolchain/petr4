@@ -1020,7 +1020,7 @@ Section InterpreterSafe.
       econstructor; eauto.
     - unfold Interpreter.interp_func in H.
       simpl in H.
-      destruct default_action, typ_args, args; try discriminate.
+      destruct default_action as [[] | ], typ_args, args; try discriminate.
       + optbind_inv.
         optbind_inv.
         destruct a0.

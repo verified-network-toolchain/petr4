@@ -372,7 +372,7 @@ Section Syntax.
   | DeclTable (tags: tags_t)  (name: P4String)
               (key: list TableKey) (actions: list TableActionRef)
               (entries: option (list TableEntry))
-              (default_action: option TableActionRef) (size: option N)
+              (default_action: option (bool * TableActionRef)) (size: option N)
               (custom_properties: list TableProperty)
   | DeclHeader (tags: tags_t)  (name: P4String)
                (fields: list DeclarationField)

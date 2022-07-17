@@ -289,6 +289,16 @@ Section CEnv.
   let new_ident := $name in
   {{ env with funMap := Env.bind name new_ident env.(funMap)
    ; fenv := Env.bind new_ident f env.(fenv) }}.
+  
+  Definition
+    add_parser_state
+    (env: ClightEnv)
+    (f: Clight.function): ClightEnv :=
+    (* TODO: why isn't ident generator used here. *)
+    let (gen', new_ident) := IdentGen.gen_next env.(identGenerator) in
+    {{ env with parser_stateMap := new_ident :: env.(parser_stateMap)
+     ; fenv := Env.bind new_ident f env.(fenv)
+     ; identGenerator := gen' }}.
 
   Definition
     update_function
@@ -299,6 +309,14 @@ Section CEnv.
     | None => env
     | Some idt => env <| fenv := Env.bind idt f env.(fenv) |>
     end.                     
+
+  Definition
+    update_parser_state
+    (env: ClightEnv) (name: nat) (f: Clight.function) : ClightEnv :=
+    match nth_error env.(parser_stateMap) name with
+    | None => env
+    | Some idt => env <| fenv := Env.bind idt f env.(fenv) |>
+    end.
   
   Definition
     add_extern_instance_type

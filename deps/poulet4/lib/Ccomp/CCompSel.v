@@ -1023,7 +1023,7 @@ Section CCompSel.
         let* copyout := CCopyOut params in
         (*copy in and copy out may need to copy cparams and eparams as well*)
         let* env_copyout := get_state (M_Monad := Result.result_monad_inst) in
-        let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams env_copyout in
+        let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams in
         let env_copyout := set_top_args env_copyout call_args in
         let fn_params := fn_eparams ++ fn_params in
         (*all functions inside one top parser declaration should have the same parameter*)
@@ -1034,11 +1034,11 @@ Section CCompSel.
              fn_params [] [] Sskip) in
         let env_start_fn_sig_declared := CCompEnv.add_function env_copyout "start" fn_sig in
         let env_fn_sig_declared :=
-          fold_right
+          List.fold_right
             (fun _ env => add_parser_state env fn_sig)
             env_start_fn_sig_declared states in
         put_state (M_Monad := Result.result_monad_inst) (set_temp_vars env env_fn_sig_declared) ;;
-        state_fold_righti
+        state_fold_righti (M_Monad := Result.result_monad_inst)
           (fun (state_name: nat) (sb : Stmt.s) 'tt =>
              let* f := CTranslateParserState sb fn_params in
              let* env_f_translated := get_state (M_Monad := Result.result_monad_inst) in
@@ -1051,7 +1051,7 @@ Section CCompSel.
           (set_temp_vars
              env_copyout
              (CCompEnv.update_function env_start_translated "start" f_start)) ;;
-        let* env_start_declared := get_state (M_Monad := Result.result_monad_inst) in
+        let* (env_start_declared  : ClightEnv) := get_state (M_Monad := Result.result_monad_inst) in
         let* (start_id, start_f) := state_lift (M_Monad := Result.result_monad_inst) (lookup_function env_start_declared "start") in
         let fn_body :=
           Ssequence
@@ -1071,7 +1071,12 @@ Section CCompSel.
              (get_vars  env_start_declared)
              (get_temps  env_start_declared)
              fn_body) in
-        let* instance_name := state_lift (nth_error env.(parser_instanceMap) instance_name) in
+        let* instance_name :=
+          state_lift
+            (M_Monad := Result.result_monad_inst)
+            (Result.from_opt
+               (nth_error env.(parser_instanceMap) instance_name)
+               "parser instance for found") in
         put_state
           (M_Monad := Result.result_monad_inst)
           (set_temp_vars
@@ -1080,7 +1085,6 @@ Section CCompSel.
                 <| fenv := Env.bind instance_name top_function env_start_declared.(fenv) |>))
     | _ => state_lift (Result.error "not parser")
     end.
-
 
   Definition CTranslateAction 
   (signature: Expr.params) (body: Stmt.s ) 

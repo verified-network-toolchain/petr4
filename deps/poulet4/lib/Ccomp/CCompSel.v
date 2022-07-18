@@ -78,21 +78,6 @@ Section CCompSel.
             mret (Ctypes.Tstruct top_id noattr)
         end
     end.
-
-  (* Definition CTranslateConstructorType (ct: Expr.ct) (env: ClightEnv ) : Ctypes.type * ClightEnv  :=
-  match ct with 
-  | Expr.CTType type => CTranslateType type env
-  | Expr.CTControl cparams _ parameters => (Ctypes.Tvoid, env) (*implement*)
-  | Expr.CTParser cparams  _ parameters => (Ctypes.Tvoid, env) (*implement*)
-  | Expr.CTPackage cparams => (Ctypes.Tvoid, env) (*implement*)
-
-  | Expr.CTExtern extern_name => 
-    match extern_name with
-    | "packet_in" => (packet_in,env)
-    | "packet_out" => (packet_out, env)
-    | _ => (Ctypes.Tvoid, env) (*implement*) 
-    end
-  end. *)
   
   Fixpoint CTranslateExpr (e: Expr.e)
     : StateT ClightEnv Result.result Clight.expr :=
@@ -494,19 +479,6 @@ Section CCompSel.
          let* env := get_state in
          put_state (add_temp_arg env ct new_id) ;;
          mret (new_id, cparam)).
-
-  (* Definition CTranslateConstructorParams (cparams : Expr.constructor_params) (env : ClightEnv )
-    : list (AST.ident * Ctypes.type) * ClightEnv  
-  := 
-    List.fold_left 
-      (fun (cumulator: (list (AST.ident * Ctypes.type)) * ClightEnv  ) (p: string * Expr.ct)
-      =>let (l, env') := cumulator in
-        let (env', new_id) := new_ident  env' in
-        let (pname, typ) := p in
-        let (ct,env_ct) :=  (CTranslateConstructorType typ env') in
-        (*don't do copy in copy out*)
-        (l ++ [(new_id, ct)], env_ct)) 
-    (cparams) ([],env) . *)
   
   Definition CTranslateExternParams (extern_params : list string)
     : State ClightEnv (list (AST.ident * Ctypes.type)) :=
@@ -1198,108 +1170,120 @@ Section CCompSel.
     | _ => state_lift (Result.error "not a top control")
     end.
   
-  Definition CTranslateFunction (funcdecl : TopDecl.d ) (env: ClightEnv  )
-    : @error_monad string (ClightEnv  )
-  := 
+  Definition CTranslateFunction (funcdecl : TopDecl.d)
+    : StateT ClightEnv Result.result unit :=
     match funcdecl with
-    | TopDecl.TPFunction name _ signature body _ => 
-      let '(fn_params, fn_return, env_params_created) := CTranslateArrow signature env in 
-      let paramargs := AST.paramargs signature in
-      let* (copyin, env_copyin) := CCopyIn paramargs env_params_created in
-      let* (copyout, env_copyout) := CCopyOut paramargs env_copyin in
-      let* (c_body, env_body_translated) := CTranslateStatement body env_copyout in
-      let body:= Ssequence copyin (Ssequence c_body copyout) in
-      let top_function := 
-        (Clight.mkfunction 
-          fn_return
-          (AST.mkcallconv None true true)
-          fn_params 
-          (get_vars  env_body_translated)
-          (get_temps  env_body_translated)
-          body) in
-      mret (set_temp_vars  env (CCompEnv.add_function  env_params_created name top_function))
-
-    | _ => Result.error "not a function"
+    | TopDecl.Funct name _ signature body =>
+        let* env := get_state in
+        let* '(fn_params, fn_return) := State_lift (CTranslateArrow signature) in
+        let* env_params_created := get_state in
+        let paramargs := AST.paramargs signature in
+        let* copyin := CCopyIn paramargs in
+        let* copyout := CCopyOut paramargs in
+        let* c_body := CTranslateStatement body in
+        let body := Ssequence copyin (Ssequence c_body copyout) in
+        let* env_body_translated := get_state in
+        let top_function := 
+          (Clight.mkfunction 
+             fn_return
+             (AST.mkcallconv None true true)
+             fn_params 
+             (get_vars env_body_translated)
+             (get_temps env_body_translated)
+             body) in
+        put_state
+          (set_temp_vars env (CCompEnv.add_function env_params_created name top_function))
+    | _ => state_lift (Result.error "not a function")
     end.
   
-  Definition InjectConstructorArg (arg_name: string) 
-    (arg: Expr.constructor_arg ) 
-    (cumulator: @error_monad string (ClightEnv  * Clight.statement))
-    : @error_monad string (ClightEnv  * Clight.statement) := 
-    let* (env, st) := cumulator in 
-    match arg with 
-    | Expr.CAExpr e => 
-      let* (init, env) := 
-      match e with 
-      | Expr.Bool b =>
-        let env := add_var  env arg_name type_bool in 
-        let* val_id := find_ident  env arg_name in
-        let initialize := 
-          if b then 
-            Sassign (Evar val_id type_bool) Cfalse 
-          else 
-            Sassign (Evar val_id type_bool) Ctrue 
-        in
-        mret (initialize, env)
-      | Expr.Bit width val => 
-        let env := add_var  env arg_name bit_vec in 
-        let* dst := find_ident  env arg_name in
-        let (env', val_id) := find_BitVec_String  env val in 
-        let w := Cint_of_Z (Z.of_N width) in
-        let signed := Cfalse in 
-        let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-        mret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-      | Expr.Int width val => 
-        let env := add_var  env arg_name bit_vec in 
-        let* dst := find_ident  env arg_name in
-        let (env', val_id) := find_BitVec_String  env val in 
-        let w := Cint_of_Z (Zpos width) in
-        let signed := Ctrue in 
-        let val' := Evar val_id Cstring in
-        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-        mret (Scall None bitvec_init_function [dst'; signed; w; val'], env')
-      | _ => Result.error "not folded constant"
-        end in 
-        mret (env, Ssequence st init)
-    | Expr.CAName x =>
-      let* instance_id := CCompEnv.find_ident  env x in 
-      mret (CCompEnv.bind  env arg_name instance_id, st)
+  Definition
+    InjectConstructorArg (arg: TopDecl.constructor_arg)
+    (*(st: Clight.statement)*) : StateT ClightEnv Result.result Clight.statement :=
+    match arg with
+    | TopDecl.CAExpr e =>
+        let* env := get_state in
+        match e with 
+        | Expr.Bool b =>
+            let env := add_var env type_bool in
+            put_state (M_Monad := Result.result_monad_inst) env ;;
+            (* TODO: associate argument with ident *)
+            let* val_id := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+            let initialize :=
+              if b then
+                Sassign (Evar val_id type_bool) Cfalse
+              else
+                Sassign (Evar val_id type_bool) Ctrue
+            in state_return (M_Monad := Result.result_monad_inst) initialize
+        | Expr.Bit width val => 
+            let env := add_var env bit_vec in
+            put_state (M_Monad := Result.result_monad_inst) env ;;
+            let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+            let* val_id := State_lift (M_Monad := Result.result_monad_inst) (find_BitVec_String val) in
+            let w := Cint_of_Z (Z.of_N width) in
+            let signed := Cfalse in 
+            let val' := Evar val_id Cstring in
+            let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+            state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
+        | Expr.Int width val => 
+            let env := add_var env bit_vec in
+            put_state (M_Monad := Result.result_monad_inst) env ;;
+            let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+            let* val_id := State_lift (find_BitVec_String val) in
+            let w := Cint_of_Z (Zpos width) in
+            let signed := Ctrue in
+            let val' := Evar val_id Cstring in
+            let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+            state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
+        | _ => state_lift (M_Monad := Result.result_monad_inst) (Result.error "not folded constant")
+        end
+    | TopDecl.CAName x =>
+        (* TODO: which of control, parser, extern to look up?
+           maybe all these namespaces need to be collapsed? *)
+        (*let* instance_id :=
+          state_lift
+            (Result.from_opt
+               (nth_error (env.(control_instanceMap)) x)
+               "instance not found") in
+        put_state (CCompEnv.bind env arg_name instance_id);;*)
+        state_return Sskip
     end.
 
-  Definition InjectConstructorArgs (env: ClightEnv ) (cargs: Expr.constructor_args )
-    : @error_monad string (ClightEnv  * Clight.statement) :=
-    F.fold InjectConstructorArg cargs (mret (env, Sskip)).
+  Definition InjectConstructorArgs
+    : TopDecl.constructor_args -> StateT ClightEnv Result.result Clight.statement :=
+    (lift_monad statement_of_list)
+      ∘ (state_list_map InjectConstructorArg).
 
-  Fixpoint CCollectTypVar (d: TopDecl.d ) (env: ClightEnv ) : @error_monad string (ClightEnv )
-  := match d with 
-  | TopDecl.TPSeq d1 d2 => 
-    let* env1 := CCollectTypVar d1 env in
-    CCollectTypVar d2 env1 
-
-  | TopDecl.TPInstantiate c x ts args => 
-    if (String.eqb x "main") then 
-      let env' := List.fold_left (fun e t => snd (CTranslateType t e)) ts env in
-      match ts, F.get "p" args, F.get "vr" args, F.get "ig" args, F.get "eg" args, F.get "ck" args
-      , F.get "dep" args  with 
-      | H :: M :: [], Some (Expr.CAName p), Some (Expr.CAName vr),
-       Some (Expr.CAName ig), Some (Expr.CAName eg), Some (Expr.CAName ck), Some (Expr.CAName dep) => 
-        let* env_H := set_H  env' H in 
-        let* env_M := set_M  env_H M in
-        let env_p := add_expected_control  env_M "parser" p  in 
-        let env_vr := add_expected_control  env_p "verify" vr  in
-        let env_ig := add_expected_control  env_vr "ingress" ig in
-        let env_eg := add_expected_control  env_ig "egress" eg in
-        let env_ck := add_expected_control  env_eg "compute" ck in
-        let env_dep := add_expected_control  env_ck "deparser" dep in
-
-        mret env_dep
-      | _,_,_,_,_,_,_ => Result.error "main instantiation not following V1model convention"
-      end
-    else mret env 
- 
-  | _ => mret env
-  end.
+  Fixpoint CCollectTypVar (d: TopDecl.d)
+    : StateT ClightEnv Result.result unit :=
+    match d with
+    | TopDecl.Instantiate c ts args =>
+        (* TODO: since p4cub instances
+           have de bruijn identifiers,
+           how to determine the main? *)
+        if (String.eqb x "main") then
+          State_lift (state_list_map CTranslateType ts) ;;
+          match ts, F.get "p" args, F.get "vr" args, F.get "ig" args, F.get "eg" args, F.get "ck" args
+            , F.get "dep" args  with 
+          | [H; M], [TopDecl.CAName p; TopDecl.CAName vr; TopDecl.CAName ig;
+                     TopDecl.CAName eg; TopDecl.CAName ck; TopDecl.CAName dep] =>
+              let* env := get_state in
+              let* env_H := set_H env H in
+              let* env_M := set_M env_H M in
+              (* TODO: need to replace expected control
+              let env_p := add_expected_control env_M "parser" p  in 
+              let env_vr := add_expected_control env_p "verify" vr  in
+              let env_ig := add_expected_control env_vr "ingress" ig in
+              let env_eg := add_expected_control env_ig "egress" eg in
+              let env_ck := add_expected_control env_eg "compute" ck in
+              let env_dep := add_expected_control env_ck "deparser" dep in
+              mret env_dep *)
+              put_state env_M
+          | _,_,_,_,_,_,_ =>
+              state_lift (Result.error "main instantiation not following V1model convention")
+          end
+        else mret env
+    | _ => mret env
+    end.
 
   Fixpoint CTranslateTopDeclaration (d: TopDecl.d ) (env: ClightEnv  ) : @error_monad string (ClightEnv  )
   := 

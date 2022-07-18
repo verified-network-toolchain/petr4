@@ -468,6 +468,16 @@ Section CCompSel.
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
 
+  Definition CTranslateCtrlParams
+    : list Expr.t -> State ClightEnv (list (AST.ident * Ctypes.type)) :=
+    state_list_map (M_Monad := identity_monad)
+      (fun t =>
+         let* new_id := new_ident in
+         let* t := CTranslateType t in
+         let* env := get_state (M_Monad := identity_monad) in
+         put_state (M_Monad := identity_monad) (add_temp_arg env t new_id) ;;
+         state_return (M_Monad := identity_monad) (new_id, t)).
+  
   Definition CTranslateParams
     : Expr.params -> State ClightEnv (list (AST.ident * Ctypes.type)) :=
     state_list_map
@@ -1085,85 +1095,108 @@ Section CCompSel.
                 <| fenv := Env.bind instance_name top_function env_start_declared.(fenv) |>))
     | _ => state_lift (Result.error "not parser")
     end.
-
-  Definition CTranslateAction 
-  (signature: Expr.params) (body: Stmt.s ) 
-  (env: ClightEnv  ) (top_fn_params: list (AST.ident * Ctypes.type))
-  (top_signature: Expr.params)
-  : @error_monad string (Clight.function* ClightEnv  ):= 
-  let (fn_params, env_params_created) := CTranslateParams signature env in
-  let fn_params := top_fn_params ++ fn_params in 
-  let full_signature := top_signature ++ signature in
-  let* (copyin, env_copyin) := CCopyIn full_signature env_params_created in
-  let* (copyout, env_copyout) := CCopyOut full_signature env_copyin in
-  let* (c_body, env_body_translated) := CTranslateStatement body env_copyout in
-  let body:= Ssequence copyin (Ssequence c_body copyout) in
-  mret (
-    (Clight.mkfunction 
-      type_bool
-      (AST.mkcallconv None true true)
-      fn_params 
-      (get_vars  env_body_translated)
-      (get_temps  env_body_translated)
-      body), (set_temp_vars  env env_body_translated))
-  .
+  Check CTranslateType.
+  Definition
+    CTranslateAction 
+    (ctrl_params: list Expr.t)
+    (signature: Expr.params) (body: Stmt.s)
+    (top_fn_params: list (AST.ident * Ctypes.type))
+    (top_signature: Expr.params)
+    : StateT ClightEnv Result.result Clight.function :=
+    let* ctrl_params :=
+      State_lift (CTranslateCtrlParams ctrl_params) in
+    let* env := get_state in
+    let* fn_params := State_lift (CTranslateParams signature) in
+    let fn_params := top_fn_params ++ ctrl_params ++ fn_params in 
+    let full_signature := top_signature ++ signature in
+    let* copyin := CCopyIn full_signature in
+    let* copyout := CCopyOut full_signature in
+    let* c_body := CTranslateStatement body in
+    let* env_body_translated := get_state in
+    put_state (set_temp_vars  env env_body_translated) ;;
+    let body := Ssequence copyin (Ssequence c_body copyout) in
+    state_return
+      (Clight.mkfunction 
+         type_bool
+         (AST.mkcallconv None true true)
+         fn_params 
+         (get_vars  env_body_translated)
+         (get_temps  env_body_translated)
+         body).
   
-  Fixpoint CTranslateControlLocalDeclaration 
-  (ct : Control.d ) (env: ClightEnv  ) 
-  (top_fn_params: list (AST.ident * Ctypes.type))
-  (top_signature: Expr.params)
-  : @error_monad string (Clight.statement * ClightEnv  )
-  := match ct with
-  | Control.CDSeq d1 d2 i=> 
-    let* (s1, env1) := CTranslateControlLocalDeclaration d1 env top_fn_params top_signature in
-    let* (s2, env2) := CTranslateControlLocalDeclaration d2 env1 top_fn_params top_signature in 
-    mret (Ssequence s1 s2, env2)
-    
-  | Control.CDAction a params body => 
-    let* (f, env_action_translated) := CTranslateAction params body env top_fn_params top_signature in
-    mret (Sskip, CCompEnv.add_function  env_action_translated a f)
+  Definition
+    CTranslateControlLocalDeclaration
+    (top_fn_params: list (AST.ident * Ctypes.type))
+    (top_signature: Expr.params) (ct : Control.d)
+    : StateT ClightEnv Result.result Clight.statement
+    := match ct with
+       | Control.Action a ctrl_params data_params body =>
+           let* f :=
+             CTranslateAction ctrl_params data_params body top_fn_params top_signature in
+           let* env_action_translated := get_state in
+           (* TODO should be added to actions *)
+           put_state (CCompEnv.add_function  env_action_translated a f) ;;
+           state_return Sskip
+       | Control.Table name keys acts =>
+           let* env := get_state in
+           let env := add_Table env name keys acts in
+           put_state env ;;
+           let^ '(id, _, _) := state_lift (find_table env name) in
+           let num_keys :=  Cint_of_Z (Z.of_nat (List.length keys)) in
+           let size := Cint_of_Z 256%Z in
+           let decl_stmt := Scall (Some id) bitvec_init_function [num_keys; size] in 
+           decl_stmt
+       end.
 
-  | Control.CDTable name {|Control.table_key:=keys; Control.table_actions:=acts|} => 
-    let env := add_Table  env name keys acts in 
-    let* '(id, _, _) := find_table  env name in 
-    let num_keys :=  Cint_of_Z (Z.of_nat (List.length keys)) in
-    let size := Cint_of_Z (256) in
-    let decl_stmt := Scall (Some id) bitvec_init_function [num_keys; size] in 
-    mret (decl_stmt, env)
-  end.
+  Definition
+    CTranslateControlLocalDeclarations
+    (top_fn_params: list (AST.ident * Ctypes.type))
+    (top_signature: Expr.params)
+    : list Control.d -> StateT ClightEnv Result.result Clight.statement :=
+    (lift_monad statement_of_list)
+      ∘ (state_list_map
+           (CTranslateControlLocalDeclaration
+              top_fn_params top_signature)).
   
-  Definition CTranslateTopControl (ctrl: TopDecl.d ) (env: ClightEnv ) 
-    (init: Clight.statement) (instance_name: string)
-    : @error_monad string (ClightEnv  )
-  := 
+  Definition CTranslateTopControl (ctrl: TopDecl.d)
+             (init: Clight.statement) (instance_name: string)
+    : StateT ClightEnv Result.result unit :=
     match ctrl with
-    | TopDecl.TPControl c _ eps params body blk => 
-      let (fn_eparams, env_top_fn_eparam) := CTranslateExternParams eps env in
-      let (fn_params, env_top_fn_param) := CTranslateParams params env_top_fn_eparam in
-      let* (copyin, env_copyin) := CCopyIn params env_top_fn_param in 
-      let* (copyout, env_copyout) := CCopyOut params env_copyin in
-      let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams env_copyout in 
-      let env_copyout := set_top_args  env_copyout call_args in
-      let fn_params := fn_eparams ++ fn_params in 
-      let* (table_init, env_local_decled) := CTranslateControlLocalDeclaration body env_copyout fn_params params in
-      let* (apply_blk, env_apply_block_translated) := CTranslateStatement blk env_local_decled in
-      let body:= Ssequence init (Ssequence copyin (Ssequence apply_blk (Ssequence copyout (Sreturn (Some Ctrue))))) in
-      let top_fn := 
-        Clight.mkfunction 
-          type_bool 
-          (AST.mkcallconv None true true)
-          fn_params 
-          (get_vars  env_apply_block_translated)
-          (get_temps  env_apply_block_translated)
-          (Ssequence table_init body) in
-      let env_top_fn_declared := 
-        CCompEnv.add_function  env_apply_block_translated instance_name top_fn in
-      mret (set_temp_vars  env env_top_fn_declared) 
-
-    | _ => Result.error "not a top control"
+    | TopDecl.Control c _ eps params body blk =>
+        let* env := get_state in
+        let* fn_eparams := State_lift (CTranslateExternParams eps) in
+        let* fn_params := State_lift (CTranslateParams params) in
+        let* copyin := CCopyIn params in
+        let* copyout := CCopyOut params in
+        let* env_copyout := get_state in
+        let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams in
+        let env_copyout := set_top_args  env_copyout call_args in
+        let fn_params := fn_eparams ++ fn_params in
+        let* table_init :=
+          CTranslateControlLocalDeclarations fn_params params body in
+        let* apply_blk := CTranslateStatement blk in
+        let* env_apply_block_translated := get_state in
+        let body :=
+          Ssequence
+            init
+            (Ssequence
+               copyin
+               (Ssequence
+                  apply_blk
+                  (Ssequence copyout (Sreturn (Some Ctrue))))) in
+        let top_fn := 
+          Clight.mkfunction 
+            type_bool 
+            (AST.mkcallconv None true true)
+            fn_params 
+            (get_vars env_apply_block_translated)
+            (get_temps env_apply_block_translated)
+            (Ssequence table_init body) in
+        let env_top_fn_declared :=
+          CCompEnv.add_function env_apply_block_translated instance_name top_fn in
+        put_state (set_temp_vars env env_top_fn_declared)
+    | _ => state_lift (Result.error "not a top control")
     end.
-
-
   
   Definition CTranslateFunction (funcdecl : TopDecl.d ) (env: ClightEnv  )
     : @error_monad string (ClightEnv  )

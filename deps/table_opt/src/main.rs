@@ -21,20 +21,56 @@ fn run(rules: &[Rewrite<SymbolLang, ()>], orig_str: &str) {
 
 fn main() {
     let rules: &[Rewrite<SymbolLang, ()>] = &[
-        rw!("if-same"; "(if ?b ?x ?x)" =>
-                       "?x"),
-        rw!("distr-seq-if"; "(seq (if ?b ?x ?y) ?z)" =>
-                            "(if ?b (seq ?x ?z) (seq ?y ?z))"),
-        rw!("distr-seq-if-rev"; "(if ?b (seq ?x ?z) (seq ?y ?z))" =>
-                                "(seq (if ?b ?x ?y) ?z)"),
+        // Axiom U1
+        rw!("if-same-fwd"; "(if ?b ?e ?e)" =>
+                           "?e"),
+        // XXX no reverse rule: would have to cook up a value for ?x from nothing.
+        // Axiom U2
+        rw!("if-flip-fwd"; "(if ?b ?e ?f)" =>
+                           "(if (not ?b) ?f ?e)"),
+        rw!("if-flip-rev"; "(if (not ?b) ?y ?x)" =>
+                           "(if ?b ?x ?y)"),
+        // Axiom U3
+        rw!("if-assoc-fwd"; "(if ?c (if ?b ?e ?f) ?g)" =>
+                            "(if (and ?b ?c) ?e (if ?c ?f ?g))"),
+        rw!("if-assoc-rev"; "(if (and ?b ?c) ?e (if ?c ?f ?g))" =>
+                            "(if ?c (if ?b ?e ?f) ?g)"),
+        // Axiom U4
+        rw!("test-if-fwd"; "(if ?b ?e ?f)" =>
+                           "(if (seq ?b ?e) ?f)"),
+        rw!("test-if-rev"; "(if (seq ?b ?e) ?f)" =>
+                           "(if ?b ?e ?f)"),
+        // Axiom U5
+        rw!("distr-seq-if-rev"; "(seq (if ?b ?e ?f) ?g)" =>
+                                "(if ?b (seq ?e ?g) (seq ?f ?g))"),
+        rw!("distr-seq-if-fwd"; "(if ?b (seq ?e ?g) (seq ?f ?g))" =>
+                                "(seq (if ?b ?e ?f) ?g)"),
+        // Axiom S1
+        rw!("seq-assoc-fwd"; "(seq (seq ?e ?f) ?g)" => "(seq ?e (seq ?f ?g))"),
+        rw!("seq-assoc-rev"; "(seq ?e (seq ?f ?g))" => "(seq (seq ?e ?f) ?g)"),
+        // Axiom S2
+        rw!("seq-false-l-fwd"; "(seq false ?x)" => "false"),
+        // XXX no reverse rule: would have to cook up a value for ?x from nothing.
+        // Axiom S3
+        rw!("seq-false-r-fwd"; "(seq ?x false)" => "false"),
+        // XXX no reverse rule: would have to cook up a value for ?x from nothing.
+        // Axiom S4
+        rw!("seq-id-l-fwd"; "(seq nop ?x)" => "?x"),
+        rw!("seq-id-l-rev"; "?x" => "(seq nop ?x)"),
+        // Axiom S5
+        rw!("seq-id-r-fwd"; "(seq ?x nop)" => "?x"),
+        rw!("seq-id-r-rev"; "?x" => "(seq ?x nop)"),
+        // Axiom S6
+        // TODO: need a way of expressing that b and c are tests in order to write down the rule
+        // (seq b c) => (and b c). Alternatively use the same constructor for and/seq.
+
+        // Set and Test rules
         rw!("set-test-eq"; "(seq (set ?x ?e) (if (eq ?x ?e) ?t ?f))" =>
                            "(seq (set ?x ?e) ?t)"),
         rw!("set-test-neq"; "(seq (set ?x ?e1) (if (eq ?x ?e2) ?t ?f))" =>
                             "(seq (set ?x ?e1) ?f)"
                             if is_not_same_var(var("?e1"), var("?e2"))),
         rw!("test-comm"; "(eq ?x ?y)" => "(eq ?y ?x)"),
-        rw!("seq-id-l"; "(seq nop ?x)" => "?x"),
-        rw!("seq-id-r"; "(seq ?x nop)" => "?x"),
     ];
 
     run(rules, "(seq

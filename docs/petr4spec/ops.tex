@@ -52,7 +52,7 @@
 \newcommand*{\arrayAccessE}{\rn{ArrayAccess}\rE}
 \newcommand*{\bitStringAccessE}{\rn{BitStringAccess}\rE}
 \newcommand*{\listE}{\rn{List}\rE}
-\newcommand*{\listAltE}{\rn{List}\rSep\rn{Alt}\rE}
+%% \newcommand*{\listAltE}{\rn{List}\rSep\rn{Alt}\rE}
 \newcommand*{\recordE}{\rn{Record}\rE}
 \newcommand*{\logicalNegE}{\rn{LogicalNegation}\rE}
 \newcommand*{\bitwiseComplementE}{\rn{BitwiseComplement}\rE}
@@ -85,7 +85,45 @@
 \newcommand*{\expMemActionNameE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByName}\rE}
 \newcommand*{\expMemActionCountE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByCount}\rE}
 
+\newcommand*{\assignmentS}{\rn{Assignment}\rS}
+\newcommand*{\emptyS}{\rn{Empty}\rS}
+\newcommand*{\blockS}{\rn{Block}\rS}
+\newcommand*{\returnS}{\rn{Return(inApplyBlockOrAction)}\rS}
+\newcommand*{\returnEmpS}{\rn{ReturnEmpty}\rS}
+\newcommand*{\returnFuncS}{\rn{Return(inFunction)}\rS}
+\newcommand*{\exitS}{\rn{Exit}\rS}
+\newcommand*{\ifthenS}{\rn{IfThen}\rS}
+\newcommand*{\ifthenelseS}{\rn{IfThenElse}\rS}
+\newcommand*{\switchS}{\rn{Switch}\rS}
+\newcommand*{\declS}{\rn{Declaration}\rS}
+
+\newcommand*{\constantD}{\rn{Constant}\rD}
+\newcommand*{\instantD}{\rn{Instantiation}\rD}
+\newcommand*{\parserD}{\rn{Parser}\rD}
+\newcommand*{\controlD}{\rn{Control}\rD}
+\newcommand*{\funcD}{\rn{Function}\rD}
+\newcommand*{\actionD}{\rn{Action}\rD}
+\newcommand*{\externFuncD}{\rn{ExternFunction}\rD}
+\newcommand*{\varD}{\rn{Variable}\rD}
+\newcommand*{\varInitD}{\rn{VariableInit}\rD}
+\newcommand*{\valueSetD}{\rn{ValueSet}\rD}
+\newcommand*{\tableD}{\rn{Table}\rD}
+\newcommand*{\headerD}{\rn{Header}\rD}
+\newcommand*{\headerUnionD}{\rn{HeaderUnion}\rD}
+\newcommand*{\structD}{\rn{Struct}\rD}
+\newcommand*{\errD}{\rn{Error}\rD}
+\newcommand*{\matchkindD}{\rn{MatchKind}\rD}
+\newcommand*{\enumD}{\rn{Enum}\rD}
+\newcommand*{\serEnumD}{\rn{SerializableEnum}\rD}
+\newcommand*{\externObjD}{\rn{ExternObject}\rD}
+\newcommand*{\typDefD}{\rn{TypeDefinition}\rD}
+\newcommand*{\newtypeD}{\rn{NewType}\rD}
+\newcommand*{\controlTypD}{\rn{ControlType}\rD}
+\newcommand*{\parserTypD}{\rn{ParserType}\rD}
+\newcommand*{\packageTypD}{\rn{PackageType}\rD}
+
 %stuff here and there:
+%TODO: fix mathit in the followings:
 \renewcommand{\or}{\ | \ }
 \newcommand{\whereBulletIs}{,\textit{ where } \bullet \textit{ is }}
 \newcommand{\whereIs}[1]{,\textit{ where } {#1} \textit{ is }}
@@ -102,7 +140,19 @@
 \newcommand{\emp}{[\ ]}
 \newcommand{\insertToEnv}[2]{\env, [{#1} : {#2} ]}
 \newcommand{\insertToEnvv}[1]{\env, [{#1}]}
-\newcommand{\suchThat}[2]{{#1} . \ {#2}}
+\newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
+\newcommand{\tr}{\mathsf{true}}
+\newcommand{\fl}{\mathsf{false}}
+
+% renew these commands to change the size and indentation of program text
+%% \newcommand{\progind}{\parindent}
+%% \newcommand{\progfontsize}{\small}
+%% \newcommand{\progformat}{}
+%% % in-line code
+%% \newcommand{\prog}[1]{\textrm{\progfontsize\progformat\texttt{#1}}}
+%% \newcommand{\tr}{\prog{true}}
+%% \newcommand{\fl}{\prog{false}}
+
 %% \newcommand{\iLeqLeq}[2]{{#1} \leq i \leq {#2}. \ } %TODO: refactor 1 < i < n
 %% \newcommand{\iLeqL}[2]{{#1} \leq i < {#2}. \ }
 %% \newcommand{\iEqLeq}[2]{{#1} < i \leq {#2}. \ }
@@ -111,6 +161,7 @@
 %% \newcommand{\leqL}[3]{{#1} \leq {#2} < {#3}. \ }
 %% \newcommand{\lLeq}[3]{{#1} < {#2} \leq {#3}. \ }
 %% \newcommand{\lL}[3]{{#1} < {#2} < {#3}. \ }
+%% \newcommand{\forallcond}[3]{\forall {#1} \in {#2}\ . \ {#3}}
 
 %typing judgments:
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
@@ -141,18 +192,18 @@
 
 
 %contexts:
-\newcommand{\cte}{\mathit{CONSTANT}}
-\newcommand{\applyBlockCtxt}{\mathit{APPLYBLOCK}}
-\newcommand{\actionCtxt}{\mathit{ACTION}}
-\newcommand{\funcCtxt}[1]{\mathit{FUNCTION}\ {#1}}
-\newcommand{\parserCtxt}{\mathit{PARSERSTATE}}
-\newcommand{\toplevel}{\mathit{TOPLEVEL}}
+\newcommand{\cte}{\mathfrak{constant}}
+\newcommand{\applyBlockCtxt}{\mathfrak{applyBlock}}
+\newcommand{\actionCtxt}{\mathfrak{action}}
+\newcommand{\funcCtxt}[1]{\mathfrak{function}\ {#1}}
+\newcommand{\parserCtxt}{\mathfrak{parserState}}
+\newcommand{\toplevel}{\mathfrak{topLevel}}
 
 %operators:
 \newcommand{\mask}[2]{{#1}\ \&\&\&\ {#2}}
 \newcommand{\range}[2]{{#1}..{#2}}
-\newcommand{\ternary}[3]{{#1} ? {#2} : {#3}}
-\newcommand{\errMem}[1]{\mathit{error}.{#1}}
+\newcommand{\ternary}[3]{{#1}\ ?\ {#2}\ : \ {#3}}
+\newcommand{\errMem}[1]{\mathsf{error}.{#1}}
 \newcommand{\typMem}[2]{{#1}.{#2}}
 \newcommand{\shiftR}{\gg}
 \newcommand{\shiftL}{\ll}
@@ -173,7 +224,7 @@
 \newcommand{\instantiation}[2]{{#1}({#2})}
 \newcommand{\assign}[2]{{#1}={#2}}
 \newcommand{\noop}{;}
-\newcommand{\return}[1]{\mathit{return}\ {#1}}
+\newcommand{\return}[1]{\mathsf{return}\ {#1}}
 \newcommand{\exit}{\mathit{exit}}
 \newcommand{\switch}[2]{\mathit{switch}\ ({#1}) \{{#2}\}}
 \newcommand{\lbl}{l}
@@ -221,9 +272,13 @@
 \renewcommand{\exp}{\mathit{exp}}
 \newcommand{\exps}{\overline {\exp}}
 \newcommand{\field}{f}
+\newcommand{\fields}{\overline \field}
 \newcommand{\param}{x}
 \newcommand{\params}{\overline x}
 \newcommand{\prm}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
+\newcommand{\singleprm}{\dir \ \typ \ \param}
+\newcommand{\prms}{\overline {\singleprm}}
+\newcommand{\prmss}{\overline {\prim \dir \ \prim \typ \ \prim \param}}
 \newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
 \newcommand{\pari}[1]{\dir_{#1} \typ_{#1} \typParam_{#1}}
@@ -235,8 +290,8 @@
 \newcommand{\stmt}{\mathit{stmt}}
 \newcommand{\stmts}{\overline \stmt}
 \newcommand{\block}[1]{\{ {#1} \}}
-\newcommand{\ifthen}[2]{\mathit{if}\ {#1}\ \mathit{then}\ {#2}}
-\newcommand{\ifthenelse}[3]{\mathit{if}\ {#1}\ \mathit{then}\ {#2}\ \mathit{else}\ {#3}}
+\newcommand{\ifthen}[2]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}\ \mathsf{else}\ {#3}}
 \newcommand{\dcl}{\mathit{dcl}}
 \newcommand{\kind}{k}
 \newcommand{\ret}{\mathit{return}}
@@ -251,6 +306,22 @@
 \newcommand{\names}{\overline \name}
 
 %function helpers
+\newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
+% \typ = \intWidthTyp \width \textOr \bitWidthTyp \width
+\newcommand{\widthInt}[1]{\mathit{width\_int}({#1})}
+%% - $\bothWidthInt {\typ_1} {\typ_2}$ is a helper function that checks if both types are fixed-length signed or unsigned integers. That is, it checks the conditions below and returns $\tr$ if one of them holds:
+%% + $\typ_1 = \typ_2 = \bitWidthTyp \width$
+%% + $\typ_1 = \typ_2 = \intWidthTyp \width$
+%% \newcommand{\bothWidthInt}[2]{\mathit{both\_width\_int}({#1},{#2})}
+%\typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width \textOr \integerTyp
+\newcommand{\isInt}[1]{\mathit{is\_int}({#1})}
+% \left( \typ_1 = \typ_2 = \integerTyp \right) \\
+% \textOr \left( \prim {\typ_1} = \prim {\typ_2} = \bitWidthTyp \width \right) \\
+% \textOr \left( \prim {\typ_1} = \prim {\typ_2} = \intWidthTyp \width \right)
+\newcommand{\bothInt}[2]{\mathit{both\_int}({#1},{#2})}
+\newcommand{\concatCond}[2]{\mathit{concat\_type}({#1},{#2})}
+\newcommand{\divCond}[2]{\mathit{div\_type}({#1},{#2})}
+\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})}
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
 \newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
@@ -271,7 +342,7 @@
 \newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_\env}
 \newcommand{\sat}[1]{\mathit{saturate}({#1})_\env}
 \newcommand{\trans}[2]{\mathit{translate}({#1})_{\env,{#2}}}
-\newcommand{\isValidNestedTyp}[2]{\mathit{is\_valid\_nested\_type}({#1},{#2})_\env}
+\newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\env}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
 \newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
@@ -295,25 +366,29 @@
 \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
 \newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
 \newcommand{\concatList}{++}
+\newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
 
 %fields 
-\newcommand{\isValid}{\mathit{isValid}}
-\newcommand{\apply}{\mathit{apply}}
-\newcommand{\minSizeBits}{\mathit{minSizeInBits}}
-\newcommand{\minSizeBytes}{\mathit{minSizeInBytes}}
-\newcommand{\setValid}{\mathit{setValid}}
-\newcommand{\setInvalid}{\mathit{setInvalid}}
-\newcommand{\pushFront}{\mathit{push\_front}}
-\newcommand{\popFront}{\mathit{pop\_front}}
-\newcommand{\sizeFlag}{\mathit{size}}
-\newcommand{\lastIndex}{\mathit{lastIndex}}
-\renewcommand{\next}{\mathit{next}}
-\newcommand{\last}{\mathit{last}}
+\newcommand{\isValid}{\mathsf{isValid}}
+\newcommand{\apply}{\mathsf{apply}}
+\newcommand{\minSizeBits}{\mathsf{minSizeInBits}}
+\newcommand{\minSizeBytes}{\mathsf{minSizeInBytes}}
+\newcommand{\setValid}{\mathsf{setValid}}
+\newcommand{\setInvalid}{\mathsf{setInvalid}}
+\newcommand{\pushFront}{\mathsf{push\_front}}
+\newcommand{\popFront}{\mathsf{pop\_front}}
+\newcommand{\sizeMem}{\mathsf{size}}
+\newcommand{\lastIndex}{\mathsf{lastIndex}}
+\renewcommand{\next}{\mathsf{next}}
+\newcommand{\last}{\mathsf{last}}
 
 
 %kinds
-\newcommand{\builtin}{\mathit{builtin}}
-\newcommand{\actionKind}{\mathit{action}}
+\newcommand{\builtin}{\mathsf{builtin}}
+\newcommand{\actionKind}{\mathsf{action}}
+
+%keywords
+\newcommand{\newtypKey}{\mathsf{newtype}}
 
 %types:
 \newcommand{\bitWidthTyp}[1]{\mathsf{bit}\langle{#1}\rangle}
@@ -332,18 +407,23 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTyp}{\mathsf{enum}\ {\typ}\ {\name}\{\name_1,\ldots,\name_n\}}
-\newcommand{\enumTypNoTyp}{\mathsf{enum} \ {\name}\{\name_1,\ldots,\name_n\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\name}\ \{\names\}}
+\newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
+\newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\names\}}
+\newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTyp}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 \newcommand{\recordTypp}[2]{\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
 \newcommand{\recordTyps}{\{\overline {\field : \typ}\}}
+\newcommand{\recordTypss}[2]{\{\overline {{#1} : {#2}}\}}
 \newcommand{\headerUnionTyp}[2]{\recordTyp {#1} {#2}}
 \newcommand{\headerTyp}[2]{\recordTyp {#1} {#2}}
 \newcommand{\structTyp}[2]{\recordTyp {#1} {#2}}
+\newcommand{\headerTyps}[2]{\recordTypss {#1} {#2}}
 \newcommand{\headerTypp}[2]{\recordTypp {#1} {#2}}
 \newcommand{\structTypp}[2]{\recordTypp {#1} {#2}}
 \newcommand{\structTypDef}{\recordTypDef}
+\newcommand{\structTyps}[2]{\recordTypss {#1} {#2}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
 %% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
@@ -351,11 +431,11 @@
 %% \newcommand{\structTypDef}{\structTyp 1 n}
 %% \newcommand{\structTyp}[2]{\mathit{struct}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
 %% \newcommand{\structTypp}[2]{\mathit{struct}\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
-\newcommand{\newTypeTyp}[2]{{#1}\ {#2}}
-\newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\langle{#2}\rangle ({#3})}
+\newcommand{\newTypeTyp}[2]{\newtypKey \ {#1}\ {#2}}
+\newcommand{\funcTyp}[3]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})}
 \newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
-\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\langle{#2}\rangle ({#3})\rightarrow {#4}}
+\newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})\rightarrow {#4}}
 \newcommand{\constructorTyp}[4]{{#1}\  {#2}\ \langle{#3}\rangle\ ({#4}, \_)}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle{#2}\rangle}
@@ -368,9 +448,9 @@
 \newcommand{\unitTyp}{()}
 
 %directions:
-\newcommand{\less}{\mathit{directionless}}
+\newcommand{\less}{\mathsf{directionless}}
 \newcommand{\dir}{d}
 \newcommand{\dirs}{\overline \dir}
-\newcommand{\inDir}{\mathit{in}}
-\newcommand{\out}{\mathit{out}}
-\newcommand{\inout}{\mathit{in\_out}}
+\newcommand{\inDir}{\mathsf{in}}
+\newcommand{\out}{\mathsf{out}}
+\newcommand{\inout}{\mathsf{in\_out}}

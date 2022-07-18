@@ -28,8 +28,8 @@ fn main() {
         // Axiom U2
         rw!("if-flip-fwd"; "(if ?b ?e ?f)" =>
                            "(if (not ?b) ?f ?e)"),
-        rw!("if-flip-rev"; "(if (not ?b) ?y ?x)" =>
-                           "(if ?b ?x ?y)"),
+        rw!("if-flip-rev"; "(if (not ?b) ?f ?e)" =>
+                           "(if ?b ?e ?f)"),
         // Axiom U3
         rw!("if-assoc-fwd"; "(if ?c (if ?b ?e ?f) ?g)" =>
                             "(if (and ?b ?c) ?e (if ?c ?f ?g))"),
@@ -37,8 +37,8 @@ fn main() {
                             "(if ?c (if ?b ?e ?f) ?g)"),
         // Axiom U4
         rw!("test-if-fwd"; "(if ?b ?e ?f)" =>
-                           "(if (seq ?b ?e) ?f)"),
-        rw!("test-if-rev"; "(if (seq ?b ?e) ?f)" =>
+                           "(if ?b (seq ?b ?e) ?f)"),
+        rw!("test-if-rev"; "(if ?b (seq ?b ?e) ?f)" =>
                            "(if ?b ?e ?f)"),
         // Axiom U5
         rw!("distr-seq-if-rev"; "(seq (if ?b ?e ?f) ?g)" =>

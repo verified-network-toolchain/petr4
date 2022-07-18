@@ -16,7 +16,7 @@
 %{
 module Petr4 = struct end
 open Surface
-open Core_kernel
+open Core
 open Context
 open P4string
 

@@ -5,7 +5,7 @@ open P4string
 
 (* hack *)
 module Petr4Error = Error
-open Core_kernel
+open Core
 open Petr4Error
 module Error = Petr4Error
 let (=) = Stdlib.(=)

@@ -433,12 +433,12 @@ Section Lemmas.
                  uninit_sval_of_typ b t >>| pair x)
               xts))
       as [xvs |] eqn:Hxvs; cbn in *;
-        unfold option_bind in *;
-        try discriminate; some_inv;
-    econstructor;
-      try (epose proof AListUtil.key_unique_map_values as Hmv;
+      unfold option_bind in *;
+      try discriminate; some_inv;
+      econstructor;
+      try (epose proof AListUtil.key_unique_map_values (K := P4String.t tags_t) as Hmv;
            unfold AListUtil.map_values in Hmv; rewrite Hmv; clear Hmv; assumption);
-    unfold AList.all_values;
+      unfold AList.all_values;
       rewrite <- Forall2_sequence_iff in Hxvs;
       rewrite Forall2_conj;
     rewrite Forall2_map_both with (f:=fst) (g:=fst);

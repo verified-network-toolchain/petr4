@@ -697,7 +697,7 @@ Section Lemmas.
     | Uxts: AList.key_unique _ = true
       |- _ => intros xts' IHxts' Hxts';
             injection Hxts' as ?; subst;
-            epose proof AListUtil.key_unique_map_values as Hmv;
+            epose proof AListUtil.key_unique_map_values (K := P4String.t tags_t) as Hmv;
             unfold AListUtil.map_values in Hmv;
             rewrite Hmv in Uxts; clear Hmv;
             constructor; auto;
@@ -737,20 +737,16 @@ Section Lemmas.
         | X t ms Ht IHt (* senum *)
         | X (* name *)
         | X t Ht IHt (* newtype *)
-        ] using my_is_expr_typ_ind; auto 3.
-    - bruh.
-      intros ty w IHty H.
-      inversion H; subst; auto.
-    - bruh.
-      intros Y t' l IHt' Ht'.
+        ] using my_is_expr_typ_ind; auto 3; bruh.
+    - intros ty w IHty H; inv H; auto.
+    - intros Y t' l IHt' Ht'.
       injection Ht' as ? ? ?; subst.
       destruct t' as [t |]; cbn in *; try discriminate; auto.
-    - bruh.
-      intros Y t' l IHt' Ht'.
+    - intros Y t' l IHt' Ht'.
       injection Ht' as ? ? ?; subst.
       inversion IHt'; subst;
         cbn in *; try discriminate; auto.
-      inversion H0; subst; auto.
+      some_inv; auto.
   Qed.
 
   Definition uninit_sval_of_typ_norm_def (t : typ) :=

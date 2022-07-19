@@ -400,24 +400,33 @@ Section Lemmas.
   Local Hint Constructors Eq_type : core.
   Local Hint Constructors predop : core.
 
-  Ltac rw_Forall_map H :=
-    pose proof Forall_map (@Eq_type tags_t) normᵗ as H';
-    unfold "∘" in H'; rewrite <- H' in H; clear H'.
-  
   Lemma Eq_type_normᵗ : forall t : typ,
       Eq_type t -> Eq_type (normᵗ t).
   Proof.
     intros t H; induction H using my_Eq_type_ind;
-      cbn in *; auto;
-        try match goal with
-            | H: Forall ((fun t : typ => Eq_type (normᵗ t)) ∘ snd) ?xts
-              |- context [map (fun '(x, t) => (x, normᵗ t)) ?xts]
-              => constructor;
-                  rewrite <- Forall_map with (g:=snd) in *;
-                  rewrite map_snd_map; rw_Forall_map H; assumption
-            end.
+      cbn in *; try (constructor; rewrite Forall_forall in *; eauto).
     - inversion H0; subst; cbn in *; auto.
-    - rw_Forall_map H0; auto.
+    - intros.
+      apply in_map_iff in H1.
+      destruct H1, x0; intuition.
+      subst.
+      firstorder.
+    - intros.
+      apply in_map_iff in H1.
+      destruct H1, x0; intuition.
+      subst.
+      firstorder.
+    - intros.
+      apply in_map_iff in H1.
+      destruct H1, x0; intuition.
+      subst.
+      firstorder.
+    - intros.
+      apply in_map_iff in H1.
+      destruct H1; intuition.
+      subst.
+      firstorder.
+    - now constructor.
   Qed.
 
   Local Hint Resolve Eq_type_normᵗ : core.
@@ -621,7 +630,8 @@ Section Lemmas.
   Ltac alist_idem :=
     intros xts Hxts; f_equal;
     pose proof Forall_map
-         (fun t => normᵗ (normᵗ t) = normᵗ t) snd xts
+         snd
+         (fun t => normᵗ (normᵗ t) = normᵗ t) xts
       as H; unfold Basics.compose in H;
     rewrite <- H in Hxts; clear H;
     apply map_ext_Forall in Hxts;

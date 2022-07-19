@@ -236,36 +236,22 @@ Section Lemmas.
       generalize dependent ge.
     induction Ht using my_Eq_type_ind;
       intros ge r Hget; cbn in *;
-        autounfold with option_monad in *; cbn in *;
-          repeat match_some_inv; some_inv; eauto;
-            try match goal with
-                | IH: Forall
-                        ((fun t => forall ge r,
-                              get_real_type ge t = Some r -> Eq_type r) ∘ snd)
-                        ?xts,
-                      H: sequence (map (fun '(_,_) => _) ?xts) = Some ?xrs
-                  |- _ => constructor; rewrite <- Forall_map in *;
-                          rewrite Forall_forall in IH;
-                          specialize IH with (ge:=ge);
-                          rewrite <- Forall_forall in IH;
-                          apply f_equal with (f := lift_monad (map snd)) in H;
-                          rewrite sequence_map in H;
-                          epose proof map_lift_monad_snd_map
-                                _ _ _ (get_real_type ge) as Hmsm;
-                          unfold ">>|" at 2 in Hmsm;
-                          unfold ">>=",option_monad_inst,option_bind in Hmsm;
-                          rewrite Hmsm in H; clear Hmsm; cbn in H;
-                            rewrite <- Forall2_sequence_iff,
-                            <- ForallMap.Forall2_map_l in H;
-                            eauto using Forall2_Forall_impl_Forall; assumption
-                end.
-    - inversion H0; subst; eauto.
-    - rewrite Forall_forall in H0.
-      specialize H0 with (ge:=ge).
-      rewrite <- Forall_forall in H0.
-      rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l in Heqo.
-      eauto using Forall2_Forall_impl_Forall.
-  Qed.
+      try solve [autounfold with option_monad in *; cbn in *;
+                 repeat match_some_inv; some_inv; eauto].
+    - autounfold with option_monad in *; cbn in *;
+        repeat match_some_inv; some_inv; eauto.
+      inversion H0; subst; eauto.
+    - unfold option_bind at 1 in Hget.
+      match_some_inv.
+      some_inv.
+      constructor.
+      apply sequence_Forall2 in Heqo.
+      pose proof (Heql := Heqo).
+      admit.
+    - admit.
+    - admit.
+    - admit.
+  Admitted.
 
   Local Hint Resolve Eq_type_get_real_type : core.
   
@@ -328,7 +314,7 @@ Section Lemmas.
                   Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
                   Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
                   |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
-                          rewrite <- Forall_map in IH;
+                          rewrite <- (fun A B (P: B -> Prop) (f: A -> B) => @Forall_map A B f P) in IH;
                           rewrite Forall2_conj in Hxv1s,Hxv2s;
                           destruct Hxv1s as [Hfstv1s Hsndv1s];
                           destruct Hxv2s as [Hfstv2s Hsndv2s];
@@ -367,6 +353,9 @@ Section Lemmas.
                                     rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
                 end.
     - inversion H0; subst; eauto.
+    - admit.
+    - admit.
+    - admit.
     - rewrite Forall2_flip in H3,H4.
       eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
       assert (Hlenvsvs0 : length vs = length vs0)
@@ -388,7 +377,7 @@ Section Lemmas.
       assert (Hlen' : length vs1 = length vs2) by lia.
       pose proof IHvs1 H2 _ H4 Hlen' as [b' Hb'];
         rewrite Hb'; clear IHvs1 H2 H4 Hlen' Hb'; eauto.
-  Qed.
+  Admitted.
 
   Local Hint Resolve eval_binary_op_eq_ex : core.
 

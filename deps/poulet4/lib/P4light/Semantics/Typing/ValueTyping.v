@@ -395,7 +395,7 @@ Section Lemmas.
             rewrite map_map;
             epose proof uninit_sval_of_typ_norm as H';
             unfold uninit_sval_of_typ_norm_def in H'.
-      specialize H' with (b0 := b);
+      specialize H' with (b := b);
         rewrite map_ext with
             (f := fun x => uninit_sval_of_typ b (normᵗ x))
             (g := uninit_sval_of_typ b) by auto;

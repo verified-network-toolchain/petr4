@@ -31,9 +31,9 @@ module Conf: Parse_config = struct
         (["cc"] @
          (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
           ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Unix.open_process_in cmd in
+    let in_chan = Core_unix.open_process_in cmd in
     let str = In_channel.input_all in_chan in
-    let _ = Unix.close_process_in in_chan in
+    let _ = Core_unix.close_process_in in_chan in
     str
 end
 
@@ -153,4 +153,4 @@ let command =
       "run", eval_command;
       "stf", stf_command ]
 
-let () = Command.run ~version: "0.1.2" command
+let () = Command_unix.run ~version: "0.1.2" command

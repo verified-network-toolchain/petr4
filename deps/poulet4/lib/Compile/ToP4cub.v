@@ -328,11 +328,11 @@ Section ToP4cub.
   Definition cub_type_of_enum (members : list (P4String.t tags_t)) :=
     E.TBit (Npos (pos (width_of_enum members))).
 
-  Definition realize_array_index (e : @Expression tags_t) : result Z :=
+  Definition realize_array_index (e : @Expression tags_t) : result nat :=
     match e with
     | MkExpression _ (ExpInt z) _ _  =>
       (*TODO Do we have to do some normalizaztion here?*)
-      ok (z.(value))
+      ok (BinInt.Z.abs_nat z.(value))
     | _ =>
       error "Array Indices must be literals"
     end.
@@ -495,8 +495,6 @@ Section ToP4cub.
   Section TranslateUnderTypeParams.
     Variable typ_names : list string.
 
-    Search (forall (x y : string), {x = y} + {x <> y}).
-
     Fixpoint
       translate_exp_type
       (typ : @P4Type tags_t) {struct typ} : result E.t :=
@@ -585,109 +583,123 @@ Section ToP4cub.
       | TypConstructor _ _ _ _ =>
           error "A type constructor is not an expression"
       end.
+
+    Section Expressions.
+      Variable term_names : list string.
+
+      Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result (E.e) :=
+        let '(MkExpression i e_pre typ dir) := e in
+        match e_pre with
+        | ExpBool b =>
+            ok (E.Bool b)
+        | ExpInt z =>
+            match z.(width_signed) with
+            | Some (w, b) =>
+                if b then
+                  ok (E.Int (posN w) z.(value))
+                else
+                  ok (E.Bit w z.(value))
+            | None =>
+                error
+                  ("[FIXME] integer didnt have a width: "
+                     ++ string_of_nat (BinInt.Z.to_nat z.(value)))
+            end
+        | ExpString _ =>
+            (* [FIXME] strings need to be compiled away *)
+            ok (E.Bool false)
+        | ExpName name loc =>
+            match name with
+            | BareName {| P4String.str := x |} =>
+                let* x :=
+                  Result.from_opt
+                    (ListUtil.index_of string_dec x term_names)
+                    ("Unbound name " ++ x) in
+                let+ cub_type := translate_exp_type typ in
+                E.Var cub_type x
+            | QualifiedName namespaces name =>
+                error "Qualified names should be eliminated"
+            end
+        | ExpArrayAccess array index =>
+            let* cub_typ := translate_exp_type typ in
+            let* stck := translate_expression array in
+            let~ index := realize_array_index index over "Failed to realize array index" in
+            ok (E.Member cub_typ index stck)
+        | ExpBitStringAccess bits lo hi =>
+            let* typ := translate_exp_type (get_type_of_expr bits) in
+            let+ e := translate_expression bits in
+            (* Positive doesnt let you represent 0, so increase each by one*)
+            (* Make sure to check ToGCL.to_rvalue when changing *)
+            E.Slice e (posN (BinNatDef.N.succ hi)) (posN (BinNatDef.N.succ lo))
+        | ExpList values =>
+            let+ cub_values :=
+              values
+                ▷ List.map translate_expression
+                ▷ sequence in
+            E.Struct cub_values None
+        | ExpRecord entries =>
+            let+ cub_entries :=
+              entries
+                ▷ List.map (fun '(_,expr) => translate_expression expr)
+                ▷ sequence in
+            E.Struct cub_entries None
+        | ExpUnaryOp op arg =>
+            let eop := translate_op_uni op in
+            let* typ := translate_exp_type typ in
+            let+ earg := translate_expression arg in
+            E.Uop typ eop earg
+        | ExpBinaryOp op e1 e2 =>
+            let* typ' := translate_exp_type typ in
+            let* e1' := translate_expression e1 in
+            let* e2' := translate_expression e2 in
+            let+ eop := translate_op_bin op in
+            E.Bop typ' eop e1' e2'
+        | ExpCast typ expr =>
+            let* expr' := translate_expression expr in
+            let+ typ' := translate_exp_type typ in
+            E.Cast typ' expr'
+        | ExpTypeMember _ name =>
+            match typ with
+            | TypEnum _ _ members =>
+                let w := width_of_enum members in
+                let+ n := get_enum_id members name in
+                E.Bit (Npos (pos w)) (BinIntDef.Z.of_nat n)
+            | _ =>
+                error "Type Error. Type Member had non-enum type"
+            end
+        | ExpErrorMember str =>
+            ok (E.Error (P4String.str str))
+        | ExpExpressionMember expr {| P4String.str := name |} =>
+            let* cub_type := translate_exp_type typ in
+            match get_type_of_expr expr with
+            | TypRecord fs
+            | TypHeader fs
+            | TypStruct fs =>
+                let keys := List.map (P4String.str ∘ fst) fs in
+                let* index :=
+                  Result.from_opt
+                    (ListUtil.index_of string_dec name keys)
+                    ("TypeError:: member field missing " ++ name) in
+                let+ cub_expr := translate_expression expr in
+                E.Member cub_type index cub_expr
+            | _ =>
+                error
+                  ("TypeError :: Member expression requires a field type.")
+            end
+        | ExpTernary cond tru fls =>
+            error "Ternary expressions should have been hoisted by a previous pass"
+        | ExpFunctionCall func type_args args =>
+            error "Function Calls should have been hoisted by a previous pass"
+        | ExpNamelessInstantiation typ args =>
+            error "Nameless Intantiations should have been hoisted by a previous pass"
+        | ExpDontCare =>
+            error "[FIXME] These are actually patterns (unimplemented)"
+                  (* | ExpMask expr mask => *)
+                  (*   error "[FIXME] actually patterns (unimplemented)" *)
+                  (* | ExpRange lo hi => *)
+                  (*   error "[FIXME] actually patterns (unimplemented)" *)
+        end.
+    End Expressions.
     
-    Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result (E.e) :=
-      let '(MkExpression i e_pre typ dir) := e in
-    match e_pre with
-    | ExpBool b =>
-      ok (E.EBool b i)
-    | ExpInt z =>
-      match z.(width_signed) with
-      | Some (w, b) =>
-        if b then
-          ok (E.EInt (posN w) z.(value) z.(tags))
-        else
-          ok (E.EBit w z.(value) z.(tags))
-      | None => error ("[FIXME] integer didnt have a width: " ++ string_of_nat (BinInt.Z.to_nat z.(value)))
-      end
-    | ExpString _ =>
-      (* [FIXME] strings need to be compiled away *)
-      ok (E.EBool false i)
-    | ExpName name loc =>
-      match name with
-      | BareName str =>
-        let+ cub_type := translate_exp_type i typ in
-        E.EVar cub_type (P4String.str str) i
-      | QualifiedName namespaces name =>
-        error "Qualified names should be eliminated"
-      end
-    | ExpArrayAccess array index =>
-      let* stck := translate_expression array in
-      let* type := translate_exp_type i (get_type_of_expr array) in
-      match type with
-      | E.THeaderStack fs _ =>
-        let~ index := realize_array_index index over "Failed to realize array index" in
-        ok (E.EHeaderStackAccess fs stck index i)
-      | _ =>
-        error "translated type of array access is not a headerstack type"
-      end
-    | ExpBitStringAccess bits lo hi =>
-      let* typ := translate_exp_type i (get_type_of_expr bits) in
-      let+ e := translate_expression bits in
-      (* Positive doesnt let you represent 0, so increase each by one*)
-      (* Make sure to check ToGCL.to_rvalue when changing *)
-      E.ESlice e (posN (BinNatDef.N.succ hi)) (posN (BinNatDef.N.succ lo)) i
-    | ExpList values =>
-      let f := fun res_rst v =>
-                 let* cub_v := translate_expression v in
-                 let+ rst := res_rst in
-                 cub_v :: rst in
-      let+ cub_values := fold_left f values (ok []) in
-      E.ETuple (rev' cub_values) i
-    | ExpRecord entries =>
-      let f := fun res_rst kv =>
-                 let '(nm,expr) := kv in
-                 let* type := translate_exp_type i (get_type_of_expr expr) in
-                 let* expr := translate_expression expr in
-                 let+ rst := res_rst in
-                 (P4String.str nm, expr) :: rst in
-      let+ cub_entries := fold_left f entries (ok []) in
-      E.EStruct (rev' cub_entries) i
-    | ExpUnaryOp op arg =>
-      let eop := translate_op_uni op in
-      let* typ := translate_exp_type i (get_type_of_expr arg) in
-      let+ earg := translate_expression arg in
-      E.EUop typ eop earg i
-    | ExpBinaryOp op e1 e2 =>
-      let* typ' := translate_exp_type i typ in
-      let* e1' := translate_expression e1 in
-      let* e2' := translate_expression e2 in
-      let+ eop := translate_op_bin op in
-      E.EBop typ' eop e1' e2' i
-    | ExpCast typ expr =>
-      let* expr' := translate_expression expr in
-      let+ typ' := translate_exp_type i typ in
-      E.ECast typ' expr' i
-    | ExpTypeMember _ name =>
-      match typ with
-      | TypEnum _ _ members =>
-        let w := width_of_enum members in
-        let+ n := get_enum_id members name in
-        E.EBit (Npos (pos w)) (BinIntDef.Z.of_nat n) i
-      | _ =>
-        error "Type Error. Type Member had non-enum type"
-      end
-
-    | ExpErrorMember str =>
-      ok (E.EError (Some (P4String.str str)) i)
-    | ExpExpressionMember expr name =>
-      let* cub_type := translate_exp_type i (get_type_of_expr expr) in
-      let+ cub_expr := translate_expression expr in
-      E.EExprMember cub_type (P4String.str name) cub_expr i
-    | ExpTernary cond tru fls =>
-      error "Ternary expressions should have been hoisted by a previous pass"
-    | ExpFunctionCall func type_args args =>
-      error "Function Calls should have been hoisted by a previous pass"
-    | ExpNamelessInstantiation typ args =>
-      error "Nameless Intantiations should have been hoisted by a previous pass"
-    | ExpDontCare =>
-      error "[FIXME] These are actually patterns (unimplemented)"
-    (* | ExpMask expr mask => *)
-    (*   error "[FIXME] actually patterns (unimplemented)" *)
-    (* | ExpRange lo hi => *)
-    (*   error "[FIXME] actually patterns (unimplemented)" *)
-    end.
-
   Definition translate_return_type (tags : tags_t) (ret : @P4Type tags_t) :=
     match ret with
     | TypVoid => ok None
@@ -743,8 +755,8 @@ Section ToP4cub.
       (* TODO make this an EExprMember *)
       match ret_var, ret_type with
       | Some rv, Some rt =>
-        let switch_expr := E.EVar rt rv tags in
-        let action_run_var := E.EVar rt ("_return$" ++ callee_string) tags in
+        let switch_expr := E.Var rt rv tags in
+        let action_run_var := E.Var rt ("_return$" ++ callee_string) tags in
         ST.Seq (ST.Invoke callee_string tags)
                 (ST.Assign switch_expr action_run_var tags) tags
       | _, _ =>
@@ -766,8 +778,8 @@ Section ToP4cub.
     match retvar with
     | None => error "IsValid has no return value"
     | Some rv =>
-      ok (ST.Assign (E.EVar E.TBool rv tags)
-                     (E.EUop E.TBool E.IsValid hdr tags)
+      ok (ST.Assign (E.Var E.TBool rv tags)
+                     (E.Uop E.TBool E.IsValid hdr tags)
                      tags)
     end.
 
@@ -847,7 +859,7 @@ Section ToP4cub.
     let* paramargs := translate_application_args tags (P4String.str fname) parameters args in
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
-    let cub_ret := option_map (fun t => (E.EVar t ret_var tags)) ret_typ in
+    let cub_ret := option_map (fun t => (E.Var t ret_var tags)) ret_typ in
     let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
     ST.FunCall (P4String.str fname) cub_type_params cub_ar tags.
 
@@ -875,12 +887,12 @@ Section ToP4cub.
     (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
     let '(cond_opt, ifthen) := acc in
     (* Force the agggregated conditional to be a boolean *)
-    let acc_cond := fun tags => SyntaxUtil.force (E.EBool false tags) cond_opt in
+    let acc_cond := fun tags => SyntaxUtil.force (E.Bool false tags) cond_opt in
     (* Build the case match by building the label index check and or-ing the aggregated conditional *)
     let case_match := fun tags label =>
                         let+ val := get_label_index tenum label in
-                        let mtch := E.EBop E.TBool E.Eq match_expr (E.EBit bits val tags) tags in
-                        E.EBop E.TBool E.Or (acc_cond tags) mtch tags in
+                        let mtch := E.Bop E.TBool E.q match_expr (E.Bit bits val tags) tags in
+                        E.Bop E.TBool E.Or (acc_cond tags) mtch tags in
     (* check the cases *)
     match ssw with
     | StatSwCaseAction tags label block =>
@@ -981,7 +993,7 @@ Section ToP4cub.
         match function_call_init ctx e vname t with
         | None =>  (** check whether e is a function call *)
           let+ cub_e := translate_expression e in
-          let var := E.EVar t vname i in
+          let var := E.Var t vname i in
           let assign := ST.Assign var cub_e i in
           ST.Seq decl assign i
         | Some s =>
@@ -1105,7 +1117,7 @@ Section ToP4cub.
       let* type_expr_list := rred (List.map (translate_expression_and_type tags) exprs) in
       let expr_list := List.map snd type_expr_list in
       let+ (default, cub_cases) := translate_cases tags cases in
-      Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
+      Parser.PSelect (E.Tuple expr_list tags) default cub_cases tags
     end.
 
   Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
@@ -1152,7 +1164,7 @@ Section ToP4cub.
     List.fold_right (fun '((str, typ), e) (acc_r : result (E.constructor_args tags_t)) =>
                        let* acc := acc_r in
                        match e with
-                       | E.EVar (E.TVar s) nm _ =>
+                       | E.Var (E.TVar s) nm _ =>
                          if String.eqb s "$DUMMY"
                          then ok ((str, E.CAName nm)::acc)
                          else ok ((str, E.CAExpr e)::acc)

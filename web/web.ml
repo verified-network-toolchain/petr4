@@ -16,7 +16,7 @@
 
 open Petr4.Common
 open Js_of_ocaml
-open Core_kernel
+open Core
 
 exception ParsingError of string
 

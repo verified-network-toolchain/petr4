@@ -1,6 +1,6 @@
 module I = Info
 open Util
-open Core_kernel
+open Core
 module Info = I
 
 open Typed
@@ -1876,7 +1876,7 @@ end = struct
 
     (* TODO: for the purpose of testing expressions and simple statements only*)
     let print_env (e:t) : unit =
-      let open Core_kernel in
+      let open Core in
       print_endline "First environment value mappings:";
       let f (name, value) =
         print_string "     ";

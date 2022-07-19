@@ -2,11 +2,11 @@
   (public_name petr4)
   (name main)
   (modules common main)
-  (libraries ANSITerminal core p4pp petr4 p4stf alcotest)
-  (preprocess (pps ppx_jane -allow-unannotated-ignores)))
+  (libraries ANSITerminal core core_unix core_unix.command_unix p4pp petr4 p4stf alcotest)
+  (preprocess (pps ppx_jane)))
 
 (executable
   (name test)
   (modules test)
-  (libraries ANSITerminal core p4pp petr4 p4stf alcotest)
-  (preprocess (pps ppx_jane -allow-unannotated-ignores)))
+  (libraries ANSITerminal core core_unix core_unix.command_unix p4pp petr4 p4stf alcotest)
+  (preprocess (pps ppx_jane)))

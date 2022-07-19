@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open StdLabels
 open List
 open Util

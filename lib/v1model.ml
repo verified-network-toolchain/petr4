@@ -6,7 +6,7 @@ open Target
 open Error
 module I = Info
 module H = Hash
-open Core_kernel
+open Core
 module Info = I
 module Hash = H
 

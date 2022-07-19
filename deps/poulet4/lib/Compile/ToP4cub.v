@@ -395,16 +395,15 @@ Section ToP4cub.
 
   Definition
     apply_arg_to_param
-    (x : string * paramarg E.t E.t * E.e)
-    (acc : result (Field.fs string (paramarg (E.e) (E.e))))
-    : result (Field.fs string (paramarg (E.e) (E.e))) :=
-    let '(name, typ, exp) := x in
+    '((typ, exp) : paramarg E.t E.t * E.e)
+    (acc : result (list (paramarg E.e E.e)))
+    : result (list (paramarg E.e E.e)) :=
     let+ fs := acc in
     match typ with
-    | PAIn _ => (name, PAIn exp) :: fs
-    | PAOut _ => (name, PAOut exp) :: fs
-    | PAInOut _ => (name, PAInOut exp) :: fs
-    end.
+    | PAIn _ => PAIn exp
+    | PAOut _ => PAOut exp
+    | PAInOut _ => PAInOut exp
+    end :: fs.
 
   Definition paramarg_fst {A B C : Set} (p : paramarg (A * B) (A * C)) : A :=
     match p with
@@ -415,8 +414,8 @@ Section ToP4cub.
 
   Fixpoint
     apply_args_to_params
-    (f_str : string) (params : Field.fs string (paramarg E.t E.t))
-    (args : list (option (E.e))) : result (Field.fs string (paramarg (E.e) (E.e))) :=
+    (f_str : string) (params : list (paramarg E.t E.t))
+    (args : list (option E.e)) : result (list (paramarg E.e E.e)) :=
     match params, args with
     | [], [] => ok []
     | [], _ =>
@@ -429,8 +428,8 @@ Section ToP4cub.
              ++ f_str ++ " (" ++ string_of_nat (List.length params) ++ " are missing)")
     | _::params', None::args' =>
         apply_args_to_params f_str params' args'
-    | (p_str,param)::params', (Some arg)::args' =>
-        apply_arg_to_param (p_str, param, arg) (apply_args_to_params f_str params' args')
+    | param::params', (Some arg)::args' =>
+        apply_arg_to_param (param, arg) (apply_args_to_params f_str params' args')
     end.
 
   Fixpoint get_hdr_stack_name (e : Expression) : result string :=
@@ -587,7 +586,7 @@ Section ToP4cub.
     Section Expressions.
       Variable term_names : list string.
 
-      Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result (E.e) :=
+      Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result E.e :=
         let '(MkExpression i e_pre typ dir) := e in
         match e_pre with
         | ExpBool b =>
@@ -698,50 +697,49 @@ Section ToP4cub.
                   (* | ExpRange lo hi => *)
                   (*   error "[FIXME] actually patterns (unimplemented)" *)
         end.
-    End Expressions.
-    
-  Definition translate_return_type (tags : tags_t) (ret : @P4Type tags_t) :=
-    match ret with
-    | TypVoid => ok None
-    | _ =>
-      let+ x := translate_exp_type tags ret in
-      Some x
-    end.
 
-  Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
-    let '(MkParameter opt dir typ default_arg_id var) := parameter in
-    let v_str := P4String.str var in
-    let* t := translate_exp_type tags typ in
-    let+ parg := match dir with
-                  | In => ok (PAIn t)
-                  | Out => ok (PAOut t)
-                  | InOut => ok (PAInOut t)
-                  | Directionless => ok (PADirLess t)
-                  end
-    in
-    (v_str, parg).
+      Definition translate_return_type (tags : tags_t) (ret : @P4Type tags_t) :=
+        match ret with
+        | TypVoid => ok None
+        | _ =>
+            let+ x := translate_exp_type ret in
+            Some x
+        end.
 
-  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result (Field.fs string (paramarg E.t E.t)) :=
-    rred (List.map (parameter_to_paramarg tags) parameters).
+      Definition parameter_to_paramarg
+                 '(MkParameter _ dir typ _ _ : @P4Parameter tags_t)
+        : result (paramarg E.t E.t) :=
+        let+ t := translate_exp_type typ in
+        match dir with
+        | Directionless
+        | In => PAIn t
+        | Out => PAOut t
+        | InOut => PAInOut t
+        end.
 
-  Definition translate_expression_and_type tags e :=
-    let* cub_t := translate_exp_type tags (get_type_of_expr e) in
-    let+ cub_e := translate_expression e in
-    (cub_t, cub_e).
+      Definition parameters_to_params (parameters : list (@P4Parameter tags_t))
+        : result (list (paramarg E.t E.t)) :=
+        rred (List.map (parameter_to_paramarg) parameters).
 
-  Definition translate_arglist: list (option (@Expression tags_t)) -> result (list (option (E.e))):=
-    commute_result_optlist ∘ (list_of_opts_map translate_expression).
+      Definition translate_expression_and_type e :=
+        let* cub_t := translate_exp_type (get_type_of_expr e) in
+        let+ cub_e := translate_expression e in
+        (cub_t, cub_e).
 
-  Definition translate_application_args
-             (tags : tags_t)
-             (callee : string)
-             (parameters : list P4Parameter)
-             (args : list (option (@Expression tags_t))) : result (Field.fs string (paramarg (E.e) (E.e))) :=
-    let* (cub_args : list (option (E.e))) := translate_arglist args in
-    let* (params : Field.fs string (paramarg E.t E.t)) := parameters_to_params tags parameters in
-    apply_args_to_params callee params cub_args.
+      Definition translate_arglist
+        : list (option (@Expression tags_t)) -> result (list (option E.e)):=
+        commute_result_optlist ∘ (list_of_opts_map translate_expression).
 
-  Definition translate_apply tags callee args ret_var ret_type : result (ST.s tags_t) :=
+      Definition translate_application_args
+                 (callee : string)
+                 (parameters : list P4Parameter)
+                 (args : list (option (@Expression tags_t)))
+        : result (list (paramarg E.e E.e)) :=
+        let* (cub_args : list (option E.e)) := translate_arglist args in
+        let* (params : list (paramarg E.t E.t)) := parameters_to_params parameters in
+        apply_args_to_params callee params cub_args.
+
+  Definition translate_apply tags callee args ret_var ret_type : result ST.s :=
     let typ := get_type_of_expr callee in
     match typ with
     | TypControl (MkControlType type_params parameters) =>
@@ -811,7 +809,7 @@ Section ToP4cub.
              (callee : Expression)
              (ret_var : option string)
              (ret_type : option E.t)
-             (f : P4String.t tags_t) : result (ST.s tags_t) :=
+             (f : P4String.t tags_t) : result ST.s :=
     let f_str := P4String.str f in
     if f_str =? "apply" then
       translate_apply tags callee args ret_var ret_type
@@ -850,12 +848,12 @@ Section ToP4cub.
         let* hdr_stack_name := get_hdr_stack_name callee in
         let+ cub_type := translate_exp_type tags typ in
         let st_op := ST.HeaderStackOp hdr_stack_name cub_type op (posN n) tags in
-        @FunUtil.n_compose (ST.s tags_t) num_ops (fun s => ST.Seq st_op s tags) (ST.Skip tags)
+        @FunUtil.n_compose ST.s num_ops (fun s => ST.Seq st_op s tags) (ST.Skip tags)
       | _ =>
         error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
 
-  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
+  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result ST.s :=
     let* paramargs := translate_application_args tags (P4String.str fname) parameters args in
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
@@ -863,7 +861,7 @@ Section ToP4cub.
     let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
     ST.FunCall (P4String.str fname) cub_type_params cub_ar tags.
 
-  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result (ST.s tags_t)) :=
+  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result ST.s) :=
     let '(MkExpression tags expr typ dir) := e in
     match expr with
     | ExpFunctionCall func type_args args =>
@@ -882,8 +880,10 @@ Section ToP4cub.
     | _ =>
       None
     end.
+    End Expressions.
+    
 
-  Fixpoint translate_statement_switch_case ctx (match_expr : E.e) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option (E.e)) * (ST.s tags_t -> ST.s tags_t)) (ssw : @StatementSwitchCase tags_t) : result ((option (E.e)) * (ST.s tags_t -> ST.s tags_t)) :=
+  Fixpoint translate_statement_switch_case ctx (match_expr : E.e) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option E.e) * (ST.s -> ST.s)) (ssw : @StatementSwitchCase tags_t) : result ((option E.e) * (ST.s -> ST.s)) :=
     (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
     let '(cond_opt, ifthen) := acc in
     (* Force the agggregated conditional to be a boolean *)
@@ -901,14 +901,14 @@ Section ToP4cub.
       | StatSwLabName tags labname =>
         let* cond := case_match tags labname in
         let* st := translate_block ctx tags block in
-        let else__ifthen : ST.s tags_t -> ST.s tags_t := fun else_ => ST.Conditional cond st else_ tags in
+        let else__ifthen : ST.s -> ST.s := fun else_ => ST.Conditional cond st else_ tags in
         (* The continuation is still "open" *)
         ok (None, ifthen ∘ else__ifthen)
       | StatSwLabDefault tags =>
         let* else_ := translate_block ctx tags block in
         (* in the default case, we throw away the argument because we have the else case, *)
         (* if anything comes after, its dead code *)
-        ok (None, fun (_ : ST.s tags_t) => (ifthen else_ : ST.s tags_t))
+        ok (None, fun (_ : ST.s) => (ifthen else_ : ST.s))
       end
     | StatSwCaseFallThrough tags label =>
       match label with
@@ -918,10 +918,10 @@ Section ToP4cub.
         (* This case doesn't change the continuation but accumulates a condition *)
         (* Note that the accumulation happens automagically in the [case_match function]*)
         let+ cond := case_match tags labname in
-        (Some cond, (ifthen : ST.s tags_t -> ST.s tags_t))
+        (Some cond, (ifthen : ST.s -> ST.s))
       end
     end
-  with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result (ST.s tags_t) :=
+  with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result ST.s :=
     match pre_s with
     | StatMethodCall func type_args args =>
       let '(MkExpression tags func_pre typ dir) := func in
@@ -1004,12 +1004,12 @@ Section ToP4cub.
     | StatInstantiation typ args name init =>
       error "Instantiation statement should not occur"
     end
-  with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result (ST.s tags_t) :=
+  with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result ST.s :=
     match s with
     | MkStatement tags stmt typ =>
       translate_statement_pre_t ctx tags stmt
     end
-  with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result (ST.s tags_t) :=
+  with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result ST.s :=
     match b with
     | BlockEmpty tags =>
       ok (ST.Skip i)
@@ -1120,7 +1120,7 @@ Section ToP4cub.
       Parser.PSelect (E.Tuple expr_list tags) default cub_cases tags
     end.
 
-  Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
+  Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result ST.s :=
     fold_left (fun res_acc s => let* cub_s := translate_statement ctx s in
                                  let+ acc := res_acc in
                                  ST.Seq cub_s acc tags)
@@ -1144,7 +1144,7 @@ Section ToP4cub.
   Definition translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * Field.fs string (Parser.state_block tags_t)) :=
     fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
 
-  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result (E.e) :=
+  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result E.e :=
     match translate_expression arg with
     | Ok _ e =>
       (* try to reuse translation*)
@@ -1158,7 +1158,7 @@ Section ToP4cub.
       end
     end.
 
-  Definition translate_instantiation_args (ps : E.constructor_params) (es : list (E.e)) : result (E.constructor_args tags_t) :=
+  Definition translate_instantiation_args (ps : E.constructor_params) (es : list E.e) : result (E.constructor_args tags_t) :=
     let~ param_args := zip ps es over ("zipping instantiation args failed. there were " ++ string_of_nat (List.length ps) ++ "params and " ++ string_of_nat (List.length es) ++ "args") in
     (* FIXME Something is wrong here. We should be disambiguating here between CAExpr and CAName *)
     List.fold_right (fun '((str, typ), e) (acc_r : result (E.constructor_args tags_t)) =>

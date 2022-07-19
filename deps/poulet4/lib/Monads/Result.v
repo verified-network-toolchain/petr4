@@ -110,4 +110,11 @@ Module Result.
 
   End ResultNotations.
 
+  Import ResultNotations.
+  
+  Definition cons_res {A : Type} (hd_res : result A) (rlist : result (list A)) : result (list A) :=
+    let* l := rlist in
+    let+ hd := hd_res in
+    hd :: l.
+  
 End Result.

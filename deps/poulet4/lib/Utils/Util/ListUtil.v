@@ -267,3 +267,15 @@ Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
 
 Definition intersect_string_list (xs ys : list string) : list string :=
   rev' (intersect_string_list_aux xs ys []).
+
+Section IndexOf.
+  Context {A : Set}.
+  Variable eqA_dec : forall (x y : A), {x = y} + {x <> y}.
+  Variable a : A.
+  
+  Fixpoint index_of (l : list A) : option nat :=
+    match l with
+    | [] => None
+    | h :: t => if eqA_dec h a then Some 0 else option_map S (index_of t)
+    end.
+End IndexOf.

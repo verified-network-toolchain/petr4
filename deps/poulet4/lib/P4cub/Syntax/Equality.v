@@ -114,10 +114,6 @@ End TypeEquivalence.
 Global Instance TypeEqDec : EqDec t eq :=
   { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
 (**[]*)
-End TypeEquivalence.
-  
-Instance TypeEqDec : EqDec t eq :=
-  { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
 
 (** Decidable Expression Equivalence. *)
 Global Instance UopEqDec : EqDec uop eq.
@@ -187,7 +183,6 @@ Section ExprEquivalenceDefs.
   Hint Resolve eqb_reflx : core.
 
   Lemma eqbe_refl : forall exp : e, (exp =? exp)%expr = true.
->>>>>>> 9252317b9 (fixed equality & syntax auxlilary defs)
   Proof.
     intro exp; induction exp using custom_e_ind;
       cbn; autorewrite with core;

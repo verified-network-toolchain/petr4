@@ -228,7 +228,7 @@ Section Embed.
         unfold IntArith.upper_bound in H0.
         rewrite Zdiv.Zmod_small.
         * unfold IntArith.upper_bound.
-          assert (hz: z <? Z.pow 2 (Z.pos w - 1) = true).
+          assert (hz: (z <? Z.pow 2 (Z.pos w - 1))%Z = true).
           { rewrite <- Zbool.Zlt_is_lt_bool. lia. }
           rewrite hz; reflexivity.
         * split; try lia.

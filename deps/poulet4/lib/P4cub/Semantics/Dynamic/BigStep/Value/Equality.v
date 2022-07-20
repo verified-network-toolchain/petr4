@@ -98,6 +98,5 @@ Proof.
   rewrite eqbv_refl in Heqb; discriminate.
 Qed.
 
-#[export]
-Instance ValueEqDec : EqDec v eq :=
+Global Instance ValueEqDec : EqDec v eq :=
   { equiv_dec := fun v1 v2 => reflect_dec _ _ (eqbv_reflect v1 v2) }.

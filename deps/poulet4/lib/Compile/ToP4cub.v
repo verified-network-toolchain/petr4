@@ -740,53 +740,62 @@ Section ToP4cub.
         let* (params : list (paramarg E.t E.t)) := parameters_to_params parameters in
         apply_args_to_params callee params cub_args.
 
-  Definition translate_apply tags callee args ret_var ret_type : result string ST.s :=
+  Definition translate_apply (instance_names : list string) callee args ret_var ret_type : result string ST.s :=
     let typ := get_type_of_expr callee in
     match typ with
     | TypControl (MkControlType type_params parameters) =>
       let* callee_name := get_name callee in
       let callee_name_string := P4String.str callee_name in
-      let+ paramargs := translate_application_args tags callee_name_string parameters args in
-      ST.Apply (P4String.str callee_name) [] paramargs tags
+      let* cub_inst_name :=
+        Result.from_opt
+          (ListUtil.index_of string_dec callee_name_string instance_names)
+          ("TypeError :: instance name " ++ callee_name_string ++ " not found") in
+      let+ paramargs := translate_application_args callee_name_string parameters args in
+      ST.Apply cub_inst_name [] paramargs
     | TypTable _ =>
-      let+ callee_name := get_name callee in
-      let callee_string := P4String.str callee_name in
-      (* TODO make this an EExprMember *)
-      match ret_var, ret_type with
-      | Some rv, Some rt =>
-        let switch_expr := E.Var rt rv tags in
-        let action_run_var := E.Var rt ("_return$" ++ callee_string) tags in
-        ST.Seq (ST.Invoke callee_string tags)
-                (ST.Assign switch_expr action_run_var tags) tags
-      | _, _ =>
-        ST.Invoke callee_string tags
-
-      end
+        let* callee_name := get_name callee in
+        let callee_string := P4String.str callee_name in
+        let+ cub_name :=
+          Result.from_opt
+            (ListUtil.index_of string_dec callee_string term_names)
+            ("TypeError :: name " ++ callee_string ++ "not found.") in
+        (* TODO make this an EExprMember *)
+        match ret_var, ret_type with
+        | Some rv, Some rt =>
+            let switch_expr := E.Var rt rv in
+            let action_run_var := E.Var rt cub_name in
+            (* TODO: lookup keys to make arguments. *)
+            ST.Seq (ST.Invoke callee_string [])
+                   (ST.Assign switch_expr action_run_var)
+        | _, _ =>
+            (* TODO: lookup keys to make arguments. *)
+            ST.Invoke callee_string []
+                      
+        end
     | TypParser _ =>
-      error "[FIXME] translate parser apply calls"
+        error "[FIXME] translate parser apply calls"
     | _ =>
-      error "Error got a type that cannot be applied."
+        error "Error got a type that cannot be applied."
     end.
 
-  Definition translate_set_validity tags v callee :=
+  Definition translate_set_validity v callee :=
     let+ hdr := translate_expression callee in
-    ST.SetValidity hdr v tags.
+    ST.Assign hdr (Expr.Uop Expr.TBool (Expr.SetValidity v) hdr).
 
-  Definition translate_is_valid tags callee retvar :=
+  Definition translate_is_valid callee retvar :=
     let* hdr := translate_expression callee in
     match retvar with
     | None => error "IsValid has no return value"
     | Some rv =>
-      ok (ST.Assign (E.Var E.TBool rv tags)
-                     (E.Uop E.TBool E.IsValid hdr tags)
-                     tags)
+      ok (ST.Assign (E.Var E.TBool rv)
+                    (E.Uop E.TBool E.IsValid hdr))
     end.
 
-  Definition translate_extern_string (tags : tags_t) (ctx : DeclCtx) (extern_str f_str : string) args :=
+  Definition translate_extern_string (ctx : DeclCtx) (extern_str f_str : string) args :=
     let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
     match extern_decl with
     | None => error ("ERROR expected an extern, but got " ++ extern_str)
-    | Some (TopDecl.Extern extn_name tparams cparams methods i) =>
+    | Some (TopDecl.Extern extn_name tparams cparams methods) =>
       let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
       match called_method with
       | None =>
@@ -794,10 +803,10 @@ Section ToP4cub.
       | Some (_, (targs, ar)) =>
         let params := paramargs ar in
         let* cub_args := translate_arglist args in
-        let+ paramargs := apply_args_to_params f_str params cub_args in
+        let+ args := apply_args_to_params f_str params cub_args in
         (* TODO Currently assuming method calls return None*)
-        let args : E.arrowE tags_t := {|paramargs:=paramargs; rtrns:=None|} in
-        ST.ExternMethodCall extern_str f_str [] args tags
+        (* TODO: need to find extern instance name *)
+        ST.Call (ST.Method 0 f_str [] None) args
       end
     | Some _ =>
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
@@ -805,7 +814,6 @@ Section ToP4cub.
 
     Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
-             (tags : tags_t)
              (ctx : DeclCtx)
              (callee : Expression)
              (ret_var : option string)

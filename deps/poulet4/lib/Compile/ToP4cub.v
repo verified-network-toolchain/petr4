@@ -811,7 +811,7 @@ Section ToP4cub.
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
     end.
 
-    Definition translate_expression_member_call
+  Definition translate_expression_member_call
              (args : list (option (@Expression tags_t)))
              (ctx : DeclCtx)
              (callee : Expression)

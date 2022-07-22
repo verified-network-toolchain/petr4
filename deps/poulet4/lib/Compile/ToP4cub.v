@@ -10,9 +10,11 @@ From Poulet4 Require Export
      P4cub.Syntax.Syntax
      P4cub.Syntax.Substitution
      P4cub.Syntax.InferMemberTypes
+     P4cub.Syntax.HeaderStack
      Monads.Result
      (*P4cub.Semantics.Dynamic.BigStep.InstUtil*).
 Import AST Result Envn ResultNotations.
+From Coq Require Import ZArith.BinInt.
 
 Require Import String.
 Open Scope string_scope.
@@ -621,9 +623,13 @@ Section ToP4cub.
             end
         | ExpArrayAccess array index =>
             let* cub_typ := translate_exp_type typ in
-            let* stck := translate_expression array in
-            let~ index := realize_array_index index over "Failed to realize array index" in
-            ok (E.Member cub_typ index stck)
+            match cub_typ, get_type_of_expr array with
+            | Expr.TStruct header_type true, TypArray _ size =>
+                let* stck := translate_expression array in
+                let~ index := realize_array_index index over "Failed to realize array index" in
+                ok (header_stack_access header_type (BinNat.N.to_nat size) index stck)
+            | _, _ => error "TypeError :: Elements of array access do not have expected types"
+            end
         | ExpBitStringAccess bits lo hi =>
             let* typ := translate_exp_type (get_type_of_expr bits) in
             let+ e := translate_expression bits in
@@ -699,7 +705,7 @@ Section ToP4cub.
                   (*   error "[FIXME] actually patterns (unimplemented)" *)
         end.
 
-      Definition translate_return_type (tags : tags_t) (ret : @P4Type tags_t) :=
+      Definition translate_return_type (ret : @P4Type tags_t) :=
         match ret with
         | TypVoid => ok None
         | _ =>
@@ -813,75 +819,84 @@ Section ToP4cub.
     end.
 
   Definition translate_expression_member_call
+             (instance_names : list string)
              (args : list (option (@Expression tags_t)))
              (ctx : DeclCtx)
              (callee : Expression)
-             (ret_var : option string)
+             (ret_var : option nat)
              (ret_type : option E.t)
              (f : P4String.t tags_t) : result string ST.s :=
     let f_str := P4String.str f in
     if f_str =? "apply" then
-      translate_apply tags callee args ret_var ret_type
+      translate_apply instance_names callee args ret_var ret_type
     else if f_str =? "setInvalid" then
-      translate_set_validity tags false callee
+      translate_set_validity false callee
     else if f_str =? "setValid" then
-      translate_set_validity tags true callee
+      translate_set_validity true callee
     else if f_str =? "isValid" then
-      translate_is_valid tags callee ret_var
+      translate_is_valid callee ret_var
     else
       match get_type_of_expr callee with
       | TypTypeName extern_obj | TypExtern extern_obj =>
-        translate_extern_string tags ctx (P4String.str extern_obj) f_str args
+        translate_extern_string ctx (P4String.str extern_obj) f_str args
       | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
         (* [TODO] Something is weird here RE type arguments *)
-        translate_extern_string tags ctx (P4String.str extern_obj_type) f_str args
+        translate_extern_string ctx (P4String.str extern_obj_type) f_str args
       | TypArray typ n =>
-        (* TODO need to unroll the number of pop_fronts/backs based on argument index *)
-        let* op :=
-           if f_str =? "pop_front" then ok ST.HSPop
-           else if f_str =? "push_front" then ok ST.HSPush
-           else error ("ERROR :: unknown header_stack operation " ++ f_str)
-        in
-        let* num_ops :=
-           match args with
-           | [Some (MkExpression tags (ExpInt int) typ dir)] =>
-             ok (BinInt.Z.to_nat int.(value))
-           | [None] | [] =>
-             ok 1
-           | _ =>
-             error ("Got an incorrect number of arguments for header stack operation "
-                      ++ f_str ++
-                      "Expected 1 or 0, got " ++ string_of_nat (List.length args))
-           end
-        in
-        let* hdr_stack_name := get_hdr_stack_name callee in
-        let+ cub_type := translate_exp_type tags typ in
-        let st_op := ST.HeaderStackOp hdr_stack_name cub_type op (posN n) tags in
-        @FunUtil.n_compose ST.s num_ops (fun s => ST.Seq st_op s tags) (ST.Skip tags)
+          let* op :=
+            (if f_str =? "pop_front" then ok pop_front
+             else
+               if f_str =? "push_front" then ok push_front
+               else error ("ERROR :: unknown header_stack operation " ++ f_str))
+          in
+          let* num_ops :=
+            match args with
+            | [Some (MkExpression tags (ExpInt int) typ dir)] =>
+                ok int.(value)
+            | [None] | [] => ok 1%Z
+            | _ =>
+                error ("Got an incorrect number of arguments for header stack operation "
+                         ++ f_str ++
+                         "Expected 1 or 0, got " ++ string_of_nat (List.length args))
+            end in
+          let* hdr_stack := translate_expression callee in
+          let* cub_type := translate_exp_type typ in
+          match cub_type with
+          | Expr.TStruct header_type true =>
+              ok (op header_type (BinNat.N.to_nat n) num_ops hdr_stack)
+          | _ => error "TypeError :: expected to have header stack type"
+          end
       | _ =>
-        error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
+          error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
 
-  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result string ST.s :=
-    let* paramargs := translate_application_args tags (P4String.str fname) parameters args in
-    let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
-    let+ ret_typ := translate_return_type tags ret in
-    let cub_ret := option_map (fun t => (E.Var t ret_var tags)) ret_typ in
-    let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
-    ST.FunCall (P4String.str fname) cub_type_params cub_ar tags.
+  Definition
+    translate_function_application
+    (fname : P4String.t tags_t) ret_var ret type_args parameters args : result string ST.s :=
+    let* paramargs := translate_application_args (P4String.str fname) parameters args in
+    let* cub_type_params := rred (List.map translate_exp_type type_args) in
+    let+ ret_typ := translate_return_type ret in
+    let cub_ret := option_map (fun t => (E.Var t ret_var)) ret_typ in
+    ST.Call (ST.Funct (P4String.str fname) cub_type_params cub_ret) paramargs.
 
-  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result string ST.s) :=
+  Definition
+    function_call_init
+    (instance_names : list string)
+    (ctx : DeclCtx) (e : Expression)
+    (ret_var : nat) (ret_type : E.t) : option (result string ST.s) :=
     let '(MkExpression tags expr typ dir) := e in
     match expr with
     | ExpFunctionCall func type_args args =>
       let '(MkExpression tags func_pre typ dir) := func in
       match func_pre with
       | ExpExpressionMember callee f =>
-        Some (translate_expression_member_call args tags ctx callee (Some ret_var) (Some ret_type) f)
+          Some
+            (translate_expression_member_call
+               instance_names args ctx callee (Some ret_var) (Some ret_type) f)
       | ExpName (BareName n) loc =>
         match typ with
         | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          Some (translate_function_application tags n ret_var ret type_args parameters args)
+          Some (translate_function_application n ret_var ret type_args parameters args)
         | _ => Some (error ("[function_call_init] A name," ++ P4String.str n ++ "applied like a method call, must be a function or extern type; I got something else"))
         end
       | _ => Some (error "ERROR :: Cannot handle this kind of expression")
@@ -890,144 +905,149 @@ Section ToP4cub.
       None
     end.
     End Expressions.
-    
-  Fixpoint translate_statement_switch_case ctx (match_expr : E.e) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option E.e) * (ST.s -> ST.s)) (ssw : @StatementSwitchCase tags_t) : result string ((option E.e) * (ST.s -> ST.s)) :=
-    (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
-    let '(cond_opt, ifthen) := acc in
-    (* Force the agggregated conditional to be a boolean *)
-    let acc_cond := fun tags => SyntaxUtil.force (E.Bool false tags) cond_opt in
-    (* Build the case match by building the label index check and or-ing the aggregated conditional *)
-    let case_match := fun tags label =>
-                        let+ val := get_label_index tenum label in
-                        let mtch := E.Bop E.TBool E.q match_expr (E.Bit bits val tags) tags in
-                        E.Bop E.TBool E.Or (acc_cond tags) mtch tags in
-    (* check the cases *)
-    match ssw with
-    | StatSwCaseAction tags label block =>
-      (* This case discharges the built up conditions. so the first part of the pair is always None *)
-      match label with
-      | StatSwLabName tags labname =>
-        let* cond := case_match tags labname in
-        let* st := translate_block ctx tags block in
-        let else__ifthen : ST.s -> ST.s := fun else_ => ST.Conditional cond st else_ tags in
-        (* The continuation is still "open" *)
-        ok (None, ifthen ∘ else__ifthen)
-      | StatSwLabDefault tags =>
-        let* else_ := translate_block ctx tags block in
-        (* in the default case, we throw away the argument because we have the else case, *)
-        (* if anything comes after, its dead code *)
-        ok (None, fun (_ : ST.s) => (ifthen else_ : ST.s))
-      end
-    | StatSwCaseFallThrough tags label =>
-      match label with
-      | StatSwLabDefault _ =>
-        error "[ERROR] Cannot have default label as a fall-through case in a switch statement"
-      | StatSwLabName tags labname =>
-        (* This case doesn't change the continuation but accumulates a condition *)
-        (* Note that the accumulation happens automagically in the [case_match function]*)
-        let+ cond := case_match tags labname in
-        (Some cond, (ifthen : ST.s -> ST.s))
-      end
-    end
-  with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result string ST.s :=
-    match pre_s with
-    | StatMethodCall func type_args args =>
-      let '(MkExpression tags func_pre typ dir) := func in
-      match func_pre with
-      | ExpExpressionMember callee f =>
-        translate_expression_member_call args tags ctx callee None None f
-      | ExpName (BareName n) loc =>
-        match typ with
-        | TypFunction (MkFunctionType type_params parameters kind ret) =>
-          translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
-        | TypAction data_params ctrl_params =>
-          let+ paramargs := translate_application_args tags (P4String.str n) (data_params ++ ctrl_params) args in
-          ST.ActCall (P4String.str n) paramargs i
-        | _ => error ("[translate_statement_pre_t] A name," ++ P4String.str n ++"applied like a method call, must be a function or extern type; I got something else")
-        end
-      | _ => error "ERROR :: Cannot handle this kind of expression"
-      end
-    | StatAssignment lhs rhs =>
-      let* cub_lhs := translate_expression lhs in
-      let+ cub_rhs := translate_expression rhs in
-      ST.Assign cub_lhs cub_rhs i
-    | StatDirectApplication typ func_typ args =>
-      error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
-    | StatConditional cond tru fls_opt =>
-      let* cub_cond := translate_expression cond in
-      let* cub_tru := translate_statement ctx tru in
-      let+ cub_fls := match fls_opt with
-                       | None => ok (ST.Skip i)
-                       | Some fls => translate_statement ctx fls
-                       end in
-      ST.Conditional cub_cond cub_tru cub_fls i
-    | StatBlock block =>
-      let+ sblck := translate_block ctx i block in
-      ST.Block sblck
-    | StatExit =>
-      ok (ST.Exit i)
-    | StatEmpty =>
-      ok (ST.Skip i)
-    | StatReturn expr_opt =>
-      match expr_opt with
-      | Some e =>
-        let+ (cub_typ, cub_expr) := translate_expression_and_type i e in
-        ST.Return (Some cub_expr) i
-      | None =>
-        ok (ST.Return None i)
-      end
-    | StatSwitch expr cases =>
-      let* tenum := get_enum_type expr in
-      let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum)) in
-      let* expr := translate_expression expr in
-      let+ (_, cases_as_ifs) :=
-          List.fold_left (fun acc_res switch_case =>
-                            let* acc := acc_res in
-                            translate_statement_switch_case ctx expr bits tenum acc switch_case
-                         ) cases (ok (None, fun x => x))
 
-      in
-      cases_as_ifs (ST.Skip i)
-    | StatConstant typ name value loc =>
-      error "Constant Statement should not occur"
-    | StatVariable typ name init loc =>
-      let* t := translate_exp_type i typ in
-      let vname := P4String.str name in
-      let decl := ST.Vardecl vname (inl t) i in
-      match init with
-      | None =>
-        ok decl
-      | Some e =>
-        match function_call_init ctx e vname t with
-        | None =>  (** check whether e is a function call *)
-          let+ cub_e := translate_expression e in
-          let var := E.Var t vname i in
-          let assign := ST.Assign var cub_e i in
-          ST.Seq decl assign i
-        | Some s =>
-          let+ s := s in
-          ST.Seq decl s i
-        end
+    Fixpoint
+      translate_statement_switch_case
+      ctx (match_expr : E.e) (bits : N)
+      (tenum : list (P4String.t tags_t)) (acc : (option E.e) * (ST.s -> ST.s))
+      (ssw : @StatementSwitchCase tags_t) : result string ((option E.e) * (ST.s -> ST.s)) :=
+      (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
+      let '(cond_opt, ifthen) := acc in
+      (* Force the agggregated conditional to be a boolean *)
+      let acc_cond := SyntaxUtil.force (E.Bool false) cond_opt in
+      (* Build the case match by building the label index check and or-ing the aggregated conditional *)
+      let case_match := fun label =>
+                          let+ val := get_label_index tenum label in
+                          let mtch := E.Bop E.TBool E.Eq match_expr (E.Bit bits val) in
+                          E.Bop E.TBool E.Or acc_cond mtch in
+      (* check the cases *)
+      match ssw with
+      | StatSwCaseAction tags label block =>
+          (* This case discharges the built up conditions. so the first part of the pair is always None *)
+          match label with
+          | StatSwLabName tags labname =>
+              let* cond := case_match labname in
+              let* st := translate_block ctx tags block in
+              let else__ifthen : ST.s -> ST.s := fun else_ => ST.Conditional cond st else_ in
+              (* The continuation is still "open" *)
+              ok (None, ifthen ∘ else__ifthen)
+          | StatSwLabDefault tags =>
+              let* else_ := translate_block ctx tags block in
+              (* in the default case, we throw away the argument because we have the else case, *)
+              (* if anything comes after, its dead code *)
+              ok (None, fun (_ : ST.s) => (ifthen else_ : ST.s))
+          end
+      | StatSwCaseFallThrough tags label =>
+          match label with
+          | StatSwLabDefault _ =>
+              error "[ERROR] Cannot have default label as a fall-through case in a switch statement"
+          | StatSwLabName tags labname =>
+              (* This case doesn't change the continuation but accumulates a condition *)
+              (* Note that the accumulation happens automagically in the [case_match function]*)
+              let+ cond := case_match labname in
+              (Some cond, (ifthen : ST.s -> ST.s))
+          end
       end
-    | StatInstantiation typ args name init =>
-      error "Instantiation statement should not occur"
-    end
-  with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result string ST.s :=
-    match s with
-    | MkStatement tags stmt typ =>
-      translate_statement_pre_t ctx tags stmt
-    end
-  with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result string ST.s :=
-    match b with
-    | BlockEmpty tags =>
-      ok (ST.Skip i)
-    | BlockCons statement rest =>
-      let* s1 := translate_statement ctx statement in
-      let+ s2 := translate_block ctx i rest in
-      ST.Seq s1 s2 i
-    end.
+    with translate_statement_pre_t
+           (ctx : DeclCtx) (pre_s : @StatementPreT tags_t) : result string ST.s :=
+           match pre_s with
+           | StatMethodCall func type_args args =>
+               let '(MkExpression tags func_pre typ dir) := func in
+               match func_pre with
+               | ExpExpressionMember callee f =>
+                   translate_expression_member_call args tags ctx callee None None f
+               | ExpName (BareName n) loc =>
+                   match typ with
+                   | TypFunction (MkFunctionType type_params parameters kind ret) =>
+                       translate_function_application tags n ("$RETVAR_" ++ (P4String.str n)) ret type_args parameters args
+                   | TypAction data_params ctrl_params =>
+                       let+ paramargs := translate_application_args tags (P4String.str n) (data_params ++ ctrl_params) args in
+                       ST.ActCall (P4String.str n) paramargs
+                   | _ => error ("[translate_statement_pre_t] A name," ++ P4String.str n ++"applied like a method call, must be a function or extern type; I got something else")
+                   end
+               | _ => error "ERROR :: Cannot handle this kind of expression"
+               end
+           | StatAssignment lhs rhs =>
+               let* cub_lhs := translate_expression lhs in
+               let+ cub_rhs := translate_expression rhs in
+               ST.Assign cub_lhs cub_rhs i
+           | StatDirectApplication typ func_typ args =>
+               error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
+           | StatConditional cond tru fls_opt =>
+               let* cub_cond := translate_expression cond in
+               let* cub_tru := translate_statement ctx tru in
+               let+ cub_fls := match fls_opt with
+                               | None => ok (ST.Skip i)
+                               | Some fls => translate_statement ctx fls
+                               end in
+               ST.Conditional cub_cond cub_tru cub_fls i
+           | StatBlock block =>
+               let+ sblck := translate_block ctx i block in
+               ST.Block sblck
+           | StatExit =>
+               ok (ST.Exit i)
+           | StatEmpty =>
+               ok (ST.Skip i)
+           | StatReturn expr_opt =>
+               match expr_opt with
+               | Some e =>
+                   let+ (cub_typ, cub_expr) := translate_expression_and_type i e in
+                   ST.Return (Some cub_expr) i
+               | None =>
+                   ok (ST.Return None i)
+               end
+           | StatSwitch expr cases =>
+               let* tenum := get_enum_type expr in
+               let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum)) in
+               let* expr := translate_expression expr in
+               let+ (_, cases_as_ifs) :=
+                 List.fold_left (fun acc_res switch_case =>
+                                   let* acc := acc_res in
+                                   translate_statement_switch_case ctx expr bits tenum acc switch_case
+                                ) cases (ok (None, fun x => x))
+                                
+               in
+               cases_as_ifs (ST.Skip i)
+           | StatConstant typ name value loc =>
+               error "Constant Statement should not occur"
+           | StatVariable typ name init loc =>
+               let* t := translate_exp_type i typ in
+               let vname := P4String.str name in
+               let decl := ST.Vardecl vname (inl t) i in
+               match init with
+               | None =>
+                   ok decl
+               | Some e =>
+                   match function_call_init ctx e vname t with
+                   | None =>  (** check whether e is a function call *)
+                       let+ cub_e := translate_expression e in
+                       let var := E.Var t vname i in
+                       let assign := ST.Assign var cub_e i in
+                       ST.Seq decl assign i
+                   | Some s =>
+                       let+ s := s in
+                       ST.Seq decl s i
+                   end
+               end
+           | StatInstantiation typ args name init =>
+               error "Instantiation statement should not occur"
+           end
+    with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result string ST.s :=
+           match s with
+           | MkStatement tags stmt typ =>
+               translate_statement_pre_t ctx tags stmt
+           end
+    with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result string ST.s :=
+           match b with
+           | BlockEmpty tags =>
+               ok (ST.Skip i)
+           | BlockCons statement rest =>
+               let* s1 := translate_statement ctx statement in
+               let+ s2 := translate_block ctx i rest in
+               ST.Seq s1 s2 i
+           end.
 
-  Definition translate_state_name (state_name : P4String.t tags_t) :=
+    Definition translate_state_name (state_name : P4String.t tags_t) :=
     let s := P4String.str state_name in
     if String.eqb s "accept"
     then Parser.STAccept

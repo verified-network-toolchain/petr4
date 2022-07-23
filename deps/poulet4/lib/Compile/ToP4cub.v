@@ -1111,108 +1111,149 @@ Section ToP4cub.
                ST.Seq s1 s2
            end.
 
-    Definition translate_state_name (state_name : P4String.t tags_t) :=
-    let s := P4String.str state_name in
-    if String.eqb s "accept"
-    then Parser.STAccept
-    else if String.eqb s "reject"
-         then Parser.STReject
-         else if String.eqb s "start"
-              then Parser.STStart
-              else Parser.STName s.
+    Definition translate_state_name
+               (parser_states : list string)
+               (state_name : P4String.t tags_t)
+      : result Parser.state :=
+      match P4String.str state_name with
+      | "accept" => ok Parser.Accept
+      | "reject" => ok Parser.Reject
+      | "start"  => ok Parser.Start
+      | s =>
+          let+ n :=
+            Result.from_opt
+              (ListUtil.index_of string_dec s parser_states)
+              ("Parser state " ++ s ++ " not found.") in
+          Parser.Name n
+      end.
 
-  Definition translate_pre_expr (tags : tags_t) pre_expr : result (Parser.pat) :=
-    let value := @value tags_t in
-    match pre_expr with
-    | ExpDontCare => ok Parser.Wild
-    (* | ExpRange lo hi => *)
+    Definition translate_pre_expr_to_pattern
+               pre_expr : result Parser.pat :=
+      let value := @value tags_t in
+      match pre_expr with
+      | ExpDontCare => ok Parser.Wild
+      (* | ExpRange lo hi => *)
     (*   let* lopat := translate_expression_to_pattern lo in *)
-    (*   let+ hipat := translate_expression_to_pattern hi in *)
-    (*   Parser.Range lopat hipat *)
-    (* | ExpMask expr mask => *)
-    (*   let* expr_pat := translate_expression_to_pattern expr in *)
-    (*   let+ mask_pat := translate_expression_to_pattern mask in *)
-    (*   Parser.Mask expr_pat mask_pat *)
-    | ExpInt z =>
-      match z.(width_signed) with
-      | Some (w, signed) =>
-        if signed
-        then ok (Parser.Int (posN w) z.(value))
-        else ok (Parser.Bit w z.(value))
-      | None => error "Masked ints must have a known width"
-      end
-    | ExpCast (TypSet (TypBit w)) (MkExpression _ (ExpInt z) _ _) =>
-      match z.(width_signed) with
-      | Some (_, signed) =>
-        if signed
-        then ok (Parser.Int (posN w) z.(value))
-        else ok (Parser.Bit w z.(value))
-      | _ => error ("ints must have a known width: " ++ string_of_nat (BinInt.Z.to_nat z.(value)))
-      end
-    | _ => error "unknown set variant"
-    end.
+      (*   let+ hipat := translate_expression_to_pattern hi in *)
+      (*   Parser.Range lopat hipat *)
+      (* | ExpMask expr mask => *)
+      (*   let* expr_pat := translate_expression_to_pattern expr in *)
+      (*   let+ mask_pat := translate_expression_to_pattern mask in *)
+      (*   Parser.Mask expr_pat mask_pat *)
+      | ExpInt z =>
+          match z.(width_signed) with
+          | Some (w, signed) =>
+              if signed
+              then ok (Parser.Int (posN w) z.(value))
+              else ok (Parser.Bit w z.(value))
+          | None => error "Masked ints must have a known width"
+          end
+      | ExpCast (TypSet (TypBit w)) (MkExpression _ (ExpInt z) _ _) =>
+          match z.(width_signed) with
+          | Some (_, signed) =>
+              if signed
+              then ok (Parser.Int (posN w) z.(value))
+              else ok (Parser.Bit w z.(value))
+          | _ => error
+                  ("ints must have a known width: "
+                     ++ string_of_nat (BinInt.Z.to_nat z.(value)))
+          end
+      | _ => error "unknown set variant"
+      end.
 
-  Definition translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
+    Definition translate_expression_to_pattern
+               (e : @Expression tags_t) : result Parser.pat :=
     let '(MkExpression tags pre_expr typ dir) := e in
-    @translate_pre_expr tags pre_expr.
+    translate_pre_expr_to_pattern pre_expr.
 
-  Definition translate_match (m : Match) : result (Parser.pat) :=
-    let '(MkMatch tags pre_match typ) := m in
-    match pre_match with
-    | MatchDontCare => ok Parser.Wild
-    | MatchMask e mask =>
-      let* p_e := translate_expression_to_pattern e in
-      let+ p_m := translate_expression_to_pattern mask in
-      Parser.Mask p_e p_m
-    | MatchRange lo hi =>
-      let* p_lo := translate_expression_to_pattern lo in
-      let+ p_hi := translate_expression_to_pattern hi in
-      Parser.Mask p_lo p_hi
-    | MatchCast typ m =>
-      @translate_pre_expr tags (ExpCast typ m)
-    end.
-
-  Definition translate_matches (ms : list Match) : result (list Parser.pat) :=
-    rred (List.map translate_match ms).
+    Definition translate_match (m : Match) : result Parser.pat :=
+      let '(MkMatch tags pre_match typ) := m in
+      match pre_match with
+      | MatchDontCare => ok Parser.Wild
+      | MatchMask e mask =>
+          let* p_e := translate_expression_to_pattern e in
+          let+ p_m := translate_expression_to_pattern mask in
+          Parser.Mask p_e p_m
+      | MatchRange lo hi =>
+          let* p_lo := translate_expression_to_pattern lo in
+          let+ p_hi := translate_expression_to_pattern hi in
+          Parser.Mask p_lo p_hi
+      | MatchCast typ m =>
+          translate_pre_expr_to_pattern (ExpCast typ m)
+      end.
+    
+    Definition translate_matches : list Match -> result (list Parser.pat) :=
+      rred ∘ (List.map translate_match).
 
   Definition
     translate_parser_case
+    (parser_states : list string)
     (pcase : @ParserCase tags_t)
-    : result (Parser.e tags_t + (Parser.pat * Parser.e tags_t)) :=
+    : result (Parser.state + (Parser.pat * Parser.state)) :=
     let '(MkParserCase tags matches next) := pcase in
-    let transition := Parser.PGoto (translate_state_name next) tags in
+    let* state_id := translate_state_name parser_states next in
     let+ patterns := translate_matches matches in
     if total_wildcard patterns
-    then inl transition
-    else inr (Parser.Tuple patterns, transition).
+    then inl state_id
+    else inr (Parser.Struct patterns, state_id).
 
-  Definition translate_parser_case_loop pcase acc :=
+  Definition translate_parser_case_loop
+             (parser_states : list string)
+             pcase acc :=
     let* (def_opt, cases) := acc in
-    let+ cub_case := translate_parser_case pcase in
+    let+ cub_case :=
+      translate_parser_case parser_states pcase in
     match cub_case with
     | inl x => (Some x, cases)
     | inr y => (def_opt, y::cases)
     end.
 
-    (* TODO ASSUME default is the last element of case list *)
-  Definition translate_cases (tags : tags_t) (cases : list (@ParserCase tags_t)) : result (Parser.e tags_t * Field.fs Parser.pat (Parser.e tags_t)) :=
-    let* (def_opt, cases) := List.fold_right translate_parser_case_loop (ok (None, [])) cases in
-    let def := SyntaxUtil.force (Parser.PGoto Parser.STReject tags) def_opt in
+  (* TODO ASSUME default is the last element of case list *)
+  Definition
+    translate_cases
+    (parser_states : list string)
+    (cases : list (@ParserCase tags_t))
+    : result (Parser.state * Field.fs Parser.pat Parser.state) :=
+    let* (def_opt, cases) :=
+      List.fold_right
+        (translate_parser_case_loop
+           parser_states)
+        (ok (None, [])) cases in
+    let def :=
+      SyntaxUtil.force
+        Parser.Reject def_opt in
     ok (def, cases).
 
-  Definition translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
+  Definition
+    translate_transition
+    (term_names parser_states : list string)
+    (transition : ParserTransition)
+    : result (Parser.e) :=
     match transition with
-    | ParserDirect tags next =>
-      let next_state := translate_state_name next in
-      ok (Parser.PGoto next_state tags)
-    | ParserSelect tags exprs cases =>
-      let* type_expr_list := rred (List.map (translate_expression_and_type tags) exprs) in
-      let expr_list := List.map snd type_expr_list in
-      let+ (default, cub_cases) := translate_cases tags cases in
-      Parser.PSelect (E.Tuple expr_list tags) default cub_cases tags
+    | ParserDirect _ next =>
+        let+ next_state :=
+          translate_state_name
+            parser_states next in
+        Parser.Goto next_state
+    | ParserSelect _ exprs cases =>
+        let* type_expr_list :=
+          rred
+            (List.map
+               (translate_expression_and_type
+                  term_names)
+               exprs) in
+        let expr_list := List.map snd type_expr_list in
+        let+ (default, cub_cases) :=
+          translate_cases parser_states cases in
+        Parser.Select
+          (E.Struct expr_list None) default cub_cases
     end.
 
-  Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result ST.s :=
+  Definition
+    translate_statements
+    (term_names parser_states : list string)
+    (ctx : DeclCtx)
+    (statements : list Statement) : result ST.s :=
     fold_left (fun res_acc s => let* cub_s := translate_statement ctx s in
                                  let+ acc := res_acc in
                                  ST.Seq cub_s acc tags)

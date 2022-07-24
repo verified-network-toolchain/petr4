@@ -25,12 +25,12 @@ Fixpoint eqbv (v1 v2 : v) : bool :=
   
 Lemma eqbv_refl : forall V : v, eqbv V V = true.
 Proof.
-  Hint Rewrite eqb_reflx.
-  Hint Rewrite equiv_dec_refl.
-  Hint Rewrite Pos.eqb_refl.
-  Hint Rewrite Z.eqb_refl.
-  Hint Rewrite N.eqb_refl.
-  Hint Rewrite andb_true_r.
+  Local Hint Rewrite eqb_reflx.
+  Local Hint Rewrite equiv_dec_refl.
+  Local Hint Rewrite Pos.eqb_refl.
+  Local Hint Rewrite Z.eqb_refl.
+  Local Hint Rewrite N.eqb_refl.
+  Local Hint Rewrite andb_true_r.
   Local Hint Extern 0 => equiv_dec_refl_tactic : core.
   induction V using custom_v_ind; simpl in *;
     autorewrite with core; simpl; auto;

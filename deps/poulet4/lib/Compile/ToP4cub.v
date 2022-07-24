@@ -14,7 +14,7 @@ From Poulet4 Require Export
      Monads.Result
      (*P4cub.Semantics.Dynamic.BigStep.InstUtil*).
 Import AST Result Envn ResultNotations.
-From Coq Require Import ZArith.BinInt.
+From Coq Require Import ZArith.BinInt Arith.PeanoNat.
 
 Require Import String.
 Open Scope string_scope.
@@ -1250,98 +1250,213 @@ Section ToP4cub.
           (E.Struct expr_list None) default cub_cases
     end.
 
+  (* TODO: how to factor out similar code? *)
+  (** Translates the parser state block
+      & inserts a transition at the end. *)
+  Fixpoint
+    translate_parser_state_block
+    (term_names instance_names parser_states : list string)
+    (ctx : DeclCtx) (parser_state_block : list Statement)
+    (transition : ParserTransition) : result ST.s :=
+    match parser_state_block with
+    | [] =>
+        let+ pe :=
+          translate_transition
+            term_names parser_states transition in
+        Stmt.Transition pe
+    | MkStatement
+        _ (StatVariable
+             t {| P4String.str := x|} None _) _
+        :: s =>
+        let* t := translate_exp_type t in
+        let+ s :=
+          translate_parser_state_block
+            (x :: term_names)
+            instance_names
+            parser_states ctx s transition in
+        ST.Var (inl t) s
+    | MkStatement
+        _ (StatVariable
+             t {| P4String.str := x|} (Some e) _) _
+        :: s =>
+        let* t := translate_exp_type t in
+        match function_call_init
+                term_names
+                instance_names
+                ctx e 0 t with
+        | None =>
+            let* e := translate_expression term_names e in
+            let+ s :=
+              translate_parser_state_block
+                (x :: term_names)
+                instance_names
+                parser_states ctx s transition in
+            ST.Var (inr e) s
+        | Some call =>
+            let* call := call in
+            let+ s :=
+              translate_parser_state_block
+                (x :: term_names)
+                instance_names
+                parser_states ctx s transition in
+            ST.Var (inl t) (ST.Seq call s)
+        end 
+    | statement :: rest =>
+        let* s1 :=
+          translate_statement
+            term_names instance_names
+            ctx statement in
+        let+ s2 :=
+          translate_parser_state_block
+            term_names instance_names
+            parser_states ctx rest transition in
+        ST.Seq s1 s2
+    end.
+  
   Definition
-    translate_statements
-    (term_names parser_states : list string)
-    (ctx : DeclCtx)
-    (statements : list Statement) : result string ST.s :=
-    fold_left (fun res_acc s => let* cub_s := translate_statement ctx s in
-                                 let+ acc := res_acc in
-                                 ST.Seq cub_s acc tags)
-              statements
-              (ok (ST.Skip tags)).
+    translate_parser_state
+    (term_names instance_names parser_states : list string)
+    (ctx : DeclCtx) (pstate : ParserState)
+    : result string ST.s :=
+    let '(MkParserState
+            _ _ statements transition) := pstate in
+    (*let* state_id :=
+      Result.from_opt
+        (ListUtil.index_of
+           string_dec name
+           parser_states)
+        ("TypeError:: unbound state name " ++ name) in *)
+    let+ parser_state :=
+      translate_parser_state_block
+        term_names instance_names parser_states
+        ctx statements transition in
+    parser_state.
 
-  Definition translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result string (string * Parser.state_block tags_t) :=
-    let '(MkParserState tags name statements transition) := pstate in
-    let* ss := translate_statements ctx tags statements in
-    let+ trans := translate_transition transition in
-    let parser_state := {| Parser.stmt := ss; Parser.trans := trans |} in
-    (P4String.str name, parser_state).
-
-  Definition translate_parser_states_inner (ctx : DeclCtx) (p : ParserState) (res_acc : result string ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
-    let* (nm, state) := translate_parser_state ctx p in
+  Definition
+    name_of_ParserState
+    '(MkParserState
+        _ {| P4String.str := x |}
+        _ _ : @ParserState tags_t) : string := x.
+  
+  Definition
+    translate_parser_states_inner
+    (term_names instance_names parser_states : list string)
+    (ctx : DeclCtx) (p : ParserState)
+    (res_acc : result (option ST.s * list ST.s)) :=
+    let* state :=
+      translate_parser_state
+        term_names instance_names
+        parser_states ctx p in
     let+ (start_opt, states) := res_acc in
-    if String.eqb nm "start"
-    then (Some state, (nm, state)::states)
-    else (start_opt, (nm, state)::states).
+    if "start" =? (name_of_ParserState p)
+    then (Some state, state::states)
+    else (start_opt, state::states).
 
-  Definition translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result string (option (Parser.state_block tags_t) * Field.fs string (Parser.state_block tags_t)) :=
-    fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
+  Definition
+    translate_parser_states
+    (term_names instance_names parser_states : list string)
+    (ctx : DeclCtx)
+    (pstates : list ParserState)
+    : result string (option ST.s * list ST.s) :=
+    fold_right
+      (translate_parser_states_inner
+         term_names instance_names
+         parser_states ctx) (ok (None, [])) pstates.
 
-  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result string E.e :=
-    match translate_expression arg with
-    | Ok e =>
-      (* try to reuse translation*)
-      ok e
-    | Error msg =>
-      (* if the naive translation fails, try something better  *)
-      let '(MkExpression tags expr typ dir) := arg in
-      match expr with
-      | _ =>
-        error ("naive expression translation for constructor arguments failed with message: " ++ msg)
-      end
+  Definition
+    translate_constructor_arg_expression
+    (term_names : list string) (arg : @Expression tags_t) : result string E.e :=
+    match translate_expression term_names arg with
+    | Ok _ e =>
+        (* try to reuse translation*)
+        ok e
+    | Error _ msg =>
+        (* if the naive translation fails, try something better  *)
+        let '(MkExpression tags expr typ dir) := arg in
+        match expr with
+        | _ =>
+            error ("naive expression translation for constructor arguments failed with message: " ++ msg)
+        end
     end.
 
-  Definition translate_instantiation_args (ps : E.constructor_params) (es : list E.e) : result string (E.constructor_args tags_t) :=
-    let~ param_args := zip ps es over ("zipping instantiation args failed. there were " ++ string_of_nat (List.length ps) ++ "params and " ++ string_of_nat (List.length es) ++ "args") in
-    (* FIXME Something is wrong here. We should be disambiguating here between CAExpr and CAName *)
-    List.fold_right (fun '((str, typ), e) (acc_r : result string (E.constructor_args tags_t)) =>
-                       let* acc := acc_r in
-                       match e with
-                       | E.Var (E.TVar s) nm _ =>
-                         if String.eqb s "$DUMMY"
-                         then ok ((str, E.CAName nm)::acc)
-                         else ok ((str, E.CAExpr e)::acc)
-                       | _ =>
-                         ok ((str, E.CAExpr e)::acc)
-                       end) (ok []) param_args.
+  Definition
+    translate_instantiation_args
+    (ps : TopDecl.constructor_params) (es : list E.e)
+    : result string TopDecl.constructor_args :=
+    let~ param_args :=
+      zip
+        ps es over
+        ("zipping instantiation args failed. there were "
+           ++ string_of_nat (List.length ps)
+           ++ "params and " ++ string_of_nat (List.length es)
+           ++ "args") in
+    (* FIXME Something is wrong here.
+       We should be disambiguating here between CAExpr and CAName *)
+    List.fold_right
+      (fun '(typ, e)
+         (acc_r : result TopDecl.constructor_args) =>
+         let* acc := acc_r in
+         match e with
+         | E.Var (E.TVar s) nm =>
+             if (s =? 42%nat)%nat (* TODO: $Dummy type name *)
+             then ok (TopDecl.CAName nm::acc)
+             else ok (TopDecl.CAExpr e::acc)
+         | _ =>
+             ok (TopDecl.CAExpr e::acc)
+         end) (ok []) param_args.
 
-  Definition constructor_paramargs (ctor_name: string) (args : list Expression) (ctx : DeclCtx) :=
+  Definition
+    constructor_paramargs
+    (term_names : list string)
+    (ctor_name: string)
+    (args : list Expression)
+    (ctx : DeclCtx) :=
     let* params := lookup_params_by_ctor_name ctor_name ctx in
-    let* cub_args := rred (List.map translate_constructor_arg_expression args) in
-    let~ inst := translate_instantiation_args params cub_args over "instantiation failed looking up " ++ ctor_name ++ "params: " ++ string_of_nat (List.length params) in
+    let* cub_args :=
+      rred
+        (List.map
+           (translate_constructor_arg_expression
+              term_names)
+           args) in
+    let~ inst :=
+      translate_instantiation_args
+        params cub_args over
+        "instantiation failed looking up "
+        ++ ctor_name
+        ++ "params: "
+        ++ string_of_nat (List.length params) in
     ok inst.
 
-
-  Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result string (string * E.ct) :=
+  Definition translate_constructor_parameter
+             (parameter : @P4Parameter tags_t) : result string TopDecl.it :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
-    let v_str := P4String.str var in
     match typ with
     | TypExtern typname =>
-      ok(v_str, E.CTExtern (P4String.str typname))
+      ok (TopDecl.ExternInstType (P4String.str typname))
     | TypControl _ =>
       error "[FIXME] translate control as constructor param"
     | TypParser _ =>
       error "[FIXME] translate parser as constructor param"
     | TypPackage _ _ _  =>
       error "[FIXME] translate package as constructor param"
-    | TypSpecializedType (TypTypeName ( name)) _   =>
-      ok (v_str, E.CTType (E.TVar (P4String.str name)))
+    | TypSpecializedType (TypTypeName name) typ_args  =>
+        (*ok (TopDecl.EType (E.TVar (P4String.str name)))*)
+        error "[FIXME] need substition function"
     | _ =>
-      error "[FIXME] dont kjnow how to translate type to constructor type"
+      error "[FIXME] dont khow how to translate type to constructor type"
     end.
 
-  Definition translate_constructor_parameters (tags : tags_t) :=
+  Definition translate_constructor_parameters :=
     fold_right (fun p acc =>
                   let* params := acc in
-                  let+ param := translate_constructor_parameter tags p in
+                  let+ param := translate_constructor_parameter p in
                   param :: params
                ) (ok []).
 
   (* TODO write in terms of translate_constructor_parameter *)
   Definition
     translate_constructor_parameter_either
-    (tags : tags_t) (parameter : @P4Parameter tags_t)
+    (parameter : @P4Parameter tags_t)
     : result string (string * string + string * E.ct) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in

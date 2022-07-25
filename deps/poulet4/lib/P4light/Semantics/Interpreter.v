@@ -10,6 +10,10 @@ Import List.ListNotations.
 
 Open Scope string_scope.
 
+Inductive Fuel :=
+| NoFuel
+| MoreFuel (t: Fuel).
+
 Section Interpreter.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
   Notation Val := (@ValueBase bool).
@@ -515,10 +519,10 @@ Section Interpreter.
     Definition interp_call_copy_out (args : list (option Lval * direction)) (vals : list Sval) (s: state) : option state :=
       interp_write_options s (filter_out args) vals.
 
-    Fixpoint interp_stmt (this: path) (st: state) (fuel: nat) (stmt: @Statement tags_t) : option (state * signal) :=
+    Fixpoint interp_stmt (this: path) (st: state) (fuel: Fuel) (stmt: @Statement tags_t) : option (state * signal) :=
       match fuel with
-      | O => None
-      | S fuel =>
+      | NoFuel => None
+      | MoreFuel fuel =>
           match stmt with
           | MkStatement tags (StatAssignment lhs rhs) typ =>
               if is_call rhs
@@ -611,10 +615,10 @@ Section Interpreter.
           | _ => None
           end
       end
-    with interp_block (this: path) (st: state) (fuel: nat) (block: @Block tags_t) : option (state * signal) :=
+    with interp_block (this: path) (st: state) (fuel: Fuel) (block: @Block tags_t) : option (state * signal) :=
            match fuel with
-           | O => None
-           | S fuel =>
+           | NoFuel => None
+           | MoreFuel fuel =>
                match block with
                | BlockEmpty tags => Some (st, SContinue)
                | BlockCons stmt rest =>
@@ -625,9 +629,9 @@ Section Interpreter.
                    Some (st', if is_continue sig then sig' else sig)
                end
            end 
-    with interp_call (this: path) (st: state) (fuel: nat) (call: @Expression tags_t) : option (state * signal) :=
+    with interp_call (this: path) (st: state) (fuel: Fuel) (call: @Expression tags_t) : option (state * signal) :=
            match fuel with
-           | S fuel =>
+           | MoreFuel fuel =>
                match call with 
                | MkExpression _ (ExpFunctionCall func targs args) _ _ =>
                    if is_builtin_func func
@@ -658,11 +662,11 @@ Section Interpreter.
                         Some (ret_s, ret_sig)
                | _ => None
                end
-           | O => None
+           | NoFuel => None
            end
-    with interp_func (obj_path: path) (s: state) (fuel: nat) (fn: @fundef tags_t) (typ_args: list (@P4Type tags_t)) (args: list Sval) : option (state * list Sval * signal) :=
+    with interp_func (obj_path: path) (s: state) (fuel: Fuel) (fn: @fundef tags_t) (typ_args: list (@P4Type tags_t)) (args: list Sval) : option (state * list Sval * signal) :=
            match fuel with
-           | S fuel =>
+           | MoreFuel fuel =>
                match fn with
                | FInternal params body =>
                    match typ_args with
@@ -706,11 +710,11 @@ Section Interpreter.
                    let* args' := lift_option (List.map interp_val_sval argvs') in
                    Some ((m, es'), args', sig)
                end
-           | O => None
+           | NoFuel => None
            end.
 
     (* Analogue of exec_module *)
-    Definition interp_module (fuel: nat) (this: path) (st: extern_state) (args: list Val)
+    Definition interp_module (fuel: Fuel) (this: path) (st: extern_state) (args: list Val)
       : option (extern_state * list Val * signal) :=
       let* func_inst := PathMap.get this (ge_inst ge) in
       let* func := PathMap.get [func_inst.(iclass); "apply"] (ge_func ge) in
@@ -720,9 +724,8 @@ Section Interpreter.
       Some (snd st, List.map interp_sval_val rets, sig).
   End WithGE.
 
-  Definition interp (fuel: nat) (prog: @program tags_t) (in_port: Z) (pkt: list bool) : option (extern_state * Z * (list bool)) :=
+  Definition interp (fuel: Fuel) (prog: @program tags_t) (st: extern_state) (in_port: Z) (pkt: list bool) : option (extern_state * Z * (list bool)) :=
     let ge := gen_ge prog in
-    let st := PathMap.empty in
     interp_prog (interp_module ge fuel) st in_port pkt.
 
 End Interpreter.

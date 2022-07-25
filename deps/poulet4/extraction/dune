@@ -8,6 +8,12 @@
 	SyntaxUtil GenLoc
 	ConstValue
         Interpreter
+        Target
+        V1ModelTarget
+        CoqLib
+        Compare_dec
+        Hexadecimal
+        BinNat Datatypes GCL Inline List Result ToGCL ToP4cub
     AST EquivDec
     ToP4cub ToGCL GCL Inline Statementize VarNameGen
     HoistNameless InferMemberTypes Substitution InlineTypeDecl

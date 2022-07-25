@@ -2190,7 +2190,10 @@ Definition exec_module (ge: genv) (read_one_bit : option bool -> bool -> Prop) (
 Definition gen_ge (prog : @program tags_t) : genv :=
   gen_ge' (gen_am_ge prog) prog.
 
-Definition exec_prog (read_one_bit: option bool -> bool -> Prop) (prog: @program tags_t) :=
+Definition exec_prog
+           (read_one_bit: option bool -> bool -> Prop)
+           (prog: @program tags_t)
+  : extern_state -> list bool -> extern_state -> list bool -> Prop :=
   let ge := gen_ge prog in
   exec_prog (exec_module ge read_one_bit).
 

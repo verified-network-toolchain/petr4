@@ -40,6 +40,7 @@ Extract Inlined Constant BinNat.N.add => "Bigint.(+)".
 Extract Inlined Constant Nat.add => "(+)".
 
 Require Poulet4.P4light.Semantics.Interpreter.
+Require Poulet4.P4light.Architecture.V1ModelTarget.
 Require Poulet4.P4light.Syntax.Syntax.
 Require Poulet4.P4light.Syntax.Typed.
 Require Poulet4.P4light.Syntax.ConstValue.
@@ -90,6 +91,8 @@ Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
          Poulet4.P4light.Semantics.Interpreter
+         Poulet4.P4light.Architecture.Target
+         Poulet4.P4light.Architecture.V1ModelTarget
          Poulet4.P4light.Transformations.SimplExpr
          Poulet4.P4light.Transformations.GenLoc
          Poulet4.P4light.Syntax.ConstValue

@@ -799,22 +799,22 @@ Section InterpreterSafe.
     econstructor; eauto using interp_exprs_safe, interp_table_entries_safe.
   Qed.
 
-  Definition fuel_stmt_safe (fuel: nat) : Prop :=
+  Definition fuel_stmt_safe (fuel: Interpreter.Fuel) : Prop :=
     forall stmt this st st' sig,
       Interpreter.interp_stmt ge this st fuel stmt = Some (st', sig) ->
       Semantics.exec_stmt ge read_ndetbit this st stmt st' sig.
 
-  Definition fuel_block_safe (fuel: nat) : Prop :=
+  Definition fuel_block_safe (fuel: Interpreter.Fuel) : Prop :=
     forall block this st st' sig,
       Interpreter.interp_block ge this st fuel block = Some (st', sig) ->
       Semantics.exec_block ge read_ndetbit this st block st' sig.
 
-  Definition fuel_call_safe (fuel: nat) : Prop :=
+  Definition fuel_call_safe (fuel: Interpreter.Fuel) : Prop :=
     forall this st call st' sig,
       Interpreter.interp_call ge this st fuel call = Some (st', sig) ->
       Semantics.exec_call ge read_ndetbit this st call st' sig.
 
-  Definition fuel_func_safe (fuel: nat) : Prop :=
+  Definition fuel_func_safe (fuel: Interpreter.Fuel) : Prop :=
     forall this st fn typ_args args st' retvs sig,
       Interpreter.interp_func ge this st fuel fn typ_args args = Some (st', retvs, sig) ->
       Semantics.exec_func ge read_ndetbit this st fn typ_args args st' retvs sig.

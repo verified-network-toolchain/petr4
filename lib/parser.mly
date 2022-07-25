@@ -18,7 +18,7 @@ module Petr4 = struct end
 open Poulet4.P4String
 open Poulet4.Typed
 open Surface
-open Core_kernel
+open Core
 open Context
 
 let declare_vars vars = List.iter vars ~f:declare_var

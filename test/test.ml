@@ -12,9 +12,9 @@ module Conf: Parse_config = struct
         (["cc"] @
          (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
           ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Unix.open_process_in cmd in
+    let in_chan = Core_unix.open_process_in cmd in
     let str = In_channel.input_all in_chan in
-    let _ = Unix.close_process_in in_chan in
+    let _ = Core_unix.close_process_in in_chan in
     str
 end
 
@@ -47,9 +47,9 @@ let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
   | `Error (info, err) -> false
 
 let get_files path =
-  Sys.ls_dir path
+  Sys_unix.ls_dir path
   |> List.filter ~f:(fun name ->
-      Core_kernel.Filename.check_suffix name ".p4")
+      Core.Filename.check_suffix name ".p4")
 
 let example_path l =
   let root = Filename.concat ".." "examples" in

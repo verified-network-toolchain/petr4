@@ -236,35 +236,38 @@ Section Lemmas.
       generalize dependent ge.
     induction Ht using my_Eq_type_ind;
       intros ge r Hget; cbn in *;
-        autounfold with option_monad in *; cbn in *;
-          repeat match_some_inv; some_inv; eauto;
-            try match goal with
-                | IH: Forall
-                        ((fun t => forall ge r,
-                              get_real_type ge t = Some r -> Eq_type r) ∘ snd)
-                        ?xts,
-                      H: sequence (map (fun '(_,_) => _) ?xts) = Some ?xrs
-                  |- _ => constructor; rewrite <- Forall_map in *;
-                          rewrite Forall_forall in IH;
-                          specialize IH with (ge:=ge);
-                          rewrite <- Forall_forall in IH;
-                          apply f_equal with (f := lift_monad (map snd)) in H;
-                          rewrite sequence_map in H;
-                          epose proof map_lift_monad_snd_map
-                                _ _ _ (get_real_type ge) as Hmsm;
-                          unfold ">>|" at 2 in Hmsm;
-                          unfold ">>=",option_monad_inst,option_bind in Hmsm;
-                          rewrite Hmsm in H; clear Hmsm; cbn in H;
-                            rewrite <- Forall2_sequence_iff,
-                            <- ForallMap.Forall2_map_l in H;
-                            eauto using Forall2_Forall_impl_Forall; assumption
-                end.
-    - inversion H0; subst; eauto.
+      autounfold with option_monad in *; cbn in *;
+      repeat match_some_inv; some_inv; eauto;
+      try match goal with
+          | IH: Forall
+                  ((fun t => forall ge r,
+                        get_real_type ge t = Some r -> Eq_type r) ∘ snd)
+                  ?xts,
+              H: sequence (map (fun '(_,_) => _) ?xts) = Some ?xrs
+            |- _ => constructor; rewrite <- Forall_map in *;
+                  rewrite Forall_forall in IH; unravel in *;
+                  specialize IH with (ge:=ge);
+                  rewrite <- Forall_forall in IH;
+                  apply f_equal with (f := lift_monad (map snd)) in H;
+                  rewrite sequence_map in H;
+                  epose proof map_lift_monad_snd_map
+                        _ _ _ (get_real_type ge) as Hmsm;
+                  unfold ">>|" at 2 in Hmsm;
+                  unfold ">>=",option_monad_inst,option_bind in Hmsm;
+                  rewrite Hmsm in H; clear Hmsm; cbn in H;
+                  rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l in H;
+                  rewrite map_id in *;
+                  rewrite <- Forall2_map_both in H;
+                  eapply Forall2_Forall_impl_Forall in H; eauto; cbn;
+                  rewrite Forall_forall;
+                  rewrite Forall_forall in IH; eauto
+          end.
+    - inv H0; eauto.
     - rewrite Forall_forall in H0.
       specialize H0 with (ge:=ge).
       rewrite <- Forall_forall in H0.
       rewrite <- Forall2_sequence_iff, <- ForallMap.Forall2_map_l in Heqo.
-      eauto using Forall2_Forall_impl_Forall.
+      eauto using Forall2_Forall_impl_Forall; assumption.
   Qed.
 
   Local Hint Resolve Eq_type_get_real_type : core.
@@ -294,79 +297,79 @@ Section Lemmas.
     induction Ht using my_Eq_type_ind;
       intros v1 v2 Hv1 Hv2;
       inversion Hv1; subst;
-        inversion Hv2; subst; cbn in *;
-          repeat if_destruct; eauto;
-            repeat rewrite Zcomplements.Zlength_correct in *;
-            try rewrite negb_true_iff in *;
-            try match goal with
-                | H: (?x =? ?x)%string = false
-                  |- _ => rewrite String.eqb_refl in H; discriminate
-                | H: (_ =? _)%N = false
-                  |- _ => rewrite N.eqb_neq in H; lia
-                | H: BinInt.Z.eqb _ _ = false
-                  |- _ => rewrite BinInt.Z.eqb_neq in H; lia
-                end;
-            try match goal with
-                | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
-                  |- _ => rewrite andb_false_iff in U; destruct U as [U | U];
-                          match goal with
-                          | H: AList.all_values
-                                 _ ?vs (P4String.clear_AList_tags ?xts),
-                            Htrue: AList.key_unique ?xts = true, Hfls: AList.key_unique ?vs = false
-                            |- _ => apply AListUtil.all_values_keys_eq in H;
-                                    apply AListUtil.map_fst_key_unique in H;
-                                    rewrite H,P4String.key_unique_clear_AList_tags,Htrue in Hfls;
-                                    discriminate
-                          end
-                end;
-            try match goal with
-                | IH: Forall
-                        ((fun t => forall v1 v2,
-                              ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
-                                  Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
-                  Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
-                  Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
-                  Heqb: negb (AList.key_unique ?xv1s && AList.key_unique ?xv2s) = false
-                  |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
-                          rewrite <- Forall_map in IH;
-                          rewrite Forall2_conj in Hxv1s,Hxv2s;
-                          destruct Hxv1s as [Hfstv1s Hsndv1s];
-                          destruct Hxv2s as [Hfstv2s Hsndv2s];
-                          rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstv1s,Hfstv2s;
-                          rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndv1s,Hsndv2s;
-                          rewrite map_fst_map,Forall2_eq in Hfstv1s,Hfstv2s;
-                          rewrite map_snd_map,map_id,Forall2_flip in Hsndv1s,Hsndv2s;
-                          assert (Hlen_xts_v1s: length (map snd xts) = length (map snd xv1s))
-                            by eauto using Forall2_length;
-                          assert (Hlen_xts_v2s: length (map snd xts) = length (map snd xv2s))
-                            by eauto using Forall2_length;
-                          assert (Hlen_v1s_v2s: length (map snd xv1s) = length (map snd xv2s)) by lia;
-                          pose proof Forall_specialize_Forall2
-                               _ _ _ _ IH _ Hlen_xts_v1s as H'; clear IH Hlen_xts_v1s;
-                            pose proof Forall2_specialize_Forall3
-                                 _ _ _ _ _ _ H' _ Hlen_v1s_v2s as H'';
-                            clear H' Hlen_v1s_v2s Hlen_xts_v2s;
-                            pose proof Forall3_Forall2_Forall2_impl_Forall2
-                                 _ _ _ _ _ _ _ _ _ H'' Hsndv1s Hsndv2s as H';
-                            clear H'' Hsndv1s Hsndv2s;
-                            apply Forall2_ex_factor in H';
-                            destruct H' as [bs Hbs];
-                            rewrite <- Forall3_map_12 in Hbs;
-                            rewrite <- Hfstv2s in Hfstv1s;
-                            clear dependent tags_t;
-                            rewrite negb_false_iff in Heqb;
-                            apply andb_prop in Heqb as [U1 U2];
-                            induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
-                            cbn in *; eauto;
-                              destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
-                              destruct (AList.get xv2s y) as [v2' |] eqn:Hv2';
-                              cbn in *; try discriminate;
-                                injection Hfstv1s as Hxy Hfst; subst;
-                                  rewrite String.eqb_refl,Hvb; cbn; clear Hvb;
-                                    pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
-                                    rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
-                end.
-    - inversion H0; subst; eauto.
+      inversion Hv2; subst; cbn in *;
+      repeat if_destruct; eauto;
+      repeat rewrite Zcomplements.Zlength_correct in *;
+      try rewrite negb_true_iff in *;
+      try rewrite negb_false_iff in *;
+      try match goal with
+          | H: (?x =? ?x)%string = false
+            |- _ => rewrite String.eqb_refl in H; discriminate
+          | H: (_ =? _)%N = false
+            |- _ => rewrite N.eqb_neq in H; lia
+          | H: BinInt.Z.eqb _ _ = false
+            |- _ => rewrite BinInt.Z.eqb_neq in H; lia
+          end;
+      try match goal with
+          | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
+            |- _ => rewrite andb_false_iff in U; destruct U as [U | U];
+                  match goal with
+                  | H: AList.all_values
+                         _ ?vs (P4String.clear_AList_tags ?xts),
+                      Htrue: AList.key_unique ?xts = true, Hfls: AList.key_unique ?vs = false
+                    |- _ => apply AListUtil.all_values_keys_eq in H;
+                          apply AListUtil.map_fst_key_unique in H;
+                          rewrite H,P4String.key_unique_clear_AList_tags,Htrue in Hfls;
+                          discriminate
+                  end
+          end;
+      try match goal with
+          | IH: Forall
+                  ((fun t => forall v1 v2,
+                        ⊢ᵥ v1 \: t -> ⊢ᵥ v2 \: t -> exists b,
+                            Ops.eval_binary_op_eq v1 v2 = Some b) ∘ snd) ?xts,
+              Hxv1s: AList.all_values val_typ ?xv1s (P4String.clear_AList_tags ?xts),
+                Hxv2s: AList.all_values val_typ ?xv2s (P4String.clear_AList_tags ?xts),
+                  Heqb: AList.key_unique ?xv1s && AList.key_unique ?xv2s = true
+            |- _ => unfold AList.all_values, P4String.clear_AList_tags in *;
+                  rewrite <- sublist.Forall_map in IH;
+                  rewrite Forall2_conj in Hxv1s,Hxv2s;
+                  destruct Hxv1s as [Hfstv1s Hsndv1s];
+                  destruct Hxv2s as [Hfstv2s Hsndv2s];
+                  rewrite Forall2_map_both with (R := eq) (f:=fst) (g:=fst) in Hfstv1s,Hfstv2s;
+                  rewrite Forall2_map_both with (f:=snd) (g:=snd) in Hsndv1s,Hsndv2s;
+                  rewrite map_fst_map,Forall2_eq in Hfstv1s,Hfstv2s;
+                  rewrite map_snd_map,map_id,Forall2_flip in Hsndv1s,Hsndv2s;
+                  assert (Hlen_xts_v1s: length (map snd xts) = length (map snd xv1s))
+                    by eauto using Forall2_length;
+                  assert (Hlen_xts_v2s: length (map snd xts) = length (map snd xv2s))
+                    by eauto using Forall2_length;
+                  assert (Hlen_v1s_v2s: length (map snd xv1s) = length (map snd xv2s)) by lia;
+                  pose proof Forall_specialize_Forall2
+                       _ _ _ _ IH _ Hlen_xts_v1s as H'; clear IH Hlen_xts_v1s;
+                  pose proof Forall2_specialize_Forall3
+                       _ _ _ _ _ _ H' _ Hlen_v1s_v2s as H'';
+                  clear H' Hlen_v1s_v2s Hlen_xts_v2s;
+                  pose proof Forall3_Forall2_Forall2_impl_Forall2
+                       _ _ _ _ _ _ _ _ _ H'' Hsndv1s Hsndv2s as H';
+                  clear H'' Hsndv1s Hsndv2s;
+                  apply Forall2_ex_factor in H';
+                  destruct H' as [bs Hbs];
+                  rewrite <- Forall3_map_12 in Hbs;
+                  rewrite <- Hfstv2s in Hfstv1s;
+                  clear dependent tags_t;
+                  apply andb_prop in Heqb as [U1 U2];
+                  induction Hbs as [| [x v1] [y v2] b xv1s xv2s bs Hvb Hxvbs IHxvbs];
+                  cbn in *; eauto;
+                  destruct (AList.get xv1s x) as [v1' |] eqn:Hv1';
+                  destruct (AList.get xv2s y) as [v2' |] eqn:Hv2';
+                  cbn in *; try discriminate;
+                  injection Hfstv1s as Hxy Hfst; subst;
+                  rewrite String.eqb_refl,Hvb; cbn; clear Hvb;
+                  pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
+                  rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
+          end.
+    - inv H0; eauto.
     - rewrite Forall2_flip in H3,H4.
       eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
       assert (Hlenvsvs0 : length vs = length vs0)

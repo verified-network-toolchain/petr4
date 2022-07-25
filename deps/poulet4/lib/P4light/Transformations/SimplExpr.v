@@ -53,7 +53,13 @@ Section Transformer.
 
   (* Eval vm_compute in (N_to_tempvar 123412341234).*)
 
-  Fixpoint transform_ept (nameIdx: N) (exp: @ExpressionPreT tags_t)
+  (* transform_exp turns an expression to a list of statements and a side-effect-free expression. *)
+  Fixpoint transform_exp (nameIdx: N) (exp: @Expression tags_t):
+    (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
+    match exp with
+    | MkExpression tag expr typ dir => transform_ept nameIdx expr tag typ dir
+    end
+  with transform_ept (nameIdx: N) (exp: @ExpressionPreT tags_t)
            (tag: tags_t) (typ: @P4Type tags_t) (dir: direction):
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
@@ -140,14 +146,9 @@ Section Transformer.
     | ExpNamelessInstantiation typ' args =>
       (nil, MkExpression tag (ExpNamelessInstantiation typ' args) typ dir, nameIdx)
     | ExpDontCare => (nil, MkExpression tag ExpDontCare typ dir, nameIdx)
-    end
-  with
-  transform_exp (nameIdx: N) (exp: @Expression tags_t):
-    (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
-    match exp with
-    | MkExpression tag expr typ dir => transform_ept nameIdx expr tag typ dir
     end.
 
+  (* transform_Expr allows top-level function call, comparing with transform_exp. *)
   Definition transform_Expr (nameIdx: N) (exp: @Expression tags_t):
     (list (P4String * (@Expression tags_t)) * (@Expression tags_t) * N) :=
     match exp with
@@ -463,7 +464,7 @@ Section Transformer.
                 let (l3, n3) := transform_decl_list n2 rest in (l2 ++ l3, n3)
               end) nameIdx locals) in
       let '(l2, s2, n2) := transform_list transform_psrst n1 states in
-      (local' ++ l2 ++ [DeclParser tags name type_params params cparams local' s2], n2)
+      ([DeclParser tags name type_params params cparams (local' ++ l2) s2], n2)
     | DeclControl tags name type_params params cparams locals appl =>
       let (local', n1) :=
           ((fix transform_decl_list (idx: N) (l: list (@Declaration tags_t)):

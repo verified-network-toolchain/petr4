@@ -34,7 +34,7 @@ Section BitStringSlice.
     - rewrite IHbits by lia; cbn; lia.
     - rewrite IHbits by lia; reflexivity.
   Qed.
-    
+
   Lemma bitstring_slice_length : forall bits hi lo,
       (lo <= hi < length bits)%nat ->
       length (bitstring_slice bits lo hi)
@@ -45,10 +45,24 @@ Section BitStringSlice.
     rewrite rev_length.
     rewrite bitstring_slice'_length by lia; cbn; lia.
   Qed.
+
+  Lemma Forall2_bitstring_slice': forall l1 l2 s1 s2 R lo hi,
+      Forall2 R l1 l2 -> Forall2 R s1 s2 ->
+      Forall2 R (bitstring_slice' l1 lo hi s1) (bitstring_slice' l2 lo hi s2).
+  Proof.
+    intros. revert s1 s2 lo hi H0. induction H; intros; simpl; auto. destruct lo, hi; auto.
+  Qed.
+
+  Lemma Forall2_bitstring_slice: forall l1 l2 R lo hi,
+      Forall2 R l1 l2 -> Forall2 R (bitstring_slice l1 lo hi) (bitstring_slice l2 lo hi).
+  Proof.
+    intros. unfold bitstring_slice. apply ListUtil.Forall2_rev.
+    apply Forall2_bitstring_slice'; auto.
+  Qed.
+
 End BitStringSlice.
 
 Coercion pos_of_N: N >-> positive.
-
 
 Section Ops.
   Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
@@ -61,16 +75,16 @@ Section Ops.
   Definition eval_unary_op (op : OpUni) (v : Val) : option Val :=
     match op, v with
     | Not, ValBaseBool b => Some (ValBaseBool (negb b))
-    | BitNot, ValBaseBit bits => 
+    | BitNot, ValBaseBit bits =>
         let (w, n) := BitArith.from_lbool bits
         in Some (ValBaseBit (to_lbool w (BitArith.bit_not w n)))
-    | BitNot, ValBaseInt bits => 
+    | BitNot, ValBaseInt bits =>
         let (w, n) := BitArith.from_lbool bits
         in Some (ValBaseInt (to_lbool w (IntArith.bit_not w n)))
-    | UMinus, ValBaseBit bits => 
+    | UMinus, ValBaseBit bits =>
         let (w, n) := BitArith.from_lbool bits
         in Some (ValBaseBit (to_lbool w (BitArith.neg w n)))
-    | UMinus, ValBaseInt bits => 
+    | UMinus, ValBaseInt bits =>
         let (w, n) := BitArith.from_lbool bits
         in Some (ValBaseInt (to_lbool w (IntArith.neg w n)))
     | UMinus, ValBaseInteger n => Some (ValBaseInteger (- n))
@@ -95,7 +109,7 @@ Section Ops.
     | Div       => if n2 =? 0 then None
                   else Some (ValBaseBit (to_lbool w (BitArith.div_mod w n1 n2)))
     | Mod       => if n2 =? 0 then None
-                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2))) 
+                  else Some (ValBaseBit (to_lbool w (BitArith.modulo_mod w n1 n2)))
     (* implemented elsewhere *)
     | Shl | Shr | PlusPlus | Eq | NotEq
     (* not allowed *)
@@ -152,7 +166,7 @@ Section Ops.
     | BitOr
     | And
     | Or        => None
-    end. 
+    end.
 
   Definition eval_binary_op_bool (op: OpBin) (b1 b2: bool) : option Val :=
   match op with
@@ -166,7 +180,7 @@ Section Ops.
     match v1, v2 with
     | ValBaseBit bits1, ValBaseBit bits2
     | ValBaseBit bits1, ValBaseInt bits2 =>
-        Some (ValBaseBit (bits2 ++ bits1)) 
+        Some (ValBaseBit (bits2 ++ bits1))
         (* ATTN: little-endian! *)
         (* let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := different_cases.from_lbool bits2 in
@@ -184,7 +198,7 @@ Section Ops.
   Definition eval_binary_op_shift (op: OpBin) (v1 : Val) (v2 : Val) : option Val :=
     let arith_op :=
       match op, v1 with
-      | Shl, ValBaseBit bits => 
+      | Shl, ValBaseBit bits =>
           let (w, n) := BitArith.from_lbool bits
           in (fun num_bits => Some (ValBaseBit (to_lbool w (BitArith.shift_left w n num_bits))))
       | Shr, ValBaseBit bits =>
@@ -196,15 +210,15 @@ Section Ops.
       | Shr, ValBaseInt bits =>
           let (w, n) := IntArith.from_lbool bits
           in (fun num_bits => Some (ValBaseInt (to_lbool w (IntArith.shift_right w n num_bits))))
-      | Shl, ValBaseInteger n => 
+      | Shl, ValBaseInteger n =>
           (fun num_bits => Some (ValBaseInteger (Z.shiftl n num_bits)))
-      | Shr, ValBaseInteger n => 
+      | Shr, ValBaseInteger n =>
           (fun num_bits => Some (ValBaseInteger (Z.shiftr n num_bits)))
       | _, _ => (fun num_bits => None)
       end in
     match v2 with
     | ValBaseBit bits => arith_op (snd (BitArith.from_lbool bits))
-    | ValBaseInteger n2 => 
+    | ValBaseInteger n2 =>
       if 0 <=? n2 then arith_op n2 else None
     | _ => None
     end.
@@ -243,7 +257,7 @@ Section Ops.
     | ValBaseSenumField t1 v1, ValBaseSenumField t2 v2 =>
         if String.eqb t1 t2 then eval_binary_op_eq v1 v2
         else None
-    | ValBaseBool b1, ValBaseBool b2 => 
+    | ValBaseBool b1, ValBaseBool b2 =>
         Some (eqb b1 b2)
     | ValBaseBit bits1, ValBaseBit bits2 =>
         let (w1, n1) := BitArith.from_lbool bits1 in
@@ -255,7 +269,7 @@ Section Ops.
         let (w2, n2) := IntArith.from_lbool bits2 in
         if (w1 =? w2)%N then Some (n1 =? n2)
         else None
-    | ValBaseInteger n1, ValBaseInteger n2 => 
+    | ValBaseInteger n1, ValBaseInteger n2 =>
         Some (n1 =? n2)
     | ValBaseVarbit m1 bits1, ValBaseVarbit m2 bits2 =>
         let (w1, n1) := BitArith.from_lbool bits1 in
@@ -281,15 +295,15 @@ Section Ops.
 
   (* Definition eval_binary_op_eq (v1 : Val) (v2 : Val) : option bool :=
     eval_binary_op_eq' (sort_by_key_val v1) (sort_by_key_val v2). *)
-  
-  (* 1. After implicit_cast in checker.ml, ValBaseInteger no longer exists in 
+
+  (* 1. After implicit_cast in checker.ml, ValBaseInteger no longer exists in
         binary operations with fixed-width bit and int.
      2. Types are checked to return None when binary operations are not allowed. *)
   Definition eval_binary_op (op: OpBin) (v1 : Val) (v2 : Val) : option Val :=
     match op, v1, v2 with
-    | PlusPlus, _, _ => 
+    | PlusPlus, _, _ =>
         eval_binary_op_plusplus v1 v2
-    | Shl, _, _ | Shr, _, _ => 
+    | Shl, _, _ | Shr, _, _ =>
         eval_binary_op_shift op v1 v2
     | Eq, _, _ =>
         match eval_binary_op_eq v1 v2 with
@@ -301,17 +315,17 @@ Section Ops.
         | Some b => Some (ValBaseBool (negb b))
         | None => None
         end
-    | _, ValBaseBit bits1, ValBaseBit bits2 => 
+    | _, ValBaseBit bits1, ValBaseBit bits2 =>
         let (w1, n1) := BitArith.from_lbool bits1 in
         let (w2, n2) := BitArith.from_lbool bits2 in
         if (w1 =? w2)%N then eval_binary_op_bit op w1 n1 n2
         else None
-    | _, ValBaseInt bits1, ValBaseInt bits2 => 
+    | _, ValBaseInt bits1, ValBaseInt bits2 =>
         let (w1, n1) := IntArith.from_lbool bits1 in
         let (w2, n2) := IntArith.from_lbool bits2 in
         if (w1 =? w2)%N then eval_binary_op_int op w1 n1 n2
         else None
-    | _, ValBaseInteger n1, ValBaseInteger n2 => 
+    | _, ValBaseInteger n1, ValBaseInteger n2 =>
         eval_binary_op_integer op n1 n2
     | _, ValBaseBool b1, ValBaseBool b2 =>
         eval_binary_op_bool op b1 b2
@@ -327,21 +341,21 @@ Section Ops.
 
   Definition bit_of_val (w : N) (oldv : Val) : option Val :=
   match oldv with
-  | ValBaseBool b => 
+  | ValBaseBool b =>
     if (w =? 1)%N then Some (ValBaseBit [b])
     else None
-  | ValBaseInt bits => 
+  | ValBaseInt bits =>
       let (w', n) := IntArith.from_lbool bits in
       if (w =? w')%N then Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
       else None
-  | ValBaseBit bits => 
+  | ValBaseBit bits =>
       let (w', n) := BitArith.from_lbool bits
       in Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
-  | ValBaseInteger n => 
+  | ValBaseInteger n =>
       Some (ValBaseBit (to_lbool w (BitArith.mod_bound w n)))
-  | ValBaseSenumField _ v => 
+  | ValBaseSenumField _ v =>
       match v with
-      | ValBaseBit bits => 
+      | ValBaseBit bits =>
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
       | _ => None
       end
@@ -354,41 +368,41 @@ Section Ops.
       let (w', n) := BitArith.from_lbool bits in
       if (w' =? w)%N then Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
       else None
-  | ValBaseInt bits => 
-      let (w', n) := IntArith.from_lbool bits 
+  | ValBaseInt bits =>
+      let (w', n) := IntArith.from_lbool bits
       in Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
-  | ValBaseInteger n => 
+  | ValBaseInteger n =>
       Some (ValBaseInt (to_lbool w (IntArith.mod_bound w n)))
-  | ValBaseSenumField _ v => 
+  | ValBaseSenumField _ v =>
       match v with
-      | ValBaseInt bits => 
+      | ValBaseInt bits =>
           if (Z.to_N (Zlength bits) =? w)%N then Some v else None
       | _ => None
       end
   | _ => None
   end.
 
-  (* 1. An empty field name is inserted here since the P4 manual does not specify how 
+  (* 1. An empty field name is inserted here since the P4 manual does not specify how
         casting to a senum assigns the field name, and multiple fields can share the same name.
-        Also, the unnamed value is legal in senum, so an empty name is acceptable. 
+        Also, the unnamed value is legal in senum, so an empty name is acceptable.
         Lastly, the senum field name is literally unused in all semantics involving senum.
      2. Currently, casting a senum to another senum explicitly is implemented here directly.
-        However, according to the manual 8.3, what should more likely happen is a implicit cast 
+        However, according to the manual 8.3, what should more likely happen is a implicit cast
         from senum to its underlying type and then a explicit cast from the underlying type to
         the final senum type. However, since the implicit cast of senum is incorrect in the
-        typechecker, the direct cast between senums are also implemented. *) 
+        typechecker, the direct cast between senums are also implemented. *)
   Definition enum_of_val  (name: string) (typ: option (@P4Type tags_t))
                           (members: list (P4String.t tags_t)) (oldv : Val) : option Val :=
   match typ, oldv with
   | None, _ => None
   | Some (TypBit w), ValBaseBit bits
-  | Some (TypBit w), ValBaseSenumField _ (ValBaseBit bits) => 
-      if (w =? Z.to_N (Zlength bits))%N 
+  | Some (TypBit w), ValBaseSenumField _ (ValBaseBit bits) =>
+      if (w =? Z.to_N (Zlength bits))%N
       then Some (ValBaseSenumField name (ValBaseBit bits))
       else None
   | Some (TypInt w), ValBaseInt bits
   | Some (TypInt w), ValBaseSenumField _ (ValBaseInt bits) =>
-      if (Z.to_N (Zlength bits) =? w)%N 
+      if (Z.to_N (Zlength bits) =? w)%N
       then Some (ValBaseSenumField name (ValBaseInt bits))
       else None
   | _, _ => None
@@ -399,7 +413,7 @@ Section Ops.
                                 (l2: list Val) : option (list Val) :=
       match l1, l2 with
       | [], [] => Some []
-      | t :: l1', oldv :: l2' => 
+      | t :: l1', oldv :: l2' =>
           match eval_cast t oldv, values_of_val_tuple l1' l2' with
           | Some newv, Some l3 => Some (newv :: l3)
           | _, _ => None
@@ -453,7 +467,7 @@ Section Ops.
     | TypNewType _ typ => eval_cast typ oldv
     (* Two problems with TypTypName:
        1. Need to resolve the type from the name in the Semantics.v;
-       2. Need to define name_to_type such that no loop is possible. 
+       2. Need to define name_to_type such that no loop is possible.
        eval_cast name_to_typ (name_to_typ name) oldv *)
     | TypTypeName name => None
     | TypEnum n typ mems => enum_of_val (str n) typ mems oldv
@@ -464,8 +478,8 @@ Section Ops.
         end
     (* header -> header cast is not clearly allowed in the manual *)
     (* Similar to a struct, a header object can be initialized with a list expression 8.11
-        — the list fields are assigned to the header fields in the order they appear — 
-        or with a structure initializer expression 8.14. When initialized the header 
+        — the list fields are assigned to the header fields in the order they appear —
+        or with a structure initializer expression 8.14. When initialized the header
         automatically becomes valid: *)
     | TypHeader fields =>
         match fields_of_val fields oldv with

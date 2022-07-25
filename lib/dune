@@ -9,4 +9,4 @@
   (name petr4)
   (libraries core_kernel bignum poulet4 ppx_deriving_yojson.runtime yojson cstruct-sexp poulet4_Ccomp)
   (preprocess
-    (staged_pps ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show)))
+    (staged_pps ppx_import ppx_jane ppx_deriving_yojson ppx_deriving.show)))

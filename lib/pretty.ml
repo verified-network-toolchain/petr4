@@ -13,7 +13,7 @@
  * under the License.
  *)
 
-open Core_kernel
+open Core
 open Util
 module P4 = Surface
 

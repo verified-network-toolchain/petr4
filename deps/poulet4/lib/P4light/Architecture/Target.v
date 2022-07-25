@@ -52,18 +52,16 @@ Inductive table_entry :=
 
 Definition table_entry_valset : Type :=  ValSet * action_ref.
 
-Definition AbsMet (extern_state : Type) : Type :=
-  extern_state -> list Val -> extern_state -> list Val  -> signal -> Prop.
-
 Class ExternSem := {
   extern_env_object : Type;
   extern_env := PathMap.t extern_env_object;
   extern_object : Type;
   extern_state := PathMap.t extern_object;
+  AbsMet := extern_state -> list Val -> extern_state -> list Val -> signal -> Prop;
   (* Allocation should be a function; calling may be fine as a relation. *)
   construct_extern : extern_env -> extern_state -> ident (* class *) -> list (@P4Type tags_t) -> path
       -> list (path + Val) -> (extern_env * extern_state);
-  extern_set_abstract_method : extern_env -> path -> AbsMet extern_state -> extern_env;
+  extern_set_abstract_method : extern_env -> path -> AbsMet -> extern_env;
   exec_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
       -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
   (* runnable version of exec_extern *)

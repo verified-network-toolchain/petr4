@@ -25,11 +25,11 @@ depends: [
   "cstruct-sexp"
   "menhir"
   "ANSITerminal"
-  "core" {>= "0.13.0"}
+  "core" {>= "0.15.0"}
   "ppx_deriving_yojson"
-  "ppx_import" {>= "0.13.0" }
-  "ppx_jane" {>= "0.13.0" }
-  "ppx_js_style" {>= "0.13.0" }
+  "ppx_import" {>= "0.15.0" }
+  "ppx_jane" {>= "0.15.0" }
+  "ppx_js_style" {>= "0.15.0" }
   "yojson" {>= "1.7.0"}
   "js_of_ocaml"
   "js_of_ocaml-lwt"

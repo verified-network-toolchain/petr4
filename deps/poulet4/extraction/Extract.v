@@ -85,8 +85,7 @@ Set Extraction Flag 716.
 Extraction Inline Interpreter.interp_isValid.
 Extraction NoInline Interpreter.interp_isValid_fields.
 
-Extract Constant VarNameGen.string_of_nat => "Int.to_string".
-
+(* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed

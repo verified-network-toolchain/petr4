@@ -109,6 +109,7 @@ Definition ___gmpz_ui_pow_ui : ident := $"__gmpz_ui_pow_ui".
 Definition ___gmpz_xor : ident := $"__gmpz_xor".
 Definition ___stringlit_1 : ident := $"__stringlit_1".
 Definition ___stringlit_2 : ident := $"__stringlit_2".
+Definition ___stringlit_3 : ident := $"__stringlit_3".
 Definition __mp_alloc : ident := $"_mp_alloc".
 Definition __mp_d : ident := $"_mp_d".
 Definition __mp_size : ident := $"_mp_size".
@@ -120,12 +121,22 @@ Definition _arguments : ident := $"arguments".
 Definition _bv : ident := $"bv".
 Definition _capacity : ident := $"capacity".
 Definition _check : ident := $"check".
+Definition _checksum_error : ident := $"checksum_error".
 Definition _data : ident := $"data".
 Definition _default_action : ident := $"default_action".
+Definition _deq_qdepth : ident := $"deq_qdepth".
+Definition _deq_timedelta : ident := $"deq_timedelta".
+Definition _drop_port : ident := $"drop_port".
 Definition _dst : ident := $"dst".
 Definition _dst_value : ident := $"dst_value".
+Definition _egress_global_timestamp : ident := $"egress_global_timestamp".
+Definition _egress_port : ident := $"egress_port".
+Definition _egress_rid : ident := $"egress_rid".
+Definition _egress_spec : ident := $"egress_spec".
 Definition _emit_bitvec : ident := $"emit_bitvec".
 Definition _emit_bool : ident := $"emit_bool".
+Definition _enq_qdepth : ident := $"enq_qdepth".
+Definition _enq_timestamp : ident := $"enq_timestamp".
 Definition _entries : ident := $"entries".
 Definition _entry : ident := $"entry".
 Definition _entry_match : ident := $"entry_match".
@@ -136,6 +147,8 @@ Definition _extract_bool : ident := $"extract_bool".
 Definition _i : ident := $"i".
 Definition _in : ident := $"in".
 Definition _index : ident := $"index".
+Definition _ingress_global_timestamp : ident := $"ingress_global_timestamp".
+Definition _ingress_port : ident := $"ingress_port".
 Definition _init_action : ident := $"init_action".
 Definition _init_bitvec : ident := $"init_bitvec".
 Definition _init_bitvec_binary : ident := $"init_bitvec_binary".
@@ -143,6 +156,7 @@ Definition _init_bitvec_ptr : ident := $"init_bitvec_ptr".
 Definition _init_entry : ident := $"init_entry".
 Definition _init_pattern : ident := $"init_pattern".
 Definition _init_table : ident := $"init_table".
+Definition _instance_type : ident := $"instance_type".
 Definition _interp_beq : ident := $"interp_beq".
 Definition _interp_bge : ident := $"interp_bge".
 Definition _interp_bgt : ident := $"interp_bgt".
@@ -173,24 +187,31 @@ Definition _l : ident := $"l".
 Definition _left_shifted : ident := $"left_shifted".
 Definition _main : ident := $"main".
 Definition _malloc : ident := $"malloc".
+Definition _mark_to_drop : ident := $"mark_to_drop".
 Definition _mask : ident := $"mask".
 Definition _matched : ident := $"matched".
 Definition _max : ident := $"max".
+Definition _mcast_grp : ident := $"mcast_grp".
+Definition _meta : ident := $"meta".
 Definition _min : ident := $"min".
 Definition _num_args : ident := $"num_args".
 Definition _num_entries : ident := $"num_entries".
 Definition _num_keys : ident := $"num_keys".
 Definition _out : ident := $"out".
 Definition _packet_in : ident := $"packet_in".
+Definition _packet_length : ident := $"packet_length".
 Definition _packet_out : ident := $"packet_out".
+Definition _parser_error : ident := $"parser_error".
 Definition _pattern : ident := $"pattern".
 Definition _pattern_match : ident := $"pattern_match".
 Definition _pkt : ident := $"pkt".
+Definition _priority : ident := $"priority".
 Definition _r : ident := $"r".
 Definition _reset_bitvec : ident := $"reset_bitvec".
 Definition _sign : ident := $"sign".
 Definition _size : ident := $"size".
 Definition _src : ident := $"src".
+Definition _standard_metadata_t : ident := $"standard_metadata_t".
 Definition _t : ident := $"t".
 Definition _table : ident := $"table".
 Definition _table_match : ident := $"table_match".
@@ -231,6 +252,14 @@ Definition v___stringlit_2 := {|
                 Init_int8 (Int.repr 61) :: Init_int8 (Int.repr 61) ::
                 Init_int8 (Int.repr 32) :: Init_int8 (Int.repr 48) ::
                 Init_int8 (Int.repr 0) :: nil);
+  gvar_readonly := true;
+  gvar_volatile := false
+|}.
+
+Definition v___stringlit_3 := {|
+  gvar_info := (tarray tschar 4);
+  gvar_init := (Init_int8 (Int.repr 53) :: Init_int8 (Int.repr 49) ::
+                Init_int8 (Int.repr 49) :: Init_int8 (Int.repr 0) :: nil);
   gvar_readonly := true;
   gvar_volatile := false
 |}.
@@ -548,6 +577,40 @@ Definition f_init_bitvec_binary := {|
                   (Ederef (Etempvar _dst (tptr (Tstruct _BitVec noattr)))
                     (Tstruct _BitVec noattr)) _width tint)
                 (Etempvar _w tint)))))))))
+|}.
+
+Definition v_drop_port := {|
+  gvar_info := (Tstruct _BitVec noattr);
+  gvar_init := (Init_space 24 :: nil);
+  gvar_readonly := false;
+  gvar_volatile := false
+|}.
+
+Definition f_mark_to_drop := {|
+  fn_return := tvoid;
+  fn_callconv := cc_default;
+  fn_params := ((_meta, (tptr (Tstruct _standard_metadata_t noattr))) :: nil);
+  fn_vars := nil;
+  fn_temps := nil;
+  fn_body :=
+(Ssequence
+  (Scall None
+    (Evar _init_bitvec (Tfunction
+                         (Tcons (tptr (Tstruct _BitVec noattr))
+                           (Tcons tint
+                             (Tcons tint (Tcons (tptr tschar) Tnil)))) tvoid
+                         cc_default))
+    ((Eaddrof (Evar _drop_port (Tstruct _BitVec noattr))
+       (tptr (Tstruct _BitVec noattr))) :: (Econst_int (Int.repr 0) tint) ::
+     (Econst_int (Int.repr 9) tint) ::
+     (Evar ___stringlit_3 (tarray tschar 4)) :: nil))
+  (Sassign
+    (Ederef
+      (Efield
+        (Ederef (Etempvar _meta (tptr (Tstruct _standard_metadata_t noattr)))
+          (Tstruct _standard_metadata_t noattr)) _egress_spec
+        (tptr (Tstruct _BitVec noattr))) (Tstruct _BitVec noattr))
+    (Evar _drop_port (Tstruct _BitVec noattr))))
 |}.
 
 Definition f_extract_bool := {|
@@ -3066,6 +3129,24 @@ Definition composites : list composite_definition :=
    (Member_plain _num_keys tint :: Member_plain _num_entries tint ::
     Member_plain _capacity tint ::
     Member_plain _entries (tptr (Tstruct _Entry noattr)) :: nil)
+   noattr ::
+ Composite _standard_metadata_t Struct
+   (Member_plain _ingress_port (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _egress_spec (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _egress_port (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _instance_type (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _packet_length (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _enq_timestamp (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _enq_qdepth (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _deq_timedelta (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _deq_qdepth (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _ingress_global_timestamp (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _egress_global_timestamp (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _mcast_grp (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _egress_rid (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _checksum_error (tptr (Tstruct _BitVec noattr)) ::
+    Member_plain _parser_error tuint ::
+    Member_plain _priority (tptr (Tstruct _BitVec noattr)) :: nil)
    noattr :: nil).
 
 Definition global_definitions : list (ident * globdef fundef type) :=
@@ -3156,6 +3237,7 @@ Definition global_definitions : list (ident * globdef fundef type) :=
                      cc_default)) (Tcons tulong (Tcons tulong Tnil)) tulong
      cc_default)) :: (___stringlit_1, Gvar v___stringlit_1) ::
  (___stringlit_2, Gvar v___stringlit_2) ::
+ (___stringlit_3, Gvar v___stringlit_3) ::
  (___builtin_ais_annot,
    Gfun(External (EF_builtin "__builtin_ais_annot"
                    (mksignature (AST.Tlong :: nil) AST.Tvoid
@@ -3493,6 +3575,8 @@ Definition global_definitions : list (ident * globdef fundef type) :=
  (_init_bitvec_ptr, Gfun(Internal f_init_bitvec_ptr)) ::
  (___func____2, Gvar v___func____2) ::
  (_init_bitvec_binary, Gfun(Internal f_init_bitvec_binary)) ::
+ (_drop_port, Gvar v_drop_port) ::
+ (_mark_to_drop, Gfun(Internal f_mark_to_drop)) ::
  (_extract_bool, Gfun(Internal f_extract_bool)) ::
  (_extract_bitvec, Gfun(Internal f_extract_bitvec)) ::
  (_emit_bool, Gfun(Internal f_emit_bool)) ::
@@ -3541,14 +3625,14 @@ Definition public_idents : list ident :=
  _interp_bmod :: _interp_bmult :: _interp_bminus_sat :: _interp_bminus ::
  _interp_bplus_sat :: _interp_bplus :: _wrap_around :: _eval_sat_add_sub ::
  _interp_uminus :: _eval_uminus :: _emit_bitvec :: _emit_bool ::
- _extract_bitvec :: _extract_bool :: _init_bitvec_binary ::
- _init_bitvec_ptr :: _init_bitvec :: _reset_bitvec :: _default_action ::
- ___assert_fail :: ___gmpz_xor :: ___gmpz_ui_pow_ui :: ___gmpz_sub_ui ::
- ___gmpz_sub :: ___gmpz_sizeinbase :: ___gmpz_set_ui :: ___gmpz_set_str ::
- ___gmpz_set_si :: ___gmpz_set :: ___gmpz_neg :: ___gmpz_mul_2exp ::
- ___gmpz_mul :: ___gmpz_mod :: ___gmpz_ior :: ___gmpz_init ::
- ___gmpz_get_str :: ___gmpz_fdiv_q_2exp :: ___gmpz_cmp_si :: ___gmpz_cmp ::
- ___gmpz_clear :: ___gmpz_and :: ___gmpz_add :: _malloc ::
+ _extract_bitvec :: _extract_bool :: _mark_to_drop :: _drop_port ::
+ _init_bitvec_binary :: _init_bitvec_ptr :: _init_bitvec :: _reset_bitvec ::
+ _default_action :: ___assert_fail :: ___gmpz_xor :: ___gmpz_ui_pow_ui ::
+ ___gmpz_sub_ui :: ___gmpz_sub :: ___gmpz_sizeinbase :: ___gmpz_set_ui ::
+ ___gmpz_set_str :: ___gmpz_set_si :: ___gmpz_set :: ___gmpz_neg ::
+ ___gmpz_mul_2exp :: ___gmpz_mul :: ___gmpz_mod :: ___gmpz_ior ::
+ ___gmpz_init :: ___gmpz_get_str :: ___gmpz_fdiv_q_2exp :: ___gmpz_cmp_si ::
+ ___gmpz_cmp :: ___gmpz_clear :: ___gmpz_and :: ___gmpz_add :: _malloc ::
  ___builtin_debug :: ___builtin_write32_reversed ::
  ___builtin_write16_reversed :: ___builtin_read32_reversed ::
  ___builtin_read16_reversed :: ___builtin_fnmsub :: ___builtin_fnmadd ::

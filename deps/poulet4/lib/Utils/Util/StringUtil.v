@@ -117,3 +117,10 @@ Proof.
   - admit.
   - f_equal; apply IHm; clear IHm.
 Admitted.
+
+Lemma string_of_nat_inj : forall m n,
+  string_of_nat m = string_of_nat n -> m = n.
+  Admitted.
+(* Oh wait we have string of nat!
+Do we have any lemmas about string_of_nat_inj?*)
+

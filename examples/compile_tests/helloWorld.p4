@@ -3,9 +3,7 @@
 #include <v1model.p4>
 
 struct metadata { }
-struct headers {
-    bool i;
- }
+struct headers { }
 
 parser MyParser(packet_in packet,
                 out headers hdr,
@@ -24,7 +22,10 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
     apply {
-        hdr.i = true;
+        //hdr.i = true;
+        //headers h;
+        //h.i = true;
+        //hdr = h;
         standard_metadata.egress_spec = 9w9;
     }
 }
@@ -35,7 +36,7 @@ control MyEgress(inout headers hdr,
     apply { 
         //hdr.i = true;
         
-        standard_metadata.egress_port = 9w9;
+        //standard_metadata.egress_port = 9w9;
         }
 }
 

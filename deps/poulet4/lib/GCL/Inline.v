@@ -335,10 +335,6 @@ Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i t
 
 Definition normalize_keys t keys := normalize_keys_aux t keys 0.
 
-Print Parser.state_block.
-Print Parser.state.
-Print Parser.e.
-
 Definition get_state_name state :=
   match state with
   | Parser.STStart => "start"
@@ -479,24 +475,8 @@ Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags 
          (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
 
 Open Scope list_scope.
-Fixpoint inline_state
-         (gas : nat)
-         (unroll : nat)
-         (ctx : DeclCtx tags_t)
-         (name : string)
-         (state : Parser.state_block tags_t)
-         (states : F.fs string (Parser.state_block tags_t))
-         (tags : tags_t)
-  : result ((list (string * Parser.state_block tags_t)) * t) :=
-  match gas with
-  | O => ok ([], ISkip tags)
-  | S gas =>
-    let* stmt := inline gas unroll ctx (Parser.stmt state) in
-    let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in
-    let neighbor_states := lookup_parser_states neighbor_names states in
-    (neighbor_states, construct_state name stmt trans tags)
-  end
-with inline_transition (gas : nat)
+
+Fixpoint inline_transition (gas : nat)
                        (unroll : nat)
                        (ctx : DeclCtx tags_t)
                        (name : string)
@@ -519,7 +499,24 @@ with inline_transition (gas : nat)
                     (states ++ new_states, IConditional E.TBool cond trans inln tags) in
            List.fold_right inline_trans_loop default states
          end
-       end
+       end.
+Fixpoint inline_state
+         (gas : nat)
+         (unroll : nat)
+         (ctx : DeclCtx tags_t)
+         (name : string)
+         (state : Parser.state_block tags_t)
+         (states : F.fs string (Parser.state_block tags_t))
+         (tags : tags_t)
+  : result ((list (string * Parser.state_block tags_t)) * t) :=
+  match gas with
+  | O => ok ([], ISkip tags)
+  | S gas =>
+    let* stmt := inline gas unroll ctx (Parser.stmt state) in
+    let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in
+    let neighbor_states := lookup_parser_states neighbor_names states in
+    (neighbor_states, construct_state name stmt trans tags)
+  end
 with inline_parser (gas : nat)
                    (unroll : nat)
                    (tags : tags_t)
@@ -710,7 +707,7 @@ Definition seq_tuple_elem_assign
   let lhs := E.EVar t tuple_elem_name i in
   Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result Inline.t :=
+Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result Inline.t :=
   match lhs, rhs with
   | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
     let+ te := zip types es in
@@ -772,13 +769,13 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
     ok c
   end.
 
-Fixpoint header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
+Definition header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
   (* TODO Type of ExprMember might need to be the header type *)
   F.fold (fun f typ acc => (E.EExprMember typ f e tags, typ) :: acc )
          fields
          [(E.EUop E.TBool E.IsValid e tags, E.TBool)].
 
-Fixpoint header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
+Definition header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
   let lhs_members := header_fields tags lhs fields in
   let rhs_members := header_fields tags rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
@@ -831,8 +828,6 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   | O => init
   | S n' => f n (ifold n' f init)
   end.
-
-Search (nat -> positive).
 
 Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : Inline.t :=
   let t := E.THeader fields in
@@ -962,7 +957,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
               (ISetValidity (E.EVar typ (indexed_stck (n-1)) tags) true tags))
   end.
 
-Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+Definition struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
   F.fold (fun f typ acc => (s ++ "." ++ f, typ) :: acc ) fields [].
 
 (** TODO: Compiler pass to elaborate structs *)

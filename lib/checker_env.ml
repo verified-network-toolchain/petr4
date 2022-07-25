@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 
 type t =
   { (* types that type names refer to (or Typevar for vars in scope) *)

@@ -15,23 +15,24 @@ Section SyntaxUtil.
 Context {tags_t: Type} {inhabitant_tags_t : Inhabitant tags_t}.
 Variable default_tag: tags_t.
 
-Notation ident := (P4String.t tags_t).
-Notation path := (list ident).
+Notation ident := string.
 Notation P4Int := (P4Int.t tags_t).
 Notation P4String := (P4String.t tags_t).
 
-Axiom dummy_ident : unit -> ident. (* make it lazy for extracted OCaml. *)
+(* This should be replaced with "fail" when extracting to OCaml. *)
+Definition dummy_ident : unit -> ident.
+Proof. intros _. exact ""%string. Defined.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with
-  | TypSpecializedType (TypTypeName type_name) _ => type_name
-  | TypTypeName type_name => type_name
+  | TypSpecializedType (TypTypeName type_name) _ => P4String.str type_name
+  | TypTypeName type_name => P4String.str type_name
   | _ => dummy_ident tt
   end.
 
 Definition get_param_name (param : @P4Parameter tags_t) : ident :=
   match param with
-  | MkParameter _ _ _ _ name => name
+  | MkParameter _ _ _ _ name => P4String.str name
   end.
 
 Definition get_param_dir (param : @P4Parameter tags_t) : direction :=
@@ -51,12 +52,12 @@ Definition get_param_typ (param : @P4Parameter tags_t) : P4Type :=
 
 Definition get_param_name_typ (param : @P4Parameter tags_t) : ident * P4Type :=
   match param with
-  | MkParameter _ _ typ _ name => (name, typ)
+  | MkParameter _ _ typ _ name => (P4String.str name, typ)
   end.
 
 Definition get_param_name_dir (param : @P4Parameter tags_t) : ident * direction :=
   match param with
-  | MkParameter _ dir _ _ name => (name, dir)
+  | MkParameter _ dir _ _ name => (P4String.str name, dir)
   end.
 
 Definition get_parser_state_statements (parser_state : @ParserState tags_t) : list (@Statement tags_t) :=

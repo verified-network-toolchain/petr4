@@ -134,7 +134,7 @@ Module TypeEquivalence.
     Qed.
   End TypeEquivalence.
   
-  Instance TypeEqDec : EqDec t eq :=
+  Global Instance TypeEqDec : EqDec t eq :=
     { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
   (**[]*)
 End TypeEquivalence.
@@ -145,7 +145,7 @@ Module ExprEquivalence.
          TypeNotations UopNotations BopNotations
          MatchkindNotations ExprNotations TypeEquivalence.
   
-  Instance UopEqDec : EqDec uop eq.
+  Global Instance UopEqDec : EqDec uop eq.
   Proof.
     intros [] []; unravel in *;
       try match goal with
@@ -156,13 +156,13 @@ Module ExprEquivalence.
              inv_eq; try contradiction).
   Defined.
   
-  Instance BopEqDec : EqDec bop eq.
+  Global Instance BopEqDec : EqDec bop eq.
   Proof.
     intros [] []; unfold equiv, complement in *;
       auto 2; right; intros ?; discriminate.
   Defined.
 
-  Instance MatchKindEqDec : EqDec Expr.matchkind eq.
+  Global Instance MatchKindEqDec : EqDec Expr.matchkind eq.
   Proof.
     unfold EqDec; unfold equiv, complement.
     intros [] []; try (left; reflexivity);
@@ -640,10 +640,10 @@ Module ExprEquivalence.
   Local Hint Resolve equive_symmetric : core.
   Local Hint Resolve equive_transitive : core.
   
-  Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
+  Global Instance ExprEquiv {tags_t : Type} : Equivalence (@equive tags_t).
   Proof. constructor; auto 1. Defined.
   
-  Instance ExprEqDec {tags_t : Type} : EqDec (e tags_t) equive :=
+  Global Instance ExprEqDec {tags_t : Type} : EqDec (e tags_t) equive :=
     { equiv_dec := fun e1 e2 => reflect_dec _ _ (equive_reflect e1 e2) }.
   (**[]*)
 End ExprEquivalence.

@@ -520,6 +520,7 @@ and gen_all_constraints (env: CheckerEnv.t) ctx unknowns params_args constraints
   | [] ->
      constraints
 
+(* DISCUSS WITH RYAN: constraints doesn't need to be passed here. it's being built and the inputed one is never used. same goes for ret. *)
 and infer_type_arguments env ctx ret type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
@@ -3012,8 +3013,8 @@ and resolve_function_overload env ctx type_name args =
   *)
 and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
-  let type_args = List.map ~f:(translate_type_opt env []) type_args in(* translates types.type to typed.type if it's not dontcare.*)
-  let constructor_type = resolve_constructor_overload env decl_name args in (* gets the type of the constructor from the env by resolving params *)
+  let type_args = List.map ~f:(translate_type_opt env []) type_args in(* determines if type is dontcare.*)
+  let constructor_type = resolve_constructor_overload env decl_name args in
   let t_params = constructor_type.type_params in
   let w_params = constructor_type.wildcard_params in
   let params_args = match_params_to_args tags constructor_type.parameters args in

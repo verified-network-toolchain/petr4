@@ -63,7 +63,8 @@
 \newcommand*{\errMemE}{\rn{ErrorMember}\rE}
 \newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
 \newcommand*{\ternaryE}{\rn{Ternary}\rE}
-\newcommand*{\funcCallE}{\rn{FunctionCall}\rE}
+\newcommand*{\funcCallE}{\rn{FunctionCall}\rE\rSep\rn{1}}
+\newcommand*{\funcCallNoTypeArgE}{\rn{FunctionCall}\rE\rSep\rn{2}}
 \newcommand*{\instE}{\rn{Instantiation}\rE}
 \newcommand*{\maskE}{\rn{Mask}\rE}
 \newcommand*{\rangeE}{\rn{Range}\rE}
@@ -75,15 +76,17 @@
 
 
 %function call helper
-\newcommand*{\nameFuncNameE}{\rn{NameExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByName}\rE}
-\newcommand*{\nameFuncCountE}{\rn{NameExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByCount}\rE}
-\newcommand*{\nameActionE}{\rn{NameExpression}\rSep\rn{ActionType}\rE}
+\newcommand*{\nameFuncNameE}{\rn{Name}\rSep\rn{Func}\rAE\rSep\rn{1}}
+\newcommand*{\nameFuncCountE}{\rn{Name}\rSep\rn{Func}\rAE\rSep\rn{2}}
+\newcommand*{\nameActionE}{\rn{Name}\rSep\rn{Action}\rAE}
 %% \newcommand*{\nameActionNameE}{\rn{NameExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByName}\rE}
 %% \newcommand*{\nameActionCountE}{\rn{NameExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByCount}\rE}
-\newcommand*{\expMemFuncNameE}{\rn{ExpMemExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByName}\rE}
-\newcommand*{\expMemFuncCountE}{\rn{ExpMemExpression}\rSep\rn{FunctionType}\rSep\rn{ResolveByCount}\rE}
-\newcommand*{\expMemActionNameE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByName}\rE}
-\newcommand*{\expMemActionCountE}{\rn{ExpMemExpression}\rSep\rn{ActionType}\rSep\rn{ResolveByCount}\rE}
+\newcommand*{\expMemExternNameE}{\rn{ExpMem}\rSep\rn{Extern}\rAE\rSep\rn{1}}
+\newcommand*{\expMemExternCountE}{\rn{ExpMem}\rSep\rn{Extern}\rAE\rSep\rn{2}}
+\newcommand*{\expMemSpcE}{\rn{ExpMem}\rSep\rn{Specialized}\rAE}
+%% \newcommand*{\expMemSpcCountE}{\rn{Exp:ExpMem}\rSep\rn{Type:Specialized}\rSep\rn{Resolve:Count}\rE}
+
+\newcommand*{\inferTypeArgAE}{\rn{InferTypeArg}\rAE}
 
 \newcommand*{\assignmentS}{\rn{Assignment}\rS}
 \newcommand*{\emptyS}{\rn{Empty}\rS}
@@ -167,10 +170,12 @@
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
 \newcommand{\expenv}[4]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
 \newcommand{\expenvv}[5]{\env_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}}
 \newcommand{\expenvWithCtxt}[5]{\env, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
 \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
 \newcommand{\typWellFormed}[1]{\env \vdash {#1}}
+\newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
 \newcommand{\typWellFormedWithEnv}[2]{{#1} \vdash {#2}}
 \newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}}
 %context. type of expression. type of returned name.exp
@@ -185,19 +190,22 @@
 \newcommand{\implCast}[2]{\castenv {i} {#1} {#2}}
 %exp, args. exp', type pars, pars, kind, return type.
 %check if you need the dir to be returned as well. 
-\newcommand{\resolveFuncOver}[7]{\env, \ctxt \vdash {#1}, {#2} \leadsto {#3}, {#4}, {#5}, {#6}, {#7}}
-%return type. typ par : typ arg. par = exp. constraints (init to typ par : typ arg). typ par : typ arg (infered). 
-\newcommand{\inferTypParArg}[5]{\env, \ctxt \vdash {#1}, {#2}, {#3}, {#4} \mapsto {#5}}
-
+\newcommand{\resolveFuncOver}[7]{\env, \ctxt \vdash {#1}, {#2} \twoheadrightarrow {#3}, {#4}, {#5}, {#6}, {#7}}
+%typ par : typ arg. par = exp. . typ par : typ arg (infered).
+% this has an extra input in code (which is constraints (init to typ par : typ arg)) but it's never used so i dropped it. same for return type.
+\newcommand{\inferTypParArg}[3]{\env, \ctxt \vdash {#1}, {#2} \mapsto {#3}}
+\newcommand{\unify}[6]{{#1}, {#2}, {#3} \vDash {#4} \doteq {#5} \Vdash {#6}}
 
 
 %contexts:
 \newcommand{\cte}{\mathfrak{constant}}
 \newcommand{\applyBlockCtxt}{\mathfrak{applyBlock}}
 \newcommand{\actionCtxt}{\mathfrak{action}}
+\newcommand{\tableActionCtxt}{\mathfrak{tableAction}}
 \newcommand{\funcCtxt}[1]{\mathfrak{function}\ {#1}}
 \newcommand{\parserCtxt}{\mathfrak{parserState}}
 \newcommand{\toplevel}{\mathfrak{topLevel}}
+\newcommand{\declLocalCtxt}{\mathfrak{declLocal}}
 
 %operators:
 \newcommand{\mask}[2]{{#1}\ \&\&\&\ {#2}}
@@ -220,6 +228,7 @@
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
 \newcommand{\funcCall}[3]{{#1}\langle{#2}\rangle({#3})}
+\newcommand{\funcCallNoTypArgs}[2]{{#1}({#2})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
 \newcommand{\instantiation}[2]{{#1}({#2})}
 \newcommand{\assign}[2]{{#1}={#2}}
@@ -243,6 +252,7 @@
 
 
 %metavariables:
+\newcommand{\anyTyp}{a}
 \newcommand{\env}{\Gamma}
 \newcommand{\typEnv}{\Gamma}
 \newcommand{\constEnv}{\Sigma}
@@ -304,8 +314,14 @@
 \newcommand{\argkvs}{\overline \argkv}
 \newcommand{\argkvss}[2]{\argkvi {#1}, \ldots, \argkvi {#2}}
 \newcommand{\names}{\overline \name}
+\newcommand{\methods}[2]{\overline {{#1}:{#2}}}
 
 %function helpers
+\newcommand{\mergeConst}[2]{\mathit{merge\_types}({#1},{#2})}
+\newcommand{\toVoid}[1]{\mathit{voidify}({#1})}
+\newcommand{\breakMaybes}[3]{\mathit{break\_option}({#1})=\left({#2},{#3}\right)}
+\newcommand{\isExtern}[1]{\mathit{is\_extern}({#1})}
+\newcommand{\nothing}{\bot}
 \newcommand{\maskTypeIs}[2]{\mathit{mask\_type}({#1},{#2})}
 % \typ = \intWidthTyp \width \textOr \bitWidthTyp \width
 \newcommand{\widthInt}[1]{\mathit{width\_int}({#1})}
@@ -358,15 +374,16 @@
 \newcommand{\allowedTypeForVar}[1]{\mathit{is\_allowed\_type\_for\_variable}({#1})}
 \newcommand{\checkParamShadow}[2]{\mathit{check\_parameter\_shadowing}({#1}, {#2})}
 \newcommand{\match}[2]{\mathit{match}({#1},{#2})}
-\newcommand{\zip}[2]{\mathit{zip} ({#1},{#2})}
+%% \newcommand{\zip}[2]{\mathit{zip} ({#1},{#2})}
 \newcommand{\matchParArg}[2]{\mathit{macth\_parameter\_argument}({#1},{#2})}
 \newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
 \newcommand{\maybe}[1]{{#1}_{\bot}}
 \newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
 \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
 \newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
-\newcommand{\concatList}{++}
+\newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
+\newcommand{\whatevs}{\_}
 
 %fields 
 \newcommand{\isValid}{\mathsf{isValid}}
@@ -386,6 +403,12 @@
 %kinds
 \newcommand{\builtin}{\mathsf{builtin}}
 \newcommand{\actionKind}{\mathsf{action}}
+\newcommand{\parserKind}{\mathsf{parser}}
+\newcommand{\controlKind}{\mathsf{control}}
+\newcommand{\methodKind}{\mathsf{method}}
+\newcommand{\externKind}{\mathsf{extern}}
+\newcommand{\tableKind}{\mathsf{table}}
+\newcommand{\funcKind}{\mathsf{function}}
 
 %keywords
 \newcommand{\newtypKey}{\mathsf{newtype}}
@@ -442,7 +465,7 @@
 \newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
 \newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
 \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
-\newcommand{\actionTyp}[2]{\mathsf{action}(\mathit{data:}{#1},\mathit{control:}{#2})}
+\newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ {#1},\mathsf{control:}\ {#2})}
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}

@@ -85,7 +85,9 @@ The optimizations somehow optimize away the nested fixpoint and avoid this error
 Set Extraction Flag 716.
 Extraction Inline Interpreter.interp_isValid.
 Extraction NoInline Interpreter.interp_isValid_fields.
+Extraction Inline V1ModelTarget.V1ModelExternSem.
 
+Set Extraction AutoInline.
 (* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax

@@ -7,6 +7,7 @@ Require Import Coq.Program.Program.
 Require Import Coq.Init.Hexadecimal.
 Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
+Require Import Poulet4.P4light.Syntax.Info.
 From Poulet4.P4light.Syntax Require Import
      Typed P4Int SyntaxUtil P4Notations ValueUtil.
 From Poulet4.P4light.Semantics Require Import Ops.
@@ -500,7 +501,10 @@ Definition interp_extern_safe :
 Proof.
 Admitted.
 
-Instance V1ModelExternSem : ExternSem := Build_ExternSem
+Instance V1ModelExternSem : @ExternSem tags_t Expression.
+Admitted.
+  (*
+  Build_ExternSem
   env_object
   object
   construct_extern
@@ -510,7 +514,7 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   interp_extern_safe
   extern_get_entries
   extern_match.
-
+*)
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
     extern_state -> list bool -> extern_state -> list bool -> Prop :=
   | exec_prog_intro : forall (module_sem : _ -> _ -> _ -> _ -> _ -> _ -> Prop) s0 pin s7 pout s1 s2 s3 s4 s5 s6
@@ -529,6 +533,16 @@ Definition interp_prog : (path -> extern_state -> list Val -> option (extern_sta
                          extern_state -> Z -> list bool -> option (extern_state * Z * list bool).
 Admitted.
 
-Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
-
+Instance V1Model : @Target tags_t Expression.
+Admitted.
+  (*
+  Build_Target _ exec_prog interp_prog.
+*)
 End V1Model.
+
+(*
+Instance V1ModelExternSemInfo: @ExternSem Info (@Syntax.Expression Info) :=
+  V1ModelExternSem.
+Instance V1ModelInfo: @Target Info (@Syntax.Expression Info) :=
+  V1Model.
+*)

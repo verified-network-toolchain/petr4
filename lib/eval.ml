@@ -15,6 +15,6 @@ let interp
         option =
   Poulet4.Interpreter.interp P4info.dummy target infinite_fuel prog st in_port pkt
 
-open Poulet4.P4light.Architecture.V1Model
+open Poulet4.V1ModelTarget
 let v1_interp =
-  interp 
+  interp coq_V1Model

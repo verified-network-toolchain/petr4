@@ -1,7 +1,5 @@
-open Petr4
 open Petr4.Ast
 open Core
-open Core_unix
 
 let stmt_string s =
   match s with

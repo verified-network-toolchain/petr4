@@ -225,19 +225,21 @@ Section Util.
   (** May syntactically appear as an l-expression. *)
   Inductive lexpr_ok : expr -> Prop :=
   | lexpr_name tag x loc t dir :
-      match dir with
-      | Directionless => False | _ => True
-      end ->
-      lexpr_ok (MkExpression tag (ExpName x loc) t dir)
+    match dir with
+    | Directionless => False | _ => True
+    end ->
+    lexpr_ok (MkExpression tag (ExpName x loc) t dir)
   | lexpr_member tag e x t dir :
-      lexpr_ok e ->
-      lexpr_ok (MkExpression tag (ExpExpressionMember e x) t dir)
+    P4String.str x <> "size"%string ->
+    P4String.str x <> "lastIndex"%string ->
+    lexpr_ok e ->
+    lexpr_ok (MkExpression tag (ExpExpressionMember e x) t dir)
   | lexpr_slice tag e hi lo t dir :
-      lexpr_ok e ->
-      lexpr_ok (MkExpression tag (ExpBitStringAccess e lo hi) t dir)
+    lexpr_ok e ->
+    lexpr_ok (MkExpression tag (ExpBitStringAccess e lo hi) t dir)
   | lexpr_access tag e₁ e₂ t dir :
-      lexpr_ok e₁ ->
-      lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
+    lexpr_ok e₁ ->
+    lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
 
   (** "Normalizes" a type to those in a
       one-to-one correspondence with values

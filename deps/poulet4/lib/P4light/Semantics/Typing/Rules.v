@@ -759,15 +759,17 @@ Section Soundness.
 
     Local Hint Resolve member_get_member_ex : core.
     Local Hint Resolve get_member_types : core.
-
+    
     Theorem other_member_sound : forall tag e x ts t dir,
+        P4String.str x <> "size"%string ->
+        P4String.str x <> "lastIndex"%string ->
         (P4String.str x =? "next")%string = false ->
         member_type ts (typ_of_expr e) ->
         AList.get ts x = Some t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
-      intros i e x ts t dir Hnxt Hmem Hts He.
+      intros i e x ts t dir hsize hlstdx Hnxt Hmem Hts He.
       intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
@@ -856,11 +858,11 @@ Section Soundness.
             rewrite AList.get_neq_cons by assumption; eauto. }
         eauto.
       - intros Hlv; inv Hlv.
-        apply Helv in H0 as [(lv & s & Hlvs) Helv']; clear Helv; split; eauto.
+        apply Helv in H6 as [(lv & s & Hlvs) Helv']; clear Helv; split; eauto.
         clear lv v s Hlvs Hev.
         intros lv s Hlvs; inv Hlvs;
-          try (rewrite H8 in Hnxt; discriminate).
-        apply Helv' in H9 as Hlvt.
+          try (rewrite H10 in Hnxt; discriminate).
+        apply Helv' in H11 as Hlvt.
         rewrite P4String.get_clear_AList_tags in Hts.
         econstructor; eauto.
     Qed.
@@ -892,14 +894,8 @@ Section Soundness.
         apply Hv in H7 as (r & Hr & Hvr); clear Hv. rewrite <- Htyp in Hr. cbn in Hr.
         destruct (get_real_type ge t); simpl in Hr; inversion Hr. subst r. clear Hr.
         cbn in Hvr. inversion Hvr; subst. inversion H8. constructor.
-      - intros Hlv; inv Hlv.
-        apply Helv in H0 as [(lv & s & Hlvs) Helv']; clear Helv; split.
-        + eexists. eexists. constructor. 2: apply Hlvs. rewrite Hstr. reflexivity.
-        + clear lv v s Hlvs Hev.
-          intros lv s Hlvs; inv Hlvs; try (rewrite Hstr in H8; discriminate).
-          apply Helv' in H9 as Hlvt. rewrite <- Htyp in Hlvt.
-          rewrite Hstr.
-    Admitted.
+      - intros Hlv; inv Hlv; contradiction.
+    Qed.
 
     Theorem array_last_index_sound : forall tag e x dir t w,
         P4String.str x = "lastIndex"%string ->

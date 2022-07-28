@@ -759,7 +759,7 @@ Section Soundness.
 
     Local Hint Resolve member_get_member_ex : core.
     Local Hint Resolve get_member_types : core.
-    
+
     Theorem other_member_sound : forall tag e x ts t dir,
         P4String.str x <> "size"%string ->
         P4String.str x <> "lastIndex"%string ->
@@ -869,13 +869,13 @@ Section Soundness.
 
     Theorem array_size_sound : forall tag e x dir t w,
         (* P4Arith.BitArith.bound 32 w -> *)
-        (w < 2 ^ 32)%N ->
+        (* (w < 2 ^ 32)%N -> *)
         P4String.str x = "size"%string ->
         (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
         (ge,this,Δ,Γ)
           ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
-      intros i e x dir t w Hrng Hstr [He Htyp].
+      intros i e x dir t w Hstr [He Htyp].
       intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
@@ -900,9 +900,36 @@ Section Soundness.
     Theorem array_last_index_sound : forall tag e x dir t w,
         P4String.str x = "lastIndex"%string ->
         (ge,this,Δ,Γ) ᵗ⊢ₑ e \: TypArray t w ->
-        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
+        (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
-    Admitted.
+      intros i e x dir t w Hstr [He Htyp].
+      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      inversion Hok; subst. inversion H4; subst.
+      rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
+      inversion Hise; subst. inversion H4; subst.
+      rename H1 into Hist; rename H4 into Hismem; rename H0 into Hise'.
+      pose proof He Hgrt Hdlta as [[v Hev] [Hv Helv]]; eauto.
+      split; [| split].
+      - clear Helv.
+        assert (Hget: exists v', get_member v (P4String.str x) v').
+        { rewrite Hstr. apply Hv in Hev as (r & Hr & Hvr). rewrite <- Htyp in Hr. cbn in Hr.
+          destruct (get_real_type ge t) eqn:?S; simpl in Hr; inversion Hr. subst r. clear Hr.
+          cbn in Hvr. inversion Hvr; subst.
+          exists (if (n =? 0)%N then ValBaseBit (repeat None 32)
+             else ValBaseBit (to_loptbool 32 (Z.of_N (n - 1)))).
+          apply get_member_stack_last_index with (tags_t := tags_t).
+          destruct (n =? 0)%N; reflexivity. }
+        destruct Hget as [v' Hv']. exists v'; eapply exec_expr_other_member; eauto.
+      - clear v Hev Helv; intros v Hev. exists (TypBit 32). split; auto.
+        inversion Hev; subst. rewrite Hstr in H8.
+        apply Hv in H7 as (r & Hr & Hvr); clear Hv. rewrite <- Htyp in Hr. cbn in Hr.
+        destruct (get_real_type ge t) eqn:?S; simpl in Hr; inversion Hr. subst r. clear Hr.
+        cbn in Hvr. inversion Hvr; subst. inversion H8; subst.
+        destruct (n =? 0)%N.
+        + simpl in H0. inv H0. constructor.
+        + subst v. constructor.
+      - intros Hlv; inv Hlv; contradiction.
+    Qed.
 
     Theorem ternary_sound : forall tag e₁ e₂ e₃ t dir,
         (ge,this,Δ,Γ) ᵗ⊢ₑ e₁ \: TypBool ->

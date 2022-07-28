@@ -2,7 +2,7 @@ Require Import Poulet4.Utils.P4Arith
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
-        Poulet4.P4cub.Syntax.Auxilary Poulet4.P4cub.Semantics.Climate.
+        Poulet4.P4cub.Syntax.Auxiliary Poulet4.P4cub.Semantics.Climate.
 Require Poulet4.P4cub.Semantics.Static.Util.
 Import Val.ValueNotations ExprNotations.
 

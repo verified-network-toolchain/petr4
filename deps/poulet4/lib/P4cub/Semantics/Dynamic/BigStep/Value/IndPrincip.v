@@ -15,8 +15,8 @@ Section ValueInduction.
   
   Hypothesis HVInt : forall w n, P (w VS n).
   
-  Hypothesis HVStruct : forall vs ob,
-      Forall P vs -> P (Struct vs ob).
+  Hypothesis HVLists : forall ls vs,
+      Forall P vs -> P (Lists ls vs).
   
   Hypothesis HVError : forall err, P (Error err).
   
@@ -28,10 +28,10 @@ Section ValueInduction.
           | hv :: vs => Forall_cons _ (custom_v_ind hv) (lind vs)
           end in
       match val with
-      | Bool b       => HVBool b
-      | w VS n       => HVInt w n
-      | w VW n       => HVBit w n
-      | Struct vs ob => HVStruct vs ob (lind vs)
-      | Error err    => HVError err
+      | Bool b      => HVBool b
+      | w VS n      => HVInt w n
+      | w VW n      => HVBit w n
+      | Lists ls vs => HVLists ls vs (lind vs)
+      | Error err   => HVError err
       end.
 End ValueInduction.

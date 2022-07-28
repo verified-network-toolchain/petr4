@@ -51,9 +51,9 @@ Variant uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=
   | UTUMinus τ :
     numeric τ -> uop_type `-%uop τ τ
   | UTIsValid ts :
-    uop_type Expr.IsValid (Expr.TStruct ts true) Expr.TBool
+    uop_type Expr.IsValid (Expr.TStruct true ts) Expr.TBool
   | UTSetValidity b ts :
-    uop_type (Expr.SetValidity b) (Expr.TStruct ts true) (Expr.TStruct ts true).
+    uop_type (Expr.SetValidity b) (Expr.TStruct true ts) (Expr.TStruct true ts).
 
 (** Evidence a binary operation is valid
     for operands of a type and produces some type. *)
@@ -94,9 +94,8 @@ Variant proper_cast : Expr.t -> Expr.t -> Prop :=
   | pc_int_bit w : proper_cast (Expr.TInt w) (Expr.TBit (Npos w))
   | pc_bit_bit w1 w2 : proper_cast (Expr.TBit w1) (Expr.TBit w2)
   | pc_int_int w1 w2 : proper_cast (Expr.TInt w1) (Expr.TInt w2)
-  | pc_tuple_hdr ts :
-    (*Forall ProperType.proper_inside_header ts ->*)
-    proper_cast (Expr.TStruct ts false) (Expr.TStruct ts true).
+  | pc_struct_hdr ts :
+    proper_cast (Expr.TStruct true ts) (Expr.TStruct false ts).
 
 (** Ok types. *)
 Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
@@ -108,9 +107,12 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
   t_ok Δ (Expr.TInt w)
 | error_ok :
   t_ok Δ Expr.TError
-| struct_ok ts b :
+| array_ok n t :
+  t_ok Δ t ->
+  t_ok Δ (Expr.TArray n t)
+| struct_ok b ts :
   Forall (t_ok Δ) ts ->
-  t_ok Δ (Expr.TStruct ts b)
+  t_ok Δ (Expr.TStruct b ts)
 | var_ok T :
   (T < Δ)%nat ->
   t_ok Δ T.
@@ -129,56 +131,76 @@ Definition aenv : Set :=
     (list Expr.t (** control-plane parameters. *)
      * Expr.params (** data-plane parameters *)).
 
-(** de Bruijn environment of instance type signatures. *)
-Definition ienv : Set :=
-  list
-    (list string (** Types of extern arguments. *)
-     * Expr.params (** Types of expression arguments. *)).
+Variant instance_sig : Set :=
+  | ParserSig
+  | ControlSig.
 
-(** De Bruijn environment of extern instance type signatures. *)
-Definition eienv : Set :=
-  list (Field.fs
-          string (** Method name. *)
-          (nat * Expr.arrowT (** Method type signature. *))).
+(** Instance names to types. *)
+Definition ienv : Set :=
+  Clmt.t
+    string (** Instance name *)
+    (Field.fs
+       string (** Method name. *)
+       (nat * Expr.arrowT (** Method type signature. *))
+     + instance_sig  (** Parser or control instance. *)
+       * list string (** Types of extern arguments. *)
+       * Expr.params (** Types of expression arguments. *)).
 
 (** Table signature environment. *)
 Definition tbl_env : Set := Clmt.t string (list Expr.t).
 
 (** Statement context. *)
 Variant ctx : Set :=
-| CAction (available_actions : aenv)
-          (available_externs : eienv) (* action block *)
-| CFunction (return_type : option Expr.t)
-| CApplyBlock (tables : tbl_env)
-              (available_actions : aenv)
-              (available_controls : ienv)
-              (available_externs : eienv) (* control apply block *)
-| CParserState (available_parsers : ienv)
-               (available_externs : eienv) (* parser state *).
+  | CAction (available_actions : aenv)
+            (available_instances : ienv) (* action block *)
+  | CFunction (return_type : option Expr.t)
+  | CApplyBlock (tables : tbl_env)
+                (available_actions : aenv)
+                (available_instances : ienv) (* control apply block *)
+  | CParserState
+      (total_states : nat)
+      (available_instances : ienv) (* parser state *).
 
 (** Evidence an extern method call context is ok. *)
-Variant extern_call_ok (eis : eienv) : ctx -> Prop :=
+Variant extern_call_ok (eis : ienv) : ctx -> Prop :=
 | extern_action_ok {aa} :
   extern_call_ok eis (CAction aa eis)
-| extern_apply_block_ok {tbls} {aa} {cis} :
-  extern_call_ok eis (CApplyBlock tbls aa cis eis)
-| extern_parser_state_ok {pis} :
-  extern_call_ok eis (CParserState pis eis).
+| extern_apply_block_ok {tbls} {aa} :
+  extern_call_ok eis (CApplyBlock tbls aa eis)
+| extern_parser_state_ok {ts} :
+  extern_call_ok eis (CParserState ts eis).
 
 (** Evidence an action call context is ok. *)
 Variant action_call_ok
         (aa : aenv) : ctx -> Prop :=
   | action_action_ok {eis} :
     action_call_ok aa (CAction aa eis)
-  | action_apply_block_ok {tbls} {cis} {eis} :
-    action_call_ok aa (CApplyBlock tbls aa cis eis).
+  | action_apply_block_ok {tbls} {eis} :
+    action_call_ok aa (CApplyBlock tbls aa eis).
 
 (** Evidence an exit context ok. *)
 Variant exit_ctx_ok : ctx -> Prop :=
   | exit_action_ok {aa} {eis} :
     exit_ctx_ok (CAction aa eis)
-  | exit_applyblk_ok {tbls} {aa} {cis} {eis} :
-    exit_ctx_ok (CApplyBlock tbls aa cis eis).
+  | exit_applyblk_ok {tbls} {aa} {eis} :
+    exit_ctx_ok (CApplyBlock tbls aa eis).
+
+(** Evidence a parser state transition is ok. *)
+Variant transition_ok (total_states : nat) : ctx -> Prop :=
+  | transition_parser_state_ok {i} :
+    transition_ok total_states (CParserState total_states i).
+
+(** Evidence a table invocation is ok. *)
+Variant table_invoke_ok (tbls : tbl_env) : ctx -> Prop :=
+  | table_invoke_applyblk_ok {aa} {i} :
+    table_invoke_ok tbls (CApplyBlock tbls aa i).
+
+(** Evidence applying an instance is ok. *)
+Variant apply_instance_ok (i : ienv) : instance_sig -> ctx -> Prop :=
+  | apply_control_applyblk_ok {tbls} {aa} :
+    apply_instance_ok i ControlSig (CApplyBlock tbls aa i)
+  | apply_parser_state_ok {ts} :
+    apply_instance_ok i ParserSig (CParserState ts i).
 
 (** Evidence a void return is ok. *)
 Variant return_void_ok : ctx -> Prop :=
@@ -187,8 +209,8 @@ Variant return_void_ok : ctx -> Prop :=
   | return_void_void :
     return_void_ok (CFunction None)
   | return_void_applyblk
-      {tbls} {aa} {cis} {eis} :
-    return_void_ok (CApplyBlock tbls aa cis eis).
+      {tbls} {aa} {cis} :
+    return_void_ok (CApplyBlock tbls aa cis).
 
 (** Put parameters into environment. *)
 Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
@@ -221,29 +243,30 @@ Definition constructor_env : Set :=
 Import Clmt.Notations.
 Open Scope climate_scope.
 
-Record insts_env : Set :=
-  {parsers:ienv; controls:ienv; externs:eienv}.
+Definition insts_bind_externs ename methods insts : ienv :=
+  ename ↦ inl methods ,, insts.
+
+Definition insts_bind_other x sig ext_params params insts : ienv :=
+    x ↦ inr (sig,ext_params,params) ,, insts.
 
 (** Put (constructor) parameters
     into environments for typing
     control or parser declarations. *)
-Definition cbind_all (ie : insts_env) :
-  TopDecl.constructor_params ->
-  list Expr.t * insts_env :=
+Definition cbind_all :
+  ienv -> TopDecl.constructor_params -> ienv :=
   List.fold_right
-    (fun it '((Γ, {|parsers:=ps;controls:=cs;externs:=exts|} as i)) =>
+    (fun '(x,it) i =>
        match it with
-       | TopDecl.EType τ => (τ :: Γ , i)
        | TopDecl.ControlInstType res pars
-         => (Γ, {|controls:=(res,pars)::cs;parsers:=ps;externs:=exts|})
+         => insts_bind_other x ControlSig res pars i
        | TopDecl.ParserInstType res pars
-         => (Γ, {|parsers:=(res,pars)::ps;controls:=ps;externs:=exts|})
-       | TopDecl.ExternInstType _ => (Γ, i) (* TODO *)
-       | TopDecl.PackageInstType => (Γ, i)
-       end) ([], ie).
+         => insts_bind_other x ParserSig res pars i
+       | TopDecl.ExternInstType _ => i (* TODO *)
+       | TopDecl.PackageInstType => i (* TODO *)
+       end).
 
 (** Valid parser states. *)
-Variant valid_state (total : nat) : Parser.state -> Prop :=
+Variant valid_state (total : nat) : Parser.state_label -> Prop :=
   | start_valid :
     valid_state total Parser.Start
   | accept_valid :
@@ -267,7 +290,26 @@ Inductive lvalue_ok : Expr.e -> Prop :=
   lvalue_ok (Expr.Var τ x)
 | lvalue_bit_slice e h l :
   lvalue_ok e ->
-  lvalue_ok (Expr.Slice e h l)
+  lvalue_ok (Expr.Slice h l e)
+| lvalue_index τ e₁ e₂ :
+  lvalue_ok e₁ ->
+  lvalue_ok (Expr.Index τ e₁ e₂)
 | lvalue_member τ x e :
   lvalue_ok e ->
   lvalue_ok (Expr.Member τ x e).
+
+Variant type_lists_ok
+  : Expr.lists -> Expr.t -> list Expr.t -> Prop :=
+  | type_array_ok n τ :
+    type_lists_ok
+      (Expr.lists_array τ)
+      (Expr.TArray n τ)
+      (List.repeat τ (N.to_nat n))
+  | type_struct_ok τs :
+    type_lists_ok
+      Expr.lists_struct
+      (Expr.TStruct false τs) τs
+  | type_header_ok b τs :
+    type_lists_ok
+      (Expr.lists_header b)
+      (Expr.TStruct true τs) τs.

@@ -20,14 +20,10 @@ Inductive type_value : v -> Expr.t -> Prop :=
 | typ_int w z :
   IntArith.bound w z ->
   ⊢ᵥ w VS z ∈ Expr.TInt w
-| typ_struct vs ts ob b :
-  match ob, b with
-  | Some _, true
-  | None, false => True
-  | _, _ => False
-  end ->
-  Forall2 type_value vs ts ->
-  ⊢ᵥ Struct vs ob ∈ Expr.TStruct ts b
+| typ_lists ls vs τ τs :
+  type_lists_ok ls τ τs ->
+  Forall2 type_value vs τs ->
+  ⊢ᵥ Lists ls vs ∈ τ
 | typ_error err :
   ⊢ᵥ Error err ∈ Expr.TError
 where "'⊢ᵥ' V ∈ τ" := (type_value V τ) : type_scope.
@@ -49,16 +45,12 @@ Section ValueTypingInduction.
 
   Hypothesis HError : forall err,
       P (Error err) Expr.TError.
-    
-  Hypothesis HStruct : forall vs ts ob b,
-      match ob, b with
-      | Some _, true
-      | None, false => True
-      | _, _ => False
-      end ->
+  
+  Hypothesis HLists : forall ls vs t ts,
+      type_lists_ok ls t ts ->
       Forall2 type_value vs ts ->
       Forall2 P vs ts ->
-      P (Struct vs ob) (Expr.TStruct ts b).
+      P (Lists ls vs) t.
 
   (** Custom induction principle.
       Do [induction ?H using custom_type_value_ind]. *)
@@ -80,7 +72,7 @@ Section ValueTypingInduction.
       | typ_bit _ _ H => HBit _ _ H
       | typ_int _ _ H => HInt _ _ H
       | typ_error err => HError err
-      | typ_struct _ _ _ _ H Hfs => HStruct _ _ _ _ H Hfs (lind Hfs)
+      | typ_lists _ _ _ _ H Hfs => HLists _ _ _ _ H Hfs (lind Hfs)
       end.
 End ValueTypingInduction.
 
@@ -99,8 +91,12 @@ Inductive type_lvalue (Γ : list Expr.t)
   Γ ⊢ₗ Slice LV hi lo ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
 | typ_member LV x τ τs b :
   nth_error τs x = Some τ ->
-  Γ ⊢ₗ LV ∈ Expr.TStruct τs b ->
+  Γ ⊢ₗ LV ∈ Expr.TStruct b τs ->
   Γ ⊢ₗ LV DOT x ∈ τ
+| typ_index lv i n τ :
+  (i < n)%N ->
+  Γ ⊢ₗ lv ∈ Expr.TArray n τ ->
+  Γ ⊢ₗ Index i lv ∈ τ
 where "Γ '⊢ₗ' LV ∈ τ" := (type_lvalue Γ LV τ).
 
 Local Close Scope lvalue_scope.

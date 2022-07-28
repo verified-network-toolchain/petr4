@@ -33,6 +33,10 @@ Inductive lifted_expr : Expr.e -> Prop :=
   lifted_expr b
 | lifted_var τ x :
   lifted_expr (Expr.Var τ x)
+| lifted_index τ e₁ e₂ :
+  lifted_expr e₁ ->
+  lifted_expr e₂ ->
+  lifted_expr (Expr.Index τ e₁ e₂)
 | lifted_member τ e x :
   lifted_expr e ->
   lifted_expr (Expr.Member τ x e)
@@ -42,30 +46,30 @@ Inductive lifted_expr : Expr.e -> Prop :=
 Definition lifted_arg : paramarg Expr.e Expr.e -> Prop :=
   pred_paramarg_same lifted_expr.
 
-Variant lifted_lexpr : Expr.e -> Prop :=
+Variant lifted_rexpr : Expr.e -> Prop :=
   | lifted_lifted_expr e :
     lifted_expr e ->
-    lifted_lexpr e
+    lifted_rexpr e
   | lifted_bit w n :
-    lifted_lexpr (Expr.Bit w n)
+    lifted_rexpr (Expr.Bit w n)
   | lifted_int w z :
-    lifted_lexpr (Expr.Int w z)
-  | lifted_slice e hi lo :
+    lifted_rexpr (Expr.Int w z)
+  | lifted_slice hi lo e :
     lifted_expr e ->
-    lifted_lexpr (Expr.Slice e hi lo)
+    lifted_rexpr (Expr.Slice hi lo e)
   | lifted_cast τ e :
     lifted_expr e ->
-    lifted_lexpr (Expr.Cast τ e)
+    lifted_rexpr (Expr.Cast τ e)
   | lifted_uop τ op e :
     lifted_expr e ->
-    lifted_lexpr (Expr.Uop τ op e)
+    lifted_rexpr (Expr.Uop τ op e)
   | lifted_bop τ op e₁ e₂ :
     lifted_expr e₁ ->
     lifted_expr e₂ ->
-    lifted_lexpr (Expr.Bop τ op e₁ e₂)
-  | lifted_struct es ob :
+    lifted_rexpr (Expr.Bop τ op e₁ e₂)
+  | lifted_lists ls es :
     Forall lifted_expr es ->
-    lifted_lexpr (Expr.Struct es ob).
+    lifted_rexpr (Expr.Lists ls es).
 
 Variant lifted_fun_kind : Stmt.fun_kind -> Prop :=
   | lifted_Funct x τs oe :
@@ -80,7 +84,7 @@ Variant lifted_fun_kind : Stmt.fun_kind -> Prop :=
 
 Variant lifted_parser_expr : Parser.e -> Prop :=
   | lifted_goto st : 
-    lifted_parser_expr (Parser.Goto st)
+    lifted_parser_expr (Parser.Direct st)
   | lifted_select exp default cases : 
     lifted_expr exp ->
     lifted_parser_expr (Parser.Select exp default cases).
@@ -91,7 +95,7 @@ Inductive lifted_stmt : Stmt.s -> Prop :=
 | lifted_vardecl te s :
   match te with
   | inl t => True
-  | inr e => lifted_lexpr e
+  | inr e => lifted_rexpr e
   end ->
   lifted_stmt s ->
   lifted_stmt (Stmt.Var te s)
@@ -138,21 +142,21 @@ Variant lifted_control_Decl : Control.d -> Prop :=
     lifted_control_Decl (Control.Table table_name key actions).
 
 Inductive lifted_top_Decl : TopDecl.d -> Prop :=
-| lifted_Instantiate c_name type_args cargs :
-  lifted_top_Decl (TopDecl.Instantiate c_name type_args cargs)
-| lifted_Extern e_name type_params c_params methods : 
-  lifted_top_Decl (TopDecl.Extern e_name type_params c_params methods)
-| lifted_Control c cparams eps params body apply_blk :
+| lifted_Instantiate c_name i_name type_args cargs expr_cargs :
+  lifted_top_Decl (TopDecl.Instantiate c_name i_name type_args cargs expr_cargs)
+| lifted_Extern e_name type_params c_params expr_c_params methods : 
+  lifted_top_Decl (TopDecl.Extern e_name type_params c_params expr_c_params methods)
+| lifted_Control c cparams expr_cparams eps params body apply_blk :
   Forall lifted_control_Decl body -> lifted_stmt apply_blk ->
-  lifted_top_Decl (TopDecl.Control c cparams eps params body apply_blk)
-| lifted_Parser p cparams eps params start_state states :
+  lifted_top_Decl (TopDecl.Control c cparams expr_cparams eps params body apply_blk)
+| lifted_Parser p cparams expr_cparams eps params start_state states :
   lifted_stmt start_state -> Forall lifted_stmt states ->
-  lifted_top_Decl (TopDecl.Parser p cparams eps params start_state states)
+  lifted_top_Decl (TopDecl.Parser p cparams expr_cparams eps params start_state states)
 | lifted_Function f tparams signature body :
   lifted_stmt body -> lifted_top_Decl (TopDecl.Funct f tparams signature body).
 
 Local Hint Constructors lifted_expr : core.
-Local Hint Constructors lifted_lexpr : core.
+Local Hint Constructors lifted_rexpr : core.
 Local Hint Constructors lifted_parser_expr : core.
 
 Lemma rename_e_lifted_expr : forall ρ e,
@@ -163,30 +167,29 @@ Qed.
 
 Local Hint Resolve rename_e_lifted_expr : core.
 
-Lemma rename_e_lifted_lexpr : forall ρ e,
-    lifted_lexpr e -> lifted_lexpr (rename_e ρ e).
+Lemma rename_e_lifted_rexpr : forall ρ e,
+    lifted_rexpr e -> lifted_rexpr (rename_e ρ e).
 Proof.
-  intros ρ e h; inv h; unravel; auto.
-  apply lifted_struct.
-  rewrite sublist.Forall_map.
-  rewrite Forall_forall in *; unravel; auto.
+  intros ρ e h; inv h; unravel; auto;
+    constructor; rewrite sublist.Forall_map;
+    rewrite Forall_forall in *; unravel; auto.
 Qed.
 
-Local Hint Resolve rename_e_lifted_lexpr : core.
+Local Hint Resolve rename_e_lifted_rexpr : core.
 
 Lemma lift_e_lifted_expr : forall e E l up,
     lift_e up e = (l, E) ->
-    Forall lifted_lexpr l /\ lifted_expr E.
+    Forall lifted_rexpr l /\ lifted_expr E.
 Proof.
   intro e; induction e using custom_e_ind;
-    intros E l up h; unravel in *;
+    intros E ll up h; unravel in *;
     repeat lift_e_destr;
     try lift_e_destr_hyp;
     repeat pair_destr; auto.
   - apply IHe in Heqp as [? ?]; auto.
   - apply IHe in Heqp as [? ?]; auto.
   - apply IHe in Heqp as [? ?]; auto.
-  - destruct (lift_e (length l0 + up) e2) as [l2  e2'] eqn:eql2.
+  - destruct (lift_e (length l + up) e2) as [l2  e2'] eqn:eql2.
     apply IHe1 in Heqp as [? ?].
     apply IHe2 in eql2 as [? ?].
     pair_destr.
@@ -201,13 +204,13 @@ Proof.
                      let '(le, e') := lift_e up e in
                      let '(les, es') := lift_e_list (Datatypes.length le + up) es0 in
                      (les ++ le, rename_e (Nat.add (Datatypes.length les)) e' :: es')
-                 end) up fields)
+                 end) up exps)
       as [l' E'] eqn:eql; inv h.
     split; auto.
-    assert (yes: Forall lifted_lexpr l' /\ Forall lifted_expr E').
+    assert (yes: Forall lifted_rexpr l' /\ Forall lifted_expr E').
     { generalize dependent l';
         generalize dependent E';
-        generalize dependent up; clear valid.
+        generalize dependent up; clear l.
       induction H as [| e es he hes ihes]; intros up E l H.
       - inv H; auto.
       - lift_e_destr_hyp.
@@ -224,6 +227,11 @@ Proof.
         apply ihes in eqes as [? ?]; clear ihes.
         split; auto. rewrite Forall_app; auto. }
     destruct yes; auto.
+  - destruct (lift_e (length l + up) e2) as [l2  e2'] eqn:eql2.
+    apply IHe1 in Heqp as [? ?].
+    apply IHe2 in eql2 as [? ?].
+    pair_destr.
+    split; auto; rewrite Forall_app; auto.
   - apply IHe in Heqp as [? ?]; auto.
 Qed.
 
@@ -231,7 +239,7 @@ Local Hint Resolve lift_e_lifted_expr : core.
 
 Lemma lift_e_list_lifted_expr : forall es es' le up,
     lift_e_list up es = (le, es') ->
-    Forall lifted_lexpr le /\ Forall lifted_expr es'.
+    Forall lifted_rexpr le /\ Forall lifted_expr es'.
 Proof.
   intro es; induction es as [| e es ih];
     intros es' le up h; unravel in *;
@@ -247,7 +255,7 @@ Local Hint Resolve lift_e_list_lifted_expr : core.
 
 Lemma lift_arg_lifted_arg : forall arg arg' le up,
     lift_arg up arg = (le, arg') ->
-    Forall lifted_lexpr le /\ lifted_arg arg'.
+    Forall lifted_rexpr le /\ lifted_arg arg'.
 Proof.
   intros arg arg' le up h;
     destruct arg as [e | e | e]; unravel in *;
@@ -267,7 +275,7 @@ Local Hint Resolve rename_arg_lifted_arg : core.
 
 Lemma lift_args_lifted_args : forall args args' le up,
     lift_args up args = (le, args') ->
-    Forall lifted_lexpr le /\ Forall lifted_arg args'.
+    Forall lifted_rexpr le /\ Forall lifted_arg args'.
 Proof.
   intro args; induction args as [| arg args ih];
     intros args' le up h; unravel in *.
@@ -284,7 +292,7 @@ Local Hint Constructors lifted_parser_expr : core.
 
 Lemma lift_trans_lifted_parser_expr : forall e e' le up,
     lift_trans up e = (le, e') ->
-    Forall lifted_lexpr le /\ lifted_parser_expr e'.
+    Forall lifted_rexpr le /\ lifted_parser_expr e'.
 Proof.
   intros e e' le up h; destruct e;
     unravel in *; try lift_e_destr_hyp;
@@ -297,7 +305,7 @@ Local Hint Constructors predop : core.
 
 Lemma lift_fun_kind_lifted_fun_kind : forall fk fk' up le,
     lift_fun_kind up fk = (le, fk') ->
-    Forall lifted_lexpr le /\ lifted_fun_kind fk'.
+    Forall lifted_rexpr le /\ lifted_fun_kind fk'.
 Proof.
   intros fk fk' up le h; destruct fk; unravel in *.
   - destruct returns as [e |]; try lift_e_destr_hyp; pair_destr; auto.
@@ -325,7 +333,7 @@ Local Hint Resolve rename_fun_kind_lifted_fun_kind : core.
 Local Hint Constructors lifted_stmt : core.
 
 Lemma unwind_vars_lifted : forall le s,
-    Forall lifted_lexpr le ->
+    Forall lifted_rexpr le ->
     lifted_stmt s ->
     lifted_stmt (unwind_vars le s).
 Proof.

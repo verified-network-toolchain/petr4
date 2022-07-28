@@ -21,9 +21,11 @@ Section TypeInduction.
   Hypothesis HTInt : forall w, P (TInt w).
   
   Hypothesis HTError : P TError.
+
+  Hypothesis HTArray : forall n typ, P typ -> P (TArray n typ).
   
-  Hypothesis HTStruct : forall ts b,
-      Forall P ts -> P (TStruct ts b).
+  Hypothesis HTStruct : forall b ts,
+      Forall P ts -> P (TStruct b ts).
 
   (** A custom induction principle.
       Do [induction ?t using custom_t_ind]. *)
@@ -41,7 +43,8 @@ Section TypeInduction.
       | TBit w       => HTBit w
       | TInt w       => HTInt w
       | TError       => HTError
-      | TStruct ts b => HTStruct ts b (list_ind ts)
+      | TArray n typ => HTArray n _ (custom_t_ind typ)
+      | TStruct b ts => HTStruct b ts (list_ind ts)
       end.
   (**[]*)
 End TypeInduction.
@@ -62,7 +65,7 @@ Section ExprInduction.
   
   Hypothesis HVar : forall ty x, P (Var ty x).
   
-  Hypothesis HSlice : forall n hi lo, P n -> P (Slice n hi lo).
+  Hypothesis HSlice : forall hi lo n, P n -> P (Slice hi lo n).
   
   Hypothesis HCast : forall τ exp, P exp -> P (Cast τ exp).
   
@@ -70,9 +73,12 @@ Section ExprInduction.
   
   Hypothesis HBop : forall rt op lhs rhs,
       P lhs -> P rhs -> P (Bop rt op lhs rhs).
-  
-  Hypothesis HStruct : forall fields valid,
-      Forall P fields -> P (Struct fields valid).
+
+  Hypothesis HLists : forall l exps,
+      Forall P exps -> P (Lists l exps).
+
+  Hypothesis HIndex : forall typ arr index,
+      P arr -> P index -> P (Index typ arr index).
   
   Hypothesis HMember : forall rt x exp,
       P exp -> P (Member rt x exp).
@@ -93,13 +99,13 @@ Section ExprInduction.
       | w `W n       => HBit w n
       | w `S n       => HInt w n
       | Var ty x     => HVar ty x
-      | Slice n h l  => HSlice n h l (eind n)
+      | Slice h l n  => HSlice h l n (eind n)
       | Cast τ exp   => HCast τ exp (eind exp)
       | Uop τ op exp => HUop τ op exp (eind exp)
       | Bop τ op lhs rhs
         => HBop τ op lhs rhs (eind lhs) (eind rhs)
-      | Struct fields valid
-        => HStruct fields valid (list_ind fields)
+      | Lists l exps => HLists l exps (list_ind exps)
+      | Index typ arr index => HIndex typ _ _ (eind arr) (eind index)
       | Member rt x exp => HMember rt x exp (eind exp)
       | Error err       => HError err
       end.
@@ -124,8 +130,8 @@ Section PatternInduction.
   
   Hypothesis HInt : forall w n, P (w PS n).
   
-  Hypothesis HStruct : forall ps,
-      Forall P ps -> P (Struct ps).
+  Hypothesis HLists : forall ps,
+      Forall P ps -> P (Lists ps).
   
   (** A custom induction principle,
       do [induction ?H using custom_pat_ind]. *)
@@ -142,6 +148,6 @@ Section PatternInduction.
       | Range p1 p2 => HRange p1 p2 (pind p1) (pind p2)
       | w PW n      => HBit w n
       | w PS z      => HInt w z
-      | Struct ps   => HStruct ps (lind ps)
+      | Lists ps    => HLists ps (lind ps)
       end.
 End PatternInduction.

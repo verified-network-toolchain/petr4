@@ -15,19 +15,20 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
   | Expr.Int _ _
   | Expr.Error _
   | Expr.Var _ _ => e
-  | Expr.Slice e hi lo =>
-      Expr.Slice (inf_e e) hi lo
+  | Expr.Slice hi lo e =>
+      Expr.Slice hi lo $ inf_e e
   | Expr.Cast t e =>
-      Expr.Cast t (inf_e e)
+      Expr.Cast t $ inf_e e
   | Expr.Uop rt op e =>
-      Expr.Uop rt op (inf_e e)
+      Expr.Uop rt op $ inf_e e
   | Expr.Bop rt op e1 e2 =>
-      Expr.Bop rt op (inf_e e1) (inf_e e2)
-  | Expr.Struct es ob => Expr.Struct (map inf_e es) ob
-  | Expr.Member (Expr.TStruct fs _ as argtype) mem arg =>
+      Expr.Bop rt op (inf_e e1) $ inf_e e2
+  | Expr.Lists l es => Expr.Lists l $ List.map inf_e es
+  | Expr.Index t e1 e2 => Expr.Index t (inf_e e1) $ inf_e e2
+  | Expr.Member (Expr.TStruct _ fs as argtype) mem arg =>
       let t := infer_or_nop fs mem argtype in
       Expr.Member t mem (inf_e arg)
-  | Expr.Member t mem arg => Expr.Member t mem (inf_e arg)
+  | Expr.Member t mem arg => Expr.Member t mem $ inf_e arg
   end.
 
 Definition inf_arg : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
@@ -42,8 +43,8 @@ Definition inf_fun_kind (fk : Stmt.fun_kind) : Stmt.fun_kind :=
 
 Definition inf_transition  (transition : Parser.e) :=
   match transition with
-  | Parser.Goto s =>
-      Parser.Goto s
+  | Parser.Direct s =>
+      Parser.Direct s
   | Parser.Select discriminee default cases =>
       Parser.Select
         (inf_e discriminee)
@@ -69,14 +70,6 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
     => (If inf_e g Then inf_s tru Else inf_s fls)%stmt
   end.
 
-Definition inf_carg
-           (carg : TopDecl.constructor_arg)
-  : TopDecl.constructor_arg :=
-  match carg with
-  | TopDecl.CAName _ => carg
-  | TopDecl.CAExpr e => inf_e e
-  end.
-
 Definition inf_Cd  (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
@@ -86,18 +79,18 @@ Definition inf_Cd  (d : Control.d) :=
 
 Definition inf_d  (d : TopDecl.d) : TopDecl.d :=
   match d with
-    | TopDecl.Extern _ _ _ _ => d
-  | TopDecl.Instantiate cname type_args cargs =>
-      let cargs' := map inf_carg cargs in
-      TopDecl.Instantiate cname type_args cargs'
-  | TopDecl.Control cname cparams eparams params body apply_blk =>
+  | TopDecl.Extern _ _ _ _ _ => d
+  | TopDecl.Instantiate cname iname type_args cargs expr_cargs =>
+      let expr_cargs' := map inf_e expr_cargs in
+      TopDecl.Instantiate cname iname type_args cargs expr_cargs'
+  | TopDecl.Control cname cparams expr_cparams eparams params body apply_blk =>
       let body' := map inf_Cd body in
       let apply_blk' := inf_s apply_blk in
-      TopDecl.Control cname cparams eparams params body' apply_blk'
-  | TopDecl.Parser pn cps eps ps strt sts =>
+      TopDecl.Control cname cparams expr_cparams eparams params body' apply_blk'
+  | TopDecl.Parser pn cps expr_cparams eps ps strt sts =>
       let start' := inf_s strt in
       let states' := map inf_s sts in
-      TopDecl.Parser pn cps eps ps start' states'
+      TopDecl.Parser pn cps expr_cparams eps ps start' states'
   | TopDecl.Funct f tparams params body =>
       let body' := inf_s body in
       TopDecl.Funct f tparams params body'

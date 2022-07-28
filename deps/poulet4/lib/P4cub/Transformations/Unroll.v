@@ -137,9 +137,9 @@ Section Unroll.
       (fun d =>
          match d with
          | TopDecl.Parser
-             p cparams eparams params start_state sts =>
+             p cparams expr_cparams eparams params start_state sts =>
              TopDecl.Parser
-               p cparams eparams params start_state
+               p cparams expr_cparams eparams params start_state
                $ unroll_parser unrolls sts
          | _ => d
          end)

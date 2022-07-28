@@ -2,13 +2,17 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.AST Poulet4.Utils.P4Arith
         Poulet4.P4cub.Syntax.CubNotations
         Poulet4.P4cub.Semantics.Static.Util.
-Import String.
+From RecordUpdate Require Import RecordSet.
+Import String AllCubNotations Clmt.Notations RecordSetNotations.
 
-Import AllCubNotations Clmt.Notations.
 
 (** * Expression typing. *)
 
-Record expr_type_env : Set := { type_vars:nat; types:list Expr.t }.
+Record expr_type_env : Set :=
+  mk_expr_type_env { type_vars:nat; types:list Expr.t }.
+
+Global Instance eta_expr_type_env : Settable _ :=
+  settable! mk_expr_type_env < type_vars ; types >.
 
 Reserved Notation "Γ '⊢ₑ' e ∈ τ" (at level 80, no associativity).
 
@@ -29,11 +33,11 @@ Inductive type_expr (Γ : expr_type_env)
   nth_error (types Γ) x = Some τ ->
   t_ok (type_vars Γ) τ ->
   Γ ⊢ₑ Expr.Var τ x ∈ τ
-| type_slice e hi lo w τ :
+| type_slice hi lo e w τ :
   (Npos lo <= Npos hi < w)%N ->
   numeric_width w τ ->
   Γ ⊢ₑ e ∈ τ ->
-  Γ ⊢ₑ Expr.Slice e hi lo ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
+  Γ ⊢ₑ Expr.Slice hi lo e ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
 | type_cast τ τ' e :
   proper_cast τ' τ ->
   t_ok (type_vars Γ) τ ->
@@ -50,19 +54,19 @@ Inductive type_expr (Γ : expr_type_env)
   Γ ⊢ₑ e₁ ∈ τ₁ ->
   Γ ⊢ₑ e₂ ∈ τ₂ ->
   Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ
+| type_index e₁ e₂ n τ :
+  Γ ⊢ₑ e₁ ∈ Expr.TArray n τ ->
+  Γ ⊢ₑ e₂ ∈ Expr.TBit n ->
+  Γ ⊢ₑ Expr.Index τ e₁ e₂ ∈ τ
 | type_member τ x e τs b :
   nth_error τs x = Some τ ->
   t_ok (type_vars Γ) τ ->
-  Γ ⊢ₑ e ∈ Expr.TStruct τs b ->
+  Γ ⊢ₑ e ∈ Expr.TStruct b τs ->
   Γ ⊢ₑ Expr.Member τ x e ∈ τ
-| type_struct es ob τs (b : bool) :
-  match ob, b with
-  | Some _, true
-  | None, false => True
-  | _, _ => False
-  end ->
+| type_lists ls es τ τs :
+  type_lists_ok ls τ τs ->
   Forall2 (type_expr Γ) es τs ->
-  Γ ⊢ₑ Expr.Struct es ob ∈ Expr.TStruct τs b
+  Γ ⊢ₑ Expr.Lists ls es ∈ τ
 | type_error err :
   Γ ⊢ₑ Expr.Error err ∈ Expr.TError
 where "Γ '⊢ₑ' e ∈ τ" := (type_expr Γ e τ) : type_scope.
@@ -87,16 +91,16 @@ Inductive type_pat : Parser.pat -> Expr.t -> Prop :=
   type_pat (w PS z) (Expr.TInt w)
 | type_pstruct ps ts :
   Forall2 type_pat ps ts ->
-  type_pat (Parser.Struct ps) (Expr.TStruct ts false).
+  type_pat (Parser.Lists ps) (Expr.TStruct false ts).
 Local Close Scope pat_scope.
 
 (** Parser-expression typing. *)
 Variant type_prsrexpr 
         (total_states : nat) (Γ : expr_type_env)
   : Parser.e -> Prop :=
-  | type_goto (st : Parser.state) :
+  | type_goto (st : Parser.state_label) :
     valid_state total_states st ->
-    type_prsrexpr total_states Γ (Parser.Goto st)
+    type_prsrexpr total_states Γ (Parser.Direct st)
   | type_select e default cases τ :
     valid_state total_states default ->
     Γ ⊢ₑ e ∈ τ ->
@@ -108,9 +112,13 @@ Variant type_prsrexpr
 (** * Statement typing. *)
 
 Record stmt_type_env : Set :=
-  { sfuncts : fenv
-  ; cntx   : ctx
-  ; expr_env :> expr_type_env }.
+  mk_stmt_type_env
+    { sfuncts : fenv
+    ; cntx   : ctx
+    ; expr_env :> expr_type_env }.
+
+Global Instance eta_stmt_type_env : Settable _ :=
+  settable! mk_stmt_type_env < sfuncts ; cntx ; expr_env >.
 
 Reserved Notation "Γ '⊢ₛ' s ⊣ sig" (at level 80, no associativity).
 
@@ -131,7 +139,7 @@ Inductive type_stmt
   exit_ctx_ok (cntx Γ) ->
   Γ ⊢ₛ Stmt.Exit ⊣ Return
 | type_transition (Γ : stmt_type_env) total_states e :
-  (* TODO: get total_states from context *)
+  transition_ok total_states (cntx Γ) ->
   type_prsrexpr total_states Γ e ->
   Γ ⊢ₛ Stmt.Transition e ⊣ Return
 | type_assign (Γ : stmt_type_env) τ e₁ e₂ :
@@ -154,7 +162,7 @@ Inductive type_stmt
   | Stmt.Method ei m τs' oe
     => τs = τs' /\ predop lvalue_ok oe /\ exists extern_insts methods,
         extern_call_ok extern_insts (cntx Γ)
-        /\ nth_error extern_insts ei = Some methods /\ exists ot,
+        /\ extern_insts ei = Some (inl methods) /\ exists ot,
           Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|})
           /\ predop (t_ok (type_vars Γ)) ot
           /\ relop (type_expr Γ) oe ot
@@ -166,10 +174,10 @@ Inductive type_stmt
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args (map (tsub_param (gen_tsub τs)) params) ->
   Γ ⊢ₛ Stmt.Call fk args ⊣ Cont
-| type_apply_control
-    Γ fns extern_args args x extern_params params
-    tbls actions control_insts extern_insts :
-  nth_error control_insts x = Some (extern_params,params) ->
+| type_apply
+    Γ extern_args args x extern_params params sig insts :
+  apply_instance_ok insts sig (cntx Γ) ->
+  insts x = Some (inr (sig,extern_params,params)) ->
   Forall2
     (fun extern_instance extern_type
      => True (* TODO: checking types of extern instances.*))
@@ -179,49 +187,22 @@ Inductive type_stmt
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
     args params ->
-  {| expr_env := Γ
-  ; sfuncts :=fns
-  ; cntx := CApplyBlock
-              tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
-| type_apply_parser
-    Γ fns extern_args args x extern_params params
-    parser_insts extern_insts :
-  nth_error parser_insts x = Some (extern_params,params) ->
-  Forall2
-    (fun extern_instance extern_type
-     => True (* TODO: checking types of extern instances.*))
-    extern_args extern_params ->
-  Forall2
-    (rel_paramarg
-       (type_expr Γ)
-       (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    args params ->
-  {| expr_env := Γ
-  ; sfuncts :=fns
-  ; cntx := CParserState
-              parser_insts extern_insts |}
-    ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
+  Γ ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke
-    Γ fns tbl es tbls τs actions
-    control_insts extern_insts :
+    Γ tbl es tbls τs :
+  table_invoke_ok tbls (cntx Γ) ->
   tbls tbl = Some τs ->
   Forall2 (type_expr Γ) es τs ->
-  {| expr_env := Γ
-  ; sfuncts :=fns
-  ; cntx := CApplyBlock
-              tbls actions control_insts extern_insts |}
-    ⊢ₛ Stmt.Invoke tbl es ⊣ Cont
+  Γ ⊢ₛ Stmt.Invoke tbl es ⊣ Cont
 | type_vardecl (Γ : stmt_type_env) τ te s sig :
     match te with
     | inr e => Γ ⊢ₑ e ∈ τ
     | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
     end ->
-    {| sfuncts := sfuncts Γ
-    ; cntx := cntx Γ
-    ; expr_env :=
-      {| type_vars := type_vars Γ ; types := τ :: types Γ|}
-    |} ⊢ₛ s ⊣ sig ->
+    (Γ <| expr_env :=
+       Γ.(expr_env)
+           <| types :=
+         τ :: Γ.(types) |> |>) ⊢ₛ s ⊣ sig ->
     Γ ⊢ₛ Stmt.Var te s ⊣ sig
 | type_seq Γ s₁ s₂ sig₁ sig₂ :
   Γ ⊢ₛ s₁ ⊣ sig₁ ->
@@ -240,13 +221,17 @@ Local Close Scope stmt_scope.
 
 (** Control-declaration typing context. *)
 Record ctrl_type_env : Set :=
-  { cexpr_env : expr_type_env
-  ; cfuncts : fenv       (** available functions. *)
-  ; ccntrl_insts : ienv  (** available control instances. *)
-  ; cextrn_insts : eienv (** available extern instances. *)
-  ; actns : aenv         (** available action signatures. *)
-  ; tbls : tbl_env   (** available table names. *) }.
-    
+  mk_ctrl_type_env
+    { cexpr_env : expr_type_env
+    ; cfuncts : fenv (** available functions. *)
+    ; cinsts : ienv  (** available control instances. *)
+    ; actns : aenv   (** available action signatures. *)
+    ; tbls : tbl_env (** available table names. *) }.
+
+Global Instance eta_ctrl_type_env : Settable _ :=
+  settable! mk_ctrl_type_env
+  < cexpr_env ; cfuncts ; cinsts ; actns ; tbls >.
+
 Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
          (at level 80, no associativity).
 
@@ -258,7 +243,7 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
     + (string * list Expr.t) -> Prop :=
   | type_action action_name cparams dparams body sig :
     {| sfuncts := cfuncts Γ
-    ; cntx     := CAction (actns Γ) (cextrn_insts Γ)
+    ; cntx     := CAction (actns Γ) (cinsts Γ)
     ; expr_env :=
       {| type_vars := type_vars (cexpr_env Γ)
       ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
@@ -281,12 +266,16 @@ where "Γ '⊢ᵪ' d '⊣' result"
 
 (** * Toplevel-declaration typing. *)
 
+(* TODO: add packages to [ienv]. *)
 Record top_type_env : Set :=
-  { tfuncts : fenv (** available function signatures. *)
-  ; cnstrs : constructor_env (** available constructors. *)
-  ; insts_envs
-      :> insts_env (** available instances for parsers, controls, externs. *)
-  ; package_insts : nat (** De Bruijn counter of package instance names. *) }.
+  mk_top_type_env
+    { tfuncts : fenv (** available function signatures. *)
+    ; cnstrs : constructor_env (** available constructors. *)
+    ; insts_env : ienv (** available instances for parsers, controls, externs. *) }.
+
+Global Instance eta_top_type_env : Settable _ :=
+  settable! mk_top_type_env
+  < tfuncts ; cnstrs ; insts_env >.
 
 Reserved Notation "Γ₁ '⊢ₜ' d ⊣ Γ₂"
          (at level 80, no associativity).
@@ -298,7 +287,6 @@ Definition type_ctrl
            (Γ : list Expr.t)
            (fs : fenv)
            (cis : ienv)
-           (eis : eienv)
            (ctrl : list Control.d) : ctrl_type_env -> Prop :=
   FoldLeft
     (fun d Γ Γ' =>
@@ -306,25 +294,14 @@ Definition type_ctrl
          Γ ⊢ᵪ d ⊣ result /\
            match result with
            | inl (an,cdps) =>
-               Γ' = {| cexpr_env := cexpr_env Γ
-                    ; cfuncts := cfuncts Γ
-                    ; ccntrl_insts := ccntrl_insts Γ
-                    ; cextrn_insts := cextrn_insts Γ
-                    ; actns := an ↦ cdps ,, actns Γ
-                    ; tbls := tbls Γ |}
+               Γ' = Γ <| actns := an ↦ cdps ,, actns Γ |>
            | inr (tn,key_sig) =>
-               Γ' = {| cexpr_env := cexpr_env Γ
-                    ; cfuncts := cfuncts Γ
-                    ; ccntrl_insts := ccntrl_insts Γ
-                    ; cextrn_insts := cextrn_insts Γ
-                    ; actns := actns Γ
-                    ; tbls := tn ↦ key_sig ,, tbls Γ |}
+               Γ' = Γ <| tbls := tn ↦ key_sig ,, tbls Γ |>
            end)
     ctrl
     {| cexpr_env := {|type_vars:=0;types:=bind_all params Γ|}
     ; cfuncts := fs
-    ; ccntrl_insts := cis
-    ; cextrn_insts := eis
+    ; cinsts := cis
     ; actns := ∅ ; tbls := ∅ |}.
 
 (** Top-level declaration typing. *)

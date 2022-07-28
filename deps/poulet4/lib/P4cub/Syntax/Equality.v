@@ -1,8 +1,7 @@
-Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
-        Coq.ZArith.BinIntDef Coq.ZArith.BinInt
-        Coq.NArith.BinNatDef Coq.NArith.BinNat
-        Poulet4.P4cub.Syntax.AST Poulet4.P4cub.Syntax.IndPrincip
-        Poulet4.P4cub.Syntax.CubNotations.
+From Coq Require Import PArith.BinPos
+     ZArith.BinInt NArith.BinNat Bool.Bool.
+From Poulet4 Require Import P4cub.Syntax.AST
+     P4cub.Syntax.IndPrincip P4cub.Syntax.CubNotations.
 Import Expr ExprNotations.
 
 Reserved Infix "=?" (at level 70).
@@ -20,19 +19,28 @@ Fixpoint eqbt (τ1 τ2 : t) {struct τ1} : bool :=
   | TVar X1, TVar X2               => Nat.eqb X1 X2
   | TBit w1, TBit w2               => (w1 =? w2)%N
   | TInt w1, TInt w2               => (w1 =? w2)%positive
-  | TStruct ts1 b1, TStruct ts2 b2 => (eqb b1 b2) && eqbl ts1 ts2
+  | TArray n1 t1, TArray n2 t2     => (n1 =? n2)%N && (t1 =? t2)%ty
+  | TStruct b1 ts1, TStruct b2 ts2 => (eqb b1 b2) && eqbl ts1 ts2
   | _, _ => false
   end
 where "x '=?' y" := (eqbt x y) : ty_scope.
 
+Definition lists_eqb (l1 l2 : Expr.lists) : bool :=
+  match l1, l2 with
+  | lists_struct, lists_struct => true
+  | lists_array τ₁, lists_array τ₂ => (τ₁ =? τ₂)%ty
+  | lists_header b₁, lists_header b₂ => eqb b₁ b₂
+  | _, _ => false
+  end.
+
 Section TypeEquivalence.
-  Hint Rewrite PeanoNat.Nat.eqb_refl : core.
-  Hint Rewrite Pos.eqb_refl : core.
-  Hint Rewrite @eqb_list_refl : core.
-  Hint Rewrite @equiv_dec_refl : core.
-  Hint Rewrite N.eqb_refl.
+  Local Hint Rewrite PeanoNat.Nat.eqb_refl : core.
+  Local Hint Rewrite Pos.eqb_refl : core.
+  Local Hint Rewrite @eqb_list_refl : core.
+  Local Hint Rewrite @equiv_dec_refl : core.
+  Local Hint Rewrite N.eqb_refl.
   Hint Extern 4 => equiv_dec_refl_tactic : core.
-  Hint Rewrite eqb_reflx : core.
+  Local Hint Rewrite eqb_reflx : core.
   
   Lemma eqbt_refl : forall τ, (τ =? τ)%ty = true.
   Proof.
@@ -84,18 +92,20 @@ Section TypeEquivalence.
           end;
       auto using InitialRing.Neqb_ok.
   Qed.
-    
+
+  Local Hint Resolve eqbt_refl : core.
+  Local Hint Resolve eqbt_eq : core.
+  
   Lemma eqbt_eq_iff : forall t1 t2 : t,
       (t1 =? t2)%ty = true <-> t1 = t2.
   Proof.
-    Hint Resolve eqbt_refl : core.
-    Hint Resolve eqbt_eq : core.
     intros t1 t2; split; intros; subst; auto.
   Qed.
-    
+
+  Local Hint Resolve eqbt_eq_iff : core.
+  
   Lemma eqbt_reflect : forall t1 t2, reflect (t1 = t2) (t1 =? t2)%ty.
   Proof.
-    Hint Resolve eqbt_eq_iff : core.
     intros; reflect_split; auto.
     apply eqbt_eq_iff in H;
       rewrite H in Heqb; discriminate.
@@ -109,11 +119,41 @@ Section TypeEquivalence.
     intros t1 t2. pose proof eqbt_reflect t1 t2 as H.
     inv H; auto.
   Qed.
+
+  Lemma lists_eqb_refl : forall l, lists_eqb l l = true.
+  Proof.
+    intros []; simpl; autorewrite with core; auto.
+  Qed.
+
+  Lemma lists_eqb_eq : forall l₁ l₂, lists_eqb l₁ l₂ = true -> l₁ = l₂.
+  Proof.
+    intros [] [] h; simpl in *; try discriminate;
+      f_equal; auto.
+  Qed.
+
+  Local Hint Resolve lists_eqb_refl : core.
+  Local Hint Resolve lists_eqb_eq : core.
+  
+  Lemma lists_eqb_eq_iff : forall l₁ l₂,
+      lists_eqb l₁ l₂ = true <-> l₁ = l₂.
+  Proof.
+    firstorder (subst; auto).
+  Qed.
+
+  Lemma lists_eqb_reflect : forall l₁ l₂,
+      reflect (l₁ = l₂) (lists_eqb l₁ l₂).
+  Proof.
+    intros; reflect_split; auto.
+    apply lists_eqb_eq_iff in H;
+      rewrite H in Heqb; discriminate.
+  Defined.
 End TypeEquivalence.
   
 Global Instance TypeEqDec : EqDec t eq :=
   { equiv_dec := fun t1 t2 => reflect_dec _ _ (eqbt_reflect t1 t2) }.
-(**[]*)
+
+Global Instance ListsEqDec : EqDec lists eq :=
+  { equiv_dec := fun l₁ l₂ => reflect_dec _ _ (lists_eqb_reflect l₁ l₂) }.
 
 (** Decidable Expression Equivalence. *)
 Global Instance UopEqDec : EqDec uop eq.
@@ -138,12 +178,6 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
     | [], [] => true
     | e1::es1, e2::es2 => (e1 =? e2)%expr && lstruct es1 es2
     end in
-  let opb (o1 o2 : option bool) : bool :=
-    match o1, o2 with
-    | Some b1, Some b2 => eqb b1 b2
-    | None,    None    => true
-    | _, _             => false
-    end in
   match e1, e2 with
   | Bool b1, Bool b2 => eqb b1 b2
   | w1 `W n1, w2 `W n2
@@ -152,7 +186,7 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
     => (w1 =? w2)%positive && (z1 =? z2)%Z
   | Var τ1 x1, Var τ2 x2
     => PeanoNat.Nat.eqb x1 x2 && (τ1 =? τ2)%ty
-  | Slice e1 h1 l1, Slice e2 h2 l2
+  | Slice h1 l1 e1, Slice h2 l2 e2
     => (h1 =? h2)%positive && (l1 =? l2)%positive && (e1 =? e2)%expr
   | Cast τ1 e1, Cast τ2 e2
     => (τ1 =? τ2)%ty && (e1 =? e2)%expr
@@ -160,10 +194,12 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
     => equiv_dec u1 u2 &&&& (e1 =? e2)%expr && (t1 =? t2)%ty
   | Bop t1 o1 el1 er1, Bop t2 o2 el2 er2
     => equiv_dec o1 o2 &&&& (el1 =? el2)%expr && (er1 =? er2)%expr && (t1 =? t2)%ty
-  | Struct fs1 b1, Struct fs2 b2
-    => opb b1 b2 && lstruct fs1 fs2
+  | Index t1 a1 b1, Index t2 a2 b2
+    => (t1 =? t2)%ty && (a1 =? a2)%expr && (b1 =? b2)%expr
   | Member t1 x1 e1, Member t2 x2 e2
     => PeanoNat.Nat.eqb x1 x2 && (e1 =? e2)%expr && (t1 =? t2)%ty
+  | Lists l1 es1, Lists l2 es2
+    => lists_eqb l1 l2 && lstruct es1 es2
   | Error err1, Error err2
     => if equiv_dec err1 err2 then true else false
   | _, _ => false
@@ -171,16 +207,17 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
 where "x '=?' y" := (eqbe x y) : expr_scope.
 
 Section ExprEquivalenceDefs.
-  Hint Rewrite eqb_reflx : core.
-  Hint Rewrite Pos.eqb_refl : core.
-  Hint Rewrite Z.eqb_refl : core.
-  Hint Rewrite eqbt_refl : core.
+  Local Hint Rewrite eqb_reflx : core.
+  Local Hint Rewrite Pos.eqb_refl : core.
+  Local Hint Rewrite Z.eqb_refl : core.
+  Local Hint Rewrite eqbt_refl : core.
+  Local Hint Rewrite lists_eqb_refl : core.
   Local Hint Extern 5 => equiv_dec_refl_tactic : core.
-  Hint Rewrite PeanoNat.Nat.eqb_refl : core.
-  Hint Rewrite @eqb_list_refl : core.
-  Hint Rewrite @equiv_dec_refl : core.
-  Hint Rewrite N.eqb_refl : core.
-  Hint Resolve eqb_reflx : core.
+  Local Hint Rewrite PeanoNat.Nat.eqb_refl : core.
+  Local Hint Rewrite @eqb_list_refl : core.
+  Local Hint Rewrite @equiv_dec_refl : core.
+  Local Hint Rewrite N.eqb_refl : core.
+  Local Hint Resolve eqb_reflx : core.
 
   Lemma eqbe_refl : forall exp : e, (exp =? exp)%expr = true.
   Proof.
@@ -193,13 +230,13 @@ Section ExprEquivalenceDefs.
       repeat match goal with
              | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
              end; cbn in *; auto.
-    rewrite andb_true_r. destruct valid; auto.
   Qed.
 
   Local Hint Resolve eqb_prop : core.
   Local Hint Resolve PeanoNat.Nat.eqb_eq : core.
   Local Hint Resolve EqNat.beq_nat_true : core.
   Local Hint Resolve Peqb_true_eq : core.
+  Local Hint Resolve lists_eqb_eq : core.
   
   Ltac eq_true_terms :=
     match goal with
@@ -261,13 +298,10 @@ Section ExprEquivalenceDefs.
       repeat eq_true_terms;
       unfold equiv in *;
       subst; auto; try constructor; auto 1; f_equal; auto.
-    - rename fields into l1; rename fields0 into l2.
+    - rename exps into l1; rename es into l2.
       generalize dependent l2.
-      clear dependent valid; clear valid0.
       ind_list_Forall; intros [| h2 l2] He; try discriminate; auto.
       apply andb_prop in He as [He1 He2]; f_equal; eauto.
-    - destruct valid; destruct valid0;
-        cbn in *; try discriminate; f_equal; auto.
   Qed.
   
   Local Hint Resolve eqbe_refl : core.
@@ -277,8 +311,8 @@ Section ExprEquivalenceDefs.
       (e1 =? e2)%expr = true <-> e1 = e2.
   Proof. intros; split; intros; subst; auto. Qed.
     
-  Hint Resolve eqbe_iff : core.
-  Hint Extern 5 =>
+  Local Hint Resolve eqbe_iff : core.
+  Local Hint Extern 5 =>
          match goal with
          | H: eqbe ?e1 ?e2 = false,
              H': ?e1 = ?e2 |- False

@@ -40,45 +40,64 @@ Ltac inv_eq :=
 
 (** * Utility Functions *)
 
-Fixpoint n_compose { A : Type } (n : nat) (f : A -> A) (x : A) : A :=
+Section MapProd.
+  Context {A B C : Type}.
+  Variable f : A -> B.
+
+  Definition map_fst '((a,c) : A * C) : B * C := (f a, c).
+
+  Definition map_snd '((c,a) : C * A) : C * B := (c, f a).
+End MapProd.
+
+Fixpoint n_compose {A : Type} (n : nat) (f : A -> A) (x : A) : A :=
   match n with
   | O => x
   | S n => n_compose n f (f x)
   end.
 
-Definition curry3 {A B C D : Type}
-           (f : A * B * C -> D) : A -> B -> C -> D :=
-  fun a b c => f (a,b,c).
-(**[]*)
+Section Curry3.
+  Context {A B C D : Type}.
 
-Definition uncurry3 {A B C D : Type}
-           (f : A -> B -> C -> D) '((a,b,c) : A * B * C) : D :=
-  f a b c.
-(**[]*)
+  Definition curry3 
+             (f : A * B * C -> D) : A -> B -> C -> D :=
+    fun a b c => f (a,b,c).
+  
+  Definition uncurry3
+             (f : A -> B -> C -> D) : A * B * C -> D :=
+    fun '(a,b,c) => f a b c.
+End Curry3.
 
-Definition curry4 {A B C D E : Type}
-           (f : A * B * C * D -> E) : A -> B -> C -> D -> E :=
-  fun a b c d => f (a,b,c,d).
-(**[]*)
+Section Curry4.
+  Context {A B C D E : Type}.
 
-Definition uncurry4 {A B C D E : Type}
-           (f : A -> B -> C -> D -> E) '((a,b,c,d) : A * B * C * D) : E :=
-  f a b c d.
-(**[]*)
+  Definition curry4  (f : A * B * C * D -> E) : A -> B -> C -> D -> E :=
+    fun a b c d => f (a,b,c,d).
 
-Definition triple_1 {A B C : Type}  '((a,_,_) : A * B * C) : A := a.
+  Definition uncurry4 (f : A -> B -> C -> D -> E) : A * B * C * D -> E :=
+    fun '(a,b,c,d) => f a b c d.
+End Curry4.
 
-Definition triple_2 {A B C : Type}  '((_,b,_) : A * B * C) : B := b.
+Section Triple.
+  Context {A B C : Type}.
+  
+  Definition triple_1 '((a,_,_) : A * B * C) : A := a.
 
-Definition triple_3 {A B C : Type}  '((_,_,c) : A * B * C) : C := c.
+  Definition triple_2 '((_,b,_) : A * B * C) : B := b.
 
-Definition fourple_1 {A B C D : Type}  '((a,_,_,_) : A * B * C * D) : A := a.
+  Definition triple_3 '((_,_,c) : A * B * C) : C := c.
+End Triple.
 
-Definition fourple_2 {A B C D : Type}  '((_,b,_,_) : A * B * C * D) : B := b.
+Section Fourple.
+  Context {A B C D : Type}.
 
-Definition fourple_3 {A B C D : Type}  '((_,_,c,_) : A * B * C * D) : C := c.
+  Definition fourple_1 '((a,_,_,_) : A * B * C * D) : A := a.
 
-Definition fourple_4 {A B C D : Type}  '((_,_,_,d) : A * B * C * D) : D := d.
+  Definition fourple_2 '((_,b,_,_) : A * B * C * D) : B := b.
+
+  Definition fourple_3 '((_,_,c,_) : A * B * C * D) : C := c.
+  
+  Definition fourple_4 '((_,_,_,d) : A * B * C * D) : D := d.
+End Fourple.
 
 Definition
   map_sum

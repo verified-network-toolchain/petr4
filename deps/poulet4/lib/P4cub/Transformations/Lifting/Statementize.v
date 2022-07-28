@@ -1,5 +1,5 @@
 From Poulet4 Require Import
-     P4cub.Syntax.AST P4cub.Syntax.Auxilary
+     P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift.
 Import ListNotations AllCubNotations.
 
@@ -30,9 +30,9 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
       (inits, Expr.Member t x e)
   | Expr.Bit _ _
   | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) 0)
-  | Expr.Slice eₛ hi lo =>
+  | Expr.Slice hi lo eₛ =>
       let '(inits, eₛ) := lift_e up eₛ in
-      (Expr.Slice eₛ hi lo :: inits, Expr.Var (t_of_e e) 0)
+      (Expr.Slice hi lo eₛ :: inits, Expr.Var (t_of_e e) 0)
   | Expr.Cast t e =>
       let '(inits, e) := lift_e up e in
       (Expr.Cast t e :: inits, Expr.Var t 0)
@@ -45,9 +45,13 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
       (Expr.Bop
          t op (rename_e (plus $ length lr) lhs) rhs
          :: lr ++ ll, Expr.Var t 0)
-  | Expr.Struct es ob =>
+  | Expr.Index t e1 e2 =>
+      let '(l1, e1) := lift_e up e1 in
+      let '(l2, e2) := lift_e (length l1 + up) e2 in
+      (l2 ++ l1, Expr.Index t e1 e2)
+  | Expr.Lists l es =>
       let '(les, es) := lift_e_list up es in
-      (Expr.Struct es ob :: les, Expr.Var (t_of_e e) 0)
+      (Expr.Lists l es :: les, Expr.Var (t_of_e e) 0)
   end.
 
 Fixpoint lift_e_list (up : nat) (es : list Expr.e)
@@ -88,7 +92,7 @@ Definition unwind_vars (es : list Expr.e) : Stmt.s -> Stmt.s :=
 Definition lift_trans (up : nat) (e : Parser.e)
   : list Expr.e * Parser.e :=
   match e with
-  | Parser.Goto _ => ([],e)
+  | Parser.Direct _ => ([],e)
   | Parser.Select e d cases
     => let '(le,e) := lift_e up e in
       (le, Parser.Select e d cases)
@@ -161,16 +165,16 @@ Definition lift_control_decl (cd : Control.d) : Control.d :=
 
 Definition lift_top_decl (td : TopDecl.d) : TopDecl.d := 
   match td with 
-  | TopDecl.Instantiate _ _ _
-  | TopDecl.Extern _ _ _ _ => td
-  | TopDecl.Control c cparams eps params body apply_blk =>
+  | TopDecl.Instantiate _ _ _ _ _
+  | TopDecl.Extern _ _ _ _ _ => td
+  | TopDecl.Control c cparams expr_cparams eps params body apply_blk =>
       TopDecl.Control
-        c cparams eps params
+        c cparams expr_cparams eps params
         (map lift_control_decl body)
         $ lift_s 0 apply_blk  
-  | TopDecl.Parser p cparams eps params start states =>
+  | TopDecl.Parser p cparams expr_cparams eps params start states =>
       TopDecl.Parser
-        p cparams eps params
+        p cparams expr_cparams eps params
         (lift_s 0 start) $ map (lift_s 0) states
   | TopDecl.Funct f tparams signature body =>
       TopDecl.Funct f tparams signature $ lift_s 0 body

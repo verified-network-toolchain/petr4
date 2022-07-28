@@ -1,45 +1,44 @@
-Require Export Poulet4.P4cub.Syntax.AST
-        Poulet4.P4cub.Syntax.CubNotations.
+From Poulet4 Require Export P4cub.Syntax.AST
+     P4cub.Syntax.CubNotations
+     P4cub.Syntax.Auxiliary.
 Require Import Coq.NArith.BinNat Coq.ZArith.BinInt.
 Import ExprNotations StmtNotations.
 
 (** In p4cub a header stack
     of size [n] and
-    headers of type [hdr {ts}]
+    headers of type [ht]
     is a struct with
     0. The next index (bit<32>).
     1. The size [n] (bit<32>).
-    2. The array of headers [ts]
-       (struct {..., struct { ts }, ...}). *)
+    2. The array of headers [ht]. *)
 Definition
   header_stack_type
-  (header_type : list Expr.t) (size : nat) : Expr.t :=
+  (header_type : Expr.t) (size : N) : Expr.t :=
   Expr.TStruct
+    false
     [Expr.TBit 32%N;
      Expr.TBit 32%N;
-     Expr.TStruct
-       (List.repeat (Expr.TStruct header_type true) size)
-       false]
-    false.
+     Expr.TArray size header_type].
 
 Definition
   header_stack_term
-  (next_index : Expr.e) (size : Expr.e) (headers : list Expr.e) : Expr.e :=
-  Expr.Struct
-    [next_index; size; Expr.Struct headers None] None.
+  (header_type : Expr.t) (next_index : Expr.e)
+  (size : Expr.e) (headers : list Expr.e) : Expr.e :=
+  Expr.Lists
+    Expr.lists_struct
+    [next_index; size;
+     Expr.Lists (Expr.lists_array header_type) headers].
 
 Definition
   header_stack_access
-  (header_type : list Expr.t)
-  (size index : nat) (header_stack : Expr.e) : Expr.e :=
-  Expr.Member
-    (Expr.TStruct header_type true)
-    index
+  (header_type : Expr.t) (size : N)
+  (header_stack header_index : Expr.e) : Expr.e :=
+  Expr.Index
+    header_type
     (Expr.Member
-       (Expr.TStruct
-          (List.repeat (Expr.TStruct header_type true) size)
-          false)
-       2 header_stack).
+       (Expr.TArray size header_type)
+       2 header_stack)
+    header_index.
 
 Definition
   header_stack_next_index
@@ -53,14 +52,10 @@ Definition
 
 Definition
   header_stack_headers
-  (header_type : list Expr.t)
-  (size : nat) (header_stack : Expr.e) : Expr.e :=
+  (header_type : Expr.t)
+  (size : N) (header_stack : Expr.e) : Expr.e :=
   Expr.Member
-    (Expr.TStruct
-       (List.repeat
-          (Expr.TStruct
-             header_type true)
-          size) false)
+    (Expr.TArray size header_type)
     2 header_stack.
     
 Definition
@@ -72,52 +67,46 @@ Definition
     (32%N `W 1%Z)%expr.
 
 (** Perhaps need indexing term in p4cub expressions? *)
-Fail Definition
-     header_stack_next
-     (header_type : list Expr.t)
-     (size : nat) (header_stack : Expr.e) : Expr.e :=
-  Expr.Member
-    (Expr.TStruct header_type true)
-    ((*nat value of next index of [header_stack]*)
-      Expr.Member (Expr.TBit 32%N) 0 header_stack)
+Definition
+  header_stack_next
+  (header_type : Expr.t)
+  (size : N) (header_stack : Expr.e) : Expr.e :=
+  Expr.Index
+    header_type
     (Expr.Member
-       (Expr.TStruct
-          (List.repeat (Expr.TStruct header_type true) size)
-          false)
-       2 header_stack).
+       (Expr.TArray size header_type)
+       2 header_stack)
+    (Expr.Member (Expr.TBit 32%N) 0 header_stack).
 
-Fail Definition
-     header_stack_last
-     (header_type : list Expr.t)
-     (size : nat) (header_stack : Expr.e) : Expr.e :=
-  Expr.Member
-    (Expr.TStruct header_type true)
-    ((*nat value of next index of [header_stack]*)
-      Expr.Bop
-        (Expr.TBit 32%N)
-        `-%bop
-        (Expr.Member (Expr.TBit 32%N) 0 header_stack)
-        (32%N `W 1%Z)%expr)
+Definition
+  header_stack_last
+  (header_type : Expr.t)
+  (size : N) (header_stack : Expr.e) : Expr.e :=
+  Expr.Index
+    header_type
     (Expr.Member
-       (Expr.TStruct
-          (List.repeat (Expr.TStruct header_type true) size)
-          false)
-       2 header_stack).
+       (Expr.TArray size header_type)
+       2 header_stack)
+    (Expr.Bop
+       (Expr.TBit 32%N)
+       `-%bop
+       (Expr.Member (Expr.TBit 32%N) 0 header_stack)
+       (32%N `W 1%Z)%expr).
 
-(* TODO: move to [Auxiliary.v] *)
-Definition stmt_of_list : list Stmt.s -> Stmt.s :=
-  List.fold_right Stmt.Seq Stmt.Skip.
+Definition bit32_of_nat (n : nat) : Expr.e :=
+  (32%N `W (Z.of_nat n))%expr.
 
 Definition
   push_front
-  (header_type : list Expr.t) (size : nat)
+  (header_type : Expr.t) (size : N)
   (count : Z) (header_stack : Expr.e) : Stmt.s :=
+  let count_bit32 := (32%N `W count)%expr in
   let next_index :=
     header_stack_next_index header_stack in
   let new_next_index :=
     Expr.Bop
       (Expr.TBit 32%N)
-      `+%bop next_index (32%N `W count)%expr in
+      `+%bop next_index count_bit32 in
   (* TODO: need to cap next_index by size *)
   let asgn_new_next_index :=
     (next_index `:= new_next_index)%stmt in
@@ -126,29 +115,38 @@ Definition
       header_type size i header_stack in
   let count_nat := Z.abs_nat count in
   let asgn_pushed i :=
-    (hdsa i `:= hdsa (i - count_nat))%stmt in
+    (hdsa i `:=
+          hdsa
+          (Expr.Bop
+             (Expr.TBit 32%N)
+             `-%bop i count_bit32))%stmt in
   let asgn_front i :=
     (hdsa i `:=
           Expr.Uop
-          (Expr.TStruct header_type true)
+          header_type
           (Expr.SetValidity false)
           (hdsa i))%stmt in
   let asgn_pusheds :=
-    List.map asgn_pushed (seq count_nat size) in
+    seq count_nat (N.to_nat size)
+        ▷ List.map bit32_of_nat
+        ▷ List.map asgn_pushed in
   let asgn_fronts :=
-    List.map asgn_front (seq 0 count_nat) in
+    seq 0 count_nat
+        ▷ List.map bit32_of_nat
+        ▷ List.map asgn_front in
   stmt_of_list (asgn_new_next_index :: asgn_pusheds ++ asgn_fronts).
 
 Definition
   pop_front
-  (header_type : list Expr.t) (size : nat)
+  (header_type : Expr.t) (size : N)
   (count : Z) (header_stack : Expr.e) : Stmt.s :=
+  let count_bit32 := (32%N `W count)%expr in
   let next_index :=
     header_stack_next_index header_stack in
   let new_next_index :=
     Expr.Bop
       (Expr.TBit 32%N)
-      `-%bop next_index (32%N `W count)%expr in
+      `-%bop next_index count_bit32 in
   let asgn_new_next_index :=
     (next_index `:= new_next_index)%stmt in
   let hdsa i :=
@@ -156,13 +154,25 @@ Definition
       header_type size i header_stack in
   let count_nat := Z.abs_nat count in
   let asgn_popped i :=
-    (hdsa i `:= hdsa (i + count_nat))%stmt in
+    (hdsa i `:=
+          hdsa
+          (Expr.Bop
+             (Expr.TBit 32%N) `+%bop
+             i count_bit32))%stmt in
   let asgn_last i :=
     (hdsa i `:=
           Expr.Uop
-          (Expr.TStruct header_type true)
+          header_type
           (Expr.SetValidity false)
           (hdsa i))%stmt in
-  let asgn_poppeds := List.map asgn_popped (seq 0 (size - count_nat)) in
-  let asgn_lasts := List.map asgn_last (seq (size - count_nat) size) in
+  let size_nat := N.to_nat size in
+  let mid :=  size_nat - count_nat in
+  let asgn_poppeds :=
+    seq 0 mid
+        ▷ List.map bit32_of_nat
+        ▷ List.map asgn_popped in
+  let asgn_lasts :=
+    seq mid size_nat
+        ▷ List.map bit32_of_nat
+        ▷ List.map asgn_last in
   stmt_of_list (asgn_new_next_index :: asgn_poppeds ++ asgn_lasts).

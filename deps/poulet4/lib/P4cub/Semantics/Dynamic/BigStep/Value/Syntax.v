@@ -8,15 +8,15 @@ Module Val.
   | Bool (b : bool)
   | Bit (width : N) (n : Z)
   | Int (width : positive) (n : Z)
-  | Struct (fields : list v) (validity : option bool)
+  | Lists (ls : Expr.lists) (fields : list v)
   | Error (err : string).
 
   (** Lvalues. *)
   Inductive lv : Set :=
   | Var (x : nat)               (** Local variables. *)
-  | Slice (arg : lv)
-          (hi lo : positive)  (** Slice. *)
-  | Member (arg : lv) (x : nat) (** Member access. *).
+  | Slice (arg : lv) (hi lo : positive) (** Bitstring slice. *)
+  | Member (x : nat) (arg : lv) (** Member access. *)
+  | Index (index : N) (array : lv) (** Array indexing. *).
 
   (** Evaluated arguments. *)
   Definition argsv : Set := list (paramarg v lv).
@@ -34,7 +34,7 @@ Module Val.
     Delimit Scope lvalue_scope with lvalue.
     Coercion Var : nat >-> lv.
     Notation "lval 'DOT' x"
-      := (Member lval x)
+      := (Member x lval)
            (at level 22, left associativity) : lvalue_scope.
   End LValueNotations.
 End Val.

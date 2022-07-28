@@ -71,7 +71,7 @@ End StmtNotations.
 Module ParserNotations.
   Import Parser.
 
-  Coercion Name : nat >-> state.
+  Coercion Name : nat >-> state_label.
 
   Declare Scope pat_scope.
   Delimit Scope pat_scope with pat.
@@ -79,17 +79,9 @@ Module ParserNotations.
   Notation "w 'PS' z" := (Int w z) (at level 0, no associativity) : pat_scope.
   Notation "p1 '..' p2"
     := (Range p1 p2)
-         (at level 12, right associativity) : pat_scope.
+         (at level 13, right associativity) : pat_scope.
 End ParserNotations.
 
-Module TopDeclNotations.
-  Import TopDecl.
-  
-  Coercion EType : Expr.t >-> it.
-  Coercion CAExpr : Expr.e >-> constructor_arg.
-End TopDeclNotations.
-
 Module AllCubNotations.
-  Export ExprNotations StmtNotations
-         ParserNotations TopDeclNotations.
+  Export ExprNotations StmtNotations ParserNotations.
 End AllCubNotations.

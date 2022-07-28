@@ -69,12 +69,12 @@ Arguments rtrns {_} {_}.
 Module Expr.
   (** Expression types. *)
   Inductive t : Set :=
-  | TBool                  (** bool *)
-  | TBit (width : N)       (** unsigned integers *)
+  | TBool                   (** bools *)
+  | TBit (width : N)        (** unsigned integers *)
   | TInt (width : positive) (** signed integers *)
-  | TError                 (** the error type *)
-  | TStruct (fields : list t)
-            (isheader : bool) (** struct types *)
+  | TError                  (** the error type *)
+  | TArray (size : N) (typ : t) (** arrays, not header-stacks, normal arrays. *)
+  | TStruct (isheader : bool) (fields : list t) (** struct types *)
   | TVar (type_name : nat)   (** type variables *).  
     
   (** Function parameters. *)
@@ -115,25 +115,30 @@ Module Expr.
   | And      (** boolean and *)
   | Or       (** boolean or *).
 
-  (** Expressions annotated with types,
-      unless the type is obvious. *)
+  (** "list" variants:
+      structs, headers, and arrays. *)
+  Variant lists : Set :=
+  | lists_struct
+  | lists_array (element_type : t)
+  | lists_header (b : bool).
   
+  (** Expressions annotated with types,
+      unless the type is obvious. *)  
   Inductive e : Set :=
   | Bool (b : bool)                      (** booleans *)
   | Bit (width : N) (val : Z)         (** unsigned integers *)
   | Int (width : positive) (val : Z)         (** signed integers *)
   | Var (type : t) (x : nat)            (** variables *)
-  | Slice (arg : e)
-          (hi lo : positive)          (** bit-slicing *)
+  | Slice (hi lo : positive) (arg : e) (** bit-slicing *)
   | Cast (type : t) (arg : e)         (** explicit casts *)
   | Uop (result_type : t) (op : uop)
         (arg : e)                     (** unary operations *)
   | Bop (result_type : t) (op : bop)
         (lhs rhs : e)                 (** binary operations *)
-  | Struct (fields : list e) (valid : option bool) (** struct literals *)
-  | Member (result_type : t) (mem : nat)
-           (arg : e)              (** member-expressions *)
-  | Error (err : string)       (** error literals *).    
+  | Lists (flag : lists) (es : list e)
+  | Index (elem_type : t) (array index : e) (** array-indexing *)
+  | Member (result_type : t) (mem : nat) (arg : e) (** struct member *)
+  | Error (err : string)  (** error literals *).
   
   (** Function call arguments. *)
   Definition args : Set := list (paramarg e e).
@@ -145,7 +150,7 @@ End Expr.
 (** * Parser Grammar *)
 Module Parser.
   (** Labels for parser-states. *)
-  Variant state : Set :=
+  Variant state_label : Set :=
     | Start         (** start state *)
     | Accept        (** accept state *)
     | Reject        (** reject state *)
@@ -159,13 +164,13 @@ Module Parser.
   | Range (p1 p2 : pat)       (** range pattern *)
   | Bit (width : N) (val : Z) (** unsigned-int pattern *)
   | Int (width : positive) (val : Z) (** signed-int pattern *)
-  | Struct (ps : list pat)    (** struct pattern *).
+  | Lists (ps : list pat)    (** lists pattern *).
 
   (** Parser expressions, which evaluate to state names *)
   Variant e : Set :=
-  | Goto (st : state)  (** goto state [st] *)
+  | Direct (st : state_label)  (** goto state [st] *)
   | Select (discriminee : Expr.e)
-           (default : state) (cases : Field.fs pat state)
+           (default : state_label) (cases : Field.fs pat state_label)
   (** select expressions,
       where "default" is
       the catch-all case *).
@@ -182,7 +187,7 @@ Module Stmt.
     | Action
         (action_name : string) (control_plane_args : list Expr.e)
     | Method
-        (extern_instance_name : nat) (method_name : string)
+        (extern_instance_name method_name : string)
         (type_args : list Expr.t) (returns : option Expr.e).
   
   (** Statements. *)
@@ -198,7 +203,7 @@ Module Stmt.
       (args : Expr.args)         (** arguments *)
   | Invoke (table_name : string) (key : list Expr.e) (** table invocation *)
   | Apply
-      (instance_name : nat)
+      (instance_name : string)
       (ext_args : list string)
       (args : Expr.args) (** apply statements *)
   (** blocks of statements: *)
@@ -234,8 +239,7 @@ End Control.
 (** Top-Level Declarations *)
 Module TopDecl.
   (** Constructor Parameter types, for instantiations *)
-  Variant it : Set :=
-    | EType (type : Expr.t)   (** expression types *)
+  Variant it : Set :=    
     | ControlInstType
         (extern_params : list string)
         (parameters : Expr.params) (** control instance types *)
@@ -245,25 +249,22 @@ Module TopDecl.
     | PackageInstType (** package instance types *)
     | ExternInstType (extern_name : string) (** extern instance types *).
   
-  Definition constructor_params : Set := list it.
-
-  (** Constructor arguments. *)
-  Variant constructor_arg : Set :=
-    | CAExpr (expr : Expr.e)   (** plain expression *)
-    | CAName (x : nat)      (** name of parser, control, package, or extern *).
+  Definition constructor_params : Set := list (string * it).
     
-  Definition constructor_args : Set := list constructor_arg.
+  Definition constructor_args : Set := list string.
   
   (** Top-level declarations. *)
   Variant d : Set :=
     | Instantiate
-        (constructor_name : string)
+        (constructor_name instance_name : string)
         (type_args : list Expr.t)
-        (cargs : constructor_args) (** instantiations *)
+        (cargs : constructor_args)
+        (expr_cargs : list Expr.e) (** instantiations *)
     | Extern
         (extern_name : string)
         (type_params : nat)
         (cparams : constructor_params)
+        (expr_cparams : list Expr.t)
         (methods : Field.fs
                      string (** method name *)
                      (nat             (** type parameters *)
@@ -273,6 +274,7 @@ Module TopDecl.
     | Control
         (control_name : string)
         (cparams : constructor_params) (** constructor params *)
+        (expr_cparams : list Expr.t)
         (eparams : list string)      (** runtime extern params *)
         (params : Expr.params)       (** apply block params *)
         (body : list Control.d)
@@ -280,6 +282,7 @@ Module TopDecl.
     | Parser
         (parser_name : string)
         (cparams : constructor_params) (** constructor params *)
+        (expr_cparams : list Expr.t)
         (eparams : list string)      (** runtime extern params *)
         (params : Expr.params)              (** invocation params *)
         (start : Stmt.s) (** start state *)

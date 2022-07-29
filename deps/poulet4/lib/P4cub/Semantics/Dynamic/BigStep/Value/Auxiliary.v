@@ -32,9 +32,15 @@ Fixpoint v_of_t (τ : Expr.t) : option v :=
   | Expr.TBool  => Some $ Bool false
   | Expr.TBit w => Some $ Bit w 0%Z
   | Expr.TInt w => Some $ Int w 0%Z
-  | Expr.TStruct ts b
-    => let^ vs := sequence $ List.map v_of_t ts in
-      Struct vs (if b then Some false else None)
+  | Expr.TArray n t =>
+      v_of_t
+        t >>| (fun v => repeat v $ N.to_nat n)
+        >>| Lists $ Expr.lists_array t
+  | Expr.TStruct b ts
+    => sequence
+        $ List.map v_of_t ts
+        >>| Lists
+        (if b then Expr.lists_header false else Expr.lists_struct)
   | Expr.TVar _ => None
   end.
 
@@ -42,15 +48,18 @@ Lemma v_of_t_ok : forall τ, t_ok 0 τ -> exists V, v_of_t τ = Some V.
 Proof.
   intros t h; remember 0%nat as z eqn:eqz.
   induction h using custom_t_ok_ind; subst; unravel; eauto; try lia.
-  rewrite Forall_forall in H0.
-  pose proof (fun t hin => H0 t hin eq_refl) as ih; clear H0.
-  rewrite <- Forall_forall in ih.
-  rewrite Forall_exists_factor in ih.
-  destruct ih as [vs ih].
-  rewrite Forall2_map_l with
-    (f:=v_of_t) (R:=fun ov V => ov = Some V),
-      Forall2_sequence_iff in ih.
-  rewrite ih; eauto.
+  - pose proof IHh eq_refl as [v hv].
+    exists (Lists (Expr.lists_array t) (repeat v (N.to_nat n)));
+      cbn. rewrite hv; reflexivity.
+  - rewrite Forall_forall in H0.
+    pose proof (fun t hin => H0 t hin eq_refl) as ih; clear H0.
+    rewrite <- Forall_forall in ih.
+    rewrite Forall_exists_factor in ih.
+    destruct ih as [vs ih].
+    rewrite Forall2_map_l with
+      (f:=v_of_t) (R:=fun ov V => ov = Some V),
+        Forall2_sequence_iff in ih.
+    rewrite ih; eauto.
 Qed.
 
 Local Open Scope pat_scope.
@@ -66,7 +75,7 @@ Fixpoint match_pattern (p : Parser.pat) (V : v) : bool :=
     => (w1 =? w2)%N && (n1 =? n2)%Z
   | w1 PS n1, w2 VS n2
     => (w1 =? w2)%positive && (n1 =? n2)%Z
-  | Parser.Struct ps, Struct vs None =>
+  | Parser.Lists ps, Lists Expr.lists_struct vs =>
     (fix F ps vs :=
        match ps, vs with
        | [], [] => true
@@ -82,8 +91,12 @@ Fixpoint t_of_v (V : v) : Expr.t :=
   | w VW _ => Expr.TBit w
   | w VS _ => Expr.TInt w
   | Error _ => Expr.TError
-  | Struct vs ob
-    => Expr.TStruct (List.map t_of_v vs) (if ob then true else false)
+  | Lists (Expr.lists_array τ) vs  =>
+      Expr.TArray (N.of_nat $ List.length vs) τ
+  | Lists Expr.lists_struct vs     =>
+      Expr.TStruct false (List.map t_of_v vs)
+  | Lists (Expr.lists_header _) vs =>
+      Expr.TStruct true (List.map t_of_v vs)
   end.
 
 Lemma t_of_v_of_t : forall V τ,
@@ -94,15 +107,17 @@ Proof.
     try match_some_inv; try some_inv;
     try (discriminate || reflexivity).
   f_equal.
-  - generalize dependent fields.
-    clear isheader.
-    induction H as [| V vs h ih];
-      intros [| t ts] hs; cbn in *;
-      try (discriminate || reflexivity);
-      unfold option_bind in hs;
-      repeat match_some_inv. some_inv.
-    f_equal; auto.
-  - destruct isheader; reflexivity.
+  - match_some_inv; some_inv.
+    rewrite repeat_length; lia.
+  - pose proof sequence_length _ _ Heqo as Hlen.
+    rewrite map_length in Hlen.
+    pose proof Forall_specialize_Forall2
+         _ _ _ _ H _ (eq_sym Hlen) as h.
+    rewrite <- Forall2_sequence_iff,
+      sublist.Forall2_map1,Forall2_flip in Heqo.
+    pose proof Forall2_impl _ _ _ _ _ _ h Heqo as h'.
+    rewrite Forall2_map_l,Forall2_eq in h'; subst.
+    destruct isheader; reflexivity.
 Qed.
 
 Lemma t_of_v_of_t_ok : forall τ,
@@ -123,7 +138,7 @@ Fixpoint e_of_v (V : v) : Expr.e :=
   | w VW n => w `W n
   | w VS z => w `S z
   | Error err => Expr.Error err
-  | Struct vs ob => Expr.Struct (map e_of_v vs) ob
+  | Lists ls vs => Expr.Lists ls (map e_of_v vs)
   end.
 
 Lemma t_of_e_of_v : forall V,

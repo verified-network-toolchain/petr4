@@ -117,6 +117,14 @@ Inductive t_ok (Δ : nat) : Expr.t -> Prop :=
   (T < Δ)%nat ->
   t_ok Δ T.
 
+Variant t_ok_lists (Δ : nat) : Expr.lists -> Prop :=
+  | t_ok_lists_array τ :
+    t_ok Δ τ -> t_ok_lists Δ (Expr.lists_array τ)
+  | t_ok_lists_struct :
+    t_ok_lists Δ Expr.lists_struct
+  | t_ok_lists_header b :
+    t_ok_lists Δ (Expr.lists_header b).
+
 (** Function names to signatures. *)
 Definition fenv : Set :=
   Clmt.t
@@ -223,17 +231,21 @@ Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
 Inductive constructor_type : Set :=
 | ControlType
     (constructor_parameters : list TopDecl.it)
+    (expr_constructor_params : list Expr.t)
     (extern_params : list string)
     (parameters : Expr.params) (** control types *)
 | ParserType
     (constructor_parameters : list TopDecl.it)
+    (expr_constructor_params : list Expr.t)
     (extern_params : list string)
     (parameters : Expr.params) (** parser types *)
 | PackageType (** package types *)
     (constructor_parameters : list TopDecl.it)
+    (expr_constructor_params : list Expr.t)
 | ExternType (** extern types *)
     (type_params : nat)
     (constructor_parameters : list TopDecl.it)
+    (expr_constructor_params : list Expr.t)
     (extern_name : string) (* TODO: methods? *).
 
 (** Available constructor signatures. *)

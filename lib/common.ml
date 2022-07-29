@@ -47,38 +47,6 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
-  let hex_of_nibble (i : int) : string =
-    match i with
-    | 0 -> "0"
-    | 1 -> "1"
-    | 2 -> "2"
-    | 3 -> "3"
-    | 4 -> "4"
-    | 5 -> "5"
-    | 6 -> "6"
-    | 7 -> "7"
-    | 8 -> "8"
-    | 9 -> "9"
-    | 10 -> "A"
-    | 11 -> "B"
-    | 12 -> "C"
-    | 13 -> "D"
-    | 14 -> "E"
-    | 15 -> "F"
-    | _ -> failwith "unreachable"
-
-  let hex_of_int (i : int) : string =
-    hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
-
-  let hex_of_char (c : char) : string =
-    c |> Char.to_int |> hex_of_int
-
-  let hex_of_string (s : string) : string =
-    s
-    |> String.to_list
-    |> List.map ~f:hex_of_char
-    |> List.fold_left ~init:"" ~f:(^)
-
   let check_file (include_dirs : string list) (p4_file : string) 
       (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
       (export_file : string) (gen_loc : bool) (verbose : bool) 

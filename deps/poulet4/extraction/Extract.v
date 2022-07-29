@@ -92,6 +92,7 @@ Set Extraction AutoInline.
 Separate Extraction
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
+         Poulet4.P4light.Semantics.Semantics
          Poulet4.P4light.Semantics.Interpreter
          Poulet4.P4light.Architecture.Target
          Poulet4.P4light.Architecture.V1ModelTarget

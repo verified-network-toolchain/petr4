@@ -270,6 +270,9 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
+Definition extern_set_entries (es : extern_state) (p : path) (entries : list table_entry) : extern_state :=
+  PathMap.set p (ObjTable entries) es.
+
 Definition check_lpm_count (mks: list ident): option bool :=
   let num_lpm := List.length (List.filter (String.eqb "lpm") mks) in
   if (1 <? num_lpm)%nat
@@ -477,14 +480,14 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | None => None
   | Some sort_mks =>
     let entries' := List.map (fun p => (valset_to_valsett (fst p), snd p)) entries in
-        let (entries'', ks') :=
-            if list_eqb String.eqb mks ["lpm"]
-            then (sort_lpm entries', ks)
-            else if sort_mks
-                 then filter_lpm_prod mks ks entries'
-                 else (entries', ks) in
+    let (entries'', ks') :=
+      if list_eqb String.eqb mks ["lpm"]
+      then (sort_lpm entries', ks)
+      else if sort_mks
+           then filter_lpm_prod mks ks entries'
+           else (entries', ks) in
     let l := List.filter (fun s => is_some_true (values_match_set ks' (fst s)))
-                          entries'' in
+                         entries'' in
     match l with
     | nil => None
     | sa :: _ => Some (snd sa)

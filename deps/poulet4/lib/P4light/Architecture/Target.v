@@ -72,6 +72,7 @@ Class ExternSem := {
       interp_extern env st class method this targs args = Some (st', retvs, sig) ->
       exec_extern env st class method this targs args st' retvs sig;
   extern_get_entries : extern_state -> path -> list table_entry;
+  extern_set_entries : extern_state -> path -> list table_entry -> extern_state;
   extern_match : list (Val * ident (* match_kind *)) -> list table_entry_valset -> option action_ref (* action *)
 }.
 

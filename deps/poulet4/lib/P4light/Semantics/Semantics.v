@@ -317,8 +317,11 @@ Definition update_memory (f : mem -> mem) (s : state) : state :=
 Definition get_memory (s : state) : mem :=
   let (m, _) := s in m.
 
-Definition get_external_state (s : state) :=
+Definition get_external_state (s : state) : extern_state :=
   let (_, es) := s in es.
+
+Definition set_external_state (s : state) (es : extern_state) : state :=
+  (get_memory s, es).
 
 Record genv := MkGenv {
   ge_func :> genv_func;
@@ -620,6 +623,12 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | Some entries => entries
   | None => extern_get_entries (get_external_state s) table
   end.
+
+Definition set_entries (s : state) (table : path) (entries : list table_entry) : state :=
+  set_external_state s (extern_set_entries (get_external_state s) table entries).
+
+Definition add_entry (s : state) (table : path) (entry : table_entry) : state :=
+  set_entries s table (get_entries s table None ++ [entry]).
 
 Definition empty_state : state := (PathMap.empty, PathMap.empty).
 

@@ -1,4 +1,5 @@
 open Petr4.Ast
+open Petr4.P4light
 open Core
 
 let stmt_string s =
@@ -62,21 +63,30 @@ let convert_qualified name =
   | Some idx -> 
     let length = String.length name in
     String.slice name (idx + 1) length
-(*
+
 module type RunnerConfig = sig
   type st
 
-  val eval_program : Prog.Value.ctrl -> Prog.Env.EvalEnv.t -> st -> Prog.Value.buf ->
-    Bigint.t -> Prog.program -> st * (Prog.Value.buf * Bigint.t) option
+  val eval_program :
+    program ->
+    st -> 
+    Bigint.t ->
+    bool list ->
+    ((st * Bigint.t) * bool list)
+    option
 end
 
 module MakeRunner (C : RunnerConfig) = struct  
 
-  let evaler (prog : Prog.program) (pkt_in : string) (port : int)
-      (env : Prog.Env.EvalEnv.t) (st : C.st) add : C.st * (Prog.Value.buf * Bigint.t) option =
-    let pkt_in = Cstruct.of_hex pkt_in in
+  let evaler
+        (prog : program)
+        (pkt_in : string)
+        (port : int)
+        (st : C.st)
+     : ((C.st * Bigint.t) * bool list) option =
+    let pkt_in = pkt_in |> String.lowercase |> Cstruct.of_hex |> Cstruct.to_string |> Petr4.Util.string_to_bits in
     let port = Bigint.of_int port in
-    C.eval_program (add, []) env st pkt_in port prog
+    C.eval_program prog st port pkt_in
 
   let update lst name v =
     match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with
@@ -88,56 +98,56 @@ module MakeRunner (C : RunnerConfig) = struct
       | y :: ys -> xs @ (name, v :: snd item) :: ys
       | [] -> failwith "unreachable: index out of bounds"
 
-  let rec run_test (prog : Prog.program) (stmts : statement list) (add, set_def)
-      (results : (string * string) list) (expected : (string * string) list)
-      (env : Prog.Env.EvalEnv.t) (st : C.st)
+  let rec run_test
+            (prog : program)
+            (stmts : statement list)
+            (results : (string * string) list)
+            (expected : (string * string) list)
+            (st : C.st)
       : ((string * string) list) * ((string * string) list) = 
     match stmts with
     | [] -> (expected, results)
     | hd :: tl -> 
       match hd with
       | Packet (port, packet) -> 
-        let (st', result) = evaler prog (packet |> String.lowercase) (int_of_string port) env st (add,set_def) in
-        let results' =
-        begin match result with
-        | Some (pkt, port) ->
-                let fixed = pkt |> Cstruct.to_string |> Util.hex_of_string |> strip_spaces |> String.lowercase in
-                (Bigint.to_string port, fixed) :: results
-        | None -> results
-        end in
-        run_test prog tl (add,set_def) results' expected env st'
-      | Expect (port, Some packet) -> run_test prog tl (add,set_def) results ((port, strip_spaces packet |> String.lowercase) :: expected) env st
+         let results', st' =
+           match evaler prog packet (int_of_string port) st with
+           | Some ((st', port), pkt) ->
+              let fixed = pkt |> Petr4.Util.bits_to_string |> Petr4.Util.hex_of_string |> strip_spaces |> String.lowercase in
+              (Bigint.to_string port, fixed) :: results, st'
+           | None ->
+              results, st
+         in
+         run_test prog tl results' expected st'
+      | Expect (port, Some packet) ->
+         run_test prog tl results ((port, strip_spaces packet |> String.lowercase) :: expected) st
+         (*
       | Add (tbl_name, priority, match_list, (action_name, args), id) ->
-        let tbl_name' = convert_qualified tbl_name in 
+        let tbl_name = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
-        let add' = update add tbl_name' (priority, match_list, (action_name', args), id) in 
-        run_test prog tl (add',set_def) results expected env st
-      | Wait -> Core_unix.sleep 1; run_test prog tl (add,set_def) results expected env st
+        let entry = Poulet4.Target.Coq_mk_table_entry (match_list, action_name') in
+        let st' = Poulet4.Semantics.add_entry _ st tbl_name entry in
+        run_test prog tl results expected st'
+          *)
+      | Wait ->
+         Core_unix.sleep 1;
+         run_test prog tl results expected st
+  (*
       | Set_default (tbl_name, (action_name, args)) ->
         let tbl_name' = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
         let set_def' = update set_def tbl_name' (action_name', args) in
-        run_test prog tl (add, set_def') results expected env st
+        run_test prog tl results expected env st
+   *)
       | _ -> failwith "unimplemented stf statement"
 end
 
-module MakeConfig (I : Eval.Interpreter) = struct
-  type st = I.state
-
-  let eval_program = I.eval_program
+module V1RunnerConfig = struct
+  type st = Obj.t Poulet4.Maps.PathMap.t
+  let eval_program = Petr4.Eval.v1_interp
 end
 
-module V1RunnerConfig = MakeConfig(Eval.V1Interpreter)
-
 module V1Runner = MakeRunner(V1RunnerConfig)
-
-module EbpfRunnerConfig = MakeConfig(Eval.EbpfInterpreter)
-
-module EbpfRunner = MakeRunner(EbpfRunnerConfig)
-
-module Up4RunnerConfig = MakeConfig(Eval.Up4Interpreter)
-
-module Up4Runner = MakeRunner(Up4RunnerConfig)
 
 let get_stf_files path =
   Sys_unix.ls_dir path |> Base.List.to_list |>
@@ -147,23 +157,22 @@ let run_stf stf_file p4prog =
     let ic = In_channel.create stf_file in
     let lexbuf = Lexing.from_channel ic in
     let stmts = Test_parser.statements Test_lexer.token lexbuf in
-    let env, prog = 
+    let _, prog = 
       p4prog
-      |> Elaborate.elab
-      |> fun (prog, renamer) -> Checker.check_program renamer prog
-      |> Tuple.T2.map_fst ~f:Prog.Env.CheckerEnv.eval_env_of_t in
-    let target = match prog with Program l ->
-      l
-      |> List.rev |> List.hd_exn 
-      |> function Prog.Declaration.Instantiation{typ;_} -> typ
-         | _ -> failwith "unexpected main value" in
+      |> Petr4.Elaborate.elab
+      |> fun (prog, renamer) ->
+         Petr4.Checker.check_program renamer prog
+    in
+    let target =
+      prog
+      |> List.rev
+      |> List.hd_exn 
+      |> function | Poulet4.Syntax.DeclInstantiation (_, typ, _, _, _) -> typ
+                  | _ -> failwith "unexpected main value"
+    in
     match target with
-    | SpecializedType{base = TypeName (BareName {name = {string = "V1Switch"; _}; _});_} -> 
-      V1Runner.run_test prog stmts ([],[]) [] [] env Eval.V1Interpreter.empty_state
-    | SpecializedType{base = TypeName (BareName {name = {string = "ebpfFilter"; _}; _});_} ->
-      EbpfRunner.run_test prog stmts ([],[]) [] [] env Eval.EbpfInterpreter.empty_state
-    | SpecializedType{base = TypeName (BareName {name = {string = "uP4Switch"; _}; _});_} ->
-      Up4Runner.run_test prog stmts ([],[]) [] [] env Eval.Up4Interpreter.empty_state
+    | TypSpecializedType (TypTypeName {str = "V1Switch"; _}, _) -> 
+      V1Runner.run_test prog stmts [] [] (fun _ -> None)
     | _ -> failwith "architecture unsupported"
 
 let stf_alco_test stf_file p4_file p4prog =
@@ -174,4 +183,3 @@ let stf_alco_test stf_file p4_file p4prog =
     in
     let test = Alcotest.test_case (Filename.basename p4_file) `Quick run_stf_alcotest in
     test
-    *)

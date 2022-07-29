@@ -706,11 +706,48 @@ Section Soundness.
       - intros H; inv H.
     Qed.
 
+    Ltac solve_ex' :=
+      match goal with
+      | |- exists rt, Some ?t = Some rt
+        => exists t; cbn; eauto
+      end.
+
+    Lemma cast_get_real_type: forall t newt rt,
+        cast_type t newt -> get_real_type ge t = Some rt ->
+        exists realnewt, get_real_type ge newt = Some realnewt.
+    Proof.
+      intros t newt rt Hcast Hreal. revert ge rt Hreal. induction Hcast; intros.
+      - cbn; solve_ex'.
+      - cbn; solve_ex'.
+      - cbn; solve_ex'.
+      - admit.
+      - apply IHHcast in Hreal. destruct Hreal as [realnewt Hrealnewt].
+        cbn. admit.
+        (* destruct t1; try (exfalso; now apply H); *)
+        (*   destruct t2; try (exfalso; now apply H); try (cbn; solve_ex'; easy). *)
+
+    Admitted.
+
     Theorem cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
     Proof.
+      intros i e t dir Hcast He.
+      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      inversion Hok; subst. inversion H4; subst.
+      rename H4 into Hokcast; rename H3 into Htoeok; rename H1 into Hokt. clear H2.
+      inversion Hise; subst. inversion H4; subst.
+      rename H1 into Hist; rename H4 into Hiscast; rename H3 into Hise'. clear H2.
+      pose proof He Hgrt Hdlta as [[v Hev] [Hv Helv]]; eauto.
+      split; [| split].
+      - clear Helv. destruct (Hv _ Hev) as [rt [Hreal Hvrt]].
+        destruct (exec_val_exists _ Hrob v) as [oldv Hexec].
+        destruct (cast_get_real_type _ _ _ Hcast Hreal) as [realt Hrealt].
+        eexists. eapply exec_expr_cast; eauto.
+        admit.
+      - admit.
+      - intros Hlv; inv Hlv; contradiction.
     Admitted.
 
     Theorem enum_member_sound : forall tag X M E mems dir,

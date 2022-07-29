@@ -2,7 +2,8 @@ Require Import Coq.PArith.BinPos Coq.ZArith.BinInt Coq.NArith.BinNat
         Poulet4.P4cub.Syntax.Syntax
         Poulet4.P4cub.Semantics.Static.Util
         Poulet4.P4cub.Semantics.Static.Typing
-        Poulet4.P4cub.Syntax.CubNotations.
+        Poulet4.P4cub.Syntax.CubNotations
+        Poulet4.Utils.ForallMap.
 Import String AllCubNotations.
 
 (** Custom induction principle for ok types. *)
@@ -15,10 +16,12 @@ Section OkBoomerInduction.
   Hypothesis HBit : forall Δ w, P Δ (Expr.TBit w).
   Hypothesis HInt : forall Δ w, P Δ (Expr.TInt w).
   Hypothesis HError : forall Δ, P Δ Expr.TError.
-  Hypothesis HStruct : forall Δ ts b,
+  Hypothesis HArray : forall Δ n t,
+      t_ok Δ t -> P Δ t -> P Δ (Expr.TArray n t).
+  Hypothesis HStruct : forall Δ b ts,
       Forall (t_ok Δ) ts ->
       Forall (P Δ) ts ->
-      P Δ (Expr.TStruct ts b).
+      P Δ (Expr.TStruct b ts).
   Hypothesis HVar : forall Δ T,
       (T < Δ)%nat -> P Δ T.
 
@@ -39,6 +42,7 @@ Section OkBoomerInduction.
       | int_ok _ w    => HInt _ w
       | error_ok _    => HError _
       | var_ok _ T HT => HVar _ _ HT
+      | array_ok _ n T HT => HArray _ n T HT (toind _ _ HT)
       | struct_ok _ _ b Hts => HStruct _ _ b Hts (lind Hts)
       end.
 End OkBoomerInduction.
@@ -65,12 +69,12 @@ Section TypeExprInduction.
       t_ok (type_vars Γ) τ ->
       P Γ (Expr.Var τ x) τ.
   
-  Hypothesis HSlice : forall Γ e τ hi lo w,
+  Hypothesis HSlice : forall Γ hi lo w e τ,
       (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->
       Γ ⊢ₑ e ∈ τ ->
       P Γ e τ ->
-      P Γ (Expr.Slice e hi lo) (Expr.TBit (Npos hi - Npos lo + 1)%N).
+      P Γ (Expr.Slice hi lo e) (Expr.TBit (Npos hi - Npos lo + 1)%N).
   
   Hypothesis HCast : forall Γ τ τ' e,
       proper_cast τ' τ ->
@@ -94,23 +98,28 @@ Section TypeExprInduction.
       Γ ⊢ₑ e₂ ∈ τ₂ ->
       P Γ e₂ τ₂ ->
       P Γ (Expr.Bop τ op e₁ e₂) τ.
+
+  Hypothesis HIndex : forall Γ e₁ e₂ n τ,
+      t_ok (type_vars Γ) τ ->
+      Γ ⊢ₑ e₁ ∈ Expr.TArray n τ ->
+      P Γ e₁ (Expr.TArray n τ) ->
+      Γ ⊢ₑ e₂ ∈ Expr.TBit n ->
+      P Γ e₂ (Expr.TBit n) ->
+      P Γ (Expr.Index τ e₁ e₂) τ.
   
-  Hypothesis HMem : forall Γ e x τs τ b,
+  Hypothesis HMem : forall Γ τ x e τs b,
       nth_error τs x = Some τ ->
       t_ok (type_vars Γ) τ ->
-      Γ ⊢ₑ e ∈ Expr.TStruct τs b ->
-      P Γ e (Expr.TStruct τs b) ->
+      Γ ⊢ₑ e ∈ Expr.TStruct b τs ->
+      P Γ e (Expr.TStruct b τs) ->
       P Γ (Expr.Member τ x e) τ.
-  
-  Hypothesis HStruct : forall Γ es ob τs (b : bool),
-      match ob, b with
-      | Some _, true
-      | None, false => True
-      | _, _ => False
-      end ->
+
+  Hypothesis HLists : forall Γ ls es τ τs,
+      t_ok_lists (type_vars Γ) ls ->
+      type_lists_ok ls τ τs ->
       Forall2 (type_expr Γ) es τs ->
       Forall2 (P Γ) es τs ->
-      P Γ (Expr.Struct es ob) (Expr.TStruct τs b).
+      P Γ (Expr.Lists ls es) τ.
   
   Hypothesis HError : forall Γ err,
       P Γ (Expr.Error err) (Expr.TError).
@@ -145,11 +154,16 @@ Section TypeExprInduction.
         => HBop _ _ _ _ _ _ _ Hbop Hok
                He1 (teind _ _ _ He1)
                He2 (teind _ _ _ He2)
+      | type_index _ _ _ _ _ Hok He₁ He₂
+        => HIndex
+            _ _ _ _ _ Hok
+            He₁ (teind _ _ _ He₁)
+            He₂ (teind _ _ _ He₂)
       | type_member _ _ _ _ _ _ Hnth Hok He
         => HMem _ _ _ _ _ _ Hnth Hok He (teind _ _ _ He)
       | type_error _ err => HError _ err
-      | type_struct _ _ _ _ _ Hob Hes
-        => HStruct _ _ _ _ _ Hob Hes (lind Hes)
+      | type_lists _ _ _ _ _ Hok lok Hes
+        => HLists _ _ _ _ _ Hok lok Hes (lind Hes)
       end.
 End TypeExprInduction.
 
@@ -160,14 +174,11 @@ Proof.
   intros Γ e τ H.
   induction H using custom_type_expr_ind;
     unravel in *; try reflexivity.
-  f_equal.
-  - (* Require Poulet4.Utils.ForallMap.
-       rewrite ForallMap.Forall2_map_l,
-       ForallMap.Forall2_eq in H2; subst. *)
-    clear dependent Γ. clear dependent b.
-    induction H1; cbn in *; f_equal; auto.
-  - destruct ob as [e |]; destruct b; cbn in *;
-      inv H; inv H0; reflexivity.
+  rewrite <- sublist.Forall2_map1,
+    Forall2_eq in H2; inv H0; f_equal.
+  apply f_equal with (f := @List.length Expr.t) in H5.
+  rewrite map_length, repeat_length in H5.
+  rewrite <- H5; lia.
 Qed.
 
 Section TypePatternInduction.
@@ -198,7 +209,7 @@ Section TypePatternInduction.
   Hypothesis HStruct : forall ps ts,
       Forall2 type_pat ps ts ->
       Forall2 P ps ts ->
-      P (Parser.Struct ps) (Expr.TStruct ts false).
+      P (Parser.Lists ps) (Expr.TStruct false ts).
   
   Definition custom_type_pat_ind : forall p t,
       type_pat p t -> P p t :=

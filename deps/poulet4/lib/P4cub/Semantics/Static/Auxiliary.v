@@ -13,9 +13,9 @@ Lemma type_expr_t_ok : forall Γ e τ,
 Proof.
   intros G e t het hok;
     induction het using custom_type_expr_ind; auto.
-  constructor.
-  apply Forall2_only_r_Forall in H1.
-  rewrite Forall_forall in H1.
-  pose proof (fun t hin => H1 t hin hok) as h; clear H1.
-  rewrite <- Forall_forall in h; assumption.
+  apply Forall2_only_r_Forall in H2.
+  rewrite Forall_forall in H2.
+  pose proof (fun t hin => H2 t hin hok) as h; clear H2.
+  rewrite <- Forall_forall in h.
+  inv H; inv H0; auto.
 Qed.

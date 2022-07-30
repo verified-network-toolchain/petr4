@@ -29,7 +29,7 @@ Section Value.
   | ValLeftMember (expr: ValueLvalue) (name: string)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
-  
+
   Context {tags_t : Type}.
 
   Inductive ValueSet:=
@@ -120,7 +120,7 @@ Section Value.
     Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
     Hypothesis HSenumField : forall t v,
         P v -> P (ValBaseSenumField t v).
-    
+
     Definition custom_ValueBase_ind :
       forall v : V, P v :=
       fix vind (v : V) : P v :=
@@ -202,6 +202,7 @@ Section Value.
       try rewrite map_only_snd;
       pose proof split_combine vs as Hcsvs;
       destruct (split vs) as [xs vls] eqn:Hvs;
+      specialize (Hcsvs xs vls ltac:(reflexivity));
       try rewrite <- Hcsvs; try f_equal;
       try rewrite <- Hcsvs in H;
       pose proof split_length_l vs as Hsl1;
@@ -220,9 +221,7 @@ Section Value.
         try list_solve;
         try (alist_solve;
              rewrite map_snd_combine in H by auto; assumption).
-    (* alist_solve's result has been changed, I don't know why. *)
-  Admitted.
-  (* Qed. *)
+  Qed.
 
   Lemma ValueBaseMap_compose : forall (T U W : Type) (f : T -> U) (g : U -> W) v,
       ValueBaseMap g (ValueBaseMap f v) =
@@ -243,9 +242,7 @@ Section Value.
                by (rewrite map_length; assumption);
              rewrite combine_split by auto;
              f_equal; rewrite H; reflexivity).
-    (* alist_solve's result has been changed, I don't know why. *)
-  Admitted.
-  (* Qed. *)
+  Qed.
 
   Inductive signal : Type :=
  | SContinue : signal

@@ -146,16 +146,18 @@ Lemma t_of_e_of_v : forall V,
 Proof.
   intro V; induction V using custom_v_ind;
     unravel; try reflexivity; f_equal.
-  - apply map_ext_Forall in H.
-    rewrite map_map; assumption.
+  apply map_ext_Forall in H.
+  rewrite map_map, map_length, H; reflexivity.
 Qed.
 
 Section Lemmas.
   Local Hint Resolve BitArith.bound0 : core.
   Local Hint Resolve IntArith.bound0 : core.
   Local Hint Constructors type_value : core.
-  Hint Rewrite repeat_length.
-  Hint Rewrite Pos2Nat.id : core.
+  Local Hint Rewrite repeat_length.
+  Local Hint Rewrite Pos2Nat.id : core.
+  Local Hint Constructors type_lists_ok : core.
+  Local Hint Constructors t_ok_lists : core.
   
   Lemma v_of_t_types : forall τ V,
       v_of_t τ = Some V ->
@@ -164,12 +166,16 @@ Section Lemmas.
     intro t; induction t using custom_t_ind;
       intros V h; unravel in *; try discriminate;
       try match_some_inv; try some_inv; auto.
-    constructor.
-    - elim b; trivial.
-    - generalize dependent l.
-      induction H as [| t ts ht hts ihts];
-        intros vs h; unravel in *;
-        repeat match_some_inv; some_inv; auto.
+    - match_some_inv; some_inv.
+      econstructor; eauto using Forall2_repeat_both.
+    - rewrite <- Forall2_sequence_iff, sublist.Forall2_map1 in Heqo.
+      apply Forall2_length in Heqo as hlen.
+      pose proof Forall_specialize_Forall2
+           _ _ _ _ H _ hlen as h.
+      rewrite Forall2_flip in Heqo,h.
+      pose proof Forall2_impl
+           _ _ _ _ _ _ h Heqo as h'.
+      econstructor; destruct b; eauto.
   Qed.
 
   Lemma t_of_v_typing : forall V τ,
@@ -178,11 +184,11 @@ Section Lemmas.
     intros V t h;
       induction h using custom_type_value_ind;
       unravel in *; try reflexivity.
-    f_equal.
-    - rewrite Forall2_map_l,
-        Forall2_eq in H1; assumption.
-    - destruct ob as [[|] |]; destruct b;
-        reflexivity || contradiction.
+    rewrite Forall2_map_l, Forall2_eq in H1; subst.
+    inv H; try reflexivity.
+    apply f_equal with (f := @length Expr.t) in H4.
+    rewrite repeat_length,map_length in H4.
+    rewrite <- H4; f_equal; lia.
   Qed.
   
   Local Hint Constructors type_expr : core.
@@ -191,16 +197,20 @@ Section Lemmas.
   Hint Rewrite map_length : core.
   
   Lemma expr_of_value_types : forall V τ,
+      t_ok 0 τ ->
       ⊢ᵥ V ∈ τ ->
       {|type_vars:=0;types:=[]|} ⊢ₑ e_of_v V ∈ τ.
   Proof.
-    intros V t h;
+    intros V t hok h;
       induction h using custom_type_value_ind;
       unravel; auto.
-    constructor.
-    - destruct ob; destruct b;
-        unravel; try contradiction; auto.
-    - rewrite Forall2_map_l in H1; assumption.
+    econstructor; eauto; cbn in *.
+    - inv H; inv hok; auto.
+    - assert (hokts : Forall (t_ok 0) ts).
+      { inv H; inv hok; eauto using sublist.Forall_repeat. }
+      rewrite sublist.Forall2_map1.
+      eapply Forall2_impl with (R := fun v t => t_ok 0 t) in H1; eauto.
+      apply Forall_Forall2_only_r; eauto using Forall2_length.
   Qed.
 End Lemmas.
 

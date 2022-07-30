@@ -36,8 +36,8 @@ Section StepDefs.
       => Some $ Expr.Bit w $ BitArith.mod_bound w n
     | Expr.TInt w, (_ `S z)%expr
       => Some $ Expr.Int w $ IntArith.mod_bound w z
-    | Expr.TStruct _ true, Expr.Struct vs _
-      => Some $ Expr.Struct vs (Some true)
+    | Expr.TStruct false _, Expr.Lists _ vs
+      => Some $ Expr.Lists Expr.lists_struct vs
     | _, _ => None
     end.
   
@@ -48,9 +48,16 @@ Section StepDefs.
     | Expr.TBit w => Some $ Expr.Bit w 0%Z
     | Expr.TInt w => Some $ Expr.Int w 0%Z
     | Expr.TError => Some $ Expr.Error "no error"%string
-    | Expr.TStruct τs b =>
-        let^ es := sequence $ List.map e_of_t τs in
-        Expr.Struct es (if b then Some false else None)
+    | Expr.TArray n t =>
+        let^ v := e_of_t t in
+        Expr.Lists
+          (Expr.lists_array t)
+          $ List.repeat v $ N.to_nat n
+    | Expr.TStruct b τs =>
+        sequence
+          $ List.map e_of_t τs
+          >>| Expr.Lists
+          (if b then Expr.lists_header false else Expr.lists_struct)
     | Expr.TVar _ => None
     end.
   
@@ -62,9 +69,9 @@ Section StepDefs.
     | `~%uop, (w `S n)%expr => Some $ Expr.Int w $ IntArith.bit_not w n
     | `-%uop, (w `W z)%expr => Some $ Expr.Bit w $ BitArith.neg w z
     | `-%uop, (w `S z)%expr => Some $ Expr.Int w $ IntArith.neg w z
-    | Expr.IsValid, Expr.Struct _ (Some b) => Some $ Expr.Bool b
-    | Expr.SetValidity b, Expr.Struct fs _
-      => Some $ Expr.Struct fs $ Some b
+    | Expr.IsValid, Expr.Lists (Expr.lists_header b) _ => Some $ Expr.Bool b
+    | Expr.SetValidity b, Expr.Lists _ fs
+      => Some $ Expr.Lists (Expr.lists_header b) fs
     | _, _ => None
     end.
 
@@ -154,19 +161,25 @@ Section StepDefs.
         induction t using custom_t_ind;
         intros e h; unravel in *; try discriminate;
         try (inv h; auto; assumption).
-      destruct (sequence (map e_of_t ts))
-        as [es |] eqn:hseq; try discriminate.
-      inv h. constructor.
-      rewrite <- Forall2_sequence_iff in hseq.
-      rewrite <- Forall2_map_l in hseq.
-      eauto using Forall2_Forall_impl_Forall.
+      - match_some_inv; some_inv;
+          eauto using sublist.Forall_repeat.
+      - destruct (sequence (map e_of_t ts))
+          as [es |] eqn:hseq; try discriminate.
+        inv h. constructor.
+        rewrite <- Forall2_sequence_iff in hseq.
+        rewrite <- Forall2_map_l in hseq.
+        eauto using Forall2_Forall_impl_Forall.
     Qed.
   End Edefault.
   
   Section HelpersType.
     Local Hint Constructors type_expr : core.
+    Local Hint Resolve type_array : core.
+    Local Hint Resolve type_struct : core.
+    Local Hint Resolve type_header : core.
     Local Hint Extern 0 => bit_bounded : core.
     Local Hint Extern 0 => int_bounded : core.
+    Local Hint Constructors type_lists_ok : core.
     
     Import CanonicalForms.
     
@@ -210,6 +223,7 @@ Section StepDefs.
       - destruct w; inv Heval; auto.
       - destruct w2; inv Heval; auto.
         destruct p; inv H1; auto.
+      - some_inv; invert_type_lists_ok; eauto.
     Qed.
     
     Lemma eval_bop_types : forall Γ op τ1 τ2 τ v1 v2 v,
@@ -239,29 +253,61 @@ Section StepDefs.
     
     Local Hint Resolve BitArith.bound0 : core.
     Local Hint Resolve IntArith.bound0 : core.
+    Local Hint Constructors t_ok : core.
+    
+    Lemma e_of_t_ok_0 : forall τ e,
+        e_of_t τ = Some e -> t_ok 0 τ.
+    Proof.
+      intro t; induction t using custom_t_ind;
+        intros e h; unravel in *;
+        try match_some_inv; try some_inv;
+        try discriminate; eauto.
+      constructor.
+      rewrite <- Forall2_sequence_iff in Heqo.
+      rewrite sublist.Forall2_map1 in Heqo.
+      assert (hlen: List.length ts = List.length l)
+        by eauto using Forall2_length.
+      pose proof Forall_specialize_Forall2
+           _ _ _ _ H _ hlen as h.
+      pose proof Forall2_impl _ _ _ _ _ _ h Heqo as h'.
+      apply Forall2_only_l_Forall in h'; assumption.
+    Qed.
+
+    Local Hint Resolve e_of_t_ok_0 : core.
+    
+    Lemma t_ok_le : forall Δ₁ Δ₂ τ,
+        (Δ₁ <= Δ₂)%nat -> t_ok Δ₁ τ -> t_ok Δ₂ τ.
+    Proof.
+      intros m n t hmn h;
+        induction t using custom_t_ind;
+        inv h; eauto using Forall_impl_Forall.
+    Qed.
+
+    Lemma t_ok_0 : forall Δ τ,
+        t_ok 0 τ -> t_ok Δ τ.
+    Proof. intros n t; apply t_ok_le; lia. Qed.
+
+    Local Hint Resolve t_ok_0 : core.
+    Local Hint Resolve sublist.Forall_repeat : core.
     
     Lemma e_of_t_types : forall Γ τ e,
         e_of_t τ = Some e -> Γ ⊢ₑ e ∈ τ.
     Proof.
       intros Γ t; induction t using custom_t_ind;
-        unravel in *; intros e h; try discriminate.
-      - inv h; auto.
-      - inv h; auto.
-      - inv h; auto.
-      - inv h; auto.
-      - destruct (sequence (map e_of_t ts)) as [es |] eqn:hes;
-          try discriminate; inv h.
+        unravel in *; intros e h; try discriminate;
+        try match_some_inv; try some_inv; eauto.
+      - replace n
+          with (N.of_nat (List.length (repeat e0 (N.to_nat n)))) at 2
+          by (rewrite repeat_length; lia); eauto 6.
+      - rename Heqo into hes; rename l into es.
         rewrite <- Forall2_sequence_iff in hes.
         rewrite <- Forall2_map_l in hes.
-        constructor;
-          eauto using Forall2_Forall_impl_Forall.
-        + destruct b; auto.
-        + assert (hlen: List.length ts = List.length es)
-            by eauto using Forall2_length.
-          pose proof Forall_specialize_Forall2
-               _ _ _ _ H _ hlen as h; clear H hlen.
-          rewrite Forall2_flip.
-          pose proof Forall2_impl _ _ _ _ _ _ h hes; eauto.
+        assert (hlen: List.length ts = List.length es)
+          by eauto using Forall2_length.
+        pose proof Forall_specialize_Forall2
+             _ _ _ _ H _ hlen as h; clear H hlen.
+        rewrite Forall2_flip in hes, h.
+        eapply Forall2_impl in hes; destruct b; eauto.
     Qed.
     
     Local Hint Resolve Forall_impl : core.
@@ -283,7 +329,8 @@ Section StepDefs.
                        |- _ => destruct b as [? | ?] eqn:?
                | H: Some _ = Some _ |- _ => inv H
                end; eauto 2.
-      destruct x0; inv H1; auto.
+      - destruct x; discriminate || some_inv; auto.
+      - inv H3; eauto.
     Qed.
   End HelpersType.
   
@@ -334,8 +381,7 @@ Section StepDefs.
     Proof.
       intros op Γ e τ τ' Hu Hv Het; inv Hu;
         try inv_numeric; assert_canonical_forms;
-        unravel; eauto 2.
-      destruct x0; try contradiction; eauto.
+        try invert_type_lists_ok; unravel; eauto 2.
     Qed.
       
     Lemma eval_member_exists : forall Γ x vs ts τ,

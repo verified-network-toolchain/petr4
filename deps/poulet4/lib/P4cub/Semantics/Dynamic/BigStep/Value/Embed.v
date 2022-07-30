@@ -50,8 +50,15 @@ Section Embed.
   Fixpoint make_assoc_list {A : Type} (index : nat) (l : list A) : list (string * A) := 
   match l with 
     | [] => []
-    | h::t => ((string_of_index index), h) :: make_assoc_list index t
+    | h::t => ((string_of_index index), h) :: make_assoc_list (S index) t
   end.
+
+  Lemma map_snd_make_assoc_list_idem : forall (A : Type) (l : list A) i,
+      map snd (make_assoc_list i l) = l.
+  Proof.
+    intros A l; induction l as [| a l ih]; intro i;
+      cbn in *; f_equal; auto.
+  Qed.
 
   Fixpoint make_list_from_assoc_list {A : Type} (l : list (string * A)) : list A := 
   match l with 
@@ -65,15 +72,27 @@ Section Embed.
   | TInt (width : positive) : P4Cub_to_P4Light (Expr.TInt width) (TypInt (Npos width))
   | TError : P4Cub_to_P4Light Expr.TError TypError   
   | TStruct_not_header (types : list Expr.t) (light_types : list P_P4Type) : 
-    Forall2 P4Cub_to_P4Light (types) (light_types) -> 
-    P4Cub_to_P4Light (Expr.TStruct types false) (TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
+    Forall2 P4Cub_to_P4Light types light_types -> 
+    P4Cub_to_P4Light
+      (Expr.TStruct false types)
+      (TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
   | TStruct_header (types : list Expr.t) (light_types : list P_P4Type) : 
     Forall2 P4Cub_to_P4Light types light_types -> 
-    P4Cub_to_P4Light (Expr.TStruct types true) (TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types))) 
+    P4Cub_to_P4Light
+      (Expr.TStruct true types)
+      (TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 light_types)))
+  | TArray n t t' :
+    P4Cub_to_P4Light t t' ->
+    P4Cub_to_P4Light
+      (Expr.TArray n t)
+      (TypArray t' n)
   | TVar (type_name : string) :
-    (* if (string_to_int type_name 0 string_list) == None then P4Cub_to_P4Light Expr.TError TypError
+    (* if (string_to_int type_name 0 string_list) == None
+       then P4Cub_to_P4Light Expr.TError TypError
     else  *)
-    P4Cub_to_P4Light (Expr.TVar (get_int (string_to_int type_name 0 string_list))) (TypTypeName (emb_string type_name)). 
+    P4Cub_to_P4Light
+      (Expr.TVar (get_int (string_to_int type_name 0 string_list)))
+      (TypTypeName (emb_string type_name)).
 
     (* embed *)
   Fixpoint P4Cub_to_P4Light_fun (c : C_P4Type) : P_P4Type:= 
@@ -81,15 +100,24 @@ Section Embed.
     | Expr.TBool => TypBool       
     | Expr.TBit (width) => TypBit width
     | Expr.TInt (width) => TypInt (Npos width)
-    | Expr.TError => TypError   
-    | Expr.TStruct types true => TypStruct (List.map (prod_map_l emb_string) (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
-    | Expr.TStruct types false => TypHeader (List.map (prod_map_l emb_string) (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
+    | Expr.TError => TypError
+    | Expr.TArray n t =>
+        TypArray (P4Cub_to_P4Light_fun t) n
+    | Expr.TStruct true types =>
+        TypStruct
+          (List.map
+             (prod_map_l emb_string)
+             (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
+    | Expr.TStruct false types =>
+        TypHeader
+          (List.map
+             (prod_map_l emb_string)
+             (make_assoc_list 0 (List.map P4Cub_to_P4Light_fun types)))
     | Expr.TVar (type_name) => TypTypeName (emb_string (nth type_name string_list ""))
     end.
 
-
-    (* project *)
-  Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : Result.result string C_P4Type := 
+  (* project *)
+  Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : result string C_P4Type := 
     match p with
     | TypBool => Result.ok Expr.TBool
     | TypString => Result.error "TypString has no mapping in C_P4Type"
@@ -97,10 +125,12 @@ Section Embed.
     | TypInt (width) => Result.ok (Expr.TInt (SyntaxUtil.pos_of_N width))
     | TypBit (width) => Result.ok (Expr.TBit (width))
     | TypVarBit (width) => Result.error "TypVarBit has no mapping in C_P4Type"
-    | TypArray (typ) (size) => Result.error "TypArray has no mapping in C_P4Type"
-    | TypTuple (types) => 
-        let^ lst := sequence (List.map P4Light_to_P4Cub_fun types) in 
-        Expr.TStruct lst false
+    | TypArray typ size =>
+        P4Light_to_P4Cub_fun typ >>| Expr.TArray size
+    | TypTuple types => 
+        sequence
+          (List.map P4Light_to_P4Cub_fun types)
+          >>| Expr.TStruct false
     | TypList (types) => Result.error "TypList has no mapping in C_P4Type"
     | TypRecord (fields) => Result.error "TypRecord has no mapping in C_P4Type"
     | TypSet (elt_type) => Result.error "TypSet has no mapping in C_P4Type"
@@ -133,10 +163,19 @@ Section Embed.
       Embed (Val.Int w z) (ValBaseInt (to_lbool (Npos w) z))
   | Embed_tuple vs vs' :
       Forall2 Embed vs vs' ->
-      Embed (Val.Struct vs None) (ValBaseStruct (make_assoc_list 0 vs'))
+      Embed
+        (Val.Lists Expr.lists_struct vs)
+        (ValBaseStruct (make_assoc_list 0 vs'))
   | Embed_header vs vs' b :
       Forall2 Embed vs vs' ->
-      Embed (Val.Struct (vs) (Some b)) (ValBaseHeader (make_assoc_list 0 vs') b)
+      Embed
+        (Val.Lists (Expr.lists_header b) vs)
+        (ValBaseHeader (make_assoc_list 0 vs') b)
+  | Embed_array t vs vs' :
+    Forall2 Embed vs vs' ->
+    Embed
+      (Val.Lists (Expr.lists_array t) vs)
+      (ValBaseStack vs' 0%N)
   | Embed_error er :
     Embed (Val.Error er) (ValBaseError er).
 
@@ -145,56 +184,65 @@ Section Embed.
     | Val.Bool b => ValBaseBool b
     | Val.Bit w n => ValBaseBit $ to_lbool w n
     | Val.Int w z  => ValBaseInt $ to_lbool (Npos w) z
-    | Val.Struct (vs) (Some b)     => ValBaseHeader (make_assoc_list 0 (List.map embed vs)) b
-    | Val.Struct (vs) (None)     => ValBaseStruct (make_assoc_list 0 (List.map embed vs))
+    | Val.Lists (Expr.lists_header b) vs =>
+        ValBaseHeader (make_assoc_list 0 (List.map embed vs)) b
+    | Val.Lists Expr.lists_struct vs =>
+        ValBaseStruct (make_assoc_list 0 (List.map embed vs))
+    | Val.Lists (Expr.lists_array _) vs =>
+        ValBaseStack (List.map embed vs) 0%N
     | Val.Error v  => ValBaseError v
     end.
 
-    Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
-      match l with 
-      | [] => []
-      | (_, h)::t => func h :: snd_map func t
-      end.
+  Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
+    match l with 
+    | [] => []
+    | (_, h)::t => func h :: snd_map func t
+    end.
 
-    Fixpoint proj (v : VAL) : Result.result Val.v :=
-      match v with
-      | ValBaseBool b => Result.ok (Val.Bool b)
-      | ValBaseInt lb => let (w, n) := IntArith.from_lbool lb in 
+  Fixpoint proj (v : VAL) : Result.result Val.v :=
+    match v with
+    | ValBaseBool b => Result.ok (Val.Bool b)
+    | ValBaseInt lb =>
+        let (w, n) := IntArith.from_lbool lb in 
         Result.ok (Val.Int (SyntaxUtil.pos_of_N w) n) 
-      | ValBaseNull => Result.error ("no null")
-      | ValBaseBit lb => let (w, n) := BitArith.from_lbool lb in 
+    | ValBaseNull => Result.error "no null"
+    | ValBaseBit lb =>
+        let (w, n) := BitArith.from_lbool lb in 
         Result.ok(Val.Bit w n) 
-      | ValBaseStruct s => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs None
-      | ValBaseHeader s b => let^ vs := sequence (map (fun '(_,v) => proj v) s) in Val.Struct vs (Some b)
-      | ValBaseError e => Result.ok (Val.Error e)
-      | ValBaseInteger _ => Result.error("No mapping for ValBaseInteger exists")
-      | ValBaseVarbit _ _ => Result.error("No mapping for ValBaseVarbit exists")
-      | ValBaseString _ => Result.error("No mapping for ValBaseString exists")
-      | ValBaseTuple _ => Result.error("No mapping for ValBaseTuple exists")
-      | ValBaseMatchKind _ => Result.error("No mapping for ValBaseMatchKind exists")
-      | ValBaseUnion _ => Result.error("No mapping for ValBaseUnion exists")
-      | ValBaseStack _ _ => Result.error("No mapping for ValBaseStack exists")
-      | ValBaseEnumField _ _ => Result.error("No mapping for ValBaseEnumField exists")
-      | ValBaseSenumField _ _ => Result.error("No mapping for ValBaseSenumField exists")
-      end.
+    | ValBaseStruct s =>
+        sequence
+          (map (fun '(_,v) => proj v) s)
+          >>| Val.Lists Expr.lists_struct
+    | ValBaseHeader s b =>
+        sequence
+          (map (fun '(_,v) => proj v) s)
+          >>| Val.Lists (Expr.lists_header b)
+    | ValBaseStack vs _ =>
+        let* vs := sequence (map proj vs) in
+        let^ t :=
+          Result.from_opt
+            (List.head vs >>| t_of_v)
+            "Empty array" in
+        Val.Lists (Expr.lists_array t) vs
+    | ValBaseError e => Result.ok (Val.Error e)
+    | ValBaseInteger _ => Result.error("No mapping for ValBaseInteger exists")
+    | ValBaseVarbit _ _ => Result.error("No mapping for ValBaseVarbit exists")
+    | ValBaseString _ => Result.error("No mapping for ValBaseString exists")
+    | ValBaseTuple _ => Result.error("No mapping for ValBaseTuple exists")
+    | ValBaseMatchKind _ => Result.error("No mapping for ValBaseMatchKind exists")
+    | ValBaseUnion _ => Result.error("No mapping for ValBaseUnion exists")
+    | ValBaseEnumField _ _ => Result.error("No mapping for ValBaseEnumField exists")
+    | ValBaseSenumField _ _ => Result.error("No mapping for ValBaseSenumField exists")
+    end.
 
   Local Hint Constructors Embed : core.
-
+  
   Lemma embed_Embed : forall v, Embed v (embed v).
   Proof.
     intro v; induction v using custom_v_ind;
       unravel in *; auto.
-    - destruct ob. 
-      + constructor. induction vs.
-        * simpl.  constructor.
-        * simpl. constructor.
-           -- inv H. assumption.
-           -- inv H. auto.
-      + constructor. induction vs.
-        * simpl.  constructor.
-        * simpl. constructor.
-          -- inv H. assumption.
-          -- inv H. auto.
+    apply Forall_map_Forall2 in H.
+    destruct ls; eauto.
   Qed.
 
   Infix "^" := Z.pow.
@@ -304,45 +352,27 @@ Section Embed.
               ** lia.
               ** admit.
           -- admit. *) admit.   
-    - destruct ob.
-        * simpl. destruct (sequence
-          (map (fun '(_, v) => proj v)
-            (make_assoc_list 0 (map embed vs)))) eqn : seqeq.
-            + simpl. f_equal. f_equal. generalize dependent l. 
-              induction H0; inv H1; simpl in *. 
-                -- intros l J. inv J. auto.
-                -- intros l0 J. rewrite -> H6 in J. simpl in J.
-                    destruct (sequence
-                    (map (fun '(_, v) => proj v)
-                       (make_assoc_list 0 (map embed l)))) eqn : seq.
-                       ** simpl in J. inv J. f_equal. apply IHForall2; auto.
-                       ** simpl in J. inv J.
-            + simpl. exfalso. induction H1; simpl in *. inv seqeq.
-              rewrite H1 in seqeq. simpl in seqeq. 
-              destruct (sequence
-              (map (fun '(_, v) => proj v)
-                 (make_assoc_list 0 (map embed l)))) eqn : seq.      
-                 -- inv seqeq.
-                 -- simpl in seqeq. inv H0. auto.
-        * simpl. destruct (sequence
-        (map (fun '(_, v) => proj v)
-          (make_assoc_list 0 (map embed vs)))) eqn : seqeq.
-          + simpl. f_equal. f_equal. generalize dependent l. 
-            induction H0; inv H1; simpl in *. 
-              -- intros l J. inv J. auto.
-              -- intros l0 J. rewrite -> H6 in J. simpl in J.
-                  destruct (sequence
-                  (map (fun '(_, v) => proj v)
-                    (make_assoc_list 0 (map embed l)))) eqn : seq.
-                    ** simpl in J. inv J. f_equal. apply IHForall2; auto.
-                    ** simpl in J. inv J.
-          + simpl. exfalso. induction H1; simpl in *. inv seqeq.
-            rewrite H1 in seqeq. simpl in seqeq. 
-            destruct (sequence
-            (map (fun '(_, v) => proj v)
-              (make_assoc_list 0 (map embed l)))) eqn : seq.      
-              -- inv seqeq.
-              -- simpl in seqeq. inv H0. auto.
+    - apply Forall2_only_l_Forall in H1.
+      pose proof Forall_map_Forall2
+           _ _ (fun v v' => proj v' = Result.ok v) embed _ H1 as h.
+      pose proof Forall2_map_both
+           _ _ _ _ (fun v v' => v' = v) Result.ok proj as h'.
+      rewrite h', Forall2_flip, Forall2_eq in h; clear h'.
+      clear dependent ts. clear dependent t.
+      clear H1.
+      destruct ls; cbn in *;
+        try rewrite map_pat_both,
+        <- map_map,map_snd_make_assoc_list_idem;
+        induction vs as [| v vs ih];
+        unravel in *; inv h; auto;
+        try match goal with
+            | H: proj (embed ?v) = Result.ok ?v,
+                h: map proj (map embed ?vs) = map Result.ok ?vs
+              |- _ => rewrite H, h,
+                Result.sequence_map_Result_ok; unravel; try reflexivity
+            end.
+      + (* TODO: impossible. *) admit.
+      + repeat f_equal. (* TODO: problem. *)
   Admitted.
 
 End Embed.

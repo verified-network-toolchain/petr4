@@ -38,6 +38,18 @@ Ltac inv_eq :=
         | H: _ = _ |- _ => inv H
         end.
 
+Ltac some_inv :=
+  match goal with
+  | H: Some _ = Some _ |- _ => inv H
+  end.
+
+Ltac match_some_inv :=
+  match goal with
+  | H: match ?trm with Some _ => _ | None => _ end = Some _
+    |- _ => destruct trm as [? |] eqn:? ; cbn in *;
+          try discriminate
+  end.
+
 (** * Utility Functions *)
 
 Section MapProd.

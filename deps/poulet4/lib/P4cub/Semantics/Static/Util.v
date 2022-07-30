@@ -29,18 +29,8 @@ Variant numeric_width : N -> Expr.t -> Prop :=
 | numeric_width_bit : forall w, numeric_width w (Expr.TBit w)
 | numeric_width_int : forall w, numeric_width (Npos w) (Expr.TInt w).
 
-Ltac inv_numeric_width :=
-  match goal with
-  | H: numeric_width _ _ |- _ => inv H
-  end.
-
 (** Evidence for a type being numeric. *)
 Definition numeric (τ : Expr.t) : Prop := exists w, numeric_width w τ.
-
-Ltac inv_numeric :=
-  match goal with
-  | H: numeric _ |- _ => inv H; try inv_numeric_width
-  end.
 
 (** Evidence a unary operation is valid for a type. *)
 Variant uop_type : Expr.uop -> Expr.t -> Expr.t -> Prop :=

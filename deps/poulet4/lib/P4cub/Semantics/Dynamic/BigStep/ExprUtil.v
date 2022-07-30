@@ -3,7 +3,7 @@ Require Import Poulet4.Utils.P4Arith
         Coq.Bool.Bool Coq.ZArith.BinInt Coq.NArith.BinNat
         Coq.Arith.Compare_dec Coq.micromega.Lia
         Poulet4.P4cub.Syntax.Auxiliary Poulet4.P4cub.Semantics.Climate.
-Require Poulet4.P4cub.Semantics.Static.Util.
+Require Import Poulet4.P4cub.Semantics.Static.Util Poulet4.P4cub.Semantics.Static.Auxiliary.
 Import Val.ValueNotations ExprNotations.
 
 Local Open Scope value_scope.
@@ -28,10 +28,10 @@ Definition eval_uop (op : Expr.uop) (v : Val.v) : option Val.v :=
   | `~%uop, w VS n => Some $ Val.Int w $ IntArith.bit_not w n
   | `-%uop, w VW z => Some $ Val.Bit w $ BitArith.neg w z
   | `-%uop, w VS z => Some $ Val.Int w $ IntArith.neg w z
-  | Expr.IsValid, Val.Struct _ (Some b)
+  | Expr.IsValid, Val.Lists (Expr.lists_header b) _
     => Some (Val.Bool b)
-  | Expr.SetValidity b, Val.Struct vs _
-    => Some $ Val.Struct vs $ Some b
+  | Expr.SetValidity b, Val.Lists _ vs
+    => Some $ Val.Lists (Expr.lists_header b) vs
   | _, _ => None
   end.
 
@@ -119,8 +119,8 @@ Definition eval_cast
   | Expr.TInt w, _ VW n => Some $ w VS (IntArith.mod_bound w n)
   | Expr.TBit w, _ VW n => Some $ w VW (BitArith.mod_bound w n)
   | Expr.TInt w, _ VS z => Some $ w VS (IntArith.mod_bound w z)
-  | Expr.TStruct _ true, Val.Struct vs _
-    => Some $ Val.Struct vs (Some true)
+  | Expr.TStruct false _, Val.Lists (Expr.lists_header _) vs
+    => Some $ Val.Lists Expr.lists_struct vs
   | _, _ => None
   end.
 
@@ -166,13 +166,14 @@ Section Lemmas.
                | H: Some _ = Some _ |- _ => inv H; constructor; auto 2
                | H: numeric _ |- _ => inv H
                | H: numeric_width _ _ |- _ => inv H
+               | H: type_lists_ok _ _ _ |- _ => inv H
                | |- _ => inv Ht1; inv Ht2; unravel in *
                | |- BitArith.bound _ _ => unfold_bit_operation; auto 2
                | |- IntArith.bound _ _ => unfold_int_operation; auto 2
                end; auto 2.
     Qed.
-    
-    (*Local Hint Resolve proper_inside_header_nesting : core.*)
+
+    Local Hint Constructors type_lists_ok : core.
     
     Lemma eval_cast_types : forall v v' τ τ',
         proper_cast τ τ' ->
@@ -180,25 +181,12 @@ Section Lemmas.
         ⊢ᵥ v ∈ τ -> ⊢ᵥ v' ∈ τ'.
     Proof.
       intros v v' τ τ' Hpc Heval Ht; inv Hpc; inv Ht;
-        unravel in *; try some_inv; auto 2.
+        unravel in *; try invert_type_lists_ok;
+        try some_inv; eauto.
       - constructor; destruct b; cbv; auto 2.
       - destruct w; inv Heval; auto 2.
       - destruct w2; [|destruct p]; inv Heval; auto 2.
     Qed.
-    
-    (*Local Hint Constructors proper_nesting : core.*)
-    (*Hint Rewrite repeat_length : core.
-    Hint Rewrite app_length : core.
-    Hint Rewrite firstn_length : core.
-    Hint Rewrite skipn_length : core.
-    Hint Rewrite Forall_app : core.
-    Hint Rewrite @map_compose : core.
-    Hint Rewrite (@Forall2_map_l Expr.t) : core.
-    Hint Rewrite (@Forall2_Forall Expr.t) : core.
-    Local Hint Resolve Forall_impl : core.
-    Local Hint Resolve v_of_t_types : core.
-    Local Hint Resolve Forall_firstn : core.
-    Local Hint Resolve Forall_skipn : core.*)
     
     Lemma eval_uop_types : forall op τ τ' v v',
         uop_type op τ τ' ->
@@ -207,12 +195,12 @@ Section Lemmas.
     Proof.
       intros op τ τ' v v' Huop Heval Ht;
         inv Huop; inv Ht; unravel in *; inv Heval; auto 2;
+        try invert_type_lists_ok;
         repeat match goal with
                | H: Some _ = Some _ |- _ => inv H
                | H: (if ?b then _ else _) = _ |- _ => destruct b as [? | ?]
                end; try constructor; try (destruct n; lia); auto 2;
-        autorewrite with core; try split; auto 2.
-      match_some_inv; some_inv; auto.
+        autorewrite with core; try split; eauto.
     Qed.
   End HelpersType.
   
@@ -224,7 +212,7 @@ Section Lemmas.
       exists v', eval_slice hi lo v = Some v'.
     Proof.
       intros v τ hi lo w Hw Hnum Hv;
-        inv Hnum; inv Hv; unravel; eauto 2.
+        inv Hnum; inv Hv; try invert_type_lists_ok; unravel; eauto 2.
     Qed.
     
     Lemma eval_bop_exists : forall op τ1 τ2 τ v1 v2,
@@ -234,7 +222,7 @@ Section Lemmas.
     Proof.
       intros op τ1 τ2 τ v1 v2 Hbop Ht1 Ht2; inv Hbop;
         repeat inv_numeric; inv Ht1; inv Ht2; unravel;
-          try inv_numeric_width; eauto 2.
+        try inv_numeric_width; try invert_type_lists_ok; eauto 2.
     Qed.
     
     Lemma eval_cast_exists : forall τ τ' v,
@@ -242,7 +230,8 @@ Section Lemmas.
         ⊢ᵥ v ∈ τ ->
         exists v', eval_cast τ' v = Some v'.
     Proof.
-      intros τ τ' v Hpc Ht; inv Hpc; inv Ht; unravel; eauto 2.
+      intros τ τ' v Hpc Ht; inv Hpc; inv Ht;
+        try invert_type_lists_ok; unravel; eauto 2.
       - destruct w; eauto 2.
       - destruct w2; eauto 2.
         destruct p; eauto 2.
@@ -254,8 +243,8 @@ Section Lemmas.
         exists v', eval_uop op v = Some v'.
     Proof.
       intros op τ τ' v Huop Ht; inv Huop; inv Ht;
+        try invert_type_lists_ok;
         unravel; repeat inv_numeric; eauto 2.
-      destruct ob as [b |]; eauto 2 || contradiction.
     Qed.
       
     Lemma eval_member_exists : forall x τ τs vs,

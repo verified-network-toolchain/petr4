@@ -1,4 +1,5 @@
 From Coq Require Export Lists.List micromega.Lia.
+Require Export Poulet4.Utils.Util.ListUtil.
 Export ListNotations.
 
 (** * Utility Lemmas & Definitions for Lists. *)
@@ -452,6 +453,24 @@ Proof.
   eauto using Forall2_only_l_Forall.
 Qed.
 
+Lemma Forall_Forall2_only_l : forall (U V : Type) (P : U -> Prop) us (vs : list V),
+    Forall P us -> length us = length vs -> Forall2 (fun u _ => P u) us vs.
+Proof.
+  intros U V P us vs hus hlen.
+  rewrite Forall2_forall_nth_error.
+  rewrite Forall_forall in hus.
+  split; assumption || intros n u _ hu _; eauto using nth_error_In.
+Qed.
+
+Corollary Forall_Forall2_only_r : forall (U V : Type) (P : V -> Prop) (us : list U) vs,
+    Forall P vs -> length us = length vs -> Forall2 (fun _ v => P v) us vs.
+Proof.
+  intros U V P us vs hus hlen.
+  rewrite Forall2_flip.
+  symmetry in hlen.
+  auto using Forall_Forall2_only_l.
+Qed.  
+
 Section Forall3.
   Context {T U V : Type}.
   Variable R : T -> U -> V -> Prop.
@@ -786,3 +805,51 @@ Proof.
   rewrite Forall3_permute_12 in hf3.
   eauto using Forall3_impl_Forall2_13_Forall2_23.
 Qed.
+
+Lemma Forall2_repeat_l : forall (U V : Set) (R : U -> V -> Prop) u vs,
+    Forall (R u) vs -> Forall2 R (repeat u (List.length vs)) vs.
+Proof.
+  intros U V R u vs h;
+    induction h as [| v vs ruv hvs ihvs]; cbn; auto.
+Qed.
+
+Lemma Forall2_repeat_r : forall (U V : Set) (R : U -> V -> Prop) v us,
+    Forall (fun u => R u v) us -> Forall2 R us (repeat v (List.length us)).
+Proof.
+  intros; rewrite Forall2_flip; auto using Forall2_repeat_l.
+Qed.
+
+Lemma Forall2_repeat_both : forall (U V : Set) (R : U -> V -> Prop) u v n,
+    R u v -> Forall2 R (repeat u n) (repeat v n).
+Proof.
+  intros U V R u v n ruv.
+  replace n with
+    (length (repeat v n)) at 1;
+    try (rewrite repeat_length; reflexivity).
+  apply Forall2_repeat_l; auto using repeat_Forall.
+Qed.
+
+Section Forall_Map_Forall2.
+  Variables U V : Type.
+  Variable R : U -> V -> Prop.
+  Variable f : U -> V.
+
+  Lemma Forall_map_Forall2 : forall us,
+      Forall (fun u => R u (f u)) us -> Forall2 R us (map f us).
+  Proof.
+    intros us h; induction h; cbn; auto.
+  Qed.
+
+  Lemma Forall2_map_Forall : forall us,
+      Forall2 R us (map f us) -> Forall (fun u => R u (f u)) us.
+  Proof.
+    intros us h; induction us as [| u us ih]; inv h; auto.
+  Qed.
+
+  Local Hint Resolve Forall_map_Forall2 : core.
+  Local Hint Resolve Forall2_map_Forall : core.
+
+  Lemma Forall_map_Forall2_iff : forall us,
+      Forall (fun u => R u (f u)) us <-> Forall2 R us (map f us).
+  Proof. intuition. Qed.
+End Forall_Map_Forall2.

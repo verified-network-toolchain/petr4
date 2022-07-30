@@ -17,10 +17,19 @@ Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
   | Val.Var x => nth_error ϵ x
   | Val.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
   | lv DOT x =>
-    match lv_lookup ϵ lv with
-    | Some (Val.Struct vs _) => nth_error vs x
-    | _ => None
-    end
+      let* v := lv_lookup ϵ lv in
+      match v with
+      | Val.Lists
+          (Expr.lists_struct
+          | Expr.lists_header _) vs => nth_error vs x
+      | _ => None
+      end
+  | Val.Index n lv =>
+      let* v := lv_lookup ϵ lv in
+      match v with
+      | Val.Lists (Expr.lists_array _) vs => nth_error vs $ N.to_nat n
+      | _ => None
+      end
   end.
 
 (** Updating an lvalue in an environment. *)
@@ -44,10 +53,21 @@ Fixpoint lv_update
       end
   | lv DOT x =>
     match lv_lookup ϵ lv with
-    | Some (Val.Struct vs ob)
-      => lv_update lv (Val.Struct (nth_update x v vs) ob) ϵ
+    | Some
+        (Val.Lists
+           ((Expr.lists_struct
+            | Expr.lists_header _) as ls) vs)
+      => lv_update lv (Val.Lists ls $ nth_update x v vs) ϵ
     | _ => ϵ
     end
+  | Val.Index n lv =>
+      match lv_lookup ϵ lv with
+      | Some
+          (Val.Lists
+             (Expr.lists_array _ as ls) vs)
+        => lv_update lv (Val.Lists ls $ nth_update (N.to_nat n) v vs) ϵ
+      | _ => ϵ
+      end
   end.
 
 (** Create a new environment

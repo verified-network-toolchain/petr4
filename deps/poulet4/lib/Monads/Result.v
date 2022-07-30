@@ -116,5 +116,11 @@ Module Result.
     let* l := rlist in
     let+ hd := hd_res in
     hd :: l.
-  
+
+  Lemma sequence_map_Result_ok : forall {A} (l : list A),
+      sequence (List.map ok l) = ok l.
+  Proof.
+    intros; induction l as [| a l ih]; cbn; auto.
+    rewrite ih; reflexivity.
+  Qed.
 End Result.

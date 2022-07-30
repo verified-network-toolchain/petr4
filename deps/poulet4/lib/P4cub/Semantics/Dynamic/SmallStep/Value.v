@@ -10,9 +10,9 @@ Inductive value : Expr.e -> Prop :=
   value (w `W n)%expr
 | value_int w z :
   value (w `S z)%expr
-| value_struct es ob :
+| value_lists ls es :
   Forall value es ->
-  value (Expr.Struct es ob)
+  value (Expr.Lists ls es)
 | value_error err :
   value (Expr.Error err).
 
@@ -25,10 +25,10 @@ Section IsValueInduction.
   
   Hypothesis HInt : forall w z, P (w `S z)%expr.
   
-  Hypothesis HStruct : forall es ob,
+  Hypothesis HLists : forall ls es,
       Forall value es ->
       Forall P es ->
-      P (Expr.Struct es ob).
+      P (Expr.Lists ls es).
   
   Hypothesis HError : forall err, P (Expr.Error err).
   
@@ -44,7 +44,7 @@ Section IsValueInduction.
       | value_bool b => HBool b
       | value_bit w n => HBit w n
       | value_int w z => HInt w z
-      | value_struct _ ob Hes => HStruct _ ob Hes (lind Hes)
+      | value_lists ls _ Hes => HLists ls _ Hes (lind Hes)
       | value_error err => HError err
       end.
 End IsValueInduction.
@@ -57,18 +57,22 @@ Section Lemmas.
   Proof.
     induction e using custom_e_ind; auto 2;
       try (right; intros H'; inv H'; contradiction).
-    - assert (Forall value fields \/ ~ Forall value fields).
-      { ind_list_Forall; intuition. }
-      intuition. right; intros H'; inv H'. contradiction.
+    assert (Forall value exps \/ ~ Forall value exps).
+    { ind_list_Forall; intuition. }
+    intuition. right; intros H'; inv H'. contradiction.
   Qed.
 End Lemmas.
 
 Inductive lvalue : Expr.e -> Prop :=
 | lvalue_var x τ :
     lvalue (Expr.Var τ x)
-| lvalue_slice lv hi lo :
+| lvalue_slice hi lo lv :
     lvalue lv ->
-    lvalue (Expr.Slice lv hi lo)
+    lvalue (Expr.Slice hi lo lv)
+| lvalue_index τ v lv :
+  value v ->
+  lvalue lv ->
+  lvalue (Expr.Index τ lv v)
 | lvalue_member τ lv x :
     lvalue lv ->
     lvalue (Expr.Member τ x lv).
@@ -79,12 +83,8 @@ Module CanonicalForms.
     | H: value _ |- _ => inv H
     end.
   
-  Ltac invert_expr_check :=
-    match goal with
-    | H: _ ⊢ₑ _ ∈ _ |- _ => inv H
-    end.
-  
-  Ltac invert_canonical := invert_value; invert_expr_check.
+  Ltac invert_canonical :=
+    invert_value; invert_type_expr; try invert_type_lists_ok.
   
   Ltac crush_canonical := intros; invert_canonical; eauto 4.
   
@@ -107,8 +107,13 @@ Module CanonicalForms.
         Γ ⊢ₑ v ∈ Expr.TInt w -> exists z, v = (w `S z)%expr.
     Proof. crush_canonical. Qed.
     
-    Lemma canonical_forms_struct : forall ts b,
-        Γ ⊢ₑ v ∈ Expr.TStruct ts b -> exists es ob, v = Expr.Struct es ob.
+    Lemma canonical_forms_struct : forall b ts,
+        Γ ⊢ₑ v ∈ Expr.TStruct b ts -> exists ls es, v = Expr.Lists ls es.
+    Proof. crush_canonical. Qed.
+
+    Lemma canonical_forms_array : forall n t,
+        Γ ⊢ₑ v ∈ Expr.TArray n t ->
+        exists es, v = Expr.Lists (Expr.lists_array t) es.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_error :
@@ -121,7 +126,7 @@ Module CanonicalForms.
     | H: Expr.Bool _ = Expr.Bool _ |- _ => inv H
     | H: (_ `W _)%expr = (_ `W _)%expr |- _ => inv H
     | H: (_ `S _)%expr = (_ `S _)%expr |- _ => inv H
-    | H: Expr.Struct _ _ = Expr.Struct _ |- _ => inv H
+    | H: Expr.Lists _ _ = Expr.Lists _ |- _ => inv H
     | H: Expr.Error _ = Expr.Error _ |- _ => inv H
     end.
   
@@ -138,6 +143,9 @@ Module CanonicalForms.
         inv Hcanon; inv Hv; inv Ht
     | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TStruct _ _ |- _
       => pose proof canonical_forms_struct _ _ Hv _ _ Ht as (? & ? & Hcanon);
+        inv Hcanon; inv Hv; inv Ht
+    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TArray _ _ |- _
+      => pose proof canonical_forms_array _ _ Hv _ _ Ht as (? & ? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
     | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TError |- _
       => pose proof canonical_forms_error _ _ Hv Ht as (? & Hcanon);

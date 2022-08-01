@@ -7,22 +7,8 @@ Import AllCubNotations Val.ValueNotations
        Val.LValueNotations.
 
 Section Properties.
-  (* TODO: move to utility module. *)
-  Lemma nth_update_length : forall (A : Set) (l : list A) n a,
-      length (nth_update n a l) = length l.
-  Proof.
-    intros A l; induction l as [| h t];
-      intros [| n] a; cbn; auto.
-  Qed.
-
-  Lemma nth_update_correct : forall (A : Set) (l : list A) n a,
-      n < length l ->
-      nth_error (nth_update n a l) n = Some a.
-  Proof.
-    intros A l; induction l as [| h t];
-      intros [| n] a H; cbn in *; try lia; auto.
-    assert (n < length t) by lia; auto.
-  Qed.
+  Local Hint Constructors type_value : core.
+  Local Hint Constructors Static.Util.type_lists_ok : core.
   
   Lemma lv_update_length : forall lv v ϵ,
       length (lv_update lv v ϵ) = length ϵ.
@@ -34,7 +20,9 @@ Section Properties.
         destruct (lv_lookup eps lv) eqn:hlook; auto;
         destruct v; auto.
     - destruct (lv_lookup eps lv) eqn:hlook; auto.
-      destruct v0; auto.
+      destruct v0; auto. destruct ls; auto.
+    - destruct (lv_lookup eps lv) eqn:hlook; auto.
+      destruct v0; auto. destruct ls; auto.
   Qed.
 
   Lemma lv_lookup_types : forall lv τ v Γ ϵ,
@@ -51,15 +39,25 @@ Section Properties.
     - destruct (lv_lookup eps LV) as [V |] eqn:Veq;
         cbn in *; try discriminate.
       pose proof IHhlvt _ eq_refl as ihv; clear IHhlvt.
-      inv H0; inv ihv; unravel in *.
-      + inv hv. admit.
-      + inv hv. admit.
+      inv H0; inv ihv; unravel in *; inv hv.
+      + admit.
+      + admit.
     - destruct (lv_lookup eps LV) as [V |] eqn:Veq;
         cbn in *; try discriminate.
       destruct V; cbn in *; try discriminate.
       pose proof IHhlvt _ eq_refl as ih; clear IHhlvt; inv ih.
-      eauto using ExprUtil.eval_member_types.
+      inv H2; eauto using ExprUtil.eval_member_types.
+    - destruct (lv_lookup eps lv) as [V |] eqn:Veq;
+        cbn in *; try discriminate.
+      destruct V; cbn in *; try discriminate.
+      pose proof IHhlvt _ eq_refl as ih; clear IHhlvt; inv ih.
+      inv H2; unravel in *.
+      apply Forall2_repeat_r_Forall in H4.
+      rewrite Forall_forall in H4.
+      eauto using nth_error_In.
   Admitted.
+
+  Local Hint Resolve nth_update_length : core.
   
   Lemma lv_update_correct : forall lv v v' ϵ τ Γ,
       Forall2 type_value ϵ Γ ->
@@ -78,7 +76,17 @@ Section Properties.
       eauto using ForallMap.nth_error_some_length.
     - inv hv; inv hv'.
       destruct (lv_lookup eps LV) as [V |] eqn:hlook;
+        cbn in *; try discriminate. admit. admit. admit. admit.
+    - destruct (lv_lookup eps LV) as [V |] eqn:hlook;
         cbn in *; try discriminate.
+      destruct V; try discriminate.
+      pose proof lv_lookup_types
+           _ _ _ _ _ henv hlv hlook as h'.
+      inv h'; inv H2; unravel;
+        erewrite IHhlv; clear IHhlv; eauto;
+        rename τs0 into ts;
+        try (rewrite nth_update_correct; eauto using nth_error_some_length).
+      + econstructor; eauto. eauto using Forall2_nth_update_r.
   Admitted.
   
   Local Hint Resolve ForallMap.Forall2_dumb : core.

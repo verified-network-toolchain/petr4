@@ -274,19 +274,6 @@ Section StepDefs.
     Qed.
 
     Local Hint Resolve e_of_t_ok_0 : core.
-    
-    Lemma t_ok_le : forall Δ₁ Δ₂ τ,
-        (Δ₁ <= Δ₂)%nat -> t_ok Δ₁ τ -> t_ok Δ₂ τ.
-    Proof.
-      intros m n t hmn h;
-        induction t using custom_t_ind;
-        inv h; eauto using Forall_impl_Forall.
-    Qed.
-
-    Lemma t_ok_0 : forall Δ τ,
-        t_ok 0 τ -> t_ok Δ τ.
-    Proof. intros n t; apply t_ok_le; lia. Qed.
-
     Local Hint Resolve t_ok_0 : core.
     Local Hint Resolve sublist.Forall_repeat : core.
     
@@ -403,12 +390,21 @@ End StepDefs.
 Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
   match lv with
   | Expr.Var _ x => nth_error ϵ x
-  | Expr.Member _ x lv
-    => match lv_lookup ϵ lv with
-      | Some (Expr.Struct fs _) => nth_error fs x
+  | Expr.Member _ x lv =>
+      let* v := lv_lookup ϵ lv in
+      match v with
+      | Expr.Lists
+          (Expr.lists_struct
+          | Expr.lists_header _) fs => nth_error fs x
       | _ => None
       end
-  | Expr.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
+  | Expr.Slice hi lo lv => lv_lookup ϵ lv >>= eval_slice hi lo
+  | Expr.Index _ lv (Expr.Bit _ n) =>
+      let* v := lv_lookup ϵ lv in
+      match v with
+      | Expr.Lists (Expr.lists_array _) vs => nth_error vs $ Z.to_nat n
+      | _ => None
+      end
   | _ => None
   end.
   
@@ -418,11 +414,14 @@ Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
   | Expr.Var _ x => nth_update x v ϵ
   | Expr.Member _ x lv
     => match lv_lookup ϵ lv with
-      | Some (Expr.Struct vs ob)
-        => lv_update lv (Expr.Struct (nth_update x v vs) ob) ϵ
+      | Some
+          (Expr.Lists
+             ((Expr.lists_struct
+              | Expr.lists_header _) as ls) vs)
+        => lv_update lv (Expr.Lists ls (nth_update x v vs)) ϵ
       | _ => ϵ
       end
-  | Expr.Slice lv hi lo
+  | Expr.Slice hi lo lv
     => match v, lv_lookup ϵ lv with
       | (Expr.Bit _ n | Expr.Int _ n), Some (Expr.Bit w _) =>
           let rhs := N.shiftl (Z.to_N n) w in
@@ -435,6 +434,14 @@ Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
           let new := Z.lxor (Z.land n (Z.of_N mask)) (Z.of_N rhs) in
           lv_update lv (Expr.Bit w new) ϵ
       | _, _ => ϵ
+      end
+  | Expr.Index _ lv (Expr.Bit _ n) =>
+      match lv_lookup ϵ lv with
+      | Some
+          (Expr.Lists
+             (Expr.lists_array _ as ls) vs)
+        => lv_update lv (Expr.Lists ls $ nth_update (Z.to_nat n) v vs) ϵ
+      | _ => ϵ
       end
   | _ => ϵ
   end.

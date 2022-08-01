@@ -27,7 +27,7 @@ End Entries.
 Definition tenv: Set :=
   Clmt.t
     string (** table name. *)
-    (list (Expr.e * string) (** table key *)
+    (list (Expr.t * string) (** table key *)
      * list string) (** actions *).
 
 (** Function declarations and closures. *)
@@ -52,58 +52,46 @@ Definition aenv: Set := Clmt.t string adecl.
 Section Inst.
   Variable V : Set. (** values. *)
 
-  (** Control instances and environment. *)
-  Inductive cinst: Set :=
-  | CInst
-      (ϵ : list V) (** value closure *)
+  (** Instances and environment. *)
+  Inductive inst: Set :=
+  | ControlInst
       (fs : fenv) (** function closure *)
-      (cis : list cinst) (** control instance closure *)
+      (insts : Clmt.t string inst) (** instance closure *)
       (tbls : tenv) (** table closure *)
       (actions : aenv) (** action closure *)
-      (* TODO: needs a De Bruijn extern instance closure environment. *)
-      (apply_blk : Stmt.s)  (** control instance apply block *).
-  
-  Definition cienv: Set := list cinst.
-  
-  (** Parser instances. *)
-  Inductive pinst: Set :=
-  | PInst
-      (ϵ : list V) (** value closure *)
+      (apply_blk : Stmt.s)  (** control instance apply block *)
+  | ParserInst
       (fs : fenv) (** function closure *)
-      (pis : list pinst) (** parser instance closure *)
-      (* TOOD: needs a De Bruijn extern instance closure *)
+      (insts : Clmt.t string inst) (** instance closure *)
       (strt : Stmt.s) (** start state *)
-      (states : list Stmt.s) (** other states *).
+      (states : list Stmt.s) (** other states *)
+  | ExternInst
+      (fs : fenv) (** function closure *)
+      (insts : Clmt.t string inst) (** instance closure *)
+  (* TODO: what else? *).
   
-  Definition pienv: Set := list pinst.
+  Definition inst_env: Set := Clmt.t string inst.
 
   (** Closures for control,parser, & extern declarations.
       For instantiable declarations. *)
   Inductive top_decl_closure : Set :=
   | ControlDecl
-      (cs : Clmt.t string top_decl_closure) (** control declaration closure *)
+      (decls : Clmt.t string top_decl_closure) (** control declaration closure *)
       (fs : fenv) (** function closure *)
-      (cis : cienv) (** control instance closure *)
-      (* TODO: needs a De Bruijn extern instance closure *)
+      (insts : inst_env) (** control instance closure *)
       (body : Control.d) (** declarations inside control *)
       (apply_block : Stmt.s) (** apply block *)
   | ParserDecl
-      (ps : Clmt.t string top_decl_closure) (** parser declaration closure *)
+      (decls : Clmt.t string top_decl_closure) (** parser declaration closure *)
       (fs : fenv) (** function closure *)
-      (pis : pienv) (** parser instance closure *)
-      (* TOOD: needs a De Bruijn extern instance closure *)
+      (insts : inst_env) (** parser instance closure *)
       (strt : Stmt.s) (** start state *)
       (states : list Stmt.s) (** parser states *)
   | ExternDecl
-      (es : Clmt.t string top_decl_closure)
+      (decls : Clmt.t string top_decl_closure)
       (fs : fenv) (** function closure *)
-  (* TOOD: needs a De Bruijn extern instance closure *).
+      (insts : Clmt.t string inst) (** instance closure *)
+  (** function closure *).
 
   Definition top_decl_env: Set := Clmt.t string top_decl_closure.
 End Inst.
-
-Arguments CInst {_}.
-Arguments PInst {_}.
-Arguments ControlDecl {_}.
-Arguments ParserDecl {_}.
-Arguments ExternDecl {_}.

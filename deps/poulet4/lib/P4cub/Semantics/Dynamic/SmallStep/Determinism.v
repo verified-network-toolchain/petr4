@@ -4,9 +4,11 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
 Import AllCubNotations Step Field.FieldTactics.
 
 Section Determinism.
+  Local Hint Constructors value : core.
+  
   Section Lemmas.
-    Hint Rewrite Forall_app : core.
-    Hint Rewrite map_app : core.
+    Local Hint Rewrite Forall_app : core.
+    Local Hint Rewrite map_app : core.
     Local Hint Extern 0 => inv_Forall_cons : core.
 
     Lemma step_value_false : forall ϵ e e',
@@ -53,9 +55,17 @@ Section Determinism.
         destruct H4 as [_ h]; inv h; auto.
       - inv H5. rewrite Forall_app in H0.
         destruct H0 as [_ h]; inv h; auto.
+      - assert (Hv : value (Expr.Lists ls vs)) by eauto.
+        step_value.
+      - assert (Hv : value (w `W n)%expr) by eauto.
+        step_value.
+      - assert (Hv : value (Expr.Lists ls vs)) by eauto.
+        step_value.
+      - assert (Hv : value (w `W n)%expr) by eauto.
+        step_value.
       - assert (He: ~ value e) by auto 1.
         assert (He0: ~ value e0) by auto 1.
-        eapply Forall_until_eq in H0 as [? [? ?]]; eauto 1; subst.
+        eapply Forall_until_eq in H1 as [? [? ?]]; eauto 1; subst.
         repeat f_equal; auto 2.
     Qed.
   End ExprDeterminism.

@@ -34,11 +34,11 @@ Module Step.
     ⟨ ϵ, Expr.Var τ x ⟩ -->  e
   | step_slice e e' hi lo :
     ⟨ ϵ, e ⟩ -->  e' ->
-    ⟨ ϵ, Expr.Slice e hi lo ⟩ -->  Expr.Slice e' hi lo
+    ⟨ ϵ, Expr.Slice hi lo e ⟩ -->  Expr.Slice hi lo e'
   | step_slice_eval v v' hi lo :
     eval_slice hi lo v = Some v' ->
     value v ->
-    ⟨ ϵ, Expr.Slice v hi lo ⟩ -->  v'
+    ⟨ ϵ, Expr.Slice hi lo v ⟩ -->  v'
   | step_cast τ e e' :
     ⟨ ϵ, e ⟩ -->  e' ->
     ⟨ ϵ, Expr.Cast τ e ⟩ -->  Expr.Cast τ e'
@@ -67,26 +67,39 @@ Module Step.
   | step_member τ x e e' :
     ⟨ ϵ, e ⟩ -->  e' ->
     ⟨ ϵ, Expr.Member τ x e ⟩ -->  Expr.Member τ x e
-  | step_member_eval τ x vs v ob :
+  | step_member_eval τ x ls vs v :
     nth_error vs x = Some v ->
     Forall value vs ->
-    ⟨ ϵ, Expr.Member τ x (Expr.Struct vs ob) ⟩ -->  v
-  | step_struct prefix suffix e e' ob :
+    ⟨ ϵ, Expr.Member τ x (Expr.Lists ls vs) ⟩ -->  v
+  | step_index_l τ e₁ e₁' e₂ :
+    ⟨ ϵ, e₁ ⟩ --> e₁' ->
+    ⟨ ϵ, Expr.Index τ e₁ e₂ ⟩ --> Expr.Index τ e₁' e₂
+  | step_index_r τ v₁ e₂ e₂' :
+    value v₁ ->
+    ⟨ ϵ, e₂ ⟩ --> e₂' ->
+    ⟨ ϵ, Expr.Index τ v₁ e₂ ⟩ --> Expr.Index τ v₁ e₂'
+  | step_index_eval τ ls vs w n v :
+    nth_error vs (Z.to_nat n) = Some v ->
+    Forall value vs ->
+    ⟨ ϵ, Expr.Index τ (Expr.Lists ls vs) (w `W n)%expr ⟩ --> v
+  | step_lists prefix suffix ls e e' :
     Forall value prefix ->
     ⟨ ϵ, e ⟩ -->  e' ->
-    ⟨ ϵ, Expr.Struct (prefix ++ e :: suffix) ob ⟩
-      -->  Expr.Struct (prefix ++ e' :: suffix) ob
+    ⟨ ϵ, Expr.Lists ls (prefix ++ e :: suffix) ⟩
+      -->  Expr.Lists ls (prefix ++ e' :: suffix)
   where "⟨ ϵ , e1 ⟩ '-->' e2" := (expr_step ϵ e1 e2) : type_scope.
-  
+
+  (** TODO: add Expr.Index to this. *)
   Inductive lvalue_step : Expr.e -> Expr.e -> Prop :=
   | lstep_slice e e' hi lo :
     lvalue_step e e' ->
-    lvalue_step (Expr.Slice e hi lo) (Expr.Slice e' hi lo)
+    lvalue_step (Expr.Slice hi lo e) (Expr.Slice hi lo e')
   | lstep_member τ x e e' :
     lvalue_step e e' ->
     lvalue_step (Expr.Member τ x e) (Expr.Member τ x e').
   
-  Reserved Notation "'π' envn , pe1 '-->' pe2" (at level 80, no associativity).
+  Reserved Notation "'π' envn , pe1 '-->' pe2"
+           (at level 80, no associativity).
   
   Inductive step_parser_expr (ϵ : list Expr.e)
     : Parser.e -> Parser.e -> Prop :=
@@ -99,7 +112,7 @@ Module Step.
                 | None => d
                 | Some pe => pe
                 end in
-      π ϵ, Parser.Select v d cases -->  Parser.Goto pe
+      π ϵ, Parser.Select v d cases -->  Parser.Direct pe
   where "'π' envn , pe1 '-->' pe2"
     := (step_parser_expr envn pe1 pe2).
 

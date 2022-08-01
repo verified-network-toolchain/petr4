@@ -84,11 +84,11 @@ Inductive type_lvalue (Γ : list Expr.t)
 | typ_var x τ :
   nth_error Γ x = Some τ ->
   Γ ⊢ₗ x ∈ τ
-| typ_slice LV hi lo w τ :
+| typ_slice hi lo LV w τ :
   (Npos lo <= Npos hi < w)%N ->
   numeric_width w τ ->
   Γ ⊢ₗ LV ∈ τ ->
-  Γ ⊢ₗ Slice LV hi lo ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
+  Γ ⊢ₗ Slice hi lo LV ∈ Expr.TBit (Npos hi - Npos lo + 1)%N
 | typ_member LV x τ τs b :
   nth_error τs x = Some τ ->
   Γ ⊢ₗ LV ∈ Expr.TStruct b τs ->

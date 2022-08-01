@@ -53,7 +53,7 @@ Proof.
   - constructor; auto; unravel.
     rewrite nth_error_app3; assumption.
   - econstructor; eauto.
-  - constructor; auto.
+  - econstructor; eauto.
     rewrite <- Forall2_map_l; unravel; assumption.
 Qed.
 
@@ -70,6 +70,11 @@ Qed.
 Local Hint Resolve shift_type' : core.
 Local Hint Constructors relop : core.
 Local Hint Constructors t_ok : core.
+Local Hint Resolve type_array : core.
+Local Hint Resolve type_struct : core.
+Local Hint Resolve type_header : core.
+Local Hint Constructors type_lists_ok : core.
+Local Hint Constructors t_ok_lists : core.
 
 Theorem lift_e_type_expr : forall Γ e τ,
     Forall (t_ok (type_vars Γ)) (types Γ) ->
@@ -110,6 +115,17 @@ Proof.
     rewrite hl2ts2.
     exists (τ :: ts2 ++ ts1); split; auto.
     constructor; eauto; rewrite <- app_assoc; eauto.
+  - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
+    destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv h.
+    apply IHhet1 in eql1 as (ts1 & hts1 & ih1); auto; clear IHhet1.
+    assert (hl1ts1 : length l1 = length ts1) by eauto.
+    rewrite hl1ts1, <- app_length in eql2.
+    apply IHhet2 in eql2 as (ts2 & hts2 & ih2); auto; clear IHhet2.
+    rewrite <- app_assoc in *.
+    assert (hl2ts2 : length l2 = length ts2) by eauto.
+    rewrite hl2ts2.
+    exists (ts2 ++ ts1); split; auto.
+    econstructor; eauto; rewrite <- app_assoc; eauto.
   - destruct (lift_e (length us) e) as [le eₛ] eqn:eqle; inv h.
     apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
@@ -130,12 +146,12 @@ Proof.
                {| type_vars:=type_vars Γ
                ;  types := (τs' ++ us ++ types Γ) |})
                    es' τs).
-    { clear dependent ob. clear b.
+    { clear dependent ls.
       generalize dependent es';
         generalize dependent les;
         generalize dependent us.
-      induction H0 as [| e τ es τs heτ hesτs ihesτs];
-        inv H1; intros us les es' h.
+      induction H1 as [| e t es τs heτ hesτs ihesτs];
+        inv H2; intros us les es' h.
       - inv h; eauto.
       - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
         destruct
@@ -160,17 +176,20 @@ Proof.
         constructor; rewrite <- app_assoc; eauto. }
     destruct bruh as (τs' & htτs' & ih).
     eexists; split; eauto; unravel.
-    assert (hok: t_ok (type_vars Γ) (Expr.TStruct τs b))
+    assert (hok: t_ok (type_vars Γ) (Expr.TStruct false τs))
       by eauto using type_expr_t_ok; inv hok.
     assert (bruh : map t_of_e es = τs).
-    { rewrite Forall2_forall in H0.
+    { rewrite Forall2_forall in H1.
       pose proof conj
-           (proj1 H0)
-           (fun e τ hin => t_of_e_correct Γ e τ (proj2 H0 e τ hin)) as duh.
-      rewrite <- Forall2_forall in duh; clear H0.
+           (proj1 H1)
+           (fun e τ hin => t_of_e_correct Γ e τ (proj2 H1 e τ hin)) as duh.
+      rewrite <- Forall2_forall in duh; clear H1.
       rewrite ForallMap.Forall2_map_l,Forall2_eq in duh; assumption. }
     rewrite bruh.
-    destruct b; destruct ob; unravel in *; try contradiction; eauto.
+    inv H; inv H0; unravel in *; try contradiction; eauto.
+    apply f_equal with (f := @List.length _) in H.
+    rewrite map_length, repeat_length in H.
+    rewrite <- H, Nnat.N2Nat.id; eauto.
   - inv h; eauto.
 Qed.
 

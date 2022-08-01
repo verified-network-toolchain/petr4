@@ -37,7 +37,8 @@ Section LValueTheorems.
                 H: Γ ⊢ₑ ?e ∈ _
             |- _ => apply IH in H as [? | [? ?]]
           end; eauto 4.
-    Qed.
+      - (* TODO: add indexing to lvalue-evaluation. *)
+    Admitted.
   End LValueProgress.
 End LValueTheorems.
 
@@ -72,7 +73,7 @@ Section ExprTheorems.
       generalize dependent τ;
       match goal with
       | H: ⟨ϵ, _ ⟩ -->  _ |- _ => induction H; intros
-      end; try invert_expr_check; unravel in *; try subst w';
+      end; try invert_type_expr; unravel in *; try subst w';
       repeat assert_canonical_forms; unravel in *;
       try match goal with
           | H: Some _ = Some _ |- _ => inv H

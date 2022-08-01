@@ -48,11 +48,11 @@ Fixpoint cf_e (e : Expr.e) : Expr.e :=
   | (_ `S _)%expr
   | Expr.Error _
   | Expr.Var _ _ => e
-  | Expr.Slice e hi lo =>
+  | Expr.Slice hi lo e =>
       let e' := cf_e e in
       match eval_slice hi lo e' with
       | Some e'' => e''
-      | None     => Expr.Slice e' hi lo
+      | None     => Expr.Slice hi lo e'
       end
   | Expr.Cast t e =>
       let e' := cf_e e in
@@ -68,10 +68,19 @@ Fixpoint cf_e (e : Expr.e) : Expr.e :=
       end
   | Expr.Bop t op e1 e2 =>
       optimize_bop t op (cf_e e1) (cf_e e2)
-  | Expr.Struct es ob => Expr.Struct (map cf_e es) ob
+  | Expr.Lists ls es => Expr.Lists ls $ map cf_e es
+  | Expr.Index t e1 e2 =>
+      match cf_e e1, cf_e e2 with
+      | Expr.Lists _ es as e1', (_ `W n)%expr as e2'
+        => match nth_error es $ Z.to_nat n with
+          | Some v => v
+          | None => Expr.Index t e1' e2'
+          end
+      | e1', e2' => Expr.Index t e1' e2'
+      end
   | Expr.Member t x e =>
       match cf_e e with
-      | Expr.Struct es _ as e'
+      | Expr.Lists _ es as e'
         =>  match nth_error es x with
            | Some v => v
            | None => Expr.Member t x e'

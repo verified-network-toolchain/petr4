@@ -37,7 +37,7 @@ Inductive expr_big_step (ϵ : list Val.v)
 | ebs_slice e hi lo v v' :
   eval_slice hi lo v = Some v' ->
   ⟨ ϵ, e ⟩ ⇓ v ->
-  ⟨ ϵ, Expr.Slice e hi lo ⟩ ⇓ v'
+  ⟨ ϵ, Expr.Slice hi lo e ⟩ ⇓ v'
 | ebs_cast τ e v v' :
   eval_cast τ v = Some v' ->
   ⟨ ϵ, e ⟩ ⇓ v ->
@@ -53,13 +53,18 @@ Inductive expr_big_step (ϵ : list Val.v)
   ⟨ ϵ, e₁ ⟩ ⇓ v₁ ->
   ⟨ ϵ, e₂ ⟩ ⇓ v₂ ->
   ⟨ ϵ, Expr.Bop τ op e₁ e₂ ⟩ ⇓ v
-| ebs_member τ x e vs v ob :
+| ebs_member τ x e ls vs v :
   nth_error vs x = Some v ->
-  ⟨ ϵ, e ⟩ ⇓ Val.Struct vs ob ->
+  ⟨ ϵ, e ⟩ ⇓ Val.Lists ls vs ->
   ⟨ ϵ, Expr.Member τ x e ⟩ ⇓ v
-| ebs_struct es vs ob :
+| ebs_index τ e₁ e₂ ls vs w n v :
+  nth_error vs (Z.to_nat n) = Some v ->
+  ⟨ ϵ, e₁ ⟩ ⇓ Val.Lists ls vs ->
+  ⟨ ϵ, e₂ ⟩ ⇓ w VW n ->
+  ⟨ ϵ, Expr.Index τ e₁ e₂ ⟩ ⇓ v
+| ebs_lists ls es vs :
   Forall2 (expr_big_step ϵ) es vs ->
-  ⟨ ϵ, Expr.Struct es ob ⟩ ⇓ Val.Struct vs ob
+  ⟨ ϵ, Expr.Lists ls es ⟩ ⇓ Val.Lists ls vs
 where "⟨ ϵ , e ⟩ ⇓ v"
   := (expr_big_step ϵ e v) : type_scope.
 
@@ -70,15 +75,18 @@ Local Open Scope lvalue_scope.
 
 Reserved Notation "e '⇓ₗ' lv" (at level 80, no associativity).
 
+(* TODO: add index evaluation. *)
 Inductive lexpr_big_step : Expr.e -> Val.lv -> Prop :=
 | lebs_var τ x :
   Expr.Var τ x ⇓ₗ Val.Var x
-| lebs_slice e hi lo lv :
+| lebs_slice hi lo e lv :
   e ⇓ₗ lv ->
-  Expr.Slice e hi lo ⇓ₗ Val.Slice lv hi lo
+  Expr.Slice hi lo e ⇓ₗ Val.Slice hi lo lv
 | lebs_member τ x e lv :
   e ⇓ₗ lv ->
   Expr.Member τ x e ⇓ₗ lv DOT x
+(*| lebs_index τ e₁ e₂ lv w n :
+  e₁ ⇓ₗ lv -> *)
 where "e '⇓ₗ' lv"
   := (lexpr_big_step e lv) : type_scope.
 
@@ -90,9 +98,9 @@ Local Close Scope lvalue_scope.
 Reserved Notation "'p⟨' ϵ , e ⟩ ⇓ st" (at level 80, no associativity).
 
 Variant parser_expr_big_step (ϵ : list Val.v)
-  : Parser.e -> Parser.state -> Prop :=
+  : Parser.e -> Parser.state_label -> Prop :=
   | pebs_goto st :
-    p⟨ ϵ, Parser.Goto st ⟩ ⇓ st
+    p⟨ ϵ, Parser.Direct st ⟩ ⇓ st
   | pebs_select e default cases v :
     ⟨ ϵ, e ⟩ ⇓ v ->
     p⟨ ϵ, Parser.Select e default cases ⟩
@@ -120,12 +128,12 @@ Variant interrupt : signal -> Prop :=
 | interrupt_rjct    : interrupt Rjct.
 
 (** A final parser state. *)
-Variant final_state : Parser.state -> Prop :=
+Variant final_state : Parser.state_label -> Prop :=
   | final_accept : final_state Parser.Accept
   | final_reject : final_state Parser.Reject.
 
 (** An intermediate parser state. *)
-Variant intermediate_state : Parser.state -> Prop :=
+Variant intermediate_state : Parser.state_label -> Prop :=
   | intermediate_start  : intermediate_state Parser.Start
   | intermediate_name x : intermediate_state (Parser.Name x).
 
@@ -145,13 +153,9 @@ Variant ctx : Set :=
                                         Target.v equivalent. *)
       (tables : tenv)
       (available_actions : aenv)
-      (available_controls : cienv Val.v) (* TODO:
-                                      needs a De Bruijn
-                                      extern instance closure env. *)
+      (available_controls : inst_env)
   | CParserState
-      (available_parsers : pienv Val.v) (* TODO:
-                                     needs a De Bruijn
-                                     extern instance closure env. *).
+      (available_parsers : inst_env).
 
 (* TODO: to be replaced with [Target.v] equivalent
    for the state of externs, packets, etc. *)
@@ -162,16 +166,6 @@ Record stmt_eval_env : Set := {
     cntx   : ctx  (** syntactic location of statement. *);
     extrn  : extern_state }.
 
-(*
-Record parser_eval_env : Set := {
-    pextrn  : extern_state;
-    pfuncts : fenv;
-    pstart  : Stmt.block      (** start state block. *);
-    pstates : list Stmt.block (** user-defined states *);
-    parsers : pienv (** parser instance closure. *);
-    (* TODO: needs a DeBruijn env for extern instances. *)}.
-*)
-
 (** Statement evaluation :
     Given a statement evaluation environment [Ψ]
     and a De Bruijn value environment [ϵ],
@@ -181,22 +175,11 @@ Record parser_eval_env : Set := {
 Reserved Notation "⧼ Ψ , ϵ , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
          (at level 80, no associativity).
 
-(*
-(** Parser-state-machine evaluation :
-    Given a parser evaluation environment [Φ]
-    and a De Bruijn value environment [ϵ],
-    a parser-state-machine starting from state [curr]
-    evaluates to a new value environment [ϵ'],
-    a final state [final], and an extern state [ψ]. *)
-Reserved Notation "'Δ' ( Φ , ϵ , curr ) ⇝ ( ϵ' , final , ψ )"
-         (at level 80, no associativity).
-*)
-
 (** Fetch the next state-block to evaluate. *)
 Definition get_state_block
            (strt : Stmt.s)
            (states : list Stmt.s)
-           (next : Parser.state) : option Stmt.s :=
+           (next : Parser.state_label) : option Stmt.s :=
   match next with
   | Parser.Start  => Some strt
   | Parser.Name x => nth_error states x
@@ -272,12 +255,12 @@ Inductive stmt_big_step
     ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽
 | sbs_apply_control
     fs entries tbls actions control_insts extrn_state
-    ϵ ϵ_clos ϵ' ϵ'' c ext_args args vargs sig ψ
-    fun_clos ctrl_clos tbl_clos action_clos apply_block :
+    ϵ ϵ' ϵ'' c ext_args args vargs sig ψ
+    fun_clos inst_clos tbl_clos action_clos apply_block :
   (** Lookup control instance. *)
-  nth_error control_insts c
-  = Some (CInst
-            ϵ_clos fun_clos ctrl_clos tbl_clos
+  control_insts c
+  = Some (ControlInst
+            fun_clos inst_clos tbl_clos
             action_clos apply_block) ->
   (** Evaluate arguments. *)
   Forall2
@@ -291,9 +274,9 @@ Inductive stmt_big_step
   ⧼ {| functs := fun_clos
     ;  cntx   := CApplyBlock
                    entries tbl_clos
-                   action_clos ctrl_clos
+                   action_clos inst_clos
     ;  extrn := extrn_state |},
-    ϵ' ++ ϵ_clos, apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
+    ϵ', apply_block ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ {| functs := fs
     ;  cntx   := CApplyBlock
                    entries tbls actions control_insts

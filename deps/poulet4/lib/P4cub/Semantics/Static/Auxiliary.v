@@ -66,4 +66,17 @@ Section Lemmas.
     rewrite <- Forall_forall in h.
     inv H; inv H0; auto.
   Qed.
+
+  Lemma t_ok_le : forall Δ₁ Δ₂ τ,
+      (Δ₁ <= Δ₂)%nat -> t_ok Δ₁ τ -> t_ok Δ₂ τ.
+  Proof.
+    intros m n t hmn h;
+      induction t using custom_t_ind;
+      inv h; eauto using Forall_impl_Forall.
+    constructor. lia.
+  Qed.
+
+  Lemma t_ok_0 : forall Δ τ,
+      t_ok 0 τ -> t_ok Δ τ.
+  Proof. intros n t; apply t_ok_le; lia. Qed.
 End Lemmas.

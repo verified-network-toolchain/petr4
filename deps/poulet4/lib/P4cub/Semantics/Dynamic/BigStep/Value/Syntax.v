@@ -14,7 +14,7 @@ Module Val.
   (** Lvalues. *)
   Inductive lv : Set :=
   | Var (x : nat)               (** Local variables. *)
-  | Slice (arg : lv) (hi lo : positive) (** Bitstring slice. *)
+  | Slice (hi lo : positive) (arg : lv) (** Bitstring slice. *)
   | Member (x : nat) (arg : lv) (** Member access. *)
   | Index (index : N) (array : lv) (** Array indexing. *).
 

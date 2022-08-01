@@ -25,7 +25,7 @@ Section ExprEvalInduction.
       eval_slice hi lo v = Some v' ->
       ⟨ ϵ, e ⟩ ⇓ v ->
       P ϵ e v ->
-      P ϵ (Expr.Slice e hi lo) v'.
+      P ϵ (Expr.Slice hi lo e) v'.
   
   Hypothesis HCast : forall ϵ τ e v v',
       eval_cast τ v = Some v' ->
@@ -50,16 +50,24 @@ Section ExprEvalInduction.
       P ϵ e2 v2 ->
       P ϵ (Expr.Bop τ op e1 e2) v.
   
-  Hypothesis HMember : forall ϵ τ x e vs v ob,
+  Hypothesis HMember : forall ϵ τ x e ls vs v,
       nth_error vs x = Some v ->
-      ⟨ ϵ, e ⟩ ⇓ Val.Struct vs ob ->
-      P ϵ e (Val.Struct vs ob) ->
+      ⟨ ϵ, e ⟩ ⇓ Val.Lists ls vs ->
+      P ϵ e (Val.Lists ls vs) ->
       P ϵ (Expr.Member τ x e) v.
 
-  Hypothesis HStruct : forall ϵ es vs ob,
+  Hypothesis HIndex : forall ϵ τ e₁ e₂ ls vs w n v,
+      nth_error vs (Z.to_nat n) = Some v ->
+      ⟨ ϵ, e₁ ⟩ ⇓ Val.Lists ls vs ->
+      P ϵ e₁ (Val.Lists ls vs) ->
+      ⟨ ϵ, e₂ ⟩ ⇓ w VW n ->
+      P ϵ e₂ (w VW n) ->
+      P ϵ (Expr.Index τ e₁ e₂) v.
+
+  Hypothesis HLists : forall ϵ ls es vs,
       Forall2 (expr_big_step ϵ) es vs ->
       Forall2 (P ϵ) es vs ->
-      P ϵ (Expr.Struct es ob) (Val.Struct vs ob).
+      P ϵ (Expr.Lists ls es) (Val.Lists ls vs).
   
   (** Custom induction principle for
       the expression big-step relation.
@@ -98,7 +106,12 @@ Section ExprEvalInduction.
         => HMember
             _ t _ _ _ _ _ Hnth
             He (ebsind _ _ _ He)
-      | ebs_struct _ _ _ _ Hes
-        => HStruct _ _ _ _ Hes (lind Hes)
+      | ebs_index _ _ _ _ _ _ _ _ _ Hnth He₁ He₂
+        => HIndex
+            _ _ _ _ _ _ _ _ _ Hnth
+            He₁ (ebsind _ _ _ He₁)
+            He₂ (ebsind _ _ _ He₂)
+      | ebs_lists _ _ _ _ Hes
+        => HLists _ _ _ _ Hes (lind Hes)
       end.
 End ExprEvalInduction.

@@ -15,7 +15,7 @@ Local Open Scope lvalue_scope.
 Fixpoint lv_lookup (ϵ : list Val.v) (lv : Val.lv) : option Val.v :=
   match lv with
   | Val.Var x => nth_error ϵ x
-  | Val.Slice lv hi lo => lv_lookup ϵ lv >>= eval_slice hi lo
+  | Val.Slice hi lo lv => lv_lookup ϵ lv >>= eval_slice hi lo
   | lv DOT x =>
       let* v := lv_lookup ϵ lv in
       match v with
@@ -38,7 +38,7 @@ Fixpoint lv_update
          (ϵ : list Val.v) : list Val.v :=
   match lv with
   | Val.Var x => nth_update x v ϵ
-  | Val.Slice lv hi lo =>
+  | Val.Slice hi lo lv =>
       match v, lv_lookup ϵ lv with
       | (_ VW n | _ VS n), Some (w VW _) =>
           let rhs := N.shiftl (Z.to_N n) w in

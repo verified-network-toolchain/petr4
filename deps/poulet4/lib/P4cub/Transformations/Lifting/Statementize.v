@@ -48,7 +48,7 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
   | Expr.Index t e1 e2 =>
       let '(l1, e1) := lift_e up e1 in
       let '(l2, e2) := lift_e (length l1 + up) e2 in
-      (l2 ++ l1, Expr.Index t e1 e2)
+      (l2 ++ l1, Expr.Index t (rename_e (plus $ length l2) e1) e2)
   | Expr.Lists l es =>
       let '(les, es) := lift_e_list up es in
       (Expr.Lists l es :: les, Expr.Var (t_of_e e) 0)

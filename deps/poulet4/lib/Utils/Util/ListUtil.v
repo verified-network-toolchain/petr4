@@ -287,3 +287,19 @@ Section IndexOf.
     | h :: t => if eqA_dec h a then Some 0 else option_map S (index_of t)
     end.
 End IndexOf.
+
+Lemma nth_update_length : forall (A : Set) (l : list A) n a,
+    List.length (nth_update n a l) = List.length l.
+Proof.
+  intros A l; induction l as [| h t];
+    intros [| n] a; cbn; auto.
+Qed.
+
+Lemma nth_update_correct : forall (A : Set) (l : list A) n a,
+    n < List.length l ->
+    nth_error (nth_update n a l) n = Some a.
+Proof.
+  intros A l; induction l as [| h t];
+    intros [| n] a H; cbn in *; try lia; auto.
+  assert (n < List.length t) by lia; auto.
+Qed.

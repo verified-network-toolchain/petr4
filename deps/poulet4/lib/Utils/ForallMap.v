@@ -1,4 +1,4 @@
-From Coq Require Export Lists.List micromega.Lia.
+From Coq Require Export Lists.List micromega.Lia Arith.Compare_dec.
 Require Export Poulet4.Utils.Util.ListUtil.
 Export ListNotations.
 
@@ -853,3 +853,170 @@ Section Forall_Map_Forall2.
       Forall (fun u => R u (f u)) us <-> Forall2 R us (map f us).
   Proof. intuition. Qed.
 End Forall_Map_Forall2.
+
+Section Forall2_Repeat_Forall_l.
+  Variables U V : Type.
+  Variable R : U -> V -> Prop.
+  
+  Lemma Forall2_repeat_l_Forall : forall u vs n,
+      Forall2 R (repeat u n) vs -> Forall (R u) vs.
+  Proof.
+    intros u vs; induction vs as [| v vs ih];
+      intros [| n] h; cbn in *; inv h; eauto.
+  Qed.
+
+  Lemma Forall_Forall2_repeat_l : forall u vs,
+      Forall (R u) vs -> Forall2 R (repeat u (length vs)) vs.
+  Proof.
+    intros u vs h; induction h; cbn; auto.
+  Qed.
+
+  Local Hint Resolve Forall2_repeat_l_Forall : core.
+  Local Hint Resolve Forall_Forall2_repeat_l : core.
+  
+  Lemma Forall2_repeat_l_Forall_iff : forall u vs,
+      Forall2 R (repeat u (length vs)) vs <-> Forall (R u) vs.
+  Proof. split; eauto. Qed.
+End Forall2_Repeat_Forall_l.
+
+Section Forall2_Repeat_Forall_r.
+  Variables U V : Type.
+  Variable R : U -> V -> Prop.
+
+  Lemma Forall2_repeat_r_Forall : forall us v n,
+      Forall2 R us (repeat v n) -> Forall (fun u => R u v) us.
+  Proof.
+    intros us v n h.
+    rewrite Forall2_flip in h.
+    apply Forall2_repeat_l_Forall in h.
+    assumption.
+  Qed.
+
+  Lemma Forall_Forall2_repeat_r : forall us v,
+      Forall (fun u => R u v) us -> Forall2 R us (repeat v (length us)).
+  Proof.
+    intros u vs h.
+    rewrite Forall2_flip
+      ,Forall2_repeat_l_Forall_iff;
+      assumption.
+  Qed.
+
+  Local Hint Resolve Forall2_repeat_r_Forall : core.
+  Local Hint Resolve Forall_Forall2_repeat_r : core.
+  
+  Lemma Forall2_repeat_r_Forall_iff : forall us v,
+      Forall2 R us (repeat v (length us)) <-> Forall (fun u => R u v) us.
+  Proof. split; eauto. Qed.
+End Forall2_Repeat_Forall_r.
+
+Section Nth_Update.
+  Variable U : Type.
+
+  Lemma nth_update_over_shoot : forall n (u : U) us,
+      length us <= n ->
+      nth_update n u us = us.
+  Proof.
+    intro n; induction n as [| n ih];
+      intros u [| elem us] h; cbn in *;
+      try lia; f_equal; apply ih; lia.
+  Qed.
+
+  Lemma nth_update_split : forall n (u : U) us,
+      n < length us ->
+      exists u₀ us₁ us₂,
+        us = us₁ ++ u₀ :: us₂
+        /\ nth_update n u us = us₁ ++ u :: us₂
+        /\ n = length us₁.
+  Proof.
+    intros n u; induction n as [| n ih];
+      intros [| elem us] h; cbn in *; try lia.
+    - exists elem , [] , us; repeat split; reflexivity.
+    - pose proof ih us ltac:(lia)
+        as (u0 & us1 & us2 & hus & hnth & hlen);
+        clear ih; subst; cbn in *.
+      exists u0 , (elem :: us1) , us2; cbn;
+        repeat split; f_equal; auto.
+  Qed.
+End Nth_Update.
+
+Section Forall_nth_update.
+  Variable U : Type.
+  Variable F : U -> Prop.
+  Variable u : U.
+  Variable n : nat.
+  Hypothesis fu : F u.
+
+  Lemma Forall2_nth_update : forall us, Forall F us -> Forall F (nth_update n u us).
+  Proof.
+    intros us h.
+    pose proof le_lt_dec (length us) n as [H | H].
+    - rewrite (nth_update_over_shoot _ _ _ _ H); assumption.
+    - pose proof nth_update_split _ _ u _ H
+        as (u0 & us1 & us2 & hus & hn & _); subst.
+      rewrite hn; clear hn.
+      rewrite Forall_app in *.
+      destruct h as [hus1 hus2];
+        inv hus2; split; auto.
+  Qed.
+End Forall_nth_update.
+
+Lemma Forall2_app_split : forall (U V : Type) (R : U -> V -> Prop) us1 us2 vs1 vs2,
+    length us1 = length vs1 ->
+    Forall2 R (us1 ++ us2) (vs1 ++ vs2) ->
+    Forall2 R us1 vs1 /\ Forall2 R us2 vs2.
+Proof.
+  intros U V R us1;
+    induction us1 as [| u us1];
+    intros us2 [| v vs1] vs2 hlen h;
+    cbn in *; try discriminate; inv h; auto.
+  injection hlen as hlen1. firstorder.
+Qed.
+
+Section Forall2_nth_update_r.
+  Variable U V : Type.
+  Variable R : U -> V -> Prop.
+  Variable u : U.
+  Variable v : V.
+  Variable n : nat.
+  Hypothesis ruv : R u v.
+
+  Lemma Forall2_nth_update_r : forall us vs,
+      nth_error us n = Some u ->
+      Forall2 R us vs ->
+      Forall2 R us (nth_update n v vs).
+  Proof.
+    intros us vs hnth hrusvs.
+    assert (n < length us) by
+      eauto using nth_error_some_length.
+    assert (hlen : length us = length vs)
+      by eauto using Forall2_length.
+    rewrite hlen in H.
+    pose proof nth_update_split _ _ v _ H
+      as (v0 & vs1 & vs2 & hvs & hnv & hlenvs); subst.
+    rewrite hnv; clear H hlen.
+    pose proof nth_error_split _ _ hnth
+      as (us1 & us2 & hus & hnu); subst.
+    pose proof Forall2_app_split
+         _ _ _ _ _ _ _ hnu hrusvs as [h1 h2].
+    inv h2; eauto using Forall2_app.
+  Qed.
+End Forall2_nth_update_r.
+
+Section Forall2_nth_update_l.
+  Variable U V : Type.
+  Variable R : U -> V -> Prop.
+  Variable u : U.
+  Variable v : V.
+  Variable n : nat.
+  Hypothesis ruv : R u v.
+
+  Lemma Forall2_nth_update_l : forall us vs,
+      nth_error vs n = Some v ->
+      Forall2 R us vs ->
+      Forall2 R (nth_update n u us) vs.
+  Proof.
+    intros us vs hnth hrusvs.
+    rewrite Forall2_flip in *.
+    eauto using Forall2_nth_update_r.
+  Qed.
+End Forall2_nth_update_l.

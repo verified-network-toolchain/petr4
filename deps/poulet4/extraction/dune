@@ -15,7 +15,7 @@
     EquivUtil StringUtil ListUtil FunUtil
     Bool String Nat
     BinNums BinInt Zpower
-    Specif Basics PeanoNat
+    Specif Basics PeanoNat Equality
     BinPosDef BinPos BinNat BinNatDef
     Ascii BinIntDef Monad Option)
  (libraries zarith bignum)

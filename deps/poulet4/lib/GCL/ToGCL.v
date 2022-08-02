@@ -1,32 +1,6 @@
 Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
-(* <<<<<<< HEAD:deps/poulet4/lib/P4cub/ToGCL.v *)
-(* Require Export Poulet4.P4cub.Syntax.AST. *)
-(* Require Export Poulet4.P4Arith. *)
-(* Require Export Poulet4.P4cub.Envn. *)
-(* Require Export Poulet4.P4cub.BigStep.InstUtil. *)
-(* Require Export Poulet4.P4cub.BigStep.BigStep. *)
-(* Require Export Poulet4.P4cub.BigStep.Semantics. *)
-(* Require Export Poulet4.P4cub.BigStep.Value.Value. *)
-(* Require Export Poulet4.P4cub.Util.Result. *)
 
-(* Require Import Coq.Arith.EqNat. *)
-(* Require Import String. *)
-
-(* Require Import Poulet4.P4cub.Inline. *)
-(* Require Import Poulet4.ToP4cub. *)
-
-(* Import Env.EnvNotations. *)
-
-(* Import Result. *)
-(* Import ResultNotations. *)
-
-(* Import Poulet4.P4cub.Util.ListUtil. *)
-(* Import Poulet4.P4cub.Util.StringUtil. *)
-
-(* Require Import Poulet4.P4cub.GCL. *)
-
-(* ======= *)
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
      P4cub.Semantics.Dynamic.BigStep.BigStep
@@ -745,7 +719,7 @@ Section ToGCL.
         error "expected package, got sth else"
       end.
 
-    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
+     Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
       let* inline_stmt := Inline.inline _ gas unroll ctx s in
       let* no_stk := Inline.elaborate_header_stacks _ inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks _ no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
@@ -761,17 +735,17 @@ Section ToGCL.
       let* s := get_main ctx pipe in
       inlining_passes gas unroll ext ctx s.
 
-    Definition p4cub_statement_to_gcl (gas unroll : nat)
+    Definition p4cub_statement_to_gcl (hdrs : bool) (gas unroll : nat)
                (ctx : ToP4cub.DeclCtx tags_t)
                (arch : model) (s : ST.s tags_t) : result target :=
       let* inlined := inlining_passes gas unroll arch ctx s in
-      let* instred := Inline.assert_headers_valid_before_use _ inlined in
+      let* instred := if hdrs then Inline.assert_headers_valid_before_use _ inlined else ok inlined in
       let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
-    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+    Definition from_p4cub (hdrs : bool) (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
       let* stmt := get_main ctx pipe in
-      p4cub_statement_to_gcl gas unroll ctx ext stmt.
+      p4cub_statement_to_gcl hdrs gas unroll ctx ext stmt.
 
   End Instr.
 End ToGCL.

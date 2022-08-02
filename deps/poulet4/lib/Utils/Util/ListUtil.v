@@ -206,6 +206,25 @@ Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
   | x::xs, y::ys => andb (eq x y) (list_eq eq xs ys)
   end.
 
+Fixpoint list_member {X : Type} (eq : X -> X -> bool) (x : X) (xs : list X) : bool :=
+  match xs with
+  | [] => false
+  | x'::xs => if eq x x' then true else list_member eq x xs
+  end.
+
+Fixpoint uniquify_aux {X : Type} (eq : X -> X -> bool) (xs : list X) (seen : list X) : list X :=
+  match xs with
+  | [] => seen
+  | x::xs =>
+    if list_member eq x seen then
+      uniquify_aux eq xs seen
+    else
+      uniquify_aux eq xs (x::seen)
+  end.
+
+Definition uniquify {X : Type} (eq : X -> X -> bool) (xs : list X) : list X :=
+  List.rev' (uniquify_aux eq xs []).
+
 Import Result ResultNotations.
 
 Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
@@ -259,5 +278,5 @@ Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
     else intersect_string_list_aux xs ys acc
   end.
 
-Fixpoint intersect_string_list (xs ys : list string) : list string :=
+Definition intersect_string_list (xs ys : list string) : list string :=
   rev' (intersect_string_list_aux xs ys []).

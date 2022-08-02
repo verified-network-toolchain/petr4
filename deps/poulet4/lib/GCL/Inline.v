@@ -1,27 +1,4 @@
 Set Warnings "-custom-entry-overridden".
-(* <<<<<<< HEAD:deps/poulet4/lib/P4cub/Inline.v *)
-(* Require Import Coq.Program.Basics. *)
-(* Require Export Poulet4.P4cub.Syntax.AST. *)
-(* Require Export Poulet4.P4Arith. *)
-(* Require Export Poulet4.P4cub.Envn. *)
-(* Require Export Poulet4.P4cub.BigStep.InstUtil. *)
-(* Require Export Poulet4.P4cub.BigStep.BigStep. *)
-(* Require Export Poulet4.P4cub.BigStep.Semantics. *)
-(* Require Export Poulet4.P4cub.BigStep.Value.Value. *)
-(* Require Import Poulet4.SyntaxUtil. *)
-(* Require Import Poulet4.ToP4cub. *)
-(* Import ToP4cub. *)
-(* Require Export Poulet4.P4cub.Util.Result. *)
-(* Import Result. *)
-(* Require Import Coq.Arith.EqNat. *)
-(* Require Import String. *)
-(* Open Scope string_scope. *)
-
-(* Require Import List. *)
-
-(* Require Import Poulet4.P4cub.Util.StringUtil. *)
-(* Require Import Poulet4.P4cub.Util.ListUtil. *)
-(* ======= *)
 From Coq Require Import Program.Basics Arith.EqNat String List.
 From Poulet4 Require Export P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 From Poulet4 Require Export
@@ -311,15 +288,14 @@ Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
 
-
 Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
   let symb_key := E.EVar key_type symb_var tags in
-  let eq_cond := E.EBop E.TBool E.Eq symb_key key tags in
+  let assume := assume (E.EBop E.TBool E.Eq symb_key key tags) tags in
   match mk with
   | E.MKExact =>
-    (symb_key, eq_cond, E.EBool false tags)
+    (symb_key, assume, E.EBool false tags)
   | _ =>
-    (symb_key, eq_cond, E.EVar E.TBool (symb_var ++ "$DONTCARE") tags)
+    (symb_key, assume, E.EVar E.TBool (symb_var ++ "$DONTCARE") tags)
   end.
 
 Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i tags :=
@@ -328,16 +304,12 @@ Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i t
   | [] => (ISkip tags, [])
   | ((key_type, key_expr, key_mk)::keys) =>
     let (assumes, new_keys) := normalize_keys_aux t keys (i+1) tags in
-    let '(symb_key, eq, skip_eq) := realize_symbolic_key keyname key_type key_expr key_mk tags in
-    let new_assume := IConditional E.TBool skip_eq (ISkip tags) (assume eq tags) tags in
+    let '(symb_key, assgn, skip_eq) := realize_symbolic_key keyname key_type key_expr key_mk tags in
+    let new_assume := IConditional E.TBool skip_eq (ISkip tags) assgn tags in
     (ISeq new_assume assumes tags, (key_type, symb_key, key_mk)::new_keys)
   end.
 
 Definition normalize_keys t keys := normalize_keys_aux t keys 0.
-
-Print Parser.state_block.
-Print Parser.state.
-Print Parser.e.
 
 Definition get_state_name state :=
   match state with
@@ -479,51 +451,57 @@ Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags 
          (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
 
 Open Scope list_scope.
-Fixpoint inline_state
-         (gas : nat)
-         (unroll : nat)
-         (ctx : DeclCtx tags_t)
-         (name : string)
-         (state : Parser.state_block tags_t)
-         (states : F.fs string (Parser.state_block tags_t))
-         (tags : tags_t)
-  : result ((list (string * Parser.state_block tags_t)) * t) :=
-  match gas with
-  | O => ok ([], ISkip tags)
-  | S gas =>
-    let* stmt := inline gas unroll ctx (Parser.stmt state) in
-    let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in
-    let neighbor_states := lookup_parser_states neighbor_names states in
-    (neighbor_states, construct_state name stmt trans tags)
-  end
-with inline_transition (gas : nat)
-                       (unroll : nat)
-                       (ctx : DeclCtx tags_t)
-                       (name : string)
-                       (trans : Parser.e tags_t )
-                       (tags : tags_t)
-     : result ((list string) * t)  :=
-       match gas with
-       | O => ok ([], ISkip tags)
-       | S gas =>
-         match trans with
-         | Parser.PGoto state tags =>
-           let name := get_state_name state in
-           ok ([name], set_state_flag name true tags)
-         | Parser.PSelect discriminee default states tags =>
-           let default := inline_transition gas unroll ctx name default tags in
-           let inline_trans_loop := fun '(pat, trans) acc  =>
-                    let* (states, inln) := acc in
-                    let* cond := translate_pat tags discriminee pat in
-                    let+ (new_states, trans) := inline_transition gas unroll ctx name trans tags in
-                    (states ++ new_states, IConditional E.TBool cond trans inln tags) in
-           List.fold_right inline_trans_loop default states
-         end
-       end
-with inline_parser (gas : nat)
+(* Fixpoint inline_state *)
+(*          (gas : nat) *)
+(*          (unroll : nat) *)
+(*          (ctx : DeclCtx tags_t) *)
+(*          (name : string) *)
+(*          (state : Parser.state_block tags_t) *)
+(*          (states : F.fs string (Parser.state_block tags_t)) *)
+(*          (tags : tags_t) *)
+(*   : result ((list (string * Parser.state_block tags_t)) * t) := *)
+(*   match gas with *)
+(*   | O => ok ([], ISkip tags) *)
+(*   | S gas => *)
+(*     let* stmt := inline gas unroll ctx (Parser.stmt state) in *)
+(*     let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in *)
+(*     let neighbor_states := lookup_parser_states neighbor_names states in *)
+(*     (neighbor_states, construct_state name stmt trans tags) *)
+(*   end *)
+(* with inline_transition (gas : nat) *)
+(*                        (unroll : nat) *)
+(*                        (ctx : DeclCtx tags_t) *)
+(*                        (name : string) *)
+(*                        (trans : Parser.e tags_t ) *)
+(*                        (tags : tags_t) *)
+(*      : result ((list string) * t)  := *)
+(*        match gas with *)
+(*        | O => ok ([], ISkip tags) *)
+(*        | S gas => *)
+(*          match trans with *)
+(*          | Parser.PGoto state tags => *)
+(*            let name := get_state_name state in *)
+(*            ok ([name], set_state_flag name true tags) *)
+(*          | Parser.PSelect discriminee default states tags => *)
+(*            let default := inline_transition gas unroll ctx name default tags in *)
+(*            let inline_trans_loop := fun '(pat, trans) acc  => *)
+(*                     let* (states, inln) := acc in *)
+(*                     let* cond := translate_pat tags discriminee pat in *)
+(*                     let+ (new_states, trans) := inline_transition gas unroll ctx name trans tags in *)
+(*                     (states ++ new_states, IConditional E.TBool cond trans inln tags) in *)
+(*            List.fold_right inline_trans_loop default states *)
+(*          end *)
+(*        end *)
+Print Parser.PSelect.
+Print Parser.e.
+Print Parser.state.
+Print List.find.
+Print List.fold_left.
+Fixpoint inline_parser (gas : nat)
                    (unroll : nat)
                    (tags : tags_t)
                    (ctx : DeclCtx tags_t)
+                   (seen : list string)
                    (current_name : string)
                    (current : Parser.state_block tags_t)
                    (states : F.fs string (Parser.state_block tags_t))
@@ -531,13 +509,40 @@ with inline_parser (gas : nat)
        match gas with
        | O => ok (ISkip tags)
        | S gas =>
-         let* (neighbors, inline_current) := inline_state gas unroll ctx current_name current states tags in
-         if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb unroll 0)
-         then ok (inline_current)
-         else List.fold_left (fun inln '(n, s) =>
-               let* inln := inln in
-               let+ prsr := inline_parser gas (unroll-1) tags ctx n s states in
-               ISeq inln prsr tags) neighbors (ok inline_current)
+         let* stmt := inline gas unroll ctx (Parser.stmt current) in
+         let+ trans := inline_transition gas unroll tags ctx seen current_name (Parser.trans current) states in
+         ISeq stmt trans tags
+       end
+with inline_transition gas unroll tags ctx seen current_name trans states : result t :=
+       match gas with
+       | O => ok (ISkip tags)
+       | S gas =>
+         match trans with
+         | Parser.PGoto Parser.STStart tags =>
+           error "should not transition back to start state"
+         | Parser.PGoto Parser.STAccept tags =>
+           ok (set_state_flag "accept" true tags)
+         | Parser.PGoto Parser.STReject tags =>
+           ok (set_state_flag "reject" true tags)
+         | Parser.PGoto (Parser.STName st) tags =>
+           match lookup_parser_state st states with
+           | None => error (String.append "unknown parser state" st)
+           | Some pstate =>
+             let unroll := if List.find (String.eqb st) seen then unroll-1 else unroll in
+             if Nat.eqb unroll 0
+             then ok (set_state_flag "reject" true tags)
+             else inline_parser gas unroll tags ctx (st::seen) st pstate states
+           end
+         | Parser.PSelect discriminee default cases tags =>
+           let inline_default := inline_transition gas unroll tags ctx seen current_name default states in
+           let f acc_r '(pat, trans) :=
+               let* acc := acc_r in
+               let* cond := translate_pat tags discriminee pat in
+               let+ inln := inline_transition gas unroll tags ctx seen current_name trans states in
+               IConditional E.TBool cond inln acc tags
+               in
+           List.fold_left f (List.rev' cases) inline_default
+         end
        end
 with inline (gas : nat)
             (unroll : nat)
@@ -613,7 +618,7 @@ with inline (gas : nat)
           let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
           match pdecl with
           | TD.TPParser _ _ _ _ start states tags =>
-            let+ parser := inline_parser gas unroll tags ctx "start" start states in
+            let+ parser := inline_parser gas unroll tags ctx ["start"] "start" start states in
             let init := init_parser states tags in
             ISeq init  parser tags
           (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
@@ -1082,31 +1087,32 @@ Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
 Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
   E.EUop E.TBool E.IsValid hdr tags.
 
-Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
+(*inline_assert (isValid e tags) tags*)
+Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result (list (E.e tags_t)) :=
   match e with
   | E.EBool _ _ | E.EBit _ _ _
   | E.EInt _ _ _ | E.EVar _ _ _
-  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok (ISkip tags)
+  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok []
   | E.EExprMember type name e tags =>
-    if String.eqb name "is_valid" then ok (ISkip tags) else
+    if String.eqb name "is_valid" then ok [] else
     match t_of_e e with
     | E.THeader _  =>
-      ok (inline_assert (isValid e tags) tags)
+      ok [e]
     | _ =>
-      ok (ISkip tags)
+      ok []
     end
   | E.ESlice e _ _ tags =>
     header_asserts e tags
   | E.ECast _ e tags =>
     header_asserts e tags
   | E.EUop _ E.IsValid e tags =>
-    ok (ISkip tags)
+    ok []
   | E.EUop _ _ e tags =>
     header_asserts e tags
   | E.EBop _ _ lhs rhs tags =>
     let* lhs_asserts := header_asserts lhs tags in
-    let+ rhs_asserts := header_asserts rhs tags in
-    ISeq lhs_asserts rhs_asserts tags
+    let* rhs_asserts := header_asserts rhs tags in
+    ok (List.app lhs_asserts rhs_asserts)
   | E.ETuple _ _ =>
     (* List.fold_left (fun acc_asserts e => *)
     (* let* acc_asserts := acc_asserts in *)
@@ -1131,19 +1137,26 @@ Definition get_from_paramarg {A : Type} (pa : paramarg A A) :=
   | PAInOut a => a
   | PADirLess a => a
   end.
-
 Fixpoint assert_headers_valid_before_use (c : t) : result t :=
+  let uniquify := ListUtil.uniquify ExprEquivalence.eqbe in
+  let assertify hdrs tags :=
+      List.fold_right (fun hdr cmd => ISeq (inline_assert (isValid hdr tags) tags) cmd tags)
+                      (ISkip tags)
+                      (uniquify hdrs)
+  in
   match c with
   | ISkip _
   | IVardecl _ _ _=> ok c
   | IAssign _ lhs rhs tags =>
     let* lhs_asserts := header_asserts lhs tags in
     let+ rhs_asserts := header_asserts rhs tags in
-    ISeq (ISeq lhs_asserts rhs_asserts tags) c tags
+    let asserts := assertify (List.app lhs_asserts rhs_asserts) tags in
+    ISeq asserts c tags
   | IConditional typ guard tru fls tags =>
     let* tru' := assert_headers_valid_before_use tru in
     let* fls' := assert_headers_valid_before_use fls in
-    let+ guard_asserts := header_asserts guard tags in
+    let+ guard_headers := header_asserts guard tags in
+    let  guard_asserts := assertify guard_headers tags in
     ISeq guard_asserts (IConditional typ guard tru' fls' tags) tags
   | ISeq s1 s2 tags =>
     let* s1' := assert_headers_valid_before_use s1 in
@@ -1154,7 +1167,8 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     IBlock blk'
   | IReturnVoid _ => ok c
   | IReturnFruit _ e tags =>
-    let+ asserts := header_asserts e tags in
+    let+ headers := header_asserts e tags in
+    let  asserts := assertify headers tags in
     ISeq asserts c tags
   | IExit _ => ok c
   | IInvoke t ks acts tags =>
@@ -1166,16 +1180,16 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
   | ISetValidity  _ _ _  => ok c
   | IHeaderStackOp _ _ _ _ _ =>
     (* Assume this has been factored out already *)
-    error "header stacks shouldhave been factored out already"
+    error "header stacks should have been factored out already"
   | IExternMethodCall ext method args tags =>
     if String.eqb method "extract" then ok c else
     let paramargs := paramargs args in
-    let+ asserts := List.fold_left (fun acc_asserts '(param, arg)  =>
-
-                   let* acc_asserts := acc_asserts in
+    let+ headers := List.fold_left (fun acc_hdrs '(param, arg)  =>
+                   let* acc_hdrs := acc_hdrs in
                    let arg_exp := get_from_paramarg arg in
-                   let+ new_asserts := header_asserts arg_exp tags in
-                   ISeq acc_asserts new_asserts tags) paramargs (ok (ISkip tags)) in
+                   let+ new_hdrs := header_asserts arg_exp tags in
+                   List.app acc_hdrs new_hdrs) paramargs (ok []) in
+    let  asserts := assertify headers tags in
     ISeq asserts (IExternMethodCall ext method args tags) tags
   end.
 

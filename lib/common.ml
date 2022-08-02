@@ -181,7 +181,8 @@ module Make_parse (Conf: Parse_config) = struct
  let to_gcl (p4cub : P4info.t Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
    let open Poulet4 in
    let open Result in
-   let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) TableInstr.instr gas unroll p4cub in 
+   let instr s _ = TableInstr.instr s in 
+   let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) instr false gas unroll p4cub in 
    match coq_gcl with
    | Result.Error msg -> failwith msg
    | Result.Ok gcl -> gcl

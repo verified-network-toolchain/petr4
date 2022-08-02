@@ -14,15 +14,15 @@ Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
   G.GAssume (F.bveq (BV.BVVar s w) r).
 
 Open Scope string_scope.
-Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * E.matchkind) (acc_res : result F.t) : result F.t :=
+Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * E.matchkind) (acc_res : result ToGCL.target) : result ToGCL.target :=
   let (te, mk) := elt in
   let (w, k) := te in
   let symbmatch := "_symb$" ++ table ++ "$match__" ++ string_of_nat n in
   let* acc := acc_res in
-  ok (F.land (F.bveq (BV.BVVar symbmatch w) k) acc).
+  ok (G.GSeq (G.GAssign (E.TBit (BinNatDef.N.of_nat w)) symbmatch k) acc).
 
-Definition matchrow (table : string) (keys : list (nat * BV.t * E.matchkind)) : result F.t :=
-  fold_lefti (matchrow_inner table) (ok (F.LBool true)) keys.
+Definition matchrow (table : string) (keys : list (nat * BV.t * E.matchkind)) : result ToGCL.target :=
+  fold_lefti (matchrow_inner table) (ok (G.GSkip)) keys.
 
 Definition bits_to_encode_list_index {A : Type} (l : list A) : nat :=
   let n := List.length l in
@@ -41,7 +41,7 @@ Definition actions_encoding (table : string) (keys : list (nat * BV.t * E.matchk
   let w := bits_to_encode_list_index actions in
   fold_lefti (action_inner table keys w) (ok (G.GAssume (F.LBool false))) actions.
 
-Definition instr {tags_t} (table : string) (i : tags_t) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
+Definition instr {tags_t : Type} (table : string) (keys: list (nat * BV.t * E.matchkind)) (actions: list (string * ToGCL.target)) : result ToGCL.target :=
   (* let* matchcond := matchrow table keys in *)
   let+ acts := actions_encoding table keys actions in
   (* G.GSeq (G.GAssume matchcond) *)

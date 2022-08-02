@@ -106,6 +106,16 @@ Proof.
   - destruct (lift_e (length us) e) as [l' e''] eqn:eql; inv H1.
     pose proof IHh _ _ _ eql as (vs' & ih & ihv); clear IHh.
     eexists; eauto.
+  - destruct (lift_e (length us) e₁) as [l1 e1] eqn:eql1.
+    destruct (lift_e (length l1 + length us) e₂) as [l2 e2] eqn:eql2; inv H1.
+    pose proof IHh1 _ _ _ eql1 as (vs1 & ih1 & ihv1); clear IHh1.
+    assert (Hl1: length l1 = length vs1) by eauto using eval_decl_list_length.
+    rewrite Hl1, <- app_length in eql2.
+    pose proof IHh2 _ _ _ eql2 as (vs2 & ih2 & ihv2); clear IHh2.
+    exists (vs2 ++ vs1). repeat rewrite <- app_assoc in *.
+    split; auto.
+    apply eval_decl_list_length in ih2; rewrite ih2.
+    econstructor; eauto.
   - destruct ((fix lift_e_list (up : nat) (es : list Expr.e)
                 : list Expr.e * list Expr.e :=
                  match es with

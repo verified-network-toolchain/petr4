@@ -514,7 +514,179 @@ Section Lemmas.
           |- _ => eapply AListUtil.get_relate_values in H; eauto
         end.
   Qed.
-  
+
+  Lemma eval_cast_ex : forall (τ₁ τ₂ : typ) v₁,
+      cast_type τ₁ τ₂ ->
+      ⊢ᵥ v₁ \: τ₁ ->
+      exists v₂, Ops.eval_cast τ₂ v₁ = Some v₂.
+  Proof.
+    intros t1 t2 v1 hc h; generalize dependent t2;
+      induction h using custom_val_typ_ind;
+      intros t2 hc; inv hc; cbn; eauto;
+      unfold Ops.Fields,AList.StringAList,
+      P4String.AList,AList.AList in *;
+      try match goal with
+        | H: ⊢ᵥ _ \: TypBit _ |- _ => inv H
+        | H: ⊢ᵥ _ \: TypInt _ |- _ => inv H
+        end;
+      try rewrite Zlength_correct;
+      try match goal with
+          |- context [Z.to_N (Z.of_nat (List.length ?l))]
+          => replace (Z.to_N (Z.of_nat (List.length l)))
+            with (N.of_nat (List.length l)) by lia;
+            rewrite N.eqb_refl; eauto
+        end.
+    - destruct bits as [| [] []];
+        cbn in *; try discriminate; eauto; lia.
+    - rewrite H2; cbn;
+        assert
+          (lem: exists vs2,
+              (fix fields_of_val_tuple l1 l2 :=
+                 match l1 with
+                 | [] => match l2 with
+                        | [] => Some []
+                        | _ :: _ => None
+                        end
+                 | (k, t) :: l1' =>
+                     match l2 with
+                     | [] => None
+                     | oldv :: l2' =>
+                         match Ops.eval_cast t oldv with
+                         | Some newv =>
+                             match fields_of_val_tuple l1' l2' with
+                             | Some l3 => Some ((P4String.str k, newv) :: l3)
+                             | None => None
+                             end
+                         | None => None
+                         end
+                     end
+                 end) xts vs = Some vs2);
+        [ clear H2;
+          generalize dependent ts;
+          generalize dependent vs;
+          induction xts as [| [x t] xts ih];
+          intros [| v vs] [| T TS] hvsTS IH hTSxts;
+          inv hvsTS; inv IH; inv hTSxts; cbn in *; eauto;
+          apply H3 in H5 as [v2 hv2]; rewrite hv2;
+          pose proof ih _ _ H4 H6 H8 as [vs2 hvs2];
+          rewrite hvs2; eauto
+        | destruct lem as [vs2 lem];
+          rewrite lem; eauto ]; assumption.
+    - (* factor out to helper lemma. *) admit.
+    - assert
+        (lem: exists vs2,
+            (fix values_of_val_tuple l1 l2 :=
+               match l1 with
+               | [] => match l2 with
+                      | [] => Some []
+                      | _ :: _ => None
+                      end
+               | t :: l1' =>
+                   match l2 with
+                   | [] => None
+                   | oldv :: l2' =>
+                       match Ops.eval_cast t oldv with
+                       | Some newv =>
+                           match values_of_val_tuple l1' l2' with
+                           | Some l3 => Some (newv :: l3)
+                           | None => None
+                           end
+                       | None => None
+                       end
+                   end
+               end) ts₂ vs = Some vs2).
+      { generalize dependent ts;
+          generalize dependent vs.
+        induction ts₂ as [| t ts ihts];
+          intros [| v vs] [| T TS] hvsTS ihvsTS htsTS;
+          inv hvsTS; inv ihvsTS; inv htsTS; eauto.
+        apply H3 in H5 as [v2 hv2]; rewrite hv2.
+        pose proof ihts _ _ H4 H6 H8 as [vs2 hvs2].
+        rewrite hvs2; eauto. }
+      destruct lem as [vs2 lem]; rewrite lem; eauto.
+    - rewrite H4. unfold AList.all_values in H0, H5, H1.
+      rewrite Forall2_conj in H0, H1, H5.
+      destruct H0 as [hkeys_vsts htyps_vsts].
+      destruct H1 as [_ ih_vs_ts].
+      destruct H5 as [hkeys_tsyts hcast_tsyts].
+      rewrite Forall2_map_both in
+        hkeys_vsts,hkeys_tsyts,htyps_vsts,hcast_tsyts.
+      rewrite Forall2_eq in hkeys_tsyts,hkeys_vsts.
+      assert (hlen_ts_yts:
+               List.length (P4String.clear_AList_tags ts)
+               = List.length (map snd yts)).
+      { apply Forall2_length in hcast_tsyts.
+        unfold P4String.clear_AList_tags.
+        repeat rewrite map_length in *; assumption. }
+      pose proof Forall2_specialize_Forall3
+        _ _ _ _ _ _ ih_vs_ts _ hlen_ts_yts as h.
+      rewrite <- P4String.key_unique_clear_AList_tags in *.
+      rewrite (AListUtil.map_fst_key_unique _ _ hkeys_vsts).
+      unfold P4String.StrEqDec,StringEqDec in *.
+      rewrite H; cbn.
+      assert (hlen_yts_vs: List.length yts = List.length vs).
+      { apply Forall2_length in htyps_vsts,hcast_tsyts.
+        unfold P4String.clear_AList_tags in *.
+        repeat rewrite map_length in *.
+        symmetry; etransitivity; eauto. }
+      rewrite hlen_yts_vs,PeanoNat.Nat.eqb_refl; cbn.
+      unfold P4String.clear_AList_tags in *.
+      clear H H3 H4 hlen_yts_vs ih_vs_ts.
+      rewrite Forall3_map_12 with
+        (R:=fun u v t =>
+              cast_type v t ->
+              exists v', Ops.eval_cast t u = Some v')
+        (f:=snd) (g:=snd)
+        in h.
+      rewrite map_fst_map,map_snd_map,map_id in *.
+      pose proof Forall3_impl_Forall2_23_Forall2_13
+        _ _ _ _ _ _ _ _ h hcast_tsyts as H.
+      clear hcast_tsyts h htyps_vsts hlen_ts_yts.
+      apply Forall2_ex_factor in H as [VS hVS].
+      assert
+        (lem: exists Vs,
+            (fix fields_of_val_record
+               (l1 : list (P4String.t tags_t * typ)) (l2 : list (ident * ValueBase)) {struct l1} :
+              option (list (ident * ValueBase)) :=
+               match l1 with
+               | [] => Some []
+               | (k, t) :: l1' =>
+                   match AList.get l2 (P4String.str k) with
+                   | Some oldv =>
+                       match Ops.eval_cast t oldv with
+                       | Some newv =>
+                           match fields_of_val_record l1'
+                                   (AListUtil.remove_first (P4String.str k) l2) with
+                           | Some l3 => Some ((P4String.str k, newv) :: l3)
+                           | None => None
+                           end
+                       | None => None
+                       end
+                   | None => None
+                   end
+               end) yts vs = Some Vs).
+      { generalize dependent ts;
+          generalize dependent VS;
+          generalize dependent vs.
+        induction yts as [| [y t] yts ih];
+          intros [| [x v] vs] [| V VS] hf3
+            [| [z T] TS] h_vs_TS h_TS_yts; inv hf3;
+          try discriminate; eauto.
+        injection h_vs_TS as hxz h_vs_TS.
+        injection h_TS_yts as hzy h_TS_yts; subst.
+        rewrite AList.get_eq_cons by intuition.
+        rewrite H2.
+        rewrite AListUtil.remove_first_cons_equiv by intuition.
+        pose proof ih _ _ H6 _ h_vs_TS h_TS_yts as [Vs hVs].
+        rewrite hVs; eauto. }
+      destruct lem as [Vs lem].
+      unfold StringEqDec in *.
+      rewrite lem; eauto.
+    - (* TODO: factor out helper lemma. *) admit.
+    - (* TODO: factor out helper lemma. *) admit.
+    - (* TODO: factor out helper lemma. *) admit.
+  Admitted.
+    
   Create HintDb ind_def.
   
   Definition

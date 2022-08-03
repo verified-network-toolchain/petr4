@@ -37,6 +37,21 @@ Section Util.
     apply get_some_in_fst in Hv as (k' & Hkk' & Hk').
     firstorder.
   Qed.
+
+  (** Removes the first equal key. *)
+  Fixpoint remove_first (key : K) (l : list (K * V)) : list (K * V) :=
+    match l with
+    | [] => []
+    | (k, v) :: l => if HKR key k then l else (k, v) :: remove_first key l
+    end.
+
+  Lemma remove_first_cons_equiv : forall key k v l,
+      key === k -> remove_first key ((k, v) :: l) = l.
+  Proof.
+    intros key k v l hk; cbn.
+    destruct (HKR key k) as [h | h]; try reflexivity.
+    unfold "=/=" in h. contradiction.
+  Qed.
 End Util.
 
 Section ALL.

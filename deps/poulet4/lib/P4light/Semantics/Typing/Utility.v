@@ -158,57 +158,73 @@ Section Util.
   | BTOr :
       binary_type Or TypBool TypBool TypBool.
 
-  (** Evidence a cast is allowed. *)
+  (** [cast_type τ₁ τ₂] is evidence
+      a cast from [τ₁] to [τ₂] is allowed. *)
   Inductive cast_type : typ -> typ -> Prop :=
-  | CTBool w :
-      cast_type (TypBit w) TypBool
-  | CTBit t w :
-      match t with
-      | TypBool
-      | TypBit _
-      | TypInt _
-      | TypInteger
-      | TypEnum _ (Some (TypBit _)) _ => True
-      | _ => False
-      end ->
-      cast_type t (TypBit w)
-  | CTInt t w :
-      match t with
-      | TypBool
-      | TypBit _
-      | TypInt _
-      | TypInteger
-      | TypEnum _ (Some (TypInt _)) _ => True
-      | _ => False
-      end ->
-      cast_type t (TypInt w)
-  | CTEnum t1 t2 enum fields :
-      match t1, t2 with
-      | TypBit _, TypBit _
-      | TypInt _, TypInt _
-      | TypEnum _ (Some (TypBit _)) _, TypBit _
-      | TypEnum _ (Some (TypInt _)) _, TypInt _ => True
-      | _, _ => False
-      end ->
-      cast_type t1 (TypEnum enum (Some t2) fields)
-  | CTNewType x t t' :
-      cast_type t t' ->
-      cast_type t (TypNewType x t')
-  | CTStructOfTuple ts xts :
-      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
-      cast_type (TypTuple ts) (TypStruct xts)
-  | CTStructOfRecord xts xts' :
-      AList.all_values cast_type xts xts' ->
-      cast_type (TypRecord xts) (TypStruct xts')
-  | CTHeaderOfTuple ts xts :
-      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
-      cast_type (TypTuple ts) (TypHeader xts)
-  | CTHeaderOfRecord xts xts' :
-      AList.all_values cast_type xts xts' ->
-      cast_type (TypRecord xts) (TypHeader xts')
-  | CTTuple ts ts' :
-      Forall2 cast_type ts ts' ->
-      cast_type (TypTuple ts) (TypTuple ts').
+  | Cast_Bit_Bool :
+    cast_type (TypBit 1) TypBool
+  | Cast_Bool_Bit :
+    cast_type TypBool (TypBit 1)
+  | Cast_Int_Bit w :
+    cast_type (TypInt w) (TypBit w)
+  | Cast_Bit_Bit w₁ w₂ :
+    cast_type (TypBit w₁) (TypBit w₂)
+  | Cast_Integer_Bit w :
+    cast_type TypInteger (TypBit w)
+  | Cast_Senum_Bit E w members :
+    cast_type (TypEnum E (Some (TypBit w)) members) (TypBit w)
+  | Cast_Bit_Int w :
+    cast_type (TypBit w) (TypInt w)
+  | Cast_Integer_Int w :
+    cast_type TypInteger (TypInt w)
+  | Cast_Senum_Int E w members :
+    cast_type (TypEnum E (Some (TypInt w)) members) (TypInt w)
+  | Cast_NewType_Type X τ₁ τ₂ :
+    cast_type τ₁ τ₂ ->
+    cast_type (TypNewType X τ₁) τ₂
+  | Cast_Bit_Senum w E members :
+    cast_type (TypBit w) (TypEnum E (Some (TypBit w)) members)
+  | cast_Senum_Senum_Bit E₁ E₂ w members₁ members₂ :
+    cast_type
+      (TypEnum E₁ (Some (TypBit w)) members₁)
+      (TypEnum E₂ (Some (TypBit w)) members₂)
+  | Cast_Int_Senum w E members :
+    cast_type (TypInt w) (TypEnum E (Some (TypInt w)) members)
+  | cast_Senum_Senum_Int E₁ E₂ w members₁ members₂ :
+    cast_type
+      (TypEnum E₁ (Some (TypInt w)) members₁)
+      (TypEnum E₂ (Some (TypInt w)) members₂)
+  | Cast_Tuple_Struct ts xts :
+    AList.key_unique xts = true ->
+    Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+    cast_type (TypTuple ts) (TypStruct xts)
+  | Cast_Header_Struct xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypHeader xts) (TypStruct yts)
+  | Cast_Struct_Struct xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypStruct xts) (TypStruct yts)
+  | Cast_Tuple_Header ts xts :
+    AList.key_unique xts = true ->
+    Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+    cast_type (TypTuple ts) (TypHeader xts)
+  | Cast_Header_Header xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypHeader xts) (TypHeader yts)
+  | Cast_Struct_Header xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypStruct xts) (TypHeader yts)
+  | Cast_Tuple_Tuple ts₁ ts₂ :
+    Forall2 cast_type ts₁ ts₂ ->
+    cast_type (TypTuple ts₁) (TypTuple ts₂).
   
   (** Types whose fields are accessable via [AList.v] functions. *)
   Variant member_type (ts : P4String.AList tags_t typ)

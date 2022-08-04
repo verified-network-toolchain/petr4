@@ -3,6 +3,8 @@
  (extracted_modules
 	AList AListUtil Datatypes List
 	P4Int P4String Syntax P4Field
+        Extract
+        Packet
 	Typed Utils SimplExpr
         Maps Monad State
 	SyntaxUtil GenLoc
@@ -39,6 +41,7 @@
  (libraries zarith bignum)
  (theories Poulet4))
 (library 
+  (preprocess (action (run ./extraction/dummy.sh %{input-file})))
   (name poulet4)
   (public_name poulet4)
   (libraries bignum zarith)

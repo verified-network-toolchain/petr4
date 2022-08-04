@@ -512,6 +512,7 @@ Instance V1ModelExternSem : ExternSem := Build_ExternSem
   interp_extern
   interp_extern_safe
   extern_get_entries
+  extern_set_entries
   extern_match.
 
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->

@@ -4,6 +4,19 @@ Require Export Coq.ZArith.BinInt.
 
 (** * Helper Lemmas for [Rules.v]. *)
 
+Lemma N_of_Z_of_nat : forall n,
+    Z.to_N (Z.of_nat n) = N.of_nat n.
+Proof.
+  intros; lia.
+Qed.
+
+Lemma length_to_lbool : forall n z,
+    List.length (to_lbool n z) = N.to_nat n.
+Proof.
+  intros n z. pose proof Zlength_to_lbool n z as h.
+  rewrite Zlength_correct in h. lia.
+Qed.
+
 Section Lemmas.
   Context {tags_t : Type}.
   Notation typ := (@P4Type tags_t).
@@ -515,6 +528,237 @@ Section Lemmas.
         end.
   Qed.
 
+  Local Hint Rewrite Zlength_correct : core.
+  Local Hint Rewrite N_of_Z_of_nat : core.
+  Local Hint Rewrite pos_N_nat : core.
+  Local Hint Rewrite N.eqb_refl : core.
+  Local Hint Rewrite to_lbool_bit_mod : core.
+  Local Hint Rewrite Nnat.N2Nat.id : core.
+  Local Hint Rewrite Nnat.Nat2N.id : core.
+  Local Hint Rewrite PeanoNat.Nat.eqb_refl : core.
+  Local Hint Rewrite map_length : core.
+  Local Hint Constructors cast_type : core.
+  Local Hint Resolve AListUtil.map_fst_key_unique : core.
+  Local Hint Resolve nth_error_some_length : core.
+
+  Lemma get_real_cast_type : forall ge1 ge2 (τ₁ τ₂ r₁ r₂ : typ),
+      get_real_type ge1 τ₁ = Some r₁ ->
+      get_real_type ge2 τ₂ = Some r₂ ->
+      cast_type τ₁ τ₂ -> cast_type r₁ r₂.
+  Proof.
+    intros ge1 ge2 t1 t2 r1 r2 h1 h2 hc.
+    generalize dependent ge2;
+      generalize dependent ge1;
+      generalize dependent r2;
+      generalize dependent r1.
+    induction hc using my_cast_type_ind;
+      intros r1 r2 ge1 hr1 ge2 hr2; cbn in *;
+      autounfold with option_monad in *;
+      repeat match_some_inv; repeat some_inv; eauto.
+    - rewrite map_pat_both in Heqo.
+      rewrite <- Forall2_sequence_iff in Heqo.
+      rewrite <- ForallMap.Forall2_map_l in Heqo.
+      rewrite Forall2_destr_pair_eq in Heqo.
+      destruct Heqo as [h_fst h_snd].
+      constructor; eauto.
+      rewrite <- Forall2_sequence_iff in Heqo0.
+      rewrite ForallMap.Forall2_map_r.
+      rewrite ForallMap.Forall2_map_r in H0.
+      rewrite ForallMap.Forall2_map_r with
+        (R:=fun t1 t2 =>
+              forall r1 r2 ge1,
+                get_real_type ge1 t1 = Some r1 -> forall ge2,
+                  get_real_type ge2 t2 = Some r2 ->
+                  cast_type r1 r2) (f:=snd) in H1.
+      rewrite <- ForallMap.Forall2_map_l in Heqo0.
+      rewrite Forall2_forall_nth_error in *.
+      autorewrite with core in *.
+      clear H h_fst.
+      destruct H0 as [hlen_ts_xts hc_ts_xts].
+      destruct H1 as [_ ih_ts_xts].
+      destruct Heqo0 as [hlen_ts_l0 hreal_ts_l0].
+      destruct h_snd as [hlen_xts_l hreal_xts_l].
+      split; try lia.
+      intros n t1 t2 hnl0t1 hnlt2.
+      assert (hnts: exists t, nth_error ts n = Some t).
+      { apply nth_error_exists.
+        rewrite hlen_ts_l0; eauto. }
+      destruct hnts as [t hntst].
+      assert (hnxts: exists T, nth_error (map snd xts) n = Some T).
+      { apply nth_error_exists.
+        autorewrite with core.
+        rewrite hlen_xts_l.
+        rewrite <- map_length with (f:=snd); eauto. }
+      destruct hnxts as [T hnxtsT]. eauto.
+    - rewrite map_pat_both in Heqo,Heqo0.
+      rewrite <- Forall2_sequence_iff in Heqo,Heqo0.
+      rewrite <- ForallMap.Forall2_map_l in Heqo,Heqo0.
+      rewrite Forall2_destr_pair_eq in Heqo,Heqo0.
+      destruct Heqo as [h_fst_yts_l h_snd_yts_l].
+      destruct Heqo0 as [h_fst_xts_l0 h_snd_xts_l0].
+      constructor; eauto.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      repeat rewrite Forall2_map_both with (f:=fst) in *.
+      repeat rewrite Forall2_map_both with (f:=snd) in *.
+      rewrite Forall2_eq in *.
+      rewrite Forall2_map_both with
+        (R:=fun t1 t2 =>
+              forall r1 r2 ge1,
+                get_real_type ge1 t1 = Some r1 -> forall ge2,
+                  get_real_type ge2 t2 = Some r2 ->
+                  cast_type r1 r2) (f:=snd) in H2.
+      destruct H1 as [h_fst_xts_yts h_snd_xts_yts].
+      destruct H2 as [_ ih_xts_yts].
+      symmetry in h_fst_xts_l0.
+      split; try (do 2 etransitivity; eauto; assumption).
+      clear h_fst_xts_l0 h_fst_yts_l h_fst_yts_l H H0.
+      rewrite Forall2_forall_nth_error in *.
+      destruct h_snd_xts_yts as [h_len_xts_yts h_xts_yts].
+      destruct ih_xts_yts as [_ ih_xts_yts].
+      destruct h_snd_xts_l0 as [h_len_xts_l0 h_xts_l0].
+      destruct h_snd_yts_l as [h_len_yts_l h_yts_l].
+      autorewrite with core in *.
+      symmetry in h_len_xts_l0.
+      split; try (do 2 etransitivity; eauto; assumption).
+      intros n u v hnl0u hnlv.
+      assert (hx: exists x, nth_error (map snd xts) n = Some x).
+      { apply nth_error_exists.
+        autorewrite with core.
+        rewrite <- h_len_xts_l0.
+        rewrite <- map_length with (f:=snd); eauto. }
+      destruct hx as [x hx].
+      assert (hy: exists y, nth_error (map snd yts) n = Some y).
+      { apply nth_error_exists.
+        autorewrite with core.
+        rewrite h_len_yts_l.
+        rewrite <- map_length with (f:=snd); eauto. }
+      destruct hy as [y hy]. eauto.
+    - (* TODO: factor out to lemma. *) admit.
+    - (* TODO: factor out to lemma. *) admit.
+    - (* TODO: factor out to lemma. *) admit.
+    - (* TODO: factor out to lemma. *) admit.
+    - constructor. (* TODO: finish. *)
+  Admitted.
+      
+  Lemma eval_cast_types : forall (τ₁ τ₂ : typ) v₁ v₂,
+      Ops.eval_cast τ₂ v₁ = Some v₂ ->
+      cast_type τ₁ τ₂ ->
+      ⊢ᵥ v₁ \: τ₁ -> ⊢ᵥ v₂ \: τ₂.
+  Proof.
+    intros t1 t2 v1 v2 heval hcast;
+      generalize dependent v2;
+      generalize dependent v1.
+    induction hcast using my_cast_type_ind;
+      intros v1 v2 heval hv1; inv hv1; cbn in *;
+      autorewrite with core in *; try some_inv; auto 2.
+    - destruct v as [| [] []];
+        cbn in *; try discriminate; inv heval; auto.
+    - constructor.
+    - pose proof length_to_lbool
+        (N.of_nat (List.length v)) (IntArith.lbool_to_val v 1 0) as h.
+      autorewrite with core in h; rewrite <- h at 2; auto.
+    - pose proof length_to_lbool
+        w₂ (BitArith.lbool_to_val v 1 0) as h.
+      apply f_equal with (f:=N.of_nat) in h.
+      autorewrite with core in h; rewrite <- h at 2; auto.
+    - pose proof length_to_lbool w v as h.
+      apply f_equal with (f:=N.of_nat) in h.
+      autorewrite with core in h; rewrite <- h at 2; auto.
+    - inv H1; autorewrite with core in *; some_inv; auto.
+    - pose proof length_to_lbool
+        (N.of_nat (List.length v))
+        (IntArith.mod_bound
+           (Pos.of_nat (List.length v))
+           (BitArith.lbool_to_val v 1 0)) as h.
+      autorewrite with core in h.
+      rewrite <- h at 3; auto.
+    - pose proof length_to_lbool
+        w (IntArith.mod_bound (pos_of_N w) v) as h.
+      apply f_equal with (f:=N.of_nat) in h.
+      autorewrite with core in h; rewrite <- h at 3; auto.
+    - inv H1; autorewrite with core in *; some_inv; auto.
+    - inv H1; autorewrite with core in *; some_inv; auto.
+    - inv H1; autorewrite with core in *; some_inv; auto.
+    - rewrite H in heval. cbn in heval.
+      match_some_inv; some_inv.
+      constructor; auto. clear H.
+      unfold AList.all_values.
+      rewrite Forall2_conj.
+      rewrite Forall2_map_both with (f:=fst).
+      rewrite Forall2_map_both with (f:=snd).
+      unfold P4String.clear_AList_tags.
+      rewrite map_fst_map,map_snd_map,map_id.
+      rewrite Forall2_map_r with (f:=snd) in H0.
+      rewrite Forall2_eq.
+      generalize dependent f;
+        generalize dependent ts;
+        generalize dependent vs.
+      induction xts as [| [x t] xts ih];
+        intros [| v vs] [| T TS] hc ihc hvt [| [y V] VS] H;
+        inv hc; inv ihc; inv hvt; cbn in *;
+        repeat match_some_inv; some_inv;
+        try discriminate; eauto.
+      pose proof ih _ _ H5 H7 H9 _ Heqo0 as [hfst hsnd]; clear ih.
+      rewrite hfst; split; eauto.
+    - rewrite H0 in heval.
+      destruct (AList.key_unique vs) eqn:h_unique_vs;
+        cbn in *; try discriminate.
+      assert (hlen: Datatypes.length yts = Datatypes.length vs).
+      { apply Forall2_length in H6, H1.
+        unfold P4String.clear_AList_tags in *.
+        rewrite map_length in *.
+        symmetry; etransitivity; eauto. }
+      rewrite hlen in heval.
+      autorewrite with core in heval.
+      cbn in heval. match_some_inv; some_inv.
+      constructor; auto.
+      clear hlen h_unique_vs H H0 H4 b.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      destruct H1 as [h_keys_xts_yts hc_xts_yts].
+      destruct H2 as [_ ih_xts_yts].
+      destruct H6 as [h_keys_vs_xts h_vt_vs_xts].
+      unfold P4String.clear_AList_tags in *.
+      repeat rewrite Forall2_map_both with (f:=fst) in *.
+      repeat rewrite Forall2_map_both with (f:=snd) in *.
+      rewrite map_fst_map,map_snd_map,map_id in *.
+      rewrite Forall2_eq in *.
+      generalize dependent xts;
+        generalize dependent f;
+        generalize dependent vs.
+      induction yts as [| [y t] yts ih];
+        intros [| [w v] vs] [| [z V] VS] hVS [| [x T] xts]
+          h_fst_xts_yts h_snd_xts_yts ih_xts_yts
+          h_fst_vs_xts h_snd_vs_xts;
+        inv h_snd_xts_yts; inv ih_xts_yts; inv h_snd_vs_xts;
+        cbn in *; repeat match_some_inv; some_inv; auto.
+      injection h_fst_xts_yts as hxy h_fst_xts_yts.
+      injection h_fst_vs_xts as hzx h_fst_vs_xts; subst.
+      unfold StringEqDec in *.
+      rewrite AList.get_eq_cons in Heqo by
+          auto using Equivalence.equiv_reflexive_obligation_1.
+      some_inv.
+      destruct (string_dec (P4String.str y) (P4String.str y))
+        as [bruh | bruh]; try contradiction; clear bruh.
+      pose proof ih _ _ Heqo1 _ h_fst_xts_yts
+        H4 H6 h_fst_vs_xts H8 as [hfst hvt].
+      rewrite hfst. split; eauto.
+    - (* TODO: factor out lemma. *) admit.
+    - (* TODO: factor out lemma. *) admit.
+    - (* TODO: factor out lemma. *) admit.
+    - (* TODO: factor out lemma. *) admit.
+    - match_some_inv; some_inv.
+      constructor.
+      generalize dependent ts1;
+        generalize dependent l;
+        generalize dependent vs.
+      induction ts2 as [| T TS ih];
+        intros [| v vs] [| V VS] h [| t ts] hc ihc hvt;
+        inv hc; inv ihc; inv hvt;
+        repeat match_some_inv; some_inv; eauto.
+  Admitted.
+                
   Lemma eval_cast_ex : forall (τ₁ τ₂ : typ) v₁,
       cast_type τ₁ τ₂ ->
       ⊢ᵥ v₁ \: τ₁ ->

@@ -712,13 +712,6 @@ Section Soundness.
         => exists t; cbn; eauto
       end.
 
-    (* TODO: need
-       - Preservation lemma for eval_cast:
-         [cast_type t1 t2 -> eval_cast t2 v1 = Some v2 -> ⊢ᵥ v1 ∈ t1 -> ⊢ᵥ v2 ∈ t2]
-       - [cast_type x y -> cast_type (normᵗ x) (normᵗ y)]
-       - [eval_cast (normᵗ x) v = eval_cast x v]
-       - [get_real_type ge t1 = Some r1 -> get_real_type ge t2 = Some r2 -> cast_type t1 t2 -> cast_type r1 r2]
-     *)
     Theorem cast_sound : forall tag e t dir,
         cast_type (typ_of_expr e) t ->
         (ge,this,Δ,Γ) ⊢ₑ e ->
@@ -737,24 +730,27 @@ Section Soundness.
         pose proof ok_get_real_type_ex _ _ Hokt _ Hdlta as [r hr].
         assert (heval_cast: exists newv, eval_cast r v = Some newv).
         { pose proof exec_val_preserves_typ
-               _ _ _ Hexec _ Hsvrt as Hvrt.
-          assert (hcast : cast_type rt r) by admit.
-          assert (hcast_norm : cast_type (normᵗ rt) (normᵗ r)) by admit.
-          assert (heval_cast_norm: eval_cast (normᵗ r) v = eval_cast r v) by admit.
-          rewrite <- heval_cast_norm.
-          eapply eval_cast_ex; eauto. }
+            _ _ _ Hexec _ Hsvrt as Hvrt.
+          assert (hcast : cast_type rt r) by eauto using get_real_cast_type.
+          assert (hcast_norm : cast_type (normᵗ rt) (normᵗ r))
+            by auto using cast_type_normᵗ.
+          replace r with (normᵗ r)
+            by eauto using cast_type_normᵗ_same.
+          eauto using eval_cast_ex. }
         firstorder eauto.
       - clear dependent sv. clear Helsv.
         intros sv hesv. inv hesv.
         apply Hsv in H6 as (r & hgetr & holdvr).
-        assert (hnewvr: ⊢ᵥ newv \: normᵗ real_typ) by admit.
-        assert (hsvr: ⊢ᵥ sv \: normᵗ real_typ) by eauto.
-        assert (hcast : cast_type r real_typ) by admit.
-        assert (hcast_norm : cast_type (normᵗ r) (normᵗ real_typ)) by admit.
-        assert (heval_cast_norm: eval_cast (normᵗ real_typ) oldv = eval_cast real_typ oldv) by admit.
-        eauto.
+        assert (hcast : cast_type r real_typ) by
+          eauto using get_real_cast_type.
+        assert (hcast_norm : cast_type (normᵗ r) (normᵗ real_typ)) by
+          eauto using cast_type_normᵗ.
+        replace real_typ with (normᵗ real_typ) in H10
+          by eauto using cast_type_normᵗ_same.
+        assert (hnewvr: ⊢ᵥ newv \: normᵗ real_typ)
+          by eauto using eval_cast_types. eauto.
       - intros Hlv; inv Hlv; contradiction.
-    Admitted.
+    Qed.
 
     Theorem enum_member_sound : forall tag X M E mems dir,
         IdentMap.get (P4String.str X) (ge_typ ge) =

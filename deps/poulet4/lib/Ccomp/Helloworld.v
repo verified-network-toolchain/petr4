@@ -16,17 +16,17 @@ Require Import Coq.PArith.BinPosDef.
 Require Import Coq.NArith.BinNatDef.
 Require Import Coq.ZArith.BinIntDef.
 Definition metadata : t := 
-  Expr.TStruct [(*meta:*) Expr.TInt $ Pos.of_nat 32] false.
-Definition hdrs : t := Expr.TStruct [(*hd:*) Expr.TBool] false.
+  Expr.TStruct false [(*meta:*) Expr.TInt $ Pos.of_nat 32].
+Definition hdrs : t := Expr.TStruct false [(*hd:*) Expr.TBool].
 Definition pkt_in := TopDecl.ExternInstType "packet_in".
 Definition pkt_out := TopDecl.ExternInstType "packet_out".
-Definition std_meta := Expr.TStruct [(*stdmeta:*) Expr.TBool] false.
+Definition std_meta := Expr.TStruct false [(*stdmeta:*) Expr.TBool].
 Definition oneplusone := 
   let width := N.of_nat 32 in  
   let one := Z.of_nat 1 in
   Expr.Bop (Expr.TBit width) `+%bop (width `W one)%expr (width `W one)%expr.
 Definition parser_start_state : s :=
-  Stmt.Transition (Parser.Goto Parser.Accept).
+  Stmt.Transition (Parser.Direct Parser.Accept).
 Definition parsr_cparams : TopDecl.constructor_params := [].
 Definition parsr_params : Expr.params :=
   [ (*hdr:*) PAOut hdrs
@@ -35,11 +35,11 @@ Definition parsr_params : Expr.params :=
 Definition myparser : tpdecl :=
   TopDecl.Parser
     "MyParser"
-    parsr_cparams
-    [(*b:*) "packet_in"] parsr_params
+    parsr_cparams []
+    [("b","packet_in")] parsr_params
     parser_start_state [].
 Definition instance_myparser : tpdecl :=
-  TopDecl.Instantiate "MyParser" [] [].
+  TopDecl.Instantiate "MyParser" "my_parser" [] [] [].
 
 Definition gress_cparams : TopDecl.constructor_params := [].
 Definition gress_params : Expr.params :=
@@ -50,19 +50,19 @@ Definition ingress_decl : ct_d :=
   Control.Action "test_ingress" [] [] Stmt.Skip.
 Definition ingress : tpdecl :=
   TopDecl.Control
-    "MyIngress" gress_cparams [] gress_params
+    "MyIngress" gress_cparams [] [] gress_params
     [ingress_decl] Stmt.Skip.
 Definition instance_myingress : tpdecl :=
-  TopDecl.Instantiate "MyIngress" [] [].
+  TopDecl.Instantiate "MyIngress" "my_ingress" [] [] [].
 
 Definition egress_decl : ct_d := 
   Control.Action "test_egress" [] [] Stmt.Skip.
 Definition egress : tpdecl := 
   TopDecl.Control
-    "MyEgress" gress_cparams [] gress_params
+    "MyEgress" gress_cparams [] [] gress_params
     [egress_decl] Stmt.Skip.
 Definition instance_myegress : tpdecl :=
-  TopDecl.Instantiate "MyEgress" [] [].
+  TopDecl.Instantiate "MyEgress" "my_egress" [] [] [].
 
 Definition deparser_cparams : TopDecl.constructor_params := [].
 Definition deparser_params : Expr.params := [ (*hdr:*) PAIn hdrs].
@@ -73,11 +73,11 @@ Definition mydeparser_decl : ct_d :=
 Definition mydeparser : tpdecl := 
   TopDecl.Control
     "MyDeparser"
-    deparser_cparams
-    [(*b:*) "packet_out"] deparser_params
+    deparser_cparams []
+    [("b","packet_out")] deparser_params
     [mydeparser_decl] Stmt.Skip.
 Definition instance_mydeparser : tpdecl :=
-  TopDecl.Instantiate "MyDeparser" [] [].
+  TopDecl.Instantiate "MyDeparser" "my_deparser" [] [] [].
 
 Definition checksum_cparams : TopDecl.constructor_params := [].
 Definition checksum_params : Expr.params :=
@@ -87,30 +87,30 @@ Definition verify_decl : ct_d :=
 Definition verify : tpdecl :=
   TopDecl.Control
     "MyVerifyChecksum"
-    checksum_cparams [] checksum_params
+    checksum_cparams [] [] checksum_params
     [verify_decl] Stmt.Skip.
 Definition instance_myverify : tpdecl :=
-  TopDecl.Instantiate "MyVerifyChecksum" [] [].
+  TopDecl.Instantiate "MyVerifyChecksum" "my_verify" [] [] [].
 
 Definition compute_decl : ct_d :=
   Control.Action "test_computeChecksum" [] [] Stmt.Skip.
 Definition compute : tpdecl :=
   TopDecl.Control
       "MyComputeChecksum"
-      checksum_cparams [] checksum_params
+      checksum_cparams [] [] checksum_params
       [compute_decl] Stmt.Skip.
 Definition instance_mycompute : tpdecl :=
-  TopDecl.Instantiate "MyComputeChecksum" [] [].
+  TopDecl.Instantiate "MyComputeChecksum" "my_compute" [] [] [].
 
 Definition instance_args : TopDecl.constructor_args :=
-  [ (*p:=*) TopDecl.CAName 5 (*my_parser*)
-    ; (*vr:=*) TopDecl.CAName 1 (*my_verify*)
-    ; (*ig:=*) TopDecl.CAName 4 (*my_ingress*)
-    ; (*eg:=*) TopDecl.CAName 3 (*my_egress*)
-    ; (*ck:=*) TopDecl.CAName 0 (*my_compute*)
-    ; (*dep:=*) TopDecl.CAName 2 (*my_deparser*) ].
+  [ (*p:=*) "my_parser";
+    (*vr:=*) "my_verify";
+    (*ig:=*) "my_ingress";
+    (*eg:=*) "my_egress";
+    (*ck:=*) "my_compute";
+    (*dep:=*) "my_deparser" ].
 Definition instance : tpdecl :=
-  TopDecl.Instantiate "V1Switch" [] instance_args.
+  TopDecl.Instantiate "V1Switch" "main" [] instance_args [].
 
 Definition instances : list tpdecl := 
   [ instance_myparser

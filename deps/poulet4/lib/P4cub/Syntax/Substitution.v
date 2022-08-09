@@ -61,12 +61,9 @@ Section Sub.
     | Expr.Lists l es => Expr.Lists (tsub_lists l) $ map tsub_e es
     end.
   
-  Definition tsub_param (pa : paramarg Expr.t Expr.t) :=
-    match pa with
-    | PAIn t => PAIn $ tsub_t t
-    | PAOut t => PAOut $ tsub_t t
-    | PAInOut t => PAInOut $ tsub_t t
-    end.
+  Definition tsub_param
+    : paramarg Expr.t Expr.t -> paramarg Expr.t Expr.t :=
+    paramarg_map_same $ tsub_t.
 
   Definition tsub_arg
     : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=

@@ -33,6 +33,15 @@ Section StateT.
   Definition put_state (st : ST) : StateT ST M unit :=
     fun _ => mret (tt, st).
 
+  Definition modify_state (f : ST -> ST) : StateT ST M unit :=
+    fun st => mret (tt, f st).
+
+  Definition proj_state {A : Type} (f : ST -> A) : StateT ST M A :=
+    fun st => mret (f st, st).
+  
+  Definition search_state {A : Type} (f : ST -> M A) : StateT ST M A :=
+    fun st => let^ a := f st in (a, st).
+  
   Definition
     state_bind {A B : Type} (m : StateT ST M A)
     (f : A -> StateT ST M B) : StateT ST M B :=

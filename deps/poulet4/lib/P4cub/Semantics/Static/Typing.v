@@ -415,6 +415,8 @@ Inductive type_topdecl (Γ : top_type_env)
     control_name cparams expr_cparams extern_params params
     control_decls apply_blk Γ' sig insts :
   (* TODO: check params are [t_ok []] *)
+  (* TODO: add extern runtime params
+     to instance envrionment when checking control body. *)
   insts = cbind_all (insts_env Γ) cparams ->
   type_ctrl
     params expr_cparams (tfuncts Γ) insts control_decls Γ' ->
@@ -429,11 +431,13 @@ Inductive type_topdecl (Γ : top_type_env)
     ⊣ Γ <| cnstrs :=
     control_name
       ↦ ControlType
-      (map snd cparams) expr_cparams extern_params params ,, cnstrs Γ |>
+      (map snd cparams) expr_cparams (map snd extern_params) params ,, cnstrs Γ |>
 | type_parser
     parser_decl_name cparams expr_cparams extern_params params
     start_state states insts :
   (* TODO: check params are [t_ok []] *)
+  (* TODO: add extern runtime params
+     to instance envrionment when checking control body. *)
   insts = cbind_all (insts_env Γ) cparams ->
   Forall
     (fun state =>
@@ -449,7 +453,7 @@ Inductive type_topdecl (Γ : top_type_env)
             parser_decl_name
               ↦ ParserType
               (map snd cparams) expr_cparams
-              extern_params params ,, cnstrs Γ |>
+              (map snd extern_params) params ,, cnstrs Γ |>
 | type_extern
     extern_name type_params cparams expr_cparams methods :
   (* TODO: check types as [t_ok] *)

@@ -38,10 +38,9 @@ Module ST := Stmt.
 Module CD := Control.
 Module TD := TopDecl.
 Module E := Expr.
-Module F := F.
+Module F := Field.
 
 Section Inline.
-Variable tags_t : Type.
 
 
 
@@ -52,75 +51,68 @@ Definition AAR := "_$". (* evoke ] *)
 Definition index_array_str s idx :=
   s ++ AAL ++ string_of_nat idx ++ AAR.
 
-Definition expenv : Type := Env.t string (E.e tags_t).
+Definition expenv : Type := Env.t string E.e.
 
-Definition get_exp (pa : paramarg (E.e tags_t) (E.e tags_t)) :=
+Definition get_exp (pa : paramarg E.e E.e) :=
   match pa with
   | PAInOut e => e
   | PAIn e => e
   | PAOut e => e
-  | PADirLess e => e
   end.
 
-Definition args_to_expenv (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) : expenv :=
-  F.fold (fun param arg env => Env.bind param (get_exp arg) env) args [].
+Definition args_to_expenv (args : F.fs string (paramarg E.e E.e)) : expenv :=
+  List.fold_right (fun '(param,arg) (env : expenv) => Env.bind param (get_exp arg) env) [] args.
 
-Fixpoint subst_e (η : expenv) (e : E.e tags_t) : E.e tags_t :=
+Fixpoint subst_e (η : expenv) (e : E.e) : E.e :=
   match e with
-  | E.EBool _ _ => e
-  | E.EBit _ _ _ => e
-  | E.EInt _ _ _ => e
-  | E.EVar type x i =>
+  | E.Bool _ => e
+  | E.Bit _ _ => e
+  | E.Int _ _ => e
+  | E.Var type x =>
     match Env.find x η with
     | None => e
     | Some e' => e'
     end
-  | E.ESlice e hi lo i =>
-    E.ESlice (subst_e η e) hi lo i
-  | E.ECast type arg i =>
-    E.ECast type (subst_e η arg) i
-  | E.EUop op type arg i =>
-    E.EUop op type (subst_e η arg) i
-  | E.EBop t op l r i =>
-    E.EBop t op (subst_e η l) (subst_e η r) i
-  | E.ETuple es i =>
-    E.ETuple (List.map (subst_e η) es) i
-  | E.EStruct fields i =>
-    E.EStruct (F.map (subst_e η) fields) i
-  | E.EHeader fields valid i =>
-    E.EHeader (F.map (subst_e η) fields) (subst_e η valid) i
-  | E.EExprMember mem expr_type arg i =>
-    E.EExprMember mem expr_type (subst_e η arg) i
-  | E.EError _ _ => e
-  | E.EHeaderStack fields headers ni i =>
-    E.EHeaderStack fields (List.map (subst_e η) headers) ni i
-  | E.EHeaderStackAccess fs stack idx i =>
-    E.EHeaderStackAccess fs (subst_e η stack) idx i
+  | E.Slice hi lo e =>
+    E.Slice hi lo (subst_e η e)
+  | E.Cast type arg =>
+    E.Cast type (subst_e η arg)
+  | E.Uop op type arg =>
+    E.Uop op type (subst_e η arg)
+  | E.Bop t op l r =>
+    E.Bop t op (subst_e η l) (subst_e η r)
+  | E.Lists ls es =>
+    E.Lists ls (List.map (subst_e η) es)
+  | E.Member mem expr_type arg =>
+    E.Member mem expr_type (subst_e η arg)
+  | E.Error _ => e
+  | E.Index t stack idx =>
+    E.Index t (subst_e η stack) (subst_e η idx)
   end.
 
 Inductive t : Type :=
-| ISkip (i : tags_t)                       (* skip, useful for
+| ISkip (i :)                       (* skip, useful for
                                                small-step semantics *)
 | IVardecl (type : E.t)
-           (x : string) (i : tags_t)       (* Variable declaration. *)
-| IAssign (type : E.t) (lhs rhs : E.e tags_t)
-          (i : tags_t)                     (* assignment *)
+           (x : string) (i :)       (* Variable declaration. *)
+| IAssign (type : E.t) (lhs rhs : E.e)
+          (i :)                     (* assignment *)
 | IConditional (guard_type : E.t)
-               (guard : E.e tags_t)
-               (tru_blk fls_blk : t) (i : tags_t) (* conditionals *)
-| ISeq (s1 s2 : t) (i : tags_t)                   (* sequences *)
+               (guard : E.e)
+               (tru_blk fls_blk : t) (i :) (* conditionals *)
+| ISeq (s1 s2 : t) (i :)                   (* sequences *)
 | IBlock (blk : t)                                (* blocks *)
-| IReturnVoid (i : tags_t)                        (* void return statement *)
+| IReturnVoid (i :)                        (* void return statement *)
 | IReturnFruit (t : E.t)
-               (e : E.e tags_t)(i : tags_t)       (* fruitful return statement *)
-| IExit (i : tags_t)                              (* exit statement *)
+               (e : E.e)(i :)       (* fruitful return statement *)
+| IExit (i :)                              (* exit statement *)
 | IInvoke (x : string)
-          (keys : list (E.t * E.e tags_t * E.matchkind))
+          (keys : list (E.t * E.e * E.matchkind))
           (actions : list (string * t))
-          (i : tags_t)
-| ISetValidity (hdr: E.e tags_t ) (val : bool) (i : tags_t) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
-| IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i : tags_t)
-| IExternMethodCall (extn : string) (method : string) (args : E.arrowE tags_t) (i : tags_t).
+          (i :)
+| ISetValidity (hdr: E.e ) (val : bool) (i :) (*set the header indicated by hdr to valid (if val is true) or invalid (if val is false) *)
+| IHeaderStackOp (hdr_stck_name : string) (typ : E.t) (op : ST.hsop) (size : positive) (i :)
+| IExternMethodCall (extn : string) (method : string) (args : E.arrowE) (i :).
 
 Definition assume b tags :=
   let args := {| paramargs:=[ ("check", PAIn b) ] ; rtrns:=None |} in
@@ -131,36 +123,36 @@ Definition rename_string (table action x : string) (params : list string) :=
   then "_symb$" ++ table ++ "$" ++ action ++ "$arg$" ++ x
   else x.
 
-Fixpoint action_param_renamer_expr (table action : string) (params : list string) (e : E.e tags_t) : E.e tags_t :=
+Fixpoint action_param_renamer_expr (table action : string) (params : list string) (e : E.e) : E.e :=
   match e with
-  | E.EBool _ _ => e
-  | E.EBit _ _ _ => e
-  | E.EInt _ _ _ => e
-  | E.EVar type x i =>
-    E.EVar type (rename_string table action x params) i
-  | E.ESlice e hi lo i =>
-    E.ESlice (action_param_renamer_expr table action params e) hi lo i
-  | E.ECast typ arg i =>
-    E.ECast typ (action_param_renamer_expr table action params arg) i
-  | E.EUop op typ arg i =>
-    E.EUop op typ (action_param_renamer_expr table action params arg) i
-  | E.EBop t op le re i =>
+  | E.Bool _ _ => e
+  | E.Bit _ _ _ => e
+  | E.Int _ _ _ => e
+  | E.Var type x i =>
+    E.Var type (rename_string table action x params) i
+  | E.Slice e hi lo i =>
+    E.Slice (action_param_renamer_expr table action params e) hi lo i
+  | E.Cast typ arg i =>
+    E.Cast typ (action_param_renamer_expr table action params arg) i
+  | E.Uop op typ arg i =>
+    E.Uop op typ (action_param_renamer_expr table action params arg) i
+  | E.Bop t op le re i =>
     let le' := action_param_renamer_expr table action params le in
     let re' := action_param_renamer_expr table action params re in
-    E.EBop t op le re i
-  | E.ETuple es i =>
-    E.ETuple (List.map (action_param_renamer_expr table action params) es) i
-  | E.EStruct fields i =>
-    E.EStruct (F.map (action_param_renamer_expr table action params) fields) i
-  | E.EHeader fields valid i =>
-    E.EHeader (F.map (action_param_renamer_expr table action params) fields) (action_param_renamer_expr table action params valid) i
-  | E.EExprMember mem expr_type arg i =>
-    E.EExprMember mem expr_type (action_param_renamer_expr table action params arg) i
-  | E.EError _ _ => e
-  | E.EHeaderStack fields headers ni i =>
-    E.EHeaderStack fields (List.map (action_param_renamer_expr table action params) headers) ni i
-  | E.EHeaderStackAccess fs stack idx i =>
-    E.EHeaderStackAccess fs (action_param_renamer_expr table action params stack) idx i
+    E.Bop t op le re i
+  | E.Tuple es i =>
+    E.Tuple (List.map (action_param_renamer_expr table action params) es) i
+  | E.Struct fields i =>
+    E.Struct (F.map (action_param_renamer_expr table action params) fields) i
+  | E.Header fields valid i =>
+    E.Header (F.map (action_param_renamer_expr table action params) fields) (action_param_renamer_expr table action params valid) i
+  | E.ExprMember mem expr_type arg i =>
+    E.ExprMember mem expr_type (action_param_renamer_expr table action params arg) i
+  | E.Error _ _ => e
+  | E.HeaderStack fields headers ni i =>
+    E.HeaderStack fields (List.map (action_param_renamer_expr table action params) headers) ni i
+  | E.HeaderStackAccess fs stack idx i =>
+    E.HeaderStackAccess fs (action_param_renamer_expr table action params stack) idx i
   end.
 
 Fixpoint action_param_renamer (table action : string) (params : list string) (c : t) : result string (t * list string) :=
@@ -246,47 +238,47 @@ Fixpoint subst_t (η : expenv) (c : t) : (t * expenv) :=
     | None => (c, η)
     | Some e' =>
       let stck_type := t_of_e e' in
-      (ISeq (IAssign stck_type (E.EVar stck_type hdr_stck_name i) e' i) c i, η)
+      (ISeq (IAssign stck_type (E.Var stck_type hdr_stck_name i) e' i) c i, η)
     end
   end.
 
-Definition copy (args : E.args tags_t) : expenv :=
+Definition copy (args : E.args) : expenv :=
   F.fold (fun param arg η => match arg with
                              | PAIn e => Env.bind param e η
                              | PAInOut e => Env.bind param e η
                              | PAOut e => Env.bind param e η
                              | PADirLess e => Env.bind param e η
                              end)
-         args (Env.empty String.string (E.e tags_t)).
+         args (Env.empty String.string E.e).
 
 Definition string_list_of_params (ps : E.params) : list string :=
   List.map fst ps.
 
-Fixpoint elaborate_arg_expression (param : string) (arg : E.e tags_t) : F.fs string (E.e tags_t) :=
+Fixpoint elaborate_arg_expression (param : string) (arg : E.e) : F.fs string E.e :=
   let access := fun s f => s ++ "." ++ f in
   let is_valid := fun tags => let one_bit := E.TBit (BinNat.N.of_nat 1) in
                               (access param "is_valid",
-                               E.EExprMember one_bit "is_valid" arg tags) in
-  let member_member := fun f t tags => E.EExprMember t f arg tags in
+                               E.ExprMember one_bit "is_valid" arg tags) in
+  let member_member := fun f t tags => E.ExprMember t f arg tags in
   let loop := fun tags '(f, t) acc => (access param f, member_member f t tags) :: acc in
   match arg with
-  | E.EVar (E.TStruct fs) x tags =>
+  | E.Var (E.TStruct fs) x tags =>
     List.fold_right (fun '(f, t) acc =>
-     (access param f, (E.EExprMember t f arg tags)) :: acc) [] fs
-  | E.EVar (E.THeader fs) x tags =>
+     (access param f, (E.ExprMember t f arg tags)) :: acc) [] fs
+  | E.Var (E.THeader fs) x tags =>
     List.fold_right (loop tags) [is_valid tags] fs
-  | E.EExprMember (E.TStruct fs) mem _ tags =>
+  | E.ExprMember (E.TStruct fs) mem _ tags =>
     List.fold_right (loop tags) [] fs
-  | E.EExprMember (E.THeader fs) mem _ tags  =>
+  | E.ExprMember (E.THeader fs) mem _ tags  =>
     List.fold_right (loop tags) [is_valid tags] fs
-  | E.EVar (E.TTuple ts) x tags =>
-    ListUtil.fold_righti (fun idx t acc => (index_array_str param idx, (E.EVar t (index_array_str x idx) tags)) :: acc) [] ts
-  | E.ETuple es _ =>
+  | E.Var (E.TTuple ts) x tags =>
+    ListUtil.fold_righti (fun idx t acc => (index_array_str param idx, (E.Var t (index_array_str x idx) tags)) :: acc) [] ts
+  | E.Tuple es _ =>
     ListUtil.fold_righti (fun i e acc =>
           let param_i := index_array_str param i in
           let es := elaborate_arg_expression param_i e in
           List.app es acc) [] es
-  | E.EHeaderStackAccess fs stk idx tags =>
+  | E.HeaderStackAccess fs stk idx tags =>
     List.fold_right (loop tags) [is_valid tags] fs
   | _ => [(param, arg)]
   end.
@@ -299,30 +291,30 @@ Definition paramarg_map_union {A B : Type} (f : A -> F.fs string B) (pa : parama
   | PADirLess a => F.map PADirLess (f a)
   end.
 
-Definition elaborate_argument (parg : F.f string (paramarg (E.e tags_t) (E.e tags_t))) : F.fs string (paramarg (E.e tags_t) (E.e tags_t)) :=
+Definition elaborate_argument (parg : F.f string (paramarg E.e E.e)) : F.fs string (paramarg E.e E.e) :=
   let '(param, arg) := parg in
   paramarg_map_union (elaborate_arg_expression param) arg.
 
 
-Definition elaborate_arguments (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :  F.fs string (paramarg (E.e tags_t) (E.e tags_t)) :=
+Definition elaborate_arguments (args : F.fs string (paramarg E.e E.e)) :  F.fs string (paramarg E.e E.e) :=
   List.concat (List.map elaborate_argument args).
 
-Definition elaborate_arrowE (ar : E.arrowE tags_t) : E.arrowE tags_t :=
+Definition elaborate_arrowE (ar : E.arrowE) : E.arrowE :=
   {| paramargs := elaborate_arguments ar.(paramargs);
      rtrns := ar.(rtrns) |}.
 
 
-Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e tags_t) (mk : E.matchkind) (tags : tags_t) :=
-  let symb_key := E.EVar key_type symb_var tags in
-  let eq_cond := E.EBop E.TBool E.Eq symb_key key tags in
+Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e) (mk : E.matchkind) (tags :) :=
+  let symb_key := E.Var key_type symb_var tags in
+  let eq_cond := E.Bop E.TBool E.q symb_key key tags in
   match mk with
   | E.MKExact =>
-    (symb_key, eq_cond, E.EBool false tags)
+    (symb_key, eq_cond, E.Bool false tags)
   | _ =>
-    (symb_key, eq_cond, E.EVar E.TBool (symb_var ++ "$DONTCARE") tags)
+    (symb_key, eq_cond, E.Var E.TBool (symb_var ++ "$DONTCARE") tags)
   end.
 
-Fixpoint normalize_keys_aux t (keys : list (E.t * E.e tags_t * E.matchkind)) i tags :=
+Fixpoint normalize_keys_aux t (keys : list (E.t * E.e * E.matchkind)) i tags :=
   let keyname := "_symb$" ++ t ++ "$match_" ++ string_of_nat i in
   match keys with
   | [] => (ISkip tags, [])
@@ -344,8 +336,8 @@ Definition get_state_name state :=
   end.
 
 Definition state_flag_name name := "_state$" ++ name ++ "$next".
-Definition state_flag name tags : E.e tags_t := E.EVar E.TBool (state_flag_name name) tags.
-Definition set_state_flag name value tags := IAssign E.TBool (state_flag name tags) (E.EBool value tags) tags.
+Definition state_flag name tags : E.e := E.Var E.TBool (state_flag_name name) tags.
+Definition set_state_flag name value tags := IAssign E.TBool (state_flag name tags) (E.Bool value tags) tags.
 Definition construct_state name stmt trans tags :=
   IConditional E.TBool
                (state_flag name tags)
@@ -353,51 +345,51 @@ Definition construct_state name stmt trans tags :=
                      (ISeq stmt trans tags) tags)
                (ISkip tags) tags.
 
-Definition extract_single (es : list (E.e tags_t)) (msg : string) : result string (E.e tags_t) :=
+Definition extract_single (es : list E.e) (msg : string) : result string E.e :=
   match es with
   | [e] => ok e
   | _ => error msg
   end.
 
-Fixpoint elim_tuple_expr (e : E.e tags_t) :=
+Fixpoint elim_tuple_expr (e : E.e) :=
   match e with
-  | E.EBool _ _
-  | E.EBit _ _ _
-  | E.EInt _ _ _ => ok [e]
-  | E.EVar _ _ _ =>
+  | E.Bool _ _
+  | E.Bit _ _ _
+  | E.Int _ _ _ => ok [e]
+  | E.Var _ _ _ =>
     (* TODO a var can (?) be a tuple, need to inline it here. *)
     ok [e]
-  | E.ESlice _ _ _ _ =>
+  | E.Slice _ _ _ _ =>
     (* A tuple cannot be sliced *)
     ok [e]
-  | E.ECast t e tags =>
+  | E.Cast t e tags =>
     let* es := elim_tuple_expr e in
     let+ e := extract_single es "TypeError: tuples cannot be cast" in
-    [E.ECast t e tags]
-  | E.EUop t op e tags =>
+    [E.Cast t e tags]
+  | E.Uop t op e tags =>
     (* THere are no unary operations that operate on Tuples *)
     let* es := elim_tuple_expr e in
     let+ e := extract_single es "TypeError: no unary operators for tuples" in
-    [E.EUop t op e tags]
-  | E.EBop t op e e' tags =>
+    [E.Uop t op e tags]
+  | E.Bop t op e e' tags =>
     match op with
-    | E.Eq =>
+    | E.q =>
       let* es  := elim_tuple_expr e in
       let* es' := elim_tuple_expr e' in
       let+ eq_pairs := zip es es' in
-      let eq := fun e1 e2 => E.EBop E.TBool E.Eq e1 e2 tags in
-      let and := fun e1 e2 => E.EBop E.TBool E.And e1 e2 tags in
+      let eq := fun e1 e2 => E.Bop E.TBool E.q e1 e2 tags in
+      let and := fun e1 e2 => E.Bop E.TBool E.And e1 e2 tags in
       [fold_right (fun '(e1,e2) => and (eq e1 e2))
-                  (E.EBool true tags)
+                  (E.Bool true tags)
                   eq_pairs]
     | _ =>
       let* es  := elim_tuple_expr e in
       let* es' := elim_tuple_expr e' in
       let* e := extract_single es "TypeError: (=) is the only binary op on tuples got something else" in
       let+ e' := extract_single es' "TypeError: (=) is the only binary op on tuples got something else" in
-      [E.EBop t op e e' tags]
+      [E.Bop t op e e' tags]
     end
-  | E.ETuple es tags =>
+  | E.Tuple es tags =>
     let+ ees := rred (List.map elim_tuple_expr es) in
     List.concat ees
   | _ =>
@@ -406,12 +398,12 @@ Fixpoint elim_tuple_expr (e : E.e tags_t) :=
   end.
 
 
-Definition translate_simple_patterns pat tags : result string (E.e tags_t) :=
+Definition translate_simple_patterns pat tags : result string E.e :=
   match pat with
   | Parser.PATBit w v =>
-    ok (E.EBit w v tags)
+    ok (E.Bit w v tags)
   | Parser.PATInt w v =>
-    ok (E.EInt w v tags)
+    ok (E.Int w v tags)
   | _ =>
     error "pattern too complicated, expecting int or bv literal"
   end.
@@ -419,15 +411,15 @@ Definition translate_simple_patterns pat tags : result string (E.e tags_t) :=
 
 
 
-Program Fixpoint translate_pat tags e pat { struct pat } : result string (E.e tags_t)  :=
-  let bool_op := fun o x y => E.EBop E.TBool o x y tags in
-  let mask := fun t x y => E.EBop t E.BitAnd x y tags in
+Program Fixpoint translate_pat tags e pat { struct pat } : result string E.e  :=
+  let bool_op := fun o x y => E.Bop E.TBool o x y tags in
+  let mask := fun t x y => E.Bop t E.BitAnd x y tags in
   let and := bool_op E.And in
-  let eq := bool_op E.Eq in
+  let eq := bool_op E.q in
   let le := bool_op E.Le in
   match pat with
   | Parser.PATWild =>
-    ok (E.EBool true tags)
+    ok (E.Bool true tags)
   | Parser.PATMask pat msk =>
     let* e_pat := translate_simple_patterns pat tags in
     let+ e_msk := translate_simple_patterns msk tags in
@@ -450,12 +442,12 @@ Program Fixpoint translate_pat tags e pat { struct pat } : result string (E.e ta
                        let* e := ListUtil.ith es i in
                        let+ cond := translate_pat tags e p in
                        and acc cond)
-       (ok (E.EBool true tags)) pats
+       (ok (E.Bool true tags)) pats
     in
     matches
   end.
 
-Definition lookup_parser_state name states : option (Parser.state_block tags_t) :=
+Definition lookup_parser_state name states : option (Parser.state_block) :=
   F.find_value (String.eqb name) states.
 
 Definition lookup_parser_states (names : list string) states :=
@@ -467,7 +459,7 @@ Definition lookup_parser_states (names : list string) states :=
         | Some s => (n,s) :: acc
         end) [] names.
 
-Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags : tags_t) :=
+Definition init_parser (states : F.fs string (Parser.state_block)) (tags :) :=
   F.fold (fun f _ acc => if String.eqb f "start"
                          then ISeq (set_state_flag f true tags) acc tags
                          else ISeq (set_state_flag f false tags) acc tags)
@@ -478,11 +470,11 @@ Open Scope list_scope.
 
 Fixpoint inline_transition (gas : nat)
                        (unroll : nat)
-                       (ctx : DeclCtx tags_t)
+                       (ctx : DeclCtx)
                        (name : string)
-                       (trans : Parser.e tags_t )
-                       (tags : tags_t)
-     : result string ((list string) * t)  :=
+                       (trans : Parser.e )
+                       (tags :)
+  : result string ((list string) * t)  :=
        match gas with
        | O => ok ([], ISkip tags)
        | S gas =>
@@ -503,12 +495,12 @@ Fixpoint inline_transition (gas : nat)
 Fixpoint inline_state
          (gas : nat)
          (unroll : nat)
-         (ctx : DeclCtx tags_t)
+         (ctx : DeclCtx)
          (name : string)
-         (state : Parser.state_block tags_t)
-         (states : F.fs string (Parser.state_block tags_t))
-         (tags : tags_t)
-  : result string ((list (string * Parser.state_block tags_t)) * t) :=
+         (state : Parser.state_block)
+         (states : F.fs string (Parser.state_block))
+         (tags :)
+  : result string ((list (string * Parser.state_block)) * t) :=
   match gas with
   | O => ok ([], ISkip tags)
   | S gas =>
@@ -519,11 +511,11 @@ Fixpoint inline_state
   end
 with inline_parser (gas : nat)
                    (unroll : nat)
-                   (tags : tags_t)
-                   (ctx : DeclCtx tags_t)
+                   (tags :)
+                   (ctx : DeclCtx)
                    (current_name : string)
-                   (current : Parser.state_block tags_t)
-                   (states : F.fs string (Parser.state_block tags_t))
+                   (current : Parser.state_block)
+                   (states : F.fs string (Parser.state_block))
      : result string t :=
        match gas with
        | O => ok (ISkip tags)
@@ -538,8 +530,8 @@ with inline_parser (gas : nat)
        end
 with inline (gas : nat)
             (unroll : nat)
-            (ctx : DeclCtx tags_t)
-            (s : ST.s tags_t)
+            (ctx : DeclCtx)
+            (s : ST.s)
   : result string t :=
   match gas with
   | O => error "Inliner ran out of gas"
@@ -552,7 +544,7 @@ with inline (gas : nat)
       | inl t =>  ok (IVardecl t x i)
       | inr e =>
         let t := t_of_e e in
-        ok (ISeq (IVardecl t x i) (IAssign t (E.EVar t x i) e i) i)
+        ok (ISeq (IVardecl t x i) (IAssign t (E.Var t x i) e i) i)
       end
     | ST.SAssign lhs rhs i =>
       ok (IAssign (t_of_e rhs) lhs rhs i)
@@ -588,7 +580,7 @@ with inline (gas : nat)
       end
 
     | ST.SActCall a args i =>
-      let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment")%string in
+      let* adecl := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment")%string in
       match adecl with
       | CD.CDAction _ _ body i =>
         (** TODO handle copy-in/copy-out *)
@@ -623,12 +615,12 @@ with inline (gas : nat)
       | Some cinst =>
         match cinst with
         | TD.TPInstantiate cname _ _ cargs i =>
-          let cdecl_opt := find_control tags_t ctx cname in
+          let cdecl_opt := find_control ctx cname in
           let* cdecl := from_opt cdecl_opt "could not find controller" in
           match cdecl with
           | TD.TPControl _ _ _ _ body apply_blk i =>
             (* Context is begin extended with body, but why can't I find the controls? *)
-            let ctx' := of_cdecl tags_t ctx body in
+            let ctx' := of_cdecl ctx body in
             let+ rslt := inline gas unroll ctx' apply_blk in
             (** TODO check copy-in/copy-out *)
             let η := copy args in
@@ -650,7 +642,7 @@ with inline (gas : nat)
       ok (IExit i)
 
     | ST.SInvoke tbl_name i =>
-      let* tdecl := from_opt (find_table tags_t ctx tbl_name) "could not find table in environment" in
+      let* tdecl := from_opt (find_table ctx tbl_name) "could not find table in environment" in
       match tdecl with
       | CD.CDTable _ tbl _ =>
         let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
@@ -660,15 +652,15 @@ with inline (gas : nat)
         let act_type := E.TBit act_sizeN in
         let act_to_gcl := fun i a acc_res =>
           let* acc := acc_res in
-          let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment")%string in
+          let* act := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment")%string in
           match act with
           | CD.CDAction _ params body tags =>
             let* s := inline gas unroll ctx body in
             let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
             let set_action_run :=
                 IAssign act_type
-                          (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
-                          (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
+                          (E.Var act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
+                          (E.Bit act_sizeN (BinInt.Z.of_nat i) tags) tags
             in
             (ISeq set_action_run s' tags) :: acc
           | _ =>
@@ -698,18 +690,18 @@ with inline (gas : nat)
 Open Scope string_scope.
 Definition seq_tuple_elem_assign
            (tuple_name : string)
-           (i : tags_t)
+           (i :)
            (n : nat)
-           (p : E.t * E.e tags_t)
+           (p : E.t * E.e)
            (acc : Inline.t) : Inline.t :=
   let (t, e) := p in
   let tuple_elem_name := tuple_name ++ "__tup__" ++ string_of_nat n in
-  let lhs := E.EVar t tuple_elem_name i in
+  let lhs := E.Var t tuple_elem_name i in
   Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result string Inline.t :=
+Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e) : result string Inline.t :=
   match lhs, rhs with
-  | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
+  | E.Var (E.TTuple types) x i, E.Tuple es _ =>
     let+ te := zip types es in
     fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
   | _,_ => ok (Inline.IAssign ltyp lhs rhs i)
@@ -717,9 +709,9 @@ Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : 
 
 Definition elaborate_tuple_literal
            (param : string)
-           (ctor : E.e tags_t -> paramarg (E.e tags_t) (E.e tags_t))
-           (es : list (E.e tags_t))
-           (args : F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+           (ctor : E.e -> paramarg E.e E.e)
+           (es : list E.e)
+           (args : F.fs string (paramarg E.e E.e)) :=
   ListUtil.fold_righti (fun idx e acc =>
    let index := fun s =>  index_array_str s idx in
    (index param, ctor e) :: acc) args es.
@@ -763,13 +755,13 @@ Fixpoint elim_tuple (c : Inline.t) : result string t :=
     ok c
   end.
 
-Definition header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
+Definition header_fields (tags :) (e : E.e) (fields : F.fs string E.t) : list (E.e * E.t)  :=
   (* TODO Type of ExprMember might need to be the header type *)
-  F.fold (fun f typ acc => (E.EExprMember typ f e tags, typ) :: acc )
+  F.fold (fun f typ acc => (E.ExprMember typ f e tags, typ) :: acc )
          fields
-         [(E.EUop E.TBool E.IsValid e tags, E.TBool)].
+         [(E.Uop E.TBool E.IsValid e tags, E.TBool)].
 
-Definition header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result string t:=
+Definition header_elaboration_assign tags (lhs rhs : E.e) (fields : F.fs string E.t) : result string t :=
   let lhs_members := header_fields tags lhs fields in
   let rhs_members := header_fields tags rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
@@ -826,11 +818,11 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
 Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : Inline.t :=
   let t := E.THeader fields in
   let extract arrow := IExternMethodCall extern "extract" arrow tags in
-  let hdr_elem idx := E.EHeaderStackAccess fields hs (BinIntDef.Z.of_nat idx) tags in
-  let valid i := E.EUop E.TBool E.IsValid (hdr_elem i) tags in
-  let invalid i := E.EUop E.TBool E.Not (valid i) tags in
-  let and a b := E.EBop E.TBool E.And a b tags in
-  let lst := E.EExprMember t "last" hs tags in
+  let hdr_elem idx := E.HeaderStackAccess fields hs (BinIntDef.Z.of_nat idx) tags in
+  let valid i := E.Uop E.TBool E.IsValid (hdr_elem i) tags in
+  let invalid i := E.Uop E.TBool E.Not (valid i) tags in
+  let and a b := E.Bop E.TBool E.And a b tags in
+  let lst := E.ExprMember t "last" hs tags in
   let arrow i := elaborate_arrowE ({| paramargs := [(hdr, PAOut (hdr_elem i))]; rtrns := None |}) in
   let ift b c := IConditional E.TBool b c (ISkip tags) tags in
   let next_and_last i :=
@@ -844,11 +836,11 @@ Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : In
                            tags)
         (ift (invalid 0) (next_and_last 0)).
 
-Definition elaborate_extract extern (arrow : E.arrowE tags_t) (tags : tags_t) : result string Inline.t :=
+Definition elaborate_extract extern (arrow : E.arrowE) (tags :) : result string Inline.t :=
   match arrow.(paramargs) with
   | [(hdr, (PAOut arg))] =>
     match arg with
-    | E.EExprMember (E.THeaderStack fields num) mem header_stack tags =>
+    | E.ExprMember (E.THeaderStack fields num) mem header_stack tags =>
       if String.eqb mem "next"
       then ok (extract_next extern fields num hdr header_stack tags)
       else let arrow := elaborate_arrowE arrow in
@@ -876,14 +868,14 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result string Inline.t :=
     match type with
     | E.THeaderStack fields size =>
       match lhs, rhs with
-      | E.EVar ltyp lvar il, E.EVar rtyp rvar ir =>
+      | E.Var ltyp lvar il, E.Var rtyp rvar ir =>
         let iter := ifold (BinPos.Pos.to_nat size) in
         (* Should these be `HeaderStackAccess`es? *)
         let lvars := iter (fun n => cons (index_array_str lvar n)) [] in
         let rvars := iter (fun n => cons (index_array_str rvar n)) [] in
         let+ lrvars := zip lvars rvars in
         let htype := E.THeader fields in
-        let mk := E.EVar htype in
+        let mk := E.Var htype in
         fold_right (fun '(lv, rv) acc => ISeq (IAssign htype (mk lv il) (mk lv ir) i) acc i) (ISkip i) lrvars
       | _, _ =>
         (* Don't know how to translate anything but variables *)
@@ -931,24 +923,24 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result string Inline.t :=
     let indexed_stck := index_array_str stck in
     let mk_ith_stack_copy :=
         fun i => IAssign typ
-                         (E.EVar typ (indexed_stck i) tags)
-                         (E.EVar typ (indexed_stck (i-1)) tags)
+                         (E.Var typ (indexed_stck i) tags)
+                         (E.Var typ (indexed_stck (i-1)) tags)
                          tags
     in
     ok (ifold (BinPos.Pos.to_nat n - 2) (fun i => seq (mk_ith_stack_copy (i+1)))
-              (ISetValidity (E.EVar typ (indexed_stck 0) tags) true tags))
+              (ISetValidity (E.Var typ (indexed_stck 0) tags) true tags))
   | IHeaderStackOp stck typ ST.HSPop n tags =>
     let seq := fun hidx lodx => ISeq lodx hidx tags in
     let indexed_stck := index_array_str stck in
     let mk_ith_stack_copy :=
         fun i => IAssign typ
-                         (E.EVar typ (indexed_stck i) tags)
-                         (E.EVar typ (indexed_stck (i+1)) tags)
+                         (E.Var typ (indexed_stck i) tags)
+                         (E.Var typ (indexed_stck (i+1)) tags)
                          tags
     in
     let n := BinPos.Pos.to_nat n in
     ok (ifold (n - 2) (fun i => seq (mk_ith_stack_copy i))
-              (ISetValidity (E.EVar typ (indexed_stck (n-1)) tags) true tags))
+              (ISetValidity (E.Var typ (indexed_stck (n-1)) tags) true tags))
   end.
 
 Definition struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
@@ -971,17 +963,17 @@ Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
     | E.TStruct fields =>
       (** TODO : What other assignments to headers are legal? EHeader? EStruct? *)
       match lhs, rhs with
-      | E.EVar _ l il, E.EVar _ r ir =>
+      | E.Var _ l il, E.Var _ r ir =>
         let lvars := struct_fields l fields in
         let rvars := struct_fields r fields in
         let+ lrvars := zip lvars rvars in
-        fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.EVar ltyp lvar il) (E.EVar rtyp rvar ir) i) acc i) (ISkip i) lrvars
-      | E.EVar _ l il, E.EStruct explicit_fields i =>
+        fold_right (fun '((lvar, ltyp),(rvar, rtyp)) acc => ISeq (IAssign ltyp (E.Var ltyp lvar il) (E.Var rtyp rvar ir) i) acc i) (ISkip i) lrvars
+      | E.Var _ l il, E.Struct explicit_fields i =>
         let lvars := struct_fields l fields in
         let assign_fields := fun '(lvar, ltyp) acc_opt =>
              let* acc := acc_opt in
              let*~ rval := F.find_value (String.eqb lvar) explicit_fields else "couldnt find field name in struct literal "in
-             ok (ISeq (IAssign ltyp (E.EVar ltyp lvar il) rval i) acc i) in
+             ok (ISeq (IAssign ltyp (E.Var ltyp lvar il) rval i) acc i) in
         fold_right assign_fields
            (ok (ISkip i))
            lvars
@@ -1024,15 +1016,15 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   match c with
   | ISkip _ => ok c
   | IVardecl _ _ _=> ok c
-  | IAssign typ (E.ESlice e hi lo _) rhs i =>
+  | IAssign typ (E.Slice e hi lo _) rhs i =>
     let lhs_typ := t_of_e e in
-    let concat := fun typ lhs rhs => E.EBop typ E.PlusPlus lhs rhs i in
-    let mk_new_rhs : positive -> E.e tags_t := fun w =>
-      let upper := E.ESlice e w (BinPos.Pos.succ hi) i in
-      let lower := E.ESlice e (BinPos.Pos.pred lo) (pos 0) i in
+    let concat := fun typ lhs rhs => E.Bop typ E.PlusPlus lhs rhs i in
+    let mk_new_rhs : positive -> E.e := fun w =>
+      let upper := E.Slice e w (BinPos.Pos.succ hi) i in
+      let lower := E.Slice e (BinPos.Pos.pred lo) (pos 0) i in
       let mid_type := E.TBit (Npos (BinPos.Pos.sub w lo)) in
       concat lhs_typ (concat mid_type upper rhs) lower in
-    let* (rhs' : E.e tags_t) := match lhs_typ with
+    let* (rhs' : E.e) := match lhs_typ with
                  | E.TBit w => ok (mk_new_rhs (posN w))
                  | E.TInt w => ok (mk_new_rhs w)
                  | _ => error "Cannot get width"
@@ -1064,19 +1056,19 @@ Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   | IExternMethodCall _ _ _ _ => ok c
   end.
 
-Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
+Definition inline_assert (check : E.e) (tags :) : t :=
   let args := {|paramargs := [("check", PAIn check)]; rtrns:= None|} in
   IExternMethodCall "_" "assert" args tags.
 
-Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
-  E.EUop E.TBool E.IsValid hdr tags.
+Definition isValid (hdr : E.e) (tags:) : E.e :=
+  E.Uop E.TBool E.IsValid hdr tags.
 
-Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result string t :=
+Fixpoint header_asserts (e : E.e) : result string t :=
   match e with
-  | E.EBool _ _ | E.EBit _ _ _
-  | E.EInt _ _ _ | E.EVar _ _ _
-  | E.EError _ _ (*| E.EMatchKind _ _ *) =>  ok (ISkip tags)
-  | E.EExprMember type name e tags =>
+  | E.Bool _ _ | E.Bit _ _ _
+  | E.Int _ _ _ | E.Var _ _ _
+  | E.Error _ _ (*| E.MatchKind _ _ *) =>  ok (ISkip tags)
+  | E.ExprMember type name e tags =>
     if String.eqb name "is_valid" then ok (ISkip tags) else
     match t_of_e e with
     | E.THeader _  =>
@@ -1084,31 +1076,31 @@ Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result string t :=
     | _ =>
       ok (ISkip tags)
     end
-  | E.ESlice e _ _ tags =>
+  | E.Slice e _ _ tags =>
     header_asserts e tags
-  | E.ECast _ e tags =>
+  | E.Cast _ e tags =>
     header_asserts e tags
-  | E.EUop _ E.IsValid e tags =>
+  | E.Uop _ E.IsValid e tags =>
     ok (ISkip tags)
-  | E.EUop _ _ e tags =>
+  | E.Uop _ _ e tags =>
     header_asserts e tags
-  | E.EBop _ _ lhs rhs tags =>
+  | E.Bop _ _ lhs rhs tags =>
     let* lhs_asserts := header_asserts lhs tags in
     let+ rhs_asserts := header_asserts rhs tags in
     ISeq lhs_asserts rhs_asserts tags
-  | E.ETuple _ _ =>
+  | E.Tuple _ _ =>
     (* List.fold_left (fun acc_asserts e => *)
     (* let* acc_asserts := acc_asserts in *)
     (* let+ new_asserts := header_asserts e tags in *)
     (* ISeq acc_asserts new_asserts tags) es (ok (ISkip tags)) *)
     error "[ERROR] [header_asserts] tuples should be factored out by now"
-  | E.EStruct _ _ =>
+  | E.Struct _ _ =>
     error "[ERROR] [header_asserts] structs should be factored out by now"
-  | E.EHeader _ _ _ =>
+  | E.Header _ _ _ =>
     error "[ERROR] [header_asserts] header literals should be factored out by now"
-  | E.EHeaderStack _ _ _ _ =>
+  | E.HeaderStack _ _ _ _ =>
     error "[ERROR] [header_asserts] header stacks should be factored out by now"
-  | E.EHeaderStackAccess _ _ _ _ =>
+  | E.HeaderStackAccess _ _ _ _ =>
     error "[ERROR] [header_asserts] header stack accesses should be factored out by now"
   end.
 

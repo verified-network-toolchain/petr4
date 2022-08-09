@@ -1,16 +1,15 @@
 From compcert Require Import AST Clight Ctypes Integers Cop Clightdefs.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
-Require Import BinaryString
-        Coq.PArith.BinPosDef Coq.PArith.BinPos
-        List Coq.ZArith.BinIntDef String.
-Require Coq.PArith.BinPosDef.
+Require Import List BinaryString
+  Coq.PArith.BinPos Coq.NArith.BinNat
+  Coq.ZArith.BinInt String.
 Require Import
         Poulet4.P4cub.Syntax.Syntax Poulet4.Utils.Envn.
 From Poulet4 Require Import
      P4cub.Transformations.Lifting.Statementize
      Monads.Monad Monads.Option Monads.Error Monads.State Monads.Result
-     Ccomp.CCompEnv (*Ccomp.Helloworld Ccomp.CV1Model*) Ccomp.Cconsts.
+     Ccomp.CCompEnv (*Ccomp.Helloworld*) Ccomp.CV1Model Ccomp.Cconsts.
 Import Clightdefs.ClightNotations.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Module RunTime := Petr4Runtime.
@@ -35,16 +34,18 @@ Section CCompSel.
     | Expr.TInt _ => mret bit_vec
     | Expr.TVar _ => mret tvoid
     | Expr.TError => mret int_unsigned
-    | Expr.TStruct fields is_header =>
-        let* env := get_state in
-        match lookup_composite env p4t with
+    | Expr.TArray n t =>
+        let^ t := CTranslateType t in
+        Tarray t (Z.of_N n) noattr
+    | Expr.TStruct is_header fields =>
+        let* komposit := search_state (lookup_composite p4t) in
+        match komposit with
         | Result.Ok _ comp =>
             (* found identifier *)
             mret (Ctypes.Tstruct (Ctypes.name_composite_def comp) noattr)
         | _ =>
             (* need to generate identifiers *)
             let* top_id := CCompEnv.new_ident in
-            let* env_top_id := get_state in
             let* init :=
               if is_header then
                 let* valid_id := new_ident in
@@ -71,13 +72,17 @@ Section CCompSel.
                 Ctypes.Struct
                 (init ++ members)
                 Ctypes.noattr in
-            let* env_fields_declared := get_state in
-            let env_comp_added :=
-              CCompEnv.add_composite_typ  env_fields_declared p4t comp_def in
-            put_state env_comp_added ;;
+            modify_state (CCompEnv.add_composite_typ p4t comp_def) ;;
             mret (Ctypes.Tstruct top_id noattr)
         end
     end.
+
+  Definition
+    ArrayAccess (arr : Clight.expr)
+    (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr := 
+    Ederef 
+      (Ebinop Oadd arr index (Tpointer result_t noattr))
+      result_t.
   
   Fixpoint CTranslateExpr (e: Expr.e)
     : StateT ClightEnv Result.result Clight.expr :=
@@ -86,27 +91,37 @@ Section CCompSel.
     | Expr.Bool false => mret Cfalse
     | Expr.Var ty x =>
         (*first find if x has been declared. If not, declare it *)
-        let* cty := State_lift (CTranslateType ty) in
-        let* env_ty := get_state in
-        match find_ident_temp_arg env_ty x with 
+        let* cty :=
+          State_lift
+            (M := Result.result)
+            (A := Ctypes.type) (CTranslateType ty) in
+        let* temp_arg :=
+          proj_state
+            (find_ident_temp_arg x) in
+        match temp_arg with 
         (*first look for if this is an argument and has its own temp for copy in/out *)
         | Result.Ok _ (_,tempid) => mret (Etempvar tempid cty)
-        | _ => match nth_error env_ty.(varMap) x with
+        | _ => let* maybe_id := proj_state (fun env_ty => nth_error env_ty.(varMap) x) in
+              match maybe_id with
               | Some id => mret (Evar id cty)
               | _ =>
-                  let env' := add_var env_ty cty in
-                  put_state env' ;;
-                  let^ id' := state_lift (find_var env' x) in
+                  modify_state (add_var cty) ;;
+                  let^ id' := search_state (find_var x) in
                   Evar id' cty
               end
         end
+    | Expr.Index ty e1 e2 =>
+        let* cty := State_lift (CTranslateType ty) in
+        let* ce1 := CTranslateExpr e1 in
+        let^ ce2 := CTranslateExpr e2 in
+        ArrayAccess ce1 ce2 cty
     | Expr.Member ty y x =>
         let* cty := State_lift (CTranslateType ty) in
         let* x' := CTranslateExpr x in
         let* env' := get_state in
         match t_of_e x with
-        | Expr.TStruct f is_header =>
-            match nth_error f y, lookup_composite env' (t_of_e x) with 
+        | Expr.TStruct is_header f =>
+            match nth_error f y, lookup_composite (t_of_e x) env' with
             | Some t_member, Result.Ok _ comp =>
                 let* ctm := State_lift (CTranslateType t_member) in
                 let* index :=
@@ -148,7 +163,7 @@ Section CCompSel.
   
   Definition ValidBitIndex (arg: Expr.e) (env: ClightEnv)
     : Result.result AST.ident :=
-    let* comp:= lookup_composite env (t_of_e arg) in
+    let* comp:= lookup_composite (t_of_e arg) env in
     match comp with
     | Ctypes.Composite _ Ctypes.Struct m _ =>
         match m with
@@ -169,8 +184,7 @@ Section CCompSel.
     (dst_t: Expr.t) (op: Expr.uop) (arg: Expr.e) (dst: nat)
     : StateT ClightEnv Result.result Clight.statement :=
     let* dst_t' := State_lift (CTranslateType dst_t) in
-    let* env := get_state in
-    let* dst' := state_lift (find_var env dst) in 
+    let* dst' := search_state (find_var dst) in 
     let dst' := Evar dst' dst_t' in
     let* arg' := CTranslateExpr arg in
     let arg_ref := Eaddrof arg' (Tpointer (Clight.typeof arg') noattr) in
@@ -188,7 +202,11 @@ Section CCompSel.
         let* env := get_state in
         let^ index := state_lift (ValidBitIndex arg env) in
         Sassign dst' (Efield arg' index type_bool)
-    | _ => state_lift (Result.error "Unsupported uop")
+    | Expr.SetValidity valid =>
+        let* env := get_state in
+        let^ index := state_lift (ValidBitIndex arg env) in
+        let member :=  Efield arg' index type_bool in
+        Sassign member (if valid then Ctrue else Cfalse)
     end.
  
   Definition bop_function (op: ident) := 
@@ -211,8 +229,7 @@ Section CCompSel.
     CTranslateBop  (dst_t: Expr.t) (op: Expr.bop)
     (le: Expr.e) (re: Expr.e) (dst: nat)
     : StateT ClightEnv Result.result Clight.statement :=
-    let* env := get_state in
-    let* dst' := state_lift (find_var env dst) in
+    let* dst' := search_state (find_var dst) in
     let* dst_t' := State_lift (CTranslateType dst_t) in
     let dst' := Evar dst' dst_t' in
     let* le' := CTranslateExpr le in
@@ -271,6 +288,14 @@ Section CCompSel.
     | [],[] => mret Sskip
     | _ , _ => state_lift (Result.error "field different length")
     end.
+
+  Definition CTranslateArrayElemAssgn (t : type) (exps : list Expr.e) (dst : Clight.expr)
+    : StateT ClightEnv Result.result Clight.statement :=
+    state_list_mapi
+      (fun i exp =>
+         let^ exp := CTranslateExpr exp in
+         Sassign (ArrayAccess dst (Cuint_of_Z (Z.of_nat i)) t) exp) exps
+      >>| statement_of_list.
   
   Definition
     CTranslateStructAssgn (fields: list Expr.e)
@@ -293,13 +318,6 @@ Section CCompSel.
         Ssequence assignValid assigns
     |_ => state_lift (Result.error "Not a composite")
     end.
-
-  Definition
-    ArrayAccess (arr : Clight.expr)
-    (index : Clight.expr) (result_t: Ctypes.type) : Clight.expr := 
-    Ederef 
-      (Ebinop Oadd arr index (Tpointer result_t noattr))
-      result_t.
   
   Fixpoint getTableActionArgs (args: Clight.expr) (length: nat) : list (Clight.expr) :=
     match length with 
@@ -315,7 +333,7 @@ Section CCompSel.
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
     let* '(table_id, key_typ, fn_names) :=
-      state_lift (find_table env tbl) in 
+      state_lift (find_table tbl env) in 
     let* action_id :=
       State_lift (CCompEnv.add_temp_nameless action_ref) in
     (* TODO: are matchkinds important? *)
@@ -350,7 +368,7 @@ Section CCompSel.
       state_lift
         (List.fold_right
            (fun f_name (x: Result.result (nat * Clight.statement)) =>
-              let* '(f'_id, f') := CCompEnv.lookup_function env f_name in
+              let* '(f'_id, f') := CCompEnv.lookup_function f_name env in
               let^ '(i, st) := x in 
               let index := Cint_of_Z (Z.of_nat i) in
               let st' :=
@@ -375,13 +393,13 @@ Section CCompSel.
     end.
   
   Fixpoint CTranslateExtract
-           (arg: Expr.e) (type : Expr.t) (pname : nat)
+           (arg: Expr.e) (type : Expr.t) (name : string)
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
     let* extern_name :=
       state_lift
         (Result.from_opt
-           (nth_error env.(extern_instanceMap) pname)
+           (Env.find name env.(instanceMap))
            "extern name not found") in
     let packet :=
       Eaddrof (Evar extern_name (Ctypes.Tstruct _packet_in noattr)) TpointerPacketIn in
@@ -403,22 +421,29 @@ Section CCompSel.
         let width := Cint_of_Z (Zpos w) in
         Scall None extract_bitvec_function [packet;arg';is_signed; width]
     | Expr.TError => state_lift (Result.error "Can't extract to error")
-    | Expr.TStruct fs _ =>
+    | Expr.TArray n t =>
+        state_list_map
+          (fun i => CTranslateExtract
+                   (Expr.Index t arg (Expr.Bit n (Z.of_nat i)))
+                   t name)
+          (seq 0 (N.to_nat n))
+          >>| statement_of_list
+    | Expr.TStruct _ fs =>
         (* TODO: set the validity if header *)
         state_list_mapi
           (fun i ft =>
-             CTranslateExtract (Expr.Member ft i arg) ft pname) fs
+             CTranslateExtract (Expr.Member ft i arg) ft name) fs
           >>| statement_of_list
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
 
-  Fixpoint CTranslateEmit (arg: Expr.e) (type : Expr.t) (pname : nat)
+  Fixpoint CTranslateEmit (arg: Expr.e) (type : Expr.t) (name : string)
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
     let* extern_name :=
       state_lift
         (Result.from_opt
-           (nth_error env.(extern_instanceMap) pname)
+           (Env.find name env.(instanceMap))
            "extern name not found") in
     let packet :=
       Eaddrof
@@ -444,11 +469,18 @@ Section CCompSel.
            let width := Cint_of_Z (Zpos w) in *)
         Scall None emit_bitvec_function [packet;arg']
     | Expr.TError => state_lift (Result.error "Can't extract to error")
-    | Expr.TStruct fs _ =>
+    | Expr.TArray n t =>
+        state_list_map
+          (fun i => CTranslateEmit
+                   (Expr.Index t arg (Expr.Bit n (Z.of_nat i)))
+                   t name)
+          (seq 0 (N.to_nat n))
+          >>| statement_of_list
+    | Expr.TStruct _ fs =>
         (* TODO: check the validity and decide whether to emit *)
         state_list_mapi
           (fun i ft =>
-             CTranslateEmit (Expr.Member ft i arg) ft pname) fs
+             CTranslateEmit (Expr.Member ft i arg) ft name) fs
           >>| statement_of_list
     | Expr.TVar _ => state_lift (Result.error "Can't extract to TVar")
     end.
@@ -459,8 +491,7 @@ Section CCompSel.
       (fun t =>
          let* new_id := new_ident in
          let* t := CTranslateType t in
-         let* env := get_state (M_Monad := identity_monad) in
-         put_state (M_Monad := identity_monad) (add_temp_arg env t new_id) ;;
+         modify_state (M_Monad := identity_monad) (add_temp_arg t new_id) ;;
          state_return (M_Monad := identity_monad) (new_id, t)).
   
   Definition CTranslateParams
@@ -476,23 +507,21 @@ Section CCompSel.
            | PAInOut t =>
                let^ ct := CTranslateType t in (ct, Ctypes.Tpointer ct noattr)
            end in
-         let* env := get_state in
-         put_state (add_temp_arg env ct new_id) ;;
+         modify_state (add_temp_arg ct new_id) ;;
          mret (new_id, cparam)).
   
-  Definition CTranslateExternParams (extern_params : list string)
+  Definition CTranslateExternParams (extern_params : list (string * string))
     : State ClightEnv (list (AST.ident * Ctypes.type)) :=
-    let* (env : ClightEnv) := get_state in
-    put_state (clear_extern_instance_types env) ;;
+    modify_state clear_extern_instance_types ;;
     state_list_map (M_Monad := identity_monad)
-      (fun extern_param_type =>
-         let* env := get_state (M_Monad := identity_monad) in
+      (fun '(name, extern_param_type) =>
          let* (new_id : ident) := new_ident in
          (* TODO: is this correct? *)
-         put_state
-           (add_extern_instance_type
-              (env <| extern_instanceMap := new_id :: env.(extern_instanceMap) |>)
-              extern_param_type) ;;
+         modify_state
+           (fun env =>
+              add_extern_instance_type
+                name extern_param_type
+                (env <| instanceMap := Env.bind name new_id env.(instanceMap) |>)) ;;
          let ct := Ctypes.Tstruct $extern_param_type noattr in
          state_return (M_Monad := identity_monad) (new_id, ct))
       extern_params.
@@ -502,8 +531,7 @@ Section CCompSel.
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
            (fun (name : nat) (fn_param: paramarg Expr.t Expr.t) =>
-              let* env := get_state in
-              let* '(oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+              let* '(oldid, tempid) := search_state (find_ident_temp_arg name) in
               match fn_param with
               | PAIn t =>
                   let^ ct := State_lift (CTranslateType t) in
@@ -522,8 +550,7 @@ Section CCompSel.
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
            (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
-              let* env := get_state in
-              let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+              let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
               match fn_param with
               | PAIn t => 
                   let^ ct := State_lift (CTranslateType t) in
@@ -542,8 +569,7 @@ Section CCompSel.
       StateT ClightEnv Result.result (list Clight.expr) :=
     state_list_mapi
       (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
-         let* env := get_state in
-         let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+         let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
          match fn_param with 
          | PAIn t
          | PAOut t
@@ -560,8 +586,7 @@ Section CCompSel.
       -> StateT ClightEnv Result.result (list Clight.expr) :=
     state_list_mapi
       (fun (name: nat) (fn_param: (paramarg Expr.t Expr.t)) =>
-         let* env := get_state in
-         let* (oldid, tempid) := state_lift (find_ident_temp_arg env name) in
+         let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
          match fn_param with
          | PAIn t => State_lift (CTranslateType t >>| Evar tempid)
          | PAOut t
@@ -712,26 +737,26 @@ Section CCompSel.
         let assign := 
           Scall None (bop_function _interp_beq) [dst'; input; (Evar var bit_vec)] in
         (Ssequence init assign, dst)
-    | Parser.Struct ps =>
+    | Parser.Lists ps =>
         state_lift (Result.error "not a simple pattern match")
     end.
 
   Definition CTranslateParserExpressionVal (pe: Parser.e)
     : StateT ClightEnv Result.result Clight.statement :=
-    let* env := get_state in
-    let rec_call_args := get_top_args env in
+    let* rec_call_args := proj_state get_top_args in
     match pe with
-    | Parser.Goto st =>
+    | Parser.Direct st =>
         match st with
         | Parser.Start =>
             let^ (start_id, start_f) :=
-              state_lift (lookup_function env "start") in
+              search_state (lookup_function "start") in
             Scall
               None (Evar start_id (Clight.type_of_function start_f))
               rec_call_args
         | Parser.Accept => state_return (Sreturn (Some Ctrue))
         | Parser.Reject => state_return (Sreturn (Some Cfalse))
         | Parser.Name x =>
+            let* env := get_state in
             let* x_id :=
               state_lift
                 (Result.from_opt
@@ -749,20 +774,20 @@ Section CCompSel.
     | Parser.Select exp def cases =>
         state_lift
           (Result.error "nested select expression, currently unsupported")
-    end.    
+    end.
   
   Definition CTranslateParserExpression (pe: Parser.e)
     : StateT ClightEnv Result.result Clight.statement :=
     match pe with 
     | Parser.Select exp def cases => 
         let* input := CTranslateExpr exp in
-        let* default_stmt := CTranslateParserExpressionVal (Parser.Goto def) in
+        let* default_stmt := CTranslateParserExpressionVal (Parser.Direct def) in
         let fold_function
-              '((p, action): Parser.pat * Parser.state) fail_stmt :=
+              '((p, action): Parser.pat * Parser.state_label) fail_stmt :=
           let* (match_statement, this_match) :=
             CTranslatePatternMatch input p in
           let^ success_statement :=
-            CTranslateParserExpressionVal (Parser.Goto action) in
+            CTranslateParserExpressionVal (Parser.Direct action) in
           Ssequence
             match_statement
             (Sifthenelse (Evar this_match type_bool) success_statement fail_stmt) in
@@ -782,18 +807,16 @@ Section CCompSel.
     | Stmt.Var (inl t) s =>
         (* TODO: why skip returned? *)
         let* cty := State_lift (CTranslateType t) in
-        let* env := get_state in
-        put_state (CCompEnv.add_var env cty) ;;
+        modify_state (CCompEnv.add_var cty) ;;
         CTranslateStatement s
     | Stmt.Var (inr e) s =>
         (* TODO: need to double check
            that I update env at the correct place. *)
       let t := t_of_e e in
       let* cty := State_lift (CTranslateType t) in
+      modify_state (CCompEnv.add_var cty) ;;
       let* env := get_state in
-      put_state (CCompEnv.add_var env cty) ;;
-      let* env := get_state in
-      let* dst' := state_lift (find_var env 0) in
+      let* dst' := state_lift (find_var 0 env) in
       match e with
       | Expr.Bit width val =>
           let* val_id := State_lift (find_BitVec_String val) in
@@ -815,7 +838,7 @@ Section CCompSel.
           Ssequence
             (Scall None bitvec_init_function [dst'; signed; w; val'])
             s'
-      | Expr.Slice n hi lo =>
+      | Expr.Slice hi lo n =>
           let τ := t_of_e n in
           let* n' := CTranslateExpr n in
           let hi' := Cuint_of_Z (Zpos hi) in
@@ -858,31 +881,33 @@ Section CCompSel.
           let* s1 := CTranslateBop dst_t op x y 0 in
           let^ s2 := CTranslateStatement s in
           Ssequence s1 s2
-      | Expr.Struct fields None =>
+      | Expr.Lists Expr.lists_struct fields =>
           (*first create a temp of this struct.
             then assign all the values to it. then return this temp *)
           let strct := t_of_e e in
           let* typ := State_lift (CTranslateType strct) in
-          let* env := get_state in
-          let* composite := state_lift (lookup_composite env strct) in
+          let* composite := search_state (lookup_composite strct) in
           let* s1 :=
             CTranslateStructAssgn
               fields composite (Evar dst' typ) in
           let^ s2 := CTranslateStatement s in
           Ssequence s1 s2
-      | Expr.Struct fields (Some b) =>
+      | Expr.Lists (Expr.lists_header b) fields =>
           (*first create a temp of this header.
             then assign all the values to it. then return this temp*)
           let hdr := t_of_e e in
           let* typ := State_lift (CTranslateType hdr) in
           let valid := if b then Ctrue else Cfalse in
-          let* env := get_state in
-          let* composite := state_lift (lookup_composite env hdr) in
+          let* composite := search_state (lookup_composite hdr) in
           let* s1 :=
             CTranslateHeaderAssgn
               fields composite (Evar dst' typ) valid in
           let^ s2 := CTranslateStatement s in
           Ssequence s1 s2
+      | Expr.Lists (Expr.lists_array t) es =>
+          let* typ := State_lift (CTranslateType t) in
+          let* s1 := CTranslateArrayElemAssgn typ es (Evar dst' typ) in
+          CTranslateStatement s >>| Ssequence s1
       | _ =>
           let* e' := CTranslateExpr e in
           let^ s' := CTranslateStatement s in
@@ -895,12 +920,12 @@ Section CCompSel.
         Sifthenelse e' s1' s2'
     | Stmt.Call (Stmt.Funct f _ None) args =>
         let* env := get_state in
-        let* (id, f') := state_lift (CCompEnv.lookup_function env f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_function f env) in
         let^ elist := CTranslateArgs args in
         Scall None (Evar id (Clight.type_of_function f')) elist
     | Stmt.Call (Stmt.Action f ctrl_args) data_args =>
         let* env := get_state in
-        let* (id, f') := state_lift (CCompEnv.lookup_action_function env f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_action_function f env) in
         let* ctrl_list := CTranslateExprList ctrl_args in
         let* data_list := CTranslateArgs data_args in
         let^ env' := get_state in 
@@ -910,7 +935,7 @@ Section CCompSel.
         let t := t_of_e e in
         let* ct := State_lift (CTranslateType t) in
         let* env_ct := get_state in
-        let* (id, f') := state_lift (CCompEnv.lookup_function env_ct f) in
+        let* (id, f') := state_lift (CCompEnv.lookup_function f env_ct) in
         let* elist := CTranslateArgs args in
         let* env' := get_state in
         let* tempid := State_lift (CCompEnv.add_temp_nameless ct) in
@@ -920,7 +945,7 @@ Section CCompSel.
           (Sassign lvalue (Etempvar tempid ct))
     | Stmt.Call (Stmt.Method e f _ x) args =>
         let* env := get_state in
-        let* t := state_lift (find_extern_type env e) in
+        let* t := state_lift (find_extern_type e env) in
         (* TODO: what to do about expecting specific
            architectures? *)
         if String.eqb t "packet_in" then
@@ -956,9 +981,8 @@ Section CCompSel.
     | Stmt.Return None => mret (Sreturn None)
     | Stmt.Exit => mret (Sreturn (Some Cfalse))
     | Stmt.Apply x ext args =>
-        let* env := get_state in
         (* TODO: need to know context [apply block, function, etc.]. *)
-        let* (id, f') := state_lift (lookup_control_instance_function env x) in
+        let* (id, f') := search_state (lookup_instance_function x) in
         let* elist := CTranslateArgs args in
         let* resultid := State_lift (CCompEnv.add_temp_nameless type_bool) in
         let result := (Etempvar resultid type_bool) in 
@@ -982,8 +1006,7 @@ Section CCompSel.
     let* env := get_state (M_Monad := Result.result_monad_inst) in
     let* stmt := CTranslateStatement stmt in
     (*let rec_call_args := get_top_args  env' in*)
-    let* env' := get_state in
-    put_state (set_temp_vars env env') ;;
+    modify_state (set_temp_vars env) ;;
     state_return
       (Clight.mkfunction
             Ctypes.type_bool
@@ -994,10 +1017,10 @@ Section CCompSel.
             stmt).
 
   Definition CTranslateTopParser (parsr: TopDecl.d)
-             (init: Clight.statement) (instance_name: nat)
+    (init: Clight.statement) (instance_name: string)
     : StateT ClightEnv Result.result unit :=
     match parsr with
-    | TopDecl.Parser p _ eps params start states =>
+    | TopDecl.Parser p _ _ eps params start states =>
         let* env := get_state (M_Monad := Result.result_monad_inst) in
         let* fn_eparams := State_lift (M_Monad := Result.result_monad_inst) (CTranslateExternParams eps) in
         let* fn_params := State_lift (M_Monad := Result.result_monad_inst) (CTranslateParams params) in
@@ -1006,7 +1029,7 @@ Section CCompSel.
         (*copy in and copy out may need to copy cparams and eparams as well*)
         let* env_copyout := get_state (M_Monad := Result.result_monad_inst) in
         let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams in
-        let env_copyout := set_top_args env_copyout call_args in
+        let env_copyout := set_top_args call_args env_copyout in
         let fn_params := fn_eparams ++ fn_params in
         (*all functions inside one top parser declaration should have the same parameter*)
         let fn_sig :=
@@ -1014,17 +1037,17 @@ Section CCompSel.
              type_bool 
              (AST.mkcallconv None true true) 
              fn_params [] [] Sskip) in
-        let env_start_fn_sig_declared := CCompEnv.add_function env_copyout "start" fn_sig in
+        let env_start_fn_sig_declared := CCompEnv.add_function "start" fn_sig env_copyout in
         let env_fn_sig_declared :=
           List.fold_right
-            (fun _ env => add_parser_state env fn_sig)
+            (fun _ => add_parser_state fn_sig)
             env_start_fn_sig_declared states in
         put_state (M_Monad := Result.result_monad_inst) (set_temp_vars env env_fn_sig_declared) ;;
         state_fold_righti (M_Monad := Result.result_monad_inst)
           (fun (state_name: nat) (sb : Stmt.s) 'tt =>
              let* f := CTranslateParserState sb fn_params in
-             let* env_f_translated := get_state (M_Monad := Result.result_monad_inst) in
-             put_state (M_Monad := Result.result_monad_inst) (update_parser_state env_f_translated state_name f))
+             modify_state (M_Monad := Result.result_monad_inst)
+               (update_parser_state state_name f))
           tt states ;;
         (*finished declaring all the state blocks except start state*)
         let* f_start := CTranslateParserState start fn_params in
@@ -1032,9 +1055,12 @@ Section CCompSel.
         put_state (M_Monad := Result.result_monad_inst)
           (set_temp_vars
              env_copyout
-             (CCompEnv.update_function env_start_translated "start" f_start)) ;;
+             (CCompEnv.update_function "start" f_start env_start_translated)) ;;
         let* (env_start_declared  : ClightEnv) := get_state (M_Monad := Result.result_monad_inst) in
-        let* (start_id, start_f) := state_lift (M_Monad := Result.result_monad_inst) (lookup_function env_start_declared "start") in
+        let* (start_id, start_f) :=
+          state_lift
+            (M_Monad := Result.result_monad_inst)
+            (lookup_function "start" env_start_declared) in
         let fn_body :=
           Ssequence
             init
@@ -1057,8 +1083,8 @@ Section CCompSel.
           state_lift
             (M_Monad := Result.result_monad_inst)
             (Result.from_opt
-               (nth_error env.(parser_instanceMap) instance_name)
-               "parser instance for found") in
+               (Env.find instance_name env.(instanceMap))
+               "parser instance not found") in
         put_state
           (M_Monad := Result.result_monad_inst)
           (set_temp_vars
@@ -1067,7 +1093,7 @@ Section CCompSel.
                 <| fenv := Env.bind instance_name top_function env_start_declared.(fenv) |>))
     | _ => state_lift (Result.error "not parser")
     end.
-  Check CTranslateType.
+  
   Definition
     CTranslateAction 
     (ctrl_params: list Expr.t)
@@ -1085,7 +1111,7 @@ Section CCompSel.
     let* copyout := CCopyOut full_signature in
     let* c_body := CTranslateStatement body in
     let* env_body_translated := get_state in
-    put_state (set_temp_vars  env env_body_translated) ;;
+    put_state (set_temp_vars env env_body_translated) ;;
     let body := Ssequence copyin (Ssequence c_body copyout) in
     state_return
       (Clight.mkfunction 
@@ -1105,15 +1131,12 @@ Section CCompSel.
        | Control.Action a ctrl_params data_params body =>
            let* f :=
              CTranslateAction ctrl_params data_params body top_fn_params top_signature in
-           let* env_action_translated := get_state in
            (* TODO should be added to actions *)
-           put_state (CCompEnv.add_function  env_action_translated a f) ;;
+           modify_state (CCompEnv.add_function a f) ;;
            state_return Sskip
        | Control.Table name keys acts =>
-           let* env := get_state in
-           let env := add_Table env name keys acts in
-           put_state env ;;
-           let^ '(id, _, _) := state_lift (find_table env name) in
+           modify_state (add_Table name keys acts) ;;
+           let^ '(id, _, _) := search_state (find_table name) in
            let num_keys :=  Cint_of_Z (Z.of_nat (List.length keys)) in
            let size := Cint_of_Z 256%Z in
            let decl_stmt := Scall (Some id) bitvec_init_function [num_keys; size] in 
@@ -1134,7 +1157,7 @@ Section CCompSel.
              (init: Clight.statement) (instance_name: string)
     : StateT ClightEnv Result.result unit :=
     match ctrl with
-    | TopDecl.Control c _ eps params body blk =>
+    | TopDecl.Control c _ _ eps params body blk =>
         let* env := get_state in
         let* fn_eparams := State_lift (CTranslateExternParams eps) in
         let* fn_params := State_lift (CTranslateParams params) in
@@ -1142,7 +1165,7 @@ Section CCompSel.
         let* copyout := CCopyOut params in
         let* env_copyout := get_state in
         let* call_args := CFindTempArgsForSubCallsWithExtern params fn_eparams in
-        let env_copyout := set_top_args  env_copyout call_args in
+        let env_copyout := set_top_args call_args env_copyout in
         let fn_params := fn_eparams ++ fn_params in
         let* table_init :=
           CTranslateControlLocalDeclarations fn_params params body in
@@ -1165,7 +1188,7 @@ Section CCompSel.
             (get_temps env_apply_block_translated)
             (Ssequence table_init body) in
         let env_top_fn_declared :=
-          CCompEnv.add_function env_apply_block_translated instance_name top_fn in
+          CCompEnv.add_function instance_name top_fn env_apply_block_translated in
         put_state (set_temp_vars env env_top_fn_declared)
     | _ => state_lift (Result.error "not a top control")
     end.
@@ -1192,150 +1215,134 @@ Section CCompSel.
              (get_temps env_body_translated)
              body) in
         put_state
-          (set_temp_vars env (CCompEnv.add_function env_params_created name top_function))
+          (set_temp_vars env (CCompEnv.add_function name top_function env_params_created))
     | _ => state_lift (Result.error "not a function")
     end.
   
-  Definition
-    InjectConstructorArg (arg: TopDecl.constructor_arg)
-    (*(st: Clight.statement)*) : StateT ClightEnv Result.result Clight.statement :=
-    match arg with
-    | TopDecl.CAExpr e =>
-        let* env := get_state in
-        match e with 
-        | Expr.Bool b =>
-            let env := add_var env type_bool in
-            put_state (M_Monad := Result.result_monad_inst) env ;;
-            (* TODO: associate argument with ident *)
-            let* val_id := State_lift (M_Monad := Result.result_monad_inst) new_ident in
-            let initialize :=
-              if b then
-                Sassign (Evar val_id type_bool) Cfalse
-              else
-                Sassign (Evar val_id type_bool) Ctrue
-            in state_return (M_Monad := Result.result_monad_inst) initialize
-        | Expr.Bit width val => 
-            let env := add_var env bit_vec in
-            put_state (M_Monad := Result.result_monad_inst) env ;;
-            let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
-            let* val_id := State_lift (M_Monad := Result.result_monad_inst) (find_BitVec_String val) in
-            let w := Cint_of_Z (Z.of_N width) in
-            let signed := Cfalse in 
-            let val' := Evar val_id Cstring in
-            let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-            state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
-        | Expr.Int width val => 
-            let env := add_var env bit_vec in
-            put_state (M_Monad := Result.result_monad_inst) env ;;
-            let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
-            let* val_id := State_lift (find_BitVec_String val) in
-            let w := Cint_of_Z (Zpos width) in
-            let signed := Ctrue in
-            let val' := Evar val_id Cstring in
-            let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
-            state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
-        | _ => state_lift (M_Monad := Result.result_monad_inst) (Result.error "not folded constant")
-        end
-    | TopDecl.CAName x =>
-        (* TODO: which of control, parser, extern to look up?
-           maybe all these namespaces need to be collapsed? *)
-        (*let* instance_id :=
-          state_lift
-            (Result.from_opt
-               (nth_error (env.(control_instanceMap)) x)
-               "instance not found") in
-        put_state (CCompEnv.bind env arg_name instance_id);;*)
-        state_return Sskip
+  Definition InjectExprConstructorArg (arg: Expr.e)
+    : StateT ClightEnv Result.result Clight.statement :=
+    match arg with 
+    | Expr.Bool b =>
+        modify_state (M_Monad := Result.result_monad_inst) (add_var type_bool) ;;
+        (* TODO: associate argument with ident *)
+        let* val_id := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+        let initialize :=
+          if b then
+            Sassign (Evar val_id type_bool) Cfalse
+          else
+            Sassign (Evar val_id type_bool) Ctrue
+        in state_return (M_Monad := Result.result_monad_inst) initialize
+    | Expr.Bit width val =>
+        modify_state (M_Monad := Result.result_monad_inst) (add_var bit_vec) ;;
+        let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+        let* val_id := State_lift (M_Monad := Result.result_monad_inst) (find_BitVec_String val) in
+        let w := Cint_of_Z (Z.of_N width) in
+        let signed := Cfalse in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
+    | Expr.Int width val => 
+        modify_state (M_Monad := Result.result_monad_inst) (add_var bit_vec) ;;
+        let* dst := State_lift (M_Monad := Result.result_monad_inst) new_ident in
+        let* val_id := State_lift (find_BitVec_String val) in
+        let w := Cint_of_Z (Zpos width) in
+        let signed := Ctrue in
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst bit_vec) TpointerBitVec in
+        state_return (M_Monad := Result.result_monad_inst) (Scall None bitvec_init_function [dst'; signed; w; val'])
+    | _ => state_lift (M_Monad := Result.result_monad_inst) (Result.error "not folded constant")
     end.
 
-  Definition InjectConstructorArgs
-    : TopDecl.constructor_args -> StateT ClightEnv Result.result Clight.statement :=
+  Definition InjectExprConstructorArgs
+    : list Expr.e -> StateT ClightEnv Result.result Clight.statement :=
     (lift_monad statement_of_list)
-      ∘ (state_list_map InjectConstructorArg).
+      ∘ (state_list_map InjectExprConstructorArg).
 
-  Fixpoint CCollectTypVar (d: TopDecl.d)
+  Definition CCollectTypVar (d: TopDecl.d)
     : StateT ClightEnv Result.result unit :=
     match d with
-    | TopDecl.Instantiate c ts args =>
-        (* TODO: since p4cub instances
-           have de bruijn identifiers,
-           how to determine the main? *)
+    | TopDecl.Instantiate c x ts args expr_args =>
         if (String.eqb x "main") then
           State_lift (state_list_map CTranslateType ts) ;;
-          match ts, F.get "p" args, F.get "vr" args, F.get "ig" args, F.get "eg" args, F.get "ck" args
-            , F.get "dep" args  with 
-          | [H; M], [TopDecl.CAName p; TopDecl.CAName vr; TopDecl.CAName ig;
-                     TopDecl.CAName eg; TopDecl.CAName ck; TopDecl.CAName dep] =>
+          match ts, args with 
+          | [H; M], [p; vr; ig; eg; ck; dep] =>
               let* env := get_state in
-              let* env_H := set_H env H in
-              let* env_M := set_M env_H M in
-              (* TODO: need to replace expected control
-              let env_p := add_expected_control env_M "parser" p  in 
-              let env_vr := add_expected_control env_p "verify" vr  in
-              let env_ig := add_expected_control env_vr "ingress" ig in
-              let env_eg := add_expected_control env_ig "egress" eg in
-              let env_ck := add_expected_control env_eg "compute" ck in
-              let env_dep := add_expected_control env_ck "deparser" dep in
-              mret env_dep *)
-              put_state env_M
-          | _,_,_,_,_,_,_ =>
+              let* envM := state_lift (set_M M env) in
+              let* envH := state_lift (set_H H envM) in
+              put_state envH ;;
+              modify_state (add_expected_v1_model_args "parser" p) ;;
+              modify_state (add_expected_v1_model_args "verify" vr) ;;
+              modify_state (add_expected_v1_model_args "ingress" ig) ;;
+              modify_state (add_expected_v1_model_args "egress" eg) ;;
+              modify_state (add_expected_v1_model_args "compute" ck) ;;
+              modify_state (add_expected_v1_model_args "deparser" dep)
+          | _,_ =>
               state_lift (Result.error "main instantiation not following V1model convention")
           end
-        else mret env
-    | _ => mret env
+        else state_return tt
+    | _ => state_return tt
     end.
 
-  Fixpoint CTranslateTopDeclaration (d: TopDecl.d ) (env: ClightEnv  ) : @error_monad string (ClightEnv  )
-  := 
-  match d with
-  | TopDecl.TPSeq d1 d2 => 
-    let* env1 := CTranslateTopDeclaration d1 env in
-    CTranslateTopDeclaration d2 env1 
-
-  | TopDecl.TPInstantiate c x ts args => 
-    let env := add_tpdecl  env x d in
-    let env := if (String.eqb x "main") then set_instantiate_cargs  env args else env in
-    match lookup_topdecl  env c with 
-    | inl tpdecl => 
-      match tpdecl with
-      | TopDecl.TPParser _ _ _ _ _ _ _  =>
-        let x := 
-          match lookup_expected_instance  env "parser" with
-          | None => x
-          | Some name => if (String.eqb x name) then "parser" else x end in
-        let* (env, init) := InjectConstructorArgs env args in
-         CTranslateTopParser tpdecl env init x
-
-      | TopDecl.TPControl _ _ _ _ _ _ _ =>
-        let x := 
-          match lookup_expected_instance  env "verify",
-          lookup_expected_instance  env "ingress", 
-          lookup_expected_instance  env "egress",
-          lookup_expected_instance  env "compute",
-          lookup_expected_instance  env "deparser" with  
-          | Some vr, Some ig ,Some eg ,Some ck ,Some dep =>
-            if (String.eqb x vr) then "verify" else 
-            if (String.eqb x ig) then "ingress" else
-            if (String.eqb x eg) then "egress" else
-            if (String.eqb x ck) then "compute" else
-            if (String.eqb x dep) then "deparser" else
-            x 
-          | _,_,_,_,_ => x 
-          end in            
-        let* (env, init) := InjectConstructorArgs env args in 
-        CTranslateTopControl tpdecl env init x 
-
-      | _ => mret env
-      end
-    | _ => mret env
-    end
-  | TopDecl.TPFunction _ _ _ _ _ => CTranslateFunction d env
-  | TopDecl.TPExtern e _ cparams methods => mret env (*TODO: implement*)
-  | TopDecl.TPControl name _ _ _ _ _ _ => mret (add_tpdecl  env name d)
-  (* CTranslateTopControl d env *)
-  | TopDecl.TPParser name _ _ _ _ _ _ => mret (add_tpdecl  env name d)
-   (* CTranslateTopParser d env *)
-  end.
+  Definition CTranslateTopDeclaration
+    (d: TopDecl.d) : StateT ClightEnv Result.result unit :=
+    match d with
+    | TopDecl.Instantiate c x ts args expr_args => 
+        modify_state (M:=Result.result) (add_tpdecl x d) ;;
+        modify_state
+          (M:=Result.result)
+          (if (String.eqb x "main") then
+             set_instantiate_cargs args
+           else fun env => env) ;;
+        let* rtpdecl := proj_state (M:=Result.result) (lookup_topdecl c) in
+        match rtpdecl with
+        | Result.Ok _ (TopDecl.Parser _ _ _ _ _ _ _ as tpdecl) =>
+            let* maybe_parser :=
+              proj_state (M:=Result.result)
+                (fun env => Env.find "parser" env.(expected_v1_model_args)) in
+            let x :=
+              match maybe_parser with
+              | None => x
+              | Some name => if (String.eqb x name) then "parser" else x end in
+            let* init := InjectExprConstructorArgs expr_args in
+            CTranslateTopParser tpdecl init x
+        | Result.Ok _ (TopDecl.Control _ _ _ _ _ _ _ as tpdecl) =>
+            let* maybe_verify :=
+              proj_state (M:=Result.result)
+                (Env.find "verify" ∘ expected_v1_model_args) in
+            let* maybe_ingress :=
+              proj_state (M:=Result.result)
+                (Env.find "ingress" ∘ expected_v1_model_args) in
+            let* maybe_egress :=
+              proj_state (M:=Result.result)
+                (Env.find "egress" ∘ expected_v1_model_args) in
+            let* maybe_compute :=
+              proj_state (M:=Result.result)
+                (Env.find "compute" ∘ expected_v1_model_args) in
+            let* maybe_deparser :=
+              proj_state (M:=Result.result)
+                (Env.find "deparser" ∘ expected_v1_model_args) in
+            let x :=
+              match maybe_verify, maybe_ingress,
+                maybe_egress, maybe_compute, maybe_deparser with
+              | Some vr, Some ig ,Some eg ,Some ck ,Some dep =>
+                  if (String.eqb x vr) then "verify" else
+                    if (String.eqb x ig) then "ingress" else
+                      if (String.eqb x eg) then "egress" else
+                        if (String.eqb x ck) then "compute" else
+                          if (String.eqb x dep) then "deparser" else x
+              | _,_,_,_,_ => x
+              end in   
+            let* init := InjectExprConstructorArgs expr_args in
+            CTranslateTopControl tpdecl init x                       
+        | _ => mret tt
+        end
+    | TopDecl.Funct _ _ _ _ => CTranslateFunction d
+    | TopDecl.Extern e _ cparams expr_cparams methods => mret tt (*TODO: implement*)
+    | TopDecl.Control name _ _ _ _ _ _ => modify_state (M:=Result.result) (add_tpdecl name d)
+    (* CTranslateTopControl d env *)
+    | TopDecl.Parser name _ _ _ _ _ _ => modify_state (M:=Result.result) (add_tpdecl name d)
+                                               (* CTranslateTopParser d env *)
+    end.
 
   Fixpoint remove_composite (comps: list Ctypes.composite_definition) (name : ident) :=
     match comps with 
@@ -1343,7 +1350,7 @@ Section CCompSel.
     | (Composite id su m a) :: tl => if (Pos.eqb id name) then 
                                         tl
                                      else (Composite id su m a) :: (remove_composite tl name)
-    end. 
+    end.
   (* Fixpoint remove_public (comps: list Ctypes.composite_definition) (name : ident) :=
     match comps with 
     | [] => comps
@@ -1361,18 +1368,18 @@ Section CCompSel.
       prog_comp_env_eq := _
     |}. *)
 
-  Definition Compile (prog: TopDecl.d ) : Errors.res (Clight.program*ident*ident) := 
+  Definition Compile (prog: TopDecl.d) : Errors.res (Clight.program*ident*ident) := 
     let init_env := CCompEnv.newClightEnv  in
     match CCollectTypVar prog init_env with 
-    | inr m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
-    | inl init_env  => 
+    | Result.Error _ m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
+    | Result.Ok _ (_, init_env)  => 
     let main_id := $"dummy_main" in 
     match CTranslateTopDeclaration prog init_env with
-    | inr m => Errors.Error (Errors.msg (m ++ "from TopDeclaration"))
-    | inl env_all_declared => 
+    | Result.Error _ m => Errors.Error (Errors.msg (m ++ "from TopDeclaration"))
+    | Result.Ok _ (_, env_all_declared) => 
       match CCompEnv.get_functions  env_all_declared with
-      | inr _ => Errors.Error (Errors.msg "can't find all the declared functions")
-      | inl f_decls => 
+      | Result.Error _ _ => Errors.Error (Errors.msg "can't find all the declared functions")
+      | Result.Ok _ f_decls => 
       let f_decls := List.map 
         (fun (x: AST.ident * Clight.function) 
         => let (id, f) := x in 

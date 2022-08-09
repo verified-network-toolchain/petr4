@@ -2,11 +2,9 @@
 The current implementation is only a subset of v1model
 Meaning it doesn't provide features such as register or hashing. *)
 From compcert Require Import Clight Ctypes Integers Cop Clightdefs.
-Require Import Poulet4.Ccomp.CCompEnv.
-Require Import Poulet4.Ccomp.Petr4Runtime.
-Require Import Poulet4.P4cub.Syntax.Syntax.
+From Poulet4 Require Import Ccomp.CCompEnv Ccomp.Petr4Runtime
+  P4cub.Syntax.Syntax Utils.Envn.
 Require Import String.
-Require Import Coq.PArith.BinPosDef.
 Require Import Coq.PArith.BinPos.
 Import Clightdefs.ClightNotations.
 Local Open Scope clight_scope.
@@ -34,47 +32,57 @@ Definition typelist_extract_bitvec := Ctypes.Tcons ptr_pkt_in
 
 (** The order is 
     Parser -> VerifyChecksum -> Ingress -> Egress -> ComputeChecksum -> Deparser *)
-Definition main_fn (env: ClightEnv) (cargs: TopDecl.constructor_args): Clight.function
+Definition main_fn (env: ClightEnv)
+  (cargs: TopDecl.constructor_args) : Clight.function
 := 
 (* TODO: this is sketchy because I'm not sure how many instantiations will there be
    and I'm not sure if the name works as I thought they would*)
 match cargs (*p, vr, ig, eg, ck , dep*) with
-| [ TopDecl.CAName p; TopDecl.CAName vr; TopDecl.CAName ig;
-    TopDecl.CAName eg; TopDecl.CAName ck; TopDecl.CAName dep] =>
+| [p; vr; ig; eg; ck; dep] =>
     match
-      env.(expected_instances)
-      lookup_function env p,
-      lookup_function env vr,
-      lookup_function env ig,
-      lookup_function env eg,
-      lookup_function env ck,
-      lookup_function env dep with
-    | inl (pf,pid),
-      inl (vrf,vrid),
-      inl (igf,igid),
-      inl (egf,egid),
-      inl (ckf,ckid),
-      inl (depf,depid) =>
+      lookup_function p env,
+      lookup_function vr env,
+      lookup_function ig env,
+      lookup_function eg env,
+      lookup_function ck env,
+      lookup_function dep env with
+    | Result.Ok _ (pid,pf),
+      Result.Ok _ (vrid,vrf),
+      Result.Ok _ (igid,igf),
+      Result.Ok _ (egid,egf),
+      Result.Ok _ (ckid,ckf),
+      Result.Ok _ (depid,depf) =>
+        (* TODO: make sure expression constructor params
+           are included in clight functions for constructors *)
         match pf.(fn_params) with
-        | [_; Tpointer Ht _; Tpointer Mt _; Tpointer STDt _; _] => 
-            let '(Hname, Mname, STDname, PKT_INname, PKT_OUTname)
-              := ("_V1Header",
-                   "_V1Metadata",
-                   "_V1StandardMeta",
-                   "_V1PacketIn",
-                   "_V1PacketOut") in
-        let envH := add_var  env Hname Ht in 
-        let envM := add_var  envH Mname Mt in
-        let envSTD := add_var  envM STDname STDt in
-        let envPKTIn := add_var  envSTD PKT_INname packet_in in 
-        let envPKTOut := add_var  envPKTIn PKT_OUTname packet_out in 
-        match
-          find_ident envPKTOut Hname,
-          find_ident envPKTOut Mname,
-          find_ident envPKTOut STDname,
-          find_ident  envPKTOut PKT_INname,
-          find_ident  envPKTOut PKT_OUTname with
-        | inl Hid,inl Mid,inl STDid,inl PKTINid,inl PKTOutid => 
+        | [(PKTINid, _);
+           (PKTOutid, _);
+           (Hid, Tpointer Ht _);
+           (Mid, Tpointer Mt _);
+           (STDid, Tpointer STDt _)] =>
+            let '(PKT_INname, PKT_OUTname) := ("_V1PacketIn", "_V1PacketOut") in
+            (*let envSTD := add_var env STDt in
+            let envM := add_var envSTD Mt in
+            let envH := add_var envM Ht in
+            let envPKTIn := add_instance_var PKT_INname packet_in envH in
+            let envPKTOut := add_instance_var PKT_OUTname packet_out envPKTIn in
+            match
+              find_var 0 envPKTOut,
+              find_var 1 envPKTOut,
+              find_var 2 envPKTOut,
+              Env.find PKT_INname envPKTOut.(instanceMap),
+              Env.find PKT_OUTname envPKTOut.(instanceMap) with
+              | Result.Ok _ Hid, Result.Ok _ Mid, Result.Ok _ STDid,
+              Some PKTINid, Some PKTOutid => *)
+            let env' :=
+              {{ env with vars := (Hid, Ht) :: (Mid, Mt) :: (STDid, STDt) :: env.(vars)
+               ; varMap := Hid :: Mid :: STDid :: env.(varMap) }} in
+            let envPKTOut :=
+              {{ env' with vars := (PKTOutid, packet_out) :: (PKTINid, packet_in) :: env'.(vars)
+               ; instanceMap :=
+                   Env.bind
+                     PKT_OUTname PKTOutid
+                     (Env.bind PKT_INname PKTINid env'.(instanceMap)) }} in
             let '(H,M,STD,PKT_IN,PKT_OUT) :=
               (Evar Hid Ht,Evar Mid Mt,
                 Evar STDid STDt,Evar PKTINid packet_in,
@@ -130,8 +138,8 @@ match cargs (*p, vr, ig, eg, ck , dep*) with
               Ctypes.type_int32s 
               (AST.mkcallconv None true true)
               [] (get_vars  envPKTOut) (get_temps  envPKTOut) body
-        | _,_,_,_,_ => empty_main
-        end
+        (*| _,_,_,_,_ => empty_main
+        end *)
 
 
       | _ => empty_main

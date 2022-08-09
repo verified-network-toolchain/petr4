@@ -243,17 +243,11 @@ infrulehelper {
 
 
 ~ Begin Abstract
-P4 is a language for programming the data plane of network
-devices. Petr4 provides a clean-slate definitional interpreter
-and a core calculus that models a fragment of P4. This document
-provides a definition of Petr4's type system that is consistent
-with its implementation. The target audience of this document
-includes developers and debuggers who work on P4 implementations
-such as Petr4 and P4C. In essence, this document may be of
-interest to programmers who are interested in understanding
-the implementation of Petr4 deeply. Additionally, it points out
-the discrepencies of Petr4's type system with P4 spec and Petr4's
-limitations. 
+P4's type system is currently distributed between its language specification and its reference implementation p4c. Unfortunattely, this state of affairs results in ambiguity while reasoning through the behavior of a P4 program, evident from the many issues opened on P4's GitHub repo. 
+In this document, we provide a formalization of P4's type system to unify the expected behavior of P4 programs. 
+The target audience of this document includes language designers and compiler experts
+that work (or starting to work) on P4 as well as developers and debuggers that work
+with P4 and require a deep understanding of it.
 ~ End Abstract
 
 ~ MathDefs
@@ -263,51 +257,51 @@ limitations.
 
 [TOC]
 
+# Introduction { #sec-intro }
+
+P4's type system is currently distributed between its [language specification][p4spec] and its [reference implementation][p4cgit](p4c).
+P4 spec explains the type of (sub)programs in plain English
+while p4c implements a type system for P4.
+There are multiple problems with both:
+
+[p4spec]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
+[p4cgit]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
+
+1. Figuring out how a program behaves and whether it type checks or not is extremely hard. In P4 spec, one has to jump from place to place to find whether each part of the program type checks or not since information regarding type checking a program is staggered all over the place and even worse in some cases it is missing. In p4c, one has to either write a sample program and compile it to see if it type checks or they have to go through all p4c's code to figure out the behavior of their program. For example, ``todo: add github issues. add number of loc of p4c.``
+2. Adding a new feature to P4 requires extending its type system and often times results in revising parts of the current type system as well. Doing so for both P4 spec and p4c is rather burdensome and error-prone due to the distribution of explanation in P4 spec and implementation in p4c. 
+3. Even more concerning, despite lots of effort by the P4 language committee, there are discrepnecies between P4 spec and p4c's implementation. For example, ``TODO: add github issues``
+
+In this document, we formalize P4's type system. Formalizing P4 benefits the communit in different ways
+
+1. It makes working with and on P4 easier for both people who are just picking it up and those who have been working with/on it for some time. This is because clear formalization makes understanding a language and the behavior of programs written in it less cumbersome. 
+2. It provides a place for experts and users to refer to check the behavior of a program. It also provides a unified place for ensuring all references and implementations of P4 are consistent with each other.
+3. It provides the bases for formally verifying P4's compilers and interpretors.
+
+
 # Overview { #sec-overview }
-
-```**TODO**: rewrite after finishing doc.```
-
-This document recognizes the need for having a formal type system for Petr4 and
-defines such type system. It is organized as follows:
-
-- It first expresses the need to have a formal type system for P4 and familiarizes the
-reader with the concept of a type system, its role in language design, and how to read
-and understand a type system (Section [#sec-note]).
-- It then focuses on the architecture of Petr4 and points out the part that this document focues on (Section [#sec-arch]).
-- It also describes the structure of Petr4's type system (Section [#sec-petr4-type-sys]) and defines the metavariables used throughout this document (Section [#sec-metavar]).
-- For those interested, it connects the formalziation in this document to the impelemntation of Petr4 (Section [#sec-conn]).
-
-
-## Architecture { #sec-arch }
-
-Figure [#fig-arch] depicts part of Petr4's architecture that contains the type system.
-After lexing and parsing a P4 program we get a program in our surface syntax. This
-program is then passed through the _elaborator_ where type variables are introduced
-instead of underscore and new type variable names are generated for variables with the
-same name but in different scopes. This document does not discuss the innerworkings of
-`elaborate`. Then, the program is passed through the type system (encoded in `checker`).
-This document discusses the innerworking of the type system extensively. Finally, the
-program is evaluated.
-
-~ Figure { #fig-arch; caption: "Part of Petr4's achitecture." }
-![arch]
-~
-[arch]: figs/petr4/arch.png { width: 100%; page-align: forcehere }
-
-
-## Petr4's Type System { #sec-petr4-type-sys }
 
 A P4 program is mainly a list of declarations and a declaration could be declaring a
 parser or control plane, instantiating an object, calling a (extern) function or method,
 and defining a type or an object. Each declaration may contain multiple statements and
 expressions within it.
- Thus, Petr4's type system contains multiple typing judgments for
-four main categories:
-[types][#sec-types-typing],
-[expressions][#sec-exp-typing],
-[statements][#sec-stmt-typing],
-and [declarations][#sec-decl-typing].
+Thus, in order to formalize P4's type system we need to:
 
+- have consisten and clear [notation][#sec-notation]
+- formalize [P4's syntax][#sec-syntax]
+- formalize type related rules, including [type well-formedness][#sec-type-well-formed], [type equality][#sec-type-eq], [type unification][#sec-type-unify]
+- formalize [expressions typing][#sec-exp-typing]
+- formalize [statements typing][#sec-stmt-typing]
+- formalize [declarations typing][#sec-decl-typing]
+
+Furthermore, for readers who are less familiar with programming languages fundamentals we provide a [summary of programming languages terminology][#sec-terminology] and a [developer's guide to reading inference rules][#sec-guide].
+
+Additionally, for developers and experts starting to work on Petr4 we provide a summary of its architecture and connect P4's formalization to Petr4's implementation in Appendix[#sec-petr4].
+
+# Notation { #sec-notation }
+
+In this section, we introduce the notation and naming convention that we use throughout this document. 
+
+## Naming Convention
 Each typing judgment may use auxiliary judgment and helper functions. The auxiliary
 judgments are included in this document while the helper functions are just explained
 in plain English.
@@ -319,16 +313,7 @@ Conventionally, in this document we accompany rule names with four possible suff
 - $\ruleNameS$ indicates that the rule is describing a rule for a statement
 - $\ruleNameD$ indicates that the rule is describing a rule for a declaration
 
-The type system conducts three tasks simultaneously:
-
-1. It type checks P4 programs.
-2. It conducts type inference.
-3. It does a pass from the surface syntax to the first IR.
-
-```**TODO** maybe have more explanation on IR.```
-
-
-### Notation { #sec-notation }
+## rest
 
 ``TODO: add followings.``
 
@@ -365,28 +350,14 @@ The following describes the metavariables used in this document:
 | $\anyTyp$ | a value of any type |
 ~
 
-## Connecting To The Implementation { #sec-conn }
 
-The following locates each data type in the implementation
-(<https://github.com/verified-network-toolchain/petr4>):
-
-- The surface AST is _types.program_
-- The type of programs of the surface syntax is _types.type.t_
-- The first IR is _prog.program_
-- The type of the first IR is _prog.type.t_
-- The type system is implemented in _checker.ml_ file. 
-
-For simplicity, we have removed the information that is needed to report when an error
-happens. Such information is passed around in the surface syntax as a field (called
-`tags`) of record for all data types.
-
-### Signatures
+## Signatures
 ``TODO``
 function signature. judgment signature. environment signature. 
 
-### contexts and environments
+## contexts and environments
 
-# Syntax
+# Syntax { #sec-syntax }
 
 # Type Related Judgments { #sec-types-typing }
 
@@ -1631,6 +1602,7 @@ $\funcCallNoTypArgs \exp \args$ both indicate a function call where
 A function call is well-typed if ``todo``
 
 ```Check with ryan. when does it ever have partial assignment of type pars?```
+a type argument can be don't care and from there you'll have partial assignment.
 
 - The [function call auxiliary judgment][#sec-func-call] carries out multiple roles:
   1. it checks if the expression as a function call is acceptable, that is, if it is either a name or expression member
@@ -1670,14 +1642,14 @@ It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \t
 
 ~ Begin InfRule
 
-  \mprset {vskip=0.5ex}
+  \mprset {vskip=0.7ex}
   {\inferrule 
      {
        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
        \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
        |\overline {\typ_0}| = |\typVars|\\\\
        % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
-       \matchParArg \prms \args = \overline {\param = \pprim {\maybe \exp}}\\
+       \matchParArg \prms \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
        % \inferTypParArg {\typ_\ret} {\overline {\typVar : \typ_1}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar :\typ_1}} {\overline {\typVar : \typ_2}}\\\\
        \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \typ_2}}\\\\
        \validatePars {\typs} {\addTypEnvv {\overline {\typVar : \typ_2}} } \kind \\
@@ -1690,7 +1662,27 @@ It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \t
 
 \\
 
-  \mprset {vskip=0.5ex}
+  \mprset {vskip=0.7ex}
+  {\inferrule 
+     {
+       \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
+       \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
+       |\overline {\typ_0}| = |\typVars|\\\\
+       % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
+       \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
+        {\overline {\typVar : \maybe {\typ_1}}} = \constraint\\
+       \inferTypParArg \constraint {\overline {\singleprm := \pprim {\maybe \exp}}} {\prim \constraint}\\\\
+       \validatePars {\typs} {\unionEnv \env {\prim \constraint} }  \kind \\
+       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+       \callOK \ctxt \kind \\
+       \sat {\typ_\ret} = {\prim \typ}_{\ret} 
+       }
+     { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+     \quad (\funcCallE\rSep\rn{discuss})}
+
+\\
+
+  \mprset {vskip=0.7ex}
   {\inferrule 
      {
        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
@@ -1722,7 +1714,7 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
 
 ```Concerns/questions:```
 
-- when does the expression typing returns an expression of type action (the $\nameActionE$ rule may never be trigured)?
+- when does the expression typing returns an expression of type action (the $\nameActionE$ rule may never be trigured)? when the expression is a name and we look it up from the environment
 
 
 ~ Begin InfRuleHelper
@@ -1832,6 +1824,22 @@ generates a list assignment of types to type variables  ${\overline {\prim \typV
      {\inferTypParArg {\overline {\typVar_1 : \maybe {\typ_1}}} {\overline {\singleprm = {\maybe \exp}}}  {\overline {\typVar_1 : {\typ_6}}}}
      \quad (\inferTypeArgAE)
   }
+
+\\
+
+  \mprset {vskip=0.5ex}
+  {\inferrule
+     { \breakMaybes {\constraint_0} {\constraint_1} {\constraint_2}\\\\
+       \prim \env = \unionEnv \env {\constraint_1}\\
+       \expenvvv {\prim \env} {\exps} {\overline {\prim \exp, \prim \typ, \prim \dir}} \\\\
+       \unify {\prim \env} \emp {\constraint_2} \typs {\overline {\prim \typ}} {\overline {\constraint_3}} \\\\
+       \mergeConst {\constraint_2} {\overline {\constraint_3}} = \constraint_4\\\\
+       \unionEnv {\constraint_1} {\toVoid{\constraint_4}} = \constraint_5 }
+       % \concatList {\overline {\typVar_2 : {\typ_2}}} { \toVoid {\overline {\typVar_3 : \maybe {\typ_5}}}} = {\overline {\typVar_1 : {\typ_6}}} }
+     {\inferTypParArg {\constraint_0} {\overline {\singleprm = {\maybe \exp}}}  {\constraint_5}}
+     \quad (\inferTypeArgAE\rSep\rn{discuss})
+  }
+
 
 ~ End InfRuleHelper
 
@@ -2196,23 +2204,22 @@ Type System.
 ~~
 ~
 
-# Appendix: Notation and Terminology { #sec-notation }
+# Appendix: Programming Languages Terminology { #sec-terminology }
 
-## Brief Terminology Note  { #sec-note }
-
-It is important that the reader is familiar with the basic programming languages terminology. And more importantly, it is crucial for them to understand the reason for having a type system and what its role is. To this end, we introduce the main programming languages' terminology used in this document.
+It is important that the reader is familiar with the basic programming languages terminology. And more importantly, it is crucial for them to understand the reason for having a type system and what its role is. To this end, we introduce the main programming languages terminology used in this document.
 
 **First, what is a type?**
 You can simply think of types as a set of language elements that share some features.
 For example, the type natural number is the set of numbers that is either zero or an increment of zero for multiple repetitions.
 Grouping language elements into a set (called type) abstracts out some unncessary details when reasoning about programs.
-That is why [@harper-types-PL] states: "The central organizing principle of language desing is the dientitfication of language features with types."
+That is why Harper states: "The central organizing principle of language design is the identitfication of language features with types."[@harper-types-PL]
+``TODO: add an example here of what a type looks like.``
 
 **Second, what is a type system?**
-A _type system_ is a collection of rules that assign a property called type to the various language constructs, such as variables, functions, expression, etc[@wiki-type-sys].
+A _type system_ is a collection of rules that assign a property called type to the various language constructs, such as variables, functions, expressions, etc.[@wiki-type-sys]
 Thus, a type system can be used as a simple reasoning tool for programs of a language.
 A type system formally defines many aspects of a programming language.
-Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain errors in well-typed programs.
+Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain group of errors in well-typed programs.
 
 **Third, what is surface syntax and intermediate representation (IR)?**
 The _surface syntax_ is the syntax used to write the source program by the developer
@@ -2221,13 +2228,29 @@ The compiler does multiple _passes_ between different representations to add or 
 information that it may or may not need. Each of these representations is called an
 _intermediate representation_. 
 
+``this paragraph is disconnected from the rest.``
 Additionally, it is important for the reader to be able to read and understand typing
 rules which in essence are _inference rules_. Thus, we introduce inference rules by
 building a toy language gradually
 and providing its various typing rules at each step (Section [#sec-guide]).
 
 ## A Developer's Guide to Reading Inference Rules { #sec-guide }
-A type system is made up of typing _rules_ that each has a specific _judgment form_.
+
+- ``maybe highlight the new feature and rule as you're adding them``
+- ``say and show name can also be on the side of the rule.``
+- ``state your type system changes based on your need``
+- ``have explanation on inductive relation, grammar, and judgment``
+- ``what we're basically doing is writing function/relation. it's a mathematical format for historical reasons we werite it this way.``
+- ``do not do build up``
+- ``have type checking with psudolang and show boilerplate and see how ugly. then massage it into inf rules and appeal to people's conciseness``
+- ``sigma v to t is total but the env itself is partial``
+- ``idea on some organization:``
+  + grammars are inductively defined. a complier/rewritter can be inductively defined.
+  + these are a bunch of relation/function. eg: exp to type. then add env. wellformedness is also a function but it has a different judgment.
+  + the toatligy of it. the set of wel-typed terms is everything you can build with these rules. you can have a set.
+  + start at the bottom to show something type checkes. 
+
+A type system is made up of typing _rules_. A typing rule has a specific _judgment form_ (which is the format it is written in and guides the reader on how to read all the typing rules using the judgement).
 A typing rule, in essence, is an _inference rule_.
 An inference rule contains zero or more _premises_ above the line
 and one _conclusion_ below the line
@@ -2244,7 +2267,7 @@ $C$ is concluded if premises $A$ and $B$ hold.
 A rule without any premises is called an _axiom_ and it states that
 the conclusion holds uncoditionally.
 
-Consider the simple toy expression language below that only consists of integers. Note
+Consider the simple toy expression language below that only consists of integers for now. Note
 that $i$ is a _metavariable_ that represents any possible integer values. 
 
 ~ Begin P4Grammar
@@ -2252,7 +2275,7 @@ i := (any integer)
 e := i
 ~ End P4Grammar
 
-We can have different typing systems for a language. For example, for the toy language we present two type systems.
+We can have different typing systems for a language. For example, for our toy language we present two type systems.
 The first one has the judgment form $e$ which states that the expression $e$ is well-typed.
 For example, the rule $\rn{Integer1}\rE$ states that the expression $i$ is well-typed. Note that it does not 
 state what its type is. 
@@ -2263,7 +2286,7 @@ state what its type is.
      {i}
 ~ End InfRule
 
-We can a more detailed type system for our langauge.
+We can have a more detailed type system for our langauge.
 The second type system has the judgment form $e:t$ which states that the expression $e$
 is well-typed and it has the type $t$. Note that $t$ is a metavariable for all possible types of expressions. 
 The rule $\rn{Integer2}\rE$ states that the
@@ -2275,7 +2298,7 @@ expression $i$ is well-typed and it has the type $\mathsf{int}$.
      {i:\mathsf{int}}
 ~ End InfRule
 
-We now extend the toy language by adding variable reference to expression which are
+We now extend our toy language by adding variable reference to expression which are
 simply strings. 
 
 ~ Begin P4Grammar
@@ -2285,10 +2308,15 @@ e := i
    | v
 ~ End P4Grammar
 
-Now our type systems have to include an environment.
-The environment $\Sigma$ is needed to keep track of variables that have been declared and assigned a value/expression. The environment is a mapping of variables to a feature about the variable. This feature can be the type of the variable, the expression it has been assigned, or the value of evaluating the expression it has been assigned.
+``explain expression vs statement``
+``explain sigma: v to e is the type signature of env and say how to read it``
 
-Here, we consider the environment to be a mapping of variables to their assigned expressions, that is, $\Sigma : v \rightarrow e$. Note that assigning expressions to variables is done in statements and not expressions and that is where the environment is built up.We only focus on expression's typing here.
+Now our type systems have to include an environment.
+The environment $\Sigma$ is needed to keep track of variables that have been declared and assigned a value/expression. The environment is a mapping of variables to a feature about the variable. This feature can be the type of the variable, the expression it has been assigned, or the value resulting from evaluating the expression it has been assigned.
+
+Here, we consider the environment to be a mapping of variables to their assigned expressions, that is, $\Sigma : v \rightarrow e$. Note that assigning expressions to variables is done in statements and not expressions and that is where the environment is built up. We only focus on expression's typing here.
+
+``differentiate between the value of v which is a string and what it holds which is an expression and then it has the type int.``
 
 The judgment form of our first type systems changes to $\Sigma \vdash e$ which states that under the environment $\Sigma$, the expression $e$ is well-typed.
 The rule $\rn{Integer1}\rE$ states that under environment $\Sigma$, the expression $i$ is well-typed.
@@ -2351,7 +2379,7 @@ well-typed.
 ~ End InfRule
 
 The $\rn{Integer2}\rE$ stays the same. However, the type of the expression assigned to
-a variable now matters. This is stated in the $\rn{Variable2}\rE$. It particularly states that under the environment $\Sigma$, the expression $v$ has the type $t$ if the type of the expression $e$ assigned to the variable $v$ is $t$. Note that in this rule, we can no longer ignore the expression assigned to variable $v$ and returned by looking up the environment since we need to know its type. 
+a variable now matters. This is stated in the $\rn{Variable2}\rE$. It particularly states that under the environment $\Sigma$, the expression $v$ has the type $t$ if the type of the expression $e$ assigned to the variable $v$ is $t$. Note that in this rule, we can no longer ignore the expression assigned to variable $v$ which is returned by looking $v$ up in the environment since we need to know its type. 
 The $\rn{Boolean2}\rE$ simply states that under the environment $\Sigma$, the expression $b$ has the type $\mathsf{bool}$.
 
 ~ Begin InfRule
@@ -2457,8 +2485,8 @@ For example, the rules below rewrite expressions in our toy language (which uses
 and they have the judgment form $\Sigma \vdash e \rightarrow \prim e$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to expression $\prim e$ written in the prefix ordering.
 
 The rules $\rn{Integer3}\rE$, $\rn{Variable3}\rE$, and $\rn{Boolean3}\rE$ are rather simple. For example, the $\rn{Integer3}\rE$ rule states that under the environment $\Sigma$, the expression $i$ translates to $i$.
-The rules $\rn{Addition3}\rE$ and $\rn{Equality3}\rE$ recursively translate their subexpressions and reorder their operator.
-For example, the $\rn{Addition3}\rE$ rule states that the expression $e_1 + e_2$ translates to the expression $+ \ \prim {e_1} \ \prim {e_2}$ where expressions $\prim {e_1}$ and $\prim {e_2}$ are the translation of expressions $e_1$ and $e_2$, respectively. 
+The rules $\rn{Addition3}\rE$ and $\rn{Equality3}\rE$ recursively translate their subexpressions and reorder their operators.
+For example, the $\rn{Addition3}\rE$ rule states that the expression $e_1 + e_2$ translates to the expression $+ \ \prim {e_1} \ \prim {e_2}$ where expressions $\prim {e_1}$ and $\prim {e_2}$ are the translations of expressions $e_1$ and $e_2$, respectively. 
 
 ~ Begin InfRule
   \inferrule[\rn{Integer3}\rE]
@@ -2484,6 +2512,7 @@ For example, the $\rn{Addition3}\rE$ rule states that the expression $e_1 + e_2$
      {\Sigma \vdash e_1 == e_2 \rightarrow \ == \prim {e_1} \ \prim {e_2}}
 ~ End InfRule
 
+``phrase the following paragraph and its point differently: the main point is that inference rules define inductively defined relation. these relations can be simple or complicated. eg, so far we have had simple ones but below we have more complicated ones. also use wiggly arrow and use colon for type, that is, i wiggly arrow i colon int``
 An inference rule can conduct multiple tasks at the same time. In other words, an inference rule can be a combination of two inference rules. For example, the typing rules below combine the typing and rewritting rules shown above and they have the judgment form
 $\Sigma \vdash e \rightarrow \prim e, t$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to the expression $\prim e$ written in the prefix ordering and has the type $t$. 
 As an example , the $\rn{Variable4}\rE$ rule reads as under the environment $\Sigma$, the expression $v$ translates to itself and has the type $t$ if the variable $v$ exists in environment $\Sigma$ and expression $e$ is assigned to it which has the type $t$. 
@@ -2514,4 +2543,47 @@ As an example , the $\rn{Variable4}\rE$ rule reads as under the environment $\Si
      {\Sigma \vdash e_1 == e_2 \rightarrow \ == \ \prim {e_1} \ \prim {e_2}, \mathsf{bool}}
 ~ End InfRule
 
+# Appendix: Petr4 { #sec-petr4 }
+
+## Petr4's Architecture { #sec-arch }
+
+Figure [#fig-arch] depicts part of Petr4's architecture that contains the type system.
+After lexing and parsing a P4 program we get a program in our surface syntax. This
+program is then passed through the _elaborator_ where type variables are introduced
+instead of underscore and new type variable names are generated for variables with the
+same name but in different scopes. This document does not discuss the innerworkings of
+`elaborate`. Then, the program is passed through the type system (encoded in `checker`).
+This document discusses the innerworking of the type system extensively. Finally, the
+program is evaluated.
+
+~ Figure { #fig-arch; caption: "Part of Petr4's achitecture." }
+![arch]
+~
+[arch]: figs/petr4/arch.png { width: 100%; page-align: forcehere }
+
+
+## Petr4's Type System { #sec-petr4-type-sys }
+
+The type system conducts three tasks simultaneously:
+
+1. It type checks P4 programs.
+2. It conducts type inference.
+3. It does a pass from the surface syntax to the first IR.
+
+```**TODO** maybe have more explanation on IR.```
+
+## Connecting Formalization to Petr4's Implementation { #sec-conn }
+
+The following locates each data type in the implementation
+(<https://github.com/verified-network-toolchain/petr4>):
+
+- The surface AST is _types.program_
+- The type of programs of the surface syntax is _types.type.t_
+- The first IR is _prog.program_
+- The type of the first IR is _prog.type.t_
+- The type system is implemented in _checker.ml_ file. 
+
+For simplicity, we have removed the information that is needed to report when an error
+happens. Such information is passed around in the surface syntax as a field (called
+`tags`) of record for all data types.
 

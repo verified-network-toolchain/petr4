@@ -194,7 +194,7 @@
 %typ par : typ arg. par = exp. . typ par : typ arg (infered).
 % this has an extra input in code (which is constraints (init to typ par : typ arg)) but it's never used so i dropped it. same for return type.
 \newcommand{\inferTypParArg}[3]{\env, \ctxt \vdash {#1}, {#2} \mapsto {#3}}
-\newcommand{\unify}[6]{{#1}, {#2}, {#3} \vDash {#4} \doteq {#5} \Vdash {#6}}
+\newcommand{\unify}[6]{{#1}, {#2}, {#3} \vDash {#4} \Join {#5} \mapsto {#6}}
 
 
 %contexts:
@@ -252,6 +252,7 @@
 
 
 %metavariables:
+\newcommand{\constraint}{C}
 \newcommand{\anyTyp}{a}
 \newcommand{\env}{\Gamma}
 \newcommand{\typEnv}{\Gamma}
@@ -340,6 +341,7 @@
 \newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})}
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
+\newcommand{\unionEnv}[2]{{#1}\cup{#2}}
 \newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
 \newcommand{\isNumeric}[1]{\mathit{is\_numeric}({#1})}
 %% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}

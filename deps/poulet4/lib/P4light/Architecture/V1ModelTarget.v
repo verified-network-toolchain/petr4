@@ -140,7 +140,12 @@ Definition extract (pin : list bool) (typ : P4Type) : Val * list bool :=
   | None => (ValBaseNull, bs)
   end.
 
-Axiom extract2 : forall (pin : list bool) (typ : P4Type) (len : Z), Val * list bool.
+Definition extract2 (pin : list bool) (typ : P4Type) (len : Z) : Val * list bool :=
+  let '(v, bs) := Extract.var_extract typ (BinIntDef.Z.to_nat len) pin in
+  match v with
+  | Some v => (v, bs)
+  | None => (ValBaseNull, bs)
+  end.
 
 Inductive packet_in_extract_sem : extern_func_sem :=
   | exec_packet_in_extract : forall e s p pin typ v pin',

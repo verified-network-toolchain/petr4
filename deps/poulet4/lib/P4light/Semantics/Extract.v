@@ -51,11 +51,11 @@ Fixpoint extract (typ: P4Type) : Packet Val :=
   | _ => err
   end.
 
-(*
-Fixpoint var_extract (typ: P4Type) (len: nat) : Packet Val :=
+Definition var_extract (typ: P4Type) (len: nat) : Packet Val :=
   match typ with
-  | TypVarbit
-*)
+  | _ => err
+  end.
+
 End Extract.
 
 

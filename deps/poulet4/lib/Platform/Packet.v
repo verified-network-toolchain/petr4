@@ -82,7 +82,6 @@ Section Packet.
     | _ => state_fail (TypeError "Unsupported type passed to extract.")
     end.
 
-
   Fixpoint parseable_type (type : P4Type) : bool :=
     let parseable_ftype (ftype: P4String * P4Type) : bool :=
       let (_, x) := ftype in 

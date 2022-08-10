@@ -348,6 +348,7 @@ The following describes the metavariables used in this document:
 | $\env$ | environments |
 | $\emp$ | empty list of elements |
 | $\anyTyp$ | a value of any type |
+| $\constraint$, $\optConstraint$, $\nonoptConstraint$ | constraints |
 ~
 
 
@@ -755,6 +756,67 @@ the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which s
 
 
 ## Type Unification { #sec-type-unify }
+
+- type unification for type produces by type checking, i.e., typed.type.t
+- both types are reduced first. for breviety we omit the reduction from rules. so type 1 and type 2 in rules are already reduced.
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{Bools})}
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \stringTyp \stringTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{Strings})}
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \integerTyp \integerTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{Integers})}
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \errTyp \errTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{Errors})}
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \matchKindTyp \matchKindTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{MatchKinds})}
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \voidTyp \voidTyp {\overline {\typVar : \bot}}}
+     \quad (\rn{Voids})}
+
+  % \mprset {vskip=0.7ex}
+  %   {\inferrule
+  %      { }
+  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
+  %    \quad (\rn{Bools})}
+
+  % \mprset {vskip=0.7ex}
+  %   {\inferrule
+  %      { }
+  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
+  %    \quad (\rn{Bools})}
+
+  % \mprset {vskip=0.7ex}
+  %   {\inferrule
+  %      { }
+  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
+  %    \quad (\rn{Bools})}
+
+~ End InfRule
 
 # Expression's Typing Rules { #sec-exp-typing }
 
@@ -1170,6 +1232,7 @@ $\castenv \ {\typ_1} {\typ_2}$ states that under environment $\env$,
 the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
 However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
 done implicitly or explicitly, respectively.
+- $\trans \typ \emp$ ``TODO: complete``
 
 ``**TODO**``
 The implementation saturates types both in the $\castE$ rule as well as saturating them
@@ -1599,10 +1662,7 @@ $\funcCallNoTypArgs \exp \args$ both indicate a function call where
 - $\args$ is the arguments passed to the function and they could be matched with parameters either based on name or position
 - $\typs$ is the type arguments passed to the function.
 
-A function call is well-typed if ``todo``
-
-```Check with ryan. when does it ever have partial assignment of type pars?```
-a type argument can be don't care and from there you'll have partial assignment.
+A function call is well-typed if the called expression is an accepted function call and is well-typed and the passed (type) arguments do not violate any restrictions of (type) parameters. ``Ryan: better way of summarizing function call rule?``
 
 - The [function call auxiliary judgment][#sec-func-call] carries out multiple roles:
   1. it checks if the expression as a function call is acceptable, that is, if it is either a name or expression member
@@ -1610,10 +1670,11 @@ a type argument can be don't care and from there you'll have partial assignment.
   3. it checks if the parameters and arguments match either based on their position or name.
 
   And has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\prms$, kind $\kind$, and the return type $\typ_\ret$.
-- $\matchParArg \params \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
+- $\transMaybe \typ$ translates the surface type $\typ$ to underlying types and if the surface type is $\dontcareTyp$ it assigns $\bot$ to it. ``TODO: rewrite after adding syntax.``
+- $\matchParArg \prms \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
 - $\validatePars \singleprm \env \kind$ validates the parameter $\singleprm$ under the environment $\env$ and the function kind $\kind$. That is, it confirms that the parameter is valid if **none** of the following cases hold:
   + $(\sat \typ) = \externTyp \whatevs$ and $\dir \neq \less$
-  + $\compTimeKnown (\sat \typ)$ and $\dir \neq \less$
+  + $\compTimeKnown {\sat \typ}$ and $\dir \neq \less$
   + $\typNotWellFormed (\sat \typ)$
 
   And **one** of the following holds:
@@ -1622,8 +1683,10 @@ a type argument can be don't care and from there you'll have partial assignment.
   + $\kind = \methodKind$ and  $\sat \typ=\externTyp \whatevs$
 - The [infer type arguments auxiliary judgment][#sec-infer-type-args] infers the type of type parameters of a function call using the
 arguments passed to it and to ensure that they all match.
-It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \typ}}} {\overline {\singleprm = {\maybe \exp}}} {\overline {\typVar : \pprim \typ}}$ which states that under environment $\env$ and context $\ctxt$, the type parameters $\typVars$ have the type $\pprim \typ$ given the assignment of type parameters $\typVars$ to optional types $\overline {\maybe {\prim \typ}}$ and the assignment of parameters $\prms$ to optional expressions $\overline {\maybe \exp}$.
-- $\castParArg {\overline {\param = \maybe \exp}}$ bundles up the parameter with the expression's IR representation if possible: if $\maybe \exp \neq \bot$, it bundles up the parameter with $\castExpression \typ \exp$ if the direction of the parameter is correct (refer to _check\_direction_ function). Otherwise, if the parameter type isn't void and the direction is out or parameter is optional, it bundles up the parameter with bottom.
+It has the judgment form $\inferTypParArg {{\maybe \constraint}} {\overline {\singleprm := {\maybe \exp}}} {\prim \constraint}$ which states that under environment $\env$ and context $\ctxt$,
+the assignment of arguments $\overline {\maybe \exp}$ to parameters $prms$ is valid under the constraints $\prim \constraint$ as long as the constraints $\prim \constraint$ do not contradict the constraints $\maybe \constraint$.
+Constraints $\constraint$ are assignments of types to type variables and optional constraints $\maybe \constraint$ are assignments of optional types to type variable. Note that constraints denoted by a letter have the same fixed vector of type variables. 
+- $\castParArg {\overline {\param := \maybe \exp}}$ bundles up the parameter with the expression's IR representation if possible: if $\maybe \exp \neq \bot$, it bundles up the parameter with $\castExpression \typ \exp$ if the direction of the parameter is correct (refer to _check\_direction_ function). Otherwise, if the parameter type isn't void and the direction is out or parameter is optional, it bundles up the parameter with bottom.
 - $\callOK \ctxt \kind$ checks if the function kind is valid in a context. The following cases valid: ``TODO: break up ctxt. here ctxt is exprctxt.``
   + $\ctxt = \parserCtxt$ and $\kind = \parserKind$
   + $\ctxt = \applyBlockCtxt$ and $\kind = \controlKind$
@@ -1642,18 +1705,38 @@ It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \t
 
 ~ Begin InfRule
 
+%   \mprset {vskip=0.7ex}
+%   {\inferrule 
+%      {
+%        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
+%        \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
+%        |\overline {\typ_0}| = |\typVars|\\\\
+%        % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
+%        \matchParArg \prms \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
+%        % \inferTypParArg {\typ_\ret} {\overline {\typVar : \typ_1}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar :\typ_1}} {\overline {\typVar : \typ_2}}\\\\
+%        \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \typ_2}}\\\\
+%        \validatePars {\typs} {\addTypEnvv {\overline {\typVar : \typ_2}} } \kind \\
+%        \castParArg {\overline {\param = \pprim {\maybe \exp}}} = \overline {\param = \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+%        \callOK \ctxt \kind \\
+%        \sat {\typ_\ret} = {\prim \typ}_{\ret} 
+%        }
+%      { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+%      \quad (\funcCallE)}
+
+% \\
+
   \mprset {vskip=0.7ex}
   {\inferrule 
      {
        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
-       \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
+       \transMaybe {\overline {\typ_0}} = \overline {\maybe {\typ_1}}\\
        |\overline {\typ_0}| = |\typVars|\\\\
        % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
-       \matchParArg \prms \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
-       % \inferTypParArg {\typ_\ret} {\overline {\typVar : \typ_1}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar :\typ_1}} {\overline {\typVar : \typ_2}}\\\\
-       \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \typ_2}}\\\\
-       \validatePars {\typs} {\addTypEnvv {\overline {\typVar : \typ_2}} } \kind \\
-       \castParArg {\overline {\param = \pprim {\maybe \exp}}} = \overline {\param = \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+       \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
+        % {\overline {\typVar : \maybe {\typ_1}}} = \constraint\\
+       \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm := \pprim {\maybe \exp}}} { \constraint}\\\\
+       \validatePars {\typs} {\unionEnv \env { \constraint} }  \kind \\
+       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
        \callOK \ctxt \kind \\
        \sat {\typ_\ret} = {\prim \typ}_{\ret} 
        }
@@ -1666,31 +1749,11 @@ It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \t
   {\inferrule 
      {
        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
-       \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
-       |\overline {\typ_0}| = |\typVars|\\\\
-       % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
-       \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
-        {\overline {\typVar : \maybe {\typ_1}}} = \constraint\\
-       \inferTypParArg \constraint {\overline {\singleprm := \pprim {\maybe \exp}}} {\prim \constraint}\\\\
-       \validatePars {\typs} {\unionEnv \env {\prim \constraint} }  \kind \\
-       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
-       \callOK \ctxt \kind \\
-       \sat {\typ_\ret} = {\prim \typ}_{\ret} 
-       }
-     { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
-     \quad (\funcCallE\rSep\rn{discuss})}
-
-\\
-
-  \mprset {vskip=0.7ex}
-  {\inferrule 
-     {
-       \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
-       \matchParArg \params \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
-       % \inferTypParArg {\typ_\ret} {\overline {\typVar : \bot }} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar : \bot}} {\overline {\typVar : \prim \typ}}\\\\
-       \inferTypParArg {\overline {\typVar : \bot }} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \prim \typ}}\\\\
-       \validatePars {\params} {\addTypEnvv {\overline {\typVar : \prim \typ}} } \kind \\
-       \castParArg {\overline {\param = \pprim {\maybe \exp}}} = \overline {\param = \maybe {(\ppprim \exp, \pprim \typ, \dir)}}\\\\
+       \matchParArg \params \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
+       \inferTypParArg {\overline {\typVar : \bot }} {\overline {\singleprm := \pprim {\maybe \exp}}} \constraint \\\\
+       % \inferTypParArg {\overline {\typVar : \bot }} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \prim \typ}}\\\\
+       \validatePars {\params} {\unionEnv \env {\constraint} } \kind \\
+       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \pprim \typ, \dir)}}\\\\
        \callOK \ctxt \kind \\
        \sat {\typ_\ret} = {\prim \typ}_{\ret} 
        }
@@ -1711,11 +1774,6 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
 
 - Remember that parameters could be optional or have some default expression set as their expression. $\removeOptionalPars \params$ removes those parameters.
 - $\concatList {\overline \anyTyp} {\overline {\prim \anyTyp}}$ denotes concatenating two lists.
-
-```Concerns/questions:```
-
-- when does the expression typing returns an expression of type action (the $\nameActionE$ rule may never be trigured)? when the expression is a name and we look it up from the environment
-
 
 ~ Begin InfRuleHelper
 
@@ -1797,47 +1855,51 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
 ### Infer Type Arguments Auxiliary Judgment { #sec-infer-type-args }
 
 This auxiliary judgment is used to infer the type of type parameters of a function call using the
-arguments passed to it and to ensure that they all match.
-It has the judgment form $\inferTypParArg {\overline {\typVar : \maybe {\prim \typ}}} {\overline {\singleprm = {\maybe \exp}}} {\overline {\typVar : \pprim \typ}}$ which states that under environment $\env$ and context $\ctxt$, the type parameters $\typVars$ have the type $\pprim \typ$ given the assignment of type parameters $\typVars$ to optional types $\overline {\maybe {\prim \typ}}$ and the assignment of parameters $\prms$ to optional expressions $\overline {\maybe \exp}$ if 
-the result of the unification of the type of arguments and their parameter types (which is the assignment of type parameters to types) does not include any incosistency. For example, one does not state that type parameter $\typVar$ is $\integerTyp$ while the other states that it is $\tupleTyps \integerTyp$.
+arguments passed to it and to ensure that there are no conflicts in the inferred types.
+It has the judgment form $\inferTypParArg {\maybe \constraint} {\overline {\singleprm = {\maybe \exp}}} {\prim \constraint}$ which reads as under environment $\env$ and context $\ctxt$, the types of type parameters in the constraints $\maybe \constraint$ are inferred and returned in constraints $\prim \constraint$ given the assignment of parameters $\prms$ to optional expressions $\overline {\maybe \exp}$.
+As a reminder, constraints $\constraint$ are assignment of type parameters to types and optional constraints $\maybe \constraint$ are assignment of type parameters to optional types. The vector of type parameters in each constraint denoted by a letter is fixed. Hence, we additionally use $\optConstraint$ and $\nonoptConstraint$ to denote constraints when we have different vectors of type parameters. This means, for example, $\maybe \constraint$ and $\prim \constraint$ have the same vector of type parameters but the assignment of types to type parameters has changed.
+
+The rule $\inferTypeArgAE$ states that
+under environment $\env$ and context $\ctxt$, the types of type parameters in the constraints $\maybe \constraint$ are inferred and returned in constraints $\prim \constraint$ given the assignment of parameters $\prms$ to optional expressions $\overline {\maybe \exp}$
+if the result of the unification of the type of arguments and their parameter types (which is the assignment of type parameters to types) does not include any incosistency. For example, one does not state that type parameter $\typVar$ is $\integerTyp$ while the other states that it is $\tupleTyps \integerTyp$.
 
 
-- $\breakMaybes {\overline {\maybe \anyTyp}} {\overline {\prim \anyTyp}} {\overline {\pprim \anyTyp}}$ breaks down a list of optional things (reminder: $\anyTyp$ is a metavariable of any type you want) into two lists: one that only contains values other than $\bot$ and another that only contains the ones that are $\bot$.
-- As a reminder $\unify \env {\overline {\typVar_1 = \typVar_2}} {{\typVars}} \typ { {\prim \typ}} { {\overline {\typVar : \maybe {\pprim \typ}}}}$ unifies the types $\typ$ and $\prim \typ$ under environment $\env$, equivalent type variables ${\overline {\typVar_1 = \typVar_2}}$, and type variables $\typVars$ that do not have any type assigned to them yet. If it can unify the two types, it
-generates a list assignment of types to type variables  ${\overline {\prim \typVar : \maybe {\pprim \typ}}}$. For detailed rules of this judgment refer to Section [#sec-type-unify].
-- $\mergeConst {\overline {\typVar : \bot}} {\overline {\overline {\typVar : \maybe {\typ}}}}$ merges the types assigned to type variables $\typVars$ recursively. It starts from no assignment ${\overline {\typVar : \bot}}$ as the base and recursively folds the merge of assigned types to a type variable from the list of assignments $\overline {\overline {\typVar : \maybe {\typ}}}$. The merging of types, that is, $\mathit{merge}(\typVar_1 : \typ_1, \typVar_1 :\typ_2)$, tries the following and if none of them matches it fails:
+- $\breakMaybes {\overline {\maybe \anyTyp}} {\overline {\prim \anyTyp}} {\overline {\pprim \anyTyp}}$ breaks down a list of optional things (reminder: $\anyTyp$ is a metavariable of any type you want) into two lists: one that only contains values other than $\bot$ and another that only contains the ones that are $\bot$. So in the rule $\inferTypeArgAE$, the $\maybe \optConstraint$ is the list of type parameters that do not have a type assigned to them.
+- As a reminder $\unify \env \typeEqs {{\typVars}} \typ { {\prim \typ}} {\maybe \constraint}$ unifies the types $\typ$ and $\prim \typ$ under environment $\env$, equivalent type variables $\typeEqs$ (which expanded is ${\overline {\typVar_1 = \typVar_2}}$), and type variables $\typVars$ that do not have any type assigned to them yet and returns the constraints $\maybe \constraint$ that is required for the two types to be unified.
+For detailed rules of this judgment refer to Section [#sec-type-unify].
+- $\mergeConst {\overline {\maybe \constraint}}$ merges the types assigned to type variables in the list of constraints $\overline {\maybe \constraint}$ recursively. It starts from no assignment to any of the type variables as the base and recursively folds the merge of assigned types to a type variable from the list of assignments $\overline {\maybe \constraint}$. The merging of types, that is, $\mathit{merge}(\typVar_1 : \typ_1, \typVar_1 :\typ_2)$, tries the following and if none of them matches it fails:
   + if $\typEqEnv \emp {\typ_1} {\typ_2}$, then $\typ_1$
   + if $\implCast {\typ_1} {\typ_2}$, then $\typ_2$
   + if $\implCast {\typ_2} {\typ_1}$, then $\typ_1$
-- $\toVoid {\overline {\typVar : \maybe \typ}}$ takes a list of type variables with their optional assignments and if the assigment is $\bot$, it assigns the $\voidTyp$ type to the type variable. It leaves the type variables that have type assignments untouched.
+- $\toVoid {\overline {\maybe \constraint}}$ assigns the $\voidTyp$ type to the type variables in constraints $\maybe \constraint$ that do not have a type assigned to them, i.e., $\bot$ is assigned to them. It leaves the type variables that have type assignments untouched.
 
 
 ~ Begin InfRuleHelper
 
+  % \mprset {vskip=0.5ex}
+%   {\inferrule
+%      { \breakMaybes {\overline {\typVar_1 : \maybe {\typ_1}}} {\overline {\typVar_2 : \typ_2}} {\overline {\typVar_3 : \bot}}\\\\
+%        \expenvvv {\addTypEnvv {\overline {\typVar_2 : \typ_2}}} {\exps} {\overline {\prim \exp, \prim \typ, \prim \dir}} \\\\
+%        \unify {\addTypEnvv {\overline {\typVar_2 : \typ_2}}} \emp {\overline {\typVar_3}} \typs {\overline {\prim \typ}} {\overline {\overline {\typVar_3 : \maybe {\typ_4}}}} \\\\
+%        \mergeConst {\overline {\typVar_3 : \bot}} {\overline {\overline {\typVar_3 : \maybe {\typ_4}}}} = {\overline {\typVar_3 : \maybe {\typ_5}}}\\\\
+%        \concatList {\overline {\typVar_2 : {\typ_2}}} { \toVoid {\overline {\typVar_3 : \maybe {\typ_5}}}} = {\overline {\typVar_1 : {\typ_6}}} }
+%      {\inferTypParArg {\overline {\typVar_1 : \maybe {\typ_1}}} {\overline {\singleprm = {\maybe \exp}}}  {\overline {\typVar_1 : {\typ_6}}}}
+%      \quad (\inferTypeArgAE)
+%   }
+
+% \\
+
   \mprset {vskip=0.5ex}
   {\inferrule
-     { \breakMaybes {\overline {\typVar_1 : \maybe {\typ_1}}} {\overline {\typVar_2 : \typ_2}} {\overline {\typVar_3 : \bot}}\\\\
-       \expenvvv {\addTypEnvv {\overline {\typVar_2 : \typ_2}}} {\exps} {\overline {\prim \exp, \prim \typ, \prim \dir}} \\\\
-       \unify {\addTypEnvv {\overline {\typVar_2 : \typ_2}}} \emp {\overline {\typVar_3}} \typs {\overline {\prim \typ}} {\overline {\overline {\typVar_3 : \maybe {\typ_4}}}} \\\\
-       \mergeConst {\overline {\typVar_3 : \bot}} {\overline {\overline {\typVar_3 : \maybe {\typ_4}}}} = {\overline {\typVar_3 : \maybe {\typ_5}}}\\\\
-       \concatList {\overline {\typVar_2 : {\typ_2}}} { \toVoid {\overline {\typVar_3 : \maybe {\typ_5}}}} = {\overline {\typVar_1 : {\typ_6}}} }
-     {\inferTypParArg {\overline {\typVar_1 : \maybe {\typ_1}}} {\overline {\singleprm = {\maybe \exp}}}  {\overline {\typVar_1 : {\typ_6}}}}
-     \quad (\inferTypeArgAE)
-  }
-
-\\
-
-  \mprset {vskip=0.5ex}
-  {\inferrule
-     { \breakMaybes {\constraint_0} {\constraint_1} {\constraint_2}\\\\
-       \prim \env = \unionEnv \env {\constraint_1}\\
+     { \breakMaybes {\maybe \constraint} {\nonoptConstraint} {\maybe \optConstraint}\\\\
+       \prim \env = \unionEnv \env {\nonoptConstraint}\\
        \expenvvv {\prim \env} {\exps} {\overline {\prim \exp, \prim \typ, \prim \dir}} \\\\
-       \unify {\prim \env} \emp {\constraint_2} \typs {\overline {\prim \typ}} {\overline {\constraint_3}} \\\\
-       \mergeConst {\constraint_2} {\overline {\constraint_3}} = \constraint_4\\\\
-       \unionEnv {\constraint_1} {\toVoid{\constraint_4}} = \constraint_5 }
+       \unify {\prim \env} \emp {\maybe \optConstraint} \typs {\overline {\prim \typ}} {\overline {\maybe {\prim \optConstraint}}} \\\\
+       \mergeConst {\overline {\maybe {\prim \optConstraint}}} = \maybe {\pprim \optConstraint}\\\\
+       \unionEnv {\nonoptConstraint} {\toVoid{\maybe {\pprim \optConstraint}}} = \prim \constraint }
        % \concatList {\overline {\typVar_2 : {\typ_2}}} { \toVoid {\overline {\typVar_3 : \maybe {\typ_5}}}} = {\overline {\typVar_1 : {\typ_6}}} }
-     {\inferTypParArg {\constraint_0} {\overline {\singleprm = {\maybe \exp}}}  {\constraint_5}}
-     \quad (\inferTypeArgAE\rSep\rn{discuss})
+     {\inferTypParArg {\maybe \constraint} {\overline {\singleprm := {\maybe \exp}}}  {\prim \constraint}}
+     \quad (\inferTypeArgAE)
   }
 
 

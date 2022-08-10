@@ -253,6 +253,9 @@
 
 %metavariables:
 \newcommand{\constraint}{C}
+\newcommand{\optConstraint}{B}
+\newcommand{\nonoptConstraint}{N}
+\newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
 \newcommand{\env}{\Gamma}
 \newcommand{\typEnv}{\Gamma}
@@ -318,7 +321,7 @@
 \newcommand{\methods}[2]{\overline {{#1}:{#2}}}
 
 %function helpers
-\newcommand{\mergeConst}[2]{\mathit{merge\_types}({#1},{#2})}
+\newcommand{\mergeConst}[1]{\mathit{merge\_types}({#1})}
 \newcommand{\toVoid}[1]{\mathit{voidify}({#1})}
 \newcommand{\breakMaybes}[3]{\mathit{break\_option}({#1})=\left({#2},{#3}\right)}
 \newcommand{\isExtern}[1]{\mathit{is\_extern}({#1})}
@@ -360,6 +363,7 @@
 \newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_\env}
 \newcommand{\sat}[1]{\mathit{saturate}({#1})_\env}
 \newcommand{\trans}[2]{\mathit{translate}({#1})_{\env,{#2}}}
+\newcommand{\transMaybe}[1]{\mathit{optional\_translate}({#1})_{\env}}
 \newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\env}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
@@ -416,6 +420,7 @@
 \newcommand{\newtypKey}{\mathsf{newtype}}
 
 %types:
+\newcommand{\dontcareTyp}{\mathsf{dont\_care}}
 \newcommand{\bitWidthTyp}[1]{\mathsf{bit}\langle{#1}\rangle}
 \newcommand{\intWidthTyp}[1]{\mathsf{int}\langle{#1}\rangle}
 \newcommand{\boolTyp}{\mathsf{bool}}

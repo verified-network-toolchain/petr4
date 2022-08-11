@@ -344,6 +344,7 @@ The following describes the metavariables used in this document:
 | $\typ$ | types |
 | $\dir$ | directions |
 | $\typVar$ | type variables |
+| $\wildcardParam$ | wild card type parameters |
 | $\field$ | field names |
 | $\env$ | environments |
 | $\emp$ | empty list of elements |
@@ -712,10 +713,11 @@ The rule $\constructorT$ states that a constructor type is well-formed if its re
 ~ Begin InfRule
 
   \inferrule
-     { \typWellFormed \typ \\
+     { \typWellFormed {\typ_\ret} \\
        % \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
-       \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typs} }
-     { \typWellFormed {\constructorTyp \typ \name \typParams {\prms}} }
+       \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typs} \\
+       \isDirectionless {\dirs}}
+     { \typWellFormed {\constructorTyp \typParams \prms \wildcardParams {\typ_\ret}}}
      \quad (\constructorT)
 
 ~ End InfRule
@@ -798,25 +800,181 @@ the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which s
        { \unify \env \typeEqs \typVars \voidTyp \voidTyp {\overline {\typVar : \bot}}}
      \quad (\rn{Voids})}
 
-  % \mprset {vskip=0.7ex}
-  %   {\inferrule
-  %      { }
-  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
-  %    \quad (\rn{Bools})}
+~ End InfRule
 
-  % \mprset {vskip=0.7ex}
-  %   {\inferrule
-  %      { }
-  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
-  %    \quad (\rn{Bools})}
 
-  % \mprset {vskip=0.7ex}
-  %   {\inferrule
-  %      { }
-  %      { \unify \env \typeEqs \typVars \boolTyp \boolTyp {\overline {\typVar : \bot}}}
-  %    \quad (\rn{Bools})}
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Specializeds})}
 
 ~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{TypeNames})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{NewTypes})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{FixedLengths})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Arrays})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Tuples})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+% check which one of record, header, header union, struct you used in well-formedness.
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Records})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Sets})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Enums})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Packages})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Controls})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Parsers})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Externs})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Actions})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Functions})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Constructors})}
+
+~ End InfRule
+
+~ Begin InfRule
+
+  \mprset {vskip=0.7ex}
+    {\inferrule
+       { }
+       { \unify \env \typeEqs \typVars \ \ {\overline {\typVar : \bot}}}
+     \quad (\rn{Tables})}
+
+~ End InfRule
+
+``TODO: check see if you need implicit casting incorporated in unification of types.``
 
 # Expression's Typing Rules { #sec-exp-typing }
 
@@ -1864,7 +2022,7 @@ under environment $\env$ and context $\ctxt$, the types of type parameters in th
 if the result of the unification of the type of arguments and their parameter types (which is the assignment of type parameters to types) does not include any incosistency. For example, one does not state that type parameter $\typVar$ is $\integerTyp$ while the other states that it is $\tupleTyps \integerTyp$.
 
 
-- $\breakMaybes {\overline {\maybe \anyTyp}} {\overline {\prim \anyTyp}} {\overline {\pprim \anyTyp}}$ breaks down a list of optional things (reminder: $\anyTyp$ is a metavariable of any type you want) into two lists: one that only contains values other than $\bot$ and another that only contains the ones that are $\bot$. So in the rule $\inferTypeArgAE$, the $\maybe \optConstraint$ is the list of type parameters that do not have a type assigned to them.
+- $\breakMaybes {\overline {\maybe \anyTyp}} {\overline {\prim \anyTyp}} {\overline {\pprim {\maybe \anyTyp}}}$ breaks down a list of optional things (reminder: $\anyTyp$ is a metavariable of any type you want) into two lists: one that only contains values other than $\bot$ (that is, $\overline {\prim \anyTyp}$) and another that only contains the ones that are $\bot$ (that is, $\overline {\pprim {\maybe \anyTyp}}$). So in the rule $\inferTypeArgAE$, the $\maybe \optConstraint$ is the list of type parameters that do not have a type assigned to them.
 - As a reminder $\unify \env \typeEqs {{\typVars}} \typ { {\prim \typ}} {\maybe \constraint}$ unifies the types $\typ$ and $\prim \typ$ under environment $\env$, equivalent type variables $\typeEqs$ (which expanded is ${\overline {\typVar_1 = \typVar_2}}$), and type variables $\typVars$ that do not have any type assigned to them yet and returns the constraints $\maybe \constraint$ that is required for the two types to be unified.
 For detailed rules of this judgment refer to Section [#sec-type-unify].
 - $\mergeConst {\overline {\maybe \constraint}}$ merges the types assigned to type variables in the list of constraints $\overline {\maybe \constraint}$ recursively. It starts from no assignment to any of the type variables as the base and recursively folds the merge of assigned types to a type variable from the list of assignments $\overline {\maybe \constraint}$. The merging of types, that is, $\mathit{merge}(\typVar_1 : \typ_1, \typVar_1 :\typ_2)$, tries the following and if none of them matches it fails:
@@ -1905,22 +2063,57 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 
 ~ End InfRuleHelper
 
-## Instantiation Rule { #sec-inst-e }
+## Anonymous Instantiation Rule { #sec-inst-e }
+
+``TODO: complete this thu aug 11``
+
+- validate par arg checks if optional is some and it passes if expression is compile time known or if it is none and parameter is none.
 
 ~ Begin InfRule
 
-  % \inferrule
-  %    { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
-  %    { \expenv {\instantiation {\spcTyp \name {\typ_1, \ldots, \typ_m}} {\arg_1, \ldots, \arg_n}} {\instantiation {\spcTyp \name {\typArg_1, \ldots, \typArg_m}} {\prim {\arg_1}, \ldots, \prim {\arg_n}}} {\prim \typ} \less}
-  % \quad (\instE:\rn{SpecializedType})
-
   \inferrule
-     { \expenv {\instantiation {\spcTyp \name {\ }} {\arg_1, \ldots, \arg_n}} {\prim \exp} \typ \dir}
+     % { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
+     { \transMaybe \typs = \overline {\prim {\maybe \typ}} \\
+       \resolveConstOver \name \args \typParams \wildcardParams \prms \retTyp \\
+       \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
+       |\typs| = |\typParams| \\
+       \inferTypParArg {\concatList {\overline {\typVar : \maybe {\typ_1}}} {\overline {\wildcardParam : \bot}}} {\overline {\singleprm := \pprim {\maybe \exp}}} { \constraint}\\\\
+       \prim \env = \unionEnv \env \constraint \\
+       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+       \validateParArg {\overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}}\\
+       \sat \retTyp = \prim \retTyp}
+     { \expenv {\instantiation {\spcTyp \name {\typs}} {\args}} {\instantiation {\spcTyp \name {\typs}} {\overline {\prim \arg}}} {\pprim \typ} \less}
+  \quad (\instE\rSep\rn{1})
+
+% typename of type_nameless_instantiation
+  \inferrule
+     { \expenv {\instantiation {\spcTyp \name {\ }} {\args}} {\prim \exp} \typ \dir}
      %name in the following is typename
      { \expenv {\instantiation {\name} {\args}} {\prim \exp} \typ \dir }
      \quad (\instE\rSep\rn{2})
 
 ~ End InfRule
+
+~ Begin InfRuleHelper
+
+  \mprset {vskip=0.5ex}
+  {  \inferrule
+         { \lookupEnv \name = \overline {(\typ, \dir)} \\
+           \exists (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)}}
+         { \resolveConstOver \name {\overline {\var = \exp}} \typParams \wildcardParams \prms \retTyp  }
+         \quad (blah)
+  }
+
+  \mprset {vskip=0.5ex}
+  {  \inferrule
+         { \lookupEnv \name = \overline {(\typ, \dir)} \\
+           \exists (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)} \\
+           |\removeOptionalPars \params| = |\argexps|}
+         { \resolveConstOver \name \argexps \typParams \wildcardParams \prms \retTyp  }
+         \quad (blah)
+  }
+
+~ End InfRuleHelper
 
 ## Mask Rule { #sec-mask-e }
 

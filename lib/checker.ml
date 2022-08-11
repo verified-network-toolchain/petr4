@@ -2769,7 +2769,6 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | _, Builtin -> true
   end
 
-(* TODO *)
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
   (* Printf.printf "we're here!!!"; *)
@@ -3020,6 +3019,7 @@ and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Exp
   let params_args = match_params_to_args tags constructor_type.parameters args in
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
   let env' = CheckerEnv.insert_types type_params_args env in
+  (* have to add this. TODO*)
   let cast_arg (param, arg: Typed.Parameter.t * Types.Expression.t option) =
     match cast_param_arg env' ctx tags (param, arg) with
     | _, Some e ->

@@ -195,7 +195,7 @@
 % this has an extra input in code (which is constraints (init to typ par : typ arg)) but it's never used so i dropped it. same for return type.
 \newcommand{\inferTypParArg}[3]{\env, \ctxt \vdash {#1}, {#2} \mapsto {#3}}
 \newcommand{\unify}[6]{{#1}, {#2}, {#3} \vDash {#4} \Join {#5} \mapsto {#6}}
-
+\newcommand{\resolveConstOver}[6]{\env, \ctxt \vdash {#1}, {#2} \twoheadrightarrow {#3}, {#4}, {#5}, {#6}}
 
 %contexts:
 \newcommand{\cte}{\mathfrak{constant}}
@@ -297,7 +297,8 @@
 \newcommand{\typParams}{\overline \typParam}
 \newcommand{\pari}[1]{\dir_{#1} \typ_{#1} \typParam_{#1}}
 \newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
-\newcommand{\wildcardParam}{w}
+% wildcard param for wild card type vars.
+\newcommand{\wildcardParam}{W}
 \newcommand{\wildcardParams}{\overline \wildcardParam}
 \renewcommand{\arg}{\mathit{arg}}
 \newcommand{\args}{\overline \arg}
@@ -309,6 +310,7 @@
 \newcommand{\dcl}{\mathit{dcl}}
 \newcommand{\kind}{k}
 \newcommand{\ret}{\mathit{return}}
+\newcommand{\retTyp}{\typ_\ret}
 \newcommand{\argexp}{\exp}
 \newcommand{\argexps}{\overline \argexp}
 \newcommand{\argexpi}[1]{\argexp_{#1}}
@@ -383,6 +385,7 @@
 %% \newcommand{\zip}[2]{\mathit{zip} ({#1},{#2})}
 \newcommand{\matchParArg}[2]{\mathit{macth\_parameter\_argument}({#1},{#2})}
 \newcommand{\validatePars}[3]{\mathit{validate\_parameter}({#1})_{{#2},{#3}}}
+\newcommand{\validateParArg}[1]{\mathit{validate\_parmeter\_argument}({#1})}
 \newcommand{\maybe}[1]{{#1}_{\bot}}
 \newcommand{\castParArg}[1]{\mathit{cast\_parameter\_argument}({#1})}
 \newcommand{\callOK}[2]{\mathit{call\_ok}({#1},{#2})}
@@ -466,7 +469,8 @@
 \newcommand{\simpFuncTyp}[2]{{#1} \rightarrow {#2}}
 %kind.type param. param. return type. 
 \newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})\rightarrow {#4}}
-\newcommand{\constructorTyp}[4]{{#1}\  {#2}\ \langle{#3}\rangle\ ({#4}, \_)}
+% type params: list of name. wildcard param: list of name. params: list of type dir name. return: typed.
+\newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle{#2}\rangle}
 \newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}

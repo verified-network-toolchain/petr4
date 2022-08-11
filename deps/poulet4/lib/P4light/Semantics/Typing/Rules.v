@@ -1015,6 +1015,30 @@ Section Soundness.
   Local Hint Resolve sub_gamma_expr_refl : core.
   Local Hint Resolve gamma_stmt_prop_sub_gamma : core.
 
+  Lemma exec_write_gamma_var_prop:
+    forall (st : state) (Γ : @gamma_stmt tags_t),
+      gamma_var_prop Γ st ge ->
+      forall (st' : state) (lv : ValueLvalue) (sv : ValueBase),
+        exec_write st lv sv st' -> gamma_var_prop Γ st' ge.
+  Proof.
+    intros st Γ Hgstvar st' lv sv H10. revert Γ ge Hgstvar. induction H10; intros.
+    - destruct Hgstvar. red in H0, H1. unfold update_val_by_loc, update_memory in H.
+      destruct st as [m es]. split; repeat intro.
+      + apply H0 in H2. clear H0 H1. subst st'. unfold loc_to_sval, get_memory in *.
+        destruct H2 as [sv ?]. destruct l; inv H.
+        destruct (list_eq_dec string_dec p (get_loc_path loc)).
+        * rewrite <- e. rewrite PathMap.get_set_same. exists rhs. auto.
+        * rewrite PathMap.get_set_diff; auto. exists sv. auto.
+      + specialize (H0 _ _ H2). destruct H0 as [sv ?H].
+        destruct (H1 _ _ _ H2 H0) as [rt [? ?]]. subst st'.
+        unfold loc_to_sval, get_memory in *. destruct l; inv H3.
+        destruct (list_eq_dec string_dec p (get_loc_path loc)).
+        * rewrite <- e in H6. rewrite PathMap.get_set_same in H6. admit.
+        * rewrite PathMap.get_set_diff in H6; auto. rewrite H0 in H6. inv H6.
+          exists rt. split; auto.
+
+  Abort.
+
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
 
@@ -1061,6 +1085,7 @@ Section Soundness.
             unfold gamma_expr_prop in *.
             destruct Hgste as [Hgstvar Hgstconst];
               split; try assumption.
+            destruct (is_continue sig) eqn:?H; [| subst; assumption].
             admit. (* TODO: helper lemma for [gamma_var_prop Γ]. *)
           * repeat if_destruct.
             -- intuition; subst; split; auto.

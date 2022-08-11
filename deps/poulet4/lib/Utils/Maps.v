@@ -31,7 +31,7 @@ Module FuncAsMap.
     Proof.
       intro k; rewrite key_eqb_eq_iff; reflexivity.
     Qed.
-    
+
     Context {value: Type}.
 
     Definition t := key -> option value.
@@ -49,7 +49,7 @@ Module FuncAsMap.
       intros X fmap; cbv.
       rewrite key_eqb_same; reflexivity.
     Qed.
-    
+
     Lemma remove_complete : forall X Y fmap,
         X <> Y -> get X (remove Y fmap) = get X fmap.
     Proof.
@@ -57,7 +57,7 @@ Module FuncAsMap.
       rewrite <- key_eqb_neq_iff in HXY.
       rewrite HXY; reflexivity.
     Qed.
-    
+
     Definition sets: list key -> list value -> t -> t :=
       fun kList vList fmap =>
         fold_left (fun fM kvPair => set (fst kvPair) (snd kvPair) fM)
@@ -105,7 +105,7 @@ Module FuncAsMap.
 
     Section Map.
       Variable f : U -> V.
-      
+
       Definition map_map (e : @t key U) : @t key V :=
         fun k => match e k with
             | Some u => Some (f u)
@@ -159,12 +159,22 @@ Proof.
   rewrite IHk. rewrite String.eqb_refl. now simpl.
 Qed.
 
-Lemma path_eqb_neq: forall k k', k <> k' -> path_eqb k k' = false.
+Lemma path_eqb_eq: forall p1 p2, path_eqb p1 p2 = true <-> p1 = p2.
 Proof.
-  induction k, k'; intros; unfold path_eqb; simpl; auto.
-  - exfalso. now apply H.
-  - destruct (String.eqb a s) eqn:?; simpl; auto.
-    rewrite IHk; auto. rewrite String.eqb_eq in Heqb. intro. apply H. now subst.
+  intros; split; intros. 2: subst; apply path_eqb_refl.
+  revert p1 p2 H.
+  induction p1, p2; intros; unfold path_eqb in H; simpl in H; auto; try (now inv H).
+  rewrite andb_true_iff in H.
+  destruct H. rewrite String.eqb_eq in H. subst a. f_equal.
+  now apply IHp1.
+Qed.
+
+Lemma path_eqb_neq: forall k k', k <> k' <-> path_eqb k k' = false.
+Proof.
+  intros. split; intros.
+  - destruct (path_eqb k k') eqn:?H; auto. rewrite path_eqb_eq in H0. now exfalso.
+  - destruct (list_eq_dec String.string_dec k k'); auto.
+    rewrite <- path_eqb_eq, H in e. inversion e.
 Qed.
 
 Module PathMap.

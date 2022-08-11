@@ -6,7 +6,7 @@ Notation t := (Expr.t).
 Notation it := (TopDecl.it).
 Notation e := (Expr.e).
 Notation s := (Stmt.s).
-Notation par_e := (Parser.e).
+Notation par_e := (Parser.pt).
 Notation ct_d := (Control.d).
 Notation tpdecl := (TopDecl.d).
 
@@ -29,9 +29,9 @@ Definition parser_start_state : s :=
   Stmt.Transition (Parser.Direct Parser.Accept).
 Definition parsr_cparams : TopDecl.constructor_params := [].
 Definition parsr_params : Expr.params :=
-  [ (*hdr:*) PAOut hdrs
-    ; (*meta:*) PAInOut metadata
-    ; (*standard_meta:*) PAInOut std_meta].
+  [ ("hdr",PAOut hdrs)
+    ; ("meta",PAInOut metadata)
+    ; ("standard_meta",PAInOut std_meta)].
 Definition myparser : tpdecl :=
   TopDecl.Parser
     "MyParser"
@@ -43,9 +43,9 @@ Definition instance_myparser : tpdecl :=
 
 Definition gress_cparams : TopDecl.constructor_params := [].
 Definition gress_params : Expr.params :=
-  [ (*hdr*) PAInOut hdrs
-    ; (*meta*) PAInOut metadata
-    ; (*standard_meta*) PAInOut std_meta].
+  [ ("hdr",PAInOut hdrs)
+    ; ("meta",PAInOut metadata)
+    ; ("standard_meta",PAInOut std_meta)].
 Definition ingress_decl : ct_d := 
   Control.Action "test_ingress" [] [] Stmt.Skip.
 Definition ingress : tpdecl :=
@@ -65,10 +65,10 @@ Definition instance_myegress : tpdecl :=
   TopDecl.Instantiate "MyEgress" "my_egress" [] [] [].
 
 Definition deparser_cparams : TopDecl.constructor_params := [].
-Definition deparser_params : Expr.params := [ (*hdr:*) PAIn hdrs].
+Definition deparser_params : Expr.params := [ ("hdr",PAIn hdrs)].
 Definition mydeparser_decl : ct_d :=
   Control.Action
-    "test_deparser" [] [] (Stmt.Var (inr oneplusone) Stmt.Skip).
+    "test_deparser" [] [] (Stmt.Var "x" (inr oneplusone) Stmt.Skip).
 
 Definition mydeparser : tpdecl := 
   TopDecl.Control
@@ -81,7 +81,7 @@ Definition instance_mydeparser : tpdecl :=
 
 Definition checksum_cparams : TopDecl.constructor_params := [].
 Definition checksum_params : Expr.params :=
-  [(*hdr:*) PAInOut hdrs; (*meta*) PAInOut metadata].
+  [("hdr",PAInOut hdrs); ("meta",PAInOut metadata)].
 Definition verify_decl : ct_d :=
   Control.Action "test_verifyChecksum" [] [] Stmt.Skip.
 Definition verify : tpdecl :=

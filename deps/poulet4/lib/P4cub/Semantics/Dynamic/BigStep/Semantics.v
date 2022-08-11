@@ -31,9 +31,9 @@ Inductive expr_big_step (ϵ : list Val.v)
   ⟨ ϵ, w `W n ⟩ ⇓ w VW n
 | ebs_int w z :
   ⟨ ϵ, w `S z ⟩ ⇓ w VS z
-| ebs_var x τ v :
+| ebs_var τ og x v :
   nth_error ϵ x = Some v ->
-  ⟨ ϵ, Expr.Var τ x ⟩ ⇓ v
+  ⟨ ϵ, Expr.Var τ og x ⟩ ⇓ v
 | ebs_slice e hi lo v v' :
   eval_slice hi lo v = Some v' ->
   ⟨ ϵ, e ⟩ ⇓ v ->
@@ -77,8 +77,8 @@ Reserved Notation "e '⇓ₗ' lv" (at level 80, no associativity).
 
 (* TODO: add index evaluation. *)
 Inductive lexpr_big_step : Expr.e -> Val.lv -> Prop :=
-| lebs_var τ x :
-  Expr.Var τ x ⇓ₗ Val.Var x
+| lebs_var τ og x :
+  Expr.Var τ og x ⇓ₗ Val.Var x
 | lebs_slice hi lo e lv :
   e ⇓ₗ lv ->
   Expr.Slice hi lo e ⇓ₗ Val.Slice hi lo lv
@@ -98,7 +98,7 @@ Local Close Scope lvalue_scope.
 Reserved Notation "'p⟨' ϵ , e ⟩ ⇓ st" (at level 80, no associativity).
 
 Variant parser_expr_big_step (ϵ : list Val.v)
-  : Parser.e -> Parser.state_label -> Prop :=
+  : Parser.pt -> Parser.state_label -> Prop :=
   | pebs_goto st :
     p⟨ ϵ, Parser.Direct st ⟩ ⇓ st
   | pebs_select e default cases v :
@@ -310,13 +310,13 @@ Inductive stmt_big_step
      ;  extrn  := ψ |},
      ϵ, Stmt.Apply p ext_args args `⧽
      `⤋ `⧼ copy_out vargs ϵ'' ϵ, ψ' `⧽ *)
-| sbs_var Ψ ϵ ϵ' te v v' s sig ψ :
+| sbs_var Ψ ϵ ϵ' og te v v' s sig ψ :
   match te with
   | inr e => ⟨ ϵ, e ⟩ ⇓ v
   | inl τ => v_of_t τ = Some v
   end ->
   ⧼ Ψ, v :: ϵ, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, Stmt.Var te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
+  ⧼ Ψ, ϵ, Stmt.Var og te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
 | sbs_seq Ψ ϵ ϵ' ϵ'' s₁ s₂ sig₁ sig₂ ψ ψ' :
   (* TODO: handle signals *)
   ⧼ Ψ, ϵ, s₁ ⧽ ⤋ ⧼ ϵ', sig₁, ψ ⧽ ->

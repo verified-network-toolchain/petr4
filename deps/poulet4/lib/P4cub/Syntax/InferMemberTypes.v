@@ -14,7 +14,7 @@ Fixpoint inf_e  (e : Expr.e) : Expr.e :=
   | Expr.Bit _ _
   | Expr.Int _ _
   | Expr.Error _
-  | Expr.Var _ _ => e
+  | Expr.Var _ _ _ => e
   | Expr.Slice hi lo e =>
       Expr.Slice hi lo $ inf_e e
   | Expr.Cast t e =>
@@ -41,7 +41,7 @@ Definition inf_fun_kind (fk : Stmt.fun_kind) : Stmt.fun_kind :=
   | Stmt.Action a cargs    => Stmt.Action a $ map inf_e cargs
   end.
 
-Definition inf_transition  (transition : Parser.e) :=
+Definition inf_transition  (transition : Parser.pt) :=
   match transition with
   | Parser.Direct s =>
       Parser.Direct s
@@ -64,7 +64,7 @@ Fixpoint inf_s  (s : Stmt.s) : Stmt.s :=
   | Stmt.Apply ci ext_args args =>
       let args' := map inf_arg args in
       Stmt.Apply ci ext_args args
-  | Stmt.Var e s => Stmt.Var (map_sum id inf_e e) $ inf_s s
+  | Stmt.Var x e s => Stmt.Var x (map_sum id inf_e e) $ inf_s s
   | (s1 `; s2)%stmt => (inf_s s1 `; inf_s s2)%stmt
   | (If g Then tru Else fls)%stmt
     => (If inf_e g Then inf_s tru Else inf_s fls)%stmt

@@ -89,7 +89,7 @@ Section CCompSel.
     match e with
     | Expr.Bool true  => mret Ctrue
     | Expr.Bool false => mret Cfalse
-    | Expr.Var ty x =>
+    | Expr.Var ty _ x =>
         (*first find if x has been declared. If not, declare it *)
         let* cty :=
           State_lift
@@ -497,7 +497,7 @@ Section CCompSel.
   Definition CTranslateParams
     : Expr.params -> State ClightEnv (list (AST.ident * Ctypes.type)) :=
     state_list_map
-      (fun param =>
+      (fun '(_,param) =>
          let* new_id := new_ident in
          let* '(ct, cparam) :=
            match param with
@@ -530,7 +530,7 @@ Section CCompSel.
     : Expr.params -> StateT ClightEnv Result.result Clight.statement :=
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
-           (fun (name : nat) (fn_param: paramarg Expr.t Expr.t) =>
+           (fun (name : nat) '((_,fn_param): string * paramarg Expr.t Expr.t) =>
               let* '(oldid, tempid) := search_state (find_ident_temp_arg name) in
               match fn_param with
               | PAIn t =>
@@ -549,7 +549,7 @@ Section CCompSel.
       StateT ClightEnv Result.result Clight.statement :=
     (lift_monad statement_of_list)
       ∘ (state_list_mapi
-           (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
+           (fun (name: nat) '((_,fn_param): string * paramarg Expr.t Expr.t) =>
               let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
               match fn_param with
               | PAIn t => 
@@ -568,7 +568,7 @@ Section CCompSel.
     : Expr.params ->
       StateT ClightEnv Result.result (list Clight.expr) :=
     state_list_mapi
-      (fun (name: nat) (fn_param: paramarg Expr.t Expr.t) =>
+      (fun (name: nat) '((_,fn_param): string * paramarg Expr.t Expr.t) =>
          let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
          match fn_param with 
          | PAIn t
@@ -585,7 +585,7 @@ Section CCompSel.
     : Expr.params
       -> StateT ClightEnv Result.result (list Clight.expr) :=
     state_list_mapi
-      (fun (name: nat) (fn_param: (paramarg Expr.t Expr.t)) =>
+      (fun (name: nat) '((_,fn_param): string * paramarg Expr.t Expr.t) =>
          let* (oldid, tempid) := search_state (find_ident_temp_arg name) in
          match fn_param with
          | PAIn t => State_lift (CTranslateType t >>| Evar tempid)
@@ -741,7 +741,7 @@ Section CCompSel.
         state_lift (Result.error "not a simple pattern match")
     end.
 
-  Definition CTranslateParserExpressionVal (pe: Parser.e)
+  Definition CTranslateParserExpressionVal (pe: Parser.pt)
     : StateT ClightEnv Result.result Clight.statement :=
     let* rec_call_args := proj_state get_top_args in
     match pe with
@@ -776,7 +776,7 @@ Section CCompSel.
           (Result.error "nested select expression, currently unsupported")
     end.
   
-  Definition CTranslateParserExpression (pe: Parser.e)
+  Definition CTranslateParserExpression (pe: Parser.pt)
     : StateT ClightEnv Result.result Clight.statement :=
     match pe with 
     | Parser.Select exp def cases => 
@@ -804,12 +804,12 @@ Section CCompSel.
         let* s1' := CTranslateStatement s1 in
         let^ s2' := CTranslateStatement s2 in
         Ssequence s1' s2'
-    | Stmt.Var (inl t) s =>
+    | Stmt.Var _ (inl t) s =>
         (* TODO: why skip returned? *)
         let* cty := State_lift (CTranslateType t) in
         modify_state (CCompEnv.add_var cty) ;;
         CTranslateStatement s
-    | Stmt.Var (inr e) s =>
+    | Stmt.Var _ (inr e) s =>
         (* TODO: need to double check
            that I update env at the correct place. *)
       let t := t_of_e e in
@@ -1130,7 +1130,9 @@ Section CCompSel.
     := match ct with
        | Control.Action a ctrl_params data_params body =>
            let* f :=
-             CTranslateAction ctrl_params data_params body top_fn_params top_signature in
+             CTranslateAction
+               (map snd ctrl_params) data_params
+               body top_fn_params top_signature in
            (* TODO should be added to actions *)
            modify_state (CCompEnv.add_function a f) ;;
            state_return Sskip

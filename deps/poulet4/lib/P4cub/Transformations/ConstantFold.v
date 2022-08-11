@@ -47,7 +47,7 @@ Fixpoint cf_e (e : Expr.e) : Expr.e :=
   | (_ `W _)%expr
   | (_ `S _)%expr
   | Expr.Error _
-  | Expr.Var _ _ => e
+  | Expr.Var _ _ _ => e
   | Expr.Slice hi lo e =>
       let e' := cf_e e in
       match eval_slice hi lo e' with

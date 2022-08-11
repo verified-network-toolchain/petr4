@@ -29,10 +29,10 @@ Inductive type_expr (Γ : expr_type_env)
 | type_int w n :
   IntArith.bound w n ->
   Γ ⊢ₑ w `S n ∈ Expr.TInt w
-| type_var x τ :
+| type_var τ og x :
   nth_error (types Γ) x = Some τ ->
   t_ok (type_vars Γ) τ ->
-  Γ ⊢ₑ Expr.Var τ x ∈ τ
+  Γ ⊢ₑ Expr.Var τ og x ∈ τ
 | type_slice hi lo e w τ :
   (Npos lo <= Npos hi < w)%N ->
   numeric_width w τ ->
@@ -99,7 +99,7 @@ Local Close Scope pat_scope.
 (** Parser-expression typing. *)
 Variant type_prsrexpr 
         (total_states : nat) (Γ : expr_type_env)
-  : Parser.e -> Prop :=
+  : Parser.pt -> Prop :=
   | type_goto (st : Parser.state_label) :
     valid_state total_states st ->
     type_prsrexpr total_states Γ (Parser.Direct st)
@@ -174,7 +174,7 @@ Inductive type_stmt
     (rel_paramarg
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    args (map (tsub_param (gen_tsub τs)) params) ->
+    args (map (tsub_param (gen_tsub τs)) (map snd params)) ->
   Γ ⊢ₛ Stmt.Call fk args ⊣ Cont
 | type_apply
     Γ extern_args args x extern_params params sig insts :
@@ -188,7 +188,7 @@ Inductive type_stmt
     (rel_paramarg
        (type_expr Γ)
        (fun e τ => Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
-    args params ->
+    args (map snd params) ->
   Γ ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke
     Γ tbl es tbls τs :
@@ -196,7 +196,7 @@ Inductive type_stmt
   tbls tbl = Some τs ->
   Forall2 (type_expr Γ) es τs ->
   Γ ⊢ₛ Stmt.Invoke tbl es ⊣ Cont
-| type_vardecl (Γ : stmt_type_env) τ te s sig :
+| type_vardecl (Γ : stmt_type_env) og τ te s sig :
     match te with
     | inr e => Γ ⊢ₑ e ∈ τ
     | inl τ' => τ' = τ /\ t_ok (type_vars Γ) τ'
@@ -205,7 +205,7 @@ Inductive type_stmt
        Γ.(expr_env)
            <| types :=
          τ :: Γ.(types) |> |>) ⊢ₛ s ⊣ sig ->
-    Γ ⊢ₛ Stmt.Var te s ⊣ sig
+    Γ ⊢ₛ Stmt.Var og te s ⊣ sig
 | type_seq Γ s₁ s₂ sig₁ sig₂ :
   Γ ⊢ₛ s₁ ⊣ sig₁ ->
   Γ ⊢ₛ s₂ ⊣ sig₂ ->
@@ -248,10 +248,10 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
     ; cntx     := CAction (actns Γ) (cinsts Γ)
     ; expr_env :=
       {| type_vars := type_vars (cexpr_env Γ)
-      ; types := cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
+      ; types := map snd cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
     |} ⊢ₛ body ⊣ sig ->
     Γ ⊢ᵪ Control.Action action_name cparams dparams body
-      ⊣ inl (action_name,(cparams,dparams))
+      ⊣ inl (action_name,(map snd cparams,dparams))
   | type_table table_name key_sig actions :
     (*
       (** Keys type. *)

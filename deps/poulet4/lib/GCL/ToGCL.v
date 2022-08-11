@@ -1,32 +1,4 @@
-Set Warnings "-custom-entry-overridden".
 Require Import Coq.Program.Basics.
-(* <<<<<<< HEAD:deps/poulet4/lib/P4cub/ToGCL.v *)
-(* Require Export Poulet4.P4cub.Syntax.AST. *)
-(* Require Export Poulet4.P4Arith. *)
-(* Require Export Poulet4.P4cub.Envn. *)
-(* Require Export Poulet4.P4cub.BigStep.InstUtil. *)
-(* Require Export Poulet4.P4cub.BigStep.BigStep. *)
-(* Require Export Poulet4.P4cub.BigStep.Semantics. *)
-(* Require Export Poulet4.P4cub.BigStep.Value.Value. *)
-(* Require Export Poulet4.P4cub.Util.Result. *)
-
-(* Require Import Coq.Arith.EqNat. *)
-(* Require Import String. *)
-
-(* Require Import Poulet4.P4cub.Inline. *)
-(* Require Import Poulet4.ToP4cub. *)
-
-(* Import Env.EnvNotations. *)
-
-(* Import Result. *)
-(* Import ResultNotations. *)
-
-(* Import Poulet4.P4cub.Util.ListUtil. *)
-(* Import Poulet4.P4cub.Util.StringUtil. *)
-
-(* Require Import Poulet4.P4cub.GCL. *)
-
-(* ======= *)
 From Poulet4 Require Export P4cub.Syntax.AST
      Utils.P4Arith Utils.Envn
      P4cub.Semantics.Dynamic.BigStep.BigStep
@@ -37,7 +9,6 @@ Import Env.EnvNotations Result ResultNotations.
 From Poulet4.Utils.Util Require Import ListUtil StringUtil.
 
 Open Scope string_scope.
-(* >>>>>>> poulet4:deps/poulet4/lib/GCL/ToGCL.v *)
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.

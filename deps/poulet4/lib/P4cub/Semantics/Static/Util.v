@@ -215,7 +215,7 @@ Definition bind_all (ps : Expr.params) (Γ : list Expr.t) : list Expr.t :=
   map (fun 
        '(PAIn τ
         | PAOut τ
-        | PAInOut τ) => τ) ps ++ Γ.
+        | PAInOut τ) => τ) (map snd ps) ++ Γ.
 
 (** Constructor Parameter types, for instantiations *)
 Inductive constructor_type : Set :=
@@ -288,8 +288,8 @@ Variant good_signal : Expr.arrowT -> signal -> Prop :=
 
 (** (Syntactic) Evidence an expression may be an lvalue. *)
 Inductive lvalue_ok : Expr.e -> Prop :=
-| lvalue_var x τ :
-  lvalue_ok (Expr.Var τ x)
+| lvalue_var τ og x :
+  lvalue_ok (Expr.Var τ og x)
 | lvalue_bit_slice e h l :
   lvalue_ok e ->
   lvalue_ok (Expr.Slice h l e)

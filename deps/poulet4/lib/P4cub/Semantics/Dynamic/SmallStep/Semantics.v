@@ -29,9 +29,9 @@ Module Step.
   
   (** Expression evaluation. *)
   Inductive expr_step (ϵ : list Expr.e) : Expr.e -> Expr.e -> Prop :=
-  | step_var τ x e :
+  | step_var τ og x e :
     nth_error ϵ x = Some e ->
-    ⟨ ϵ, Expr.Var τ x ⟩ -->  e
+    ⟨ ϵ, Expr.Var τ og x ⟩ -->  e
   | step_slice e e' hi lo :
     ⟨ ϵ, e ⟩ -->  e' ->
     ⟨ ϵ, Expr.Slice hi lo e ⟩ -->  Expr.Slice hi lo e'
@@ -102,7 +102,7 @@ Module Step.
            (at level 80, no associativity).
   
   Inductive step_parser_expr (ϵ : list Expr.e)
-    : Parser.e -> Parser.e -> Prop :=
+    : Parser.pt -> Parser.pt -> Prop :=
   | step_select_discriminee e e' d cases :
     ⟨ ϵ, e ⟩ -->  e' ->
     π ϵ, Parser.Select e d cases -->  Parser.Select e' d cases

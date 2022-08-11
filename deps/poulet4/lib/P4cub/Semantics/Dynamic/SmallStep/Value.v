@@ -64,8 +64,8 @@ Section Lemmas.
 End Lemmas.
 
 Inductive lvalue : Expr.e -> Prop :=
-| lvalue_var x τ :
-    lvalue (Expr.Var τ x)
+| lvalue_var τ og x :
+    lvalue (Expr.Var τ og x)
 | lvalue_slice hi lo lv :
     lvalue lv ->
     lvalue (Expr.Slice hi lo lv)

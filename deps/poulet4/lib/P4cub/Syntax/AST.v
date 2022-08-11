@@ -58,30 +58,31 @@ Definition rel_paramarg_same {A B : Set} (R : A -> B -> Prop) :
   rel_paramarg R R.
 
 (** Function signatures/instantiations. *)
-Record arrow (A B : Set) : Set :=
-  { paramargs : list (paramarg A B);
-    rtrns : option B }.
+Record arrow (A B C : Set) : Set :=
+  { paramargs : list (A * paramarg B C);
+    rtrns : option C }.
 
-Arguments paramargs {_} {_}.
-Arguments rtrns {_} {_}.
+Arguments paramargs {_} {_} {_}.
+Arguments rtrns {_} {_} {_}.
 
 (** * Expression Grammar *)
 Module Expr.
   (** Expression types. *)
   Inductive t : Set :=
-  | TBool                   (** bools *)
-  | TBit (width : N)        (** unsigned integers *)
-  | TInt (width : positive) (** signed integers *)
-  | TError                  (** the error type *)
+  | TBool                       (** bools *)
+  | TBit (width : N)            (** unsigned integers *)
+  | TInt (width : positive)     (** signed integers *)
+  | TError                      (** the error type *)
   | TArray (size : N) (typ : t) (** arrays, not header-stacks, normal arrays. *)
-  | TStruct (isheader : bool) (fields : list t) (** struct types *)
-  | TVar (type_name : nat)   (** type variables *).  
+  | TStruct (isheader : bool) (fields : list t) (** struct or header types. *)
+  | TVar (type_name : nat)        (** type variables *).
     
   (** Function parameters. *)
-  Definition params : Set := list (paramarg t t).
+  Definition params : Set :=
+    list ((* original name *) string * paramarg t t).
     
   (** Function types. *)
-  Definition arrowT : Set := arrow t t.
+  Definition arrowT : Set := arrow (* original name *) string t t.
   
   Variant uop : Set :=
     | Not        (** boolean negation *)
@@ -125,26 +126,23 @@ Module Expr.
   (** Expressions annotated with types,
       unless the type is obvious. *)  
   Inductive e : Set :=
-  | Bool (b : bool)                      (** booleans *)
-  | Bit (width : N) (val : Z)         (** unsigned integers *)
-  | Int (width : positive) (val : Z)         (** signed integers *)
-  | Var (type : t) (x : nat)            (** variables *)
+  | Bool (b : bool)                     (** booleans *)
+  | Bit (width : N) (val : Z)        (** unsigned integers *)
+  | Int (width : positive) (val : Z) (** signed integers *)
+  | Var (type : t) (original_name : string) (x : nat)  (** variables *)
   | Slice (hi lo : positive) (arg : e) (** bit-slicing *)
-  | Cast (type : t) (arg : e)         (** explicit casts *)
+  | Cast (type : t) (arg : e)          (** explicit casts *)
   | Uop (result_type : t) (op : uop)
         (arg : e)                     (** unary operations *)
   | Bop (result_type : t) (op : bop)
         (lhs rhs : e)                 (** binary operations *)
   | Lists (flag : lists) (es : list e)
-  | Index (elem_type : t) (array index : e) (** array-indexing *)
+  | Index (elem_type : t) (array index : e)      (** array-indexing *)
   | Member (result_type : t) (mem : nat) (arg : e) (** struct member *)
   | Error (err : string)  (** error literals *).
   
   (** Function call arguments. *)
   Definition args : Set := list (paramarg e e).
-    
-  (** Function call. *)
-  Definition arrowE : Set := arrow e e.
 End Expr.
 
 (** * Parser Grammar *)
@@ -160,61 +158,60 @@ Module Parser.
       Corresponds to keySet expressions in p4. *)
   Inductive pat : Set :=
   | Wild                      (** wild-card/anything pattern *)
-  | Mask (p1 p2 : pat)        (** mask pattern *)
+  | Mask  (p1 p2 : pat)       (** mask pattern *)
   | Range (p1 p2 : pat)       (** range pattern *)
   | Bit (width : N) (val : Z) (** unsigned-int pattern *)
   | Int (width : positive) (val : Z) (** signed-int pattern *)
-  | Lists (ps : list pat)    (** lists pattern *).
+  | Lists (ps : list pat)     (** lists pattern *).
 
-  (** Parser expressions, which evaluate to state names *)
-  Variant e : Set :=
-  | Direct (st : state_label)  (** goto state [st] *)
+  (** Parser transitions, which evaluate to state names *)
+  Variant trns : Set :=
+  | Direct (st : state_label) (** direct transition to state [st] *)
   | Select (discriminee : Expr.e)
-           (default : state_label) (cases : Field.fs pat state_label)
+      (default : state_label)
+      (cases : Field.fs pat state_label)
   (** select expressions,
       where "default" is
       the catch-all case *).
 
-  Definition trans := e.
+  Definition pt := trns.
 End Parser.
 
 (** * Statement and Block Grammar *)
 Module Stmt.
   (** Function, action, extern method, or apply instance. *)
   Variant fun_kind : Set :=
-    | Funct
-        (function_name : string) (type_args : list Expr.t) (returns : option Expr.e)
-    | Action
-        (action_name : string) (control_plane_args : list Expr.e)
-    | Method
-        (extern_instance_name method_name : string)
+    | Funct (function_name : string)
+        (type_args : list Expr.t) (returns : option Expr.e)
+    | Action (action_name : string)
+        (control_plane_args : list Expr.e)
+    | Method (extern_instance_name method_name : string)
         (type_args : list Expr.t) (returns : option Expr.e).
   
   (** Statements. *)
   Inductive s : Set :=
   (** terminators to a statement block: *)
-  | Skip                         (** skip/no-op *)
-  | Return (e : option Expr.e)   (** return *)
-  | Exit                         (** exit *)
-  | Transition (e : Parser.e)    (** parser transition *)  
-  | Assign (lhs rhs : Expr.e)    (** assignment *)
-  | Call
-      (call : fun_kind)          (** kind of call *)
-      (args : Expr.args)         (** arguments *)
-  | Invoke (table_name : string) (key : list Expr.e) (** table invocation *)
-  | Apply
-      (instance_name : string)
+  | Skip                          (** skip/no-op *)
+  | Return (e : option Expr.e)    (** return *)
+  | Exit                          (** exit *)
+  | Transition (trns : Parser.pt) (** parser transition *)  
+  | Assign (lhs rhs : Expr.e)     (** assignment *)
+  | Call (call : fun_kind) (** kind of call *)
+      (args : Expr.args)   (** arguments *)
+  | Invoke (table_name : string)
+      (key : list Expr.e) (** table invocation *)
+  | Apply (instance_name : string)
       (ext_args : list string)
       (args : Expr.args) (** apply statements *)
   (** blocks of statements: *)
-  | Var (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
-        (tail : s) (** variable declaration/initialization
-                       a let-in operator. *)
+  | Var (original_name : string)
+      (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
+      (tail : s) (** variable declaration/initialization
+                     a let-in operator. *)
   | Seq (head tail : s) (** sequenced blocks,
                             variables introduced in [head]
                             do not occur in [tail] *)
-  | Conditional
-      (guard : Expr.e)
+  | Conditional (guard : Expr.e)
       (tru_blk fls_blk : s) (** conditionals *).
 End Stmt.
 
@@ -223,17 +220,18 @@ Module Control.
   (** Declarations occuring within controls. *)
   Variant d : Set :=
     | Action (action_name : string)
-             (control_plane_params : list Expr.t)
-             (data_plane_params : Expr.params)
-             (body : Stmt.s) (** action declaration *)
+        (control_plane_params
+          : list ((* original parameter name *) string * Expr.t))
+        (data_plane_params : Expr.params)
+        (body : Stmt.s) (** action declaration *)
     | Table (table_name : string)
-            (key : list (Expr.t * string))
-            (actions : list string)
-            (* try making table function of key.
-               problematic for compileing to
-               hardware b/c table
-               invocations (of the same table) should all
-               have the same key... *).
+        (key : list (Expr.t * string))
+        (actions : list string)
+  (* try making table function of key.
+     problematic for compileing to
+     hardware b/c table
+     invocations (of the same table) should all
+     have the same key... *).
 End Control.
 
 (** Top-Level Declarations *)

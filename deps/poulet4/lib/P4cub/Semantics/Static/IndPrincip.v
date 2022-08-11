@@ -64,10 +64,10 @@ Section TypeExprInduction.
       IntArith.bound w z ->
       P Γ (w `S z) (Expr.TInt w).
   
-  Hypothesis HVar : forall Γ x τ,
+  Hypothesis HVar : forall Γ τ og x,
       nth_error (types Γ) x = Some τ ->
       t_ok (type_vars Γ) τ ->
-      P Γ (Expr.Var τ x) τ.
+      P Γ (Expr.Var τ og x) τ.
   
   Hypothesis HSlice : forall Γ hi lo w e τ,
       (Npos lo <= Npos hi < w)%N ->
@@ -143,7 +143,7 @@ Section TypeExprInduction.
       | type_bool _ b     => HBool _ b
       | type_bit _ _ _ H => HBit _ _ _ H
       | type_int _ _ _ H => HInt _ _ _ H
-      | type_var _ _ _ Hnth H => HVar _ _ _ Hnth H
+      | type_var _ _ _ _ Hnth H => HVar _ _ _ _ Hnth H
       | type_slice _ _ _ _ _ _ Hlohiw Ht He
         => HSlice _ _ _ _ _ _ Hlohiw Ht He (teind _ _ _ He)
       | type_cast _ _ _ _ HPC Hok He

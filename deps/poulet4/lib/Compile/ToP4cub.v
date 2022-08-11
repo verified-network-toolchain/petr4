@@ -414,7 +414,7 @@ Section ToP4cub.
   
   Fixpoint
     apply_args_to_params
-    (f_str : string) (params : list (paramarg E.t E.t))
+    (f_str : string) (params : list (string * paramarg E.t E.t))
     (args : list (option E.e)) : result (list (paramarg E.e E.e)) :=
     match params, args with
     | [], [] => ok []
@@ -428,7 +428,7 @@ Section ToP4cub.
              ++ f_str ++ " (" ++ string_of_nat (List.length params) ++ " are missing)")
     | _::params', None::args' =>
         apply_args_to_params f_str params' args'
-    | param::params', (Some arg)::args' =>
+    | (_,param)::params', (Some arg)::args' =>
         apply_arg_to_param (param, arg) (apply_args_to_params f_str params' args')
     end.
   
@@ -589,12 +589,12 @@ Section ToP4cub.
         | ExpName name loc =>
             match name with
             | BareName {| P4String.str := x |} =>
-                let* x :=
+                let* n :=
                   Result.from_opt
                     (ListUtil.index_of string_dec x term_names)
                     ("Unbound name " ++ x) in
                 let+ cub_type := translate_exp_type typ in
-                E.Var cub_type x
+                E.Var cub_type x n
             | QualifiedName namespaces name =>
                 error "Qualified names should be eliminated"
             end
@@ -693,18 +693,18 @@ Section ToP4cub.
         end.
       
       Definition parameter_to_paramarg
-                 '(MkParameter _ dir typ _ _ : @P4Parameter tags_t)
-        : result (paramarg E.t E.t) :=
+                 '(MkParameter _ dir typ _ {| P4String.str := x |} : @P4Parameter tags_t)
+        : result (string * paramarg E.t E.t) :=
         let+ t := translate_exp_type typ in
-        match dir with
-        | Directionless
-        | In => PAIn t
-        | Out => PAOut t
-        | InOut => PAInOut t
-        end.
+        (x, match dir with
+            | Directionless
+            | In => PAIn t
+            | Out => PAOut t
+            | InOut => PAInOut t
+            end).
 
       Definition parameters_to_params (parameters : list (@P4Parameter tags_t))
-        : result (list (paramarg E.t E.t)) :=
+        : result (list (string * paramarg E.t E.t)) :=
         rred (List.map (parameter_to_paramarg) parameters).
       
       Definition translate_expression_and_type e :=
@@ -722,7 +722,7 @@ Section ToP4cub.
                  (args : list (option (@Expression tags_t)))
         : result (list (paramarg E.e E.e)) :=
         let* (cub_args : list (option E.e)) := translate_arglist args in
-        let* (params : list (paramarg E.t E.t)) := parameters_to_params parameters in
+        let* (params : list (string * paramarg E.t E.t)) := parameters_to_params parameters in
         apply_args_to_params callee params cub_args.
       
       Definition translate_apply callee args ret_var ret_type : result ST.s :=
@@ -742,9 +742,9 @@ Section ToP4cub.
                 ("TypeError :: name " ++ callee_string ++ "not found.") in
             (* TODO make this an EExprMember *)
             match ret_var, ret_type with
-            | Some rv, Some rt =>
-                let switch_expr := E.Var rt rv in
-                let action_run_var := E.Var rt cub_name in
+            | Some (original_name,rv), Some rt =>
+                let switch_expr := E.Var rt original_name rv in
+                let action_run_var := E.Var rt callee_string cub_name in
                 (* TODO: lookup keys to make arguments. *)
                 ST.Seq (ST.Invoke callee_string [])
                        (ST.Assign switch_expr action_run_var)
@@ -767,8 +767,8 @@ Section ToP4cub.
         let* hdr := translate_expression callee in
         match retvar with
         | None => error "IsValid has no return value"
-        | Some rv =>
-            ok (ST.Assign (E.Var E.TBool rv)
+        | Some (original_name,rv) =>
+            ok (ST.Assign (E.Var E.TBool original_name rv)
                           (E.Uop E.TBool E.IsValid hdr))
         end.
       
@@ -796,7 +796,7 @@ Section ToP4cub.
                  (args : list (option (@Expression tags_t)))
                  (ctx : DeclCtx)
                  (callee : Expression)
-                 (ret_var : option nat)
+                 (ret_var : option (string * nat))
                  (ret_type : option E.t)
                  (f : P4String.t tags_t) : result ST.s :=
         let f_str := P4String.str f in
@@ -850,7 +850,7 @@ Section ToP4cub.
       Definition
         function_call_init
         (ctx : DeclCtx) (e : Expression)
-        (ret_var : nat) (ret_type : E.t) : option (result ST.s) :=
+        (ret_var : string * nat) (ret_type : E.t) : option (result ST.s) :=
         let '(MkExpression tags expr typ dir) := e in
         match expr with
         | ExpFunctionCall func type_args args =>
@@ -865,7 +865,7 @@ Section ToP4cub.
                 | TypFunction (MkFunctionType type_params parameters kind ret) =>
                     Some $
                          translate_function_application
-                         n (Some (Expr.Var ret_type ret_var)) type_args parameters args
+                         n (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))) type_args parameters args
                 | _ =>
                     Some $
                          error
@@ -1039,7 +1039,7 @@ Section ToP4cub.
                  translate_block
                    (x :: term_names)
                     ctx blk in
-               ST.Var (inl t) s
+               ST.Var x (inl t) s
            | BlockCons
                (MkStatement
                   _ (StatVariable
@@ -1047,21 +1047,21 @@ Section ToP4cub.
                let* t := translate_exp_type t in
                match function_call_init
                        term_names
-                       ctx e 0 t with
+                       ctx e (x,0) t with
                | None =>
                    let* e := translate_expression term_names e in
                    let+ s :=
                      translate_block
                        (x :: term_names)                       
                        ctx blk in
-                   ST.Var (inr e) s
+                   ST.Var x (inr e) s
                | Some call =>
                    let* call := call in
                    let+ s :=
                      translate_block
                        (x :: term_names)                       
                        ctx blk in
-                   ST.Var (inl t) (ST.Seq call s)
+                   ST.Var x (inl t) (ST.Seq call s)
                end 
            | BlockCons statement rest =>
                let* s1 :=
@@ -1193,7 +1193,7 @@ Section ToP4cub.
     translate_transition
     (term_names parser_states : list string)
     (transition : ParserTransition)
-    : result (Parser.e) :=
+    : result (Parser.pt) :=
     match transition with
     | ParserDirect _ next =>
         let+ next_state :=
@@ -1235,9 +1235,8 @@ Section ToP4cub.
         let+ s :=
           translate_parser_state_block
             (x :: term_names)
-            
             parser_states ctx s transition in
-        ST.Var (inl t) s
+        ST.Var x (inl t) s
     | MkStatement
         _ (StatVariable
              t {| P4String.str := x|} (Some e) _) _
@@ -1245,24 +1244,21 @@ Section ToP4cub.
         let* t := translate_exp_type [] t in
         match function_call_init
                 [] term_names
-                
-                ctx e 0 t with
+                ctx e (x,0) t with
         | None =>
             let* e := translate_expression [] term_names e in
             let+ s :=
               translate_parser_state_block
-                (x :: term_names)
-                
+                (x :: term_names)                
                 parser_states ctx s transition in
-            ST.Var (inr e) s
+            ST.Var x (inr e) s
         | Some call =>
             let* call := call in
             let+ s :=
               translate_parser_state_block
                 (x :: term_names)
-                
                 parser_states ctx s transition in
-            ST.Var (inl t) (ST.Seq call s)
+            ST.Var x (inl t) (ST.Seq call s)
         end 
     | statement :: rest =>
         let* s1 :=
@@ -1564,7 +1560,7 @@ Section ToP4cub.
           translate_return_type typ_names ret in
         let+ params :=
           parameters_to_params typ_names parameters in
-        let arrowtype := {| paramargs:=params; rtrns := cub_ret |} in
+        let arrowtype : Expr.arrowT := {| paramargs:=params; rtrns := cub_ret |} in
         (* TODO: how to get extern arguments? *)
         inr (P4String.str name,
             (List.length type_args, [], arrowtype))
@@ -1692,7 +1688,7 @@ Section ToP4cub.
         let* ctrl_params :=
           parameters_to_params
             [] ctrl_params
-            >>| List.map paramarg_elim in
+            >>| map_snd paramarg_elim in
         let* data_params :=
           (* TODO: perhaps translate_decl
              needs to pass a [typ_names]

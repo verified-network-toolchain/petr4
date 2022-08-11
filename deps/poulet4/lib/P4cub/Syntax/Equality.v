@@ -2,7 +2,7 @@ From Coq Require Import PArith.BinPos
      ZArith.BinInt NArith.BinNat Bool.Bool.
 From Poulet4 Require Import P4cub.Syntax.AST
      P4cub.Syntax.IndPrincip P4cub.Syntax.CubNotations.
-Import Expr ExprNotations.
+Import String Expr ExprNotations.
 
 Reserved Infix "=?" (at level 70).
 
@@ -20,7 +20,7 @@ Fixpoint eqbt (τ1 τ2 : t) {struct τ1} : bool :=
   | TBit w1, TBit w2               => (w1 =? w2)%N
   | TInt w1, TInt w2               => (w1 =? w2)%positive
   | TArray n1 t1, TArray n2 t2     => (n1 =? n2)%N && (t1 =? t2)%ty
-  | TStruct b1 ts1, TStruct b2 ts2 => (eqb b1 b2) && eqbl ts1 ts2
+  | TStruct b1 ts1, TStruct b2 ts2 => (Bool.eqb b1 b2) && eqbl ts1 ts2
   | _, _ => false
   end
 where "x '=?' y" := (eqbt x y) : ty_scope.
@@ -29,7 +29,7 @@ Definition lists_eqb (l1 l2 : Expr.lists) : bool :=
   match l1, l2 with
   | lists_struct, lists_struct => true
   | lists_array τ₁, lists_array τ₂ => (τ₁ =? τ₂)%ty
-  | lists_header b₁, lists_header b₂ => eqb b₁ b₂
+  | lists_header b₁, lists_header b₂ => Bool.eqb b₁ b₂
   | _, _ => false
   end.
 
@@ -179,13 +179,13 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
     | e1::es1, e2::es2 => (e1 =? e2)%expr && lstruct es1 es2
     end in
   match e1, e2 with
-  | Bool b1, Bool b2 => eqb b1 b2
+  | Bool b1, Bool b2 => Bool.eqb b1 b2
   | w1 `W n1, w2 `W n2
     => (w1 =? w2)%N && (n1 =? n2)%Z
   | w1 `S z1, w2 `S z2
     => (w1 =? w2)%positive && (z1 =? z2)%Z
-  | Var τ1 x1, Var τ2 x2
-    => PeanoNat.Nat.eqb x1 x2 && (τ1 =? τ2)%ty
+  | Var τ1 og1 x1, Var τ2 og2 x2
+    => PeanoNat.Nat.eqb x1 x2 && (og1 =? og2)%string && (τ1 =? τ2)%ty
   | Slice h1 l1 e1, Slice h2 l2 e2
     => (h1 =? h2)%positive && (l1 =? l2)%positive && (e1 =? e2)%expr
   | Cast τ1 e1, Cast τ2 e2
@@ -207,6 +207,7 @@ Fixpoint eqbe (e1 e2 : e) {struct e1} : bool :=
 where "x '=?' y" := (eqbe x y) : expr_scope.
 
 Section ExprEquivalenceDefs.
+  Local Hint Rewrite String.eqb_refl : core.
   Local Hint Rewrite eqb_reflx : core.
   Local Hint Rewrite Pos.eqb_refl : core.
   Local Hint Rewrite Z.eqb_refl : core.
@@ -224,12 +225,12 @@ Section ExprEquivalenceDefs.
     intro exp; induction exp using custom_e_ind;
       cbn; autorewrite with core;
       try match goal with
-          | H: predop _ _ |- _ => inv H
-          end;
+        | H: predop _ _ |- _ => inv H
+        end;
       try ind_list_Forall; cbn in *;
       repeat match goal with
-             | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
-             end; cbn in *; auto.
+        | H: ?trm = true |- context [ ?trm ] => rewrite H; clear H
+        end; cbn in *; auto.
   Qed.
 
   Local Hint Resolve eqb_prop : core.
@@ -240,8 +241,10 @@ Section ExprEquivalenceDefs.
   
   Ltac eq_true_terms :=
     match goal with
-    | H: eqb _ _ = true |- _
+    | H: Bool.eqb _ _ = true |- _
       => apply eqb_prop in H; subst
+    | H: (_ =? _)%string = true |- _
+      => rewrite String.eqb_eq in H; subst
     | H: (_ =? _)%N = true |- _
       => apply InitialRing.Neqb_ok in H; subst
     | H: (_ =? _)%positive = true |- _

@@ -30,7 +30,7 @@ Fixpoint t_of_e (exp: e) : t :=
   match exp with
   | Bool _  => TBool
   | Error _ => TError
-  | Var τ _
+  | Var τ _ _
   | Cast τ _
   | Uop τ _ _
   | Bop τ _ _ _

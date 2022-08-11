@@ -1,3 +1,4 @@
+Require Import Coq.Strings.String.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift.
@@ -24,34 +25,34 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
   match e with
   | Expr.Bool _
   | Expr.Error _ => ([], e)
-  | Expr.Var τ x => ([], Expr.Var τ (up + x))
+  | Expr.Var τ og x => ([], Expr.Var τ og (up + x))
   | Expr.Member t x e
     => let '(inits, e) := lift_e up e in
       (inits, Expr.Member t x e)
   | Expr.Bit _ _
-  | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) 0)
+  | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) "" 0)
   | Expr.Slice hi lo eₛ =>
       let '(inits, eₛ) := lift_e up eₛ in
-      (Expr.Slice hi lo eₛ :: inits, Expr.Var (t_of_e e) 0)
+      (Expr.Slice hi lo eₛ :: inits, Expr.Var (t_of_e e) "" 0)
   | Expr.Cast t e =>
       let '(inits, e) := lift_e up e in
-      (Expr.Cast t e :: inits, Expr.Var t 0)
+      (Expr.Cast t e :: inits, Expr.Var t "" 0)
   | Expr.Uop t op e =>
       let '(inits, e) := lift_e up e in
-      (Expr.Uop t op e :: inits, Expr.Var t 0)
+      (Expr.Uop t op e :: inits, Expr.Var t "" 0)
   | Expr.Bop t op lhs rhs => 
       let '(ll, lhs) := lift_e up lhs in
       let '(lr, rhs) := lift_e (length ll + up) rhs in
       (Expr.Bop
          t op (rename_e (plus $ length lr) lhs) rhs
-         :: lr ++ ll, Expr.Var t 0)
+         :: lr ++ ll, Expr.Var t "" 0)
   | Expr.Index t e1 e2 =>
       let '(l1, e1) := lift_e up e1 in
       let '(l2, e2) := lift_e (length l1 + up) e2 in
       (l2 ++ l1, Expr.Index t (rename_e (plus $ length l2) e1) e2)
   | Expr.Lists l es =>
       let '(les, es) := lift_e_list up es in
-      (Expr.Lists l es :: les, Expr.Var (t_of_e e) 0)
+      (Expr.Lists l es :: les, Expr.Var (t_of_e e) "" 0)
   end.
 
 Fixpoint lift_e_list (up : nat) (es : list Expr.e)
@@ -87,10 +88,10 @@ Fixpoint lift_args (up : nat) (es : Expr.args)
 
 (** [unwind_vars [e₁;...;eₙ] s = Stmt.Var eₙ (...(Stmt.Var e₁ s )...)]. *)
 Definition unwind_vars (es : list Expr.e) : Stmt.s -> Stmt.s :=
-  List.fold_left (fun b e => Stmt.Var (inr e) b) es.
+  List.fold_left (fun b e => Stmt.Var "" (inr e) b) es.
 
-Definition lift_trans (up : nat) (e : Parser.e)
-  : list Expr.e * Parser.e :=
+Definition lift_trans (up : nat) (e : Parser.trns)
+  : list Expr.e * Parser.trns :=
   match e with
   | Parser.Direct _ => ([],e)
   | Parser.Select e d cases
@@ -140,11 +141,11 @@ Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
   | Stmt.Apply x exts args
     => let '(inits, args) := lift_args up args in
       unwind_vars inits $ Stmt.Apply x exts args
-  | Stmt.Var (inl t) s => Stmt.Var (inl t) (lift_s up s)
-  | Stmt.Var (inr e) s =>
+  | Stmt.Var og (inl t) s => Stmt.Var og (inl t) (lift_s up s)
+  | Stmt.Var og (inr e) s =>
       let '(le,e) := lift_e up e in
       unwind_vars
-        le $ Stmt.Var (inr e)
+        le $ Stmt.Var og (inr e)
         $ lift_s (length le + up) s
   | s₁ `; s₂ => lift_s up s₁ `; lift_s up s₂
   | If e Then s₁ Else s₂ =>

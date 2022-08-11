@@ -49,7 +49,7 @@ Section Sub.
     | Expr.Bit _ _
     | Expr.Int _ _
     | Expr.Error _ => e
-    | Expr.Var t x       => Expr.Var (tsub_t t) x
+    | Expr.Var t og x       => Expr.Var (tsub_t t) og x
     | Expr.Slice hi lo e => Expr.Slice hi lo $ tsub_e e
     | Expr.Cast t e      => Expr.Cast (tsub_t t) $ tsub_e e
     | Expr.Uop rt op e   => Expr.Uop (tsub_t rt) op $ tsub_e e
@@ -69,7 +69,7 @@ Section Sub.
     : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
     paramarg_map_same $ tsub_e.
 
-  Definition tsub_transition (transition : Parser.e) :=
+  Definition tsub_transition (transition : Parser.pt) :=
     match transition with
     | Parser.Direct s => Parser.Direct s
     | Parser.Select discriminee default cases =>
@@ -99,31 +99,31 @@ Section Sub.
       => Stmt.Call (tsub_fun_kind fk) $ map tsub_arg args
     | Stmt.Apply ci ext_args args =>
         Stmt.Apply ci ext_args $ map tsub_arg args
-    | Stmt.Var e s
+    | Stmt.Var x e s
       => Stmt.Var
-          (map_sum tsub_t tsub_e e)
+          x (map_sum tsub_t tsub_e e)
           $ tsub_s s
     | (s₁ `; s₂)%stmt => (tsub_s s₁ `; tsub_s s₂)%stmt
     | (If g Then tru Else fls)%stmt
       => (If tsub_e g Then tsub_s tru Else tsub_s fls)%stmt
     end.
-
+  
   Definition tsub_cparam
              (ctor_type : TopDecl.it) : TopDecl.it :=
     match ctor_type with
     | TopDecl.ControlInstType extern_params params =>
         TopDecl.ControlInstType
-          extern_params (map tsub_param params)
+          extern_params (map_snd tsub_param params)
     | TopDecl.ParserInstType extern_params params =>
         TopDecl.ParserInstType
-          extern_params (map tsub_param params)
+          extern_params (map_snd tsub_param params)
     | TopDecl.PackageInstType => TopDecl.PackageInstType
     | TopDecl.ExternInstType e => TopDecl.ExternInstType e
     end.
 
   Definition tsub_arrowT
              '({| paramargs:=params; rtrns:=ret |} : Expr.arrowT) : Expr.arrowT :=
-    {| paramargs := map tsub_param params
+    {| paramargs := map_snd tsub_param params
     ; rtrns := option_map tsub_t ret |}.
 End Sub.
 
@@ -136,8 +136,8 @@ Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   match d with
   | Control.Action a cps dps body =>
       Control.Action
-        a (map (tsub_t σ) cps)
-        (map (tsub_param σ) dps) $ tsub_s σ body
+        a (map_snd (tsub_t σ) cps)
+        (map_snd (tsub_param σ) dps) $ tsub_s σ body
   | Control.Table t key acts =>
       Control.Table
         t (List.map (fun '(t,mk) => (tsub_t σ t, mk)) key) acts
@@ -162,7 +162,7 @@ Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
       let cparams' := map (FunUtil.map_snd $ tsub_cparam σ) cparams in
       let expr_cparams' :=
         map (tsub_t σ) expr_cparams in
-      let params' := map (tsub_param σ) params in
+      let params' := map_snd (tsub_param σ) params in
       let body' := map (tsub_Cd σ) body in
       let apply_blk' := tsub_s σ apply_blk in
       TopDecl.Control cname cparams' expr_cparams' eparams params' body' apply_blk'
@@ -170,7 +170,7 @@ Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=
       let cps' := map (FunUtil.map_snd $ tsub_cparam σ) cps in
       let expr_cparams' :=
         map (tsub_t σ) expr_cparams in
-      let ps' := map (tsub_param σ) ps in
+      let ps' := map_snd (tsub_param σ) ps in
       let start' := tsub_s σ strt in
       let states' := map (tsub_s σ) sts in
       TopDecl.Parser pn cps' expr_cparams' eps ps' start' states'

@@ -1,7 +1,7 @@
 From Poulet4 Require Import
      Utils.Util.FunUtil
      P4cub.Syntax.AST P4cub.Syntax.CubNotations.
-Import AllCubNotations.
+Import AllCubNotations String.
 
 (** * Philip Wadler style de Bruijn shifts for expression variables. *)
 
@@ -22,7 +22,7 @@ Section Rename.
     | _ `W _
     | _ `S _
     | Expr.Error _     => e
-    | Expr.Var t x     => Expr.Var t $ ρ x
+    | Expr.Var t og x     => Expr.Var t og $ ρ x
     | Expr.Slice h l e => Expr.Slice h l $ rename_e e
     | Expr.Cast t e    => Expr.Cast t $ rename_e e
     | Expr.Uop t op e  => Expr.Uop t op $ rename_e e
@@ -52,7 +52,7 @@ Section Rename.
       => Stmt.Method e m τs $ option_map rename_e oe
     end.
 
-  Definition rename_transition (e : Parser.e) : Parser.e :=
+  Definition rename_transition (e : Parser.pt) : Parser.pt :=
     match e with
     | Parser.Direct _ => e
     | Parser.Select e d cases
@@ -78,9 +78,9 @@ Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
     => Stmt.Apply
         x eas
         $ map (rename_arg ρ) args
-  | Stmt.Var te b
+  | Stmt.Var og te b
     => Stmt.Var
-        (map_sum id (rename_e ρ) te)
+        og (map_sum id (rename_e ρ) te)
         $ rename_s (ext ρ) b
   | s₁ `; s₂ => rename_s ρ s₁ `; rename_s ρ s₂
   | If e Then s₁ Else s₂
@@ -90,14 +90,14 @@ Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
 Local Close Scope stmt_scope.
 
 Section TermSub.
-  Variable σ : nat -> Expr.t -> Expr.e.
+  Variable σ : nat -> Expr.t -> string -> Expr.e.
 
   Local Open Scope expr_scope.
   
-  Definition exts (x : nat) (t : Expr.t) : Expr.e :=
+  Definition exts (x : nat) (t : Expr.t) (original_name : string) : Expr.e :=
     match x with
-    | O => Expr.Var t O
-    | S n => rename_e S $ σ n t
+    | O => Expr.Var t original_name O
+    | S n => rename_e S $ σ n t original_name
     end.
 
   Fixpoint esub_e (e : Expr.e) : Expr.e :=
@@ -106,7 +106,7 @@ Section TermSub.
     | _ `W _
     | _ `S _
     | Expr.Error _ => e
-    | Expr.Var t x => σ x t
+    | Expr.Var t og x => σ x t og
     | Expr.Slice hi lo e => Expr.Slice hi lo $ esub_e e
     | Expr.Cast t e => Expr.Cast t $ esub_e e
     | Expr.Uop t op e => Expr.Uop t op $ esub_e e
@@ -122,7 +122,7 @@ Section TermSub.
     : paramarg Expr.e Expr.e -> paramarg Expr.e Expr.e :=
     paramarg_map_same $ esub_e.
 
-  Definition esub_transition (pe : Parser.e) : Parser.e :=
+  Definition esub_transition (pe : Parser.pt) : Parser.pt :=
     match pe with
     | Parser.Direct s => Parser.Direct s
     | Parser.Select discriminee default cases =>
@@ -142,7 +142,7 @@ End TermSub.
 
 Local Open Scope stmt.
 
-Fixpoint esub_s (σ : nat -> Expr.t -> Expr.e) (s : Stmt.s) : Stmt.s :=
+Fixpoint esub_s (σ : nat -> Expr.t -> string -> Expr.e) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
   | Stmt.Return None
@@ -153,7 +153,7 @@ Fixpoint esub_s (σ : nat -> Expr.t -> Expr.e) (s : Stmt.s) : Stmt.s :=
   | Stmt.Call fk args => Stmt.Call (esub_fun_kind σ fk) $ List.map (esub_arg σ) args
   | Stmt.Invoke tbl es => Stmt.Invoke tbl $ List.map (esub_e σ) es
   | Stmt.Apply inst eargs args => Stmt.Apply inst eargs $ map (esub_arg σ) args
-  | Stmt.Var te s => Stmt.Var (map_sum id (esub_e σ) te) $ esub_s (exts σ) s
+  | Stmt.Var og te s => Stmt.Var og (map_sum id (esub_e σ) te) $ esub_s (exts σ) s
   | s₁ `; s₂ => esub_s σ s₁ `; esub_s σ s₂
   | If e Then s₁ Else s₂ => If esub_e σ e Then esub_s σ s₁ Else esub_s σ s₂
   end.

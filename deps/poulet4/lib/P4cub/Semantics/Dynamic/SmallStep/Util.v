@@ -389,7 +389,7 @@ End StepDefs.
 (** Lookup an lvalue. *)
 Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
   match lv with
-  | Expr.Var _ x => nth_error ϵ x
+  | Expr.Var _ _ x => nth_error ϵ x
   | Expr.Member _ x lv =>
       let* v := lv_lookup ϵ lv in
       match v with
@@ -411,7 +411,7 @@ Fixpoint lv_lookup (ϵ : list Expr.e) (lv : Expr.e) : option Expr.e :=
 (** Updating an lvalue in an environment. *)
 Fixpoint lv_update (lv v : Expr.e) (ϵ : list Expr.e) : list Expr.e :=
   match lv with
-  | Expr.Var _ x => nth_update x v ϵ
+  | Expr.Var _ _ x => nth_update x v ϵ
   | Expr.Member _ x lv
     => match lv_lookup ϵ lv with
       | Some

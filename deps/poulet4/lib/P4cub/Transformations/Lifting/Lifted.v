@@ -31,8 +31,8 @@ Ltac lift_e_destr_hyp_rewrite :=
 Inductive lifted_expr : Expr.e -> Prop :=
 | lifted_bool (b : bool) :
   lifted_expr b
-| lifted_var τ x :
-  lifted_expr (Expr.Var τ x)
+| lifted_var τ og x :
+  lifted_expr (Expr.Var τ og x)
 | lifted_index τ e₁ e₂ :
   lifted_expr e₁ ->
   lifted_expr e₂ ->
@@ -82,7 +82,7 @@ Variant lifted_fun_kind : Stmt.fun_kind -> Prop :=
     predop lifted_expr oe ->
     lifted_fun_kind (Stmt.Method x m τs oe).
 
-Variant lifted_parser_expr : Parser.e -> Prop :=
+Variant lifted_parser_expr : Parser.trns -> Prop :=
   | lifted_goto st : 
     lifted_parser_expr (Parser.Direct st)
   | lifted_select exp default cases : 
@@ -92,13 +92,13 @@ Variant lifted_parser_expr : Parser.e -> Prop :=
 Inductive lifted_stmt : Stmt.s -> Prop :=
 | lifted_skip :
   lifted_stmt Stmt.Skip
-| lifted_vardecl te s :
+| lifted_vardecl og te s :
   match te with
   | inl t => True
   | inr e => lifted_rexpr e
   end ->
   lifted_stmt s ->
-  lifted_stmt (Stmt.Var te s)
+  lifted_stmt (Stmt.Var og te s)
 | lifted_assign e1 e2 :
   lifted_expr e1 ->
   lifted_expr e2 ->
@@ -349,7 +349,7 @@ Proof.
   - destruct e as [e |]; auto.
     lift_e_destr; apply lift_e_lifted_expr in Heqp.
     intuition.
-  - destruct (lift_trans up e) as [le e'] eqn:eqle.
+  - destruct (lift_trans up trns) as [le e'] eqn:eqle.
     apply lift_trans_lifted_parser_expr in eqle as [? ?].
     intuition.
   - do 2 lift_e_destr.

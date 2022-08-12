@@ -1183,7 +1183,25 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ᵦ blk ⊣ Γ' ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
     Proof.
-    Admitted.
+      intros Γ' tag blk t Hblk. revert dependent Γ'.
+      induction Hblk; intros Γ' Hsblk Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgsp;
+        simpl in *; split; auto.
+      - split.
+        + do 2 eexists. do 2 constructor.
+        + intros st' sig Hempty. inv Hempty. inv H6. auto.
+      - inv Hoks. inv H1. inv Hiss. inv H1.
+        specialize (Hsblk Hge Hged H0 H2 _ _ _ Hrob Hreads Hgsp).
+        destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
+        + do 2 eexists. constructor. econstructor; eauto.
+        + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H10.
+          eapply gamma_stmt_prop_sub_gamma; eauto.
+      - inv Hoks. inv H1. inv Hiss. inv H1.
+        specialize (Hsblk Hge Hged H2 H3 _ _ _ Hrob Hreads Hgsp).
+        destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
+        + do 2 eexists. constructor. econstructor; eauto.
+        + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H11.
+          eapply gamma_stmt_prop_sub_gamma; eauto.
+    Qed.
 
     Theorem method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
         (ge,this,Δ,Γ)

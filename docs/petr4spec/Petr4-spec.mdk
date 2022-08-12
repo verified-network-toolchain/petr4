@@ -2069,8 +2069,6 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 
 ## Anonymous Instantiation Rule { #sec-inst-e }
 
-``TODO: complete this thu aug 11``
-
 - validate par arg checks if optional is some and it passes if expression is compile time known or if it is none and parameter is none.
 
 ~ Begin InfRule

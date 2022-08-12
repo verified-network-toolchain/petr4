@@ -964,7 +964,7 @@ and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expr
   then exp1, add_cast env exp2 typ1
   else failwith "cannot cast types so that they agree"
 
-(* takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.  *)
+(* takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.  NOTE: it already know the cast, if needed, is valid. *)
 and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp: Expression.t) =
   let module E = Prog.Expression in
   let typ = reduce_type env typ in
@@ -1552,6 +1552,47 @@ and validate_param env ctx (typ: Typed.Type.t) dir tags =
   then raise_s [%message "Parameter type is not well-formed" ~info:(tags:Info.t) ~typ:(typ:Typed.Type.t)];
   if not (is_valid_param_type env ctx typ)
   then raise_s [%message "Type cannot be passed as a parameter" ~info:(tags:Info.t)];
+
+  (** copied this ease of access and read for formalization doc. *)
+  (* and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) = *)
+  (* let typ = reduce_to_underlying_type env typ in *)
+  (* match ctx with *)
+  (* | Constructor decl -> *)
+  (*    begin match typ, decl with *)
+  (*    | Package _, Package -> true *)
+  (*    | Package _, _ -> false *)
+  (*    | Parser _, Package *)
+  (*    | Parser _, Parser -> true *)
+  (*    | Parser _, _ -> false *)
+  (*    | Control _, Package *)
+  (*    | Control _, Control -> true *)
+  (*    | Control _, _ -> false *)
+  (*    | Extern _, Package *)
+  (*    | Extern _, Parser *)
+  (*    | Extern _, Control *)
+  (*    | Extern _, Method -> true *)
+  (*    | Extern _, _ -> false *)
+  (*    | Function _, _ -> false *)
+  (*    | Action _, _ -> false *)
+  (*    | Table _, _ -> false *)
+  (*    | Set _, _ -> false *)
+  (*    | _ -> true *)
+  (*    end *)
+  (* | Runtime decl -> *)
+  (*    begin match typ, decl with *)
+  (*    | Package _, _ -> false *)
+  (*    | Parser _, _ -> false *)
+  (*    | Control _, _ -> false *)
+  (*    | Extern _, Parser *)
+  (*    | Extern _, Control *)
+  (*    | Extern _, Method -> true *)
+  (*    | Extern _, _ -> false *)
+  (*    | Table _, _ -> false *)
+  (*    | Set _, _ -> false *)
+  (*    | Action _, _ -> false *)
+  (*    | Function _, _ -> false *)
+  (*    | _ -> true *)
+  (*    end *)
 
 and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param : Types.Parameter.t) : Typed.Parameter.t * string list =
   let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in

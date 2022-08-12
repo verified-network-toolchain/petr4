@@ -1811,7 +1811,7 @@ true and the false expressions have the infinite precision integer type when the
 condition can be evaluated at compilation time. However, this is allowed by P4 spec.
 
 
-## Function Call Rule
+## Function Call Rule { #sec-func-call }
 
 Expressions $\funcCall \exp {\typs} \args$ and
 $\funcCallNoTypArgs \exp \args$ both indicate a function call where
@@ -1820,9 +1820,9 @@ $\funcCallNoTypArgs \exp \args$ both indicate a function call where
 - $\args$ is the arguments passed to the function and they could be matched with parameters either based on name or position
 - $\typs$ is the type arguments passed to the function.
 
-A function call is well-typed if the called expression is an accepted function call and is well-typed and the passed (type) arguments do not violate any restrictions of (type) parameters. ``Ryan: better way of summarizing function call rule?``
+A function call is well-typed if the called expression is an accepted function call and is well-typed and the passed (type) arguments do not violate any restrictions of (type) parameters. 
 
-- The [function call auxiliary judgment][#sec-func-call] carries out multiple roles:
+- The [dispatch function call arguments auxiliary judgment][#sec-func-call-helper] carries out multiple roles:
   1. it checks if the expression as a function call is acceptable, that is, if it is either a name or expression member
   2. it checks if the type of the expression is either a function, an action, an extern, or a specialized type
   3. it checks if the parameters and arguments match either based on their position or name.
@@ -1830,12 +1830,13 @@ A function call is well-typed if the called expression is an accepted function c
   And has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\prms$, kind $\kind$, and the return type $\typ_\ret$.
 - $\transMaybe \typ$ translates the surface type $\typ$ to underlying types and if the surface type is $\dontcareTyp$ it assigns $\bot$ to it. ``TODO: rewrite after adding syntax.``
 - $\matchParArg \prms \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
+- $\types \constraint$ returns the types assigned to the vector of type variables in the constraint $\constraint$.
 - $\validatePars \singleprm \env \kind$ validates the parameter $\singleprm$ under the environment $\env$ and the function kind $\kind$. That is, it confirms that the parameter is valid if **none** of the following cases hold:
   + $(\sat \typ) = \externTyp \whatevs$ and $\dir \neq \less$
   + $\compTimeKnown {\sat \typ}$ and $\dir \neq \less$
   + $\typNotWellFormed (\sat \typ)$
 
-  And **one** of the following holds:
+  And **one** of the following holds: ```TODO: this is wrong. refer to is\_valid\_param\_type. however, I prefer finding a way to avoid writing all the cases in that function.```
   + $\kind = \parserKind$ and  $\sat \typ=\externTyp \whatevs$
   + $\kind = \controlKind$ and  $\sat \typ=\externTyp \whatevs$
   + $\kind = \methodKind$ and  $\sat \typ=\externTyp \whatevs$
@@ -1844,7 +1845,12 @@ arguments passed to it and to ensure that they all match.
 It has the judgment form $\inferTypParArg {{\maybe \constraint}} {\overline {\singleprm := {\maybe \exp}}} {\prim \constraint}$ which states that under environment $\env$ and context $\ctxt$,
 the assignment of arguments $\overline {\maybe \exp}$ to parameters $prms$ is valid under the constraints $\prim \constraint$ as long as the constraints $\prim \constraint$ do not contradict the constraints $\maybe \constraint$.
 Constraints $\constraint$ are assignments of types to type variables and optional constraints $\maybe \constraint$ are assignments of optional types to type variable. Note that constraints denoted by a letter have the same fixed vector of type variables. 
-- $\castParArg {\overline {\param := \maybe \exp}}$ bundles up the parameter with the expression's IR representation if possible: if $\maybe \exp \neq \bot$, it bundles up the parameter with $\castExpression \typ \exp$ if the direction of the parameter is correct (refer to _check\_direction_ function). Otherwise, if the parameter type isn't void and the direction is out or parameter is optional, it bundles up the parameter with bottom.
+- $\castParArg { {\singleprm := \maybe \exp}}$
+  + when $\exp \neq \bot$ it assigns the cast expression $\cast \typ \exp$ (which would be an IR expression $(\prim \exp, \prim \typ, \prim \dir$) to the parameter $\param$ if one of the following holds:
+    * $\dir = \less$
+    * $\dir = \inDir$ and $\prim \typ \neq \externTyp \whatevs$
+    * ($\dir = \out$ or $\dir = \inout$) and $\! \isLval (\prim \exp, \prim \typ, \prim \dir)$ and $\prim \dir \neq \inDir$ where $\isLval (\prim \exp, \prim \typ, \prim \dir)$ chckes whether its input is lvalue.
+  + When $\exp = \bot$ it assigns bottom to the parameter if  $\typ \neq \voidTyp$ and either $\dir = \out$ or parameter is optional.
 - $\callOK \ctxt \kind$ checks if the function kind is valid in a context. The following cases valid: ``TODO: break up ctxt. here ctxt is exprctxt.``
   + $\ctxt = \parserCtxt$ and $\kind = \parserKind$
   + $\ctxt = \applyBlockCtxt$ and $\kind = \controlKind$
@@ -1863,23 +1869,23 @@ Constraints $\constraint$ are assignments of types to type variables and optiona
 
 ~ Begin InfRule
 
-%   \mprset {vskip=0.7ex}
-%   {\inferrule 
-%      {
-%        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
-%        \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
-%        |\overline {\typ_0}| = |\typVars|\\\\
-%        % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
-%        \matchParArg \prms \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
-%        % \inferTypParArg {\typ_\ret} {\overline {\typVar : \typ_1}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar :\typ_1}} {\overline {\typVar : \typ_2}}\\\\
-%        \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \typ_2}}\\\\
-%        \validatePars {\typs} {\addTypEnvv {\overline {\typVar : \typ_2}} } \kind \\
-%        \castParArg {\overline {\param = \pprim {\maybe \exp}}} = \overline {\param = \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
-%        \callOK \ctxt \kind \\
-%        \sat {\typ_\ret} = {\prim \typ}_{\ret} 
-%        }
-%      { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
-%      \quad (\funcCallE)}
+  % \mprset {vskip=0.7ex}
+  % {\inferrule 
+  %    {
+  %      \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
+  %      \trans {\overline {\typ_0}} \emp = \overline {\typ_1}\\
+  %      |\overline {\typ_0}| = |\typVars|\\\\
+  %      % \overline {\typVar : \typ} = \zip \typVars {\overline {\prim \typ}}\\
+  %      \matchParArg \prms \args = \overline {\singleprm = \pprim {\maybe \exp}}\\
+  %      % \inferTypParArg {\typ_\ret} {\overline {\typVar : \typ_1}} {\overline {\param = \pprim {\maybe \exp}}} {\overline {\typVar :\typ_1}} {\overline {\typVar : \typ_2}}\\\\
+  %      \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \typ_2}}\\\\
+  %      \validatePars {\typs} {\addTypEnvv {\overline {\typVar : \typ_2}} } \kind \\
+  %      \castParArg {\overline {\prm := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+  %      \callOK \ctxt \kind \\
+  %      \sat {\typ_\ret} = {\prim \typ}_{\ret} 
+  %      }
+  %    { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+  %    \quad (\funcCallE)}
 
 % \\
 
@@ -1893,12 +1899,13 @@ Constraints $\constraint$ are assignments of types to type variables and optiona
        \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
         % {\overline {\typVar : \maybe {\typ_1}}} = \constraint\\
        \inferTypParArg {\overline {\typVar : \maybe {\typ_1}}} {\overline {\singleprm := \pprim {\maybe \exp}}} { \constraint}\\\\
+       \types \constraint = \overline {\typ_2}\\
        \validatePars {\typs} {\unionEnv \env { \constraint} }  \kind \\
-       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+       \castParArg {\overline {\singleprm := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \prim \dir)}}\\\\
        \callOK \ctxt \kind \\
        \sat {\typ_\ret} = {\prim \typ}_{\ret} 
        }
-     { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+     { \expenv {\funcCall \exp {\overline {\typ_0}} \args} {\funcCall {\prim \exp} {\overline { \typ_2}} {\overline{\maybe {(\ppprim \exp, \prim \typ, \prim \dir)}}} } {{\prim \typ}_{\ret}} \less }
      \quad (\funcCallE)}
 
 \\
@@ -1907,20 +1914,17 @@ Constraints $\constraint$ are assignments of types to type variables and optiona
   {\inferrule 
      {
        \resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} \\\\
-       \matchParArg \params \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
-       \inferTypParArg {\overline {\typVar : \bot }} {\overline {\singleprm := \pprim {\maybe \exp}}} \constraint \\\\
-       % \inferTypParArg {\overline {\typVar : \bot }} {\overline {\singleprm = \pprim {\maybe \exp}}} {\overline {\typVar : \prim \typ}}\\\\
-       \validatePars {\params} {\unionEnv \env {\constraint} } \kind \\
-       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \pprim \typ, \dir)}}\\\\
-       \callOK \ctxt \kind \\
-       \sat {\typ_\ret} = {\prim \typ}_{\ret} 
-       }
-     { \expenv {\funcCallNoTypArgs \exp \args} {\funcCall {\prim \exp} {\overline {\prim \typ}} {\overline{\maybe {(\ppprim \exp, \pprim \typ, \dir)}}} } {{\prim \typ}_{\ret}} \less }
+       {\prim \typ} = \dontcareTyp\\
+       | \overline {\prim \typ} | = | \typVars |\\\\
+       \expenv {\funcCall \exp {\overline {\prim \typ}} \args} {\funcCall {\prim \exp} {\overline {\ppprim \typ}} {\overline{\maybe {(\pprim \exp, \pprim \typ, \prim \dir)}}} } {{\prim \typ}_{\ret}} \less}
+     { \expenv {\funcCallNoTypArgs \exp \args} {\funcCall {\prim \exp} {\overline {\ppprim \typ}} {\overline{\maybe {(\pprim \exp, \pprim \typ, \prim \dir)}}} } {{\prim \typ}_{\ret}} \less }
      \quad (\funcCallNoTypeArgE)}
 
 ~ End InfRule
 
-### Function Call Auxiliary Judgment { #sec-func-call }
+### Dispatch Function Call Arguments Auxiliary Judgment { #sec-func-call-helper }
+
+```TODO: change C bottom to just C. instead, define don't care as bot. this way you can simplify optional translate and C bot```
 
 This judgment checks the details of a function call:
 
@@ -1939,7 +1943,7 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
   {\inferrule
      % [\nameFuncNameE]
      { \lookupEnv {\name_0} = \overline {(\typ, \dir)}\\
-       \exists (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2)\in \overline {(\typ, \dir)}}
+        (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2)\in \overline {(\typ, \dir)}}
        % \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams {\pars 1 n} {\typ_\ret} }
      { \resolveFuncOver {\name_0} {\overline {\var_1 = \exp}} {\name_0} \typParams {\overline {\prm 1}} \kind {\typ_\ret} }
      \quad (\nameFuncNameE)
@@ -1950,7 +1954,7 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
   {\inferrule
      % [\nameFuncCountE]
      { \lookupEnv {\name_0} = \overline {(\typ, \dir)}\\
-       \exists (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2) \in \overline {(\typ, \dir)}\\
+        (\funcType \kind \typParams {\overline {\prm 1}} {\typ_\ret},\dir_2) \in \overline {(\typ, \dir)}\\
        % \exists (\typ,\dir) \in (\overline {\typ, \dir}). \typ = \funcType \kind \typParams \params {\typ_\ret}\\
        |\removeOptionalPars \params| = |\argexps|}
     { \resolveFuncOver {\name_0} {\argexps} {\name_0} \typParams {\overline {\prm 1}} \kind {\typ_\ret} }
@@ -1974,7 +1978,7 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
      { \expenv {\expMem {\name_0} {\exp_0}} {\exp_1} {\typ_1} {\dir_1}\\
        \reduce {\typ_1} = \externTyp {\name_1}\\\\
        \lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
-       \exists (\name_0, \funcType \kind {\overline {\prim \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}
+        (\name_0, \funcType \kind {\overline {\prim \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}
        }
     {\resolveFuncOver {\expMem {\name_0} {\exp_0}} \argkvs {\exp_1} {\overline {\prim \typParam}} \prms \kind {\typ_\ret}}
     \quad (\expMemExternNameE)
@@ -1987,7 +1991,7 @@ It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {
      { \expenv {\expMem {\name_0} {\exp_0}} {\exp_1} {\typ_1} {\dir_1}\\
        \reduce {\typ_1} = \externTyp {\name_1}\\\\
        \lookupEnv { \name_1} = (\typParams, \methods {\name_2} {\typ_2})\\\\
-       \exists (\name_0, \funcType \kind {\overline {\prim \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}\\\\
+        (\name_0, \funcType \kind {\overline {\prim \typParam}} {\prms} {\typ_\ret}) \in {(\methods {\name_2} {\typ_2})}\\\\
        |\prms| = |\argexps|
        }
     {\resolveFuncOver {\expMem {\name_0} {\exp_0}} \argexps {\exp_1} {\overline {\prim \typParam}} \prms \kind {\typ_\ret} }
@@ -2079,7 +2083,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
        |\typs| = |\typParams| \\
        \inferTypParArg {\concatList {\overline {\typVar : \maybe {\typ_1}}} {\overline {\wildcardParam : \bot}}} {\overline {\singleprm := \pprim {\maybe \exp}}} { \constraint}\\\\
        \prim \env = \unionEnv \env \constraint \\
-       \castParArg {\overline {\param := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}\\\\
+       \castParArg {\overline {\singleprm := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \prim \dir)}}\\\\
        \validateParArg {\overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}}\\
        \sat \retTyp = \prim \retTyp}
      { \expenv {\instantiation {\spcTyp \name {\typs}} {\args}} {\instantiation {\spcTyp \name {\typs}} {\overline {\prim \arg}}} {\pprim \typ} \less}
@@ -2099,7 +2103,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
   \mprset {vskip=0.5ex}
   {  \inferrule
          { \lookupEnv \name = \overline {(\typ, \dir)} \\
-           \exists (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)}}
+            (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)}}
          { \resolveConstOver \name {\overline {\var = \exp}} \typParams \wildcardParams \prms \retTyp  }
          \quad (blah)
   }
@@ -2107,7 +2111,7 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
   \mprset {vskip=0.5ex}
   {  \inferrule
          { \lookupEnv \name = \overline {(\typ, \dir)} \\
-           \exists (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)} \\
+            (\constructorTyp \typParams \wildcardParams \prms \retTyp, \dir) \in \overline {(\typ, \dir)} \\
            |\removeOptionalPars \params| = |\argexps|}
          { \resolveConstOver \name \argexps \typParams \wildcardParams \prms \retTyp  }
          \quad (blah)

@@ -1053,6 +1053,20 @@ Section Lemmas.
     - apply (eval_cast_ex_case vs ts yts (fun f => ValBaseHeader f true)); auto.
   Qed.
 
+  Local Hint Constructors lval_typ : core.
+  
+  Lemma lval_get_real_type : forall Γ lv (τ ρ : typ) ge,
+      get_real_type ge τ = Some ρ ->
+      Γ ⊢ₗ lv \: τ -> Γ ⊢ₗlv \: ρ.
+  Proof.
+    intros G lv t r ge h hlv;
+      generalize dependent ge; generalize dependent r;
+      induction hlv; intros r ge h; cbn in h; eauto.
+    - constructor. (* sad *) admit.
+    - Fail apply typ_left_member.
+      Fail Qed.
+  Abort.
+  
   Create HintDb ind_def.
 
   Definition

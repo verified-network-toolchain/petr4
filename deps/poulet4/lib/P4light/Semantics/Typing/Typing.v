@@ -20,6 +20,12 @@ Section TypingDefs.
   Notation path := (list ident).
   Notation Sval := (@ValueBase (option bool)).
   Notation funtype := (@FunctionType tags_t).
+
+  Definition try_get_real_type ge (t : typ) : typ :=
+    match get_real_type ge t with
+    | Some r => r
+    | None => t
+    end.
   
   (* Normal (mutable/non-constant) variable typing environment. *)
   Definition gamma_var := PathMap.t typ.
@@ -62,10 +68,13 @@ Section TypingDefs.
       loc_to_sval l st = Result.Ok v ->
       exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
 
+  Definition gamma_var_ok (Δ : list string) (g : gamma_var) : Prop :=
+    FuncAsMap.forall_elem (P4Type_ok Δ) g.
+  
   Definition gamma_var_prop
              `{T : @Target tags_t expr}
-             (g : gamma_var) (st : state)
-             (gt : genv_typ) : Prop :=
+             (g : gamma_var)
+             (st : state) (gt : genv_typ) : Prop :=
     gamma_var_domain g st /\ gamma_var_val_typ g st gt.
   
   Definition sub_gamma_var (Γ Γ' : gamma_var) : Prop :=
@@ -88,6 +97,9 @@ Section TypingDefs.
       exists rt, get_real_type ge t = Some rt /\
             ⊢ᵥ v \: normᵗ rt.
   
+  Definition gamma_const_ok (Δ : list string) (g : gamma_const) : Prop :=
+    FuncAsMap.forall_elem (P4Type_ok Δ) g.
+  
   Definition gamma_const_prop
              `{T : @Target tags_t expr}
              (this : path) (g : gamma_const) (ge : genv) : Prop :=
@@ -103,6 +115,9 @@ Section TypingDefs.
              (this : path) (g : gamma_expr) (st : state) (ge : genv) : Prop :=
     gamma_var_prop g st ge /\ gamma_const_prop this g ge.
 
+  Definition gamma_expr_ok (Δ : list string) (g : gamma_expr) : Prop :=
+    gamma_var_ok Δ g /\ gamma_const_ok Δ g.
+  
   Definition sub_gamma_expr (this : path) (Γ Γ' : gamma_expr) : Prop :=
     sub_gamma_var Γ Γ' /\ sub_gamma_const this Γ Γ'.
   
@@ -212,10 +227,11 @@ Section TypingDefs.
       (Γ : gamma_expr)  (** Typing environment. *)
       (e : expr)        (** Expression to type. *)
       : Prop :=
-      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
-      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okᵉ e ->                        (** Type variables are bound. *)
-      is_expr e ->                       (** Is a well-formed expression. *)
+      genv_is_expr_typ ge ->  (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ -> (** The domain of [ge_typ ge] is [Δ]. *)
+      gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
+      Δ ⊢okᵉ e ->             (** Type variables are bound. *)
+      is_expr e ->            (** Is a well-formed expression. *)
       forall (read_one_bit : option bool -> bool -> Prop) (** Interprets uninitialized bits. *)
         (st : state)                      (** Runtime environment. *),
         (forall b b', read_one_bit (Some b) b'
@@ -230,9 +246,12 @@ Section TypingDefs.
                     ⊢ᵥ v \: normᵗ rt) /\
         (** L-expression progress & preservation. *)
         (lexpr_ok e ->
-         (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\
-         forall lv s, run_lexpr ge read_one_bit this st e lv s ->
-                 var_gamma Γ ⊢ₗlv \: typ_of_expr e).
+         (exists lv s, run_lexpr ge read_one_bit this st e lv s) /\ forall lv s,
+             run_lexpr ge read_one_bit this st e lv s -> exists rt,
+               get_real_type ge (typ_of_expr e) = Some rt /\
+                 FuncAsMap.map_map
+                   (normᵗ ∘ (try_get_real_type ge))
+                   (var_gamma Γ) ⊢ₗlv \: normᵗ rt).
     (**[]*)
 
     Variant fundef_funtype_prop
@@ -293,10 +312,11 @@ Section TypingDefs.
       (Γ Γ' : gamma_stmt) (* Input & output typing environment. *)
       (s : stmt)          (* Statement in question. *)
       : Prop :=
-      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
-      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okˢ s ->                        (** Free type variables are bound. *)
-      is_stmt s ->                       (** Is a well-formed statement. *)
+      genv_is_expr_typ ge ->  (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ -> (** The domain of [ge_typ ge] is [Δ]. *)
+      gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
+      Δ ⊢okˢ s ->             (** Free type variables are bound. *)
+      is_stmt s ->            (** Is a well-formed statement. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
@@ -317,10 +337,11 @@ Section TypingDefs.
       (Γ Γ' : gamma_stmt) (* Input & output typing environments. *)
       (blk : block)       (* Statement block. *)
       : Prop :=
-      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
-      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okᵇ blk ->                      (** Free type variables are bound. *)
-      is_block blk ->                    (** Is a well-formed block. *)
+      genv_is_expr_typ ge ->  (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ -> (** The domain of [ge_typ ge] is [Δ]. *)
+      gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
+      Δ ⊢okᵇ blk ->           (** Free type variables are bound. *)
+      is_block blk ->         (** Is a well-formed block. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
@@ -340,9 +361,10 @@ Section TypingDefs.
       (Γ : gamma_stmt)  (* Typing environment. *)
       (call : expr)     (* Call expression. *)
       : Prop :=
-      genv_is_expr_typ ge ->             (** [ge] preserves [is_expr_typ]. *)
-      delta_genv_prop ge Δ ->            (** The domain of [ge_typ ge] is [Δ]. *)
-      Δ ⊢okᵉ call ->                     (** Free type variables are bound. *)
+      genv_is_expr_typ ge ->  (** [ge] preserves [is_expr_typ]. *)
+      delta_genv_prop ge Δ -> (** The domain of [ge_typ ge] is [Δ]. *)
+      gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
+      Δ ⊢okᵉ call ->          (** Free type variables are bound. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)

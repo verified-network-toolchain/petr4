@@ -53,7 +53,7 @@ Section Soundness.
 
     Ltac soundtac :=
       autounfold with *; cbn in *;
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg;
+      intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg;
       inversion Hok; subst; inversion Hise; subst;
       split; [| split]; eauto;
       try match goal with
@@ -161,7 +161,7 @@ Section Soundness.
     Proof.
       intros i e1 e2 ts d n Hn [He1 Ht1] [He2 Ht2];
         autounfold with * in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg; simpl in *.
+      intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg; simpl in *.
       inversion Hok; subst. inversion H4; subst.
       rename H1 into Hokts; rename H4 into Hoke1e2;
         rename H2 into Hoke1; rename H3 into Hoke2.
@@ -285,7 +285,7 @@ Section Soundness.
     Proof.
       intros i e lo hi d w Hlwh [He Ht].
       autounfold with * in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg.
+      intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokbit; rename H4 into Hokacc; rename H0 into Hoke.
       inversion Hise; subst; inversion H4; subst.
@@ -349,7 +349,7 @@ Section Soundness.
                       (TypTuple (map typ_of_expr es)) dir.
     Proof.
       intros i es d Hes. autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok Hise rob st Hrobsome Hrob Hg.
+      intros Hgrt Hged Hgok Hok Hise rob st Hrobsome Hrob Hg.
       rewrite Forall_forall in Hes.
       specialize Hes with
           (read_one_bit:=rob) (st:=st).
@@ -415,7 +415,7 @@ Section Soundness.
     Proof.
       intros i es d Hes.
       autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok Hise rob st Hrobsome Hrob Hg.
+      intros Hgrt Hged Hgok Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H1; subst; inversion H4; subst.
       rename H1 into Htokrec; rename H4 into Heokrec;
         rename H0 into Htokes; rename H2 into Heokes.
@@ -529,7 +529,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpUnaryOp o e) t dir.
     Proof.
       intros i o e t d Hut He; autounfold with * in *; cbn in *.
-      intros Hgrt Hdelta Hok Hise rob st Hrobsome Hrob Hg.
+      intros Hgrt Hdelta Hgok Hok Hise rob st Hrobsome Hrob Hg.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokt; rename H4 into Hokuop; rename H0 into Hoke.
       inversion Hise; subst; inversion H4; subst.
@@ -615,7 +615,7 @@ Section Soundness.
     Proof.
       intros i o t e1 e2 d Hctk Hbt He1 He2.
       autounfold with * in *; cbn in *.
-      intros Hgrt Hged Hok His rob st Hrobsome Hrob Hgst.
+      intros Hgrt Hged Hgok Hok His rob st Hrobsome Hrob Hgst.
       inversion Hok; subst; inversion H4; subst.
       rename H1 into Hokt; rename H4 into Heokb;
         rename H2 into Hoke1; rename H5 into Hoke2.
@@ -718,7 +718,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpCast t e) t dir.
     Proof.
       intros i e t dir Hcast He.
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
       rename H4 into Hokcast; rename H3 into Htoeok; rename H1 into Hokt. clear H2.
       inversion Hise; subst. inversion H4; subst.
@@ -809,7 +809,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) t dir.
     Proof.
       intros i e x ts t dir hsize hlstdx Hnxt Hmem Hts He.
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst; inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
       inversion Hise; subst; inversion H4; subst.
@@ -915,7 +915,7 @@ Section Soundness.
           ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
       intros i e x dir t w Hstr [He Htyp].
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
       inversion Hise; subst. inversion H4; subst.
@@ -942,7 +942,7 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₑ MkExpression tag (ExpExpressionMember e x) (TypBit 32) dir.
     Proof.
       intros i e x dir t w Hstr [He Htyp].
-      intros Hgrt Hdlta Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
+      intros Hgrt Hdlta Hgok Hok Hise rob st Hrobsome Hrob Hg; cbn in *.
       inversion Hok; subst. inversion H4; subst.
       rename H4 into Hokmem; rename H0 into Htoeok; rename H1 into Hokt.
       inversion Hise; subst. inversion H4; subst.
@@ -978,7 +978,7 @@ Section Soundness.
     Proof.
       intros i e1 e2 e3 t d [He1 Ht1] [He2 Ht2] [He3 Ht3].
       autounfold with * in *; cbn in *.
-      intros Hge Hged Hok Hise rob st Hrob Hreads Hgst.
+      intros Hge Hged Hgok Hok Hise rob st Hrob Hreads Hgst.
       inv Hok; inv Hise. inv H4; inv H6.
       eapply He1 in H5 as [[sv1 Hesv1] [Hxe1 _]]; eauto; clear He1.
       eapply He2 in H7 as [[sv2 Hesv2] [Hxe2 _]]; eauto; clear He2.
@@ -1053,7 +1053,7 @@ Section Soundness.
     Proof.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 He1 He2.
       autounfold with * in *.
-      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto.
       unfold gamma_stmt_prop in Hgst.
       destruct Hgst as [Hgste Hgstf].
@@ -1108,7 +1108,7 @@ Section Soundness.
     Proof.
       cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
       autounfold with * in *.
-      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto.
       inv Hoks; inv Hiss. inv H0; inv H1.
       pose proof He Hge Hged H4 H3 _ _ Hrob Hread (proj1 Hgst)
@@ -1155,7 +1155,7 @@ Section Soundness.
     Proof.
       cbn. intros i e He.
       autounfold with * in *.
-      intros Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgst.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hreads Hgst.
       split; auto.
       destruct e as [e |]; inv He; cbn in *.
       - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
@@ -1254,7 +1254,7 @@ Section Soundness.
     Proof.
       cbn. intros i t x oe l Hl Hoe.
       autounfold with * in *.
-      intros Hge Hged Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto using bind_typ_gamma_stmt_sub_gamma.
       inv Hoks; inv Hiss. inv H0; inv H1.
       destruct oe as [e |]; inv Hoe; inv H6; inv H7.

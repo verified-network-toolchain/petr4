@@ -3,7 +3,7 @@ Require Import Coq.Classes.EquivDec.
 Require Import Coq.Bool.Bool.
 Require Import Coq.Lists.List.
 
-Require Poulet4.Utils.AList.
+Require Poulet4.Utils.AList Poulet4.Utils.AListUtil.
 Import ListNotations.
 
 Global Instance StrEqDec:EqDec string eq.
@@ -76,7 +76,7 @@ Section AList.
       destruct (StrEqDec x y) as [Hxy' | Hxy'];
       unfold "=/=", "===" in *; subst; try contradiction; auto.
   Qed.
-
+  
   Lemma key_unique_clear_AList_tags : forall vs,
       AList.key_unique (clear_AList_tags vs) = AList.key_unique vs.
   Proof.
@@ -87,3 +87,15 @@ Section AList.
 End AList.
 
 Arguments clear_AList_tags {_} {_}.
+
+Lemma clear_AList_tags_map_values :
+  forall {tags_t U V : Type} (f : U -> V)
+    (us : AList.AList (t tags_t) U (@equiv tags_t)),
+    clear_AList_tags (AListUtil.map_values f us)
+    = AListUtil.map_values f (clear_AList_tags us).
+Proof.
+  intros tags U V f us.
+  unfold clear_AList_tags, AListUtil.map_values.
+  repeat rewrite ForallMap.map_pat_both.
+  do 2 rewrite map_map; reflexivity.
+Qed.

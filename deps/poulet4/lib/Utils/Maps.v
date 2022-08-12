@@ -78,6 +78,10 @@ Module FuncAsMap.
                        k <> k' -> get k (set k' v m) = get k m.
     Proof. intros. unfold set, get. specialize (H _ _ H0). now rewrite H. Qed.
 
+    (** Property of all elements in a map. *)
+    Definition forall_elem (P : value -> Prop) (m : t) : Prop :=
+      forall k v, m k = Some v -> P v.
+    
     (** [m1 ⊆ m2]. *)
     Definition submap (m1 m2 : t) : Prop :=
       forall k v, m1 k = Some v -> m2 k = Some v.

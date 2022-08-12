@@ -133,33 +133,41 @@ Definition register_write : extern_func := {|
   ef_sem := register_write_sem
 |}.
 
-Definition extract (pin : list bool) (typ : P4Type) : Val * list bool :=
-  let '(v, bs) := Extract.extract typ pin in
-  match v with
-  | Some v => (v, bs)
-  | None => (ValBaseNull, bs)
+Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.extract (tags_t:=tags_t) typ pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
   end.
 
-Definition extract2 (pin : list bool) (typ : P4Type) (len : Z) : Val * list bool :=
-  let '(v, bs) := Extract.var_extract typ (BinIntDef.Z.to_nat len) pin in
-  match v with
-  | Some v => (v, bs)
-  | None => (ValBaseNull, bs)
+Definition extract2 (typ: Typed.P4Type) (n: nat) (pkt: list bool) : option (Val * signal * list bool) :=
+  let (res, pkt') := Extract.var_extract (tags_t:=tags_t) typ n pkt in
+  match res with
+  | inl v =>
+      Some (v, SReturnNull, pkt')
+  | inr (Reject err) =>
+      Some (ValBaseNull, SReject (Packet.error_to_string err), pkt')
+  | inr (TypeError s) =>
+      None
   end.
 
 Inductive packet_in_extract_sem : extern_func_sem :=
-  | exec_packet_in_extract : forall e s p pin typ v pin',
+| exec_packet_in_extract : forall e s p pin typ v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract pin typ = (v, pin') ->
+      extract typ pin = Some (v, sig, pin') ->
       packet_in_extract_sem e s p [typ] []
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull
-  | exec_packet_in_extract2 : forall e s p pin typ len v pin',
+          [v] sig
+  | exec_packet_in_extract2 : forall e s p pin typ len v sig pin',
       PathMap.get p s = Some (ObjPin pin) ->
-      extract2 pin typ len = (v, pin') ->
-      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N len)]
+      extract2 typ len pin = Some (v, sig, pin') ->
+      packet_in_extract_sem e s p [typ] [ValBaseBit (to_lbool 32%N (Z.of_nat len))]
             (PathMap.set p (ObjPin pin') s)
-          [v] SReturnNull.
+          [v] sig.
 
 Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
@@ -549,6 +557,9 @@ Definition expect_result_null (r: option (extern_state * list Val * signal)) : o
   | _ => None
   end.
 
+Definition set_std_meta_error (std: Val) (err: string) : Val :=
+  std.
+
 Definition interp_prog
            (run_module: path -> extern_state -> list Val -> option (extern_state * list Val * signal))
            (s0: extern_state)
@@ -556,13 +567,16 @@ Definition interp_prog
            (pin: list bool)
   : option (extern_state * Z * list bool) :=
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
-  let* (s2, outs2) := expect_result_null (run_module ["main"; "p"] s1 [ValBaseNull; ValBaseNull]) in
-  let* (hdr2, meta2, standard_metadata2) :=
-    match outs2 with
-    | [hdr2; meta2; standard_metadata2] => Some (hdr2, meta2, standard_metadata2)
+  let* (s2, hdr2, meta2, standard_metadata2) :=
+    match run_module ["main"; "p"] s1 [ValBaseNull; ValBaseNull] with
+    | Some (st', [hdr2; meta2; standard_metadata2], SReturn ValBaseNull) =>
+        Some (st', hdr2, meta2, standard_metadata2)
+    | Some (st', [hdr2; meta2; standard_metadata2], SReject err) =>
+        let meta' := set_std_meta_error standard_metadata2 err in
+        Some (st', hdr2, meta2, standard_metadata2)
     | _ => None
-    end in
-  let* meta2 := List.nth_error outs2 1 in
+    end
+  in
   let* (s3, outs3) := expect_result_null (run_module ["main"; "vr"] s2 [hdr2; meta2]) in
   let* (hdr3, meta3) :=
     match outs3 with

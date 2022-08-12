@@ -1,5 +1,5 @@
 Require Export Poulet4.Utils.Util.Utiliser
-        Poulet4.Platform.Packet
+        Poulet4.Monads.Packet
         Poulet4.Monads.State.
 (*Require Poulet4.Environment.Environment.
 Module EXN := Poulet4.Environment.Environment.*)
@@ -28,7 +28,7 @@ Definition paquet_monad : Type -> Type := @state_monad t exception.
 
 (** Lift from [packet_monad] to [paquet_monad] *)
 Definition lyft_inc
-           {R : Type} (m : packet_monad R) : paquet_monad R :=
+           {R : Type} (m : Packet R) : paquet_monad R :=
   fun pkt =>
     let '(RE, new_inc) := m $ incoming pkt in
     (RE,

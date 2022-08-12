@@ -1,44 +1,76 @@
+Require Import Coq.Strings.String.
 Require Import Poulet4.Monads.Monad.
+Require Poulet4.Monads.State.
 Require Coq.Lists.List.
 Import Coq.Lists.List.ListNotations.
 Open Scope list_scope.
 
-Definition Packet (A: Type) := list bool -> option A * list bool.
+(* Corresponds to the error declarations in core.p4 relevant to parsing *)
+Variant error :=
+| PacketTooShort        (* Not enough bits in packet for 'extract' *)
+| StackOutOfBounds      (* Reference to invalid element of a header stack. *)
+| HeaderTooShort        (* Extracting too many bits into a varbit field. *)
+| ParserTimeout         (* Parser execution time limit exceeded. *)
+| ParserInvalidArgument (* Parser operation was called with a value
+                           not supported by the implementation. *)
+                        (* On bmv2, this is used to fail when extract() is
+                           called with a length that is not divisible by 8.
+                                                                  - Ryan *)
+.
+
+Definition error_to_string (e: error) : String.string :=
+  match e with
+  | PacketTooShort => "PacketTooShort"
+  | StackOutOfBounds => "StackOutOfBounds"
+  | HeaderTooShort => "HeaderTooShort"
+  | ParserTimeout => "ParserTimeout"
+  | ParserInvalidArgument => "ParserInvalidArgument"
+  end.
+
+Variant exception :=
+| Reject (e: error)                    (* model-defined error to be stored in std_meta *)
+| TypeError (error_msg: String.string) (* type error *)
+.
+
+Definition Packet : Type -> Type :=
+  @State.state_monad (list bool) exception.
 
 Definition packet_ret (A: Type) (a: A) : Packet A :=
-  fun bs => (Some a, bs).
+  State.state_return a.
 
 Definition packet_bind (A B: Type) (a: Packet A) (c: A -> Packet B) : Packet B :=
-  fun bs =>
-    let '(v, bs') := a bs in
-    match v with
-    | Some v => c v bs'
-    | None => (None, bs')
-    end.
+  State.state_bind a c.
+
+Definition err {A: Type} (e: exception) : Packet A :=
+  State.state_fail e.
 
 #[export]
 Instance PacketMonad: Monad Packet :=
   { mret := packet_ret;
     mbind := packet_bind }.
 
-Definition err {A: Type} : Packet A :=
-  fun bs => (None, bs).
+Definition verify (cond: list bool -> bool) (e: error) : Packet unit :=
+  fun bs =>
+    if cond bs
+    then mret tt bs
+    else err (Reject e) bs.
+
+Definition pkt_min_size (n: nat) : list bool -> bool :=
+  fun bs => Nat.leb (List.length bs) n.
 
 Definition extract_bits (n: nat) : Packet (list bool) :=
+  verify (pkt_min_size n) PacketTooShort;;
   fun bs =>
-    if Nat.leb (List.length bs) n
-    then (Some (List.firstn n bs), List.skipn n bs)
-    else err bs.
+    mret (List.firstn n bs) (List.skipn n bs).
 
 Definition lookahead (n: nat) : Packet (list bool) :=
+  verify (pkt_min_size n) PacketTooShort;;
   fun bs =>
-    if Nat.leb (List.length bs) n
-    then (Some (List.firstn n bs), bs)
-    else err bs.
+    mret (List.firstn n bs) bs.
 
 Definition extract_bit : Packet bool :=
   fun bs =>
     match bs with
-    | b::bs => (Some b, bs)
-    | nil => (None, bs)
+    | b::bs => mret b bs
+    | nil => err (Reject PacketTooShort) bs
     end.

@@ -1,3 +1,4 @@
+Require Import Coq.Strings.String.
 Require Import Poulet4.Monads.Monad.
 Require Import Poulet4.Monads.Packet.
 Require Import Poulet4.P4light.Syntax.Typed.
@@ -48,12 +49,12 @@ Fixpoint extract (typ: P4Type) : Packet Val :=
   | TypEnum name (Some t) fields =>
       let* v := extract t in
       mret (ValBaseSenumField String.EmptyString v)
-  | _ => err
+  | _ => err (TypeError "Unsupported type passed to extract.")
   end.
 
 Definition var_extract (typ: P4Type) (len: nat) : Packet Val :=
   match typ with
-  | _ => err
+  | _ => mret ValBaseNull
   end.
 
 End Extract.

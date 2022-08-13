@@ -47,17 +47,19 @@ Require Poulet4.GCL.ToGCL.
 Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
+Require Poulet4.Monads.State.
 
-(* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
-         Poulet4.P4light.Syntax.Syntax
-         Poulet4.P4light.Syntax.Typed
-         Poulet4.P4light.Transformations.SimplExpr
-         Poulet4.P4light.Transformations.GenLoc
-         Poulet4.P4light.Syntax.ConstValue
-         Poulet4.Compile.ToP4cub
-         Poulet4.GCL.GCL
-         Poulet4.GCL.ToGCL
-         Poulet4.GCL.TableInstr
-         Poulet4.GCL.V1model
-         Poulet4.P4cub.Transformations.Lifting.Statementize.
+  Poulet4.Monads.Option
+  Poulet4.Monads.State
+  Poulet4.P4light.Syntax.Syntax
+  Poulet4.P4light.Syntax.Typed
+  Poulet4.P4light.Transformations.SimplExpr
+  Poulet4.P4light.Transformations.GenLoc
+  Poulet4.P4light.Syntax.ConstValue
+  Poulet4.Compile.ToP4cub
+  Poulet4.GCL.GCL
+  Poulet4.GCL.ToGCL
+  Poulet4.GCL.TableInstr
+  Poulet4.GCL.V1model
+  Poulet4.P4cub.Transformations.Lifting.Statementize.

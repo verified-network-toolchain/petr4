@@ -5,7 +5,7 @@ Require Import Poulet4.Ccomp.IdentGen.
 Require Import Poulet4.Ccomp.Petr4Runtime.
 Require Import Poulet4.Utils.Envn.
 Require Import Poulet4.Monads.Result Poulet4.Monads.State.
-Require Import Coq.Strings.String.
+Require Import String.
 Require Import Poulet4.Utils.Util.Utiliser.
 Require Import Coq.PArith.BinPosDef Coq.PArith.BinPos
         Coq.ZArith.BinIntDef Coq.ZArith.BinInt

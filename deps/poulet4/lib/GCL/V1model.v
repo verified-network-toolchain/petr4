@@ -29,71 +29,67 @@ Definition externs : ToGCL.model :=
   ("direct_meter", [("direct_meter", G.GSkip); ("read", G.GSkip)])
   ].
 
-Definition cub_seq {tags_t : Type} (i : tags_t) (statements : list (ST.s tags_t)) : ST.s tags_t  :=
-  let seq := fun s1 s2 => ST.SSeq s1 s2 i in
-  List.fold_right seq (ST.SSkip i) statements.
+Definition cub_seq (statements : list ST.s): ST.s :=
+  List.fold_right ST.Seq ST.Skip statements.
 
-Definition det_fwd_asst {tags_t : Type} (i : tags_t) :=
+Definition det_fwd_asst   :=
   let assertion :=
-      E.EBop E.TBool
+      E.Bop E.TBool
              E.NotEq
-             (E.EVar (E.TBit 9%N) "standard_metadata.egress_spec" i)
-             (E.EBit 9%N 0%Z i) i
+             (E.Var (E.TBit 9%N) "standard_metadata.egress_spec" 0)
+             (E.Bit 9%N 0%Z)
   in
-  let paramargs := [("check", PAIn assertion)] in
-  let arrowE := {| paramargs := paramargs ; rtrns := None |} in
-  ST.SExternMethodCall "_" "assert" [] arrowE i.
+  let paramargs := [(*check*) PAIn assertion] in
+  ST.Call (ST.Method "_" "assert" [] None) paramargs.
 
-Definition t_arg {tags_t : Type} (i : tags_t) (dir : (E.e tags_t) -> paramarg (E.e tags_t) (E.e tags_t)) typ var :=
-  (var, dir (E.EVar typ var i)).
-Definition s_arg {tags_t : Type} (i : tags_t) dir var stype :=
-  t_arg i dir (E.TVar stype) var.
+Definition t_arg (dir : E.e -> paramarg E.e E.e) typ var :=
+  (var, dir (E.Var typ var 0)).
+Definition s_arg  dir var stype :=
+  t_arg dir (E.TVar stype) var.
 
-Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s tags_t :=
-  let ext_args := [] in
+Definition pipeline   (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s  :=
+  let ext_args := ["packet_in"] in
   let pargs := [
-        s_arg i PADirLess "packet_in"           "b";
-        t_arg i PAOut      htype                "parsedHdr";
-        t_arg i PAInOut    mtype                "meta";
-        s_arg i PAInOut    "standard_metadata_t" "standard_metadata"] in
+        t_arg PAOut      htype                "parsedHdr";
+        t_arg PAInOut    mtype                "meta";
+        s_arg PAInOut    "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
   let vck_args := [
-        t_arg i PAInOut htype "hdr";
-        t_arg i PAInOut mtype "meta"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta"] in
   let ing_args := [
-        t_arg i PAInOut htype "hdr";
-        t_arg i PAInOut mtype "meta";
-        s_arg i PAInOut "standard_metadata_t" "standard_metadata"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta";
+        s_arg PAInOut "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
   let egr_args := [
-        t_arg i PAInOut htype "hdr";
-        t_arg i PAInOut mtype "meta";
-        s_arg i PAInOut "standard_metadata_t" "standard_metadata"] in
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta";
+        s_arg PAInOut "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
   let cck_args := [
-        t_arg i PAInOut htype "hdr";
-        t_arg i PAInOut mtype "meta"] in
-  let dep_args := [
-        s_arg i PADirLess "packet_out" "b";
-      t_arg i PAIn htype "hdr"] in
-  cub_seq i [
-        ST.SApply parser  ext_args pargs    i;
-          (* ST.SApply v_check ext_args vck_args i; *)
-          ST.SConditional
-            (E.EVar E.TBool ("_state$accept$next") i)
-            (cub_seq i [
-                       ST.SApply ingress ext_args ing_args i
-                       ; ST.SApply egress  ext_args egr_args i
-                       ; det_fwd_asst i
+        t_arg PAInOut htype "hdr";
+        t_arg PAInOut mtype "meta"] in
+  let dep_ext_args := [ "packet_out" ; "b" ] in
+  let dep_args := [ t_arg PAIn htype "hdr"] in
+  cub_seq [
+        ST.Apply parser  ext_args (map snd pargs) ;
+          (* ST.Apply v_check ext_args vck_args i; *)
+          ST.Conditional
+            (E.Var E.TBool ("_state$accept$next") 0)
+            (cub_seq [
+                       ST.Apply ingress ext_args (map snd ing_args)
+                       ; ST.Apply egress  ext_args (map snd egr_args)
+                       ; det_fwd_asst
             ])
-            (ST.SSkip i) i
-        (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
-        (* ST.SApply   deparser ext_args dep_args NoInfo *)
+            ST.Skip
+        (* ST.Apply   c_check  ext_args cck_args NoInfo; *)
+        (* ST.Apply   deparser ext_args dep_args NoInfo *)
     ].
 
-Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.constructor_args tags_t) : result (ST.s tags_t) :=
-  match List.map snd cargs with
-  | [E.CAName p; E.CAName vc; E.CAName ing; E.CAName egr; E.CAName cc; E.CAName d] =>
+Definition package (types : list E.t) (cargs : TopDecl.constructor_args) : result ST.s :=
+  match cargs with
+  | [p; vc; ing; egr; cc; d] =>
     match types with
     | [htype; mtype] =>
-      ok (pipeline i htype mtype p vc ing egr cc d)
+      ok (pipeline htype mtype p vc ing egr cc d)
     | [] =>
       error "no type arguments provided:("
     | _ =>
@@ -103,8 +99,8 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas unroll p4cub : result ToGCL.target :=
+Definition gcl_from_p4cub instr gas unroll p4cub : result ToGCL.target :=
   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
-  let assume_decl := TopDecl.TPExtern "_" [] [] [("assume", ([], arrowtype))] d in
-  let p4cub_instrumented := ToP4cub.add_extern tags_t p4cub assume_decl in
-  ToGCL.from_p4cub tags_t instr gas unroll externs (package d) p4cub.
+  let assume_decl := TopDecl.Extern "_" 1 [] [] [("assume", (0%nat, [], arrowtype))] in
+  let p4cub_instrumented := ToP4cub.add_extern  p4cub assume_decl in
+  ToGCL.from_p4cub  instr gas unroll externs (package) p4cub.

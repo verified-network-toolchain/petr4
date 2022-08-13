@@ -1,3 +1,4 @@
+Require Import String.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 From Poulet4 Require Import
@@ -14,8 +15,6 @@ From Poulet4 Require Export
      Monads.Result.
 Import AST Result Envn ResultNotations.
 From Coq Require Import ZArith.BinInt Arith.PeanoNat.
-
-Require Import String.
 Open Scope string_scope.
 
 Require Import Poulet4.P4light.Transformations.HoistNameless.
@@ -1614,7 +1613,7 @@ Section ToP4cub.
                    ctor_name cub_name type_args cnstr_args exp_cnstr_args in
         let+ add_to_context := get_augment_from_name ctx ctor_name in
         add_to_context d
-    | DeclParser tags name [] params constructor_params [] states =>
+    | DeclParser tags name _ params constructor_params _ states =>
         let cub_name := P4String.str name in
         let* (cub_cparams,cub_expr_cparams) :=
           translate_to_constructor_params

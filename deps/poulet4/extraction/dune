@@ -47,7 +47,7 @@
   InlineConstants
   TableInstr
   V1model
-  Auxilary
+  Auxiliary
   Envn
   Result
   P4Arith
@@ -86,6 +86,9 @@
   Monad
   Option
   State
+  ExceptionState
+  HeaderStack
+  Shift
   Pure)
  (libraries zarith bignum)
  (theories Poulet4))

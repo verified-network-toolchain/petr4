@@ -303,3 +303,19 @@ Proof.
     intros [| n] a H; cbn in *; try lia; auto.
   assert (n < List.length t) by lia; auto.
 Qed.
+
+Search ((nat -> ?A -> ?B) -> list ?A -> list ?B).
+
+Section Mapi.
+  Context {A B : Type}.
+
+  Variable f : nat -> A -> B.
+
+  Fixpoint mapi_help (i : nat) (l : list A) : list B :=
+    match l with
+    | [] => []
+    | a :: l => f i a :: mapi_help (S i) l
+    end.
+
+  Definition mapi : list A -> list B := mapi_help 0.
+End Mapi.

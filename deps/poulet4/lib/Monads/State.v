@@ -1,18 +1,5 @@
-Require Export Coq.Lists.List.
+Require Export Poulet4.Utils.Util.ListUtil.
 Import ListNotations.
-
-Section FoldRightIndex.
-  Context {A B : Type}.
-  Variables (f : nat -> B -> A -> A) (init : A).
-
-  Fixpoint fold_righti_help (n : nat) (bs : list B) : A :=
-    match bs with
-    | [] => init
-    | b :: bs => f n b (fold_righti_help (S n) bs)
-    end.
-
-  Definition fold_righti : list B -> A := fold_righti_help 0.
-End FoldRightIndex.
 
 Require Export Poulet4.Monads.Monad.
 

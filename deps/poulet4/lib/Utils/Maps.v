@@ -1,6 +1,8 @@
 Require Import Coq.Lists.List.
 Require Import Coq.Bool.Bool.
 Require Import Poulet4.Utils.Util.EquivUtil.
+(* TODO: maybe replace with setoid rewrite so this isn;t needed...?*)
+Require Import Coq.Logic.FunctionalExtensionality.
 Import ListNotations.
 
 Module FuncAsMap.
@@ -112,11 +114,19 @@ Module FuncAsMap.
 
       Definition map_map (e : @t key U) : @t key V :=
         fun k => match e k with
-            | Some u => Some (f u)
-            | None   => None
+              | Some u => Some (f u)
+              | None   => None
               end.
-    End Map.
 
+      Lemma get_map_map : forall k e,
+          get k (map_map e) = option_map f (get k e).
+      Proof.
+        intros k e.
+        unfold map_map, get.
+        destruct (e k); reflexivity.
+      Qed.
+    End Map.
+    
     Section Rel.
       Variable R : U -> V -> Prop.
 
@@ -125,6 +135,17 @@ Module FuncAsMap.
           relop R (get k eu) (get k ev).
     End Rel.
   End FuncMapMap.
+  
+  Lemma map_map_map :
+    forall {K U V W : Type} {key_eqb: K -> K -> bool}
+      (f : U -> V) (g : V -> W) (e : @t K U),
+      map_map g (map_map f e) = map_map (g ∘ f) e.
+  Proof.
+    intros K U V W key_eqb f g e.
+    unfold map_map, "∘".
+    extensionality k.
+    destruct (e k); reflexivity.
+  Qed.
 End FuncAsMap.
 
 Module IdentMap.

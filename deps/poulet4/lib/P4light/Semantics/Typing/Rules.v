@@ -133,7 +133,14 @@ Section Soundness.
         destruct Hsv as [sv Hsv].
         intros lv s Helv; inv Helv.
         pose proof Hg _ _ _ Hgt Hsv as (r & Hr & Hvr).
-        destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *; auto.
+        destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *.
+        eexists; repeat split; eauto.
+        constructor.
+        destruct l as [l | l]; cbn in *; try discriminate.
+        rewrite FuncAsMap.get_map_map.
+        unfold PathMap.get in Hgt.
+        rewrite Hgt; cbn. unfold try_get_real_type.
+        rewrite Hr; reflexivity.
     Qed.
 
     Theorem constant_sound : forall tag x loc t,
@@ -268,6 +275,11 @@ Section Soundness.
         + clear lv1 s1 Hlv1; intros lv1 s1 Helv1; inv Helv1.
           apply Helv1' in H8 as Hlvt.
           destruct Γ as [Γv Γc] eqn:HeqΓ; cbn in *.
+          destruct Hlvt as (r & hr & hlvr).
+          unfold option_bind at 1 in hr.
+          match_some_inv; some_inv.
+          eexists; split; eauto.
+          cbn in hlvr.
           econstructor; eauto.
           inv H10.
           apply He2' in H as (r2 & Hr2 & Hvr2); some_inv; cbn in *.
@@ -340,6 +352,9 @@ Section Soundness.
           apply Helv' in H9 as Hlvt.
           apply Forall2_length in H1.
           rewrite H1 in Hlvt.
+          destruct Hlvt as (r & hr & hlvr).
+          injection hr as hr; subst. cbn in *.
+          eexists; split; eauto.
           econstructor; eauto.
     Qed.
 
@@ -359,7 +374,7 @@ Section Soundness.
         simpl in Hes; clear Hes'.
       pose proof
            (fun a inaes oka ise =>
-              Hes a inaes oka ise Hrobsome Hrob Hg) as Hduh; clear Hes.
+              Hes a inaes Hgok oka ise Hrobsome Hrob Hg) as Hduh; clear Hes.
       rewrite <- Forall_forall in Hduh.
       inversion Hok; subst; inversion H1; subst; inversion H4; subst.
       rename H1 into Hoktup; rename H4 into Hoklist;
@@ -428,7 +443,7 @@ Section Soundness.
       specialize Hes with
           (read_one_bit:=rob) (st:=st).
       pose proof (fun e HInnes Hok Hise =>
-                    Hes e HInnes Hgrt Hged Hok Hise Hrobsome Hrob Hg)
+                    Hes e HInnes Hgrt Hged Hgok Hok Hise Hrobsome Hrob Hg)
         as H; clear Hes; rename H into Hes.
       rewrite <- Forall_forall,Forall_map in Hes.
       unfold Basics.compose in Hes; cbn in Hes.
@@ -482,7 +497,7 @@ Section Soundness.
         autounfold with option_monad in *.
         rewrite Hmbp; clear Hmbp.
         exists (TypRecord (combine (map fst es) rs)); cbn; split.
-        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob Hrobsome
+        + clear xvs Δ Γ this i d rob st Hged Hok Hise Hrob Hrobsome Hgok
                 Hg Htokrec Heokrec Htokes Hev Hfsteq Hxvsrs.
           clear Hgrt Hisetrec Hispe Hisetes Utoees Ues.
           generalize dependent rs.
@@ -535,7 +550,7 @@ Section Soundness.
       inversion Hise; subst; inversion H4; subst.
       rename H1 into Hiset; rename H4 into Hispe; rename H0 into Hisee.
       pose proof He
-           Hgrt Hdelta Hoke Hisee _ _ Hrobsome Hrob Hg
+           Hgrt Hdelta Hgok Hoke Hisee _ _ Hrobsome Hrob Hg
         as [[v Hev] [Hvt _]].
       apply unary_type_eq in Hut as Hut_eq; subst t.
       clear He Hgrt Hdelta Hoke Hisee; split; [| split].
@@ -623,10 +638,10 @@ Section Soundness.
       rename H1 into Hiset; rename H4 into Hispe;
         rename H2 into Hisee1; rename H5 into Hisee2.
       pose proof He1
-           Hgrt Hged Hoke1 Hisee1 _ _ Hrobsome Hrob Hgst
+           Hgrt Hged Hgok Hoke1 Hisee1 _ _ Hrobsome Hrob Hgst
         as [[v1 Hev1] [Hvt1 _]].
       pose proof He2
-           Hgrt Hged Hoke2 Hisee2 _ _ Hrobsome Hrob Hgst
+           Hgrt Hged Hgok Hoke2 Hisee2 _ _ Hrobsome Hrob Hgst
         as [[v2 Hev2] [Hvt2 _]].
       clear He1 He2 Hgrt Hged Hoke1 Hoke2 Hisee1 Hisee2 Hgst;
         split; [| split].
@@ -826,7 +841,7 @@ Section Soundness.
                        (map (fun '(x, t) => (x, normᵗ t)) rs)
                        x = Some r').
           { clear i dir Γ Δ He Hdlta Hok Hrobsome
-                  Hg Hokt Hokmem Htoeok v Hvr Hise
+                  Hg Hokt Hokmem Htoeok v Hvr Hise Hgok
                   rob Hrob Hgrt Hv st.
             pose proof member_type_get_real_type
                  _ _ _ _ _
@@ -876,7 +891,7 @@ Section Soundness.
                     (map (fun '(x, t) => (x, normᵗ t)) rs)
                     x =
                   Some (normᵗ r')).
-        { clear H8 Hvr Hev v Hist Htoeok Hrobsome
+        { clear H8 Hvr Hev v Hist Htoeok Hrobsome Hgok
                 Hismem Hise' Hg rob Hrob st Hise Hok Hdlta Hgrt He
                 Hokt Hokmem dir Δ Γ i e Hmem Hr r Hmemrs.
           unfold ">>|",">>=",mbind,mret,option_monad_inst,
@@ -903,7 +918,42 @@ Section Soundness.
           try (rewrite H10 in Hnxt; discriminate).
         apply Helv' in H11 as Hlvt.
         rewrite P4String.get_clear_AList_tags in Hts.
-        econstructor; eauto.
+        destruct Hlvt as (r & hr & hlvr).
+        pose proof get_real_member_type _ _ _ _ hr Hmem as [rs hrs].
+        pose proof member_type_get_real_type _ _ _ _ _ Hmem hrs hr as hseq.
+        assert (hrt: exists rt,
+                   get_real_type ge t = Some rt /\
+                     AList.get (P4String.clear_AList_tags rs) (P4String.str x) = Some rt).
+        { clear dependent e. clear dependent Γ. clear dependent rob.
+          clear dependent Δ. clear dependent s. clear dependent i.
+          clear dependent dir. clear dependent st. clear dependent lv0.
+          clear dependent r. clear dependent this.
+          clear hsize hlstdx Hgrt Hist H2 H5 Hnxt H10.
+          destruct x as [ix x]; cbn in*. clear ix.
+          generalize dependent t; generalize dependent rs.
+          induction ts as [| [[iy y] t] ts ih]; intros [| [[iz z] r] rs] hrs ty hty;
+            cbn in *; try discriminate.
+          - unfold option_bind at 1 2 in hrs.
+            repeat match_some_inv; some_inv.
+            unfold option_bind at 1 in hrs.
+            match_some_inv.
+          - unfold option_bind at 1 2 in hrs.
+            repeat match_some_inv; some_inv.
+            unfold option_bind at 1 in hrs.
+            match_some_inv; some_inv.
+            destruct (string_dec z x) as [hzx | hzx]; subst.
+            + rewrite AList.get_eq_cons in hty by intuition; some_inv.
+              rewrite AList.get_eq_cons by intuition.
+              eauto.
+            + rewrite AList.get_neq_cons in hty by firstorder.
+              rewrite AList.get_neq_cons by firstorder.
+              eauto. }
+        destruct hrt as (rt & hrt & hxrt).
+        exists rt; split; auto.
+        apply typ_left_member with (τ:=normᵗ r) (τs:=AListUtil.map_values normᵗ rs); auto.
+        + rewrite <- P4String.get_clear_AList_tags in *.
+          rewrite AListUtil.get_map_values. rewrite hxrt; reflexivity.
+        + unfold AListUtil.map_values. auto using member_type_normᵗ.
     Qed.
 
     Theorem array_size_sound : forall tag e x dir t w,
@@ -1060,11 +1110,11 @@ Section Soundness.
       inv Hoks; inv Hiss; inv H0; inv H1.
       rename H3 into Hoke1; rename H4 into Hoke2;
         rename H2 into Hise1; rename H5 into Hise2.
-      pose proof He1 Hge Hged Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
+      pose proof He1 Hge Hged Hgok Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
       destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
       pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
       destruct He2 as [He2 | He2].
-      - pose proof He2 Hge Hged Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
+      - pose proof He2 Hge Hged Hgok Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
         destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
         + assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
             by eauto using exec_val_exists.
@@ -1111,9 +1161,9 @@ Section Soundness.
       intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto.
       inv Hoks; inv Hiss. inv H0; inv H1.
-      pose proof He Hge Hged H4 H3 _ _ Hrob Hread (proj1 Hgst)
+      pose proof He Hge Hged Hgok H4 H3 _ _ Hrob Hread (proj1 Hgst)
         as [[sv Hesv] [He' _]]; clear He H4 H3.
-      pose proof Hs1 Hge Hged H5 H7 _ _ _ Hrob Hread Hgst
+      pose proof Hs1 Hge Hged Hgok H5 H7 _ _ _ Hrob Hread Hgst
         as [HΓ₁ [(st1 & sig1 & Hxs1) Hs1']]; clear Hs1 H5 H7.
       assert (Hv: exists v, sval_to_val rob sv v)
         by eauto using exec_val_exists.
@@ -1124,7 +1174,7 @@ Section Soundness.
       some_inv; cbn in Hsvr; inv Hsvr; inv Hv.
       destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
       - destruct H1 as [Γ₂ Hs2].
-        pose proof Hs2 Hge Hged H2 H3 _ _ st Hrob Hread Hgst
+        pose proof Hs2 Hge Hged Hgok H2 H3 _ _ st Hrob Hread Hgst
           as [HΓ₂ [(st2 & sig2 & Hxs2) Hs2']]; clear Hs2 H2 H3.
         split.
         + destruct b'; eauto.
@@ -1159,7 +1209,7 @@ Section Soundness.
       split; auto.
       destruct e as [e |]; inv He; cbn in *.
       - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
-        pose proof H0 Hge Hged H2 H3 _ _ Hrob Hreads (proj1 Hgst)
+        pose proof H0 Hge Hged Hgok H2 H3 _ _ Hrob Hreads (proj1 Hgst)
           as [[sv Hesv] [He _]]; clear H0; split.
         + eauto using exec_stmt_return_some.
           assert (Hv: exists v, sval_to_val rob sv v)
@@ -1184,19 +1234,19 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
     Proof.
       intros Γ' tag blk t Hblk. revert dependent Γ'.
-      induction Hblk; intros Γ' Hsblk Hge Hged Hoks Hiss dummy rob st Hrob Hreads Hgsp;
+      induction Hblk; intros Γ' Hsblk Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hreads Hgsp;
         simpl in *; split; auto.
       - split.
         + do 2 eexists. do 2 constructor.
         + intros st' sig Hempty. inv Hempty. inv H6. auto.
       - inv Hoks. inv H1. inv Hiss. inv H1.
-        specialize (Hsblk Hge Hged H0 H2 _ _ _ Hrob Hreads Hgsp).
+        specialize (Hsblk Hge Hged Hgok H0 H2 _ _ _ Hrob Hreads Hgsp).
         destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
         + do 2 eexists. constructor. econstructor; eauto.
         + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H10.
           eapply gamma_stmt_prop_sub_gamma; eauto.
       - inv Hoks. inv H1. inv Hiss. inv H1.
-        specialize (Hsblk Hge Hged H2 H3 _ _ _ Hrob Hreads Hgsp).
+        specialize (Hsblk Hge Hged Hgok H2 H3 _ _ _ Hrob Hreads Hgsp).
         destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
         + do 2 eexists. constructor. econstructor; eauto.
         + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H11.
@@ -1259,7 +1309,7 @@ Section Soundness.
       inv Hoks; inv Hiss. inv H0; inv H1.
       destruct oe as [e |]; inv Hoe; inv H6; inv H7.
       - destruct H0 as [Het [He | He]].
-        + pose proof He Hge Hged H1 H4 _ _ Hrob Hread (proj1 Hgst)
+        + pose proof He Hge Hged Hgok H1 H4 _ _ Hrob Hread (proj1 Hgst)
             as [[sv Hesv] [He' _]]; clear He H1 H4; split.
           * assert (Hv: exists v, sval_to_val rob sv v)
               by eauto using exec_val_exists.

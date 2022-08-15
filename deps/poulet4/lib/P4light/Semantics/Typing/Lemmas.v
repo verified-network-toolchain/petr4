@@ -483,10 +483,10 @@ Section Lemmas.
   Local Hint Constructors get_member : core.
 
   Lemma member_get_member_ex : forall x v ts (t t' : typ),
-      AList.get ts x = Some t'  ->
+      AList.get (P4String.clear_AList_tags ts) x = Some t'  ->
       member_type ts t ->
       ⊢ᵥ v \: t ->
-      exists v', get_member v (P4String.str x) v'.
+      exists v', get_member v x v'.
   Proof.
     intros x v ts t t' Htsx Hmem Hvt.
     inversion Hmem; subst; inversion Hvt; subst; cbn in *;
@@ -495,33 +495,31 @@ Section Lemmas.
       match goal with
       | H: Forall2 _ ?vs _ /\ Forall2 _ ?vs _
         |- _ => destruct H as [H _];
-                enough (exists v', AList.get vs (P4String.str x) = Some v')
+                enough (exists v', AList.get vs x = Some v')
                 by firstorder eauto
       end;
       match goal with
       | H: Forall2 _ ?vs _
         |- _ =>
         rewrite Forall2_map_both, Forall2_eq, map_fst_map in H;
-          apply AList.get_some_in_fst in Htsx as (x' & Hxx' & Hx');
-          apply in_map with (f := P4String.str) in Hx';
-          rewrite <- H in Hx';
-          destruct x as [ix x]; destruct x' as [ix' x']; cbn in *;
-            unfold Equivalence.equiv, P4String.equiv in Hxx'; cbn in *; subst;
-              apply AList.in_fst_get_some in Hx' as [v Hv]; eauto
+        apply AList.get_some_in_fst in Htsx as (x' & Hxx' & Hx');
+        rewrite map_fst_map in Hx';
+        rewrite <- H in Hx';
+        unfold Equivalence.equiv, P4String.equiv in Hxx'; cbn in *; subst;
+        apply AList.in_fst_get_some in Hx' as [v Hv]; eauto
       end.
   Qed.
 
   Lemma get_member_types : forall x ts (t t' : typ) v v',
       member_type ts t ->
-      AList.get ts x = Some t' ->
-      get_member v (P4String.str x) v' ->
+      AList.get (P4String.clear_AList_tags ts) x = Some t' ->
+      get_member v x v' ->
       ⊢ᵥ v \: t ->
       ⊢ᵥ v' \: t'.
   Proof.
     intros x ts t t' v v' Htst Htsx Hgm Hvt.
     inversion Htst; subst; inversion Hvt; subst;
       inversion Hgm; subst;
-        rewrite P4String.get_clear_AList_tags in Htsx;
         match goal with
         | H: AList.all_values _ _ _
           |- _ => eapply AListUtil.get_relate_values in H; eauto
@@ -1568,4 +1566,115 @@ Section Lemmas.
     intros T dummy ge rob p st st' e sv sig Hesv Hcall.
     inv Hesv; inv Hcall.
   Qed.
+
+  Definition gamma_var_val_typ_real_norm `{T : Target _ expr}
+    (Γ : gamma_var) (st : state) (ge : @genv_typ tags_t) : Prop := forall l (τ : typ) v,
+      typ_of_loc_var l Γ = Some τ ->
+      loc_to_sval l st = Some v -> ⊢ᵥ v \: τ.
+
+  Local Hint Constructors exec_read : core.
+  
+  Lemma exec_read_preserves_typ :
+    forall (T: @Target _ expr) ge st Γ lv sv (τ : typ),
+      gamma_var_val_typ_real_norm Γ st ge ->
+      exec_read st lv sv ->
+      Γ ⊢ₗ lv \: τ ->
+      ⊢ᵥ sv \: τ.
+  Proof.
+    intros T ge st G lv sv t hG hread hlv.
+    generalize dependent t.
+    induction hread; intros t hlv; inv hlv;
+      eauto using get_member_types.
+    - pose proof IHhread hG _ H8 as hsv. inv hsv.
+      cbn in H. some_inv.
+      assert (hlen: (N.to_nat lo <= N.to_nat hi < List.length bitsbl)%nat) by lia.
+      pose proof Ops.bitstring_slice_length _ _ _ hlen as h.
+      assert (heq: (N.to_nat hi - N.to_nat lo + 1)%nat = N.to_nat (hi - lo + 1)%N) by lia.
+      rewrite heq in h.
+      apply f_equal with (f:=N.of_nat) in h.
+      autorewrite with core in h. rewrite <- h. auto.
+    - pose proof IHhread hG _ H5 as hsv. inv hsv.
+      unfold Znth. if_destruct; try lia.
+      destruct (ZArith_dec.Z_lt_le_dec idx (Z.of_nat (List.length headers))) as [hlen | hlen].
+      + assert (Hlen: (Z.to_nat idx < List.length headers)%nat) by lia.
+        rewrite <- nth_default_eq.
+        pose proof length_nth_error_some _ _ _ Hlen as [v hv].
+        unfold nth_default; rewrite hv.
+        eapply Forall_nth_error in H7; eauto.
+      + rewrite nth_overflow by lia.
+        destruct headers; cbn in *; try discriminate.
+        some_inv. inv H7; auto.
+  Qed.
+  
+  Lemma exec_read_ex :
+    forall (T: @Target _ expr) (ge : @genv_typ tags_t) st Γ lv (t : typ),
+      gamma_var_domain Γ st ->
+      gamma_var_val_typ_real_norm Γ st ge ->
+      Γ ⊢ₗ lv \: t ->
+      exists sv, exec_read st lv sv.
+  Proof.
+    intros T ge st G lv t hGdom hG hlvt.
+    induction hlvt.
+    - unfold gamma_var_prop in hGdom.
+      unfold gamma_var_domain in hGdom.
+      pose proof hGdom _ _ H as [sv hsv].
+      eauto.
+    - destruct IHhlvt as [sv hsv].
+      assert (hsv': exists sv', get_member sv x sv').
+      { eapply member_get_member_ex; eauto.
+        eauto using exec_read_preserves_typ. }
+      destruct hsv' as [sv' hsv']. eauto.
+    - destruct IHhlvt as [sv hsv].
+      pose proof exec_read_preserves_typ _ _ _ _ _ _ _ hG hsv hlvt as hsvt.
+      inv hsvt. eexists; econstructor; eauto; cbn.
+      + reflexivity.
+      + lia.
+    - destruct IHhlvt as [sv hsv].
+      pose proof exec_read_preserves_typ _ _ _ _ _ _ _ hG hsv hlvt as hsvt.
+      inv hsvt.
+      assert (hhd: exists dflt, hd_error vs = Some dflt).
+      { destruct vs; cbn in *; lia || eauto. }
+      destruct hhd as [dflt hdflt].
+      exists (@Znth _ dflt z vs). econstructor; eauto.
+  Qed.
+
+  Local Hint Constructors update_member : core.
+
+  Lemma update_member_preserves_typ : forall sv₁ sv₂ fv x (τ fτ : typ) τs,
+      update_member sv₁ x fv sv₂ ->
+      AList.get (P4String.clear_AList_tags τs) x = Some fτ ->
+      member_type τs τ ->
+      ⊢ᵥ fv \: fτ -> ⊢ᵥ sv₁ \: τ -> ⊢ᵥ sv₂ \: τ.
+  Proof.
+    intros sv1 sv2 v x t ft ts hum hget hmem hfvt hsv1.
+    inv hum; inv hsv1; inv hmem.
+    - constructor; auto.
+      Search (AList.set _ _ _ = Some _).
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      
+
+  Local Hint Constructors exec_write : core.
+  
+  Lemma exec_write_ex :
+    forall (T: @Target _ expr) (ge: @genv _ T) st (Γ : gamma_var) lv v (t : @P4Type tags_t),
+      gamma_var_domain Γ st ->
+      gamma_var_val_typ_real_norm Γ st (ge_typ ge) ->
+      Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
+      exists st', exec_write st lv v st'.
+  Proof.
+    intros T ge st G lv v t hdom hG hlvt hvt.
+    generalize dependent v.
+    induction hlvt; intros v hvt.
+    - exists (update_val_by_loc st l v).
+      constructor; reflexivity.
+    - assert (hsv: exists sv, exec_read st lv sv) by eauto using exec_read_ex.
+      destruct hsv as [sv hsv].
+      assert (hsvt: ⊢ᵥ sv \: τ) by eauto using exec_read_preserves_typ.
+      (*apply IHhlvt in hsvt as [st' hst']. *)
+      assert (hsv': exists sv', update_member sv x v sv') by admit.
+      
+      destruct hsv' as [sv' hsv'].
+      exists st'. econstructor; eauto.
+        
 End Lemmas.

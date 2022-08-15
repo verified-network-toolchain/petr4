@@ -38,6 +38,30 @@ Section Util.
     firstorder.
   Qed.
 
+  Lemma AList_get_some_split : forall l (x : K) (v : V),
+      AList.get l x = Some v -> exists k l₁ l₂,
+        x === k /\ l = l₁ ++ (k, v) :: l₂ /\ AList.get l₁ x = None.
+  Proof.
+    intro l; induction l as [| [k a] l ihl]; intros x v h;
+      cbn in *; try discriminate.
+    destruct (equiv_dec x k) as [hxk | hxk].
+    - rewrite get_eq_cons in h by assumption.
+      injection h as h; subst.
+      exists k, [], l; cbn. repeat split; auto.
+    - rewrite get_neq_cons in h by assumption.
+      apply ihl in h as (y & l1 & l2 & hxy & hl & hy); subst.
+      exists y, ((k, a) :: l1), l2.
+      rewrite get_neq_cons by assumption.
+      repeat split; auto.
+  Qed.
+  
+  Lemma AList_set_some_split : forall l l' (x : K) (v' : V),
+      AList.set l x v' = Some l' -> exists v l₁ l₂,
+        l = l₁ ++ (x, v) :: l₂ /\ l' = l₁ ++ (x, v') :: l₂ /\ AList.get l₁ x = None.
+  Proof.
+
+  Qed.
+
   (** Removes the first equal key. *)
   Fixpoint remove_first (key : K) (l : list (K * V)) : list (K * V) :=
     match l with

@@ -1122,7 +1122,12 @@ Section Soundness.
           assert (Hxd2: exec_expr_det ge rob this st e2 v2) by eauto.
           destruct (is_continue s1) eqn:Hiscont.
           * assert (Hst': exists st', exec_write st lv1 (ValueBaseMap Some v2) st').
-            { (* TODO: lemma for exec_write. *) admit. }
+            { pose proof He2 _ Hev2 as (r2 & hr2 & hsvr2).
+              pose proof exec_val_preserves_typ
+                _ _ _ Hsv2 _ hsvr2 as hvrt2.
+              pose proof Helv1 _ _ Helvs1 as (r & hr & hlvr).
+              rewrite Hte1e2, hr2 in hr; some_inv.
+              (* TODO: lemma for exec_write. *) admit. }
             destruct Hst' as [st' Hst']; exists st', s1.
             eapply exec_stmt_assign; eauto using val_to_sval_ex.
             rewrite Hiscont; assumption.

@@ -281,13 +281,23 @@ Section Rel.
       forall kas1 kas2 kbs1 kbs2 (ka kb : K) (a : A) (b : B),
         ka === kb ->
         key_unique (kas1 ++ (ka, a) :: kas2) = true ->
-        key_unique (kbs1 ++ (kb, b) :: kbs2) = true ->
         all_values Q (kas1 ++ (ka, a) :: kas2) (kbs1 ++ (kb, b) :: kbs2) ->
         ka = kb /\ Q a b /\ all_values Q kas1 kbs1 /\ all_values Q kas2 kbs2.
     Proof.
+      intros kas1 kas2 kbs1 kbs2 ka kb a b hkakb huniqa h.
+      assert (huniqb : key_unique (kbs1 ++ (kb, b) :: kbs2) = true).
+      { apply all_values_key_unique in h.
+        symmetry; rewrite <- huniqa. assumption. }
+      generalize dependent b.
+      generalize dependent kb.
+      generalize dependent a.
+      generalize dependent ka.
+      generalize dependent kbs2.
+      generalize dependent kbs1.
+      generalize dependent kas2.
       unfold all_values.
-      intros kas1; induction kas1 as [| [ka1 a1] kas1 ih];
-        intros kas2 [| [kb1 b1] kbs1] kbs2 ka kb a b hkakb huniqa huniqb h;
+      induction kas1 as [| [ka1 a1] kas1 ih];
+        intros kas2 [| [kb1 b1] kbs1] kbs2 ka a huniqa kb hkakb b h huniqb;
         cbn in *; inversion h; clear h; subst; cbn in *.
       - destruct H3 as [? hq]; subst.
         repeat split; auto.
@@ -321,7 +331,7 @@ Section Rel.
           cbn in *; try discriminate.
         destruct (get (kbs1 ++ (kb, b) :: kbs2) kb1) as [b' |] eqn:hgetbs;
           cbn in *; try discriminate.
-        pose proof ih _ _ _ _ _ _ _ hkakb huniqa huniqb H5 as IH; clear ih.
+        pose proof ih _ _ _ _ _ huniqa _ hkakb _ H5 huniqb as IH; clear ih.
         destruct IH as (hkab & hqab & h1 & h2).
         repeat split; auto.
     Qed.

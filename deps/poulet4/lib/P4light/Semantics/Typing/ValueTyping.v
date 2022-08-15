@@ -546,4 +546,59 @@ Section Lemmas.
     - constructor; auto.
       destruct members; cbn in *; try contradiction; try lia.
   Qed.
+
+  Lemma uninit_sval_of_sval_preserves_typ : forall v (τ : typ) ob,
+      ⊢ᵥ v \: τ -> ⊢ᵥ uninit_sval_of_sval ob v \: τ.
+  Proof.
+    intros v t ob hvt;
+      induction hvt using custom_val_typ_ind; cbn; auto.
+    - replace (List.length bits) with (List.length (List.map (fun _ => @None bool) bits))
+        by (rewrite map_length; reflexivity); auto.
+    - replace (List.length bits) with (List.length (List.map (fun _ => @None bool) bits))
+        by (rewrite map_length; reflexivity); auto.
+    - constructor. rewrite map_length. assumption.
+    - constructor. rewrite ForallMap.Forall2_map_l in H0. assumption.
+    - constructor; auto. unfold AList.all_values in *.
+      unfold kv_map, kv_map_func.
+      rewrite Forall2_conj in *.
+      rewrite ForallMap.Forall2_map_both with (f:=fst) in *.
+      rewrite ForallMap.Forall2_map_both with (f:=snd) in *.
+      rewrite ForallMap.Forall2_map_both with
+        (R:=fun v t => ⊢ᵥ uninit_sval_of_sval ob v \: t) (f:=snd) in H1.
+      rewrite Forall2_eq in *.
+      rewrite ForallMap.Forall2_map_l with (f:=uninit_sval_of_sval ob) in H1.
+      destruct H1 as [hfst hsnd].
+      rewrite map_fst_map,map_snd_map. rewrite map_id.
+      split; assumption.
+    - constructor; auto. unfold AList.all_values in *.
+      unfold kv_map, kv_map_func.
+      rewrite Forall2_conj in *.
+      rewrite ForallMap.Forall2_map_both with (f:=fst) in *.
+      rewrite ForallMap.Forall2_map_both with (f:=snd) in *.
+      rewrite ForallMap.Forall2_map_both with
+        (R:=fun v t => ⊢ᵥ uninit_sval_of_sval ob v \: t) (f:=snd) in H1.
+      rewrite Forall2_eq in *.
+      rewrite ForallMap.Forall2_map_l with (f:=uninit_sval_of_sval ob) in H1.
+      destruct H1 as [hfst hsnd].
+      rewrite map_fst_map,map_snd_map. rewrite map_id.
+      split; assumption.
+    - constructor; auto. unfold AList.all_values in *.
+      unfold kv_map, kv_map_func.
+      rewrite Forall2_conj in *.
+      rewrite ForallMap.Forall2_map_both with (f:=fst) in *.
+      rewrite ForallMap.Forall2_map_both with (f:=snd) in *.
+      rewrite ForallMap.Forall2_map_both with
+        (R:=fun v t => ⊢ᵥ uninit_sval_of_sval ob v \: t) (f:=snd) in H1.
+      rewrite Forall2_eq in *.
+      rewrite ForallMap.Forall2_map_l with (f:=uninit_sval_of_sval ob) in H1.
+      destruct H1 as [hfst hsnd].
+      rewrite map_fst_map,map_snd_map. rewrite map_id.
+      split; assumption.
+    - replace (List.length vs) with
+        (List.length (map (uninit_sval_of_sval ob) vs))
+        by (rewrite map_length; reflexivity).
+      constructor.
+      + rewrite map_length; assumption.
+      + rewrite sublist.Forall_map; unravel; assumption.
+  Qed.
 End Lemmas.

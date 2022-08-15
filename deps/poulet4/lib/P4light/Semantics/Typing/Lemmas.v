@@ -1640,6 +1640,26 @@ Section Lemmas.
 
   Local Hint Constructors update_member : core.
 
+  Ltac solve_update_member_preserves_typ :=
+    match goal with
+    | hget: AList.get (P4String.clear_AList_tags ?ts) ?x = Some ?t,
+        huniqts: AList.key_unique ?ts = true,
+          hall: AList.all_values val_typ ?vs (P4String.clear_AList_tags ?ts),
+            hset: AList.set ?vs ?x ?u = Some ?vs'
+      |- _ => rewrite <- P4String.key_unique_clear_AList_tags in huniqts;
+            assert (huniqvs: AList.key_unique vs = true)
+              by (rewrite <- huniqts; apply AListUtil.all_values_key_unique in hall; assumption);
+            apply AListUtil.AList_get_some_split in hget as hget';
+            destruct hget' as (K & ts1 & ts2 & hxK & hts & hts1); subst; rewrite hts in *;
+            apply AListUtil.AList_set_some_split in hset as H';
+            destruct H' as (k & vf & vs1 & vs2 & hxk & hfields & hfields' & hvs1); subst;
+            assert (HkK: k === K) by (setoid_rewrite <- hxk; assumption);
+            pose proof AListUtil.key_unique_all_values_split
+              _ _ _ _ _ _ _ _ _ HkK huniqvs hall
+              as (hkK & htyp & h1 & h2); subst;
+            apply Forall2_app; auto; constructor; cbn; auto
+    end.
+
   Lemma update_member_preserves_typ : forall sv₁ sv₂ fv x (τ fτ : typ) τs,
       update_member sv₁ x fv sv₂ ->
       AList.get (P4String.clear_AList_tags τs) x = Some fτ ->
@@ -1648,24 +1668,16 @@ Section Lemmas.
   Proof.
     intros sv1 sv2 v x t ft ts hum hget hmem hfvt hsv1.
     inv hum; inv hsv1; inv hmem.
+    - constructor; auto. solve_update_member_preserves_typ.
+    - inv H; constructor; auto;
+        solve_update_member_preserves_typ;
+        unfold "===" in *; split; auto using uninit_sval_of_sval_preserves_typ.
     - constructor; auto.
-      rewrite <- P4String.key_unique_clear_AList_tags in H1.
-      assert (hfields_uniq : AList.key_unique fields = true).
-      { rewrite <- H1.
-        apply AListUtil.all_values_key_unique in H2.
-        assumption. }
-      apply AListUtil.AList_set_some_split in H as H'.
-      destruct H' as (k & vf & vs1 & vs2 & hxk & hfields & hfields' & hvs1); subst.
-      apply AListUtil.AList_get_some_split in hget as hget'.
-      destruct hget' as (K & ts1 & ts2 & hxK & hts & hts1); subst.
-      rewrite hts in *.
-      assert (HkK: k === K).
-      { setoid_rewrite <- hxk. assumption. }
-      pose proof AListUtil.key_unique_all_values_split
-        _ _ _ _ _ _ _ _ _ HkK hfields_uniq H1 H2
-        as (hkK & htyp & h1 & h2); subst.
-      apply Forall2_app; auto.
-    - (* TODO: typing lemmas for [write_header_field] *)
+      unfold update_union_member in H.
+      destruct is_valid.
+      + match_some_inv.
+        inv hfvt. (*Search update_union_member.*) admit.
+      + match_some_inv. admit.
   Admitted.
 
   Local Hint Constructors exec_write : core.

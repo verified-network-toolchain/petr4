@@ -867,7 +867,8 @@ Section Soundness.
             + rewrite AList.get_eq_cons by assumption; eauto.
             + rewrite AList.get_neq_cons in Hxt' by assumption.
               rewrite AList.get_neq_cons by assumption; eauto. }
-          destruct Hlem3' as [r' Hr']; eauto. }
+          destruct Hlem3' as [r' Hr'].
+          rewrite P4String.get_clear_AList_tags in Hr'; eauto. }
         destruct Hget as [v' Hv'].
         exists v'; eapply exec_expr_other_member; eauto.
       - clear v Hev Helv; intros v Hev. inversion Hev; subst.
@@ -910,7 +911,7 @@ Section Soundness.
             rewrite Heqo2 in Ht'r'; some_inv; reflexivity.
           + rewrite AList.get_neq_cons in Hxt' by assumption.
             rewrite AList.get_neq_cons by assumption; eauto. }
-        eauto.
+        rewrite P4String.get_clear_AList_tags in Hlem3'; eauto.
       - intros Hlv; inv Hlv.
         apply Helv in H6 as [(lv & s & Hlvs) Helv']; clear Helv; split; eauto.
         clear lv v s Hlvs Hev.

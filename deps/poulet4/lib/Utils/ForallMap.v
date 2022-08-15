@@ -121,6 +121,19 @@ Section Forall.
     - intros [HR HQ]; induction HR; inversion HQ;
         simpl in *; auto.
   Qed.
+
+  Lemma Forall2_length_eq_app : forall us1 us2 vs1 vs2,
+      length us1 = length vs1 ->
+      Forall2 R (us1 ++ us2) (vs1 ++ vs2) ->
+      Forall2 R us1 vs1 /\ Forall2 R us2 vs2.
+  Proof.
+    intro us1; induction us1 as [| u us1 ih];
+      intros us2 [| v vs1] vs2 hlen h; cbn in *;
+      try discriminate; auto. inversion h; subst.
+    injection hlen as hlen.
+    pose proof ih _ _ _ hlen H4 as [h1 h2].
+    split; auto.
+  Qed.
 End Forall.
 
 Section ForallMap.

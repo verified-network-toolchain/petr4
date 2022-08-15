@@ -1649,10 +1649,24 @@ Section Lemmas.
     intros sv1 sv2 v x t ft ts hum hget hmem hfvt hsv1.
     inv hum; inv hsv1; inv hmem.
     - constructor; auto.
-      Search (AList.set _ _ _ = Some _).
-      unfold AList.all_values in *.
-      rewrite Forall2_conj in *.
-      
+      rewrite <- P4String.key_unique_clear_AList_tags in H1.
+      assert (hfields_uniq : AList.key_unique fields = true).
+      { rewrite <- H1.
+        apply AListUtil.all_values_key_unique in H2.
+        assumption. }
+      apply AListUtil.AList_set_some_split in H as H'.
+      destruct H' as (k & vf & vs1 & vs2 & hxk & hfields & hfields' & hvs1); subst.
+      apply AListUtil.AList_get_some_split in hget as hget'.
+      destruct hget' as (K & ts1 & ts2 & hxK & hts & hts1); subst.
+      rewrite hts in *.
+      assert (HkK: k === K).
+      { setoid_rewrite <- hxk. assumption. }
+      pose proof AListUtil.key_unique_all_values_split
+        _ _ _ _ _ _ _ _ _ HkK hfields_uniq H1 H2
+        as (hkK & htyp & h1 & h2); subst.
+      apply Forall2_app; auto.
+    - (* TODO: typing lemmas for [write_header_field] *)
+  Admitted.
 
   Local Hint Constructors exec_write : core.
   
@@ -1672,9 +1686,7 @@ Section Lemmas.
       destruct hsv as [sv hsv].
       assert (hsvt: ⊢ᵥ sv \: τ) by eauto using exec_read_preserves_typ.
       (*apply IHhlvt in hsvt as [st' hst']. *)
-      assert (hsv': exists sv', update_member sv x v sv') by admit.
-      
+      assert (hsv': exists sv', update_member sv x v sv') by admit (*update_member_ex.*).
       destruct hsv' as [sv' hsv'].
-      exists st'. econstructor; eauto.
-        
+  Admitted.
 End Lemmas.

@@ -4,7 +4,7 @@ Section Util.
   Context {K V: Type}
           {R : Relation_Definitions.relation K}
           `{HKR: EqDec K R}.
-
+  
   Lemma get_equiv : forall (kvs : list (K * V)) k₁ k₂,
       k₁ === k₂ -> get kvs k₁ = get kvs k₂.
   Proof.
@@ -56,11 +56,27 @@ Section Util.
   Qed.
   
   Lemma AList_set_some_split : forall l l' (x : K) (v' : V),
-      AList.set l x v' = Some l' -> exists v l₁ l₂,
-        l = l₁ ++ (x, v) :: l₂ /\ l' = l₁ ++ (x, v') :: l₂ /\ AList.get l₁ x = None.
+      AList.set l x v' = Some l' -> exists k v l₁ l₂,
+        x === k /\ l = l₁ ++ (k, v) :: l₂ /\ l' = l₁ ++ (x, v') :: l₂ /\ AList.get l₁ x = None.
   Proof.
-
+    intro l; induction l as [| [y a] l ihl];
+      intros [| [z b] l'] x v' h; cbn in *; try discriminate.
+    - destruct (HKR x y) as [hxy | hxy].
+      + inversion h.
+      + destruct (set l x v'); inversion h.
+    - destruct (HKR x y) as [hxy | hxy].
+      + inversion h; subst.
+        exists y, a, [], l'; cbn. repeat split; auto.
+      + destruct (set l x v') as [kvs |] eqn:hkvs;
+          cbn in *; inversion h; subst.
+        pose proof ihl _ _ _ hkvs as (c & v & l1 & l2 & hxc & hl & hl' & hl1); subst.
+        exists c, v, ((z, b) :: l1), l2; cbn.
+        rewrite get_neq_cons by assumption.
+        repeat split; auto.
   Qed.
+
+  (*Lemma set_some_get : forall l l' (k : K) (v : V),
+      set l k v = Some l' -> exists a, get l k = a.*)
 
   (** Removes the first equal key. *)
   Fixpoint remove_first (key : K) (l : list (K * V)) : list (K * V) :=
@@ -153,6 +169,15 @@ Section ALL.
       destruct (HKR key k). 1: apply H0. constructor; try split; auto.
   Qed.
 
+  Lemma all_values_app : forall us1 us2 ws1 ws2,
+      length us1 = length ws1 ->
+      all_values P (us1 ++ us2) (ws1 ++ ws2) ->
+      all_values P us1 ws1 /\ all_values P us2 ws2.
+  Proof.
+    intros us1 us2 ws1 ws2 hlen h.
+    unfold all_values in *.
+    auto using Forall2_length_eq_app.
+  Qed.
 End ALL.
 
 Section Rel.
@@ -238,6 +263,67 @@ Section Rel.
           match goal with
           | H: _ /\ _ |- _ => destruct H; subst; eauto; try contradiction
           end.
+    Qed.
+
+    Lemma all_values_key_unique : forall (kas : list (K * A)) (kbs : list (K * B)),
+        all_values Q kas kbs ->
+        key_unique kas = key_unique kbs.
+    Proof.
+      intros kas kbs h.
+      unfold all_values in h.
+      rewrite Forall2_conj in h.
+      destruct h as [h _].
+      rewrite Forall2_map_both,Forall2_eq in h.
+      auto using map_fst_key_unique.
+    Qed.
+    
+    Lemma key_unique_all_values_split :
+      forall kas1 kas2 kbs1 kbs2 (ka kb : K) (a : A) (b : B),
+        ka === kb ->
+        key_unique (kas1 ++ (ka, a) :: kas2) = true ->
+        key_unique (kbs1 ++ (kb, b) :: kbs2) = true ->
+        all_values Q (kas1 ++ (ka, a) :: kas2) (kbs1 ++ (kb, b) :: kbs2) ->
+        ka = kb /\ Q a b /\ all_values Q kas1 kbs1 /\ all_values Q kas2 kbs2.
+    Proof.
+      unfold all_values.
+      intros kas1; induction kas1 as [| [ka1 a1] kas1 ih];
+        intros kas2 [| [kb1 b1] kbs1] kbs2 ka kb a b hkakb huniqa huniqb h;
+        cbn in *; inversion h; clear h; subst; cbn in *.
+      - destruct H3 as [? hq]; subst.
+        repeat split; auto.
+      - destruct H3 as [? hq]; subst.
+        destruct (get (kbs1 ++ (kb, b) :: kbs2) kb1) as [b1' |] eqn:hgetbs;
+          cbn in *; try discriminate.
+        destruct (get kas2 kb1) as [a1' |] eqn:hgetas;
+          cbn in *; try discriminate.
+        rewrite (get_equiv _ _ _ hkakb) in hgetas.
+        apply all_values_keys_eq with (R:=R) in H5; auto.
+        assert (hin: In kb (map fst (kbs1 ++ (kb, b) :: kbs2))).
+        { rewrite map_app; cbn. apply in_elt. }
+        rewrite <- H5 in hin.
+        pose proof get_none_not_in_fst _ _ hgetas kb ltac:(intuition) as h.
+        contradiction.
+      - destruct H3 as [? hq]; subst.
+        destruct (get (kas1 ++ (ka, a) :: kas2) kb) as [a1' |] eqn:hgetas;
+          cbn in *; try discriminate.
+        destruct (get kbs2 kb) as [b1' |] eqn:hgetbs;
+          cbn in *; try discriminate.
+        symmetry in hkakb.
+        rewrite (get_equiv _ _ _ hkakb) in hgetbs.
+        apply all_values_keys_eq with (R:=R) in H5; auto.
+        assert (hin: In ka (map fst (kas1 ++ (ka, a) :: kas2))).
+        { rewrite map_app; cbn. apply in_elt. }
+        rewrite H5 in hin.
+        pose proof get_none_not_in_fst _ _ hgetbs ka ltac:(intuition) as h.
+        contradiction.
+      - destruct H3 as [? hq]; subst.
+        destruct (get (kas1 ++ (ka, a) :: kas2) kb1) as [a' |] eqn:hgetas;
+          cbn in *; try discriminate.
+        destruct (get (kbs1 ++ (kb, b) :: kbs2) kb1) as [b' |] eqn:hgetbs;
+          cbn in *; try discriminate.
+        pose proof ih _ _ _ _ _ _ _ hkakb huniqa huniqb H5 as IH; clear ih.
+        destruct IH as (hkab & hqab & h1 & h2).
+        repeat split; auto.
     Qed.
   End Relate.
 End Rel.

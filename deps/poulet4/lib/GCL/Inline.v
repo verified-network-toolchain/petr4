@@ -251,12 +251,10 @@ Definition elaborate_arguments (args : F.fs string (paramarg E.e E.e)) :  F.fs s
 Definition realize_symbolic_key (symb_var : string) (key_type : E.t) (key : E.e) (mk : string) :=
   let symb_key := E.Var key_type symb_var 0 in (* TODO: what de bruijn var to use? *)
   let eq_cond := E.Bop E.TBool E.Eq symb_key key in
-  match mk with
-  | "exact"%string =>
+  if (mk =? "exact")%string then
     (symb_key, eq_cond, E.Bool false)
-  | _ =>
-    (symb_key, eq_cond, E.Var E.TBool (symb_var ++ "$DONTCARE") 0) (* TODO: what de bruijn var to use? *)
-  end.
+  else
+    (symb_key, eq_cond, E.Var E.TBool (symb_var ++ "$DONTCARE") 0) (* TODO: what de bruijn var to use? *).
 
 Fixpoint normalize_keys_aux t (keys : list (E.t * E.e * string)) i  :=
   let keyname := "_symb$" ++ t ++ "$match_" ++ string_of_nat i in

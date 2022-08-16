@@ -1078,19 +1078,16 @@ Section ToP4cub.
     
   Definition translate_state_name
              (parser_states : list string)
-             (state_name : P4String.t tags_t)
+             '({|P4String.str:=state_name|} : P4String.t tags_t)
     : result string Parser.state_label :=
-    match P4String.str state_name with
-    | "accept" => ok Parser.Accept
-    | "reject" => ok Parser.Reject
-    | "start"  => ok Parser.Start
-    | s =>
-        let+ n :=
-          Result.from_opt
-            (ListUtil.index_of string_dec s parser_states)
-            ("Parser state " ++ s ++ " not found.") in
-        Parser.Name n
-    end.
+    if  (state_name =? "accept")%string then ok Parser.Accept
+    else if (state_name =? "start")%string then ok Parser.Start
+         else
+           let+ n :=
+             Result.from_opt
+               (ListUtil.index_of string_dec state_name parser_states)
+               ("Parser state " ++ state_name ++ " not found.") in
+           Parser.Name n.
   
   Definition translate_pre_expr_to_pattern
     pre_expr : result string Parser.pat :=

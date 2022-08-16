@@ -38,6 +38,16 @@ Section Util.
     firstorder.
   Qed.
 
+  Lemma get_some_pair_in : forall l (x : K) (v : V),
+      AList.get l x = Some v -> exists kx,
+        x === kx /\ In (kx, v) l.
+  Proof.
+    intros l x v hget.
+    apply get_some_nth_error in hget.
+    destruct hget as (n & k & hxk & hnth).
+    exists k; split; eauto using nth_error_In.
+  Qed.
+  
   Lemma AList_get_some_split : forall l (x : K) (v : V),
       AList.get l x = Some v -> exists k l₁ l₂,
         x === k /\ l = l₁ ++ (k, v) :: l₂ /\ AList.get l₁ x = None.

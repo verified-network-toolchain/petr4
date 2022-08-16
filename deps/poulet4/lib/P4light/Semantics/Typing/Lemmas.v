@@ -1637,7 +1637,55 @@ Section Lemmas.
       destruct hhd as [dflt hdflt].
       exists (@Znth _ dflt z vs). econstructor; eauto.
   Qed.
+  
+  Lemma havoc_header_val_typ : forall f (τ : typ) v v',
+      havoc_header f v = Some v' ->
+      ⊢ᵥ v \: τ -> ⊢ᵥ v' \: τ.
+  Proof.
+    intros f t v v' h hvt.
+    inv hvt; cbn in h; inv h.
+    constructor; auto.
+    unfold AList.all_values in *.
+    unfold kv_map, kv_map_func.
+    rewrite Forall2_conj in *.
+    rewrite Forall2_map_both with (f:=fst) in *.
+    rewrite Forall2_map_both with (f:=snd) in *.
+    rewrite Forall2_eq in *.
+    rewrite map_fst_map,map_snd_map,map_id.
+    destruct H0 as [hfst hsnd]; split; auto.
+    rewrite Forall2_map1.
+    rewrite Forall2_forall_nth_error in *.
+    repeat rewrite map_length in *.
+    destruct hsnd as [hlen h].
+    split; eauto using uninit_sval_of_sval_preserves_typ.
+  Qed.
+  
+  Lemma havoc_headers_all_values_val_typ : forall f (ts : list (string * typ)) vs vs',
+      lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
+      AList.all_values val_typ vs ts ->
+      AList.all_values val_typ vs' ts.
+  Proof.
+    unfold AList.all_values, lift_option_kv.
+    intros f ts; induction ts as [| [x t] ts ih];
+      intros [| [y v] vs] [| [z v'] vs'] hvs' hvts; cbn in *;
+      try discriminate; inv hvts; repeat match_some_inv; some_inv; auto.
+    destruct H2 as [? hvt]; subst.
+    eauto using havoc_header_val_typ.
+  Qed.
 
+  Lemma havoc_headers_ex : forall f (ts : list (string * typ)) (vs : list (string * ValueBase)),
+      Forall2 val_typ (map snd vs) (map snd ts) ->
+      Forall (fun t => exists hdr, t = TypHeader hdr) (map snd ts) ->
+      exists vs', lift_option_kv (kv_map (havoc_header f) vs) = Some vs'.
+  Proof.
+    unfold lift_option_kv,kv_map,kv_map_func.
+    intros f ts; induction ts as [| [x t] ts ih];
+      intros [| [y v] vs] hall hts; inv hall; inv hts; cbn; eauto.
+    destruct H1 as [hdr hhdr]; subst. inv H2. cbn.
+    pose proof ih _ H4 H3 as [vs' IH]; clear ih H3 H4. cbn in *.
+    rewrite IH. eauto.
+  Qed.
+  
   Local Hint Constructors update_member : core.
 
   Ltac solve_update_member_preserves_typ :=
@@ -1652,8 +1700,8 @@ Section Lemmas.
             apply AListUtil.AList_get_some_split in hget as hget';
             destruct hget' as (K & ts1 & ts2 & hxK & hts & hts1); subst; rewrite hts in *;
             apply AListUtil.AList_set_some_split in hset as H';
-            destruct H' as (k & vf & vs1 & vs2 & hxk & hfields & hfields' & hvs1); subst;
-            assert (HkK: k === K) by (setoid_rewrite <- hxk; assumption);
+            destruct H' as (ky & vf & vs1 & vs2 & hxk & hyp_fields & hyp_fields' & hvs1); subst;
+            assert (HkK: ky === K) by (setoid_rewrite <- hxk; assumption);
             pose proof AListUtil.key_unique_all_values_split
               _ _ _ _ _ _ _ _ _ HkK huniqvs hall
               as (hkK & htyp & h1 & h2); subst;
@@ -1674,18 +1722,134 @@ Section Lemmas.
         unfold "===" in *; split; auto using uninit_sval_of_sval_preserves_typ.
     - constructor; auto.
       unfold update_union_member in H.
-      destruct is_valid.
-      + match_some_inv.
-        inv hfvt. (*Search update_union_member.*) admit.
-      + match_some_inv. admit.
+      match_some_inv.
+      pose proof havoc_headers_all_values_val_typ _ _ _ _ Heqo H2 as h.
+      solve_update_member_preserves_typ.
+  Qed.
+
+  Local Hint Constructors write_header_field : core.
+  
+  Lemma update_member_ex : forall sv₁ fv x (τ τ' : typ) τs,
+      AList.get (P4String.clear_AList_tags τs) x = Some τ' ->
+      member_type τs τ ->
+      ⊢ᵥ fv \: τ' -> ⊢ᵥ sv₁ \: τ ->
+      exists sv₂, update_member sv₁ x fv sv₂.
+  Proof.
+    intros sv1 fv x t t' ts hget hmem hfvt hsvt.
+    inv hmem; inv hsvt.
+    - pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H2 as hfst.
+      pose proof AList.get_some_in_fst _ _ _ hget as hin.
+      destruct hin as(kx & hkx & hkxin).
+      symmetry in hkx; unfold "==="in hkx; subst.
+      rewrite <- hfst in hkxin.
+      apply AList.in_fst_get_some in hkxin as [vorig hget_vorig].
+      apply AList.get_some_set with (v2:=fv) in hget_vorig as hset.
+      eexists; eauto.
+    - assert (hsv: exists sv, write_header_field (ValBaseHeader vs b) x fv sv).
+      { destruct b as [[] |].
+        - pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H2 as hfst.
+          pose proof AList.get_some_in_fst _ _ _ hget as hin.
+          destruct hin as(kx & hkx & hkxin).
+          symmetry in hkx; unfold "==="in hkx; subst.
+          rewrite <- hfst in hkxin.
+          apply AList.in_fst_get_some in hkxin as [vorig hget_vorig].
+          apply AList.get_some_set with (v2:=fv) in hget_vorig as hset.
+          eauto.
+        - pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H2 as hfst.
+          pose proof AList.get_some_in_fst _ _ _ hget as hin.
+          destruct hin as(kx & hkx & hkxin).
+          symmetry in hkx; unfold "==="in hkx; subst.
+          rewrite <- hfst in hkxin.
+          apply AList.in_fst_get_some in hkxin as [vorig hget_vorig].
+          apply AList.get_some_set with
+            (v2:=uninit_sval_of_sval None fv) in hget_vorig as hset.
+          eauto.
+        - pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H2 as hfst.
+          pose proof AList.get_some_in_fst _ _ _ hget as hin.
+          destruct hin as(kx & hkx & hkxin).
+          symmetry in hkx; unfold "==="in hkx; subst.
+          rewrite <- hfst in hkxin.
+          apply AList.in_fst_get_some in hkxin as [vorig hget_vorig].
+          apply AList.get_some_set with
+            (v2:=uninit_sval_of_sval None fv) in hget_vorig as hset.
+          eauto. }
+      destruct hsv as [sv hsv]; eauto.
+    - assert
+        (hts:
+          Forall
+            (fun hdr_typ => exists ts', hdr_typ = TypHeader ts') (map snd ts))
+        by admit. (* TODO: update union in val_typ *)
+      pose proof AListUtil.get_some_pair_in _ _ _ hget as hin.
+      unfold "===" in hin.
+      destruct hin as (kx & hkx & hin); subst kx.
+      assert (ht': exists ts', t' = TypHeader ts').
+      { rewrite Forall_forall in hts.
+        apply in_map with (f:=snd) in hin.
+        cbn in hin. unfold P4String.clear_AList_tags in hin.
+        rewrite map_snd_map,map_id in hin. auto. }
+      destruct ht' as [ts' ht']; subst; inv hfvt.
+      assert
+        (Hplz:
+          Forall
+            (fun hdr_typ : typ => exists ts' : P4String.AList tags_t typ, hdr_typ = TypHeader ts')
+            (map snd (P4String.clear_AList_tags ts))).
+      { unfold P4String.clear_AList_tags. rewrite map_snd_map,map_id.
+        assumption. }
+      assert (hsnd :
+               Forall2 val_typ
+                 (map snd vs) (map snd (P4String.clear_AList_tags ts))).
+      { unfold AList.all_values in H2.
+        rewrite Forall2_conj in H2.
+        destruct H2 as [hfst hsnd].
+        rewrite Forall2_map_both with (f:=snd) in hsnd.
+        assumption. }
+      assert (hupdate: exists uvs, update_union_member vs x vs0 b = Some uvs).
+      { unfold update_union_member.
+        pose proof havoc_headers_ex
+          (match b with
+           | Some true => fun _ : option bool => Some false
+           | _ => id
+           end) _ _ hsnd Hplz as h.
+        destruct h as [vs' hvs'].
+        rewrite hvs'.
+        pose proof havoc_headers_all_values_val_typ
+          _ _ _ _ hvs' H2 as h.
+        pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ h as hfst.
+        pose proof AList.get_some_in_fst _ _ _ hget as hinfst.
+        destruct hinfst as (kx & hkx & hkxin).
+        symmetry in hkx; unfold "==="in hkx; subst.
+        rewrite <- hfst in hkxin.
+        apply AList.in_fst_get_some in hkxin as [vorig hget_vorig].
+        apply AList.get_some_set
+          with (v2:=ValBaseHeader vs0 b)
+          in hget_vorig as hset; eauto. }
+      destruct hupdate as [uvs huvs]. eauto.
   Admitted.
 
+  Lemma update_bitstring_length : forall {A : Type} (bits₁ bits₂ : list A) lo hi,
+      (lo <= hi < List.length bits₁)%nat ->
+      List.length bits₂ = (hi - lo + 1)%nat ->
+      List.length (update_bitstring bits₁ lo hi bits₂) = List.length bits₁.
+  Proof.
+    intros A bits; induction bits as [| a bits ih];
+      intros bts lo hi hbits hbts; cbn in *; auto.
+    destruct lo as [| lo]; destruct hi as [| hi]; cbn in *.
+    - destruct bts as [| b bts]; cbn in *; try discriminate.
+      injection hbts as hbts.
+      destruct bts; cbn in *; discriminate || reflexivity.
+    - destruct bts as [| b bts]; cbn in *; try discriminate.
+      injection hbts as hbts. f_equal.
+      rewrite ih by lia. reflexivity.
+    - reflexivity.
+    - f_equal. rewrite ih by lia. reflexivity.
+  Qed.
+  
   Local Hint Constructors exec_write : core.
   
   Lemma exec_write_ex :
-    forall (T: @Target _ expr) (ge: @genv _ T) st (Γ : gamma_var) lv v (t : @P4Type tags_t),
+    forall (T: @Target _ expr) (ge : @genv_typ tags_t) st (Γ : gamma_var) lv v (t : @P4Type tags_t),
       gamma_var_domain Γ st ->
-      gamma_var_val_typ_real_norm Γ st (ge_typ ge) ->
+      gamma_var_val_typ_real_norm Γ st ge ->
       Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
       exists st', exec_write st lv v st'.
   Proof.
@@ -1697,8 +1861,97 @@ Section Lemmas.
     - assert (hsv: exists sv, exec_read st lv sv) by eauto using exec_read_ex.
       destruct hsv as [sv hsv].
       assert (hsvt: ⊢ᵥ sv \: τ) by eauto using exec_read_preserves_typ.
-      (*apply IHhlvt in hsvt as [st' hst']. *)
-      assert (hsv': exists sv', update_member sv x v sv') by admit (*update_member_ex.*).
-      destruct hsv' as [sv' hsv'].
-  Admitted.
+      pose proof update_member_ex _ _ _ _ _ _ H1 H2 hvt hsvt as hupdate.
+      destruct hupdate as [sv' hsv'].
+      pose proof update_member_preserves_typ
+        _ _ _ _ _ _ _ hsv' H1 H2 hvt hsvt as hsv't.
+      pose proof IHhlvt _ hsv't as IH.
+      destruct IH as [st' hst'].
+      eexists; eauto.
+    - inv hvt.
+      pose proof exec_read_ex _ _ _ _ _ _ hdom hG hlvt as hread.
+      destruct hread as [sv hsv].
+      pose proof exec_read_preserves_typ _ _ _ _ _ _ _ hG hsv hlvt as hsvt.
+      inv hsvt.
+      assert (hlen_nat : (N.to_nat lo <= N.to_nat hi < List.length v)%nat) by lia.
+      apply f_equal with (f:= N.to_nat) in H2.
+      autorewrite with core in H2.
+      replace (N.to_nat (hi - lo + 1)%N)
+        with (N.to_nat hi - N.to_nat lo + 1)%nat in H2 by lia.
+      pose proof update_bitstring_length _ _ _ _ hlen_nat H2 as hupdate.
+      pose proof @typ_bit _ tags_t (update_bitstring v (N.to_nat lo) (N.to_nat hi) v0) as hbit.
+      rewrite hupdate in hbit.
+      pose proof IHhlvt _ hbit as [st' hst']. eauto.
+    - pose proof exec_read_ex _ _ _ _ _ _ hdom hG hlvt as [sv hread].
+      pose proof exec_read_preserves_typ _ _ _ _ _ _ _ hG hread hlvt as hsvt.
+      inv hsvt.
+      assert
+        (hstk:
+          ⊢ᵥ ValBaseStack (update_stack_header vs z v) n0
+            \: TypArray τ (N.of_nat (List.length vs))).
+      { unfold update_stack_header.
+        pose proof Zlength_upd_Znth _ z vs v as hlen.
+        apply f_equal with (f:=Z.to_nat) in hlen.
+        do 2 rewrite ZtoNat_Zlength in hlen.
+        rewrite <- hlen.
+        constructor; lia || eauto using Forall_upd_Znth. }
+      apply IHhlvt in hstk as [st' IH]. eauto.
+  Qed.
+
+  Lemma exec_write_preservation :
+    forall (T: @Target _ expr) (ge : @genv_typ tags_t) st st' (Γ : gamma_var) lv v (t : @P4Type tags_t),
+      gamma_var_val_typ_real_norm Γ st ge ->
+      exec_write st lv v st' ->
+      Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
+      gamma_var_val_typ_real_norm Γ st' ge.
+  Proof.
+    intros T ge st st' G lv sv t hG hwrite.
+    generalize dependent t.
+    induction hwrite; intros t hlvt hsvt; inv hlvt.
+    - unfold gamma_var_val_typ_real_norm in *.
+      intros l t' v htyp_of hloc_to_sval.
+      unfold update_val_by_loc,update_memory in hloc_to_sval.
+      destruct st as [st extn]; cbn in *.
+      destruct loc as [loc | loc]; cbn in *; try discriminate.
+      destruct l as [l | l]; cbn in *; try discriminate.
+      destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
+      + rewrite H1 in htyp_of. some_inv.
+        pose proof PathMap.get_set_same loc rhs st as h.
+        unfold PathMap.get,FuncAsMap.get in *. rewrite h in hloc_to_sval.
+        some_inv. assumption.
+      + pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
+        specialize hG with (LInstance l) t' v as H. cbn in H.
+        unfold PathMap.get,FuncAsMap.get in *.
+        rewrite h in hloc_to_sval. auto.
+    - pose proof IHhwrite hG as ih; clear IHhwrite.
+      rename hsvt into hrhst.
+      pose proof exec_read_preserves_typ
+        _ _ _ _ _ _ _ hG H H8 as hsvt.
+      pose proof update_member_preserves_typ
+        _ _ _ _ _ _ _ H0 H5 H6 hrhst hsvt as hsv't. eauto.
+    - rename hsvt into hbits'.
+      pose proof exec_read_preserves_typ
+        _ _ _ _ _ _ _ hG H H9 as hsvt.
+      specialize IHhwrite with (t:=TypBit w).
+      inv hsvt. inv hbits'.
+      apply IHhwrite; auto; clear IHhwrite.
+      rewrite <- update_bitstring_length with
+        (bits₂ := bits') (lo := N.to_nat lo) (hi := N.to_nat hi) by lia.
+      constructor.
+    - rename hsvt into hbits'.
+      pose proof exec_read_preserves_typ
+        _ _ _ _ _ _ _ hG H H9 as hsvt.
+      specialize IHhwrite with (t:=TypBit w).
+      inv hsvt. (* TODO: lval_typ needs to allow Int for slice arguments. *)
+    - rename hsvt into hrhst.
+      pose proof exec_read_preserves_typ
+        _ _ _ _ _ _ _ hG H H5 as hsvt. inv hsvt.
+      eapply IHhwrite; eauto.
+      unfold update_stack_header.
+      pose proof Zlength_upd_Znth _ idx headers rhs as hlen.
+      apply f_equal with (f:=Z.to_nat) in hlen.
+      do 2 rewrite ZtoNat_Zlength in hlen.
+      rewrite <- hlen.
+      constructor; lia || eauto using Forall_upd_Znth.
+  Qed.
 End Lemmas.

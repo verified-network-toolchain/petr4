@@ -1285,6 +1285,9 @@ Section CCompSel.
     | _ => state_return tt
     end.
 
+  Definition CCollectTypVar_prog : list TopDecl.d -> StateT ClightEnv Result.result unit :=
+    state_fold_right (fun d _ => CCollectTypVar d) tt.
+  
   Definition CTranslateTopDeclaration
     (d: TopDecl.d) : StateT ClightEnv Result.result unit :=
     match d with
@@ -1346,6 +1349,9 @@ Section CCompSel.
                                                (* CTranslateTopParser d env *)
     end.
 
+  Definition CTranslate_prog : list TopDecl.d -> StateT ClightEnv Result.result unit :=
+    state_fold_right (fun d _ => CTranslateTopDeclaration d) tt.
+  
   Fixpoint remove_composite (comps: list Ctypes.composite_definition) (name : ident) :=
     match comps with 
     | [] => comps
@@ -1353,30 +1359,14 @@ Section CCompSel.
                                         tl
                                      else (Composite id su m a) :: (remove_composite tl name)
     end.
-  (* Fixpoint remove_public (comps: list Ctypes.composite_definition) (name : ident) :=
-    match comps with 
-    | [] => comps
-    | (Composite id su m a) :: tl => if (Pos.eqb id name) then 
-                                        tl
-                                      else (Composite id su m a) :: (remove_composite tl name)
-    end.  *)
-  (* Definition RemoveStdMetaDecl (prog: Clight.program) : Clight.program :=
-    {|
-      prog_defs := prog.(prog_defs);
-      prog_public := prog.(prog_public);
-      prog_main := prog.(prog_main);
-      prog_types := remove_composite prog.(prog_types) ($"standard_metadata_t");
-      prog_comp_env := prog.(prog_comp_env);
-      prog_comp_env_eq := _
-    |}. *)
 
-  Definition Compile (prog: TopDecl.d) : Errors.res (Clight.program*ident*ident) := 
+  Definition Compile (prog: list TopDecl.d) : Errors.res (Clight.program*ident*ident) := 
     let init_env := CCompEnv.newClightEnv  in
-    match CCollectTypVar prog init_env with 
+    match CCollectTypVar_prog prog init_env with 
     | Result.Error _ m => Errors.Error (Errors.msg (m ++ "from collectTypVar"))
     | Result.Ok _ (_, init_env)  => 
     let main_id := $"dummy_main" in 
-    match CTranslateTopDeclaration prog init_env with
+    match CTranslate_prog prog init_env with
     | Result.Error _ m => Errors.Error (Errors.msg (m ++ "from TopDeclaration"))
     | Result.Ok _ (_, env_all_declared) => 
       match CCompEnv.get_functions  env_all_declared with
@@ -1422,25 +1412,3 @@ Section CCompSel.
     | Errors.OK prog => print_Clight prog
     end.   *)
 End CCompSel.
-
-(* Require Poulet4.Compile.ToP4cub.
-Require Poulet4.Monads.Result.
-Require Poulet4.P4light.Syntax.P4defs.
-Require Poulet4.Ccomp.Example.
-
-Definition helloworld_program := 
-  match ToP4cub.translate_program' P4defs.Info P4defs.Inhabitant_Info Example.prog with
-  | @Result.Error (_) e => Errors.Error (Errors.msg e)
-  | @Result.Ok (_) p =>
-    p
-  end. 
-
-Compute helloworld_program. *)
-
-
-(* Definition helloworld_program_sel := Statementize.TranslateProgram helloworld_program.
-Definition test_program_only := 
-  CCompSel.Compile nat helloworld_program_sel.
-
-Definition test := 
-  CCompSel.Compile_print nat helloworld_program_sel. *)

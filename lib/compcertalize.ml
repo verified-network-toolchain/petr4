@@ -74,7 +74,7 @@ let convert_arrowT (a) =
     convert_arrow_poly a string_charlist convert_type convert_type
 
 
-let rec convert_it : Prev.TopDecl.it -> TopDecl.it =
+let convert_it : Prev.TopDecl.it -> TopDecl.it =
     function
     | Prev.TopDecl.ControlInstType (b,c) -> TopDecl.ControlInstType (
         List.map string_charlist b,
@@ -228,7 +228,7 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
         List.map string_charlist fs,
         args_convert a)
 
-let rec controld_convert (d :  Prev.Control.d) = 
+let controld_convert (d :  Prev.Control.d) = 
     match d with 
     | Prev.Control.Action (a, ctrl_params, data_params, st) ->
         Control.Action (
@@ -242,7 +242,7 @@ let rec controld_convert (d :  Prev.Control.d) =
             List.map (fun (t,mk) -> convert_type t, string_charlist mk) key,
             List.map string_charlist mks)
 
-let rec topdecl_convert (d:  Prev.TopDecl.d) = 
+let topdecl_convert (d:  Prev.TopDecl.d) = 
     match d with
     | Prev.TopDecl.Instantiate (n,m,l,c,es) ->
         TopDecl.Instantiate (

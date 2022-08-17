@@ -280,12 +280,12 @@ Definition get_state_name state :=
 Definition state_flag_name name := "_state$" ++ name ++ "$next".
 Definition state_flag name : E.e := E.Var E.TBool (state_flag_name name) 0. (* TODO what de bruijn vars to use. *)
 Definition set_state_flag name value  := IAssign E.TBool (state_flag name) (E.Bool value) .
-Definition construct_state name stmt trans  :=
+Definition construct_state name stmt trans :=
   IConditional E.TBool
                (state_flag name)
-               (ISeq (set_state_flag name false )
-                     (ISeq stmt trans ) )
-               (ISkip ) .
+               (ISeq (set_state_flag name false)
+                     (ISeq stmt trans))
+               ISkip.
 
 Definition extract_single (es : list E.e) (msg : string) : result E.e :=
   match es with
@@ -458,15 +458,14 @@ Fixpoint inline_state
     (neighbor_states, construct_state name stmt trans )
   end
 with inline_parser (gas : nat)
-                   (unroll : nat)
-                   
+                   (unroll : nat)   
                    (ctx : DeclCtx)
                    (current_name : string)
                    (current : Stmt.s)
                    (states : list Stmt.s)
      : result t :=
        match gas with
-       | O => ok (ISkip )
+       | O => ok ISkip
        | S gas =>
          let* (neighbors, inline_current) := inline_state gas unroll ctx current_name current states  in
          if orb (PeanoNat.Nat.eqb (length neighbors) 0) (PeanoNat.Nat.eqb unroll 0)

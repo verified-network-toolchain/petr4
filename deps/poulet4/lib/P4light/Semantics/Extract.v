@@ -57,6 +57,39 @@ Definition var_extract (typ: P4Type) (len: nat) : Packet Val :=
   | _ => mret ValBaseNull
   end.
 
+Fixpoint emit (v: Val) : Packet unit :=
+  match v with
+  | ValBaseNull =>
+      Packet.emit_bits []
+  | ValBaseBool b =>
+      Packet.emit_bit b
+  | ValBaseBit bits
+  | ValBaseInt bits
+  | ValBaseVarbit _ bits =>
+      Packet.emit_bits bits
+  | ValBaseTuple vs
+  | ValBaseStack vs _ =>
+      sequence (List.map emit vs);;
+      mret tt
+  | ValBaseStruct fields
+  | ValBaseUnion fields =>
+      asequence (List.map (fun '(k, v) => (k, emit v)) fields);;
+      mret tt
+  | ValBaseHeader fields is_valid =>
+      if is_valid
+      then asequence (List.map (fun '(k, v) => (k, emit v)) fields);;
+           mret tt
+      else mret tt
+  | ValBaseSenumField typ_name value =>
+      emit value
+  | _ => err (TypeError "Unsupported value passed to emit.")
+  end.
+
+Fixpoint var_emit (v: Val) (len: nat) : Packet unit :=
+  match v with
+  | _ => err (TypeError "Unsupported value passed to emit.")
+  end.
+
 End Extract.
 
 

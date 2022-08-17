@@ -74,3 +74,12 @@ Definition extract_bit : Packet bool :=
     | b::bs => mret b bs
     | nil => err (Reject PacketTooShort) bs
     end.
+
+Definition map_pkt (f: list bool -> list bool) : Packet unit :=
+  fun bs => mret tt (f bs).
+
+Definition emit_bits (bs : list bool) : Packet unit :=
+  State.put_state (fun pkt => pkt ++ bs).
+
+Definition emit_bit (b : bool) : Packet unit :=
+  emit_bits [b].

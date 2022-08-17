@@ -175,12 +175,14 @@ Definition packet_in_extract : extern_func := {|
   ef_sem := packet_in_extract_sem
 |}.
 
-Axiom emit : forall (pout : list bool) (v : Val), list bool.
+Definition emit (v : Val) : Packet (list bool) :=
+  Extract.emit v;;
+  get_state.
 
 Inductive packet_out_emit_sem : extern_func_sem :=
-  | exec_packet_out_emit : forall e s p pout typ v pout',
+  | exec_packet_out_emit : forall e s p pout typ v pout' x,
       PathMap.get p s = Some (ObjPout pout) ->
-      emit pout v = pout' ->
+      emit v pout = (inl pout', x) ->
       packet_out_emit_sem e s p [typ] [v]
             (PathMap.set p (ObjPout pout') s)
           [] SReturnNull.

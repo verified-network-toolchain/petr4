@@ -1809,7 +1809,8 @@ Section ToP4cub.
     let* hoisted_simpl :=
       hoist_nameless_instantiations
         tags_t (SimplExpr.transform_prog tags p) in
-    inline_types_prog hoisted_simpl.
+    let '(_,d) := inline_typ_program Maps.IdentMap.empty hoisted_simpl in ok d.
+  (*inline_types_prog hoisted_simpl.*)
 
   Fail Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.

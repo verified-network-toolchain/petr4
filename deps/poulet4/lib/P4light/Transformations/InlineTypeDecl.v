@@ -55,6 +55,7 @@ Fixpoint sub_typs_P4Type
   | TypError
   | TypMatchKind
   | TypVoid
+  | TypExtern _
   | TypTable _              => τ
   | TypArray τ n            => TypArray (σ †t τ) n
   | TypTuple τs             => TypTuple (lmap (σ †t) τs)
@@ -68,7 +69,6 @@ Fixpoint sub_typs_P4Type
   | TypNewType x τ          => TypNewType x (σ †t τ)
   | TypControl ct           => TypControl (σ †ct ct)
   | TypParser  ct           => TypParser  (σ †ct ct)
-  | TypExtern T             => sub_default σ (P4String.str T) τ
   | TypFunction ft          => TypFunction (σ †ft ft)
   | TypAction cps ps        => TypAction (lmap (σ †p) cps) (lmap (σ †p) ps)
   | TypSpecializedType τ τs => TypSpecializedType (σ †t τ) (lmap (σ †t) τs)
@@ -424,9 +424,9 @@ Fixpoint
   | DeclSerializableEnum i τ ({| P4String.str := T |} as X) es
     => (σ ∋ T |-> TypEnum X (Some (σ †t τ)) (lmap fst es),
        Some (DeclSerializableEnum i τ X (almap (σ †e) es)))
-  | DeclExternObject i x Xs mtds
+  | DeclExternObject i ({| P4String.str := T |} as X) Xs mtds
     => let σ' := σ ∖ (lmap P4String.str Xs) in
-      (σ, Some (DeclExternObject i x Xs (lmap (σ' †mp) mtds)))
+      (σ ∋ T |-> TypExtern X, Some (DeclExternObject i X Xs (lmap (σ' †mp) mtds)))
   | DeclTypeDef _ {| P4String.str := T |} (inl τ)
   | DeclNewType _ {| P4String.str := T |} (inl τ)
     => (σ ∋ T |-> σ †t τ, None)

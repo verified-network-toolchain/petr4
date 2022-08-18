@@ -441,9 +441,9 @@ Fixpoint
   | DeclParserType _ {| P4String.str := T |} Xs ps
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       (σ' ∋ T |-> TypParser (MkControlType Xs (lmap (σ' †p) ps)), None)
-  | DeclPackageType _ {| P4String.str := T |} Xs ps
+  | DeclPackageType i X Xs ps
     => let σ' := σ ∖ (lmap P4String.str Xs) in
-      (σ' ∋ T |-> TypPackage Xs [] (lmap (σ' †p) ps), None)
+      (σ, Some (DeclPackageType i X Xs (lmap (σ' †p) ps)))
   | _ => (σ, None)
   end
 where "σ '‡d'" := (inline_typ_Declaration σ).

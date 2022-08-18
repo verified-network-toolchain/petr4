@@ -578,10 +578,10 @@ Section ToP4cub.
                   ok (E.Int (posN w) z.(value))
                 else
                   ok (E.Bit w z.(value))
-            | None =>
-                error
+            | None => ok (E.Int (Z.to_pos z.(value)) z.(value))
+                (*error
                   ("[FIXME] integer didnt have a width: "
-                     ++ string_of_nat (BinInt.Z.to_nat z.(value)))
+                     ++ string_of_nat (BinInt.Z.to_nat z.(value)))*)
             end
         | ExpString _ =>
             (* [FIXME] strings need to be compiled away *)
@@ -1506,19 +1506,19 @@ Section ToP4cub.
   Definition translate_to_constructor_params
     (typ_names : list string)
     (params : list (@P4Parameter tags_t))
-    : result (TopDecl.constructor_params * list E.t) :=
+    : result (TopDecl.constructor_params * list (string * E.t)) :=
     let '(cparams, expr_cparams) :=
       List.partition
         (will_be_p4cub_cnstr_typ ∘ SyntaxUtil.get_param_typ)
         params in
-    Result.bind
-      (translate_constructor_parameters typ_names cparams)
-      (fun (cparams : TopDecl.constructor_params) =>
-         let+ (expr_cparams : list E.t) :=
-           sequence (M := result_monad_inst)
-             (List.map (translate_exp_type typ_names)
-                (List.map SyntaxUtil.get_param_typ expr_cparams)) in
-         (cparams, expr_cparams)).
+    let* cparams := translate_constructor_parameters typ_names cparams in
+    let+ expr_cparams :=
+      sequence (M := result_monad_inst)
+        (List.map
+           (fun '(MkParameter _ _ t _ {| P4String.str := x |})
+            => let+ t := translate_exp_type typ_names t in (x,t))
+           expr_cparams) in
+    (cparams, expr_cparams).
 
   Definition translate_runtime_params
     (typ_names : list string)
@@ -1562,7 +1562,8 @@ Section ToP4cub.
         inr (P4String.str name,
             (List.length type_args, [], arrowtype))
     | ProtoConstructor _ _ parameters  =>
-        translate_to_constructor_params typ_names parameters >>| inl
+        let+ (cps, ecps) := translate_to_constructor_params typ_names parameters in
+        inl (cps, List.map snd ecps)
     | ProtoAbstractMethod _ _ _ _ _ =>
       error "[FIXME] Dont know how to translate abstract methods"
     end.
@@ -1610,12 +1611,15 @@ Section ToP4cub.
                    ctor_name cub_name type_args cnstr_args exp_cnstr_args in
         let+ add_to_context := get_augment_from_name ctx ctor_name in
         add_to_context d
-    | DeclParser tags name _ params constructor_params _ states =>
+    | DeclParser _ name _ params constructor_params _ states =>
         let cub_name := P4String.str name in
         let* (cub_cparams,cub_expr_cparams) :=
           translate_to_constructor_params
             [] constructor_params in
+        let (names1, cub_expr_cparams) := List.split cub_expr_cparams in
         let* '(cub_eparams, cub_params) := translate_runtime_params [] params in
+        let names2 := List.map fst cub_params in
+        let term_names := (names2 ++ names1 ++ term_names)%list in
         let* (start_opt, cub_states) :=
           translate_parser_states
             term_names  ctx states in
@@ -1634,11 +1638,14 @@ Section ToP4cub.
         let* (cub_cparams, cub_expr_cparams) :=
           translate_to_constructor_params
             typ_names constructor_params in
+        let (names1,cub_expr_cparams) := List.split cub_expr_cparams in
         let* '(cub_eparams, cub_params) := translate_runtime_params [] params in
+        let names2 := List.map fst cub_params in
+        let term_names := (names2 ++ names1 ++ term_names)%list in
         let* local_ctx :=
           let loop acc decl :=
             let* ctx := acc in
-            translate_decl term_names  ctx decl in
+            translate_decl term_names ctx decl in
           fold_left loop locals (ok ctx)
         in
         (* This step loses information about local instantiations *)
@@ -1691,6 +1698,8 @@ Section ToP4cub.
              needs to pass a [typ_names]
              parameter? *)
           parameters_to_params [] data_params in
+        let term_names :=
+          (List.map fst ctrl_params ++ List.map fst data_params ++ term_names)%list in
         let+ cub_body :=
           translate_block
             [] term_names 
@@ -1768,7 +1777,7 @@ Section ToP4cub.
           translate_to_constructor_params cub_type_params parameters in
         (* error "[FIXME] P4light inlining step necessary" *)
         let p :=
-          (cub_name, (cub_cparams, cub_expr_cparams)) in
+          (cub_name, (cub_cparams, List.map snd cub_expr_cparams)) in
         add_package_type ctx p
     end.
 
@@ -1807,11 +1816,10 @@ Section ToP4cub.
     end.
 
   Definition preprocess (tags : tags_t) p :=
-    let* hoisted_simpl :=
+    let+ hoisted_simpl :=
       hoist_nameless_instantiations
         tags_t (SimplExpr.transform_prog tags p) in
-    let '(_,d) := inline_typ_program Maps.IdentMap.empty hoisted_simpl in ok d.
-  (*inline_types_prog hoisted_simpl.*)
+    let '(_,prog) := inline_typ_program Maps.IdentMap.empty hoisted_simpl in prog.
 
   Fail Definition inline_cub_types (decls : DeclCtx) :=
     fold_left (fun acc '(x,t) => subst_type acc x t) (decls.(types)) decls.

@@ -1337,6 +1337,29 @@ Section ToP4cub.
         end
     end.
 
+  Definition translate_runtime_params
+    (typ_names : list string)
+    (params : list (@P4Parameter tags_t))
+    : result (list (string * string) * E.params) :=
+    let '(eparams, params) :=
+      List.partition
+        (fun '(MkParameter _ _ t _ _) =>
+           match t with
+           | TypExtern _ => true | _ => false
+           end)
+        params in
+    let* eparams :=
+      sequence
+        $ List.map
+        (fun '(MkParameter _ _ t _ {| P4String.str:=x |}) =>
+           match t with
+           | TypExtern {| P4String.str := y |} => ok (x,y)
+           | _ => error "Implementation error, should only be extern types here."
+           end) eparams in
+    let+ params :=
+      parameters_to_params typ_names params in
+    (eparams, params).
+  
   Definition
     translate_constructor_parameter
     (typ_names : list string)
@@ -1344,20 +1367,19 @@ Section ToP4cub.
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     match typ with
     | TypExtern typname =>
-      ok (P4String.str var, TopDecl.ExternInstType (P4String.str typname))
+        ok (P4String.str var, TopDecl.ExternInstType (P4String.str typname))
     | TypControl (MkControlType _ ps) =>
-        (* TODO: how to get extern params? *)
-        let+ params := parameters_to_params typ_names ps in
-        (P4String.str var, TopDecl.ControlInstType [] params)
+        let+ (eparams,params) := translate_runtime_params typ_names ps in
+        (P4String.str var, TopDecl.ControlInstType (List.map snd eparams) params)
     | TypParser (MkControlType _ ps) =>
-        (* TODO: how to get extern params? *)
-        let+ params := parameters_to_params typ_names ps in
-        (P4String.str var, TopDecl.ParserInstType [] params)
+        let+ (eparams,params) := translate_runtime_params typ_names ps in
+        (P4String.str var, TopDecl.ParserInstType (List.map snd eparams) params)
     | TypPackage _ _ _  =>
         ok (P4String.str var, TopDecl.PackageInstType)
     | TypSpecializedType (TypTypeName name) typ_args  =>
         (*ok (TopDecl.EType (E.TVar (P4String.str name)))*)
         error "[FIXME] need substition function"
+    (*| TypSpecializedType _ _ => error "problem is here"*)
     | _ =>
       error "[FIXME] dont khow how to translate type to constructor type"
     end.
@@ -1502,14 +1524,25 @@ Section ToP4cub.
         $ List.map (translate_expression [] term_names) cargs_exps in
     (cargs, cargs_exps).
 
-  Definition translate_to_constructor_params
+  Fixpoint translate_to_constructor_params
     (typ_names : list string)
     (params : list (@P4Parameter tags_t))
     : result (TopDecl.constructor_params * list (string * E.t)) :=
+    (*match params with
+    | [] => ok ([],[])
+    | (MkParameter _ _ t _ {| P4String.str := x |}) as p :: params =>
+        let* (cparams, expr_cparams) := translate_to_constructor_params typ_names params in
+        match translate_exp_type typ_names t,
+          translate_constructor_parameter typ_names (collapse_P4Parameter p) with
+        | Ok _ t, _ => ok (cparams, (x,t) :: expr_cparams)
+        | Error _ _, Ok _ cp => ok (cp :: cparams, expr_cparams)
+        | Error _ msg1, Error _ msg2 => error (msg1 ++ ". " ++ msg2)
+        end
+    end.*)
     let '(cparams, expr_cparams) :=
       List.partition
         (will_be_p4cub_cnstr_typ ∘ SyntaxUtil.get_param_typ)
-        params in
+        $ List.map collapse_P4Parameter params in
     let* cparams := translate_constructor_parameters typ_names cparams in
     let+ expr_cparams :=
       sequence (M := result_monad_inst)
@@ -1518,29 +1551,6 @@ Section ToP4cub.
             => let+ t := translate_exp_type typ_names t in (x,t))
            expr_cparams) in
     (cparams, expr_cparams).
-
-  Definition translate_runtime_params
-    (typ_names : list string)
-    (params : list (@P4Parameter tags_t))
-    : result (list (string * string) * E.params) :=
-    let '(eparams, params) :=
-      List.partition
-        (fun '(MkParameter _ _ t _ _) =>
-           match t with
-           | TypExtern _ => true | _ => false
-           end)
-        params in
-    let* eparams :=
-      sequence
-        $ List.map
-        (fun '(MkParameter _ _ t _ {| P4String.str:=x |}) =>
-           match t with
-           | TypExtern {| P4String.str := y |} => ok (x,y)
-           | _ => error "Implementation error, should only be extern types here."
-           end) eparams in
-    let+ params :=
-      parameters_to_params typ_names params in
-    (eparams, params).
 
   Definition translate_method
     (typ_names : list string)
@@ -1768,16 +1778,16 @@ Section ToP4cub.
     | DeclParserType tags name type_params params =>
         (* error "[FIXME] ParserType declarations unimplemented" *)
         ok ctx
-    | DeclPackageType tags name type_params parameters =>
-        let cub_name := P4String.str name in
-        let cub_type_params :=
-          List.map (@P4String.str tags_t) type_params in
-        let+ (cub_cparams,cub_expr_cparams) :=
-          translate_to_constructor_params cub_type_params parameters in
-        (* error "[FIXME] P4light inlining step necessary" *)
-        let p :=
-          (cub_name, (cub_cparams, List.map snd cub_expr_cparams)) in
-        add_package_type ctx p
+| DeclPackageType tags name type_params parameters =>
+    let cub_name := P4String.str name in
+    let cub_type_params :=
+      List.map (@P4String.str tags_t) type_params in
+    let+ (cub_cparams,cub_expr_cparams) :=
+      translate_to_constructor_params cub_type_params parameters in
+    (* error "[FIXME] P4light inlining step necessary" *)
+    let p :=
+      (cub_name, (cub_cparams, List.map snd cub_expr_cparams)) in
+    add_package_type ctx p
     end.
 
   Fixpoint inline_types_decls decls :=

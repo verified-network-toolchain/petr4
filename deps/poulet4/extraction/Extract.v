@@ -99,6 +99,7 @@ Separate Extraction
          Poulet4.P4light.Architecture.V1ModelTarget
          Poulet4.P4light.Transformations.SimplExpr
          Poulet4.P4light.Transformations.GenLoc
+           Poulet4.P4light.Transformations.InlineTypeDecl
          Poulet4.P4light.Syntax.ConstValue
          Poulet4.Compile.ToP4cub
          Poulet4.GCL.GCL

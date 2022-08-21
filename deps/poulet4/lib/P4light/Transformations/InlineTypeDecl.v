@@ -495,7 +495,7 @@ Fixpoint
     => (σ,
        Some
          (DeclAction
-            i x (lmap (σ †p) ps) (lmap (σ †p) ps) (σ †blk blk)))
+            i x (lmap (σ †p) ps) (lmap (σ †p) cps) (σ †blk blk)))
   | DeclTable i x k tars tes dtar n tps
     => (σ,
        Some

@@ -649,22 +649,60 @@ Section ToP4cub.
         | ExpErrorMember str =>
             ok (E.Error (P4String.str str))
         | ExpExpressionMember expr {| P4String.str := name |} =>
-            let* cub_type := translate_exp_type typ in
-            match get_type_of_expr expr with
-            | TypRecord fs
-            | TypHeader fs
-            | TypStruct fs =>
-                let keys := List.map (P4String.str ∘ fst) fs in
-                let* index :=
-                  Result.from_opt
-                    (ListUtil.index_of string_dec name keys)
-                    ("TypeError:: member field missing " ++ name) in
-                let+ cub_expr := translate_expression expr in
-                E.Member cub_type index cub_expr
-            | _ =>
-                error
-                  ("TypeError :: Member expression requires a field type.")
-            end
+            if (name =? "next")%string then
+              let* cub_type := translate_exp_type typ in
+              let* cub_expr := translate_expression expr in
+              match get_type_of_expr expr with
+              | TypArray _ size => ok (header_stack_next cub_type size cub_expr)
+              | _ => error "TypeError :: next operates on header stacks only!"
+              end
+            else if (name =? "last")%string then
+              let* cub_type := translate_exp_type typ in
+              let* cub_expr := translate_expression expr in
+              match get_type_of_expr expr with
+              | TypArray _ size => ok (header_stack_last cub_type size cub_expr)
+              | _ => error "TypeError :: last operates on header stacks only!"
+              end
+            else if (name =? "lastIndex")%string then
+              let+ cub_expr := translate_expression expr in
+              header_stack_last_index cub_expr
+            else
+              let* cub_type := translate_exp_type typ in
+              match get_type_of_expr expr with
+              | TypRecord fs
+              | TypHeader fs
+              | TypStruct fs =>
+                  let keys := List.map (P4String.str ∘ fst) fs in
+                  let* index :=
+                    Result.from_opt
+                      (ListUtil.index_of string_dec name keys)
+                      ("TypeError:: member field missing " ++ name) in
+                  let+ cub_expr := translate_expression expr in
+                  E.Member cub_type index cub_expr
+              | TypSpecializedType _ _ =>
+                  error
+                    ("TypeError :: Member expression jives not with specialized type.")
+              | TypNewType _ _ =>
+                  error
+                    ("TypeError :: Member expression jives not with new type.")
+              | TypTypeName _ =>
+                  error ("TypeError :: Member expression jives not with type name.")
+              | TypHeaderUnion _ =>
+                  error
+                    ("TypeError :: Member expression jives not with tuple.")
+              | TypTuple _ =>
+                  error
+                    ("TypeError :: Member expression jives not with tuple.")
+              | TypList _ =>
+                  error
+                    ("TypeError :: Member expression jives not with list.")
+              | TypArray _ _ =>
+                  error
+                    ("TypeError :: Member expression jives not with array.")
+              | _ =>
+                  error
+                    ("TypeError :: Member expression requires a field type.")
+              end
         | ExpTernary cond tru fls =>
             error "Ternary expressions should have been hoisted by a previous pass"
         | ExpFunctionCall func type_args args =>

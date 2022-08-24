@@ -2,7 +2,7 @@ Require Export Poulet4.Utils.AList Poulet4.Utils.ForallMap Coq.Classes.EquivDec.
 
 Section Util.
   Context {K V: Type}
-          {R : Relation_Definitions.relation K}          
+          {R : Relation_Definitions.relation K}
           `{HKR: EqDec K R}.
 
   Lemma get_equiv : forall (kvs : list (K * V)) k₁ k₂,
@@ -52,6 +52,17 @@ Section Util.
     destruct (HKR key k) as [h | h]; try reflexivity.
     unfold "=/=" in h. contradiction.
   Qed.
+
+  Lemma remove_first_sublist: forall key l, sublist (remove_first key l) l.
+  Proof.
+    intros. induction l; simpl.
+    - exists []. simpl. auto.
+    - destruct a as [k v]; destruct (HKR key k).
+      + exists [(k, v)]. change ((k, v) :: l) with ([(k, v)] ++ l).
+        apply Permutation.Permutation_app_comm.
+      + destruct IHl as [l' ?]. exists l'. constructor. apply H.
+  Qed.
+
 End Util.
 
 Section ALL.
@@ -81,7 +92,7 @@ Section ALL.
   Qed.
 
   Variable P : U -> W -> Prop.
-  
+
   Lemma Forall2_all_values : forall us ws ks,
       length ks = length us -> length ks = length ws ->
       Forall2 P us ws <->
@@ -108,6 +119,16 @@ Section ALL.
     rewrite Forall2_eq in HPl.
     assumption.
   Qed.
+
+  Lemma all_values_remove_first: forall key us ws,
+      all_values P us ws -> all_values P (remove_first key us) (remove_first key ws).
+  Proof.
+    intros. induction H; simpl.
+    - constructor.
+    - destruct x as [k v1]. destruct y as [k' v2]. destruct H. simpl in *. subst k'.
+      destruct (HKR key k). 1: apply H0. constructor; try split; auto.
+  Qed.
+
 End ALL.
 
 Section Rel.
@@ -128,7 +149,7 @@ Section Rel.
       destruct Hkas as [Hnone Hsome];
         destruct (KEqDec k k') as [Hkk' | Hkk']; split; eauto; try discriminate.
   Qed.
-  
+
   Lemma map_fst_key_unique : forall (kas : list (K * A)) (kbs : list (K * B)),
       map fst kas = map fst kbs ->
       key_unique kas = key_unique kbs.
@@ -143,7 +164,7 @@ Section Rel.
       destruct Hb as [b' Hb]; rewrite Hb; reflexivity.
     - rewrite Hnone by reflexivity; assumption.
   Qed.
-    
+
   Section Map.
     Variable (f : A -> B).
 

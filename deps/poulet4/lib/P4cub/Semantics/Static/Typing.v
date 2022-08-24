@@ -54,10 +54,10 @@ Inductive type_expr (Γ : expr_type_env)
   Γ ⊢ₑ e₁ ∈ τ₁ ->
   Γ ⊢ₑ e₂ ∈ τ₂ ->
   Γ ⊢ₑ Expr.Bop τ op e₁ e₂ ∈ τ
-| type_index e₁ e₂ n τ :
+| type_index e₁ e₂ w τ :
   t_ok (type_vars Γ) τ ->
-  Γ ⊢ₑ e₁ ∈ Expr.TArray n τ ->
-  Γ ⊢ₑ e₂ ∈ Expr.TBit n ->
+  Γ ⊢ₑ e₁ ∈ Expr.TArray (Z.to_N (BitArith.upper_bound w)) τ ->
+  Γ ⊢ₑ e₂ ∈ Expr.TBit w ->
   Γ ⊢ₑ Expr.Index τ e₁ e₂ ∈ τ
 | type_member τ x e τs b :
   nth_error τs x = Some τ ->

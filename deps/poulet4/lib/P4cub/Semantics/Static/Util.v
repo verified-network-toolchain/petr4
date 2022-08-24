@@ -302,11 +302,11 @@ Inductive lvalue_ok : Expr.e -> Prop :=
 
 Variant type_lists_ok
   : Expr.lists -> Expr.t -> list Expr.t -> Prop :=
-  | type_array_ok n τ :
+  | type_array_ok w τ :
     type_lists_ok
       (Expr.lists_array τ)
-      (Expr.TArray n τ)
-      (List.repeat τ (N.to_nat n))
+      (Expr.TArray w τ)
+      (List.repeat τ (N.to_nat w))
   | type_struct_ok τs :
     type_lists_ok
       Expr.lists_struct

@@ -130,6 +130,16 @@ Section Lemmas.
   
   Section HelpersType.
     Local Hint Constructors type_value : core.
+
+    Lemma eval_index_types : forall vs v n t,
+      nth_error vs n = Some v ->
+      Forall (fun v => type_value v t) vs ->
+      type_value v t.
+    Proof.
+      intros vs v n t hnth hvs.
+      pose proof Forall_nth_error _ _ _ _ hvs hnth as h.
+      assumption.
+    Qed.
     
     Lemma eval_member_types : forall x vs v τs τ,
         nth_error τs x = Some τ ->
@@ -205,6 +215,16 @@ Section Lemmas.
   End HelpersType.
   
   Section HelpersExist.
+    Lemma eval_index_exists : forall {A : Set} w n (vs : list A),
+        BitArith.bound w n ->
+        length vs = Z.to_nat (BitArith.upper_bound w) ->
+        exists v, nth_error vs (Z.to_nat n) = Some v.
+    Proof.
+      intros A w n vs hwn hlen.
+      unfold BitArith.bound,BitArith.upper_bound in *.
+      apply length_nth_error_some. lia.
+    Qed.
+    
     Lemma eval_slice_exists : forall v τ hi lo w,
       (Npos lo <= Npos hi < w)%N ->
       numeric_width w τ ->

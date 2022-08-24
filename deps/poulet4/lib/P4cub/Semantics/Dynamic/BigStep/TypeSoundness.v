@@ -7,6 +7,7 @@ Import AllCubNotations Val.ValueNotations Val.LValueNotations.
 
 Section BigStepTheorems.
   Section ExprPreservation.
+    Local Hint Resolve eval_index_types : core.
     Local Hint Resolve eval_slice_types : core.
     Local Hint Resolve eval_uop_types : core.
     Local Hint Resolve eval_bop_type : core.
@@ -28,12 +29,7 @@ Section BigStepTheorems.
       - pose proof IHhev1 henv _ H5 as het1.
         pose proof IHhev2 henv _ H6 as het2.
         inv het1; inv het2; inv H2.
-        apply Forall2_repeat_r_Forall in H7.
-        (* TODO: preservation lemma:
-           Forall (type_value v t) vs ->
-           BitArith.bound w n ->
-           nth_error vs (BinInt.Z.to_nat n) = Some v ->
-           type_value v t. *) admit.
+        eauto using Forall2_repeat_r_Forall.
       - econstructor; eauto.
         rewrite Forall2_forall in H0.
         pose proof
@@ -44,7 +40,7 @@ Section BigStepTheorems.
         pose proof Forall2_forall_impl_Forall2
              _ _ _ _ _ _ _
              h _ H6 as hvts; assumption.
-    Admitted.
+    Qed.
   End ExprPreservation.
 
   Section ExprProgress.
@@ -80,8 +76,10 @@ Section BigStepTheorems.
       - pose proof eval_bop_exists
              _ _ _ _ _ _ H H4 H3 as [? ?]; eauto.
       - inv H2; inv H3; inv H2; try (inv H4; contradiction).
-        apply Forall2_repeat_r_Forall in H4.
-        (* TODO: progress lemma for index. *) admit.
+        pose proof Forall2_length _ _ _ _ _ H4 as hlen.
+        rewrite repeat_length,Znat.Z_N_nat in hlen.
+        pose proof eval_index_exists _ _ _ H6 hlen as [v hv].
+        eauto.
       - inv H2. inv H3;
           pose proof eval_member_exists
                _ _ _ _ H H4 as [? ?]; eauto.
@@ -93,7 +91,7 @@ Section BigStepTheorems.
         apply Forall2_only_l_Forall in h.
         rewrite Forall_exists_factor in h.
         destruct h as [vs hvs]; eauto.
-    Admitted.
+    Qed.
   End ExprProgress.
 
   Section LVPreservation.

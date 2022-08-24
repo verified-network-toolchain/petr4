@@ -99,12 +99,12 @@ Section TypeExprInduction.
       P Γ e₂ τ₂ ->
       P Γ (Expr.Bop τ op e₁ e₂) τ.
 
-  Hypothesis HIndex : forall Γ e₁ e₂ n τ,
+  Hypothesis HIndex : forall Γ e₁ e₂ w τ,
       t_ok (type_vars Γ) τ ->
-      Γ ⊢ₑ e₁ ∈ Expr.TArray n τ ->
-      P Γ e₁ (Expr.TArray n τ) ->
-      Γ ⊢ₑ e₂ ∈ Expr.TBit n ->
-      P Γ e₂ (Expr.TBit n) ->
+      Γ ⊢ₑ e₁ ∈ Expr.TArray (Z.to_N (BitArith.upper_bound w)) τ ->
+      P Γ e₁ (Expr.TArray (Z.to_N (BitArith.upper_bound w)) τ) ->
+      Γ ⊢ₑ e₂ ∈ Expr.TBit w ->
+      P Γ e₂ (Expr.TBit w) ->
       P Γ (Expr.Index τ e₁ e₂) τ.
   
   Hypothesis HMem : forall Γ τ x e τs b,

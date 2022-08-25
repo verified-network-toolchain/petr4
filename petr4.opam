@@ -28,7 +28,7 @@ depends: [
   "dune" {>= "2.8" & >= "1.2"}
   "cstruct"
   "cstruct-sexp"
-  "mehir"
+  "menhir"
   "ANSITerminal"
   "core" {>= "0.15.0"}
   "ppx_deriving_yojson"

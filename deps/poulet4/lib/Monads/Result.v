@@ -27,11 +27,9 @@ Module Result.
     | Ok _ x => f x
     end.
 
-  Instance result_monad_inst : Monad result:=
-    {
-    mret := @ok;
-    mbind := @bind
-    }.
+  Global Instance result_monad_inst : Monad result:=
+    { mret := @ok;
+      mbind := @bind }.
 
   Definition opt_bind {A B : Type} (r : option A) (str : string) (f : A -> result B) : result B :=
     match r with
@@ -76,8 +74,7 @@ Module Result.
       end
     end.
 
-
-  Fixpoint rred {A : Type} (os : list (result A)) : result (list A) :=
+  Definition rred {A : Type} (os : list (result A)) : result (list A) :=
     match rred_aux os (ok nil) with
     | Error _ s => error s
     | Ok _ xs => ok (List.rev' xs)

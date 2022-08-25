@@ -6,7 +6,7 @@ Require Import Coq.Lists.List.
 Require Poulet4.Utils.AList.
 Import ListNotations.
 
-Instance StrEqDec:EqDec string eq.
+Global Instance StrEqDec:EqDec string eq.
 Proof.
   unfold EqDec.
   apply string_dec.
@@ -36,7 +36,7 @@ Definition nequivb [tags_t: Type] (s1 s2: t tags_t) :=
 Definition eq_const [tags_t: Type] (s1: t tags_t) (s2: string) :=
   String.eqb s1.(str) s2.
 
-Instance EquivEquivalence (tags_t : Type) : Equivalence (@equiv tags_t).
+Global Instance EquivEquivalence (tags_t : Type) : Equivalence (@equiv tags_t).
 Proof.
   constructor.
   - constructor.
@@ -44,7 +44,7 @@ Proof.
   - intros [] [] [] H1 H2; unfold equiv in *; simpl in *; subst; auto.
 Defined.
 
-Instance P4StringEqDec (tags_t : Type) : EqDec (t tags_t) (@equiv tags_t).
+Global Instance P4StringEqDec (tags_t : Type) : EqDec (t tags_t) (@equiv tags_t).
 Proof.
   intros [t1 s1] [t2 s2].
   unfold Equivalence.equiv; unfold complement; simpl; unfold equiv; simpl.

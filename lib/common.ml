@@ -13,7 +13,7 @@
  * under the License.
 *)
 module P4P4info = P4info
-open Core_kernel
+open Core
 module P4info = P4P4info
 
 

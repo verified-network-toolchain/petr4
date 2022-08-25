@@ -668,7 +668,7 @@ Definition seq_tuple_elem_assign
   let lhs := E.EVar t tuple_elem_name i in
   Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-Fixpoint elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result Inline.t :=
+Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result Inline.t :=
   match lhs, rhs with
   | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
     let+ te := zip types es in
@@ -730,13 +730,13 @@ Fixpoint elim_tuple (c : Inline.t) : result t :=
     ok c
   end.
 
-Fixpoint header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
+Definition header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string E.t) : list (E.e tags_t * E.t)  :=
   (* TODO Type of ExprMember might need to be the header type *)
   F.fold (fun f typ acc => (E.EExprMember typ f e tags, typ) :: acc )
          fields
          [(E.EUop E.TBool E.IsValid e tags, E.TBool)].
 
-Fixpoint header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
+Definition header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
   let lhs_members := header_fields tags lhs fields in
   let rhs_members := header_fields tags rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
@@ -789,8 +789,6 @@ Fixpoint ifold {A : Type} (n : nat) (f : nat -> A -> A) (init : A) :=
   | O => init
   | S n' => f n (ifold n' f init)
   end.
-
-Search (nat -> positive).
 
 Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : Inline.t :=
   let t := E.THeader fields in
@@ -920,7 +918,7 @@ Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
               (ISetValidity (E.EVar typ (indexed_stck (n-1)) tags) true tags))
   end.
 
-Fixpoint struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
+Definition struct_fields (s : string) (fields : F.fs string E.t) : list (string * E.t)  :=
   F.fold (fun f typ acc => (s ++ "." ++ f, typ) :: acc ) fields [].
 
 (** TODO: Compiler pass to elaborate structs *)

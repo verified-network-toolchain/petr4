@@ -276,10 +276,13 @@ Section Transformer.
     | MkTablePreActionRef name args =>
       let name' :=
         (* Action names should only be global or directly under a control block. *)
+        (* Here we abuse name to do the work of a locator. For global actions (LGlobal _),
+          we write qualified name (.name) to indicate it is global. For local actions
+          (LInstance _), we unqualified name (name). *)
         match name_to_loc e name with
         | LGlobal [name'] => QualifiedName [] (P4String.Build_t tags_t default_tag name')
         | LInstance [_] => name
-        | _ => name (* This should not happen. *)
+        | _ => name (* This should never happen. *)
         end in
       let args' := map (option_map (transform_expr e)) args in
       MkTablePreActionRef name' args'

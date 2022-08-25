@@ -43,7 +43,7 @@ and 'a pre_ControlType =
            coq_P4Parameter := pre_P4Parameter;
            coq_P4Type := pre_P4Type]]
   [@@deriving sexp,show,yojson]
-and pre_P4Parameter =
+and 'a pre_P4Parameter =
   [%import:'a Poulet4.Typed.coq_P4Parameter
     [@with Poulet4.P4String.t := P4string.pre_t;
            Bigint.t := Util.bigint;

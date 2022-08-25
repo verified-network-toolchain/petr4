@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open P4light
 open Bitstring
 

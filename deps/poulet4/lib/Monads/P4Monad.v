@@ -72,7 +72,7 @@ Record ParserState {Meta: Type} := mkParserState {
   std_meta: StandardMeta
 }.
 
-Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
+Global Instance etaParserState {M} : Settable _ := settable! mkParserState M <fuel; pkt; usr_meta; std_meta>.
 
 Definition Error := unit.
 Definition Meta := unit.

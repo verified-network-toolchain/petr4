@@ -450,22 +450,22 @@ Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags 
          states
          (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
 
-Fixpoint inline_parser (gas : nat)
-                   (unroll : nat)
-                   (tags : tags_t)
-                   (ctx : DeclCtx tags_t)
-                   (seen : list string)
-                   (current_name : string)
-                   (current : Parser.state_block tags_t)
-                   (states : F.fs string (Parser.state_block tags_t))
-     : result t :=
-       match gas with
-       | O => ok (ISkip tags)
-       | S gas =>
-         let* stmt := inline gas unroll ctx (Parser.stmt current) in
-         let+ trans := inline_transition gas unroll tags ctx seen current_name (Parser.trans current) states in
-         ISeq stmt trans tags
-       end
+Fixpoint inline_parser  (gas : nat)
+                        (unroll : nat)
+                        (tags : tags_t)
+                        (ctx : DeclCtx tags_t)
+                        (seen : list string)
+                        (current_name : string)
+                        (current : Parser.state_block tags_t)
+                        (states : F.fs string (Parser.state_block tags_t))
+  : result t :=
+  match gas with
+  | O => ok (ISkip tags)
+  | S gas =>
+    let* stmt := inline gas unroll ctx (Parser.stmt current) in
+    let+ trans := inline_transition gas unroll tags ctx seen current_name (Parser.trans current) states in
+    ISeq stmt trans tags
+  end
 with inline_transition gas unroll tags ctx seen current_name trans states : result t :=
        match gas with
        | O => ok (ISkip tags)
@@ -493,168 +493,168 @@ with inline_transition gas unroll tags ctx seen current_name trans states : resu
                let* cond := translate_pat tags discriminee pat in
                let+ inln := inline_transition gas unroll tags ctx seen current_name trans states in
                IConditional E.TBool cond inln acc tags
-               in
+           in
            List.fold_left f (List.rev' cases) inline_default
          end
        end
 with inline (gas : nat)
-            (unroll : nat)
-            (ctx : DeclCtx tags_t)
-            (s : ST.s tags_t)
+     (unroll : nat)
+     (ctx : DeclCtx tags_t)
+     (s : ST.s tags_t)
   : result t :=
-  match gas with
-  | O => error "Inliner ran out of gas"
-  | S gas =>
-    match s with
-    | ST.SSkip i =>
-      ok (ISkip i)
-    | ST.SVardecl x t_or_e i =>
-      match t_or_e with
-      | inl t =>  ok (IVardecl t x i)
-      | inr e =>
-        let t := t_of_e e in
-        ok (ISeq (IVardecl t x i) (IAssign t (E.EVar t x i) e i) i)
-      end
-    | ST.SAssign lhs rhs i =>
-      ok (IAssign (t_of_e rhs) lhs rhs i)
+       match gas with
+       | O => error "Inliner ran out of gas"
+       | S gas =>
+         match s with
+         | ST.SSkip i =>
+           ok (ISkip i)
+         | ST.SVardecl x t_or_e i =>
+           match t_or_e with
+           | inl t =>  ok (IVardecl t x i)
+           | inr e =>
+             let t := t_of_e e in
+             ok (ISeq (IVardecl t x i) (IAssign t (E.EVar t x i) e i) i)
+           end
+         | ST.SAssign lhs rhs i =>
+           ok (IAssign (t_of_e rhs) lhs rhs i)
 
-    | ST.SConditional guard tru_blk fls_blk i =>
-      let* tru_blk' := inline gas unroll ctx tru_blk in
-      let+ fls_blk' := inline gas unroll ctx fls_blk in
-      IConditional (t_of_e guard) guard tru_blk' fls_blk' i
+         | ST.SConditional guard tru_blk fls_blk i =>
+           let* tru_blk' := inline gas unroll ctx tru_blk in
+           let+ fls_blk' := inline gas unroll ctx fls_blk in
+           IConditional (t_of_e guard) guard tru_blk' fls_blk' i
 
-    | ST.SSeq s1 s2 i =>
-      let* i1 := inline gas unroll ctx s1 in
-      let+ i2 := inline gas unroll ctx s2 in
-      ISeq i1 i2 i
+         | ST.SSeq s1 s2 i =>
+           let* i1 := inline gas unroll ctx s1 in
+           let+ i2 := inline gas unroll ctx s2 in
+           ISeq i1 i2 i
 
-    | ST.SBlock s =>
-      let+ blk := inline gas unroll ctx s in
-      IBlock blk
+         | ST.SBlock s =>
+           let+ blk := inline gas unroll ctx s in
+           IBlock blk
 
-    | ST.SFunCall f _ ar i =>
-      let args := paramargs ar in
-      let ret := rtrns ar in
-      match find_function _ ctx f with
-      | Some (TD.TPFunction _ _ _ body i) =>
-        (** TODO check copy-in/copy-out *)
-        let+ rslt := inline gas unroll ctx body in
-        let (s,_) := subst_t (args_to_expenv args) rslt in
-        IBlock s
-      | Some _ =>
-        error "[ERROR] Got a nonfunction when `find`ing a function"
-      | None =>
-        let args := elaborate_arrowE {|paramargs:=args; rtrns:=ret|} in
-        ok (IExternMethodCall "_" f args i)
-      end
+         | ST.SFunCall f _ ar i =>
+           let args := paramargs ar in
+           let ret := rtrns ar in
+           match find_function _ ctx f with
+           | Some (TD.TPFunction _ _ _ body i) =>
+             (** TODO check copy-in/copy-out *)
+             let+ rslt := inline gas unroll ctx body in
+             let (s,_) := subst_t (args_to_expenv args) rslt in
+             IBlock s
+           | Some _ =>
+             error "[ERROR] Got a nonfunction when `find`ing a function"
+           | None =>
+             let args := elaborate_arrowE {|paramargs:=args; rtrns:=ret|} in
+             ok (IExternMethodCall "_" f args i)
+           end
 
-    | ST.SActCall a args i =>
-      let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
-      match adecl with
-      | CD.CDAction _ _ body i =>
-        (** TODO handle copy-in/copy-out *)
-        let+ rslt := inline gas unroll ctx body in
-        let η := args_to_expenv args in
-        IBlock (fst (subst_t η rslt))
-      | _ =>
-        error "[ERROR] got a nonaction when `find`-ing a function"
-      end
+         | ST.SActCall a args i =>
+           let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
+           match adecl with
+           | CD.CDAction _ _ body i =>
+             (** TODO handle copy-in/copy-out *)
+             let+ rslt := inline gas unroll ctx body in
+             let η := args_to_expenv args in
+             IBlock (fst (subst_t η rslt))
+           | _ =>
+             error "[ERROR] got a nonaction when `find`-ing a function"
+           end
 
-    | ST.SApply inst ext_args args tags =>
-      match find_control _ ctx inst with
-      | None =>
-        let parser := find_parser _ ctx inst in
-        let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
-        match pinst with
-        | TD.TPInstantiate pname _ _ pargs tags =>
-          let pdecl_opt := find_parser _ ctx pname in
-          let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
-          match pdecl with
-          | TD.TPParser _ _ _ _ start states tags =>
-            let+ parser := inline_parser gas unroll tags ctx ["start"] "start" start states in
-            let init := init_parser states tags in
-            ISeq init  parser tags
-          (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
-          | _ =>
-            error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
-          end
-        | _ =>
-          error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
-        end
-      | Some cinst =>
-        match cinst with
-        | TD.TPInstantiate cname _ _ cargs i =>
-          let cdecl_opt := find_control tags_t ctx cname in
-          let* cdecl := from_opt cdecl_opt "could not find controller" in
-          match cdecl with
-          | TD.TPControl _ _ _ _ body apply_blk i =>
-            (* Context is begin extended with body, but why can't I find the controls? *)
-            let ctx' := of_cdecl tags_t ctx body in
-            let+ rslt := inline gas unroll ctx' apply_blk in
-            (** TODO check copy-in/copy-out *)
-            let η := copy args in
-            IBlock (fst (subst_t η rslt))
-          | _ =>
-            error "Expected a control decl, got something else"
-          end
-        | _ =>
-          error "Expected a control instantiation, got something else"
-        end
-      end
-    | ST.SReturn None i =>
-      ok (IReturnVoid i)
+         | ST.SApply inst ext_args args tags =>
+           match find_control _ ctx inst with
+           | None =>
+             let parser := find_parser _ ctx inst in
+             let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
+             match pinst with
+             | TD.TPInstantiate pname _ _ pargs tags =>
+               let pdecl_opt := find_parser _ ctx pname in
+               let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
+               match pdecl with
+               | TD.TPParser _ _ _ _ start states tags =>
+                 let+ parser := inline_parser gas unroll tags ctx ["start"] "start" start states in
+                 let init := init_parser states tags in
+                 ISeq init  parser tags
+               (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
+               | _ =>
+                 error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
+               end
+             | _ =>
+               error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
+             end
+           | Some cinst =>
+             match cinst with
+             | TD.TPInstantiate cname _ _ cargs i =>
+               let cdecl_opt := find_control tags_t ctx cname in
+               let* cdecl := from_opt cdecl_opt "could not find controller" in
+               match cdecl with
+               | TD.TPControl _ _ _ _ body apply_blk i =>
+                 (* Context is begin extended with body, but why can't I find the controls? *)
+                 let ctx' := of_cdecl tags_t ctx body in
+                 let+ rslt := inline gas unroll ctx' apply_blk in
+                 (** TODO check copy-in/copy-out *)
+                 let η := copy args in
+                 IBlock (fst (subst_t η rslt))
+               | _ =>
+                 error "Expected a control decl, got something else"
+               end
+             | _ =>
+               error "Expected a control instantiation, got something else"
+             end
+           end
+         | ST.SReturn None i =>
+           ok (IReturnVoid i)
 
-    | ST.SReturn (Some expr) i =>
-      ok (IReturnFruit (t_of_e expr) expr i)
+         | ST.SReturn (Some expr) i =>
+           ok (IReturnFruit (t_of_e expr) expr i)
 
-    | ST.SExit i =>
-      ok (IExit i)
+         | ST.SExit i =>
+           ok (IExit i)
 
-    | ST.SInvoke tbl_name i =>
-      let* tdecl := from_opt (find_table tags_t ctx tbl_name) "could not find table in environment" in
-      match tdecl with
-      | CD.CDTable _ tbl _ =>
-        let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
-        let actions := Control.table_actions tbl in
-        let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
-        let act_sizeN := BinNat.N.of_nat act_size in
-        let act_type := E.TBit act_sizeN in
-        let act_to_gcl := fun i a acc_res =>
-          let* acc := acc_res in
-          let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
-          match act with
-          | CD.CDAction _ params body tags =>
-            let* s := inline gas unroll ctx body in
-            let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
-            let set_action_run :=
-                IAssign act_type
-                          (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
-                          (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
-            in
-            (ISeq set_action_run s' tags) :: acc
-          | _ =>
-            error "[ERROR] expecting action when `find`ing action, got something else"
-          end
-        in
-        let* acts := fold_lefti act_to_gcl (ok []) actions in
-        let+ named_acts := zip actions acts in
-        let (assumes, keys') := normalize_keys tbl_name keys i in
-        let invocation := IInvoke tbl_name keys' named_acts i in
-        ISeq assumes invocation i
-      | _ =>
-        error "[ERROR] expecting table when getting table, got something else"
-      end
+         | ST.SInvoke tbl_name i =>
+           let* tdecl := from_opt (find_table tags_t ctx tbl_name) "could not find table in environment" in
+           match tdecl with
+           | CD.CDTable _ tbl _ =>
+             let keys := List.map (fun '(e,k) => (t_of_e e, e, k)) (Control.table_key tbl) in
+             let actions := Control.table_actions tbl in
+             let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
+             let act_sizeN := BinNat.N.of_nat act_size in
+             let act_type := E.TBit act_sizeN in
+             let act_to_gcl := fun i a acc_res =>
+               let* acc := acc_res in
+               let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
+               match act with
+               | CD.CDAction _ params body tags =>
+                 let* s := inline gas unroll ctx body in
+                 let+ (s', _) := action_param_renamer tbl_name a (string_list_of_params params) s in
+                 let set_action_run :=
+                     IAssign act_type
+                     (E.EVar act_type ("_return$" ++ tbl_name ++ ".action_run") tags)
+                     (E.EBit act_sizeN (BinInt.Z.of_nat i) tags) tags
+                 in
+                 (ISeq set_action_run s' tags) :: acc
+               | _ =>
+                 error "[ERROR] expecting action when `find`ing action, got something else"
+               end
+             in
+             let* acts := fold_lefti act_to_gcl (ok []) actions in
+             let+ named_acts := zip actions acts in
+             let (assumes, keys') := normalize_keys tbl_name keys i in
+             let invocation := IInvoke tbl_name keys' named_acts i in
+             ISeq assumes invocation i
+           | _ =>
+             error "[ERROR] expecting table when getting table, got something else"
+           end
 
-    | ST.SExternMethodCall ext method _ args i =>
-      ok (IExternMethodCall ext method args i)
+         | ST.SExternMethodCall ext method _ args i =>
+           ok (IExternMethodCall ext method args i)
 
-    | ST.SSetValidity e b i =>
-      ok (ISetValidity e b i)
+         | ST.SSetValidity e b i =>
+           ok (ISetValidity e b i)
 
-    | ST.SHeaderStackOp s typ op n i =>
-      ok (IHeaderStackOp s typ op n i)
-    end
-  end.
+         | ST.SHeaderStackOp s typ op n i =>
+           ok (IHeaderStackOp s typ op n i)
+         end
+       end.
 
 Open Scope string_scope.
 Definition seq_tuple_elem_assign

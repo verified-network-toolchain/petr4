@@ -450,53 +450,6 @@ Definition init_parser (states : F.fs string (Parser.state_block tags_t)) (tags 
          states
          (ISeq (set_state_flag "accept" false tags) (set_state_flag "reject" false tags) tags).
 
-Open Scope list_scope.
-(* Fixpoint inline_state *)
-(*          (gas : nat) *)
-(*          (unroll : nat) *)
-(*          (ctx : DeclCtx tags_t) *)
-(*          (name : string) *)
-(*          (state : Parser.state_block tags_t) *)
-(*          (states : F.fs string (Parser.state_block tags_t)) *)
-(*          (tags : tags_t) *)
-(*   : result ((list (string * Parser.state_block tags_t)) * t) := *)
-(*   match gas with *)
-(*   | O => ok ([], ISkip tags) *)
-(*   | S gas => *)
-(*     let* stmt := inline gas unroll ctx (Parser.stmt state) in *)
-(*     let+ (neighbor_names, trans) := inline_transition gas unroll ctx name (Parser.trans state) tags in *)
-(*     let neighbor_states := lookup_parser_states neighbor_names states in *)
-(*     (neighbor_states, construct_state name stmt trans tags) *)
-(*   end *)
-(* with inline_transition (gas : nat) *)
-(*                        (unroll : nat) *)
-(*                        (ctx : DeclCtx tags_t) *)
-(*                        (name : string) *)
-(*                        (trans : Parser.e tags_t ) *)
-(*                        (tags : tags_t) *)
-(*      : result ((list string) * t)  := *)
-(*        match gas with *)
-(*        | O => ok ([], ISkip tags) *)
-(*        | S gas => *)
-(*          match trans with *)
-(*          | Parser.PGoto state tags => *)
-(*            let name := get_state_name state in *)
-(*            ok ([name], set_state_flag name true tags) *)
-(*          | Parser.PSelect discriminee default states tags => *)
-(*            let default := inline_transition gas unroll ctx name default tags in *)
-(*            let inline_trans_loop := fun '(pat, trans) acc  => *)
-(*                     let* (states, inln) := acc in *)
-(*                     let* cond := translate_pat tags discriminee pat in *)
-(*                     let+ (new_states, trans) := inline_transition gas unroll ctx name trans tags in *)
-(*                     (states ++ new_states, IConditional E.TBool cond trans inln tags) in *)
-(*            List.fold_right inline_trans_loop default states *)
-(*          end *)
-(*        end *)
-Print Parser.PSelect.
-Print Parser.e.
-Print Parser.state.
-Print List.find.
-Print List.fold_left.
 Fixpoint inline_parser (gas : nat)
                    (unroll : nat)
                    (tags : tags_t)

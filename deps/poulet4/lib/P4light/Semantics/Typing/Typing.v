@@ -68,13 +68,15 @@ Section TypingDefs.
       loc_to_sval l st = Result.Ok v ->
       exists rt, get_real_type gt t = Some rt /\ ⊢ᵥ v \: normᵗ rt.
 
-  Definition gamma_var_ok (Δ : list string) (g : gamma_var) : Prop :=
-    FuncAsMap.forall_elem (P4Type_ok Δ) g.
+  Definition gamma_var_ok (Δ : list string) : gamma_var -> Prop :=
+    FuncAsMap.forall_elem (P4Type_ok Δ).
+
+  Definition gamma_get_real `{T : @Target tags_t expr} (gt : genv_typ) : gamma_var -> Prop :=
+    FuncAsMap.forall_elem (fun t => exists r, get_real_type gt t = Some r).
   
   Definition gamma_var_prop
-             `{T : @Target tags_t expr}
-             (g : gamma_var)
-             (st : state) (gt : genv_typ) : Prop :=
+  `{T : @Target tags_t expr} (g : gamma_var)
+  (st : state) (gt : genv_typ) : Prop :=
     gamma_var_domain g st /\ gamma_var_val_typ g st gt.
   
   Definition sub_gamma_var (Γ Γ' : gamma_var) : Prop :=

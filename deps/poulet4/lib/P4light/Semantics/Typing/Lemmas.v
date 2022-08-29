@@ -1572,6 +1572,86 @@ Section Lemmas.
       typ_of_loc_var l Γ = Some τ ->
       loc_to_sval l st = Some v -> ⊢ᵥ v \: τ.
 
+  Lemma gamma_var_domain_impl_real_norm : forall `{T: Target _ expr} gt st Γ,
+      gamma_var_domain Γ st ->
+      gamma_var_domain
+        (FuncAsMap.map_map
+           (normᵗ ∘ (try_get_real_type gt)) Γ) st.
+  Proof.
+    unfold gamma_var_domain.
+    intros T gt st G hdom l t hltv.
+    specialize hdom with (l:=l).
+    destruct l as [l | l]; cbn in *; try discriminate.
+    unfold PathMap.get in *.
+    rewrite FuncAsMap.get_map_map in hltv.
+    unfold option_map in hltv. match_some_inv; some_inv.
+    eauto.
+  Qed.
+
+  Lemma gamma_real_norm_impl_var_domain : forall `{T: Target _ expr} gt st Γ,
+      gamma_var_domain
+        (FuncAsMap.map_map
+           (normᵗ ∘ (try_get_real_type gt)) Γ) st ->
+      gamma_var_domain Γ st.
+  Proof.
+    unfold gamma_var_domain.
+    intros T gt st G hdom l t hltv.
+    specialize hdom with (l:=l).
+    destruct l as [l | l]; cbn in *; try discriminate.
+    unfold PathMap.get in *.
+    rewrite FuncAsMap.get_map_map in hdom.
+    specialize hdom with ((normᵗ ∘ try_get_real_type gt) t).
+    unfold option_map in hdom. rewrite hltv in hdom. eauto.
+  Qed.
+  
+  Lemma gamma_var_val_type_impl_real_norm : forall `{T:Target _ expr} gt st Γ,
+      gamma_var_val_typ Γ st gt ->
+      gamma_var_val_typ_real_norm
+        (FuncAsMap.map_map
+           (normᵗ ∘ (try_get_real_type gt)) Γ) st gt.
+  Proof.
+    unfold gamma_var_val_typ, gamma_var_val_typ_real_norm.
+    intros T gt st G h l t v ht hv.
+    specialize h with (l:=l).
+    destruct l as [l | l]; cbn in *; try discriminate.
+    destruct st as [st extns]; cbn in *; clear extns.
+    unfold PathMap.get in *.
+    rewrite FuncAsMap.get_map_map in ht.
+    unfold option_map in ht.
+    match_some_inv; some_inv.
+    rename p into t.
+    pose proof h _ _ eq_refl hv as (r & hr & hvr); clear h.
+    unfold try_get_real_type, "∘". rewrite hr. assumption.
+  Qed.
+
+  Lemma gamma_real_norm_impl_var_val_type : forall `{T: Target _ expr} gt st Γ Δ,
+      delta_genv_prop gt Δ ->
+      gamma_var_ok Δ Γ ->
+      gamma_var_val_typ_real_norm
+        (FuncAsMap.map_map
+           (normᵗ ∘ (try_get_real_type gt)) Γ) st gt ->
+      gamma_var_val_typ Γ st gt.
+  Proof.
+    unfold gamma_var_val_typ, gamma_var_val_typ_real_norm.
+    intros T gt st G D hD hDG h l t v ht hv.
+    specialize h with (l:=l).
+    destruct l as [l | l]; cbn in *; try discriminate.
+    destruct st as [st extns]; cbn in *; clear extns.
+    unfold PathMap.get in *.
+    unfold gamma_var_ok in hDG.
+    unfold FuncAsMap.forall_elem in hDG.
+    rewrite FuncAsMap.get_map_map in h.
+    specialize h with ((normᵗ ∘ try_get_real_type gt) t) v.
+    unfold option_map in h. rewrite ht in h.
+    pose proof h eq_refl hv as hvr; clear h.
+    unfold FuncAsMap.get in *.
+    pose proof hDG _ _ ht as h.
+    pose proof ok_get_real_type_ex _ _ h _ hD as hr.
+    destruct hr as [r hr].
+    unfold try_get_real_type,"∘" in hvr.
+    rewrite hr in hvr. eauto.  
+  Qed.
+  
   Local Hint Constructors exec_read : core.
   
   Lemma exec_read_preserves_typ :
@@ -1900,30 +1980,45 @@ Section Lemmas.
 
   Lemma exec_write_preservation :
     forall (T: @Target _ expr) (ge : @genv_typ tags_t) st st' (Γ : gamma_var) lv v (t : @P4Type tags_t),
+      gamma_var_domain Γ st ->
       gamma_var_val_typ_real_norm Γ st ge ->
       exec_write st lv v st' ->
       Γ ⊢ₗ lv \: t -> ⊢ᵥ v \: t ->
-      gamma_var_val_typ_real_norm Γ st' ge.
+      gamma_var_domain Γ st' /\ gamma_var_val_typ_real_norm Γ st' ge.
   Proof.
-    intros T ge st st' G lv sv t hG hwrite.
+    intros T ge st st' G lv sv t hdom hG hwrite.
     generalize dependent t.
     induction hwrite; intros t hlvt hsvt; inv hlvt.
-    - unfold gamma_var_val_typ_real_norm in *.
-      intros l t' v htyp_of hloc_to_sval.
-      unfold update_val_by_loc,update_memory in hloc_to_sval.
-      destruct st as [st extn]; cbn in *.
-      destruct loc as [loc | loc]; cbn in *; try discriminate.
-      destruct l as [l | l]; cbn in *; try discriminate.
-      destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
-      + rewrite H1 in htyp_of. some_inv.
-        pose proof PathMap.get_set_same loc rhs st as h.
-        unfold PathMap.get,FuncAsMap.get in *. rewrite h in hloc_to_sval.
-        some_inv. assumption.
-      + pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
-        specialize hG with (LInstance l) t' v as H. cbn in H.
-        unfold PathMap.get,FuncAsMap.get in *.
-        rewrite h in hloc_to_sval. auto.
-    - pose proof IHhwrite hG as ih; clear IHhwrite.
+    - split.
+      + unfold gamma_var_domain in *.
+        intros l t' htyp_of.
+        unfold update_val_by_loc,update_memory.
+        destruct st as [st extn]; cbn in *.
+        destruct loc as [loc | loc]; cbn in *; try discriminate.
+        destruct l as [l | l]; cbn in *; try discriminate.
+        destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
+        * pose proof PathMap.get_set_same loc rhs st as h.
+          unfold PathMap.get,FuncAsMap.get in *. rewrite h. eauto.
+        * specialize hdom with (LInstance l) t'; cbn in hdom.
+          pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
+          unfold PathMap.get,FuncAsMap.get in *.
+          rewrite h. eauto.
+      + unfold gamma_var_val_typ_real_norm in *.
+        intros l t' v htyp_of hloc_to_sval.
+        unfold update_val_by_loc,update_memory in hloc_to_sval.
+        destruct st as [st extn]; cbn in *.
+        destruct loc as [loc | loc]; cbn in *; try discriminate.
+        destruct l as [l | l]; cbn in *; try discriminate.
+        destruct (list_eq_dec string_dec l loc) as [hlloc | hlloc]; subst.
+        * rewrite H1 in htyp_of. some_inv.
+          pose proof PathMap.get_set_same loc rhs st as h.
+          unfold PathMap.get,FuncAsMap.get in *. rewrite h in hloc_to_sval.
+          some_inv. assumption.
+        * pose proof PathMap.get_set_diff l loc rhs st hlloc as h.
+          specialize hG with (LInstance l) t' v as H. cbn in H.
+          unfold PathMap.get,FuncAsMap.get in *.
+          rewrite h in hloc_to_sval. auto.
+    - pose proof IHhwrite hdom hG as ih; clear IHhwrite.
       rename hsvt into hrhst.
       pose proof exec_read_preserves_typ
         _ _ _ _ _ _ _ hG H H8 as hsvt.

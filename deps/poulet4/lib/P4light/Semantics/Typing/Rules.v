@@ -12,7 +12,10 @@ Section Soundness.
   Local Hint Unfold option_monad_inst : option_monad.
   Local Hint Unfold mret  : option_monad.
   Local Hint Unfold mbind : option_monad.
-
+  Local Hint Resolve exec_val_exists : core.
+  Local Hint Resolve val_to_sval_ex : core.
+  Local Hint Resolve exec_val_preserves_typ : core.
+  
   Context {tags_t : Type}.
 
   Notation typ := (@P4Type tags_t).
@@ -534,8 +537,6 @@ Section Soundness.
       - intros H; inv H.
     Qed.
 
-    Local Hint Resolve val_to_sval_ex : core.
-    Local Hint Resolve exec_val_preserves_typ : core.
     Local Hint Resolve eval_unary_op_preserves_typ : core.
 
     Theorem unary_op_sound : forall tag o e t dir,
@@ -710,9 +711,9 @@ Section Soundness.
         apply Hvt1 in H7 as (r1 & Hr1 & Hvr1); clear Hvt1.
         apply Hvt2 in H9 as (r2 & Hr2 & Hvr2); clear Hvt2.
         assert (Hlargvr1: ⊢ᵥ largv \: normᵗ r1)
-          by eauto using exec_val_preserves_typ.
+          by eauto.
         assert (Hrargvr2: ⊢ᵥ rargv \: normᵗ r2)
-          by eauto using exec_val_preserves_typ.
+          by eauto.
         assert (Hr :
                   exists r, get_real_type ge t = Some r /\
                        binary_type o r1 r2 r)
@@ -1065,10 +1066,17 @@ Section Soundness.
   Local Hint Unfold stmt_types : core.
   Local Hint Resolve sub_gamma_expr_refl : core.
   Local Hint Resolve gamma_stmt_prop_sub_gamma : core.
-
+  Local Hint Resolve gamma_var_domain_impl_real_norm : core.
+  Local Hint Resolve gamma_real_norm_impl_var_domain : core.
+  Local Hint Resolve gamma_var_val_type_impl_real_norm : core.
+  Local Hint Resolve gamma_real_norm_impl_var_val_type : core.
+  Local Hint Resolve exec_write_ex : core.
+  Local Hint Resolve exec_write_preservation : core.
+  Local Hint Resolve ValueBaseMap_preserves_type : core.
+  
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
-
+    
     Theorem assign_sound : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
@@ -1104,11 +1112,23 @@ Section Soundness.
                 _ _ _ Hsv2 _ hsvr2 as hvrt2.
               pose proof Helv1 _ _ Helvs1 as (r & hr & hlvr).
               rewrite Hte1e2, hr2 in hr; some_inv.
-              (* TODO: lemma for exec_write. *) admit. }
+              replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
+                (normᵗ ∘ try_get_real_type ge) in hlvr by reflexivity.
+              unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
+              destruct Γ as [[Gv Gc] Gf Gext]. cbn in *.
+              destruct Hgok as [hgok _].
+              destruct Hgste as [[hGdom hG] _].
+              assert (gamma_var_domain
+                        (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st)
+                as hGdom' by eauto.
+              assert (gamma_var_val_typ_real_norm
+                        (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st ge)
+                as hGrn by eauto.
+              eapply exec_write_ex; eauto. }
             destruct Hst' as [st' Hst']; exists st', s1.
-            eapply exec_stmt_assign; eauto using val_to_sval_ex.
+            eapply exec_stmt_assign; eauto.
             rewrite Hiscont; assumption.
-          * exists st, s1; eapply exec_stmt_assign; eauto using val_to_sval_ex.
+          * exists st, s1; eapply exec_stmt_assign; eauto.
             rewrite Hiscont; reflexivity.
         + clear dependent sv1; clear dependent sv2;
             clear dependent lv1; clear s1.
@@ -1116,9 +1136,28 @@ Section Soundness.
           * unfold gamma_stmt_prop; split; try assumption.
             unfold gamma_expr_prop in *.
             destruct Hgste as [Hgstvar Hgstconst];
-              split; try assumption.
+              split; try assumption. inv H5.
             destruct (is_continue sig) eqn:?H; [| subst; assumption].
-            admit. (* TODO: helper lemma for [gamma_var_prop Γ]. *)
+            pose proof He2 _ H as (r2 & hr2 & hsvr2).
+            pose proof Helv1 _ _  H8 as (r1 & hr1 & hlvr1).
+            rewrite Hte1e2,hr2 in hr1. some_inv.
+            assert (⊢ᵥ v \: normᵗ r1) by eauto.
+            assert (hsvr1: ⊢ᵥ sv \: normᵗ r1) by eauto.
+            replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
+              (normᵗ ∘ try_get_real_type ge) in hlvr1 by reflexivity.
+            unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
+            destruct Γ as [[Gv Gc] Gf Gext]. cbn in *.
+            destruct Hgok as [hgok _].
+            destruct Hgstvar as [hGdom hG].
+            assert (gamma_var_domain
+                      (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st)
+              as hGdom' by eauto.
+            assert (gamma_var_val_typ_real_norm
+                      (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st ge)
+              as hGrn by eauto.
+            pose proof exec_write_preservation
+              _ (ge_typ ge) _ _ _ _ _ _ hGdom' hGrn H10 hlvr1 hsvr1
+              as [hdomst' hGst']. eauto.
           * repeat if_destruct.
             -- intuition; subst; split; auto.
             -- intuition; subst. admit.
@@ -1297,15 +1336,15 @@ Section Soundness.
               by eauto using exec_val_exists.
             destruct Hv as [v Hv].
             assert (Hsv': exists sv', val_to_sval v sv')
-              by eauto using val_to_sval_ex.
+              by eauto.
             destruct Hsv' as [sv' Hsv']; eauto 6.
           * intros st' sig Hxs; inv Hxs.
             -- clear dependent sv. inv H11; inv H13.
                apply He' in H as (r & Hr & Hsvr); clear He'.
                assert (Hvr: ⊢ᵥ v \: normᵗ r)
-                 by eauto using exec_val_preserves_typ.
+                 by eauto.
                assert (Hsvnr: ⊢ᵥ sv0 \: normᵗ r)
-                 by eauto using exec_val_preserves_typ.
+                 by eauto.
                unfold gamma_stmt_prop in *.
                destruct Γ as [Γₑ gf]; cbn in *.
                destruct Hgst as [Hgst Hgf]; split; try assumption.

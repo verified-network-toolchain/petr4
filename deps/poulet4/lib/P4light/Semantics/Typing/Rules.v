@@ -15,7 +15,7 @@ Section Soundness.
   Local Hint Resolve exec_val_exists : core.
   Local Hint Resolve val_to_sval_ex : core.
   Local Hint Resolve exec_val_preserves_typ : core.
-  
+
   Context {tags_t : Type}.
 
   Notation typ := (@P4Type tags_t).
@@ -1073,7 +1073,7 @@ Section Soundness.
   Local Hint Resolve exec_write_ex : core.
   Local Hint Resolve exec_write_preservation : core.
   Local Hint Resolve ValueBaseMap_preserves_type : core.
-  
+
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
 
@@ -1160,7 +1160,7 @@ Section Soundness.
             as [hdomst' hGst']. eauto.
         + inv Hisexpr2. inv H7; inv H0.
     Qed.
-        
+
     Theorem assign_sound_call : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
@@ -1302,15 +1302,26 @@ Section Soundness.
           eapply gamma_stmt_prop_sub_gamma; eauto.
     Qed.
 
-    Theorem method_call_sound : forall `{dummy : Inhabitant tags_t} tag e τs es,
-        (ge,this,Δ,Γ)
-          ⊢ᵪ MkExpression dummy_tags
-          (ExpFunctionCall e τs es)
-          TypVoid Directionless ->
-        (ge,this,Δ,Γ)
-          ⊢ₛ MkStatement tag
-          (StatMethodCall e τs es) StmUnit ⊣ Γ.
+    Theorem method_call_sound : forall tag e τs es,
+        (forall `{dummy : Inhabitant tags_t}, (ge,this,Δ,Γ)
+           ⊢ᵪ MkExpression dummy_tags
+           (ExpFunctionCall e τs es)
+           TypVoid Directionless) ->
+        (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatMethodCall e τs es) StmUnit ⊣ Γ.
     Proof.
+      intros tag e τs es Hcall.
+      intros Hge Hged Hgok Hoks Hiss dummy' rob st Hrob Hreads Hgsp. cbn [fst snd] in *.
+      split; auto.
+      assert (forall t, Δ ⊢okᵉ MkExpression t (ExpFunctionCall e τs es) TypVoid Directionless). {
+        intros. inv Hoks. inv H0. repeat constructor; auto. }
+      assert (forall t, is_call (MkExpression t (ExpFunctionCall e τs es)
+                              TypVoid Directionless)). {
+        intros. constructor. inv Hiss. inv H1. constructor; auto. }
+      specialize (Hcall dummy' Hge Hged Hgok (H Semantics.dummy_tags)
+                    (H0 Semantics.dummy_tags) dummy' rob st Hrob Hreads Hgsp).
+      destruct Hcall as [[st' [sig Hpro]] Hpre]. split.
+      - exists st', sig. econstructor. 1: apply Hpro. admit.
+      - intros st'0 sig0 H1. inv H1. apply Hpre in H11. auto.
     Admitted.
 
     Theorem direct_application_sound :
@@ -1390,7 +1401,7 @@ Section Soundness.
         + destruct Hgst as [HΓₑ [Hgfdom Hgft]].
           unfold gamma_func_prop in *; split; auto.
     Qed.
-      
+
     Theorem stat_variable_sound : forall tag τ x e l,
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         (ge,this,Δ,Γ) ᵗ⊢ₑ e \: τ ->
@@ -1458,7 +1469,7 @@ Section Soundness.
                  repeat some_inv; eauto.
           * eapply exec_expr_call_False in H11; eauto. contradiction.
     Qed.
-    
+
     Theorem stat_variable_sound_call : forall tag τ x e l,
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
         typ_of_expr e = τ -> (ge,this,Δ,Γ) ⊢ᵪ e ->

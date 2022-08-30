@@ -12,7 +12,7 @@
  (authors      "Ryan Doenges" "Mina Tahmasbi Arashloo" "Santiago Bautista" "Alexander Chang" "Newton Ni" "Samwise Parkinson" "Rudy Peterson" "Alaia Solko-Breslin" "Amanda Xu" "Nate Foster")
  (homepage     "https://github.com/verified-network-toolchain/petr4")
  (bug_reports  "https://github.com/verified-network-toolchain/petr4")
- (license      "Apache 2.0")
+ (license      "Apache-2.0")
  (depends
    poulet4
    poulet4_Ccomp

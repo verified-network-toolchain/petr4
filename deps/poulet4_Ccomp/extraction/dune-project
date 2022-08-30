@@ -12,7 +12,7 @@
  (authors "John Chen" "Nate Foster" "Natalie Isak")
  (homepage     "https://github.com/verified-network-toolchain/petr4")
  (bug_reports  "https://github.com/verified-network-toolchain/petr4")
- (license      "Apache 2.0")
+ (license      "Apache-2.0")
  (depends
    bignum
    poulet4

@@ -1320,9 +1320,9 @@ Section Soundness.
       specialize (Hcall dummy' Hge Hged Hgok (H Semantics.dummy_tags)
                     (H0 Semantics.dummy_tags) dummy' rob st Hrob Hreads Hgsp).
       destruct Hcall as [[st' [sig Hpro]] Hpre]. split.
-      - exists st', sig. econstructor. 1: apply Hpro. admit.
+      - exists st', (force_continue_signal sig). econstructor. 1: apply Hpro. auto.
       - intros st'0 sig0 H1. inv H1. apply Hpre in H11. auto.
-    Admitted.
+    Qed.
 
     Theorem direct_application_sound :
       forall `{dummy : Inhabitant tags_t} tag τ τ' es,

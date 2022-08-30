@@ -71,6 +71,14 @@ Section Is.
       is_expr_typ t ->
       is_expr_typ (TypNewType X t).
 
+  Variant is_instantiatiable : typ -> Prop :=
+    | is_extern X :
+      is_instantiatiable (TypExtern X)
+    | is_parser ct :
+      is_instantiatiable (TypParser ct)
+    | is_control ct :
+      is_instantiatiable (TypControl ct).
+    
   (** Well-formed p4light expressions. *)
   Inductive is_expr : expr -> Prop :=
     is_MkExpression i e t d :
@@ -124,6 +132,20 @@ Section Is.
       is_expr e3 ->
       is_pre_expr (ExpTernary e1 e2 e3).
 
+  (** Well-formed P4light calls. *)
+  (* TODO: builtins. *)
+  Variant is_pre_call : pre_expr -> Prop :=
+    | is_ExpFunctionCall e ts es :
+      is_expr e ->
+      Forall is_expr_typ ts ->
+      Forall (predop is_expr) es ->
+      is_pre_call (ExpFunctionCall e ts es).
+
+  Variant is_call : expr -> Prop :=
+    is_MkExpression_call i e t d :
+      is_pre_call e ->
+      is_call (MkExpression i e t d).
+  
   (** Well-formed P4light statements. *)
   Inductive is_stmt : stmt -> Prop :=
     is_MkStatement i s t :
@@ -136,8 +158,8 @@ Section Is.
       Forall (predop is_expr) es ->
       is_pre_stmt (StatMethodCall e ts es)
   | is_StatAssignment lhs rhs :
-      is_expr lhs -> is_expr rhs ->
-      is_pre_stmt (StatAssignment lhs rhs)
+    is_expr lhs -> is_expr rhs \/ is_call rhs ->
+    is_pre_stmt (StatAssignment lhs rhs)
   | is_StatDirectApplication t ft args :
       (* TODO: what to require? *)
       is_pre_stmt (StatDirectApplication t ft args)

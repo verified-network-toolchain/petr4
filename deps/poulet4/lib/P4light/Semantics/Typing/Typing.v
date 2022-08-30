@@ -367,6 +367,7 @@ Section TypingDefs.
       delta_genv_prop ge Δ -> (** The domain of [ge_typ ge] is [Δ]. *)
       gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
       Δ ⊢okᵉ call ->          (** Free type variables are bound. *)
+      is_call call ->         (** Is syntactically a call expression. *)
       forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
         (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)

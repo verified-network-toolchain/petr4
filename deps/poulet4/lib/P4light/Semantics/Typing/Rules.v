@@ -1076,17 +1076,18 @@ Section Soundness.
   
   Section StmtTyping.
     Variable (Γ : @gamma_stmt tags_t).
-    
-    Theorem assign_sound : forall tag e₁ e₂,
+
+    Theorem assign_sound_expr : forall tag e₁ e₂,
         typ_of_expr e₁ = typ_of_expr e₂ ->
         lexpr_ok e₁ ->
-        (ge,this,Δ,Γ) ⊢ₑ e₁->
-        (ge,this,Δ,Γ) ⊢ₑ e₂ \/ (ge,this,Δ,Γ) ⊢ᵪ e₂ ->
+        is_expr e₂ ->
+        (ge,this,Δ,Γ) ⊢ₑ e₁ ->
+        (ge,this,Δ,Γ) ⊢ₑ e₂ ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement
           tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
     Proof.
-      cbn. intros i e1 e2 Hte1e2 Hlvoke1 He1 He2.
+      cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hisexpr2 He1 He2.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto.
@@ -1098,71 +1099,98 @@ Section Soundness.
       pose proof He1 Hge Hged Hgok Hoke1 Hise1 _ _ Hrob Hread Hgste as Het1; clear He1.
       destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
       pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
-      destruct He2 as [He2 | He2].
-      - pose proof He2 Hge Hged Hgok Hoke2 Hise2 _ _ Hrob Hread Hgste as Het2; clear He2.
-        destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
-        + assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
-            by eauto using exec_val_exists.
-          destruct Hsv2 as [v2 Hsv2].
-          assert (Hxd2: exec_expr_det ge rob this st e2 v2) by eauto.
-          destruct (is_continue s1) eqn:Hiscont.
-          * assert (Hst': exists st', exec_write st lv1 (ValueBaseMap Some v2) st').
-            { pose proof He2 _ Hev2 as (r2 & hr2 & hsvr2).
-              pose proof exec_val_preserves_typ
-                _ _ _ Hsv2 _ hsvr2 as hvrt2.
-              pose proof Helv1 _ _ Helvs1 as (r & hr & hlvr).
-              rewrite Hte1e2, hr2 in hr; some_inv.
-              replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
-                (normᵗ ∘ try_get_real_type ge) in hlvr by reflexivity.
-              unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
-              destruct Γ as [[Gv Gc] Gf Gext]. cbn in *.
-              destruct Hgok as [hgok _].
-              destruct Hgste as [[hGdom hG] _].
-              assert (gamma_var_domain
-                        (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st)
-                as hGdom' by eauto.
-              assert (gamma_var_val_typ_real_norm
-                        (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st ge)
-                as hGrn by eauto.
-              eapply exec_write_ex; eauto. }
-            destruct Hst' as [st' Hst']; exists st', s1.
-            eapply exec_stmt_assign; eauto.
-            rewrite Hiscont; assumption.
-          * exists st, s1; eapply exec_stmt_assign; eauto.
-            rewrite Hiscont; reflexivity.
-        + clear dependent sv1; clear dependent sv2;
-            clear dependent lv1; clear s1.
-          intros st' sig Hxs; inversion Hxs; subst.
-          * unfold gamma_stmt_prop; split; try assumption.
-            unfold gamma_expr_prop in *.
-            destruct Hgste as [Hgstvar Hgstconst];
-              split; try assumption. inv H5.
-            destruct (is_continue sig) eqn:?H; [| subst; assumption].
-            pose proof He2 _ H as (r2 & hr2 & hsvr2).
-            pose proof Helv1 _ _  H8 as (r1 & hr1 & hlvr1).
-            rewrite Hte1e2,hr2 in hr1. some_inv.
-            assert (⊢ᵥ v \: normᵗ r1) by eauto.
-            assert (hsvr1: ⊢ᵥ sv \: normᵗ r1) by eauto.
+      pose proof He2 Hge Hged Hgok Hoke2 Hisexpr2 _ _ Hrob Hread Hgste as Het2; clear He2.
+      destruct Het2 as [[sv2 Hev2] [He2 _]]; split.
+      - assert (Hsv2: exists v2, sval_to_val rob sv2 v2)
+          by eauto using exec_val_exists.
+        destruct Hsv2 as [v2 Hsv2].
+        assert (Hxd2: exec_expr_det ge rob this st e2 v2) by eauto.
+        destruct (is_continue s1) eqn:Hiscont.
+        + assert (Hst': exists st', exec_write st lv1 (ValueBaseMap Some v2) st').
+          { pose proof He2 _ Hev2 as (r2 & hr2 & hsvr2).
+            pose proof exec_val_preserves_typ
+              _ _ _ Hsv2 _ hsvr2 as hvrt2.
+            pose proof Helv1 _ _ Helvs1 as (r & hr & hlvr).
+            rewrite Hte1e2, hr2 in hr; some_inv.
             replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
-              (normᵗ ∘ try_get_real_type ge) in hlvr1 by reflexivity.
+              (normᵗ ∘ try_get_real_type ge) in hlvr by reflexivity.
             unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
             destruct Γ as [[Gv Gc] Gf Gext]. cbn in *.
             destruct Hgok as [hgok _].
-            destruct Hgstvar as [hGdom hG].
+            destruct Hgste as [[hGdom hG] _].
             assert (gamma_var_domain
                       (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st)
               as hGdom' by eauto.
             assert (gamma_var_val_typ_real_norm
                       (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st ge)
               as hGrn by eauto.
-            pose proof exec_write_preservation
-              _ (ge_typ ge) _ _ _ _ _ _ hGdom' hGrn H10 hlvr1 hsvr1
-              as [hdomst' hGst']. eauto.
-          * repeat if_destruct.
-            -- intuition; subst; split; auto.
-            -- intuition; subst. admit.
-            -- destruct H9 as (sv & Hsigsv & Hsv & Hsigcont); subst. admit.
-      - admit. (* TODO: may need more machinery for function calls... *)
+            eapply exec_write_ex; eauto. }
+          destruct Hst' as [st' Hst']; exists st', s1.
+          eapply exec_stmt_assign; eauto.
+          rewrite Hiscont; assumption.
+        + exists st, s1; eapply exec_stmt_assign; eauto.
+          rewrite Hiscont; reflexivity.
+      - clear dependent sv1; clear dependent sv2;
+          clear dependent lv1; clear s1.
+        intros st' sig Hxs; inversion Hxs; subst.
+        + unfold gamma_stmt_prop; split; try assumption.
+          unfold gamma_expr_prop in *.
+          destruct Hgste as [Hgstvar Hgstconst];
+            split; try assumption. inv H5.
+          destruct (is_continue sig) eqn:?H; [| subst; assumption].
+          pose proof He2 _ H as (r2 & hr2 & hsvr2).
+          pose proof Helv1 _ _  H8 as (r1 & hr1 & hlvr1).
+          rewrite Hte1e2,hr2 in hr1. some_inv.
+          assert (⊢ᵥ v \: normᵗ r1) by eauto.
+          assert (hsvr1: ⊢ᵥ sv \: normᵗ r1) by eauto.
+          replace (fun x : typ => normᵗ (try_get_real_type ge x)) with
+            (normᵗ ∘ try_get_real_type ge) in hlvr1 by reflexivity.
+          unfold gamma_expr_ok, gamma_expr_prop,gamma_var_prop in *.
+          destruct Γ as [[Gv Gc] Gf Gext]. cbn in *.
+          destruct Hgok as [hgok _].
+          destruct Hgstvar as [hGdom hG].
+          assert (gamma_var_domain
+                    (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st)
+            as hGdom' by eauto.
+          assert (gamma_var_val_typ_real_norm
+                    (FuncAsMap.map_map (normᵗ ∘ try_get_real_type ge) Gv) st ge)
+            as hGrn by eauto.
+          pose proof exec_write_preservation
+            _ (ge_typ ge) _ _ _ _ _ _ hGdom' hGrn H10 hlvr1 hsvr1
+            as [hdomst' hGst']. eauto.
+        + inv Hisexpr2. inv H7; inv H0.
+    Qed.
+        
+    Theorem assign_sound_call : forall tag e₁ e₂,
+        typ_of_expr e₁ = typ_of_expr e₂ ->
+        lexpr_ok e₁ ->
+        is_call e₂ ->
+        (ge,this,Δ,Γ) ⊢ₑ e₁ ->
+        (ge,this,Δ,Γ) ⊢ᵪ e₂ ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
+          tag (StatAssignment e₁ e₂) StmUnit ⊣ Γ.
+    Proof.
+      cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hiscalle2 He1 He2.
+      autounfold with * in *.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto.
+      inv Hoks; inv Hiss; inv H0; inv H1.
+      rename H3 into Hoke1; rename H4 into Hoke2;
+        rename H2 into Hise1; rename H5 into Hise2.
+      unfold call_types in He2.
+      pose proof He1 Hge Hged Hgok Hoke1 Hise1 _ _ Hrob Hread (proj1 Hgst) as Het1; clear He1.
+      destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
+      pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
+      pose proof He2 Hge Hged Hgok Hoke2 Hiscalle2 _ _ st Hrob Hread Hgst as Het2; clear He2.
+      destruct Het2 as ((st' & sig & he2) & het2). split.
+      - destruct (Helv1 _ _ Helvs1) as (r1 & hr1 & hlvr1); clear Helv1.
+        admit.
+      - clear dependent lv1. clear dependent sv1. clear s1.
+        clear dependent st'. clear sig.
+        intros st' sig hxs. inv hxs.
+        + inv Hiscalle2. inv H. inv H5. inv H.
+        + if_destruct.
     Admitted.
 
     Theorem cond_sound : forall tag e s₁ s₂ Γ₁,
@@ -1298,125 +1326,106 @@ Section Soundness.
     Proof.
     Admitted.
 
-    (** TODO: factor out common cases in proofs.
-        Should restructure proof as:
-        1. Split goals (submap,progress,preservation).
-        2. Prove submap case (should be automatically solved).
-        3. Progress case: destruct hypothesis for [e],
-           then solve either as a function call or expression.
-        4. Preservation case: intros [exec_stmt] term
-           & invert.
-
-        Preservation becomes stuck when the
-        evaluation hypothesis for [e] uses [exec_call]
-        but the typing hypothesis is for [exec_expr]
-        and vice versa. Perhaps these are mutually
-        exclusive? *)
-    Theorem stat_variable_sound : forall tag τ x e l,
+    Theorem stat_variable_init_sound : forall tag τ x l,
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
-        predop
-          (fun e =>
-             typ_of_expr e = τ /\
-             ((ge,this,Δ,Γ) ⊢ₑ e \/ (ge,this,Δ,Γ) ⊢ᵪ e)) e ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement
-          tag (StatVariable τ x e l) StmUnit
+          tag (StatVariable τ x None l) StmUnit
           ⊣ bind_typ_gamma_stmt l τ Γ.
     Proof.
-      cbn. intros i t x oe l Hl Hoe.
+      cbn. intros i t x l Hl.
+      autounfold with * in *.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto using bind_typ_gamma_stmt_sub_gamma.
+      inv Hoks; inv Hiss. inv H0; inv H1. inv H7; inv H6.
+      split.
+      - assert (Hr: exists r, get_real_type ge t = Some r).
+        { epose proof ok_get_real_type_ex as Hogre.
+          unfold ok_get_real_type_ex_def in Hogre; eauto. }
+        destruct Hr as [r Hr].
+        assert (Huninit: exists sv, uninit_sval_of_typ (Some false) r = Some sv).
+        { apply is_expr_typ_uninit_sval_of_typ; eauto.
+          epose proof delta_genv_prop_ok_typ_nil as Hdgok.
+          unfold delta_genv_prop_ok_typ_nil_def in Hdgok; eauto. }
+        firstorder eauto.
+      - intros st' sig Hxs; inv Hxs; inv H12.
+        unfold gamma_stmt_prop in *.
+        destruct Γ as [Γₑ gf] eqn:HeqΓ; cbn in *; split.
+        + unfold gamma_expr_prop in *.
+          destruct Hgst as [[Hvar Hconst] _].
+          destruct Γₑ as [Γᵥ Γᵪ]; cbn in *; split; try assumption.
+          clear Hconst. unfold gamma_var_prop in *.
+          destruct Hvar as [Hdom Hvart]. split.
+          * clear Hvart; unfold gamma_var_domain in *.
+            intros l' t' Hlt'.
+            unfold update_val_by_loc in *.
+            specialize Hdom with (l:=l') (t:=t').
+            destruct l' as [l' | l']; cbn in *; try discriminate.
+            destruct st as [st ext].
+            destruct l as [l | l];
+              unfold update_memory,get_memory,get_loc_path,
+              bind_var_typ in *; cbn in Hlt';
+              pose proof list_eq_dec string_dec l' l as Hl'l;
+              destruct Hl'l as [Hl'l | Hl'l]; subst;
+              try (rewrite PathMap.get_set_same; eauto);
+              try (rewrite PathMap.get_set_diff in Hlt' by assumption;
+                   rewrite PathMap.get_set_diff by assumption; eauto).
+          * clear Hdom; unfold gamma_var_val_typ in *.
+            intros l' t' sv' Hlt' Hlsv'.
+            unfold update_val_by_loc in *.
+            specialize Hvart with (l:=l') (t:=t') (v:=sv').
+            destruct l' as [l' | l']; cbn in *; try discriminate.
+            destruct st as [st ext].
+            destruct l as [l | l];
+              unfold update_memory,get_memory,get_loc_path,
+              bind_var_typ in *; cbn in Hlt';
+              pose proof list_eq_dec string_dec l' l as Hl'l;
+              destruct Hl'l as [Hl'l | Hl'l]; subst;
+              try rewrite PathMap.get_set_same in Hlt';
+              try  rewrite PathMap.get_set_same in Hlsv';
+              try rewrite PathMap.get_set_diff in Hlt' by assumption;
+              try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+              repeat some_inv;
+              eauto 6 using uninit_sval_of_typ_val_typ.
+        + destruct Hgst as [HΓₑ [Hgfdom Hgft]].
+          unfold gamma_func_prop in *; split; auto.
+    Qed.
+      
+    Theorem stat_variable_sound : forall tag τ x e l,
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
+        (ge,this,Δ,Γ) ᵗ⊢ₑ e \: τ ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
+          tag (StatVariable τ x (Some e) l) StmUnit
+          ⊣ bind_typ_gamma_stmt l τ Γ.
+    Proof.
+      cbn. intros i t x e l Hl He.
       autounfold with * in *.
       intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
       split; auto using bind_typ_gamma_stmt_sub_gamma.
       inv Hoks; inv Hiss. inv H0; inv H1.
-      destruct oe as [e |]; inv Hoe; inv H6; inv H7.
-      - destruct H0 as [Het [He | He]].
-        + pose proof He Hge Hged Hgok H1 H4 _ _ Hrob Hread (proj1 Hgst)
-            as [[sv Hesv] [He' _]]; clear He H1 H4; split.
-          * assert (Hv: exists v, sval_to_val rob sv v)
+      inv H6; inv H7. destruct He as [Het Het_eq].
+      - pose proof Het Hge Hged Hgok H0 H1 _ _ Hrob Hread (proj1 Hgst)
+          as [[sv Hesv] [He' _]]; clear Het H0 H1. split.
+        + assert (Hv: exists v, sval_to_val rob sv v)
               by eauto using exec_val_exists.
             destruct Hv as [v Hv].
-            assert (Hsv': exists sv', val_to_sval v sv')
-              by eauto.
+            assert (Hsv': exists sv', val_to_sval v sv') by eauto.
             destruct Hsv' as [sv' Hsv']; eauto 6.
-          * intros st' sig Hxs; inv Hxs.
-            -- clear dependent sv. inv H11; inv H13.
-               apply He' in H as (r & Hr & Hsvr); clear He'.
-               assert (Hvr: ⊢ᵥ v \: normᵗ r)
-                 by eauto.
-               assert (Hsvnr: ⊢ᵥ sv0 \: normᵗ r)
-                 by eauto.
-               unfold gamma_stmt_prop in *.
-               destruct Γ as [Γₑ gf]; cbn in *.
-               destruct Hgst as [Hgst Hgf]; split; try assumption.
-               destruct Γₑ as [Γᵥ Γᵪ]; cbn in *.
-               unfold gamma_expr_prop in *; cbn.
-               destruct Hgst as [Hvar Hconst]; split; try assumption.
-               unfold gamma_var_prop in *.
-               destruct Hvar as [Hdom Hvart]; split; cbn in *.
-               ++ unfold gamma_var_domain in *.
-                  intros l' t' Hlt'.
-                  unfold update_val_by_loc in *.
-                  specialize Hdom with (l:=l') (t:=t').
-                  destruct l' as [l' | l']; cbn in *; try discriminate.
-                  destruct st as [st ext].
-                  destruct l as [l | l];
-                    unfold update_memory,get_memory,get_loc_path,
-                    bind_var_typ in *; cbn in Hlt';
-                      pose proof list_eq_dec string_dec l' l as Hl'l;
-                      destruct Hl'l as [Hl'l | Hl'l]; subst;
-                        try (rewrite PathMap.get_set_same; eauto);
-                        try (rewrite PathMap.get_set_diff in Hlt' by assumption;
-                             rewrite PathMap.get_set_diff by assumption;
-                             simpl;
-                             eauto);
-                    simpl; eexists; eauto.
-               ++ clear Hdom; unfold gamma_var_val_typ in *.
-                  intros l' t' sv' Hlt' Hlsv'.
-                  unfold update_val_by_loc in *.
-                  specialize Hvart with (l:=l') (t:=t') (v:=sv').
-                  destruct l' as [l' | l']; cbn in *; try discriminate.
-                  repeat simpl_result_all.
-                  destruct st as [st ext].
-                  destruct l as [l | l];
-                    unfold update_memory,get_memory,get_loc_path,
-                    bind_var_typ in *; cbn in Hlt';
-                      repeat simpl_result_all; subst;
-                      pose proof list_eq_dec string_dec l' l as Hl'l;
-                      destruct Hl'l as [Hl'l | Hl'l]; subst;
-                        try rewrite PathMap.get_set_same in Hlt';
-                        try rewrite PathMap.get_set_same in Hlsv';
-                        try rewrite PathMap.get_set_diff in Hlt' by assumption;
-                        try rewrite PathMap.get_set_diff in Hlsv' by assumption;
-                    repeat simpl_result_all; subst;
-                    repeat some_inv;
-                    eauto.
-                  eapply Hvart; eauto.
-                  rewrite Hlsv'.
-                  reflexivity.
-                  eapply Hvart; eauto.
-                  rewrite Hlsv'.
-                  reflexivity.
-            -- eapply exec_expr_call_False in H11; eauto; contradiction.
-        + admit. (** TODO: call cases. *)
-      - split.
-        + assert (Hr: exists r, get_real_type ge t = Some r).
-          { epose proof ok_get_real_type_ex as Hogre.
-            unfold ok_get_real_type_ex_def in Hogre; eauto. }
-          destruct Hr as [r Hr].
-          assert (Huninit: exists sv, uninit_sval_of_typ (Some false) r = Some sv).
-          { apply is_expr_typ_uninit_sval_of_typ; eauto.
-            epose proof delta_genv_prop_ok_typ_nil as Hdgok.
-            unfold delta_genv_prop_ok_typ_nil_def in Hdgok; eauto. }
-          firstorder eauto.
-        + intros st' sig Hxs; inv Hxs; inv H12.
-          unfold gamma_stmt_prop in *.
-          destruct Γ as [Γₑ gf] eqn:HeqΓ; cbn in *; split.
-          * unfold gamma_expr_prop in *.
-            destruct Hgst as [[Hvar Hconst] _].
-            destruct Γₑ as [Γᵥ Γᵪ]; cbn in *; split; try assumption.
-            clear Hconst. unfold gamma_var_prop in *.
-            destruct Hvar as [Hdom Hvart]. split.
-            -- clear Hvart; unfold gamma_var_domain in *.
+        + intros st' sig Hxs; inv Hxs.
+          * clear dependent sv. inv H13; inv H11.
+            apply He' in H as (r & Hr & Hsvr); clear He'.
+            assert (Hvr: ⊢ᵥ v \: normᵗ r) by eauto.
+            assert (Hsvnr: ⊢ᵥ sv0 \: normᵗ r) by eauto.
+            unfold gamma_stmt_prop in *.
+            destruct Γ as [Γₑ gf]; cbn in *.
+            destruct Hgst as [Hgst Hgf]; split; try assumption.
+            destruct Γₑ as [Γᵥ Γᵪ]; cbn in *.
+            unfold gamma_expr_prop in *; cbn.
+            destruct Hgst as [Hvar Hconst]; split; try assumption.
+            unfold gamma_var_prop in *.
+            destruct Hvar as [Hdom Hvart]; split; cbn in *.
+            -- unfold gamma_var_domain in *.
                intros l' t' Hlt'.
                unfold update_val_by_loc in *.
                specialize Hdom with (l:=l') (t:=t').
@@ -1425,13 +1434,11 @@ Section Soundness.
                destruct l as [l | l];
                  unfold update_memory,get_memory,get_loc_path,
                  bind_var_typ in *; cbn in Hlt';
-                   pose proof list_eq_dec string_dec l' l as Hl'l;
-                   destruct Hl'l as [Hl'l | Hl'l]; subst;
-                     try (rewrite PathMap.get_set_same; eauto);
-                     try (rewrite PathMap.get_set_diff in Hlt' by assumption;
-                          rewrite PathMap.get_set_diff by assumption; eauto).
-               simpl; eexists; eauto.
-               simpl; eexists; eauto.
+                 pose proof list_eq_dec string_dec l' l as Hl'l;
+                 destruct Hl'l as [Hl'l | Hl'l]; subst;
+                 try (rewrite PathMap.get_set_same; eauto);
+                 try (rewrite PathMap.get_set_diff in Hlt' by assumption;
+                      rewrite PathMap.get_set_diff by assumption; eauto).
             -- clear Hdom; unfold gamma_var_val_typ in *.
                intros l' t' sv' Hlt' Hlsv'.
                unfold update_val_by_loc in *.
@@ -1442,20 +1449,29 @@ Section Soundness.
                destruct l as [l | l];
                  unfold update_memory,get_memory,get_loc_path,
                  bind_var_typ in *; cbn in Hlt';
-                   pose proof list_eq_dec string_dec l' l as Hl'l;
-                   destruct Hl'l as [Hl'l | Hl'l]; subst;
-                     try rewrite PathMap.get_set_same in Hlt';
-                     try  rewrite PathMap.get_set_same in Hlsv';
-                     try rewrite PathMap.get_set_diff in Hlt' by assumption;
-                     try rewrite PathMap.get_set_diff in Hlsv' by assumption;
-                     repeat some_inv;
-                     eauto 6 using uninit_sval_of_typ_val_typ.
-               apply Hvart; eauto.
-               rewrite Hlsv'; reflexivity.
-               apply Hvart; eauto.
-               rewrite Hlsv'; reflexivity.
-          * destruct Hgst as [HΓₑ [Hgfdom Hgft]].
-            unfold gamma_func_prop in *; split; auto.
+                 pose proof list_eq_dec string_dec l' l as Hl'l;
+                 destruct Hl'l as [Hl'l | Hl'l]; subst;
+                 try rewrite PathMap.get_set_same in Hlt';
+                 try rewrite PathMap.get_set_same in Hlsv';
+                 try rewrite PathMap.get_set_diff in Hlt' by assumption;
+                 try rewrite PathMap.get_set_diff in Hlsv' by assumption;
+                 repeat some_inv; eauto.
+          * eapply exec_expr_call_False in H11; eauto. contradiction.
+    Qed.
+    
+    Theorem stat_variable_sound_call : forall tag τ x e l,
+        PathMap.get (get_loc_path l) (var_gamma Γ) = None ->
+        typ_of_expr e = τ -> (ge,this,Δ,Γ) ⊢ᵪ e ->
+        (ge,this,Δ,Γ)
+          ⊢ₛ MkStatement
+          tag (StatVariable τ x (Some e) l) StmUnit
+          ⊣ bind_typ_gamma_stmt l τ Γ.
+    Proof.
+      cbn. intros i t x e l Hl He.
+      autounfold with * in *.
+      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      split; auto using bind_typ_gamma_stmt_sub_gamma.
+      inv Hoks; inv Hiss.
     Admitted.
   End StmtTyping.
 End Soundness.

@@ -15,7 +15,7 @@ authors: [
   "Amanda Xu"
   "Nate Foster"
 ]
-license: "Apache 2.0"
+license: "Apache-2.0"
 homepage: "https://github.com/verified-network-toolchain/petr4"
 bug-reports: "https://github.com/verified-network-toolchain/petr4"
 depends: [

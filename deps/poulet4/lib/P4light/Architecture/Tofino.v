@@ -478,7 +478,7 @@ Definition values_match_singleton (key: Val) (val: Val): bool :=
   end.
 
 Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
-  match bits0, bits1, bits2 with
+  match bits2, bits1, bits0 with
   | [], [], [] => true
   | false::tl2, _::tl1, _::tl0 => vmm_help tl0 tl1 tl2
   | true::tl2, hd1::tl1, hd0::tl0 => 

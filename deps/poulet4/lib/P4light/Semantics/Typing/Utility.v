@@ -711,7 +711,7 @@ Section Lemmas.
         | xts Uxts Hxts IHxts (* record *)
         | (* error *)
         | xts Uxts Hxts IHxts (* header *)
-        | xts Uxts Hxts IHxts (* union *)
+        | xts Uxts Hhdr Hxts IHxts (* union *)
         | xts Uxts Hxts IHxts (* struct *)
         | X ms Hms       (* enum *)
         | X t ms Ht IHt (* senum *)
@@ -828,7 +828,7 @@ Section Lemmas.
   Local Hint Resolve in_map : core.
 
   Ltac bruh_list :=
-    intros ts' IHts' Hts';
+    intros ts' _ Hts';
     injection Hts' as ?; subst;
     constructor;
     rewrite Forall_forall in *; eauto.
@@ -838,22 +838,33 @@ Section Lemmas.
   Ltac bruh_alist :=
     match goal with
     | Uxts: AList.key_unique _ = true
-      |- _ => intros xts' IHxts' Hxts';
+      |- _ => intros xts' _ Hxts';
             injection Hxts' as ?; subst;
             epose proof AListUtil.key_unique_map_values (K := P4String.t tags_t) as Hmv;
             unfold AListUtil.map_values in Hmv;
             rewrite Hmv in Uxts; clear Hmv;
             constructor; auto;
-            rewrite Forall_forall in *;
-            intros [x t] Hxt; cbn in *;
-            match goal with
-            | H: List.In _ ?l,
-                 IH: context [List.In _ (map ?g ?l)]
+            try (rewrite Forall_forall in *;
+                 intros [x t] Hxt; cbn in *;
+                 match goal with
+                 | H: List.In _ ?l,
+                     IH: context [List.In _ (map ?g ?l)]
               |- _ => apply in_map with (f := g) in H as Hinmap; eauto
-            end
+                 end)
     end.
 
   Local Hint Extern 0 => bruh_alist : core.
+
+  Local Hint Constructors is_hdr_typ : core.
+  
+  Lemma is_hdr_typ_normᵗ_impl : forall t : typ,
+      is_hdr_typ (normᵗ t) -> is_hdr_typ t.
+  Proof.
+    intros t Ht.
+    induction t; cbn in *; inv Ht; eauto.
+    - rewrite <- H0 in IHt. auto.
+    - rewrite <- H in IHt. auto.
+  Qed.
   
   Lemma is_expr_typ_normᵗ_impl : forall t : typ,
       is_expr_typ (normᵗ t) -> is_expr_typ t.
@@ -874,7 +885,7 @@ Section Lemmas.
         | xts Uxts Hxts IHxts (* record *)
         | (* error *)
         | xts Uxts Hxts IHxts (* header *)
-        | xts Uxts Hxts IHxts (* union *)
+        | xts Uxts Hhdr Hxts IHxts (* union *)
         | xts Uxts Hxts IHxts (* struct *)
         | X ms Hms       (* enum *)
         | X t ms Ht IHt (* senum *)
@@ -882,6 +893,9 @@ Section Lemmas.
         | X t Ht IHt (* newtype *)
         ] using my_is_expr_typ_ind; auto 3; bruh.
     - intros ty w IHty H; inv H; auto.
+    - bruh_alist. rewrite map_snd_map in Hhdr.
+      rewrite Forall_map in Hhdr.
+      rewrite Forall_forall in *. eauto using is_hdr_typ_normᵗ_impl.
     - intros Y t' l IHt' Ht'.
       injection Ht' as ? ? ?; subst.
       destruct t' as [t |]; cbn in *; try discriminate; auto.

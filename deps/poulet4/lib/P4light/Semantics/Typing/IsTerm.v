@@ -15,6 +15,13 @@ Section Is.
   Notation switch_case := (@StatementSwitchCase tags_t).
   Notation blk := (@Block tags_t).
   Notation init := (@Initializer tags_t).
+
+  Inductive is_hdr_typ : typ -> Prop :=
+  | hdr_is_hdr xts :
+    is_hdr_typ (TypHeader xts)
+  | newtype_is_hdr X t :
+    is_hdr_typ t ->
+    is_hdr_typ (TypNewType X t).
   
   (** Allowed types for p4light expressions.
       Correlates to [uninit_sval_of_typ]. *)
@@ -48,13 +55,14 @@ Section Is.
   | is_error :
       is_expr_typ TypError
   | is_header ts :
-      AList.key_unique ts = true ->
-      Forall (fun t => is_expr_typ (snd t)) ts ->
-      is_expr_typ (TypHeader ts)
+    AList.key_unique ts = true ->
+    Forall (fun t => is_expr_typ (snd t)) ts ->
+    is_expr_typ (TypHeader ts)
   | is_union ts :
-      AList.key_unique ts = true ->
-      Forall (fun t => is_expr_typ (snd t)) ts ->
-      is_expr_typ (TypHeaderUnion ts)
+    AList.key_unique ts = true ->
+    Forall is_hdr_typ (map snd ts) ->
+    Forall (fun t => is_expr_typ (snd t)) ts ->
+    is_expr_typ (TypHeaderUnion ts)
   | is_struct ts :
       AList.key_unique ts = true ->
       Forall (fun t => is_expr_typ (snd t)) ts ->
@@ -254,6 +262,7 @@ Section IsInd.
         P (TypHeader ts).
     Hypothesis HUnion : forall ts,
         AList.key_unique ts = true ->
+        Forall is_hdr_typ (map snd ts) ->
         Forall (fun t => is_expr_typ (snd t)) ts ->
         Forall (fun t => P (snd t)) ts ->
         P (TypHeaderUnion ts).
@@ -313,7 +322,7 @@ Section IsInd.
         | is_record _ U H  => HRecord _ U H (AL H)
         | is_error         => HError
         | is_header _ U H  => HHeader _ U H (AL H)
-        | is_union  _ U H  => HUnion  _ U H (AL H)
+        | is_union  _ U hdr H => HUnion  _ U hdr H (AL H)
         | is_struct _ U H  => HStruct _ U H (AL H)
         | is_name X        => HName X
         | is_newtype X _ H => HNewType X _ H (I _ H)

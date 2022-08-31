@@ -322,7 +322,12 @@ Section Lemmas.
             |- _ => rewrite N.eqb_neq in H; lia
           | H: BinInt.Z.eqb _ _ = false
             |- _ => rewrite BinInt.Z.eqb_neq in H; lia
-          end;
+        end;
+      repeat match goal with
+        | H: Forall
+               (fun hdr => exists vs' bits, hdr = ValBaseHeader vs' bits) _
+          |- _ => clear H
+        end;
       try match goal with
           | U: AList.key_unique ?vs1 && AList.key_unique ?vs2 = false
             |- _ => rewrite andb_false_iff in U; destruct U as [U | U];
@@ -381,7 +386,7 @@ Section Lemmas.
                   rewrite String.eqb_refl,Hvb; cbn; clear Hvb;
                   pose proof IHxvbs Hfst U1 U2 as [b' Hb'];
                   rewrite Hb'; clear IHxvbs Hfst U1 U2 Hb'; eauto
-          end.
+        end.
     - inv H0; eauto.
     - rewrite Forall2_flip in H3,H4.
       eapply Forall_specialize_Forall2 with (vs:=vs) in H0; eauto using Forall2_length.
@@ -449,8 +454,13 @@ Section Lemmas.
             repeat rewrite Zcomplements.Zlength_correct in *;
             try match goal with
                 | H: (_ =? _)%N = false |- _ => rewrite N.eqb_neq in H; lia
-                end;
-            try match goal with
+              end;
+      repeat match goal with
+        | H: Forall
+               (fun hdr => exists vs' bits, hdr = ValBaseHeader vs' bits) _
+          |- _ => clear H
+        end;
+      try match goal with
                 | |- context [match ?trm with Some b => Some (ValBaseBool b) | None => None end]
                   => destruct trm as [? |] eqn:?;idtac; eauto
                 end; try if_destruct; eauto;
@@ -1052,18 +1062,6 @@ Section Lemmas.
   Qed.
 
   Local Hint Constructors lval_typ : core.
-  
-  Lemma lval_get_real_type : forall Γ lv (τ ρ : typ) ge,
-      get_real_type ge τ = Some ρ ->
-      Γ ⊢ₗ lv \: τ -> Γ ⊢ₗlv \: ρ.
-  Proof.
-    intros G lv t r ge h hlv;
-      generalize dependent ge; generalize dependent r;
-      induction hlv; intros r ge h; cbn in h; eauto.
-    - constructor. (* sad *) admit.
-    - Fail apply typ_left_member.
-      Fail Qed.
-  Abort.
   
   Create HintDb ind_def.
 
@@ -1739,6 +1737,21 @@ Section Lemmas.
     destruct hsnd as [hlen h].
     split; eauto using uninit_sval_of_sval_preserves_typ.
   Qed.
+
+  Lemma havoc_headers_is_header :
+    forall f (vs vs' : list (string * @ValueBase (option bool))),
+      lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
+      Forall (fun hdr => exists vs bits, hdr = ValBaseHeader vs bits) (map snd vs) ->
+      Forall (fun hdr => exists vs bits, hdr = ValBaseHeader vs bits) (map snd vs').
+  Proof.
+    unfold lift_option_kv, kv_map.
+    intros f vs; induction vs as [| [x v] vs ih];
+      intros [| [y v'] vs'] h H; cbn in *;
+      unfold option_bind in h; inv H;
+      repeat match_some_inv; discriminate || some_inv; auto.
+    destruct H2 as (hdr & bits & hhdr); subst. cbn in *.
+    some_inv. constructor; eauto.
+  Qed.
   
   Lemma havoc_headers_all_values_val_typ : forall f (ts : list (string * typ)) vs vs',
       lift_option_kv (kv_map (havoc_header f) vs) = Some vs' ->
@@ -1753,16 +1766,15 @@ Section Lemmas.
     eauto using havoc_header_val_typ.
   Qed.
 
-  Lemma havoc_headers_ex : forall f (ts : list (string * typ)) (vs : list (string * ValueBase)),
-      Forall2 val_typ (map snd vs) (map snd ts) ->
-      Forall (fun t => exists hdr, t = TypHeader hdr) (map snd ts) ->
+  Lemma havoc_headers_ex : forall f (vs : list (string * ValueBase)),
+      Forall (fun v => exists hdr bits, v = ValBaseHeader hdr bits) (map snd vs) ->
       exists vs', lift_option_kv (kv_map (havoc_header f) vs) = Some vs'.
   Proof.
     unfold lift_option_kv,kv_map,kv_map_func.
-    intros f ts; induction ts as [| [x t] ts ih];
-      intros [| [y v] vs] hall hts; inv hall; inv hts; cbn; eauto.
-    destruct H1 as [hdr hhdr]; subst. inv H2. cbn.
-    pose proof ih _ H4 H3 as [vs' IH]; clear ih H3 H4. cbn in *.
+    intros f vs; induction vs as [| [x v] vs ih];
+      intros hall; inv hall; cbn; eauto.
+    destruct H1 as (hdr & bits & hhdr); subst. cbn.
+    pose proof ih H2 as [vs' IH]; clear ih H2. cbn in *.
     rewrite IH. eauto.
   Qed.
   
@@ -1801,10 +1813,21 @@ Section Lemmas.
         solve_update_member_preserves_typ;
         unfold "===" in *; split; auto using uninit_sval_of_sval_preserves_typ.
     - constructor; auto.
-      unfold update_union_member in H.
-      match_some_inv.
-      pose proof havoc_headers_all_values_val_typ _ _ _ _ Heqo H2 as h.
-      solve_update_member_preserves_typ.
+      + unfold update_union_member in H.
+        match_some_inv.
+        pose proof havoc_headers_is_header _ _ _ Heqo H2 as h.
+        clear dependent ts0.
+        pose proof AListUtil.AList_set_some_split
+          _ _ _ _ H as hsplit.
+        destruct hsplit as (k & v & vs1 & vs2 & hxk & heq & heq' & hget).
+        unfold "===" in *. subst.
+        rewrite map_app in *; cbn in *.
+        rewrite Forall_app in *.
+        destruct h as [h1 h2]; inv h2. split; eauto.
+      + unfold update_union_member in H.
+        match_some_inv.
+        pose proof havoc_headers_all_values_val_typ _ _ _ _ Heqo H3 as h.
+        solve_update_member_preserves_typ.
   Qed.
 
   Local Hint Constructors write_header_field : core.
@@ -1854,33 +1877,34 @@ Section Lemmas.
             (v2:=uninit_sval_of_sval None fv) in hget_vorig as hset.
           eauto. }
       destruct hsv as [sv hsv]; eauto.
-    - assert
-        (hts:
-          Forall
-            (fun hdr_typ => exists ts', hdr_typ = TypHeader ts') (map snd ts))
-        by admit. (* TODO: update union in val_typ *)
-      pose proof AListUtil.get_some_pair_in _ _ _ hget as hin.
+    - pose proof AListUtil.get_some_pair_in _ _ _ hget as hin.
       unfold "===" in hin.
-      destruct hin as (kx & hkx & hin); subst kx.
+      destruct hin as (kx & hkx & hin); subst kx.      
       assert (ht': exists ts', t' = TypHeader ts').
-      { rewrite Forall_forall in hts.
+      { rewrite Forall_forall in H1.
         apply in_map with (f:=snd) in hin.
         cbn in hin. unfold P4String.clear_AList_tags in hin.
-        rewrite map_snd_map,map_id in hin. auto. }
+        rewrite map_snd_map,map_id in hin.
+        pose proof AList.get_some_in_fst _ _ _ hget as hinfst.
+        destruct hinfst as (k' & hxk' & hxin).
+        unfold "===" in hxk'; symmetry in hxk'; subst.
+        pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ H3 as hfsteq.
+        rewrite <- hfsteq in hxin.
+        apply AList.in_fst_get_some in hxin.
+        destruct hxin as [v hv].
+        pose proof AListUtil.get_relate_values _ _ _ _ _ _ H3 hv hget as hvt.
+        apply AListUtil.get_some_pair_in in hv.
+        destruct hv as (kx & hkx & hxvin).
+        apply in_map with (f:= snd) in hxvin. cbn in *.
+        apply H1 in hxvin as (vs' & b & hvs'); subst.
+        inv hvt. eauto. }
       destruct ht' as [ts' ht']; subst; inv hfvt.
-      assert
-        (Hplz:
-          Forall
-            (fun hdr_typ : typ => exists ts' : P4String.AList tags_t typ, hdr_typ = TypHeader ts')
-            (map snd (P4String.clear_AList_tags ts))).
-      { unfold P4String.clear_AList_tags. rewrite map_snd_map,map_id.
-        assumption. }
       assert (hsnd :
                Forall2 val_typ
                  (map snd vs) (map snd (P4String.clear_AList_tags ts))).
-      { unfold AList.all_values in H2.
-        rewrite Forall2_conj in H2.
-        destruct H2 as [hfst hsnd].
+      { unfold AList.all_values in H3.
+        rewrite Forall2_conj in H3.
+        destruct H3 as [hfst hsnd].
         rewrite Forall2_map_both with (f:=snd) in hsnd.
         assumption. }
       assert (hupdate: exists uvs, update_union_member vs x vs0 b = Some uvs).
@@ -1889,11 +1913,11 @@ Section Lemmas.
           (match b with
            | Some true => fun _ : option bool => Some false
            | _ => id
-           end) _ _ hsnd Hplz as h.
+           end) _ H1 as h.
         destruct h as [vs' hvs'].
         rewrite hvs'.
         pose proof havoc_headers_all_values_val_typ
-          _ _ _ _ hvs' H2 as h.
+          _ _ _ _ hvs' H3 as h.
         pose proof AListUtil.all_values_keys_eq _ _ _ _ _ _ _ h as hfst.
         pose proof AList.get_some_in_fst _ _ _ hget as hinfst.
         destruct hinfst as (kx & hkx & hkxin).
@@ -1904,7 +1928,7 @@ Section Lemmas.
           with (v2:=ValBaseHeader vs0 b)
           in hget_vorig as hset; eauto. }
       destruct hupdate as [uvs huvs]. eauto.
-  Admitted.
+  Qed.
 
   Lemma update_bitstring_length : forall {A : Type} (bits₁ bits₂ : list A) lo hi,
       (lo <= hi < List.length bits₁)%nat ->

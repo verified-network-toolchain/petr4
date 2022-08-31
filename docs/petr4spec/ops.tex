@@ -140,9 +140,12 @@
 \newcommand{\ppprim}[1]{{#1}^{\prime\prime\prime}}
 \newcommand{\so}[2]{{#1} \Rightarrow {#2}}
 \newcommand{\lookupEnv}[1]{\env({#1})}
+\newcommand{\lookupExternEnv}[1]{\externEnv({#1})}
+\newcommand{\lookupTypEnv}[1]{\typEnv({#1})}
 \newcommand{\emp}{[\ ]}
-\newcommand{\insertToEnv}[2]{\env, [{#1} : {#2} ]}
-\newcommand{\insertToEnvv}[1]{\env, [{#1}]}
+\newcommand{\insertToEnv}[2]{\env[{#1} : {#2} ]}
+\newcommand{\insertToEnvv}[1]{\env[{#1}]}
+\newcommand{\extendTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
 \newcommand{\tr}{\mathsf{true}}
 \newcommand{\fl}{\mathsf{false}}
@@ -168,16 +171,16 @@
 
 %typing judgments:
 \newcommand{\envOne}[2]{\Delta, T, \Gamma \vdash {#1} : {#2}}
-\newcommand{\expenv}[4]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
-\newcommand{\expenvv}[5]{\env_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
-\newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}}
-\newcommand{\expenvWithCtxt}[5]{\env, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
+\newcommand{\expenv}[4]{\constEnv, \varEnv, \typEnv, \ctxt \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\expenvv}[5]{\constEnv_{#5}, \varEnv_{#5}, \typEnv_{#5}, \ctxt_{#5} \vdash {#1} \leadsto {#2}, {#3}, {#4}}
+\newcommand{\expenvvv}[3]{{#1}, \ctxt \vdash {#2} \leadsto {#3}} %%TODO: check where you've used this and correct the envs
+\newcommand{\expenvWithCtxt}[5]{\constEnv, \varEnv, \typEnv, {#1} \vdash {#2} \leadsto {#3}, {#4}, {#5}}
 \newcommand{\coerceBinArgsEnv}[3]{\env, \ctxt \vdash {#1} \twoheadrightarrow ({#2}), ({#3})}
 \newcommand{\binOpEnv}[7]{\env \vdash {#1}, ({#4}, {#5}), ({#6}, {#7}) : {#2}, {#3}}
-\newcommand{\typWellFormed}[1]{\env \vdash {#1}}
-\newcommand{\typNotWellFormed}[1]{\env \nvdash {#1}}
-\newcommand{\typWellFormedWithEnv}[2]{{#1} \vdash {#2}}
-\newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}}
+\newcommand{\typWellFormed}[1]{\typEnv, \externEnv \vdash {#1}}
+\newcommand{\typNotWellFormed}[1]{\typEnv, \externEnv \nvdash {#1}}
+\newcommand{\typWellFormedWithEnv}[2]{{#1}, \externEnv \vdash {#2}}
+\newcommand{\typEqEnv}[3]{ {#2} ==_{\env,{#1}} {#3}} %%todo: fix env
 %context. type of expression. type of returned name.exp
 \newcommand{\fieldAccessEnv}[4]{\env, {#1} \vdash {#2}, {#3} : {#4}}
 \newcommand{\stmtenv}[3]{\env, \ctxt \vdash {#1} \leadsto {#2}, {#3} \dashv \env}
@@ -195,7 +198,7 @@
 % this has an extra input in code (which is constraints (init to typ par : typ arg)) but it's never used so i dropped it. same for return type.
 \newcommand{\inferTypParArg}[3]{\env, \ctxt \vdash {#1}, {#2} \mapsto {#3}}
 \newcommand{\unify}[6]{{#1}, {#2}, {#3} \vDash {#4} \Join {#5} \mapsto {#6}}
-\newcommand{\resolveConstOver}[6]{\env, \ctxt \vdash {#1}, {#2} \twoheadrightarrow {#3}, {#4}, {#5}, {#6}}
+\newcommand{\resolveConstOver}[6]{\env, \ctxt \vdash \mathit{dispatch} \left( {#1}, {#2} \constructorTyp {#3} {#4} {#5} {#6}\right)}
 
 %contexts:
 \newcommand{\cte}{\mathsf{constant}}
@@ -257,11 +260,17 @@
 \newcommand{\nonoptConstraint}{N}
 \newcommand{\typeEqs}{\Delta}
 \newcommand{\anyTyp}{a}
-\newcommand{\env}{\Gamma}
-\newcommand{\typEnv}{\Gamma}
+\newcommand{\typEnv}{\Delta}
+\newcommand{\varEnv}{\Gamma}
 \newcommand{\constEnv}{\Sigma}
+\newcommand{\externEnv}{\Xi}
+\newcommand{\env}{\Gamma}
+%% \newcommand{\typEnv}{\Gamma}
+%% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}
 \newcommand{\typs}{\overline \typ}
+\newcommand{\baseTyp}{\rho}
+\newcommand{\baseTyps}{\overline \baseTyp}
 \newcommand{\ctxt}{c}
 \newcommand{\bool}{b}
 \newcommand{\str}{s}
@@ -355,7 +364,7 @@
 \newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
 \newcommand{\isInstantiation}[1]{\mathit{is\_instantiation} ({#1})}
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
-\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_\env}
+\newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\constEnv, \typEnv}}
 \newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})}
 \newcommand{\reduceEnums}[1]{\mathit{reduce\_enums}({#1})_\env} 
 \newcommand{\inOrLess}[2]{\mathit{in\_or\_directionless}({#1},{#2})}
@@ -363,8 +372,8 @@
 \newcommand{\typHasEq}[1]{\mathit{has\_equality}({#1})_\env}
 \newcommand{\nonNeg}[1]{\mathit{is\_nonneg\_numeric}({#1})_\env}
 \newcommand{\pos}[1]{\mathit{is\_pos\_numeric}({#1})_\env}
-\newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_\env}
-\newcommand{\sat}[1]{\mathit{saturate}({#1})_\env}
+\newcommand{\compTimeKnown}[1]{\mathit{compile\_time\_known}({#1})_{\constEnv, \typEnv}}
+\newcommand{\sat}[1]{\mathit{saturate}({#1})_\typEnv}
 \newcommand{\trans}[2]{\mathit{translate}({#1})_{\env,{#2}}}
 \newcommand{\transMaybe}[1]{\mathit{optional\_translate}({#1})_{\env}}
 \newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\env}
@@ -373,8 +382,8 @@
 \newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
 \newcommand{\insertTypVars}[1]{\mathit{insert\_type\_vars}({#1}, \env)}
 \newcommand{\getTypeParams}[1]{\mathit{get\_type\_params}({#1})}
-\newcommand{\reduce}[1]{\mathit{reduce}({#1})_\env}
-\newcommand{\reduceWithEnv}[2]{\mathit{reduce}({#2})_{#1}}
+\newcommand{\reduce}[1]{\mathit{reduce}({#1})_\typEnv}
+\newcommand{\reduceWithEnv}[2]{\mathit{reduce}({#2})_{#1}} %%TODO: adjust env where it's used. 
 %% \newcommand{\fieldOrMethodTyp}[1]{\mathit{field\_or\_method\_type}({#1})}
 \newcommand{\isLval}[1]{\mathit{is\_lvalue}({#1})}
 %type. exp. 
@@ -441,7 +450,7 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\name}\ \{\names\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typVar}\ \{\names\}}
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
 \newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\names\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
@@ -451,6 +460,7 @@
 \newcommand{\recordTyps}{\{\overline {\field : \typ}\}}
 \newcommand{\recordTypss}[2]{\{\overline {{#1} : {#2}}\}}
 \newcommand{\headerUnionTyp}[2]{\recordTyp {#1} {#2}}
+\newcommand{\headerUnionTyps}[2]{\recordTypss {#1} {#2}}
 \newcommand{\headerTyp}[2]{\recordTyp {#1} {#2}}
 \newcommand{\structTyp}[2]{\recordTyp {#1} {#2}}
 \newcommand{\headerTyps}[2]{\recordTypss {#1} {#2}}
@@ -481,6 +491,7 @@
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
+\newcommand{\stackTyp}[2]{{#1}[{#2}]}
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}

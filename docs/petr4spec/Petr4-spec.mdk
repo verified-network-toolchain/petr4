@@ -1,4 +1,4 @@
-Title         : Petr4 Type System Formalization
+Title         : P4 Type System Formalization
 Title Footer  : &date;
 Author        : Petr4 Team
 Affiliation   : Cornell University
@@ -137,8 +137,37 @@ p4grammar {
 @if tex {
 p4grammar {
   replace: "~ Begin P4GrammarBlock&nl;\
-                 ````&nl;&source;&nl;````&nl;\
+                 &source;&nl;\
                  ~ End P4GrammarBlock";
+  breakable: true;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border: solid;
+  border-width: 0.5pt;
+}
+}
+
+@if html {
+p4syntax {
+  replace: "~ Begin P4SyntaxBlock&nl;\
+                 &source;&nl;\
+                 ~ End P4SyntaxBlock";
+  border: solid;
+  margin-top: 6pt;
+  margin-bottom: 6pt;
+  padding: 6pt;
+  background-color: #e6ffff;
+  border-width: 0.5pt;
+}
+}
+
+@if tex {
+p4syntax {
+  replace: "~ Begin P4SyntaxBlock&nl;\
+                 ````&nl;&source;&nl;````&nl;\
+                 ~ End P4SyntaxBlock";
   breakable: true;
   margin-top: 6pt;
   margin-bottom: 6pt;
@@ -243,7 +272,7 @@ infrulehelper {
 
 
 ~ Begin Abstract
-P4's type system is currently distributed between its language specification and its reference implementation p4c. Unfortunattely, this state of affairs results in ambiguity while reasoning through the behavior of a P4 program, evident from the many issues opened on P4's GitHub repo. 
+P4's type system is currently distributed between its language specification and its reference implementation p4c. Unfortunately, this state of affairs results in ambiguity while reasoning through the behavior of a P4 program, evident from the many issues opened on P4's GitHub repository. 
 In this document, we provide a formalization of P4's type system to unify the expected behavior of P4 programs. 
 The target audience of this document includes language designers and compiler experts
 that work (or starting to work) on P4 as well as developers and debuggers that work
@@ -267,11 +296,11 @@ There are multiple problems with both:
 [p4spec]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
 [p4cgit]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html
 
-1. Figuring out how a program behaves and whether it type checks or not is extremely hard. In P4 spec, one has to jump from place to place to find whether each part of the program type checks or not since information regarding type checking a program is staggered all over the place and even worse in some cases it is missing. In p4c, one has to either write a sample program and compile it to see if it type checks or they have to go through all p4c's code to figure out the behavior of their program. For example, ``todo: add github issues. add number of loc of p4c.``
+1. Figuring out how a program behaves and whether it type checks or not is extremely hard. In P4 spec, one has to jump from place to place to find whether each part of the program type checks or not since information regarding type checking a program is staggered all over the place and even worse in some cases it is missing. In p4c, one has to either write a sample program and compile it to see if it type checks or they have to go through all P4C's code to figure out the behavior of their program. For example, ``todo: add GitHub issues. add number of loc of P4C.``
 2. Adding a new feature to P4 requires extending its type system and often times results in revising parts of the current type system as well. Doing so for both P4 spec and p4c is rather burdensome and error-prone due to the distribution of explanation in P4 spec and implementation in p4c. 
-3. Even more concerning, despite lots of effort by the P4 language committee, there are discrepnecies between P4 spec and p4c's implementation. For example, ``TODO: add github issues``
+3. Even more concerning, despite lots of effort by the P4 language committee, there are discrepancies between P4 spec and P4C's implementation. For example, ``TODO: add GitHub issues``
 
-In this document, we formalize P4's type system. Formalizing P4 benefits the communit in different ways
+In this document, we formalize P4's type system. Formalizing P4 benefits the community in different ways
 
 1. It makes working with and on P4 easier for both people who are just picking it up and those who have been working with/on it for some time. This is because clear formalization makes understanding a language and the behavior of programs written in it less cumbersome. 
 2. It provides a place for experts and users to refer to check the behavior of a program. It also provides a unified place for ensuring all references and implementations of P4 are consistent with each other.
@@ -286,7 +315,7 @@ and defining a type or an object. Each declaration may contain multiple statemen
 expressions within it.
 Thus, in order to formalize P4's type system we need to:
 
-- have consisten and clear [notation][#sec-notation]
+- have consistent and clear [notation][#sec-notation]
 - formalize [P4's syntax][#sec-syntax]
 - formalize type related rules, including [type well-formedness][#sec-type-well-formed], [type equality][#sec-type-eq], [type unification][#sec-type-unify]
 - formalize [expressions typing][#sec-exp-typing]
@@ -325,8 +354,8 @@ Metavariables are place holders for values of a type. For example, $\bool$ stand
 
 - $\overline x$ denotes a list of $x$.
 - For simplicity, we omit mapping a function/judgment on a list of elements. Instead, we just apply the function/judgment to a list. So every time you see a function applied to a list, read it as mapping the function over all the elements of the list. 
-- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgements. 
-- The notation $\maybe \anyTyp$ denotes an optional type, that is, the type of $\anyTyp$ has been extended with bottom (maybe type in Haskell, or option type in Ocaml). So if $\anyTyp$ denotes an integer, $\maybe \anyTyp$ could either be an integer number or bottom. 
+- An underscore (that is, $\_$) is used when we do not need to use some specific information returned by some helper in judgments. 
+- The notation $\maybe \anyTyp$ denotes an optional type, that is, the type of $\anyTyp$ has been extended with bottom (maybe type in Haskell, or option type in OCaml). So if $\anyTyp$ denotes an integer, $\maybe \anyTyp$ could either be an integer number or bottom. 
 
 The following describes the metavariables used in this document:
 
@@ -340,7 +369,7 @@ The following describes the metavariables used in this document:
 | $\size$ | size of a data structure |
 | $\bitWidth \bit \width$ | fixed length integer |
 | $\intWidth \int \width$ | signed integer |
-| $\name$ | strings represing any kinds of names |
+| $\name$ | strings representing any kinds of names |
 | $\typ$ | types |
 | $\dir$ | directions |
 | $\typVar$ | type variables |
@@ -361,6 +390,153 @@ function signature. judgment signature. environment signature.
 
 # Syntax { #sec-syntax }
 
+data types used in programs:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\baseTyp$ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
+|   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
+|   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
+|   | $\vert$ | $\intWidthTyp \exp$ | $\qquad \text{fixed-width signed integers}$ |
+|   | $\vert$ | $\bitWidthTyp \exp$ | $\qquad \text{fixed-width unsigned integers}$ |
+|   | $\vert$ | $\varBitTyp \exp$ | $\qquad \text{variable-width integers with a maximum width}$ |
+|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
+|   | $\vert$ | $\spcTyp \baseTyp \baseTyps$ | $\qquad \text{specialized type}$ |
+|   | $\vert$ | $\stackTyp \baseTyp \exp$ | $\qquad \text{stacks}$ |
+|   | $\vert$ | $\tupleTyps \baseTyps$ | $\qquad \text{tuples}$ |
+|   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
+|   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
+|   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
+~ End P4Syntax
+
+types of programs:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\typ$ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
+|   | $\vert$ | $\errTyp$ | $\qquad \text{errors}$ |
+|   | $\vert$ | $\integerTyp$ | $\qquad \text{infinite-precision integers}$ |
+|   | $\vert$ | $\intWidthTyp \width$ | $\qquad \text{fixed-width signed integers}$ |
+|   | $\vert$ | $\bitWidthTyp \width$ | $\qquad \text{fixed-width unsigned integers}$ |
+|   | $\vert$ | $\varBitTyp \width$ | $\qquad \text{variable-width integers}$ |
+|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
+|   | $\vert$ | $\spcTyp \typ \typs$ | $\qquad \text{specialized type}$ |
+|   | $\vert$ | $\tupleTyps \typs$ | $\qquad \text{tuples}$ |
+|   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
+|   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
+|   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
+|   | $\vert$ | $\arrayTyp \typ \width$ | $\qquad \text{arrays}$ |
+|   | $\vert$ | $\listTyps \typs$ | $\qquad \text{lists}$ |
+|   | $\vert$ | $\recordTyps$ | $\qquad \text{records}$ |
+|   | $\vert$ | $\setTyp \typ$ | $\qquad \text{sets}$ |
+|   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
+|   | $\vert$ | $-$ | $\qquad \text{reference}$ |
+|   | $\vert$ | $\headerTyps \field \typ$ | $\qquad \text{headers}$ |
+|   | $\vert$ | $\headerUnionTyps \field \typ $ | $\qquad \text{header unions}$ |
+|   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
+|   | $\vert$ | $\enumTypDef$ | $\qquad \text{enums}$ |
+|   | $\vert$ | $\packageTyp \typParams \prms \wildcardParams$ | $\qquad \text{packages}$ |
+|   | $\vert$ | $\controlTyp \typParams \prms$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\parserTyp \typParams \prms$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\externTyp \name$ | $\qquad \text{externs}$ |
+|   | $\vert$ | $\funcType \kind \typParams \params \typ$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\actionTyp {\overline {\prm 1}} {\overline {\prm 2}}$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\constructorTyp \typParams \prms \wildcardParams \typ$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
+{ .booktable }
+~ End P4Syntax
+
+directions: (check with .ml file)
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\dir$ | $::=$ | $\inDir$ | $\qquad \text{copy-in}$ |
+|   | $\vert$ | $\out$ | $\qquad \text{copy-out}$ |
+|   | $\vert$ | $\less$ | $\qquad \text{copy-in-out}$ |
+~ End P4Syntax
+
+parameters:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $-$ | $::=$ | $- $ | $\qquad \text{-}$ |
+|   | $\vert$ | $- $ | $\qquad \text{-}$ |
+~ End P4Syntax
+
+expressions:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\exp$ | $::=$ | $\bool$ | $\qquad \text{booleans}$ |
+|   | $\vert$ | $\str$ | $\qquad \text{strings}$ |
+|   | $\vert$ | $\int$ | $\qquad \text{integers}$ |
+|   | $\vert$ | $n_w$ | $\qquad \text{fixed-width signed integers}$ |
+|   | $\vert$ | $b_w$ | $\qquad \text{fixed-width unsigned integers}$ |
+|   | $\vert$ | $\name$ | $\qquad \text{names}$ |
+|   | $\vert$ | $\arrayAccess {\exp_1} {\exp_2}$ | $\qquad \text{array accesses}$ |
+|   | $\vert$ | $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{bitstring slices}$ |
+|   | $\vert$ | $\list \exps$ | $\qquad \text{lists}$ |
+|   | $\vert$ | $\records \exp$ | $\qquad \text{records}$ |
+|   | $\vert$ | $- $ | $\qquad \text{unary operations}$ |
+|   | $\vert$ | $- $ | $\qquad \text{binary operations}$ |
+|   | $\vert$ | $\cast \typ \exp$ | $\qquad \text{casts}$ |
+|   | $\vert$ | $\typMem \typ \name$ | $\qquad \text{type members}$ |
+|   | $\vert$ | $\errMem \name$ | $\qquad \text{error members}$ |
+|   | $\vert$ | $\expMem \exp \name$ | $\qquad \text{expression members}$ |
+|   | $\vert$ | $\ternary {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{conditionals}$ |
+|   | $\vert$ | $\funcCall \exp {\typs} \args$ | $\qquad \text{function calls}$ |
+|   | $\vert$ | $\instantiation {\spcTyp \name {\typs}} {\args}$ | $\qquad \text{anonymous instantiation}$ |
+|   | $\vert$ | $\mask {\exp_1} {\exp_2}$ | $\qquad \text{bit masks}$ |
+|   | $\vert$ | $\range {\exp_1} {\exp_2}$ | $\qquad \text{ranges}$ |
+~ End P4Syntax
+
+statements:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\stmt$ | $::=$ | $- $ | $\qquad \text{method call}$ |
+|   | $\vert$ | $- $ | $\qquad \text{assignment}$ |
+|   | $\vert$ | $- $ | $\qquad \text{direct application}$ |
+|   | $\vert$ | $- $ | $\qquad \text{if then else}$ |
+|   | $\vert$ | $- $ | $\qquad \text{block statement}$ |
+|   | $\vert$ | $- $ | $\qquad \text{exit}$ |
+|   | $\vert$ | $- $ | $\qquad \text{empty}$ |
+|   | $\vert$ | $- $ | $\qquad \text{return}$ |
+|   | $\vert$ | $- $ | $\qquad \text{switch}$ |
+|   | $\vert$ | $- $ | $\qquad \text{declaration}$ |
+~ End P4Syntax
+
+declarations:
+~ Begin P4Syntax
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\dcl$ | $::=$ | $- $ | $\qquad \text{constants}$ |
+|   | $\vert$ | $- $ | $\qquad \text{instantiations}$ |
+|   | $\vert$ | $- $ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $- $ | $\qquad \text{controls}$ |
+|   | $\vert$ | $- $ | $\qquad \text{functions}$ |
+|   | $\vert$ | $- $ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $- $ | $\qquad \text{variables}$ |
+|   | $\vert$ | $- $ | $\qquad \text{parser value sets}$ |
+|   | $\vert$ | $- $ | $\qquad \text{actions}$ |
+|   | $\vert$ | $- $ | $\qquad \text{tables}$ |
+|   | $\vert$ | $- $ | $\qquad \text{header types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{header union types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{struct types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{error types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{match kind types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{enumerated types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{serializable enumerated types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{extern objects}$ |
+|   | $\vert$ | $- $ | $\qquad \text{type definitions}$ |
+|   | $\vert$ | $- $ | $\qquad \text{generative type definitions}$ |
+|   | $\vert$ | $- $ | $\qquad \text{control types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{parser types}$ |
+|   | $\vert$ | $- $ | $\qquad \text{package types}$ |
+~ End P4Syntax
+
+
+
 # Type Related Judgments { #sec-types-typing }
 
 Types themselves are elements of a language and it is often needed to ensure the lack of specific errors in types, such a type is called _well-formed type_.
@@ -379,11 +555,11 @@ All typing rules first saturate all types,
 that is, it eliminates all type references in type
 $\typ$ and replaces them with the type they refer to. Thus, the result of saturation
 contains no type synonym (_TypeName_ in Petr4) constructors that are used to give a name to a new type. Then it checks the well-formedness of the saturated type.
-For breviety, we don't include the saturation in rules.
+For brevity, we don't include the saturation in rules.
 
 ### Base Types { #sec-base-t }
 
-The following base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any arguement so there is no room to construct a value incorrectly.
+The following base types are well-formed unconditionally since there is not any room for an error while constructing a value of these types. For example, the $\boolTyp$ only has two constructors $\mathit{true}$ and $\mathit{false}$ which do not take any argument so there is no room to construct a value incorrectly.
 
 ~ Begin InfRule
 
@@ -505,7 +681,7 @@ An enumeration type contains a number of constants of string type and its declar
 The rules below state that an enum type is well-formed if the underlying representation is well-formed, if it has one. 
 
 
-``**DISCREPENCY**``
+``**DISCREPANCY**``
 Petr4 doesn't allow for an enum to have default values for constants, however, P4 spec does. Here's an [example][enum-ex].
 
 [enum-ex]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-enum-types
@@ -568,13 +744,13 @@ Note that headers, header unions, and struct also have a record type.
 
 ### New Type Type { #sec-newtype-t }
 
-New type assings a name to a type. So the $\newTypeT$ checks if the assignee type $\typ$ is well-formed.
+New type assigns a name to a type. So the $\newTypeT$ checks if the assignee type $\typ$ is well-formed.
 
 ~ Begin InfRule
 
   \inferrule
      { \typWellFormed \typ }
-     { \typWellFormed {\newTypeTyp \typ \name} }
+     { \typWellFormed {\newTypeTyp \typ \typVar} }
      \quad (\newTypeT)
 
 ~ End InfRule
@@ -588,13 +764,13 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 - Looking up an extern in the environment (that is, $\lookupEnv \name$) returns its type parameters and methods. Since the rule $\specializedExternT$ only cares about the parameters we do not care about the methods, thus, we don't assign a variable name to it and use an underscore instead of it. 
 
 
-- $\lookupEnv \name$ looks up a variable $\name$ in environment $\env$ and depending on what $\name$ represents returns what is assigned to the variable in the environments. In case of an extern, it returns the type parameters and methods of the extern. 
+- ```TODO: correct this explanation.```$\lookupExternEnv \name$ looks up a variable $\name$ in environment $\env$ and depending on what $\name$ represents returns what is assigned to the variable in the environments. In case of an extern, it returns the type parameters and methods of the extern. 
 - $\getTypeParams \typ$ returns the type parameters from types that have type parameters including package, control, parser, and function.
 
 ~ Begin InfRule
 
   \inferrule
-     { \lookupEnv \name = ([\params], \_ ) \\
+     { \lookupExternEnv \name = ([\params], \_ ) \\
         % 1 \leq i \leq n. \typWellFormed {\typ_i} \\
         \typWellFormed \typs\\
         |\typs| = |\params|}
@@ -613,11 +789,11 @@ The rule $\specializedExternT$ states that the specialization of an extern type 
 
 ### Package Type { #sec-package-t }
 
-A package type describes the signature of a package and it defines the type parameters and parameters of a package. It may also have wildcard parameters. ```TODO: question for Ryan, what's the purpose of them?```
-The rule $\packageT$ states that a package type is well-formed under the environment $\env$ extended with the package's type parameters if all its parameters are directionless and their types are well-formed. 
+A package type describes the signature of a package and it defines the type parameters and parameters of a package. It may also have wildcard parameters. 
+The rule $\packageT$ states that a package type is well-formed under the environment $\env$ extended with the package's type parameters if all its parameters are direction-less and their types are well-formed. 
 
 - A parameter $\singleprm$ has direction $\dir$, type $\typ$, and name $\name$. 
-- $\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}$ extends the environment $\env$ with type variables $\typParams$. Note that the type inserted in the environement for type variables is a type name.
+- $\extendTypEnv \typVar$ extends the type environment $\typEnv$ with type variable $\typParam$. Note that the type inserted in the environment for a type variable is a type name.
 - $\isDirectionless \dir$ checks that the direction $\dir$ is $\less$, that is, $\dir = \less$.
 
 ~ Begin InfRule
@@ -625,7 +801,8 @@ The rule $\packageT$ states that a package type is well-formed under the environ
   \inferrule
      { \isDirectionless \dirs \\
        % 1 \leq i \leq n. \dir_i = \less \\
-       1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i}}
+       \typWellFormedWithEnv {\extendTypEnv \typVars} \typs }
+       % 1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i}}
      { \typWellFormed {\packageTyp {\typParams} {\prms} {\wildcardParams}} }
      \quad (\packageT)
 
@@ -637,7 +814,7 @@ A control type is similar to a type signature of a function in that it defines t
 
 Parsers also have a control type.
 
-``**DISCREPENCY**
+``**DISCREPANCY**
 P4 spec states that "The types parser, control, and package cannot be used as types of arguments for methods, parsers, controls, tables, actions. They can be used as types for the arguments passed to constructors." We could check this in the well-formedness of types or even when we're declaring a method, parser, control, table, or action, instead of when we're defining their type (make sure we're not checking it then).`` ([p4 spec ref][parser-type])
 
 [parser-type]: https://p4.org/p4-spec/docs/P4-16-v1.2.0.html#sec-parser-control-types
@@ -645,7 +822,7 @@ P4 spec states that "The types parser, control, and package cannot be used as ty
 ~ Begin InfRule
 
   \inferrule
-     {\typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typs}}
+     {\typWellFormedWithEnv {\extendTypEnv \typParams} {\typs}}
        { \typWellFormed {\controlTyp {\typParams} {\prms} } }
        \quad (\controlT)
 
@@ -659,8 +836,10 @@ P4 spec states that "The types parser, control, and package cannot be used as ty
 ### Extern Type { #sec-extern-t }
 
 The rule $\externT$ states that an extern type is well-formed if it has no type parameter in the environment. 
-lookup extern in env returns an externMethods type which includes a list of strings as
+$\lookupEnv \name$ where $\name$ is an extern returns an externMethods type which includes a list of strings as
 type parameters which must be empty for it to be well-typed and a function type which doesn't care for function type.
+
+``TODO: revise the definition of look up extern after breaking up env.``
 
 ```**DISCUSSION**
 This seems way too simple and loose.```
@@ -668,7 +847,7 @@ This seems way too simple and loose.```
 ~ Begin InfRule
 
   \inferrule
-     { \lookupEnv \name = (\emp, \_ )}
+     { \lookupExternEnv \name = (\emp, \_ )}
      { \typWellFormed {\externTyp \name} }
      \quad (\externT)
 
@@ -682,7 +861,7 @@ A function type describes the return type of the function, its type parameters, 
 
   \inferrule
      { \typWellFormed \typ \\
-       \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} \typs}
+       \typWellFormedWithEnv {\extendTypEnv \typVars} \typs}
        % 1 \leq i \leq n. \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typ_i} }
      % <return type> <function name>(x1,...,xn) {...}
      { \typWellFormed {\funcTyp \typ {\typParams} {\prms}} }
@@ -692,7 +871,7 @@ A function type describes the return type of the function, its type parameters, 
 
 ### Action Type { #sec-action-t }
 
-An action type defines data and control parameters and it is well-formed if the types of all parameters are well-formed and the control parameters are directionless.
+An action type defines data and control parameters and it is well-formed if the types of all parameters are well-formed and the control parameters are direction-less.
 
 ~ Begin InfRule
 
@@ -715,7 +894,7 @@ The rule $\constructorT$ states that a constructor type is well-formed if its re
   \inferrule
      { \typWellFormed {\typ_\ret} \\
        % \prim \env = \insertTypVars {\param_1, \ldots, \param_n} \\
-       \typWellFormedWithEnv {\insertToEnvv {\overline {\typParam : \typNameTyp \typParam}}} {\typs} \\
+       \typWellFormedWithEnv {\extendTypEnv \typVars} {\typs} \\
        \isDirectionless {\dirs}}
      { \typWellFormed {\constructorTyp \typParams \prms \wildcardParams {\typ_\ret}}}
      \quad (\constructorT)
@@ -726,12 +905,12 @@ The rule $\constructorT$ states that a constructor type is well-formed if its re
 
 A table type is well-formed under an environment if it exists in the environment.
 
-- Looking up type variables returns the type assigned to it.
+- $\lookupTypEnv \name $ Looks up $\name$ from the type environment $\typEnv$ and returns the type assigned to it.
 
 ~ Begin InfRule
 
   \inferrule
-     { \lookupEnv \name = \typ}
+     { \lookupTypEnv \name = \whatevs}
      { \typWellFormed {\tableTyp \name} }
      \quad (\tableT)
 
@@ -744,7 +923,7 @@ The rule $\typeNameT$ states that the type name $\name$ is well-formed under the
 ~ Begin InfRule
 
   \inferrule
-     { \lookupEnv \name = \typ}
+     { \lookupTypEnv \name = \whatevs}
      { \typWellFormed {\typNameTyp \name} }
      \quad (\typeNameT)
 
@@ -754,13 +933,13 @@ The rule $\typeNameT$ states that the type name $\name$ is well-formed under the
 ```**TODO**: refer to type_equality and solve_types functions in impl. For type equality of p4 spec refer to to section 8, under each operation there's a one liner that talks about when two types are equal for the type it's covering. ```
 
 - The [type equality judgment][#sec-type-eq] checks the equality of two types. It has
-the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which states that the types $\typ_1$ and $\typ_2$ are equaivalent under the environment $\env$ with equivalent variable pairs $\overline {(\var, \prim \var)}$. Note that Alpha equivalent types are equivalent. 
+the form $\typEqEnv {\overline {(\var, \prim \var)}} {\typ_1} {\typ_2} $ which states that the types $\typ_1$ and $\typ_2$ are equivalent under the environment $\env$ with equivalent variable pairs $\overline {(\var, \prim \var)}$. Note that Alpha equivalent types are equivalent. 
 
 
 ## Type Unification { #sec-type-unify }
 
 - type unification for type produces by type checking, i.e., typed.type.t
-- both types are reduced first. for breviety we omit the reduction from rules. so type 1 and type 2 in rules are already reduced.
+- both types are reduced first. for brevity we omit the reduction from rules. so type 1 and type 2 in rules are already reduced.
 
 ~ Begin InfRule
 
@@ -987,12 +1166,12 @@ between the two.
 
 ``**Restriction**``
 Petr4 doesn't have the product operation where multiple sets can be combined using
-cartesian product and the type of a product of sets is a set of tuples. (refer to
+Cartesian product and the type of a product of sets is a set of tuples. (refer to
 section 8.12.5. of P4 spec (**DISCUSS**))
 
 ``**NOTE**``
 I couldn't find the followings in section 8 of p4 spec:
-array access, bist string access, type member, anonymous instant (this is probably method invocation or sth).
+array access, bits string access, type member, anonymous instant (this is probably method invocation or something).
 
 
 ## Boolean, String, and Integer Constructor Rules { #sec-base-const-e }
@@ -1081,7 +1260,7 @@ The rule $\bitStringAccessE$ states that accessing $\exp_2$ to $\exp_1$ from the
 
 - $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
 if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its width. 
-- $\sat \typ$ satuarates a type.
+- $\sat \typ$ saturates a type.
 Remember that saturating a type eliminates all type references in type
 $\typ$ and replaces them with the type they refer to. Thus, the result of saturation
 contains no type synonym (_TypeName_ in Petr4) constructors that are used to give a name to a new type.
@@ -1116,7 +1295,7 @@ the list $\list {\exps}$ translates to
 $\list {\overline {\prim \exp}}$ in the IR and has the tuple type
 $\listTyps \typ$ with direction $\less$ if its expressions translate to
 $\overline {\prim \exp}$ with types $\typs$ and directions $\dirs$ under the
-same enviroment and context.
+same environment and context.
 
 ~ Begin InfRule
 
@@ -1160,7 +1339,7 @@ Additionally, they restrict the type of the $\exp$.
 
 - $\isInt \typ$ checks if the type $\typ$ is either $\bitWidthTyp \width$, $\intWidthTyp \width$, or $\integerTyp$.
 
-``**Discrepency**``
+``**Discrepancy**``
 P4 spec states that all expressions of type int MUST be compile-time known values but
 Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or binaryops rules.)
 
@@ -1187,7 +1366,7 @@ Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or bin
 
 ~ End InfRule
 
-``**DISCREPENCY**``
+``**DISCREPANCY**``
 
 - P4 spec defines bitwise complement only for bit<w> but Petr4 also allows it for int<w>. (ref: type_unary_op bitnot impl. section 8.5 spec. bitwisecomplement rule.)
 
@@ -1215,7 +1394,7 @@ casting behavior and it is defined in more details in [cast auxiliary judgment][
   * $\implicitCast \integerTyp {\intWidthTyp \width}   = \intWidthTyp \width$
 - $\cast \typ \exp$ synthesizes a cast expression if the type of the expression $\exp$ is different from the type $\typ$.
 - $\reduceEnums \typ$ removes all the enums recursively from a type after reducing it.
-- $\inOrLess {\dir_1} {\dir_2}$ retunrs the $\inDir$ direction if both directions $\dir_1$ and $\dir_2$ are $\inDir$, otherwise, it returns the $\less$ direction.
+- $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions $\dir_1$ and $\dir_2$ are $\inDir$, otherwise, it returns the $\less$ direction.
 - $\typHasEq \typ$ checks if equality of two expressions from the type $\typ$ has been defined. Note that it first reduces the type $\typ$.
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on the types of its two operands:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
@@ -1364,7 +1543,7 @@ compile time we still consider it known at compile time.
 
 ~ End InfRule
 
-``**DISCREPENCY**``
+``**DISCREPANCY**``
 
 - P4 spec states that all expressions of type int MUST be compile-time known values but
 Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or binaryops rules.)
@@ -1385,7 +1564,7 @@ translated type of casting type $\typ$ (that is, $\prim \typ$) is valid.
 - $\explicitCastOK {\typ_1} {\typ_2}$ is an auxiliary judgment for valid explicit cast
 of types.
 The [casting auxiliary judgment][#sec-cast-helper] defines rules for implicitly
-and/or explicitly casting one type to another. Sepcifically, the judgment
+and/or explicitly casting one type to another. Specifically, the judgment
 $\castenv \ {\typ_1} {\typ_2}$ states that under environment $\env$,
 the type $\typ_1$ can be casted to type $\typ_2$ either explicitly or implicitly.
 However, if the arrow is subscripted with $i$ or $e$ it states that the cast is only
@@ -1414,14 +1593,14 @@ in the helper judgment. Fix this later.
 ### Cast Auxiliary Judgment { #sec-cast-helper }
 
 This auxiliary judgment states if casting of a type to another, either explicitly or implicitly or both, is valid. 
-The arrow subscription with $e$ or $i$ indicates if a rule only applies for explicit or implicit cast only, respecctively. Otherwise, the arrow does not have a subscription,
+The arrow subscription with $e$ or $i$ indicates if a rule only applies for explicit or implicit cast only, respectively. Otherwise, the arrow does not have a subscription,
 meaning that it applies for both explicit and implicit casts. 
-The cast first saturates both types and then checks if the cast is valid. For simplicity, we omited type saturations from the rules.
+The cast first saturates both types and then checks if the cast is valid. For simplicity, we omitted type saturations from the rules.
 
 ``**NOTE**``
 P4 spec specifies casts up to Sets rule. The rest might be stated throughout the spec but I haven't found them yet.
 
-``**Discrepency**``
+``**Discrepancy**``
 P4 spec states during the cast between int and bit<w> or int<w> the compiler would complain about overflow (or conversion of negative value for bit<w>) but Petr4's type system doesn't check this. (ref: I'm not sure if any other part of petr4 takes care of this. section 8.9.1 spec. cast_ok impl. explicit cast judgment.)
 
 
@@ -1684,7 +1863,7 @@ It has the form $\fieldAccessEnv \ctxt \name \typ {\prim \typ}$
 which states that under environment $\env$ and context $\ctxt$, the member $\name$
 has the type $\prim \typ$ in an expression of type $\typ$.
 Simply stated, it looks up the type of the member from the expression passed from the $\expMemE$ rule. 
-Note that the expression has to be of a one of the types: record, extern, speciliazed, or arry.
+Note that the expression has to be of a one of the types: record, extern, specialized, or array.
 
 ~ Begin InfRule
 
@@ -1816,7 +1995,7 @@ condition can be evaluated at compilation time. However, this is allowed by P4 s
 Expressions $\funcCall \exp {\typs} \args$ and
 $\funcCallNoTypArgs \exp \args$ both indicate a function call where
 
-- $\exp$ is either a name or an expression member that is bein called
+- $\exp$ is either a name or an expression member that is being called
 - $\args$ is the arguments passed to the function and they could be matched with parameters either based on name or position
 - $\typs$ is the type arguments passed to the function.
 
@@ -1827,7 +2006,7 @@ A function call is well-typed if the called expression is an accepted function c
   2. it checks if the type of the expression is either a function, an action, an extern, or a specialized type
   3. it checks if the parameters and arguments match either based on their position or name.
 
-  And has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\prms$, kind $\kind$, and the return type $\typ_\ret$.
+  And has the judgment form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret}$ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameters $\prms$, kind $\kind$, and the return type $\typ_\ret$.
 - $\transMaybe \typ$ translates the surface type $\typ$ to underlying types and if the surface type is $\dontcareTyp$ it assigns $\bot$ to it. ``TODO: rewrite after adding syntax.``
 - $\matchParArg \prms \args$ matches parameters $\params$ to arguments $\args$. A parameter is used when defining a function/structure. It has a type and a variable name. Additionally, it can have a direction and an optional value. On the other hand, an argument is what is actually passed to the function/structure when it is called and it can either be an expression, a key-value, or don't care. So the role of this helper function is to match the parameters to the passed arguments. If all arguments are key-values it simply matches the arguments and parameters based on their names. If the arguments are expressions or don't care, it matches them based on their positions. Thus, it returns a list of pairs of parameter names and optional expressions.
 - $\types \constraint$ returns the types assigned to the vector of type variables in the constraint $\constraint$.
@@ -1849,7 +2028,7 @@ Constraints $\constraint$ are assignments of types to type variables and optiona
   + when $\exp \neq \bot$ it assigns the cast expression $\cast \typ \exp$ (which would be an IR expression $(\prim \exp, \prim \typ, \prim \dir$) to the parameter $\param$ if one of the following holds:
     * $\dir = \less$
     * $\dir = \inDir$ and $\prim \typ \neq \externTyp \whatevs$
-    * ($\dir = \out$ or $\dir = \inout$) and $\! \isLval (\prim \exp, \prim \typ, \prim \dir)$ and $\prim \dir \neq \inDir$ where $\isLval (\prim \exp, \prim \typ, \prim \dir)$ chckes whether its input is lvalue.
+    * ($\dir = \out$ or $\dir = \inout$) and $\! \isLval (\prim \exp, \prim \typ, \prim \dir)$ and $\prim \dir \neq \inDir$ where $\isLval (\prim \exp, \prim \typ, \prim \dir)$ checks whether its input is lvalue.
   + When $\exp = \bot$ it assigns bottom to the parameter if  $\typ \neq \voidTyp$ and either $\dir = \out$ or parameter is optional.
 - $\callOK \ctxt \kind$ checks if the function kind is valid in a context. The following cases valid: ``TODO: break up ctxt. here ctxt is exprctxt.``
   + $\ctxt = \parserCtxt$ and $\kind = \parserKind$
@@ -1932,7 +2111,7 @@ This judgment checks the details of a function call:
 2) it checks if the type of the expression is either a function, an action, an extern, or a specialized type
 3) the parameters and arguments either match based on their position or name.
 
-It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} $ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameteres $\prms$, kind $\kind$, and the return type $\typ_\ret$.
+It has the form $\resolveFuncOver \exp \args {\prim \exp} \typVars \prms \kind {\typ_\ret} $ which states that the expression $\exp$ called as a function with arguments $\args$ under environment $\env$ and context $\ctxt$, translates to the expression $\prim \exp$ in the IR and has the type parameters $\typVars$, parameters $\prms$, kind $\kind$, and the return type $\typ_\ret$.
 
 - Remember that parameters could be optional or have some default expression set as their expression. $\removeOptionalPars \params$ removes those parameters.
 - $\concatList {\overline \anyTyp} {\overline {\prim \anyTyp}}$ denotes concatenating two lists.
@@ -2023,7 +2202,7 @@ As a reminder, constraints $\constraint$ are assignment of type parameters to ty
 
 The rule $\inferTypeArgAE$ states that
 under environment $\env$ and context $\ctxt$, the types of type parameters in the constraints $\maybe \constraint$ are inferred and returned in constraints $\prim \constraint$ given the assignment of parameters $\prms$ to optional expressions $\overline {\maybe \exp}$
-if the result of the unification of the type of arguments and their parameter types (which is the assignment of type parameters to types) does not include any incosistency. For example, one does not state that type parameter $\typVar$ is $\integerTyp$ while the other states that it is $\tupleTyps \integerTyp$.
+if the result of the unification of the type of arguments and their parameter types (which is the assignment of type parameters to types) does not include any inconsistency. For example, one does not state that type parameter $\typVar$ is $\integerTyp$ while the other states that it is $\tupleTyps \integerTyp$.
 
 
 - $\breakMaybes {\overline {\maybe \anyTyp}} {\overline {\prim \anyTyp}} {\overline {\pprim {\maybe \anyTyp}}}$ breaks down a list of optional things (reminder: $\anyTyp$ is a metavariable of any type you want) into two lists: one that only contains values other than $\bot$ (that is, $\overline {\prim \anyTyp}$) and another that only contains the ones that are $\bot$ (that is, $\overline {\pprim {\maybe \anyTyp}}$). So in the rule $\inferTypeArgAE$, the $\maybe \optConstraint$ is the list of type parameters that do not have a type assigned to them.
@@ -2074,17 +2253,17 @@ For detailed rules of this judgment refer to Section [#sec-type-unify].
 ~ Begin InfRule
 
   \inferrule
-     % { (\prim {\arg_1}, \ldots, \prim {\arg_n}, \prim \typ) = typeConstInvoc  }
      { \transMaybe \typs = \overline {\prim {\maybe \typ}} \\
-       \resolveConstOver \name \args \typParams \wildcardParams \prms \retTyp \\
+       |\typs| = |\typParams| \\\\
+       \resolveConstOver \name \args \typParams \wildcardParams \prms \retTyp \\\\
        \matchParArg \prms \args = \overline {\singleprm := \pprim {\maybe \exp}}\\
-       |\typs| = |\typParams| \\
-       \inferTypParArg {\concatList {\overline {\typVar : \maybe {\typ_1}}} {\overline {\wildcardParam : \bot}}} {\overline {\singleprm := \pprim {\maybe \exp}}} { \constraint}\\\\
-       \prim \env = \unionEnv \env \constraint \\
+       \constraint = \concatList {\overline {\typVar : \maybe {\typ_1}}} {\overline {\wildcardParam : \bot}}\\
+       \inferTypParArg {\constraint} {\overline {\singleprm := \pprim {\maybe \exp}}} {\prim \constraint}\\\\
+       \prim \env = \unionEnv \env {\prim \constraint} \\
        \castParArg {\overline {\singleprm := \pprim {\maybe \exp}}} = \overline {\param := \maybe {(\ppprim \exp, \prim \typ, \prim \dir)}}\\\\
        \validateParArg {\overline {\param := \maybe {(\ppprim \exp, \prim \typ, \dir)}}}\\
        \sat \retTyp = \prim \retTyp}
-     { \expenv {\instantiation {\spcTyp \name {\typs}} {\args}} {\instantiation {\spcTyp \name {\typs}} {\overline {\prim \arg}}} {\pprim \typ} \less}
+     { \expenv {\instantiation {\spcTyp \name {\typs}} {\args}} {\instantiation {\spcTyp \name {\typs}} {\overline {\prim \arg}}} {\prim \retTyp} \less}
   \quad (\instE\rSep\rn{1})
 
 % typename of type_nameless_instantiation
@@ -2170,7 +2349,7 @@ p4 spec only states that the type can be bit<w> or int<W> but petr4 also allows 
 ~ End InfRule
 
 # Statement's Typing Rules { #sec-stmt-typing }
-this judgment type checks a statment written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
+this judgment type checks a statement written in surface syntax, generates the IR statement from it and if applicable updates the env and ctxt.
 is_lvalue checks if an IR expression is lvalue. 
 cast_expr takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.
 if void type  returns a void type if a (or two) type is (are) void and otherwise returns a unit type.
@@ -2272,7 +2451,7 @@ get enum typ takes a type and checks if it's an enum. if so it returns the enums
 
 # Declaration's Typing Rules { #sec-decl-typing }
 is allowed type for variable checks if a type is allowed for declaring a variable. it includes all types after saturation except for string, integer, list, set, void, specialized type, package, control, parser, extern, function, action, constructor, and table.
-check parameter shadowing takes two lists of paramets and checks if there is any duplicate in them. 
+check parameter shadowing takes two lists of parameters and checks if there is any duplicate in them. 
 
 ~ Begin InfRule
 
@@ -2451,8 +2630,8 @@ check parameter shadowing takes two lists of paramets and checks if there is any
 
 ~ Bibliography { caption:"00" }
 ~~Bibitem {#harper-types-PL}
-Rober Harper.
-Types and Prgarmming Languages.
+Robert Harper.
+Types and Programming Languages.
 <http://www.cs.cmu.edu/~rwh/courses/typesys/>
 ~~
 ~~Bibitem {#wiki-type-sys}
@@ -2461,22 +2640,22 @@ Type System.
 ~~
 ~
 
-# Appendix: Programming Languages Terminology { #sec-terminology }
+# Appendix: Programming Languages Terminology { #sec-terminology; @h1:"A" }
 
 It is important that the reader is familiar with the basic programming languages terminology. And more importantly, it is crucial for them to understand the reason for having a type system and what its role is. To this end, we introduce the main programming languages terminology used in this document.
 
 **First, what is a type?**
 You can simply think of types as a set of language elements that share some features.
 For example, the type natural number is the set of numbers that is either zero or an increment of zero for multiple repetitions.
-Grouping language elements into a set (called type) abstracts out some unncessary details when reasoning about programs.
-That is why Harper states: "The central organizing principle of language design is the identitfication of language features with types."[@harper-types-PL]
+Grouping language elements into a set (called type) abstracts out some unnecessary details when reasoning about programs.
+That is why Harper states: "The central organizing principle of language design is the identification of language features with types."[@harper-types-PL]
 ``TODO: add an example here of what a type looks like.``
 
 **Second, what is a type system?**
 A _type system_ is a collection of rules that assign a property called type to the various language constructs, such as variables, functions, expressions, etc.[@wiki-type-sys]
 Thus, a type system can be used as a simple reasoning tool for programs of a language.
 A type system formally defines many aspects of a programming language.
-Most importantly, it states which programs are allowed in the langauge, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain group of errors in well-typed programs.
+Most importantly, it states which programs are allowed in the language, also known as a _well-typed_ program and if possible it assigns a type to such a program. Alternatively, you can think of a type system as a system that ensures the absence of certain group of errors in well-typed programs.
 
 **Third, what is surface syntax and intermediate representation (IR)?**
 The _surface syntax_ is the syntax used to write the source program by the developer
@@ -2497,17 +2676,17 @@ and providing its various typing rules at each step (Section [#sec-guide]).
 - ``say and show name can also be on the side of the rule.``
 - ``state your type system changes based on your need``
 - ``have explanation on inductive relation, grammar, and judgment``
-- ``what we're basically doing is writing function/relation. it's a mathematical format for historical reasons we werite it this way.``
+- ``what we're basically doing is writing function/relation. it's a mathematical format for historical reasons we write it this way.``
 - ``do not do build up``
-- ``have type checking with psudolang and show boilerplate and see how ugly. then massage it into inf rules and appeal to people's conciseness``
+- ``have type checking with pseudo-language and show boilerplate and see how ugly. then massage it into inference rules and appeal to people's conciseness``
 - ``sigma v to t is total but the env itself is partial``
 - ``idea on some organization:``
-  + grammars are inductively defined. a complier/rewritter can be inductively defined.
-  + these are a bunch of relation/function. eg: exp to type. then add env. wellformedness is also a function but it has a different judgment.
-  + the toatligy of it. the set of wel-typed terms is everything you can build with these rules. you can have a set.
-  + start at the bottom to show something type checkes. 
+  + grammars are inductively defined. a complier/rewriter can be inductively defined.
+  + these are a bunch of relation/function. eg: exp to type. then add env. well-formedness is also a function but it has a different judgment.
+  + the totality of it. the set of well-typed terms is everything you can build with these rules. you can have a set.
+  + start at the bottom to show something type checks. 
 
-A type system is made up of typing _rules_. A typing rule has a specific _judgment form_ (which is the format it is written in and guides the reader on how to read all the typing rules using the judgement).
+A type system is made up of typing _rules_. A typing rule has a specific _judgment form_ (which is the format it is written in and guides the reader on how to read all the typing rules using the judgment).
 A typing rule, in essence, is an _inference rule_.
 An inference rule contains zero or more _premises_ above the line
 and one _conclusion_ below the line
@@ -2522,7 +2701,7 @@ $C$ is concluded if premises $A$ and $B$ hold.
 ~ End InfRule
 
 A rule without any premises is called an _axiom_ and it states that
-the conclusion holds uncoditionally.
+the conclusion holds unconditionally.
 
 Consider the simple toy expression language below that only consists of integers for now. Note
 that $i$ is a _metavariable_ that represents any possible integer values. 
@@ -2543,7 +2722,7 @@ state what its type is.
      {i}
 ~ End InfRule
 
-We can have a more detailed type system for our langauge.
+We can have a more detailed type system for our language.
 The second type system has the judgment form $e:t$ which states that the expression $e$
 is well-typed and it has the type $t$. Note that $t$ is a metavariable for all possible types of expressions. 
 The rule $\rn{Integer2}\rE$ states that the
@@ -2579,7 +2758,7 @@ The judgment form of our first type systems changes to $\Sigma \vdash e$ which s
 The rule $\rn{Integer1}\rE$ states that under environment $\Sigma$, the expression $i$ is well-typed.
 The typing system is also extended by a rule for variable reference.
 The rule $\rn{Variable1}\rE$ states that under environment $\Sigma$, the expression $v$ is
-well-typed if it exists in the environment. Note that $\Sigma(v)$ looks up variable $v$ from the environment $\Sigma$ and returns the expression assigned to it but since the rule does not need to do anything with that expression we use \_ to denote that the variable $v$ exists in the environment $\Sigma$ but we don't care about its asignee expression.
+well-typed if it exists in the environment. Note that $\Sigma(v)$ looks up variable $v$ from the environment $\Sigma$ and returns the expression assigned to it but since the rule does not need to do anything with that expression we use \_ to denote that the variable $v$ exists in the environment $\Sigma$ but we don't care about its assignee expression.
 Note that in rule $\rn{Integer1}\rE$ we do not need to check the type of $i$ since $i$ only stands for integers and can only be constructed by integer values.
 
 ~ Begin InfRule
@@ -2737,7 +2916,7 @@ $e_1 == e_2$ has the $\mathsf{bool}$ type if expressions $e_1$ and $e_2$ both ha
 
 An inference rule is not only used for specifying types of programs. In fact, inference
 rules are used to write translation of programs from one representation to another,
-program syntesis, type inference, program semantics, etc.
+program synthesis, type inference, program semantics, etc.
 For example, the rules below rewrite expressions in our toy language (which uses infix ordering of operators) to one that uses prefix ordering of operators
 and they have the judgment form $\Sigma \vdash e \rightarrow \prim e$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to expression $\prim e$ written in the prefix ordering.
 
@@ -2769,8 +2948,8 @@ For example, the $\rn{Addition3}\rE$ rule states that the expression $e_1 + e_2$
      {\Sigma \vdash e_1 == e_2 \rightarrow \ == \prim {e_1} \ \prim {e_2}}
 ~ End InfRule
 
-``phrase the following paragraph and its point differently: the main point is that inference rules define inductively defined relation. these relations can be simple or complicated. eg, so far we have had simple ones but below we have more complicated ones. also use wiggly arrow and use colon for type, that is, i wiggly arrow i colon int``
-An inference rule can conduct multiple tasks at the same time. In other words, an inference rule can be a combination of two inference rules. For example, the typing rules below combine the typing and rewritting rules shown above and they have the judgment form
+``phrase the following paragraph and its point differently: the main point is that inference rules define inductively defined relation. these relations can be simple or complicated. E.g., so far we have had simple ones but below we have more complicated ones. also use wiggly arrow and use colon for type, that is, i wiggly arrow i colon int``
+An inference rule can conduct multiple tasks at the same time. In other words, an inference rule can be a combination of two inference rules. For example, the typing rules below combine the typing and rewriting rules shown above and they have the judgment form
 $\Sigma \vdash e \rightarrow \prim e, t$ which states that under the environment $\Sigma$, the expression $e$ written in the infix ordering translates to the expression $\prim e$ written in the prefix ordering and has the type $t$. 
 As an example , the $\rn{Variable4}\rE$ rule reads as under the environment $\Sigma$, the expression $v$ translates to itself and has the type $t$ if the variable $v$ exists in environment $\Sigma$ and expression $e$ is assigned to it which has the type $t$. 
 
@@ -2808,12 +2987,12 @@ Figure [#fig-arch] depicts part of Petr4's architecture that contains the type s
 After lexing and parsing a P4 program we get a program in our surface syntax. This
 program is then passed through the _elaborator_ where type variables are introduced
 instead of underscore and new type variable names are generated for variables with the
-same name but in different scopes. This document does not discuss the innerworkings of
+same name but in different scopes. This document does not discuss the inner-workings of
 `elaborate`. Then, the program is passed through the type system (encoded in `checker`).
-This document discusses the innerworking of the type system extensively. Finally, the
+This document discusses the inner-working of the type system extensively. Finally, the
 program is evaluated.
 
-~ Figure { #fig-arch; caption: "Part of Petr4's achitecture." }
+~ Figure { #fig-arch; caption: "Part of Petr4's architecture." }
 ![arch]
 ~
 [arch]: figs/petr4/arch.png { width: 100%; page-align: forcehere }
@@ -2843,4 +3022,5 @@ The following locates each data type in the implementation
 For simplicity, we have removed the information that is needed to report when an error
 happens. Such information is passed around in the surface syntax as a field (called
 `tags`) of record for all data types.
+
 

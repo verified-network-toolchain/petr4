@@ -1325,17 +1325,33 @@ Section Soundness.
     Qed.
 
     Theorem direct_application_sound :
-      forall `{dummy : Inhabitant tags_t} tag τ τ' es,
-        (ge,this,Δ,Γ)
-          ⊢ₑ MkExpression dummy_tags
+      forall tag τ τ' es,
+        (forall `{dummy : Inhabitant tags_t}, (ge,this,Δ,Γ)
+          ⊢ᵪ MkExpression dummy_tags
           (ExpFunctionCall
              (direct_application_expression τ τ')
-             nil es) TypVoid Directionless ->
+             nil es) TypVoid Directionless) ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement tag
           (StatDirectApplication τ τ' es) StmUnit ⊣ Γ.
     Proof.
-    Admitted.
+      intros tag τ τ' es Hcall.
+      intros Hge Hged Hgok Hoks Hiss dummy' rob st Hrob Hreads Hgsp.
+      cbn [fst snd] in *. split; auto.
+      assert (Δ ⊢okᵉ MkExpression dummy_tags
+                (ExpFunctionCall (direct_application_expression τ τ') [] es)
+                TypVoid Directionless). {
+        inv Hoks. inv H0. repeat constructor; auto. }
+      assert (is_call
+                (MkExpression dummy_tags
+                   (ExpFunctionCall (direct_application_expression τ τ') [] es)
+                   TypVoid Directionless)). {
+        inv Hiss. inv H1. repeat constructor; auto. }
+      specialize (Hcall dummy' Hge Hged Hgok H H0 dummy' rob st Hrob Hreads Hgsp).
+      destruct Hcall as [[st' [sig Hpro]] Hpre]. split.
+      - exists st', (force_continue_signal sig). econstructor. 1: apply Hpro. auto.
+      - intros st'0 sig0 H1. inv H1. apply Hpre in H11. auto.
+    Qed.
 
     Theorem stat_variable_init_sound : forall tag τ x l,
         PathMap.get (get_loc_path l) (var_gamma Γ) = None ->

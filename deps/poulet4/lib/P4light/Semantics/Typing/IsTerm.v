@@ -22,7 +22,7 @@ Section Is.
   | newtype_is_hdr X t :
     is_hdr_typ t ->
     is_hdr_typ (TypNewType X t).
-  
+
   (** Allowed types for p4light expressions.
       Correlates to [uninit_sval_of_typ]. *)
   Inductive is_expr_typ : typ -> Prop :=
@@ -86,7 +86,7 @@ Section Is.
       is_instantiatiable (TypParser ct)
     | is_control ct :
       is_instantiatiable (TypControl ct).
-    
+
   (** Well-formed p4light expressions. *)
   Inductive is_expr : expr -> Prop :=
     is_MkExpression i e t d :
@@ -153,7 +153,7 @@ Section Is.
     is_MkExpression_call i e t d :
       is_pre_call e ->
       is_call (MkExpression i e t d).
-  
+
   (** Well-formed P4light statements. *)
   Inductive is_stmt : stmt -> Prop :=
     is_MkStatement i s t :
@@ -169,8 +169,8 @@ Section Is.
     is_expr lhs -> is_expr rhs \/ is_call rhs ->
     is_pre_stmt (StatAssignment lhs rhs)
   | is_StatDirectApplication t ft args :
-      (* TODO: what to require? *)
-      is_pre_stmt (StatDirectApplication t ft args)
+    is_expr_typ t -> is_expr_typ ft -> Forall (predop is_expr) args ->
+    is_pre_stmt (StatDirectApplication t ft args)
   | is_StatConditional e s1 s2 :
       is_expr e -> is_stmt s1 -> predop is_stmt s2 ->
       is_pre_stmt (StatConditional e s1 s2)
@@ -230,7 +230,7 @@ Section IsInd.
 
   Section IsExprTypInd.
     Variable P : @P4Type tags_t -> Prop.
-  
+
     Hypothesis HBool : P TypBool.
     Hypothesis HString : P TypString.
     Hypothesis HInteger : P TypInteger.
@@ -280,7 +280,7 @@ Section IsInd.
     Hypothesis HName : forall X, P (TypTypeName X).
     Hypothesis HNewType : forall X t,
         is_expr_typ t -> P t -> P (TypNewType X t).
-    
+
     Definition my_is_expr_typ_ind
       : forall (t : P4Type), is_expr_typ t -> P t :=
       fix I t H :=

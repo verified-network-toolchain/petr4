@@ -632,10 +632,14 @@ with inline (gas : nat)
         | Some (TD.Extern _ _ _ _ methods) =>
             let* '((_, _, {|paramargs:=params|}) : nat * list string * Expr.arrowT) :=
               Result.from_opt
-                (Field.get method methods) "[Error] couldn't find extern method" in
+                (Field.get method methods)
+                ("[Error] couldn't find extern method "
+                   ++ method ++ " in extern " ++ ext) in
             let args := List.combine (List.map fst params) args in
             ok (IExternMethodCall ext method args ret)
-        | _ => error "[ERROR] expecting extern when getting extern, got something else"
+        | _ => error
+                ("[ERROR] expecting extern when getting extern, got something else for "
+                   ++ ext ++ " & method " ++ method)
         end
 
     | ST.Transition _ =>  ok ISkip (*[TODO] how to hanlde parser transitions?*)

@@ -664,7 +664,7 @@ Section ToGCL.
     (* use externs to specify inter-pipeline behavior.*)
     Definition get_main ctx (pipe : pipeline) : result string ST.s :=
       match find_package  ctx "main" with
-      | Some (TD.Instantiate cname _ type_args args i) =>
+      | Some (TD.Instantiate _ _ type_args args _) =>
         pipe type_args args
       | _ =>
         error "expected package, got sth else"
@@ -687,8 +687,8 @@ Section ToGCL.
       inlining_passes gas unroll ext ctx s.
 
     Definition p4cub_statement_to_gcl (gas unroll : nat)
-               (ctx : ToP4cub.DeclCtx )
-               (arch : model) (s : ST.s ) : result string target :=
+               (ctx : ToP4cub.DeclCtx)
+               (arch : model) (s : ST.s) : result string target :=
       let* inlined := inlining_passes gas unroll arch ctx s in
       let* instred := Inline.assert_headers_valid_before_use inlined in
       let+ (gcl,_) := inline_to_gcl initial arch instred in

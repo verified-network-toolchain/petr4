@@ -69,7 +69,7 @@ Module NameGen.
   Definition t := list (string * nat).
   Fixpoint rep s n :=
     match n with
-    | O => ""
+    | O => "_"
     | S n' => s ++ rep s n'
     end.
 
@@ -146,8 +146,33 @@ Section ToP4cub.
       (decl : DeclCtx) (pt : string * (TopDecl.constructor_params * list E.t)) :=
     decl <| package_types := pt :: decl.(package_types) |>.
 
+  Section AppendMethods.
+    Variables (ext_name : string)
+      (type_params : nat)
+      (cparams : TopDecl.constructor_params)
+      (ecparams : list Expr.t)
+      (methods : Field.fs string (nat * list string * Expr.arrowT)).
+  
+    Fixpoint append_methods (externs : list TopDecl.d) : list TopDecl.d :=
+      match externs with
+      | [] => [TopDecl.Extern ext_name type_params cparams ecparams methods]
+      | TopDecl.Extern x n cps ecps mtds as ext :: externs =>
+          (if (x =? ext_name)%string then
+             TopDecl.Extern x n cps ecps (methods ++ mtds)%list :: externs
+           else ext :: append_methods externs)
+      | d :: externs => d :: append_methods externs
+      end.
+  End AppendMethods.
+  
   Definition add_extern (decl : DeclCtx) (e : TopDecl.d) :=
-    decl <| externs := e::decl.(externs) |>.
+    match e with
+    | TopDecl.Extern x tps cps ecps methods =>
+        decl <| externs :=
+      if (x =? "_")%string then
+        append_methods "_" tps cps ecps methods decl.(externs)
+      else e :: decl.(externs) |>
+      | _ => decl
+    end.
 
   Definition add_table (decl : DeclCtx) (t : Control.d) :=
     decl <| tables := t::decl.(tables) |>.
@@ -235,7 +260,7 @@ Section ToP4cub.
   
   Definition decl_has_name (name : string) (d : TopDecl.d) :=
     match d with
-    | TopDecl.Instantiate x _ _ _ _
+    | TopDecl.Instantiate _ x _ _ _
     | TopDecl.Extern x _ _ _ _
     | TopDecl.Control x _ _ _ _ _ _
     | TopDecl.Parser x _ _ _ _ _ _
@@ -1731,7 +1756,7 @@ Section ToP4cub.
       let arrowtype := {|paramargs:=params; rtrns:=cub_ret|} in
       let method := (name, (List.length type_params, List.map snd eparams, arrowtype)) in
       (* TODO come up with better naming scheme for externs *)
-      let d := TopDecl.Extern name 0 [] [] [method] in
+      let d := TopDecl.Extern "_" 0 [] [] [method] in
       ok (add_extern ctx d)
   | DeclVariable tags typ name None =>
         (* error "[FIXME] Variable Declarations unimplemented" *)

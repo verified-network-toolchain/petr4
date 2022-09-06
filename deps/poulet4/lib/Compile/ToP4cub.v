@@ -98,14 +98,14 @@ Section ToP4cub.
   
   Record DeclCtx :=
     mkDeclCtx {
-        controls :  list (TopDecl.d);
-        parsers : list (TopDecl.d);
-        tables : list (Control.d);
-        actions : list (Control.d);
-        functions : list (TopDecl.d);
+        controls :  list TopDecl.d;
+        parsers : list TopDecl.d;
+        tables : list Control.d;
+        actions : list Control.d;
+        functions : list TopDecl.d;
         package_types : Field.fs string (TopDecl.constructor_params * list E.t);
-        packages : list (TopDecl.d);
-        externs : list (TopDecl.d);
+        packages : list TopDecl.d;
+        externs : list TopDecl.d;
         types : list (string * E.t);
       }.
   
@@ -142,6 +142,12 @@ Section ToP4cub.
   Definition add_package (decl : DeclCtx) (p : TopDecl.d) :=
     decl <| packages := p::decl.(packages) |>.
 
+  Definition add_action (decls : DeclCtx) (a : Control.d) :=
+    decls <| actions := a :: decls.(actions) |>.
+
+  Definition add_function (decls : DeclCtx) (f : TopDecl.d) :=
+    decls <| functions := f :: decls.(functions) |>.
+  
   Definition
     add_package_type
       (decl : DeclCtx) (pt : string * (TopDecl.constructor_params * list E.t)) :=
@@ -178,9 +184,6 @@ Section ToP4cub.
   Definition add_table (decl : DeclCtx) (t : Control.d) :=
     decl <| tables := t::decl.(tables) |>.
   
-  Definition add_action (decl : DeclCtx) (a : Control.d) :=
-    decl <| actions := a::decl.(actions) |>.
-
   Definition add_type (decl : DeclCtx) (typvar : string) (typ : E.t) :=
     decl <| types := (typvar, typ) :: decl.(types) |>.
 
@@ -942,8 +945,19 @@ Section ToP4cub.
                 match typ with
                 | TypFunction (MkFunctionType type_params parameters kind ret) =>
                     Some $
-                         translate_function_application
-                         n (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))) type_args parameters args
+                    match kind with
+                    | FunExtern =>
+                        let* 'paramargs := translate_application_args (P4String.str n) parameters args in
+                        let+ cub_type_args := rred (lmap translate_exp_type type_args) in
+                        (* TODO: need "_" to be initialized *)
+                        ST.Call
+                          (ST.Method
+                             "_" (P4String.str n) cub_type_args
+                             (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))))
+                          paramargs
+                    | _ => translate_function_application
+                            n (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))) type_args parameters args
+                    end
                 | _ =>
                     Some $
                          error
@@ -1023,9 +1037,20 @@ Section ToP4cub.
                | ExpName (BareName n) loc =>
                    match typ with
                    | TypFunction (MkFunctionType type_params parameters kind ret) =>
-                       translate_function_application
-                         term_names
-                         n None type_args parameters args
+                       match kind with
+                       | FunExtern =>
+                           let* 'paramargs := translate_application_args term_names (P4String.str n) parameters args in
+                           let+ cub_type_args := rred (lmap translate_exp_type type_args) in
+                           (* TODO: need "_" to be initialized *)
+                           ST.Call
+                             (ST.Method
+                                "_" (P4String.str n) cub_type_args None)
+                             paramargs
+                       | _ =>
+                           translate_function_application
+                             term_names
+                             n None type_args parameters args
+                       end
                    | TypAction data_params ctrl_params =>
                        let+ paramargs :=
                          translate_application_args
@@ -1741,13 +1766,20 @@ Section ToP4cub.
             cub_params cub_body cub_block in
         (* THIS IS CERTAINLY WRONG *)
         add_control local_ctx d
-    | DeclFunction tags ret name type_params params body =>
-        (* let cub_name := P4String.str name in *)
-        (* let* cub_signature :=
-           error "[FIXME] Translate function signature" in *)
-        (* let* cub_body := error "[FIXME] Translate function bodies" in *)
-        (* error "[FIXME] implement function declarations" *)
-        ok ctx
+| DeclFunction _ ret {| P4String.str := name |} type_params params body =>
+    let typ_names := List.map P4String.str type_params in
+    let* params := parameters_to_params typ_names params in
+    let* ret :=
+      match ret with
+      | TypVoid => ok None
+      | _ => translate_exp_type typ_names ret >>| Some
+      end in
+    let+ body := translate_block typ_names (List.map fst params) ctx body in
+    add_function
+      ctx
+      (TopDecl.Funct
+         name (List.length typ_names)
+         {| paramargs:=params; rtrns:=ret |} body)
   | DeclExternFunction tags ret {| P4String.str:=name |} type_params parameters =>
       let typ_names := List.map P4String.str type_params in
       let* cub_ret :=

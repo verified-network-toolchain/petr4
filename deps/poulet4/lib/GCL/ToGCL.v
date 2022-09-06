@@ -305,7 +305,7 @@ Section ToGCL.
         (** TODO Figure out how to handle ints *)
         error "[FIXME] Cannot translate signed ints to bivectors"
       | E.Var t x _ =>
-        let* w := width_of_type x t in (* over ("couldn't get type-width of " @@ x @@ " while converting to rvalue") in*)
+        let* w := width_of_type x t (*over ("couldn't get type-width of " @@ x @@ " while converting to rvalue")*) in
         ok (BV.BVVar x w)
       | E.Slice hi lo e =>
         let+ rv_e := to_rvalue e in
@@ -434,8 +434,8 @@ Section ToGCL.
       | E.Lists (E.lists_header _) _ =>
         error "Header in the rvalue positon should have been factored out by previous passes"
       | E.Member ret_type mem arg =>
-          let~ w := width_of_type (string_of_nat mem) ret_type over
-                      ("couldn't get width of ??." @@ string_of_nat mem @@ " while converting to_rvalue") in
+          let* w := width_of_type (string_of_nat mem) ret_type (*over
+                      ("couldn't get width of ??." @@ string_of_nat mem @@ " while converting to_rvalue")*) in
         let+ lv := to_lvalue arg in
         BV.BVVar (lv @@ "." @@ string_of_nat mem) w
       | E.Error _ => error "errors are not rvalues."
@@ -575,7 +575,7 @@ Section ToGCL.
                              let~ phi := to_form e over "couldn't convert form in arrowE_to_arglist" in
                              ok ((name, inl phi) :: res)
                            | _ =>
-                             let~ e' := to_rvalue e over "couldn't convert rvalue in arrowE_to_arglist" in
+                             let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in
                              ok ((name, inr e') :: res)
                            end
                          end)
@@ -655,9 +655,18 @@ Section ToGCL.
 
       | Inline.IExternMethodCall ext method args ret =>
         (** TODO handle copy-in/copy-out) *)
-        let* g := find arch ext method in
-        let~ gcl_args := arrowE_to_arglist args over "failed to convert arguments to " @@ ext @@ "." @@ method in
-        let+ g' := subst_args g gcl_args in
+          let* g := find arch ext method in
+          let* gcl_args :=
+            match arrowE_to_arglist args (*over "failed to convert arguments to " @@ ext @@ "." @@ method *)
+            with
+            | Ok _ o => ok o
+            | Error _ e => error ("for " ++ method ++ " arrowE_to_arglist sad: " ++ e)
+            end in
+          let+ g' :=
+            match subst_args g gcl_args with
+            | Ok _ o => ok o
+            | Error _ e => error "can't subst_args"
+            end in
         (g', c)
       end.
 
@@ -670,15 +679,31 @@ Section ToGCL.
         error "expected package, got sth else"
       end.
 
-    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx ) (s : ST.s ) : result string Inline.t :=
+    Fixpoint applys_bruh (x : string) (s : ST.s) : bool :=
+      match s with
+      | ST.Apply i _ _ => (x =? i)%string
+      | ST.Var _ _ s => applys_bruh x s
+      | ST.Conditional _ s₁ s₂
+      | ST.Seq s₁ s₂ => applys_bruh x s₁ ||  applys_bruh x s₂
+      | _ => false
+      end.
+    
+    Definition inlining_passes
+      (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx) (s : ST.s) : result string Inline.t :=
+      if applys_bruh "h'3" s then
+        error "cub applys h'3 somewhere" else
+      if s_extern_has_typ_var s then
+        error "cub has type vars" else
       let* inline_stmt := Inline.inline gas unroll ctx s in
+      if i_extern_has_typ_var inline_stmt then
+        error "inline introduced type vars" else
       let* no_stk := Inline.elaborate_arrays inline_stmt in
-      let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
+      (*let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
       let* no_tup := Inline.elim_tuple no_stk in
       let* no_hdr := Inline.elaborate_headers no_tup in
       let* no_structs := Inline.elaborate_structs no_hdr in
-      let* no_slice := Inline.eliminate_slice_assignments no_structs in
-      ok no_slice.
+      let* no_slice := Inline.eliminate_slice_assignments no_structs in*)
+      ok no_stk.
 
     Definition inline_from_p4cub (gas unroll : nat)
                (ext : model) (pipe : pipeline)

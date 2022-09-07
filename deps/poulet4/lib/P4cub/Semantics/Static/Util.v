@@ -144,8 +144,8 @@ Definition ienv : Set :=
        * list string (** Types of extern arguments. *)
        * Expr.params (** Types of expression arguments. *)).
 
-(** Table signature environment. *)
-Definition tbl_env : Set := Clmt.t string (list Expr.t).
+(** Available table names. *)
+Definition tbl_env : Set := list string.
 
 (** Statement context. *)
 Variant ctx : Set :=

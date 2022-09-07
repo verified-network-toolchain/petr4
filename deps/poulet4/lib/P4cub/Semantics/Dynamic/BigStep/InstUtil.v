@@ -1,34 +1,13 @@
-From Poulet4.P4cub Require Import Syntax.AST Semantics.Climate.
+From Poulet4.P4cub Require Import
+  Syntax.AST Semantics.Climate Semantics.Dynamic.BigStep.Value.Syntax.
 Import String.
-
-(* TODO:
-   Likely mnay holes in this file
-   need to be filled with
-   some [P4light/Architecture/Target.v]
-   environment. *)
-
-(** Control plane table entries,
-    essentially mapping tables to an action call. *)
-(* TODO: replace this with
-   [P4light/Architecture/Target.v] equivalent. *)
-Section Entries.
-  Variable V : Set. (** values. *)
-
-  Definition entries : Set :=
-    list (V * string (* match kind *)) (* table key *) ->
-    list string (* action names *) ->
-    string * Expr.args.
-  
-  (** Control plane tables. *)
-  Definition ctrl: Set := Clmt.t string entries.
-End Entries.
   
 (** Table environment. *)
-Definition tenv: Set :=
+Definition tenv : Set :=
   Clmt.t
     string (** table name. *)
-    (list (Expr.t * string) (** table key *)
-     * list string) (** actions *).
+    (list (Expr.e * string) (** table key *)
+     * list (string * Expr.args)) (** actions *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=
@@ -41,6 +20,7 @@ Definition fenv: Set := Clmt.t string fdecl.
 (** Action declarations and closures. *)
 Inductive adecl: Set :=
 | ADecl
+    (clos : list Val.v) (** value closure *)
     (fs : fenv) (** function closure *)
     (actions : Clmt.t string adecl) (** action closure *)
     (* TODO: needs De Bruijn extern instance closure env. *)

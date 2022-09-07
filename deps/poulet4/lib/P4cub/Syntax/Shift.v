@@ -65,8 +65,8 @@ Local Open Scope stmt_scope.
 Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
+  | Stmt.Invoke _
   | Stmt.Exit => s
-  | Stmt.Invoke t es => Stmt.Invoke t $ map (rename_e ρ) es
   | Stmt.Return oe
     => Stmt.Return $ option_map (rename_e ρ) oe
   | Stmt.Transition e
@@ -146,12 +146,12 @@ Fixpoint esub_s (σ : nat -> Expr.t -> string -> Expr.e) (s : Stmt.s) : Stmt.s :
   match s with
   | Stmt.Skip
   | Stmt.Return None
+  | Stmt.Invoke _
   | Stmt.Exit => s
   | Stmt.Return (Some e) => Stmt.Return $ Some $ esub_e σ e
   | Stmt.Transition e => Stmt.Transition $ esub_transition σ e
   | e₁ `:= e₂ => esub_e σ e₁ `:= esub_e σ e₂
   | Stmt.Call fk args => Stmt.Call (esub_fun_kind σ fk) $ List.map (esub_arg σ) args
-  | Stmt.Invoke tbl es => Stmt.Invoke tbl $ List.map (esub_e σ) es
   | Stmt.Apply inst eargs args => Stmt.Apply inst eargs $ map (esub_arg σ) args
   | Stmt.Var og te s => Stmt.Var og (map_sum id (esub_e σ) te) $ esub_s (exts σ) s
   | s₁ `; s₂ => esub_s σ s₁ `; esub_s σ s₂

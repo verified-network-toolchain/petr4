@@ -198,8 +198,7 @@ Module Stmt.
   | Assign (lhs rhs : Expr.e)     (** assignment *)
   | Call (call : fun_kind) (** kind of call *)
       (args : Expr.args)   (** arguments *)
-  | Invoke (table_name : string)
-      (key : list Expr.e) (** table invocation *)
+  | Invoke (table_name : string) (** table invocation *)
   | Apply (instance_name : string)
       (ext_args : list string)
       (args : Expr.args) (** apply statements *)
@@ -219,19 +218,19 @@ End Stmt.
 Module Control.
   (** Declarations occuring within controls. *)
   Variant d : Set :=
-    | Action (action_name : string)
-        (control_plane_params
-          : list ((* original parameter name *) string * Expr.t))
-        (data_plane_params : Expr.params)
-        (body : Stmt.s) (** action declaration *)
-    | Table (table_name : string)
-        (key : list (Expr.t * string))
-        (actions : list string)
-  (* try making table function of key.
-     problematic for compileing to
-     hardware b/c table
-     invocations (of the same table) should all
-     have the same key... *).
+  | Var (original_name : string)
+      (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
+  | Action (action_name : string)
+      (control_plane_params
+        : list ((* original parameter name *) string * Expr.t))
+      (data_plane_params : Expr.params)
+      (body : Stmt.s) (** action declaration *)
+  | Table (table_name : string)
+      (key : list (Expr.e * string))
+      (actions :
+        list
+          (string (** action name *)
+           * Expr.args (** data-plane arguments *))).
 End Control.
 
 (** Top-Level Declarations *)
@@ -274,9 +273,9 @@ Module TopDecl.
         (cparams : constructor_params) (** constructor params *)
         (expr_cparams : list Expr.t)
         (eparams : list (string * string))      (** runtime extern params *)
-        (params : Expr.params)       (** apply block params *)
-        (body : list Control.d)
-        (apply_blk : Stmt.s) (** control declarations *)
+        (params : Expr.params)  (** apply block params *)
+        (body : list Control.d) (** control body *)
+        (apply_blk : Stmt.s)
     | Parser
         (parser_name : string)
         (cparams : constructor_params) (** constructor params *)

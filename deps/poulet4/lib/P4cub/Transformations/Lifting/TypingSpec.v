@@ -130,14 +130,7 @@ Proof.
     apply IHhet in eqle as (ts & hts & ih); auto; clear IHhet.
     eexists; split; eauto.
   - destruct
-      ((fix lift_e_list up es :=
-          match es with
-          | [] => ([], [])
-          | e :: es =>
-              let '(le, e') := lift_e up e in
-              let '(les, es') := lift_e_list (length le + up) es in
-              (les ++ le, Shift.rename_e (Nat.add (length les)) e' :: es')
-          end) (length us) es)
+      (lift_list lift_e Shift.rename_e (length us) es)
       as [les es'] eqn:eqles; inv h.
     assert (bruh : exists τs',
                type_decl_list (type_vars Γ) (us ++ types Γ) les τs'
@@ -151,18 +144,11 @@ Proof.
         generalize dependent les;
         generalize dependent us.
       induction H1 as [| e t es τs heτ hesτs ihesτs];
-        inv H2; intros us les es' h.
+        inv H2; intros us les es' h; unravel in *.
       - inv h; eauto.
       - destruct (lift_e (length us) e) as [le e'] eqn:eqle.
         destruct
-          ((fix lift_e_list up es :=
-              match es with
-              | [] => ([], [])
-              | e :: es =>
-                  let '(le, e') := lift_e up e in
-                  let '(les, es') := lift_e_list (length le + up) es in
-                  (les ++ le, Shift.rename_e (Nat.add (length les)) e' :: es')
-              end) (length le + length us) es)
+          (lift_list lift_e Shift.rename_e (length le + length us) es)
           as [les' es''] eqn:eqles; inv h.
         rename les' into les. rename es'' into es'.
         apply H3 in eqle as (ets & hets & ihets); auto; clear H3.

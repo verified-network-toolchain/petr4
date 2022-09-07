@@ -89,8 +89,8 @@ Section Sub.
   Fixpoint tsub_s (s : Stmt.s) : Stmt.s :=
     match s with
     | Stmt.Skip
+    | Stmt.Invoke _
     | Stmt.Exit => s
-    | Stmt.Invoke t es => Stmt.Invoke t $ map tsub_e es
     | Stmt.Return e => Stmt.Return $ option_map tsub_e e
     | Stmt.Transition e => Stmt.Transition $ tsub_transition e
     | (lhs `:= rhs)%stmt
@@ -134,13 +134,16 @@ Definition tsub_method
 
 Definition tsub_Cd (σ : nat -> Expr.t) (d : Control.d) :=
   match d with
+  | Control.Var og te =>
+      Control.Var og $ map_sum (tsub_t σ) (tsub_e σ) te
   | Control.Action a cps dps body =>
       Control.Action
         a (map_snd (tsub_t σ) cps)
         (map_snd (tsub_param σ) dps) $ tsub_s σ body
   | Control.Table t key acts =>
       Control.Table
-        t (List.map (fun '(t,mk) => (tsub_t σ t, mk)) key) acts
+        t (List.map (fun '(e,mk) => (tsub_e σ e, mk)) key)
+        $ List.map (fun '(a,args) => (a, map (tsub_arg σ) args)) acts
   end.
 
 Definition tsub_d (σ : nat -> Expr.t) (d : TopDecl.d) : TopDecl.d :=

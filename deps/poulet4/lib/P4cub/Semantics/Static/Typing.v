@@ -193,9 +193,9 @@ Inductive type_stmt
 | type_invoke
     Γ tbl es tbls τs :
   table_invoke_ok tbls (cntx Γ) ->
-  tbls tbl = Some τs ->
+  In tbl tbls ->
   Forall2 (type_expr Γ) es τs ->
-  Γ ⊢ₛ Stmt.Invoke tbl es ⊣ Cont
+  Γ ⊢ₛ Stmt.Invoke tbl ⊣ Cont
 | type_vardecl (Γ : stmt_type_env) og τ te s sig :
     match te with
     | inr e => Γ ⊢ₑ e ∈ τ
@@ -228,7 +228,7 @@ Record ctrl_type_env : Set :=
     ; cfuncts : fenv (** available functions. *)
     ; cinsts : ienv  (** available control instances. *)
     ; actns : aenv   (** available action signatures. *)
-    ; tbls : tbl_env (** available table names. *) }.
+    ; tbls : list string (** available table names. *) }.
 
 Global Instance eta_ctrl_type_env : Settable _ :=
   settable! mk_ctrl_type_env
@@ -237,32 +237,49 @@ Global Instance eta_ctrl_type_env : Settable _ :=
 Reserved Notation "Γ '⊢ᵪ' d '⊣' result"
          (at level 80, no associativity).
 
+Variant ctrldecl_type : Set :=
+  | ctrl_var_type (τ : Expr.t)
+  | ctrl_act_type (a : string)
+      (ctrl_params : list Expr.t) (data_params : Expr.params)
+  | ctrl_tbl_type (t : string).
+
 (** Control declaration typing,
     Producing either a new action or table. *)
 Variant type_ctrldecl (Γ : ctrl_type_env)
-  : Control.d ->
-    (string * (list Expr.t * Expr.params))
-    + (string * list Expr.t) -> Prop :=
+  : Control.d -> ctrldecl_type -> Prop :=
+  | type_ctrl_var x te τ :
+    match te with
+    | inr e => cexpr_env Γ ⊢ₑ e ∈ τ
+    | inl τ' => τ' = τ /\ t_ok (type_vars $ cexpr_env Γ) τ'
+    end ->
+    Γ ⊢ᵪ Control.Var x te ⊣ ctrl_var_type τ
   | type_action action_name cparams dparams body sig :
     {| sfuncts := cfuncts Γ
     ; cntx     := CAction (actns Γ) (cinsts Γ)
     ; expr_env :=
-      {| type_vars := type_vars (cexpr_env Γ)
-      ; types := map snd cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
+        {| type_vars := type_vars (cexpr_env Γ)
+        ; types := map snd cparams ++ bind_all dparams (types (cexpr_env Γ)) |}
     |} ⊢ₛ body ⊣ sig ->
     Γ ⊢ᵪ Control.Action action_name cparams dparams body
-      ⊣ inl (action_name,(map snd cparams,dparams))
-  | type_table table_name key_sig actions :
-    (*
-      (** Keys type. *)
-      Forall
+      ⊣ ctrl_act_type action_name (map snd cparams) dparams
+  | type_table table_name key actions :
+    (** Keys type. *)
+    Forall
       (fun '(e,_) => exists τ,
-      cexpr_env Γ ⊢ₑ e ∈ τ) key ->
-     *)
-  (** Actions available *)
-    Forall (fun a => exists pms, actns Γ a = Some pms) actions ->
+           cexpr_env Γ ⊢ₑ e ∈ τ) key ->
+    (** Actions type *)
+    Forall
+      (fun '(a,data_args) =>
+         exists ctrl_params data_params,
+           actns Γ a = Some (ctrl_params, data_params)
+           /\ Forall2
+               (rel_paramarg
+                  (type_expr $ cexpr_env Γ)
+                  (fun e τ => cexpr_env Γ ⊢ₑ e ∈ τ /\ lvalue_ok e))
+               data_args (List.map snd data_params))
+      actions ->
     Γ ⊢ᵪ Control.Table
-      table_name key_sig actions ⊣  inr (table_name, map fst key_sig)
+      table_name key actions ⊣  ctrl_tbl_type table_name
 where "Γ '⊢ᵪ' d '⊣' result"
   := (type_ctrldecl Γ d result) : type_scope.
 
@@ -295,16 +312,18 @@ Definition type_ctrl
        exists result,
          Γ ⊢ᵪ d ⊣ result /\
            match result with
-           | inl (an,cdps) =>
-               Γ' = Γ <| actns := an ↦ cdps ,, actns Γ |>
-           | inr (tn,key_sig) =>
-               Γ' = Γ <| tbls := tn ↦ key_sig ,, tbls Γ |>
+           | ctrl_var_type τ =>
+               Γ' = Γ <| cexpr_env := Γ.(cexpr_env) <| types := τ :: Γ.(cexpr_env).(types) |> |>
+           | ctrl_act_type an cps dps =>
+               Γ' = Γ <| actns := an ↦ (cps, dps) ,, actns Γ |>
+           | ctrl_tbl_type tn =>
+               Γ' = Γ <| tbls := tn :: tbls Γ |>
            end)
     ctrl
     {| cexpr_env := {|type_vars:=0;types:=bind_all params Γ|}
     ; cfuncts := fs
     ; cinsts := cis
-    ; actns := ∅ ; tbls := ∅ |}.
+    ; actns := ∅ ; tbls := [] |}.
 
 (** Top-level declaration typing. *)
 Inductive type_topdecl (Γ : top_type_env)

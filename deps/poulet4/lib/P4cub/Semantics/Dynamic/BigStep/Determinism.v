@@ -33,18 +33,21 @@ Section Determinism.
   Section LValueDeterminism.
     Ltac ind_case :=
       match goal with
-      | Hv1 : (?e ⇓ₗ ?v1), Hv2: (?e ⇓ₗ ?v2),
-        IH: (forall _, ?e ⇓ₗ _ -> ?v1 = _)
+      | Hv1 : (l⟨ _, ?e ⟩ ⇓ ?v1), Hv2: (l⟨ _, ?e ⟩ ⇓ ?v2),
+            IH: (forall _, l⟨ _, ?e ⟩ ⇓ _ -> ?v1 = _)
         |- _ => apply IH in Hv2; inv Hv2
       end.
     
     Local Hint Extern 0 => ind_case : core.
 
-    Theorem lvalue_deterministic : forall e lv₁ lv₂,
-        e ⇓ₗ lv₁ -> e ⇓ₗ lv₂ -> lv₁ = lv₂.
+    Theorem lvalue_deterministic : forall ϵ e lv₁ lv₂,
+        l⟨ ϵ, e ⟩ ⇓ lv₁ -> l⟨ ϵ, e ⟩ ⇓ lv₂ -> lv₁ = lv₂.
     Proof.
-      intros e lv1 lv2 H1; generalize dependent lv2;
-      induction H1; intros lv2 H2; inv H2; auto 2.
+      intros vs e lv1 lv2 H1; generalize dependent lv2;
+        induction H1; intros lv2 H2; inv H2; auto 2.
+      ind_case.
+      pose proof expr_deterministic _ _ _ _ H H6 as h; inv h.
+      reflexivity.
     Qed.
   End LValueDeterminism.
 

@@ -97,30 +97,42 @@ Section BigStepTheorems.
   Section LVPreservation.
     Local Hint Constructors type_lvalue : core.
 
-    Theorem lvalue_preservation : forall e lv Γ τ,
-        e ⇓ₗ lv -> Γ ⊢ₑ e ∈ τ -> types Γ ⊢ₗ lv ∈ τ.
+    Theorem lvalue_preservation : forall ϵ e lv Γ τ,
+        l⟨ ϵ, e ⟩ ⇓ lv ->
+        Forall2 type_value ϵ (types Γ) ->
+        Γ ⊢ₑ e ∈ τ -> types Γ ⊢ₗ lv ∈ τ.
     Proof.
-      intros e lv Γ t helv;
+      intros ϵ e lv Γ t helv henv;
         generalize dependent t;
         induction helv; intros t het; inv het; eauto.
+      pose proof expr_big_step_preservation _ _ _ _ _ H henv H6 as h.
+      inv h. econstructor; eauto.
+      unfold BitArith.bound in *.
+      unfold BitArith.upper_bound in *. lia.
     Qed.
   End LVPreservation.
 
   Section LVProgress.
     Local Hint Constructors lexpr_big_step : core.
 
-    Theorem lvalue_progress : forall Γ e τ,
-        lvalue_ok e -> Γ ⊢ₑ e ∈ τ -> exists lv, e ⇓ₗ lv.
+    Theorem lvalue_progress : forall Γ ϵ e τ,
+        lvalue_ok e ->
+        Forall2 type_value ϵ (types Γ) ->
+        Γ ⊢ₑ e ∈ τ -> exists lv, l⟨ ϵ, e ⟩ ⇓ lv.
     Proof.
-      intros Γ e t hok; generalize dependent t;
+      intros Γ vs e t hok henv; generalize dependent t;
         induction hok; intros t het; inv het;
         try match goal with
             | IH: (forall _, Γ ⊢ₑ ?e ∈ _ -> exists _, _),
                 H: (Γ ⊢ₑ ?e ∈ _)
               |- _ => apply IH in H as [? ?]
-            end; eauto 3.
-      (* TODO: indexing. *)
-    Admitted.
+          end; eauto 3.
+      pose proof expr_big_step_progress
+        _ _ _ _ henv H5 as [v2 h2].
+      pose proof expr_big_step_preservation
+        _ _ _ _ _
+        h2 henv H5 as ht2. inv ht2. eauto. inv H0.
+    Qed.
   End LVProgress.
 
   (* TODO: more! *)

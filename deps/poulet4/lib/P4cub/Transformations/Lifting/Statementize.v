@@ -8,20 +8,27 @@ Open Scope nat_scope.
 Open Scope string_scope.
 Open Scope list_scope.
 
+Section Lift.
+  Context {A B : Set}.
+  Variable Lift : nat -> A -> list B * A.
+  Variable Rename : (nat -> nat) -> A -> A.
+
+  Fixpoint lift_list
+    (up : nat) (l : list A) : list B * list A :=
+    match l with
+    | []    => ([],[])
+    | a :: l =>
+      let '(bs, a') := Lift up a in
+      let '(bss, l') := lift_list (length bs + up) l in
+      (bss ++ bs, Rename (plus $ length bss) a' :: l')
+    end.
+End Lift.
+
 (** [lift_e up e = (l, e')],
     where e' is a lifted expression,
     & l is a list of lifted expressions. *)
 Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
   : list Expr.e * Expr.e :=
-  let fix lift_e_list (up : nat) (es : list Expr.e)
-    : list Expr.e * list Expr.e :=
-    match es with
-    | [] => ([],[])
-    | e :: es
-      => let '(le,e') := lift_e up e in
-        let '(les,es') := lift_e_list (length le + up) es in
-        (les ++ le, rename_e (plus $ length les) e' :: es')
-    end in
   match e with
   | Expr.Bool _
   | Expr.Error _ => ([], e)
@@ -51,19 +58,13 @@ Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
       let '(l2, e2) := lift_e (length l1 + up) e2 in
       (l2 ++ l1, Expr.Index t (rename_e (plus $ length l2) e1) e2)
   | Expr.Lists l es =>
-      let '(les, es) := lift_e_list up es in
+      let '(les, es) := lift_list lift_e rename_e up es in
       (Expr.Lists l es :: les, Expr.Var (t_of_e e) "" 0)
   end.
 
-Fixpoint lift_e_list (up : nat) (es : list Expr.e)
-  : list Expr.e * list Expr.e :=
-  match es with
-  | [] => ([],[])
-  | e :: es
-    => let '(le,e') := lift_e up e in
-      let '(les,es') := lift_e_list (length le + up) es in
-      (les ++ le, rename_e (plus $ length les) e' :: es')
-  end.
+Definition lift_e_list
+  : nat -> list Expr.e -> list Expr.e * list Expr.e :=
+  lift_list lift_e rename_e.
 
 Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
   : list Expr.e * paramarg Expr.e Expr.e :=
@@ -76,15 +77,9 @@ Definition lift_arg (up : nat) (arg : paramarg Expr.e Expr.e)
       let '(le, e) := lift_e up e in (le, PAInOut e)
   end.
 
-Fixpoint lift_args (up : nat) (es : Expr.args)
-  : list Expr.e * Expr.args :=
-  match es with
-  | [] => ([],[])
-  | e :: es
-    => let '(le,e') := lift_arg up e in
-      let '(les,es') := lift_args (length le + up) es in
-      (les ++ le, rename_arg (plus $ length les) e' :: es')
-  end.
+Definition lift_args
+  : nat -> Expr.args -> list Expr.e * Expr.args :=
+  lift_list lift_arg rename_arg.
 
 (** [unwind_vars [e₁;...;eₙ] s = Stmt.Var eₙ (...(Stmt.Var e₁ s )...)]. *)
 Definition unwind_vars (es : list Expr.e) : Stmt.s -> Stmt.s :=
@@ -117,11 +112,9 @@ Local Open Scope stmt_scope.
 Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
+  | Stmt.Invoke _
   | Stmt.Exit
   | Stmt.Return None => s
-  | Stmt.Invoke t es =>
-      let '(le, es) := lift_e_list up es in
-      unwind_vars le $ Stmt.Invoke t es
   | Stmt.Return (Some e)
     => let '(le, e) := lift_e up e in
       unwind_vars le $ Stmt.Return $ Some e
@@ -157,22 +150,51 @@ Fixpoint lift_s (up : nat) (s : Stmt.s) : Stmt.s :=
 
 Local Close Scope stmt_scope.
 
-Definition lift_control_decl (cd : Control.d) : Control.d :=
-    match cd with
-    | Control.Action a cps dps body
-      => Control.Action a cps dps $ lift_s 0 body
-    | Control.Table _ _ _ => cd
-    end.
+Definition lift_control_decl (up : nat) (cd : Control.d) : nat * list Control.d :=
+  match cd with
+  | Control.Var x (inl t) => (0,[Control.Var x $ inl t])
+  | Control.Var x (inr e) =>
+      let '(es, e) := lift_e up e in
+      (List.length es,
+        List.map (Control.Var "" ∘ inr) es ++ [Control.Var x $ inr e])
+  | Control.Action a cps dps body
+    => (0,[Control.Action a cps dps $ lift_s 0 body])
+  | Control.Table t key acts =>
+      let '(es,mks) := List.split key in
+      let '(acts,argss) := List.split acts in
+      let '(ees,es) := lift_e_list up es in
+      let '(argsss,argss) :=
+        lift_list
+          lift_args
+          (fun ρ => List.map (rename_arg ρ))
+          (List.length ees + up) argss in
+      (List.length ees + List.length argsss,
+        List.map (Control.Var "" ∘ inr) argsss
+          ++ List.map (Control.Var "" ∘ inr)
+          (List.map (rename_e (plus $ length argsss)) es)
+          ++ [Control.Table
+                t (List.combine es mks) (List.combine acts argss)])
+      
+  end.
+
+Fixpoint lift_control_decls (up : nat) (cds : list Control.d) : nat * list Control.d :=
+  match cds with
+  | [] => (0, [])
+  | d :: ds =>
+      let '(n, d) := lift_control_decl up d in
+      let '(ns, ds) := lift_control_decls (n + up) ds in
+      (n + ns, d ++ ds)
+  end.
 
 Definition lift_top_decl (td : TopDecl.d) : TopDecl.d := 
   match td with 
   | TopDecl.Instantiate _ _ _ _ _
   | TopDecl.Extern _ _ _ _ _ => td
   | TopDecl.Control c cparams expr_cparams eps params body apply_blk =>
+      let (up, ds) := lift_control_decls 0 body in
       TopDecl.Control
-        c cparams expr_cparams eps params
-        (map lift_control_decl body)
-        $ lift_s 0 apply_blk  
+        c cparams expr_cparams eps params ds
+        $ lift_s up apply_blk  
   | TopDecl.Parser p cparams expr_cparams eps params start states =>
       TopDecl.Parser
         p cparams expr_cparams eps params

@@ -186,18 +186,18 @@ module Make_parse (Conf: Parse_config) = struct
      (* Preprocessing  *)
      let nrm_light = simpl_expr ~do_simpl_expr:normalize typ_light in
      let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
-     let hoist =
+     (*let hoist =
        begin match Poulet4.HoistNameless.hoist_nameless_instantiations (simpl_expr ~if_:true  loc_light) with
        | Ok p -> p
        | _ -> failwith "hoist failed"
        end in
      let (_,inline_types) = Poulet4.InlineTypeDecl.inline_typ_program Poulet4.Maps.IdentMap.empty hoist in
 print_endline "\n------------------ p4light ------------------\n";
-     Printp4.print_decls Format.std_formatter inline_types;
+     Printp4.print_decls Format.std_formatter inline_types;*)
      (* p4cub compiler *)
      let cub = to_p4cub loc_light in
-print_endline "\n========================= p4cub ========================\n";
-     Printp4cub.print_prog Format.std_formatter (Poulet4.ToP4cub.flatten_DeclCtx cub);
+     (*print_endline "\n========================= p4cub ========================\n";
+     Printp4cub.print_prog Format.std_formatter (Poulet4.ToP4cub.flatten_DeclCtx cub);*)
      begin match gcl with
      | [gas; unroll] ->
        (* GCL Compiler *)

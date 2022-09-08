@@ -1,6 +1,7 @@
 Require Export Coq.Strings.String
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Syntax
         Poulet4.P4light.Syntax.Value
+        Poulet4.P4light.Syntax.Syntax
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.IndPrincip
         Poulet4.P4cub.Semantics.Dynamic.BigStep.Value.Value
         Poulet4.Utils.ForallMap
@@ -21,6 +22,7 @@ Section Embed.
   Context {dummy_tags: tags_t}. 
   Context {string_list: list string}.
   Notation VAL := (@ValueBase bool).
+  Notation EXPR := (@Expression tags_t).
   Notation C_P4Type := Expr.t. 
   Notation P_P4Type := (@P4Type tags_t). 
 
@@ -192,7 +194,46 @@ Section Embed.
         ValBaseStack (List.map embed vs) 0%N
     | Val.Error v  => ValBaseError v
     end.
+  
+  Inductive embed_expr : Expr.e -> EXPR -> Prop :=
+  | embed_MkExpression e e' i t d :
+    embed_pre_expr e e' ->
+    embed_expr e (MkExpression i e' t d)
+  with embed_pre_expr : Expr.e -> ExpressionPreT (tags_t:=tags_t) -> Prop :=
+  | embed_ebool b :
+    embed_pre_expr (Expr.Bool b) (ExpBool b)
+  | embed_ebit w n i :
+    embed_pre_expr
+      (w `W n)%expr
+      (ExpInt
+         {| P4Int.tags:=i; P4Int.value:=n; P4Int.width_signed:=Some (w,false) |})
+  | embed_eint w z i :
+    embed_pre_expr
+      (w `S z)%expr
+      (ExpInt
+         {| P4Int.tags:=i; P4Int.value:=z; P4Int.width_signed:=Some (Npos w,true) |}).
 
+  Inductive embed_pat_valset : Parser.pat -> ValueSet (tags_t:=tags_t) -> Prop :=
+  | embed_pat_wild :
+    embed_pat_valset Parser.Wild ValSetUniversal
+  | embed_pat_bit w n :
+    embed_pat_valset
+      (w PW n)%pat (ValSetSingleton (ValBaseBit (to_lbool w n)))
+  | embed_pat_int w z :
+    embed_pat_valset
+      (w PS z)%pat (ValSetSingleton (ValBaseInt (to_lbool (Npos w) z)))
+  | embed_pat_range p₁ p₂ v₁ v₂ :
+    embed_pat_valset p₁ (ValSetSingleton v₁) ->
+    embed_pat_valset p₂ (ValSetSingleton v₂) ->
+    embed_pat_valset (Parser.Range p₁ p₂) (ValSetRange v₁ v₂)
+  | embed_pat_mask p₁ p₂ v₁ v₂ :
+    embed_pat_valset p₁ (ValSetSingleton v₁) ->
+    embed_pat_valset p₂ (ValSetSingleton v₂) ->
+    embed_pat_valset (Parser.Mask p₁ p₂) (ValSetMask v₁ v₂)
+  | embed_pat_lists ps vss :
+    Forall2 embed_pat_valset ps vss ->
+    embed_pat_valset (Parser.Lists ps) (ValSetProd vss).
+  
   Fixpoint snd_map {A : Type} {B : Type} (func : A -> B) (l : list (string * A)) :=
     match l with 
     | [] => []

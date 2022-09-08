@@ -242,6 +242,7 @@ Section ToP4cub.
         add_action decls d
     | Control.Table _ _ _ =>
         add_table decls d
+    | _ => decls
     end.
 
   Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
@@ -273,6 +274,7 @@ Section ToP4cub.
   
   Definition cdecl_has_name (name : string) (d : Control.d) :=
     match d with
+    | Control.Var x _
     | Control.Action x _ _ _
     | Control.Table x _ _ => String.eqb name x
     end.
@@ -429,11 +431,6 @@ Section ToP4cub.
     | PAIn (a,_)
     | PAOut (a,_)
     | PAInOut (a,_) => a
-    end.
-  
-  Definition paramarg_elim {A : Set} (p : paramarg A A) : A :=
-    match p with
-    | PAIn a | PAOut a | PAInOut a => a
     end.
   
   Fixpoint
@@ -805,24 +802,15 @@ Section ToP4cub.
               translate_application_args callee_name_string parameters args in
             ST.Apply callee_name_string [] paramargs
         | TypTable _ =>
-            let* callee_name := get_name callee in
+            let+ callee_name := get_name callee in
             let callee_string := P4String.str callee_name in
-            (* TODO make this a Expr.Member *)
+            (* TODO make this an Expr.Member *)
             match ret_var, ret_type with
-            | Some (original_name,rv), Some rt =>
+              Some (original_name,rv), Some rt =>
                 let switch_expr := E.Var rt original_name rv in
-                (*let+ cub_name :=
-                  Result.from_opt
-                    (ListUtil.index_of string_dec callee_string term_names)
-                    ("TypeError :: apply name " ++ callee_string ++ " not found.") in
-                let action_run_var := E.Var rt callee_string cub_name i
-                (* TODO: lookup keys to make arguments. *)
-                ST.Seq (ST.Invoke callee_string [])
-                       (ST.Assign switch_expr action_run_var)*)
-                ok (ST.Invoke callee_string [])
+                ST.Invoke callee_string
             | _, _ =>
-                (* TODO: lookup keys to make arguments. *)
-                ok (ST.Invoke callee_string [])
+                ST.Invoke callee_string
             end
         | TypParser _ =>
             error "[FIXME] translate parser apply calls"
@@ -1566,17 +1554,39 @@ Section ToP4cub.
     (keys : list TableKey) : result string (list (E.e * string)) :=
     List.fold_right (translate_keys_loop typ_names term_names) (ok []) keys.
 
-  Definition translate_action (action : TableActionRef) : result string string :=
+  Definition translate_action
+    (decls : DeclCtx) (term_names : list string) (action : TableActionRef)
+    : result string (string * Expr.args) :=
     let '(MkTableActionRef tags pre_action typ) := action in
     let '(MkTablePreActionRef name args) := pre_action in
     match name with
-    | BareName act_name => ok (@P4String.str tags_t act_name)
+    | BareName {|P4String.str := act_name |} =>
+        match find_action decls act_name with
+        | Some (Control.Action _ _ params _) =>
+            let paramarg_cnstrs :=
+              List.map
+                (fun '(_,p) =>
+                   match p with
+                   | PAIn _ => PAIn
+                   | PAOut _ => PAOut
+                   | PAInOut _ => PAInOut
+                   end) params in
+            let* (cub_args : list (option E.e))
+              := translate_arglist [] term_names args in
+            let+ args :=
+              apply_args_to_params act_name paramarg_cnstrs cub_args in
+            (act_name, args)
+        | _ => error "could not find action for action ref"
+        end
     | QualifiedName _ _ =>
       error "don't know how to deal with quantified names"
     end.
 
-  Definition translate_actions_loop (action : TableActionRef) (acc : result string (list string)) : result string (list string) :=
-    let* cub_act := translate_action action in
+  Definition translate_actions_loop
+    (decls : DeclCtx) (term_names : list string)
+    (action : TableActionRef) (acc : result string (list (string * Expr.args)))
+    : result string (list (string * Expr.args)) :=
+    let* cub_act := translate_action decls term_names action in
     let+ cub_acts := acc in
     cub_act :: cub_acts.
 
@@ -1587,8 +1597,12 @@ Section ToP4cub.
     | _ => ok []
     end.
 
-  Definition translate_actions (actions : list TableActionRef) : result string (list string) :=
-    List.fold_right translate_actions_loop (ok []) actions.
+  Definition translate_actions
+    (decls : DeclCtx) (term_names : list string)
+    (actions : list TableActionRef) : result string (list (string * Expr.args)) :=
+    List.fold_right
+      (translate_actions_loop decls term_names)
+         (ok []) actions.
 
   Definition
     translate_decl_fields
@@ -1829,9 +1843,8 @@ Section ToP4cub.
         let name := P4String.str name in
         let* cub_keys :=
           translate_keys
-            [] term_names keys
-            >>| List.map (Utils.prod_map_l t_of_e) in
-        let+ cub_actions := translate_actions actions in
+            [] term_names keys in
+        let+ cub_actions := translate_actions ctx term_names actions in
         add_table ctx (Control.Table name cub_keys cub_actions)
     | DeclHeader tags name fields =>
         (* error "[FIXME] Header Declarations unimplemented" *)

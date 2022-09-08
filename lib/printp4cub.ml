@@ -295,9 +295,8 @@ let rec print_stmt p =
   | Stmt.Exit ->
     fprintf p "SExit"
 
-  | Stmt.Invoke (s, es) ->
-    fprintf p "SInvoke %s (%a)" s
-    (print_list ~sep:"," print_expr) es
+  | Stmt.Invoke s ->
+    fprintf p "SInvoke %s" s
 
   | Stmt.Apply (s, fs, arg) ->
     fprintf p "SApply @[%s, Ext_args = %a, args = %a@]"
@@ -307,6 +306,10 @@ let rec print_stmt p =
 
 let print_control_d p (d : Control.d) =
   match d with
+  | Control.Var (x,te) ->
+    fprintf p "CDVardecl @[Name: %a@] @[Init: %a@])"
+    print_string x
+    (print_sum print_type print_expr) te
   | Control.Action (s, ctrl_params, data_params, st) ->
     fprintf p "CDAction %s(%a)(%a){%a}"
     s
@@ -316,8 +319,8 @@ let print_control_d p (d : Control.d) =
   | Control.Table (s, key, ss) ->
     fprintf p "CDTable %s (%a) %a"
     s
-    (print_fields print_type print_string) key
-    (print_list print_string) ss
+    (print_fields print_expr print_string) key
+    (print_fields print_string print_args) ss
 
 let print_tp_decl p (d: TopDecl.d) =
   match d with 

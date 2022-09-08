@@ -164,8 +164,8 @@ Section CEnv.
       ; (** Table names to tables. *)
         tables :
         Env.t
-          string
-          ((list (Expr.t * string)) * (list string) (** actions *))
+          string (** table name *)
+          ((list (Expr.e * string)) (** key *) * (list (string * Expr.args)) (** actions *))
 
       ; (** Parser states are functions.
             These are parser's args.
@@ -365,8 +365,8 @@ Section CEnv.
     end.
 
   Definition add_Table
-    (name : string) (key : list (Expr.t * string))
-    (actions : list string) (env: ClightEnv) : ClightEnv :=
+    (name : string) (key : list (Expr.e * string))
+    (actions : list (string * Expr.args)) (env: ClightEnv) : ClightEnv :=
     let (gen', new_id) := IdentGen.gen_next env.(identGenerator) in
     let gvar :=
       {| gvar_info := (Tstruct _Table noattr)
@@ -374,7 +374,8 @@ Section CEnv.
       ; gvar_readonly := false
       ; gvar_volatile := false |} in
     {{ env with tblMap := Env.bind name new_id env.(tblMap)
-     ; identGenerator := gen' ; globvars := (new_id, gvar) :: env.(globvars) }}.
+     ; identGenerator := gen' ; globvars := (new_id, gvar) :: env.(globvars) }}
+      <| tables := Env.bind name (key,actions) env.(tables) |>.
 
   Definition
     add_expected_v1_model_args
@@ -572,7 +573,7 @@ Section CEnv.
   
   Definition find_table (name: string) (env: ClightEnv)
     : Result.result
-        (ident * list (Expr.t * string) * list string) := 
+        (ident * list (Expr.e * string) * list (string * Expr.args)) := 
     match Env.find name env.(tblMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => Result.ok (id, keys, actions)
     | _, _ => Result.error "can't find table"

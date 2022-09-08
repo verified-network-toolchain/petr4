@@ -221,8 +221,8 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
     | Prev.Stmt.Return e ->
         Stmt.Return (Option.map convert_expression e)
     | Prev.Stmt.Exit -> Stmt.Exit
-    | Prev.Stmt.Invoke (t,es) ->
-        Stmt.Invoke (string_charlist t,List.map convert_expression es)
+    | Prev.Stmt.Invoke t ->
+        Stmt.Invoke (string_charlist t)
     | Prev.Stmt.Apply (s, fs, a) ->
         Stmt.Apply (string_charlist s,
         List.map string_charlist fs,
@@ -230,6 +230,10 @@ let rec stmt_convert (s:  Prev.Stmt.s) =
 
 let controld_convert (d :  Prev.Control.d) = 
     match d with 
+    | Prev.Control.Var (x,e) ->
+        Control.Var
+         (string_charlist x,
+          sum_convert_poly e convert_type convert_expression)
     | Prev.Control.Action (a, ctrl_params, data_params, st) ->
         Control.Action (
             string_charlist a,
@@ -239,10 +243,10 @@ let controld_convert (d :  Prev.Control.d) =
     | Prev.Control.Table (t, key, mks) ->
         Control.Table (
             string_charlist t,
-            List.map (fun (t,mk) -> convert_type t, string_charlist mk) key,
-            List.map string_charlist mks)
+            List.map (fun (e,mk) -> convert_expression e, string_charlist mk) key,
+            List.map (fun (a,args) -> string_charlist a, args_convert args) mks)
 
-let topdecl_convert (d:  Prev.TopDecl.d) = 
+let topdecl_convert (d:  Prev.TopDecl.d) =
     match d with
     | Prev.TopDecl.Instantiate (n,m,l,c,es) ->
         TopDecl.Instantiate (

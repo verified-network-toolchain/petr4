@@ -42,28 +42,47 @@ Definition det_fwd_asst   :=
   let paramargs := [(*check*) PAIn assertion] in
   ST.Call (ST.Method "_" "assert" [] None) paramargs.
 
+Definition standard_metadata_t : Expr.t :=
+  Expr.TStruct
+    false
+    [Expr.TBit 9 (*ingress_port*);
+     Expr.TBit 9 (*egress_spec*);
+     Expr.TBit 9 (*egress_port*);
+     Expr.TBit 32 (*instance_type*);
+     Expr.TBit 32 (*packet_length*);
+     Expr.TBit 32 (*enq_timestamp*);
+     Expr.TBit 19 (*enq_qdepth*);
+     Expr.TBit 32 (*deq_timedelta*);
+     Expr.TBit 19 (*deq_qdepth*);
+     Expr.TBit 48 (*ingress_global_timestamp*);
+     Expr.TBit 48 (*egress_global_timestamp*);
+     Expr.TBit 16 (*mcast_grp*);
+     Expr.TBit 16 (*egress_rid*);
+     Expr.TBit 1 (*checksum_error*);
+     Expr.TError (* parser error *);
+     Expr.TBit 3 (*priority*)].
+
+(* TODO: correct de bruijn index? *)
 Definition t_arg (dir : E.e -> paramarg E.e E.e) typ var :=
   (var, dir (E.Var typ var 0)).
-Definition s_arg  dir var stype :=
-  t_arg dir (E.TVar stype) var.
 
-Definition pipeline   (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s  :=
+Definition pipeline  (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s  :=
   let ext_args := ["packet_in"] in
   let pargs := [
         t_arg PAOut      htype                "parsedHdr";
         t_arg PAInOut    mtype                "meta";
-        s_arg PAInOut    "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
+        t_arg PAInOut standard_metadata_t "standard_metadata"] in
   let vck_args := [
         t_arg PAInOut htype "hdr";
         t_arg PAInOut mtype "meta"] in
   let ing_args := [
         t_arg PAInOut htype "hdr";
         t_arg PAInOut mtype "meta";
-        s_arg PAInOut "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
+        t_arg PAInOut standard_metadata_t "standard_metadata"] in
   let egr_args := [
         t_arg PAInOut htype "hdr";
         t_arg PAInOut mtype "meta";
-        s_arg PAInOut "standard_metadata_t" 0 (* TODO: "standard_metadata" should be inlined in p4cub *)] in
+        t_arg PAInOut standard_metadata_t "standard_metadata"] in
   let cck_args := [
         t_arg PAInOut htype "hdr";
         t_arg PAInOut mtype "meta"] in

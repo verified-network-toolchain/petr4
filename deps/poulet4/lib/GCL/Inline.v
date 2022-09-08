@@ -437,7 +437,7 @@ Fixpoint transition_of_state (s : Stmt.s) : result Parser.trns :=
   | _ => error "no parser transition"
   end.
 
-Fixpoint has_typ_var (t : E.t) : bool :=
+(*Fixpoint has_typ_var (t : E.t) : bool :=
   match t with
   | E.TVar _ => true
   | E.TBool
@@ -446,9 +446,9 @@ Fixpoint has_typ_var (t : E.t) : bool :=
   | E.TError => false
   | E.TArray _ t => has_typ_var t
   | E.TStruct _ ts => List.existsb has_typ_var ts
-  end.
+  end.*)
 
-Fixpoint e_has_typ_var (e : E.e) : bool :=
+(*Fixpoint e_has_typ_var (e : E.e) : bool :=
   match e with
   | E.Bool _
   | E.Bit _ _
@@ -463,24 +463,24 @@ Fixpoint e_has_typ_var (e : E.e) : bool :=
   | E.Index t e₁ e₂ => has_typ_var t || e_has_typ_var e₁ || e_has_typ_var e₂
   | E.Lists (E.lists_array t) es => has_typ_var t || List.existsb e_has_typ_var es
   | E.Lists _ es => List.existsb e_has_typ_var es
-  end.
+  end.*)
 
-Definition p_has_typ_var (p : Parser.trns) : bool :=
+(*Definition p_has_typ_var (p : Parser.trns) : bool :=
   match p with
   | Parser.Direct _ => false
   | Parser.Select e _ _ => e_has_typ_var e
-  end.
+  end.*)
 
-Definition funkind_has_typ_var (fk : ST.fun_kind) : bool :=
+(*Definition funkind_has_typ_var (fk : ST.fun_kind) : bool :=
   match fk with
   | ST.Method _ _ ts None
   | ST.Funct _ ts None => List.existsb has_typ_var ts
   | ST.Method _ _ ts (Some e)
   | ST.Funct _ ts (Some e) => e_has_typ_var e || List.existsb has_typ_var ts
   | ST.Action _ es => List.existsb e_has_typ_var es
-  end.
+  end.*)
 
-Fixpoint s_has_typ_var (s : ST.s) : bool :=
+(*Fixpoint s_has_typ_var (s : ST.s) : bool :=
   match s with
   | ST.Skip
   | ST.Exit
@@ -499,9 +499,9 @@ Fixpoint s_has_typ_var (s : ST.s) : bool :=
   | ST.Seq s₁ s₂ => s_has_typ_var s₁ || s_has_typ_var s₂
   | ST.Conditional e s₁ s₂ =>
       e_has_typ_var e || s_has_typ_var s₁ || s_has_typ_var s₂
-  end.
+  end.*)
 
-Fixpoint s_extern_has_typ_var (s : ST.s) : bool :=
+(*Fixpoint s_extern_has_typ_var (s : ST.s) : bool :=
   match s with
   | ST.Call _ args =>
       List.existsb e_has_typ_var (List.map paramarg_elim args)
@@ -510,9 +510,9 @@ Fixpoint s_extern_has_typ_var (s : ST.s) : bool :=
   | ST.Seq s₁ s₂ =>
       s_extern_has_typ_var s₁ || s_extern_has_typ_var s₂
   | _ => false
-  end.
+  end.*)
 
-Fixpoint i_has_typ_var (i : t) : bool :=
+(*Fixpoint i_has_typ_var (i : t) : bool :=
   match i with
   | ISkip
   | IExit
@@ -534,9 +534,9 @@ Fixpoint i_has_typ_var (i : t) : bool :=
   | IExternMethodCall _ _ args (Some e) =>
       e_has_typ_var e ||
         List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-  end.
+  end.*)
 
-Fixpoint i_extern_has_typ_var (i : t) : bool :=
+(*Fixpoint i_extern_has_typ_var (i : t) : bool :=
   match i with
   | IConditional _ _ i₁ i₂
   | ISeq i₁ i₂ => i_extern_has_typ_var i₁ || i_extern_has_typ_var i₂
@@ -546,7 +546,7 @@ Fixpoint i_extern_has_typ_var (i : t) : bool :=
   | IExternMethodCall _ _ args _ =>
       List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
   | _ => false
-  end.
+  end.*)
 
 Fixpoint inline_state
          (gas : nat)
@@ -615,18 +615,18 @@ with inline (gas : nat)
       ISeq i1 i2
 
     | ST.Call (ST.Funct f _ ret) args =>
-if List.existsb e_has_typ_var (List.map paramarg_elim args)
-then error "args has typevar call funct" else        
+(*if List.existsb e_has_typ_var (List.map paramarg_elim args)
+then error "args has typevar call funct" else  *)
       match find_function ctx f with
       | Some (TD.Funct _ _ {| paramargs:=params |} body) =>
-          if s_extern_has_typ_var body then error "funct body has type var" else
+          (*if s_extern_has_typ_var body then error "funct body has type var" else*)
         (** TODO check copy-in/copy-out *)
             let* rslt := inline gas unroll ctx body in
-            if i_extern_has_typ_var rslt then error "funct rslt has type var" else
+            (*if i_extern_has_typ_var rslt then error "funct rslt has type var" else*)
         let args := List.combine (List.map fst params) args in
         let (s,_) := subst_t (args_to_expenv args)
                        rslt in
-        if i_extern_has_typ_var s then error "funct blk has type var" else
+        (*if i_extern_has_typ_var s then error "funct blk has type var" else*)
         ok $ IBlock s
       | Some _ =>
         error "[ERROR] Got a nonfunction when `find`ing a function"
@@ -641,29 +641,27 @@ then error "args has typevar call funct" else
       let* adecl := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment") in
       match adecl with
       | CD.Action _ ctrl_params data_params body =>
-          if s_extern_has_typ_var body then
-            error "body has type var" else
+          (*if s_extern_has_typ_var body then
+            error "body has type var" else*)
         (** TODO handle copy-in/copy-out *) (* TODO handle control args *)
         let data_args :=
           List.combine (List.map fst data_params) data_args in
         let ctrl_args :=
           List.combine (List.map fst ctrl_params) (List.map PAIn ctrl_args) in
         let* rslt := inline gas unroll ctx body in
-        if i_extern_has_typ_var rslt then
-          error "rslt has type var"
-        else
+        (*if i_extern_has_typ_var rslt then
+          error "rslt has type var" else*)
         let η := args_to_expenv (ctrl_args ++ data_args) in
         let blk := fst (subst_t η rslt) in
-        if i_extern_has_typ_var blk then
-          error "action block has type var"
-        else
+        (*if i_extern_has_typ_var blk then
+          error "action block has type var" else*)
         ok $ IBlock blk
       | _ =>
         error "[ERROR] got a nonaction when `find`-ing a function"
       end
 
     | ST.Apply inst ext_args args  =>
-        if (inst =? "h'3")%string then error "where is it applying h3?" else
+        (*if (inst =? "h'3")%string then error "where is it applying h3?" else*)
       match find_control ctx inst with
       | None =>
         let parser := find_parser ctx inst in
@@ -691,22 +689,22 @@ then error "args has typevar call funct" else
           let* cdecl := from_opt cdecl_opt "could not find controller" in
           match cdecl with
           | TD.Control _ _ _ _ params body apply_blk =>
-              if s_extern_has_typ_var apply_blk then error "apply_blk has type var" else
+              (*if s_extern_has_typ_var apply_blk then error "apply_blk has type var" else*)
             (* Context is begin extended with body, but why can't I find the controls? *)
             let ctx' := List.fold_left of_cdecl body ctx in
             let* rslt := inline gas unroll ctx' apply_blk in
-            if i_extern_has_typ_var rslt then error "control rslt has type var" else
+            (*if i_extern_has_typ_var rslt then error "control rslt has type var" else*)
               (** TODO check copy-in/copy-out *)
-              if List.existsb e_has_typ_var (List.map paramarg_elim args)
+            (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
               then error
                      ("control " ++ cname ++ " instance " ++ iname ++ " args has type var")%string
-              else
+              else*)
             let args := List.combine (List.map fst params) args in
             let η := copy args in
-            if List.existsb e_has_typ_var (List.map snd η)
-            then error "control η has type var" else
+            (*if List.existsb e_has_typ_var (List.map snd η)
+            then error "control η has type var" else*)
             let blk := (fst (subst_t η rslt)) in
-            if i_extern_has_typ_var blk then error "control blk as type var" else
+            (*if i_extern_has_typ_var blk then error "control blk as type var" else*)
             ok $ IBlock blk
           | _ =>
             error "Expected a control decl, got something else"
@@ -738,13 +736,13 @@ then error "args has typevar call funct" else
           let* act := from_opt (find_action ctx a) ("could not find action " ++ a ++ " in environment") in
           match act with
           | CD.Action _ ctrl_params data_params body  =>
-              if s_extern_has_typ_var body then error "tbl action body has typ var" else
+              (*if s_extern_has_typ_var body then error "tbl action body has typ var" else*)
                 let* s := inline gas unroll ctx body in
-                if i_extern_has_typ_var s then error "tbl s has typ var" else
+                (*if i_extern_has_typ_var s then error "tbl s has typ var" else*)
             let* (s', _) :=
               action_param_renamer tbl_name a
                 (List.map fst ctrl_params ++ string_list_of_params data_params) s in
-            if i_extern_has_typ_var s' then error "tbl s' has type var" else
+            (*if i_extern_has_typ_var s' then error "tbl s' has type var" else*)
             let set_action_run :=
                 IAssign act_type
                           (E.Var act_type ("_return$" ++ tbl_name ++ ".action_run") 0)
@@ -758,17 +756,17 @@ then error "args has typevar call funct" else
         let* acts := fold_lefti act_to_gcl (ok []) (List.map fst actions) in
         let* named_acts := zip (List.map fst actions) acts in
         let (assumes, keys') := normalize_keys tbl_name keys in
-        if i_extern_has_typ_var assumes then error "assumes has typ var" else
+        (*if i_extern_has_typ_var assumes then error "assumes has typ var" else*)
           let invocation := IInvoke tbl_name keys' named_acts in
-          if i_extern_has_typ_var invocation then error "invocation has typ var" else
+          (*if i_extern_has_typ_var invocation then error "invocation has typ var" else*)
             ok $ ISeq assumes invocation
       | _ =>
         error "[ERROR] expecting table when getting table, got something else"
       end
 
     | ST.Call (ST.Method ext method _ ret) args =>
-        if List.existsb e_has_typ_var (List.map paramarg_elim args)
-            then error "args has typevar call method" else
+        (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
+            then error "args has typevar call method" else*)
         match find_extern ctx ext with
         | Some (TD.Extern _ _ _ _ methods) =>
             let* '((_, _, {|paramargs:=params|}) : nat * list string * Expr.arrowT) :=
@@ -776,11 +774,11 @@ then error "args has typevar call funct" else
                 (Field.get method methods)
                 ("[Error] couldn't find extern method "
                    ++ method ++ " in extern " ++ ext) in
-            if List.existsb e_has_typ_var (List.map paramarg_elim args)
-            then error "args has typevar 1" else
+            (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
+            then error "args has typevar 1" else*)
               let args := List.combine (List.map fst params) args in
-              if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
-            then error "args has typevar 2" else
+              (*if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) args)
+            then error "args has typevar 2" else*)
             ok (IExternMethodCall ext method args ret)
         | _ => error
                 ("[ERROR] expecting extern when getting extern, got something else for "
@@ -989,8 +987,8 @@ Fixpoint elaborate_arrays (c : Inline.t) : result Inline.t :=
       (*if String.eqb method "extract"
     then elaborate_extract extern arrow ret
     else*)
-      if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) arrow) then
-        error "in elaborte args have type var" else
+      (*if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) arrow) then
+        error "in elaborte args have type var" else*)
       let arrow := elaborate_arguments arrow in
       ok (IExternMethodCall extern method arrow ret)
   end.

@@ -689,20 +689,20 @@ Section ToGCL.
     
     Definition inlining_passes
       (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx) (s : ST.s) : result Inline.t :=
-      if applys_bruh "h'3" s then
-        error "cub applys h'3 somewhere" else
-      if s_extern_has_typ_var s then
-        error "cub has type vars" else
+      (*if applys_bruh "h'3" s then
+        error "cub applys h'3 somewhere" else*)
+      (*if s_extern_has_typ_var s then
+        error "cub has type vars" else*)
       let* inline_stmt := Inline.inline gas unroll ctx s in
-      if i_extern_has_typ_var inline_stmt then
-        error "inline introduced type vars" else
+      (*if i_extern_has_typ_var inline_stmt then
+        error "inline introduced type vars" else*)
       let* no_stk := Inline.elaborate_arrays inline_stmt in
-      (*let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
+      let* no_stk := Inline.elaborate_arrays no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
       let* no_tup := Inline.elim_tuple no_stk in
       let* no_hdr := Inline.elaborate_headers no_tup in
       let* no_structs := Inline.elaborate_structs no_hdr in
-      let* no_slice := Inline.eliminate_slice_assignments no_structs in*)
-      ok no_stk.
+      let* no_slice := Inline.eliminate_slice_assignments no_structs in
+      ok no_slice.
 
     Definition inline_from_p4cub (gas unroll : nat)
                (ext : model) (pipe : pipeline)

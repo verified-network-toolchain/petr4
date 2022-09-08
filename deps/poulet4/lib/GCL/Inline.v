@@ -484,6 +484,7 @@ Fixpoint s_has_typ_var (s : ST.s) : bool :=
   match s with
   | ST.Skip
   | ST.Exit
+  | ST.Invoke _
   | ST.Return None => false
   | ST.Return (Some e) => e_has_typ_var e
   | ST.Transition e => p_has_typ_var e
@@ -491,7 +492,6 @@ Fixpoint s_has_typ_var (s : ST.s) : bool :=
   | ST.Call fk args =>
       funkind_has_typ_var fk
       || List.existsb e_has_typ_var (List.map paramarg_elim args)
-  | ST.Invoke _ es => List.existsb e_has_typ_var es
   | ST.Apply _ _ args =>
       List.existsb e_has_typ_var (List.map paramarg_elim args)
   | ST.Var _ (inl t) s => has_typ_var t || s_has_typ_var s
@@ -724,12 +724,12 @@ then error "args has typevar call funct" else
     | ST.Exit =>
       ok IExit
 
-    | ST.Invoke tbl_name key =>
+    | ST.Invoke tbl_name =>
       let* tdecl := from_opt (find_table ctx tbl_name) "could not find table in environment" in
       match tdecl with
-      | CD.Table _ key_type actions =>
+      | CD.Table _ key actions =>
         let keys : list (E.t * E.e * string) :=
-          List.map (fun '((t,m),e) => (t,e,m)) (List.combine key_type key) in
+          List.map (fun '(e,m) => (t_of_e e,e,m)) key in
         let act_size := Nat.max (PeanoNat.Nat.log2_up (List.length actions)) 1 in
         let act_sizeN := BinNat.N.of_nat act_size in
         let act_type := E.TBit act_sizeN in
@@ -755,8 +755,8 @@ then error "args has typevar call funct" else
             error "[ERROR] expecting action when `find`ing action, got something else"
           end
         in
-        let* acts := fold_lefti act_to_gcl (ok []) actions in
-        let* named_acts := zip actions acts in
+        let* acts := fold_lefti act_to_gcl (ok []) (List.map fst actions) in
+        let* named_acts := zip (List.map fst actions) acts in
         let (assumes, keys') := normalize_keys tbl_name keys in
         if i_extern_has_typ_var assumes then error "assumes has typ var" else
           let invocation := IInvoke tbl_name keys' named_acts in

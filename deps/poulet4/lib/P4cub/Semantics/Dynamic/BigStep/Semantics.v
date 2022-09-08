@@ -187,10 +187,14 @@ Variant pre_match_big_step : @MatchPreT unit -> Parser.pat -> Prop :=
   | bs_DontCare :
     pre_match_big_step MatchDontCare Parser.Wild
   | bs_Mask l₁ l₂ e₁ e₂ n₁ n₂ w :
+    embed_expr e₁ l₁ ->
+    embed_expr e₂ l₂ ->
     ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
     ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
     pre_match_big_step (MatchMask l₁ l₂) (Parser.Mask (w PW n₁) (w PW n₂))
   | bs_Range l₁ l₂ e₁ e₂ n₁ n₂ w :
+    embed_expr e₁ l₁ ->
+    embed_expr e₂ l₂ ->
     ⟨ [], e₁ ⟩ ⇓ w VW n₁ ->
     ⟨ [], e₂ ⟩ ⇓ w VW n₂ ->
     pre_match_big_step (MatchMask l₁ l₂) (Parser.Range (w PW n₁) (w PW n₂)).
@@ -201,10 +205,11 @@ Variant match_big_step : @Match unit -> Parser.pat -> Prop :=
   | bs_MkMatch τ m p :
     pre_match_big_step m p -> match_big_step (MkMatch tt m τ) p.
 
-Variant table_entry_big_step : table_entry (tags_t:=unit) (Expression:=Expr.e) -> Parser.pat -> Prop :=
+Variant table_entry_big_step
+  : table_entry (tags_t:=unit) (Expression:=Expr.e) -> Parser.pat -> action_ref -> Prop :=
   | bs_mk_table_entry mtchs pats aref :
     Forall2 match_big_step mtchs pats ->
-    table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists pats).
+    table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists pats) aref.
 
 (* TODO: embed parser pat to value set. *)
 (* TODO: embed constant light exprs to p4cub exprs. *)
@@ -238,6 +243,22 @@ Arguments eta_stmt_eval_env {_}.
     a signal [sig], and a new extern state [ψ]. *)
 Reserved Notation "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
          (at level 80, no associativity).
+
+Definition copy_out_from_arg
+  (input_arg : paramarg Val.v Val.lv) (output_arg : paramarg Val.v Val.v)
+  (ϵ_call : list Val.v) : list Val.v :=
+  match input_arg, output_arg with
+  | PAOut lv, PAOut v
+  | PAInOut lv, PAInOut v => lv_update lv v ϵ_call
+  | _, _ => ϵ_call
+  end.
+
+Fixpoint copy_out_from_args
+  (input_args : Val.argsv) (output_args : list (paramarg Val.v Val.v)) (ϵ_call : list Val.v) : list Val.v :=
+  match input_args, output_args with
+  | i :: iargs, o :: oargs => copy_out_from_args iargs oargs (copy_out_from_arg i o ϵ_call)
+  | _, _ => ϵ_call
+  end.
 
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v)
@@ -312,10 +333,13 @@ Inductive stmt_big_step
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out vdata_args ϵ'' ϵ), Cont, ψ ⧽
-| sbs_method_call c ψ ϵ' ϵ'' ext meth τs args
-    eo vargs olv sig
-    light_typs light_vals light_vals' light_sig :
-  (* TODO: relate ligth values & sigs to cub *)
+| sbs_method_call c ψ ext meth τs args
+    eo vargs vargs' olv sig
+    light_typs light_in_vals light_out_vals light_sig :
+  (** Invariant for cub arguments. *)
+  Forall2
+    (rel_paramarg eq (fun _ _ => True))
+    vargs vargs' ->
   (** Evaluate l-expression. *)
   relop (lexpr_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
@@ -324,25 +348,45 @@ Inductive stmt_big_step
        (expr_big_step ϵ)
        (lexpr_big_step ϵ))
     args vargs ->
-  (** Copyin. *)
-  copy_in vargs ϵ = Some ϵ' ->
+  (** Embed type arguments in p4light. *)
+  Forall2 (P4Cub_to_P4Light (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
+  (** Embed in-arguments in p4light. *)
+  Forall2
+    Embed
+    (List.flat_map
+       (fun v => match v with PAIn v => [v] | _ => [] end)
+       vargs) light_in_vals ->
   (** Evaluate the extern. *)
   exec_extern
     (extrn_env Ψ) (extrn_state Ψ)
-    ext meth [] light_typs light_vals ψ light_vals' light_sig ->
+    ext meth [] light_typs light_in_vals ψ light_out_vals light_sig ->
+  (** Out-values back to p4cub. *)
+  Forall2
+    Embed
+    (List.flat_map
+       (fun v => match v with PAOut v | PAInOut v => [v] | _ => [] end)
+       vargs') light_out_vals ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
-    ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽
+    ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke t (tbls : tenv) acts insts pats light_sets
-    ϵ' ψ (key : list (Expr.e * string)) actions vs light_vals
+    ϵ' ψ (key : list (Expr.e * string)) actions vs light_vals arefs
     a opt_ctrl_args ctrl_args data_args :
-  (* TODO: check de bruijn indicies *)
+  (** Lookup table. *)
   tbls t = Some (key, actions) ->
+  (** Evaluate key. TODO: check context. *)
   Forall2 (expr_big_step ϵ) (map fst key) vs ->
-  Forall2 table_entry_big_step (extern_get_entries ψ []) pats ->
-  extern_match (combine light_vals (map snd key)) light_sets
+  (** Evaluate table entries. *)
+  Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
+  (** Embed p4cub patterns in p4light value sets. *)
+  Forall2 embed_pat_valset pats light_sets ->
+  (** Get action reference from control-plane with control-plane arguments. *)
+  extern_match (combine light_vals (map snd key)) (combine light_sets arefs)
   = Some (mk_action_ref a opt_ctrl_args) ->
+  (** Find appropriate action data-plane arguments in table. *)
   Field.get a actions = Some data_args ->
+  (** Force control-plane arguments to be defined. *)
   Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
+  (** Evaluate action. *)
   ⧼ Ψ, ϵ, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
   ⧼ Ψ, ϵ, CApplyBlock tbls acts insts,
@@ -413,3 +457,6 @@ where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
 
 Local Close Scope stmt_scope.
 Local Close Scope value_scope.
+
+(* NOTE: will need to shift de bruijn indicies of table keys & actions
+   when evaluating controls. *)

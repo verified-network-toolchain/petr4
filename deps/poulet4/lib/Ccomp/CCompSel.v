@@ -329,16 +329,16 @@ Section CCompSel.
 
   Definition
     CTranslateTableInvoke
-    (tbl : string) (key : list Expr.e)
+      (tbl : string)
     : StateT ClightEnv Result.result Clight.statement :=
     let* env := get_state in
-    let* '(table_id, key_typ, fn_names) :=
+    let* '(table_id, key, fn_names) :=
       state_lift (find_table tbl env) in 
     let* action_id :=
       State_lift (CCompEnv.add_temp_nameless action_ref) in
     (* TODO: are matchkinds important? *)
-    let* elist := CTranslateExprList key in
-    let key_length := Z.of_nat (List.length key_typ) in 
+    let* elist := CTranslateExprList (List.map fst key) in
+    let key_length := Z.of_nat (List.length key) in 
     let t_keys := Tarray bit_vec key_length noattr in
     let* arrid :=
       State_lift (CCompEnv.add_temp_nameless t_keys) in
@@ -360,30 +360,30 @@ Section CCompSel.
     let call :=
       Scall
         None
-        (table_match_function (Z.of_nat (List.length key_typ)))
+        (table_match_function (Z.of_nat (List.length key)))
         arg_list in
     let action_to_take_id := Efield (Evar action_id action_ref) _action int_signed in
     let action_to_take_args := Efield (Evar action_id action_ref) _arguments TpointerBitVec in
-    let^ '(_,application) :=
-      state_lift
-        (List.fold_right
-           (fun f_name (x: Result.result (nat * Clight.statement)) =>
-              let* '(f'_id, f') := CCompEnv.lookup_function f_name env in
-              let^ '(i, st) := x in 
-              let index := Cint_of_Z (Z.of_nat i) in
-              let st' :=
-                Sifthenelse
-                  (Ebinop Oeq action_to_take_id index type_bool)
-                  (let total_length := List.length (f'.(fn_params)) in
-                   let top_args := get_top_args  env in
-                   let top_length := List.length top_args in 
-                   let args_length := Nat.sub total_length top_length in
-                   let elist := getTableActionArgs action_to_take_args args_length in
-                   let elist := top_args ++ elist in 
-                   Scall None (Evar f'_id (Clight.type_of_function f')) elist) st in
-              let i' := Nat.sub i 1 in
-              (i',st'))
-           (mret ((List.length fn_names), Sskip)) fn_names) in
+    let^ application :=
+      state_fold_righti
+        (ST := ClightEnv)
+        (M := Result.result)
+        (A := Clight.statement)
+        (B := string * Expr.args)
+        (fun i '(f_name,args) st =>
+           let* args := CTranslateArgs args in
+           let^ '(f'_id, f') := state_lift (CCompEnv.lookup_function f_name env) in
+           let index := Cint_of_Z (Z.of_nat i) in
+             Sifthenelse
+               (Ebinop Oeq action_to_take_id index type_bool)
+               (let total_length := List.length (f'.(fn_params)) in
+                let top_args := get_top_args  env in
+                let top_length := List.length top_args in 
+                let args_length := Nat.sub total_length top_length in
+                let elist := getTableActionArgs action_to_take_args args_length in
+                let elist := top_args ++ args ++ elist in 
+                Scall None (Evar f'_id (Clight.type_of_function f')) elist) st)
+        Sskip fn_names in
     Ssequence assignArray (Ssequence call application).
   
   Fixpoint fold_nat {A} (f: A -> nat -> A) (n : nat) (init:A) : A:=
@@ -795,6 +795,88 @@ Section CCompSel.
     | _ => CTranslateParserExpressionVal pe
     end.
 
+  (** Translating top-level rhs expressions
+      in variable declarations. *)
+  Definition CTranslateRExpr (e : Expr.e)
+    : StateT ClightEnv Result.result Clight.statement :=
+    let t := t_of_e e in
+    let* cty := State_lift (CTranslateType t) in
+    modify_state (CCompEnv.add_var cty) ;;
+    let* env := get_state in
+    let* dst' := state_lift (find_var 0 env) in
+    match e with
+    | Expr.Bit width val =>
+        let^ val_id := State_lift (find_BitVec_String val) in
+        let w := Cint_of_Z (Z.of_N width) in
+        let signed := Cfalse in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+        Scall None bitvec_init_function [dst'; signed; w; val']
+    | Expr.Int width val =>
+        let^ val_id := State_lift (find_BitVec_String val) in
+        let w := Cint_of_Z (Zpos width) in
+        let signed := Ctrue in 
+        let val' := Evar val_id Cstring in
+        let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
+        Scall None bitvec_init_function [dst'; signed; w; val']
+    | Expr.Slice hi lo n =>
+        let τ := t_of_e n in
+        let* n' := CTranslateExpr n in
+        let hi' := Cuint_of_Z (Zpos hi) in
+        let lo' := Cuint_of_Z (Zpos lo) in
+        let^ tau' := State_lift (CTranslateType τ) in
+        let dst' := Evar dst' tau' in
+        Scall None slice_function [n'; hi'; lo'; dst']
+    | Expr.Cast τ e =>
+        let* e' := CTranslateExpr e in
+        let^ tau' := State_lift (CTranslateType τ) in
+        let dst' := Evar dst' tau' in
+        match τ, t_of_e e with
+        | Expr.TBool, Expr.TBit _ =>
+            Scall None cast_to_bool_function [dst'; e']
+        | Expr.TBit _, Expr.TBool =>
+            Scall None cast_from_bool_function [dst'; e']
+        | Expr.TBit w, Expr.TInt _
+        | Expr.TBit w, Expr.TBit _ =>
+            let t := Cuint_zero in
+            let width := Cuint_of_Z (Z.of_N w) in
+            Scall None cast_numbers_function [dst'; e'; t; width]
+        | Expr.TInt w, Expr.TBit _
+        | Expr.TInt w, Expr.TInt _ =>
+            let t := Cuint_zero in
+            let width := Cuint_of_Z (Zpos w) in
+            Scall None cast_numbers_function [dst'; e'; t; width]
+        | _, _ => Sskip
+        end
+    | Expr.Uop dst_t op x =>
+        CTranslateUop dst_t op x 0
+    | Expr.Bop dst_t op x y =>
+        CTranslateBop dst_t op x y 0
+    | Expr.Lists Expr.lists_struct fields =>
+        (*first create a temp of this struct.
+          then assign all the values to it. then return this temp *)
+        let strct := t_of_e e in
+        let* typ := State_lift (CTranslateType strct) in
+        let* composite := search_state (lookup_composite strct) in
+        CTranslateStructAssgn
+          fields composite (Evar dst' typ)
+    | Expr.Lists (Expr.lists_header b) fields =>
+        (*first create a temp of this header.
+          then assign all the values to it. then return this temp*)
+        let hdr := t_of_e e in
+        let* typ := State_lift (CTranslateType hdr) in
+        let valid := if b then Ctrue else Cfalse in
+        let* composite := search_state (lookup_composite hdr) in
+        CTranslateHeaderAssgn
+          fields composite (Evar dst' typ) valid
+    | Expr.Lists (Expr.lists_array t) es =>
+        let* typ := State_lift (CTranslateType t) in
+        CTranslateArrayElemAssgn typ es (Evar dst' typ)
+    | _ =>
+        let^ e' := CTranslateExpr e in
+        Sassign (Evar dst' (typeof e')) e'
+      end.
+  
   Fixpoint CTranslateStatement (s: Stmt.s)
     : StateT ClightEnv Result.result Clight.statement :=
     match s with
@@ -815,104 +897,9 @@ Section CCompSel.
       let t := t_of_e e in
       let* cty := State_lift (CTranslateType t) in
       modify_state (CCompEnv.add_var cty) ;;
-      let* env := get_state in
-      let* dst' := state_lift (find_var 0 env) in
-      match e with
-      | Expr.Bit width val =>
-          let* val_id := State_lift (find_BitVec_String val) in
-          let w := Cint_of_Z (Z.of_N width) in
-          let signed := Cfalse in 
-          let val' := Evar val_id Cstring in
-          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-          let^ s' := CTranslateStatement s in
-          Ssequence
-            (Scall None bitvec_init_function [dst'; signed; w; val'])
-            s'
-      | Expr.Int width val =>
-          let* val_id := State_lift (find_BitVec_String val) in
-          let w := Cint_of_Z (Zpos width) in
-          let signed := Ctrue in 
-          let val' := Evar val_id Cstring in
-          let dst' := Eaddrof (Evar dst' bit_vec) TpointerBitVec in
-          let^ s' := CTranslateStatement s in
-          Ssequence
-            (Scall None bitvec_init_function [dst'; signed; w; val'])
-            s'
-      | Expr.Slice hi lo n =>
-          let τ := t_of_e n in
-          let* n' := CTranslateExpr n in
-          let hi' := Cuint_of_Z (Zpos hi) in
-          let lo' := Cuint_of_Z (Zpos lo) in
-          let* tau' := State_lift (CTranslateType τ) in
-          let dst' := Evar dst' tau' in
-          let^ s' := CTranslateStatement s in
-          Ssequence
-            (Scall None slice_function [n'; hi'; lo'; dst'])
-            s'
-      | Expr.Cast τ e =>
-          let* e' := CTranslateExpr e in
-          let* tau' := State_lift (CTranslateType τ) in
-          let dst' := Evar dst' tau' in
-          let s1 :=
-            match τ, t_of_e e with
-            | Expr.TBool, Expr.TBit _ =>
-                Scall None cast_to_bool_function [dst'; e']
-            | Expr.TBit _, Expr.TBool =>
-                Scall None cast_from_bool_function [dst'; e']
-            | Expr.TBit w, Expr.TInt _
-            | Expr.TBit w, Expr.TBit _ =>
-                let t := Cuint_zero in
-                let width := Cuint_of_Z (Z.of_N w) in
-                Scall None cast_numbers_function [dst'; e'; t; width]
-            | Expr.TInt w, Expr.TBit _
-            | Expr.TInt w, Expr.TInt _ =>
-                let t := Cuint_zero in
-                let width := Cuint_of_Z (Zpos w) in
-                Scall None cast_numbers_function [dst'; e'; t; width]
-            | _, _ => Sskip
-            end in
-          let^ s2 := CTranslateStatement s in
-          Ssequence s1 s2
-      | Expr.Uop dst_t op x =>
-          let* s1 := CTranslateUop dst_t op x 0 in
-          let^ s2 := CTranslateStatement s in
-          Ssequence s1 s2
-      | Expr.Bop dst_t op x y =>
-          let* s1 := CTranslateBop dst_t op x y 0 in
-          let^ s2 := CTranslateStatement s in
-          Ssequence s1 s2
-      | Expr.Lists Expr.lists_struct fields =>
-          (*first create a temp of this struct.
-            then assign all the values to it. then return this temp *)
-          let strct := t_of_e e in
-          let* typ := State_lift (CTranslateType strct) in
-          let* composite := search_state (lookup_composite strct) in
-          let* s1 :=
-            CTranslateStructAssgn
-              fields composite (Evar dst' typ) in
-          let^ s2 := CTranslateStatement s in
-          Ssequence s1 s2
-      | Expr.Lists (Expr.lists_header b) fields =>
-          (*first create a temp of this header.
-            then assign all the values to it. then return this temp*)
-          let hdr := t_of_e e in
-          let* typ := State_lift (CTranslateType hdr) in
-          let valid := if b then Ctrue else Cfalse in
-          let* composite := search_state (lookup_composite hdr) in
-          let* s1 :=
-            CTranslateHeaderAssgn
-              fields composite (Evar dst' typ) valid in
-          let^ s2 := CTranslateStatement s in
-          Ssequence s1 s2
-      | Expr.Lists (Expr.lists_array t) es =>
-          let* typ := State_lift (CTranslateType t) in
-          let* s1 := CTranslateArrayElemAssgn typ es (Evar dst' typ) in
-          CTranslateStatement s >>| Ssequence s1
-      | _ =>
-          let* e' := CTranslateExpr e in
-          let^ s' := CTranslateStatement s in
-          Ssequence (Sassign (Evar dst' (typeof e'))  e') s'
-      end
+      let* s1' := CTranslateRExpr e in
+      let^ s2' := CTranslateStatement s in
+      Ssequence s1' s2'
     | Stmt.Conditional e s1 s2 => 
         let* e' := CTranslateExpr e in
         let* s1' := CTranslateStatement s1 in
@@ -990,7 +977,7 @@ Section CCompSel.
           Scall (Some resultid) (Evar id (Clight.type_of_function f')) elist in
         let judge := Sifthenelse (result) Sskip (Sreturn (Some Cfalse)) in
         mret (Ssequence kompute judge)
-    | Stmt.Invoke tbl key => CTranslateTableInvoke tbl key
+    | Stmt.Invoke tbl => CTranslateTableInvoke tbl
     | Stmt.Assign e1 e2 =>
       let* e1' := CTranslateExpr e1 in
       let^ e2' := CTranslateExpr e2 in
@@ -1128,6 +1115,15 @@ Section CCompSel.
     (top_signature: Expr.params) (ct : Control.d)
     : StateT ClightEnv Result.result Clight.statement
     := match ct with
+       | Control.Var _ (inl t) =>
+           let* cty := State_lift (CTranslateType t) in
+           modify_state (M:=Result.result) (CCompEnv.add_var cty) ;;
+           state_return Sskip
+       | Control.Var _ (inr e) =>
+           let t := t_of_e e in
+           let* cty := State_lift (M:=Result.result) (CTranslateType t) in
+           modify_state (M:=Result.result) (CCompEnv.add_var cty) ;;
+           CTranslateRExpr e
        | Control.Action a ctrl_params data_params body =>
            let* f :=
              CTranslateAction

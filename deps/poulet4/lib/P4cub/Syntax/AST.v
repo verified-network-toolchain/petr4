@@ -57,6 +57,11 @@ Definition rel_paramarg_same {A B : Set} (R : A -> B -> Prop) :
   paramarg A A -> paramarg B B -> Prop :=
   rel_paramarg R R.
 
+Definition paramarg_elim {A : Set} (p : paramarg A A) : A :=
+    match p with
+    | PAIn a | PAOut a | PAInOut a => a
+    end.
+
 (** Function signatures/instantiations. *)
 Record arrow (A B C : Set) : Set :=
   { paramargs : list (A * paramarg B C);

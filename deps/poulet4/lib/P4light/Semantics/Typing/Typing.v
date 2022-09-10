@@ -307,7 +307,9 @@ Section TypingDefs.
              (g : gamma_stmt) (st : state) : Prop :=
     gamma_expr_prop this (expr_gamma g) st ge /\
     gamma_func_prop (func_gamma g) (ext_gamma g).
-    
+
+  Context `{dummy : Inhabitant tags_t} (** Default [tags_t]. *).
+  
     (** Statement typing. *)
     Definition
       stmt_types
@@ -319,8 +321,7 @@ Section TypingDefs.
       gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
       Δ ⊢okˢ s ->             (** Free type variables are bound. *)
       is_stmt s ->            (** Is a well-formed statement. *)
-      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
-        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+      forall (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
@@ -344,8 +345,7 @@ Section TypingDefs.
       gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
       Δ ⊢okᵇ blk ->           (** Free type variables are bound. *)
       is_block blk ->         (** Is a well-formed block. *)
-      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
-        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+      forall (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)
@@ -368,8 +368,7 @@ Section TypingDefs.
       gamma_expr_ok Δ Γ ->    (** Types names in [Γ] are bound by [Δ] *)
       Δ ⊢okᵉ call ->          (** Free type variables are bound. *)
       is_call call ->         (** Is syntactically a call expression. *)
-      forall (dummy : Inhabitant tags_t)       (** Default [tags_t]. *)
-        (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
+      forall (read_one_bit : option bool -> bool -> Prop) (** Interpretation of uninitialized bits. *)
         (st : state),                     (** The evaluation environment. *)
         (forall b b', read_one_bit (Some b) b'
                  <-> b = b')             ->  (** Interprets initialized bits correctly. *)

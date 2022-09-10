@@ -1075,6 +1075,7 @@ Section Soundness.
   Local Hint Resolve ValueBaseMap_preserves_type : core.
 
   Section StmtTyping.
+    Context `{dummy : Inhabitant tags_t}.
     Variable (Γ : @gamma_stmt tags_t).
 
     Theorem assign_sound_expr : forall tag e₁ e₂,
@@ -1089,7 +1090,7 @@ Section Soundness.
     Proof.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hisexpr2 He1 He2.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto.
       unfold gamma_stmt_prop in Hgst.
       destruct Hgst as [Hgste Hgstf].
@@ -1173,7 +1174,7 @@ Section Soundness.
     Proof.
       cbn. intros i e1 e2 Hte1e2 Hlvoke1 Hiscalle2 He1 He2.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto.
       inv Hoks; inv Hiss; inv H0; inv H1.
       rename H3 into Hoke1; rename H4 into Hoke2;
@@ -1182,7 +1183,7 @@ Section Soundness.
       pose proof He1 Hge Hged Hgok Hoke1 Hise1 _ _ Hrob Hread (proj1 Hgst) as Het1; clear He1.
       destruct Het1 as [[sv1 Hev1] [He1 He1lv]].
       pose proof He1lv Hlvoke1 as [(lv1 & s1 & Helvs1) Helv1]; clear He1lv.
-      pose proof He2 Hge Hged Hgok Hoke2 Hiscalle2 _ _ st Hrob Hread Hgst as Het2; clear He2.
+      pose proof He2 Hge Hged Hgok Hoke2 Hiscalle2 _ st Hrob Hread Hgst as Het2; clear He2.
       destruct Het2 as ((st' & sig & he2) & het2). split.
       - destruct (Helv1 _ _ Helvs1) as (r1 & hr1 & hlvr1); clear Helv1.
         admit.
@@ -1207,12 +1208,12 @@ Section Soundness.
     Proof.
       cbn. intros i e s1 s2 Γ₁ [He Het] Hs1 Hs2.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto.
       inv Hoks; inv Hiss. inv H0; inv H1.
       pose proof He Hge Hged Hgok H4 H3 _ _ Hrob Hread (proj1 Hgst)
         as [[sv Hesv] [He' _]]; clear He H4 H3.
-      pose proof Hs1 Hge Hged Hgok H5 H7 _ _ _ Hrob Hread Hgst
+      pose proof Hs1 Hge Hged Hgok H5 H7 _ _ Hrob Hread Hgst
         as [HΓ₁ [(st1 & sig1 & Hxs1) Hs1']]; clear Hs1 H5 H7.
       assert (Hv: exists v, sval_to_val rob sv v)
         by eauto using exec_val_exists.
@@ -1223,7 +1224,7 @@ Section Soundness.
       some_inv; cbn in Hsvr; inv Hsvr; inv Hv.
       destruct s2 as [s2 |]; inv Hs2; inv H6; inv H8.
       - destruct H1 as [Γ₂ Hs2].
-        pose proof Hs2 Hge Hged Hgok H2 H3 _ _ st Hrob Hread Hgst
+        pose proof Hs2 Hge Hged Hgok H2 H3 _ st Hrob Hread Hgst
           as [HΓ₂ [(st2 & sig2 & Hxs2) Hs2']]; clear Hs2 H2 H3.
         split.
         + destruct b'; eauto.
@@ -1254,7 +1255,7 @@ Section Soundness.
     Proof.
       cbn. intros i e He.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hreads Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgst.
       split; auto.
       destruct e as [e |]; inv He; cbn in *.
       - inv Hoks; inv Hiss. inv H1; inv H2. inv H3; inv H1.
@@ -1283,19 +1284,19 @@ Section Soundness.
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatBlock blk) t ⊣ Γ.
     Proof.
       intros Γ' tag blk t Hblk. revert dependent Γ'.
-      induction Hblk; intros Γ' Hsblk Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hreads Hgsp;
+      induction Hblk; intros Γ' Hsblk Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp;
         simpl in *; split; auto.
       - split.
         + do 2 eexists. do 2 constructor.
         + intros st' sig Hempty. inv Hempty. inv H6. auto.
       - inv Hoks. inv H1. inv Hiss. inv H1.
-        specialize (Hsblk Hge Hged Hgok H0 H2 _ _ _ Hrob Hreads Hgsp).
+        specialize (Hsblk Hge Hged Hgok H0 H2 _ _ Hrob Hreads Hgsp).
         destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
         + do 2 eexists. constructor. econstructor; eauto.
         + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H10.
           eapply gamma_stmt_prop_sub_gamma; eauto.
       - inv Hoks. inv H1. inv Hiss. inv H1.
-        specialize (Hsblk Hge Hged Hgok H2 H3 _ _ _ Hrob Hreads Hgsp).
+        specialize (Hsblk Hge Hged Hgok H2 H3 _ _ Hrob Hreads Hgsp).
         destruct Hsblk as [Hsge [Hsub [[st' [sig Hpro]] Hpre]]]. inv Hpro. split.
         + do 2 eexists. constructor. econstructor; eauto.
         + intros st'1 sig Hstmt. inv Hstmt. apply Hpre in H11.
@@ -1303,40 +1304,40 @@ Section Soundness.
     Qed.
 
     Theorem method_call_sound : forall tag e τs es,
-        (forall `{dummy : Inhabitant tags_t}, (ge,this,Δ,Γ)
-           ⊢ᵪ MkExpression dummy_tags
-           (ExpFunctionCall e τs es)
-           TypVoid Directionless) ->
+        (ge,this,Δ,Γ)
+          ⊢ᵪ MkExpression dummy_tags
+          (ExpFunctionCall e τs es)
+          TypVoid Directionless ->
         (ge,this,Δ,Γ) ⊢ₛ MkStatement tag (StatMethodCall e τs es) StmUnit ⊣ Γ.
     Proof.
       intros tag e τs es Hcall.
-      intros Hge Hged Hgok Hoks Hiss dummy' rob st Hrob Hreads Hgsp. cbn [fst snd] in *.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp. cbn [fst snd] in *.
       split; auto.
-      assert (forall t, Δ ⊢okᵉ MkExpression t (ExpFunctionCall e τs es) TypVoid Directionless). {
-        intros. inv Hoks. inv H0. repeat constructor; auto. }
-      assert (forall t, is_call (MkExpression t (ExpFunctionCall e τs es)
-                              TypVoid Directionless)). {
-        intros. constructor. inv Hiss. inv H1. constructor; auto. }
-      specialize (Hcall dummy' Hge Hged Hgok (H Semantics.dummy_tags)
-                    (H0 Semantics.dummy_tags) dummy' rob st Hrob Hreads Hgsp).
+      assert (Δ ⊢okᵉ MkExpression dummy_tags (ExpFunctionCall e τs es) TypVoid Directionless)
+        as hokcall.
+      { inv Hoks. inv H0. repeat constructor; auto. }
+      assert (is_call (MkExpression dummy_tags (ExpFunctionCall e τs es)
+                         TypVoid Directionless)) as hiscall.
+      { constructor. inv Hiss. inv H0. constructor; auto. }
+      specialize (Hcall Hge Hged Hgok
+                    hokcall hiscall rob st Hrob Hreads Hgsp).
       destruct Hcall as [[st' [sig Hpro]] Hpre]. split.
       - exists st', (force_continue_signal sig). econstructor. 1: apply Hpro. auto.
-      - intros st'0 sig0 H1. inv H1. apply Hpre in H11. auto.
+      - intros st'0 sig0 H1. inv H1. apply Hpre in H9. auto.
     Qed.
 
-    Theorem direct_application_sound :
-      forall tag τ τ' es,
-        (forall `{dummy : Inhabitant tags_t}, (ge,this,Δ,Γ)
+    Theorem direct_application_sound : forall tag τ τ' es,
+        (ge,this,Δ,Γ)
           ⊢ᵪ MkExpression dummy_tags
           (ExpFunctionCall
              (direct_application_expression τ τ')
-             nil es) TypVoid Directionless) ->
+             nil es) TypVoid Directionless ->
         (ge,this,Δ,Γ)
           ⊢ₛ MkStatement tag
           (StatDirectApplication τ τ' es) StmUnit ⊣ Γ.
     Proof.
       intros tag τ τ' es Hcall.
-      intros Hge Hged Hgok Hoks Hiss dummy' rob st Hrob Hreads Hgsp.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hreads Hgsp.
       cbn [fst snd] in *. split; auto.
       assert (Δ ⊢okᵉ MkExpression dummy_tags
                 (ExpFunctionCall (direct_application_expression τ τ') [] es)
@@ -1347,7 +1348,7 @@ Section Soundness.
                    (ExpFunctionCall (direct_application_expression τ τ') [] es)
                    TypVoid Directionless)). {
         inv Hiss. inv H1. repeat constructor; auto. }
-      specialize (Hcall dummy' Hge Hged Hgok H H0 dummy' rob st Hrob Hreads Hgsp).
+      specialize (Hcall Hge Hged Hgok H H0 rob st Hrob Hreads Hgsp).
       destruct Hcall as [[st' [sig Hpro]] Hpre]. split.
       - exists st', (force_continue_signal sig). econstructor. 1: apply Hpro. auto.
       - intros st'0 sig0 H1. inv H1. apply Hpre in H11. auto.
@@ -1362,7 +1363,7 @@ Section Soundness.
     Proof.
       cbn. intros i t x l Hl.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto using bind_typ_gamma_stmt_sub_gamma.
       inv Hoks; inv Hiss. inv H0; inv H1. inv H7; inv H6.
       split.
@@ -1428,7 +1429,7 @@ Section Soundness.
     Proof.
       cbn. intros i t x e l Hl He.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto using bind_typ_gamma_stmt_sub_gamma.
       inv Hoks; inv Hiss. inv H0; inv H1.
       inv H6; inv H7. destruct He as [Het Het_eq].
@@ -1496,7 +1497,7 @@ Section Soundness.
     Proof.
       cbn. intros i t x e l Hl He.
       autounfold with * in *.
-      intros Hge Hged Hgok Hoks Hiss dummy rob st Hrob Hread Hgst.
+      intros Hge Hged Hgok Hoks Hiss rob st Hrob Hread Hgst.
       split; auto using bind_typ_gamma_stmt_sub_gamma.
       inv Hoks; inv Hiss.
     Admitted.

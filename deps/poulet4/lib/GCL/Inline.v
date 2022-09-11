@@ -225,6 +225,12 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e) : F.fs string E.e
           let param_i := index_array_str param i in
           let es := elaborate_arg_expression param_i e in
           List.app es acc) [] es
+  | E.Lists E.lists_struct es =>
+      ListUtil.fold_righti
+        (fun i e acc =>
+           let param_i := index_array_str param i in
+           let es := elaborate_arg_expression param_i e in
+           List.app es acc) [] es
   | E.Index t stk idx => [(param, arg)] (* TODO: get length from type of stk & iterate *)
   | E.Var (E.TVar _) _ _ => [(param, arg)]
   | _ => [(param, arg)]
@@ -1117,7 +1123,13 @@ Fixpoint header_asserts (e : E.e) : result t :=
   | E.Bool _ | E.Bit _ _
   | E.Int _ _ | E.Var _ _ _
   | E.Error _  =>  ok ISkip
-  | E.Member type name e => ok ISkip
+  | E.Member type name e =>
+      match t_of_e e with
+      | Expr.TStruct true _  =>
+          ok (inline_assert (isValid e))
+      | _ =>
+          ok ISkip
+      end
   | E.Slice _ _ e  =>
     header_asserts e 
   | E.Cast _ e  =>
@@ -1153,13 +1165,25 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
   | ISkip
   | IVardecl _ _ => ok c
   | IAssign _ lhs rhs  =>
-    let* lhs_asserts := header_asserts lhs  in
-    let+ rhs_asserts := header_asserts rhs  in
+      let* lhs_asserts :=
+        match header_asserts lhs with
+        | Ok _ o => ok o
+        | Error _ e => error ("assign left: " ++ e)
+        end in
+      let+ rhs_asserts :=
+        match header_asserts rhs with
+        | Ok _ o => ok o
+        | Error _ e => error ("assign right: " ++ e)
+        end in
     ISeq (ISeq lhs_asserts rhs_asserts ) c 
   | IConditional typ guard tru fls  =>
     let* tru' := assert_headers_valid_before_use tru in
     let* fls' := assert_headers_valid_before_use fls in
-    let+ guard_asserts := header_asserts guard  in
+    let+ guard_asserts :=
+      match header_asserts guard with
+      | Ok _ o => ok o
+      | Error _ e => error ("condition: " ++ e)
+      end in
     ISeq guard_asserts (IConditional typ guard tru' fls' ) 
   | ISeq s1 s2  =>
     let* s1' := assert_headers_valid_before_use s1 in
@@ -1170,7 +1194,11 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     IBlock blk'
   | IReturnVoid => ok c
   | IReturnFruit _ e =>
-    let+ asserts := header_asserts e  in
+      let+ asserts :=
+        match header_asserts e with
+        | Ok _ o => ok o
+        | Error _ e => error ("returnfruit: " ++ e)
+        end in
     ISeq asserts c 
   | IExit => ok c
   | IInvoke t ks acts  =>
@@ -1181,11 +1209,16 @@ Fixpoint assert_headers_valid_before_use (c : t) : result t :=
     IInvoke t ks acts' 
   | IExternMethodCall ext method paramargs ret =>
     if String.eqb method "extract" then ok c else
-    let+ asserts := List.fold_left (fun acc_asserts '(param, arg)  =>
+      let+ asserts :=
+        match List.fold_left
+                (fun acc_asserts '(param, arg)  =>
                    let* acc_asserts := acc_asserts in
                    let arg_exp := get_from_paramarg arg in
                    let+ new_asserts := header_asserts arg_exp  in
-                   ISeq acc_asserts new_asserts ) paramargs (ok (ISkip )) in
+                   ISeq acc_asserts new_asserts ) paramargs (ok (ISkip )) with
+        | Ok _ o => ok o
+        | Error _ e => error ("methocall: " ++ e)
+        end in
     ISeq asserts (IExternMethodCall ext method paramargs ret)
   end.
 

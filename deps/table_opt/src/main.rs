@@ -1,26 +1,34 @@
 use egg::{*, rewrite as rw};
 
+use table_opt::table_lang::TableLang;
+
 // From https://github.com/egraphs-good/egg/blob/main/tests/lambda.rs
 fn var(s: &str) -> Var {
     s.parse().unwrap()
 }
 
 // From https://github.com/egraphs-good/egg/blob/main/tests/lambda.rs
-fn is_not_same_var(v1: Var, v2: Var) -> impl Fn(&mut EGraph<SymbolLang, ()>, Id, &Subst) -> bool {
+fn is_not_same_var(v1: Var, v2: Var) -> impl Fn(&mut EGraph<TableLang, ()>, Id, &Subst) -> bool {
     move |egraph, _, subst| egraph.find(subst[v1]) != egraph.find(subst[v2])
 }
 
-fn run(rules: &[Rewrite<SymbolLang, ()>], orig_str: &str) {
+fn run<L: Language
+       + std::fmt::Display
+       + FromOp>
+    (rules: &[Rewrite<L, ()>], orig_str: &str) {
     let orig_expr = orig_str.parse().unwrap();
     let runner = Runner::default().with_expr(&orig_expr).run(rules);
     let extractor = Extractor::new(&runner.egraph, AstSize);
     let (best_cost, best_expr) = extractor.find_best(runner.roots[0]);
 
-    print!("orig: {}\nbest: {}\ncost: {}\n\n", orig_expr, best_expr, best_cost);
+    print!("orig: {}\nbest: {}\ncost: {}\n\n",
+           orig_expr,
+           best_expr,
+           best_cost);
 }
 
 fn main() {
-    let rules: &[Rewrite<SymbolLang, ()>] = &[
+    let rules: &[Rewrite<TableLang, ()>] = &[
         // Axiom U1
         rw!("if-same-fwd"; "(if ?b ?e ?e)" =>
                            "?e"),

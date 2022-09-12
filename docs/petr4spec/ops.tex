@@ -41,7 +41,7 @@
 \newcommand*{\actionT}{\rn{Action}\rT}
 \newcommand*{\constructorT}{\rn{Constructor}\rT}
 \newcommand*{\tableT}{\rn{Table}\rT}
-\newcommand*{\typeNameT}{\rn{TypeName}\rT}
+\newcommand*{\typeNameT}{\rn{Reference}\rT}
 
 \newcommand*{\boolE}{\rn{Bool}\rE}
 \newcommand*{\stringE}{\rn{String}\rE}
@@ -213,7 +213,7 @@
 %operators:
 \newcommand{\mask}[2]{{#1}\ \&\&\&\ {#2}}
 \newcommand{\range}[2]{{#1}..{#2}}
-\newcommand{\ternary}[3]{{#1}\ ?\ {#2}\ : \ {#3}}
+\newcommand{\ternary}[3]{{#1}\, ?\, {#2}\, : \, {#3}}
 \newcommand{\errMem}[1]{\mathsf{error}.{#1}}
 \newcommand{\typMem}[2]{{#1}.{#2}}
 \newcommand{\shiftR}{\gg}
@@ -221,30 +221,21 @@
 \newcommand{\concat}{+\!+\ }
 \newcommand{\restOps}{\odot}
 \newcommand{\ops}{\odot}
-\newcommand{\cast}[2]{({#1}){#2}}
+\newcommand{\unaryOp}{\ominus}
+\newcommand{\binOp}{\oplus}
+\newcommand{\cast}[2]{({#1})\,{#2}}
 \newcommand{\plusSat}{\vert+\vert}
 \newcommand{\subSat}{\vert-\vert}
 \newcommand{\bitAnd}{\&}
 \newcommand{\bitOr}{\vert}
 \newcommand{\bitXor}{\hat{}}
-\newcommand{\bitComplement}{\sim}
+\newcommand{\bitComplement}{\sim\!}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
-\newcommand{\funcCall}[3]{{#1}\langle{#2}\rangle({#3})}
+\newcommand{\funcCall}[3]{{#1}\,\langle{#2}\rangle\,({#3})}
 \newcommand{\funcCallNoTypArgs}[2]{{#1}({#2})}
 \newcommand{\expMem}[2]{{#1}.{#2}}
-\newcommand{\instantiation}[2]{{#1}({#2})}
-\newcommand{\assign}[2]{{#1}={#2}}
-\newcommand{\noop}{;}
-\newcommand{\return}[1]{\mathsf{return}\ {#1}}
-\newcommand{\exit}{\mathit{exit}}
-\newcommand{\switch}[2]{\mathit{switch}\ ({#1}) \{{#2}\}}
-\newcommand{\lbl}{l}
-\newcommand{\actionCase}[1]{\lbl : \block {#1}}
-\newcommand{\const}[3]{\mathit{const}\ {#1}\ {#2} := {#3}}
-\newcommand{\inst}[4]{{#1} ({#2}) {#3} \{{#4}\}}
-\newcommand{\varDecl}[2]{{#1}\ {#2}}
-\newcommand{\varInit}[3]{{#1}\ {#2} := {#3}}
+\newcommand{\instantiation}[2]{{#1}\, ({#2})} %%anonymous instantiation
 %name.
 %% \newcommand{\parserDecl}[]{\mathit{parser}\ {#1} (type_param param) {const_param locals states}
 \renewcommand{\list}[1]{\{{#1}\}}
@@ -255,6 +246,8 @@
 
 
 %metavariables:
+\newcommand{\prmDef}{\mathit{prm}}
+\newcommand{\prmDefs}{\overline \prmDef}
 \newcommand{\constraint}{C}
 \newcommand{\optConstraint}{B}
 \newcommand{\nonoptConstraint}{N}
@@ -298,25 +291,20 @@
 \newcommand{\fields}{\overline \field}
 \newcommand{\param}{x}
 \newcommand{\params}{\overline x}
-\newcommand{\prm}[1]{\dir_{#1} \ \typ_{#1}\  \param_{#1}}
-\newcommand{\singleprm}{\dir \ \typ \ \param}
+\newcommand{\prm}[1]{\dir_{#1}\  \param_{#1}:\typ_{#1}}
+\newcommand{\singleprm}{\dir \ \param: \typ }
 \newcommand{\prms}{\overline {\singleprm}}
-\newcommand{\prmss}{\overline {\prim \dir \ \prim \typ \ \prim \param}}
+\newcommand{\prmss}{\overline {\prim \dir \ \prim \param: \prim \typ}}
 \newcommand{\typParam}{\typVar}
 \newcommand{\typParams}{\overline \typParam}
-\newcommand{\pari}[1]{\dir_{#1} \typ_{#1} \typParam_{#1}}
+\newcommand{\pari}[1]{\dir_{#1}\ \param_{#1}: \typ_{#1}}
+\newcommand{\paris}[1]{\overline {\pari {#1}}}
 \newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
 % wildcard param for wild card type vars.
 \newcommand{\wildcardParam}{W}
 \newcommand{\wildcardParams}{\overline \wildcardParam}
 \renewcommand{\arg}{\mathit{arg}}
 \newcommand{\args}{\overline \arg}
-\newcommand{\stmt}{\mathit{stmt}}
-\newcommand{\stmts}{\overline \stmt}
-\newcommand{\block}[1]{\{ {#1} \}}
-\newcommand{\ifthen}[2]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}}
-\newcommand{\ifthenelse}[3]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}\ \mathsf{else}\ {#3}}
-\newcommand{\dcl}{\mathit{dcl}}
 \newcommand{\kind}{k}
 \newcommand{\ret}{\mathit{return}}
 \newcommand{\retTyp}{\typ_\ret}
@@ -328,8 +316,99 @@
 \newcommand{\argkvi}[1]{\var_{#1}=\exp_{#1}}
 \newcommand{\argkvs}{\overline \argkv}
 \newcommand{\argkvss}[2]{\argkvi {#1}, \ldots, \argkvi {#2}}
+\newcommand{\missingarg}{\_\!\_\!\_\!\_}
 \newcommand{\names}{\overline \name}
 \newcommand{\methods}[2]{\overline {{#1}:{#2}}}
+
+% statements
+\newcommand{\stmt}{\mathit{stmt}}
+\newcommand{\stmts}{\overline \stmt}
+\newcommand{\block}[1]{\{ {#1} \}}
+\newcommand{\ifthen}[2]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}}
+\newcommand{\ifthenelse}[3]{\mathsf{if}\ {#1}\ \mathsf{then}\ {#2}\ \mathsf{else}\ {#3}}
+\newcommand{\methodCall}[3]{{#1}\,\langle{#2}\rangle\, \left({#3}\right)}
+\newcommand{\assign}[2]{{#1}:={#2}}
+\newcommand{\noop}{;}
+\newcommand{\return}[1]{\mathsf{return}\ {#1}}
+\newcommand{\retNothing}{\mathsf{return ;}}
+\newcommand{\exit}{\mathsf{exit}}
+\newcommand{\switch}[2]{\mathsf{switch}\ ({#1})\, \{{#2}\}}
+\newcommand{\lbl}{l}
+\newcommand{\actionCase}[1]{\lbl : \block {#1}}
+\newcommand{\switchCase}{\mathit{switch}}
+\newcommand{\switchCases}{\overline \switchCase}
+\newcommand{\dirApp}[2]{{#1} \left({#2}\right)}
+\newcommand{\defLbl}{\mathsf{default}}
+
+%% parser states
+\newcommand{\slctTran}[2]{({#1})\ \{{#2}\}}
+\newcommand{\expandCase}[2]{{#1} \ {#2}}
+\newcommand{\nxt}{\mathit{nxt}}
+\newcommand{\dontcareMatch}{\_\!\_\!\_}
+\newcommand{\defMatch}{\mathsf{default}}
+\newcommand{\pmatch}{\mathit{mtch}}
+\newcommand{\pmatches}{\overline \pmatch}
+\newcommand{\case}{\mathit{case}}
+\newcommand{\pcases}{\overline \case}
+\newcommand{\parserTran}{t}
+\newcommand{\parserTrans}{\overline \parserTran}
+\newcommand{\stateDef}[3]{{#1}\ \{{#2}\} \ {#3}}
+\newcommand{\state}{\mathit{st}}
+\newcommand{\states}{\overline \state}
+
+
+%% table properties
+\newcommand{\custom}[3]{{#1}\,({#2},{#3})}
+\newcommand{\entry}[2]{\overline {#1} \, {#2}}
+\newcommand{\action}{\mathit{act}}
+\newcommand{\actionDef}[2]{{#1}\, ({#2})}
+\newcommand{\actions}{\overline \action}
+\newcommand{\key}[2]{{#1} : {#2}}
+\newcommand{\keys}[2]{\overline {\key {#1} {#2}}}
+\newcommand{\prop}{\mathit{prop}}
+\newcommand{\props}{\overline \prop}
+
+%% field type pairs
+\newcommand{\fieldTyp}{\field:\baseTyp}
+\newcommand{\fieldTyps}{\overline \fieldTyp}
+
+%% methods
+\newcommand{\constructor}[2]{{#1}\,(\overline {{#2}})}
+\newcommand{\abstractMethod}[4]{{#1}\, {#2}\, \langle\overline {{#3}}\rangle\,(\overline {{#4}})}
+\newcommand{\extMethod}{\mathit{mth}}
+\newcommand{\extMethods}{\overline \extMethod}
+
+% declarations
+\newcommand{\dcl}{\mathit{dcl}}
+\newcommand{\dcls}{\overline \dcl}
+\newcommand{\constDcl}[3]{\mathsf{const}\ {#1}\ {#2} := {#3}}
+\newcommand{\inst}[4]{{#1}\, ({#2})\, {#3}\, \{{#4}\}}
+\newcommand{\instNoBlock}[3]{{#1}\, ({#2})\, {#3}}
+\newcommand{\parserDcl}[6]{\mathsf{parser}\ {#1}\, \langle {#2}\rangle\, ({#3})\, ({#4})\, \{{#5}\ {#6} \}}
+\newcommand{\controlDcl}[4]{\mathsf{control}\ {#1}\, \langle {#2}\rangle\, ({#3})\, \{ {#4} \}}
+\newcommand{\funcDcl}[5]{\mathsf{function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})\, \{ {#5}\}}
+\newcommand{\externFuncDcl}[4]{\mathsf{extern\_function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})}
+\newcommand{\varDclInit}[3]{{#1}\ {#2} := {#3}}
+\newcommand{\varDcl}[2]{{#1}\, {#2}}
+%type. expression. name.
+\newcommand{\valSetDcl}[3]{{#1}\, {#3}:{#2}}
+\newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, (\prms)\, \{{#3}\}}
+\newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
+\newcommand{\headerDcl}[2]{\mathsf{header}\ {#1}\, \{{#2}\}}
+\newcommand{\headerUnionDcl}[2]{\mathsf{header\_union}\ {#1}\, \{{#2}\}}
+\newcommand{\structDcl}[2]{\mathsf{struct}\ {#1}\, \{{#2}\}}
+\newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
+\newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
+\newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}
+\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} \, {#2}\, \{\overline {{#3}:{#4}} \}}
+\newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle{#2}\rangle\, \{{#3} \}}
+\newcommand{\newtypeDcl}[2]{{#1}={#2}}
+\newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#2}\, {#1}}
+\newcommand{\controlTypDcl}[3]{\mathsf{ctrl}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\parserTypDcl}[3]{\mathsf{prs}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\packageTypDcl}[3]{\mathsf{pckg}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+
+\newcommand{\prog}{\mathit{prog}}
 
 %function helpers
 \newcommand{\types}[1]{\mathit{types\_of}({#1})}
@@ -402,7 +481,7 @@
 \newcommand{\removeOptionalPars}[1]{\mathit{remove\_optional\_parameteres}({#1})}
 \newcommand{\concatList}[2]{{#1}\ +\!+\ {#2}}
 \newcommand{\isDirectionless}[1]{\mathit{is\_directionless}({#1})}
-\newcommand{\whatevs}{\_}
+\newcommand{\whatevs}{\_\!\_}
 
 %fields 
 \newcommand{\isValid}{\mathsf{isValid}}
@@ -489,13 +568,14 @@
 \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
 \newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ {#1},\mathsf{control:}\ {#2})}
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
-\newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
+%% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}
 \newcommand{\unitTyp}{()}
 \newcommand{\stackTyp}[2]{{#1}[{#2}]}
 
 %directions:
 \newcommand{\less}{\mathsf{directionless}}
 \newcommand{\dir}{d}
+\newcommand{\direction}{\mathit{dir}} %%for the typed.direction
 \newcommand{\dirs}{\overline \dir}
 \newcommand{\inDir}{\mathsf{in}}
 \newcommand{\out}{\mathsf{out}}

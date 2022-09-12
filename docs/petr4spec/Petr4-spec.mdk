@@ -390,8 +390,11 @@ function signature. judgment signature. environment signature.
 
 # Syntax { #sec-syntax }
 
-data types used in programs:
+In the following we present P4 syntax. Note that we omitted annotations and meta-information since they are not required for type checking.
+
 ~ Begin P4Syntax
+**Data types used in P4 programs:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\baseTyp$ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
@@ -407,10 +410,9 @@ data types used in programs:
 |   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
 |   | $\vert$ | $\voidTyp$ | $\qquad \text{void}$ |
 |   | $\vert$ | $\dontcareTyp$ | $\qquad \text{don't care}$ |
-~ End P4Syntax
 
-types of programs:
-~ Begin P4Syntax
+**Types of P4 expressions:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\typ$ | $::=$ | $\boolTyp$ | $\qquad \text{booleans}$ |
@@ -419,7 +421,6 @@ types of programs:
 |   | $\vert$ | $\intWidthTyp \width$ | $\qquad \text{fixed-width signed integers}$ |
 |   | $\vert$ | $\bitWidthTyp \width$ | $\qquad \text{fixed-width unsigned integers}$ |
 |   | $\vert$ | $\varBitTyp \width$ | $\qquad \text{variable-width integers}$ |
-|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
 |   | $\vert$ | $\spcTyp \typ \typs$ | $\qquad \text{specialized type}$ |
 |   | $\vert$ | $\tupleTyps \typs$ | $\qquad \text{tuples}$ |
 |   | $\vert$ | $\stringTyp$ | $\qquad \text{strings}$ |
@@ -430,7 +431,8 @@ types of programs:
 |   | $\vert$ | $\recordTyps$ | $\qquad \text{records}$ |
 |   | $\vert$ | $\setTyp \typ$ | $\qquad \text{sets}$ |
 |   | $\vert$ | $\matchKindTyp$ | $\qquad \text{match kinds}$ |
-|   | $\vert$ | $-$ | $\qquad \text{reference}$ |
+|   | $\vert$ | $\typVar$ | $\qquad \text{type variables}$ |
+|   | $\vert$ | $\newTypeTyp \typVar \typ$ | $\qquad \text{reference}$ |
 |   | $\vert$ | $\headerTyps \field \typ$ | $\qquad \text{headers}$ |
 |   | $\vert$ | $\headerUnionTyps \field \typ $ | $\qquad \text{header unions}$ |
 |   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
@@ -444,27 +446,79 @@ types of programs:
 |   | $\vert$ | $\constructorTyp \typParams \prms \wildcardParams \typ$ | $\qquad \text{constructors}$ |
 |   | $\vert$ | $\tableTyp \name$ | $\qquad \text{tables}$ |
 { .booktable }
-~ End P4Syntax
 
-directions: (check with .ml file)
-~ Begin P4Syntax
+
+**Directions of parameters:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\dir$ | $::=$ | $\inDir$ | $\qquad \text{copy-in}$ |
 |   | $\vert$ | $\out$ | $\qquad \text{copy-out}$ |
-|   | $\vert$ | $\less$ | $\qquad \text{copy-in-out}$ |
-~ End P4Syntax
+|   | $\vert$ | $\inout$ | $\qquad \text{copy-in-out}$ |
 
-parameters:
-~ Begin P4Syntax
+**Direction of expressions:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $-$ | $::=$ | $- $ | $\qquad \text{-}$ |
-|   | $\vert$ | $- $ | $\qquad \text{-}$ |
-~ End P4Syntax
+| $\direction$ | $::=$ | $\inDir$ | $\qquad \text{copy-in}$ |
+|   | $\vert$ | $\out$ | $\qquad \text{copy-out}$ |
+|   | $\vert$ | $\inout$ | $\qquad \text{copy-in-out}$ |
+|   | $\vert$ | $\less$ | $\qquad \text{direction-less}$ |
 
-expressions:
-~ Begin P4Syntax
+**Parameters:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\prmDef$ | $::=$ | $\var : \baseTyp$ | $\qquad \text{parameters (no direction)}$ |
+|   | $\vert$ | $\dir \, \var : \baseTyp$ | $\qquad \text{parameters}$ |
+|   | $\vert$ | $\var : (\baseTyp, \exp)$ | $\qquad \text{parameters with value (no direction)}$ |
+|   | $\vert$ | $\dir \,\var : (\baseTyp, \exp)$ | $\qquad \text{parameters with value}$ |
+
+**Unary operations:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\unaryOp$ | $::=$ | $!$ | $\qquad \text{logical negation}$ |
+|   | $\vert$ | $\bitComplement$ | $\qquad \text{bitwise complement}$ |
+|   | $\vert$ | $-$ | $\qquad \text{unary minus}$ |
+
+**Binary operations:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\binOp$ | $::=$ | $\&\&$ | $\qquad \text{logical and}$ |
+|   | $\vert$ | $\|\|$ | $\qquad \text{logical or}$ |
+|   | $\vert$ | $+$ | $\qquad \text{numerical addition}$ |
+|   | $\vert$ | $-$ | $\qquad \text{numerical subtraction}$ |
+|   | $\vert$ | $*$ | $\qquad \text{numerical multiplication}$ |
+|   | $\vert$ | $\div$ | $\qquad \text{numerical division}$ |
+|   | $\vert$ | $\mod$ | $\qquad \text{numerical modulo}$ |
+|   | $\vert$ | $==$ | $\qquad \text{equality check}$ |
+|   | $\vert$ | $!=$ | $\qquad \text{inequality check}$ |
+|   | $\vert$ | $\plusSat$ | $\qquad \text{saturating addition}$ |
+|   | $\vert$ | $\subSat$ | $\qquad \text{saturation subtraction}$ |
+|   | $\vert$ | $\bitAnd$ | $\qquad \text{bitwise and}$ |
+|   | $\vert$ | $\bitOr$ | $\qquad \text{bitwise or}$ |
+|   | $\vert$ | $\bitXor$ | $\qquad \text{bitwise xor}$ |
+|   | $\vert$ | $\bitComplement$ | $\qquad \text{bitwise complement}$ |
+|   | $\vert$ | $\concat$ | $\qquad \text{bitwise concatenation}$ |
+|   | $\vert$ | $\shiftL$ | $\qquad \text{shift left}$ |
+|   | $\vert$ | $\shiftR$ | $\qquad \text{shift right}$ |
+|   | $\vert$ | $<$ | $\qquad \text{less than}$ |
+|   | $\vert$ | $\leq$ | $\qquad \text{less than or equal}$ |
+|   | $\vert$ | $>$ | $\qquad \text{greater than}$ |
+|   | $\vert$ | $\geq$ | $\qquad \text{greater than or equal}$ |
+
+**Arguments:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\arg$ | $::=$ | $\argexp$ | $\qquad \text{expression}$ |
+|   | $\vert$ | $\argkv$ | $\qquad \text{key value}$ |
+|   | $\vert$ | $\missingarg$ | $\qquad \text{missing}$ |
+
+**Expressions:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\exp$ | $::=$ | $\bool$ | $\qquad \text{booleans}$ |
@@ -472,67 +526,124 @@ expressions:
 |   | $\vert$ | $\int$ | $\qquad \text{integers}$ |
 |   | $\vert$ | $n_w$ | $\qquad \text{fixed-width signed integers}$ |
 |   | $\vert$ | $b_w$ | $\qquad \text{fixed-width unsigned integers}$ |
-|   | $\vert$ | $\name$ | $\qquad \text{names}$ |
+|   | $\vert$ | $\name$ | $\qquad \text{names (variables)}$ |
 |   | $\vert$ | $\arrayAccess {\exp_1} {\exp_2}$ | $\qquad \text{array accesses}$ |
 |   | $\vert$ | $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{bitstring slices}$ |
 |   | $\vert$ | $\list \exps$ | $\qquad \text{lists}$ |
 |   | $\vert$ | $\records \exp$ | $\qquad \text{records}$ |
-|   | $\vert$ | $- $ | $\qquad \text{unary operations}$ |
-|   | $\vert$ | $- $ | $\qquad \text{binary operations}$ |
-|   | $\vert$ | $\cast \typ \exp$ | $\qquad \text{casts}$ |
-|   | $\vert$ | $\typMem \typ \name$ | $\qquad \text{type members}$ |
-|   | $\vert$ | $\errMem \name$ | $\qquad \text{error members}$ |
-|   | $\vert$ | $\expMem \exp \name$ | $\qquad \text{expression members}$ |
+|   | $\vert$ | $\unaryOp \exp$ | $\qquad \text{unary operations}$ |
+|   | $\vert$ | $\exp_1 \binOp \exp_2$ | $\qquad \text{binary operations}$ |
+|   | $\vert$ | $\cast \baseTyp \exp$ | $\qquad \text{casts}$ |
+|   | $\vert$ | $\typMem \typVar \field$ | $\qquad \text{type members}$ |
+|   | $\vert$ | $\errMem \field$ | $\qquad \text{error members}$ |
+|   | $\vert$ | $\expMem \exp \field$ | $\qquad \text{expression members}$ |
 |   | $\vert$ | $\ternary {\exp_1} {\exp_2} {\exp_3}$ | $\qquad \text{conditionals}$ |
-|   | $\vert$ | $\funcCall \exp {\typs} \args$ | $\qquad \text{function calls}$ |
-|   | $\vert$ | $\instantiation {\spcTyp \name {\typs}} {\args}$ | $\qquad \text{anonymous instantiation}$ |
+|   | $\vert$ | $\funcCall \exp {\baseTyps} \args$ | $\qquad \text{function calls}$ |
+|   | $\vert$ | $\instantiation {\baseTyp} {\args}$ | $\qquad \text{anonymous instantiation}$ |
 |   | $\vert$ | $\mask {\exp_1} {\exp_2}$ | $\qquad \text{bit masks}$ |
 |   | $\vert$ | $\range {\exp_1} {\exp_2}$ | $\qquad \text{ranges}$ |
-~ End P4Syntax
 
-statements:
-~ Begin P4Syntax
+**Labels:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\stmt$ | $::=$ | $- $ | $\qquad \text{method call}$ |
-|   | $\vert$ | $- $ | $\qquad \text{assignment}$ |
-|   | $\vert$ | $- $ | $\qquad \text{direct application}$ |
-|   | $\vert$ | $- $ | $\qquad \text{if then else}$ |
-|   | $\vert$ | $- $ | $\qquad \text{block statement}$ |
-|   | $\vert$ | $- $ | $\qquad \text{exit}$ |
-|   | $\vert$ | $- $ | $\qquad \text{empty}$ |
-|   | $\vert$ | $- $ | $\qquad \text{return}$ |
-|   | $\vert$ | $- $ | $\qquad \text{switch}$ |
-|   | $\vert$ | $- $ | $\qquad \text{declaration}$ |
-~ End P4Syntax
+| $\lbl$ | $::=$ | $\defLbl$ | $\qquad \text{default}$ |
+|   | $\vert$ | $\str$ | $\qquad \text{string labels}$ |
 
-declarations:
-~ Begin P4Syntax
+**Switchs:**
+
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\dcl$ | $::=$ | $- $ | $\qquad \text{constants}$ |
-|   | $\vert$ | $- $ | $\qquad \text{instantiations}$ |
-|   | $\vert$ | $- $ | $\qquad \text{parsers}$ |
-|   | $\vert$ | $- $ | $\qquad \text{controls}$ |
-|   | $\vert$ | $- $ | $\qquad \text{functions}$ |
-|   | $\vert$ | $- $ | $\qquad \text{extern functions}$ |
-|   | $\vert$ | $- $ | $\qquad \text{variables}$ |
-|   | $\vert$ | $- $ | $\qquad \text{parser value sets}$ |
-|   | $\vert$ | $- $ | $\qquad \text{actions}$ |
-|   | $\vert$ | $- $ | $\qquad \text{tables}$ |
-|   | $\vert$ | $- $ | $\qquad \text{header types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{header union types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{struct types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{error types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{match kind types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{enumerated types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{serializable enumerated types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{extern objects}$ |
-|   | $\vert$ | $- $ | $\qquad \text{type definitions}$ |
-|   | $\vert$ | $- $ | $\qquad \text{generative type definitions}$ |
-|   | $\vert$ | $- $ | $\qquad \text{control types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{parser types}$ |
-|   | $\vert$ | $- $ | $\qquad \text{package types}$ |
+| $\switchCase$ | $::=$ | $\actionCase \stmts$ | $\qquad \text{labeled block}$ |
+|   | $\vert$ | $\lbl$ | $\qquad \text{fall through with label}$ |
+
+
+**Statements:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\stmt$ | $::=$ | $\methodCall \exp \baseTyps \args$ | $\qquad \text{method call}$ |
+|   | $\vert$ | $\assign {\exp_1} {\exp_2}$ | $\qquad \text{assignment}$ |
+|   | $\vert$ | $\dirApp \baseTyp \args$ | $\qquad \text{direct application}$ |
+|   | $\vert$ | $\ifthen \exp \stmt$ | $\qquad \text{if then}$ |
+|   | $\vert$ | $\ifthenelse \exp {\stmt_1} {\stmt_2}$ | $\qquad \text{if then else}$ |
+|   | $\vert$ | $\block \stmts$ | $\qquad \text{sequencing}$ |
+|   | $\vert$ | $\exit$ | $\qquad \text{exit}$ |
+|   | $\vert$ | $\noop$ | $\qquad \text{noop}$ |
+|   | $\vert$ | $\return \exp$ | $\qquad \text{return}$ |
+|   | $\vert$ | $\retNothing$ | $\qquad \text{return nothing}$ |
+|   | $\vert$ | $\switch \exp \switchCases$ | $\qquad \text{switch}$ |
+|   | $\vert$ | $\dcl$ | $\qquad \text{declaration}$ |
+
+**Parser states:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\nxt$ | $::=$ | $\str$ | $\qquad \text{next state}$ |
+| $\pmatch$ | $::=$ | $\defMatch$ | $\qquad \text{default match}$ |
+|   | $\vert$ | $\dontcareMatch$ | $\qquad \text{don't care match}$ |
+|   | $\vert$ | $\exp$ | $\qquad \text{expression match}$ |
+| $\case$ | $::=$ | $\expandCase \pmatches \nxt$ | $\qquad \text{match cases for the next state}$ |
+| $\parserTran$ | $::=$ | $\nxt$ | $\qquad \text{next state transition}$ |
+|   | $\vert$ | $\slctTran \exp \pcases$ | $\qquad \text{select next state transition}$ |
+| $\state$ | $::=$ | $\stateDef \var \stmts \parserTran$ | $\qquad \text{states}$ |
+
+**Table properties:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\action$ | $::=$ | $\actionDef \var \arg$ | $\qquad \text{actions}$ |
+| $\prop$ | $::=$ | $\key \exp \var$ | $\qquad \text{keys}$ |
+|   | $\vert$ | $\action$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\entry \pmatch \action$ | $\qquad \text{entries}$ |
+|   | $\vert$ | $\custom \bool \var \exp$ | $\qquad \text{custom property}$ |
+
+**Methods:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\extMethod$ | $::=$ | $\constructor \var \prmDef$ | $\qquad \text{constructors}$ |
+|   | $\vert$ | $\abstractMethod \baseTyp \var \typVar \prmDef$ | $\qquad \text{abstract methods}$ |
+|   | $\vert$ | $-$ | $\qquad \text{methods}$ |
+
+**Declarations:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\dcl$ | $::=$ | $\constDcl \baseTyp \var \exp$ | $\qquad \text{constants}$ |
+|   | $\vert$ | $\inst \baseTyp \args \var \stmts$ | $\qquad \text{instantiations (initialized)}$ |
+|   | $\vert$ | $\instNoBlock \baseTyp \args \var$ | $\qquad \text{instantiations (uninitialized)}$ |
+|   | $\vert$ | $\parserDcl \var \typVars {\overline {\prmDef_1}} {\overline {\prmDef_2}} \dcls \states$ | $\qquad \text{parsers}$ |
+|   | $\vert$ | $\controlDcl \var \typVars \prmDefs \stmts$ | $\qquad \text{controls}$ |
+|   | $\vert$ | $\funcDcl \baseTyp \var \typVars \prmDefs \stmts$ | $\qquad \text{functions}$ |
+|   | $\vert$ | $\externFuncDcl \baseTyp \var \typVars \prmDefs$ | $\qquad \text{extern functions}$ |
+|   | $\vert$ | $\varDclInit \baseTyp \var \exp$ | $\qquad \text{local variables (initialized)}$ |
+|   | $\vert$ | $\varDcl \baseTyp \var$ | $\qquad \text{local variables (uninitialized)}$ |
+|   | $\vert$ | $\valSetDcl \baseTyp \exp \var$ | $\qquad \text{parser value sets}$ |
+|   | $\vert$ | $\actionDcl \var \prmDefs \stmts$ | $\qquad \text{actions}$ |
+|   | $\vert$ | $\tableDcl \var \props$ | $\qquad \text{tables}$ |
+|   | $\vert$ | $\headerDcl \typVar \fieldTyps$ | $\qquad \text{header types}$ |
+|   | $\vert$ | $\headerUnionDcl \typVar \fieldTyps$ | $\qquad \text{header union types}$ |
+|   | $\vert$ | $\structDcl \typVar \fieldTyps$ | $\qquad \text{struct types}$ |
+|   | $\vert$ | $\errDcl \fields$ | $\qquad \text{error types}$ |
+|   | $\vert$ | $\matchkindDcl \fields$ | $\qquad \text{match kind types}$ |
+|   | $\vert$ | $\enumDcl \typVar \fields$ | $\qquad \text{enumerated types}$ |
+|   | $\vert$ | $\serEnumDcl \baseTyp \typVar \field \exp$ | $\qquad \text{serializable enumerated types}$ |
+|   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
+|   | $\vert$ | $\typdefDcl \typVar \baseTyp$ | $\qquad \text{type definitions}$ |
+|   | $\vert$ | $\typdefDcl \typVar \dcl$ | $\qquad \text{type definitions (declarations)}$ |
+|   | $\vert$ | $\newtypeDcl \typVar \baseTyp$ | $\qquad \text{generative type definitions}$ |
+|   | $\vert$ | $\newtypeDcl \typVar \dcl$ | $\qquad \text{generative type definitions (declarations)}$ |
+|   | $\vert$ | $\controlTypDcl \typVar \typVars \prmDefs$ | $\qquad \text{control types}$ |
+|   | $\vert$ | $\parserTypDcl \typVar \typVars \prmDefs$ | $\qquad \text{parser types}$ |
+|   | $\vert$ | $\packageTypDcl \typVar \typVars \prmDefs$ | $\qquad \text{package types}$ |
+
+**Programs:**
+
+|     |      |     |     |
+|~~~~:|:~~~~:|:~~~~|:~~~~|
+| $\prog$ | $::=$ | $\dcls$ | $\qquad \text{programs}$ |
+
 ~ End P4Syntax
 
 
@@ -916,15 +1027,15 @@ A table type is well-formed under an environment if it exists in the environment
 
 ~ End InfRule
 
-### Typename Type { #sec-typename-t }
+### Reference Type { #sec-typename-t }
 
 The rule $\typeNameT$ states that the type name $\name$ is well-formed under the environment $\env$ if it exists in the environment.
 
 ~ Begin InfRule
 
   \inferrule
-     { \lookupTypEnv \name = \whatevs}
-     { \typWellFormed {\typNameTyp \name} }
+     { \lookupTypEnv \typVar = \whatevs}
+     { \typWellFormed {\typVar} }
      \quad (\typeNameT)
 
 ~ End InfRule
@@ -1354,7 +1465,7 @@ Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or bin
      { \expenv \exp {\prim \exp} \typ  \dir \\
        \widthInt \typ = \_}
        % \typ = {\bitWidthTyp \width} \textOr \intWidthTyp \width}
-     { \expenv {\bitComplement\!\exp} {\bitComplement\!\prim \exp} {\typ} \dir }
+     { \expenv {\bitComplement\exp} {\bitComplement\prim \exp} {\typ} \dir }
      \quad (\bitwiseComplementE)
 
   \inferrule
@@ -2459,7 +2570,7 @@ check parameter shadowing takes two lists of parameters and checks if there is a
      { \prim \typ = \trans \typ \emp \\
        (\prim \exp, \pprim \typ, \dir) = \castExpression \exp {\prim \typ}\\
        \val = \compileTimeEval {\prim \exp} }
-     { \dclenvvv {\const \typ \var \exp} {\const {\prim \typ} \var \val} {\addConstEnv \var \val} {\addTypeEnv \var {(\prim \typ, \less)}}}
+     { \dclenvvv {\constDcl \typ \var \exp} {\constDcl {\prim \typ} \var \val} {\addConstEnv \var \val} {\addTypeEnv \var {(\prim \typ, \less)}}}
      \quad (\constantD)
 
   \inferrule
@@ -2501,7 +2612,7 @@ check parameter shadowing takes two lists of parameters and checks if there is a
        \prim \typ = \trans \typ \emp \\
        \allowedTypeForVar {\prim \typ} \\
        \typWellFormed {\prim \typ}}
-     { \dclenvvv {\varDecl \typ \var } {\varDecl {\prim \typ} \var} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+     { \dclenvvv {\varDcl \typ \var } {\varDcl {\prim \typ} \var} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
      \quad (\varD)
 
   \inferrule
@@ -2510,7 +2621,7 @@ check parameter shadowing takes two lists of parameters and checks if there is a
        \allowedTypeForVar {\prim \typ} \\
        \typWellFormed {\prim \typ} \\
        (\prim \exp, \prim \typ, \dir) = \castExpression  {\prim \typ} \exp}
-     { \dclenvvv {\varInit \typ \var \exp} {\varInit {\prim \typ} \var {(\prim \exp, \prim \typ, \dir)}} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
+     { \dclenvvv {\varDclInit \typ \var \exp} {\varDclInit {\prim \typ} \var {(\prim \exp, \prim \typ, \dir)}} \constEnv {\addTypeEnv \var {(\prim \typ, \inout)}} }
      \quad (\varInitD)
 
   \inferrule

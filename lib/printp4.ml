@@ -387,9 +387,9 @@ let print_table_key p (key: coq_TableKey) =
 
 let print_table_keys p (keys: coq_TableKey list) =
   if (List.length keys <> 0) then
-    fprintf p "@[<v 4>key = {@,%a@]@,}"
+    fprintf p "@[<v 4>key = {@,%a@]@,}@,"
         (print_list print_table_key) keys
-  else fprintf p "@[<h>key = { }@]"
+  (* keyless table: nothing to print *)
 
 let print_table_entry p (entry: coq_TableEntry) =
   match entry with
@@ -412,6 +412,7 @@ let print_table_entries p (entries: coq_TableEntry list)=
   if (List.length entries <> 0) then
     fprintf p "@,@[<v 4>const entries = {@,%a@]@,}"
         (print_list print_table_entry) entries
+    (* empty const entries: not well supported in Tofino though valid in spec *)
 
 let print_table_size p size = 
   fprintf p "@,@[<h>size = %a;@]"
@@ -691,7 +692,7 @@ let rec print_decl p (decl : coq_Declaration) =
           print_block (OtherBlock, body)
   | DeclTable (info, name, keys, actions, entries, 
               default_action, size, custom_properties) ->
-      fprintf p "@[<v 4>table %a {@,%a@,%a%a%a%a"
+      fprintf p "@[<v 4>table %a {@,%a%a%a%a%a"
           p4string name
           print_table_keys keys
           print_table_actions actions

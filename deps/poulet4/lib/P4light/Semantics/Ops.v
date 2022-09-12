@@ -7,7 +7,7 @@ Require Import
         Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
      Typed P4String SyntaxUtil.
-From Poulet4.Utils Require Import AList CoqLib P4Arith.
+From Poulet4.Utils Require Import AList AListUtil CoqLib P4Arith.
 Import ListNotations.
 
 Section BitStringSlice.
@@ -444,7 +444,9 @@ Section Ops.
           match AList.get l2 (str k) with
           | None => None
           | Some oldv =>
-              match eval_cast t oldv, fields_of_val_record l1' l2 with
+              match eval_cast t oldv,
+                fields_of_val_record l1'
+                  (AListUtil.remove_first (str k) l2) with
               | Some newv, Some l3 => Some ((str k, newv) :: l3)
               | _, _ => None
               end

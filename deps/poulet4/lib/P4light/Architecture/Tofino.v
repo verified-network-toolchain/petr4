@@ -415,10 +415,10 @@ Definition check_lpm_count (mks: list ident): option nat :=
         else Some index
   end.
 
-Fixpoint assert_int (v: Val): option (N * Z * list bool )  :=
+Fixpoint assert_int (v: Val): option (N * Z * list bool) :=
   match v with
-  | ValBaseBit bits => Some ((BitArith.from_lbool bits), bits)
-  | ValBaseInt bits => Some ((IntArith.from_lbool bits), bits)
+  | ValBaseBit bits => Some (BitArith.from_lbool bits, bits)
+  | ValBaseInt bits => Some (IntArith.from_lbool bits, bits)
   | ValBaseSenumField _ val => assert_int val
   | _ => None
   end.
@@ -485,9 +485,7 @@ Fixpoint vmm_help (bits0 bits1 bits2: list bool): bool :=
   | [], [], [] => true
   | false::tl2, _::tl1, _::tl0 => vmm_help tl0 tl1 tl2
   | true::tl2, hd1::tl1, hd0::tl0 => 
-      if (Bool.eqb hd0 hd1) 
-      then (vmm_help tl0 tl1 tl2) 
-      else false
+      andb (Bool.eqb hd0 hd1) (vmm_help tl0 tl1 tl2)
   (* should never hit *)
   | _, _, _ => dummy_bool
   end.
@@ -500,26 +498,14 @@ Definition values_match_mask (key: Val) (val mask: Val): bool :=
   | _, _, _ => dummy_bool
   end.
 
-Fixpoint vmm_help_z (v : Z) (bits1 bits2: list bool) :=
+(* Fixpoint vmm_help_z (v : Z) (bits1 bits2: list bool) :=
   match bits2, bits1 with
   | [], [] => true
   | false::tl2, _::tl1 => vmm_help_z (v / 2) tl1 tl2
   | true::tl2, hd1::tl1 => 
-      if Bool.eqb (Z.odd v) hd1
-      then (vmm_help_z (v / 2) tl1 tl2)
-      else false
+      andb (Bool.eqb (Z.odd v) hd1) (vmm_help_z (v / 2) tl1 tl2)
   | _, _ => dummy_bool
-  end.
-
-(* Fixpoint vmm_help_z' (v : Z) (bits1 bits2: list bool) :=
-  match bits2, bits1 with
-  | [], [] => true
-  | false::tl2, _::tl1 => vmm_help_z' (v / 2) tl1 tl2
-  | true::tl2, hd1::tl1 => 
-      andb (Bool.eqb (Z.odd v) hd1) (vmm_help_z' (v / 2) tl1 tl2)
-  | _, _ => Tofino.dummy_bool
   end. *)
-
 
 Definition lpm_nbits_to_mask (w1 w2 : N) : list bool :=
 (Zrepeat false (Z.of_N (w1 - w2))) ++ (Zrepeat true (Z.of_N w2)).

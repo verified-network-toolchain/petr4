@@ -158,57 +158,73 @@ Section Util.
   | BTOr :
       binary_type Or TypBool TypBool TypBool.
 
-  (** Evidence a cast is allowed. *)
+  (** [cast_type τ₁ τ₂] is evidence
+      a cast from [τ₁] to [τ₂] is allowed. *)
   Inductive cast_type : typ -> typ -> Prop :=
-  | CTBool w :
-      cast_type (TypBit w) TypBool
-  | CTBit t w :
-      match t with
-      | TypBool
-      | TypBit _
-      | TypInt _
-      | TypInteger
-      | TypEnum _ (Some (TypBit _)) _ => True
-      | _ => False
-      end ->
-      cast_type t (TypBit w)
-  | CTInt t w :
-      match t with
-      | TypBool
-      | TypBit _
-      | TypInt _
-      | TypInteger
-      | TypEnum _ (Some (TypInt _)) _ => True
-      | _ => False
-      end ->
-      cast_type t (TypInt w)
-  | CTEnum t1 t2 enum fields :
-      match t1, t2 with
-      | TypBit _, TypBit _
-      | TypInt _, TypInt _
-      | TypEnum _ (Some (TypBit _)) _, TypBit _
-      | TypEnum _ (Some (TypInt _)) _, TypInt _ => True
-      | _, _ => False
-      end ->
-      cast_type t1 (TypEnum enum (Some t2) fields)
-  | CTNewType x t t' :
-      cast_type t t' ->
-      cast_type t (TypNewType x t')
-  | CTStructOfTuple ts xts :
-      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
-      cast_type (TypTuple ts) (TypStruct xts)
-  | CTStructOfRecord xts xts' :
-      AList.all_values cast_type xts xts' ->
-      cast_type (TypRecord xts) (TypStruct xts')
-  | CTHeaderOfTuple ts xts :
-      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
-      cast_type (TypTuple ts) (TypHeader xts)
-  | CTHeaderOfRecord xts xts' :
-      AList.all_values cast_type xts xts' ->
-      cast_type (TypRecord xts) (TypHeader xts')
-  | CTTuple ts ts' :
-      Forall2 cast_type ts ts' ->
-      cast_type (TypTuple ts) (TypTuple ts').
+  | Cast_Bit_Bool :
+    cast_type (TypBit 1) TypBool
+  | Cast_Bool_Bit :
+    cast_type TypBool (TypBit 1)
+  | Cast_Int_Bit w :
+    cast_type (TypInt w) (TypBit w)
+  | Cast_Bit_Bit w₁ w₂ :
+    cast_type (TypBit w₁) (TypBit w₂)
+  | Cast_Integer_Bit w :
+    cast_type TypInteger (TypBit w)
+  | Cast_Senum_Bit E w members :
+    cast_type (TypEnum E (Some (TypBit w)) members) (TypBit w)
+  | Cast_Bit_Int w :
+    cast_type (TypBit w) (TypInt w)
+  | Cast_Integer_Int w :
+    cast_type TypInteger (TypInt w)
+  | Cast_Senum_Int E w members :
+    cast_type (TypEnum E (Some (TypInt w)) members) (TypInt w)
+  | Cast_NewType_Type X τ₁ τ₂ :
+    cast_type τ₁ τ₂ ->
+    cast_type (TypNewType X τ₁) τ₂
+  | Cast_Bit_Senum w E members :
+    cast_type (TypBit w) (TypEnum E (Some (TypBit w)) members)
+  | Cast_Senum_Senum_Bit E₁ E₂ w members₁ members₂ :
+    cast_type
+      (TypEnum E₁ (Some (TypBit w)) members₁)
+      (TypEnum E₂ (Some (TypBit w)) members₂)
+  | Cast_Int_Senum w E members :
+    cast_type (TypInt w) (TypEnum E (Some (TypInt w)) members)
+  | Cast_Senum_Senum_Int E₁ E₂ w members₁ members₂ :
+    cast_type
+      (TypEnum E₁ (Some (TypInt w)) members₁)
+      (TypEnum E₂ (Some (TypInt w)) members₂)
+  | Cast_Tuple_Struct ts xts :
+    AList.key_unique xts = true ->
+    Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+    cast_type (TypTuple ts) (TypStruct xts)
+  | Cast_Header_Struct xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypHeader xts) (TypStruct yts)
+  | Cast_Struct_Struct xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypStruct xts) (TypStruct yts)
+  | Cast_Tuple_Header ts xts :
+    AList.key_unique xts = true ->
+    Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+    cast_type (TypTuple ts) (TypHeader xts)
+  | Cast_Header_Header xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypHeader xts) (TypHeader yts)
+  | Cast_Struct_Header xts yts :
+    AList.key_unique xts = true ->
+    AList.key_unique yts = true ->
+    AList.all_values cast_type xts yts ->
+    cast_type (TypStruct xts) (TypHeader yts)
+  | Cast_Tuple_Tuple ts₁ ts₂ :
+    Forall2 cast_type ts₁ ts₂ ->
+    cast_type (TypTuple ts₁) (TypTuple ts₂).
   
   (** Types whose fields are accessable via [AList.v] functions. *)
   Variant member_type (ts : P4String.AList tags_t typ)
@@ -225,19 +241,21 @@ Section Util.
   (** May syntactically appear as an l-expression. *)
   Inductive lexpr_ok : expr -> Prop :=
   | lexpr_name tag x loc t dir :
-      match dir with
-      | Directionless => False | _ => True
-      end ->
-      lexpr_ok (MkExpression tag (ExpName x loc) t dir)
+    match dir with
+    | Directionless => False | _ => True
+    end ->
+    lexpr_ok (MkExpression tag (ExpName x loc) t dir)
   | lexpr_member tag e x t dir :
-      lexpr_ok e ->
-      lexpr_ok (MkExpression tag (ExpExpressionMember e x) t dir)
+    P4String.str x <> "size"%string ->
+    P4String.str x <> "lastIndex"%string ->
+    lexpr_ok e ->
+    lexpr_ok (MkExpression tag (ExpExpressionMember e x) t dir)
   | lexpr_slice tag e hi lo t dir :
-      lexpr_ok e ->
-      lexpr_ok (MkExpression tag (ExpBitStringAccess e lo hi) t dir)
+    lexpr_ok e ->
+    lexpr_ok (MkExpression tag (ExpBitStringAccess e lo hi) t dir)
   | lexpr_access tag e₁ e₂ t dir :
-      lexpr_ok e₁ ->
-      lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
+    lexpr_ok e₁ ->
+    lexpr_ok (MkExpression tag (ExpArrayAccess e₁ e₂) t dir).
 
   (** "Normalizes" a type to those in a
       one-to-one correspondence with values
@@ -369,6 +387,131 @@ Section EqTypeInd.
       | Eq_Tuple  _ H   => HTuple  _ H (LI H)
       end.
 End EqTypeInd.
+
+Section Cast_Type_ind.
+  Variable tags_t : Type.
+  Notation typ := (@P4Type tags_t).
+  Variable P : typ -> typ -> Prop.
+  Hypothesis ih_bit_bool : P (TypBit 1) TypBool.
+  Hypothesis ih_bool_bit : P TypBool (TypBit 1).
+  Hypothesis ih_int_bit : forall w, P (TypInt w) (TypBit w).
+  Hypothesis ih_bit_bit : forall w₁ w₂, P (TypBit w₁) (TypBit w₂).
+  Hypothesis ih_integer_bit : forall w, P TypInteger (TypBit w).
+  Hypothesis ih_senum_bit : forall E w mems,
+      P (TypEnum E (Some (TypBit w)) mems) (TypBit w).
+  Hypothesis ih_bit_int : forall w, P (TypBit w) (TypInt w).
+  Hypothesis ih_integer_int : forall w, P TypInteger (TypInt w).
+  Hypothesis ih_senum_int : forall E w mems,
+      P (TypEnum E (Some (TypInt w)) mems) (TypInt w).
+  Hypothesis ih_newtype_type : forall X t1 t2,
+      cast_type t1 t2 -> P t1 t2 -> P (TypNewType X t1) t2.
+  Hypothesis ih_bit_senum : forall w E members,
+      P (TypBit w) (TypEnum E (Some (TypBit w)) members).
+  Hypothesis ih_senum_senum_bit : forall E₁ E₂ w members₁ members₂,
+      P (TypEnum E₁ (Some (TypBit w)) members₁)
+        (TypEnum E₂ (Some (TypBit w)) members₂).
+  Hypothesis ih_int_senum : forall w E members,
+      P (TypInt w) (TypEnum E (Some (TypInt w)) members).
+  Hypothesis ih_senum_senum_int : forall E₁ E₂ w members₁ members₂,
+      P (TypEnum E₁ (Some (TypInt w)) members₁)
+        (TypEnum E₂ (Some (TypInt w)) members₂).
+  Hypothesis ih_tuple_struct : forall ts xts,
+      AList.key_unique xts = true ->
+      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+      Forall2 (fun t xt => P t (snd xt)) ts xts ->
+      P (TypTuple ts) (TypStruct xts).
+  Hypothesis ih_header_struct : forall xts yts,
+      AList.key_unique xts = true ->
+      AList.key_unique yts = true ->
+      AList.all_values cast_type xts yts ->
+      AList.all_values P xts yts ->
+      P (TypHeader xts) (TypStruct yts).
+  Hypothesis ih_struct_struct : forall xts yts,
+      AList.key_unique xts = true ->
+      AList.key_unique yts = true ->
+      AList.all_values cast_type xts yts ->
+      AList.all_values P xts yts ->
+      P (TypStruct xts) (TypStruct yts).
+  Hypothesis ih_tuple_header : forall ts xts,
+      AList.key_unique xts = true ->
+      Forall2 (fun t xt => cast_type t (snd xt)) ts xts ->
+      Forall2 (fun t xt => P t (snd xt)) ts xts ->
+      P (TypTuple ts) (TypHeader xts).
+  Hypothesis ih_header_header : forall xts yts,
+      AList.key_unique xts = true ->
+      AList.key_unique yts = true ->
+      AList.all_values cast_type xts yts ->
+      AList.all_values P xts yts ->
+      P (TypHeader xts) (TypHeader yts).
+  Hypothesis ih_struct_header : forall xts yts,
+      AList.key_unique xts = true ->
+      AList.key_unique yts = true ->
+      AList.all_values cast_type xts yts ->
+      AList.all_values P xts yts ->
+      P (TypStruct xts) (TypHeader yts).
+  Hypothesis ih_tuple_tuple : forall ts1 ts2,
+      Forall2 cast_type ts1 ts2 ->
+      Forall2 P ts1 ts2 ->
+      P (TypTuple ts1) (TypTuple ts2).
+
+  Definition my_cast_type_ind : forall τ₁ τ₂ : typ,
+      cast_type τ₁ τ₂ -> P τ₁ τ₂ :=
+    fix cstind t1 t2 hc :=
+      let fix lind {ts1 ts2}
+            (hc : Forall2 cast_type ts1 ts2)
+        : Forall2 P ts1 ts2 :=
+        match hc with
+        | Forall2_nil _ => Forall2_nil _
+        | Forall2_cons _ _ h t =>
+            Forall2_cons _ _ (cstind _ _ h) (lind t)
+        end in
+      let fix alind {xts yts}
+            (hc : AList.all_values cast_type xts yts)
+        : AList.all_values P xts yts :=
+        match hc with
+        | Forall2_nil _ => Forall2_nil _
+        | Forall2_cons _ _ (conj hk h) t =>
+            Forall2_cons _ _ (conj hk (cstind _ _ h)) (alind t)
+        end in
+      let fix to_alind {ts xts}
+            (hc : Forall2 (fun t xt => cast_type t (snd xt)) ts xts)
+        : Forall2 (fun t xt => P t (snd xt)) ts xts :=
+        match hc with
+        | Forall2_nil _ => Forall2_nil _
+        | Forall2_cons _ _ h t =>
+            Forall2_cons _ _ (cstind _ _ h) (to_alind t)
+        end in
+      match hc with
+      | Cast_Bit_Bool => ih_bit_bool
+      | Cast_Bool_Bit => ih_bool_bit
+      | Cast_Int_Bit w => ih_int_bit w
+      | Cast_Bit_Bit w1 w2 => ih_bit_bit w1 w2
+      | Cast_Integer_Bit w => ih_integer_bit w
+      | Cast_Senum_Bit E w mems => ih_senum_bit E w mems
+      | Cast_Bit_Int w => ih_bit_int w
+      | Cast_Integer_Int w => ih_integer_int w
+      | Cast_Senum_Int E w mems => ih_senum_int E w mems
+      | Cast_NewType_Type X _ _ h => ih_newtype_type X _ _ h (cstind _ _ h)
+      | Cast_Bit_Senum E w mems => ih_bit_senum E w mems
+      | Cast_Senum_Senum_Bit a b c d e => ih_senum_senum_bit a b c d e
+      | Cast_Int_Senum E w mems => ih_int_senum E w mems
+      | Cast_Senum_Senum_Int a b c d e => ih_senum_senum_int a b c d e
+      | Cast_Tuple_Struct _ _ hk h =>
+          ih_tuple_struct _ _ hk h (to_alind h)
+      | Cast_Header_Struct _ _ hk1 hk2 h =>
+          ih_header_struct _ _ hk1 hk2 h (alind h)
+      | Cast_Struct_Struct _ _ hk1 hk2 h =>
+          ih_struct_struct _ _ hk1 hk2 h (alind h)
+      | Cast_Tuple_Header _ _ hk h =>
+          ih_tuple_header _ _ hk h (to_alind h)
+      | Cast_Header_Header _ _ hk1 hk2 h =>
+          ih_header_header _ _ hk1 hk2 h (alind h)
+      | Cast_Struct_Header _ _ hk1 hk2 h =>
+          ih_struct_header _ _ hk1 hk2 h (alind h)
+      | Cast_Tuple_Tuple _ _ h =>
+          ih_tuple_tuple _ _ h (lind h)
+      end.
+End Cast_Type_ind.
 
 Ltac some_inv :=
   match goal with
@@ -803,5 +946,168 @@ Section Lemmas.
       member_type (map (fun '(x,t) => (x,normᵗ t)) ts) (normᵗ t).
   Proof.
     intros ts t H; inversion H; subst; cbn; auto.
+  Qed.
+
+  Local Hint Constructors cast_type : core.
+
+  Lemma cast_type_normᵗ_same : forall τ₁ τ₂ : typ,
+      cast_type τ₁ τ₂ -> normᵗ τ₂ = τ₂.
+  Proof.
+    intros t1 t2 h;
+      induction h using my_cast_type_ind;
+      cbn; auto; f_equal.
+    - apply Forall2_only_r_Forall in H1.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in H1.
+      apply map_ext_Forall in H1.
+      rewrite map_id in H1.
+      rewrite map_pat_combine,map_id.
+      rewrite H1. apply combine_map_fst_snd.
+    - unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      rewrite Forall2_map_both with (f:=fst) in *.
+      rewrite Forall2_map_both with (f:=snd) in H1.
+      destruct H1 as [h_fst_xts_yts _].
+      destruct H2 as [_ ih].
+      apply Forall2_only_r_Forall in ih.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in ih.
+      apply map_ext_Forall in ih.
+      rewrite map_id in ih.
+      rewrite map_pat_combine,map_id.
+      rewrite ih. apply combine_map_fst_snd.
+    - unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      rewrite Forall2_map_both with (f:=fst) in *.
+      rewrite Forall2_map_both with (f:=snd) in H1.
+      destruct H1 as [h_fst_xts_yts _].
+      destruct H2 as [_ ih].
+      apply Forall2_only_r_Forall in ih.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in ih.
+      apply map_ext_Forall in ih.
+      rewrite map_id in ih.
+      rewrite map_pat_combine,map_id.
+      rewrite ih. apply combine_map_fst_snd.
+    - apply Forall2_only_r_Forall in H1.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in H1.
+      apply map_ext_Forall in H1.
+      rewrite map_id in H1.
+      rewrite map_pat_combine,map_id.
+      rewrite H1. apply combine_map_fst_snd.
+    - unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      rewrite Forall2_map_both with (f:=fst) in *.
+      rewrite Forall2_map_both with (f:=snd) in H1.
+      destruct H1 as [h_fst_xts_yts _].
+      destruct H2 as [_ ih].
+      apply Forall2_only_r_Forall in ih.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in ih.
+      apply map_ext_Forall in ih.
+      rewrite map_id in ih.
+      rewrite map_pat_combine,map_id.
+      rewrite ih. apply combine_map_fst_snd.
+    - unfold AList.all_values in *.
+      rewrite Forall2_conj in *.
+      rewrite Forall2_map_both with (f:=fst) in *.
+      rewrite Forall2_map_both with (f:=snd) in H1.
+      destruct H1 as [h_fst_xts_yts _].
+      destruct H2 as [_ ih].
+      apply Forall2_only_r_Forall in ih.
+      rewrite <- Forall_map with
+        (P:=fun t => normᵗ t = t) (f:=snd) in ih.
+      apply map_ext_Forall in ih.
+      rewrite map_id in ih.
+      rewrite map_pat_combine,map_id.
+      rewrite ih. apply combine_map_fst_snd.
+    - apply Forall2_only_r_Forall in H0.
+      apply map_ext_Forall in H0.
+      rewrite map_id in H0; assumption.
+  Qed.
+  
+  Lemma cast_type_normᵗ : forall τ₁ τ₂ : typ,
+      cast_type τ₁ τ₂ -> cast_type (normᵗ τ₁) (normᵗ τ₂).
+  Proof.
+    intros t1 t2 h; induction h using my_cast_type_ind;
+      cbn; auto.
+    - constructor.
+      + pose proof @AListUtil.key_unique_map_values as h.
+        unfold AListUtil.map_values in h; rewrite h; assumption.
+      + rewrite Forall2_map_r, map_snd_map.
+        rewrite Forall2_map_r with
+          (R:=fun x y => cast_type (normᵗ x) (normᵗ y))
+          (f:=snd) in H1.
+        rewrite Forall2_map_both in H1; assumption.
+    - pose proof @AListUtil.key_unique_map_values as h.
+      unfold AListUtil.map_values in h.
+      constructor; try (rewrite h; assumption).
+      clear h.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *; clear H1.
+      destruct H2 as [hfst hsnd].
+      rewrite Forall2_map_both in hsnd.
+      do 2 rewrite <- map_map with (f:=snd) in hsnd.
+      rewrite Forall2_map_both in hfst.
+      rewrite Forall2_map_both.
+      rewrite Forall2_eq in *.
+      do 2 rewrite map_fst_map,map_id; split; auto.
+      rewrite Forall2_map_both.
+      do 2 rewrite map_snd_map; assumption.
+    - pose proof @AListUtil.key_unique_map_values as h.
+      unfold AListUtil.map_values in h.
+      constructor; try (rewrite h; assumption).
+      clear h.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *; clear H1.
+      destruct H2 as [hfst hsnd].
+      rewrite Forall2_map_both in hsnd.
+      do 2 rewrite <- map_map with (f:=snd) in hsnd.
+      rewrite Forall2_map_both in hfst.
+      rewrite Forall2_map_both.
+      rewrite Forall2_eq in *.
+      do 2 rewrite map_fst_map,map_id; split; auto.
+      rewrite Forall2_map_both.
+      do 2 rewrite map_snd_map; assumption.
+    - constructor.
+      + pose proof @AListUtil.key_unique_map_values as h.
+        unfold AListUtil.map_values in h; rewrite h; assumption.
+      + rewrite Forall2_map_r, map_snd_map.
+        rewrite Forall2_map_r with
+          (R:=fun x y => cast_type (normᵗ x) (normᵗ y))
+          (f:=snd) in H1.
+        rewrite Forall2_map_both in H1; assumption.
+    - pose proof @AListUtil.key_unique_map_values as h.
+      unfold AListUtil.map_values in h.
+      constructor; try (rewrite h; assumption).
+      clear h.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *; clear H1.
+      destruct H2 as [hfst hsnd].
+      rewrite Forall2_map_both in hsnd.
+      do 2 rewrite <- map_map with (f:=snd) in hsnd.
+      rewrite Forall2_map_both in hfst.
+      rewrite Forall2_map_both.
+      rewrite Forall2_eq in *.
+      do 2 rewrite map_fst_map,map_id; split; auto.
+      rewrite Forall2_map_both.
+      do 2 rewrite map_snd_map; assumption.
+    - pose proof @AListUtil.key_unique_map_values as h.
+      unfold AListUtil.map_values in h.
+      constructor; try (rewrite h; assumption).
+      clear h.
+      unfold AList.all_values in *.
+      rewrite Forall2_conj in *; clear H1.
+      destruct H2 as [hfst hsnd].
+      rewrite Forall2_map_both in hsnd.
+      do 2 rewrite <- map_map with (f:=snd) in hsnd.
+      rewrite Forall2_map_both in hfst.
+      rewrite Forall2_map_both.
+      rewrite Forall2_eq in *.
+      do 2 rewrite map_fst_map,map_id; split; auto.
+      rewrite Forall2_map_both.
+      do 2 rewrite map_snd_map; assumption.
+    - constructor. rewrite <- Forall2_map_both; assumption.
   Qed.
 End Lemmas.

@@ -17,15 +17,12 @@
 all: poulet4 poulet4_Ccomp
 
 poulet4:
-	opam unpin poulet4 --yes
 	$(MAKE) -C ./poulet4
-	opam install ./poulet4 --working-dir --yes
+	$(MAKE) -C ./poulet4 install
 
 poulet4_Ccomp: poulet4
-	$(MAKE) -C poulet4_Ccomp clean
-	$(MAKE) -C poulet4_Ccomp
-	opam unpin poulet4_Ccomp --yes
-	opam install ./poulet4_Ccomp/extraction --working-dir --yes
+	$(MAKE) -C ./poulet4_Ccomp
+	$(MAKE) -C ./poulet4_Ccomp install
 
 clean:
 	$(MAKE) -C poulet4 clean

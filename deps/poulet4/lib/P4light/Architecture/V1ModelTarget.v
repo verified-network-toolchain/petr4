@@ -80,17 +80,21 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
   else
     (e, s).
 
-Definition extern_func_sem := extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+Definition extern_func_sem :=
+  extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+Definition extern_func_interp :=
+  extern_env -> extern_state -> path -> list P4Type -> list Val -> option (extern_state * list Val * signal).
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
   ef_func : ident;
-  ef_sem : extern_func_sem
+  ef_sem : extern_func_sem;
+  ef_interp : extern_func_interp
 }.
 
 Definition apply_extern_func_sem (func : extern_func) : extern_env -> extern_state -> ident -> ident -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop :=
   match func with
-  | mk_extern_func_sem class_name func_name sem =>
+  | mk_extern_func_sem class_name func_name sem _ =>
       fun e s class_name' func_name' =>
           if String.eqb class_name class_name' && String.eqb func_name func_name' then
             sem e s
@@ -113,7 +117,8 @@ Inductive register_read_sem : extern_func_sem :=
 Definition register_read : extern_func := {|
   ef_class := "register";
   ef_func := "read";
-  ef_sem := register_read_sem
+  ef_sem := register_read_sem;
+  ef_interp := fun _ _ _ _ _ => None;
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
@@ -130,7 +135,8 @@ Inductive register_write_sem : extern_func_sem :=
 Definition register_write : extern_func := {|
   ef_class := "register";
   ef_func := "write";
-  ef_sem := register_write_sem
+  ef_sem := register_write_sem;
+  ef_interp := fun _ _ _ _ _ => None;
 |}.
 
 Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal * list bool) :=
@@ -172,7 +178,8 @@ Inductive packet_in_extract_sem : extern_func_sem :=
 Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
   ef_func := "extract";
-  ef_sem := packet_in_extract_sem
+  ef_sem := packet_in_extract_sem;
+  ef_interp := fun _ _ _ _ _ => None;
 |}.
 
 Definition emit (v : Val) : Packet (list bool) :=
@@ -190,7 +197,8 @@ Inductive packet_out_emit_sem : extern_func_sem :=
 Definition packet_out_emit : extern_func := {|
   ef_class := "packet_out";
   ef_func := "emit";
-  ef_sem := packet_out_emit_sem
+  ef_sem := packet_out_emit_sem;
+  ef_interp := fun _ _ _ _ _ => None;
 |}.
 
 Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
@@ -244,8 +252,17 @@ Inductive hash_sem : extern_func_sem :=
 Definition hash : extern_func := {|
   ef_class := "";
   ef_func := "hash";
-  ef_sem := hash_sem
+  ef_sem := hash_sem;
+  ef_interp := fun _ _ _ _ _ => None;
 |}.
+
+Definition extern_funcs : list extern_func := [
+    register_read;
+    register_write;
+    packet_in_extract;
+    packet_out_emit;
+    hash
+  ].
 
 (* This only works when tags_t is a unit type. *)
 
@@ -516,8 +533,22 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
     end
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
-Admitted.
+Definition find_func (funcs: list extern_func) (class func: ident) : option extern_func :=
+  List.find (fun ef => ((class =? ef.(ef_class))%string &&
+                        (func =? ef.(ef_func))%string))
+            funcs.
+  
+Definition interp_extern
+           (env: extern_env)
+           (st: extern_state)
+           (class: ident)
+           (method: ident)
+           (this: path)
+           (targs: list P4Type)
+           (args: list Val)
+  : option (extern_state * list Val * signal) :=
+  let* func := find_func extern_funcs class method in
+  func.(ef_interp) env st this targs args.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,

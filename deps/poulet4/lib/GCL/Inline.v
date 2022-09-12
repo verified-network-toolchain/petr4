@@ -984,13 +984,10 @@ Fixpoint elaborate_arrays (c : Inline.t) : result string Inline.t :=
     let+ actions' := fold_left rec_act_call actions (ok []) in
     IInvoke x keys (rev actions')
   | IExternMethodCall extern method arrow ret =>
-      (*if String.eqb method "extract"
-    then elaborate_extract extern arrow ret
-    else*)
-      (*if List.existsb e_has_typ_var (List.map (paramarg_elim ∘ snd) arrow) then
-        error "in elaborte args have type var" else*)
-      let arrow := elaborate_arguments arrow in
-      ok (IExternMethodCall extern method arrow ret)
+      if String.eqb method "extract"
+      then elaborate_extract extern arrow ret else
+        let arrow := elaborate_arguments arrow in
+        ok (IExternMethodCall extern method arrow ret)
   end.
 
 Definition struct_fields (s : string) (fields : list E.t) : list (string * E.t)  :=

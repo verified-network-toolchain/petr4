@@ -2180,4 +2180,12 @@ Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : genv :=
 Definition gen_ge (prog : @program tags_t) : genv :=
   gen_ge' (gen_am_ge prog) prog.
 
+Definition gen_init_es' (am_ge : genv) (prog : @program tags_t) : extern_state :=
+  let ge_func := load_prog prog in
+  let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
+  snd (instantiate_prog am_ge ge_typ prog).
+
+Definition gen_init_es (prog : @program tags_t) : extern_state :=
+  gen_init_es' (gen_am_ge prog) prog.
+
 End Semantics.

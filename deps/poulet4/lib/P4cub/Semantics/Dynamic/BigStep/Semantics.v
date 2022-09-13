@@ -259,9 +259,6 @@ Fixpoint copy_out_from_args
   | _, _ => ϵ_call
   end.
 
-Definition lastn {A : Set} (n : nat) (l : list A) : list A :=
-  List.skipn (List.length l - n) l.
-
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
   : list Val.v -> ctx -> Stmt.s -> list Val.v -> signal

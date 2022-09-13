@@ -8,6 +8,10 @@ Import ListNotations.
 
 Open Scope Z_scope.
 
+Lemma nat_to_Z_to_N : forall n,
+    Z.to_N (Z.of_nat n) = N.of_nat n.
+Proof. lia. Qed.
+
 Lemma exp_ge_one : forall n1 n2 : Z, 0 < n1 -> 0 <= n2 -> 1 <= n1 ^ n2.
 Proof.
   intros n1 n2 H.
@@ -636,6 +640,16 @@ Lemma Zlength_to_lbool: forall w v,
 Proof.
   intros. unfold to_lbool. rewrite Zlength_rev.
   rewrite Zlength_to_lbool'. rewrite Zlength_nil. lia.
+Qed.
+
+Lemma length_to_lbool : forall w z,
+    length (to_lbool w z) = N.to_nat w.
+Proof.
+  intros w z.
+  replace (length (to_lbool w z))
+    with (Z.to_nat (Z.of_nat (length (to_lbool w z)))) by lia.
+  rewrite <- Zcomplements.Zlength_correct.
+  rewrite Zlength_to_lbool. lia.
 Qed.
 
 Lemma bit_mod_bound_0: forall v, BitArith.mod_bound 0 v = 0.

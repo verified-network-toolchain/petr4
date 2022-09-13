@@ -3,7 +3,7 @@ From Coq Require Import Strings.String
 From Poulet4 Require Import Utils.Utils
      P4light.Syntax.Syntax P4light.Syntax.Typed
      Utils.P4Arith P4light.Syntax.P4String
-     P4light.Semantics.Semantics
+     P4light.Semantics.Semantics P4light.Semantics.Ops
      Monads.Option Utils.AListUtil.
 From Equations Require Import Equations.
 Import List.ListNotations.

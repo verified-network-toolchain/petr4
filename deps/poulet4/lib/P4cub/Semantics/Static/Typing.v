@@ -122,6 +122,26 @@ Record stmt_type_env : Set :=
 Global Instance eta_stmt_type_env : Settable _ :=
   settable! mk_stmt_type_env < sfuncts ; cntx ; expr_env >.
 
+Inductive type_fun_kind (Γ : stmt_type_env)
+    : Stmt.fun_kind -> list Expr.t -> Expr.params -> Prop :=
+| type_call_funct f τs oe params ot :
+  sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  predop lvalue_ok oe ->
+  relop (type_expr Γ) oe (option_map (tsub_t (gen_tsub τs)) ot) ->
+  type_fun_kind Γ (Stmt.Funct f τs oe) τs params
+| type_call_action a cargs aa cparams params :
+  action_call_ok aa (cntx Γ) ->
+  aa a = Some (cparams,params) ->
+  Forall2 (type_expr Γ) cargs cparams ->
+  type_fun_kind Γ (Stmt.Action a cargs) [] params
+| type_call_method ei m τs oe params ot extern_insts methods :
+  extern_call_ok extern_insts (cntx Γ) ->
+  extern_insts ei = Some (inl methods) ->
+  Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|}) ->
+  predop lvalue_ok oe ->
+  relop (type_expr Γ) oe (option_map (tsub_t (gen_tsub τs)) ot) ->
+  type_fun_kind Γ (Stmt.Method ei m τs oe) τs params.
+
 Reserved Notation "Γ '⊢ₛ' s ⊣ sig" (at level 80, no associativity).
 
 Local Open Scope stmt_scope.
@@ -150,25 +170,7 @@ Inductive type_stmt
   Γ ⊢ₑ e₂ ∈ τ ->
   Γ ⊢ₛ e₁ `:= e₂ ⊣ Cont
 | type_fun_call Γ params τs args fk :
-  match fk with
-  | Stmt.Funct f τs' oe
-    => τs = τs' /\ predop lvalue_ok oe /\ exists ot,
-        sfuncts Γ f = Some (List.length τs, {|paramargs:=params; rtrns:=ot|})
-        /\ predop (t_ok (type_vars Γ)) ot      
-        /\ relop (type_expr Γ) oe ot
-  | Stmt.Action a cargs
-    => τs = [] /\ exists aa cparams,
-        action_call_ok aa (cntx Γ) 
-        /\ aa a = Some (cparams,params)
-        /\ Forall2 (type_expr Γ) cargs cparams
-  | Stmt.Method ei m τs' oe
-    => τs = τs' /\ predop lvalue_ok oe /\ exists extern_insts methods,
-        extern_call_ok extern_insts (cntx Γ)
-        /\ extern_insts ei = Some (inl methods) /\ exists ot,
-          Field.get m methods = Some (List.length τs, {|paramargs:=params; rtrns:=ot|})
-          /\ predop (t_ok (type_vars Γ)) ot
-          /\ relop (type_expr Γ) oe ot
-  end ->  
+  type_fun_kind Γ fk τs params ->
   Forall (t_ok (type_vars Γ)) τs ->
   Forall2
     (rel_paramarg
@@ -180,10 +182,6 @@ Inductive type_stmt
     Γ extern_args args x extern_params params sig insts :
   apply_instance_ok insts sig (cntx Γ) ->
   insts x = Some (inr (sig,extern_params,params)) ->
-  Forall2
-    (fun extern_instance extern_type
-     => True (* TODO: checking types of extern instances.*))
-    extern_args extern_params ->
   Forall2
     (rel_paramarg
        (type_expr Γ)

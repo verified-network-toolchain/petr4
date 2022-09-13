@@ -6,7 +6,8 @@ Import String.
 Definition tenv : Set :=
   Clmt.t
     string (** table name. *)
-    (list (Expr.e * string) (** table key *)
+    (list Val.v (** value closure *)
+     * list (Expr.e * string) (** table key *)
      * list (string * Expr.args)) (** actions *).
 
 (** Function declarations and closures. *)

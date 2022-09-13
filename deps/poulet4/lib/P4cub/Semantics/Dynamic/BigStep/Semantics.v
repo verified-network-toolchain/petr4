@@ -153,6 +153,7 @@ Variant ctx : Set :=
       (available_actions : aenv)
       (available_controls : inst_env)
   | CParserState
+      (parser_arg_length : nat)
       (start : Stmt.s)
       (states : list Stmt.s)
       (available_parsers : inst_env).
@@ -211,9 +212,6 @@ Variant table_entry_big_step
     Forall2 match_big_step mtchs pats ->
     table_entry_big_step (mk_table_entry mtchs aref) (Parser.Lists pats) aref.
 
-(* TODO: embed parser pat to value set. *)
-(* TODO: embed constant light exprs to p4cub exprs. *)
-
 Notation Extern_Sem := (ExternSem (tags_t:=unit) (Expression:=Expr.e)).
 
 Section StmtEvalEnv.
@@ -254,43 +252,47 @@ Definition copy_out_from_arg
   end.
 
 Fixpoint copy_out_from_args
-  (input_args : Val.argsv) (output_args : list (paramarg Val.v Val.v)) (ϵ_call : list Val.v) : list Val.v :=
+  (input_args : Val.argsv) (output_args : list (paramarg Val.v Val.v))
+  (ϵ_call : list Val.v) : list Val.v :=
   match input_args, output_args with
   | i :: iargs, o :: oargs => copy_out_from_args iargs oargs (copy_out_from_arg i o ϵ_call)
   | _, _ => ϵ_call
   end.
 
+Definition lastn {A : Set} (n : nat) (l : list A) : list A :=
+  List.skipn (List.length l - n) l.
+
 Inductive stmt_big_step
-  `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem) (ϵ : list Val.v)
-  : ctx -> Stmt.s -> list Val.v -> signal
+  `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
+  : list Val.v -> ctx -> Stmt.s -> list Val.v -> signal
     -> extern_state (tags_t:=unit) (Expression:=Expr.e) -> Prop :=
-| sbs_skip c :
+| sbs_skip ϵ c :
   ⧼ Ψ, ϵ, c, Stmt.Skip ⧽ ⤋ ⧼ ϵ, Cont, extrn_state Ψ ⧽
-| sbs_exit c :
+| sbs_exit ϵ c :
   ⧼ Ψ, ϵ, c, Stmt.Exit ⧽ ⤋ ⧼ ϵ, Exit, extrn_state Ψ ⧽
-| sbs_return c eo vo :
+| sbs_return ϵ c eo vo :
   relop (expr_big_step ϵ) eo vo ->
   ⧼ Ψ, ϵ, c, Stmt.Return eo ⧽ ⤋ ⧼ ϵ, Rtrn vo, extrn_state Ψ ⧽
-| sbs_transition_final trns
-    start states parsers lbl sig :
+| sbs_transition_final
+    ϵ trns n start states parsers lbl sig :
   final_state lbl sig ->
   p⟨ ϵ, trns ⟩ ⇓ lbl ->
-  ⧼ Ψ, ϵ, CParserState start states parsers,
+  ⧼ Ψ, ϵ, CParserState n start states parsers,
     Stmt.Transition trns ⧽ ⤋ ⧼ ϵ, sig, extrn_state Ψ ⧽
-| sbs_transition_intermediate trns
-    start states parsers ϵ' ψ lbl sig state :
+| sbs_transition_intermediate
+    ϵ₁ ϵ₂ ϵ₃ trns start states parsers ψ lbl sig state :
   get_state_block start states lbl = Some state ->
   intermediate_state lbl ->
-  p⟨ ϵ, trns ⟩ ⇓ lbl ->
-  ⧼ Ψ, ϵ, CParserState start states parsers, state ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
-  ⧼ Ψ, ϵ, CParserState start states parsers,
-    Stmt.Transition trns ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
-| sbs_assign c e₁ e₂ lv v :
+  p⟨ ϵ₁ ++ ϵ₂, trns ⟩ ⇓ lbl ->
+  ⧼ Ψ, ϵ₂, CParserState (length ϵ₂) start states parsers, state ⧽ ⤋ ⧼ ϵ₃, sig, ψ ⧽ ->
+  ⧼ Ψ, ϵ₁ ++ ϵ₂, CParserState (length ϵ₂) start states parsers,
+    Stmt.Transition trns ⧽ ⤋ ⧼ ϵ₁ ++ ϵ₃, sig, ψ ⧽
+| sbs_assign ϵ c e₁ e₂ lv v :
   l⟨ ϵ, e₁ ⟩ ⇓ lv ->
   ⟨ ϵ, e₂ ⟩ ⇓ v ->
   ⧼ Ψ, ϵ, c, e₁ `:= e₂ ⧽ ⤋ ⧼ lv_update lv v ϵ, Cont, extrn_state Ψ ⧽
 | sbs_funct_call
-    c ψ ϵ' ϵ'' f τs args
+    ϵ ϵ' ϵ'' c ψ f τs args
     eo vargs olv fun_clos body sig :
   functs Ψ f = Some (FDecl fun_clos body) ->
   (** Evaluate l-expression. *)
@@ -309,7 +311,7 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Funct f τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out vargs ϵ'' ϵ), Cont, ψ ⧽  
 | sbs_action_call
-    c ψ clos ϵ' ϵ'' a ctrl_args data_args actions
+    ϵ ϵ' ϵ'' clos c ψ a ctrl_args data_args actions
     vctrl_args vdata_args olv fun_clos act_clos body sig :
   match c with
   | CAction actions
@@ -333,7 +335,8 @@ Inductive stmt_big_step
       body ⧽ ⤋ ⧼ ϵ'', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out vdata_args ϵ'' ϵ), Cont, ψ ⧽
-| sbs_method_call c ψ ext meth τs args
+| sbs_method_call
+    ϵ c ψ ext meth τs args
     eo vargs vargs' olv sig
     light_typs light_in_vals light_out_vals light_sig :
   (** Invariant for cub arguments. *)
@@ -368,13 +371,15 @@ Inductive stmt_big_step
        vargs') light_out_vals ->
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
-| sbs_invoke t (tbls : tenv) acts insts pats light_sets
-    ϵ' ψ (key : list (Expr.e * string)) actions vs light_vals arefs
+| sbs_invoke
+    ϵ₁ ϵ₂ ϵ' clos t (tbls : tenv) acts insts pats light_sets
+    ψ (key : list (Expr.e * string)) actions vs light_vals arefs
     a opt_ctrl_args ctrl_args data_args :
+  length ϵ₂ = length clos ->
   (** Lookup table. *)
-  tbls t = Some (key, actions) ->
-  (** Evaluate key. TODO: check context. *)
-  Forall2 (expr_big_step ϵ) (map fst key) vs ->
+  tbls t = Some (clos, key, actions) ->
+  (** Evaluate table key. *)
+  Forall2 (expr_big_step clos) (map fst key) vs ->
   (** Evaluate table entries. *)
   Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
   (** Embed p4cub patterns in p4light value sets. *)
@@ -387,13 +392,13 @@ Inductive stmt_big_step
   (** Force control-plane arguments to be defined. *)
   Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
   (** Evaluate action. *)
-  ⧼ Ψ, ϵ, CApplyBlock tbls acts insts,
+  ⧼ Ψ, clos, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
-  ⧼ Ψ, ϵ, CApplyBlock tbls acts insts,
-    Stmt.Invoke t ⧽ ⤋ ⧼ ϵ, Cont, ψ ⧽
+  ⧼ Ψ, ϵ₁ ++ ϵ₂, CApplyBlock tbls acts insts,
+    Stmt.Invoke t ⧽ ⤋ ⧼ ϵ₁ ++ ϵ', Cont, ψ ⧽
 | sbs_apply_control
-    tbls actions control_insts
-    ϵ' ϵ'' c ext_args args vargs sig ψ
+    ϵ ϵ' ϵ'' tbls actions control_insts
+    c ext_args args vargs sig ψ
     fun_clos inst_clos tbl_clos action_clos apply_block :
   (** Lookup control instance. *)
   control_insts c
@@ -414,7 +419,7 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, CApplyBlock tbls actions control_insts,
     Stmt.Apply c ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, Cont, ψ ⧽
 | sbs_apply_parser
-    strt states parsers ψ ϵ' ϵ'' p
+    ϵ ϵ' ϵ'' n strt states parsers ψ p
     ext_args args vargs
     fun_clos prsr_clos strt_clos states_clos final sig :
   (** Lookup parser instance. *)
@@ -429,26 +434,27 @@ Inductive stmt_big_step
   copy_in vargs ϵ = Some ϵ' ->
   parser_signal final sig ->
   (** Evaluate parser state machine. *)
-  ⧼ Ψ <| functs := fun_clos |>, ϵ', CParserState strt_clos states_clos prsr_clos,
+  ⧼ Ψ <| functs := fun_clos |>, ϵ',
+      CParserState (length args) strt_clos states_clos prsr_clos,
       strt ⧽ ⤋ ⧼ ϵ'', final, ψ ⧽ ->
-  ⧼ Ψ, ϵ, CParserState strt states parsers,
+  ⧼ Ψ, ϵ, CParserState n strt states parsers,
     Stmt.Apply p ext_args args ⧽ ⤋ ⧼ copy_out vargs ϵ'' ϵ, sig, ψ ⧽
-| sbs_var c ϵ' og te v v' s sig ψ :
+| sbs_var ϵ ϵ' c og te v v' s sig ψ :
   match te with
   | inr e => ⟨ ϵ, e ⟩ ⇓ v
   | inl τ => v_of_t τ = Some v
   end ->
   ⧼ Ψ, v :: ϵ, c, s ⧽ ⤋ ⧼ v' :: ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, Stmt.Var og te s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
-| sbs_seq_cont c ϵ' ϵ'' s₁ s₂ sig ψ ψ' :
+| sbs_seq_cont ϵ ϵ' ϵ'' c s₁ s₂ sig ψ ψ' :
   ⧼ Ψ, ϵ, c, s₁ ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
   ⧼ Ψ <| extrn_state := ψ |>, ϵ', c, s₂ ⧽ ⤋ ⧼ ϵ'', sig, ψ' ⧽ ->
   ⧼ Ψ, ϵ, c, s₁ `; s₂ ⧽ ⤋ ⧼ ϵ'', sig, ψ' ⧽
-| sbs_seq_interrupt c ϵ' s₁ s₂ sig ψ :
+| sbs_seq_interrupt ϵ ϵ' c s₁ s₂ sig ψ :
   interrupt sig ->
   ⧼ Ψ, ϵ, c, s₁ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, s₁ `; s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
-| sbs_cond c ϵ' e s₁ s₂ (b : bool) sig ψ :
+| sbs_cond ϵ ϵ' c e s₁ s₂ (b : bool) sig ψ :
   ⟨ ϵ, e ⟩ ⇓ b ->
   ⧼ Ψ, ϵ, c, if b then s₁ else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ ->
   ⧼ Ψ, ϵ, c, If e Then s₁ Else s₂ ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽
@@ -457,6 +463,3 @@ where "⧼ Ψ , ϵ , c , s ⧽ ⤋ ⧼ ϵ' , sig , ψ ⧽"
 
 Local Close Scope stmt_scope.
 Local Close Scope value_scope.
-
-(* NOTE: will need to shift de bruijn indicies of table keys & actions
-   when evaluating controls. *)

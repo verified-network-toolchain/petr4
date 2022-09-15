@@ -189,10 +189,9 @@ Inductive type_stmt
     args (map snd params) ->
   Γ ⊢ₛ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke
-    Γ tbl es tbls τs :
+    Γ tbl tbls :
   table_invoke_ok tbls (cntx Γ) ->
   In tbl tbls ->
-  Forall2 (type_expr Γ) es τs ->
   Γ ⊢ₛ Stmt.Invoke tbl ⊣ Cont
 | type_vardecl (Γ : stmt_type_env) og τ te s sig :
     match te with

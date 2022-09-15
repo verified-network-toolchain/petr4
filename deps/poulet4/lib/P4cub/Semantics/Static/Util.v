@@ -5,23 +5,23 @@ Import String AllCubNotations.
 
 (** Statement signals. *)
 Variant signal : Set :=
-| Cont   (** continue *)
-| Return (** return *).
+  | Cont   (** continue *)
+  | Exit   (** exit *)
+  | Trans  (** transition *)
+  | Return (** return *).
 
 (** Least-upper bound on signals *)
-Definition lub (sg1 sg2 : signal) : signal :=
+Definition lub (sg1 sg2 : signal) : option signal :=
   match sg1, sg2 with
   | Cont, _
-  | _, Cont => Cont
-  | _, _    => Return
-  end.
-
-(** Greatest-lower bound on signals. *)
-Definition glb (sg1 sg2 : signal) : signal :=
-  match sg1, sg2 with
-  | Return, _
-  | _, Return => Return
-  | _, _ => Cont
+  | _, Cont => Some Cont
+  | Trans, (Exit | Trans)
+  | Exit, Trans => Some Trans
+  | Return, (Exit | Return)
+  | Exit, Return => Some Return
+  | Exit, Exit => Some Exit
+  | Trans, Return
+  | Return, Trans => None
   end.
 
 (** Evidence for a type being a numeric of a given width. *)

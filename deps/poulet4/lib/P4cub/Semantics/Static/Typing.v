@@ -159,11 +159,11 @@ Inductive type_stmt
   Γ ⊢ₛ Stmt.Return eo ⊣ Return
 | type_exit Γ :
   exit_ctx_ok (cntx Γ) ->
-  Γ ⊢ₛ Stmt.Exit ⊣ Return
+  Γ ⊢ₛ Stmt.Exit ⊣ Exit
 | type_transition (Γ : stmt_type_env) total_states e :
   transition_ok total_states (cntx Γ) ->
   type_prsrexpr total_states Γ e ->
-  Γ ⊢ₛ Stmt.Transition e ⊣ Return
+  Γ ⊢ₛ Stmt.Transition e ⊣ Trans
 | type_assign (Γ : stmt_type_env) τ e₁ e₂ :
   lvalue_ok e₁ ->
   Γ ⊢ₑ e₁ ∈ τ ->
@@ -207,11 +207,12 @@ Inductive type_stmt
   Γ ⊢ₛ s₁ ⊣ sig₁ ->
   Γ ⊢ₛ s₂ ⊣ sig₂ ->
   Γ ⊢ₛ s₁ `; s₂ ⊣ sig₂
-| type_cond (Γ : stmt_type_env) e s₁ s₂ sig₁ sig₂ :
+| type_cond (Γ : stmt_type_env) e s₁ s₂ sig₁ sig₂ sig :
+  lub sig₁ sig₂ = Some sig ->
   Γ ⊢ₑ e ∈ Expr.TBool ->
   Γ ⊢ₛ s₁ ⊣ sig₁ ->
   Γ ⊢ₛ s₂ ⊣ sig₂ ->
-  Γ ⊢ₛ If e Then s₁ Else s₂ ⊣ lub sig₁ sig₂
+  Γ ⊢ₛ If e Then s₁ Else s₂ ⊣ sig
 where "Γ '⊢ₛ' s ⊣ sig" := (type_stmt Γ s sig).
 
 Local Close Scope stmt_scope.
@@ -460,7 +461,7 @@ Inductive type_topdecl (Γ : top_type_env)
        {| sfuncts := tfuncts Γ
        ;  cntx := CParserState (List.length states) insts
        ;  expr_env := {|type_vars:=0;types:=bind_all params expr_cparams|}
-       |} ⊢ₛ state ⊣ Return)
+       |} ⊢ₛ state ⊣ Trans)
     (start_state :: states) ->
   Γ ⊢ₜ TopDecl.Parser
     parser_decl_name cparams expr_cparams extern_params params

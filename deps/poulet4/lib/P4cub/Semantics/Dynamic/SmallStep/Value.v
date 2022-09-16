@@ -89,35 +89,35 @@ Module CanonicalForms.
   Ltac crush_canonical := intros; invert_canonical; eauto 4.
   
   Section CanonicalForms.
-    Variable Γ : expr_type_env.
-    
+    Variable Δ : nat.
+    Variable Γ : list Expr.t.
     Variable v : Expr.e.
     
     Hypothesis Hv : value v.
     
     Lemma canonical_forms_bool :
-      Γ ⊢ₑ v ∈ Expr.TBool -> exists b : bool, v = b.
+      `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TBool -> exists b : bool, v = b.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_bit : forall w,
-        Γ ⊢ₑ v ∈ Expr.TBit w -> exists n, v = (w `W n)%expr.
+        `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TBit w -> exists n, v = (w `W n)%expr.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_int : forall w,
-        Γ ⊢ₑ v ∈ Expr.TInt w -> exists z, v = (w `S z)%expr.
+        `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TInt w -> exists z, v = (w `S z)%expr.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_struct : forall b ts,
-        Γ ⊢ₑ v ∈ Expr.TStruct b ts -> exists ls es, v = Expr.Lists ls es.
+        `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TStruct b ts -> exists ls es, v = Expr.Lists ls es.
     Proof. crush_canonical. Qed.
 
     Lemma canonical_forms_array : forall n t,
-        Γ ⊢ₑ v ∈ Expr.TArray n t ->
+        `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TArray n t ->
         exists es, v = Expr.Lists (Expr.lists_array t) es.
     Proof. crush_canonical. Qed.
     
     Lemma canonical_forms_error :
-      Γ ⊢ₑ v ∈ Expr.TError -> exists err, v = (Expr.Error err).
+      `⟨ Δ, Γ ⟩ ⊢ v ∈ Expr.TError -> exists err, v = (Expr.Error err).
     Proof. crush_canonical. Qed.
   End CanonicalForms.
   
@@ -131,24 +131,24 @@ Module CanonicalForms.
     end.
   
   Ltac assert_canonical_forms :=
-    match goal with
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TBool |- _
-      => pose proof canonical_forms_bool _ _ Hv Ht as (? & Hcanon);
+    lazymatch goal with
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TBool |- _
+      => pose proof canonical_forms_bool _ _ _ Hv Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TBit _ |- _
-      => pose proof canonical_forms_bit _ _ Hv _ Ht as (? & Hcanon);
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TBit _ |- _
+      => pose proof canonical_forms_bit _ _ _ Hv _ Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TInt _ |- _
-      => pose proof canonical_forms_int _ _ Hv _ Ht as (? & Hcanon);
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TInt _ |- _
+      => pose proof canonical_forms_int _ _ _ Hv _ Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TStruct _ _ |- _
-      => pose proof canonical_forms_struct _ _ Hv _ _ Ht as (? & ? & Hcanon);
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TStruct _ _ |- _
+      => pose proof canonical_forms_struct _ _ _ Hv _ _ Ht as (? & ? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TArray _ _ |- _
-      => pose proof canonical_forms_array _ _ Hv _ _ Ht as (? & ? & Hcanon);
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TArray _ _ |- _
+      => pose proof canonical_forms_array _ _ _ Hv _ _ Ht as (? & ? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
-    | Hv: value ?v, Ht: _ ⊢ₑ ?v ∈ Expr.TError |- _
-      => pose proof canonical_forms_error _ _ Hv Ht as (? & Hcanon);
+    | Hv: value ?v, Ht: `⟨ _, _ ⟩ ⊢ ?v ∈ Expr.TError |- _
+      => pose proof canonical_forms_error _ _ _ Hv Ht as (? & Hcanon);
         inv Hcanon; inv Hv; inv Ht
     end.
 End CanonicalForms.

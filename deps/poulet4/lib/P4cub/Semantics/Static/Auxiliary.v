@@ -17,7 +17,7 @@ Ltac inv_numeric :=
 
 Ltac invert_type_expr :=
   match goal with
-  | H: _ ⊢ₑ _ ∈ _ |- _ => inv H
+  | H: `⟨ _, _ ⟩ ⊢ _ ∈ _ |- _ => inv H
   end.
 
 Ltac invert_type_lists_ok :=
@@ -30,35 +30,35 @@ Section Lemmas.
   Local Hint Constructors type_lists_ok : core.
   Local Hint Constructors t_ok_lists : core.
 
-  Lemma type_array : forall Γ τ es,
-      t_ok (type_vars Γ) τ ->
-      Forall (fun e => Γ ⊢ₑ e ∈ τ) es ->
-      Γ ⊢ₑ Expr.Lists (Expr.lists_array τ) es
+  Lemma type_array : forall Δ Γ τ es,
+      t_ok Δ τ ->
+      Forall (fun e => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ) es ->
+      `⟨ Δ, Γ ⟩ ⊢ Expr.Lists (Expr.lists_array τ) es
         ∈ Expr.TArray (N.of_nat (length es)) τ.
   Proof.
-    intros G t es tok Hes; econstructor; eauto.
+    intros D G t es tok Hes; econstructor; eauto.
     rewrite Nnat.Nat2N.id.
     auto using Forall2_repeat_r.
   Qed.
 
-  Lemma type_struct : forall Γ es τs,
-      Forall2 (type_expr Γ) es τs ->
-      Γ ⊢ₑ Expr.Lists Expr.lists_struct es ∈ Expr.TStruct false τs.
+  Lemma type_struct : forall Δ Γ es τs,
+      Forall2 (type_expr Δ Γ) es τs ->
+      `⟨ Δ, Γ ⟩ ⊢ Expr.Lists Expr.lists_struct es ∈ Expr.TStruct false τs.
   Proof. eauto. Qed.
 
-  Lemma type_header : forall Γ b es τs,
-      Forall2 (type_expr Γ) es τs ->
-      Γ ⊢ₑ Expr.Lists (Expr.lists_header b) es ∈ Expr.TStruct true τs.
+  Lemma type_header : forall Δ Γ b es τs,
+      Forall2 (type_expr Δ Γ) es τs ->
+      `⟨ Δ, Γ ⟩ ⊢ Expr.Lists (Expr.lists_header b) es ∈ Expr.TStruct true τs.
   Proof. eauto. Qed.
 
   Local Hint Constructors t_ok : core.
   
-  Lemma type_expr_t_ok : forall Γ e τ,
-      Γ ⊢ₑ e ∈ τ ->
-      Forall (t_ok (type_vars Γ)) (types Γ) ->
-      t_ok (type_vars Γ) τ.
+  Lemma type_expr_t_ok : forall Δ Γ e τ,
+      `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
+      Forall (t_ok Δ) Γ ->
+      t_ok Δ τ.
   Proof.
-    intros G e t het hok;
+    intros D G e t het hok;
       induction het using custom_type_expr_ind; auto.
     apply Forall2_only_r_Forall in H2.
     rewrite Forall_forall in H2.

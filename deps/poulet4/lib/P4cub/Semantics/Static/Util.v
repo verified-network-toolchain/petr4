@@ -183,11 +183,6 @@ Variant exit_ctx_ok : ctx -> Prop :=
   | exit_applyblk_ok {tbls} {aa} {eis} :
     exit_ctx_ok (CApplyBlock tbls aa eis).
 
-(** Evidence a parser state transition is ok. *)
-Variant transition_ok (total_states : nat) : ctx -> Prop :=
-  | transition_parser_state_ok {i} :
-    transition_ok total_states (CParserState total_states i).
-
 (** Evidence a table invocation is ok. *)
 Variant table_invoke_ok (tbls : tbl_env) : ctx -> Prop :=
   | table_invoke_applyblk_ok {aa} {i} :

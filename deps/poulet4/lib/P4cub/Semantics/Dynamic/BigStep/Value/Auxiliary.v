@@ -199,7 +199,7 @@ Section Lemmas.
   Lemma expr_of_value_types : forall V τ,
       t_ok 0 τ ->
       ⊢ᵥ V ∈ τ ->
-      {|type_vars:=0;types:=[]|} ⊢ₑ e_of_v V ∈ τ.
+      `⟨ 0, [] ⟩ ⊢ e_of_v V ∈ τ.
   Proof.
     intros V t hok h;
       induction h using custom_type_value_ind;

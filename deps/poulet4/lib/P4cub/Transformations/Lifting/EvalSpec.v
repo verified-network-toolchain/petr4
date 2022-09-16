@@ -296,20 +296,20 @@ Qed.
 
 Section StatementLifting.
   Context `{ext_sem : Extern_Sem}.
-
+  
   (** Specification of [unwind_vars]. *)
-  Lemma eval_decl_list_unwind_vars : forall es vs ϵ c,
+  Lemma eval_decl_list_unwind_vars : forall es vs ϵ,
       eval_decl_list ϵ es vs ->
-      forall vs' ϵ' Ψ s sig ψ,
+      forall vs' ϵ' c Ψ s sig ψ,
         length vs = length vs' ->
         ⧼ Ψ, vs ++ ϵ, c, s ⧽ ⤋ ⧼ vs' ++ ϵ', sig, ψ ⧽ ->
         ⧼ Ψ, ϵ, c, unwind_vars es s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
   Proof.
     unfold unwind_vars.
-    intros es vs ϵ c hedl; induction hedl;
-      intros [| v' vs'] ϵ' Ψ s sig ψ hvs hs;
+    intros es vs ϵ hedl; induction hedl;
+      intros [| v' vs'] ϵ' c Ψ s sig ψ hvs hs;
       cbn in *; try discriminate; auto.
-    inv hvs; eapply IHhedl; eauto.
+    inv hvs. eapply IHhedl; eauto.
   Qed.
   
 Local Hint Resolve eval_decl_list_unwind_vars : core.
@@ -336,6 +336,7 @@ Proof.
   - admit.
   - destruct te as [τ | e].
     + specialize IHhs with us.
+      econstructor; eauto.
       (* TODO: lemma for stmt evaluation
          that [length ϵ = length ϵ']. *) admit.
     + destruct (lift_e (length us) e) as [le e'] eqn:eqle.

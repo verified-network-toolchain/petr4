@@ -15,13 +15,13 @@ Section BigStepTheorems.
     Local Hint Resolve eval_member_types : core.
     Local Hint Constructors type_value : core.
 
-    Theorem expr_big_step_preservation : forall ϵ e v Γ τ,
+    Theorem expr_big_step_preservation : forall ϵ e v Δ Γ τ,
         ⟨ ϵ, e ⟩ ⇓ v ->
-        Forall2 type_value ϵ (types Γ) ->
-        Γ ⊢ₑ e ∈ τ ->
+        Forall2 type_value ϵ Γ ->
+        `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
         ⊢ᵥ v ∈ τ.
     Proof.
-      intros ϵ e v Γ τ hev henv;
+      intros ϵ e v Δ Γ τ hev henv;
         generalize dependent τ;
         induction hev using custom_expr_big_step_ind;
         intros t het; inv het; eauto.
@@ -47,34 +47,34 @@ Section BigStepTheorems.
     Local Hint Constructors expr_big_step : core.
     Local Hint Constructors relop : core.
 
-    Theorem expr_big_step_progress : forall Γ e τ ϵ,
-        Forall2 type_value ϵ (types Γ) ->
-        Γ ⊢ₑ e ∈ τ ->
+    Theorem expr_big_step_progress : forall Δ Γ e τ ϵ,
+        Forall2 type_value ϵ Γ ->
+        `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
         exists v : Val.v, ⟨ ϵ, e ⟩ ⇓ v.
     Proof.
-      intros Γ e τ ϵ henv het;
+      intros Δ Γ e τ ϵ henv het;
         induction het using custom_type_expr_ind;
         repeat match goal with
-               | IHHt: (?P -> exists _, ⟨ ϵ, ?e ⟩ ⇓ _),
-                   HP: ?P, He: (Γ ⊢ₑ ?e ∈ _)
-                 |- _ => pose proof IHHt HP as [? ?]; clear IHHt
-               | Hev : (⟨ ϵ, ?e ⟩ ⇓ _),
-                   Ht: (Γ ⊢ₑ ?e ∈ _)
-                 |- _ => pose proof expr_big_step_preservation
-                            _ _ _ _ _ Hev henv Ht; clear Ht
+          | IHHt: (?P -> exists _, ⟨ ϵ, ?e ⟩ ⇓ _),
+              HP: ?P, He: (`⟨ _, Γ ⟩ ⊢ ?e ∈ _)
+            |- _ => pose proof IHHt HP as [? ?]; clear IHHt
+          | Hev : (⟨ ϵ, ?e ⟩ ⇓ _),
+              Ht: (`⟨ _, Γ ⟩ ⊢ ?e ∈ _)
+            |- _ => pose proof expr_big_step_preservation
+                    _ _ _ _ _ _ Hev henv Ht; clear Ht
                end; eauto 2.
       - apply Forall2_length in henv.
         apply nth_error_some_length in H.
         rewrite <- henv in H.
         apply nth_error_exists in H as [v hv]; eauto.
       - pose proof eval_slice_exists
-             _ _ _ _ _ H H0 H2 as [v' hv']; eauto.
+          _ _ _ _ _ H H0 H2 as [v' hv']; eauto.
       - pose proof eval_cast_exists
-             _ _ _ H H2 as [v' hv']; eauto.
+          _ _ _ H H2 as [v' hv']; eauto.
       - pose proof eval_uop_exist
-             _ _ _ _ H H2 as [? ?]; eauto.
+          _ _ _ _ H H2 as [? ?]; eauto.
       - pose proof eval_bop_exists
-             _ _ _ _ _ _ H H4 H3 as [? ?]; eauto.
+          _ _ _ _ _ _ H H4 H3 as [? ?]; eauto.
       - inv H2; inv H3; inv H2; try (inv H4; contradiction).
         pose proof Forall2_length _ _ _ _ _ H4 as hlen.
         rewrite repeat_length,Znat.Z_N_nat in hlen.
@@ -97,15 +97,15 @@ Section BigStepTheorems.
   Section LVPreservation.
     Local Hint Constructors type_lvalue : core.
 
-    Theorem lvalue_preservation : forall ϵ e lv Γ τ,
+    Theorem lvalue_preservation : forall ϵ e lv Δ Γ τ,
         l⟨ ϵ, e ⟩ ⇓ lv ->
-        Forall2 type_value ϵ (types Γ) ->
-        Γ ⊢ₑ e ∈ τ -> types Γ ⊢ₗ lv ∈ τ.
+        Forall2 type_value ϵ Γ ->
+        `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> Γ ⊢ₗ lv ∈ τ.
     Proof.
-      intros ϵ e lv Γ t helv henv;
+      intros ϵ e lv Δ Γ t helv henv;
         generalize dependent t;
         induction helv; intros t het; inv het; eauto.
-      pose proof expr_big_step_preservation _ _ _ _ _ H henv H6 as h.
+      pose proof expr_big_step_preservation _ _ _ _ _ _ H henv H6 as h.
       inv h. econstructor; eauto.
       unfold BitArith.bound in *.
       unfold BitArith.upper_bound in *. lia.
@@ -115,22 +115,22 @@ Section BigStepTheorems.
   Section LVProgress.
     Local Hint Constructors lexpr_big_step : core.
 
-    Theorem lvalue_progress : forall Γ ϵ e τ,
+    Theorem lvalue_progress : forall Δ Γ ϵ e τ,
         lvalue_ok e ->
-        Forall2 type_value ϵ (types Γ) ->
-        Γ ⊢ₑ e ∈ τ -> exists lv, l⟨ ϵ, e ⟩ ⇓ lv.
+        Forall2 type_value ϵ Γ ->
+        `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> exists lv, l⟨ ϵ, e ⟩ ⇓ lv.
     Proof.
-      intros Γ vs e t hok henv; generalize dependent t;
+      intros Δ Γ vs e t hok henv; generalize dependent t;
         induction hok; intros t het; inv het;
         try match goal with
-            | IH: (forall _, Γ ⊢ₑ ?e ∈ _ -> exists _, _),
-                H: (Γ ⊢ₑ ?e ∈ _)
+            | IH: (forall _, `⟨ _, Γ ⟩ ⊢ ?e ∈ _ -> exists _, _),
+                H: (`⟨ _, Γ ⟩ ⊢ ?e ∈ _)
               |- _ => apply IH in H as [? ?]
           end; eauto 3.
       pose proof expr_big_step_progress
-        _ _ _ _ henv H5 as [v2 h2].
+        _ _ _ _ _ henv H5 as [v2 h2].
       pose proof expr_big_step_preservation
-        _ _ _ _ _
+        _ _ _ _ _ _
         h2 henv H5 as ht2. inv ht2. eauto. inv H0.
     Qed.
   End LVProgress.

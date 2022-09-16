@@ -9,13 +9,14 @@ Import CanonicalForms Step.
 Import AllCubNotations Field.FieldTactics.
 
 Section LValueTheorems.
-  Variable Γ : expr_type_env.
+  Variable Δ : nat.
+  Variable Γ : list Expr.t.
 
   Section LValuePreservation.
     Local Hint Constructors type_expr : core.
 
     Theorem lvalue_preservation : forall e e' τ,
-      lvalue_step e e' -> Γ ⊢ₑ e ∈ τ -> Γ ⊢ₑ e' ∈ τ.
+      lvalue_step e e' -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> `⟨ Δ, Γ ⟩ ⊢ e' ∈ τ.
     Proof.
       intros e e' τ He; generalize dependent τ;
         induction He; intros t Ht; inv Ht; eauto 3.
@@ -27,14 +28,14 @@ Section LValueTheorems.
     Hint Constructors lvalue_step : core.
 
     Theorem lvalue_progress : forall e τ,
-        lvalue_ok e -> Γ ⊢ₑ e ∈ τ ->
+        lvalue_ok e -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ ->
         lvalue e \/ exists e', lvalue_step e e'.
     Proof.
       intros e τ Hlv; generalize dependent τ;
         induction Hlv; intros t' Ht; inv Ht;
       try match goal with
-          | IH: (forall _, Γ ⊢ₑ ?e ∈ _ -> _ \/ exists _, _),
-                H: Γ ⊢ₑ ?e ∈ _
+          | IH: (forall _, `⟨ Δ, Γ ⟩ ⊢ ?e ∈ _ -> _ \/ exists _, _),
+                H: `⟨ Δ, Γ ⟩ ⊢ ?e ∈ _
             |- _ => apply IH in H as [? | [? ?]]
           end; eauto 4.
       - (* TODO: add indexing to lvalue-evaluation. *)
@@ -43,16 +44,14 @@ Section LValueTheorems.
 End LValueTheorems.
 
 Section ExprTheorems.
-  Variable Γ : expr_type_env.
+  Variable Δ : nat.
+  Variable Γ : list Expr.t.
   Variable ϵ : list Expr.e.
 
   Hypothesis Henvs_type :
       Forall2
-        (type_expr
-           Γ
-           (*{| type_vars := type_vars Γ
-           ;     types := [] |}*))
-        ϵ (types Γ).
+        (type_expr 0 [])
+        ϵ Γ.
   
   Section Preservation.
     Local Hint Resolve eval_cast_types : core.
@@ -67,7 +66,7 @@ Section ExprTheorems.
     Local Hint Constructors type_expr : core.
 
     Theorem expr_small_step_preservation : forall e e' τ,
-        ⟨ ϵ, e ⟩ -->  e' -> Γ ⊢ₑ e ∈ τ -> Γ ⊢ₑ e' ∈ τ.
+        ⟨ ϵ, e ⟩ -->  e' -> `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> `⟨ Δ, Γ ⟩ ⊢ e' ∈ τ.
     Proof.
       intros;
       generalize dependent τ;
@@ -117,7 +116,7 @@ Section ExprTheorems.
     Local Hint Constructors expr_step : core.
 
     Theorem expr_small_step_progress : forall e τ,
-        Γ ⊢ₑ e ∈ τ -> value e \/ exists e', ⟨ ϵ, e ⟩ -->  e'.
+        `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> value e \/ exists e', ⟨ ϵ, e ⟩ -->  e'.
     Proof.
       intros e t H; induction H using custom_type_expr_ind;
         try match goal with

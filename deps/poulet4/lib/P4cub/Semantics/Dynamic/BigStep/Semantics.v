@@ -259,6 +259,14 @@ Fixpoint copy_out_from_args
   | _, _ => ϵ_call
   end.
 
+Definition arg_big_step (ϵ : list Val.v) : Expr.arg -> Val.argv -> Prop :=
+  rel_paramarg
+    (expr_big_step ϵ)
+    (lexpr_big_step ϵ).
+
+Definition args_big_step (ϵ : list Val.v) : Expr.args -> Val.argsv -> Prop :=
+  Forall2 (arg_big_step ϵ).
+
 Inductive stmt_big_step
   `{ext_sem : Extern_Sem} (Ψ : stmt_eval_env ext_sem)
   : list Val.v -> ctx -> Stmt.s -> list Val.v -> signal
@@ -295,11 +303,7 @@ Inductive stmt_big_step
   (** Evaluate l-expression. *)
   relop (lexpr_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
-  Forall2
-    (rel_paramarg
-       (expr_big_step ϵ)
-       (lexpr_big_step ϵ))
-    args vargs ->
+  args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   (** Evaluate the function body. *)
@@ -320,11 +324,7 @@ Inductive stmt_big_step
   (** Evaluate control-plane arguments. *)
   Forall2 (expr_big_step ϵ) ctrl_args vctrl_args ->
   (** Evaluate data-plane arguments. *)
-  Forall2
-    (rel_paramarg
-       (expr_big_step ϵ)
-       (lexpr_big_step ϵ))
-    data_args vdata_args ->
+  args_big_step ϵ data_args vdata_args ->
   (** Copyin. *)
   copy_in vdata_args clos = Some ϵ' ->
   (** Evaluate the action body. *)
@@ -343,11 +343,7 @@ Inductive stmt_big_step
   (** Evaluate l-expression. *)
   relop (lexpr_big_step ϵ) eo olv ->
   (** Evaluate arguments. *)
-  Forall2
-    (rel_paramarg
-       (expr_big_step ϵ)
-       (lexpr_big_step ϵ))
-    args vargs ->
+  args_big_step ϵ args vargs ->
   (** Embed type arguments in p4light. *)
   Forall2 (P4Cub_to_P4Light (dummy_tags:=tt) (string_list:=[])) τs light_typs ->
   (** Embed in-arguments in p4light. *)
@@ -369,14 +365,13 @@ Inductive stmt_big_step
   ⧼ Ψ, ϵ, c, Stmt.Call (Stmt.Method ext meth τs eo) args ⧽
     ⤋ ⧼ lv_update_signal olv sig (copy_out_from_args vargs vargs' ϵ), Cont, ψ ⧽
 | sbs_invoke
-    ϵ₁ ϵ₂ ϵ' clos t (tbls : tenv) acts insts pats light_sets
+    ϵ₁ ϵ₂ ϵ' t (tbls : tenv) acts insts pats light_sets
     ψ (key : list (Expr.e * string)) actions vs light_vals arefs
     a opt_ctrl_args ctrl_args data_args :
-  length ϵ₂ = length clos ->
   (** Lookup table. *)
-  tbls t = Some (clos, key, actions) ->
+  tbls t = Some (length ϵ₂, key, actions) ->
   (** Evaluate table key. *)
-  Forall2 (expr_big_step clos) (map fst key) vs ->
+  Forall2 (expr_big_step ϵ₂) (map fst key) vs ->
   (** Evaluate table entries. *)
   Forall3 table_entry_big_step (extern_get_entries ψ []) pats arefs ->
   (** Embed p4cub patterns in p4light value sets. *)
@@ -389,7 +384,7 @@ Inductive stmt_big_step
   (** Force control-plane arguments to be defined. *)
   Forall2 (fun oe e => oe = Some e) opt_ctrl_args ctrl_args ->
   (** Evaluate action. *)
-  ⧼ Ψ, clos, CApplyBlock tbls acts insts,
+  ⧼ Ψ, ϵ₂, CApplyBlock tbls acts insts,
     Stmt.Call (Stmt.Action a ctrl_args) data_args ⧽ ⤋ ⧼ ϵ', Cont, ψ ⧽ ->
   ⧼ Ψ, ϵ₁ ++ ϵ₂, CApplyBlock tbls acts insts,
     Stmt.Invoke t ⧽ ⤋ ⧼ ϵ₁ ++ ϵ', Cont, ψ ⧽
@@ -403,11 +398,7 @@ Inductive stmt_big_step
             fun_clos inst_clos tbl_clos
             action_clos apply_block) ->
   (** Evaluate arguments. *)
-  Forall2
-    (rel_paramarg
-       (expr_big_step ϵ)
-       (lexpr_big_step ϵ))
-    args vargs ->
+  args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   (** Evaluate control apply block. *)
@@ -422,11 +413,7 @@ Inductive stmt_big_step
   (** Lookup parser instance. *)
   parsers p = Some (ParserInst fun_clos prsr_clos strt states) ->
   (** Evaluate arguments. *)
-  Forall2
-    (rel_paramarg
-       (expr_big_step ϵ)
-       (lexpr_big_step ϵ))
-    args vargs ->
+  args_big_step ϵ args vargs ->
   (** Copyin. *)
   copy_in vargs ϵ = Some ϵ' ->
   parser_signal final sig ->

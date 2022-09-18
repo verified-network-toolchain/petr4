@@ -83,8 +83,9 @@ Module Expr.
   | TVar (type_name : nat)        (** type variables *).
     
   (** Function parameters. *)
+  Definition param : Set := paramarg t t.
   Definition params : Set :=
-    list ((* original name *) string * paramarg t t).
+    list ((* original name *) string * param).
     
   (** Function types. *)
   Definition arrowT : Set := arrow (* original name *) string t t.
@@ -147,7 +148,8 @@ Module Expr.
   | Error (err : string)  (** error literals *).
   
   (** Function call arguments. *)
-  Definition args : Set := list (paramarg e e).
+  Definition arg : Set := paramarg e e.
+  Definition args : Set := list arg.
 End Expr.
 
 (** * Parser Grammar *)

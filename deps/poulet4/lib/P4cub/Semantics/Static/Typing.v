@@ -126,6 +126,16 @@ Inductive type_fun_kind
   relop (type_expr Δ Γ) oe (option_map (tsub_t (gen_tsub τs)) ot) ->
   type_fun_kind Δ Γ fs c (Stmt.Method ei m τs oe) τs params.
 
+Definition type_arg
+  (Δ : nat) (Γ : list Expr.t) : Expr.arg -> Expr.param -> Prop :=
+  rel_paramarg
+    (type_expr Δ Γ)
+    (fun e τ => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lvalue_ok e).
+
+Definition type_args
+  (Δ : nat) (Γ : list Expr.t) : Expr.args -> list Expr.param -> Prop :=
+  Forall2 (type_arg Δ Γ).
+
 Reserved Notation "'`⧼' Δ , Γ , f , c ⧽ ⊢ s ⊣ sig" (at level 80, no associativity).
 
 Local Open Scope stmt_scope.
@@ -155,21 +165,13 @@ Inductive type_stmt (Δ : nat) (Γ : list Expr.t) (fs : fenv)
 | type_fun_call c params τs args fk :
   type_fun_kind Δ Γ fs c fk τs params ->
   Forall (t_ok Δ) τs ->
-  Forall2
-    (rel_paramarg
-       (type_expr Δ Γ)
-       (fun e τ => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lvalue_ok e))
-    args (map (tsub_param (gen_tsub τs)) (map snd params)) ->
+  type_args Δ Γ args (map (tsub_param (gen_tsub τs)) (map snd params)) ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Call fk args ⊣ Cont
 | type_apply
     c extern_args args x extern_params params sig insts :
   apply_instance_ok insts sig c ->
   insts x = Some (inr (sig,extern_params,params)) ->
-  Forall2
-    (rel_paramarg
-       (type_expr Δ Γ)
-       (fun e τ => `⟨ Δ, Γ ⟩ ⊢ e ∈ τ /\ lvalue_ok e))
-    args (map snd params) ->
+  type_args Δ Γ args (map snd params) ->
   `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Apply x extern_args args ⊣ Cont
 | type_invoke tbl tbls aa i :
   In tbl tbls ->
@@ -238,17 +240,13 @@ Variant type_ctrldecl (Γ : ctrl_type_env)
   | type_table table_name key actions :
     (** Keys type. *)
     Forall
-      (fun '(e,_) => exists τ,
-           `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ) key ->
+      (fun e => exists τ, `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ) (map fst key) ->
     (** Actions type *)
     Forall
       (fun '(a,data_args) =>
          exists ctrl_params data_params,
            actns Γ a = Some (ctrl_params, data_params)
-           /\ Forall2
-               (rel_paramarg
-                  (type_expr (ctype_vars Γ) $ ctypes Γ)
-                  (fun e τ => `⟨ ctype_vars Γ, ctypes Γ ⟩ ⊢ e ∈ τ /\ lvalue_ok e))
+           /\ type_args (ctype_vars Γ) (ctypes Γ)
                data_args (List.map snd data_params))
       actions ->
     Γ ⊢ᵪ Control.Table

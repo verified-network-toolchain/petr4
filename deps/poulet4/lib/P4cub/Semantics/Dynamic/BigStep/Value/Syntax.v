@@ -19,6 +19,7 @@ Module Val.
   | Index (index : N) (array : lv) (** Array indexing. *).
 
   (** Evaluated arguments. *)
+  Definition argv : Set := paramarg v lv.
   Definition argsv : Set := list (paramarg v lv).
 
   Module ValueNotations.

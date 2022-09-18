@@ -6,9 +6,9 @@ Import String.
 Definition tenv : Set :=
   Clmt.t
     string (** table name. *)
-    (list Val.v (** value closure *)
-     * list (Expr.e * string) (** table key *)
-     * list (string * Expr.args)) (** actions *).
+    (nat (** number of variables in scope. Tables have dynamic scope. *)
+     * list (Expr.e * string) (** table key. *)
+     * list (string * Expr.args)) (** actions. *).
 
 (** Function declarations and closures. *)
 Inductive fdecl: Set :=

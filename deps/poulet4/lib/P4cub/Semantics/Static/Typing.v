@@ -183,10 +183,10 @@ Inductive type_stmt (Δ : nat) (Γ : list Expr.t) (fs : fenv)
     end ->
     `⧼ Δ, τ :: Γ, fs, c ⧽ ⊢ s ⊣ sig ->
     `⧼ Δ, Γ, fs, c ⧽ ⊢ Stmt.Var og te s ⊣ sig
-| type_seq c s₁ s₂ sig₁ sig₂ :
-  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ ⊣ sig₁ ->
-  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₂ ⊣ sig₂ ->
-  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ `; s₂ ⊣ sig₂
+| type_seq c s₁ s₂ sig :
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ ⊣ Cont ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₂ ⊣ sig ->
+  `⧼ Δ, Γ, fs, c ⧽ ⊢ s₁ `; s₂ ⊣ sig
 | type_cond c e s₁ s₂ sig₁ sig₂ sig :
   lub sig₁ sig₂ = Some sig ->
   `⟨ Δ, Γ ⟩ ⊢ e ∈ Expr.TBool ->

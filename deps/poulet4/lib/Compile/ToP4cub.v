@@ -91,6 +91,7 @@ Section ToP4cub.
       packages : list (TopDecl.d tags_t);
       externs : list (TopDecl.d tags_t);
       types : list (string * E.t);
+      constants: Env.t string (E.e tags_t);
     }.
 
   Definition info_of_TopDecl (d: TopDecl.d tags_t) :=
@@ -127,7 +128,8 @@ Section ToP4cub.
        package_types := [];
        packages := [];
        externs := [];
-       types := []
+       types := [];
+       constants := [];
     |}.
 
 
@@ -140,7 +142,8 @@ Section ToP4cub.
        package_types := decl.(package_types);
        packages := decl.(packages);
        externs := decl.(externs);
-       types := decl.(types)
+       types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_parser (decl : DeclCtx) (p : TopDecl.d tags_t) :=
@@ -152,7 +155,8 @@ Section ToP4cub.
        package_types := decl.(package_types);
        packages := decl.(packages);
        externs := decl.(externs);
-       types := decl.(types)
+       types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_package (decl : DeclCtx) (p : TopDecl.d tags_t) :=
@@ -165,6 +169,7 @@ Section ToP4cub.
        packages := p::decl.(packages);
        externs := decl.(externs);
        types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_package_type (decl : DeclCtx) pt :=
@@ -177,6 +182,7 @@ Section ToP4cub.
        packages := decl.(packages);
        externs := decl.(externs);
        types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_extern (decl : DeclCtx) (e : TopDecl.d tags_t) :=
@@ -189,6 +195,7 @@ Section ToP4cub.
        packages := decl.(packages);
        externs := e::decl.(externs);
        types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_table (decl : DeclCtx) (t : Control.d tags_t) :=
@@ -201,6 +208,7 @@ Section ToP4cub.
        package_types := decl.(package_types);
        externs := decl.(externs);
        types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_action (decl : DeclCtx) (a : Control.d tags_t) :=
@@ -213,6 +221,7 @@ Section ToP4cub.
        packages := decl.(packages);
        externs := decl.(externs);
        types := decl.(types);
+       constants := decl.(constants);
     |}.
 
   Definition add_type (decl : DeclCtx) (typvar : string) (typ : E.t) :=
@@ -225,6 +234,7 @@ Section ToP4cub.
        packages := decl.(packages);
        externs := decl.(externs);
        types := (typvar, typ) :: decl.(types);
+       constants := decl.(constants);
     |}.
 
   Fixpoint tsub_ts (σ : Env.t string E.t) (ts : F.fs string E.t) :=
@@ -260,6 +270,7 @@ Section ToP4cub.
        packages := tsub_ds decl.(packages);
        externs := tsub_ds decl.(externs);
        types := (typvar, type) :: tsub_ts σ decl.(types);
+       constants := Env.map_vals (Sub.tsub_e σ) decl.(constants); (* substitute type variables in bound constant values *)
     |}.
 
   Definition to_decl (tags : tags_t) (decls : DeclCtx) : TopDecl.d tags_t :=
@@ -292,6 +303,7 @@ Section ToP4cub.
        packages := combine packages;
        externs := combine externs;
        types := append hi_prio.(types) lo_prio.(types);
+       constants := combine constants;
     |}.
 
   Definition to_ctrl_decl tags (c: DeclCtx) : Control.d tags_t :=
@@ -1594,6 +1606,7 @@ Section ToP4cub.
        packages := infer_ds decl.(packages);
        externs := infer_ds decl.(externs);
        types := decl.(types);
+       constants := Env.map_vals InferMemberTypes.inf_e decl.(constants);
     |}.
 
   Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=

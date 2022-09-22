@@ -226,6 +226,19 @@ Section ToP4cub.
 
   Definition add_type (decl : DeclCtx) (typvar : string) (typ : E.t) :=
     {| controls := decl.(controls);
+        parsers := decl.(parsers);
+        tables := decl.(tables);
+        actions := decl.(actions);
+        functions := decl.(functions);
+        package_types := decl.(package_types);
+        packages := decl.(packages);
+        externs := decl.(externs);
+        types := (typvar, typ) :: decl.(types);
+        constants := decl.(constants);
+    |}.
+
+  Definition add_constant (decl : DeclCtx) (id : string) (expr : E.e tags_t) :=
+    {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
        actions := decl.(actions);
@@ -233,8 +246,8 @@ Section ToP4cub.
        package_types := decl.(package_types);
        packages := decl.(packages);
        externs := decl.(externs);
-       types := (typvar, typ) :: decl.(types);
-       constants := decl.(constants);
+       types := decl.(types);
+       constants := Env.bind id expr decl.(constants);
     |}.
 
   Fixpoint tsub_ts (σ : Env.t string E.t) (ts : F.fs string E.t) :=
@@ -1424,7 +1437,8 @@ Section ToP4cub.
   Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
     match d with
     | DeclConstant tags typ name value =>
-      error "[FIXME] Constant declarations unimplemented"
+      let+ e' := translate_expression value in
+      add_constant ctx (P4String.str name) e'
     | DeclInstantiation tags typ args name init =>
       let cub_name := P4String.str name in
       let* ctor_p4string := get_string_from_type typ in

@@ -128,10 +128,6 @@ Section Unroll.
     let (cfg, _) := List.fold_left unroll_loop idxs (cfg, loops) in
     of_cfg cfg.
 
-  (* Rudy: I changed AST.v, this code compiles
-     but may not be correct now that the start state
-     are separate from the list of states. *)
-  
   Definition unroll_program (unrolls : nat) (prog : TopDecl.prog) : TopDecl.prog :=
     List.map
       (fun d =>

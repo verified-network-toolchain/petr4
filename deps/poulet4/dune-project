@@ -8,10 +8,6 @@
  (name poulet4)
  (version 0.1.0)
  (synopsis     "Poulet4: Petr4 in Coq")
- (maintainers  "jnfoster@cs.cornell.edu")
- (authors      "Ryan Doenges" "Rudy Peterson" "Qinshi Wang" "Molly Pan" "Shengyi Wang" "John Chen" "Eric Hayden Campbell" "Parisa Ataei" "Andrew Appel"  "Nate Foster" )
- (homepage     "https://github.com/verified-network-toolchain/petr4")
- (bug_reports  "https://github.com/verified-network-toolchain/petr4")
  (license      "Apache-2.0")
  (depends
    bignum

@@ -2,22 +2,7 @@
 opam-version: "2.0"
 version: "0.1.0"
 synopsis: "Poulet4: Petr4 in Coq"
-maintainer: ["jnfoster@cs.cornell.edu"]
-authors: [
-  "Ryan Doenges"
-  "Rudy Peterson"
-  "Qinshi Wang"
-  "Molly Pan"
-  "Shengyi Wang"
-  "John Chen"
-  "Eric Hayden Campbell"
-  "Parisa Ataei"
-  "Andrew Appel"
-  "Nate Foster"
-]
 license: "Apache-2.0"
-homepage: "https://github.com/verified-network-toolchain/petr4"
-bug-reports: "https://github.com/verified-network-toolchain/petr4"
 depends: [
   "bignum"
   "dune" {>= "2.7" & build}

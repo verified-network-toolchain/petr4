@@ -85,7 +85,7 @@ Fixpoint emit (v: Val) : Packet unit :=
   | _ => err (TypeError "Unsupported value passed to emit.")
   end.
 
-Fixpoint var_emit (v: Val) (len: nat) : Packet unit :=
+Definition var_emit (v: Val) (len: nat) : Packet unit :=
   match v with
   | _ => err (TypeError "Unsupported value passed to emit.")
   end.

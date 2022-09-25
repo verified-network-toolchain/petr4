@@ -8,6 +8,5 @@
 (executable
   (name test)
   (modules test)
-  (modes byte)
   (libraries ANSITerminal core core_unix core_unix.command_unix petr4 petr4test alcotest poulet4 poulet4_Ccomp str)
   (preprocess (pps ppx_jane)))

@@ -128,8 +128,9 @@ module MakeRunner (C : RunnerConfig) = struct
       | Expect (port, Some packet) ->
          run_test prog tl results ((port, strip_spaces packet |> String.lowercase) :: expected) st
       | Add (tbl_name, priority, match_list, (action_name, args), id) ->
-        run_test prog tl results expected st
+         failwith "unimplemented stf statement: Add"
          (*
+        run_test prog tl results expected st
         let tbl_name = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
         let entry = Poulet4.Target.Coq_mk_table_entry (match_list, action_name') in

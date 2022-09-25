@@ -123,7 +123,7 @@ let rec pos_int_to_rev_bits' (acc: bool list) (k: int) : bool list =
   then acc
   else if k mod 2 = 0
        then pos_int_to_rev_bits' (false :: acc) (k / 2)
-       else pos_int_to_rev_bits' (true :: acc) (k - 1 / 2)
+       else pos_int_to_rev_bits' (true :: acc)  ((k - 1) / 2)
 
 let pos_int_to_rev_bits (k: int) : bool list =
   pos_int_to_rev_bits' [] k
@@ -152,8 +152,8 @@ let group8 lst =
 let bits_to_string (bs: bool list) : string =
   (* Expects 0 <= idx < 8 *)
   let accum_bits idx acc bit =
-    let p = 8 - idx in
-    acc + (Int.pow 2 p) * bit
+    let p = 7 - idx in
+    acc + bit lsl p
   in
   bs
   |> List.map ~f:bool_to_int

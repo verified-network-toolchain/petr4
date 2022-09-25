@@ -725,7 +725,7 @@ Section Interpreter.
   End WithGE.
 
   Definition interp (fuel: Fuel) (prog: @program tags_t) (st: extern_state) (in_port: Z) (pkt: list bool) : option (extern_state * Z * (list bool)) :=
-    let ge := gen_ge prog in
+    let* ge := gen_ge prog in
     interp_prog (interp_module ge fuel) st in_port pkt.
 
 End Interpreter.

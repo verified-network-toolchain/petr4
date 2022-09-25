@@ -84,7 +84,11 @@ module MakeRunner (C : RunnerConfig) = struct
         (port : int)
         (st : C.st)
      : ((C.st * Bigint.t) * bool list) option =
-    let pkt_in = pkt_in |> String.lowercase |> Cstruct.of_hex |> Cstruct.to_string |> Petr4.Util.string_to_bits in
+    let pkt_in = pkt_in
+                 |> String.lowercase
+                 |> Cstruct.of_hex
+                 |> Cstruct.to_string
+                 |> Petr4.Util.string_to_bits in
     let port = Bigint.of_int port in
     C.eval_program prog st port pkt_in
 
@@ -119,10 +123,13 @@ module MakeRunner (C : RunnerConfig) = struct
               results, st
          in
          run_test prog tl results' expected st'
+      | Expect (port, None) ->
+         failwith "unimplemented stf statement: Expect w/ no pkt"
       | Expect (port, Some packet) ->
          run_test prog tl results ((port, strip_spaces packet |> String.lowercase) :: expected) st
-         (*
       | Add (tbl_name, priority, match_list, (action_name, args), id) ->
+        run_test prog tl results expected st
+         (*
         let tbl_name = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
         let entry = Poulet4.Target.Coq_mk_table_entry (match_list, action_name') in
@@ -132,14 +139,20 @@ module MakeRunner (C : RunnerConfig) = struct
       | Wait ->
          Core_unix.sleep 1;
          run_test prog tl results expected st
-  (*
       | Set_default (tbl_name, (action_name, args)) ->
+         failwith "unimplemented stf statement: Set_default"
+  (*
         let tbl_name' = convert_qualified tbl_name in 
         let action_name' = convert_qualified action_name in
         let set_def' = update set_def tbl_name' (action_name', args) in
         run_test prog tl results expected env st
    *)
-      | _ -> failwith "unimplemented stf statement"
+      | Remove_all ->
+         failwith "unimplemented stf statement: Remove_all"
+      | No_packet ->
+         failwith "unimplemented stf statement: No_packet"
+      | Check_counter _ ->
+         failwith "unimplemented stf statement: Check_counter"
 end
 
 module V1RunnerConfig = struct
@@ -178,7 +191,8 @@ let run_stf stf_file p4prog =
 let stf_alco_test stf_file p4_file p4prog =
     let run_stf_alcotest () =
       let expected, results = run_stf stf_file p4prog in
-      List.zip_exn expected results |> List.iter ~f:(fun (p_exp, p) ->
+      List.zip_exn expected results
+      |> List.iter ~f:(fun (p_exp, p) ->
             Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)
     in
     let test = Alcotest.test_case (Filename.basename p4_file) `Quick run_stf_alcotest in

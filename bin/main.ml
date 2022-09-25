@@ -105,29 +105,8 @@ let compile_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir normalize export_file gen_loc printp4cub printp4_file gcl p4file () ->
        ignore (compile_file include_dir p4file normalize export_file verbose gen_loc printp4cub printp4_file gcl))
-let do_stf include_dir stf_file p4_file =
-  failwith "do_stf removed"
-  (* TODO restore stf
-    let print_err (e_port, e_pkt) (a_port, a_pkt) =
-        Printf.printf "Packet differed from the expected packet.\nExpected: port %s pkt %s\nActual:   port %s pkt %s\n\n"
-                      e_port e_pkt a_port a_pkt
-    in
-    let print_ok (a_port, a_pkt) =
-        Printf.printf "Packet matched the expected packet.\nPacket:   port %s pkt %s\n\n"
-                      a_port a_pkt
-    in
-    let check_pkt (expected_pkt, actual_pkt) =
-        if not (Petr4test.Test.packet_equal expected_pkt actual_pkt)
-        then print_err expected_pkt actual_pkt
-        else print_ok actual_pkt
-    in
-    let expected, results =
-      Petr4test.Test.run_stf include_dir stf_file p4_file
-    in
-    let pkts = List.zip_exn expected results in
-    List.iter ~f:check_pkt pkts
-  *)
 
+let do_stf _ _ _ = failwith "do_stf unimplemented"
 
 let stf_command =
   let open Command.Spec in

@@ -122,7 +122,7 @@ module Make_parse (Conf: Parse_config) = struct
  let print_type_def (oc) (struc : string) (typ : string) : unit = 
     Printf.fprintf oc "typedef struct %s %s; \n" struc typ
 
- let simpl_expr ~if_:do_simpl_expr light =
+ let simpl_expr ~do_simpl_expr light =
    if do_simpl_expr then
      Poulet4.SimplExpr.transform_prog P4info.dummy light
    else
@@ -175,7 +175,7 @@ module Make_parse (Conf: Parse_config) = struct
      let prog, renamer = Elaborate.elab prog in
      let _, typ_light = Checker.check_program renamer prog in
      (* Preprocessing  *)
-     let nrm_light = simpl_expr ~if_:normalize  typ_light in
+     let nrm_light = simpl_expr ~do_simpl_expr:normalize typ_light in
      let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
      (* p4cub compiler *)
      let cub = to_p4cub loc_light in

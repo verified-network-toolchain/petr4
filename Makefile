@@ -18,18 +18,12 @@ WEB_EXAMPLES+=examples/checker_tests/good/switch_ebpf.p4
 WEB_EXAMPLES+=examples/checker_tests/good/union-valid-bmv2.p4
 WEB_EXAMPLES+=stf-test/custom-stf-tests/register.p4
 
-.PHONY: all deps build claims clean test test-stf web
+.PHONY: all build claims clean test test-stf web
 
 all: build
 
-build: deps
+build:
 	dune build @install && echo
-
-fast: 
-	dune build @install && echo
-
-deps:
-	$(MAKE) -C deps
 
 doc:
 	dune build @doc
@@ -46,11 +40,11 @@ ctest: build install
 claims: build
 	@test/claims.py
 
-ci-test: build
+ci-test:
 	#dune exec -- bin/test.exe
 	cd test && dune exec -- ./test.exe test -q
 
-test-stf: build
+test-stf:
 	dune exec -- bin/test.exe
 
 test: build

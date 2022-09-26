@@ -1,10 +1,15 @@
 From Coq Require Import Strings.String
      NArith.NArith ZArith.ZArith.
-From Poulet4 Require Import Utils.Utils
-     P4light.Syntax.Syntax P4light.Syntax.Typed
-     Utils.P4Arith P4light.Syntax.P4String
+From Poulet4 Require Import
+     Utils.Utils
+     P4light.Syntax.Syntax
+     P4light.Syntax.Typed
+     Utils.P4Arith
+     P4light.Syntax.P4String
      P4light.Semantics.Semantics
-     Monads.Option Utils.AListUtil.
+     Monads.Option
+     Utils.AListUtil
+     ListUtil.
 From Equations Require Import Equations.
 Import List.ListNotations.
 
@@ -132,11 +137,11 @@ Section Interpreter.
       MkExpression tags expr typ dir =>
         match expr with
     | ExpBool b =>
-      mret (ValBaseBool (Some b))
+      Some (ValBaseBool (Some b))
     | ExpInt i =>
-      mret (eval_p4int_sval i)
+      Some (eval_p4int_sval i)
     | ExpString s =>
-      mret (ValBaseString (str s))
+      Some (ValBaseString (str s))
     | ExpName x loc =>
       if is_directional dir
       then loc_to_sval loc st
@@ -145,13 +150,14 @@ Section Interpreter.
       let* idxsv := interp_expr this st idx in
       let idxv := interp_sval_val idxsv in
       let* idxz := array_access_idx_to_z idxv in
-      match interp_expr this st array with
-      | Some (ValBaseStack headers next) =>
+      let* arrayv := interp_expr this st array in
+      match arrayv with
+      | ValBaseStack headers next =>
         let* rtyp := get_real_type ge typ in
         let* default_header := uninit_sval_of_typ None rtyp in
-        Some (@Znth _ default_header idxz headers)
+        Some (Znth_default default_header idxz headers)
       | _ => None
-      end
+      end : option _
     | ExpBitStringAccess bits lo hi =>
       let* bitssv := interp_expr this st bits in
       let* (bitsbl, wn) := sval_to_bits_width bitssv in
@@ -269,14 +275,13 @@ Section Interpreter.
     | _ => None
     end.
 
-
   Fixpoint interp_read (st: state) (lv: Lval) : option Sval :=
     match lv with
-    |  ValLeftName loc => loc_to_sval loc st
-    |  ValLeftMember lv fname =>
+    | ValLeftName loc => loc_to_sval loc st
+    | ValLeftMember lv fname =>
       let* sv := interp_read st lv in
       find_member sv fname
-    |  ValLeftBitAccess lv hi lo =>
+    | ValLeftBitAccess lv hi lo =>
       let* bitssv := interp_read st lv in
       let* (bitsbl, wn) := sval_to_bits_width bitssv in
       let lonat := N.to_nat lo in
@@ -284,16 +289,17 @@ Section Interpreter.
       if ((lonat <=? hinat)%nat && (hinat <? wn)%nat)%bool
       then Some (ValBaseBit (Ops.bitstring_slice bitsbl lonat hinat))
       else None
-    |  ValLeftArrayAccess lv idx =>
+    | ValLeftArrayAccess lv idx =>
       let* v := interp_read st lv in
       match v with
       | ValBaseStack headers next =>
         let* default_header := List.hd_error headers in
-        let header := @Znth _ default_header idx headers in
+        let header := Znth_default default_header idx headers in
         Some header
       | _ => None
       end
     end.
+
 
   Fixpoint interp_write (st: state) (lv: Lval) (rhs: Sval) : option state :=
     match lv with

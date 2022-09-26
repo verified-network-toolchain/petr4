@@ -5,6 +5,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Poulet4.P4light.Syntax.Typed
         Poulet4.P4light.Syntax.Syntax
         Poulet4.Monads.Option.
+Require Poulet4.Monads.Result.
 From Poulet4.Utils Require Import Utils Maps AList P4Arith.
 Require Export Poulet4.P4light.Architecture.Target
         VST.zlist.Zlist Poulet4.P4light.Syntax.Value.
@@ -14,6 +15,9 @@ From Poulet4.P4light.Semantics Require Import Ops.
 Import ListNotations.
 Local Open Scope string_scope.
 Local Open Scope list_scope.
+
+Inductive SemExn :=
+.
 
 Definition is_directional (dir : direction) : bool :=
   match dir with
@@ -133,31 +137,31 @@ Fixpoint
   | TypArray atyp size =>
     let^ realtyp := get_real_type get atyp in TypArray realtyp size
   | TypTuple types =>
-    sequence (List.map (get_real_type get) types) >>| TypTuple
+    sequence (map (get_real_type get) types) >>| TypTuple
   | TypList types =>
-    sequence (List.map (get_real_type get) types) >>| TypList
+    sequence (map (get_real_type get) types) >>| TypList
   | TypRecord fields =>
     sequence
-      (List.map
+      (map
          (fun '(a,t) => get_real_type get t >>| pair a)
          fields)
       >>| TypRecord
   | TypSet elt_type => get_real_type get elt_type >>| TypSet
   | TypHeader fields =>
     sequence
-      (List.map
+      (map
          (fun '(a,t) => get_real_type get t >>| pair a)
          fields)
       >>| TypHeader
   | TypHeaderUnion fields =>
     sequence
-      (List.map
+      (map
          (fun '(a,t) => get_real_type get t >>| pair a)
          fields)
       >>| TypHeaderUnion
   | TypStruct fields =>
     sequence
-      (List.map
+      (map
          (fun '(a,t) => get_real_type get t >>| pair a)
          fields)
       >>| TypStruct
@@ -169,31 +173,31 @@ Fixpoint
   | TypParser ctrl => get_real_ctrl get ctrl >>| TypParser
   | TypFunction fn => get_real_func get fn >>| TypFunction
   | TypAction data_params ctrl_params =>
-    let* datas := sequence (List.map (get_real_param get) data_params) in
-    sequence (List.map (get_real_param get) ctrl_params) >>| TypAction datas
+    let* datas := sequence (map (get_real_param get) data_params) in
+    sequence (map (get_real_param get) ctrl_params) >>| TypAction datas
   | TypPackage Xs wildcards params =>
     sequence
-      (List.map
+      (map
          (get_real_param
             (IdentMap.removes
-               (List.map str Xs)
+               (map str Xs)
                get))
          params)
       >>| TypPackage Xs wildcards
   | TypSpecializedType base args =>
     let* realb := get_real_type get base in
-    sequence (List.map (get_real_type get) args) >>| TypSpecializedType realb
+    sequence (map (get_real_type get) args) >>| TypSpecializedType realb
   | TypConstructor Xs wildcards params ret =>
     let* realret :=
        get_real_type
          (IdentMap.removes
-            (List.map str Xs) get) ret in
+            (map str Xs) get) ret in
     let^ rps :=
        sequence
-         (List.map
+         (map
             (get_real_param
                (IdentMap.removes
-                  (List.map str Xs) get))
+                  (map str Xs) get))
             params) in
     TypConstructor Xs wildcards rps realret
   | TypBool => Some TypBool
@@ -221,10 +225,10 @@ with get_real_ctrl
        match ctrl with
        | MkControlType Xs params =>
          sequence
-           (List.map
+           (map
               (get_real_param
                  (IdentMap.removes
-                    (List.map str Xs)
+                    (map str Xs)
                     get))
               params)
            >>| MkControlType Xs
@@ -236,15 +240,15 @@ with get_real_func
          let* realret :=
             get_real_type
               (IdentMap.removes
-                 (List.map str Xs)
+                 (map str Xs)
                  get)
               ret in
          let^ realps :=
             sequence
-              (List.map
+              (map
                  (get_real_param
                     (IdentMap.removes
-                       (List.map str Xs)
+                       (map str Xs)
                        get))
                  params) in
          MkFunctionType Xs realps kind realret
@@ -443,7 +447,7 @@ Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   (* No unspecified value possible from this expression *)
   | exec_expr_enum_member : forall tname member ename members this st tag typ dir,
                             IdentMap.get (str tname) (ge_typ ge) = Some (TypEnum ename None members) ->
-                            List.In (str member) (List.map str members) ->
+                            List.In (str member) (map str members) ->
                             exec_expr read_one_bit this st
                             (MkExpression tag (ExpTypeMember tname member) typ dir)
                             (ValBaseEnumField (str ename) (str member))

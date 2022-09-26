@@ -163,7 +163,7 @@ Fixpoint action_param_renamer_expr (table action : string) (params : list string
     E.EHeaderStackAccess fs (action_param_renamer_expr table action params stack) idx i
   end.
 
-Fixpoint action_param_renamer (table action : string) (params : list string) (c : t) : result (t * list string) :=
+Fixpoint action_param_renamer (table action : string) (params : list string) (c : t) : result string (t * list string) :=
   match c with
   | ISkip _ => ok (c, params)
   | IVardecl type x i => ok (c, filter (negb ∘ (String.eqb x)) params)
@@ -353,7 +353,7 @@ Definition construct_state name stmt trans tags :=
                      (ISeq stmt trans tags) tags)
                (ISkip tags) tags.
 
-Definition extract_single (es : list (E.e tags_t)) (msg : string) : result (E.e tags_t) :=
+Definition extract_single (es : list (E.e tags_t)) (msg : string) : result string (E.e tags_t) :=
   match es with
   | [e] => ok e
   | _ => error msg
@@ -406,7 +406,7 @@ Fixpoint elim_tuple_expr (e : E.e tags_t) :=
   end.
 
 
-Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
+Definition translate_simple_patterns pat tags : result string (E.e tags_t) :=
   match pat with
   | Parser.PATBit w v =>
     ok (E.EBit w v tags)
@@ -419,7 +419,7 @@ Definition translate_simple_patterns pat tags : result (E.e tags_t) :=
 
 
 
-Program Fixpoint translate_pat tags e pat { struct pat } : result (E.e tags_t)  :=
+Program Fixpoint translate_pat tags e pat { struct pat } : result string (E.e tags_t)  :=
   let bool_op := fun o x y => E.EBop E.TBool o x y tags in
   let mask := fun t x y => E.EBop t E.BitAnd x y tags in
   let and := bool_op E.And in
@@ -482,7 +482,7 @@ Fixpoint inline_transition (gas : nat)
                        (name : string)
                        (trans : Parser.e tags_t )
                        (tags : tags_t)
-     : result ((list string) * t)  :=
+     : result string ((list string) * t)  :=
        match gas with
        | O => ok ([], ISkip tags)
        | S gas =>
@@ -508,7 +508,7 @@ Fixpoint inline_state
          (state : Parser.state_block tags_t)
          (states : F.fs string (Parser.state_block tags_t))
          (tags : tags_t)
-  : result ((list (string * Parser.state_block tags_t)) * t) :=
+  : result string ((list (string * Parser.state_block tags_t)) * t) :=
   match gas with
   | O => ok ([], ISkip tags)
   | S gas =>
@@ -524,7 +524,7 @@ with inline_parser (gas : nat)
                    (current_name : string)
                    (current : Parser.state_block tags_t)
                    (states : F.fs string (Parser.state_block tags_t))
-     : result t :=
+     : result string t :=
        match gas with
        | O => ok (ISkip tags)
        | S gas =>
@@ -540,7 +540,7 @@ with inline (gas : nat)
             (unroll : nat)
             (ctx : DeclCtx tags_t)
             (s : ST.s tags_t)
-  : result t :=
+  : result string t :=
   match gas with
   | O => error "Inliner ran out of gas"
   | S gas =>
@@ -588,7 +588,7 @@ with inline (gas : nat)
       end
 
     | ST.SActCall a args i =>
-      let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
+      let* adecl := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment")%string in
       match adecl with
       | CD.CDAction _ _ body i =>
         (** TODO handle copy-in/copy-out *)
@@ -603,11 +603,11 @@ with inline (gas : nat)
       match find_control _ ctx inst with
       | None =>
         let parser := find_parser _ ctx inst in
-        let* pinst := from_opt parser ("could not find controller or parser named " ++ inst) in
+        let* pinst := from_opt parser ("could not find controller or parser named " ++ inst)%string in
         match pinst with
         | TD.TPInstantiate pname _ _ pargs tags =>
           let pdecl_opt := find_parser _ ctx pname in
-          let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname) in
+          let* pdecl := from_opt pdecl_opt ("could not find parser of type " ++ pname)%string in
           match pdecl with
           | TD.TPParser _ _ _ _ start states tags =>
             let+ parser := inline_parser gas unroll tags ctx "start" start states in
@@ -615,10 +615,10 @@ with inline (gas : nat)
             ISeq init  parser tags
           (* error ("found parser " ++ inst ++ " of type " ++ pname ++ " [TODO] translate the parser!") *)
           | _ =>
-            error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")
+            error ("expected `" ++ pname ++ "` to be a parser declaration, but it was something else")%string
           end
         | _ =>
-          error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")
+          error ("expected `" ++ inst ++ "` to be a instantiation, but it was something else")%string
         end
       | Some cinst =>
         match cinst with
@@ -660,7 +660,7 @@ with inline (gas : nat)
         let act_type := E.TBit act_sizeN in
         let act_to_gcl := fun i a acc_res =>
           let* acc := acc_res in
-          let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment") in
+          let* act := from_opt (find_action tags_t ctx a) ("could not find action " ++ a ++ " in environment")%string in
           match act with
           | CD.CDAction _ params body tags =>
             let* s := inline gas unroll ctx body in
@@ -707,18 +707,12 @@ Definition seq_tuple_elem_assign
   let lhs := E.EVar t tuple_elem_name i in
   Inline.ISeq (Inline.IAssign t lhs e i) acc i.
 
-Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result Inline.t :=
+Definition elim_tuple_assign (ltyp : E.t) (lhs rhs : E.e tags_t) (i : tags_t) : result string Inline.t :=
   match lhs, rhs with
   | E.EVar (E.TTuple types) x i, E.ETuple es _ =>
     let+ te := zip types es in
     fold_lefti (seq_tuple_elem_assign x i) (Inline.ISkip i) te
   | _,_ => ok (Inline.IAssign ltyp lhs rhs i)
-  end.
-
-Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
-  match p with
-  | (_, Error _ s) => error s
-  | (a, Ok _ b) => ok (a, b)
   end.
 
 Definition elaborate_tuple_literal
@@ -730,7 +724,7 @@ Definition elaborate_tuple_literal
    let index := fun s =>  index_array_str s idx in
    (index param, ctor e) :: acc) args es.
 
-Fixpoint elim_tuple (c : Inline.t) : result t :=
+Fixpoint elim_tuple (c : Inline.t) : result string t :=
   match c with
   | ISkip _ => ok c
   | IVardecl _ _ _ => ok c
@@ -775,14 +769,14 @@ Definition header_fields (tags : tags_t) (e : E.e tags_t) (fields : F.fs string 
          fields
          [(E.EUop E.TBool E.IsValid e tags, E.TBool)].
 
-Definition header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result t:=
+Definition header_elaboration_assign tags (lhs rhs : E.e tags_t) (fields : F.fs string E.t) : result string t:=
   let lhs_members := header_fields tags lhs fields in
   let rhs_members := header_fields tags rhs fields in
   let+ assigns := zip lhs_members rhs_members  in
   let f := fun '((lhs_mem, typ), (rhs_mem, _)) acc => ISeq (IAssign typ lhs_mem rhs_mem tags) acc tags in
   List.fold_right f (ISkip tags) assigns.
 
-Fixpoint elaborate_headers (c : Inline.t) : result Inline.t :=
+Fixpoint elaborate_headers (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip _ => ok c
   | IVardecl _ _ _ => ok c
@@ -850,7 +844,7 @@ Definition extract_next extern fields (num : positive) hdr hs (tags:tags_t) : In
                            tags)
         (ift (invalid 0) (next_and_last 0)).
 
-Definition elaborate_extract extern (arrow : E.arrowE tags_t) (tags : tags_t) : result Inline.t :=
+Definition elaborate_extract extern (arrow : E.arrowE tags_t) (tags : tags_t) : result string Inline.t :=
   match arrow.(paramargs) with
   | [(hdr, (PAOut arg))] =>
     match arg with
@@ -868,7 +862,7 @@ Definition elaborate_extract extern (arrow : E.arrowE tags_t) (tags : tags_t) : 
     ok (IExternMethodCall extern "extract" arrow tags)
   end.
 
-Fixpoint elaborate_header_stacks (c : Inline.t) : result Inline.t :=
+Fixpoint elaborate_header_stacks (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip _ => ok c
   | IVardecl type x i =>
@@ -961,7 +955,7 @@ Definition struct_fields (s : string) (fields : F.fs string E.t) : list (string 
   F.fold (fun f typ acc => (s ++ "." ++ f, typ) :: acc ) fields [].
 
 (** TODO: Compiler pass to elaborate structs *)
-Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
+Fixpoint elaborate_structs (c : Inline.t) : result string Inline.t :=
   match c with
   | ISkip _ => ok c
   | IVardecl type s i =>
@@ -1026,7 +1020,7 @@ Fixpoint elaborate_structs (c : Inline.t) : result Inline.t :=
     ok c
 end.
 
-Fixpoint eliminate_slice_assignments (c : t) : result t :=
+Fixpoint eliminate_slice_assignments (c : t) : result string t :=
   match c with
   | ISkip _ => ok c
   | IVardecl _ _ _=> ok c
@@ -1077,7 +1071,7 @@ Definition inline_assert (check : E.e tags_t) (tags : tags_t) : t :=
 Definition isValid (hdr : E.e tags_t) (tags: tags_t) : E.e tags_t :=
   E.EUop E.TBool E.IsValid hdr tags.
 
-Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result t :=
+Fixpoint header_asserts (e : E.e tags_t) (tags : tags_t) : result string t :=
   match e with
   | E.EBool _ _ | E.EBit _ _ _
   | E.EInt _ _ _ | E.EVar _ _ _
@@ -1127,7 +1121,7 @@ Definition get_from_paramarg {A : Type} (pa : paramarg A A) :=
   | PADirLess a => a
   end.
 
-Fixpoint assert_headers_valid_before_use (c : t) : result t :=
+Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   match c with
   | ISkip _
   | IVardecl _ _ _=> ok c

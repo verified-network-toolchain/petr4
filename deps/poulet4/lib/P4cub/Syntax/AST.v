@@ -200,7 +200,13 @@ Module Expr.
     Definition arrowE : Type :=
       arrow string e e e.
     (**[]*)
-    
+
+    (** Map a function over the arguments and return of a function call *)
+    Definition map_arrowE (f : e -> e) (call : arrowE) : arrowE :=
+      let paramargs := F.map (paramarg_map f f) call.(paramargs) in
+      let rtrns := option_map f call.(rtrns) in
+      {| paramargs := paramargs; rtrns := rtrns |}.
+
     (** Constructor arguments. *)
     Variant constructor_arg : Type :=
     | CAExpr (expr : e)   (* plain expression *)

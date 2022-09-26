@@ -91,7 +91,7 @@ Section ToP4cub.
       packages : list (TopDecl.d tags_t);
       externs : list (TopDecl.d tags_t);
       types : list (string * E.t);
-      constants: Env.t string (E.e tags_t);
+      constants : Env.t string (E.e tags_t);
     }.
 
   Definition info_of_TopDecl (d: TopDecl.d tags_t) :=
@@ -691,6 +691,81 @@ Section ToP4cub.
     (*   error "[FIXME] actually patterns (unimplemented)" *)
     end.
 
+
+  (** A binding [x : Some e] of a [constants_env] indicates that [x] is a constant 
+      with value [e], while the binding [y : None] indicates that [y] is an 
+      identifier that is not a constant in the current scope *)
+  Definition constants_env : Type := Env.t string (option (E.e tags_t)).
+
+
+  (** [find_constant id ctx default] is [e] if [id] is bound to [Some e] in 
+      [ctx], and [default] otherwise. *)
+  Definition find_constant (id : string) (ctx : constants_env) (default : E.e tags_t) : Expr.e tags_t :=
+    match Env.find id ctx with
+    | Some (Some e) => e
+    | _ => default
+    end.
+
+  (** [inline_constants ctx expr] is [expr] with all constants inlined with 
+      their literal values, as specified by the environment [ctx]. A binding
+      [x : Some e] of [ctx] indicates that [x] should be inlined with value [e],
+      while the binding [y : None] indicates [y] should not be inlined. *)
+  Fixpoint inline_constants (ctx : constants_env) (expr : E.e tags_t) : E.e tags_t :=
+    let inline := inline_constants ctx in
+    let inline_fields := F.map inline in
+    let inline_list := List.map inline in
+    match expr with
+    | E.EVar _ id _ => find_constant id ctx expr
+    | E.ESlice arg hi lo i => E.ESlice (inline arg) lo hi i
+    | E.ECast type arg i => E.ECast type (inline arg) i
+    | E.EUop type op arg i => E.EUop type op (inline arg) i
+    | E.EBop type op lhs rhs i =>
+      let lhs' := inline lhs in
+      let rhs' := inline rhs in
+      E.EBop type op lhs' rhs' i
+    | E.ETuple es i => E.ETuple (inline_list es) i
+    | E.EStruct fields i => E.EStruct (inline_fields fields) i
+    | E.EHeader fields valid i =>
+      let fields' := inline_fields fields in
+      let valid' := inline valid in
+      E.EHeader fields' valid' i
+    | E.EExprMember type mem arg i => 
+      E.EExprMember type mem (inline arg) i
+    | E.EHeaderStack fields headers index i =>
+      let headers' := inline_list headers in
+      E.EHeaderStack fields headers' index i
+    | E.EHeaderStackAccess fields stk index i =>
+      E.EHeaderStackAccess fields (inline stk) index i
+    | _ => expr
+    end.
+
+  (** [inline_constants_stmt ctx stmt] inlines all of the constants in [stmt]
+      with their literal values, as specified by the context [ctx] *)
+  Fixpoint inline_constants_stmt (ctx : constants_env) (stmt : ST.s tags_t) : ST.s tags_t :=
+    let inline := inline_constants_stmt ctx in
+    let inline_expr := inline_constants ctx in
+    let inline_arrowE := E.map_arrowE tags_t inline_expr in
+    let inline_args := F.map (paramarg_map inline_expr inline_expr) in
+    match stmt with
+    | ST.SSeq (ST.SVardecl id (inr _) _ as s1) s2 i =>
+      let s1' := inline s1 in
+      let ctx' := Env.bind id None ctx in (* [id] not a constant in this scope *)
+      let s2' := inline_constants_stmt ctx' s2 in
+      ST.SSeq s1' s2' i
+    | ST.SSeq s1 s2 i => ST.SSeq (inline s1) (inline s2) i
+    | ST.SAssign lhs rhs i => ST.SAssign (inline_expr lhs) (inline_expr rhs) i
+    | ST.SConditional guard t f i =>
+      ST.SConditional (inline_expr guard) (inline t) (inline f) i
+    | ST.SBlock s => ST.SBlock (inline s)
+    | ST.SExternMethodCall ext name types args i =>
+      ST.SExternMethodCall ext name types (inline_arrowE args) i
+    | ST.SFunCall f typs args i => ST.SFunCall f typs (inline_arrowE args) i
+    | ST.SActCall name args i => ST.SActCall name (inline_args args) i
+    | ST.SReturn e i => ST.SReturn (option_map inline_expr e) i
+    | ST.SApply name ext args i => ST.SApply name ext (inline_args args) i
+    | ST.SSetValidity hdr valid i => ST.SSetValidity (inline_expr hdr) valid i
+    | _ => stmt
+    end.
 
   Definition get_name (e : Expression) : result (P4String.t tags_t) :=
     let '(MkExpression _ pre_e _ _ ) := e in

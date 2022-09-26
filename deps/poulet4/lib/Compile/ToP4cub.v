@@ -132,9 +132,160 @@ Section ToP4cub.
        constants := [];
     |}.
 
+  (** A binding [x : Some e] of a [constants_env] indicates that [x] is a constant 
+      with value [e], while the binding [y : None] indicates that [y] is an 
+      identifier that is not a constant in the current scope *)
+  Definition constants_env : Type := Env.t string (option (E.e tags_t)).
+
+
+  (** [find_constant id ctx default] is [e] if [id] is bound to [Some e] in 
+      [ctx], and [default] otherwise. *)
+  Definition find_constant (id : string) (ctx : constants_env) (default : E.e tags_t) : Expr.e tags_t :=
+    match Env.find id ctx with
+    | Some (Some e) => e (* [id] bound to constant value [e] *)
+    | _ => default (* [id] either unbound or bound to something else*)
+    end.
+
+  (** [inline_constants ctx expr] is [expr] with all constants inlined with 
+      their literal values, as specified by the environment [ctx]. A binding
+      [x : Some e] of [ctx] indicates that [x] should be inlined with value [e],
+      while the binding [y : None] indicates [y] should not be inlined. *)
+  Fixpoint inline_constants (ctx : constants_env) (expr : E.e tags_t) : E.e tags_t :=
+    let inline := inline_constants ctx in
+    let inline_fields := F.map inline in
+    let inline_list := List.map inline in
+    match expr with
+    | E.EVar _ id _ => find_constant id ctx expr
+    | E.ESlice arg hi lo i => E.ESlice (inline arg) lo hi i
+    | E.ECast type arg i => E.ECast type (inline arg) i
+    | E.EUop type op arg i => E.EUop type op (inline arg) i
+    | E.EBop type op lhs rhs i =>
+      let lhs' := inline lhs in
+      let rhs' := inline rhs in
+      E.EBop type op lhs' rhs' i
+    | E.ETuple es i => E.ETuple (inline_list es) i
+    | E.EStruct fields i => E.EStruct (inline_fields fields) i
+    | E.EHeader fields valid i =>
+      let fields' := inline_fields fields in
+      let valid' := inline valid in
+      E.EHeader fields' valid' i
+    | E.EExprMember type mem arg i => 
+      E.EExprMember type mem (inline arg) i
+    | E.EHeaderStack fields headers index i =>
+      let headers' := inline_list headers in
+      E.EHeaderStack fields headers' index i
+    | E.EHeaderStackAccess fields stk index i =>
+      E.EHeaderStackAccess fields (inline stk) index i
+    | _ => expr
+    end.
+
+  (** [inline_constants_stmt ctx stmt] inlines all of the constants in [stmt]
+      with their literal values, as specified by the context [ctx] *)
+  Fixpoint inline_constants_stmt (ctx : constants_env) (stmt : ST.s tags_t) : ST.s tags_t :=
+    let inline := inline_constants_stmt ctx in
+    let inline_expr := inline_constants ctx in
+    let inline_arrowE := E.map_arrowE tags_t inline_expr in
+    let inline_args := F.map (paramarg_map inline_expr inline_expr) in
+    match stmt with
+    | ST.SSeq (ST.SVardecl id (inr _) _ as s1) s2 i =>
+      let s1' := inline s1 in
+      let ctx' := Env.bind id None ctx in (* [id] not a constant in this scope *)
+      let s2' := inline_constants_stmt ctx' s2 in
+      ST.SSeq s1' s2' i
+    | ST.SSeq s1 s2 i => ST.SSeq (inline s1) (inline s2) i
+    | ST.SAssign lhs rhs i => ST.SAssign (inline_expr lhs) (inline_expr rhs) i
+    | ST.SConditional guard t f i =>
+      ST.SConditional (inline_expr guard) (inline t) (inline f) i
+    | ST.SBlock s => ST.SBlock (inline s)
+    | ST.SExternMethodCall ext name types args i =>
+      ST.SExternMethodCall ext name types (inline_arrowE args) i
+    | ST.SFunCall f typs args i => ST.SFunCall f typs (inline_arrowE args) i
+    | ST.SActCall name args i => ST.SActCall name (inline_args args) i
+    | ST.SReturn e i => ST.SReturn (option_map inline_expr e) i
+    | ST.SApply name ext args i => ST.SApply name ext (inline_args args) i
+    | ST.SSetValidity hdr valid i => ST.SSetValidity (inline_expr hdr) valid i
+    | _ => stmt
+    end.
+
+  (** Inline constants within constructor arguments *)
+  Definition inline_constants_constructor_args (ctx : constants_env) : E.constructor_args tags_t -> E.constructor_args tags_t :=
+    F.map (fun arg =>
+      match arg with 
+      | E.CAExpr e => E.CAExpr (inline_constants ctx e)
+      | E.CAName _ => arg
+      end).
+
+  (** Inline constants within table *) 
+  Definition inline_constants_table (ctx : constants_env) (tbl : Control.table tags_t) : Control.table tags_t :=
+    let table_key := Env.map_keys (inline_constants ctx) tbl.(Control.table_key) in
+    {|
+      Control.table_key := table_key; 
+      Control.table_actions := tbl.(Control.table_actions);
+    |}.
+
+  (** Inline constants withiin control *)
+  Fixpoint inline_constants_control (ctx : constants_env) (ctrl : Control.d tags_t) : Control.d tags_t :=
+    let inline := inline_constants_control ctx in
+    match ctrl with
+    | Control.CDAction name sig body i => 
+      Control.CDAction name sig (inline_constants_stmt ctx body) i
+    | Control.CDTable name tbl i =>
+      Control.CDTable name (inline_constants_table ctx tbl) i
+    | Control.CDSeq d1 d2 i => Control.CDSeq (inline d1) (inline d2) i
+    end.
+
+  (** Inline constants within parser expression *)
+  Fixpoint inline_constants_parser_expr (ctx : constants_env) (expr : Parser.e tags_t) : Parser.e tags_t :=
+    match expr with
+    | Parser.PGoto _ _ => expr
+    | Parser.PSelect discriminee default cases i =>
+      let inline := inline_constants_parser_expr ctx in
+      let discriminee' := inline_constants ctx discriminee in
+      let default' := inline default in
+      let cases' := F.map inline cases in
+      Parser.PSelect discriminee' default' cases' i
+    end.
+
+  (** Inline constants within parser state block list *)
+  Definition inline_constants_parser_state (ctx : constants_env) (blk : Parser.state_block tags_t) : Parser.state_block tags_t :=
+    {|
+      Parser.stmt := inline_constants_stmt ctx blk.(Parser.stmt);
+      Parser.trans := inline_constants_parser_expr ctx blk.(Parser.trans);
+    |}.
+
+  Definition constants_of_decl_ctx (decl_ctx : DeclCtx) : constants_env :=
+    Env.map_vals Some decl_ctx.(constants).
+
+  Fixpoint inline_constants_decl (decl_ctx : DeclCtx) (decl : TopDecl.d tags_t) : TopDecl.d tags_t :=
+    (* map every constant binding [id : e] to the binding [id : Some e] *)
+    let ctx := constants_of_decl_ctx decl_ctx in
+    let inline_parser_states := inline_constants_parser_state ctx in
+    let inline_stmt := inline_constants_stmt ctx in
+    match decl with
+    | TopDecl.TPInstantiate constr instance types cargs i =>
+      let cargs' := inline_constants_constructor_args ctx cargs in
+      TopDecl.TPInstantiate constr instance types cargs' i
+    | TopDecl.TPExtern _ _ _ _ _ => decl
+    | TopDecl.TPControl name cparams eparams params ctrl blk i =>
+      let ctrl' := inline_constants_control ctx ctrl in
+      let blk' := inline_stmt blk in
+      TopDecl.TPControl name cparams eparams params ctrl' blk' i
+    | TopDecl.TPParser name cparams eparams params start states i =>
+      let start' := inline_parser_states start in
+      let states' := F.map inline_parser_states states in
+      TopDecl.TPParser name cparams eparams params start' states' i
+    | TopDecl.TPFunction name types sig body i =>
+      let body' := inline_stmt body in
+      TopDecl.TPFunction name types sig body' i
+    | TopDecl.TPSeq d1 d2 i =>
+      let d1' := inline_constants_decl decl_ctx d1 in
+      let d2' := inline_constants_decl decl_ctx d2 in
+      TopDecl.TPSeq d1' d2' i
+    end.
 
   Definition add_control (decl : DeclCtx) (c : TopDecl.d tags_t) :=
-    {| controls := c::decl.(controls);
+    let c := inline_constants_decl decl c in
+    {| controls := c :: decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
        actions := decl.(actions);
@@ -147,8 +298,9 @@ Section ToP4cub.
     |}.
 
   Definition add_parser (decl : DeclCtx) (p : TopDecl.d tags_t) :=
+    let p := inline_constants_decl decl p in
     {| controls := decl.(controls);
-       parsers := p::decl.(parsers);
+       parsers := p :: decl.(parsers);
        tables := decl.(tables);
        actions := decl.(actions);
        functions := decl.(functions);
@@ -160,13 +312,14 @@ Section ToP4cub.
     |}.
 
   Definition add_package (decl : DeclCtx) (p : TopDecl.d tags_t) :=
+    let p := inline_constants_decl decl p in
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
        actions := decl.(actions);
        functions := decl.(functions);
        package_types := decl.(package_types);
-       packages := p::decl.(packages);
+       packages := p :: decl.(packages);
        externs := decl.(externs);
        types := decl.(types);
        constants := decl.(constants);
@@ -178,7 +331,7 @@ Section ToP4cub.
        tables := decl.(tables);
        actions := decl.(actions);
        functions := decl.(functions);
-       package_types := pt::decl.(package_types);
+       package_types := pt :: decl.(package_types);
        packages := decl.(packages);
        externs := decl.(externs);
        types := decl.(types);
@@ -186,6 +339,7 @@ Section ToP4cub.
     |}.
 
   Definition add_extern (decl : DeclCtx) (e : TopDecl.d tags_t) :=
+    let e := inline_constants_decl decl e in
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
@@ -193,15 +347,17 @@ Section ToP4cub.
        functions := decl.(functions);
        package_types := decl.(package_types);
        packages := decl.(packages);
-       externs := e::decl.(externs);
+       externs := e :: decl.(externs);
        types := decl.(types);
        constants := decl.(constants);
     |}.
 
   Definition add_table (decl : DeclCtx) (t : Control.d tags_t) :=
+    let ctx := constants_of_decl_ctx decl in
+    let t := inline_constants_control ctx t in
     {| controls := decl.(controls);
        parsers := decl.(parsers);
-       tables := t::decl.(tables);
+       tables := t :: decl.(tables);
        actions := decl.(actions);
        functions := decl.(functions);
        packages := decl.(packages);
@@ -212,10 +368,12 @@ Section ToP4cub.
     |}.
 
   Definition add_action (decl : DeclCtx) (a : Control.d tags_t) :=
+    let ctx := constants_of_decl_ctx decl in
+    let a := inline_constants_control ctx a in
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
-       actions := a::decl.(actions);
+       actions := a :: decl.(actions);
        functions := decl.(functions);
        package_types := decl.(package_types);
        packages := decl.(packages);
@@ -238,6 +396,8 @@ Section ToP4cub.
     |}.
 
   Definition add_constant (decl : DeclCtx) (id : string) (expr : E.e tags_t) :=
+    let ctx := constants_of_decl_ctx decl in
+    let expr := inline_constants ctx expr in
     {| controls := decl.(controls);
        parsers := decl.(parsers);
        tables := decl.(tables);
@@ -689,155 +849,6 @@ Section ToP4cub.
     (*   error "[FIXME] actually patterns (unimplemented)" *)
     (* | ExpRange lo hi => *)
     (*   error "[FIXME] actually patterns (unimplemented)" *)
-    end.
-
-
-  (** A binding [x : Some e] of a [constants_env] indicates that [x] is a constant 
-      with value [e], while the binding [y : None] indicates that [y] is an 
-      identifier that is not a constant in the current scope *)
-  Definition constants_env : Type := Env.t string (option (E.e tags_t)).
-
-
-  (** [find_constant id ctx default] is [e] if [id] is bound to [Some e] in 
-      [ctx], and [default] otherwise. *)
-  Definition find_constant (id : string) (ctx : constants_env) (default : E.e tags_t) : Expr.e tags_t :=
-    match Env.find id ctx with
-    | Some (Some e) => e (* [id] bound to constant value [e] *)
-    | _ => default (* [id] either unbound or bound to something else*)
-    end.
-
-  (** [inline_constants ctx expr] is [expr] with all constants inlined with 
-      their literal values, as specified by the environment [ctx]. A binding
-      [x : Some e] of [ctx] indicates that [x] should be inlined with value [e],
-      while the binding [y : None] indicates [y] should not be inlined. *)
-  Fixpoint inline_constants (ctx : constants_env) (expr : E.e tags_t) : E.e tags_t :=
-    let inline := inline_constants ctx in
-    let inline_fields := F.map inline in
-    let inline_list := List.map inline in
-    match expr with
-    | E.EVar _ id _ => find_constant id ctx expr
-    | E.ESlice arg hi lo i => E.ESlice (inline arg) lo hi i
-    | E.ECast type arg i => E.ECast type (inline arg) i
-    | E.EUop type op arg i => E.EUop type op (inline arg) i
-    | E.EBop type op lhs rhs i =>
-      let lhs' := inline lhs in
-      let rhs' := inline rhs in
-      E.EBop type op lhs' rhs' i
-    | E.ETuple es i => E.ETuple (inline_list es) i
-    | E.EStruct fields i => E.EStruct (inline_fields fields) i
-    | E.EHeader fields valid i =>
-      let fields' := inline_fields fields in
-      let valid' := inline valid in
-      E.EHeader fields' valid' i
-    | E.EExprMember type mem arg i => 
-      E.EExprMember type mem (inline arg) i
-    | E.EHeaderStack fields headers index i =>
-      let headers' := inline_list headers in
-      E.EHeaderStack fields headers' index i
-    | E.EHeaderStackAccess fields stk index i =>
-      E.EHeaderStackAccess fields (inline stk) index i
-    | _ => expr
-    end.
-
-  (** [inline_constants_stmt ctx stmt] inlines all of the constants in [stmt]
-      with their literal values, as specified by the context [ctx] *)
-  Fixpoint inline_constants_stmt (ctx : constants_env) (stmt : ST.s tags_t) : ST.s tags_t :=
-    let inline := inline_constants_stmt ctx in
-    let inline_expr := inline_constants ctx in
-    let inline_arrowE := E.map_arrowE tags_t inline_expr in
-    let inline_args := F.map (paramarg_map inline_expr inline_expr) in
-    match stmt with
-    | ST.SSeq (ST.SVardecl id (inr _) _ as s1) s2 i =>
-      let s1' := inline s1 in
-      let ctx' := Env.bind id None ctx in (* [id] not a constant in this scope *)
-      let s2' := inline_constants_stmt ctx' s2 in
-      ST.SSeq s1' s2' i
-    | ST.SSeq s1 s2 i => ST.SSeq (inline s1) (inline s2) i
-    | ST.SAssign lhs rhs i => ST.SAssign (inline_expr lhs) (inline_expr rhs) i
-    | ST.SConditional guard t f i =>
-      ST.SConditional (inline_expr guard) (inline t) (inline f) i
-    | ST.SBlock s => ST.SBlock (inline s)
-    | ST.SExternMethodCall ext name types args i =>
-      ST.SExternMethodCall ext name types (inline_arrowE args) i
-    | ST.SFunCall f typs args i => ST.SFunCall f typs (inline_arrowE args) i
-    | ST.SActCall name args i => ST.SActCall name (inline_args args) i
-    | ST.SReturn e i => ST.SReturn (option_map inline_expr e) i
-    | ST.SApply name ext args i => ST.SApply name ext (inline_args args) i
-    | ST.SSetValidity hdr valid i => ST.SSetValidity (inline_expr hdr) valid i
-    | _ => stmt
-    end.
-
-  (** Inline constants within constructor arguments *)
-  Definition inline_constants_constructor_args (ctx : constants_env) : E.constructor_args tags_t -> E.constructor_args tags_t :=
-    F.map (fun arg =>
-      match arg with 
-      | E.CAExpr e => E.CAExpr (inline_constants ctx e)
-      | E.CAName _ => arg
-      end).
-
-  (** Inline constants within table *) 
-  Definition inline_constants_table (ctx : constants_env) (tbl : Control.table tags_t) : Control.table tags_t :=
-    let table_key := Env.map_keys (inline_constants ctx) tbl.(Control.table_key) in
-    {|
-      Control.table_key := table_key; 
-      Control.table_actions := tbl.(Control.table_actions);
-    |}.
-
-  (** Inline constants withiin control *)
-  Fixpoint inline_constants_control (ctx : constants_env) (ctrl : Control.d tags_t) : Control.d tags_t :=
-    let inline := inline_constants_control ctx in
-    match ctrl with
-    | Control.CDAction name sig body i => 
-      Control.CDAction name sig (inline_constants_stmt ctx body) i
-    | Control.CDTable name tbl i =>
-      Control.CDTable name (inline_constants_table ctx tbl) i
-    | Control.CDSeq d1 d2 i => Control.CDSeq (inline d1) (inline d2) i
-    end.
-
-  (** Inline constants within parser expression *)
-  Fixpoint inline_constants_parser_expr (ctx : constants_env) (expr : Parser.e tags_t) : Parser.e tags_t :=
-    match expr with
-    | Parser.PGoto _ _ => expr
-    | Parser.PSelect discriminee default cases i =>
-      let inline := inline_constants_parser_expr ctx in
-      let discriminee' := inline_constants ctx discriminee in
-      let default' := inline default in
-      let cases' := F.map inline cases in
-      Parser.PSelect discriminee' default' cases' i
-    end.
-
-  (** Inline constants within parser state block list *)
-  Definition inline_constants_parser_state (ctx : constants_env) (blk : Parser.state_block tags_t) : Parser.state_block tags_t :=
-    {|
-      Parser.stmt := inline_constants_stmt ctx blk.(Parser.stmt);
-      Parser.trans := inline_constants_parser_expr ctx blk.(Parser.trans);
-    |}.
-
-  Fixpoint inline_constants_decl (decl_ctx : DeclCtx) (decl : TopDecl.d tags_t) : TopDecl.d tags_t :=
-    (* map every constant binding [id : e] to the binding [id : Some e] *)
-    let ctx := Env.map_vals Some decl_ctx.(constants) in
-    let inline_parser_states := inline_constants_parser_state ctx in
-    let inline_stmt := inline_constants_stmt ctx in
-    match decl with
-    | TopDecl.TPInstantiate constr instance types cargs i =>
-      let cargs' := inline_constants_constructor_args ctx cargs in
-      TopDecl.TPInstantiate constr instance types cargs' i
-    | TopDecl.TPExtern _ _ _ _ _ => decl
-    | TopDecl.TPControl name cparams eparams params ctrl blk i =>
-      let ctrl' := inline_constants_control ctx ctrl in
-      let blk' := inline_stmt blk in
-      TopDecl.TPControl name cparams eparams params ctrl' blk' i
-    | TopDecl.TPParser name cparams eparams params start states i =>
-      let start' := inline_parser_states start in
-      let states' := F.map inline_parser_states states in
-      TopDecl.TPParser name cparams eparams params start' states' i
-    | TopDecl.TPFunction name types sig body i =>
-      let body' := inline_stmt body in
-      TopDecl.TPFunction name types sig body' i
-    | TopDecl.TPSeq d1 d2 i =>
-      let d1' := inline_constants_decl decl_ctx d1 in
-      let d2' := inline_constants_decl decl_ctx d2 in
-      TopDecl.TPSeq d1' d2' i
     end.
 
   Definition get_name (e : Expression) : result (P4String.t tags_t) :=

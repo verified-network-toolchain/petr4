@@ -1,7 +1,80 @@
+(coq.extraction
+ (prelude Extract)
+ (extracted_modules
+   Archi
+   Ascii
+   AST
+   AST0
+   Auxilary
+   Basics
+   Binary
+   BinarySingleNaN
+   BinaryString
+   BinInt
+   BinIntDef
+   BinNat
+   BinNums
+   BinPos
+   BinPosDef
+   Bits
+   Bool
+   Byte
+   CCompEnv
+   CCompSel
+   Cconsts
+   Clightdefs
+   Clight
+   Cop
+   Coqlib
+   Csyntax
+   Ctypesdefs
+   Ctypes
+   CV1Model
+   Datatypes
+   Decimal
+   Defs
+   Envn
+   Equality
+   EquivDec
+   EquivUtil
+   Error
+   Errors
+   Floats
+   Globalenvs
+   Hexadecimal
+   IdentGen
+   IEEE754_extra
+   Integers
+   List0
+   Maps
+   Memdata
+   Memory
+   Memtype
+   Monad
+   Nat
+   Number
+   Operations
+   P4Field
+   P4Int
+   P4String
+   Petr4Runtime
+   Round
+   Smallstep
+   SpecFloat
+   Specif
+   String0
+   Values
+   ZArith_dec
+   Zaux
+   Zbits
+   Zbool
+   Zpower
+   )
+ (libraries zarith bignum)
+)
 (library 
   (name poulet4_Ccomp)
   (public_name poulet4_Ccomp)
   (libraries bignum zarith str)
   (ocamlc_flags (:standard -w -33))
   )
-(include_subdirs unqualified)

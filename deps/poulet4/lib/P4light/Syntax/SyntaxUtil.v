@@ -21,7 +21,7 @@ Notation P4String := (P4String.t tags_t).
 
 (* This should be replaced with "fail" when extracting to OCaml. *)
 Definition dummy_ident : unit -> ident.
-Proof. intros _. exact ""%string. Qed.
+Proof. intros _. exact ""%string. Defined.
 
 Definition get_type_name (typ : @P4Type tags_t) : ident :=
   match typ with

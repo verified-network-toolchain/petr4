@@ -182,9 +182,12 @@ Module Field.
         intros; repeat let_pair_simpl; split.
         - intros H. pose proof relfs_split us vs.
           repeat let_pair_simpl; auto.
-        - intros [Hx Huv]. pose proof combine_relfs _ _ _ _ Hx Huv.
-          unravel in *. pose proof split_combine us.
-          pose proof split_combine vs. repeat let_pair_simpl; auto.
+        - intros [Hx Huv].
+          pose proof combine_relfs _ _ _ _ Hx Huv.
+          unravel in *.
+          pose proof split_combine us Heqp as Hus.
+          pose proof split_combine vs Heqp0 as Hvs; subst.
+          assumption.
       Qed.
 
       Lemma relfs_split_map_iff : forall us vs,
@@ -305,7 +308,7 @@ Module Field.
   End FieldLibrary.
 
   Module RelfEquiv.
-    Instance RelfEquiv
+    Global Instance RelfEquiv
              (K U : Type)
              (keq : K -> K -> Prop) `{Equivalence K keq}
              (R : U -> U -> Prop) `{Equivalence U R}
@@ -313,7 +316,7 @@ Module Field.
       ProdEquiv keq R.
     (**[]*)
 
-    Instance RelfsEquiv
+    Global Instance RelfsEquiv
              (K U : Type)
              (keq : K -> K -> Prop) `{Equivalence K keq}
              (R : U -> U -> Prop) `{Equivalence U R}

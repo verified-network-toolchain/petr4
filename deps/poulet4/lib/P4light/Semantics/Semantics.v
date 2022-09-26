@@ -3,7 +3,7 @@ Require Import Coq.Strings.String Coq.Bool.Bool
         Coq.Lists.List Coq.Program.Program
         Coq.ssr.ssrbool
         Poulet4.P4light.Syntax.Typed
-        Poulet4.P4light.Syntax.Syntax        
+        Poulet4.P4light.Syntax.Syntax
         Poulet4.Monads.Option.
 From Poulet4.Utils Require Import Utils Maps AList P4Arith.
 Require Export Poulet4.P4light.Architecture.Target
@@ -93,7 +93,11 @@ Variant get_member : Sval -> string -> Sval -> Prop :=
                                     else sv = (ValBaseBit (to_loptbool 32%N (Z.of_N (next - 1))))) ->
                                   get_member (ValBaseStack headers next) "lastIndex" sv.
 
-Context {tags_t: Type}.
+Context {tags_t : Type}.
+Context {inhabitant_tags_t : Inhabitant tags_t}.
+Definition dummy_type : @P4Type tags_t := TypBool.
+Opaque dummy_type.
+Definition dummy_tags := @default tags_t _.
 
 Notation ValSet := (@ValueSet tags_t).
 Notation Lval := ValueLvalue.
@@ -348,6 +352,7 @@ Variable ge : genv.
 Definition loc_to_sval_const (this : path) (loc : Locator) : option Sval :=
   option_map eval_val_to_sval (loc_to_val_const (ge_const ge) this loc).
 
+(* Execution relation for side-effectless expressions. *)
 Inductive exec_expr (read_one_bit : option bool -> bool -> Prop)
   : path -> (* temp_env -> *) state -> (@Expression tags_t) -> Sval ->
     (* trace -> *) (* temp_env -> *) (* state -> *) (* signal -> *) Prop :=
@@ -487,148 +492,7 @@ Inductive exec_exprs_det (read_one_bit : option bool -> bool -> Prop) :
                            svals_to_vals read_one_bit svs vs ->
                            exec_exprs_det read_one_bit this st exprs vs.
 
-(* A generic function for evaluating pure expressions. *)
-Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
-  match hook expr with
-  | Some val => Some val
-  | None =>
-      match expr with
-      | MkExpression _ expr _ _ =>
-          match expr with
-          | ExpInt i => Some (eval_p4int_val i)
-          | ExpUnaryOp op arg =>
-              match eval_expr_gen hook arg with
-              | Some argv => Ops.eval_unary_op op argv
-              | None => None
-              end
-          | ExpBinaryOp op larg rarg =>
-              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
-              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
-              | _, _ => None
-              end
-          | ExpCast newtyp arg =>
-              match eval_expr_gen hook arg, get_real_type (ge_typ ge) newtyp with
-              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
-              | _, _ => None
-              end
-          | ExpExpressionMember expr name =>
-              match eval_expr_gen hook expr with
-              | Some (ValBaseStruct fields) =>
-                  AList.get fields (str name)
-              | Some (ValBaseHeader fields true) =>
-                  AList.get fields (str name)
-              | _ => None
-              end
-          | _ => None
-          end
-      end
-  end.
-
-Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          exec_expr_det read_one_bit this st expr v),
-  eval_expr_gen hook expr = Some v ->
-  exec_expr_det read_one_bit this st expr v.
-
-(* Lemma eval_expr_gen_sound_1 : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_1_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_1_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
-  - unfold eval_expr_gen_sound_1_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
-    1 : apply H_hook. congruence.
-    destruct expr; inversion H0.
-    + repeat constructor.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
-        only 2-3 : inversion H2.
-      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
-      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
-      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
-      * destruct is_valid; only 2 : discriminate.
-        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
-        constructor; constructor; assumption.
-Qed. *)
-
-Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
-  forall (H_hook : forall expr v, hook expr = Some v ->
-          forall v', exec_expr_det read_one_bit this st expr v' ->
-          v' = v),
-  eval_expr_gen hook expr = Some v ->
-  forall v', exec_expr_det read_one_bit this st expr v' ->
-    v' = v.
-
-(* Lemma eval_expr_gen_sound : forall read_one_bit st this hook expr v,
-  eval_expr_gen_sound_statement read_one_bit st this hook expr v
-with eval_expr_gen_sound_preT : forall read_one_bit st this hook tags expr typ dir v,
-  eval_expr_gen_sound_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
-Proof.
-  - intros. destruct expr; apply eval_expr_gen_sound_preT.
-  - unfold eval_expr_gen_sound_statement; intros.
-    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
-    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
-    1 : eapply H_hook; only 2 : eassumption; congruence.
-    destruct expr; inversion H0.
-    + inversion H1; subst. reflexivity.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct args as [larg rarg].
-      destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
-        only 2-3 : inversion H3.
-      inversion H1; subst.
-      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
-      congruence.
-    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
-      inversion H1; subst.
-      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
-      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
-      congruence.
-    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        congruence.
-      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
-        inversion H1; subst;
-          lazymatch goal with
-          | H : exec_expr _ _ expr _ |- _ =>
-              apply H_eval_expr_gen in H;
-              inversion H; subst
-          end;
-          lazymatch goal with
-          | H : get_member _ _ _ _ |- _ =>
-              inversion H; subst
-          end.
-        destruct is_valid; only 2 : inversion H3.
-        inversion H9; subst.
-        congruence.
-Qed. *)
-
-(* We might want to prove this lemma in future. *)
-(* Lemma eval_expr_gen_complete : forall st this expr v,
-  exec_expr this st expr v ->
-  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
+(* Auxiliary functions dealing with parameters and signals. *)
 
 Definition is_in (dir : direction) : bool :=
   match dir with
@@ -729,11 +593,6 @@ Fixpoint get_action (actions : list (@Expression tags_t)) (name : ident) : optio
       end
   end.
 
-Definition dummy_type : @P4Type tags_t := TypBool.
-Opaque dummy_type.
-Context `{inhabitant_tags_t : Inhabitant tags_t}.
-Definition dummy_tags := @default tags_t _.
-
 Definition add_ctrl_args (oaction : option (@Expression tags_t))
                          (ctrl_args : list (option (@Expression tags_t))) : option (@Expression tags_t) :=
   match oaction with
@@ -762,58 +621,47 @@ Definition get_entries (s : state) (table : path) (const_entries : option (list 
   | None => extern_get_entries (get_external_state s) table
   end.
 
+Definition empty_state : state := (PathMap.empty, PathMap.empty).
+
 Inductive exec_match (read_one_bit : option bool -> bool -> Prop) :
-                     path -> state -> @Match tags_t -> ValSet -> Prop :=
-  | exec_match_dont_care : forall this st tag typ,
-      exec_match read_one_bit this st (MkMatch tag MatchDontCare typ) ValSetUniversal
-  | exec_match_mask : forall expr exprv mask maskv this st tag typ,
-                      exec_expr_det read_one_bit this st expr exprv ->
-                      exec_expr_det read_one_bit this st mask maskv ->
-                      exec_match read_one_bit this st
+                     path -> @Match tags_t -> ValSet -> Prop :=
+  | exec_match_dont_care : forall this tag typ,
+      exec_match read_one_bit this (MkMatch tag MatchDontCare typ) ValSetUniversal
+  | exec_match_mask : forall expr exprv mask maskv this tag typ,
+                      exec_expr_det read_one_bit this empty_state expr exprv ->
+                      exec_expr_det read_one_bit this empty_state mask maskv ->
+                      exec_match read_one_bit this
                       (MkMatch tag (MatchMask expr mask) typ)
                       (ValSetMask exprv maskv)
-  | exec_match_range : forall lo lov hi hiv this st tag typ,
-                        exec_expr_det read_one_bit this st lo lov ->
-                        exec_expr_det read_one_bit this st hi hiv ->
-                        exec_match read_one_bit this st
+  | exec_match_range : forall lo lov hi hiv this tag typ,
+                        exec_expr_det read_one_bit this empty_state lo lov ->
+                        exec_expr_det read_one_bit this empty_state hi hiv ->
+                        exec_match read_one_bit this
                         (MkMatch tag (MatchRange lo hi) typ)
                         (ValSetRange lov hiv)
-  | exec_match_cast : forall newtyp expr oldv newv this st tag typ real_typ,
-                      exec_expr_det read_one_bit this st expr oldv ->
+  | exec_match_cast : forall newtyp expr oldv newv this tag typ real_typ,
+                      exec_expr_det read_one_bit this empty_state expr oldv ->
                       get_real_type (ge_typ ge) newtyp = Some real_typ ->
                       Ops.eval_cast_set real_typ oldv = Some newv ->
-                      exec_match read_one_bit this st
+                      exec_match read_one_bit this
                       (MkMatch tag (MatchCast newtyp expr) typ)
                       newv.
 
-Inductive exec_matches (read_one_bit : option bool -> bool -> Prop) :
-                       path -> state -> list (@Match tags_t) -> list ValSet -> Prop :=
-  | exec_matches_nil : forall this st,
-                       exec_matches read_one_bit this st nil nil
-  | exec_matches_cons : forall this st m ms sv svs,
-                       exec_match read_one_bit this st m sv ->
-                       exec_matches read_one_bit this st ms svs ->
-                       exec_matches read_one_bit this st (m :: ms) (sv :: svs).
+Definition exec_matches (read_one_bit : option bool -> bool -> Prop) (this : path) :=
+  Forall2 (exec_match read_one_bit this).
 
 Inductive exec_table_entry (read_one_bit : option bool -> bool -> Prop) :
-                           path -> state -> table_entry ->
+                           path -> table_entry ->
                            (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
-  | exec_table_entry_intro : forall this st ms svs action entryvs,
-                             exec_matches read_one_bit this st ms svs ->
+  | exec_table_entry_intro : forall this ms svs action entryvs,
+                             exec_matches read_one_bit this ms svs ->
                              (if (List.length svs =? 1)%nat
                               then entryvs = (List.hd ValSetUniversal svs, action)
                               else entryvs = (ValSetProd svs, action)) ->
-                             exec_table_entry read_one_bit this st (mk_table_entry ms action) entryvs.
+                             exec_table_entry read_one_bit this (mk_table_entry ms action) entryvs.
 
-Inductive exec_table_entries (read_one_bit : option bool -> bool -> Prop) :
-                             path -> state -> list table_entry ->
-                             list (@table_entry_valset tags_t (@Expression tags_t)) -> Prop :=
-  | exec_table_entries_nil : forall this st,
-                       exec_table_entries read_one_bit this st nil nil
-  | exec_table_entries_cons : forall this st te tes tev tevs,
-                       exec_table_entry read_one_bit this st te tev ->
-                       exec_table_entries read_one_bit this st tes tevs ->
-                       exec_table_entries read_one_bit this st (te :: tes) (tev :: tevs).
+Definition exec_table_entries (read_one_bit : option bool -> bool -> Prop) (this : path) :=
+  Forall2 (exec_table_entry read_one_bit this).
 
 Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
                            path -> state -> ident -> list TableKey -> option (list table_entry) -> option action_ref -> Prop :=
@@ -821,7 +669,7 @@ Inductive exec_table_match (read_one_bit : option bool -> bool -> Prop) :
       let entries := get_entries s (this_path ++ [name]) const_entries in
       let match_kinds := map table_key_matchkind keys in
       exec_exprs_det read_one_bit this_path s (map table_key_key keys) keyvals ->
-      exec_table_entries read_one_bit this_path s entries entryvs ->
+      exec_table_entries read_one_bit this_path entries entryvs ->
       extern_match (combine keyvals match_kinds) entryvs = matched_action ->
       exec_table_match read_one_bit this_path s name keys const_entries matched_action.
 
@@ -836,7 +684,7 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
   let ge_inst := ge_inst ge in
   (* We should think about using option monad in this function. *)
   match func with
-  (* function/action/parser transition *)
+  (* Function expression without a dot. It can be a narrow-sense function/action/parser transition. *)
   | MkExpression _ (ExpName _ loc) _ _ =>
       match loc with
       | LGlobal p => option_map (fun fd => (Some nil, fd)) (PathMap.get p ge_func)
@@ -847,9 +695,21 @@ Definition lookup_func (this_path : path) (func : @Expression tags_t) : option (
           | _ => None
           end
       end
-  (* apply/extern *)
+  (* Function expression with a dot. It can be an apply of parser/control/table, or an extern method. *)
   | MkExpression _ (ExpExpressionMember expr name) _ _ =>
       match expr with
+      (* If it is a table *)
+      | MkExpression _ (ExpName _ loc) (TypTable _) _ =>
+          match loc with
+          | LInstance p =>
+              match PathMap.get this_path ge_inst with
+              | Some {| iclass:=class_name; |} =>
+                  option_map (fun fd => (None, fd)) (PathMap.get (class_name :: p ++ [str name]) ge_func)
+              | _ => None
+              end
+          | _ => None (* impossible *)
+          end
+      (* If it is not a table *)
       | MkExpression _ (ExpName _ loc) _ _ =>
           match loc with
           | LGlobal p =>
@@ -1243,6 +1103,19 @@ Definition get_expr_func_name (expr : @Expression tags_t) : ident :=
   | _ => ""
   end.
 
+(* Construct a call expression from the actionref. *)
+Definition get_table_call (actions : list Expression) (default_action : Expression)
+      (matched_action : option action_ref) : option (Expression * Val) :=
+  match matched_action with
+  | Some (mk_action_ref action_name ctrl_args) =>
+      match add_ctrl_args (get_action actions action_name) ctrl_args with
+      | Some action => Some (action, table_retv true "" (get_expr_func_name action))
+      | None => None
+      end
+  | None =>
+      Some (default_action, table_retv false "" (get_expr_func_name default_action))
+  end.
+
 (* isValid() is supported by headers and header unions. If u is a header union, u.isValid() returns true
   if any member of the header union u is valid, otherwise it returns false. *)
 Inductive exec_isValid (read_one_bit : option bool -> bool -> Prop) : Sval -> bool -> Prop :=
@@ -1493,18 +1366,12 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_func_copy_out params s'' = Some args'->
       exec_func read_one_bit obj_path s (FInternal params body) nil args s'' args' sig'
 
-  | exec_func_table_match : forall obj_path name keys actions actionref action_name retv ctrl_args action default_action const_entries s s',
+  | exec_func_table_match : forall obj_path name keys actions actionref retv action default_action const_entries s s',
       exec_table_match read_one_bit obj_path s name keys const_entries actionref ->
-      (if is_some actionref
-       then actionref = (Some (mk_action_ref action_name ctrl_args))
-            /\ add_ctrl_args (get_action actions action_name) ctrl_args = Some action
-            /\ retv = (SReturn (table_retv true "" (get_expr_func_name action)))
-       else action = default_action
-            /\ actionref = None
-            /\ retv = (SReturn (table_retv false "" (get_expr_func_name default_action)))) ->
+      get_table_call actions default_action actionref = Some (action, retv) ->
       exec_call read_one_bit obj_path s action s' SReturnNull ->
       exec_func read_one_bit obj_path s (FTable name keys actions (Some default_action) const_entries)
-        nil nil s' nil retv
+        nil nil s' nil (SReturn retv)
 
   (* This will not happen in the latest spec. *)
   (* | exec_func_table_noaction : forall obj_path name keys actions const_entries s,
@@ -1517,6 +1384,13 @@ with exec_func (read_one_bit : option bool -> bool -> Prop) :
       exec_extern ge es class_name name obj_path targs argvs es' argvs' sig ->
       vals_to_svals argvs' args' ->
       exec_func read_one_bit obj_path (m, es) (FExternal class_name name (* params *)) targs args (m, es') args' sig.
+
+End WithGenv.
+
+Section Instantiation.
+
+Variable am_ge : genv.
+Variable ge_typ : genv_typ.
 
 (* Return the declaration whose name is [name]. *)
 Fixpoint get_decl (rev_decls : list (@Declaration tags_t)) (name : ident) : (@Declaration tags_t) :=
@@ -1586,14 +1460,14 @@ Definition BlockSingleton (stmt : @Statement tags_t) : @Block tags_t :=
          not initialize it to any predictable value.
 *)
 
-Fixpoint uninit_out_params (params: list (ident * P4Type)) : Block :=
+Fixpoint uninit_out_params (prefix : path) (params: list (ident * P4Type)) : Block :=
   match params with
   | [] => BlockNil
   | param :: params' =>
-      let block := uninit_out_params params' in
+      let block := uninit_out_params prefix params' in
       let (name, typ) := param in
       let p4name := P4String.Build_t tags_t inhabitant_tags_t name in
-      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance [str p4name])) StmUnit in
+      let stmt := MkStatement dummy_tags (StatVariable typ p4name None (LInstance (prefix ++ [str p4name]))) StmUnit in
       BlockCons stmt block
   end.
 
@@ -1626,7 +1500,7 @@ Coercion unfold_cenv : cenv >-> IdentMap.t.
 Inductive exec_abstract_method : path -> fundef -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop :=
   | exec_abstract_method_intro : forall p fd es args es' args' sargs sargs' sig m',
       vals_to_svals args sargs ->
-      exec_func read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
+      exec_func am_ge read_ndetbit p (PathMap.empty, es) fd nil sargs (m', es') sargs' sig ->
       svals_to_vals read_ndetbit sargs' args' ->
       exec_abstract_method p fd es args es' args' sig.
 
@@ -1674,8 +1548,13 @@ Definition instantiate'' (ce : cenv) (e : ienv) (typ : @P4Type tags_t)
   if is_decl_extern_obj decl then
     let m := map_fst (map_fst (PathMap.set p {|iclass:=class_name; ipath:=p|})) m in
     let type_params := get_type_params typ in
-    let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
-    (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
+    match lift_option (map (get_real_type ge_typ) type_params) with
+    | Some type_params =>
+        let (ee, s) := construct_extern (snd m) s class_name type_params p (map ienv_val_to_sumtype args) in
+        (inl {|iclass:=class_name; ipath:=p|}, (fst m, ee), s)
+    | None =>
+        (inl {|iclass:=class_name; ipath:=p|}, m, s)
+    end
   else
     let e := IdentMap.sets params args e in
     let '(_, m, s) := instantiate_class_body_ce e class_name p m s in
@@ -1698,6 +1577,157 @@ Definition eval_expr_ienv_hook (e : ienv) (expr : @Expression tags_t) : option V
   | MkExpression _ (ExpName name _) _ _ => get_val_ienv e name
   | _ => None
   end.
+
+(* A generic function for evaluating pure expressions. *)
+Fixpoint eval_expr_gen (hook : Expression -> option Val) (expr : @Expression tags_t) : option Val :=
+  match hook expr with
+  | Some val => Some val
+  | None =>
+      match expr with
+      | MkExpression _ expr _ _ =>
+          match expr with
+          | ExpBool b => Some (ValBaseBool b)
+          | ExpInt i => Some (eval_p4int_val i)
+          | ExpList exprs =>
+              option_map ValBaseTuple (lift_option (map (eval_expr_gen hook) exprs))
+          | ExpUnaryOp op arg =>
+              match eval_expr_gen hook arg with
+              | Some argv => Ops.eval_unary_op op argv
+              | None => None
+              end
+          | ExpBinaryOp op larg rarg =>
+              match eval_expr_gen hook larg, eval_expr_gen hook rarg with
+              | Some largv, Some rargv => Ops.eval_binary_op op largv rargv
+              | _, _ => None
+              end
+          | ExpCast newtyp arg =>
+              match eval_expr_gen hook arg, get_real_type ge_typ newtyp with
+              | Some argv, Some real_typ => Ops.eval_cast real_typ argv
+              | _, _ => None
+              end
+          | ExpTypeMember tname member =>
+              match IdentMap.get (str tname) ge_typ with
+              | Some (TypEnum ename None _) => Some (ValBaseEnumField (str ename) (str member))
+              | _ => None
+              end
+          | ExpExpressionMember expr name =>
+              match eval_expr_gen hook expr with
+              | Some (ValBaseStruct fields) =>
+                  AList.get fields (str name)
+              | Some (ValBaseHeader fields true) =>
+                  AList.get fields (str name)
+              | _ => None
+              end
+          | _ => None
+          end
+      end
+  end.
+
+(* Definition eval_expr_gen_sound_1_statement read_one_bit st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          exec_expr_det read_one_bit this st expr v),
+  eval_expr_gen hook expr = Some v ->
+  exec_expr_det read_one_bit this st expr v. *)
+
+(* Lemma eval_expr_gen_sound_1 : forall read_one_bit st this hook expr v,
+  eval_expr_gen_sound_1_statement read_one_bit st this hook expr v
+with eval_expr_gen_sound_1_preT : forall read_one_bit st this hook tags expr typ dir v,
+  eval_expr_gen_sound_1_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_1_preT.
+  - unfold eval_expr_gen_sound_1_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v' | ] eqn:?.
+    1 : apply H_hook. congruence.
+    destruct expr; inversion H0.
+    + repeat constructor.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H2;
+        only 2-3 : inversion H2.
+      econstructor; only 1-2 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) eqn:? in H2; only 2 : inversion H2.
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H2.
+      econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:? in H2; only 1-12, 15-20 : inversion H2.
+      * econstructor; only 2 : econstructor; only 1 : eapply eval_expr_gen_sound_1; eassumption.
+      * destruct is_valid; only 2 : discriminate.
+        econstructor; only 1 : (eapply eval_expr_gen_sound_1; eassumption).
+        constructor; constructor; assumption.
+Qed. *)
+
+(* Definition eval_expr_gen_sound_statement read_one_bit st this hook expr v :=
+  forall (H_hook : forall expr v, hook expr = Some v ->
+          forall v', exec_expr_det read_one_bit this st expr v' ->
+          v' = v),
+  eval_expr_gen hook expr = Some v ->
+  forall v', exec_expr_det read_one_bit this st expr v' ->
+    v' = v. *)
+
+(* Lemma eval_expr_gen_sound : forall read_one_bit st this hook expr v,
+  eval_expr_gen_sound_statement read_one_bit st this hook expr v
+with eval_expr_gen_sound_preT : forall read_one_bit st this hook tags expr typ dir v,
+  eval_expr_gen_sound_statement read_one_bit st this hook (MkExpression tags expr typ dir) v.
+Proof.
+  - intros. destruct expr; apply eval_expr_gen_sound_preT.
+  - unfold eval_expr_gen_sound_statement; intros.
+    unfold eval_expr_gen in H0; fold eval_expr_gen in H0.
+    destruct (hook (MkExpression tags expr typ dir)) as [v'' | ] eqn:?.
+    1 : eapply H_hook; only 2 : eassumption; congruence.
+    destruct expr; inversion H0.
+    + inversion H1; subst. reflexivity.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (argv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct args as [larg rarg].
+      destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 1 : destruct (eval_expr_gen _ _) eqn:? in H3;
+        only 2-3 : inversion H3.
+      inversion H1; subst.
+      assert (largv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      assert (rargv = v1) by (eapply eval_expr_gen_sound; eassumption).
+      congruence.
+    + destruct (eval_expr_gen _ _) eqn:? in H3; only 2 : inversion H3.
+      inversion H1; subst.
+      assert (oldv = v0) by (eapply eval_expr_gen_sound; eassumption).
+      destruct (get_real_type (ge_typ ge) typ0) eqn:?; only 2 : inversion H3.
+      congruence.
+    + destruct (eval_expr_gen _ _) as [[] | ] eqn:H_eval_expr_gen in H3; only 1-12, 15-20 : inversion H3.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
+          end.
+        congruence.
+      * eapply eval_expr_gen_sound with (st := st) in H_eval_expr_gen; only 2 : eassumption.
+        inversion H1; subst;
+          lazymatch goal with
+          | H : exec_expr _ _ expr _ |- _ =>
+              apply H_eval_expr_gen in H;
+              inversion H; subst
+          end;
+          lazymatch goal with
+          | H : get_member _ _ _ _ |- _ =>
+              inversion H; subst
+          end.
+        destruct is_valid; only 2 : inversion H3.
+        inversion H9; subst.
+        congruence.
+Qed. *)
+
+(* We might want to prove this lemma in future. *)
+(* Lemma eval_expr_gen_complete : forall st this expr v,
+  exec_expr this st expr v ->
+  eval_expr_gen (fun _ loc => loc_to_sval this loc st) expr = Some v. *)
 
 (* The evaluation of value expressions during instantiation is based on eval_expr_gen. *)
 
@@ -1734,16 +1764,16 @@ Fixpoint instantiate_decl' (is_init_block : bool) (ce : cenv) (e : ienv) (decl :
       | None => (e, m, s) (* Should be impossible if eval_expr is complete. *)
       end
   | DeclInstantiation _ typ args name init =>
-      let '(inst, m, s) := instantiate' ce e typ args (p ++ clear_list [name]) m s in
+      let '(inst, m, s) := instantiate' ce e typ args (p ++ [str name]) m s in
       let instantiate_decl'' (ems : ienv * inst_mem * extern_state) (decl : @Declaration tags_t) : ienv * inst_mem * extern_state :=
-        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ clear_list [name]) m s in
+        let '(e, m, s) := ems in instantiate_decl' true ce e decl (p ++ [str name]) m s in
       let '(_, m, s) := fold_left instantiate_decl'' init (e, m, s) in
       (IdentMap.set (str name) inst e, m, s)
   (* For externs' init blocks only. *)
   | DeclFunction _ _ name type_params params body =>
       if is_init_block then
         let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-        let init := uninit_out_params out_params in
+        let init := uninit_out_params [str name] out_params in
         let params := map get_param_name_dir params in
         let params := map (map_fst (fun param => LGlobal [str name; param])) params in
         let fd := FInternal (map (map_fst get_loc_path) params) (block_app init body) in
@@ -1935,28 +1965,13 @@ Definition action_param_to_p4param (param : path * direction) : P4Parameter :=
 
 Definition unwrap_action_ref (p : path) (ge : genv_func) (ref : TableActionRef) : Expression :=
   match ref with
-  | MkTableActionRef _ ref _ =>
+  | MkTableActionRef _ ref typ =>
       match ref with
       | MkTablePreActionRef name args =>
           let loc :=
             match name with
-            | BareName id =>
-                match PathMap.get (p ++ [str id]) ge with
-                | Some _ => LInstance [str id]
-                | None => LGlobal [str id]
-                end
+            | BareName id => LInstance [str id]
             | QualifiedName p id => LGlobal (clear_list (p ++ [id]))
-            end in
-          let typ :=
-            let ofd :=
-              match loc with
-              | LInstance p' => PathMap.get (p ++ p') ge
-              | LGlobal p' => PathMap.get p' ge
-              end in
-            match ofd with
-            | Some (FInternal params _) =>
-                TypFunction (MkFunctionType nil (map action_param_to_p4param params) FunAction TypVoid)
-            | _ => dummy_type (* impossible *)
             end in
           let func := MkExpression dummy_tags (ExpName name loc) typ Directionless in
           MkExpression dummy_tags (ExpFunctionCall func nil args) dummy_type Directionless
@@ -1983,14 +1998,22 @@ Definition unwrap_table_entry (entry : TableEntry) : table_entry :=
       mk_table_entry matches (unwrap_action_ref2 action)
   end.
 
+(* When loading function definitions into function environment, we add initializer for
+  out parameters. (And we do the same thing for abstract methods during instantiation.)
+  This is not ideal as it is mixing instantiation with preprocessing. But puting it into
+  execution needs a lot of changes, because we need to know the types of out parameters,
+  which is currently not kept in fundef. *)
+
 Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : genv_func :=
   match decl with
   | DeclParser _ name type_params params constructor_params locals states =>
+      let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+      let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
-      let init := process_locals locals in
+      let init := block_app init (process_locals locals) in
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
       let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
       let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
@@ -1999,17 +2022,19 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge
   | DeclControl _ name type_params params _ locals apply =>
+      let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
+      let init := uninit_out_params [] out_params in
       let params := map get_param_name_dir params in
       let params := map (map_fst (fun param => LInstance [param])) params in
       let params := List.filter (compose is_directional snd) params in
       let ge := fold_left (load_decl (p ++ [str name])) locals ge in
-      let init := process_locals locals in
+      let init := block_app init (process_locals locals) in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init apply)) ge
   | DeclFunction _ _ name type_params params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
-      let params := map (map_fst (fun param => LGlobal [str name; param])) params in
+      let params := map (map_fst (fun param => LInstance [str name; param])) params in
       PathMap.set (p ++ [str name]) (FInternal (map (map_fst get_loc_path) params) (block_app init body)) ge
   | DeclExternFunction _ _ name _ _ =>
       PathMap.set (p ++ [str name]) (FExternal "" (str name)) ge
@@ -2023,7 +2048,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       in fold_left add_method_prototype methods ge
   | DeclAction _ name params ctrl_params body =>
       let out_params := filter_pure_out (map (fun p => (get_param_name_typ p, get_param_dir p)) params) in
-      let init := uninit_out_params out_params in
+      let init := uninit_out_params [str name] out_params in
       let params := map get_param_name_dir params in
       let ctrl_params := map (fun name => (name, In)) (map get_param_name ctrl_params) in
       let combined_params :=
@@ -2036,7 +2061,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let table :=
         FTable (str name) keys (map (unwrap_action_ref p ge) actions) (option_map (unwrap_action_ref p ge) default_action)
             (option_map (map unwrap_table_entry) entries) in
-      PathMap.set (p ++ [str name]) table ge
+      PathMap.set (p ++ [str name; "apply"]) table ge
   | _ => ge
   end.
 
@@ -2045,12 +2070,12 @@ Definition load_prog (prog : @program tags_t) : genv_func :=
   | Program decls => fold_left (load_decl nil) decls PathMap.empty
   end.
 
-Definition conv_decl_field (fild: DeclarationField):
+Definition conv_decl_field (ge_typ : genv_typ) (fild: DeclarationField):
     (P4String.t tags_t * @P4Type tags_t) :=
-  match fild with | MkDeclarationField tags typ name => (name, typ) end.
+  match fild with | MkDeclarationField tags typ name => (name, force dummy_type (get_real_type ge_typ typ)) end.
 
-Definition conv_decl_fields (l: list DeclarationField): P4String.AList tags_t P4Type :=
-  fold_right (fun fild l' => cons (conv_decl_field fild) l') nil l.
+Definition conv_decl_fields (ge_typ : genv_typ) (l: list DeclarationField): P4String.AList tags_t P4Type :=
+  fold_right (fun fild l' => cons (conv_decl_field ge_typ fild) l') nil l.
 
 Definition get_decl_typ_name (decl: @Declaration tags_t): option ident :=
   match decl with
@@ -2070,11 +2095,11 @@ Fixpoint add_to_genv_typ (ge_typ: genv_typ)
          (decl: @Declaration tags_t): option genv_typ :=
   match decl with
   | DeclHeader tags name fields =>
-    Some (IdentMap.set (str name) (TypHeader (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeader (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclHeaderUnion tags name fields =>
-    Some (IdentMap.set (str name) (TypHeaderUnion (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypHeaderUnion (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclStruct tags name fields =>
-    Some (IdentMap.set (str name) (TypStruct (conv_decl_fields fields)) ge_typ)
+    Some (IdentMap.set (str name) (TypStruct (conv_decl_fields ge_typ fields)) ge_typ)
   | DeclControlType tags name type_params params =>
     Some (IdentMap.set (str name) (TypControl (MkControlType type_params params)) ge_typ)
   | DeclParserType tags name type_params params =>
@@ -2134,19 +2159,33 @@ Definition gen_ge_senum (prog : @program tags_t) : genv_senum :=
   | Program l => IdentMap.empty
   end.
 
-End WithGenv.
+End Instantiation.
 
-Context `{inhabitant_tags_t : Inhabitant tags_t}.
-
-Definition gen_ge (prog : @program tags_t) : genv :=
+Definition gen_am_ge (prog : @program tags_t) : genv :=
   let ge_func := load_prog prog in
   let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
   let ge_senum := gen_ge_senum prog in
-  let partial_ge := MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty in
-  let inst_m := fst (instantiate_prog partial_ge prog) in
+  MkGenv ge_func ge_typ ge_senum PathMap.empty PathMap.empty PathMap.empty.
+
+Definition gen_ge' (am_ge : genv) (prog : @program tags_t) : genv :=
+  let ge_func := load_prog prog in
+  let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
+  let ge_senum := gen_ge_senum prog in
+  let inst_m := fst (instantiate_prog am_ge ge_typ prog) in
   let ge_inst := fst (fst inst_m) in
   let ge_const := snd (fst inst_m) in
   let ge_ext := snd inst_m in
   MkGenv ge_func ge_typ ge_senum ge_inst ge_const ge_ext.
+
+Definition gen_ge (prog : @program tags_t) : genv :=
+  gen_ge' (gen_am_ge prog) prog.
+
+Definition gen_init_es' (am_ge : genv) (prog : @program tags_t) : extern_state :=
+  let ge_func := load_prog prog in
+  let ge_typ := force IdentMap.empty (gen_ge_typ prog) in
+  snd (instantiate_prog am_ge ge_typ prog).
+
+Definition gen_init_es (prog : @program tags_t) : extern_state :=
+  gen_init_es' (gen_am_ge prog) prog.
 
 End Semantics.

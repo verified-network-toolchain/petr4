@@ -9,6 +9,7 @@ Open Scope string_scope.
 Module P4c := AST.
 Module P4a := Leapfrog.Syntax.
 (* Open Scope p4a. *)
+Open Scope nat_scope.
 
 Section P4AComp. 
 

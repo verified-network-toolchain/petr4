@@ -1422,7 +1422,7 @@ Section ToP4cub.
       let d := TopDecl.TPInstantiate ctor_name cub_name type_args cub_paramargs tags in
       let+ add_to_context := get_augment_from_name ctx ctor_name in
       add_to_context d
-    | DeclParser tags name [] params constructor_params [] states =>
+    | DeclParser tags name _ params constructor_params _ states =>
         let cub_name := P4String.str name in
         let* (cub_eparams,cub_cparams) := partition_constructor_params tags constructor_params in
         let* cub_params := parameters_to_params tags params in
@@ -1430,7 +1430,6 @@ Section ToP4cub.
         let*~ cub_start := start_opt else "could not find a starting state for the parser" in
         let d := TopDecl.TPParser cub_name cub_cparams cub_eparams cub_params cub_start cub_states tags in
         ok (add_parser ctx d)
-    | DeclParser _ _ _ _ _ _ _ => error "got type params or local declarations. these should be gone"
     | DeclControl tags name type_params params constructor_params locals apply_blk =>
       let cub_name := P4String.str name in
       let* (cub_eparams, cub_cparams) := partition_constructor_params tags constructor_params in

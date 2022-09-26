@@ -704,3 +704,76 @@ Proof.
   intros R S T U V W Q f g h rs ss ts.
   rewrite <- Forall3_map_23, <- Forall3_map_1; reflexivity.
 Qed.
+
+Lemma Forall3_impl_Forall2_12_Forall2_23 :
+  forall (U V W : Type) (R : U -> V -> Prop) (Q : V -> W -> Prop) us vs ws,
+    Forall3 (fun u v w => R u v -> Q v w) us vs ws ->
+    Forall2 R us vs -> Forall2 Q vs ws.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_forall in hf3.
+  rewrite Forall2_forall_nth_error in *.
+  destruct hf3 as (hlen_us_vs & hlen_vs_ws & hrq_us_vs_ws).
+  destruct hf2 as [_ hr_us_vs].
+  split; auto. intros n v w hnthv hnthw.
+  assert (hnthu: exists u, nth_error us n = Some u).
+  { apply length_nth_error_some.
+    rewrite hlen_us_vs.
+    eauto using nth_error_some_length. }
+  destruct hnthu; eauto.
+Qed.
+
+Lemma Forall3_impl_Forall2_12_Forall2_13 :
+  forall (U V W : Type) (R : U -> V -> Prop) (Q : U -> W -> Prop) us vs ws,
+    Forall3 (fun u v w => R u v -> Q u w) us vs ws ->
+    Forall2 R us vs -> Forall2 Q us ws.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_permute_12 in hf3.
+  rewrite Forall2_flip in hf2.
+  eapply Forall3_impl_Forall2_12_Forall2_23;
+    eauto; cbn; assumption.
+Qed.
+
+Lemma Forall3_impl_Forall2_13_Forall2_12 :
+  forall (U V W : Type) (R : U -> W -> Prop) (Q : U -> V -> Prop) us vs ws,
+    Forall3 (fun u v w => R u w -> Q u v) us vs ws ->
+    Forall2 R us ws -> Forall2 Q us vs.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_permute_23 in hf3.
+  eauto using Forall3_impl_Forall2_12_Forall2_13.
+Qed.
+
+Lemma Forall3_impl_Forall2_13_Forall2_23 :
+  forall (U V W : Type) (R : U -> W -> Prop) (Q : V -> W -> Prop) us vs ws,
+    Forall3 (fun u v w => R u w -> Q v w) us vs ws ->
+    Forall2 R us ws -> Forall2 Q vs ws.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_permute_23 in hf3.
+  rewrite Forall2_flip.
+  eauto using Forall3_impl_Forall2_12_Forall2_23.
+Qed.
+
+Lemma Forall3_impl_Forall2_23_Forall2_12 :
+  forall (U V W : Type) (R : V -> W -> Prop) (Q : U -> V -> Prop) us vs ws,
+    Forall3 (fun u v w => R v w -> Q u v) us vs ws ->
+    Forall2 R vs ws -> Forall2 Q us vs.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_permute_13 in hf3.
+  rewrite Forall2_flip in *.
+  eapply Forall3_impl_Forall2_12_Forall2_23; eauto;
+    cbn; assumption.
+Qed.
+
+Lemma Forall3_impl_Forall2_23_Forall2_13 :
+  forall (U V W : Type) (R : V -> W -> Prop) (Q : U -> W -> Prop) us vs ws,
+    Forall3 (fun u v w => R v w -> Q u w) us vs ws ->
+    Forall2 R vs ws -> Forall2 Q us ws.
+Proof.
+  intros U V W R Q us vs ws hf3 hf2.
+  rewrite Forall3_permute_12 in hf3.
+  eauto using Forall3_impl_Forall2_13_Forall2_23.
+Qed.

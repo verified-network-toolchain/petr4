@@ -45,19 +45,16 @@ Module E := Expr.
 Module F := F.
 Module BV := GCL.BitVec.
 
-Print List.rev_append.
-
-Fixpoint append {A : Type} (l : list A) (l' : list A) : list A :=
+Definition append {A : Type} (l : list A) (l' : list A) : list A :=
   match l' with
   | [] => l
   | _ =>
     List.rev_append (List.rev' l) l'
   end.
 
-Fixpoint fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
+Definition fold_right {A B : Type} (f : B -> A -> A) (a0 : A) (bs : list B ) :=
   List.fold_left (fun a b => f b a) (rev' bs) a0.
 
-(* Search (string -> string). *)
 (* Fixpoint rev_concat (s s' : string) : string := *)
 (*   match s with *)
 (*   | EmptyString => s' *)

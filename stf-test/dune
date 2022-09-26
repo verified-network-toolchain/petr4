@@ -7,4 +7,4 @@
 (library
   (name petr4test)
   (libraries core ANSITerminal alcotest petr4)
-  (preprocess (pps ppx_jane -allow-unannotated-ignores ppx_deriving_yojson ppx_deriving.show)))
+  (preprocess (pps ppx_jane ppx_deriving_yojson ppx_deriving.show)))

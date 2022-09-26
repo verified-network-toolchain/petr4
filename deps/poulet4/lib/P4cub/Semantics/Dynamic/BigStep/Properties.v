@@ -74,7 +74,7 @@ Section Properties.
   Proof.
     intros eps eps' mu s pkt pkt' fs cx sig Hd Hsbs.
     induction Hsbs; eauto 4.
-    - apply sbs_seq_cont with (ϵ'0 := Clmt.union mu ϵ') (pkt'0 := pkt'); auto.
+    - apply sbs_seq_cont with (ϵ' := Clmt.union mu ϵ') (pkt' := pkt'); auto.
       apply IHHsbs2.
       (* Needs assumption that [disjoint ϵ' μ] *)
       admit.

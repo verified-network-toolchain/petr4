@@ -1,5 +1,5 @@
 open P4light
-open Core_kernel
+open Core
 
 type t = {
     (* maps variables to their locations in memory (state) *)

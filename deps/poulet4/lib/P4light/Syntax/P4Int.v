@@ -12,11 +12,11 @@ Arguments tags [tags_t] _.
 Arguments value [tags_t] _.
 Arguments width_signed [tags_t] _.
 
-Instance ZEqDec : EqDec Z eq :=
+Global Instance ZEqDec : EqDec Z eq :=
   { equiv_dec := Z.eq_dec }.
 (**[]*)
 
-Instance ProdEqDec (A B : Type) `{EqDec A eq} `{EqDec B eq} : EqDec (A * B) eq.
+Global Instance ProdEqDec (A B : Type) `{EqDec A eq} `{EqDec B eq} : EqDec (A * B) eq.
 Proof.
   intros [a1 b1] [a2 b2].
   pose proof equiv_dec a1 a2 as HA.
@@ -26,7 +26,7 @@ Proof.
     try (right; intros HE; inversion HE; contradiction); auto.
 Defined.
 
-Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
+Global Instance OptionEqDec (A : Type) `{EqDec A eq} : EqDec (option A) eq.
 Proof.
   intros [a1 |] [a2 |].
   - pose proof equiv_dec a1 a2 as HA.
@@ -38,13 +38,13 @@ Proof.
   - unfold equiv; auto.
 Defined.
 
-Instance NEqDec : EqDec N eq :=
+Global Instance NEqDec : EqDec N eq :=
   { equiv_dec := N.eq_dec }.
 
-Instance NatBoolEqDec : EqDec (N * bool) eq.
+Global Instance NatBoolEqDec : EqDec (N * bool) eq.
 Proof. apply (ProdEqDec N bool). Defined.
 
-Instance OptionNatBoolDec : EqDec (option (N * bool)) eq.
+Global Instance OptionNatBoolDec : EqDec (option (N * bool)) eq.
 Proof. apply (OptionEqDec (N * bool)). Defined.
 
 Section IntEquiv.
@@ -63,7 +63,7 @@ End IntEquiv.
 Section IntEquivDec.
   Variable (tags_t : Type).
 
-  Instance IntEquivalence : Equivalence (@equiv tags_t).
+  Global Instance IntEquivalence : Equivalence (@equiv tags_t).
   Proof.
     constructor.
     - constructor; auto.
@@ -72,7 +72,7 @@ Section IntEquivDec.
         simpl in *; subst; repeat constructor.
   Defined.
 
-  Instance IntEqDec : EqDec (t tags_t) equiv.
+  Global Instance IntEqDec : EqDec (t tags_t) equiv.
   Proof.
     intros [t1 v1 w1] [t2 v2 w2].
     pose proof equiv_dec v1 v2 as HV.

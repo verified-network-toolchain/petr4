@@ -767,6 +767,47 @@ Section ToP4cub.
     | _ => stmt
     end.
 
+  Definition inline_constants_constructor_args (ctx : constants_env) : E.constructor_args tags_t -> E.constructor_args tags_t :=
+    F.map (fun arg =>
+      match arg with 
+      | E.CAExpr e => E.CAExpr (inline_constants ctx e)
+      | E.CAName _ => arg
+      end).
+
+  Definition inline_constants_table (ctx : constants_env) (tbl : Control.table tags_t) : Control.table tags_t :=
+    let table_key := Env.map_keys (inline_constants ctx) tbl.(Control.table_key) in
+    {|
+      Control.table_key := table_key; 
+      Control.table_actions := tbl.(Control.table_actions);
+    |}.
+
+  Fixpoint inline_constants_control (ctx : constants_env) (ctrl : Control.d tags_t) : Control.d tags_t :=
+    let inline := inline_constants_control ctx in
+    match ctrl with
+    | Control.CDAction name sig body i => 
+      Control.CDAction name sig (inline_constants_stmt ctx body) i
+    | Control.CDTable name tbl i =>
+      Control.CDTable name (inline_constants_table ctx tbl) i
+    | Control.CDSeq d1 d2 i => Control.CDSeq (inline d1) (inline d2) i
+    end.
+
+  Fixpoint inline_constants_parser_expr (ctx : constants_env) (expr : Parser.e tags_t) : Parser.e tags_t :=
+    match expr with
+    | Parser.PGoto _ _ => expr
+    | Parser.PSelect discriminee default cases i =>
+      let inline := inline_constants_parser_expr ctx in
+      let discriminee' := inline_constants ctx discriminee in
+      let default' := inline default in
+      let cases' := F.map inline cases in
+      Parser.PSelect discriminee' default' cases' i
+    end.
+
+  Definition inline_constants_state_block (ctx : constants_env) (blk : Parser.state_block tags_t) : Parser.state_block tags_t :=
+    {|
+      Parser.stmt := inline_constants_stmt ctx blk.(Parser.stmt);
+      Parser.trans := inline_constants_parser_expr ctx blk.(Parser.trans);
+    |}.
+
   Definition get_name (e : Expression) : result (P4String.t tags_t) :=
     let '(MkExpression _ pre_e _ _ ) := e in
     match pre_e with

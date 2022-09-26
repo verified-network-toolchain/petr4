@@ -702,8 +702,8 @@ Section ToP4cub.
       [ctx], and [default] otherwise. *)
   Definition find_constant (id : string) (ctx : constants_env) (default : E.e tags_t) : Expr.e tags_t :=
     match Env.find id ctx with
-    | Some (Some e) => e
-    | _ => default
+    | Some (Some e) => e (* [id] bound to constant value [e] *)
+    | _ => default (* [id] either unbound or bound to something else*)
     end.
 
   (** [inline_constants ctx expr] is [expr] with all constants inlined with 
@@ -767,6 +767,7 @@ Section ToP4cub.
     | _ => stmt
     end.
 
+  (** Inline constants within constructor arguments *)
   Definition inline_constants_constructor_args (ctx : constants_env) : E.constructor_args tags_t -> E.constructor_args tags_t :=
     F.map (fun arg =>
       match arg with 
@@ -774,6 +775,7 @@ Section ToP4cub.
       | E.CAName _ => arg
       end).
 
+  (** Inline constants within table *) 
   Definition inline_constants_table (ctx : constants_env) (tbl : Control.table tags_t) : Control.table tags_t :=
     let table_key := Env.map_keys (inline_constants ctx) tbl.(Control.table_key) in
     {|
@@ -781,6 +783,7 @@ Section ToP4cub.
       Control.table_actions := tbl.(Control.table_actions);
     |}.
 
+  (** Inline constants withiin control *)
   Fixpoint inline_constants_control (ctx : constants_env) (ctrl : Control.d tags_t) : Control.d tags_t :=
     let inline := inline_constants_control ctx in
     match ctrl with
@@ -791,6 +794,7 @@ Section ToP4cub.
     | Control.CDSeq d1 d2 i => Control.CDSeq (inline d1) (inline d2) i
     end.
 
+  (** Inline constants within parser expression *)
   Fixpoint inline_constants_parser_expr (ctx : constants_env) (expr : Parser.e tags_t) : Parser.e tags_t :=
     match expr with
     | Parser.PGoto _ _ => expr
@@ -802,11 +806,39 @@ Section ToP4cub.
       Parser.PSelect discriminee' default' cases' i
     end.
 
-  Definition inline_constants_state_block (ctx : constants_env) (blk : Parser.state_block tags_t) : Parser.state_block tags_t :=
+  (** Inline constants within parser state block list *)
+  Definition inline_constants_parser_state (ctx : constants_env) (blk : Parser.state_block tags_t) : Parser.state_block tags_t :=
     {|
       Parser.stmt := inline_constants_stmt ctx blk.(Parser.stmt);
       Parser.trans := inline_constants_parser_expr ctx blk.(Parser.trans);
     |}.
+
+  Fixpoint inline_constants_decl (decl_ctx : DeclCtx) (decl : TopDecl.d tags_t) : TopDecl.d tags_t :=
+    (* map every constant binding [id : e] to the binding [id : Some e] *)
+    let ctx := Env.map_vals Some decl_ctx.(constants) in
+    let inline_parser_states := inline_constants_parser_state ctx in
+    let inline_stmt := inline_constants_stmt ctx in
+    match decl with
+    | TopDecl.TPInstantiate constr instance types cargs i =>
+      let cargs' := inline_constants_constructor_args ctx cargs in
+      TopDecl.TPInstantiate constr instance types cargs' i
+    | TopDecl.TPExtern _ _ _ _ _ => decl
+    | TopDecl.TPControl name cparams eparams params ctrl blk i =>
+      let ctrl' := inline_constants_control ctx ctrl in
+      let blk' := inline_stmt blk in
+      TopDecl.TPControl name cparams eparams params ctrl' blk' i
+    | TopDecl.TPParser name cparams eparams params start states i =>
+      let start' := inline_parser_states start in
+      let states' := F.map inline_parser_states states in
+      TopDecl.TPParser name cparams eparams params start' states' i
+    | TopDecl.TPFunction name types sig body i =>
+      let body' := inline_stmt body in
+      TopDecl.TPFunction name types sig body' i
+    | TopDecl.TPSeq d1 d2 i =>
+      let d1' := inline_constants_decl decl_ctx d1 in
+      let d2' := inline_constants_decl decl_ctx d2 in
+      TopDecl.TPSeq d1' d2' i
+    end.
 
   Definition get_name (e : Expression) : result (P4String.t tags_t) :=
     let '(MkExpression _ pre_e _ _ ) := e in

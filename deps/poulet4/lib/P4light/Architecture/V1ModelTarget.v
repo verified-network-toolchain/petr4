@@ -641,6 +641,21 @@ Definition interp_prog
   | _ => None
   end.
 
-Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
+Definition interp_prog'
+           (run_module: path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal))
+           (s0: extern_state)
+           (port: Z)
+           (pin: list bool)
+  : Result.result Exn.t (extern_state * Z * list bool) :=
+  let run_module' p s vs :=
+    match run_module p s vs with
+    | Ok x => Some x
+    | _ => None
+    end
+  in
+  from_opt (interp_prog run_module' s0 port pin)
+           (Exn.Other "failure in V1Model.interp_prog").
+
+Instance V1Model : Target := Build_Target _ exec_prog interp_prog'.
 
 End V1Model.

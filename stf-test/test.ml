@@ -1,6 +1,8 @@
 open Petr4.Ast
 open Petr4.P4light
 open Core
+module R = Poulet4.Result
+module Exn = Poulet4.Target.Exn
 
 let stmt_string s =
   match s with
@@ -72,8 +74,7 @@ module type RunnerConfig = sig
     st -> 
     Bigint.t ->
     bool list ->
-    ((st * Bigint.t) * bool list)
-    option
+    (Exn.t, (st * Bigint.t) * bool list) R.result
 end
 
 module MakeRunner (C : RunnerConfig) = struct  
@@ -83,7 +84,7 @@ module MakeRunner (C : RunnerConfig) = struct
         (pkt_in : string)
         (port : int)
         (st : C.st)
-     : ((C.st * Bigint.t) * bool list) option =
+     : (Exn.t, (C.st * Bigint.t) * bool list) R.result =
     let pkt_in = pkt_in
                  |> String.lowercase
                  |> Cstruct.of_hex
@@ -116,10 +117,11 @@ module MakeRunner (C : RunnerConfig) = struct
       | Packet (port, packet) -> 
          let results', st' =
            match evaler prog packet (int_of_string port) st with
-           | Some ((st', port), pkt) ->
+           | Ok ((st', port), pkt) ->
               let fixed = pkt |> Petr4.Util.bits_to_string |> Petr4.Util.hex_of_string |> strip_spaces |> String.lowercase in
               (Bigint.to_string port, fixed) :: results, st'
-           | None ->
+           | Error e ->
+              Printf.eprintf "Error while running test: %s" (Exn.to_string e);
               results, st
          in
          run_test prog tl results' expected st'

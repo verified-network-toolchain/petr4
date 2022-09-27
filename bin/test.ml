@@ -27,7 +27,9 @@ let main include_dir stf_tests_dir =
     match Parse.parse_file include_dir p4_file false with
     | `Ok p4_prog -> stf_alco_test stf_file p4_file p4_prog
     | `Error (info, exn) ->
-       Format.eprintf "%s: %s@\n%!" (Petr4.P4info.to_string info) (Exn.to_string exn);
+       Format.eprintf "%s: %s@\n%!"
+         (Petr4.P4info.to_string info)
+         (Core.Exn.to_string exn);
        failwith "Parse error while loading STF tests. Exiting")
 
 let excl stf_tests_dir =

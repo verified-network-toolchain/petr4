@@ -309,8 +309,7 @@ Section InterpreterSafe.
       split.
       + eapply Bool.reflect_iff in H0; eauto using PeanoNat.Nat.leb_spec0.
       + eapply Bool.reflect_iff in H1; eauto using PeanoNat.Nat.leb_spec0.
-    - simpl in H.
-      optbind_inv.
+    - optbind_inv.
       destruct a; try discriminate.
       optbind_inv.
       inversion H.

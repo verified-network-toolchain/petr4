@@ -102,13 +102,13 @@ Section ToGCL.
        may_have_returned := false;
     |}.
 
-  Definition current (c : ctx) : result nat :=
+  Definition current (c : ctx) : result string nat :=
     match c.(stack) with
     | [] => error "Tried to get context counter from empty context"
     | idx :: _ => ok idx
     end.
 
-  Definition decr (old_ctx : ctx) (new_ctx : ctx)  : result ctx :=
+  Definition decr (old_ctx : ctx) (new_ctx : ctx)  : result string ctx :=
     match new_ctx.(stack) with
     | [] => error "Tried decrement empty counter"
     | idx :: idxs =>
@@ -129,7 +129,7 @@ Section ToGCL.
        may_have_returned := c.(may_have_returned)
     |}.
 
-  Definition join (tctx fctx : ctx) : result ctx :=
+  Definition join (tctx fctx : ctx) : result string ctx :=
     if list_eq Nat.eqb tctx.(stack) fctx.(stack)
     then ok {| stack := tctx.(stack);
                used := append tctx.(used) fctx.(used);
@@ -166,8 +166,8 @@ Section ToGCL.
   Definition relabel_for_scope (c : ctx) (v : string) : string :=
     if is_local c v
     then match current c with
-         | Error _ _ => v
-         | Ok _ idx => scope_name v idx
+         | Error _ => v
+         | Ok idx => scope_name v idx
          end
     else v.
 
@@ -176,16 +176,16 @@ Section ToGCL.
   Definition extern : Type := Env.t string target.
   (* TODO :: Think about calling out to external functions for an interpreter*)
   Definition model : Type := Env.t string extern.
-  Definition find (m : model) (e f : string) : result (GCL.t) :=
+  Definition find (m : model) (e f : string) : result string (GCL.t) :=
     let*~ ext := Env.find e m else "couldn't find extern " @@ e @@ " in model" in
     let*~ fn := Env.find f ext else "couldn't find field " @@ f @@ " in extern " @@ e in
     ok fn.
   Definition empty : model := Env.empty string extern.
-  Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result (ST.s tags_t).
+  Definition pipeline : Type := list E.t -> E.constructor_args tags_t -> result string (ST.s tags_t).
 
   Section Instr.
 
-    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * target) -> result target).
+    Variable instr : (string -> tags_t -> list (nat * BitVec.t * E.matchkind) -> list (string * target) -> result string target).
 
     Definition pos := GCL.pos.
     Fixpoint scopify (ctx : ctx) (e : E.e tags_t) : E.e tags_t :=
@@ -244,7 +244,7 @@ Section ToGCL.
     Definition string_of_pos (x : positive) :=
       string_of_nat (BinPosDef.Pos.to_nat x).
 
-    Fixpoint to_lvalue (e : E.e tags_t) : result string :=
+    Fixpoint to_lvalue (e : E.e tags_t) : result string string :=
       match e with
       | E.EBool _ _ => error "Boolean Literals are not lvalues"
       | E.EBit _ _ _ => error "BitVector Literals are not lvalues"
@@ -273,7 +273,7 @@ Section ToGCL.
         Inline.index_array_str lv (BinInt.Z.to_nat index)
       end.
 
-    Definition width_of_type (x:string) (t : E.t) : result nat :=
+    Definition width_of_type (x:string) (t : E.t) : result string nat :=
       match t with
       | E.TBool => ok 1
       | E.TBit w => ok (BinNat.N.to_nat w)
@@ -289,14 +289,14 @@ Section ToGCL.
       | E.THeaderStack fields size => error ("Cannot get the width of a header stack type for var" @@ x)
       end.
 
-    Definition get_header_of_stack (stack : E.e tags_t) : result E.t :=
+    Definition get_header_of_stack (stack : E.e tags_t) : result string E.t :=
       match stack with
       | E.EHeaderStack fields headers next_index i =>
         ok (E.THeader fields)
       | _ => error "Tried to get the base header of something other than a header stack."
       end.
 
-    Fixpoint to_header_string (e : (E.e tags_t)) : result string :=
+    Fixpoint to_header_string (e : (E.e tags_t)) : result string string :=
       match e with
       | E.EBool _ _ => error "A Boolean is not a header"
       | E.EBit _ _ _ => error "A bitvector literal is not a header"
@@ -326,13 +326,13 @@ Section ToGCL.
         Inline.index_array_str stack_string (BinInt.Z.to_nat index)
       end.
 
-    Definition lookup_member_from_fields mem fields : result E.t :=
+    Definition lookup_member_from_fields mem fields : result string E.t :=
       match F.find_value (String.eqb mem) fields with
       | None => error ("cannot find " @@ mem @@ "in type")
       | Some t => ok t
       end.
 
-    Definition lookup_member_type_from_type (mem : string) (typ : E.t) : result E.t :=
+    Definition lookup_member_type_from_type (mem : string) (typ : E.t) : result string E.t :=
       match typ with
       | E.TStruct fields =>
         lookup_member_from_fields mem fields
@@ -344,7 +344,7 @@ Section ToGCL.
         error "don't know how to extract member from type that has no members"
       end.
 
-    Fixpoint to_rvalue (e : (E.e tags_t)) : result BV.t :=
+    Fixpoint to_rvalue (e : (E.e tags_t)) : result string BV.t :=
       match e with
       | E.EBool b i =>
         if b
@@ -515,7 +515,7 @@ Section ToGCL.
        end.
 
     
-    Fixpoint to_form (e : (E.e tags_t)) : result Form.t :=
+    Fixpoint to_form (e : (E.e tags_t)) : result string Form.t :=
       match e with
       | E.EBool b i => ok (Form.LBool b)
       | E.EBit _ _ _ =>
@@ -619,14 +619,14 @@ Section ToGCL.
         error "Headers (from header stack accesses) are not formulae"
       end.
 
-    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * ctx)) : result (target * ctx) :=
+    Definition cond (guard_type : E.t) (guard : E.e tags_t) (i : tags_t) (tres fres : (target * ctx)) : result string (target * ctx) :=
       let (tg, tctx) := tres in
       let (fg, fctx) := fres in
       let* ctx := join tctx fctx in
       let* phi := to_form guard in
       ok (iteb phi tg fg, ctx).
 
-    Definition arrowE_to_arglist (arrow : E.arrowE tags_t) : result (list (string * (Form.t + BV.t))) :=
+    Definition arrowE_to_arglist (arrow : E.arrowE tags_t) : result string (list (string * (Form.t + BV.t))) :=
       List.fold_right (fun '(name, pa) acc_res =>
                          let* res := acc_res in
                          match pa with
@@ -659,7 +659,7 @@ Section ToGCL.
           else
             old.
 
-    Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result target :=
+    Definition subst_args (g : target) (s : list (string * (Form.t + BV.t))) : result string target :=
       List.fold_right (fun '(param, arg) g_res' =>
                 let+ g' := g_res' in
                 match arg with
@@ -669,7 +669,7 @@ Section ToGCL.
                   GCL.subst_rvalue lvalue_subst BV.subst_bv Form.subst_bv param bv_expr g'
                 end) (ok g) s.
 
-    Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result (target * ctx) :=
+    Fixpoint inline_to_gcl (c : ctx) (arch : model) (s : Inline.t tags_t) : result string (target * ctx) :=
       match s with
       | Inline.ISkip _ i =>
         ok (GCL.GSkip, c)
@@ -734,7 +734,7 @@ Section ToGCL.
       end.
 
     (* use externs to specify inter-pipeline behavior.*)
-    Definition get_main ctx (pipe : pipeline) : result (ST.s tags_t) :=
+    Definition get_main ctx (pipe : pipeline) : result string (ST.s tags_t) :=
       match find_package tags_t ctx "main" with
       | Some (TD.TPInstantiate cname _ type_args args i) =>
         pipe type_args args
@@ -742,7 +742,7 @@ Section ToGCL.
         error "expected package, got sth else"
       end.
 
-    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result (Inline.t tags_t) :=
+    Definition inlining_passes (gas unroll : nat) (ext : model) (ctx : ToP4cub.DeclCtx tags_t) (s : ST.s tags_t) : result string (Inline.t tags_t) :=
       let* inline_stmt := Inline.inline _ gas unroll ctx s in
       let* no_stk := Inline.elaborate_header_stacks _ inline_stmt in
       let* no_stk := Inline.elaborate_header_stacks _ no_stk in (*Do it twice, because extract might introduce more hss, but it wont after 2x *)
@@ -754,19 +754,19 @@ Section ToGCL.
 
     Definition inline_from_p4cub (gas unroll : nat)
                (ext : model) (pipe : pipeline)
-               (ctx : ToP4cub.DeclCtx tags_t)  : result (Inline.t tags_t) :=
+               (ctx : ToP4cub.DeclCtx tags_t)  : result string (Inline.t tags_t) :=
       let* s := get_main ctx pipe in
       inlining_passes gas unroll ext ctx s.
 
     Definition p4cub_statement_to_gcl (gas unroll : nat)
                (ctx : ToP4cub.DeclCtx tags_t)
-               (arch : model) (s : ST.s tags_t) : result target :=
+               (arch : model) (s : ST.s tags_t) : result string target :=
       let* inlined := inlining_passes gas unroll arch ctx s in
       let* instred := Inline.assert_headers_valid_before_use _ inlined in
       let+ (gcl,_) := inline_to_gcl initial arch instred in
       gcl.
 
-    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result target :=
+    Definition from_p4cub (gas unroll : nat) (ext : model) (pipe : pipeline) (ctx : ToP4cub.DeclCtx tags_t) : result string target :=
       let* stmt := get_main ctx pipe in
       p4cub_statement_to_gcl gas unroll ctx ext stmt.
 

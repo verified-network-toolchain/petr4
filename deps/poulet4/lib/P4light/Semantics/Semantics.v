@@ -1895,6 +1895,42 @@ Definition inline_packet_in_and_packet_out (p : path) (m : inst_mem) (param : @P
   else
     m.
 
+Definition decl_to_string {tags_t: Type} (d : @Declaration tags_t) : string :=
+  match d with
+  | DeclConstant tags typ name value => "constant"
+  | DeclInstantiation tags typ args name init => "instantiation"
+  | DeclParser tags name type_params params
+               constructor_params locals states => "parser"
+  | DeclControl tags name type_params params
+                constructor_params locals apply => "control"
+  | DeclFunction tags ret name type_params
+                 params body => "function"
+  | DeclExternFunction tags ret name
+                       type_params params => "extern function"
+  | DeclVariable tags typ name init => "variable"
+  | DeclValueSet tags typ size name => "value set"
+  | DeclAction tags name data_params
+               ctrl_params body => "action"
+  | DeclTable tags name key actions entries
+              default_action size custom_properties => "table"
+  | DeclHeader tags name fields => "header"
+  | DeclHeaderUnion tags name fields => "header union"
+  | DeclStruct tags name fields => "struct"
+  | DeclError tags members => "error"
+  | DeclMatchKind tags members => "match_kind"
+  | DeclEnum tags name members => "enum"
+  | DeclSerializableEnum tags typ name members => "serializable enum"
+  | DeclExternObject tags name type_params
+                     methods => "extern object"
+  | DeclTypeDef tags name typ_or_decl => "typedef"
+  | DeclNewType tags name typ_or_decl => "newtype"
+  | DeclControlType tags name type_params
+                    params => "control type"
+  | DeclParserType tags name type_params params => "parser type"
+  | DeclPackageType tags name type_params
+                    params => "package type"
+  end.
+
 Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p : path)
       (m : inst_mem) (s : extern_state) : Result.result Exn.t (path * inst_mem * extern_state) :=
   match IdentMap.get class_name ce with
@@ -1913,7 +1949,12 @@ Fixpoint instantiate_class_body (ce : cenv) (e : ienv) (class_name : ident) (p :
         let* (m, s) := instantiate_decls ce' e locals p m s in
         let m := set_inst_mem p (inl {|iclass:=class_name; ipath:=p|}) m in
         mret (p, m, s)
-    | _ => Result.error (Exn.Other "class_map contained a decl that was neither a parser nor a control")
+    | DeclPackageType tags name type_params params =>
+        (* Package types contain no inner declarations *)
+        mret (p, m, s)
+    | _ => Result.error (Exn.Other ("class_map contained a decl that was neither a parser nor a control:\n"
+                                   ++ "    class name: " ++ class_name ++ "\n"
+                                   ++ "    class type: " ++ decl_to_string decl))
     end
   | None => Result.error (Exn.NameNotFoundInClassEnv class_name)
   end.
@@ -2062,7 +2103,7 @@ Fixpoint load_decl (p : path) (ge : genv_func) (decl : @Declaration tags_t) : ge
       let ge := fold_left (load_parser_state (p ++ [str name])) states ge in
       let ge := PathMap.set (p ++ [str name; "accept"]) accept_state ge in
       let ge := PathMap.set (p ++ [str name; "reject"]) reject_state ge in
-      let method := MkExpression dummy_tags (ExpName (BareName !"begin") (LInstance ["begin"]))
+      let method := MkExpression dummy_tags (ExpName (BareName !"start") (LInstance ["start"]))
                     empty_func_type Directionless in
       let stmt := MkStatement dummy_tags (StatMethodCall method nil nil) StmUnit in
       PathMap.set (p ++ [str name; "apply"]) (FInternal (map (map_fst get_loc_path) params) (block_app init (BlockSingleton stmt))) ge

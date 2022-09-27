@@ -583,79 +583,66 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Definition expect_result_null (r: option (extern_state * list Val * signal)) : option (extern_state * list Val) :=
+Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal)) : result Exn.t (extern_state * list Val) :=
   let* '(st, outs, sig) := r in
   match sig with
-  | SReturn (ValBaseNull) => Some (st, outs)
-  | _ => None
+  | SReturn (ValBaseNull) => mret (st, outs)
+  | _ => error (Exn.Other "Expected SReturn (ValBaseNull) but got something different")
   end.
 
 Definition set_std_meta_error (std: Val) (err: string) : Val :=
   std.
 
 Definition interp_prog
-           (run_module: path -> extern_state -> list Val -> option (extern_state * list Val * signal))
+           (run_module: path -> extern_state -> list Val -> result Exn.t (extern_state * list Val * signal))
            (s0: extern_state)
            (port: Z)
            (pin: list bool)
-  : option (extern_state * Z * list bool) :=
+  : result Exn.t (extern_state * Z * list bool) :=
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
   let* (s2, hdr2, meta2, standard_metadata2) :=
-    match run_module ["main"; "p"] s1 [ValBaseNull; ValBaseNull] with
-    | Some (st', [hdr2; meta2; standard_metadata2], SReturn ValBaseNull) =>
-        Some (st', hdr2, meta2, standard_metadata2)
-    | Some (st', [hdr2; meta2; standard_metadata2], SReject err) =>
+    let* ret := run_module ["main"; "p"] s1 [ValBaseNull; ValBaseNull] in
+    match ret with
+    | (st', [hdr2; meta2; standard_metadata2], SReturn ValBaseNull) =>
+        mret (st', hdr2, meta2, standard_metadata2)
+    | (st', [hdr2; meta2; standard_metadata2], SReject err) =>
         let meta' := set_std_meta_error standard_metadata2 err in
-        Some (st', hdr2, meta2, standard_metadata2)
-    | _ => None
+        mret (st', hdr2, meta2, standard_metadata2)
+    | _ => error (Exn.Other "interp_prog: failure in parser")
     end
   in
   let* (s3, outs3) := expect_result_null (run_module ["main"; "vr"] s2 [hdr2; meta2]) in
   let* (hdr3, meta3) :=
     match outs3 with
-    | [hdr3; meta3] => Some (hdr3, meta3)
-    | _ => None
+    | [hdr3; meta3] => mret (hdr3, meta3)
+    | _ => error (Exn.Other "interp_prog: failure in verify checksum")
     end in
   let* (s4, outs4) := expect_result_null (run_module ["main"; "ig"] s3 [hdr3; meta3; standard_metadata2]) in
   let* (hdr4, meta4, standard_metadata4) :=
     match outs4 with
-    | [hdr4; meta4; standard_metadata4] => Some (hdr4, meta4, standard_metadata4)
-    | _ => None
+    | [hdr4; meta4; standard_metadata4] => mret (hdr4, meta4, standard_metadata4)
+    | _ => error (Exn.Other "interp_prog: failure in ingress")
     end in
   let* (s5, outs5) := expect_result_null (run_module ["main"; "eg"] s4 [hdr4; meta4; standard_metadata4]) in
   let* (hdr5, meta5, standard_metadata5) :=
     match outs5 with
-    | [hdr5; meta5; standard_metadata5] => Some (hdr5, meta5, standard_metadata5)
-    | _ => None
+    | [hdr5; meta5; standard_metadata5] => mret (hdr5, meta5, standard_metadata5)
+    | _ => error (Exn.Other "interp_prog: failure in egress")
     end in
   let* (s6, outs6) := expect_result_null (run_module ["main"; "ck"] s5 [hdr5; meta5]) in
   let* (hdr6, meta6) :=
     match outs6 with
-    | [hdr6; meta6] => Some (hdr6, meta6)
-    | _ => None
+    | [hdr6; meta6] => mret (hdr6, meta6)
+    | _ => error (Exn.Other "interp_prog: failure in checksum")
     end in
   let* (s7, _) := expect_result_null (run_module ["main"; "dep"] s6 [hdr6; meta6]) in
-  let* pkt := PathMap.get ["packet_out"] s7 in
+  let* pkt := from_opt (PathMap.get ["packet_out"] s7)
+                       (Exn.Other "interp_prog: failure recovering packet") in
   match pkt with
-  | ObjPout pout => Some (s7, 0%Z, pout)
-  | _ => None
+  | ObjPout pout => mret (s7, 0%Z, pout)
+  | _ => error (Exn.Other "interp_prog: failure recovering packet")
   end.
 
-Definition interp_prog'
-           (run_module: path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal))
-           (s0: extern_state)
-           (port: Z)
-           (pin: list bool)
-  : Result.result Exn.t (extern_state * Z * list bool) :=
-  let run_module' p s vs :=
-    match run_module p s vs with
-    | Ok x => Some x
-    | _ => None
-    end
-  in
-  from_opt (interp_prog run_module' s0 port pin)
-           (Exn.Other "failure in V1Model.interp_prog").
-
-Instance V1Model : Target := Build_Target _ exec_prog interp_prog'.
+Instance V1Model : Target := Build_Target _ exec_prog interp_prog.
 
 End V1Model.

@@ -375,6 +375,7 @@
 %% methods
 \newcommand{\constructor}[2]{{#1}\,(\overline {{#2}})}
 \newcommand{\abstractMethod}[4]{{#1}\, {#2}\, \langle\overline {{#3}}\rangle\,(\overline {{#4}})}
+\newcommand{\methodDef}[4]{{#1}\, {#2}\, \langle\overline {{#3}}\rangle\,(\overline {{#4}})}
 \newcommand{\extMethod}{\mathit{mth}}
 \newcommand{\extMethods}{\overline \extMethod}
 
@@ -385,7 +386,7 @@
 \newcommand{\inst}[4]{{#1}\, ({#2})\, {#3}\, \{{#4}\}}
 \newcommand{\instNoBlock}[3]{{#1}\, ({#2})\, {#3}}
 \newcommand{\parserDcl}[6]{\mathsf{parser}\ {#1}\, \langle {#2}\rangle\, ({#3})\, ({#4})\, \{{#5}\ {#6} \}}
-\newcommand{\controlDcl}[4]{\mathsf{control}\ {#1}\, \langle {#2}\rangle\, ({#3})\, \{ {#4} \}}
+\newcommand{\controlDcl}[6]{\mathsf{control}\ {#1}\, \langle {#2}\rangle\, ({#3})\, ({#4})\, \{ {#5}\ {#6} \}}
 \newcommand{\funcDcl}[5]{\mathsf{function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})\, \{ {#5}\}}
 \newcommand{\externFuncDcl}[4]{\mathsf{extern\_function}\ {#1}\, {#2}\, \langle {#3}\rangle\, ({#4})}
 \newcommand{\varDclInit}[3]{{#1}\ {#2} := {#3}}

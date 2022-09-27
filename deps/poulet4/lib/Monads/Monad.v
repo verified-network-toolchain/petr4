@@ -45,7 +45,7 @@ Fixpoint sequence {A} {m: Type -> Type} {M : Monad m} (acts: list (m A)) : m (li
   | x :: xs => 
     let* t    := x in
     let* rest := @sequence A m M xs in 
-      mret (t :: rest)
+    mret (t :: rest)
   end.
 
 Fixpoint asequence {K A} {m: Type -> Type} {M : Monad m} (acts: list (K * m A)) : m (list (K * A)) := 

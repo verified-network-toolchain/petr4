@@ -105,7 +105,7 @@ Module ResultNotations.
 
   Infix ">=>" := rcomp (at level 80, right associativity).
 
-  Infix "|=>" := map (at level 80, right associativity).
+  Infix "|=>" := (fun r f => map f r) (at level 80, right associativity).
 
 End ResultNotations.
 

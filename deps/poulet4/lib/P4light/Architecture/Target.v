@@ -9,6 +9,56 @@ Require Import Poulet4.P4light.Syntax.Value.
 From Poulet4.P4light.Syntax Require Import Typed SyntaxUtil P4Int.
 From Poulet4.Utils Require Import Maps AList.
 
+Module Exn.
+  Import ListNotations.
+  Open Scope string_scope.
+  Inductive t :=
+  | GlobalVarsNotInState (var : list string)
+  | LocNotFoundInState (var : Locator)
+  | TypeNameNotFound (type_name: string)
+  | NameNotFoundInIEnv (name: string)
+  | NameNotFoundInClassEnv (name: string)
+  | Other (msg: string)
+  .
+
+  (* [path_to_string p] produces a human-readable string for p. *)
+  Fixpoint path_to_string (path : list string) :=
+    match path with
+    | []     => "<empty path>"
+    | [n]    => n
+    | n :: p => n ++ "." ++ path_to_string p
+    end.
+
+  (* [loc_to_string e] is a human-readable string for loc *)
+  Definition loc_to_string (loc: Locator) :=
+    match loc with
+    | LGlobal path   => "<global: " ++ path_to_string path ++ ">"
+    | LInstance path => "<instance: " ++ path_to_string path ++ ">"
+    end.
+  
+  (* [to_string e] is a sentence describing the error e *)
+  Definition to_string e :=
+    match e with
+    | GlobalVarsNotInState p =>
+        "Tried to find the "
+          ++ "global variable "
+          ++ loc_to_string (LGlobal p)
+          ++ " in a Semantics.state. "
+          ++ "Global variables are stored in the genv."
+    | LocNotFoundInState l =>
+        "Couldn't find " ++ loc_to_string l ++ " in a Semantics.state."
+    | TypeNameNotFound t =>
+        "Couldn't find the type name " ++ t ++ " in a genv_typ."
+    | NameNotFoundInIEnv name =>
+        "Couldn't find the name " ++ name ++ " in an ienv (instantiation env)."
+    | NameNotFoundInClassEnv name =>
+        "Couldn't find the name " ++ name ++ " in a cenv (class env)."
+    | Other s =>
+        s ++ " (You may want to break this error out into its "
+          ++ "own variant in Semantics.Exn.t instead of using Exn.Other)"
+    end.
+End Exn.
+
 Section Target.
 
 Context {tags_t: Type}.
@@ -122,8 +172,8 @@ Class Target := {
   extern_sem :> ExternSem;
   exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
       extern_state -> list bool -> extern_state -> list bool -> Prop;
-  interp_prog : (path -> extern_state -> list Val -> option (extern_state * list Val * signal)) ->
-      extern_state -> Z -> list bool -> option (extern_state * Z * list bool);
+  interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+      extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool);
 }.
 
 End Target.

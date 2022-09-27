@@ -173,11 +173,16 @@ let run_stf stf_file p4prog =
     let ic = In_channel.create stf_file in
     let lexbuf = Lexing.from_channel ic in
     let stmts = Test_parser.statements Test_lexer.token lexbuf in
-    let _, prog = 
+    let prog = 
       p4prog
       |> Petr4.Elaborate.elab
       |> fun (prog, renamer) ->
          Petr4.Checker.check_program renamer prog
+      |> fun (_, prog) ->
+         begin match Poulet4.GenLoc.transform_prog Petr4.P4info.dummy prog with
+         | Coq_inl prog -> prog
+         | Coq_inr ex -> failwith "error occurred in GenLoc"
+         end
     in
     let target =
       prog

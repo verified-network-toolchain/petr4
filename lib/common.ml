@@ -47,10 +47,18 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
-  let check_file (include_dirs : string list) (p4_file : string) 
-      (exportp4 : bool) (exportp4_ocaml: bool)(normalize : bool)
-      (export_file : string) (gen_loc : bool) (verbose : bool) 
-      (printp4 : bool) (printp4_file: string) : unit =
+  let check_file
+      (include_dirs : string list)
+      (p4_file : string) 
+      (exportp4 : bool)
+      (exportp4_ocaml: bool)
+      (normalize : bool)
+      (export_file : string)
+      (gen_loc : bool)
+      (verbose : bool) 
+      (printp4 : bool)
+      (printp4_file: string)
+      : unit =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
       let prog, renamer = Elaborate.elab prog in

@@ -58,7 +58,7 @@ type coq_MethodPrototype = P4info.t pre_MethodPrototype
 type coq_OpUni = Poulet4.Syntax.coq_OpUni
 type coq_OpBin = Poulet4.Syntax.coq_OpBin
 type coq_Locator = Poulet4.Syntax.coq_Locator
-let noLocator = Poulet4.Syntax.LGlobal ["BOGUS!!!"]
+let noLocator = Poulet4.Syntax.LGlobal [""]
 type 'a pre_ExpressionPreT =
   'a Poulet4.Syntax.coq_ExpressionPreT
 type 'a pre_Expression =

@@ -121,8 +121,7 @@ module MakeRunner (C : RunnerConfig) = struct
               let fixed = pkt |> Petr4.Util.bits_to_string |> Petr4.Util.hex_of_string |> strip_spaces |> String.lowercase in
               (Bigint.to_string port, fixed) :: results, st'
            | Error e ->
-              Printf.eprintf "Error while running test: %s" (Exn.to_string e);
-              results, st
+              failwith (Exn.to_string e)
          in
          run_test prog tl results' expected st'
       | Expect (port, None) ->

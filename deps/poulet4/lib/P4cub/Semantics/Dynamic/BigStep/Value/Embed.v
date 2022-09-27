@@ -49,7 +49,7 @@ Section Embed.
     end.
 
     (* project *)
-  Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : Result.result C_P4Type := 
+  Fixpoint P4Light_to_P4Cub_fun (p : P_P4Type) : Result.result string C_P4Type := 
     match p with
     | TypBool => Result.ok Expr.TBool
     | TypString => Result.error "TypString has no mapping in C_P4Type"

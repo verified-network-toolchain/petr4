@@ -47,61 +47,68 @@ module Make_parse (Conf: Parse_config) = struct
       if verbose then Format.eprintf "[%s] %s@\n%!" (Conf.red "Failed") p4_file;
       `Error (Lexer.info lexbuf, err)
 
-  let check_file
-      (include_dirs : string list)
-      (p4_file : string) 
-      (exportp4 : bool)
-      (exportp4_ocaml: bool)
-      (normalize : bool)
-      (export_file : string)
-      (gen_loc : bool)
-      (verbose : bool) 
-      (printp4 : bool)
-      (printp4_file: string)
-      : unit =
+  let check_prog
+        (include_dirs : string list)
+        (p4_file : string) 
+        (normalize : bool)
+        (gen_loc : bool)
+        (verbose : bool) =
     match parse_file include_dirs p4_file verbose with
     | `Ok prog ->
-      let prog, renamer = Elaborate.elab prog in
-      let _, typed_prog = Checker.check_program renamer prog in
-      Format.printf "%a" pretty prog;
-      begin
-        if exportp4 || exportp4_ocaml || printp4 then
-          (* let oc = open_out ofile in *)
-          (* let oc = Stdlib.open_out "out.v" in *)
-          let prog' =
-            if normalize then
-              Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
-            else typed_prog in
-          let prog'' =
-            if gen_loc then
-              match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
-              | Coq_inl prog'' -> prog''
-              | Coq_inr ex -> failwith "error occurred in GenLoc"
-            else prog' in
-          begin 
-            if exportp4 then
-            let oc = Out_channel.create export_file in
-            Exportp4.print_program (Format.formatter_of_out_channel oc) prog'';
-            Out_channel.close oc
-          end;
-          begin 
-            if exportp4_ocaml then
-            let oc = Out_channel.create export_file in
-            Exportp4prune.print_program (Format.formatter_of_out_channel oc) prog'';
-            Out_channel.close oc
-          end;
-          begin
-            if printp4 then
-            let oc_p4 = Out_channel.create printp4_file in
-            Printp4.print_program (Format.formatter_of_out_channel oc_p4)
-              ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
-              ["@pragma pa_auto_init_metadata"]
-              prog'';
-            Out_channel.close oc_p4
-          end;
-      end
+       let prog, renamer = Elaborate.elab prog in
+       let _, typed_prog = Checker.check_program renamer prog in
+       let prog' =
+         if normalize then
+           Poulet4.SimplExpr.transform_prog P4info.dummy typed_prog
+         else typed_prog in
+       let prog'' =
+         if gen_loc then
+           match Poulet4.GenLoc.transform_prog P4info.dummy prog' with
+           | Coq_inl prog'' -> prog''
+           | Coq_inr ex -> failwith "error occurred in GenLoc"
+         else prog' in
+       `Ok prog''
+    | `Error e ->
+       `Error e
+
+  let check_file
+        (include_dirs : string list)
+        (p4_file : string) 
+        (exportp4 : bool)
+        (exportp4_ocaml: bool)
+        (normalize : bool)
+        (export_file : string)
+        (gen_loc : bool)
+        (verbose : bool) 
+        (printp4 : bool)
+        (printp4_file: string)
+      : unit =
+    match check_prog include_dirs p4_file normalize gen_loc verbose with
+    | `Ok prog ->
+       Format.printf "%a" pretty prog;
+       begin 
+         if exportp4 then
+           let oc = Out_channel.create export_file in
+           Exportp4.print_program (Format.formatter_of_out_channel oc) prog;
+           Out_channel.close oc
+       end;
+       begin 
+         if exportp4_ocaml then
+           let oc = Out_channel.create export_file in
+           Exportp4prune.print_program (Format.formatter_of_out_channel oc) prog;
+           Out_channel.close oc
+       end;
+       begin
+         if printp4 then
+           let oc_p4 = Out_channel.create printp4_file in
+           Printp4.print_program (Format.formatter_of_out_channel oc_p4)
+             ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
+             ["@pragma pa_auto_init_metadata"]
+             prog;
+           Out_channel.close oc_p4
+       end
     | `Error (info, Lexer.Error s) ->
-      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
+       Format.eprintf "%s: %s@\n%!" (P4info.to_string info) s
     | `Error (info, Parser.Error) ->
       Format.eprintf "%s: syntax error@\n%!" (P4info.to_string info)
     | `Error (info, err) ->
@@ -210,54 +217,48 @@ module Make_parse (Conf: Parse_config) = struct
    | `Error (info, err) ->
      Format.eprintf "%s: %s@\n%!" (P4info.to_string info) (Exn.to_string err)
        
+ let parse_hex_pkt (s : string) : bool list =
+   s
+   |> Cstruct.of_hex
+   |> Cstruct.to_string
+   |> Util.string_to_bits
 
-  let eval_file include_dirs p4_file verbose pkt_str ctrl_json port target =
-    failwith "eval_file removed"
-    (* TODO restore evaluator
-    let port = Bigint.of_int port in
-    let pkt = Cstruct.of_hex pkt_str in
-    let open Yojson.Safe in
-    let matches = ctrl_json
-                  |> Util.member "matches"
-                  |> Util.to_list
-                  |> List.map ~f:Util.to_list in
-    let vsets =
-      List.map matches ~f:(fun l -> List.map l ~f:P4light.Match.of_yojson_exn) in
-    match parse_file include_dirs p4_file verbose with
-    | `Ok prog ->
-      let elab_prog, renamer = Elaborate.elab prog in
-      let (cenv, typed_prog) = Checker.check_program renamer elab_prog in
-      let env = Env.CheckerEnv.eval_env_of_t cenv in
-      let open Eval in
+ let eval_file include_dirs p4_file verbose pkt_str port target =
+   let st = fun _ -> None in
+   let port = Bigint.of_int port in
+   let pkt = parse_hex_pkt pkt_str in
+   match check_prog include_dirs p4_file true true verbose with
+   | `Ok prog ->
       begin match target with
-        | "v1" ->
-          let st = V1Interpreter.empty_state in
-          begin match V1Interpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt,port) -> `Ok(pkt, port)
-            | None -> `NoPacket
-          end
-        | "ebpf" ->
-          let st = EbpfInterpreter.empty_state in
-          begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
-            | Some (pkt, port) -> `Ok(pkt,port)
-            | None -> `NoPacket
-          end
-        | _ -> Format.sprintf "Architecture %s unsupported" target |> failwith
+      | "v1" ->
+         begin match Eval.v1_interp prog st port pkt with
+         | Ok ((st, port), pkt) -> `Ok (pkt, port)
+         | Error e -> e |> Poulet4.Target.Exn.to_string |> failwith
+         end
+      (*
+      | "ebpf" ->
+      let st = EbpfInterpreter.empty_state in
+      begin match EbpfInterpreter.eval_program (([],[]), vsets) env st pkt port typed_prog |> snd with
+      | Some (pkt, port) -> `Ok(pkt,port)
+      | None -> `NoPacket
       end
-    | `Error (info, exn) as e-> e
-    *)
-
-  let eval_file_string include_dirs p4_file verbose pkt_str ctrl_json port target =
-    failwith "eval_file_string removed"
-    (* TODO restore evaluator
-    match eval_file include_dirs p4_file verbose pkt_str ctrl_json port target with
+      *)
+      | _ -> Format.sprintf "Architecture %s unsupported" target |> failwith
+      end
+   | `Error (info, exn) as e -> e
+ 
+  let eval_file_string include_dirs p4_file verbose pkt_str port target =
+    match eval_file include_dirs p4_file verbose pkt_str port target with
     | `Ok (pkt, port) ->
-      (pkt |> Cstruct.to_string |> hex_of_string) ^ " port: " ^ Bigint.to_string port
+       Printf.sprintf "%s on port: %s\n"
+         (pkt
+          |> Util.bits_to_string
+          |> Util.hex_of_string)
+         (Bigint.to_string port)
     | `NoPacket -> "No packet out"
-    | `Error(info, exn) ->
+    | `Error (info, exn) ->
       let exn_msg = Exn.to_string exn in
       let info_string = P4info.to_string info in
       info_string ^ "\n" ^ exn_msg
-    *)
 
 end

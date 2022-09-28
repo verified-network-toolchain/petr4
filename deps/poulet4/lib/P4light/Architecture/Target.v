@@ -116,10 +116,10 @@ Class ExternSem := {
       -> list (@P4Type tags_t) -> list Val -> extern_state -> list Val -> signal -> Prop;
   (* runnable version of exec_extern *)
   interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path
-      -> list (@P4Type tags_t) -> list Val -> option (extern_state * list Val * signal);
+      -> list (@P4Type tags_t) -> list Val -> Result.result Exn.t (extern_state * list Val * signal);
   interp_extern_safe :
     forall env st class method this targs args st' retvs sig,
-      interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+      interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
       exec_extern env st class method this targs args st' retvs sig;
   extern_get_entries : extern_state -> path -> list table_entry;
   extern_set_entries : extern_state -> path -> list table_entry -> extern_state;

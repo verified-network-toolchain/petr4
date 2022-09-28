@@ -797,8 +797,7 @@ Section Interpreter.
                | FExternal class_name name =>
                    let (m, es) := s in
                    let argvs := List.map interp_sval_val args in
-                   let* (es', argvs', sig) := from_opt (interp_extern ge es class_name name obj_path typ_args argvs)
-                                                       (Exn.Other "interp_func: error in interp_extern") in
+                   let* (es', argvs', sig) := interp_extern ge es class_name name obj_path typ_args argvs in
                    let args' := List.map eval_val_to_sval argvs' in
                    mret ((m, es'), args', sig)
                end

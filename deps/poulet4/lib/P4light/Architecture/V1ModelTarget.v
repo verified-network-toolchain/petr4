@@ -82,8 +82,9 @@ Definition construct_extern (e : extern_env) (s : extern_state) (class : ident) 
 
 Definition extern_func_sem :=
   extern_env -> extern_state -> path -> list P4Type -> list Val -> extern_state -> list Val -> signal -> Prop.
+
 Definition extern_func_interp :=
-  extern_env -> extern_state -> path -> list P4Type -> list Val -> option (extern_state * list Val * signal).
+  extern_env -> extern_state -> path -> list P4Type -> list Val -> result Exn.t (extern_state * list Val * signal).
 
 Inductive extern_func := mk_extern_func_sem {
   ef_class : ident;
@@ -118,7 +119,7 @@ Definition register_read : extern_func := {|
   ef_class := "register";
   ef_func := "read";
   ef_sem := register_read_sem;
-  ef_interp := fun _ _ _ _ _ => None;
+  ef_interp := fun _ _ _ _ _ => error (Exn.Other "register_read unimplemented")
 |}.
 
 Inductive register_write_sem : extern_func_sem :=
@@ -136,7 +137,8 @@ Definition register_write : extern_func := {|
   ef_class := "register";
   ef_func := "write";
   ef_sem := register_write_sem;
-  ef_interp := fun _ _ _ _ _ => None;
+  ef_interp := fun _ _ _ _ _ =>
+                 error (Exn.Other "register_write unimplemented")
 |}.
 
 Definition extract (typ: Typed.P4Type) (pkt: list bool) : option (Val * signal * list bool) :=
@@ -179,7 +181,8 @@ Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
   ef_func := "extract";
   ef_sem := packet_in_extract_sem;
-  ef_interp := fun _ _ _ _ _ => None;
+  ef_interp := fun _ _ _ _ _ =>
+                 error (Exn.Other "packet_in.extract() unimplemented")
 |}.
 
 Definition emit (v : Val) : Packet (list bool) :=
@@ -198,7 +201,7 @@ Definition packet_out_emit : extern_func := {|
   ef_class := "packet_out";
   ef_func := "emit";
   ef_sem := packet_out_emit_sem;
-  ef_interp := fun _ _ _ _ _ => None;
+  ef_interp := fun _ _ _ _ _ => error (Exn.Other "packet_out.emit() unimplemented")
 |}.
 
 Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
@@ -253,7 +256,7 @@ Definition hash : extern_func := {|
   ef_class := "";
   ef_func := "hash";
   ef_sem := hash_sem;
-  ef_interp := fun _ _ _ _ _ => None;
+  ef_interp := fun _ _ _ _ _ => error (Exn.Other "hash unimplemented")
 |}.
 
 Definition extern_funcs : list extern_func := [
@@ -546,13 +549,14 @@ Definition interp_extern
            (this: path)
            (targs: list P4Type)
            (args: list Val)
-  : option (extern_state * list Val * signal) :=
-  let* func := find_func extern_funcs class method in
+  : result Target.Exn.t (extern_state * list Val * signal) :=
+  let* func := from_opt (find_func extern_funcs class method)
+                        (Exn.Other (class ++ "." ++ method ++ "() not found in extern_funcs")) in
   func.(ef_interp) env st this targs args.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
-    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    interp_extern env st class method this targs args = Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
 Admitted.
@@ -586,6 +590,8 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
 Definition expect_result_null (r: result Exn.t (extern_state * list Val * signal)) : result Exn.t (extern_state * list Val) :=
   let* '(st, outs, sig) := r in
   match sig with
+  | SExit
+  | SReject _
   | SReturn (ValBaseNull) => mret (st, outs)
   | _ => error (Exn.Other "Expected SReturn (ValBaseNull) but got something different")
   end.
@@ -600,7 +606,7 @@ Definition interp_prog
            (pin: list bool)
   : result Exn.t (extern_state * Z * list bool) :=
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
-  let hdr1 := ValBaseHeader [] false in
+  let hdr1 : Val := ValBaseNull in
   let standard_metadata1 :=
     ValBaseStruct [
         ("ingress_port", ValBaseBit (repeat false 9));

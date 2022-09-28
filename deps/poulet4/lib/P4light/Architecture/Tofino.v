@@ -573,12 +573,12 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | sa :: _ => Some (snd sa)
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
+Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> Result.result Exn.t (extern_state * list Val * signal).
 Admitted.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
-    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
 Admitted.

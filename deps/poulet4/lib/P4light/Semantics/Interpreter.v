@@ -72,6 +72,26 @@ Section Interpreter.
           Some (ValBaseHeader fields' None)
       end.
 
+    Definition val_to_string {bit: Type} (v: @ValueBase bit) : string :=
+      match v with
+      | ValBaseNull => "null"
+      | ValBaseBool x => "bool"
+      | ValBaseInteger x => "integer"
+      | ValBaseBit value => "bit<>"
+      | ValBaseInt value => "int<>"
+      | ValBaseVarbit max value => "varbit<>"
+      | ValBaseString x => "string"
+      | ValBaseTuple x => "tuple"
+      | ValBaseError x => "error"
+      | ValBaseMatchKind x => "match_kind"
+      | ValBaseStruct fields => "struct"
+      | ValBaseHeader fields is_valid => "header"
+      | ValBaseUnion fields => "union"
+      | ValBaseStack headers next => "stack"
+      | ValBaseEnumField typ_name enum_name => "enum field"
+      | ValBaseSenumField typ_name value => "senum field"
+      end.
+
     (* This function implements the update_member relation from the
      big-step semantics. *)
     Definition set_member (v: Sval) (fname: ident) (fv: Sval) : result Exn.t Sval :=
@@ -93,7 +113,10 @@ Section Interpreter.
               mret (ValBaseUnion fields')
           | _ => error (Exn.Other "union value contains non-headers")
           end
-      | _ => error (Exn.Other "set_member called on value that is not struct-like")
+      | _ => error (Exn.Other ("set_member "
+                               ++ fname
+                               ++ " called on value that is not struct-like: "
+                               ++ val_to_string v))
       end.
 
     Definition interp_val_sval (v: Val) : option Sval :=
@@ -249,7 +272,7 @@ Section Interpreter.
                   error (Exn.Other "interp_expr: ternary condition evaluated to a non-bool value")
               end
           | ExpDontCare =>
-              mret ValBaseNull
+              error (Exn.Other "interp_expr: attempting to evaluate a don't care exp?")
           | ExpFunctionCall func type_args args =>
               error (Exn.Other "function calls are not handled by interp_expr")
           | ExpNamelessInstantiation typ args =>

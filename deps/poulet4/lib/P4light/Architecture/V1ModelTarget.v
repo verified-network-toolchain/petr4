@@ -600,8 +600,32 @@ Definition interp_prog
            (pin: list bool)
   : result Exn.t (extern_state * Z * list bool) :=
   let s1 := PathMap.set ["packet_in"] (ObjPin pin) s0 in
+  let hdr1 := ValBaseHeader [] false in
+  let standard_metadata1 :=
+    ValBaseStruct [
+        ("ingress_port", ValBaseBit (repeat false 9));
+        ("egress_spec", ValBaseBit (repeat false 9));
+        ("egress_port", ValBaseBit (repeat false 9));
+        ("instance_type", ValBaseBit (repeat false 32));
+        ("packet_length", ValBaseBit (repeat false 32));
+        ("enq_timestamp", ValBaseBit (repeat false 32));
+        ("enq_qdepth", ValBaseBit (repeat false 19));
+        ("deq_timedelta", ValBaseBit (repeat false 32));
+        ("deq_qdepth", ValBaseBit (repeat false 19));
+        ("ingress_global_timestamp", ValBaseBit (repeat false 48));
+        ("egress_global_timestamp", ValBaseBit (repeat false 48));
+        ("mcast_grp", ValBaseBit (repeat false 16));
+        ("egress_rid", ValBaseBit (repeat false 16));
+        ("checksum_error", ValBaseBit [false]);
+        ("parser_error", ValBaseError "NoError");
+        ("priority", ValBaseBit (repeat false 3))
+      ]
+  in
+  let meta1 := ValBaseHeader [] false in
   let* (s2, hdr2, meta2, standard_metadata2) :=
-    let* ret := run_module ["main"; "p"] s1 [ValBaseNull; ValBaseNull] in
+    let* ret := run_module ["main"; "p"] s1
+                           [meta1;
+                            standard_metadata1] in
     match ret with
     | (st', [hdr2; meta2; standard_metadata2], SReturn ValBaseNull) =>
         mret (st', hdr2, meta2, standard_metadata2)

@@ -204,7 +204,7 @@ Section InterpreterSafe.
       tauto.
     - cbn in H.
       repeat simpl_result_all; subst.
-      constructor.
+      tauto.
   Qed.
 
   (* This theorem is not really completeness, but close enough.

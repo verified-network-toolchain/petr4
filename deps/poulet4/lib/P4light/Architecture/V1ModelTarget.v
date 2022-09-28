@@ -177,12 +177,32 @@ Inductive packet_in_extract_sem : extern_func_sem :=
             (PathMap.set p (ObjPin pin') s)
           [v] sig.
 
+Definition packet_in_extract_interp : extern_func_interp :=
+  fun env st this targs args =>
+    let* typ :=
+      match targs with
+      | [typ] => mret typ
+      | l => let n := List.length l in
+             error (Exn.Other ("packet_in_extract_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of type arguments"))
+      end in
+    let* pin_obj :=
+      from_opt (PathMap.get this st)
+               (Exn.LocNotFoundInState (LGlobal this)) in
+    match pin_obj with
+    | ObjPin pin =>
+        let* (v, sig, pin') := from_opt (extract typ pin)
+                                        (Exn.Other "failure in extract") in
+        mret (PathMap.set this (ObjPin pin') st,
+              [v],
+              sig)
+    | _ => error (Exn.Other ("packet_in_extract_interp: expected an ObjPin for packet_in at path " ++ Exn.path_to_string this))
+    end.
+
 Definition packet_in_extract : extern_func := {|
   ef_class := "packet_in";
   ef_func := "extract";
   ef_sem := packet_in_extract_sem;
-  ef_interp := fun _ _ _ _ _ =>
-                 error (Exn.Other "packet_in.extract() unimplemented")
+  ef_interp := packet_in_extract_interp
 |}.
 
 Definition emit (v : Val) : Packet (list bool) :=
@@ -197,11 +217,40 @@ Inductive packet_out_emit_sem : extern_func_sem :=
             (PathMap.set p (ObjPout pout') s)
           [] SReturnNull.
 
+Definition packet_out_emit_interp : extern_func_interp :=
+  fun env st this targs args =>
+    let* typ :=
+      match targs with
+      | [typ] => mret typ
+      | _ => let n := List.length targs in
+             error (Exn.Other ("packet_out_emit_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of type arguments"))
+      end in
+    let* v :=
+      match args with
+      | [v] => mret v
+      | _ => let n := List.length args in
+             error (Exn.Other ("packet_out_emit_interp: wrong number (" ++ StringUtil.string_of_nat n ++ ") of arguments"))
+      end in
+    let* pout_obj :=
+      from_opt (PathMap.get this st)
+               (Exn.LocNotFoundInState (LGlobal this)) in
+    match pout_obj with
+    | ObjPout pout =>
+        match emit v pout with
+        | (inl pout', _) =>
+            mret (PathMap.set this (ObjPout pout') st,
+                   [],
+                   SReturnNull)
+        | _ => error (Exn.Other ("packet_out_emit_interp: failure in emit"))
+        end
+    | _ => error (Exn.Other ("packet_out_emit_interp: expected an ObjPout for packet_out at path " ++ Exn.path_to_string this))
+    end.
+
 Definition packet_out_emit : extern_func := {|
   ef_class := "packet_out";
   ef_func := "emit";
   ef_sem := packet_out_emit_sem;
-  ef_interp := fun _ _ _ _ _ => error (Exn.Other "packet_out.emit() unimplemented")
+  ef_interp := packet_out_emit_interp;
 |}.
 
 Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
@@ -665,6 +714,8 @@ Definition interp_prog
     | [hdr6; meta6] => mret (hdr6, meta6)
     | _ => error (Exn.Other "interp_prog: failure in checksum")
     end in
+  (* initialize packet_out *)
+  let s6 := PathMap.set ["packet_out"] (ObjPout []) s6 in
   let* (s7, _) := expect_result_null (run_module ["main"; "dep"] s6 [hdr6; meta6]) in
   let* pkt := from_opt (PathMap.get ["packet_out"] s7)
                        (Exn.Other "interp_prog: failure recovering packet") in

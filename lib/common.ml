@@ -13,7 +13,7 @@
  * under the License.
 *)
 module P4P4info = P4info
-open Core_kernel
+open Core
 module P4info = P4P4info
 
 
@@ -156,7 +156,6 @@ module Make_parse (Conf: Parse_config) = struct
 
  let to_p4cub light =
    let open Poulet4 in
-   let open Result in
    match ToP4cub.translate_program P4info.dummy light with
    | Result.Ok cub -> cub
    | Result.Error e -> failwith e
@@ -180,7 +179,6 @@ module Make_parse (Conf: Parse_config) = struct
 
  let to_gcl (p4cub : P4info.t Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
    let open Poulet4 in
-   let open Result in
    let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) TableInstr.instr gas unroll p4cub in 
    match coq_gcl with
    | Result.Error msg -> failwith msg
@@ -200,7 +198,6 @@ module Make_parse (Conf: Parse_config) = struct
 
  let flatten cub =
    let open Poulet4 in
-   let open Result in
    match Poulet4.ToP4cub.flatten_DeclCtx cub with
    | Result.Ok cub -> cub
    | Result.Error e -> failwith e

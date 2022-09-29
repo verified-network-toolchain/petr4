@@ -1,116 +1,127 @@
 Require Import String List.
 Require Export Poulet4.Monads.Monad.
 
-Module Result.
-  Inductive result (A : Type) : Type :=
-  | Ok  : A -> result A
-  | Error : string -> result A.
+Inductive result (Err A : Type) : Type :=
+| Ok  : A -> result Err A
+| Error : Err -> result Err A.
+Arguments Ok {Err A}.
+Arguments Error {Err A}.
 
-  Definition ok {A : Type} (x : A) : result A := Ok A x.
-  Definition error {A : Type} (s : string) : result A := Error A s.
+Definition ok {Err A : Type} (x : A) : result Err A := Ok x.
+Definition error {Err A : Type} (err : Err) : result Err A := Error err.
 
-  Definition is_ok {A : Type} (x : result A) : Prop :=
-    match x with
-    | Ok _ x => True
-    | _ => False
-    end.
+Definition is_ok {Err A : Type} (x : result Err A) : Prop :=
+  match x with
+  | Ok x => True
+  | _ => False
+  end.
 
-  Definition is_error {A : Type} (x : result A) : Prop :=
-    match x with
-    | Error _ x => True
-    | _ => False
-    end.
+Definition is_error {Err A: Type} (x : result Err A) : Prop :=
+  match x with
+  | Error x => True
+  | _ => False
+  end.
 
-  Definition bind {A B : Type} (r : result A)  (f : A -> result B) : result B :=
-    match r with
-    | Error _ s => Error B s
-    | Ok _ x => f x
-    end.
+Definition bind {Err A B : Type} (r : result Err A)  (f : A -> result Err B) : result Err B :=
+  match r with
+  | Error err => Error err
+  | Ok x => f x
+  end.
 
-  Instance result_monad_inst : Monad result:=
-    {
-    mret := @ok;
-    mbind := @bind
-    }.
+Global Instance result_monad_inst (Err: Type) : Monad (result Err) :=
+  { mret := fun _ v => ok v;
+    mbind := fun _ _ c1 c2 => bind c1 c2 }.
 
-  Definition opt_bind {A B : Type} (r : option A) (str : string) (f : A -> result B) : result B :=
-    match r with
-    | None => error str
-    | Some x => f x
-    end.
+Definition opt_bind {Err A B : Type} (r : option A) (err : Err) (f : A -> result Err B) : result Err B :=
+  match r with
+  | None => error err
+  | Some x => f x
+  end.
 
-  Definition from_opt {A} (r : option A) (msg : string) :=
-    match r with
-    | None => error msg
-    | Some a => ok a
-    end.
+Definition from_opt {Err A} (r : option A) (err : Err) :=
+  match r with
+  | None => error err
+  | Some a => ok a
+  end.
 
-  Definition map {A B : Type} (f : A -> B)  (r : result A) : result B :=
-    match r with
-    | Error _ s => error s
-    | Ok _ x => ok (f x)
-    end.
+Definition map {Err A B : Type} (f : A -> B)  (r : result Err A) : result Err B :=
+  match r with
+  | Error err => error err
+  | Ok x => ok (f x)
+  end.
 
+Definition overwritebind {Err A B : Type} (r : result Err A) (err : Err) (f : A -> result Err B) : result Err B :=
+  match r with
+  | Error err => error err (* ++ " because: \n" ++ s)*)
+  | Ok x  => f x
+  end.
 
-  Definition overwritebind {A B : Type} (r : result A) (str : string) (f : A -> result B) : result B :=
-    match r with
-    | Error _ s => error str (* ++ " because: \n" ++ s)*)
-    | Ok _ x  => f x
-    end.
+Definition rbindcomp {Err A B C : Type} (f : B -> C) (g : A -> result Err B) (a : A) : result Err C :=
+  map f (g a).
 
-  Definition rbindcomp {A B C : Type} (f : B -> C) (g : A -> result B) (a : A) : result C :=
-    map f (g a).
+Definition rcomp {Err A B C : Type} (f : B -> result Err C) (g : A -> result Err B) (a : A) : result Err C :=
+  bind (g a) f.
 
-  Definition rcomp {A B C : Type} (f : B -> result C) (g : A -> result B) (a : A) : result C :=
-    bind (g a) f.
+Fixpoint rred_aux {Err A : Type} (os : list (result Err A)) (acc : result Err (list A)) : result Err (list A) :=
+  match acc with
+  | Error err => error err
+  | Ok acc =>
+    match os with
+    | Error err :: _ => error err
+    | Ok x :: os =>
+      rred_aux os (ok (x :: acc))
+    | _ => ok acc
+    end
+  end.
 
-  Fixpoint rred_aux {A : Type} (os : list (result A)) (acc : result (list A)) : result (list A) :=
-    match acc with
-    | Error _ s => error s
-    | Ok _ acc =>
-      match os with
-      | Error _ s::_ => error s
-      | Ok _ x :: os =>
-        rred_aux os (ok (x :: acc))
-      | _ => ok acc
-      end
-    end.
+Definition rred {Err A : Type} (os : list (result Err A)) : result Err (list A) :=
+  match rred_aux os (ok nil) with
+  | Error err => error err
+  | Ok xs => ok (List.rev' xs)
+  end.
 
+Definition res_snd {Err A B : Type} (p : A * result Err B) : result Err (A * B) :=
+  match p with
+  | (_, Error err) => error err
+  | (a, Ok b) => ok (a, b)
+  end.
 
-  Fixpoint rred {A : Type} (os : list (result A)) : result (list A) :=
-    match rred_aux os (ok nil) with
-    | Error _ s => error s
-    | Ok _ xs => ok (List.rev' xs)
-    end.
+Definition
+  snd_res_map {Err A B C : Type}
+  (f : B -> result Err C) '((x,y) : A * B) : result Err (A * C) :=
+  map (pair x) (f y).
 
-  Definition res_snd { A B : Type } (p : A * result B ) : result (A * B) :=
-    match p with
-    | (_, Error _ s) => error s
-    | (a, Ok _ b) => ok (a, b)
-    end.
+Module ResultNotations.
+  Notation "'let+' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
+                                            (at level 61, p as pattern, c1 at next level, right associativity).
 
-  Definition
-    snd_res_map {A B C : Type}
-    (f : B -> result C) '((x,y) : A * B) : result (A * C) :=
-    map (pair x) (f y).
-  
-  Module ResultNotations.
-    Notation "'let+' p ':=' c1 'in' c2" := (map (fun p => c2) c1)
-                                              (at level 61, p as pattern, c1 at next level, right associativity).
-
-    Notation "'let*~' p ':=' c1 'else' str 'in' c2 " := (opt_bind c1 str (fun p => c2))
-                                                          (at level 61, p as pattern, c1 at next level, right associativity).
-
-    Notation "'let~' p ':=' c1 'over' str 'in' c2" := (overwritebind c1 str (fun p => c2))
+  Notation "'let*~' p ':=' c1 'else' str 'in' c2 " := (opt_bind c1 str (fun p => c2))
                                                         (at level 61, p as pattern, c1 at next level, right associativity).
 
-    Infix ">>=>" := rbindcomp (at level 80, right associativity).
+  Notation "'let~' p ':=' c1 'over' str 'in' c2" := (overwritebind c1 str (fun p => c2))
+                                                      (at level 61, p as pattern, c1 at next level, right associativity).
 
-    Infix ">=>" := rcomp (at level 80, right associativity).
+  Infix ">>=>" := rbindcomp (at level 80, right associativity).
 
-    Infix "|=>" := map (at level 80, right associativity).
+  Infix ">=>" := rcomp (at level 80, right associativity).
 
+  Infix "|=>" := map (at level 80, right associativity).
 
-  End ResultNotations.
+End ResultNotations.
 
-End Result.
+Definition cons_res {Err A : Type} (hd_res : result Err A) (rlist : result Err (list A)) : result Err (list A) :=
+  let* l := rlist in
+  map (fun p => p :: l) hd_res.
+
+Fixpoint commute_result_optlist {A : Type} (l : list (option (result string A))) : result string (list (option A)) :=
+  match l with
+  | nil => ok nil
+  | o :: l =>
+      let* l := commute_result_optlist l in
+      match o with
+      | None =>
+          ok (None :: l)
+      | Some a_res =>
+          map (fun p => Some p :: l) a_res
+      end
+  end.

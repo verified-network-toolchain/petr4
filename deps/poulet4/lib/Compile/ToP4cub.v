@@ -378,7 +378,7 @@ Section ToP4cub.
     | UMinus => E.UMinus
     end.
 
-  Definition translate_op_bin (op : OpBin) : result E.bop :=
+  Definition translate_op_bin (op : OpBin) : result string E.bop :=
     match op with
     | Plus => ok E.Plus
     | PlusSat => ok E.PlusSat
@@ -403,12 +403,6 @@ Section ToP4cub.
     | Or => ok E.Or
     end.
 
-  (* TODO move to Result.v *)
-  Definition cons_res {A : Type} (hd_res : result A) (rlist : result (list A)) : result (list A) :=
-    let* l := rlist in
-    let+ hd := hd_res in
-    hd :: l.
-
   Definition width_of_enum (members : list (P4String.t tags_t)) :=
     let num_members := List.length members in
     PeanoNat.Nat.max 1 (PeanoNat.Nat.log2_up num_members).
@@ -419,7 +413,7 @@ Section ToP4cub.
   Definition swap {A B C : Type} (f : A -> B -> C) (b : B) (a : A) : C :=
     f a b.
 
-  Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result E.t :=
+  Fixpoint translate_exp_type (i : tags_t) (typ : @P4Type tags_t) {struct typ} : result string E.t :=
     let translate_fields fs :=
         let+ fs' := fold_left (fun res_rst '(name,typ) =>
                                  let* cub_typ := translate_exp_type i typ in
@@ -453,7 +447,7 @@ Section ToP4cub.
       end
     | TypTuple types =>
       (* TODO ensure are cast-able *)
-      let+ cub_types := fold_left (swap (cons_res ∘ (translate_exp_type i))) types (ok []) in
+      let+ cub_types := fold_left (swap (Result.cons_res ∘ (translate_exp_type i))) types (ok []) in
       E.TTuple (rev' cub_types)
     | TypList types =>
       let+ cub_types := fold_left (swap (cons_res ∘ translate_exp_type i)) types (ok []) in
@@ -507,7 +501,7 @@ Section ToP4cub.
     end.
 
 
-  Definition realize_array_index (e : @Expression tags_t) : result Z :=
+  Definition realize_array_index (e : @Expression tags_t) : result string Z :=
     match e with
     | MkExpression _ (ExpInt z) _ _  =>
       (*TODO Do we have to do some normalizaztion here?*)
@@ -520,7 +514,7 @@ Section ToP4cub.
     let '(MkExpression _ _ typ _) := e in
     typ.
 
-    Fixpoint get_string_from_type (t : P4Type) : result (P4String.t tags_t) :=
+    Fixpoint get_string_from_type (t : P4Type) : result string (P4String.t tags_t) :=
     match t with
     | TypBool => error "cannot get  from boolean"
     | TypString => error "cannot get type name from string"
@@ -553,7 +547,7 @@ Section ToP4cub.
     | TypConstructor _ _ _ _ => error "cannot get name from typconstructor"
     end.
 
-  Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result nat :=
+  Fixpoint get_enum_id_aux (idx : nat) (member_list : list (P4String.t tags_t)) (member : P4String.t tags_t) : result string nat :=
     match member_list with
     | [] => error  ("Could not find member" ++ P4String.str member ++ "in member list")
     | m::ms =>
@@ -564,7 +558,7 @@ Section ToP4cub.
 
   Definition get_enum_id := get_enum_id_aux 0.
 
-  Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result (E.e tags_t) :=
+  Fixpoint translate_expression (e : @Expression tags_t) {struct e} : result string (E.e tags_t) :=
     let '(MkExpression i e_pre typ dir) := e in
     match e_pre with
     | ExpBool b =>
@@ -667,7 +661,7 @@ Section ToP4cub.
     end.
 
 
-  Definition get_name (e : Expression) : result (P4String.t tags_t) :=
+  Definition get_name (e : Expression) : result string (P4String.t tags_t) :=
     let '(MkExpression _ pre_e _ _ ) := e in
     match pre_e with
     | ExpName (BareName n ) _ => ok n
@@ -689,7 +683,7 @@ Section ToP4cub.
       Some x
     end.
 
-  Definition apply_arg_to_param (x : string * paramarg E.t E.t * E.e tags_t) (acc : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t)))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+  Definition apply_arg_to_param (x : string * paramarg E.t E.t * E.e tags_t) (acc : result string (F.fs string (paramarg (E.e tags_t) (E.e tags_t)))) : result string (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
     let '(name, typ, exp) := x in
     let+ fs := acc in
     match typ with
@@ -708,7 +702,7 @@ Section ToP4cub.
       a
     end.
 
-  Fixpoint apply_args_to_params (f_str : string) (params : F.fs string (paramarg E.t E.t)) (args : list (option (E.e tags_t))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+  Fixpoint apply_args_to_params (f_str : string) (params : F.fs string (paramarg E.t E.t)) (args : list (option (E.e tags_t))) : result string (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
     match params, args with
     | [], [] => ok []
     | [], _ =>
@@ -721,7 +715,7 @@ Section ToP4cub.
       apply_arg_to_param (p_str, param, arg) (apply_args_to_params f_str params' args')
     end.
 
-  Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * paramarg E.t E.t) :=
+  Definition parameter_to_paramarg (tags : tags_t) (parameter : @P4Parameter tags_t) : result string (string * paramarg E.t E.t) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     let* t := translate_exp_type tags typ in
@@ -734,7 +728,7 @@ Section ToP4cub.
     in
     (v_str, parg).
 
-  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result (F.fs string (paramarg E.t E.t)) :=
+  Definition parameters_to_params (tags : tags_t) (parameters : list (@P4Parameter tags_t)) : result string (F.fs string (paramarg E.t E.t)) :=
     rred (List.map (parameter_to_paramarg tags) parameters).
 
   Definition translate_expression_and_type tags e :=
@@ -745,33 +739,19 @@ Section ToP4cub.
   Definition list_of_opts_map {A B : Type} (f : A -> B) (opt_as : list (option A)) :=
     List.map (option_map f) opt_as.
 
-  Fixpoint commute_result_optlist {A : Type} (l : list (option (result A))) : result (list (option A)) :=
-    match l with
-    | [] => ok []
-    | o :: l =>
-      let* l := commute_result_optlist l in
-      match o with
-      | None =>
-        ok (None :: l)
-      | Some a_res =>
-        let+ a := a_res in
-        Some a :: l
-      end
-    end.
-
-  Definition translate_arglist: list (option (@Expression tags_t)) -> result (list (option (E.e tags_t))):=
-    commute_result_optlist ∘ (list_of_opts_map translate_expression).
+  Definition translate_arglist: list (option (@Expression tags_t)) -> result string (list (option (E.e tags_t))):=
+    Result.commute_result_optlist ∘ (list_of_opts_map translate_expression).
 
   Definition translate_application_args
              (tags : tags_t)
              (callee : string)
              (parameters : list P4Parameter)
-             (args : list (option (@Expression tags_t))) : result (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
+             (args : list (option (@Expression tags_t))) : result string (F.fs string (paramarg (E.e tags_t) (E.e tags_t))) :=
     let* (cub_args : list (option (E.e tags_t))) := translate_arglist args in
     let* (params : F.fs string (paramarg E.t E.t)) := parameters_to_params tags parameters in
     apply_args_to_params callee params cub_args.
 
-  Definition translate_apply tags callee args ret_var ret_type : result (ST.s tags_t) :=
+  Definition translate_apply tags callee args ret_var ret_type : result string (ST.s tags_t) :=
     let typ := get_type_of_expr callee in
     match typ with
     | TypControl (MkControlType type_params parameters) =>
@@ -834,7 +814,7 @@ Section ToP4cub.
       error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
     end.
 
-  Fixpoint get_hdr_stack_name (e : Expression) : result string :=
+  Fixpoint get_hdr_stack_name (e : Expression) : result string string :=
     let '(MkExpression tags pre_e typ dir) := e in
     match pre_e with
     | ExpName (BareName str) loc =>
@@ -853,7 +833,7 @@ Section ToP4cub.
              (callee : Expression)
              (ret_var : option string)
              (ret_type : option E.t)
-             (f : P4String.t tags_t) : result (ST.s tags_t) :=
+             (f : P4String.t tags_t) : result string (ST.s tags_t) :=
     let f_str := P4String.str f in
     if f_str =? "apply" then
       translate_apply tags callee args ret_var ret_type
@@ -897,7 +877,7 @@ Section ToP4cub.
         error (String.append "[ERROR] Cannot translate non-externs member functions that aren't `apply`s: " f_str)
       end.
 
-  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result (ST.s tags_t) :=
+  Definition translate_function_application (tags : tags_t) (fname : P4String.t tags_t) ret_var ret type_args parameters args : result string (ST.s tags_t) :=
     let* paramargs := translate_application_args tags (P4String.str fname) parameters args in
     let* cub_type_params := rred (List.map (translate_exp_type tags) type_args) in
     let+ ret_typ := translate_return_type tags ret in
@@ -905,7 +885,7 @@ Section ToP4cub.
     let cub_ar := {| paramargs:=paramargs; rtrns:=cub_ret |} in
     ST.SFunCall (P4String.str fname) cub_type_params cub_ar tags.
 
-  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result (ST.s tags_t)) :=
+  Definition function_call_init (ctx : DeclCtx) (e : Expression) (ret_var : string) (ret_type : E.t) : option (result string (ST.s tags_t)) :=
     let '(MkExpression tags expr typ dir) := e in
     match expr with
     | ExpFunctionCall func type_args args =>
@@ -925,7 +905,7 @@ Section ToP4cub.
       None
     end.
 
-  Definition get_label_index (tenum : list (P4String.t tags_t))  (label : P4String.t tags_t) : result Z :=
+  Definition get_label_index (tenum : list (P4String.t tags_t))  (label : P4String.t tags_t) : result string Z :=
     match ListUtil.findi (P4String.equivb label) tenum with
     | Some i =>
       ok (BinInt.Z.of_nat i)
@@ -933,7 +913,7 @@ Section ToP4cub.
       error ("[ERROR] Couldnt find label [" ++ P4String.str label ++ "] in enum")
     end.
 
-  Definition get_enum_type (expression : @Expression tags_t) : result (list (P4String.t tags_t)) :=
+  Definition get_enum_type (expression : @Expression tags_t) : result string (list (P4String.t tags_t)) :=
     let '(MkExpression tags pre_expr type dir) := expression in
     match type with
     | TypEnum _ _ variants =>
@@ -942,7 +922,7 @@ Section ToP4cub.
       error "could not get enum type from non-enum variant"
     end.
 
-  Fixpoint translate_statement_switch_case ctx (match_expr : E.e tags_t) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) (ssw : @StatementSwitchCase tags_t) : result ((option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) :=
+  Fixpoint translate_statement_switch_case ctx (match_expr : E.e tags_t) (bits : N) (tenum : list (P4String.t tags_t)) (acc : (option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) (ssw : @StatementSwitchCase tags_t) : result string ((option (E.e tags_t)) * (ST.s tags_t -> ST.s tags_t)) :=
     (* break apart the accumulation into the aggregated condition and the aggregated if-then continuation *)
     let '(cond_opt, ifthen) := acc in
     (* Force the agggregated conditional to be a boolean *)
@@ -980,7 +960,7 @@ Section ToP4cub.
         (Some cond, (ifthen : ST.s tags_t -> ST.s tags_t))
       end
     end
-  with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result (ST.s tags_t) :=
+  with translate_statement_pre_t (ctx : DeclCtx) (i : tags_t) (pre_s : @StatementPreT tags_t) : result string (ST.s tags_t) :=
     match pre_s with
     | StatMethodCall func type_args args =>
       let '(MkExpression tags func_pre typ dir) := func in
@@ -1063,12 +1043,12 @@ Section ToP4cub.
     | StatInstantiation typ args name init =>
       error "Instantiation statement should not occur"
     end
-  with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result (ST.s tags_t) :=
+  with translate_statement (ctx : DeclCtx) (s : @Statement tags_t) : result string (ST.s tags_t) :=
     match s with
     | MkStatement tags stmt typ =>
       translate_statement_pre_t ctx tags stmt
     end
-  with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result (ST.s tags_t) :=
+  with translate_block (ctx : DeclCtx) (i : tags_t) (b : @Block tags_t) : result string (ST.s tags_t) :=
     match b with
     | BlockEmpty tags =>
       ok (ST.SSkip i)
@@ -1088,7 +1068,7 @@ Section ToP4cub.
               then Parser.STStart
               else Parser.STName s.
 
-  Definition translate_pre_expr (tags : tags_t) pre_expr : result (Parser.pat) :=
+  Definition translate_pre_expr (tags : tags_t) pre_expr : result string (Parser.pat) :=
     let value := @value tags_t in
     match pre_expr with
     | ExpDontCare => ok Parser.PATWild
@@ -1119,11 +1099,11 @@ Section ToP4cub.
     | _ => error "unknown set variant"
     end.
 
-  Definition translate_expression_to_pattern (e : @Expression tags_t) : result (Parser.pat) :=
+  Definition translate_expression_to_pattern (e : @Expression tags_t) : result string (Parser.pat) :=
     let '(MkExpression tags pre_expr typ dir) := e in
     @translate_pre_expr tags pre_expr.
 
-  Definition translate_match (m : Match) : result (Parser.pat) :=
+  Definition translate_match (m : Match) : result string (Parser.pat) :=
     let '(MkMatch tags pre_match typ) := m in
     match pre_match with
     | MatchDontCare => ok Parser.PATWild
@@ -1139,7 +1119,7 @@ Section ToP4cub.
       @translate_pre_expr tags (ExpCast typ m)
     end.
 
-  Definition translate_matches (ms : list Match) : result (list Parser.pat) :=
+  Definition translate_matches (ms : list Match) : result string (list Parser.pat) :=
     rred (List.map translate_match ms).
 
   Definition total_wildcard (patterns : list Parser.pat) : bool :=
@@ -1152,7 +1132,7 @@ Section ToP4cub.
   Definition
     translate_parser_case
     (pcase : @ParserCase tags_t)
-    : result (Parser.e tags_t + (Parser.pat * Parser.e tags_t)) :=
+    : result string (Parser.e tags_t + (Parser.pat * Parser.e tags_t)) :=
     let '(MkParserCase tags matches next) := pcase in
     let transition := Parser.PGoto (translate_state_name next) tags in
     let+ patterns := translate_matches matches in
@@ -1169,12 +1149,12 @@ Section ToP4cub.
     end.
 
     (* TODO ASSUME default is the last element of case list *)
-  Definition translate_cases (tags : tags_t) (cases : list (@ParserCase tags_t)) : result (Parser.e tags_t * F.fs Parser.pat (Parser.e tags_t)) :=
+  Definition translate_cases (tags : tags_t) (cases : list (@ParserCase tags_t)) : result string (Parser.e tags_t * F.fs Parser.pat (Parser.e tags_t)) :=
     let* (def_opt, cases) := List.fold_right translate_parser_case_loop (ok (None, [])) cases in
     let def := SyntaxUtil.force (Parser.PGoto Parser.STReject tags) def_opt in
     ok (def, cases).
 
-  Definition translate_transition (transition : ParserTransition) : result (Parser.e tags_t) :=
+  Definition translate_transition (transition : ParserTransition) : result string (Parser.e tags_t) :=
     match transition with
     | ParserDirect tags next =>
       let next_state := translate_state_name next in
@@ -1186,31 +1166,31 @@ Section ToP4cub.
       Parser.PSelect (E.ETuple expr_list tags) default cub_cases tags
     end.
 
-  Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result (ST.s tags_t) :=
+  Definition translate_statements (ctx : DeclCtx) (tags : tags_t) (statements : list Statement) : result string (ST.s tags_t) :=
     fold_left (fun res_acc s => let* cub_s := translate_statement ctx s in
                                  let+ acc := res_acc in
                                  ST.SSeq cub_s acc tags)
               statements
               (ok (ST.SSkip tags)).
 
-  Definition translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result (string * Parser.state_block tags_t) :=
+  Definition translate_parser_state (ctx : DeclCtx) (pstate : ParserState) : result string (string * Parser.state_block tags_t) :=
     let '(MkParserState tags name statements transition) := pstate in
     let* ss := translate_statements ctx tags statements in
     let+ trans := translate_transition transition in
     let parser_state := {| Parser.stmt := ss; Parser.trans := trans |} in
     (P4String.str name, parser_state).
 
-  Definition translate_parser_states_inner (ctx : DeclCtx) (p : ParserState) (res_acc : result ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
+  Definition translate_parser_states_inner (ctx : DeclCtx) (p : ParserState) (res_acc : result string ((option (Parser.state_block tags_t)) * F.fs string (Parser.state_block tags_t))) :=
     let* (nm, state) := translate_parser_state ctx p in
     let+ (start_opt, states) := res_acc in
     if String.eqb nm "start"
     then (Some state, (nm, state)::states)
     else (start_opt, (nm, state)::states).
 
-  Definition translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
+  Definition translate_parser_states (ctx : DeclCtx) (pstates : list ParserState) : result string (option (Parser.state_block tags_t) * F.fs string (Parser.state_block tags_t)) :=
     fold_right (translate_parser_states_inner ctx) (ok (None, [])) pstates.
 
-  Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result (E.constructor_params) :=
+  Definition lookup_params_by_ctor_name (name : string) (ctx : DeclCtx) : result string (E.constructor_params) :=
     match lookup_instantiatable ctx name with
     | Some (TopDecl.TPParser _ cparams _ _ _ _ _)  =>
       ok cparams
@@ -1229,12 +1209,12 @@ Section ToP4cub.
       end
     end.
 
-  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result (E.e tags_t) :=
+  Definition translate_constructor_arg_expression (arg : @Expression tags_t) : result string (E.e tags_t) :=
     match translate_expression arg with
-    | Ok _ e =>
+    | Ok e =>
       (* try to reuse translation*)
       ok e
-    | Error _ msg =>
+    | Error msg =>
       (* if the naive translation fails, try something better  *)
       let '(MkExpression tags expr typ dir) := arg in
       match expr with
@@ -1243,10 +1223,10 @@ Section ToP4cub.
       end
     end.
 
-  Definition translate_instantiation_args (ps : E.constructor_params) (es : list (E.e tags_t)) : result (E.constructor_args tags_t) :=
+  Definition translate_instantiation_args (ps : E.constructor_params) (es : list (E.e tags_t)) : result string (E.constructor_args tags_t) :=
     let~ param_args := zip ps es over ("zipping instantiation args failed. there were " ++ string_of_nat (List.length ps) ++ "params and " ++ string_of_nat (List.length es) ++ "args") in
     (* FIXME Something is wrong here. We should be disambiguating here between CAExpr and CAName *)
-    List.fold_right (fun '((str, typ), e) (acc_r : result (E.constructor_args tags_t)) =>
+    List.fold_right (fun '((str, typ), e) (acc_r : result string (E.constructor_args tags_t)) =>
                        let* acc := acc_r in
                        match e with
                        | E.EVar (E.TVar s) nm _ =>
@@ -1264,7 +1244,7 @@ Section ToP4cub.
     ok inst.
 
 
-  Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result (string * E.ct) :=
+  Definition translate_constructor_parameter (tags : tags_t) (parameter : @P4Parameter tags_t) : result string (string * E.ct) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     match typ with
@@ -1293,7 +1273,7 @@ Section ToP4cub.
   Definition
     translate_constructor_parameter_either
     (tags : tags_t) (parameter : @P4Parameter tags_t)
-    : result (string * string + string * E.ct) :=
+    : result string (string * string + string * E.ct) :=
     let '(MkParameter opt dir typ default_arg_id var) := parameter in
     let v_str := P4String.str var in
     match typ with
@@ -1322,7 +1302,7 @@ Section ToP4cub.
                   end
                ) (ok ([],[])) params.
 
-  Definition translate_method (ext_name : P4String.t tags_t) (m : MethodPrototype) : result (string * (list string * E.arrowT)) :=
+  Definition translate_method (ext_name : P4String.t tags_t) (m : MethodPrototype) : result string (string * (list string * E.arrowT)) :=
     match m with
     | ProtoMethod tags ret name type_args parameters =>
       let* cub_ret := translate_return_type tags ret in
@@ -1337,7 +1317,7 @@ Section ToP4cub.
       error "[FIXME] Dont know how to translate abstract methods"
     end.
 
-  Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result (F.fs string (list string * E.arrowT)) :=
+  Definition translate_methods (ext_name : P4String.t tags_t) (ms : list MethodPrototype) : result string (F.fs string (list string * E.arrowT)) :=
     rred (List.map (translate_method ext_name) ms).
 
   Definition translate_action_params tags data_params ctrl_params :=
@@ -1346,7 +1326,7 @@ Section ToP4cub.
     (* TODO ensure ctrl params are directionless? *)
     append cub_data_params cub_ctrl_params.
 
-  Definition translate_matchkind (matchkind : P4String.t tags_t) : result E.matchkind :=
+  Definition translate_matchkind (matchkind : P4String.t tags_t) : result string E.matchkind :=
     let mk_str := P4String.str matchkind in
     if String.eqb mk_str "lpm"
     then ok E.MKLpm
@@ -1356,21 +1336,21 @@ Section ToP4cub.
               then ok E.MKExact
               else error ("Matchkind not supported by P4cub: " ++ mk_str).
 
-  Definition translate_key (key : TableKey) : result (E.e tags_t * E.matchkind) :=
+  Definition translate_key (key : TableKey) : result string (E.e tags_t * E.matchkind) :=
     let '(MkTableKey tags key_exp matchkind) := key in
     let* e := translate_expression key_exp in
     let+ mk := translate_matchkind matchkind in
     (e, mk).
 
-  Definition translate_keys_loop (key : TableKey) (acc : result (list (E.e tags_t * E.matchkind))) : result (list (E.e tags_t * E.matchkind)) :=
+  Definition translate_keys_loop (key : TableKey) (acc : result string (list (E.e tags_t * E.matchkind))) : result string (list (E.e tags_t * E.matchkind)) :=
     let* cub_key := translate_key key in
     let+ cub_keys := acc in
     cub_key :: cub_keys.
 
-  Definition translate_keys (keys : list TableKey) : result (list (E.e tags_t * E.matchkind)) :=
+  Definition translate_keys (keys : list TableKey) : result string (list (E.e tags_t * E.matchkind)) :=
     List.fold_right translate_keys_loop (ok []) keys.
 
-  Definition translate_action (action : TableActionRef) : result string :=
+  Definition translate_action (action : TableActionRef) : result string string :=
     let '(MkTableActionRef tags pre_action typ) := action in
     let '(MkTablePreActionRef name args) := pre_action in
     match name with
@@ -1379,7 +1359,7 @@ Section ToP4cub.
       error "don't know how to deal with quantified names"
     end.
 
-  Definition translate_actions_loop (action : TableActionRef) (acc : result (list string)) : result (list string) :=
+  Definition translate_actions_loop (action : TableActionRef) (acc : result string (list string)) : result string (list string) :=
     let* cub_act := translate_action action in
     let+ cub_acts := acc in
     cub_act :: cub_acts.
@@ -1393,11 +1373,11 @@ Section ToP4cub.
     end.
 
 
-  Definition translate_actions (actions : list TableActionRef) : result (list string) :=
+  Definition translate_actions (actions : list TableActionRef) : result string (list string) :=
     List.fold_right translate_actions_loop (ok []) actions.
 
 
-  Definition translate_decl_fields (fields : list DeclarationField) : result (F.fs string E.t) :=
+  Definition translate_decl_fields (fields : list DeclarationField) : result string (F.fs string E.t) :=
     rred (List.map (fun '(MkDeclarationField i typ name) =>
                 let+ t := translate_exp_type i typ in
                 (P4String.str name, t)
@@ -1409,7 +1389,7 @@ Section ToP4cub.
     | PAIn t | PAOut t | PAInOut t | PADirLess t => t
     end.
 
-  Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result (DeclCtx) :=
+  Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result string DeclCtx :=
     match d with
     | DeclConstant tags typ name value =>
       error "[FIXME] Constant declarations unimplemented"
@@ -1422,7 +1402,7 @@ Section ToP4cub.
       let d := TopDecl.TPInstantiate ctor_name cub_name type_args cub_paramargs tags in
       let+ add_to_context := get_augment_from_name ctx ctor_name in
       add_to_context d
-    | DeclParser tags name [] params constructor_params [] states =>
+    | DeclParser tags name _ params constructor_params _ states =>
         let cub_name := P4String.str name in
         let* (cub_eparams,cub_cparams) := partition_constructor_params tags constructor_params in
         let* cub_params := parameters_to_params tags params in
@@ -1430,7 +1410,6 @@ Section ToP4cub.
         let*~ cub_start := start_opt else "could not find a starting state for the parser" in
         let d := TopDecl.TPParser cub_name cub_cparams cub_eparams cub_params cub_start cub_states tags in
         ok (add_parser ctx d)
-    | DeclParser _ _ _ _ _ _ _ => error "got type params or local declarations. these should be gone"
     | DeclControl tags name type_params params constructor_params locals apply_blk =>
       let cub_name := P4String.str name in
       let* (cub_eparams, cub_cparams) := partition_constructor_params tags constructor_params in
@@ -1544,7 +1523,7 @@ Section ToP4cub.
       (* error "[FIXME] P4light inlining step necessary" *)
   end.
 
-  Fixpoint inline_types_decls decls :=
+  Fixpoint inline_types_decls (decls : list Declaration) : result string (list Declaration) :=
     match decls with
     | [] => ok []
     | d::decls =>
@@ -1563,7 +1542,7 @@ Section ToP4cub.
 
   (* This is redunant with the locals resolution in the previous code, but I
    * can't get it to compile using mutual fixpoints *)
-  Definition translate_decls (decls : list (@Declaration tags_t)) : result DeclCtx :=
+  Definition translate_decls (decls : list (@Declaration tags_t)) : result string DeclCtx :=
     let loop := fun acc decl => let* ctx := acc in
                                 translate_decl ctx decl in
     fold_left loop decls (ok (empty_declaration_context)).
@@ -1597,12 +1576,12 @@ Section ToP4cub.
        types := decl.(types);
     |}.
 
-  Definition translate_program (tags : tags_t) (p : program) : result (DeclCtx) :=
+  Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
     let* '(Program decls) := preprocess tags p in
     let+ cub_decls := translate_decls decls in
     infer_member_types (inline_cub_types cub_decls).
 
-  Definition translate_program' (tags : tags_t) (p : program) : result (TopDecl.d tags_t) :=
+  Definition translate_program' (tags : tags_t) (p : program) : result string (TopDecl.d tags_t) :=
     let* ctx := translate_program tags p in 
     flatten_DeclCtx ctx.
     

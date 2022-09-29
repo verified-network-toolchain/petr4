@@ -9,13 +9,13 @@ Require Import Poulet4.P4light.Syntax.Value.
 Require Import Poulet4.P4light.Syntax.Syntax.
 From Poulet4.P4light.Syntax Require Import
      Typed P4Int SyntaxUtil P4Notations ValueUtil.
-From Poulet4.P4light.Semantics Require Import Ops Hash.
+From Poulet4.P4light.Semantics Require Import Ops.
 Require Import VST.zlist.Zlist
         Poulet4.P4light.Architecture.Target.
-From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith.
+From Poulet4.Utils Require Import Maps CoqLib Utils P4Arith Hash.
 Import ListNotations.
-Open Scope Z_scope.
 Open Scope string_scope.
+Open Scope Z_scope.
 
 Section V1Model.
 
@@ -171,17 +171,17 @@ Definition packet_out_emit : extern_func := {|
 |}.
 
 Definition get_hash_algorithm (algo : string) : option (nat * uint * uint * uint * bool * bool ) :=
-  if String.eqb algo "crc32" then 
-      Some (32%nat, 
-            (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))), 
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
-            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))), 
+  if String.eqb algo "crc32" then
+      Some (32%nat,
+            (D0(D4(Dc(D1(D1(Dd(Db(D7 Nil)))))))),
+            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
+            (Df(Df(Df(Df(Df(Df(Df(Df Nil)))))))),
             true, true)
   else if String.eqb algo "crc16" then
-      Some (16%nat, 
+      Some (16%nat,
             (D8(D0(D0(D5 Nil)))),
             (D0 Nil),
-            (D0 Nil), 
+            (D0 Nil),
             true, true)
   else None.
 
@@ -196,23 +196,23 @@ Definition val_to_bits (v : Val) : option (list bool) :=
 Definition concat_tuple (vs : list Val) : option (list bool) :=
   option_map (@concat bool) (lift_option (map val_to_bits vs)).
 
-Definition bound_hash_output (outw: N) (base: list bool) 
+Definition bound_hash_output (outw: N) (base: list bool)
                              (max: list bool) (output: list bool) : Val :=
   let (w1, base) := BitArith.from_lbool base in
   let (w2, max) := BitArith.from_lbool max in
   let (w3, output) := BitArith.from_lbool output in
   let w4 := N.max (N.max w1 w2) w3 in
     ValBaseBit (to_lbool outw
-                (BitArith.plus_mod w4 base 
+                (BitArith.plus_mod w4 base
                 (BitArith.modulo_mod w4 output max))).
 (*Check compute_crc.*)
 Inductive hash_sem : extern_func_sem :=
   | exec_hash : forall e s p outw typs hash_name base vs max hashw poly init xor_out refin refout input output,
       get_hash_algorithm hash_name = Some (hashw, poly, init, xor_out, refin, refout) ->
       concat_tuple vs = Some input ->
-      bound_hash_output outw base max 
+      bound_hash_output outw base max
         (compute_crc hashw poly init xor_out refin refout input) = output ->
-      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name; 
+      hash_sem e s p ((TypBit outw)::typs) [ValBaseEnumField "HashAlgorithm" hash_name;
                            ValBaseBit base;
                            ValBaseTuple vs;
                            ValBaseBit max]
@@ -298,7 +298,7 @@ Fixpoint lpm_set_of_set (vs: ValSetT): option ValSetT :=
   | VSTProd l => match lift_option (List.map lpm_set_of_set l) with
                   | Some l' => Some (VSTProd l')
                   | None => None
-                  end 
+                  end
   | VSTSingleton v => Some (VSTLpm (width_of_val v) v)
   | VSTMask v1 v2 =>
     match assert_bit v2 with
@@ -398,7 +398,7 @@ Definition values_match_range (vs: list Val) (v1 v2: Val): option bool :=
   match vs with
   | [] => None
   | v :: _ => match assert_int v, assert_int v1, assert_int v2 with
-              | Some (w0, z0), Some (w1, z1), Some (w2, z2) => 
+              | Some (w0, z0), Some (w1, z1), Some (w2, z2) =>
                   if negb ((w0 =? w1)%N && (w1 =? w2)%N) then None
                   else Some ((z1 <=? z0) && (z0 <=? z2))
               | _, _, _ => None

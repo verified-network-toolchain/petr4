@@ -88,7 +88,7 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
         (* ST.SApply   deparser ext_args dep_args NoInfo *)
     ].
 
-Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.constructor_args tags_t) : result (ST.s tags_t) :=
+Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.constructor_args tags_t) : result string (ST.s tags_t) :=
   match List.map snd cargs with
   | [E.CAName p; E.CAName vc; E.CAName ing; E.CAName egr; E.CAName cc; E.CAName d] =>
     match types with
@@ -103,7 +103,7 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas unroll p4cub : result ToGCL.target :=
+Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr gas unroll p4cub : result string ToGCL.target :=
   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
   let assume_decl := TopDecl.TPExtern "_" [] [] [("assume", ([], arrowtype))] d in
   let p4cub_instrumented := ToP4cub.add_extern tags_t p4cub assume_decl in

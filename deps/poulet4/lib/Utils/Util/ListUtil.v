@@ -1,6 +1,8 @@
-From Coq Require Export Lists.List micromega.Lia.
 From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
+From Coq Require Export Lists.List micromega.Lia.
 Export ListNotations.
+Require Import Coq.Strings.String.
+Require VST.zlist.sublist.
 
 (** * List Tactics *)
 
@@ -40,7 +42,7 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
 (** * Helper Lemmas *)
 
 Lemma nth_error_exists : forall {A:Type} (l : list A) n,
-    n < length l -> exists a, nth_error l n = Some a.
+    n < List.length l -> exists a, nth_error l n = Some a.
 Proof.
   intros A l; induction l as [| h t IHt];
     intros [] Hnl; unravel in *; try lia.
@@ -120,12 +122,12 @@ Proof.
 Qed.
 
 Lemma Forall2_length : forall {A B : Type} (R : A -> B -> Prop) l1 l2,
-    Forall2 R l1 l2 -> length l1 = length l2.
+    Forall2 R l1 l2 -> List.length l1 = List.length l2.
 Proof. intros A B R l1 l2 H; induction H; unravel; auto. Qed.
 
 Lemma Forall2_duh : forall {A B : Type} (P : A -> B -> Prop),
     (forall a b, P a b) ->
-    forall la lb, length la = length lb -> Forall2 P la lb.
+    forall la lb, List.length la = List.length lb -> Forall2 P la lb.
 Proof.
   induction la; destruct lb; intros;
   unravel in *; try discriminate; constructor; auto.
@@ -144,6 +146,12 @@ Lemma Forall2_Forall : forall {A : Type} (R : A -> A -> Prop) l,
 Proof.
   induction l; split; intros;
   try inv_Forall_cons;  try inv_Forall2_cons; intuition.
+Qed.
+
+Lemma Forall2_rev : forall {A B: Type} (R : A -> B -> Prop) l1 l2,
+    Forall2 R l1 l2 -> Forall2 R (rev l1) (rev l2).
+Proof.
+  intros. induction H; simpl; auto. apply Forall2_app; auto.
 Qed.
 
 Lemma Forall_duh : forall {A : Type} (P : A -> Prop),
@@ -208,19 +216,19 @@ Fixpoint list_eq {A : Type} (eq : A -> A -> bool) (s1 s2 : list A) : bool  :=
 
 Import Result ResultNotations.
 
-Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result (list (A * B)) :=
+Fixpoint zip {A B : Type} (xs : list A) (ys : list B) : result string (list (A * B)) :=
   match xs, ys with
   | [],[] => ok []
-  | [], _ => error "First zipped list was shorter than the second"
-  | _, [] => error "First zipped list was longer than the second"
+  | [], _ => error "First zipped list was shorter than the second"%string
+  | _, [] => error "First zipped list was longer than the second"%string
   | x::xs, y::ys =>
     let+ xys := zip xs ys in
     cons (x,y) xys
   end.
 
-Fixpoint ith { A : Type } (xs : list A) (i : nat) : result A :=
+Fixpoint ith { A : Type } (xs : list A) (i : nat) : result string A :=
   match xs with
-  | [] => error ("ListAccessFailure: list had " ++ StringUtil.string_of_nat i ++ " too few elements")
+  | [] => error ("ListAccessFailure: list had " ++ StringUtil.string_of_nat i ++ " too few elements")%string
   | x::xs =>
     match i with
     | O => ok x
@@ -244,7 +252,7 @@ Definition findi { A : Type } (select : A -> bool) (l : list A) : option nat :=
                 end
              ) None l.
 
-Definition union_map_snd {A B C : Type} (f : B -> result C) (xs : list (A * B)) : result (list (A * C)) :=
+Definition union_map_snd {Err A B C : Type} (f : B -> result Err C) (xs : list (A * B)) : result Err (list (A * C)) :=
   rred (List.map (snd_res_map f) xs).
 
 Definition map_snd {A B C : Type} (f : B -> C) (ps : list (A * B)) : list (A * C) :=
@@ -259,5 +267,10 @@ Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
     else intersect_string_list_aux xs ys acc
   end.
 
-Fixpoint intersect_string_list (xs ys : list string) : list string :=
+Definition intersect_string_list (xs ys : list string) : list string :=
   rev' (intersect_string_list_aux xs ys []).
+
+(* This wrapper prevents A = Inhabitant A definitional equalities from
+   throwing off typeclass inference. *)
+Definition Znth_default {A : Type} (x : A) (n : BinInt.Z) (l : list A) : A :=
+  @VST.zlist.sublist.Znth A x n l.

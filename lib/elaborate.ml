@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 open Util
 open Surface
 open Checker_env

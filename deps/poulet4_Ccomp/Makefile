@@ -1,23 +1,26 @@
-# This makefile is based on Karl Palmskog's "Coq Program Verification Template"
-# available at https://github.com/palmskog/coq-program-verification-template and
-# licensed under the MIT license.
+# Copyright 2019-present Cornell University
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy
+# of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
 
-all: Makefile.coq
-	@+$(MAKE) -f Makefile.coq all
-	cd ./extraction && dune build -p "poulet4_Ccomp" @install
+.PHONY: all build install clean
 
-clean: Makefile.coq
-	@+$(MAKE) -f Makefile.coq cleanall
-	@rm -f Makefile.coq Makefile.coq.conf
-	@rm -f extraction/*.ml
-	@rm -f extraction/*.mli
+all: build
 
-Makefile.coq: _CoqProject
-	$(COQBIN)coq_makefile -f _CoqProject -o Makefile.coq
+build:
+	dune build -p poulet4_Ccomp
 
-force _CoqProject Makefile: ;
+install:
+	dune install -p poulet4_Ccomp
 
-%: Makefile.coq force
-	@+$(MAKE) -f Makefile.coq $@
-
-.PHONY: all clean force
+clean:
+	dune clean -p poulet4_Ccomp

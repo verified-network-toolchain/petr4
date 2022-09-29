@@ -1,4 +1,4 @@
-open Core_kernel
+open Core
 
 type state = { counter : int;
                seen : string list }

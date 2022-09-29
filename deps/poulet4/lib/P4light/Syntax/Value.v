@@ -29,7 +29,7 @@ Section Value.
   | ValLeftMember (expr: ValueLvalue) (name: string)
   | ValLeftBitAccess (expr: ValueLvalue) (msb: N) (lsb: N)
   | ValLeftArrayAccess (expr: ValueLvalue) (idx: Z).
-  
+
   Context {tags_t : Type}.
 
   Inductive ValueSet:=
@@ -120,7 +120,7 @@ Section Value.
     Hypothesis HEnumField : forall t x, P (ValBaseEnumField t x).
     Hypothesis HSenumField : forall t v,
         P v -> P (ValBaseSenumField t v).
-    
+
     Definition custom_ValueBase_ind :
       forall v : V, P v :=
       fix vind (v : V) : P v :=
@@ -202,6 +202,7 @@ Section Value.
       try rewrite map_only_snd;
       pose proof split_combine vs as Hcsvs;
       destruct (split vs) as [xs vls] eqn:Hvs;
+      specialize (Hcsvs xs vls ltac:(reflexivity));
       try rewrite <- Hcsvs; try f_equal;
       try rewrite <- Hcsvs in H;
       pose proof split_length_l vs as Hsl1;

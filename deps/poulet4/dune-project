@@ -21,5 +21,6 @@
   (coq-record-update :build)
   (coq-compcert :build)
   (coq-vst-zlist :build)
+  (coq-ceres :build)
  )
 )

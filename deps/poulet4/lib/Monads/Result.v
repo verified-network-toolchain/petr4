@@ -44,10 +44,22 @@ Definition from_opt {Err A} (r : option A) (err : Err) :=
   | Some a => ok a
   end.
 
+Definition from_sum {Err A} (r : Err + A) : result Err A :=
+  match r with
+  | inl err => error err
+  | inr a => ok a
+  end.
+
 Definition map {Err A B : Type} (f : A -> B)  (r : result Err A) : result Err B :=
   match r with
   | Error err => error err
   | Ok x => ok (f x)
+  end.
+
+Definition emap {Err Err' A : Type} (f : Err -> Err') (r : result Err A) : result Err' A :=
+  match r with
+  | Error err => error (f err)
+  | Ok x => ok x
   end.
 
 Definition overwritebind {Err A B : Type} (r : result Err A) (err : Err) (f : A -> result Err B) : result Err B :=

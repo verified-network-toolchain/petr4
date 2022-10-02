@@ -2,8 +2,7 @@ From Poulet4 Require Import
      P4light.Transformations.SimplExpr
      P4light.Transformations.InlineTypeDecl
      Utils.Util.Utiliser
-     AListUtil
-     Monads.State.Pure.
+     AListUtil.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
      P4cub.Syntax.Syntax
@@ -159,12 +158,6 @@ Section SubstIdent.
       let inits' := List.map (subst_initializer env) inits in
       InitInstantiation tags types args' name inits'
     end.
-
-  Definition subst_constant env tags type x e :=
-    let e := subst_expr env e in
-    let ident := x.(P4String.str) in
-    modify_state (Env.bind ident e);;
-    mret (DeclConstant tags type x e).
 
   (* Fixpoint subst_decl (decl : @Declaration tags_t) : State (@Declaration tags_t) :=
     let* state := get_state in

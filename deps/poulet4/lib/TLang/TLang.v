@@ -18,15 +18,34 @@ Module E := AST.Expr.
    because egg needs everything to be terms over a signature with only
    1 sort. *)
 
+(* This p4int datatype should be (and probably is) defined somewhere
+   else. In fact it should really be hidden behind an abstraction
+   somehow so we can make decisions about extraction without having to
+   also worry about proofs breaking. If that's
+   possible. *)
+Record p4int :=
+  MkP4Int { iwidth : N;
+            ivalue : Z }.
+
+Instance Serialize_p4int : Serialize p4int :=
+  fun i =>
+    let '{| iwidth := iwidth; ivalue := ivalue |} := i in
+    [Atom "p4int"; to_sexp iwidth; to_sexp ivalue].
+
+Instance Deserialize_p4int : Deserialize p4int :=
+  Deser.match_con
+    "p4int" []
+    [("p4int",  Deser.con2_ MkP4Int)].
+
 Inductive tm : Type :=
 | TBool (b : bool)
-| TInt (width : N) (val : Z)
+| TInt (i : p4int)
 | TIf (e1 c1 c2 : tm)
 | TAnd (e1 e2 : tm)
 | TNot (e1 : tm)
 | TSeq (c1 c2 : tm)
 | TNop
-| TSet (x e : tm)
+| TSet (x : string) (e : tm)
 | TEq (x1 x2 : tm)
 | TVar (s: string)
 .
@@ -39,13 +58,13 @@ Instance Serialize_tm : Serialize tm :=
   fix sz (t : tm) : sexp :=
     match t with
     | TBool b => to_sexp b
-    | TInt w v => [Atom "int"; to_sexp w; to_sexp v]
+    | TInt i => [Atom "int"; to_sexp i]
     | TIf e1 c1 c2 => [Atom "if"; sz c1; sz c2]
     | TAnd e1 e2 => [Atom "and"; sz e1; sz e2]
     | TNot e1 => [Atom "not"; sz e1]
     | TSeq c1 c2 => [Atom "seq"; sz c1; sz c2]
     | TNop => Atom "nop"
-    | TSet x c => [Atom "set"; sz x; sz c]
+    | TSet x c => [Atom "set"; to_sexp x; sz c]
     | TEq x1 x2 => [Atom "eq"; sz x1; sz x2]
     | TVar x => [Atom "var"; to_sexp x]
     end.
@@ -57,7 +76,7 @@ Instance Deserialize_tm : Deserialize tm :=
       [("if",  Deser.con3 TIf ds ds ds);
        ("and", Deser.con2 TAnd ds ds);
        ("not", Deser.con1 TNot ds);
-       ("set", Deser.con2 TSet ds ds);
+       ("set", Deser.con2 TSet _from_sexp ds);
        ("eq",  Deser.con2 TEq ds ds);
        ("seq",  Deser.con2 TSeq ds ds);
        ("not", Deser.con1 TNot ds);
@@ -83,8 +102,8 @@ Section Optimizer.
   Fixpoint e_to_tm (e: E.e tags_t) : R.result string tm :=
     match e with
     | E.EBool b _     => mret (TBool b)
-    | E.EBit w n _    => mret (TInt w n)
-    | E.EInt w n _    => mret (TInt (Npos w) n)
+    | E.EBit w n _    => mret (TInt {|iwidth:=w; ivalue:=n|})
+    | E.EInt w n _    => mret (TInt {|iwidth:=Npos w; ivalue:=n|})
     | E.EVar _ name _ => mret (TVar name)
     | _               => R.error "e_to_tm: unimplemented"
     end.
@@ -99,7 +118,7 @@ Section Optimizer.
         match lhs with
         | AST.Expr.EVar _ name _ =>
             let* rhs_tm := e_to_tm rhs in
-            mret (TSet (TVar name) rhs_tm)
+            mret (TSet name rhs_tm)
         | _ => mret TNop
         end
     | Inline.IConditional _ _ e s1 s2 _ =>

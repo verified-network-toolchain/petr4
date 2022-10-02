@@ -39,6 +39,19 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   end.
 (**[]*)
 
+(** [filter_opt l] is the sublist of [l] containing only elements which are 
+    [Some e] *)
+Definition filter_opt {A : Type} : list (option A) -> list A :=
+  List.fold_right (fun x acc =>
+    match x with
+    | Some x => x :: acc
+    | None => acc
+    end) [].
+
+(** Same as [filter_map], but monadic *)
+Definition filter_map_monad {A B : Type} {m : Type -> Type} {M : Monad m} (f : A -> m (option B)) (l : list A) : m (list B) :=
+  sequence (List.map f l) >>| filter_opt.
+
 (** * Helper Lemmas *)
 
 Lemma nth_error_exists : forall {A:Type} (l : list A) n,

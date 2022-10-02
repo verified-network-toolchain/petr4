@@ -160,13 +160,6 @@ Section SubstIdent.
       InitInstantiation tags types args' name inits'
     end.
 
-  Definition State : Type -> Type := State Env.
-
-  (* (tags : tags_t)
-  (type : @P4Type tags_t)
-  (name : P4String)
-  (e : @Expression tags_t) : State (@Declaration tags_t) := *)
-
   Definition subst_constant env tags type x e :=
     let e := subst_expr env e in
     let ident := x.(P4String.str) in

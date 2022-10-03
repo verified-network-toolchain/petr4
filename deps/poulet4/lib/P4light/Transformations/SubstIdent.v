@@ -29,6 +29,8 @@ Section SubstIdent.
       let bound_value := Env.find x.(P4String.str) env in
       default d bound_value.
 
+    (** [subst_expr e] is [e] with every identifier bound in [emv] substituted
+        for its bound value *)
     Fixpoint subst_expr (e : @Expression tags_t) : @Expression tags_t :=
       let 'MkExpression i e_pre type dir := e in
       match e_pre with
@@ -38,8 +40,6 @@ Section SubstIdent.
         MkExpression i e_pre' type dir
       end
 
-    (** [subst_expr e] is [e] with every identifier subsituted with the value it
-        is bound to in [env] *)
     with subst_expr_pre (e : @ExpressionPreT tags_t) : @ExpressionPreT tags_t :=
       let subst_exprs := List.map subst_expr in
       match e with
@@ -69,13 +69,18 @@ Section SubstIdent.
         ExpNamelessInstantiation type (subst_exprs args)
       end.
 
+    (** [subst_expr_opt None] is [None], and [subst_expr_opt (Some e)] is 
+        [Some (subst_expr e)] *)
     Definition subst_expr_opt := option_map subst_expr.
 
+    (** Maps [subst_expr_opt] over a list of optional expressions *)
     Definition subst_expr_opts := List.map subst_expr_opt.
 
+    (** Maps [subst_expr] over a list of expressions *)
     Definition subst_exprs : list (@Expression tags_t) -> list (@Expression tags_t) :=
       List.map subst_expr.
 
+    (** Maps [subst_expr] over a [MatchPreT] *)
     Definition subst_match_pre (match_pre : @MatchPreT tags_t) :  @MatchPreT tags_t :=
       match match_pre with
       | MatchDontCare => MatchDontCare
@@ -84,18 +89,22 @@ Section SubstIdent.
       | MatchCast type expr => MatchCast type (subst_expr expr)
       end.
 
+    (** Maps [subst_expr] over a [Match] *)
     Definition subst_match (mtch : @Match tags_t) : @Match tags_t :=
       let 'MkMatch tags e type := mtch in
       MkMatch tags (subst_match_pre e) type.
 
+    (** Maps [subst_expr] over a list of [Match]es *)
     Definition subst_matches : list (@Match tags_t) -> list (@Match tags_t) := 
       List.map subst_match.
 
+    (** Maps [subst_expr] over a [ParserCase] *)
     Definition subst_parser_case (case : @ParserCase tags_t) : @ParserCase tags_t :=
       let 'MkParserCase tags matches next := case in
       let matches' := subst_matches matches in
       MkParserCase tags matches' next.
 
+    (** Maps [subst_expr] over a [ParserTransition] *)
     Definition subst_parser_transition (trans : @ParserTransition tags_t) : @ParserTransition tags_t :=
       match trans with
       | ParserDirect _ _ => trans
@@ -105,52 +114,76 @@ Section SubstIdent.
         ParserSelect tags es' cases'
       end.
 
+    (** [subst_method_call fn types args] maps [subst_expr] over
+        [StatMethodCall fn types args] *)
     Definition subst_method_call fn types args :=
       StatMethodCall (subst_expr fn) types (subst_expr_opts args).
 
+    (** [subst_assignment e1 e2] maps [subst_expr] over [StatAssignment e1 e2] *)
     Definition subst_assignment e1 e2 :=
       StatAssignment (subst_expr e1) (subst_expr e2).
 
+    (** [subst_direct_application t1 t2 args] maps [subst_expr] over
+        [StatDirectApplication t1 t2 args] *)
     Definition subst_direct_application t1 t2 args :=
       StatDirectApplication t1 t2 (subst_expr_opts args).
 
+    (** [subst_return e] maps [subst_expr] over [StatReturn e] *)
     Definition subst_return e := StatReturn (subst_expr_opt e).
 
+    (** [subst_constant_stmt type name value loc] maps [subst_expr] over
+        [StatConstant type name value loc] *)
     Definition subst_constant_stmt type name value loc :=
       StatConstant type name (subst_expr value) loc.
 
+    (** [subst_variable_stmt type name init loc] maps [subst_expr] over
+        [StatVariable type name init loc] *)
     Definition subst_variable_stmt type name init loc :=
       StatVariable type name (subst_expr_opt init) loc.
 
+    (** [subst_variable_decl tags type name init] maps [subst_expr] over
+        [DeclVariable tags type name init] *)
     Definition subst_variable_decl tags type name init :=
       let init' := subst_expr_opt init in
       DeclVariable tags type name init'.
 
+    (** [subst_table_pre_action_ref (MkTablePreActionRef name args)] maps
+        [subst_expr] over [MkTablePreActionRef name args] *)
     Definition subst_table_pre_action_ref action :=
       let 'MkTablePreActionRef name args := action in
       MkTablePreActionRef name (subst_expr_opts args).
 
+    (** [subst_table_action_ref (MkTableActionRef tags action type)] maps
+        [subst_expr] over [MkTableActionRef tags action type] *)
     Definition subst_table_action_ref ref :=
       let 'MkTableActionRef tags action type := ref in
       let action' := subst_table_pre_action_ref action in
       MkTableActionRef tags action' type.
 
+    (** [subst_table_key (MkTableKey tags key kind)] maps [subst_expr] over
+        [MkTableKey tags key kind] *)
     Definition subst_table_key tbl_key :=
       let 'MkTableKey tags key kind := tbl_key in
       let key' := subst_expr key in
       MkTableKey tags key' kind.
 
+    (** [subst_table_entry (MkTableEntry tags matches action)] maps [subst_expr]
+        over [MkTableEntry tags matches action] *)
     Definition subst_table_entry entry :=
       let 'MkTableEntry tags matches action := entry in
       let matches' := subst_matches matches in
       let action' := subst_table_action_ref action in
       MkTableEntry tags matches' action'.
 
+    (** [subst_table_property (MkTableProperty tags const name value)] maps
+        [subst_expr] over [MkTableProperty tags const name value] *)
     Definition subst_table_property prop :=
       let 'MkTableProperty tags const name value := prop in
       let value' := subst_expr value in
       MkTableProperty tags const name value'.
 
+    (** [subst_table tags name keys actions entries default size props] maps
+        [subst_expr] over [DeclTable tags name keys actions entries default size props] *)
     Definition subst_table tags name keys actions entries default size props :=
       let keys' := List.map subst_table_key keys in
       let actions' := List.map subst_table_action_ref actions in
@@ -159,6 +192,8 @@ Section SubstIdent.
       let props' := List.map subst_table_property props in
       DeclTable tags name keys' actions' entries' default' size props'.
 
+    (** [subst_serializable_enum tags type name members] maps [subst_expr] over
+        [DeclSerializableEnum tahs type name members] *)
     Definition subst_serializable_enum tags type name members :=
       let members' := map_values subst_expr members in
       DeclSerializableEnum tags type name members'.

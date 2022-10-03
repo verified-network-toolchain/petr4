@@ -823,6 +823,6 @@ end
 
 let format_program fmt p =
   match p with
-  | P4.P4lightram(ds) ->
+  | P4.Program(ds) ->
     Format.fprintf fmt "@[%a@\n@]"
       (format_list_nl Declaration.format_t) ds

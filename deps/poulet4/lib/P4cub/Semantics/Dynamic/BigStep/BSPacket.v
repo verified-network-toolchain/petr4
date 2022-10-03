@@ -9,6 +9,7 @@ From Poulet4.P4cub.Semantics.Dynamic Require Import
      BigStep.ValEnvUtil BigStep.Value.Syntax.
 Module V := Val.
 Import AllCubNotations V.ValueNotations.
+Open Scope string_scope.
 
 (** P4cub Big-Step values *)
 Module ValuePacket <: P4Packet.
@@ -18,23 +19,26 @@ Module ValuePacket <: P4Packet.
 
   Definition LV := V.lv.
 
-  Fixpoint read_inc (τ : Expr.t) : packet_monad V.v :=
+  Definition convert_bits : list bool -> Z.
+  Admitted.
+
+  Fixpoint read_inc (τ : Expr.t) : Packet V.v :=
     let read_field (fld : F.f string Expr.t)
-        : packet_monad (F.f string V.v) :=
+        : Packet (F.f string V.v) :=
         let '(x,τ) := fld in
         v <<| read_inc τ ;; (x, v) in
     match τ with
     | {{ Bool }} =>
-      vec <<| read_first_bits 1 ;;
-      V.VBool $ Vector.hd vec
+      b <<| extract_bit ;;
+      V.VBool b
     | {{ bit<w> }} =>
       let width := N.to_nat w in
-      vec <<| read_first_bits width ;;
-      V.VBit w $ convert_bits width vec
+      bs <<| extract_bits width ;;
+      V.VBit w $ convert_bits bs
     | {{ int<w> }} =>
       let width := Pos.to_nat w in
-      vec <<| read_first_bits width ;;
-      V.VInt w $ convert_bits width vec
+      bs <<| extract_bits width ;;
+      V.VInt w $ convert_bits bs
     | {{ struct { ts } }}
       => vs <<| sequence $ List.map read_field ts ;;
         ~{ STRUCT { vs } }~
@@ -80,7 +84,7 @@ Module BSPacketIn <: P4PacketIn.
     | "advance", [("sizeInBits", PAIn (~{ _ VW n }~))], None
       => fun pkt => state_return ϵ (PacketIn.advance n pkt)
     | "extract", [("hdr", PAOut lv)], None => p4extract {{ Bool }} lv ϵ (* TODO: fix *)
-    | _,_,_ => state_fail Internal
+    | _,_,_ => state_fail (TypeError "nonexistent method invoked")
     end.
 End BSPacketIn.
 

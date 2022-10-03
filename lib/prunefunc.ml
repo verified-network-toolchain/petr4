@@ -1,3 +1,4 @@
+open Poulet4.Typed
 open P4light
 
 let noinfo = P4info.dummy

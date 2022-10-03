@@ -46,7 +46,16 @@ Fixpoint sequence {A} {m: Type -> Type} {M : Monad m} (acts: list (m A)) : m (li
   | x :: xs => 
     let* t    := x in
     let* rest := @sequence A m M xs in 
-      mret (t :: rest)
+    mret (t :: rest)
+  end.
+
+Fixpoint asequence {K A} {m: Type -> Type} {M : Monad m} (acts: list (K * m A)) : m (list (K * A)) := 
+  match acts with
+  | nil => mret nil
+  | (k, x) :: xs => 
+    let* t    := x in
+    let* rest := @asequence K A m M xs in 
+      mret ((k, t) :: rest)
   end.
 
 Definition map_monad {A B : Type} {m : Type -> Type} {M : Monad m} (f : A -> m B) : list A -> m (list B) :=

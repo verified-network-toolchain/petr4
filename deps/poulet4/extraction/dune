@@ -9,15 +9,29 @@
   P4String
   Syntax
   P4Field
+  Extract
+  Packet
   Typed
   Utils
   SimplExpr
   Maps
-  Monad
-  State
   SyntaxUtil
   GenLoc
   ConstValue
+  Interpreter
+  Target
+  V1ModelTarget
+  CoqLib
+  Compare_dec
+  Hexadecimal
+  BinNat
+  Datatypes
+  GCL
+  Inline
+  List
+  Result
+  ToGCL
+  ToP4cub
   AST
   EquivDec
   ToP4cub
@@ -39,6 +53,7 @@
   P4Arith
   EquivUtil
   StringUtil
+  AListUtil
   ListUtil
   FunUtil
   OptionUtil
@@ -55,17 +70,32 @@
   BinPos
   BinNat
   BinNatDef
+  Zcomplements
+  Ops
+  Value
+  sublist
+  Sumbool
+  Semantics
+  ZArith_dec
+  Target
+  ValueUtil
+  ssrbool
+  Classes
   Ascii
   BinIntDef
   Monad
   Option
+  State
   Pure)
  (libraries zarith bignum)
  (theories Poulet4))
 
 (library
+ (preprocess
+  (action
+   (run ./extraction/dummy.sh %{input-file})))
  (name poulet4)
  (public_name poulet4)
  (libraries bignum zarith)
  (flags
-  (:standard -w -33 -w -20)))
+  (:standard -w -39 -w -33 -w -20 -w -27)))

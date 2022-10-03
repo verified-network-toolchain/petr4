@@ -116,7 +116,7 @@ Section SubstIdent.
     end.
 
   Fixpoint subst_stmt (env : Env) (stmt : @Statement tags_t) : @Statement tags_t :=
-    let '(MkStatement tags stmt type) := stmt in
+    let 'MkStatement tags stmt type := stmt in
     MkStatement tags (subst_stmt_pre env stmt) type
 
   with subst_stmt_pre (env : Env) (stmt : @StatementPreT tags_t) : @StatementPreT tags_t :=

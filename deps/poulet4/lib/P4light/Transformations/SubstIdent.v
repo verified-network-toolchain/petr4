@@ -36,57 +36,44 @@ Section SubstIdent.
       let bound_value := Env.find x.(P4String.str) env in
       default d bound_value.
 
+    Fixpoint subst_expr (e : @Expression tags_t) : @Expression tags_t :=
+      let 'MkExpression i e_pre type dir := e in
+      match e_pre with
+      | ExpName (BareName x) _ => subst_name e x
+      | _ =>
+        let e_pre' := subst_expr_pre e_pre in
+        MkExpression i e_pre' type dir
+      end
+
     (** [subst_expr e] is [e] with every identifier subsituted with the value it
         is bound to in [env] *)
-    Fixpoint subst_expr (e : @Expression tags_t) : @Expression tags_t :=
-      let '(MkExpression i e_pre type dir) := e in
-      (* Rewrap an expression with the existing tags and type *)
-      let tag e_pre := MkExpression i e_pre type dir in
+    with subst_expr_pre (e : @ExpressionPreT tags_t) : @ExpressionPreT tags_t :=
       let subst_exprs := List.map subst_expr in
-      match e_pre with
+      match e with
       | ExpBool _ 
       | ExpInt _ 
       | ExpString _ 
-      | ExpName (QualifiedName _ _) _
+      | ExpName _ _
       | ExpTypeMember _ _
       | ExpErrorMember _
       | ExpDontCare => e
-      | ExpName (BareName x) _ => subst_name e x
-      | ExpArrayAccess array idx =>
-        let array' := subst_expr array in
-        tag (ExpArrayAccess array' idx)
+      | ExpArrayAccess array idx => ExpArrayAccess (subst_expr array) idx
       | ExpBitStringAccess bits lo hi =>
-        let bits' := subst_expr bits in
-        tag (ExpBitStringAccess bits' lo hi)
-      | ExpList es => tag (ExpList (subst_exprs es))
-      | ExpRecord entries =>
-        let entries' := map_values subst_expr entries in
-        tag (ExpRecord entries')
-      | ExpUnaryOp op e =>
-        let e' := subst_expr e in
-        tag (ExpUnaryOp op e')
-      | ExpBinaryOp op e1 e2 =>
-        let e1' := subst_expr e1 in
-        let e2' := subst_expr e2 in
-        tag (ExpBinaryOp op e1' e2')
-      | ExpCast type e =>
-        let e' := subst_expr e in
-        tag (ExpCast type e')
-      | ExpExpressionMember e name =>
-        let e' := subst_expr e in
-        tag (ExpExpressionMember e' name)
+        ExpBitStringAccess (subst_expr bits) lo hi
+      | ExpList es => ExpList (subst_exprs es)
+      | ExpRecord entries => ExpRecord (map_values subst_expr entries)
+      | ExpUnaryOp op e => ExpUnaryOp op (subst_expr e)
+      | ExpBinaryOp op e1 e2 => ExpBinaryOp op (subst_expr e1) (subst_expr e2)
+      | ExpCast type e => ExpCast type (subst_expr e)
+      | ExpExpressionMember e name => ExpExpressionMember (subst_expr e) name
       | ExpTernary e1 e2 e3 =>
-        let e1' := subst_expr e1 in
-        let e2' := subst_expr e2 in
-        let e3' := subst_expr e3 in
-        tag (ExpTernary e1' e2' e3')
+        ExpTernary (subst_expr e1) (subst_expr e2) (subst_expr e3)
       | ExpFunctionCall e types args =>
         let e' := subst_expr e in
         let args' := List.map (option_map subst_expr) args in
-        tag (ExpFunctionCall e' types args')
+        ExpFunctionCall e' types args'
       | ExpNamelessInstantiation type args =>
-        let args' := subst_exprs args in
-        tag (ExpNamelessInstantiation type args')
+        ExpNamelessInstantiation type (subst_exprs args)
       end.
 
     Definition subst_exprs : list (@Expression tags_t) -> list (@Expression tags_t) :=
@@ -255,7 +242,7 @@ Section SubstIdent.
     let body' := subst_block env body in
     DeclAction tags name dparams cparams body'.
 
-  Definition subst_table env tags name key actions entries default size props :=
+  (* Definition subst_table env tags name key actions entries default size props := *)
     
 
   Fixpoint subst_decl (env : Env) (decl : @Declaration tags_t) : @Declaration tags_t :=

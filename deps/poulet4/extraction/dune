@@ -1,27 +1,71 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
-	AList AListUtil Datatypes List
-	P4Int P4String Syntax P4Field
-	Typed Utils SimplExpr
-        Maps Monad State
-	SyntaxUtil GenLoc
-	ConstValue
-    AST EquivDec
-    ToP4cub ToGCL GCL Inline Statementize VarNameGen
-    HoistNameless InferMemberTypes Substitution InlineTypeDecl
-    TableInstr V1model
-    Auxilary Envn Result P4Arith
-    EquivUtil StringUtil ListUtil FunUtil
-    Bool String Nat
-    BinNums BinInt Zpower
-    Specif Basics PeanoNat
-    BinPosDef BinPos BinNat BinNatDef
-    Ascii BinIntDef Monad Option)
+  AList
+  AListUtil
+  Datatypes
+  List
+  P4Int
+  P4String
+  Syntax
+  P4Field
+  Typed
+  Utils
+  SimplExpr
+  Maps
+  Monad
+  State
+  SyntaxUtil
+  GenLoc
+  ConstValue
+  AST
+  EquivDec
+  ToP4cub
+  ToGCL
+  GCL
+  Inline
+  Statementize
+  VarNameGen
+  HoistNameless
+  InferMemberTypes
+  Substitution
+  InlineTypeDecl
+  SubstIdent
+  TableInstr
+  V1model
+  Auxilary
+  Envn
+  Result
+  P4Arith
+  EquivUtil
+  StringUtil
+  ListUtil
+  FunUtil
+  OptionUtil
+  Bool
+  String
+  Nat
+  BinNums
+  BinInt
+  Zpower
+  Specif
+  Basics
+  PeanoNat
+  BinPosDef
+  BinPos
+  BinNat
+  BinNatDef
+  Ascii
+  BinIntDef
+  Monad
+  Option
+  Pure)
  (libraries zarith bignum)
  (theories Poulet4))
-(library 
-  (name poulet4)
-  (public_name poulet4)
-  (libraries bignum zarith)
-  (flags (:standard -w -33 -w -20)))
+
+(library
+ (name poulet4)
+ (public_name poulet4)
+ (libraries bignum zarith)
+ (flags
+  (:standard -w -33 -w -20)))

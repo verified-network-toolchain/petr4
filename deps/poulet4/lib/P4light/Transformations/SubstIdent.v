@@ -95,9 +95,12 @@ Section SubstIdent.
       let 'MkMatch tags e type := mtch in
       MkMatch tags (subst_match_pre e) type.
 
+    Definition subst_matches : list (@Match tags_t) -> list (@Match tags_t) := 
+      List.map subst_match.
+
     Definition subst_parser_case (case : @ParserCase tags_t) : @ParserCase tags_t :=
       let 'MkParserCase tags matches next := case in
-      let matches' := List.map subst_match matches in
+      let matches' := subst_matches matches in
       MkParserCase tags matches' next.
 
     Definition subst_parser_transition (trans : @ParserTransition tags_t) : @ParserTransition tags_t :=
@@ -125,6 +128,26 @@ Section SubstIdent.
 
     Definition subst_variable_stmt type name init loc :=
       StatVariable type name (subst_expr_opt init) loc.
+
+    Definition subst_table_pre_action_ref action :=
+      let 'MkTablePreActionRef name args := action in
+      MkTablePreActionRef name (subst_expr_opts args).
+
+    Definition subst_table_action_ref ref :=
+      let 'MkTableActionRef tags action type := ref in
+      let action' := subst_table_pre_action_ref action in
+      MkTableActionRef tags action' type.
+
+    Definition subst_table_entry entry :=
+      let 'MkTableEntry tags matches action := entry in
+      let matches' := subst_matches matches in
+      let action' := subst_table_action_ref action in
+      MkTableEntry tags matches' action'.
+
+    Definition subst_table_property prop :=
+      let 'MkTableProperty tags const name value := prop in
+      let value' := subst_expr value in
+      MkTableProperty tags const name value'.
 
   End ConstantEnv.
 

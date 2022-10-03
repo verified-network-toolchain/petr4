@@ -30,7 +30,7 @@
   InferMemberTypes
   Substitution
   InlineTypeDecl
-  SubstIdent
+  InlineConstants
   TableInstr
   V1model
   Auxilary

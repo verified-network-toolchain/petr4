@@ -17,7 +17,7 @@ Set Warnings "-custom-entry-overridden".
 From Poulet4 Require Import
      P4light.Transformations.SimplExpr
      P4light.Transformations.InlineTypeDecl
-     P4light.Transformations.SubstIdent
+     P4light.Transformations.InlineConstants
      Utils.Util.ListUtil.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
@@ -1578,7 +1578,7 @@ Section ToP4cub.
     |}.
 
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
-    let p' := subst_program p in
+    let p' := inline_constants p in
     let* '(Program decls) := preprocess tags p' in
     let+ cub_decls := translate_decls decls in
     infer_member_types (inline_cub_types cub_decls).

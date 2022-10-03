@@ -11,7 +11,7 @@ Import Envn Typed P4Int.
 Require Import String.
 Open Scope string_scope.
 
-Section SubstIdent.
+Section InlineConstants.
 
   (** AST tags *)
   Context {tags_t : Type}.
@@ -200,14 +200,17 @@ Section SubstIdent.
 
   End ConstantEnv.
 
+  (** [update_env env stmt] is [env] with any variables or constants declared
+      in [stmt] removed *)
   Definition update_env (env : Env) (stmt : @Statement tags_t) : Env :=
-    let '(MkStatement _ stmt _) := stmt in
+    let 'MkStatement _ stmt _ := stmt in
     match stmt with
     | StatVariable _ name _ _
     | StatConstant _ name _ _ => Env.remove name.(P4String.str) env
     | _ => env
     end.
 
+  (** [subst_stmt env stmt] maps [subst_expr env] over [stmt] *)
   Fixpoint subst_stmt (env : Env) (stmt : @Statement tags_t) : @Statement tags_t :=
     let 'MkStatement tags stmt type := stmt in
     MkStatement tags (subst_stmt_pre env stmt) type
@@ -238,6 +241,7 @@ Section SubstIdent.
       StatInstantiation type args' name inits'
     end
 
+  (** [subst_block env block] maps [subst_stmt env] over [block] *)
   with subst_block (env : Env) (block : Block) : Block :=
     match block with
     | BlockEmpty _ => block
@@ -247,6 +251,7 @@ Section SubstIdent.
       BlockCons stmt (subst_block env stmts)
     end
 
+  (** [subst_switch_case env case] maps [subst_stmt env] over the switch case [case] *)
   with subst_switch_case (env : Env) (case : StatementSwitchCase) : StatementSwitchCase :=
     match case with
     | StatSwCaseFallThrough _ _ => case
@@ -255,6 +260,8 @@ Section SubstIdent.
       StatSwCaseAction tags label code'
     end
 
+  (** [subst_initializer env init] maps [subst_stmt env] over the initializer
+      [init] *)
   with subst_initializer (env : Env) (init : Initializer) : Initializer :=
     match init with
     | InitFunction tags ret name types params body =>
@@ -266,8 +273,12 @@ Section SubstIdent.
       InitInstantiation tags types args' name inits'
     end.
 
+  (** A list of statements *)
   Definition Statements : Type := list (@Statement tags_t).
 
+  (** [subst_stmts_state stmts] is a state monad that threads an environment
+      sequentially through [stmts], updating it with variable declarations
+      at every statement *)
   Definition subst_stmts_state : Statements -> State Env Statements :=
     map_monad
       ( fun stmt =>
@@ -277,6 +288,8 @@ Section SubstIdent.
           mret stmt'
       ).
 
+  (** [subst_parser_state env state] maps [subst_expr env] over the parser state
+      [state] *)
   Definition subst_parser_state (env : Env) (state : @ParserState tags_t) : @ParserState tags_t :=
     let 'MkParserState tags name stmts trans := state in
     let stmts_state := subst_stmts_state stmts in
@@ -284,9 +297,12 @@ Section SubstIdent.
     let trans' := subst_parser_transition env' trans in
     MkParserState tags name stmts' trans'.
 
+  (** Maps [subst_parser_state] over a list of parser states *)
   Definition subst_parser_states (env : Env) : list (@ParserState tags_t) -> list (@ParserState tags_t) :=
     List.map (subst_parser_state env).
 
+  (** [update_toplevel_env env decl] is [env] with any constants declared in
+      [decl] added to it *)
   Definition update_toplevel_env (env : Env) (d : @Declaration tags_t) : Env :=
     match d with
     | DeclConstant _ _ x e => Env.bind x.(P4String.str) e env
@@ -297,10 +313,16 @@ Section SubstIdent.
       Unfortuntely, this would not be structurally recursive. *)
   Section SubstDecls.
 
+    (** A function such that [subst_decl env decl] is [decl] with any
+        identifiers bound in [env] substituted for their bound value *)
     Variable subst_decl : Env -> @Declaration tags_t -> @Declaration tags_t.
 
+    (** A list of declarations *)
     Definition Declarations := list (@Declaration tags_t).
 
+    (** [subst_decls_state decls] is a state monad that threads an environment'
+        sequentially through [decls], updating it with declared constants
+        every step *)
     Definition subst_decls_state : Declarations -> State Env Declarations :=
       map_monad 
         ( fun decl =>
@@ -310,22 +332,35 @@ Section SubstIdent.
             mret decl'
         ).
 
+    (** [subst_decls env decls] is the result of threading [decls] through
+        [subst_decls_state] with intial environment [env] *)
     Definition subst_decls (env : Env) (decls : Declarations) : Declarations :=
       eval_state (subst_decls_state decls) env.
 
+    (** [subst_decls_env env decls] is a pair [(decls' env')] where [decls'] is
+        [subst_Decls env decls] and [env'] is the final updated environment
+        resulting from threading initial environment [env] through [decls] *)
     Definition subst_decls_env (env : Env) (decls : Declarations) : Declarations * Env :=
       run_state (subst_decls_state decls) env.
 
   End SubstDecls.
 
+  (** [subst_function env tags ret name types params body] is
+      the function declaration [DeclFunction tags ret name types params body]
+      with its body mapped by [subst_block env] *)
   Definition subst_function env tags ret name types params body :=
     let body' := subst_block env body in
     DeclFunction tags ret name types params body'.
 
+  (** [subst_action env tags name dparams cparams body] is the action
+      declaration [DeclAction tags name dparams cparams body] with its body
+      mapped by [subst_block env] *)
   Definition subst_action env tags name dparams cparams body :=
     let body' := subst_block env body in
     DeclAction tags name dparams cparams body'.
 
+  (** [subst_decl env decl] is [decl] with all identifiers bound in [env]
+      substituted by their bound value *)
   Fixpoint subst_decl (env : Env) (decl : @Declaration tags_t) : @Declaration tags_t :=
     let subst_decls := subst_decls subst_decl env in
     let subst_decls_env := subst_decls_env subst_decl env in
@@ -376,10 +411,12 @@ Section SubstIdent.
     | DeclPackageType _ _ _ _ => decl
     end.
 
-  Definition subst_program prog :=
+  (** [inline_constants prog] is [prog] with all references to constants
+      inlined with their value *)
+  Definition inline_constants (prog : @program tags_t) : @program tags_t :=
     let 'Program decls := prog in
     let state := subst_decls_state subst_decl decls in
     let decls' := eval_state state [] in
     Program decls'.
 
-End SubstIdent.
+End InlineConstants.

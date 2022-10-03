@@ -25,7 +25,7 @@ Section SubstIdent.
 
   Definition Env : Type := Env.t string (@Expression tags_t).
 
-  Section SubstExpr.
+  Section ConstantEnv.
     
     (** Environment mapping identifiers to the value to be substituted, if any *)
     Variable env : Env.
@@ -76,6 +76,10 @@ Section SubstIdent.
         ExpNamelessInstantiation type (subst_exprs args)
       end.
 
+    Definition subst_expr_opt := option_map subst_expr.
+
+    Definition subst_expr_opts := List.map subst_expr_opt.
+
     Definition subst_exprs : list (@Expression tags_t) -> list (@Expression tags_t) :=
       List.map subst_expr.
 
@@ -105,7 +109,24 @@ Section SubstIdent.
         ParserSelect tags es' cases'
       end.
 
-  End SubstExpr.
+    Definition subst_method_call fn types args :=
+      StatMethodCall (subst_expr fn) types (subst_expr_opts args).
+
+    Definition subst_assignment e1 e2 :=
+      StatAssignment (subst_expr e1) (subst_expr e2).
+
+    Definition subst_direct_application t1 t2 args :=
+      StatDirectApplication t1 t2 (subst_expr_opts args).
+
+    Definition subst_return e := StatReturn (subst_expr_opt e).
+
+    Definition subst_constant_stmt type name value loc :=
+      StatConstant type name (subst_expr value) loc.
+
+    Definition subst_variable_stmt type name init loc :=
+      StatVariable type name (subst_expr_opt init) loc.
+
+  End ConstantEnv.
 
   Definition update_env (env : Env) (stmt : @Statement tags_t) : Env :=
     let '(MkStatement _ stmt _) := stmt in
@@ -121,27 +142,24 @@ Section SubstIdent.
 
   with subst_stmt_pre (env : Env) (stmt : @StatementPreT tags_t) : @StatementPreT tags_t :=
     let subst_expr := subst_expr env in
-    let subst_expr_opt := option_map subst_expr in
-    let subst_expr_opts :=  List.map subst_expr_opt in
     let subst_stmt := subst_stmt env in
     match stmt with
-    | StatMethodCall fn types args =>
-      StatMethodCall (subst_expr fn) types (subst_expr_opts args)
-    | StatAssignment e1 e2 => StatAssignment (subst_expr e1) (subst_expr e2)
+    | StatMethodCall fn types args => subst_method_call env fn types args
+    | StatAssignment e1 e2 => subst_assignment env e1 e2
     | StatDirectApplication t1 t2 args =>
-      StatDirectApplication t1 t2 (subst_expr_opts args)
+      subst_direct_application env t1 t2 args
     | StatConditional e s1 s2 =>
       StatConditional (subst_expr e) (subst_stmt s1) (option_map subst_stmt s2)
     | StatBlock block => StatBlock (subst_block env block)
     | StatExit | StatEmpty => stmt
-    | StatReturn e => StatReturn (subst_expr_opt e)
+    | StatReturn e => subst_return env e
     | StatSwitch e cases =>
       let cases' := List.map (subst_switch_case env) cases in
       StatSwitch (subst_expr e) cases'
     | StatConstant type name value loc =>
-      StatConstant type name (subst_expr value) loc
+      subst_constant_stmt env type name value loc
     | StatVariable type name init loc =>
-      StatVariable type name (subst_expr_opt init) loc
+      subst_variable_stmt env type name init loc
     | StatInstantiation type args name inits =>
       let args' := List.map subst_expr args in
       let inits' := List.map (subst_initializer env) inits in
@@ -243,7 +261,6 @@ Section SubstIdent.
     DeclAction tags name dparams cparams body'.
 
   (* Definition subst_table env tags name key actions entries default size props := *)
-    
 
   Fixpoint subst_decl (env : Env) (decl : @Declaration tags_t) : @Declaration tags_t :=
     let subst_decls := subst_decls subst_decl env in

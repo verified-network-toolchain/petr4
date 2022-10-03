@@ -341,4 +341,10 @@ Section SubstIdent.
     | DeclPackageType _ _ _ _ => decl
     end.
 
+  Definition subst_program prog :=
+    let 'Program decls := prog in
+    let state := subst_decls_state subst_decl decls in
+    let decls' := eval_state state [] in
+    Program decls'.
+
 End SubstIdent.

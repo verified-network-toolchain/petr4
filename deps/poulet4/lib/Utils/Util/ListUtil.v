@@ -1,6 +1,5 @@
 From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
 From Coq Require Export Lists.List micromega.Lia.
-Require Import Poulet4.Monads.Option.
 Export ListNotations.
 Require Import Coq.Strings.String.
 Require VST.zlist.sublist.
@@ -39,24 +38,6 @@ Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
   | S _, []  => []
   end.
 (**[]*)
-
-
-(** [map_opt f lst] maps [f] over every element in [f] which is [Some e] *)
-Definition map_opt {A B : Type} (f : A -> B) : list (option A) -> list (option B) :=
-  List.map (option_map f).
-
-(** [filter_opt l] is the sublist of [l] containing only elements which are 
-    [Some e] *)
-Definition filter_opt {A : Type} : list (option A) -> list A :=
-  List.fold_right (fun x acc =>
-    match x with
-    | Some x => x :: acc
-    | None => acc
-    end) [].
-
-(** Same as [filter_map], but monadic *)
-Definition filter_map_monad {A B : Type} {m : Type -> Type} {M : Monad m} (f : A -> m (option B)) (l : list A) : m (list B) :=
-  sequence (List.map f l) >>| filter_opt.
 
 (** * Helper Lemmas *)
 

@@ -2,7 +2,8 @@ From Poulet4 Require Import
      P4light.Transformations.SimplExpr
      P4light.Transformations.InlineTypeDecl
      Utils.Util.Utiliser
-     AListUtil.
+     AListUtil
+     Monads.State.Pure.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
      P4cub.Syntax.Syntax
@@ -88,9 +89,38 @@ Section SubstIdent.
         tag (ExpNamelessInstantiation type args')
       end.
 
+    Definition subst_exprs : list (@Expression tags_t) -> list (@Expression tags_t) :=
+      List.map subst_expr.
+
+    Definition subst_match_pre (match_pre : @MatchPreT tags_t) :  @MatchPreT tags_t :=
+      match match_pre with
+      | MatchDontCare => MatchDontCare
+      | MatchMask e mask => MatchMask (subst_expr e) (subst_expr mask)
+      | MatchRange lo hi => MatchRange (subst_expr lo) (subst_expr hi)
+      | MatchCast type expr => MatchCast type (subst_expr expr)
+      end.
+
+    Definition subst_match (mtch : @Match tags_t) : @Match tags_t :=
+      let 'MkMatch tags e type := mtch in
+      MkMatch tags (subst_match_pre e) type.
+
+    Definition subst_parser_case (case : @ParserCase tags_t) : @ParserCase tags_t :=
+      let 'MkParserCase tags matches next := case in
+      let matches' := List.map subst_match matches in
+      MkParserCase tags matches' next.
+
+    Definition subst_parser_transition (trans : @ParserTransition tags_t) : @ParserTransition tags_t :=
+      match trans with
+      | ParserDirect _ _ => trans
+      | ParserSelect tags es cases =>
+        let es' := subst_exprs es in
+        let cases' := List.map subst_parser_case cases in
+        ParserSelect tags es' cases'
+      end.
+
   End SubstExpr.
 
-  Definition update_env (stmt : @Statement tags_t) (env : Env) : Env :=
+  Definition update_env (env : Env) (stmt : @Statement tags_t) : Env :=
     let '(MkStatement _ stmt _) := stmt in
     match stmt with
     | StatVariable _ name _ _
@@ -136,7 +166,7 @@ Section SubstIdent.
     | BlockEmpty _ => block
     | BlockCons stmt stmts =>
       let stmt := subst_stmt env stmt in
-      let env := update_env stmt env in
+      let env := update_env env stmt in
       BlockCons stmt (subst_block env stmts)
     end
 
@@ -154,24 +184,107 @@ Section SubstIdent.
       let body' := subst_block env body in
       InitFunction tags ret name types params body'
     | InitInstantiation tags types args name inits =>
-      let args' := List.map (subst_expr env) args in
+      let args' := subst_exprs env args in
       let inits' := List.map (subst_initializer env) inits in
       InitInstantiation tags types args' name inits'
     end.
 
-  (* Fixpoint subst_decl (decl : @Declaration tags_t) : State (@Declaration tags_t) :=
-    let* state := get_state in
-    let env x := Env.find x state in
-    let subst_decls ds := eval_state (map_monad subst_decl ds) state in
+  Definition Statements : Type := list (@Statement tags_t).
+
+  Definition subst_stmts_state : Statements -> State Env Statements :=
+    map_monad
+      ( fun stmt =>
+          let* env := get_state in
+          let stmt' := subst_stmt env stmt in
+          put_state (update_env env stmt) ;;
+          mret stmt'
+      ).
+
+  Definition subst_parser_state (env : Env) (state : @ParserState tags_t) : @ParserState tags_t :=
+    let 'MkParserState tags name stmts trans := state in
+    let stmts_state := subst_stmts_state stmts in
+    let (stmts', env') := run_state stmts_state env in
+    let trans' := subst_parser_transition env' trans in
+    MkParserState tags name stmts' trans'.
+
+  Definition subst_parser_states (env : Env) : list (@ParserState tags_t) -> list (@ParserState tags_t) :=
+    List.map (subst_parser_state env).
+
+  Definition update_toplevel_env (env : Env) (d : @Declaration tags_t) : Env :=
+    match d with
+    | DeclConstant _ _ x e => Env.bind x.(P4String.str) e env
+    | _ => env
+    end.
+
+  (** Would be nice to declare this as mutually recursive with [subst_decl].
+      Unfortuntely, this would not be structurally recursive. *)
+  Section SubstDecls.
+
+    Variable subst_decl : Env -> @Declaration tags_t -> @Declaration tags_t.
+
+    (* Fixpoint subst_decls *)
+
+    Definition Declarations := list (@Declaration tags_t).
+
+    Definition subst_decls_state : Declarations -> State Env Declarations :=
+      map_monad 
+        ( fun decl =>
+            let* env := get_state in
+            let decl' := subst_decl env decl in
+            put_state (update_toplevel_env env decl) ;;
+            mret decl'
+        ).
+
+    Definition subst_decls (env : Env) (decls : Declarations) : Declarations :=
+      eval_state (subst_decls_state decls) env.
+
+    Definition subst_decls_env (env : Env) (decls : Declarations) : Declarations * Env :=
+      run_state (subst_decls_state decls) env.
+
+  End SubstDecls.
+
+  Definition subst_function env tags ret name types params body :=
+    let body' := subst_block env body in
+    DeclFunction tags ret name types params body'.
+
+  Definition subst_variable env tags type name init :=
+    let init' := option_map (subst_expr env) init in
+    DeclVariable tags type name init'.
+
+  Definition subst_action env tags name dparams cparams body :=
+    let body' := subst_block env body in
+    DeclAction tags name dparams cparams body'.
+
+  Definition subst_table env tags name key actions entries default size props :=
+    
+
+  Fixpoint subst_decl (env : Env) (decl : @Declaration tags_t) : @Declaration tags_t :=
+    let subst_decls := subst_decls subst_decl env in
+    let subst_decls_env := subst_decls_env subst_decl env in
     match decl with
-    | DeclConstant tags type x e => subst_constant env tags type x e
+    | DeclConstant tags type name value =>
+      DeclConstant tags type name (subst_expr env value)
     | DeclInstantiation tags type args name init =>
-      let args' := List.map (subst_expr env) args in
+      let args' := subst_exprs env args in
       let init' := subst_decls init in
-      mret (DeclInstantiation tags type args' name init')
+      DeclInstantiation tags type args' name init'
     | DeclParser tags name types params cparams locals states =>
-      let locals' := 
-    | _ => mret decl
-    end. *)
+      let (locals', env') := subst_decls_env locals in
+      let states' := subst_parser_states env' states in
+      DeclParser tags name types params cparams locals' states'
+    | DeclControl tags name types params cparams locals apply =>
+      let (locals', env') := subst_decls_env locals in
+      let apply' := subst_block env' apply in
+      DeclControl tags name types params cparams locals' apply'
+    | DeclFunction tags ret name types params body =>
+      subst_function env tags ret name types params body
+    | DeclVariable tags type name init =>
+      subst_variable env tags type name init
+    | DeclExternFunction _ _ _ _ _
+    | DeclValueSet _ _ _ _ => decl
+    | DeclAction tags name dparams cparams body =>
+      subst_action env tags name dparams cparams body
+    | _ => decl
+    end.
 
 End SubstIdent.

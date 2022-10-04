@@ -1,3 +1,7 @@
+\newcommand{\VVal}[1]{#1'}
+%% \newcommand{\VVVal}[1]{#1''}
+
+
 %rule names:
 \newcommand{\rn}[1]{\TirName{#1}}
 \newcommand{\rSep}{\rn{-}}
@@ -31,11 +35,12 @@
 \newcommand*{\setT}{\rn{Set}\rT}
 \newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
 \newcommand*{\recordT}{\rn{Record}\rT}
-\newcommand*{\newTypeT}{\rn{NewType(typedef)}\rT}
+\newcommand*{\newTypeT}{\rn{NewType}\rT}
 \newcommand*{\specializedExternT}{\rn{SpecializedType}\rSep\rn{ExternBase}\rT}
 \newcommand*{\specializedRestT}{\rn{SpecializedType}\rSep\rn{Rest}\rT}
 \newcommand*{\packageT}{\rn{Package}\rT}
 \newcommand*{\controlT}{\rn{Control}\rT}
+\newcommand*{\parserT}{\rn{Parser}\rT}
 \newcommand*{\externT}{\rn{Extern}\rT}
 \newcommand*{\functionT}{\rn{Function}\rT}
 \newcommand*{\actionT}{\rn{Action}\rT}
@@ -62,7 +67,7 @@
 \newcommand*{\typeMemE}{\rn{TypeMember}\rE}
 \newcommand*{\errMemE}{\rn{ErrorMember}\rE}
 \newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
-\newcommand*{\ternaryE}{\rn{Ternary}\rE}
+\newcommand*{\ternaryE}{\rn{Ternary}\rE} 
 \newcommand*{\funcCallE}{\rn{FunctionCall}\rE\rSep\rn{1}}
 \newcommand*{\funcCallNoTypeArgE}{\rn{FunctionCall}\rE\rSep\rn{2}}
 \newcommand*{\instE}{\rn{Instantiation}\rE}
@@ -146,6 +151,7 @@
 \newcommand{\insertToEnv}[2]{\env[{#1} : {#2} ]}
 \newcommand{\insertToEnvv}[1]{\env[{#1}]}
 \newcommand{\extendTypEnv}[1]{\typEnv[{#1} \ \mathsf{var}]}
+\newcommand{\extendTypsEnv}[1]{\typEnv[\overline{{#1} \ \mathsf{var}}]}
 \newcommand{\suchThat}[2]{{#1}\ . \ {#2}}
 \newcommand{\tr}{\mathsf{true}}
 \newcommand{\fl}{\mathsf{false}}
@@ -246,8 +252,8 @@
 
 
 %metavariables:
-\newcommand{\prmDef}{\mathit{prm}}
-\newcommand{\prmDefs}{\overline \prmDef}
+\newcommand{\prmDef}[1]{\mathit{prm}_{#1}}
+\newcommand{\prmDefs}[1]{\overline {\prmDef {#1}}}
 \newcommand{\constraint}{C}
 \newcommand{\optConstraint}{B}
 \newcommand{\nonoptConstraint}{N}
@@ -264,6 +270,7 @@
 \newcommand{\typs}{\overline \typ}
 \newcommand{\baseTyp}{\rho}
 \newcommand{\baseTyps}{\overline \baseTyp}
+\newcommand{\typKind}{t}
 \newcommand{\ctxt}{c}
 \newcommand{\bool}{b}
 \newcommand{\str}{s}
@@ -271,8 +278,8 @@
 \newcommand{\val}{v}
 \newcommand{\bit}{b}
 \renewcommand{\int}{n}
-\newcommand{\bitWidth}[2]{{#1}_{#2}}
-\newcommand{\intWidth}[2]{{#1}_{#2}}
+\newcommand{\bitWidth}[2]{{#2}\mathsf{b}{#1}}
+\newcommand{\intWidth}[2]{{#2}\mathsf{w}{#1}}
 \newcommand{\name}{x}
 \newcommand{\var}{x}
 \newcommand{\typVar}{X}
@@ -316,7 +323,7 @@
 \newcommand{\argkvi}[1]{\var_{#1}=\exp_{#1}}
 \newcommand{\argkvs}{\overline \argkv}
 \newcommand{\argkvss}[2]{\argkvi {#1}, \ldots, \argkvi {#2}}
-\newcommand{\missingarg}{\_\!\_\!\_\!\_}
+\newcommand{\missingarg}{\mathsf{missing}}
 \newcommand{\names}{\overline \name}
 \newcommand{\methods}[2]{\overline {{#1}:{#2}}}
 
@@ -335,7 +342,7 @@
 \newcommand{\switch}[2]{\mathsf{switch}\ ({#1})\, \{{#2}\}}
 \newcommand{\lbl}{l}
 \newcommand{\actionCase}[1]{\lbl : \block {#1}}
-\newcommand{\switchCase}{\mathit{switch}}
+\newcommand{\switchCase}{\mathit{switch\_case}}
 \newcommand{\switchCases}{\overline \switchCase}
 \newcommand{\dirApp}[2]{{#1} \left({#2}\right)}
 \newcommand{\defLbl}{\mathsf{default}}
@@ -344,7 +351,7 @@
 \newcommand{\slctTran}[2]{({#1})\ \{{#2}\}}
 \newcommand{\expandCase}[2]{{#1} \ {#2}}
 \newcommand{\nxt}{\mathit{nxt}}
-\newcommand{\dontcareMatch}{\_\!\_\!\_}
+\newcommand{\dontcareMatch}{\mathsf{dont\_care}}
 \newcommand{\defMatch}{\mathsf{default}}
 \newcommand{\pmatch}{\mathit{mtch}}
 \newcommand{\pmatches}{\overline \pmatch}
@@ -393,7 +400,7 @@
 \newcommand{\varDcl}[2]{{#1}\, {#2}}
 %type. expression. name.
 \newcommand{\valSetDcl}[3]{{#1}\, {#3}:{#2}}
-\newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, (\prms)\, \{{#3}\}}
+\newcommand{\actionDcl}[3]{\mathsf{action}\ {#1}\, ({#2})\, \{{#3}\}}
 \newcommand{\tableDcl}[2]{\mathsf{table}\ {#1}\, \{{#2}\}}
 \newcommand{\headerDcl}[2]{\mathsf{header}\ {#1}\, \{{#2}\}}
 \newcommand{\headerUnionDcl}[2]{\mathsf{header\_union}\ {#1}\, \{{#2}\}}
@@ -405,9 +412,9 @@
 \newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle{#2}\rangle\, \{{#3} \}}
 \newcommand{\newtypeDcl}[2]{{#1}={#2}}
 \newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#2}\, {#1}}
-\newcommand{\controlTypDcl}[3]{\mathsf{ctrl}\ {#1}\, \langle{#2}\rangle\, ({#3})}
-\newcommand{\parserTypDcl}[3]{\mathsf{prs}\ {#1}\, \langle{#2}\rangle\, ({#3})}
-\newcommand{\packageTypDcl}[3]{\mathsf{pckg}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\controlTypDcl}[3]{\mathsf{control}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\parserTypDcl}[3]{\mathsf{parser}\ {#1}\, \langle{#2}\rangle\, ({#3})}
+\newcommand{\packageTypDcl}[3]{\mathsf{package}\ {#1}\, \langle{#2}\rangle\, ({#3})}
 
 \newcommand{\prog}{\mathit{prog}}
 
@@ -456,7 +463,7 @@
 \newcommand{\sat}[1]{\mathit{saturate}({#1})_\typEnv}
 \newcommand{\trans}[2]{\mathit{translate}({#1})_{\env,{#2}}}
 \newcommand{\transMaybe}[1]{\mathit{optional\_translate}({#1})_{\env}}
-\newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\env}
+\newcommand{\isValidNestedTyp}[1]{\mathit{is\_valid\_nested}({#1})_\typEnv}
 %{#1} is outer, 2 is inner
 \newcommand{\noDup}[1]{\mathit{no\_duplicate}({#1})}
 \newcommand{\explicitCastOK}[2]{\explCast {#1} {#2}}
@@ -530,9 +537,9 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typVar}\ \{\names\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typVar}\ \{\fields\}}
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
-\newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\names\}}
+\newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTyp}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}

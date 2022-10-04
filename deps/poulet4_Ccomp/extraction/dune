@@ -1,35 +1,33 @@
 (coq.extraction
  (prelude Extract)
  (extracted_modules
-   Archi
-   Ascii
    AST
    AST0
-   Auxilary
+   Archi
+   Ascii
+   Auxiliary
    Basics
-   Binary
-   BinarySingleNaN
-   BinaryString
    BinInt
-   BinIntDef
    BinNat
    BinNums
    BinPos
    BinPosDef
+   Binary
    Bits
    Bool
+   Bracket
    Byte
    CCompEnv
    CCompSel
+   CV1Model
    Cconsts
-   Clightdefs
    Clight
+   Clightdefs
    Cop
    Coqlib
    Csyntax
-   Ctypesdefs
    Ctypes
-   CV1Model
+   Ctypesdefs
    Datatypes
    Decimal
    Defs
@@ -37,15 +35,16 @@
    Equality
    EquivDec
    EquivUtil
-   Error
    Errors
+   FLT
    Floats
    Globalenvs
    Hexadecimal
-   IdentGen
    IEEE754_extra
+   IdentGen
    Integers
    List0
+   ListUtil
    Maps
    Memdata
    Memory
@@ -58,10 +57,13 @@
    P4Int
    P4String
    Petr4Runtime
+   RecordSet
+   Result
    Round
    Smallstep
    SpecFloat
    Specif
+   State
    String0
    Values
    ZArith_dec

@@ -225,7 +225,7 @@ End Stmt.
 Module Control.
   (** Declarations occuring within controls. *)
   Variant d : Set :=
-  | Var (original_name : string)
+    | Var (original_name : string)
       (expr : Expr.t (** unitialized decl *) + Expr.e (** initialzed decl *))
   | Action (action_name : string)
       (control_plane_params

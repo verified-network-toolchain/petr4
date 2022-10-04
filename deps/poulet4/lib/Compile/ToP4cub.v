@@ -24,6 +24,14 @@ Module ST := Stmt.
 Module E := Expr.
 Module Sub := Syntax.Substitution.
 
+Definition map_filter {A B : Type} (f : A -> option B) : list A -> list B :=
+  List.fold_right
+    (fun a bs =>
+       (match f a with
+       | Some b => [b]
+       | None => []
+       end ++ bs)%list) [].
+
 Definition swap {A B C : Type} (f : A -> B -> C) (b : B) (a : A) : C := f a b.
 
 Definition append {A : Type} (l : list A) (l' : list A) : list A :=
@@ -90,14 +98,35 @@ End NameGen.
 Section ToP4cub.
   Variable tags_t : Type.
 
+  Definition string_of_name
+    (x : @Typed.name tags_t) : string :=
+    match x with
+    | Typed.BareName {| P4String.str := x |}
+    | Typed.QualifiedName _ {| P4String.str := x |} => x
+    end.
+  
+  Fixpoint get_func_name
+    (e : @Expression tags_t) : string :=
+    match e with
+    | MkExpression _ (ExpName x _) _ _ => string_of_name x
+    | MkExpression _
+        (ExpExpressionMember e {| P4String.str := x |})
+        _ _=> get_func_name e ++ "." ++ x
+    | _ => "don't know"
+    end.
+  
   Import Typed.
   Import P4Int.
 
   Definition pos : (nat -> positive) := BinPos.Pos.of_nat.
   Definition posN (n : N) : positive := pos (BinNat.N.to_nat n).
-  
+
+  (* maybe should be:
+     1. a list of top decls
+     2. a list of control decls *)
   Record DeclCtx :=
     mkDeclCtx {
+        variables : list Control.d;
         controls :  list TopDecl.d;
         parsers : list TopDecl.d;
         tables : list Control.d;
@@ -111,7 +140,7 @@ Section ToP4cub.
   
   Global Instance etaDeclCtx : Settable _ :=
     settable! mkDeclCtx
-    < controls ; parsers; tables ; actions
+    < variables ; controls ; parsers; tables ; actions
   ; functions ; package_types ; packages ; externs ; types >.
   
   Definition flatten_DeclCtx (ctx : DeclCtx) :=
@@ -122,7 +151,8 @@ Section ToP4cub.
                          ++ ctx.(externs))%list.
   
   Definition empty_declaration_context :=
-    {| controls := [];
+    {| variables := [];
+      controls := [];
       parsers := [];
       tables := [];
       actions := [];
@@ -132,6 +162,9 @@ Section ToP4cub.
       externs := [];
       types := []
     |}.
+
+  Definition add_variable (decl : DeclCtx) (d : Control.d) :=
+    decl <| variables := d :: decl.(variables) |>.
   
   Definition add_control (decl : DeclCtx) (c : TopDecl.d) :=
     decl <| controls := c :: decl.(controls) |>.
@@ -247,7 +280,8 @@ Section ToP4cub.
 
   Definition extend (hi_prio lo_prio: DeclCtx) : DeclCtx :=
     let combine {A : Type} (f : DeclCtx -> list A) := append (f hi_prio) (f lo_prio) in
-    {| controls := combine controls;
+    {| variables := combine variables;
+      controls := combine controls;
       parsers := combine parsers;
       tables := combine tables;
       actions := combine actions;
@@ -260,8 +294,7 @@ Section ToP4cub.
   
   Definition to_ctrl_decl (c: DeclCtx) : list Control.d :=
     List.rev
-      (Control.Action "$DUMMY_ACTION" [] [] ST.Skip
-                      :: append c.(actions) c.(tables)).
+      (append c.(variables) (append c.(actions) c.(tables))).
   
   Definition decl_has_name (name : string) (d : TopDecl.d) :=
     match d with
@@ -298,6 +331,15 @@ Section ToP4cub.
                      ok (add_extern ctx)
                    else
                      error ("couldn't identify augment for" ++ name).
+  
+  Definition get_variables (ctx : DeclCtx) : list string :=
+    map_filter
+      (fun d =>
+         match d with
+         | Control.Var x _ => Some x
+         | _ => None
+         end)
+      ctx.(variables).
   
   Definition lookup_instantiatable (ctx : DeclCtx) (name : string) :=
     find (decl_has_name name) (ctx.(controls) ++ ctx.(parsers) ++ ctx.(packages) ++ ctx.(externs)).
@@ -583,7 +625,8 @@ Section ToP4cub.
       | TypConstructor _ _ _ _ =>
           error "A type constructor is not an expression"
       end.
-    
+
+
     Section Expressions.
       Variable term_names : list string.
       
@@ -731,8 +774,11 @@ Section ToP4cub.
               end
         | ExpTernary cond tru fls =>
             error "Ternary expressions should have been hoisted by a previous pass"
+        | ExpFunctionCall _ =>
         | ExpFunctionCall func type_args args =>
-            error "Function Calls should have been hoisted by a previous pass"
+            error
+              ("calling " ++ get_func_name func
+                 ++ ", Function Calls should have been hoisted by a previous pass")
         | ExpNamelessInstantiation typ args =>
             error "Nameless Intantiations should have been hoisted by a previous pass"
         | ExpDontCare =>
@@ -1778,8 +1824,10 @@ Section ToP4cub.
           TopDecl.Control
             cub_name cub_cparams cub_expr_cparams cub_eparams
             cub_params cub_body cub_block in
-        (* THIS IS CERTAINLY WRONG *)
-        add_control local_ctx d
+        (* THIS IS CERTAINLY WRONG
+           should be [ctx] not [local_ctx]
+           b/c actions and tables will leak out. *)
+        add_control ctx d
 | DeclFunction _ ret {| P4String.str := name |} type_params params body =>
     let typ_names := List.map P4String.str type_params in
     let* params := parameters_to_params typ_names params in
@@ -1805,12 +1853,13 @@ Section ToP4cub.
       (* TODO come up with better naming scheme for externs *)
       let d := TopDecl.Extern "_" 0 [] [] [method] in
       ok (add_extern ctx d)
-  | DeclVariable tags typ name None =>
-        (* error "[FIXME] Variable Declarations unimplemented" *)
-        ok ctx
-    | DeclVariable tags typ name (Some e) =>
-        (* error "[FIXME] Variable Declarations unimplemented" *)
-        ok ctx
+  | DeclVariable _ typ {| P4String.str := x  |} None =>
+      let+ t := translate_exp_type [] typ in
+      add_variable ctx (Control.Var x (inl t))
+    | DeclVariable _ typ {| P4String.str := x |}  (Some e) =>
+        let* t := translate_exp_type [] typ in
+        let+ e := translate_expression [] term_names e in
+        add_variable ctx (Control.Var x (inr e))
     | DeclValueSet tags typ size name =>
         (* error "[FIXME] Value Set declarations unimplemented" *)
         ok ctx
@@ -1955,7 +2004,8 @@ Section ToP4cub.
     let infer_Cds := List.map InferMemberTypes.inf_Cd in
     let infer_pts := Field.map (fun '(cparams,ts) =>
                                   (cparams, (* TODO: infer member types? *) ts)) in
-    {| controls := infer_ds decl.(controls);
+    {| variables := infer_Cds decl.(variables);
+      controls := infer_ds decl.(controls);
        parsers := infer_ds decl.(parsers);
        tables := infer_Cds decl.(tables);
        actions := infer_Cds decl.(actions);
@@ -1976,4 +2026,4 @@ Section ToP4cub.
     let+ ctx := translate_program tags p in 
     flatten_DeclCtx ctx.
     
-End ToP4cub.
+End ToP4cub. 

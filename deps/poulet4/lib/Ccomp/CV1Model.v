@@ -46,12 +46,12 @@ match cargs (*p, vr, ig, eg, ck , dep*) with
       lookup_function eg env,
       lookup_function ck env,
       lookup_function dep env with
-    | Result.Ok _ (pid,pf),
-      Result.Ok _ (vrid,vrf),
-      Result.Ok _ (igid,igf),
-      Result.Ok _ (egid,egf),
-      Result.Ok _ (ckid,ckf),
-      Result.Ok _ (depid,depf) =>
+    | Result.Ok (pid,pf),
+      Result.Ok (vrid,vrf),
+      Result.Ok (igid,igf),
+      Result.Ok (egid,egf),
+      Result.Ok (ckid,ckf),
+      Result.Ok (depid,depf) =>
         (* TODO: make sure expression constructor params
            are included in clight functions for constructors *)
         match pf.(fn_params) with

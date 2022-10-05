@@ -59,8 +59,8 @@ Definition
 
 Fixpoint
   commute_result_optlist
-  {A : Type} (l : list (option (result A)))
-  : result (list (option A)) :=
+    {Err A : Type} (l : list (option (result Err A)))
+  : result Err (list (option A)) :=
   match l with
   | [] => ok []
   | o :: l =>
@@ -463,7 +463,7 @@ Section ToP4cub.
   Definition
     apply_arg_to_param
       (pa : E.e -> paramarg E.e E.e) (exp : E.e)
-    (acc : result (list (paramarg E.e E.e)))
+      (acc : result string (list (paramarg E.e E.e)))
     : result string (list (paramarg E.e E.e)) :=
     let+ fs := acc in
     pa exp :: fs.
@@ -809,7 +809,7 @@ Section ToP4cub.
             end).
 
       Definition parameters_to_params (parameters : list (@P4Parameter tags_t))
-        : result (list (string * paramarg E.t E.t)) :=
+        : result string (list (string * paramarg E.t E.t)) :=
         rred (List.map (parameter_to_paramarg) parameters).
       
       Definition translate_expression_and_type e :=
@@ -879,7 +879,7 @@ Section ToP4cub.
             
       Definition
         translate_function_application
-        (fname : P4String.t tags_t) ret type_args parameters args : result ST.s :=
+          (fname : P4String.t tags_t) ret type_args parameters args : result string ST.s :=
         let* paramargs :=
           translate_application_args (P4String.str fname) parameters args in
         let+ cub_type_params := rred (List.map translate_exp_type type_args) in
@@ -921,7 +921,7 @@ Section ToP4cub.
       (callee : Expression)
       (ret_var : option (string * nat))
       (ret_type : option E.t)
-      (f : P4String.t tags_t) : result ST.s :=
+      (f : P4String.t tags_t) : result string ST.s :=
       let f_str := P4String.str f in
       if f_str =? "apply" then
         translate_apply (term_names ++ get_variables ctx) callee args ret_var ret_type
@@ -969,7 +969,7 @@ Section ToP4cub.
       function_call_init
         (term_names : list string)
         (ctx : DeclCtx) (e : Expression)
-        (ret_var : string * nat) (ret_type : E.t) : option (result ST.s) :=
+        (ret_var : string * nat) (ret_type : E.t) : option (result string ST.s) :=
       let '(MkExpression tags expr typ dir) := e in
       match expr with
       | ExpFunctionCall func type_args args =>
@@ -1363,7 +1363,7 @@ Section ToP4cub.
     translate_parser_state_block
     (term_names parser_states : list string)
     (ctx : DeclCtx) (parser_state_block : list Statement)
-    (transition : ParserTransition) : result ST.s :=
+    (transition : ParserTransition) : result string ST.s :=
     match parser_state_block with
     | [] =>
         let+ pe :=
@@ -1444,7 +1444,7 @@ Section ToP4cub.
     translate_parser_states_inner
       (term_names parser_states : list string)
       (ctx : DeclCtx) (p : ParserState)
-      (res_acc : result (option ST.s * list ST.s)) :=
+      (res_acc : result string (option ST.s * list ST.s)) :=
     let* state :=
       translate_parser_state
         term_names 
@@ -1472,10 +1472,10 @@ Section ToP4cub.
     translate_constructor_arg_expression
     (term_names : list string) (arg : @Expression tags_t) : result string E.e :=
     match translate_expression [] term_names arg with
-    | Ok _ e =>
+    | Ok e =>
         (* try to reuse translation*)
         ok e
-    | Error _ msg =>
+    | Error msg =>
         (* if the naive translation fails, try something better  *)
         let '(MkExpression tags expr typ dir) := arg in
         match expr with
@@ -1487,7 +1487,7 @@ Section ToP4cub.
   Definition translate_runtime_params
     (typ_names : list string)
     (params : list (@P4Parameter tags_t))
-    : result (list (string * string) * E.params) :=
+    : result string (list (string * string) * E.params) :=
     let '(eparams, params) :=
       List.partition
         (fun '(MkParameter _ _ t _ _) =>
@@ -1677,12 +1677,12 @@ Section ToP4cub.
 
   Definition translate_instantiation_args
     (term_names : list string) (args : list (@Expression tags_t))
-    : result (TopDecl.constructor_args * list E.e) :=
+    : result string (TopDecl.constructor_args * list E.e) :=
     let '(cargs, cargs_exps) :=
       List.partition
         (will_be_p4cub_cnstr_typ ∘ get_type_of_expr) args in
     let* cargs :=
-      sequence (M := result_monad_inst)
+      sequence
         $ List.map
         (fun '(MkExpression _ e _ _ : @Expression tags_t) =>
            match e with
@@ -1693,21 +1693,21 @@ Section ToP4cub.
            end)
         cargs in
     let+ cargs_exps :=
-      sequence (M := result_monad_inst)
+      sequence
         $ List.map (translate_expression [] term_names) cargs_exps in
     (cargs, cargs_exps).
 
   Definition translate_to_constructor_params
     (typ_names : list string)
     (params : list (@P4Parameter tags_t))
-    : result (TopDecl.constructor_params * list (string * E.t)) :=
+    : result string (TopDecl.constructor_params * list (string * E.t)) :=
     let '(cparams, expr_cparams) :=
       List.partition
         (will_be_p4cub_cnstr_typ ∘ SyntaxUtil.get_param_typ)
         $ List.map collapse_P4Parameter params in
     let* cparams := translate_constructor_parameters typ_names cparams in
     let+ expr_cparams :=
-      sequence (M := result_monad_inst)
+      sequence
         (List.map
            (fun '(MkParameter _ _ t _ {| P4String.str := x |})
             => let+ t := translate_exp_type typ_names t in (x,t))
@@ -1717,7 +1717,7 @@ Section ToP4cub.
   Definition translate_method
     (typ_names : list string)
     (m : MethodPrototype)
-    : result
+    : result string
         (TopDecl.constructor_params * list Expr.t
          + string * (nat * list string * E.arrowT)) :=
     match m with
@@ -1755,7 +1755,7 @@ Section ToP4cub.
     translate_methods
     (typ_names : list string)
     (ms : list MethodPrototype)
-    : result (TopDecl.constructor_params * list Expr.t
+    : result string (TopDecl.constructor_params * list Expr.t
               * Field.fs string (nat * list string * E.arrowT)) :=
     let+ ms := rred (List.map (translate_method typ_names) ms) in
     let '(cnstrs, ms) := partition_map (fun x => x) ms in

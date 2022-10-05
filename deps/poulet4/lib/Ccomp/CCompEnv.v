@@ -404,7 +404,7 @@ Section CEnv.
   Definition set_top_args (args: list Clight.expr) (env: ClightEnv) : ClightEnv := 
     env <| top_args := args |>.
 
-  Definition find_var (x : nat) (env: ClightEnv) : Result.result AST.ident :=
+  Definition find_var (x : nat) (env: ClightEnv) : result string AST.ident :=
     match nth_error env.(varMap) x with
     | Some x => Result.ok x
     | None   => Result.error "unbound p4cub variable"
@@ -412,14 +412,14 @@ Section CEnv.
 
   (* FIXME!
   Definition find_ident (env: ClightEnv) (name: string)
-    : Result.result AST.ident :=
+    : result string AST.ident :=
     match Env.find name env.(identMap) with 
     | None => Result.error "name does not exist in env"
     | Some id => Result.ok id
     end. *)
   
   Definition find_ident_temp_arg (name: nat) (env: ClightEnv)
-    : Result.result (AST.ident*AST.ident) :=
+    : result string (AST.ident*AST.ident) :=
     match nth_error env.(tempOfArg) name with
     | None => Result.error "argument name does not exist in env"
     | Some (id1,id2) => Result.ok (id1,id2)
@@ -427,7 +427,7 @@ Section CEnv.
 
   Fixpoint lookup_composite_rec
     (composites : list (Expr.t * composite_definition))
-    (p4t: Expr.t) : Result.result composite_definition :=
+    (p4t: Expr.t) : result string composite_definition :=
     match composites with
     | nil => Result.error "can't find the composite"
     | (head, comp) :: tl => if (head == p4t) 
@@ -436,13 +436,13 @@ Section CEnv.
     end.
 
   Definition lookup_composite
-    (p4t: Expr.t) (env: ClightEnv) : Result.result composite_definition :=
+    (p4t: Expr.t) (env: ClightEnv) : result string composite_definition :=
     lookup_composite_rec env.(composites) p4t.
 
   Fixpoint
     lookup_composite_id_rec
     (composites : list (Expr.t * composite_definition))
-    (id: ident): Result.result composite_definition :=
+    (id: ident): result string composite_definition :=
     match composites with
     | nil => Result.error "can't find the composite by id"
     | (head, comp) :: tl => if Pos.eqb (name_composite_def comp) id
@@ -451,12 +451,12 @@ Section CEnv.
     end.
   
   Definition lookup_composite_id
-    (id: ident) (env: ClightEnv) : Result.result composite_definition :=
+    (id: ident) (env: ClightEnv) : result string composite_definition :=
     lookup_composite_id_rec env.(composites) id.
 
   Fixpoint set_H_rec
     (composites :  list (Expr.t * composite_definition))
-    (p4t: Expr.t) : Result.result ident := 
+    (p4t: Expr.t) : result string ident := 
   match composites with
   | nil => Result.error "can't find the composite in Set_H"
   | (head, comp) :: tl => if (head == p4t)  then 
@@ -468,7 +468,7 @@ Section CEnv.
                           set_H_rec tl p4t
   end.
 
-  Definition set_H (p4t: Expr.t) (env: ClightEnv) : Result.result ClightEnv :=
+  Definition set_H (p4t: Expr.t) (env: ClightEnv) : result string ClightEnv :=
     let^ H_id := set_H_rec env.(composites) p4t in
     env <| v1model_H := H_id |>.
 
@@ -476,7 +476,7 @@ Section CEnv.
 
   Fixpoint set_M_rec
     (composites :  list (Expr.t * composite_definition))
-    (p4t: Expr.t) : Result.result ident := 
+    (p4t: Expr.t) : result string ident := 
     match composites with
     | nil => Result.error "can't find the composite in Set_M"
     | (head, comp) :: tl => if (head == p4t) then
@@ -488,14 +488,14 @@ Section CEnv.
                             (set_M_rec tl p4t)
     end.
   
-  Definition set_M (p4t: Expr.t) (env: ClightEnv) : Result.result ClightEnv :=
+  Definition set_M (p4t: Expr.t) (env: ClightEnv) : result string ClightEnv :=
     let^ M_id := set_M_rec env.(composites) p4t in
     env <| v1model_M := M_id |>.
 
   Definition get_M (env: ClightEnv) := env.(v1model_M).
 
   Definition lookup_function (name: string)(env: ClightEnv)
-    : Result.result (ident * Clight.function) :=
+    : result string (ident * Clight.function) :=
     let* fid :=
       Result.from_opt
         (Env.find name env.(funMap))
@@ -506,7 +506,7 @@ Section CEnv.
         "failed to lookup the function" in (fid, f).
 
   Definition lookup_action_function (name: string) (env: ClightEnv)
-    : Result.result (ident * Clight.function) :=
+    : result string (ident * Clight.function) :=
     let* fid :=
       Result.from_opt
         (Env.find name env.(actMap))
@@ -517,7 +517,7 @@ Section CEnv.
         "failed to lookup the function" in (fid, f).
   
   Definition lookup_instance_function (name: string) (env: ClightEnv)
-    : Result.result (ident * Clight.function) :=
+    : result string (ident * Clight.function) :=
     let* pid :=
       Result.from_opt
         (Env.find name env.(instanceMap))
@@ -527,13 +527,13 @@ Section CEnv.
         (Env.find pid env.(fenv))
         "failed to lookup the function" in (pid, f).
 
-  Definition lookup_topdecl (name: string) (env: ClightEnv) : Result.result TopDecl.d := 
+  Definition lookup_topdecl (name: string) (env: ClightEnv) : result string TopDecl.d := 
     Result.from_opt
       (Env.find name env.(topdecltypes))
       "failed to lookup the top declaration".
 
   Fixpoint lookup_type_rec (temps : list (AST.ident * Ctypes.type)) (id: ident)
-    : Result.result Ctypes.type :=
+    : result string Ctypes.type :=
     match temps with
     | [] => Result.error "failed to lookup the type"
     | (i, t) :: tl => if (i == id)
@@ -542,10 +542,10 @@ Section CEnv.
     end.
 
   Definition lookup_temp_type (id : AST.ident) (env: ClightEnv)
-    : Result.result Ctypes.type := lookup_type_rec env.(temps) id.
+    : result string Ctypes.type := lookup_type_rec env.(temps) id.
 
   Definition lookup_var_type (id : AST.ident) (env: ClightEnv)
-    : Result.result Ctypes.type := lookup_type_rec env.(vars) id.
+    : result string Ctypes.type := lookup_type_rec env.(vars) id.
 
   (* FIXME!
   Definition lookup_expected_instance_types (env: ClightEnv) (name: nat)
@@ -572,7 +572,7 @@ Section CEnv.
     end.
   
   Definition find_table (name: string) (env: ClightEnv)
-    : Result.result
+    : result string
         (ident * list (Expr.e * string) * list (string * Expr.args)) := 
     match Env.find name env.(tblMap), Env.find name env.(tables) with
     | Some id, Some (keys, actions) => Result.ok (id, keys, actions)
@@ -580,7 +580,7 @@ Section CEnv.
     end .
 
   Definition find_extern_type (name: string) (env: ClightEnv)
-    : Result.result string :=
+    : result string string :=
       Result.from_opt
         (Env.find name env.(extern_instance_types))
         "can't find extern name".
@@ -596,7 +596,7 @@ Section CEnv.
 
   (* TODO: correct? *)
   Definition get_functions (env: ClightEnv)
-    : Result.result (list (AST.ident * Clight.function)) := 
+    : result string (list (AST.ident * Clight.function)) := 
     sequence
       (List.map (fun f => lookup_function f env) (Env.keys env.(funMap))).
   
@@ -607,7 +607,7 @@ Section CEnv.
   := env.(globvars).
 
   Definition composite_nth (comp: composite_definition) (n : nat)
-    : Result.result ident :=
+    : result string ident :=
     match comp with
     | (Composite _ _ m _) =>
         match List.nth_error m n with

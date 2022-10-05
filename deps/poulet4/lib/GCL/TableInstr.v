@@ -14,7 +14,7 @@ Definition asm_eq (s : string) (w : nat) (r : BV.t) : ToGCL.target :=
   G.GAssume (F.bveq (BV.BVVar s w) r).
 
 Open Scope string_scope.
-Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * string) (acc_res : result F.t) : result string F.t :=
+Definition matchrow_inner (table : string) (n : nat) (elt : nat * BV.t * string) (acc_res : result string F.t) : result string F.t :=
   let (te, mk) := elt in
   let (w, k) := te in
   let symbmatch := "_symb$" ++ table ++ "$match__" ++ string_of_nat n in
@@ -28,7 +28,7 @@ Definition bits_to_encode_list_index {A : Type} (l : list A) : nat :=
   let n := List.length l in
   Nat.max (PeanoNat.Nat.log2_up n) 1.
 
-Definition action_inner (table : string) (keys : list (nat * BV.t * string)) (w : nat) (n : nat) (named_action : string * ToGCL.target) (res_acc : result (ToGCL.target)) : result string ToGCL.target :=
+Definition action_inner (table : string) (keys : list (nat * BV.t * string)) (w : nat) (n : nat) (named_action : string * ToGCL.target) (res_acc : result string (ToGCL.target)) : result string ToGCL.target :=
   let (name, act) := named_action in
   let+ acc := res_acc in
   G.GChoice

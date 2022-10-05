@@ -435,7 +435,7 @@ Fixpoint inline_transition (gas : nat)
          end
        end.
 
-Fixpoint transition_of_state (s : Stmt.s) : result Parser.trns :=
+Fixpoint transition_of_state (s : Stmt.s) : result string Parser.trns :=
   match s with
   | Stmt.Var _ _ s => transition_of_state s
   | Stmt.Seq _ s => transition_of_state s
@@ -640,7 +640,7 @@ then error "args has typevar call funct" else  *)
           (* let args := elaborate_arguments args in
              ok (IExternMethodCall "_" f args ret) *)
           error
-            ("[TODO] not sure what to do here... Could not find function " ++ f)
+            ("[TODO] not sure what to do here... Could not find function " ++ f)%string
       end
 
     | ST.Call (ST.Action a ctrl_args) data_args =>
@@ -779,7 +779,7 @@ then error "args has typevar call funct" else  *)
               Result.from_opt
                 (Field.get method methods)
                 ("[Error] couldn't find extern method "
-                   ++ method ++ " in extern " ++ ext) in
+                   ++ method ++ " in extern " ++ ext)%string in
             (*if List.existsb e_has_typ_var (List.map paramarg_elim args)
             then error "args has typevar 1" else*)
               let args := List.combine (List.map fst params) args in
@@ -788,7 +788,7 @@ then error "args has typevar call funct" else  *)
             ok (IExternMethodCall ext method args ret)
         | _ => error
                 ("[ERROR] expecting extern when getting extern, got something else for "
-                   ++ ext ++ " & method " ++ method)
+                   ++ ext ++ " & method " ++ method)%string
         end
 
     | ST.Transition _ =>  ok ISkip (*[TODO] how to hanlde parser transitions?*)
@@ -1158,13 +1158,13 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   | IAssign _ lhs rhs  =>
       let* lhs_asserts :=
         match header_asserts lhs with
-        | Ok _ o => ok o
-        | Error _ e => error ("assign left: " ++ e)
+        | Ok o => ok o
+        | Error e => error ("assign left: " ++ e)
         end in
       let+ rhs_asserts :=
         match header_asserts rhs with
-        | Ok _ o => ok o
-        | Error _ e => error ("assign right: " ++ e)
+        | Ok o => ok o
+        | Error e => error ("assign right: " ++ e)
         end in
     ISeq (ISeq lhs_asserts rhs_asserts ) c 
   | IConditional typ guard tru fls  =>
@@ -1172,8 +1172,8 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
     let* fls' := assert_headers_valid_before_use fls in
     let+ guard_asserts :=
       match header_asserts guard with
-      | Ok _ o => ok o
-      | Error _ e => error ("condition: " ++ e)
+      | Ok o => ok o
+      | Error e => error ("condition: " ++ e)
       end in
     ISeq guard_asserts (IConditional typ guard tru' fls' ) 
   | ISeq s1 s2  =>
@@ -1187,8 +1187,8 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
   | IReturnFruit _ e =>
       let+ asserts :=
         match header_asserts e with
-        | Ok _ o => ok o
-        | Error _ e => error ("returnfruit: " ++ e)
+        | Ok o => ok o
+        | Error e => error ("returnfruit: " ++ e)
         end in
     ISeq asserts c 
   | IExit => ok c
@@ -1207,8 +1207,8 @@ Fixpoint assert_headers_valid_before_use (c : t) : result string t :=
                    let arg_exp := get_from_paramarg arg in
                    let+ new_asserts := header_asserts arg_exp  in
                    ISeq acc_asserts new_asserts ) paramargs (ok (ISkip )) with
-        | Ok _ o => ok o
-        | Error _ e => error ("methocall: " ++ e)
+        | Ok o => ok o
+        | Error e => error ("methocall: " ++ e)
         end in
     ISeq asserts (IExternMethodCall ext method paramargs ret)
   end.

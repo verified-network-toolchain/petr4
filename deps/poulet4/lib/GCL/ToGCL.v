@@ -659,13 +659,13 @@ Section ToGCL.
           let* gcl_args :=
             match arrowE_to_arglist args (*over "failed to convert arguments to " @@ ext @@ "." @@ method *)
             with
-            | Ok _ o => ok o
-            | Error _ e => error ("for " ++ method ++ " arrowE_to_arglist sad: " ++ e)
+            | Ok o => ok o
+            | Error e => error ("for " ++ method ++ " arrowE_to_arglist sad: " ++ e)
             end in
           let+ g' :=
             match subst_args g gcl_args with
-            | Ok _ o => ok o
-            | Error _ e => error "can't subst_args"
+            | Ok o => ok o
+            | Error e => error "can't subst_args"
             end in
         (g', c)
       end.

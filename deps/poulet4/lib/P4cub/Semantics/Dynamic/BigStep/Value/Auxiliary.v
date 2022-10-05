@@ -28,7 +28,7 @@ Local Open Scope type_scope.
 (** Intial/Default value from a type. *)
 Fixpoint v_of_t (τ : Expr.t) : option v :=
   match τ with
-  | Expr.TError => Some $ Error "no error"%string
+  | Expr.TError => Some $ Val.Error "no error"%string
   | Expr.TBool  => Some $ Bool false
   | Expr.TBit w => Some $ Bit w 0%Z
   | Expr.TInt w => Some $ Int w 0%Z
@@ -90,7 +90,7 @@ Fixpoint t_of_v (V : v) : Expr.t :=
   | Bool _ => Expr.TBool
   | w VW _ => Expr.TBit w
   | w VS _ => Expr.TInt w
-  | Error _ => Expr.TError
+  | Val.Error _ => Expr.TError
   | Lists (Expr.lists_array τ) vs  =>
       Expr.TArray (N.of_nat $ List.length vs) τ
   | Lists Expr.lists_struct vs     =>
@@ -137,7 +137,7 @@ Fixpoint e_of_v (V : v) : Expr.e :=
   | Bool b => Expr.Bool b
   | w VW n => w `W n
   | w VS z => w `S z
-  | Error err => Expr.Error err
+  | Val.Error err => Expr.Error err
   | Lists ls vs => Expr.Lists ls (map e_of_v vs)
   end.
 

@@ -240,7 +240,7 @@ Section Embed.
     | (_, h)::t => func h :: snd_map func t
     end.
 
-  Fixpoint proj (v : VAL) : Result.result Val.v :=
+  Fixpoint proj (v : VAL) : result string Val.v :=
     match v with
     | ValBaseBool b => Result.ok (Val.Bool b)
     | ValBaseInt lb =>

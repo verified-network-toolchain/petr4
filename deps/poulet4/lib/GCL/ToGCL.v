@@ -208,7 +208,7 @@ Section ToGCL.
     Definition string_of_pos (x : positive) :=
       string_of_nat (BinPosDef.Pos.to_nat x).
 
-    Fixpoint to_lvalue (e : E.e ) : result string string :=
+    Fixpoint to_lvalue (e : E.e) : result string string :=
       match e with
       | E.Bool _ => error "Boolean Literals are not lvalues"
       | E.Bit _ _ => error "BitVector Literals are not lvalues"
@@ -572,7 +572,7 @@ Section ToGCL.
                          | PAInOut e =>
                            match t_of_e e with
                            | E.TBool =>
-                             let~ phi := to_form e over "couldn't convert form in arrowE_to_arglist" in
+                             let* phi := to_form e (*over "couldn't convert form in arrowE_to_arglist"*) in
                              ok ((name, inl phi) :: res)
                            | _ =>
                              let* e' := to_rvalue e (*over "couldn't convert rvalue in arrowE_to_arglist"*) in

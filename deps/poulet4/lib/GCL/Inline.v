@@ -231,7 +231,7 @@ Fixpoint elaborate_arg_expression (param : string) (arg : E.e) : F.fs string E.e
            let param_i := index_array_str param i in
            let es := elaborate_arg_expression param_i e in
            List.app es acc) [] es
-  | E.Index t stk idx => [(param, arg)] (* TODO: get length from type of stk & iterate *)
+  | E.Index t stk idx => fold_righti loop [] [t]
   | E.Var (E.TVar _) _ _ => [(param, arg)]
   | _ => [(param, arg)]
   end.

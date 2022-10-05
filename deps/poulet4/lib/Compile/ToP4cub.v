@@ -774,7 +774,7 @@ Section ToP4cub.
               end
         | ExpTernary cond tru fls =>
             error "Ternary expressions should have been hoisted by a previous pass"
-        | ExpFunctionCall _ =>
+        (*| ExpFunctionCall _ =>*)
         | ExpFunctionCall func type_args args =>
             error
               ("calling " ++ get_func_name func
@@ -876,84 +876,7 @@ Section ToP4cub.
             ok (ST.Assign (E.Var E.TBool original_name rv)
                           (E.Uop E.TBool E.IsValid hdr))
         end.
-      
-      Definition translate_extern_string (ctx : DeclCtx) (extern_str f_str : string) args :=
-        let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
-        match extern_decl with
-        | None => error ("ERROR expected an extern, but got " ++ extern_str)
-        | Some (TopDecl.Extern extn_name tparams cparams exp_cparams methods) =>
-            let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
-            match called_method with
-            | None =>
-                error ("Couldn't find " ++ extern_str ++ "." ++ f_str)
-            | Some (_, (targs, ar)) =>
-                let params := List.map
-                                (fun '(_,pa) =>
-                                   match pa with
-                                   | PAIn _ => PAIn
-                                   | PAOut _ => PAOut
-                                   | PAInOut _ => PAInOut
-                                   end)
-                                (paramargs ar) in
-                let* cub_args := translate_arglist args in
-                let+ args := apply_args_to_params f_str params cub_args in
-                (* TODO Currently assuming method calls return None*)
-                ST.Call (ST.Method extern_str f_str [] None) args
-            end
-        | Some _ =>
-            error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
-        end.
-      
-      Definition translate_expression_member_call
-                 (args : list (option (@Expression tags_t)))
-                 (ctx : DeclCtx)
-                 (callee : Expression)
-                 (ret_var : option (string * nat))
-                 (ret_type : option E.t)
-                 (f : P4String.t tags_t) : result ST.s :=
-        let f_str := P4String.str f in
-        if f_str =? "apply" then
-          translate_apply callee args ret_var ret_type
-        else if f_str =? "setInvalid" then
-               translate_set_validity false callee
-             else if f_str =? "setValid" then
-                    translate_set_validity true callee
-                  else if f_str =? "isValid" then
-                         translate_is_valid callee ret_var
-                       else
-                         match get_type_of_expr callee with
-                         | TypTypeName extern_obj
-                         | TypExtern extern_obj =>
-                             translate_extern_string ctx (P4String.str extern_obj) f_str args
-                         | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
-                             (* [TODO] Something is weird here RE type arguments *)
-                             translate_extern_string ctx (P4String.str extern_obj_type) f_str args
-                         | TypArray typ n =>
-                             let* op :=
-                               (if f_str =? "pop_front" then ok pop_front
-                                else
-                                  if f_str =? "push_front" then ok push_front
-                                  else error ("ERROR :: unknown header_stack operation " ++ f_str))
-                             in
-                             let* num_ops :=
-                               match args with
-                               | [Some (MkExpression tags (ExpInt int) typ dir)] =>
-                                   ok int.(value)
-                               | [None] | [] => ok 1%Z
-                               | _ =>
-                                   error ("Got an incorrect number of arguments for header stack operation "
-                                            ++ f_str ++
-                                            "Expected 1 or 0, got " ++ string_of_nat (List.length args))
-                               end in
-                             let* hdr_stack := translate_expression callee in
-                             let+ cub_type := translate_exp_type typ in
-                             op cub_type n num_ops hdr_stack
-                         | _ =>
-                             error
-                               ("[ERROR] Cannot translate non-externs member functions that aren't `apply`s: "
-                                  ++ f_str)
-                         end.
-      
+            
       Definition
         translate_function_application
         (fname : P4String.t tags_t) ret type_args parameters args : result ST.s :=
@@ -961,27 +884,109 @@ Section ToP4cub.
           translate_application_args (P4String.str fname) parameters args in
         let+ cub_type_params := rred (List.map translate_exp_type type_args) in
         ST.Call (ST.Funct (P4String.str fname) cub_type_params ret) paramargs.
-      
-      Definition
-        function_call_init
+    End Expressions.
+
+    Definition translate_extern_string
+      (term_names : list string) (ctx : DeclCtx) (extern_str f_str : string) args :=
+      let extern_decl :=  find (decl_has_name extern_str) ctx.(externs) in
+      match extern_decl with
+      | None => error ("ERROR expected an extern, but got " ++ extern_str)
+      | Some (TopDecl.Extern extn_name tparams cparams exp_cparams methods) =>
+          let called_method := find (fun '(nm, _) => String.eqb nm f_str) methods in
+          match called_method with
+          | None =>
+              error ("Couldn't find " ++ extern_str ++ "." ++ f_str)
+          | Some (_, (targs, ar)) =>
+              let params := List.map
+                              (fun '(_,pa) =>
+                                 match pa with
+                                 | PAIn _ => PAIn
+                                 | PAOut _ => PAOut
+                                 | PAInOut _ => PAInOut
+                                 end)
+                              (paramargs ar) in
+              let* cub_args := translate_arglist (term_names ++ get_variables ctx) args in
+              let+ args := apply_args_to_params f_str params cub_args in
+              (* TODO Currently assuming method calls return None*)
+              ST.Call (ST.Method extern_str f_str [] None) args
+          end
+      | Some _ =>
+          error "Invariant Violated. Declaration Context Extern list contained something other than an extern."
+      end.
+    
+    Definition translate_expression_member_call
+      (term_names : list string)
+      (args : list (option (@Expression tags_t)))
+      (ctx : DeclCtx)
+      (callee : Expression)
+      (ret_var : option (string * nat))
+      (ret_type : option E.t)
+      (f : P4String.t tags_t) : result ST.s :=
+      let f_str := P4String.str f in
+      if f_str =? "apply" then
+        translate_apply (term_names ++ get_variables ctx) callee args ret_var ret_type
+      else if f_str =? "setInvalid" then
+             translate_set_validity (term_names ++ get_variables ctx) false callee
+           else if f_str =? "setValid" then
+                  translate_set_validity (term_names ++ get_variables ctx) true callee
+                else if f_str =? "isValid" then
+                       translate_is_valid (term_names ++ get_variables ctx) callee ret_var
+                     else
+                       match get_type_of_expr callee with
+                       | TypTypeName extern_obj
+                       | TypExtern extern_obj =>
+                           translate_extern_string term_names ctx (P4String.str extern_obj) f_str args
+                       | TypSpecializedType (TypExtern extern_obj_type) extern_obj_type_args =>
+                           (* [TODO] Something is weird here RE type arguments *)
+                           translate_extern_string term_names ctx (P4String.str extern_obj_type) f_str args
+                       | TypArray typ n =>
+                           let* op :=
+                             (if f_str =? "pop_front" then ok pop_front
+                              else
+                                if f_str =? "push_front" then ok push_front
+                                else error ("ERROR :: unknown header_stack operation " ++ f_str))
+                           in
+                           let* num_ops :=
+                             match args with
+                             | [Some (MkExpression tags (ExpInt int) typ dir)] =>
+                                 ok int.(value)
+                             | [None] | [] => ok 1%Z
+                             | _ =>
+                                 error ("Got an incorrect number of arguments for header stack operation "
+                                          ++ f_str ++
+                                          "Expected 1 or 0, got " ++ string_of_nat (List.length args))
+                             end in
+                           let* hdr_stack := translate_expression (term_names ++ get_variables ctx) callee in
+                           let+ cub_type := translate_exp_type typ in
+                           op cub_type n num_ops hdr_stack
+                       | _ =>
+                           error
+                             ("[ERROR] Cannot translate non-externs member functions that aren't `apply`s: "
+                                ++ f_str)
+                       end.
+
+    Definition
+      function_call_init
+        (term_names : list string)
         (ctx : DeclCtx) (e : Expression)
         (ret_var : string * nat) (ret_type : E.t) : option (result ST.s) :=
-        let '(MkExpression tags expr typ dir) := e in
-        match expr with
-        | ExpFunctionCall func type_args args =>
-            let '(MkExpression tags func_pre typ dir) := func in
-            match func_pre with
-            | ExpExpressionMember callee f =>
-                Some $
-                  translate_expression_member_call
-                  args ctx callee (Some ret_var) (Some ret_type) f
-            | ExpName (BareName n) loc =>
-                match typ with
-                | TypFunction (MkFunctionType type_params parameters kind ret) =>
-                    Some $
+      let '(MkExpression tags expr typ dir) := e in
+      match expr with
+      | ExpFunctionCall func type_args args =>
+          let '(MkExpression tags func_pre typ dir) := func in
+          match func_pre with
+          | ExpExpressionMember callee f =>
+              Some $
+                translate_expression_member_call
+                term_names args ctx callee (Some ret_var) (Some ret_type) f
+          | ExpName (BareName n) loc =>
+              match typ with
+              | TypFunction (MkFunctionType type_params parameters kind ret) =>
+                  Some $
                     match kind with
                     | FunExtern =>
-                        let* 'paramargs := translate_application_args (P4String.str n) parameters args in
+                        let* 'paramargs := translate_application_args
+                                             (term_names ++ get_variables ctx) (P4String.str n) parameters args in
                         let+ cub_type_args := rred (lmap translate_exp_type type_args) in
                         (* TODO: need "_" to be initialized *)
                         ST.Call
@@ -990,24 +995,24 @@ Section ToP4cub.
                              (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))))
                           paramargs
                     | _ => translate_function_application
+                            (term_names ++ get_variables ctx)
                             n (Some (Expr.Var ret_type (fst ret_var) (snd ret_var))) type_args parameters args
                     end
-                | _ =>
-                    Some $
-                         error
-                         ("[function_call_init] A name,"
-                            ++ P4String.str n
-                            ++ "applied like a method call, must be a function or extern type; I got something else")
-                end
-            | _ => Some $ error "ERROR :: Cannot handle this kind of expression"
-            end
-        | _ => None
-        end.
-    End Expressions.
+              | _ =>
+                  Some $
+                    error
+                    ("[function_call_init] A name,"
+                       ++ P4String.str n
+                       ++ "applied like a method call, must be a function or extern type; I got something else")
+              end
+          | _ => Some $ error "ERROR :: Cannot handle this kind of expression"
+          end
+      | _ => None
+      end.
     
     Fixpoint
       translate_statement_switch_case
-      (term_names : list string)
+        (term_names : list string)
       ctx (match_expr : E.e) (bits : N)
       (tenum : list (P4String.t tags_t)) (acc : (option E.e) * (ST.s -> ST.s))
       (ssw : @StatementSwitchCase tags_t)
@@ -1105,13 +1110,13 @@ Section ToP4cub.
                | _ => error "ERROR :: Cannot handle this kind of expression"
                end
            | StatAssignment lhs rhs =>
-               let* cub_lhs := translate_expression term_names lhs in
-               let+ cub_rhs := translate_expression term_names rhs in
+               let* cub_lhs := translate_expression (term_names ++ get_variables ctx) lhs in
+               let+ cub_rhs := translate_expression (term_names ++ get_variables ctx) rhs in
                ST.Assign cub_lhs cub_rhs
            | StatDirectApplication typ func_typ args =>
                error "[FIXME] (StatDirectApplication) Need to translate into instantiation and then application"
            | StatConditional cond tru fls_opt =>
-               let* cub_cond := translate_expression term_names cond in
+               let* cub_cond := translate_expression (term_names ++ get_variables ctx) cond in
                let* cub_tru := translate_statement
                                  term_names  ctx tru in
                let+ cub_fls := match fls_opt with
@@ -1129,7 +1134,8 @@ Section ToP4cub.
            | StatReturn expr_opt =>
                match expr_opt with
                | Some e =>
-                   let+ (cub_typ, cub_expr) := translate_expression_and_type term_names e in
+                   let+ (cub_typ, cub_expr) :=
+                     translate_expression_and_type (term_names ++ get_variables ctx) e in
                    ST.Return (Some cub_expr)
                | None =>
                    ok (ST.Return None)
@@ -1137,7 +1143,7 @@ Section ToP4cub.
            | StatSwitch expr cases =>
                let* tenum := get_enum_type expr in
                let bits := BinNat.N.of_nat (PeanoNat.Nat.log2_up (List.length tenum)) in
-               let* expr := translate_expression term_names expr in
+               let* expr := translate_expression (term_names ++ get_variables ctx) expr in
                let+ (_, cases_as_ifs) :=
                  List.fold_left (fun acc_res switch_case =>
                                    let* acc := acc_res in
@@ -1189,7 +1195,7 @@ Section ToP4cub.
                        term_names
                        ctx e (x,0) t with
                | None =>
-                   let* e := translate_expression term_names e in
+                   let* e := translate_expression (term_names ++ get_variables ctx) e in
                    let+ s :=
                      translate_block
                        (x :: term_names)                       
@@ -1362,7 +1368,7 @@ Section ToP4cub.
     | [] =>
         let+ pe :=
           translate_transition
-            term_names parser_states transition in
+            (term_names ++ get_variables ctx) parser_states transition in
         Stmt.Transition pe
     | MkStatement
         _ (StatVariable
@@ -1383,7 +1389,7 @@ Section ToP4cub.
                 [] term_names
                 ctx e (x,0) t with
         | None =>
-            let* e := translate_expression [] term_names e in
+            let* e := translate_expression [] (term_names ++ get_variables ctx) e in
             let+ s :=
               translate_parser_state_block
                 (x :: term_names)                
@@ -1770,13 +1776,13 @@ Section ToP4cub.
         let* ctor_p4string := get_string_from_type typ in
         let ctor_name := P4String.str ctor_p4string in
         let* '(cnstr_args, exp_cnstr_args) :=
-          translate_instantiation_args term_names args in
+          translate_instantiation_args (term_names ++ get_variables ctx) args in
         let* type_args := get_cub_type_args [] typ in
         let d := TopDecl.Instantiate
                    ctor_name cub_name type_args cnstr_args exp_cnstr_args in
         let+ add_to_context := get_augment_from_name ctx ctor_name in
         add_to_context d
-    | DeclParser _ name _ params constructor_params _ states =>
+    | DeclParser _ name _ params constructor_params locals states =>
         let cub_name := P4String.str name in
         let* (cub_cparams,cub_expr_cparams) :=
           translate_to_constructor_params
@@ -1784,10 +1790,15 @@ Section ToP4cub.
         let (names1, cub_expr_cparams) := List.split cub_expr_cparams in
         let* '(cub_eparams, cub_params) := translate_runtime_params [] params in
         let names2 := List.map fst cub_params in
+        let* local_ctx :=
+          let loop acc decl :=
+            let* ctx := acc in
+            translate_decl term_names ctx decl in
+          fold_left loop locals (ok ctx) in
         let term_names := (names2 ++ names1 ++ term_names)%list in
         let* (start_opt, cub_states) :=
           translate_parser_states
-            term_names  ctx states in
+            term_names local_ctx states in
         let*~ cub_start :=
           start_opt else
     "could not find a starting state for the parser" in
@@ -1892,7 +1903,7 @@ Section ToP4cub.
         let name := P4String.str name in
         let* cub_keys :=
           translate_keys
-            [] term_names keys in
+            [] (term_names ++ get_variables ctx) keys in
         let+ cub_actions := translate_actions ctx term_names actions in
         add_table ctx (Control.Table name cub_keys cub_actions)
     | DeclHeader tags name fields =>
@@ -2026,4 +2037,4 @@ Section ToP4cub.
     let+ ctx := translate_program tags p in 
     flatten_DeclCtx ctx.
     
-End ToP4cub. 
+End ToP4cub.

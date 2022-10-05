@@ -1295,23 +1295,36 @@ Section Soundness.
                       destruct Hl'l as [Hl'l | Hl'l]; subst;
                         try (rewrite PathMap.get_set_same; eauto);
                         try (rewrite PathMap.get_set_diff in Hlt' by assumption;
-                             rewrite PathMap.get_set_diff by assumption; eauto).
+                             rewrite PathMap.get_set_diff by assumption;
+                             simpl;
+                             eauto);
+                    simpl; eexists; eauto.
                ++ clear Hdom; unfold gamma_var_val_typ in *.
                   intros l' t' sv' Hlt' Hlsv'.
                   unfold update_val_by_loc in *.
                   specialize Hvart with (l:=l') (t:=t') (v:=sv').
                   destruct l' as [l' | l']; cbn in *; try discriminate.
+                  repeat simpl_result_all.
                   destruct st as [st ext].
                   destruct l as [l | l];
                     unfold update_memory,get_memory,get_loc_path,
                     bind_var_typ in *; cbn in Hlt';
+                      repeat simpl_result_all; subst;
                       pose proof list_eq_dec string_dec l' l as Hl'l;
                       destruct Hl'l as [Hl'l | Hl'l]; subst;
                         try rewrite PathMap.get_set_same in Hlt';
                         try rewrite PathMap.get_set_same in Hlsv';
                         try rewrite PathMap.get_set_diff in Hlt' by assumption;
                         try rewrite PathMap.get_set_diff in Hlsv' by assumption;
-                        repeat some_inv; eauto.
+                    repeat simpl_result_all; subst;
+                    repeat some_inv;
+                    eauto.
+                  eapply Hvart; eauto.
+                  rewrite Hlsv'.
+                  reflexivity.
+                  eapply Hvart; eauto.
+                  rewrite Hlsv'.
+                  reflexivity.
             -- eapply exec_expr_call_False in H11; eauto; contradiction.
         + admit. (** TODO: call cases. *)
       - split.
@@ -1346,12 +1359,15 @@ Section Soundness.
                      try (rewrite PathMap.get_set_same; eauto);
                      try (rewrite PathMap.get_set_diff in Hlt' by assumption;
                           rewrite PathMap.get_set_diff by assumption; eauto).
+               simpl; eexists; eauto.
+               simpl; eexists; eauto.
             -- clear Hdom; unfold gamma_var_val_typ in *.
                intros l' t' sv' Hlt' Hlsv'.
                unfold update_val_by_loc in *.
                specialize Hvart with (l:=l') (t:=t') (v:=sv').
                destruct l' as [l' | l']; cbn in *; try discriminate.
                destruct st as [st ext].
+               repeat simpl_result_all; subst.
                destruct l as [l | l];
                  unfold update_memory,get_memory,get_loc_path,
                  bind_var_typ in *; cbn in Hlt';
@@ -1363,6 +1379,10 @@ Section Soundness.
                      try rewrite PathMap.get_set_diff in Hlsv' by assumption;
                      repeat some_inv;
                      eauto 6 using uninit_sval_of_typ_val_typ.
+               apply Hvart; eauto.
+               rewrite Hlsv'; reflexivity.
+               apply Hvart; eauto.
+               rewrite Hlsv'; reflexivity.
           * destruct Hgst as [HΓₑ [Hgfdom Hgft]].
             unfold gamma_func_prop in *; split; auto.
     Admitted.

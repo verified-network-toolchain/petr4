@@ -116,3 +116,80 @@ let eq_opt ~f o1 o2 =
   | None, None -> true
   | Some v1, Some v2 -> f v1 v2
   | _ -> false
+
+let rec pos_int_to_rev_bits' (acc: bool list) (k: int) : bool list =
+  assert (k >= 0);
+  if k = 0
+  then acc
+  else if k mod 2 = 0
+       then pos_int_to_rev_bits' (false :: acc) (k / 2)
+       else pos_int_to_rev_bits' (true :: acc)  ((k - 1) / 2)
+
+let pos_int_to_rev_bits (k: int) : bool list =
+  pos_int_to_rev_bits' [] k
+
+let string_to_bits (s: string) : bool list =
+  s
+  |> String.to_list_rev
+  |> List.map ~f:Char.to_int
+  |> List.concat_map ~f:pos_int_to_rev_bits
+  |> List.rev
+
+let bool_to_int (b: bool) : int =
+  if b then 1 else 0
+
+let rec group8' acc lst =
+  match lst with
+  | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: lst' ->
+     group8' ([b1; b2; b3; b4; b5; b6; b7; b8] :: acc) lst'
+  | [] -> acc
+  | _ -> lst :: acc
+
+let group8 lst =
+  group8' [] lst
+  |> List.rev
+
+let bits_to_string (bs: bool list) : string =
+  (* Expects 0 <= idx < 8 *)
+  let accum_bits idx acc bit =
+    let p = 7 - idx in
+    acc + bit lsl p
+  in
+  bs
+  |> List.map ~f:bool_to_int
+  |> group8
+  |> List.map ~f:(List.foldi ~init:0 ~f:accum_bits)
+  |> List.map ~f:Char.of_int_exn
+  |> String.of_char_list
+
+let hex_of_nibble (i : int) : string =
+  match i with
+  | 0 -> "0"
+  | 1 -> "1"
+  | 2 -> "2"
+  | 3 -> "3"
+  | 4 -> "4"
+  | 5 -> "5"
+  | 6 -> "6"
+  | 7 -> "7"
+  | 8 -> "8"
+  | 9 -> "9"
+  | 10 -> "A"
+  | 11 -> "B"
+  | 12 -> "C"
+  | 13 -> "D"
+  | 14 -> "E"
+  | 15 -> "F"
+  | _ -> failwith "unreachable"
+
+let hex_of_int (i : int) : string =
+  hex_of_nibble (i/16) ^ hex_of_nibble (i%16) ^ " "
+
+let hex_of_char (c : char) : string =
+  c |> Char.to_int |> hex_of_int
+
+let hex_of_string (s : string) : string =
+  s
+  |> String.to_list
+  |> List.map ~f:hex_of_char
+  |> List.fold_left ~init:"" ~f:(^)

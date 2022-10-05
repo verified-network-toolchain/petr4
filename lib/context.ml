@@ -15,7 +15,6 @@
 
 open Core
 open Util
-open P4string
 
 type t = (bool StringMap.t) list [@@deriving sexp]
 
@@ -29,7 +28,7 @@ let reset () =
   backup := []
 
 (* Associates [id] with [b] in map for current scope *)
-let declare id b =
+let declare (id: P4string.t) b =
   match !context with
   | [] ->
     failwith "ill-formed context"
@@ -40,7 +39,7 @@ let declare_type id = declare id true
 let declare_var id = declare id false
 
 (* Tests whether [id] is known as a type name. *)
-let is_typename id =
+let is_typename (id: P4string.t) =
   let rec loop =
     function
     | [] ->

@@ -105,7 +105,7 @@ Module ResultNotations.
 
   Infix ">=>" := rcomp (at level 80, right associativity).
 
-  Infix "|=>" := map (at level 80, right associativity).
+  Infix "|=>" := (fun r f => map f r) (at level 80, right associativity).
 
 End ResultNotations.
 
@@ -124,4 +124,118 @@ Fixpoint commute_result_optlist {A : Type} (l : list (option (result string A)))
       | Some a_res =>
           map (fun p => Some p :: l) a_res
       end
+  end.
+
+  Lemma ok_Ok_inj :
+    forall {Err A : Type} (a a': A),
+      @ok Err A a = @Ok Err A a' ->
+      a = a'.
+  Proof.
+    unfold ok.
+    intros.
+    injection H.
+    tauto.
+  Qed.
+
+  Lemma error_not_ok :
+    forall {Err A : Type} (e : Err) (a: A),
+      @error Err A e = @Ok Err A a ->
+      False.
+  Proof.
+    unfold error.
+    congruence.
+  Qed.
+
+  Lemma from_opt_Ok :
+    forall {Err A : Type} (c : option A) (e : Err) (v : A),
+      from_opt c e = Ok v ->
+      c = Some v.
+  Proof.
+    unfold from_opt.
+    intros.
+    destruct c.
+    - apply ok_Ok_inj in H.
+      congruence.
+    - exfalso; eauto using error_not_ok.
+  Qed.
+
+  Lemma bind_Ok :
+    forall {Err A B : Type}
+           (c : result Err A)
+           (f : A -> result Err B)
+           (v : B),
+      bind c f = Ok v ->
+      exists w,
+        c = Ok w /\ f w = Ok v.
+  Proof.
+    unfold bind.
+    intros.
+    destruct c; eauto.
+    congruence.
+  Qed.
+
+  Ltac unchecked_inv_bind H :=
+  let w := fresh "w" in
+  let Hw := fresh "Hw" in
+  apply bind_Ok in H;
+  destruct H as [w [Hw H]].
+
+Ltac inv_bind H :=
+  match type of H with
+  | mbind ?c ?f = Ok ?v =>
+      unchecked_inv_bind H
+  | bind ?c ?f = Ok ?v =>
+      unchecked_inv_bind H
+  end.
+
+Lemma map_Ok :
+  forall {Err A B : Type}
+         (f : A -> B)
+         (c : result Err A)
+         (v : B),
+    map f c = Ok v ->
+    exists w,
+      c = Ok w /\ v = f w.
+Proof.
+  unfold map.
+  intros.
+  destruct c.
+  - apply ok_Ok_inj in H.
+    eauto.
+  - apply error_not_ok in H.
+    tauto.
+Qed.
+
+Ltac unchecked_inv_map H :=
+  let w := fresh "w" in
+  let Hw := fresh "Hw" in
+  apply map_Ok in H;
+  destruct H as [w [Hw H]].
+
+Ltac inv_map H :=
+  match type of H with
+  | map ?c ?f = Ok ?v =>
+      unchecked_inv_map H
+  end.
+
+Ltac simpl_from_opt H :=
+  apply from_opt_Ok in H.
+
+Ltac simpl_result_error H :=
+  apply error_not_ok in H.
+
+Ltac simpl_result_ok H :=
+  apply ok_Ok_inj in H.
+
+Ltac simpl_result H :=
+  inv_bind H ||
+  inv_map H ||
+  simpl_from_opt H ||
+  simpl_result_error H ||
+  simpl_result_ok H ||
+  idtac.
+
+Ltac simpl_result_all :=
+  match goal with
+  | H: _ |- _ => progress simpl_result H
   end.

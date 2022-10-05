@@ -662,6 +662,8 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
+
+(* so type equality is solve type with cast set to false and an empty unknowns*)
 and solve_types ?(casts=true)
                 (env: CheckerEnv.t)
                 (equiv_vars: (string * string) list)

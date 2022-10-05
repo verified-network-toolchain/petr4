@@ -1,5 +1,5 @@
 \newcommand{\VVal}[1]{#1'}
-%% \newcommand{\VVVal}[1]{#1''}
+\newcommand{\VVVal}[1]{#1''}
 
 
 %rule names:
@@ -35,6 +35,9 @@
 \newcommand*{\setT}{\rn{Set}\rT}
 \newcommand*{\enumTwoT}{\rn{SerializableEnum}\rT}
 \newcommand*{\recordT}{\rn{Record}\rT}
+\newcommand*{\headerUnionT}{\rn{HeaderUnion}\rT}
+\newcommand*{\headerT}{\rn{Header}\rT}
+\newcommand*{\structT}{\rn{Struct}\rT}
 \newcommand*{\newTypeT}{\rn{NewType}\rT}
 \newcommand*{\specializedExternT}{\rn{SpecializedType}\rSep\rn{ExternBase}\rT}
 \newcommand*{\specializedRestT}{\rn{SpecializedType}\rSep\rn{Rest}\rT}
@@ -278,11 +281,12 @@
 \newcommand{\val}{v}
 \newcommand{\bit}{b}
 \renewcommand{\int}{n}
-\newcommand{\bitWidth}[2]{{#2}\mathsf{b}{#1}}
-\newcommand{\intWidth}[2]{{#2}\mathsf{w}{#1}}
+\newcommand{\bitWidth}[2]{{#2}\mathsf{w}{#1}}
+\newcommand{\intWidth}[2]{{#2}\mathsf{s}{#1}}
 \newcommand{\name}{x}
 \newcommand{\var}{x}
 \newcommand{\typVar}{X}
+\newcommand{\typName}{x}
 \newcommand{\typVars}{\overline \typVar}
 %% \renewcommand{\array}{a}
 %% \renewcommand{\index}{i}
@@ -308,6 +312,7 @@
 \newcommand{\paris}[1]{\overline {\pari {#1}}}
 \newcommand{\pars}[2]{\pari {#1}, \ldots, \pari {#2}}
 % wildcard param for wild card type vars.
+\newcommand{\wildcard}{\_\!\_}
 \newcommand{\wildcardParam}{W}
 \newcommand{\wildcardParams}{\overline \wildcardParam}
 \renewcommand{\arg}{\mathit{arg}}
@@ -537,24 +542,26 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typVar}\ \{\fields\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typName}\ \{\fields\}}
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
 \newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
-\newcommand{\recordTyp}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
-\newcommand{\recordTypp}[2]{\{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
-\newcommand{\recordTyps}{\{\overline {\field : \typ}\}}
-\newcommand{\recordTypss}[2]{\{\overline {{#1} : {#2}}\}}
-\newcommand{\headerUnionTyp}[2]{\recordTyp {#1} {#2}}
-\newcommand{\headerUnionTyps}[2]{\recordTypss {#1} {#2}}
-\newcommand{\headerTyp}[2]{\recordTyp {#1} {#2}}
-\newcommand{\structTyp}[2]{\recordTyp {#1} {#2}}
-\newcommand{\headerTyps}[2]{\recordTypss {#1} {#2}}
-\newcommand{\headerTypp}[2]{\recordTypp {#1} {#2}}
-\newcommand{\structTypp}[2]{\recordTypp {#1} {#2}}
-\newcommand{\structTypDef}{\recordTypDef}
-\newcommand{\structTyps}[2]{\recordTypss {#1} {#2}}
+\newcommand{\recordTypStructureOpen}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\recordTypStructureClose}[2]{\{\overline {{#1} : {#2}}\}}
+\newcommand{\recordTyp}[2]{\mathsf{record} \{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
+\newcommand{\recordTypp}[2]{\mathsf{record} \{\prim {\field_{#1}}:\prim {\typ_{#1}};\ldots;\prim {\field_{#2}}:\prim {\typ_{#2}}\}}
+%% \newcommand{\recordTyps}{\mathsf{record} \recordTypStructureClose \field \typ}
+\newcommand{\recordTyps}[2]{\mathsf{record} \recordTypStructureClose {#1} {#2}}
+\newcommand{\headerUnionTyp}[2]{\mathsf{header\_union} \recordTypStructureOpen {#1} {#2}}
+\newcommand{\headerUnionTyps}[2]{\mathsf{header\_union} \recordTypStructureClose {#1} {#2}}
+\newcommand{\headerTyp}[2]{\mathsf{header}\recordTypStructureOpen {#1} {#2}}
+\newcommand{\structTyp}[2]{\mathsf{struct} \recordTypStructureOpen {#1} {#2}}
+\newcommand{\headerTyps}[2]{\mathsf{header} \recordTypStructureClose {#1} {#2}}
+%% \newcommand{\headerTypp}[2]{\mathsf{header} \recordTypp {#1} {#2}}
+%% \newcommand{\structTypp}[2]{\mathsf{struct} \recordTypp {#1} {#2}}
+\newcommand{\structTypDef}{\mathsf{struct} \recordTypStructureOpen 1 n}
+\newcommand{\structTyps}[2]{\mathsf{struct} \recordTypStructureClose {#1} {#2}}
 %% \newcommand{\headerUnionTyp}{\mathit{header\_union}\{\field_1:\typ_1;\ldots;\field_n:\typ_n \}}
 %% \newcommand{\headerTypDef}{\headerTyp 1 n}
 %% \newcommand{\headerTyp}[2]{\mathit{header}\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}
@@ -568,12 +575,16 @@
 %kind.type param. param. return type. 
 \newcommand{\funcType}[4]{\mathsf{function}\ {#1}\ \langle{#2}\rangle ({#3})\rightarrow {#4}}
 % type params: list of name. wildcard param: list of name. params: list of type dir name. return: typed.
-\newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
+%% second arg is wildcard which is omitted for now. 
+%% \newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
+\newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle{#1},{#2}\rangle \rightarrow {#3}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
 \newcommand{\spcTyp}[2]{{#1}\langle{#2}\rangle}
 \newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
 \newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
-\newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
+\newcommand{\packageTyp}[2]{\mathsf{package}\langle{#1}\rangle({#2})}
+%% the third arg is wildcard which is omitted for now.
+%% \newcommand{\packageTyp}[3]{\mathsf{package}\langle{#1}\rangle({#2},{#3})}
 \newcommand{\actionTyp}[2]{\mathsf{action}(\mathsf{data:}\ {#1},\mathsf{control:}\ {#2})}
 \newcommand{\tableTyp}[1]{\mathsf{table}\ {#1}}
 %% \newcommand{\typNameTyp}[1]{\mathsf{type\_name}\ {#1}}

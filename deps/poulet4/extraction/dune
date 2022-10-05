@@ -89,6 +89,7 @@
   ExceptionState
   HeaderStack
   Shift
+  RecordSet
   Pure)
  (libraries zarith bignum)
  (theories Poulet4))

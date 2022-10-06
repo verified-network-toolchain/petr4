@@ -59,9 +59,13 @@ module MakeDriver (IO: DriverIO) = struct
       Ok (Parser.p4program Lexer.lexer lexbuf)
     with Parser.Error -> Error (ParserError (Lexer.info lexbuf))
 
-  let print_surface cfg (prog: Surface.program) =
-    Format.eprintf "TODO: implement surface pretty printing.";
-    Ok prog
+  let print_surface (cfg: Pass.compiler_cfg) (prog: Surface.program) =
+    match cfg.cfg_p4surface with
+    | Skip -> Error Finished
+    | Run None -> Ok prog
+    | Run (Some out) ->
+      Format.eprintf "TODO: implement surface pretty printing.\n";
+      Ok prog
 
   let check cfg (prog: Surface.program) =
     try
@@ -99,7 +103,7 @@ module MakeDriver (IO: DriverIO) = struct
             ["@pragma pa_auto_init_metadata"]
             prog
        | Sexps ->
-          Format.eprintf "TODO: implement p4light s-expression pretty printing."
+          Format.eprintf "TODO: implement p4light s-expression pretty printing.\n"
        | Coq ->
            Exportp4.print_program fmt prog
        | Ocaml ->
@@ -126,13 +130,13 @@ module MakeDriver (IO: DriverIO) = struct
        let fmt = Format.formatter_of_out_channel oc in
        begin match out.out_fmt with
        | Concrete -> 
-          Format.eprintf "TODO: implement p4cub concrete syntax pretty printing."
+          Format.eprintf "TODO: implement p4cub concrete syntax pretty printing.\n"
        | Sexps ->
           Printp4cub.print_tp_decl fmt prog
        | Coq ->
-          Format.eprintf "TODO: implement p4cub coq pretty printing."
+          Format.eprintf "TODO: implement p4cub coq pretty printing.\n"
        | Ocaml ->
-          Format.eprintf "TODO: implement p4cub OCaml pretty printing."
+          Format.eprintf "TODO: implement p4cub OCaml pretty printing.\n"
        end;
        IO.close_file oc;
        Ok prog
@@ -146,8 +150,9 @@ module MakeDriver (IO: DriverIO) = struct
   let print_p4flat (cfg: Pass.compiler_cfg) prog =
     match cfg.cfg_p4flat with
     | Skip -> Error Finished
-    | Run p4flat_fmt ->
-       Format.eprintf "TODO: implement p4light pretty printing.";
+    | Run None -> Ok prog
+    | Run (Some p4flat_fmt) ->
+       Format.eprintf "TODO: implement p4flat pretty printing.\n";
        Ok prog
 
   let to_gcl depth prog =
@@ -162,7 +167,7 @@ module MakeDriver (IO: DriverIO) = struct
     end
 
   let print_gcl (out: Pass.output) prog =
-    Format.eprintf "TODO: implement GCL pretty printing.";
+    Format.eprintf "TODO: implement GCL pretty printing.\n";
     Ok prog
   
   let flatten_declctx cub_ctx =
@@ -185,7 +190,7 @@ module MakeDriver (IO: DriverIO) = struct
           Error (ToCLightError ("Unknown failure in Ccomp"))
   
   let print_clight (out: Pass.output) prog =
-    Format.eprintf "TODO: implement Clight pretty printing.";
+    Format.eprintf "TODO: implement Clight pretty printing.\n";
     Ok prog
 
   let run cfg =

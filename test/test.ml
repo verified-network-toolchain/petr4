@@ -2,54 +2,53 @@ open Core
 open Petr4
 open Common
 
-module Conf: Parse_config = struct
-  let red s = s
-  let green s = s
-
+module UnixIO : DriverIO = struct
+  let colorize colors s = ANSITerminal.sprintf colors "%s" s
+  let red s = colorize [ANSITerminal.red] s
+  let green s = colorize [ANSITerminal.green] s
+  
   let preprocess include_dirs p4file =
     let cmd =
       String.concat ~sep:" "
         (["cc"] @
-         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
+           (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+              ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
     let in_chan = Core_unix.open_process_in cmd in
     let str = In_channel.input_all in_chan in
     let _ = Core_unix.close_process_in in_chan in
     str
+
+  let open_file path =
+    Core_unix.open_process_out path
+
+  let close_file ochan =
+    match Core_unix.close_process_out ochan with
+    | Ok () -> ()
+    | Error _ -> failwith "Error in close_file"
+  
 end
 
-module Parse = Make_parse(Conf)
+module UnixDriver = MakeDriver(UnixIO)
 
 let parser_test include_dirs file =
-  match Parse.parse_file include_dirs file false with
-  | `Ok _ -> true
-  | `Error _ -> false
+  let cfg = Pass.mk_parse_only include_dirs file in
+  match UnixDriver.run cfg with
+  | Ok ()
+  | Error Finished -> true
+  | Error _ -> false
 
-let typecheck_test (include_dirs : string list) (p4_file : string) : bool =
-  Printf.printf "Testing file %s...\n" p4_file;
-  match Parse.parse_file include_dirs p4_file false with
-  | `Ok prog ->
-    begin
-      try
-        let prog, renamer = Elaborate.elab prog in
-        let _ = Checker.check_program renamer prog in
-        true
-      with
-      | Error.Type(info, err) ->
-        Format.eprintf "%s: %a" (P4info.to_string info) Error.format_error err;
-        false
-      | exn ->
-        Format.eprintf "Unknown exception: %s" (Exn.to_string exn);
-        false
-    end
-  | `Error (info, Lexer.Error s) -> false
-  | `Error (info, Parser.Error) -> false
-  | `Error (info, err) -> false
+let typecheck_test include_dirs file =
+  Printf.printf "Testing file %s...\n" file;
+  let cfg = Pass.mk_check_only include_dirs file in
+  match UnixDriver.run cfg with
+  | Ok ()
+  | Error Finished -> true
+  | Error _ -> false
 
 let get_files path =
   Sys_unix.ls_dir path
-  |> List.filter ~f:(fun name ->
-      Core.Filename.check_suffix name ".p4")
+  |> List.filter
+       ~f:(fun name -> Filename.check_suffix name ".p4")
 
 let example_path l =
   let root = Filename.concat ".." "examples" in

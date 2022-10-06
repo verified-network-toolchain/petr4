@@ -75,3 +75,9 @@ let parse_output_exn (out_file : Filename.t) : output =
   match parse_output out_file with
   | Some o -> o
   | None -> failwith ("bad extension on filename: " ^ out_file)
+
+let mk_parse_only include_dirs in_file : compiler_cfg =
+  failwith "mk_parse_only unimplemented"
+
+let mk_check_only include_dirs in_file : compiler_cfg =
+  failwith "mk_check_only unimplemented"

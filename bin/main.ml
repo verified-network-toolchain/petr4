@@ -72,7 +72,7 @@ let parse_backend unroll_parsers output_gcl output_clight =
 
 let command =
   let open Command.Let_syntax in
-  Command.basic ~summary:"TODO better summary here please"
+  Command.basic ~summary:"Petr4: A reference implementation of the P4_16 language"
     [%map_open
      let verbose = flag "-v" no_arg
                      ~doc:"Be more verbose."

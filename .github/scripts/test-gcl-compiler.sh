@@ -8,12 +8,13 @@ err=0
 
 INCLUDE_DIR="examples"
 
-PETR4="petr4 compile -I ${INCLUDE} -gcl 1000 -gcl 10"
+PETR4="dune exec -- petr4 -I ${INCLUDE} -output-gcl file.gcl -unroll-parsers 10"
 
 eval $(opam env)
 
 for TEST_FILE in ${EXPASS}/*; do
     echo "testing ${TEST_FILE}"
+    echo ${PETR4} ${TEST_FILE}
     ${PETR4} ${TEST_FILE} > /dev/null
     code=$?; (( err |= ${code} ));
     if [ ${code} -eq 0 ]; then

@@ -32,9 +32,6 @@ let cfg_of_bool : bool -> unit cfg =
   | false -> Skip
   | true  -> Run ()
 
-type unroll_cfg =
-  int cfg
-
 type pass_cfg =
   (output option) cfg
 
@@ -54,7 +51,6 @@ type compiler_cfg =
     cfg_p4light: pass_cfg;
     cfg_p4cub: pass_cfg;
     cfg_p4flat: pass_cfg;
-    cfg_unroll_parsers: unroll_cfg;
     cfg_backend: backend_cfg; }
 
 let parse_extension (ext: string) : fmt option =
@@ -74,3 +70,8 @@ let parse_output (out_file : Filename.t) : output option =
   let%bind ext = Filename.split_extension out_file |> snd in
   let%map out_fmt = parse_extension ext in
   {out_file; out_fmt}
+
+let parse_output_exn (out_file : Filename.t) : output =
+  match parse_output out_file with
+  | Some o -> o
+  | None -> failwith ("bad extension on filename: " ^ out_file)

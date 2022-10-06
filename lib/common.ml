@@ -20,25 +20,27 @@ module type DriverIO = sig
   val red: string -> string
   val green: string -> string
   val preprocess: Filename.t list -> Filename.t -> string
+  val open_file: Filename.t -> Out_channel.t
+  val close_file: Out_channel.t -> unit
 end
+
+type error =
+  | PreprocessorError of exn
+  | LexerError of string
+  | ParserError of P4info.t
+  | CheckerError of exn
+  | GenLocError
+  | NormalizeError of string
+  | ToP4CubError of string
+  | ToGCLError of string
+  | FlattenDeclCtxError of string
+  | ToCLightError of string
+  (* not an error but an indicator to stop processing data *)
+  | Finished
 
 module MakeDriver (IO: DriverIO) = struct
 
   open Result
-
-  type error =
-    | PreprocessorError of exn
-    | LexerError of string
-    | ParserError of P4info.t
-    | CheckerError of exn
-    | GenLocError
-    | NormalizeError of string
-    | ToP4CubError of string
-    | ToGCLError of string
-    | FlattenDeclCtxError of string
-    | ToCLightError of string
-    (* not an error but an indicator to stop processing data *)
-    | Finished
 
   let preprocess (cfg: Pass.compiler_cfg) =
     try
@@ -82,9 +84,29 @@ module MakeDriver (IO: DriverIO) = struct
     | Run () ->
        Ok (Poulet4.SimplExpr.transform_prog P4info.dummy prog)
 
-  let print_p4light cfg (prog: P4light.program) =
-    Format.eprintf "TODO: implement p4light pretty printing.";
-    Ok prog
+  let print_p4light (cfg: Pass.compiler_cfg) (prog: P4light.program) =
+    match cfg.cfg_p4light with
+    | Skip -> Error Finished
+    | Run None -> Ok prog
+    | Run (Some out) ->
+       let oc = IO.open_file out.out_file in
+       let fmt = Format.formatter_of_out_channel oc in
+       begin match out.out_fmt with
+       | Concrete ->
+          Printp4.print_program
+            fmt 
+            ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
+            ["@pragma pa_auto_init_metadata"]
+            prog
+       | Sexps ->
+          Format.eprintf "TODO: implement p4light s-expression pretty printing."
+       | Coq ->
+           Exportp4.print_program fmt prog
+       | Ocaml ->
+          Exportp4prune.print_program fmt prog
+       end;
+       IO.close_file oc;
+       Ok prog
 
   let to_p4cub (cfg: Pass.compiler_cfg) (prog: P4light.program) =
     if Pass.is_skip cfg.cfg_p4cub
@@ -97,20 +119,28 @@ module MakeDriver (IO: DriverIO) = struct
   let print_p4cub (cfg: Pass.compiler_cfg) prog =
     match cfg.cfg_p4cub with
     | Skip -> Error Finished
-    | Run cub_fmt ->
-       Format.eprintf "TODO: implement p4light pretty printing.";
+    | Run None ->
+       Ok prog
+    | Run (Some out) ->
+       let oc = IO.open_file out.out_file in
+       let fmt = Format.formatter_of_out_channel oc in
+       begin match out.out_fmt with
+       | Concrete -> 
+          Format.eprintf "TODO: implement p4cub concrete syntax pretty printing."
+       | Sexps ->
+          Printp4cub.print_tp_decl fmt prog
+       | Coq ->
+          Format.eprintf "TODO: implement p4cub coq pretty printing."
+       | Ocaml ->
+          Format.eprintf "TODO: implement p4cub OCaml pretty printing."
+       end;
+       IO.close_file oc;
        Ok prog
 
   let to_p4flat (cfg: Pass.compiler_cfg) prog =
     match cfg.cfg_p4flat with
     | Skip -> Error Finished
     | Run p4flat_fmt ->
-       Ok prog
-
-  let unroll_parsers (cfg: Pass.compiler_cfg) prog =
-    match cfg.cfg_unroll_parsers with
-    | Skip -> Error Finished
-    | Run depth ->
        Ok prog
 
   let print_p4flat (cfg: Pass.compiler_cfg) prog =
@@ -140,9 +170,11 @@ module MakeDriver (IO: DriverIO) = struct
     | Poulet4.Result.Ok cub  -> Ok cub
     | Poulet4.Result.Error e -> Error (FlattenDeclCtxError e)
   
+  let hoist_clight_effects prog =
+    Ok (Poulet4.Statementize.coq_TranslateProgram prog)
+
   let to_clight prog =
-    let stmtd = Poulet4.Statementize.coq_TranslateProgram prog in
-    let certd = Compcertalize.topdecl_convert stmtd in 
+    let certd = Compcertalize.topdecl_convert prog in 
     match Poulet4_Ccomp.CCompSel.coq_Compile certd with
     | Poulet4_Ccomp.Errors.OK clight -> Ok clight
     | Poulet4_Ccomp.Errors.Error m ->
@@ -169,10 +201,8 @@ module MakeDriver (IO: DriverIO) = struct
     >>= print_p4light cfg
 
     >>= to_p4cub cfg
-    >>= print_p4cub cfg
 
     >>= to_p4flat cfg
-    >>= unroll_parsers cfg
     >>= print_p4flat cfg
 
     >>= begin fun prog ->
@@ -184,6 +214,8 @@ module MakeDriver (IO: DriverIO) = struct
            >>= fun _ -> Ok ()
         | Run (CBackend cfg_ccomp) ->
            flatten_declctx prog
+           >>= hoist_clight_effects
+           >>= print_p4cub cfg
            >>= to_clight
            >>= print_clight cfg_ccomp
            >>= fun _ -> Ok ()

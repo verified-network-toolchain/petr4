@@ -77,25 +77,25 @@ let command =
      let verbose = flag "-v" no_arg
                      ~doc:"Be more verbose."
      and includes = flag "-I" (listed string)
-                      ~doc:"Paths to search for files sourced with #include directives."
+                      ~doc:"dir Paths to search for files sourced with #include directives."
      and normalize = flag "-normalize" no_arg
                        ~doc:"Simplify expressions."
      and gen_loc = flag "-gen-loc" no_arg
                      ~doc:"Infer locators in P4light AST after typechecking."
      and unroll_parsers = flag "-unroll-parsers" (optional int)
-                            ~doc:"Unroll parsers to given depth."
+                            ~doc:"depth Unroll parsers to given depth."
      and output_p4surface = flag "-output-p4surface" (optional string)
-                           ~doc:"Output P4surface AST to the specified file."
+                           ~doc:"file Output P4surface AST to the specified file."
      and output_p4light = flag "-output-p4light" (optional string)
-                           ~doc:"Output P4light to the specified file."
+                           ~doc:"file Output P4light to the specified file."
      and output_p4cub = flag "-output-p4cub" (optional string)
-                           ~doc:"Output P4Cub to the specified file."
+                           ~doc:"file Output P4Cub to the specified file."
      and output_p4flat = flag "-output-p4flat" (optional string)
-                           ~doc:"Output P4flat to the specified file."
+                           ~doc:"file Output P4flat to the specified file."
      and output_gcl = flag "-output-gcl" (optional string)
-                           ~doc:"Output GCL to the specified file."
+                           ~doc:"file Output GCL to the specified file."
      and output_c = flag "-output-c" (optional string)
-                           ~doc:"Output C to the specified file."
+                           ~doc:"file Output C to the specified file."
      and in_file = anon ("file.p4" %: string)
      in fun () ->
         let p : Pass.compiler_cfg =

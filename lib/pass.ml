@@ -1,13 +1,5 @@
 open Core
 
-type lang =
-  | P4Surface
-  | P4Light
-  | P4Cub
-  | P4Flat
-  | GCL
-  | Clight
-
 type fmt =
   | Concrete (* valid concrete syntax (P4 or C) *)
   | Sexps    (* s-expression format *)

@@ -47,15 +47,15 @@ type compiler_cfg =
 
 let parse_extension (ext: string) : fmt option =
   match ext with
-  | ".p4surface"
-  | ".p4light"
-  | ".p4cub"
-  | ".p4flat"
-  | ".gcl"       -> Some Sexps
-  | ".p4"        -> Some Concrete
-  | ".ml"        -> Some Ocaml
-  | ".v"         -> Some Coq
-  | _            -> None
+  | "p4surface"
+  | "p4light"
+  | "p4cub"
+  | "p4flat"
+  | "gcl" -> Some Sexps
+  | "p4"  -> Some Concrete
+  | "ml"  -> Some Ocaml
+  | "v"   -> Some Coq
+  | _     -> None
 
 let parse_output (out_file : Filename.t) : output option =
   let open Option.Let_syntax in

@@ -20,26 +20,23 @@ open Common
 exception ParsingError of string
 
 let colorize colors s = ANSITerminal.sprintf colors "%s" s
-
-module Conf: Parse_config = struct
-  let red s = colorize [ANSITerminal.red] s
-  let green s = colorize [ANSITerminal.green] s
-
-  let preprocess include_dirs p4file =
-    let cmd =
-      String.concat ~sep:" "
-        (["cc"] @
-         (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-          ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Core_unix.open_process_in cmd in
-    let str = In_channel.input_all in_chan in
-    let _ = Core_unix.close_process_in in_chan in
-    str
-end
-
-module Parse = Make_parse(Conf)
-
-open Parse
+module UnixDriver =
+  MakeDriver(struct
+      let red s = colorize [ANSITerminal.red] s
+      let green s = colorize [ANSITerminal.green] s
+      
+      let preprocess include_dirs p4file =
+        let cmd =
+          String.concat ~sep:" "
+            (["cc"] @
+               (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
+                  ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
+        let in_chan = Core_unix.open_process_in cmd in
+        let str = In_channel.input_all in_chan in
+        let _ = Core_unix.close_process_in in_chan in
+        str
+      
+    end)
 
 let parse_command =
   let open Command.Spec in
@@ -119,6 +116,64 @@ let stf_command =
      +> anon ("p4file" %: string))
     (fun verbose include_dir stf_file p4_file () ->
         do_stf include_dir stf_file p4_file)
+
+let cli_command =
+  let open Command.Let_syntax in
+  let open Command.Param in
+  Command.basic ~summary:"TODO better summary here please"
+    [%map_open
+     let verbose = flag "-v" no_arg
+                     ~doc:"Be more verbose."
+     and includes = flag "-I" (listed string)
+                      ~doc:"Paths to search for files sourced with #include directives."
+     and normalize = flag "-normalize" no_arg
+                       ~doc:"Simplify expressions."
+     and gen_loc = flag "-gen-loc" no_arg
+                     ~doc:"Infer locators in P4light AST after typechecking."
+     and unroll_parsers = flag "-unroll-parsers" (optional int)
+                            ~doc:"Unroll parsers to given depth."
+     and output_p4surface = flag "-output-p4surface" (optional string)
+                           ~doc:"Output P4surface AST to the specified file."
+     and output_p4light = flag "-output-p4light" (optional string)
+                           ~doc:"Output P4light to the specified file."
+     and output_p4cub = flag "-output-p4cub" (optional string)
+                           ~doc:"Output P4Cub to the specified file."
+     and output_p4flat = flag "-output-p4flat" (optional string)
+                           ~doc:"Output P4flat to the specified file."
+     and output_gcl = flag "-output-gcl" (optional string)
+                           ~doc:"Output GCL to the specified file."
+     and output_c = flag "-output-c" (optional string)
+                           ~doc:"Output C to the specified file."
+     and in_file = anon ("file.p4" %: string)
+     in fun () ->
+        let parse_ext_flag p =
+          match p with
+          | Some file ->
+             begin match Pass.parse_output file with
+             | Some f -> Pass.Run (Some f)
+             | None -> failwith ("bad extension " ^ file)
+             end
+          | None ->
+             Pass.Run None in
+        let parse_unroll u =
+          match u with
+          | Some depth -> Pass.Run depth
+          | None       -> Pass.Skip in
+        let p : Pass.compiler_cfg =
+          {cfg_infile         = in_file;
+           cfg_includes       = includes;
+           cfg_verbose        = verbose;
+           cfg_p4surface      = parse_ext_flag output_p4surface;
+           cfg_gen_loc        = Pass.cfg_of_bool gen_loc;
+           cfg_normalize      = Pass.cfg_of_bool normalize;
+           cfg_p4light        = parse_ext_flag output_p4light;
+           cfg_p4cub          = parse_ext_flag output_p4cub;
+           cfg_unroll_parsers = parse_unroll unroll_parsers;
+           cfg_p4flat         = parse_ext_flag output_p4flat;
+           cfg_gcl            = parse_ext_flag output_gcl;
+          }
+        in
+        run_compiler p]
 
 let command =
   Command.group

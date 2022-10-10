@@ -408,6 +408,7 @@ and saturate_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   | Constructor ctor ->
      Constructor (saturate_constructor env ctor)
 
+(* applies the arguments to the parameters of a specialized type that its base has parameters. *)
 and reduce_type (env: CheckerEnv.t) (typ: Typed.Type.t) : Typed.Type.t =
   let typ = saturate_type env typ in
   match typ with
@@ -519,6 +520,7 @@ and gen_all_constraints (env: CheckerEnv.t) ctx unknowns params_args constraints
   | [] ->
      constraints
 
+(* DISCUSS WITH RYAN: constraints doesn't need to be passed here. it's being built and the inputed one is never used. same goes for ret. *)
 and infer_type_arguments env ctx ret type_params_args params_args constraints =
   let insert (env, args, unknowns) (type_var, type_arg) =
     match type_arg with
@@ -632,7 +634,8 @@ and type_vars_equal_under equiv_vars tv1 tv2 =
       else type_vars_equal_under rest tv1 tv2
   | [] ->
       tv1 = tv2
-
+(* saturates the type first and returns the base of a specialized type by removing all
+   its type parameters as long as the number of type params and type args match. *)
 and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
   fun env typ ->
   let typ = saturate_type env typ in
@@ -659,6 +662,8 @@ and reduce_type : CheckerEnv.t -> Typed.Type.t -> Typed.Type.t =
 (* [type_equality env t1 t2] is true if and only if expression type t1
  * is equivalent to expression type t2 under environment env.
  *  Alpha equivalent types are equal. *)
+
+(* so type equality is solve type with cast set to false and an empty unknowns*)
 and solve_types ?(casts=true)
                 (env: CheckerEnv.t)
                 (equiv_vars: (string * string) list)
@@ -907,14 +912,12 @@ and type_expression (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp: Express
        type_unary_op env ctx op arg
     | BinaryOp { op; args; tags } ->
        type_binary_op env ctx op args
-    (*  *)
     | Cast { typ; expr; tags } ->
        type_cast env ctx typ expr
     | TypeMember { typ; name; tags } ->
        type_type_member env ctx typ name
     | ErrorMember {tags; err} ->
        type_error_member env ctx err
-    (*  *)
     | ExpressionMember { expr; name; tags } ->
        type_expression_member env ctx expr name
     | Ternary { cond; tru; fls; tags } ->
@@ -963,6 +966,7 @@ and cast_to_same_type (env: CheckerEnv.t) (ctx: Typed.ExprContext.t) (exp1: Expr
   then exp1, add_cast env exp2 typ1
   else failwith "cannot cast types so that they agree"
 
+(* takes a type and surface syntax expression. after generating the IR expression by type_expression, it checks if the given type and type of IR expression are equal it just returns the IR exp o.w. it casts (if possible) the IR expression to the given type.  NOTE: it already know the cast, if needed, is valid. *)
 and cast_expression (env: CheckerEnv.t) ctx (typ: Typed.Type.t) (exp: Expression.t) =
   let module E = Prog.Expression in
   let typ = reduce_type env typ in
@@ -1235,13 +1239,13 @@ and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
 
 * Tuple type:
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
+   1 <= i <= n; is_valid_nested_type(<t1,...,tn>, ti)_e
    ----------------------------------
-   e |- (t1, ..., tn)
+   e |- tuple <t1, ..., tn>
 
 * List type
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
+   1 <= i <= n; is_valid_nested_type([t1,...,tn], ti)_e
    ----------------------------------
    e |- [t1, ..., tn]
 
@@ -1252,56 +1256,65 @@ and field_cmp (f1: RecordType.field) (f2: RecordType.field) : int =
 
 * Enum type:
    ** the case where typ is Some typ.
+   * X is the name of the enum.
+   * li is the name of the field.
 
    e |- t
    -----------------------------------
-   e |- X : t {l1, ..., ln}
+   e |- enum t X {l1, ..., ln}
 
    ** the case where type is None.
 
-   e |- X {l1, ..., ln}
+   e |- enum X {l1, ..., ln}
 
 * Record and struct and header union ({l1:h1, ..., ln:hn}) type:
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
-   1 <= i < j <= n; li != lj
+   1 <= i <= n; is_valid_nested_type(record {f1 : t1, ..., fn : tn}, ti)_e
+   1 <= i < j <= n; fi != fj
    ------------------------------------
-   e |- {l1 : t1, ..., ln : tn}
+   e |- record {f1 : t1, ..., fn : tn}
 
 * header: 
    1 <= i <= n; e |- ti
-   1 <= i <= n; ???
-   1 <= i < j <= n; li != lj
+   1 <= i <= n; is_valid_nested_type(header {f1 : t1, ..., fn : tn}, ti)_e
+   1 <= i < j <= n; fi != fj
    ------------------------------------
-   e |- {l1 : t1, ..., ln : tn}
+   e |- header {l1 : t1, ..., ln : tn}
 
-   TODO: complete!
 * new type (name = typ):
    e |- t
    ----------------------------------
-   e |- n = t
+   e |- type t n 
 
 * specialized type:
+   look at spec
 
 * package type:
+   look at spec
 
 * control type:
+   look at spec
 
 * parser type:
+   look at spec
 
 * extern type:
+   look at spec
 
 * function type (<return type> <function name> (x1, ..., xn) {...}):
-   ----------------------------------------------------
-   e |- 
+   look at spec
 
 * action type:
-   --------------------------------------------
-   e |- 
+   look at spec
 
 * constructor type:
+   look at spec
 
 * table type:
+   look at spec
+
+* type name:
+   look at spec
 *)
 (* Returns true if type typ is a well-formed type *)
 and is_well_formed_type env (typ: Typed.Type.t) : bool =
@@ -1351,7 +1364,6 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     let res1 : bool = (are_param_types_well_formed env data_params) in
     let res2 : bool = (are_construct_params_types_well_formed env ctrl_params) in
     res1 && res2
-  (* Type names *)
   | TypeName name ->
     CheckerEnv.resolve_type_name_opt name env <> None
   | Table {result_typ_name=name} ->
@@ -1371,6 +1383,9 @@ and is_well_formed_type env (typ: Typed.Type.t) : bool =
     | Some {type_params = []; _} -> true
     | _ -> false
     end
+    (*TODO: discuss! according to p4 spec parser, control, and package cannot be
+                     type args to methods, parsers, controls, tables, and actions.
+                     but we're not checking this.*)
   | Parser {type_params=tps; parameters=ps;_}
   | Control {type_params=tps; parameters=ps;_} ->
     let env = CheckerEnv.insert_type_vars tps env in
@@ -1468,6 +1483,8 @@ and is_valid_param_type_kind env (kind: FunctionType.kind) (typ: Typed.Type.t) =
   | Function -> is_valid_param_type env (Runtime Function) typ
   | Builtin -> is_valid_param_type env (Runtime Method) typ
 
+(*  TODO: discuss with Ryan. doesn't match p4 spec for outer header.
+          also, role of in_header. *)
 and is_valid_nested_type ?(in_header=false) (env: CheckerEnv.t) (outer_type: Typed.Type.t) (inner_type: Typed.Type.t) =
   let inner_type = reduce_to_underlying_type env inner_type in
   match reduce_to_underlying_type env outer_type with
@@ -1537,6 +1554,47 @@ and validate_param env ctx (typ: Typed.Type.t) dir tags =
   then raise_s [%message "Parameter type is not well-formed" ~info:(tags:Info.t) ~typ:(typ:Typed.Type.t)];
   if not (is_valid_param_type env ctx typ)
   then raise_s [%message "Type cannot be passed as a parameter" ~info:(tags:Info.t)];
+
+  (** copied this ease of access and read for formalization doc. *)
+  (* and is_valid_param_type env (ctx: Typed.ParamContext.t) (typ: Typed.Type.t) = *)
+  (* let typ = reduce_to_underlying_type env typ in *)
+  (* match ctx with *)
+  (* | Constructor decl -> *)
+  (*    begin match typ, decl with *)
+  (*    | Package _, Package -> true *)
+  (*    | Package _, _ -> false *)
+  (*    | Parser _, Package *)
+  (*    | Parser _, Parser -> true *)
+  (*    | Parser _, _ -> false *)
+  (*    | Control _, Package *)
+  (*    | Control _, Control -> true *)
+  (*    | Control _, _ -> false *)
+  (*    | Extern _, Package *)
+  (*    | Extern _, Parser *)
+  (*    | Extern _, Control *)
+  (*    | Extern _, Method -> true *)
+  (*    | Extern _, _ -> false *)
+  (*    | Function _, _ -> false *)
+  (*    | Action _, _ -> false *)
+  (*    | Table _, _ -> false *)
+  (*    | Set _, _ -> false *)
+  (*    | _ -> true *)
+  (*    end *)
+  (* | Runtime decl -> *)
+  (*    begin match typ, decl with *)
+  (*    | Package _, _ -> false *)
+  (*    | Parser _, _ -> false *)
+  (*    | Control _, _ -> false *)
+  (*    | Extern _, Parser *)
+  (*    | Extern _, Control *)
+  (*    | Extern _, Method -> true *)
+  (*    | Extern _, _ -> false *)
+  (*    | Table _, _ -> false *)
+  (*    | Set _, _ -> false *)
+  (*    | Action _, _ -> false *)
+  (*    | Function _, _ -> false *)
+  (*    | _ -> true *)
+  (*    end *)
 
 and type_param' ?(gen_wildcards=false) env (ctx: Typed.ParamContext.t) (param : Types.Parameter.t) : Typed.Parameter.t * string list =
   let typ, wildcards = translate_type' ~gen_wildcards env [] param.typ in
@@ -2182,6 +2240,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
           raise_mismatch (tags) "Operand must have type int<w> or bit<w>" l
        end
     (* Bitwise operators are only defined on bitstrings of the same width *)
+       (* TODO: discuss with Ryan. discrepency with spec. *)
     | BitAnd {tags} | BitXor {tags} | BitOr {tags} ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r } when l = r -> Bit { width = l }
@@ -2190,6 +2249,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | _, _ -> raise_mismatch (typed_l.tags) "unsigned int" l_typ
        end
     (* Bitstring concatentation is defined on any two bitstrings *)
+    (* TODO: discuss with Ryan. discrepency with spec. *)
     | PlusPlus {tags} ->
        begin match l_typ, r_typ with
        | Bit { width = l }, Bit { width = r }
@@ -2209,6 +2269,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | _, _ -> raise_type_error tags (Type_Difference (l_typ, r_typ))
        end
     (* Division is only defined on compile-time known arbitrary-precision positive integers *)
+       (* TODO: discuss with Ryan. then why do we allow it for bit<w> too?*)
     | Div {tags} | Mod {tags} ->
        begin match l_typ, r_typ with
        | Integer, Integer ->
@@ -2220,6 +2281,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
        | Integer, _ -> raise_mismatch (typed_r.tags) "arbitrary precision integer" r_typ
        | _, _ -> raise_mismatch (typed_l.tags) "arbitrary precision integer" l_typ
        end
+       (* TODO: check this with Ryan. section 8.5 of spec.  *)
     | Shl {tags} | Shr {tags} ->
        begin match l_typ, is_nonnegative_numeric env typed_r with
        | Bit _, true
@@ -2238,6 +2300,7 @@ and check_binary_op env (op: Op.bin) typed_l typed_r : Prog.Expression.t =
     tags = tags_bin op}
 
 (* See section 8.9.2 "Explicit casts" *)
+(* cast judgment in spec. *)
 and cast_ok ?(explicit = false) env original_type new_type =
   let original_type = saturate_type env original_type in
   let new_type = saturate_type env new_type in
@@ -2372,6 +2435,8 @@ and type_error_member env ctx (name: P4String.t) : Prog.Expression.t =
     dir = Directionless;
     tags = Info.dummy }
 
+(* takes a type and if it's a header it returns a list of record type that has
+   isValid as a built in function. ow. returns an empty list.*)
 and header_methods typ =
   let fake_fields: RecordType.field list =
     [{name = "isValid";
@@ -2381,6 +2446,9 @@ and header_methods typ =
   | Type.Header { fields; _ } -> fake_fields
   | _ -> []
 
+(* takes a type, name, context. if type is an array and name is either size or lastindex
+   it returns the type Bit<32>. if type is an array and name is next or last and
+   context is parser state it returns the initial type passed in. ow. error.*)
 and type_expression_member_builtin env (ctx: Typed.ExprContext.t) tags typ (name: P4String.t) : Typed.Type.t =
   let open Typed.Type in
   let fail () =
@@ -2485,11 +2553,10 @@ and type_expression_member_function_builtin env typ (name: P4String.t) : Typed.T
   | _ -> None
 
 (* Sections 6.6, 8.14 *)
-(*
-
-   ----------------------------------------------------------------
-
-*)
+(* look at spec. *)
+(* In cases where the field is being looked up and it is not found (i.e., None)
+   the builtin helper is called for ease maintanance of the code in case we
+   need to extend builtin fields. *)
 and type_expression_member env ctx expr (name: P4String.t) : Prog.Expression.t =
   let typed_expr = type_expression env ctx expr in
   let expr_typ = reduce_type env typed_expr.typ in
@@ -2591,6 +2658,12 @@ and match_params_to_args call_site_tags params (args: Argument.t list) : (Typed.
   | Some `Named ->
      match_named_args_to_params call_site_tags params args
 
+(* matches arguments to parameters based on position and returns [(parameter, option expression)].
+   if an argument is missing, it bundles up the parameter to none.
+   if the argument list becomes empty but there are still parameters, it checks if
+   the parameter has opt_value, if so it bundles the parameter with an expression that has the
+   value of opt_value. if the parameter doesn't have opt_value, it checks if the parameter is
+   optional, if so, it bundles up the parameter with a missing argument. ow., it raises an error.*)
 and match_positional_args_to_params call_site_tags params args =
   let conv param arg =
     let open Types.Argument in
@@ -2620,6 +2693,13 @@ and match_positional_args_to_params call_site_tags params args =
   in
   go params args
 
+(* matches the arguments to parameters based on parameter names.
+   if the parameter and argument have the same name it bundles up the parameter name and the
+   argument value.
+   if the parameter has opt_value and there is no argument with the name of parameter it
+   bundles up the parameter name with its opt_value. but if the paremeter doesn't have
+   opt_value and is optional, it bundles up the parameter name with none. ow., it raises a
+   mismatch error. *)
 and match_named_args_to_params call_site_tags (params: Typed.Parameter.t list) args =
   let open Types.Argument in
   let open Typed.Parameter in
@@ -2732,12 +2812,6 @@ and call_ok (ctx: ExprContext.t) (fn_kind: Typed.FunctionType.kind) : bool =
   | _, Builtin -> true
   end
 
-(*
-
-   --------------------------------------------------------
-   e, c |- exp (t1 a1, ..., tn an) ~~> 
-
-*)
 and type_function_call env ctx call_tags func type_args (args: Argument.t list) : Prog.Expression.t =
   let open Prog.Expression in
   (* Printf.printf "we're here!!!"; *)
@@ -2977,6 +3051,8 @@ and resolve_function_overload env ctx type_name args =
   | None ->
      resolve_function_overload_by ~f:(overload_param_count_ok args) env ctx type_name
 
+(*TODO
+  *)
 and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Expression.t list * Typed.Type.t =
   let open Typed.ConstructorType in
   let type_args = List.map ~f:(translate_type_opt env []) type_args in(* determines if type is dontcare.*)
@@ -2986,6 +3062,7 @@ and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Exp
   let params_args = match_params_to_args tags constructor_type.parameters args in
   let type_params_args = infer_constructor_type_args env ctx t_params w_params params_args type_args in
   let env' = CheckerEnv.insert_types type_params_args env in
+  (* have to add this. TODO*)
   let cast_arg (param, arg: Typed.Parameter.t * Types.Expression.t option) =
     match cast_param_arg env' ctx tags (param, arg) with
     | _, Some e ->
@@ -3006,15 +3083,7 @@ and type_constructor_invocation env ctx tags decl_name type_args args : Prog.Exp
 
 (* Section 14.1 *)
 (*
-
-   base ?= TypeName t
-   ----------------------------------------
-   e, c |- SpecializedType {base, args} @ [arg1, .., argn] ~~> { @ [], Directionless}
-
-   typ = SpecializedType {t, []}
-   e, c |- typ @ [arg1, .., argn] ~~> {e, t, d}
-   --------------------------------------------------------
-   e, c |- TypeName t @ [arg1, .., argn] ~~> {e, t, d}
+   look at spec
 *)
 and type_nameless_instantiation env ctx tags (typ : Types.Type.t) args =
   let open Prog.Expression in
@@ -3124,26 +3193,34 @@ and type_statement (env: CheckerEnv.t) (ctx: StmtContext.t) (stm: Statement.t) :
     match stm with
     | MethodCall { func; type_args; args; tags } ->
        type_method_call env ctx tags func type_args args
+      (*10.1 ipad version.*)
     | Assignment { lhs; rhs; tags } ->
        type_assignment env ctx lhs rhs
     | DirectApplication { typ; args; tags } ->
        type_direct_application env ctx typ args
+      (* 10.6 *)
     | Conditional { cond; tru; fls; tags } ->
        type_conditional env ctx cond tru fls
+      (* 10.3 *)
     | BlockStatement { block; tags } ->
        type_block env ctx block
+      (* 10.5*)
     | Exit {tags} ->
        { stmt = Exit {tags};
          typ = StmType.Void },
        env
+      (* 10.2 *)
     | EmptyStatement {tags} ->
        { stmt = EmptyStatement {tags};
          typ = StmType.Unit },
        env
+      (* 10.4 *)
     | Return { expr; tags } ->
        type_return env ctx tags expr
+      (* 10.7 *)
     | Switch { expr; cases; tags } ->
        type_switch env ctx tags expr cases
+      (* 9 *)
     | DeclarationStatement { decl; tags } ->
        type_declaration_statement env ctx decl
   in
@@ -3730,7 +3807,6 @@ and is_variable_type env (typ: Typed.Type.t) =
      false
 
 (* Section 10.2
- * NOTE: refers to p4 spec
  *          Δ, T, Γ |- e : t' = t
  * ---------------------------------------------
  *    Δ, T, Γ |- t x = e : Δ, T, Γ[x -> t]
@@ -4577,8 +4653,10 @@ and check_param_shadowing params constructor_params =
 
 and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Declaration.t) : Prog.Declaration.t * CheckerEnv.t =
   match decl with
+    (* look into spec *)
   | Constant { annotations; typ; name; value; tags } ->
      type_constant env ctx tags annotations typ name value
+    (* look into spec *)
   | Instantiation { annotations; typ; args; name; init; tags } ->
      begin match init with
      | Some init -> failwith "initializer block in instantiation unsupported"
@@ -4600,6 +4678,7 @@ and type_declaration (env: CheckerEnv.t) (ctx: DeclContext.t) (decl: Types.Decla
   | ExternFunction { annotations; return; name; type_params; params; tags } ->
      check_param_shadowing params [];
      type_extern_function env tags annotations return name type_params params
+    (* look into spec *)
   | Variable { annotations; typ; name; init; tags } ->
      type_variable env ctx tags annotations typ name init
   | ValueSet { annotations; typ; size; name; tags } ->

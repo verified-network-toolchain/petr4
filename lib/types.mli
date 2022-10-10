@@ -196,7 +196,7 @@ and Type : sig
     | IntType of 
         { tags: 'a; 
           expr: Expression.t}
-      (** Fixed-with signed integers *)
+      (** Fixed-width signed integers *)
     | BitType of 
         { tags: 'a; 
           expr: Expression.t}

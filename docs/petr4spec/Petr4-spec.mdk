@@ -441,37 +441,37 @@ In the following we present P4 syntax. Note that we omitted annotations and meta
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\unaryOp$ | $::=$ | $!$ | $\qquad \text{logical negation}$ |
+| $\unaryOp$ | $::=$ | $\intoOp !$ | $\qquad \text{logical negation}$ |
 |   | $\vert$ | $\bitComplement$ | $\qquad \text{bitwise complement}$ |
-|   | $\vert$ | $-$ | $\qquad \text{unary minus}$ |
+|   | $\vert$ | $\intoOp -$ | $\qquad \text{unary minus}$ |
 { .booktable }
 
 **Binary operations:**
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\binOp$ | $::=$ | $\&\&$ | $\qquad \text{logical and}$ |
-|   | $\vert$ | $\vert\vert$ | $\qquad \text{logical or}$ |
-|   | $\vert$ | $+$ | $\qquad \text{numerical addition}$ |
-|   | $\vert$ | $-$ | $\qquad \text{numerical subtraction}$ |
-|   | $\vert$ | $*$ | $\qquad \text{numerical multiplication}$ |
-|   | $\vert$ | $\div$ | $\qquad \text{numerical division}$ |
-|   | $\vert$ | $\mod$ | $\qquad \text{numerical modulo}$ |
-|   | $\vert$ | $==$ | $\qquad \text{equality check}$ |
-|   | $\vert$ | $!=$ | $\qquad \text{inequality check}$ |
-|   | $\vert$ | $\plusSat$ | $\qquad \text{saturating addition}$ |
-|   | $\vert$ | $\subSat$ | $\qquad \text{saturation subtraction}$ |
-|   | $\vert$ | $\bitAnd$ | $\qquad \text{bitwise and}$ |
-|   | $\vert$ | $\bitOr$ | $\qquad \text{bitwise or}$ |
+| $\binOp$ | $::=$ | $\intoOp{\&\&}$ | $\qquad \text{logical and}$ |
+|   | $\vert$ | $\intoOp \logor $ | $\qquad \text{logical or}$ |
+|   | $\vert$ | $\intoOp +$ | $\qquad \text{numerical addition}$ |
+|   | $\vert$ | $\intoOp -$ | $\qquad \text{numerical subtraction}$ |
+|   | $\vert$ | $\intoOp *$ | $\qquad \text{numerical multiplication}$ |
+|   | $\vert$ | $\intoOp \div$ | $\qquad \text{numerical division}$ |
+|   | $\vert$ | $\intoOp \mod$ | $\qquad \text{numerical modulo}$ |
+|   | $\vert$ | $\intoOp{==}$ | $\qquad \text{equality check}$ |
+|   | $\vert$ | $\intoOp{!=}$ | $\qquad \text{inequality check}$ |
+|   | $\vert$ | $\intoOp \plusSat$ | $\qquad \text{saturating addition}$ |
+|   | $\vert$ | $\intoOp \subSat$ | $\qquad \text{saturation subtraction}$ |
+|   | $\vert$ | $\intoOp \bitAnd$ | $\qquad \text{bitwise and}$ |
+|   | $\vert$ | $\intoOp \bitOr$ | $\qquad \text{bitwise or}$ |
 |   | $\vert$ | $\bitXor$ | $\qquad \text{bitwise xor}$ |
 |   | $\vert$ | $\bitComplement$ | $\qquad \text{bitwise complement}$ |
-|   | $\vert$ | $\concat$ | $\qquad \text{bitwise concatenation}$ |
+|   | $\vert$ | $\intoOp \concat$ | $\qquad \text{bitwise concatenation}$ |
 |   | $\vert$ | $\shiftL$ | $\qquad \text{shift left}$ |
-|   | $\vert$ | $\shiftR$ | $\qquad \text{shift right}$ |
-|   | $\vert$ | $<$ | $\qquad \text{less than}$ |
-|   | $\vert$ | $\leq$ | $\qquad \text{less than or equal}$ |
-|   | $\vert$ | $>$ | $\qquad \text{greater than}$ |
-|   | $\vert$ | $\geq$ | $\qquad \text{greater than or equal}$ |
+|   | $\vert$ | $ \shiftR$ | $\qquad \text{shift right}$ |
+|   | $\vert$ | $\intoOp <$ | $\qquad \text{less than}$ |
+|   | $\vert$ | $ \leq$ | $\qquad \text{less than or equal}$ |
+|   | $\vert$ | $\intoOp >$ | $\qquad \text{greater than}$ |
+|   | $\vert$ | $ \geq$ | $\qquad \text{greater than or equal}$ |
 { .booktable }
 
 **Arguments:**
@@ -549,6 +549,8 @@ In the following we present P4 syntax. Note that we omitted annotations and meta
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
 | $\nxt$ | $::=$ | $\str$ | $\qquad \text{next state}$ |
+|   | $\vert$ | $\accept$ | $\qquad \text{accept state}$|
+|   | $\vert$ | $\reject$ | $\qquad \text{reject state}$|
 | $\pmatch$ | $::=$ | $\defMatch$ | $\qquad \text{default match}$ |
 |   | $\vert$ | $\dontcareMatch$ | $\qquad \text{don't care match}$ |
 |   | $\vert$ | $\exp$ | $\qquad \text{expression match}$ |
@@ -604,8 +606,8 @@ In the following we present P4 syntax. Note that we omitted annotations and meta
 |   | $\vert$ | $\externObjDcl \var \typVars \extMethods$ | $\qquad \text{extern objects}$ |
 |   | $\vert$ | $\typdefDcl \typVar \baseTyp$ | $\qquad \text{type definitions}$ |
 |   | $\vert$ | $\typdefDcl \typVar \dcl$ | $\qquad \text{type definitions (declarations)}$ |
-|   | $\vert$ | $\newtypeDcl \typVar \baseTyp$ | $\qquad \text{generative type definitions}$ |
-|   | $\vert$ | $\newtypeDcl \typVar \dcl$ | $\qquad \text{generative type definitions (declarations)}$ |
+|   | $\vert$ | $\newtypeDcl  \baseTyp \typVar$ | $\qquad \text{generative type definitions}$ |
+|   | $\vert$ | $\newtypeDcl  \dcl \typVar$ | $\qquad \text{generative type definitions (declarations)}$ |
 |   | $\vert$ | $\controlTypDcl \typVar \typVars {\prmDefs \baseTyp}$ | $\qquad \text{control types}$ |
 |   | $\vert$ | $\parserTypDcl \typVar \typVars {\prmDefs \baseTyp}$ | $\qquad \text{parser types}$ |
 |   | $\vert$ | $\packageTypDcl \typVar \typVars {\prmDefs \baseTyp}$ | $\qquad \text{package types}$ |

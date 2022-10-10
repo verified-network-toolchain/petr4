@@ -233,10 +233,11 @@
 \newcommand{\unaryOp}{\ominus}
 \newcommand{\binOp}{\oplus}
 \newcommand{\cast}[2]{({#1})\,{#2}}
-\newcommand{\plusSat}{\vert+\vert}
-\newcommand{\subSat}{\vert-\vert}
+\newcommand{\plusSat}{|+|}
+\newcommand{\subSat}{|-|}
+\newcommand{\logor}{||}
 \newcommand{\bitAnd}{\&}
-\newcommand{\bitOr}{\vert}
+\newcommand{\bitOr}{|}
 \newcommand{\bitXor}{\hat{}}
 \newcommand{\bitComplement}{\sim\!}
 \renewcommand{\div}{/}
@@ -253,6 +254,9 @@
 \newcommand{\record}[2]{\recordd {#1} {#2} {\exp} }
 \newcommand{\records}[1]{\{\overline {\field = {#1}} \}}
 
+
+%operators:
+\newcommand{\intoOp}[1]{\texttt{#1}}
 
 %metavariables:
 \newcommand{\prmDef}[1]{\mathit{prm}_{#1}}
@@ -356,7 +360,9 @@
 \newcommand{\slctTran}[2]{({#1})\ \{{#2}\}}
 \newcommand{\expandCase}[2]{{#1} \ {#2}}
 \newcommand{\nxt}{\mathit{nxt}}
-\newcommand{\dontcareMatch}{\mathsf{dont\_care}}
+\newcommand{\accept}{\mathsf{accept}}
+\newcommand{\reject}{\mathsf{reject}}
+\newcommand{\dontcareMatch}{\mathsf{dontcare}}
 \newcommand{\defMatch}{\mathsf{default}}
 \newcommand{\pmatch}{\mathit{mtch}}
 \newcommand{\pmatches}{\overline \pmatch}
@@ -413,9 +419,10 @@
 \newcommand{\errDcl}[1]{\mathsf{error}\ \{ {#1} \}}
 \newcommand{\matchkindDcl}[1]{\mathsf{match\_kind}\ \{{#1}\}}
 \newcommand{\enumDcl}[2]{\mathsf{enum}\ {#1}\, \{{#2} \}}
-\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} \, {#2}\, \{\overline {{#3}:{#4}} \}}
+\newcommand{\serEnumDcl}[4]{\mathsf{enum}\ {#1} \, {#2}\, \{\overline {{#3}={#4}} \}}
 \newcommand{\externObjDcl}[3]{\mathsf{extern}\ {#1}\, \langle{#2}\rangle\, \{{#3} \}}
-\newcommand{\newtypeDcl}[2]{{#1}={#2}}
+%type \rho \typename
+\newcommand{\newtypeDcl}[2]{\mathsf{type} \ {#1}\ {#2}}
 \newcommand{\typdefDcl}[2]{\mathsf{typedef}\ {#2}\, {#1}}
 \newcommand{\controlTypDcl}[3]{\mathsf{control}\ {#1}\, \langle{#2}\rangle\, ({#3})}
 \newcommand{\parserTypDcl}[3]{\mathsf{parser}\ {#1}\, \langle{#2}\rangle\, ({#3})}
@@ -525,7 +532,7 @@
 \newcommand{\newtypKey}{\mathsf{newtype}}
 
 %types:
-\newcommand{\dontcareTyp}{\mathsf{dont\_care}}
+\newcommand{\dontcareTyp}{\mathsf{dontcare}}
 \newcommand{\bitWidthTyp}[1]{\mathsf{bit}\langle{#1}\rangle}
 \newcommand{\intWidthTyp}[1]{\mathsf{int}\langle{#1}\rangle}
 \newcommand{\boolTyp}{\mathsf{bool}}

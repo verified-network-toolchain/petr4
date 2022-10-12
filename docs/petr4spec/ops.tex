@@ -219,6 +219,15 @@
 \newcommand{\toplevel}{\mathsf{topLevel}}
 \newcommand{\declLocalCtxt}{\mathsf{declLocal}}
 
+%%keywords used in nontypename
+\newcommand{\identifierkw}{\mathsf{identifier}}
+\newcommand{\applykw}{\mathsf{apply}}
+\newcommand{\keykw}{\mathsf{key}}
+\newcommand{\actionskw}{\mathsf{actions}}
+\newcommand{\statekw}{\mathsf{state}}
+\newcommand{\entrieskw}{\mathsf{entries}}
+\newcommand{\typekw}{\mathsf{type}}
+
 %operators:
 \newcommand{\mask}[2]{{#1}\ \&\&\&\ {#2}}
 \newcommand{\range}[2]{{#1}..{#2}}
@@ -275,8 +284,12 @@
 %% \newcommand{\constEnv}{\Sigma}
 \newcommand{\typ}{\tau}
 \newcommand{\typs}{\overline \typ}
-\newcommand{\baseTyp}{\rho}
-\newcommand{\baseTyps}{\overline \baseTyp}
+\newcommand{\surfaceTyp}[1]{\rho_{#1}}
+\newcommand{\surfaceTyps}[1]{\overline {\surfaceTyp {#1}}}
+\newcommand{\argTyp}{\eta}
+\newcommand{\funcProTyp}{\mu}
+\newcommand{\declaredTyp}{\nu}
+\newcommand{\synTyp}{\sigma}
 \newcommand{\typKind}{t}
 \newcommand{\ctxt}{c}
 \newcommand{\bool}{b}
@@ -290,8 +303,12 @@
 \newcommand{\name}{x}
 \newcommand{\var}{x}
 \newcommand{\typVar}{X}
-\newcommand{\typName}{x}
+\newcommand{\typName}{t}
 \newcommand{\typVars}{\overline \typVar}
+\newcommand{\atyp}{at}
+\newcommand{\atyps}{\overline \atyp}
+\newcommand{\btyp}{bt}
+\newcommand{\btyps}{\overline \btyp}
 %% \renewcommand{\array}{a}
 %% \renewcommand{\index}{i}
 \newcommand{\arrayAccess}[2]{{#1}[{#2}]}
@@ -387,7 +404,7 @@
 \newcommand{\props}{\overline \prop}
 
 %% field type pairs
-\newcommand{\fieldTyp}{\field:\baseTyp}
+\newcommand{\fieldTyp}{\field:\surfaceTyp \exp}
 \newcommand{\fieldTyps}{\overline \fieldTyp}
 
 %% methods
@@ -546,7 +563,7 @@
 \newcommand{\voidTyp}{\mathsf{void}}
 \newcommand{\arrayTyp}[2]{{#1}[{#2}]}
 \newcommand{\tupleTyp}[2]{\mathsf{tuple}\langle{#1},\ldots,{#2}\rangle}
-\newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle{#1}\rangle}
+\newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
 \newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typName}\ \{\fields\}}
@@ -586,7 +603,7 @@
 %% \newcommand{\constructorTyp}[4]{\mathsf{constructor}\langle{#1},{#2}\rangle\ ({#3}) \rightarrow {#4}}
 \newcommand{\constructorTyp}[3]{\mathsf{constructor}\langle{#1},{#2}\rangle \rightarrow {#3}}
 \newcommand{\externTyp}[1]{\mathsf{extern} \  {#1}}
-\newcommand{\spcTyp}[2]{{#1}\langle{#2}\rangle}
+\newcommand{\spcTyp}[2]{{#1}\langle\overline{#2}\rangle}
 \newcommand{\parserTyp}[2]{\mathsf{parser}\langle{#1}\rangle({#2})}
 \newcommand{\controlTyp}[2]{\mathsf{control}\langle{#1}\rangle({#2})}
 \newcommand{\packageTyp}[2]{\mathsf{package}\langle{#1}\rangle({#2})}

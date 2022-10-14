@@ -29,7 +29,7 @@
 \newcommand*{\matchKindT}{\rn{MatchKind}\rT}
 \newcommand*{\enumOneT}{\rn{Enum}\rT}
 \newcommand*{\intWidthT}{\rn{SignedInt}\rT}
-\newcommand*{\bitWidthT}{\rn{BitString(UnsignedInteger)}\rT}
+\newcommand*{\bitWidthT}{\rn{BitString}\rT}
 \newcommand*{\arrayT}{\rn{Array}\rT}
 \newcommand*{\tupleT}{\rn{Tuple}\rT}
 \newcommand*{\setT}{\rn{Set}\rT}
@@ -67,6 +67,7 @@
 \newcommand*{\unaryMinusE}{\rn{UnaryMinus}\rE}
 \newcommand*{\binaryOpsE}{\rn{BinaryOps}\rE}
 \newcommand*{\castE}{\rn{cast}\rE}
+\newcommand*{\castTypNameE}{\rn{cast}\rSep\rn{TypeID}\rE}
 \newcommand*{\typeMemE}{\rn{TypeMember}\rE}
 \newcommand*{\errMemE}{\rn{ErrorMember}\rE}
 \newcommand*{\expMemE}{\rn{ExpressionMember}\rE}
@@ -234,8 +235,10 @@
 \newcommand{\ternary}[3]{{#1}\, ?\, {#2}\, : \, {#3}}
 \newcommand{\errMem}[1]{\mathsf{error}.{#1}}
 \newcommand{\typMem}[2]{{#1}.{#2}}
-\newcommand{\shiftR}{\gg}
-\newcommand{\shiftL}{\ll}
+\newcommand{\shiftR}{>\!>}
+\newcommand{\shiftL}{<\!<}
+\newcommand{\leqOp}{<=}
+\newcommand{\geqOp}{>=}
 \newcommand{\concat}{+\!+\ }
 \newcommand{\restOps}{\odot}
 \newcommand{\ops}{\odot}
@@ -247,8 +250,8 @@
 \newcommand{\logor}{||}
 \newcommand{\bitAnd}{\&}
 \newcommand{\bitOr}{|}
-\newcommand{\bitXor}{\hat{}}
-\newcommand{\bitComplement}{\sim\!}
+\newcommand{\bitXor}{\string^}
+\newcommand{\bitComplement}{\string~}
 \renewcommand{\div}{/}
 \renewcommand{\mod}{\%}
 \newcommand{\funcCall}[3]{{#1}\,\langle{#2}\rangle\,({#3})}
@@ -293,6 +296,8 @@
 \newcommand{\typKind}{t}
 \newcommand{\ctxt}{c}
 \newcommand{\bool}{b}
+\newcommand{\tru}{\mathsf{true}}
+\newcommand{\fls}{\mathsf{false}}
 \newcommand{\str}{s}
 \newcommand{\width}{w}
 \newcommand{\val}{v}
@@ -385,7 +390,7 @@
 \newcommand{\pmatches}{\overline \pmatch}
 \newcommand{\case}{\mathit{case}}
 \newcommand{\pcases}{\overline \case}
-\newcommand{\parserTran}{t}
+\newcommand{\parserTran}{trans}
 \newcommand{\parserTrans}{\overline \parserTran}
 \newcommand{\stateDef}[3]{{#1}\ \{{#2}\} \ {#3}}
 \newcommand{\state}{\mathit{st}}
@@ -566,9 +571,9 @@
 \newcommand{\tupleTyps}[1]{\mathsf{tuple}\langle\overline{#1}\rangle}
 \newcommand{\listTyp}[2]{\tupleTyp {#1} {#2}}
 \newcommand{\listTyps}[1]{\tupleTyps {#1}}
-\newcommand{\enumTypDef}{\mathsf{enum}\ {\typ}\ {\typName}\ \{\fields\}}
+\newcommand{\enumTypDef}{\mathsf{enum}\ {\surfaceTyp \exp}\ {\typName}\ \{\fields\}}
 \newcommand{\enumTyp}[3]{\mathsf{enum}\ {#1}\ {#2}\ \{{#3}\}}
-\newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\name}\ \{\fields\}}
+\newcommand{\enumTypNoTypDef}{\mathsf{enum} \ {\typName}\ \{\fields\}}
 \newcommand{\enumTypNoTyp}[2]{\mathsf{enum} \ {#1}\ \{{#2}\}}
 \newcommand{\recordTypDef}{\recordTyp 1 n}
 \newcommand{\recordTypStructureOpen}[2]{\{\field_{#1}:\typ_{#1};\ldots;\field_{#2}:\typ_{#2}\}}

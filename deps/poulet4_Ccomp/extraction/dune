@@ -7,11 +7,14 @@
    Ascii
    Auxiliary
    Basics
+   Binary
+   BinarySingleNaN
    BinInt
    BinNat
    BinNums
    BinPos
    BinPosDef
+   Bits
    Bool
    Byte
    CCompEnv
@@ -36,8 +39,8 @@
    Floats
    Globalenvs
    Hexadecimal
-   IEEE754_extra
    IdentGen
+   IEEE754_extra
    Integers
    List0
    ListUtil

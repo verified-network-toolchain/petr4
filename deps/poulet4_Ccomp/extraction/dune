@@ -12,10 +12,7 @@
    BinNums
    BinPos
    BinPosDef
-   Binary
-   Bits
    Bool
-   Bracket
    Byte
    CCompEnv
    CCompSel
@@ -36,7 +33,6 @@
    EquivDec
    EquivUtil
    Errors
-   FLT
    Floats
    Globalenvs
    Hexadecimal

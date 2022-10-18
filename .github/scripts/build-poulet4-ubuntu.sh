@@ -10,6 +10,7 @@ export PETR4_DEPS="m4 \
                    libgmp-dev"
 
 # install dependencies
+wget --no-cache https://github.com/janestreet/core_unix/archive/refs/tags/v0.15.1.tar.gz
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends ${PETR4_DEPS}
 opam switch 4.14.0

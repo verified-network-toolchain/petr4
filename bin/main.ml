@@ -37,9 +37,9 @@ module UnixIO : DriverIO = struct
     Core_unix.open_process_out path
 
   let close_file ochan =
-    match Core_unix.close_process_out ochan with
-    | Ok () -> ()
-    | Error _ -> failwith "Error in close_file"
+    ochan 
+    |> Core_unix.close_process_out 
+    |> Result.ok_or_failwith "Error in close_file"
   
 end
 

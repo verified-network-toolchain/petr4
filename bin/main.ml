@@ -45,22 +45,15 @@ end
 
 module UnixDriver = MakeDriver(UnixIO)
 
-let parse_ext_flag p =
-  match p with
-  | Some file ->
-     Pass.Run (Some (Pass.parse_output_exn file))
-  | None ->
-     Pass.Run None
+let parse_ext_flag p = Pass.run (Option.map p ~f:Pass.parse_output_exn)
 
 let parse_backend unroll_parsers output_gcl output_clight =
   match output_gcl, output_clight with
   | Some gcl, None ->
-     begin match unroll_parsers with
-     | Some depth ->
-        let gcl_output = Pass.parse_output_exn gcl in
-        Pass.Run (Pass.GCLBackend {depth; gcl_output})
-     | None ->
-        failwith "please provide a depth with -unroll-parsers when compiling to GCL"
+     let message = "please provide a depth with -unroll-parsers when compiling to GCL" in
+     let depth = Option.value_exn unroll_parsers ~message in
+     let gcl_output = Pass.parse_output_exn gcl in
+     Pass.Run (Pass.GCLBackend {depth; gcl_output})
      end
   | None, Some clight ->
      let clight_output = Pass.parse_output_exn clight in

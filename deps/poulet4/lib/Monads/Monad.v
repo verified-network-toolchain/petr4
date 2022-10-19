@@ -1,4 +1,5 @@
 Require Import Coq.Lists.List.
+Require Import Coq.Program.Basics.
 
 Class Monad (M : Type -> Type) : Type :=
   { mret : forall {A}, A -> M A;
@@ -56,6 +57,9 @@ Fixpoint asequence {K A} {m: Type -> Type} {M : Monad m} (acts: list (K * m A)) 
     let* rest := @asequence K A m M xs in 
       mret ((k, t) :: rest)
   end.
+
+Definition map_monad {A B : Type} {m : Type -> Type} {M : Monad m} (f : A -> m B) : list A -> m (list B) :=
+  compose sequence (List.map f).
 
 Definition lift_monad {A B} {m: Type -> Type} {M : Monad m} (f: A -> B) (ma : m A) : m B :=
   ma >>= fun a => mret (f a).

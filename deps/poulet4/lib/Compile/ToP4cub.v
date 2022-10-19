@@ -17,6 +17,7 @@ Set Warnings "-custom-entry-overridden".
 From Poulet4 Require Import
      P4light.Transformations.SimplExpr
      P4light.Transformations.InlineTypeDecl
+     P4light.Transformations.InlineConstants
      Utils.Util.ListUtil.
 From Poulet4 Require Export
      P4light.Syntax.Syntax
@@ -1391,8 +1392,8 @@ Section ToP4cub.
 
   Fixpoint translate_decl (ctx : DeclCtx)  (d : @Declaration tags_t) {struct d}: result string DeclCtx :=
     match d with
-    | DeclConstant tags typ name value =>
-      error "[FIXME] Constant declarations unimplemented"
+    | DeclConstant _ _ _ _ =>
+      ok ctx (* inlined in previous pass *)
     | DeclInstantiation tags typ args name init =>
       let cub_name := P4String.str name in
       let* ctor_p4string := get_string_from_type typ in
@@ -1577,7 +1578,8 @@ Section ToP4cub.
     |}.
 
   Definition translate_program (tags : tags_t) (p : program) : result string DeclCtx :=
-    let* '(Program decls) := preprocess tags p in
+    let p' := inline_constants p in
+    let* '(Program decls) := preprocess tags p' in
     let+ cub_decls := translate_decls decls in
     infer_member_types (inline_cub_types cub_decls).
 

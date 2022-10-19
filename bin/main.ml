@@ -45,7 +45,7 @@ end
 
 module UnixDriver = MakeDriver(UnixIO)
 
-let parse_ext_flag p = Pass.run (Option.map p ~f:Pass.parse_output_exn)
+let parse_ext_flag p = Pass.Run (Option.map p ~f:Pass.parse_output_exn)
 
 let parse_backend unroll_parsers output_gcl output_clight =
   match output_gcl, output_clight with

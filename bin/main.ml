@@ -54,7 +54,6 @@ let parse_backend unroll_parsers output_gcl output_clight =
      let depth = Option.value_exn unroll_parsers ~message in
      let gcl_output = Pass.parse_output_exn gcl in
      Pass.Run (Pass.GCLBackend {depth; gcl_output})
-     end
   | None, Some clight ->
      let clight_output = Pass.parse_output_exn clight in
      Pass.Run (Pass.CBackend clight_output)

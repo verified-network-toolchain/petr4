@@ -270,7 +270,52 @@ Fixpoint intersect_string_list_aux (xs ys acc : list string) : list string :=
 Definition intersect_string_list (xs ys : list string) : list string :=
   rev' (intersect_string_list_aux xs ys []).
 
+
 (* This wrapper prevents A = Inhabitant A definitional equalities from
    throwing off typeclass inference. *)
 Definition Znth_default {A : Type} (x : A) (n : BinInt.Z) (l : list A) : A :=
   @VST.zlist.sublist.Znth A x n l.
+
+Section IndexOf.
+  Context {A : Set}.
+  Variable eqA_dec : forall (x y : A), {x = y} + {x <> y}.
+  Variable a : A.
+  
+  Fixpoint index_of (l : list A) : option nat :=
+    match l with
+    | [] => None
+    | h :: t => if eqA_dec h a then Some 0 else option_map S (index_of t)
+    end.
+End IndexOf.
+
+Lemma nth_update_length : forall (A : Set) (l : list A) n a,
+    List.length (nth_update n a l) = List.length l.
+Proof.
+  intros A l; induction l as [| h t];
+    intros [| n] a; cbn; auto.
+Qed.
+
+Lemma nth_update_correct : forall (A : Set) (l : list A) n a,
+    n < List.length l ->
+    nth_error (nth_update n a l) n = Some a.
+Proof.
+  intros A l; induction l as [| h t];
+    intros [| n] a H; cbn in *; try lia; auto.
+  assert (n < List.length t) by lia; auto.
+Qed.
+
+Search ((nat -> ?A -> ?B) -> list ?A -> list ?B).
+
+Section Mapi.
+  Context {A B : Type}.
+
+  Variable f : nat -> A -> B.
+
+  Fixpoint mapi_help (i : nat) (l : list A) : list B :=
+    match l with
+    | [] => []
+    | a :: l => f i a :: mapi_help (S i) l
+    end.
+
+  Definition mapi : list A -> list B := mapi_help 0.
+End Mapi.

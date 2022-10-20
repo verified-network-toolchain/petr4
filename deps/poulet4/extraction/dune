@@ -39,7 +39,6 @@
   GCL
   Inline
   Statementize
-  VarNameGen
   HoistNameless
   InferMemberTypes
   Substitution
@@ -47,7 +46,7 @@
   InlineConstants
   TableInstr
   V1model
-  Auxilary
+  Auxiliary
   Envn
   Result
   P4Arith
@@ -86,6 +85,10 @@
   Monad
   Option
   State
+  ExceptionState
+  HeaderStack
+  Shift
+  RecordSet
   Pure)
  (libraries zarith bignum)
  (theories Poulet4))

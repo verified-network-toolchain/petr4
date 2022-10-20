@@ -1,5 +1,7 @@
 Require Import Poulet4.P4light.Syntax.Typed
-        Coq.Lists.List Poulet4.P4light.Syntax.Syntax.
+  Coq.Lists.List Poulet4.P4light.Syntax.Syntax
+  Coq.Arith.Arith.
+
 From Poulet4.Utils Require Import Maps Utils Util.FunUtil.
 Require Poulet4.P4light.Syntax.P4String Poulet4.Utils.AListUtil.
 Import List.ListNotations.
@@ -55,6 +57,7 @@ Fixpoint sub_typs_P4Type
   | TypError
   | TypMatchKind
   | TypVoid
+  | TypExtern _
   | TypTable _              => τ
   | TypArray τ n            => TypArray (σ †t τ) n
   | TypTuple τs             => TypTuple (lmap (σ †t) τs)
@@ -68,7 +71,6 @@ Fixpoint sub_typs_P4Type
   | TypNewType x τ          => TypNewType x (σ †t τ)
   | TypControl ct           => TypControl (σ †ct ct)
   | TypParser  ct           => TypParser  (σ †ct ct)
-  | TypExtern T             => sub_default σ (P4String.str T) τ
   | TypFunction ft          => TypFunction (σ †ft ft)
   | TypAction cps ps        => TypAction (lmap (σ †p) cps) (lmap (σ †p) ps)
   | TypSpecializedType τ τs => TypSpecializedType (σ †t τ) (lmap (σ †t) τs)
@@ -101,6 +103,96 @@ sub_typs_P4Parameter {tags_t}
   | MkParameter b d τ def x => MkParameter b d (σ †t τ) def x
   end
 where "σ '†p'" := (sub_typs_P4Parameter σ) : sub_scope.
+
+(** Simplifies all reducable type applications. *)
+Section Collapse.
+  Context {tags_t : Type}.
+
+  Fixpoint collapse_P4Type (t : @P4Type tags_t) : @P4Type tags_t :=
+    match t with
+    | TypSpecializedType t ts =>
+        let t := collapse_P4Type t in
+        let ts := lmap collapse_P4Type ts in
+        match t with
+        | TypFunction (MkFunctionType Xs ps k ty) =>
+            if (List.length Xs <=? List.length ts)%nat then
+              let σ := IdentMap.sets (List.map P4String.str Xs) ts IdentMap.empty in
+              TypFunction
+                (MkFunctionType [] (lmap (σ †p) ps) k $ σ †t ty)
+            else
+              TypSpecializedType t ts
+        | TypControl (MkControlType Xs ps) =>
+            if (List.length Xs <=? List.length ts)%nat then
+              let σ := IdentMap.sets (List.map P4String.str Xs) ts IdentMap.empty in
+              TypControl
+                (MkControlType [] $ lmap (σ †p) ps)
+            else
+              TypSpecializedType t ts
+        | TypParser (MkControlType Xs ps) =>
+            if (List.length Xs <=? List.length ts)%nat then
+              let σ := IdentMap.sets (List.map P4String.str Xs) ts IdentMap.empty in
+              TypParser
+                (MkControlType [] $ lmap (σ †p) ps)
+            else
+              TypSpecializedType t ts
+        | TypPackage Xs ws ps =>
+            if (List.length Xs <=? List.length ts)%nat then
+              let σ := IdentMap.sets (List.map P4String.str Xs) ts IdentMap.empty in
+              TypPackage [] ws $ lmap (σ †p) ps
+            else
+              TypSpecializedType t ts
+        | TypConstructor Xs ws ps ty =>
+            if (List.length Xs <=? List.length ts)%nat then
+              let σ := IdentMap.sets (List.map P4String.str Xs) ts IdentMap.empty in
+              TypConstructor [] ws (lmap (σ †p) ps) $ σ †t ty
+            else
+              TypSpecializedType t ts
+        | t => TypSpecializedType t ts
+        end
+    | TypBool
+    | TypString
+    | TypInteger
+    | TypInt _
+    | TypBit _
+    | TypVarBit _
+    | TypError
+    | TypMatchKind
+    | TypVoid
+    | TypTypeName _
+    | TypExtern _
+    | TypTable _ => t
+    | TypSet t => TypSet $ collapse_P4Type t
+    | TypArray t n => TypArray (collapse_P4Type t) n
+    | TypNewType X t => TypNewType X $ collapse_P4Type t
+    | TypEnum X ot xs => TypEnum X (omap collapse_P4Type ot) xs
+    | TypTuple ts => TypTuple $ lmap collapse_P4Type ts
+    | TypList ts  => TypList  $ lmap collapse_P4Type ts
+    | TypRecord xts => TypRecord $ almap collapse_P4Type xts
+    | TypHeader xts => TypHeader $ almap collapse_P4Type xts
+    | TypStruct xts => TypStruct $ almap collapse_P4Type xts
+    | TypHeaderUnion xts => TypHeaderUnion $ almap collapse_P4Type xts
+    | TypControl ct => TypControl $ collapse_ControlType ct
+    | TypParser  ct => TypParser  $ collapse_ControlType ct
+    | TypFunction ft => TypFunction $ collapse_FunctionType ft
+    | TypAction cs ds => TypAction (lmap collapse_P4Parameter cs) $ lmap collapse_P4Parameter ds
+    | TypPackage xs ws ps => TypPackage xs ws $ lmap collapse_P4Parameter ps
+    | TypConstructor xs ws ps t =>
+        TypConstructor xs ws (lmap collapse_P4Parameter ps) $ collapse_P4Type t
+    end
+  with collapse_ControlType (ct : @ControlType tags_t) : @ControlType tags_t :=
+         match ct with
+           MkControlType Xs ps => MkControlType Xs $ lmap collapse_P4Parameter ps
+         end
+  with collapse_FunctionType (ft : @FunctionType tags_t) : @FunctionType tags_t :=
+         match ft with
+           MkFunctionType Xs ps k t =>
+             MkFunctionType Xs (lmap collapse_P4Parameter ps) k $ collapse_P4Type t
+         end
+  with collapse_P4Parameter (p : @P4Parameter tags_t) : @P4Parameter tags_t :=
+         match p with
+           MkParameter b d t o x => MkParameter b d (collapse_P4Type t) o x
+         end.
+End Collapse.
 
 (** [DeclarationField] substitution*)
 Definition sub_typs_DeclarationField
@@ -269,7 +361,6 @@ sub_typs_StatementPreT {tags_t}
   | StatInstantiation τ es x init
     => StatInstantiation (σ †t τ) (lmap (σ †e) es) x (lmap (σ †init) init)
   | StatDirectApplication τ τ' es
-    (* Qinshi: I just make it compile. *)
     => StatDirectApplication (σ †t τ) τ' (lmap (omap (σ †e)) es)
   | StatMethodCall e τs es
     => StatMethodCall (σ †e e) (lmap (σ †t) τs) (lmap (omap (σ †e)) es)
@@ -404,7 +495,7 @@ Fixpoint
     => (σ,
        Some
          (DeclAction
-            i x (lmap (σ †p) ps) (lmap (σ †p) ps) (σ †blk blk)))
+            i x (lmap (σ †p) ps) (lmap (σ †p) cps) (σ †blk blk)))
   | DeclTable i x k tars tes dtar n tps
     => (σ,
        Some
@@ -424,9 +515,9 @@ Fixpoint
   | DeclSerializableEnum i τ ({| P4String.str := T |} as X) es
     => (σ ∋ T |-> TypEnum X (Some (σ †t τ)) (lmap fst es),
        Some (DeclSerializableEnum i τ X (almap (σ †e) es)))
-  | DeclExternObject i x Xs mtds
+  | DeclExternObject i ({| P4String.str := T |} as X) Xs mtds
     => let σ' := σ ∖ (lmap P4String.str Xs) in
-      (σ, Some (DeclExternObject i x Xs (lmap (σ' †mp) mtds)))
+      (σ ∋ T |-> TypExtern X, Some (DeclExternObject i X Xs (lmap (σ' †mp) mtds)))
   | DeclTypeDef _ {| P4String.str := T |} (inl τ)
   | DeclNewType _ {| P4String.str := T |} (inl τ)
     => (σ ∋ T |-> σ †t τ, None)
@@ -441,9 +532,9 @@ Fixpoint
   | DeclParserType _ {| P4String.str := T |} Xs ps
     => let σ' := σ ∖ (lmap P4String.str Xs) in
       (σ' ∋ T |-> TypParser (MkControlType Xs (lmap (σ' †p) ps)), None)
-  | DeclPackageType _ {| P4String.str := T |} Xs ps
+  | DeclPackageType i X Xs ps
     => let σ' := σ ∖ (lmap P4String.str Xs) in
-      (σ' ∋ T |-> TypPackage Xs [] (lmap (σ' †p) ps), None)
+      (σ, Some (DeclPackageType i X Xs (lmap (σ' †p) ps)))
   | _ => (σ, None)
   end
 where "σ '‡d'" := (inline_typ_Declaration σ).

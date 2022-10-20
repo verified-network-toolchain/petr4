@@ -50,6 +50,7 @@ Require Poulet4.GCL.ToGCL.
 Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
+Require Poulet4.Monads.State.
 
 (* The Set Extraction Flag 716 command below turns on the following
 extraction optimizations.
@@ -88,6 +89,8 @@ Extraction NoInline Interpreter.interp_isValid_fields.
 
 (* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
+  Poulet4.Monads.Option
+  Poulet4.Monads.State
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
          Poulet4.P4light.Semantics.Semantics
@@ -96,6 +99,7 @@ Separate Extraction
          Poulet4.P4light.Architecture.V1ModelTarget
          Poulet4.P4light.Transformations.SimplExpr
          Poulet4.P4light.Transformations.GenLoc
+           Poulet4.P4light.Transformations.InlineTypeDecl
          Poulet4.P4light.Syntax.ConstValue
          Poulet4.Compile.ToP4cub
          Poulet4.GCL.GCL

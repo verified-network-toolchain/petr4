@@ -116,7 +116,7 @@ module Make_parse (Conf: Parse_config) = struct
 
  let write_p4cub_to_file prog printp4_file =
    let oc_p4 = Out_channel.create printp4_file in
-   Printp4cub.print_tp_decl (Format.formatter_of_out_channel oc_p4) prog;
+   Printp4cub.print_prog (Format.formatter_of_out_channel oc_p4) prog;
    Out_channel.close oc_p4
 
  let to_p4cub light =
@@ -142,9 +142,9 @@ module Make_parse (Conf: Parse_config) = struct
    else
      light
 
- let to_gcl (p4cub : P4info.t Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
+ let to_gcl (p4cub : Poulet4.ToP4cub.coq_DeclCtx) gas unroll =
    let open Poulet4 in
-   let coq_gcl = V1model.gcl_from_p4cub (P4info.dummy) TableInstr.instr gas unroll p4cub in 
+   let coq_gcl = V1model.gcl_from_p4cub TableInstr.instr gas unroll p4cub in
    match coq_gcl with
    | Result.Error msg -> failwith msg
    | Result.Ok gcl -> gcl
@@ -162,17 +162,14 @@ module Make_parse (Conf: Parse_config) = struct
    
 
  let flatten cub =
-   let open Poulet4 in
-   match Poulet4.ToP4cub.flatten_DeclCtx cub with
-   | Result.Ok cub -> cub
-   | Result.Error e -> failwith e
+   Poulet4.ToP4cub.flatten_DeclCtx cub
    
  let to_c print file cub =  
    (* the C compiler *)
    let cub = flatten cub in
-   let stmtd = Poulet4.Statementize.coq_TranslateProgram cub in
-   if(print) then write_p4cub_to_file stmtd file;
-   let certd = Compcertalize.topdecl_convert cub in 
+   let stmtd = Poulet4.Statementize.lift_program cub in
+   (if print then write_p4cub_to_file stmtd file);
+   let certd : Poulet4_Ccomp.AST0.TopDecl.d list = List.map ~f:Compcertalize.topdecl_convert cub in 
    ccompile certd
    
                     
@@ -189,8 +186,19 @@ module Make_parse (Conf: Parse_config) = struct
      (* Preprocessing  *)
      let nrm_light = simpl_expr ~do_simpl_expr:normalize typ_light in
      let loc_light = gen_loc    ~if_:do_gen_loc nrm_light in
+     (*let hoist =
+       begin match Poulet4.HoistNameless.hoist_nameless_instantiations (simpl_expr ~if_:true  loc_light) with
+       | Ok p -> p
+       | _ -> failwith "hoist failed"
+       end in
+     let (_,inline_types) = Poulet4.InlineTypeDecl.inline_typ_program Poulet4.Maps.IdentMap.empty hoist in
+     print_endline "\n------------------ p4light ------------------\n";
+     Printp4.print_decls Format.std_formatter inline_types;*)
      (* p4cub compiler *)
+     (*Printp4.print_decls Format.std_formatter loc_light;*)
      let cub = to_p4cub loc_light in
+     (*print_endline "\n========================= p4cub ========================\n";
+     Printp4cub.print_prog Format.std_formatter (Poulet4.ToP4cub.flatten_DeclCtx cub);*)
      begin match gcl with
      | [gas; unroll] ->
        (* GCL Compiler *)

@@ -1,6 +1,6 @@
 Require Import Coq.Strings.String.
 Require Import Poulet4.Monads.Monad.
-Require Poulet4.Monads.State.
+Require Poulet4.Monads.ExceptionState.
 Require Coq.Lists.List.
 Import Coq.Lists.List.ListNotations.
 Open Scope list_scope.
@@ -33,16 +33,16 @@ Variant exception :=
 .
 
 Definition Packet : Type -> Type :=
-  @State.state_monad (list bool) exception.
+  @ExceptionState.state_monad (list bool) exception.
 
 Definition packet_ret (A: Type) (a: A) : Packet A :=
-  State.state_return a.
+  ExceptionState.state_return a.
 
 Definition packet_bind (A B: Type) (a: Packet A) (c: A -> Packet B) : Packet B :=
-  State.state_bind a c.
+  ExceptionState.state_bind a c.
 
 Definition err {A: Type} (e: exception) : Packet A :=
-  State.state_fail e.
+  ExceptionState.state_fail e.
 
 #[export]
 Instance PacketMonad: Monad Packet :=
@@ -79,7 +79,7 @@ Definition map_pkt (f: list bool -> list bool) : Packet unit :=
   fun bs => mret tt (f bs).
 
 Definition emit_bits (bs : list bool) : Packet unit :=
-  State.put_state (fun pkt => pkt ++ bs).
+  ExceptionState.put_state (fun pkt => pkt ++ bs).
 
 Definition emit_bit (b : bool) : Packet unit :=
   emit_bits [b].

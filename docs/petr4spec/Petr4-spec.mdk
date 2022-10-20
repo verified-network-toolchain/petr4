@@ -626,8 +626,7 @@ Two judgments are provided for types of P4 expressions:
 
 |     |      |     |     |
 |~~~~:|:~~~~:|:~~~~|:~~~~|
-| $\declaredTyp$ | $::=$ | $blah$ | $\qquad \text{blah}$ |
-|   | $\vert$ | $\headerTyps \field \typ$ | $\qquad \text{headers}$ |
+| $\declaredTyp$ | $::=$ |$\headerTyps \field \typ$ | $\qquad \text{headers}$ |
 |   | $\vert$ | $\headerUnionTyps \field \typ$ | $\qquad \text{header unions}$ |
 |   | $\vert$ | $\structTyps \field \typ$ | $\qquad \text{structs}$ |
 |   | $\vert$ | $\enumTypDef$ | $\qquad \text{serializable enums}$ |
@@ -1281,20 +1280,23 @@ one can substitute $\ops$ for either $\&\&$ or $\vert\vert$.
 
 The following helpers are used in the binary operation rules:
 
-- $\implicitCast {\typ_1} {\typ_2}$ denotes possible implicit casts between different kinds of integers and returns the type that the other type can be casted to. It is described below (Note that it follows P4's implicit
+- ```old``` $\implicitCast {\typ_1} {\typ_2}$ denotes possible implicit casts between different kinds of integers and returns the type that the other type can be casted to. It is described below (Note that it follows P4's implicit
 casting behavior and it is defined in more details in [cast auxiliary judgment][#sec-cast-helper].):
   * $\implicitCast {\bitWidthTyp \width} \integerTyp   = \bitWidthTyp \width$
   * $\implicitCast \integerTyp  {\bitWidthTyp \width}  = \bitWidthTyp \width$
   * $\implicitCast {\intWidthTyp \width} \integerTyp   = \intWidthTyp \width$
   * $\implicitCast \integerTyp {\intWidthTyp \width}   = \intWidthTyp \width$
-- $\cast \typ \exp$ synthesizes a cast expression if the type of the expression $\exp$ is different from the type $\typ$.
-- $\reduceEnums \typ$ removes all the enums recursively from a type after reducing it.
+- ```old``` $\cast \typ \exp$ synthesizes a cast expression if the type of the expression $\exp$ is different from the type $\typ$.
+- ```old``` $\reduceEnums \typ$ removes all the enums recursively from a type after reducing it.
 - $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions $\dir_1$ and $\dir_2$ are $\inDir$, otherwise, it returns the $\less$ direction.
-- ``new`` $\typHasEq \typ$ checks if equality of two expressions from the type $\typ$ has been defined. Note that it first reduces the type $\typ$. The following are the types that can be checked for equality:
-   * \errorTyp
-   * \enumTyp with and without underling type
-   * \boolTyp
-   * \bitw
+- ``new`` $\typHasEq \typ$ checks if equality of two expressions from the type $\typ$ has been defined. Note that this is different from checking if two types are equal. The following are the types that can be checked for equality:
+   * $\errTyp$
+   * $\boolTyp$
+   * $\bitWidthTyp \width$
+   * $\intWidthTyp \width$
+   * $\integerTyp$
+   * $\enumTypDef$
+   * $\enumTypNoTypDef$
 - $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on the types of its two operands:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
@@ -1304,140 +1306,162 @@ casting behavior and it is defined in more details in [cast auxiliary judgment][
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
   + if $\typ_1 = \intWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
-- $\bothInt  {\typ_1} {\typ_2}$ is a helper function that checks if both types are a fixed-length or arbitrary precision integer type. That is, it checks the conditions below and returns $\tr$ if one of them holds:
+- ```old``` $\bothInt  {\typ_1} {\typ_2}$ is a helper function that checks if both types are a fixed-length or arbitrary precision integer type. That is, it checks the conditions below and returns $\tr$ if one of them holds:
   + $\typ_1 = \typ_2 = \integerTyp$
   + $\typ_1 = \typ_2 = \bitWidthTyp \width$
   + $\typ_1 = \typ_2 = \intWidthTyp \width$
-- $\nonNeg \exp$ and $\pos \exp$ evaluate an expression at compile time and check if it is a non-negative or positive number, respectively.
-- $\divCond {\typ_1} {\typ_2}$ is a helper function that checks the following conditions for a division/modulo expression and returns $\tr$ if one of them holds:
+- ```olld`` $\nonNeg \exp$ and $\pos \exp$ evaluate an expression at compile time and check if it is a non-negative or positive number, respectively.
+- ```old``` $\divCond {\typ_1} {\typ_2}$ is a helper function that checks the following conditions for a division/modulo expression and returns $\tr$ if one of them holds:
   + if $\typ_1 = \typ_2 = \integerTyp$, then
     $\divCond {\typ_1} {\typ_2} = \integerTyp$
   + if $\typ_1 = \typ_2 = \bitWidthTyp \width$, then
     $\divCond {\typ_1} {\typ_2} = \bitWidthTyp \width$
-- $\shiftCond {\typ} {\exp}$ is a helper function that checks the following conditions of the first expression and it returns $\tr$ if one of them holds:
+- $\shiftCond {\typ} {\exp}$ checks whether one of the following holds:
+  + $\typ == \bitWidthTyp \width$
+  + $\typ == \integerTyp$ and $\nonNeg \exp$ 
+
+```old```is a helper function that checks the following conditions of the first expression and it returns $\tr$ if one of them holds:
   + $\typ = \bitWidthTyp \width$
   + $\typ = \intWidthTyp \width$
   + $\typ = \integerTyp$ and $\compTimeKnown \exp$
-- $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
+- ```move it to array access with eval comp time from bitstring access``` $\compTimeKnown \exp$ checks if the value of expression $\exp$ is known during the
 compilation. It does so by evaluating the expression $\exp$ at compile time, if that is
 possible then we know the value at compile time. Otherwise, if the expression $\exp$ is
 a specialized type, extern, package, control, or parser but we cannot evaluate it at
 compile time we still consider it known at compile time.
+- $\ifIntComp \typ \exp$ checks returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-know.
 
 ~ Begin InfRule
 
-  \inferrule[\rn{LogicalOps}\rAE($\ops=\&\&,\vert\vert$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} =
-       \reduceEnums {\typ_2} = \boolTyp \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \restOps \exp_2} {\pprim {\exp_1} \restOps \pprim {\exp_2}} \boolTyp \dir }
+  \inferrule[\rn{LogicalOps}\rAE($\ops=\intoOp {\&\&},\intoOp{\logor}$)]
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\boolTyp} {\dir_1} \\
+       \expenv {\exp_2} {\VVal {\exp_2}} {\boolTyp} {\dir_2}\\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} =
+       % \reduceEnums {\typ_2} = \boolTyp \\\\
+       \inOrLess {\dir_1} {\dir_2} = \dir
+       }
+     {\expenv {\exp_1 \restOps \exp_2} {\VVal {\exp_1} \restOps \VVal {\exp_2}} \boolTyp \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-  \inferrule[\rn{NumericOps}\rE($\ops=+, -, *$)]
+  \inferrule[\rn{NumericOps}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-       \isInt \typ\\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
+       % \isInt \typ\\\\
+       \isNumeric {\exp_1} {\typ_1}\\
+       \isNumeric {\exp_2} {\typ_2}\\\\
+       \typ_1 == \typ_2\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir 
        }
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \typ \dir }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{EqualityChecks}\rE($\ops=\ ==, !=$)]
+  \inferrule[\rn{EqualityChecks}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
        % \typEq {\emp} {\typ_1} {\typ_2} \\
+       \ifIntComp {\typ_1} {\exp_1} \\
+       \ifIntComp {\typ_2} {\exp_2}\\\\
+       \typ_1 == \typ_2\\
        \typHasEq {\typ_1} \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     { \expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \boolTyp \dir }
+       \inOrLess {\dir_1} {\dir_2} = \dir
+       }
+     { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-  \inferrule[\rn{OpSat}\rE($\ops = \plusSat,\subSat$)]
+  \inferrule[\rn{OpSat}\rE($\ops = \intoOp \plusSat,\intoOp \subSat$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-       \widthInt {\typ} = \_ \\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
+       \widthInt {\typ_1} = \whatevs \\
+       \typ_1 == \typ_2\\\\
        % \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \typ \dir }
+       \inOrLess {\dir_1} {\dir_2} = \dir
+       }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }
        % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{BitwiseOps}\rE($\ops=\bitAnd, \bitOr, \intoOp \bitXor, \bitComplement$)]
+  \inferrule[\rn{BitwiseOps}\rE($\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor, \intoOp \bitComplement$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ\\\\
-       \widthInt {\typ} = \_ \\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ\\\\
+       \widthInt {\typ_1} = \whatevs \\
        % \typ = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \typ \dir }
+       \typ_1 == \typ_2\\\\
+       \inOrLess {\dir_1} {\dir_2} = \dir
+       }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }
        % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
   \inferrule[\rn{BitstringConcatenation}\rE]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       \concatCond {\VVal {\typ_1}} {\VVal {\typ_2}} = \typ\\\\
+       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
+       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
+       \concatCond { {\typ_1}} { {\typ_2}} = \typ\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \concat \exp_2} {\pprim {\exp_1} \concat \pprim {\exp_2}} \typ \dir }
-     % { \binOpEnv {\exp_1 \concat \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
+     {\expenv {\exp_1 \intoOp \concat \exp_2} {\pprim {\exp_1} \intoOp \concat \pprim {\exp_2}} \typ \dir }
+     % { \binOpEnv {\exp_1  \concat \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{ComparisonOps}\rE($\ops= <, \leq, >, \geq$)]
+  \inferrule[\rn{ComparisonOps}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
+       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
+       % \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
+       \isNumeric {\exp_1} {\typ_1}\\
+       \isNumeric {\exp_2} {\typ_2}\\\\
+       \typ_1 == \typ_2\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir
       }
-    { \expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \boolTyp \dir }
+    { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{DivOps\rE}($\ops=\div, \mod$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       \reduceEnums {\typ_1} = \VVal {\typ_1}\\
-       \reduceEnums {\typ_2} = \VVal {\typ_2}\\\\
-       \divCond {\VVal {\typ_1}} {\VVal {\typ_2}} = \typ \\
+  \inferrule[\rn{DivOps\rE}($\ops=\intoOp\div, \intoOp\mod$)]
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\integerTyp} {\dir_1} \\
+       \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\dir_2}\\\\
+       % \implicitCast {\typ_1} {\typ_2} = \typ \\
+       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
+       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \VVal {\typ_1}\\
+       % \reduceEnums {\typ_2} = \VVal {\typ_2}\\\\
+       % \divCond {\VVal {\typ_1}} {\VVal {\typ_2}} = \typ \\
        \nonNeg {\exp_1} \\
-       \pos {\exp_2}\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} \typ \dir }
+       \nonNeg {\exp_2}\\\\
+       \inOrLess {\dir_1} {\dir_2} = \dir
+       }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \integerTyp \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} \typ \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{ShiftOps}\rE($\ops=\shiftL,\shiftR$)]
+  \inferrule[\rn{ShiftOps}\rE($\ops=\intoOp \shiftL, \intoOp \shiftR$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       \reduceEnums {\typ_1} = \VVal {\typ_1}\\\\
+       % \reduceEnums {\typ_1} = \VVal {\typ_1}\\\\
        % \typ_2 = \reduceEnums {\typ_2} \\
-       \nonNeg {\exp_2} \\
+       \isNumeric {\exp_1} {\typ_1}\\
+       % \nonNeg {\exp_2} \\
        \shiftCond {\VVal {\typ_1}} {\exp_2}\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} {\VVal {\typ_1}} \dir }
+     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} { {\typ_1}} \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\VVal {\typ_1}} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
 ~ End InfRule

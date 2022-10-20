@@ -475,12 +475,13 @@
 \newcommand{\bothInt}[2]{\mathit{both\_int}({#1},{#2})}
 \newcommand{\concatCond}[2]{\mathit{concat\_type}({#1},{#2})}
 \newcommand{\divCond}[2]{\mathit{div\_type}({#1},{#2})}
-\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})}
+\newcommand{\shiftCond}[2]{\mathit{shift\_condition}({#1},{#2})_{\constEnv, \typEnv}}
 \newcommand{\addTypeEnv}[2]{\typEnv[{#1}:{#2}]}
 \newcommand{\addTypEnvv}[1]{\typEnv[{#1}]}
 \newcommand{\unionEnv}[2]{{#1}\cup{#2}}
 \newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
 \newcommand{\isNumeric}[2]{\mathit{is\_numeric}({#1}, {#2})}
+\newcommand{\ifIntComp}[2]{\mathit{if\_int\_is\_compile\_time\_known}({#1}, {#2})}
 \newcommand{\isFixedOrNumEnum}[1]{\mathit{is\_fixed\_num\_or\_num\_enum}({#1})}
 %% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}

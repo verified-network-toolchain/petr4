@@ -39,7 +39,6 @@
   GCL
   Inline
   Statementize
-  VarNameGen
   HoistNameless
   InferMemberTypes
   Substitution

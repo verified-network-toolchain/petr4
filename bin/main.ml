@@ -73,11 +73,11 @@ let command =
      and normalize = flag "-normalize" no_arg
                        ~doc:"Simplify expressions."
      and gen_loc = flag "-gen-loc" no_arg
-                     ~doc:"Infer locators in P4light AST after typechecking."
+                     ~doc:"Infer locators in P4light after typechecking."
      and unroll_parsers = flag "-unroll-parsers" (optional int)
                             ~doc:"depth Unroll parsers to given depth."
      and output_p4surface = flag "-output-p4surface" (optional string)
-                           ~doc:"file Output P4surface AST to the specified file."
+                           ~doc:"file Output P4surface to the specified file."
      and output_p4light = flag "-output-p4light" (optional string)
                            ~doc:"file Output P4light to the specified file."
      and output_p4cub = flag "-output-p4cub" (optional string)

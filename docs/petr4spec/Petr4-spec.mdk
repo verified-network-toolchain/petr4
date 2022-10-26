@@ -1309,7 +1309,9 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
 - $\shiftCond {\typ} {\exp}$ checks whether one of the following holds:
   + $\typ == \bitWidthTyp \width$
   + $\typ == \integerTyp$ and $\nonNeg \exp$ 
-- $\ifIntComp \typ \exp$ checks returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-know.
+- $\ifIntComp \typ \exp$ returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-know.
+- $\cast \typ \exp$ synthesizes a cast expression if the type of the expression $\exp$ is different from the type $\typ$.
+- $\implicitCast {\typ_1} {\typ_2}$ denotes possible implicit casts between the two types. It checks if it is possible to cast from $\typ_1$ to $\typ_2$ and returns $\typ_2$ or if it is possible to cast from $\typ_2$ to $\typ_1$ and returns the type $\typ_1$. The possible implicit casts are defined by $\implCast {\typ_1} {\typ_2}$.
 
 ~ Begin InfRule
 
@@ -1326,7 +1328,8 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \restOps \exp_2} {\VVal {\exp_1} \restOps \VVal {\exp_2}} \boolTyp \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-  \inferrule[\rn{NumericOps}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
+\mprset  {vskip=0.7ex}
+  {\inferrule[\rn{NumericOps}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
        \implicitCast {\typ_1} {\typ_2} = \typ \\
@@ -1336,10 +1339,27 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
        % \isInt \typ\\\\
        \isNumeric {\exp_1} {\typ_1}\\
        \isNumeric {\exp_2} {\typ_2}\\\\
-       \typ_1 == \typ_2\\\\
+       \typEqEnv \emp {\typ_1} {\typ_2}\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir 
        }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
+     % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
+
+\mprset  {vskip=0.7ex}
+  {\inferrule[\rn{NumericOps}\rSep\rn{With}\rSep\rn{Cast}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
+       \implicitCast {\typ_1} {\typ_2} = \typ \\
+       \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
+       \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
+       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
+       % \isInt \typ\\\\
+       % \isNumeric {\exp_1} {\typ_1}\\
+       % \isNumeric {\exp_2} {\typ_2}\\\\
+       % \typ_1 == \typ_2\\\\
+       \inOrLess {\dir_1} {\dir_2} = \dir 
+       }
+     {\expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} {\typ} \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
   \inferrule[\rn{EqualityChecks}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
@@ -1560,13 +1580,32 @@ P4 spec states during the cast between int and bit<w> or int<w> the compiler wou
 
   \inferrule
      { }
-     { \castenv \  \integerTyp {\bitWidthTyp \width}}
+     { \explCast \integerTyp {\bitWidthTyp \width}}
      \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
 
   \inferrule
      { }
-     { \castenv \  \integerTyp {\intWidthTyp \width}}
+     { \explCast  \integerTyp {\intWidthTyp \width}}
      \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
+
+  \inferrule
+     { }
+     { \implCast \integerTyp {\bitWidthTyp \width}}
+     \quad (\rn{ArbitraryPrecisionIntToUnsignedInt}\rAE)
+
+\and
+
+  \inferrule
+     { }
+     { \implCast  \integerTyp {\intWidthTyp \width}}
+     \quad (\rn{ArbitraryPrecisionIntToSignedInt}\rAE)
+
+\and
+
+  \inferrule
+     { \typEqEnv \emp {\surfaceTyp \exp} {\VVal {\surfaceTyp \exp}}}
+     { \castenv \ {\enumTypDef} {\VVal {\surfaceTyp \exp}}}
+     \quad (\rn{EnumToUnderlyingType}\rAE)
 
   \inferrule %%new based on p4
      { }
@@ -2253,24 +2292,26 @@ It might seem that petr4 allows mask operation to also operate on arbitrary prec
 
 ## Range Rule { #sec-range-e }
 
+```done```
+
 The expression $\range {\exp_1} {\exp_2}$ is a range expression and it returns the values between $\exp_1$ and $\exp_2$, inclusively. The rule $\rangeE$ states that the type of expression $\exp_1$ and $\exp_2$ must be the same and it must either be $\bitWidthTyp \width$ or $\intWidthTyp \width$ (and by extension of implicit cast of types it can also be $\integerTyp$). 
 
-- As a reminder, the $\bothInt {\typ_1} {\typ_2}$ function checks the conditions
-  $\typ_1 = \typ_2 = \bitWidthTyp \width$ or $\typ_1 = \typ_2 = \intWidthTyp \width$ or
-  $\typ_1 = \typ_2 = \integerTyp$ and if one of them holds it returns $\tr$.
+- As a reminder, $\widthInt \typ$ checks if the type $\typ$ is a fixed-length integer, that is,
+if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its width. 
 
-``**ENSURE**``
-p4 spec only states that the type can be bit<w> or int<W> but petr4 also allows integer. It's because of implicit cast, right?
 
 ~ Begin InfRule
 
-  \inferrule
+\mprset {vskip=0.7ex}
+  {\inferrule
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\\\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\
-       \bothInt {\typ_1} {\typ_2}}
+       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
+       \typEqEnv \emp {\typ_1} {\typ_2} \\
+       \widthInt {\typ_1} = \whatevs}
+       % \bothInt {\typ_1} {\typ_2}}
        % \typ_1 = \typ_2 = \bitWidthTyp \width \textOr \intWidthTyp \width \textOr \integerTyp}
      { \expenv {\range {\exp_1} {\exp_2}} {\range {\VVal {\exp_1}} {\VVal {\exp_2}}} {\setTyp {\typ_1}} \dir }
-     \quad (\rangeE)
+     \quad (\rangeE)}
 
 ~ End InfRule
 

@@ -18,23 +18,23 @@ build: [
 depends: [
   "alcotest"
   "bignum"
-  "ocaml" {>= "4.09.1"}
+  "ocaml" {>= "4.12.0"}
   "dune" {>= "1.2"}
   "cstruct"
   "cstruct-sexp"
-  "menhir"
+  "menhir" {<= "20211128"}
   "ANSITerminal"
-  "core" {>= "0.13.0"}
+  "core" {>= "0.15.0"}
   "ppx_deriving_yojson"
-  "ppx_jane" {>= "0.13.0" }
-  "ppx_js_style" {>= "0.13.0" }
+  "ppx_jane" {>= "0.15.0" }
+  "ppx_js_style" {>= "0.14444.0" }
   "yojson" {>= "1.7.0"}
   "js_of_ocaml"
   "js_of_ocaml-lwt"
   "js_of_ocaml-ppx"
-  "p4pp" {>= "0.1.8"}
+  "p4pp" {>= "0.1.12"}
   "odoc"
   "ppx_expect" {>= "0.15.0"}
   "pp" {>= "1.0.1"}
-  "zarith" {= "1.11"}
+  "zarith" {= "1.12"}
 ]

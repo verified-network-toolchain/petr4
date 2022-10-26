@@ -3,7 +3,7 @@ open Target
 open Prog
 open Env
 open Value
-open Core_kernel
+open Core
 open Typed
 module Info = I
 let (=) = Stdlib.(=)

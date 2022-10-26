@@ -4,7 +4,7 @@ open Target
 open Bitstring
 open Prog.Env
 module I = Info
-open Core_kernel
+open Core
 module Info = I
 let (=) = Stdlib.(=)
 let (<>) = Stdlib.(<>)

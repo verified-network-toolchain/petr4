@@ -1,7 +1,7 @@
 (* adds type variable at various places. check with Ryan. *)
 
 module I = Info
-open Core_kernel
+open Core
 open Prog.Env
 open Util
 open Types

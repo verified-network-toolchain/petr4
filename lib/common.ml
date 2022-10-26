@@ -42,12 +42,12 @@ module MakeDriver (IO: DriverIO) = struct
 
   open Result
 
-  let preprocess (cfg: Pass.compiler_cfg) =
+  let preprocess (cfg: Pass.parser_cfg) =
     try
       Ok (IO.preprocess cfg.cfg_includes cfg.cfg_infile)
     with ex -> Error (PreprocessorError ex)
 
-  let lex (cfg: Pass.compiler_cfg) (input: string) =
+  let lex (cfg: Pass.parser_cfg) (input: string) =
     try 
       let () = Lexer.reset () in
       let () = Lexer.set_filename cfg.cfg_infile in
@@ -59,7 +59,7 @@ module MakeDriver (IO: DriverIO) = struct
       Ok (Parser.p4program Lexer.lexer lexbuf)
     with Parser.Error -> Error (ParserError (Lexer.info lexbuf))
 
-  let print_surface (cfg: Pass.compiler_cfg) (prog: Surface.program) =
+  let print_surface (cfg: Pass.checker_cfg) (prog: Surface.program) =
     match cfg.cfg_p4surface with
     | Skip -> Error Finished
     | Run None -> Ok prog
@@ -74,7 +74,7 @@ module MakeDriver (IO: DriverIO) = struct
       Ok typed_prog
     with e -> Error (CheckerError e)
 
-  let gen_loc (cfg: Pass.compiler_cfg) (prog: P4light.program) =
+  let gen_loc (cfg: Pass.checker_cfg) (prog: P4light.program) =
     match cfg.cfg_gen_loc with
     | Skip -> Ok prog
     | Run () ->
@@ -82,13 +82,13 @@ module MakeDriver (IO: DriverIO) = struct
        | Coq_inl prog'' -> Ok prog''
        | Coq_inr ex     -> Error GenLocError
 
-  let normalize (cfg: Pass.compiler_cfg) (prog: P4light.program) =
+  let normalize (cfg: Pass.checker_cfg) (prog: P4light.program) =
     match cfg.cfg_normalize with
     | Skip -> Ok prog
     | Run () ->
        Ok (Poulet4.SimplExpr.transform_prog P4info.dummy prog)
 
-  let print_p4light (cfg: Pass.compiler_cfg) (prog: P4light.program) =
+  let print_p4light (cfg: Pass.checker_cfg) (prog: P4light.program) =
     match cfg.cfg_p4light with
     | Skip -> Error Finished
     | Run None -> Ok prog
@@ -193,18 +193,21 @@ module MakeDriver (IO: DriverIO) = struct
     Format.eprintf "TODO: implement Clight pretty printing.\n";
     Ok prog
 
-  let run cfg =
-    let open Pass in
+  let run_parser (cfg: Pass.parser_cfg) =
     preprocess cfg
     >>= lex cfg
     >>= parse cfg
-    >>= print_surface cfg
 
+  let run_checker (cfg: Pass.checker_cfg) =
+    run_parser cfg.cfg_parser
+    >>= print_surface cfg
     >>= check cfg
     >>= gen_loc cfg
     >>= normalize cfg
     >>= print_p4light cfg
 
+  let run_compiler (cfg: Pass.compiler_cfg) =
+    run_checker cfg.cfg_checker
     >>= to_p4cub cfg
 
     >>= to_p4flat cfg
@@ -216,14 +219,32 @@ module MakeDriver (IO: DriverIO) = struct
         | Run (GCLBackend {depth; gcl_output}) ->
            to_gcl depth prog
            >>= print_gcl gcl_output
-           >>= fun _ -> Ok ()
+           >>= fun x -> Ok ()
         | Run (CBackend cfg_ccomp) ->
            flatten_declctx prog
            >>= hoist_clight_effects
            >>= print_p4cub cfg
            >>= to_clight
            >>= print_clight cfg_ccomp
-           >>= fun _ -> Ok ()
+           >>= fun x -> Ok ()
         end
-  
+
+  let run_interpreter (cfg: Pass.interpreter_cfg) =
+    Ok ()
+
+  let run (cfg: Pass.cmd_cfg) =
+    let open Pass in
+    match cfg with
+    | CmdParse parse_cfg ->
+      run_parser parse_cfg
+      >>= fun _ -> Ok ()
+    | CmdCheck check_cfg ->
+      run_checker check_cfg
+      >>= fun _ -> Ok ()
+    | CmdCompile compile_cfg ->
+      run_compiler compile_cfg
+      >>= fun _ -> Ok ()
+    | CmdInterp interp_cfg ->
+      run_interpreter interp_cfg
+      >>= fun _ -> Ok ()
 end

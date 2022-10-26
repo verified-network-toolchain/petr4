@@ -36,7 +36,7 @@ let main include_dir stf_tests_dir =
     let p4_file = Stdlib.Filename.remove_extension stf_file ^ ".p4" in
     let cfg = Petr4.Pass.mk_parse_only include_dir p4_file in
     let open Result in
-    match UnixDriver.(preprocess cfg >>= lex cfg >>= parse cfg) with
+    match UnixDriver.run_parser cfg with
     | Ok p4_prog ->
        stf_alco_test stf_file p4_file p4_prog
     | Error e ->

@@ -62,24 +62,94 @@ let parse_backend unroll_parsers output_gcl output_clight =
   | None, None ->
      Pass.Skip
 
+let parser_flags : Pass.parser_cfg Command.Param.t =
+  let open Command.Let_syntax in
+    [%map_open
+      let verbose = flag "-v" no_arg ~doc:"Be more verbose."
+      and includes = flag "-I" (listed string)
+          ~doc:"dir Paths to search for files sourced with #include directives."
+      and infile = anon ("file.p4" %: string)
+      in
+      Pass.{ cfg_infile = infile;
+             cfg_includes = includes;
+             cfg_verbose = verbose }]
+
+let checker_flags cfg_parser : Pass.checker_cfg Command.Param.t =
+  let open Command.Let_syntax in
+    [%map_open
+     let normalize = flag "-normalize" no_arg
+                       ~doc:"Simplify expressions."
+     and gen_loc = flag "-gen-loc" no_arg
+                     ~doc:"Infer locators in P4light after typechecking."
+     and output_p4surface = flag "-output-p4surface" (optional string)
+                           ~doc:"file Output P4surface to the specified file."
+     and output_p4light = flag "-output-p4light" (optional string)
+         ~doc:"file Output P4light to the specified file."
+     in
+     Pass.{ cfg_parser;
+            cfg_p4surface = parse_ext_flag output_p4surface;
+            cfg_gen_loc   = Pass.cfg_of_bool gen_loc;
+            cfg_normalize = Pass.cfg_of_bool normalize;
+            cfg_p4light   = parse_ext_flag output_p4light }]
+
+
+let compiler_flags cfg_checker : Pass.compiler_cfg Command.Param.t =
+  let open Command.Let_syntax in
+  [%map_open 
+    let output_p4cub = flag "-output-p4cub" (optional string)
+        ~doc:"file Output P4Cub to the specified file."
+    and unroll_parsers = flag "-unroll-parsers" (optional int)
+        ~doc:"depth Unroll parsers to given depth."
+    and output_p4flat = flag "-output-p4flat" (optional string)
+        ~doc:"file Output P4flat to the specified file."
+    and output_gcl = flag "-output-gcl" (optional string)
+        ~doc:"file Output GCL to the specified file."
+    and output_c = flag "-output-c" (optional string)
+        ~doc:"file Output C to the specified file."
+    in
+    Pass.{ cfg_checker;
+           cfg_p4cub   = parse_ext_flag output_p4cub;
+           cfg_p4flat  = parse_ext_flag output_p4flat;
+           cfg_backend = parse_backend unroll_parsers output_gcl output_c; }
+  ]
+
+let interp_flags cfg_checker : (unit -> Pass.interpreter_cfg) Command.Param.t =
+  let open Command.Let_syntax in
+  [%map_open
+    let stf_file = flag "-stf" (optional string)
+        ~doc:"file to read STF from"
+    and packet = flag "-pkt" (optional string)
+        ~doc:"packet in hex form"
+    and port = flag "-port" (optional int)
+        ~doc:"input port for packet"
+    in
+    fun () ->
+      match stf_file, packet, port with
+      | Some stf_file, None, None ->
+        Pass.{ cfg_checker;
+               cfg_inputs = InputSTF stf_file; }
+      | None, Some input_pkt_hex, Some input_port ->
+        Pass.{ cfg_checker;
+               cfg_inputs = InputPktPort { input_pkt_hex;
+                                           input_port; }; }
+      | None, None, None ->
+        failwith "Please supply the -stf or -pkt and -port flags."
+      | None, Some _, None
+      | None, None, Some _ ->
+        failwith "Please specify both -pkt and -port."
+      | Some _, Some _, None
+      | Some _, None, Some _
+      | Some _, Some _, Some _ ->
+        failwith "The -stf flag cannot be used with -pkt or -port."
+
+  ]
+
+
+    (*
 let command =
   let open Command.Let_syntax in
   Command.basic ~summary:"Petr4: A reference implementation of the P4_16 language"
     [%map_open
-     let verbose = flag "-v" no_arg
-                     ~doc:"Be more verbose."
-     and includes = flag "-I" (listed string)
-                      ~doc:"dir Paths to search for files sourced with #include directives."
-     and normalize = flag "-normalize" no_arg
-                       ~doc:"Simplify expressions."
-     and gen_loc = flag "-gen-loc" no_arg
-                     ~doc:"Infer locators in P4light after typechecking."
-     and unroll_parsers = flag "-unroll-parsers" (optional int)
-                            ~doc:"depth Unroll parsers to given depth."
-     and output_p4surface = flag "-output-p4surface" (optional string)
-                           ~doc:"file Output P4surface to the specified file."
-     and output_p4light = flag "-output-p4light" (optional string)
-                           ~doc:"file Output P4light to the specified file."
      and output_p4cub = flag "-output-p4cub" (optional string)
                            ~doc:"file Output P4Cub to the specified file."
      and output_p4flat = flag "-output-p4flat" (optional string)
@@ -111,4 +181,7 @@ let command =
         | Ok () -> ()
         | Error e -> failwith "TODO: printing for Common.error"]
 
-let () = Command_unix.run ~version: "0.1.2" command
+let () =
+  Command_unix.run ~version: "0.1.2" command
+       *)
+let () = ()

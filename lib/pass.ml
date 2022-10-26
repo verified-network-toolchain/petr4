@@ -1,5 +1,9 @@
 open Core
 
+type arch =
+  | V1Model
+  | Tofino
+
 type fmt =
   | Concrete (* valid concrete syntax (P4 or C) *)
   | Sexps    (* s-expression format *)
@@ -27,6 +31,18 @@ let cfg_of_bool : bool -> unit cfg =
 type pass_cfg =
   (output option) cfg
 
+type parser_cfg =
+  { cfg_infile: Filename.t;
+    cfg_includes: Filename.t list;
+    cfg_verbose: bool; }
+
+type checker_cfg =
+  { cfg_parser: parser_cfg;
+    cfg_p4surface: pass_cfg;
+    cfg_gen_loc: unit cfg;
+    cfg_normalize: unit cfg;
+    cfg_p4light: pass_cfg; }
+
 type backend =
   | GCLBackend of {depth: int; gcl_output: output}
   | CBackend of output
@@ -34,16 +50,25 @@ type backend =
 type backend_cfg = backend cfg
 
 type compiler_cfg =
-  { cfg_infile: Filename.t;
-    cfg_includes: Filename.t list;
-    cfg_verbose: bool;
-    cfg_p4surface: pass_cfg;
-    cfg_gen_loc: unit cfg;
-    cfg_normalize: unit cfg;
-    cfg_p4light: pass_cfg;
+  { cfg_checker: checker_cfg;
     cfg_p4cub: pass_cfg;
     cfg_p4flat: pass_cfg;
     cfg_backend: backend_cfg; }
+
+type input_cfg =
+  | InputSTF of Filename.t
+  | InputPktPort of { input_pkt_hex: string;
+                      input_port: int; }
+
+type interpreter_cfg =
+  { cfg_checker: checker_cfg;
+    cfg_inputs: input_cfg; }
+
+type cmd_cfg =
+  | CmdParse of parser_cfg
+  | CmdCheck of checker_cfg
+  | CmdCompile of compiler_cfg
+  | CmdInterp of interpreter_cfg
 
 let parse_extension (ext: string) : fmt option =
   match ext with
@@ -68,8 +93,8 @@ let parse_output_exn (out_file : Filename.t) : output =
   | Some o -> o
   | None -> failwith ("bad extension on filename: " ^ out_file)
 
-let mk_parse_only include_dirs in_file : compiler_cfg =
+let mk_parse_only include_dirs in_file : parser_cfg =
   failwith "mk_parse_only unimplemented"
 
-let mk_check_only include_dirs in_file : compiler_cfg =
+let mk_check_only include_dirs in_file : checker_cfg =
   failwith "mk_check_only unimplemented"

@@ -32,16 +32,16 @@ module UnixDriver = MakeDriver(UnixIO)
 
 let parser_test include_dirs file =
   let cfg = Pass.mk_parse_only include_dirs file in
-  match UnixDriver.run cfg with
-  | Ok ()
+  match UnixDriver.run_parser cfg with
+  | Ok _
   | Error Finished -> true
   | Error _ -> false
 
 let typecheck_test include_dirs file =
   Printf.printf "Testing file %s...\n" file;
   let cfg = Pass.mk_check_only include_dirs file in
-  match UnixDriver.run cfg with
-  | Ok ()
+  match UnixDriver.run_checker cfg with
+  | Ok _
   | Error Finished -> true
   | Error _ -> false
 

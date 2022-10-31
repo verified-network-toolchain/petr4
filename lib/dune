@@ -2,7 +2,11 @@
   (flags --no-stdlib --explain)
   (modules parser))
 
-(ocamllex (modules lexer))
+(menhir
+  (flags --explain)
+  (modules stf_parser))
+
+(ocamllex (modules lexer stf_lexer))
 
 (library
   (public_name petr4)

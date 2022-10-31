@@ -34,9 +34,9 @@ let main include_dir stf_tests_dir =
   |> List.map ~f:(fun x ->
     let stf_file = Filename.concat stf_tests_dir x in
     let p4_file = Stdlib.Filename.remove_extension stf_file ^ ".p4" in
-    let cfg = Petr4.Pass.mk_parse_only include_dir p4_file in
+    let cfg = Petr4.Pass.mk_check_only include_dir p4_file in
     let open Result in
-    match UnixDriver.run_parser cfg with
+    match UnixDriver.run_checker cfg with
     | Ok p4_prog ->
        stf_alco_test stf_file p4_file p4_prog
     | Error e ->

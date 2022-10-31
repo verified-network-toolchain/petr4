@@ -94,7 +94,13 @@ let parse_output_exn (out_file : Filename.t) : output =
   | None -> failwith ("bad extension on filename: " ^ out_file)
 
 let mk_parse_only include_dirs in_file : parser_cfg =
-  failwith "mk_parse_only unimplemented"
+  { cfg_infile = in_file;
+    cfg_includes = include_dirs;
+    cfg_verbose = false }
 
 let mk_check_only include_dirs in_file : checker_cfg =
-  failwith "mk_check_only unimplemented"
+  { cfg_parser = mk_parse_only include_dirs in_file;
+    cfg_p4surface = Run None;
+    cfg_gen_loc = Run ();
+    cfg_normalize = Run ();
+    cfg_p4light = Run None; }

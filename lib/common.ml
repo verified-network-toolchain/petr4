@@ -230,7 +230,16 @@ module MakeDriver (IO: DriverIO) = struct
         end
 
   let run_interpreter (cfg: Pass.interpreter_cfg) =
-    Ok ()
+    run_checker cfg.cfg_checker
+    >>= fun p4prog ->
+    match cfg.cfg_inputs with
+    | InputSTF stf_filename ->
+      let _ = Stf.run_stf stf_filename p4prog in
+      Ok ()
+    | InputPktPort { input_pkt_hex;
+                     input_port } ->
+      let _ = Stf.evaler p4prog input_pkt_hex input_port (fun _ -> None) in
+      Ok ()
 
   let run (cfg: Pass.cmd_cfg) =
     let open Pass in

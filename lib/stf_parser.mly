@@ -13,7 +13,7 @@
  * under the License.
  *)
 %{
-open Petr4.Ast
+open Ast
 %}
 
 %token END
@@ -23,7 +23,7 @@ open Petr4.Ast
 %token<string> INT_CONST_DEC TERN_CONST_HEX INT_CONST_HEX INT_CONST_BIN DATA_DEC DATA_HEX
 %token LPAREN RPAREN SLASH EQUAL EQEQ LE LEQ GT GEQ NEQ LBRACKET RBRACKET
 
-%start <Petr4.Ast.statement list> statements
+%start <Ast.statement list> statements
 
 %%
 
@@ -71,9 +71,9 @@ number:
 
 number_or_lpm:
   | number SLASH number
-    { Petr4.Ast.Slash($1, $3) }
+    { Ast.Slash($1, $3) }
   | number
-    { Petr4.Ast.Num($1) }
+    { Ast.Num($1) }
 
 match_list:
   | matcht

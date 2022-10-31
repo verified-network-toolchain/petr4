@@ -42,8 +42,6 @@ let empty_ctrl =
 
 let ctrl_json = Yojson.Safe.from_string empty_ctrl
 
-let strip_spaces s = s |> String.split_on_chars ~on:([' ']) |> String.concat ~sep:""
-
 let pp_string s = "\"" ^ s ^ "\""
 
 let unimplemented_stmt = function
@@ -79,20 +77,6 @@ end
 
 module MakeRunner (C : RunnerConfig) = struct  
 
-  let evaler
-        (prog : program)
-        (pkt_in : string)
-        (port : int)
-        (st : C.st)
-     : (Exn.t, (C.st * Bigint.t) * bool list) R.result =
-    let pkt_in = pkt_in
-                 |> String.lowercase
-                 |> Cstruct.of_hex
-                 |> Cstruct.to_string
-                 |> Petr4.Util.string_to_bits in
-    let port = Bigint.of_int port in
-    C.eval_program prog st port pkt_in
-
   let update lst name v =
     match List.findi lst ~f:(fun _ (n,_) -> String.(n = name)) with
     | None ->
@@ -102,59 +86,6 @@ module MakeRunner (C : RunnerConfig) = struct
       match ys with
       | y :: ys -> xs @ (name, v :: snd item) :: ys
       | [] -> failwith "unreachable: index out of bounds"
-
-  let rec run_test
-            (prog : program)
-            (stmts : statement list)
-            (results : (string * string) list)
-            (expected : (string * string) list)
-            (st : C.st)
-      : ((string * string) list) * ((string * string) list) = 
-    match stmts with
-    | [] -> (expected, results)
-    | hd :: tl -> 
-      match hd with
-      | Packet (port, packet) -> 
-         let results', st' =
-           match evaler prog packet (int_of_string port) st with
-           | Ok ((st', port), pkt) ->
-              let fixed = pkt |> Petr4.Util.bits_to_string |> Petr4.Util.hex_of_string |> strip_spaces |> String.lowercase in
-              (Bigint.to_string port, fixed) :: results, st'
-           | Error e ->
-              failwith (Exn.to_string e)
-         in
-         run_test prog tl results' expected st'
-      | Expect (port, None) ->
-         failwith "unimplemented stf statement: Expect w/ no pkt"
-      | Expect (port, Some packet) ->
-         run_test prog tl results ((port, strip_spaces packet |> String.lowercase) :: expected) st
-      | Add (tbl_name, priority, match_list, (action_name, args), id) ->
-         failwith "unimplemented stf statement: Add"
-         (*
-        run_test prog tl results expected st
-        let tbl_name = convert_qualified tbl_name in 
-        let action_name' = convert_qualified action_name in
-        let entry = Poulet4.Target.Coq_mk_table_entry (match_list, action_name') in
-        let st' = Poulet4.Semantics.add_entry _ st tbl_name entry in
-        run_test prog tl results expected st'
-          *)
-      | Wait ->
-         Core_unix.sleep 1;
-         run_test prog tl results expected st
-      | Set_default (tbl_name, (action_name, args)) ->
-         failwith "unimplemented stf statement: Set_default"
-  (*
-        let tbl_name' = convert_qualified tbl_name in 
-        let action_name' = convert_qualified action_name in
-        let set_def' = update set_def tbl_name' (action_name', args) in
-        run_test prog tl results expected env st
-   *)
-      | Remove_all ->
-         failwith "unimplemented stf statement: Remove_all"
-      | No_packet ->
-         failwith "unimplemented stf statement: No_packet"
-      | Check_counter _ ->
-         failwith "unimplemented stf statement: Check_counter"
 end
 
 module V1RunnerConfig = struct
@@ -168,36 +99,9 @@ let get_stf_files path =
   Sys_unix.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
-let run_stf stf_file p4prog =
-    let ic = In_channel.create stf_file in
-    let lexbuf = Lexing.from_channel ic in
-    let stmts = Test_parser.statements Test_lexer.token lexbuf in
-    let prog = 
-      p4prog
-      |> Petr4.Elaborate.elab
-      |> fun (prog, renamer) ->
-         Petr4.Checker.check_program renamer prog
-      |> fun (_, prog) ->
-         begin match Poulet4.GenLoc.transform_prog Petr4.P4info.dummy prog with
-         | Coq_inl prog -> prog
-         | Coq_inr ex -> failwith "error occurred in GenLoc"
-         end
-    in
-    let target =
-      prog
-      |> List.rev
-      |> List.hd_exn 
-      |> function | Poulet4.Syntax.DeclInstantiation (_, typ, _, _, _) -> typ
-                  | _ -> failwith "unexpected main value"
-    in
-    match target with
-    | TypSpecializedType (TypTypeName {str = "V1Switch"; _}, _) -> 
-      V1Runner.run_test prog stmts [] [] (fun _ -> None)
-    | _ -> failwith "architecture unsupported"
-
 let stf_alco_test stf_file p4_file p4prog =
     let run_stf_alcotest () =
-      let expected, results = run_stf stf_file p4prog in
+      let expected, results = Petr4.Stf.run_stf stf_file p4prog in
       List.zip_exn expected results
       |> List.iter ~f:(fun (p_exp, p) ->
             Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)

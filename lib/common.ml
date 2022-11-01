@@ -93,24 +93,24 @@ module MakeDriver (IO: DriverIO) = struct
     | Skip -> Error Finished
     | Run None -> Ok prog
     | Run (Some out) ->
-       let oc = IO.open_file out.out_file in
-       let fmt = Format.formatter_of_out_channel oc in
-       begin match out.out_fmt with
-       | Concrete ->
+      let oc = IO.open_file out.out_file in
+      let fmt = Format.formatter_of_out_channel oc in
+      begin match out.out_fmt with
+        | Concrete ->
           Printp4.print_program
             fmt 
             ["core.p4"; "tna.p4";"common/headers.p4";"common/util.p4"] 
             ["@pragma pa_auto_init_metadata"]
             prog
-       | Sexps ->
+        | Sexps ->
           Format.eprintf "TODO: implement p4light s-expression pretty printing.\n"
-       | Coq ->
-           Exportp4.print_program fmt prog
-       | Ocaml ->
+        | Coq ->
+          Exportp4.print_program fmt prog
+        | Ocaml ->
           Exportp4prune.print_program fmt prog
-       end;
-       IO.close_file oc;
-       Ok prog
+      end;
+      IO.close_file oc;
+      Ok prog
 
   let to_p4cub (cfg: Pass.compiler_cfg) (prog: P4light.program) =
     if Pass.is_skip cfg.cfg_p4cub

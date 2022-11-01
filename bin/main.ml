@@ -34,12 +34,10 @@ module UnixIO : DriverIO = struct
     str
 
   let open_file path =
-    Core_unix.open_process_out path
+    Out_channel.create path
 
   let close_file ochan =
-    match Core_unix.close_process_out ochan with
-    | Ok () -> ()
-    | Error _ -> failwith "Error in close_file"
+    Out_channel.close ochan
   
 end
 
@@ -74,10 +72,11 @@ let parser_flags : Pass.parser_cfg Command.Param.t =
              cfg_includes = includes;
              cfg_verbose = verbose }]
 
-let checker_flags cfg_parser : Pass.checker_cfg Command.Param.t =
+let checker_flags : Pass.checker_cfg Command.Param.t =
   let open Command.Let_syntax in
     [%map_open
-     let normalize = flag "-normalize" no_arg
+     let cfg_parser = parser_flags
+     and normalize = flag "-normalize" no_arg
                        ~doc:"Simplify expressions."
      and gen_loc = flag "-gen-loc" no_arg
                      ~doc:"Infer locators in P4light after typechecking."
@@ -93,10 +92,11 @@ let checker_flags cfg_parser : Pass.checker_cfg Command.Param.t =
             cfg_p4light   = parse_ext_flag output_p4light }]
 
 
-let compiler_flags cfg_checker : Pass.compiler_cfg Command.Param.t =
+let compiler_flags : Pass.compiler_cfg Command.Param.t =
   let open Command.Let_syntax in
   [%map_open 
-    let output_p4cub = flag "-output-p4cub" (optional string)
+    let cfg_checker = checker_flags
+    and output_p4cub = flag "-output-p4cub" (optional string)
         ~doc:"file Output P4Cub to the specified file."
     and unroll_parsers = flag "-unroll-parsers" (optional int)
         ~doc:"depth Unroll parsers to given depth."
@@ -113,75 +113,99 @@ let compiler_flags cfg_checker : Pass.compiler_cfg Command.Param.t =
            cfg_backend = parse_backend unroll_parsers output_gcl output_c; }
   ]
 
-let interp_flags cfg_checker : (unit -> Pass.interpreter_cfg) Command.Param.t =
+let interp_flags : Pass.interpreter_cfg Command.Param.t =
   let open Command.Let_syntax in
   [%map_open
-    let stf_file = flag "-stf" (optional string)
+    let cfg_checker = checker_flags
+    and stf_file = flag "-stf" (optional string)
         ~doc:"file to read STF from"
     and packet = flag "-pkt" (optional string)
         ~doc:"packet in hex form"
     and port = flag "-port" (optional int)
         ~doc:"input port for packet"
     in
-    fun () ->
-      match stf_file, packet, port with
-      | Some stf_file, None, None ->
-        Pass.{ cfg_checker;
-               cfg_inputs = InputSTF stf_file; }
-      | None, Some input_pkt_hex, Some input_port ->
-        Pass.{ cfg_checker;
-               cfg_inputs = InputPktPort { input_pkt_hex;
-                                           input_port; }; }
-      | None, None, None ->
-        failwith "Please supply the -stf or -pkt and -port flags."
-      | None, Some _, None
-      | None, None, Some _ ->
-        failwith "Please specify both -pkt and -port."
-      | Some _, Some _, None
-      | Some _, None, Some _
-      | Some _, Some _, Some _ ->
-        failwith "The -stf flag cannot be used with -pkt or -port."
-
+    match stf_file, packet, port with
+    | Some stf_file, None, None ->
+      Pass.{ cfg_checker;
+             cfg_inputs = InputSTF stf_file; }
+    | None, Some input_pkt_hex, Some input_port ->
+      Pass.{ cfg_checker;
+             cfg_inputs = InputPktPort { input_pkt_hex;
+                                         input_port; }; }
+    | None, None, None ->
+      failwith "Please supply the -stf or -pkt and -port flags."
+    | None, Some _, None
+    | None, None, Some _ ->
+      failwith "Please specify both -pkt and -port."
+    | Some _, Some _, None
+    | Some _, None, Some _
+    | Some _, Some _, Some _ ->
+      failwith "The -stf flag cannot be used with -pkt or -port."
   ]
 
-
-    (*
-let command =
+let parser_command =
   let open Command.Let_syntax in
-  Command.basic ~summary:"Petr4: A reference implementation of the P4_16 language"
+  Command.basic
+    ~summary:"parse a P4 program"
     [%map_open
-     and output_p4cub = flag "-output-p4cub" (optional string)
-                           ~doc:"file Output P4Cub to the specified file."
-     and output_p4flat = flag "-output-p4flat" (optional string)
-                           ~doc:"file Output P4flat to the specified file."
-     and output_gcl = flag "-output-gcl" (optional string)
-                           ~doc:"file Output GCL to the specified file."
-     and output_c = flag "-output-c" (optional string)
-                           ~doc:"file Output C to the specified file."
-     and in_file = anon ("file.p4" %: string)
-     in fun () ->
-        let p : Pass.compiler_cfg =
-          {cfg_infile         = in_file;
-           cfg_includes       = includes;
-           cfg_verbose        = verbose;
-           cfg_p4surface      = parse_ext_flag output_p4surface;
-           cfg_gen_loc        = Pass.cfg_of_bool gen_loc;
-           cfg_normalize      = Pass.cfg_of_bool normalize;
-           cfg_p4light        = parse_ext_flag output_p4light;
-           cfg_p4cub          = parse_ext_flag output_p4cub;
-           cfg_p4flat         = parse_ext_flag output_p4flat;
-           cfg_backend        = parse_backend
-                                  unroll_parsers
-                                  output_gcl
-                                  output_c;
-          }
-        in
-        match UnixDriver.run p with
-        | Error Finished
-        | Ok () -> ()
-        | Error e -> failwith "TODO: printing for Common.error"]
+      let cfg_parser = parser_flags in
+      fun () ->
+        let _ = UnixDriver.run_parser cfg_parser in
+        ()]
+
+let checker_command =
+  let open Command.Let_syntax in
+  Command.basic
+    ~summary:"typecheck a P4 program"
+    [%map_open
+      let cfg_checker = checker_flags in
+      fun () ->
+        let _ = UnixDriver.run_checker cfg_checker in
+        ()]
+
+let compiler_command =
+  let open Command.Let_syntax in
+  Command.basic
+    ~summary:"compile a P4 program"
+    [%map_open
+      let cfg_compiler = compiler_flags in
+      fun () ->
+        let _ = UnixDriver.run_compiler cfg_compiler in
+        ()]
+
+let interp_command =
+  let open Command.Let_syntax in
+  Command.basic
+    ~summary:"run a P4 program"
+    [%map_open
+      let cfg_interp = interp_flags in
+      fun () ->
+        let _ = UnixDriver.run_interpreter cfg_interp in
+        ()]
+
+
+
+(*
+   -let stf_command =
+-  let open Command.Spec in
+-  Command.basic_spec
+-    ~summary: "Run a P4 program with an STF script"
+-    (empty
+-     +> flag "-v" no_arg ~doc:" Enable verbose output"
+-     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
+-     +> flag "-stf" (required string) ~doc: "<stf file> Select the .stf script to ru
+n"
+-     +> anon ("p4file" %: string))
+-    (fun verbose include_dir stf_file p4_file
+   *)
+let command =
+  Command.group ~summary:"petr4: a reference implementation of the p4_16 language"
+    ["parse", parser_command;
+     "check", checker_command;
+     "compile", compiler_command;
+     "run", interp_command]
 
 let () =
   Command_unix.run ~version: "0.1.2" command
-       *)
+
 let () = ()

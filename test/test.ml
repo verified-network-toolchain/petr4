@@ -1,49 +1,21 @@
 open Core
 open Petr4
-open Common
-
-module UnixIO : DriverIO = struct
-  let colorize colors s = ANSITerminal.sprintf colors "%s" s
-  let red s = colorize [ANSITerminal.red] s
-  let green s = colorize [ANSITerminal.green] s
-  
-  let preprocess include_dirs p4file =
-    let cmd =
-      String.concat ~sep:" "
-        (["cc"] @
-           (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-              ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Core_unix.open_process_in cmd in
-    let str = In_channel.input_all in_chan in
-    let _ = Core_unix.close_process_in in_chan in
-    str
-
-  let open_file path =
-    Core_unix.open_process_out path
-
-  let close_file ochan =
-    match Core_unix.close_process_out ochan with
-    | Ok () -> ()
-    | Error _ -> failwith "Error in close_file"
-  
-end
-
-module UnixDriver = MakeDriver(UnixIO)
-
 let parser_test include_dirs file =
   let cfg = Pass.mk_parse_only include_dirs file in
-  match UnixDriver.run_parser cfg with
-  | Ok _
-  | Error Finished -> true
-  | Error _ -> false
+  match Petr4.Unix.Driver.run_parser cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in parser test: %s" (Petr4.Common.error_to_string e);
+    false
 
 let typecheck_test include_dirs file =
   Printf.printf "Testing file %s...\n" file;
   let cfg = Pass.mk_check_only include_dirs file in
-  match UnixDriver.run_checker cfg with
-  | Ok _
-  | Error Finished -> true
-  | Error _ -> false
+  match Petr4.Unix.Driver.run_checker cfg with
+  | Ok _ -> true
+  | Error e ->
+    Printf.eprintf "error in checker test: %s" (Petr4.Common.error_to_string e);
+    false
 
 let get_files path =
   Sys_unix.ls_dir path

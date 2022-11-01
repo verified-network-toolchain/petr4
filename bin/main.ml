@@ -15,33 +15,6 @@
 
 open Core
 open Petr4
-open Common
-
-module UnixIO : DriverIO = struct
-  let colorize colors s = ANSITerminal.sprintf colors "%s" s
-  let red s = colorize [ANSITerminal.red] s
-  let green s = colorize [ANSITerminal.green] s
-  
-  let preprocess include_dirs p4file =
-    let cmd =
-      String.concat ~sep:" "
-        (["cc"] @
-           (List.map include_dirs ~f:(Printf.sprintf "-I%s") @
-              ["-undef"; "-nostdinc"; "-E"; "-x"; "c"; p4file])) in
-    let in_chan = Core_unix.open_process_in cmd in
-    let str = In_channel.input_all in_chan in
-    let _ = Core_unix.close_process_in in_chan in
-    str
-
-  let open_file path =
-    Out_channel.create path
-
-  let close_file ochan =
-    Out_channel.close ochan
-  
-end
-
-module UnixDriver = MakeDriver(UnixIO)
 
 let parse_ext_flag p = Pass.Run (Option.map p ~f:Pass.parse_output_exn)
 
@@ -150,7 +123,7 @@ let parser_command =
     [%map_open
       let cfg_parser = parser_flags in
       fun () ->
-        let _ = UnixDriver.run_parser cfg_parser in
+        let _ = Petr4.Unix.Driver.run_parser cfg_parser in
         ()]
 
 let checker_command =
@@ -160,7 +133,7 @@ let checker_command =
     [%map_open
       let cfg_checker = checker_flags in
       fun () ->
-        let _ = UnixDriver.run_checker cfg_checker in
+        let _ = Petr4.Unix.Driver.run_checker cfg_checker in
         ()]
 
 let compiler_command =
@@ -170,7 +143,7 @@ let compiler_command =
     [%map_open
       let cfg_compiler = compiler_flags in
       fun () ->
-        let _ = UnixDriver.run_compiler cfg_compiler in
+        let _ = Petr4.Unix.Driver.run_compiler cfg_compiler in
         ()]
 
 let interp_command =
@@ -180,10 +153,8 @@ let interp_command =
     [%map_open
       let cfg_interp = interp_flags in
       fun () ->
-        let _ = UnixDriver.run_interpreter cfg_interp in
+        let _ = Petr4.Unix.Driver.run_interpreter cfg_interp in
         ()]
-
-
 
 (*
    -let stf_command =

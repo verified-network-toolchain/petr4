@@ -11,6 +11,6 @@
 (library
   (public_name petr4)
   (name petr4)
-  (libraries core_kernel bignum poulet4 ppx_deriving_yojson.runtime yojson cstruct-sexp poulet4_Ccomp)
+  (libraries core core_kernel core_unix ANSITerminal bignum poulet4 ppx_deriving_yojson.runtime yojson cstruct-sexp poulet4_Ccomp)
   (preprocess
     (staged_pps ppx_import ppx_jane ppx_deriving_yojson ppx_deriving.show)))

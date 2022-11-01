@@ -30,13 +30,41 @@ type error =
   | ParserError of P4info.t
   | CheckerError of exn
   | GenLocError
-  | NormalizeError of string
   | ToP4CubError of string
   | ToGCLError of string
   | FlattenDeclCtxError of string
   | ToCLightError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
+
+let error_to_string (e : error) : string =
+  match e with
+  | PreprocessorError pp ->
+    Printf.sprintf "preprocessor error: %s" (Exn.to_string pp)
+  | LexerError s ->
+    Printf.sprintf "lexer error: %s" s
+  | ParserError info ->
+    Printf.sprintf "parser error: %s" (P4info.to_string info)
+  | CheckerError exn ->
+    Printf.sprintf "checker error: %s" (Exn.to_string exn)
+  | GenLocError ->
+    Printf.sprintf "genloc error: TODO add debug message"
+  | ToP4CubError s ->
+    Printf.sprintf "top4cub error: %s" s
+  | ToGCLError s ->
+    Printf.sprintf "togcl error: %s" s
+  | FlattenDeclCtxError s ->
+    Printf.sprintf "flattendeclctx error: %s" s
+  | ToCLightError s ->
+    Printf.sprintf "toclight error: %s" s
+  | Finished ->
+    Printf.sprintf "error [Finished] (not actually an error)"
+
+let handle_error (res : ('a, error) Result.t) : 'a =
+  match res with
+  | Ok a -> a
+  | Error e ->
+    failwith (error_to_string e)
 
 module MakeDriver (IO: DriverIO) = struct
 

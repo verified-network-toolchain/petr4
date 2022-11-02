@@ -21,48 +21,48 @@ let parse_ext_flag p = Pass.Run (Option.map p ~f:Pass.parse_output_exn)
 let parse_backend unroll_parsers output_gcl output_clight =
   match output_gcl, output_clight with
   | Some gcl, None ->
-     let message = "please provide a depth with -unroll-parsers when compiling to GCL" in
-     let depth = Option.value_exn unroll_parsers ~message in
-     let gcl_output = Pass.parse_output_exn gcl in
-     Pass.Run (Pass.GCLBackend {depth; gcl_output})
+    let message = "please provide a depth with -unroll-parsers when compiling to GCL" in
+    let depth = Option.value_exn unroll_parsers ~message in
+    let gcl_output = Pass.parse_output_exn gcl in
+    Pass.Run (Pass.GCLBackend {depth; gcl_output})
   | None, Some clight ->
-     let clight_output = Pass.parse_output_exn clight in
-     Pass.Run (Pass.CBackend clight_output)
+    let clight_output = Pass.parse_output_exn clight in
+    Pass.Run (Pass.CBackend clight_output)
   | Some _, Some _ ->
-     failwith "Can produce either C or GCL but not both."
+    failwith "Can produce either C or GCL but not both."
   | None, None ->
-     Pass.Skip
+    Pass.Skip
 
 let parser_flags : Pass.parser_cfg Command.Param.t =
   let open Command.Let_syntax in
-    [%map_open
-      let verbose = flag "-v" no_arg ~doc:"Be more verbose."
-      and includes = flag "-I" (listed string)
-          ~doc:"dir Paths to search for files sourced with #include directives."
-      and infile = anon ("file.p4" %: string)
-      in
-      Pass.{ cfg_infile = infile;
-             cfg_includes = includes;
-             cfg_verbose = verbose }]
+  [%map_open
+    let verbose = flag "-v" no_arg ~doc:"Be more verbose."
+    and includes = flag "-I" (listed string)
+        ~doc:"dir Paths to search for files sourced with #include directives."
+    and infile = anon ("file.p4" %: string)
+    in
+    Pass.{ cfg_infile = infile;
+           cfg_includes = includes;
+           cfg_verbose = verbose }]
 
 let checker_flags : Pass.checker_cfg Command.Param.t =
   let open Command.Let_syntax in
-    [%map_open
-     let cfg_parser = parser_flags
-     and normalize = flag "-normalize" no_arg
-                       ~doc:"Simplify expressions."
-     and gen_loc = flag "-gen-loc" no_arg
-                     ~doc:"Infer locators in P4light after typechecking."
-     and output_p4surface = flag "-output-p4surface" (optional string)
-                           ~doc:"file Output P4surface to the specified file."
-     and output_p4light = flag "-output-p4light" (optional string)
-         ~doc:"file Output P4light to the specified file."
-     in
-     Pass.{ cfg_parser;
-            cfg_p4surface = parse_ext_flag output_p4surface;
-            cfg_gen_loc   = Pass.cfg_of_bool gen_loc;
-            cfg_normalize = Pass.cfg_of_bool normalize;
-            cfg_p4light   = parse_ext_flag output_p4light }]
+  [%map_open
+    let cfg_parser = parser_flags
+    and normalize = flag "-normalize" no_arg
+        ~doc:"Simplify expressions."
+    and gen_loc = flag "-gen-loc" no_arg
+        ~doc:"Infer locators in P4light after typechecking."
+    and output_p4surface = flag "-output-p4surface" (optional string)
+        ~doc:"file Output P4surface to the specified file."
+    and output_p4light = flag "-output-p4light" (optional string)
+        ~doc:"file Output P4light to the specified file."
+    in
+    Pass.{ cfg_parser;
+           cfg_p4surface = parse_ext_flag output_p4surface;
+           cfg_gen_loc   = Pass.cfg_of_bool gen_loc;
+           cfg_normalize = Pass.cfg_of_bool normalize;
+           cfg_p4light   = parse_ext_flag output_p4light }]
 
 
 let compiler_flags : Pass.compiler_cfg Command.Param.t =
@@ -116,63 +116,28 @@ let interp_flags : Pass.interpreter_cfg Command.Param.t =
       failwith "The -stf flag cannot be used with -pkt or -port."
   ]
 
-let parser_command =
+let cfg_command ~summary flags runner =
   let open Command.Let_syntax in
-  Command.basic
-    ~summary:"parse a P4 program"
+  Command.basic ~summary:summary
     [%map_open
-      let cfg_parser = parser_flags in
+      let cfg = flags in
       fun () ->
-        Petr4.Unix.Driver.run_parser cfg_parser
+        runner cfg
         |> Petr4.Common.handle_error
         |> ignore]
+
+let parser_command =
+  cfg_command ~summary:"parse a P4 program" parser_flags Petr4.Unix.Driver.run_parser
 
 let checker_command =
-  let open Command.Let_syntax in
-  Command.basic
-    ~summary:"typecheck a P4 program"
-    [%map_open
-      let cfg_checker = checker_flags in
-      fun () ->
-        Petr4.Unix.Driver.run_checker cfg_checker
-        |> Petr4.Common.handle_error
-        |> ignore]
+  cfg_command ~summary:"typecheck a P4 program" checker_flags Petr4.Unix.Driver.run_checker
 
 let compiler_command =
-  let open Command.Let_syntax in
-  Command.basic
-    ~summary:"compile a P4 program"
-    [%map_open
-      let cfg_compiler = compiler_flags in
-      fun () ->
-        Petr4.Unix.Driver.run_compiler cfg_compiler
-        |> Petr4.Common.handle_error
-        |> ignore]
+  cfg_command ~summary:"compile a P4 program" compiler_flags Petr4.Unix.Driver.run_compiler
 
 let interp_command =
-  let open Command.Let_syntax in
-  Command.basic
-    ~summary:"run a P4 program"
-    [%map_open
-      let cfg_interp = interp_flags in
-      fun () ->
-        Petr4.Unix.Driver.run_interpreter cfg_interp
-        |> Petr4.Common.handle_error
-        |> ignore]
+  cfg_command ~summary:"run a P4 program" interp_flags Petr4.Unix.Driver.run_interpreter
 
-(*
-   -let stf_command =
--  let open Command.Spec in
--  Command.basic_spec
--    ~summary: "Run a P4 program with an STF script"
--    (empty
--     +> flag "-v" no_arg ~doc:" Enable verbose output"
--     +> flag "-I" (listed string) ~doc:"<dir> Add directory to include search path"
--     +> flag "-stf" (required string) ~doc: "<stf file> Select the .stf script to ru
-n"
--     +> anon ("p4file" %: string))
--    (fun verbose include_dir stf_file p4_file
-   *)
 let command =
   Command.group ~summary:"petr4: a reference implementation of the p4_16 language"
     ["parse", parser_command;

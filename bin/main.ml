@@ -123,8 +123,9 @@ let parser_command =
     [%map_open
       let cfg_parser = parser_flags in
       fun () ->
-        let _ = Petr4.Unix.Driver.run_parser cfg_parser in
-        ()]
+        Petr4.Unix.Driver.run_parser cfg_parser
+        |> Petr4.Common.handle_error
+        |> ignore]
 
 let checker_command =
   let open Command.Let_syntax in
@@ -133,8 +134,9 @@ let checker_command =
     [%map_open
       let cfg_checker = checker_flags in
       fun () ->
-        let _ = Petr4.Unix.Driver.run_checker cfg_checker in
-        ()]
+        Petr4.Unix.Driver.run_checker cfg_checker
+        |> Petr4.Common.handle_error
+        |> ignore]
 
 let compiler_command =
   let open Command.Let_syntax in
@@ -143,8 +145,9 @@ let compiler_command =
     [%map_open
       let cfg_compiler = compiler_flags in
       fun () ->
-        let _ = Petr4.Unix.Driver.run_compiler cfg_compiler in
-        ()]
+        Petr4.Unix.Driver.run_compiler cfg_compiler
+        |> Petr4.Common.handle_error
+        |> ignore]
 
 let interp_command =
   let open Command.Let_syntax in
@@ -153,8 +156,9 @@ let interp_command =
     [%map_open
       let cfg_interp = interp_flags in
       fun () ->
-        let _ = Petr4.Unix.Driver.run_interpreter cfg_interp in
-        ()]
+        Petr4.Unix.Driver.run_interpreter cfg_interp
+        |> Petr4.Common.handle_error
+        |> ignore]
 
 (*
    -let stf_command =

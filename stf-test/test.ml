@@ -99,9 +99,12 @@ let get_stf_files path =
   Sys_unix.ls_dir path |> Base.List.to_list |>
   List.filter ~f:(fun x -> Core.Filename.check_suffix x ".stf")
 
-let stf_alco_test stf_file p4_file p4prog =
+let stf_alco_test include_dir stf_file p4_file =
     let run_stf_alcotest () =
-      let expected, results = Petr4.Stf.run_stf stf_file p4prog in
+      let cfg = Petr4.Pass.mk_check_only include_dir p4_file in
+      let p4_prog = Petr4.Unix.Driver.run_checker cfg
+                    |> Petr4.Common.handle_error in
+      let expected, results = Petr4.Stf.run_stf stf_file p4_prog in
       List.zip_exn expected results
       |> List.iter ~f:(fun (p_exp, p) ->
             Alcotest.(testable (Fmt.pair ~sep:Fmt.sp Fmt.string Fmt.string) packet_equal |> check) "packet test" p_exp p)

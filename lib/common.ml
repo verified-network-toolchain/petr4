@@ -32,7 +32,6 @@ type error =
   | GenLocError
   | ToP4CubError of string
   | ToGCLError of string
-  | FlattenDeclCtxError of string
   | ToCLightError of string
   (* not an error but an indicator to stop processing data *)
   | Finished
@@ -53,8 +52,6 @@ let error_to_string (e : error) : string =
     Printf.sprintf "top4cub error: %s" s
   | ToGCLError s ->
     Printf.sprintf "togcl error: %s" s
-  | FlattenDeclCtxError s ->
-    Printf.sprintf "flattendeclctx error: %s" s
   | ToCLightError s ->
     Printf.sprintf "toclight error: %s" s
   | Finished ->
@@ -160,7 +157,7 @@ module MakeDriver (IO: DriverIO) = struct
        | Concrete -> 
           Format.eprintf "TODO: implement p4cub concrete syntax pretty printing.\n"
        | Sexps ->
-          Printp4cub.print_tp_decl fmt prog
+          Printp4cub.print_prog fmt prog
        | Coq ->
           Format.eprintf "TODO: implement p4cub coq pretty printing.\n"
        | Ocaml ->
@@ -175,6 +172,11 @@ module MakeDriver (IO: DriverIO) = struct
     | Run p4flat_fmt ->
        Ok prog
 
+  let write_p4cub_to_file prog printp4_file =
+    let oc_p4 = Out_channel.create printp4_file in
+    Printp4cub.print_prog (Format.formatter_of_out_channel oc_p4) prog;
+    Out_channel.close oc_p4
+
   let print_p4flat (cfg: Pass.compiler_cfg) prog =
     match cfg.cfg_p4flat with
     | Skip -> Error Finished
@@ -187,7 +189,7 @@ module MakeDriver (IO: DriverIO) = struct
     let open Poulet4 in
     let gas = 100000 in
     let coq_gcl =
-      V1model.gcl_from_p4cub P4info.dummy TableInstr.instr gas depth prog
+      V1model.gcl_from_p4cub TableInstr.instr gas depth prog
     in
     begin match coq_gcl with
     | Result.Error msg -> Error (ToGCLError msg)
@@ -199,15 +201,13 @@ module MakeDriver (IO: DriverIO) = struct
     Ok prog
   
   let flatten_declctx cub_ctx =
-    match Poulet4.ToP4cub.flatten_DeclCtx cub_ctx with
-    | Poulet4.Result.Ok cub  -> Ok cub
-    | Poulet4.Result.Error e -> Error (FlattenDeclCtxError e)
+    Ok (Poulet4.ToP4cub.flatten_DeclCtx cub_ctx)
   
   let hoist_clight_effects prog =
-    Ok (Poulet4.Statementize.coq_TranslateProgram prog)
+    Ok (Poulet4.Statementize.lift_program prog)
 
   let to_clight prog =
-    let certd = Compcertalize.topdecl_convert prog in 
+    let certd = List.map ~f:Compcertalize.topdecl_convert prog in
     match Poulet4_Ccomp.CCompSel.coq_Compile certd with
     | Poulet4_Ccomp.Errors.OK clight -> Ok clight
     | Poulet4_Ccomp.Errors.Error m ->

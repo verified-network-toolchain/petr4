@@ -913,15 +913,6 @@ Inductive update_member : Sval -> string -> Sval -> Sval -> Prop :=
 Definition update_stack_header (headers: list Sval) (idx: Z) (v: Sval) : list Sval :=
   upd_Znth idx headers v.
 
-Fixpoint update_bitstring {A} (bits : list A) (lo : nat) (hi : nat)
-                              (nbits : list A) : list A :=
-  match bits, lo, hi, nbits with
-  | hd::tl, S lo', S hi', _ => hd :: (update_bitstring tl lo' hi' nbits)
-  | _::tl, O, S hi', nhd::ntl => nhd :: (update_bitstring tl lo hi' ntl)
-  | _::tl, O, O, [nhd] => nhd :: tl
-  | _, _, _, _ => bits
-  end.
-
 (* Writing and updating happens all be in sval, so it requires converting the rhs val to sval beforehand *)
 (* If any of these kinds of writes are performed:
     2.variant. a write to an element of a header stack, where the index is out of range

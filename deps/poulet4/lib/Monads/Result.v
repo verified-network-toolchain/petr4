@@ -239,3 +239,10 @@ Ltac simpl_result_all :=
   match goal with
   | H: _ |- _ => progress simpl_result H
   end.
+
+Lemma sequence_map_Result_ok : forall {Err A} (l : list A),
+    sequence (List.map ok l) = ok (Err := Err) l.
+Proof.
+  intros; induction l as [| a l ih]; cbn; auto.
+  rewrite ih; reflexivity.
+Qed.

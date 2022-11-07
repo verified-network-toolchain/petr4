@@ -8,7 +8,7 @@ err=0
 
 INCLUDE_DIR="examples"
 
-PETR4="dune exec -- petr4 -I ${INCLUDE} -output-gcl file.gcl -unroll-parsers 10"
+PETR4="dune exec -- petr4 compile -I ${INCLUDE} -output-gcl file.gcl -unroll-parsers 10"
 
 eval $(opam env)
 

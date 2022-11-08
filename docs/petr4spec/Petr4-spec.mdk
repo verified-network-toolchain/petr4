@@ -1582,6 +1582,15 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} { {\typ_1}} \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\VVal {\typ_1}} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
+  \inferrule[\rn{BinOpsAllowInsertImplicitCast}\rE($\ops=toBeFilled$)]
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
+       \insertImplCast {\exp_1} {\typ_1} = \VVVal {\exp_1}\\
+       \insertImplCast {\exp_2} {\typ_2} = \VVVal {\exp_2}\\\\
+       \expenv {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \exp \typ \dir}
+     {\expenv {\exp_1 \ops \exp_2} \exp \typ \dir }
+
+
 ~ End InfRule
 
 ``**DISCREPANCY**``

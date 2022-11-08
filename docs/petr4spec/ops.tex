@@ -58,7 +58,9 @@
 \newcommand*{\signedIntE}{\rn{SignedInt}\rE}
 \newcommand*{\nameE}{\rn{Name}\rE}
 \newcommand*{\arrayAccessE}{\rn{ArrayAccess}\rE}
-\newcommand*{\bitStringAccessE}{\rn{BitStringAccess}\rE}
+\newcommand*{\bitSliceE}{\rn{UnsignedIntSlice}\rE}
+\newcommand*{\intSliceE}{\rn{SignedIntSlice}\rE}
+\newcommand*{\sliceWithCastE}{\rn{Slice}\rSep\rn{InsertImplicitCast}\rE}
 \newcommand*{\listE}{\rn{List}\rE}
 %% \newcommand*{\listAltE}{\rn{List}\rSep\rn{Alt}\rE}
 \newcommand*{\recordE}{\rn{Record}\rE}
@@ -240,7 +242,7 @@
 \newcommand{\shiftL}{<\!<}
 \newcommand{\leqOp}{<=}
 \newcommand{\geqOp}{>=}
-\newcommand{\concat}{+\!+\ }
+\newcommand{\concat}{+\!+}
 \newcommand{\restOps}{\odot}
 \newcommand{\ops}{\odot}
 \newcommand{\unaryOp}{\ominus}
@@ -482,7 +484,7 @@
 \newcommand{\addConstEnv}[2]{\constEnv[{#1}={#2}]}
 \newcommand{\isNumeric}[2]{\mathit{is\_numeric}({#1}, {#2})}
 \newcommand{\ifIntComp}[2]{\mathit{if\_int\_is\_compile\_time\_known}({#1}, {#2})}
-\newcommand{\isFixedOrNumEnum}[1]{\mathit{is\_fixed\_num\_or\_num\_enum}({#1})}
+\newcommand{\isNumOrEnum}[1]{\mathit{is\_num\_or\_enum}({#1})}
 %% \newcommand{\isArray}[1]{\mathit{is\_array}({#1})}
 \newcommand{\getEnum}[1]{\mathit{get\_enum}({#1})}
 \newcommand{\isConstant}[1]{\mathit{is\_constant} ({#1})}
@@ -490,6 +492,7 @@
 \newcommand{\isVariable}[1]{\mathit{is\_variable} ({#1})}
 \newcommand{\compileTimeEval}[1]{\llbracket{#1}\rrbracket_{\constEnv, \typEnv}}
 \newcommand{\implicitCast}[2]{\mathit{implicit\_cast}({#1},{#2})}
+\newcommand{\insertImplCast}[2]{\mathit{insert\_implicit\_cast}({#1},{#2})}
 \newcommand{\reduceEnums}[1]{\mathit{reduce\_enums}({#1})_\env} 
 \newcommand{\inOrLess}[2]{\mathit{in\_or\_directionless}({#1},{#2})}
 %% \newcommand{\typEq}[3]{{#2} ==_{\env,{#1}} {#3}}
@@ -563,7 +566,7 @@
 \newcommand{\boolTyp}{\mathsf{bool}}
 \newcommand{\stringTyp}{\mathsf{string}}
 \newcommand{\integerTyp}{\mathsf{int}}
-\newcommand{\bitStringTyp}[1]{\bitWidthTyp {#1}}
+%% \newcommand{\bitStringTyp}[1]{\bitWidthTyp {#1}}
 \newcommand{\setTyp}[1]{\mathsf{set}\langle{#1}\rangle}
 \newcommand{\errTyp}{\mathsf{error}}
 \newcommand{\varBitTyp}[1]{\mathsf{varbit}\langle{#1}\rangle}

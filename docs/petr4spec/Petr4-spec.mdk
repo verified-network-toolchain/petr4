@@ -1156,6 +1156,7 @@ compile time we still consider it known at compile time.
 
 ## Bitstring Access (Slice) Rule { #sec-bitstring-slice-e }
 
+```done```
 ```under the $\cte$ context```
 
 $\bitStringAccess {\exp_1} {\exp_2} {\exp_3}$ denotes slicing a the a (un)signed fixed-length integer $\exp_1$ from bit $\exp_2$ to $\exp_3$.
@@ -1315,18 +1316,15 @@ Additionally, they restrict the type of the $\exp$.
 
 ## Binary Operation Rules { #sec-bin-ops-e }
 
-A binary operation is applied to two operands and it is written as $\exp_1 \restOps \exp_2$ where $\restOps$ indicates one or more operators. The binary operation rules are organized line-by-line for readability:
+```done```
 
-- The name of each rule is located on top of the rule and it contains the operators
+A binary operation is applied to two operands and it is written as $\exp_1 \restOps \exp_2$ where $\restOps$ indicates one or more operators. The name of a rule is located on top of it and it contains the operators
 that it covers. For example, the rule
-$\rn{LogicalOps}\rAE(\ops=\&\&,\vert\vert)$
+$\rn{LogicalOps}\rAE(\ops=\intoOp {\&\&}, \intoOp \logor)$
 applies to both **logical and** and **logical or**, that is, while reading the rule,
-one can substitute $\ops$ for either $\&\&$ or $\vert\vert$.
-- In all the binary operation rules, the first line states that the expression typing judgment is applied recursively to the operands.
-- Then if applicable in second line, the rule checks whether the type of one of the operands can be implicitly casted to the other one. If so, it casts the said operand. This is done for all binary operation rules **except** for $\rn{BitstringConcatenation}\rE$ and $\rn{ShiftOps}\rE(\ops=\shiftL,\shiftR)$.
-- Then, the type of the operands are reduced to remove all enums recursively and any condition that must hold for the operator(s) of the rule is checked.
-- Finally, the direction of the expression is determined.
-- It first checks the equality rule and then the cast rule. 
+one can substitute $\ops$ for either $\intoOp {\&\&}$ or $\intoOp \logor$.
+
+The type system first looks into binary operation rules without inserting any implicit cast. If it cannot derive a tree for a given expression, then it looks into the rules that insert implicit casts. Note that some binary operations such as bitstring concatenation only allows for implicit cast of a serializable enum to its underlying type. 
 
 The following helpers are used in the binary operation rules:
 
@@ -1341,7 +1339,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
    * $\integerTyp$
    * $\enumTypDef$
    * $\enumTypNoTypDef$
-- $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on the types of its two operands:
+- $\concatCond {\typ_1} {\typ_2}$ is a helper function that determines the type of a concatenation expression based on type of its left operand:
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \bitWidthTyp {\width_2}$, then
     $\concatCond {\typ_1} {\typ_2} = \bitWidthTyp {\width_1 + \width_2}$
   + if $\typ_1 = \bitWidthTyp {\width_1}, \typ_2 = \intWidthTyp {\width_2}$, then
@@ -1352,11 +1350,10 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
     $\concatCond {\typ_1} {\typ_2} = \intWidthTyp {\width_1 + \width_2}$
 - $\nonNeg \exp$ evaluates an expression at compile time and check if it is a non-negative.
 - $\shiftCond {\typ} {\exp}$ checks whether one of the following holds:
-  + $\typ == \bitWidthTyp \width$
-  + $\typ == \integerTyp$ and $\nonNeg \exp$ 
+  + $\typ = \bitWidthTyp \width$
+  + $\typ = \integerTyp$, $\compTimeKnown \exp$, and $\nonNeg \exp$ 
 - $\ifIntComp \typ \exp$ returns $\tru$ unless the type $\typ$ is $\integerTyp$ and the expression $\exp$ is not compile-time-know.
-- $\cast \typ \exp$ synthesizes a cast expression if the type of the expression $\exp$ is different from the type $\typ$.
-- $\implicitCast {\typ_1} {\typ_2}$ denotes possible implicit casts search for two types $\typ_1$ and $\typ_2$. It looks through implicit cast rules indicated by $\implCast {\typ_1} {\typ_2}$ and tries to find type $\typ$ that can cast either one or both input types to $\typ$. If it finds such a type it will return it. 
+- $\insertEnumImplCast {\exp} {\typ}$ inserts implicit cast only when $\typ$ is serializable enum.
 
 ~ Begin InfRule
 
@@ -1373,6 +1370,8 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
        }
      {\expenv {\exp_1 \restOps \exp_2} {\VVal {\exp_1} \restOps \VVal {\exp_2}} \boolTyp \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
+
+\and
 
 \mprset  {vskip=0.7ex}
   {\inferrule[\rn{NumericOps}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
@@ -1391,22 +1390,24 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-\mprset  {vskip=0.7ex}
-  {\inferrule[\rn{NumericOps}\rSep\rn{InsertImplicitCast}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
-       % \isInt \typ\\\\
-       % \isNumeric {\exp_1} {\typ_1}\\
-       % \isNumeric {\exp_2} {\typ_2}\\\\
-       % \typ_1 == \typ_2\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir 
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} {\typ} \dir }}
-     % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
+\and
+
+% \mprset  {vskip=0.7ex}
+%   {\inferrule[\rn{NumericOps}\rSep\rn{InsertImplicitCast}\rE($\ops=\intoOp +, \intoOp -, \intoOp *$)]
+%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
+%        \implicitCast {\typ_1} {\typ_2} = \typ \\
+%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
+%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
+%        % \reduceEnums {\typ_1} = \reduceEnums {\typ_2} = \typ \\\\
+%        % \isInt \typ\\\\
+%        % \isNumeric {\exp_1} {\typ_1}\\
+%        % \isNumeric {\exp_2} {\typ_2}\\\\
+%        % \typ_1 == \typ_2\\\\
+%        \inOrLess {\dir_1} {\dir_2} = \dir 
+%        }
+%      {\expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} {\typ} \dir }}
+%      % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
 \mprset {vskip =0.7ex}
   {\inferrule[\rn{EqualityChecks}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
@@ -1426,22 +1427,24 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2} }
 
-\mprset {vskip =0.7ex}
-  {\inferrule[\rn{EqualityChecks}\rSep\rn{InsertImplicitCast}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-       % \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
-       % \typEq {\emp} {\typ_1} {\typ_2} \\
-       \ifIntComp {\typ_1} {\exp_1} \\
-       \ifIntComp {\typ_2} {\exp_2}\\\\
-       % \typ_1 == \typ_2\\
-       \typHasEq {\typ_1} \\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
+\and
+
+% \mprset {vskip =0.7ex}
+%   {\inferrule[\rn{EqualityChecks}\rSep\rn{InsertImplicitCast}\rE($\ops=\ \intoOp{==}, \intoOp{!=}$)]
+%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
+%        \implicitCast {\typ_1} {\typ_2} = \typ \\
+%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
+%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
+%        % \typEqEnv {\emp} {\reduceEnums {\typ_1}} {\reduceEnums {\typ_2}} \\\\
+%        % \typEq {\emp} {\typ_1} {\typ_2} \\
+%        \ifIntComp {\typ_1} {\exp_1} \\
+%        \ifIntComp {\typ_2} {\exp_2}\\\\
+%        % \typ_1 == \typ_2\\
+%        \typHasEq {\typ_1} \\\\
+%        \inOrLess {\dir_1} {\dir_2} = \dir
+%        }
+%      { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
 
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{OpSat}\rE($\ops = \intoOp \plusSat,\intoOp \subSat$)]
@@ -1460,6 +1463,8 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
        % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
+\and
+
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{BitwiseOps}\rE($\ops=\intoOp \bitAnd, \intoOp \bitOr, \intoOp \bitXor, \intoOp \bitComplement$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
@@ -1477,6 +1482,8 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} {\typ_1} \dir }}
        % { \binOpEnv {\exp_1 \restOps \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
+\and
+
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{BitstringConcatenation}\rE]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
@@ -1488,18 +1495,20 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \intoOp \concat \exp_2} {\VVal {\exp_1} \intoOp \concat \VVal {\exp_2}} \typ \dir }}
      % { \binOpEnv {\exp_1  \concat \exp_2} {\typ} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{BitstringConcatenation}\rSep\rn{InsertImplicitCast}\rE]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-       \concatCond { {\typ}} { {\typ}} = \VVal \typ\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \intoOp \concat \exp_2} {\VVVal {\exp_1} \intoOp \concat \VVVal {\exp_2}} {\VVal \typ} \dir }}
+% \mprset {vskip=0.7ex}
+%   {\inferrule[\rn{BitstringConcatenation}\rSep\rn{InsertImplicitCast}\rE]
+%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
+%        % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
+%        % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
+%        \implicitCast {\typ_1} {\typ_2} = \typ \\
+%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
+%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
+%        \concatCond { {\typ}} { {\typ}} = \VVal \typ\\\\
+%        \inOrLess {\dir_1} {\dir_2} = \dir}
+%      {\expenv {\exp_1 \intoOp \concat \exp_2} {\VVVal {\exp_1} \intoOp \concat \VVVal {\exp_2}} {\VVal \typ} \dir }}
+
+\and
 
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{ComparisonOps}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
@@ -1520,22 +1529,24 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
     { \expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \boolTyp \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} \boolTyp \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{ComparisonOps}\rSep\rn{InsertImplicitCast}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
-       \implicitCast {\typ_1} {\typ_2} = \typ \\
-       \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
-       \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
-       % \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
-       \isNumeric {\exp_1} {\typ_1}\\
-       \isNumeric {\exp_2} {\typ_2}\\\\
-       % \typ_1 == \typ_2\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-      }
-    { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
+% \mprset {vskip=0.7ex}
+%   {\inferrule[\rn{ComparisonOps}\rSep\rn{InsertImplicitCast}\rE($\ops= \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
+%      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+%        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2}\\\\
+%        \implicitCast {\typ_1} {\typ_2} = \typ \\
+%        \cast \typ {\VVal {\exp_1}} = \VVVal {\exp_1}\\
+%        \cast \typ {\VVal {\exp_2}} = \VVVal {\exp_2}\\\\
+%        % \reduceEnums {\typ_1} = \VVal {\typ_1} \\
+%        % \reduceEnums {\typ_2} = \VVal {\typ_2} \\\\
+%        % \bothInt {\VVal {\typ_1}} {\VVal {\typ_2}}\\\\
+%        \isNumeric {\exp_1} {\typ_1}\\
+%        \isNumeric {\exp_2} {\typ_2}\\\\
+%        % \typ_1 == \typ_2\\\\
+%        \inOrLess {\dir_1} {\dir_2} = \dir
+%       }
+%     { \expenv {\exp_1 \ops \exp_2} {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \boolTyp \dir }}
+
+\and
 
 \mprset {vskip=0.7ex}
   {\inferrule[\rn{DivOps}\rE($\ops=\intoOp\div, \intoOp\mod$)]
@@ -1554,21 +1565,7 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
      {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \integerTyp \dir }}
      % { \binOpEnv {\exp_1 \restOps \exp_2} \typ \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-\mprset {vskip=0.7ex}
-  {\inferrule[\rn{DivOps}\rSep\rn{InsertImplicitCast}\rE($\ops=\intoOp\div, \intoOp\mod$)]
-     { \expenv {\exp_1} {\VVal {\exp_1}} {\integerTyp} {\dir_1} \\
-       \expenv {\exp_2} {\VVal {\exp_2}} {\integerTyp} {\dir_2}\\\\
-       % \implicitCast {\typ_1} {\typ_2} = \typ \\
-       % \cast \typ {\VVal {\exp_1}} = \pprim {\exp_1}\\
-       % \cast \typ {\VVal {\exp_2}} = \pprim {\exp_2}\\\\
-       % \reduceEnums {\typ_1} = \VVal {\typ_1}\\
-       % \reduceEnums {\typ_2} = \VVal {\typ_2}\\\\
-       % \divCond {\VVal {\typ_1}} {\VVal {\typ_2}} = \typ \\
-       \nonNeg {\exp_1} \\
-       \nonNeg {\exp_2}\\\\
-       \inOrLess {\dir_1} {\dir_2} = \dir
-       }
-     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} \integerTyp \dir }}
+\and
 
   \inferrule[\rn{ShiftOps}\rE($\ops=\intoOp \shiftL, \intoOp \shiftR$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
@@ -1577,32 +1574,43 @@ $\inOrLess {\dir_1} {\dir_2}$ returns the $\inDir$ direction if both directions 
        % \typ_2 = \reduceEnums {\typ_2} \\
        \isNumeric {\exp_1} {\typ_1}\\
        % \nonNeg {\exp_2} \\
-       \shiftCond {\VVal {\typ_1}} {\exp_2}\\\\
+       \shiftCond {{\typ_2}} {\exp_2}\\\\
        \inOrLess {\dir_1} {\dir_2} = \dir}
-     {\expenv {\exp_1 \ops \exp_2} {\pprim {\exp_1} \ops \pprim {\exp_2}} { {\typ_1}} \dir }
+     {\expenv {\exp_1 \ops \exp_2} {\VVal {\exp_1} \ops \VVal {\exp_2}} { {\typ_1}} \dir }
      % { \binOpEnv {\exp_1 \restOps \exp_2} {\VVal {\typ_1}} \dir {\typ_1} {\typ_2} {\dir_1} {\dir_2}}
 
-  \inferrule[\rn{BinOpsAllowInsertImplicitCast}\rE($\ops=toBeFilled$)]
+\and
+
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{BinOps}\rSep\rn{InsertImplicitCast}\rE($\ops= \intoOp +, \intoOp -, \intoOp *, \intoOp{==}, \intoOp{!=}, \intoOp \concat, \intoOp <, \intoOp \leqOp, \intoOp >, \intoOp \geqOp$)]
      { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
        \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
        \insertImplCast {\exp_1} {\typ_1} = \VVVal {\exp_1}\\
        \insertImplCast {\exp_2} {\typ_2} = \VVVal {\exp_2}\\\\
        \expenv {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \exp \typ \dir}
      {\expenv {\exp_1 \ops \exp_2} \exp \typ \dir }
+  }
 
+\and
+
+\mprset {vskip=0.7ex}
+  {\inferrule[\rn{BinOps}\rSep\rn{Insert}\rSep\rn{Enum}\rSep\rn{ImplicitCast}\rE($\ops= \intoOp \concat, \intoOp \shiftL, \intoOp \shiftR$)]
+     { \expenv {\exp_1} {\VVal {\exp_1}} {\typ_1} {\dir_1} \\
+       \expenv {\exp_2} {\VVal {\exp_2}} {\typ_2} {\dir_2} \\\\
+       \insertEnumImplCast {\exp_1} {\typ_1} = \VVVal {\exp_1}\\
+       \insertEnumImplCast {\exp_2} {\typ_2} = \VVVal {\exp_2}\\\\
+       \expenv {\VVVal {\exp_1} \ops \VVVal {\exp_2}} \exp \typ \dir}
+     {\expenv {\exp_1 \ops \exp_2} \exp \typ \dir }
+  }
 
 ~ End InfRule
 
-``**DISCREPANCY**``
-
-- P4 spec states that all expressions of type int MUST be compile-time known values but
-Petr4 doesn't always check this. (ref: section 8.7 spec. e.g., unaryminus or binaryops rules.)
-- P4 spec defines bitwise operations and concatenation for bit<w> but Petr4 also allows them for int<w>. (ref: bitwiseops and bitstringconcatenation rules. section 8.5. check_binary_op impl. )
-- P4 spec defines division and modulo only for arbitrary-precision integers but petr4 allows them for bit<w> too. (ref: divops rule. section 8.7. check_binary_op impl.)
 
 ## Cast Rule { #sec-cast-e }
 
-The expression $\cast \typ \exp$ casts expression $\exp$ to type $\typ$. However, it is
+
+```revise this```
+The expression $\cast {\surfaceTyp \exp} \exp$ casts expression $\exp$ to type $\surfaceTyp \exp$. However, it is
 not possible to cast an expression from every type to another type. Thus, the $\castE$
 rule states which casts are possible. Specifically, it states that the cast expression
 $\cast \typ \exp$ translates to the expression $\cast {\typ_1} {\exp_1}$ in the IR with
@@ -1622,7 +1630,6 @@ done implicitly or explicitly, respectively.
 - ``new`` Note that there is no need to check the well-formness of the type $\typ$ generated while type checking expression $\exp$ since it has been generated by the type system and we know it is well-formed.
 - ``new`` Note that you can cast to a non-surface type by just using its name. So you may need to look up the type identifier before going into the cast auxiliary. e.g., E is an enum in b = (E) x. you need to look up E and then go from there. That's what the $\castTypNameE$ does. 
 
-```come back to these later```
 
 ~ Begin InfRule
 
@@ -2447,6 +2454,10 @@ if it is either $\bitWidthTyp \width$ or $\intWidthTyp \width$ and returns its w
 
 
 # Declaration's Typing Rules { #sec-decl-typing }
+
+## Enum declaration
+
+```TODO: add this```
 
 # References    { #sec-references }
 

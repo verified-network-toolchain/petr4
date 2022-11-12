@@ -2,17 +2,127 @@ From Poulet4 Require Import
      Utils.Util.FunUtil
      P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 Import AllCubNotations String.
+From RecordUpdate Require Import RecordSet.
+Import RecordSetNotations.
+Require Export Coq.Arith.Compare_dec.
 
-(** * Philip Wadler style de Bruijn shifts for expression variables. *)
+Record shifter : Set :=
+  Shifter { cutoff : nat; amt : nat }.
+
+Global Instance eta_shifter : Settable _ :=
+  settable! Shifter < cutoff ; amt >.
+
+Section Shift.
+  Variable s : shifter.
+  
+  Definition smother (n : nat) : shifter :=
+    s <| cutoff := n + s.(cutoff) |>.
+
+  Definition boost (n : nat) : shifter :=
+    s <| amt := n + s.(amt) |>.
+  
+  Definition sext : shifter :=
+    smother 1.
+  
+  Definition shift_var (x : nat) : nat :=
+    if le_lt_dec s.(cutoff) x then s.(amt) + x else x.
+  
+  Open Scope expr_scope.
+
+  Fixpoint shift_e (e : Expr.e) : Expr.e :=
+    match e with
+    | Expr.Bool _
+    | _ `W _
+    | _ `S _
+    | Expr.Error _ => e
+    | Expr.Var t og x =>
+        Expr.Var t og $ shift_var x
+    | Expr.Slice hi lo e =>
+        Expr.Slice hi lo $ shift_e e
+    | Expr.Cast t e =>
+        Expr.Cast t $ shift_e e
+    | Expr.Uop t u e =>
+        Expr.Uop t u $ shift_e e
+    | Expr.Bop t o e1 e2 =>
+        Expr.Bop t o (shift_e e1) $ shift_e e2
+    | Expr.Lists l es =>
+        Expr.Lists l $ map shift_e es
+    | Expr.Index t e1 e2 =>
+        Expr.Index t (shift_e e1) $ shift_e e2
+    | Expr.Member t x e =>
+        Expr.Member t x $ shift_e e
+    end.
+
+  Local Close Scope expr_scope.
+
+  Definition shift_arg
+    : paramarg Expr.e Expr.e ->
+      paramarg Expr.e Expr.e :=
+    paramarg_map_same $ shift_e.
+
+  Definition shift_fun_kind
+    (fk : Stmt.fun_kind) : Stmt.fun_kind :=
+    match fk with
+    | Stmt.Funct f τs oe
+      => Stmt.Funct f τs $ option_map shift_e oe
+    | Stmt.Action a cargs
+      => Stmt.Action a $ map shift_e cargs
+    | Stmt.Method e m τs oe
+      => Stmt.Method e m τs $ option_map shift_e oe
+    end.
+
+  Definition shift_transition
+    (e : Parser.pt) : Parser.pt :=
+    match e with
+    | Parser.Direct _ => e
+    | Parser.Select e d cases
+      => Parser.Select (shift_e e) d cases
+    end.
+End Shift.
+
+Local Open Scope stmt_scope.
+
+Fixpoint shift_s
+  (sh : shifter) (s : Stmt.s) : Stmt.s :=
+  match s with
+  | Stmt.Skip
+  | Stmt.Invoke _
+  | Stmt.Exit => s
+  | Stmt.Return oe
+    => Stmt.Return $ option_map (shift_e sh) oe
+  | Stmt.Transition e
+    => Stmt.Transition $ shift_transition sh e
+  | e1 `:= e2 => shift_e sh e1 `:= shift_e sh e2
+  | Stmt.Call fk args
+    => Stmt.Call fk $ map (shift_arg sh) args
+  | Stmt.Apply x eas args
+    => Stmt.Apply
+        x eas
+        $ map (shift_arg sh) args
+  | Stmt.Var og te b
+    => Stmt.Var
+        og (map_sum id (shift_e sh) te)
+        $ shift_s (sext sh) b
+  | s₁ `; s₂ => shift_s sh s₁ `; shift_s sh s₂
+  | If e Then s₁ Else s₂
+    => If shift_e sh e Then shift_s sh s₁ Else shift_s sh s₂
+  end.
+
+Local Close Scope stmt_scope.
+
+(** Philip Wadler style de Bruijn shifts for expression variables. *)
 
 Section Rename.
   Variable ρ : nat -> nat.
 
-  Definition ext (x : nat) :=
+  Definition ext (x : nat) : nat :=
     match x with
     | O   => O
     | S n => S $ ρ x
     end.
+
+  (*Definition add_to_name (n : nat) : nat :=*)
+    
 
   Local Open Scope expr_scope.
   

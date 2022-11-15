@@ -156,8 +156,7 @@ module MakeDriver (IO: DriverIO) = struct
        begin match out.out_fmt with
        | Concrete -> 
           Format.eprintf "TODO: implement p4cub concrete syntax pretty printing.\n"
-       | Sexps ->
-          Printp4cub.print_prog fmt prog
+       | Sexps -> P4cubSexp.print fmt prog
        | Coq ->
           Format.eprintf "TODO: implement p4cub coq pretty printing.\n"
        | Ocaml ->

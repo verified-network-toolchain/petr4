@@ -172,7 +172,10 @@ Section GCL.
   | GAssume (phi : form)
   | GAssert (phi : form)
   | GExternVoid (e : string) (args : list rvalue)
-  | GExternAssn (x : lvalue) (e : string) (args : list rvalue).
+  | GExternAssn (x : lvalue) (e : string) (args : list rvalue)
+  | GTable (tbl : string)
+           (keys : list (rvalue * E.matchkind))
+           (actions : list (string * t)).
 
   Definition g_sequence {L R F : Type} : list (@t L R F) -> @t L R F :=
     fold_right GSeq GSkip.
@@ -203,6 +206,9 @@ Section GCL.
       GExternVoid e (List.map (r param phi) args)
     | GExternAssn x e args =>
       GExternAssn (l param phi x) e (List.map (r param phi) args)
+    | GTable tbl keys actions =>
+      GTable tbl (List.map (fun '(key, kind) => (r param phi key, kind)) keys)
+        (List.map (fun '(x,act) => (x, subst_form l r f param phi act)) actions)
     end.
 
   Fixpoint subst_rvalue
@@ -225,6 +231,9 @@ Section GCL.
       GExternVoid ext (List.map (r param e) args)
     | GExternAssn x ext args =>
       GExternAssn (l param e x) ext (List.map (r param e) args)
+    | GTable x keys actions =>
+      GTable x (List.map (fun '(key, kind) => (r param e key, kind)) keys)
+        (List.map (fun '(x,act) => (x, subst_rvalue l r f param e act)) actions)
     end.
 
 End GCL.
@@ -534,6 +543,8 @@ Module Semantics.
         let* (s', ret_opt) := Arch.run a s f args in
         let*~ ret := ret_opt else "expected return value from fruitful extern" in
         ok [update s' x ret]
+      | GCL.GTable tbl _ _ =>
+        error (String.append "No semantics for tables, found " tbl )
       end.
   End Semantics.
 End Semantics.

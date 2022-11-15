@@ -899,7 +899,11 @@ and add_cast env (expr: P4light.coq_Expression) new_typ : P4light.coq_Expression
   let orig_typ = type_of_expr expr in
   if cast_ok env orig_typ new_typ
   then add_cast_unsafe expr new_typ
-  else failwith "Cannot cast."
+  else failwithf "Cannot cast %s to type %s"
+      (coq_Expression_to_yojson expr |> Yojson.Safe.to_string)
+      (coq_P4Type_to_yojson new_typ |> Yojson.Safe.to_string)
+      ()
+
 
 and cast_if_needed env (expr: P4light.coq_Expression) typ : P4light.coq_Expression =
   let MkExpression (info, pre_expr, expr_typ, dir) = expr in

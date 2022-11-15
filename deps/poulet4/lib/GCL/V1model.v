@@ -21,7 +21,9 @@ Definition externs : ToGCL.model :=
          ("crc_poly", G.GSkip);
          ("digest", G.GSkip)
    ]);
-  ("packet_in", [("extract", G.GAssign (E.TBit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1))]);
+  ("packet_in", [("extract", G.GAssign (E.TBit 1%N) "hdr.is_valid" (BV.bit (Some 1%nat) 1));
+                ("lookahead", G.GSkip)
+  ]);
   ("counter", [("count", G.GSkip)]);
   ("direct_counter", [("count", G.GSkip)]);
   ("register", [("read", G.GSkip); ("write", G.GSkip)]);
@@ -38,7 +40,7 @@ Definition det_fwd_asst {tags_t : Type} (i : tags_t) :=
       E.EBop E.TBool
              E.NotEq
              (E.EVar (E.TBit 9%N) "standard_metadata.egress_spec" i)
-             (E.EBit 9%N 0%Z i) i
+             (E.EBit 9%N 509%Z i) i
   in
   let paramargs := [("check", PAIn assertion)] in
   let arrowE := {| paramargs := paramargs ; rtrns := None |} in
@@ -49,7 +51,7 @@ Definition t_arg {tags_t : Type} (i : tags_t) (dir : (E.e tags_t) -> paramarg (E
 Definition s_arg {tags_t : Type} (i : tags_t) dir var stype :=
   t_arg i dir (E.TVar stype) var.
 
-Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s tags_t :=
+Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_check ingress egress c_check deparser : string) : ST.s tags_t * ST.s tags_t :=
   let ext_args := [] in
   let pargs := [
         s_arg i PADirLess "packet_in"           "b";
@@ -73,8 +75,9 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
   let dep_args := [
         s_arg i PADirLess "packet_out" "b";
       t_arg i PAIn htype "hdr"] in
+  (ST.SApply parser ext_args pargs i,
   cub_seq i [
-        ST.SApply parser  ext_args pargs    i;
+        (* ST.SApply parser  ext_args pargs    i; *)
           (* ST.SApply v_check ext_args vck_args i; *)
           ST.SConditional
             (E.EVar E.TBool ("_state$accept$next") i)
@@ -86,9 +89,9 @@ Definition pipeline {tags_t : Type} (i : tags_t) (htype mtype : E.t) (parser v_c
             (ST.SSkip i) i
         (* ST.SApply   c_check  ext_args cck_args NoInfo; *)
         (* ST.SApply   deparser ext_args dep_args NoInfo *)
-    ].
+    ]).
 
-Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.constructor_args tags_t) : result (ST.s tags_t) :=
+Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.constructor_args tags_t) : result (ST.s tags_t * ST.s tags_t) :=
   match List.map snd cargs with
   | [E.CAName p; E.CAName vc; E.CAName ing; E.CAName egr; E.CAName cc; E.CAName d] =>
     match types with
@@ -103,8 +106,21 @@ Definition package {tags_t : Type} (i : tags_t) (types : list E.t) (cargs : E.co
     error "ill-formed constructor arguments to V1Switch instantiation."
   end.
 
-Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr hdrs gas unroll p4cub : result ToGCL.target :=
+Definition gcl_from_p4cub {tags_t : Type} (d : tags_t) instr hdrs gas unroll p4cub : result (ToGCL.target * ToGCL.target) :=
   let arrowtype := ({|paramargs:=[("check", PAIn E.TBool)]; rtrns:=None|} : Expr.arrowT) in
   let assume_decl := TopDecl.TPExtern "_" [] [] [("assume", ([], arrowtype))] d in
   let p4cub_instrumented := ToP4cub.add_extern tags_t p4cub assume_decl in
-  ToGCL.from_p4cub tags_t instr hdrs gas unroll externs (package d) p4cub.
+  let project_pkg f types cargs :=
+      let+ pkg := package d types cargs in
+      f pkg
+  in
+  (* let seq '(prsr, pipe) := ST.SSeq prsr pipe d in *)
+  (* let complt_pkg := project_pkg seq in *)
+  let parser_pkg := project_pkg fst in
+  let pipeln_pkg := project_pkg snd in
+  let to_gcl pipeliner :=
+      ToGCL.from_p4cub tags_t instr hdrs gas unroll externs pipeliner p4cub
+  in
+  let* parser := to_gcl parser_pkg in
+  let+ pipeln := to_gcl pipeln_pkg in
+  (parser, pipeln).

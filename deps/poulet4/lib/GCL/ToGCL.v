@@ -11,7 +11,6 @@ Import Env.EnvNotations Result ResultNotations.
 From Poulet4.Utils.Util Require Import ListUtil StringUtil.
 
 Open Scope string_scope.
-(* >>>>>>> poulet4:deps/poulet4/lib/GCL/ToGCL.v *)
 (** Compile to GCL *)
 Module ST := Stmt.
 Module CD := Control.

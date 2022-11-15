@@ -388,3 +388,5 @@ let sexp_of_top_decl : TopDecl.d -> Sexp.t = function
       sexp_of_funct name type_params signature body
 
 let sexp_of_prog : TopDecl.prog -> Sexp.t = sexp_of_list sexp_of_top_decl
+
+let print fmt prog = prog |> sexp_of_prog |> Sexp.pp_hum fmt

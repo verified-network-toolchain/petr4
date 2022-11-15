@@ -30,6 +30,7 @@
    (ppx_import (>= "0.15.0"))
    (ppx_jane (>= "0.15.0"))
    (ppx_js_style (>= "0.15.0"))
+   ppx_let
    (yojson (>= "1.7.0"))
    js_of_ocaml
    js_of_ocaml-lwt

@@ -1,9 +1,3 @@
-(menhir
-  (flags --explain)
-  (modules test_parser))
-
-(ocamllex (modules test_lexer))
-
 (library
   (name petr4test)
   (libraries core core_unix core_unix.sys_unix ANSITerminal alcotest petr4 poulet4)

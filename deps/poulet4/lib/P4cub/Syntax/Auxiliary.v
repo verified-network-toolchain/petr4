@@ -1,6 +1,6 @@
 Require Import Coq.PArith.BinPos
         Poulet4.Monads.Monad Poulet4.Monads.Option
-        Coq.NArith.BinNatDef Coq.NArith.BinNat.
+        Coq.NArith.BinNat.
 From Poulet4 Require Import Utils.P4Arith
      P4cub.Syntax.AST P4cub.Syntax.CubNotations.
 Import Expr ExprNotations.

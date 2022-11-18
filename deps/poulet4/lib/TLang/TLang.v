@@ -99,47 +99,47 @@ Section Optimizer.
   Definition optimize_tm (t: tm) : R.result error tm :=
     tm_from_string (ExternalOptimizer (to_string t)).
 
-  Fixpoint e_to_tm (e: E.e tags_t) : R.result string tm :=
+  Fixpoint e_to_tm (e: E.e) : R.result string tm :=
     match e with
-    | E.EBool b _     => mret (TBool b)
-    | E.EBit w n _    => mret (TInt {|iwidth:=w; ivalue:=n|})
-    | E.EInt w n _    => mret (TInt {|iwidth:=Npos w; ivalue:=n|})
-    | E.EVar _ name _ => mret (TVar name)
-    | _               => R.error "e_to_tm: unimplemented"
+    | E.Bool b       => mret (TBool b)
+    | E.Bit w n      => mret (TInt {|iwidth:=w; ivalue:=n|})
+    | E.Int w n      => mret (TInt {|iwidth:=Npos w; ivalue:=n|})
+    | E.Var _ name _ => mret (TVar name)
+    | _              => R.error "e_to_tm: unimplemented"
     end.
 
-  Fixpoint t_to_tm (stmt: Inline.t tags_t) : R.result string tm :=
+  Fixpoint t_to_tm (stmt: Inline.t) : R.result string tm :=
     match stmt with
-    | Inline.ISkip _ i =>
+    | Inline.ISkip =>
         mret TNop
-    | Inline.IVardecl _ type x i =>
+    | Inline.IVardecl type x =>
         mret TNop
-    | Inline.IAssign _ type lhs rhs i =>
+    | Inline.IAssign type lhs rhs =>
         match lhs with
-        | AST.Expr.EVar _ name _ =>
+        | AST.Expr.Var _ name _ =>
             let* rhs_tm := e_to_tm rhs in
             mret (TSet name rhs_tm)
         | _ => mret TNop
         end
-    | Inline.IConditional _ _ e s1 s2 _ =>
+    | Inline.IConditional _ e s1 s2 =>
         let* t1 := t_to_tm s1 in
         let* t2 := t_to_tm s2 in
         let+ e := e_to_tm e in
         TIf e t1 t2
-    | Inline.ISeq _ s1 s2 i =>
+    | Inline.ISeq s1 s2 =>
         let* t1 := t_to_tm s1 in
         let+ t2 := t_to_tm s2 in
         TSeq t1 t2
-    | Inline.IBlock _ blk =>
+    | Inline.IBlock blk =>
         (* this breaks scope, so we need to require the original
            stmt to have unique variable names somehow.
 
            Better yet, statically allocate everything so that
            IBlocks do not appear at the statement level. *)
         t_to_tm blk
-    | Inline.IReturnVoid _ _
-    | Inline.IReturnFruit _ _ _ _
-    | Inline.IExit _ _ =>
+    | Inline.IReturnVoid
+    | Inline.IReturnFruit _ _
+    | Inline.IExit =>
         (* Not sure what to do about return/etc in this setup.
            If I have ---[x>0]--[x:=2]--+--[x:=x+1]---
                           |            |
@@ -152,24 +152,19 @@ Section Optimizer.
            they're equal.
          *)
         R.error "t_to_tm: exit/return unimplemented"
-    | Inline.IInvoke _ x keys actions i =>
+    | Inline.IInvoke x keys actions =>
         R.error "t_to_tm: table invocation unimplemented"
-    | Inline.ISetValidity _ hdr val i =>
-        R.error "t_to_tm: header validity unimplemented"
-    | Inline.IHeaderStackOp _ hdr_stck_name typ op
-                            size i =>
-        R.error "t_to_tm: header stack ops unimplemented"
-    | Inline.IExternMethodCall _ extn method args i =>
+    | Inline.IExternMethodCall extn method args ret =>
         R.error "t_to_tm: extern calls unimplemented"
     end.
 
-  Fixpoint tm_to_t (e : tm) : R.result string (Inline.t tags_t).
+  Fixpoint tm_to_t (e : tm) : R.result string Inline.t.
   Admitted.
 
-  Fixpoint tm_to_e (e : tm) : R.result string (Inline.t tags_t).
+  Fixpoint tm_to_e (e : tm) : R.result string Inline.t.
   Admitted.
 
-  Definition optimize_inline_t (t: Inline.t tags_t) : R.result string (Inline.t tags_t) :=
+  Definition optimize_inline_t (t: Inline.t) : R.result string Inline.t :=
     let* tprog := t_to_tm t in
     let* tprog_better := R.emap (fun x => "") (optimize_tm tprog) in
     tm_to_t tprog_better.

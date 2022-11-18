@@ -403,6 +403,9 @@ Definition extern_get_entries (es : extern_state) (p : path) : list table_entry 
   | _ => nil
   end.
 
+Definition extern_set_entries (es : extern_state) (p : path) (entries : list table_entry) : extern_state :=
+  PathMap.set p (ObjTable entries) es.
+
 Definition check_lpm_count (mks: list ident): option nat :=
   match findi (String.eqb "lpm") mks with
   | None => Some (List.length mks)
@@ -570,12 +573,12 @@ Definition extern_match (key: list (Val * ident)) (entries: list table_entry_val
   | sa :: _ => Some (snd sa)
   end.
 
-Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> option (extern_state * list Val * signal).
+Definition interp_extern : extern_env -> extern_state -> ident (* class *) -> ident (* method *) -> path -> list (P4Type ) -> list Val -> Result.result Exn.t (extern_state * list Val * signal).
 Admitted.
 
 Definition interp_extern_safe :
   forall env st class method this targs args st' retvs sig,
-    interp_extern env st class method this targs args = Some (st', retvs, sig) ->
+    interp_extern env st class method this targs args = Result.Ok (st', retvs, sig) ->
     exec_extern env st class method this targs args st' retvs sig.
 Proof.
 Admitted.
@@ -589,6 +592,7 @@ Instance TofinoExternSem : ExternSem := Build_ExternSem
   interp_extern
   interp_extern_safe
   extern_get_entries
+  extern_set_entries
   extern_match.
 
 Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list Val -> signal -> Prop) ->
@@ -605,6 +609,10 @@ Inductive exec_prog : (path -> extern_state -> list Val -> extern_state -> list 
       PathMap.get ["packet_out"] s7 = Some (ObjPout pout) ->
       exec_prog module_sem s0 pin s7 pout.
 
-Instance Tofino : Target := Build_Target _ exec_prog.
+Definition interp_prog : (path -> extern_state -> list Val -> Result.result Exn.t (extern_state * list Val * signal)) ->
+                         extern_state -> Z -> list bool -> Result.result Exn.t (extern_state * Z * list bool).
+Admitted.
+
+Instance Tofino : Target := Build_Target _ exec_prog interp_prog.
 
 End Tofino.

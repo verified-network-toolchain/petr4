@@ -44,6 +44,8 @@ Extract Inlined Constant BinNat.N.eqb => "Bigint.(=)".
 Extract Inlined Constant BinNat.N.add => "Bigint.(+)".
 Extract Inlined Constant Nat.add => "(+)".
 
+Require Poulet4.P4light.Semantics.Interpreter.
+Require Poulet4.P4light.Architecture.V1ModelTarget.
 Require Poulet4.P4light.Syntax.Syntax.
 Require Poulet4.P4light.Syntax.Typed.
 Require Poulet4.P4light.Syntax.ConstValue.
@@ -54,13 +56,56 @@ Require Poulet4.GCL.TableInstr.
 Require Poulet4.GCL.V1model.
 Require Poulet4.P4cub.ExportAll.
 Require Poulet4.TLang.TLang.
+Require Poulet4.Monads.State.
+
+(* The Set Extraction Flag 716 command below turns on the following
+extraction optimizations.
+
+See the refman for details: https://coq.inria.fr/refman/addendum/extraction.html#coq:flag.Extraction-Optimize
+
+716 = 0b01011001100
+         | ||  |+---Simplify case with iota-redux
+         | ||  +----Factor case branches as functions
+         | |+-------Simplify case by swapping case and lambda
+         | +--------Some case optimization
+         +----------Use linear let reduction
+
+It is necessary in order to compile interp_isValid as it is currently written,
+because it includes a nested fixpoint which OCaml normally rejects.
+
+    File "extraction/Interpreter.ml", lines 724-748, characters 6-61:
+    724 | ......let x0 = x fix_0 in
+    725 |       (fun sv ->
+    726 |       match sv with
+    727 |       | ValBaseNull -> Coq_interp_isValid_graph_equation_1
+    728 |       | ValBaseBool o -> Coq_interp_isValid_graph_equation_2 o
+    ...
+    745 |       | ValBaseEnumField (typ_name, enum_name) ->
+    746 |         Coq_interp_isValid_graph_equation_15 (typ_name, enum_name)
+    747 |       | ValBaseSenumField (typ_name, sv0) ->
+    748 |         Coq_interp_isValid_graph_equation_16 (typ_name, sv0))
+    Error: This kind of expression is not allowed as right-hand side of `let rec'
+
+The optimizations somehow optimize away the nested fixpoint and avoid this error message.
+ *)
+
+Set Extraction Flag 716.
+Extraction Inline Interpreter.interp_isValid.
+Extraction NoInline Interpreter.interp_isValid_fields.
 
 (* Extract Constant VarNameGen.string_of_nat => "Int.to_string". *)
 Separate Extraction
+  Poulet4.Monads.Option
+  Poulet4.Monads.State
          Poulet4.P4light.Syntax.Syntax
          Poulet4.P4light.Syntax.Typed
+         Poulet4.P4light.Semantics.Semantics
+         Poulet4.P4light.Semantics.Interpreter
+         Poulet4.P4light.Architecture.Target
+         Poulet4.P4light.Architecture.V1ModelTarget
          Poulet4.P4light.Transformations.SimplExpr
          Poulet4.P4light.Transformations.GenLoc
+           Poulet4.P4light.Transformations.InlineTypeDecl
          Poulet4.P4light.Syntax.ConstValue
          Poulet4.Compile.ToP4cub
          Poulet4.GCL.GCL

@@ -1,10 +1,12 @@
 From Poulet4 Require Import
     P4light.Syntax.Syntax
+    P4light.Semantics.Semantics
     Utils.Util.Utiliser
     Utils.Envn
     AListUtil
     Monads.State.Pure
     Monads.Option.
+
 
 Import Envn Typed P4Int.
 
@@ -411,6 +413,8 @@ Section InlineConstants.
     | DeclPackageType _ _ _ _ => decl
     end.
 
+    Check exec_expr.
+
   (** [inline_constants prog] is [prog] with all references to constants
       inlined with their value *)
   Definition inline_constants (prog : @program tags_t) : @program tags_t :=
@@ -420,3 +424,59 @@ Section InlineConstants.
     Program decls'.
 
 End InlineConstants.
+
+Scheme expr_ind := Induction for Expression Sort Prop
+with expr_pre_t_ind := Induction for ExpressionPreT Sort Prop.
+
+Combined Scheme expr_mut_ind from expr_ind, expr_pre_t_ind.
+
+Check expr_mut_ind.
+
+Check expr_pre_t_ind.
+
+Lemma expr_inline_correct : 
+forall (tags_t : Type) 
+       (target : Target)
+       (g : genv) 
+       (read_one_bit : option bool -> bool -> Prop) 
+       (p : list string) 
+       (st : state)
+       (e e' : @Expression tags_t) 
+       (v v' : @ValueBase (option bool)) 
+       (env : Env),
+       subst_expr env e = e' ->
+       exec_expr g read_one_bit p st e v ->
+       exec_expr g read_one_bit p st e' v' ->
+       v = v'
+with expr_pre_inline_correct :
+forall (tags_t : Type) 
+       (target : Target)
+       (g : genv) 
+       (read_one_bit : option bool -> bool -> Prop) 
+       (p : list string) 
+       (st : state)
+       (pre_e pre_e' : @ExpressionPreT tags_t) 
+       (v v' : @ValueBase (option bool)) 
+       (env : Env) i dir t i' dir' t',
+       subst_expr_pre env pre_e = pre_e' ->
+       exec_expr g read_one_bit p st (MkExpression i pre_e t dir) v ->
+       exec_expr g read_one_bit p st (MkExpression i' pre_e' t' dir') v' ->
+       v = v'.
+Proof.
+  - clear expr_inline_correct. 
+    intros. subst. destruct e. destruct expr; eauto. destruct n; eauto.
+    unfold subst_expr in H1. unfold subst_name in H1. admit.
+  - clear expr_pre_inline_correct. intros. subst. destruct pre_e.  
+    + intros. inv H0. unfold subst_expr_pre in H1. inv H1. subst. reflexivity.
+    + intros. inv H0. inv H1. reflexivity.
+    + intros. inv H0. inv H1. reflexivity.
+    + intros. destruct n.
+      * admit.
+      + inv H0; inv H1.
+        * rewrite H9 in H11. injection H11. auto.
+        * rewrite H8 in H10. discriminate.
+        * rewrite H8 in H10. discriminate.
+        * rewrite H9 in H11. injection H11. auto.
+    - intros. subst. inv H0. inv H1. admit.
+    - admit.
+    - admit. 

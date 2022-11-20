@@ -52,7 +52,7 @@ Section InlineConstants.
       | ExpTypeMember _ _
       | ExpErrorMember _
       | ExpDontCare => e
-      | ExpArrayAccess array idx => ExpArrayAccess (subst_expr array) idx
+      | ExpArrayAccess array idx => ExpArrayAccess (subst_expr array) (subst_expr idx)
       | ExpBitStringAccess bits lo hi =>
         ExpBitStringAccess (subst_expr bits) lo hi
       | ExpList es => ExpList (subst_exprs es)
@@ -425,58 +425,74 @@ Section InlineConstants.
 
 End InlineConstants.
 
-Scheme expr_ind := Induction for Expression Sort Prop
-with expr_pre_t_ind := Induction for ExpressionPreT Sort Prop.
+Section InlineProof.
 
-Combined Scheme expr_mut_ind from expr_ind, expr_pre_t_ind.
+  Variables 
+    (tags_t : Type)
+    (target : Target)
+    (g : @genv tags_t target)
+    (read_one_bit : option bool -> bool -> Prop)
+    (p : list string) 
+    (st : state).
 
-Check expr_mut_ind.
+  Hypothesis read_one_bit_func :
+    forall b b1 b2, 
+      read_one_bit b b1 -> 
+      read_one_bit b b2 ->
+      b1 = b2.
 
-Check expr_pre_t_ind.
+  Definition exec_expr := exec_expr g read_one_bit p st.
 
-Lemma expr_inline_correct : 
-forall (tags_t : Type) 
-       (target : Target)
-       (g : genv) 
-       (read_one_bit : option bool -> bool -> Prop) 
-       (p : list string) 
-       (st : state)
-       (e e' : @Expression tags_t) 
-       (v v' : @ValueBase (option bool)) 
-       (env : Env),
-       subst_expr env e = e' ->
-       exec_expr g read_one_bit p st e v ->
-       exec_expr g read_one_bit p st e' v' ->
-       v = v'
-with expr_pre_inline_correct :
-forall (tags_t : Type) 
-       (target : Target)
-       (g : genv) 
-       (read_one_bit : option bool -> bool -> Prop) 
-       (p : list string) 
-       (st : state)
-       (pre_e pre_e' : @ExpressionPreT tags_t) 
-       (v v' : @ValueBase (option bool)) 
-       (env : Env) i dir t i' dir' t',
-       subst_expr_pre env pre_e = pre_e' ->
-       exec_expr g read_one_bit p st (MkExpression i pre_e t dir) v ->
-       exec_expr g read_one_bit p st (MkExpression i' pre_e' t' dir') v' ->
-       v = v'.
-Proof.
-  - clear expr_inline_correct. 
-    intros. subst. destruct e. destruct expr; eauto. destruct n; eauto.
-    unfold subst_expr in H1. unfold subst_name in H1. admit.
-  - clear expr_pre_inline_correct. intros. subst. destruct pre_e.  
-    + intros. inv H0. unfold subst_expr_pre in H1. inv H1. subst. reflexivity.
-    + intros. inv H0. inv H1. reflexivity.
-    + intros. inv H0. inv H1. reflexivity.
-    + intros. destruct n.
-      * admit.
-      + inv H0; inv H1.
-        * rewrite H9 in H11. injection H11. auto.
-        * rewrite H8 in H10. discriminate.
-        * rewrite H8 in H10. discriminate.
-        * rewrite H9 in H11. injection H11. auto.
-    - intros. subst. inv H0. inv H1. admit.
+  (* Definition exec_val v := exec_val read_one_bit (sval_to_val read_one_bit). *)
+
+  Definition expr_pre_inline_correct {env tags type dir v v'} expr :=
+    exec_expr (MkExpression tags expr type dir) v ->
+    exec_expr (MkExpression tags (subst_expr_pre env expr) type dir) v' ->
+    v = v'.
+
+  Lemma expr_inline_correct :
+    forall 
+      (e : Expression) 
+      (v v' : @ValueBase (option bool)) 
+      (env : Env),
+      exec_expr e v -> 
+      exec_expr (subst_expr env e) v' -> 
+      v = v'.
+  Proof.
+    induction e using expr_ind.
+    - intros. inv H. inv H0. reflexivity.
+    - intros. inv H. inv H0. reflexivity.
+    - intros. inv H. inv H0. reflexivity.
     - admit.
-    - admit. 
+    - (* Show  e1[e2] ==> v -> [[ e1[e2] ]] ==> v' -> v = v' *)
+      (* We know there exists v1, v1', v2, v2' 
+        for which e1 ==> v1, [[ e1 ]] ==> v1', *)
+      intros. inv H. inv H0.
+      assert (ValBaseStack headers next = ValBaseStack headers0 next0) by eauto.
+      assert (idxsv = idxsv0) by eauto.
+      clear H5 H6 H12 H17 IHe1 IHe2.
+      assert (rtyp0 = rtyp).
+      { rewrite H18 in H13. injection H13. trivial. }
+      clear H13 H18.
+      injection H as ?. subst.
+      assert (default_header = default_header0).
+      { rewrite H19 in H14. injection H14. auto. }
+      clear H14 H19.
+      subst. f_equal.
+      inv H7; inv H8; try discriminate; try congruence;
+      try (injection H10 as ?; injection H15 as ?); subst.
+      + admit. 
+      + admit.
+      + admit.
+    - admit.
+    - (* Case e = ExpList es. Proof: induction on es *)
+      induction vs; intros.
+      + inv H0. inv H9. inv H1. inv H8. reflexivity.
+      + inv H. inv H0. inv H1. inv H9. inv H10. f_equal. f_equal.
+        * eauto.
+        * assert (ValBaseTuple l'0 = ValBaseTuple l').
+          { eapply IHvs; try constructor; eauto. }
+          injection H. trivial.
+  Admitted.
+
+End InlineProof.

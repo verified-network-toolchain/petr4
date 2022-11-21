@@ -385,8 +385,6 @@ Section InlineConstants.
       subst_function env tags ret name types params body
     | DeclVariable tags type name init =>
       subst_variable_decl env tags type name init
-    | DeclExternFunction _ _ _ _ _
-    | DeclValueSet _ _ _ _ => decl
     | DeclAction tags name dparams cparams body =>
       subst_action env tags name dparams cparams body
     | DeclTable tags name keys actions entries default size props =>
@@ -399,6 +397,8 @@ Section InlineConstants.
     | DeclNewType tags name (inr decl) =>
       let decl' := subst_decl env decl in
       DeclNewType tags name (inr decl')
+    | DeclExternFunction _ _ _ _ _
+    | DeclValueSet _ _ _ _
     | DeclHeader _ _ _
     | DeclHeaderUnion _ _ _
     | DeclStruct _ _ _
@@ -442,13 +442,6 @@ Section InlineProof.
       b1 = b2.
 
   Definition exec_expr := exec_expr g read_one_bit p st.
-
-  (* Definition exec_val v := exec_val read_one_bit (sval_to_val read_one_bit). *)
-
-  Definition expr_pre_inline_correct {env tags type dir v v'} expr :=
-    exec_expr (MkExpression tags expr type dir) v ->
-    exec_expr (MkExpression tags (subst_expr_pre env expr) type dir) v' ->
-    v = v'.
 
   Lemma expr_inline_correct :
     forall 

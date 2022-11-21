@@ -443,10 +443,12 @@ Section InlineProof.
 
   Definition exec_expr := exec_expr g read_one_bit p st.
 
+  Definition Sval := @ValueBase (option bool).
+
   Lemma expr_inline_correct :
     forall 
       (e : Expression) 
-      (v v' : @ValueBase (option bool)) 
+      (v v' : Sval) 
       (env : Env),
       exec_expr e v -> 
       exec_expr (subst_expr env e) v' -> 

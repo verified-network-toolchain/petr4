@@ -24,39 +24,46 @@ Section Lift.
     end.
 End Lift.
 
-(** [lift_e up e = (l, e')],
+(** [lift_e e = (l, e')],
     where e' is a lifted expression,
     & l is a list of lifted expressions. *)
-Fixpoint lift_e (up : nat) (e : Expr.e) {struct e}
-  : list Expr.e * Expr.e :=
+Fixpoint lift_e (e : Expr.e) {struct e}
+  : Expr.e * list Expr.e :=
   match e with
   | Expr.Bool _
-  | Expr.Error _ => ([], e)
-  | Expr.Var τ og x => ([], Expr.Var τ og (up + x))
-  | Expr.Member t x e
-    => let '(inits, e) := lift_e up e in
-      (inits, Expr.Member t x e)
+  | Expr.Error _
+  | Expr.Var _ _ _ => (e, [])
   | Expr.Bit _ _
   | Expr.Int _ _ => ([e], Expr.Var (t_of_e e) "" 0)
-  | Expr.Slice hi lo eₛ =>
-      let '(inits, eₛ) := lift_e up eₛ in
-      (Expr.Slice hi lo eₛ :: inits, Expr.Var (t_of_e e) "" 0)
-  | Expr.Cast t e =>
-      let '(inits, e) := lift_e up e in
-      (Expr.Cast t e :: inits, Expr.Var t "" 0)
+  | Expr.Member t x e
+    => let '(e, inits) := lift_e e in
+      (Expr.Member t x e, inits)
   | Expr.Uop t op e =>
-      let '(inits, e) := lift_e up e in
-      (Expr.Uop t op e :: inits, Expr.Var t "" 0)
-  | Expr.Bop t op lhs rhs => 
-      let '(ll, lhs) := lift_e up lhs in
-      let '(lr, rhs) := lift_e (length ll + up) rhs in
-      (Expr.Bop
-         t op (rename_e (plus $ length lr) lhs) rhs
-         :: lr ++ ll, Expr.Var t "" 0)
+      let '(e, inits) := lift_e e in
+      (Expr.Var t "" 0, Expr.Uop t op e :: inits)
+  | Expr.Slice hi lo eₛ=>
+      let '(e, inits) := lift_e e in
+      (Expr.Var (t_of_e e) "" 0, Expr.Slice hi lo e :: inits)
+  | Expr.Cast t e =>
+      let '(e, inits) := lift_e e in
+      (Expr.Var t "" 0, Expr.Cast t e :: inits)
   | Expr.Index t e1 e2 =>
-      let '(l1, e1) := lift_e up e1 in
-      let '(l2, e2) := lift_e (length l1 + up) e2 in
-      (l2 ++ l1, Expr.Index t (rename_e (plus $ length l2) e1) e2)
+      let '(e1, l1) := lift_e e1 in
+      let '(e2, l2) := lift_e e2 in
+      (Expr.Index
+         t
+         (shift_e (Shifter 0 (length l2)) e1)
+         (shift_e (Shifter (length l2) (length l1)) e2),
+        shift_elist (Shifter 0 (length l1)) l2 ++ l1)
+  | Expr.Bop t op e1 e2 => 
+      let '(l1, e1) := lift_e e1 in
+      let '(l2, e2) := lift_e e2 in
+      (Expr.Bop
+         t op
+         (shift_e (Shifter 0 (length l2)) e1)
+         (shift_e (Shifter (length l2) (length l1)) e2)
+         :: shift_elist (Shifter 0 (length l1)) l2 ++ l1,
+        Expr.Var t "" 0)
   | Expr.Lists l es =>
       let '(les, es) := lift_list lift_e rename_e up es in
       (Expr.Lists l es :: les, Expr.Var (t_of_e e) "" 0)

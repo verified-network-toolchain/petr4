@@ -1,7 +1,8 @@
 From Poulet4 Require Import
      Utils.Util.FunUtil
-     P4cub.Syntax.AST P4cub.Syntax.CubNotations.
-Import AllCubNotations String.
+     P4cub.Syntax.AST P4cub.Syntax.CubNotations
+     P4cub.Syntax.IndPrincip.
+Import AllCubNotations.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 Require Export Coq.Arith.Compare_dec.
@@ -21,7 +22,7 @@ Section Shift.
   Definition boost (n : nat) : shifter :=
     s <| amt := n + s.(amt) |>.
   
-  Definition sext : shifter :=
+  Definition shext : shifter :=
     smother 1.
   
   Definition shift_var (x : nat) : nat :=
@@ -54,7 +55,7 @@ Section Shift.
     end.
 
   Local Close Scope expr_scope.
-
+  
   Definition shift_arg
     : paramarg Expr.e Expr.e ->
       paramarg Expr.e Expr.e :=
@@ -80,6 +81,71 @@ Section Shift.
     end.
 End Shift.
 
+Fixpoint shift_elist (sh : shifter) (es : list Expr.e) : list Expr.e :=
+  match es with
+  | [] => []
+  | e :: es => shift_e (smother sh (length es)) e :: shift_elist sh es
+  end.
+
+Lemma shift_e_add : forall m n e,
+    shift_e (Shifter 0 m) (shift_e (Shifter 0 n) e) = shift_e (Shifter 0 (m + n)) e.
+Proof.
+  intros m n e.
+  induction e using custom_e_ind; unravel; f_equal; auto.
+  - unfold shift_var; cbn. lia.
+  - rewrite map_map.
+    apply map_ext_Forall.
+    assumption.
+Qed.
+
+Section Shift0.
+  Variable c : nat.
+
+  Lemma shift_e_0 : forall e, shift_e (Shifter c 0) e = e.
+  Proof using.
+    intro e.
+    induction e using custom_e_ind; unravel;
+      f_equal; auto.
+    - unfold shift_var.
+      destruct_if; reflexivity.
+    - apply map_ext_Forall in H.
+      rewrite H, map_id; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_e_0 : core.
+
+  Lemma shift_e_0_map : forall es,
+      map (shift_e (Shifter c 0)) es = es.
+  Proof using.
+    intros es;
+      induction es as [| e es ih]; unravel;
+      autorewrite with core; f_equal; auto.
+  Qed.
+
+  Lemma shift_arg_0 : forall arg, shift_arg (Shifter c 0) arg = arg.
+  Proof using.
+    intros []; unravel;
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_arg_0 : core.
+
+  Lemma shift_arg_0_map : forall args,
+      map (shift_arg (Shifter c 0)) args = args.
+  Proof using.
+    intros args;
+      induction args as [| arg args ih];
+      unravel; autorewrite with core;
+      f_equal; auto.
+  Qed.
+  
+  Lemma shift_trans_0 : forall p, shift_transition (Shifter c 0) p = p.
+  Proof using.
+    intros []; unravel;
+      autorewrite with core; reflexivity.
+  Qed.
+End Shift0.
+
 Local Open Scope stmt_scope.
 
 Fixpoint shift_s
@@ -102,13 +168,44 @@ Fixpoint shift_s
   | Stmt.Var og te b
     => Stmt.Var
         og (map_sum id (shift_e sh) te)
-        $ shift_s (sext sh) b
+        $ shift_s (shext sh) b
   | s₁ `; s₂ => shift_s sh s₁ `; shift_s sh s₂
   | If e Then s₁ Else s₂
     => If shift_e sh e Then shift_s sh s₁ Else shift_s sh s₂
   end.
 
 Local Close Scope stmt_scope.
+
+Section Shift0.
+  Local Hint Rewrite shift_e_0 : core.
+  Local Hint Rewrite shift_e_0_map : core.
+
+  Lemma shift_elist_0 : forall es c,
+      shift_elist (Shifter c 0) es = es.
+  Proof.
+    intro es; induction es as [| e es ih];
+      intro c; unravel; unfold smother, RecordSet.set; cbn;
+      autorewrite with core; f_equal; auto.
+  Qed.
+  
+  Local Hint Rewrite shift_arg_0 : core.
+  Local Hint Rewrite shift_arg_0_map : core.
+  Local Hint Rewrite shift_trans_0 : core.
+
+  Lemma shift_s_0 : forall s c, shift_s (Shifter c 0) s = s.
+  Proof using.
+    intro s;
+      induction s;
+      intro c; unravel;
+      autorewrite with core;
+      unfold shext, smother, RecordSet.set; unravel;
+      f_equal; auto.
+    - destruct e; unravel;
+        autorewrite with core; reflexivity.
+    - destruct expr; unravel;
+        autorewrite with core; reflexivity.
+  Qed.
+End Shift0.
 
 (** Philip Wadler style de Bruijn shifts for expression variables. *)
 
@@ -200,11 +297,11 @@ Fixpoint rename_s (ρ : nat -> nat) (s : Stmt.s) : Stmt.s :=
 Local Close Scope stmt_scope.
 
 Section TermSub.
-  Variable σ : nat -> Expr.t -> string -> Expr.e.
+  Variable σ : nat -> Expr.t -> String.string -> Expr.e.
 
   Local Open Scope expr_scope.
   
-  Definition exts (x : nat) (t : Expr.t) (original_name : string) : Expr.e :=
+  Definition exts (x : nat) (t : Expr.t) (original_name : String.string) : Expr.e :=
     match x with
     | O => Expr.Var t original_name O
     | S n => rename_e S $ σ n t original_name
@@ -252,7 +349,7 @@ End TermSub.
 
 Local Open Scope stmt.
 
-Fixpoint esub_s (σ : nat -> Expr.t -> string -> Expr.e) (s : Stmt.s) : Stmt.s :=
+Fixpoint esub_s (σ : nat -> Expr.t -> String.string -> Expr.e) (s : Stmt.s) : Stmt.s :=
   match s with
   | Stmt.Skip
   | Stmt.Return None

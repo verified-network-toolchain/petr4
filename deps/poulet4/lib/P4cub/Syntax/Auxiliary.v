@@ -43,3 +43,10 @@ Fixpoint t_of_e (exp: e) : t :=
   | Lists lists_struct es     => TStruct false (List.map t_of_e es)
   | Lists (lists_header _) es => TStruct true (List.map t_of_e es)
   end.
+
+Definition t_of_lists (ls : Expr.lists) (es : list Expr.e) : Expr.t :=
+  match ls with
+  | lists_array t  => TArray (N.of_nat $ List.length es) t
+  | lists_struct   => TStruct false (List.map t_of_e es)
+  | lists_header _ => TStruct true (List.map t_of_e es)
+  end.

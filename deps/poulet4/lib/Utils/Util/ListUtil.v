@@ -1,7 +1,7 @@
+Require Import Coq.Strings.String.
 From Poulet4 Require Export Utils.Util.FunUtil Utils.Util.StringUtil Monads.Result.
 From Coq Require Export Lists.List micromega.Lia.
 Export ListNotations.
-Require Import Coq.Strings.String.
 Require VST.zlist.sublist.
 
 (** * List Tactics *)
@@ -28,16 +28,52 @@ Ltac inv_Forall2_cons :=
 
 (** * Helper Functions *)
 
-(** Update position [n] of list [l],
-    or return [l] if [n] is too large. *)
-Fixpoint nth_update {A : Type} (n : nat) (a : A) (l : list A) : list A :=
-  match n, l with
-  | O, _::t   => a::t
-  | S n, h::t => h :: nth_update n a t
-  | O, []
-  | S _, []  => []
+Section NthUpdate.
+  Context {A : Type}.
+
+  (** Update position [n] of list [l],
+    or return [l] if [n   ] is too large. *)
+  Fixpoint nth_update (n : nat) (a : A) (l : list A) : list A :=
+    match n, l with
+    | O, _::t   => a::t
+    | S n, h::t => h :: nth_update n a t
+    | O, []
+    | S _, []  => []
   end.
-(**[]*)
+  (**[]*)
+
+  Variable a : A.
+  
+  Lemma nth_update_app1 : forall  n l1 l2,
+    length l1 <= n ->
+    nth_update n a (l1 ++ l2) = l1 ++ nth_update (n - length l1) a l2.
+  Proof using.
+    intro n;
+    induction n as [| n ih];
+      intros [| a1 l1] l2 h; cbn in *;
+      lia || (f_equal; auto).
+    apply ih. lia.
+  Qed.
+  
+  Lemma nth_update_app2 : forall n l1 l2,
+      n < length l1 ->
+      nth_update n a (l1 ++ l2) = nth_update n a l1 ++ l2.
+  Proof using.
+    intro n;
+      induction n as [| n ih];
+      intros [| a1 l1] l2 h; cbn in *;
+      lia || (f_equal; auto).
+    apply ih. lia.
+  Qed.
+
+  Lemma nth_update_app3 : forall n l1 l2,
+      nth_update (length l1 + n) a (l1 ++ l2) = l1 ++ nth_update n a l2.
+  Proof using.
+    intros.
+    rewrite nth_update_app1 by lia.
+    f_equal. f_equal. lia.
+  Qed.
+End NthUpdate.
 
 (** * Helper Lemmas *)
 
@@ -303,8 +339,6 @@ Proof.
     intros [| n] a H; cbn in *; try lia; auto.
   assert (n < List.length t) by lia; auto.
 Qed.
-
-Search ((nat -> ?A -> ?B) -> list ?A -> list ?B).
 
 Section Mapi.
   Context {A B : Type}.

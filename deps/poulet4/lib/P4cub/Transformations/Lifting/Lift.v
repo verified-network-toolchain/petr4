@@ -4,97 +4,25 @@ From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift
      P4cub.Syntax.IndPrincip
-     P4cub.Semantics.Dynamic.BigStep.Semantics
-     P4cub.Semantics.Dynamic.BigStep.IndPrincip
-     P4cub.Semantics.Dynamic.BigStep.Properties.
+     P4cub.Transformations.Lifting.Statementize
+     Utils.ForallMap.
 Import ListNotations AllCubNotations Nat.
 From RecordUpdate Require Import RecordSet.
 Import RecordSetNotations.
 
-Open Scope nat_scope.
-Open Scope string_scope.
-Open Scope list_scope.
-    
-Inductive eval_decl_list
-  (ϵ : list Val.v)
-  : list Expr.e -> list Val.v -> Prop :=
-| eval_decl_nil :
-  eval_decl_list ϵ [] []
-| eval_decl_cons h hv t tv :
-  ⟨ tv ++ ϵ, h ⟩ ⇓ hv ->
-  eval_decl_list ϵ t tv ->
-  eval_decl_list ϵ (h :: t) (hv :: tv).
-
-Local Hint Constructors stmt_big_step : core.
-Local Hint Constructors eval_decl_list : core.
-Local Hint Constructors relop : core.
-
-Lemma eval_decl_list_append : forall ϵ vs1 vs2 l1 l2,
-    eval_decl_list ϵ l1 vs1 ->
-    eval_decl_list (vs1 ++ ϵ) l2 vs2 ->
-    eval_decl_list ϵ (l2 ++ l1) (vs2 ++ vs1).
-Proof.
-  intros ϵ vs1 vs2.
-  generalize dependent vs1.
-  induction vs2 as [| v2 vs2 ih];
-    intros vs1 l1 [| e2 l2] h1 h2; inv h2; cbn; auto.
-  constructor; eauto.
-  rewrite <- app_assoc; assumption.
-Qed.
-
-Local Hint Resolve eval_decl_list_append : core.
-
-Lemma eval_decl_list_length : forall ϵ l vs,
-    eval_decl_list ϵ l vs -> length l = length vs.
-Proof.
-  intros ϵ l vs h; induction h; cbn; auto.
-Qed.
-
-Local Hint Resolve eval_decl_list_length : core.
-Local Hint Resolve shift_e_eval : core.
-
-Lemma eval_decl_list_app : forall ϵ es1 es2 vs1 vs2,
-    eval_decl_list ϵ es1 vs1 ->
-    eval_decl_list ϵ es2 vs2 ->
-    eval_decl_list ϵ (shift_elist (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
-Proof.
-  intros eps es1 es2 vs1 vs2 h1 h2.
-  generalize dependent vs1.
-  generalize dependent es1.
-  induction h2; intros es1 vs1 h1; cbn; auto.
-  unfold smother, RecordSet.set; cbn.
-  rewrite add_0_r.
-  constructor; auto. rewrite <- app_assoc.
-  rewrite (eval_decl_list_length _ _ _ h1).
-  rewrite (eval_decl_list_length _ _ _ h2).
-  eauto.
-Qed.
-
-Local Hint Resolve eval_decl_list_app : core.
-
 Local Open Scope expr_scope.
 Local Open Scope stmt_scope.
 
-Fixpoint shift_pairs (ess : list (Expr.e * list Expr.e)) : list (Expr.e * list Expr.e) :=
-  match ess with
-  | [] => []
-  | (e,es) :: ess
-    => let n := list_sum $ map (@length _) $ map snd ess in
-      (shift_e (Shifter (length es) n) e,
-        shift_elist (Shifter 0 n) es) ::
-        map (fun '(e,es') => (shift_e (Shifter 0 $ length es) e, es')) (shift_pairs ess)
-  end.
-
-Lemma shift_one_pair : forall e es,
-    shift_pairs [(e,es)] = [(e,es)].
+Goal forall e es,
+    shift_pairs shift_e [(e,es)] = [(e,es)].
 Proof.
   intros; cbn; rewrite shift_e_0 , shift_elist_0. reflexivity.
 Qed.
 
-Lemma shift_two_pairs : forall e1 e2 es1 es2,
-    shift_pairs [(e2,es2);(e1,es1)]
+Goal forall e1 e2 es1 es2,
+    shift_pairs shift_e [(e2,es2);(e1,es1)]
     = [(shift_e (Shifter (length es2) (length es1)) e2,
-         shift_elist (Shifter 0 (length es1)) es2);
+         shift_list shift_e (Shifter 0 (length es1)) es2);
        (shift_e (Shifter 0 (length es2)) e1, es1)].
 Proof.
   intros; unravel.
@@ -102,12 +30,12 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma shift_three_pairs : forall e1 e2 e3 es1 es2 es3,
-    shift_pairs [(e3,es3);(e2,es2);(e1,es1)]
+Goal forall e1 e2 e3 es1 es2 es3,
+    shift_pairs shift_e [(e3,es3);(e2,es2);(e1,es1)]
     = [(shift_e (Shifter (length es3) (length es2 + length es1)) e3,
-            shift_elist (Shifter 0 (length es2 + length es1)) es3);
+            shift_list shift_e (Shifter 0 (length es2 + length es1)) es3);
        (shift_e (Shifter 0 (length es3)) (shift_e (Shifter (length es2) (length es1)) e2),
-         shift_elist (Shifter 0 (length es1)) es2);
+         shift_list shift_e (Shifter 0 (length es1)) es2);
        (shift_e (Shifter 0 (length es3 + length es2)) e1, es1)].
 Proof.
   intros; unravel.
@@ -149,7 +77,7 @@ Inductive Lift_e
        t
        (shift_e (Shifter 0 (length es2)) e1')
        (shift_e (Shifter (length es2) (length es1)) e2'))
-    (shift_elist (Shifter 0 (length es1)) es2 ++ es1)
+    (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1)
 | Lift_bop t o e1 e2 e1' e2' es1 es2 :
   Lift_e e1 e1' es1 ->
   Lift_e e2 e2' es2 ->
@@ -160,89 +88,110 @@ Inductive Lift_e
        t o
        (shift_e (Shifter 0 (length es2)) e1')
        (shift_e (Shifter (length es2) (length es1)) e2')
-       :: shift_elist (Shifter 0 (length es1)) es2 ++ es1)
+       :: shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1)
 | Lift_lists ls es es' ess :
   Forall3 Lift_e es es' ess ->
   Lift_e
     (Expr.Lists ls es)
     (Expr.Var (t_of_lists ls es) "" 0)
-    (Expr.Lists ls es' :: concat ess).
+    (Expr.Lists ls (map fst (shift_pairs shift_e (combine es' ess)))
+       :: concat (map snd (shift_pairs shift_e (combine es' ess)))).
 
-Lemma Lift_e_good : forall ϵ e v,
-    ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
-      Lift_e e e' es -> exists vs,
-        eval_decl_list ϵ es vs /\ ⟨ vs ++ ϵ, e' ⟩ ⇓ v.
-Proof.
-  intros eps e v hev;
-    induction hev using custom_expr_big_step_ind;
-    intros E Es hn; inv hn; eauto.
-  - pose proof IHhev _ _ H5 as (vs & hvs & hv).
-    exists (v' :: vs). split; eauto.
-  - pose proof IHhev1 _ _ H6 as (vs1 & hvs1 & hv1); clear IHhev1.
-    pose proof IHhev2 _ _ H7 as (vs2 & hvs2 & hv2); clear IHhev2.
-    exists (v :: vs2 ++ vs1). split; eauto.
-    constructor; eauto.
-    rewrite <- app_assoc.
-    rewrite (eval_decl_list_length _ _ _ hvs2).
-    rewrite (eval_decl_list_length _ _ _ hvs1).
-    econstructor; eauto.
-    eapply shift_e_eval with (us := []); assumption.
-  - firstorder eauto.
-  - pose proof IHhev1 _ _ H5 as (vs1 & hvs1 & hv1); clear IHhev1.
-    pose proof IHhev2 _ _ H6 as (vs2 & hvs2 & hv2); clear IHhev2.
-    exists (vs2 ++ vs1). rewrite <- app_assoc.
-    split; eauto.
-    rewrite (eval_decl_list_length _ _ _ hvs1).
-    rewrite (eval_decl_list_length _ _ _ hvs2).
-    econstructor; eauto.
-    eapply shift_e_eval with (us := []); eassumption.
-Qed.
+Variant Lift_arg :
+  Expr.arg -> Expr.arg -> list Expr.e -> Prop :=
+  | Lift_pain e e' es :
+    Lift_e e e' es ->
+    Lift_arg (PAIn e) (PAIn e') es
+  | Lift_paout e e' es :
+    Lift_e e e' es ->
+    Lift_arg (PAOut e) (PAOut e') es
+  | Lift_painout e e' es :
+    Lift_e e e' es ->
+    Lift_arg (PAInOut e) (PAInOut e') es.
 
-Lemma Lift_e_good_lv : forall ϵ e lv,
-    l⟨ ϵ, e ⟩ ⇓ lv -> forall e' es,
-      Lift_e e e' es -> exists vs,
-        eval_decl_list ϵ es vs /\ l⟨ vs ++ ϵ, e' ⟩ ⇓ shift_lv (Shifter 0 (length vs)) lv.
-Proof.
-  intros eps e lv H; induction H;
-    intros e' es h; inv h; unravel.
-  - unfold shift_var; cbn. eexists; eauto.
-  - pose proof IHlexpr_big_step _ _ H5 as (vs & hvs & ih); clear IHlexpr_big_step.
-    eexists; eauto.
-  - pose proof IHlexpr_big_step _ _ H6 as (vs1 & hvs1 & ih); clear IHlexpr_big_step.
-    pose proof Lift_e_good _ _ _ H _ _ H7 as (vs2 & hvs2 & hv2).
-    exists (vs2 ++ vs1). split; auto.
-    rewrite <- app_assoc.
-    rewrite (eval_decl_list_length _ _ _ hvs1).
-    rewrite (eval_decl_list_length _ _ _ hvs2).
-    econstructor; eauto.
-    rewrite app_length.
-    rewrite shift_lv_0_add.
-    apply shift_lv_eval with (us := []); auto.
-Qed.
+Variant Lift_trans :
+  Parser.trns -> Parser.trns -> list Expr.e ->  Prop :=
+  | Lift_direct lbl :
+    Lift_trans (Parser.Direct lbl) (Parser.Direct lbl) []
+  | Lift_select e e' es d cases :
+    Lift_e e e' es ->
+    Lift_trans
+      (Parser.Select e d cases)
+      (Parser.Select e' d cases) es.
 
-Fixpoint Unwind (es : list Expr.e) (s : Stmt.s) : Stmt.s :=
-  match es with
-  | [] => s
-  | e :: es => Unwind es (Stmt.Var "" (inr e) s)
-  end.
+Variant Lift_fun_kind :
+  Stmt.fun_kind -> Stmt.fun_kind -> list Expr.e -> Prop :=
+  | Lift_funct_none f τs :
+    Lift_fun_kind (Stmt.Funct f τs None) (Stmt.Funct f τs None) []
+  | Lift_method_none ext mtd τs :
+    Lift_fun_kind
+      (Stmt.Method ext mtd τs None)
+      (Stmt.Method ext mtd τs None) []
+  | Lift_funct_some f τs e e' es :
+    Lift_e e e' es ->
+    Lift_fun_kind
+      (Stmt.Funct f τs (Some e))
+      (Stmt.Funct f τs (Some e')) es
+  | Lift_method_some ext mtd τs e e' es :
+    Lift_e e e' es ->
+    Lift_fun_kind
+      (Stmt.Method ext mtd τs (Some e))
+      (Stmt.Method ext mtd τs (Some e')) es
+  | Lift_action_call a cargs cargs' ess :
+    Forall3 Lift_e cargs cargs' ess ->
+    Lift_fun_kind
+      (Stmt.Action a cargs)
+      (Stmt.Action a (map fst (shift_pairs shift_e (combine cargs' ess))))
+      (concat (map snd (shift_pairs shift_e (combine cargs' ess)))).
 
 Inductive Lift_s : Stmt.s -> Stmt.s -> Prop :=
 | Lift_skip :
   Lift_s Stmt.Skip Stmt.Skip
+| Lift_exit :
+  Lift_s Stmt.Exit Stmt.Exit
+| Lift_invoke t :
+  Lift_s (Stmt.Invoke t) (Stmt.Invoke t)
+| Lift_return_none :
+  Lift_s (Stmt.Return None) (Stmt.Return None)
 | Lift_return_some e e' es :
   Lift_e e e' es ->
   Lift_s
     (Stmt.Return (Some e))
     (Unwind es (Stmt.Return (Some e')))
+| Lift_transition e e' es :
+  Lift_trans e e' es ->
+  Lift_s
+    (Stmt.Transition e)
+    (Unwind es (Stmt.Transition e'))
 | Lift_asgn e1 e2 e1' e2' es1 es2 :
   Lift_e e1 e1' es1 ->
   Lift_e e2 e2' es2 ->
   Lift_s
     (e1 `:= e2)
     (Unwind
-       (shift_elist (Shifter 0 (length es1)) es2 ++ es1)
+       (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1)
        (shift_e (Shifter 0 (length es2)) e1'
           `:= shift_e (Shifter (length es2) (length es1)) e2'))
+| Lift_call fk fk' fkes args args' argsess :
+  Lift_fun_kind fk fk' fkes ->
+  Forall3 Lift_arg args args' argsess ->
+  Lift_s
+    (Stmt.Call fk args)
+    (Unwind
+       (shift_list shift_e (Shifter 0 (length (concat argsess))) fkes
+          ++ concat (map snd (shift_pairs shift_arg (combine args' argsess))))
+       (Stmt.Call
+           (shift_fun_kind (Shifter (length fkes) (length (concat argsess))) fk')
+           (map (shift_arg $ Shifter 0 (length fkes))
+              (map fst (shift_pairs shift_arg (combine args' argsess))))))
+(*| Lift_apply x exts args args' argsess :
+  Forall3 Lift_arg arg args' argsess ->
+  Lift_s
+    (Stmt.Apply x exts args)
+    (Unwind
+       (map snd (shift_pairs shift_arg (combine args' argsess)))
+       (Stmt.Apply x exts
+          (map fst (shift_pairs shift_arg (combine args' argsess)))))*)
 | Lift_seq s1 s2 s1' s2' :
   Lift_s s1 s1' ->
   Lift_s s2 s2' ->
@@ -269,67 +218,3 @@ Inductive Lift_s : Stmt.s -> Stmt.s -> Prop :=
     (Unwind
        es
        (Stmt.Var og (inr e') (shift_s (Shifter 1 (length es)) s'))).
-
-Section StatementLifting.
-  Context `{ext_sem : Extern_Sem}.
-
-  Local Hint Constructors stmt_big_step : core.
-
-  (** Specification of [unwind_vars]. *)
-  Lemma eval_decl_list_Unwind : forall ϵ es vs,
-      eval_decl_list ϵ es vs ->
-      forall vs' ϵ' c Ψ s sig ψ,
-        length vs = length vs' ->
-        ⧼ Ψ, vs ++ ϵ, c, s ⧽ ⤋ ⧼ vs' ++ ϵ', sig, ψ ⧽ ->
-        ⧼ Ψ, ϵ, c, Unwind es s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
-  Proof using.
-    intros eps es vs h;
-      induction h; intros; unravel in *.
-    - symmetry in H.
-      rewrite length_zero_iff_nil in H.
-      subst; assumption.
-    - destruct vs' as [| h' vs']; cbn in *; try lia.
-      inv H0. eauto.
-  Qed.
-
-  Local Hint Resolve eval_decl_list_Unwind : core.
-  Local Hint Resolve shift_s_eval : core.
-  
-  Lemma Lift_s_good : forall Ψ ϵ ϵ' c s sig ψ,
-      ctx_cuttoff (length ϵ) c ->
-      ⧼ Ψ, ϵ, c, s ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽ -> forall s',
-          Lift_s s s' ->
-          ⧼ Ψ, ϵ, c, s' ⧽ ⤋ ⧼ ϵ', sig, ψ ⧽.
-  Proof using.
-    intros Psi eps eps' c s sg psi hc hs;
-      induction hs; intros σ hσ; inv hσ; eauto.
-    - inv H.
-      pose proof Lift_e_good _ _ _ H2 _ _ H1 as (vs & hvs & hv).
-      eauto.
-    - pose proof Lift_e_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
-      pose proof Lift_e_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
-      eapply eval_decl_list_Unwind; eauto. admit.
-    - econstructor; eauto.
-      eapply IHhs; cbn; eauto.
-    - pose proof Lift_e_good _ _ _ H _ _ H4 as (vs & hvs & hv).
-      eapply eval_decl_list_Unwind; eauto.
-      apply sbs_var with (v := v) (v' := v'); auto.
-      replace (v :: vs ++ ϵ) with ([v] ++ vs ++ ϵ) by reflexivity.
-      replace (v' :: vs ++ ϵ') with ([v'] ++ vs ++ ϵ') by reflexivity.
-      replace 1 with (length [v]) by reflexivity.
-      rewrite (eval_decl_list_length _ _ _ hvs). 
-      eapply shift_s_eval; cbn; eauto.
-      apply IHhs; cbn; eauto.
-    - eapply sbs_seq_cont; eauto.
-      apply IHhs2; auto.
-      erewrite <- sbs_length by eauto; assumption.
-    - pose proof Lift_e_good _ _ _ H _ _ H3 as (vs & hvs & hv).
-      rewrite (eval_decl_list_length _ _ _ hvs).
-      eapply eval_decl_list_Unwind; eauto.
-      econstructor; eauto.
-      replace 0 with (@length Val.v []) by reflexivity.
-      replace (vs ++ ϵ) with ([] ++ vs ++ ϵ) by reflexivity.
-      replace (vs ++ ϵ') with ([] ++ vs ++ ϵ') by reflexivity.
-      destruct b; eauto.
-  Admitted.
-End StatementLifting.

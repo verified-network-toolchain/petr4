@@ -81,11 +81,17 @@ Section Shift.
     end.
 End Shift.
 
-Fixpoint shift_elist (sh : shifter) (es : list Expr.e) : list Expr.e :=
-  match es with
-  | [] => []
-  | e :: es => shift_e (smother sh (length es)) e :: shift_elist sh es
-  end.
+Section ShiftList.
+  Context {A : Set}.
+  Variable f : shifter -> A -> A.
+  Variable sh : shifter.
+
+  Fixpoint shift_list (l : list A) : list A :=
+    match l with
+    | [] => []
+    | h :: t => f (smother sh (length t)) h :: shift_list t
+    end.
+End ShiftList.
 
 Lemma shift_e_add : forall m n e,
     shift_e (Shifter 0 m) (shift_e (Shifter 0 n) e) = shift_e (Shifter 0 (m + n)) e.
@@ -181,7 +187,7 @@ Section Shift0.
   Local Hint Rewrite shift_e_0_map : core.
 
   Lemma shift_elist_0 : forall es c,
-      shift_elist (Shifter c 0) es = es.
+      shift_list shift_e (Shifter c 0) es = es.
   Proof.
     intro es; induction es as [| e es ih];
       intro c; unravel; unfold smother, RecordSet.set; cbn;

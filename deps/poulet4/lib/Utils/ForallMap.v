@@ -522,6 +522,30 @@ Section Forall3.
         specialize H with (n := S n); cbn in *; auto.
   Qed.
 
+  Lemma Forall3_length12 : forall ts us vs,
+      Forall3 ts us vs -> length ts = length us.
+  Proof using.
+    intros ts us vs h.
+    rewrite Forall3_forall in h.
+    intuition.
+  Qed.
+
+  Lemma Forall3_length13 : forall ts us vs,
+      Forall3 ts us vs -> length ts = length vs.
+  Proof using.
+    intros ts us vs h.
+    rewrite Forall3_forall in h.
+    intuition.
+  Qed.
+
+  Lemma Forall3_length23 : forall ts us vs,
+      Forall3 ts us vs -> length us = length vs.
+  Proof using.
+    intros ts us vs h.
+    rewrite Forall3_forall in h.
+    intuition.
+  Qed.
+  
   Local Hint Resolve nth_error_combine : core.
   Local Hint Resolve nth_error_in_combine : core.
 
@@ -1020,3 +1044,19 @@ Section Forall2_nth_update_l.
     eauto using Forall2_nth_update_r.
   Qed.
 End Forall2_nth_update_l.
+
+Section Forall4.
+  Context {T U V W : Type}.
+  Variable R : T -> U -> V -> W -> Prop.
+
+  Inductive Forall4 :
+    list T -> list U -> list V -> list W -> Prop :=
+  | Forall4_nil : Forall4 [] [] [] []
+  | Forall4_cons t u v w ts us vs ws :
+    R t u v w ->
+    Forall4 ts us vs ws ->
+    Forall4 (t :: ts) (u :: us) (v :: vs) (w :: ws).
+
+  
+
+End Forall4.

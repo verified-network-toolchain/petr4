@@ -180,6 +180,32 @@ Fixpoint shift_s
     => If shift_e sh e Then shift_s sh s₁ Else shift_s sh s₂
   end.
 
+Definition shift_ctrl_decl
+  (sh : shifter) (d : Control.d) : Control.d :=
+  match d with
+  | Control.Var x te => Control.Var x $ map_sum id (shift_e sh) te
+  | Control.Action a cps dps s => Control.Action a cps dps $ shift_s sh s
+  | Control.Table t key argss =>
+      Control.Table
+        t (map (fun '(e, mk) => (shift_e sh e, mk)) key)
+        (map (fun '(a, args) => (a, map (shift_arg sh) args)) argss)
+  end.
+
+Fixpoint shift_ctrl_decls
+  (sh : shifter) (ds : list Control.d) : list Control.d :=
+  match ds with
+  | [] => []
+  | Control.Var x te as d :: ds =>
+      shift_ctrl_decl sh d :: shift_ctrl_decls (shext sh) ds
+  | d :: ds => shift_ctrl_decl sh d :: shift_ctrl_decls sh ds
+  end.
+
+(*Definition shift_top_decl
+  (sh : shifter) (d : TopDecl.d) : TopDecl.d :=
+  match d with
+  | TopDecl.Instantiate
+  end.*)
+
 Local Close Scope stmt_scope.
 
 Section Shift0.

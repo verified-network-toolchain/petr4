@@ -21,6 +21,15 @@ Proof.
   assert (n < List.length us) by lia; auto.
 Qed.
 
+Lemma Forall_conj : forall (U : Type) (P Q : U -> Prop) us,
+    Forall (fun u => P u /\ Q u) us <-> Forall P us /\ Forall Q us.
+Proof.
+  intros.
+  do 3 rewrite Forall_forall.
+  rewrite <- forall_conj_distr.
+  firstorder.
+Qed.
+
 Section MapCombine.
   Variables U V : Type.
   

@@ -246,12 +246,6 @@ Section EnvDefs.
       firstorder.
     Qed.
 
-    Lemma forall_conj_distr : forall (U : Type) (P Q : U -> Prop),
-        (forall u, P u /\ Q u) <-> (forall u, P u) /\ forall u, Q u.
-    Proof.
-      firstorder.
-    Qed.
-
     Lemma disjoint_nexists : forall e1 e2,
         disjoint e1 e2 -> ~ exists k v, find k e1 = Some v /\ find k e2 = Some v.
     Proof.

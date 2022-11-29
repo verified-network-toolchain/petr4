@@ -1,6 +1,7 @@
 Require Export Coq.micromega.Lia Poulet4.P4cub.Syntax.Syntax Coq.Arith.PeanoNat.
 From Poulet4.P4cub Require Export Syntax.Shift Semantics.Dynamic.BigStep.BigStep
-  Transformations.Lifting.Lift Semantics.Dynamic.BigStep.Properties.
+  Transformations.Lifting.Lift Semantics.Dynamic.BigStep.Properties
+  Transformations.Lifting.Statementize.
 Import Nat AllCubNotations (*Clmt.Notations*) Val.ValueNotations.
 
 (** Big-step evaluation specification for lifting in [Statementize.v] *)
@@ -32,7 +33,7 @@ Section EvalDeclList.
   Lemma eval_decl_list_app : forall es1 es2 vs1 vs2,
       eval_decl_list es1 vs1 ->
       eval_decl_list es2 vs2 ->
-      eval_decl_list (shift_elist (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
+      eval_decl_list (shift_list shift_e (Shifter 0 (length es1)) es2 ++ es1) (vs2 ++ vs1).
   Proof using.
     intros es1 es2 vs1 vs2 h1 h2.
     generalize dependent vs1.
@@ -49,7 +50,7 @@ Section EvalDeclList.
   Lemma shift_pairs_eval_snd : forall ess vss,
       Forall2 eval_decl_list (map snd ess) vss ->
       eval_decl_list
-        (concat (map snd (shift_pairs ess)))
+        (concat (map snd (shift_pairs shift_e ess)))
         (concat vss).
   Proof using.
     intros ess vss h.
@@ -60,7 +61,7 @@ Section EvalDeclList.
     pose proof IHh ess ltac:(auto) as ih; clear IHh.
     rewrite map_snd_map, map_id.
     assert (list_sum (map (length (A:=Expr.e)) (map snd ess))
-            = length (concat (map snd (shift_pairs ess)))) as hlen.
+            = length (concat (map snd (shift_pairs shift_e ess)))) as hlen.
     { unfold list_sum.
       rewrite <- sublist.length_concat.
       do 2 rewrite <- flat_map_concat_map.
@@ -74,7 +75,7 @@ Section EvalDeclList.
       Forall2 eval_decl_list ess vss ->
       Forall2
         (expr_big_step (concat vss ++ ϵ))
-        (map fst (shift_pairs (combine es ess))) vs.
+        (map fst (shift_pairs shift_e (combine es ess))) vs.
   Proof.
     intros es ess vs vss hl hF3.
     generalize dependent ess.
@@ -107,7 +108,7 @@ Section EvalDeclList.
       assumption.
     - intros n e v he hv.
       rewrite nth_error_map in he.
-      destruct (nth_error (map fst (shift_pairs (combine us ess))) n)
+      destruct (nth_error (map fst (shift_pairs shift_e (combine us ess))) n)
         as [se |] eqn:hse;
         cbn in *;
         try discriminate.
@@ -271,9 +272,14 @@ Section StatementLifting.
     - inv H.
       pose proof Lift_e_good _ _ _ H2 _ _ H1 as (vs & hvs & hv).
       eauto.
+    - inv hc. (*eapply eval_decl_list_Unwind; eauto.*) admit.
+    - admit.
     - pose proof Lift_e_good_lv _ _ _ H _ _ H3 as (vs1 & hvs1 & hv1).
       pose proof Lift_e_good _ _ _ H0 _ _ H5 as (vs2 & hvs2 & hv2).
       eapply eval_decl_list_Unwind; eauto. admit.
+    - admit.
+    - admit.
+    - admit.
     - econstructor; eauto.
       eapply IHhs; cbn; eauto.
     - pose proof Lift_e_good _ _ _ H _ _ H4 as (vs & hvs & hv).

@@ -91,6 +91,13 @@ Section ShiftList.
     | [] => []
     | h :: t => f (smother sh (length t)) h :: shift_list t
     end.
+
+  Lemma shift_list_length : forall l,
+      length (shift_list l) = length l.
+  Proof using.
+    intro l; induction l as [| h t ih];
+      cbn; f_equal; auto.
+  Qed.
 End ShiftList.
 
 Lemma shift_e_add : forall m n e,
@@ -166,7 +173,7 @@ Fixpoint shift_s
     => Stmt.Transition $ shift_transition sh e
   | e1 `:= e2 => shift_e sh e1 `:= shift_e sh e2
   | Stmt.Call fk args
-    => Stmt.Call fk $ map (shift_arg sh) args
+    => Stmt.Call (shift_fun_kind sh fk) $ map (shift_arg sh) args
   | Stmt.Apply x eas args
     => Stmt.Apply
         x eas
@@ -224,6 +231,15 @@ Section Shift0.
   Local Hint Rewrite shift_arg_0_map : core.
   Local Hint Rewrite shift_trans_0 : core.
 
+  Lemma shift_fun_kind_0 : forall fk c,
+      shift_fun_kind (Shifter c 0) fk = fk.
+  Proof using.
+    intros [f ts [e |] | a es | ext mthd ts [e |]] c; unravel;
+      autorewrite with core; reflexivity.
+  Qed.
+
+  Local Hint Rewrite shift_fun_kind_0 : core.
+  
   Lemma shift_s_0 : forall s c, shift_s (Shifter c 0) s = s.
   Proof using.
     intro s;

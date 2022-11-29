@@ -1,7 +1,8 @@
 Require Import Coq.Strings.String.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
-     P4cub.Syntax.CubNotations P4cub.Syntax.Shift.
+     P4cub.Syntax.CubNotations P4cub.Syntax.Shift
+     Utils.ForallMap.
 Import ListNotations AllCubNotations.
 
 Open Scope nat_scope.
@@ -12,15 +13,35 @@ Section ShiftPairs.
   Context {A : Set}.
   Variable f : shifter -> A -> A.
 
-Fixpoint shift_pairs (l : list (A * list Expr.e)) : list (A * list Expr.e) :=
-  match l with
-  | [] => []
-  | (a, es) :: l
-    => let n := list_sum $ map (@length _) $ map snd l in
-      (f (Shifter (length es) n) a,
-        shift_list shift_e (Shifter 0 n) es) ::
-        map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
-  end.
+  Fixpoint shift_pairs (l : list (A * list Expr.e)) : list (A * list Expr.e) :=
+    match l with
+    | [] => []
+    | (a, es) :: l
+      => let n := list_sum $ map (@length _) $ map snd l in
+        (f (Shifter (length es) n) a,
+          shift_list shift_e (Shifter 0 n) es) ::
+          map (fun '(a, es') => (f (Shifter 0 $ length es) a, es')) (shift_pairs l)
+    end.
+  
+  Lemma shift_pairs_length : forall l,
+      length (shift_pairs l) = length l.
+  Proof using.
+    intro l; induction l as [| [a es] l ih];
+      unravel; f_equal; auto.
+    rewrite map_length. assumption.                     
+  Qed.
+
+  Lemma shift_pairs_inner_length : forall l,
+      map (length (A:=Expr.e)) (map snd (shift_pairs l))
+      = map (length (A:=Expr.e)) (map snd l).
+  Proof using.
+    intro l; induction l as [| [a es] l ih];
+      unravel; f_equal; auto.
+    - rewrite shift_list_length.
+      reflexivity.
+    - rewrite map_snd_map,map_id.
+      assumption.
+  Qed.
 End ShiftPairs.
 
 (** [lift_e e = (l, e')],

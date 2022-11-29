@@ -67,7 +67,7 @@ Local Hint Resolve type_header : core.
 Local Hint Constructors type_lists_ok : core.
 Local Hint Constructors t_ok_lists : core.
 
-Theorem lift_e_type_expr : forall Δ Γ e τ,
+(*Theorem lift_e_type_expr : forall Δ Γ e τ,
     Forall (t_ok Δ) Γ ->
     `⟨ Δ, Γ ⟩ ⊢ e ∈ τ -> forall us l e',
       lift_e (length us) e = (l, e') -> exists τs,
@@ -358,4 +358,4 @@ Proof.
     + destruct H4 as [? H]; subst. econstructor; eauto.*)
       
       
-Admitted.
+Admitted.*)

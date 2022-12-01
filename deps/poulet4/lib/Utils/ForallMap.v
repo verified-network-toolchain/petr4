@@ -839,6 +839,17 @@ Proof.
   eauto using Forall3_impl_Forall2_13_Forall2_23.
 Qed.
 
+Lemma Forall3_impl_Forall3 :
+  forall (T U V : Type) (R Q : T -> U -> V -> Prop) ts us vs,
+    Forall3 (fun t u v => R t u v -> Q t u v) ts us vs ->
+    Forall3 R ts us vs ->
+    Forall3 Q ts us vs.
+Proof.
+  intros T U V R Q ts us vs hi h;
+    induction hi; inv h;
+    constructor; auto.
+Qed.
+
 Lemma Forall2_repeat_l : forall (U V : Set) (R : U -> V -> Prop) u vs,
     Forall (R u) vs -> Forall2 R (repeat u (List.length vs)) vs.
 Proof.
@@ -1054,6 +1065,33 @@ Section Forall2_nth_update_l.
   Qed.
 End Forall2_nth_update_l.
 
+Section Forall2Pat.
+  Variables T U V : Type.
+  Variable R : T -> U -> V -> Prop.
+
+  Lemma Forall2_patl : forall tus vs,
+      Forall2 (fun '(t,u) v => R t u v) tus vs
+      <-> Forall2 (fun tu v => R (fst tu) (snd tu) v) tus vs.
+  Proof using.
+    intros.
+    do 2 rewrite Forall2_forall_nth_error.
+    split; intros [hlen h]; split;
+      assumption || intros n [t u] v htu hv;
+      firstorder.
+  Qed.
+
+  Lemma Forall2_patr : forall ts uvs,
+      Forall2 (fun t '(u,v) => R t u v) ts uvs
+      <-> Forall2 (fun t uv => R t (fst uv) (snd uv)) ts uvs.
+  Proof using.
+    intros.
+    do 2 rewrite Forall2_forall_nth_error.
+    split; intros [hlen h]; split;
+      assumption || intros n t [u v] ht huv;
+      firstorder.
+  Qed.
+End Forall2Pat.
+
 Section Forall4.
   Context {T U V W : Type}.
   Variable R : T -> U -> V -> W -> Prop.
@@ -1065,7 +1103,4 @@ Section Forall4.
     R t u v w ->
     Forall4 ts us vs ws ->
     Forall4 (t :: ts) (u :: us) (v :: vs) (w :: ws).
-
-  
-
 End Forall4.

@@ -1,4 +1,4 @@
-Require Import Coq.Strings.String.
+Require Import Coq.Strings.String Coq.NArith.BinNat.
 From Poulet4 Require Import
      P4cub.Syntax.AST P4cub.Syntax.Auxiliary
      P4cub.Syntax.CubNotations P4cub.Syntax.Shift
@@ -63,7 +63,7 @@ Fixpoint lift_e (e : Expr.e) {struct e}
       (Expr.Var t "" 0, Expr.Uop t op e :: inits)
   | Expr.Slice hi lo e =>
       let '(e, inits) := lift_e e in
-      (Expr.Var (t_of_e e) "" 0, Expr.Slice hi lo e :: inits)
+      (Expr.Var (Expr.TBit (Npos hi - Npos lo + 1)%N) "" 0, Expr.Slice hi lo e :: inits)
   | Expr.Cast t e =>
       let '(e, inits) := lift_e e in
       (Expr.Var t "" 0, Expr.Cast t e :: inits)
@@ -85,8 +85,8 @@ Fixpoint lift_e (e : Expr.e) {struct e}
           (shift_e (Shifter (length l2) (length l1)) e2)
           :: shift_list shift_e (Shifter 0 (length l1)) l2 ++ l1)
   | Expr.Lists l es =>
-      let '(es, les) := List.split (shift_pairs shift_e $ List.map lift_e es) in
-      (Expr.Var (t_of_e e) "" 0, Expr.Lists l es :: concat les)
+      let '(es', les) := List.split (shift_pairs shift_e $ List.map lift_e es) in
+      (Expr.Var (t_of_lists l es) "" 0, Expr.Lists l es' :: concat les)
   end.
 
 Definition lift_e_list (es : list Expr.e) : list Expr.e * list Expr.e :=

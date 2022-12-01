@@ -47,6 +47,8 @@ Section EvalDeclList.
     eauto.
   Qed.
 
+  Local Hint Resolve eval_decl_list_app : core.
+  
   Lemma shift_pairs_eval_snd : forall ess vss,
       Forall2 eval_decl_list (map snd ess) vss ->
       eval_decl_list
@@ -63,11 +65,11 @@ Section EvalDeclList.
     assert (list_sum (map (length (A:=Expr.e)) (map snd ess))
             = length (concat (map snd (shift_pairs shift_e ess)))) as hlen.
     { unfold list_sum.
-      rewrite <- sublist.length_concat.
-      do 2 rewrite <- flat_map_concat_map.
-      admit. }
+      rewrite sublist.length_concat.
+      rewrite shift_pairs_inner_length.
+      reflexivity. }
     rewrite hlen. auto.
-  Admitted.
+  Qed.
 
   Lemma shift_pairs_eval_fst : forall es ess vs vss,
       length es = length ess ->
@@ -76,7 +78,7 @@ Section EvalDeclList.
       Forall2
         (expr_big_step (concat vss ++ ϵ))
         (map fst (shift_pairs shift_e (combine es ess))) vs.
-  Proof.
+  Proof using.
     intros es ess vs vss hl hF3.
     generalize dependent ess.
     induction hF3; intros [| E ess] hl hF2;
@@ -92,7 +94,12 @@ Section EvalDeclList.
         in H5 by assumption.
       apply shift_pairs_eval_snd in H5.
       apply eval_decl_list_length in H5.
-      admit. }
+      rewrite sublist.length_concat in H5 at 1.
+      rewrite shift_pairs_inner_length in H5.
+      rewrite <- sublist.length_concat in H5.
+      rewrite <- H5.
+      rewrite map_snd_combine by eauto.
+      reflexivity. }
     rewrite hlen.
     rewrite (eval_decl_list_length _ _ H3).
     constructor; auto using shift_e_eval.
@@ -117,7 +124,7 @@ Section EvalDeclList.
       pose proof shift_e_eval [] t0 _ _ _ h as H;
         cbn in H.
       assumption.
-  Admitted.
+  Qed.
 End EvalDeclList.
 
 Lemma eval_decl_list_append : forall ϵ vs1 vs2 l1 l2,
@@ -141,6 +148,7 @@ Section EvalExpr.
   Local Hint Constructors eval_decl_list : core.
   Local Hint Constructors expr_big_step : core.
   Local Hint Resolve shift_e_eval : core.
+  Local Hint Constructors Forall3 : core.
   
   Lemma Lift_e_good : forall e v,
       ⟨ ϵ, e ⟩ ⇓ v -> forall e' es,
@@ -183,10 +191,15 @@ Section EvalExpr.
         eauto using Forall3_length12. }
       pose proof h _ hlenvses' as h'; clear h; rename h' into h.
       clear hlenesvs hlenvses'.
-      assert (exists vss, Forall2 (eval_decl_list ϵ) ess vss)
-        as [vss hvss] by admit.
-      assert (Forall3 (fun vs e' v => ⟨ vs ++ ϵ, e' ⟩ ⇓ v) vss es' vs)
-        as hes' by admit.
+      assert
+        (exists vss,
+            Forall2 (eval_decl_list ϵ) ess vss
+            /\ Forall3 (fun vs e' v => ⟨ vs ++ ϵ, e' ⟩ ⇓ v) vss es' vs)
+        as (vss & hvss & hes').
+      { clear dependent ls.
+        generalize dependent ess.
+        generalize dependent es'.
+        induction H; intros es' ih ess IH; inv ih; inv IH; firstorder eauto. }
       clear h.
       exists (Val.Lists ls vs :: concat vss).
       split; auto.
@@ -198,7 +211,7 @@ Section EvalExpr.
         rewrite sublist.combine_snd
           by eauto using Forall3_length23.
         assumption.
-  Admitted.
+  Qed.
 
   Local Hint Constructors lexpr_big_step : core.
   Local Hint Resolve Lift_e_good : core.

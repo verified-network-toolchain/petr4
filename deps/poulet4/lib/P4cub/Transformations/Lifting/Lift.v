@@ -273,6 +273,134 @@ Section Liftlift.
     intros n [e es] [e' es''] H H'.
     firstorder.
   Qed.
+
+  Local Hint Resolve Lift_lift_e : core.
+
+  Ltac apply_Lift_lift_e :=
+    match goal with
+    | h: Lift_e _ _ _
+      |- _ => apply Lift_lift_e in h; rewrite h
+    end.
+
+  Local Hint Extern 5 => apply_Lift_lift_e : core.
+
+  Lemma Lift_lift_arg : forall arg arg' es,
+      Lift_arg arg arg' es ->
+      lift_arg arg = (arg', es).
+  Proof.
+    intros arg arg' es h; inv h; cbn; auto.
+  Qed.
+
+  Local Hint Resolve Lift_lift_arg : core.
+
+  Ltac apply_Lift_lift_arg :=
+    match goal with
+    | h: Lift_arg _ _ _
+      |- _ => apply Lift_lift_arg in h; rewrite h
+    end.
+  
+  Local Hint Extern 5 => apply_Lift_lift_arg : core.
+
+  Lemma Lift_lift_trans : forall pe pe' es,
+      Lift_trans pe pe' es ->
+      lift_trans pe = (pe',es).
+  Proof.
+    intros pe pe' es h; inv h; unravel; auto.
+  Qed.
+
+  Local Hint Resolve Lift_lift_trans : core.
+  
+  Ltac apply_Lift_lift_trans :=
+      match goal with
+      | h: Lift_trans _ _ _
+        |- _ => apply Lift_lift_trans in h; rewrite h
+      end.
+
+  Local Hint Extern 5 => apply_Lift_lift_trans : core.
+
+  Lemma Forall3_Lift_lift_e : forall es es' ess,
+      Forall3 Lift_e es es' ess ->
+      map lift_e es = combine es' ess.
+  Proof.
+    intros es es' ess h;
+      induction h; cbn; f_equal; auto.
+  Qed.
+
+  Ltac apply_Forall3_Lift_lift_e :=
+    match goal with
+    | h : Forall3 Lift_e _ _ _
+      |- _ => apply Forall3_Lift_lift_e in h; rewrite h
+    end.
+
+  Local Hint Extern 5 => apply_Forall3_Lift_lift_e : core.
+  
+  Lemma Lift_lift_fun_kind : forall fk fk' es,
+      Lift_fun_kind fk fk' es ->
+      lift_fun_kind fk = (fk', es).
+  Proof.
+    intros fk fk' es h; inv h; unravel; auto.
+    unfold lift_e_list.
+    destruct (split (shift_pairs shift_e $ map lift_e cargs))
+      as [es les] eqn:hs.
+    rewrite split_map in hs; unravel in hs; inv hs.
+    auto.
+  Qed.
+
+  Local Hint Resolve Lift_lift_fun_kind : core.
+
+  Ltac apply_Lift_lift_fun_kind :=
+      match goal with
+      | h: Lift_fun_kind _ _ _
+        |- _ => apply Lift_lift_fun_kind in h; rewrite h
+      end.
+
+  Local Hint Extern 5 => apply_Lift_lift_fun_kind : core.
+  
+  Lemma Forall3_Lift_lift_arg : forall args args' ess,
+      Forall3 Lift_arg args args' ess ->
+      map lift_arg args = combine args' ess.
+  Proof.
+    intros es es' ess h;
+      induction h; cbn; f_equal; auto.
+  Qed.
+
+  Ltac apply_Forall3_Lift_lift_arg :=
+    match goal with
+    | h : Forall3 Lift_arg _ _ _
+      |- _ => apply Forall3_Lift_lift_arg in h; rewrite h
+    end.
+
+  Local Hint Extern 5 => apply_Forall3_Lift_lift_arg : core.
+
+  Lemma Lift_lift_s : forall s s',
+      Lift_s s s' -> lift_s s = s'.
+  Proof.
+    intros s s' h; induction h; unravel; subst; auto.
+    - apply_Lift_lift_fun_kind.
+      unfold lift_args.
+      destruct
+        (split (shift_pairs shift_arg $ map lift_arg args))
+        as [Args les] eqn:hsplit.
+      rewrite split_map in hsplit.
+      unravel in *; inv hsplit.
+      rewrite sublist.length_concat.
+      rewrite shift_pairs_inner_length.
+      rewrite <- sublist.length_concat.
+      assert (hlen12 : length args = length args')
+        by eauto using Forall3_length12.
+      assert (hlen13 : length args = length argsess)
+        by eauto using Forall3_length13.
+      assert (hlen23 : length args' = length argsess)
+        by eauto using Forall3_length23.
+      apply_Forall3_Lift_lift_arg.
+      repeat f_equal; auto using map_snd_combine.
+    - unfold lift_args.
+      destruct
+        (split (shift_pairs shift_arg $ map lift_arg args))
+        as [Args les] eqn:hsplit.
+      rewrite split_map in hsplit.
+      unravel in *; inv hsplit. auto.
+  Qed.
 End Liftlift.
 
 Section liftLift.
